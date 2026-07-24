@@ -460,7 +460,10 @@ def _terminate_all_tracked_processes() -> None:
         if proc.poll() is None:
             try:
                 proc.terminate()
-            except Exception:
+            except OSError:
+                # Best-effort cleanup during shutdown — a process that exited
+                # between poll() and terminate() must not block terminating
+                # the rest of the tracked processes.
                 pass
 
 

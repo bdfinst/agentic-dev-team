@@ -78,6 +78,7 @@ def _run_hook(scratch: dict[str, object]) -> subprocess.CompletedProcess:
         input=scratch["stdin"],
         capture_output=True,
         text=True,
+        check=False,
     )
 
 

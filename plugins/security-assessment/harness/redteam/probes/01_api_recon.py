@@ -29,7 +29,7 @@ def _probe_path(path: str) -> dict:
         return {"path": path, "status": None, "note": "no-response"}
     ct = resp.headers.get("content-type", "")
     # Cap body preview at 2KB
-    body_preview = (resp.text or "")[:2048] if ct.startswith("application/json") or ct.startswith("text/") else ""
+    body_preview = (resp.text or "")[:2048] if ct.startswith(("application/json", "text/")) else ""
     return {
         "path": path,
         "status": resp.status_code,
@@ -71,6 +71,6 @@ def run() -> None:
         servers = {(p.get("headers") or {}).get("server", "") for p in findings["doc_paths"] + findings["standard_paths"]}
         servers.discard("")
         if servers:
-            findings["inferred_framework"] = f"server-header: {sorted(servers)[0]}"
+            findings["inferred_framework"] = f"server-header: {min(servers)}"
 
     result_store.save("01_recon", findings)

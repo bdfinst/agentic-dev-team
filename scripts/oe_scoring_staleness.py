@@ -98,7 +98,7 @@ def write_manifest(suite_dir: Path, manifest_path: Path, trials_per_pair: int,
     snap = scan_inputs(suite_dir, repo_root)
     manifest = {
         "scored_at": subprocess.run(
-            ["date", "+%Y-%m-%d"], capture_output=True, text=True
+            ["date", "+%Y-%m-%d"], capture_output=True, text=True, check=False
         ).stdout.strip() or "unknown",
         "scored_commit": _git_commit(),
         "trials_per_pair": trials_per_pair,

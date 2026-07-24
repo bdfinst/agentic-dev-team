@@ -56,6 +56,7 @@ def resolve_rollback_point(
         cwd=repo_root,
         capture_output=True,
         text=True,
+        check=False,
     )
     if result.returncode != 0:
         raise ValueError(f"could not resolve ref {ref!r}: {result.stderr.strip()}")
@@ -99,6 +100,7 @@ def _is_ancestor(candidate_sha: str, of_ref: str, repo_root: str) -> bool:
         cwd=repo_root,
         capture_output=True,
         text=True,
+        check=False,
     )
     return result.returncode == 0
 

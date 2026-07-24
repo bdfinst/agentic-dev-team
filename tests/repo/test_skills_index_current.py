@@ -28,6 +28,7 @@ def _run_builder(
         env=full_env,
         capture_output=True,
         text=True,
+        check=False,
     )
 
 
@@ -41,10 +42,10 @@ def test_every_skill_on_disk_appears_in_the_generated_catalog() -> None:
     disk = sorted(p.name for p in skills_dir.iterdir() if p.is_dir())
     catalog = (REPO_ROOT / "plugins" / "dev-team" / "docs" / "skills.md").read_text()
     indexed = sorted(
-        set(
+        {
             m.group(1)
             for m in re.finditer(r"skills/([A-Za-z0-9._-]+)/SKILL\.md", catalog)
-        )
+        }
     )
     assert disk == indexed
 

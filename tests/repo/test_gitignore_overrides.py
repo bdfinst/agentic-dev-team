@@ -28,6 +28,7 @@ def test_path_is_gitignored(path: str) -> None:
         cwd=str(REPO_ROOT),
         capture_output=True,
         text=True,
+        check=False,
     )
     assert result.returncode == 0, (
         f"{path} is not gitignored: {result.stdout}{result.stderr}"

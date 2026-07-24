@@ -23,6 +23,7 @@ def _run(*args: str) -> subprocess.CompletedProcess:
         [sys.executable, str(EXTRACT), *args, "--plugin-root", str(PLUGIN)],
         capture_output=True,
         text=True,
+        check=False,
     )
 
 

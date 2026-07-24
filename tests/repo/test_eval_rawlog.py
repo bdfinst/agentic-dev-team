@@ -42,7 +42,10 @@ def case(tmp_path: Path) -> Path:
 
 def _run(*args: str) -> subprocess.CompletedProcess:
     return subprocess.run(
-        [sys.executable, str(RAWLOG), *args], capture_output=True, text=True
+        [sys.executable, str(RAWLOG), *args],
+        capture_output=True,
+        text=True,
+        check=False,
     )
 
 

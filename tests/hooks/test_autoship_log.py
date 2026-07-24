@@ -84,6 +84,7 @@ class TestCLI:
             [sys.executable, module, *args],
             capture_output=True,
             text=True,
+            check=False,
         )
 
     def test_cli_creates_log_file(self, tmp_path):

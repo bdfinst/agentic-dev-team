@@ -156,9 +156,7 @@ def qualifies_for_fast_path(result: NumstatResult) -> bool:
         return False
     if result.added_lines > MAX_ADDED_LINES:
         return False
-    if any(is_gate_machinery(f) for f in result.files):
-        return False
-    return True
+    return not any(is_gate_machinery(f) for f in result.files)
 
 
 def evaluate(lines: Iterable[str]) -> dict:
@@ -187,11 +185,11 @@ def main(argv=None) -> int:
 
     lines = list(args.numstat)
     if args.numstat_from:
-        text = (
-            sys.stdin.read()
-            if args.numstat_from == "-"
-            else open(args.numstat_from).read()
-        )
+        if args.numstat_from == "-":
+            text = sys.stdin.read()
+        else:
+            with open(args.numstat_from) as handle:
+                text = handle.read()
         lines.extend(line for line in text.splitlines() if line.strip())
 
     print(json.dumps(evaluate(lines), sort_keys=True))

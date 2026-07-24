@@ -56,6 +56,7 @@ def _esc(digests: Path, *extra: str) -> dict:
             str(PLUGIN),
             *extra,
         ],
+        check=False,
         capture_output=True,
         text=True,
     )

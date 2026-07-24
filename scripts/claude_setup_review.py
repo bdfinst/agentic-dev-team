@@ -306,6 +306,7 @@ def check_llm(root: Path, skip_llm: bool, errors: list[dict]) -> list[dict]:
             capture_output=True,
             text=True,
             timeout=60,
+            check=False,
         )
         if result.returncode != 0 or not result.stdout.strip():
             return [

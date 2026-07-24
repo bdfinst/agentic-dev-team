@@ -73,9 +73,7 @@ def _shard_for_file(changed_file: str) -> Path | None:
             continue
         if not src_prefix:
             continue
-        if changed_file.startswith(src_prefix + "/") or changed_file.startswith(
-            src_prefix
-        ):
+        if changed_file.startswith((src_prefix + "/", src_prefix)):
             return shard_cfg
     return None
 
@@ -84,9 +82,7 @@ def _is_cs_source(line: str) -> bool:
     """True for a non-test C# source path."""
     if not line.endswith(".cs"):
         return False
-    if "Test" in line or "Spec" in line:
-        return False
-    return True
+    return not ("Test" in line or "Spec" in line)
 
 
 def _changed_cs_file() -> str:

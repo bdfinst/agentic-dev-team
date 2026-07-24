@@ -211,8 +211,8 @@ def run_grading(expected_dir: Path, actuals: dict, baseline: dict | None,
                 if grader is None:
                     results.append(
                         (pair, False,
-                         [f"unknown grader {grader_name!r} (known: "
-                          f"{', '.join(registered_graders())})"]))
+                         [(f"unknown grader {grader_name!r} (known: "
+                          f"{', '.join(registered_graders())})")]))
                     continue
                 fails = grader(espec, got)
                 results.append((pair, not fails, fails))

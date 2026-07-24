@@ -44,8 +44,8 @@ _SCRIPT_PY = _SCRIPT_DIR / "specs_convention_marker.py"
     [
         ("Specs and plans are GitHub issues here, not files.", True),
         (
-            "- **Specs and plans are GitHub issues here, not files.** When "
-            "developing this repo...",
+            ("- **Specs and plans are GitHub issues here, not files.** When "
+            "developing this repo..."),
             True,
         ),
         ("SPECS AND PLANS ARE GITHUB ISSUES HERE, NOT FILES", True),

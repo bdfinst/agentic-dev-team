@@ -21,15 +21,16 @@ ARMS = ["tdd-refactor", "no-refactor-single", "one-shot-single", "continuous-sin
 
 def load():
     cells = defaultdict(dict)  # (task,arm,trial) -> {stage: row}
-    for line in open(MERGED):
-        line = line.strip()
-        if not line:
-            continue
-        try:
-            r = json.loads(line)
-        except Exception:
-            continue
-        cells[(r["task"], r["arm"], r["trial"])][r["stage"]] = r
+    with open(MERGED) as f:
+        for line in f:
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                r = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            cells[(r["task"], r["arm"], r["trial"])][r["stage"]] = r
     return cells
 
 
@@ -108,10 +109,10 @@ def main():
         edge = round(100 * st.mean(d["edge"]))
         viol = sum(d["violation"])
         bpd = round(cb / co, 1) if cb and co else None
-        summary["arms"][arm] = dict(cum_blast=cb, cost=co, blast_per_dollar=bpd,
-                                    mutation=mut, coverage=cov, mi=mi, ccn=ccn,
-                                    core_pass=core, edge_pass=edge, violations=viol,
-                                    blast_by_task=blast_taskmed)
+        summary["arms"][arm] = {"cum_blast": cb, "cost": co, "blast_per_dollar": bpd,
+                                    "mutation": mut, "coverage": cov, "mi": mi, "ccn": ccn,
+                                    "core_pass": core, "edge_pass": edge, "violations": viol,
+                                    "blast_by_task": blast_taskmed}
         print(f"{arm:22s}{cb:>10.1f}{co:>8.2f}{(bpd or 0):>9.1f}"
               f"{(mut or 0):>6.2f}{(cov or 0):>6.0f}{(mi or 0):>7.1f}{(ccn or 0):>6.1f}"
               f"{core:>5d}%{edge:>5d}%{viol:>5d}")
@@ -133,7 +134,7 @@ def main():
         b = med([summary["arms"][a]["cum_blast"] for a in arms])
         c = med([summary["arms"][a]["cost"] for a in arms])
         mi = med([summary["arms"][a]["mi"] for a in arms])
-        gran_eff[g] = dict(cum_blast=b, cost=c, mi=mi)
+        gran_eff[g] = {"cum_blast": b, "cost": c, "mi": mi}
         print(f"  granularity={g:11s} cum_blast={b}  cost=${c}  MI={mi}")
     auth_eff = {}
     for au in ("single", "split"):
@@ -142,12 +143,13 @@ def main():
         c = med([summary["arms"][a]["cost"] for a in arms])
         mut = med([summary["arms"][a]["mutation"] for a in arms])
         edge = med([summary["arms"][a]["edge_pass"] for a in arms])
-        auth_eff[au] = dict(cum_blast=b, cost=c, mutation=mut, edge_pass=edge)
+        auth_eff[au] = {"cum_blast": b, "cost": c, "mutation": mut, "edge_pass": edge}
         print(f"  authorship={au:8s} cum_blast={b}  cost=${c}  mutation={mut}  EDGE={edge}%")
     summary["granularity_effect"] = gran_eff
     summary["authorship_effect"] = auth_eff
 
-    json.dump(summary, open(OUT, "w"), indent=2)
+    with open(OUT, "w") as f:
+        json.dump(summary, f, indent=2)
     print(f"\nwrote {OUT}")
 
 

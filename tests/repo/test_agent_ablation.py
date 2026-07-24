@@ -290,7 +290,7 @@ def test_find_latest_ablation_record_missing_file_returns_none(tmp_path):
 
 def _run_cli(*args: str) -> subprocess.CompletedProcess:
     return subprocess.run(
-        [sys.executable, str(ABLATION_PATH), *args], capture_output=True, text=True
+        [sys.executable, str(ABLATION_PATH), *args], check=False, capture_output=True, text=True
     )
 
 

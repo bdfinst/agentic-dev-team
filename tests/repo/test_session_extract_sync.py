@@ -67,6 +67,7 @@ def _sync(scratch: dict[str, Path]) -> subprocess.CompletedProcess:
         ],
         capture_output=True,
         text=True,
+        check=False,
     )
 
 
@@ -186,6 +187,7 @@ def test_sync_record_carries_correction_by_skill_and_by_agent(
         ],
         capture_output=True,
         text=True,
+        check=False,
     )
     assert result.returncode == 0, result.stdout + result.stderr
     records = _records(out)
@@ -211,6 +213,7 @@ def test_all_projects_non_sync_digest_aggregates_sessions_across_projects(
         ],
         capture_output=True,
         text=True,
+        check=False,
     )
     assert result.returncode == 0, result.stdout + result.stderr
     data = json.loads(result.stdout)

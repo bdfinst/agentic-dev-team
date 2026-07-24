@@ -101,19 +101,16 @@ def filter_entries(
     with no filters is an identity pass-through.
     """
     for entry in entries:
-        if event_type is not None:
-            if _first_present(entry, _TYPE_FIELDS) != event_type:
-                continue
-        if session_id is not None:
-            if entry.get("session_id") != session_id:
-                continue
+        if event_type is not None and _first_present(entry, _TYPE_FIELDS) != event_type:
+            continue
+        if session_id is not None and entry.get("session_id") != session_id:
+            continue
         if since is not None:
             ts = _first_present(entry, _TS_FIELDS)
             if not isinstance(ts, str) or ts < since:
                 continue
-        if gate_outcome is not None:
-            if _first_present(entry, _GATE_OUTCOME_FIELDS) != gate_outcome:
-                continue
+        if gate_outcome is not None and _first_present(entry, _GATE_OUTCOME_FIELDS) != gate_outcome:
+            continue
         yield entry
 
 

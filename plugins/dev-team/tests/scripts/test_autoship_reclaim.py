@@ -33,21 +33,21 @@ def _issue(number: int, labeled_at: str, state: str = "OPEN", labels=None) -> di
 
 def test_select_orphaned_reclaims_stale_issue() -> None:
     issues = [_issue(30, "2026-07-01T00:00:00Z")]
-    now = datetime(2026, 7, 3, 0, 0, 0)
+    now = datetime(2026, 7, 3, 0, 0, 0)  # noqa: DTZ001 - naive-UTC to pair with autoship_state.is_stale's naive comparison
     result = autoship_reclaim.select_orphaned(issues, 24, now)
     assert [issue["number"] for issue in result] == [30]
 
 
 def test_select_orphaned_inclusive_at_exact_threshold() -> None:
     issues = [_issue(32, "2026-07-01T00:00:00Z")]
-    now = datetime(2026, 7, 2, 0, 0, 0)
+    now = datetime(2026, 7, 2, 0, 0, 0)  # noqa: DTZ001 - naive-UTC to pair with autoship_state.is_stale's naive comparison
     result = autoship_reclaim.select_orphaned(issues, 24, now)
     assert [issue["number"] for issue in result] == [32]
 
 
 def test_select_orphaned_does_not_reclaim_fresh_issue() -> None:
     issues = [_issue(31, "2026-07-03T05:00:00Z")]
-    now = datetime(2026, 7, 3, 6, 0, 0)
+    now = datetime(2026, 7, 3, 6, 0, 0)  # noqa: DTZ001 - naive-UTC to pair with autoship_state.is_stale's naive comparison
     result = autoship_reclaim.select_orphaned(issues, 24, now)
     assert result == []
 
@@ -58,27 +58,27 @@ def test_select_orphaned_multi_issue_mixed() -> None:
         _issue(41, "2026-07-01T00:00:00Z"),
         _issue(42, "2026-07-03T05:00:00Z"),
     ]
-    now = datetime(2026, 7, 3, 6, 0, 0)
+    now = datetime(2026, 7, 3, 6, 0, 0)  # noqa: DTZ001 - naive-UTC to pair with autoship_state.is_stale's naive comparison
     result = autoship_reclaim.select_orphaned(issues, 24, now)
     assert [issue["number"] for issue in result] == [40, 41]
 
 
 def test_select_orphaned_empty_when_no_in_progress_issues() -> None:
-    now = datetime(2026, 7, 3, 6, 0, 0)
+    now = datetime(2026, 7, 3, 6, 0, 0)  # noqa: DTZ001 - naive-UTC to pair with autoship_state.is_stale's naive comparison
     result = autoship_reclaim.select_orphaned([], 24, now)
     assert result == []
 
 
 def test_select_orphaned_excludes_closed_issue() -> None:
     issues = [_issue(33, "2026-07-01T00:00:00Z", state="CLOSED")]
-    now = datetime(2026, 7, 3, 0, 0, 0)
+    now = datetime(2026, 7, 3, 0, 0, 0)  # noqa: DTZ001 - naive-UTC to pair with autoship_state.is_stale's naive comparison
     result = autoship_reclaim.select_orphaned(issues, 24, now)
     assert result == []
 
 
 def test_select_orphaned_excludes_issue_without_in_progress_label() -> None:
     issues = [_issue(34, "2026-07-01T00:00:00Z", labels=[{"name": "autoship:ready"}])]
-    now = datetime(2026, 7, 3, 0, 0, 0)
+    now = datetime(2026, 7, 3, 0, 0, 0)  # noqa: DTZ001 - naive-UTC to pair with autoship_state.is_stale's naive comparison
     result = autoship_reclaim.select_orphaned(issues, 24, now)
     assert result == []
 
@@ -91,7 +91,7 @@ def test_select_orphaned_falls_back_to_updated_at() -> None:
         "labels": [{"name": "autoship:in-progress"}],
         "updatedAt": "2026-07-01T00:00:00Z",
     }
-    now = datetime(2026, 7, 3, 0, 0, 0)
+    now = datetime(2026, 7, 3, 0, 0, 0)  # noqa: DTZ001 - naive-UTC to pair with autoship_state.is_stale's naive comparison
     result = autoship_reclaim.select_orphaned([issue], 24, now)
     assert [issue["number"] for issue in result] == [50]
 
@@ -137,7 +137,9 @@ def test_parser_has_shared_input_seam() -> None:
         ["--input-file", "fixture.json", "--now-override", "2026-07-08T12:00:00Z"]
     )
     assert args.input_file == "fixture.json"
-    assert args.now_override == datetime(2026, 7, 8, 12, 0, 0)
+    assert args.now_override == datetime(  # noqa: DTZ001 - naive-UTC, matches _iso8601's naive parse
+        2026, 7, 8, 12, 0, 0
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -547,7 +549,7 @@ def test_comment_failure_exits_nonzero_and_leaves_issue_retryable(
     with open(input_file, encoding="utf-8") as fh:
         issues = json.load(fh)
     reselected = autoship_reclaim.select_orphaned(
-        issues, 24, datetime(2026, 7, 3, 0, 0, 0)
+        issues, 24, datetime(2026, 7, 3, 0, 0, 0)  # noqa: DTZ001 - naive-UTC to pair with is_stale's naive comparison
     )
     assert [issue["number"] for issue in reselected] == [30]
 
@@ -586,7 +588,7 @@ def test_relabel_failure_after_successful_comment_exits_nonzero_and_retryable(
     with open(input_file, encoding="utf-8") as fh:
         issues = json.load(fh)
     reselected = autoship_reclaim.select_orphaned(
-        issues, 24, datetime(2026, 7, 3, 0, 0, 0)
+        issues, 24, datetime(2026, 7, 3, 0, 0, 0)  # noqa: DTZ001 - naive-UTC to pair with is_stale's naive comparison
     )
     assert [issue["number"] for issue in reselected] == [30]
 
@@ -778,7 +780,10 @@ def test_reclaim_issue_comment_missing_gh_binary_surfaces_clearly(capsys) -> Non
         side_effect=FileNotFoundError("gh: command not found"),
     ):
         rc = autoship_reclaim._reclaim_issue(
-            _issue(30, "2026-07-01T00:00:00Z"), 24, datetime(2026, 7, 3, 0, 0, 0), False
+            _issue(30, "2026-07-01T00:00:00Z"),
+            24,
+            datetime(2026, 7, 3, 0, 0, 0),  # noqa: DTZ001 - naive-UTC to pair with is_stale's naive comparison
+            False,
         )
     assert rc != 0
     captured = capsys.readouterr()

@@ -48,7 +48,7 @@ def _lesson_entry(
         "new_value": new_value,
         "approved_by": "user",
     }
-    if evidence is not lv.DEFAULT_METRIC or True:
+    if True:
         entry["evidence"] = evidence
     return entry
 

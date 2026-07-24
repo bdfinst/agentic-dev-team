@@ -41,7 +41,7 @@ def sentinel_builder(tmp_path: Path) -> tuple[Path, Path]:
 def _run(
     payload: dict,
     builder: Path,
-    extra_env: dict = None,
+    extra_env: dict | None = None,
 ) -> subprocess.CompletedProcess[str]:
     proc_env = {
         "PATH": os.environ.get("PATH", "/usr/bin:/bin"),

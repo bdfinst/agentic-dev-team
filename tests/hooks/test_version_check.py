@@ -30,7 +30,10 @@ _HOOK_PY = _REPO_ROOT / "plugins" / "dev-team" / "hooks" / "version_check.py"
 
 
 def _cache_path() -> Path:
-    today = datetime.now().strftime("%Y-%m-%d")
+    # Must match version_check.py's own local-time `today` exactly (it
+    # mirrors the ported .sh's `date +%Y-%m-%d`) or the cache path this
+    # test reads/writes diverges from the one the hook under test uses.
+    today = datetime.now().strftime("%Y-%m-%d")  # noqa: DTZ005
     return Path("/tmp") / f"adt-version-check-{today}"
 
 

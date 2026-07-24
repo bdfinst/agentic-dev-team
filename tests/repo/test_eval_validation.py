@@ -76,6 +76,7 @@ def _run_baseline(case: Path, only: str, *extra: str) -> subprocess.CompletedPro
         ],
         capture_output=True,
         text=True,
+        check=False,
     )
 
 
@@ -157,6 +158,7 @@ def test_grader_excludes_quarantined_pairs_from_blocking_231(case: Path) -> None
         ],
         capture_output=True,
         text=True,
+        check=False,
     )
     assert res.returncode == 0, res.stdout + res.stderr
 
@@ -187,6 +189,7 @@ def test_harvest_id_is_stamped_into_every_written_artifact_232_provenance(
         ],
         capture_output=True,
         text=True,
+        check=False,
     )
     assert res.returncode == 0, res.stdout + res.stderr
     baseline = json.loads((case / "baseline.json").read_text())
@@ -220,5 +223,6 @@ def test_grader_still_blocks_a_real_non_quarantined_regression(case: Path) -> No
         ],
         capture_output=True,
         text=True,
+        check=False,
     )
     assert res.returncode == 1

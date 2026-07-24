@@ -55,6 +55,7 @@ if __name__ == "__main__" and __package__ in (None, ""):
         subprocess.run(
             [sys.executable, "-m", f"{_pkg}.orchestrator", *sys.argv[1:]],
             env=_env,
+            check=False,
         ).returncode
     )
 
@@ -119,7 +120,7 @@ def run_agent(agent: Agent, dry_run: bool) -> tuple[str, float]:
     except http_client.QueryBudgetExhausted:
         result_store.record_failure(agent.id, "query_budget_exhausted")
         return ("budget_exhausted", time.monotonic() - start)
-    except Exception as e:  # best-effort: do not halt siblings
+    except Exception as e:  # noqa: BLE001 - best-effort: do not halt siblings
         result_store.record_failure(agent.id, f"{type(e).__name__}: {e}")
         return (f"error: {type(e).__name__}", time.monotonic() - start)
 
@@ -179,10 +180,9 @@ def main() -> int:
     summary: list[tuple[str, str, float]] = []
     for agent in selected:
         # Dependency check — only when running full pipeline (not --agents / --start)
-        if not args.agents and not args.start:
-            if not dependencies_met(agent):
-                summary.append((agent.id, "skipped (deps missing)", 0.0))
-                continue
+        if not args.agents and not args.start and not dependencies_met(agent):
+            summary.append((agent.id, "skipped (deps missing)", 0.0))
+            continue
 
         status, elapsed = run_agent(agent, args.dry_run)
         summary.append((agent.id, status, elapsed))

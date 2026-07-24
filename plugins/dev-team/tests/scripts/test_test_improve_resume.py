@@ -207,6 +207,7 @@ def test_cli_via_memory_dir(tmp_path, capsys):
 def test_cli_error_exit_code(tmp_path):
     proc = subprocess.run(
         [sys.executable, str(SCRIPT), "--memory-dir", str(tmp_path / "nope")],
+        check=False,
         capture_output=True,
         text=True,
     )

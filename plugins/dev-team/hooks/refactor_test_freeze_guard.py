@@ -33,7 +33,7 @@ def emit_boundary_event(*args, **kwargs) -> None:
     this hook's exit code, stdout, or stderr."""
     try:
         _emit_boundary_event(*args, **kwargs)
-    except Exception:  # noqa: BLE001 - fail-open by design
+    except Exception:  # noqa: BLE001, S110 - fail-open by design
         pass
 
 AUDIT_RELPATH = Path("metrics") / "refactor-freeze.jsonl"
@@ -123,7 +123,7 @@ def main() -> int:
                 project_dir, "refactor_test_freeze_guard", "Write", "block",
                 "refactor-test-freeze", session_id,
             )
-    except Exception as exc:  # fail open — a broken guard never blocks work
+    except Exception as exc:  # noqa: BLE001  # fail open — a broken guard never blocks work
         audit(project_dir, "freeze", "fail-open", reason=f"internal error: {exc}")
         return 0
     for line in lines:

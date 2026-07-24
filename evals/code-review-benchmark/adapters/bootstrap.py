@@ -185,9 +185,10 @@ def ensure_defects4j_home(
         return {"home": explicit_home, "bin": "defects4j", "env": None}
 
     dest = cache_dir / "defects4j"
-    if not (dest / "framework" / "projects").is_dir():
-        if not _clone_if_missing(DEFECTS4J_REPO_URL, dest, run_fn=run_fn):
-            return None
+    if not (dest / "framework" / "projects").is_dir() and not _clone_if_missing(
+        DEFECTS4J_REPO_URL, dest, run_fn=run_fn
+    ):
+        return None
 
     env = build_defects4j_env(run_fn=run_fn, perl5_home=perl5_home)
     bin_path = dest / "framework" / "bin" / "defects4j"

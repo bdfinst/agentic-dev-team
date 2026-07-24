@@ -64,7 +64,7 @@ def run_harness(arms, trials, out, tasks, model, skip):
     if skip:
         cmd += ["--skip-dispatch"]
     print(f"  $ {' '.join(cmd)}", flush=True)
-    return subprocess.run(cmd, cwd=str(ROOT)).returncode
+    return subprocess.run(cmd, cwd=str(ROOT), check=False).returncode
 
 
 # ── analysis: build cells, score quality, compute cost-efficiency + bootstrap SE ──
@@ -78,7 +78,7 @@ def load_cells(out):
             if line:
                 try:
                     rows.append(json.loads(line))
-                except Exception:
+                except json.JSONDecodeError:
                     pass
     cells = defaultdict(list)
     for r in rows:
@@ -107,7 +107,16 @@ def cell_features(stage_rows):
     blasts = [(_f((r.get("blast_radius") or {}).get("churned"))) for r in changes]
     blasts = [b for b in blasts if b is not None]
     blast = sum(blasts) / len(blasts) if blasts else None
-    return dict(cost=cost, mut=mut, cov=cov, core=core, edge=edge, mi=mi, cc=cc, blast=blast)
+    return {
+        "cost": cost,
+        "mut": mut,
+        "cov": cov,
+        "core": core,
+        "edge": edge,
+        "mi": mi,
+        "cc": cc,
+        "blast": blast,
+    }
 
 
 def _mean(vals):
@@ -124,18 +133,18 @@ def arm_raw(cells):
             per_arm[arm].append(f)
     out = {}
     for arm, feats in per_arm.items():
-        out[arm] = dict(
-            n=len(feats),
-            cost=_mean([f["cost"] for f in feats]),
-            mut=_mean([f["mut"] for f in feats]),
-            cov=_mean([f["cov"] for f in feats]),
-            core=_mean([f["core"] for f in feats]),
-            edge=_mean([f["edge"] for f in feats]),
-            mi=_mean([f["mi"] for f in feats]),
-            cc=_mean([f["cc"] for f in feats]),
-            blast=_mean([f["blast"] for f in feats]),
-            feats=feats,
-        )
+        out[arm] = {
+            "n": len(feats),
+            "cost": _mean([f["cost"] for f in feats]),
+            "mut": _mean([f["mut"] for f in feats]),
+            "cov": _mean([f["cov"] for f in feats]),
+            "core": _mean([f["core"] for f in feats]),
+            "edge": _mean([f["edge"] for f in feats]),
+            "mi": _mean([f["mi"] for f in feats]),
+            "cc": _mean([f["cc"] for f in feats]),
+            "blast": _mean([f["blast"] for f in feats]),
+            "feats": feats,
+        }
     return out
 
 
@@ -194,7 +203,9 @@ def efficiency_table(raw, seed=7, iters=300):
             if qb is not None and ra["cost"]:
                 samples.append(qb / ra["cost"])
         se = (sum((s - eff) ** 2 for s in samples) / len(samples)) ** 0.5 if samples else 0.0
-        table.append(dict(arm=arm, n=a["n"], cost=a["cost"], quality=q, eff=eff, se=se))
+        table.append(
+            {"arm": arm, "n": a["n"], "cost": a["cost"], "quality": q, "eff": eff, "se": se}
+        )
     table.sort(key=lambda r: r["eff"], reverse=True)
     return table
 

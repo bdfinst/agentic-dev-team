@@ -55,7 +55,7 @@ def clean_careful_state():
     _CAREFUL_STATE.unlink(missing_ok=True)
 
 
-def _run(payload: dict, extra_env: dict = None) -> subprocess.CompletedProcess[str]:
+def _run(payload: dict, extra_env: dict | None = None) -> subprocess.CompletedProcess[str]:
     proc_env = {
         "PATH": os.environ.get("PATH", "/usr/bin:/bin"),
         "HOME": os.environ.get("HOME", "/tmp"),

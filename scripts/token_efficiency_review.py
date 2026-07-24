@@ -182,6 +182,7 @@ def get_token_count(path: Path) -> int | None:
             capture_output=True,
             text=True,
             timeout=30,
+            check=False,
         )
         if result.returncode != 0:
             return None
@@ -233,6 +234,7 @@ def run_llm_review(path: Path) -> list[dict]:
             capture_output=True,
             text=True,
             timeout=60,
+            check=False,
         )
         if result.returncode != 0 or not result.stdout.strip():
             issues.append(
@@ -328,8 +330,7 @@ def main(argv: list[str] | None = None) -> int:
                     warnings.append(issue)
 
     # Line count checks for all files
-    for issue in check_line_counts(files):
-        warnings.append(issue)
+    warnings.extend(check_line_counts(files))
 
     # LLM review for prose (.md) files
     prose_files = [p for p in files if is_prose_file(p)]
@@ -342,8 +343,7 @@ def main(argv: list[str] | None = None) -> int:
             warnings.append(skipped_llm_warning())
     else:
         for path in prose_files:
-            for issue in run_llm_review(path):
-                warnings.append(issue)
+            warnings.extend(run_llm_review(path))
 
     summary_parts = []
     if errors:

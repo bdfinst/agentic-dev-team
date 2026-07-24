@@ -28,7 +28,7 @@ from hermetic import hermetic_git_env  # type: ignore[import-not-found]
 
 
 def _run(
-    payload: dict, cwd: Path, extra_env: dict = None
+    payload: dict, cwd: Path, extra_env: dict | None = None
 ) -> subprocess.CompletedProcess[str]:
     proc_env = {
         "PATH": os.environ.get("PATH", "/usr/bin:/bin"),

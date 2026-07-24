@@ -76,8 +76,10 @@ async def classify(request: str, skip_llm: bool = False) -> dict:
             [
                 "claude",
                 "-p",
-                f"Classify this task as exactly one of: trivial, standard, or complex. "
-                f"Reply with only one word. Task: {request}",
+                (
+                    "Classify this task as exactly one of: trivial, standard, or complex. "
+                    f"Reply with only one word. Task: {request}"
+                ),
             ],
             capture_output=True,
             text=True,

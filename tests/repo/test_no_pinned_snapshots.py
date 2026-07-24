@@ -59,7 +59,7 @@ def test_no_pinned_snapshot_ids_in_plugin_source_outside_approved_files() -> Non
         cmd.append(f":!{allowed}")
     cmd.append(":!plugins/dev-team/tests/")
 
-    result = subprocess.run(cmd, cwd=str(REPO_ROOT), capture_output=True, text=True)
+    result = subprocess.run(cmd, cwd=str(REPO_ROOT), capture_output=True, text=True, check=False)
     # git grep exits 1 when no matches are found - that is the success case.
     assert result.returncode in (0, 1), result.stderr
     raw = result.stdout.strip()

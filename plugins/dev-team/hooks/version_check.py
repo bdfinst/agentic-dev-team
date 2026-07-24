@@ -36,7 +36,9 @@ def _cache_dir() -> Path:
 
 
 def _today_cache_file() -> Path:
-    today = datetime.now().strftime("%Y-%m-%d")
+    # Local wall-clock date for a daily cache filename, not a comparison —
+    # mirrors the ported .sh's `date +%Y-%m-%d`, which also uses local time.
+    today = datetime.now().strftime("%Y-%m-%d")  # noqa: DTZ005
     return _cache_dir() / f"adt-version-check-{today}"
 
 

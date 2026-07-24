@@ -102,25 +102,28 @@ def _violations_for_file(agent_file: Path, index: dict) -> list[tuple[str, str]]
 
             # (3) Runtime-resolvable prefix — knowledge refs must use
             # ${CLAUDE_PLUGIN_ROOT}/. Bare knowledge/ is the #1103 defect.
-            if ref_file.startswith("knowledge/") and prefix != RESOLVABLE_PREFIX:
-                if not prefix:
-                    violations.append(
+            if ref_file.startswith("knowledge/") and prefix != RESOLVABLE_PREFIX and not prefix:
+                violations.append(
+                    (
+                        "prefix",
                         (
-                            "prefix",
                             f"{agent_file}: bare `{ref_file}` does not resolve at "
-                            f"runtime — prefix it with `{RESOLVABLE_PREFIX}`",
-                        )
+                            f"runtime — prefix it with `{RESOLVABLE_PREFIX}`"
+                        ),
                     )
-                # `plugins/dev-team/knowledge/...` (a prose location pointer)
-                # is tolerated; fall through to the packaging check.
+                )
+            # `plugins/dev-team/knowledge/...` (a prose location pointer)
+            # is tolerated; fall through to the packaging check.
 
             # (2) Packaged — the referenced file must exist on disk.
             if not (PLUGIN_ROOT / ref_file).is_file():
                 violations.append(
                     (
                         "packaged",
-                        f"{agent_file}: references `{ref_file}` which is not "
-                        f"packaged (no file at {key})",
+                        (
+                            f"{agent_file}: references `{ref_file}` which is not "
+                            f"packaged (no file at {key})"
+                        ),
                     )
                 )
 
@@ -140,8 +143,10 @@ def _violations_for_file(agent_file: Path, index: dict) -> list[tuple[str, str]]
             violations.append(
                 (
                     "anchor",
-                    f"{agent_file}: bare reference {ref_file} lacks an anchor AND "
-                    f"no '{WHOLE_FILE_TOKEN}' in paragraph",
+                    (
+                        f"{agent_file}: bare reference {ref_file} lacks an anchor AND "
+                        f"no '{WHOLE_FILE_TOKEN}' in paragraph"
+                    ),
                 )
             )
     return violations

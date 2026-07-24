@@ -62,7 +62,7 @@ def stage0_summary(rows: list[dict]) -> dict:
 
     out = {}
     for key, cell_rows in sorted(cells.items()):
-        task, arm, clarity = key
+        _task, _arm, _clarity = key
         core_passes = [r["core_passed"] for r in cell_rows]
         edge_passes = [r["edge_passed"] for r in cell_rows]
         costs = [r.get("cost", {}).get("cost_usd") for r in cell_rows
@@ -88,7 +88,7 @@ def change_summary(rows: list[dict]) -> dict:
 
     out = {}
     for key, cell_rows in sorted(cells.items()):
-        task, arm, clarity, stage = key
+        _task, _arm, _clarity, stage = key
         passes = [r.get("core_passed", r.get("passed")) for r in cell_rows]
         passes = [p for p in passes if p is not None]
         blast_files = [r.get("blast_radius", {}).get("files_changed")
@@ -144,7 +144,7 @@ def cumulative_changeability(rows: list[dict]) -> dict:
 
     out: dict[tuple, dict] = {}
     for key, line_changes in sorted(cells.items()):
-        task, arm, clarity, trial = key
+        task, arm, clarity, _trial = key
         cell_key = (task, arm, clarity)
         out.setdefault(cell_key, []).append(sum(line_changes))
 

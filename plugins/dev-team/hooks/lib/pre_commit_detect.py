@@ -81,9 +81,7 @@ def is_git_commit_invocation(cmd: str) -> bool:
     """Return True iff `cmd` is a gate-worthy `git commit` invocation."""
     if not is_git_commit_command(cmd):
         return False
-    if has_bypass_flag(cmd):
-        return False
-    return True
+    return not has_bypass_flag(cmd)
 
 
 __all__ = (

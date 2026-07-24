@@ -21,7 +21,11 @@ def _check(tmp_path: Path, env_overrides: dict) -> subprocess.CompletedProcess:
     env = {k: v for k, v in os.environ.items() if k != "DEV_TEAM_TELEMETRY_REMOTE"}
     env.update(env_overrides)
     return subprocess.run(
-        ["bash", str(SYNC), "--check"], capture_output=True, text=True, env=env
+        ["bash", str(SYNC), "--check"],
+        capture_output=True,
+        text=True,
+        env=env,
+        check=False,
     )
 
 

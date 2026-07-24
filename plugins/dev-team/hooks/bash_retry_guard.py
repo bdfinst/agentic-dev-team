@@ -54,7 +54,7 @@ def emit_boundary_event(*args, **kwargs) -> None:
     this hook's exit code, stdout, or stderr."""
     try:
         _emit_boundary_event(*args, **kwargs)
-    except Exception:  # noqa: BLE001 - fail-open by design
+    except Exception:  # noqa: BLE001, S110 - fail-open by design
         pass
 
 
@@ -107,9 +107,7 @@ def _should_skip(cmd: str) -> bool:
     """True when this command class is out of scope (verify family or read-only)."""
     if _VERIFY_RE.search(cmd):
         return True
-    if _first_token(cmd) in _READ_ONLY_FIRST_TOKENS:
-        return True
-    return False
+    return _first_token(cmd) in _READ_ONLY_FIRST_TOKENS
 
 
 def _state_key(session_id: str, cwd: str) -> str:

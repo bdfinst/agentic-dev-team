@@ -104,6 +104,7 @@ def test_missing_java_exits_1_end_to_end(tmp_path):
         text=True,
         cwd=str(tmp_path),
         env={"PATH": str(empty)},
+        check=False,
     )
     assert result.returncode == 1
     assert "required" in result.stderr.lower()
@@ -182,6 +183,7 @@ def test_version_pin_lives_only_in_the_installer():
         capture_output=True,
         text=True,
         cwd=str(REPO_ROOT),
+        check=False,
     )
     files = {
         line.split(":", 1)[0]

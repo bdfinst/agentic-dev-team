@@ -133,9 +133,10 @@ def detect_runner(root: Path, pkg: dict | None) -> str | None:
     for name in VITEST_CONFIG_FILES:
         # vite.config.* only counts as a vitest signal when vitest is a dep;
         # a plain Vite app without vitest has no coverage config to assess.
-        if (root / name).is_file():
-            if name.startswith("vitest.") or (pkg and "vitest" in _all_deps(pkg)):
-                return "vitest"
+        if (root / name).is_file() and (
+            name.startswith("vitest.") or (pkg and "vitest" in _all_deps(pkg))
+        ):
+            return "vitest"
     if pkg is None:
         return None
     deps = _all_deps(pkg)

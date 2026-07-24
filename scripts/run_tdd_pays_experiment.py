@@ -260,13 +260,15 @@ def measure_radon(workdir: Path, prod: list[Path]) -> dict:
     for p in prod:
         try:
             r = subprocess.run(["radon", "cc", "-s", "-a", str(p)],
-                               capture_output=True, text=True, cwd=str(workdir))
+                               capture_output=True, text=True, cwd=str(workdir),
+                               check=False)
             for line in r.stdout.split("\n"):
                 m = re.search(r"Average complexity: [A-F] \((\d+\.\d+)\)", line)
                 if m:
                     cc_scores.append(float(m.group(1)))
             r2 = subprocess.run(["radon", "mi", "-s", str(p)],
-                                capture_output=True, text=True, cwd=str(workdir))
+                                capture_output=True, text=True, cwd=str(workdir),
+                                check=False)
             for line in r2.stdout.split("\n"):
                 m2 = re.search(r"\((\d+\.\d+)\)", line)
                 if m2:
@@ -339,7 +341,8 @@ def multi_rater_review(workdir: Path, prod: list[Path], tests: list[Path],
             r = subprocess.run(
                 ["claude", "-p", prompt, "--model", model,
                  "--output-format", "json", *skip_flag],
-                cwd=str(workdir), env=env, capture_output=True, text=True, timeout=120)
+                cwd=str(workdir), env=env, capture_output=True, text=True, timeout=120,
+                check=False)
             d = json.loads(r.stdout)
             result_text = d.get("result", "")
             m = re.search(r"\{[^}]+\}", result_text, re.DOTALL)

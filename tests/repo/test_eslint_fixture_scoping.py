@@ -47,6 +47,7 @@ def test_dirty_js_fixture_is_not_linted(fixture: str) -> None:
         capture_output=True,
         text=True,
         timeout=60,
+        check=False,
     )
     assert result.returncode == 0, (
         f"eslint should skip {fixture} entirely (dirty eval fixture), "
@@ -68,6 +69,7 @@ def test_first_party_js_is_still_linted(tmp_path: Path) -> None:
             capture_output=True,
             text=True,
             timeout=60,
+            check=False,
         )
         assert result.returncode != 0, (
             "first-party JS outside evals/fixtures/** must still be linted"

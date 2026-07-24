@@ -57,6 +57,7 @@ def _write(suite: dict[str, Path]) -> subprocess.CompletedProcess:
         ],
         capture_output=True,
         text=True,
+        check=False,
     )
 
 
@@ -75,6 +76,7 @@ def _check(suite: dict[str, Path], *extra: str) -> subprocess.CompletedProcess:
         ],
         capture_output=True,
         text=True,
+        check=False,
     )
 
 
@@ -151,6 +153,7 @@ def test_real_repo_manifest_parses_and_resolves_against_live_suite() -> None:
         [sys.executable, str(SCRIPT), "--warn-only"],
         capture_output=True,
         text=True,
+        check=False,
     )
     assert result.returncode == 0
     assert "OE scoring staleness" in result.stdout + result.stderr

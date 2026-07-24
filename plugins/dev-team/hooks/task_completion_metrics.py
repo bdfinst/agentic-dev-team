@@ -83,7 +83,7 @@ def _read_stdin() -> dict:
             return {}
         parsed = json.loads(raw)
         return parsed if isinstance(parsed, dict) else {}
-    except Exception:
+    except (json.JSONDecodeError, UnicodeDecodeError, OSError):
         return {}
 
 
@@ -97,7 +97,7 @@ def _load_scratch(cwd: Path) -> dict:
             return {}
         parsed = json.loads(text)
         return parsed if isinstance(parsed, dict) else {}
-    except Exception:
+    except (json.JSONDecodeError, UnicodeDecodeError, OSError):
         return {}
 
 
@@ -106,7 +106,7 @@ def _clear_scratch(cwd: Path) -> None:
     try:
         if scratch.exists():
             scratch.unlink()
-    except Exception:
+    except OSError:  # best-effort cleanup; a stale scratch file is harmless
         pass
 
 
@@ -117,11 +117,11 @@ def _ensure_metrics_dir(cwd: Path) -> Path:
 
 
 def _now_iso() -> str:
-    return datetime.datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ")
+    return datetime.datetime.now(tz=datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
 def _today() -> str:
-    return datetime.datetime.utcnow().strftime("%Y-%m-%d")
+    return datetime.datetime.now(tz=datetime.timezone.utc).strftime("%Y-%m-%d")
 
 
 def _append_jsonl(path: Path, entry: dict) -> None:
@@ -199,7 +199,7 @@ def main() -> int:
         _write_task_completion(metrics_dir, scratch, payload)
         _write_config_changelog(metrics_dir, scratch)
         _clear_scratch(cwd)
-    except Exception:
+    except Exception:  # noqa: BLE001, S110
         # Fail-open: never block the session on a metrics write failure.
         pass
 

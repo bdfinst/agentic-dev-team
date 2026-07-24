@@ -60,9 +60,7 @@ def _is_python_source(line: str) -> bool:
     """True for a non-test Python source path."""
     if not line.endswith(".py"):
         return False
-    if line.startswith("test_") or "_test.py" in line or "/test_" in line:
-        return False
-    return True
+    return not (line.startswith("test_") or "_test.py" in line or "/test_" in line)
 
 
 def _changed_python_source() -> str:

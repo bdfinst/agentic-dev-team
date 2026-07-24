@@ -41,6 +41,7 @@ def _lint(plugin: Path, target: Path) -> subprocess.CompletedProcess:
         [sys.executable, str(LINT), "--plugin-root", str(plugin), str(target)],
         capture_output=True,
         text=True,
+        check=False,
     )
 
 

@@ -104,7 +104,7 @@ def record_iteration_entry(
 
         with open(log, "a", encoding="utf-8") as handle:
             handle.write(json.dumps(payload, separators=(",", ":")) + "\n")
-    except Exception:  # noqa: BLE001 — fail-open by design, see module docstring
+    except Exception:  # noqa: BLE001, S110 — fail-open by design, see module docstring
         pass
 
 
@@ -167,7 +167,7 @@ def cmd_check(args) -> int:
             matched_rule="iteration-journal-missing",
             session_id=args.session,
         )
-    except Exception:  # noqa: BLE001 — fail-open by design
+    except Exception:  # noqa: BLE001, S110 — fail-open by design
         pass
     return 1
 

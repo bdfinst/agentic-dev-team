@@ -237,7 +237,7 @@ def _pid_is_alive(pid: int) -> bool:
             # slot with this number exist right now."
             ctypes.windll.kernel32.CloseHandle(handle)
             return True
-        except Exception:
+        except Exception:  # noqa: BLE001 - deliberate fail-open on any ctypes/Windows quirk
             # Any Windows-specific quirk — fall back to "alive" to avoid
             # false died-mid-run red flags. That matches the POSIX
             # "unknown-error" branch below.
@@ -313,13 +313,16 @@ def check_red_flags(
             )
 
     # --- Red flag 4: Stryker PID dead AND no completion marker
-    if stryker_pid is not None and not _pid_is_alive(stryker_pid):
-        if not log_has_completion_marker(logfile):
-            recognized = True
-            lines.append(
-                f"[RED-FLAG] Stryker process died mid-run (PID {stryker_pid} "
-                f"no longer running, no completion marker in log) — see #558"
-            )
+    if (
+        stryker_pid is not None
+        and not _pid_is_alive(stryker_pid)
+        and not log_has_completion_marker(logfile)
+    ):
+        recognized = True
+        lines.append(
+            f"[RED-FLAG] Stryker process died mid-run (PID {stryker_pid} "
+            f"no longer running, no completion marker in log) — see #558"
+        )
 
     # --- Red flag 6: coverage capture failed → whole-suite-per-mutant fallback
     if log_has_coverage_capture_failure(logfile):
@@ -419,9 +422,12 @@ def status_loop_start(
                 print(line, file=output, flush=True)
 
             # Exit condition — Stryker done and log carries a completion marker.
-            if stryker_pid is not None and not _pid_is_alive(stryker_pid):
-                if log_has_completion_marker(logfile):
-                    break
+            if (
+                stryker_pid is not None
+                and not _pid_is_alive(stryker_pid)
+                and log_has_completion_marker(logfile)
+            ):
+                break
 
             # Sleep in small slices so signal handlers wake up promptly.
             remaining = float(interval)

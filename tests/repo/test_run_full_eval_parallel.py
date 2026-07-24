@@ -68,6 +68,7 @@ def _reconcile(case: Path, only: str) -> subprocess.CompletedProcess:
         ],
         capture_output=True,
         text=True,
+        check=False,
     )
 
 

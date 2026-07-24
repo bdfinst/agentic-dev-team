@@ -84,8 +84,7 @@ def _load_report(report_path: Path) -> dict:
 def _iter_mutants(data: dict):
     """Yield every mutant dict across all files in a parsed report."""
     for info in data.get("files", {}).values():
-        for mutant in info.get("mutants", []):
-            yield mutant
+        yield from info.get("mutants", [])
 
 
 def _score_data(data: dict) -> ScoreSummary:

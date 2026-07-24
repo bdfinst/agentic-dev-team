@@ -158,6 +158,7 @@ def test_cli_check_blocks_and_emits_boundary_event(tmp_path: Path) -> None:
             "--round-id",
             "round-1",
         ],
+        check=False,
         capture_output=True,
         text=True,
     )
@@ -203,6 +204,7 @@ def test_cli_record_then_check_allows(tmp_path: Path) -> None:
             "--round-id",
             "round-1",
         ],
+        check=False,
         capture_output=True,
         text=True,
     )

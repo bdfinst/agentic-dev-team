@@ -58,6 +58,7 @@ def _commit_hook(cwd: Path) -> subprocess.CompletedProcess:
         input='{"tool_input":{"command":"git commit -m x"}}',
         cwd=cwd,
         env=_git_env(),
+        check=False,
         capture_output=True,
         text=True,
     )

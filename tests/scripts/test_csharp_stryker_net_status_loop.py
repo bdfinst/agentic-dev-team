@@ -330,6 +330,7 @@ class TestCLI:
             capture_output=True,
             text=True,
             timeout=10,
+            check=False,
         )
         assert result.returncode == 0
         assert "tested=" in result.stdout
@@ -347,6 +348,7 @@ class TestCLI:
             capture_output=True,
             text=True,
             timeout=10,
+            check=False,
         )
         assert result.returncode == 0
         assert "[RED-FLAG]" in result.stdout

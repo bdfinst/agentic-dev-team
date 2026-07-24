@@ -152,7 +152,7 @@ def partition_files(files: list[str], cap: int) -> list[dict]:
             _append_slice(slices, current)
             current.clear()
 
-    for _directory, dir_files in grouped.items():
+    for dir_files in grouped.values():
         if len(dir_files) > cap:
             # Oversized directory: flush whatever small siblings accumulated,
             # then emit the directory in cap-sized chunks of its own.

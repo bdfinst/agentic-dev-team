@@ -146,7 +146,11 @@ def main(argv=None) -> int:
 
     files = list(args.files)
     if args.files_from:
-        text = sys.stdin.read() if args.files_from == "-" else open(args.files_from).read()
+        if args.files_from == "-":
+            text = sys.stdin.read()
+        else:
+            with open(args.files_from) as f:
+                text = f.read()
         files.extend(line for line in text.splitlines() if line.strip())
 
     skip = lenses_to_skip(files)
