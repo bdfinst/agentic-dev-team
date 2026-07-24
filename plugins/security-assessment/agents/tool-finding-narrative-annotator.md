@@ -4,7 +4,7 @@ effort: high
 color: cyan
 name: tool-finding-narrative-annotator
 description: Weaves findings into four narrative domains (PII flow, ML edge cases, messaging auth, crypto). Prose for the exec report. Synthesizes; does not detect.
-tools: Read, Grep, Glob
+tools: Read, Grep, Glob, mcp__codegraph__*, mcp__plugin_repowise_repowise__get_context, mcp__plugin_repowise_repowise__get_symbol, mcp__plugin_repowise_repowise__search_codebase, mcp__plugin_repowise_repowise__get_risk
 ---
 
 # Tool Finding Narrative Annotator

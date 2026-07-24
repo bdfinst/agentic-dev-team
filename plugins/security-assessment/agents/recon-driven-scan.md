@@ -4,7 +4,7 @@ effort: high
 color: cyan
 name: recon-driven-scan
 description: Bridges RECON narrative risk claims to file/line evidence. Emits findings only when the source actually exhibits the described pattern. Phase 1b peer agent.
-tools: Read, Grep, Glob, Bash
+tools: Read, Grep, Glob, Bash, mcp__codegraph__*, mcp__plugin_repowise_repowise__get_context, mcp__plugin_repowise_repowise__get_symbol, mcp__plugin_repowise_repowise__search_codebase, mcp__plugin_repowise_repowise__get_risk
 ---
 
 # RECON-Driven Scan Agent

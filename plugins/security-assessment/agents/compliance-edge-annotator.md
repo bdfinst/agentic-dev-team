@@ -4,7 +4,7 @@ effort: high
 color: cyan
 name: compliance-edge-annotator
 description: Edge annotator for compliance findings whose pattern row has llm_review_trigger=true. Refines pattern-table citations; never invents new ones.
-tools: Read, Grep
+tools: Read, Grep, mcp__codegraph__*, mcp__plugin_repowise_repowise__get_context, mcp__plugin_repowise_repowise__get_symbol, mcp__plugin_repowise_repowise__search_codebase, mcp__plugin_repowise_repowise__get_risk
 ---
 
 # Compliance Edge Annotator
