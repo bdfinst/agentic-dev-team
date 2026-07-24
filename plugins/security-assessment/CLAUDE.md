@@ -113,16 +113,23 @@ See `install.sh`. It performs four checks:
 - `/export-pdf <report.md>` — PDF export
 - `/upgrade` — plugin update + auto-update opt-in
 
-**Hooks** (2):
+**Hooks** (3):
 
 - `PreToolUse:Bash` → `redteam-guard.sh` (blocks direct orchestrator invocation)
 - `PostToolUse:Edit|Write` → `static-scan-on-edit.sh` (auto-scan on writes)
+- `PreToolUse:Agent` + `PostToolUse:Agent` → `agent-dispatch-log.sh` (logs agent dispatch)
 
-**Knowledge** (4):
+**Knowledge** (9):
 
 - `domain-logic-patterns.md` — fraud domain anti-pattern reference
 - `compliance-patterns.yaml` — 11-pattern regulatory mapping table
 - `redteam-authorization.md` — self-cert artifact format
+- `disclaimers.md` — verbatim disclaimer wording cited by agents/skills (compliance mapping, red-team report)
+- `exec-report-section6-spec.md` — detailed spec for the exec report's Section 6 (methodology and scope), loaded on demand by `exec-report-generator`
+- `phase-1b-adapters.md` — how each Phase 1b agent's output is appended to the unified finding stream
+- `authz-review-categories.yaml` — rule-ID categories and CWE assignments used by `authorization-logic-review`
+- `recon-driven-patterns.yaml` — RECON narrative claim → search-pattern library used by `recon-driven-scan`
+- `severity-floors.json` — allow-list of recognized severity-floor classes for `scripts/apply-severity-floors.sh`
 - `semgrep-rules/{ml-patterns,llm-safety,fraud-domain,crypto-anti-patterns}.yaml` — 18 custom rules across 4 rulesets
 
 **Harness** (Python, under `harness/`):
