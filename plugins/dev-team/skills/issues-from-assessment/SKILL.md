@@ -7,7 +7,7 @@ description: >-
   `gh`, `glab`, `acli`). When no parent URL is given, or when the required
   CLI is not installed, falls back to local plan files under
   `./plans/<workflow>/` after informing the operator. Multi-workflow: called
-  by `/test-improve` (Phase 3), via its own
+  by `/test-improve` (Phase 4), via its own
   `--workflow` namespace so memory paths and tracker labels never collide.
 argument-hint: "<assessment-path> [--parent <issue-url>] [--repo-slug <slug>] [--workflow <name>] [--refactor-mode <no-refactor|refactor-allowed>] [--dry-run]"
 user-invocable: true
@@ -206,7 +206,7 @@ Print:
 
 ## Examples / Integration
 
-- `/test-improve` invokes this worker with `--workflow test-improve` from its Phase 3; paths resolve under `memory/test-improve/<slug>/` and labels lead with `test-improve`.
+- `/test-improve` invokes this worker with `--workflow test-improve` from its Phase 4; paths resolve under `memory/test-improve/<slug>/` and labels lead with `test-improve`.
 - `/test-improve` invokes this worker with `--workflow test-improve`; paths resolve under `memory/test-improve/<slug>/` and labels lead with `test-improve`, keeping a mixed board unambiguous when both workflows are active.
 
 ## Notes

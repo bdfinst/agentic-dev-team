@@ -1,21 +1,21 @@
 # Behavior spec for issue #968's no-refactor-mode durability fixes.
 # Source of record: plans/test-improve-no-refactor-mode-should-skip-all-refactor-gated-steps.md (Slice 1) · issue #968
-# Enforced by: tests/skills/test_improve_phase_6_refactor_mode.py
+# Enforced by: tests/skills/test_improve_phase_8_refactor_mode.py
 # (Scenarios also covered by tests/skills/test_quality_targets_converge_workflow_param.py,
 # tests/skills/test_improve_executive_summary_template.py,
 # tests/skills/test_improve_handoff_suggestion.py, and
-# tests/skills/test_improve_phase_7.py — one per Gherkin scenario's
+# tests/skills/test_improve_phase_9.py — one per Gherkin scenario's
 # corresponding SKILL.md/template section.)
 #
 # This file is a Given/When/Then spec, not an eval-grader fixture (see
 # evals/skills/README.md). Executable enforcement is the pytest contracts
 # named above; non-drift is checked by tests/repo/test_feature_spec_refs.py.
 
-Feature: /test-improve's no-refactor mode stays durable through Phase 6, and the deferred-refactor backlog is visible and actionable at close-out
+Feature: /test-improve's no-refactor mode stays durable through Phase 8, and the deferred-refactor backlog is visible and actionable at close-out
 
-  Scenario: Phase 6 threads the Phase-0 refactor-mode value into /quality-targets-converge
+  Scenario: Phase 8 threads the Phase-0 refactor-mode value into /quality-targets-converge
     Given phase-0.md recorded a refactor-mode value (no-refactor or refactor-allowed)
-    When /test-improve dispatches Phase 6
+    When /test-improve dispatches Phase 8
     Then it invokes /quality-targets-converge with --refactor-mode <the recorded value> (in addition to --workflow test-improve)
 
   Scenario: quality-targets-converge does not propose a refactor action under no-refactor mode
@@ -50,31 +50,31 @@ Feature: /test-improve's no-refactor mode stays durable through Phase 6, and the
     Examples:
       | phase                              | expectation   |
       | Phase 1                            | prints        |
-      | the Phase 4 end-of-phase review loop | prints        |
       | the Phase 5 end-of-phase review loop | prints        |
-      | Phase 6                            | prints        |
-      | Phase 2b                           | does NOT print |
-      | Phase 3                            | does NOT print |
-      | Phase 4b                           | does NOT print |
+      | the Phase 7 end-of-phase review loop | prints        |
+      | Phase 8                            | prints        |
+      | Phase 3                           | does NOT print |
+      | Phase 4                            | does NOT print |
+      | Phase 6                           | does NOT print |
 
-  Scenario: post-Phase-7 close-out prompt fires when a non-empty backlog remains and Phase 6 never asked
+  Scenario: post-Phase-9 close-out prompt fires when a non-empty backlog remains and Phase 8 never asked
     Given refactor-backlog.md exists with at least one entry
-    And Phase 6's coverage-driven [y/n] re-run prompt did not fire this run
-    When Phase 7 completes
+    And Phase 8's coverage-driven [y/n] re-run prompt did not fire this run
+    When Phase 9 completes
     Then /test-improve prompts "N REFACTOR_REQUIRED items remain backlogged. Re-run with refactor-allowed mode now? [y/n]" (N = the entry count)
 
-  Scenario: post-Phase-7 close-out prompt is skipped when Phase 6 already asked
+  Scenario: post-Phase-9 close-out prompt is skipped when Phase 8 already asked
     Given refactor-backlog.md exists with at least one entry
-    And phase-6.md records that its coverage-driven [y/n] re-run prompt already fired this run (regardless of the answer given)
-    When Phase 7 completes
+    And phase-8.md records that its coverage-driven [y/n] re-run prompt already fired this run (regardless of the answer given)
+    When Phase 9 completes
     Then /test-improve does NOT prompt again
 
-  Scenario: post-Phase-7 close-out prompt is skipped when no backlog file exists
+  Scenario: post-Phase-9 close-out prompt is skipped when no backlog file exists
     Given refactor-backlog.md does not exist (no REFACTOR_REQUIRED items were ever backlogged this run)
-    When Phase 7 completes
+    When Phase 9 completes
     Then /test-improve does NOT prompt
 
-  Scenario: post-Phase-7 close-out prompt is skipped when the backlog file exists but is empty
+  Scenario: post-Phase-9 close-out prompt is skipped when the backlog file exists but is empty
     Given refactor-backlog.md exists with zero entries
-    When Phase 7 completes
+    When Phase 9 completes
     Then /test-improve does NOT prompt

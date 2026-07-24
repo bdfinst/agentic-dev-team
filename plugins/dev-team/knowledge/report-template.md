@@ -5,7 +5,7 @@ report-writing skills (`test-health`, `cd-test-architecture`,
 `competitive-analysis`, `docker-image-audit`, `test-improve`,
 `harness-audit`, `session-review`, `explore`, `test-design`,
 `frontend-architecture`, `agent-eval`, and others) to adopt over time.
-Generalized from `test-improve`'s Phase 7 template
+Generalized from `test-improve`'s Phase 9 template
 (`skills/test-improve/templates/executive-summary.md`), the most complete
 existing example in the plugin — same role as `knowledge/review-template.md`
 plays for code-review agents, but for standalone reports rather than the
@@ -88,7 +88,7 @@ stays exactly as it already is.
 ## Provenance (closing section)
 
 Every report closes with a Provenance section, generalized from
-`test-improve`'s Phase 7 §10:
+`test-improve`'s Phase 9 §10:
 
 ```markdown
 ## Provenance

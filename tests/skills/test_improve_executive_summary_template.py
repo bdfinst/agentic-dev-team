@@ -32,8 +32,8 @@ def test_template_contains_all_10_numbered_section_headers():
     assert grep(r"^## 2\. What was done this run", text)
     assert grep(r"^## 3\. What was measured", text)
     assert grep(r"^## 4\. Findings from", text)
-    assert grep(r"^## 5\. Work completed \(Phase 4 — no refactoring\)", text)
-    assert grep(r"^## 6\. Work completed \(Phase 5 — refactor-for-testability\)", text)
+    assert grep(r"^## 5\. Work completed \(Phase 5 — no refactoring\)", text)
+    assert grep(r"^## 6\. Work completed \(Phase 7 — refactor-for-testability\)", text)
     assert grep(
         r"^## 7\. Deferred work — areas requiring refactoring to add tests", text
     )

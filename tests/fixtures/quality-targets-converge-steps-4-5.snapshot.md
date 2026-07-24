@@ -16,7 +16,7 @@ For the picked gap, dispatch the smallest action — by emitting a recommendatio
 | Surviving mutant on an uncovered line | Propose a downstream Story to add a test that hits the line *and* asserts the behavior. |
 | Coverage gap on a single file, existing seam | Propose a downstream Story to add a component test for the uncovered branch at the existing seam. |
 | Coverage gap on a single file, no existing seam, `--refactor-mode refactor-allowed` | Propose a paired `[Refactor-for-testability]` Story (today's behavior, unchanged). |
-| Coverage gap on a single file, no existing seam, `--refactor-mode no-refactor` | Do **not** propose a `[Refactor-for-testability]` Story — the operator already closed that decision at Phase 4b. Instead, write an entry (seam-needed / behavior-gained / estimated-risk) to `memory/<workflow>/<slug>/refactor-backlog.md`, appending to the file Phase 4b writes if it already exists rather than creating a second backlog file. |
+| Coverage gap on a single file, no existing seam, `--refactor-mode no-refactor` | Do **not** propose a `[Refactor-for-testability]` Story — the operator already closed that decision at Phase 6. Instead, write an entry (seam-needed / behavior-gained / estimated-risk) to `memory/<workflow>/<slug>/refactor-backlog.md`, appending to the file Phase 6 writes if it already exists rather than creating a second backlog file. |
 | Behavior-preserving (invariant) test refactor — a `done()`→`async`/`await` rewrite, a real-timer→`fakeAsync` migration, a callback→promise conversion that changes no assertion and kills no mutant | **Skip it — do not dispatch a Story.** These migrations preserve test semantics, so they close no coverage / mutation / determinism gap; dispatching work for them is pure churn. Log the skip with its rationale to `memory/<workflow>/<slug>/refactor-backlog.md` (the same backlog the no-refactor row appends to) as `invariant-refactor-skipped: <file> — <migration> — no gap closed`, so the decision is auditable rather than silent. |
 | Wall-clock regression | Identify the slowest tests (top 10). Propose a Story to swap a local container for an in-memory double where both prove the behavior. |
 
@@ -29,7 +29,7 @@ For the picked gap, dispatch the smallest action — by emitting a recommendatio
 
 This keeps the approved Gherkin as the single source of intended behavior even when convergence discovers a gap. The operator stays the only author of intent.
 
-Each recommendation lands as a new child issue on the parent (via the same CLI dispatch convention as `/issues-from-assessment`) or as a new file under `./plans/<workflow>/phase-5/`. The orchestrator then drives `/build` against each.
+Each recommendation lands as a new child issue on the parent (via the same CLI dispatch convention as `/issues-from-assessment`) or as a new file under `./plans/<workflow>/phase-7/`. The orchestrator then drives `/build` against each.
 
 ### 5. Re-measure + decide whether to loop
 

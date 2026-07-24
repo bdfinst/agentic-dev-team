@@ -42,39 +42,39 @@ can resume.
   `/mutation-testing --baseline --workflow test-improve` only in
   `baseline+kill-loop` mode (`off` and `kill-loop` take no baseline).
   Go = advisory-only marker. Honest score = hard kills, timeouts separate.
-- **Phase 2b — Derive Gherkin (conditional).** `none` skips entirely;
+- **Phase 3 — Derive Gherkin (conditional).** `none` skips entirely;
   `xunit-with-annotations` writes `.feature` files without a runner;
   `bdd-runner` wires the native parser.
-- **Phase 3 — Triage.** `/issues-from-assessment --workflow test-improve`
-  partitions findings into `NO_REFACTOR` (Phase-4 Stories) /
-  `REFACTOR_REQUIRED` (deferred to Phase 5) / `LOW_VALUE` (advisory-only).
-- **Phase 4 — Improve without refactoring.** Per Story: `/build`
+- **Phase 4 — Plan fixes.** `/issues-from-assessment --workflow test-improve`
+  partitions findings into `NO_REFACTOR` (Phase-5 Stories) /
+  `REFACTOR_REQUIRED` (deferred to Phase 7) / `LOW_VALUE` (advisory-only).
+- **Phase 5 — Improve without refactoring.** Per Story: `/build`
   (no-refactor) → `/coverage-delta --workflow test-improve --story <id>` →
   `mutation-kill` agent (`--file <story-file> --max-rounds 3`, `[c/r/w/q]` on
   residuals). End-of-phase review loop runs `/test-design --since` and
   `/code-review --since` in parallel, `/apply-fixes` then re-run, cap 2
-  iterations, `[r/w/q]` escalation. Evidence in `phase-4-review.json`.
-- **Phase 4b — Refactor decision prompt.** `[y] enter Phase 5 / [b] backlog
-  and skip to Phase 6 / [q] quit`. The letter `y` is deliberately chosen over
+  iterations, `[r/w/q]` escalation. Evidence in `phase-5-review.json`.
+- **Phase 6 — Refactor decision prompt.** `[y] enter Phase 7 / [b] backlog
+  and skip to Phase 8 / [q] quit`. The letter `y` is deliberately chosen over
   `r`, which is already claimed by mutation-kill's `[c/r/w/q]` (retry) and the
   review loop's `[r/w/q]` (revise).
-- **Phase 5 — Refactor-for-testability (conditional).** Only when `[y]`.
+- **Phase 7 — Refactor-for-testability (conditional).** Only when `[y]`.
   Seam-only production-code changes; existing tests are immutable. Each Story
-  precondition-checks the paired Phase-4 baseline is closed and green. Same
-  end-of-phase review loop; evidence in `phase-5-review.json`.
-- **Phase 6 — Validate.** `/quality-targets-converge --workflow test-improve
+  precondition-checks the paired Phase-5 baseline is closed and green. Same
+  end-of-phase review loop; evidence in `phase-7-review.json`.
+- **Phase 8 — Validate.** `/quality-targets-converge --workflow test-improve
   --refactor-mode <value>` — threading Phase 0's `no-refactor`/
   `refactor-allowed` value keeps the coverage-gap dispatch table from
   proposing a `[Refactor-for-testability]` Story once no-refactor was
-  already chosen at Phase 4b; it writes a `refactor-backlog.md` entry
+  already chosen at Phase 6; it writes a `refactor-backlog.md` entry
   instead. Mutation off = skipped (not waived). Go = advisory-only.
   Coverage < 90% in no-refactor mode → `[y/n]` re-run-in-refactor-allowed
   prompt lists backlogged items and records `coverage_reprompt_fired: true`
-  in `phase-6.md` (so Phase 7's close-out prompt below doesn't re-ask). The
+  in `phase-8.md` (so Phase 9's close-out prompt below doesn't re-ask). The
   identical classification pass from Phase 1 recounts test-by-type into
   `test-counts-after.json`. `/handoff` is suggested here, and after Phase 1
-  and the Phase 4/5 review loops — the context-heaviest boundaries.
-- **Phase 7 — Executive-summary report.** Interpolates the shipped
+  and the Phase 5/7 review loops — the context-heaviest boundaries.
+- **Phase 9 — Executive-summary report.** Interpolates the shipped
   [`templates/executive-summary.md`](../skills/test-improve/templates/executive-summary.md)
   from `memory/test-improve/<slug>/` files to
   `reports/test-improve/<repo-slug>-<date>.md`. 10 numbered sections;
@@ -83,8 +83,8 @@ can resume.
   foregrounds a seam-needed/behavior-gained/estimated-risk table sourced
   from `refactor-backlog.md`. Parent tracker (or
   `plans/test-improve/FEATURE.md`) is updated with a link to the report.
-  Report is regeneratable from memory. After Phase 7, if
-  `refactor-backlog.md` has entries and Phase 6's re-run prompt never fired
+  Report is regeneratable from memory. After Phase 9, if
+  `refactor-backlog.md` has entries and Phase 8's re-run prompt never fired
   this run, a close-out `[y/n]` prompt asks whether to re-run with
   refactor-allowed mode.
 

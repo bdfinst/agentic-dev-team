@@ -236,9 +236,9 @@ def test_analyze_only_semantics_documented_exits_after_phase_1():
     assert grep(r"analyze-only.*(exit|after Phase 1)", text, ignore_case=True)
 
 
-def test_phase_start_banner_requirement_documented_phase_n_7_with_settings_recap():
+def test_phase_start_banner_requirement_documented_phase_n_9_with_settings_recap():
     text = _text()
-    assert grep(r"Phase N/7", text)
+    assert grep(r"Phase N/9", text)
     assert grep(r"mutation:.*binding:.*refactor:.*sink:", text, ignore_case=True)
 
 
@@ -253,5 +253,5 @@ def test_phase_0_answer_immutability_documented():
     )
 
 
-def test_phase_4b_prompt_letter_is_y_b_q_not_r():
+def test_phase_6_prompt_letter_is_y_b_q_not_r():
     assert grep(r"\[y\].*\[b\].*\[q\]|\[y/b/q\]", _text())

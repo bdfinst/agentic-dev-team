@@ -4113,7 +4113,7 @@
       "anchor": "8-report"
     },
     "Examples / Integration": {
-      "summary": "`/test-improve` invokes this worker with `--workflow test-improve` from its Phase 3; paths resolve under `memory/test-improve/<slug>/` and labels lead with `test-improve`.",
+      "summary": "`/test-improve` invokes this worker with `--workflow test-improve` from its Phase 4; paths resolve under `memory/test-improve/<slug>/` and labels lead with `test-improve`.",
       "anchor": "examples-integration"
     },
     "Notes": {
@@ -4793,7 +4793,7 @@
       "anchor": "6-post-the-converge-history"
     },
     "6b. Gherkin effectiveness roll-up (conditional)": {
-      "summary": "When `memory/<workflow>/<slug>/gherkin.md` exists (Phase 2b ran — see",
+      "summary": "When `memory/<workflow>/<slug>/gherkin.md` exists (Phase 3 ran — see",
       "anchor": "6b-gherkin-effectiveness-roll-up-conditional"
     },
     "7. Waiver handling": {
@@ -4805,7 +4805,7 @@
       "anchor": "8-report"
     },
     "Examples / Integration": {
-      "summary": "`/test-improve` invokes this worker from Phase 6 with `--workflow test-improve`; paths resolve as `memory/test-improve/<slug>/` and `./plans/test-improve/phase-6/`.",
+      "summary": "`/test-improve` invokes this worker from Phase 8 with `--workflow test-improve`; paths resolve as `memory/test-improve/<slug>/` and `./plans/test-improve/phase-8/`.",
       "anchor": "examples-integration"
     },
     "Notes": {
@@ -5765,7 +5765,7 @@
       "anchor": "parse-arguments"
     },
     "Phase-start banner": {
-      "summary": "At the start of every phase (0..7), print a two-line banner:",
+      "summary": "At the start of every phase (0..9), print a two-line banner:",
       "anchor": "phase-start-banner"
     },
     "Steps": {
@@ -5784,37 +5784,37 @@
       "summary": "Capture the objective starting point **before any file under the stack's test",
       "anchor": "phase-2-baseline-coverage-mutation"
     },
-    "Phase 2b — Derive Gherkin (conditional)": {
+    "Phase 3 — Derive Gherkin (conditional)": {
       "summary": "Gherkin derivation is **conditional on the Phase-0 BDD rubric answer**.",
-      "anchor": "phase-2b-derive-gherkin-conditional"
+      "anchor": "phase-3-derive-gherkin-conditional"
     },
-    "Phase 3 — Triage (partition findings by gap class)": {
+    "Phase 4 — Plan fixes (partition findings by gap class)": {
       "summary": "Convert Phase 1's ordered improvement plan into actionable work items.",
-      "anchor": "phase-3-triage-partition-findings-by-gap-class"
+      "anchor": "phase-4-plan-fixes-partition-findings-by-gap-class"
     },
-    "Phase 4 — Improve without refactoring (build + mutation-kill + review loop)": {
-      "summary": "Iterate the approved Phase-4 Story set.",
-      "anchor": "phase-4-improve-without-refactoring-build-mutation-kill-review-loop"
+    "Phase 5 — Improve without refactoring (build + mutation-kill + review loop)": {
+      "summary": "Iterate the approved Phase-5 Story set.",
+      "anchor": "phase-5-improve-without-refactoring-build-mutation-kill-review-loop"
     },
-    "Phase 4b — Refactor decision (mode-gated)": {
-      "summary": "With Phase 4 closed, present the **REFACTOR_REQUIRED** list deferred at",
-      "anchor": "phase-4b-refactor-decision-mode-gated"
+    "Phase 6 — Refactor decision (mode-gated)": {
+      "summary": "With Phase 5 closed, present the **REFACTOR_REQUIRED** list deferred at",
+      "anchor": "phase-6-refactor-decision-mode-gated"
     },
-    "Phase 5 — Refactor-for-testability (conditional)": {
-      "summary": "Phase 5 runs **only when the operator picked `[y]` at Phase 4b**.",
-      "anchor": "phase-5-refactor-for-testability-conditional"
+    "Phase 7 — Refactor-for-testability (conditional)": {
+      "summary": "Phase 7 runs **only when the operator picked `[y]` at Phase 6**.",
+      "anchor": "phase-7-refactor-for-testability-conditional"
     },
-    "Phase 6 — Validate (converge quality targets)": {
+    "Phase 8 — Validate (converge quality targets)": {
       "summary": "Verify the improved suite meets the Phase-0 quality targets.",
-      "anchor": "phase-6-validate-converge-quality-targets"
+      "anchor": "phase-8-validate-converge-quality-targets"
     },
-    "Phase 7 — Executive-summary report": {
+    "Phase 9 — Executive-summary report": {
       "summary": "Produce a stable executive-summary report from the shipped template.",
-      "anchor": "phase-7-executive-summary-report"
+      "anchor": "phase-9-executive-summary-report"
     },
-    "After Phase 7 — Re-run-with-refactor close-out prompt": {
-      "summary": "**No prompt** when: `refactor-backlog.md` does not exist (no `REFACTOR_REQUIRED` items were ever backlogged), the file exists but has zero entries (treated the same as absent), `phase-6.md` records `coverage_reprompt_fired: true` (Phase 6's own coverage-driven `[y/n]` already fired this run — no repeating the same question twice), or `phase-0.md` recorded `refactor-mode: refactor-allowed` (a Phase-4b `[b]` backlog entry under `refactor-allowed` mode is the operator's deliberate deferral, not a no-refactor constraint to lift — re-asking \"re-run with refactor-allowed mode now?\" would be nonsensical when that's the mode already in use).",
-      "anchor": "after-phase-7-re-run-with-refactor-close-out-prompt"
+    "After Phase 9 — Re-run-with-refactor close-out prompt": {
+      "summary": "**No prompt** when: `refactor-backlog.md` does not exist (no `REFACTOR_REQUIRED` items were ever backlogged), the file exists but has zero entries (treated the same as absent), `phase-8.md` records `coverage_reprompt_fired: true` (Phase 8's own coverage-driven `[y/n]` already fired this run — no repeating the same question twice), or `phase-0.md` recorded `refactor-mode: refactor-allowed` (a Phase-6 `[b]` backlog entry under `refactor-allowed` mode is the operator's deliberate deferral, not a no-refactor constraint to lift — re-asking \"re-run with refactor-allowed mode now?\" would be nonsensical when that's the mode already in use).",
+      "anchor": "after-phase-9-re-run-with-refactor-close-out-prompt"
     }
   },
   "plugins/dev-team/skills/threat-modeling/SKILL.md": {

@@ -1,6 +1,6 @@
 """Contract for /test-improve's /handoff suggestion at context-heavy phase
-boundaries (Phase 1, Phase 4's review loop, Phase 5's review loop, Phase 6)
-— and its explicit absence at the lighter gates (Phase 2b, Phase 3, Phase 4b).
+boundaries (Phase 1, Phase 5's review loop, Phase 7's review loop, Phase 8)
+— and its explicit absence at the lighter gates (Phase 3, Phase 4, Phase 6).
 
 Issue #968, Slice 1 Step 1.3.
 """
@@ -25,28 +25,28 @@ def _phase_1_section() -> str:
     return section(_text(), r"^### Phase 1")
 
 
-def _phase_2b_section() -> str:
-    return section(_text(), r"^### Phase 2b")
-
-
 def _phase_3_section() -> str:
-    return section(_text(), r"^### Phase 3( —|$| \()")
+    return section(_text(), r"^### Phase 3")
 
 
 def _phase_4_section() -> str:
     return section(_text(), r"^### Phase 4( —|$| \()")
 
 
-def _phase_4b_section() -> str:
-    return section(_text(), r"^### Phase 4b")
-
-
 def _phase_5_section() -> str:
-    return section(_text(), r"^### Phase 5")
+    return section(_text(), r"^### Phase 5( —|$| \()")
 
 
 def _phase_6_section() -> str:
     return section(_text(), r"^### Phase 6")
+
+
+def _phase_7_section() -> str:
+    return section(_text(), r"^### Phase 7")
+
+
+def _phase_8_section() -> str:
+    return section(_text(), r"^### Phase 8")
 
 
 def _has_suggestion(s: str) -> bool:
@@ -62,28 +62,28 @@ def test_handoff_suggestion_present_after_phase_1():
     assert _has_suggestion(_phase_1_section())
 
 
-def test_handoff_suggestion_present_in_phase_4_review_loop():
-    assert _has_suggestion(_phase_4_section())
-
-
 def test_handoff_suggestion_present_in_phase_5_review_loop():
     assert _has_suggestion(_phase_5_section())
 
 
-def test_handoff_suggestion_present_after_phase_6():
-    assert _has_suggestion(_phase_6_section())
+def test_handoff_suggestion_present_in_phase_7_review_loop():
+    assert _has_suggestion(_phase_7_section())
 
 
-def test_handoff_suggestion_absent_from_phase_2b():
-    assert not _has_suggestion(_phase_2b_section())
+def test_handoff_suggestion_present_after_phase_8():
+    assert _has_suggestion(_phase_8_section())
 
 
 def test_handoff_suggestion_absent_from_phase_3():
     assert not _has_suggestion(_phase_3_section())
 
 
-def test_handoff_suggestion_absent_from_phase_4b():
-    assert not _has_suggestion(_phase_4b_section())
+def test_handoff_suggestion_absent_from_phase_4():
+    assert not _has_suggestion(_phase_4_section())
+
+
+def test_handoff_suggestion_absent_from_phase_6():
+    assert not _has_suggestion(_phase_6_section())
 
 
 _MESSAGE_RE = re.compile(r"Phase \S+ complete\..{0,300}?--from-phase \S+", re.DOTALL)
@@ -96,9 +96,9 @@ def test_suggestion_wording_is_identical_at_all_four_insertion_points_modulo_pha
     since the prose wraps across physical lines."""
     sections = [
         _phase_1_section(),
-        _phase_4_section(),
         _phase_5_section(),
-        _phase_6_section(),
+        _phase_7_section(),
+        _phase_8_section(),
     ]
     variants = set()
     for s in sections:

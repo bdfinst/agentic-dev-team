@@ -37,12 +37,12 @@ def grep(pattern: str, text: str, ignore_case: bool = False) -> bool:
     return re.search(_posix_classes(pattern), text, flags) is not None
 
 
-def phase_6_section(text: str) -> str:
-    """Extract /test-improve's Phase 6 section from `text` (the skill's full
+def phase_8_section(text: str) -> str:
+    """Extract /test-improve's Phase 8 section from `text` (the skill's full
     body). Promoted here (test-smell-review, issue #968) after the same
-    one-line `section(text, r"^### Phase 6")` wrapper was duplicated
+    one-line `section(text, r"^### Phase 8")` wrapper was duplicated
     verbatim across three tests/skills/test_improve_*.py files."""
-    return section(text, r"^### Phase 6")
+    return section(text, r"^### Phase 8")
 
 
 def collapsed(text: str) -> str:
@@ -158,7 +158,7 @@ def section(
     pass `r"^## "` for the `## `-level sections used elsewhere, e.g.
     `## Constraints`). `exclude_pattern`, when given, mirrors
     `&& !/<exclude_pattern>/` guarding the start match (used by the
-    Phase 2 vs Phase 2b disambiguation). `include_start_line=False`
+    Phase 2 vs Phase 3 disambiguation). `include_start_line=False`
     mirrors the `{f=1; next}` idiom (start header consumed, not printed).
     """
     lines = text.splitlines()

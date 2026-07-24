@@ -41,7 +41,7 @@ def result(root: Path, explicit=None):
 def test_scan_ignores_non_phase_files(tmp_path):
     root = make_phases(tmp_path / "s", "0", "1")
     (root / "gherkin.md").write_text("x", encoding="utf-8")
-    (root / "phase-4-review.json").write_text("{}", encoding="utf-8")
+    (root / "phase-5-review.json").write_text("{}", encoding="utf-8")
     (root / "coverage-history.json").write_text("[]", encoding="utf-8")
     assert scan_phase_files(root) == ["0", "1"]
 
@@ -50,9 +50,9 @@ def test_scan_missing_dir_is_empty(tmp_path):
     assert scan_phase_files(tmp_path / "nope") == []
 
 
-def test_scan_orders_4b_between_4_and_5(tmp_path):
-    root = make_phases(tmp_path / "s", "5", "4b", "4", "3")
-    assert scan_phase_files(root) == ["3", "4", "4b", "5"]
+def test_scan_orders_6_between_5_and_7(tmp_path):
+    root = make_phases(tmp_path / "s", "7", "6", "5", "4")
+    assert scan_phase_files(root) == ["4", "5", "6", "7"]
 
 
 # ---------------------------------------------------------------------------
@@ -67,56 +67,58 @@ def test_only_phase_0_resumes_at_1(tmp_path):
     assert payload["latest_completed"] == "phase-0.md"
 
 
-def test_phase_3_resumes_at_4(tmp_path):
-    root = make_phases(tmp_path / "s", "0", "1", "2", "3")
+def test_phase_4_resumes_at_5(tmp_path):
+    root = make_phases(tmp_path / "s", "0", "1", "2", "4")
     _, payload = result(root)
-    assert payload["resolved_phase"] == "4"
+    assert payload["resolved_phase"] == "5"
 
 
-def test_no_arg_resolves_to_highest_completed_plus_one(tmp_path):
+def test_no_arg_resolves_to_next_tracked_phase(tmp_path):
     root = make_phases(tmp_path / "s", "0", "1", "2")
     _, payload = result(root)
-    assert payload["resolved_phase"] == "3"
+    # Phase 3 (Gherkin derive) has no numbered progress file, so the next
+    # tracked phase after 2 is 4, not 3.
+    assert payload["resolved_phase"] == "4"
     assert "latest completed: phase-2.md" in payload["reason"]
 
 
 # ---------------------------------------------------------------------------
-# 4b ordering edge cases
+# Phase-6 ordering edge cases
 # ---------------------------------------------------------------------------
 
-def test_phase_4_without_4b_resumes_at_4b(tmp_path):
-    root = make_phases(tmp_path / "s", "0", "1", "2", "3", "4")
-    _, payload = result(root)
-    assert payload["resolved_phase"] == "4b"
-    assert payload["latest_completed"] == "phase-4.md"
-
-
-def test_phase_4b_resumes_at_6(tmp_path):
-    root = make_phases(tmp_path / "s", "0", "1", "2", "3", "4", "4b")
+def test_phase_5_without_6_resumes_at_6(tmp_path):
+    root = make_phases(tmp_path / "s", "0", "1", "2", "4", "5")
     _, payload = result(root)
     assert payload["resolved_phase"] == "6"
-    assert payload["latest_completed"] == "phase-4b.md"
-    assert "phase-4b.md" in payload["message"]
+    assert payload["latest_completed"] == "phase-5.md"
 
 
-def test_phase_5_resumes_at_6(tmp_path):
-    root = make_phases(tmp_path / "s", "0", "1", "2", "3", "4", "4b", "5")
+def test_phase_6_resumes_at_8(tmp_path):
+    root = make_phases(tmp_path / "s", "0", "1", "2", "4", "5", "6")
     _, payload = result(root)
-    assert payload["resolved_phase"] == "6"
+    assert payload["resolved_phase"] == "8"
+    assert payload["latest_completed"] == "phase-6.md"
+    assert "phase-6.md" in payload["message"]
 
 
-def test_phase_6_resumes_at_7(tmp_path):
-    root = make_phases(tmp_path / "s", "0", "4", "4b", "5", "6")
+def test_phase_7_resumes_at_8(tmp_path):
+    root = make_phases(tmp_path / "s", "0", "1", "2", "4", "5", "6", "7")
     _, payload = result(root)
-    assert payload["resolved_phase"] == "7"
+    assert payload["resolved_phase"] == "8"
+
+
+def test_phase_8_resumes_at_9(tmp_path):
+    root = make_phases(tmp_path / "s", "0", "5", "6", "7", "8")
+    _, payload = result(root)
+    assert payload["resolved_phase"] == "9"
 
 
 # ---------------------------------------------------------------------------
 # completion + error edge cases
 # ---------------------------------------------------------------------------
 
-def test_phase_7_reports_complete(tmp_path):
-    root = make_phases(tmp_path / "s", "0", "7")
+def test_phase_9_reports_complete(tmp_path):
+    root = make_phases(tmp_path / "s", "0", "9")
     code, payload = result(root)
     assert code == 0
     assert payload["complete"] is True
@@ -154,10 +156,10 @@ def test_missing_phase_0_errors_even_when_later_phases_exist(tmp_path):
 # ---------------------------------------------------------------------------
 
 def test_explicit_number_overrides_autodetect(tmp_path):
-    root = make_phases(tmp_path / "s", "0", "1", "2", "3", "4")
-    # Auto would pick 4b; explicit forces 2.
+    root = make_phases(tmp_path / "s", "0", "1", "2", "4", "5")
+    # Auto would pick 6; explicit forces 2.
     _, auto = result(root)
-    assert auto["resolved_phase"] == "4b"
+    assert auto["resolved_phase"] == "6"
     code, payload = result(root, explicit="2")
     assert code == 0
     assert payload["resolved_phase"] == "2"
@@ -169,12 +171,6 @@ def test_explicit_still_requires_phase_0(tmp_path):
     code, payload = result(root, explicit="5")
     assert code == 2
     assert payload["resolved_phase"] is None
-
-
-def test_explicit_4b_token_supported(tmp_path):
-    root = make_phases(tmp_path / "s", "0", "4")
-    _, payload = result(root, explicit="4b")
-    assert payload["resolved_phase"] == "4b"
 
 
 # ---------------------------------------------------------------------------
@@ -230,4 +226,4 @@ def test_cli_derives_slug_from_repo_path(tmp_path, capsys):
     )
     assert rc == 0
     payload = json.loads(capsys.readouterr().out)
-    assert payload["resolved_phase"] == "3"
+    assert payload["resolved_phase"] == "4"
