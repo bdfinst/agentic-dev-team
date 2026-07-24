@@ -144,9 +144,18 @@ def test_json_report_smoke(tmp_path, capsys):
     rc = main(["--agents-dir", str(agents), "--json"])
     assert rc == 0
     out = json.loads(capsys.readouterr().out)
-    assert set(out) == {"reviewed", "offenders", "unclassified"}
+    # Common envelope shared by all three MCP grant-check scripts (#1393).
+    assert set(out) == {
+        "check", "evaluated", "offenders", "unclassified", "fixed", "unfixable", "ok", "notes",
+    }
+    assert out["check"] == "security-assessment-mcp-tools"
+    assert set(out["evaluated"]) == set(CODE_READING_AGENTS)
     assert out["offenders"] == {}
     assert out["unclassified"] == []
+    assert out["fixed"] == {}
+    assert out["unfixable"] == []
+    assert out["ok"] is True
+    assert out["notes"] == {}
 
 
 def test_main_missing_agents_dir_returns_one(tmp_path, capsys):

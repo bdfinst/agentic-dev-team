@@ -34,6 +34,7 @@ sys.path.insert(0, str(Path(__file__).parent / "lib"))
 
 from mcp_tool_grants import (
     BASE_MCP_TOOLS,
+    build_json_report,
     parse_tools,  # noqa: F401 -- re-exported: imported directly by this script's own tests
     run_grants_check,
 )
@@ -139,18 +140,22 @@ def main() -> int:
 
     agents = find_review_agents(agents_dir)
     skill_missing = _skill_missing(skill_file)
+    offenders, fixed, unfixable = run_grants_check(_targets(agents), apply_fix=args.fix)
 
     if args.fix:
-        fixed, unfixable = apply_fixes(agents)
         rc = 1 if (unfixable or skill_missing) else 0
         if args.json:
             # --json owns stdout: emit ONLY the JSON object, nothing else.
-            print(json.dumps({
-                "reviewed": [a.stem for a in agents],
-                "fixed": fixed,
-                "unfixable": unfixable,
-                "skill_missing_phrases": skill_missing,
-            }, indent=2))
+            report = build_json_report(
+                "review-agent-mcp-tools",
+                [a.stem for a in agents],
+                offenders,
+                ok=(rc == 0),
+                fixed=fixed,
+                unfixable=unfixable,
+                notes={"skill_missing_phrases": skill_missing},
+            )
+            print(json.dumps(report, indent=2))
             return rc
         if fixed:
             for name, added in fixed.items():
@@ -165,15 +170,17 @@ def main() -> int:
                   + ", ".join(skill_missing), file=sys.stderr)
         return rc
 
-    offenders = find_offenders(agents)
     rc = 1 if (offenders or skill_missing) else 0
     if args.json:
         # --json owns stdout: emit ONLY the JSON object, nothing else.
-        print(json.dumps({
-            "reviewed": [a.stem for a in agents],
-            "offenders": offenders,
-            "skill_missing_phrases": skill_missing,
-        }, indent=2))
+        report = build_json_report(
+            "review-agent-mcp-tools",
+            [a.stem for a in agents],
+            offenders,
+            ok=(rc == 0),
+            notes={"skill_missing_phrases": skill_missing},
+        )
+        print(json.dumps(report, indent=2))
         return rc
     if offenders:
         print("FAIL: review agents missing code-intelligence MCP tools in tools::")

@@ -48,6 +48,7 @@ sys.path.insert(0, str(Path(__file__).parent / "lib"))
 from mcp_tool_grants import (
     BASE_MCP_TOOLS,
     GET_WHY,
+    build_json_report,
     run_grants_check,
 )
 
@@ -164,17 +165,23 @@ def main(argv=None) -> int:
 
     swept = swept_agents(agents_dir)
     covered = sorted(set(TIER_CONFIG) | set(swept))
-    offenders, fixed, _unfixable = run_grants_check(_targets(agents_dir), apply_fix=args.fix)
+    offenders, fixed, unfixable = run_grants_check(_targets(agents_dir), apply_fix=args.fix)
     unclassified = _unclassified(covered)
-    report = {"covered": covered, "swept": swept, "offenders": offenders, "unclassified": unclassified}
     rc = 1 if (offenders or unclassified) else 0
 
     if args.json:
         # --json owns stdout: emit ONLY the JSON object.
-        out = dict(report)
-        if args.fix:
-            out["fixed"] = fixed
-        print(json.dumps(out, indent=2))
+        report = build_json_report(
+            "agent-tool-mapping",
+            covered,
+            offenders,
+            ok=(rc == 0),
+            fixed=fixed,
+            unfixable=unfixable,
+            unclassified=unclassified,
+            notes={"swept": swept},
+        )
+        print(json.dumps(report, indent=2))
         return rc
 
     if args.fix:
@@ -195,7 +202,7 @@ def main(argv=None) -> int:
         for name in unclassified:
             print(f"  - {name}")
     if rc == 0:
-        print(f"OK: all {len(report['covered'])} covered agents match the tool mapping.")
+        print(f"OK: all {len(covered)} covered agents match the tool mapping.")
     return rc
 
 
