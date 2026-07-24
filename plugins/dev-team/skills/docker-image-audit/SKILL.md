@@ -39,7 +39,7 @@ If the user points to a Dockerfile but no built image exists, offer to build it 
 hadolint --format json Dockerfile
 ```
 
-Catches base image issues (`:latest` tag, unpinned versions), security anti-patterns (`ADD` vs `COPY`, running as root), efficiency problems (missing `--no-cache`, uncleaned apt cache), and shell issues in `RUN` instructions via integrated ShellCheck. Note: hadolint flags `:latest` (`DL3007`) but not other unpinned tags like `:10.0` without a digest — call those out in Step 2b if the base image lacks a specific patch version or SHA digest.
+Catches base image issues (`:latest` tag, unpinned versions), security anti-patterns (`ADD` vs `COPY`, running as root), efficiency problems (missing `--no-cache`, uncleaned apt cache), and shell issues in `RUN` instructions via integrated ShellCheck. Note: hadolint flags `:latest` (`DL3007`) but not other unpinned tags like `:10.0` without a digest — call those out in Step 2b (Structural Analysis) if the base image lacks a specific patch version or SHA digest.
 
 ### Step 2b: Structural Analysis
 
