@@ -27,13 +27,11 @@ import json
 import re
 import sys
 from pathlib import Path
-from typing import Dict, List
 
 _HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(_HERE / "lib"))
 
-import plan_parse  # noqa: E402
-
+import plan_parse
 
 _TOKEN_SPLIT_RE = re.compile(r"[,\s]+")
 
@@ -47,7 +45,7 @@ def _is_glob(pattern: str) -> bool:
     return any(ch in pattern for ch in "*?[")
 
 
-def _file_covered(file_path: str, patterns: List[str]) -> bool:
+def _file_covered(file_path: str, patterns: list[str]) -> bool:
     """True when `file_path` exactly matches a declared pattern, or a
     declared glob pattern (fnmatch, stdlib — #865 AC9) matches it."""
     for pattern in patterns:
@@ -58,7 +56,7 @@ def _file_covered(file_path: str, patterns: List[str]) -> bool:
     return False
 
 
-def _pattern_covers_any(pattern: str, files: List[str]) -> bool:
+def _pattern_covers_any(pattern: str, files: list[str]) -> bool:
     """True when a declared `pattern` is satisfied by at least one inferred
     file — an exact-match hit, or (for a glob pattern) any fnmatch hit."""
     for file_path in files:
@@ -69,7 +67,7 @@ def _pattern_covers_any(pattern: str, files: List[str]) -> bool:
     return False
 
 
-def _scope_mismatch(sid: str, declared: List[str], inferred: List[str]) -> Dict:
+def _scope_mismatch(sid: str, declared: list[str], inferred: list[str]) -> dict:
     """Return a `scope_mismatches` entry for `sid`, or `None` when the
     declared and inferred sets reconcile (#865 AC3). `under_declared` is the
     dangerous direction: a step plans to touch a file the slice never
@@ -94,8 +92,8 @@ def compute_waves(plan_path: Path) -> dict:
     rows = plan_parse.parse_slices(plan_lines)
     inferred_by_slice = plan_parse.step_files_union(plan_lines)
 
-    slices: Dict[str, dict] = {}
-    order: List[str] = []
+    slices: dict[str, dict] = {}
+    order: list[str] = []
     for sid, deps_raw, files_raw in rows:
         files = [f for f in _TOKEN_SPLIT_RE.split(files_raw) if f]
         slices[sid] = {
@@ -127,7 +125,7 @@ def compute_waves(plan_path: Path) -> dict:
                 _die(f"slice {sid!r} depends on unknown slice {dep!r}.")
 
     remaining = {sid: set(slices[sid]["deps"]) for sid in order}
-    waves: List[List[str]] = []
+    waves: list[list[str]] = []
     placed: set = set()
     while remaining:
         ready = sorted(s for s, d in remaining.items() if d <= placed)
@@ -149,7 +147,7 @@ def compute_waves(plan_path: Path) -> dict:
         for sid in order
     }
 
-    collisions: List[dict] = []
+    collisions: list[dict] = []
     for i, wave in enumerate(waves, 1):
         for a in range(len(wave)):
             for b in range(a + 1, len(wave)):
@@ -162,7 +160,7 @@ def compute_waves(plan_path: Path) -> dict:
     # Declared-vs-inferred scope mismatches (#865 AC3) — only for slices that
     # declare slice-level Files; a slice with no declaration has nothing to
     # reconcile against.
-    scope_mismatches: List[dict] = []
+    scope_mismatches: list[dict] = []
     for sid in order:
         declared = slices[sid]["files"]
         if not declared:
@@ -187,7 +185,7 @@ def compute_waves(plan_path: Path) -> dict:
     }
 
 
-def main(argv: List[str] = None) -> int:
+def main(argv: list[str] = None) -> int:
     parser = argparse.ArgumentParser(
         prog="plan_waves.py",
         description="Compute parallel build waves from a plan's slice DAG.",

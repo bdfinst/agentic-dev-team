@@ -11,8 +11,8 @@ from __future__ import annotations
 
 import json
 import sys
+from collections.abc import Sequence
 from pathlib import Path
-from typing import Sequence
 
 import pytest
 
@@ -27,8 +27,7 @@ SCRIPTS_DIR = (
 )
 sys.path.insert(0, str(SCRIPTS_DIR))
 
-import stryker_shard_setup  # noqa: E402
-
+import stryker_shard_setup
 
 # =============================================================================
 # Fixture helpers

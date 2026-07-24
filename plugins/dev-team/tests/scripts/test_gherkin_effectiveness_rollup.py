@@ -10,7 +10,7 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "scripts"))
 
-import gherkin_effectiveness_rollup as rollup  # noqa: E402
+import gherkin_effectiveness_rollup as rollup
 
 GHERKIN_MD = """# Surface inventory
 

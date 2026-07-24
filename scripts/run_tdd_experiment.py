@@ -44,7 +44,7 @@ SCRIPTS = Path(__file__).resolve().parent
 sys.path.insert(0, str(SCRIPTS))
 
 # Reuse the audited integration primitives rather than reimplementing them.
-from run_integration_eval import (  # noqa: E402
+from run_integration_eval import (
     extract_golden_repo,
     init_worktree,
     run_commands,
@@ -236,7 +236,7 @@ def dispatch(workdir: Path, prompt: str, model: str, env: dict,
 
 # A file is "a test the agent wrote" if its name looks like a test and it was not
 # one of the hidden acceptance files we inject at grading time.
-TEST_NAME = re.compile(r"(^test_|_test\.|\.test\.|(^|/)tests?/|_spec\.|\.spec\.)", re.I)
+TEST_NAME = re.compile(r"(^test_|_test\.|\.test\.|(^|/)tests?/|_spec\.|\.spec\.)", re.IGNORECASE)
 
 
 def count_agent_tests(workdir: Path, injected: set[str]) -> int:
@@ -371,17 +371,11 @@ def _pytest_rc(workdir: Path, env: dict) -> int:
 def _mutation_sites(tree: ast.AST) -> int:
     n = 0
     for node in ast.walk(tree):
-        if isinstance(node, ast.BinOp) and type(node.op) in _BINOP:
-            n += 1
-        elif isinstance(node, (ast.AugAssign,)) and type(node.op) in _BINOP:
+        if isinstance(node, ast.BinOp) and type(node.op) in _BINOP or isinstance(node, (ast.AugAssign,)) and type(node.op) in _BINOP:
             n += 1
         elif isinstance(node, ast.Compare):
             n += sum(type(o) in _CMPOP for o in node.ops)
-        elif isinstance(node, ast.BoolOp) and type(node.op) in _BOOLOP:
-            n += 1
-        elif isinstance(node, ast.Constant) and isinstance(node.value, bool):
-            n += 1
-        elif _is_int_const(node):
+        elif isinstance(node, ast.BoolOp) and type(node.op) in _BOOLOP or isinstance(node, ast.Constant) and isinstance(node.value, bool) or _is_int_const(node):
             n += 1
     return n
 
@@ -393,12 +387,7 @@ def _apply_mutation(src: str, k: int) -> str | None:
 
     def flip(node) -> bool:
         i = counter["i"]
-        if isinstance(node, ast.BinOp) and type(node.op) in _BINOP:
-            if i == k:
-                node.op = _BINOP[type(node.op)]()
-                return True
-            counter["i"] += 1
-        elif isinstance(node, ast.AugAssign) and type(node.op) in _BINOP:
+        if isinstance(node, ast.BinOp) and type(node.op) in _BINOP or isinstance(node, ast.AugAssign) and type(node.op) in _BINOP:
             if i == k:
                 node.op = _BINOP[type(node.op)]()
                 return True

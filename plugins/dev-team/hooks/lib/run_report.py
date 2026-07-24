@@ -22,13 +22,12 @@ import argparse
 import json
 import sys
 from pathlib import Path
-from typing import Optional
 
 _LIB_DIR = Path(__file__).resolve().parent
 if str(_LIB_DIR) not in sys.path:
     sys.path.insert(0, str(_LIB_DIR))
 
-import workflow_state  # noqa: E402
+import workflow_state
 
 
 def _metrics_dir(cwd) -> Path:
@@ -50,7 +49,7 @@ def _read_jsonl(path: Path) -> list:
     return entries
 
 
-def _most_recent_session_id(cwd) -> Optional[str]:
+def _most_recent_session_id(cwd) -> str | None:
     """Most recent `session_id` across boundary-events + workflow-states,
     by event order within each stream (both are append-only chronological
     logs, so the last matching entry is the most recent)."""
@@ -107,7 +106,7 @@ def _cost_summary(cwd) -> dict:
     }
 
 
-def build_report(cwd, session_id: Optional[str] = None) -> dict:
+def build_report(cwd, session_id: str | None = None) -> dict:
     if not session_id:
         session_id = _most_recent_session_id(cwd)
 

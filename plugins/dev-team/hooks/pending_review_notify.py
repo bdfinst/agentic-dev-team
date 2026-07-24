@@ -26,10 +26,9 @@ import json
 import os
 import sys
 from pathlib import Path
-from typing import List, Optional
 
 
-def _notify_pending_findings(cwd: str) -> Optional[str]:
+def _notify_pending_findings(cwd: str) -> str | None:
     """Count still-pending entries in the pending-review queue, rotating out
     disposed ones so the file stays bounded (#732).
 
@@ -55,7 +54,7 @@ def _notify_pending_findings(cwd: str) -> Optional[str]:
     except OSError:
         return None
 
-    kept_lines: List[str] = []
+    kept_lines: list[str] = []
     dropped_any = False
     count = 0
     for raw_line in lines:

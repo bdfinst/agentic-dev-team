@@ -27,7 +27,7 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from eval_variance import aggregate_trials, _load_trials  # noqa: E402
+from eval_variance import _load_trials, aggregate_trials
 
 
 def persona_delta(expected_dir: Path, on_trials: list[dict],

@@ -18,7 +18,7 @@ _HOOKS_LIB = Path(__file__).resolve().parents[2] / "hooks" / "lib"
 if str(_HOOKS_LIB) not in sys.path:
     sys.path.insert(0, str(_HOOKS_LIB))
 
-import stdin_json  # type: ignore[import-not-found]  # noqa: E402
+import stdin_json  # type: ignore[import-not-found]
 
 
 def _set_stdin(monkeypatch, text: str) -> None:

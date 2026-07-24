@@ -14,7 +14,6 @@ import subprocess
 import sys
 import xml.etree.ElementTree as ET
 from pathlib import Path
-from typing import List, Optional
 
 from . import lib
 
@@ -48,10 +47,8 @@ def mutmut_detect() -> bool:
 def _derive_python_source(test_file: str) -> str:
     """Strip test_ prefix / _test suffix from `test_file` to find the source."""
     base = Path(test_file).stem
-    if base.startswith("test_"):
-        base = base[len("test_") :]
-    if base.endswith("_test"):
-        base = base[: -len("_test")]
+    base = base.removeprefix("test_")
+    base = base.removesuffix("_test")
     for dir_ in ("src", "", "lib"):
         candidate = f"{dir_}/{base}.py" if dir_ else f"{base}.py"
         if Path(candidate).is_file():
@@ -72,7 +69,7 @@ def _changed_python_source() -> str:
     return lib.first_changed_file(_is_python_source)
 
 
-def _mutmut_argv() -> List[str]:
+def _mutmut_argv() -> list[str]:
     """Return the argv prefix for invoking mutmut — either `mutmut` or `python3 -m mutmut`."""
     if shutil.which("mutmut") is not None:
         return ["mutmut"]
@@ -181,7 +178,7 @@ def mutmut_run(output_file: Path) -> int:
     return 0
 
 
-def main(argv: Optional[List[str]] = None) -> int:
+def main(argv: list[str] | None = None) -> int:
     args = list(sys.argv[1:] if argv is None else argv)
     if not args:
         print("mutmut.py: OUTPUT_FILE argument required", file=sys.stderr)

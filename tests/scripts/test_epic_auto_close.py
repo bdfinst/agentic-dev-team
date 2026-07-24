@@ -19,8 +19,7 @@ _SCRIPT_DIR = Path(__file__).resolve().parents[2] / "scripts"
 if str(_SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(_SCRIPT_DIR))
 
-import epic_auto_close  # noqa: E402
-
+import epic_auto_close
 
 # ---------------------------------------------------------------------------
 # should_close_parent — the pure decision function
@@ -144,8 +143,7 @@ def test_cli_does_not_close_when_gh_api_fails() -> None:
         side_effect=subprocess.CalledProcessError(
             1, ["gh", "api", "repos/OWNER/REPO/issues/42"]
         ),
-    ) as mock_run:
-        with pytest.raises(subprocess.CalledProcessError):
-            epic_auto_close.main(["--repo", "OWNER/REPO", "--issue", "42"])
+    ) as mock_run, pytest.raises(subprocess.CalledProcessError):
+        epic_auto_close.main(["--repo", "OWNER/REPO", "--issue", "42"])
     # Only the failing get_issue call happened — never reached close_parent.
     assert mock_run.call_count == 1

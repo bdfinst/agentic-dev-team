@@ -42,11 +42,21 @@ from statistics import mean, stdev
 SCRIPTS = Path(__file__).resolve().parent
 sys.path.insert(0, str(SCRIPTS))
 
-from run_integration_eval import extract_golden_repo, init_worktree, run_commands  # noqa: E402
-from run_tdd_experiment import (  # noqa: E402
-    contamination_flags, make_cell_home, cell_env, dispatch,
-    count_agent_tests, split_py_files, measure_coverage, measure_mutation,
+from run_integration_eval import (
+    extract_golden_repo,
+    init_worktree,
+    run_commands,
+)
+from run_tdd_experiment import (
+    cell_env,
+    contamination_flags,
+    count_agent_tests,
+    dispatch,
     inject_grade_files,
+    make_cell_home,
+    measure_coverage,
+    measure_mutation,
+    split_py_files,
 )
 
 MODEL_DEFAULT = "claude-sonnet-4-6"

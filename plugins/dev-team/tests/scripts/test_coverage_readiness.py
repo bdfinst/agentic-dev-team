@@ -4,18 +4,16 @@ import json
 import sys
 from pathlib import Path
 
-
 SCRIPTS_DIR = Path(__file__).parent.parent.parent / "scripts"
 sys.path.insert(0, str(SCRIPTS_DIR))
 
-from coverage_readiness import (  # noqa: E402
+from coverage_readiness import (
     build_report,
     detect_runner,
     detect_vitest_provider,
     main,
     resolve_config_source,
 )
-
 
 # ---------------------------------------------------------------------------
 # helpers

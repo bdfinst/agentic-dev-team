@@ -1,5 +1,6 @@
 """Positive fixture for crypto-anti-patterns rules."""
 import hashlib
+
 import requests
 from Crypto.Cipher import AES, DES
 

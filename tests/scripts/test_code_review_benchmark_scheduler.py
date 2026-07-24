@@ -12,7 +12,7 @@ import json
 import sys
 import threading
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any
 
 import pytest
 
@@ -20,15 +20,15 @@ _HARNESS_DIR = Path(__file__).resolve().parents[2] / "evals" / "code-review-benc
 if str(_HARNESS_DIR) not in sys.path:
     sys.path.insert(0, str(_HARNESS_DIR))
 
-import runner  # noqa: E402
-import scheduler  # noqa: E402
+import runner
+import scheduler
 
 
-def _noop_kwargs(case: Any) -> Dict[str, Any]:
+def _noop_kwargs(case: Any) -> dict[str, Any]:
     return {}
 
 
-def _pending(bug_ids: List[str]):
+def _pending(bug_ids: list[str]):
     """Build `(case, case_dict)` pairs `run_pending()` expects — `case` is
     unused when `make_kwargs` is `_noop_kwargs`, so a bare dict stands in."""
     return [
@@ -38,7 +38,7 @@ def _pending(bug_ids: List[str]):
 
 
 def test_run_pending_prints_progress_and_returns_total(tmp_path: Path) -> None:
-    def fake_run_case_fn(case_dict, **kwargs) -> Dict[str, Any]:
+    def fake_run_case_fn(case_dict, **kwargs) -> dict[str, Any]:
         return {**case_dict, "skipped": False, "hit": True, "cost_usd": 1.0}
 
     total = scheduler.run_pending(
@@ -59,7 +59,7 @@ def test_run_pending_running_total_accumulates_across_cases(
 ) -> None:
     costs = {"1": 1.00, "2": 2.00, "3": 0.50}
 
-    def fake_run_case_fn(case_dict, **kwargs) -> Dict[str, Any]:
+    def fake_run_case_fn(case_dict, **kwargs) -> dict[str, Any]:
         return {
             **case_dict,
             "skipped": False,
@@ -83,9 +83,9 @@ def test_run_pending_running_total_accumulates_across_cases(
 
 
 def test_scheduler_no_max_cost_usd_dispatches_everything(tmp_path: Path) -> None:
-    called: List[str] = []
+    called: list[str] = []
 
-    def fake_run_case_fn(case_dict, **kwargs) -> Dict[str, Any]:
+    def fake_run_case_fn(case_dict, **kwargs) -> dict[str, Any]:
         called.append(case_dict["bug_id"])
         return {**case_dict, "skipped": False, "hit": True, "cost_usd": 5.0}
 
@@ -105,9 +105,9 @@ def test_scheduler_stops_new_dispatch_once_budget_reached(tmp_path: Path) -> Non
     """workers=1: cases complete one at a time, so the budget check after
     case 1 ($5.00 >= $5.00 budget) must stop cases 2 and 3 from ever
     calling run_case_fn — they land in skipped.jsonl instead."""
-    called: List[str] = []
+    called: list[str] = []
 
-    def fake_run_case_fn(case_dict, **kwargs) -> Dict[str, Any]:
+    def fake_run_case_fn(case_dict, **kwargs) -> dict[str, Any]:
         called.append(case_dict["bug_id"])
         return {**case_dict, "skipped": False, "hit": True, "cost_usd": 5.0}
 
@@ -135,9 +135,9 @@ def test_scheduler_initial_batch_can_exceed_budget_before_first_check(
     """workers=3: cases 1, 2, and 3 are all primed before any completion,
     so all three run to completion even though their combined cost ($15)
     exceeds the $5 budget — only case 4 (queued behind them) is skipped."""
-    called: List[str] = []
+    called: list[str] = []
 
-    def fake_run_case_fn(case_dict, **kwargs) -> Dict[str, Any]:
+    def fake_run_case_fn(case_dict, **kwargs) -> dict[str, Any]:
         called.append(case_dict["bug_id"])
         return {**case_dict, "skipped": False, "hit": True, "cost_usd": 5.0}
 
@@ -180,7 +180,7 @@ def test_scheduler_in_flight_case_finishes_after_budget_trips(
 
     monkeypatch.setattr(scheduler.runner, "append_result", wrapped_append_result)
 
-    def fake_run_case_fn(case_dict, **kwargs) -> Dict[str, Any]:
+    def fake_run_case_fn(case_dict, **kwargs) -> dict[str, Any]:
         if case_dict["bug_id"] == "A":
             return {**case_dict, "skipped": False, "hit": True, "cost_usd": 5.0}
         # Case B: block until A has genuinely been appended by the main
@@ -220,9 +220,9 @@ def test_scheduler_tops_up_queue_as_futures_complete_when_under_budget(
     """workers=2, no budget: submitting case 3 only once one of the first
     two slots frees up proves the top-up mechanism runs (not just the
     stop condition) — all 4 cases must complete."""
-    called: List[str] = []
+    called: list[str] = []
 
-    def fake_run_case_fn(case_dict, **kwargs) -> Dict[str, Any]:
+    def fake_run_case_fn(case_dict, **kwargs) -> dict[str, Any]:
         called.append(case_dict["bug_id"])
         return {**case_dict, "skipped": False, "hit": True, "cost_usd": 1.0}
 

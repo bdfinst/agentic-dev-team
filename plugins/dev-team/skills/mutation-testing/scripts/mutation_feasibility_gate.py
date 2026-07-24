@@ -22,9 +22,8 @@ import argparse
 import json
 import os
 import sys
+from collections.abc import Sequence
 from dataclasses import asdict, dataclass
-from typing import Optional, Sequence
-
 
 ENTER_LOOP = "enter-loop"
 DEGRADE = "degrade"
@@ -42,7 +41,7 @@ WAIVER_MESSAGE = (
 )
 
 
-def resolve_budget_seconds(env: Optional[dict] = None) -> float:
+def resolve_budget_seconds(env: dict | None = None) -> float:
     """The per-round wall-clock ceiling — ``DEFAULT_ROUND_BUDGET_SECONDS``
     unless ``DEV_TEAM_MUTATION_ROUND_BUDGET_SECONDS`` overrides it. A
     non-positive or unparseable override falls back to the default."""
@@ -70,11 +69,11 @@ def estimate_round_seconds(probe_seconds: float, scope_file_count: int) -> float
 class Decision:
     outcome: str  # ENTER_LOOP | DEGRADE
     reason: str
-    estimated_round_seconds: Optional[float] = None
-    budget_seconds: Optional[float] = None
+    estimated_round_seconds: float | None = None
+    budget_seconds: float | None = None
 
     @property
-    def waiver(self) -> Optional[str]:
+    def waiver(self) -> str | None:
         """The precise waiver line to record when degrading; None when the
         loop is entered."""
         return None if self.outcome == ENTER_LOOP else WAIVER_MESSAGE
@@ -86,7 +85,7 @@ def decide(
     capture_failed: bool,
     probe_seconds: float,
     scope_file_count: int,
-    budget_seconds: Optional[float] = None,
+    budget_seconds: float | None = None,
 ) -> Decision:
     """Arbitrate loop-vs-degrade from the shim-first probe.
 

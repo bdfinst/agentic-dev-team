@@ -12,8 +12,6 @@ import subprocess
 import sys
 from pathlib import Path
 
-
-
 _HOOKS_LIB = Path(__file__).resolve().parents[2] / "hooks" / "lib"
 if str(_HOOKS_LIB) not in sys.path:
     sys.path.insert(0, str(_HOOKS_LIB))
@@ -22,8 +20,8 @@ _TESTS_LIB = Path(__file__).resolve().parents[2] / "tests" / "lib"
 if str(_TESTS_LIB) not in sys.path:
     sys.path.insert(0, str(_TESTS_LIB))
 
-import review_gate_hash as gate  # type: ignore[import-not-found]  # noqa: E402
-from hermetic import hermetic_git_env  # type: ignore[import-not-found]  # noqa: E402
+import review_gate_hash as gate  # type: ignore[import-not-found]
+from hermetic import hermetic_git_env  # type: ignore[import-not-found]
 
 
 def _init_repo(tmp_path: Path) -> Path:

@@ -99,8 +99,7 @@ def parse_result(driver_name: str, result: dict[str, Any], rules: list[dict[str,
 
     # File path normalization
     file_path = uri
-    if file_path.startswith("file://"):
-        file_path = file_path[7:]
+    file_path = file_path.removeprefix("file://")
 
     level = result.get("level", "warning")
     severity = SEVERITY_MAP.get(level, "info")

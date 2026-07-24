@@ -37,7 +37,6 @@ import sys
 import tempfile
 from pathlib import Path
 
-
 _SKILL_PATH_RE = re.compile(r"/?plugins/dev-team/skills/[^/]+/SKILL\.md$")
 
 

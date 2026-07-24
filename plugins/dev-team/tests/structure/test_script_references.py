@@ -21,7 +21,6 @@ import re
 import shlex
 from pathlib import Path
 
-
 PLUGIN_ROOT = Path(__file__).resolve().parents[2]
 
 # $CLAUDE_PLUGIN_ROOT/... or ${CLAUDE_PLUGIN_ROOT}/... ending in .py or .sh.

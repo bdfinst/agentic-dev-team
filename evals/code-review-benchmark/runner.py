@@ -24,8 +24,9 @@ import shutil
 import subprocess
 import sys
 import tempfile
+from collections.abc import Callable
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional, Set
+from typing import Any
 
 import scorer
 
@@ -34,13 +35,13 @@ _FENCE_RE = re.compile(r"```(?:json)?\s*\n(.*?)\n```", re.DOTALL)
 # Recognized source-file extensions per dataset language (#965). A language
 # absent from this mapping is treated as "unknown" — see
 # `_touches_recognized_source()` for why that means "don't skip."
-_SOURCE_EXTENSIONS: Dict[str, tuple] = {
+_SOURCE_EXTENSIONS: dict[str, tuple] = {
     "java": (".java",),
     "javascript": (".js", ".jsx", ".mjs", ".cjs"),
 }
 
 
-def _touches_recognized_source(files: List[str], language: str) -> bool:
+def _touches_recognized_source(files: list[str], language: str) -> bool:
     """True unless `language` has a recognized-extension mapping and none of
     `files` match it.
 
@@ -55,10 +56,10 @@ def _touches_recognized_source(files: List[str], language: str) -> bool:
 
 
 def _resolve_ground_truth_hunks(
-    case: Dict[str, Any],
+    case: dict[str, Any],
     checkout_dir: str,
-    ground_truth_fn: Optional[Callable[[str], List[Any]]],
-) -> List[Dict[str, Any]]:
+    ground_truth_fn: Callable[[str], list[Any]] | None,
+) -> list[dict[str, Any]]:
     """The case's own `ground_truth_hunks`, or `ground_truth_fn(checkout_dir)`'s
     when the case doesn't carry them inline (e.g. BugsJS, whose ground truth
     requires the post-checkout git history). Returns `[]` (never `None`) when
@@ -72,7 +73,7 @@ def _resolve_ground_truth_hunks(
     return ground_truth_hunks
 
 
-def _extract_review_json(result_text: Optional[str]) -> Optional[Dict[str, Any]]:
+def _extract_review_json(result_text: str | None) -> dict[str, Any] | None:
     """Parse `/code-review --json`'s payload out of a dispatch's final text.
 
     `/code-review --json` is contractually supposed to print the payload
@@ -102,9 +103,9 @@ def _extract_review_json(result_text: Optional[str]) -> Optional[Dict[str, Any]]
         return None
 
 
-def _flatten_findings(review_json: Dict[str, Any]) -> List[Dict[str, Any]]:
+def _flatten_findings(review_json: dict[str, Any]) -> list[dict[str, Any]]:
     """Flatten the aggregated JSON's `agents[].issues[]` into scorable findings."""
-    findings: List[Dict[str, Any]] = []
+    findings: list[dict[str, Any]] = []
     for agent in review_json.get("agents", []) or []:
         agent_name = agent.get("agentName")
         for issue in agent.get("issues", []) or []:
@@ -121,7 +122,7 @@ def _flatten_findings(review_json: Dict[str, Any]) -> List[Dict[str, Any]]:
     return findings
 
 
-def _build_scoped_dir(checkout_dir: str, files: List[str]) -> str:
+def _build_scoped_dir(checkout_dir: str, files: list[str]) -> str:
     """Copy only `files` (relative paths) out of `checkout_dir`, preserving structure."""
     scoped = tempfile.mkdtemp(prefix="crb-scope-")
     for rel_path in files:
@@ -135,11 +136,11 @@ def _build_scoped_dir(checkout_dir: str, files: List[str]) -> str:
 
 
 def skip_record(
-    case: Dict[str, Any],
+    case: dict[str, Any],
     reason: str,
-    raw_output_path: Optional[str] = None,
-    cost_usd: Optional[float] = None,
-) -> Dict[str, Any]:
+    raw_output_path: str | None = None,
+    cost_usd: float | None = None,
+) -> dict[str, Any]:
     """`cost_usd` is `None` (the default) for every skip reason that fires
     before a dispatch happens (checkout failure, no ground truth, no
     recognized source) — nothing was spent. The one skip reason that fires
@@ -158,17 +159,17 @@ def skip_record(
 
 
 def run_case(
-    case: Dict[str, Any],
+    case: dict[str, Any],
     *,
     checkout_fn: Callable[[str], bool],
-    dispatch_fn: Callable[[str, str], Dict[str, Any]],
+    dispatch_fn: Callable[[str, str], dict[str, Any]],
     results_dir: Any,
-    ground_truth_fn: Optional[Callable[[str], List[Any]]] = None,
-    test_fn: Optional[Callable[[str], Dict[str, Any]]] = None,
+    ground_truth_fn: Callable[[str], list[Any]] | None = None,
+    test_fn: Callable[[str], dict[str, Any]] | None = None,
     scope: str = "fix-only",
     tolerance: int = scorer.DEFAULT_TOLERANCE,
-    workdir_root: Optional[str] = None,
-) -> Dict[str, Any]:
+    workdir_root: str | None = None,
+) -> dict[str, Any]:
     """Run one BenchmarkCase (as a dict, matching `BenchmarkCase.to_dict()`) end to end.
 
     `checkout_fn(workdir) -> bool` and `ground_truth_fn(workdir) -> [hunk]`
@@ -186,7 +187,7 @@ def run_case(
     raw_dir.mkdir(parents=True, exist_ok=True)
 
     checkout_dir = tempfile.mkdtemp(prefix="crb-checkout-", dir=workdir_root)
-    review_dir: Optional[str] = None
+    review_dir: str | None = None
     try:
         if not checkout_fn(checkout_dir):
             return skip_record(case, "checkout failed")
@@ -202,7 +203,7 @@ def run_case(
         if not _touches_recognized_source(ground_truth_files, case.get("language", "")):
             return skip_record(case, "ground truth touches no recognized source files")
 
-        test_verification: Optional[Dict[str, Any]] = None
+        test_verification: dict[str, Any] | None = None
         if test_fn is not None:
             try:
                 test_verification = test_fn(checkout_dir)
@@ -255,14 +256,14 @@ def run_case(
             shutil.rmtree(review_dir, ignore_errors=True)
 
 
-def case_key(record_or_case: Dict[str, Any]) -> str:
+def case_key(record_or_case: dict[str, Any]) -> str:
     return f"{record_or_case['dataset']}:{record_or_case['project']}:{record_or_case['bug_id']}"
 
 
-def already_processed(results_dir: Any) -> Set[str]:
+def already_processed(results_dir: Any) -> set[str]:
     """Keys already present in results.jsonl or skipped.jsonl — for `--resume`."""
     results_dir = Path(results_dir)
-    seen: Set[str] = set()
+    seen: set[str] = set()
     for name in ("results.jsonl", "skipped.jsonl"):
         path = results_dir / name
         if not path.is_file():
@@ -280,7 +281,7 @@ def already_processed(results_dir: Any) -> Set[str]:
     return seen
 
 
-def append_result(record: Dict[str, Any], results_dir: Any) -> None:
+def append_result(record: dict[str, Any], results_dir: Any) -> None:
     """Append `record` to results.jsonl or skipped.jsonl, per its `skipped` flag."""
     results_dir = Path(results_dir)
     results_dir.mkdir(parents=True, exist_ok=True)
@@ -374,7 +375,7 @@ _JSON_RETRY_PROMPT = (
 _RETRY_RAW_DELIMITER = "\n\n--- #999/#1002 JSON-retry follow-up (--resume) ---\n\n"
 
 
-def _parse_dispatch_wrapper(raw_stdout: str) -> Dict[str, Any]:
+def _parse_dispatch_wrapper(raw_stdout: str) -> dict[str, Any]:
     """Parse one dispatch's `--output-format json` wrapper stdout into the
     fields `make_isolated_dispatch_fn`'s closure needs: the model's final
     `result` text, whether the run itself reported an error, and its
@@ -399,9 +400,9 @@ def make_isolated_dispatch_fn(
     model: str = "sonnet",
     timeout: int = 1800,
     retry_on_unparseable: bool = True,
-    retry_timeout: Optional[int] = None,
-    plugin_path: Optional[str] = None,
-) -> Callable[[str, str], Dict[str, Any]]:
+    retry_timeout: int | None = None,
+    plugin_path: str | None = None,
+) -> Callable[[str, str], dict[str, Any]]:
     """Build the real, production `dispatch_fn` for `run_case`.
 
     Reuses `isolated_dispatch`'s scrubbed-env / fresh-session-id isolation
@@ -472,7 +473,7 @@ def make_isolated_dispatch_fn(
         retry_timeout if retry_timeout is not None else min(timeout, 300)
     )
 
-    def dispatch(prompt: str, cwd: str) -> Dict[str, Any]:
+    def dispatch(prompt: str, cwd: str) -> dict[str, Any]:
         home = isolated_dispatch.make_cell_home()
         isolated_dispatch.copy_auth_state(home)
         if plugin_path:

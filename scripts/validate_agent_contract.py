@@ -26,7 +26,7 @@ _MARKETPLACE_DEV_SCRIPTS = (
 if str(_MARKETPLACE_DEV_SCRIPTS) not in sys.path:
     sys.path.insert(0, str(_MARKETPLACE_DEV_SCRIPTS))
 
-from validate_agent_contract import main  # type: ignore[import-not-found]  # noqa: E402
+from validate_agent_contract import main  # type: ignore[import-not-found]
 
 if __name__ == "__main__":
     sys.exit(main())

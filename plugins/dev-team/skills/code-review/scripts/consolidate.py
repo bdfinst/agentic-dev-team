@@ -22,7 +22,6 @@ import glob
 import json
 import sys
 from pathlib import Path
-from typing import List, Optional
 
 # Severity ranking (extracted — step 5c's ranking lived only in prose before).
 _SEVERITY_RANK = {"suggestion": 1, "warning": 2, "error": 3}
@@ -60,7 +59,7 @@ def _findings_of(container: dict) -> list:
     return []
 
 
-def normalize_agent_result(raw: dict, agent_name: Optional[str] = None) -> list:
+def normalize_agent_result(raw: dict, agent_name: str | None = None) -> list:
     """Coerce one review agent's result into a flat, ``agent``-tagged findings list.
 
     Absorbs the schema drift observed in real runs (#1261): the native per-agent
@@ -122,7 +121,7 @@ def _merge_finding(merged: dict, order: list, finding: dict) -> None:
         entry["agents"].append(agent)
 
 
-def consolidate(sections: List[dict]) -> dict:
+def consolidate(sections: list[dict]) -> dict:
     """Aggregate ``sections`` into the consolidated report object.
 
     ``sections`` is a list of per-slice artifacts (``id``/``files``/
@@ -180,7 +179,7 @@ def consolidate(sections: List[dict]) -> dict:
     }
 
 
-def _read_sections(root: str) -> "tuple[list, list]":
+def _read_sections(root: str) -> tuple[list, list]:
     """Read every ``raw/section-*.json`` under ``root``.
 
     Returns ``(sections, malformed_paths)``. A malformed artifact is collected
@@ -203,7 +202,7 @@ def _read_sections(root: str) -> "tuple[list, list]":
     return sections, malformed
 
 
-def main(argv: Optional[List[str]] = None) -> int:
+def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--root", default=".")
     args = parser.parse_args(argv)

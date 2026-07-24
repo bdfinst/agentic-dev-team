@@ -18,11 +18,10 @@ import subprocess
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Optional
 
 sys.path.insert(0, str(Path(__file__).resolve().parent / "lib"))
 
-import autoship_state  # noqa: E402
+import autoship_state
 
 IN_PROGRESS_LABEL = autoship_state.IN_PROGRESS_LABEL
 BLOCKED_LABEL = autoship_state.BLOCKED_LABEL
@@ -159,7 +158,7 @@ def _fetch_in_progress_issues() -> list:
     return issues
 
 
-def _labeled_at_for(issue: dict, repo: Optional[str]) -> str:
+def _labeled_at_for(issue: dict, repo: str | None) -> str:
     """Return the best `labeled_at` timestamp for `issue` in `repo`.
 
     Prefers the most recent `labeled` timeline event naming

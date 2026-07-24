@@ -27,7 +27,6 @@ import subprocess
 import sys
 from pathlib import Path
 
-
 _HOOK_DIR = Path(__file__).resolve().parent
 _LIB_DIR = _HOOK_DIR / "lib"
 

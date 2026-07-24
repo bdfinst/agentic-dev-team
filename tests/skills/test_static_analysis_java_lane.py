@@ -20,7 +20,6 @@ import subprocess
 import xml.etree.ElementTree as ET
 
 import pytest
-
 from skill_doc_helpers import (
     PLUGIN_ROOT,
     REPO_ROOT,

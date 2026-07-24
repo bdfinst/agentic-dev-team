@@ -9,7 +9,7 @@ from pathlib import Path
 SCRIPTS_DIR = Path(__file__).parent.parent.parent / "scripts"
 sys.path.insert(0, str(SCRIPTS_DIR))
 
-from check_agent_tool_mapping import (  # noqa: E402
+from check_agent_tool_mapping import (
     EXCLUSIONS,
     GET_WHY,
     NARROW,
@@ -60,7 +60,7 @@ def test_rationale_agents_get_get_why():
 
 def test_data_flow_tracer_has_scoped_graphify_bash_only():
     tokens = (REAL_AGENTS_DIR / "data-flow-tracer.md").read_text(encoding="utf-8")
-    from mcp_tool_grants import parse_tools  # noqa: E402
+    from mcp_tool_grants import parse_tools
 
     grants = parse_tools(tokens)
     assert _GRAPHIFY_BASH in grants
@@ -128,7 +128,7 @@ def test_fix_appends_missing_without_dropping_existing(tmp_path):
     fixed = apply_fixes(agents)
     assert "architect" in fixed
     assert GET_WHY in fixed["architect"]
-    from mcp_tool_grants import parse_tools  # noqa: E402
+    from mcp_tool_grants import parse_tools
 
     grants = parse_tools(arch.read_text(encoding="utf-8"))
     for base in ("Read", "Grep", "Glob", "Bash", "Skill"):
@@ -148,7 +148,7 @@ def test_json_report_smoke(tmp_path, capsys):
 def test_block_form_tools_line_is_unfixable_not_mangled():
     # A YAML block-sequence tools: form has no inline value — parse_tools must
     # return None and fix_tools_line must leave it untouched (never mangle it).
-    from mcp_tool_grants import fix_tools_line, parse_tools  # noqa: E402
+    from mcp_tool_grants import fix_tools_line, parse_tools
 
     block = "---\nname: x\ntools:\n  - Read\n  - Grep\n---\n"
     assert parse_tools(block) is None

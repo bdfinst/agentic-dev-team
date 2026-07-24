@@ -23,7 +23,7 @@ import json
 import os
 import re
 import sys
-from typing import Any, Dict, Optional, Tuple
+from typing import Any
 
 # Resolved at startup; exposed via module-level for test inspection.
 _SCHEMA_PATH = os.path.abspath(
@@ -66,7 +66,7 @@ def _fail_mapping(path: str) -> None:
     sys.exit(1)
 
 
-def _load_mapping(path: str) -> Dict[str, str]:
+def _load_mapping(path: str) -> dict[str, str]:
     """Load the YAML mapping. Hard-fails with a specific ERROR on any issue."""
     from minimal_yaml import YamlError, parse_yaml  # local import; cheap, stdlib-only
 
@@ -87,8 +87,8 @@ def _load_mapping(path: str) -> Dict[str, str]:
 
 
 def resolve_rule_id(
-    category: str, mapping: Dict[str, str], mapping_path: str
-) -> Tuple[str, Optional[str]]:
+    category: str, mapping: dict[str, str], mapping_path: str
+) -> tuple[str, str | None]:
     """Resolve a category to a rule_id.
 
     Returns (rule_id, warning_or_none). The caller prints the warning to stderr
@@ -113,7 +113,7 @@ def resolve_rule_id(
     return minted, warning
 
 
-def _build_finding(issue: Dict[str, Any], rule_id: str) -> Dict[str, Any]:
+def _build_finding(issue: dict[str, Any], rule_id: str) -> dict[str, Any]:
     """Map an agent issue to a unified-finding envelope."""
     return {
         "rule_id": rule_id,

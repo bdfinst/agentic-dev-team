@@ -37,7 +37,6 @@ import subprocess
 import sys
 from pathlib import Path
 
-
 _HOOK_DIR = Path(__file__).resolve().parent
 _COST_METER_LIB = _HOOK_DIR / "lib" / "cost_meter.py"
 

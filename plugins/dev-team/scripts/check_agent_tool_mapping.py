@@ -45,7 +45,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent / "lib"))
 
-from mcp_tool_grants import (  # noqa: E402
+from mcp_tool_grants import (
     BASE_MCP_TOOLS,
     GET_WHY,
     fix_tools_line,

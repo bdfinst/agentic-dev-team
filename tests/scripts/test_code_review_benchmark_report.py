@@ -10,13 +10,12 @@ _HARNESS_DIR = Path(__file__).resolve().parents[2] / "evals" / "code-review-benc
 if str(_HARNESS_DIR) not in sys.path:
     sys.path.insert(0, str(_HARNESS_DIR))
 
-import report  # noqa: E402
+import report
 
 
 def _write_jsonl(path: Path, records) -> None:
     with open(path, "w", encoding="utf-8") as fh:
-        for r in records:
-            fh.write(json.dumps(r) + "\n")
+        fh.writelines(json.dumps(r) + "\n" for r in records)
 
 
 def test_report_recall_math_and_missed_defects(tmp_path: Path) -> None:

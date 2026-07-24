@@ -376,7 +376,7 @@ def measure_lizard(workdir, prod):
         nums = re.findall(r"[0-9]+\.?[0-9]*", line)
         if line.strip().startswith(tuple("0123456789")) and len(nums) >= 4 and "Total" not in line:
             pass
-    m = re.search(r"^\s*([\d.]+)\s+([\d.]+)\s+([\d.]+)\s+([\d.]+)\s+\d+\s+file", r.stdout, re.M)
+    m = re.search(r"^\s*([\d.]+)\s+([\d.]+)\s+([\d.]+)\s+([\d.]+)\s+\d+\s+file", r.stdout, re.MULTILINE)
     if not m:
         # fallback: the averages row before "file analyzed"
         rows = [line for line in r.stdout.splitlines() if re.match(r"\s*[\d.]+\s+[\d.]+\s+[\d.]+", line)]

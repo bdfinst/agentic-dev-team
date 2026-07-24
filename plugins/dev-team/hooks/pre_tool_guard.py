@@ -17,13 +17,12 @@ import json
 import os
 import sys
 from pathlib import Path
-from typing import List, Optional
 
 _LIB_DIR = Path(__file__).resolve().parent / "lib"
 if str(_LIB_DIR) not in sys.path:
     sys.path.insert(0, str(_LIB_DIR))
 
-from boundary_events import emit_boundary_event as _emit_boundary_event  # noqa: E402
+from boundary_events import emit_boundary_event as _emit_boundary_event
 
 
 def emit_boundary_event(*args, **kwargs) -> None:
@@ -82,7 +81,7 @@ def _extract_file_path(raw: str) -> str:
 # ---------------------------------------------------------------------------
 
 
-def _matches_any(subject: str, patterns: List[str]) -> bool:
+def _matches_any(subject: str, patterns: list[str]) -> bool:
     return any(
         pattern and fnmatch.fnmatchcase(subject, pattern) for pattern in patterns
     )
@@ -110,7 +109,7 @@ def _load_guards(guards_path: Path) -> tuple:
     return blocked, warn
 
 
-def _load_freeze(freeze_path: Path) -> Optional[List[str]]:
+def _load_freeze(freeze_path: Path) -> list[str] | None:
     """Return the freeze `allowed_patterns` when freeze is active, else None."""
     if not freeze_path.is_file():
         return None
@@ -136,7 +135,7 @@ def evaluate(
     guards_path: Path,
     freeze_path: Path,
     cwd: str = ".",
-    session_id: Optional[str] = None,
+    session_id: str | None = None,
 ) -> tuple:
     """Return (exit_code, [stdout_lines]) for a single file_path decision.
 

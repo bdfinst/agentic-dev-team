@@ -7,13 +7,11 @@ import subprocess
 import sys
 from pathlib import Path
 
-
 # Resolve module path without installing the package.
 LIB_DIR = Path(__file__).parent.parent / "plugins" / "dev-team" / "hooks" / "lib"
 sys.path.insert(0, str(LIB_DIR))
 
-from classify_ship_outcome import classify  # noqa: E402
-
+from classify_ship_outcome import classify
 
 SINCE = "2024-01-15T10:00:00Z"
 BEFORE = "2024-01-15T09:00:00Z"

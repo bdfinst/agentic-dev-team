@@ -9,7 +9,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "scripts" / "lib"))
 
-import autoship_state  # noqa: E402
+import autoship_state
 
 
 def test_format_round_timestamp_returns_iso8601_z_suffixed() -> None:

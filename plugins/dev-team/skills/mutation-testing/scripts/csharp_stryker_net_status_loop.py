@@ -26,8 +26,6 @@ import signal
 import sys
 import time
 from pathlib import Path
-from typing import Optional
-
 
 # =============================================================================
 # Log parsers — pure functions
@@ -74,14 +72,14 @@ def _summary_re(key: str) -> re.Pattern[str]:
     return _SUMMARY_RES[key]
 
 
-def parse_summary_count(logfile: Path, key: str) -> Optional[int]:
+def parse_summary_count(logfile: Path, key: str) -> int | None:
     """Extract ``<key>:  <n>`` from the last matching line in the log.
 
     Returns the count as int, or None if no line matches. Missing file
     also returns None.
     """
     pattern = _summary_re(key)
-    last: Optional[int] = None
+    last: int | None = None
     try:
         with logfile.open() as f:
             for line in f:
@@ -150,7 +148,7 @@ def count_compile_errors(logfile: Path) -> int:
         return 0
 
 
-def unexpected_target_path(logfile: Path, expected_fragment: str) -> Optional[str]:
+def unexpected_target_path(logfile: Path, expected_fragment: str) -> str | None:
     """Return the first ``Property TargetPath=<path>`` line whose path does
     NOT contain expected_fragment, or None if all match / none present.
     """
@@ -194,7 +192,7 @@ def emit_status_line(logfile: Path) -> str:
 # =============================================================================
 # check_red_flags — the five detectors + parser-drift catch-all
 # =============================================================================
-def _drift_counter_path(state_dir: Path, stryker_pid: Optional[int]) -> Path:
+def _drift_counter_path(state_dir: Path, stryker_pid: int | None) -> Path:
     """Per-PID counter file. Falls back to 'noop' when PID is missing so the
     counter still gets a stable location (tests that omit PID share one).
     """
@@ -264,9 +262,9 @@ def _pid_is_alive(pid: int) -> bool:
 def check_red_flags(
     logfile: Path,
     threshold: int,
-    stryker_pid: Optional[int],
-    expected_target: Optional[str] = None,
-    state_dir: Optional[Path] = None,
+    stryker_pid: int | None,
+    expected_target: str | None = None,
+    state_dir: Path | None = None,
     drift_threshold: int = 3,
 ) -> list[str]:
     """Grep the log for known-broken signatures, check PID liveness, and
@@ -378,10 +376,10 @@ def status_loop_start(
     logfile: Path,
     interval: float,
     threshold: int,
-    stryker_pid: Optional[int],
+    stryker_pid: int | None,
     *,
-    expected_target: Optional[str] = None,
-    state_dir: Optional[Path] = None,
+    expected_target: str | None = None,
+    state_dir: Path | None = None,
     drift_threshold: int = 3,
     output=sys.stdout,
 ) -> None:
@@ -444,7 +442,7 @@ def status_loop_start(
 # =============================================================================
 # CLI entry point — for standalone use
 # =============================================================================
-def main(argv: Optional[list[str]] = None) -> int:
+def main(argv: list[str] | None = None) -> int:
     argv = list(sys.argv[1:] if argv is None else argv)
     p = argparse.ArgumentParser(
         prog="csharp_stryker_net_status_loop.py",

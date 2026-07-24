@@ -30,7 +30,6 @@ from typing import Any
 
 import yaml
 
-
 REPO = Path(__file__).resolve().parents[2]
 GROUND_TRUTH_PATH = REPO / "evals/comparative/ground-truth.yaml"
 

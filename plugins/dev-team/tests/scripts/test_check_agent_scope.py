@@ -11,8 +11,12 @@ from pathlib import Path
 SCRIPTS_DIR = Path(__file__).parent.parent.parent / "scripts"
 sys.path.insert(0, str(SCRIPTS_DIR))
 
-from check_agent_scope import declares_scope, has_frontmatter, main, strip_frontmatter  # noqa: E402
-
+from check_agent_scope import (
+    declares_scope,
+    has_frontmatter,
+    main,
+    strip_frontmatter,
+)
 
 # ---------------------------------------------------------------------------
 # declares_scope / strip_frontmatter unit tests

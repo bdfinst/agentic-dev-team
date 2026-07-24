@@ -35,8 +35,6 @@ Stdlib-only. Python 3.8+. See docs/python-hook-contract.md.
 from __future__ import annotations
 
 import re
-from typing import Optional
-
 
 # Word-bounded `git commit` at the start of the (leading-whitespace-tolerant)
 # command line. Mirrors the .sh's `^[[:space:]]*git[[:space:]]+commit\b` ERE.
@@ -68,7 +66,7 @@ def has_bypass_flag(cmd: str) -> bool:
     return bool(_NO_VERIFY_RE.search(cmd)) or bool(_BARE_N_RE.search(cmd))
 
 
-def bypass_flag_name(cmd: str) -> Optional[str]:
+def bypass_flag_name(cmd: str) -> str | None:
     """Return which bypass flag matched (`--no-verify` preferred), or None."""
     if not cmd:
         return None
@@ -89,8 +87,8 @@ def is_git_commit_invocation(cmd: str) -> bool:
 
 
 __all__ = (
-    "is_git_commit_command",
-    "has_bypass_flag",
     "bypass_flag_name",
+    "has_bypass_flag",
+    "is_git_commit_command",
     "is_git_commit_invocation",
 )

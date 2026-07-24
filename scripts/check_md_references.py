@@ -103,9 +103,7 @@ def _normalize(ref: str):
     if ref.startswith("~") or ref.startswith("/"):
         return None  # home-relative or absolute system paths: not repo references
     body = (
-        path_part[len(_PLUGIN_ROOT_VAR) :]
-        if path_part.startswith(_PLUGIN_ROOT_VAR)
-        else path_part
+        path_part.removeprefix(_PLUGIN_ROOT_VAR)
     )
     if "$" in body or _NONLITERAL.search(body):
         return None  # other shell vars / globs / placeholders: not statically checkable
@@ -171,7 +169,7 @@ def _module_root(path: str, root: str):
 
 def _ref_tail(ref: str):
     """The reference reduced to its meaningful path tail (no var, no ./.. prefix)."""
-    body = ref[len(_PLUGIN_ROOT_VAR) :] if ref.startswith(_PLUGIN_ROOT_VAR) else ref
+    body = ref.removeprefix(_PLUGIN_ROOT_VAR)
     parts = [p for p in body.strip("/").split("/") if p not in (".", "..")]
     return "/".join(parts)
 

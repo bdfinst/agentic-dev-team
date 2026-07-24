@@ -10,7 +10,6 @@ from __future__ import annotations
 
 from ..lib import http_client, result_store, scoring
 
-
 THRESHOLD = 0.5     # fraud / not-fraud boundary
 MAX_ITERATIONS = 12
 

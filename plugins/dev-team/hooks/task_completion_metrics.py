@@ -64,7 +64,6 @@ import sys
 import uuid
 from pathlib import Path
 
-
 _HOOK_DIR = Path(__file__).resolve().parent
 _PLUGIN_DIR = _HOOK_DIR.parent
 

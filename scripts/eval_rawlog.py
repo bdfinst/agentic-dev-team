@@ -29,7 +29,7 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from session_extract import _iter_records, _REWORK_KEYS  # noqa: E402
+from session_extract import _REWORK_KEYS, _iter_records
 
 # A tier finding may carry ONLY these keys — all metrics/ids/enums.
 _ALLOWED_FINDING_KEYS = {

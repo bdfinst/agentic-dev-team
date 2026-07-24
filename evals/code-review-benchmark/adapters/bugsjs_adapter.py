@@ -19,7 +19,7 @@ from __future__ import annotations
 
 import csv
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from .common import BenchmarkCase, Hunk, run_with_timeout, unified_diff_hunks
 
@@ -28,7 +28,7 @@ DEFAULT_RUN_FN = run_with_timeout
 _TEST_PATH_MARKERS = ("test/", "spec/", "__tests__/", ".test.js", ".spec.js")
 
 
-def detect(bugsjs_home: Optional[str]) -> bool:
+def detect(bugsjs_home: str | None) -> bool:
     """True when `bugsjs_home` looks like a real BugsJS/bug-dataset checkout."""
     if not bugsjs_home:
         return False
@@ -36,7 +36,7 @@ def detect(bugsjs_home: Optional[str]) -> bool:
     return (home / "main.py").is_file() and (home / "Projects.csv").is_file()
 
 
-def _read_repo_url(bugsjs_home: str, project: str) -> Optional[str]:
+def _read_repo_url(bugsjs_home: str, project: str) -> str | None:
     projects_csv = Path(bugsjs_home) / "Projects.csv"
     if not projects_csv.is_file():
         return None
@@ -51,7 +51,7 @@ def _bugs_csv(bugsjs_home: str, project: str) -> Path:
     return Path(bugsjs_home) / "Projects" / project / f"{project}_bugs.csv"
 
 
-def list_projects(bugsjs_home: str) -> List[str]:
+def list_projects(bugsjs_home: str) -> list[str]:
     """Every project name listed in `Projects.csv`."""
     projects_csv = Path(bugsjs_home) / "Projects.csv"
     if not projects_csv.is_file():
@@ -64,7 +64,7 @@ def list_projects(bugsjs_home: str) -> List[str]:
         ]
 
 
-def list_bugs(project: str, bugsjs_home: str) -> List[BenchmarkCase]:
+def list_bugs(project: str, bugsjs_home: str) -> list[BenchmarkCase]:
     """Parse `<Project>_bugs.csv` bug ids into BenchmarkCases.
 
     Ground truth hunks are populated separately by `ground_truth()` once the
@@ -76,7 +76,7 @@ def list_bugs(project: str, bugsjs_home: str) -> List[BenchmarkCase]:
         return []
     repo_url = _read_repo_url(bugsjs_home, project)
 
-    cases: List[BenchmarkCase] = []
+    cases: list[BenchmarkCase] = []
     with open(csv_path, newline="", encoding="utf-8") as fh:
         for row in csv.DictReader(fh, delimiter=";"):
             bug_id = row.get("ID")
@@ -100,7 +100,7 @@ def list_bugs(project: str, bugsjs_home: str) -> List[BenchmarkCase]:
 def checkout(
     case: BenchmarkCase,
     workdir: str,
-    bugsjs_home: Optional[str] = None,
+    bugsjs_home: str | None = None,
     run_fn=DEFAULT_RUN_FN,
     timeout: int = 600,
 ) -> bool:
@@ -138,7 +138,7 @@ def run_tests(
     run_fn=DEFAULT_RUN_FN,
     install_timeout: int = 300,
     test_timeout: int = 600,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Configure (`npm ci`/`npm install`) and run (`npm test`) the buggy checkout.
 
     Diagnostic sanity check, not a gate: a non-zero `npm test` exit on the
@@ -211,7 +211,7 @@ def ground_truth(
     cloned_repo_dir: str,
     run_fn=DEFAULT_RUN_FN,
     timeout: int = 60,
-) -> List[Hunk]:
+) -> list[Hunk]:
     """`git diff tags/Bug-<id>^ tags/Bug-<id>` inside the clone, source files only.
 
     Returns `[]` (not `None`) on any git failure — an empty ground truth is

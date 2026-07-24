@@ -15,7 +15,6 @@ import re
 import time
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import List, Optional, Tuple
 
 #: memory/build-phase.json older than this is treated as absent — a crashed
 #: build must not freeze tests forever.
@@ -40,7 +39,7 @@ def _read_probe(path: Path) -> str:
         return ""
 
 
-def is_test_file(path: str, content: Optional[str] = None) -> bool:
+def is_test_file(path: str, content: str | None = None) -> bool:
     """True when `path` is a test file per knowledge/test-file-indicators.md.
 
     `content` overrides the on-disk read for the languages whose indicator is
@@ -83,7 +82,7 @@ def is_test_file(path: str, content: Optional[str] = None) -> bool:
     return False
 
 
-def _parse_written_at(value: str) -> Optional[float]:
+def _parse_written_at(value: str) -> float | None:
     """ISO-8601 → epoch seconds, tolerant of a trailing 'Z'. None when unparseable."""
     if not isinstance(value, str) or not value:
         return None
@@ -104,8 +103,8 @@ def build_phase_path(project_dir: Path) -> Path:
 
 
 def read_build_phase(
-    project_dir: Path, now: Optional[float] = None
-) -> Tuple[Optional[dict], Optional[str]]:
+    project_dir: Path, now: float | None = None
+) -> tuple[dict | None, str | None]:
     """Read `memory/build-phase.json`. Returns `(state, error)`.
 
     - `(None, None)`  — no state recorded, or the state is stale
@@ -123,7 +122,7 @@ def read_build_phase(
     try:
         raw = path.read_text(encoding="utf-8")
     except OSError as exc:
-        return None, "unreadable build-phase state: {}".format(exc)
+        return None, f"unreadable build-phase state: {exc}"
     try:
         data = json.loads(raw)
     except ValueError:
@@ -142,7 +141,7 @@ def read_build_phase(
     staged = data.get("test_files_staged", [])
     if not isinstance(staged, list):
         return None, "malformed build-phase state: test_files_staged not a list"
-    files: List[str] = [f for f in staged if isinstance(f, str) and f]
+    files: list[str] = [f for f in staged if isinstance(f, str) and f]
     state = dict(data)
     state["test_files_staged"] = files
     return state, None

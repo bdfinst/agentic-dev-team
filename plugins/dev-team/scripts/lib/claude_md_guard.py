@@ -21,9 +21,8 @@ Stdlib-only, per ADR 0014/0015 (Python for cross-OS scripts).
 from __future__ import annotations
 
 from collections import Counter
+from collections.abc import Callable
 from pathlib import Path
-from typing import Callable
-
 
 _GRAPHIFY_HEADER = "## graphify"
 

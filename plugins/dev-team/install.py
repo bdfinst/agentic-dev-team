@@ -21,7 +21,6 @@ import os
 import platform
 import shutil
 
-
 # ---------------------------------------------------------------------------
 # Counters
 # ---------------------------------------------------------------------------
@@ -96,7 +95,7 @@ def main() -> int:
     result = Result()
 
     print("Checking dev-team prerequisites...")
-    print("")
+    print()
 
     print("--- Required ---")
     check_platform(result)
@@ -108,7 +107,7 @@ def main() -> int:
     check_required(result, "jq", "macOS: brew install jq  |  Linux: apt install jq")
     check_required(result, "gh", "macOS: brew install gh  |  https://cli.github.com/")
 
-    print("")
+    print()
     print("--- Optional ---")
     check_optional(
         result,
@@ -135,7 +134,7 @@ def main() -> int:
         "brew install grype  |  https://github.com/anchore/grype",
     )
 
-    print("")
+    print()
 
     if result.fail > 0:
         print(

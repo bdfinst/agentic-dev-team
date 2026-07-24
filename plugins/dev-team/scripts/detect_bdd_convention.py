@@ -25,8 +25,9 @@ import fnmatch
 import json
 import re
 import sys
+from collections.abc import Iterable, Iterator
 from pathlib import Path
-from typing import Iterable, Iterator, List, NamedTuple, Optional, Tuple
+from typing import NamedTuple
 
 # Trees whose contents are a dependency's (or a build's), never the project's
 # own convention.
@@ -59,7 +60,7 @@ def _iter_project_files(root: Path) -> Iterator[Path]:
 
 def _common_directory(paths: Iterable[Path]) -> Path:
     """Longest common ancestor of relative paths ('.' when they share none)."""
-    common: List[str] = []
+    common: list[str] = []
     for components in zip(*(p.parts for p in paths)):
         if len(set(components)) != 1:
             break
@@ -67,7 +68,7 @@ def _common_directory(paths: Iterable[Path]) -> Path:
     return Path(*common) if common else Path(".")
 
 
-def scan_feature_dir(root: Path) -> Optional[str]:
+def scan_feature_dir(root: Path) -> str | None:
     """Repo-relative common directory of the project's .feature files.
 
     None when no .feature file exists outside vendored trees, or when the
@@ -95,9 +96,9 @@ class ManifestRule(NamedTuple):
     .feature files canonically live (repo-relative)."""
 
     framework: str
-    manifests: Tuple[str, ...]  # fnmatch patterns on the manifest file name
-    tokens: Tuple[str, ...]  # dependency tokens that signal the framework
-    destination: Optional[str]  # None => CSPROJ_FEATURES_SUBDIR under the manifest's dir
+    manifests: tuple[str, ...]  # fnmatch patterns on the manifest file name
+    tokens: tuple[str, ...]  # dependency tokens that signal the framework
+    destination: str | None  # None => CSPROJ_FEATURES_SUBDIR under the manifest's dir
 
 
 # Community convention for Reqnroll/SpecFlow: Features/ under the test csproj.
@@ -106,7 +107,7 @@ CSPROJ_FEATURES_SUBDIR = "Features"
 # One row per stack; keep in sync with
 # knowledge/test-stack-profiles/bdd-frameworks.md (guarded by
 # tests/scripts/test_detect_bdd_convention.py::TestMappingDocSync).
-MANIFEST_RULES: Tuple[ManifestRule, ...] = (
+MANIFEST_RULES: tuple[ManifestRule, ...] = (
     ManifestRule("cucumber-js", ("package.json",), ("@cucumber/cucumber",), "features"),
     ManifestRule(
         "pytest-bdd", ("pyproject.toml", "requirements*.txt"), ("pytest-bdd",), "features"
@@ -155,9 +156,9 @@ def _text_declares(path: Path, token: str) -> bool:
     return re.search(pattern, text) is not None
 
 
-def scan_manifests(root: Path) -> List[Tuple[str, str]]:
+def scan_manifests(root: Path) -> list[tuple[str, str]]:
     """(framework, destination) pairs for every manifest signal under `root`."""
-    hits: List[Tuple[str, str]] = []
+    hits: list[tuple[str, str]] = []
     for path in _iter_project_files(root):
         for rule in MANIFEST_RULES:
             if not any(fnmatch.fnmatch(path.name, glob) for glob in rule.manifests):
@@ -200,7 +201,7 @@ def detect(root: Path) -> dict:
     return {"signal": "none", "framework": None, "dir": None}
 
 
-def main(argv: Optional[List[str]] = None) -> int:
+def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         prog="detect_bdd_convention.py",
         description="Detect a target project's BDD convention and print it as JSON.",
@@ -216,7 +217,7 @@ def main(argv: Optional[List[str]] = None) -> int:
     target = Path(args.target)
     if not target.is_dir():
         sys.stderr.write(
-            "detect-bdd-convention: target is not a directory: {}\n".format(args.target)
+            f"detect-bdd-convention: target is not a directory: {args.target}\n"
         )
         return 2
 

@@ -7,7 +7,7 @@ from pathlib import Path
 SCRIPTS_DIR = Path(__file__).parent.parent.parent / "scripts"
 sys.path.insert(0, str(SCRIPTS_DIR))
 
-from check_review_agent_mcp_tools import (  # noqa: E402
+from check_review_agent_mcp_tools import (
     MCP_TOOL_NAMES,
     SKILL_REQUIRED_PHRASES,
     _agents_dir_default,

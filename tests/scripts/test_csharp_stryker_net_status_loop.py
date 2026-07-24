@@ -30,7 +30,7 @@ LOOP_DIR = (
 )
 sys.path.insert(0, str(LOOP_DIR))
 
-import csharp_stryker_net_status_loop as loop  # noqa: E402
+import csharp_stryker_net_status_loop as loop
 
 FIXTURES = (
     Path(__file__).resolve().parents[2] / "tests" / "fixtures" / "stryker-net-logs"
@@ -399,7 +399,7 @@ def test_coverage_capture_regex_matches_adapter_copy():
     cannot pass unnoticed. See #1156."""
     hooks_dir = Path(__file__).resolve().parents[2] / "plugins" / "dev-team" / "hooks"
     sys.path.insert(0, str(hooks_dir))
-    from mutation_adapters import lib  # noqa: E402
+    from mutation_adapters import lib
 
     assert (
         loop._COVERAGE_CAPTURE_FAILURE_RE.pattern

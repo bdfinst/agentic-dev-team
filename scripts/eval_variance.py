@@ -31,7 +31,7 @@ from collections import defaultdict
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from eval_grade import run_grading  # noqa: E402
+from eval_grade import run_grading
 
 
 def aggregate_trials(expected_dir: Path, trial_actuals: list[dict],

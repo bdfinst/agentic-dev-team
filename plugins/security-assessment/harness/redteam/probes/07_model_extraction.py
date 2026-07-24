@@ -11,7 +11,6 @@ from __future__ import annotations
 
 from ..lib import http_client, result_store, scoring
 
-
 N_SAMPLES_DEFAULT = 200   # keep query count modest; budget-bounded
 HOLDOUT_FRACTION = 0.2
 
@@ -43,10 +42,10 @@ def _collect_samples(features: list[str], n: int) -> list[dict]:
 def _train_surrogates(samples: list[dict], features: list[str]) -> dict:
     try:
         import numpy as np
-        from sklearn.tree import DecisionTreeRegressor
         from sklearn.ensemble import RandomForestRegressor
         from sklearn.linear_model import LinearRegression
         from sklearn.metrics import r2_score
+        from sklearn.tree import DecisionTreeRegressor
     except ImportError as e:
         return {"error": f"sklearn unavailable: {e}"}
 
@@ -65,18 +64,18 @@ def _train_surrogates(samples: list[dict], features: list[str]) -> dict:
     tree.fit(X_train, y_train)
     out["decision_tree"] = {"r2": float(r2_score(y_test, tree.predict(X_test))),
                             "max_depth": 8,
-                            "n_train": int(len(y_train))}
+                            "n_train": len(y_train)}
 
     forest = RandomForestRegressor(n_estimators=100, random_state=42, n_jobs=1)
     forest.fit(X_train, y_train)
     out["random_forest"] = {"r2": float(r2_score(y_test, forest.predict(X_test))),
                             "n_estimators": 100,
-                            "n_train": int(len(y_train))}
+                            "n_train": len(y_train)}
 
     linreg = LinearRegression()
     linreg.fit(X_train, y_train)
     out["linear_regression"] = {"r2": float(r2_score(y_test, linreg.predict(X_test))),
-                                "n_train": int(len(y_train))}
+                                "n_train": len(y_train)}
     return out
 
 

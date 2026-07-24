@@ -46,11 +46,10 @@ import json
 import re
 import sys
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
 
 # Pipeline order. `4b` sits between `4` and `5`; rank is used only to pick the
 # highest completed file, NEXT_PHASE encodes where to resume from each.
-PHASE_RANK: Dict[str, int] = {
+PHASE_RANK: dict[str, int] = {
     "0": 0,
     "1": 1,
     "2": 2,
@@ -65,7 +64,7 @@ PHASE_RANK: Dict[str, int] = {
 # Where to resume given the highest completed phase. `4b` skips Phase 5 and
 # resumes at Phase 6 (matching the `[b]`/`[q]` skip-to-6 flow); `5` also
 # resumes at Phase 6. `7` (last phase) has no successor — the run is complete.
-NEXT_PHASE: Dict[str, Optional[str]] = {
+NEXT_PHASE: dict[str, str | None] = {
     "0": "1",
     "1": "2",
     "2": "3",
@@ -103,12 +102,12 @@ def derive_slug(repo_path: str) -> str:
     return slugify(name) or slugify(repo_path)
 
 
-def scan_phase_files(memory_dir: Path) -> List[str]:
+def scan_phase_files(memory_dir: Path) -> list[str]:
     """Return the phase tokens (e.g. '0', '4b') whose progress files exist in
     `memory_dir`, sorted by pipeline rank. Non-phase files are ignored."""
     if not memory_dir.is_dir():
         return []
-    tokens: List[str] = []
+    tokens: list[str] = []
     for entry in memory_dir.iterdir():
         if not entry.is_file():
             continue
@@ -118,7 +117,7 @@ def scan_phase_files(memory_dir: Path) -> List[str]:
     return sorted(set(tokens), key=lambda t: PHASE_RANK[t])
 
 
-def resolve_auto(tokens: List[str]) -> Tuple[Optional[str], str, bool]:
+def resolve_auto(tokens: list[str]) -> tuple[str | None, str, bool]:
     """Given the completed phase tokens, return
     (resolved_phase, highest_token, complete).
 
@@ -128,7 +127,7 @@ def resolve_auto(tokens: List[str]) -> Tuple[Optional[str], str, bool]:
     return nxt, highest, nxt is None
 
 
-def build_result(memory_dir: Path, explicit: Optional[str]) -> Tuple[int, dict]:
+def build_result(memory_dir: Path, explicit: str | None) -> tuple[int, dict]:
     """Compute the resume result. Returns (exit_code, payload)."""
     tokens = scan_phase_files(memory_dir)
 
@@ -203,7 +202,7 @@ def resolve_memory_dir(args: argparse.Namespace) -> Path:
     return root / slug
 
 
-def main(argv: Optional[List[str]] = None) -> int:
+def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         description="Resolve the --from-phase resume point for /test-improve.",
     )

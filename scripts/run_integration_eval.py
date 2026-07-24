@@ -80,7 +80,7 @@ def check_prerequisites(skip_dispatch: bool) -> list[str]:
     else:
         try:
             sys.path.insert(0, str(SCRIPTS))
-            from eval_graders import is_registered  # noqa: E402
+            from eval_graders import is_registered
 
             if not is_registered("integration"):
                 missing.append("the 'integration' grader in the registry (#309/#313)")
@@ -127,7 +127,7 @@ def extract_golden_repo(tarball: Path, dest: Path) -> None:
             target = (dest / member.name).resolve()
             if not _is_within(resolved_dest, target):
                 raise RuntimeError(f"unsafe path in tarball: {member.name}")
-        tf.extractall(dest)  # noqa: S202 - members validated above
+        tf.extractall(dest)
 
 
 def init_worktree(workdir: Path) -> None:

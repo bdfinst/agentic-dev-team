@@ -28,8 +28,8 @@ from typing import Any
 
 # Allow importing sibling lib modules regardless of cwd
 sys.path.insert(0, str(Path(__file__).parent))
-from lib.review_result import build_result, main_exit
 from lib import deterministic_recon
+from lib.review_result import build_result, main_exit
 
 # ---------------------------------------------------------------------------
 # Schema loading

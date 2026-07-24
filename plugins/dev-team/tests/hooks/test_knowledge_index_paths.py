@@ -14,13 +14,11 @@ from pathlib import Path
 
 import pytest
 
-
 _HOOKS_LIB = Path(__file__).resolve().parents[2] / "hooks" / "lib"
 if str(_HOOKS_LIB) not in sys.path:
     sys.path.insert(0, str(_HOOKS_LIB))
 
-import knowledge_index_paths as paths  # type: ignore[import-not-found]  # noqa: E402
-
+import knowledge_index_paths as paths  # type: ignore[import-not-found]
 
 # --- module surface --------------------------------------------------------
 

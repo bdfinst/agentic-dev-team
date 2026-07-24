@@ -25,8 +25,7 @@ Stdlib-only. Python 3.8+. See docs/python-hook-contract.md.
 from __future__ import annotations
 
 import re
-from typing import Iterable, List
-
+from collections.abc import Iterable
 
 # Regex matching corpus paths (POSIX ERE from the .sh sibling, ported to
 # Python re syntax). Anchor: end-of-string; a leading segment is optional so
@@ -51,7 +50,7 @@ def is_corpus_path(path: str) -> bool:
     return _CORPUS_RE.search(path) is not None
 
 
-def filter_corpus_paths(paths: Iterable[str]) -> List[str]:
+def filter_corpus_paths(paths: Iterable[str]) -> list[str]:
     """Return the input list filtered to corpus paths, preserving order.
 
     Convenience for hook callers that receive a batch of changed files and
@@ -61,4 +60,4 @@ def filter_corpus_paths(paths: Iterable[str]) -> List[str]:
     return [p for p in paths if is_corpus_path(p)]
 
 
-__all__ = ("CORPUS_REGEX", "is_corpus_path", "filter_corpus_paths")
+__all__ = ("CORPUS_REGEX", "filter_corpus_paths", "is_corpus_path")

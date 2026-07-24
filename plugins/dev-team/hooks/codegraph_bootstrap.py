@@ -29,8 +29,6 @@ import shutil
 import subprocess
 import sys
 from pathlib import Path
-from typing import Optional
-
 
 _HOOK_DIR = Path(__file__).resolve().parent
 _LIB_DIR = _HOOK_DIR / "lib"
@@ -40,7 +38,7 @@ try:
     from stdin_json import read_stdin_json  # type: ignore[import-not-found]
 except ImportError:  # pragma: no cover
 
-    def read_stdin_json() -> Optional[dict]:  # type: ignore[misc]
+    def read_stdin_json() -> dict | None:  # type: ignore[misc]
         return None
 
 
@@ -129,7 +127,7 @@ def main() -> int:
             else:
                 # Windows: DETACHED_PROCESS = 0x00000008
                 popen_kwargs["creationflags"] = 0x00000008  # type: ignore[assignment]
-            subprocess.Popen([resolved, "init"], **popen_kwargs)  # noqa: S603
+            subprocess.Popen([resolved, "init"], **popen_kwargs)
     except OSError:
         # Never block a session on subprocess failure.
         pass

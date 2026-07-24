@@ -36,7 +36,6 @@ import os
 import re
 import sys
 from pathlib import Path
-from typing import Dict, List, Optional
 
 _SCRIPT_DIR = Path(__file__).resolve().parent
 _DEFAULT_CONTRACT = _SCRIPT_DIR / ".." / "knowledge" / "agent-contract.json"
@@ -50,7 +49,7 @@ def _contract_path() -> Path:
     return Path(os.environ.get("AGENT_CONTRACT_JSON", str(_DEFAULT_CONTRACT)))
 
 
-def load_contract(path: Optional[Path] = None) -> Optional[dict]:
+def load_contract(path: Path | None = None) -> dict | None:
     path = path or _contract_path()
     try:
         with path.open("r", encoding="utf-8") as fh:
@@ -63,7 +62,7 @@ def _strip_value(raw: str) -> str:
     return raw.strip().strip("'\"")
 
 
-def parse_frontmatter(text: str) -> Dict[str, str]:
+def parse_frontmatter(text: str) -> dict[str, str]:
     """Return {top-level key: raw scalar value} from a markdown file's
     frontmatter. Indented continuation/list lines are ignored — this script
     only validates scalar fields, and every field it checks is a scalar in
@@ -71,7 +70,7 @@ def parse_frontmatter(text: str) -> Dict[str, str]:
     lines = text.splitlines()
     if not lines or lines[0].strip() != "---":
         return {}
-    fields: Dict[str, str] = {}
+    fields: dict[str, str] = {}
     for line in lines[1:]:
         if line.strip() == "---":
             break
@@ -91,9 +90,9 @@ def make_issue(severity: str, file: str, message: str, field: str = "") -> dict:
 
 
 def _check_required_and_pattern(
-    fields: Dict[str, str], contract: dict, file: str
-) -> List[dict]:
-    issues: List[dict] = []
+    fields: dict[str, str], contract: dict, file: str
+) -> list[dict]:
+    issues: list[dict] = []
     for name, spec in contract.get("fields", {}).items():
         if not spec.get("required"):
             continue
@@ -121,7 +120,7 @@ def _check_required_and_pattern(
     return issues
 
 
-def _check_unknown_keys(fields: Dict[str, str], contract: dict, file: str) -> List[dict]:
+def _check_unknown_keys(fields: dict[str, str], contract: dict, file: str) -> list[dict]:
     known = set(contract.get("fields", {}).keys())
     issues = []
     for key in fields:
@@ -138,14 +137,14 @@ def _check_unknown_keys(fields: Dict[str, str], contract: dict, file: str) -> Li
     return issues
 
 
-def _model_is_valid(value: str, enum: List[str]) -> bool:
+def _model_is_valid(value: str, enum: list[str]) -> bool:
     return value in enum or bool(_FULL_MODEL_ID_RE.match(value))
 
 
 def _check_enum_and_type_fields(
-    fields: Dict[str, str], contract: dict, file: str
-) -> List[dict]:
-    issues: List[dict] = []
+    fields: dict[str, str], contract: dict, file: str
+) -> list[dict]:
+    issues: list[dict] = []
     for name, spec in contract.get("fields", {}).items():
         if name not in fields:
             continue
@@ -194,7 +193,7 @@ def _check_enum_and_type_fields(
     return issues
 
 
-def _check_plugin_ignored_fields(fields: Dict[str, str], file: str) -> List[dict]:
+def _check_plugin_ignored_fields(fields: dict[str, str], file: str) -> list[dict]:
     if not _PLUGIN_AGENT_PATH_RE.search(file.replace(os.sep, "/")):
         return []
     issues = []
@@ -212,7 +211,7 @@ def _check_plugin_ignored_fields(fields: Dict[str, str], file: str) -> List[dict
     return issues
 
 
-def validate_file(path: Path, contract: dict) -> List[dict]:
+def validate_file(path: Path, contract: dict) -> list[dict]:
     try:
         text = path.read_text(encoding="utf-8")
     except OSError as exc:
@@ -223,7 +222,7 @@ def validate_file(path: Path, contract: dict) -> List[dict]:
     if not fields:
         return [make_issue("error", file, "Could not find or parse YAML frontmatter")]
 
-    issues: List[dict] = []
+    issues: list[dict] = []
     issues += _check_required_and_pattern(fields, contract, file)
     issues += _check_unknown_keys(fields, contract, file)
     issues += _check_enum_and_type_fields(fields, contract, file)
@@ -231,7 +230,7 @@ def validate_file(path: Path, contract: dict) -> List[dict]:
     return issues
 
 
-def build_result(issues: List[dict]) -> dict:
+def build_result(issues: list[dict]) -> dict:
     errors = [i for i in issues if i["severity"] == "error"]
     warnings = [i for i in issues if i["severity"] == "warning"]
     if errors:
@@ -243,7 +242,7 @@ def build_result(issues: List[dict]) -> dict:
     return {"status": status, "issues": issues, "summary": ""}
 
 
-def main(argv: Optional[List[str]] = None) -> int:
+def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         description="Validate agent frontmatter against the official contract."
     )
@@ -255,7 +254,7 @@ def main(argv: Optional[List[str]] = None) -> int:
         sys.stderr.write(f"Contract file not found or invalid: {_contract_path()}\n")
         return 1
 
-    all_issues: List[dict] = []
+    all_issues: list[dict] = []
     for file_arg in args.files:
         all_issues += validate_file(Path(file_arg), contract)
 

@@ -32,8 +32,6 @@ import os
 import subprocess
 import sys
 from pathlib import Path
-from typing import List, Optional
-
 
 _HOOK_DIR = Path(__file__).resolve().parent
 _LIB_DIR = _HOOK_DIR / "lib"
@@ -41,7 +39,9 @@ _LIB_DIR = _HOOK_DIR / "lib"
 sys.path.insert(0, str(_LIB_DIR))
 try:
     from knowledge_index_paths import is_corpus_path  # type: ignore[import-not-found]
-    from pre_commit_detect import is_git_commit_invocation  # type: ignore[import-not-found]
+    from pre_commit_detect import (
+        is_git_commit_invocation,  # type: ignore[import-not-found]
+    )
     from stdin_json import read_stdin_json  # type: ignore[import-not-found]
 except ImportError:  # pragma: no cover
     # Fail-open on missing shared libs.
@@ -51,7 +51,7 @@ except ImportError:  # pragma: no cover
     def is_git_commit_invocation(_: str) -> bool:  # type: ignore[misc]
         return False
 
-    def read_stdin_json() -> Optional[dict]:  # type: ignore[misc]
+    def read_stdin_json() -> dict | None:  # type: ignore[misc]
         return None
 
 
@@ -64,7 +64,7 @@ Diff (expected vs working tree):
 """
 
 
-def _staged_files() -> List[str]:
+def _staged_files() -> list[str]:
     try:
         completed = subprocess.run(
             ["git", "diff", "--cached", "--name-only", "--diff-filter=ACMR"],

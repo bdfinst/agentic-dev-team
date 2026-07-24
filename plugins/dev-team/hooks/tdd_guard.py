@@ -19,13 +19,12 @@ import re
 import sys
 import time
 from pathlib import Path
-from typing import Optional, Tuple
 
 _LIB_DIR = Path(__file__).resolve().parent / "lib"
 if str(_LIB_DIR) not in sys.path:
     sys.path.insert(0, str(_LIB_DIR))
 
-from boundary_events import emit_boundary_event as _emit_boundary_event  # noqa: E402
+from boundary_events import emit_boundary_event as _emit_boundary_event
 
 
 def emit_boundary_event(*args, **kwargs) -> None:
@@ -121,7 +120,7 @@ def _state_dir() -> Path:
     return Path(os.environ.get("TMPDIR", "/tmp")) / "tdd-guard"
 
 
-def _state_file(cwd: Optional[Path] = None) -> Path:
+def _state_file(cwd: Path | None = None) -> Path:
     base = str(cwd if cwd is not None else Path.cwd())
     # bash uses `echo "$PWD" | md5sum` which appends a trailing newline before
     # hashing; hash the same byte sequence so the state file lives at the same
@@ -142,7 +141,7 @@ def _purge_stale(state_dir: Path) -> None:
             pass
 
 
-def _read_state(state_file: Path) -> Tuple[str, int]:
+def _read_state(state_file: Path) -> tuple[str, int]:
     if not state_file.is_file():
         return "", 0
     try:
@@ -207,7 +206,7 @@ def main() -> int:
         return 0
 
     basename = os.path.basename(file_path)
-    print("")
+    print()
     print("  TDD: Implementation file edited without a recent test edit.")
     print(f"  File: {basename}")
     print("  Write a failing test FIRST, then implement. RED before GREEN.")

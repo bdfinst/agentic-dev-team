@@ -36,11 +36,11 @@ from __future__ import annotations
 import re
 import subprocess
 import sys
+from collections.abc import Iterable
 from pathlib import Path
-from typing import Iterable, List
 
 
-def _safe_grep(glob: str, pattern: str, root: str) -> List[str]:
+def _safe_grep(glob: str, pattern: str, root: str) -> list[str]:
     """`grep -rnE --include=<glob> <pattern> -- <root>`, silencing errors.
 
     The .sh runs plain `grep -rn`, which uses BRE and treats the ERE
@@ -66,11 +66,11 @@ def _safe_grep(glob: str, pattern: str, root: str) -> List[str]:
     return [line for line in r.stdout.splitlines() if line]
 
 
-def _sort_unique(lines: Iterable[str]) -> List[str]:
+def _sort_unique(lines: Iterable[str]) -> list[str]:
     return sorted(set(lines))
 
 
-def _write_lines(path: Path, lines: List[str]) -> None:
+def _write_lines(path: Path, lines: list[str]) -> None:
     path.write_text("".join(f"{line}\n" for line in lines))
 
 
@@ -106,7 +106,7 @@ def _extract_name(line: str) -> str:
 
 def collect_class_names(root: str, out_dir: Path) -> int:
     print("  → class names...")
-    raw: List[str] = []
+    raw: list[str] = []
     raw.extend(_safe_grep("*.ts", "^export (abstract )?class [A-Z][a-zA-Z]+", root))
     raw.extend(_safe_grep("*.ts", "^export (abstract )?interface [A-Z][a-zA-Z]+", root))
     raw.extend(
@@ -139,7 +139,7 @@ def collect_class_names(root: str, out_dir: Path) -> int:
 
 def collect_enum_values(root: str, out_dir: Path) -> int:
     print("  → enum values...")
-    raw: List[str] = []
+    raw: list[str] = []
     raw.extend(_safe_grep("*.ts", "^export (const )?enum [A-Z]", root))
     raw.extend(_safe_grep("*.cs", r"^[[:space:]]*(public|internal) enum [A-Z]", root))
     raw.extend(_safe_grep("*.java", "^public enum [A-Z]", root))
@@ -162,7 +162,7 @@ _EVENT_SUFFIXES = (
 
 def collect_domain_events(root: str, out_dir: Path) -> int:
     print("  → domain events...")
-    raw: List[str] = []
+    raw: list[str] = []
     raw.extend(_safe_grep("*.ts", f"class [A-Z][a-zA-Z]*({_EVENT_SUFFIXES})", root))
     raw.extend(_safe_grep("*.cs", f"class [A-Z][a-zA-Z]*({_EVENT_SUFFIXES})", root))
     raw.extend(_safe_grep("*.java", f"class [A-Z][a-zA-Z]*({_EVENT_SUFFIXES})", root))
@@ -185,7 +185,7 @@ def collect_domain_events(root: str, out_dir: Path) -> int:
 
 def collect_bdd_names(root: str, out_dir: Path) -> int:
     print("  → BDD names...")
-    raw: List[str] = []
+    raw: list[str] = []
     # Gherkin keywords: `Scenario:`, `Given x`, `When y`, etc. — the
     # trailing char after the keyword is either whitespace or `:` (for
     # `Scenario` outlines / `Feature`). The .sh required trailing `\s`,
@@ -213,7 +213,7 @@ def collect_bdd_names(root: str, out_dir: Path) -> int:
 
 def collect_validator_rules(root: str, out_dir: Path) -> int:
     print("  → validator rules...")
-    raw: List[str] = []
+    raw: list[str] = []
     # ERE alternation (matches grep -E): raw `|` is the alternation
     # operator, not the escaped BRE `\|` the .sh has (which grep -E treats
     # as a literal `|` character).
@@ -245,7 +245,7 @@ def collect_validator_rules(root: str, out_dir: Path) -> int:
 
 def collect_interface_names(root: str, out_dir: Path) -> int:
     print("  → interface names...")
-    raw: List[str] = []
+    raw: list[str] = []
     raw.extend(_safe_grep("*.ts", "^export interface [A-Z][a-zA-Z]+", root))
     raw.extend(
         _safe_grep(
@@ -284,7 +284,7 @@ def main(argv: list) -> int:
     collect_validator_rules(root, out_dir)
     collect_interface_names(root, out_dir)
 
-    print("")
+    print()
     print(f"Signal collection complete. Results in {out_dir}/")
 
     # Total unique candidates across all txt files.

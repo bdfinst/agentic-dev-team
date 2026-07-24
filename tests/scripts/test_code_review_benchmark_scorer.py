@@ -9,7 +9,7 @@ _HARNESS_DIR = Path(__file__).resolve().parents[2] / "evals" / "code-review-benc
 if str(_HARNESS_DIR) not in sys.path:
     sys.path.insert(0, str(_HARNESS_DIR))
 
-import scorer  # noqa: E402
+import scorer
 
 _HUNK = {"file": "src/a.js", "start_line": 10, "end_line": 12}
 
