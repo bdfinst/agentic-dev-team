@@ -1,5 +1,17 @@
 # Changelog
 
+## [10.19.1](https://github.com/bdfinst/agentic-dev-team/compare/dev-team-v10.19.0...dev-team-v10.19.1) (2026-07-24)
+
+
+### Bug Fixes
+
+* unify MCP grant-check JSON schema and consolidate agent-audit docs ([261b760](https://github.com/bdfinst/agentic-dev-team/commit/261b760e6826e95c7c596572b943f1c00cc81c5d))
+
+
+### Code Refactoring
+
+* **test-improve:** simplify phase numbering to a flat sequence ([9489479](https://github.com/bdfinst/agentic-dev-team/commit/9489479f03ecdf0c7eb0c6a2900d1fb0c88c1cda))
+
 ## [10.19.0](https://github.com/bdfinst/agentic-dev-team/compare/dev-team-v10.18.2...dev-team-v10.19.0) (2026-07-24)
 
 
