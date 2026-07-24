@@ -13,6 +13,8 @@ from __future__ import annotations
 
 import sys
 
+import pytest
+
 from _repo_root import REPO_ROOT as _REPO_ROOT
 
 sys.path.insert(0, str(_REPO_ROOT / "plugins" / "dev-team" / "hooks" / "lib"))
@@ -171,3 +173,90 @@ def test_overridden_entry_with_rationale_is_valid():
     entry["adoption_status"] = "overridden"
     entry["override_rationale"] = "bryan.finster@gmail.com: accepted minor tradeoff for perf"
     assert schema.validate_entry(entry, FIXTURED) == []
+
+
+# ---------------------------------------------------------------------------
+# mutation-kill (#1354): each VALID_ADOPTION_STATUSES / VALID_EVAL_VERDICTS
+# member must be individually accepted — a mutated set element would slip an
+# invalid-value error into an otherwise-clean gated entry.
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "status", ["pending-eval", "adopted", "rejected", "rolled-back", "overridden"]
+)
+def test_each_valid_adoption_status_is_accepted(status):
+    entry = dict(_FULL_GATED_ENTRY)
+    entry["adoption_status"] = status
+    # "overridden" additionally requires a rationale; supply it so the only
+    # thing under test here is that the status itself is in the valid set.
+    if status == "overridden":
+        entry["override_rationale"] = "documented tradeoff"
+    assert schema.validate_entry(entry, FIXTURED) == []
+
+
+@pytest.mark.parametrize(
+    "verdict", ["improved", "unchanged", "regressed", "not-applicable"]
+)
+def test_each_valid_eval_verdict_is_accepted(verdict):
+    entry = dict(_FULL_GATED_ENTRY)
+    entry["eval_verdict"] = verdict
+    # "regressed" is a valid verdict on its own; keep adoption_status a value
+    # that carries no extra constraint so the verdict is the sole variable.
+    entry["adoption_status"] = "rejected"
+    assert schema.validate_entry(entry, FIXTURED) == []
+
+
+# ---------------------------------------------------------------------------
+# is_gated_entry — the `not isinstance(...) or not component` guard must be a
+# disjunction: a truthy non-string component is not-a-string and must short-
+# circuit to False, never fall through to a re.search that would raise.
+# ---------------------------------------------------------------------------
+
+
+def test_is_gated_entry_false_for_non_string_component():
+    assert schema.is_gated_entry({"component": 123}, FIXTURED) is False
+
+
+def test_is_gated_entry_false_for_empty_string_component():
+    assert schema.is_gated_entry({"component": ""}, FIXTURED) is False
+
+
+# ---------------------------------------------------------------------------
+# validate_entry — exact error-message text. Substring checks elsewhere in
+# this file survive a whole-string mutation because the interpolated field
+# name stays a substring; these pin the precise prose + prefix.
+# ---------------------------------------------------------------------------
+
+
+def test_missing_required_field_error_has_exact_text():
+    entry = dict(_FULL_GATED_ENTRY)
+    del entry["predicted_improvement"]
+    errors = schema.validate_entry(entry, FIXTURED)
+    assert "missing or empty required field: predicted_improvement" in errors
+
+
+def test_invalid_adoption_status_error_has_exact_text():
+    entry = dict(_FULL_GATED_ENTRY)
+    entry["adoption_status"] = "bogus"
+    errors = schema.validate_entry(entry, FIXTURED)
+    assert "invalid adoption_status: 'bogus'" in errors
+
+
+def test_invalid_eval_verdict_error_has_exact_text():
+    entry = dict(_FULL_GATED_ENTRY)
+    entry["eval_verdict"] = "bogus"
+    errors = schema.validate_entry(entry, FIXTURED)
+    assert "invalid eval_verdict: 'bogus'" in errors
+
+
+def test_overridden_without_rationale_error_has_exact_text():
+    entry = dict(_FULL_GATED_ENTRY)
+    entry["eval_verdict"] = "regressed"
+    entry["adoption_status"] = "overridden"
+    entry.pop("override_rationale", None)
+    errors = schema.validate_entry(entry, FIXTURED)
+    assert (
+        "adoption_status is 'overridden' but override_rationale "
+        "is missing or empty"
+    ) in errors
