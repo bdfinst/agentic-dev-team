@@ -47,16 +47,8 @@ def _stated_counts() -> dict[str, int]:
     return counts
 
 
-def _actual_agents() -> int:
-    return len(list((PLUGIN_ROOT / "agents").glob("*.md")))
-
-
-def _actual_skills() -> int:
-    return len(list((PLUGIN_ROOT / "skills").glob("*/SKILL.md")))
-
-
-def _actual_commands() -> int:
-    return len(list((PLUGIN_ROOT / "commands").glob("*.md")))
+def _glob_count(directory: Path, pattern: str) -> int:
+    return len(list(directory.glob(pattern)))
 
 
 def _actual_top_level_files(directory: Path) -> int:
@@ -69,7 +61,7 @@ def test_claude_md_states_exactly_one_count_per_category() -> None:
 
 def test_agents_count_matches_disk() -> None:
     stated = _stated_counts()["Agents"]
-    actual = _actual_agents()
+    actual = _glob_count(PLUGIN_ROOT / "agents", "*.md")
     assert stated == actual, (
         f"CLAUDE.md states **Agents** ({stated}, ...) but {actual} agents/*.md files exist on disk"
     )
@@ -77,7 +69,7 @@ def test_agents_count_matches_disk() -> None:
 
 def test_skills_count_matches_disk() -> None:
     stated = _stated_counts()["Skills"]
-    actual = _actual_skills()
+    actual = _glob_count(PLUGIN_ROOT / "skills", "*/SKILL.md")
     assert stated == actual, (
         f"CLAUDE.md states **Skills** ({stated}) but {actual} skills/*/SKILL.md files exist on disk"
     )
@@ -85,7 +77,7 @@ def test_skills_count_matches_disk() -> None:
 
 def test_commands_count_matches_disk() -> None:
     stated = _stated_counts()["Commands"]
-    actual = _actual_commands()
+    actual = _glob_count(PLUGIN_ROOT / "commands", "*.md")
     assert stated == actual, (
         f"CLAUDE.md states **Commands** ({stated}) but {actual} commands/*.md files exist on disk"
     )

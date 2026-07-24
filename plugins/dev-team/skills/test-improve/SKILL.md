@@ -441,8 +441,9 @@ reported closed — a hard gate, not prose:
 python3 ${CLAUDE_PLUGIN_ROOT}/scripts/gherkin_stub_gate.py --dir <step-definitions-dir>
 ```
 
-(`<step-definitions-dir>` is wherever `/gherkin-derive`'s Step 2b run wrote
-step-definition files — recorded in `memory/test-improve/<slug>/gherkin.md`.)
+(`<step-definitions-dir>` is wherever test-improve's own Phase 2b —
+`/gherkin-derive`'s Step 4 (stub generation) / Step 5 (output paths) — wrote
+step-definition files, recorded in `memory/test-improve/<slug>/gherkin.md`.)
 
 - **Exit 0 (no pending stubs)** — Phase 4 proceeds to the end-of-phase review
   loop below.

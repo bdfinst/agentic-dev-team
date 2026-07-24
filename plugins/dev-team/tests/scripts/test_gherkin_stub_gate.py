@@ -83,7 +83,25 @@ def test_detects_java_pending_marker(tmp_path):
     assert pending[0]["line"] == 4
 
 
-def test_detects_csharp_pending_marker(tmp_path):
+def test_detects_csharp_current_pending_marker(tmp_path):
+    f = tmp_path / "ASteps.cs"
+    f.write_text(
+        "[Given(@\"a thing\")]\n"
+        "public void GivenAThing()\n"
+        "{\n"
+        "    throw new PendingStepException();\n"
+        "}\n"
+    )
+    pending = gherkin_stub_gate.find_pending_stubs([f])
+    assert len(pending) == 1
+    assert pending[0]["language"] == "C#"
+    assert pending[0]["line"] == 4
+
+
+def test_detects_csharp_deprecated_pending_marker(tmp_path):
+    # StepIsPending() is deprecated since Reqnroll 3.3.4 (bdd-frameworks.md)
+    # but still recognized — an older or not-yet-regenerated stub must not
+    # be a false negative.
     f = tmp_path / "ASteps.cs"
     f.write_text(
         "[Given(@\"a thing\")]\n"
@@ -183,3 +201,64 @@ def test_unrecognized_extension_is_never_scanned_for_markers(tmp_path):
     f = tmp_path / "notes.txt"
     f.write_text("this.pending() mentioned in prose, not code\n")
     assert gherkin_stub_gate.find_step_definition_files([tmp_path]) == []
+
+
+# ---------------------------------------------------------------------------
+# Case-insensitive extension matching (regression: uppercase extensions were
+# previously invisible to the scan, silently reporting a false "0 pending")
+# ---------------------------------------------------------------------------
+
+
+def test_uppercase_extension_is_still_discovered(tmp_path):
+    f = tmp_path / "Steps.JS"
+    f.write_text("return this.pending();\n")
+    found = gherkin_stub_gate.find_step_definition_files([tmp_path])
+    assert found == [f]
+
+
+def test_uppercase_extension_pending_marker_is_detected(tmp_path):
+    f = tmp_path / "ASteps.CS"
+    f.write_text("throw new PendingStepException();\n")
+    pending = gherkin_stub_gate.find_pending_stubs(
+        gherkin_stub_gate.find_step_definition_files([f.parent])
+    )
+    assert len(pending) == 1
+    assert pending[0]["language"] == "C#"
+
+
+def test_mixed_case_extension_via_main_reports_pending(tmp_path):
+    steps = tmp_path / "steps"
+    steps.mkdir()
+    (steps / "a_steps.Go").write_text("return godog.ErrPending\n")
+    assert gherkin_stub_gate.main(["--dir", str(steps)]) == 1
+
+
+# ---------------------------------------------------------------------------
+# Vendored-directory pruning
+# ---------------------------------------------------------------------------
+
+
+def test_node_modules_subtree_is_not_scanned(tmp_path):
+    vendored = tmp_path / "node_modules" / "some-dep"
+    vendored.mkdir(parents=True)
+    (vendored / "steps.js").write_text("return this.pending();\n")
+    (tmp_path / "a_steps.js").write_text("assert.ok(true);\n")
+    found = gherkin_stub_gate.find_step_definition_files([tmp_path])
+    assert found == [tmp_path / "a_steps.js"]
+
+
+def test_git_directory_is_not_scanned(tmp_path):
+    git_dir = tmp_path / ".git" / "objects"
+    git_dir.mkdir(parents=True)
+    (git_dir / "fake_steps.go").write_text("return godog.ErrPending\n")
+    found = gherkin_stub_gate.find_step_definition_files([tmp_path])
+    assert found == []
+
+
+def test_vendored_pruning_means_main_reports_clean(tmp_path):
+    steps = tmp_path / "steps"
+    vendored = steps / "vendor" / "dep"
+    vendored.mkdir(parents=True)
+    (vendored / "steps.go").write_text("return godog.ErrPending\n")
+    (steps / "a_steps.go").write_text("func x() error { return nil }\n")
+    assert gherkin_stub_gate.main(["--dir", str(steps)]) == 0

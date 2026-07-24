@@ -167,7 +167,7 @@ that pass silently.
 | JS/TS | Cucumber.js | `return this.pending();` |
 | Java (Maven) | Cucumber-JVM + `cucumber-junit-platform-engine` | `throw new io.cucumber.java.PendingException();` |
 | Java (Gradle) | Same via Gradle config | `throw new io.cucumber.java.PendingException();` |
-| C# | Reqnroll (xUnit / NUnit / MSTest) | injected `ScenarioContext.StepIsPending()` |
+| C# | Reqnroll (xUnit / NUnit / MSTest) | `throw new PendingStepException();` (Reqnroll's own auto-suggested stub; `ScenarioContext.StepIsPending()` is deprecated as of Reqnroll 3.3.4 — see `bdd-frameworks.md`) |
 | Go | Godog | `return godog.ErrPending` |
 
 ## Step 5 — Output
