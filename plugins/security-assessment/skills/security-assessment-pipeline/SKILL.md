@@ -158,6 +158,10 @@ Canonical phase names for `phase-timer.sh`: `phase-0-recon`,
 `phase-2-fp-reduction`, `phase-2b-severity-floors`,
 `phase-3-narrative-compliance`, `phase-4-cross-repo`, `phase-5-report`.
 
+## Graph-assisted discovery
+
+If a target repo has `.codegraph/` (CodeGraph MCP server — `codegraph_explore`/`get_symbol` for fast callers/callees/impact lookups) and/or a Repowise MCP server (`get_context`/`search_codebase` for semantic search), prefer them over raw `Grep`/`Read` when locating candidate files and tracing call paths. This benefits the **recon-driven scanning** step (Phase 1b's `recon-driven-scan` agent, bridging RECON narrative claims to concrete file:line evidence) most directly — graph-backed callers/impact lookups and semantic search surface exactly the file:line evidence that step needs. Never assume either tool is present — fall back to `Read`/`Grep`/`Glob` when neither is present; the tools are simply unavailable (no error) on repos without an index.
+
 ## Helper-script invocation contract
 
 Deterministic phase helpers carry strict ordering requirements. The
