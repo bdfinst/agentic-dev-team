@@ -21,15 +21,14 @@ import os
 import subprocess
 import sys
 from pathlib import Path
-from typing import List, Optional, Tuple
 
 _LIB_DIR = Path(__file__).resolve().parent / "lib"
 sys.path.insert(0, str(_LIB_DIR))
 
-from refactor_test_freeze_guard import audit  # noqa: E402
-from test_file_classify import is_test_file, read_build_phase  # noqa: E402
-from boundary_events import emit_boundary_event as _emit_boundary_event  # noqa: E402
-from stdin_json import read_stdin_json  # noqa: E402
+from boundary_events import emit_boundary_event as _emit_boundary_event
+from refactor_test_freeze_guard import audit
+from stdin_json import read_stdin_json
+from test_file_classify import is_test_file, read_build_phase
 
 
 def emit_boundary_event(*args, **kwargs) -> None:
@@ -40,7 +39,7 @@ def emit_boundary_event(*args, **kwargs) -> None:
     uses."""
     try:
         _emit_boundary_event(*args, **kwargs)
-    except Exception:  # noqa: BLE001 - fail-open by design
+    except Exception:  # noqa: BLE001, S110 - fail-open by design
         pass
 
 
@@ -50,7 +49,7 @@ RECOVERY = (
 )
 
 
-def _git(project_dir: Path, args: List[str]) -> Optional[str]:
+def _git(project_dir: Path, args: list[str]) -> str | None:
     """Run git in the project dir; stdout on success, None on any failure."""
     try:
         result = subprocess.run(
@@ -59,6 +58,7 @@ def _git(project_dir: Path, args: List[str]) -> Optional[str]:
             capture_output=True,
             text=True,
             timeout=60,
+            check=False,
         )
     except (OSError, subprocess.SubprocessError):
         return None
@@ -69,9 +69,9 @@ def _git(project_dir: Path, args: List[str]) -> Optional[str]:
 
 def evaluate(
     project_dir: Path,
-    now: Optional[float] = None,
-    session_id: Optional[str] = None,
-) -> Tuple[int, List[str]]:
+    now: float | None = None,
+    session_id: str | None = None,
+) -> tuple[int, list[str]]:
     """Return (exit_code, stdout_lines). Always exits 0 — advisory only."""
     state, error = read_build_phase(project_dir, now=now)
     if error is not None:
@@ -80,7 +80,7 @@ def evaluate(
     if state is None or state.get("phase") != "refactor":
         return 0, []
     step = state.get("step") if isinstance(state.get("step"), str) else None
-    lines: List[str] = []
+    lines: list[str] = []
 
     # Post-baseline drift on baseline files: the index IS the baseline.
     baseline = state.get("test_files_staged", [])
@@ -117,8 +117,8 @@ def evaluate(
                 session_id,
             )
             lines.append(
-                "ADVISORY: restored test file '{}' to its TEST-phase baseline "
-                "({}).".format(dirty, RECOVERY)
+                f"ADVISORY: restored test file '{dirty}' to its TEST-phase baseline "
+                f"({RECOVERY})."
             )
 
     # Test files created during refactor: untracked and absent from baseline.
@@ -145,7 +145,7 @@ def evaluate(
                 "fail-open",
                 file=rel,
                 step=step,
-                reason="could not remove: {}".format(exc),
+                reason=f"could not remove: {exc}",
             )
             continue
         audit(project_dir, "revert", "remove", file=rel, step=step)
@@ -158,8 +158,8 @@ def evaluate(
             session_id,
         )
         lines.append(
-            "ADVISORY: removed test file '{}' created during REFACTOR "
-            "({}).".format(rel, RECOVERY)
+            f"ADVISORY: removed test file '{rel}' created during REFACTOR "
+            f"({RECOVERY})."
         )
     return 0, lines
 
@@ -174,8 +174,8 @@ def main() -> int:
     session_id = payload.get("session_id") if isinstance(payload, dict) else None
     try:
         exit_code, lines = evaluate(project_dir, session_id=session_id)
-    except Exception as exc:  # fail open — never revert, never block
-        audit(project_dir, "revert", "fail-open", reason="internal error: {}".format(exc))
+    except Exception as exc:  # noqa: BLE001 - fail open — never revert, never block
+        audit(project_dir, "revert", "fail-open", reason=f"internal error: {exc}")
         return 0
     for line in lines:
         print(line)

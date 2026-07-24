@@ -35,7 +35,7 @@ WRAPPER_DIR = (
 )
 sys.path.insert(0, str(WRAPPER_DIR))
 
-import csharp_stryker_net_wrapper as wrapper  # noqa: E402
+import csharp_stryker_net_wrapper as wrapper
 
 
 # =============================================================================
@@ -136,7 +136,7 @@ def _install_fakes(
     # tests can be killed by any spurious signal (verified: this caused
     # test #42 in the Windows CI job to crash with "KeyboardInterrupt:
     # signal 2" during unrelated status-loop tests).
-    monkeypatch.setattr(wrapper, "_install_signal_handlers", lambda: [])
+    monkeypatch.setattr(wrapper, "_install_signal_handlers", list)
 
 
 def run_wrapper(hermetic, *extra_args):
@@ -623,11 +623,11 @@ class TestConcurrentRunStrykerTracking:
         threads = [
             threading.Thread(
                 target=wrapper.run_stryker,
-                kwargs=dict(
-                    stryker_bin="fake-stryker",
-                    stryker_args=[],
-                    logfile=tmp_path / f"slice-{i}.log",
-                ),
+                kwargs={
+                    "stryker_bin": "fake-stryker",
+                    "stryker_args": [],
+                    "logfile": tmp_path / f"slice-{i}.log",
+                },
                 daemon=True,
             )
             for i in range(2)
@@ -1037,4 +1037,4 @@ class TestRunStrykerLineCallback:
         assert captured["stderr"] == wrapper.subprocess.STDOUT
 
 
-import signal  # noqa: E402 — used only by the signal tests above
+import signal

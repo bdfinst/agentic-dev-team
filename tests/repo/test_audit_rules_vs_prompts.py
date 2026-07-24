@@ -11,15 +11,15 @@ from __future__ import annotations
 import os
 import subprocess
 from pathlib import Path
-from typing import Dict, Optional
 
 import pytest
 
-REPO_ROOT = Path(__file__).resolve().parents[2]
+from _repo_root import REPO_ROOT
+
 AUDIT = REPO_ROOT / "scripts" / "audit-rules-vs-prompts.sh"
 
 
-def _run(env: Optional[Dict[str, str]] = None) -> subprocess.CompletedProcess:
+def _run(env: dict[str, str] | None = None) -> subprocess.CompletedProcess:
     full_env = dict(os.environ)
     if env:
         full_env.update(env)
@@ -29,11 +29,12 @@ def _run(env: Optional[Dict[str, str]] = None) -> subprocess.CompletedProcess:
         env=full_env,
         capture_output=True,
         text=True,
+        check=False,
     )
 
 
 @pytest.fixture
-def synthetic_plugin(tmp_path: Path) -> Dict[str, str]:
+def synthetic_plugin(tmp_path: Path) -> dict[str, str]:
     plugin = tmp_path / "plugin"
     (plugin / "knowledge" / "rule-fixtures" / "A03.sql-injection").mkdir(parents=True)
     (
@@ -57,7 +58,7 @@ def test_audit_passes_on_the_real_repository_tree() -> None:
 
 
 def test_audit_a_correct_synthetic_manifest_passes(
-    synthetic_plugin: Dict[str, str],
+    synthetic_plugin: dict[str, str],
 ) -> None:
     Path(synthetic_plugin["RULE_MAP"]).write_text(
         """version: 1.1.0
@@ -77,7 +78,7 @@ classes:
 
 
 def test_audit_fails_when_fp_rate_exceeds_10_percent(
-    synthetic_plugin: Dict[str, str],
+    synthetic_plugin: dict[str, str],
 ) -> None:
     Path(synthetic_plugin["RULE_MAP"]).write_text(
         """version: 1.1.0
@@ -95,7 +96,7 @@ classes:
 
 
 def test_audit_fails_on_cross_surface_duplication(
-    synthetic_plugin: Dict[str, str],
+    synthetic_plugin: dict[str, str],
 ) -> None:
     Path(synthetic_plugin["RULE_MAP"]).write_text(
         """version: 1.1.0
@@ -110,7 +111,7 @@ classes:
 
 
 def test_audit_fails_when_rule_surface_class_lacks_fixtures(
-    synthetic_plugin: Dict[str, str],
+    synthetic_plugin: dict[str, str],
 ) -> None:
     Path(synthetic_plugin["RULE_MAP"]).write_text(
         """version: 1.1.0
@@ -128,7 +129,7 @@ classes:
 
 
 def test_audit_fails_when_rule_surface_class_is_agent_detection_row(
-    synthetic_plugin: Dict[str, str],
+    synthetic_plugin: dict[str, str],
 ) -> None:
     Path(synthetic_plugin["RULE_MAP"]).write_text(
         """version: 1.1.0
@@ -150,7 +151,7 @@ classes:
     assert "detection row" in result.stdout + result.stderr
 
 
-def test_audit_fails_on_invalid_surface_value(synthetic_plugin: Dict[str, str]) -> None:
+def test_audit_fails_on_invalid_surface_value(synthetic_plugin: dict[str, str]) -> None:
     Path(synthetic_plugin["RULE_MAP"]).write_text(
         """version: 1.1.0
 mappings: { A01.idor: security-review.a01.idor }

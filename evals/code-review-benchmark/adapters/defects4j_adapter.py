@@ -18,14 +18,14 @@ from __future__ import annotations
 import csv
 import shutil
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from .common import BenchmarkCase, run_with_timeout, unified_diff_hunks
 
 DEFAULT_RUN_FN = run_with_timeout
 
 
-def detect(defects4j_home: Optional[str], defects4j_bin: Optional[str] = None) -> bool:
+def detect(defects4j_home: str | None, defects4j_bin: str | None = None) -> bool:
     """True when a `defects4j` binary is reachable and `defects4j_home` looks like a real checkout.
 
     `defects4j_bin`, when given, is an explicit path to the executable
@@ -47,7 +47,7 @@ def _active_bugs_csv(defects4j_home: str, project: str) -> Path:
     return Path(defects4j_home) / "framework" / "projects" / project / "active-bugs.csv"
 
 
-def list_projects(defects4j_home: str) -> List[str]:
+def list_projects(defects4j_home: str) -> list[str]:
     """Every project dir under `framework/projects` that has an `active-bugs.csv`."""
     projects_dir = Path(defects4j_home) / "framework" / "projects"
     if not projects_dir.is_dir():
@@ -70,7 +70,7 @@ def _patch_path(defects4j_home: str, project: str, bug_id: str) -> Path:
     )
 
 
-def list_bugs(project: str, defects4j_home: str) -> List[BenchmarkCase]:
+def list_bugs(project: str, defects4j_home: str) -> list[BenchmarkCase]:
     """Parse `active-bugs.csv` + each bug's `.src.patch` into BenchmarkCases.
 
     A bug whose patch is missing or unparsable is skipped (not included in
@@ -80,7 +80,7 @@ def list_bugs(project: str, defects4j_home: str) -> List[BenchmarkCase]:
     if not csv_path.is_file():
         return []
 
-    cases: List[BenchmarkCase] = []
+    cases: list[BenchmarkCase] = []
     with open(csv_path, newline="", encoding="utf-8") as fh:
         for row in csv.DictReader(fh):
             bug_id = row.get("bug.id")
@@ -119,9 +119,9 @@ def list_bugs(project: str, defects4j_home: str) -> List[BenchmarkCase]:
 def checkout(
     case: BenchmarkCase,
     workdir: str,
-    defects4j_home: Optional[str] = None,
+    defects4j_home: str | None = None,
     defects4j_bin: str = "defects4j",
-    env: Optional[Dict[str, str]] = None,
+    env: dict[str, str] | None = None,
     run_fn=DEFAULT_RUN_FN,
     timeout: int = 600,
 ) -> bool:
@@ -155,11 +155,11 @@ def run_tests(
     case: BenchmarkCase,
     checkout_dir: str,
     defects4j_bin: str = "defects4j",
-    env: Optional[Dict[str, str]] = None,
+    env: dict[str, str] | None = None,
     run_fn=DEFAULT_RUN_FN,
     compile_timeout: int = 300,
     test_timeout: int = 600,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Configure (`defects4j compile`) and run (`defects4j test`) the buggy checkout.
 
     Diagnostic sanity check, not a gate: confirms the buggy revision
@@ -208,7 +208,7 @@ def run_tests(
             "error": str(exc),
         }
 
-    failing_tests: List[str] = []
+    failing_tests: list[str] = []
     failing_tests_path = Path(checkout_dir) / "failing_tests"
     if failing_tests_path.is_file():
         failing_tests = [
@@ -228,10 +228,10 @@ def run_tests(
 def describe(
     case: BenchmarkCase,
     defects4j_bin: str = "defects4j",
-    env: Optional[Dict[str, str]] = None,
+    env: dict[str, str] | None = None,
     run_fn=DEFAULT_RUN_FN,
     timeout: int = 60,
-) -> Optional[str]:
+) -> str | None:
     """Best-effort `defects4j info -p <project> -b <bug_id>`. `None` on any failure."""
     argv = [defects4j_bin, "info", "-p", case.project, "-b", case.bug_id]
     try:

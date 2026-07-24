@@ -16,7 +16,8 @@ from pathlib import Path
 
 import pytest
 
-REPO_ROOT = Path(__file__).resolve().parents[2]
+from _repo_root import REPO_ROOT
+
 GRADER = REPO_ROOT / "scripts" / "eval_grade.py"
 
 EXPECTED_AR_DEMO = """{
@@ -50,6 +51,7 @@ def _grade(case: Path, *args: str) -> subprocess.CompletedProcess:
         capture_output=True,
         text=True,
         cwd=str(case),
+        check=False,
     )
 
 

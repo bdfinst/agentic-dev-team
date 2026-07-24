@@ -66,7 +66,7 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from eval_grade import run_grading  # noqa: E402
+from eval_grade import run_grading
 
 CACHE_VERSION = 1
 # References we follow when walking an agent/skill/knowledge file for deps.

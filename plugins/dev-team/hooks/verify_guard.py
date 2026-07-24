@@ -38,14 +38,14 @@ _LIB_DIR = _HOOK_DIR / "lib"
 if str(_LIB_DIR) not in sys.path:
     sys.path.insert(0, str(_LIB_DIR))
 
-from verify_guard_state import (  # noqa: E402  (import after sys.path setup)
+from boundary_events import emit_boundary_event as _emit_boundary_event
+from verify_guard_state import (
     cksum,
     read_state,
     state_file,
     state_key,
     write_state,
 )
-from boundary_events import emit_boundary_event as _emit_boundary_event  # noqa: E402
 
 
 def emit_boundary_event(*args, **kwargs) -> None:
@@ -53,7 +53,7 @@ def emit_boundary_event(*args, **kwargs) -> None:
     this hook's exit code, stdout, or stderr."""
     try:
         _emit_boundary_event(*args, **kwargs)
-    except Exception:  # noqa: BLE001 - fail-open by design
+    except Exception:  # noqa: BLE001, S110 - fail-open by design
         pass
 
 

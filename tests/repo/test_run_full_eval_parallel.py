@@ -17,7 +17,8 @@ from pathlib import Path
 
 import pytest
 
-REPO_ROOT = Path(__file__).resolve().parents[2]
+from _repo_root import REPO_ROOT
+
 VARIANCE = REPO_ROOT / "scripts" / "eval_variance.py"
 
 
@@ -67,6 +68,7 @@ def _reconcile(case: Path, only: str) -> subprocess.CompletedProcess:
         ],
         capture_output=True,
         text=True,
+        check=False,
     )
 
 

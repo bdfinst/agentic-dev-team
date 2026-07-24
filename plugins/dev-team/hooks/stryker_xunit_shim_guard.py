@@ -39,7 +39,6 @@ import re
 import subprocess
 import sys
 from pathlib import Path
-from typing import List, Optional, Tuple
 
 _HOOK_DIR = Path(__file__).resolve().parent
 _PLUGIN_DIR = _HOOK_DIR.parent
@@ -50,7 +49,7 @@ try:
     from stdin_json import read_stdin_json  # type: ignore[import-not-found]
 except ImportError:  # pragma: no cover - fallback keeps the hook self-contained
 
-    def read_stdin_json() -> Optional[dict]:  # type: ignore[misc]
+    def read_stdin_json() -> dict | None:  # type: ignore[misc]
         import json
 
         try:
@@ -118,9 +117,9 @@ def _resolve_run_dir(command: str, cwd: str) -> Path:
     return Path(cwd).resolve()
 
 
-def _find_v3_test_projects(root: Path, limit: int = 400) -> List[Path]:
+def _find_v3_test_projects(root: Path, limit: int = 400) -> list[Path]:
     """Bounded walk for xunit.v3 test .csproj under a solution root."""
-    found: List[Path] = []
+    found: list[Path] = []
     seen = 0
     for dirpath, dirnames, filenames in os.walk(root):
         dirnames[:] = [d for d in dirnames if d not in _SKIP_DIRS]
@@ -135,9 +134,9 @@ def _find_v3_test_projects(root: Path, limit: int = 400) -> List[Path]:
     return found
 
 
-def _scope_flags(project_dir: Path) -> List[str]:
+def _scope_flags(project_dir: Path) -> list[str]:
     """Test sources using v3-only constructs, relative to project_dir."""
-    flagged: List[str] = []
+    flagged: list[str] = []
     for dirpath, dirnames, filenames in os.walk(project_dir):
         dirnames[:] = [d for d in dirnames if d not in _SKIP_DIRS]
         for name in filenames:
@@ -153,7 +152,7 @@ def _shim_dir_for(real_csproj: Path) -> Path:
     return real_dir.parent / (real_csproj.stem + ".Mutation")
 
 
-def _run_generator(real_csproj: Path, cwd: Path) -> Tuple[int, str]:
+def _run_generator(real_csproj: Path, cwd: Path) -> tuple[int, str]:
     if not _GENERATOR.is_file():
         return 127, f"generator not found at {_GENERATOR}"
     try:
@@ -166,7 +165,7 @@ def _run_generator(real_csproj: Path, cwd: Path) -> Tuple[int, str]:
     return proc.returncode, (proc.stdout or "") + (proc.stderr or "")
 
 
-def _handle_v3_project(real_csproj: Path, cwd: Path) -> List[str]:
+def _handle_v3_project(real_csproj: Path, cwd: Path) -> list[str]:
     """Auto-scaffold the shim for one xunit.v3 test project (or explain why not),
     and return the block body reporting exactly what happened."""
     name = real_csproj.stem
@@ -209,7 +208,7 @@ def _handle_v3_project(real_csproj: Path, cwd: Path) -> List[str]:
     return lines
 
 
-def _block(lines: List[str]) -> int:
+def _block(lines: list[str]) -> int:
     print("\n".join(lines))
     return 2
 

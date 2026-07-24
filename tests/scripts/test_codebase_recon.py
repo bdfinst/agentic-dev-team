@@ -8,24 +8,56 @@ tmp_path fixture replaces the bash hermetic helper's mktemp -d + rm -rf.
 from __future__ import annotations
 
 import json
+import os
 import subprocess
 import sys
 from pathlib import Path
 
 import pytest
 
-REPO_ROOT = Path(__file__).resolve().parents[2]
+from _repo_root import REPO_ROOT
+
 SCRIPT = REPO_ROOT / "scripts" / "codebase_recon.py"
+
+
+def _hermetic_git_env(home: Path) -> dict:
+    """Mirrors tests/repo/conftest.py's hermetic_env (issue #546): scrub the
+    GIT_DIR/GIT_INDEX_FILE/etc vars git can leak into a subprocess's
+    environment, and redirect global/system git config to /dev/null so the
+    real user's ~/.gitconfig (hooks, aliases, safe.directory rules) can never
+    influence this test's throwaway repo. The original bash->pytest port
+    (issue #676) kept tmp_path isolation but dropped this env scrub, which
+    tests/lib/hermetic.bash's mktemp -d + rm -rf helper had also done --
+    restoring it here (test-improve issue-1354 Story 6) after an
+    intermittent `fatal: failed to write commit object` under full-suite
+    parallel load."""
+    env = {
+        k: v
+        for k, v in os.environ.items()
+        if k
+        not in (
+            "GIT_DIR",
+            "GIT_INDEX_FILE",
+            "GIT_WORK_TREE",
+            "GIT_PREFIX",
+            "GIT_REFLOG_ACTION",
+        )
+    }
+    env["GIT_CONFIG_GLOBAL"] = "/dev/null"
+    env["GIT_CONFIG_SYSTEM"] = "/dev/null"
+    env["HOME"] = str(home)
+    return env
 
 
 @pytest.fixture
 def repo(tmp_path: Path) -> Path:
-    subprocess.run(["git", "init", "-q"], cwd=tmp_path, check=True)
-    subprocess.run(["git", "config", "user.email", "t@t.com"], cwd=tmp_path, check=True)
-    subprocess.run(["git", "config", "user.name", "T"], cwd=tmp_path, check=True)
+    env = _hermetic_git_env(tmp_path)
+    subprocess.run(["git", "init", "-q"], cwd=tmp_path, check=True, env=env)
+    subprocess.run(["git", "config", "user.email", "t@t.com"], cwd=tmp_path, check=True, env=env)
+    subprocess.run(["git", "config", "user.name", "T"], cwd=tmp_path, check=True, env=env)
     (tmp_path / "README.md").touch()
-    subprocess.run(["git", "add", "."], cwd=tmp_path, check=True)
-    subprocess.run(["git", "commit", "-q", "-m", "init"], cwd=tmp_path, check=True)
+    subprocess.run(["git", "add", "."], cwd=tmp_path, check=True, env=env)
+    subprocess.run(["git", "commit", "-q", "-m", "init"], cwd=tmp_path, check=True, env=env)
     return tmp_path
 
 

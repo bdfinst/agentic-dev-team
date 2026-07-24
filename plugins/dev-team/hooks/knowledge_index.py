@@ -27,7 +27,6 @@ import subprocess
 import sys
 from pathlib import Path
 
-
 _HOOK_DIR = Path(__file__).resolve().parent
 _LIB_DIR = _HOOK_DIR / "lib"
 
@@ -101,6 +100,7 @@ def main() -> int:
 if __name__ == "__main__":
     try:
         sys.exit(main())
-    except Exception:
-        # Absolute fail-open guarantee.
+    except Exception:  # noqa: BLE001 - fail-open by design; absolute
+        # fail-open guarantee — this hook must never block on an
+        # unexpected error.
         sys.exit(0)

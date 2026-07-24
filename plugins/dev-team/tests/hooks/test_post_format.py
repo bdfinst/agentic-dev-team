@@ -8,16 +8,14 @@ plumbing in `main()`. Parity against the bash implementation lives in
 from __future__ import annotations
 
 import sys
-from pathlib import Path
 
 import pytest
 
+from _repo_root import REPO_ROOT as _REPO_ROOT
 
-_REPO_ROOT = Path(__file__).resolve().parents[4]
 sys.path.insert(0, str(_REPO_ROOT / "plugins" / "dev-team" / "hooks"))
 
-import post_format  # noqa: E402
-
+import post_format
 
 # ---------------------------------------------------------------------------
 # _extract_file_path — stdin JSON plumbing

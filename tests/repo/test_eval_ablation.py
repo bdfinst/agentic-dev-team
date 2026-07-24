@@ -14,7 +14,8 @@ from pathlib import Path
 
 import pytest
 
-REPO_ROOT = Path(__file__).resolve().parents[2]
+from _repo_root import REPO_ROOT
+
 ABLATION = REPO_ROOT / "scripts" / "eval_ablation.py"
 
 EXPECTED_DEP = (
@@ -62,6 +63,7 @@ def _run(case: Path, *args: str) -> dict:
         ],
         capture_output=True,
         text=True,
+        check=False,
     )
     assert res.returncode == 0, res.stdout + res.stderr
     return json.loads(res.stdout)

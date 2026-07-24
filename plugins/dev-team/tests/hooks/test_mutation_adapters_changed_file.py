@@ -14,8 +14,7 @@ sys.path.insert(
     0, str(Path(__file__).resolve().parents[4] / "plugins" / "dev-team" / "hooks")
 )
 
-from mutation_adapters import lib, mutmut, pitest, stryker_net  # noqa: E402
-
+from mutation_adapters import lib, mutmut, pitest, stryker_net
 
 # ---------------------------------------------------------------------------
 # lib.first_changed_file — the shared helper
@@ -23,7 +22,7 @@ from mutation_adapters import lib, mutmut, pitest, stryker_net  # noqa: E402
 
 
 def test_first_changed_file_returns_first_predicate_match(monkeypatch):
-    def fake_run(cmd, capture_output, text, check):  # noqa: ARG001
+    def fake_run(cmd, capture_output, text, check):
         return subprocess.CompletedProcess(
             cmd, 0, stdout="FooTest.java\nFoo.java\n", stderr=""
         )
@@ -36,7 +35,7 @@ def test_first_changed_file_returns_first_predicate_match(monkeypatch):
 def test_first_changed_file_falls_back_to_cached_diff(monkeypatch):
     calls = []
 
-    def fake_run(cmd, capture_output, text, check):  # noqa: ARG001
+    def fake_run(cmd, capture_output, text, check):
         calls.append(cmd)
         if "--cached" in cmd:
             return subprocess.CompletedProcess(cmd, 0, stdout="Bar.py\n", stderr="")
@@ -49,7 +48,7 @@ def test_first_changed_file_falls_back_to_cached_diff(monkeypatch):
 
 
 def test_first_changed_file_returns_empty_when_no_match(monkeypatch):
-    def fake_run(cmd, capture_output, text, check):  # noqa: ARG001
+    def fake_run(cmd, capture_output, text, check):
         return subprocess.CompletedProcess(cmd, 0, stdout="README.md\n", stderr="")
 
     monkeypatch.setattr(lib.subprocess, "run", fake_run)
@@ -57,7 +56,7 @@ def test_first_changed_file_returns_empty_when_no_match(monkeypatch):
 
 
 def test_first_changed_file_returns_empty_when_git_missing(monkeypatch):
-    def fake_run(cmd, capture_output, text, check):  # noqa: ARG001
+    def fake_run(cmd, capture_output, text, check):
         raise FileNotFoundError()
 
     monkeypatch.setattr(lib.subprocess, "run", fake_run)

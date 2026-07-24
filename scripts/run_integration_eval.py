@@ -80,7 +80,7 @@ def check_prerequisites(skip_dispatch: bool) -> list[str]:
     else:
         try:
             sys.path.insert(0, str(SCRIPTS))
-            from eval_graders import is_registered  # noqa: E402
+            from eval_graders import is_registered
 
             if not is_registered("integration"):
                 missing.append("the 'integration' grader in the registry (#309/#313)")
@@ -127,7 +127,7 @@ def extract_golden_repo(tarball: Path, dest: Path) -> None:
             target = (dest / member.name).resolve()
             if not _is_within(resolved_dest, target):
                 raise RuntimeError(f"unsafe path in tarball: {member.name}")
-        tf.extractall(dest)  # noqa: S202 - members validated above
+        tf.extractall(dest)
 
 
 def init_worktree(workdir: Path) -> None:
@@ -138,9 +138,11 @@ def init_worktree(workdir: Path) -> None:
         "stdout": subprocess.DEVNULL,
         "stderr": subprocess.DEVNULL,
     }
-    subprocess.run(["git", "init"], **quiet)
-    subprocess.run(["git", "add", "-A"], **quiet)
-    subprocess.run(
+    # check=True is already supplied via the `quiet` dict-unpack above; ruff's
+    # PLW1510 can't see through **quiet, so these are intentionally left as-is.
+    subprocess.run(["git", "init"], **quiet)  # noqa: PLW1510
+    subprocess.run(["git", "add", "-A"], **quiet)  # noqa: PLW1510
+    subprocess.run(  # noqa: PLW1510
         [
             "git",
             "-c",
@@ -274,6 +276,7 @@ def run_commands(workdir: Path, commands: list[str]) -> list[dict]:
                 capture_output=True,
                 text=True,
                 timeout=timeout,
+                check=False,
             )
             stderr_first = ""
             if proc.stderr:

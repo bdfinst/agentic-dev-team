@@ -28,11 +28,11 @@ from __future__ import annotations
 import json
 import re
 from pathlib import Path
-from typing import List, Tuple
 
 import pytest
 
-REPO_ROOT = Path(__file__).resolve().parents[2]
+from _repo_root import REPO_ROOT
+
 PLUGIN_ROOT = REPO_ROOT / "plugins" / "dev-team"
 INDEX = PLUGIN_ROOT / "knowledge" / "index.json"
 AGENTS_DIR = PLUGIN_ROOT / "agents"
@@ -51,7 +51,7 @@ REF_RE = re.compile(
 )
 
 
-def _agent_files_to_check(agent_files: str | None = None) -> List[Path]:
+def _agent_files_to_check(agent_files: str | None = None) -> list[Path]:
     """Resolve which agent files to check.
 
     - Default: every *.md under agents/.
@@ -69,7 +69,7 @@ def _agent_files_to_check(agent_files: str | None = None) -> List[Path]:
     return sorted(AGENTS_DIR.glob("*.md"))
 
 
-def _violations_for_file(agent_file: Path, index: dict) -> List[Tuple[str, str]]:
+def _violations_for_file(agent_file: Path, index: dict) -> list[tuple[str, str]]:
     """Return (category, message) pairs for one agent file.
 
     Categories: "anchor", "packaged", "prefix".
@@ -77,7 +77,7 @@ def _violations_for_file(agent_file: Path, index: dict) -> List[Tuple[str, str]]
     text = agent_file.read_text(encoding="utf-8")
     paragraphs = re.split(r"\n\s*\n", text)
 
-    violations: List[Tuple[str, str]] = []
+    violations: list[tuple[str, str]] = []
     for para in paragraphs:
         for m in REF_RE.finditer(para):
             prefix = m.group("prefix")
@@ -102,25 +102,28 @@ def _violations_for_file(agent_file: Path, index: dict) -> List[Tuple[str, str]]
 
             # (3) Runtime-resolvable prefix — knowledge refs must use
             # ${CLAUDE_PLUGIN_ROOT}/. Bare knowledge/ is the #1103 defect.
-            if ref_file.startswith("knowledge/") and prefix != RESOLVABLE_PREFIX:
-                if not prefix:
-                    violations.append(
+            if ref_file.startswith("knowledge/") and prefix != RESOLVABLE_PREFIX and not prefix:
+                violations.append(
+                    (
+                        "prefix",
                         (
-                            "prefix",
                             f"{agent_file}: bare `{ref_file}` does not resolve at "
-                            f"runtime — prefix it with `{RESOLVABLE_PREFIX}`",
-                        )
+                            f"runtime — prefix it with `{RESOLVABLE_PREFIX}`"
+                        ),
                     )
-                # `plugins/dev-team/knowledge/...` (a prose location pointer)
-                # is tolerated; fall through to the packaging check.
+                )
+            # `plugins/dev-team/knowledge/...` (a prose location pointer)
+            # is tolerated; fall through to the packaging check.
 
             # (2) Packaged — the referenced file must exist on disk.
             if not (PLUGIN_ROOT / ref_file).is_file():
                 violations.append(
                     (
                         "packaged",
-                        f"{agent_file}: references `{ref_file}` which is not "
-                        f"packaged (no file at {key})",
+                        (
+                            f"{agent_file}: references `{ref_file}` which is not "
+                            f"packaged (no file at {key})"
+                        ),
                     )
                 )
 
@@ -140,16 +143,18 @@ def _violations_for_file(agent_file: Path, index: dict) -> List[Tuple[str, str]]
             violations.append(
                 (
                     "anchor",
-                    f"{agent_file}: bare reference {ref_file} lacks an anchor AND "
-                    f"no '{WHOLE_FILE_TOKEN}' in paragraph",
+                    (
+                        f"{agent_file}: bare reference {ref_file} lacks an anchor AND "
+                        f"no '{WHOLE_FILE_TOKEN}' in paragraph"
+                    ),
                 )
             )
     return violations
 
 
-def _all_violations() -> List[Tuple[str, str]]:
+def _all_violations() -> list[tuple[str, str]]:
     index = json.loads(INDEX.read_text(encoding="utf-8"))
-    out: List[Tuple[str, str]] = []
+    out: list[tuple[str, str]] = []
     for agent_file in _agent_files_to_check():
         out.extend(_violations_for_file(agent_file, index))
     return out

@@ -34,9 +34,9 @@ from __future__ import annotations
 import json
 import re
 from pathlib import Path
-from typing import List
 
-REPO_ROOT = Path(__file__).resolve().parents[2]
+from _repo_root import REPO_ROOT
+
 PLUGIN = REPO_ROOT / "plugins" / "dev-team"
 SHIPPED_DIRS = [PLUGIN / "skills", PLUGIN / "agents", PLUGIN / "prompts"]
 
@@ -52,7 +52,7 @@ _CMD_PATH_RE = re.compile(
 )
 
 
-def _iter_files() -> List[Path]:
+def _iter_files() -> list[Path]:
     files = []
     for d in SHIPPED_DIRS:
         if d.is_dir():
@@ -129,9 +129,7 @@ def test_every_hook_command_in_settings_json_resolves_to_a_shipped_file() -> Non
             continue
         path = match.group(0)
         rel = (
-            path[len("${CLAUDE_PLUGIN_ROOT}/") :]
-            if path.startswith("${CLAUDE_PLUGIN_ROOT}/")
-            else path
+            path.removeprefix("${CLAUDE_PLUGIN_ROOT}/")
         )
         if not (PLUGIN / rel).is_file():
             missing.append(f"{rel}  (registered in settings.json but not present)")

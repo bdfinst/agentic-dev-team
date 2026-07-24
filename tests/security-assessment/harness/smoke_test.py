@@ -52,7 +52,7 @@ def _run(cmd: list[str], *, cwd: Path, env_extra: dict[str, str]):
     env = dict(os.environ)
     env.update(env_extra)
     return subprocess.run(
-        cmd, cwd=str(cwd), env=env, capture_output=True, text=True, timeout=60
+        cmd, cwd=str(cwd), env=env, check=False, capture_output=True, text=True, timeout=60
     )
 
 
@@ -94,8 +94,8 @@ def check_probes_load() -> None:
     sys.path.insert(0, str(HARNESS))
     os.environ.setdefault("TARGET_URL", "http://127.0.0.1:8000")
     try:
-        from redteam import orchestrator  # noqa: E402  (path set above)
-    except Exception as e:  # pragma: no cover - reported as a failure
+        from redteam import orchestrator
+    except Exception as e:  # noqa: BLE001 - any import error is itself the failure this smoke test reports; pragma: no cover
         fail(f"could not import redteam.orchestrator: {type(e).__name__}: {e}")
         return
 
@@ -109,7 +109,7 @@ def check_probes_load() -> None:
             mod = orchestrator._import_agent(name)
             if not hasattr(mod, "run"):
                 bad.append(f"{name} (no run())")
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - any load error is itself the failure this smoke test reports
             bad.append(f"{name} ({type(e).__name__}: {e})")
     if bad:
         fail("probe modules failed to load: " + "; ".join(bad))

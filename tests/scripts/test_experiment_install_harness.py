@@ -15,7 +15,8 @@ from pathlib import Path
 
 import pytest
 
-_REPO_ROOT = Path(__file__).resolve().parents[2]
+from _repo_root import REPO_ROOT as _REPO_ROOT
+
 _SCRIPT_PY = _REPO_ROOT / "scripts" / "experiment_install_harness.py"
 
 
@@ -89,7 +90,7 @@ def test_dry_run_prints_both_arms_and_writes_manifest(tmp_path: Path) -> None:
     out = r.stdout
     assert "claude plugin marketplace add bdfinst/agentic-dev-team" in out
     assert "claude plugin install dev-team@bfinster" in out
-    assert "claude plugin marketplace add %s" % checkout.resolve() in out
+    assert f"claude plugin marketplace add {checkout.resolve()}" in out
     assert "claude plugin install --scope project dev-team@bfinster" in out
 
     manifest = json.loads(

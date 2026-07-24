@@ -20,16 +20,15 @@ import json
 import sys
 from pathlib import Path
 
-
 REPO = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 sys.path.insert(0, str(REPO / "evals/static-analysis-tools"))
 
-from severity_rank import rank as _severity_rank  # noqa: E402
+from severity_rank import rank as _severity_rank
 
 # Import from the existing validator — keeps rule-id conventions in sync
 try:
-    from validate import parse_sarif, TOOL_TIER_MAP  # type: ignore[import-not-found]
+    from validate import TOOL_TIER_MAP, parse_sarif  # type: ignore[import-not-found]
 except ImportError as e:
     print(f"error: cannot import shared parser: {e}", file=sys.stderr)
     print(
@@ -79,7 +78,7 @@ def process_sarif_file(sarif_path: Path, target_path_prefix: str | None) -> list
 
     try:
         findings = parse_sarif(doc)
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001  # malformed SARIF from any tool can fail parsing in many shapes (KeyError/ValueError/TypeError); skip this file and keep processing the batch
         print(
             f"  [skip] {sarif_path.name}: parse error {type(e).__name__}: {e}",
             file=sys.stderr,

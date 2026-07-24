@@ -12,7 +12,8 @@ import subprocess
 import sys
 from pathlib import Path
 
-REPO_ROOT = Path(__file__).resolve().parents[2]
+from _repo_root import REPO_ROOT
+
 EXTRACT = REPO_ROOT / "scripts" / "session_extract.py"
 PLUGIN = REPO_ROOT / "plugins" / "dev-team"
 
@@ -22,6 +23,7 @@ def _run(*args: str) -> subprocess.CompletedProcess:
         [sys.executable, str(EXTRACT), *args, "--plugin-root", str(PLUGIN)],
         capture_output=True,
         text=True,
+        check=False,
     )
 
 

@@ -10,9 +10,8 @@ bats -> pytest).
 
 from __future__ import annotations
 
-from pathlib import Path
+from _repo_root import REPO_ROOT
 
-REPO_ROOT = Path(__file__).resolve().parents[2]
 ORCH = REPO_ROOT / "plugins" / "dev-team" / "agents" / "orchestrator.md"
 ARCH_DOC = REPO_ROOT / "plugins" / "dev-team" / "docs" / "agent-architecture.md"
 

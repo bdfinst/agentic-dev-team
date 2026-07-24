@@ -17,13 +17,14 @@ from __future__ import annotations
 import argparse
 import re
 import sys
+from collections.abc import Iterable
 from pathlib import Path
-from typing import Iterable, List, NamedTuple, Optional, Tuple
+from typing import NamedTuple
 
 _HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(_HERE / "lib"))
 
-import plan_parse  # noqa: E402
+import plan_parse
 
 _PERSISTENCE_RE = re.compile(r"^\*\*Gherkin persistence\*\*\s*:\s*(.*)$")
 _SECTION_HEADING_RE = re.compile(r"^##\s")
@@ -36,7 +37,7 @@ class ExportError(Exception):
     """Fatal export failure; the message names the offending path."""
 
 
-def _first_non_directory(path: Path) -> Optional[Path]:
+def _first_non_directory(path: Path) -> Path | None:
     """Return the deepest existing segment of `path` that is not a directory."""
     for candidate in (path, *path.parents):
         if candidate.exists():
@@ -49,7 +50,7 @@ def slugify(title: str) -> str:
     return _NON_ALNUM_RE.sub("-", title.lower()).strip("-")
 
 
-def read_persistence_decision(lines: Iterable[str]) -> Optional[str]:
+def read_persistence_decision(lines: Iterable[str]) -> str | None:
     """Return the metadata block's Gherkin persistence value, or None.
 
     Only the metadata block (lines before the first `## ` section heading)
@@ -66,7 +67,7 @@ def read_persistence_decision(lines: Iterable[str]) -> Optional[str]:
     return None
 
 
-def resolve_destination(decision: str) -> Optional[str]:
+def resolve_destination(decision: str) -> str | None:
     """Map a recorded decision to a destination directory.
 
     `plan-file-only` maps to None (nothing to export); a `custom: <path>`
@@ -91,7 +92,7 @@ def _resolve_target_dir(destination: str, plan_slug: str, root: Path) -> Path:
     dest_path = Path(destination)
     if dest_path.is_absolute() or ".." in dest_path.parts:
         raise ExportError(
-            "destination escapes the project root: {}".format(destination)
+            f"destination escapes the project root: {destination}"
         )
     target_dir = root / dest_path / plan_slug
     resolved_root = root.resolve()
@@ -100,30 +101,28 @@ def _resolve_target_dir(destination: str, plan_slug: str, root: Path) -> Path:
         resolved_target.parents
     ):
         raise ExportError(
-            "destination escapes the project root: {}".format(destination)
+            f"destination escapes the project root: {destination}"
         )
     if target_dir.is_symlink():
         raise ExportError(
             "tool-owned directory is a symlink, refusing to purge through it: "
-            "{}".format(target_dir)
+            f"{target_dir}"
         )
     collision = _first_non_directory(target_dir)
     if collision is not None:
         raise ExportError(
-            "destination path collides with a non-directory file: {}".format(
-                collision
-            )
+            f"destination path collides with a non-directory file: {collision}"
         )
     return target_dir
 
 
-def _collect_features(lines: List[str]) -> Tuple[List[Tuple[str, str]], List[str]]:
+def _collect_features(lines: list[str]) -> tuple[list[tuple[str, str]], list[str]]:
     """Return `(features, skipped)`: exportable `(filename, gherkin)` pairs
     and the ids of slices with no gherkin block. Ids get the same slug
     treatment as titles so a filename is always a single path component."""
     blocks = plan_parse.slice_gherkin_blocks(lines)
     features = [
-        ("slice-{}-{}.feature".format(slugify(slice_id), slugify(title)), gherkin)
+        (f"slice-{slugify(slice_id)}-{slugify(title)}.feature", gherkin)
         for slice_id, title, gherkin in blocks
         if gherkin is not None
     ]
@@ -132,8 +131,8 @@ def _collect_features(lines: List[str]) -> Tuple[List[Tuple[str, str]], List[str
 
 
 def _sync_feature_dir(
-    target_dir: Path, features: List[Tuple[str, str]]
-) -> Tuple[int, List[str]]:
+    target_dir: Path, features: list[tuple[str, str]]
+) -> tuple[int, list[str]]:
     """Clear the tool-owned dir of regular `*.feature` files and write the
     current set; return `(overwritten_count, stale_names_removed)`."""
     existing = (
@@ -164,34 +163,32 @@ def _sync_feature_dir(
 
 
 class _ExportOutcome(NamedTuple):
-    features: List[Tuple[str, str]]
-    skipped: List[str]
+    features: list[tuple[str, str]]
+    skipped: list[str]
     overwritten: int
-    stale: List[str]
+    stale: list[str]
 
 
-def _build_report(destination: str, plan_slug: str, outcome: _ExportOutcome) -> List[str]:
-    report = ["destination: {}/{}".format(destination, plan_slug)]
+def _build_report(destination: str, plan_slug: str, outcome: _ExportOutcome) -> list[str]:
+    report = [f"destination: {destination}/{plan_slug}"]
     for name, _ in outcome.features:
-        report.append("wrote: {}/{}/{}".format(destination, plan_slug, name))
+        report.append(f"wrote: {destination}/{plan_slug}/{name}")
     for name in outcome.stale:
-        report.append("removed stale: {}/{}/{}".format(destination, plan_slug, name))
+        report.append(f"removed stale: {destination}/{plan_slug}/{name}")
     for slice_id in outcome.skipped:
-        report.append("skipped (no gherkin block): slice {}".format(slice_id))
+        report.append(f"skipped (no gherkin block): slice {slice_id}")
     report.append(
-        "files written: {}, overwritten: {}, stale removed: {}".format(
-            len(outcome.features), outcome.overwritten, len(outcome.stale)
-        )
+        f"files written: {len(outcome.features)}, overwritten: {outcome.overwritten}, stale removed: {len(outcome.stale)}"
     )
     return report
 
 
-def export_plan(plan_path: Path, root: Path) -> List[str]:
+def export_plan(plan_path: Path, root: Path) -> list[str]:
     """Export the plan's slice Gherkin blocks under `root`; return report lines."""
     try:
         text = plan_path.read_text(encoding="utf-8")
     except OSError as exc:
-        raise ExportError("cannot read plan file: {}".format(plan_path)) from exc
+        raise ExportError(f"cannot read plan file: {plan_path}") from exc
     lines = text.split("\n")
 
     decision = read_persistence_decision(lines)
@@ -209,7 +206,7 @@ def export_plan(plan_path: Path, root: Path) -> List[str]:
     return _build_report(destination, plan_slug, outcome)
 
 
-def main(argv: Optional[List[str]] = None) -> int:
+def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         prog="plan_gherkin_export.py",
         description="Export an approved plan's slice Gherkin blocks to .feature files.",
@@ -219,7 +216,7 @@ def main(argv: Optional[List[str]] = None) -> int:
     try:
         report = export_plan(args.plan, Path.cwd())
     except ExportError as exc:
-        sys.stderr.write("plan-gherkin-export: {}\n".format(exc))
+        sys.stderr.write(f"plan-gherkin-export: {exc}\n")
         return 2
     for line in report:
         print(line)

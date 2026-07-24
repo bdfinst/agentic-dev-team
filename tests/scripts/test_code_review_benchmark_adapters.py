@@ -13,7 +13,6 @@ import shutil
 import subprocess
 import sys
 from pathlib import Path
-from typing import List
 
 import pytest
 
@@ -21,7 +20,7 @@ _HARNESS_DIR = Path(__file__).resolve().parents[2] / "evals" / "code-review-benc
 if str(_HARNESS_DIR) not in sys.path:
     sys.path.insert(0, str(_HARNESS_DIR))
 
-from adapters import bugsjs_adapter, defects4j_adapter  # noqa: E402
+from adapters import bugsjs_adapter, defects4j_adapter
 
 _FIXTURES = _HARNESS_DIR / "fixtures"
 
@@ -32,7 +31,7 @@ class _FakeRun:
     def __init__(self, returncode: int = 0, stdout: str = "") -> None:
         self.returncode = returncode
         self.stdout = stdout
-        self.calls: List[dict] = []
+        self.calls: list[dict] = []
 
     def __call__(self, timeout, argv, **kwargs):
         self.calls.append({"timeout": timeout, "argv": list(argv), "kwargs": kwargs})
@@ -45,9 +44,9 @@ class _SequencedFakeRun:
     """Injected `run_fn` returning a different canned (returncode, stdout) per call,
     in call order — for `run_tests()`, whose configure/run steps need distinct results."""
 
-    def __init__(self, results: List[tuple]) -> None:
+    def __init__(self, results: list[tuple]) -> None:
         self._results = list(results)
-        self.calls: List[dict] = []
+        self.calls: list[dict] = []
 
     def __call__(self, timeout, argv, **kwargs):
         self.calls.append({"timeout": timeout, "argv": list(argv), "kwargs": kwargs})

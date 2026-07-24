@@ -17,8 +17,7 @@ SCRIPTS_DIR = (
 )
 sys.path.insert(0, str(SCRIPTS_DIR))
 
-import mutation_feasibility_gate as gate  # noqa: E402
-
+import mutation_feasibility_gate as gate
 
 # --- decide: the happy path (loop entered) ---------------------------------
 

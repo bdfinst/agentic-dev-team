@@ -16,7 +16,8 @@ from pathlib import Path
 
 import pytest
 
-REPO_ROOT = Path(__file__).resolve().parents[2]
+from _repo_root import REPO_ROOT
+
 LINT = REPO_ROOT / "scripts" / "citation_lint.py"
 
 
@@ -40,6 +41,7 @@ def _lint(plugin: Path, target: Path) -> subprocess.CompletedProcess:
         [sys.executable, str(LINT), "--plugin-root", str(plugin), str(target)],
         capture_output=True,
         text=True,
+        check=False,
     )
 
 

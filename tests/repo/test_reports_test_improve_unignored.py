@@ -12,9 +12,8 @@ from __future__ import annotations
 
 import os
 import subprocess
-from pathlib import Path
 
-REPO_ROOT = Path(__file__).resolve().parents[2]
+from _repo_root import REPO_ROOT
 
 # Hermetic: ignore any host-level git ignore/config so the result reflects the
 # repo's own .gitignore only (see the "Hermetic local tests" convention).
@@ -31,6 +30,7 @@ def _is_ignored(relpath: str) -> bool:
         ["git", "check-ignore", "-q", "--", relpath],
         cwd=REPO_ROOT,
         env=_ENV,
+        check=False,
     )
     # exit 0 = ignored, 1 = not ignored, 128 = error.
     assert result.returncode in (0, 1), f"git check-ignore errored on {relpath}"

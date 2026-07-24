@@ -19,10 +19,9 @@ import shutil
 import subprocess
 import sys
 from pathlib import Path
-from typing import List, Optional
 
 
-def _run(argv: List[str]) -> None:
+def _run(argv: list[str]) -> None:
     """Best-effort formatter invocation — swallow all errors, discard output."""
     try:
         subprocess.run(
@@ -36,7 +35,7 @@ def _run(argv: List[str]) -> None:
         pass
 
 
-def _extract_file_path(raw: str) -> Optional[str]:
+def _extract_file_path(raw: str) -> str | None:
     """Return `tool_input.file_path` from the JSON stdin, or None."""
     try:
         payload = json.loads(raw)

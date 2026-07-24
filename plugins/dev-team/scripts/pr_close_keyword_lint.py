@@ -28,8 +28,7 @@ import argparse
 import json
 import re
 import sys
-from dataclasses import dataclass, asdict
-from typing import List
+from dataclasses import asdict, dataclass
 
 CLOSE_RE = re.compile(
     r"\b(close[sd]?|fix(?:e[sd])?|resolve[sd]?)\s+#(\d+)", re.IGNORECASE
@@ -59,9 +58,9 @@ def _sentence_start(body: str, match_start: int) -> int:
     return max(boundary, 0)
 
 
-def find_findings(body: str) -> List[Finding]:
+def find_findings(body: str) -> list[Finding]:
     part_of_issues = {int(n) for n in PART_OF_RE.findall(body)}
-    findings: List[Finding] = []
+    findings: list[Finding] = []
 
     for match in CLOSE_RE.finditer(body):
         issue = int(match.group(2))
@@ -81,7 +80,7 @@ def find_findings(body: str) -> List[Finding]:
     return findings
 
 
-def main(argv: List[str]) -> int:
+def main(argv: list[str]) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--body-file", help="Path to the drafted PR body")
     parser.add_argument("--json", action="store_true", help="Emit findings as JSON")

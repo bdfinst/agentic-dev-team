@@ -170,7 +170,7 @@ dev_deps_satisfied() {
   python3 - <<'PY' >/dev/null 2>&1
 import importlib.util, shutil, sys
 mods = ["yaml", "httpx", "jsonschema", "pytest",
-        "pytest_asyncio", "xdist", "semgrep", "mypy"]
+        "pytest_asyncio", "xdist", "pytest_cov", "semgrep", "mypy"]
 if any(importlib.util.find_spec(m) is None for m in mods):
     sys.exit(1)
 sys.exit(0 if shutil.which("ruff") else 1)

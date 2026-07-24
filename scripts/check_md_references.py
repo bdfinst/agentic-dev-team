@@ -100,12 +100,10 @@ def _normalize(ref: str):
     path_part = ref.split("#", 1)[0]
     if not path_part:
         return None
-    if ref.startswith("~") or ref.startswith("/"):
+    if ref.startswith(("~", "/")):
         return None  # home-relative or absolute system paths: not repo references
     body = (
-        path_part[len(_PLUGIN_ROOT_VAR) :]
-        if path_part.startswith(_PLUGIN_ROOT_VAR)
-        else path_part
+        path_part.removeprefix(_PLUGIN_ROOT_VAR)
     )
     if "$" in body or _NONLITERAL.search(body):
         return None  # other shell vars / globs / placeholders: not statically checkable
@@ -171,7 +169,7 @@ def _module_root(path: str, root: str):
 
 def _ref_tail(ref: str):
     """The reference reduced to its meaningful path tail (no var, no ./.. prefix)."""
-    body = ref[len(_PLUGIN_ROOT_VAR) :] if ref.startswith(_PLUGIN_ROOT_VAR) else ref
+    body = ref.removeprefix(_PLUGIN_ROOT_VAR)
     parts = [p for p in body.strip("/").split("/") if p not in (".", "..")]
     return "/".join(parts)
 
@@ -269,17 +267,16 @@ def _extract_heading_slugs(path: str) -> set[str]:
     """Extract all GFM heading slugs from a markdown file."""
     slugs = set()
     try:
-        fh = open(path, encoding="utf-8")
+        with open(path, encoding="utf-8") as fh:
+            for line in fh:
+                m = _MD_HEADING.match(line.rstrip())
+                if m:
+                    heading_text = m.group(1)
+                    slug = _gfm_slug(heading_text)
+                    if slug:
+                        slugs.add(slug)
     except OSError:
         return slugs
-    with fh:
-        for line in fh:
-            m = _MD_HEADING.match(line.rstrip())
-            if m:
-                heading_text = m.group(1)
-                slug = _gfm_slug(heading_text)
-                if slug:
-                    slugs.add(slug)
     return slugs
 
 
@@ -293,49 +290,50 @@ def _check_file(path: str, root: str, real_index, tracked):
     slug_cache = {}
 
     try:
-        fh = open(path, encoding="utf-8")
+        with open(path, encoding="utf-8") as fh:
+            for line_no, line in enumerate(fh, start=1):
+                stripped = line.lstrip()
+                if in_fence:
+                    if stripped.startswith(fence_marker):
+                        in_fence = False
+                    continue
+                if stripped.startswith(("```", "~~~")):
+                    in_fence = True
+                    fence_marker = stripped[:3]
+                    continue
+                for raw in _candidates(line):
+                    ref = _normalize(raw)
+                    if ref is None:
+                        continue
+
+                    # Split ref into path and anchor parts
+                    path_part, anchor = (
+                        ref.split("#", 1) if "#" in ref else (ref, None)
+                    )
+
+                    if _resolves(path_part, file_dir, mod_root, root, tracked):
+                        # Path resolves; if there's an anchor, validate it
+                        if anchor:
+                            # Resolve the actual file path to validate the anchor
+                            target_path = _resolve_path(
+                                path_part, file_dir, mod_root, root, tracked
+                            )
+                            if target_path and target_path.endswith(".md"):
+                                # Extract heading slugs if not cached
+                                if target_path not in slug_cache:
+                                    slug_cache[target_path] = _extract_heading_slugs(
+                                        target_path
+                                    )
+                                slugs = slug_cache[target_path]
+                                # Check if anchor matches any heading slug
+                                if anchor not in slugs:
+                                    breaks.append((line_no, ref))
+                        continue
+
+                    if _names_real_file(path_part, real_index):
+                        breaks.append((line_no, ref))
     except OSError:
         return breaks  # unreadable (e.g. a broken symlink) — nothing to scan
-    with fh:
-        for line_no, line in enumerate(fh, start=1):
-            stripped = line.lstrip()
-            if in_fence:
-                if stripped.startswith(fence_marker):
-                    in_fence = False
-                continue
-            if stripped.startswith("```") or stripped.startswith("~~~"):
-                in_fence = True
-                fence_marker = stripped[:3]
-                continue
-            for raw in _candidates(line):
-                ref = _normalize(raw)
-                if ref is None:
-                    continue
-
-                # Split ref into path and anchor parts
-                path_part, anchor = (ref.split("#", 1) if "#" in ref else (ref, None))
-
-                if _resolves(path_part, file_dir, mod_root, root, tracked):
-                    # Path resolves; if there's an anchor, validate it
-                    if anchor:
-                        # Resolve the actual file path to validate the anchor
-                        target_path = _resolve_path(
-                            path_part, file_dir, mod_root, root, tracked
-                        )
-                        if target_path and target_path.endswith(".md"):
-                            # Extract heading slugs if not cached
-                            if target_path not in slug_cache:
-                                slug_cache[target_path] = _extract_heading_slugs(
-                                    target_path
-                                )
-                            slugs = slug_cache[target_path]
-                            # Check if anchor matches any heading slug
-                            if anchor not in slugs:
-                                breaks.append((line_no, ref))
-                    continue
-
-                if _names_real_file(path_part, real_index):
-                    breaks.append((line_no, ref))
     return breaks
 
 
@@ -369,6 +367,7 @@ def main(argv=None):
                 ["git", "rev-parse", "--show-toplevel"],
                 capture_output=True,
                 text=True,
+                check=False,
             ).stdout.strip()
             or "."
         )

@@ -22,7 +22,8 @@ import json
 import re
 from pathlib import Path
 
-REPO_ROOT = Path(__file__).resolve().parents[2]
+from _repo_root import REPO_ROOT
+
 PLUGIN = REPO_ROOT / "plugins" / "dev-team"
 HOOKS_JSON = PLUGIN / "hooks" / "hooks.json"
 SETTINGS_JSON = PLUGIN / "settings.json"

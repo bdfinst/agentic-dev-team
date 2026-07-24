@@ -13,15 +13,15 @@ from __future__ import annotations
 
 import subprocess
 from pathlib import Path
-from typing import Dict
 
 import pytest
 
-REPO_ROOT = Path(__file__).resolve().parents[2]
+from _repo_root import REPO_ROOT
+
 REAL_HOOK = REPO_ROOT / ".husky" / "pre-push"
 
 
-def _git(root: Path, env: Dict[str, str], *args: str) -> subprocess.CompletedProcess:
+def _git(root: Path, env: dict[str, str], *args: str) -> subprocess.CompletedProcess:
     return subprocess.run(
         ["git", *args],
         cwd=str(root),
@@ -33,7 +33,7 @@ def _git(root: Path, env: Dict[str, str], *args: str) -> subprocess.CompletedPro
 
 
 @pytest.fixture
-def scratch(tmp_path: Path, hermetic_env: Dict[str, str]) -> Dict[str, object]:
+def scratch(tmp_path: Path, hermetic_env: dict[str, str]) -> dict[str, object]:
     # Build a scratch repo with a copy of the shipped pre-push hook.
     _git(tmp_path, hermetic_env, "init", "-q", "-b", "main")
     _git(tmp_path, hermetic_env, "config", "user.email", "t@t")
@@ -67,9 +67,9 @@ def _stub_ci_local(root: Path, body: str) -> None:
     (root / "scripts" / "ci-local.sh").chmod(0o755)
 
 
-def _run_hook(scratch: Dict[str, object]) -> subprocess.CompletedProcess:
+def _run_hook(scratch: dict[str, object]) -> subprocess.CompletedProcess:
     root: Path = scratch["root"]  # type: ignore[assignment]
-    env: Dict[str, str] = dict(scratch["env"])  # type: ignore[arg-type]
+    env: dict[str, str] = dict(scratch["env"])  # type: ignore[arg-type]
     env["HUSKY_RUN_EVALS"] = "0"
     return subprocess.run(
         ["sh", "-e", ".husky/pre-push"],
@@ -78,11 +78,12 @@ def _run_hook(scratch: Dict[str, object]) -> subprocess.CompletedProcess:
         input=scratch["stdin"],
         capture_output=True,
         text=True,
+        check=False,
     )
 
 
 def test_guard_refs_stable_and_ci_local_passes_hook_exits_0(
-    scratch: Dict[str, object],
+    scratch: dict[str, object],
 ) -> None:
     _stub_ci_local(scratch["root"], ":")  # no-op, exit 0
     result = _run_hook(scratch)
@@ -95,10 +96,10 @@ def test_guard_refs_stable_and_ci_local_passes_hook_exits_0(
 
 
 def test_guard_pushing_branchs_ref_mutated_during_hook(
-    scratch: Dict[str, object],
+    scratch: dict[str, object],
 ) -> None:
     root: Path = scratch["root"]  # type: ignore[assignment]
-    env: Dict[str, str] = scratch["env"]  # type: ignore[assignment]
+    env: dict[str, str] = scratch["env"]  # type: ignore[assignment]
     orig = _git(root, env, "rev-parse", "refs/heads/feature").stdout.strip()
     # Stub rewrites feature to a different commit while ci-local "runs".
     _stub_ci_local(
@@ -117,10 +118,10 @@ def test_guard_pushing_branchs_ref_mutated_during_hook(
 
 
 def test_guard_unrelated_ref_main_mutated_hook_still_exits_nonzero(
-    scratch: Dict[str, object],
+    scratch: dict[str, object],
 ) -> None:
     root: Path = scratch["root"]  # type: ignore[assignment]
-    env: Dict[str, str] = scratch["env"]  # type: ignore[assignment]
+    env: dict[str, str] = scratch["env"]  # type: ignore[assignment]
     orig_main = _git(root, env, "rev-parse", "refs/heads/main").stdout.strip()
     _stub_ci_local(
         root,
@@ -135,10 +136,10 @@ def test_guard_unrelated_ref_main_mutated_hook_still_exits_nonzero(
 
 
 def test_guard_ref_deleted_during_hook_exits_nonzero(
-    scratch: Dict[str, object],
+    scratch: dict[str, object],
 ) -> None:
     root: Path = scratch["root"]  # type: ignore[assignment]
-    env: Dict[str, str] = scratch["env"]  # type: ignore[assignment]
+    env: dict[str, str] = scratch["env"]  # type: ignore[assignment]
     _git(root, env, "branch", "victim")
     orig_victim = _git(root, env, "rev-parse", "refs/heads/victim").stdout.strip()
     _stub_ci_local(root, f'cd "{root}" && git update-ref -d refs/heads/victim')
@@ -151,7 +152,7 @@ def test_guard_ref_deleted_during_hook_exits_nonzero(
 
 
 def test_guard_ref_created_during_hook_exits_nonzero(
-    scratch: Dict[str, object],
+    scratch: dict[str, object],
 ) -> None:
     root: Path = scratch["root"]  # type: ignore[assignment]
     _stub_ci_local(root, f'cd "{root}" && git update-ref refs/heads/stray HEAD')
@@ -163,10 +164,10 @@ def test_guard_ref_created_during_hook_exits_nonzero(
 
 
 def test_guard_ci_local_fails_and_refs_drifted_still_names_the_drift(
-    scratch: Dict[str, object],
+    scratch: dict[str, object],
 ) -> None:
     root: Path = scratch["root"]  # type: ignore[assignment]
-    env: Dict[str, str] = scratch["env"]  # type: ignore[assignment]
+    env: dict[str, str] = scratch["env"]  # type: ignore[assignment]
     orig = _git(root, env, "rev-parse", "refs/heads/feature").stdout.strip()
     _stub_ci_local(
         root,
@@ -181,7 +182,7 @@ def test_guard_ci_local_fails_and_refs_drifted_still_names_the_drift(
 
 
 def test_guard_ci_local_fails_but_refs_stable_hook_exits_nonzero_from_ci_local(
-    scratch: Dict[str, object],
+    scratch: dict[str, object],
 ) -> None:
     _stub_ci_local(scratch["root"], "exit 3")
     result = _run_hook(scratch)

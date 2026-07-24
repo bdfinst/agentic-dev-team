@@ -12,7 +12,8 @@ import importlib.util
 import sys
 from pathlib import Path
 
-REPO_ROOT = Path(__file__).resolve().parents[2]
+from _repo_root import REPO_ROOT
+
 SCRIPT_PATH = REPO_ROOT / "scripts" / "run_integration_eval.py"
 
 

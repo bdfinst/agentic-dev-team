@@ -64,28 +64,28 @@ REFACTOR_RULE = (
 
 # granularity x authorship (+ ordering); reference arm flagged
 ARMS = {
-    "tdd-refactor": dict(granularity="continuous", authorship="single",
-                         ordering="test-first", reference=True),
-    "no-refactor-single": dict(granularity="none", authorship="single",
-                               ordering="test-after"),
-    "one-shot-single": dict(granularity="one-shot", authorship="single",
-                            ordering="test-after"),
-    "continuous-single": dict(granularity="continuous", authorship="single",
-                              ordering="test-after"),
-    "no-refactor-split": dict(granularity="none", authorship="split",
-                              ordering="test-after"),
-    "one-shot-split": dict(granularity="one-shot", authorship="split",
-                           ordering="test-after"),
-    "continuous-split": dict(granularity="continuous", authorship="split",
-                             ordering="test-after"),
+    "tdd-refactor": {"granularity": "continuous", "authorship": "single",
+                         "ordering": "test-first", "reference": True},
+    "no-refactor-single": {"granularity": "none", "authorship": "single",
+                               "ordering": "test-after"},
+    "one-shot-single": {"granularity": "one-shot", "authorship": "single",
+                            "ordering": "test-after"},
+    "continuous-single": {"granularity": "continuous", "authorship": "single",
+                              "ordering": "test-after"},
+    "no-refactor-split": {"granularity": "none", "authorship": "split",
+                              "ordering": "test-after"},
+    "one-shot-split": {"granularity": "one-shot", "authorship": "split",
+                           "ordering": "test-after"},
+    "continuous-split": {"granularity": "continuous", "authorship": "split",
+                             "ordering": "test-after"},
     # W4 (all tests first, then code to pass, refactor after green) — big-batch,
     # test-first. The one-shot mechanism (separate, revertable refactor dispatch)
     # carries the "refactor after each iteration" rule; batch="big" selects the
     # write-all-tests-then-all-code prompt instead of the incremental TDD loop.
-    "all-tests-first-single": dict(granularity="one-shot", authorship="single",
-                                   ordering="test-first", batch="big"),
-    "all-tests-first-split": dict(granularity="one-shot", authorship="split",
-                                  ordering="test-first", batch="big"),
+    "all-tests-first-single": {"granularity": "one-shot", "authorship": "single",
+                                   "ordering": "test-first", "batch": "big"},
+    "all-tests-first-split": {"granularity": "one-shot", "authorship": "split",
+                                  "ordering": "test-first", "batch": "big"},
 }
 
 # Arms whose refactoring is interleaved inside the write dispatch — cannot be
@@ -206,7 +206,7 @@ def change_coder_topass_prompt(change: str) -> str:
 # ── shell / git helpers ─────────────────────────────────────────────────────────
 def _run(cmd, cwd, env=None, timeout=None):
     return subprocess.run(cmd, cwd=str(cwd), env=env, timeout=timeout,
-                          capture_output=True, text=True)
+                          capture_output=True, text=True, check=False)
 
 
 def git(workdir, *args):
@@ -271,7 +271,7 @@ def _dispatch_once(workdir, prompt, model, env, raw_out):
            "is_error": None, "parsed": False}
     try:
         r = subprocess.run(cmd, cwd=str(workdir), env=env, capture_output=True,
-                           text=True, timeout=900)
+                           text=True, timeout=900, check=False)
     except subprocess.TimeoutExpired:
         out["is_error"] = True
         out["timeout"] = True
@@ -288,7 +288,7 @@ def _dispatch_once(workdir, prompt, model, env, raw_out):
                                  + u.get("cache_read_input_tokens", 0)),
                    num_turns=d.get("num_turns"), is_error=d.get("is_error"),
                    parsed=True)
-    except Exception:
+    except (json.JSONDecodeError, AttributeError, TypeError, KeyError):
         out["is_error"] = True
     return out
 
@@ -376,7 +376,7 @@ def measure_lizard(workdir, prod):
         nums = re.findall(r"[0-9]+\.?[0-9]*", line)
         if line.strip().startswith(tuple("0123456789")) and len(nums) >= 4 and "Total" not in line:
             pass
-    m = re.search(r"^\s*([\d.]+)\s+([\d.]+)\s+([\d.]+)\s+([\d.]+)\s+\d+\s+file", r.stdout, re.M)
+    m = re.search(r"^\s*([\d.]+)\s+([\d.]+)\s+([\d.]+)\s+([\d.]+)\s+\d+\s+file", r.stdout, re.MULTILINE)
     if not m:
         # fallback: the averages row before "file analyzed"
         rows = [line for line in r.stdout.splitlines() if re.match(r"\s*[\d.]+\s+[\d.]+\s+[\d.]+", line)]
@@ -397,7 +397,7 @@ def measure_smells(workdir, tests):
             src = p.read_text()
             test_loc += len([line for line in src.splitlines() if line.strip()])
             tree = ast.parse(src)
-        except Exception:
+        except (OSError, UnicodeDecodeError, SyntaxError, ValueError):
             continue
         mocks += len(re.findall(r"\b(Mock|patch|MagicMock|monkeypatch)\b", src))
         sleeps += len(re.findall(r"\bsleep\s*\(", src))
@@ -427,7 +427,7 @@ def measure_coverage(workdir, env, prod):
         r = _run(["python3", "-m", "coverage", "json", "-o", "-"], workdir, env, timeout=60)
         d = json.loads(r.stdout)
         return {"percent": round(d["totals"]["percent_covered"], 1)}
-    except Exception:
+    except (subprocess.TimeoutExpired, json.JSONDecodeError, KeyError, TypeError):
         return {"percent": None}
 
 
@@ -440,7 +440,7 @@ def _mutants(src):
     """Yield mutated sources by swapping one operator at a time."""
     try:
         tree = ast.parse(src)
-    except Exception:
+    except (SyntaxError, ValueError):
         return
     nodes = [n for n in ast.walk(tree)
              if isinstance(n, (ast.BinOp, ast.Compare))]
@@ -453,7 +453,7 @@ def _mutants(src):
                     node.op = b()
                     try:
                         out.append(ast.unparse(ast.fix_missing_locations(tree)))
-                    except Exception:
+                    except (ValueError, TypeError):
                         pass
                     node.op = op
                     break
@@ -465,7 +465,7 @@ def _mutants(src):
                         ops[i] = b()
                         try:
                             out.append(ast.unparse(ast.fix_missing_locations(tree)))
-                        except Exception:
+                        except (ValueError, TypeError):
                             pass
                         ops[i] = op
                         break
@@ -653,7 +653,7 @@ def run_change(task, arm, trial, model, fixture_dir, run_root, idx, change_spec,
 
 def run_cell(task, arm, trial, model, fixture_dir, run_root, skip):
     rows = []
-    build_row, workdir, base = run_build(task, arm, trial, model, fixture_dir,
+    build_row, workdir, _base = run_build(task, arm, trial, model, fixture_dir,
                                          run_root, skip)
     rows.append(build_row)
     try:
@@ -699,7 +699,7 @@ def main(argv):
         for line in out.read_text().splitlines():
             try:
                 r = json.loads(line)
-            except Exception:
+            except json.JSONDecodeError:
                 continue
             if r.get("stage") == "change3":
                 done.add((r["task"], r["arm"], r["trial"]))

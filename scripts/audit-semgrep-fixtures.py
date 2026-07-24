@@ -64,14 +64,14 @@ def _load_known_broken() -> set[str]:
         if line:
             out.add(line)
     return out
-_ERR_RE = re.compile(r"Rule parse error in rule \S*?\.?([a-z0-9._-]+):", re.I)
+_ERR_RE = re.compile(r"Rule parse error in rule \S*?\.?([a-z0-9._-]+):", re.IGNORECASE)
 
 
 def _run_semgrep(ruleset: Path):
     out = subprocess.run(
         ["semgrep", "--config", str(ruleset), "--json", "--quiet",
          "--no-git-ignore", "--disable-version-check", str(FIX_DIR)],
-        capture_output=True, text=True)
+        capture_output=True, text=True, check=False)
     try:
         data = json.loads(out.stdout)
     except json.JSONDecodeError:
@@ -113,7 +113,7 @@ def audit():
                              "fp_rate": None})
                 continue
 
-            def _fired(p):
+            def _fired(p, rid=rid):
                 return (rid, str(p)) in fired or any(
                     cid.endswith(rid) and path == str(p) for cid, path in fired)
 

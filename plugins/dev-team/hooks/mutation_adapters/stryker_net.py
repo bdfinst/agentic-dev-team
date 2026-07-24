@@ -13,10 +13,8 @@ import shutil
 import subprocess
 import sys
 from pathlib import Path
-from typing import List, Optional
 
 from . import lib
-
 
 DEFAULT_REPORT = "StrykerOutput/mutation-report.json"
 
@@ -55,7 +53,7 @@ def stryker_net_detect() -> bool:
     return False
 
 
-def _shard_for_file(changed_file: str) -> Optional[Path]:
+def _shard_for_file(changed_file: str) -> Path | None:
     """Return the stryker-config.shard-*.json whose `mutate` pattern covers
     `changed_file`, or None when no shard matches.
     """
@@ -75,9 +73,7 @@ def _shard_for_file(changed_file: str) -> Optional[Path]:
             continue
         if not src_prefix:
             continue
-        if changed_file.startswith(src_prefix + "/") or changed_file.startswith(
-            src_prefix
-        ):
+        if changed_file.startswith((src_prefix + "/", src_prefix)):
             return shard_cfg
     return None
 
@@ -86,9 +82,7 @@ def _is_cs_source(line: str) -> bool:
     """True for a non-test C# source path."""
     if not line.endswith(".cs"):
         return False
-    if "Test" in line or "Spec" in line:
-        return False
-    return True
+    return not ("Test" in line or "Spec" in line)
 
 
 def _changed_cs_file() -> str:
@@ -104,7 +98,7 @@ def stryker_net_run(output_file: Path) -> int:
     report_path = _default_report_path()
     report_path.parent.mkdir(parents=True, exist_ok=True)
 
-    stryker_args: List[str] = [
+    stryker_args: list[str] = [
         "--reporter",
         "json",
         "--coverage-analysis",
@@ -114,7 +108,7 @@ def stryker_net_run(output_file: Path) -> int:
     ]
 
     changed_file = _changed_cs_file()
-    config_flag: List[str] = []
+    config_flag: list[str] = []
     if changed_file:
         shard_cfg = _shard_for_file(changed_file)
         if shard_cfg is not None:
@@ -192,7 +186,7 @@ def stryker_net_run(output_file: Path) -> int:
     return 0
 
 
-def main(argv: Optional[List[str]] = None) -> int:
+def main(argv: list[str] | None = None) -> int:
     args = list(sys.argv[1:] if argv is None else argv)
     if not args:
         print("stryker_net.py: OUTPUT_FILE argument required", file=sys.stderr)

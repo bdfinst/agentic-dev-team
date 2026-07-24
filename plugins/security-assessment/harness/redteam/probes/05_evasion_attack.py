@@ -19,7 +19,6 @@ from typing import Any
 
 from ..lib import http_client, result_store, scoring
 
-
 SCORE_TARGET = 0.4   # low-fraud score we are trying to achieve
 RANDOM_SEARCH_ITERATIONS = 30
 GREEDY_ITERATIONS = 20
@@ -85,7 +84,7 @@ def _differential_evolution(features: list[str]) -> list[dict]:
             seed=42,
             polish=False,
         )
-    except Exception as e:  # scipy raises various exceptions
+    except Exception as e:  # noqa: BLE001  # scipy raises various, non-enumerable exception types depending on the objective/bounds; this probe must keep running other methods rather than crash
         return [{"method": "differential_evolution", "error": f"{type(e).__name__}: {e}"}]
     payload = {f: float(result.x[i]) for i, f in enumerate(features)}
     return [{

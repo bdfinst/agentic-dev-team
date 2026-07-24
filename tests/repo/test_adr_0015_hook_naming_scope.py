@@ -10,9 +10,8 @@ requires an explicit, findable sentence tying the two together.
 
 from __future__ import annotations
 
-from pathlib import Path
+from _repo_root import REPO_ROOT
 
-REPO_ROOT = Path(__file__).resolve().parents[2]
 ADR_0015 = REPO_ROOT / "docs" / "adr" / "0015-bash-removal-complete.md"
 
 

@@ -12,7 +12,8 @@ import subprocess
 import sys
 from pathlib import Path
 
-REPO_ROOT = Path(__file__).resolve().parents[2]
+from _repo_root import REPO_ROOT
+
 EXTRACT = REPO_ROOT / "scripts" / "session_extract.py"
 FIX = REPO_ROOT / "tests" / "fixtures" / "session-review" / "sample-transcript.jsonl"
 PLUGIN = REPO_ROOT / "plugins" / "dev-team"
@@ -31,6 +32,7 @@ def _run(*extra: str) -> subprocess.CompletedProcess:
         ],
         capture_output=True,
         text=True,
+        check=False,
     )
 
 
@@ -143,6 +145,7 @@ def test_extract_repeated_verify_runs_resets_on_intervening_edit(
         ],
         capture_output=True,
         text=True,
+        check=False,
     )
     assert result.returncode == 0, result.stdout + result.stderr
     digest = json.loads(result.stdout)
@@ -204,6 +207,7 @@ def test_extract_accuracy_correction_attributed_to_most_recent_skill_and_agent(
         ],
         capture_output=True,
         text=True,
+        check=False,
     )
     assert result.returncode == 0, result.stdout + result.stderr
     accuracy = json.loads(result.stdout)["accuracy"]
@@ -272,6 +276,7 @@ def test_extract_empty_input_yields_a_well_formed_empty_digest(tmp_path: Path) -
         ],
         capture_output=True,
         text=True,
+        check=False,
     )
     assert result.returncode == 0, result.stdout + result.stderr
     data = json.loads(result.stdout)

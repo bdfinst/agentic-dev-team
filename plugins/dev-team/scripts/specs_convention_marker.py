@@ -38,7 +38,6 @@ from __future__ import annotations
 import subprocess
 import sys
 from pathlib import Path
-from typing import Optional
 
 MARKER_PHRASE = "specs and plans are github issues here, not files"
 
@@ -56,7 +55,7 @@ def has_marker(text: str) -> bool:
     return MARKER_PHRASE in normalized
 
 
-def classify(claude_md_path: Optional[Path]) -> str:
+def classify(claude_md_path: Path | None) -> str:
     """Return "marker", "no-marker", or "none" for a root CLAUDE.md path.
 
     Fail-open: any read error (missing file, permission error, etc.) yields
@@ -73,7 +72,7 @@ def classify(claude_md_path: Optional[Path]) -> str:
     return "marker" if has_marker(text) else "no-marker"
 
 
-def _resolve_repo_root() -> Optional[Path]:
+def _resolve_repo_root() -> Path | None:
     """Return the git repo root, or None on any failure (fail-open)."""
     try:
         completed = subprocess.run(
@@ -92,7 +91,7 @@ def _resolve_repo_root() -> Optional[Path]:
 
 def main(argv: list) -> int:
     if len(argv) > 1 and argv[1]:
-        claude_md_path: Optional[Path] = Path(argv[1])
+        claude_md_path: Path | None = Path(argv[1])
     else:
         root = _resolve_repo_root()
         claude_md_path = (root / "CLAUDE.md") if root is not None else None

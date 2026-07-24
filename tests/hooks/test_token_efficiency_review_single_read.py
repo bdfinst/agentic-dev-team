@@ -11,7 +11,8 @@ import importlib.util
 import sys
 from pathlib import Path
 
-REPO_ROOT = Path(__file__).resolve().parents[2]
+from _repo_root import REPO_ROOT
+
 HOOK_PATH = REPO_ROOT / "plugins" / "dev-team" / "hooks" / "token_efficiency_review.py"
 
 

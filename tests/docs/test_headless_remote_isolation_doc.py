@@ -12,11 +12,10 @@ guidance is present in the web-environment doc.
 
 from __future__ import annotations
 
-from pathlib import Path
-
 import pytest
 
-REPO_ROOT = Path(__file__).resolve().parents[2]
+from _repo_root import REPO_ROOT
+
 DOC = REPO_ROOT / "docs" / "using-plugin-skills-in-the-web-environment.md"
 
 

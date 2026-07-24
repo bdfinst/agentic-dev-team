@@ -20,13 +20,13 @@ from __future__ import annotations
 
 import re
 from pathlib import Path
-from typing import List
 
-REPO_ROOT = Path(__file__).resolve().parents[2]
+from _repo_root import REPO_ROOT
+
 ADR_AUTHOR = REPO_ROOT / "plugins" / "dev-team" / "agents" / "adr-author.md"
 
 
-def _tools_list(agent_file: Path) -> List[str]:
+def _tools_list(agent_file: Path) -> list[str]:
     """Extract the comma-separated `tools:` list from the leading YAML
     frontmatter block only (between the first two `---` fences). Returns the
     bare tool names, or [] if the key is absent."""

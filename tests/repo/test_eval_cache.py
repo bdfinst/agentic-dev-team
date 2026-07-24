@@ -17,7 +17,8 @@ from pathlib import Path
 
 import pytest
 
-REPO_ROOT = Path(__file__).resolve().parents[2]
+from _repo_root import REPO_ROOT
+
 CACHE = REPO_ROOT / "scripts" / "eval_cache.py"
 
 
@@ -53,6 +54,7 @@ def corpus(tmp_path: Path) -> Path:
 def _run(corpus: Path, *args: str) -> subprocess.CompletedProcess:
     return subprocess.run(
         [sys.executable, str(CACHE), "--repo-root", str(corpus), *args],
+        check=False,
         capture_output=True,
         text=True,
     )

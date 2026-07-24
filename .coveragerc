@@ -1,0 +1,14 @@
+[run]
+branch = True
+source =
+    plugins/dev-team/hooks
+    scripts
+# No `omit` list: `source` already scopes measurement to these two trees, which
+# don't contain the real test directories (plugins/dev-team/tests/, repo-root
+# tests/). A filename-pattern omit (e.g. */test_*.py) would be wrong here —
+# scripts/test_modernization_review.py and plugins/dev-team/hooks/lib/test_file_classify.py
+# are legitimate production files whose names happen to start with "test_".
+
+[report]
+precision = 2
+skip_empty = True

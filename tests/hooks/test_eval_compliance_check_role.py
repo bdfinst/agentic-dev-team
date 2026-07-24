@@ -23,7 +23,8 @@ import subprocess
 import sys
 from pathlib import Path
 
-_REPO_ROOT = Path(__file__).resolve().parents[2]
+from _repo_root import REPO_ROOT as _REPO_ROOT
+
 _HOOK_PY = _REPO_ROOT / "plugins" / "dev-team" / "hooks" / "eval_compliance_check.py"
 
 

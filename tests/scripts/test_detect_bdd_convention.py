@@ -21,9 +21,10 @@ _SCRIPT_DIR = Path(__file__).resolve().parents[2] / "plugins" / "dev-team" / "sc
 if str(_SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(_SCRIPT_DIR))
 
-import detect_bdd_convention  # type: ignore[import-not-found]  # noqa: E402
+import detect_bdd_convention  # type: ignore[import-not-found]
 
-_REPO_ROOT = Path(__file__).resolve().parents[2]
+from _repo_root import REPO_ROOT as _REPO_ROOT
+
 _BDD_FRAMEWORKS_DOC = (
     _REPO_ROOT
     / "plugins"
@@ -412,21 +413,17 @@ class TestMappingDocSync:
             destination = (
                 rule.destination or detect_bdd_convention.CSPROJ_FEATURES_SUBDIR
             )
-            assert "`{}/`".format(destination) in doc, (
-                "{}: canonical destination `{}/` is not documented in {} — "
-                "update the doc or the mapping".format(
-                    rule.framework, destination, _BDD_FRAMEWORKS_DOC.name
-                )
+            assert f"`{destination}/`" in doc, (
+                f"{rule.framework}: canonical destination `{destination}/` is not documented in {_BDD_FRAMEWORKS_DOC.name} — "
+                "update the doc or the mapping"
             )
 
     def test_every_documented_framework_token_appears_in_the_doc(self) -> None:
         doc = _BDD_FRAMEWORKS_DOC.read_text()
         for rule in detect_bdd_convention.MANIFEST_RULES:
             assert any(token in doc for token in rule.tokens), (
-                "{}: none of its dependency tokens {} appear in {} — "
-                "update the doc or the mapping".format(
-                    rule.framework, rule.tokens, _BDD_FRAMEWORKS_DOC.name
-                )
+                f"{rule.framework}: none of its dependency tokens {rule.tokens} appear in {_BDD_FRAMEWORKS_DOC.name} — "
+                "update the doc or the mapping"
             )
 
 
@@ -437,7 +434,7 @@ class TestMappingDocSync:
 _SCRIPT_PY = _SCRIPT_DIR / "detect_bdd_convention.py"
 
 
-def _run_cli(*args: str, cwd: "Path | None" = None) -> "subprocess.CompletedProcess":
+def _run_cli(*args: str, cwd: Path | None = None) -> subprocess.CompletedProcess:
     return subprocess.run(
         [sys.executable, str(_SCRIPT_PY), *args],
         capture_output=True,

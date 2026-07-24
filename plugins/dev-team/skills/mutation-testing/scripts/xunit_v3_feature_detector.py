@@ -27,10 +27,9 @@ import argparse
 import json
 import re
 import sys
+from collections.abc import Iterable, Sequence
 from dataclasses import asdict, dataclass
 from pathlib import Path
-from typing import Iterable, List, Sequence
-
 
 CLEAN_TRANSLATABLE = "clean-translatable"
 NO_V2_EQUIVALENT = "no-v2-equivalent"
@@ -41,7 +40,7 @@ COVERAGE_BEARING = "bearing"
 @dataclass(frozen=True)
 class Construct:
     name: str
-    pattern: "re.Pattern[str]"
+    pattern: re.Pattern[str]
     compile_ability: str
     coverage_impact: str
     note: str
@@ -52,7 +51,7 @@ class Construct:
 # TestContext, IAsyncLifetime→ValueTask, TheoryDataRow) — validated against real
 # xunit behavior in #1156. C# attribute/keyword casing is fixed, so patterns are
 # case-sensitive (no re.IGNORECASE).
-_CONSTRUCTS: List[Construct] = [
+_CONSTRUCTS: list[Construct] = [
     Construct(
         name="fact-explicit",
         # [Fact(Explicit = true)] / [Theory(Explicit=true)] — the property does
@@ -120,13 +119,13 @@ class Finding:
     snippet: str
 
 
-def scan_text(path: str, text: str) -> List[Finding]:
+def scan_text(path: str, text: str) -> list[Finding]:
     """Return the v3-only constructs found in ``text``, attributed to ``path``.
 
     Line-oriented so each finding carries a 1-based line number and the source
     snippet the operator will see at the gate.
     """
-    findings: List[Finding] = []
+    findings: list[Finding] = []
     for lineno, line in enumerate(text.splitlines(), start=1):
         # Skip fully commented-out lines so a `// [Fact(Explicit = true)]` in
         # dead code isn't flagged as a shim-breaker. A trailing comment on a
@@ -148,7 +147,7 @@ def scan_text(path: str, text: str) -> List[Finding]:
     return findings
 
 
-def scan_file(path: Path) -> List[Finding]:
+def scan_file(path: Path) -> list[Finding]:
     """Scan a single .cs file. Missing/unreadable files yield no findings."""
     try:
         text = path.read_text(encoding="utf-8", errors="replace")
@@ -157,17 +156,17 @@ def scan_file(path: Path) -> List[Finding]:
     return scan_text(str(path), text)
 
 
-def scan_files(paths: Iterable[Path]) -> List[Finding]:
-    findings: List[Finding] = []
+def scan_files(paths: Iterable[Path]) -> list[Finding]:
+    findings: list[Finding] = []
     for p in paths:
         findings.extend(scan_file(p))
     return findings
 
 
-def files_with_findings(findings: Sequence[Finding]) -> List[str]:
+def files_with_findings(findings: Sequence[Finding]) -> list[str]:
     """Distinct files carrying at least one shim-breaking construct — the
     candidate exclusion set the human gate offers (dedup, stable order)."""
-    seen: List[str] = []
+    seen: list[str] = []
     for f in findings:
         if f.file not in seen:
             seen.append(f.file)

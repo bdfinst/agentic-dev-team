@@ -28,7 +28,7 @@ from collections import defaultdict
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from severity_rank import sort_index as _severity_sort_index  # noqa: E402
+from severity_rank import sort_index as _severity_sort_index
 
 PRESENTATIONAL_MAP = {
     "error": "HIGH",  # skeleton default — real pipeline maps with exploitability

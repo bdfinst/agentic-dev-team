@@ -20,7 +20,8 @@ import re
 import subprocess
 from pathlib import Path
 
-REPO_ROOT = Path(__file__).resolve().parents[2]
+from _repo_root import REPO_ROOT
+
 CI_LOCAL = REPO_ROOT / "scripts" / "ci-local.sh"
 CI_TIMING_LIB = REPO_ROOT / "scripts" / "lib" / "ci-timing.sh"
 
@@ -53,6 +54,7 @@ def _run_ci_local(*args: str, timing: str | None) -> subprocess.CompletedProcess
         env=env,
         capture_output=True,
         text=True,
+        check=False,
     )
 
 
@@ -101,7 +103,7 @@ def _render_helper(rundir: Path, *labels: str) -> str:
     """Source ci-timing.sh and invoke the pure renderer against a seeded rundir."""
     script = f'source "{CI_TIMING_LIB}"; ci_render_timing "{rundir}" ' + " ".join(labels)
     proc = subprocess.run(
-        ["bash", "-c", script], env=_base_env(), capture_output=True, text=True
+        ["bash", "-c", script], env=_base_env(), capture_output=True, text=True, check=False
     )
     assert proc.returncode == 0, proc.stderr
     return proc.stdout
@@ -279,12 +281,13 @@ def test_failing_check_preserves_nonzero_exit_and_shows_timing(tmp_path: Path) -
         env=env,
         capture_output=True,
         text=True,
+        check=False,
     )
     assert proc.returncode == 1, proc.stdout + proc.stderr
     section = proc.stdout.split(TIMING_HEADER, 1)
     assert len(section) == 2, "timing section missing on a failing run"
     assert PER_CHECK_RE.search(
-        [ln for ln in section[1].splitlines() if "shellcheck" in ln][0]
+        next(ln for ln in section[1].splitlines() if "shellcheck" in ln)
     ), "failing check has no timing line"
 
 
@@ -307,7 +310,7 @@ def test_changed_only_skip_renders_sentinel_and_keeps_selection() -> None:
     assert re.search(r"^\s*eslint\s+skipped$", section, re.MULTILINE)
     assert "0.00" not in section  # the skip is never a zero duration
     oe = "OE scoring staleness (advisory; oe_scoring_staleness.py)"
-    oe_line = [ln for ln in section.splitlines() if oe in ln][0]
+    oe_line = next(ln for ln in section.splitlines() if oe in ln)
     assert re.search(r"\d+\.\d{2}s$", oe_line)  # oe actually ran
 
     # Selection (the per-check section headers) is identical with/without timing.
@@ -331,5 +334,5 @@ def test_base_head_is_a_distinct_mode_from_changed_only() -> None:
     assert skip_msg in no_range.stdout  # it took the internal skip-print
 
     section = with_range.stdout.split(TIMING_HEADER, 1)[1]
-    semver_line = [ln for ln in section.splitlines() if "eval-corpus semver" in ln][0]
+    semver_line = next(ln for ln in section.splitlines() if "eval-corpus semver" in ln)
     assert re.search(r"\d+\.\d{2}s$", semver_line)  # real timing, not a sentinel

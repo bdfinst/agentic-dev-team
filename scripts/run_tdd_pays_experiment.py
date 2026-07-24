@@ -42,11 +42,21 @@ from statistics import mean, stdev
 SCRIPTS = Path(__file__).resolve().parent
 sys.path.insert(0, str(SCRIPTS))
 
-from run_integration_eval import extract_golden_repo, init_worktree, run_commands  # noqa: E402
-from run_tdd_experiment import (  # noqa: E402
-    contamination_flags, make_cell_home, cell_env, dispatch,
-    count_agent_tests, split_py_files, measure_coverage, measure_mutation,
+from run_integration_eval import (
+    extract_golden_repo,
+    init_worktree,
+    run_commands,
+)
+from run_tdd_experiment import (
+    cell_env,
+    contamination_flags,
+    count_agent_tests,
+    dispatch,
     inject_grade_files,
+    make_cell_home,
+    measure_coverage,
+    measure_mutation,
+    split_py_files,
 )
 
 MODEL_DEFAULT = "claude-sonnet-4-6"
@@ -250,13 +260,15 @@ def measure_radon(workdir: Path, prod: list[Path]) -> dict:
     for p in prod:
         try:
             r = subprocess.run(["radon", "cc", "-s", "-a", str(p)],
-                               capture_output=True, text=True, cwd=str(workdir))
+                               capture_output=True, text=True, cwd=str(workdir),
+                               check=False)
             for line in r.stdout.split("\n"):
                 m = re.search(r"Average complexity: [A-F] \((\d+\.\d+)\)", line)
                 if m:
                     cc_scores.append(float(m.group(1)))
             r2 = subprocess.run(["radon", "mi", "-s", str(p)],
-                                capture_output=True, text=True, cwd=str(workdir))
+                                capture_output=True, text=True, cwd=str(workdir),
+                                check=False)
             for line in r2.stdout.split("\n"):
                 m2 = re.search(r"\((\d+\.\d+)\)", line)
                 if m2:
@@ -329,7 +341,8 @@ def multi_rater_review(workdir: Path, prod: list[Path], tests: list[Path],
             r = subprocess.run(
                 ["claude", "-p", prompt, "--model", model,
                  "--output-format", "json", *skip_flag],
-                cwd=str(workdir), env=env, capture_output=True, text=True, timeout=120)
+                cwd=str(workdir), env=env, capture_output=True, text=True, timeout=120,
+                check=False)
             d = json.loads(r.stdout)
             result_text = d.get("result", "")
             m = re.search(r"\{[^}]+\}", result_text, re.DOTALL)

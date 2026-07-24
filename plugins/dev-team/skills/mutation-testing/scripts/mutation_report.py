@@ -42,7 +42,6 @@ import json
 import xml.etree.ElementTree as ET
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Dict, List
 
 # Stryker.NET mutant-status vocabulary — the single source of truth for these
 # literals across the whole pipeline. Sibling modules import these constants
@@ -85,8 +84,7 @@ def _load_report(report_path: Path) -> dict:
 def _iter_mutants(data: dict):
     """Yield every mutant dict across all files in a parsed report."""
     for info in data.get("files", {}).values():
-        for mutant in info.get("mutants", []):
-            yield mutant
+        yield from info.get("mutants", [])
 
 
 def _score_data(data: dict) -> ScoreSummary:
@@ -132,7 +130,7 @@ def score_report(report_path: Path) -> ScoreSummary:
     return _score_data(_load_report(report_path))
 
 
-def _survivors_from_data(data: dict, file_path: str) -> Dict[str, List[dict]]:
+def _survivors_from_data(data: dict, file_path: str) -> dict[str, list[dict]]:
     """Return the Survived mutants for one source file, grouped by mutator
     name, from an already-parsed report dict.
 
@@ -154,7 +152,7 @@ def _survivors_from_data(data: dict, file_path: str) -> Dict[str, List[dict]]:
     if info is None:
         return {}
 
-    grouped: Dict[str, List[dict]] = {}
+    grouped: dict[str, list[dict]] = {}
     for mutant in info.get("mutants", []):
         if mutant.get("status") != STATUS_SURVIVED:
             continue
@@ -163,13 +161,13 @@ def _survivors_from_data(data: dict, file_path: str) -> Dict[str, List[dict]]:
     return grouped
 
 
-def survivors_by_mutator(report_path: Path, file_path: str) -> Dict[str, List[dict]]:
+def survivors_by_mutator(report_path: Path, file_path: str) -> dict[str, list[dict]]:
     """Return the Survived mutants for one source file, grouped by mutator
     name, from a Stryker-shaped mutation report on disk."""
     return _survivors_from_data(_load_report(report_path), file_path)
 
 
-def _files_with_status_from_data(data: dict, status: str) -> List[str]:
+def _files_with_status_from_data(data: dict, status: str) -> list[str]:
     """Return the sorted report file keys having >= 1 mutant of ``status``,
     from an already-parsed report dict.
 
@@ -183,14 +181,14 @@ def _files_with_status_from_data(data: dict, status: str) -> List[str]:
     )
 
 
-def _files_with_status(report_path: Path, status: str) -> List[str]:
+def _files_with_status(report_path: Path, status: str) -> list[str]:
     """Return the sorted report file keys having >= 1 mutant of ``status``,
     from a Stryker-shaped mutation report on disk. Returns ``[]`` for an
     absent/empty report — never raises."""
     return _files_with_status_from_data(_load_report(report_path), status)
 
 
-def files_with_survivors(report_path: Path) -> List[str]:
+def files_with_survivors(report_path: Path) -> list[str]:
     """Return the sorted report file keys that have >= 1 Survived mutant.
 
     This is the single source of truth for survivor-file discovery — sibling
@@ -199,7 +197,7 @@ def files_with_survivors(report_path: Path) -> List[str]:
     return _files_with_status(report_path, STATUS_SURVIVED)
 
 
-def files_with_timeouts(report_path: Path) -> List[str]:
+def files_with_timeouts(report_path: Path) -> list[str]:
     """Return the sorted report file keys that have >= 1 Timeout mutant.
 
     This is the single source of truth for timeout-file discovery — sibling
@@ -229,7 +227,7 @@ def parse_mutmut_junitxml(xml_text: str) -> dict:
     Malformed or empty input returns an empty ``{"files": {}}`` rather than
     raising — callers see it as an empty report, same as a missing file.
     """
-    files: Dict[str, dict] = {}
+    files: dict[str, dict] = {}
     if not xml_text.strip():
         return {"files": files}
     try:
@@ -270,7 +268,7 @@ def score_mutmut_junitxml(xml_text: str) -> ScoreSummary:
 
 def survivors_from_mutmut_junitxml(
     xml_text: str, file_path: str
-) -> Dict[str, List[dict]]:
+) -> dict[str, list[dict]]:
     """Return the Survived mutants for one file from ``mutmut junitxml``
     output, grouped by mutator name (always ``"mutmut"`` — the tool names no
     per-mutation operator the way Stryker/pitest do)."""

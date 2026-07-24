@@ -9,13 +9,12 @@ from __future__ import annotations
 
 import json
 import sys
-from pathlib import Path
 
-_REPO_ROOT = Path(__file__).resolve().parents[4]
+from _repo_root import REPO_ROOT as _REPO_ROOT
+
 sys.path.insert(0, str(_REPO_ROOT / "plugins" / "dev-team" / "scripts"))
 
-import build_slice_scope  # noqa: E402
-
+import build_slice_scope
 
 # ---------------------------------------------------------------------------
 # scope_enforcement_enabled
@@ -102,7 +101,7 @@ def test_clear_freeze_state_is_a_no_op_when_absent(tmp_path):
 
 def test_engaged_freeze_blocks_writes_outside_declared_scope(tmp_path):
     sys.path.insert(0, str(_REPO_ROOT / "plugins" / "dev-team" / "hooks"))
-    import pre_tool_guard  # noqa: E402
+    import pre_tool_guard
 
     hooks_dir = tmp_path / "hooks"
     plan_path = tmp_path / "plan.md"

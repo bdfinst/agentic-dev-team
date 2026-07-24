@@ -55,7 +55,7 @@ from pathlib import Path
 # (sys.path[0] is scripts/) or imported by a sibling (eval_variance/eval_ablation
 # already insert scripts/ first, but this keeps the import robust either way).
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from eval_graders import (  # noqa: E402
+from eval_graders import (
     DEFAULT_GRADERS,
     get_grader,
     is_registered,
@@ -211,8 +211,8 @@ def run_grading(expected_dir: Path, actuals: dict, baseline: dict | None,
                 if grader is None:
                     results.append(
                         (pair, False,
-                         [f"unknown grader {grader_name!r} (known: "
-                          f"{', '.join(registered_graders())})"]))
+                         [(f"unknown grader {grader_name!r} (known: "
+                          f"{', '.join(registered_graders())})")]))
                     continue
                 fails = grader(espec, got)
                 results.append((pair, not fails, fails))

@@ -13,11 +13,10 @@ tests/commands/test_init_dev_team_codegraph.py accordingly.
 
 from __future__ import annotations
 
-from pathlib import Path
-
 import pytest
 
-REPO_ROOT = Path(__file__).resolve().parents[2]
+from _repo_root import REPO_ROOT
+
 CMD = REPO_ROOT / "plugins" / "dev-team" / "skills" / "project-init" / "SKILL.md"
 
 

@@ -25,7 +25,8 @@ from pathlib import Path
 
 import pytest
 
-REPO_ROOT = Path(__file__).resolve().parents[2]
+from _repo_root import REPO_ROOT
+
 SCRIPTS = REPO_ROOT / "scripts"
 RIE_PATH = SCRIPTS / "run_integration_eval.py"
 ABLATION_PATH = SCRIPTS / "eval_ablation.py"
@@ -289,7 +290,7 @@ def test_find_latest_ablation_record_missing_file_returns_none(tmp_path):
 
 def _run_cli(*args: str) -> subprocess.CompletedProcess:
     return subprocess.run(
-        [sys.executable, str(ABLATION_PATH), *args], capture_output=True, text=True
+        [sys.executable, str(ABLATION_PATH), *args], check=False, capture_output=True, text=True
     )
 
 

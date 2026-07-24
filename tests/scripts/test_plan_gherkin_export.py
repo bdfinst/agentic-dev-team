@@ -18,8 +18,7 @@ _SCRIPT_DIR = Path(__file__).resolve().parents[2] / "plugins" / "dev-team" / "sc
 if str(_SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(_SCRIPT_DIR))
 
-import plan_gherkin_export  # type: ignore[import-not-found]  # noqa: E402
-
+import plan_gherkin_export  # type: ignore[import-not-found]
 
 _SLICE_ONE_GHERKIN = """\
 Feature: Fancy widget

@@ -21,7 +21,6 @@ import re
 import shlex
 from pathlib import Path
 
-
 PLUGIN_ROOT = Path(__file__).resolve().parents[2]
 
 # $CLAUDE_PLUGIN_ROOT/... or ${CLAUDE_PLUGIN_ROOT}/... ending in .py or .sh.
@@ -70,11 +69,10 @@ def test_hook_command_scripts_exist():
         for tok in shlex.split(cmd):
             if tok.startswith("-") or "=" in tok:
                 continue
-            if tok.endswith((".py", ".sh")):
-                # Hook commands run with the plugin root as cwd, so relative
-                # paths resolve against it.
-                if not (PLUGIN_ROOT / tok).is_file():
-                    missing.append(f"{cmd!r} -> {tok}")
+            # Hook commands run with the plugin root as cwd, so relative
+            # paths resolve against it.
+            if tok.endswith((".py", ".sh")) and not (PLUGIN_ROOT / tok).is_file():
+                missing.append(f"{cmd!r} -> {tok}")
     assert not missing, "Hook command scripts do not exist:\n" + "\n".join(sorted(missing))
 
 

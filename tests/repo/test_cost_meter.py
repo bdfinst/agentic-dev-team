@@ -28,7 +28,8 @@ from pathlib import Path
 
 import pytest
 
-REPO_ROOT = Path(__file__).resolve().parents[2]
+from _repo_root import REPO_ROOT
+
 METER = REPO_ROOT / "plugins" / "dev-team" / "hooks" / "lib" / "cost_meter.py"
 HOOK = REPO_ROOT / "plugins" / "dev-team" / "hooks" / "cost_meter.py"
 
@@ -46,7 +47,7 @@ def case(tmp_path: Path) -> Path:
 
 def _run(*args: str) -> subprocess.CompletedProcess:
     return subprocess.run(
-        [sys.executable, str(METER), *args], capture_output=True, text=True
+        [sys.executable, str(METER), *args], capture_output=True, text=True, check=False
     )
 
 
@@ -303,6 +304,7 @@ def test_hook_stop_payload_writes_a_metrics_line_under_cwd_metrics(
         input=payload,
         capture_output=True,
         text=True,
+        check=False,
     )
     assert res.returncode == 0, res.stdout + res.stderr
     assert (case / "metrics" / "cost-metering.jsonl").is_file()
@@ -317,6 +319,7 @@ def test_hook_dev_team_cost_meter_off_is_a_noop(case: Path) -> None:
         capture_output=True,
         text=True,
         env=env,
+        check=False,
     )
     assert res.returncode == 0, res.stdout + res.stderr
     assert not (case / "metrics" / "cost-metering.jsonl").exists()
@@ -329,6 +332,7 @@ def test_hook_missing_transcript_fails_open_exit_0_no_write(case: Path) -> None:
         input=payload,
         capture_output=True,
         text=True,
+        check=False,
     )
     assert res.returncode == 0, res.stdout + res.stderr
     assert not (case / "metrics" / "cost-metering.jsonl").exists()

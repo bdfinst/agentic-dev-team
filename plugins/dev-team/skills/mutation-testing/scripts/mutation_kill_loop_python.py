@@ -28,14 +28,14 @@ import re
 import shutil
 import subprocess
 import sys
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Callable, List, Optional, Sequence
 
 import mutation_kill_loop as _cs_loop
 import mutation_report
 
-Generator = Callable[[str, List[dict], str, str], str]
+Generator = Callable[[str, list[dict], str, str], str]
 
 # Mirrors mutation_kill_loop.NO_GENERATOR_MESSAGE — pinned so a contract test
 # can assert it verbatim.
@@ -61,7 +61,7 @@ MISSING_CLAUDE_MESSAGE = (
 # =============================================================================
 # Scoped mutmut run — mutmut has no native JSON report; junitxml is it.
 # =============================================================================
-def _mutmut_argv() -> List[str]:
+def _mutmut_argv() -> list[str]:
     """Return the argv prefix for invoking mutmut — `mutmut` or `python3 -m mutmut`."""
     if shutil.which("mutmut") is not None:
         return ["mutmut"]
@@ -72,8 +72,8 @@ def run_scoped_mutmut(
     source_file: str,
     *,
     test_command: str,
-    test_file: Optional[Path] = None,
-    cwd: Optional[Path] = None,
+    test_file: Path | None = None,
+    cwd: Path | None = None,
 ) -> str:
     """Run mutmut scoped to one file; return the ``mutmut junitxml`` output.
 
@@ -121,12 +121,12 @@ def run_scoped_mutmut(
     ]
     try:
         try:
-            subprocess.run(argv, cwd=cwd, capture_output=True, text=True)
+            subprocess.run(argv, cwd=cwd, capture_output=True, text=True, check=False)
         except (FileNotFoundError, OSError) as exc:
             raise RuntimeError(f"mutmut run failed to start: {exc}") from exc
 
         junit = subprocess.run(
-            [*prefix, "junitxml"], cwd=cwd, capture_output=True, text=True
+            [*prefix, "junitxml"], cwd=cwd, capture_output=True, text=True, check=False
         )
         return junit.stdout or ""
     finally:
@@ -135,7 +135,7 @@ def run_scoped_mutmut(
             git_revert(test_file, cwd=cwd)
 
 
-def extract_survivors(junitxml_text: str, source_file: str) -> List[dict]:
+def extract_survivors(junitxml_text: str, source_file: str) -> list[dict]:
     """Return the surviving mutants for one source file (flattened).
 
     Delegates parsing to :func:`mutation_report.survivors_from_mutmut_junitxml`
@@ -177,7 +177,7 @@ class InsertOutcome:
 _FUNC_RE = re.compile(r"^def\s+(test_\w+)\s*\(", re.MULTILINE)
 
 
-def detect_duplicate_functions(test_text: str, new_text: str) -> List[str]:
+def detect_duplicate_functions(test_text: str, new_text: str) -> list[str]:
     """Return the function names in ``new_text`` that already exist in the file."""
     existing = set(_FUNC_RE.findall(test_text))
     incoming = _FUNC_RE.findall(new_text)
@@ -230,41 +230,44 @@ def apply_generated_tests(test_file: Path, new_tests: str) -> InsertOutcome:
 # =============================================================================
 # Verify / commit / revert.
 # =============================================================================
-def python_compiles(test_file: Path, *, cwd: Optional[Path] = None) -> bool:
+def python_compiles(test_file: Path, *, cwd: Path | None = None) -> bool:
     """Syntax-check the test file — Python's equivalent of a build step."""
     rc = subprocess.run(
         [sys.executable, "-m", "py_compile", str(test_file)],
         capture_output=True,
         text=True,
         cwd=cwd,
+        check=False,
     ).returncode
     return rc == 0
 
 
-def run_scoped_pytest(test_file: Path, *, cwd: Optional[Path] = None) -> bool:
+def run_scoped_pytest(test_file: Path, *, cwd: Path | None = None) -> bool:
     """Run the test file under pytest. False on any non-zero exit."""
     rc = subprocess.run(
         [sys.executable, "-m", "pytest", str(test_file), "-q"],
         capture_output=True,
         text=True,
         cwd=cwd,
+        check=False,
     ).returncode
     return rc == 0
 
 
-def git_revert(test_file: Path, *, cwd: Optional[Path] = None) -> None:
+def git_revert(test_file: Path, *, cwd: Path | None = None) -> None:
     """Discard working-tree changes to one file (``git checkout -- <file>``)."""
-    subprocess.run(["git", "checkout", "--", str(test_file)], cwd=cwd)
+    subprocess.run(["git", "checkout", "--", str(test_file)], cwd=cwd, check=False)
 
 
-def git_commit(message: str, test_file: Path, *, cwd: Optional[Path] = None) -> bool:
+def git_commit(message: str, test_file: Path, *, cwd: Path | None = None) -> bool:
     """Stage and commit only ``test_file``. Returns True on a successful commit."""
-    subprocess.run(["git", "add", str(test_file)], cwd=cwd)
+    subprocess.run(["git", "add", str(test_file)], cwd=cwd, check=False)
     rc = subprocess.run(
         ["git", "commit", "-m", message],
         capture_output=True,
         text=True,
         cwd=cwd,
+        check=False,
     ).returncode
     return rc == 0
 
@@ -288,8 +291,8 @@ def run_for_file(
     test_command: str,
     generate: Generator,
     max_rounds: int = 5,
-    initial_junitxml: Optional[str] = None,
-    cwd: Optional[Path] = None,
+    initial_junitxml: str | None = None,
+    cwd: Path | None = None,
     log: Callable[[str], None] = print,
 ) -> None:
     """Drive the deterministic survivor-kill loop for one Python source file.
@@ -300,7 +303,7 @@ def run_for_file(
     revert-on-failure, commit-on-green, and the no-improvement stop — is
     mechanical, mirroring :func:`mutation_kill_loop.run_for_file`'s contract.
     """
-    prev_survivors: Optional[int] = None
+    prev_survivors: int | None = None
 
     for round_num in range(1, max_rounds + 1):
         if initial_junitxml is not None and round_num == 1:
@@ -371,7 +374,7 @@ def run_for_file(
 # =============================================================================
 # Headless generation — shell to `claude --print` for unattended runs.
 # =============================================================================
-def build_survivor_summary(survivors: List[dict], *, limit: int = 40) -> str:
+def build_survivor_summary(survivors: list[dict], *, limit: int = 40) -> str:
     """Render surviving mutants as a compact list."""
     lines = []
     for mutant in survivors[:limit]:
@@ -384,7 +387,7 @@ def build_survivor_summary(survivors: List[dict], *, limit: int = 40) -> str:
 
 def build_generation_prompt(
     source_file: str,
-    survivors: List[dict],
+    survivors: list[dict],
     source_text: str,
     test_text: str,
     *,
@@ -422,7 +425,7 @@ def build_generation_prompt(
 
 
 def make_headless_generator(
-    model: Optional[str] = None, *, cwd: Optional[Path] = None
+    model: str | None = None, *, cwd: Path | None = None
 ) -> Generator:
     """Return a :data:`Generator` that shells to ``claude --print``.
 
@@ -432,7 +435,7 @@ def make_headless_generator(
 
     def generate(
         source_file: str,
-        survivors: List[dict],
+        survivors: list[dict],
         source_text: str,
         test_text: str,
     ) -> str:
@@ -441,7 +444,7 @@ def make_headless_generator(
         if model:
             cmd += ["--model", model]
         cmd.append(prompt)
-        result = subprocess.run(cmd, capture_output=True, text=True, cwd=cwd)
+        result = subprocess.run(cmd, capture_output=True, text=True, cwd=cwd, check=False)
         if result.returncode != 0:
             raise RuntimeError(
                 f"claude CLI failed (exit {result.returncode}): {result.stderr[:500]}"
@@ -487,7 +490,7 @@ def parse_args(argv: Sequence[str]) -> argparse.Namespace:
     return p.parse_args(list(argv))
 
 
-def main(argv: Optional[Sequence[str]] = None) -> int:
+def main(argv: Sequence[str] | None = None) -> int:
     """CLI entry point — see :func:`mutation_kill_loop.main` for the contract
     this mirrors."""
     argv = list(sys.argv[1:] if argv is None else argv)

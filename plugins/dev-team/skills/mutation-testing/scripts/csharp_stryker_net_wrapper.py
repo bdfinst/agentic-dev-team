@@ -37,9 +37,8 @@ import signal
 import subprocess
 import sys
 import threading
+from collections.abc import Callable, Sequence
 from pathlib import Path
-from typing import Callable, Optional, Sequence
-
 
 # =============================================================================
 # Exit codes — same as the bash version, byte-compatible.
@@ -72,7 +71,7 @@ def default_probe_candidates() -> list[str]:
     ]
 
 
-def probe_dotnet_root(candidates: Sequence[str]) -> Optional[str]:
+def probe_dotnet_root(candidates: Sequence[str]) -> str | None:
     """Return the first candidate whose SDK layout is present, or None.
 
     A candidate hits when any of these are true:
@@ -100,9 +99,9 @@ def probe_dotnet_root(candidates: Sequence[str]) -> Optional[str]:
 
 
 def resolve_dotnet_root(
-    preset: Optional[str],
+    preset: str | None,
     candidates: Sequence[str],
-) -> tuple[Optional[str], Optional[str]]:
+) -> tuple[str | None, str | None]:
     """Return ``(dotnet_root, error_message)``.
 
     - Preset value wins if truthy — matches the bash ``${DOTNET_ROOT:-}`` guard.
@@ -140,7 +139,7 @@ def _no_sdk_message(candidates: Sequence[str]) -> str:
 # =============================================================================
 # Stale-hidden-.sln refusal
 # =============================================================================
-def check_stale_hidden_sln(sln: Path, sln_hidden: Path) -> Optional[str]:
+def check_stale_hidden_sln(sln: Path, sln_hidden: Path) -> str | None:
     """Return an error message if a stale hidden .sln coexists with a fresh
     one; otherwise None. Refusal is deterministic — the wrapper produces no
     side effects when it refuses.
@@ -222,7 +221,7 @@ def parse_args(argv: Sequence[str]) -> argparse.Namespace:
 # Concurrency default — Stryker's own `-c`/`--concurrency` mutant-testing-
 # process count. Defaults to cores-2 instead of Stryker's flat default of 5.
 # =============================================================================
-def default_concurrency(cpu_count: Optional[int]) -> int:
+def default_concurrency(cpu_count: int | None) -> int:
     """Return ``max(1, (cpu_count or 2) - 2)``.
 
     ``cpu_count`` is normally ``os.cpu_count()``, which returns ``None`` when
@@ -232,7 +231,7 @@ def default_concurrency(cpu_count: Optional[int]) -> int:
     return max(1, (cpu_count or 2) - 2)
 
 
-def _pass_through_concurrency_flag(stryker_args: Sequence[str]) -> Optional[str]:
+def _pass_through_concurrency_flag(stryker_args: Sequence[str]) -> str | None:
     """Return the pass-through concurrency flag (``-c`` or ``--concurrency``)
     present in ``stryker_args``, or ``None``. Consolidates the "does the
     caller already specify concurrency" check used by both the explicit-
@@ -244,7 +243,7 @@ def _pass_through_concurrency_flag(stryker_args: Sequence[str]) -> Optional[str]
     return None
 
 
-def build_project(project: str, cwd: Optional[Path] = None) -> int:
+def build_project(project: str, cwd: Path | None = None) -> int:
     """Run ``dotnet build <project> -c Debug --nologo`` in the given cwd.
     Returns the subprocess exit code.
     """
@@ -258,8 +257,8 @@ def run_stryker(
     stryker_bin: str,
     stryker_args: Sequence[str],
     logfile: Path,
-    line_callback: Optional[Callable[[str], bool]] = None,
-    cwd: Optional[Path] = None,
+    line_callback: Callable[[str], bool] | None = None,
+    cwd: Path | None = None,
 ) -> int:
     """Run Stryker with stdout+stderr captured to logfile. Returns exit code.
 
@@ -383,7 +382,7 @@ def _run_stryker_streaming(
     stryker_args: Sequence[str],
     logfile: Path,
     line_callback: Callable[[str], bool],
-    popen_cwd: Optional[str],
+    popen_cwd: str | None,
 ) -> int:
     """Streaming variant of :func:`run_stryker` used when a line-callback is
     supplied. Tees every line to ``logfile`` while feeding it to the callback;
@@ -461,7 +460,10 @@ def _terminate_all_tracked_processes() -> None:
         if proc.poll() is None:
             try:
                 proc.terminate()
-            except Exception:
+            except OSError:
+                # Best-effort cleanup during shutdown — a process that exited
+                # between poll() and terminate() must not block terminating
+                # the rest of the tracked processes.
                 pass
 
 
@@ -510,7 +512,7 @@ def _restore_signal_handlers(previous: list[tuple[int, object]]) -> None:
             pass
 
 
-def main(argv: Optional[Sequence[str]] = None) -> int:
+def main(argv: Sequence[str] | None = None) -> int:
     """Main entry point. Returns the process exit code."""
     argv = list(sys.argv[1:] if argv is None else argv)
     args, stryker_args = parse_args(argv)

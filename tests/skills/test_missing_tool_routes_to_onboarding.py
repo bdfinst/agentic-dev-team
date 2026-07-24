@@ -24,7 +24,6 @@ deliberately excluded from prose changes.
 from __future__ import annotations
 
 import pytest
-
 from skill_doc_helpers import PLUGIN_ROOT, grep
 
 SKILLS = PLUGIN_ROOT / "skills"

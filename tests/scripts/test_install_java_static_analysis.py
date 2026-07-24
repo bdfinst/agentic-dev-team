@@ -21,7 +21,8 @@ from pathlib import Path
 
 import pytest
 
-REPO_ROOT = Path(__file__).resolve().parents[2]
+from _repo_root import REPO_ROOT
+
 SCRIPT = REPO_ROOT / "scripts" / "install-java-static-analysis.py"
 
 # Modules the installer may import — all stdlib, per ADR 0014.
@@ -103,6 +104,7 @@ def test_missing_java_exits_1_end_to_end(tmp_path):
         text=True,
         cwd=str(tmp_path),
         env={"PATH": str(empty)},
+        check=False,
     )
     assert result.returncode == 1
     assert "required" in result.stderr.lower()
@@ -181,6 +183,7 @@ def test_version_pin_lives_only_in_the_installer():
         capture_output=True,
         text=True,
         cwd=str(REPO_ROOT),
+        check=False,
     )
     files = {
         line.split(":", 1)[0]

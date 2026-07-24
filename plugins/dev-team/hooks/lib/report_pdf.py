@@ -39,9 +39,9 @@ import shutil
 import subprocess
 import sys
 import tempfile
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Callable, List, Optional
 
 # Detection order. ``kind`` is the pipeline: "pandoc" engines consume HTML that
 # pandoc produces; "direct" engines consume Markdown themselves.
@@ -69,7 +69,7 @@ class Engine:
 
     name: str
     kind: str
-    binary: Optional[str] = None
+    binary: str | None = None
 
 
 @dataclass
@@ -81,14 +81,14 @@ class RenderResult:
     """
 
     rendered: bool
-    engine: Optional[str] = None
-    out_path: Optional[str] = None
-    reason: Optional[str] = None
-    install_hint: Optional[str] = None
-    error: Optional[str] = None
+    engine: str | None = None
+    out_path: str | None = None
+    reason: str | None = None
+    install_hint: str | None = None
+    error: str | None = None
 
 
-def _chrome_binary() -> Optional[str]:
+def _chrome_binary() -> str | None:
     """Locate a Chrome/Chromium binary via runtime probes only.
 
     PATH names first (cross-OS), then OS-specific application paths chosen by
@@ -100,7 +100,7 @@ def _chrome_binary() -> Optional[str]:
         if found:
             return found
     system = platform.system()
-    candidates: List[str] = []
+    candidates: list[str] = []
     if system == "Darwin":
         candidates = [
             "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
@@ -119,7 +119,7 @@ def _chrome_binary() -> Optional[str]:
     return None
 
 
-def detect_engine() -> Optional[Engine]:
+def detect_engine() -> Engine | None:
     """Return the first available engine in fallback order, or ``None``.
 
     Chrome/weasyprint/wkhtmltopdf are only offered when pandoc is present (they
@@ -160,7 +160,7 @@ def default_css_path() -> Path:
     return Path(__file__).resolve().parents[2] / "knowledge" / "report-print.css"
 
 
-def _pandoc_html_cmd(src: Path, html: Path) -> List[str]:
+def _pandoc_html_cmd(src: Path, html: Path) -> list[str]:
     # --sandbox blocks pandoc from fetching any external resource during
     # conversion, so a report embedding an attacker-influenced remote URL
     # (report content can quote code from a reviewed repo) cannot drive an
@@ -183,7 +183,7 @@ def _pandoc_html_cmd(src: Path, html: Path) -> List[str]:
     ]
 
 
-def _inject_css(html: Path, css: Optional[Path]) -> None:
+def _inject_css(html: Path, css: Path | None) -> None:
     """Inline the bundled stylesheet into the pandoc HTML head.
 
     Done in Python (not via pandoc ``--css``) because ``--sandbox`` blocks
@@ -206,7 +206,7 @@ def _inject_css(html: Path, css: Optional[Path]) -> None:
     html.write_text(doc, encoding="utf-8")
 
 
-def _engine_pdf_cmd(engine: Engine, html: Path, out: Path) -> List[str]:
+def _engine_pdf_cmd(engine: Engine, html: Path, out: Path) -> list[str]:
     # Absolute output paths so a value beginning with '-' can never be parsed
     # as an option by a positional-arg engine (weasyprint/wkhtmltopdf).
     out_abs = str(out.resolve())
@@ -231,14 +231,14 @@ def _engine_pdf_cmd(engine: Engine, html: Path, out: Path) -> List[str]:
     raise ValueError(f"not a pandoc-mediated engine: {engine.name}")
 
 
-def _mdtopdf_cmd(src: Path, css: Optional[Path]) -> List[str]:
+def _mdtopdf_cmd(src: Path, css: Path | None) -> list[str]:
     cmd = ["md-to-pdf", str(src)]
     if css and css.is_file():
         cmd += ["--stylesheet", str(css)]
     return cmd
 
 
-def _run(runner: Callable, cmd: List[str]) -> subprocess.CompletedProcess:
+def _run(runner: Callable, cmd: list[str]) -> subprocess.CompletedProcess:
     return runner(cmd, capture_output=True, text=True, timeout=_TIMEOUT_SECONDS)
 
 
@@ -251,8 +251,8 @@ def _step_error(label: str, proc: subprocess.CompletedProcess) -> str:
 
 
 def _render_pandoc(
-    engine: Engine, src: Path, out: Path, css: Optional[Path], runner: Callable
-) -> Optional[str]:
+    engine: Engine, src: Path, out: Path, css: Path | None, runner: Callable
+) -> str | None:
     """pandoc-mediated pipeline (Markdown → HTML+CSS → PDF). Returns an error
     string on failure, or None on success. Always unlinks the temp HTML."""
     with tempfile.NamedTemporaryFile(suffix=".html", delete=False) as handle:
@@ -271,8 +271,8 @@ def _render_pandoc(
 
 
 def _render_direct(
-    engine: Engine, src: Path, out: Path, css: Optional[Path], runner: Callable
-) -> Optional[str]:
+    engine: Engine, src: Path, out: Path, css: Path | None, runner: Callable
+) -> str | None:
     """Direct md-to-pdf pipeline (no pandoc). Returns an error string on
     failure, or None on success."""
     produced = src.with_suffix(".pdf")
@@ -286,11 +286,11 @@ def _render_direct(
 
 def render(
     md_path: str,
-    out_path: Optional[str] = None,
+    out_path: str | None = None,
     *,
-    engine: Optional[Engine] = None,
-    css_path: Optional[str] = None,
-    runner: Optional[Callable] = None,
+    engine: Engine | None = None,
+    css_path: str | None = None,
+    runner: Callable | None = None,
 ) -> RenderResult:
     """Render ``md_path`` to a PDF, returning a :class:`RenderResult`.
 
@@ -346,7 +346,7 @@ def _build_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def main(argv: Optional[List[str]] = None) -> int:
+def main(argv: list[str] | None = None) -> int:
     parser = _build_parser()
     args = parser.parse_args(argv)
 

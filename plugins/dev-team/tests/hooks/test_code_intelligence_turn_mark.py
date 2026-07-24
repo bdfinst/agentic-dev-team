@@ -13,12 +13,11 @@ from pathlib import Path
 
 import pytest
 
-
 _HOOKS_DIR = Path(__file__).resolve().parents[2] / "hooks"
 if str(_HOOKS_DIR) not in sys.path:
     sys.path.insert(0, str(_HOOKS_DIR))
 
-import code_intelligence_turn_mark as hook  # type: ignore[import-not-found]  # noqa: E402
+import code_intelligence_turn_mark as hook  # type: ignore[import-not-found]
 
 _SENTINEL_NAME = "code-intelligence-turn-state.json"
 

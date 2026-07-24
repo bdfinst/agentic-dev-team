@@ -103,7 +103,7 @@ class TestPlanCreationDetection:
         for trigger in ("--yes", "DEV_TEAM_AUTO_APPROVE=1", "TTY"):
             assert trigger in GHERKIN_REF, (
                 "the persistence procedure must name the step-6 "
-                "non-interactive triad trigger '{}'".format(trigger)
+                f"non-interactive triad trigger '{trigger}'"
             )
 
     def test_reruns_honor_the_recorded_decision(self) -> None:
@@ -178,5 +178,5 @@ class TestTemplateCarriesPersistenceDecision:
         for shape in ("destination dir", "plan-file-only", "custom:"):
             assert shape in PLAN_TEMPLATE, (
                 "the Gherkin persistence metadata line must document the "
-                "'{}' value shape".format(shape)
+                f"'{shape}' value shape"
             )

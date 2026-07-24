@@ -36,7 +36,6 @@ import re
 import subprocess
 import sys
 from pathlib import Path
-from typing import List, Set, Tuple
 
 
 def _usage() -> None:
@@ -48,7 +47,7 @@ def _usage() -> None:
     )
 
 
-def _parse_argv(argv: List[str]):
+def _parse_argv(argv: list[str]):
     root = ""
     slug = ""
     force_fs = False
@@ -92,10 +91,10 @@ def _slugify(name: str) -> str:
     return s
 
 
-def _parse_excludes(path: Path) -> Tuple[List[str], List[str]]:
+def _parse_excludes(path: Path) -> tuple[list[str], list[str]]:
     """Parse the two-section excludes file into (prefixes, filenames)."""
-    prefixes: List[str] = []
-    filenames: List[str] = []
+    prefixes: list[str] = []
+    filenames: list[str] = []
     section = ""
     if not path.is_file():
         return prefixes, filenames
@@ -130,7 +129,7 @@ def _parse_excludes(path: Path) -> Tuple[List[str], List[str]]:
     return prefixes, filenames
 
 
-def _collect_git(root_abs: Path) -> List[str]:
+def _collect_git(root_abs: Path) -> list[str]:
     """Git branch: `ls-files -z` emits repo-relative paths including
     submodule gitlinks (once, not recursed)."""
     try:
@@ -147,15 +146,15 @@ def _collect_git(root_abs: Path) -> List[str]:
     return [line for line in r.stdout.decode(errors="replace").split("\0") if line]
 
 
-def _collect_fs(root_abs: Path, excludes_file: Path) -> List[str]:
+def _collect_fs(root_abs: Path, excludes_file: Path) -> list[str]:
     """Filesystem walk with excludes. Prunes directories whose name matches
     a `# prefix:` entry (anywhere in the tree) and skips filenames matching
     `# filename:` entries."""
     prefixes, filenames = _parse_excludes(excludes_file)
-    prefix_set: Set[str] = set(prefixes)
-    filename_set: Set[str] = set(filenames)
+    prefix_set: set[str] = set(prefixes)
+    filename_set: set[str] = set(filenames)
 
-    out: List[str] = []
+    out: list[str] = []
     root_str = str(root_abs)
     for dirpath, dirnames, files in os.walk(root_abs):
         # Prune matching directory names in-place so os.walk skips them.
@@ -182,10 +181,10 @@ def _collect_fs(root_abs: Path, excludes_file: Path) -> List[str]:
     return out
 
 
-def _resolve_symlinks(root_abs: Path, entries: List[str]) -> List[str]:
+def _resolve_symlinks(root_abs: Path, entries: list[str]) -> list[str]:
     """Substitute each symlink with its resolved real path; drop + log
     broken / outside-repo links."""
-    resolved: List[str] = []
+    resolved: list[str] = []
     for rel in entries:
         if not rel:
             continue
@@ -213,7 +212,7 @@ def _resolve_symlinks(root_abs: Path, entries: List[str]) -> List[str]:
     return resolved
 
 
-def main(argv: List[str]) -> int:
+def main(argv: list[str]) -> int:
     parsed = _parse_argv(argv)
     if not parsed[0]:
         _usage()

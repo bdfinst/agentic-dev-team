@@ -14,12 +14,13 @@ from pathlib import Path
 
 import pytest
 
-_REPO_ROOT = Path(__file__).resolve().parents[4]
+from _repo_root import REPO_ROOT as _REPO_ROOT
+
 sys.path.insert(
     0, str(_REPO_ROOT / "plugins" / "dev-team" / "skills" / "upgrade" / "scripts")
 )
 
-import enable_autoupdate  # noqa: E402
+import enable_autoupdate
 
 
 def _seed_config(cfg: Path, *, installed=True, registry=True):

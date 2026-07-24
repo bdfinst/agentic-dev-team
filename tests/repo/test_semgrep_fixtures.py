@@ -11,10 +11,9 @@ from __future__ import annotations
 
 import ast
 import re
-from pathlib import Path
-from typing import List
 
-REPO_ROOT = Path(__file__).resolve().parents[2]
+from _repo_root import REPO_ROOT
+
 RULES_DIR = (
     REPO_ROOT / "plugins" / "security-assessment" / "knowledge" / "semgrep-rules"
 )
@@ -26,7 +25,7 @@ _FP_RATE_RE = re.compile(r"fp_rate:")
 _STATUS_RE = re.compile(r"semgrep_status:")
 
 
-def _rule_ids() -> List[str]:
+def _rule_ids() -> list[str]:
     ids = []
     for yaml_file in sorted(RULES_DIR.glob("*.yaml")):
         for line in yaml_file.read_text().splitlines():

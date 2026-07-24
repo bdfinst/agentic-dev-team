@@ -30,7 +30,6 @@ from typing import Any
 
 import yaml
 
-
 REPO = Path(__file__).resolve().parents[2]
 GROUND_TRUTH_PATH = REPO / "evals/comparative/ground-truth.yaml"
 
@@ -481,7 +480,7 @@ def check_suppressions(
         exp_file = supp["expected_file"]
         line_range = tuple(supp["line_range"])
         patterns = supp.get("rule_id_patterns") or []
-        def _rule_matches(rid: str) -> bool:
+        def _rule_matches(rid: str, patterns: list[str] = patterns) -> bool:
             if not patterns:
                 return True
             return any(fnmatch.fnmatch(rid, p) for p in patterns)

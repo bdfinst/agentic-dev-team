@@ -20,9 +20,9 @@ Ported from tests/knowledge/test_smell_review_eval_fixtures_tests.bats
 from __future__ import annotations
 
 import json
-from pathlib import Path
 
-REPO_ROOT = Path(__file__).resolve().parents[2]
+from _repo_root import REPO_ROOT
+
 EVALS = REPO_ROOT / "evals" / "expected"
 
 FAMILY_SLUGS = (

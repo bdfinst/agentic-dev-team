@@ -28,23 +28,24 @@ knowledge of its own (see `make_kwargs`), mirroring `cli.py`'s existing
 from __future__ import annotations
 
 import sys
+from collections.abc import Callable
 from concurrent.futures import FIRST_COMPLETED, Future, ThreadPoolExecutor, wait
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional, Tuple
+from typing import Any
 
 import runner
 
-CaseAndDict = Tuple[Any, Dict[str, Any]]
+CaseAndDict = tuple[Any, dict[str, Any]]
 
 
 def run_pending(
-    pending: List[CaseAndDict],
-    make_kwargs: Callable[[Any], Dict[str, Any]],
-    dispatch_fn: Callable[[str, str], Dict[str, Any]],
+    pending: list[CaseAndDict],
+    make_kwargs: Callable[[Any], dict[str, Any]],
+    dispatch_fn: Callable[[str, str], dict[str, Any]],
     results_dir: Any,
     workers: int,
-    max_cost_usd: Optional[float] = None,
-    run_case_fn: Callable[..., Dict[str, Any]] = runner.run_case,
+    max_cost_usd: float | None = None,
+    run_case_fn: Callable[..., dict[str, Any]] = runner.run_case,
 ) -> float:
     """Run every `(case, case_dict)` pair in `pending` to completion.
 
@@ -66,14 +67,14 @@ def run_pending(
     Returns the final running cost total (USD).
     """
     results_dir = Path(results_dir)
-    queue: List[CaseAndDict] = list(pending)
+    queue: list[CaseAndDict] = list(pending)
     total = len(queue)
     processed = 0
     running_total = 0.0
     budget_stopped = False
     workers = max(1, workers)
 
-    def _print_progress(record: Dict[str, Any], key: str) -> None:
+    def _print_progress(record: dict[str, Any], key: str) -> None:
         nonlocal processed
         processed += 1
         status = (
@@ -84,7 +85,7 @@ def run_pending(
         print(f"[{processed}/{total}] {key}: {status} (${running_total:.2f} total)")
 
     with ThreadPoolExecutor(max_workers=workers) as executor:
-        in_flight: Dict[Future, Dict[str, Any]] = {}
+        in_flight: dict[Future, dict[str, Any]] = {}
 
         def submit_one() -> None:
             case, case_dict = queue.pop(0)

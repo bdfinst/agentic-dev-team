@@ -8,9 +8,8 @@ Ported from tests/repo/decision_defaults_refs_test.bats (#673).
 
 from __future__ import annotations
 
-from pathlib import Path
+from _repo_root import REPO_ROOT
 
-REPO_ROOT = Path(__file__).resolve().parents[2]
 PLUGIN = REPO_ROOT / "plugins" / "dev-team"
 KNOWLEDGE = PLUGIN / "knowledge" / "decision-defaults.md"
 

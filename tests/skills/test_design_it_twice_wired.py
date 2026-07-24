@@ -13,9 +13,8 @@ Two contracts, symmetric so the pair fails if either half drifts:
 
 from __future__ import annotations
 
-from pathlib import Path
+from _repo_root import REPO_ROOT
 
-REPO_ROOT = Path(__file__).resolve().parents[2]
 PLUGIN = REPO_ROOT / "plugins" / "dev-team"
 DESIGN_IT_TWICE = (
     PLUGIN / "skills" / "design-it-twice" / "SKILL.md"

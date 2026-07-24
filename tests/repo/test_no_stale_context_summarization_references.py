@@ -16,9 +16,8 @@ would be a false positive on the record of the change, not a drift.
 
 from __future__ import annotations
 
-from pathlib import Path
+from _repo_root import REPO_ROOT
 
-REPO_ROOT = Path(__file__).resolve().parents[2]
 PLUGIN_ROOT = REPO_ROOT / "plugins" / "dev-team"
 
 SCANNED_DIRS = ["agents", "skills", "hooks", "knowledge"]

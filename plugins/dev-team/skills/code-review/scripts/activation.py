@@ -10,8 +10,6 @@ touching the partitioning *algorithm*.
 
 from __future__ import annotations
 
-from typing import Optional, Tuple
-
 # Default per-slice file cap when sliced mode auto-engages (operator can
 # override with --slice N).
 DEFAULT_CAP = 50
@@ -44,10 +42,10 @@ def should_slice(
     file_count: int,
     *,
     threshold: int = LARGE_REPO_THRESHOLD,
-    slice_flag: Optional[int] = None,
+    slice_flag: int | None = None,
     no_slice_flag: bool = False,
     default_cap: int = DEFAULT_CAP,
-) -> Tuple[bool, Optional[int]]:
+) -> tuple[bool, int | None]:
     """Return ``(engage_sliced_mode, effective_cap)``.
 
     Precedence (highest first):
@@ -74,7 +72,7 @@ def should_slice(
 
 def check_slice_ceiling(
     slice_count: int, ceiling: int = SLICE_COUNT_CEILING
-) -> Optional[str]:
+) -> str | None:
     """Return an advisory warning when ``slice_count`` exceeds ``ceiling``.
 
     Advisory only — the caller reports it and proceeds; it never blocks. Returns

@@ -13,14 +13,15 @@ import subprocess
 import sys
 from pathlib import Path
 
-REPO_ROOT = Path(__file__).resolve().parents[2]
+from _repo_root import REPO_ROOT
+
 CHECK = REPO_ROOT / "scripts" / "cost-regression-check.sh"
 EXTRACT = REPO_ROOT / "scripts" / "session_extract.py"
 
 
 def _run_check(env_overrides: dict) -> subprocess.CompletedProcess:
     env = {**os.environ, **env_overrides}
-    return subprocess.run(["bash", str(CHECK)], capture_output=True, text=True, env=env)
+    return subprocess.run(["bash", str(CHECK)], capture_output=True, text=True, env=env, check=False)
 
 
 def test_ci_cost_self_test_passes_and_no_baseline_clean_exit_0(tmp_path: Path) -> None:

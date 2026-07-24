@@ -22,7 +22,6 @@ import os
 import re
 import sys
 from pathlib import Path
-from typing import List, Optional, Set
 
 
 def _read_stdin() -> str:
@@ -69,7 +68,7 @@ def _grep_matches(content: str, pattern: str) -> bool:
     return re.search(pattern, content) is not None
 
 
-def _split_frontmatter(content: str) -> "tuple[str, str]":
+def _split_frontmatter(content: str) -> tuple[str, str]:
     """Split a SKILL.md file into (frontmatter, body). If the file has no
     `---`-delimited frontmatter block, frontmatter is '' and body is the
     whole content."""
@@ -105,7 +104,7 @@ def _project_root(payload: dict) -> Path:
     return Path.cwd()
 
 
-def _fixtured_agents(project_root: Path) -> Set[str]:
+def _fixtured_agents(project_root: Path) -> set[str]:
     """Scan ``evals/expected/*.json`` for ``applicableAgents`` (#860).
 
     Returns the empty set when ``evals/expected/`` does not exist — the
@@ -116,7 +115,7 @@ def _fixtured_agents(project_root: Path) -> Set[str]:
     if not expected_dir.is_dir():
         return set()
 
-    agents: Set[str] = set()
+    agents: set[str] = set()
     for fixture_file in expected_dir.glob("*.json"):
         try:
             data = json.loads(fixture_file.read_text(encoding="utf-8"))
@@ -143,8 +142,8 @@ def _agent_checks(
     Order of checks matches the .sh; the FAILS and WARNS strings accumulate
     in appearance order and are emitted after the leading blank line.
     """
-    fails: List[str] = []
-    warnings: List[str] = []
+    fails: list[str] = []
+    warnings: list[str] = []
 
     def fail(msg: str) -> None:
         fails.append(f"  FAIL: {msg}\n")
@@ -237,17 +236,16 @@ def _agent_checks(
     if _grep_i_matches(
         content,
         r"javascript\\\|typescript\\\|python\\\|ruby\\\|go\\\|rust\\\|java",
+    ) and not _grep_i_matches(
+        content,
+        r"scope:|\.js\b|\.ts\b|\.py\b|\.rb\b|\.go\b|\.rs\b|\.java\b|files only",
     ):
-        if not _grep_i_matches(
-            content,
-            r"scope:|\.js\b|\.ts\b|\.py\b|\.rb\b|\.go\b|\.rs\b|\.java\b|files only",
-        ):
-            warn(
-                f"{agent_name}: Mentions a language but doesn't declare "
-                f"file scope (e.g., 'Scope: *.js, *.ts files only')."
-            )
+        warn(
+            f"{agent_name}: Mentions a language but doesn't declare "
+            f"file scope (e.g., 'Scope: *.js, *.ts files only')."
+        )
 
-    parts: List[str] = ["\n"]
+    parts: list[str] = ["\n"]
     if fails:
         parts.append("".join(fails))
     if warnings:
@@ -273,8 +271,8 @@ def _agent_checks(
 
 
 def _skill_checks(content: str, skill_name: str) -> str:
-    fails: List[str] = []
-    warnings: List[str] = []
+    fails: list[str] = []
+    warnings: list[str] = []
 
     def fail(msg: str) -> None:
         fails.append(f"  FAIL: {msg}\n")
@@ -335,14 +333,15 @@ def _skill_checks(content: str, skill_name: str) -> str:
         warn(f"{skill_name}: Missing argument parsing section.")
 
     # 5. Report section for review-related skills (WARN)
-    if _grep_i_matches(content, r"review|audit|fix"):
-        if not _grep_i_matches(content, r"report|summary|output"):
-            warn(f"{skill_name}: Review-related skill missing report/summary section.")
+    if _grep_i_matches(content, r"review|audit|fix") and not _grep_i_matches(
+        content, r"report|summary|output"
+    ):
+        warn(f"{skill_name}: Review-related skill missing report/summary section.")
 
     if not fails and not warnings:
         return ""
 
-    parts: List[str] = ["\n"]
+    parts: list[str] = ["\n"]
     if fails:
         parts.append("".join(fails))
     if warnings:
@@ -374,7 +373,7 @@ def _config_notice(file_path: str) -> str:
     return "".join(parts)
 
 
-def _other_notice(file_path: str) -> Optional[str]:
+def _other_notice(file_path: str) -> str | None:
     """Return the general-repo advisory, or None if the file matches a
     skip pattern (lock/memory/metrics/evals/logs/docs/README)."""
     # The .sh's case pattern uses `*lock*` etc. — matches ANY occurrence

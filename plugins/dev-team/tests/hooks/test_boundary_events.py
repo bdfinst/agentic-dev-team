@@ -26,8 +26,10 @@ import subprocess
 import sys
 from pathlib import Path
 
+import pytest
 
-_REPO_ROOT = Path(__file__).resolve().parents[4]
+from _repo_root import REPO_ROOT as _REPO_ROOT
+
 _PLUGIN_DIR = _REPO_ROOT / "plugins" / "dev-team"
 _HOOKS_DIR = _PLUGIN_DIR / "hooks"
 _LIB_DIR = _HOOKS_DIR / "lib"
@@ -37,8 +39,8 @@ for _p in (_HOOKS_DIR, _LIB_DIR, _TESTS_LIB):
     if str(_p) not in sys.path:
         sys.path.insert(0, str(_p))
 
-import boundary_events  # type: ignore[import-not-found]  # noqa: E402
-from hermetic import hermetic_git_env  # type: ignore[import-not-found]  # noqa: E402
+import boundary_events  # type: ignore[import-not-found]
+from hermetic import hermetic_git_env  # type: ignore[import-not-found]
 
 _DECISION_ENUM = {"block", "warn", "bypass", "intervention", "revert"}
 _SCHEMA_FIELDS = {"ts", "hook", "tool", "decision", "matched_rule", "plugin_version"}
@@ -167,7 +169,14 @@ def test_destructive_guard_warn_emits_boundary_event(tmp_path: Path) -> None:
     assert "Process destruction" in event["matched_rule"]
 
 
+@pytest.mark.xdist_group(name="careful-state-shared-file")
 def test_destructive_guard_block_emits_boundary_event(tmp_path: Path) -> None:
+    # careful-state.json is destructive_guard.py's real, fixed-path state
+    # file, shared with tests/hooks/test_destructive_guard.py and
+    # plugins/dev-team/tests/hooks/test_code_intelligence_nudge.py (same
+    # xdist_group name there). --dist loadgroup (scripts/ci-local.sh) forces
+    # everything in this group onto one worker so they never race on the
+    # shared file across pytest-xdist worker processes.
     careful_state = _HOOKS_DIR / "careful-state.json"
     original = careful_state.read_text() if careful_state.is_file() else None
     try:
@@ -374,8 +383,9 @@ def test_emit_helper_monkeypatched_to_raise_does_not_change_hook_behavior(
     exit code and stdout are unaffected."""
     if str(_HOOKS_DIR) not in sys.path:
         sys.path.insert(0, str(_HOOKS_DIR))
-    import destructive_guard  # type: ignore[import-not-found]  # noqa: E402
     import io
+
+    import destructive_guard  # type: ignore[import-not-found]
 
     def _boom(*_a, **_k):
         raise RuntimeError("telemetry exploded")

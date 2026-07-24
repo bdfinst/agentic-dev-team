@@ -29,12 +29,12 @@ import json
 import subprocess
 import sys
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 _HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(_HERE / "lib"))
 
-import autoship_state  # noqa: E402
+import autoship_state
 
 DEFAULT_LABEL = autoship_state.READY_LABEL
 IN_PROGRESS_LABEL = autoship_state.IN_PROGRESS_LABEL
@@ -136,7 +136,7 @@ def validate_issues(issues: Any) -> None:
             )
 
 
-def load_issues_from_file(path: str) -> List[Dict[str, Any]]:
+def load_issues_from_file(path: str) -> list[dict[str, Any]]:
     """Read and validate the `--input-file` JSON array of issue objects.
 
     Raises `DiscoveryError` on unreadable/malformed JSON or a schema
@@ -153,15 +153,15 @@ def load_issues_from_file(path: str) -> List[Dict[str, Any]]:
     return issues
 
 
-def _label_names(issue: Dict[str, Any]) -> List[str]:
+def _label_names(issue: dict[str, Any]) -> list[str]:
     return [label["name"] for label in issue["labels"]]
 
 
-def _is_epic(issue: Dict[str, Any]) -> bool:
+def _is_epic(issue: dict[str, Any]) -> bool:
     return issue["subIssuesSummary"].get("total", 0) > 0
 
 
-def _has_open_linked_pr(issue: Dict[str, Any]) -> bool:
+def _has_open_linked_pr(issue: dict[str, Any]) -> bool:
     """True when any entry in `closedByPullRequestsReferences` is itself
     still open — a single open PR anywhere in the list excludes the issue,
     even when other entries in the same list are closed/merged."""
@@ -170,7 +170,7 @@ def _has_open_linked_pr(issue: Dict[str, Any]) -> bool:
     )
 
 
-def is_eligible(issue: Dict[str, Any], label: str) -> bool:
+def is_eligible(issue: dict[str, Any], label: str) -> bool:
     """True when `issue` qualifies for autoship dispatch: open, carries
     `label`, is not in-progress/blocked, is not an epic, and has no open
     linked pull request."""
@@ -183,14 +183,12 @@ def is_eligible(issue: Dict[str, Any], label: str) -> bool:
         return False
     if _is_epic(issue):
         return False
-    if _has_open_linked_pr(issue):
-        return False
-    return True
+    return not _has_open_linked_pr(issue)
 
 
 def select_eligible(
-    issues: List[Dict[str, Any]], label: str, max_issues: int
-) -> List[Dict[str, Any]]:
+    issues: list[dict[str, Any]], label: str, max_issues: int
+) -> list[dict[str, Any]]:
     """Filter `issues` to those eligible for autoship dispatch, sorted
     oldest-first by `createdAt` and truncated to `max_issues` (a cap of `0`
     truncates to an empty list, not an error)."""
@@ -199,7 +197,7 @@ def select_eligible(
     return eligible[:max_issues]
 
 
-def render_selection(issues: List[Dict[str, Any]]) -> str:
+def render_selection(issues: list[dict[str, Any]]) -> str:
     """Render the stable stdout contract `/dev-team:autoship` (#992) parses:
     a JSON array of `{number, title}` objects."""
     return json.dumps(
@@ -207,7 +205,7 @@ def render_selection(issues: List[Dict[str, Any]]) -> str:
     )
 
 
-def fetch_issues_from_gh(label: str) -> List[Dict[str, Any]]:
+def fetch_issues_from_gh(label: str) -> list[dict[str, Any]]:
     """Fetch open issues labeled `label` via a live `gh issue list` call,
     using `gh`'s cwd-based repo auto-detection (no `--repo` flag — see the
     plan's Decision-defaults stance).
@@ -260,7 +258,7 @@ def fetch_issues_from_gh(label: str) -> List[Dict[str, Any]]:
     return issues
 
 
-def main(argv: Optional[List[str]] = None) -> int:
+def main(argv: list[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
 

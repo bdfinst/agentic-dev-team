@@ -19,14 +19,13 @@ import os
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import List, Optional, Tuple
 
 _LIB_DIR = Path(__file__).resolve().parent / "lib"
 sys.path.insert(0, str(_LIB_DIR))
 
-from stdin_json import read_stdin_json  # noqa: E402
-from test_file_classify import is_test_file, read_build_phase  # noqa: E402
-from boundary_events import emit_boundary_event as _emit_boundary_event  # noqa: E402
+from boundary_events import emit_boundary_event as _emit_boundary_event
+from stdin_json import read_stdin_json
+from test_file_classify import is_test_file, read_build_phase
 
 
 def emit_boundary_event(*args, **kwargs) -> None:
@@ -34,7 +33,7 @@ def emit_boundary_event(*args, **kwargs) -> None:
     this hook's exit code, stdout, or stderr."""
     try:
         _emit_boundary_event(*args, **kwargs)
-    except Exception:  # noqa: BLE001 - fail-open by design
+    except Exception:  # noqa: BLE001, S110 - fail-open by design
         pass
 
 AUDIT_RELPATH = Path("metrics") / "refactor-freeze.jsonl"
@@ -48,9 +47,9 @@ def audit(
     project_dir: Path,
     hook: str,
     event: str,
-    file: Optional[str] = None,
-    step: Optional[str] = None,
-    reason: Optional[str] = None,
+    file: str | None = None,
+    step: str | None = None,
+    reason: str | None = None,
 ) -> None:
     """Append one JSONL audit line. Best-effort — auditing never crashes a guard."""
     entry = {
@@ -70,7 +69,7 @@ def audit(
         pass
 
 
-def _extract_file_path(payload: Optional[dict]) -> str:
+def _extract_file_path(payload: dict | None) -> str:
     if not isinstance(payload, dict):
         return ""
     tool_input = payload.get("tool_input") or {}
@@ -84,8 +83,8 @@ def _extract_file_path(payload: Optional[dict]) -> str:
 
 
 def evaluate(
-    file_path: str, project_dir: Path, now: Optional[float] = None
-) -> Tuple[int, List[str]]:
+    file_path: str, project_dir: Path, now: float | None = None
+) -> tuple[int, list[str]]:
     """Return (exit_code, stdout_lines) for one Write/Edit decision."""
     if not file_path:
         return 0, []
@@ -99,13 +98,13 @@ def evaluate(
         return 0, []
     step = state.get("step") if isinstance(state.get("step"), str) else None
     audit(project_dir, "freeze", "block", file=file_path, step=step)
-    step_label = " (step {})".format(step) if step else ""
+    step_label = f" (step {step})" if step else ""
     return 2, [
-        "[BLOCK] Tests are frozen during REFACTOR{}.".format(step_label),
+        f"[BLOCK] Tests are frozen during REFACTOR{step_label}.",
         "A refactor step must never change a test — refactoring is",
         "behavior-preserving by definition (tests-frozen invariant, Rec 4,",
         "docs/experiments/RECOMMENDATIONS.md).",
-        "File: {}".format(file_path),
+        f"File: {file_path}",
         "Recovery: leave REFACTOR and return to the TEST phase, make the test",
         "change there, re-verify the full suite green (pasted evidence), then",
         "re-enter REFACTOR.",
@@ -124,8 +123,8 @@ def main() -> int:
                 project_dir, "refactor_test_freeze_guard", "Write", "block",
                 "refactor-test-freeze", session_id,
             )
-    except Exception as exc:  # fail open — a broken guard never blocks work
-        audit(project_dir, "freeze", "fail-open", reason="internal error: {}".format(exc))
+    except Exception as exc:  # noqa: BLE001  # fail open — a broken guard never blocks work
+        audit(project_dir, "freeze", "fail-open", reason=f"internal error: {exc}")
         return 0
     for line in lines:
         print(line)

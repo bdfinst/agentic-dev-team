@@ -13,7 +13,8 @@ import subprocess
 import sys
 from pathlib import Path
 
-REPO_ROOT = Path(__file__).resolve().parents[2]
+from _repo_root import REPO_ROOT
+
 EXTRACT = REPO_ROOT / "scripts" / "session_extract.py"
 PLUGIN = REPO_ROOT / "plugins" / "dev-team"
 
@@ -31,6 +32,7 @@ def _run_transcript(transcript: Path, *extra: str) -> dict:
         ],
         capture_output=True,
         text=True,
+        check=False,
     )
     assert res.returncode == 0, res.stdout + res.stderr
     return json.loads(res.stdout)
@@ -95,6 +97,7 @@ def test_correlate_bypass_sessions_with_more_rework_are_surfaced_111(
         ],
         capture_output=True,
         text=True,
+        check=False,
     )
     assert res.returncode == 0, res.stdout + res.stderr
     data = json.loads(res.stdout)
@@ -127,6 +130,7 @@ def test_correlate_sessions_that_never_committed_are_excluded_111(
         ],
         capture_output=True,
         text=True,
+        check=False,
     )
     data = json.loads(res.stdout)
     assert data["committing_sessions"] == 1  # n1 (no commit) excluded
@@ -154,6 +158,7 @@ def test_slim_trend_and_sync_records_carry_the_gate_block_111(tmp_path: Path) ->
         ],
         capture_output=True,
         text=True,
+        check=False,
     )
     assert res.returncode == 0, res.stdout + res.stderr
     record = json.loads(log.read_text().splitlines()[0])

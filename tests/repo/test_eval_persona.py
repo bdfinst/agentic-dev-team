@@ -13,7 +13,8 @@ from pathlib import Path
 
 import pytest
 
-REPO_ROOT = Path(__file__).resolve().parents[2]
+from _repo_root import REPO_ROOT
+
 PERSONA = REPO_ROOT / "scripts" / "eval_persona.py"
 
 ISSUES = [{"severity": "warning", "message": "x"}]
@@ -74,6 +75,7 @@ def _run(case: Path) -> dict:
         ],
         capture_output=True,
         text=True,
+        check=False,
     )
     assert res.returncode == 0, res.stdout + res.stderr
     return json.loads(res.stdout)

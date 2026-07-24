@@ -22,11 +22,11 @@ from pathlib import Path
 
 import pytest
 
-_REPO_ROOT = Path(__file__).resolve().parents[4]
+from _repo_root import REPO_ROOT as _REPO_ROOT
+
 sys.path.insert(0, str(_REPO_ROOT / "plugins" / "dev-team" / "hooks" / "lib"))
 
-import report_pdf  # noqa: E402
-
+import report_pdf
 
 # ---------------------------------------------------------------------------
 # Fakes
@@ -308,7 +308,7 @@ def test_chrome_cmd_disables_javascript():
     cmd = report_pdf._engine_pdf_cmd(engine, Path("a.html"), Path("out.pdf"))
     assert "--disable-javascript" in cmd
     # the output path is passed absolute so a leading-dash value can't be a flag
-    printed = [a for a in cmd if a.startswith("--print-to-pdf=")][0]
+    printed = next(a for a in cmd if a.startswith("--print-to-pdf="))
     assert printed.split("=", 1)[1].startswith("/")
 
 

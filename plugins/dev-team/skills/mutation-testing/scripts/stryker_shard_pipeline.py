@@ -33,9 +33,9 @@ import subprocess
 import sys
 import threading
 import time
-from datetime import datetime
+from collections.abc import Callable, Sequence
+from datetime import datetime, timezone
 from pathlib import Path
-from typing import Callable, List, Optional, Sequence
 
 import csharp_stryker_net_wrapper as wrapper
 import mutation_report
@@ -71,7 +71,11 @@ class ShardSetupMissing(Exception):
 
 def ts() -> str:
     """Wall-clock ``HH:MM:SS`` stamp for per-shard progress lines."""
-    return datetime.now().strftime("%H:%M:%S")
+    # Local wall-clock time is the point (a human-readable progress line),
+    # not a comparable timestamp — go through UTC-aware then convert back
+    # to the system local zone so the value stays tz-aware for DTZ005
+    # without changing the displayed (local) hour/minute/second.
+    return datetime.now(timezone.utc).astimezone().strftime("%H:%M:%S")
 
 
 def shard_config_path(repo_root: Path, shard: str) -> Path:
@@ -82,7 +86,7 @@ def report_path(out_dir: Path) -> Path:
     return Path(out_dir) / "reports" / "mutation-report.json"
 
 
-def discover_shards(repo_root: Path) -> List[str]:
+def discover_shards(repo_root: Path) -> list[str]:
     """Return shard slugs from ``stryker-config.shard-*.json``, sorted.
 
     Raises :class:`ShardSetupMissing` — naming how to generate the configs —
@@ -131,7 +135,7 @@ GitRunner = Callable[[Sequence[str], Path, bool], object]
 
 
 def worktree_add(
-    repo_root: Path, path: Path, *, ref: str = "HEAD", git_run: Optional[GitRunner] = None
+    repo_root: Path, path: Path, *, ref: str = "HEAD", git_run: GitRunner | None = None
 ) -> None:
     """Create a git worktree at ``path`` from ``ref`` (default ``HEAD``).
 
@@ -146,7 +150,7 @@ def worktree_add(
 
 
 def worktree_remove(
-    repo_root: Path, path: Path, *, git_run: Optional[GitRunner] = None
+    repo_root: Path, path: Path, *, git_run: GitRunner | None = None
 ) -> None:
     git_run = git_run or _git
     git_run(["git", "worktree", "remove", "--force", str(path)], repo_root, False)
@@ -166,7 +170,7 @@ def run_shard_stryker(
     out_dir: Path,
     stryker_bin: str,
     log: Callable[[str], None] = print,
-    run_stryker: Optional[StrykerRunner] = None,
+    run_stryker: StrykerRunner | None = None,
 ) -> bool:
     """Run Stryker for one shard in its worktree. Returns True on success.
 
@@ -208,7 +212,7 @@ def run_shard_stryker(
 # ── Survivor-fix launch (forced --headless) ─────────────────────────────────────
 
 
-def survivor_source_files(report: Path) -> List[str]:
+def survivor_source_files(report: Path) -> list[str]:
     """Return the source-file keys in the report that have Survived mutants.
 
     Report parsing and the ``Survived`` status vocabulary live in
@@ -217,18 +221,18 @@ def survivor_source_files(report: Path) -> List[str]:
     return mutation_report.files_with_survivors(report)
 
 
-def shard_test_projects(config_path: Path) -> List[str]:
+def shard_test_projects(config_path: Path) -> list[str]:
     raw = json.loads(Path(config_path).read_text(encoding="utf-8"))
     inner = raw.get("stryker-config", raw)
     return list(inner.get("test-projects", []))
 
 
-TestFileResolver = Callable[[str, Sequence[str], Path], Optional[Path]]
+TestFileResolver = Callable[[str, Sequence[str], Path], Path | None]
 
 
 def default_resolve_test_file(
     source: str, test_projects: Sequence[str], repo_root: Path
-) -> Optional[Path]:
+) -> Path | None:
     """Best-effort convention search for a source file's test file.
 
     Looks under each configured test-project directory for
@@ -253,9 +257,9 @@ def build_loop_command(
     source_path: str,
     test_file: Path,
     report: Path,
-    model: Optional[str],
+    model: str | None,
     max_rounds: int,
-) -> List[str]:
+) -> list[str]:
     """Build the ``mutation_kill_loop`` invocation. ``--headless`` is forced —
     the pipeline is unattended and can never depend on a live agent turn."""
     cmd = [
@@ -286,10 +290,10 @@ def launch_survivor_fix(
     repo_root: Path,
     out_dir: Path,
     config_path: Path,
-    model: Optional[str],
+    model: str | None,
     max_rounds: int,
     run: Callable[..., object] = subprocess.run,
-    resolve_test_file: Optional[TestFileResolver] = None,
+    resolve_test_file: TestFileResolver | None = None,
     log: Callable[[str], None] = print,
 ) -> None:
     """Launch the forced-headless survivor-fix loop for a shard's survivors.
@@ -331,7 +335,7 @@ def launch_survivor_fix(
 # ── Resume (skip-existing wins over max-age) ────────────────────────────────────
 
 
-def report_age_seconds(out_dir: Path) -> Optional[float]:
+def report_age_seconds(out_dir: Path) -> float | None:
     rp = report_path(out_dir)
     if not rp.exists():
         return None
@@ -397,17 +401,17 @@ def process_shard(
     worktree_base: Path,
     shard_out_base: Path,
     stryker_bin: str,
-    model: Optional[str],
+    model: str | None,
     max_rounds: int,
     skip_agent: bool,
     skip_existing: bool,
     max_age_hours: float,
     log: Callable[[str], None] = print,
-    run_stryker: Optional[StrykerRunner] = None,
+    run_stryker: StrykerRunner | None = None,
     run: Callable[..., object] = subprocess.run,
-    resolve_test_file: Optional[TestFileResolver] = None,
-    git_run: Optional[GitRunner] = None,
-    events: Optional[List[tuple]] = None,
+    resolve_test_file: TestFileResolver | None = None,
+    git_run: GitRunner | None = None,
+    events: list[tuple] | None = None,
 ) -> str:
     """Process one shard end to end. Returns ``"ok"`` / ``"failed"`` /
     ``"skipped"``. ``events`` (when supplied) records the worktree-creation and
@@ -468,21 +472,21 @@ def run_all(
     worktree_base: Path,
     shard_out_base: Path,
     stryker_bin: str,
-    model: Optional[str],
+    model: str | None,
     max_rounds: int,
     skip_agent: bool,
     skip_existing: bool,
     max_age_hours: float,
     log: Callable[[str], None] = print,
-    run_stryker: Optional[StrykerRunner] = None,
+    run_stryker: StrykerRunner | None = None,
     run: Callable[..., object] = subprocess.run,
-    resolve_test_file: Optional[TestFileResolver] = None,
-    git_run: Optional[GitRunner] = None,
-    events: Optional[List[tuple]] = None,
-) -> List[str]:
+    resolve_test_file: TestFileResolver | None = None,
+    git_run: GitRunner | None = None,
+    events: list[tuple] | None = None,
+) -> list[str]:
     """Process every shard **sequentially** (compounding depends on ordering).
     Returns the list of failed shards."""
-    failed: List[str] = []
+    failed: list[str] = []
     for shard in shards:
         result = process_shard(
             shard,
@@ -542,7 +546,7 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def main(argv: Optional[Sequence[str]] = None) -> int:
+def main(argv: Sequence[str] | None = None) -> int:
     args = build_parser().parse_args(list(sys.argv[1:] if argv is None else argv))
     repo_root = Path(args.repo_root).resolve() if args.repo_root else Path.cwd()
 

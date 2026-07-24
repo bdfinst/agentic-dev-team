@@ -11,13 +11,12 @@ bats -> pytest).
 from __future__ import annotations
 
 import re
-from pathlib import Path
 
 import pytest
-
 from _stack_aware_helpers import BANNED_TOKENS_RE, body_only
 
-REPO_ROOT = Path(__file__).resolve().parents[2]
+from _repo_root import REPO_ROOT
+
 TARGET = REPO_ROOT / "plugins" / "dev-team" / "agents" / "test-smell-review.md"
 
 

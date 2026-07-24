@@ -14,7 +14,7 @@ _HARNESS_DIR = Path(__file__).resolve().parents[2] / "evals" / "code-review-benc
 if str(_HARNESS_DIR) not in sys.path:
     sys.path.insert(0, str(_HARNESS_DIR))
 
-from adapters.common import unified_diff_hunks  # noqa: E402
+from adapters.common import unified_diff_hunks
 
 _FIXTURES = _HARNESS_DIR / "fixtures"
 

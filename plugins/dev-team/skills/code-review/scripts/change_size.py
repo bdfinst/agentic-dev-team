@@ -49,7 +49,8 @@ from __future__ import annotations
 import argparse
 import json
 import sys
-from typing import Iterable, List, NamedTuple, Tuple
+from collections.abc import Iterable
+from typing import NamedTuple
 
 # Thresholds calibrated against two real commits cited in spec #1345:
 # issue #1331's fix (2 files, ~1 added line — should qualify) and issue
@@ -92,7 +93,7 @@ class NumstatResult(NamedTuple):
     file_count: int
     added_lines: int
     ok: bool
-    files: Tuple[str, ...]
+    files: tuple[str, ...]
 
 
 def parse_numstat(lines: Iterable[str]) -> NumstatResult:
@@ -103,7 +104,7 @@ def parse_numstat(lines: Iterable[str]) -> NumstatResult:
     deleted fields aren't parseable as non-negative integers (or `-`), marks
     the whole result not-ok (fail-safe — a partial read is not "small").
     """
-    files: List[str] = []
+    files: list[str] = []
     added_total = 0
     ok = True
     for raw in lines:
@@ -155,9 +156,7 @@ def qualifies_for_fast_path(result: NumstatResult) -> bool:
         return False
     if result.added_lines > MAX_ADDED_LINES:
         return False
-    if any(is_gate_machinery(f) for f in result.files):
-        return False
-    return True
+    return not any(is_gate_machinery(f) for f in result.files)
 
 
 def evaluate(lines: Iterable[str]) -> dict:
@@ -186,11 +185,11 @@ def main(argv=None) -> int:
 
     lines = list(args.numstat)
     if args.numstat_from:
-        text = (
-            sys.stdin.read()
-            if args.numstat_from == "-"
-            else open(args.numstat_from).read()
-        )
+        if args.numstat_from == "-":
+            text = sys.stdin.read()
+        else:
+            with open(args.numstat_from) as handle:
+                text = handle.read()
         lines.extend(line for line in text.splitlines() if line.strip())
 
     print(json.dumps(evaluate(lines), sort_keys=True))
@@ -202,12 +201,12 @@ if __name__ == "__main__":
 
 
 __all__ = (
-    "MAX_FILES",
-    "MAX_ADDED_LINES",
     "FAST_PATH_AGENTS",
+    "MAX_ADDED_LINES",
+    "MAX_FILES",
     "NumstatResult",
-    "parse_numstat",
-    "is_gate_machinery",
-    "qualifies_for_fast_path",
     "evaluate",
+    "is_gate_machinery",
+    "parse_numstat",
+    "qualifies_for_fast_path",
 )

@@ -14,7 +14,8 @@ from pathlib import Path
 
 import pytest
 
-REPO_ROOT = Path(__file__).resolve().parents[2]
+from _repo_root import REPO_ROOT
+
 EXTRACT = REPO_ROOT / "scripts" / "session_extract.py"
 PLUGIN = REPO_ROOT / "plugins" / "dev-team"
 
@@ -55,6 +56,7 @@ def _esc(digests: Path, *extra: str) -> dict:
             str(PLUGIN),
             *extra,
         ],
+        check=False,
         capture_output=True,
         text=True,
     )

@@ -10,14 +10,13 @@ SCRIPTS_DIR = Path(__file__).parent.parent.parent / "scripts"
 SCRIPT = SCRIPTS_DIR / "test_improve_resume.py"
 sys.path.insert(0, str(SCRIPTS_DIR))
 
-from test_improve_resume import (  # noqa: E402
+from test_improve_resume import (
     build_result,
     derive_slug,
     main,
     scan_phase_files,
     slugify,
 )
-
 
 # ---------------------------------------------------------------------------
 # helpers
@@ -208,6 +207,7 @@ def test_cli_via_memory_dir(tmp_path, capsys):
 def test_cli_error_exit_code(tmp_path):
     proc = subprocess.run(
         [sys.executable, str(SCRIPT), "--memory-dir", str(tmp_path / "nope")],
+        check=False,
         capture_output=True,
         text=True,
     )

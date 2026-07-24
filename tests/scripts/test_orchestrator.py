@@ -18,8 +18,7 @@ import pytest
 SCRIPTS = Path(__file__).resolve().parents[2] / "scripts"
 sys.path.insert(0, str(SCRIPTS))
 
-import orchestrator as orch  # noqa: E402
-
+import orchestrator as orch
 
 # ---------------------------------------------------------------------------
 # Step 6.1 — Task classification and fast-path branch

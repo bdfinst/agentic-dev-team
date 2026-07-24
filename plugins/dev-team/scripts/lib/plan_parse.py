@@ -21,9 +21,9 @@ from __future__ import annotations
 import argparse
 import re
 import sys
+from collections.abc import Iterable
 from pathlib import Path
-from typing import Dict, Iterable, List, Optional, TextIO, Tuple
-
+from typing import TextIO
 
 _SLICE_RE = re.compile(r"^#+\s+[Ss]lice\s+([^:]+)")
 _SLICE_HEADING_RE = re.compile(r"^#{1,3}\s+[Ss]lice\s+([^:]+):\s*(.*)$")
@@ -61,7 +61,7 @@ def _clean_value(raw: str) -> str:
     return value
 
 
-def _parse_invariant_commands(raw: str) -> List[str]:
+def _parse_invariant_commands(raw: str) -> list[str]:
     """Split an `**Invariants:**` value into individual shell commands.
 
     Each command is expected to be its own backtick-quoted token
@@ -94,9 +94,9 @@ def _slice_id(header_line: str) -> str:
     return tail.split(":", 1)[0].strip()
 
 
-def parse_slices(lines: Iterable[str]) -> List[Tuple[str, str, str]]:
+def parse_slices(lines: Iterable[str]) -> list[tuple[str, str, str]]:
     """Return a list of `(id, depends, files)` rows in source order."""
-    rows: List[Tuple[str, str, str]] = []
+    rows: list[tuple[str, str, str]] = []
 
     current_id: str = ""
     deps: str = ""
@@ -148,7 +148,7 @@ def parse_slices(lines: Iterable[str]) -> List[Tuple[str, str, str]]:
     return rows
 
 
-def parse_slice_optional_fields(lines: Iterable[str]) -> Dict[str, Dict[str, object]]:
+def parse_slice_optional_fields(lines: Iterable[str]) -> dict[str, dict[str, object]]:
     """Return `{slice_id: {"invariants": [...], "rollback_point": str}}`.
 
     Collects the two new (#865) optional slice-level fields — `**Invariants:**`
@@ -157,10 +157,10 @@ def parse_slice_optional_fields(lines: Iterable[str]) -> Dict[str, Dict[str, obj
     A slice missing either field simply has an empty list / empty string in
     its entry; this is purely additive and never raises.
     """
-    result: Dict[str, Dict[str, object]] = {}
+    result: dict[str, dict[str, object]] = {}
 
     current_id: str = ""
-    invariants: List[str] = []
+    invariants: list[str] = []
     rollback: str = ""
     in_step: bool = False
 
@@ -206,7 +206,7 @@ def parse_slice_optional_fields(lines: Iterable[str]) -> Dict[str, Dict[str, obj
     return result
 
 
-def parse_step_files(lines: Iterable[str]) -> Dict[str, List[str]]:
+def parse_step_files(lines: Iterable[str]) -> dict[str, list[str]]:
     """Return `{slice_id: [raw per-step Files values...]}` — the *inferred*
     write set (#865). Each entry is the list of raw `**Files**:` line values
     found under that slice's `#### Step` headings, in source order and
@@ -217,7 +217,7 @@ def parse_step_files(lines: Iterable[str]) -> Dict[str, List[str]]:
     collect *after* a step heading, so the two never double-count the same
     line.
     """
-    result: Dict[str, List[str]] = {}
+    result: dict[str, list[str]] = {}
 
     current_id: str = ""
     in_step: bool = False
@@ -247,14 +247,14 @@ def parse_step_files(lines: Iterable[str]) -> Dict[str, List[str]]:
     return result
 
 
-def step_files_union(lines: Iterable[str]) -> Dict[str, List[str]]:
+def step_files_union(lines: Iterable[str]) -> dict[str, list[str]]:
     """Return `{slice_id: sorted [tokenized inferred files]}` — the union of
     per-step `**Files**:` tokens for each slice, deduplicated and sorted.
     Convenience wrapper around `parse_step_files` for callers (`plan_waves.py`)
     that want the tokenized set directly rather than raw per-line values.
     """
     raw = parse_step_files(lines)
-    unioned: Dict[str, List[str]] = {}
+    unioned: dict[str, list[str]] = {}
     for slice_id, values in raw.items():
         tokens: set = set()
         for value in values:
@@ -269,12 +269,12 @@ class _SliceSection:
     def __init__(self, slice_id: str, title: str) -> None:
         self.slice_id = slice_id
         self.title = title
-        self.gherkin: Optional[str] = None
+        self.gherkin: str | None = None
 
     def wants_gherkin(self) -> bool:
         return self.gherkin is None
 
-    def row(self) -> Tuple[str, str, Optional[str]]:
+    def row(self) -> tuple[str, str, str | None]:
         return (self.slice_id, self.title, self.gherkin)
 
 
@@ -284,14 +284,14 @@ class _FenceState:
     def __init__(self) -> None:
         self.active = False
         self._collecting = False
-        self._lines: List[str] = []
+        self._lines: list[str] = []
 
     def enter(self, line: str, wants_gherkin: bool) -> None:
         self.active = True
         self._collecting = wants_gherkin and line[3:].strip().lower() == "gherkin"
         self._lines = []
 
-    def consume(self, line: str) -> Optional[str]:
+    def consume(self, line: str) -> str | None:
         """Advance one in-fence line; return the collected block (with one
         trailing newline) when a collecting fence closes, else None."""
         if line.startswith("```"):
@@ -307,7 +307,7 @@ class _FenceState:
 
 def slice_gherkin_blocks(
     lines: Iterable[str],
-) -> List[Tuple[str, str, Optional[str]]]:
+) -> list[tuple[str, str, str | None]]:
     """Return `(id, title, gherkin)` per `### Slice <id>: <title>` heading.
 
     `gherkin` is the raw content of the slice's first fenced ```gherkin
@@ -324,8 +324,8 @@ def slice_gherkin_blocks(
     they diverge only on malformed input, where the exporter's stricter
     read is the safer one.
     """
-    blocks: List[Tuple[str, str, Optional[str]]] = []
-    current: Optional[_SliceSection] = None
+    blocks: list[tuple[str, str, str | None]] = []
+    current: _SliceSection | None = None
     fence = _FenceState()
 
     for raw in lines:
@@ -365,12 +365,11 @@ def plan_parse(path: Path) -> str:
     return "".join(f"{sid}\t{deps}\t{files}\n" for sid, deps, files in rows)
 
 
-def _write_rows(rows: List[Tuple[str, str, str]], stream: TextIO) -> None:
-    for sid, deps, files in rows:
-        stream.write(f"{sid}\t{deps}\t{files}\n")
+def _write_rows(rows: list[tuple[str, str, str]], stream: TextIO) -> None:
+    stream.writelines(f"{sid}\t{deps}\t{files}\n" for sid, deps, files in rows)
 
 
-def main(argv: Optional[List[str]] = None) -> int:
+def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         prog="plan_parse.py",
         description="Extract slice (id, Depends-on, Files) tuples from a plan markdown.",

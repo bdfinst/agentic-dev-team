@@ -10,7 +10,7 @@ import pytest
 SKILL_DIR = Path(__file__).resolve().parents[2] / "skills" / "long-eval"
 sys.path.insert(0, str(SKILL_DIR))
 
-import durable_runner  # noqa: E402
+import durable_runner
 
 
 def _load(name):

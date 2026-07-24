@@ -20,8 +20,6 @@ import json
 import re
 import sys
 from pathlib import Path
-from typing import List
-
 
 # Suffixes that trigger the check.
 _JS_TS_EXT = (".js", ".ts", ".jsx", ".tsx")
@@ -83,8 +81,8 @@ def _extract_file_path(payload: dict) -> str:
 
 
 def _matching_lines(
-    text: str, include: re.Pattern, exclude_patterns: List[re.Pattern]
-) -> List[str]:
+    text: str, include: re.Pattern, exclude_patterns: list[re.Pattern]
+) -> list[str]:
     """Return `grep -n INCLUDE | grep -v EXCLUDE...`-formatted lines.
 
     Emulates `grep -n` exactly: 1-indexed line numbers separated by `:`,
@@ -95,7 +93,7 @@ def _matching_lines(
     apply excludes (including the comment filter) to the prefixed string,
     not the raw line.
     """
-    matches: List[str] = []
+    matches: list[str] = []
     for idx, line in enumerate(text.splitlines(), start=1):
         if not include.search(line):
             continue
@@ -113,7 +111,7 @@ def _matching_lines(
     return matches
 
 
-def _lines_from_matches(matches: List[str]) -> str:
+def _lines_from_matches(matches: list[str]) -> str:
     """Join with newlines; empty string when there are no matches."""
     if not matches:
         return ""

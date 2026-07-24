@@ -21,7 +21,6 @@ import subprocess
 import sys
 from dataclasses import dataclass
 from pathlib import Path
-from typing import List, Optional
 
 sys.path.insert(0, str(Path(__file__).parent))
 from lib.review_result import build_result, main_exit, make_issue, skipped_llm_warning
@@ -49,7 +48,7 @@ BACKTICK_DIR_RE = re.compile(r"`([^`\s]+/)`")
 SLICE_FILES_RE = re.compile(r"^\*\*Files:\*\*\s*(.+)$")
 
 
-def _extract_declared_paths(text: str) -> List[str]:
+def _extract_declared_paths(text: str) -> list[str]:
     """Return backtick-quoted file paths and directory paths declared in
     text: exact file paths (ending in a dot-extension) plus directory
     declarations (ending in '/'). A directory declaration means "this
@@ -73,9 +72,7 @@ def _is_path_declared(file_path: str, declared_paths) -> bool:
         if declared.endswith("/"):
             if file_path.startswith(declared):
                 return True
-        elif file_path == declared:
-            return True
-        elif any(ch in declared for ch in "*?[") and fnmatch.fnmatch(
+        elif file_path == declared or any(ch in declared for ch in "*?[") and fnmatch.fnmatch(
             file_path, declared
         ):
             return True
@@ -98,7 +95,7 @@ class Step:
 # ---------------------------------------------------------------------------
 
 
-def run_git(args: List[str], cwd: str) -> str:
+def run_git(args: list[str], cwd: str) -> str:
     """Run a git command in cwd, return stdout. Returns '' on failure."""
     try:
         result = subprocess.run(
@@ -106,6 +103,7 @@ def run_git(args: List[str], cwd: str) -> str:
             capture_output=True,
             text=True,
             cwd=cwd,
+            check=False,
         )
         return result.stdout
     except (FileNotFoundError, OSError):
@@ -117,7 +115,7 @@ def run_git(args: List[str], cwd: str) -> str:
 # ---------------------------------------------------------------------------
 
 
-def parse_plan(path: Path) -> tuple[List[Step], List[dict]]:
+def parse_plan(path: Path) -> tuple[list[Step], list[dict]]:
     """Parse plan file and return (steps, errors).
 
     Scopes checkbox parsing with two flags when a Build Progress section
@@ -153,7 +151,7 @@ def parse_plan(path: Path) -> tuple[List[Step], List[dict]]:
         line.rstrip().startswith("## Build Progress") for line in lines
     )
 
-    steps: List[Step] = []
+    steps: list[Step] = []
     in_build_progress = not has_build_progress  # legacy plans: scan everything
     in_acceptance = False
     for raw in lines:
@@ -198,7 +196,7 @@ def parse_plan(path: Path) -> tuple[List[Step], List[dict]]:
     return steps, []
 
 
-def _parse_slice_files(plan_text: str, slice_header: str) -> List[str]:
+def _parse_slice_files(plan_text: str, slice_header: str) -> list[str]:
     """Return backtick-quoted paths from the `**Files:**` line declared
     under the slice identified by `slice_header`. Empty list when not found.
 
@@ -226,7 +224,7 @@ def _parse_slice_files(plan_text: str, slice_header: str) -> List[str]:
             continue
         if not in_block:
             continue
-        if line.startswith("## ") or line.startswith("### "):
+        if line.startswith(("## ", "### ")):
             break
         fm = SLICE_FILES_RE.match(line)
         if fm:
@@ -247,7 +245,7 @@ def _parse_slice_files(plan_text: str, slice_header: str) -> List[str]:
                 break
         if not in_block:
             continue
-        if line.startswith("## ") or line.startswith("### "):
+        if line.startswith(("## ", "### ")):
             break
         fm = SLICE_FILES_RE.match(line)
         if fm:
@@ -255,7 +253,7 @@ def _parse_slice_files(plan_text: str, slice_header: str) -> List[str]:
     return []
 
 
-def _branch_base_sha(repo_root: str) -> Optional[str]:
+def _branch_base_sha(repo_root: str) -> str | None:
     """Resolve the branch base SHA (the merge-base with trunk).
 
     Prefers remote tracking refs over local refs — local main lags
@@ -273,8 +271,8 @@ def _branch_base_sha(repo_root: str) -> Optional[str]:
 
 
 def check_commit_discipline(
-    steps: List[Step], repo_root: str, plan_text: str = ""
-) -> List[dict]:
+    steps: list[Step], repo_root: str, plan_text: str = ""
+) -> list[dict]:
     """For each done step, verify a matching commit exists on this branch.
 
     Two strategies, tried in order per step:
@@ -330,7 +328,7 @@ def check_commit_discipline(
         )
     branch_files = {p for p in diff_out.strip().splitlines() if p.strip()}
 
-    errors: List[dict] = []
+    errors: list[dict] = []
     for step in done_steps:
         declared = _parse_slice_files(plan_text, step.header) if plan_text else []
         if declared:
@@ -374,8 +372,8 @@ def check_commit_discipline(
 
 
 def check_uncommitted(
-    repo_root: str, exclude_paths: Optional[List[str]] = None
-) -> List[dict]:
+    repo_root: str, exclude_paths: list[str] | None = None
+) -> list[dict]:
     """Check for staged or unstaged changes. Returns an error if any exist.
 
     exclude_paths: relative or absolute paths to ignore (e.g. the plan file itself).
@@ -414,9 +412,9 @@ def check_uncommitted(
     return []
 
 
-def check_pre_pr(steps: List[Step]) -> List[dict]:
+def check_pre_pr(steps: list[Step]) -> list[dict]:
     """Assert all steps are done (checked). Returns error for each undone step."""
-    errors: List[dict] = []
+    errors: list[dict] = []
     for step in steps:
         if not step.done:
             errors.append(
@@ -508,7 +506,7 @@ def _is_doc_or_config_file(path: str) -> bool:
     return Path(path).suffix.lower() in _DOC_CONFIG_SUFFIXES
 
 
-def has_runtime_surface(changed_files: List[str], repo_root: str) -> bool:
+def has_runtime_surface(changed_files: list[str], repo_root: str) -> bool:
     """True when at least one changed file is neither a test file nor a
     docs/config file — i.e. there is something for /verify to exercise.
     """
@@ -518,7 +516,7 @@ def has_runtime_surface(changed_files: List[str], repo_root: str) -> bool:
     )
 
 
-def _collect_branch_changed_files(repo_root: str) -> List[str]:
+def _collect_branch_changed_files(repo_root: str) -> list[str]:
     """All files changed on this branch: the committed diff since the
     branch base, plus any currently uncommitted (staged/unstaged) files.
     Mirrors check_scope's branch-scope resolution (issue #727).
@@ -546,7 +544,7 @@ def _collect_branch_changed_files(repo_root: str) -> List[str]:
     return sorted(changed_files)
 
 
-def check_verify_log(repo_root: str, changed_files: List[str]) -> List[dict]:
+def check_verify_log(repo_root: str, changed_files: list[str]) -> list[dict]:
     """Pre-PR gate (issue #727): if the branch touches any runtime-surface
     file (not exclusively tests/docs/config), require at least one entry
     in metrics/verify-log.jsonl for the current branch — evidence that
@@ -560,7 +558,7 @@ def check_verify_log(repo_root: str, changed_files: List[str]) -> List[dict]:
     branch = run_git(["rev-parse", "--abbrev-ref", "HEAD"], repo_root).strip()
     log_path = Path(repo_root) / VERIFY_LOG_PATH
 
-    entries: List[dict] = []
+    entries: list[dict] = []
     if log_path.exists():
         for raw_line in log_path.read_text(encoding="utf-8").splitlines():
             raw_line = raw_line.strip()
@@ -592,7 +590,7 @@ def check_verify_log(repo_root: str, changed_files: List[str]) -> List[dict]:
     ]
 
 
-def _all_slice_headers(steps: List[Step]) -> List[str]:
+def _all_slice_headers(steps: list[Step]) -> list[str]:
     """Return the subset of Build Progress checkbox headers that are slice
     headers (`"Slice N: <title>"`), not step headers — the shape
     `_parse_slice_files` expects (issue #865 AC8)."""
@@ -600,8 +598,8 @@ def _all_slice_headers(steps: List[Step]) -> List[str]:
 
 
 def check_declared_scope_adherence(
-    steps: List[Step], plan_path: Path, repo_root: str, plan_text: str
-) -> List[dict]:
+    steps: list[Step], plan_path: Path, repo_root: str, plan_text: str
+) -> list[dict]:
     """Issue #865 AC8: compare the branch diff against the union of every
     slice's declared `**Files:**` scope (fnmatch-aware, glob-capable).
 
@@ -615,7 +613,7 @@ def check_declared_scope_adherence(
     *all* backtick-quoted paths in the plan prose). A plan with no slice
     declaring `**Files:**` has nothing to compare against and returns `[]`.
     """
-    declared: List[str] = []
+    declared: list[str] = []
     for header in _all_slice_headers(steps):
         declared.extend(_parse_slice_files(plan_text, header))
     if not declared:
@@ -656,7 +654,7 @@ def check_declared_scope_adherence(
     ]
 
 
-def check_scope(plan_path: Path, repo_root: str, skip_llm: bool) -> List[dict]:
+def check_scope(plan_path: Path, repo_root: str, skip_llm: bool) -> list[dict]:
     """Detect files in the branch diff that aren't declared in the plan.
 
     Declared paths are backtick-quoted filenames in the plan text.
@@ -752,6 +750,7 @@ def check_scope(plan_path: Path, repo_root: str, skip_llm: bool) -> List[dict]:
             capture_output=True,
             text=True,
             timeout=60,
+            check=False,
         )
         if result.returncode != 0 or not result.stdout.strip():
             return [
@@ -789,7 +788,7 @@ def check_scope(plan_path: Path, repo_root: str, skip_llm: bool) -> List[dict]:
 # ---------------------------------------------------------------------------
 
 
-def main(argv: Optional[List[str]] = None) -> int:
+def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         description="Validate plan step completion and commit discipline."
     )
@@ -827,8 +826,8 @@ def main(argv: Optional[List[str]] = None) -> int:
     ).strip()
     repo_root = repo_root_output if repo_root_output else str(plan_path.parent)
 
-    errors: List[dict] = []
-    warnings: List[dict] = []
+    errors: list[dict] = []
+    warnings: list[dict] = []
 
     # 1. Parse plan checkboxes
     steps, parse_errors = parse_plan(plan_path)

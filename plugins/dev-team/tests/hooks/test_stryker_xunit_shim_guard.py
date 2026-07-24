@@ -15,7 +15,8 @@ from pathlib import Path
 
 import pytest
 
-_REPO_ROOT = Path(__file__).resolve().parents[4]
+from _repo_root import REPO_ROOT as _REPO_ROOT
+
 _HOOK = _REPO_ROOT / "plugins" / "dev-team" / "hooks" / "stryker_xunit_shim_guard.py"
 
 _V3_CSPROJ = """<Project Sdk="Microsoft.NET.Sdk">
@@ -41,7 +42,7 @@ _V2_SHIM_CSPROJ = """<Project Sdk="Microsoft.NET.Sdk">
 """
 
 
-def _run(payload: dict, extra_env: dict = None) -> subprocess.CompletedProcess:
+def _run(payload: dict, extra_env: dict | None = None) -> subprocess.CompletedProcess:
     proc_env = {
         "PATH": os.environ.get("PATH", "/usr/bin:/bin"),
         "HOME": os.environ.get("HOME", "/tmp"),

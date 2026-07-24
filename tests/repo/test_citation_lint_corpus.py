@@ -21,9 +21,9 @@ from __future__ import annotations
 
 import subprocess
 import sys
-from pathlib import Path
 
-REPO_ROOT = Path(__file__).resolve().parents[2]
+from _repo_root import REPO_ROOT
+
 LINT = REPO_ROOT / "scripts" / "citation_lint.py"
 PLUGIN_ROOT = REPO_ROOT / "plugins" / "dev-team"
 
@@ -51,6 +51,7 @@ def _run_lint() -> subprocess.CompletedProcess:
         ],
         capture_output=True,
         text=True,
+        check=False,
     )
 
 

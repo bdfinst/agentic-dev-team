@@ -1,5 +1,6 @@
 """Negative fixture — should produce zero matches."""
 import os
+
 from anthropic import Anthropic
 
 

@@ -81,6 +81,7 @@ def _run_validate(env_extra: dict[str, str]) -> subprocess.CompletedProcess:
         capture_output=True,
         text=True,
         timeout=30,
+        check=False,
     )
 
 
@@ -95,6 +96,7 @@ def _run_orchestrator(env_extra: dict[str, str]) -> subprocess.CompletedProcess:
             capture_output=True,
             text=True,
             timeout=60,
+            check=False,
         )
 
 

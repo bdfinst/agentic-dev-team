@@ -30,7 +30,7 @@ PLUGIN_AGENTS_DIRS = [
 ]
 
 
-def _split_frontmatter(text: str) -> "tuple[str, str]":
+def _split_frontmatter(text: str) -> tuple[str, str]:
     """Split raw file text into (frontmatter_block, body) at the `---` fences.
     Shared by frontmatter_block() and frontmatter_and_body() so the fence-scan
     rule lives in exactly one place. Returns ("", text) if the text has no
@@ -68,7 +68,7 @@ def frontmatter_field(fm: str, field: str) -> str:
     return value.strip().strip("\"'").strip()
 
 
-def frontmatter_and_body(agent_file: Path) -> "tuple[str, str]":
+def frontmatter_and_body(agent_file: Path) -> tuple[str, str]:
     """Read an agent file once and return (frontmatter_block, body) -- a
     single-read counterpart to calling frontmatter_block() and a separate
     body-read on the same file (each does its own read_text(), an N+1 for

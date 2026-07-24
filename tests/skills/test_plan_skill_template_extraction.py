@@ -6,9 +6,8 @@ keeps the always-loaded SKILL.md small and the template available on demand.
 
 from __future__ import annotations
 
-from pathlib import Path
+from _repo_root import REPO_ROOT
 
-REPO_ROOT = Path(__file__).resolve().parents[2]
 SKILL_MD = REPO_ROOT / "plugins" / "dev-team" / "skills" / "plan" / "SKILL.md"
 TEMPLATE_MD = (
     REPO_ROOT

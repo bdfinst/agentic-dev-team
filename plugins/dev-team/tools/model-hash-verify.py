@@ -71,7 +71,7 @@ def load_manifest(path: Path) -> dict[str, str]:
     with path.open(encoding="utf-8") as f:
         raw = json.load(f)
     if not isinstance(raw, dict):
-        raise ValueError("manifest must be a JSON object of path->sha256")
+        raise TypeError("manifest must be a JSON object of path->sha256")
     return {str(k): str(v).strip().lower() for k, v in raw.items()}
 
 
@@ -198,7 +198,7 @@ def main() -> int:
             return 2
         try:
             manifest = load_manifest(args.manifest)
-        except (ValueError, json.JSONDecodeError) as e:
+        except (TypeError, json.JSONDecodeError) as e:
             print(f"model-hash-verify: manifest is invalid: {e}", file=sys.stderr)
             return 2
 

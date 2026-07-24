@@ -22,7 +22,7 @@ from __future__ import annotations
 import json
 import sys
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any
 from unittest.mock import patch
 
 import pytest
@@ -31,7 +31,7 @@ _HARNESS_DIR = Path(__file__).resolve().parents[2] / "evals" / "code-review-benc
 if str(_HARNESS_DIR) not in sys.path:
     sys.path.insert(0, str(_HARNESS_DIR))
 
-import cli  # noqa: E402
+import cli
 
 
 def test_timeout_default_is_1800() -> None:
@@ -117,11 +117,11 @@ class _FakeCase:
         self.bug_id = bug_id
 
 
-def _fake_list_bugs(project: str, home: str) -> List[_FakeCase]:
+def _fake_list_bugs(project: str, home: str) -> list[_FakeCase]:
     return [_FakeCase(str(n)) for n in range(1, 6)]  # bug ids "1".."5"
 
 
-def _fake_list_projects(home: str) -> List[str]:
+def _fake_list_projects(home: str) -> list[str]:
     return ["Lang"]
 
 
@@ -230,7 +230,7 @@ class _FullFakeCase:
     def __init__(self, bug_id: str) -> None:
         self.bug_id = bug_id
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "dataset": "defects4j",
             "project": "Lang",
@@ -243,7 +243,7 @@ class _FullFakeCase:
         }
 
 
-def _fake_list_bugs_full(project: str, home: str) -> List[_FullFakeCase]:
+def _fake_list_bugs_full(project: str, home: str) -> list[_FullFakeCase]:
     return [_FullFakeCase(str(n)) for n in range(1, 6)]  # bug ids "1".."5"
 
 
@@ -304,9 +304,7 @@ def test_pre_sweep_estimate_skipped_when_resume_leaves_zero_pending(
     pre-seeding results.jsonl with every case _fake_list_bugs_full produces."""
     results_dir = tmp_path
     with open(results_dir / "results.jsonl", "w", encoding="utf-8") as fh:
-        for n in range(1, 6):
-            fh.write(
-                json.dumps(
+        fh.writelines(json.dumps(
                     {
                         "dataset": "defects4j",
                         "project": "Lang",
@@ -315,8 +313,7 @@ def test_pre_sweep_estimate_skipped_when_resume_leaves_zero_pending(
                         "hit": True,
                     }
                 )
-                + "\n"
-            )
+                + "\n" for n in range(1, 6))
 
     called = []
     monkeypatch.setattr(

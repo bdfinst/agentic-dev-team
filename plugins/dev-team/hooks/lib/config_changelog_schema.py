@@ -24,7 +24,7 @@ pass in the fixtured-agent set (e.g. from
 from __future__ import annotations
 
 import re
-from typing import Iterable, List, Optional, Set
+from collections.abc import Iterable
 
 GATED_REQUIRED_FIELDS = (
     "component",
@@ -51,7 +51,7 @@ _AGENT_FILE_RE = re.compile(r"agents/([A-Za-z0-9_-]+)\.md")
 _AGENT_OVERRIDE_RE = re.compile(r"Agent Overrides\s*>\s*([A-Za-z0-9_-]+)")
 
 
-def extract_agent_name(component: str) -> Optional[str]:
+def extract_agent_name(component: str) -> str | None:
     """Pull the review-agent stem out of a `component` value.
 
     Matches both direct plugin-repo edits (``agents/security-review.md``)
@@ -77,7 +77,7 @@ def is_gated_entry(entry: dict, fixtured_agents: Iterable[str]) -> bool:
     return agent_name is not None and agent_name in set(fixtured_agents)
 
 
-def validate_entry(entry: dict, fixtured_agents: Iterable[str]) -> List[str]:
+def validate_entry(entry: dict, fixtured_agents: Iterable[str]) -> list[str]:
     """Validate one config-changelog entry against the change-contract schema.
 
     Returns a list of human-readable errors (empty = valid). Entries that
@@ -85,8 +85,8 @@ def validate_entry(entry: dict, fixtured_agents: Iterable[str]) -> List[str]:
     no fixtures) always validate — this keeps every pre-existing entry in
     `metrics/config-changelog.jsonl` valid, per the append-only /
     backward-compatible constraint."""
-    errors: List[str] = []
-    fixtured: Set[str] = set(fixtured_agents)
+    errors: list[str] = []
+    fixtured: set[str] = set(fixtured_agents)
 
     if not is_gated_entry(entry, fixtured):
         return errors

@@ -12,11 +12,10 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
-from typing import Dict
 
 import pytest
 
-REPO_ROOT = Path(__file__).resolve().parents[2]
+from _repo_root import REPO_ROOT
 
 
 @pytest.fixture
@@ -25,7 +24,7 @@ def repo_root() -> Path:
 
 
 @pytest.fixture
-def hermetic_env(tmp_path: Path) -> Dict[str, str]:
+def hermetic_env(tmp_path: Path) -> dict[str, str]:
     """A minimal, scrubbed environment for subprocess git operations.
 
     Mirrors hermetic_setup() in tests/lib/hermetic.bash: no inherited

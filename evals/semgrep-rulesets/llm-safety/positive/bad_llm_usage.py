@@ -2,7 +2,6 @@
 import openai
 from anthropic import Anthropic
 
-
 # Expected match: llm-safety.hardcoded-api-key (ERROR)
 openai.api_key = "sk-proj-xxxxxxxxxxxxxxxxxxxxxxxxxxxx"
 

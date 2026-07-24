@@ -7,7 +7,6 @@ import subprocess
 import sys
 from pathlib import Path
 
-
 _HOOK = (
     Path(__file__).resolve().parent.parent.parent / "hooks" / "task_completion_metrics.py"
 )
@@ -27,6 +26,7 @@ def _run(stdin: str, env: dict | None = None, cwd: Path | None = None):
         text=True,
         env=full_env,
         cwd=str(cwd) if cwd else None,
+        check=False,
     )
     return result
 

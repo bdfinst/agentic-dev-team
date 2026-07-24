@@ -11,7 +11,6 @@ from typing import Any
 
 from ..lib import http_client, result_store, scoring
 
-
 MALFORMED_CASES: list[tuple[str, Any]] = [
     ("empty_body", {}),
     ("null_everywhere", None),

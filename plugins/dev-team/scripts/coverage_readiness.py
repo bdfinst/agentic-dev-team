@@ -54,7 +54,6 @@ import json
 import re
 import sys
 from pathlib import Path
-from typing import List, Optional, Tuple
 
 JSON_SUMMARY = "json-summary"
 
@@ -103,7 +102,7 @@ class Report(dict):
 # package.json helpers
 # ---------------------------------------------------------------------------
 
-def _load_package_json(root: Path) -> Optional[dict]:
+def _load_package_json(root: Path) -> dict | None:
     path = root / "package.json"
     if not path.is_file():
         return None
@@ -122,7 +121,7 @@ def _all_deps(pkg: dict) -> dict:
     return deps
 
 
-def detect_runner(root: Path, pkg: Optional[dict]) -> Optional[str]:
+def detect_runner(root: Path, pkg: dict | None) -> str | None:
     """Return "jest", "vitest", or None.
 
     Config files are the strongest signal; dependency names (including the
@@ -134,9 +133,10 @@ def detect_runner(root: Path, pkg: Optional[dict]) -> Optional[str]:
     for name in VITEST_CONFIG_FILES:
         # vite.config.* only counts as a vitest signal when vitest is a dep;
         # a plain Vite app without vitest has no coverage config to assess.
-        if (root / name).is_file():
-            if name.startswith("vitest.") or (pkg and "vitest" in _all_deps(pkg)):
-                return "vitest"
+        if (root / name).is_file() and (
+            name.startswith("vitest.") or (pkg and "vitest" in _all_deps(pkg))
+        ):
+            return "vitest"
     if pkg is None:
         return None
     deps = _all_deps(pkg)
@@ -152,7 +152,7 @@ def detect_runner(root: Path, pkg: Optional[dict]) -> Optional[str]:
 # Config source resolution
 # ---------------------------------------------------------------------------
 
-def resolve_config_source(root: Path, runner: str, pkg: Optional[dict]) -> Tuple[Optional[str], str]:
+def resolve_config_source(root: Path, runner: str, pkg: dict | None) -> tuple[str | None, str]:
     """Return (config_source, config_kind).
 
     config_source is a repo-relative filename, the sentinel "package.json#jest",
@@ -169,7 +169,7 @@ def resolve_config_source(root: Path, runner: str, pkg: Optional[dict]) -> Tuple
     return None, "none"
 
 
-def detect_vitest_provider(pkg: Optional[dict]) -> Optional[str]:
+def detect_vitest_provider(pkg: dict | None) -> str | None:
     """Return the installed Vitest coverage provider package, or None.
 
     Jest ships Istanbul, so this is Vitest-only; for Jest the provider is
@@ -188,7 +188,7 @@ def detect_vitest_provider(pkg: Optional[dict]) -> Optional[str]:
 # Reporter / scope detection
 # ---------------------------------------------------------------------------
 
-def _reporters_from_obj(config: dict, runner: str) -> Optional[list]:
+def _reporters_from_obj(config: dict, runner: str) -> list | None:
     if runner == "jest":
         reporters = config.get("coverageReporters")
         return reporters if isinstance(reporters, list) else None
@@ -224,8 +224,8 @@ def _has_scope_text(text: str, runner: str) -> bool:
 
 
 def assess_source(
-    root: Path, runner: str, config_source: Optional[str], config_kind: str
-) -> Tuple[bool, bool]:
+    root: Path, runner: str, config_source: str | None, config_kind: str
+) -> tuple[bool, bool]:
     """Return (has_json_summary, has_scope) for the resolved config source."""
     if config_source is None:
         return False, False
@@ -310,7 +310,7 @@ def _reporter_hint(runner: str, config_source: str) -> str:
     )
 
 
-def _scope_hint(runner: str, config_source: Optional[str]) -> str:
+def _scope_hint(runner: str, config_source: str | None) -> str:
     where = config_source or "the runner config"
     if runner == "jest":
         return (
@@ -421,7 +421,7 @@ def build_report(root: Path, patch: bool) -> Report:
     return report
 
 
-def main(argv: Optional[List[str]] = None) -> int:
+def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.split("\n", 1)[0])
     parser.add_argument("repo", nargs="?", default=".", help="Repo root (default: cwd)")
     parser.add_argument(

@@ -21,7 +21,6 @@ import re
 import subprocess
 import sys
 from pathlib import Path
-from typing import List, Optional
 
 sys.path.insert(0, str(Path(__file__).parent))
 from lib.review_result import build_result, main_exit, make_issue, skipped_llm_warning
@@ -30,7 +29,7 @@ sys.path.insert(
     0,
     str(Path(__file__).resolve().parents[1] / "plugins" / "dev-team" / "hooks" / "lib"),
 )
-from token_efficiency_limits import (  # noqa: E402
+from token_efficiency_limits import (
     CLAUDE_MD_CHAR_LIMIT,
     FILE_LINE_LIMIT,
 )
@@ -77,9 +76,9 @@ def _count_top_level_bullets(text: str) -> int:
     return count
 
 
-def check_claude_md(path: Path) -> List[dict]:
+def check_claude_md(path: Path) -> list[dict]:
     """Run CLAUDE.md-specific checks. Returns list of issue dicts."""
-    issues: List[dict] = []
+    issues: list[dict] = []
     try:
         text = path.read_text(encoding="utf-8", errors="replace")
     except OSError as exc:
@@ -140,9 +139,9 @@ def check_claude_md(path: Path) -> List[dict]:
 # ---------------------------------------------------------------------------
 
 
-def check_line_counts(files: List[Path]) -> List[dict]:
+def check_line_counts(files: list[Path]) -> list[dict]:
     """Return warning findings for files exceeding FILE_LINE_LIMIT lines."""
-    issues: List[dict] = []
+    issues: list[dict] = []
     for path in files:
         try:
             lines = path.read_text(encoding="utf-8", errors="replace").splitlines()
@@ -172,7 +171,7 @@ def check_line_counts(files: List[Path]) -> List[dict]:
 # ---------------------------------------------------------------------------
 
 
-def get_token_count(path: Path) -> Optional[int]:
+def get_token_count(path: Path) -> int | None:
     """Run measure-tokens.sh on path and return token count, or None on failure."""
     script = Path(__file__).parent / "measure-tokens.sh"
     if not script.exists():
@@ -183,6 +182,7 @@ def get_token_count(path: Path) -> Optional[int]:
             capture_output=True,
             text=True,
             timeout=30,
+            check=False,
         )
         if result.returncode != 0:
             return None
@@ -209,7 +209,7 @@ def is_prose_file(path: Path) -> bool:
     return path.suffix.lower() == ".md"
 
 
-def run_llm_review(path: Path) -> List[dict]:
+def run_llm_review(path: Path) -> list[dict]:
     """Call claude CLI to review a prose file. Returns warning-severity findings.
 
     LLM unavailability → returns a single warning finding (exit 2, not 1).
@@ -227,13 +227,14 @@ def run_llm_review(path: Path) -> List[dict]:
         '{"message": "...", "line": 0, "suggestedFix": "..."}. '
         "Do NOT include any text outside the JSON array."
     )
-    issues: List[dict] = []
+    issues: list[dict] = []
     try:
         result = subprocess.run(
             ["claude", "-p", prompt],
             capture_output=True,
             text=True,
             timeout=60,
+            check=False,
         )
         if result.returncode != 0 or not result.stdout.strip():
             issues.append(
@@ -290,7 +291,7 @@ def run_llm_review(path: Path) -> List[dict]:
 # ---------------------------------------------------------------------------
 
 
-def main(argv: Optional[List[str]] = None) -> int:
+def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         description=__doc__,
         formatter_class=argparse.RawDescriptionHelpFormatter,
@@ -316,8 +317,8 @@ def main(argv: Optional[List[str]] = None) -> int:
         return 1
 
     files = [Path(p) for p in args.files]
-    errors: List[dict] = []
-    warnings: List[dict] = []
+    errors: list[dict] = []
+    warnings: list[dict] = []
 
     for path in files:
         # CLAUDE.md-specific checks
@@ -329,8 +330,7 @@ def main(argv: Optional[List[str]] = None) -> int:
                     warnings.append(issue)
 
     # Line count checks for all files
-    for issue in check_line_counts(files):
-        warnings.append(issue)
+    warnings.extend(check_line_counts(files))
 
     # LLM review for prose (.md) files
     prose_files = [p for p in files if is_prose_file(p)]
@@ -343,8 +343,7 @@ def main(argv: Optional[List[str]] = None) -> int:
             warnings.append(skipped_llm_warning())
     else:
         for path in prose_files:
-            for issue in run_llm_review(path):
-                warnings.append(issue)
+            warnings.extend(run_llm_review(path))
 
     summary_parts = []
     if errors:

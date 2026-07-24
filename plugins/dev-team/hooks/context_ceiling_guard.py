@@ -76,14 +76,13 @@ import re
 import sys
 import tempfile
 from pathlib import Path
-from typing import Optional, Tuple
 
 _LIB_DIR = Path(__file__).resolve().parent / "lib"
 if str(_LIB_DIR) not in sys.path:
     sys.path.insert(0, str(_LIB_DIR))
 
-from stdin_json import read_stdin_json  # type: ignore[import-not-found]  # noqa: E402
-from boundary_events import emit_boundary_event as _emit_boundary_event  # noqa: E402
+from boundary_events import emit_boundary_event as _emit_boundary_event
+from stdin_json import read_stdin_json  # type: ignore[import-not-found]
 
 
 def emit_boundary_event(*args, **kwargs) -> None:
@@ -91,7 +90,7 @@ def emit_boundary_event(*args, **kwargs) -> None:
     this hook's exit code, stdout, or stderr."""
     try:
         _emit_boundary_event(*args, **kwargs)
-    except Exception:  # noqa: BLE001 - fail-open by design
+    except Exception:  # noqa: BLE001, S110 - fail-open by design
         pass
 
 
@@ -175,7 +174,7 @@ def _window_for_model(model: str) -> int:
     return _DEFAULT_WINDOW
 
 
-def _detect_window(transcript_path: Path) -> Tuple[int, bool]:
+def _detect_window(transcript_path: Path) -> tuple[int, bool]:
     """Auto-detect the context window from the transcript's most recent
     `message.model`. Mirrors `_measure_occupancy`'s scan (last 400 lines,
     last matching row wins) so the detected model tracks the same session
@@ -193,7 +192,7 @@ def _detect_window(transcript_path: Path) -> Tuple[int, bool]:
     function never raises and never blocks.
     """
     lines = _tail_lines(transcript_path, 400)
-    last_model: Optional[str] = None
+    last_model: str | None = None
     for raw in lines:
         raw = raw.strip()
         if not raw:
@@ -217,7 +216,7 @@ def _detect_window(transcript_path: Path) -> Tuple[int, bool]:
     return _DEFAULT_WINDOW, False
 
 
-def _env_window_override() -> Optional[int]:
+def _env_window_override() -> int | None:
     """Explicit `DEV_TEAM_CONTEXT_WINDOW` override; `None` when unset or
     invalid, in which case the caller falls through to auto-detection.
     """
@@ -230,7 +229,7 @@ def _env_window_override() -> Optional[int]:
     return value if value > 0 else None
 
 
-def _resolve_window(transcript_path: Path) -> Tuple[int, str]:
+def _resolve_window(transcript_path: Path) -> tuple[int, str]:
     """Resolve the effective context window and its provenance tag.
 
     Precedence: `DEV_TEAM_CONTEXT_WINDOW` env ("override") > detected from
@@ -264,7 +263,7 @@ def _tail_lines(path: Path, n: int) -> list:
     return lines[-n:] if len(lines) > n else lines
 
 
-def _measure_occupancy(transcript_path: Path) -> Optional[int]:
+def _measure_occupancy(transcript_path: Path) -> int | None:
     """Extract the most-recent-assistant-message usage total from the transcript.
 
     Occupancy = prompt-side tokens (input + cache_read + cache_creation) of the
@@ -276,7 +275,7 @@ def _measure_occupancy(transcript_path: Path) -> Optional[int]:
     lines = _tail_lines(transcript_path, 400)
     if not lines:
         return None
-    last_total: Optional[int] = None
+    last_total: int | None = None
     for raw in lines:
         raw = raw.strip()
         if not raw:
@@ -397,19 +396,25 @@ _BAND_SCALE = 100
 _BAND_ACTIONS = {
     _BAND_NUDGE: (
         "nudge",
-        "Consider running /handoff (write a memory/ progress "
-        "file, continue in a fresh context) and defer non-essential "
-        "agents/skills.",
+        (
+            "Consider running /handoff (write a memory/ progress "
+            "file, continue in a fresh context) and defer non-essential "
+            "agents/skills."
+        ),
     ),
     _BAND_RUN_NOW: (
         "run-now",
-        "Run /handoff now — write a memory/ progress file "
-        "and continue in a fresh context.",
+        (
+            "Run /handoff now — write a memory/ progress file "
+            "and continue in a fresh context."
+        ),
     ),
     _BAND_FULL_SUMMARY: (
         "full-summary",
-        "Write a full summary to memory/ and start a new conversation now "
-        "— context is well past the effective ceiling.",
+        (
+            "Write a full summary to memory/ and start a new conversation now "
+            "— context is well past the effective ceiling."
+        ),
     ),
 }
 
@@ -482,7 +487,7 @@ def _build_label(tool_name: str, tool_input: dict) -> str:
 # ---------------------------------------------------------------------------
 
 
-def _resolve_verdict(payload: dict) -> Tuple[int, Optional[str], bool]:
+def _resolve_verdict(payload: dict) -> tuple[int, str | None, bool]:
     """Compute (exit_code, message_or_None, should_write_bucket).
 
     Split from main() for testability. Env-var reads still happen here — the

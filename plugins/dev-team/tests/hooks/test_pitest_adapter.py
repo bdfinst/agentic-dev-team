@@ -14,14 +14,13 @@ from __future__ import annotations
 import json
 import subprocess
 import sys
-from pathlib import Path
 
-_REPO_ROOT = Path(__file__).resolve().parents[4]
+from _repo_root import REPO_ROOT as _REPO_ROOT
+
 _PLUGIN_ROOT = _REPO_ROOT / "plugins" / "dev-team"
 sys.path.insert(0, str(_PLUGIN_ROOT / "hooks"))
 
-from mutation_adapters import pitest as pt  # noqa: E402
-
+from mutation_adapters import pitest as pt
 
 # ---------------------------------------------------------------------------
 # _report_path() — default vs env override

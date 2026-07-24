@@ -13,7 +13,8 @@ import subprocess
 import sys
 from pathlib import Path
 
-REPO_ROOT = Path(__file__).resolve().parents[2]
+from _repo_root import REPO_ROOT
+
 SCANNER = (
     REPO_ROOT / "plugins" / "dev-team" / "skills" / "agent-readiness" / "scanner.py"
 )
@@ -25,6 +26,7 @@ def _run_scanner(*args: str) -> subprocess.CompletedProcess:
         [sys.executable, str(SCANNER), *args],
         capture_output=True,
         text=True,
+        check=False,
     )
 
 

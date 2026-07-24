@@ -31,7 +31,7 @@ _SCRIPT_DIR = PLUGIN_ROOT / "scripts"
 if str(_SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(_SCRIPT_DIR))
 
-import mutation_stack_sections as mss  # type: ignore[import-not-found]  # noqa: E402
+import mutation_stack_sections as mss  # type: ignore[import-not-found]
 
 _SCRIPT_PY = _SCRIPT_DIR / "mutation_stack_sections.py"
 SKILL = PLUGIN_ROOT / "skills" / "setup" / "SKILL.md"

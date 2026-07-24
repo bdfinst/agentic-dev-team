@@ -17,10 +17,8 @@ import shutil
 import subprocess
 import sys
 from pathlib import Path
-from typing import List, Optional
 
 from . import lib
-
 
 DEFAULT_REPORT = "target/pit-reports/mutations.xml"
 
@@ -99,9 +97,7 @@ def _is_pitest_source(line: str) -> bool:
     """True for a non-test Java/Kotlin/Groovy/Scala source path."""
     if not re.search(r"\.(java|kt|groovy|scala)$", line):
         return False
-    if "Test" in line or "Spec" in line:
-        return False
-    return True
+    return not ("Test" in line or "Spec" in line)
 
 
 def _changed_source_file() -> str:
@@ -188,7 +184,7 @@ def pitest_run(output_file: Path) -> int:
     target_class = _java_class_from_file(changed_file) if changed_file else ""
     target_tests = _extract_test_class(command)
 
-    pitest_args: List[str] = [
+    pitest_args: list[str] = [
         "-DtimeoutConst=60",
         "-DtimeoutFactor=2.5",
         "-DoutputFormats=XML",
@@ -200,7 +196,7 @@ def pitest_run(output_file: Path) -> int:
     if target_tests:
         pitest_args.append(f"-DtargetTests={target_tests}")
 
-    module_flag: List[str] = []
+    module_flag: list[str] = []
     if changed_file:
         module_dir = _find_maven_module(changed_file)
         if module_dir:
@@ -258,7 +254,7 @@ def pitest_run(output_file: Path) -> int:
     return 0
 
 
-def main(argv: Optional[List[str]] = None) -> int:
+def main(argv: list[str] | None = None) -> int:
     args = list(sys.argv[1:] if argv is None else argv)
     if not args:
         print("pitest.py: OUTPUT_FILE argument required", file=sys.stderr)

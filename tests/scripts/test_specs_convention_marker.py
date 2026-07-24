@@ -29,8 +29,7 @@ _SCRIPT_DIR = Path(__file__).resolve().parents[2] / "plugins" / "dev-team" / "sc
 if str(_SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(_SCRIPT_DIR))
 
-import specs_convention_marker  # type: ignore[import-not-found]  # noqa: E402
-
+import specs_convention_marker  # type: ignore[import-not-found]
 
 _SCRIPT_PY = _SCRIPT_DIR / "specs_convention_marker.py"
 
@@ -45,8 +44,8 @@ _SCRIPT_PY = _SCRIPT_DIR / "specs_convention_marker.py"
     [
         ("Specs and plans are GitHub issues here, not files.", True),
         (
-            "- **Specs and plans are GitHub issues here, not files.** When "
-            "developing this repo...",
+            ("- **Specs and plans are GitHub issues here, not files.** When "
+            "developing this repo..."),
             True,
         ),
         ("SPECS AND PLANS ARE GITHUB ISSUES HERE, NOT FILES", True),

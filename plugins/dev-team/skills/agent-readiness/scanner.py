@@ -27,8 +27,7 @@ HERE = Path(__file__).resolve().parent
 # skills/agent-readiness -> skills -> dev-team -> hooks/lib (stdlib-only YAML
 # subset parser; see ADR 0014/0015 — no third-party imports in shipped code).
 sys.path.insert(0, str(HERE.parents[1] / "hooks" / "lib"))
-from minimal_yaml import parse_yaml  # noqa: E402
-
+from minimal_yaml import parse_yaml
 
 # --------------------------------------------------------------------------
 # Small filesystem helpers (all detection is file-presence/heuristic).
@@ -169,7 +168,7 @@ def c4_module_size(root: Path, cfg: dict) -> dict:
     if not counts:
         return _score(0, "no source files detected for size analysis")
     counts.sort()
-    p90 = counts[min(len(counts) - 1, int(round(0.9 * (len(counts) - 1))))]
+    p90 = counts[min(len(counts) - 1, round(0.9 * (len(counts) - 1)))]
     th = cfg["thresholds"]
     if p90 <= th["file_size_p90_small"]:
         return _score(

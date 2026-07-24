@@ -209,35 +209,46 @@ def _sentinel_lock(sentinel: Path):
     lock_path = sentinel.parent / (sentinel.name + ".lock")
     try:
         lock_path.parent.mkdir(parents=True, exist_ok=True)
-        fh = open(lock_path, "a+")
     except OSError:
         yield
         return
 
-    locked = False
+    # The `open()` failure case (fail-open: fall through to an unlocked
+    # critical section) has to share this try/except with the whole
+    # `with` body rather than wrapping only the open() call, since ruff's
+    # SIM115 requires `open()` to appear directly in a `with` statement.
+    # Every helper invoked between here and the `yield` already catches
+    # its own OSErrors (see _existing_tools_used/_write_sentinel_atomic),
+    # so this outer except only ever fires for the open() call itself.
     try:
-        try:
-            if fcntl is not None:
-                fcntl.flock(fh.fileno(), fcntl.LOCK_EX)
-                locked = True
-            elif msvcrt is not None:
-                fh.seek(0)
-                msvcrt.locking(fh.fileno(), msvcrt.LK_LOCK, 1)
-                locked = True
-        except OSError:
+        with open(lock_path, "a+") as fh:
             locked = False
-        yield
-    finally:
-        if locked:
             try:
-                if fcntl is not None:
-                    fcntl.flock(fh.fileno(), fcntl.LOCK_UN)
-                elif msvcrt is not None:
-                    fh.seek(0)
-                    msvcrt.locking(fh.fileno(), msvcrt.LK_UNLCK, 1)
-            except OSError:
-                pass
-        fh.close()
+                try:
+                    if fcntl is not None:
+                        fcntl.flock(fh.fileno(), fcntl.LOCK_EX)
+                        locked = True
+                    elif msvcrt is not None:
+                        fh.seek(0)
+                        msvcrt.locking(fh.fileno(), msvcrt.LK_LOCK, 1)
+                        locked = True
+                except OSError:
+                    locked = False
+                yield
+            finally:
+                if locked:
+                    try:
+                        if fcntl is not None:
+                            fcntl.flock(fh.fileno(), fcntl.LOCK_UN)
+                        elif msvcrt is not None:
+                            fh.seek(0)
+                            msvcrt.locking(fh.fileno(), msvcrt.LK_UNLCK, 1)
+                    except OSError:
+                        pass
+            return
+    except OSError:
+        pass
+    yield
 
 
 def _write_sentinel_atomic(sentinel: Path, payload: dict) -> None:
@@ -316,8 +327,8 @@ def main() -> int:
 if __name__ == "__main__":
     try:
         sys.exit(main())
-    except Exception:
-        # Fail-open on any unexpected error — matches the module docstring's
-        # posture ("Any internal error -> exit 0") and the sibling nudge
-        # hook's identical guard.
+    except Exception:  # noqa: BLE001 - fail-open by design; this hook is a
+        # nudge, never a gate. Matches the module docstring's posture
+        # ("Any internal error -> exit 0") and the sibling nudge hook's
+        # identical guard.
         sys.exit(0)

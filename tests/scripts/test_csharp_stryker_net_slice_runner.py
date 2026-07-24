@@ -26,8 +26,8 @@ WRAPPER_DIR = (
 )
 sys.path.insert(0, str(WRAPPER_DIR))
 
-import csharp_stryker_net_slice_runner as runner  # noqa: E402
-import csharp_stryker_net_wrapper as wrapper  # noqa: E402
+import csharp_stryker_net_slice_runner as runner
+import csharp_stryker_net_wrapper as wrapper
 
 
 # =============================================================================
@@ -259,21 +259,21 @@ class TestResolveWorkerAllocation:
 
     def test_default_split_with_fewer_slices_than_workers(self):
         # 6 total workers, 2 slices -> 2 parallel slices, 3 per-slice each.
-        parallel, per_slice, msg = runner.resolve_worker_allocation(
+        parallel, per_slice, _msg = runner.resolve_worker_allocation(
             6, 2, None, None, force=False
         )
         assert parallel == 2
         assert per_slice == 3
 
     def test_explicit_parallel_slices_only_derives_per_slice(self):
-        parallel, per_slice, msg = runner.resolve_worker_allocation(
+        parallel, per_slice, _msg = runner.resolve_worker_allocation(
             6, 7, 3, None, force=False
         )
         assert parallel == 3
         assert per_slice == 2
 
     def test_explicit_per_slice_only_derives_parallel(self):
-        parallel, per_slice, msg = runner.resolve_worker_allocation(
+        parallel, per_slice, _msg = runner.resolve_worker_allocation(
             6, 7, None, 2, force=False
         )
         assert parallel == 3
@@ -476,7 +476,7 @@ def _install_fakes(monkeypatch, ctx, *, exit_code=0):
     # taken in test_csharp_stryker_net_wrapper.py's _install_fakes(). Without
     # this, main() calls signal.signal(SIGINT, ...) which globally replaces
     # the process's SIGINT handler for the rest of the pytest session.
-    monkeypatch.setattr(wrapper, "_install_signal_handlers", lambda: [])
+    monkeypatch.setattr(wrapper, "_install_signal_handlers", list)
 
 
 def run_slice_runner(hermetic, *extra_args):
@@ -656,7 +656,7 @@ class TestMainSignalHandling:
 
         monkeypatch.setattr(wrapper, "build_project", fake_build)
         monkeypatch.setattr(wrapper, "run_stryker", fake_run_stryker)
-        monkeypatch.setattr(wrapper, "_install_signal_handlers", lambda: [])
+        monkeypatch.setattr(wrapper, "_install_signal_handlers", list)
         monkeypatch.setattr(wrapper, "_restore_signal_handlers", lambda previous: None)
 
         rc = run_slice_runner(hermetic, "--slice", "all", "--total-workers", "2")

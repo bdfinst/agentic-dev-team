@@ -16,7 +16,8 @@ from pathlib import Path
 
 import pytest
 
-REPO_ROOT = Path(__file__).resolve().parents[2]
+from _repo_root import REPO_ROOT
+
 CHECK = REPO_ROOT / "scripts" / "check_registry_sync.py"
 
 _AGENT_REGISTRY = """## Review Agents
@@ -84,6 +85,7 @@ def _run(root: Path) -> subprocess.CompletedProcess:
         [sys.executable, str(CHECK), "--root", str(root)],
         capture_output=True,
         text=True,
+        check=False,
     )
 
 

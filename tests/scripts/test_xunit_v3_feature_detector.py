@@ -17,7 +17,7 @@ SCRIPTS_DIR = (
 )
 sys.path.insert(0, str(SCRIPTS_DIR))
 
-import xunit_v3_feature_detector as det  # noqa: E402
+import xunit_v3_feature_detector as det
 
 FIXTURE = (
     Path(__file__).resolve().parents[2] / "tests" / "fixtures" / "xunit-v3"

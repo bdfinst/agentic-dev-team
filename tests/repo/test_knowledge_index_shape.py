@@ -8,9 +8,9 @@ from __future__ import annotations
 
 import json
 import re
-from pathlib import Path
 
-REPO_ROOT = Path(__file__).resolve().parents[2]
+from _repo_root import REPO_ROOT
+
 INDEX = REPO_ROOT / "plugins" / "dev-team" / "knowledge" / "index.json"
 
 _CORPUS_KEY_RE = re.compile(
@@ -51,13 +51,13 @@ def test_every_skill_md_appears_as_top_level_key() -> None:
 
 def test_no_file_outside_the_corpus_appears_as_a_top_level_key() -> None:
     data = _load_index()
-    bad = [k for k in data.keys() if not _CORPUS_KEY_RE.match(k)]
+    bad = [k for k in data if not _CORPUS_KEY_RE.match(k)]
     assert not bad, f"out-of-corpus keys found: {bad}"
 
 
 def test_knowledge_schemas_subdirectory_is_excluded() -> None:
     data = _load_index()
-    assert not any("knowledge/schemas" in k for k in data.keys())
+    assert not any("knowledge/schemas" in k for k in data)
 
 
 def test_no_docs_agents_or_commands_paths_appear() -> None:

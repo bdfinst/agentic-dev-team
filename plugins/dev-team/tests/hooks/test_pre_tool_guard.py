@@ -12,11 +12,11 @@ from pathlib import Path
 
 import pytest
 
+from _repo_root import REPO_ROOT as _REPO_ROOT
 
-_REPO_ROOT = Path(__file__).resolve().parents[4]
 sys.path.insert(0, str(_REPO_ROOT / "plugins" / "dev-team" / "hooks"))
 
-import pre_tool_guard  # noqa: E402
+import pre_tool_guard
 
 
 @pytest.fixture(autouse=True)
@@ -97,7 +97,7 @@ def test_load_guards_reads_custom_patterns(tmp_path):
 
 def test_load_guards_falls_back_when_malformed(tmp_path):
     (tmp_path / "guards.json").write_text("{not-json")
-    blocked, warn = pre_tool_guard._load_guards(tmp_path / "guards.json")
+    blocked, _warn = pre_tool_guard._load_guards(tmp_path / "guards.json")
     assert ".env" in blocked
 
 

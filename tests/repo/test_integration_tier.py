@@ -20,7 +20,8 @@ from pathlib import Path
 
 import pytest
 
-REPO_ROOT = Path(__file__).resolve().parents[2]
+from _repo_root import REPO_ROOT
+
 GRADE = REPO_ROOT / "scripts" / "eval_grade.py"
 RUNNER = REPO_ROOT / "scripts" / "run_integration_eval.py"
 
@@ -90,6 +91,7 @@ def case(tmp_path: Path) -> Path:
 def _grade(case: Path, *args: str) -> subprocess.CompletedProcess:
     return subprocess.run(
         [sys.executable, str(GRADE), *args],
+        check=False,
         capture_output=True,
         text=True,
     )
@@ -103,6 +105,7 @@ def _run_runner(
         env = extra_env
     return subprocess.run(
         [sys.executable, str(RUNNER), *args],
+        check=False,
         capture_output=True,
         text=True,
         env=env,
@@ -253,6 +256,7 @@ def test_runner_skip_dispatch_builds_worktree_records_exit_zero(case: Path) -> N
             "--out",
             str(case / "actuals.json"),
         ],
+        check=False,
         capture_output=True,
         text=True,
     )
@@ -270,12 +274,23 @@ def test_runner_skip_dispatch_builds_worktree_records_exit_zero(case: Path) -> N
     assert graded.returncode == 0, graded.stdout + graded.stderr
 
 
-def test_runner_ephemeral_worktree_torn_down(case: Path) -> None:
-    tmpdir = Path(os.environ.get("TMPDIR", "/tmp"))
+def test_runner_ephemeral_worktree_torn_down(case: Path, tmp_path: Path) -> None:
+    # The runner's ephemeral worktree (scripts/run_integration_eval.py's
+    # tempfile.mkdtemp(prefix=f"int-{stem}-")) lands wherever TMPDIR points.
+    # Scanning the real machine TMPDIR for a before/after count races any
+    # OTHER concurrently-running process on the same machine that creates or
+    # tears down its own temp dir in that window (observed flaky under full
+    # test-suite parallel load, test-improve issue-1354 Story 6) -- tempfile
+    # already respects TMPDIR, so pointing it at a tmp_path-scoped scratch
+    # dir this test alone can ever write to removes the shared state
+    # entirely, with no change to the runner itself.
+    scratch_tmpdir = tmp_path / "tmpdir-scratch"
+    scratch_tmpdir.mkdir()
+    env = {**os.environ, "TMPDIR": str(scratch_tmpdir)}
 
     def _count() -> int:
         try:
-            return sum(1 for p in tmpdir.iterdir() if p.name.startswith("int-demo-"))
+            return sum(1 for p in scratch_tmpdir.iterdir() if p.name.startswith("int-demo-"))
         except FileNotFoundError:
             return 0
 
@@ -295,6 +310,7 @@ def test_runner_ephemeral_worktree_torn_down(case: Path) -> None:
         capture_output=True,
         text=True,
         check=False,
+        env=env,
     )
     after = _count()
     assert before == after
@@ -325,6 +341,7 @@ def test_runner_missing_claude_errors_naming_component(case: Path) -> None:
             "--out",
             str(case / "actuals.json"),
         ],
+        check=False,
         capture_output=True,
         text=True,
         env=env,
@@ -382,7 +399,7 @@ def test_extract_golden_repo_rejects_dotdot_traversal(tmp_path: Path) -> None:
     tarball = tmp_path / "golden.tar.gz"
     _tarball_with_member(tarball, "../../../../../../etc/passwd")
 
-    with pytest.raises(Exception):
+    with pytest.raises(RuntimeError):
         runner_module.extract_golden_repo(tarball, dest)
 
     assert not (Path("/etc/passwd_pwned")).exists()  # sanity: no stray writes
@@ -400,7 +417,7 @@ def test_extract_golden_repo_rejects_prefix_sibling_bypass(tmp_path: Path) -> No
     tarball = tmp_path / "golden.tar.gz"
     _tarball_with_member(tarball, "../out-evil/pwned.txt")
 
-    with pytest.raises(Exception):
+    with pytest.raises(RuntimeError):
         runner_module.extract_golden_repo(tarball, dest)
 
     assert not sibling_escape.exists(), (

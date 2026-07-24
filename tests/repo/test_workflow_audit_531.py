@@ -16,9 +16,9 @@ Ported from tests/repo/workflow-audit-531.bats (issue #672).
 from __future__ import annotations
 
 import re
-from pathlib import Path
 
-REPO_ROOT = Path(__file__).resolve().parents[2]
+from _repo_root import REPO_ROOT
+
 PLUGIN_TESTS = REPO_ROOT / ".github" / "workflows" / "plugin-tests.yml"
 AGENT_EVAL = REPO_ROOT / ".github" / "workflows" / "agent-eval.yml"
 LINK_CHECK = REPO_ROOT / ".github" / "workflows" / "link-check.yml"

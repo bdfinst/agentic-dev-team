@@ -20,11 +20,11 @@ import os
 import subprocess
 import sys
 import tempfile
-from pathlib import Path
 
 import pytest
 
-_REPO_ROOT = Path(__file__).resolve().parents[2]
+from _repo_root import REPO_ROOT as _REPO_ROOT
+
 _HOOK_PY = _REPO_ROOT / "plugins" / "dev-team" / "hooks" / "destructive_guard.py"
 _CAREFUL_STATE = _REPO_ROOT / "plugins" / "dev-team" / "hooks" / "careful-state.json"
 
@@ -33,6 +33,16 @@ _CAREFUL_STATE = _REPO_ROOT / "plugins" / "dev-team" / "hooks" / "careful-state.
 # to a scratch dir so tests never write metrics/boundary-events.jsonl into
 # the real repo checkout.
 _BOUNDARY_EVENTS_SCRATCH_CWD = tempfile.mkdtemp(prefix="dev-team-destructive-guard-test-")
+
+# _CAREFUL_STATE is the real, fixed path destructive_guard.py itself reads
+# (see this module's docstring) — every test here shares that one physical
+# file with plugins/dev-team/tests/hooks/test_code_intelligence_nudge.py and
+# test_boundary_events.py's test_destructive_guard_block_emits_boundary_event.
+# xdist_group forces all tests carrying this group name onto the SAME worker
+# (requires --dist loadgroup, set in scripts/ci-local.sh), so two of them can
+# never run concurrently and race on the shared file across pytest-xdist
+# worker processes -- --dist loadfile alone only serializes within one file.
+pytestmark = pytest.mark.xdist_group(name="careful-state-shared-file")
 
 
 @pytest.fixture(autouse=True)

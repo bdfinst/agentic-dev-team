@@ -21,7 +21,6 @@ from __future__ import annotations
 
 import os
 import re
-from typing import Dict, List
 
 # Slice ids are zero-padded to this width so lexical and numeric order agree
 # for the common case and artifact filenames sort naturally.
@@ -47,7 +46,7 @@ _BEHAVIORAL_TOKENS = {
 }
 
 
-def _path_tokens(path: str) -> "set[str]":
+def _path_tokens(path: str) -> set[str]:
     """Return the lowercased word tokens of every segment of ``path``.
 
     Both directory segments and the filename are word-tokenized on ``. _ -`` so
@@ -62,7 +61,7 @@ def _path_tokens(path: str) -> "set[str]":
     parts = segments[-1].split(".")
     name_parts = parts[:-1] if len(parts) > 1 else parts
     raw_tokens = list(segments[:-1]) + name_parts
-    words: "set[str]" = set()
+    words: set[str] = set()
     for token in raw_tokens:
         words |= set(re.split(r"[._\-]", token))
     return words
@@ -83,7 +82,7 @@ def _is_declarative_file(path: str) -> bool:
     return bool(tokens & _DECLARATIVE_TOKENS)
 
 
-def is_declarative_slice(files: List[str]) -> bool:
+def is_declarative_slice(files: list[str]) -> bool:
     """Return True only when *every* file in the slice is declarative.
 
     An empty slice is not declarative (nothing to assert). Conservative by
@@ -100,7 +99,7 @@ def _slice_id(index: int) -> str:
     return str(index).zfill(_ID_WIDTH)
 
 
-def _append_slice(slices: List[dict], files: List[str]) -> None:
+def _append_slice(slices: list[dict], files: list[str]) -> None:
     """Append one slice record to ``slices`` with the next sequential id.
 
     Single home for the slice-record shape so both emit paths (sibling flush
@@ -117,20 +116,20 @@ def _append_slice(slices: List[dict], files: List[str]) -> None:
     )
 
 
-def _group_by_directory(files: List[str]) -> "Dict[str, List[str]]":
+def _group_by_directory(files: list[str]) -> dict[str, list[str]]:
     """Group ``files`` by parent directory, each group's files sorted.
 
     The returned dict is ordered by directory name so downstream packing is
     deterministic.
     """
-    groups: Dict[str, List[str]] = {}
+    groups: dict[str, list[str]] = {}
     for path in files:
         directory = os.path.dirname(path)
         groups.setdefault(directory, []).append(path)
     return {d: sorted(groups[d]) for d in sorted(groups)}
 
 
-def partition_files(files: List[str], cap: int) -> List[dict]:
+def partition_files(files: list[str], cap: int) -> list[dict]:
     """Partition ``files`` into module-aligned slices of at most ``cap`` files.
 
     Returns an ordered list of slice records ``{"id": str, "files": [str]}``.
@@ -145,15 +144,15 @@ def partition_files(files: List[str], cap: int) -> List[dict]:
 
     grouped = _group_by_directory(files)
 
-    slices: List[dict] = []
-    current: List[str] = []
+    slices: list[dict] = []
+    current: list[str] = []
 
     def flush() -> None:
         if current:
             _append_slice(slices, current)
             current.clear()
 
-    for _directory, dir_files in grouped.items():
+    for dir_files in grouped.values():
         if len(dir_files) > cap:
             # Oversized directory: flush whatever small siblings accumulated,
             # then emit the directory in cap-sized chunks of its own.

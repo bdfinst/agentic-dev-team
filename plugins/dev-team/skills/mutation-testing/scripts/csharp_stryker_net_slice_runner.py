@@ -34,9 +34,10 @@ import argparse
 import json
 import os
 import sys
+from collections.abc import Sequence
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Sequence, Tuple
+from typing import Any
 
 # Reuse the shipped wrapper's hide/restore/build/run primitives so the
 # hide-once-around-the-fleet contract composes with the existing
@@ -55,7 +56,7 @@ KNOWN_SLICE_FIELDS = REQUIRED_SLICE_FIELDS + RESERVED_SLICE_FIELDS
 # =============================================================================
 # Slice config loading + validation
 # =============================================================================
-def load_slices_config(path: Path) -> List[Dict[str, Any]]:
+def load_slices_config(path: Path) -> list[dict[str, Any]]:
     """Load and validate the ``slices:`` block from a JSON config file.
 
     Only ``name`` + ``mutate`` are required per slice (#561's "first cut").
@@ -79,7 +80,7 @@ def load_slices_config(path: Path) -> List[Dict[str, Any]]:
     seen_names = set()
     for i, s in enumerate(slices):
         if not isinstance(s, dict):
-            raise ValueError(f"slices[{i}] must be an object")
+            raise TypeError(f"slices[{i}] must be an object")
         missing = [f for f in REQUIRED_SLICE_FIELDS if f not in s]
         if missing:
             raise ValueError(
@@ -92,8 +93,8 @@ def load_slices_config(path: Path) -> List[Dict[str, Any]]:
 
 
 def resolve_slice_selection(
-    configured: Sequence[Dict[str, Any]], requested: str
-) -> List[Dict[str, Any]]:
+    configured: Sequence[dict[str, Any]], requested: str
+) -> list[dict[str, Any]]:
     """Return the configured slice(s) matching ``--slice <requested>``.
 
     ``requested == "all"`` returns every configured slice, in config order.
@@ -139,15 +140,15 @@ def is_terminal_report(path: Path) -> bool:
 
 
 def partition_terminal_slices(
-    slices: Sequence[Dict[str, Any]], output_root: Path, force: bool
-) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:
+    slices: Sequence[dict[str, Any]], output_root: Path, force: bool
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
     """Split ``slices`` into (to_run, skipped). A slice is skipped when its
     report is terminal AND ``--force`` was not passed — resume-by-default.
     """
     if force:
         return list(slices), []
-    to_run: List[Dict[str, Any]] = []
-    skipped: List[Dict[str, Any]] = []
+    to_run: list[dict[str, Any]] = []
+    skipped: list[dict[str, Any]] = []
     for s in slices:
         report = slice_report_path(output_root, s["name"])
         if is_terminal_report(report):
@@ -160,7 +161,7 @@ def partition_terminal_slices(
 # =============================================================================
 # Total-worker budget + slice/concurrency split
 # =============================================================================
-def resolve_total_workers(value: Optional[str], cpu_count: Optional[int]) -> int:
+def resolve_total_workers(value: str | None, cpu_count: int | None) -> int:
     """``None``/``"auto"`` -> ``max(2, cores / 2)``; otherwise the given int."""
     if value is None or value == "auto":
         cores = cpu_count or 2
@@ -169,8 +170,8 @@ def resolve_total_workers(value: Optional[str], cpu_count: Optional[int]) -> int
 
 
 def total_worker_ceiling_check(
-    total_workers: int, cores: Optional[int], force: bool
-) -> Tuple[bool, Optional[str]]:
+    total_workers: int, cores: int | None, force: bool
+) -> tuple[bool, str | None]:
     """Return ``(allowed, message)``. Refuses (``allowed=False``, an error
     message) a total-worker count over ``cores - 1`` unless ``--force`` is
     set, in which case it is allowed with a warning message instead.
@@ -189,7 +190,7 @@ def total_worker_ceiling_check(
     )
 
 
-def default_split(total_workers: int, slice_count: int) -> Tuple[int, int]:
+def default_split(total_workers: int, slice_count: int) -> tuple[int, int]:
     """Allocate slices first (up to the configured slice count), then divide
     the remainder as per-slice concurrency — favours cross-slice parallelism
     over deeper within-slice parallelism (#561 §2 default-split rule).
@@ -202,10 +203,10 @@ def default_split(total_workers: int, slice_count: int) -> Tuple[int, int]:
 def resolve_worker_allocation(
     total_workers: int,
     slice_count: int,
-    parallel_slices: Optional[int],
-    per_slice_concurrency: Optional[int],
+    parallel_slices: int | None,
+    per_slice_concurrency: int | None,
     force: bool,
-) -> Tuple[int, int, Optional[str]]:
+) -> tuple[int, int, str | None]:
     """Return ``(parallel_slices, per_slice_concurrency, message)``.
 
     When both axes are set explicitly, refuse (unless ``--force``) if their
@@ -242,8 +243,8 @@ def resolve_worker_allocation(
 # Per-slice Stryker config generation
 # =============================================================================
 def build_slice_stryker_config(
-    base_config: Dict[str, Any], slice_def: Dict[str, Any]
-) -> Dict[str, Any]:
+    base_config: dict[str, Any], slice_def: dict[str, Any]
+) -> dict[str, Any]:
     """Merge ``base_config`` with the slice's ``mutate`` glob. Defaults
     ``coverage-analysis`` to ``"perTest"`` per #669's validated
     recommendation, unless the base config already sets it (escape hatch,
@@ -257,7 +258,7 @@ def build_slice_stryker_config(
 
 
 def write_slice_config(
-    output_root: Path, name: str, stryker_config: Dict[str, Any]
+    output_root: Path, name: str, stryker_config: dict[str, Any]
 ) -> Path:
     out_dir = slice_output_dir(output_root, name)
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -269,11 +270,11 @@ def write_slice_config(
 # =============================================================================
 # Report summarizing + aggregate roll-up
 # =============================================================================
-def summarize_native_report(native: Dict[str, Any]) -> Dict[str, int]:
+def summarize_native_report(native: dict[str, Any]) -> dict[str, int]:
     """Reduce a Stryker.NET native ``mutation-report.json`` (top-level
     ``files`` map of file -> {"mutants": [...]}) to per-status counts.
     """
-    counts: Dict[str, int] = {}
+    counts: dict[str, int] = {}
     for file_entry in native.get("files", {}).values():
         for mutant in file_entry.get("mutants", []):
             status = mutant.get("status", "Unknown")
@@ -282,11 +283,11 @@ def summarize_native_report(native: Dict[str, Any]) -> Dict[str, int]:
 
 
 def aggregate_slice_summaries(
-    summaries: Dict[str, Dict[str, int]],
-) -> Dict[str, Any]:
+    summaries: dict[str, dict[str, int]],
+) -> dict[str, Any]:
     """Roll up per-slice status counts into one aggregate document."""
-    totals: Dict[str, int] = {}
-    per_slice: Dict[str, Dict[str, int]] = {}
+    totals: dict[str, int] = {}
+    per_slice: dict[str, dict[str, int]] = {}
     for name, counts in summaries.items():
         per_slice[name] = counts
         for status, n in counts.items():
@@ -305,7 +306,7 @@ def aggregate_slice_summaries(
     }
 
 
-def write_aggregate_report(output_root: Path, aggregate: Dict[str, Any]) -> Path:
+def write_aggregate_report(output_root: Path, aggregate: dict[str, Any]) -> Path:
     path = Path(output_root) / "aggregate-mutation-report.json"
     path.write_text(json.dumps(aggregate, indent=2))
     return path
@@ -314,7 +315,7 @@ def write_aggregate_report(output_root: Path, aggregate: Dict[str, Any]) -> Path
 # =============================================================================
 # Rolled-up progress reporting
 # =============================================================================
-def format_progress_line(order: Sequence[str], states: Dict[str, str]) -> str:
+def format_progress_line(order: Sequence[str], states: dict[str, str]) -> str:
     """Render a rolled-up progress line, e.g.:
 
     ``slice 3/7 done, slice 4/7 running, slice 5/7 running, slice 6/7 queued``
@@ -331,9 +332,9 @@ def format_progress_line(order: Sequence[str], states: Dict[str, str]) -> str:
 # Single-slice run (fleet-level hide/restore already done by the caller)
 # =============================================================================
 def run_slice(
-    slice_def: Dict[str, Any],
+    slice_def: dict[str, Any],
     *,
-    base_config: Dict[str, Any],
+    base_config: dict[str, Any],
     output_root: Path,
     stryker_bin: str,
     per_slice_concurrency: int,
@@ -420,21 +421,21 @@ def parse_args(argv: Sequence[str]) -> argparse.Namespace:
     return p.parse_args(list(argv))
 
 
-def _load_base_config(path: str) -> Dict[str, Any]:
+def _load_base_config(path: str) -> dict[str, Any]:
     if not path:
         return {}
     data = json.loads(Path(path).read_text())
     return data.get("stryker-config", data)
 
 
-def main(argv: Optional[Sequence[str]] = None) -> int:
+def main(argv: Sequence[str] | None = None) -> int:
     argv = list(sys.argv[1:] if argv is None else argv)
     args = parse_args(argv)
 
     try:
         configured = load_slices_config(Path(args.slices_config))
         selected = resolve_slice_selection(configured, args.slice)
-    except ValueError as e:
+    except (ValueError, TypeError) as e:
         sys.stderr.write(f"error: {e}\n")
         return 2
 
@@ -488,8 +489,8 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     wrapper.hide_sln(sln, sln_hidden)
 
     order = [s["name"] for s in to_run]
-    states: Dict[str, str] = {name: "queued" for name in order}
-    exit_codes: Dict[str, int] = {}
+    states: dict[str, str] = {name: "queued" for name in order}
+    exit_codes: dict[str, int] = {}
 
     # ---- Install signal handlers now that we're about to spawn a fleet of
     # concurrent Stryker subprocesses (one per in-flight slice). This reuses
@@ -517,8 +518,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
                     )
                 ] = s["name"]
             print(format_progress_line(order, states))
-            for future in futures:
-                name = futures[future]
+            for future, name in futures.items():
                 exit_codes[name] = future.result()
                 states[name] = "done" if exit_codes[name] == 0 else "failed"
                 print(format_progress_line(order, states))

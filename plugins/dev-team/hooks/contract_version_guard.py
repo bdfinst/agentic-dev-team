@@ -38,7 +38,7 @@ _LIB_DIR = Path(__file__).resolve().parent / "lib"
 if str(_LIB_DIR) not in sys.path:
     sys.path.insert(0, str(_LIB_DIR))
 
-from boundary_events import emit_boundary_event as _emit_boundary_event  # noqa: E402
+from boundary_events import emit_boundary_event as _emit_boundary_event
 
 
 def emit_boundary_event(*args, **kwargs) -> None:
@@ -46,7 +46,7 @@ def emit_boundary_event(*args, **kwargs) -> None:
     this hook's exit code, stdout, or stderr."""
     try:
         _emit_boundary_event(*args, **kwargs)
-    except Exception:  # noqa: BLE001 - fail-open by design
+    except Exception:  # noqa: BLE001, S110 - fail-open by design
         pass
 
 # Matches the .sh's SCRIPT_DIR / REPO_ROOT resolution.

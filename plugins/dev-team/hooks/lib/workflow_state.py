@@ -26,7 +26,6 @@ import json
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Optional
 
 _LOG_NAME = "workflow-states.jsonl"
 
@@ -58,9 +57,9 @@ def _log_path(cwd) -> Path:
 def emit_state_transition(
     cwd,
     workflow: str,
-    prior_state: Optional[str],
+    prior_state: str | None,
     new_state: str,
-    session_id: Optional[str] = None,
+    session_id: str | None = None,
 ) -> None:
     """Append one compact JSON line recording a state transition.
 
@@ -93,11 +92,11 @@ def emit_state_transition(
 
         with open(log, "a", encoding="utf-8") as handle:
             handle.write(json.dumps(payload, separators=(",", ":")) + "\n")
-    except Exception:  # noqa: BLE001 — fail-open by design, see module docstring
+    except Exception:  # noqa: BLE001, S110 — fail-open by design, see module docstring
         pass
 
 
-def _read_transitions(log: Path, session_id: Optional[str] = None) -> list:
+def _read_transitions(log: Path, session_id: str | None = None) -> list:
     if not log.is_file():
         return []
     entries = []
@@ -119,7 +118,7 @@ def _parse_ts(ts: str):
     return datetime.strptime(ts, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=timezone.utc)
 
 
-def derive_current_state(entries: list) -> Optional[str]:
+def derive_current_state(entries: list) -> str | None:
     """The most recent `new_state` across the given (already session-filtered,
     chronological) transitions, or `None` if there are no entries."""
     if not entries:

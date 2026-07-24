@@ -16,19 +16,19 @@ from pathlib import Path
 
 import pytest
 
+from _repo_root import REPO_ROOT as _REPO_ROOT
 
-_REPO_ROOT = Path(__file__).resolve().parents[4]
 _HOOK = _REPO_ROOT / "plugins" / "dev-team" / "hooks" / "pre_commit_review.py"
 
 _TESTS_LIB = Path(__file__).resolve().parents[2] / "tests" / "lib"
 if str(_TESTS_LIB) not in sys.path:
     sys.path.insert(0, str(_TESTS_LIB))
 
-from hermetic import hermetic_git_env  # type: ignore[import-not-found]  # noqa: E402
+from hermetic import hermetic_git_env  # type: ignore[import-not-found]
 
 
 def _run(
-    payload: dict, cwd: Path, extra_env: dict = None
+    payload: dict, cwd: Path, extra_env: dict | None = None
 ) -> subprocess.CompletedProcess[str]:
     proc_env = {
         "PATH": os.environ.get("PATH", "/usr/bin:/bin"),

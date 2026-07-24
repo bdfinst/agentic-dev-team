@@ -26,14 +26,14 @@ import re
 import subprocess
 import sys
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 
 _SCRIPT_DIR = Path(__file__).resolve().parent
 _LIB_DIR = _SCRIPT_DIR / "lib"
 if str(_LIB_DIR) not in sys.path:
     sys.path.insert(0, str(_LIB_DIR))
 
-from boundary_events import emit_boundary_event as _emit_boundary_event  # noqa: E402
+from boundary_events import emit_boundary_event as _emit_boundary_event
 
 
 def emit_boundary_event(*args, **kwargs) -> None:
@@ -41,7 +41,7 @@ def emit_boundary_event(*args, **kwargs) -> None:
     this hook's exit code, stdout, or stderr."""
     try:
         _emit_boundary_event(*args, **kwargs)
-    except Exception:  # noqa: BLE001 - fail-open by design
+    except Exception:  # noqa: BLE001, S110 - fail-open by design
         pass
 _COMMANDS_FILE = _SCRIPT_DIR / "destructive-commands.json"
 _CAREFUL_FILE = _SCRIPT_DIR / "careful-state.json"
@@ -84,7 +84,7 @@ def _read_stdin() -> str:
         return ""
 
 
-def _load_json(path: Path) -> Optional[dict]:
+def _load_json(path: Path) -> dict | None:
     try:
         with path.open("r", encoding="utf-8") as fh:
             data = json.load(fh)
@@ -125,8 +125,8 @@ def _careful_active() -> bool:
     return isinstance(value, str) and value == "true"
 
 
-def _load_patterns() -> Tuple[
-    List[str], List[str], List[str], List[str], List[str], List[str]
+def _load_patterns() -> tuple[
+    list[str], list[str], list[str], list[str], list[str], list[str]
 ]:
     """Load pattern lists from the config file, falling back to inline defaults.
 
@@ -143,7 +143,7 @@ def _load_patterns() -> Tuple[
             list(_DEFAULT_SAFE_PATTERNS),
         )
 
-    def _list_of_str(key: str) -> List[str]:
+    def _list_of_str(key: str) -> list[str]:
         raw = data.get(key)
         if not isinstance(raw, list):
             return []
@@ -170,7 +170,7 @@ def _load_patterns() -> Tuple[
 # escalation rule, never pay the subprocess cost.
 
 
-def _run_git(args: List[str]) -> Optional[str]:
+def _run_git(args: list[str]) -> str | None:
     """Run a single git subprocess with a short timeout. None on any failure."""
     try:
         result = subprocess.run(
@@ -188,7 +188,7 @@ def _run_git(args: List[str]) -> Optional[str]:
     return output or None
 
 
-def _current_branch() -> Optional[str]:
+def _current_branch() -> str | None:
     """Current checked-out branch name, or None (detached HEAD, no repo, etc.)."""
     branch = _run_git(["rev-parse", "--abbrev-ref", "HEAD"])
     if branch is None or branch == "HEAD":
@@ -196,7 +196,7 @@ def _current_branch() -> Optional[str]:
     return branch
 
 
-def _default_branch() -> Optional[str]:
+def _default_branch() -> str | None:
     """Resolved default branch name, or None when it cannot be determined.
 
     Primary source: `git symbolic-ref --short refs/remotes/origin/HEAD`
@@ -220,7 +220,7 @@ def _default_branch() -> Optional[str]:
     return None
 
 
-def _remote_url() -> Optional[str]:
+def _remote_url() -> str | None:
     """The `origin` remote URL, or None (no remote, not a repo, etc.)."""
     return _run_git(["remote", "get-url", "origin"])
 
@@ -231,7 +231,7 @@ def _ci_active() -> bool:
     return value.strip().lower() not in ("", "0", "false")
 
 
-def _matches_any(cmd_lower: str, patterns: List[str]) -> Optional[str]:
+def _matches_any(cmd_lower: str, patterns: list[str]) -> str | None:
     """Return the first pattern whose lowercase substring appears in `cmd_lower`."""
     for pattern in patterns:
         if not pattern:
@@ -243,7 +243,7 @@ def _matches_any(cmd_lower: str, patterns: List[str]) -> Optional[str]:
     return None
 
 
-def _first_match(cmd_lower: str, groups: List[Tuple[List[str], str]]) -> Optional[str]:
+def _first_match(cmd_lower: str, groups: list[tuple[list[str], str]]) -> str | None:
     """Iterate groups in .sh order, return 'category: pattern' on first hit."""
     for patterns, category in groups:
         pattern = _matches_any(cmd_lower, patterns)
@@ -266,7 +266,7 @@ def _matched_pattern_text(match: str) -> str:
 # --- Escalation evaluator (#862) --------------------------------------------
 
 
-def _load_escalations() -> List[Dict[str, Any]]:
+def _load_escalations() -> list[dict[str, Any]]:
     """Load the optional "escalations" list from destructive-commands.json.
 
     Absent key, missing/unreadable file, or malformed entries -> []. This
@@ -287,8 +287,8 @@ def _load_escalations() -> List[Dict[str, Any]]:
 
 
 def _find_escalation_rule(
-    escalations: List[Dict[str, Any]], pattern: str
-) -> Optional[Dict[str, Any]]:
+    escalations: list[dict[str, Any]], pattern: str
+) -> dict[str, Any] | None:
     for rule in escalations:
         if rule.get("pattern") == pattern:
             return rule
@@ -308,8 +308,8 @@ def _condition_target_branch_default(
     command: str,
     command_lower: str,
     pattern: str,
-    current_branch: Optional[str],
-    default_branch: Optional[str],
+    current_branch: str | None,
+    default_branch: str | None,
 ) -> bool:
     """`target_branch: "default"` — the command's target resolves to the default branch.
 
@@ -330,7 +330,7 @@ def _condition_target_branch_default(
 
 
 def _condition_current_branch_default(
-    current_branch: Optional[str], default_branch: Optional[str]
+    current_branch: str | None, default_branch: str | None
 ) -> bool:
     """`current_branch: "default"` — HEAD is currently the default branch."""
     if current_branch is None or default_branch is None:
@@ -339,31 +339,29 @@ def _condition_current_branch_default(
 
 
 def _rule_escalates(
-    rule: Dict[str, Any],
+    rule: dict[str, Any],
     command: str,
     command_lower: str,
     pattern: str,
-    current_branch: Optional[str],
-    default_branch: Optional[str],
+    current_branch: str | None,
+    default_branch: str | None,
 ) -> bool:
     """Evaluate a rule's `when` conditions. Unknown/unresolvable -> False."""
     when = rule.get("when")
     if not isinstance(when, dict) or not when:
         return False
-    if when.get("target_branch") == "default":
-        if not _condition_target_branch_default(
-            command, command_lower, pattern, current_branch, default_branch
-        ):
-            return False
-    if when.get("current_branch") == "default":
-        if not _condition_current_branch_default(current_branch, default_branch):
-            return False
+    if when.get("target_branch") == "default" and not _condition_target_branch_default(
+        command, command_lower, pattern, current_branch, default_branch
+    ):
+        return False
+    if when.get("current_branch") == "default" and not _condition_current_branch_default(
+        current_branch, default_branch
+    ):
+        return False
     # Only the two recognized condition keys are supported today; an
     # unrecognized key alone would otherwise vacuously escalate.
     known_keys = {"target_branch", "current_branch"}
-    if not set(when.keys()) & known_keys:
-        return False
-    return True
+    return bool(set(when.keys()) & known_keys)
 
 
 def _override_active() -> bool:
@@ -426,8 +424,8 @@ def main() -> int:
     escalations = _load_escalations()
     rule = _find_escalation_rule(escalations, pattern)
     escalated = False
-    current_branch: Optional[str] = None
-    default_branch: Optional[str] = None
+    current_branch: str | None = None
+    default_branch: str | None = None
     if rule is not None:
         current_branch = _current_branch()
         default_branch = _default_branch()

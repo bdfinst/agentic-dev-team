@@ -25,9 +25,9 @@ Ported from tests/agents/orchestrator_worktree_baseref_doc_tests.bats
 from __future__ import annotations
 
 import re
-from pathlib import Path
 
-REPO_ROOT = Path(__file__).resolve().parents[2]
+from _repo_root import REPO_ROOT
+
 ORCH = REPO_ROOT / "plugins" / "dev-team" / "agents" / "orchestrator.md"
 FLOW_DOC = (
     REPO_ROOT / "plugins" / "dev-team" / "knowledge" / "request-processing-flow.md"

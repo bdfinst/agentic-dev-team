@@ -14,7 +14,8 @@ from pathlib import Path
 
 import pytest
 
-REPO_ROOT = Path(__file__).resolve().parents[2]
+from _repo_root import REPO_ROOT
+
 RAWLOG = REPO_ROOT / "scripts" / "eval_rawlog.py"
 
 
@@ -41,7 +42,10 @@ def case(tmp_path: Path) -> Path:
 
 def _run(*args: str) -> subprocess.CompletedProcess:
     return subprocess.run(
-        [sys.executable, str(RAWLOG), *args], capture_output=True, text=True
+        [sys.executable, str(RAWLOG), *args],
+        capture_output=True,
+        text=True,
+        check=False,
     )
 
 

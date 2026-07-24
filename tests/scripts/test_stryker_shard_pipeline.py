@@ -30,8 +30,8 @@ SCRIPTS_DIR = (
 )
 sys.path.insert(0, str(SCRIPTS_DIR))
 
-import stryker_shard_pipeline as pipeline  # noqa: E402
-import stryker_timeout_retry as retry  # noqa: E402
+import stryker_shard_pipeline as pipeline
+import stryker_timeout_retry as retry
 
 FORBIDDEN_LITERALS = [
     "Aci.Speedpay",

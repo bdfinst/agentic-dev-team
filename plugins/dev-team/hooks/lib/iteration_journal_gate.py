@@ -31,12 +31,11 @@ import json
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Optional, Tuple
 
 _LIB_DIR = Path(__file__).resolve().parent
 sys.path.insert(0, str(_LIB_DIR))
 
-from boundary_events import emit_boundary_event  # noqa: E402
+from boundary_events import emit_boundary_event
 
 _LOG_NAME = "iteration-journal.jsonl"
 
@@ -69,7 +68,7 @@ def record_iteration_entry(
     attempted: str,
     outcome: str,
     next_action: str,
-    session_id: Optional[str] = None,
+    session_id: str | None = None,
 ) -> None:
     """Append one compact JSON line recording this iteration's decision.
 
@@ -105,7 +104,7 @@ def record_iteration_entry(
 
         with open(log, "a", encoding="utf-8") as handle:
             handle.write(json.dumps(payload, separators=(",", ":")) + "\n")
-    except Exception:  # noqa: BLE001 — fail-open by design, see module docstring
+    except Exception:  # noqa: BLE001, S110 — fail-open by design, see module docstring
         pass
 
 
@@ -125,8 +124,8 @@ def _read_entries(log: Path) -> list:
 
 
 def check_iteration_journal(
-    round_id: str, cwd=None, log_path: Optional[str] = None
-) -> Tuple[bool, str]:
+    round_id: str, cwd=None, log_path: str | None = None
+) -> tuple[bool, str]:
     """Whether >=1 journal entry exists for `round_id`.
 
     Returns:
@@ -168,7 +167,7 @@ def cmd_check(args) -> int:
             matched_rule="iteration-journal-missing",
             session_id=args.session,
         )
-    except Exception:  # noqa: BLE001 — fail-open by design
+    except Exception:  # noqa: BLE001, S110 — fail-open by design
         pass
     return 1
 

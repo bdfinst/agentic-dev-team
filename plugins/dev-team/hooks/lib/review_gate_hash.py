@@ -23,10 +23,9 @@ from __future__ import annotations
 import hashlib
 import subprocess
 from pathlib import Path
-from typing import Optional
 
 
-def review_gate_hash(cwd: Optional[Path] = None) -> str:
+def review_gate_hash(cwd: Path | None = None) -> str:
     """Return the sha256 hex digest of `git diff --cached --no-color`.
 
     Byte-parity with the .sh sibling:

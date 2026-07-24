@@ -28,7 +28,7 @@ SCRIPTS_DIR = (
 )
 sys.path.insert(0, str(SCRIPTS_DIR))
 
-import mutation_kill_loop as loop  # noqa: E402
+import mutation_kill_loop as loop
 
 FORBIDDEN_LITERALS = ["Aci.Speedpay", "Controllers", "AwesomeAssertions", "Moq", "AutoFixture"]
 
@@ -157,7 +157,6 @@ def test_scoped_run_delegates_dotnet_root_and_sln_to_wrapper(
 
     def fake_subprocess_run(argv, **kwargs):
         calls.append(("subprocess.run", argv, kwargs))
-        return None
 
     monkeypatch.setattr(loop.wrapper, "resolve_dotnet_root", spy_resolve)
     monkeypatch.setattr(loop.wrapper, "default_probe_candidates", spy_candidates)
@@ -537,17 +536,17 @@ def _loop_fixture(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, mutants):
         loop, "git_commit", lambda msg, tf, **k: events.append(("commit", msg)) or True
     )
 
-    kwargs = dict(
-        source_file="PaymentService.cs",
-        config=config,
-        test_file=test_file,
-        source_path=source_path,
-        output_dir=tmp_path / "out",
-        generate=generator,
-        initial_report_path=report,
-        max_rounds=3,
-        log=lambda m: None,
-    )
+    kwargs = {
+        "source_file": "PaymentService.cs",
+        "config": config,
+        "test_file": test_file,
+        "source_path": source_path,
+        "output_dir": tmp_path / "out",
+        "generate": generator,
+        "initial_report_path": report,
+        "max_rounds": 3,
+        "log": lambda m: None,
+    }
     return kwargs, events
 
 

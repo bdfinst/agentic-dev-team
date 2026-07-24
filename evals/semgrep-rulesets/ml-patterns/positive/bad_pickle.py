@@ -1,5 +1,6 @@
 """Positive fixture for ml-patterns.insecure-pickle-load + torch-load-untrusted."""
 import pickle
+
 import joblib
 import torch
 

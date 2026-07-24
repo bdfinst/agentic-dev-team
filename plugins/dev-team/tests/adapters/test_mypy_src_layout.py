@@ -37,13 +37,14 @@ SCRIPT = (
 )
 
 
-def run_script(*args: str, cwd: Path = None) -> subprocess.CompletedProcess:
+def run_script(*args: str, cwd: Path | None = None) -> subprocess.CompletedProcess:
     return subprocess.run(
         [sys.executable, str(SCRIPT), *args],
         capture_output=True,
         text=True,
         cwd=str(cwd) if cwd else None,
         timeout=30,
+        check=False,
     )
 
 
@@ -153,6 +154,7 @@ def test_src_layout_reproduces_and_the_detected_flag_fixes_source_file_found_twi
         cwd=str(tmp_path),
         env=_HERMETIC_MYPY_ENV,
         timeout=60,
+        check=False,
     )
     assert "Source file found twice under different module names" in (
         broken.stdout + broken.stderr
@@ -169,6 +171,7 @@ def test_src_layout_reproduces_and_the_detected_flag_fixes_source_file_found_twi
         cwd=str(tmp_path),
         env=_HERMETIC_MYPY_ENV,
         timeout=60,
+        check=False,
     )
     assert "Source file found twice under different module names" not in (
         fixed.stdout + fixed.stderr

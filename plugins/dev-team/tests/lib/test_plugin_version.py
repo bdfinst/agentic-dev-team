@@ -12,12 +12,13 @@ import json
 import sys
 from pathlib import Path
 
-_REPO_ROOT = Path(__file__).resolve().parents[4]
+from _repo_root import REPO_ROOT as _REPO_ROOT
+
 sys.path.insert(
     0, str(_REPO_ROOT / "plugins" / "dev-team" / "hooks" / "lib")
 )
 
-import plugin_version  # noqa: E402
+import plugin_version
 
 
 def _seed(cfg: Path, record) -> None:

@@ -10,9 +10,8 @@ Ported from tests/agents/plan_review_parallelization_prompt_tests.bats
 
 from __future__ import annotations
 
-from pathlib import Path
+from _repo_root import REPO_ROOT
 
-REPO_ROOT = Path(__file__).resolve().parents[2]
 AGENT = REPO_ROOT / "plugins" / "dev-team" / "agents" / "plan-review-parallelization.md"
 PLAN_SKILL = REPO_ROOT / "plugins" / "dev-team" / "skills" / "plan" / "SKILL.md"
 

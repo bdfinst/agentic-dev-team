@@ -33,7 +33,7 @@ _LIB_DIR = _HOOK_DIR / "lib"
 if str(_LIB_DIR) not in sys.path:
     sys.path.insert(0, str(_LIB_DIR))
 
-from verify_guard_state import (  # noqa: E402  (import after sys.path setup)
+from verify_guard_state import (
     read_state,
     state_file,
     state_key,

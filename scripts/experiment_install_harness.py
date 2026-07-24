@@ -48,7 +48,7 @@ import subprocess
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 
 SCHEMA_VERSION = 1
 DEFAULT_MARKETPLACE_SLUG = "bdfinst/agentic-dev-team"
@@ -73,7 +73,7 @@ def _marketplace_name(plugin_id: str) -> str:
 # Command construction (pure — unit-testable, and what --dry-run prints)
 # ---------------------------------------------------------------------------
 
-def build_install_commands(arm: str, source: str, plugin_id: str) -> List[List[str]]:
+def build_install_commands(arm: str, source: str, plugin_id: str) -> list[list[str]]:
     """The exact ``claude`` invocations for one arm, in order.
 
     ``source`` is the marketplace to add: the published GitHub slug for
@@ -89,14 +89,14 @@ def build_install_commands(arm: str, source: str, plugin_id: str) -> List[List[s
             ["claude", "plugin", "marketplace", "add", source],
             ["claude", "plugin", "install", "--scope", "project", plugin_id],
         ]
-    raise ValueError("unknown arm: %s" % arm)
+    raise ValueError(f"unknown arm: {arm}")
 
 
 # ---------------------------------------------------------------------------
 # Subprocess plumbing — never swallow stderr, always propagate nonzero exits
 # ---------------------------------------------------------------------------
 
-def run_command(cmd: List[str], cwd: Path, config_dir: Path) -> subprocess.CompletedProcess:
+def run_command(cmd: list[str], cwd: Path, config_dir: Path) -> subprocess.CompletedProcess:
     """Run one install command with the arm's isolated CLAUDE_CONFIG_DIR.
 
     Output is captured *and re-emitted* (stdout→stdout, stderr→stderr) so
@@ -119,7 +119,7 @@ def run_command(cmd: List[str], cwd: Path, config_dir: Path) -> subprocess.Compl
     return proc
 
 
-def git_head_sha(repo_dir: Path) -> Optional[str]:
+def git_head_sha(repo_dir: Path) -> str | None:
     """``git rev-parse HEAD`` in ``repo_dir``; None (with a stderr note) if it
     is not a git repo or git is unavailable. Never raises."""
     try:
@@ -128,12 +128,11 @@ def git_head_sha(repo_dir: Path) -> Optional[str]:
             capture_output=True, text=True, check=False,
         )
     except OSError as exc:  # git missing entirely
-        print("warning: git unavailable (%s); SHA not recorded" % exc, file=sys.stderr)
+        print(f"warning: git unavailable ({exc}); SHA not recorded", file=sys.stderr)
         return None
     if proc.returncode != 0:
         print(
-            "warning: could not resolve HEAD in %s: %s"
-            % (repo_dir, proc.stderr.strip()),
+            f"warning: could not resolve HEAD in {repo_dir}: {proc.stderr.strip()}",
             file=sys.stderr,
         )
         return None
@@ -145,8 +144,8 @@ def git_head_sha(repo_dir: Path) -> Optional[str]:
 # ---------------------------------------------------------------------------
 
 def resolve_installed_plugin_dir(
-    config_dir: Path, plugin_id: str, override: Optional[Path] = None
-) -> Optional[Path]:
+    config_dir: Path, plugin_id: str, override: Path | None = None
+) -> Path | None:
     """Where the installed plugin's files materialized for this arm.
 
     Resolution order:
@@ -180,7 +179,7 @@ def resolve_installed_plugin_dir(
 
     cache_root = config_dir / "plugins" / "cache"
     candidates = sorted(
-        cache_root.glob("*/%s/*" % name),
+        cache_root.glob(f"*/{name}/*"),
         key=lambda p: p.stat().st_mtime,
         reverse=True,
     )
@@ -191,8 +190,8 @@ def resolve_installed_plugin_dir(
 
 
 def installed_plugin_version(
-    config_dir: Path, plugin_id: str, plugin_dir: Optional[Path]
-) -> Optional[str]:
+    config_dir: Path, plugin_id: str, plugin_dir: Path | None
+) -> str | None:
     """Plugin version, from the install record or the installed plugin.json."""
     name = _plugin_name(plugin_id)
     record_path = config_dir / "plugins" / "installed_plugins.json"
@@ -220,7 +219,7 @@ def installed_plugin_version(
     return None
 
 
-def checkout_plugin_version(checkout: Path) -> Optional[str]:
+def checkout_plugin_version(checkout: Path) -> str | None:
     """Version straight from the experiment checkout's plugin manifest."""
     for rel in ("plugins/dev-team/.claude-plugin/plugin.json",
                 ".claude-plugin/plugin.json"):
@@ -238,8 +237,8 @@ def checkout_plugin_version(checkout: Path) -> Optional[str]:
 # ---------------------------------------------------------------------------
 
 def probe_marker(
-    plugin_dir: Optional[Path], marker: str, marker_string: Optional[str] = None
-) -> Optional[bool]:
+    plugin_dir: Path | None, marker: str, marker_string: str | None = None
+) -> bool | None:
     """Is the treatment marker present in this installed plugin dir?
 
     Returns True/False, or None when the installed dir could not be located
@@ -259,7 +258,7 @@ def probe_marker(
         return False
 
 
-def evaluate_probe(arm: str, present: Optional[bool]) -> Optional[bool]:
+def evaluate_probe(arm: str, present: bool | None) -> bool | None:
     """Pass/fail: marker present in treatment, absent in control. None while
     inconclusive (installed dir not found / dry-run)."""
     if present is None:
@@ -272,7 +271,7 @@ def evaluate_probe(arm: str, present: Optional[bool]) -> Optional[bool]:
 # Manifest
 # ---------------------------------------------------------------------------
 
-def band_model_placeholder() -> Dict[str, Any]:
+def band_model_placeholder() -> dict[str, Any]:
     """Recorded-at-runtime placeholder for the band→model map.
 
     ``/model-routing-check`` runs inside a live Claude Code session against
@@ -298,17 +297,17 @@ def build_arm_manifest(
     project_dir: Path,
     config_dir: Path,
     source: str,
-    commands: List[List[str]],
+    commands: list[list[str]],
     plugin_id: str,
     executed: bool,
-    plugin_version: Optional[str] = None,
-    resolved_sha: Optional[str] = None,
-    release_tag: Optional[str] = None,
-    installed_plugin_dir: Optional[Path] = None,
+    plugin_version: str | None = None,
+    resolved_sha: str | None = None,
+    release_tag: str | None = None,
+    installed_plugin_dir: Path | None = None,
     marker: str = DEFAULT_MARKER,
-    marker_string: Optional[str] = None,
-    marker_present: Optional[bool] = None,
-) -> Dict[str, Any]:
+    marker_string: str | None = None,
+    marker_present: bool | None = None,
+) -> dict[str, Any]:
     return {
         "arm": "B" if arm == CONTROL else "C",
         "role": arm,
@@ -341,7 +340,7 @@ def build_arm_manifest(
 # CLI
 # ---------------------------------------------------------------------------
 
-def parse_args(argv: Optional[List[str]] = None) -> argparse.Namespace:
+def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     p = argparse.ArgumentParser(
         prog="experiment_install_harness.py",
         description=(
@@ -420,7 +419,7 @@ def parse_args(argv: Optional[List[str]] = None) -> argparse.Namespace:
     return args
 
 
-def _provision_arm(args: argparse.Namespace, arm: str) -> Tuple[Dict[str, Any], int]:
+def _provision_arm(args: argparse.Namespace, arm: str) -> tuple[dict[str, Any], int]:
     """Provision one arm end to end. Returns (arm manifest, worst exit code)."""
     if arm == CONTROL:
         project, cfg = args.control_project, args.control_config_dir
@@ -434,7 +433,7 @@ def _provision_arm(args: argparse.Namespace, arm: str) -> Tuple[Dict[str, Any], 
     commands = build_install_commands(arm, source, args.plugin_id)
 
     if args.dry_run:
-        print("[%s] (dry-run) in %s with CLAUDE_CONFIG_DIR=%s:" % (arm, project, cfg))
+        print(f"[{arm}] (dry-run) in {project} with CLAUDE_CONFIG_DIR={cfg}:")
         for cmd in commands:
             print("  $ " + " ".join(cmd))
         version = sha = None
@@ -450,8 +449,7 @@ def _provision_arm(args: argparse.Namespace, arm: str) -> Tuple[Dict[str, Any], 
 
     if arm == TREATMENT and not args.experiment_checkout.is_dir():
         print(
-            "error: --experiment-checkout %s is not a directory"
-            % args.experiment_checkout,
+            f"error: --experiment-checkout {args.experiment_checkout} is not a directory",
             file=sys.stderr,
         )
         return build_arm_manifest(
@@ -466,13 +464,12 @@ def _provision_arm(args: argparse.Namespace, arm: str) -> Tuple[Dict[str, Any], 
     exit_code = 0
     executed = True
     for cmd in commands:
-        print("[%s] $ %s  (cwd=%s)" % (arm, " ".join(cmd), project))
+        print("[{}] $ {}  (cwd={})".format(arm, " ".join(cmd), project))
         try:
             run_command(cmd, cwd=project, config_dir=cfg)
         except subprocess.CalledProcessError as exc:
             print(
-                "error: [%s] command %r exited %d"
-                % (arm, " ".join(cmd), exc.returncode),
+                f"error: [{arm}] command {' '.join(cmd)!r} exited {exc.returncode}",
                 file=sys.stderr,
             )
             executed = False
@@ -493,7 +490,7 @@ def _provision_arm(args: argparse.Namespace, arm: str) -> Tuple[Dict[str, Any], 
         )
         sha = git_head_sha(marketplace_clone) if marketplace_clone.is_dir() else None
         release_tag = (
-            "%s-v%s" % (_plugin_name(args.plugin_id), version) if version else None
+            f"{_plugin_name(args.plugin_id)}-v{version}" if version else None
         )
 
     present = probe_marker(plugin_dir, args.marker, args.marker_string) if executed else None
@@ -509,9 +506,8 @@ def _provision_arm(args: argparse.Namespace, arm: str) -> Tuple[Dict[str, Any], 
     passed = manifest["probe"]["passed"]
     if executed and passed is False:
         print(
-            "error: [%s] probe FAILED — marker %r %s in %s (expected %s). "
-            "Wrong build loaded."
-            % (
+            "error: [{}] probe FAILED — marker {!r} {} in {} (expected {}). "
+            "Wrong build loaded.".format(
                 arm,
                 args.marker,
                 "present" if present else "absent",
@@ -523,19 +519,17 @@ def _provision_arm(args: argparse.Namespace, arm: str) -> Tuple[Dict[str, Any], 
         exit_code = max(exit_code, 2)
     elif executed and passed is None:
         print(
-            "warning: [%s] probe inconclusive — installed plugin dir not "
-            "found under %s; pass --%s-plugin-dir to point the probe at it"
-            % (arm, cfg, arm),
+            f"warning: [{arm}] probe inconclusive — installed plugin dir not "
+            f"found under {cfg}; pass --{arm}-plugin-dir to point the probe at it",
             file=sys.stderr,
         )
         exit_code = max(exit_code, 2)
     elif executed:
-        print("[%s] probe OK: marker %s as expected"
-              % (arm, "present" if present else "absent"))
+        print("[{}] probe OK: marker {} as expected".format(arm, "present" if present else "absent"))
     return manifest, exit_code
 
 
-def main(argv: Optional[List[str]] = None) -> int:
+def main(argv: list[str] | None = None) -> int:
     args = parse_args(argv)
 
     if not args.dry_run and shutil.which("claude") is None:
@@ -547,7 +541,7 @@ def main(argv: Optional[List[str]] = None) -> int:
         )
         return 3
 
-    arms: Dict[str, Any] = {}
+    arms: dict[str, Any] = {}
     exit_code = 0
     if not args.treatment_only:
         manifest, code = _provision_arm(args, CONTROL)
@@ -568,7 +562,7 @@ def main(argv: Optional[List[str]] = None) -> int:
     }
     args.manifest.parent.mkdir(parents=True, exist_ok=True)
     args.manifest.write_text(json.dumps(doc, indent=2) + "\n")
-    print("manifest: %s" % args.manifest)
+    print(f"manifest: {args.manifest}")
     return exit_code
 
 

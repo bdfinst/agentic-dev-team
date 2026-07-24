@@ -29,21 +29,19 @@ import shutil
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Optional
-
 
 _HOOK_DIR = Path(__file__).resolve().parent
 _LIB_DIR = _HOOK_DIR / "lib"
 
 sys.path.insert(0, str(_LIB_DIR))
 try:
-    from stdin_json import read_stdin_json  # type: ignore[import-not-found]
     from boundary_events import (  # type: ignore[import-not-found]
         emit_boundary_event as _emit_boundary_event,
     )
+    from stdin_json import read_stdin_json  # type: ignore[import-not-found]
 except ImportError:  # pragma: no cover
 
-    def read_stdin_json() -> Optional[dict]:  # type: ignore[misc]
+    def read_stdin_json() -> dict | None:  # type: ignore[misc]
         return None
 
     def _emit_boundary_event(*_args, **_kwargs) -> None:  # type: ignore[misc]
@@ -55,7 +53,7 @@ def emit_boundary_event(*args, **kwargs) -> None:
     this hook's exit code, stdout, or stderr."""
     try:
         _emit_boundary_event(*args, **kwargs)
-    except Exception:  # noqa: BLE001 - fail-open by design
+    except Exception:  # noqa: BLE001, S110 - fail-open by design
         pass
 
 
@@ -102,9 +100,7 @@ def is_single_file_mutate(value: str) -> bool:
     (*, ?, [) AND no semicolon (Stryker.NET's multi-file separator)."""
     if not value:
         return False
-    if any(c in value for c in ("*", "?", "[", ";")):
-        return False
-    return True
+    return not any(c in value for c in ("*", "?", "[", ";"))
 
 
 # ---------------------------------------------------------------------------

@@ -12,7 +12,8 @@ import os
 import subprocess
 from pathlib import Path
 
-REPO_ROOT = Path(__file__).resolve().parents[2]
+from _repo_root import REPO_ROOT
+
 SYNC = REPO_ROOT / "scripts" / "telemetry-sync.sh"
 
 
@@ -20,7 +21,11 @@ def _check(tmp_path: Path, env_overrides: dict) -> subprocess.CompletedProcess:
     env = {k: v for k, v in os.environ.items() if k != "DEV_TEAM_TELEMETRY_REMOTE"}
     env.update(env_overrides)
     return subprocess.run(
-        ["bash", str(SYNC), "--check"], capture_output=True, text=True, env=env
+        ["bash", str(SYNC), "--check"],
+        capture_output=True,
+        text=True,
+        env=env,
+        check=False,
     )
 
 

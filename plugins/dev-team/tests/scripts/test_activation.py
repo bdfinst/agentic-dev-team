@@ -8,17 +8,17 @@ advisory slice-count ceiling guard.
 from __future__ import annotations
 
 import sys
-from pathlib import Path
 
 import pytest
 
-_REPO_ROOT = Path(__file__).resolve().parents[4]
+from _repo_root import REPO_ROOT as _REPO_ROOT
+
 sys.path.insert(
     0,
     str(_REPO_ROOT / "plugins" / "dev-team" / "skills" / "code-review" / "scripts"),
 )
 
-import activation  # noqa: E402
+import activation
 
 
 def test_auto_engage_above_threshold_full_repo():

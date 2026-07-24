@@ -14,7 +14,8 @@ import subprocess
 import sys
 from pathlib import Path
 
-REPO_ROOT = Path(__file__).resolve().parents[2]
+from _repo_root import REPO_ROOT
+
 HOOK = REPO_ROOT / "plugins" / "dev-team" / "hooks" / "telemetry.py"
 REPORT = REPO_ROOT / "plugins" / "dev-team" / "hooks" / "lib" / "telemetry_report.py"
 
@@ -28,6 +29,7 @@ def _send(payload: dict, env: dict | None = None) -> subprocess.CompletedProcess
     return subprocess.run(
         [sys.executable, str(HOOK)],
         input=json.dumps(payload),
+        check=False,
         capture_output=True,
         text=True,
         env=env if env is not None else os.environ.copy(),
@@ -219,6 +221,7 @@ def test_report_aggregates_usage_and_bypass_rate_with_skills_distinct_from_comma
     )
     res = subprocess.run(
         [sys.executable, str(REPORT), "--log", str(log), "--json"],
+        check=False,
         capture_output=True,
         text=True,
     )
@@ -234,6 +237,7 @@ def test_report_aggregates_usage_and_bypass_rate_with_skills_distinct_from_comma
 def test_report_disabled_no_log_says_nothing_left_the_machine(tmp_path: Path) -> None:
     res = subprocess.run(
         [sys.executable, str(REPORT), "--log", str(tmp_path / "none.jsonl")],
+        check=False,
         capture_output=True,
         text=True,
     )

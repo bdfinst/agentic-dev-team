@@ -11,12 +11,11 @@ from pathlib import Path
 
 import pytest
 
-
 _HOOKS_LIB = Path(__file__).resolve().parents[2] / "hooks" / "lib"
 if str(_HOOKS_LIB) not in sys.path:
     sys.path.insert(0, str(_HOOKS_LIB))
 
-import pre_commit_detect as detect  # type: ignore[import-not-found]  # noqa: E402
+import pre_commit_detect as detect  # type: ignore[import-not-found]
 
 
 @pytest.mark.parametrize(

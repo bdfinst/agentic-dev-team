@@ -24,7 +24,6 @@ import re
 import subprocess
 import sys
 from pathlib import Path
-from typing import List, Optional
 
 import yaml  # PyYAML — required dev dep
 
@@ -35,16 +34,16 @@ from lib.review_result import make_issue
 # Module-level constants (REFACTOR: extracted here for easy maintenance)
 # ---------------------------------------------------------------------------
 
-REQUIRED_FIELDS: List[str] = ["name", "description", "effort"]
+REQUIRED_FIELDS: list[str] = ["name", "description", "effort"]
 
-VALID_EFFORT: List[str] = ["low", "medium", "high"]
+VALID_EFFORT: list[str] = ["low", "medium", "high"]
 
 # Fields that are valid in native Claude Code agents but silently ignored
 # when an agent is shipped as part of a plugin — warn, do not error. `model`
 # is NOT in this list: per the verified contract (agent-contract.json), a
 # plugin agent's `model:` alias/full-ID/inherit value is honored normally —
 # only hooks/mcpServers/permissionMode are ignored for plugin-supplied agents.
-UNSUPPORTED_FIELDS: List[str] = ["hooks", "mcpServers", "permissionMode"]
+UNSUPPORTED_FIELDS: list[str] = ["hooks", "mcpServers", "permissionMode"]
 
 # Regex for valid kebab-case agent filenames (e.g. my-agent.md)
 KEBAB_RE = re.compile(r"^[a-z0-9]+(-[a-z0-9]+)*\.md$")
@@ -61,7 +60,7 @@ PATH_REF_RE = re.compile(
 # ---------------------------------------------------------------------------
 
 
-def _parse_frontmatter(text: str) -> Optional[dict]:
+def _parse_frontmatter(text: str) -> dict | None:
     """Extract YAML frontmatter from markdown. Returns dict or None."""
     if not text.startswith("---"):
         return None
@@ -79,7 +78,7 @@ def _parse_frontmatter(text: str) -> Optional[dict]:
 # ---------------------------------------------------------------------------
 
 
-def check_claude_md_exists(root: Path) -> List[dict]:
+def check_claude_md_exists(root: Path) -> list[dict]:
     """Exit 1 with message if CLAUDE.md is missing from root."""
     claude_md = root / "CLAUDE.md"
     if not claude_md.exists():
@@ -93,10 +92,10 @@ def check_claude_md_exists(root: Path) -> List[dict]:
     return []
 
 
-def check_frontmatter(agents_dir: Path) -> List[dict]:
+def check_frontmatter(agents_dir: Path) -> list[dict]:
     """Check frontmatter required fields, effort values, and unsupported fields."""
-    errors: List[dict] = []
-    warnings: List[dict] = []
+    errors: list[dict] = []
+    warnings: list[dict] = []
 
     if not agents_dir.exists():
         return []
@@ -165,9 +164,9 @@ def check_frontmatter(agents_dir: Path) -> List[dict]:
     return errors + warnings
 
 
-def check_naming(agents_dir: Path) -> List[dict]:
+def check_naming(agents_dir: Path) -> list[dict]:
     """Check filenames are kebab-case and name field matches stem."""
-    errors: List[dict] = []
+    errors: list[dict] = []
 
     if not agents_dir.exists():
         return []
@@ -217,9 +216,9 @@ def check_naming(agents_dir: Path) -> List[dict]:
     return errors
 
 
-def check_path_references(root: Path) -> List[dict]:
+def check_path_references(root: Path) -> list[dict]:
     """Check that path references in CLAUDE.md resolve to existing files."""
-    errors: List[dict] = []
+    errors: list[dict] = []
     claude_md = root / "CLAUDE.md"
     if not claude_md.exists():
         return []
@@ -247,9 +246,9 @@ def check_path_references(root: Path) -> List[dict]:
     return errors
 
 
-def check_duplicate_names(agents_dir: Path) -> List[dict]:
+def check_duplicate_names(agents_dir: Path) -> list[dict]:
     """Check for duplicate name fields across agent files."""
-    errors: List[dict] = []
+    errors: list[dict] = []
 
     if not agents_dir.exists():
         return []
@@ -283,7 +282,7 @@ def check_duplicate_names(agents_dir: Path) -> List[dict]:
     return errors
 
 
-def check_llm(root: Path, skip_llm: bool, errors: List[dict]) -> List[dict]:
+def check_llm(root: Path, skip_llm: bool, errors: list[dict]) -> list[dict]:
     """Run LLM quality check if structural checks passed and --skip-llm not set."""
     sys.path.insert(0, str(Path(__file__).parent))
     from lib.review_result import skipped_llm_warning
@@ -307,6 +306,7 @@ def check_llm(root: Path, skip_llm: bool, errors: List[dict]) -> List[dict]:
             capture_output=True,
             text=True,
             timeout=60,
+            check=False,
         )
         if result.returncode != 0 or not result.stdout.strip():
             return [
@@ -336,7 +336,7 @@ def check_llm(root: Path, skip_llm: bool, errors: List[dict]) -> List[dict]:
 # ---------------------------------------------------------------------------
 
 
-def main(argv: Optional[List[str]] = None) -> int:
+def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         description="Validate a Claude Code plugin's structural layout."
     )
@@ -357,8 +357,8 @@ def main(argv: Optional[List[str]] = None) -> int:
 
     agents_dir = root / "agents"
 
-    errors: List[dict] = []
-    warnings: List[dict] = []
+    errors: list[dict] = []
+    warnings: list[dict] = []
 
     # --- Structural checks ---
     claude_md_issues = check_claude_md_exists(root)

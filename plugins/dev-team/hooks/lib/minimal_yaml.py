@@ -31,7 +31,7 @@ Public API:
 from __future__ import annotations
 
 import re
-from typing import Any, List, Optional, Tuple
+from typing import Any
 
 _BLOCK_SCALAR_INDICATORS = (">-", ">+", ">", "|-", "|+", "|")
 _INT_RE = re.compile(r"^-?\d+$")
@@ -81,9 +81,13 @@ def _strip_comment(line: str) -> str:
             in_single = not in_single
         elif ch == '"' and not in_single:
             in_double = not in_double
-        elif ch == "#" and not in_single and not in_double:
-            if i == 0 or line[i - 1] in (" ", "\t"):
-                return line[:i]
+        elif (
+            ch == "#"
+            and not in_single
+            and not in_double
+            and (i == 0 or line[i - 1] in (" ", "\t"))
+        ):
+            return line[:i]
     return line
 
 
@@ -105,7 +109,7 @@ def _bracket_delta(s: str) -> int:
     return depth
 
 
-def _split_key_value(content: str) -> Optional[Tuple[str, str]]:
+def _split_key_value(content: str) -> tuple[str, str] | None:
     """Split a `key: value` (or `key:`) line at the first unquoted colon that
     is followed by whitespace or end-of-string. Returns None if `content`
     isn't a mapping-key line at all."""
@@ -115,9 +119,13 @@ def _split_key_value(content: str) -> Optional[Tuple[str, str]]:
             in_single = not in_single
         elif ch == '"' and not in_single:
             in_double = not in_double
-        elif ch == ":" and not in_single and not in_double:
-            if i + 1 == len(content) or content[i + 1] in (" ", "\t"):
-                return content[:i].strip(), content[i + 1 :].strip()
+        elif (
+            ch == ":"
+            and not in_single
+            and not in_double
+            and (i + 1 == len(content) or content[i + 1] in (" ", "\t"))
+        ):
+            return content[:i].strip(), content[i + 1 :].strip()
     return None
 
 
@@ -148,9 +156,9 @@ def _parse_quoted(text: str) -> str:
     return body.replace("''", "'")
 
 
-def _split_top_level(s: str, sep: str) -> List[str]:
+def _split_top_level(s: str, sep: str) -> list[str]:
     """Split `s` on `sep` only at flow-collection depth 0 and outside quotes."""
-    parts: List[str] = []
+    parts: list[str] = []
     depth = 0
     in_single = in_double = False
     start = 0
@@ -171,7 +179,7 @@ def _split_top_level(s: str, sep: str) -> List[str]:
     return parts
 
 
-def _drop_trailing_comma_part(parts: List[str]) -> List[str]:
+def _drop_trailing_comma_part(parts: list[str]) -> list[str]:
     """A trailing comma before the closing bracket/brace (`[a, b,]`) is valid
     flow-collection syntax and common auto-formatter output — `_split_top_level`
     sees it as one extra empty part at the end; drop it. A genuinely blank
@@ -242,7 +250,7 @@ def _parse_scalar(text: str) -> Any:
 # ---------------------------------------------------------------------------
 
 
-def _next_line(lines: List[str], i: int) -> Optional[Tuple[int, str, int]]:
+def _next_line(lines: list[str], i: int) -> tuple[int, str, int] | None:
     """Return (indent, content, next_i) for the next non-blank structural
     line at or after index i, merging continuation lines of an unbalanced
     flow collection. Returns None at end of input."""
@@ -275,12 +283,12 @@ def _next_line(lines: List[str], i: int) -> Optional[Tuple[int, str, int]]:
 
 
 def _read_block_scalar(
-    lines: List[str], i: int, parent_indent: int, indicator: str
-) -> Tuple[str, int]:
+    lines: list[str], i: int, parent_indent: int, indicator: str
+) -> tuple[str, int]:
     style = indicator[0]
     n = len(lines)
-    body: List[str] = []
-    content_indent: Optional[int] = None
+    body: list[str] = []
+    content_indent: int | None = None
     while i < n:
         raw = lines[i]
         if raw.strip() == "":
@@ -314,8 +322,8 @@ def _read_block_scalar(
 
 
 def _consume_value(
-    lines: List[str], i: int, indent: int, val_text: str
-) -> Tuple[Any, int]:
+    lines: list[str], i: int, indent: int, val_text: str
+) -> tuple[Any, int]:
     """Resolve the value portion of a `key: val_text` (or `- val_text`)
     entry, consuming further block-scalar or nested-block lines as needed."""
     if val_text == "":
@@ -328,7 +336,7 @@ def _consume_value(
     return _parse_scalar(val_text), i
 
 
-def _parse_node(lines: List[str], i: int, indent: int) -> Tuple[Any, int]:
+def _parse_node(lines: list[str], i: int, indent: int) -> tuple[Any, int]:
     nxt = _next_line(lines, i)
     if nxt is None:
         return None, i
@@ -337,7 +345,7 @@ def _parse_node(lines: List[str], i: int, indent: int) -> Tuple[Any, int]:
         return None, i
     if content == "-" or content.startswith("- "):
         return _parse_sequence(lines, i, indent)
-    if content.startswith("[") or content.startswith("{"):
+    if content.startswith(("[", "{")):
         # A flow collection whose opening bracket is on its own line, e.g.
         #   skills:
         #     [
@@ -351,7 +359,7 @@ def _parse_node(lines: List[str], i: int, indent: int) -> Tuple[Any, int]:
     return _parse_mapping(lines, i, indent)
 
 
-def _parse_mapping(lines: List[str], i: int, indent: int) -> Tuple[dict, int]:
+def _parse_mapping(lines: list[str], i: int, indent: int) -> tuple[dict, int]:
     result: dict = {}
     while True:
         nxt = _next_line(lines, i)
@@ -372,7 +380,7 @@ def _parse_mapping(lines: List[str], i: int, indent: int) -> Tuple[dict, int]:
     return result, i
 
 
-def _parse_sequence(lines: List[str], i: int, indent: int) -> Tuple[list, int]:
+def _parse_sequence(lines: list[str], i: int, indent: int) -> tuple[list, int]:
     result: list = []
     while True:
         nxt = _next_line(lines, i)

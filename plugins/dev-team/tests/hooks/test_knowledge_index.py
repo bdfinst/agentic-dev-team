@@ -15,8 +15,8 @@ from pathlib import Path
 
 import pytest
 
+from _repo_root import REPO_ROOT as _REPO_ROOT
 
-_REPO_ROOT = Path(__file__).resolve().parents[4]
 _HOOK = _REPO_ROOT / "plugins" / "dev-team" / "hooks" / "knowledge_index.py"
 
 
@@ -41,7 +41,7 @@ def sentinel_builder(tmp_path: Path) -> tuple[Path, Path]:
 def _run(
     payload: dict,
     builder: Path,
-    extra_env: dict = None,
+    extra_env: dict | None = None,
 ) -> subprocess.CompletedProcess[str]:
     proc_env = {
         "PATH": os.environ.get("PATH", "/usr/bin:/bin"),

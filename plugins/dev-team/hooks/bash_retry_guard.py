@@ -29,21 +29,20 @@ import tempfile
 import time
 import zlib
 from pathlib import Path
-from typing import Any, Dict, Optional
-
+from typing import Any
 
 _HOOK_DIR = Path(__file__).resolve().parent
 _LIB_DIR = _HOOK_DIR / "lib"
 
 sys.path.insert(0, str(_LIB_DIR))
 try:
-    from stdin_json import read_stdin_json  # type: ignore[import-not-found]
     from boundary_events import (  # type: ignore[import-not-found]
         emit_boundary_event as _emit_boundary_event,
     )
+    from stdin_json import read_stdin_json  # type: ignore[import-not-found]
 except ImportError:  # pragma: no cover
 
-    def read_stdin_json() -> Optional[dict]:  # type: ignore[misc]
+    def read_stdin_json() -> dict | None:  # type: ignore[misc]
         return None
 
     def _emit_boundary_event(*_args, **_kwargs) -> None:  # type: ignore[misc]
@@ -55,7 +54,7 @@ def emit_boundary_event(*args, **kwargs) -> None:
     this hook's exit code, stdout, or stderr."""
     try:
         _emit_boundary_event(*args, **kwargs)
-    except Exception:  # noqa: BLE001 - fail-open by design
+    except Exception:  # noqa: BLE001, S110 - fail-open by design
         pass
 
 
@@ -108,9 +107,7 @@ def _should_skip(cmd: str) -> bool:
     """True when this command class is out of scope (verify family or read-only)."""
     if _VERIFY_RE.search(cmd):
         return True
-    if _first_token(cmd) in _READ_ONLY_FIRST_TOKENS:
-        return True
-    return False
+    return _first_token(cmd) in _READ_ONLY_FIRST_TOKENS
 
 
 def _state_key(session_id: str, cwd: str) -> str:
@@ -139,7 +136,7 @@ def _state_file(state_key: str) -> Path:
     return state_dir / f"{state_key}.json"
 
 
-def _read_state(path: Path) -> Dict[str, Any]:
+def _read_state(path: Path) -> dict[str, Any]:
     if not path.is_file():
         return {"hash": "", "count": 0}
     try:
@@ -152,7 +149,7 @@ def _read_state(path: Path) -> Dict[str, Any]:
     }
 
 
-def _write_state(path: Path, state: Dict[str, Any]) -> None:
+def _write_state(path: Path, state: dict[str, Any]) -> None:
     try:
         path.write_text(json.dumps(state, separators=(",", ":")), encoding="utf-8")
     except OSError:

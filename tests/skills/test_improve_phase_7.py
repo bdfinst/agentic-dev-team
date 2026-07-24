@@ -11,8 +11,8 @@ from skill_doc_helpers import (
     PLUGIN_ROOT,
     grep,
     grep_multiline,
-    section,
     phase_6_section,
+    section,
 )
 
 SKILL = PLUGIN_ROOT / "skills" / "test-improve" / "SKILL.md"

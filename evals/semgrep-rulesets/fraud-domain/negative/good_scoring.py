@@ -5,7 +5,7 @@ def score_transaction(request, model, velocity_lookup):
     # Fail-closed: error path returns an error shape, not allow
     try:
         score = model.predict(request.features)
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001 - model.predict may raise any type; fail-closed to an error shape
         return {"decision": "error", "error": str(e)}
 
     return {"decision": "deny" if score > 0.7 else "allow", "score": score}

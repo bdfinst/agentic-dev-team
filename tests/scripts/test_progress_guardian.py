@@ -23,7 +23,8 @@ import subprocess
 import sys
 from pathlib import Path
 
-REPO_ROOT = Path(__file__).resolve().parents[2]
+from _repo_root import REPO_ROOT
+
 PG = REPO_ROOT / "scripts" / "progress_guardian.py"
 
 _GIT_SCRUB_ENV_VARS = (
@@ -278,7 +279,7 @@ def _setup_stale_main_repo(work: Path, ahead_file: str) -> None:
         if bare:
             args.append("--bare")
         args.append(str(path))
-        result = subprocess.run(["git", *args], capture_output=True)
+        result = subprocess.run(["git", *args], capture_output=True, check=False)
         if result.returncode != 0:
             fallback = ["git", "init", "-q"]
             if bare:
@@ -348,7 +349,7 @@ def test_4_1b_local_main_equals_origin_main_on_branch_file_not_reported_out_of_p
         if bare:
             args.append("--bare")
         args.append(str(path))
-        result = subprocess.run(["git", *args], capture_output=True)
+        result = subprocess.run(["git", *args], capture_output=True, check=False)
         if result.returncode != 0:
             fallback = ["git", "init", "-q"]
             if bare:

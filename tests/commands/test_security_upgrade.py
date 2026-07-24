@@ -10,11 +10,11 @@ bats -> pytest).
 from __future__ import annotations
 
 import re
-from pathlib import Path
 
 import pytest
 
-REPO_ROOT = Path(__file__).resolve().parents[2]
+from _repo_root import REPO_ROOT
+
 UPGRADE = REPO_ROOT / "plugins" / "security-assessment" / "commands" / "upgrade.md"
 
 

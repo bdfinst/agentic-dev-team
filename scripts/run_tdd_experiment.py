@@ -44,7 +44,7 @@ SCRIPTS = Path(__file__).resolve().parent
 sys.path.insert(0, str(SCRIPTS))
 
 # Reuse the audited integration primitives rather than reimplementing them.
-from run_integration_eval import (  # noqa: E402
+from run_integration_eval import (
     extract_golden_repo,
     init_worktree,
     run_commands,
@@ -236,7 +236,7 @@ def dispatch(workdir: Path, prompt: str, model: str, env: dict,
 
 # A file is "a test the agent wrote" if its name looks like a test and it was not
 # one of the hidden acceptance files we inject at grading time.
-TEST_NAME = re.compile(r"(^test_|_test\.|\.test\.|(^|/)tests?/|_spec\.|\.spec\.)", re.I)
+TEST_NAME = re.compile(r"(^test_|_test\.|\.test\.|(^|/)tests?/|_spec\.|\.spec\.)", re.IGNORECASE)
 
 
 def count_agent_tests(workdir: Path, injected: set[str]) -> int:
@@ -293,7 +293,7 @@ def measure_coverage(workdir: Path, env: dict, prod: list[Path]) -> dict:
         out["tests_passed"] = (_pytest_rc(workdir, env) == 0)
     subprocess.run(
         ["python3", "-m", "coverage", "json", "-o", str(workdir / "cov.json")],
-        cwd=str(workdir), env=cov_env, capture_output=True, text=True)
+        cwd=str(workdir), env=cov_env, capture_output=True, text=True, check=False)
     try:
         data = json.loads((workdir / "cov.json").read_text())
         prod_names = {str(p.relative_to(workdir)) for p in prod}
@@ -338,7 +338,7 @@ PYTEST_TIMEOUT = 30
 def _run_timed(cmd: list[str], **kw):
     """subprocess.run with PYTEST_TIMEOUT; on timeout return rc=124."""
     try:
-        return subprocess.run(cmd, timeout=PYTEST_TIMEOUT, **kw)
+        return subprocess.run(cmd, timeout=PYTEST_TIMEOUT, check=False, **kw)
     except subprocess.TimeoutExpired:
         return subprocess.CompletedProcess(cmd, 124, "", "timeout")
 
@@ -371,17 +371,11 @@ def _pytest_rc(workdir: Path, env: dict) -> int:
 def _mutation_sites(tree: ast.AST) -> int:
     n = 0
     for node in ast.walk(tree):
-        if isinstance(node, ast.BinOp) and type(node.op) in _BINOP:
-            n += 1
-        elif isinstance(node, (ast.AugAssign,)) and type(node.op) in _BINOP:
+        if isinstance(node, ast.BinOp) and type(node.op) in _BINOP or isinstance(node, (ast.AugAssign,)) and type(node.op) in _BINOP:
             n += 1
         elif isinstance(node, ast.Compare):
             n += sum(type(o) in _CMPOP for o in node.ops)
-        elif isinstance(node, ast.BoolOp) and type(node.op) in _BOOLOP:
-            n += 1
-        elif isinstance(node, ast.Constant) and isinstance(node.value, bool):
-            n += 1
-        elif _is_int_const(node):
+        elif isinstance(node, ast.BoolOp) and type(node.op) in _BOOLOP or isinstance(node, ast.Constant) and isinstance(node.value, bool) or _is_int_const(node):
             n += 1
     return n
 
@@ -393,12 +387,7 @@ def _apply_mutation(src: str, k: int) -> str | None:
 
     def flip(node) -> bool:
         i = counter["i"]
-        if isinstance(node, ast.BinOp) and type(node.op) in _BINOP:
-            if i == k:
-                node.op = _BINOP[type(node.op)]()
-                return True
-            counter["i"] += 1
-        elif isinstance(node, ast.AugAssign) and type(node.op) in _BINOP:
+        if isinstance(node, ast.BinOp) and type(node.op) in _BINOP or isinstance(node, ast.AugAssign) and type(node.op) in _BINOP:
             if i == k:
                 node.op = _BINOP[type(node.op)]()
                 return True
@@ -633,11 +622,14 @@ def main(argv: list[str]) -> int:
     arms = tuple(dict.fromkeys(args.arm)) if args.arm else ARMS
     plugin_template = Path(args.build_home_template) if args.build_home_template \
         else None
-    if any(a in PLUGIN_ARMS for a in arms) and not args.skip_dispatch:
-        if plugin_template is None or not (plugin_template / ".claude").is_dir():
-            print("error: build-pipeline arm needs --build-home-template pointing "
-                  "at a dir containing a plugin-enabled .claude/", file=sys.stderr)
-            return 2
+    if (
+        any(a in PLUGIN_ARMS for a in arms)
+        and not args.skip_dispatch
+        and (plugin_template is None or not (plugin_template / ".claude").is_dir())
+    ):
+        print("error: build-pipeline arm needs --build-home-template pointing "
+              "at a dir containing a plugin-enabled .claude/", file=sys.stderr)
+        return 2
     exp_dir = Path(args.experiments_dir)
     fixtures_dir = Path(args.fixtures_dir)
     if not exp_dir.is_dir():

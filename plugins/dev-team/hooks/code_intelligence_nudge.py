@@ -27,8 +27,6 @@ from __future__ import annotations
 import json
 import sys
 from pathlib import Path
-from typing import Optional
-
 
 _HOOK_DIR = Path(__file__).resolve().parent
 _LIB_DIR = _HOOK_DIR / "lib"
@@ -38,7 +36,7 @@ try:
     from stdin_json import read_stdin_json  # type: ignore[import-not-found]
 except ImportError:  # pragma: no cover
 
-    def read_stdin_json() -> Optional[dict]:  # type: ignore[misc]
+    def read_stdin_json() -> dict | None:  # type: ignore[misc]
         return None
 
 try:
@@ -104,7 +102,7 @@ def _cue_line(tool: str, *, bulleted: bool) -> str:
     return f"- {_CUES[tool]}" if bulleted else _CUES[tool]
 
 
-def _compose_message(qualifying: list) -> Optional[str]:
+def _compose_message(qualifying: list) -> str | None:
     """Compose the nudge message for the given qualifying tools.
 
     `qualifying` is reordered by `_PRECEDENCE` before composing — the
@@ -276,6 +274,5 @@ def main() -> int:
 if __name__ == "__main__":
     try:
         sys.exit(main())
-    except Exception:
-        # Fail-open on any unexpected error — the hook is a nudge, never a gate.
+    except Exception:  # noqa: BLE001 -- fail-open on any unexpected error; the hook is a nudge, never a gate
         sys.exit(0)

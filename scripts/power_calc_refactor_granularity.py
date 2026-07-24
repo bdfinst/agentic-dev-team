@@ -24,19 +24,20 @@ def load_cells():
     """cumulative blast (lines added+deleted over the 3-change chain) per cell."""
     cum, seen = defaultdict(int), defaultdict(set)
     for f in glob.glob(DATA):
-        for line in open(f):
-            line = line.strip()
-            if not line:
-                continue
-            r = json.loads(line)
-            if "tdd-pays" not in r.get("task", ""):
-                continue
-            br = r.get("blast_radius")
-            if not isinstance(br, dict) or r["stage"] not in CHANGE_STAGES:
-                continue
-            k = (r["task"], r["arm"], r["clarity"], r["trial"])
-            cum[k] += (br.get("lines_added") or 0) + (br.get("lines_deleted") or 0)
-            seen[k].add(r["stage"])
+        with open(f) as handle:
+            for line in handle:
+                line = line.strip()
+                if not line:
+                    continue
+                r = json.loads(line)
+                if "tdd-pays" not in r.get("task", ""):
+                    continue
+                br = r.get("blast_radius")
+                if not isinstance(br, dict) or r["stage"] not in CHANGE_STAGES:
+                    continue
+                k = (r["task"], r["arm"], r["clarity"], r["trial"])
+                cum[k] += (br.get("lines_added") or 0) + (br.get("lines_deleted") or 0)
+                seen[k].add(r["stage"])
     return {k: v for k, v in cum.items() if len(seen[k]) == 3}  # complete chains only
 
 

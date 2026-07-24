@@ -10,7 +10,8 @@ import sys
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
-REPO_ROOT = Path(__file__).resolve().parents[2]
+from _repo_root import REPO_ROOT
+
 METER = REPO_ROOT / "plugins" / "dev-team" / "hooks" / "lib" / "cost_meter.py"
 
 
@@ -22,7 +23,10 @@ def _ts(days_ago: int) -> str:
 
 def _run(*args: str) -> subprocess.CompletedProcess:
     return subprocess.run(
-        [sys.executable, str(METER), "pace", *args], capture_output=True, text=True
+        [sys.executable, str(METER), "pace", *args],
+        capture_output=True,
+        text=True,
+        check=False,
     )
 
 
