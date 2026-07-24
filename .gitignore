@@ -124,6 +124,9 @@ memory/severity-floors-log-*
 memory/phase-timings-*
 memory/audit-*
 memory/meta-*
+# /test-improve's own per-run resume state (transient by design — see
+# skills/test-improve/SKILL.md; the tracked counterpart is /reports/test-improve/ below)
+memory/test-improve/
 # Stale scratch scripts occasionally dropped by earlier iterations
 memory/_*.py
 memory/_*.sh
