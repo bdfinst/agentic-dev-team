@@ -181,3 +181,52 @@ def test_session_review_step_headings_are_unchanged():
     assert "### 1. Cross-machine Telemetry — validate config, then sync (#178)" in text
     assert "### 3. Analyze (digest-only)" in text
     assert "### 3b. Raw-log semantic tier — only the worst sessions (#214, Delta A/B)" in text
+
+
+# --- docker-image-audit/SKILL.md ---------------------------------------------
+
+
+def test_docker_image_audit_names_step_2b_at_the_hadolint_limitations_note():
+    text = _docker_image_audit_text()
+    assert (
+        "call those out in Step 2b (Structural Analysis) if the base image "
+        "lacks a specific patch version" in text
+    )
+
+
+def test_docker_image_audit_has_no_bare_step_2b_left_at_the_limitations_note():
+    text = _docker_image_audit_text()
+    assert "call those out in Step 2b if" not in text
+
+
+def test_docker_image_audit_already_descriptive_mentions_are_unchanged():
+    """L24 and L108 already named the step inline before this change — pin
+    them exactly so a future edit can't silently regress or double-describe."""
+    text = _docker_image_audit_text()
+    assert (
+        "still run the structural analysis (Step 2b). A tool-free audit is "
+        "better than no audit." in text
+    )
+    assert (
+        "run Step 2 (hadolint) + Step 2b (structural analysis) and report "
+        "findings conversationally" in text
+    )
+
+
+def test_docker_image_audit_step_2b_heading_is_unchanged():
+    text = _docker_image_audit_text()
+    assert "### Step 2b: Structural Analysis" in text
+
+
+# --- cross-file: consciously out-of-scope exclusion is pinned ---------------
+
+
+def test_cd_test_architecture_step_0_mention_is_unchanged_out_of_scope():
+    """L161 already carries an inline description ("loaded a ... profile")
+    and was deliberately left alone — see the plan's Goal section. Pinned so
+    a future edit doesn't silently touch it without updating that rationale."""
+    text = _cd_test_architecture_text()
+    assert (
+        "When Step 0 loaded a `knowledge/test-stack-profiles/<stack>.md` "
+        "profile, **cite that profile**" in text
+    )
