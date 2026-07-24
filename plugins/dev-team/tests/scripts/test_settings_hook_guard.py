@@ -17,12 +17,11 @@ import json
 import sys
 from pathlib import Path
 
+from _repo_root import REPO_ROOT as _REPO_ROOT
 
-_REPO_ROOT = Path(__file__).resolve().parents[4]
 sys.path.insert(0, str(_REPO_ROOT / "plugins" / "dev-team" / "scripts" / "lib"))
 
-import settings_hook_guard  # noqa: E402
-
+import settings_hook_guard
 
 ALICE_EXE = "/Users/alice/.local/bin/graphify"
 BOB_EXE = "/home/bob/.local/share/uv/tools/graphifyy/bin/graphify"

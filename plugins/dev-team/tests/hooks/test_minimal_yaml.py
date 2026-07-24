@@ -20,15 +20,14 @@ exact shapes those three call sites parse:
 from __future__ import annotations
 
 import sys
-from pathlib import Path
 
 import pytest
 
-_REPO_ROOT = Path(__file__).resolve().parents[4]
+from _repo_root import REPO_ROOT as _REPO_ROOT
+
 sys.path.insert(0, str(_REPO_ROOT / "plugins" / "dev-team" / "hooks" / "lib"))
 
-import minimal_yaml  # noqa: E402,F401
-from minimal_yaml import (  # noqa: E402
+from minimal_yaml import (
     FrontmatterError,
     YamlError,
     extract_frontmatter_block,

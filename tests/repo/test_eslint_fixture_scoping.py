@@ -18,7 +18,7 @@ from pathlib import Path
 
 import pytest
 
-REPO_ROOT = Path(__file__).resolve().parents[2]
+from _repo_root import REPO_ROOT
 
 # The exact files issue #930 reported as failing on main.
 DIRTY_JS_FIXTURES = [

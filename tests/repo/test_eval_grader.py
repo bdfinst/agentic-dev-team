@@ -16,7 +16,8 @@ from pathlib import Path
 
 import pytest
 
-REPO_ROOT = Path(__file__).resolve().parents[2]
+from _repo_root import REPO_ROOT
+
 GRADER = REPO_ROOT / "scripts" / "eval_grade.py"
 
 EXPECTED_AR_DEMO = """{

@@ -24,8 +24,8 @@ from pathlib import Path
 
 import pytest
 
+from _repo_root import REPO_ROOT as _REPO_ROOT
 
-_REPO_ROOT = Path(__file__).resolve().parents[2]
 _HOOK_PY = _REPO_ROOT / "plugins" / "dev-team" / "hooks" / "version_check.py"
 
 

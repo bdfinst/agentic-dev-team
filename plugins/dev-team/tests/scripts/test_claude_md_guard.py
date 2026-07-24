@@ -14,12 +14,11 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
+from _repo_root import REPO_ROOT as _REPO_ROOT
 
-_REPO_ROOT = Path(__file__).resolve().parents[4]
 sys.path.insert(0, str(_REPO_ROOT / "plugins" / "dev-team" / "scripts" / "lib"))
 
-import claude_md_guard  # noqa: E402
-
+import claude_md_guard
 
 FIXTURE_CLAUDE_MD = """\
 # Root

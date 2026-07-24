@@ -15,11 +15,11 @@ Ported from tests/knowledge/test_review_division_of_labor_tests.bats
 from __future__ import annotations
 
 import re
-from pathlib import Path
 
 import pytest
 
-REPO_ROOT = Path(__file__).resolve().parents[2]
+from _repo_root import REPO_ROOT
+
 DOC = (
     REPO_ROOT
     / "plugins"

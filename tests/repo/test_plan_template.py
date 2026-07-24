@@ -10,9 +10,9 @@ Ported from tests/repo/plan-template-tests.bats (#673).
 from __future__ import annotations
 
 import re
-from pathlib import Path
 
-REPO_ROOT = Path(__file__).resolve().parents[2]
+from _repo_root import REPO_ROOT
+
 PLAN_SKILL = REPO_ROOT / "plugins" / "dev-team" / "skills" / "plan" / "SKILL.md"
 # The plan-file template (goal/AC/slices/... structure) was later extracted
 # from SKILL.md's body into this reference file (token-efficiency cleanup).

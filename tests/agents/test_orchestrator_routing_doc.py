@@ -13,11 +13,11 @@ bats -> pytest); rewritten for #1288.
 from __future__ import annotations
 
 import re
-from pathlib import Path
 
 import pytest
 
-REPO_ROOT = Path(__file__).resolve().parents[2]
+from _repo_root import REPO_ROOT
+
 ORCH = REPO_ROOT / "plugins" / "dev-team" / "agents" / "orchestrator.md"
 CLAUDE_MD = REPO_ROOT / "plugins" / "dev-team" / "CLAUDE.md"
 

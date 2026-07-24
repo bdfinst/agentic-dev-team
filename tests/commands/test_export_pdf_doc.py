@@ -19,11 +19,11 @@ from __future__ import annotations
 import re
 import sys
 import types
-from pathlib import Path
 
 import pytest
 
-REPO_ROOT = Path(__file__).resolve().parents[2]
+from _repo_root import REPO_ROOT
+
 EXPORT_PDF = (
     REPO_ROOT / "plugins" / "security-assessment" / "commands" / "export-pdf.md"
 )

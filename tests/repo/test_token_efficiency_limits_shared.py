@@ -7,9 +7,8 @@ module so a future policy change can't update one copy and miss the other.
 
 from __future__ import annotations
 
-from pathlib import Path
+from _repo_root import REPO_ROOT
 
-REPO_ROOT = Path(__file__).resolve().parents[2]
 LIMITS_MODULE = (
     REPO_ROOT / "plugins" / "dev-team" / "hooks" / "lib" / "token_efficiency_limits.py"
 )

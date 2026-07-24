@@ -12,17 +12,17 @@ import json
 import subprocess
 import sys
 from pathlib import Path
-from typing import Dict
 
 import pytest
 
-REPO_ROOT = Path(__file__).resolve().parents[2]
+from _repo_root import REPO_ROOT
+
 EXTRACT = REPO_ROOT / "scripts" / "session_extract.py"
 PLUGIN = REPO_ROOT / "plugins" / "dev-team"
 
 
 @pytest.fixture
-def scratch(tmp_path: Path) -> Dict[str, Path]:
+def scratch(tmp_path: Path) -> dict[str, Path]:
     root = tmp_path
     projects = root / "projects"
     proj_a = projects / "projA"
@@ -49,7 +49,7 @@ def scratch(tmp_path: Path) -> Dict[str, Path]:
     return {"root": root, "projects": projects, "out": out, "watermark": watermark}
 
 
-def _sync(scratch: Dict[str, Path]) -> subprocess.CompletedProcess:
+def _sync(scratch: dict[str, Path]) -> subprocess.CompletedProcess:
     return subprocess.run(
         [
             sys.executable,
@@ -75,7 +75,7 @@ def _records(out: Path) -> list:
 
 
 def test_sync_emits_one_record_per_session_labeled_by_basename(
-    scratch: Dict[str, Path],
+    scratch: dict[str, Path],
 ) -> None:
     result = _sync(scratch)
     assert result.returncode == 0, result.stdout + result.stderr
@@ -94,7 +94,7 @@ def test_sync_emits_one_record_per_session_labeled_by_basename(
 
 
 def test_sync_incremental_second_run_with_no_changes_emits_nothing_new(
-    scratch: Dict[str, Path],
+    scratch: dict[str, Path],
 ) -> None:
     _sync(scratch)
     before = len(_records(scratch["out"]))
@@ -108,7 +108,7 @@ def test_sync_incremental_second_run_with_no_changes_emits_nothing_new(
 
 
 def test_sync_a_newly_added_session_is_the_only_new_emission_on_rerun(
-    scratch: Dict[str, Path],
+    scratch: dict[str, Path],
 ) -> None:
     _sync(scratch)
     (scratch["projects"] / "projA" / "sess-c.jsonl").write_text(
@@ -124,7 +124,7 @@ def test_sync_a_newly_added_session_is_the_only_new_emission_on_rerun(
     assert len([r for r in records if r["session_id"] == "sess-c"]) == 1
 
 
-def test_sync_a_grown_session_is_re_emitted(scratch: Dict[str, Path]) -> None:
+def test_sync_a_grown_session_is_re_emitted(scratch: dict[str, Path]) -> None:
     _sync(scratch)
     # append another usage record to an existing session -> file grows
     with (scratch["projects"] / "projA" / "sess-a.jsonl").open("a") as f:
@@ -141,7 +141,7 @@ def test_sync_a_grown_session_is_re_emitted(scratch: Dict[str, Path]) -> None:
 
 
 def test_sync_privacy_basename_only_no_full_paths_or_content(
-    scratch: Dict[str, Path],
+    scratch: dict[str, Path],
 ) -> None:
     _sync(scratch)
     text = scratch["out"].read_text()
@@ -197,7 +197,7 @@ def test_sync_record_carries_correction_by_skill_and_by_agent(
 
 
 def test_all_projects_non_sync_digest_aggregates_sessions_across_projects(
-    scratch: Dict[str, Path],
+    scratch: dict[str, Path],
 ) -> None:
     result = subprocess.run(
         [

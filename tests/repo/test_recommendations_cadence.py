@@ -12,9 +12,9 @@ REFACTOR, enforced mechanically via the phase state `/build` records.
 from __future__ import annotations
 
 import re
-from pathlib import Path
 
-REPO_ROOT = Path(__file__).resolve().parents[2]
+from _repo_root import REPO_ROOT
+
 PLUGIN_ROOT = REPO_ROOT / "plugins" / "dev-team"
 
 BUILD = (PLUGIN_ROOT / "skills" / "build" / "SKILL.md").read_text()

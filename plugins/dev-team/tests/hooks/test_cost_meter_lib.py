@@ -22,12 +22,12 @@ import json
 import os
 import re
 import time
-from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
 
-_REPO_ROOT = Path(__file__).resolve().parents[4]
+from _repo_root import REPO_ROOT as _REPO_ROOT
+
 _HOOKS_LIB = _REPO_ROOT / "plugins" / "dev-team" / "hooks" / "lib"
 
 # Load hooks/lib/cost_meter.py by explicit file path under a unique module name
@@ -102,7 +102,7 @@ def test_read_new_lines_keeps_partial_trailing_line_unconsumed(tmp_path):
         fh.write("partial-no-newline-yet")
     new_offset, lines = cost_meter._read_new_lines(p, 0)
     assert lines == ["complete"]
-    assert new_offset == len("complete\n".encode("utf-8"))
+    assert new_offset == len(b"complete\n")
 
 
 # ---------------------------------------------------------------------------

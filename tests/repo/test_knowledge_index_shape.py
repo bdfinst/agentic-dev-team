@@ -8,9 +8,9 @@ from __future__ import annotations
 
 import json
 import re
-from pathlib import Path
 
-REPO_ROOT = Path(__file__).resolve().parents[2]
+from _repo_root import REPO_ROOT
+
 INDEX = REPO_ROOT / "plugins" / "dev-team" / "knowledge" / "index.json"
 
 _CORPUS_KEY_RE = re.compile(

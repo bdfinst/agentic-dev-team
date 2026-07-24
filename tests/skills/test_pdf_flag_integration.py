@@ -17,9 +17,8 @@ Contracts:
 
 from __future__ import annotations
 
-from pathlib import Path
+from _repo_root import REPO_ROOT
 
-REPO_ROOT = Path(__file__).resolve().parents[2]
 SKILLS = REPO_ROOT / "plugins" / "dev-team" / "skills"
 KNOWLEDGE = REPO_ROOT / "plugins" / "dev-team" / "knowledge"
 

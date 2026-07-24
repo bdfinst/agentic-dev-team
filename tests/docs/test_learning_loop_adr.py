@@ -8,9 +8,9 @@ bats -> pytest).
 from __future__ import annotations
 
 import re
-from pathlib import Path
 
-REPO_ROOT = Path(__file__).resolve().parents[2]
+from _repo_root import REPO_ROOT
+
 ADR_0009 = REPO_ROOT / "docs" / "adr" / "0009-human-consent-gate-for-learning-loop.md"
 ADR_0010 = REPO_ROOT / "docs" / "adr" / "0010-per-session-analysis-granularity.md"
 

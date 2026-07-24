@@ -11,11 +11,11 @@ bats -> pytest); rewritten for epic #1284's native-contract migration
 from __future__ import annotations
 
 import re
-from pathlib import Path
 
 import pytest
 
-REPO_ROOT = Path(__file__).resolve().parents[2]
+from _repo_root import REPO_ROOT
+
 CREATE = (
     REPO_ROOT / "plugins" / "marketplace-dev" / "skills" / "agent-create" / "SKILL.md"
 )

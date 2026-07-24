@@ -23,8 +23,8 @@ from pathlib import Path
 
 import pytest
 
+from _repo_root import REPO_ROOT as _REPO_ROOT
 
-_REPO_ROOT = Path(__file__).resolve().parents[4]
 _HOOK = _REPO_ROOT / "plugins" / "dev-team" / "hooks" / "bash_retry_guard.py"
 
 

@@ -15,11 +15,11 @@ from pathlib import Path
 
 import pytest
 
+from _repo_root import REPO_ROOT as _REPO_ROOT
 
-_REPO_ROOT = Path(__file__).resolve().parents[4]
 sys.path.insert(0, str(_REPO_ROOT / "plugins" / "dev-team" / "hooks"))
 
-import mutation_gate  # noqa: E402
+import mutation_gate
 
 
 def _feed(monkeypatch, text: str) -> None:

@@ -10,11 +10,11 @@ bats -> pytest).
 from __future__ import annotations
 
 import re
-from pathlib import Path
 
 import pytest
 
-REPO_ROOT = Path(__file__).resolve().parents[2]
+from _repo_root import REPO_ROOT
+
 # The ADR slot is 0004 (0001-0003 are taken). The filename is fixed for this
 # test; if a future contributor renumbers, update it here too.
 ADR = REPO_ROOT / "docs" / "adr" / "0004-pre-dispatch-model-resolution.md"

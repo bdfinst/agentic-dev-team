@@ -9,9 +9,9 @@ bats -> pytest).
 from __future__ import annotations
 
 import re
-from pathlib import Path
 
-REPO_ROOT = Path(__file__).resolve().parents[2]
+from _repo_root import REPO_ROOT
+
 FIXTURE_DIR = REPO_ROOT / "evals" / "fixtures" / "dotnet-http-smoke"
 
 

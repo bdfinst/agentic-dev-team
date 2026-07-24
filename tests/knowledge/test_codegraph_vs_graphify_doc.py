@@ -8,9 +8,9 @@ skills that reference it by name still resolve.
 from __future__ import annotations
 
 import importlib.util
-from pathlib import Path
 
-REPO_ROOT = Path(__file__).resolve().parents[2]
+from _repo_root import REPO_ROOT
+
 DOC = REPO_ROOT / "plugins" / "dev-team" / "knowledge" / "codegraph-vs-graphify.md"
 AGENTS_DIR = REPO_ROOT / "plugins" / "dev-team" / "agents"
 NUDGE_HOOK_PATH = (

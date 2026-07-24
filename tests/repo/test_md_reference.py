@@ -18,7 +18,8 @@ import subprocess
 import sys
 from pathlib import Path
 
-REPO_ROOT = Path(__file__).resolve().parents[2]
+from _repo_root import REPO_ROOT
+
 CHECK = REPO_ROOT / "scripts" / "check_md_references.py"
 
 

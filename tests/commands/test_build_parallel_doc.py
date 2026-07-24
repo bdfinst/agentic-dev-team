@@ -10,7 +10,6 @@ bats -> pytest).
 from __future__ import annotations
 
 import re
-from pathlib import Path
 
 import pytest
 
@@ -20,7 +19,8 @@ import pytest
 # still caught (#1170).
 _FIXED_DEFAULT_RE = re.compile(r"default(s)?\s+(max\s+|of\s+|to\s+)?\*{0,2}\d")
 
-REPO_ROOT = Path(__file__).resolve().parents[2]
+from _repo_root import REPO_ROOT
+
 BUILD = REPO_ROOT / "plugins" / "dev-team" / "skills" / "build" / "SKILL.md"
 ORCH = REPO_ROOT / "plugins" / "dev-team" / "agents" / "orchestrator.md"
 CLAUDEMD = REPO_ROOT / "plugins" / "dev-team" / "CLAUDE.md"

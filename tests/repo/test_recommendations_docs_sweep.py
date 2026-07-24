@@ -11,9 +11,9 @@ from __future__ import annotations
 import re
 import subprocess
 import sys
-from pathlib import Path
 
-REPO_ROOT = Path(__file__).resolve().parents[2]
+from _repo_root import REPO_ROOT
+
 PLUGIN_ROOT = REPO_ROOT / "plugins" / "dev-team"
 
 _RGR_RE = re.compile(r"RED[-\s]*(?:→|->)?[-\s]*GREEN[-\s]*(?:→|->)?[-\s]*REFACTOR")
@@ -58,7 +58,7 @@ def test_no_shipped_doc_makes_an_unconditional_tdd_default_claim() -> None:
         for claim in _BANNED_UNCONDITIONAL_CLAIMS:
             if claim in content:
                 offenders.append(
-                    "{}: {!r}".format(path.relative_to(REPO_ROOT), claim)
+                    f"{path.relative_to(REPO_ROOT)}: {claim!r}"
                 )
     assert offenders == [], (
         "unconditional-TDD-default claims remain in shipped docs:\n"

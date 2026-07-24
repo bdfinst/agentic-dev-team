@@ -15,7 +15,8 @@ from pathlib import Path
 
 import pytest
 
-_REPO_ROOT = Path(__file__).resolve().parents[4]
+from _repo_root import REPO_ROOT as _REPO_ROOT
+
 _HOOK = _REPO_ROOT / "plugins" / "dev-team" / "hooks" / "stryker_xunit_shim_guard.py"
 
 _V3_CSPROJ = """<Project Sdk="Microsoft.NET.Sdk">

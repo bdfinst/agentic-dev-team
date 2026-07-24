@@ -11,9 +11,8 @@ doesn't mistake them for drift.
 
 from __future__ import annotations
 
-from pathlib import Path
+from _repo_root import REPO_ROOT
 
-REPO_ROOT = Path(__file__).resolve().parents[2]
 DOC = REPO_ROOT / "plugins" / "dev-team" / "docs" / "agent_info.md"
 
 

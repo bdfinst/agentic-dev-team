@@ -6,9 +6,9 @@ Ported from tests/repo/knowledge_index_gitignore.bats (issue #671).
 from __future__ import annotations
 
 import subprocess
-from pathlib import Path
 
-REPO_ROOT = Path(__file__).resolve().parents[2]
+from _repo_root import REPO_ROOT
+
 INDEX_PATH = "plugins/dev-team/knowledge/index.json"
 
 

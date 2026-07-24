@@ -14,9 +14,9 @@ Ported as a new content-guard test for issue #732 (no bats predecessor).
 from __future__ import annotations
 
 import re
-from pathlib import Path
 
-REPO_ROOT = Path(__file__).resolve().parents[2]
+from _repo_root import REPO_ROOT
+
 ADR_DIR = REPO_ROOT / "docs" / "adr"
 README = ADR_DIR / "README.md"
 

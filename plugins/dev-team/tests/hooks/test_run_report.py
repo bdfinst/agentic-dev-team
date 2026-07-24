@@ -17,7 +17,8 @@ import subprocess
 import sys
 from pathlib import Path
 
-_REPO_ROOT = Path(__file__).resolve().parents[4]
+from _repo_root import REPO_ROOT as _REPO_ROOT
+
 _PLUGIN_DIR = _REPO_ROOT / "plugins" / "dev-team"
 _HOOKS_DIR = _PLUGIN_DIR / "hooks"
 _LIB_DIR = _HOOKS_DIR / "lib"
@@ -27,8 +28,8 @@ for _p in (_HOOKS_DIR, _LIB_DIR):
     if str(_p) not in sys.path:
         sys.path.insert(0, str(_p))
 
-import run_report  # type: ignore[import-not-found]  # noqa: E402
-import workflow_state  # type: ignore[import-not-found]  # noqa: E402
+import run_report  # type: ignore[import-not-found]
+import workflow_state  # type: ignore[import-not-found]
 
 
 def _write_jsonl(path: Path, entries: list) -> None:

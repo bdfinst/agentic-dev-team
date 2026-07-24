@@ -9,9 +9,9 @@ from __future__ import annotations
 import json
 import subprocess
 import sys
-from pathlib import Path
 
-REPO_ROOT = Path(__file__).resolve().parents[2]
+from _repo_root import REPO_ROOT
+
 EXTRACT = REPO_ROOT / "scripts" / "session_extract.py"
 FIX = (
     REPO_ROOT / "tests" / "fixtures" / "session-review" / "sample-transcript-gate.jsonl"

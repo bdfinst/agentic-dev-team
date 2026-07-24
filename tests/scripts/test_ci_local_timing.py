@@ -20,7 +20,8 @@ import re
 import subprocess
 from pathlib import Path
 
-REPO_ROOT = Path(__file__).resolve().parents[2]
+from _repo_root import REPO_ROOT
+
 CI_LOCAL = REPO_ROOT / "scripts" / "ci-local.sh"
 CI_TIMING_LIB = REPO_ROOT / "scripts" / "lib" / "ci-timing.sh"
 

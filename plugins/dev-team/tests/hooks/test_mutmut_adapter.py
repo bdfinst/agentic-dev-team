@@ -24,13 +24,13 @@ from __future__ import annotations
 
 import subprocess
 import sys
-from pathlib import Path
 
-_REPO_ROOT = Path(__file__).resolve().parents[4]
+from _repo_root import REPO_ROOT as _REPO_ROOT
+
 _PLUGIN_ROOT = _REPO_ROOT / "plugins" / "dev-team"
 sys.path.insert(0, str(_PLUGIN_ROOT / "hooks"))
 
-from mutation_adapters import mutmut as mm  # noqa: E402
+from mutation_adapters import mutmut as mm
 
 _JUNIT_ALL_KILLED = """<?xml version="1.0" ?>
 <testsuites disabled="0" errors="0" failures="0" tests="2" time="0.0">

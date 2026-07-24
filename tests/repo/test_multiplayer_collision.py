@@ -21,13 +21,14 @@ from pathlib import Path
 
 import pytest
 
-REPO_ROOT = Path(__file__).resolve().parents[2]
+from _repo_root import REPO_ROOT
+
 HOOK = REPO_ROOT / "plugins" / "dev-team" / "hooks" / "pre_commit_review.py"
 LIB_DIR = REPO_ROOT / "plugins" / "dev-team" / "hooks" / "lib"
 
 if str(LIB_DIR) not in sys.path:
     sys.path.insert(0, str(LIB_DIR))
-import review_gate_hash as _rgh  # type: ignore[import-not-found]  # noqa: E402
+import review_gate_hash as _rgh  # type: ignore[import-not-found]
 
 
 def _git_env() -> dict:

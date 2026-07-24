@@ -8,12 +8,12 @@ exactly like a red test, and the failing command is named.
 from __future__ import annotations
 
 import sys
-from pathlib import Path
 
-_REPO_ROOT = Path(__file__).resolve().parents[4]
+from _repo_root import REPO_ROOT as _REPO_ROOT
+
 sys.path.insert(0, str(_REPO_ROOT / "plugins" / "dev-team" / "scripts"))
 
-import run_invariants  # noqa: E402
+import run_invariants
 
 
 def test_all_passing_invariants_returns_every_result():

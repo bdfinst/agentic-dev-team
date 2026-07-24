@@ -15,8 +15,8 @@ from pathlib import Path
 
 import pytest
 
+from _repo_root import REPO_ROOT as _REPO_ROOT
 
-_REPO_ROOT = Path(__file__).resolve().parents[4]
 _HOOK = _REPO_ROOT / "plugins" / "dev-team" / "hooks" / "code_intelligence_nudge.py"
 _CAREFUL_STATE = _REPO_ROOT / "plugins" / "dev-team" / "hooks" / "careful-state.json"
 
@@ -34,6 +34,15 @@ _spec.loader.exec_module(code_intelligence_nudge)
 # about main()'s wiring (detection -> sentinel -> composition -> print/exit),
 # not about the exact prose, which is covered by test_single_tool_message_per_tool.
 EXPECTED_WARN_MSG = code_intelligence_nudge._compose_message(["codegraph"])
+
+# _CAREFUL_STATE is the real, fixed path the hook itself reads. Every test in
+# this module shares that one physical file with tests/hooks/test_destructive_guard.py
+# and test_boundary_events.py's test_destructive_guard_block_emits_boundary_event.
+# xdist_group forces all tests carrying this group name onto the SAME worker
+# (requires --dist loadgroup, set in scripts/ci-local.sh), so two of them can
+# never run concurrently and race on the shared file across pytest-xdist
+# worker processes -- --dist loadfile alone only serializes within one file.
+pytestmark = pytest.mark.xdist_group(name="careful-state-shared-file")
 
 
 @pytest.fixture(autouse=True)

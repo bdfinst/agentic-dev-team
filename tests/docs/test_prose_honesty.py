@@ -14,9 +14,8 @@ bats -> pytest).
 
 from __future__ import annotations
 
-from pathlib import Path
+from _repo_root import REPO_ROOT
 
-REPO_ROOT = Path(__file__).resolve().parents[2]
 PLUGIN_DOCS = REPO_ROOT / "plugins" / "dev-team"
 CLAUDE_MD = PLUGIN_DOCS / "CLAUDE.md"
 

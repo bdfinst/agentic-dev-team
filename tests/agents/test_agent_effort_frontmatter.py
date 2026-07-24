@@ -32,11 +32,11 @@ from __future__ import annotations
 
 import re
 from pathlib import Path
-from typing import List
 
 import pytest
 
-REPO_ROOT = Path(__file__).resolve().parents[2]
+from _repo_root import REPO_ROOT
+
 # Deliberately a separate, narrower list from _plugin_dirs.PLUGIN_AGENTS_DIRS
 # (which adds marketplace-dev) -- keeping this file's own scope unchanged
 # avoids retroactively subjecting marketplace-dev's one agent to these
@@ -49,7 +49,7 @@ ALLOWED_BANDS = ("low", "medium", "high")
 ALLOWED_CONTEXT_NEEDS = ("diff-only", "full-file", "project-structure", "artifact-stream")
 
 
-def _agent_files_to_check(agent_files: str | None = None) -> List[Path]:
+def _agent_files_to_check(agent_files: str | None = None) -> list[Path]:
     """Resolve which agent files to check.
 
     - Default: every *.md directly under any agents/ directory in AGENTS_DIRS.
@@ -69,7 +69,7 @@ def _agent_files_to_check(agent_files: str | None = None) -> List[Path]:
                 raise ValueError(f"AGENT_FILES contains an unknown agent: {name}")
             result.append(found)
         return result
-    files: List[Path] = []
+    files: list[Path] = []
     for agents_dir in AGENTS_DIRS:
         files.extend(agents_dir.glob("*.md"))
     return sorted(files)

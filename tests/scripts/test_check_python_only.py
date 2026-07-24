@@ -17,7 +17,8 @@ from pathlib import Path
 
 import pytest
 
-REPO_ROOT = Path(__file__).resolve().parents[2]
+from _repo_root import REPO_ROOT
+
 SCRIPT = REPO_ROOT / "scripts" / "check-python-only.py"
 
 GIT_SCRUB_ENV_VARS = (

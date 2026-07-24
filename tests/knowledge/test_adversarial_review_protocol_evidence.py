@@ -32,11 +32,11 @@ assertions verify the wording is present and durable, per the existing
 from __future__ import annotations
 
 import re
-from pathlib import Path
 
 import pytest
 
-REPO_ROOT = Path(__file__).resolve().parents[2]
+from _repo_root import REPO_ROOT
+
 DOC = (
     REPO_ROOT
     / "plugins"
