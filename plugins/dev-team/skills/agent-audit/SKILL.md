@@ -159,29 +159,27 @@ Include the result in the agent report table under a `Skills-Tool` column.
 2. **Code-intelligence MCP invariant (review agents)**: Every read-only `*-review` agent MUST grant the five code-intelligence MCP tools in `tools:` — `mcp__codegraph__codegraph_explore` and `mcp__plugin_repowise_repowise__{get_context,get_symbol,search_codebase,get_risk}` — so a review on a repo with a CodeGraph/Repowise index uses verified skeletons and resolved call graphs instead of raw whole-file reads (the grant is inert when the server is absent; agents fall back to Read/Grep/Glob). This mirrors the Skills-Skill invariant: it self-extends to future `*-review` agents.
    - FAIL if any `*-review` agent's `tools:` line is missing one or more of the five names.
    - PASS if every `*-review` agent grants all five.
-   - Delegated to `scripts/check_review_agent_mcp_tools.py` (with `MCP_TOOL_NAMES` as the single source of truth); it also checks that [`code-review/SKILL.md`](../code-review/SKILL.md) still contains the code-intelligence phrases (the five tool names and `.codegraph/`) as a proxy for the detection/preference guidance — it asserts the phrases are present, not the instruction wording itself.
+   - Also checks that [`code-review/SKILL.md`](../code-review/SKILL.md) still contains the code-intelligence phrases (the five tool names and `.codegraph/`) as a proxy for the detection/preference guidance — it asserts the phrases are present, not the instruction wording itself.
 
-Include the result in the agent report table under a `Code-Intel` column.
-
-**Fix (when `--fix` is passed)**: run `python3 scripts/check_review_agent_mcp_tools.py --fix`, which appends the missing names (merge, never replacing `Read, Grep, Glob`/`Skill`). Report `FIXED: <agent> — added code-intelligence MCP tools`.
-
-3. **Code-intelligence mapping invariant (non-review team agents)**: Every non-review team agent in the #1108 mapping MUST grant its **tier's** tools in `tools:` — the **narrow** tier (`software-engineer`, `mutation-kill`, `qa-engineer`, `data-flow-tracer`) grants codegraph + the four Repowise tools, with `data-flow-tracer` also carrying a scoped `Bash(graphify *)`; the **rationale** tier (`adr-author`, `architect`, `security-engineer`, `platform-engineer`, `codebase-recon`) additionally grants `mcp__plugin_repowise_repowise__get_why`. Coverage is the union of the mapping's config keys and a structural sweep (team agents by `## Behavioral Guidelines` **or** `Enforcement: script`, minus `*-review`, minus a documented exclusion list), so a new team agent that is neither mapped nor excluded fails rather than silently escaping the mapping.
+3. **Code-intelligence mapping invariant (non-review team agents)**: Every non-review team agent in the #1108 mapping MUST grant its **tier's** tools in `tools:` — the **narrow** tier (`software-engineer`, `mutation-kill`, `qa-engineer`, `data-flow-tracer`) grants codegraph + the four Repowise tools, with `data-flow-tracer` also carrying a scoped `Bash(graphify *)`; the **rationale** tier (`adr-author`, `architect`, `security-engineer`, `platform-engineer`, `codebase-recon`) additionally grants `mcp__plugin_repowise_repowise__get_why`. Coverage is the union of the mapping's config keys and a structural sweep (team agents by `## Behavioral Guidelines` **or** `Enforcement: script`, minus `*-review`, minus a documented exclusion list), so a new team agent that is neither mapped nor excluded fails rather than silently escaping the mapping. This is the non-review counterpart to invariant 2: review agents keep their five-tool set there; this check never evaluates `*-review` agents.
    - FAIL if a mapped agent's `tools:` line is missing any of its tier's names, or a swept team agent is in neither the mapping nor the exclusion list (unclassified).
    - PASS if every mapped agent grants its tier's tools and every swept agent is mapped or excluded.
-   - Delegated to `scripts/check_agent_tool_mapping.py` (with `TIER_CONFIG`/`EXCLUSIONS` as the single source of truth, sharing `scripts/lib/mcp_tool_grants.py` with the review-agent check as a peer). This is the non-review counterpart to invariant 2: review agents keep their five-tool set there; the mapping check never evaluates `*-review` agents.
-
-Include the result in the agent report table under a `Mapping` column.
-
-**Fix (when `--fix` is passed)**: run `python3 scripts/check_agent_tool_mapping.py --fix`, which appends the missing tier names (merge, never replacing existing grants). Unclassified agents are reported, not auto-fixed — classify each into `TIER_CONFIG` or `EXCLUSIONS`. Report `FIXED: <agent> — added code-intelligence mapping tools`.
 
 4. **Code-intelligence grant invariant (security-assessment plugin, issue #1388)**: Invariants 2 and 3 above cover `plugins/dev-team/agents/` only. Every agent in `CODE_READING_AGENTS` (`authorization-logic-review`, `business-logic-domain-review`, `compliance-edge-annotator`, `cross-repo-synthesizer`, `deep-code-reasoning`, `fp-reduction`, `recon-driven-scan`, `tool-finding-narrative-annotator`) MUST grant the same five-tool `BASE_MCP_TOOLS` set in `tools:`. The remaining 5 synthesis-only `plugins/security-assessment/agents/*.md` files (`redteam-report-generator`, `exec-report-generator`, `redteam-recon-analyzer`, `redteam-evasion-analyzer`, `redteam-extraction-analyzer`) interpret a fixed set of upstream probe/report artifacts and produce narrative output rather than reasoning about arbitrary target-repo code, and are excluded — the grant would be inert for them (this is a fixed classification, not a `Glob`-presence heuristic: `exec-report-generator` carries `Glob` for its own artifact-directory walk yet is still excluded).
    - FAIL if a code-reading agent's `tools:` line is missing one or more of the five names, or an agent on disk is in neither roster (unclassified).
    - PASS if every code-reading agent grants all five and every agent on disk is classified.
-   - Delegated to `plugins/dev-team/scripts/check_security_assessment_mcp_tools.py` (sharing `scripts/lib/mcp_tool_grants.py`'s `BASE_MCP_TOOLS` as the single source of truth with invariants 2 and 3). Wired into `scripts/ci-local.sh` as `chk_sa_mcp_tools` so drift fails CI, not just this manual audit pass.
 
-Include the result in the agent report table under a `SA-MCP` column.
+**Mechanics for invariants 2–4**: all three delegate to `scripts/lib/mcp_tool_grants.py`'s shared `run_grants_check` (single read+parse pass per agent, both for detection and `--fix`) and, under `--json`, report the same envelope (`check`/`evaluated`/`offenders`/`unclassified`/`fixed`/`unfixable`/`ok`/`notes`) so results are comparable across the three checks.
 
-**Fix (when `--fix` is passed)**: run `python3 plugins/dev-team/scripts/check_security_assessment_mcp_tools.py --fix`, which appends the missing names (merge, never replacing existing grants). Unclassified agents are reported, not auto-fixed — classify each into `CODE_READING_AGENTS` or `NON_CODE_READING_AGENTS`. Report `FIXED: <agent> — added code-intelligence MCP tools`.
+| Invariant | Report column | Delegated script | Config source of truth | Unclassified handling |
+|---|---|---|---|---|
+| 2. Code-intelligence (review agents) | `Code-Intel` | `scripts/check_review_agent_mcp_tools.py` | `MCP_TOOL_NAMES` | n/a — glob-discovered, no roster |
+| 3. Code-intelligence mapping (non-review) | `Mapping` | `scripts/check_agent_tool_mapping.py` | `TIER_CONFIG` / `EXCLUSIONS` | reported, not auto-fixed |
+| 4. Code-intelligence (security-assessment) | `SA-MCP` | `plugins/dev-team/scripts/check_security_assessment_mcp_tools.py` | `CODE_READING_AGENTS` / `NON_CODE_READING_AGENTS` | reported, not auto-fixed |
+
+Include each invariant's result in the agent report table under its column above. Invariant 4 is additionally wired into `scripts/ci-local.sh` as `chk_sa_mcp_tools`, so drift fails CI, not just this manual audit pass.
+
+**Fix (when `--fix` is passed)**: run the delegated script above with `--fix` — it appends its missing tool names to `tools:` (merge, never replacing existing grants such as `Read, Grep, Glob`/`Skill`). Unclassified agents, where applicable, are reported, not auto-fixed — classify each into the config or exclusion list named above. Report `FIXED: <agent> — added <tool names>`.
 
 ### 2c. Audit team agent personas
 

@@ -141,8 +141,17 @@ def test_json_report_smoke(tmp_path, capsys):
     rc = main(["--agents-dir", str(agents), "--json"])
     assert rc == 0
     out = json.loads(capsys.readouterr().out)
-    assert set(out) == {"covered", "swept", "offenders", "unclassified"}
-    assert "software-engineer" in out["covered"]
+    # Common envelope shared by all three MCP grant-check scripts (#1393).
+    assert set(out) == {
+        "check", "evaluated", "offenders", "unclassified", "fixed", "unfixable", "ok", "notes",
+    }
+    assert out["check"] == "agent-tool-mapping"
+    assert "software-engineer" in out["evaluated"]
+    assert out["ok"] is True
+    assert out["fixed"] == {}
+    assert out["unfixable"] == []
+    assert "swept" in out["notes"]
+    assert "software-engineer" in out["notes"]["swept"]
 
 
 def test_block_form_tools_line_is_unfixable_not_mangled():

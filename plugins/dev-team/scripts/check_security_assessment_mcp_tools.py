@@ -41,6 +41,7 @@ sys.path.insert(0, str(Path(__file__).parent / "lib"))
 
 from mcp_tool_grants import (
     BASE_MCP_TOOLS,
+    build_json_report,
     run_grants_check,
 )
 
@@ -120,19 +121,21 @@ def main(argv=None) -> int:
         print(f"ERROR: agents directory not found: {agents_dir}", file=sys.stderr)
         return 1
 
-    offenders, fixed, _unfixable = run_grants_check(_targets(agents_dir), apply_fix=args.fix)
+    offenders, fixed, unfixable = run_grants_check(_targets(agents_dir), apply_fix=args.fix)
     unclassified = unclassified_agents(agents_dir)
     rc = 1 if (offenders or unclassified) else 0
 
     if args.json:
-        out = {
-            "reviewed": list(CODE_READING_AGENTS),
-            "offenders": offenders,
-            "unclassified": unclassified,
-        }
-        if args.fix:
-            out["fixed"] = fixed
-        print(json.dumps(out, indent=2))
+        report = build_json_report(
+            "security-assessment-mcp-tools",
+            CODE_READING_AGENTS,
+            offenders,
+            ok=(rc == 0),
+            fixed=fixed,
+            unfixable=unfixable,
+            unclassified=unclassified,
+        )
+        print(json.dumps(report, indent=2))
         return rc
 
     if args.fix:

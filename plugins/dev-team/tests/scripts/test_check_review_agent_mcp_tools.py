@@ -227,3 +227,40 @@ def test_main_json_emits_only_json_on_stdout(tmp_path, capsys):
     parsed = json.loads(out)
     assert rc == 1
     assert "bar-review" in parsed["offenders"]
+
+
+def test_json_report_smoke(tmp_path, capsys):
+    import json
+
+    agents_dir, skill_file = _tmp_env(tmp_path)
+    _agent(agents_dir, "foo-review", "Read, Grep, Glob, " + ", ".join(MCP_TOOL_NAMES))
+    rc = _call_main(agents_dir, skill_file, "--json")
+    assert rc == 0
+    out = json.loads(capsys.readouterr().out)
+    # Common envelope shared by all three MCP grant-check scripts (#1393).
+    assert set(out) == {
+        "check", "evaluated", "offenders", "unclassified", "fixed", "unfixable", "ok", "notes",
+    }
+    assert out["check"] == "review-agent-mcp-tools"
+    assert out["evaluated"] == ["foo-review"]
+    assert out["offenders"] == {}
+    assert out["unclassified"] == []
+    assert out["fixed"] == {}
+    assert out["unfixable"] == []
+    assert out["ok"] is True
+    assert out["notes"] == {"skill_missing_phrases": []}
+
+
+def test_json_report_fix_mode_reflects_post_fix_offenders(tmp_path, capsys):
+    import json
+
+    agents_dir, skill_file = _tmp_env(tmp_path)
+    _agent(agents_dir, "baz-review", "Read, Grep, Glob")
+    rc = _call_main(agents_dir, skill_file, "--fix", "--json")
+    assert rc == 0
+    out = json.loads(capsys.readouterr().out)
+    assert out["check"] == "review-agent-mcp-tools"
+    assert "baz-review" in out["fixed"]
+    assert out["offenders"] == {}  # computed from the already-fixed text
+    assert out["unfixable"] == []
+    assert out["ok"] is True

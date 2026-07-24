@@ -166,3 +166,40 @@ def run_grants_check(targets, apply_fix=False):
         if missing:
             offenders[name] = missing
     return offenders, fixed, unfixable
+
+
+def build_json_report(check, evaluated, offenders, ok, fixed=None, unfixable=None, unclassified=None, notes=None):
+    """Build the common ``--json`` envelope shared by all three grant-check scripts (#1393).
+
+    Each script's ``--json`` output previously diverged in shape (``reviewed`` vs
+    ``covered``, an ``unclassified`` key present on two scripts but absent on the
+    third, ``fixed``/``unfixable`` only appearing conditionally on ``--fix``) — a
+    caller wanting to aggregate "which grant checks are failing" across scripts had
+    no uniform surface to read. This helper gives every script the same top-level
+    keys, always present, so a future aggregator never needs a per-script branch:
+
+    - ``check``: a stable slug identifying which script produced the report.
+    - ``evaluated``: every target name the check looked at.
+    - ``offenders``: ``{name: [missing tool names]}`` (post-fix state if fixed).
+    - ``unclassified``: names present but classified into neither a required nor
+      an excluded bucket — ``[]`` when the check has no such concept.
+    - ``fixed`` / ``unfixable``: from ``run_grants_check`` — empty when detection
+      only (no ``--fix``).
+    - ``ok``: the caller's own exit-code decision, passed through rather than
+      re-derived here — some checks (e.g. the review-agent script's skill-prose
+      check) fail for reasons ``offenders``/``unclassified`` alone don't capture,
+      so this helper must not guess at "ok" from the other fields.
+    - ``notes``: a namespaced bag for the one or two fields that are genuinely
+      script-specific (e.g. ``skill_missing_phrases``, ``swept``) rather than
+      forcing every script into an identical key set that doesn't fit.
+    """
+    return {
+        "check": check,
+        "evaluated": list(evaluated),
+        "offenders": offenders,
+        "unclassified": list(unclassified or []),
+        "fixed": fixed or {},
+        "unfixable": list(unfixable or []),
+        "ok": ok,
+        "notes": notes or {},
+    }
