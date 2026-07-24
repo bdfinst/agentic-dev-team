@@ -4,7 +4,7 @@ effort: high
 color: green
 name: authorization-logic-review
 description: Top-down authorization review. Maps the access-control model (RBAC/ABAC/ACL/tenancy), then verifies enforcement at every layer. Phase 1b peer agent.
-tools: Read, Grep, Glob
+tools: Read, Grep, Glob, mcp__codegraph__*, mcp__plugin_repowise_repowise__get_context, mcp__plugin_repowise_repowise__get_symbol, mcp__plugin_repowise_repowise__search_codebase, mcp__plugin_repowise_repowise__get_risk
 ---
 
 # Authorization Logic Review

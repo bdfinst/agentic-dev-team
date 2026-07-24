@@ -4,7 +4,7 @@ effort: high
 color: cyan
 name: fp-reduction
 description: Applies the six-stage FP-reduction rubric to a unified-finding stream, producing a disposition register. Consumes findings + RECON (+ CPG when joern is available).
-tools: Read, Grep, Glob, Bash
+tools: Read, Grep, Glob, Bash, mcp__codegraph__*, mcp__plugin_repowise_repowise__get_context, mcp__plugin_repowise_repowise__get_symbol, mcp__plugin_repowise_repowise__search_codebase, mcp__plugin_repowise_repowise__get_risk
 ---
 
 # FP-Reduction Agent

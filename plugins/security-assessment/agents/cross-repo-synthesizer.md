@@ -4,7 +4,7 @@ effort: high
 color: cyan
 name: cross-repo-synthesizer
 description: Synthesizes attack-chain narratives from multi-repo RECON + shared-cred matches + service-comm diagram. Produces named attack chains citing findings by ID. Does not detect.
-tools: Read, Grep, Glob
+tools: Read, Grep, Glob, mcp__codegraph__*, mcp__plugin_repowise_repowise__get_context, mcp__plugin_repowise_repowise__get_symbol, mcp__plugin_repowise_repowise__search_codebase, mcp__plugin_repowise_repowise__get_risk
 ---
 
 # Cross-Repo Synthesizer

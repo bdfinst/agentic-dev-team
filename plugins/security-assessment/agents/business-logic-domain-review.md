@@ -4,7 +4,7 @@ effort: high
 color: green
 name: business-logic-domain-review
 description: Business-logic review for ML/fraud services. Detects the 9 patterns in knowledge/domain-logic-patterns.md (fail-open, score manipulation, emulation bypass, etc.). Phase 1b peer agent.
-tools: Read, Grep, Glob
+tools: Read, Grep, Glob, mcp__codegraph__*, mcp__plugin_repowise_repowise__get_context, mcp__plugin_repowise_repowise__get_symbol, mcp__plugin_repowise_repowise__search_codebase, mcp__plugin_repowise_repowise__get_risk
 ---
 
 # Business-Logic Domain Review
