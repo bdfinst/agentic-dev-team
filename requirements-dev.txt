@@ -60,3 +60,12 @@ ruff>=0.3.1
 # diagnostic-only) feeds /code-review through the Tier 3 JSON adapter, which
 # needs the --output json flag introduced in 1.11.
 mypy>=1.11
+
+# Instruments chk_hook_units (scripts/ci-local.sh) with a line+branch coverage
+# report over the plugin's own source (plugins/dev-team/hooks, scripts/) —
+# informational only, no --cov-fail-under threshold, so it never gates the
+# pre-push/CI run. Folded into the existing chk_hook_units invocation rather
+# than a second full test run, to avoid doubling that check's wall-clock.
+# Falls back to a plain (uninstrumented) run when absent, same pattern as the
+# optional pytest-xdist parallelization above.
+pytest-cov>=5.0
