@@ -52,14 +52,19 @@ def test_rosters_are_disjoint_and_cover_every_agent_on_disk():
 
 
 def test_non_code_reading_agents_are_not_granted_the_mcp_tools():
-    # These agents interpret fixed upstream artifacts only; a codegraph/repowise
-    # grant would be inert for them, and the check must not require it.
-    from mcp_tool_grants import parse_tools
+    # These agents interpret fixed upstream artifacts only (synthesis-only, per
+    # #1381's classification) — a codegraph/repowise grant would be inert for
+    # them, and the check must not require it. Note this is NOT a Glob-presence
+    # check: exec-report-generator carries Glob for its own artifact-directory
+    # walk yet is still synthesis-only, so Glob alone can't be the signal.
+    from mcp_tool_grants import missing_tools
 
     for name in NON_CODE_READING_AGENTS:
         path = REAL_AGENTS_DIR / f"{name}.md"
-        tokens = parse_tools(path.read_text(encoding="utf-8")) or []
-        assert "Glob" not in tokens, f"{name} unexpectedly grants Glob"
+        missing = missing_tools(path.read_text(encoding="utf-8"), BASE_MCP_TOOLS)
+        assert missing == list(BASE_MCP_TOOLS), (
+            f"{name} unexpectedly already grants some code-intelligence MCP tools"
+        )
 
 
 # --- Behaviour against a synthetic copy ------------------------------------
@@ -101,20 +106,24 @@ def test_fix_appends_missing_without_dropping_existing(tmp_path):
     agents = _clone_agents(tmp_path)
     target = agents / "recon-driven-scan.md"
     before = target.read_text(encoding="utf-8")
+    # index 0 (mcp__codegraph__codegraph_explore) is satisfied on disk via the
+    # mcp__codegraph__* wildcard grant, not a literal substring — mutate one of
+    # the literal, non-wildcarded Repowise tool names instead.
     target.write_text(
-        before.replace(", " + BASE_MCP_TOOLS[0], "", 1), encoding="utf-8"
+        before.replace(", " + BASE_MCP_TOOLS[1], "", 1), encoding="utf-8"
     )
     fixed = apply_fixes(agents)
     assert "recon-driven-scan" in fixed
-    assert BASE_MCP_TOOLS[0] in fixed["recon-driven-scan"]
+    assert BASE_MCP_TOOLS[1] in fixed["recon-driven-scan"]
 
-    from mcp_tool_grants import parse_tools
+    from mcp_tool_grants import missing_tools, parse_tools
 
     grants = parse_tools(target.read_text(encoding="utf-8"))
     for base in ("Read", "Grep", "Glob", "Bash"):
         assert base in grants  # pre-existing grants preserved
-    for tool in BASE_MCP_TOOLS:
-        assert tool in grants
+    # wildcard-aware: mcp__codegraph__codegraph_explore is satisfied via the
+    # mcp__codegraph__* grant already on disk, not present as a literal token.
+    assert missing_tools(target.read_text(encoding="utf-8"), BASE_MCP_TOOLS) == []
 
 
 def test_fix_is_idempotent(tmp_path):

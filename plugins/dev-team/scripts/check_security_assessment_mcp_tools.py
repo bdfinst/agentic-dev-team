@@ -14,11 +14,15 @@ Unlike the dev-team review agents (uniformly named `*-review.md`), the
 security-assessment agents this applies to don't share a filename
 convention, so — mirroring `check_agent_tool_mapping.py`'s named-target
 approach rather than a glob — this script validates an explicit roster:
-the agents whose `tools:` frontmatter already includes `Glob` (broad
-codebase/artifact-tree traversal, the same file-discovery capability every
-dev-team `*-review.md` agent carries), as opposed to the narrower
-probe-interpretation/report-narrative agents that only ever read a fixed
-set of upstream JSON artifacts via `Read`/`Grep`.
+the 8 agents that reason about arbitrary target-repo code, as opposed to
+the 5 synthesis-only agents (`redteam-report-generator`,
+`exec-report-generator`, `redteam-recon-analyzer`,
+`redteam-evasion-analyzer`, `redteam-extraction-analyzer`) that only ever
+read a fixed set of upstream probe/finding artifacts and produce narrative
+output — the grant would be inert for them. This classification (not a
+`Glob`-presence heuristic — `exec-report-generator` carries `Glob` for its
+own artifact-directory walk yet is still synthesis-only) is the one
+actually applied to the fleet.
 
 Usage:
     python3 check_security_assessment_mcp_tools.py [--agents-dir <path>]
@@ -42,29 +46,31 @@ from mcp_tool_grants import (
     parse_tools,
 )
 
-# The security-assessment code-reading agents (#1388) — every agent in
-# plugins/security-assessment/agents/ whose tools: line grants Glob, i.e.
-# does broad codebase/artifact-tree traversal rather than reading a fixed
-# set of upstream probe/report artifacts. Named explicitly (not a glob
-# pattern) so a newly added agent must be classified here or in
-# NON_CODE_READING_AGENTS rather than silently landing in either bucket.
+# The security-assessment code-reading agents (#1388) — the 8 agents that
+# reason about arbitrary target-repo code. Named explicitly (not a glob
+# pattern, not a tools:-heuristic) so a newly added agent must be classified
+# here or in NON_CODE_READING_AGENTS rather than silently landing in either
+# bucket.
 CODE_READING_AGENTS = [
     "authorization-logic-review",
     "business-logic-domain-review",
+    "compliance-edge-annotator",
     "cross-repo-synthesizer",
     "deep-code-reasoning",
-    "exec-report-generator",
     "fp-reduction",
     "recon-driven-scan",
     "tool-finding-narrative-annotator",
 ]
 
-# Documented exclusions: security-assessment agents that interpret a fixed
-# set of upstream artifacts (redteam probe output, prior-phase findings) via
-# Read/Grep only — no Glob, no broad codebase traversal — so the
-# code-intelligence grant would be inert for them.
+# Documented exclusions: the 5 synthesis-only security-assessment agents —
+# they interpret a fixed set of upstream artifacts (redteam probe output,
+# prior-phase findings) and produce narrative/report output, never reasoning
+# about arbitrary target-repo code, so the code-intelligence grant would be
+# inert for them. `exec-report-generator` carries `Glob` (for its own
+# artifact-directory walk) but is still synthesis-only — Glob presence alone
+# is not the classifying signal.
 NON_CODE_READING_AGENTS = [
-    "compliance-edge-annotator",
+    "exec-report-generator",
     "redteam-evasion-analyzer",
     "redteam-extraction-analyzer",
     "redteam-recon-analyzer",
