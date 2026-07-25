@@ -39,6 +39,11 @@ _BACKGROUND_PREFIX = "Background:"
 _SCENARIO_PREFIXES = ("Scenario Outline:", "Scenario:")
 _EXAMPLES_PREFIX = "Examples:"
 
+# The two error sentinels, named once so every return site and every test
+# assertion shares one source of truth instead of a repeated raw literal.
+ERROR_FEATURE_NOT_FOUND = "feature-not-found"
+ERROR_MALFORMED_FEATURE_BLOCK = "malformed-feature-block"
+
 
 @dataclass
 class ScenarioUnit:
@@ -116,20 +121,69 @@ def _block_end(lines: list, header_index: int) -> int:
     return len(lines)
 
 
+def _find_next_unit_start(body: list, start: int, n: int) -> int:
+    """Return the index of the next unit-start line (a tag line or a
+    Scenario:/Scenario Outline: line) at or after `start`, or `n` if none
+    remains before the block ends. Shared by `_find_background` (where does
+    the Background section end) and `_locate_unit` (where does this unit
+    end) — both are the same "scan forward for the next unit marker"
+    question."""
+    for m in range(start, n):
+        if _is_unit_start(body[m]):
+            return m
+    return n
+
+
 def _find_background(body: list) -> tuple:
     """Return (background_text_or_None, body_start_index) for the region
     of `body` before the first scenario unit."""
+    n = len(body)
     for k, line in enumerate(body):
         if _stripped(line).strip().startswith(_BACKGROUND_PREFIX):
-            bg_end = len(body)
-            for m in range(k + 1, len(body)):
-                if _is_unit_start(body[m]):
-                    bg_end = m
-                    break
+            bg_end = _find_next_unit_start(body, k + 1, n)
             return "".join(body[k:bg_end]), bg_end
         if _is_unit_start(line):
             return None, k
-    return None, len(body)
+    return None, n
+
+
+def _outline_missing_examples_table(body: list, title_offset: int, unit_end: int) -> bool:
+    """True when the Scenario Outline starting at `title_offset` declares an
+    `Examples:` keyword but the table has no rows before `unit_end` — the
+    one structurally malformed shape a Scenario Outline unit can take.
+    (A Scenario Outline with no `Examples:` keyword at all isn't this
+    function's concern — that's a content choice, not a structural error.)"""
+    examples_idx = None
+    for m in range(title_offset + 1, unit_end):
+        if _stripped(body[m]).strip().startswith(_EXAMPLES_PREFIX):
+            examples_idx = m
+            break
+    if examples_idx is None:
+        return False
+    return not any(
+        _stripped(body[m]).strip().startswith("|") for m in range(examples_idx + 1, unit_end)
+    )
+
+
+def _locate_unit(body: list, idx: int, n: int) -> tuple:
+    """Find the `(title, title_offset, unit_end)` bounds of the unit
+    starting at `idx` — the optional leading `@tag` line(s) through the
+    `Scenario:`/`Scenario Outline:` line, up to the next unit-start marker
+    or block end. `title` is `None` for a dangling run of tag lines with no
+    following Scenario(-Outline) line before the block ends; the caller
+    treats that as `malformed-feature-block`."""
+    title = None
+    title_offset = idx
+    for scan in range(idx, n):
+        t = _scenario_title(body[scan])
+        if t is not None:
+            title = t
+            title_offset = scan
+            break
+
+    search_from = title_offset + 1 if title is not None else idx + 1
+    unit_end = _find_next_unit_start(body, search_from, n)
+    return title, title_offset, unit_end
 
 
 def _parse_units(body: list, body_start: int, header_line_no: int):
@@ -143,50 +197,21 @@ def _parse_units(body: list, body_start: int, header_line_no: int):
     idx = body_start
     n = len(body)
     while idx < n:
-        line = body[idx]
-        if not _is_unit_start(line):
+        if not _is_unit_start(body[idx]):
             idx += 1
             continue
 
         unit_start = idx
-        scan = idx
-        title = None
-        title_offset = idx
-        while scan < n:
-            t = _scenario_title(body[scan])
-            if t is not None:
-                title = t
-                title_offset = scan
-                break
-            scan += 1
-
-        # Find where this unit ends: the next unit-start marker, or body end.
-        unit_end = n
-        search_from = title_offset + 1 if title is not None else unit_start + 1
-        for m in range(search_from, n):
-            if _is_unit_start(body[m]):
-                unit_end = m
-                break
+        title, title_offset, unit_end = _locate_unit(body, idx, n)
 
         if title is None:
             # A tag line (or run of tag lines) with no following
             # Scenario:/Scenario Outline: before the block ends.
-            return None, "malformed-feature-block"
+            return None, ERROR_MALFORMED_FEATURE_BLOCK
 
         is_outline = _stripped(body[title_offset]).strip().startswith("Scenario Outline:")
-        if is_outline:
-            examples_idx = None
-            for m in range(title_offset + 1, unit_end):
-                if _stripped(body[m]).strip().startswith(_EXAMPLES_PREFIX):
-                    examples_idx = m
-                    break
-            if examples_idx is not None:
-                has_table_row = any(
-                    _stripped(body[m]).strip().startswith("|")
-                    for m in range(examples_idx + 1, unit_end)
-                )
-                if not has_table_row:
-                    return None, "malformed-feature-block"
+        if is_outline and _outline_missing_examples_table(body, title_offset, unit_end):
+            return None, ERROR_MALFORMED_FEATURE_BLOCK
 
         unit_text = "".join(body[unit_start:unit_end])
         units.append(ScenarioUnit(title=title, line=header_line_no + title_offset + 1, text=unit_text))
@@ -207,7 +232,7 @@ def parse_feature_block(text: str, feature_title: str) -> ParseResult:
     lines = _split_lines(text)
     header_index = _find_feature_header(lines, feature_title)
     if header_index is None:
-        return ParseResult(block=None, error="feature-not-found")
+        return ParseResult(block=None, error=ERROR_FEATURE_NOT_FOUND)
 
     end_index = _block_end(lines, header_index)
     body = lines[header_index + 1 : end_index]
@@ -221,17 +246,25 @@ def parse_feature_block(text: str, feature_title: str) -> ParseResult:
     return ParseResult(block=block, error=None)
 
 
-def parse_candidate_units(text: str) -> list:
+def parse_candidate_units(text: str) -> tuple:
     """Parse headerless candidate scenario text (no `Feature:` wrapper) —
     the `--candidates` scratch-file shape — into ordered ScenarioUnits.
     Reuses the same unit-splitting logic `parse_feature_block` uses for the
     inside of a block, since a candidates file is exactly a block's body
-    with no Background section expected."""
+    with no Background section expected.
+
+    Returns `(units, error)`, mirroring `parse_feature_block`'s error
+    contract: a structurally malformed candidates fragment (a dangling
+    `@tag` line, or a `Scenario Outline:` missing its `Examples:` table) is
+    reported as `error="malformed-feature-block"` with `units == []`, never
+    silently collapsed to an empty, error-less list — a broken
+    `--candidates` scratch file must surface as a diagnosable failure, not
+    a silent "merged 0 scenarios" success."""
     body = _split_lines(text)
     units, error = _parse_units(body, 0, 0)
-    if error is not None or units is None:
-        return []
-    return units
+    if error is not None:
+        return [], error
+    return units, None
 
 
 @dataclass
@@ -285,8 +318,17 @@ def merge_scenarios(existing_text: str, feature_title: str, candidate_units: lis
 
     insertion = "".join(unit.text for unit in new_units)
     # Insert right at the block's end boundary, preserving everything before
-    # and after byte-for-byte.
-    new_lines = lines[:end_index] + [insertion] + lines[end_index:]
+    # and after byte-for-byte — except that a missing line terminator right
+    # at the splice point (existing_text has no trailing newline, or the
+    # last new unit's text doesn't end in one) is restored rather than left
+    # to fuse two Gherkin lines into one. This never rewrites either line's
+    # content, only the separator whose absence would otherwise corrupt it.
+    prefix_lines = list(lines[:end_index])
+    if prefix_lines and not prefix_lines[-1].endswith(("\n", "\r\n")):
+        prefix_lines[-1] += "\n"
+    if insertion and not insertion.endswith(("\n", "\r\n")):
+        insertion += "\n"
+    new_lines = prefix_lines + [insertion] + lines[end_index:]
     merged_text = "".join(new_lines)
 
     return MergeResult(
@@ -298,8 +340,12 @@ def merge_scenarios(existing_text: str, feature_title: str, candidate_units: lis
 
 
 def find_then_step_text(existing_text: str, feature_title: str) -> dict:
-    """Map each retained scenario's title to its verbatim `Then`/`And`-
-    continuation step text (joined), for the stale-scenario check below."""
+    """Map each retained scenario's title to its verbatim `Then`/`And`/`But`-
+    continuation step text (joined), for the stale-scenario check below.
+    `But` is included alongside `And` because Gherkin permits either as a
+    Then-continuation (e.g. `Then the request is rejected / But no partial
+    record is written`) — omitting it would silently drop part of the
+    asserted behavior from the comparison `is_stale` makes below."""
     result = parse_feature_block(existing_text, feature_title)
     if result.error is not None or result.block is None:
         return {}
@@ -313,7 +359,7 @@ def find_then_step_text(existing_text: str, feature_title: str) -> dict:
             if stripped.startswith("Then "):
                 capturing = True
                 then_lines.append(line)
-            elif capturing and stripped.startswith("And "):
+            elif capturing and stripped.startswith(("And ", "But ")):
                 then_lines.append(line)
             elif capturing:
                 capturing = False
@@ -339,7 +385,26 @@ def _cmd_merge(args: argparse.Namespace) -> int:
     existing_path = Path(args.existing)
     existing_text = existing_path.read_text(encoding="utf-8") if existing_path.is_file() else ""
     candidates_text = Path(args.candidates).read_text(encoding="utf-8")
-    candidate_units = parse_candidate_units(candidates_text)
+    candidate_units, candidates_error = parse_candidate_units(candidates_text)
+
+    if candidates_error is not None:
+        if args.json:
+            print(
+                json.dumps(
+                    {
+                        "written": False,
+                        "added_titles": [],
+                        "skipped_duplicate_titles": [],
+                        "error": candidates_error,
+                    }
+                )
+            )
+        else:
+            _write_error(
+                f"gherkin_feature_merge: candidates file {args.candidates} is malformed "
+                f"(error={candidates_error}) — no scenarios merged, existing file left untouched"
+            )
+        return 2
 
     result = merge_scenarios(existing_text, args.feature_title, candidate_units)
 
@@ -376,25 +441,42 @@ def _cmd_check_stale(args: argparse.Namespace) -> int:
     existing_text = existing_path.read_text(encoding="utf-8") if existing_path.is_file() else ""
 
     observed = {}
-    for entry in args.observed:
-        title, _, value = entry.partition("=")
+    for raw in args.observed:
+        title, _, value = raw.partition("=")
         observed[title.strip()] = value
 
     then_texts = find_then_step_text(existing_text, args.feature_title)
 
     findings = []
+    unmatched_titles = []
     for title, value in observed.items():
         then_text = then_texts.get(title)
         if then_text is None:
+            # The observed title isn't an exact key in the retained block —
+            # e.g. the caller's title-extraction diverged from the retained
+            # scenario's exact text. Report this distinctly rather than
+            # silently treating it the same as "nothing to compare"; drift
+            # detection is the entire point of this command, so a
+            # title-match failure must be diagnosable, not invisible.
+            unmatched_titles.append(title)
             continue
         if is_stale(then_text, value):
             findings.append({"title": title, "then_text": then_text.strip(), "observed": value})
 
     if args.json:
-        print(json.dumps({"findings": findings}))
+        print(json.dumps({"findings": findings, "unmatched_titles": unmatched_titles}))
     else:
-        for f in findings:
-            print(f"possibly stale: {f['title']!r} — asserts {f['then_text']!r}, code now does {f['observed']!r}")
+        for entry in findings:
+            print(
+                f"possibly stale: {entry['title']!r} — asserts {entry['then_text']!r}, "
+                f"code now does {entry['observed']!r}"
+            )
+        for title in unmatched_titles:
+            print(
+                f"unmatched: --observed title {title!r} not found among retained scenarios "
+                f"in {args.feature_title!r} — check for a title mismatch between the "
+                f"observed value and the scenario it should describe"
+            )
     return 0
 
 
