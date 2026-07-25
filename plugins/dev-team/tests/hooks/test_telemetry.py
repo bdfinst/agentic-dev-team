@@ -1,4 +1,4 @@
-"""Unit tests for hooks/telemetry.py (#606)."""
+"""Unit tests for hooks/telemetry.py (#606, #1405)."""
 
 from __future__ import annotations
 
@@ -11,43 +11,81 @@ import pytest
 from _repo_root import REPO_ROOT as _REPO_ROOT
 
 sys.path.insert(0, str(_REPO_ROOT / "plugins" / "dev-team" / "hooks"))
+sys.path.insert(0, str(_REPO_ROOT / "plugins" / "dev-team" / "hooks" / "lib"))
 
 import telemetry
 
+
+def _isolate_home(monkeypatch, tmp_path):
+    """Point ~/.claude/telemetry.json at a fresh, empty home dir so tests
+    never read the real machine's consent file."""
+    home = tmp_path / "home"
+    home.mkdir()
+    monkeypatch.setenv("HOME", str(home))
+    monkeypatch.delenv("DEV_TEAM_TELEMETRY", raising=False)
+    return home
+
+
+def _enable_consent(monkeypatch, tmp_path) -> None:
+    home = _isolate_home(monkeypatch, tmp_path)
+    (home / ".claude").mkdir()
+    (home / ".claude" / "telemetry.json").write_text('{"enabled":true}')
+
+
 # ---------------------------------------------------------------------------
-# Consent gate
+# Consent gate — config-file-only, home-scoped (Slice 1, Step 1.2)
 # ---------------------------------------------------------------------------
 
 
-def test_consent_env_var_on_enables(tmp_path, monkeypatch):
+def test_env_var_has_no_effect(monkeypatch, tmp_path):
+    _isolate_home(monkeypatch, tmp_path)
     monkeypatch.setenv("DEV_TEAM_TELEMETRY", "on")
-    assert telemetry._consent_enabled(tmp_path) is True
+    _feed(
+        monkeypatch,
+        json.dumps(
+            {
+                "hook_event_name": "UserPromptSubmit",
+                "cwd": str(tmp_path),
+                "prompt": "/plan",
+            }
+        ),
+    )
+    assert telemetry.main() == 0
+    assert not (tmp_path / "metrics" / "telemetry.jsonl").exists()
 
 
-def test_consent_default_off(tmp_path, monkeypatch):
-    monkeypatch.delenv("DEV_TEAM_TELEMETRY", raising=False)
-    assert telemetry._consent_enabled(tmp_path) is False
-
-
-def test_consent_file_enabled_true(tmp_path, monkeypatch):
-    monkeypatch.delenv("DEV_TEAM_TELEMETRY", raising=False)
+def test_project_level_config_has_no_effect(monkeypatch, tmp_path):
+    _isolate_home(monkeypatch, tmp_path)
     (tmp_path / ".claude").mkdir()
     (tmp_path / ".claude" / "telemetry.json").write_text('{"enabled":true}')
-    assert telemetry._consent_enabled(tmp_path) is True
+    _feed(
+        monkeypatch,
+        json.dumps(
+            {
+                "hook_event_name": "UserPromptSubmit",
+                "cwd": str(tmp_path),
+                "prompt": "/plan",
+            }
+        ),
+    )
+    assert telemetry.main() == 0
+    assert not (tmp_path / "metrics" / "telemetry.jsonl").exists()
 
 
-def test_consent_file_enabled_false(tmp_path, monkeypatch):
-    monkeypatch.delenv("DEV_TEAM_TELEMETRY", raising=False)
-    (tmp_path / ".claude").mkdir()
-    (tmp_path / ".claude" / "telemetry.json").write_text('{"enabled":false}')
-    assert telemetry._consent_enabled(tmp_path) is False
-
-
-def test_consent_file_malformed(tmp_path, monkeypatch):
-    monkeypatch.delenv("DEV_TEAM_TELEMETRY", raising=False)
-    (tmp_path / ".claude").mkdir()
-    (tmp_path / ".claude" / "telemetry.json").write_text("{not json")
-    assert telemetry._consent_enabled(tmp_path) is False
+def test_home_config_governs(monkeypatch, tmp_path):
+    _enable_consent(monkeypatch, tmp_path)
+    _feed(
+        monkeypatch,
+        json.dumps(
+            {
+                "hook_event_name": "UserPromptSubmit",
+                "cwd": str(tmp_path),
+                "prompt": "/plan",
+            }
+        ),
+    )
+    assert telemetry.main() == 0
+    assert (tmp_path / "metrics" / "telemetry.jsonl").exists()
 
 
 # ---------------------------------------------------------------------------
@@ -90,13 +128,6 @@ def test_upsert_bumps_existing_count(tmp_path):
     assert data["plan"]["use_count"] == 3
 
 
-def test_upsert_disabled_when_file_says_false(tmp_path):
-    (tmp_path / ".claude").mkdir()
-    (tmp_path / ".claude" / "telemetry.json").write_text('{"enabled":false}')
-    telemetry._upsert_artifact_usage(tmp_path, "plan")
-    assert not (tmp_path / "metrics" / "artifact-usage.json").exists()
-
-
 def test_upsert_recovers_from_malformed_file(tmp_path, capsys):
     (tmp_path / "metrics").mkdir()
     (tmp_path / "metrics" / "artifact-usage.json").write_text("{not json")
@@ -122,7 +153,7 @@ def _feed(monkeypatch, text: str) -> None:
 
 
 def test_main_consent_off_writes_nothing(monkeypatch, tmp_path):
-    monkeypatch.delenv("DEV_TEAM_TELEMETRY", raising=False)
+    _isolate_home(monkeypatch, tmp_path)
     _feed(
         monkeypatch,
         json.dumps(
@@ -138,7 +169,7 @@ def test_main_consent_off_writes_nothing(monkeypatch, tmp_path):
 
 
 def test_main_user_prompt_records_command(monkeypatch, tmp_path):
-    monkeypatch.setenv("DEV_TEAM_TELEMETRY", "on")
+    _enable_consent(monkeypatch, tmp_path)
     _feed(
         monkeypatch,
         json.dumps(
@@ -156,7 +187,7 @@ def test_main_user_prompt_records_command(monkeypatch, tmp_path):
 
 
 def test_main_non_slash_prompt_records_nothing(monkeypatch, tmp_path):
-    monkeypatch.setenv("DEV_TEAM_TELEMETRY", "on")
+    _enable_consent(monkeypatch, tmp_path)
     _feed(
         monkeypatch,
         json.dumps(
@@ -172,7 +203,7 @@ def test_main_non_slash_prompt_records_nothing(monkeypatch, tmp_path):
 
 
 def test_main_git_commit_fires_gate(monkeypatch, tmp_path):
-    monkeypatch.setenv("DEV_TEAM_TELEMETRY", "on")
+    _enable_consent(monkeypatch, tmp_path)
     _feed(
         monkeypatch,
         json.dumps(
@@ -194,7 +225,7 @@ def test_main_git_commit_fires_gate(monkeypatch, tmp_path):
     ["git commit --no-verify", "git commit -m msg -n", "git commit -n -m msg"],
 )
 def test_main_git_commit_bypass_variants(monkeypatch, tmp_path, cmd):
-    monkeypatch.setenv("DEV_TEAM_TELEMETRY", "on")
+    _enable_consent(monkeypatch, tmp_path)
     _feed(
         monkeypatch,
         json.dumps(
@@ -212,7 +243,7 @@ def test_main_git_commit_bypass_variants(monkeypatch, tmp_path, cmd):
 
 
 def test_main_skill_records_and_upserts(monkeypatch, tmp_path):
-    monkeypatch.setenv("DEV_TEAM_TELEMETRY", "on")
+    _enable_consent(monkeypatch, tmp_path)
     _feed(
         monkeypatch,
         json.dumps(
@@ -233,7 +264,7 @@ def test_main_skill_records_and_upserts(monkeypatch, tmp_path):
 
 
 def test_main_malformed_stdin_silent(monkeypatch, tmp_path):
-    monkeypatch.setenv("DEV_TEAM_TELEMETRY", "on")
+    _enable_consent(monkeypatch, tmp_path)
     _feed(monkeypatch, "not-json")
     assert telemetry.main() == 0
     assert not (tmp_path / "metrics" / "telemetry.jsonl").exists()
