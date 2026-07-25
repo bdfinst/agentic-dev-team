@@ -117,7 +117,8 @@ For each review agent in the registry (`knowledge/agent-registry.md`):
 4. **Finding severity distribution**: Is the agent producing mostly minor findings? If >80% of findings are minor severity, consider whether the agent justifies its token cost. Compute this from the `severity_breakdown` object on `metrics/review-value.jsonl` rows (`{errors, warnings, suggestions}`, added in #1256) — aggregate per `agents_run` and treat `suggestions` as the minor bucket. Rows written before #1256 lack the field; count them as "no severity data" and exclude them from the ratio rather than assuming a mix (small-N honesty, consistent with Step 5). If **no** row carries `severity_breakdown`, report this analysis as dark ("severity breakdown unavailable — pre-#1256 metrics") rather than fabricating a distribution.
 
    ```bash
-   [ -f metrics/review-value.jsonl ] && jq -s '
+   log=".claude/metrics/review-value.jsonl"; [ -f "$log" ] || log="metrics/review-value.jsonl"
+   [ -f "$log" ] && jq -s '
      map(select(.severity_breakdown != null))
      | group_by(.agents_run | sort | join(","))
      | map({
@@ -128,7 +129,7 @@ For each review agent in the registry (`knowledge/agent-registry.md`):
        })
      | map(. + {total: (.errors + .warnings + .suggestions)})
      | map(select(.total > 0) | . + {minor_pct: (.suggestions / .total * 100 | round)})' \
-     metrics/review-value.jsonl
+     "$log"
    ```
 
 ### 4. Analyze review-value fix rates
@@ -146,7 +147,8 @@ this way). The `jq` filters to `source == "build-checkpoint"` (treating an absen
 `source` as `build-checkpoint`, back-compat) **before** grouping:
 
 ```bash
-[ -f metrics/review-value.jsonl ] && jq -s '
+log=".claude/metrics/review-value.jsonl"; [ -f "$log" ] || log="metrics/review-value.jsonl"
+[ -f "$log" ] && jq -s '
   map(select((.source // "build-checkpoint") == "build-checkpoint"))
   | group_by(.checkpoint + "|" + (.agents_run | sort | join(",")))
   | map({
@@ -161,7 +163,7 @@ this way). The `jq` filters to `source == "build-checkpoint"` (treating an absen
       issues_fixed:  (map(.issues_fixed)  | add // 0),
       fix_iterations:(map(.fix_iterations)| add // 0)
     })' \
-  metrics/review-value.jsonl
+  "$log"
 ```
 
 For **read-only `code-review` rows**, report **finding-rate** (how often the
@@ -170,7 +172,8 @@ that these rows are excluded from the fix-rate drop-candidate logic because they
 apply no fixes by design — a 0% fix rate there is expected, not a signal:
 
 ```bash
-[ -f metrics/review-value.jsonl ] && jq -s '
+log=".claude/metrics/review-value.jsonl"; [ -f "$log" ] || log="metrics/review-value.jsonl"
+[ -f "$log" ] && jq -s '
   map(select(.source == "code-review"))
   | if length == 0 then "no read-only rows" else
     group_by(.agents_run | sort | join(","))
@@ -181,7 +184,7 @@ apply no fixes by design — a 0% fix rate there is expected, not a signal:
         finding_rate: ((map(select(.issues_found > 0)) | length) / length * 100 | round)
       })
     end' \
-  metrics/review-value.jsonl
+  "$log"
 ```
 
 Flag **drop candidates**: any checkpoint+agents combination (from the
@@ -244,8 +247,9 @@ Run the deterministic helper (pure stdlib, zero model tokens for the
 computation):
 
 ```bash
+changelog=".claude/metrics/config-changelog.jsonl"; [ -f "$changelog" ] || changelog="metrics/config-changelog.jsonl"
 python3 ${CLAUDE_PLUGIN_ROOT}/skills/harness-audit/scripts/lesson_validate.py \
-  --changelog metrics/config-changelog.jsonl \
+  --changelog "$changelog" \
   --digest metrics/session-digest.jsonl \
   --apply -o memory/lesson-validation.json
 ```
