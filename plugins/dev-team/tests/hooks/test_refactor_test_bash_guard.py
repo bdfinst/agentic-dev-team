@@ -32,7 +32,7 @@ def _write_state(tmp_path: Path, phase: str = "refactor", **overrides) -> None:
         "test_files_staged": ["src/thing.test.js"],
     }
     state.update(overrides)
-    path = tmp_path / "memory" / "build-phase.json"
+    path = tmp_path / ".claude" / "memory" / "build-phase.json"
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(state))
 
@@ -250,7 +250,7 @@ def test_new_non_test_file_creation_is_allowed(tmp_path):
 
 
 def test_malformed_state_fails_open_with_an_audit_line(tmp_path):
-    path = tmp_path / "memory" / "build-phase.json"
+    path = tmp_path / ".claude" / "memory" / "build-phase.json"
     path.parent.mkdir(parents=True)
     path.write_text("{not json")
     result = guard.evaluate("sed -i 's/x/y/' src/thing.test.js", tmp_path, now=_NOW)
@@ -316,7 +316,7 @@ def test_main_blocks_via_stdin_payload_and_emits_boundary_event(
     assert guard.main() == 2
     assert "[BLOCK]" in capsys.readouterr().out
 
-    events_path = tmp_path / "metrics" / "boundary-events.jsonl"
+    events_path = tmp_path / ".claude" / "metrics" / "boundary-events.jsonl"
     assert events_path.is_file()
     events = [json.loads(line) for line in events_path.read_text().splitlines() if line]
     assert events[-1]["decision"] == "block"

@@ -2,8 +2,9 @@
 """run_report.py — per-session run report (#1167).
 
 Composes one `session_id`'s view across three existing streams:
-`metrics/boundary-events.jsonl` (denials/bypasses), `metrics/cost-metering.jsonl`
-(tokens/$), and `metrics/workflow-states.jsonl` (#1166, state dwell times).
+`.claude/metrics/boundary-events.jsonl` (denials/bypasses),
+`.claude/metrics/cost-metering.jsonl` (tokens/$), and
+`.claude/metrics/workflow-states.jsonl` (#1166, state dwell times).
 Pure composition of already-deterministic data — no model tokens spent
 parsing transcripts.
 
@@ -27,11 +28,14 @@ _LIB_DIR = Path(__file__).resolve().parent
 if str(_LIB_DIR) not in sys.path:
     sys.path.insert(0, str(_LIB_DIR))
 
+import artifact_paths
 import workflow_state
 
 
 def _metrics_dir(cwd) -> Path:
-    return (Path(cwd) if cwd else Path.cwd()) / "metrics"
+    # Read-only composition: a pure path-join, no migration/creation side
+    # effects (the three source streams are migrated by their own writers).
+    return artifact_paths.metrics_dir(Path(cwd) if cwd else Path.cwd())
 
 
 def _read_jsonl(path: Path) -> list:

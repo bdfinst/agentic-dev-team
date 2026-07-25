@@ -30,7 +30,7 @@ def _write_state(tmp_path: Path, phase: str = "refactor", **overrides) -> None:
         "test_files_staged": [],
     }
     state.update(overrides)
-    path = tmp_path / "memory" / "build-phase.json"
+    path = tmp_path / ".claude" / "memory" / "build-phase.json"
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(state))
 
@@ -96,7 +96,7 @@ def test_stale_refactor_state_does_not_linger(tmp_path):
 
 
 def test_malformed_state_fails_open_with_an_audit_line(tmp_path):
-    path = tmp_path / "memory" / "build-phase.json"
+    path = tmp_path / ".claude" / "memory" / "build-phase.json"
     path.parent.mkdir(parents=True)
     path.write_text("{not json")
     code, lines = guard.evaluate("src/thing.test.ts", tmp_path, now=_NOW)

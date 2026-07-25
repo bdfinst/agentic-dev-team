@@ -22,8 +22,15 @@ Stdlib only. Python 3.8+. See ADR 0014 / ADR 0015.
 from __future__ import annotations
 
 import json
+import sys
 from datetime import datetime, timezone
 from pathlib import Path
+
+_LIB_DIR = Path(__file__).resolve().parent
+if str(_LIB_DIR) not in sys.path:
+    sys.path.insert(0, str(_LIB_DIR))
+
+import artifact_paths
 
 _LOG_NAME = "boundary-events.jsonl"
 
@@ -53,15 +60,16 @@ def emit_boundary_event(
     matched_rule: str,
     session_id: str | None = None,
 ) -> None:
-    """Append one compact JSON line to `<cwd>/metrics/boundary-events.jsonl`.
+    """Append one compact JSON line to
+    `<cwd>/.claude/metrics/boundary-events.jsonl`.
 
-    Fail-open: any error (bad `cwd`, unwritable `metrics/`, disk full,
-    etc.) is swallowed silently — this must never affect the caller's
-    exit code, stdout, or stderr.
+    Fail-open: any error (bad `cwd`, unwritable `.claude/metrics/`, disk
+    full, etc.) is swallowed silently — this must never affect the
+    caller's exit code, stdout, or stderr.
 
     Args:
-        cwd: Directory whose `metrics/` subdirectory receives the event.
-            Accepts `str` or `Path`.
+        cwd: Directory whose `.claude/metrics/` subdirectory receives the
+            event. Accepts `str` or `Path`.
         hook: Emitting hook's module name (e.g. "destructive_guard").
         tool: Hooked tool / event name (e.g. "Bash", "UserPromptSubmit").
         decision: One of "block", "warn", "bypass", "intervention".
@@ -72,7 +80,7 @@ def emit_boundary_event(
     """
     try:
         base = Path(cwd) if cwd else Path.cwd()
-        log = base / "metrics" / _LOG_NAME
+        log = artifact_paths.resolve_file("metrics", _LOG_NAME, base)
         log.parent.mkdir(parents=True, exist_ok=True)
 
         payload = {

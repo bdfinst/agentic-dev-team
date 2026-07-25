@@ -51,7 +51,7 @@ class TestOptOut:
     def test_off_env_var_exits_zero(self, tmp_path):
         result = _run("{}", env={"DEV_TEAM_TASK_METRICS": "off"}, cwd=tmp_path)
         assert result.returncode == 0
-        assert not (tmp_path / "metrics").exists()
+        assert not (tmp_path / ".claude" / "metrics").exists()
 
 
 class TestTelemetryConsent:
@@ -61,7 +61,7 @@ class TestTelemetryConsent:
         payload = _scratch_payload(tmp_path)
         result = _run(payload, env={"HOME": str(home)}, cwd=tmp_path)
         assert result.returncode == 0
-        assert not (tmp_path / "metrics").exists()
+        assert not (tmp_path / ".claude" / "metrics").exists()
 
     def test_consent_enabled_but_per_writer_opt_out_still_suppresses(self, tmp_path):
         home = tmp_path / "home"
@@ -74,7 +74,7 @@ class TestTelemetryConsent:
             cwd=tmp_path,
         )
         assert result.returncode == 0
-        assert not (tmp_path / "metrics").exists()
+        assert not (tmp_path / ".claude" / "metrics").exists()
 
     def test_consent_enabled_and_no_opt_out_produces_output(self, tmp_path):
         home = tmp_path / "home"
@@ -83,7 +83,7 @@ class TestTelemetryConsent:
         payload = _scratch_payload(tmp_path)
         result = _run(payload, env={"HOME": str(home)}, cwd=tmp_path)
         assert result.returncode == 0
-        logs = list((tmp_path / "metrics").glob("*-task-log.jsonl"))
+        logs = list((tmp_path / ".claude" / "metrics").glob("*-task-log.jsonl"))
         assert len(logs) == 1
 
 
@@ -92,7 +92,7 @@ class TestNoScratch:
         """With no scratch file and no payload, hook skips writing."""
         result = _run("", cwd=tmp_path)
         assert result.returncode == 0
-        assert not (tmp_path / "metrics").exists()
+        assert not (tmp_path / ".claude" / "metrics").exists()
 
     def test_stop_payload_no_scratch_writes_nothing(self, tmp_path):
         """A Stop payload with no scratch file writes no task entry (#1258).
@@ -103,7 +103,7 @@ class TestNoScratch:
         payload = json.dumps({"stop_reason": "end_turn"})
         result = _run(payload, cwd=tmp_path)
         assert result.returncode == 0
-        assert not (tmp_path / "metrics").exists()
+        assert not (tmp_path / ".claude" / "metrics").exists()
 
 
 class TestScratchFile:
@@ -129,7 +129,7 @@ class TestScratchFile:
         )
         assert result.returncode == 0
 
-        logs = list((tmp_path / "metrics").glob("*-task-log.jsonl"))
+        logs = list((tmp_path / ".claude" / "metrics").glob("*-task-log.jsonl"))
         assert len(logs) == 1
         entry = json.loads(logs[0].read_text().strip())
         assert entry["task_id"] == "t-1"
@@ -162,7 +162,7 @@ class TestScratchFile:
         result = _run(json.dumps({}), env=_consent_env(tmp_path), cwd=tmp_path)
         assert result.returncode == 0
 
-        changelog = tmp_path / "metrics" / "config-changelog.jsonl"
+        changelog = tmp_path / ".claude" / "metrics" / "config-changelog.jsonl"
         assert changelog.exists()
         entry = json.loads(changelog.read_text().strip())
         assert entry["parameter"] == "DEV_TEAM_CONTEXT_CEILING_PCT"
@@ -175,7 +175,7 @@ class TestScratchFile:
         (dot_claude / "session-metrics.json").write_text(json.dumps(scratch))
 
         _run(json.dumps({}), cwd=tmp_path)
-        assert not (tmp_path / "metrics" / "config-changelog.jsonl").exists()
+        assert not (tmp_path / ".claude" / "metrics" / "config-changelog.jsonl").exists()
 
 
 class TestFailOpen:
@@ -187,11 +187,13 @@ class TestFailOpen:
         """Simulate metrics dir being a file (cannot mkdir) — hook must exit 0.
 
         Populates the scratch so the hook reaches the mkdir (an empty scratch
-        now short-circuits before any write, per #1258).
+        now short-circuits before any write, per #1258). The output metrics
+        directory now lives under .claude/metrics/, so the blocking file must
+        sit at that path, not the legacy bare metrics/.
         """
-        (tmp_path / "metrics").write_text("file")
         dot_claude = tmp_path / ".claude"
         dot_claude.mkdir()
+        (dot_claude / "metrics").write_text("file")
         (dot_claude / "session-metrics.json").write_text(json.dumps({"task_type": "fix"}))
         result = _run(
             json.dumps({"stop_reason": "end_turn"}),

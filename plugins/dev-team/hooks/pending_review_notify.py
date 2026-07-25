@@ -10,7 +10,7 @@ retired — the harness now resolves `model:`/`effort:` natively, with no
 plugin-side banner to keep in sync.
 
 Env seams (TEST-ONLY):
-    PENDING_REVIEW_FILE  defaults to <cwd>/metrics/pending-review.jsonl
+    PENDING_REVIEW_FILE  defaults to <cwd>/.claude/metrics/pending-review.jsonl
 
 Contract (docs/python-hook-contract.md):
     Input : SessionStart JSON on stdin (hook_event_name, cwd, model, ...).
@@ -26,6 +26,13 @@ import json
 import os
 import sys
 from pathlib import Path
+
+_HOOK_DIR = Path(__file__).resolve().parent
+_LIB_DIR = _HOOK_DIR / "lib"
+if str(_LIB_DIR) not in sys.path:
+    sys.path.insert(0, str(_LIB_DIR))
+
+import artifact_paths
 
 
 def _notify_pending_findings(cwd: str) -> str | None:
@@ -44,7 +51,9 @@ def _notify_pending_findings(cwd: str) -> str | None:
     """
     queue_env = os.environ.get("PENDING_REVIEW_FILE")
     queue = (
-        Path(queue_env) if queue_env else Path(cwd) / "metrics" / "pending-review.jsonl"
+        Path(queue_env)
+        if queue_env
+        else artifact_paths.resolve_file("metrics", "pending-review.jsonl", cwd)
     )
     if not queue.is_file():
         return None

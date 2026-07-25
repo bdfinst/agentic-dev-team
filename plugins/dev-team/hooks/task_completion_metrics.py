@@ -39,8 +39,8 @@ a single 2026-07-20 audit run emitted 172 empty heartbeats vs 10 real rows).
 
 ## Output files
 
-- `metrics/{date}-task-log.jsonl`       — task completion entry
-- `metrics/config-changelog.jsonl`      — config change entry (if `config_change` present)
+- `.claude/metrics/{date}-task-log.jsonl`  — task completion entry
+- `.claude/metrics/config-changelog.jsonl` — config change entry (if `config_change` present)
 
 ## Contract (docs/python-hook-contract.md)
 
@@ -70,6 +70,7 @@ _LIB_DIR = _HOOK_DIR / "lib"
 if str(_LIB_DIR) not in sys.path:
     sys.path.insert(0, str(_LIB_DIR))
 
+import artifact_paths
 import telemetry_consent
 
 # Scratch file location: resolved relative to the project root (cwd when hook
@@ -116,7 +117,7 @@ def _clear_scratch(cwd: Path) -> None:
 
 
 def _ensure_metrics_dir(cwd: Path) -> Path:
-    metrics = cwd / "metrics"
+    metrics = artifact_paths.metrics_dir(cwd)
     metrics.mkdir(parents=True, exist_ok=True)
     return metrics
 
@@ -136,8 +137,8 @@ def _append_jsonl(path: Path, entry: dict) -> None:
         fh.write(line + "\n")
 
 
-def _write_task_completion(metrics_dir: Path, scratch: dict, payload: dict) -> None:
-    """Write a task completion entry to metrics/{date}-task-log.jsonl."""
+def _write_task_completion(cwd: Path, scratch: dict, payload: dict) -> None:
+    """Write a task completion entry to .claude/metrics/{date}-task-log.jsonl."""
     ts = _now_iso()
     entry: dict = {
         "timestamp": ts,
@@ -156,11 +157,14 @@ def _write_task_completion(metrics_dir: Path, scratch: dict, payload: dict) -> N
     if stop_reason:
         entry["stop_reason"] = stop_reason
 
-    log_path = metrics_dir / f"{_today()}-task-log.jsonl"
+    log_path = artifact_paths.resolve_file(
+        "metrics", f"{_today()}-task-log.jsonl", cwd
+    )
+    log_path.parent.mkdir(parents=True, exist_ok=True)
     _append_jsonl(log_path, entry)
 
 
-def _write_config_changelog(metrics_dir: Path, scratch: dict) -> None:
+def _write_config_changelog(cwd: Path, scratch: dict) -> None:
     """Write a config-changelog entry if scratch contains config_change."""
     change = scratch.get("config_change")
     if not change or not isinstance(change, dict):
@@ -174,7 +178,8 @@ def _write_config_changelog(metrics_dir: Path, scratch: dict) -> None:
         "new_value": change.get("new_value", ""),
         "reason": change.get("reason", ""),
     }
-    log_path = metrics_dir / "config-changelog.jsonl"
+    log_path = artifact_paths.resolve_file("metrics", "config-changelog.jsonl", cwd)
+    log_path.parent.mkdir(parents=True, exist_ok=True)
     _append_jsonl(log_path, entry)
 
 
@@ -202,9 +207,9 @@ def main() -> int:
         return 0
 
     try:
-        metrics_dir = _ensure_metrics_dir(cwd)
-        _write_task_completion(metrics_dir, scratch, payload)
-        _write_config_changelog(metrics_dir, scratch)
+        _ensure_metrics_dir(cwd)
+        _write_task_completion(cwd, scratch, payload)
+        _write_config_changelog(cwd, scratch)
         _clear_scratch(cwd)
     except Exception:  # noqa: BLE001, S110
         # Fail-open: never block the session on a metrics write failure.

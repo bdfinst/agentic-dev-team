@@ -34,6 +34,8 @@ _HOOK_DIR = Path(__file__).resolve().parent
 _LIB_DIR = _HOOK_DIR / "lib"
 
 sys.path.insert(0, str(_LIB_DIR))
+import artifact_paths  # type: ignore[import-not-found]
+
 try:
     from boundary_events import (  # type: ignore[import-not-found]
         emit_boundary_event as _emit_boundary_event,
@@ -120,15 +122,17 @@ def iso_utc_timestamp() -> str:
 
 
 def log_bypass_audit(raw_command: str, payload_cwd: str) -> None:
-    """Append one JSONL line to <payload_cwd>/metrics/gate-bypass.jsonl.
+    """Append one JSONL line to <payload_cwd>/.claude/metrics/gate-bypass.jsonl.
 
     Writes timestamp + hook name + command_hash (sha256 first 16) + cwd.
     The raw command is NEVER written — only its hash — matching the .sh's
     privacy boundary. Filesystem errors write to stderr and return
     silently so the bypass still succeeds.
     """
-    audit_dir = Path(payload_cwd) / "metrics"
-    audit_file = audit_dir / "gate-bypass.jsonl"
+    audit_file = artifact_paths.resolve_file(
+        "metrics", "gate-bypass.jsonl", payload_cwd
+    )
+    audit_dir = audit_file.parent
     try:
         audit_dir.mkdir(parents=True, exist_ok=True)
     except OSError:

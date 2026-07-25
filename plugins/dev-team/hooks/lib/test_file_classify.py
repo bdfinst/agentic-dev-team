@@ -3,7 +3,7 @@
 Single encoding of `knowledge/test-file-indicators.md` for hooks that need to
 decide "is this a test file?" (the refactor test-freeze guards), plus the
 reader for the build-phase state `/build` records at each step-phase
-transition (`memory/build-phase.json`).
+transition (`.claude/memory/build-phase.json`).
 
 Stdlib-only. Python 3.8+. See docs/python-hook-contract.md.
 """
@@ -12,9 +12,16 @@ from __future__ import annotations
 
 import json
 import re
+import sys
 import time
 from datetime import datetime, timezone
 from pathlib import Path
+
+_LIB_DIR = Path(__file__).resolve().parent
+if str(_LIB_DIR) not in sys.path:
+    sys.path.insert(0, str(_LIB_DIR))
+
+import artifact_paths
 
 #: memory/build-phase.json older than this is treated as absent — a crashed
 #: build must not freeze tests forever.
@@ -99,7 +106,13 @@ def _parse_written_at(value: str) -> float | None:
 
 
 def build_phase_path(project_dir: Path) -> Path:
-    return Path(project_dir) / "memory" / "build-phase.json"
+    # Read-only: no Python writer of build-phase.json exists anywhere in
+    # hooks/ — it is agent-instruction-written (build/SKILL.md). migrate=False
+    # so this read never migrates a legacy file or creates .claude/memory/ as
+    # a side effect.
+    return artifact_paths.resolve_file(
+        "memory", "build-phase.json", project_dir, migrate=False
+    )
 
 
 def read_build_phase(
