@@ -4,9 +4,12 @@ signal (issue #1420, Slice 4: Steps 4.1-4.2).
 
 from __future__ import annotations
 
-from skill_doc_helpers import PLUGIN_ROOT, collapsed, grep
+from skill_doc_helpers import PLUGIN_ROOT, collapsed, grep, section_outside_code
 
 SKILL = PLUGIN_ROOT / "skills" / "gherkin-derive" / "SKILL.md"
+
+_BDD_RUNNER_START = r"^\*\*`bdd-runner` mode — state completion plainly"
+_EVERY_MODE_START = r"^\*\*Every mode that writes `\.feature` files"
 
 
 def _text() -> str:
@@ -15,9 +18,15 @@ def _text() -> str:
 
 def _bdd_runner_completion_section() -> str:
     text = _text()
-    start = text.find("**`bdd-runner` mode — state completion plainly")
-    end = text.find("**Every mode that writes `.feature` files")
-    return text[start:end]
+    # section_outside_code (not a raw str.find slice) both skips the fenced
+    # `gherkin_stub_gate.py` command example inside this section and fails
+    # loudly — via the assert below — instead of silently degrading to a
+    # near-empty/anomalous slice if either bold-line anchor is ever reworded.
+    section = section_outside_code(
+        text, start_pattern=_BDD_RUNNER_START, boundary_pattern=_EVERY_MODE_START
+    )
+    assert section, "bdd-runner completion section not found in gherkin-derive/SKILL.md"
+    return section
 
 
 def test_not_done_statement_is_documented_as_first_line_headline():
@@ -68,8 +77,11 @@ def test_never_fills_in_an_already_pending_stub_distinct_from_new_scaffolding():
 
 def test_consistency_with_phase_5_gate_names_same_remediation():
     text = _text()
-    idx = text.find("Consistency with `/test-improve` Phase 5")
-    assert idx != -1
-    section = text[idx : idx + 500]
+    section = section_outside_code(
+        text,
+        start_pattern=r"^\*\*Consistency with `/test-improve` Phase 5",
+        boundary_pattern=_EVERY_MODE_START,
+    )
+    assert section, "Consistency-with-Phase-5 section not found in gherkin-derive/SKILL.md"
     assert "/build" in section
     assert grep(r"same.*pending-stub state|two different checkpoints", section, ignore_case=True)

@@ -6,7 +6,7 @@ raw overwrite.
 
 from __future__ import annotations
 
-from skill_doc_helpers import PLUGIN_ROOT, grep
+from skill_doc_helpers import PLUGIN_ROOT, grep, section
 
 SKILL = PLUGIN_ROOT / "skills" / "gherkin-derive" / "SKILL.md"
 
@@ -29,7 +29,11 @@ def test_output_step_names_the_merge_subcommand_not_a_raw_write():
 
 def test_no_overwrite_implying_language_in_the_touched_sections():
     text = _text()
-    idx = text.find("## Step 5 — Output")
-    step6_idx = text.find("## Step 6")
-    section = text[idx : step6_idx if step6_idx != -1 else None]
-    assert not grep(r"overwrit", section, ignore_case=True)
+    # This is a no-regression guard — its entire purpose is catching
+    # reintroduced overwrite-implying language, so it must fail loudly
+    # rather than pass vacuously if the "## Step 5 — Output" anchor is ever
+    # renamed. section() returns "" on a missing anchor, so assert non-empty
+    # explicitly instead of grepping an empty string.
+    step5 = section(text, r"^## Step 5 — Output", boundary_pattern=r"^## Step 6")
+    assert step5, "Step 5 — Output section not found in gherkin-derive/SKILL.md"
+    assert not grep(r"overwrit", step5, ignore_case=True)
