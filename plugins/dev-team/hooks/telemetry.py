@@ -94,21 +94,36 @@ def _legacy_signal_present(cwd: Path) -> bool:
 
 def _notice_legacy_signal_once(session_id: object) -> None:
     """Emit a one-time-per-session stderr notice that consent moved to
-    `~/.claude/telemetry.json`. Fail-open: a marker read/write error must
-    never raise or block the calling hook."""
+    `~/.claude/telemetry.json`. Fail-open: any error creating the dedupe
+    marker must never raise or block the calling hook.
+
+    Uses atomic exclusive creation (`O_CREAT | O_EXCL | O_NOFOLLOW`)
+    instead of a separate `is_file()` check + `write_text()` — that
+    pattern has a TOCTOU window and follows symlinks, so a pre-created
+    dangling symlink at the predictable marker path could redirect the
+    write. `EEXIST` doubles as "already notified this session", so the
+    dedupe check and the atomic create are one operation.
+    """
     marker = _legacy_signal_path(session_id)
     try:
-        if marker.is_file():
-            return
+        fd = os.open(
+            str(marker),
+            os.O_CREAT | os.O_EXCL | os.O_WRONLY | os.O_NOFOLLOW,
+            0o600,
+        )
     except OSError:
-        pass
+        # EEXIST (already notified this session), a symlink at the marker
+        # path, or any other failure (permission denied) — fail-open.
+        return
+
     sys.stderr.write(
         "NOTE: dev-team telemetry consent now lives only in "
         "~/.claude/telemetry.json. DEV_TEAM_TELEMETRY and a project-level "
         ".claude/telemetry.json no longer have any effect.\n"
     )
     try:
-        marker.write_text("1", encoding="utf-8")
+        with os.fdopen(fd, "w", encoding="utf-8") as handle:
+            handle.write("1")
     except OSError:
         pass
 
@@ -137,10 +152,13 @@ def _load_plugin_version(hook_dir: Path) -> str:
 
 
 def _emit(log: Path, event: str, name: str, outcome: str, version: str) -> None:
-    """Append one JSONL event to `log`. Fail-open on any error."""
+    """Append one JSONL event to `log`. Fail-open on any error — but per
+    AC5, a failure to create or write to `log` still produces a diagnostic
+    stderr line; it just never blocks the calling operation."""
     try:
         log.parent.mkdir(parents=True, exist_ok=True)
-    except OSError:
+    except OSError as exc:
+        sys.stderr.write(f"WARN: could not create {log.parent}: {exc}\n")
         return
     payload = {
         "ts": _isoformat_utc(),
@@ -152,8 +170,8 @@ def _emit(log: Path, event: str, name: str, outcome: str, version: str) -> None:
     try:
         with open(log, "a", encoding="utf-8") as handle:
             handle.write(json.dumps(payload, separators=(",", ":")) + "\n")
-    except OSError:
-        pass
+    except OSError as exc:
+        sys.stderr.write(f"WARN: could not write {log}: {exc}\n")
 
 
 def _upsert_artifact_usage(skill: str) -> None:
@@ -168,7 +186,8 @@ def _upsert_artifact_usage(skill: str) -> None:
     usage_file = usage_dir / "artifact-usage.json"
     try:
         usage_dir.mkdir(parents=True, exist_ok=True)
-    except OSError:
+    except OSError as exc:
+        sys.stderr.write(f"WARN: could not create {usage_dir}: {exc}\n")
         return
 
     existing: dict = {}
@@ -197,7 +216,8 @@ def _upsert_artifact_usage(skill: str) -> None:
             suffix=".json",
             dir=str(usage_dir),
         )
-    except OSError:
+    except OSError as exc:
+        sys.stderr.write(f"WARN: could not create temp file in {usage_dir}: {exc}\n")
         return
     try:
         with os.fdopen(fd, "w", encoding="utf-8") as handle:
@@ -205,7 +225,8 @@ def _upsert_artifact_usage(skill: str) -> None:
             # parity harness's side-effect tree hash lines up.
             handle.write(json.dumps(existing, separators=(",", ":")) + "\n")
         os.replace(tmp_path, usage_file)
-    except OSError:
+    except OSError as exc:
+        sys.stderr.write(f"WARN: could not write {usage_file}: {exc}\n")
         try:
             os.unlink(tmp_path)
         except OSError:

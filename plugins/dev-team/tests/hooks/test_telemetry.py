@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
+import builtins
 import io
 import json
 import sys
+from pathlib import Path
 
 import pytest
 
@@ -116,6 +118,39 @@ def test_emit_appends_jsonl_with_trailing_newline(tmp_path):
     assert log.read_text().endswith("\n")
 
 
+def test_emit_logs_diagnostic_on_mkdir_failure(tmp_path, monkeypatch, capsys):
+    """AC5: a failure to create the log's parent dir must produce a stderr
+    diagnostic, and must not raise into the caller."""
+    log = tmp_path / "metrics" / "telemetry.jsonl"
+
+    def _raise(*_args, **_kwargs):
+        raise OSError("permission denied")
+
+    monkeypatch.setattr(Path, "mkdir", _raise)
+    telemetry._emit(log, "command", "plan", "invoked", "1.0.0")
+    err = capsys.readouterr().err
+    assert "WARN" in err
+    assert not log.exists()
+
+
+def test_emit_logs_diagnostic_on_write_failure(tmp_path, monkeypatch, capsys):
+    """AC5: a failure to write the log line must produce a stderr
+    diagnostic, and must not raise into the caller."""
+    log = tmp_path / "metrics" / "telemetry.jsonl"
+    log.parent.mkdir(parents=True)
+    real_open = builtins.open
+
+    def _raise(file, *args, **kwargs):
+        if str(file) == str(log):
+            raise OSError("disk full")
+        return real_open(file, *args, **kwargs)
+
+    monkeypatch.setattr("builtins.open", _raise)
+    telemetry._emit(log, "command", "plan", "invoked", "1.0.0")
+    err = capsys.readouterr().err
+    assert "WARN" in err
+
+
 # ---------------------------------------------------------------------------
 # Artifact usage upsert
 # ---------------------------------------------------------------------------
@@ -155,6 +190,34 @@ def test_upsert_trailing_newline_matches_bash(monkeypatch, tmp_path):
     assert (
         (home / ".claude" / "metrics" / "artifact-usage.json").read_text().endswith("\n")
     )
+
+
+def test_upsert_logs_diagnostic_on_mkdir_failure(monkeypatch, tmp_path, capsys):
+    """AC5: a failure to create ~/.claude/metrics/ must produce a stderr
+    diagnostic, and must not raise into the caller."""
+    _isolate_home(monkeypatch, tmp_path)
+
+    def _raise(*_args, **_kwargs):
+        raise OSError("permission denied")
+
+    monkeypatch.setattr(Path, "mkdir", _raise)
+    telemetry._upsert_artifact_usage("plan")
+    err = capsys.readouterr().err
+    assert "WARN" in err
+
+
+def test_upsert_logs_diagnostic_on_write_failure(monkeypatch, tmp_path, capsys):
+    """AC5: a failure to atomically replace artifact-usage.json must
+    produce a stderr diagnostic, and must not raise into the caller."""
+    _isolate_home(monkeypatch, tmp_path)
+
+    def _raise(*_args, **_kwargs):
+        raise OSError("disk full")
+
+    monkeypatch.setattr("telemetry.os.replace", _raise)
+    telemetry._upsert_artifact_usage("plan")
+    err = capsys.readouterr().err
+    assert "WARN" in err
 
 
 def test_upsert_never_writes_under_a_project_directory(monkeypatch, tmp_path):
@@ -372,3 +435,21 @@ def test_notice_is_per_session_not_global(monkeypatch, tmp_path, capsys):
     assert telemetry.main() == 0
     err = capsys.readouterr().err
     assert "~/.claude/telemetry.json" in err
+
+
+def test_notice_refuses_to_follow_a_symlinked_marker_path(monkeypatch, tmp_path, capsys):
+    """A pre-created dangling symlink at the marker path must not be
+    written through (O_NOFOLLOW) — the notice is skipped, fail-open, and
+    the symlink target is left untouched."""
+    _isolate_home(monkeypatch, tmp_path)
+    monkeypatch.setenv("DEV_TEAM_TELEMETRY", "on")
+
+    marker = telemetry._legacy_signal_path("sess-symlink")
+    target = tmp_path / "attacker-target.txt"
+    marker.symlink_to(target)
+
+    _feed(monkeypatch, _prompt_payload(tmp_path, "sess-symlink"))
+    assert telemetry.main() == 0
+    err = capsys.readouterr().err
+    assert err == ""
+    assert not target.exists()
