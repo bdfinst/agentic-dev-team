@@ -5,7 +5,11 @@
 `/test-improve --from-phase <n>` used to require an explicit phase number.
 This helper makes the number optional: when `--from-phase` is passed with no
 argument, the orchestrator calls this script to auto-detect the resume point
-from the run's memory directory `memory/test-improve/<slug>/`.
+from the run's memory directory `.claude/memory/test-improve/<slug>/`. A
+pre-existing top-level `memory/test-improve/` tree (from before this
+directory moved under `.claude/`) is migrated file-by-file on the first
+resume that resolves the memory directory; git-tracked files and
+`refactor-backlog.md` are left in place (see `artifact_paths.migrate_dir()`).
 
 Deterministic rules (spec = issue #1151):
 
@@ -14,7 +18,7 @@ Deterministic rules (spec = issue #1151):
   derive — is conditional and tracked via `gherkin.md`, not a numbered
   progress file; see below). The slug derives from the `<repo-path>` (last
   path segment), so a run is never conflated with an unrelated slug under the
-  same `memory/test-improve/` root.
+  same `.claude/memory/test-improve/` root.
 - Find the HIGHEST-numbered completed phase.
 - Resume at the NEXT phase in the pipeline sequence
   `0, 1, 2, 3, 4, 5, 6, 7, 8, 9`, with two deliberate skips: a completed
@@ -48,6 +52,12 @@ import json
 import re
 import sys
 from pathlib import Path
+
+_HOOKS_LIB_DIR = Path(__file__).resolve().parent.parent / "hooks" / "lib"
+if str(_HOOKS_LIB_DIR) not in sys.path:
+    sys.path.insert(0, str(_HOOKS_LIB_DIR))
+
+import artifact_paths  # noqa: E402
 
 # Pipeline order, skipping `3` (Phase 3 has no numbered progress file — see
 # module docstring). Rank is used only to pick the highest completed file,
@@ -198,6 +208,15 @@ def build_result(memory_dir: Path, explicit: str | None) -> tuple[int, dict]:
 
 
 def resolve_memory_dir(args: argparse.Namespace) -> Path:
+    # Migrate any pre-existing top-level memory/test-improve/ tree (every
+    # slug at once, not just the one being resumed) before resolving this
+    # run's directory. refactor-backlog.md is a user-facing report, not
+    # phase-state — excluded from this sweep; it moves to neither
+    # .claude/memory/ nor .dev-team-reports/ automatically (disclosed
+    # limitation, see plan Slice 5 AC18).
+    artifact_paths.migrate_dir(
+        "memory", "test-improve", exclude={"refactor-backlog.md"}
+    )
     if args.memory_dir:
         return Path(args.memory_dir).expanduser()
     slug = args.slug or derive_slug(args.repo_path or ".")
@@ -219,10 +238,11 @@ def main(argv: list[str] | None = None) -> int:
         "--slug",
         help="Override the memory slug (default: slugified last path segment).",
     )
+    default_memory_root = str(artifact_paths.category_dir("memory") / "test-improve")
     parser.add_argument(
         "--memory-root",
-        default="memory/test-improve",
-        help="Root under which <slug>/ lives (default: memory/test-improve).",
+        default=default_memory_root,
+        help=f"Root under which <slug>/ lives (default: {default_memory_root}).",
     )
     parser.add_argument(
         "--memory-dir",
