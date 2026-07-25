@@ -20,9 +20,24 @@ HOOK = REPO_ROOT / "plugins" / "dev-team" / "hooks" / "telemetry.py"
 REPORT = REPO_ROOT / "plugins" / "dev-team" / "hooks" / "lib" / "telemetry_report.py"
 
 
-def _enable(d: Path) -> None:
-    (d / ".claude").mkdir(parents=True, exist_ok=True)
-    (d / ".claude" / "telemetry.json").write_text('{"enabled":true}')
+def _home_env(tmp_path: Path) -> tuple[Path, dict]:
+    """Consent is home-scoped only (#1405) — point HOME at a fresh, isolated
+    dir so tests never read/write the real machine's consent file, and never
+    fall back to the project-scoped path telemetry.py no longer honors."""
+    home = tmp_path / "home"
+    home.mkdir(exist_ok=True)
+    tmpdir = tmp_path / "tmp"
+    tmpdir.mkdir(exist_ok=True)
+    env = {**os.environ, "HOME": str(home), "TMPDIR": str(tmpdir)}
+    env.pop("DEV_TEAM_TELEMETRY", None)
+    return home, env
+
+
+def _enable(tmp_path: Path) -> dict:
+    home, env = _home_env(tmp_path)
+    (home / ".claude").mkdir(parents=True, exist_ok=True)
+    (home / ".claude" / "telemetry.json").write_text('{"enabled":true}')
+    return env
 
 
 def _send(payload: dict, env: dict | None = None) -> subprocess.CompletedProcess:
@@ -36,39 +51,63 @@ def _send(payload: dict, env: dict | None = None) -> subprocess.CompletedProcess
     )
 
 
-def _log_lines(d: Path) -> list[str]:
-    return (d / "metrics" / "telemetry.jsonl").read_text().splitlines()
+def _log_lines(env: dict) -> list[str]:
+    home = Path(env["HOME"])
+    return (home / ".claude" / "metrics" / "telemetry.jsonl").read_text().splitlines()
 
 
 def test_telemetry_off_by_default_nothing_is_recorded(tmp_path: Path) -> None:
+    home, env = _home_env(tmp_path)
     _send(
         {
             "hook_event_name": "UserPromptSubmit",
             "prompt": "/specs",
             "cwd": str(tmp_path),
-        }
+        },
+        env=env,
     )
     assert not (tmp_path / "metrics" / "telemetry.jsonl").exists()
+    assert not (home / ".claude" / "metrics" / "telemetry.jsonl").exists()
 
 
-def test_telemetry_enabling_via_claude_telemetry_json_records_a_command_event(
+def test_telemetry_home_scoped_consent_records_a_command_event(
     tmp_path: Path,
 ) -> None:
-    _enable(tmp_path)
+    env = _enable(tmp_path)
     _send(
         {
             "hook_event_name": "UserPromptSubmit",
             "prompt": "/code-review --scope x",
             "cwd": str(tmp_path),
-        }
+        },
+        env=env,
     )
-    assert (tmp_path / "metrics" / "telemetry.jsonl").is_file()
-    entry = json.loads(_log_lines(tmp_path)[0])
+    assert not (tmp_path / "metrics" / "telemetry.jsonl").exists()
+    entry = json.loads(_log_lines(env)[0])
     assert f"{entry['event']} {entry['name']}" == "command code-review"
 
 
-def test_telemetry_env_dev_team_telemetry_on_also_enables(tmp_path: Path) -> None:
-    env = {**os.environ, "DEV_TEAM_TELEMETRY": "on"}
+def test_telemetry_project_level_dot_claude_config_has_no_effect(
+    tmp_path: Path,
+) -> None:
+    home, env = _home_env(tmp_path)
+    (tmp_path / ".claude").mkdir(parents=True, exist_ok=True)
+    (tmp_path / ".claude" / "telemetry.json").write_text('{"enabled":true}')
+    _send(
+        {
+            "hook_event_name": "UserPromptSubmit",
+            "prompt": "/build",
+            "cwd": str(tmp_path),
+        },
+        env=env,
+    )
+    assert not (tmp_path / "metrics" / "telemetry.jsonl").exists()
+    assert not (home / ".claude" / "metrics" / "telemetry.jsonl").exists()
+
+
+def test_telemetry_env_dev_team_telemetry_on_has_no_effect(tmp_path: Path) -> None:
+    home, env = _home_env(tmp_path)
+    env["DEV_TEAM_TELEMETRY"] = "on"
     res = _send(
         {
             "hook_event_name": "UserPromptSubmit",
@@ -78,21 +117,22 @@ def test_telemetry_env_dev_team_telemetry_on_also_enables(tmp_path: Path) -> Non
         env=env,
     )
     assert res.returncode == 0, res.stdout + res.stderr
-    entry = json.loads(_log_lines(tmp_path)[0])
-    assert entry["name"] == "build"
+    assert not (tmp_path / "metrics" / "telemetry.jsonl").exists()
+    assert not (home / ".claude" / "metrics" / "telemetry.jsonl").exists()
 
 
 def test_telemetry_records_gate_fired_vs_bypassed_for_git_commit(
     tmp_path: Path,
 ) -> None:
-    _enable(tmp_path)
+    env = _enable(tmp_path)
     _send(
         {
             "hook_event_name": "PreToolUse",
             "tool_name": "Bash",
             "tool_input": {"command": "git commit -m hello"},
             "cwd": str(tmp_path),
-        }
+        },
+        env=env,
     )
     _send(
         {
@@ -100,22 +140,24 @@ def test_telemetry_records_gate_fired_vs_bypassed_for_git_commit(
             "tool_name": "Bash",
             "tool_input": {"command": "git commit --no-verify -m skip"},
             "cwd": str(tmp_path),
-        }
+        },
+        env=env,
     )
-    outcomes = [json.loads(line)["outcome"] for line in _log_lines(tmp_path)]
+    outcomes = [json.loads(line)["outcome"] for line in _log_lines(env)]
     assert outcomes == ["fired", "bypassed"]
 
 
 def test_telemetry_privacy_no_prompt_text_command_string_or_paths_in_the_log(
     tmp_path: Path,
 ) -> None:
-    _enable(tmp_path)
+    env = _enable(tmp_path)
     _send(
         {
             "hook_event_name": "UserPromptSubmit",
             "prompt": "/specs SECRET_PROMPT_TEXT /home/u/secret",
             "cwd": str(tmp_path),
-        }
+        },
+        env=env,
     )
     _send(
         {
@@ -123,9 +165,10 @@ def test_telemetry_privacy_no_prompt_text_command_string_or_paths_in_the_log(
             "tool_name": "Bash",
             "tool_input": {"command": "git commit -m SECRET_MESSAGE"},
             "cwd": str(tmp_path),
-        }
+        },
+        env=env,
     )
-    log_text = (tmp_path / "metrics" / "telemetry.jsonl").read_text()
+    log_text = "\n".join(_log_lines(env))
     assert "SECRET_PROMPT_TEXT" not in log_text
     assert "SECRET_MESSAGE" not in log_text
     assert "/home/u/secret" not in log_text
@@ -138,70 +181,76 @@ def test_telemetry_privacy_no_prompt_text_command_string_or_paths_in_the_log(
 def test_telemetry_non_bash_pretooluse_and_non_slash_prompts_record_nothing(
     tmp_path: Path,
 ) -> None:
-    _enable(tmp_path)
+    env = _enable(tmp_path)
     _send(
         {
             "hook_event_name": "PreToolUse",
             "tool_name": "Read",
             "tool_input": {"file_path": "x"},
             "cwd": str(tmp_path),
-        }
+        },
+        env=env,
     )
     _send(
         {
             "hook_event_name": "UserPromptSubmit",
             "prompt": "just a normal question",
             "cwd": str(tmp_path),
-        }
+        },
+        env=env,
     )
     assert not (tmp_path / "metrics" / "telemetry.jsonl").exists()
+    assert not (Path(env["HOME"]) / ".claude" / "metrics" / "telemetry.jsonl").exists()
 
 
 def test_telemetry_pretooluse_skill_records_a_distinct_skill_event(
     tmp_path: Path,
 ) -> None:
-    _enable(tmp_path)
+    env = _enable(tmp_path)
     _send(
         {
             "hook_event_name": "PreToolUse",
             "tool_name": "Skill",
             "tool_input": {"skill": "code-review"},
             "cwd": str(tmp_path),
-        }
+        },
+        env=env,
     )
-    entry = json.loads(_log_lines(tmp_path)[0])
+    entry = json.loads(_log_lines(env)[0])
     assert f"{entry['event']} {entry['name']}" == "skill code-review"
 
 
 def test_telemetry_bypass_detection_catches_a_trailing_n_flag_135(
     tmp_path: Path,
 ) -> None:
-    _enable(tmp_path)
+    env = _enable(tmp_path)
     _send(
         {
             "hook_event_name": "PreToolUse",
             "tool_name": "Bash",
             "tool_input": {"command": "git commit -m msg -n"},
             "cwd": str(tmp_path),
-        }
+        },
+        env=env,
     )
-    entry = json.loads(_log_lines(tmp_path)[0])
+    entry = json.loads(_log_lines(env)[0])
     assert entry["outcome"] == "bypassed"
 
 
 def test_telemetry_a_real_filename_containing_n_does_not_false_bypass(
     tmp_path: Path,
 ) -> None:
-    _enable(tmp_path)
+    env = _enable(tmp_path)
     _send(
         {
             "hook_event_name": "PreToolUse",
             "tool_name": "Bash",
             "tool_input": {"command": "git commit -m 'add foo-name.js'"},
             "cwd": str(tmp_path),
-        }
+        },
+        env=env,
     )
-    entry = json.loads(_log_lines(tmp_path)[0])
+    entry = json.loads(_log_lines(env)[0])
     assert entry["outcome"] == "fired"
 
 

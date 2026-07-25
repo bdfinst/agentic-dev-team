@@ -111,6 +111,7 @@ def test_main_increments_counter(monkeypatch, tmp_path):
     monkeypatch.setenv("DEV_TEAM_AUTO_REVIEW", "on")
     monkeypatch.setenv("DEV_TEAM_AUTO_REVIEW_THRESHOLD", "5")
     monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(slt.telemetry_consent, "is_enabled", lambda: True)
     _feed_stdin(monkeypatch, '{"cwd":"' + str(tmp_path) + '","session_id":"s1"}')
     # Prevent actual background dispatch attempt (irrelevant for counter step).
     monkeypatch.setattr(slt, "_dispatch_background_analysis", lambda *_a, **_k: None)
@@ -123,6 +124,7 @@ def test_main_dispatches_and_resets_counter_at_threshold(monkeypatch, tmp_path):
     monkeypatch.setenv("DEV_TEAM_AUTO_REVIEW", "on")
     monkeypatch.setenv("DEV_TEAM_AUTO_REVIEW_THRESHOLD", "2")
     monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(slt.telemetry_consent, "is_enabled", lambda: True)
     (tmp_path / "metrics").mkdir()
     (tmp_path / "metrics" / "learning-loop-state.json").write_text('{"counter":1}')
 
@@ -144,6 +146,7 @@ def test_main_dispatches_and_resets_counter_at_threshold(monkeypatch, tmp_path):
 def test_main_falls_back_to_pwd_when_cwd_missing(monkeypatch, tmp_path):
     monkeypatch.setenv("DEV_TEAM_AUTO_REVIEW", "on")
     monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(slt.telemetry_consent, "is_enabled", lambda: True)
     monkeypatch.setattr(slt, "_dispatch_background_analysis", lambda *_a, **_k: None)
     _feed_stdin(monkeypatch, "{}")
     assert slt.main() == 0
@@ -156,9 +159,47 @@ def test_main_invalid_threshold_env_uses_default(monkeypatch, tmp_path):
     monkeypatch.setenv("DEV_TEAM_AUTO_REVIEW", "on")
     monkeypatch.setenv("DEV_TEAM_AUTO_REVIEW_THRESHOLD", "not-a-number")
     monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(slt.telemetry_consent, "is_enabled", lambda: True)
     monkeypatch.setattr(slt, "_dispatch_background_analysis", lambda *_a, **_k: None)
     _feed_stdin(monkeypatch, '{"cwd":"' + str(tmp_path) + '"}')
     assert slt.main() == 0
     # With default threshold=5, counter=1 after first invocation.
     state = tmp_path / "metrics" / "learning-loop-state.json"
     assert json.loads(state.read_text()) == {"counter": 1}
+
+
+class TestTelemetryConsent:
+    def test_no_consent_no_state_write_even_with_auto_review_on(
+        self, monkeypatch, tmp_path
+    ):
+        monkeypatch.setenv("DEV_TEAM_AUTO_REVIEW", "on")
+        monkeypatch.chdir(tmp_path)
+        monkeypatch.setattr(slt.telemetry_consent, "is_enabled", lambda: False)
+        dispatched = []
+        monkeypatch.setattr(
+            slt, "_dispatch_background_analysis", lambda *a, **k: dispatched.append(1)
+        )
+        _feed_stdin(monkeypatch, '{"cwd":"' + str(tmp_path) + '"}')
+        assert slt.main() == 0
+        assert not (tmp_path / "metrics" / "learning-loop-state.json").exists()
+        assert not dispatched
+
+    def test_consent_enabled_but_per_writer_opt_out_still_suppresses(
+        self, monkeypatch, tmp_path
+    ):
+        monkeypatch.delenv("DEV_TEAM_AUTO_REVIEW", raising=False)
+        monkeypatch.chdir(tmp_path)
+        monkeypatch.setattr(slt.telemetry_consent, "is_enabled", lambda: True)
+        _feed_stdin(monkeypatch, '{"cwd":"' + str(tmp_path) + '"}')
+        assert slt.main() == 0
+        assert not (tmp_path / "metrics" / "learning-loop-state.json").exists()
+
+    def test_consent_enabled_and_opted_in_writes_state(self, monkeypatch, tmp_path):
+        monkeypatch.setenv("DEV_TEAM_AUTO_REVIEW", "on")
+        monkeypatch.setenv("DEV_TEAM_AUTO_REVIEW_THRESHOLD", "5")
+        monkeypatch.chdir(tmp_path)
+        monkeypatch.setattr(slt.telemetry_consent, "is_enabled", lambda: True)
+        _feed_stdin(monkeypatch, '{"cwd":"' + str(tmp_path) + '"}')
+        assert slt.main() == 0
+        state = tmp_path / "metrics" / "learning-loop-state.json"
+        assert json.loads(state.read_text()) == {"counter": 1}
