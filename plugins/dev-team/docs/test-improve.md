@@ -16,13 +16,28 @@ among the plugin's other commands see [workflows.md](workflows.md); for how it
 fits the wider agent architecture see
 [agent-architecture.md](agent-architecture.md#test-improvement-workflow-test-improve).
 
-![/test-improve seven-phase workflow with human gates between each phase](diagrams/test-improve-flow.svg)
+![/test-improve ten-phase (0-9) workflow with human gates between each phase](diagrams/test-improve-flow.svg)
 
 ## Phases
 
 Each phase writes a progress file to
 `.claude/memory/test-improve/<slug>/phase-<n>.md` so `/continue` (and `--from-phase`)
 can resume.
+
+**Execution order.** Phases keep their historical identity numbers (Phase 1
+is always Analyze, Phase 2 is always Baseline, etc.), but **Baseline (Phase 2)
+and Derive Gherkin (Phase 3) execute before Analyze (Phase 1)** so
+`/test-health` can use documented-but-untested Gherkin scenarios as a
+coverage signal: `0 → 2 → 3 → 1 → 4 → 5 → 6 → 7 → 8 → 9`. Phase 7 and Phase 8
+are **not alternatives** — when Phase 6 returns `[y]`, both run in sequence;
+otherwise Phase 8 follows Phase 6 directly. When the BDD binding mode is
+`none`, Phase 3 is skipped and the sequence becomes
+`0 → 2 → 1 → 4 → 5 → 6 → 7 → 8 → 9`. The list below follows this execution
+order, not numeric order. The phase-start banner prints a separate
+`Step <position>/<total> — Phase <N>: <name>` counter — `<position>` is a
+running count of phases printed so far this run (never a fixed per-identity
+slot), and `<total>` is computed per run (base 9, -1 when BDD binding mode
+is `none`, +1 once Phase 6 enters Phase 7) rather than a hardcoded 9 or 10.
 
 - **Phase 0 — Approach contract.** Batched prompt (Enter accepts all
   defaults): mutation mode `[kill-loop]` (`off` / `kill-loop` /
@@ -32,19 +47,21 @@ can resume.
   Enter-through run now performs the mutant-kill loop by default. Go stack shows
   the alpha go-mutesting advisory before the mutation prompt. Answers are
   immutable for the run.
-- **Phase 1 — Analyze.** Delegate to `/test-health` (sole worker). No
-  separate calls to `/cd-test-architecture`, `/test-design`,
-  `/mutation-testing`. Mutation section respects Phase-0 setting. A
-  separate, direct classification pass persists a before-snapshot of test
-  counts by MinimumCD type to `test-counts-before.json`.
 - **Phase 2 — Baseline (before any test edit).**
   `/coverage-baseline --workflow test-improve` unconditionally;
   `/mutation-testing --baseline --workflow test-improve` only in
   `baseline+kill-loop` mode (`off` and `kill-loop` take no baseline).
   Go = advisory-only marker. Honest score = hard kills, timeouts separate.
-- **Phase 3 — Derive Gherkin (conditional).** `none` skips entirely;
-  `xunit-with-annotations` writes `.feature` files without a runner;
-  `bdd-runner` wires the native parser.
+- **Phase 3 — Derive Gherkin (conditional).** `none` skips entirely (Phase 1
+  follows Phase 2 directly in that case); `xunit-with-annotations` writes
+  `.feature` files without a runner; `bdd-runner` wires the native parser.
+- **Phase 1 — Analyze.** Delegate to `/test-health` (sole worker). No
+  separate calls to `/cd-test-architecture`, `/test-design`,
+  `/mutation-testing`. Mutation section respects Phase-0 setting. A
+  separate, direct classification pass persists a before-snapshot of test
+  counts by MinimumCD type to `test-counts-before.json`. `--analyze-only`
+  runs Phase 0 then this phase directly, bypassing the Baseline/Derive-Gherkin
+  ordering above, and exits with no baseline captured.
 - **Phase 4 — Plan fixes.** `/issues-from-assessment --workflow test-improve`
   partitions findings into `NO_REFACTOR` (Phase-5 Stories) /
   `REFACTOR_REQUIRED` (deferred to Phase 7) / `LOW_VALUE` (advisory-only).
@@ -76,8 +93,9 @@ can resume.
   and the Phase 5/7 review loops — the context-heaviest boundaries.
 - **Phase 9 — Executive-summary report.** Interpolates the shipped
   [`templates/executive-summary.md`](../skills/test-improve/templates/executive-summary.md)
-  from `.claude/memory/test-improve/<slug>/` files to
-  `.dev-team-reports/test-improve/<repo-slug>-<date>.md`. 10 numbered sections;
+  from the git-tracked `.dev-team-reports/test-improve/<slug>/data/`
+  directory plus `.claude/memory/test-improve/<slug>/` process/audit state to
+  `.dev-team-reports/test-improve/<slug>/report-<date>.md`. 10 numbered sections;
   empty sections render "Not applicable" (never omitted). § 1 includes a
   "Tests by type" table (Baseline/Achieved/Δ per MinimumCD type). § 7
   foregrounds a seam-needed/behavior-gained/estimated-risk table sourced

@@ -164,9 +164,6 @@ memory/_*.sh
 # Anchored to the repo-root reports/ contents so a specific subdir can be
 # re-included below (git cannot un-ignore a path under an excluded directory).
 /reports/*
-# …but keep /test-improve baseline + summary artifacts tracked (#1126) so an
-# opt-in baseline-metrics report lands in the run's PR.
-!/reports/test-improve/
 # …and keep the #1099 delegation-economics benchmark report + raw run data
 # tracked: it is the pre-registered evidence for the #1097 Phase 4 gate.
 !/reports/orchestration-benchmark-2026-07-18.md

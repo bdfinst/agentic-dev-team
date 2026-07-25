@@ -75,6 +75,65 @@ def test_never_fills_in_an_already_pending_stub_distinct_from_new_scaffolding():
     assert grep(r"distinct from.*never blocks.*Step 4|newly-discovered scenarios", s, ignore_case=True)
 
 
+def test_step_6_documents_the_step_definition_merge_error_sentence_template():
+    text = _text()
+    section = section_outside_code(
+        text,
+        start_pattern=r"^\*\*Call out step-definition merge structural errors",
+        boundary_pattern=_BDD_RUNNER_START,
+    )
+    assert section, "step-definition merge structural-error callout not found in gherkin-derive/SKILL.md"
+    s = collapsed(section)
+    assert "gherkin_stub_merge.py merge" in s
+    assert grep(
+        r'Could not merge step-definition stubs into <path>: <language> structure not recognized \(<sentinel>\)\. '
+        r"No changes were made — fix the file's syntax and re-run, or report the file:line if the structure looks valid\.",
+        s,
+    )
+    assert "unbalanced-braces" in s
+    assert "dangling-annotation" in s
+
+
+def test_step_6_calls_out_skipped_duplicate_step_patterns():
+    # Fixed post-build-review: gherkin_stub_merge.py's skipped_duplicate_patterns
+    # was returned by the script since Slice 3 but never surfaced in Step 6,
+    # unlike its .feature-merge twin (skipped_duplicate_titles) which already
+    # had a dedicated callout — the same silent-gap risk for step-definition
+    # merges went unreported.
+    text = _text()
+    section = section_outside_code(
+        text,
+        start_pattern=r"^\*\*Call out `gherkin_stub_merge\.py`'s skipped duplicate steps",
+        boundary_pattern=r"^\*\*Call out step-definition merge structural errors",
+    )
+    assert section, "skipped_duplicate_patterns callout not found in gherkin-derive/SKILL.md"
+    s = collapsed(section)
+    assert "skipped_duplicate_patterns" in s
+    assert grep(r"skipped duplicate step:", s)
+    assert grep(r"do not.*fold|not.*fold into the surface-count summary", s, ignore_case=True)
+
+
+def test_step_6_maps_all_four_merge_sentinels_not_just_the_two_structural_ones():
+    # Fixed post-build-review: unsafe-path and malformed-candidates are real,
+    # documented exit-2 causes from gherkin_stub_merge.py (per Step 4's own
+    # error-contract list), but the original Step 6 template only covered
+    # unbalanced-braces/dangling-annotation — an operator hitting the other
+    # two would be told "fix the file's syntax", which is wrong remediation
+    # for a path-composition bug or this skill's own scratch file.
+    text = _text()
+    section = section_outside_code(
+        text,
+        start_pattern=r"^\*\*Call out step-definition merge structural errors",
+        boundary_pattern=_BDD_RUNNER_START,
+    )
+    assert section, "step-definition merge structural-error callout not found in gherkin-derive/SKILL.md"
+    s = collapsed(section)
+    assert "unsafe-path" in s
+    assert "malformed-candidates" in s
+    assert grep(r"fix how the surface name was derived into a path", s)
+    assert grep(r"re-author the candidates text", s)
+
+
 def test_consistency_with_phase_5_gate_names_same_remediation():
     text = _text()
     section = section_outside_code(
@@ -85,3 +144,39 @@ def test_consistency_with_phase_5_gate_names_same_remediation():
     assert section, "Consistency-with-Phase-5 section not found in gherkin-derive/SKILL.md"
     assert "/build" in section
     assert grep(r"same.*pending-stub state|two different checkpoints", section, ignore_case=True)
+
+
+def _step_4_section() -> str:
+    text = _text()
+    section = section_outside_code(
+        text, start_pattern=r"^## Step 4", boundary_pattern=r"^## Step 5"
+    )
+    assert section, "Step 4 section not found in gherkin-derive/SKILL.md"
+    return section
+
+
+def test_step_4_invokes_gherkin_stub_merge_never_a_raw_write():
+    s = _step_4_section()
+    assert "gherkin_stub_merge.py merge" in s
+    assert grep(r"never a raw `Write`", s, ignore_case=True)
+
+
+def test_step_4_documents_the_exit_2_error_contract_like_step_5():
+    s = collapsed(_step_4_section())
+    assert grep(r"Exit 2 means no write occurred", s, ignore_case=True)
+    assert grep(r"read the `--json` payload's `error` field", s, ignore_case=True)
+
+
+def test_step_5_output_bullet_reflects_the_merge_based_write_path():
+    text = _text()
+    section = section_outside_code(
+        text, start_pattern=r"^## Step 5 — Output", boundary_pattern=r"^## Step 6"
+    )
+    assert section, "Step 5 section not found in gherkin-derive/SKILL.md"
+    bullet = collapsed(section)
+    assert grep(
+        r"pending stubs.*written via Step 4's `gherkin_stub_merge\.py merge`",
+        bullet,
+        ignore_case=True,
+    )
+    assert grep(r"never a raw `Write`", bullet, ignore_case=True)

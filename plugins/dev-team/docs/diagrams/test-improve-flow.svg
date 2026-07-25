@@ -1,5 +1,5 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1010 1520" font-family="system-ui, -apple-system, 'Segoe UI', sans-serif" role="img" aria-labelledby="title desc">
-  <title id="title">/test-improve seven-phase workflow</title>
+  <title id="title">/test-improve ten-phase (0-9) workflow</title>
   <desc id="desc">Vertical flowchart of the /test-improve orchestrator. Phase 0 resolves the approach contract (mutation on/off, BDD rubric, refactor mode, quality targets, sink) in one batched prompt with all defaults previewed. Phase 1 delegates the full analysis to /test-health. Phase 2 captures the coverage baseline and, when mutation is on, the mutation baseline — before any test file is modified. Phase 3 is conditional and derives Gherkin only when the operator opted into xunit-with-annotations or bdd-runner. Phase 4 partitions findings into NO_REFACTOR (Phase-5 Stories) / REFACTOR_REQUIRED (deferred to Phase 7) / LOW_VALUE (advisory). Phase 5 iterates each Phase-5 Story: /build (no-refactor), per-Story /coverage-delta, per-Story mutation-kill agent. Phase 5 closes with an end-of-phase review loop (/test-design + /code-review in parallel, up to 2 iterations, [r/w/q] escalation). Phase 6 prompts [y/b/q] for whether to enter the optional Phase 7 (refactor-for-testability, seam-only). Phase 8 converges the four quality targets via /quality-targets-converge. Phase 9 ships the 10-section executive-summary report from the shipped template. Human gates appear between every phase. Resume any phase via memory/test-improve/&lt;slug&gt;/phase-&lt;n&gt;.md.</desc>
   <defs>
     <filter id="shadow" x="-4%" y="-4%" width="108%" height="116%">
@@ -16,7 +16,7 @@
   <rect width="1010" height="1520" fill="#ffffff"/>
 
   <!-- Title -->
-  <text x="505" y="28" text-anchor="middle" font-size="15" font-weight="700" fill="#0F172A">/test-improve — seven-phase workflow</text>
+  <text x="505" y="28" text-anchor="middle" font-size="15" font-weight="700" fill="#0F172A">/test-improve — ten-phase (0-9) workflow</text>
   <text x="505" y="46" text-anchor="middle" font-size="11" fill="#475569">Human gates between every phase; resume via memory/test-improve/&lt;slug&gt;/phase-&lt;n&gt;.md</text>
 
   <!-- Phase 0 -->

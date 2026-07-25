@@ -46,9 +46,19 @@ def test_phase_9_names_the_shipped_template_path():
 
 
 def test_phase_9_names_the_output_path_shape():
+    """#1412: the report lands at <slug>/report-<date>.md, paired with a
+    <slug>/data/ sibling directory — the breaking rename from the old flat
+    <repo-slug>-<date>.md path."""
     s = _phase_9_section()
-    assert grep(r"reports/test-improve/", s)
-    assert grep(r"<repo-slug>|<slug>", s, ignore_case=True)
+    assert grep(r"\.dev-team-reports/test-improve/<slug>/report-<date>\.md", s)
+    assert grep(r"\.dev-team-reports/test-improve/<slug>/data/", s)
+
+
+def test_phase_9_test_counts_after_is_conditional_on_phase_8_having_run():
+    """#1412: test-counts-after.json is copied into data/ only when Phase 8
+    ran — absent when the operator quit before Phase 8 (e.g. after Phase 7)."""
+    s = _phase_9_section()
+    assert grep(r"test-counts-after\.json.{0,40}if Phase 8 ran", s)
 
 
 def test_phase_9_documents_the_interpolation_rule():
@@ -79,14 +89,44 @@ def test_phase_9_documents_regeneratable_from_memory_contract():
     )
 
 
-def test_phase_9_interpolation_resolves_baselines_via_the_phase_2_write_path():
-    """#1126: Phase 9 resolves baseline artifacts from the knob-7 write path
-    that Phase 2 owns (single source of truth), rather than re-deriving the
-    reports-vs-memory branch here."""
+def test_phase_9_copies_baseline_and_history_artifacts_into_tracked_data():
+    """#1412: Phase 9 unconditionally copies (never moves) baseline-coverage.json,
+    baseline-mutation.json (baseline+kill-loop only), and coverage-history.json
+    from their canonical .claude/memory/ working copy into the tracked data/
+    sibling — no report opt-in gates this anymore."""
     s = _phase_9_section()
-    assert grep(r"knob-7", s, ignore_case=True)
-    assert grep(r"Phase 2", s)
-    assert grep(r"baseline artifacts|baseline-coverage\.json", s, ignore_case=True)
+    assert grep(r"[Cc]opy report data", s)
+    assert grep(r"unconditionally", s, ignore_case=True)
+    assert grep(r"never[[:space:]]+move|never[[:space:]]+relocat", s, ignore_case=True)
+    assert grep(r"baseline-coverage\.json", s)
+    assert grep(r"baseline-mutation\.json", s)
+    assert grep(r"coverage-history\.json", s)
+    assert grep(r"data/", s)
+    assert not grep(r"knob-7|report opt-in", s, ignore_case=True)
+
+
+def test_phase_8_no_longer_branches_on_the_removed_report_opt_in():
+    """#1412: Phase 8's branch-scoped-mutation-validation paragraph no longer
+    conditions the whole-repo splice on a knob-7 opt-in — the splice source
+    (Phase 2's unconditional .claude/memory/ baseline write) is always
+    available regardless."""
+    s = _phase_8_section()
+    assert s, "Phase 8 section not found in test-improve/SKILL.md"
+    assert not grep(r"knob-7|report opt-in", s, ignore_case=True)
+
+
+def test_phase_9_falls_back_to_reading_data_directly_when_memory_copy_is_absent():
+    """#1412: when the canonical .claude/memory/ working copy is absent (e.g.
+    a fresh checkout where only data/ was ever tracked), Phase 9 skips the
+    copy and reads directly from data/'s already-present copies — this is
+    the specific behavior the regeneratable-from-tracked-data contract
+    depends on."""
+    s = _phase_9_section()
+    assert grep_multiline(
+        r"absent.{0,200}skip[[:space:]]+the[[:space:]]+copy.{0,200}read[[:space:]]+directly",
+        s,
+        ignore_case=True,
+    )
 
 
 def test_phase_9_mutation_row_shape_covers_all_three_modes():
@@ -170,3 +210,86 @@ def test_close_out_prompt_suppressed_when_run_was_already_refactor_allowed():
 def test_close_out_prompt_fires_only_when_run_was_no_refactor():
     s = _close_out_section()
     assert grep(r"refactor-mode:[[:space:]]+no-refactor", s)
+
+
+# --- baseline-coverage.json / baseline-mutation.json existing-copy guard ----
+# --- (issue #1412, Slice 2) -------------------------------------------------
+
+
+def test_phase_9_baseline_coverage_prompts_with_keep_overwrite_default_keep():
+    s = _phase_9_section()
+    assert grep(r"baseline-coverage\.json", s)
+    assert grep_multiline(
+        r"overwrite it\s+\(recaptures the baseline every\s+downstream delta compares against\)",
+        s,
+    )
+    assert grep_multiline(r"\[keep/overwrite,\s+default: keep\]", s)
+
+
+def test_phase_9_declining_baseline_coverage_overwrite_keeps_existing_copy():
+    s = _phase_9_section()
+    assert grep_multiline(
+        r"keep.{0,80}leaves the\s+existing `data/` copy in place",
+        s,
+        ignore_case=True,
+    )
+    assert grep_multiline(
+        r"fresh capture is \*\*not\*\*\s+copied over it", s
+    )
+
+
+def test_phase_9_confirming_baseline_coverage_overwrite_replaces_data_copy():
+    s = _phase_9_section()
+    assert grep_multiline(
+        r"overwrite.{0,40}replaces the\s+`data/` copy with the fresh",
+        s,
+        ignore_case=True,
+    )
+
+
+def test_phase_9_baseline_coverage_non_interactive_keeps_and_logs():
+    s = _phase_9_section()
+    assert grep_multiline(
+        r"non-interactive.{0,40}\(no usable TTY /\s*`DEV_TEAM_AUTO_APPROVE=1`\)",
+        s,
+    )
+    assert grep_multiline(
+        r"keeps the\s+existing `data/` copy and logs the auto-decision",
+        s,
+    )
+    assert grep(r"decision-defaults\.md", s)
+
+
+def test_phase_9_baseline_mutation_non_interactive_keeps_and_logs():
+    s = _phase_9_section()
+    assert grep(r"baseline-mutation\.json", s)
+    assert grep_multiline(
+        r"overwrite it \(recaptures the mutation kill-rate baseline every\s+downstream\s+delta compares against\)",
+        s,
+    )
+    assert grep_multiline(r"\[keep/overwrite,\s+default: keep\]", s)
+    assert grep_multiline(
+        r"non-interactive.{0,60}\(no usable TTY /\s*`DEV_TEAM_AUTO_APPROVE=1`\).{0,60}Phase 9",
+        s,
+    )
+    assert grep_multiline(
+        r"keeps the\s+existing `data/` copy and logs the auto-decision.{0,60}never",
+        s,
+    )
+
+
+def test_phase_9_baseline_mutation_guard_declares_parity_with_coverage_guard():
+    # #1412, Slice 2: baseline-mutation.json's guard is documented as the
+    # identical keep/overwrite/unrecognized-answer discipline as
+    # baseline-coverage.json's guard, not an independently-invented one —
+    # this pins the cross-reference so the two never silently diverge.
+    s = _phase_9_section()
+    assert grep_multiline(
+        r"identical guard applies to `baseline-mutation\.json`",
+        s,
+    )
+    assert grep_multiline(
+        r"[Ss]ame keep/overwrite/unrecognized-answer\s+behavior as"
+        r"\s+`baseline-coverage\.json`'s guard above",
+        s,
+    )

@@ -33,6 +33,34 @@ def test_review_passed_is_appended_to_runtime_artifacts_gitignore_block():
     assert ".review-passed" in block.group(0)
 
 
+def test_dev_team_reports_line_is_anchored_not_a_blanket_ignore():
+    # #1412 (fixed post-build-review, arch-review): a blanket `.dev-team-reports/`
+    # line here would silently defeat /test-improve's git-tracked <slug>/data/
+    # report-data directory for every project /setup provisions — the same
+    # gap fixed in /project-init's JS-scaffold template
+    # (test_dev_team_reports_consolidation.py::
+    # test_js_scaffold_gitignore_template_tracks_test_improve_report_data).
+    body = collapsed(SETUP)
+    block = re.search(r'MARKER="# dev-team workflow runtime artifacts.*?```', body)
+    assert block
+    content = block.group(0)
+    assert "/.dev-team-reports/*" in content
+    assert "!/.dev-team-reports/test-improve/" in content
+    assert ".dev-team-reports/\nmemory/" not in SETUP, (
+        "the blanket, pre-#1412 .dev-team-reports/ line must not survive "
+        "verbatim in the emitted block"
+    )
+
+
+def test_dev_team_reports_marker_is_bumped_so_already_provisioned_repos_self_heal():
+    # Bumping MARKER forces the idempotency check to miss on a repo
+    # provisioned under the old (v1) marker, so the self-heal branch below
+    # actually runs instead of short-circuiting to "already-covered".
+    assert 'MARKER="# dev-team workflow runtime artifacts (.claude/-scoped + .dev-team-reports/, #1406) v2"' in SETUP
+    assert "Self-heal" in SETUP
+    assert "grep -vxF '.dev-team-reports/'" in SETUP
+
+
 def test_mcp_json_gets_its_own_idempotent_gitignore_block():
     body = collapsed(SETUP)
     # Same bounding as above — .mcp.json also recurs later in the prose

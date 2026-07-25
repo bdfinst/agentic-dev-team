@@ -112,8 +112,14 @@ Thumbs.db
 npm-debug.log*
 
 # dev-team plugin: shared human-invoked report output (/review-agent,
-# /code-review, /triage) — local-only, regenerated per run.
-.dev-team-reports/
+# /code-review, /triage) — local-only, regenerated per run. Anchored
+# deny-all + re-included tracked exception for /test-improve's
+# git-tracked report data/ sibling directory (issue #1412). The
+# re-include must stay directory-level (test-improve/), not narrowed to
+# e.g. */data/ — git never re-includes a path whose parent directory is
+# itself excluded, so a narrower exception would silently match nothing.
+/.dev-team-reports/*
+!/.dev-team-reports/test-improve/
 ```
 
 ## vitest.config.js

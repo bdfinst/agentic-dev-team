@@ -60,7 +60,12 @@ def test_legacy_dev_team_reports_root_stays_ignored_unchanged():
 
 
 def test_legacy_reports_root_stays_unchanged():
+    """#1412 (Slice 1, Step 1.4) removes the one now-confirmed-dead exception
+    in this block — `!/reports/test-improve/` — since /test-improve no
+    longer writes to that bare path (superseded by
+    `.dev-team-reports/test-improve/`, see above); the other two tracked
+    exceptions in this legacy block are untouched."""
     assert _is_ignored("reports/competitive-analysis.md")
-    assert not _is_ignored("reports/test-improve/some.md")
+    assert _is_ignored("reports/test-improve/some.md")
     assert not _is_ignored("reports/orchestration-benchmark-2026-07-18.md")
     assert not _is_ignored("reports/harness-audit-2026-07-20.md")

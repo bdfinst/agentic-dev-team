@@ -7,6 +7,8 @@ new `.dev-team-reports/` location is documented in its place.
 
 from __future__ import annotations
 
+import re
+
 from skill_doc_helpers import PLUGIN_ROOT
 
 REPORT_OUTPUT_LOCATION = (
@@ -160,3 +162,34 @@ def test_js_scaffold_gitignore_template_emits_consolidated_location():
         "the JS-scaffold .gitignore template must emit .dev-team-reports/ "
         "for new downstream projects"
     )
+
+
+def test_js_scaffold_gitignore_template_tracks_test_improve_report_data():
+    """#1412: a blanket `.dev-team-reports/` ignore in the JS-scaffold
+    template would silently defeat /test-improve's git-tracked <slug>/data/
+    sibling directory for every newly-provisioned project. The template must
+    use the same anchored deny-all + tracked-exception shape as this repo's
+    own .gitignore (test_dev_team_reports_gitignore_consolidation.py)."""
+    configs = (
+        PLUGIN_ROOT / "skills" / "project-init" / "references" / "configs.md"
+    ).read_text(encoding="utf-8")
+    # Scope to the emitted .gitignore fence itself — a match against the
+    # whole file would also pass if these literals only ever appeared in
+    # surrounding prose, never in the block actually shipped downstream.
+    fence = re.search(r"## \.gitignore\n\n```\n(.*?)\n```", configs, re.DOTALL)
+    assert fence, "no fenced .gitignore block found under '## .gitignore' in configs.md"
+    block = fence.group(1)
+    assert "/.dev-team-reports/*" in block, (
+        "the JS-scaffold .gitignore template must anchor the deny-all rule "
+        "as /.dev-team-reports/*, not a blanket .dev-team-reports/ ignore"
+    )
+    assert "!/.dev-team-reports/test-improve/" in block, (
+        "the JS-scaffold .gitignore template must re-include "
+        "/.dev-team-reports/test-improve/ so /test-improve's report data/ "
+        "sibling directory is git-tracked in newly-provisioned projects"
+    )
+    # The re-include must stay directory-level — git never re-includes a
+    # path whose parent directory is itself excluded by the deny-all above,
+    # so a narrower e.g. `!/.dev-team-reports/test-improve/*/data/` would
+    # silently match nothing.
+    assert "!/.dev-team-reports/test-improve/*/data/" not in block

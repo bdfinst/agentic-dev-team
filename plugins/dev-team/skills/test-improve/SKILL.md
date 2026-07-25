@@ -18,7 +18,7 @@ allowed-tools: Read, Grep, Glob, Bash(git diff *), Bash(python3 *), Skill, Agent
 # Test Improve
 
 Role: orchestrator. This command sequences existing skills and agents through a
-seven-phase analyze-then-improve workflow; it does **not** implement, audit, or
+ten-phase (0-9) analyze-then-improve workflow; it does **not** implement, audit, or
 write tests itself. Each phase is **delegated** to the worker skill or agent
 that owns it, and per-phase progress is persisted to
 `.claude/memory/test-improve/<slug>/phase-<n>.md` so `/continue` (and `--from-phase`)
@@ -49,8 +49,10 @@ You have been invoked with the `/test-improve` command.
 - `--parent <url>` — optional tracker parent issue URL; the host selects the
   CLI (ADO / GitHub / GitLab / Jira). Omit for **local-files mode** (the
   default), which writes to `.dev-team-reports/test-improve/` and `.claude/plans/test-improve/`.
-- `--analyze-only` — run Phase 0 then Phase 1 and **exit after Phase 1** with a
-  summary of the improvement plan. No baseline is captured; no code changes.
+- `--analyze-only` — run Phase 0 then Phase 1 directly and **exit after Phase 1** with a
+  summary of the improvement plan (bypassing the default Baseline/Derive-Gherkin
+  ordering — see Phase 0's `--analyze-only` semantics). No baseline is
+  captured; no code changes.
 - `--from-phase [<n>]` — skips completed phases and resumes at phase `n` when
   `.claude/memory/test-improve/<slug>/phase-<n-1>.md` exists. **The number is
   optional.** Passed with **no argument**, `/test-improve` **auto-detects** the
@@ -65,18 +67,68 @@ You have been invoked with the `/test-improve` command.
 
 ## Phase-start banner
 
-At the start of every phase (0..9), print a two-line banner:
+At the start of every phase, print a two-line banner:
 
 ```
-Phase N/9 — <phase name>
-mutation: <off|kill-loop|baseline+kill-loop> · binding: <none|xunit-with-annotations|bdd-runner> · refactor: <no-refactor|refactor-allowed> · sink: <tracker|local> · report: <on|off>
+Step <position>/<total> — Phase <N>: <phase name>
+mutation: <off|kill-loop|baseline+kill-loop> · binding: <none|xunit-with-annotations|bdd-runner> · refactor: <no-refactor|refactor-allowed> · sink: <tracker|local>
 ```
+
+`<N>` is the phase's stable identity number — unchanged by execution order
+(Phase 1 is always Analyze, Phase 2 is always Baseline, etc.). `<position>`
+is a **running count of phases printed so far this run, including this
+one** — increment it by exactly 1 at each phase-start banner, never
+computed from a fixed per-identity table. A bare `Phase N/9` counter would
+print non-monotonically under this reordered execution sequence (`2/9` then
+`3/9` then `1/9`), reading as a hung or looping run to an operator watching
+stdout; a plain running count fixes this without renumbering any phase,
+file, or `--from-phase` flag value, and — unlike a fixed per-identity
+table — it stays correct regardless of which phases actually execute.
+
+**`<total>` is not always 9 or 10 — compute it, never hardcode it.** Two
+independent things vary the count: whether Phase 3 runs (known from Phase
+0's BDD binding mode: skipped when `none`, so **-1**) and whether Phase 7
+runs (Phase 6's decision — Phase 7 and Phase 8 are **not alternatives**;
+when Phase 6 returns `[y]`, both Phase 7 *and* Phase 8 execute in sequence,
+so entering Phase 7 is **+1**, not a shared slot). Concretely:
+
+- Base count is **9** (Phases 0, 2, 3, 1, 4, 5, 6, 8, 9 — Phase 7 excluded
+  by default).
+- **-1** when the Phase-0 BDD binding mode is `none` (Phase 3 never runs) —
+  known from Phase 0 onward, so this adjustment is baked into every
+  banner's `<total>` from the very first one.
+- **+1** the moment Phase 6 resolves to `[y]` (entering Phase 7) — this is
+  **not** knowable before Phase 6 fires (an operator in `refactor-allowed`
+  mode can still pick `[b]`/`[q]` and skip Phase 7 despite the mode
+  permitting it), so `<total>` for Phases 0 through 6's banners uses the
+  **without-Phase-7** count; if Phase 6 then returns `[y]`, print one line
+  before Phase 7's banner — `Phase 7 entered — total phase count for this
+  run is now <new total> (was <old total>).` — and use the new total for
+  Phase 7, 8, and 9's banners. When `refactor-mode: no-refactor` (Phase 6
+  offers no `[y]` at all) or Phase 6 returns `[b]`/`[q]`, no adjustment ever
+  fires and `<total>` stays fixed for the whole run.
+
+This keeps `<position>` strictly monotonic in every run shape, and
+`<total>` honest at each point it's printed — correcting exactly once, with
+a visible reason, only in the one case (entering Phase 7) that's genuinely
+unknowable in advance.
 
 The recap line reflects the still-active Phase-0 settings so an operator
 resuming via `--from-phase` (or returning to a long-running session) sees the
 current phase and active settings without scrollback archaeology.
 
 ## Steps
+
+**Execution order.** Phases below are numbered by stable identity, not by
+execution order — Phase 2 (Baseline) and Phase 3 (Derive Gherkin) execute
+before Phase 1 (Analyze) so `/test-health` can use documented-but-untested
+Gherkin scenarios as a coverage signal. **Document order below matches
+execution order**: `0 → 2 → 3 → 1 → 4 → 5 → 6 → 7 → 8 → 9`, where Phase 7
+runs only when Phase 6 returns `[y]` (see "Phase-start banner" above for how
+this affects the banner's `<total>`) — Phase 7 and Phase 8 always run in
+that sequence together, never as alternatives to each other. When the
+Phase-0 BDD binding mode is `none`, Phase 3 is skipped and the executed
+sequence becomes `0 → 2 → 1 → 4 → 5 → 6 → (7) → 8 → 9`.
 
 ### Phase 0 — Approach contract
 
@@ -99,9 +151,8 @@ file must exist **before Phase 1** runs.
 > surviving-mutant count. Either way the Phase-8 mutation target is
 > advisory-only for Go.
 
-**Prompt battery (one batch, seven knobs).** Each prompt displays its default in
-`[brackets]`; pressing **Enter accepts every default in one keystroke** — including
-knob 7 (baseline-metrics report), which defaults to `no` under Enter — with
+**Prompt battery (one batch, six knobs).** Each prompt displays its default in
+`[brackets]`; pressing **Enter accepts every default in one keystroke** — with
 **one deliberate exception**: knob 6 (code-lookup install) is **not** part of the
 Enter-accepts-all gesture, because accepting it mutates the filesystem (and, for
 Graphify, the repo's `CLAUDE.md`). Knob 6 is the **sole** exception; it requires an
@@ -156,33 +207,32 @@ silent surprise.
    - **Partial failure is recorded, not masked.** If the delegated install
      partially fails, record per-tool success/failure in `phase-0.md` and do
      not claim full install success.
-7. **Baseline-metrics report (opt-in)** — `[no]`. Ask whether to **persist
-   baseline coverage and mutation metrics** so an end-of-run before/after delta
-   report can be generated. This is a **distinct** decision from the mutation
-   mode (knob 1) and the coverage baseline that Phase 2 always takes: the
-   coverage baseline report is available **even when mutation mode is `off`**,
-   and it can be **skipped under `kill-loop`** (where there is no mutation
-   baseline to diff, only a final-survivor count). Default is **`no`** and this
-   knob **is** part of the Enter-accepts-all gesture (unlike knob 6). On **`yes`**,
-   Phase 2 writes the baseline to a git-tracked path (see Phase 2 for the path
-   and the gitignore caveat); on **`no`**, it stays on the transient `memory/`
-   path as today. The banner recap renders this opt-in as `report: on` / `off`
-   (mapping `yes`→`on`, `no`→`off`).
 
-**Persistence.** Write the resolved inputs to `.claude/memory/test-improve/<slug>/phase-0.md` before Phase 1 runs — Phase 1 must not start until `phase-0.md` exists. This includes the knob-6 outcome (the operator's install choice, and for each tool whether it was already present, installed, declined, or failed) and the knob-7 outcome (whether the baseline-metrics report was opted into).
+**Persistence.** Write the resolved inputs to `.claude/memory/test-improve/<slug>/phase-0.md` before Phase 1 runs — Phase 1 must not start until `phase-0.md` exists. This includes the knob-6 outcome (the operator's install choice, and for each tool whether it was already present, installed, declined, or failed).
 
 **Immutability.** Phase-0 answers are **immutable** for the remainder of the
 run. `--from-phase` does not re-prompt Phase-0 inputs. To change them, delete
 `.claude/memory/test-improve/<slug>/phase-0.md` and re-run from Phase 0.
 
 **`--analyze-only` semantics.** With `--analyze-only`, Phase 0 completes as
-normal, Phase 1 (`/test-health`) runs, and the orchestrator **exits after
-Phase 1** with a summary of the improvement plan. No baseline is captured; no
-code changes.
+normal, Phase 1 (`/test-health`) runs, and the orchestrator **exits after Phase 1**
+with a summary of the improvement plan. This is a deliberate carve-out:
+Phase 1 runs **directly**, bypassing the default Baseline (Phase 2) / Derive
+Gherkin (Phase 3) ordering (`0 → 2 → 3 → 1 → 4 → ...`) — not a contradiction
+of it. No baseline is captured; no code changes.
 
-**`--from-phase` semantics.** `--from-phase <n>` **skips** phases `0..n-1`
-when their `.claude/memory/test-improve/<slug>/phase-<i>.md` files exist and resumes
-at phase `n`. Phase-0 inputs are read from `phase-0.md` (never re-prompted).
+**`--from-phase` semantics.** `--from-phase <n>` resumes **at** phase `n` and
+skips every phase that precedes `n` in the **execution** sequence
+`0, 2, 3, 1, 4, 5, 6, 7, 8, 9` (not identity order — e.g. `--from-phase 1`
+skips Phases 0, 2, and 3, not just 0). Phase-0 inputs are read from
+`phase-0.md` (never re-prompted). **An explicit `<n>` is not validated
+against this sequence** beyond requiring `phase-0.md` to exist — e.g.
+`--from-phase 1` does not check that Phase 2 (Baseline) has actually run
+first, so an operator passing an out-of-sequence `<n>` by hand can skip a
+phase whose output later phases depend on (Baseline before any test-file
+change, in particular). Prefer `--from-phase` with no number
+(auto-detect, below) unless there's a specific reason to name a phase
+explicitly.
 
 **`--from-phase` with no number — auto-detect the resume point.** When
 `--from-phase` is passed **without** a number, resolve the resume phase by
@@ -194,18 +244,25 @@ python3 ${CLAUDE_PLUGIN_ROOT}/scripts/test_improve_resume.py <repo-path>
 
 The helper resolves the slug from `<repo-path>` (its last path segment), scans
 **only** that slug's `.claude/memory/test-improve/<slug>/` directory for the
-completed-phase progress files (`phase-0.md` … `phase-9.md`, plus
-`phase-6.md`), finds the highest completed phase (ordering `phase-6`
-between `phase-5` and `phase-7`), and prints a JSON object whose
+completed-phase progress files (`phase-0.md` … `phase-9.md`, excluding
+`phase-3.md` — Phase 3 is conditional and tracked via `gherkin.md` instead,
+never a numbered progress file), finds the highest completed phase in
+**execution** order (`0, 2, 1, 4, 5, 6, 7, 8, 9` — Phase 3 excluded, matching
+the progress-file scan above), and prints a JSON object whose
 `resolved_phase` is the phase to resume at and whose `message` reads e.g.
-`Resuming at Phase 7 (latest completed: phase-6.md).`. Print that `message`
+`Resuming at Phase 8 (latest completed: phase-6.md).`. Print that `message`
 so the operator can confirm before work starts, then resume at
 `resolved_phase`. Resolution rules the helper encodes:
 
 - A completed `phase-5.md` with **no** `phase-6.md` resumes at **Phase 6**;
   a completed `phase-6.md` resumes at **Phase 8** (matching the `[b]`/`[q]`
   skip-to-8 flow); a completed `phase-7.md` resumes at **Phase 8**.
-- Only `phase-0.md` present resumes at **Phase 1**.
+- Only `phase-0.md` present resumes at **Phase 2** (Baseline — the phase that
+  now executes immediately after Phase 0).
+- A completed `phase-2.md` with **no** `phase-1.md` resumes at **Phase 1**
+  (Phase 3 has no tracked progress file, so the auto-detect skips over it —
+  see `test_improve_resume.py`'s module docstring). A completed `phase-1.md`
+  resumes at **Phase 4**.
 - **No memory dir / no phase files / `phase-0.md` missing** — the helper exits
   non-zero; surface its error message (which points to running
   `/test-improve <repo-path>` from Phase 0) and do **not** silently start at
@@ -228,6 +285,108 @@ skips to Phase 8; `[q]` quits before Phase 8. In `no-refactor` mode (the
 default) Phase 6 is **informational only** — no `[y]` is offered, the
 REFACTOR_REQUIRED items are auto-backlogged, and the run continues to Phase 8
 (see Phase 6).
+
+### Phase 2 — Baseline (coverage + mutation)
+
+Capture the objective starting point **before any file under the stack's test
+directory is modified**. Baselines are the ground truth every downstream delta
+compares against; running any test edit before baseline capture invalidates
+the whole run.
+
+**Coverage baseline.** Invoke `/coverage-baseline --workflow test-improve`
+against the resolved repo path. `/coverage-baseline`'s own
+`.claude/memory/test-improve/<slug>/baseline-coverage.json` write is
+**unconditional** and unaffected by this change — that skill has no opt-in
+awareness of its own. Persist the result there:
+`.claude/memory/test-improve/<slug>/baseline-coverage.json`. The git-tracked
+copy under `data/` (for the executive-summary report) is produced later,
+unconditionally, by Phase 9 (see Phase 9's "Copy report data" step) — Phase 2
+itself has no branching write-path logic.
+
+This is independent of the mutation mode: a coverage baseline is persisted in
+every mode, and the mutation baseline is written **only** in
+`baseline+kill-loop` mode (see below).
+
+**Mutation baseline (`baseline+kill-loop` only).** When `phase-0.md` recorded
+mutation mode **`baseline+kill-loop`**, invoke
+`/mutation-testing --baseline --workflow test-improve`. Persist the result to
+`.claude/memory/test-improve/<slug>/baseline-mutation.json` — the same
+unconditional, opt-in-free write as the coverage baseline above; its
+git-tracked `data/` copy is likewise produced later by Phase 9, not here.
+The file records the **honest score**: hard kills / effective total, with the
+**timeout count reported separately** (timeouts are not counted as kills).
+
+**No-baseline modes skip (`off` and `kill-loop`).** When `phase-0.md` recorded
+mutation mode **`off`** or **`kill-loop`**, `/mutation-testing --baseline` is
+**not invoked** and no `baseline-mutation.json` is written — `kill-loop` runs the
+mutant-kill loop in Phase 5 but takes no baseline first. For `off`, the Phase-8
+mutation target is later marked "not enabled", not waived; for `kill-loop`,
+Phase 8 reports the final-survivor count rather than a baseline delta (see
+Phase 8).
+
+**Go advisory marker.** When the resolved stack is Go and mutation mode is
+`baseline+kill-loop`, the
+mutation baseline is **advisory only** — go-mutesting is alpha-quality (see the
+Go advisory in Phase 0). `baseline-mutation.json` is written with the
+`advisory-only: true` marker; survivor counts are not a gate.
+
+**Ordering invariant.** Baselines land **before any test file is modified** — no file under the stack's test directory may change between Phase 0 and the creation of `baseline-coverage.json` (and `baseline-mutation.json` when applicable). Phase 3, Phase 5, and any subsequent test edits depend on this ordering.
+
+### Phase 3 — Derive Gherkin (conditional)
+
+Gherkin derivation is **conditional on the Phase-0 BDD rubric answer**. It
+runs only when the operator opted in to a binding mode other than `none`.
+
+**Binding mode `none` — skipped entirely.** When `phase-0.md` recorded binding
+mode `none`, Phase 3 is **skipped**: `/gherkin-derive` is **not invoked**, no
+`.feature` files are written, no runner is added. **Phase 1 follows Phase 2
+directly** in this case — the executed sequence becomes `0 → 2 → 1 → 4 → 5 →
+6 → 7/8 → 9` (one fewer named phase; the banner's `<position>` counter still
+advances 1-9 monotonically).
+
+**Binding mode `xunit-with-annotations` — .feature files without a runner.**
+Invoke `/gherkin-derive --workflow test-improve --mode xunit-with-annotations`.
+The skill merges scenarios into `.feature` files under gherkin-derive's
+resolved destination (recorded in `.claude/memory/test-improve/<slug>/gherkin.md` —
+typically `features/test-improve/`, but dynamically resolved per the repo's
+own BDD convention, not a fixed path — see `/gherkin-derive`'s Step 2)
+— an existing file's prior content (hand-authored, or enriched by
+`/feature-coverage-analyzer`) is preserved; only genuinely new scenarios are
+appended (issue #1420) — and **no runner dependency** is added to the project.
+The corresponding xUnit tests (authored in Phase 5) will carry the scenario
+name plus Given/When/Then leading comments that cite the `.feature` file, but
+they run through the existing xUnit runner.
+
+**Binding mode `bdd-runner` — native parser wired.** Invoke
+`/gherkin-derive --workflow test-improve --mode bdd-runner`. The stack profile
+selects the native parser (`cucumber-js` for JS/TS, `SpecFlow` / `Reqnroll` for
+.NET, `cucumber-jvm` for Java, `godog` for Go). `/gherkin-derive`:
+
+- adds the parser as a project dependency,
+- generates pending step-definition stubs,
+- merges scenarios into `.feature` files under its resolved destination
+  (same dynamic resolution as `xunit-with-annotations` mode, recorded in
+  `.claude/memory/test-improve/<slug>/gherkin.md`), preserving any existing
+  enrichment the same way that mode does (issue #1420).
+
+**Persistence.** Record the surface inventory and (in `bdd-runner` mode) the
+parser wiring to `.claude/memory/test-improve/<slug>/gherkin.md`.
+
+**Human gate.** After Phase 3 produces `.feature` files (or parser wiring in
+`bdd-runner` mode), present them to the operator for review — including
+`gherkin_failure_path_gate.py`'s findings (issue #1420) as part of what's
+being approved, the same reviewed-before-proceeding weight the
+characterization-scenario call-out already carries, not an inert report
+line. **Phase 1 does not run** until the operator approves.
+
+**In `bdd-runner` mode with pending step definitions**, Phase 3's own
+not-done statement (`../gherkin-derive/SKILL.md` Step 6) and Phase 5's later
+hard block on this same state (below) describe one fact at two checkpoints,
+not two separate requirements — both name `/build` (Phase 5's own per-Story
+build loop) as the remediation. Because Phase 5 already owns "what happens
+next" for this state, `gherkin-derive`'s own proactive "continue into
+`/build` now?" ask is suppressed here — it fires only for a genuinely
+standalone invocation with no enclosing orchestrator.
 
 ### Phase 1 — Analyze via /test-health
 
@@ -266,7 +425,9 @@ precedence: `end_to_end` > `integration` > `contract` > `component` >
 `unit` (this precedence applies to test files only — `static_analysis` is
 never a legitimate outcome of classifying a test file; see its own
 counting rule below). Persist
-`.claude/memory/test-improve/<slug>/test-counts-before.json` with the six
+`.dev-team-reports/test-improve/<slug>/data/test-counts-before.json` — written
+**directly** to the git-tracked `data/` sibling (this file has no other
+consumer, so no separate `.claude/memory/` copy is needed) — with the six
 canonical snake_case keys, in this fixed order: `static_analysis`, `unit`,
 `component`, `contract`, `integration`, `end_to_end` — each key present
 even at zero, counting **test suites/files, not individual test cases or
@@ -275,11 +436,29 @@ invocations (one per tool — e.g. ESLint, Semgrep, mypy) rather than
 test-directory files, since static analysis runs over non-running code and
 is rarely organized as a describe-block suite; when the repo has no
 configured static-analysis tooling at all, the key is `0`, not omitted.
+
+**Existing-snapshot guard.** Before persisting, check whether
+`test-counts-before.json` already exists under
+`.dev-team-reports/test-improve/<slug>/data/` for the resolved slug. **No
+existing file** → write the fresh snapshot directly; no prompt is needed. **An
+existing file**, interactive session → prompt: *"An existing
+test-counts-before.json was found for `<slug>` — overwrite it (starts a fresh
+before/after comparison) or keep it (reuse for this run)? `[keep/overwrite,
+default: keep]`"* Answering `overwrite` replaces the existing file with a
+fresh snapshot. Answering `keep` (or declining) leaves the existing file
+untouched and Phase 1 reuses it for this run. An **unrecognized answer**
+(anything other than `keep` or `overwrite`) re-prompts with the identical
+text — it never silently falls back to the default. When the run is
+**non-interactive** (no usable TTY / `DEV_TEAM_AUTO_APPROVE=1`), the prompt is
+never shown; Phase 1 defaults to **keep existing** and logs the
+auto-decision, mirroring `decision-defaults.md`'s non-interactive rule — never
+a non-default stance (overwrite) with nobody present to confirm it.
+
 This pass does **not** invoke `/test-health` or `/cd-test-architecture`'s
 full skill.
 
 **Human gate.** After `/test-health` returns, present **the ordered improvement
-plan** to the operator and wait for explicit approval. **Phase 2 does not run**
+plan** to the operator and wait for explicit approval. **Phase 4 does not run**
 until the operator approves. This is the human gate for Phase 1; do not advance
 past it without approval. When `phase-0.md` recorded
 `refactor-mode: no-refactor`, any plan item that would require a production-code
@@ -287,115 +466,7 @@ refactor is labeled **skipped-in-no-refactor** (out of scope for this run) so
 the operator sees the coverage/behavior left on the table — such items are never
 presented as ordinary next steps that this run will execute.
 
-**`/handoff` suggestion** (context-heavy analysis). Once the gate above resolves, print: `Phase 1 complete. Consider running /handoff to compress context before continuing. To resume: /test-improve <repo-path> --from-phase 2 (or --from-phase with no number to auto-detect the resume point)`
-
-### Phase 2 — Baseline (coverage + mutation)
-
-Capture the objective starting point **before any file under the stack's test
-directory is modified**. Baselines are the ground truth every downstream delta
-compares against; running any test edit before baseline capture invalidates
-the whole run.
-
-**Coverage baseline.** Invoke `/coverage-baseline --workflow test-improve`
-against the resolved repo path. Persist the result to
-`baseline-coverage.json` under the **baseline write path** selected by the
-knob-7 report opt-in (see below); the default (report declined) is
-`.claude/memory/test-improve/<slug>/baseline-coverage.json`.
-
-**Baseline write path (knob-7 report opt-in).** The baseline persistence
-location is chosen by the Phase-0 knob-7 answer:
-
-- **Report opted in (`yes`).** Write `baseline-coverage.json` (and, in
-  `baseline+kill-loop` mode, `baseline-mutation.json`) under the **git-tracked**
-  path `.dev-team-reports/test-improve/<slug>/` so the number is version-controlled and
-  reviewable in the run's PR. `/test-improve` issues **no** git command — the
-  tracked file is picked up by the run's existing commit/PR flow. **Caveat:**
-  because `reports/` is commonly gitignored, the target repo must un-ignore
-  `.dev-team-reports/test-improve/` for the baseline to appear in the PR; where it is not
-  tracked, the opt-in degrades to transient.
-- **Report declined (`no`, the default).** Write the baseline to the transient
-  `.claude/memory/test-improve/<slug>/` path, exactly as today.
-
-This path selection is independent of the mutation mode: a coverage baseline is
-persisted in every mode, and the mutation baseline is written **only** in
-`baseline+kill-loop` mode (see below) regardless of the report opt-in.
-
-**Mutation baseline (`baseline+kill-loop` only).** When `phase-0.md` recorded
-mutation mode **`baseline+kill-loop`**, invoke
-`/mutation-testing --baseline --workflow test-improve`. Persist the result to
-`baseline-mutation.json` under the same knob-7 baseline write path as coverage
-(default, report declined: `.claude/memory/test-improve/<slug>/baseline-mutation.json`).
-The file records the **honest score**: hard kills / effective total, with the
-**timeout count reported separately** (timeouts are not counted as kills).
-
-**No-baseline modes skip (`off` and `kill-loop`).** When `phase-0.md` recorded
-mutation mode **`off`** or **`kill-loop`**, `/mutation-testing --baseline` is
-**not invoked** and no `baseline-mutation.json` is written — `kill-loop` runs the
-mutant-kill loop in Phase 5 but takes no baseline first. For `off`, the Phase-8
-mutation target is later marked "not enabled", not waived; for `kill-loop`,
-Phase 8 reports the final-survivor count rather than a baseline delta (see
-Phase 8).
-
-**Go advisory marker.** When the resolved stack is Go and mutation mode is
-`baseline+kill-loop`, the
-mutation baseline is **advisory only** — go-mutesting is alpha-quality (see the
-Go advisory in Phase 0). `baseline-mutation.json` is written with the
-`advisory-only: true` marker; survivor counts are not a gate.
-
-**Ordering invariant.** Baselines land **before any test file is modified** — no file under the stack's test directory may change between Phase 0 and the creation of `baseline-coverage.json` (and `baseline-mutation.json` when applicable). Phase 3, Phase 5, and any subsequent test edits depend on this ordering.
-
-### Phase 3 — Derive Gherkin (conditional)
-
-Gherkin derivation is **conditional on the Phase-0 BDD rubric answer**. It
-runs only when the operator opted in to a binding mode other than `none`.
-
-**Binding mode `none` — skipped entirely.** When `phase-0.md` recorded binding
-mode `none`, Phase 3 is **skipped**: `/gherkin-derive` is **not invoked**, no
-`.feature` files are written, no runner is added. Phase 4 follows Phase 2.
-
-**Binding mode `xunit-with-annotations` — .feature files without a runner.**
-Invoke `/gherkin-derive --workflow test-improve --mode xunit-with-annotations`.
-The skill merges scenarios into `.feature` files under gherkin-derive's
-resolved destination (recorded in `.claude/memory/test-improve/<slug>/gherkin.md` —
-typically `features/test-improve/`, but dynamically resolved per the repo's
-own BDD convention, not a fixed path — see `/gherkin-derive`'s Step 2)
-— an existing file's prior content (hand-authored, or enriched by
-`/feature-coverage-analyzer`) is preserved; only genuinely new scenarios are
-appended (issue #1420) — and **no runner dependency** is added to the project.
-The corresponding xUnit tests (authored in Phase 5) will carry the scenario
-name plus Given/When/Then leading comments that cite the `.feature` file, but
-they run through the existing xUnit runner.
-
-**Binding mode `bdd-runner` — native parser wired.** Invoke
-`/gherkin-derive --workflow test-improve --mode bdd-runner`. The stack profile
-selects the native parser (`cucumber-js` for JS/TS, `SpecFlow` / `Reqnroll` for
-.NET, `cucumber-jvm` for Java, `godog` for Go). `/gherkin-derive`:
-
-- adds the parser as a project dependency,
-- generates pending step-definition stubs,
-- merges scenarios into `.feature` files under its resolved destination
-  (same dynamic resolution as `xunit-with-annotations` mode, recorded in
-  `.claude/memory/test-improve/<slug>/gherkin.md`), preserving any existing
-  enrichment the same way that mode does (issue #1420).
-
-**Persistence.** Record the surface inventory and (in `bdd-runner` mode) the
-parser wiring to `.claude/memory/test-improve/<slug>/gherkin.md`.
-
-**Human gate.** After Phase 3 produces `.feature` files (or parser wiring in
-`bdd-runner` mode), present them to the operator for review — including
-`gherkin_failure_path_gate.py`'s findings (issue #1420) as part of what's
-being approved, the same reviewed-before-proceeding weight the
-characterization-scenario call-out already carries, not an inert report
-line. **Phase 4 does not run** until the operator approves.
-
-**In `bdd-runner` mode with pending step definitions**, Phase 3's own
-not-done statement (`../gherkin-derive/SKILL.md` Step 6) and Phase 5's later
-hard block on this same state (below) describe one fact at two checkpoints,
-not two separate requirements — both name `/build` (Phase 5's own per-Story
-build loop) as the remediation. Because Phase 5 already owns "what happens
-next" for this state, `gherkin-derive`'s own proactive "continue into
-`/build` now?" ask is suppressed here — it fires only for a genuinely
-standalone invocation with no enclosing orchestrator.
+**`/handoff` suggestion** (context-heavy analysis). Once the gate above resolves, print: `Phase 1 complete. Consider running /handoff to compress context before continuing. To resume: /test-improve <repo-path> --from-phase 4 (or --from-phase with no number to auto-detect the resume point)`
 
 ### Phase 4 — Plan fixes (partition findings by gap class)
 
@@ -409,13 +480,15 @@ explicitly: in `no-refactor` mode the Phase-7 `[Refactor-for-testability]`
 work surfaces labeled **out-of-scope / skipped-in-no-refactor**, never as
 actionable Phase-5 Stories.
 
-Every finding lands in exactly one of three **gap classes**:
+Every finding lands in exactly one of three actionable **gap classes**, plus
+one non-actionable class:
 
 - **`NO_REFACTOR`** — fixable by test edits alone. Written as **Phase-5
   Stories** to `.claude/plans/test-improve/` (or the configured parent tracker
   when `--parent` was supplied at Phase 0).
 - **`REFACTOR_REQUIRED`** — needs a production-code seam before a test can reach the behavior. REFACTOR_REQUIRED items are **deferred to Phase 7** and are **not written as Phase-5 Stories**; they surface with rationale for the operator, who decides at Phase 6 whether to enter Phase 7. Under `refactor-mode: no-refactor` they are labeled **out-of-scope (skipped-in-no-refactor)** in the plan — informational context, never an actionable Story this run will execute.
 - **`LOW_VALUE`** — tests that are cheap to have but not worth fixing (e.g. duplicate coverage, trivial getters, dead-code assertions). LOW_VALUE findings are **advisory-only**: enumerated in the report, no PR is opened to delete a test flagged this way.
+- **`NOT_IMPLEMENTED`** (`/test-health`'s gherkin-gap classification only) — the scenario's behavior doesn't exist in production code at all. Not a test-improve target in **any** mode: it is **not** written as a Phase-5 Story and **not** deferred to Phase 7 — Phase 7 accepts seam introductions only, and there is no seam to introduce for behavior that hasn't been written yet. It surfaces only as a feature-gap call-out in the report, same as `LOW_VALUE`'s advisory-only treatment.
 
 **Persistence.** Persist the classified finding set to
 `.claude/memory/test-improve/<slug>/phase-4.md`.
@@ -633,10 +706,10 @@ whole-repo score by splicing the freshly-measured changed files over the
 module it could not measure (OOM/timeout) as **held at baseline** rather than
 omitting it. No extra flag is threaded through the delegation above — the
 worker resolves the branch base itself using the same idiom as `/build`'s
-Farley-Score step. The whole-repo splice is only lossless when Phase 2's
-baseline was persisted to the git-tracked `.dev-team-reports/test-improve/<slug>/` path
-(knob-7 opt-in); on decline it degrades to a branch-scoped-only whole-repo
-line.
+Farley-Score step. The whole-repo splice relies on the `.claude/memory/test-improve/<slug>/baseline-mutation.json`
+that Phase 2 persisted unconditionally (see Phase 2) — always available for
+this same run, independent of the separate git-tracked `data/` copy Phase 9
+produces later for the executive-summary report.
 
 **Coverage < 90% in no-refactor mode.** When Phase 8 closes with coverage
 below 90% and Phase 0 recorded `refactor-mode: no-refactor`,
@@ -655,8 +728,10 @@ above, perform the **identical** classification pass Phase 1's
 "Test-count-by-type snapshot" defined — same six-type criteria, same
 tie-break rule, same repo-path scope Phase 1 used (not a re-scoped or
 differently-scoped recount) — and persist
-`.claude/memory/test-improve/<slug>/test-counts-after.json` in the identical shape
-as `test-counts-before.json` (same six keys, same order, zero-count keys
+`.dev-team-reports/test-improve/<slug>/data/test-counts-after.json` — written
+directly to the same git-tracked `data/` sibling as `test-counts-before.json`
+(same no-other-consumer rationale) — in the identical shape as
+`test-counts-before.json` (same six keys, same order, zero-count keys
 present). See Phase 1's own instruction for the full classification
 mechanism; this pass does not restate it.
 
@@ -673,23 +748,66 @@ between runs.
 `plugins/dev-team/skills/test-improve/templates/executive-summary.md` to the
 output path.
 
-**Output path.** `.dev-team-reports/test-improve/<repo-slug>-<date>.md` — the file is
-always relative to the invocation directory, whether the run used a tracker
-sink or local-files mode.
+**Output path.** `.dev-team-reports/test-improve/<slug>/report-<date>.md` —
+the file is always relative to the invocation directory, whether the run used
+a tracker sink or local-files mode. Its git-tracked `data/` sibling (see "Copy
+report data" below) is `.dev-team-reports/test-improve/<slug>/data/`.
 
-**Interpolation.** Every placeholder is **interpolated** from persisted
-memory files under `.claude/memory/test-improve/<slug>/` (`phase-0.md`, `phase-1.md`,
-`test-counts-before.json`, `phase-4.md`,
-`coverage-history.json`, `phase-5-review.json`,
-`phase-7-review.json` if Phase 7 ran,
+**Copy report data (before rendering).** Before interpolating the template,
+unconditionally **copy** (never move) the following from their canonical
+`.claude/memory/test-improve/<slug>/` working-copy locations into
+`.dev-team-reports/test-improve/<slug>/data/`: `baseline-coverage.json`,
+`baseline-mutation.json` (only when `baseline+kill-loop` mode ran), and
+`coverage-history.json`. This copy is unconditional — it does not depend on
+any Phase-0 opt-in. The canonical `.claude/memory/` copy that
+`/coverage-baseline`/`/coverage-delta`/`/quality-targets-converge` read and
+write is left completely in place, untouched — this is a copy for the report,
+never a relocation of that shared contract. **If a canonical copy is absent**
+(e.g. re-running Phase 9 alone in a checkout where only `data/` was ever
+tracked — the `.claude/memory/` state has since been cleaned), skip the copy
+for that file and read directly from whatever `data/` already has.
+
+**Existing-copy guard (`baseline-coverage.json`).** The same keep/overwrite
+consent-gate discipline as Phase 1's `test-counts-before.json` guard above
+applies here: before copying a freshly-captured `baseline-coverage.json` over
+an **existing** `data/` copy for the resolved slug, prompt (interactive
+session): *"An existing
+baseline-coverage.json was found under data/ for `<slug>` — overwrite it
+(recaptures the baseline every downstream delta compares against) or keep it
+(reuse the existing tracked baseline)? `[keep/overwrite, default: keep]`"*
+Answering `overwrite` replaces the `data/` copy with the fresh
+`.claude/memory/` capture. Answering `keep` (or declining) leaves the
+existing `data/` copy in place — the fresh capture is **not** copied over it.
+An unrecognized answer re-prompts with the identical text, same as Phase 1's
+guard. When the run is **non-interactive** (no usable TTY /
+`DEV_TEAM_AUTO_APPROVE=1`), the prompt is never shown; Phase 9 keeps the
+existing `data/` copy and logs the auto-decision, per
+`decision-defaults.md`'s non-interactive rule.
+
+**Existing-copy guard (`baseline-mutation.json`, `baseline+kill-loop` mode
+only).** The identical guard applies to `baseline-mutation.json`'s `data/`
+copy, with wording specific to what a mutation-baseline recapture means:
+*"An existing baseline-mutation.json was found under data/ for `<slug>` —
+overwrite it (recaptures the mutation kill-rate baseline every downstream
+delta compares against) or keep it (reuse the existing tracked baseline)?
+`[keep/overwrite, default: keep]`"* Same keep/overwrite/unrecognized-answer
+behavior as `baseline-coverage.json`'s guard above. When the run is
+**non-interactive** (no usable TTY / `DEV_TEAM_AUTO_APPROVE=1`), Phase 9
+keeps the existing `data/` copy and logs the auto-decision — never
+overwriting silently.
+
+**Interpolation.** Every placeholder is **interpolated** from two sources:
+the git-tracked `.dev-team-reports/test-improve/<slug>/data/` directory
+(`test-counts-before.json`, `test-counts-after.json` if Phase 8 ran,
+`baseline-coverage.json`, `baseline-mutation.json` in `baseline+kill-loop`
+mode, and `coverage-history.json` — copied there by the step above, or
+already present when the canonical copy was absent), and the process/audit
+state still under `.claude/memory/test-improve/<slug>/` (`phase-0.md`,
+`phase-1.md`, `phase-4.md`, `phase-5-review.json`, `phase-7-review.json` if
+Phase 7 ran, `waivers.json`, `phase-8.md`), plus
 `.dev-team-reports/test-improve/<slug>/refactor-backlog.md` if Phase 6 chose
-`[b]` or Phase 8 wrote a no-refactor-mode entry to it, `waivers.json`,
-`phase-8.md`, `test-counts-after.json` if Phase 8 ran). No placeholder is
-left literal. The **baseline artifacts** (`baseline-coverage.json`, and
-`baseline-mutation.json` in `baseline+kill-loop` mode) resolve from the knob-7
-baseline write path that **Phase 2 owns** (which also carries the gitignore
-caveat) — so the delta report reads the same numbers wherever Phase 2 persisted
-them.
+`[b]` or Phase 8 wrote a no-refactor-mode entry to it. No placeholder is left
+literal.
 
 **Empty-section rule.** Sections with no data render `_Not applicable —
 <reason>._` (e.g. § 6 when Phase 7 was declined reads "*Phase 7 not run —
@@ -709,14 +827,20 @@ are never omitted or hidden — this keeps the report shape stable across runs.
 
 **Parent-issue-or-FEATURE.md link update.** When the run used a **parent
 tracker** (Phase 0 selected `--parent <url>`), the parent issue is updated
-with a link to `.dev-team-reports/test-improve/<repo-slug>-<date>.md`. When the run
-was **local-files-only**, `.claude/plans/test-improve/FEATURE.md` is updated with
-the same link.
+with a link to `.dev-team-reports/test-improve/<slug>/report-<date>.md`. When
+the run was **local-files-only**, `.claude/plans/test-improve/FEATURE.md` is
+updated with the same link.
 
-**Regeneratable-from-memory contract.** The report is a **pure function** of
-`.claude/memory/test-improve/<slug>/`. Deleting the report file and re-invoking
-Phase 9 against the same memory directory reproduces the report byte-for-byte
-— no run-time state is consulted outside the memory directory.
+**Regeneratable-from-tracked-data contract.** The report is a **pure
+function** of the git-tracked `.dev-team-reports/test-improve/<slug>/data/`
+directory (the numbers) plus the process/audit state still under
+`.claude/memory/test-improve/<slug>/` (the narrative). Deleting the report
+file and re-invoking Phase 9 reproduces the report byte-for-byte: when the
+`.claude/memory/` working copies are still present (a normal same-session
+run), the "Copy report data" step above refreshes `data/` from them first;
+when they are absent (e.g. a fresh checkout where only `data/` survived), the
+same step falls back to reading `data/`'s already-present copies directly —
+either path reproduces the identical report.
 
 ### After Phase 9 — Re-run-with-refactor close-out prompt
 

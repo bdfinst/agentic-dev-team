@@ -75,11 +75,12 @@ def test_scan_orders_6_between_5_and_7(tmp_path):
 # auto-detect resolution — highest completed + 1
 # ---------------------------------------------------------------------------
 
-def test_only_phase_0_resumes_at_1(tmp_path):
+def test_only_phase_0_resumes_at_2(tmp_path):
+    """#1422: Phase 2 (Baseline) now executes immediately after Phase 0."""
     root = make_phases(tmp_path / "s", "0")
     code, payload = result(root)
     assert code == 0
-    assert payload["resolved_phase"] == "1"
+    assert payload["resolved_phase"] == "2"
     assert payload["latest_completed"] == "phase-0.md"
 
 
@@ -89,13 +90,25 @@ def test_phase_4_resumes_at_5(tmp_path):
     assert payload["resolved_phase"] == "5"
 
 
-def test_no_arg_resolves_to_next_tracked_phase(tmp_path):
-    root = make_phases(tmp_path / "s", "0", "1", "2")
+def test_phase_2_completed_no_phase_1_resumes_at_1(tmp_path):
+    """#1422: Phase 3 (Gherkin derive) has no numbered progress file, so the
+    auto-detect skips over it the same way it always has — only the skip
+    TARGET changed, from Phase 4 (old sequential order) to Phase 1 (new
+    execution order, where Analyze now immediately follows Derive Gherkin)."""
+    root = make_phases(tmp_path / "s", "0", "2")
     _, payload = result(root)
-    # Phase 3 (Gherkin derive) has no numbered progress file, so the next
-    # tracked phase after 2 is 4, not 3.
-    assert payload["resolved_phase"] == "4"
+    assert payload["resolved_phase"] == "1"
     assert "latest completed: phase-2.md" in payload["reason"]
+
+
+def test_phase_1_completed_resumes_at_4(tmp_path):
+    """#1422: once Phase 1 (Analyze) has completed, the highest-ranked
+    tracked phase is Phase 1 itself (its execution rank is higher than
+    Phase 2's under the new order), and Phase 4 (Triage) follows it."""
+    root = make_phases(tmp_path / "s", "0", "2", "1")
+    _, payload = result(root)
+    assert payload["resolved_phase"] == "4"
+    assert "latest completed: phase-1.md" in payload["reason"]
 
 
 # ---------------------------------------------------------------------------
@@ -209,11 +222,14 @@ def test_derive_slug_uses_last_path_segment(tmp_path):
 # ---------------------------------------------------------------------------
 
 def test_cli_via_memory_dir(tmp_path, capsys):
+    """#1422: with phase-0 and phase-1 tracked, Phase 1 (rank 2) outranks
+    Phase 2 (rank 1) under the new execution order, so the highest completed
+    phase is Phase 1 and the resume target is Phase 4."""
     root = make_phases(tmp_path / "s", "0", "1")
     rc = main(["--memory-dir", str(root)])
     assert rc == 0
     payload = json.loads(capsys.readouterr().out)
-    assert payload["resolved_phase"] == "2"
+    assert payload["resolved_phase"] == "4"
 
 
 def test_cli_error_exit_code(tmp_path):
@@ -281,7 +297,9 @@ def test_legacy_multi_slug_tree_migrates_and_autodetect_finds_new_location(
 
     assert rc == 0
     payload = json.loads(capsys.readouterr().out)
-    assert payload["resolved_phase"] == "2"
+    # #1422: phase-0 + phase-1 tracked -> Phase 1 (rank 2) outranks Phase 2
+    # (rank 1) under the new execution order -> resumes at Phase 4.
+    assert payload["resolved_phase"] == "4"
 
     new_root = tmp_path.resolve() / ".claude" / "memory" / "test-improve"
     assert (new_root / "widget-lib" / "phase-0.md").is_file()

@@ -13,7 +13,11 @@ files for the per-language pending marker and fails, listing every remaining
 file:line, when any stub was never filled in.
 
 Per-language pending markers (`gherkin-derive/SKILL.md` Step 4's table,
-reused here — not re-derived). C# carries two markers: `PendingStepException`
+reused here — not re-derived). The extension -> (language label, markers)
+table itself lives in `lib/_bdd_markers.py` (issue #1421 bug 5) — shared with
+`lib/stub_extractors/__init__.py`, which needs the same mapping and used to
+reach up into this module's `_MARKERS_BY_EXT` via a `sys.path` layer
+inversion to get it. C# carries two markers: `PendingStepException`
 is Reqnroll's current auto-suggested stub, and `StepIsPending()` is its
 deprecated-since-3.3.4 predecessor — still recognized so an older or
 not-yet-regenerated stub isn't a false negative
@@ -56,6 +60,7 @@ from pathlib import Path
 _HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(_HERE / "lib"))
 
+from _bdd_markers import MARKERS_BY_EXT as _MARKERS_BY_EXT
 from _vendored_tree import find_files as _find_files
 
 # See gherkin_failure_path_gate.py's identical constant/helper: strips
@@ -71,17 +76,6 @@ def _safe_for_terminal(text: str, limit: int = 200) -> str:
     scanned-file text to a terminal (the `--json` path is unaffected —
     `json.dumps` already escapes control characters)."""
     return _CONTROL_CHARS.sub("", text)[:limit]
-
-# Extension (lowercase) -> (language label, pending marker substrings).
-_MARKERS_BY_EXT = {
-    ".js": ("JS/TS", ("this.pending()",)),
-    ".ts": ("JS/TS", ("this.pending()",)),
-    ".mjs": ("JS/TS", ("this.pending()",)),
-    ".cjs": ("JS/TS", ("this.pending()",)),
-    ".java": ("Java", ("PendingException",)),
-    ".cs": ("C#", ("PendingStepException", "StepIsPending()")),
-    ".go": ("Go", ("godog.ErrPending",)),
-}
 
 
 def find_step_definition_files(directories: list[Path]) -> list[Path]:

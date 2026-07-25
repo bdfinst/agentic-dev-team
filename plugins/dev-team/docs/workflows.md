@@ -262,8 +262,8 @@ warrants — and the
 **File:** [`skills/test-improve/SKILL.md`](../skills/test-improve/SKILL.md)
 **Role:** orchestrator.
 
-The full seven-phase reference — phase-by-phase gates, arguments, and the flow
-diagram — lives on its own page: **[test-improve.md](test-improve.md)**.
+The full ten-phase (0-9) reference — phase-by-phase gates, arguments, and the
+flow diagram — lives on its own page: **[test-improve.md](test-improve.md)**.
 
 ---
 

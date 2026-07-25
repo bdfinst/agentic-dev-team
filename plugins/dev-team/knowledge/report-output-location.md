@@ -97,12 +97,17 @@ JSON result and chat summary for `/review-agent`, the prose summary for
 `/code-review`, and the temp-file/chat fallback for `/triage`. The file
 write is strictly additive.
 
-## Gitignored by default
+## Gitignored by default, with a tracked exception for report data
 
 `.dev-team-reports/` is gitignored by default — both in this repo's own
 `.gitignore` and in `/project-init`'s JS-scaffold `.gitignore` template for
 newly-provisioned target repos — matching the existing treatment of
-`reports/` and the prior `.triage/` convention it replaces.
+`reports/` and the prior `.triage/` convention it replaces. Both use the
+same anchored deny-all + re-included tracked-exception shape (`/.dev-team-reports/*`
+followed by `!/.dev-team-reports/test-improve/`), not a blanket directory
+ignore — `/test-improve`'s `<slug>/data/` sibling directory (issue #1412) is
+git-tracked so its report is a pure function of tracked data and regeneratable
+from a fresh checkout.
 
 ## Related
 

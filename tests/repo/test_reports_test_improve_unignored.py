@@ -1,7 +1,12 @@
-"""#1126: `reports/test-improve/` must be git-tracked (un-ignored) so an
-opt-in `/test-improve` baseline-metrics report lands in the run's PR, while
-ad-hoc `reports/` output stays ignored and the parity-fixture reports path
-(see #574 / #572) stays tracked.
+"""#1126 introduced a `reports/test-improve/` un-ignore rule so an opt-in
+`/test-improve` baseline-metrics report could land in the run's PR. #1412
+removes that opt-in entirely and its baseline data (Slice 1): every run now
+writes unconditionally under the git-tracked `.dev-team-reports/test-improve/`
+domain instead (see `test_dev_team_reports_gitignore_consolidation.py`), so
+the bare `reports/test-improve/` rule is dead — nothing writes there anymore
+— and this file now pins that it correctly falls back to the ad-hoc
+`reports/` ignore-by-default, alongside the parity-fixture reports path
+(see #574 / #572), which stays tracked.
 
 These assertions run `git check-ignore` against the repo's real `.gitignore`
 so they verify the shipped rule, not a copy. `git check-ignore` matches on the
@@ -37,9 +42,13 @@ def _is_ignored(relpath: str) -> bool:
     return result.returncode == 0
 
 
-def test_reports_test_improve_is_tracked():
-    assert not _is_ignored("reports/test-improve/some-repo-2026-01-01.md")
-    assert not _is_ignored("reports/test-improve/baseline-coverage.json")
+def test_bare_reports_test_improve_is_no_longer_tracked():
+    """#1412: the `!/reports/test-improve/` exception is removed — nothing
+    writes to the bare (non-`.dev-team-reports/`-prefixed) path anymore, so
+    it now falls back to the ad-hoc `/reports/*` deny-all like any other
+    untracked reports/ content."""
+    assert _is_ignored("reports/test-improve/some-repo-2026-01-01.md")
+    assert _is_ignored("reports/test-improve/baseline-coverage.json")
 
 
 def test_adhoc_reports_output_stays_ignored():
