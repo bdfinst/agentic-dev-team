@@ -187,7 +187,7 @@ def test_duplicate_title_differing_only_by_whitespace_is_still_skipped():
     candidates = [_unit("  Create order succeeds with valid payload  ")]
     result = gfm.merge_scenarios(ORDERS_FEATURE, "Orders API", candidates)
     assert result.added_titles == []
-    assert result.skipped_duplicate_titles
+    assert result.skipped_duplicate_titles == ["  Create order succeeds with valid payload  "]
 
 
 def test_no_existing_text_synthesizes_fresh_block():
@@ -379,7 +379,9 @@ def test_cli_merge_title_mismatch_exits_2_and_leaves_file_unchanged(tmp_path):
         "Nonexistent Surface",
     )
     assert proc.returncode == 2
+    assert "could not locate Feature" in proc.stderr
     assert "Nonexistent Surface" in proc.stderr
+    assert "error=feature-not-found" in proc.stderr
     assert existing.read_text(encoding="utf-8") == before
 
 
@@ -400,7 +402,8 @@ def test_cli_merge_malformed_existing_block_exits_2_and_leaves_file_unchanged(tm
         "Orders API",
     )
     assert proc.returncode == 2
-    assert "parse failure" in proc.stderr.lower() or "malformed" in proc.stderr.lower()
+    assert "structure could not be parsed" in proc.stderr
+    assert "error=malformed-feature-block" in proc.stderr
     assert existing.read_text(encoding="utf-8") == before
 
 

@@ -29,11 +29,11 @@ from pathlib import Path
 _HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(_HERE / "lib"))
 
+from _gherkin_text import FEATURE_PREFIX as _FEATURE_PREFIX
+from _gherkin_text import SCENARIO_OUTLINE_PREFIX as _SCENARIO_OUTLINE_PREFIX
+from _gherkin_text import SCENARIO_PREFIX as _SCENARIO_PREFIX
+from _gherkin_text import stripped as _stripped
 from _vendored_tree import iter_files as _iter_files
-
-_FEATURE_PREFIX = "Feature:"
-_SCENARIO_OUTLINE_PREFIX = "Scenario Outline:"
-_SCENARIO_PREFIX = "Scenario:"
 
 # Entries are literal substrings, not stems — "exceeds" does not match
 # "exceed" — matching gherkin_feature_merge.py's `is_stale` in spirit (a
@@ -67,10 +67,6 @@ def find_feature_files(directories: list) -> list:
             if path.suffix == ".feature":
                 found.append(path)
     return sorted(set(found))
-
-
-def _stripped(line: str) -> str:
-    return line.rstrip("\r\n")
 
 
 def parse_features(text: str) -> list:
