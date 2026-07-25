@@ -124,3 +124,86 @@ def test_resolve_file_no_legacy_file_returns_new_path_only(tmp_path: Path) -> No
     expected = tmp_path.resolve() / ".claude" / "metrics" / "cost-metering.jsonl"
     assert result == expected
     assert not expected.exists()
+
+
+# --- category_dir() ---------------------------------------------------------
+
+
+def test_category_dir_joins_subpath_without_side_effects(tmp_path: Path) -> None:
+    _init_repo(tmp_path)
+    result = artifact_paths.category_dir("memory", tmp_path) / "test-improve" / "slug-a"
+    expected = tmp_path.resolve() / ".claude" / "memory" / "test-improve" / "slug-a"
+    assert result == expected
+    assert not (tmp_path / ".claude").exists()
+    assert not (tmp_path / "memory").exists()
+
+
+# --- migrate_dir() -----------------------------------------------------------
+
+
+def test_migrate_dir_moves_every_untracked_file_in_a_multi_slug_tree(tmp_path: Path) -> None:
+    _init_repo(tmp_path)
+    for slug in ("slug-a", "slug-b"):
+        for phase in ("phase-0.md", "phase-1.md"):
+            f = tmp_path / "memory" / "test-improve" / slug / phase
+            f.parent.mkdir(parents=True, exist_ok=True)
+            f.write_text(f"{slug}/{phase}\n")
+
+    artifact_paths.migrate_dir("memory", "test-improve", tmp_path)
+
+    new_root = tmp_path.resolve() / ".claude" / "memory" / "test-improve"
+    for slug in ("slug-a", "slug-b"):
+        for phase in ("phase-0.md", "phase-1.md"):
+            moved = new_root / slug / phase
+            assert moved.read_text() == f"{slug}/{phase}\n"
+            assert not (tmp_path / "memory" / "test-improve" / slug / phase).exists()
+
+
+def test_migrate_dir_leaves_a_git_tracked_file_in_place(tmp_path: Path) -> None:
+    env = _init_repo(tmp_path)
+    tracked = tmp_path / "memory" / "test-improve" / "slug-a" / "notes.md"
+    tracked.parent.mkdir(parents=True, exist_ok=True)
+    tracked.write_text("tracked\n")
+    subprocess.run(
+        ["git", "add", "memory/test-improve/slug-a/notes.md"],
+        cwd=tmp_path,
+        env=env,
+        check=True,
+    )
+    untracked = tmp_path / "memory" / "test-improve" / "slug-a" / "phase-0.md"
+    untracked.write_text("untracked\n")
+
+    artifact_paths.migrate_dir("memory", "test-improve", tmp_path)
+
+    assert tracked.exists()
+    assert tracked.read_text() == "tracked\n"
+    new_root = tmp_path.resolve() / ".claude" / "memory" / "test-improve" / "slug-a"
+    assert not (new_root / "notes.md").exists()
+    assert (new_root / "phase-0.md").read_text() == "untracked\n"
+    assert not untracked.exists()
+
+
+def test_migrate_dir_skips_an_excluded_basename_even_if_untracked(tmp_path: Path) -> None:
+    _init_repo(tmp_path)
+    backlog = tmp_path / "memory" / "test-improve" / "slug-a" / "refactor-backlog.md"
+    backlog.parent.mkdir(parents=True, exist_ok=True)
+    backlog.write_text("backlog\n")
+    sibling = tmp_path / "memory" / "test-improve" / "slug-a" / "phase-0.md"
+    sibling.write_text("sibling\n")
+
+    artifact_paths.migrate_dir(
+        "memory", "test-improve", tmp_path, exclude={"refactor-backlog.md"}
+    )
+
+    assert backlog.exists()
+    assert backlog.read_text() == "backlog\n"
+    new_root = tmp_path.resolve() / ".claude" / "memory" / "test-improve" / "slug-a"
+    assert not (new_root / "refactor-backlog.md").exists()
+    assert (new_root / "phase-0.md").read_text() == "sibling\n"
+    assert not sibling.exists()
+
+
+def test_migrate_dir_no_legacy_tree_is_a_no_op(tmp_path: Path) -> None:
+    _init_repo(tmp_path)
+    artifact_paths.migrate_dir("memory", "test-improve", tmp_path)
+    assert not (tmp_path / ".claude").exists()

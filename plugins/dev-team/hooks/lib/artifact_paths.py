@@ -134,10 +134,72 @@ def resolve_file(
     return new_path
 
 
+def category_dir(category: str, root: "Path | str | None" = None) -> Path:
+    """Return `<project-root>/.claude/<category>`. Pure path-join, no side effects.
+
+    Public, generic promotion of the internal per-name accessors
+    (`metrics_dir()`/`memory_dir()`/`plans_dir()`) for an arbitrary category
+    string — callers join any further subpath themselves.
+    """
+    return _category_dir(category, root)
+
+
+def migrate_dir(
+    category: str,
+    subpath: str,
+    root: "Path | str | None" = None,
+    exclude: "set[str] | None" = None,
+) -> None:
+    """Move every untracked file under a legacy directory tree into place.
+
+    Walks `<project-root>/<category>/<subpath>/` (the entire subtree in one
+    call, not scoped to a single slug) and moves each untracked file to the
+    identical relative path under `.claude/<category>/<subpath>/`. A
+    git-tracked file is left in place. A file whose basename appears in
+    `exclude` is left in place even if untracked. A destination that already
+    exists is left untouched (never overwritten).
+
+    Fail-open: a failure to create a destination directory or move one file
+    logs a diagnostic line to stderr and continues with the next file —
+    never raises.
+    """
+    base = project_root(start=root)
+    legacy_root = base / category / subpath
+    if not legacy_root.is_dir():
+        return
+
+    excluded = exclude or set()
+    new_root = base / ".claude" / category / subpath
+
+    for legacy_path in legacy_root.rglob("*"):
+        if not legacy_path.is_file():
+            continue
+        if legacy_path.name in excluded:
+            continue
+        if _is_git_tracked(legacy_path, base):
+            continue
+
+        rel = legacy_path.relative_to(legacy_root)
+        new_path = new_root / rel
+        if new_path.exists():
+            continue
+
+        try:
+            new_path.parent.mkdir(parents=True, exist_ok=True)
+            shutil.move(str(legacy_path), str(new_path))
+        except OSError as exc:
+            print(
+                f"[artifact_paths] failed to migrate {legacy_path} -> {new_path}: {exc}",
+                file=sys.stderr,
+            )
+
+
 __all__ = (
     "project_root",
     "metrics_dir",
     "memory_dir",
     "plans_dir",
     "resolve_file",
+    "category_dir",
+    "migrate_dir",
 )
