@@ -345,7 +345,9 @@ in the missing set (regardless of key presence — its AST graph builds keyless)
 The per-tool mechanics below are unchanged; Step 4c only decides *whether* each
 runs. Each remains user-scoped/gitignored exactly as before, except Graphify's
 documented repo-level native integration — which is written on any Graphify
-accept (it does not require a key).
+accept (it does not require a key) — and the `.mcp.json` machine-specific-path
+hygiene standing check (#1416, filed under Repowise's sub-section below),
+which touches this repo's own `.gitignore`.
 
 #### CodeGraph — strictly personal, never committed
 
@@ -458,12 +460,24 @@ Run this tool's install/index through the `repowise-setup` skill (or the
 `.repowise/` to git's **global** ignore so the index never clutters the repo,
 and runs a **keyless** index (`--index-only`, no provider key requested).
 
+The install steps below run only when Step 4c's keyless-group opt-in accepts
+and Repowise is in the missing set. **The one exception is the `.mcp.json`
+standing check at the end of this sub-section (#1416)**, which runs on every
+`/project-init` pass regardless of the group's outcome — accept, decline, or
+already-present — the same carve-out the Graphify sub-section's own Standing
+check (#1367) makes below.
+
 **Install steps (executed only when the all-or-none group is accepted):**
 
 1. Install: prefer `uv tool install repowise`, else `pipx install repowise`,
    else `python3 -m pip install --user repowise`.
 2. Index keyless: run the repowise index in `--index-only` mode so no API key
-   is requested; the index lands under `.repowise/` (gitignored).
+   is requested; the index lands under `.repowise/` (gitignored). This step
+   (or an equivalent `repowise init` invocation) is known to write a
+   project-root `.mcp.json` registering the repowise MCP server, with an
+   `args` array baking in this machine's absolute filesystem path — the
+   **standing check below** (not gated behind this install branch) covers it
+   regardless of whether `.mcp.json` existed before this run.
 3. Register the MCP server for this Claude Code installation (user scope), the
    same way any personal MCP server is added — point the user at
    `claude mcp add --help` for the exact invocation. **Server-name caveat:**
@@ -481,6 +495,55 @@ and runs a **keyless** index (`--index-only`, no provider key requested).
 command -v repowise > /dev/null 2>&1 && echo "installed" || echo "not-installed"
 [ -d "${PWD}/.repowise" ] && echo "indexed" || echo "not-indexed"
 ```
+
+**Standing check — `.mcp.json` machine-specific-path hygiene, runs every pass
+(issues #1376, #1416).** Unlike the install steps above, this check is **not**
+gated behind the all-or-none group's accept/decline branch or the
+"already present" skip — a repo can carry an ungitignored `.mcp.json` from a
+Repowise install that predates this guard, and once Repowise shows as
+already-present the accept-gated install steps above never re-run (the same
+shape issue #1367's Graphify settings.json standing check, below, already
+solves for a different pollution class). It is filed under the Repowise
+sub-section because that install is the more common source of a project's
+`.mcp.json`, but the check itself is repo-wide — it also covers a `.mcp.json`
+written by `index-codebase` or a hand-registered MCP server. So run this scan
+unconditionally, once per `/project-init` (and therefore `/setup`) run,
+idempotently appending the same `.gitignore` marker block `/setup` applies
+for its own downstream backstop check, so the two never duplicate an entry
+regardless of which one runs first. The marker prefix (everything up to and
+including `machine-specific MCP config`) must stay byte-identical between
+the two blocks — `grep -qF` matches that prefix only, so the trailing
+issue-number suffix may differ, but changing the prefix itself in only one
+place breaks idempotency (`tests/skills/test_project_init_mcp_json_hygiene.py`
+pins both copies):
+
+```bash
+MCP_MARKER="# dev-team hygiene — machine-specific MCP config"
+if ! grep -qF "$MCP_MARKER" .gitignore 2>/dev/null; then
+  printf '\n%s\n%s\n' \
+    "$MCP_MARKER (absolute-path pollution — issues #1376, #1416)" \
+    ".mcp.json" >> .gitignore
+  echo "mcp-json-gitignore-updated"
+else
+  echo "mcp-json-gitignore-already-covered"
+fi
+```
+
+This check is intentionally **not** scoped to the downstream-only, Step 2
+`in-repo`-skip case the way `/setup`'s own backstop check is — a
+machine-specific path in `.mcp.json` breaks every clone or teammate
+regardless of whether the repo is this plugin's own checkout or a downstream
+project, so this standing check applies in both. If `.mcp.json` is already
+tracked by git (`git ls-files --error-unmatch .mcp.json` exits 0), do not
+untrack it automatically — tell the operator to run `git rm --cached
+.mcp.json` themselves, same posture as #1376, and record that outcome too.
+Merge one of `{"mcp_hygiene": {"gitignore": "added"}}`,
+`{"mcp_hygiene": {"gitignore": "already-covered"}}`, or (when the
+already-tracked case above fires) `{"mcp_hygiene": {"gitignore":
+"added-but-tracked"}}` into `.claude/init-state.json` — a top-level key
+rather than nested under `repowise`, since this check runs independently of
+Repowise's own install state. Report the outcome as its own line in Step 6's
+summary below (and the caller's own report, when `/setup` is the caller).
 
 #### Graphify — native integration, opt-in, with corruption/pollution guards
 
@@ -696,6 +759,10 @@ After every configured lane probes green, give the user:
   CodeGraph is strictly user-level/personal and Graphify is the repo-level
   native integration; its AST build is keyless, with semantic enrichment as a
   key-gated add-on.
+- **`.mcp.json` machine-specific-path hygiene** (issue #1416, runs
+  independently of Repowise's own install/decline state): added the block,
+  found it already covered, or flagged that `.mcp.json` is still git-tracked
+  and needs `git rm --cached`.
 - Files created (greenfield only).
 
 ## Greenfield JS/TS scaffold

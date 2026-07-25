@@ -46,7 +46,7 @@ def test_mcp_json_gets_its_own_idempotent_gitignore_block():
 
 def test_mcp_json_block_is_downstream_only_like_the_runtime_artifacts_block():
     body = collapsed(SETUP)
-    mcp_section = body[body.index("machine-specific-path hygiene (issue #1376)"):]
+    mcp_section = body[body.index("machine-specific-path hygiene (issues #1376, #1416)"):]
     assert "downstream-projects-only" in mcp_section[:400]
 
 
