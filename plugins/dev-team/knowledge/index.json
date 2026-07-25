@@ -3571,7 +3571,7 @@
       "anchor": "step-4-wire-the-bdd-framework-bdd-runner-mode-only"
     },
     "Step 5 — Output": {
-      "summary": "`features/<surface>.feature` files (all non-`none` modes).",
+      "summary": "`features/<surface>.feature` files (all non-`none` modes) — **merged, not",
       "anchor": "step-5-output"
     },
     "Step 6 — Report": {
