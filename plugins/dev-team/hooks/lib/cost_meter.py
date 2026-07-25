@@ -61,18 +61,18 @@ report   --transcript T [--json]
          (main vs subagent), plus the session total. The acceptance command:
          "after a run, print actual tokens spent."
 
-record   --transcript T --log metrics/cost-metering.jsonl
+record   --transcript T --log .claude/metrics/cost-metering.jsonl
          Append one session-summary line to the append-only metrics log
-         (follows the metrics/config-changelog.jsonl convention). Used by the
+         (follows the .claude/metrics/config-changelog.jsonl convention). Used by the
          Stop hook. Idempotent on directory creation; never errors out loudly.
 
-regression --log metrics/cost-metering.jsonl [--tolerance 0.5] [--window N]
+regression --log .claude/metrics/cost-metering.jsonl [--tolerance 0.5] [--window N]
          Compare the most recent session's total cost against the rolling mean
          of prior sessions; exit 1 if it exceeds mean * (1 + tolerance). With
          --window N the baseline is the mean of only the N most recent prior
          sessions (a windowed rolling baseline) instead of all-time mean.
 
-pace     --log metrics/cost-metering.jsonl [--budget B] [--period-days 30]
+pace     --log .claude/metrics/cost-metering.jsonl [--budget B] [--period-days 30]
          [--window-days 7]
          Account-level pace guidance (#142): cumulative spend over a rolling
          window, the implied daily rate, and the projected spend for a billing
@@ -96,6 +96,12 @@ from pathlib import Path
 # hooks/lib/cost_meter.py -> plugin root is three parents up.
 _PLUGIN_ROOT = Path(__file__).resolve().parent.parent.parent
 _DEFAULT_PRICING = _PLUGIN_ROOT / "knowledge/model-pricing.json"
+
+_LIB_DIR = Path(__file__).resolve().parent
+if str(_LIB_DIR) not in sys.path:
+    sys.path.insert(0, str(_LIB_DIR))
+
+import artifact_paths  # noqa: E402
 
 # ---------------------------------------------------------------------------
 # Incremental `record` state — a byte offset + running aggregates, keyed by
@@ -753,9 +759,9 @@ def main(argv: list[str]) -> int:
     p.add_argument("--json", action="store_true")
     p = sub.add_parser("record")
     p.add_argument("--transcript", required=True)
-    p.add_argument("--log", default="metrics/cost-metering.jsonl")
+    p.add_argument("--log", default=str(artifact_paths.metrics_dir() / "cost-metering.jsonl"))
     p = sub.add_parser("regression")
-    p.add_argument("--log", default="metrics/cost-metering.jsonl")
+    p.add_argument("--log", default=str(artifact_paths.metrics_dir() / "cost-metering.jsonl"))
     p.add_argument("--tolerance", type=float, default=0.5)
     p.add_argument(
         "--window",
@@ -764,7 +770,7 @@ def main(argv: list[str]) -> int:
         help="baseline = mean of the N most recent prior sessions (0 = all-time mean)",
     )
     p = sub.add_parser("pace")
-    p.add_argument("--log", default="metrics/cost-metering.jsonl")
+    p.add_argument("--log", default=str(artifact_paths.metrics_dir() / "cost-metering.jsonl"))
     p.add_argument(
         "--budget",
         type=float,

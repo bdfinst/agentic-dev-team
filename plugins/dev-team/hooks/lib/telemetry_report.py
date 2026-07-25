@@ -1,15 +1,15 @@
 #!/usr/bin/env python3
 """Telemetry report (issues #106, #135).
 
-Aggregates the opt-in, privacy-clean event log written by hooks/telemetry.sh
-(metrics/telemetry.jsonl) into: command usage counts, skill usage counts
-(including agent-/auto-invoked skills, counted distinctly from user-typed
-commands — #135), and the pre-commit review gate's bypass rate
-(bypassed / (fired + bypassed)). With telemetry disabled the log doesn't exist
-and this reports that nothing was collected — satisfying "with it disabled,
-nothing leaves the machine."
+Aggregates the opt-in, privacy-clean event log written by hooks/telemetry.py
+(~/.claude/metrics/telemetry.jsonl, home-scoped per #1405/#1406 Slice 1) into:
+command usage counts, skill usage counts (including agent-/auto-invoked
+skills, counted distinctly from user-typed commands — #135), and the
+pre-commit review gate's bypass rate (bypassed / (fired + bypassed)). With
+telemetry disabled the log doesn't exist and this reports that nothing was
+collected — satisfying "with it disabled, nothing leaves the machine."
 
-Usage: telemetry_report.py [--log metrics/telemetry.jsonl] [--json]
+Usage: telemetry_report.py [--log ~/.claude/metrics/telemetry.jsonl] [--json]
 """
 
 from __future__ import annotations
@@ -19,6 +19,8 @@ import json
 import sys
 from collections import Counter
 from pathlib import Path
+
+_DEFAULT_LOG = Path.home() / ".claude" / "metrics" / "telemetry.jsonl"
 
 
 def aggregate(log: Path) -> dict:
@@ -63,7 +65,7 @@ def aggregate(log: Path) -> dict:
 
 def main(argv: list[str]) -> int:
     ap = argparse.ArgumentParser(description=__doc__)
-    ap.add_argument("--log", default="metrics/telemetry.jsonl")
+    ap.add_argument("--log", default=str(_DEFAULT_LOG))
     ap.add_argument("--json", action="store_true")
     args = ap.parse_args(argv)
 
