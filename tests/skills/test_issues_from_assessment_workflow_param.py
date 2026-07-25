@@ -59,7 +59,7 @@ def test_argument_hint_frontmatter_names_workflow():
 
 
 def test_skill_memory_paths_use_workflow_template():
-    assert grep(r"memory/<workflow>/", _text())
+    assert grep(r"\.claude/memory/<workflow>/", _text())
 
 
 def test_skill_plan_paths_use_workflow_template():

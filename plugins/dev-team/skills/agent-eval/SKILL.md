@@ -187,7 +187,7 @@ python3 scripts/eval_ablation.py --mode agent \
   --expected-dir evals/expected \
   --baseline-trials-dir baseline-trials --ablated-trials-dir ablated-trials \
   --ablated-agent <agent> --model <model> \
-  --append .claude/metrics/eval-ablation.jsonl
+  --append metrics/eval-ablation.jsonl
 ```
 
 This appends one `schema: "eval-ablation/v1"` JSONL record (`recorded_at`,
@@ -199,7 +199,7 @@ baseline didn't pass every trial — report that plainly, do not paraphrase it
 into a drop/retain recommendation.
 
 **Console report.** Show a small table: baseline vs ablated vs delta for the
-three dimensions, the verdict, and the path (`.claude/metrics/eval-ablation.jsonl`)
+three dimensions, the verdict, and the path (`metrics/eval-ablation.jsonl` — deliberately not relocated, see Step 5.11)
 the record was appended to.
 
 ## Cache (fingerprint replay)

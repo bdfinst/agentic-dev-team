@@ -75,7 +75,7 @@ def test_skill_plan_paths_use_workflow_template_no_literal_plans_test_modernize(
 
 
 def test_skill_memory_paths_reference_memory_workflow():
-    assert grep(r"memory/<workflow>/", _text())
+    assert grep(r"\.claude/memory/<workflow>/", _text())
 
 
 def test_skill_plan_paths_reference_plans_workflow_phase_7():

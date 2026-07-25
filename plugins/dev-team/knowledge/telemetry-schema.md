@@ -1,6 +1,6 @@
 # Telemetry Schema Reference
 
-Every `metrics/*.jsonl` and `metrics/*.json` file the dev-team plugin writes,
+Every `.claude/metrics/*.jsonl` and `.claude/metrics/*.json` file the dev-team plugin writes,
 in one place, so `session-analysis`, `/session-review`, `/harness-audit`,
 `/cost-report`, and future cross-machine aggregation (#178) compose against
 stable, named schemas instead of reverse-engineering emitters.
@@ -17,7 +17,7 @@ unchanged precedent — not a new exception.
 Each section below names: fields, types, emitter, consent gating, and
 consumers. A companion test
 (`tests/hooks/test_boundary_events.py::test_schema_doc_covers_all_metrics_paths`)
-cross-checks every `metrics/*.jsonl` / `metrics/*.json` path string referenced
+cross-checks every `.claude/metrics/*.jsonl` / `.claude/metrics/*.json` path string referenced
 in shipped code against this doc's coverage and fails on omission.
 
 ---
@@ -369,7 +369,7 @@ Queued findings from the background session-analysis dispatch, before
 
 ---
 
-## `metrics/{date}-task-log.jsonl` (e.g. `2026-02-20-task-log.jsonl`)
+## `.claude/metrics/{date}-task-log.jsonl` (e.g. `2026-02-20-task-log.jsonl`)
 
 Self-reported per-task completion log, one file per calendar date.
 
@@ -411,7 +411,7 @@ are re-measured every convergence iteration.
 
 ## Adding a new stream
 
-1. Name it `metrics/<name>.jsonl` (or `.json` for a single-current-value
+1. Name it `.claude/metrics/<name>.jsonl` (or `.json` for a single-current-value
    file) — one stream per concern, matching existing precedent.
 2. Append-only, compact JSON (`separators=(",", ":")`) + trailing newline for
    JSONL streams.

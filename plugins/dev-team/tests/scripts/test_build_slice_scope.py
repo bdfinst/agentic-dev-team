@@ -62,7 +62,13 @@ def test_build_allowed_patterns_includes_bookkeeping_allowlist(tmp_path):
     plan_path = tmp_path / "myplan.md"
     text = "### Slice 1: alpha\n**Depends-on:** none\n**Files:** `a.ts`\n"
     patterns = build_slice_scope.build_allowed_patterns(plan_path, text, "1")
-    assert patterns == ["a.ts", "myplan.md", ".claude/memory/**", ".claude/metrics/**"]
+    assert patterns == [
+        "a.ts",
+        "myplan.md",
+        ".claude/memory/**",
+        ".claude/metrics/**",
+        "metrics/verify-log.jsonl",
+    ]
 
 
 # ---------------------------------------------------------------------------

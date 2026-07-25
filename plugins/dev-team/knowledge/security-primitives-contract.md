@@ -14,7 +14,7 @@ semver-policy: |
                   Consumers on prior major MUST be updated.
 ---
 
-# Security Primitives Contract v1.3.0
+# Security Primitives Contract v1.3.1
 
 This file is the single source of truth for the data envelopes exchanged between `plugins/dev-team/` (producer of primitives) and `plugins/security-assessment/` (consumer). Downstream plugins declare compatibility via `required-primitives-contract: ^1.0.0` in their `plugin.json`.
 

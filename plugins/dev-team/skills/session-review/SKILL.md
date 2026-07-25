@@ -42,7 +42,7 @@ You have been invoked with the `/session-review` command.
 
 - `--cwd <path>`: project whose transcripts to mine (default: current project).
 - `--transcript <file>`: analyze a specific transcript instead of auto-resolving.
-- `--out <report>`: report path (default: `reports/session-review-<date>.md`).
+- `--out <report>`: report path (default: `.dev-team-reports/session-review-<date>.md`).
 
 ## Steps
 
@@ -232,7 +232,7 @@ then you read only those few raw logs. This tier needs the cross-machine digests
 
 ### 4. Suggest (write the report)
 
-Write `reports/session-review-<date>.md` (or `--out`). Rank the suggestions and,
+Write `.dev-team-reports/session-review-<date>.md` (or `--out`). Rank the suggestions and,
 for each, record: the tag (`{token|rework|accuracy}` from the digest, or a Tier-2
 lens `{methodology|harness|devex}`), the evidence (metrics only), the concrete
 target artifact, the proposed change, and the hand-off destination from the table
