@@ -22,7 +22,9 @@ This is a config-file-only, home-scoped switch — `DEV_TEAM_TELEMETRY` and any
 project-scoped `<cwd>/.claude/telemetry.json` have no effect. When off,
 nothing is recorded and nothing leaves the machine.
 
-TRANSPORT: local-only. Events append to `<cwd>/metrics/telemetry.jsonl`.
+TRANSPORT: local-only. Events append to `~/.claude/metrics/telemetry.jsonl`;
+`artifact-usage.json` lives alongside it under the same home-scoped
+`~/.claude/metrics/` directory, never under a project's own `metrics/`.
 No network egress.
 
 Posture: record-only, fail-open. Never blocks; any error → exit 0.
@@ -69,6 +71,12 @@ _NO_VERIFY_RE = re.compile(r"(?:^|\s)-n(?:\s|$)")
 _INTERVENTION_RE = re.compile(r"^\s*(override|pause|stop)\b", re.IGNORECASE)
 
 
+def _home_metrics_dir() -> Path:
+    """`telemetry.jsonl` and `artifact-usage.json` always live here — never
+    under a project's own `metrics/` (#1405, Slice 1 Step 1.3)."""
+    return Path.home() / ".claude" / "metrics"
+
+
 def _isoformat_utc() -> str:
     # Match bash `date -u +%Y-%m-%dT%H:%M:%SZ`.
     return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
@@ -106,13 +114,15 @@ def _emit(log: Path, event: str, name: str, outcome: str, version: str) -> None:
         pass
 
 
-def _upsert_artifact_usage(cwd: Path, skill: str) -> None:
+def _upsert_artifact_usage(skill: str) -> None:
     """Atomically bump the use count for `skill` in artifact-usage.json.
 
-    Callers gate this on `telemetry_consent.is_enabled()` before invoking
-    it (see `main()`) — there is no separate per-writer consent check.
+    Always writes under the home-scoped `~/.claude/metrics/`, never a
+    project's own `metrics/` (#1405, Slice 1 Step 1.3). Callers gate this
+    on `telemetry_consent.is_enabled()` before invoking it (see `main()`)
+    — there is no separate per-writer consent check.
     """
-    usage_dir = cwd / "metrics"
+    usage_dir = _home_metrics_dir()
     usage_file = usage_dir / "artifact-usage.json"
     try:
         usage_dir.mkdir(parents=True, exist_ok=True)
@@ -127,7 +137,7 @@ def _upsert_artifact_usage(cwd: Path, skill: str) -> None:
                 existing = {}
         except (OSError, ValueError):
             sys.stderr.write(
-                "WARN: metrics/artifact-usage.json contained malformed JSON; discarding\n"
+                "WARN: ~/.claude/metrics/artifact-usage.json contained malformed JSON; discarding\n"
             )
             existing = {}
 
@@ -200,7 +210,7 @@ def main() -> int:
 
     hook_dir = Path(__file__).resolve().parent
     version = _load_plugin_version(hook_dir)
-    log = cwd / "metrics" / "telemetry.jsonl"
+    log = _home_metrics_dir() / "telemetry.jsonl"
 
     if event_name == "UserPromptSubmit":
         prompt = payload.get("prompt") or ""
@@ -220,7 +230,7 @@ def main() -> int:
             skill = tool_input.get("skill") or tool_input.get("name") or ""
             if isinstance(skill, str) and _SKILL_NAME_RE.match(skill):
                 _emit(log, "skill", skill, "invoked", version)
-                _upsert_artifact_usage(cwd, skill)
+                _upsert_artifact_usage(skill)
             return 0
         if tool == "Bash":
             cmd = tool_input.get("command") or ""
