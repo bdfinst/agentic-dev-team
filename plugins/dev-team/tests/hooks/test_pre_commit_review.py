@@ -273,3 +273,35 @@ def test_extra_staged_file_after_review_blocks(repo: Path) -> None:
     assert r.returncode == 2
     assert "BLOCKED" in r.stdout
     assert "BLOCKED" in r.stderr
+
+
+# ---------------------------------------------------------------------------
+# Degraded-import `_resolve_file` fallback (finding #5)
+# ---------------------------------------------------------------------------
+
+
+def test_import_error_fallback_resolves_under_dot_claude() -> None:
+    """When `from artifact_paths import resolve_file` fails, the module's
+    own fallback `_resolve_file` must still land under
+    `<repo-root>/.claude/<category>/<filename>` — not the bare
+    `Path(category) / filename` bug Step 4.4 eliminated for the normal
+    import path."""
+    import importlib.util
+
+    poisoned = dict(sys.modules)
+    poisoned["artifact_paths"] = None  # type: ignore[assignment]
+    real_modules = sys.modules
+    sys.modules = poisoned  # type: ignore[assignment]
+    try:
+        spec = importlib.util.spec_from_file_location(
+            "pre_commit_review_import_error_probe", _HOOK
+        )
+        assert spec is not None and spec.loader is not None
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+    finally:
+        sys.modules = real_modules
+
+    result = module._resolve_file("metrics", "gate-bypass-audit.jsonl")
+    expected = _REPO_ROOT / ".claude" / "metrics" / "gate-bypass-audit.jsonl"
+    assert result == expected
