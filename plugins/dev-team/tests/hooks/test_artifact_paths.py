@@ -66,3 +66,61 @@ def test_memory_dir_resolves_under_dot_claude(tmp_path: Path) -> None:
 def test_plans_dir_resolves_under_dot_claude(tmp_path: Path) -> None:
     _init_repo(tmp_path)
     assert artifact_paths.plans_dir(tmp_path) == tmp_path.resolve() / ".claude" / "plans"
+
+
+# --- resolve_file() ---------------------------------------------------------
+
+
+def test_resolve_file_migrates_an_untracked_legacy_file(tmp_path: Path) -> None:
+    _init_repo(tmp_path)
+    legacy = tmp_path / "metrics" / "cost-metering.jsonl"
+    legacy.parent.mkdir(parents=True)
+    legacy.write_text("legacy-content\n")
+
+    result = artifact_paths.resolve_file("metrics", "cost-metering.jsonl", tmp_path)
+
+    expected = tmp_path.resolve() / ".claude" / "metrics" / "cost-metering.jsonl"
+    assert result == expected
+    assert expected.read_text() == "legacy-content\n"
+    assert not legacy.exists()
+
+
+def test_resolve_file_leaves_a_git_tracked_legacy_file_in_place(tmp_path: Path) -> None:
+    env = _init_repo(tmp_path)
+    legacy = tmp_path / "memory" / "decisions.md"
+    legacy.parent.mkdir(parents=True)
+    legacy.write_text("tracked-content\n")
+    subprocess.run(["git", "add", "memory/decisions.md"], cwd=tmp_path, env=env, check=True)
+
+    result = artifact_paths.resolve_file("memory", "decisions.md", tmp_path)
+
+    expected = tmp_path.resolve() / ".claude" / "memory" / "decisions.md"
+    assert result == expected
+    assert legacy.exists()
+    assert legacy.read_text() == "tracked-content\n"
+    assert not expected.exists()
+
+
+def test_resolve_file_migrate_false_has_no_side_effects(tmp_path: Path) -> None:
+    _init_repo(tmp_path)
+    legacy = tmp_path / "metrics" / "cost-metering.jsonl"
+    legacy.parent.mkdir(parents=True)
+    legacy.write_text("legacy-content\n")
+
+    result = artifact_paths.resolve_file(
+        "metrics", "cost-metering.jsonl", tmp_path, migrate=False
+    )
+
+    expected = tmp_path.resolve() / ".claude" / "metrics" / "cost-metering.jsonl"
+    assert result == expected
+    assert legacy.exists()
+    assert legacy.read_text() == "legacy-content\n"
+    assert not (tmp_path / ".claude").exists()
+
+
+def test_resolve_file_no_legacy_file_returns_new_path_only(tmp_path: Path) -> None:
+    _init_repo(tmp_path)
+    result = artifact_paths.resolve_file("metrics", "cost-metering.jsonl", tmp_path)
+    expected = tmp_path.resolve() / ".claude" / "metrics" / "cost-metering.jsonl"
+    assert result == expected
+    assert not expected.exists()
