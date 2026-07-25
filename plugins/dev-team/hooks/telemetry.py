@@ -20,7 +20,9 @@ CONSENT: OFF by default. Enable by writing `{"enabled": true}` to the
 user-level `~/.claude/telemetry.json` (see `hooks/lib/telemetry_consent.py`).
 This is a config-file-only, home-scoped switch — `DEV_TEAM_TELEMETRY` and any
 project-scoped `<cwd>/.claude/telemetry.json` have no effect. When off,
-nothing is recorded and nothing leaves the machine.
+nothing is recorded and nothing leaves the machine. Detecting either now-inert
+legacy signal prints a one-time-per-session stderr notice pointing at the new
+home-scoped path.
 
 TRANSPORT: local-only. Events append to `~/.claude/metrics/telemetry.jsonl`;
 `artifact-usage.json` lives alongside it under the same home-scoped
@@ -69,6 +71,46 @@ _NO_VERIFY_RE = re.compile(r"(?:^|\s)-n(?:\s|$)")
 # `:`-suffixed payload following the keyword is captured by the prompt
 # but deliberately discarded — never logged.
 _INTERVENTION_RE = re.compile(r"^\s*(override|pause|stop)\b", re.IGNORECASE)
+
+
+def _legacy_signal_path(session_id: object) -> Path:
+    """Per-session dedupe marker for the one-time inert-legacy-signal notice
+    (#1405, Slice 1 Step 1.4). Mirrors context_ceiling_guard.py's marker
+    pattern: TMPDIR (or the system temp dir) keyed by a sanitized session id.
+    """
+    tmpdir = os.environ.get("TMPDIR") or tempfile.gettempdir()
+    session = re.sub(r"[^A-Za-z0-9_-]", "", str(session_id or "")) or "nosession"
+    return Path(tmpdir) / f"dev-team-telemetry-legacy-notice-{session}"
+
+
+def _legacy_signal_present(cwd: Path) -> bool:
+    """True when either now-inert consent mechanism is in use: the
+    `DEV_TEAM_TELEMETRY` env var, or a project-scoped
+    `<cwd>/.claude/telemetry.json`. Neither has any effect on consent."""
+    if os.environ.get("DEV_TEAM_TELEMETRY"):
+        return True
+    return (cwd / ".claude" / "telemetry.json").is_file()
+
+
+def _notice_legacy_signal_once(session_id: object) -> None:
+    """Emit a one-time-per-session stderr notice that consent moved to
+    `~/.claude/telemetry.json`. Fail-open: a marker read/write error must
+    never raise or block the calling hook."""
+    marker = _legacy_signal_path(session_id)
+    try:
+        if marker.is_file():
+            return
+    except OSError:
+        pass
+    sys.stderr.write(
+        "NOTE: dev-team telemetry consent now lives only in "
+        "~/.claude/telemetry.json. DEV_TEAM_TELEMETRY and a project-level "
+        ".claude/telemetry.json no longer have any effect.\n"
+    )
+    try:
+        marker.write_text("1", encoding="utf-8")
+    except OSError:
+        pass
 
 
 def _home_metrics_dir() -> Path:
@@ -186,6 +228,13 @@ def main() -> int:
 
     event_name = payload.get("hook_event_name") or ""
     session_id = payload.get("session_id")
+
+    # One-time-per-session notice (#1405, Slice 1 Step 1.4): unconditional,
+    # independent of telemetry_consent.is_enabled() — a user relying on the
+    # now-inert DEV_TEAM_TELEMETRY/project-config signal should hear about
+    # the move even while consent is off.
+    if _legacy_signal_present(cwd):
+        _notice_legacy_signal_once(session_id)
 
     # Boundary events (#859) are ALWAYS-ON — unlike telemetry.jsonl below,
     # they are not gated by telemetry consent (Ambiguity Log:
