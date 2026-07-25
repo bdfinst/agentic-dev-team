@@ -207,3 +207,23 @@ def test_migrate_dir_no_legacy_tree_is_a_no_op(tmp_path: Path) -> None:
     _init_repo(tmp_path)
     artifact_paths.migrate_dir("memory", "test-improve", tmp_path)
     assert not (tmp_path / ".claude").exists()
+
+
+# --- dev_team_reports_dir() --------------------------------------------------
+
+
+def test_dev_team_reports_dir_resolves_with_no_side_effects(tmp_path: Path) -> None:
+    _init_repo(tmp_path)
+    result = artifact_paths.dev_team_reports_dir(tmp_path)
+    expected = tmp_path.resolve() / ".dev-team-reports"
+    assert result == expected
+    assert not expected.exists()
+
+
+def test_dev_team_reports_dir_resolves_from_a_subdirectory(tmp_path: Path) -> None:
+    _init_repo(tmp_path)
+    sub = tmp_path / "sub"
+    sub.mkdir()
+    result = artifact_paths.dev_team_reports_dir(sub)
+    expected = tmp_path.resolve() / ".dev-team-reports"
+    assert result == expected
