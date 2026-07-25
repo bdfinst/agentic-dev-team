@@ -110,7 +110,7 @@ def test_no_verify_bypass_with_reason_allows_and_audits(repo: Path) -> None:
         extra_env={"GATE_BYPASS_REASON": "hotfix, review to follow"},
     )
     assert r.returncode == 0
-    audit = repo / "metrics" / "gate-bypass-audit.jsonl"
+    audit = repo / ".claude" / "metrics" / "gate-bypass-audit.jsonl"
     assert audit.exists()
     lines = audit.read_text().splitlines()
     assert len(lines) == 1
@@ -145,6 +145,32 @@ def test_bare_n_bypass_without_reason_blocks(repo: Path) -> None:
     assert "GATE_BYPASS_REASON" in r.stdout
 
 
+def test_bypass_audit_uses_project_root_not_process_cwd(repo: Path) -> None:
+    """Reproduces the bug: _record_bypass_audit built its path from a bare
+    `Path("metrics")`, which resolves against the process's real OS cwd —
+    not the project root the sibling emit_boundary_event(cwd, ...) call in
+    the same `if` block correctly uses. Invoking the hook from a
+    subdirectory of the project (process cwd = subdirectory) exposes the
+    divergence: pre-fix, the audit line lands under
+    <subdir>/metrics/gate-bypass-audit.jsonl; post-fix, it must land under
+    <project-root>/.claude/metrics/gate-bypass-audit.jsonl."""
+    sub = repo / "sub"
+    sub.mkdir()
+    r = _run(
+        {"tool_name": "Bash", "tool_input": {"command": "git commit --no-verify -m x"}},
+        cwd=sub,
+        extra_env={"GATE_BYPASS_REASON": "hotfix from a subdirectory"},
+    )
+    assert r.returncode == 0
+    audit = repo / ".claude" / "metrics" / "gate-bypass-audit.jsonl"
+    assert audit.exists()
+    entry = json.loads(audit.read_text().splitlines()[0])
+    assert entry["reason"] == "hotfix from a subdirectory"
+    # The bug's symptom: the line must NOT land under the subdirectory.
+    assert not (sub / "metrics" / "gate-bypass-audit.jsonl").exists()
+    assert not (sub / ".claude").exists()
+
+
 def test_bare_n_bypass_with_reason_allows_and_audits(repo: Path) -> None:
     r = _run(
         {"tool_name": "Bash", "tool_input": {"command": "git commit -n -m x"}},
@@ -152,7 +178,7 @@ def test_bare_n_bypass_with_reason_allows_and_audits(repo: Path) -> None:
         extra_env={"GATE_BYPASS_REASON": "emergency rollback"},
     )
     assert r.returncode == 0
-    audit = repo / "metrics" / "gate-bypass-audit.jsonl"
+    audit = repo / ".claude" / "metrics" / "gate-bypass-audit.jsonl"
     entry = json.loads(audit.read_text().splitlines()[0])
     assert entry["triggeredBy"] == "-n"
     assert entry["reason"] == "emergency rollback"

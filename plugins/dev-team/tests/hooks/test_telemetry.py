@@ -26,10 +26,11 @@ def _isolate_home(monkeypatch, tmp_path):
     return home
 
 
-def _enable_consent(monkeypatch, tmp_path) -> None:
+def _enable_consent(monkeypatch, tmp_path):
     home = _isolate_home(monkeypatch, tmp_path)
     (home / ".claude").mkdir()
     (home / ".claude" / "telemetry.json").write_text('{"enabled":true}')
+    return home
 
 
 # ---------------------------------------------------------------------------
@@ -38,7 +39,7 @@ def _enable_consent(monkeypatch, tmp_path) -> None:
 
 
 def test_env_var_has_no_effect(monkeypatch, tmp_path):
-    _isolate_home(monkeypatch, tmp_path)
+    home = _isolate_home(monkeypatch, tmp_path)
     monkeypatch.setenv("DEV_TEAM_TELEMETRY", "on")
     _feed(
         monkeypatch,
@@ -52,10 +53,11 @@ def test_env_var_has_no_effect(monkeypatch, tmp_path):
     )
     assert telemetry.main() == 0
     assert not (tmp_path / "metrics" / "telemetry.jsonl").exists()
+    assert not (home / ".claude" / "metrics" / "telemetry.jsonl").exists()
 
 
 def test_project_level_config_has_no_effect(monkeypatch, tmp_path):
-    _isolate_home(monkeypatch, tmp_path)
+    home = _isolate_home(monkeypatch, tmp_path)
     (tmp_path / ".claude").mkdir()
     (tmp_path / ".claude" / "telemetry.json").write_text('{"enabled":true}')
     _feed(
@@ -70,10 +72,11 @@ def test_project_level_config_has_no_effect(monkeypatch, tmp_path):
     )
     assert telemetry.main() == 0
     assert not (tmp_path / "metrics" / "telemetry.jsonl").exists()
+    assert not (home / ".claude" / "metrics" / "telemetry.jsonl").exists()
 
 
 def test_home_config_governs(monkeypatch, tmp_path):
-    _enable_consent(monkeypatch, tmp_path)
+    home = _enable_consent(monkeypatch, tmp_path)
     _feed(
         monkeypatch,
         json.dumps(
@@ -85,7 +88,8 @@ def test_home_config_governs(monkeypatch, tmp_path):
         ),
     )
     assert telemetry.main() == 0
-    assert (tmp_path / "metrics" / "telemetry.jsonl").exists()
+    assert (home / ".claude" / "metrics" / "telemetry.jsonl").exists()
+    assert not (tmp_path / "metrics" / "telemetry.jsonl").exists()
 
 
 # ---------------------------------------------------------------------------
@@ -113,34 +117,51 @@ def test_emit_appends_jsonl_with_trailing_newline(tmp_path):
 # ---------------------------------------------------------------------------
 
 
-def test_upsert_creates_entry(tmp_path):
-    telemetry._upsert_artifact_usage(tmp_path, "plan")
-    data = json.loads((tmp_path / "metrics" / "artifact-usage.json").read_text())
+def test_upsert_creates_entry(monkeypatch, tmp_path):
+    home = _isolate_home(monkeypatch, tmp_path)
+    telemetry._upsert_artifact_usage("plan")
+    data = json.loads((home / ".claude" / "metrics" / "artifact-usage.json").read_text())
     assert data["plan"]["use_count"] == 1
     assert data["plan"]["lifecycle"] == "active"
 
 
-def test_upsert_bumps_existing_count(tmp_path):
-    telemetry._upsert_artifact_usage(tmp_path, "plan")
-    telemetry._upsert_artifact_usage(tmp_path, "plan")
-    telemetry._upsert_artifact_usage(tmp_path, "plan")
-    data = json.loads((tmp_path / "metrics" / "artifact-usage.json").read_text())
+def test_upsert_bumps_existing_count(monkeypatch, tmp_path):
+    home = _isolate_home(monkeypatch, tmp_path)
+    telemetry._upsert_artifact_usage("plan")
+    telemetry._upsert_artifact_usage("plan")
+    telemetry._upsert_artifact_usage("plan")
+    data = json.loads((home / ".claude" / "metrics" / "artifact-usage.json").read_text())
     assert data["plan"]["use_count"] == 3
 
 
-def test_upsert_recovers_from_malformed_file(tmp_path, capsys):
-    (tmp_path / "metrics").mkdir()
-    (tmp_path / "metrics" / "artifact-usage.json").write_text("{not json")
-    telemetry._upsert_artifact_usage(tmp_path, "plan")
+def test_upsert_recovers_from_malformed_file(monkeypatch, tmp_path, capsys):
+    home = _isolate_home(monkeypatch, tmp_path)
+    (home / ".claude" / "metrics").mkdir(parents=True)
+    (home / ".claude" / "metrics" / "artifact-usage.json").write_text("{not json")
+    telemetry._upsert_artifact_usage("plan")
     warn = capsys.readouterr().err
     assert "malformed JSON" in warn
-    data = json.loads((tmp_path / "metrics" / "artifact-usage.json").read_text())
+    data = json.loads((home / ".claude" / "metrics" / "artifact-usage.json").read_text())
     assert data["plan"]["use_count"] == 1
 
 
-def test_upsert_trailing_newline_matches_bash(tmp_path):
-    telemetry._upsert_artifact_usage(tmp_path, "plan")
-    assert (tmp_path / "metrics" / "artifact-usage.json").read_text().endswith("\n")
+def test_upsert_trailing_newline_matches_bash(monkeypatch, tmp_path):
+    home = _isolate_home(monkeypatch, tmp_path)
+    telemetry._upsert_artifact_usage("plan")
+    assert (
+        (home / ".claude" / "metrics" / "artifact-usage.json").read_text().endswith("\n")
+    )
+
+
+def test_upsert_never_writes_under_a_project_directory(monkeypatch, tmp_path):
+    """Slice 1 Gherkin: 'artifact usage always lands under the home metrics
+    dir' — a project cwd must never receive metrics/artifact-usage.json."""
+    _isolate_home(monkeypatch, tmp_path)
+    project_dir = tmp_path / "project"
+    project_dir.mkdir()
+    monkeypatch.chdir(project_dir)
+    telemetry._upsert_artifact_usage("plan")
+    assert not (project_dir / "metrics" / "artifact-usage.json").exists()
 
 
 # ---------------------------------------------------------------------------
@@ -169,7 +190,7 @@ def test_main_consent_off_writes_nothing(monkeypatch, tmp_path):
 
 
 def test_main_user_prompt_records_command(monkeypatch, tmp_path):
-    _enable_consent(monkeypatch, tmp_path)
+    home = _enable_consent(monkeypatch, tmp_path)
     _feed(
         monkeypatch,
         json.dumps(
@@ -181,13 +202,15 @@ def test_main_user_prompt_records_command(monkeypatch, tmp_path):
         ),
     )
     assert telemetry.main() == 0
-    line = json.loads((tmp_path / "metrics" / "telemetry.jsonl").read_text().strip())
+    log = home / ".claude" / "metrics" / "telemetry.jsonl"
+    line = json.loads(log.read_text().strip())
     assert line["event"] == "command"
     assert line["name"] == "plan"
+    assert not (tmp_path / "metrics" / "telemetry.jsonl").exists()
 
 
 def test_main_non_slash_prompt_records_nothing(monkeypatch, tmp_path):
-    _enable_consent(monkeypatch, tmp_path)
+    home = _enable_consent(monkeypatch, tmp_path)
     _feed(
         monkeypatch,
         json.dumps(
@@ -199,11 +222,11 @@ def test_main_non_slash_prompt_records_nothing(monkeypatch, tmp_path):
         ),
     )
     assert telemetry.main() == 0
-    assert not (tmp_path / "metrics" / "telemetry.jsonl").exists()
+    assert not (home / ".claude" / "metrics" / "telemetry.jsonl").exists()
 
 
 def test_main_git_commit_fires_gate(monkeypatch, tmp_path):
-    _enable_consent(monkeypatch, tmp_path)
+    home = _enable_consent(monkeypatch, tmp_path)
     _feed(
         monkeypatch,
         json.dumps(
@@ -216,7 +239,8 @@ def test_main_git_commit_fires_gate(monkeypatch, tmp_path):
         ),
     )
     assert telemetry.main() == 0
-    payload = json.loads((tmp_path / "metrics" / "telemetry.jsonl").read_text().strip())
+    log = home / ".claude" / "metrics" / "telemetry.jsonl"
+    payload = json.loads(log.read_text().strip())
     assert payload["outcome"] == "fired"
 
 
@@ -225,7 +249,7 @@ def test_main_git_commit_fires_gate(monkeypatch, tmp_path):
     ["git commit --no-verify", "git commit -m msg -n", "git commit -n -m msg"],
 )
 def test_main_git_commit_bypass_variants(monkeypatch, tmp_path, cmd):
-    _enable_consent(monkeypatch, tmp_path)
+    home = _enable_consent(monkeypatch, tmp_path)
     _feed(
         monkeypatch,
         json.dumps(
@@ -238,12 +262,13 @@ def test_main_git_commit_bypass_variants(monkeypatch, tmp_path, cmd):
         ),
     )
     assert telemetry.main() == 0
-    payload = json.loads((tmp_path / "metrics" / "telemetry.jsonl").read_text().strip())
+    log = home / ".claude" / "metrics" / "telemetry.jsonl"
+    payload = json.loads(log.read_text().strip())
     assert payload["outcome"] == "bypassed"
 
 
 def test_main_skill_records_and_upserts(monkeypatch, tmp_path):
-    _enable_consent(monkeypatch, tmp_path)
+    home = _enable_consent(monkeypatch, tmp_path)
     _feed(
         monkeypatch,
         json.dumps(
@@ -256,15 +281,18 @@ def test_main_skill_records_and_upserts(monkeypatch, tmp_path):
         ),
     )
     assert telemetry.main() == 0
-    ev = json.loads((tmp_path / "metrics" / "telemetry.jsonl").read_text().strip())
+    metrics_dir = home / ".claude" / "metrics"
+    ev = json.loads((metrics_dir / "telemetry.jsonl").read_text().strip())
     assert ev["event"] == "skill"
     assert ev["name"] == "plan"
-    usage = json.loads((tmp_path / "metrics" / "artifact-usage.json").read_text())
+    usage = json.loads((metrics_dir / "artifact-usage.json").read_text())
     assert usage["plan"]["use_count"] == 1
+    assert not (tmp_path / "metrics" / "telemetry.jsonl").exists()
+    assert not (tmp_path / "metrics" / "artifact-usage.json").exists()
 
 
 def test_main_malformed_stdin_silent(monkeypatch, tmp_path):
-    _enable_consent(monkeypatch, tmp_path)
+    home = _enable_consent(monkeypatch, tmp_path)
     _feed(monkeypatch, "not-json")
     assert telemetry.main() == 0
-    assert not (tmp_path / "metrics" / "telemetry.jsonl").exists()
+    assert not (home / ".claude" / "metrics" / "telemetry.jsonl").exists()

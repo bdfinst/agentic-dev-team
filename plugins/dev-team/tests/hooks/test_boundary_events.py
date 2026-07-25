@@ -281,8 +281,9 @@ def test_pre_commit_review_bypass_emits_boundary_event(tmp_path: Path) -> None:
     assert events[0]["hook"] == "pre_commit_review"
     assert events[0]["decision"] == "bypass"
     assert events[0]["matched_rule"] == "--no-verify"
-    # The existing gate-bypass-audit.jsonl accountability record is untouched.
-    audit = _read_jsonl(tmp_path / "metrics" / "gate-bypass-audit.jsonl")
+    # The existing gate-bypass-audit.jsonl accountability record is untouched
+    # (now under .claude/metrics/ per the artifact_paths migration, Slice 4).
+    audit = _read_jsonl(tmp_path / ".claude" / "metrics" / "gate-bypass-audit.jsonl")
     assert len(audit) == 1
     assert audit[0]["reason"] == "hotfix, review to follow"
 
