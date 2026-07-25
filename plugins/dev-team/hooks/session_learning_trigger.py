@@ -20,6 +20,13 @@ import sys
 import tempfile
 from pathlib import Path
 
+_HOOK_DIR = Path(__file__).resolve().parent
+_LIB_DIR = _HOOK_DIR / "lib"
+if str(_LIB_DIR) not in sys.path:
+    sys.path.insert(0, str(_LIB_DIR))
+
+import telemetry_consent
+
 
 def _load_counter(state_file: Path) -> int:
     """Return the persisted counter, recovering to 0 on any error."""
@@ -124,6 +131,8 @@ def shell_quote(value: str) -> str:
 
 def main() -> int:
     if os.environ.get("DEV_TEAM_AUTO_REVIEW", "") != "on":
+        return 0
+    if not telemetry_consent.is_enabled():
         return 0
 
     # bash requires jq; Python does not, but keep parity on the "no jq" exit

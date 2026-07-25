@@ -66,6 +66,11 @@ from pathlib import Path
 
 _HOOK_DIR = Path(__file__).resolve().parent
 _PLUGIN_DIR = _HOOK_DIR.parent
+_LIB_DIR = _HOOK_DIR / "lib"
+if str(_LIB_DIR) not in sys.path:
+    sys.path.insert(0, str(_LIB_DIR))
+
+import telemetry_consent
 
 # Scratch file location: resolved relative to the project root (cwd when hook
 # fires) so it is session-local, not baked into the plugin install tree.
@@ -175,6 +180,8 @@ def _write_config_changelog(metrics_dir: Path, scratch: dict) -> None:
 
 def main() -> int:
     if _env_off("DEV_TEAM_TASK_METRICS"):
+        return 0
+    if not telemetry_consent.is_enabled():
         return 0
 
     payload = _read_stdin()

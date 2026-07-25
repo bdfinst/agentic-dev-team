@@ -39,6 +39,11 @@ from pathlib import Path
 
 _HOOK_DIR = Path(__file__).resolve().parent
 _COST_METER_LIB = _HOOK_DIR / "lib" / "cost_meter.py"
+_LIB_DIR = _HOOK_DIR / "lib"
+if str(_LIB_DIR) not in sys.path:
+    sys.path.insert(0, str(_LIB_DIR))
+
+import telemetry_consent
 
 
 def _read_stdin() -> str:
@@ -61,6 +66,8 @@ def _load_input(raw: str) -> dict:
 def main() -> int:
     # Opt-out short-circuit — matches the .sh's env-first check.
     if os.environ.get("DEV_TEAM_COST_METER") == "off":
+        return 0
+    if not telemetry_consent.is_enabled():
         return 0
 
     # Both jq and python3 must be present. The .sh checks both; the .py
