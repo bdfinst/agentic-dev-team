@@ -7,7 +7,6 @@ and the accepted false-positive limitation of the keyword heuristic.
 
 from __future__ import annotations
 
-import json
 import sys
 
 from _repo_root import REPO_ROOT as _REPO_ROOT
