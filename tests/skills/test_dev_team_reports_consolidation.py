@@ -13,6 +13,10 @@ REPORT_OUTPUT_LOCATION = (
     PLUGIN_ROOT / "knowledge" / "report-output-location.md"
 ).read_text(encoding="utf-8")
 
+REVIEW_AGENT_SKILL = (
+    PLUGIN_ROOT / "skills" / "review-agent" / "SKILL.md"
+).read_text(encoding="utf-8")
+
 
 def test_report_output_location_has_no_legacy_dev_team_reports_references():
     assert "DEV_TEAM_REPORTS" not in REPORT_OUTPUT_LOCATION, (
@@ -23,4 +27,15 @@ def test_report_output_location_has_no_legacy_dev_team_reports_references():
     assert ".dev-team-reports/" in REPORT_OUTPUT_LOCATION, (
         "report-output-location.md must document the consolidated "
         ".dev-team-reports/ location"
+    )
+
+
+def test_review_agent_skill_writes_to_consolidated_location():
+    assert "DEV_TEAM_REPORTS" not in REVIEW_AGENT_SKILL, (
+        "review-agent/SKILL.md must not reference the legacy bare "
+        "DEV_TEAM_REPORTS/ path"
+    )
+    assert ".dev-team-reports/<agent-name>.md" in REVIEW_AGENT_SKILL, (
+        "review-agent/SKILL.md step 4b must target "
+        ".dev-team-reports/<agent-name>.md"
     )
