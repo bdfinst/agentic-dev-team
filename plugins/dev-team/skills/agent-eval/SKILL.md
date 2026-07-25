@@ -199,8 +199,8 @@ baseline didn't pass every trial — report that plainly, do not paraphrase it
 into a drop/retain recommendation.
 
 **Console report.** Show a small table: baseline vs ablated vs delta for the
-three dimensions, the verdict, and the path (`metrics/eval-ablation.jsonl` — deliberately not relocated, see Step 5.11)
-the record was appended to.
+three dimensions, the verdict, and the path (`metrics/eval-ablation.jsonl` —
+deliberately not relocated under `.claude/`) the record was appended to.
 
 ## Cache (fingerprint replay)
 

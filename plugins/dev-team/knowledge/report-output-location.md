@@ -2,9 +2,17 @@
 
 `.dev-team-reports/` is the shared location convention for dev-team's
 human-invoked report-writing skills — `/review-agent`, `/code-review`
-(interactive mode), and `/triage`. It is a **literal, hardcoded directory
-name** — it is not an environment variable, and it is not currently
-overridable.
+(interactive mode), `/triage`, and `/session-review`. It is a **literal,
+hardcoded directory name** — it is not an environment variable, and it is
+not currently overridable.
+
+**Boundary: dated human-invoked reports vs. skill-internal scratch state.**
+A skill lands here when a human directly invokes it to produce a durable,
+readable deliverable (a review, a triage record, a session digest). Skills
+that write bare `metrics/`/`memory/` scratch data for their *own* internal
+bookkeeping — not a human-facing report — stay outside this convention even
+when the word "report" appears in their name or output; see each such
+skill's own path documentation for its rationale.
 
 This file defines *where* reports go. `knowledge/report-template.md` defines
 *what's inside* them (shared header/footer/empty-section contract) — the two
@@ -26,6 +34,8 @@ Only a **top-level human invocation** writes to `.dev-team-reports/`:
   writes a file, full stop).
 - `/triage` writes `.dev-team-reports/triage/<slug>.md` unconditionally — it
   has no orchestrator-internal caller today.
+- `/session-review` writes `.dev-team-reports/session-review-<date>.md` (or
+  `--out`) unconditionally — it has no orchestrator-internal caller today.
 
 `--internal` and `--json` are orthogonal flags on `/code-review`: `--json`
 governs output format and bypasses the review-fix loop; `--internal` only

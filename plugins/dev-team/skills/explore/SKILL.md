@@ -46,6 +46,6 @@ What should I investigate? Provide a charter: --charter '<goal>'
 
 1. **Charter quality** — evaluate the charter against the field-guide anti-patterns. On a match, emit a one-line warning and prompt to refine or re-run with `--force`; do not probe until acceptable or forced.
 2. **Reachability** — baseline-request the target. If unreachable, report the URL + error and stop (no report).
-3. **Run the skill** — invoke `exploratory-testing` with the parsed charter, budget, invariants, and flags. It runs the probe loop, adversarial expansion, defect classification, auto-triage, and writes `reports/explore-<YYYYMMDDThhmmss>.md` incrementally — ending with a "Next Exploration" section of 2–3 follow-up charters.
+3. **Run the skill** — invoke `exploratory-testing` with the parsed charter, budget, invariants, and flags. It runs the probe loop, adversarial expansion, defect classification, auto-triage, and writes `.dev-team-reports/explore-<YYYYMMDDThhmmss>.md` incrementally — ending with a "Next Exploration" section of 2–3 follow-up charters.
 
 Surface the report path and any triaged defects in chat. On `/stop`, the skill finalizes a partial report.

@@ -64,7 +64,7 @@ with no automatic reconciliation.
 | `refactor-backlog.md` (`/test-improve`) | `memory/test-improve/<slug>/refactor-backlog.md` | `.dev-team-reports/test-improve/<slug>/refactor-backlog.md` (a report, not runtime state — explicitly excluded from `migrate_dir()`'s `.claude/memory/` sweep; see the reports-domain row below) |
 | `/test-improve` reports output | `reports/test-improve/<slug>/` | `.dev-team-reports/test-improve/<slug>/` |
 | `/test-improve` plan artifacts | `plans/test-improve/` | `.claude/plans/test-improve/` |
-| `DEV_TEAM_REPORTS/`-domain writers (`/review-agent`, `/code-review` interactive, `/triage`, `/report-pdf`, `/ship`, `/exploratory-testing`) | `DEV_TEAM_REPORTS/...` / `reports/...` | `.dev-team-reports/...` |
+| `DEV_TEAM_REPORTS/`-domain writers (`/review-agent`, `/code-review` interactive, `/triage`, `/report-pdf`, `/ship`, `/exploratory-testing`, `/session-review`) | `DEV_TEAM_REPORTS/...` / `reports/...` | `.dev-team-reports/...` |
 
 **Practical consequence:** if a project has an in-flight `/build` session (a
 recorded `build-phase.json`) or unresolved review-value/reports content at the
