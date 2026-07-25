@@ -194,6 +194,18 @@ def migrate_dir(
             )
 
 
+def dev_team_reports_dir(root: "Path | str | None" = None) -> Path:
+    """Return `<project-root>/.dev-team-reports`. Pure path-join, no side effects.
+
+    Deliberately not folded into `category_dir()`/`resolve_file()`/
+    `migrate_dir()`'s `.claude/<category>` shape — the reports domain is a
+    single terminal directory with no sibling to select via a `category`
+    string, and no current caller needs single-filename or directory-walk
+    migration semantics for it.
+    """
+    return project_root(start=root) / ".dev-team-reports"
+
+
 __all__ = (
     "project_root",
     "metrics_dir",
@@ -202,4 +214,5 @@ __all__ = (
     "resolve_file",
     "category_dir",
     "migrate_dir",
+    "dev_team_reports_dir",
 )
