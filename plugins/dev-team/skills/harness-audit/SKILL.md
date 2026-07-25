@@ -56,7 +56,7 @@ exist:
   self-reports, and use `never_observed_*` to corroborate stale-component
   flags. Schema + join: see `docs/eval-system.md` → "Session-review trend
   digest".
-- `metrics/artifact-usage.json` — **per-artifact usage index** written by the
+- `~/.claude/metrics/artifact-usage.json` — **per-artifact usage index** written by the
   telemetry hook on each Skill invocation. Use `last_used_at` to identify
   artifacts that have never been observed (absent from the index) or are stale
   (absent or `last_used_at` > 30 days ago). Cross-reference with

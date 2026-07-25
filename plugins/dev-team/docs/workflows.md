@@ -165,7 +165,7 @@ whose full phase table appears at the end of this page — and
 | `/harness-e2e-check` | `skills/harness-e2e-check/SKILL.md` | On-demand end-to-end integration check of the harness's own mechanisms | `[--item N] [--output <path>]` |
 | `/headless-run` | `skills/headless-run/SKILL.md` | Run a skill/command headlessly in an isolated subprocess | `<prompt-or-slash-command> [--cwd DIR] [--model MODEL] [--timeout SECS]` |
 | `/cost-report` | `skills/cost-report/SKILL.md` | Report actual token spend and dollar cost of dispatched work and flag regressions | `[--transcript <path>] [--tolerance <n>]` |
-| `/artifact-lifecycle` | `skills/artifact-lifecycle/SKILL.md` | Report on skill and agent usage data from `metrics/artifact-usage.json` | `[--json]` |
+| `/artifact-lifecycle` | `skills/artifact-lifecycle/SKILL.md` | Report on skill and agent usage data from `~/.claude/metrics/artifact-usage.json` | `[--json]` |
 | `/telemetry` | `skills/telemetry/SKILL.md` | Manage and report the opt-in usage telemetry beacon | `[on\|off\|status\|report]` |
 | `/version` | `skills/version/SKILL.md` | Report the installed plugin version | `(none)` |
 | `/upgrade` | `skills/upgrade/SKILL.md` | Check for and apply plugin updates from within a session | `(none)` |

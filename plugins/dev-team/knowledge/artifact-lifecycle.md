@@ -1,8 +1,9 @@
 # Artifact Lifecycle States
 
 This file defines the lifecycle state model for tracked plugin artifacts (skills,
-agents). States are maintained in `metrics/artifact-usage.json` and consumed by
-the `/artifact-lifecycle` skill to report and propose transitions.
+agents). States are maintained in `~/.claude/metrics/artifact-usage.json`
+(home-scoped, never a project-scoped path) and consumed by the
+`/artifact-lifecycle` skill to report and propose transitions.
 
 ## States
 
@@ -37,7 +38,7 @@ lifecycle transitions regardless of `last_used_at`. A pinned artifact is exclude
 from the Stale Skills and Archive Candidates sections of `/artifact-lifecycle`
 output and is never proposed for disabling or removal.
 
-## artifact-usage.json Schema
+## ~/.claude/metrics/artifact-usage.json Schema
 
 ```json
 {
