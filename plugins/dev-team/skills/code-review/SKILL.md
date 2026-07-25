@@ -62,7 +62,7 @@ Arguments: $ARGUMENTS
 | `--no-slice` | Escape hatch — force the legacy single-pass review even on a large full-repo scope that would otherwise auto-engage sliced mode. |
 | `--json` | Output aggregated JSON to **stdout** instead of prose. Contractually non-interactive (for CI): never prompts; defaults to report-only (no code modified). |
 | `--pdf` | After the durable report is written, also render it to a sibling PDF via `hooks/lib/report_pdf.py`. See `knowledge/report-pdf-integration.md`. No-op with a message when no report file is written (`--json` or `--internal`); under `--json`, that status goes to **stderr** so stdout stays pure JSON. Additive: never changes the review's own output or exit status. |
-| `--internal` | This is an orchestrator-internal dispatch (`/build`'s Step 6 backstop review, `/test-improve`'s Phase 4/5 end-of-phase review loop) — skip the `DEV_TEAM_REPORTS/code-review.md` report write in step 7. Orthogonal to `--json`: `--internal` alone still runs the prose/fix-loop path; both sanctioned callers use `--internal` without `--json` specifically to keep the fix loop. `/build` and `/test-improve` are the only sanctioned callers of this flag today — see `knowledge/report-output-location.md` for `/ship`'s deliberate exception (writes the report by default, no `--internal`). |
+| `--internal` | This is an orchestrator-internal dispatch (`/build`'s Step 6 backstop review, `/test-improve`'s Phase 4/5 end-of-phase review loop) — skip the `.dev-team-reports/code-review.md` report write in step 7. Orthogonal to `--json`: `--internal` alone still runs the prose/fix-loop path; both sanctioned callers use `--internal` without `--json` specifically to keep the fix loop. `/build` and `/test-improve` are the only sanctioned callers of this flag today — see `knowledge/report-output-location.md` for `/ship`'s deliberate exception (writes the report by default, no `--internal`). |
 | `--init-risks` | Scaffold `ACCEPTED-RISKS.md` from `templates/ACCEPTED-RISKS.md.tmpl` if absent. Exits non-zero without overwriting if present. Schema: `knowledge/accepted-risks-schema.md`. |
 | `--force` | Skip pre-flight gates **and the documentation-only short-circuit** (forces a full review of doc-only changes). **Requires `--reason "<text>"`** — logged to `metrics/override-audit.jsonl`. |
 | `--reason "<text>"` | Override justification (required with `--force`) |
@@ -381,14 +381,14 @@ Otherwise (no `--json`): emit the prose summary using the Code Review Summary te
 `knowledge/report-output-location.md` for the shared write-scope convention
 this step follows. When `--internal`
 was **not** passed, write the identical prose summary to
-`DEV_TEAM_REPORTS/code-review.md` in the target repository's working
+`.dev-team-reports/code-review.md` in the target repository's working
 directory (creating the directory if absent), overwriting any existing
 file at that path — write it even when the review found zero issues. Print
-one confirmation line: `Report written: DEV_TEAM_REPORTS/code-review.md`,
-or `Report written: DEV_TEAM_REPORTS/code-review.md (replaced previous
+one confirmation line: `Report written: .dev-team-reports/code-review.md`,
+or `Report written: .dev-team-reports/code-review.md (replaced previous
 run)` when a file already existed at that path. If the write fails
 (permission/read-only): report `Cannot write
-DEV_TEAM_REPORTS/code-review.md: <error>` to chat and continue unaffected —
+.dev-team-reports/code-review.md: <error>` to chat and continue unaffected —
 the write failure is non-fatal. When `--internal` **was** passed, skip this
 write entirely (the fix loop and every other prose-mode behavior above are
 unaffected — `--internal` only suppresses this one write). Then continue to
@@ -399,7 +399,7 @@ file **was** written this run, render it to a sibling PDF per
 `knowledge/report-pdf-integration.md`:
 
 ```bash
-sh "$CLAUDE_PLUGIN_ROOT/hooks/py.sh" "$CLAUDE_PLUGIN_ROOT/hooks/lib/report_pdf.py" DEV_TEAM_REPORTS/code-review.md
+sh "$CLAUDE_PLUGIN_ROOT/hooks/py.sh" "$CLAUDE_PLUGIN_ROOT/hooks/lib/report_pdf.py" .dev-team-reports/code-review.md
 ```
 
 Surface the module's `Rendering PDF via <engine>…` and result lines. When no

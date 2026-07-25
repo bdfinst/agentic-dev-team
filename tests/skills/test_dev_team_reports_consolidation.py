@@ -17,6 +17,14 @@ REVIEW_AGENT_SKILL = (
     PLUGIN_ROOT / "skills" / "review-agent" / "SKILL.md"
 ).read_text(encoding="utf-8")
 
+CODE_REVIEW_SKILL = (
+    PLUGIN_ROOT / "skills" / "code-review" / "SKILL.md"
+).read_text(encoding="utf-8")
+
+CODE_REVIEW_OUTPUT_FORMAT = (
+    PLUGIN_ROOT / "skills" / "code-review" / "output-format.md"
+).read_text(encoding="utf-8")
+
 
 def test_report_output_location_has_no_legacy_dev_team_reports_references():
     assert "DEV_TEAM_REPORTS" not in REPORT_OUTPUT_LOCATION, (
@@ -38,4 +46,23 @@ def test_review_agent_skill_writes_to_consolidated_location():
     assert ".dev-team-reports/<agent-name>.md" in REVIEW_AGENT_SKILL, (
         "review-agent/SKILL.md step 4b must target "
         ".dev-team-reports/<agent-name>.md"
+    )
+
+
+def test_code_review_skill_and_output_format_write_to_consolidated_location():
+    assert "DEV_TEAM_REPORTS" not in CODE_REVIEW_SKILL, (
+        "code-review/SKILL.md must not reference the legacy bare "
+        "DEV_TEAM_REPORTS/ path"
+    )
+    assert ".dev-team-reports/code-review.md" in CODE_REVIEW_SKILL, (
+        "code-review/SKILL.md step 7 must target "
+        ".dev-team-reports/code-review.md"
+    )
+    assert "DEV_TEAM_REPORTS" not in CODE_REVIEW_OUTPUT_FORMAT, (
+        "code-review/output-format.md must not reference the legacy bare "
+        "DEV_TEAM_REPORTS/ path"
+    )
+    assert ".dev-team-reports/code-review" in CODE_REVIEW_OUTPUT_FORMAT, (
+        "code-review/output-format.md must describe the sliced-mode ledger "
+        "under .dev-team-reports/code-review/"
     )
