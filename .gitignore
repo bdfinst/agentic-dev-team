@@ -15,6 +15,10 @@ _mkdocs_src/
 # EnterWorktree tool scratch dirs (per-agent git worktrees, not repo content)
 .claude/worktrees/
 
+# Per-session turn-state tracked by the code-intelligence nudge hooks — never repo content
+.claude/code-intelligence-turn-state.json
+.claude/code-intelligence-turn-state.json.lock
+
 # Runtime metrics — ignored by default (deny-by-default: metrics/ is
 # generated-runtime-data territory — session digests, telemetry, review-value,
 # verify-log, boundary-events, cost-metering, learning-loop state, ... — a new
