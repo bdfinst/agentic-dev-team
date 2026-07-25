@@ -26,8 +26,22 @@ import json
 import sys
 from pathlib import Path
 
+_HERE = Path(__file__).resolve().parent
+sys.path.insert(0, str(_HERE / "lib"))
+
 from _vendored_tree import iter_files as _iter_files
 
+_FEATURE_PREFIX = "Feature:"
+_SCENARIO_OUTLINE_PREFIX = "Scenario Outline:"
+_SCENARIO_PREFIX = "Scenario:"
+
+# Entries are literal substrings, not stems — "exceeds" does not match
+# "exceed" — matching gherkin_feature_merge.py's `is_stale` in spirit (a
+# deliberately simple, best-effort check, not a semantic classifier). A
+# cleanup pass "fixing" what looks like a stray singular/plural mismatch
+# would silently change gate behavior: the documented false-positive test
+# (test_extra_keyword_can_produce_a_documented_false_positive) specifically
+# relies on "exceed" being absent from this list by default.
 DEFAULT_KEYWORDS = (
     "invalid",
     "error",
@@ -66,19 +80,19 @@ def parse_features(text: str) -> list:
     lines = text.splitlines(keepends=True)
     features = []
     header_indices = [
-        i for i, line in enumerate(lines) if _stripped(line).strip().startswith("Feature:")
+        i for i, line in enumerate(lines) if _stripped(line).strip().startswith(_FEATURE_PREFIX)
     ]
     for idx, header_index in enumerate(header_indices):
-        title = _stripped(lines[header_index]).strip()[len("Feature:") :].strip()
+        title = _stripped(lines[header_index]).strip()[len(_FEATURE_PREFIX) :].strip()
         end_index = header_indices[idx + 1] if idx + 1 < len(header_indices) else len(lines)
         body = lines[header_index + 1 : end_index]
         scenario_titles = []
         for line in body:
             stripped = _stripped(line).strip()
-            if stripped.startswith("Scenario Outline:"):
-                scenario_titles.append(stripped[len("Scenario Outline:") :].strip())
-            elif stripped.startswith("Scenario:"):
-                scenario_titles.append(stripped[len("Scenario:") :].strip())
+            if stripped.startswith(_SCENARIO_OUTLINE_PREFIX):
+                scenario_titles.append(stripped[len(_SCENARIO_OUTLINE_PREFIX) :].strip())
+            elif stripped.startswith(_SCENARIO_PREFIX):
+                scenario_titles.append(stripped[len(_SCENARIO_PREFIX) :].strip())
         features.append(
             {
                 "title": title,
@@ -119,7 +133,12 @@ def main(argv: list | None = None) -> int:
         "--keyword",
         dest="keywords",
         action="append",
-        help="Replace the default keyword list entirely (repeatable).",
+        help=(
+            "Discard the default keyword list and use only the --keyword "
+            "value(s) given (repeatable) — this REPLACES the defaults, it "
+            "does not add to them. To add one term on top of the defaults, "
+            "use --extra-keyword instead."
+        ),
     )
     parser.add_argument(
         "--extra-keyword",

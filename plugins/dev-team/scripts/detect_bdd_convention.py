@@ -29,7 +29,10 @@ from collections.abc import Iterable
 from pathlib import Path
 from typing import NamedTuple
 
-from _vendored_tree import iter_files as _iter_project_files
+_HERE = Path(__file__).resolve().parent
+sys.path.insert(0, str(_HERE / "lib"))
+
+from _vendored_tree import iter_files as _iter_files
 
 
 def _common_directory(paths: Iterable[Path]) -> Path:
@@ -53,7 +56,7 @@ def scan_feature_dir(root: Path) -> str | None:
     parents = sorted(
         {
             found.parent.relative_to(root)
-            for found in _iter_project_files(root)
+            for found in _iter_files(root)
             if found.suffix == ".feature"
         }
     )
@@ -133,7 +136,7 @@ def _text_declares(path: Path, token: str) -> bool:
 def scan_manifests(root: Path) -> list[tuple[str, str]]:
     """(framework, destination) pairs for every manifest signal under `root`."""
     hits: list[tuple[str, str]] = []
-    for path in _iter_project_files(root):
+    for path in _iter_files(root):
         for rule in MANIFEST_RULES:
             if not any(fnmatch.fnmatch(path.name, glob) for glob in rule.manifests):
                 continue
