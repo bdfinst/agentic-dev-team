@@ -178,3 +178,6 @@ DEV_TEAM_REPORTS/
 # the merged dataset (refactor-granularity-campaign.jsonl) is committed instead.
 docs/experiments/data/refactor-granularity-tdd-*.jsonl
 docs/experiments/data/refactor-granularity-test-after-*.jsonl
+
+# dev-team hygiene — machine-specific MCP config (absolute-path pollution — issues #1376, #1416)
+.mcp.json
