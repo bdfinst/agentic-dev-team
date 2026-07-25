@@ -10,7 +10,7 @@ Today `/gherkin-derive` writes a surface inventory (`gherkin.md`) and
 files separately track coverage and mutation-survivor counts. Nothing
 correlates the two. This script reads whatever of those files exist for one
 workflow run and emits one JSONL record per discovered scenario to
-`metrics/gherkin-derive-effectiveness.jsonl` (append-only, per the
+`.claude/metrics/gherkin-derive-effectiveness.jsonl` (append-only, per the
 `performance-metrics` skill's convention).
 
 **Attribution granularity is honest, not exact.** No file in this plugin
@@ -41,7 +41,13 @@ import re
 import sys
 from pathlib import Path
 
-DEFAULT_OUT = Path("metrics/gherkin-derive-effectiveness.jsonl")
+_HOOKS_LIB_DIR = Path(__file__).resolve().parent.parent / "hooks" / "lib"
+if str(_HOOKS_LIB_DIR) not in sys.path:
+    sys.path.insert(0, str(_HOOKS_LIB_DIR))
+
+import artifact_paths  # noqa: E402
+
+DEFAULT_OUT = artifact_paths.metrics_dir() / "gherkin-derive-effectiveness.jsonl"
 
 _TABLE_ROW_RE = re.compile(r"^\s*\|(.+)\|\s*$")
 _SEPARATOR_CELL_RE = re.compile(r"^\s*:?-{2,}:?\s*$")
