@@ -167,6 +167,22 @@ Feature: <surface>
     ...
 ```
 
+**Detect drift in retained scenarios (issue #1420).** For each existing
+scenario retained (not replaced) during Step 5's merge, extract the observed
+condition for that same path exactly the way this step already does when
+authoring a fresh scenario — a status code, exception, or validation rule.
+Then call `gherkin_feature_merge.py check-stale` to decide match/mismatch
+deterministically, never by eyeballing the comparison yourself:
+
+```
+python3 ${CLAUDE_PLUGIN_ROOT}/scripts/gherkin_feature_merge.py check-stale \
+  --existing <dir>/<surface>.feature --feature-title "<surface>" \
+  --observed "<scenario title>=<observed value>" --json
+```
+
+On a reported mismatch, leave the retained scenario's text unmodified — do
+not rewrite it — and record it for the Step 6 report.
+
 ## Step 4 — Wire the BDD framework (bdd-runner mode only)
 
 Skip this step entirely in `none` and `xunit-with-annotations` modes.
@@ -230,6 +246,16 @@ signal. This is what the operator uses to affirmatively accept each
 characterization scenario at the human gate (`/test-improve` Phase 3's
 review, before Phase 4 proceeds) before it is treated as accepted
 living documentation rather than an unverified hypothesis.
+
+**Call out possibly-stale retained scenarios separately (issue #1420) — never
+fold them into the general summary,** mirroring the characterization
+call-out above. Print a distinct "possibly stale existing scenario" section
+listing every `check-stale` finding as `<file>:<line> — asserts <X>, code now
+does <Y> — verify whether the code regressed or the requirement changed
+before editing either the scenario or the code`. This is the same
+action-oriented framing the characterization call-out already uses, not a
+bare data dump — it tells the operator what decision to make, not just that
+one exists.
 
 **`bdd-runner` mode — report the pending-stub gate honestly (issue #1391).**
 Choosing `bdd-runner` mode is a decision to end up with fully executing,
