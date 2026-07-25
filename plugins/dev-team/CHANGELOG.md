@@ -1,5 +1,84 @@
 # Changelog
 
+## [10.20.0](https://github.com/bdfinst/agentic-dev-team/compare/dev-team-v10.19.1...dev-team-v10.20.0) (2026-07-25)
+
+
+### Features
+
+* **gherkin-derive:** detect and report possibly-stale retained scenarios ([4bd10be](https://github.com/bdfinst/agentic-dev-team/commit/4bd10be31a8aeb7aba574bd9db110a2ec42e41aa))
+* **gherkin-derive:** headline bdd-runner completion state, reconcile with Phase 5 ([9d955af](https://github.com/bdfinst/agentic-dev-team/commit/9d955af9a53ac1a00568922da20978de4bde8fcf))
+* **gherkin-derive:** read-before-write, merge existing .feature files ([2a489fb](https://github.com/bdfinst/agentic-dev-team/commit/2a489fbb5c372efa764e618b8cb2cbb2d4ff539c))
+* **gherkin-derive:** wire failure-path gate into Step 6 and the Phase-3 human gate ([56ec6c2](https://github.com/bdfinst/agentic-dev-team/commit/56ec6c27538de0d86fd2ba0a490ac6d7fb791fbe))
+* **hooks:** add artifact_paths category directory accessors ([52ca35a](https://github.com/bdfinst/agentic-dev-team/commit/52ca35a0f8b1ca93fa84128fa4597eb20576de15))
+* **hooks:** add artifact_paths category_dir()/migrate_dir() for directory-level migration ([3eaec1e](https://github.com/bdfinst/agentic-dev-team/commit/3eaec1e4ab4be465902c277100d3a83913eff78b))
+* **hooks:** add artifact_paths.dev_team_reports_dir() accessor ([4d5ea20](https://github.com/bdfinst/agentic-dev-team/commit/4d5ea207e88e869fbbccb9aa6f10afb128537789))
+* **hooks:** add artifact_paths.project_root() git-root resolver ([7b1511f](https://github.com/bdfinst/agentic-dev-team/commit/7b1511f3b3ec013e1753f470f1348b1a418c638c))
+* **hooks:** add artifact_paths.resolve_file() per-file migration ([beaa4af](https://github.com/bdfinst/agentic-dev-team/commit/beaa4afd3e38f4800a835dc326eabf781901ffbd))
+* **hooks:** add home-scoped telemetry consent helper ([bbec3ad](https://github.com/bdfinst/agentic-dev-team/commit/bbec3ad628858021ad58899e178f56fac6809c2b))
+* **hooks:** one-time notice for inert legacy telemetry signal ([a5e1543](https://github.com/bdfinst/agentic-dev-team/commit/a5e1543dbbcf39a406bbc5a130b2977a1129e61b))
+* **scripts:** add gherkin_failure_path_gate coverage gate ([9f13654](https://github.com/bdfinst/agentic-dev-team/commit/9f1365435d2182973067c18c0a52ec3dc922ecbb))
+* **scripts:** add gherkin_feature_merge module (parser, merge, CLI, stale-check) ([1a4b906](https://github.com/bdfinst/agentic-dev-team/commit/1a4b9064a8603e3bc257c7dbf7dabbbb4dcda82a))
+* **test-improve:** track report data, fix stub merge resets, reorder phases for Gherkin signal ([1dd421e](https://github.com/bdfinst/agentic-dev-team/commit/1dd421ed52f1239c38c5d851783063d29fbea764))
+
+
+### Bug Fixes
+
+* **build:** bookkeeping allowlist covers .claude/-nested paths ([a7ea767](https://github.com/bdfinst/agentic-dev-team/commit/a7ea767e0a1a00268f7b32fe7d524246df5967c3))
+* close code-review gaps in epic [#1406](https://github.com/bdfinst/agentic-dev-team/issues/1406)'s final documentation sweep ([23625d5](https://github.com/bdfinst/agentic-dev-team/commit/23625d5c20f17cb895d41123d5bb5a989062f264))
+* close gaps found verifying the [#1406](https://github.com/bdfinst/agentic-dev-team/issues/1406) fix pass itself ([2bb310a](https://github.com/bdfinst/agentic-dev-team/commit/2bb310a172ed36db929e2632bf9d2e0f4b21a6d5))
+* **code-review:** sliced-mode ledger/consolidate relocate to .dev-team-reports/ ([fb0c584](https://github.com/bdfinst/agentic-dev-team/commit/fb0c5842bfa093f57ef653db51c2454b557a1963))
+* **docs:** dual-read fallback for cost-report/harness-audit's migrated metrics ([f900f6e](https://github.com/bdfinst/agentic-dev-team/commit/f900f6ee68ed6dc91cd3ff2da37abc47338a3d46))
+* **docs:** home-scope artifact-usage.json references to ~/.claude/metrics/ ([8947168](https://github.com/bdfinst/agentic-dev-team/commit/894716800dd1f42e3632a746360cf9507e87b4a6))
+* **gherkin-derive:** file-relative cross-references, regenerate skills index ([fa48fc2](https://github.com/bdfinst/agentic-dev-team/commit/fa48fc2dccb52865ad12d6bc29f0d403065e0fd4))
+* **hooks:** close symlink, fail-open, and path-traversal gaps in artifact migration ([557fa7e](https://github.com/bdfinst/agentic-dev-team/commit/557fa7e7f931e6ad0fde83e0399fc49719fd83e4))
+* **hooks:** default-off task/cost/session-learning writers, gated by telemetry consent ([cc00c6f](https://github.com/bdfinst/agentic-dev-team/commit/cc00c6f92b55d8f166a45481ec1bb8c514314c6b)), closes [#1407](https://github.com/bdfinst/agentic-dev-team/issues/1407)
+* **hooks:** harden telemetry.py's marker file and log write-failure diagnostics ([7e91eb7](https://github.com/bdfinst/agentic-dev-team/commit/7e91eb76493c66add6a0d0c6929f3b9a2f6a6580))
+* **hooks:** migrate remaining Stop/SubagentStop and shared-lib writers to shared helper ([098b98e](https://github.com/bdfinst/agentic-dev-team/commit/098b98e9289ca5bdf5c712026af2eaa20b2005b1))
+* **hooks:** pre_commit_review gate-bypass-audit uses real project root ([983335f](https://github.com/bdfinst/agentic-dev-team/commit/983335fb537369b0eb6ed751b18f02f902ee7fb2))
+* **hooks:** refactor-freeze guards use git-root resolution ([6021b45](https://github.com/bdfinst/agentic-dev-team/commit/6021b4536834cb79ef0aea082e556c18326b35d0))
+* **hooks:** sweep production-code default paths to .claude/-nested locations ([03cc2f8](https://github.com/bdfinst/agentic-dev-team/commit/03cc2f89321327ba9b656ecfbdaaca57317a00ce))
+* **hooks:** telemetry consent is config-file-only, home-scoped ([6e55811](https://github.com/bdfinst/agentic-dev-team/commit/6e558114d4f8e8faebafcddc82d57169a8300c3d))
+* **project-init:** gitignore .mcp.json when Repowise is provisioned ([abca725](https://github.com/bdfinst/agentic-dev-team/commit/abca7251c80e027ae98f165a410fdef64c7d64f0)), closes [#1416](https://github.com/bdfinst/agentic-dev-team/issues/1416)
+* relocate .gitignore rules for .claude/-nested paths and close AC11 gap ([06354e3](https://github.com/bdfinst/agentic-dev-team/commit/06354e3f19810a4f88cab7b05b5e31824732bf25))
+* **scripts:** address issues surfaced by fix-loop re-verification ([57e17af](https://github.com/bdfinst/agentic-dev-team/commit/57e17af89046b586e83dd5e7231f7c52a3823218))
+* **scripts:** extract shared _gherkin_text helper, fix error-message and naming findings ([8978d43](https://github.com/bdfinst/agentic-dev-team/commit/8978d43972e007e8782cf2867e73d5e9243359c6))
+* **scripts:** lazy-resolve gherkin rollup default path; empty stale allowlist ([c398650](https://github.com/bdfinst/agentic-dev-team/commit/c39865057a843dbd59d6f5b133c5a00532c9d0bb))
+* **scripts:** make gherkin_feature_merge's write atomic ([ccbb53a](https://github.com/bdfinst/agentic-dev-team/commit/ccbb53a93d5355d8cd08e4982f8ed847655f7998))
+* **scripts:** resolve code-review findings in gherkin-derive tooling ([b7dd323](https://github.com/bdfinst/agentic-dev-team/commit/b7dd323c0589ac415f1c08b1d20f25f1b37e281c))
+* **scripts:** stop gherkin_feature_merge from corrupting files without a trailing newline ([913050d](https://github.com/bdfinst/agentic-dev-team/commit/913050d25828e364b96f1c27ca95204e10e9642a))
+* **skills:** migrate stale memory/ path refs, add missing skipped_duplicate_titles doc ([8eaedda](https://github.com/bdfinst/agentic-dev-team/commit/8eaeddaffd2ccf801c4b394951e394f0b6bbc292))
+
+
+### Code Refactoring
+
+* **scripts:** extract shared vendored-tree pruning helper ([160beed](https://github.com/bdfinst/agentic-dev-team/commit/160beed12bde89b7590f44b56047554d8e0d77bf))
+* **scripts:** move _vendored_tree.py to scripts/lib/, align its callers ([f301f91](https://github.com/bdfinst/agentic-dev-team/commit/f301f91541d09662bedcb279d5a6a1dea804f4b1))
+* **scripts:** simplify redundant line-number arithmetic, fix lint findings ([c934e67](https://github.com/bdfinst/agentic-dev-team/commit/c934e6787ceb6b7c6d19ebe77f70eda898b37bc4))
+
+
+### Documentation
+
+* add operator-facing artifact-migration guidance ([213ce2a](https://github.com/bdfinst/agentic-dev-team/commit/213ce2ac472ca34fc8f7fc162e2e130eb8a8a1dd))
+* **build:** build-phase.json write instruction targets .claude/memory/ ([d7f645f](https://github.com/bdfinst/agentic-dev-team/commit/d7f645f58f00b0b33b4d91c14023fba4a54db151))
+* **build:** gate review-value.jsonl on telemetry consent, relocate to .claude/metrics/ ([abc8169](https://github.com/bdfinst/agentic-dev-team/commit/abc8169a278198f4532c6290cb1f043add2f4844)), closes [#1408](https://github.com/bdfinst/agentic-dev-team/issues/1408)
+* **code-review:** interactive write path targets .dev-team-reports/ ([3dcb6b1](https://github.com/bdfinst/agentic-dev-team/commit/3dcb6b1859bf3e9da74094159a251358ca009e2a))
+* **dev-team:** fix stale bare metrics/ and reports/ path references ([a20b31a](https://github.com/bdfinst/agentic-dev-team/commit/a20b31a7fef67a784db83899a5d6cf43d7a78758))
+* report-output-location describes consolidated .dev-team-reports/ ([ea8c28d](https://github.com/bdfinst/agentic-dev-team/commit/ea8c28d5a3e5ab963bbd90b5701d1e11f8f07d10))
+* **review-agent:** write path targets .dev-team-reports/ ([c5c6c07](https://github.com/bdfinst/agentic-dev-team/commit/c5c6c07f9ff05b596495e0ccfbe1a4c75d7d8de7))
+* **scripts:** document the merge command's TOCTOU limitation as a human decision ([1654c7c](https://github.com/bdfinst/agentic-dev-team/commit/1654c7ce0b1c4eeb1e6f0b9789d6907fb4335f7a))
+* **setup:** Step 11 targets .claude/ and .dev-team-reports/, corrects stale env-var claims ([f58f125](https://github.com/bdfinst/agentic-dev-team/commit/f58f1253cffdf7ae0547a09ce884e50545ae9f14))
+* sweep remaining DEV_TEAM_REPORTS/ references to .dev-team-reports/ ([9d13848](https://github.com/bdfinst/agentic-dev-team/commit/9d13848160a359d039cb5c200ed457275014c8aa))
+* sweep remaining legacy artifact-path references repo-wide (Slice 7) ([1936759](https://github.com/bdfinst/agentic-dev-team/commit/1936759e4de7406b1e1c608083efe05922cb0dea))
+* **telemetry:** document home-scoped consent-only on/off/status ([47b0485](https://github.com/bdfinst/agentic-dev-team/commit/47b0485abd259f5f3409774f205c0a91fc90c1f6))
+* **test-improve:** describe gherkin-derive merge-and-report behavior ([0e84025](https://github.com/bdfinst/agentic-dev-team/commit/0e840259b578d0c7be987ee98d5b25ead118ffbf))
+* **test-improve:** write-path instructions target .claude/ and .dev-team-reports/ domains ([9d15aa9](https://github.com/bdfinst/agentic-dev-team/commit/9d15aa9b349915573f3493e525161b370bb1d1d4))
+* **triage:** write path targets .dev-team-reports/ ([6c5a32d](https://github.com/bdfinst/agentic-dev-team/commit/6c5a32d7c31aac8eb8116aa292630cfb2a35a2a2))
+
+
+### Miscellaneous
+
+* **knowledge:** rebuild index after gherkin-derive/test-improve SKILL.md edits ([beb13b7](https://github.com/bdfinst/agentic-dev-team/commit/beb13b78fc51d32229155e448a01d0f9dff63dea))
+
 ## [10.19.1](https://github.com/bdfinst/agentic-dev-team/compare/dev-team-v10.19.0...dev-team-v10.19.1) (2026-07-24)
 
 
