@@ -303,7 +303,7 @@ python3 ${CLAUDE_PLUGIN_ROOT}/scripts/gherkin_stub_gate.py --dir <step-definitio
   definitions are generated in either).
 
 **Consistency with `/test-improve` Phase 5's own gate.** Phase 3's headline
-statement and Phase 5's later hard block (`test-improve/SKILL.md`'s Phase 5
+statement and Phase 5's later hard block (`../test-improve/SKILL.md`'s Phase 5
 section) describe the *same* pending-stub state at two different
 checkpoints, not two different requirements — both name `/build`
 (Phase 5's own per-Story build loop) as the remediation, so an operator never
