@@ -355,7 +355,10 @@ mode `none`, Phase 3 is **skipped**: `/gherkin-derive` is **not invoked**, no
 
 **Binding mode `xunit-with-annotations` — .feature files without a runner.**
 Invoke `/gherkin-derive --workflow test-improve --mode xunit-with-annotations`.
-The skill merges scenarios into `.feature` files under `features/test-improve/`
+The skill merges scenarios into `.feature` files under gherkin-derive's
+resolved destination (recorded in `memory/test-improve/<slug>/gherkin.md` —
+typically `features/test-improve/`, but dynamically resolved per the repo's
+own BDD convention, not a fixed path — see `/gherkin-derive`'s Step 2)
 — an existing file's prior content (hand-authored, or enriched by
 `/feature-coverage-analyzer`) is preserved; only genuinely new scenarios are
 appended (issue #1420) — and **no runner dependency** is added to the project.
@@ -370,9 +373,10 @@ selects the native parser (`cucumber-js` for JS/TS, `SpecFlow` / `Reqnroll` for
 
 - adds the parser as a project dependency,
 - generates pending step-definition stubs,
-- merges scenarios into `.feature` files under `features/test-improve/`,
-  preserving any existing enrichment the same way `xunit-with-annotations`
-  mode does (issue #1420).
+- merges scenarios into `.feature` files under its resolved destination
+  (same dynamic resolution as `xunit-with-annotations` mode, recorded in
+  `memory/test-improve/<slug>/gherkin.md`), preserving any existing
+  enrichment the same way that mode does (issue #1420).
 
 **Persistence.** Record the surface inventory and (in `bdd-runner` mode) the
 parser wiring to `memory/test-improve/<slug>/gherkin.md`.

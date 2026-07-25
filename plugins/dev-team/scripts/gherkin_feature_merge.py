@@ -36,9 +36,16 @@ import tempfile
 from dataclasses import dataclass
 from pathlib import Path
 
-_FEATURE_PREFIX = "Feature:"
+_HERE = Path(__file__).resolve().parent
+sys.path.insert(0, str(_HERE / "lib"))
+
+from _gherkin_text import FEATURE_PREFIX as _FEATURE_PREFIX
+from _gherkin_text import SCENARIO_OUTLINE_PREFIX as _SCENARIO_OUTLINE_PREFIX
+from _gherkin_text import SCENARIO_PREFIX as _SCENARIO_PREFIX
+from _gherkin_text import stripped as _stripped
+
 _BACKGROUND_PREFIX = "Background:"
-_SCENARIO_PREFIXES = ("Scenario Outline:", "Scenario:")
+_SCENARIO_PREFIXES = (_SCENARIO_OUTLINE_PREFIX, _SCENARIO_PREFIX)
 _EXAMPLES_PREFIX = "Examples:"
 
 # The two error sentinels, named once so every return site and every test
@@ -77,10 +84,6 @@ class ParseResult:
 def _split_lines(text: str) -> list:
     """Split preserving original line endings so reconstruction is byte-exact."""
     return text.splitlines(keepends=True)
-
-
-def _stripped(line: str) -> str:
-    return line.rstrip("\r\n")
 
 
 def _is_tag_line(line: str) -> bool:
@@ -439,11 +442,17 @@ def _cmd_merge(args: argparse.Namespace) -> int:
     if result.error is not None:
         if args.json:
             print(json.dumps({"written": False, "added_titles": [], "skipped_duplicate_titles": [], "error": result.error}))
-        else:
+        elif result.error == ERROR_FEATURE_NOT_FOUND:
             _write_error(
                 f"gherkin_feature_merge: could not locate Feature: {args.feature_title!r} "
                 f"in {args.existing} — no scenarios merged, existing file left untouched "
                 f"(error={result.error})"
+            )
+        else:
+            _write_error(
+                f"gherkin_feature_merge: found Feature: {args.feature_title!r} in {args.existing} "
+                f"but its structure could not be parsed — no scenarios merged, existing file "
+                f"left untouched (error={result.error})"
             )
         return 2
 

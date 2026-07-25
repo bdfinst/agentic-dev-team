@@ -73,7 +73,7 @@ class ManifestRule(NamedTuple):
     .feature files canonically live (repo-relative)."""
 
     framework: str
-    manifests: tuple[str, ...]  # fnmatch patterns on the manifest file name
+    manifest_globs: tuple[str, ...]  # fnmatch patterns on the manifest file name
     tokens: tuple[str, ...]  # dependency tokens that signal the framework
     destination: str | None  # None => CSPROJ_FEATURES_SUBDIR under the manifest's dir
 
@@ -138,7 +138,7 @@ def scan_manifests(root: Path) -> list[tuple[str, str]]:
     hits: list[tuple[str, str]] = []
     for path in _iter_files(root):
         for rule in MANIFEST_RULES:
-            if not any(fnmatch.fnmatch(path.name, glob) for glob in rule.manifests):
+            if not any(fnmatch.fnmatch(path.name, glob) for glob in rule.manifest_globs):
                 continue
             declares = (
                 _package_json_declares if path.name == "package.json" else _text_declares
