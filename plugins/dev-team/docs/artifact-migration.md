@@ -61,7 +61,7 @@ with no automatic reconciliation.
 | --- | --- | --- |
 | `review-value.jsonl` | `metrics/review-value.jsonl` | `.claude/metrics/review-value.jsonl` |
 | `build-phase.json` | `memory/build-phase.json` | `.claude/memory/build-phase.json` (read side uses `migrate=False` deliberately — it never moves the legacy file) |
-| `refactor-backlog.md` (`/test-improve`) | `memory/test-improve/<slug>/refactor-backlog.md` | `.claude/memory/test-improve/<slug>/refactor-backlog.md` (explicitly excluded from `migrate_dir()`'s sweep) |
+| `refactor-backlog.md` (`/test-improve`) | `memory/test-improve/<slug>/refactor-backlog.md` | `.dev-team-reports/test-improve/<slug>/refactor-backlog.md` (a report, not runtime state — explicitly excluded from `migrate_dir()`'s `.claude/memory/` sweep; see the reports-domain row below) |
 | `/test-improve` reports output | `reports/test-improve/<slug>/` | `.dev-team-reports/test-improve/<slug>/` |
 | `/test-improve` plan artifacts | `plans/test-improve/` | `.claude/plans/test-improve/` |
 | `DEV_TEAM_REPORTS/`-domain writers (`/review-agent`, `/code-review` interactive, `/triage`, `/report-pdf`, `/ship`, `/exploratory-testing`) | `DEV_TEAM_REPORTS/...` / `reports/...` | `.dev-team-reports/...` |

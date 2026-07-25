@@ -1344,9 +1344,9 @@
       "summary": "Queued findings from the background session-analysis dispatch, before",
       "anchor": "pending-reviewjsonl"
     },
-    "`metrics/{date}-task-log.jsonl` (e.g. `2026-02-20-task-log.jsonl`)": {
+    "`.claude/metrics/{date}-task-log.jsonl` (e.g. `2026-02-20-task-log.jsonl`)": {
       "summary": "Self-reported per-task completion log, one file per calendar date.",
-      "anchor": "metricsdate-task-logjsonl-eg-2026-02-20-task-logjsonl"
+      "anchor": "claudemetricsdate-task-logjsonl-eg-2026-02-20-task-logjsonl"
     },
     "`gherkin-derive-effectiveness.jsonl`": {
       "summary": "Per-scenario roll-up correlating a `/gherkin-derive`-discovered surface with",
@@ -5107,7 +5107,7 @@
       "anchor": "3b-raw-log-semantic-tier-only-the-worst-sessions-214-delta-ab"
     },
     "4. Suggest (write the report)": {
-      "summary": "Write `reports/session-review-<date>.md` (or `--out`).",
+      "summary": "Write `.dev-team-reports/session-review-<date>.md` (or `--out`).",
       "anchor": "4-suggest-write-the-report"
     },
     "5. Persist the trend (#129)": {

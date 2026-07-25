@@ -63,8 +63,15 @@ def declared_files_for_slice(plan_text: str, slice_id: str) -> list[str]:
 def bookkeeping_allowlist(plan_path: Path) -> list[str]:
     """The fixed allowlist every freeze must include so `/build` never
     self-blocks its own progress writes: the plan file itself, plus
-    `.claude/memory/**` and `.claude/metrics/**`."""
-    return [plan_path.name, ".claude/memory/**", ".claude/metrics/**"]
+    `.claude/memory/**`, `.claude/metrics/**`, and the AC3-exempt
+    `metrics/verify-log.jsonl` (deliberately not relocated under `.claude/`
+    — see docs/artifact-migration.md)."""
+    return [
+        plan_path.name,
+        ".claude/memory/**",
+        ".claude/metrics/**",
+        "metrics/verify-log.jsonl",
+    ]
 
 
 def build_allowed_patterns(plan_path: Path, plan_text: str, slice_id: str) -> list[str]:

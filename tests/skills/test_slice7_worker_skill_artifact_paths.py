@@ -9,10 +9,12 @@ pass, which scoped its edits to config-changelog.jsonl/review-value.jsonl
 only.
 
 `metrics/session-digest.jsonl` (feedback-learning/SKILL.md) is deliberately
-excluded — the plan's Step 5.11 explicitly names it (alongside
-eval-ablation.jsonl) as written by an out-of-scope workflow (/session-review)
-with no confirmed migration, unlike eval-variance.jsonl which Slice 6
-concretely relocated.
+excluded — the plan's Step 5.11 explicitly names it as written by the
+out-of-scope /session-review workflow with no confirmed migration.
+`metrics/eval-ablation.jsonl` (agent-eval/SKILL.md) is the same kind of
+exclusion but attributed to /agent-eval, not /session-review — see
+test_slice7_metrics_memory_artifact_paths.py, which pins it staying bare.
+Both are unlike eval-variance.jsonl, which Slice 6 concretely relocated.
 """
 
 from __future__ import annotations

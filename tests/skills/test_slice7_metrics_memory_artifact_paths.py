@@ -38,13 +38,18 @@ CONTINUE_SKILL = (PLUGIN_ROOT / "skills" / "continue" / "SKILL.md").read_text(
     encoding="utf-8"
 )
 
-_BARE_METRICS_RE = re.compile(r"(?<!\.claude/)metrics/(?!verify-log\.jsonl)")
+_BARE_METRICS_RE = re.compile(
+    r"(?<!\.claude/)metrics/(?!verify-log\.jsonl)(?!eval-ablation\.jsonl)"
+)
 _BARE_MEMORY_RE = re.compile(r"(?<!\.claude/)memory/")
 
 
 def test_agent_eval_ablation_and_variance_paths_relocated() -> None:
     assert not _BARE_METRICS_RE.search(AGENT_EVAL)
-    assert ".claude/metrics/eval-ablation.jsonl" in AGENT_EVAL
+    # eval-ablation.jsonl is out of scope per plan Step 5.11 (written by
+    # /agent-eval, deliberately not relocated) and deliberately stays bare.
+    assert "metrics/eval-ablation.jsonl" in AGENT_EVAL
+    assert ".claude/metrics/eval-ablation.jsonl" not in AGENT_EVAL
     assert ".claude/metrics/eval-variance.jsonl" in AGENT_EVAL
     assert ".claude/memory/eval-variance.json" in AGENT_EVAL
     # the unrelated .claude/evals/reports/ convention is untouched

@@ -18,6 +18,8 @@ _mkdocs_src/
 .claude/memory/*.md
 .claude/memory/build-phase.json
 .claude/memory/test-improve/
+.claude/memory/archive/
+.claude/memory/recon-*
 
 # Performance logs (generated at runtime)
 .claude/metrics/*.json
