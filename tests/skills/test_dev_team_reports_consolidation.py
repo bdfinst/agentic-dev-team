@@ -29,6 +29,18 @@ TRIAGE_SKILL = (
     PLUGIN_ROOT / "skills" / "triage" / "SKILL.md"
 ).read_text(encoding="utf-8")
 
+LEDGER_PY = (
+    PLUGIN_ROOT / "skills" / "code-review" / "scripts" / "ledger.py"
+).read_text(encoding="utf-8")
+
+CONSOLIDATE_PY = (
+    PLUGIN_ROOT / "skills" / "code-review" / "scripts" / "consolidate.py"
+).read_text(encoding="utf-8")
+
+SLICED_MODE = (
+    PLUGIN_ROOT / "skills" / "code-review" / "sliced-mode.md"
+).read_text(encoding="utf-8")
+
 
 def test_report_output_location_has_no_legacy_dev_team_reports_references():
     assert "DEV_TEAM_REPORTS" not in REPORT_OUTPUT_LOCATION, (
@@ -83,4 +95,32 @@ def test_triage_skill_writes_to_consolidated_location_with_collision_suffix_inta
     assert "-2`, `-3`, … up to `-99`" in TRIAGE_SKILL, (
         "triage/SKILL.md's collision-suffix behavior must remain unchanged "
         "in substance"
+    )
+
+
+def test_ledger_and_consolidate_scripts_target_consolidated_root():
+    assert "DEV_TEAM_REPORTS" not in LEDGER_PY, (
+        "ledger.py must not reference the legacy bare DEV_TEAM_REPORTS/ "
+        "path literal"
+    )
+    assert '".dev-team-reports"' in LEDGER_PY, (
+        "ledger.py's _cr_dir() must resolve under .dev-team-reports/"
+    )
+    assert "DEV_TEAM_REPORTS" not in CONSOLIDATE_PY, (
+        "consolidate.py must not reference the legacy bare DEV_TEAM_REPORTS/ "
+        "path literal"
+    )
+    assert '".dev-team-reports"' in CONSOLIDATE_PY, (
+        "consolidate.py's raw_dir resolution must target .dev-team-reports/"
+    )
+
+
+def test_sliced_mode_doc_describes_consolidated_root():
+    assert "DEV_TEAM_REPORTS" not in SLICED_MODE, (
+        "sliced-mode.md must not reference the legacy bare DEV_TEAM_REPORTS/ "
+        "path"
+    )
+    assert ".dev-team-reports/code-review" in SLICED_MODE, (
+        "sliced-mode.md must describe the ledger/section artifacts under "
+        ".dev-team-reports/code-review/"
     )

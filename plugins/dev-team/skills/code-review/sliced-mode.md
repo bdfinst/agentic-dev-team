@@ -15,7 +15,7 @@ persisted artifacts back and produces one deduplicated report.
 
 **Slice** and **section** are the same unit. A *slice* is the in-flight review
 unit; its persisted artifact on disk is `raw/section-<id>.json`, where `<id>` is
-the slice id. An operator inspecting `DEV_TEAM_REPORTS/code-review/raw/` needs no
+the slice id. An operator inspecting `.dev-team-reports/code-review/raw/` needs no
 mental remapping — `section-<id>.json` is slice `<id>`.
 
 ## When sliced mode engages (activation)
@@ -72,7 +72,7 @@ findings" from "fewer reviewers ran."
 
 At the start of a sliced run, initialize the ledger from the partitioned slices:
 `scripts/ledger.py` → `init_ledger(slices, cap, root)` writes
-`DEV_TEAM_REPORTS/code-review/ledger.json` with every slice `pending` and the
+`.dev-team-reports/code-review/ledger.json` with every slice `pending` and the
 partition cap recorded.
 
 Review slices in **bounded parallelism — 2–3 slices at a time** (not the whole
@@ -129,7 +129,7 @@ Once every slice has a section artifact (a fresh run's full set, or a
 **Report-only.** Sliced mode does **not** run the interactive review-fix loop.
 It is a reporting/consolidation pass:
 
-- Write the consolidated prose report to `DEV_TEAM_REPORTS/code-review.md` and
+- Write the consolidated prose report to `.dev-team-reports/code-review.md` and
   per-issue correction prompts to `./corrections/` (for `/apply-fixes` to act
   on later). Both paths are repo-relative to the target repo's working
   directory.

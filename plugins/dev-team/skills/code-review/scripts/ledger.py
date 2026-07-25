@@ -2,7 +2,7 @@
 """Progress ledger and per-slice section artifacts for sliced /code-review.
 
 The persist-and-drop design lives here: as each slice is reviewed, its findings
-are written to ``DEV_TEAM_REPORTS/code-review/raw/section-<id>.json`` and the
+are written to ``.dev-team-reports/code-review/raw/section-<id>.json`` and the
 ledger's status for that slice flips to ``done``. The orchestrator keeps only a
 one-line tally per slice in context; the durable record is these files. A later
 ``consolidate.py`` reads the section artifacts back.
@@ -33,7 +33,7 @@ STATUS_DONE = "done"
 
 
 def _cr_dir(root: str) -> Path:
-    return Path(root) / "DEV_TEAM_REPORTS" / "code-review"
+    return Path(root) / ".dev-team-reports" / "code-review"
 
 
 def ledger_path(root: str) -> Path:
