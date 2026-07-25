@@ -25,37 +25,11 @@ import fnmatch
 import json
 import re
 import sys
-from collections.abc import Iterable, Iterator
+from collections.abc import Iterable
 from pathlib import Path
 from typing import NamedTuple
 
-# Trees whose contents are a dependency's (or a build's), never the project's
-# own convention.
-VENDORED_DIR_NAMES = frozenset({".git", "node_modules", "vendor", "dist", "build"})
-
-# Presence of this file marks a directory as a virtualenv, whatever its name.
-_VIRTUALENV_MARKER = "pyvenv.cfg"
-
-
-def _is_vendored_dir(directory: Path) -> bool:
-    """True for vendored/generated trees the scan must never treat as signal."""
-    if directory.name in VENDORED_DIR_NAMES:
-        return True
-    return (directory / _VIRTUALENV_MARKER).is_file()
-
-
-def _iter_project_files(root: Path) -> Iterator[Path]:
-    """Yield the project's own files under `root`, pruning vendored trees."""
-    pending = [root]
-    while pending:
-        directory = pending.pop()
-        for entry in sorted(directory.iterdir()):
-            if entry.is_symlink():
-                continue
-            if entry.is_dir() and not _is_vendored_dir(entry):
-                pending.append(entry)
-            elif entry.is_file():
-                yield entry
+from _vendored_tree import iter_files as _iter_project_files
 
 
 def _common_directory(paths: Iterable[Path]) -> Path:
