@@ -73,15 +73,30 @@ def test_two_feature_blocks_in_one_file_evaluated_independently():
     assert findings[0]["feature_title"] == "Orders API"
 
 
+def test_tag_on_a_following_feature_block_does_not_leak_into_this_blocks_text(tmp_path):
+    """Regression test (domain-review): a Feature-level @tag on a *second*
+    Feature block used to be absorbed into the first block's scenario_text
+    (end_index pointed straight at the next header with no backup), so a
+    keyword-matching tag like "@error-handling" on Feature B could make
+    Feature A pass the gate even though Feature A has no failure-path
+    scenario of its own."""
+    text = HAPPY_ONLY + "\n@error-handling\n" + HAPPY_ONLY.replace("Orders API", "Refunds API")
+    features = gate.parse_features(text, "combined.feature")
+    assert len(features) == 2
+    assert "error-handling" not in features[0]["scenario_text"].lower()
+    findings = gate.find_missing_failure_path(features, gate.DEFAULT_KEYWORDS)
+    assert {f["feature_title"] for f in findings} == {"Orders API", "Refunds API"}
+
+
 def test_retry_scenario_with_no_default_keyword_substring_is_correctly_flagged():
     """The default keyword list has no substring in common with "does not
     exceed the configured limit" ("exceeds" != "exceed"), so this
     happy-path-only Feature is correctly flagged as missing a failure path.
 
-    "exceeds" (plural) is the confirmed intended default (issue #1420); the
-    false positive this test's sibling below demonstrates (via
-    --extra-keyword "exceed") is an accepted, deliberately-illustrated
-    heuristic limitation, not a gap in what was decided.
+    "exceeds" is the intended default per issue #1420; the false positive
+    this test's sibling below demonstrates (via --extra-keyword "exceed")
+    is an accepted, deliberately-illustrated heuristic limitation, not a
+    gap in what was decided.
     """
     features = gate.parse_features(RETRY_POLICY, "retry.feature")
     findings = gate.find_missing_failure_path(features, gate.DEFAULT_KEYWORDS)
@@ -102,11 +117,15 @@ def test_extra_keyword_can_produce_a_documented_false_positive():
 
 
 def test_keyword_override_replaces_default_list_entirely():
-    """Drives the replace-vs-extend logic through main()'s actual CLI wiring
-    (--keyword), not just find_missing_failure_path directly — a happy-path-
-    only feature whose only failure signal is a default keyword ("invalid")
-    must still fail the gate when --keyword replaces the defaults with an
-    unrelated term ("succeeds", which the happy path also contains)."""
+    """Unit-level check of find_missing_failure_path's own contract: passing
+    ["succeeds"] as the keyword list means only "succeeds" is checked —
+    none of DEFAULT_KEYWORDS apply. A happy-path-only feature whose text
+    happens to contain "succeeds" is therefore (incorrectly, but as
+    designed for this deliberately simple heuristic) treated as having a
+    failure path — proving the caller's keyword list is used as-is, not
+    unioned with the defaults. The --keyword flag's replace-vs-extend
+    wiring through main()'s actual argparse is exercised separately by
+    test_main_keyword_flag_replaces_defaults_through_cli below."""
     features = [
         {
             "file": "x",

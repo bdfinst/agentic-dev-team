@@ -139,6 +139,22 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     files = find_step_definition_files(args.dirs)
+
+    if not files:
+        # Mirrors gherkin_failure_path_gate.py's identical fix: a --dir that
+        # doesn't exist (or resolves to zero step-definition files) used to
+        # silently report "OK: 0 ... scanned, no pending stubs remain" — an
+        # affirmative all-clear for zero evidence. --dir is composed by
+        # gherkin-derive from a probe of the target repo, not always typed
+        # by a human, so a gate that scanned nothing must say so distinctly.
+        dirs_display = ", ".join(str(d) for d in args.dirs)
+        message = f"no step-definition files found under {dirs_display} — gate did not run"
+        if args.json:
+            print(json.dumps({"scanned": [], "pending": [], "warning": message}, indent=2))
+        else:
+            print(f"WARN: {message}")
+        return 2
+
     pending = find_pending_stubs(files)
 
     if args.json:

@@ -41,9 +41,20 @@ def _make_fixture(tmp_path):
     return tmp_path
 
 
+def test_vendored_dir_names_is_the_expected_fixed_set():
+    """Pins VENDORED_DIR_NAMES itself against literal names, not against
+    the constant under test — the test below iterated the constant to
+    build its own expectation, which is tautological (true for any value
+    the constant happens to hold) and would not catch a name being
+    silently dropped."""
+    assert _vendored_tree.VENDORED_DIR_NAMES == frozenset(
+        {".git", "node_modules", "vendor", "dist", "build"}
+    )
+
+
 def test_is_vendored_dir_recognizes_every_named_dir_and_virtualenv_marker(tmp_path):
     fixture = _make_fixture(tmp_path)
-    for name in sorted(_vendored_tree.VENDORED_DIR_NAMES):
+    for name in (".git", "node_modules", "vendor", "dist", "build"):
         assert _vendored_tree.is_vendored_dir(fixture / name) is True, name
     assert _vendored_tree.is_vendored_dir(fixture / ".venv") is True
     assert _vendored_tree.is_vendored_dir(fixture / "src") is False

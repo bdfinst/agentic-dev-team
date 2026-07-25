@@ -54,6 +54,14 @@ _EXAMPLES_PREFIX = "Examples:"
 ERROR_FEATURE_NOT_FOUND = "feature-not-found"
 ERROR_MALFORMED_FEATURE_BLOCK = "malformed-feature-block"
 ERROR_UNSAFE_PATH = "unsafe-path"
+# _cmd_merge-only: parse_candidate_units reuses ERROR_MALFORMED_FEATURE_BLOCK
+# internally for a malformed --candidates fragment (it shares _parse_units
+# with the existing-block parser, which has only one malformed-shape error).
+# The CLI remaps it to this distinct code so a --json caller can tell "your
+# scratch candidates file is broken" from "the existing .feature file's
+# structure is broken" — two different files, two different remediations —
+# without parse_candidate_units itself needing a second error value.
+ERROR_MALFORMED_CANDIDATES = "malformed-candidates"
 
 
 @dataclass
@@ -321,11 +329,17 @@ def _dedupe_candidate_units(units: list) -> tuple:
     return deduped, duplicates
 
 
-def _dominant_line_ending(lines: list) -> str:
-    """Return the line ending used by the last terminated line in `lines`,
-    defaulting to `"\\n"` — so a separator inserted at the splice point
-    matches the existing file's convention instead of always injecting LF
-    into a CRLF file."""
+def _last_line_ending(lines: list) -> str:
+    """Return the line ending of the last *terminated* line in `lines`
+    (scanning from the end), defaulting to `"\\n"` — so a separator
+    inserted at the splice point matches the existing file's convention
+    instead of always injecting LF into a CRLF file. This is a last-line
+    check, not a majority vote across the file (a mixed-ending file's
+    splice separator follows whichever ending is nearest the insertion
+    point, not whichever is more common) — only the inserted separator is
+    normalized this way; a new candidate unit's own interior line endings
+    (as authored) are passed through unchanged, so merging into a CRLF file
+    can still yield a file with mixed endings overall."""
     for line in reversed(lines):
         if line.endswith("\r\n"):
             return "\r\n"
@@ -383,7 +397,7 @@ def merge_scenarios(existing_text: str, feature_title: str, candidate_units: lis
     # `result.error is None` was just checked.
     lines = _split_lines(existing_text)
     end_index = result.block.end_index
-    ending = _dominant_line_ending(lines)
+    ending = _last_line_ending(lines)
 
     insertion = "".join(unit.text for unit in new_units)
     # Insert right at the block's end boundary, preserving everything before
@@ -470,9 +484,11 @@ def _reject_path_traversal(raw: str) -> str | None:
 
 
 def _merge_payload(written: bool, added=(), skipped=(), error=None) -> dict:
-    """The one JSON shape every `merge`/`check-stale` response uses, named
-    once so a future field addition or rename touches this single place
-    instead of every call site rebuilding the dict by hand."""
+    """The one JSON shape every `merge` response uses (`check-stale` has its
+    own distinct `{findings, unmatched_titles}` shape, built separately in
+    `_cmd_check_stale` — not this helper), named once so a future field
+    addition or rename to the `merge` response touches this single place
+    instead of every `merge`-side call site rebuilding the dict by hand."""
     return {
         "written": written,
         "added_titles": list(added),
@@ -523,7 +539,7 @@ def _cmd_merge(args: argparse.Namespace) -> int:
 
     if candidates_error is not None:
         if args.json:
-            print(json.dumps(_merge_payload(written=False, error=candidates_error)))
+            print(json.dumps(_merge_payload(written=False, error=ERROR_MALFORMED_CANDIDATES)))
         else:
             _write_error(
                 f"gherkin_feature_merge: candidates file {args.candidates} is malformed "
@@ -584,6 +600,18 @@ def _cmd_merge(args: argparse.Namespace) -> int:
 
 
 def _cmd_check_stale(args: argparse.Namespace) -> int:
+    # Same untrusted, SKILL.md-composed provenance as --existing in _cmd_merge
+    # (security-review) — the guard applies to both subcommands, not just the
+    # one that writes, so a future change that starts echoing parsed content
+    # here doesn't quietly reopen the gap.
+    path_error = _reject_path_traversal(args.existing)
+    if path_error is not None:
+        if args.json:
+            print(json.dumps({"findings": [], "unmatched_titles": [], "error": ERROR_UNSAFE_PATH}))
+        else:
+            _write_error(f"gherkin_feature_merge: {path_error}")
+        return 2
+
     existing_path = Path(args.existing)
     existing_text = existing_path.read_text(encoding="utf-8") if existing_path.is_file() else ""
 
@@ -634,7 +662,7 @@ def _cmd_check_stale(args: argparse.Namespace) -> int:
             print(
                 f"unmatched: --observed title {title!r} not found among retained scenarios "
                 f"in {args.feature_title!r} — check for a title mismatch between the "
-                f"observed value and the scenario it should describe"
+                f"observed title and the scenario it should describe"
             )
     return 0
 

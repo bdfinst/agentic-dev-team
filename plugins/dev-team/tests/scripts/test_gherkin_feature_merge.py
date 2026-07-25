@@ -450,6 +450,37 @@ def test_cli_merge_malformed_candidates_exits_2_and_leaves_file_unchanged(tmp_pa
     assert "malformed" in proc.stderr.lower()
 
 
+def test_cli_merge_malformed_candidates_json_error_is_distinct_from_existing_block_malformed(
+    tmp_path,
+):
+    """Regression test: parse_candidate_units and parse_feature_block both
+    reuse ERROR_MALFORMED_FEATURE_BLOCK internally (they share _parse_units,
+    which has only one malformed-shape error), so under --json a caller
+    could not previously tell "your --candidates scratch file is broken"
+    from "the existing .feature file's structure is broken" — two
+    different files needing two different fixes. The CLI now remaps the
+    candidates case to a distinct ERROR_MALFORMED_CANDIDATES code."""
+    existing = tmp_path / "orders.feature"
+    existing.write_text(ORDERS_FEATURE, encoding="utf-8")
+    candidates = tmp_path / "candidates.txt"
+    candidates.write_text("  @dangling-tag-with-no-scenario\n", encoding="utf-8")
+
+    proc = _run_cli(
+        "merge",
+        "--existing",
+        str(existing),
+        "--candidates",
+        str(candidates),
+        "--feature-title",
+        "Orders API",
+        "--json",
+    )
+    assert proc.returncode == 2
+    payload = json.loads(proc.stdout)
+    assert payload["error"] == gfm.ERROR_MALFORMED_CANDIDATES
+    assert payload["error"] != gfm.ERROR_MALFORMED_FEATURE_BLOCK
+
+
 def test_cli_merge_title_mismatch_exits_2_and_leaves_file_unchanged(tmp_path):
     existing = tmp_path / "orders.feature"
     existing.write_text(ORDERS_FEATURE, encoding="utf-8")
@@ -617,6 +648,30 @@ def test_cli_check_stale_reports_mismatch_as_json(tmp_path):
     assert payload["findings"][0]["line"] == 4
 
 
+def test_cli_check_stale_non_json_report_names_file_and_line(tmp_path):
+    """Regression test (ai-provenance-review): the <file>:<line> format
+    gherkin-derive/SKILL.md Step 6 mandates was only ever exercised via
+    --json in the tests above — nothing pinned the human-readable branch
+    that actually emits it. find_then_step_text's docstring names this as
+    the entire reason ScenarioUnit.line is threaded through at all, so
+    deleting it from the print would break the documented contract while
+    every other test stayed green."""
+    existing = tmp_path / "orders.feature"
+    existing.write_text(ORDERS_FEATURE, encoding="utf-8")
+    proc = _run_cli(
+        "check-stale",
+        "--existing",
+        str(existing),
+        "--feature-title",
+        "Orders API",
+        "--observed",
+        "Create order succeeds with valid payload=202",
+    )
+    assert proc.returncode == 0
+    assert f"{existing}:4" in proc.stdout
+    assert "possibly stale" in proc.stdout
+
+
 def test_cli_check_stale_observed_title_containing_equals_is_not_truncated(tmp_path):
     """Regression test (ai-provenance-review): --observed used str.partition,
     which truncated a title containing its own '=' at the first occurrence.
@@ -664,6 +719,48 @@ def test_cli_merge_rejects_existing_path_containing_dotdot(tmp_path):
     assert proc.returncode == 2
     assert "'..'" in proc.stderr
     assert not (tmp_path.parent / "escaped.feature").exists()
+
+
+def test_cli_merge_rejects_existing_path_containing_dotdot_json(tmp_path):
+    """--json variant of the previous test: the unsafe-path error code must
+    actually appear in the JSON payload, not just the non-JSON stderr path
+    exercised above — the two output modes are separate code branches."""
+    candidates = tmp_path / "candidates.txt"
+    candidates.write_text(_unit("New one").text, encoding="utf-8")
+
+    proc = _run_cli(
+        "merge",
+        "--existing",
+        str(tmp_path / ".." / "escaped.feature"),
+        "--candidates",
+        str(candidates),
+        "--feature-title",
+        "Orders API",
+        "--json",
+    )
+    assert proc.returncode == 2
+    payload = json.loads(proc.stdout)
+    assert payload["written"] is False
+    assert payload["error"] == gfm.ERROR_UNSAFE_PATH
+    assert not (tmp_path.parent / "escaped.feature").exists()
+
+
+def test_cli_check_stale_rejects_existing_path_containing_dotdot(tmp_path):
+    """Regression test (security-review, second pass): the path-traversal
+    guard was only applied to `merge`, not `check-stale`, even though
+    --existing reaches both subcommands from the same untrusted,
+    SKILL.md-composed provenance."""
+    proc = _run_cli(
+        "check-stale",
+        "--existing",
+        str(tmp_path / ".." / "escaped.feature"),
+        "--feature-title",
+        "Orders API",
+        "--observed",
+        "Some title=200",
+    )
+    assert proc.returncode == 2
+    assert "'..'" in proc.stderr
 
 
 # ---------------------------------------------------------------------------

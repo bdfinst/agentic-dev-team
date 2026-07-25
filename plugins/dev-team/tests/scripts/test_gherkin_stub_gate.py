@@ -169,10 +169,27 @@ def test_main_exits_one_and_names_offenders(tmp_path, capsys):
     assert "1" in out
 
 
-def test_main_exits_zero_on_missing_dir_no_files_to_scan(tmp_path):
-    # An absent directory has nothing pending — the caller decides whether
-    # "no step-definitions directory" is itself an error condition.
-    assert gherkin_stub_gate.main(["--dir", str(tmp_path / "nope")]) == 0
+def test_main_does_not_silently_pass_on_missing_dir_no_files_to_scan(tmp_path, capsys):
+    """Regression test (correctness-review, arch-review): a nonexistent
+    --dir used to report exit 0 — an affirmative "clean" for zero evidence.
+    Mirrors the identical fix in gherkin_failure_path_gate.py: --dir is
+    composed by gherkin-derive from a probe of the target repo, not always
+    typed by a human, so a gate that scanned nothing must say so distinctly
+    rather than silently pass."""
+    rc = gherkin_stub_gate.main(["--dir", str(tmp_path / "nope")])
+    assert rc == 2
+    out = capsys.readouterr().out
+    assert "OK" not in out
+    assert "no step-definition files found" in out
+
+
+def test_main_json_warns_on_missing_dir(tmp_path, capsys):
+    rc = gherkin_stub_gate.main(["--dir", str(tmp_path / "nope"), "--json"])
+    assert rc == 2
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["scanned"] == []
+    assert payload["pending"] == []
+    assert "no step-definition files found" in payload["warning"]
 
 
 def test_main_json_output_is_parseable(tmp_path, capsys):
