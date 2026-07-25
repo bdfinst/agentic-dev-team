@@ -5,7 +5,8 @@ description: >-
   prior legacy-modernization analysis. Discovers the public surface (OpenAPI,
   routes, existing tests, exported signatures, plus message-queue, cron, and
   websocket/GraphQL surfaces), recommends a BDD binding
-  mode via the bdd-value-guide rubric, and writes `.feature` files plus
+  mode via the bdd-value-guide rubric, and merges scenarios into `.feature`
+  files (preserving prior enrichment, never overwriting) plus
   (in bdd-runner mode) pending step-definition stubs. Use it on its own to
   capture intended behavior before changing tests, or as Phase 3 of
   `/test-improve`. Creates no tracker Stories.

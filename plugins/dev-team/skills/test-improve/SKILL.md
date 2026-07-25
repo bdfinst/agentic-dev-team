@@ -355,10 +355,13 @@ mode `none`, Phase 3 is **skipped**: `/gherkin-derive` is **not invoked**, no
 
 **Binding mode `xunit-with-annotations` — .feature files without a runner.**
 Invoke `/gherkin-derive --workflow test-improve --mode xunit-with-annotations`.
-The skill writes `.feature` files under `features/test-improve/`; **no runner
-dependency** is added to the project. The corresponding xUnit tests (authored
-in Phase 5) will carry the scenario name plus Given/When/Then leading comments
-that cite the `.feature` file, but they run through the existing xUnit runner.
+The skill merges scenarios into `.feature` files under `features/test-improve/`
+— an existing file's prior content (hand-authored, or enriched by
+`/feature-coverage-analyzer`) is preserved; only genuinely new scenarios are
+appended (issue #1420) — and **no runner dependency** is added to the project.
+The corresponding xUnit tests (authored in Phase 5) will carry the scenario
+name plus Given/When/Then leading comments that cite the `.feature` file, but
+they run through the existing xUnit runner.
 
 **Binding mode `bdd-runner` — native parser wired.** Invoke
 `/gherkin-derive --workflow test-improve --mode bdd-runner`. The stack profile
@@ -367,7 +370,9 @@ selects the native parser (`cucumber-js` for JS/TS, `SpecFlow` / `Reqnroll` for
 
 - adds the parser as a project dependency,
 - generates pending step-definition stubs,
-- writes `.feature` files under `features/test-improve/`.
+- merges scenarios into `.feature` files under `features/test-improve/`,
+  preserving any existing enrichment the same way `xunit-with-annotations`
+  mode does (issue #1420).
 
 **Persistence.** Record the surface inventory and (in `bdd-runner` mode) the
 parser wiring to `.claude/memory/test-improve/<slug>/gherkin.md`.
