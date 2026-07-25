@@ -987,7 +987,7 @@
   },
   "plugins/dev-team/knowledge/report-output-location.md": {
     "Write-scope rule": {
-      "summary": "Only a **top-level human invocation** writes to `DEV_TEAM_REPORTS/`:",
+      "summary": "Only a **top-level human invocation** writes to `.dev-team-reports/`:",
       "anchor": "write-scope-rule"
     },
     "Report exception: /ship": {
@@ -999,11 +999,11 @@
       "anchor": "fixed-filenames-overwrite-vs-never-overwrite"
     },
     "Write failures are always non-fatal": {
-      "summary": "A `DEV_TEAM_REPORTS/` write failure (permission/read-only) is reported to",
+      "summary": "A `.dev-team-reports/` write failure (permission/read-only) is reported to",
       "anchor": "write-failures-are-always-non-fatal"
     },
     "Gitignored by default": {
-      "summary": "`DEV_TEAM_REPORTS/` is gitignored by default — both in this repo's own",
+      "summary": "`.dev-team-reports/` is gitignored by default — both in this repo's own",
       "anchor": "gitignored-by-default"
     },
     "Related": {
