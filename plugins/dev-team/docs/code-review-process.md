@@ -99,7 +99,7 @@ Deterministic checks run before any AI agent is invoked. Cheaper checks block ex
 | 4 | Semgrep SAST | `semgrep scan --config auto` | ERROR-severity findings |
 | 5 | Pipeline-red check | `gh run list` on current branch | failing CI (warn only) |
 
-Missing tools are skipped silently. Gate failures stop the pipeline — no agents run. `--force --reason "<text>"` skips all gates (and the step-1a documentation-only short-circuit) and logs an entry to `metrics/override-audit.jsonl`. `--background` skips gates entirely.
+Missing tools are skipped silently. Gate failures stop the pipeline — no agents run. `--force --reason "<text>"` skips all gates (and the step-1a documentation-only short-circuit) and logs an entry to `.claude/metrics/override-audit.jsonl`. `--background` skips gates entirely.
 
 ### 2b. Static analysis pre-pass
 
@@ -229,7 +229,7 @@ environment variable before it lets the bypass through. Without one, the
 commit is blocked (exit 2) with a message naming the required variable. With
 one, the hook allows the commit and appends an accountability line —
 timestamp, branch, which flag triggered it, the reason, staged file count,
-and plugin version — to `metrics/gate-bypass-audit.jsonl`, unconditionally
+and plugin version — to `.claude/metrics/gate-bypass-audit.jsonl`, unconditionally
 (this log is not gated by `DEV_TEAM_TELEMETRY`). This closes the previously
 frictionless, unlogged bypass path that correlated with materially higher
 rework (#709).
@@ -241,8 +241,8 @@ rework (#709).
 | Stdout report (markdown or JSON) | Every run | Human or CI consumption |
 | `corrections/*.json` | When unfixed actionable or suggestion issues remain | Feeds `/apply-fixes` |
 | `.review-passed` | Auto-scoped clean/warn runs | Gates the pre-commit hook |
-| `metrics/override-audit.jsonl` | `--force --reason ...` | Audit trail for skipped gates |
-| `metrics/gate-bypass-audit.jsonl` | `git commit --no-verify`/`-n` with `GATE_BYPASS_REASON` set | Audit trail for reasoned pre-commit-gate bypasses |
+| `.claude/metrics/override-audit.jsonl` | `--force --reason ...` | Audit trail for skipped gates |
+| `.claude/metrics/gate-bypass-audit.jsonl` | `git commit --no-verify`/`-n` with `GATE_BYPASS_REASON` set | Audit trail for reasoned pre-commit-gate bypasses |
 
 ## Customization points
 

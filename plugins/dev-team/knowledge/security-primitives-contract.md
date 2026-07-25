@@ -1,7 +1,7 @@
 ---
 name: security-primitives-contract
 description: Versioned cross-plugin contract defining the data envelopes passed between dev-team and security-assessment. Agent IDs, skill IDs, three JSON schemas (RECON, unified finding, disposition register), and presentational severity mapping. Consumers declare `required-primitives-contract: ^1.0.0`.
-version: 1.3.0
+version: 1.3.1
 semver-policy: |
   PATCH (1.0.x) — clarifications, typo fixes, documentation improvements; no
                   schema changes.
@@ -68,7 +68,7 @@ Key design notes:
 
 An authoritative enumeration of every file the recon considered in-scope at recon time. Gap 6's manifest-membership hook depends on this field — without it, consumers cannot answer "did a scan agent read a file outside the recon surface?" without their own tree walk.
 
-The list itself ships as a **sibling file** (not embedded JSON) because mid-size repos produce 10k+ paths that bloat envelope diffs and validation cost. The main envelope carries a pointer and a count; the list lives at `memory/recon-<slug>.inventory.txt`.
+The list itself ships as a **sibling file** (not embedded JSON) because mid-size repos produce 10k+ paths that bloat envelope diffs and validation cost. The main envelope carries a pointer and a count; the list lives at `.claude/memory/recon-<slug>.inventory.txt`.
 
 **Shape** (main envelope, optional at schema level):
 
@@ -82,7 +82,7 @@ The list itself ships as a **sibling file** (not embedded JSON) because mid-size
 
 All three sub-fields are required when the object is present. Object itself is optional so pre-1.2.0 envelopes stay schema-valid; `codebase-recon` always emits it from 1.2.0 forward.
 
-**Sibling file contract** (`memory/recon-<slug>.inventory.txt`):
+**Sibling file contract** (`.claude/memory/recon-<slug>.inventory.txt`):
 
 - UTF-8, LF line terminators, no BOM.
 - One repo-relative path per line; path separator `/` on every platform; no leading `./`.
@@ -100,7 +100,7 @@ Consumers that depend on `file_inventory` (e.g., Gap 6's PreToolUse hook, or any
 | Branch | Trigger | Stderr notice template |
 |---|---|---|
 | a | `file_inventory` field is absent on the envelope | `[recon-inventory] notice: file_inventory field absent on envelope; proceeding without membership check` |
-| b | `file_inventory.sibling_ref` resolves to a file that is missing or unreadable at `memory/<sibling_ref>` | `[recon-inventory] notice: sibling file <path> missing; proceeding without membership check` |
+| b | `file_inventory.sibling_ref` resolves to a file that is missing or unreadable at `.claude/memory/<sibling_ref>` | `[recon-inventory] notice: sibling file <path> missing; proceeding without membership check` |
 | c | `file_inventory.count != wc -l <sibling>` (envelope declares N, sibling contains M, M != N) | `[recon-inventory] notice: file_inventory.count (<declared>) != wc -l <sibling> (<actual>); proceeding without membership check` |
 
 Reference implementation: `evals/primitives-contract/fixtures/consumer-stub-fail-open.sh`. Conformance test: `evals/primitives-contract/tests/backward-compat-1.2.0.sh`.
@@ -263,6 +263,12 @@ A mutation test alters a field in a conformance fixture; CI must fail. A version
 - Removing a field, renaming a field, changing a field's semantics, or adding a REQUIRED field → `version: X.0.0` (MAJOR). Publish a migration note; downstream plugins' `required-primitives-contract` constraints force them to update before installing.
 
 ## Changelog
+
+### 1.3.1 (2026-07-25)
+
+Clarification only — no schema or field changes. Consumers on `^1.0.0` are unaffected.
+
+- **Path clarification.** Envelope 1's `file_inventory` sibling-file location updated from bare `memory/recon-<slug>.inventory.txt` to `.claude/memory/recon-<slug>.inventory.txt`, matching the `.claude/`-scoped runtime-artifact convention adopted repo-wide (#1405/#1406). The `sibling_ref` field itself remains a bare filename (`"recon-<slug>.inventory.txt"`); only the directory it resolves under changed. Historical entries below are left as originally written for the version they describe.
 
 ### 1.3.0 (2026-04-24)
 

@@ -35,7 +35,7 @@ taxonomy stays honest and totals 80.
 | `apply-fixes` | Applies `code-review` corrections back to the working tree |
 | `pr` | Pre-PR quality gate (tests, typecheck, lint, review) → opens the PR |
 | `branch-workflow` | Branch completion: review → PR → merge → cleanup |
-| `continue` | Resumes an in-progress pipeline from phase files in `memory/` |
+| `continue` | Resumes an in-progress pipeline from phase files in `.claude/memory/` |
 | `triage` | Bug → root cause → portable triage record with a TDD fix plan |
 
 ### Review gates/lenses inside the pipeline
@@ -147,4 +147,4 @@ references which, plus agent/knowledge routing). Its durable findings:
   by users directly (list 2) or wired via agents/knowledge. The genuinely
   zero-reference commands are the user-only utilities in lists 2 and 3; nothing
   breaks if one is removed, so keep/cut is an intent + telemetry decision
-  (`/artifact-lifecycle` over `metrics/artifact-usage.json`).
+  (`/artifact-lifecycle` over `~/.claude/metrics/artifact-usage.json`).

@@ -148,7 +148,7 @@ Pre-computed loading sets for common task types.
 
 ### New Feature (full lifecycle)
 
-Three phases, each in a fresh context window with a human review gate between. Each phase's output is a structured progress file in `memory/` that onboards the next phase.
+Three phases, each in a fresh context window with a human review gate between. Each phase's output is a structured progress file in `.claude/memory/` that onboards the next phase.
 
 | Phase | Load | Purpose | Output |
 |---|---|---|---|
@@ -167,7 +167,7 @@ Key rules:
 
 Since tokens can't be literally removed from context:
 
-1. **Phase transitions** — summarize completed phase output into `memory/` and start a new conversation for the next phase.
+1. **Phase transitions** — summarize completed phase output into `.claude/memory/` and start a new conversation for the next phase.
 2. **Within a conversation** — stop referencing the agent/skill; the orchestrator mentally notes it's no longer active. Use the Handoff skill (continue mode) to compress stale content.
 3. **Multi-turn accumulation** — when conversation history crosses **30%** utilization, trigger summarization before loading additional agents.
 

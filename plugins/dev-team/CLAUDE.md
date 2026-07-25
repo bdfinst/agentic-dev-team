@@ -61,7 +61,7 @@ Each agent declares `model:`/`effort:` directly in frontmatter — the native Cl
 
 Token budgets per agent: see [knowledge/agent-registry.md](knowledge/agent-registry.md).
 
-Rules: load on demand; summarize phases to `memory/` before next phase; new conversations read from `memory/`.
+Rules: load on demand; summarize phases to `.claude/memory/` before next phase; new conversations read from `.claude/memory/`.
 
 ## Feedback & Learning
 
@@ -85,6 +85,6 @@ Hooks: `pre_tool_guard.py` blocks sensitive path writes; `destructive_guard.py` 
 
 ## Performance Metrics
 
-Logged to `metrics/` as JSONL. **[Performance Metrics](skills/performance-metrics/SKILL.md)**.
+Logged to `.claude/metrics/` as JSONL. **[Performance Metrics](skills/performance-metrics/SKILL.md)**.
 
 Every claim must name the instrument. **Instrumented:** token budgets (`scripts/measure-tokens.sh`), agent accuracy (`/agent-eval`), efficiency (`/orchestration-benchmark`). **Not yet:** hallucination rate, first-pass acceptance.

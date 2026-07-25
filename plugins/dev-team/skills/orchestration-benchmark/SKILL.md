@@ -109,7 +109,7 @@ possible; add fixtures only where a class has none.
 | Dollar cost & tokens by model/thread | `python3 ${CLAUDE_PLUGIN_ROOT}/hooks/lib/cost_meter.py report --transcript <path>` |
 | Tokens moved to low band (mechanism check) | The cost meter's `by_model` / `by_thread` split from the same report |
 | Quality | The fixture's eval assertions — identical across arms |
-| Rework | Fix-loop iterations; `metrics/review-value.jsonl` where review checkpoints ran |
+| Rework | Fix-loop iterations; `.claude/metrics/review-value.jsonl` where review checkpoints ran |
 | Wall-clock | Harness transcript timestamps |
 
 ### Mechanism check (mandatory)

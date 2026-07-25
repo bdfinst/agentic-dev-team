@@ -63,7 +63,7 @@ Map phases to canonical states: Spec→`SPEC`, Plan→`PLAN`, Build→`BUILD`,
 Review→`REVIEW`, PR→`PR` (an extra `COMMIT` transition is optional — most
 commits happen inside `/build`). Omit `--prior-state` only for the very first
 transition of a run. This is a model-authored, fail-open append (same
-convention as `metrics/review-value.jsonl`) — never let it block a phase.
+convention as `.claude/metrics/review-value.jsonl`) — never let it block a phase.
 
 ## Iteration journal gate (#1168)
 

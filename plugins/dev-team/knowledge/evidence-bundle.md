@@ -79,7 +79,7 @@ that only `/build`'s in-session steps would have (e.g. Farley score).
 
 ## Boundaries
 
-- Does not persist to `metrics/` or `memory/` — every underlying datum already
+- Does not persist to `.claude/metrics/` or `.claude/memory/` — every underlying datum already
   persists in its own source file; a persisted bundle would duplicate that
   audit trail.
 - `/code-review`'s own report keeps its existing contract

@@ -300,7 +300,7 @@ After the summary, list remaining issues grouped by file, sorted by severity. Ma
 
 ## Override audit log entry (step 2, `--force` path)
 
-Append to `metrics/override-audit.jsonl` (create if missing):
+Append to `.claude/metrics/override-audit.jsonl` (create if missing):
 
 ```json
 {

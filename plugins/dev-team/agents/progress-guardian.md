@@ -32,7 +32,7 @@ Context needs: full-file (reads plan + git state)
 
 Produces `{"status": "skip", "issues": [], "summary": "No active plan found"}` when:
 
-- No plan files exist in `plans/` or `memory/` — check with `Glob("plans/**")` / `Glob("memory/**")`, never a bare `Read` of the directory (`${CLAUDE_PLUGIN_ROOT}/knowledge/directory-enumeration.md`, Whole-file load: a short single-rule reference)
+- No plan files exist in `plans/` or `.claude/memory/` — check with `Glob("plans/**")` / `Glob(".claude/memory/**")`, never a bare `Read` of the directory (`${CLAUDE_PLUGIN_ROOT}/knowledge/directory-enumeration.md`, Whole-file load: a short single-rule reference)
 - The current task has no associated plan
 
 ## What the script detects

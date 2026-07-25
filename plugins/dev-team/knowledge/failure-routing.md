@@ -15,7 +15,7 @@ route switch never resets the shared budget.
 | `coverage.*below threshold\|Statements.*% \(< \|branch coverage .* below` | `coverage-gap` | test-generation (qa-engineer / test-improve-style) | Repeats → escalate to human (threshold may be miscalibrated). |
 | `eslint\|prettier\|black --check\|ruff\|gofmt` non-zero, style-only diagnostics | `lint-format` | inline fix | Repeats → generic fall-through (likely config, not code). |
 | Security-review finding (secrets, injection, auth bypass) surfaces during validation | `security-finding` | security-engineer (`/build`: dispatch, effort high; `/apply-fixes`: annotate only — no Agent/Skill grant) | Never downgrades to inline; unresolved after dispatch → human arbitration. |
-| Two+ reviewers disagree on the same finding/fix | `reviewer-conflict` | human arbitration (existing escalation: interactive ask; non-interactive hard stop to `memory/build-escalation-<slug>.md`) | Never auto-resolved by picking a side. |
+| Two+ reviewers disagree on the same finding/fix | `reviewer-conflict` | human arbitration (existing escalation: interactive ask; non-interactive hard stop to `.claude/memory/build-escalation-<slug>.md`) | Never auto-resolved by picking a side. |
 | No pattern matches | `unclassified` | generic loop (fall-through, unchanged) | None — identical to pre-routing behavior. |
 
 ## Notes

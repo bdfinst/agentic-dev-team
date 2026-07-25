@@ -36,7 +36,7 @@ For the full pipeline — targeting, pre-flight gates, static analysis pre-pass,
 
 ![/test-improve seven-phase workflow with human gates between each phase](diagrams/test-improve-flow.svg)
 
-It runs seven phases with a human gate between each, every phase writing a progress file at `memory/test-improve/<slug>/phase-<n>.md` so `/continue` (and `--from-phase`) can resume. The full phase-by-phase reference — gates, arguments, and the flow diagram — lives on its own page: **[test-improve.md](test-improve.md)**.
+It runs seven phases with a human gate between each, every phase writing a progress file at `.claude/memory/test-improve/<slug>/phase-<n>.md` so `/continue` (and `--from-phase`) can resume. The full phase-by-phase reference — gates, arguments, and the flow diagram — lives on its own page: **[test-improve.md](test-improve.md)**.
 
 ## Context Management
 
@@ -61,9 +61,9 @@ The Orchestrator manages context utilization using two operational skills.
 | 40-50% | Prepare for summarization |
 | 50-60% | Summarize older conversation turns |
 | 60-75% | Aggressive summarization |
-| 75%+ | Write summary to `memory/`, start new conversation |
+| 75%+ | Write summary to `.claude/memory/`, start new conversation |
 
-Utilization is estimated via proxy signals (tool call volume, message count, accumulated file reads) as described in the Context Loading Protocol. Summaries follow a structured template and are stored in `memory/` for cross-session continuity.
+Utilization is estimated via proxy signals (tool call volume, message count, accumulated file reads) as described in the Context Loading Protocol. Summaries follow a structured template and are stored in `.claude/memory/` for cross-session continuity.
 
 ### Token Budgets
 
@@ -141,10 +141,10 @@ Intervention commands (`override`, `pause`, `stop`) give humans immediate contro
 
 [Governance & Compliance](../skills/governance-compliance/SKILL.md) defines audit and ethics requirements:
 
-- All task completions logged to `metrics/` (JSONL format)
-- All configuration changes logged to `metrics/config-changelog.jsonl`
-- Conversation summaries stored in `memory/` for cross-session continuity
-- Significant routing and architectural decisions logged to `memory/decisions.md`
+- All task completions logged to `.claude/metrics/` (JSONL format)
+- All configuration changes logged to `.claude/metrics/config-changelog.jsonl`
+- Conversation summaries stored in `.claude/memory/` for cross-session continuity
+- Significant routing and architectural decisions logged to `.claude/memory/decisions.md`
 - Sensitive data (credentials, PII) never stored in metrics or memory files
 - All agent decisions must be explainable on request
 
@@ -180,7 +180,7 @@ The `hooks/pre_tool_guard.py` hook also enforces freeze mode. When `/freeze <glo
 
 ### Decision Log
 
-Agents append to `memory/decisions.md` when making non-obvious decisions during task execution. The log persists across session resets, giving future phases visibility into prior reasoning without re-reading full conversation history.
+Agents append to `.claude/memory/decisions.md` when making non-obvious decisions during task execution. The log persists across session resets, giving future phases visibility into prior reasoning without re-reading full conversation history.
 
 ## Feedback Loop
 

@@ -63,7 +63,7 @@ def test_skill_memory_paths_use_workflow_template():
 
 
 def test_skill_plan_paths_use_workflow_template():
-    assert grep(r"\./plans/<workflow>/", _text())
+    assert grep(r"\.claude/plans/<workflow>/", _text())
 
 
 # --- Step 11.1: tracker-label strings templated on <workflow> ----------------

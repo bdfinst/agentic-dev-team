@@ -23,8 +23,8 @@ Arguments: $ARGUMENTS
 
 - Positional: `<repo-path>`.
 - `--parent <issue-url>` — parent issue URL on the resolved tracker (or empty for local-files mode).
-- `--repo-slug <slug>` — namespace under `memory/<workflow>/`.
-- `--workflow <name>` — the workflow namespace under `memory/`. Defaults to `test-improve`. Orchestrators pass their own namespace (e.g. `/test-improve` passes `test-improve` for its Phase-2 baseline).
+- `--repo-slug <slug>` — namespace under `.claude/memory/<workflow>/`.
+- `--workflow <name>` — the workflow namespace under `.claude/memory/`. Defaults to `test-improve`. Orchestrators pass their own namespace (e.g. `/test-improve` passes `test-improve` for its Phase-2 baseline).
 
 If `<repo-path>` is absent, ask the operator.
 
@@ -74,7 +74,7 @@ For each tool, parse the report into `{ "line": <pct>, "branch": <pct>, "tool": 
 
 ### 4. Persist the baseline
 
-Write `memory/<workflow>/<slug>/baseline-coverage.json`:
+Write `.claude/memory/<workflow>/<slug>/baseline-coverage.json`:
 
 ```json
 {
@@ -88,9 +88,9 @@ Write `memory/<workflow>/<slug>/baseline-coverage.json`:
 }
 ```
 
-`disabled_test_count` is included **only** when `memory/<workflow>/<slug>/disabled-tests.json` exists (present when a caller ran `/test-audit-disable` first); omit the field otherwise. `phase` carries the calling workflow's phase number when it has one, and may be omitted for workflows without numbered phases.
+`disabled_test_count` is included **only** when `.claude/memory/<workflow>/<slug>/disabled-tests.json` exists (present when a caller ran `/test-audit-disable` first); omit the field otherwise. `phase` carries the calling workflow's phase number when it has one, and may be omitted for workflows without numbered phases.
 
-Append a baseline summary to the workflow's baseline memory file (for `/test-improve`, `memory/<workflow>/<slug>/phase-2.md`; other workflows write to their own baseline phase file). Just the coverage block — auditing is a separate worker.
+Append a baseline summary to the workflow's baseline memory file (for `/test-improve`, `.claude/memory/<workflow>/<slug>/phase-2.md`; other workflows write to their own baseline phase file). Just the coverage block — auditing is a separate worker.
 
 ### 5. Post to the parent
 
@@ -121,7 +121,7 @@ glab issue note add <parent-iid> --message "$(cat phase-3-block.md)"
 acli jira workitem comment add --key <parent-key> --body "$(cat phase-3-block.md)"
 ```
 
-**Local-files mode** — append the block to `./plans/<workflow>/FEATURE.md` under a `## Metrics history` heading (create the heading if missing).
+**Local-files mode** — append the block to `.claude/plans/<workflow>/FEATURE.md` under a `## Metrics history` heading (create the heading if missing).
 
 ### 6. Report
 

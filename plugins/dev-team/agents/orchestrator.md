@@ -32,7 +32,7 @@ Enforcement: script
 
 Context needs: project-structure
 
-The orchestrator classifies incoming requests, routes them to the appropriate pipeline branch, persists phase state in `memory/`, and coordinates concurrent persona dispatch across waves. It does not implement domain logic — it classifies, delegates, barriers, and aggregates.
+The orchestrator classifies incoming requests, routes them to the appropriate pipeline branch, persists phase state in `.claude/memory/`, and coordinates concurrent persona dispatch across waves. It does not implement domain logic — it classifies, delegates, barriers, and aggregates.
 
 ## Output discipline
 
@@ -222,7 +222,7 @@ Whole-file load: each linked SKILL.md is loaded in full when invoked; per-sectio
 
 ## Three-Phase Workflow
 
-Every non-trivial task follows three explicit phases. Each phase runs in minimal context, and a human review gate separates each phase. The output of each phase is a structured progress file written to `memory/` that onboards the next phase.
+Every non-trivial task follows three explicit phases. Each phase runs in minimal context, and a human review gate separates each phase. The output of each phase is a structured progress file written to `.claude/memory/` that onboards the next phase.
 
 ### Phase 1: Research
 
@@ -235,7 +235,7 @@ Every non-trivial task follows three explicit phases. Each phase runs in minimal
 
 #### Codebase Recon dispatch
 
-At the start of Research, check whether a RECON artifact already exists for this project at `memory/recon-<slug>.md` (where `<slug>` is the repo basename). If no artifact exists, or if the existing one is more than 24 hours old, dispatch `codebase-recon` as a sub-agent before any other exploration. It returns entry points, dependency graph, security surface, and git history in a structured artifact that onboards the Architect and Security Engineer without those agents needing to re-read the codebase themselves. Skip the dispatch (silently) when a fresh artifact is present.
+At the start of Research, check whether a RECON artifact already exists for this project at `.claude/memory/recon-<slug>.md` (where `<slug>` is the repo basename). If no artifact exists, or if the existing one is more than 24 hours old, dispatch `codebase-recon` as a sub-agent before any other exploration. It returns entry points, dependency graph, security surface, and git history in a structured artifact that onboards the Architect and Security Engineer without those agents needing to re-read the codebase themselves. Skip the dispatch (silently) when a fresh artifact is present.
 
 #### Security Engineer dispatch
 
@@ -362,7 +362,7 @@ When any checkpoint agent returns `fail`:
 ### Phase Transitions
 
 1. Complete the current phase's work
-2. Write a structured progress file to `memory/` (see Context Summarization skill)
+2. Write a structured progress file to `.claude/memory/` (see Context Summarization skill)
 3. Human reviews and approves before proceeding
 4. Start new context window for the next phase
 5. Load only the progress file + agents needed for the new phase

@@ -111,7 +111,7 @@ integration coverage visible without forcing every run to pay for it.
 ## Ablation mode (`--ablation <agent>`, #868)
 
 Gives `/harness-audit` **causal** drop-candidate evidence instead of the
-correlational usage data it derives from `metrics/review-value.jsonl` alone:
+correlational usage data it derives from `.claude/metrics/review-value.jsonl` alone:
 does removing this agent from the roster actually change integration-tier
 pipeline outcomes?
 
@@ -125,10 +125,10 @@ absent:
 refused: --ablation requires the label-gated live-eval opt-in (#134) — the
 same policy that gates the integration tier. Add the `run-integration` label
 or have the operator explicitly confirm a live run, then retry. Nothing was
-dispatched; nothing was written to metrics/.
+dispatched; nothing was written to .claude/metrics/.
 ```
 
-Stop there — dispatch nothing, write nothing to `metrics/`.
+Stop there — dispatch nothing, write nothing to `.claude/metrics/`.
 
 **Argument validation.** Reject before any dispatch if `--ablation` is
 combined with `--agent`/`--skill`, or if more than one agent is named (v1 is
@@ -187,7 +187,7 @@ python3 scripts/eval_ablation.py --mode agent \
   --expected-dir evals/expected \
   --baseline-trials-dir baseline-trials --ablated-trials-dir ablated-trials \
   --ablated-agent <agent> --model <model> \
-  --append metrics/eval-ablation.jsonl
+  --append .claude/metrics/eval-ablation.jsonl
 ```
 
 This appends one `schema: "eval-ablation/v1"` JSONL record (`recorded_at`,
@@ -199,7 +199,7 @@ baseline didn't pass every trial — report that plainly, do not paraphrase it
 into a drop/retain recommendation.
 
 **Console report.** Show a small table: baseline vs ablated vs delta for the
-three dimensions, the verdict, and the path (`metrics/eval-ablation.jsonl`)
+three dimensions, the verdict, and the path (`.claude/metrics/eval-ablation.jsonl`)
 the record was appended to.
 
 ## Cache (fingerprint replay)
@@ -435,7 +435,7 @@ over time, not recomputed and lost:
 ```bash
 python3 ${CLAUDE_PLUGIN_ROOT}/../../scripts/eval_variance.py \
   --trials-dir <dir-of-trial-actuals> \
-  --append metrics/eval-variance.jsonl -o memory/eval-variance.json
+  --append .claude/metrics/eval-variance.jsonl -o .claude/memory/eval-variance.json
 ```
 
 The report's `quarantine` list names pairs that **flap** (neither always pass nor
