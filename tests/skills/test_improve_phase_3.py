@@ -83,3 +83,10 @@ def test_phase_3_documents_preserving_existing_feature_content_on_merge():
 
 def test_phase_3_has_no_overwrite_implying_language():
     assert not grep(r"overwrit", _phase_3_section(), ignore_case=True)
+
+
+def test_phase_3_and_phase_5_name_the_same_remediation_for_pending_stubs():
+    s = _phase_3_section()
+    assert "/build" in s
+    assert grep(r"same.*(pending-stub state|underlying state)|two.*checkpoints", s, ignore_case=True)
+    assert grep(r"suppressed", s, ignore_case=True)

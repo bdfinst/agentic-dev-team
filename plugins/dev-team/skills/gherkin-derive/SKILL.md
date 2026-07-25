@@ -258,30 +258,56 @@ action-oriented framing the characterization call-out already uses, not a
 bare data dump — it tells the operator what decision to make, not just that
 one exists.
 
-**`bdd-runner` mode — report the pending-stub gate honestly (issue #1391).**
-Choosing `bdd-runner` mode is a decision to end up with fully executing,
-Gherkin-bound tests, not just scaffolded placeholders — but this skill's own
-Step 4 only ever *generates* pending stubs; it never fills them in (that
-happens later, in `/test-improve` Phase 5 or whatever follow-up work the
-operator does after a standalone run). Run the gate and report its real
-status rather than an unconditional "done":
+**`bdd-runner` mode — state completion plainly, as the report's headline
+(issues #1391, #1420).** Choosing `bdd-runner` mode is a decision to end up
+with fully executing, Gherkin-bound tests, not just scaffolded placeholders —
+but this skill's own Step 4 only ever *generates* pending stubs; it never
+fills them in (that happens later, in `/test-improve` Phase 5 or whatever
+follow-up work the operator does after a standalone run). Run the gate:
 
 ```
 python3 ${CLAUDE_PLUGIN_ROOT}/scripts/gherkin_stub_gate.py --dir <step-definitions-dir>
 ```
 
-- Print the gate's result as its own report line: `N step definition(s)
-  pending — bdd-runner binding is not complete until these are filled in`,
-  listing each `file:line` the gate names, or `bdd-runner binding complete —
-  0 pending step definitions` when it exits 0.
-- **Never claim the surface's tests are "done" or "complete" while the gate
-  reports pending stubs.** Immediately after a fresh Step 4 run every
-  newly-generated stub is expected to be pending — that is not a failure of
-  this skill, but the report must say so plainly rather than silently
-  omitting the gate's output. Re-running gherkin-derive after some step
-  definitions were filled in elsewhere reports the accurate mixed state.
+- **Pending stubs remain → print one consolidated statement as the FIRST
+  line of this mode's report**, replacing (not sitting alongside) the
+  previous secondary aside about binding status: `This run is not done — N
+  step definition(s) pending, listing each file:line the gate names. Run
+  /build against the derived scenarios to fill them in.` This applies identically
+  regardless of caller (standalone or a `/test-improve` Phase 3 sub-step) —
+  it is one shared code path, not a standalone-specific branch. **No other
+  part of this report** (the surface-count summary, the characterization
+  call-out, the possibly-stale-scenario section, the failure-path gate
+  section) may use unqualified "complete"/"done"/"success" language for this
+  run when this statement applies — the not-done headline governs the whole
+  report's tone, not just its own line.
+  - **Proactive hand-off (standalone invocations only).** After printing the
+    statement, ask the operator whether to continue into `/build` now,
+    rather than only printing the recommendation and moving on. When
+    gherkin-derive runs as a `/test-improve` Phase 3 sub-step, **do not ask**
+    — Phase 3's own human gate, Phase 4's triage, and Phase 5's fill-in loop
+    already own that decision (see below).
+  - **Non-interactive fallback.** When no interactive response is possible
+    (headless/CI invocation), print the statement and the `/build`
+    recommendation in full and never ask the question — it is best-effort
+    and never blocks the run.
+  - **Never fills in an already-pending stub itself.** Reporting this state
+    never modifies a step-definition file or clears an existing pending
+    marker — that is distinct from, and never blocks, Step 4's normal job of
+    scaffolding *new* pending stubs for newly-discovered scenarios, which
+    legitimately changes the pending-stub count on an ordinary re-run.
+- **Zero pending stubs → print `bdd-runner binding complete — 0 pending step
+  definitions`**, with no recommendation and no continue-into-`/build`
+  question.
 - Skip entirely in `none` and `xunit-with-annotations` modes (no step
   definitions are generated in either).
+
+**Consistency with `/test-improve` Phase 5's own gate.** Phase 3's headline
+statement and Phase 5's later hard block (`test-improve/SKILL.md`'s Phase 5
+section) describe the *same* pending-stub state at two different
+checkpoints, not two different requirements — both name `/build`
+(Phase 5's own per-Story build loop) as the remediation, so an operator never
+receives two conflicting instructions for the same fact.
 
 **Every mode that writes `.feature` files — report the failure-path
 coverage gate (issue #1420).** Unlike the pending-stub gate above, which is
