@@ -51,16 +51,23 @@ def _safe_for_terminal(text: str, limit: int = 200) -> str:
     `json.dumps` already escapes control characters)."""
     return _CONTROL_CHARS.sub("", text)[:limit]
 
+
+def _is_tag_line(line: str) -> bool:
+    stripped = _stripped(line).strip()
+    if not stripped:
+        return False
+    return all(tok.startswith("@") for tok in stripped.split())
+
 # Entries are literal substrings, not stems — "exceeds" does not match
 # "exceed" — matching gherkin_feature_merge.py's `is_stale` in spirit (a
 # deliberately simple, best-effort check, not a semantic classifier). A
-# cleanup pass "fixing" what looks like a stray singular/plural mismatch
-# would silently change gate behavior: the documented false-positive test
+# cleanup pass "fixing" what looks like a stray verb-form mismatch would
+# silently change gate behavior: the documented false-positive test
 # (test_extra_keyword_can_produce_a_documented_false_positive) specifically
-# relies on "exceed" being absent from this list by default. "exceeds"
-# (plural) is the confirmed intended default (issue #1420) — the false
-# positive it enables (a scenario using "exceed" instead) is accepted and
-# demonstrated by that same test via --extra-keyword, not an oversight.
+# relies on "exceed" being absent from this list by default. "exceeds" is
+# the intended default per issue #1420 — the false positive it enables (a
+# scenario using "exceed" instead) is accepted and demonstrated by that
+# same test via --extra-keyword, not an oversight.
 DEFAULT_KEYWORDS = (
     "invalid",
     "error",
@@ -98,6 +105,20 @@ def parse_features(text: str, path) -> list:
     for idx, header_index in enumerate(header_indices):
         title = _stripped(lines[header_index]).strip()[len(_FEATURE_PREFIX) :].strip()
         end_index = header_indices[idx + 1] if idx + 1 < len(header_indices) else len(lines)
+        # A `@tag`/blank-line run immediately preceding the next Feature:
+        # header belongs to that next block, not this one (Gherkin tags
+        # attach to the declaration that follows them) — mirrors
+        # gherkin_feature_merge.py's _block_end fix for the identical bug.
+        # Without this, a tag like `@error-handling` on the *following*
+        # Feature block leaks into this block's scenario_text, and a
+        # keyword match against that leaked tag can make this block pass
+        # the gate even though it has no failure-path scenario of its own.
+        while end_index > header_index + 1:
+            prev = lines[end_index - 1]
+            if _stripped(prev).strip() == "" or _is_tag_line(prev):
+                end_index -= 1
+            else:
+                break
         body = lines[header_index + 1 : end_index]
         scenario_titles = []
         for line in body:

@@ -222,10 +222,23 @@ that pass silently.
   the file (hand-authored or from `/feature-coverage-analyzer`) — including
   `Background:` sections, `@tag`s, and `Scenario Outline:`/`Examples:` tables
   — is preserved byte-for-byte; only genuinely new scenario titles are
-  appended, after the block's last existing unit. If the command exits 2
-  (the named `Feature:` title can't be located, or the existing block's
-  structure is malformed), no write occurred — report this per Step 6 rather
-  than retrying with a raw `Write`.
+  appended, after the block's last existing unit. **Exit 2 means no write
+  occurred** — read the `--json` payload's `error` field to know why, and
+  report the specific cause per Step 6 rather than a generic "could not
+  merge" (never retry with a raw `Write`, whichever cause it is):
+  - `feature-not-found` — the named `Feature:` title isn't in the existing
+    file; most likely a human renamed it. Reconcile `--feature-title` with
+    the file's actual header.
+  - `malformed-feature-block` — the title was found but the block's
+    structure can't be bounded (a dangling `@tag` line, or a `Scenario
+    Outline:` missing its `Examples:` table). The existing file needs
+    hand-repair before any merge can succeed.
+  - `unsafe-path` — the composed `--existing` path contained a `..`
+    component and was rejected before any read or write. Fix how the
+    surface name was derived into a path; do not retry with the same value.
+  - A malformed `--candidates` scratch file (this skill's own intermediate
+    output, not the operator's `.feature` file) — re-author the candidates
+    text for that surface and retry.
 - `step_definitions/<surface>_steps.<ext>` pending stubs (`bdd-runner` only).
 - A surface inventory at `.claude/memory/<workflow>/<slug>/gherkin.md` listing each
   discovered surface, its discovery source, provenance, mode, and the files
@@ -311,6 +324,11 @@ python3 ${CLAUDE_PLUGIN_ROOT}/scripts/gherkin_stub_gate.py --dir <step-definitio
 - **Zero pending stubs → print `bdd-runner binding complete — 0 pending step
   definitions`**, with no recommendation and no continue-into-`/build`
   question.
+- **The gate exits 2 when it did not run** (no step-definition files were
+  found under `--dir` — most often a mistyped or mis-probed directory, not
+  an empty-but-legitimate `0 pending`). Never report this as `bdd-runner
+  binding complete`; print "gate did not run — no step-definition files
+  found under `<dir>`, re-check the step-definitions directory" instead.
 - Skip entirely in `none` and `xunit-with-annotations` modes (no step
   definitions are generated in either).
 
@@ -335,8 +353,14 @@ python3 ${CLAUDE_PLUGIN_ROOT}/scripts/gherkin_failure_path_gate.py --dir <featur
 Print the gate's result as its own report section, never folded into the
 general summary: `N Feature block(s) missing a failure-path scenario`,
 listing each `file:line — <feature title>` the gate names, or `OK: all
-Feature block(s) have a failure-path scenario` when it exits 0. Skip
-entirely in `none` mode (no `.feature` files are written).
+Feature block(s) have a failure-path scenario` when it exits 0. **A third
+outcome exists — exit 2 means the gate did not run** (no `.feature` files
+were found under the scanned directory, most often a mistyped or
+mis-probed `--dir`); report this as "gate did not run — no `.feature`
+files found under `<dir>`, re-check the feature-files directory," never as
+an `OK`/all-clear (a scan of zero files finding zero problems is not the
+same as zero problems). Skip entirely in `none` mode (no `.feature` files
+are written).
 
 ## Key differences from `/gherkin-public`
 
