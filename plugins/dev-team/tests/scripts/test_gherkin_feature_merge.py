@@ -189,7 +189,7 @@ def test_background_and_tag_preserved_byte_for_byte_across_merge():
 
 def _run_cli(*args):
     return subprocess.run(
-        [sys.executable, str(SCRIPT), *args], capture_output=True, text=True
+        [sys.executable, str(SCRIPT), *args], capture_output=True, text=True, check=False
     )
 
 

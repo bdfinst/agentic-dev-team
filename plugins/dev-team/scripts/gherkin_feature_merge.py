@@ -189,7 +189,7 @@ def _parse_units(body: list, body_start: int, header_line_no: int):
                     return None, "malformed-feature-block"
 
         unit_text = "".join(body[unit_start:unit_end])
-        units.append(ScenarioUnit(title=title, line=header_line_no + unit_start + title_offset - unit_start + 1, text=unit_text))
+        units.append(ScenarioUnit(title=title, line=header_line_no + title_offset + 1, text=unit_text))
         idx = unit_end
 
     return units, None
