@@ -36,7 +36,11 @@ def is_vendored_dir(directory: Path) -> bool:
 
 
 def iter_files(root: Path) -> Iterator[Path]:
-    """Yield files under `root`, pruning vendored trees and symlinks."""
+    """Yield files under `root`, pruning vendored trees and symlinks. This
+    skips a symlinked *file* as well as a symlinked directory — a scan must
+    never grep the same underlying file twice under two different paths,
+    and never loop forever chasing a symlink cycle a directory-only check
+    wouldn't catch."""
     pending = [root]
     while pending:
         directory = pending.pop()
@@ -47,3 +51,20 @@ def iter_files(root: Path) -> Iterator[Path]:
                 pending.append(entry)
             elif entry.is_file():
                 yield entry
+
+
+def find_files(directories: list, predicate) -> list:
+    """Return every file under `directories` for which `predicate(path)` is
+    true, pruning vendored trees via `iter_files`, sorted for deterministic
+    output. Shared by `gherkin_failure_path_gate.py` and
+    `gherkin_stub_gate.py`, whose directory-scan-and-filter functions were
+    structurally identical apart from the filter predicate (differing only
+    in which file extensions they cared about)."""
+    found = []
+    for directory in directories:
+        if not directory.is_dir():
+            continue
+        for path in iter_files(directory):
+            if predicate(path):
+                found.append(path)
+    return sorted(set(found))

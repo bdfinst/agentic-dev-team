@@ -116,14 +116,14 @@ def test_parses_background_tagged_scenario_and_outline_together_in_order():
 
 def test_feature_title_not_found_returns_feature_not_found():
     result = gfm.parse_feature_block(ORDERS_FEATURE, "Nonexistent Surface")
-    assert result.error == "feature-not-found"
+    assert result.error == gfm.ERROR_FEATURE_NOT_FOUND
     assert result.block is None
 
 
 def test_dangling_tag_with_no_scenario_is_malformed():
     text = "Feature: Orders API\n\n  @smoke\n"
     result = gfm.parse_feature_block(text, "Orders API")
-    assert result.error == "malformed-feature-block"
+    assert result.error == gfm.ERROR_MALFORMED_FEATURE_BLOCK
     assert result.block is None
 
 
@@ -135,7 +135,28 @@ def test_scenario_outline_missing_examples_table_is_malformed():
         "    Examples:\n"
     )
     result = gfm.parse_feature_block(text, "Orders API")
-    assert result.error == "malformed-feature-block"
+    assert result.error == gfm.ERROR_MALFORMED_FEATURE_BLOCK
+
+
+def test_tag_belonging_to_a_following_feature_block_is_not_swallowed():
+    """Regression test (correctness-review): a Feature-level @tag on a
+    *second* Feature block used to be swallowed into the first block's body
+    by _block_end, making _parse_units see a dangling tag line and wrongly
+    refuse a perfectly valid file as malformed-feature-block."""
+    text = (
+        "Feature: Orders API\n\n"
+        "  Scenario: Create order succeeds\n"
+        "    Given a valid payload\n"
+        "    Then the response status is 201\n\n"
+        "@wip\n"
+        "Feature: Refunds API\n\n"
+        "  Scenario: Refund succeeds\n"
+        "    Given a valid refund request\n"
+        "    Then the response status is 200\n"
+    )
+    result = gfm.parse_feature_block(text, "Orders API")
+    assert result.error is None
+    assert [u.title for u in result.block.units] == ["Create order succeeds"]
 
 
 def test_crlf_and_missing_trailing_newline_parse_identically():
@@ -201,15 +222,82 @@ def test_no_existing_text_synthesizes_fresh_block():
 
 def test_title_not_found_in_nonempty_existing_text_is_feature_not_found():
     result = gfm.merge_scenarios(ORDERS_FEATURE, "Nonexistent Surface", [_unit("X")])
-    assert result.error == "feature-not-found"
+    assert result.error == gfm.ERROR_FEATURE_NOT_FOUND
     assert result.text == ORDERS_FEATURE
 
 
 def test_malformed_existing_block_with_matching_title_is_malformed_not_not_found():
     text = "Feature: Orders API\n\n  @smoke\n"
     result = gfm.merge_scenarios(text, "Orders API", [_unit("X")])
-    assert result.error == "malformed-feature-block"
+    assert result.error == gfm.ERROR_MALFORMED_FEATURE_BLOCK
     assert result.text == text
+
+
+def test_two_candidates_sharing_a_title_the_second_is_skipped_not_both_appended():
+    """Regression test (domain-review): candidate_units were only deduped
+    against *existing* titles, never against each other, so two candidates
+    sharing a title both got appended — silently making one invisible to
+    find_then_step_text (which keys by title, last-writer-wins)."""
+    candidates = [_unit("Duplicate title"), _unit("Duplicate title")]
+    result = gfm.merge_scenarios(ORDERS_FEATURE, "Orders API", candidates)
+    assert result.error is None
+    assert result.added_titles == ["Duplicate title"]
+    assert result.skipped_duplicate_titles == ["Duplicate title"]
+    assert result.text.count("Duplicate title") == 1
+
+
+def test_two_candidates_sharing_a_title_on_the_empty_existing_text_path_too():
+    candidates = [_unit("Duplicate title"), _unit("Duplicate title")]
+    result = gfm.merge_scenarios("", "Orders API", candidates)
+    assert result.error is None
+    assert result.added_titles == ["Duplicate title"]
+    assert result.skipped_duplicate_titles == ["Duplicate title"]
+    assert result.text.count("Duplicate title") == 1
+
+
+def test_merge_into_non_first_feature_block_leaves_other_blocks_untouched():
+    """Regression test: merging into a non-first Feature block must not
+    corrupt or touch a later Feature block's tags/content — exercises the
+    fixed _block_end boundary together with merge_scenarios reusing
+    result.block.end_index rather than re-deriving it."""
+    text = (
+        "Feature: Orders API\n\n"
+        "  Scenario: Create order succeeds\n"
+        "    Given a valid payload\n"
+        "    Then the response status is 201\n\n"
+        "@wip\n"
+        "Feature: Refunds API\n\n"
+        "  Scenario: Refund succeeds\n"
+        "    Given a valid refund request\n"
+        "    Then the response status is 200\n"
+    )
+    candidates = [_unit("New order scenario")]
+    result = gfm.merge_scenarios(text, "Orders API", candidates)
+    assert result.error is None
+    assert "New order scenario" in result.text
+    refunds_idx = result.text.index("Feature: Refunds API")
+    new_idx = result.text.index("New order scenario")
+    assert new_idx < refunds_idx
+    assert "@wip\nFeature: Refunds API" in result.text
+    assert "Refund succeeds" in result.text
+
+
+def test_merge_path_inserts_crlf_separator_when_file_is_crlf():
+    """Regression test (ai-provenance-review): the splice-point separator
+    used to always inject a bare LF even into a CRLF file with no trailing
+    terminator at the splice point. It should now match the file's own
+    dominant line ending instead."""
+    text = (
+        "Feature: Orders API\r\n\r\n"
+        "  Scenario: Create order succeeds\r\n"
+        "    Given a valid payload\r\n"
+        "    Then the response status is 201"  # no trailing newline
+    )
+    candidates = [_unit("New CRLF scenario")]
+    result = gfm.merge_scenarios(text, "Orders API", candidates)
+    assert result.error is None
+    assert "201\r\n  Scenario: New CRLF scenario" in result.text
+    assert "201  Scenario: New CRLF scenario" not in result.text
 
 
 def test_append_lands_after_examples_table_not_inside_it():
@@ -332,7 +420,7 @@ def test_parse_candidate_units_malformed_text_reports_error_not_silent_empty():
     malformed-feature-block error parse_feature_block would, not disappear."""
     units, error = gfm.parse_candidate_units("  @dangling-tag-with-no-scenario\n")
     assert units == []
-    assert error == "malformed-feature-block"
+    assert error == gfm.ERROR_MALFORMED_FEATURE_BLOCK
 
 
 def test_parse_candidate_units_well_formed_text_reports_no_error():
@@ -454,15 +542,19 @@ def test_then_and_continuation_lines_are_joined_and_still_match():
         "    And the body contains an order id\n"
     )
     then_texts = gfm.find_then_step_text(text, "Orders API")
-    assert "order id" in then_texts["Create order succeeds"]
-    assert gfm.is_stale(then_texts["Create order succeeds"], "201") is False
+    line, then_text = then_texts["Create order succeeds"]
+    assert line == 3
+    assert "order id" in then_text
+    assert gfm.is_stale(then_text, "201") is False
 
 
 def test_scenario_with_no_then_step_returns_empty_and_never_stale():
     text = "Feature: Orders API\n\n  Scenario: Weird\n    Given a payload\n"
     then_texts = gfm.find_then_step_text(text, "Orders API")
-    assert then_texts["Weird"] == ""
-    assert gfm.is_stale(then_texts["Weird"], "anything") is False
+    line, then_text = then_texts["Weird"]
+    assert line == 3
+    assert then_text == ""
+    assert gfm.is_stale(then_text, "anything") is False
 
 
 def test_but_continuation_line_is_captured_alongside_and():
@@ -478,7 +570,8 @@ def test_but_continuation_line_is_captured_alongside_and():
         "    But no partial record is written\n"
     )
     then_texts = gfm.find_then_step_text(text, "Orders API")
-    assert "no partial record is written" in then_texts["Create order fails"]
+    _, then_text = then_texts["Create order fails"]
+    assert "no partial record is written" in then_text
 
 
 def test_cli_check_stale_reports_unmatched_observed_title_distinctly(tmp_path):
@@ -521,6 +614,56 @@ def test_cli_check_stale_reports_mismatch_as_json(tmp_path):
     assert proc.returncode == 0
     payload = json.loads(proc.stdout)
     assert payload["findings"][0]["observed"] == "202"
+    assert payload["findings"][0]["line"] == 4
+
+
+def test_cli_check_stale_observed_title_containing_equals_is_not_truncated(tmp_path):
+    """Regression test (ai-provenance-review): --observed used str.partition,
+    which truncated a title containing its own '=' at the first occurrence.
+    rpartition (split at the *last* '=') fixes this."""
+    text = (
+        "Feature: Orders API\n\n"
+        "  Scenario: Create order fails when qty=0\n"
+        "    Given qty is 0\n"
+        "    Then the response status is 400\n"
+    )
+    existing = tmp_path / "orders.feature"
+    existing.write_text(text, encoding="utf-8")
+    proc = _run_cli(
+        "check-stale",
+        "--existing",
+        str(existing),
+        "--feature-title",
+        "Orders API",
+        "--observed",
+        "Create order fails when qty=0=400",
+        "--json",
+    )
+    assert proc.returncode == 0
+    payload = json.loads(proc.stdout)
+    assert payload["unmatched_titles"] == []
+    assert payload["findings"] == []
+
+
+def test_cli_merge_rejects_existing_path_containing_dotdot(tmp_path):
+    """Regression test (security-review): --existing is composed from
+    untrusted, target-repo-derived content per gherkin-derive/SKILL.md Step
+    2, so a '..' path component must be rejected rather than followed."""
+    candidates = tmp_path / "candidates.txt"
+    candidates.write_text(_unit("New one").text, encoding="utf-8")
+
+    proc = _run_cli(
+        "merge",
+        "--existing",
+        str(tmp_path / ".." / "escaped.feature"),
+        "--candidates",
+        str(candidates),
+        "--feature-title",
+        "Orders API",
+    )
+    assert proc.returncode == 2
+    assert "'..'" in proc.stderr
+    assert not (tmp_path.parent / "escaped.feature").exists()
 
 
 # ---------------------------------------------------------------------------
