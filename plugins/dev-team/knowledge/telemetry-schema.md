@@ -59,8 +59,8 @@ the pre-commit review gate fired or was bypassed.
 | `outcome` | string | `invoked` \| `fired` \| `bypassed` |
 | `plugin_version` | string | From `.claude-plugin/plugin.json` |
 
-- **Emitter:** `hooks/telemetry.py::_emit()`.
-- **Consent:** opt-in — `DEV_TEAM_TELEMETRY=on` env var, or `<cwd>/.claude/telemetry.json` `{"enabled": true}`. Off by default; nothing recorded, nothing leaves the machine.
+- **Emitter:** `hooks/telemetry.py::_emit()`. Written to `~/.claude/metrics/telemetry.jsonl` — home-scoped, out of the project entirely (#1405/#1406), never a project's own `metrics/`.
+- **Consent:** opt-in — `~/.claude/telemetry.json` `{"enabled": true}`, home-scoped only. `DEV_TEAM_TELEMETRY` and a project-scoped `<cwd>/.claude/telemetry.json` are now inert (one-time-per-session stderr notice only, no effect on consent). Off by default; nothing recorded, nothing leaves the machine.
 - **Consumers:** `skills/telemetry/SKILL.md`, `scripts/session_extract.py`.
 
 ---
@@ -80,7 +80,7 @@ transcript on each `Stop` hook fire.
 | `by_agent_type` | object | Per-agent-type slim breakdown, same shape as `by_model`: `main` for main-loop turns; sidechain turns keyed by subagent type via `attributionAgent` or the Task-dispatch join; honest `unattributed` bucket when neither signal exists (#1094) |
 
 - **Emitter:** `hooks/cost_meter.py` (wrapper) → `hooks/lib/cost_meter.py::cmd_record()`.
-- **Consent:** unconditional (local-only cost accounting).
+- **Consent:** gated by `telemetry_consent.is_enabled()` (`~/.claude/telemetry.json` `{"enabled": true}`, home-scoped) — no longer unconditional as of Slice 2 (#1406).
 - **Consumers:** `skills/cost-report/SKILL.md`, `skills/harness-audit/SKILL.md`, `cmd_regression`/`cmd_pace` in the same library, `skills/run-report/SKILL.md` (#1167, best-effort only — see that skill's Join limitations section: this stream has no `session_id` field).
 
 ---
@@ -96,8 +96,8 @@ every invocation.
 | `<skill_name>.last_used_at` | string | ISO-8601 UTC of the most recent invocation |
 | `<skill_name>.lifecycle` | string | `active` (set on creation; other lifecycle states are assigned externally by `/artifact-lifecycle`) |
 
-- **Emitter:** `hooks/telemetry.py::_upsert_artifact_usage()` (atomic rewrite via tempfile + `os.replace`).
-- **Consent:** follows `telemetry.jsonl`'s opt-in gate, with an independent explicit-off switch: `.claude/telemetry.json` `{"enabled": false}` disables usage tracking specifically.
+- **Emitter:** `hooks/telemetry.py::_upsert_artifact_usage()` (atomic rewrite via tempfile + `os.replace`). Written to `~/.claude/metrics/artifact-usage.json` — home-scoped, out of the project entirely (#1405/#1406), never a project's own `metrics/`.
+- **Consent:** follows `telemetry.jsonl`'s opt-in gate (`~/.claude/telemetry.json` `{"enabled": true}`, home-scoped). The project-scoped explicit-off switch this section used to document (a project-level `.claude/telemetry.json` `{"enabled": false}` disabling usage tracking specifically) no longer exists — project-scoped `.claude/telemetry.json` is inert entirely, same as `telemetry.jsonl`'s row above.
 - **Consumers:** `skills/artifact-lifecycle/SKILL.md`.
 
 ---
@@ -378,8 +378,8 @@ Self-reported per-task completion log, one file per calendar date.
 | `timestamp` | string | ISO-8601 |
 | (task-specific fields) | — | Tokens, cost, agents used, rework cycles, hallucination events — see `skills/performance-metrics/SKILL.md` for the full field list |
 
-- **Emitter:** `/performance-metrics` skill (model-authored append at task completion).
-- **Consent:** unconditional (self-reported, no raw content).
+- **Emitter:** `/performance-metrics` skill (model-authored append at task completion), via `hooks/task_completion_metrics.py`.
+- **Consent:** gated by `telemetry_consent.is_enabled()` (`~/.claude/telemetry.json` `{"enabled": true}`, home-scoped) — no longer unconditional as of Slice 2 (#1406).
 - **Consumers:** `skills/harness-audit/SKILL.md` (self-reported half of the harness-audit join, alongside `session-digest.jsonl`'s real-session half), `skills/governance-compliance/SKILL.md`.
 
 ---

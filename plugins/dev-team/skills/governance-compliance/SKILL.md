@@ -25,8 +25,8 @@ Requirements and procedures for audit logging, multi-layer quality assurance, an
 | Event | Log Location | Retention |
 | --- | --- | --- |
 | Task start/completion | `metrics/{date}-task-log.jsonl` | 90 days |
-| Configuration change | `metrics/config-changelog.jsonl` | Indefinite |
-| Human approval/override | `metrics/config-changelog.jsonl` — `proposed`/`evidence_shown`/`risks_surfaced` required (schema: [human-oversight-protocol § Audit trail](../human-oversight-protocol/SKILL.md#audit-trail)) | Indefinite |
+| Configuration change | `.claude/metrics/config-changelog.jsonl` | Indefinite |
+| Human approval/override | `.claude/metrics/config-changelog.jsonl` — `proposed`/`evidence_shown`/`risks_surfaced` required (schema: [human-oversight-protocol § Audit trail](../human-oversight-protocol/SKILL.md#audit-trail)) | Indefinite |
 | Hallucination detection | Task log entry (`hallucination_detected` flag) | 90 days |
 | Context summarization | `memory/{date}-{task-slug}.md` | 90 days (30 active + 60 archive) |
 

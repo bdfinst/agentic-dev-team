@@ -464,7 +464,7 @@ Phase-5 diff:
    `/code-review --since <base-sha> --internal` run **concurrently** against
    the diff between the Phase-5 base commit and HEAD. `--internal`
    (not `--json`) mirrors `/build`'s Step 6 backstop-review flag choice: it
-   suppresses the `DEV_TEAM_REPORTS/code-review.md` write (this is a
+   suppresses the `.dev-team-reports/code-review.md` write (this is a
    diff-scoped, phase-internal review, not a human-invoked top-level run —
    `knowledge/report-output-location.md`) while keeping the prose/
    `corrections/` output sub-step 2 depends on — `--json` would skip that

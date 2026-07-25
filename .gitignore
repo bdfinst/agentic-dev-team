@@ -19,8 +19,12 @@ _mkdocs_src/
 # generated-runtime-data territory — session digests, telemetry, review-value,
 # verify-log, boundary-events, cost-metering, learning-loop state, ... — a new
 # metrics file should need an explicit un-ignore to land in git, not the other
-# way around). Leading **/ so this matches whether hooks write to the
-# repo-root metrics/ or plugins/dev-team/metrics/ (cwd-dependent) — #1081.
+# way around). Resolution is now git-root-based (artifact_paths.py, #1406),
+# not cwd-dependent, so every runtime metrics file lands under a single
+# `.claude/metrics/` at the project root — the leading **/ is belt-and-braces
+# (covers any stray non-`.claude`-nested metrics/ tree, e.g. a legacy
+# not-yet-migrated file) rather than load-bearing the way it was under #1081's
+# cwd-dependent resolution.
 **/metrics/*
 # …but keep the deliberately-tracked audit trails.
 !**/metrics/config-changelog.jsonl

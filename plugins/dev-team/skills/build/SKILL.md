@@ -65,7 +65,7 @@ Read the plan file. If the status is not `approved`:
 - **Interactive** → ask the user: "This plan has status '<status>'. Approve it before building, or continue anyway?"
 - **Non-interactive** (see Parse Arguments) → do **not** block. Auto-approve and continue, and print an explicit audit line into the build output: `Auto-approved plan status '<status>' (non-interactive) — no human gate. Trigger: <--yes | DEV_TEAM_AUTO_APPROVE=1 | no TTY>.`
 
-Either path appends an `approval` entry to `metrics/config-changelog.jsonl` per the
+Either path appends an `approval` entry to `.claude/metrics/config-changelog.jsonl` per the
 [human-oversight-protocol § Audit trail](../human-oversight-protocol/SKILL.md#audit-trail)
 schema — `proposed` states the plan status being approved, `evidence_shown` points at
 the plan file, `risks_surfaced` is `[]` unless the plan's status itself signals a risk
@@ -91,7 +91,7 @@ If any criteria are flagged:
 3. **Non-interactive** (see Parse Arguments) → do **not** block. Proceed and record the bypass in the build output: `Acceptance-criteria gate auto-passed with N flagged criterion(s) (non-interactive) — no human gate. Trigger: <--yes | DEV_TEAM_AUTO_APPROVE=1 | no TTY>.` Include the flagged findings in the record so the bypass is auditable.
 
 Whichever path is taken (proceed, revise, or override), append an `approval` entry to
-`metrics/config-changelog.jsonl` per the [human-oversight-protocol § Audit trail](../human-oversight-protocol/SKILL.md#audit-trail)
+`.claude/metrics/config-changelog.jsonl` per the [human-oversight-protocol § Audit trail](../human-oversight-protocol/SKILL.md#audit-trail)
 schema — `proposed` is the acceptance-criteria set under review, `evidence_shown`
 points at the plan file (and, for an interactive override, the reviewer's findings if
 written to `memory/`), and `risks_surfaced` lists the flagged criteria (`[]` if none
@@ -268,7 +268,7 @@ re-execution**; it renders data this run already produced:
 - **Untested regions**: read `baseline-coverage.json` / `coverage-history.json`
   if present (from `/coverage-baseline` / `/coverage-delta`); otherwise state
   "not measured — no coverage tool detected."
-- **Residual risks**: derived-first from this run's `metrics/review-value.jsonl`
+- **Residual risks**: derived-first from this run's `.claude/metrics/review-value.jsonl`
   entries with `outcome: "escalated"`, any non-interactive gate-bypass audit
   lines printed in Steps 2–3, and any `failed-then-fixed` runtime-verification
   entries in `metrics/verify-log.jsonl`. "None identified" only when all of
