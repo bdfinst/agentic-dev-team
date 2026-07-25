@@ -16,8 +16,10 @@ One hook registered on multiple events; it branches on `hook_event_name`:
 PRIVACY: records only an event type, a grammar-matched name (never free
 text), an outcome, and the plugin version.
 
-CONSENT: OFF by default. Enable with `DEV_TEAM_TELEMETRY=on`, or a
-`<cwd>/.claude/telemetry.json` containing `{"enabled": true}`. When off,
+CONSENT: OFF by default. Enable by writing `{"enabled": true}` to the
+user-level `~/.claude/telemetry.json` (see `hooks/lib/telemetry_consent.py`).
+This is a config-file-only, home-scoped switch — `DEV_TEAM_TELEMETRY` and any
+project-scoped `<cwd>/.claude/telemetry.json` have no effect. When off,
 nothing is recorded and nothing leaves the machine.
 
 TRANSPORT: local-only. Events append to `<cwd>/metrics/telemetry.jsonl`.
@@ -42,6 +44,7 @@ if str(_LIB_DIR) not in sys.path:
     sys.path.insert(0, str(_LIB_DIR))
 
 from boundary_events import emit_boundary_event as _emit_boundary_event
+import telemetry_consent
 
 
 def emit_boundary_event(*args, **kwargs) -> None:
@@ -83,38 +86,6 @@ def _load_plugin_version(hook_dir: Path) -> str:
     return "unknown"
 
 
-def _consent_enabled(cwd: Path) -> bool:
-    """Return True when telemetry is opted in for the current cwd.
-
-    Env var `DEV_TEAM_TELEMETRY=on` takes precedence; failing that, a
-    `<cwd>/.claude/telemetry.json` containing `{"enabled": true}` also
-    enables it. `{"enabled": false}` in that file only affects the
-    `artifact-usage.json` sub-emitter (see `_artifact_usage_disabled`).
-    """
-    if os.environ.get("DEV_TEAM_TELEMETRY") == "on":
-        return True
-    config = cwd / ".claude" / "telemetry.json"
-    if not config.is_file():
-        return False
-    try:
-        data = json.loads(config.read_text())
-    except (OSError, ValueError):
-        return False
-    return bool(data.get("enabled") is True)
-
-
-def _artifact_usage_disabled(cwd: Path) -> bool:
-    """Return True when telemetry.json explicitly disables usage tracking."""
-    config = cwd / ".claude" / "telemetry.json"
-    if not config.is_file():
-        return False
-    try:
-        data = json.loads(config.read_text())
-    except (OSError, ValueError):
-        return False
-    return data.get("enabled") is False
-
-
 def _emit(log: Path, event: str, name: str, outcome: str, version: str) -> None:
     """Append one JSONL event to `log`. Fail-open on any error."""
     try:
@@ -136,9 +107,11 @@ def _emit(log: Path, event: str, name: str, outcome: str, version: str) -> None:
 
 
 def _upsert_artifact_usage(cwd: Path, skill: str) -> None:
-    """Atomically bump the use count for `skill` in artifact-usage.json."""
-    if _artifact_usage_disabled(cwd):
-        return
+    """Atomically bump the use count for `skill` in artifact-usage.json.
+
+    Callers gate this on `telemetry_consent.is_enabled()` before invoking
+    it (see `main()`) — there is no separate per-writer consent check.
+    """
     usage_dir = cwd / "metrics"
     usage_file = usage_dir / "artifact-usage.json"
     try:
@@ -205,7 +178,7 @@ def main() -> int:
     session_id = payload.get("session_id")
 
     # Boundary events (#859) are ALWAYS-ON — unlike telemetry.jsonl below,
-    # they are not gated by DEV_TEAM_TELEMETRY consent (Ambiguity Log:
+    # they are not gated by telemetry consent (Ambiguity Log:
     # safety/accountability channel must have no observability holes; no
     # free text is ever recorded, only the matched keyword).
     if event_name == "UserPromptSubmit":
@@ -222,7 +195,7 @@ def main() -> int:
                     session_id,
                 )
 
-    if not _consent_enabled(cwd):
+    if not telemetry_consent.is_enabled():
         return 0
 
     hook_dir = Path(__file__).resolve().parent
