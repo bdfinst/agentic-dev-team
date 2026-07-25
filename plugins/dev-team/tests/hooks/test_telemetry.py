@@ -17,12 +17,16 @@ import telemetry
 
 
 def _isolate_home(monkeypatch, tmp_path):
-    """Point ~/.claude/telemetry.json at a fresh, empty home dir so tests
-    never read the real machine's consent file."""
+    """Point ~/.claude/telemetry.json at a fresh, empty home dir, and TMPDIR
+    at a fresh scratch dir, so tests never read the real machine's consent
+    file nor leave a stray Step-1.4 notice marker in the real temp dir."""
     home = tmp_path / "home"
     home.mkdir()
     monkeypatch.setenv("HOME", str(home))
     monkeypatch.delenv("DEV_TEAM_TELEMETRY", raising=False)
+    tmpdir = tmp_path / "tmp"
+    tmpdir.mkdir()
+    monkeypatch.setenv("TMPDIR", str(tmpdir))
     return home
 
 
@@ -296,3 +300,75 @@ def test_main_malformed_stdin_silent(monkeypatch, tmp_path):
     _feed(monkeypatch, "not-json")
     assert telemetry.main() == 0
     assert not (home / ".claude" / "metrics" / "telemetry.jsonl").exists()
+
+
+# ---------------------------------------------------------------------------
+# One-time inert-legacy-signal notice (Slice 1, Step 1.4)
+# ---------------------------------------------------------------------------
+
+
+def _prompt_payload(cwd, session_id=None):
+    payload = {
+        "hook_event_name": "UserPromptSubmit",
+        "cwd": str(cwd),
+        "prompt": "/plan",
+    }
+    if session_id is not None:
+        payload["session_id"] = session_id
+    return json.dumps(payload)
+
+
+def test_no_notice_when_neither_legacy_signal_present(monkeypatch, tmp_path, capsys):
+    _isolate_home(monkeypatch, tmp_path)
+    _feed(monkeypatch, _prompt_payload(tmp_path, "sess-none"))
+    assert telemetry.main() == 0
+    assert capsys.readouterr().err == ""
+
+
+def test_notice_fires_for_env_var_signal(monkeypatch, tmp_path, capsys):
+    _isolate_home(monkeypatch, tmp_path)
+    monkeypatch.setenv("DEV_TEAM_TELEMETRY", "on")
+    _feed(monkeypatch, _prompt_payload(tmp_path, "sess-env"))
+    assert telemetry.main() == 0
+    err = capsys.readouterr().err
+    assert "~/.claude/telemetry.json" in err
+
+
+def test_notice_fires_for_project_level_config_signal(monkeypatch, tmp_path, capsys):
+    _isolate_home(monkeypatch, tmp_path)
+    (tmp_path / ".claude").mkdir()
+    (tmp_path / ".claude" / "telemetry.json").write_text('{"enabled":true}')
+    _feed(monkeypatch, _prompt_payload(tmp_path, "sess-proj"))
+    assert telemetry.main() == 0
+    err = capsys.readouterr().err
+    assert "~/.claude/telemetry.json" in err
+
+
+def test_notice_fires_once_per_session_not_per_invocation(monkeypatch, tmp_path, capsys):
+    _isolate_home(monkeypatch, tmp_path)
+    monkeypatch.setenv("DEV_TEAM_TELEMETRY", "on")
+
+    _feed(monkeypatch, _prompt_payload(tmp_path, "sess-repeat"))
+    assert telemetry.main() == 0
+    first_err = capsys.readouterr().err
+    assert "~/.claude/telemetry.json" in first_err
+
+    _feed(monkeypatch, _prompt_payload(tmp_path, "sess-repeat"))
+    assert telemetry.main() == 0
+    second_err = capsys.readouterr().err
+    assert second_err == ""
+
+
+def test_notice_is_per_session_not_global(monkeypatch, tmp_path, capsys):
+    """A different session_id gets its own one-time notice."""
+    _isolate_home(monkeypatch, tmp_path)
+    monkeypatch.setenv("DEV_TEAM_TELEMETRY", "on")
+
+    _feed(monkeypatch, _prompt_payload(tmp_path, "sess-a"))
+    telemetry.main()
+    capsys.readouterr()  # discard first session's notice
+
+    _feed(monkeypatch, _prompt_payload(tmp_path, "sess-b"))
+    assert telemetry.main() == 0
+    err = capsys.readouterr().err
+    assert "~/.claude/telemetry.json" in err
