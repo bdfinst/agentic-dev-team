@@ -20,6 +20,7 @@ def test_documents_running_the_failure_path_gate():
 def test_scope_names_both_xunit_with_annotations_and_bdd_runner():
     text = _text()
     idx = text.find("gherkin_failure_path_gate.py")
+    assert idx != -1, "gherkin_failure_path_gate.py mention not found in SKILL.md"
     window = text[max(0, idx - 600) : idx + 200]
     assert "xunit-with-annotations" in window
     assert "bdd-runner" in window
