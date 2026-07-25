@@ -97,7 +97,7 @@ using `${CLAUDE_PLUGIN_ROOT}/knowledge/task-size-classifier.md`. Whole-file load
 
 3. **Classify.** Apply the rules in `${CLAUDE_PLUGIN_ROOT}/knowledge/task-size-classifier.md`. Whole-file load: the ordered classification rules and bias rule. First match wins; bias to classify up when signals are ambiguous.
 
-4. **Log the decision** to `memory/decisions.md` (format in classifier spec).
+4. **Log the decision** to `.claude/memory/decisions.md` (format in classifier spec).
 
 5. **Route** (1:1 with the classifier — the classifier spec loaded in step 1 is the
    single source of truth for both the classification and the route; Rec 2 of
@@ -120,7 +120,7 @@ bias-up rule routes to the full workflow.
 
 6. **Surface the routing decision to the operator.** State the chosen route and
    its rationale (the classification, the signals that drove it, and the rule
-   that fired) in the operator-facing response — not only in `memory/decisions.md`.
+   that fired) in the operator-facing response — not only in `.claude/memory/decisions.md`.
 
 ### No-plan fast path (trivial and fast-path-eligible standard)
 
@@ -369,7 +369,7 @@ When any checkpoint agent returns `fail`:
 
 ## Decision Log
 
-Significant decisions are appended to `memory/decisions.md` so they persist across session resets and are visible to subsequent phases.
+Significant decisions are appended to `.claude/memory/decisions.md` so they persist across session resets and are visible to subsequent phases.
 
 **Log a decision when:**
 
@@ -393,7 +393,7 @@ Significant decisions are appended to `memory/decisions.md` so they persist acro
 **Alternatives rejected**: <other options and why not chosen>
 ```
 
-Append the entry to `memory/decisions.md` using the Write or Edit tool before moving to the next phase.
+Append the entry to `.claude/memory/decisions.md` using the Write or Edit tool before moving to the next phase.
 
 ## Behavioral Guidelines
 

@@ -33,7 +33,7 @@ Find phase progress files with `Glob("memory/*.md")` — never `Read` the bare `
 - `memory/research-progress-*.md` — Research phase output
 - `memory/plan-progress-*.md` — Plan phase output
 - `memory/implementation-progress-*.md` — Implementation phase output
-- `memory/decisions.md` — Accumulated decision log
+- `.claude/memory/decisions.md` — Accumulated decision log
 
 Also check (same rule — `Glob`, not a directory `Read`):
 
