@@ -34,9 +34,9 @@ For the full pipeline — targeting, pre-flight gates, static analysis pre-pass,
 
 `/test-improve` is the **consolidated** analyze-then-improve orchestrator for legacy or in-flight test suites. It defaults to lightweight ceremony, prompts for heavier capabilities on demand, and always baselines coverage (and mutation, when enabled) before any test change.
 
-![/test-improve seven-phase workflow with human gates between each phase](diagrams/test-improve-flow.svg)
+![/test-improve ten-phase (0-9) workflow with human gates between each phase](diagrams/test-improve-flow.svg)
 
-It runs seven phases with a human gate between each, every phase writing a progress file at `.claude/memory/test-improve/<slug>/phase-<n>.md` so `/continue` (and `--from-phase`) can resume. The full phase-by-phase reference — gates, arguments, and the flow diagram — lives on its own page: **[test-improve.md](test-improve.md)**.
+It runs ten phases (0-9) with a human gate between each, every phase writing a progress file at `.claude/memory/test-improve/<slug>/phase-<n>.md` so `/continue` (and `--from-phase`) can resume. The full phase-by-phase reference — gates, arguments, and the flow diagram — lives on its own page: **[test-improve.md](test-improve.md)**.
 
 ## Context Management
 

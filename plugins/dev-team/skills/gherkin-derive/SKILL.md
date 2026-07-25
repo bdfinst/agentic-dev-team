@@ -201,6 +201,49 @@ that pass silently.
 | C# | Reqnroll (xUnit / NUnit / MSTest) | `throw new PendingStepException();` (Reqnroll's own auto-suggested stub; `ScenarioContext.StepIsPending()` is deprecated as of Reqnroll 3.3.4 — see `bdd-frameworks.md`) |
 | Go | Godog | `return godog.ErrPending` |
 
+**Merge, never overwrite (issue #1421).** Step-definition stubs are merged
+into the existing file the same way Step 5 merges `.feature` scenarios —
+never a raw `Write`, which would silently discard any step a human (or
+`/build`) has already implemented. For each surface's step-definition file,
+write the newly-derived stub text (using the pending-stub form from the
+table above) to a scratch candidates file, then invoke
+`gherkin_stub_merge.py merge`:
+
+```
+python3 ${CLAUDE_PLUGIN_ROOT}/scripts/gherkin_stub_merge.py merge \
+  --existing <dir>/<surface>_steps.<ext> --candidates <scratch-file> \
+  --ext <.js|.ts|.mjs|.cjs|.java|.cs|.go> --json
+```
+
+This is exactly one write path whether or not a step-definition file already
+existed at that path. Any step already bound in the file — pending or
+already implemented — is left byte-for-byte untouched; only genuinely new
+step patterns are appended, as pending stubs, after the file's last existing
+binding. **Exit 2 means no write occurred** — read the `--json` payload's
+`error` field to know why, and report the specific cause per Step 6 rather
+than a generic "could not merge" (never retry with a raw `Write`, whichever
+cause it is):
+- `unbalanced-braces` — the existing file's braces/parens don't lexically
+  balance, so no binding's body can be safely bounded. The file needs
+  hand-repair before any merge can succeed.
+- `dangling-annotation` — a step marker (a call, annotation, or attribute)
+  was found with no attached, boundable body. Same remediation — hand-repair
+  the file first.
+- `unsafe-path` — the composed `--existing` path contained a `..` component
+  and was rejected before any read or write. Fix how the surface name was
+  derived into a path; do not retry with the same value.
+- `malformed-candidates` — the scratch candidates file (this skill's own
+  intermediate output, not the operator's step-definition file) itself
+  couldn't be bounded. Re-author the candidates text for that surface and
+  retry.
+- `unreadable-candidates` — the scratch candidates file (this skill's own
+  intermediate output) is missing or couldn't be read at all. Re-check how
+  this skill wrote that scratch file for the surface before retrying — not
+  the operator's step-definition file.
+- `unsupported-extension` — the `--ext` value doesn't name a language this
+  script recognizes (`.js`/`.ts`/`.mjs`/`.cjs`/`.java`/`.cs`/`.go`). Fix how
+  this skill derived `--ext` from the surface's language before retrying.
+
 ## Step 5 — Output
 
 - `features/<surface>.feature` files (all non-`none` modes) — **merged, not
@@ -239,7 +282,9 @@ that pass silently.
   - A malformed `--candidates` scratch file (this skill's own intermediate
     output, not the operator's `.feature` file) — re-author the candidates
     text for that surface and retry.
-- `step_definitions/<surface>_steps.<ext>` pending stubs (`bdd-runner` only).
+- `step_definitions/<surface>_steps.<ext>` pending stubs (`bdd-runner` only) —
+  written via Step 4's `gherkin_stub_merge.py merge` invocation, never a raw
+  `Write`, so an already-implemented step is never clobbered.
 - A surface inventory at `.claude/memory/<workflow>/<slug>/gherkin.md` listing each
   discovered surface, its discovery source, provenance, mode, and the files
   written. `/test-improve` reads this at Phase 4 (plan fixes) and Phase 5
@@ -295,6 +340,47 @@ retained one actually covers the intended behavior before treating the
 surface as covered." Do not fold this into the surface-count summary — a
 dropped candidate is exactly the kind of silent gap this report exists to
 surface.
+
+**Call out `gherkin_stub_merge.py`'s skipped duplicate steps too, mirroring
+the scenario-merge callout above (issue #1421).** `merge --json`'s
+`skipped_duplicate_patterns` lists every candidate step that was *not*
+written — either it matched a pattern already bound in the file (the step
+is present either way, low stakes), or it collided with another candidate
+authored in the same run (the dropped one is not written anywhere and never
+will be, unless re-authored). Report each as "skipped duplicate step:
+`<pattern>` — a binding with this exact pattern already exists in `<path>`,
+or two derived candidates shared it; confirm the retained binding actually
+covers the intended step before treating the surface as covered." Do not
+fold this into the surface-count summary — a dropped candidate is exactly
+the kind of silent gap this report exists to surface, the same reasoning
+that already applies to `skipped_duplicate_titles` above.
+
+**Call out step-definition merge structural errors, distinctly from the
+scenario-merge callouts above (issue #1421).** When Step 4's
+`gherkin_stub_merge.py merge` invocation exits 2, report it using this exact
+template, naming the concrete problem, file, and sentinel: `"Could not merge
+step-definition stubs into <path>: <language> structure not recognized
+(<sentinel>). No changes were made — fix the file's syntax and re-run, or
+report the file:line if the structure looks valid."` for the two
+step-definition-specific structural sentinels the `stub_extractors` package
+returns (`unbalanced-braces` — the existing file's braces/parens don't
+lexically balance; `dangling-annotation` — a step marker has no attached,
+boundable body). The other four sentinels `gherkin_stub_merge.py` can return
+are **not** step-definition syntax problems and need their own remediation,
+reusing Step 4's own per-cause text rather than the template above:
+`unsafe-path` — "fix how the surface name was derived into a path; do not
+retry with the same value" (a bug in how this skill composed the path, not
+in the operator's file); `malformed-candidates` — "re-author the candidates
+text for that surface and retry" (this skill's own scratch file, not the
+operator's step-definition file); `unreadable-candidates` — "re-check how
+this skill wrote that scratch file for the surface before retrying" (this
+skill's own scratch file was missing or couldn't be read, not the
+operator's step-definition file); `unsupported-extension` — "fix how this
+skill derived `--ext` from the surface's language before retrying" (a bug
+in how this skill chose the extension, not in the operator's file). This is
+a distinct failure mode from the scenario-merge callouts above: no scenario
+was skipped or retained here, the step-definition file was never written at
+all.
 
 **`bdd-runner` mode — state completion plainly, as the report's headline
 (issues #1391, #1420).** Choosing `bdd-runner` mode is a decision to end up

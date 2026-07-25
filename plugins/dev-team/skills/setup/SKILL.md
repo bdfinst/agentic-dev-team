@@ -784,23 +784,38 @@ are regeneratable runtime artifacts, not deliverables — but `/build` commits
 the working tree per completed step, so without an ignore rule they land in
 the project's history (issue #1101).
 
-In a downstream project, `.claude/memory/`, `.claude/metrics/`,
-`.claude/plans/`, and `.dev-team-reports/` are exclusively dev-team runtime
-state, so each whole folder is safe to ignore; the legacy bare `memory/`,
-`reports/`, `metrics/`, `plans/` lines are appended alongside them as a
-safety net for any pre-#1406 content still landing at the old paths.
+In a downstream project, `.claude/memory/`, `.claude/metrics/`, and
+`.claude/plans/` are exclusively dev-team runtime state, so each whole
+folder is safe to ignore. `.dev-team-reports/` is **not** wholly safe to
+ignore: `/test-improve` git-tracks a `<slug>/data/` sibling directory
+under it (issue #1412) so its report is a pure function of tracked data and
+regeneratable from a fresh checkout, so the rule anchors a deny-all and
+re-includes that one tracked exception instead of ignoring the whole
+folder — the identical shape this repo's own `.gitignore` and
+`/project-init`'s JS-scaffold template use. The legacy bare `memory/`,
+`reports/`, `metrics/`, `plans/` lines are appended alongside as a safety
+net for any pre-#1406 content still landing at the old paths.
 Idempotently append the block (create `.gitignore` if absent; do nothing if
 the marker is already present):
 
 ```bash
-MARKER="# dev-team workflow runtime artifacts (.claude/-scoped + .dev-team-reports/, #1406)"
+MARKER="# dev-team workflow runtime artifacts (.claude/-scoped + .dev-team-reports/, #1406) v2"
 if ! grep -qF "$MARKER" .gitignore 2>/dev/null; then
+  # Self-heal: a pre-#1412 run of this block (under the v1 marker) may have
+  # already appended the superseded blanket `.dev-team-reports/` line. Strip
+  # it before appending the anchored replacement below — git never
+  # re-includes a path whose parent directory is itself excluded, so leaving
+  # the old blanket line in place would silently shadow the new exception.
+  if [ -f .gitignore ]; then
+    grep -vxF '.dev-team-reports/' .gitignore > .gitignore.tmp && mv .gitignore.tmp .gitignore
+  fi
   printf '\n%s\n%s\n' \
-    "$MARKER (regeneratable; not deliverables — issues #1101, #1377, #1406)" \
+    "$MARKER (regeneratable; not deliverables — issues #1101, #1377, #1406, #1412)" \
     ".claude/memory/
 .claude/metrics/
 .claude/plans/
-.dev-team-reports/
+/.dev-team-reports/*
+!/.dev-team-reports/test-improve/
 memory/
 reports/
 metrics/

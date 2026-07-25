@@ -98,10 +98,78 @@ def test_phase_1_human_gate_names_the_ordered_improvement_plan():
     )
 
 
-def test_phase_1_gate_blocks_phase_2_until_approval():
-    assert grep(
-        r"(Phase 2|next phase).*(does not|not).*run|"
-        r"do[[:space:]]+not[[:space:]]+advance|human[[:space:]]+gate",
-        _phase_1_section(),
+def test_phase_1_gate_blocks_phase_4_until_approval():
+    """#1422: Phase 1 now immediately precedes Phase 4 (Triage) in the
+    reordered execution sequence (0 -> 2 -> 3 -> 1 -> 4 -> ...), so Phase 1's
+    human gate blocks Phase 4, not Phase 2."""
+    s = _phase_1_section()
+    assert grep(r"\*\*Phase 4 does not run\*\*", s)
+    assert not grep(r"\*\*Phase 2 does not run\*\*", s)
+
+
+# --- test-counts-before.json existing-snapshot guard (issue #1412, Slice 2) --
+
+
+def test_phase_1_fresh_slug_writes_test_counts_before_without_prompt():
+    """No existing test-counts-before.json for the slug -> write directly,
+    no prompt needed."""
+    s = _phase_1_section()
+    assert grep(r"[Nn]o[[:space:]]+existing[[:space:]]+file", s)
+    assert grep_multiline(
+        r"[Nn]o[[:space:]]+existing[[:space:]]+file.{0,80}no[[:space:]]+prompt",
+        s,
         ignore_case=True,
     )
+
+
+def test_phase_1_existing_snapshot_prompts_with_keep_overwrite_default_keep():
+    s = _phase_1_section()
+    assert grep(r"test-counts-before\.json", s)
+    assert grep_multiline(
+        r"overwrite it\s+\(starts a fresh\s+before/after comparison\)", s
+    )
+    assert grep_multiline(r"\[keep/overwrite,\s+default: keep\]", s)
+
+
+def test_phase_1_declining_overwrite_keeps_existing_file_and_reuses_it():
+    s = _phase_1_section()
+    assert grep_multiline(
+        r"keep.{0,80}(leaves the existing file untouched|untouched).{0,80}reuses it",
+        s,
+        ignore_case=True,
+    )
+
+
+def test_phase_1_confirming_overwrite_replaces_existing_snapshot():
+    s = _phase_1_section()
+    assert grep(
+        r"overwrite.{0,40}replaces the existing file with a\s+fresh snapshot",
+        s,
+        ignore_case=True,
+    ) or grep_multiline(
+        r"overwrite.{0,80}replaces.{0,40}fresh snapshot", s, ignore_case=True
+    )
+
+
+def test_phase_1_unrecognized_answer_reprompts_with_identical_text():
+    s = _phase_1_section()
+    assert grep_multiline(
+        r"[Uu]nrecognized answer.{0,60}re-prompts with the identical",
+        s,
+    )
+    assert grep(
+        r"never silently falls back to the default", s, ignore_case=True
+    )
+
+
+def test_phase_1_non_interactive_defaults_to_keep_and_logs_the_decision():
+    s = _phase_1_section()
+    assert grep(
+        r"non-interactive.{0,40}\(no usable TTY / `DEV_TEAM_AUTO_APPROVE=1`\)",
+        s,
+    )
+    assert grep_multiline(
+        r"defaults to \*\*keep existing\*\*.{0,60}logs the\s+auto-decision",
+        s,
+    )
+    assert grep(r"decision-defaults\.md", s)

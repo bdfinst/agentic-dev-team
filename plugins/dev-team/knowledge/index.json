@@ -1002,9 +1002,9 @@
       "summary": "A `.dev-team-reports/` write failure (permission/read-only) is reported to",
       "anchor": "write-failures-are-always-non-fatal"
     },
-    "Gitignored by default": {
+    "Gitignored by default, with a tracked exception for report data": {
       "summary": "`.dev-team-reports/` is gitignored by default — both in this repo's own",
-      "anchor": "gitignored-by-default"
+      "anchor": "gitignored-by-default-with-a-tracked-exception-for-report-data"
     },
     "Related": {
       "summary": "`knowledge/report-template.md` — the shared header/footer/empty-section",
@@ -5739,7 +5739,7 @@
       "anchor": "6-flaky-test-automation-maturity"
     },
     "7. Classify gaps + recommend removals": {
-      "summary": "Classify every gap the audit surfaces into one of three classes, so the improvement plan (Step 8) only ever plans work that delivers signal:",
+      "summary": "Classify every gap the audit surfaces into one of three **actionable** classes, plus one **non-actionable** class reserved for behavior that doesn't exist yet (see Gherkin gaps below), so the improvement plan (Step 8) only ever plans work…",
       "anchor": "7-classify-gaps-recommend-removals"
     },
     "8. Ordered improvement plan": {
@@ -5769,20 +5769,16 @@
       "anchor": "parse-arguments"
     },
     "Phase-start banner": {
-      "summary": "At the start of every phase (0..9), print a two-line banner:",
+      "summary": "At the start of every phase, print a two-line banner:",
       "anchor": "phase-start-banner"
     },
     "Steps": {
-      "summary": "Resolve every ambiguous input in **one batch** before any work starts, then",
+      "summary": "**Execution order.** Phases below are numbered by stable identity, not by",
       "anchor": "steps"
     },
     "Phase 0 — Approach contract": {
       "summary": "Resolve every ambiguous input in **one batch** before any work starts, then",
       "anchor": "phase-0-approach-contract"
-    },
-    "Phase 1 — Analyze via /test-health": {
-      "summary": "Delegate the entire analysis pass to **`/test-health`** — it is the **sole",
-      "anchor": "phase-1-analyze-via-test-health"
     },
     "Phase 2 — Baseline (coverage + mutation)": {
       "summary": "Capture the objective starting point **before any file under the stack's test",
@@ -5791,6 +5787,10 @@
     "Phase 3 — Derive Gherkin (conditional)": {
       "summary": "Gherkin derivation is **conditional on the Phase-0 BDD rubric answer**.",
       "anchor": "phase-3-derive-gherkin-conditional"
+    },
+    "Phase 1 — Analyze via /test-health": {
+      "summary": "Delegate the entire analysis pass to **`/test-health`** — it is the **sole",
+      "anchor": "phase-1-analyze-via-test-health"
     },
     "Phase 4 — Plan fixes (partition findings by gap class)": {
       "summary": "Convert Phase 1's ordered improvement plan into actionable work items.",

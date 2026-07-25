@@ -67,23 +67,23 @@ def test_phase_2_records_baseline_artifacts_under_memory_test_improve_slug():
     assert grep(r"memory/test-improve/<slug>/baseline-mutation\.json", s)
 
 
-def test_phase_2_baseline_write_path_is_conditional_on_report_opt_in():
-    """#1126: on knob-7 opt-in, the baseline is written to a git-tracked
-    reports/test-improve/ path (picked up by the run's PR); on decline it
-    stays on the transient memory/ path. No git command is issued."""
+def test_phase_2_baseline_write_is_unconditional_not_report_opt_in_gated():
+    """#1412: knob-7 is gone — Phase 2's own baseline write is a single,
+    unconditional path (/coverage-baseline's canonical memory/ write, itself
+    untouched); no report-opt-in branching remains at Phase 2."""
     s = _phase_2_section()
-    assert grep(r"reports/test-improve/<slug>/", s)
-    assert grep(r"git-tracked", s)
-    assert grep(r"transient|memory/test-improve/<slug>/", s)
-    assert grep(r"no.*git command|issues.*no.*git", s, ignore_case=True)
+    assert grep(r"unconditional", s, ignore_case=True)
+    assert grep(r"memory/test-improve/<slug>/baseline-coverage\.json", s)
+    assert not grep(r"report opt-in|knob-7", s, ignore_case=True)
 
 
-def test_phase_2_documents_the_reports_gitignore_caveat():
-    """#1126: because reports/ is commonly gitignored, the target repo must
-    un-ignore reports/test-improve/ or the opt-in degrades to transient."""
+def test_phase_2_defers_the_tracked_data_copy_to_phase_9():
+    """#1412: the git-tracked data/ copy is produced later, unconditionally,
+    by Phase 9 — Phase 2's own text says so and stops short of describing
+    that copy step itself (owned by Phase 9)."""
     s = _phase_2_section()
-    assert grep(r"gitignore|un-ignore", s, ignore_case=True)
-    assert grep(r"degrades? to transient|degrade", s, ignore_case=True)
+    assert grep(r"Phase 9", s)
+    assert grep(r"data/", s)
 
 
 def test_phase_2_documents_the_go_advisory_marker_on_mutation_baseline():

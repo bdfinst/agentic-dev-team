@@ -11,7 +11,8 @@ directory moved under `.claude/`) is migrated file-by-file on the first
 resume that resolves the memory directory; git-tracked files and
 `refactor-backlog.md` are left in place (see `artifact_paths.migrate_dir()`).
 
-Deterministic rules (spec = issue #1151):
+Deterministic rules (spec = issue #1151; execution order reordered by
+issue #1422 so Baseline and Derive-Gherkin land before Analyze):
 
 - Scan ONLY the resolved slug's directory for completed-phase progress files
   `phase-0.md` … `phase-9.md`, excluding `phase-3.md` (Phase 3 — Gherkin
@@ -19,13 +20,18 @@ Deterministic rules (spec = issue #1151):
   progress file; see below). The slug derives from the `<repo-path>` (last
   path segment), so a run is never conflated with an unrelated slug under the
   same `.claude/memory/test-improve/` root.
-- Find the HIGHEST-numbered completed phase.
-- Resume at the NEXT phase in the pipeline sequence
-  `0, 1, 2, 3, 4, 5, 6, 7, 8, 9`, with two deliberate skips: a completed
-  `phase-2.md` resumes at Phase 4 directly (Phase 3 has no tracked progress
-  file), a completed `phase-6.md` resumes at Phase 8 (matching the Phase-6
-  `[b]`/`[q]` skip-to-8 flow), and a completed `phase-5.md` with no
-  `phase-6.md` resumes at Phase 6.
+- Find the HIGHEST-completed phase, ordered by the pipeline's EXECUTION
+  sequence `0, 2, 1, 4, 5, 6, 7, 8, 9` (phase identities keep their historical
+  numbers — Phase 1 is still Analyze, Phase 2 is still Baseline — only the
+  order in which they execute changed; see `test-improve/SKILL.md`'s
+  "Execution order" note).
+- Resume at the NEXT phase in that execution sequence, with two deliberate
+  skips: a completed `phase-2.md` resumes at Phase 1 directly (Phase 3 has no
+  tracked progress file, so the auto-detect skips over it the same way it
+  always has — this is unchanged by the reorder, only the skip TARGET moved
+  from Phase 4 to Phase 1), a completed `phase-6.md` resumes at Phase 8
+  (matching the Phase-6 `[b]`/`[q]` skip-to-8 flow), and a completed
+  `phase-5.md` with no `phase-6.md` resumes at Phase 6.
 - No memory dir / no phase files → ERROR (do NOT silently start at Phase 0).
 - `phase-0.md` must exist or the resume errors, for BOTH auto-detect and an
   explicit `--explicit <n>` — `--from-phase` never re-prompts Phase-0 inputs.
@@ -59,13 +65,16 @@ if str(_HOOKS_LIB_DIR) not in sys.path:
 
 import artifact_paths  # noqa: E402
 
-# Pipeline order, skipping `3` (Phase 3 has no numbered progress file — see
-# module docstring). Rank is used only to pick the highest completed file,
-# NEXT_PHASE encodes where to resume from each.
+# Execution order (issue #1422), skipping `3` (Phase 3 has no numbered
+# progress file — see module docstring). Phase identities are unchanged
+# (Phase 1 is still Analyze, Phase 2 is still Baseline); rank reflects the
+# order they now EXECUTE in (0 -> 2 -> 1 -> 4 -> 5 -> 6 -> 7 -> 8 -> 9), not
+# their identity numbers. Rank is used only to pick the highest completed
+# file; NEXT_PHASE encodes where to resume from each.
 PHASE_RANK: dict[str, int] = {
     "0": 0,
-    "1": 1,
-    "2": 2,
+    "2": 1,
+    "1": 2,
     "4": 3,
     "5": 4,
     "6": 5,
@@ -75,14 +84,15 @@ PHASE_RANK: dict[str, int] = {
 }
 
 # Where to resume given the highest completed phase. `2` skips Phase 3 (no
-# tracked progress file) and resumes at Phase 4. `6` skips Phase 7 and
-# resumes at Phase 8 (matching the `[b]`/`[q]` skip-to-8 flow); `7` also
-# resumes at Phase 8. `9` (last phase) has no successor — the run is
-# complete.
+# tracked progress file) and resumes at Phase 1 — the skip is unchanged by
+# the reorder, only its target moved from Phase 4 (old sequential order) to
+# Phase 1 (new execution order). `6` skips Phase 7 and resumes at Phase 8
+# (matching the `[b]`/`[q]` skip-to-8 flow); `7` also resumes at Phase 8. `9`
+# (last phase) has no successor — the run is complete.
 NEXT_PHASE: dict[str, str | None] = {
-    "0": "1",
-    "1": "2",
-    "2": "4",
+    "0": "2",
+    "2": "1",
+    "1": "4",
     "4": "5",
     "5": "6",
     "6": "8",

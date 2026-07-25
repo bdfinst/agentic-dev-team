@@ -92,15 +92,15 @@ def test_template_still_has_exactly_10_numbered_section_headers():
     assert len(headers) == 10
 
 
-def test_template_baseline_provenance_is_report_opt_in_conditional():
-    """#1126: an opt-in run's baselines live under .dev-team-reports/test-improve/
-    (Slice 7, plan opt-in-metrics-and-claude-scoped-artifacts.md), so the
-    template's provenance strings must name that location conditionally rather
-    than hard-coding .claude/memory/."""
+def test_template_baseline_provenance_is_unconditionally_git_tracked():
+    """#1412: knob-7 is gone — every run's baselines are git-tracked under
+    .dev-team-reports/test-improve/{{slug}}/data/ unconditionally, so the
+    template's provenance strings name that location directly rather than
+    branching on an opt-in that no longer exists."""
     text = _text()
-    assert grep(r"\{\{baseline_dir\}\}", text)
-    assert grep(r"\.dev-team-reports/test-improve/\{\{slug\}\}/", text)
-    assert grep(r"opted in", text, ignore_case=True)
+    assert grep(r"\.dev-team-reports/test-improve/\{\{slug\}\}/data/", text)
+    assert not grep(r"\{\{baseline_dir\}\}", text)
+    assert not grep(r"opted in|opt-in", text, ignore_case=True)
 
 
 def test_template_has_no_bare_legacy_path_references():

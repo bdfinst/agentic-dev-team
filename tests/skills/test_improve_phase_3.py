@@ -37,6 +37,15 @@ def test_phase_3_documents_binding_mode_none_skip_path():
     )
 
 
+def test_phase_3_none_mode_documents_the_reordered_executed_sequence():
+    """#1422: with Phase 3 skipped (binding mode `none`), Phase 1 follows
+    Phase 2 directly under the reordered execution sequence — not Phase 4,
+    which was the correct skip-target under the old sequential order."""
+    s = _phase_3_section()
+    assert grep(r"Phase 1 follows Phase 2", s)
+    assert grep(r"0 → 2 → 1 → 4", s) or grep(r"0 -> 2 -> 1 -> 4", s)
+
+
 def test_phase_3_documents_xunit_with_annotations_mode_no_runner_added():
     s = _phase_3_section()
     assert grep(r"xunit-with-annotations", s)
@@ -61,12 +70,13 @@ def test_phase_3_names_memory_test_improve_slug_gherkin_md_persistence():
     assert grep(r"memory/test-improve/<slug>/gherkin\.md", _phase_3_section())
 
 
-def test_phase_3_names_the_human_gate_before_phase_4():
-    assert grep(
-        r"human[[:space:]]+gate|Phase[[:space:]]+4.*(does[[:space:]]+not|not)[[:space:]]+run|approv",
-        _phase_3_section(),
-        ignore_case=True,
-    )
+def test_phase_3_names_the_human_gate_before_phase_1():
+    """#1422: Phase 1 (Analyze) now immediately follows Phase 3 in the
+    reordered execution sequence (0 -> 2 -> 3 -> 1 -> 4 -> ...), so Phase 3's
+    human gate blocks Phase 1, not Phase 4."""
+    s = _phase_3_section()
+    assert grep(r"\*\*Phase 1 does not run\*\*", s)
+    assert not grep(r"\*\*Phase 4 does not run\*\*", s)
 
 
 def test_phase_3_human_gate_names_failure_path_gate_findings_as_part_of_approval():

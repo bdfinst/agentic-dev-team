@@ -9,13 +9,28 @@ Ported from tests/skills/test_improve_phase_0_tests.bats (issue #674).
 
 from __future__ import annotations
 
-from skill_doc_helpers import PLUGIN_ROOT, frontmatter, grep
+import re
+
+from skill_doc_helpers import PLUGIN_ROOT, frontmatter, grep, grep_multiline, section
 
 SKILL = PLUGIN_ROOT / "skills" / "test-improve" / "SKILL.md"
 
 
 def _text() -> str:
-    return SKILL.read_text()
+    return SKILL.read_text(encoding="utf-8")
+
+
+def _phase_start_banner_fence() -> str:
+    """The fenced two-line banner literal under '## Phase-start banner' —
+    isolated so a regression guard can check the fence's own content instead
+    of a substring anywhere in the file (which a mid-sentence backticked
+    mention, e.g. explaining what the *old* format looked like, would also
+    satisfy)."""
+    banner_section = section(_text(), r"^## Phase-start banner", boundary_pattern=r"^## ")
+    assert banner_section, "Phase-start banner section not found in test-improve/SKILL.md"
+    fence_match = re.search(r"```\n(.*?)\n```", banner_section, re.DOTALL)
+    assert fence_match, "no fenced code block found under '## Phase-start banner'"
+    return fence_match.group(1)
 
 
 def test_test_improve_skill_md_exists():
@@ -158,41 +173,54 @@ def test_knob_6_is_idempotent_and_records_partial_failure():
     assert grep(r"per-tool", text, ignore_case=True)
 
 
-# --- #1126: knob 7, the opt-in baseline-metrics report ----------------------
+# --- #1412: knob-7 (opt-in baseline-metrics report) is removed --------------
 
 
-def test_phase_0_has_baseline_metrics_report_knob_default_no():
-    """#1126: a distinct knob 7 asks whether to persist baseline coverage +
-    mutation metrics for an end-of-run delta report; default is no."""
+def test_phase_0_prompt_battery_is_six_knobs():
+    """#1412: knob-7 (the baseline-metrics-report opt-in) is removed
+    entirely, not repurposed — the battery is six knobs, not seven."""
     text = _text()
-    assert grep(r"[Bb]aseline-metrics report|baseline coverage and mutation metrics", text)
-    assert grep(r"7\.\s+\*\*Baseline-metrics report", text)
-    assert grep(r"\[no\]", text)
+    assert grep(r"six knobs", text)
+    assert not grep(r"seven knobs", text)
 
 
-def test_knob_7_wording_is_independent_of_mutation_mode():
-    """The report knob applies even when mutation is off and is skippable
-    under kill-loop — a concrete independence assertion, not a vague claim."""
+def test_phase_0_has_no_baseline_metrics_report_knob():
+    """#1412: no baseline-metrics-report opt-in prompt remains — its data is
+    now always git-tracked under data/ (see Phase 9), so the knob has
+    nothing left to gate."""
     text = _text()
-    assert grep(r"even when mutation mode is `off`", text)
-    assert grep(r"skipped under `kill-loop`|skippable under `kill-loop`", text)
+    assert not grep(r"[Bb]aseline-metrics report", text)
+    assert not grep(r"baseline coverage and mutation metrics", text)
+    assert not grep(r"7\.\s+\*\*Baseline-metrics report", text)
 
 
-def test_knob_7_is_part_of_enter_accepts_all_and_knob_6_is_sole_exception():
-    """#1126: knob 7 defaults to no under Enter (part of the gesture); knob 6
-    remains the sole Enter-accepts-all exception."""
+def test_phase_0_prompt_battery_ends_at_knob_6():
+    """#1412: the numbered knob list stops at 6 — no dangling `7.` item."""
     text = _text()
-    assert grep(r"seven knobs", text)
-    assert grep(r"knob 7.*defaults to `no` under Enter|defaults to `no` under Enter", text)
+    assert grep(r"^6\.\s+\*\*Code-lookup tools", text, ignore_case=True)
+    assert not grep(r"^7\.\s+\*\*", text)
+
+
+def test_phase_0_banner_no_longer_renders_report_on_off_segment():
+    """#1412: the phase banner drops the `· report: <on|off>` segment
+    entirely — its recap ends at `sink: <tracker|local>`."""
+    text = _text()
+    assert not grep(r"report:\s*<on\|off>", text)
+
+
+def test_knob_6_remains_the_sole_enter_accepts_all_exception():
+    """#1412: with knob 7 gone, knob 6 is still the sole exception to the
+    Enter-accepts-all gesture — the "sole exception" wording survives."""
+    text = _text()
     assert grep(r"sole.*exception|knob 6 is the \*\*sole\*\*", text, ignore_case=True)
 
 
-def test_knob_7_persists_report_flag_and_banner_shows_it():
-    """phase-0.md records the knob-7 outcome and the banner recap surfaces
-    the report flag after the sink field."""
+def test_phase_0_persistence_no_longer_mentions_knob_7_outcome():
+    """#1412: the Persistence paragraph no longer references a knob-7
+    outcome — only the knob-6 (code-lookup) outcome remains."""
     text = _text()
-    assert grep(r"knob-7 outcome|baseline-metrics report was opted into", text)
-    assert grep(r"sink:.*·\s*report:\s*<on\|off>", text)
+    assert not grep(r"knob-7 outcome|baseline-metrics report was opted into", text)
+    assert grep(r"knob-6 outcome", text)
 
 
 def test_enter_accepts_every_default_in_one_keystroke():
@@ -236,10 +264,77 @@ def test_analyze_only_semantics_documented_exits_after_phase_1():
     assert grep(r"analyze-only.*(exit|after Phase 1)", text, ignore_case=True)
 
 
-def test_phase_start_banner_requirement_documented_phase_n_9_with_settings_recap():
+def test_analyze_only_documents_the_bypass_carve_out_under_the_new_order():
+    """#1422: --analyze-only still runs Phase 0 then Phase 1 directly and
+    exits with no baseline captured — an intentional carve-out that bypasses
+    the new default Baseline (Phase 2) / Derive Gherkin (Phase 3) ordering,
+    not a contradiction of it."""
     text = _text()
-    assert grep(r"Phase N/9", text)
+    assert grep(r"bypass(ing|es)? the (new )?default[[:space:]]+Baseline", text, ignore_case=True)
+    assert grep(r"No baseline is captured", text)
+
+
+def test_phase_start_banner_requirement_documented_step_position_phase_n_with_settings_recap():
+    """#1422: the banner format is `Step <position>/<total> — Phase <N>: <name>`,
+    not the old bare `Phase N/9` — a bare counter would print
+    non-monotonically (2/9, 3/9, 1/9) under the reordered execution
+    sequence, reading as a hung/looping run. <total> is computed, not a
+    literal 9 or 10, since Phase 7's participation isn't fixed."""
+    text = _text()
+    assert grep(r"Step <position>/<total> — Phase <N>", text)
+    fence = _phase_start_banner_fence()
+    # A bare-identity counter (e.g. `Phase <N>/9`, the pre-#1422 shape) must
+    # not survive in the banner fence itself — anchored to the fence's own
+    # content, not a substring match anywhere in the file, since the file
+    # legitimately *mentions* that old shape in backticks while explaining
+    # why it was replaced (a plain `not grep(r"^Phase N/9", text)` over the
+    # whole file can never fail: the file never contained the literal string
+    # "Phase N/9" un-templated in the first place).
+    assert not re.search(r"^Phase <N>/\d", fence, re.MULTILINE)
     assert grep(r"mutation:.*binding:.*refactor:.*sink:", text, ignore_case=True)
+
+
+def test_phase_start_banner_position_is_a_running_count_not_a_fixed_table():
+    """#1422 (fixed post-build-review): <position> is a plain running count
+    of phases printed so far — not a fixed per-identity lookup table. A
+    fixed table (1=Phase 0, 2=Phase 2, ... 8=Phase 7-or-8, 9=Phase 9) was
+    found to be unsatisfiable: Phase 7 and Phase 8 are not alternatives
+    (both run, in sequence, when Phase 6 returns [y]), and a BDD-mode
+    "none" run only executes 8 named phases, neither of which a fixed /9
+    table can represent correctly."""
+    text = _text()
+    assert grep(
+        r"running count of phases printed so far this run", text, ignore_case=True
+    )
+    assert not grep(r"7-or-8", text)
+
+
+def test_phase_start_banner_total_is_computed_not_hardcoded():
+    """#1422 (fixed post-build-review): <total> varies with two independent,
+    known-at-different-times facts — BDD binding mode "none" (-1, known
+    from Phase 0) and whether Phase 6 enters Phase 7 (+1, only known once
+    Phase 6 resolves, since refactor-allowed mode doesn't guarantee [y] is
+    chosen). The base count (Phase 7 excluded) is 9; entering Phase 7 makes
+    it 10, announced with a one-line total-adjustment note."""
+    text = _text()
+    assert grep(r"[Bb]ase count is \*\*9\*\*", text)
+    # Bound to the actual Phase 7/8 sequencing claim, not a stray two-word
+    # phrase that any unrelated sentence elsewhere in the file could satisfy.
+    assert grep_multiline(
+        r"Phase 7 and Phase 8 are \*\*not alternatives\*\*.{0,120}"
+        r"both Phase 7 \*and\* Phase 8 execute in sequence",
+        text,
+    )
+    assert grep_multiline(
+        r"Phase 7 entered.{0,40}total phase count.{0,40}now.{0,20}was",
+        text,
+    )
+    # The other half of <total>'s arithmetic: -1 when BDD binding mode is
+    # "none", known from Phase 0 onward (not just the +1/Phase-7 half).
+    assert grep_multiline(
+        r"\*\*-1\*\*.{0,60}Phase-0 BDD binding mode is `none`",
+        text,
+    )
 
 
 def test_phase_0_answer_immutability_documented():
