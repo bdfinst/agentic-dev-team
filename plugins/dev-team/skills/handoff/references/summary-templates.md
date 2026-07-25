@@ -1,7 +1,7 @@
 # Summary & Progress File Templates
 
 These templates structure output written by the `handoff` skill — continue-mode
-templates go to `memory/`; fork-mode templates go to the OS temp dir.
+templates go to `.claude/memory/`; fork-mode templates go to the OS temp dir.
 
 - **Task Summary** -- general-purpose summary for any completed or paused task (continue mode).
 - **Research Progress File** -- output of the Research phase; onboards the Planner (continue mode).
@@ -14,7 +14,7 @@ templates go to `memory/`; fork-mode templates go to the OS temp dir.
 
 ## Task Summary
 
-**File naming**: `memory/{date}-{task-slug}.md` (e.g., `memory/2026-02-20-user-auth-api.md`)
+**File naming**: `.claude/memory/{date}-{task-slug}.md` (e.g., `.claude/memory/2026-02-20-user-auth-api.md`)
 
 ```markdown
 # Task Summary: [Brief Description]
@@ -162,7 +162,7 @@ Be concise in summaries -- preserve decisions and artifacts, discard process nar
 ## Fork Handoff
 
 **File naming**: `{tmpdir}/handoff-{purpose-slug}-{date}.md` (e.g.,
-`/tmp/handoff-flaky-test-repro-2026-07-06.md`) — never `memory/`.
+`/tmp/handoff-flaky-test-repro-2026-07-06.md`) — never `.claude/memory/`.
 
 ```markdown
 # Fork Handoff: [Stated Purpose]

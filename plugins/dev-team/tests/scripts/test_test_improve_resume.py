@@ -14,9 +14,25 @@ from test_improve_resume import (
     build_result,
     derive_slug,
     main,
+    resolve_memory_dir,
     scan_phase_files,
     slugify,
 )
+
+_HOOKS_LIB_DIR = Path(__file__).parent.parent.parent / "hooks" / "lib"
+sys.path.insert(0, str(_HOOKS_LIB_DIR))
+_TESTS_LIB_DIR = Path(__file__).parent.parent / "lib"
+sys.path.insert(0, str(_TESTS_LIB_DIR))
+
+from hermetic import hermetic_git_env  # type: ignore[import-not-found]
+
+
+def _init_repo(path: Path) -> dict:
+    env = hermetic_git_env(home=path)
+    subprocess.run(["git", "init", "-q"], cwd=path, env=env, check=True)
+    subprocess.run(["git", "config", "user.email", "t@t"], cwd=path, env=env, check=True)
+    subprocess.run(["git", "config", "user.name", "t"], cwd=path, env=env, check=True)
+    return env
 
 # ---------------------------------------------------------------------------
 # helpers
@@ -227,3 +243,108 @@ def test_cli_derives_slug_from_repo_path(tmp_path, capsys):
     assert rc == 0
     payload = json.loads(capsys.readouterr().out)
     assert payload["resolved_phase"] == "4"
+
+
+# ---------------------------------------------------------------------------
+# .claude/-scoped default + legacy-tree migration (Slice 5, Step 5.8, plan
+# opt-in-metrics-and-claude-scoped-artifacts.md)
+# ---------------------------------------------------------------------------
+
+
+def test_default_memory_root_resolves_under_dot_claude(tmp_path, monkeypatch, capsys):
+    _init_repo(tmp_path)
+    monkeypatch.chdir(tmp_path)
+    repo = tmp_path / "widget-lib"
+    repo.mkdir()
+
+    rc = main([str(repo)])
+
+    assert rc == 2
+    payload = json.loads(capsys.readouterr().out)
+    expected_dir = (
+        tmp_path.resolve() / ".claude" / "memory" / "test-improve" / "widget-lib"
+    )
+    assert str(expected_dir) in payload["message"]
+
+
+def test_legacy_multi_slug_tree_migrates_and_autodetect_finds_new_location(
+    tmp_path, monkeypatch, capsys
+):
+    _init_repo(tmp_path)
+    monkeypatch.chdir(tmp_path)
+    make_phases(tmp_path / "memory" / "test-improve" / "widget-lib", "0", "1")
+    make_phases(tmp_path / "memory" / "test-improve" / "other-slug", "0")
+    repo = tmp_path / "widget-lib"
+    repo.mkdir()
+
+    rc = main([str(repo)])
+
+    assert rc == 0
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["resolved_phase"] == "2"
+
+    new_root = tmp_path.resolve() / ".claude" / "memory" / "test-improve"
+    assert (new_root / "widget-lib" / "phase-0.md").is_file()
+    assert (new_root / "widget-lib" / "phase-1.md").is_file()
+    assert (new_root / "other-slug" / "phase-0.md").is_file()
+    # Moved, not copied — the legacy bare-path files are gone.
+    legacy_root = tmp_path / "memory" / "test-improve"
+    assert not (legacy_root / "widget-lib" / "phase-0.md").exists()
+    assert not (legacy_root / "other-slug" / "phase-0.md").exists()
+
+
+def test_refactor_backlog_excluded_from_migration_sweep(tmp_path, monkeypatch):
+    _init_repo(tmp_path)
+    monkeypatch.chdir(tmp_path)
+    make_phases(tmp_path / "memory" / "test-improve" / "widget-lib", "0")
+    backlog = (
+        tmp_path / "memory" / "test-improve" / "widget-lib" / "refactor-backlog.md"
+    )
+    backlog.write_text("backlog\n", encoding="utf-8")
+
+    import argparse
+
+    args = argparse.Namespace(
+        memory_dir=None,
+        slug="widget-lib",
+        memory_root=str(tmp_path / ".claude" / "memory" / "test-improve"),
+        repo_path=None,
+    )
+    resolve_memory_dir(args)
+
+    new_root = tmp_path.resolve() / ".claude" / "memory" / "test-improve" / "widget-lib"
+    assert (new_root / "phase-0.md").is_file()
+    # Left in place at the old bare path — not migrated to either new location.
+    assert backlog.exists()
+    assert not (new_root / "refactor-backlog.md").exists()
+
+
+def test_git_tracked_legacy_file_is_left_in_place_during_migration(
+    tmp_path, monkeypatch
+):
+    env = _init_repo(tmp_path)
+    monkeypatch.chdir(tmp_path)
+    make_phases(tmp_path / "memory" / "test-improve" / "widget-lib", "0")
+    tracked = tmp_path / "memory" / "test-improve" / "widget-lib" / "notes.md"
+    tracked.write_text("tracked\n", encoding="utf-8")
+    subprocess.run(
+        ["git", "add", "memory/test-improve/widget-lib/notes.md"],
+        cwd=tmp_path,
+        env=env,
+        check=True,
+    )
+
+    import argparse
+
+    args = argparse.Namespace(
+        memory_dir=None,
+        slug="widget-lib",
+        memory_root=str(tmp_path / ".claude" / "memory" / "test-improve"),
+        repo_path=None,
+    )
+    resolve_memory_dir(args)
+
+    new_root = tmp_path.resolve() / ".claude" / "memory" / "test-improve" / "widget-lib"
+    assert (new_root / "phase-0.md").is_file()
+    assert tracked.exists()
+    assert not (new_root / "notes.md").exists()

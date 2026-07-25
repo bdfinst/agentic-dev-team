@@ -174,7 +174,7 @@ def test_sliced_mode_states_report_only_and_json():
     sec = _SLICED_MD.split("## Consolidation", 1)[1]
     assert "report-only" in sec.lower()
     # Report + corrections destinations.
-    assert "DEV_TEAM_REPORTS/code-review.md" in sec
+    assert ".dev-team-reports/code-review.md" in sec
     assert "./corrections/" in sec
     # --json emits the consolidated object to stdout and writes no file.
     assert "--json" in sec and "stdout" in sec

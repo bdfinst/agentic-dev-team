@@ -32,7 +32,7 @@ Enforcement: script
 
 Context needs: project-structure
 
-The orchestrator classifies incoming requests, routes them to the appropriate pipeline branch, persists phase state in `memory/`, and coordinates concurrent persona dispatch across waves. It does not implement domain logic — it classifies, delegates, barriers, and aggregates.
+The orchestrator classifies incoming requests, routes them to the appropriate pipeline branch, persists phase state in `.claude/memory/`, and coordinates concurrent persona dispatch across waves. It does not implement domain logic — it classifies, delegates, barriers, and aggregates.
 
 ## Output discipline
 
@@ -97,7 +97,7 @@ using `${CLAUDE_PLUGIN_ROOT}/knowledge/task-size-classifier.md`. Whole-file load
 
 3. **Classify.** Apply the rules in `${CLAUDE_PLUGIN_ROOT}/knowledge/task-size-classifier.md`. Whole-file load: the ordered classification rules and bias rule. First match wins; bias to classify up when signals are ambiguous.
 
-4. **Log the decision** to `memory/decisions.md` (format in classifier spec).
+4. **Log the decision** to `.claude/memory/decisions.md` (format in classifier spec).
 
 5. **Route** (1:1 with the classifier — the classifier spec loaded in step 1 is the
    single source of truth for both the classification and the route; Rec 2 of
@@ -120,7 +120,7 @@ bias-up rule routes to the full workflow.
 
 6. **Surface the routing decision to the operator.** State the chosen route and
    its rationale (the classification, the signals that drove it, and the rule
-   that fired) in the operator-facing response — not only in `memory/decisions.md`.
+   that fired) in the operator-facing response — not only in `.claude/memory/decisions.md`.
 
 ### No-plan fast path (trivial and fast-path-eligible standard)
 
@@ -222,7 +222,7 @@ Whole-file load: each linked SKILL.md is loaded in full when invoked; per-sectio
 
 ## Three-Phase Workflow
 
-Every non-trivial task follows three explicit phases. Each phase runs in minimal context, and a human review gate separates each phase. The output of each phase is a structured progress file written to `memory/` that onboards the next phase.
+Every non-trivial task follows three explicit phases. Each phase runs in minimal context, and a human review gate separates each phase. The output of each phase is a structured progress file written to `.claude/memory/` that onboards the next phase.
 
 ### Phase 1: Research
 
@@ -235,7 +235,7 @@ Every non-trivial task follows three explicit phases. Each phase runs in minimal
 
 #### Codebase Recon dispatch
 
-At the start of Research, check whether a RECON artifact already exists for this project at `memory/recon-<slug>.md` (where `<slug>` is the repo basename). If no artifact exists, or if the existing one is more than 24 hours old, dispatch `codebase-recon` as a sub-agent before any other exploration. It returns entry points, dependency graph, security surface, and git history in a structured artifact that onboards the Architect and Security Engineer without those agents needing to re-read the codebase themselves. Skip the dispatch (silently) when a fresh artifact is present.
+At the start of Research, check whether a RECON artifact already exists for this project at `.claude/memory/recon-<slug>.md` (where `<slug>` is the repo basename). If no artifact exists, or if the existing one is more than 24 hours old, dispatch `codebase-recon` as a sub-agent before any other exploration. It returns entry points, dependency graph, security surface, and git history in a structured artifact that onboards the Architect and Security Engineer without those agents needing to re-read the codebase themselves. Skip the dispatch (silently) when a fresh artifact is present.
 
 #### Security Engineer dispatch
 
@@ -309,7 +309,7 @@ Each plan step includes a **Complexity** classification that controls review dep
 
 If a step has no complexity annotation, default to `standard`.
 
-Each checkpoint that runs records a find/fix/no-op outcome to `metrics/review-value.jsonl` (#348) so the review overhead is measurable and the tiering can be evidence-based.
+Each checkpoint that runs records a find/fix/no-op outcome to `.claude/metrics/review-value.jsonl` (#348) so the review overhead is measurable and the tiering can be evidence-based.
 
 #### Inline Review Checkpoint
 
@@ -362,14 +362,14 @@ When any checkpoint agent returns `fail`:
 ### Phase Transitions
 
 1. Complete the current phase's work
-2. Write a structured progress file to `memory/` (see Context Summarization skill)
+2. Write a structured progress file to `.claude/memory/` (see Context Summarization skill)
 3. Human reviews and approves before proceeding
 4. Start new context window for the next phase
 5. Load only the progress file + agents needed for the new phase
 
 ## Decision Log
 
-Significant decisions are appended to `memory/decisions.md` so they persist across session resets and are visible to subsequent phases.
+Significant decisions are appended to `.claude/memory/decisions.md` so they persist across session resets and are visible to subsequent phases.
 
 **Log a decision when:**
 
@@ -393,7 +393,7 @@ Significant decisions are appended to `memory/decisions.md` so they persist acro
 **Alternatives rejected**: <other options and why not chosen>
 ```
 
-Append the entry to `memory/decisions.md` using the Write or Edit tool before moving to the next phase.
+Append the entry to `.claude/memory/decisions.md` using the Write or Edit tool before moving to the next phase.
 
 ## Behavioral Guidelines
 

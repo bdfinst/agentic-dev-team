@@ -5,7 +5,7 @@ Counts sessions and dispatches background session-analysis at threshold.
 
 CONSENT : off by default. Set `DEV_TEAM_AUTO_REVIEW=on` to enable.
 THRESHOLD: `DEV_TEAM_AUTO_REVIEW_THRESHOLD` (default 5) sessions before dispatch.
-STATE    : counter persisted in `<cwd>/metrics/learning-loop-state.json`.
+STATE    : counter persisted in `<cwd>/.claude/metrics/learning-loop-state.json`.
 
 Posture: fail-open. Every I/O error exits 0 without crashing.
 """
@@ -19,6 +19,14 @@ import subprocess
 import sys
 import tempfile
 from pathlib import Path
+
+_HOOK_DIR = Path(__file__).resolve().parent
+_LIB_DIR = _HOOK_DIR / "lib"
+if str(_LIB_DIR) not in sys.path:
+    sys.path.insert(0, str(_LIB_DIR))
+
+import artifact_paths
+import telemetry_consent
 
 
 def _load_counter(state_file: Path) -> int:
@@ -71,7 +79,7 @@ def _dispatch_background_analysis(
     session_extract = (
         hook_dir / ".." / ".." / "scripts" / "session_extract.py"
     ).resolve()
-    pending = cwd / "metrics" / "pending-review.jsonl"
+    pending = artifact_paths.resolve_file("metrics", "pending-review.jsonl", cwd)
 
     prompt = (
         "Run the session-analysis agent and output each finding as a JSONL "
@@ -85,7 +93,7 @@ def _dispatch_background_analysis(
         # --session-id shares the parent's prompt-cache prefix (~26% cost cut)
         session_id_args = ["--session-id", session_id]
 
-    metrics_dir = cwd / "metrics"
+    metrics_dir = artifact_paths.metrics_dir(cwd)
     try:
         metrics_dir.mkdir(parents=True, exist_ok=True)
     except OSError:
@@ -125,6 +133,8 @@ def shell_quote(value: str) -> str:
 def main() -> int:
     if os.environ.get("DEV_TEAM_AUTO_REVIEW", "") != "on":
         return 0
+    if not telemetry_consent.is_enabled():
+        return 0
 
     # bash requires jq; Python does not, but keep parity on the "no jq" exit
     # for hosts that intentionally strip it (fail-open discipline).
@@ -152,7 +162,7 @@ def main() -> int:
     except ValueError:
         threshold = 5
 
-    state_file = cwd / "metrics" / "learning-loop-state.json"
+    state_file = artifact_paths.resolve_file("metrics", "learning-loop-state.json", cwd)
     hook_dir = Path(__file__).resolve().parent
 
     counter = _load_counter(state_file) + 1

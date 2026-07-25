@@ -24,8 +24,8 @@ Arguments: $ARGUMENTS
 
 - Positional: `<repo-path>`.
 - `--parent <issue-url>` — parent issue URL (or empty for local-files).
-- `--repo-slug <slug>` — `memory/<workflow>/` namespace.
-- `--workflow <name>` — the workflow namespace under `memory/`. Defaults to `test-improve`. Orchestrators pass their own namespace (e.g. `/test-improve` passes `test-improve` for its Phase-5 per-Story deltas).
+- `--repo-slug <slug>` — `.claude/memory/<workflow>/` namespace.
+- `--workflow <name>` — the workflow namespace under `.claude/memory/`. Defaults to `test-improve`. Orchestrators pass their own namespace (e.g. `/test-improve` passes `test-improve` for its Phase-5 per-Story deltas).
 - `--story <id-or-path>` — optional Story this delta is attributed to. Used as the snapshot label.
 - `--story-files <glob-or-comma-list>` — production-code files the Story touched (typically from `/build`'s commit diff, tests filtered out). When both `--story` AND a non-empty `--story-files` are present, Step 2b runs scoped mutation; otherwise it is a no-op so `/quality-targets-converge` can keep calling this worker without `--story-files` exactly as before.
 
@@ -33,7 +33,7 @@ Arguments: $ARGUMENTS
 
 ### 1. Load the baseline
 
-Read `memory/<workflow>/<slug>/baseline-coverage.json`. If missing, tell the operator the baseline has not been captured (`/coverage-baseline` must run first; for `/test-improve` that is Phase 2) and stop.
+Read `.claude/memory/<workflow>/<slug>/baseline-coverage.json`. If missing, tell the operator the baseline has not been captured (`/coverage-baseline` must run first; for `/test-improve` that is Phase 2) and stop.
 
 ### 2. Re-run coverage
 
@@ -52,7 +52,7 @@ Gating: skip this whole step unless BOTH `--story <id>` AND a non-empty `--story
 When the gate fires:
 
 1. Invoke `/mutation-testing --scope <expanded --story-files> --emit-json <tmp> --workflow-managed-approval`. The `--workflow-managed-approval` flag is allowed here because `/test-improve` Phase 0 captured operator approval at the workflow boundary (see `mutation-testing` `## Constraints` carve-out).
-2. **Baseline-of-record per file.** For each file in `--story-files`, look up the most recent entry in `memory/<workflow>/<slug>/mutation-history.json`; that entry's `survivors_after` is the baseline-of-record. If no prior entry exists, the file's status is `first_measurement` (`survivors_before: null`, `delta: null`).
+2. **Baseline-of-record per file.** For each file in `--story-files`, look up the most recent entry in `.claude/memory/<workflow>/<slug>/mutation-history.json`; that entry's `survivors_after` is the baseline-of-record. If no prior entry exists, the file's status is `first_measurement` (`survivors_before: null`, `delta: null`).
 3. **Filter `status: "equivalent"` AND `status: "accepted"` survivors** from the `/mutation-testing` output before computing delta — reclassifications between runs, and documented rationale-bearing deferrals, must not show up as regressions.
 4. Compute `delta = survivors_after - survivors_before` (skip when `first_measurement`) and assign a status per file:
    - `ok` — `delta <= 0`.
@@ -102,11 +102,11 @@ Parse line + branch percentages with the same logic `/coverage-baseline` used. C
 
 `phase` is the calling workflow's phase number when it has one (`/test-improve` supplies `4`); workflows without a phase model supply `null`.
 
-Append to `memory/<workflow>/<slug>/coverage-history.json` (array of snapshots, newest last).
+Append to `.claude/memory/<workflow>/<slug>/coverage-history.json` (array of snapshots, newest last).
 
 ### 4. Post the snapshot
 
-Append a markdown row to the parent's `## Metrics history` section (tracker mode) or to `./plans/<workflow>/FEATURE.md` (local-files mode):
+Append a markdown row to the parent's `## Metrics history` section (tracker mode) or to `.claude/plans/<workflow>/FEATURE.md` (local-files mode):
 
 ```markdown
 | <ISO-8601> | Phase <n> | <story-id-or-—> | Line <pct>% (Δ <+/-pct>) | Branch <pct>% (Δ <+/-pct>) | Mutants <count> (Δ <+/-n>) |

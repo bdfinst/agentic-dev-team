@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """SessionStart hook: notify when the pending-review queue has entries.
 
-Emits a one-line notification when metrics/pending-review.jsonl has
+Emits a one-line notification when .claude/metrics/pending-review.jsonl has
 unreviewed entries. Split off (#1284/#1288) from the retired
 session_model_banner.py, whose other two responsibilities (persisting the
 session model to `.claude/session-model` and announcing the effort-band
@@ -10,7 +10,7 @@ retired — the harness now resolves `model:`/`effort:` natively, with no
 plugin-side banner to keep in sync.
 
 Env seams (TEST-ONLY):
-    PENDING_REVIEW_FILE  defaults to <cwd>/metrics/pending-review.jsonl
+    PENDING_REVIEW_FILE  defaults to <cwd>/.claude/metrics/pending-review.jsonl
 
 Contract (docs/python-hook-contract.md):
     Input : SessionStart JSON on stdin (hook_event_name, cwd, model, ...).
@@ -27,6 +27,13 @@ import os
 import sys
 from pathlib import Path
 
+_HOOK_DIR = Path(__file__).resolve().parent
+_LIB_DIR = _HOOK_DIR / "lib"
+if str(_LIB_DIR) not in sys.path:
+    sys.path.insert(0, str(_LIB_DIR))
+
+import artifact_paths
+
 
 def _notify_pending_findings(cwd: str) -> str | None:
     """Count still-pending entries in the pending-review queue, rotating out
@@ -34,8 +41,8 @@ def _notify_pending_findings(cwd: str) -> str | None:
 
     A finding gains exactly one disposition (`reviewed_at` on approval,
     `rejected_at` on rejection — see feedback-learning/SKILL.md); once either
-    is present, its audit trail lives in metrics/config-changelog.jsonl (on
-    approval) and the entry itself has no further use here. Rewriting the
+    is present, its audit trail lives in .claude/metrics/config-changelog.jsonl
+    (on approval) and the entry itself has no further use here. Rewriting the
     queue to drop disposed entries every SessionStart keeps it bounded to the
     outstanding backlog instead of growing without limit across the life of
     a project. Lines that fail to parse can't be classified either way, so
@@ -44,7 +51,9 @@ def _notify_pending_findings(cwd: str) -> str | None:
     """
     queue_env = os.environ.get("PENDING_REVIEW_FILE")
     queue = (
-        Path(queue_env) if queue_env else Path(cwd) / "metrics" / "pending-review.jsonl"
+        Path(queue_env)
+        if queue_env
+        else artifact_paths.resolve_file("metrics", "pending-review.jsonl", cwd)
     )
     if not queue.is_file():
         return None

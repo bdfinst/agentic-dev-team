@@ -227,7 +227,7 @@ def test_facet_count_empty_entries_is_empty_dict() -> None:
 
 
 def test_cli_query_filters_by_type_and_session(tmp_path: Path) -> None:
-    log = tmp_path / "metrics" / "boundary-events.jsonl"
+    log = tmp_path / ".claude" / "metrics" / "boundary-events.jsonl"
     _write_jsonl(log, _SAMPLE)
     result = subprocess.run(
         [
@@ -253,7 +253,7 @@ def test_cli_query_filters_by_type_and_session(tmp_path: Path) -> None:
 
 
 def test_cli_facet_mode_prints_value_count_pairs(tmp_path: Path) -> None:
-    log = tmp_path / "metrics" / "boundary-events.jsonl"
+    log = tmp_path / ".claude" / "metrics" / "boundary-events.jsonl"
     _write_jsonl(log, _SAMPLE)
     result = subprocess.run(
         [

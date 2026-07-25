@@ -45,7 +45,7 @@ Every agent runs this checklist mentally before presenting output.
 
 - [ ] No contradictions within the output
 - [ ] Code samples compile/run conceptually (correct syntax, valid imports)
-- [ ] Referenced earlier decisions are accurately recalled (if unsure, re-read from memory/)
+- [ ] Referenced earlier decisions are accurately recalled (if unsure, re-read from .claude/memory/)
 
 **Confidence Assessment**
 

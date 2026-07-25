@@ -101,7 +101,7 @@ test-file change (must block via `refactor_test_freeze_guard.py`), a
 recognized Bash shape like `sed -i` against a test file (must block via
 `refactor_test_bash_guard.py`, #906), and a genuinely unrecognized Bash shape
 (must fall through to the revert-guard safety net and emit
-`decision: "revert"` to `metrics/boundary-events.jsonl`). This is also where
+`decision: "revert"` to `.claude/metrics/boundary-events.jsonl`). This is also where
 #913 (no Python detection in `is_test_file()`) and #914 (compound-command
 first-match-wins gap) live — #914 already has a standing regression test
 (`tests/hooks/test_refactor_test_bash_guard.py`, `xfail(strict=True)`); no

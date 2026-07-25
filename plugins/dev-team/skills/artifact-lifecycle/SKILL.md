@@ -1,7 +1,7 @@
 ---
 name: artifact-lifecycle
 description: >-
-  Report on skill and agent usage data from metrics/artifact-usage.json,
+  Report on skill and agent usage data from ~/.claude/metrics/artifact-usage.json,
   classifying each artifact as active, stale (>= 30 days unused), or an archive
   candidate (>= 90 days unused). Proposes CLAUDE.md overrides for stale artifacts
   and exclusions for archive candidates. Pinned skills are always exempt.
@@ -13,7 +13,7 @@ allowed-tools: Read, Glob, Bash(date *), Write
 
 # Artifact Lifecycle Management
 
-Role: worker. Reads `metrics/artifact-usage.json`, classifies each tracked
+Role: worker. Reads `~/.claude/metrics/artifact-usage.json`, classifies each tracked
 artifact by recency, and proposes lifecycle transitions. **Never modifies files
 under `plugins/dev-team/`** — changes land exclusively in the project `CLAUDE.md`.
 
@@ -23,7 +23,7 @@ You have been invoked with the `/artifact-lifecycle` command.
 
 ### 1. Check for usage data
 
-Read `metrics/artifact-usage.json` from the current working directory.
+Read `~/.claude/metrics/artifact-usage.json` (home-scoped — never a project-scoped path).
 
 If the file does not exist, output:
 
@@ -45,7 +45,7 @@ Get the current date:
 date -u +%Y-%m-%d
 ```
 
-For each entry in `metrics/artifact-usage.json`, compute `days_since_used` as the
+For each entry in `~/.claude/metrics/artifact-usage.json`, compute `days_since_used` as the
 number of calendar days between `last_used_at` and today:
 
 ```bash
@@ -123,5 +123,5 @@ them separately:
 - **Never delete or modify** files under `plugins/dev-team/` during or after execution.
   All lifecycle changes land exclusively in the project `CLAUDE.md`.
 - Report is advisory; no configuration change is applied without user approval.
-- If `metrics/artifact-usage.json` contains entries with missing or unparseable
+- If `~/.claude/metrics/artifact-usage.json` contains entries with missing or unparseable
   `last_used_at`, log a warning and skip those entries.

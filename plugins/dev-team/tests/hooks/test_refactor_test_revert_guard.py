@@ -63,20 +63,20 @@ def _write_state(repo: Path, phase: str = "refactor", **overrides) -> None:
         "test_files_staged": ["src/thing.test.js"],
     }
     state.update(overrides)
-    path = repo / "memory" / "build-phase.json"
+    path = repo / ".claude" / "memory" / "build-phase.json"
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(state))
 
 
 def _audit_events(repo: Path):
-    path = repo / "metrics" / "refactor-freeze.jsonl"
+    path = repo / ".claude" / "metrics" / "refactor-freeze.jsonl"
     if not path.is_file():
         return []
     return [json.loads(line) for line in path.read_text().splitlines() if line]
 
 
 def _boundary_events(repo: Path):
-    path = repo / "metrics" / "boundary-events.jsonl"
+    path = repo / ".claude" / "metrics" / "boundary-events.jsonl"
     if not path.is_file():
         return []
     return [json.loads(line) for line in path.read_text().splitlines() if line]
@@ -195,7 +195,7 @@ def test_no_op_when_no_state_is_recorded(repo):
 
 
 def test_malformed_state_fails_open_without_reverting(repo):
-    path = repo / "memory" / "build-phase.json"
+    path = repo / ".claude" / "memory" / "build-phase.json"
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text("{not json")
     (repo / "src" / "thing.test.js").write_text("dirty\n")

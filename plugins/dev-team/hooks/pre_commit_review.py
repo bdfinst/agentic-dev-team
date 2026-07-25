@@ -16,7 +16,7 @@ Non-commit Bash commands pass through immediately (exit 0).
 `git commit --no-verify` (or bare `-n`) is still allowed through — but
 only when the process environment carries a non-empty `GATE_BYPASS_REASON`.
 When present, the bypass is appended as one line to
-`metrics/gate-bypass-audit.jsonl` (unconditional — not gated by
+`.claude/metrics/gate-bypass-audit.jsonl` (unconditional — not gated by
 `DEV_TEAM_TELEMETRY`) and the commit proceeds. When absent, the commit is
 blocked with a message naming `GATE_BYPASS_REASON` as the required
 mechanism.
@@ -45,6 +45,7 @@ _LIB_DIR = _HOOK_DIR / "lib"
 
 sys.path.insert(0, str(_LIB_DIR))
 try:
+    from artifact_paths import resolve_file as _resolve_file  # type: ignore[import-not-found]
     from boundary_events import (  # type: ignore[import-not-found]
         emit_boundary_event as _emit_boundary_event,
     )
@@ -56,6 +57,19 @@ try:
     from review_gate_hash import review_gate_hash  # type: ignore[import-not-found]
     from stdin_json import read_stdin_json  # type: ignore[import-not-found]
 except ImportError:  # pragma: no cover
+
+    def _resolve_file(  # type: ignore[misc]
+        category: str, filename: str, root=None, migrate: bool = True
+    ) -> Path:
+        # Degraded-import fallback (artifact_paths itself failed to import).
+        # The bare `Path(category) / filename` this used to return is the
+        # exact bare-relative-path bug Step 4.4 fixed for the normal path —
+        # reproduce that fix's `.claude/<category>/<filename>` shape here
+        # too. `parents[3]` walks up from
+        # `plugins/dev-team/hooks/pre_commit_review.py` to this repo's
+        # root (hooks -> dev-team -> plugins -> repo root).
+        repo_root = Path(__file__).resolve().parents[3]
+        return repo_root / ".claude" / category / filename
 
     def is_git_commit_command(_: str) -> bool:  # type: ignore[misc]
         return False
@@ -100,8 +114,8 @@ _BYPASS_BLOCK_MESSAGE = (
     "Set GATE_BYPASS_REASON to a non-empty explanation and retry, e.g.:\n"
     '  GATE_BYPASS_REASON="hotfix, review to follow" git commit --no-verify -m ...\n'
     "\n"
-    "The bypass is logged to metrics/gate-bypass-audit.jsonl once a reason\n"
-    "is supplied.\n"
+    "The bypass is logged to .claude/metrics/gate-bypass-audit.jsonl once a\n"
+    "reason is supplied.\n"
 )
 
 
@@ -157,14 +171,20 @@ def _plugin_version() -> str:
     return "unknown"
 
 
-def _record_bypass_audit(flag: str, reason: str, staged_count: int) -> None:
-    """Append one accountability line to metrics/gate-bypass-audit.jsonl.
+def _record_bypass_audit(flag: str, reason: str, staged_count: int, cwd: str) -> None:
+    """Append one accountability line to <project-root>/.claude/metrics/gate-bypass-audit.jsonl.
 
     Unconditional (not gated by DEV_TEAM_TELEMETRY) — mirrors the existing
     metrics/override-audit.jsonl precedent for a bypass a human/agent
     actively chose, not passive usage telemetry.
+
+    Resolves against `cwd` (the payload's project cwd) via the shared
+    artifact_paths helper — not a bare relative path, which previously
+    resolved against the process's real OS cwd and could disagree with the
+    project root when this hook is invoked from a subdirectory. Fail-open:
+    any failure to resolve the path, create the directory, or write the
+    line logs a diagnostic to stderr and never blocks the commit.
     """
-    audit_log_path = Path("metrics") / "gate-bypass-audit.jsonl"
     entry = {
         "timestamp": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
         "branch": _current_branch(),
@@ -173,9 +193,13 @@ def _record_bypass_audit(flag: str, reason: str, staged_count: int) -> None:
         "stagedFileCount": staged_count,
         "pluginVersion": _plugin_version(),
     }
-    audit_log_path.parent.mkdir(parents=True, exist_ok=True)
-    with open(audit_log_path, "a", encoding="utf-8") as handle:
-        handle.write(json.dumps(entry, separators=(",", ":")) + "\n")
+    try:
+        audit_log_path = _resolve_file("metrics", "gate-bypass-audit.jsonl", cwd)
+        audit_log_path.parent.mkdir(parents=True, exist_ok=True)
+        with open(audit_log_path, "a", encoding="utf-8") as handle:
+            handle.write(json.dumps(entry, separators=(",", ":")) + "\n")
+    except OSError as exc:  # noqa: BLE001 - fail-open: a broken audit write must never block a commit
+        sys.stderr.write(f"[pre_commit_review] failed to record bypass audit: {exc}\n")
 
 
 def main() -> int:
@@ -203,7 +227,7 @@ def main() -> int:
         flag = bypass_flag_name(command) or "--no-verify"
         reason = os.environ.get("GATE_BYPASS_REASON", "").strip()
         if reason:
-            _record_bypass_audit(flag, reason, len(staged))
+            _record_bypass_audit(flag, reason, len(staged), cwd)
             emit_boundary_event(
                 cwd, "pre_commit_review", "Bash", "bypass", flag, session_id
             )

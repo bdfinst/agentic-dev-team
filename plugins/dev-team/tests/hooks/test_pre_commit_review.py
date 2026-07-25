@@ -110,7 +110,7 @@ def test_no_verify_bypass_with_reason_allows_and_audits(repo: Path) -> None:
         extra_env={"GATE_BYPASS_REASON": "hotfix, review to follow"},
     )
     assert r.returncode == 0
-    audit = repo / "metrics" / "gate-bypass-audit.jsonl"
+    audit = repo / ".claude" / "metrics" / "gate-bypass-audit.jsonl"
     assert audit.exists()
     lines = audit.read_text().splitlines()
     assert len(lines) == 1
@@ -145,6 +145,32 @@ def test_bare_n_bypass_without_reason_blocks(repo: Path) -> None:
     assert "GATE_BYPASS_REASON" in r.stdout
 
 
+def test_bypass_audit_uses_project_root_not_process_cwd(repo: Path) -> None:
+    """Reproduces the bug: _record_bypass_audit built its path from a bare
+    `Path("metrics")`, which resolves against the process's real OS cwd —
+    not the project root the sibling emit_boundary_event(cwd, ...) call in
+    the same `if` block correctly uses. Invoking the hook from a
+    subdirectory of the project (process cwd = subdirectory) exposes the
+    divergence: pre-fix, the audit line lands under
+    <subdir>/metrics/gate-bypass-audit.jsonl; post-fix, it must land under
+    <project-root>/.claude/metrics/gate-bypass-audit.jsonl."""
+    sub = repo / "sub"
+    sub.mkdir()
+    r = _run(
+        {"tool_name": "Bash", "tool_input": {"command": "git commit --no-verify -m x"}},
+        cwd=sub,
+        extra_env={"GATE_BYPASS_REASON": "hotfix from a subdirectory"},
+    )
+    assert r.returncode == 0
+    audit = repo / ".claude" / "metrics" / "gate-bypass-audit.jsonl"
+    assert audit.exists()
+    entry = json.loads(audit.read_text().splitlines()[0])
+    assert entry["reason"] == "hotfix from a subdirectory"
+    # The bug's symptom: the line must NOT land under the subdirectory.
+    assert not (sub / "metrics" / "gate-bypass-audit.jsonl").exists()
+    assert not (sub / ".claude").exists()
+
+
 def test_bare_n_bypass_with_reason_allows_and_audits(repo: Path) -> None:
     r = _run(
         {"tool_name": "Bash", "tool_input": {"command": "git commit -n -m x"}},
@@ -152,7 +178,7 @@ def test_bare_n_bypass_with_reason_allows_and_audits(repo: Path) -> None:
         extra_env={"GATE_BYPASS_REASON": "emergency rollback"},
     )
     assert r.returncode == 0
-    audit = repo / "metrics" / "gate-bypass-audit.jsonl"
+    audit = repo / ".claude" / "metrics" / "gate-bypass-audit.jsonl"
     entry = json.loads(audit.read_text().splitlines()[0])
     assert entry["triggeredBy"] == "-n"
     assert entry["reason"] == "emergency rollback"
@@ -247,3 +273,35 @@ def test_extra_staged_file_after_review_blocks(repo: Path) -> None:
     assert r.returncode == 2
     assert "BLOCKED" in r.stdout
     assert "BLOCKED" in r.stderr
+
+
+# ---------------------------------------------------------------------------
+# Degraded-import `_resolve_file` fallback (finding #5)
+# ---------------------------------------------------------------------------
+
+
+def test_import_error_fallback_resolves_under_dot_claude() -> None:
+    """When `from artifact_paths import resolve_file` fails, the module's
+    own fallback `_resolve_file` must still land under
+    `<repo-root>/.claude/<category>/<filename>` — not the bare
+    `Path(category) / filename` bug Step 4.4 eliminated for the normal
+    import path."""
+    import importlib.util
+
+    poisoned = dict(sys.modules)
+    poisoned["artifact_paths"] = None  # type: ignore[assignment]
+    real_modules = sys.modules
+    sys.modules = poisoned  # type: ignore[assignment]
+    try:
+        spec = importlib.util.spec_from_file_location(
+            "pre_commit_review_import_error_probe", _HOOK
+        )
+        assert spec is not None and spec.loader is not None
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+    finally:
+        sys.modules = real_modules
+
+    result = module._resolve_file("metrics", "gate-bypass-audit.jsonl")
+    expected = _REPO_ROOT / ".claude" / "metrics" / "gate-bypass-audit.jsonl"
+    assert result == expected

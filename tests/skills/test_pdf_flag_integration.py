@@ -65,8 +65,8 @@ def test_shared_contract_doc_exists_and_pins_wording():
     assert "stderr" in INTEGRATION_DOC
     # per-skill paths are enumerated so a new skill inherits by adding a row
     for path_frag in (
-        "DEV_TEAM_REPORTS/code-review.md",
-        "DEV_TEAM_REPORTS/triage/<slug>.md",
+        ".dev-team-reports/code-review.md",
+        ".dev-team-reports/triage/<slug>.md",
         "reports/test-health-<date>.md",
         "reports/cd-test-architecture-<app>.md",
         "reports/harness-audit-<date>.md",

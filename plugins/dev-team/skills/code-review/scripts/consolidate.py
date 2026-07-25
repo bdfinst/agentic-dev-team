@@ -3,7 +3,7 @@
 
 Split into a **pure** ``consolidate(sections)`` (takes a list of section dicts,
 returns the aggregated object) and a thin ``main()`` that reads
-``DEV_TEAM_REPORTS/code-review/raw/section-*.json`` and calls it — the same
+``.dev-team-reports/code-review/raw/section-*.json`` and calls it — the same
 main-wraps-pure convention as ``check_version_drift.py``/``lesson_validate.py``,
 so the aggregation logic is unit-tested with plain dicts and no filesystem.
 
@@ -185,7 +185,7 @@ def _read_sections(root: str) -> tuple[list, list]:
     Returns ``(sections, malformed_paths)``. A malformed artifact is collected
     into ``malformed_paths`` (reported by the caller), never silently dropped.
     """
-    raw_dir = Path(root) / "DEV_TEAM_REPORTS" / "code-review" / "raw"
+    raw_dir = Path(root) / ".dev-team-reports" / "code-review" / "raw"
     sections, malformed = [], []
     for path in sorted(glob.glob(str(raw_dir / "section-*.json"))):
         try:

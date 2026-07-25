@@ -295,6 +295,21 @@ def test_meter_regression_window_uses_only_recent_priors(tmp_path: Path) -> None
     assert res.returncode == 0
 
 
+def _consent_env(tmp_path: Path, **extra: str) -> dict:
+    """os.environ overlaid with a HOME whose ~/.claude/telemetry.json opts in."""
+    home = tmp_path / "home"
+    (home / ".claude").mkdir(parents=True, exist_ok=True)
+    (home / ".claude" / "telemetry.json").write_text('{"enabled": true}')
+    return {**os.environ, "HOME": str(home), **extra}
+
+
+def _no_consent_env(tmp_path: Path, **extra: str) -> dict:
+    """os.environ overlaid with a HOME that has no ~/.claude/telemetry.json."""
+    home = tmp_path / "home"
+    home.mkdir(parents=True, exist_ok=True)
+    return {**os.environ, "HOME": str(home), **extra}
+
+
 def test_hook_stop_payload_writes_a_metrics_line_under_cwd_metrics(
     case: Path,
 ) -> None:
@@ -304,15 +319,16 @@ def test_hook_stop_payload_writes_a_metrics_line_under_cwd_metrics(
         input=payload,
         capture_output=True,
         text=True,
+        env=_consent_env(case),
         check=False,
     )
     assert res.returncode == 0, res.stdout + res.stderr
-    assert (case / "metrics" / "cost-metering.jsonl").is_file()
+    assert (case / ".claude" / "metrics" / "cost-metering.jsonl").is_file()
 
 
 def test_hook_dev_team_cost_meter_off_is_a_noop(case: Path) -> None:
     payload = json.dumps({"transcript_path": str(case / "t.jsonl"), "cwd": str(case)})
-    env = {**os.environ, "DEV_TEAM_COST_METER": "off"}
+    env = _consent_env(case, DEV_TEAM_COST_METER="off")
     res = subprocess.run(
         [sys.executable, str(HOOK)],
         input=payload,
@@ -322,7 +338,7 @@ def test_hook_dev_team_cost_meter_off_is_a_noop(case: Path) -> None:
         check=False,
     )
     assert res.returncode == 0, res.stdout + res.stderr
-    assert not (case / "metrics" / "cost-metering.jsonl").exists()
+    assert not (case / ".claude" / "metrics" / "cost-metering.jsonl").exists()
 
 
 def test_hook_missing_transcript_fails_open_exit_0_no_write(case: Path) -> None:
@@ -332,10 +348,42 @@ def test_hook_missing_transcript_fails_open_exit_0_no_write(case: Path) -> None:
         input=payload,
         capture_output=True,
         text=True,
+        env=_consent_env(case),
         check=False,
     )
     assert res.returncode == 0, res.stdout + res.stderr
-    assert not (case / "metrics" / "cost-metering.jsonl").exists()
+    assert not (case / ".claude" / "metrics" / "cost-metering.jsonl").exists()
+
+
+def test_hook_no_consent_file_is_a_noop(case: Path) -> None:
+    payload = json.dumps({"transcript_path": str(case / "t.jsonl"), "cwd": str(case)})
+    res = subprocess.run(
+        [sys.executable, str(HOOK)],
+        input=payload,
+        capture_output=True,
+        text=True,
+        env=_no_consent_env(case),
+        check=False,
+    )
+    assert res.returncode == 0, res.stdout + res.stderr
+    assert not (case / ".claude" / "metrics" / "cost-metering.jsonl").exists()
+
+
+def test_hook_consent_enabled_but_per_writer_opt_out_still_suppresses(
+    case: Path,
+) -> None:
+    payload = json.dumps({"transcript_path": str(case / "t.jsonl"), "cwd": str(case)})
+    env = _consent_env(case, DEV_TEAM_COST_METER="off")
+    res = subprocess.run(
+        [sys.executable, str(HOOK)],
+        input=payload,
+        capture_output=True,
+        text=True,
+        env=env,
+        check=False,
+    )
+    assert res.returncode == 0, res.stdout + res.stderr
+    assert not (case / ".claude" / "metrics" / "cost-metering.jsonl").exists()
 
 
 def test_settings_json_registers_cost_meter_py_on_stop_and_subagentstop() -> None:

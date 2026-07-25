@@ -69,7 +69,7 @@ whose full phase table appears at the end of this page — and
 
 | Command | File | What It Does | Arguments |
 | --- | --- | --- | --- |
-| `/triage` | `skills/triage/SKILL.md` | Investigate a bug and write a triage record to `DEV_TEAM_REPORTS/triage/<slug>.md` with a TDD fix plan | `<bug description or error message> [--pdf]` |
+| `/triage` | `skills/triage/SKILL.md` | Investigate a bug and write a triage record to `.dev-team-reports/triage/<slug>.md` with a TDD fix plan | `<bug description or error message> [--pdf]` |
 | `/apply-fixes` | `skills/apply-fixes/SKILL.md` | Apply correction prompts from `/code-review` output | `<corrections-dir> [--dry] [--skip-tests] [--skip-build] [--skip-lint]` |
 | `/legacy-code` | `skills/legacy-code/SKILL.md` | Safely modify code that lacks tests — apply characterization tests first | `[path]` |
 | `/branch-workflow` | `skills/branch-workflow/SKILL.md` | Clean branch completion: PR creation, merge strategy, and cleanup | `[--base <branch>] [--draft]` |
@@ -132,7 +132,7 @@ whose full phase table appears at the end of this page — and
 | `/exploratory-testing` | `skills/exploratory-testing/SKILL.md` | Charter-driven exploratory testing with structured heuristics and charter-quality evaluation | `--charter '<goal>' [target]` |
 | `/browse` | `skills/browse/SKILL.md` | Browser-based QA: navigate, screenshot, click, fill forms via Playwright | `<url> [--screenshot <path>] [--click <selector>] [--fill <selector> <value>] [--wait <ms>] [--viewport <WxH>]` |
 | `/benchmark` | `skills/benchmark/SKILL.md` | Capture runtime performance metrics (Core Web Vitals, resource sizes) and compare against baselines | `<url> [--baseline] [--budget] [--trend] [--mobile] [--3g] [--runs <n>]` |
-| `/performance-metrics` | `skills/performance-metrics/SKILL.md` | Log task completion data to `metrics/` — tokens, cost, agents used, rework cycles | `[--task <name>]` |
+| `/performance-metrics` | `skills/performance-metrics/SKILL.md` | Log task completion data to `.claude/metrics/` — tokens, cost, agents used, rework cycles | `[--task <name>]` |
 | `/co-evolution-audit` | `skills/co-evolution-audit/SKILL.md` | Flag production files that churn while their paired test files stay stale (the "Red Queen" gap); ranks stale-coverage pairs from git history | `[--since <date\|N-days>] [--max-commits <N>] [--min-churn <N>] [--max-test-churn <N>]` |
 | `/issues-from-assessment` | `skills/issues-from-assessment/SKILL.md` | Convert a `/cd-test-architecture` assessment into a parent + Phase-tagged child issues on the operator's tracker (ADO, GitHub, GitLab, Jira); falls back to local plan files when the CLI is missing | `<assessment-path> [--parent <issue-url>] [--repo-slug <slug>] [--workflow <name>] [--refactor-mode <no-refactor\|refactor-allowed>] [--dry-run]` |
 | `/stryker-xunit-v2-shim` | `skills/stryker-xunit-v2-shim/SKILL.md` | Build a xunit.v2 Stryker shim so Stryker.NET produces a valid mutation score for a xunit.v3 test project; run it before mutation testing a .NET project on xunit.v3 | `(none)` |
@@ -165,14 +165,14 @@ whose full phase table appears at the end of this page — and
 | `/harness-e2e-check` | `skills/harness-e2e-check/SKILL.md` | On-demand end-to-end integration check of the harness's own mechanisms | `[--item N] [--output <path>]` |
 | `/headless-run` | `skills/headless-run/SKILL.md` | Run a skill/command headlessly in an isolated subprocess | `<prompt-or-slash-command> [--cwd DIR] [--model MODEL] [--timeout SECS]` |
 | `/cost-report` | `skills/cost-report/SKILL.md` | Report actual token spend and dollar cost of dispatched work and flag regressions | `[--transcript <path>] [--tolerance <n>]` |
-| `/artifact-lifecycle` | `skills/artifact-lifecycle/SKILL.md` | Report on skill and agent usage data from `metrics/artifact-usage.json` | `[--json]` |
+| `/artifact-lifecycle` | `skills/artifact-lifecycle/SKILL.md` | Report on skill and agent usage data from `~/.claude/metrics/artifact-usage.json` | `[--json]` |
 | `/telemetry` | `skills/telemetry/SKILL.md` | Manage and report the opt-in usage telemetry beacon | `[on\|off\|status\|report]` |
 | `/version` | `skills/version/SKILL.md` | Report the installed plugin version | `(none)` |
 | `/upgrade` | `skills/upgrade/SKILL.md` | Check for and apply plugin updates from within a session | `(none)` |
 | `/help` | `skills/help/SKILL.md` | List the main dev-team workflows; `--all` shows every user command | `[--all]` |
 | `/agent-readiness` | `skills/agent-readiness/SKILL.md` | Score how ready the current repo is for AI-assisted development against the Agent-Readiness Scorecard and emit a tiered report | `[repo-path] [--json <file>] [--markdown <file>]` |
 | `/run-report` | `skills/run-report/SKILL.md` | Report one orchestrated run's timeline — per-state dwell time, rejection count, hook denials/bypasses, and cost — joined from the boundary/cost/state event logs | `[--session <id>]` |
-| `/report-pdf` | `skills/report-pdf/SKILL.md` | Render a dev-team Markdown report (`DEV_TEAM_REPORTS/` or `reports/`) to a polished, shareable PDF | `<path.md> [--out <path>]` |
+| `/report-pdf` | `skills/report-pdf/SKILL.md` | Render a dev-team Markdown report (`.dev-team-reports/` or `reports/`) to a polished, shareable PDF | `<path.md> [--out <path>]` |
 
 ---
 

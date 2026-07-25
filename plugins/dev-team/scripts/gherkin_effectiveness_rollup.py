@@ -10,7 +10,7 @@ Today `/gherkin-derive` writes a surface inventory (`gherkin.md`) and
 files separately track coverage and mutation-survivor counts. Nothing
 correlates the two. This script reads whatever of those files exist for one
 workflow run and emits one JSONL record per discovered scenario to
-`metrics/gherkin-derive-effectiveness.jsonl` (append-only, per the
+`.claude/metrics/gherkin-derive-effectiveness.jsonl` (append-only, per the
 `performance-metrics` skill's convention).
 
 **Attribution granularity is honest, not exact.** No file in this plugin
@@ -41,7 +41,11 @@ import re
 import sys
 from pathlib import Path
 
-DEFAULT_OUT = Path("metrics/gherkin-derive-effectiveness.jsonl")
+_HOOKS_LIB_DIR = Path(__file__).resolve().parent.parent / "hooks" / "lib"
+if str(_HOOKS_LIB_DIR) not in sys.path:
+    sys.path.insert(0, str(_HOOKS_LIB_DIR))
+
+import artifact_paths  # noqa: E402
 
 _TABLE_ROW_RE = re.compile(r"^\s*\|(.+)\|\s*$")
 _SEPARATOR_CELL_RE = re.compile(r"^\s*:?-{2,}:?\s*$")
@@ -186,6 +190,12 @@ def append_jsonl(records: list[dict], out_path: Path) -> int:
 
 
 def main(argv: list[str] | None = None) -> int:
+    # Resolved per-invocation (not at import time): shells out to git via
+    # artifact_paths.metrics_dir(), and freezing that at module-import time
+    # would pin the resolved root to whatever cwd happened to be active
+    # during import (e.g. test collection), not the invocation's cwd.
+    default_out = artifact_paths.metrics_dir() / "gherkin-derive-effectiveness.jsonl"
+
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--gherkin-md", type=Path, help="surface inventory markdown (gherkin.md)")
     parser.add_argument("--bindings-json", type=Path, help="gherkin-bindings.json, if present")
@@ -193,7 +203,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--current-coverage", type=Path, help="latest coverage measurement (same shape as baseline-coverage.json)")
     parser.add_argument("--baseline-mutation", type=Path, help="baseline-mutation.json")
     parser.add_argument("--current-mutation", type=Path, help="latest mutation measurement (same shape as baseline-mutation.json)")
-    parser.add_argument("--out", type=Path, default=DEFAULT_OUT, help=f"output JSONL path (default: {DEFAULT_OUT})")
+    parser.add_argument("--out", type=Path, default=default_out, help=f"output JSONL path (default: {default_out})")
     args = parser.parse_args(argv)
 
     try:

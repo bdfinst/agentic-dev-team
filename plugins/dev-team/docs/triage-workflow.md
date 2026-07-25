@@ -19,7 +19,7 @@ Two entry points feed one fix pipeline:
 
 - **A reported bug** enters through [`/triage`](../skills/triage/SKILL.md),
   which investigates hands-off and writes a **triage record** to
-  `DEV_TEAM_REPORTS/triage/<slug>.md` with a TDD fix plan. It deliberately does **not** fix
+  `.dev-team-reports/triage/<slug>.md` with a TDD fix plan. It deliberately does **not** fix
   the bug — the record hands off to `/plan`/`/build` or a direct fix.
 - **A review finding** enters through
   [`/code-review`](../skills/code-review/SKILL.md), whose fix loop
@@ -31,7 +31,7 @@ Two entry points feed one fix pipeline:
 %%{init: {'theme': 'base', 'themeVariables': {'primaryColor': '#dbeafe', 'primaryTextColor': '#1e3a5f', 'primaryBorderColor': '#3b82f6', 'lineColor': '#64748b', 'secondaryColor': '#f1f5f9', 'tertiaryColor': '#e0f2fe', 'background': '#ffffff', 'mainBkg': '#dbeafe', 'nodeBorder': '#2563eb', 'clusterBkg': '#eff6ff', 'clusterBorder': '#bfdbfe', 'titleColor': '#1e3a5f', 'edgeLabelBackground': '#f8fafc'}}}%%
 flowchart TD
     A[Bug report / error message] --> B[/triage/]
-    B --> C[DEV_TEAM_REPORTS/triage/&lt;slug&gt;.md<br/>triage record + TDD fix plan]
+    B --> C[.dev-team-reports/triage/&lt;slug&gt;.md<br/>triage record + TDD fix plan]
     C --> D[/plan → /build, or direct fix/]
     E[Code change] --> F[/code-review/]
     F -->|actionable issues| G[Review-fix loop<br/>auto-applies]
@@ -92,7 +92,7 @@ similar patterns elsewhere that work correctly.
 
 ## 3. The triage record
 
-The record is written to `DEV_TEAM_REPORTS/triage/<slug>.md` — YAML frontmatter (`id`,
+The record is written to `.dev-team-reports/triage/<slug>.md` — YAML frontmatter (`id`,
 `created`, `status: open`) followed by four sections:
 
 | Section | Contents |
@@ -109,8 +109,8 @@ still captures the investigation, but flags itself as incomplete.
 **Slug and collisions.** The slug is derived from the bug title by a
 deterministic normalization (lowercase, ASCII-only, hyphens, ≤ 60 chars, no
 split words; empty result falls back to `triage-YYYYMMDD`). If
-`DEV_TEAM_REPORTS/triage/<slug>.md` already exists, `-2`, `-3`, … up to `-99` is appended —
-an existing record is **never overwritten**. If `DEV_TEAM_REPORTS/triage/` cannot be written
+`.dev-team-reports/triage/<slug>.md` already exists, `-2`, `-3`, … up to `-99` is appended —
+an existing record is **never overwritten**. If `.dev-team-reports/triage/` cannot be written
 at all, the same content goes to a temp file and to chat so nothing is lost.
 
 **Why issue-tracker independent?** The record is a plain file in the repo,
@@ -119,7 +119,7 @@ and can be pasted into any tracker later. Nothing in the workflow depends on
 GitHub, Jira, or anything else being reachable.
 
 **Handoff.** Chat output is exactly two lines: the record path
-(`triage-record: DEV_TEAM_REPORTS/triage/<slug>.md`) and a root-cause summary of at most 120
+(`triage-record: .dev-team-reports/triage/<slug>.md`) and a root-cause summary of at most 120
 characters. From there:
 
 - **Substantial fix** → feed the record to

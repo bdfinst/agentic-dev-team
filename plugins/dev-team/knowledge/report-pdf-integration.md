@@ -8,7 +8,7 @@ this file rather than restating the behavior, so the wording never drifts.
 This file defines *how `--pdf` behaves*. `hooks/lib/report_pdf.py` is the render
 engine it calls; [`report-to-pdf.md`](report-to-pdf.md) is the underlying
 recipe; [`report-output-location.md`](report-output-location.md) details the
-`DEV_TEAM_REPORTS/` write rules — the per-skill paths (including the `reports/`
+`.dev-team-reports/` write rules — the per-skill paths (including the `reports/`
 ones) are in the table below.
 
 ## Contract
@@ -51,8 +51,8 @@ self-diagnose which they hit:
 
 | Skill | Report path this run wrote | `--pdf` no-op when |
 |-------|----------------------------|--------------------|
-| `/code-review` | `DEV_TEAM_REPORTS/code-review.md` | `--json` or `--internal` (no file written) |
-| `/triage` | `DEV_TEAM_REPORTS/triage/<slug>.md` (the path just written) | never — it always writes a file |
+| `/code-review` | `.dev-team-reports/code-review.md` | `--json` or `--internal` (no file written) |
+| `/triage` | `.dev-team-reports/triage/<slug>.md` (the path just written) | never — it always writes a file |
 | `/test-health` | `reports/test-health-<date>.md` | never — it always writes a file |
 | `/cd-test-architecture` | `reports/cd-test-architecture-<app>.md` | single-component **chat-only** run (no file) |
 | `/harness-audit` | `reports/harness-audit-<date>.md`, or the `--output <path>` override | never — it always writes a file |

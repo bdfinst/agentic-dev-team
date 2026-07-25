@@ -84,7 +84,7 @@ whether `--json` was reached directly or via `/pr`'s call into `/code-review
 ## Per-slice section artifact (sliced mode)
 
 Written by `scripts/ledger.py` → `write_section` to
-`DEV_TEAM_REPORTS/code-review/raw/section-<id>.json` as each slice completes,
+`.dev-team-reports/code-review/raw/section-<id>.json` as each slice completes,
 then dropped from orchestrator context (persist-and-drop). `scripts/consolidate.py`
 reads these back for the final report.
 
@@ -133,7 +133,7 @@ wrong shape — the per-agent contract above (`issues[]`) remains authoritative.
 
 ## Progress ledger (sliced mode)
 
-Written by `init_ledger` to `DEV_TEAM_REPORTS/code-review/ledger.json`, updated to
+Written by `init_ledger` to `.dev-team-reports/code-review/ledger.json`, updated to
 `done` as each slice's section artifact lands. Inspectable/interruptible — a
 partial ledger is always valid JSON.
 
@@ -300,7 +300,7 @@ After the summary, list remaining issues grouped by file, sorted by severity. Ma
 
 ## Override audit log entry (step 2, `--force` path)
 
-Append to `metrics/override-audit.jsonl` (create if missing):
+Append to `.claude/metrics/override-audit.jsonl` (create if missing):
 
 ```json
 {

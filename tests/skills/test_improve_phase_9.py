@@ -156,8 +156,11 @@ def test_close_out_prompt_suppressed_when_run_was_already_refactor_allowed():
     "re-run with refactor-allowed mode now?" would be nonsensical when
     that's the mode already in use (correctness-review, issue #968)."""
     s = _close_out_section()
+    # Window widened from 400 (Slice 5 Step 5.9's refactor-backlog.md path
+    # got longer: .dev-team-reports/test-improve/<slug>/refactor-backlog.md
+    # vs the old bare refactor-backlog.md, pushing the gap past 400 chars).
     assert grep_multiline(
-        r"no[[:space:]]+prompt.{0,400}refactor-allowed",
+        r"no[[:space:]]+prompt.{0,500}refactor-allowed",
         s,
         ignore_case=True,
     )

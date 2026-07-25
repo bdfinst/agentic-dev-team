@@ -32,13 +32,13 @@ def _write_state(tmp_path: Path, phase: str = "refactor", **overrides) -> None:
         "test_files_staged": ["src/thing.test.js"],
     }
     state.update(overrides)
-    path = tmp_path / "memory" / "build-phase.json"
+    path = tmp_path / ".claude" / "memory" / "build-phase.json"
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(state))
 
 
 def _audit_events(tmp_path: Path):
-    path = tmp_path / "metrics" / "refactor-freeze.jsonl"
+    path = tmp_path / ".claude" / "metrics" / "refactor-freeze.jsonl"
     if not path.is_file():
         return []
     return [json.loads(line) for line in path.read_text().splitlines() if line]
@@ -68,7 +68,7 @@ _TRUE_POSITIVE_COMMANDS = [
 def test_each_recognized_shape_blocks_a_staged_test_file(tmp_path):
     for rule_id, command in _TRUE_POSITIVE_COMMANDS:
         _write_state(tmp_path)
-        (tmp_path / "metrics" / "refactor-freeze.jsonl").unlink(missing_ok=True)
+        (tmp_path / ".claude" / "metrics" / "refactor-freeze.jsonl").unlink(missing_ok=True)
         code, lines, matched_rule = guard.evaluate(command, tmp_path, now=_NOW)
         assert code == 2, command
         assert lines[0].startswith("[BLOCK]"), command
@@ -250,7 +250,7 @@ def test_new_non_test_file_creation_is_allowed(tmp_path):
 
 
 def test_malformed_state_fails_open_with_an_audit_line(tmp_path):
-    path = tmp_path / "memory" / "build-phase.json"
+    path = tmp_path / ".claude" / "memory" / "build-phase.json"
     path.parent.mkdir(parents=True)
     path.write_text("{not json")
     result = guard.evaluate("sed -i 's/x/y/' src/thing.test.js", tmp_path, now=_NOW)
@@ -260,7 +260,7 @@ def test_malformed_state_fails_open_with_an_audit_line(tmp_path):
 
 
 def test_main_fails_open_on_internal_error(tmp_path, monkeypatch, capsys):
-    monkeypatch.setenv("CLAUDE_PROJECT_DIR", str(tmp_path))
+    monkeypatch.chdir(tmp_path)
     monkeypatch.setattr(
         guard, "read_stdin_json", lambda: (_ for _ in ()).throw(RuntimeError("boom"))
     )
@@ -304,7 +304,7 @@ def test_main_blocks_via_stdin_payload_and_emits_boundary_event(
 
     now_iso = datetime.datetime.now(datetime.timezone.utc).isoformat()
     _write_state(tmp_path, written_at=now_iso)
-    monkeypatch.setenv("CLAUDE_PROJECT_DIR", str(tmp_path))
+    monkeypatch.chdir(tmp_path)
     monkeypatch.setattr(
         guard,
         "read_stdin_json",
@@ -316,7 +316,7 @@ def test_main_blocks_via_stdin_payload_and_emits_boundary_event(
     assert guard.main() == 2
     assert "[BLOCK]" in capsys.readouterr().out
 
-    events_path = tmp_path / "metrics" / "boundary-events.jsonl"
+    events_path = tmp_path / ".claude" / "metrics" / "boundary-events.jsonl"
     assert events_path.is_file()
     events = [json.loads(line) for line in events_path.read_text().splitlines() if line]
     assert events[-1]["decision"] == "block"
@@ -327,7 +327,7 @@ def test_main_blocks_via_stdin_payload_and_emits_boundary_event(
 
 def test_main_allows_non_matching_command(tmp_path, monkeypatch, capsys):
     _write_state(tmp_path)
-    monkeypatch.setenv("CLAUDE_PROJECT_DIR", str(tmp_path))
+    monkeypatch.chdir(tmp_path)
     monkeypatch.setattr(
         guard,
         "read_stdin_json",

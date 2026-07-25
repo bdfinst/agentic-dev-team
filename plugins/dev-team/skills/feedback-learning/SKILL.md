@@ -33,7 +33,7 @@ When processing a feedback keyword, determine the right destination:
 | Project convention or preference | **Project `CLAUDE.md`** (`.claude/CLAUDE.md` or repo-root `CLAUDE.md`) | Loaded every session, applies to all agents |
 | Review context (domain knowledge, known issues, team norms) | **`REVIEW-CONTEXT.md`** in project root | Read by `/code-review` and passed to every review agent |
 | Agent behavior override for this project | **Project `CLAUDE.md`** under a `## Agent Overrides` section | Overrides plugin defaults without editing plugin files |
-| Cross-session memory (decisions, project state) | **`memory/`** files | Persists across context resets |
+| Cross-session memory (decisions, project state) | **`.claude/memory/`** files | Persists across context resets |
 | Rollback a previous change | Reverse the edit in whichever file it was written to | Logged as `type: "rollback"` |
 
 ### What NOT to do
@@ -156,7 +156,7 @@ the plugin's Human-in-the-Loop principle and `/harness-audit`'s
 
 ## Audit Trail
 
-All changes are logged in `metrics/config-changelog.jsonl` (one JSON object per line, append-only).
+All changes are logged in `.claude/metrics/config-changelog.jsonl` (one JSON object per line, append-only).
 
 ```json
 {
@@ -217,7 +217,7 @@ lessons accumulate on the strength of the approval that admitted them alone.
   "minimum 10 logged review runs" floor).
 
 **Unmeasurable case** — when no digest metric can plausibly reflect the
-lesson's effect (most prose `memory/` notes land here), write the literal
+lesson's effect (most prose `.claude/memory/` notes land here), write the literal
 string instead of an object:
 
 ```json
@@ -230,11 +230,11 @@ reduce rework, so this is the default rather than refusing to log the
 lesson. Authors can still explicitly set a different metric, direction, or
 `"unmeasurable"`.
 
-**Prose lessons (`memory/` notes) are in scope.** The `evidence` field
+**Prose lessons (`.claude/memory/` notes) are in scope.** The `evidence` field
 attaches at this changelog layer regardless of which resolution-order
 destination the lesson was written to; a memory-note lesson typically carries
-`"unmeasurable"`. Anything not logged to `metrics/config-changelog.jsonl` is
-out of scope by construction.
+`"unmeasurable"`. Anything not logged to `.claude/metrics/config-changelog.jsonl`
+is out of scope by construction.
 
 **Legacy entries** (written before this field existed) have no `evidence`
 key at all. `/harness-audit` surfaces them as a count — it never assigns
@@ -315,7 +315,10 @@ amend: rollback the last change to CLAUDE.md
 amend: rollback all changes from today
 ```
 
-1. Read `metrics/config-changelog.jsonl` to find the entry
+1. Read `.claude/metrics/config-changelog.jsonl` to find the entry — fall back
+   to the legacy `metrics/config-changelog.jsonl` if the new path doesn't
+   exist (a downstream user's history may still be at the old path):
+   `log=".claude/metrics/config-changelog.jsonl"; [ -f "$log" ] || log="metrics/config-changelog.jsonl"`
 2. Restore `previous_value` to the target file and section
 3. Log the rollback as a new entry with `type: "rollback"`
 
@@ -352,7 +355,7 @@ When a pattern is detected (minimum 3 occurrences), propose the change with rati
 
 ## Pending-Review Queue Disposition
 
-When `/session-review` surfaces entries from `metrics/pending-review.jsonl`, this
+When `/session-review` surfaces entries from `.claude/metrics/pending-review.jsonl`, this
 skill handles the approve or reject decision for each finding.
 
 ### Matching
@@ -363,17 +366,17 @@ content entries safely).
 ### Approval path
 
 1. Apply the proposed change (following the standard Processing Flow above).
-2. Append to `metrics/config-changelog.jsonl` as usual.
+2. Append to `.claude/metrics/config-changelog.jsonl` as usual.
 3. Write `reviewed_at` (ISO-8601 UTC) and `approved_by` (the user identifier from
    `approved_by` in the existing audit schema) back into the matching entry in
-   `metrics/pending-review.jsonl`.
+   `.claude/metrics/pending-review.jsonl`.
 
 ### Rejection path
 
 1. Do **not** apply the proposed change.
-2. Do **not** write to `metrics/config-changelog.jsonl`.
+2. Do **not** write to `.claude/metrics/config-changelog.jsonl`.
 3. Write `rejected_at` (ISO-8601 UTC) and `rejected_by` (same format as
-   `approved_by`) into the matching entry in `metrics/pending-review.jsonl`.
+   `approved_by`) into the matching entry in `.claude/metrics/pending-review.jsonl`.
 
 ### Queue entry schema (reference)
 

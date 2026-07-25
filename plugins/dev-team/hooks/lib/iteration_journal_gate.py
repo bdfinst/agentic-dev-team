@@ -12,7 +12,7 @@ prose invokes via CLI before it may advance, not in `settings.json`.
 Two operations:
     record  — append a structured decision entry (what was attempted, the
               outcome, the next action) for the current round/iteration to
-              `metrics/iteration-journal.jsonl`. Fail-open: an append error
+              `.claude/metrics/iteration-journal.jsonl`. Fail-open: an append error
               never raises into the calling skill.
     check   — hard-block: exit 1 (and emit a `boundary-events.jsonl` "block"
               record via `emit_boundary_event`) unless at least one entry
@@ -35,6 +35,7 @@ from pathlib import Path
 _LIB_DIR = Path(__file__).resolve().parent
 sys.path.insert(0, str(_LIB_DIR))
 
+import artifact_paths
 from boundary_events import emit_boundary_event
 
 _LOG_NAME = "iteration-journal.jsonl"
@@ -57,9 +58,9 @@ def _load_plugin_version() -> str:
     return "unknown"
 
 
-def _log_path(cwd) -> Path:
+def _log_path(cwd, migrate: bool = True) -> Path:
     base = Path(cwd) if cwd else Path.cwd()
-    return base / "metrics" / _LOG_NAME
+    return artifact_paths.resolve_file("metrics", _LOG_NAME, base, migrate=migrate)
 
 
 def record_iteration_entry(
@@ -72,12 +73,13 @@ def record_iteration_entry(
 ) -> None:
     """Append one compact JSON line recording this iteration's decision.
 
-    Fail-open: any error (bad `cwd`, unwritable `metrics/`, disk full, etc.)
-    is swallowed silently — an append failure must never crash the
-    autonomous loop calling this.
+    Fail-open: any error (bad `cwd`, unwritable `.claude/metrics/`, disk
+    full, etc.) is swallowed silently — an append failure must never crash
+    the autonomous loop calling this.
 
     Args:
-        cwd: Directory whose `metrics/` subdirectory receives the entry.
+        cwd: Directory whose `.claude/metrics/` subdirectory receives the
+            entry.
         round_id: Identifier for the current round/iteration (e.g.
             `/autoship`'s round_id, `/ship`'s issue identifier).
         attempted: Short structured string — what was attempted this
@@ -133,7 +135,7 @@ def check_iteration_journal(
         `(False, "iteration-journal-missing")` otherwise (advancement
         blocked).
     """
-    log = Path(log_path) if log_path else _log_path(cwd)
+    log = Path(log_path) if log_path else _log_path(cwd, migrate=False)
     for entry in _read_entries(log):
         if entry.get("round_id") == round_id:
             return True, "ok"

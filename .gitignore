@@ -5,8 +5,21 @@ _mkdocs_src/
 # OS
 .DS_Store
 
-# Conversation summaries (generated at runtime)
+# Conversation summaries (generated at runtime) — plus dev-team's own
+# .claude/memory/ bookkeeping relocated here by the #1406 .claude/-scoped
+# artifact migration: /build's phase-state (build-phase.json — agent-
+# instruction-written, no Python writer of its own) and /test-improve's
+# per-slug resume state (test-improve/ — migrated via
+# scripts/test_improve_resume.py's migrate_dir(); the sibling bare
+# memory/test-improve/ rule below has been removed — this is its new home).
+# decisions.md is untouched by any of these three rules — tracked by the
+# absence of a matching rule, the same deny-by-default mechanism as the
+# legacy memory/ block below (not a `!`-exception).
 .claude/memory/*.md
+.claude/memory/build-phase.json
+.claude/memory/test-improve/
+.claude/memory/archive/
+.claude/memory/recon-*
 
 # Performance logs (generated at runtime)
 .claude/metrics/*.json
@@ -23,12 +36,22 @@ _mkdocs_src/
 # generated-runtime-data territory — session digests, telemetry, review-value,
 # verify-log, boundary-events, cost-metering, learning-loop state, ... — a new
 # metrics file should need an explicit un-ignore to land in git, not the other
-# way around). Leading **/ so this matches whether hooks write to the
-# repo-root metrics/ or plugins/dev-team/metrics/ (cwd-dependent) — #1081.
+# way around). Resolution is now git-root-based (artifact_paths.py, #1406),
+# not cwd-dependent, so every runtime metrics file lands under a single
+# `.claude/metrics/` at the project root — the leading **/ is belt-and-braces
+# (covers any stray non-`.claude`-nested metrics/ tree, e.g. a legacy
+# not-yet-migrated file) rather than load-bearing the way it was under #1081's
+# cwd-dependent resolution.
 **/metrics/*
 # …but keep the deliberately-tracked audit trails.
 !**/metrics/config-changelog.jsonl
 !**/metrics/eval-variance.jsonl
+# verify-log.jsonl is deliberately exempt from the .claude/-nested migration
+# (AC3) and stays permanently at the bare top-level metrics/verify-log.jsonl —
+# already denied by the **/metrics/* catch-all above; this explicit line
+# guards against that catch-all being narrowed or removed later under the
+# mistaken assumption that all metrics/ content has fully relocated.
+metrics/verify-log.jsonl
 
 # Effort-band model routing (per-user, never checked in)
 # - ladder: optional ordered model list (.claude/model-ladder.json), hand-written by users behind restricted endpoints
@@ -128,9 +151,8 @@ memory/severity-floors-log-*
 memory/phase-timings-*
 memory/audit-*
 memory/meta-*
-# /test-improve's own per-run resume state (transient by design — see
-# skills/test-improve/SKILL.md; the tracked counterpart is /reports/test-improve/ below)
-memory/test-improve/
+# /test-improve's own per-run resume state relocated to .claude/memory/test-improve/
+# above (#1406) — this bare rule no longer exists.
 # Stale scratch scripts occasionally dropped by earlier iterations
 memory/_*.py
 memory/_*.sh
@@ -157,6 +179,10 @@ memory/_*.sh
 # Spec/plan working files — specs live as GitHub issues; local drafts stay untracked
 docs/specs/
 plans/
+# …and its .claude/-nested new home (artifact_paths.plans_dir(), #1406) —
+# already matched by the unanchored `plans/` rule above (it matches at any
+# depth, including .claude/plans/); this explicit line is for discoverability.
+.claude/plans/
 # …but keep parity-fixture reports (see #574 / #572).
 !plugins/dev-team/tests/hooks/parity/fixtures/**/reports/
 
@@ -177,6 +203,16 @@ actuals.json
 # Shared human-invoked report output (/review-agent, /code-review, /triage)
 # — local-only artifacts, regenerated per run.
 DEV_TEAM_REPORTS/
+
+# Reports-domain consolidation: DEV_TEAM_REPORTS/ and reports/ (both above)
+# consolidate into one top-level .dev-team-reports/ going forward. Anchored
+# deny-all + re-included tracked exceptions, mirroring the /reports/* block's
+# shape above — the union of both legacy blocks' tracked exceptions.
+/.dev-team-reports/*
+!/.dev-team-reports/test-improve/
+!/.dev-team-reports/orchestration-benchmark-2026-07-18.md
+!/.dev-team-reports/orchestration-benchmark-2026-07-18-data/
+!/.dev-team-reports/harness-audit-2026-07-20.md
 
 # refactor-granularity campaign: per-arm shards are intermediate (resume targets);
 # the merged dataset (refactor-granularity-campaign.jsonl) is committed instead.

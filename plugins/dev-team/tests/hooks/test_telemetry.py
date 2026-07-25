@@ -1,53 +1,101 @@
-"""Unit tests for hooks/telemetry.py (#606)."""
+"""Unit tests for hooks/telemetry.py (#606, #1405)."""
 
 from __future__ import annotations
 
+import builtins
 import io
 import json
 import sys
+from pathlib import Path
 
 import pytest
 
 from _repo_root import REPO_ROOT as _REPO_ROOT
 
 sys.path.insert(0, str(_REPO_ROOT / "plugins" / "dev-team" / "hooks"))
+sys.path.insert(0, str(_REPO_ROOT / "plugins" / "dev-team" / "hooks" / "lib"))
 
 import telemetry
 
+
+def _isolate_home(monkeypatch, tmp_path):
+    """Point ~/.claude/telemetry.json at a fresh, empty home dir, and TMPDIR
+    at a fresh scratch dir, so tests never read the real machine's consent
+    file nor leave a stray Step-1.4 notice marker in the real temp dir."""
+    home = tmp_path / "home"
+    home.mkdir()
+    monkeypatch.setenv("HOME", str(home))
+    monkeypatch.delenv("DEV_TEAM_TELEMETRY", raising=False)
+    tmpdir = tmp_path / "tmp"
+    tmpdir.mkdir()
+    monkeypatch.setenv("TMPDIR", str(tmpdir))
+    return home
+
+
+def _enable_consent(monkeypatch, tmp_path):
+    home = _isolate_home(monkeypatch, tmp_path)
+    (home / ".claude").mkdir()
+    (home / ".claude" / "telemetry.json").write_text('{"enabled":true}')
+    return home
+
+
 # ---------------------------------------------------------------------------
-# Consent gate
+# Consent gate — config-file-only, home-scoped (Slice 1, Step 1.2)
 # ---------------------------------------------------------------------------
 
 
-def test_consent_env_var_on_enables(tmp_path, monkeypatch):
+def test_env_var_has_no_effect(monkeypatch, tmp_path):
+    home = _isolate_home(monkeypatch, tmp_path)
     monkeypatch.setenv("DEV_TEAM_TELEMETRY", "on")
-    assert telemetry._consent_enabled(tmp_path) is True
+    _feed(
+        monkeypatch,
+        json.dumps(
+            {
+                "hook_event_name": "UserPromptSubmit",
+                "cwd": str(tmp_path),
+                "prompt": "/plan",
+            }
+        ),
+    )
+    assert telemetry.main() == 0
+    assert not (tmp_path / "metrics" / "telemetry.jsonl").exists()
+    assert not (home / ".claude" / "metrics" / "telemetry.jsonl").exists()
 
 
-def test_consent_default_off(tmp_path, monkeypatch):
-    monkeypatch.delenv("DEV_TEAM_TELEMETRY", raising=False)
-    assert telemetry._consent_enabled(tmp_path) is False
-
-
-def test_consent_file_enabled_true(tmp_path, monkeypatch):
-    monkeypatch.delenv("DEV_TEAM_TELEMETRY", raising=False)
+def test_project_level_config_has_no_effect(monkeypatch, tmp_path):
+    home = _isolate_home(monkeypatch, tmp_path)
     (tmp_path / ".claude").mkdir()
     (tmp_path / ".claude" / "telemetry.json").write_text('{"enabled":true}')
-    assert telemetry._consent_enabled(tmp_path) is True
+    _feed(
+        monkeypatch,
+        json.dumps(
+            {
+                "hook_event_name": "UserPromptSubmit",
+                "cwd": str(tmp_path),
+                "prompt": "/plan",
+            }
+        ),
+    )
+    assert telemetry.main() == 0
+    assert not (tmp_path / "metrics" / "telemetry.jsonl").exists()
+    assert not (home / ".claude" / "metrics" / "telemetry.jsonl").exists()
 
 
-def test_consent_file_enabled_false(tmp_path, monkeypatch):
-    monkeypatch.delenv("DEV_TEAM_TELEMETRY", raising=False)
-    (tmp_path / ".claude").mkdir()
-    (tmp_path / ".claude" / "telemetry.json").write_text('{"enabled":false}')
-    assert telemetry._consent_enabled(tmp_path) is False
-
-
-def test_consent_file_malformed(tmp_path, monkeypatch):
-    monkeypatch.delenv("DEV_TEAM_TELEMETRY", raising=False)
-    (tmp_path / ".claude").mkdir()
-    (tmp_path / ".claude" / "telemetry.json").write_text("{not json")
-    assert telemetry._consent_enabled(tmp_path) is False
+def test_home_config_governs(monkeypatch, tmp_path):
+    home = _enable_consent(monkeypatch, tmp_path)
+    _feed(
+        monkeypatch,
+        json.dumps(
+            {
+                "hook_event_name": "UserPromptSubmit",
+                "cwd": str(tmp_path),
+                "prompt": "/plan",
+            }
+        ),
+    )
+    assert telemetry.main() == 0
+    assert (home / ".claude" / "metrics" / "telemetry.jsonl").exists()
+    assert not (tmp_path / "metrics" / "telemetry.jsonl").exists()
 
 
 # ---------------------------------------------------------------------------
@@ -70,46 +118,117 @@ def test_emit_appends_jsonl_with_trailing_newline(tmp_path):
     assert log.read_text().endswith("\n")
 
 
+def test_emit_logs_diagnostic_on_mkdir_failure(tmp_path, monkeypatch, capsys):
+    """AC5: a failure to create the log's parent dir must produce a stderr
+    diagnostic, and must not raise into the caller."""
+    log = tmp_path / "metrics" / "telemetry.jsonl"
+
+    def _raise(*_args, **_kwargs):
+        raise OSError("permission denied")
+
+    monkeypatch.setattr(Path, "mkdir", _raise)
+    telemetry._emit(log, "command", "plan", "invoked", "1.0.0")
+    err = capsys.readouterr().err
+    assert "WARN" in err
+    assert not log.exists()
+
+
+def test_emit_logs_diagnostic_on_write_failure(tmp_path, monkeypatch, capsys):
+    """AC5: a failure to write the log line must produce a stderr
+    diagnostic, and must not raise into the caller."""
+    log = tmp_path / "metrics" / "telemetry.jsonl"
+    log.parent.mkdir(parents=True)
+    real_open = builtins.open
+
+    def _raise(file, *args, **kwargs):
+        if str(file) == str(log):
+            raise OSError("disk full")
+        return real_open(file, *args, **kwargs)
+
+    monkeypatch.setattr("builtins.open", _raise)
+    telemetry._emit(log, "command", "plan", "invoked", "1.0.0")
+    err = capsys.readouterr().err
+    assert "WARN" in err
+
+
 # ---------------------------------------------------------------------------
 # Artifact usage upsert
 # ---------------------------------------------------------------------------
 
 
-def test_upsert_creates_entry(tmp_path):
-    telemetry._upsert_artifact_usage(tmp_path, "plan")
-    data = json.loads((tmp_path / "metrics" / "artifact-usage.json").read_text())
+def test_upsert_creates_entry(monkeypatch, tmp_path):
+    home = _isolate_home(monkeypatch, tmp_path)
+    telemetry._upsert_artifact_usage("plan")
+    data = json.loads((home / ".claude" / "metrics" / "artifact-usage.json").read_text())
     assert data["plan"]["use_count"] == 1
     assert data["plan"]["lifecycle"] == "active"
 
 
-def test_upsert_bumps_existing_count(tmp_path):
-    telemetry._upsert_artifact_usage(tmp_path, "plan")
-    telemetry._upsert_artifact_usage(tmp_path, "plan")
-    telemetry._upsert_artifact_usage(tmp_path, "plan")
-    data = json.loads((tmp_path / "metrics" / "artifact-usage.json").read_text())
+def test_upsert_bumps_existing_count(monkeypatch, tmp_path):
+    home = _isolate_home(monkeypatch, tmp_path)
+    telemetry._upsert_artifact_usage("plan")
+    telemetry._upsert_artifact_usage("plan")
+    telemetry._upsert_artifact_usage("plan")
+    data = json.loads((home / ".claude" / "metrics" / "artifact-usage.json").read_text())
     assert data["plan"]["use_count"] == 3
 
 
-def test_upsert_disabled_when_file_says_false(tmp_path):
-    (tmp_path / ".claude").mkdir()
-    (tmp_path / ".claude" / "telemetry.json").write_text('{"enabled":false}')
-    telemetry._upsert_artifact_usage(tmp_path, "plan")
-    assert not (tmp_path / "metrics" / "artifact-usage.json").exists()
-
-
-def test_upsert_recovers_from_malformed_file(tmp_path, capsys):
-    (tmp_path / "metrics").mkdir()
-    (tmp_path / "metrics" / "artifact-usage.json").write_text("{not json")
-    telemetry._upsert_artifact_usage(tmp_path, "plan")
+def test_upsert_recovers_from_malformed_file(monkeypatch, tmp_path, capsys):
+    home = _isolate_home(monkeypatch, tmp_path)
+    (home / ".claude" / "metrics").mkdir(parents=True)
+    (home / ".claude" / "metrics" / "artifact-usage.json").write_text("{not json")
+    telemetry._upsert_artifact_usage("plan")
     warn = capsys.readouterr().err
     assert "malformed JSON" in warn
-    data = json.loads((tmp_path / "metrics" / "artifact-usage.json").read_text())
+    data = json.loads((home / ".claude" / "metrics" / "artifact-usage.json").read_text())
     assert data["plan"]["use_count"] == 1
 
 
-def test_upsert_trailing_newline_matches_bash(tmp_path):
-    telemetry._upsert_artifact_usage(tmp_path, "plan")
-    assert (tmp_path / "metrics" / "artifact-usage.json").read_text().endswith("\n")
+def test_upsert_trailing_newline_matches_bash(monkeypatch, tmp_path):
+    home = _isolate_home(monkeypatch, tmp_path)
+    telemetry._upsert_artifact_usage("plan")
+    assert (
+        (home / ".claude" / "metrics" / "artifact-usage.json").read_text().endswith("\n")
+    )
+
+
+def test_upsert_logs_diagnostic_on_mkdir_failure(monkeypatch, tmp_path, capsys):
+    """AC5: a failure to create ~/.claude/metrics/ must produce a stderr
+    diagnostic, and must not raise into the caller."""
+    _isolate_home(monkeypatch, tmp_path)
+
+    def _raise(*_args, **_kwargs):
+        raise OSError("permission denied")
+
+    monkeypatch.setattr(Path, "mkdir", _raise)
+    telemetry._upsert_artifact_usage("plan")
+    err = capsys.readouterr().err
+    assert "WARN" in err
+
+
+def test_upsert_logs_diagnostic_on_write_failure(monkeypatch, tmp_path, capsys):
+    """AC5: a failure to atomically replace artifact-usage.json must
+    produce a stderr diagnostic, and must not raise into the caller."""
+    _isolate_home(monkeypatch, tmp_path)
+
+    def _raise(*_args, **_kwargs):
+        raise OSError("disk full")
+
+    monkeypatch.setattr("telemetry.os.replace", _raise)
+    telemetry._upsert_artifact_usage("plan")
+    err = capsys.readouterr().err
+    assert "WARN" in err
+
+
+def test_upsert_never_writes_under_a_project_directory(monkeypatch, tmp_path):
+    """Slice 1 Gherkin: 'artifact usage always lands under the home metrics
+    dir' — a project cwd must never receive metrics/artifact-usage.json."""
+    _isolate_home(monkeypatch, tmp_path)
+    project_dir = tmp_path / "project"
+    project_dir.mkdir()
+    monkeypatch.chdir(project_dir)
+    telemetry._upsert_artifact_usage("plan")
+    assert not (project_dir / "metrics" / "artifact-usage.json").exists()
 
 
 # ---------------------------------------------------------------------------
@@ -122,7 +241,7 @@ def _feed(monkeypatch, text: str) -> None:
 
 
 def test_main_consent_off_writes_nothing(monkeypatch, tmp_path):
-    monkeypatch.delenv("DEV_TEAM_TELEMETRY", raising=False)
+    _isolate_home(monkeypatch, tmp_path)
     _feed(
         monkeypatch,
         json.dumps(
@@ -138,7 +257,7 @@ def test_main_consent_off_writes_nothing(monkeypatch, tmp_path):
 
 
 def test_main_user_prompt_records_command(monkeypatch, tmp_path):
-    monkeypatch.setenv("DEV_TEAM_TELEMETRY", "on")
+    home = _enable_consent(monkeypatch, tmp_path)
     _feed(
         monkeypatch,
         json.dumps(
@@ -150,13 +269,15 @@ def test_main_user_prompt_records_command(monkeypatch, tmp_path):
         ),
     )
     assert telemetry.main() == 0
-    line = json.loads((tmp_path / "metrics" / "telemetry.jsonl").read_text().strip())
+    log = home / ".claude" / "metrics" / "telemetry.jsonl"
+    line = json.loads(log.read_text().strip())
     assert line["event"] == "command"
     assert line["name"] == "plan"
+    assert not (tmp_path / "metrics" / "telemetry.jsonl").exists()
 
 
 def test_main_non_slash_prompt_records_nothing(monkeypatch, tmp_path):
-    monkeypatch.setenv("DEV_TEAM_TELEMETRY", "on")
+    home = _enable_consent(monkeypatch, tmp_path)
     _feed(
         monkeypatch,
         json.dumps(
@@ -168,11 +289,11 @@ def test_main_non_slash_prompt_records_nothing(monkeypatch, tmp_path):
         ),
     )
     assert telemetry.main() == 0
-    assert not (tmp_path / "metrics" / "telemetry.jsonl").exists()
+    assert not (home / ".claude" / "metrics" / "telemetry.jsonl").exists()
 
 
 def test_main_git_commit_fires_gate(monkeypatch, tmp_path):
-    monkeypatch.setenv("DEV_TEAM_TELEMETRY", "on")
+    home = _enable_consent(monkeypatch, tmp_path)
     _feed(
         monkeypatch,
         json.dumps(
@@ -185,7 +306,8 @@ def test_main_git_commit_fires_gate(monkeypatch, tmp_path):
         ),
     )
     assert telemetry.main() == 0
-    payload = json.loads((tmp_path / "metrics" / "telemetry.jsonl").read_text().strip())
+    log = home / ".claude" / "metrics" / "telemetry.jsonl"
+    payload = json.loads(log.read_text().strip())
     assert payload["outcome"] == "fired"
 
 
@@ -194,7 +316,7 @@ def test_main_git_commit_fires_gate(monkeypatch, tmp_path):
     ["git commit --no-verify", "git commit -m msg -n", "git commit -n -m msg"],
 )
 def test_main_git_commit_bypass_variants(monkeypatch, tmp_path, cmd):
-    monkeypatch.setenv("DEV_TEAM_TELEMETRY", "on")
+    home = _enable_consent(monkeypatch, tmp_path)
     _feed(
         monkeypatch,
         json.dumps(
@@ -207,12 +329,13 @@ def test_main_git_commit_bypass_variants(monkeypatch, tmp_path, cmd):
         ),
     )
     assert telemetry.main() == 0
-    payload = json.loads((tmp_path / "metrics" / "telemetry.jsonl").read_text().strip())
+    log = home / ".claude" / "metrics" / "telemetry.jsonl"
+    payload = json.loads(log.read_text().strip())
     assert payload["outcome"] == "bypassed"
 
 
 def test_main_skill_records_and_upserts(monkeypatch, tmp_path):
-    monkeypatch.setenv("DEV_TEAM_TELEMETRY", "on")
+    home = _enable_consent(monkeypatch, tmp_path)
     _feed(
         monkeypatch,
         json.dumps(
@@ -225,15 +348,108 @@ def test_main_skill_records_and_upserts(monkeypatch, tmp_path):
         ),
     )
     assert telemetry.main() == 0
-    ev = json.loads((tmp_path / "metrics" / "telemetry.jsonl").read_text().strip())
+    metrics_dir = home / ".claude" / "metrics"
+    ev = json.loads((metrics_dir / "telemetry.jsonl").read_text().strip())
     assert ev["event"] == "skill"
     assert ev["name"] == "plan"
-    usage = json.loads((tmp_path / "metrics" / "artifact-usage.json").read_text())
+    usage = json.loads((metrics_dir / "artifact-usage.json").read_text())
     assert usage["plan"]["use_count"] == 1
+    assert not (tmp_path / "metrics" / "telemetry.jsonl").exists()
+    assert not (tmp_path / "metrics" / "artifact-usage.json").exists()
 
 
 def test_main_malformed_stdin_silent(monkeypatch, tmp_path):
-    monkeypatch.setenv("DEV_TEAM_TELEMETRY", "on")
+    home = _enable_consent(monkeypatch, tmp_path)
     _feed(monkeypatch, "not-json")
     assert telemetry.main() == 0
-    assert not (tmp_path / "metrics" / "telemetry.jsonl").exists()
+    assert not (home / ".claude" / "metrics" / "telemetry.jsonl").exists()
+
+
+# ---------------------------------------------------------------------------
+# One-time inert-legacy-signal notice (Slice 1, Step 1.4)
+# ---------------------------------------------------------------------------
+
+
+def _prompt_payload(cwd, session_id=None):
+    payload = {
+        "hook_event_name": "UserPromptSubmit",
+        "cwd": str(cwd),
+        "prompt": "/plan",
+    }
+    if session_id is not None:
+        payload["session_id"] = session_id
+    return json.dumps(payload)
+
+
+def test_no_notice_when_neither_legacy_signal_present(monkeypatch, tmp_path, capsys):
+    _isolate_home(monkeypatch, tmp_path)
+    _feed(monkeypatch, _prompt_payload(tmp_path, "sess-none"))
+    assert telemetry.main() == 0
+    assert capsys.readouterr().err == ""
+
+
+def test_notice_fires_for_env_var_signal(monkeypatch, tmp_path, capsys):
+    _isolate_home(monkeypatch, tmp_path)
+    monkeypatch.setenv("DEV_TEAM_TELEMETRY", "on")
+    _feed(monkeypatch, _prompt_payload(tmp_path, "sess-env"))
+    assert telemetry.main() == 0
+    err = capsys.readouterr().err
+    assert "~/.claude/telemetry.json" in err
+
+
+def test_notice_fires_for_project_level_config_signal(monkeypatch, tmp_path, capsys):
+    _isolate_home(monkeypatch, tmp_path)
+    (tmp_path / ".claude").mkdir()
+    (tmp_path / ".claude" / "telemetry.json").write_text('{"enabled":true}')
+    _feed(monkeypatch, _prompt_payload(tmp_path, "sess-proj"))
+    assert telemetry.main() == 0
+    err = capsys.readouterr().err
+    assert "~/.claude/telemetry.json" in err
+
+
+def test_notice_fires_once_per_session_not_per_invocation(monkeypatch, tmp_path, capsys):
+    _isolate_home(monkeypatch, tmp_path)
+    monkeypatch.setenv("DEV_TEAM_TELEMETRY", "on")
+
+    _feed(monkeypatch, _prompt_payload(tmp_path, "sess-repeat"))
+    assert telemetry.main() == 0
+    first_err = capsys.readouterr().err
+    assert "~/.claude/telemetry.json" in first_err
+
+    _feed(monkeypatch, _prompt_payload(tmp_path, "sess-repeat"))
+    assert telemetry.main() == 0
+    second_err = capsys.readouterr().err
+    assert second_err == ""
+
+
+def test_notice_is_per_session_not_global(monkeypatch, tmp_path, capsys):
+    """A different session_id gets its own one-time notice."""
+    _isolate_home(monkeypatch, tmp_path)
+    monkeypatch.setenv("DEV_TEAM_TELEMETRY", "on")
+
+    _feed(monkeypatch, _prompt_payload(tmp_path, "sess-a"))
+    telemetry.main()
+    capsys.readouterr()  # discard first session's notice
+
+    _feed(monkeypatch, _prompt_payload(tmp_path, "sess-b"))
+    assert telemetry.main() == 0
+    err = capsys.readouterr().err
+    assert "~/.claude/telemetry.json" in err
+
+
+def test_notice_refuses_to_follow_a_symlinked_marker_path(monkeypatch, tmp_path, capsys):
+    """A pre-created dangling symlink at the marker path must not be
+    written through (O_NOFOLLOW) — the notice is skipped, fail-open, and
+    the symlink target is left untouched."""
+    _isolate_home(monkeypatch, tmp_path)
+    monkeypatch.setenv("DEV_TEAM_TELEMETRY", "on")
+
+    marker = telemetry._legacy_signal_path("sess-symlink")
+    target = tmp_path / "attacker-target.txt"
+    marker.symlink_to(target)
+
+    _feed(monkeypatch, _prompt_payload(tmp_path, "sess-symlink"))
+    assert telemetry.main() == 0
+    err = capsys.readouterr().err
+    assert err == ""
+    assert not target.exists()

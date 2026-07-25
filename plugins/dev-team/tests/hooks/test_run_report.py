@@ -60,14 +60,14 @@ def test_build_report_joins_workflow_and_boundary_streams(tmp_path: Path) -> Non
     workflow_state.emit_state_transition(tmp_path, "ship", "SPEC", "PLAN", "sess-1")
 
     _write_jsonl(
-        tmp_path / "metrics" / "boundary-events.jsonl",
+        tmp_path / ".claude" / "metrics" / "boundary-events.jsonl",
         [
             _boundary_event("sess-1", "block", "no-force-push", "2026-01-01T00:00:00Z"),
             _boundary_event("sess-1", "bypass", "no-verify", "2026-01-01T00:01:00Z"),
         ],
     )
     _write_jsonl(
-        tmp_path / "metrics" / "cost-metering.jsonl",
+        tmp_path / ".claude" / "metrics" / "cost-metering.jsonl",
         [{"timestamp": "2026-01-01T00:02:00Z", "transcript": "t.jsonl",
           "total": {"cost_usd": 1.23}}],
     )
@@ -138,7 +138,7 @@ def test_build_report_auto_detect_with_no_sessions_at_all(tmp_path: Path) -> Non
 
 def test_denials_by_cause_groups_block_and_warn_not_bypass(tmp_path: Path) -> None:
     _write_jsonl(
-        tmp_path / "metrics" / "boundary-events.jsonl",
+        tmp_path / ".claude" / "metrics" / "boundary-events.jsonl",
         [
             _boundary_event("sess-3", "block", "no-force-push", "2026-01-01T00:00:00Z"),
             _boundary_event("sess-3", "block", "no-force-push", "2026-01-01T00:01:00Z"),
@@ -156,7 +156,7 @@ def test_denials_by_cause_groups_block_and_warn_not_bypass(tmp_path: Path) -> No
 
 def test_denials_by_cause_filters_to_requested_session(tmp_path: Path) -> None:
     _write_jsonl(
-        tmp_path / "metrics" / "boundary-events.jsonl",
+        tmp_path / ".claude" / "metrics" / "boundary-events.jsonl",
         [
             _boundary_event("sess-x", "block", "rule-x", "2026-01-01T00:00:00Z"),
             _boundary_event("sess-y", "block", "rule-y", "2026-01-01T00:01:00Z"),

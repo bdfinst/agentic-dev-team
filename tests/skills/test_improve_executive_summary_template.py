@@ -93,10 +93,30 @@ def test_template_still_has_exactly_10_numbered_section_headers():
 
 
 def test_template_baseline_provenance_is_report_opt_in_conditional():
-    """#1126: an opt-in run's baselines live under reports/test-improve/, so
-    the template's provenance strings must name that location conditionally
-    rather than hard-coding memory/."""
+    """#1126: an opt-in run's baselines live under .dev-team-reports/test-improve/
+    (Slice 7, plan opt-in-metrics-and-claude-scoped-artifacts.md), so the
+    template's provenance strings must name that location conditionally rather
+    than hard-coding .claude/memory/."""
     text = _text()
     assert grep(r"\{\{baseline_dir\}\}", text)
-    assert grep(r"reports/test-improve/\{\{slug\}\}/", text)
+    assert grep(r"\.dev-team-reports/test-improve/\{\{slug\}\}/", text)
     assert grep(r"opted in", text, ignore_case=True)
+
+
+def test_template_has_no_bare_legacy_path_references():
+    """Every memory/test-improve/ and reports/test-improve/ reference in the
+    shipped template resolves to its relocated .claude/ or .dev-team-reports/
+    equivalent (Slice 7)."""
+    import re
+
+    text = _text()
+    assert not re.search(r"(?<!\.claude/)memory/test-improve/", text)
+    assert not re.search(r"(?<!\.dev-team-)reports/test-improve/", text)
+
+
+def test_template_refactor_backlog_targets_dev_team_reports_not_claude_memory():
+    text = _text()
+    assert (
+        ".dev-team-reports/test-improve/{{slug}}/refactor-backlog.md" in text
+    )
+    assert ".claude/memory/test-improve/{{slug}}/refactor-backlog.md" not in text
