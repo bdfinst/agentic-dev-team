@@ -35,4 +35,7 @@ def is_enabled() -> bool:
         return False
     if not isinstance(data, dict):
         return False
+    # Deliberate strict identity check (`is True`, not truthiness): a
+    # non-bool value such as `"true"` or `1` must NOT imply consent — only
+    # the literal JSON boolean `true` does.
     return data.get("enabled") is True
