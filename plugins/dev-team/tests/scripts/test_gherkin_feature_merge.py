@@ -43,6 +43,32 @@ BACKGROUND_FEATURE = """Feature: Orders API
     Then the response status is 201
 """
 
+# Combines Background + an @smoke-tagged Scenario + a Scenario Outline with
+# Examples in one block — Step 1.1's plan TEST note asks for all three
+# together (not split across disjoint fixtures), since _find_background's
+# returned body_start feeds directly into _parse_units and a boundary bug
+# at that seam (e.g. an Outline immediately after a Background) would
+# otherwise hide.
+BACKGROUND_AND_OUTLINE_FEATURE = """Feature: Orders API
+
+  Background:
+    Given the orders service is running
+
+  @smoke
+  Scenario: Create order succeeds with valid payload
+    Given a valid payload
+    When the order is created
+    Then the response status is 201
+
+  Scenario Outline: Create order fails for <reason>
+    Given a payload missing <reason>
+    Then the response status is 400
+
+    Examples:
+      | reason  |
+      | address |
+"""
+
 
 # ---------------------------------------------------------------------------
 # parse_feature_block (Step 1.1)
@@ -66,6 +92,24 @@ def test_parses_tagged_scenario_outline_with_examples_as_one_unit():
     assert "@smoke" in unit.text
     assert "Examples:" in unit.text
     assert "| valid   |" in unit.text
+
+
+def test_parses_background_tagged_scenario_and_outline_together_in_order():
+    """Step 1.1's plan TEST note: one fixture combining a Background, an
+    @smoke-tagged Scenario, and a Scenario Outline+Examples all together —
+    not split across disjoint fixtures — parses into the Background plus 2
+    correctly-bounded, correctly-ordered units."""
+    result = gfm.parse_feature_block(BACKGROUND_AND_OUTLINE_FEATURE, "Orders API")
+    assert result.error is None
+    assert result.block.background is not None
+    assert "orders service is running" in result.block.background
+    assert [u.title for u in result.block.units] == [
+        "Create order succeeds with valid payload",
+        "Create order fails for <reason>",
+    ]
+    assert "@smoke" in result.block.units[0].text
+    assert "Examples:" in result.block.units[1].text
+    assert "| address |" in result.block.units[1].text
 
 
 def test_feature_title_not_found_returns_feature_not_found():
@@ -182,6 +226,49 @@ def test_background_and_tag_preserved_byte_for_byte_across_merge():
     assert result.text.startswith(BACKGROUND_FEATURE)
 
 
+def test_background_and_tag_both_preserved_across_a_merge_that_adds_one_scenario():
+    """Step 1.2's edge case explicitly wants Background AND an @tag line
+    both present in the same merge, not exercised separately."""
+    text = (
+        "Feature: Orders API\n\n"
+        "  Background:\n"
+        "    Given the orders service is running\n\n"
+        "  @smoke\n"
+        "  Scenario: Create order succeeds with valid payload\n"
+        "    Given a valid payload\n"
+        "    When the order is created\n"
+        "    Then the response status is 201\n"
+    )
+    candidates = [_unit("Unrelated new scenario")]
+    result = gfm.merge_scenarios(text, "Orders API", candidates)
+    assert result.error is None
+    assert result.text.startswith(text)
+    assert "@smoke" in result.text
+    assert "the orders service is running" in result.text
+
+
+def test_merge_onto_existing_text_missing_a_trailing_newline_does_not_fuse_lines():
+    """Regression test (correctness-review): a splice right at end_index with
+    no guard on the preceding line's terminator used to concatenate the new
+    scenario directly onto the existing file's last line with no separator,
+    corrupting it — e.g. 'Then the response status is 201  Scenario: New...'.
+    The existing text has no trailing newline here on purpose."""
+    text = (
+        "Feature: Orders API\n\n"
+        "  Scenario: Create order succeeds with valid payload\n"
+        "    Given a valid payload\n"
+        "    When the order is created\n"
+        "    Then the response status is 201"
+    )
+    assert not text.endswith("\n")
+    candidates = [_unit("New scenario")]
+    result = gfm.merge_scenarios(text, "Orders API", candidates)
+    assert result.error is None
+    assert "201\n  Scenario: New scenario" in result.text
+    assert "201  Scenario: New scenario" not in result.text
+    assert result.text.startswith(text.rstrip("\n"))
+
+
 # ---------------------------------------------------------------------------
 # CLI (Step 1.3)
 # ---------------------------------------------------------------------------
@@ -234,6 +321,43 @@ def test_cli_merge_many_headerless_candidates_parse_into_units(tmp_path):
     )
     payload = json.loads(proc.stdout)
     assert payload["added_titles"] == ["Three A", "Three B", "Three C"]
+
+
+def test_parse_candidate_units_malformed_text_reports_error_not_silent_empty():
+    """Regression test (correctness-review): a malformed --candidates
+    fragment used to collapse to an empty, error-less list — indistinguish-
+    able from 'the file had zero scenarios'. It must report the same
+    malformed-feature-block error parse_feature_block would, not disappear."""
+    units, error = gfm.parse_candidate_units("  @dangling-tag-with-no-scenario\n")
+    assert units == []
+    assert error == "malformed-feature-block"
+
+
+def test_parse_candidate_units_well_formed_text_reports_no_error():
+    units, error = gfm.parse_candidate_units(_unit("New one").text)
+    assert error is None
+    assert [u.title for u in units] == ["New one"]
+
+
+def test_cli_merge_malformed_candidates_exits_2_and_leaves_file_unchanged(tmp_path):
+    existing = tmp_path / "orders.feature"
+    existing.write_text(ORDERS_FEATURE, encoding="utf-8")
+    before = existing.read_text(encoding="utf-8")
+    candidates = tmp_path / "candidates.txt"
+    candidates.write_text("  @dangling-tag-with-no-scenario\n", encoding="utf-8")
+
+    proc = _run_cli(
+        "merge",
+        "--existing",
+        str(existing),
+        "--candidates",
+        str(candidates),
+        "--feature-title",
+        "Orders API",
+    )
+    assert proc.returncode == 2
+    assert existing.read_text(encoding="utf-8") == before
+    assert "malformed" in proc.stderr.lower()
 
 
 def test_cli_merge_title_mismatch_exits_2_and_leaves_file_unchanged(tmp_path):
@@ -334,6 +458,46 @@ def test_scenario_with_no_then_step_returns_empty_and_never_stale():
     then_texts = gfm.find_then_step_text(text, "Orders API")
     assert then_texts["Weird"] == ""
     assert gfm.is_stale(then_texts["Weird"], "anything") is False
+
+
+def test_but_continuation_line_is_captured_alongside_and():
+    """Regression test (domain-review): Gherkin permits `But` as a
+    Then-continuation, not just `And`. Omitting it would silently drop part
+    of the asserted behavior from the stale-scenario comparison."""
+    text = (
+        "Feature: Orders API\n\n"
+        "  Scenario: Create order fails\n"
+        "    Given an invalid payload\n"
+        "    When the order is rejected\n"
+        "    Then the request is rejected\n"
+        "    But no partial record is written\n"
+    )
+    then_texts = gfm.find_then_step_text(text, "Orders API")
+    assert "no partial record is written" in then_texts["Create order fails"]
+
+
+def test_cli_check_stale_reports_unmatched_observed_title_distinctly(tmp_path):
+    """Regression test (domain-review): an --observed title that isn't an
+    exact key in the retained block used to silently no-op, indistinguish-
+    able from 'nothing to compare' — masking exactly the drift this command
+    exists to detect (e.g. the caller's title extraction diverged slightly
+    from the retained scenario's exact text)."""
+    existing = tmp_path / "orders.feature"
+    existing.write_text(ORDERS_FEATURE, encoding="utf-8")
+    proc = _run_cli(
+        "check-stale",
+        "--existing",
+        str(existing),
+        "--feature-title",
+        "Orders API",
+        "--observed",
+        "A title that does not exist=201",
+        "--json",
+    )
+    assert proc.returncode == 0
+    payload = json.loads(proc.stdout)
+    assert payload["findings"] == []
+    assert payload["unmatched_titles"] == ["A title that does not exist"]
 
 
 def test_cli_check_stale_reports_mismatch_as_json(tmp_path):
