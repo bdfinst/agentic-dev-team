@@ -7,6 +7,7 @@ and the accepted false-positive limitation of the keyword heuristic.
 
 from __future__ import annotations
 
+import json
 import sys
 
 from _repo_root import REPO_ROOT as _REPO_ROOT
@@ -82,6 +83,17 @@ def test_retry_scenario_with_no_default_keyword_substring_is_correctly_flagged()
     """The default keyword list has no substring in common with "does not
     exceed the configured limit" ("exceeds" != "exceed"), so this
     happy-path-only Feature is correctly flagged as missing a failure path.
+
+    Deliberately named divergence from plan wording: the plan's Slice 3
+    "coincidental keyword match" Gherkin scenario (Behavior block, Scenario 3
+    of plans/gherkin-derive-merge-feature-files.md) illustrates the
+    documented false-positive limitation using this exact RETRY_POLICY text
+    against "the default keyword list" — but the shipped DEFAULT_KEYWORDS
+    uses "exceeds" (plural), not "exceed", so the plan's literal scenario
+    does not reproduce with the real default list; the coincidence needs
+    --extra-keyword "exceed" to occur, per the next test below. This test
+    exists specifically to pin that gap down rather than let a reader assume
+    the plan's illustrative scenario is exercised as written when it isn't.
     """
     features = gate.parse_features(RETRY_POLICY)
     for f in features:
@@ -113,10 +125,16 @@ def test_keyword_override_replaces_default_list_entirely(tmp_path):
     assert findings == []
 
 
-def test_main_json_output_contract(tmp_path):
+def test_main_json_output_contract(tmp_path, capsys):
     (tmp_path / "orders.feature").write_text(HAPPY_ONLY)
     exit_code = gate.main(["--dir", str(tmp_path), "--json"])
     assert exit_code == 1
+    payload = json.loads(capsys.readouterr().out)
+    assert set(payload) == {"scanned", "findings"}
+    assert payload["scanned"] == [str(tmp_path / "orders.feature")]
+    assert payload["findings"][0]["feature_title"] == "Orders API"
+    assert payload["findings"][0]["file"] == str(tmp_path / "orders.feature")
+    assert payload["findings"][0]["line"] == 1
 
 
 def test_main_exits_zero_when_all_features_have_failure_path(tmp_path, capsys):

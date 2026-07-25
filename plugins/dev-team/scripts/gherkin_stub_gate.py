@@ -52,6 +52,9 @@ import json
 import sys
 from pathlib import Path
 
+_HERE = Path(__file__).resolve().parent
+sys.path.insert(0, str(_HERE / "lib"))
+
 from _vendored_tree import iter_files as _iter_files
 
 # Extension (lowercase) -> (language label, pending marker substrings).

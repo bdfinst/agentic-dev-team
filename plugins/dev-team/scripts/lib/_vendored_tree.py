@@ -1,10 +1,15 @@
-"""_vendored_tree.py — shared vendored/generated-directory pruning helper.
+"""scripts/lib/_vendored_tree.py — shared vendored/generated-directory
+pruning helper.
 
 Extracted (issue #1420) from `detect_bdd_convention.py` and
 `gherkin_stub_gate.py`, which each carried a byte-for-byte-identical copy of
 this logic. A third caller (`gherkin_failure_path_gate.py`) made the
 duplication the third occurrence — the threshold where it becomes a shared
-helper rather than a per-script judgment call.
+helper rather than a per-script judgment call. Lives under `scripts/lib/`,
+per this repo's established shared-helper convention (see `plan_parse.py`
+and its callers) — each of the three callers above resolves this directory
+onto `sys.path` via `sys.path.insert(0, str(Path(__file__).resolve().parent
+/ "lib"))` before importing it.
 
 Stdlib-only. Python 3.8+ (ADR 0014/0015).
 """

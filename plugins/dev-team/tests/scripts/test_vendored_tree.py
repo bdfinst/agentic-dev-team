@@ -1,4 +1,4 @@
-"""Unit tests for scripts/_vendored_tree.py (issue #1420).
+"""Unit tests for scripts/lib/_vendored_tree.py (issue #1420).
 
 Regression-safety-net for the extraction from detect_bdd_convention.py and
 gherkin_stub_gate.py: asserts both callers' pruning behavior stays identical
@@ -12,7 +12,7 @@ import sys
 
 from _repo_root import REPO_ROOT as _REPO_ROOT
 
-sys.path.insert(0, str(_REPO_ROOT / "plugins" / "dev-team" / "scripts"))
+sys.path.insert(0, str(_REPO_ROOT / "plugins" / "dev-team" / "scripts" / "lib"))
 
 import _vendored_tree
 
