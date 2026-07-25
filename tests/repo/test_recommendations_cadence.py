@@ -91,7 +91,10 @@ class TestRefactorOnEveryGreen:
 
 class TestTestsFrozenDuringRefactor:
     def test_build_owns_the_phase_state_writes(self) -> None:
-        assert "memory/build-phase.json" in BUILD
+        # .claude/-nested per #1405/#1406 Slice 5 Step 5.6 — no bare
+        # (non-.claude-prefixed) memory/build-phase.json reference remains.
+        assert ".claude/memory/build-phase.json" in BUILD
+        assert re.search(r"(?<!\.claude/)memory/build-phase\.json", BUILD) is None
         assert "test_files_staged" in BUILD
 
     def test_test_files_are_staged_at_the_test_to_refactor_transition(self) -> None:
