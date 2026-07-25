@@ -49,13 +49,28 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 import sys
 from pathlib import Path
 
 _HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(_HERE / "lib"))
 
-from _vendored_tree import iter_files as _iter_files
+from _vendored_tree import find_files as _find_files
+
+# See gherkin_failure_path_gate.py's identical constant/helper: strips
+# control characters from untrusted scanned-file content before it reaches
+# a terminal (CWE-150 / indirect prompt-injection via tool output). Below
+# the repo's own "third occurrence" extraction threshold (two call sites),
+# so kept local rather than hoisted to lib/.
+_CONTROL_CHARS = re.compile(r"[\x00-\x08\x0b-\x1f\x7f-\x9f]")
+
+
+def _safe_for_terminal(text: str, limit: int = 200) -> str:
+    """Strip control characters and bound length before printing untrusted
+    scanned-file text to a terminal (the `--json` path is unaffected —
+    `json.dumps` already escapes control characters)."""
+    return _CONTROL_CHARS.sub("", text)[:limit]
 
 # Extension (lowercase) -> (language label, pending marker substrings).
 _MARKERS_BY_EXT = {
@@ -73,14 +88,14 @@ def find_step_definition_files(directories: list[Path]) -> list[Path]:
     """Return every file under `directories` whose extension is a known
     step-definition language (matched case-insensitively), pruning vendored
     trees, sorted for deterministic output."""
-    found: list[Path] = []
-    for directory in directories:
-        if not directory.is_dir():
-            continue
-        for path in _iter_files(directory):
-            if path.suffix.lower() in _MARKERS_BY_EXT:
-                found.append(path)
-    return sorted(set(found))
+    return _find_files(directories, lambda path: path.suffix.lower() in _MARKERS_BY_EXT)
+
+
+def _matching_marker(line: str, markers: tuple) -> str | None:
+    """Return the first marker in `markers` that occurs in `line`, or
+    `None` — the innermost scan of `find_pending_stubs`, extracted so that
+    function stays at 2 levels of nesting instead of 4."""
+    return next((marker for marker in markers if marker in line), None)
 
 
 def find_pending_stubs(files: list[Path]) -> list[dict]:
@@ -90,18 +105,17 @@ def find_pending_stubs(files: list[Path]) -> list[dict]:
         language, markers = _MARKERS_BY_EXT[path.suffix.lower()]
         text = path.read_text(encoding="utf-8", errors="replace")
         for line_no, line in enumerate(text.splitlines(), start=1):
-            for marker in markers:
-                if marker in line:
-                    pending.append(
-                        {
-                            "file": str(path),
-                            "line": line_no,
-                            "language": language,
-                            "marker": marker,
-                            "text": line.strip(),
-                        }
-                    )
-                    break  # one marker match per line is enough to flag it
+            marker = _matching_marker(line, markers)
+            if marker is not None:
+                pending.append(
+                    {
+                        "file": str(path),
+                        "line": line_no,
+                        "language": language,
+                        "marker": marker,
+                        "text": line.strip(),
+                    }
+                )
     return pending
 
 
@@ -134,7 +148,10 @@ def main(argv: list[str] | None = None) -> int:
     if pending:
         print(f"FAIL: {len(pending)} pending step definition(s) — bdd-runner mode is not done:")
         for entry in pending:
-            print(f"  - {entry['file']}:{entry['line']} ({entry['language']}) — {entry['text']}")
+            print(
+                f"  - {entry['file']}:{entry['line']} ({entry['language']}) — "
+                f"{_safe_for_terminal(entry['text'])}"
+            )
         return 1
 
     print(f"OK: {len(files)} step-definition file(s) scanned, no pending stubs remain.")

@@ -258,6 +258,18 @@ action-oriented framing the characterization call-out already uses, not a
 bare data dump — it tells the operator what decision to make, not just that
 one exists.
 
+**Call out `check-stale` title mismatches too, distinctly from staleness
+findings (issue #1420).** `check-stale --json`'s `unmatched_titles` array
+lists every `--observed` title that isn't an exact key among the retained
+scenarios — this is a different problem from a stale assertion: it means the
+title-extraction step and the retained scenario's exact text have diverged,
+not that the code's behavior changed. Report each as "title mismatch: `<X>`
+not found among retained scenarios in `<feature-title>` — check for a typo or
+drift between the observed title and the scenario it should describe",
+separate from the "possibly stale" section above. The operator action
+differs (fix title extraction vs. verify a behavior change), so folding the
+two together would obscure which one applies.
+
 **`bdd-runner` mode — state completion plainly, as the report's headline
 (issues #1391, #1420).** Choosing `bdd-runner` mode is a decision to end up
 with fully executing, Gherkin-bound tests, not just scaffolded placeholders —

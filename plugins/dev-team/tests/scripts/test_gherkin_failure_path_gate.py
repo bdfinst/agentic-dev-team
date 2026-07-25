@@ -44,9 +44,7 @@ RETRY_POLICY = """Feature: Retry Policy
 
 
 def test_feature_with_only_happy_path_is_flagged():
-    features = gate.parse_features(HAPPY_ONLY)
-    for f in features:
-        f["file"] = "orders.feature"
+    features = gate.parse_features(HAPPY_ONLY, "orders.feature")
     findings = gate.find_missing_failure_path(features, gate.DEFAULT_KEYWORDS)
     assert len(findings) == 1
     assert findings[0]["feature_title"] == "Orders API"
@@ -54,9 +52,7 @@ def test_feature_with_only_happy_path_is_flagged():
 
 
 def test_feature_with_a_failure_path_scenario_passes():
-    features = gate.parse_features(HAPPY_AND_FAILURE)
-    for f in features:
-        f["file"] = "orders.feature"
+    features = gate.parse_features(HAPPY_AND_FAILURE, "orders.feature")
     findings = gate.find_missing_failure_path(features, gate.DEFAULT_KEYWORDS)
     assert findings == []
 
@@ -64,16 +60,14 @@ def test_feature_with_a_failure_path_scenario_passes():
 def test_file_with_no_feature_header_yields_no_findings_no_crash(tmp_path):
     f = tmp_path / "empty.feature"
     f.write_text("# just a comment\n")
-    features = gate.parse_features(f.read_text())
+    features = gate.parse_features(f.read_text(), f)
     assert features == []
 
 
 def test_two_feature_blocks_in_one_file_evaluated_independently():
     text = HAPPY_ONLY + "\n" + HAPPY_AND_FAILURE.replace("Orders API", "Refunds API")
-    features = gate.parse_features(text)
+    features = gate.parse_features(text, "combined.feature")
     assert len(features) == 2
-    for f in features:
-        f["file"] = "combined.feature"
     findings = gate.find_missing_failure_path(features, gate.DEFAULT_KEYWORDS)
     assert len(findings) == 1
     assert findings[0]["feature_title"] == "Orders API"
@@ -84,20 +78,12 @@ def test_retry_scenario_with_no_default_keyword_substring_is_correctly_flagged()
     exceed the configured limit" ("exceeds" != "exceed"), so this
     happy-path-only Feature is correctly flagged as missing a failure path.
 
-    Deliberately named divergence from plan wording: the plan's Slice 3
-    "coincidental keyword match" Gherkin scenario (Behavior block, Scenario 3
-    of plans/gherkin-derive-merge-feature-files.md) illustrates the
-    documented false-positive limitation using this exact RETRY_POLICY text
-    against "the default keyword list" — but the shipped DEFAULT_KEYWORDS
-    uses "exceeds" (plural), not "exceed", so the plan's literal scenario
-    does not reproduce with the real default list; the coincidence needs
-    --extra-keyword "exceed" to occur, per the next test below. This test
-    exists specifically to pin that gap down rather than let a reader assume
-    the plan's illustrative scenario is exercised as written when it isn't.
+    "exceeds" (plural) is the confirmed intended default (issue #1420); the
+    false positive this test's sibling below demonstrates (via
+    --extra-keyword "exceed") is an accepted, deliberately-illustrated
+    heuristic limitation, not a gap in what was decided.
     """
-    features = gate.parse_features(RETRY_POLICY)
-    for f in features:
-        f["file"] = "retry.feature"
+    features = gate.parse_features(RETRY_POLICY, "retry.feature")
     findings = gate.find_missing_failure_path(features, gate.DEFAULT_KEYWORDS)
     assert len(findings) == 1
 
@@ -107,22 +93,46 @@ def test_extra_keyword_can_produce_a_documented_false_positive():
     "exceed" via --extra-keyword makes this happy-path-only scenario pass
     the gate, because "exceed" happens to be a substring of its text — even
     though it has no real failure path. This is the documented heuristic
-    limitation (Risks & Open Questions), not correct classification.
+    limitation (module docstring, issue #1420), not correct classification.
     """
-    features = gate.parse_features(RETRY_POLICY)
-    for f in features:
-        f["file"] = "retry.feature"
+    features = gate.parse_features(RETRY_POLICY, "retry.feature")
     keywords = list(gate.DEFAULT_KEYWORDS) + ["exceed"]
     findings = gate.find_missing_failure_path(features, keywords)
     assert findings == []  # false positive: no real failure-path scenario exists
 
 
-def test_keyword_override_replaces_default_list_entirely(tmp_path):
-    findings = gate.find_missing_failure_path(
-        [{"file": "x", "line": 1, "title": "X", "scenario_titles": ["Create order succeeds"], "scenario_text": HAPPY_ONLY}],
-        ["succeeds"],
-    )
+def test_keyword_override_replaces_default_list_entirely():
+    """Drives the replace-vs-extend logic through main()'s actual CLI wiring
+    (--keyword), not just find_missing_failure_path directly — a happy-path-
+    only feature whose only failure signal is a default keyword ("invalid")
+    must still fail the gate when --keyword replaces the defaults with an
+    unrelated term ("succeeds", which the happy path also contains)."""
+    features = [
+        {
+            "file": "x",
+            "line": 1,
+            "feature_title": "X",
+            "scenario_titles": ["Create order succeeds"],
+            "scenario_text": HAPPY_ONLY,
+        }
+    ]
+    findings = gate.find_missing_failure_path(features, ["succeeds"])
     assert findings == []
+
+
+def test_main_keyword_flag_replaces_defaults_through_cli(tmp_path, capsys):
+    """main()-level test for --keyword: a scenario whose only failure
+    signal is a default keyword ("invalid") must still be flagged once
+    --keyword discards the defaults in favor of an unrelated term."""
+    (tmp_path / "orders.feature").write_text(
+        "Feature: Orders API\n\n"
+        "  Scenario: Create order fails when invalid\n"
+        "    Given an invalid payload\n"
+        "    Then the response status is 400\n"
+    )
+    exit_code = gate.main(["--dir", str(tmp_path), "--keyword", "unrelated-term"])
+    assert exit_code == 1
+    assert "Orders API" in capsys.readouterr().out
 
 
 def test_main_json_output_contract(tmp_path, capsys):
@@ -151,3 +161,25 @@ def test_main_names_file_and_line_for_findings(tmp_path, capsys):
     out = capsys.readouterr().out
     assert "orders.feature:1" in out
     assert "Orders API" in out
+
+
+def test_main_does_not_silently_pass_when_dir_does_not_exist(tmp_path, capsys):
+    """Regression test (correctness-review): a nonexistent --dir used to
+    silently scan zero files and print an affirmative "OK" — an all-clear
+    for zero evidence. It must now warn and exit non-zero instead."""
+    missing_dir = tmp_path / "does-not-exist"
+    exit_code = gate.main(["--dir", str(missing_dir)])
+    assert exit_code == 2
+    out = capsys.readouterr().out
+    assert "OK" not in out
+    assert "no .feature files found" in out
+
+
+def test_main_json_warns_when_dir_does_not_exist(tmp_path, capsys):
+    missing_dir = tmp_path / "does-not-exist"
+    exit_code = gate.main(["--dir", str(missing_dir), "--json"])
+    assert exit_code == 2
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["scanned"] == []
+    assert payload["findings"] == []
+    assert "no .feature files found" in payload["warning"]

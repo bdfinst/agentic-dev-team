@@ -23,6 +23,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 import sys
 from pathlib import Path
 
@@ -33,7 +34,22 @@ from _gherkin_text import FEATURE_PREFIX as _FEATURE_PREFIX
 from _gherkin_text import SCENARIO_OUTLINE_PREFIX as _SCENARIO_OUTLINE_PREFIX
 from _gherkin_text import SCENARIO_PREFIX as _SCENARIO_PREFIX
 from _gherkin_text import stripped as _stripped
-from _vendored_tree import iter_files as _iter_files
+from _vendored_tree import find_files as _find_files
+
+# C0/C1 control characters (excluding the ordinary whitespace already
+# stripped elsewhere) — stripped before printing scanned-file content to a
+# terminal. A `.feature` file's Feature: title is untrusted (it comes from
+# whatever repository is being scanned) and could otherwise inject terminal
+# escape sequences (CWE-150) or masquerade as trusted tool output fed back
+# into an agent's report.
+_CONTROL_CHARS = re.compile(r"[\x00-\x08\x0b-\x1f\x7f-\x9f]")
+
+
+def _safe_for_terminal(text: str, limit: int = 200) -> str:
+    """Strip control characters and bound length before printing untrusted
+    scanned-file text to a terminal (the `--json` path is unaffected —
+    `json.dumps` already escapes control characters)."""
+    return _CONTROL_CHARS.sub("", text)[:limit]
 
 # Entries are literal substrings, not stems — "exceeds" does not match
 # "exceed" — matching gherkin_feature_merge.py's `is_stale` in spirit (a
@@ -41,7 +57,10 @@ from _vendored_tree import iter_files as _iter_files
 # cleanup pass "fixing" what looks like a stray singular/plural mismatch
 # would silently change gate behavior: the documented false-positive test
 # (test_extra_keyword_can_produce_a_documented_false_positive) specifically
-# relies on "exceed" being absent from this list by default.
+# relies on "exceed" being absent from this list by default. "exceeds"
+# (plural) is the confirmed intended default (issue #1420) — the false
+# positive it enables (a scenario using "exceed" instead) is accepted and
+# demonstrated by that same test via --extra-keyword, not an oversight.
 DEFAULT_KEYWORDS = (
     "invalid",
     "error",
@@ -59,20 +78,18 @@ DEFAULT_KEYWORDS = (
 def find_feature_files(directories: list) -> list:
     """Return every `.feature` file under `directories`, pruning vendored
     trees, sorted for deterministic output."""
-    found = []
-    for directory in directories:
-        if not directory.is_dir():
-            continue
-        for path in _iter_files(directory):
-            if path.suffix == ".feature":
-                found.append(path)
-    return sorted(set(found))
+    return _find_files(directories, lambda path: path.suffix == ".feature")
 
 
-def parse_features(text: str) -> list:
-    """Return one entry per `Feature:` block: {title, line, scenario_titles,
-    scenario_text} — scenario_text is every non-header line in the block,
-    used for keyword matching against step text as well as titles."""
+def parse_features(text: str, path) -> list:
+    """Return one entry per `Feature:` block: {file, feature_title, line,
+    scenario_titles, scenario_text} — scenario_text is every non-header line
+    in the block, used for keyword matching against step text as well as
+    titles. `file` is set here from `path` (a caller no longer patches it in
+    afterward) so a feature dict is never partially constructed — the
+    "title" key is also named `feature_title` here to match every other
+    consumer of this concept (`gherkin_feature_merge.py`'s `--feature-title`,
+    and this module's own finding dict below)."""
     lines = text.splitlines(keepends=True)
     features = []
     header_indices = [
@@ -91,7 +108,8 @@ def parse_features(text: str) -> list:
                 scenario_titles.append(stripped[len(_SCENARIO_PREFIX) :].strip())
         features.append(
             {
-                "title": title,
+                "file": str(path),
+                "feature_title": title,
                 "line": header_index + 1,
                 "scenario_titles": scenario_titles,
                 "scenario_text": "".join(body),
@@ -112,7 +130,7 @@ def find_missing_failure_path(features: list, keywords) -> list:
                 {
                     "file": feature["file"],
                     "line": feature["line"],
-                    "feature_title": feature["title"],
+                    "feature_title": feature["feature_title"],
                 }
             )
     return findings
@@ -149,12 +167,26 @@ def main(argv: list | None = None) -> int:
     keywords.extend(args.extra_keywords)
 
     files = find_feature_files(args.dirs)
+
+    if not files:
+        # A --dir that doesn't exist (or resolves to zero .feature files)
+        # used to fall through to "OK: 0 Feature block(s) scanned, all have
+        # a failure-path scenario" below — an affirmative all-clear for zero
+        # evidence. --dir is not always typed by a human: gherkin-derive
+        # composes it from a probe of the target repo, so a gate that can't
+        # find anything to scan must say so distinctly, not pass.
+        dirs_display = ", ".join(str(d) for d in args.dirs)
+        message = f"no .feature files found under {dirs_display} — gate did not run"
+        if args.json:
+            print(json.dumps({"scanned": [], "findings": [], "warning": message}, indent=2))
+        else:
+            print(f"WARN: {message}")
+        return 2
+
     all_features = []
     for path in files:
         text = path.read_text(encoding="utf-8", errors="replace")
-        for feature in parse_features(text):
-            feature["file"] = str(path)
-            all_features.append(feature)
+        all_features.extend(parse_features(text, path))
 
     findings = find_missing_failure_path(all_features, keywords)
 
@@ -165,7 +197,7 @@ def main(argv: list | None = None) -> int:
     if findings:
         print(f"FAIL: {len(findings)} Feature block(s) missing a failure-path scenario:")
         for entry in findings:
-            print(f"  - {entry['file']}:{entry['line']} — {entry['feature_title']}")
+            print(f"  - {entry['file']}:{entry['line']} — {_safe_for_terminal(entry['feature_title'])}")
         return 1
 
     print(f"OK: {len(all_features)} Feature block(s) scanned, all have a failure-path scenario.")
