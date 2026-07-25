@@ -385,7 +385,7 @@ characterization-scenario call-out already carries, not an inert report
 line. **Phase 4 does not run** until the operator approves.
 
 **In `bdd-runner` mode with pending step definitions**, Phase 3's own
-not-done statement (`gherkin-derive/SKILL.md` Step 6) and Phase 5's later
+not-done statement (`../gherkin-derive/SKILL.md` Step 6) and Phase 5's later
 hard block on this same state (below) describe one fact at two checkpoints,
 not two separate requirements — both name `/build` (Phase 5's own per-Story
 build loop) as the remediation. Because Phase 5 already owns "what happens
