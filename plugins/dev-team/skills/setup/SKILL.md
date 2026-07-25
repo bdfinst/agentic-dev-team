@@ -765,7 +765,11 @@ Create a project-specific `skills/pr/SKILL.md` if one doesn't exist, referencing
 **Downstream projects only** — skip this step entirely when Step 2 detected
 `in-repo` (the plugin-dev repo curates its own `.gitignore`, and it tracks
 deliverables under `memory/` such as `decisions.md` and eval fixtures that
-this blanket ignore would wrongly hide).
+this blanket ignore would wrongly hide). One carve-out: the `.mcp.json`
+standing check `project-init`'s Repowise sub-section runs (#1416) is
+unconditional and reaches in-repo too, via this skill's own Step 4 — that one
+`.gitignore` entry lands regardless of Step 2's result. See the `.mcp.json`
+paragraph below.
 
 `/test-improve`, `/build`, and the review workflows write per-run resume
 state, progress bookkeeping, reports, and metrics into `memory/`, `reports/`,
@@ -803,11 +807,11 @@ If the project relocated `reports/` via `DEV_TEAM_REPORTS` or `metrics/` via
 the block was added for the Step 12 report. Under `--dry-run`, report what
 would be appended without writing.
 
-**`.mcp.json` machine-specific-path hygiene (issue #1376).** Separately —
-still downstream-projects-only, same Step 2 `in-repo` skip — a project's
-`.mcp.json` (written by `index-codebase`/Repowise setup or hand-registered
-MCP servers) commonly bakes in the absolute filesystem path of the machine
-that wrote it (e.g. a Repowise or CodeGraph server's `args` array). If
+**`.mcp.json` machine-specific-path hygiene (issues #1376, #1416).**
+Separately — still downstream-projects-only, same Step 2 `in-repo` skip — a
+project's `.mcp.json` (written by `index-codebase`, hand-registered MCP
+servers, or any other means) commonly bakes in the absolute filesystem path
+of the machine that wrote it (e.g. a CodeGraph server's `args` array). If
 committed, every other clone inherits a path that doesn't exist on their
 machine and the server fails to start. Idempotently append its own block
 (independent marker, so this check runs and self-heals even on a repo where
@@ -825,6 +829,19 @@ else
 fi
 ```
 
+This exact marker (including the em dash) is also emitted, unconditionally
+and regardless of in-repo/downstream, by the `.mcp.json` machine-specific-path
+hygiene standing check in `project-init`'s Repowise sub-section (issue #1416
+— Repowise's own install path is the more common source of a project's
+`.mcp.json`, and that check no longer waits for this downstream-only Step 11
+pass to cover it). The marker prefix (everything up to and including
+`machine-specific MCP config`) must stay byte-identical between the two
+blocks — `grep -qF` matches that prefix only, so the trailing issue-number
+suffix may differ, but changing the prefix itself in only one place breaks
+idempotency. This block remains a downstream-only, defense-in-depth backstop
+for `.mcp.json` files written by means other than Repowise (e.g.
+`index-codebase`, hand-registered MCP servers).
+
 This ignores `.mcp.json` going forward regardless of whether it currently
 exists — the same "detect it whenever we write or see it" contract issue
 #1376 asks for. If `.mcp.json` is already tracked by git (`git ls-files
@@ -832,7 +849,10 @@ exists — the same "detect it whenever we write or see it" contract issue
 .mcp.json` themselves rather than doing it automatically — untracking is a
 history-visible action `/setup` should not take silently. Record whether the
 block was added for the Step 12 report. Under `--dry-run`, report what would
-be appended without writing.
+be appended without writing. Reached via `/setup` (Step 4 runs `/project-init`
+before this step), this block normally reports already-covered, since
+`/project-init`'s own standing check already ran first — the "added" outcome
+is what a direct, standalone `/project-init` invocation reports.
 
 ### 12. Report
 
@@ -868,6 +888,7 @@ tool line.
 ### Code-intelligence indexes (project-init Step 4c — all-or-none group)
 - CodeGraph: ✓ installed + `.codegraph/` built (keyless)   [or: ✗ declined | ✗ failed]
 - Repowise:  ✓ installed + `.repowise/` indexed (keyless)   [or: ✗ declined | ✗ failed]
+  - `.mcp.json` gitignore: ✓ added   [or: ✓ already covered | ⚠ tracked by git — run `git rm --cached .mcp.json` (#1416)]
 - Graphify:  ✓ `graphify-out/` built (keyless AST; enrichment key-gated)   [or: ✗ declined | ✗ failed]
   - settings.json guard: ✓ clean   [or: ✓ relocated N machine-specific graphify hook(s) to settings.local.json (#1367)]
 
@@ -877,12 +898,15 @@ settings.json guard line reports project-init's standing check (#1367) — it
 runs on every pass, including one where Graphify install itself is skipped
 because it's already present, so a repo carrying a machine-specific path from
 an install predating this guard gets self-healed the next time `/setup` runs.
+The `.mcp.json` gitignore line reports project-init's own standing check
+(#1416) the same way — it runs on every pass, in-repo included, regardless of
+Repowise's own install/decline state for that run.
 
 ### Created
 - `.claude/project-stack.json` — stack detection results
 - `.claude/CLAUDE.md` — project conventions
 - `.claude/settings.json` — PostToolUse formatting hook (prettier + eslint)
-- `.gitignore` — dev-team runtime artifacts (memory/, reports/, metrics/, plans/, .review-passed) plus `.mcp.json` machine-specific-path hygiene (#1376)   [downstream only; omit if already covered]
+- `.gitignore` — dev-team runtime artifacts (memory/, reports/, metrics/, plans/, .review-passed)   [downstream only; omit if already covered] plus `.mcp.json` machine-specific-path hygiene (#1376, #1416)   [runs in-repo too, via project-init's Repowise standing check; omit if already covered]
 - Activated templates: ts-enforcer, esm-enforcer, react-testing
 
 ### Recommendations
