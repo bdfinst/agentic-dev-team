@@ -11,6 +11,8 @@ import json
 import subprocess
 import sys
 
+import pytest
+
 from _repo_root import REPO_ROOT as _REPO_ROOT
 
 sys.path.insert(0, str(_REPO_ROOT / "plugins" / "dev-team" / "scripts"))
@@ -516,3 +518,31 @@ def test_cli_check_stale_reports_mismatch_as_json(tmp_path):
     assert proc.returncode == 0
     payload = json.loads(proc.stdout)
     assert payload["findings"][0]["observed"] == "202"
+
+
+# ---------------------------------------------------------------------------
+# _write_atomic — crash-safety (issue #1420 follow-up review, concurrency-review)
+# ---------------------------------------------------------------------------
+
+
+def test_write_atomic_leaves_no_temp_file_on_success(tmp_path):
+    target = tmp_path / "orders.feature"
+    gfm._write_atomic(target, "written content")
+    assert target.read_text(encoding="utf-8") == "written content"
+    assert list(tmp_path.iterdir()) == [target]
+
+
+def test_write_atomic_leaves_original_untouched_on_replace_failure(tmp_path, monkeypatch):
+    target = tmp_path / "orders.feature"
+    target.write_text("original content", encoding="utf-8")
+
+    def _boom(*_args, **_kwargs):
+        raise OSError("simulated crash mid-write")
+
+    monkeypatch.setattr(gfm.os, "replace", _boom)
+
+    with pytest.raises(OSError):
+        gfm._write_atomic(target, "new content")
+
+    assert target.read_text(encoding="utf-8") == "original content"
+    assert list(tmp_path.iterdir()) == [target]

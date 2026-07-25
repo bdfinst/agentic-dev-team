@@ -30,7 +30,9 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
+import tempfile
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -381,17 +383,33 @@ def _write_error(message: str) -> None:
     sys.stderr.write(message + "\n")
 
 
+def _write_atomic(path: Path, text: str) -> None:
+    """Write `text` to `path` via a same-directory temp file + os.replace, so a
+    crash or kill mid-write can never leave a truncated/corrupted .feature
+    file — the one failure mode this module exists to rule out."""
+    fd, tmp_name = tempfile.mkstemp(dir=str(path.parent), prefix=f".{path.name}.", suffix=".tmp")
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as tmp_file:
+            tmp_file.write(text)
+        os.replace(tmp_name, path)
+    except BaseException:
+        Path(tmp_name).unlink(missing_ok=True)
+        raise
+
+
 def _cmd_merge(args: argparse.Namespace) -> int:
     # Known limitation (concurrency-review, issue #1420 follow-up review):
-    # read-then-write here is a TOCTOU race if two `merge` invocations ever
-    # target the same --existing path concurrently — whichever writes last
-    # silently wins. Not fixed: gherkin-derive's own design invokes this
-    # once per surface, sequentially, never in parallel against the same
-    # file (see gherkin-derive/SKILL.md's Output step), so there is no
-    # known live trigger; adding a cross-platform lock (fcntl vs. msvcrt)
-    # or an atomic temp-file+os.replace swap is a real option but is a
-    # design call for a human to make, not a mechanical fix — deliberately
-    # left to a human decision rather than guessed at here.
+    # read-then-write here is still a TOCTOU race if two `merge` invocations
+    # ever target the same --existing path concurrently — whichever writes
+    # last silently wins (the atomic write below only rules out a truncated
+    # file, not a lost update between two racing invocations). Not fixed:
+    # gherkin-derive's own design invokes this once per surface,
+    # sequentially, never in parallel against the same file (see
+    # gherkin-derive/SKILL.md's Output step), so there is no known live
+    # trigger; a cross-platform lock (fcntl vs. msvcrt) would close this
+    # remaining gap but is a design call for a human to make, not a
+    # mechanical fix — deliberately left to a human decision rather than
+    # guessed at here.
     existing_path = Path(args.existing)
     existing_text = existing_path.read_text(encoding="utf-8") if existing_path.is_file() else ""
     candidates_text = Path(args.candidates).read_text(encoding="utf-8")
@@ -437,7 +455,7 @@ def _cmd_merge(args: argparse.Namespace) -> int:
         return 0
 
     existing_path.parent.mkdir(parents=True, exist_ok=True)
-    existing_path.write_text(result.text, encoding="utf-8")
+    _write_atomic(existing_path, result.text)
 
     if args.json:
         print(json.dumps({"written": True, "added_titles": result.added_titles, "skipped_duplicate_titles": result.skipped_duplicate_titles, "error": None}))
