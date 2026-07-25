@@ -1267,7 +1267,7 @@
       "anchor": "bias-rule"
     },
     "Decision log entry": {
-      "summary": "After classifying, append to `memory/decisions.md`:",
+      "summary": "After classifying, append to `.claude/memory/decisions.md`:",
       "anchor": "decision-log-entry"
     }
   },
