@@ -112,6 +112,20 @@ Each hit is its own surface: route message-queue and event hits to the
 **API / Event Consumer** template, and cron/scheduled hits to the
 **Batch / Scheduled Job** template.
 
+**Resolve the existing file before authoring (issue #1420).** Run
+`detect_bdd_convention.py` once per repo to get the project's `.feature`
+destination directory, then compose each surface's path yourself as
+`<dir>/<surface>.feature` — `detect_bdd_convention.py`'s own contract stays a
+single project-wide directory probe; this skill composes the per-surface
+path, it never asks the script to resolve one itself:
+
+```
+python3 ${CLAUDE_PLUGIN_ROOT}/scripts/detect_bdd_convention.py
+```
+
+If a file already exists at that composed path, **read it** before authoring
+anything for that surface — Step 5 merges into it rather than overwriting.
+
 ## Step 3 — Author scenarios
 
 Use the same templates as `/gherkin-public`: **API Provider**, **UI**,
@@ -172,7 +186,29 @@ that pass silently.
 
 ## Step 5 — Output
 
-- `features/<surface>.feature` files (all non-`none` modes).
+- `features/<surface>.feature` files (all non-`none` modes) — **merged, not
+  replaced (issue #1420).** For each surface, write the newly-authored
+  scenario text to a scratch candidates file, then invoke
+  `gherkin_feature_merge.py merge` — never a raw `Write` — to produce the
+  file on disk:
+
+  ```
+  python3 ${CLAUDE_PLUGIN_ROOT}/scripts/gherkin_feature_merge.py merge \
+    --existing <dir>/<surface>.feature --candidates <scratch-file> \
+    --feature-title "<surface>" --json
+  ```
+
+  This is exactly one write path whether or not a file already existed at
+  that path — a surface with no prior file goes through the same `merge`
+  subcommand, which synthesizes a fresh block, so there is never a second,
+  divergent write path to keep in sync. Any prior enrichment already in
+  the file (hand-authored or from `/feature-coverage-analyzer`) — including
+  `Background:` sections, `@tag`s, and `Scenario Outline:`/`Examples:` tables
+  — is preserved byte-for-byte; only genuinely new scenario titles are
+  appended, after the block's last existing unit. If the command exits 2
+  (the named `Feature:` title can't be located, or the existing block's
+  structure is malformed), no write occurred — report this per Step 6 rather
+  than retrying with a raw `Write`.
 - `step_definitions/<surface>_steps.<ext>` pending stubs (`bdd-runner` only).
 - A surface inventory at `memory/<workflow>/<slug>/gherkin.md` listing each
   discovered surface, its discovery source, provenance, mode, and the files
