@@ -170,9 +170,9 @@
       "summary": "Artifacts listed under `## Pinned Skills` in `CLAUDE.md` are exempt from all",
       "anchor": "pinned-exemption"
     },
-    "artifact-usage.json Schema": {
+    "~/.claude/metrics/artifact-usage.json Schema": {
       "summary": "The `lifecycle` field is initialised to `\"active\"` on first write and preserved",
-      "anchor": "artifact-usagejson-schema"
+      "anchor": "claudemetricsartifact-usagejson-schema"
     }
   },
   "plugins/dev-team/knowledge/cd-maturity-model.md": {
@@ -1971,11 +1971,11 @@
   },
   "plugins/dev-team/skills/artifact-lifecycle/SKILL.md": {
     "Steps": {
-      "summary": "Read `metrics/artifact-usage.json` from the current working directory.",
+      "summary": "Read `~/.claude/metrics/artifact-usage.json` (home-scoped — never a project-scoped path).",
       "anchor": "steps"
     },
     "1. Check for usage data": {
-      "summary": "Read `metrics/artifact-usage.json` from the current working directory.",
+      "summary": "Read `~/.claude/metrics/artifact-usage.json` (home-scoped — never a project-scoped path).",
       "anchor": "1-check-for-usage-data"
     },
     "2. Load pinned skills": {
