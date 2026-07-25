@@ -283,6 +283,19 @@ separate from the "possibly stale" section above. The operator action
 differs (fix title extraction vs. verify a behavior change), so folding the
 two together would obscure which one applies.
 
+**Call out `merge`'s skipped duplicate scenarios too (issue #1420).**
+`merge --json`'s `skipped_duplicate_titles` lists every candidate scenario
+that was *not* written — either it matched a title already in the file (the
+scenario is present either way, low stakes), or it collided with another
+candidate authored in the same run (the dropped one is not written anywhere
+and never will be, unless re-authored). Report each as "skipped duplicate:
+`<title>` — a scenario with this exact title already exists in
+`<feature-title>`, or two authored candidates shared it; confirm the
+retained one actually covers the intended behavior before treating the
+surface as covered." Do not fold this into the surface-count summary — a
+dropped candidate is exactly the kind of silent gap this report exists to
+surface.
+
 **`bdd-runner` mode — state completion plainly, as the report's headline
 (issues #1391, #1420).** Choosing `bdd-runner` mode is a decision to end up
 with fully executing, Gherkin-bound tests, not just scaffolded placeholders —
