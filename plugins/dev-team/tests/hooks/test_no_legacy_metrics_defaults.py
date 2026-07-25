@@ -5,20 +5,17 @@ opt-in-metrics-and-claude-scoped-artifacts.md).
 Sweeps `hooks/` and `scripts/` for `default="metrics/...`,
 `default="memory/...`, `default="plans/...` (and `Path("metrics/...` /
 `Path("memory/...` / `Path("plans/...` equivalents) — the shape a call site
-takes when it has not yet been migrated to `artifact_paths`. A small,
-explicitly named allowlist covers files this slice's later, dedicated steps
-own:
+takes when it has not yet been migrated to `artifact_paths`.
 
-  - `contract_version_guard.py` — deliberately unaffected (Step 4.6): it
-    protects the plugin's OWN knowledge file within this same repo checkout,
-    not a downstream project's runtime artifacts, and resolves its audit log
-    relative to its own `__file__`, never a project root.
-  - `build_slice_scope.py` — its `memory/**`/`metrics/**` bookkeeping-allowlist
-    glob strings are Step 5.7's target, not this step's.
-  - `test_improve_resume.py` — its `--memory-root` default is Step 5.8's
-    target (paired with `migrate_dir()` wiring), not this step's.
-
-Re-verify this allowlist shrinks to empty once Steps 5.7/5.8 land.
+Steps 5.7 (`build_slice_scope.py`) and 5.8 (`test_improve_resume.py`) have
+both landed, and `contract_version_guard.py` no longer matches this pattern
+either — re-verified by re-running this file's own sweep against current
+`hooks/`/`scripts/` (zero matches across all three previously-allowlisted
+files, and zero elsewhere). `_ALLOWLIST` is therefore empty. If a new entry
+is ever added here, it must carry an assertion that the entry actually still
+matches `_LEGACY_DEFAULT_RE` — an allowlist entry that no longer matches the
+pattern it exists to exempt is stale and should be removed, not carried
+forward on faith.
 """
 
 from __future__ import annotations
@@ -29,11 +26,7 @@ from _repo_root import REPO_ROOT as _REPO_ROOT
 
 _PLUGIN_DIR = _REPO_ROOT / "plugins" / "dev-team"
 
-_ALLOWLIST = {
-    "hooks/contract_version_guard.py",
-    "scripts/build_slice_scope.py",
-    "scripts/test_improve_resume.py",
-}
+_ALLOWLIST: set[str] = set()
 
 _LEGACY_DEFAULT_RE = re.compile(
     r"""(default\s*=\s*["']|Path\(["'])(metrics|memory|plans)/"""
