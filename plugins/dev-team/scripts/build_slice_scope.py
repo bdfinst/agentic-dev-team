@@ -10,9 +10,10 @@ When engaged, `/build` calls this script at slice dispatch to write
 `hooks/freeze-state.json` (the same contract `/freeze` writes and
 `hooks/pre_tool_guard.py` already enforces) with `allowed_patterns` equal to
 the slice's declared paths **plus a fixed bookkeeping allowlist** (the plan
-file itself, `.claude/memory/**`, `.claude/metrics/**`) — without which
-`/build` could not update its own Build Progress checkboxes or
-`.claude/memory/build-phase.json`. At slice completion, `/build` calls this
+file itself, `.claude/memory/**`, `.claude/metrics/**`, and the AC3-exempt
+`metrics/verify-log.jsonl`) — without which `/build` could not update its
+own Build Progress checkboxes, `.claude/memory/build-phase.json`, or its
+own exempt verify-log entry. At slice completion, `/build` calls this
 script again to clear the state.
 
 Stdlib-only. Python 3.8+ (ADR 0014/0015).
