@@ -88,7 +88,7 @@ def test_banner_silent_when_metrics_pending_review_jsonl_does_not_exist(tmp_path
 
 
 def test_banner_silent_when_all_entries_have_reviewed_at(tmp_path):
-    metrics = tmp_path / "metrics"
+    metrics = tmp_path / ".claude" / "metrics"
     metrics.mkdir(parents=True, exist_ok=True)
     (metrics / "pending-review.jsonl").write_text(
         '{"queued_at":"2026-06-01T00:00:00Z","source":"auto","session_id":"s1",'
@@ -98,7 +98,7 @@ def test_banner_silent_when_all_entries_have_reviewed_at(tmp_path):
 
 
 def test_banner_emits_count_when_entries_lack_reviewed_at(tmp_path):
-    metrics = tmp_path / "metrics"
+    metrics = tmp_path / ".claude" / "metrics"
     metrics.mkdir(parents=True, exist_ok=True)
     (metrics / "pending-review.jsonl").write_text(
         '{"queued_at":"2026-06-01T00:00:00Z","source":"auto","session_id":"s1","findings":[]}\n'
@@ -109,7 +109,7 @@ def test_banner_emits_count_when_entries_lack_reviewed_at(tmp_path):
 
 
 def test_banner_notification_includes_session_review_instruction(tmp_path):
-    metrics = tmp_path / "metrics"
+    metrics = tmp_path / ".claude" / "metrics"
     metrics.mkdir(parents=True, exist_ok=True)
     (metrics / "pending-review.jsonl").write_text(
         '{"queued_at":"2026-06-01T00:00:00Z","source":"auto","session_id":"s1","findings":[]}\n'
@@ -118,7 +118,7 @@ def test_banner_notification_includes_session_review_instruction(tmp_path):
 
 
 def test_banner_only_counts_entries_without_reviewed_at(tmp_path):
-    metrics = tmp_path / "metrics"
+    metrics = tmp_path / ".claude" / "metrics"
     metrics.mkdir(parents=True, exist_ok=True)
     (metrics / "pending-review.jsonl").write_text(
         '{"queued_at":"2026-06-01T00:00:00Z","source":"auto","session_id":"s1","findings":[]}\n'

@@ -2,7 +2,7 @@
 """workflow_state.py — workflow state-machine event stream (#1166).
 
 Persists only state-*transition* events for orchestrated flows (`/ship`,
-`/autoship`, `/build`) to `metrics/workflow-states.jsonl` — never a
+`/autoship`, `/build`) to `.claude/metrics/workflow-states.jsonl` — never a
 current-state snapshot. Current state and per-state dwell time are always
 *derived* by replaying the stream for a given `session_id`, mirroring the
 event-sourcing discipline described in the competitive analysis this issue
@@ -27,6 +27,12 @@ import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
+_LIB_DIR = Path(__file__).resolve().parent
+if str(_LIB_DIR) not in sys.path:
+    sys.path.insert(0, str(_LIB_DIR))
+
+import artifact_paths
+
 _LOG_NAME = "workflow-states.jsonl"
 
 CANONICAL_LIFECYCLE = ["SPEC", "PLAN", "BUILD", "REVIEW", "COMMIT", "PR"]
@@ -49,9 +55,9 @@ def _load_plugin_version() -> str:
     return "unknown"
 
 
-def _log_path(cwd) -> Path:
+def _log_path(cwd, migrate: bool = True) -> Path:
     base = Path(cwd) if cwd else Path.cwd()
-    return base / "metrics" / _LOG_NAME
+    return artifact_paths.resolve_file("metrics", _LOG_NAME, base, migrate=migrate)
 
 
 def emit_state_transition(
@@ -168,7 +174,7 @@ def cmd_record(args) -> int:
 
 
 def cmd_report(args) -> int:
-    log = Path(args.log) if args.log else _log_path(args.cwd)
+    log = Path(args.log) if args.log else _log_path(args.cwd, migrate=False)
     entries = _read_transitions(log, args.session)
     result = {
         "session_id": args.session,

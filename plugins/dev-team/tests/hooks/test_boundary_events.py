@@ -61,7 +61,7 @@ def test_emit_appends_one_compact_jsonl_line(tmp_path: Path) -> None:
     boundary_events.emit_boundary_event(
         tmp_path, "destructive_guard", "Bash", "warn", "file_destruction:rm-rf"
     )
-    log = tmp_path / "metrics" / "boundary-events.jsonl"
+    log = tmp_path / ".claude" / "metrics" / "boundary-events.jsonl"
     assert log.is_file()
     raw = log.read_text(encoding="utf-8")
     lines = raw.splitlines()
@@ -79,15 +79,15 @@ def test_emit_appends_one_compact_jsonl_line(tmp_path: Path) -> None:
 
 
 def test_emit_creates_metrics_dir_when_absent(tmp_path: Path) -> None:
-    assert not (tmp_path / "metrics").exists()
+    assert not (tmp_path / ".claude" / "metrics").exists()
     boundary_events.emit_boundary_event(tmp_path, "verify_guard", "Bash", "block", "x")
-    assert (tmp_path / "metrics").is_dir()
+    assert (tmp_path / ".claude" / "metrics").is_dir()
 
 
 def test_emit_appends_not_overwrites_across_two_calls(tmp_path: Path) -> None:
     boundary_events.emit_boundary_event(tmp_path, "h1", "Bash", "warn", "r1")
     boundary_events.emit_boundary_event(tmp_path, "h2", "Bash", "block", "r2")
-    events = _read_jsonl(tmp_path / "metrics" / "boundary-events.jsonl")
+    events = _read_jsonl(tmp_path / ".claude" / "metrics" / "boundary-events.jsonl")
     assert len(events) == 2
     assert events[0]["hook"] == "h1"
     assert events[1]["hook"] == "h2"
@@ -97,20 +97,20 @@ def test_emit_includes_session_id_when_given(tmp_path: Path) -> None:
     boundary_events.emit_boundary_event(
         tmp_path, "verify_guard", "Bash", "block", "verify-repeat-threshold", "sess-1"
     )
-    event = _read_jsonl(tmp_path / "metrics" / "boundary-events.jsonl")[0]
+    event = _read_jsonl(tmp_path / ".claude" / "metrics" / "boundary-events.jsonl")[0]
     assert event["session_id"] == "sess-1"
 
 
 def test_emit_omits_session_id_when_absent(tmp_path: Path) -> None:
     boundary_events.emit_boundary_event(tmp_path, "verify_guard", "Bash", "block", "r")
-    event = _read_jsonl(tmp_path / "metrics" / "boundary-events.jsonl")[0]
+    event = _read_jsonl(tmp_path / ".claude" / "metrics" / "boundary-events.jsonl")[0]
     assert "session_id" not in event
 
 
 def test_emit_fails_open_on_unwritable_metrics_dir(tmp_path: Path) -> None:
     """A metrics/ that can't be created (e.g. a file occupying its path)
     must not raise — the caller's exit code must never be affected."""
-    (tmp_path / "metrics").write_text("not a directory")
+    (tmp_path / ".claude").write_text("not a directory")
     # Must not raise.
     boundary_events.emit_boundary_event(tmp_path, "h", "Bash", "warn", "r")
 
@@ -122,7 +122,7 @@ def test_emit_fails_open_on_arbitrary_exception(tmp_path: Path, monkeypatch) -> 
     monkeypatch.setattr(boundary_events, "_isoformat_utc", _boom)
     # Must not raise.
     boundary_events.emit_boundary_event(tmp_path, "h", "Bash", "warn", "r")
-    assert not (tmp_path / "metrics" / "boundary-events.jsonl").exists()
+    assert not (tmp_path / ".claude" / "metrics" / "boundary-events.jsonl").exists()
 
 
 def test_emit_swallows_bad_cwd_type(monkeypatch) -> None:
@@ -160,7 +160,7 @@ def test_destructive_guard_warn_emits_boundary_event(tmp_path: Path) -> None:
         {"tool_input": {"command": "kill -9 1234"}, "cwd": str(tmp_path)},
     )
     assert result.returncode == 0
-    events = _read_jsonl(tmp_path / "metrics" / "boundary-events.jsonl")
+    events = _read_jsonl(tmp_path / ".claude" / "metrics" / "boundary-events.jsonl")
     assert len(events) == 1
     event = events[0]
     assert event["hook"] == "destructive_guard"
@@ -186,7 +186,7 @@ def test_destructive_guard_block_emits_boundary_event(tmp_path: Path) -> None:
             {"tool_input": {"command": "rm -rf /"}, "cwd": str(tmp_path)},
         )
         assert result.returncode == 2
-        events = _read_jsonl(tmp_path / "metrics" / "boundary-events.jsonl")
+        events = _read_jsonl(tmp_path / ".claude" / "metrics" / "boundary-events.jsonl")
         assert len(events) == 1
         assert events[0]["decision"] == "block"
         assert events[0]["hook"] == "destructive_guard"
@@ -207,7 +207,7 @@ def test_verify_guard_block_emits_boundary_event(tmp_path: Path) -> None:
     for _ in range(3):
         result = _run_hook("verify_guard.py", payload, env)
     assert result.returncode == 2
-    events = _read_jsonl(tmp_path / "metrics" / "boundary-events.jsonl")
+    events = _read_jsonl(tmp_path / ".claude" / "metrics" / "boundary-events.jsonl")
     block_events = [e for e in events if e["decision"] == "block"]
     assert len(block_events) == 1
     assert block_events[0]["hook"] == "verify_guard"
@@ -252,7 +252,7 @@ def test_pre_commit_review_block_emits_boundary_event(tmp_path: Path) -> None:
         check=False,
     )
     assert result.returncode == 2
-    events = _read_jsonl(tmp_path / "metrics" / "boundary-events.jsonl")
+    events = _read_jsonl(tmp_path / ".claude" / "metrics" / "boundary-events.jsonl")
     assert len(events) == 1
     assert events[0]["hook"] == "pre_commit_review"
     assert events[0]["decision"] == "block"
@@ -276,7 +276,7 @@ def test_pre_commit_review_bypass_emits_boundary_event(tmp_path: Path) -> None:
         check=False,
     )
     assert result.returncode == 0
-    events = _read_jsonl(tmp_path / "metrics" / "boundary-events.jsonl")
+    events = _read_jsonl(tmp_path / ".claude" / "metrics" / "boundary-events.jsonl")
     assert len(events) == 1
     assert events[0]["hook"] == "pre_commit_review"
     assert events[0]["decision"] == "bypass"
@@ -300,7 +300,7 @@ def test_intervention_keyword_emits_event(tmp_path: Path) -> None:
             },
         )
         assert result.returncode == 0
-        events = _read_jsonl(tmp_path / "metrics" / "boundary-events.jsonl")
+        events = _read_jsonl(tmp_path / ".claude" / "metrics" / "boundary-events.jsonl")
         assert events[-1]["decision"] == "intervention"
         assert events[-1]["matched_rule"] == keyword
         assert events[-1]["hook"] == "telemetry"
@@ -319,10 +319,10 @@ def test_intervention_with_payload_records_only_keyword(tmp_path: Path) -> None:
         },
     )
     assert result.returncode == 0
-    events = _read_jsonl(tmp_path / "metrics" / "boundary-events.jsonl")
+    events = _read_jsonl(tmp_path / ".claude" / "metrics" / "boundary-events.jsonl")
     assert len(events) == 1
     assert events[0]["matched_rule"] == "override"
-    raw = (tmp_path / "metrics" / "boundary-events.jsonl").read_text()
+    raw = (tmp_path / ".claude" / "metrics" / "boundary-events.jsonl").read_text()
     assert "SENTINEL-PAYLOAD-TEXT" not in raw
 
 
@@ -338,7 +338,7 @@ def test_non_intervention_prompt_emits_nothing(tmp_path: Path) -> None:
         },
     )
     assert result.returncode == 0
-    assert not (tmp_path / "metrics" / "boundary-events.jsonl").exists()
+    assert not (tmp_path / ".claude" / "metrics" / "boundary-events.jsonl").exists()
 
 
 def test_ordinary_prompt_emits_nothing(tmp_path: Path) -> None:
@@ -351,7 +351,7 @@ def test_ordinary_prompt_emits_nothing(tmp_path: Path) -> None:
         },
     )
     assert result.returncode == 0
-    assert not (tmp_path / "metrics" / "boundary-events.jsonl").exists()
+    assert not (tmp_path / ".claude" / "metrics" / "boundary-events.jsonl").exists()
 
 
 # ---------------------------------------------------------------------------
@@ -363,7 +363,7 @@ def test_ordinary_prompt_emits_nothing(tmp_path: Path) -> None:
 def test_destructive_guard_behavior_unaffected_when_metrics_unwritable(
     tmp_path: Path,
 ) -> None:
-    (tmp_path / "metrics").write_text("occupied by a file, not a directory")
+    (tmp_path / ".claude").write_text("occupied by a file, not a directory")
     result = _run_hook(
         "destructive_guard.py",
         {"tool_input": {"command": "kill -9 1234"}, "cwd": str(tmp_path)},
@@ -431,9 +431,9 @@ def test_no_free_text_leaks_into_boundary_events(tmp_path: Path) -> None:
             "cwd": str(tmp_path),
         },
     )
-    raw = (tmp_path / "metrics" / "boundary-events.jsonl").read_text(encoding="utf-8")
+    raw = (tmp_path / ".claude" / "metrics" / "boundary-events.jsonl").read_text(encoding="utf-8")
     assert sentinel not in raw
-    for event in _read_jsonl(tmp_path / "metrics" / "boundary-events.jsonl"):
+    for event in _read_jsonl(tmp_path / ".claude" / "metrics" / "boundary-events.jsonl"):
         keys = set(event.keys())
         assert keys <= (_SCHEMA_FIELDS | _OPTIONAL_FIELDS)
         assert _SCHEMA_FIELDS <= keys

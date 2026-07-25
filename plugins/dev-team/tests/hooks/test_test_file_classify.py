@@ -120,7 +120,7 @@ def _write_state(tmp_path: Path, **overrides) -> Path:
         "test_files_staged": ["src/thing.test.ts"],
     }
     state.update(overrides)
-    path = tmp_path / "memory" / "build-phase.json"
+    path = tmp_path / ".claude" / "memory" / "build-phase.json"
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(state))
     return path
@@ -152,7 +152,7 @@ def test_stale_state_is_treated_as_absent(tmp_path):
 
 
 def test_malformed_json_reports_an_error(tmp_path):
-    path = tmp_path / "memory" / "build-phase.json"
+    path = tmp_path / ".claude" / "memory" / "build-phase.json"
     path.parent.mkdir(parents=True)
     path.write_text("{not json")
     state, error = read_build_phase(tmp_path)

@@ -3,7 +3,7 @@
 
 Enforces the tests-frozen-during-refactor invariant mechanically: while
 `/build` has recorded that the current step is in its REFACTOR phase
-(`memory/build-phase.json`), any Write/Edit targeting a test file is denied
+(`.claude/memory/build-phase.json`), any Write/Edit targeting a test file is denied
 (exit 2, `[BLOCK]` per docs/python-hook-contract.md). A refactor step must
 never change a test — the invariant held at zero violations across the
 experiment campaigns (Rec 4, docs/experiments/RECOMMENDATIONS.md).

@@ -55,6 +55,12 @@ import sys
 from collections.abc import Iterable, Iterator
 from pathlib import Path
 
+_LIB_DIR = Path(__file__).resolve().parent
+if str(_LIB_DIR) not in sys.path:
+    sys.path.insert(0, str(_LIB_DIR))
+
+import artifact_paths
+
 _TYPE_FIELDS = ("event", "type", "hook", "workflow")
 _GATE_OUTCOME_FIELDS = ("decision", "outcome")
 _TS_FIELDS = ("ts", "timestamp")
@@ -133,7 +139,9 @@ def facet_count(entries: Iterable[dict], field: str) -> dict:
 
 def _stream_path(cwd, stream: str) -> Path:
     base = Path(cwd) if cwd else Path.cwd()
-    return base / "metrics" / f"{stream}.jsonl"
+    # Read-only query: migrate=False so a mere query never migrates a legacy
+    # file or creates .claude/metrics/ as a side effect.
+    return artifact_paths.resolve_file("metrics", f"{stream}.jsonl", base, migrate=False)
 
 
 def cmd_query(args) -> int:
@@ -164,8 +172,8 @@ def cmd_query(args) -> int:
 
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description=__doc__)
-    ap.add_argument("--cwd", default=None, help="Directory containing metrics/ (default: cwd)")
-    ap.add_argument("--stream", required=True, help="Stream name, resolves to metrics/<name>.jsonl")
+    ap.add_argument("--cwd", default=None, help="Project directory (default: cwd)")
+    ap.add_argument("--stream", required=True, help="Stream name, resolves to .claude/metrics/<name>.jsonl")
     ap.add_argument("--type", default=None, help="Event-type facet; see module docstring for field fallback order")
     ap.add_argument("--session", default=None, help="Filter on the session_id field")
     ap.add_argument("--since", default=None, help="ISO-8601 lower bound on the ts/timestamp field")
