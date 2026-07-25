@@ -764,16 +764,18 @@ Create a project-specific `skills/pr/SKILL.md` if one doesn't exist, referencing
 
 **Downstream projects only** — skip this step entirely when Step 2 detected
 `in-repo` (the plugin-dev repo curates its own `.gitignore`, and it tracks
-deliverables under `memory/` such as `decisions.md` and eval fixtures that
-this blanket ignore would wrongly hide). One carve-out: the `.mcp.json`
+deliverables such as `.claude/memory/decisions.md` and bare `memory/` eval
+fixtures that this blanket ignore would wrongly hide). One carve-out: the `.mcp.json`
 standing check `project-init`'s Repowise sub-section runs (#1416) is
 unconditional and reaches in-repo too, via this skill's own Step 4 — that one
 `.gitignore` entry lands regardless of Step 2's result. See the `.mcp.json`
 paragraph below.
 
 `/test-improve`, `/build`, and the review workflows write per-run resume
-state, progress bookkeeping, reports, and metrics into `memory/`, `reports/`,
-`metrics/`, and `plans/`; `/code-review` additionally writes a
+state, progress bookkeeping, and metrics into `.claude/memory/`,
+`.claude/metrics/`, and `.claude/plans/`; reports land in
+`.dev-team-reports/` (the `.claude/`-scoped artifact migration and
+reports-domain consolidation, #1406). `/code-review` additionally writes a
 `.review-passed` gate file at the repo root, consumed and deleted by the
 pre-commit hook on the next matching commit — but left behind whenever that
 commit never happens (files edited after review, or `--no-verify`), cluttering
@@ -782,16 +784,24 @@ are regeneratable runtime artifacts, not deliverables — but `/build` commits
 the working tree per completed step, so without an ignore rule they land in
 the project's history (issue #1101).
 
-In a downstream project, `memory/` is exclusively dev-team runtime state, so
-the whole folder is safe to ignore. Idempotently append the block (create
-`.gitignore` if absent; do nothing if the marker is already present):
+In a downstream project, `.claude/memory/`, `.claude/metrics/`,
+`.claude/plans/`, and `.dev-team-reports/` are exclusively dev-team runtime
+state, so each whole folder is safe to ignore; the legacy bare `memory/`,
+`reports/`, `metrics/`, `plans/` lines are appended alongside them as a
+safety net for any pre-#1406 content still landing at the old paths.
+Idempotently append the block (create `.gitignore` if absent; do nothing if
+the marker is already present):
 
 ```bash
-MARKER="# dev-team workflow runtime artifacts"
+MARKER="# dev-team workflow runtime artifacts (.claude/-scoped + .dev-team-reports/, #1406)"
 if ! grep -qF "$MARKER" .gitignore 2>/dev/null; then
   printf '\n%s\n%s\n' \
-    "$MARKER (regeneratable; not deliverables — issues #1101, #1377)" \
-    "memory/
+    "$MARKER (regeneratable; not deliverables — issues #1101, #1377, #1406)" \
+    ".claude/memory/
+.claude/metrics/
+.claude/plans/
+.dev-team-reports/
+memory/
 reports/
 metrics/
 plans/
@@ -802,10 +812,13 @@ else
 fi
 ```
 
-If the project relocated `reports/` via `DEV_TEAM_REPORTS` or `metrics/` via
-`DEV_TEAM_TASK_METRICS`, add that path instead of the default. Record whether
-the block was added for the Step 12 report. Under `--dry-run`, report what
-would be appended without writing.
+`DEV_TEAM_TASK_METRICS` and `DEV_TEAM_REPORTS` do not override a directory
+path in code today — `DEV_TEAM_TASK_METRICS=off` is an on/off opt-out for the
+task-log writer only, and `DEV_TEAM_REPORTS` is not an environment variable
+at all (it names the legacy `DEV_TEAM_REPORTS/` directory folded into
+`.dev-team-reports/` above). There is no "relocated path" case to special-case
+here. Record whether the block was added for the Step 12 report. Under
+`--dry-run`, report what would be appended without writing.
 
 **`.mcp.json` machine-specific-path hygiene (issues #1376, #1416).**
 Separately — still downstream-projects-only, same Step 2 `in-repo` skip — a
@@ -906,7 +919,7 @@ Repowise's own install/decline state for that run.
 - `.claude/project-stack.json` — stack detection results
 - `.claude/CLAUDE.md` — project conventions
 - `.claude/settings.json` — PostToolUse formatting hook (prettier + eslint)
-- `.gitignore` — dev-team runtime artifacts (memory/, reports/, metrics/, plans/, .review-passed)   [downstream only; omit if already covered] plus `.mcp.json` machine-specific-path hygiene (#1376, #1416)   [runs in-repo too, via project-init's Repowise standing check; omit if already covered]
+- `.gitignore` — dev-team runtime artifacts (.claude/memory/, .claude/metrics/, .claude/plans/, .dev-team-reports/, memory/, reports/, metrics/, plans/, .review-passed)   [downstream only; omit if already covered] plus `.mcp.json` machine-specific-path hygiene (#1376, #1416)   [runs in-repo too, via project-init's Repowise standing check; omit if already covered]
 - Activated templates: ts-enforcer, esm-enforcer, react-testing
 
 ### Recommendations
