@@ -21,7 +21,7 @@ Role: orchestrator. This command sequences existing skills and agents through a
 seven-phase analyze-then-improve workflow; it does **not** implement, audit, or
 write tests itself. Each phase is **delegated** to the worker skill or agent
 that owns it, and per-phase progress is persisted to
-`memory/test-improve/<slug>/phase-<n>.md` so `/continue` (and `--from-phase`)
+`.claude/memory/test-improve/<slug>/phase-<n>.md` so `/continue` (and `--from-phase`)
 can resume.
 
 You have been invoked with the `/test-improve` command.
@@ -38,7 +38,7 @@ You have been invoked with the `/test-improve` command.
 3. **Confirm the approach first.** Phase 0 owns the approach contract; do not
    start work until it has completed and its answers are persisted.
 4. **Baseline before changing anything.** Coverage (and mutation, when
-   enabled) must land in `memory/test-improve/<slug>/` before any file under
+   enabled) must land in `.claude/memory/test-improve/<slug>/` before any file under
    the stack's test directory is modified.
 5. **Be concise.** Report each phase's outcome and the next gate, nothing
    more.
@@ -48,18 +48,18 @@ You have been invoked with the `/test-improve` command.
 - Positional: `<repo-path>` (default: cwd).
 - `--parent <url>` — optional tracker parent issue URL; the host selects the
   CLI (ADO / GitHub / GitLab / Jira). Omit for **local-files mode** (the
-  default), which writes to `./reports/test-improve/` and `./plans/test-improve/`.
+  default), which writes to `.dev-team-reports/test-improve/` and `.claude/plans/test-improve/`.
 - `--analyze-only` — run Phase 0 then Phase 1 and **exit after Phase 1** with a
   summary of the improvement plan. No baseline is captured; no code changes.
 - `--from-phase [<n>]` — skips completed phases and resumes at phase `n` when
-  `memory/test-improve/<slug>/phase-<n-1>.md` exists. **The number is
+  `.claude/memory/test-improve/<slug>/phase-<n-1>.md` exists. **The number is
   optional.** Passed with **no argument**, `/test-improve` **auto-detects** the
-  resume point from `memory/test-improve/<slug>/` (see the `--from-phase`
+  resume point from `.claude/memory/test-improve/<slug>/` (see the `--from-phase`
   semantics below): it resumes at the phase after the highest completed
   progress file and prints which phase it resolved to and why. An explicit
   `<n>` **overrides** auto-detection. Either form does **not** re-prompt
   Phase-0 inputs; to change them, delete
-  `memory/test-improve/<slug>/phase-0.md` and re-run from Phase 0.
+  `.claude/memory/test-improve/<slug>/phase-0.md` and re-run from Phase 0.
 - `--stack <id>` — force a stack profile (e.g. `js`, `dotnet`, `java`, `go`)
   when manifest detection is ambiguous.
 
@@ -81,7 +81,7 @@ current phase and active settings without scrollback archaeology.
 ### Phase 0 — Approach contract
 
 Resolve every ambiguous input in **one batch** before any work starts, then
-persist the resolved inputs to `memory/test-improve/<slug>/phase-0.md`. The
+persist the resolved inputs to `.claude/memory/test-improve/<slug>/phase-0.md`. The
 file must exist **before Phase 1** runs.
 
 **Detect language(s) and stack profile.** Inspect manifests for JS/TS
@@ -135,8 +135,8 @@ silent surprise.
    `phase-0.md` and flow into Phase 8.
 5. **Sink** — `--parent <url>` selects a tracker (ADO / GitHub / GitLab /
    Jira via the host CLI); missing CLI or omitted flag falls back to
-   **local-files** mode (writes under `./reports/test-improve/` and
-   `./plans/test-improve/`).
+   **local-files** mode (writes under `.dev-team-reports/test-improve/` and
+   `.claude/plans/test-improve/`).
 6. **Code-lookup tools (all-or-none install)** — offer to install the three
    code-lookup tools (**CodeGraph**, **Repowise**, **Graphify**) so the review
    and analysis agents read verified skeletons and resolved call graphs instead
@@ -169,11 +169,11 @@ silent surprise.
    path as today. The banner recap renders this opt-in as `report: on` / `off`
    (mapping `yes`→`on`, `no`→`off`).
 
-**Persistence.** Write the resolved inputs to `memory/test-improve/<slug>/phase-0.md` before Phase 1 runs — Phase 1 must not start until `phase-0.md` exists. This includes the knob-6 outcome (the operator's install choice, and for each tool whether it was already present, installed, declined, or failed) and the knob-7 outcome (whether the baseline-metrics report was opted into).
+**Persistence.** Write the resolved inputs to `.claude/memory/test-improve/<slug>/phase-0.md` before Phase 1 runs — Phase 1 must not start until `phase-0.md` exists. This includes the knob-6 outcome (the operator's install choice, and for each tool whether it was already present, installed, declined, or failed) and the knob-7 outcome (whether the baseline-metrics report was opted into).
 
 **Immutability.** Phase-0 answers are **immutable** for the remainder of the
 run. `--from-phase` does not re-prompt Phase-0 inputs. To change them, delete
-`memory/test-improve/<slug>/phase-0.md` and re-run from Phase 0.
+`.claude/memory/test-improve/<slug>/phase-0.md` and re-run from Phase 0.
 
 **`--analyze-only` semantics.** With `--analyze-only`, Phase 0 completes as
 normal, Phase 1 (`/test-health`) runs, and the orchestrator **exits after
@@ -181,7 +181,7 @@ Phase 1** with a summary of the improvement plan. No baseline is captured; no
 code changes.
 
 **`--from-phase` semantics.** `--from-phase <n>` **skips** phases `0..n-1`
-when their `memory/test-improve/<slug>/phase-<i>.md` files exist and resumes
+when their `.claude/memory/test-improve/<slug>/phase-<i>.md` files exist and resumes
 at phase `n`. Phase-0 inputs are read from `phase-0.md` (never re-prompted).
 
 **`--from-phase` with no number — auto-detect the resume point.** When
@@ -193,7 +193,7 @@ python3 ${CLAUDE_PLUGIN_ROOT}/scripts/test_improve_resume.py <repo-path>
 ```
 
 The helper resolves the slug from `<repo-path>` (its last path segment), scans
-**only** that slug's `memory/test-improve/<slug>/` directory for the
+**only** that slug's `.claude/memory/test-improve/<slug>/` directory for the
 completed-phase progress files (`phase-0.md` … `phase-9.md`, plus
 `phase-6.md`), finds the highest completed phase (ordering `phase-6`
 between `phase-5` and `phase-7`), and prints a JSON object whose
@@ -247,7 +247,7 @@ either **omitted** or marked "not enabled for this run". When it recorded
 `phase-0.md` and the section is handled at report time.
 
 **Output.** Persist the rolled-up analysis plus the ordered improvement plan to
-`memory/test-improve/<slug>/phase-1.md`.
+`.claude/memory/test-improve/<slug>/phase-1.md`.
 
 **Test-count-by-type snapshot.** Independent of the `/test-health` call
 above (and of whether `/test-health`'s own trivial-suite short-circuit
@@ -266,7 +266,7 @@ precedence: `end_to_end` > `integration` > `contract` > `component` >
 `unit` (this precedence applies to test files only — `static_analysis` is
 never a legitimate outcome of classifying a test file; see its own
 counting rule below). Persist
-`memory/test-improve/<slug>/test-counts-before.json` with the six
+`.claude/memory/test-improve/<slug>/test-counts-before.json` with the six
 canonical snake_case keys, in this fixed order: `static_analysis`, `unit`,
 `component`, `contract`, `integration`, `end_to_end` — each key present
 even at zero, counting **test suites/files, not individual test cases or
@@ -300,21 +300,21 @@ the whole run.
 against the resolved repo path. Persist the result to
 `baseline-coverage.json` under the **baseline write path** selected by the
 knob-7 report opt-in (see below); the default (report declined) is
-`memory/test-improve/<slug>/baseline-coverage.json`.
+`.claude/memory/test-improve/<slug>/baseline-coverage.json`.
 
 **Baseline write path (knob-7 report opt-in).** The baseline persistence
 location is chosen by the Phase-0 knob-7 answer:
 
 - **Report opted in (`yes`).** Write `baseline-coverage.json` (and, in
   `baseline+kill-loop` mode, `baseline-mutation.json`) under the **git-tracked**
-  path `reports/test-improve/<slug>/` so the number is version-controlled and
+  path `.dev-team-reports/test-improve/<slug>/` so the number is version-controlled and
   reviewable in the run's PR. `/test-improve` issues **no** git command — the
   tracked file is picked up by the run's existing commit/PR flow. **Caveat:**
   because `reports/` is commonly gitignored, the target repo must un-ignore
-  `reports/test-improve/` for the baseline to appear in the PR; where it is not
+  `.dev-team-reports/test-improve/` for the baseline to appear in the PR; where it is not
   tracked, the opt-in degrades to transient.
 - **Report declined (`no`, the default).** Write the baseline to the transient
-  `memory/test-improve/<slug>/` path, exactly as today.
+  `.claude/memory/test-improve/<slug>/` path, exactly as today.
 
 This path selection is independent of the mutation mode: a coverage baseline is
 persisted in every mode, and the mutation baseline is written **only** in
@@ -324,7 +324,7 @@ persisted in every mode, and the mutation baseline is written **only** in
 mutation mode **`baseline+kill-loop`**, invoke
 `/mutation-testing --baseline --workflow test-improve`. Persist the result to
 `baseline-mutation.json` under the same knob-7 baseline write path as coverage
-(default, report declined: `memory/test-improve/<slug>/baseline-mutation.json`).
+(default, report declined: `.claude/memory/test-improve/<slug>/baseline-mutation.json`).
 The file records the **honest score**: hard kills / effective total, with the
 **timeout count reported separately** (timeouts are not counted as kills).
 
@@ -370,7 +370,7 @@ selects the native parser (`cucumber-js` for JS/TS, `SpecFlow` / `Reqnroll` for
 - writes `.feature` files under `features/test-improve/`.
 
 **Persistence.** Record the surface inventory and (in `bdd-runner` mode) the
-parser wiring to `memory/test-improve/<slug>/gherkin.md`.
+parser wiring to `.claude/memory/test-improve/<slug>/gherkin.md`.
 
 **Human gate.** After Phase 3 produces `.feature` files (or parser wiring in
 `bdd-runner` mode), present them to the operator for review. **Phase 4 does
@@ -391,13 +391,13 @@ actionable Phase-5 Stories.
 Every finding lands in exactly one of three **gap classes**:
 
 - **`NO_REFACTOR`** — fixable by test edits alone. Written as **Phase-5
-  Stories** to `./plans/test-improve/` (or the configured parent tracker
+  Stories** to `.claude/plans/test-improve/` (or the configured parent tracker
   when `--parent` was supplied at Phase 0).
 - **`REFACTOR_REQUIRED`** — needs a production-code seam before a test can reach the behavior. REFACTOR_REQUIRED items are **deferred to Phase 7** and are **not written as Phase-5 Stories**; they surface with rationale for the operator, who decides at Phase 6 whether to enter Phase 7. Under `refactor-mode: no-refactor` they are labeled **out-of-scope (skipped-in-no-refactor)** in the plan — informational context, never an actionable Story this run will execute.
 - **`LOW_VALUE`** — tests that are cheap to have but not worth fixing (e.g. duplicate coverage, trivial getters, dead-code assertions). LOW_VALUE findings are **advisory-only**: enumerated in the report, no PR is opened to delete a test flagged this way.
 
 **Persistence.** Persist the classified finding set to
-`memory/test-improve/<slug>/phase-4.md`.
+`.claude/memory/test-improve/<slug>/phase-4.md`.
 
 **Human gate.** Present the Phase-5 Story set (NO_REFACTOR only) to the
 operator. **Phase 5 does not run** until the operator approves the set.
@@ -419,7 +419,7 @@ Iterate the approved Phase-5 Story set. For **each Story**:
    feature-file citations.
 3. **Coverage delta** — after `/build` closes the Story, invoke
    `/coverage-delta --workflow test-improve --story <id>`. The delta is
-   appended to `memory/test-improve/<slug>/coverage-history.json`.
+   appended to `.claude/memory/test-improve/<slug>/coverage-history.json`.
 4. **Mutation-kill (`kill-loop` and `baseline+kill-loop`; skipped when `off`).**
    Invoke the **`mutation-kill` agent**
    with `--file <story-file> --max-rounds 3`. Residual survivors trigger the
@@ -443,7 +443,7 @@ python3 ${CLAUDE_PLUGIN_ROOT}/scripts/gherkin_stub_gate.py --dir <step-definitio
 
 (`<step-definitions-dir>` is wherever test-improve's own Phase 3 —
 `/gherkin-derive`'s Step 4 (stub generation) / Step 5 (output paths) — wrote
-step-definition files, recorded in `memory/test-improve/<slug>/gherkin.md`.)
+step-definition files, recorded in `.claude/memory/test-improve/<slug>/gherkin.md`.)
 
 - **Exit 0 (no pending stubs)** — Phase 5 proceeds to the end-of-phase review
   loop below.
@@ -477,10 +477,10 @@ Phase-5 diff:
    - `[r]` triggers one more revise pass (may exceed the cap by operator
      consent).
    - `[w]` writes the outstanding finding set to
-     `memory/test-improve/<slug>/waivers.json`, **tagged** with the finding
+     `.claude/memory/test-improve/<slug>/waivers.json`, **tagged** with the finding
      list, and closes the phase.
    - `[q]` quits Phase 5 with the loop unresolved.
-4. **Evidence.** Write `memory/test-improve/<slug>/phase-5-review.json` with
+4. **Evidence.** Write `.claude/memory/test-improve/<slug>/phase-5-review.json` with
    the fixed schema — fields: `base_sha`, `head_sha`, `farley_score`,
    `smells`, `code_review`, `iterations`, `escalated`.
 
@@ -499,7 +499,7 @@ Phase 4. Each item is shown with three columns:
   the specific refactor.
 
 **Phase 6 branches on the Phase-0 `refactor-mode`.** Read `refactor-mode`
-from `memory/test-improve/<slug>/phase-0.md` **before** rendering any prompt.
+from `.claude/memory/test-improve/<slug>/phase-0.md` **before** rendering any prompt.
 Entering Phase 7 *is* refactoring, so the choice made at Phase 0 governs
 whether Phase 6 is a branch point at all.
 
@@ -510,7 +510,7 @@ list as *"the following require refactoring and are out of scope in
 no-refactor mode"* — the seam-needed / behavior-gained / estimated-risk
 columns still render, so the operator sees the coverage and behavior left on
 the table. Then **auto-backlog** every item to
-`memory/test-improve/<slug>/refactor-backlog.md` (or update the parent
+`.dev-team-reports/test-improve/<slug>/refactor-backlog.md` (or update the parent
 tracker when `--parent` was passed) and **continue to Phase 8** with the
 current Phase-5 test suite as the target. The prompt collapses to a single
 **acknowledge/continue** step (equivalent to today's `[b]`); when no operator
@@ -528,7 +528,7 @@ highest-consequence prompt would confuse operators.
 
 - **`[y]`** — advances to **Phase 7** (refactor-for-testability).
 - **`[b]`** — writes the REFACTOR_REQUIRED items to
-  `memory/test-improve/<slug>/refactor-backlog.md` (or updates the parent
+  `.dev-team-reports/test-improve/<slug>/refactor-backlog.md` (or updates the parent
   tracker when `--parent` was passed); **skips Phase 7** and runs **Phase 8**
   directly with the current Phase-5 test suite as the target.
 - **`[q]`** — **quits** before Phase 8. No further phase runs; the final
@@ -541,7 +541,7 @@ returned `[b]` (backlog) or `[q]` (quit), Phase 7 is **skipped**.
 
 **Hard mode gate — Phase 7 refuses to run under `no-refactor`.** Before any
 Phase-7 work begins, `/test-improve` re-reads `refactor-mode` from
-`memory/test-improve/<slug>/phase-0.md`. When it records
+`.claude/memory/test-improve/<slug>/phase-0.md`. When it records
 `refactor-mode: no-refactor`, Phase 7 **refuses to run** and is skipped —
 **even if `[y]` is somehow reached**. Phase 6 offers no `[y]` in this mode,
 so this gate is a defense-in-depth backstop: Phase 7 executes production-code
@@ -570,7 +570,7 @@ dispatch in parallel over the Phase-7 diff; `/apply-fixes corrections/` then
 re-run `/code-review --internal`; cap 2 iterations with `[r/w/q]`
 escalation.
 
-**Evidence.** Write `memory/test-improve/<slug>/phase-7-review.json` using
+**Evidence.** Write `.claude/memory/test-improve/<slug>/phase-7-review.json` using
 the **same fixed schema** as Phase 5 (`base_sha`, `head_sha`, `farley_score`,
 `smells`, `code_review`, `iterations`, `escalated`).
 
@@ -613,7 +613,7 @@ module it could not measure (OOM/timeout) as **held at baseline** rather than
 omitting it. No extra flag is threaded through the delegation above — the
 worker resolves the branch base itself using the same idiom as `/build`'s
 Farley-Score step. The whole-repo splice is only lossless when Phase 2's
-baseline was persisted to the git-tracked `reports/test-improve/<slug>/` path
+baseline was persisted to the git-tracked `.dev-team-reports/test-improve/<slug>/` path
 (knob-7 opt-in); on decline it degrades to a branch-scoped-only whole-repo
 line.
 
@@ -622,19 +622,19 @@ below 90% and Phase 0 recorded `refactor-mode: no-refactor`,
 `/test-improve` surfaces a **re-run prompt** shaped **`[y/n]`**: *"Coverage is
 below 90% in no-refactor mode. Re-run in refactor-allowed mode to close the
 gap? `[y/n]`"*. The prompt names the **backlogged REFACTOR_REQUIRED items**
-that would close the gap (drawn from `memory/test-improve/<slug>/refactor-backlog.md`
+that would close the gap (drawn from `.dev-team-reports/test-improve/<slug>/refactor-backlog.md`
 when `[b]` was picked at Phase 6, or from the Phase-4 deferred list when
 Phase 6 was not reached). Whenever shown, `phase-8.md` records `coverage_reprompt_fired: true` plus the answer — the durable source Phase 9's close-out prompt reads to avoid re-asking (see below).
 
 **Evidence.** Persist target outcomes to
-`memory/test-improve/<slug>/phase-8.md`.
+`.claude/memory/test-improve/<slug>/phase-8.md`.
 
 **Test-count-by-type recount.** Alongside the target-outcome persistence
 above, perform the **identical** classification pass Phase 1's
 "Test-count-by-type snapshot" defined — same six-type criteria, same
 tie-break rule, same repo-path scope Phase 1 used (not a re-scoped or
 differently-scoped recount) — and persist
-`memory/test-improve/<slug>/test-counts-after.json` in the identical shape
+`.claude/memory/test-improve/<slug>/test-counts-after.json` in the identical shape
 as `test-counts-before.json` (same six keys, same order, zero-count keys
 present). See Phase 1's own instruction for the full classification
 mechanism; this pass does not restate it.
@@ -652,15 +652,16 @@ between runs.
 `plugins/dev-team/skills/test-improve/templates/executive-summary.md` to the
 output path.
 
-**Output path.** `reports/test-improve/<repo-slug>-<date>.md` — the file is
+**Output path.** `.dev-team-reports/test-improve/<repo-slug>-<date>.md` — the file is
 always relative to the invocation directory, whether the run used a tracker
 sink or local-files mode.
 
 **Interpolation.** Every placeholder is **interpolated** from persisted
-memory files under `memory/test-improve/<slug>/` (`phase-0.md`, `phase-1.md`,
+memory files under `.claude/memory/test-improve/<slug>/` (`phase-0.md`, `phase-1.md`,
 `test-counts-before.json`, `phase-4.md`,
 `coverage-history.json`, `phase-5-review.json`,
-`phase-7-review.json` if Phase 7 ran, `refactor-backlog.md` if Phase 6 chose
+`phase-7-review.json` if Phase 7 ran,
+`.dev-team-reports/test-improve/<slug>/refactor-backlog.md` if Phase 6 chose
 `[b]` or Phase 8 wrote a no-refactor-mode entry to it, `waivers.json`,
 `phase-8.md`, `test-counts-after.json` if Phase 8 ran). No placeholder is
 left literal. The **baseline artifacts** (`baseline-coverage.json`, and
@@ -687,18 +688,18 @@ are never omitted or hidden — this keeps the report shape stable across runs.
 
 **Parent-issue-or-FEATURE.md link update.** When the run used a **parent
 tracker** (Phase 0 selected `--parent <url>`), the parent issue is updated
-with a link to `reports/test-improve/<repo-slug>-<date>.md`. When the run
-was **local-files-only**, `plans/test-improve/FEATURE.md` is updated with
+with a link to `.dev-team-reports/test-improve/<repo-slug>-<date>.md`. When the run
+was **local-files-only**, `.claude/plans/test-improve/FEATURE.md` is updated with
 the same link.
 
 **Regeneratable-from-memory contract.** The report is a **pure function** of
-`memory/test-improve/<slug>/`. Deleting the report file and re-invoking
+`.claude/memory/test-improve/<slug>/`. Deleting the report file and re-invoking
 Phase 9 against the same memory directory reproduces the report byte-for-byte
 — no run-time state is consulted outside the memory directory.
 
 ### After Phase 9 — Re-run-with-refactor close-out prompt
 
-**No prompt** when: `refactor-backlog.md` does not exist (no `REFACTOR_REQUIRED` items were ever backlogged), the file exists but has zero entries (treated the same as absent), `phase-8.md` records `coverage_reprompt_fired: true` (Phase 8's own coverage-driven `[y/n]` already fired this run — no repeating the same question twice), or `phase-0.md` recorded `refactor-mode: refactor-allowed` (a Phase-6 `[b]` backlog entry under `refactor-allowed` mode is the operator's deliberate deferral, not a no-refactor constraint to lift — re-asking "re-run with refactor-allowed mode now?" would be nonsensical when that's the mode already in use).
+**No prompt** when: `.dev-team-reports/test-improve/<slug>/refactor-backlog.md` does not exist (no `REFACTOR_REQUIRED` items were ever backlogged), the file exists but has zero entries (treated the same as absent), `phase-8.md` records `coverage_reprompt_fired: true` (Phase 8's own coverage-driven `[y/n]` already fired this run — no repeating the same question twice), or `phase-0.md` recorded `refactor-mode: refactor-allowed` (a Phase-6 `[b]` backlog entry under `refactor-allowed` mode is the operator's deliberate deferral, not a no-refactor constraint to lift — re-asking "re-run with refactor-allowed mode now?" would be nonsensical when that's the mode already in use).
 
 **Otherwise** (backlog file has ≥1 entry, Phase 8 never fired its prompt,
 and `phase-0.md` recorded `refactor-mode: no-refactor`), prompt **`[y/n]`**
