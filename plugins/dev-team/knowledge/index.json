@@ -3305,7 +3305,7 @@
       "anchor": "7-session-debrief"
     },
     "Output": {
-      "summary": "Write incrementally to `reports/explore-<YYYYMMDDThhmmss>.md`:",
+      "summary": "Write incrementally to `.dev-team-reports/explore-<YYYYMMDDThhmmss>.md`:",
       "anchor": "output"
     },
     "Integration": {
@@ -3433,7 +3433,7 @@
       "anchor": "4-compare-and-decide-adoption"
     },
     "Audit Trail": {
-      "summary": "All changes are logged in `metrics/config-changelog.jsonl` (one JSON object per line, append-only).",
+      "summary": "All changes are logged in `.claude/metrics/config-changelog.jsonl` (one JSON object per line, append-only).",
       "anchor": "audit-trail"
     },
     "The `evidence` field (validated-outcome weighting, #866)": {

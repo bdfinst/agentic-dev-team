@@ -156,7 +156,7 @@ the plugin's Human-in-the-Loop principle and `/harness-audit`'s
 
 ## Audit Trail
 
-All changes are logged in `metrics/config-changelog.jsonl` (one JSON object per line, append-only).
+All changes are logged in `.claude/metrics/config-changelog.jsonl` (one JSON object per line, append-only).
 
 ```json
 {
@@ -233,8 +233,8 @@ lesson. Authors can still explicitly set a different metric, direction, or
 **Prose lessons (`memory/` notes) are in scope.** The `evidence` field
 attaches at this changelog layer regardless of which resolution-order
 destination the lesson was written to; a memory-note lesson typically carries
-`"unmeasurable"`. Anything not logged to `metrics/config-changelog.jsonl` is
-out of scope by construction.
+`"unmeasurable"`. Anything not logged to `.claude/metrics/config-changelog.jsonl`
+is out of scope by construction.
 
 **Legacy entries** (written before this field existed) have no `evidence`
 key at all. `/harness-audit` surfaces them as a count — it never assigns
@@ -315,7 +315,10 @@ amend: rollback the last change to CLAUDE.md
 amend: rollback all changes from today
 ```
 
-1. Read `metrics/config-changelog.jsonl` to find the entry
+1. Read `.claude/metrics/config-changelog.jsonl` to find the entry — fall back
+   to the legacy `metrics/config-changelog.jsonl` if the new path doesn't
+   exist (a downstream user's history may still be at the old path):
+   `log=".claude/metrics/config-changelog.jsonl"; [ -f "$log" ] || log="metrics/config-changelog.jsonl"`
 2. Restore `previous_value` to the target file and section
 3. Log the rollback as a new entry with `type: "rollback"`
 
@@ -363,7 +366,7 @@ content entries safely).
 ### Approval path
 
 1. Apply the proposed change (following the standard Processing Flow above).
-2. Append to `metrics/config-changelog.jsonl` as usual.
+2. Append to `.claude/metrics/config-changelog.jsonl` as usual.
 3. Write `reviewed_at` (ISO-8601 UTC) and `approved_by` (the user identifier from
    `approved_by` in the existing audit schema) back into the matching entry in
    `metrics/pending-review.jsonl`.
@@ -371,7 +374,7 @@ content entries safely).
 ### Rejection path
 
 1. Do **not** apply the proposed change.
-2. Do **not** write to `metrics/config-changelog.jsonl`.
+2. Do **not** write to `.claude/metrics/config-changelog.jsonl`.
 3. Write `rejected_at` (ISO-8601 UTC) and `rejected_by` (same format as
    `approved_by`) into the matching entry in `metrics/pending-review.jsonl`.
 

@@ -73,12 +73,13 @@ def record_iteration_entry(
 ) -> None:
     """Append one compact JSON line recording this iteration's decision.
 
-    Fail-open: any error (bad `cwd`, unwritable `metrics/`, disk full, etc.)
-    is swallowed silently — an append failure must never crash the
-    autonomous loop calling this.
+    Fail-open: any error (bad `cwd`, unwritable `.claude/metrics/`, disk
+    full, etc.) is swallowed silently — an append failure must never crash
+    the autonomous loop calling this.
 
     Args:
-        cwd: Directory whose `metrics/` subdirectory receives the entry.
+        cwd: Directory whose `.claude/metrics/` subdirectory receives the
+            entry.
         round_id: Identifier for the current round/iteration (e.g.
             `/autoship`'s round_id, `/ship`'s issue identifier).
         attempted: Short structured string — what was attempted this

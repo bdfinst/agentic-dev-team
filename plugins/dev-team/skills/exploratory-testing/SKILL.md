@@ -80,7 +80,7 @@ When the budget is exhausted or `/stop` is received, stop and state the terminat
 
 ## Output
 
-Write incrementally to `reports/explore-<YYYYMMDDThhmmss>.md`:
+Write incrementally to `.dev-team-reports/explore-<YYYYMMDDThhmmss>.md`:
 
 ```markdown
 ## Exploration — <charter>

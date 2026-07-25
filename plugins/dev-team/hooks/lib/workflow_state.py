@@ -14,7 +14,7 @@ against it, since ad-hoc workflows may define their own):
     SPEC -> PLAN -> BUILD -> REVIEW -> COMMIT -> PR
 
 Fail-open on emit: every exception is swallowed. A full disk, read-only
-`metrics/`, or malformed state must never raise into the caller.
+`.claude/metrics/`, or malformed state must never raise into the caller.
 
 Stdlib only. Python 3.8+. See ADR 0014 / ADR 0015.
 """
@@ -69,11 +69,12 @@ def emit_state_transition(
 ) -> None:
     """Append one compact JSON line recording a state transition.
 
-    Fail-open: any error (bad `cwd`, unwritable `metrics/`, disk full,
-    etc.) is swallowed silently.
+    Fail-open: any error (bad `cwd`, unwritable `.claude/metrics/`, disk
+    full, etc.) is swallowed silently.
 
     Args:
-        cwd: Directory whose `metrics/` subdirectory receives the event.
+        cwd: Directory whose `.claude/metrics/` subdirectory receives the
+            event.
         workflow: Orchestrated flow name, e.g. "ship", "autoship", "build".
         prior_state: State the workflow was in before this transition, or
             `None`/empty string for the initial transition into the first

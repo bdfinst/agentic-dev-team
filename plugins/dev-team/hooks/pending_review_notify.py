@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """SessionStart hook: notify when the pending-review queue has entries.
 
-Emits a one-line notification when metrics/pending-review.jsonl has
+Emits a one-line notification when .claude/metrics/pending-review.jsonl has
 unreviewed entries. Split off (#1284/#1288) from the retired
 session_model_banner.py, whose other two responsibilities (persisting the
 session model to `.claude/session-model` and announcing the effort-band
@@ -41,8 +41,8 @@ def _notify_pending_findings(cwd: str) -> str | None:
 
     A finding gains exactly one disposition (`reviewed_at` on approval,
     `rejected_at` on rejection — see feedback-learning/SKILL.md); once either
-    is present, its audit trail lives in metrics/config-changelog.jsonl (on
-    approval) and the entry itself has no further use here. Rewriting the
+    is present, its audit trail lives in .claude/metrics/config-changelog.jsonl
+    (on approval) and the entry itself has no further use here. Rewriting the
     queue to drop disposed entries every SessionStart keeps it bounded to the
     outstanding backlog instead of growing without limit across the life of
     a project. Lines that fail to parse can't be classified either way, so

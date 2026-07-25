@@ -28,7 +28,7 @@ Every change must reduce friction: **fewer missteps, less rework, lower token co
 2. **40% Context Ceiling**: Conservative target, not an accuracy cliff — see [Context Management](docs/context-management.md). Enforced by `hooks/context_ceiling_guard.py`.
 3. **Persona-Driven Behavior**: Specs in `.claude/agents/`. Build concurrency `DEV_TEAM_MAX_PARALLEL_BUILDS`: unset → `min(16, cores-2)`, `1` = sequential.
 4. **Human-in-the-Loop**: Autonomous agents, human oversight.
-5. **Dynamic Configuration**: Config changes → `metrics/config-changelog.jsonl`.
+5. **Dynamic Configuration**: Config changes → `.claude/metrics/config-changelog.jsonl`.
 6. **ATDD + Code-First Small Batches** (sole build cadence — Rec 3, docs/experiments/RECOMMENDATIONS.md): no code without a `/plan` scenario.
 7. **Python for cross-OS scripts**: shipped hooks/scripts are Python 3.8+ stdlib-only (ADR 0014, 0015).
 

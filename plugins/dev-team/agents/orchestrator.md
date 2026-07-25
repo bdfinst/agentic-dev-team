@@ -309,7 +309,7 @@ Each plan step includes a **Complexity** classification that controls review dep
 
 If a step has no complexity annotation, default to `standard`.
 
-Each checkpoint that runs records a find/fix/no-op outcome to `metrics/review-value.jsonl` (#348) so the review overhead is measurable and the tiering can be evidence-based.
+Each checkpoint that runs records a find/fix/no-op outcome to `.claude/metrics/review-value.jsonl` (#348) so the review overhead is measurable and the tiering can be evidence-based.
 
 #### Inline Review Checkpoint
 

@@ -48,7 +48,7 @@ Every agent action falls into one of three categories:
 ### Standard approval gates
 
 These actions always require human approval. Every gate below writes an
-`approval` entry to `metrics/config-changelog.jsonl` per the [Audit trail](#audit-trail)
+`approval` entry to `.claude/metrics/config-changelog.jsonl` per the [Audit trail](#audit-trail)
 schema — `proposed`, `evidence_shown`, and `risks_surfaced` included.
 
 | Action | Rationale |
@@ -141,9 +141,9 @@ gate-decision audit entry — [Governance & Compliance](../governance-compliance
 and [Feedback & Learning](../feedback-learning/SKILL.md) reference it rather than
 restating the field definitions.
 
-All oversight events are appended to `metrics/config-changelog.jsonl` (one JSON
-object per line, append-only — existing entries are never modified, deleted, or
-migrated) with:
+All oversight events are appended to `.claude/metrics/config-changelog.jsonl` (one
+JSON object per line, append-only — existing entries are never modified, deleted,
+or migrated) with:
 
 | Field | Required for | Type | Rule |
 |---|---|---|---|

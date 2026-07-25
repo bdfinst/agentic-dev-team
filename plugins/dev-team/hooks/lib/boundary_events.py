@@ -13,8 +13,8 @@ command text, prompt text, file paths, or reasons must never appear in a
 `matched_rule` value — only rule IDs from closed vocabularies.
 
 Fail-open: every exception is swallowed. A full disk, read-only
-`metrics/`, or malformed state must never change the calling hook's
-stdout, stderr, or exit code.
+`.claude/metrics/`, or malformed state must never change the calling
+hook's stdout, stderr, or exit code.
 
 Stdlib only. Python 3.8+. See ADR 0014 / ADR 0015.
 """
