@@ -373,8 +373,11 @@ selects the native parser (`cucumber-js` for JS/TS, `SpecFlow` / `Reqnroll` for
 parser wiring to `.claude/memory/test-improve/<slug>/gherkin.md`.
 
 **Human gate.** After Phase 3 produces `.feature` files (or parser wiring in
-`bdd-runner` mode), present them to the operator for review. **Phase 4 does
-not run** until the operator approves.
+`bdd-runner` mode), present them to the operator for review — including
+`gherkin_failure_path_gate.py`'s findings (issue #1420) as part of what's
+being approved, the same reviewed-before-proceeding weight the
+characterization-scenario call-out already carries, not an inert report
+line. **Phase 4 does not run** until the operator approves.
 
 ### Phase 4 — Plan fixes (partition findings by gap class)
 

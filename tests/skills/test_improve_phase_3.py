@@ -67,3 +67,9 @@ def test_phase_3_names_the_human_gate_before_phase_4():
         _phase_3_section(),
         ignore_case=True,
     )
+
+
+def test_phase_3_human_gate_names_failure_path_gate_findings_as_part_of_approval():
+    s = _phase_3_section()
+    assert "gherkin_failure_path_gate.py" in s
+    assert grep(r"reviewed-before-proceeding|not an inert report line", s, ignore_case=True)

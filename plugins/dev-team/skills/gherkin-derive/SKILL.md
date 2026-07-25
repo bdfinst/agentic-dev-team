@@ -282,6 +282,23 @@ python3 ${CLAUDE_PLUGIN_ROOT}/scripts/gherkin_stub_gate.py --dir <step-definitio
 - Skip entirely in `none` and `xunit-with-annotations` modes (no step
   definitions are generated in either).
 
+**Every mode that writes `.feature` files — report the failure-path
+coverage gate (issue #1420).** Unlike the pending-stub gate above, which is
+`bdd-runner`-only, this one is **not `bdd-runner`-only** — `xunit-with-annotations`
+mode is in scope here too, since the coverage gap this checks for exists
+whenever `.feature` files exist, independent of whether `bdd-runner` mode
+wired a runner:
+
+```
+python3 ${CLAUDE_PLUGIN_ROOT}/scripts/gherkin_failure_path_gate.py --dir <feature-files-dir>
+```
+
+Print the gate's result as its own report section, never folded into the
+general summary: `N Feature block(s) missing a failure-path scenario`,
+listing each `file:line — <feature title>` the gate names, or `OK: all
+Feature block(s) have a failure-path scenario` when it exits 0. Skip
+entirely in `none` mode (no `.feature` files are written).
+
 ## Key differences from `/gherkin-public`
 
 - Does **not** require any prior assessment file — derives the surface itself
