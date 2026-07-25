@@ -9,13 +9,13 @@ never change a test — the invariant held at zero violations across the
 experiment campaigns (Rec 4, docs/experiments/RECOMMENDATIONS.md).
 
 Fails OPEN on any internal error, with one audit line in
-`metrics/refactor-freeze.jsonl` — a broken guard must never block work.
+`.claude/metrics/refactor-freeze.jsonl` — a broken guard must never block
+work.
 """
 
 from __future__ import annotations
 
 import json
-import os
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
@@ -23,6 +23,7 @@ from pathlib import Path
 _LIB_DIR = Path(__file__).resolve().parent / "lib"
 sys.path.insert(0, str(_LIB_DIR))
 
+import artifact_paths
 from boundary_events import emit_boundary_event as _emit_boundary_event
 from stdin_json import read_stdin_json
 from test_file_classify import is_test_file, read_build_phase
@@ -36,11 +37,10 @@ def emit_boundary_event(*args, **kwargs) -> None:
     except Exception:  # noqa: BLE001, S110 - fail-open by design
         pass
 
-AUDIT_RELPATH = Path("metrics") / "refactor-freeze.jsonl"
-
-
 def _project_dir() -> Path:
-    return Path(os.environ.get("CLAUDE_PROJECT_DIR") or os.getcwd())
+    """Resolve the project root via git, not the possibly-unset/stale
+    CLAUDE_PROJECT_DIR env var."""
+    return artifact_paths.project_root()
 
 
 def audit(
@@ -51,7 +51,11 @@ def audit(
     step: str | None = None,
     reason: str | None = None,
 ) -> None:
-    """Append one JSONL audit line. Best-effort — auditing never crashes a guard."""
+    """Append one JSONL audit line under .claude/metrics/refactor-freeze.jsonl.
+
+    Best-effort — a failure to resolve the path, create the directory, or
+    write the line is fail-open: log a diagnostic and never crash the guard.
+    """
     entry = {
         "timestamp": datetime.now(timezone.utc).isoformat(),
         "hook": hook,
@@ -61,12 +65,12 @@ def audit(
         "reason": reason,
     }
     try:
-        path = project_dir / AUDIT_RELPATH
+        path = artifact_paths.resolve_file("metrics", "refactor-freeze.jsonl", project_dir)
         path.parent.mkdir(parents=True, exist_ok=True)
         with open(path, "a", encoding="utf-8") as handle:
             handle.write(json.dumps(entry) + "\n")
-    except OSError:
-        pass
+    except OSError as exc:  # noqa: BLE001 - fail-open: auditing never crashes a guard
+        sys.stderr.write(f"[refactor_test_freeze_guard] failed to write audit line: {exc}\n")
 
 
 def _extract_file_path(payload: dict | None) -> str:

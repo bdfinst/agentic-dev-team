@@ -69,7 +69,7 @@ def _write_state(repo: Path, phase: str = "refactor", **overrides) -> None:
 
 
 def _audit_events(repo: Path):
-    path = repo / "metrics" / "refactor-freeze.jsonl"
+    path = repo / ".claude" / "metrics" / "refactor-freeze.jsonl"
     if not path.is_file():
         return []
     return [json.loads(line) for line in path.read_text().splitlines() if line]
