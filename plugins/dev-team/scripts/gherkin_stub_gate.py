@@ -34,7 +34,9 @@ necessarily a step-definition file). Vendored/generated trees
 (`.git`, `node_modules`, `vendor`, `dist`, `build`, and virtualenv
 directories) are pruned during the scan — the same exclusion set
 `detect_bdd_convention.py` uses — so a stray dependency tree under a scanned
-directory is never walked or grepped.
+directory is never walked or grepped — via the shared `_vendored_tree.py`
+helper (issue #1420), also used by `detect_bdd_convention.py` and
+`gherkin_failure_path_gate.py`.
 
 Stdlib-only. Python 3.8+ (ADR 0014/0015).
 
@@ -50,6 +52,8 @@ import json
 import sys
 from pathlib import Path
 
+from _vendored_tree import iter_files as _iter_files
+
 # Extension (lowercase) -> (language label, pending marker substrings).
 _MARKERS_BY_EXT = {
     ".js": ("JS/TS", ("this.pending()",)),
@@ -60,32 +64,6 @@ _MARKERS_BY_EXT = {
     ".cs": ("C#", ("PendingStepException", "StepIsPending()")),
     ".go": ("Go", ("godog.ErrPending",)),
 }
-
-# Vendored/generated directory names to never walk into or treat as signal —
-# the same exclusion set scripts/detect_bdd_convention.py uses.
-VENDORED_DIR_NAMES = frozenset({".git", "node_modules", "vendor", "dist", "build"})
-_VIRTUALENV_MARKER = "pyvenv.cfg"
-
-
-def _is_vendored_dir(directory: Path) -> bool:
-    """True for vendored/generated trees the scan must never walk into."""
-    if directory.name in VENDORED_DIR_NAMES:
-        return True
-    return (directory / _VIRTUALENV_MARKER).is_file()
-
-
-def _iter_files(root: Path):
-    """Yield files under `root`, pruning vendored trees and symlinks."""
-    pending_dirs = [root]
-    while pending_dirs:
-        directory = pending_dirs.pop()
-        for entry in sorted(directory.iterdir()):
-            if entry.is_symlink():
-                continue
-            if entry.is_dir() and not _is_vendored_dir(entry):
-                pending_dirs.append(entry)
-            elif entry.is_file():
-                yield entry
 
 
 def find_step_definition_files(directories: list[Path]) -> list[Path]:

@@ -1,0 +1,44 @@
+"""_vendored_tree.py — shared vendored/generated-directory pruning helper.
+
+Extracted (issue #1420) from `detect_bdd_convention.py` and
+`gherkin_stub_gate.py`, which each carried a byte-for-byte-identical copy of
+this logic. A third caller (`gherkin_failure_path_gate.py`) made the
+duplication the third occurrence — the threshold where it becomes a shared
+helper rather than a per-script judgment call.
+
+Stdlib-only. Python 3.8+ (ADR 0014/0015).
+"""
+
+from __future__ import annotations
+
+from collections.abc import Iterator
+from pathlib import Path
+
+# Trees whose contents are a dependency's (or a build's), never the project's
+# own convention/surface.
+VENDORED_DIR_NAMES = frozenset({".git", "node_modules", "vendor", "dist", "build"})
+
+# Presence of this file marks a directory as a virtualenv, whatever its name.
+_VIRTUALENV_MARKER = "pyvenv.cfg"
+
+
+def is_vendored_dir(directory: Path) -> bool:
+    """True for vendored/generated trees a scan must never walk into or
+    treat as project signal."""
+    if directory.name in VENDORED_DIR_NAMES:
+        return True
+    return (directory / _VIRTUALENV_MARKER).is_file()
+
+
+def iter_files(root: Path) -> Iterator[Path]:
+    """Yield files under `root`, pruning vendored trees and symlinks."""
+    pending = [root]
+    while pending:
+        directory = pending.pop()
+        for entry in sorted(directory.iterdir()):
+            if entry.is_symlink():
+                continue
+            if entry.is_dir() and not is_vendored_dir(entry):
+                pending.append(entry)
+            elif entry.is_file():
+                yield entry
