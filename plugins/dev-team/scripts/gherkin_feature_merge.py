@@ -382,6 +382,16 @@ def _write_error(message: str) -> None:
 
 
 def _cmd_merge(args: argparse.Namespace) -> int:
+    # Known limitation (concurrency-review, issue #1420 follow-up review):
+    # read-then-write here is a TOCTOU race if two `merge` invocations ever
+    # target the same --existing path concurrently — whichever writes last
+    # silently wins. Not fixed: gherkin-derive's own design invokes this
+    # once per surface, sequentially, never in parallel against the same
+    # file (see gherkin-derive/SKILL.md's Output step), so there is no
+    # known live trigger; adding a cross-platform lock (fcntl vs. msvcrt)
+    # or an atomic temp-file+os.replace swap is a real option but is a
+    # design call for a human to make, not a mechanical fix — deliberately
+    # left to a human decision rather than guessed at here.
     existing_path = Path(args.existing)
     existing_text = existing_path.read_text(encoding="utf-8") if existing_path.is_file() else ""
     candidates_text = Path(args.candidates).read_text(encoding="utf-8")
