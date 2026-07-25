@@ -15,6 +15,7 @@ Stdlib-only. Python 3.8+. See docs/python-hook-contract.md.
 
 from __future__ import annotations
 
+import os
 import shutil
 import subprocess
 import sys
@@ -48,8 +49,36 @@ def project_root(start: "Path | str | None" = None) -> Path:
     return Path(output)
 
 
+def _validate_segment(value: str, label: str) -> None:
+    """Reject any `category`/`filename`/`subpath` component that could
+    traverse outside `.claude/<category>/...`.
+
+    pathlib does not block `..` on its own, so every caller-supplied path
+    component is validated here rather than trusting each call site to do
+    it. Rejects an empty string, `.`, `..`, or anything containing a path
+    separator (`os.sep`/`os.altsep`) or a NUL byte.
+    """
+    if (
+        value == ""
+        or value in (".", "..")
+        or os.sep in value
+        or (os.altsep is not None and os.altsep in value)
+        or "\0" in value
+    ):
+        raise ValueError(f"invalid {label}: {value!r}")
+
+
+def _log_migrate_failure(legacy_path: Path, new_path: Path, exc: OSError) -> None:
+    """Shared stderr diagnostic for a failed migration move (fail-open)."""
+    print(
+        f"[artifact_paths] failed to migrate {legacy_path} -> {new_path}: {exc}",
+        file=sys.stderr,
+    )
+
+
 def _category_dir(name: str, root: "Path | str | None" = None) -> Path:
     """Return `<project-root>/.claude/<name>`. Pure path-join, no side effects."""
+    _validate_segment(name, "category")
     return project_root(start=root) / ".claude" / name
 
 
@@ -68,10 +97,13 @@ def plans_dir(root: "Path | str | None" = None) -> Path:
 def _is_git_tracked(path: Path, root: Path) -> bool:
     """True when `path` is tracked by git in the repo rooted at `root`.
 
-    Never raises — any failure to invoke git (not a repo, git missing) is
-    treated as "not tracked", matching the fail-open pattern: an untracked
-    classification only ever makes a file *eligible* for migration, never
-    forces one.
+    Never raises. Per AC10 ("git-tracked files are never silently moved"),
+    this is the one place in this module that fails *closed*: any failure
+    to invoke git (not a repo, git missing, subprocess error) is treated as
+    "tracked" so the caller skips migration rather than risk silently
+    moving a file that might actually be git-tracked. Every other fail-open
+    behavior in this module (directory creation errors, move failures)
+    stays as-is — only this error branch is inverted.
     """
     try:
         completed = subprocess.run(
@@ -81,7 +113,7 @@ def _is_git_tracked(path: Path, root: Path) -> bool:
             check=False,
         )
     except (FileNotFoundError, OSError):
-        return False
+        return True
     return completed.returncode == 0
 
 
@@ -103,8 +135,12 @@ def resolve_file(
     creation.
 
     Fail-open: a failed move attempt logs one diagnostic line to stderr and
-    is otherwise ignored — this helper never raises.
+    is otherwise ignored — this helper never raises (except `ValueError` on
+    an invalid `category`/`filename` — see `_validate_segment`).
     """
+    _validate_segment(category, "category")
+    _validate_segment(filename, "filename")
+
     base = project_root(start=root)
     new_dir = base / ".claude" / category
     new_path = new_dir / filename
@@ -116,6 +152,8 @@ def resolve_file(
         return new_path
 
     legacy_path = base / category / filename
+    if legacy_path.is_symlink():
+        return new_path
     if not legacy_path.is_file():
         return new_path
 
@@ -126,10 +164,7 @@ def resolve_file(
         new_dir.mkdir(parents=True, exist_ok=True)
         shutil.move(str(legacy_path), str(new_path))
     except OSError as exc:
-        print(
-            f"[artifact_paths] failed to migrate {legacy_path} -> {new_path}: {exc}",
-            file=sys.stderr,
-        )
+        _log_migrate_failure(legacy_path, new_path, exc)
 
     return new_path
 
@@ -161,8 +196,12 @@ def migrate_dir(
 
     Fail-open: a failure to create a destination directory or move one file
     logs a diagnostic line to stderr and continues with the next file —
-    never raises.
+    never raises (except `ValueError` on an invalid `category`/`subpath` —
+    see `_validate_segment`).
     """
+    _validate_segment(category, "category")
+    _validate_segment(subpath, "subpath")
+
     base = project_root(start=root)
     legacy_root = base / category / subpath
     if not legacy_root.is_dir():
@@ -172,6 +211,8 @@ def migrate_dir(
     new_root = base / ".claude" / category / subpath
 
     for legacy_path in legacy_root.rglob("*"):
+        if legacy_path.is_symlink():
+            continue
         if not legacy_path.is_file():
             continue
         if legacy_path.name in excluded:
@@ -188,10 +229,7 @@ def migrate_dir(
             new_path.parent.mkdir(parents=True, exist_ok=True)
             shutil.move(str(legacy_path), str(new_path))
         except OSError as exc:
-            print(
-                f"[artifact_paths] failed to migrate {legacy_path} -> {new_path}: {exc}",
-                file=sys.stderr,
-            )
+            _log_migrate_failure(legacy_path, new_path, exc)
 
 
 def dev_team_reports_dir(root: "Path | str | None" = None) -> Path:

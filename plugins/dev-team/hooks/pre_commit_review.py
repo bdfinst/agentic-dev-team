@@ -61,7 +61,15 @@ except ImportError:  # pragma: no cover
     def _resolve_file(  # type: ignore[misc]
         category: str, filename: str, root=None, migrate: bool = True
     ) -> Path:
-        return Path(category) / filename
+        # Degraded-import fallback (artifact_paths itself failed to import).
+        # The bare `Path(category) / filename` this used to return is the
+        # exact bare-relative-path bug Step 4.4 fixed for the normal path —
+        # reproduce that fix's `.claude/<category>/<filename>` shape here
+        # too. `parents[3]` walks up from
+        # `plugins/dev-team/hooks/pre_commit_review.py` to this repo's
+        # root (hooks -> dev-team -> plugins -> repo root).
+        repo_root = Path(__file__).resolve().parents[3]
+        return repo_root / ".claude" / category / filename
 
     def is_git_commit_command(_: str) -> bool:  # type: ignore[misc]
         return False
