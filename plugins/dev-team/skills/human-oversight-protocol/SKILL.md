@@ -48,7 +48,7 @@ Every agent action falls into one of three categories:
 ### Standard approval gates
 
 These actions always require human approval. Every gate below writes an
-`approval` entry to `metrics/config-changelog.jsonl` per the [Audit trail](#audit-trail)
+`approval` entry to `.claude/metrics/config-changelog.jsonl` per the [Audit trail](#audit-trail)
 schema — `proposed`, `evidence_shown`, and `risks_surfaced` included.
 
 | Action | Rationale |
@@ -141,9 +141,9 @@ gate-decision audit entry — [Governance & Compliance](../governance-compliance
 and [Feedback & Learning](../feedback-learning/SKILL.md) reference it rather than
 restating the field definitions.
 
-All oversight events are appended to `metrics/config-changelog.jsonl` (one JSON
-object per line, append-only — existing entries are never modified, deleted, or
-migrated) with:
+All oversight events are appended to `.claude/metrics/config-changelog.jsonl` (one
+JSON object per line, append-only — existing entries are never modified, deleted,
+or migrated) with:
 
 | Field | Required for | Type | Rule |
 |---|---|---|---|
@@ -151,7 +151,7 @@ migrated) with:
 | `trigger` | all | string | `user` |
 | `description` | all | string | What happened and why. For `override`, this is the human's substituted decision (see below) |
 | `proposed` | `approval`, `override` — optional for `pause`/`stop` | string | One-line statement of what was put before the human — or, for `override`, what the agent had decided before the human reversed it |
-| `evidence_shown` | `approval`, `override` — optional for `pause`/`stop` | array of strings | **Artifact pointers only, never prose.** Each element is a repo-relative file path (e.g. `plans/<slug>.md`), `commit:<sha>`, `issue:#N` / `pr:#N`, or `metrics/<file>.jsonl@<line-or-timestamp>`. Every pointer must resolve to something that still exists after the session ends — never a chat transcript or ephemeral build/console output. If the evidence exists only as prose, write it to `memory/` first and point at that file. |
+| `evidence_shown` | `approval`, `override` — optional for `pause`/`stop` | array of strings | **Artifact pointers only, never prose.** Each element is a repo-relative file path (e.g. `plans/<slug>.md`), `commit:<sha>`, `issue:#N` / `pr:#N`, or `.claude/metrics/<file>.jsonl@<line-or-timestamp>`. Every pointer must resolve to something that still exists after the session ends — never a chat transcript or ephemeral build/console output. If the evidence exists only as prose, write it to `.claude/memory/` first and point at that file. |
 | `risks_surfaced` | `approval`, `override` — optional for `pause`/`stop` | array of strings | Risks stated at the gate. `[]` is valid and explicit — it means "no risks were surfaced," distinguishing a reviewed-and-clear gate from a pre-change entry that omits the field entirely. |
 
 **Required for `approval` and `override`.** Optional for `pause`/`stop` — those
@@ -199,7 +199,7 @@ this schema," not "malformed."
   "trigger": "user",
   "description": "override: run the migration script → apply the schema change by hand-editing the two SKILL.md files",
   "proposed": "Agent proposed running scripts/migrate_schema.py to apply the change",
-  "evidence_shown": ["memory/build-issue-867.md"],
+  "evidence_shown": [".claude/memory/build-issue-867.md"],
   "risks_surfaced": ["Hand-editing risks missing a write site the script would have covered"]
 }
 ```

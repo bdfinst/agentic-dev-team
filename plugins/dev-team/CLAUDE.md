@@ -28,7 +28,7 @@ Every change must reduce friction: **fewer missteps, less rework, lower token co
 2. **40% Context Ceiling**: Conservative target, not an accuracy cliff — see [Context Management](docs/context-management.md). Enforced by `hooks/context_ceiling_guard.py`.
 3. **Persona-Driven Behavior**: Specs in `.claude/agents/`. Build concurrency `DEV_TEAM_MAX_PARALLEL_BUILDS`: unset → `min(16, cores-2)`, `1` = sequential.
 4. **Human-in-the-Loop**: Autonomous agents, human oversight.
-5. **Dynamic Configuration**: Config changes → `metrics/config-changelog.jsonl`.
+5. **Dynamic Configuration**: Config changes → `.claude/metrics/config-changelog.jsonl`.
 6. **ATDD + Code-First Small Batches** (sole build cadence — Rec 3, docs/experiments/RECOMMENDATIONS.md): no code without a `/plan` scenario.
 7. **Python for cross-OS scripts**: shipped hooks/scripts are Python 3.8+ stdlib-only (ADR 0014, 0015).
 
@@ -61,7 +61,7 @@ Each agent declares `model:`/`effort:` directly in frontmatter — the native Cl
 
 Token budgets per agent: see [knowledge/agent-registry.md](knowledge/agent-registry.md).
 
-Rules: load on demand; summarize phases to `memory/` before next phase; new conversations read from `memory/`.
+Rules: load on demand; summarize phases to `.claude/memory/` before next phase; new conversations read from `.claude/memory/`.
 
 ## Feedback & Learning
 
@@ -85,6 +85,6 @@ Hooks: `pre_tool_guard.py` blocks sensitive path writes; `destructive_guard.py` 
 
 ## Performance Metrics
 
-Logged to `metrics/` as JSONL. **[Performance Metrics](skills/performance-metrics/SKILL.md)**.
+Logged to `.claude/metrics/` as JSONL. **[Performance Metrics](skills/performance-metrics/SKILL.md)**.
 
 Every claim must name the instrument. **Instrumented:** token budgets (`scripts/measure-tokens.sh`), agent accuracy (`/agent-eval`), efficiency (`/orchestration-benchmark`). **Not yet:** hallucination rate, first-pass acceptance.

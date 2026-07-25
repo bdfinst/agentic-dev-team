@@ -67,7 +67,7 @@ on the percentage bound or the absolute bound:
 | --- | --- | --- |
 | nudge | 1x – 1.25x | Consider running `/handoff`. |
 | run-now | 1.25x – 1.5x | Run `/handoff` now. |
-| full-summary (top band) | 1.5x+ | Write a full summary to `memory/` and start a new conversation. Leads with the directive; no knob footer. |
+| full-summary (top band) | 1.5x+ | Write a full summary to `.claude/memory/` and start a new conversation. Leads with the directive; no knob footer. |
 
 Concrete fire-points at default settings (`DEV_TEAM_CONTEXT_CEILING_PCT=40`,
 `DEV_TEAM_CONTEXT_ABS_CEILING=150000`):

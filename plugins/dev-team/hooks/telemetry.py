@@ -16,11 +16,17 @@ One hook registered on multiple events; it branches on `hook_event_name`:
 PRIVACY: records only an event type, a grammar-matched name (never free
 text), an outcome, and the plugin version.
 
-CONSENT: OFF by default. Enable with `DEV_TEAM_TELEMETRY=on`, or a
-`<cwd>/.claude/telemetry.json` containing `{"enabled": true}`. When off,
-nothing is recorded and nothing leaves the machine.
+CONSENT: OFF by default. Enable by writing `{"enabled": true}` to the
+user-level `~/.claude/telemetry.json` (see `hooks/lib/telemetry_consent.py`).
+This is a config-file-only, home-scoped switch — `DEV_TEAM_TELEMETRY` and any
+project-scoped `<cwd>/.claude/telemetry.json` have no effect. When off,
+nothing is recorded and nothing leaves the machine. Detecting either now-inert
+legacy signal prints a one-time-per-session stderr notice pointing at the new
+home-scoped path.
 
-TRANSPORT: local-only. Events append to `<cwd>/metrics/telemetry.jsonl`.
+TRANSPORT: local-only. Events append to `~/.claude/metrics/telemetry.jsonl`;
+`artifact-usage.json` lives alongside it under the same home-scoped
+`~/.claude/metrics/` directory, never under a project's own `metrics/`.
 No network egress.
 
 Posture: record-only, fail-open. Never blocks; any error → exit 0.
@@ -42,6 +48,7 @@ if str(_LIB_DIR) not in sys.path:
     sys.path.insert(0, str(_LIB_DIR))
 
 from boundary_events import emit_boundary_event as _emit_boundary_event
+import telemetry_consent
 
 
 def emit_boundary_event(*args, **kwargs) -> None:
@@ -66,6 +73,67 @@ _NO_VERIFY_RE = re.compile(r"(?:^|\s)-n(?:\s|$)")
 _INTERVENTION_RE = re.compile(r"^\s*(override|pause|stop)\b", re.IGNORECASE)
 
 
+def _legacy_signal_path(session_id: object) -> Path:
+    """Per-session dedupe marker for the one-time inert-legacy-signal notice
+    (#1405, Slice 1 Step 1.4). Mirrors context_ceiling_guard.py's marker
+    pattern: TMPDIR (or the system temp dir) keyed by a sanitized session id.
+    """
+    tmpdir = os.environ.get("TMPDIR") or tempfile.gettempdir()
+    session = re.sub(r"[^A-Za-z0-9_-]", "", str(session_id or "")) or "nosession"
+    return Path(tmpdir) / f"dev-team-telemetry-legacy-notice-{session}"
+
+
+def _legacy_signal_present(cwd: Path) -> bool:
+    """True when either now-inert consent mechanism is in use: the
+    `DEV_TEAM_TELEMETRY` env var, or a project-scoped
+    `<cwd>/.claude/telemetry.json`. Neither has any effect on consent."""
+    if os.environ.get("DEV_TEAM_TELEMETRY"):
+        return True
+    return (cwd / ".claude" / "telemetry.json").is_file()
+
+
+def _notice_legacy_signal_once(session_id: object) -> None:
+    """Emit a one-time-per-session stderr notice that consent moved to
+    `~/.claude/telemetry.json`. Fail-open: any error creating the dedupe
+    marker must never raise or block the calling hook.
+
+    Uses atomic exclusive creation (`O_CREAT | O_EXCL | O_NOFOLLOW`)
+    instead of a separate `is_file()` check + `write_text()` — that
+    pattern has a TOCTOU window and follows symlinks, so a pre-created
+    dangling symlink at the predictable marker path could redirect the
+    write. `EEXIST` doubles as "already notified this session", so the
+    dedupe check and the atomic create are one operation.
+    """
+    marker = _legacy_signal_path(session_id)
+    try:
+        fd = os.open(
+            str(marker),
+            os.O_CREAT | os.O_EXCL | os.O_WRONLY | os.O_NOFOLLOW,
+            0o600,
+        )
+    except OSError:
+        # EEXIST (already notified this session), a symlink at the marker
+        # path, or any other failure (permission denied) — fail-open.
+        return
+
+    sys.stderr.write(
+        "NOTE: dev-team telemetry consent now lives only in "
+        "~/.claude/telemetry.json. DEV_TEAM_TELEMETRY and a project-level "
+        ".claude/telemetry.json no longer have any effect.\n"
+    )
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as handle:
+            handle.write("1")
+    except OSError:
+        pass
+
+
+def _home_metrics_dir() -> Path:
+    """`telemetry.jsonl` and `artifact-usage.json` always live here — never
+    under a project's own `metrics/` (#1405, Slice 1 Step 1.3)."""
+    return Path.home() / ".claude" / "metrics"
+
+
 def _isoformat_utc() -> str:
     # Match bash `date -u +%Y-%m-%dT%H:%M:%SZ`.
     return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
@@ -83,43 +151,14 @@ def _load_plugin_version(hook_dir: Path) -> str:
     return "unknown"
 
 
-def _consent_enabled(cwd: Path) -> bool:
-    """Return True when telemetry is opted in for the current cwd.
-
-    Env var `DEV_TEAM_TELEMETRY=on` takes precedence; failing that, a
-    `<cwd>/.claude/telemetry.json` containing `{"enabled": true}` also
-    enables it. `{"enabled": false}` in that file only affects the
-    `artifact-usage.json` sub-emitter (see `_artifact_usage_disabled`).
-    """
-    if os.environ.get("DEV_TEAM_TELEMETRY") == "on":
-        return True
-    config = cwd / ".claude" / "telemetry.json"
-    if not config.is_file():
-        return False
-    try:
-        data = json.loads(config.read_text())
-    except (OSError, ValueError):
-        return False
-    return bool(data.get("enabled") is True)
-
-
-def _artifact_usage_disabled(cwd: Path) -> bool:
-    """Return True when telemetry.json explicitly disables usage tracking."""
-    config = cwd / ".claude" / "telemetry.json"
-    if not config.is_file():
-        return False
-    try:
-        data = json.loads(config.read_text())
-    except (OSError, ValueError):
-        return False
-    return data.get("enabled") is False
-
-
 def _emit(log: Path, event: str, name: str, outcome: str, version: str) -> None:
-    """Append one JSONL event to `log`. Fail-open on any error."""
+    """Append one JSONL event to `log`. Fail-open on any error — but per
+    AC5, a failure to create or write to `log` still produces a diagnostic
+    stderr line; it just never blocks the calling operation."""
     try:
         log.parent.mkdir(parents=True, exist_ok=True)
-    except OSError:
+    except OSError as exc:
+        sys.stderr.write(f"WARN: could not create {log.parent}: {exc}\n")
         return
     payload = {
         "ts": _isoformat_utc(),
@@ -131,19 +170,24 @@ def _emit(log: Path, event: str, name: str, outcome: str, version: str) -> None:
     try:
         with open(log, "a", encoding="utf-8") as handle:
             handle.write(json.dumps(payload, separators=(",", ":")) + "\n")
-    except OSError:
-        pass
+    except OSError as exc:
+        sys.stderr.write(f"WARN: could not write {log}: {exc}\n")
 
 
-def _upsert_artifact_usage(cwd: Path, skill: str) -> None:
-    """Atomically bump the use count for `skill` in artifact-usage.json."""
-    if _artifact_usage_disabled(cwd):
-        return
-    usage_dir = cwd / "metrics"
+def _upsert_artifact_usage(skill: str) -> None:
+    """Atomically bump the use count for `skill` in artifact-usage.json.
+
+    Always writes under the home-scoped `~/.claude/metrics/`, never a
+    project's own `metrics/` (#1405, Slice 1 Step 1.3). Callers gate this
+    on `telemetry_consent.is_enabled()` before invoking it (see `main()`)
+    — there is no separate per-writer consent check.
+    """
+    usage_dir = _home_metrics_dir()
     usage_file = usage_dir / "artifact-usage.json"
     try:
         usage_dir.mkdir(parents=True, exist_ok=True)
-    except OSError:
+    except OSError as exc:
+        sys.stderr.write(f"WARN: could not create {usage_dir}: {exc}\n")
         return
 
     existing: dict = {}
@@ -154,7 +198,7 @@ def _upsert_artifact_usage(cwd: Path, skill: str) -> None:
                 existing = {}
         except (OSError, ValueError):
             sys.stderr.write(
-                "WARN: metrics/artifact-usage.json contained malformed JSON; discarding\n"
+                "WARN: ~/.claude/metrics/artifact-usage.json contained malformed JSON; discarding\n"
             )
             existing = {}
 
@@ -172,7 +216,8 @@ def _upsert_artifact_usage(cwd: Path, skill: str) -> None:
             suffix=".json",
             dir=str(usage_dir),
         )
-    except OSError:
+    except OSError as exc:
+        sys.stderr.write(f"WARN: could not create temp file in {usage_dir}: {exc}\n")
         return
     try:
         with os.fdopen(fd, "w", encoding="utf-8") as handle:
@@ -180,7 +225,8 @@ def _upsert_artifact_usage(cwd: Path, skill: str) -> None:
             # parity harness's side-effect tree hash lines up.
             handle.write(json.dumps(existing, separators=(",", ":")) + "\n")
         os.replace(tmp_path, usage_file)
-    except OSError:
+    except OSError as exc:
+        sys.stderr.write(f"WARN: could not write {usage_file}: {exc}\n")
         try:
             os.unlink(tmp_path)
         except OSError:
@@ -204,8 +250,15 @@ def main() -> int:
     event_name = payload.get("hook_event_name") or ""
     session_id = payload.get("session_id")
 
+    # One-time-per-session notice (#1405, Slice 1 Step 1.4): unconditional,
+    # independent of telemetry_consent.is_enabled() — a user relying on the
+    # now-inert DEV_TEAM_TELEMETRY/project-config signal should hear about
+    # the move even while consent is off.
+    if _legacy_signal_present(cwd):
+        _notice_legacy_signal_once(session_id)
+
     # Boundary events (#859) are ALWAYS-ON — unlike telemetry.jsonl below,
-    # they are not gated by DEV_TEAM_TELEMETRY consent (Ambiguity Log:
+    # they are not gated by telemetry consent (Ambiguity Log:
     # safety/accountability channel must have no observability holes; no
     # free text is ever recorded, only the matched keyword).
     if event_name == "UserPromptSubmit":
@@ -222,12 +275,12 @@ def main() -> int:
                     session_id,
                 )
 
-    if not _consent_enabled(cwd):
+    if not telemetry_consent.is_enabled():
         return 0
 
     hook_dir = Path(__file__).resolve().parent
     version = _load_plugin_version(hook_dir)
-    log = cwd / "metrics" / "telemetry.jsonl"
+    log = _home_metrics_dir() / "telemetry.jsonl"
 
     if event_name == "UserPromptSubmit":
         prompt = payload.get("prompt") or ""
@@ -247,7 +300,7 @@ def main() -> int:
             skill = tool_input.get("skill") or tool_input.get("name") or ""
             if isinstance(skill, str) and _SKILL_NAME_RE.match(skill):
                 _emit(log, "skill", skill, "invoked", version)
-                _upsert_artifact_usage(cwd, skill)
+                _upsert_artifact_usage(skill)
             return 0
         if tool == "Bash":
             cmd = tool_input.get("command") or ""

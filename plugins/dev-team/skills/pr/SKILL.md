@@ -115,7 +115,7 @@ Analyze the diff against the base branch (`git diff <base>...HEAD`) and commit h
     `tsconfig.json` → type check skipped), plus `--skip-review` if passed.
   - **Untested regions**: read `baseline-coverage.json` / `coverage-history.json`
     if present; otherwise "not measured — no coverage tool detected."
-  - **Residual risks**: derived-first from `metrics/review-value.jsonl` entries
+  - **Residual risks**: derived-first from `.claude/metrics/review-value.jsonl` entries
     with `outcome: "escalated"`, gate-bypass audit lines, and negative coverage
     deltas; "None identified" only when all derived sources are empty.
   - This command assembles from its own runtime's live data — it never reads a

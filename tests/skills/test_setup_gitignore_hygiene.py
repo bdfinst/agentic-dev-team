@@ -28,7 +28,7 @@ def test_review_passed_is_appended_to_runtime_artifacts_gitignore_block():
     # Bound the match to the fenced bash block itself (MARKER= line up to
     # the closing ```), not the whole document — .review-passed also
     # appears, unrelated, in the Step 12 sample report further down.
-    block = re.search(r'MARKER="# dev-team workflow runtime artifacts".*?```', body)
+    block = re.search(r'MARKER="# dev-team workflow runtime artifacts.*?```', body)
     assert block
     assert ".review-passed" in block.group(0)
 

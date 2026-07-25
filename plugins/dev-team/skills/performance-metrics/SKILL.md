@@ -1,6 +1,6 @@
 ---
 name: performance-metrics
-description: Log task completion data to metrics/. Use at the end of every task to record tokens, cost, agents used, rework cycles, and hallucination events. Also use for periodic reporting to identify efficiency and quality trends.
+description: Log task completion data to .claude/metrics/. Use at the end of every task to record tokens, cost, agents used, rework cycles, and hallucination events. Also use for periodic reporting to identify efficiency and quality trends.
 role: worker
 user-invocable: true
 ---
@@ -9,13 +9,13 @@ user-invocable: true
 
 ## Overview
 
-Schema and procedures for capturing performance data in `metrics/`. Metrics enable evidence-based evaluation of agent effectiveness, cost efficiency, and quality outcomes.
+Schema and procedures for capturing performance data in `.claude/metrics/`. Metrics enable evidence-based evaluation of agent effectiveness, cost efficiency, and quality outcomes.
 
 ## Constraints
 
 - Never log credentials, API keys, or PII in metric entries
 - Log entries are append-only; do not modify or delete existing JSONL records
-- Log at task completion, not mid-task; mid-task state belongs in `memory/` progress files
+- Log at task completion, not mid-task; mid-task state belongs in `.claude/memory/` progress files
 - Use the defined JSONL schema; do not invent new top-level fields without updating the reference
 
 ## Metric Categories
@@ -56,15 +56,15 @@ Schema and procedures for capturing performance data in `metrics/`. Metrics enab
 
 ## Log Format
 
-Metrics are stored in `metrics/` as JSONL files (one JSON object per line).
+Metrics are stored in `.claude/metrics/` as JSONL files (one JSON object per line).
 
 ### File Naming
 
 ```
-metrics/{date}-task-log.jsonl
+.claude/metrics/{date}-task-log.jsonl
 ```
 
-Example: `metrics/2026-02-20-task-log.jsonl`
+Example: `.claude/metrics/2026-02-20-task-log.jsonl`
 
 ### Task Completion Entry
 
@@ -120,7 +120,7 @@ Logged at the end of each task:
 
 The `Stop`/`SubagentStop` hook (`hooks/cost_meter.py` →
 `hooks/lib/cost_meter.py record`) appends one entry per fire to
-`metrics/cost-metering.jsonl` — the running per-session token/cost summary
+`.claude/metrics/cost-metering.jsonl` — the running per-session token/cost summary
 parsed from the transcript. Full schema reference:
 `knowledge/telemetry-schema.md`.
 
@@ -154,7 +154,7 @@ because the harness records no signal for them). Disable with
 ### Review Value Entry (#348)
 
 `/build` appends one entry per **inline review checkpoint** to
-`metrics/review-value.jsonl` so the pipeline's review overhead becomes
+`.claude/metrics/review-value.jsonl` so the pipeline's review overhead becomes
 *measurable* — distinguishing a build where review caught and fixed a real defect
 from one where every loop passed no-op. This is the sensor that lets the plan/step
 tiering (the `/plan` plan-tier and `/build` per-step complexity routing) be
@@ -242,15 +242,15 @@ and that gate is a correctness control, not a metrics-collection nicety.
 | Event | Action |
 | --- | --- |
 | Task completed | Logged automatically by `hooks/task_completion_metrics.py` (no manual step needed) |
-| `/build` inline review checkpoint | Append a Review Value entry to `metrics/review-value.jsonl` (#348) |
+| `/build` inline review checkpoint | Append a Review Value entry to `.claude/metrics/review-value.jsonl` (#348) |
 | `/build` slice with a runtime surface | Append a Verify Log entry to `metrics/verify-log.jsonl` (#727) |
-| Configuration change | Add `config_change` to `.claude/session-metrics.json`; hook writes `metrics/config-changelog.jsonl` |
+| Configuration change | Add `config_change` to `.claude/session-metrics.json`; hook writes `.claude/metrics/config-changelog.jsonl` |
 | Hallucination detected | Set `hallucination_detected: true` in `.claude/session-metrics.json` |
 | Context summarization triggered | Increment counter in current task entry |
 
 ## Output
 
-JSONL log entries written to `metrics/` and/or a summary report of metric trends. Be concise — report anomalies and trend signals; omit entries within normal range.
+JSONL log entries written to `.claude/metrics/` and/or a summary report of metric trends. Be concise — report anomalies and trend signals; omit entries within normal range.
 
 ## Reporting
 
@@ -260,4 +260,4 @@ Periodically review metrics to identify patterns:
 2. **Monthly**: Aggregate cost metrics and LLM routing distribution
 3. **Per-project**: Compare first-pass acceptance rate across task types
 
-Summaries can be written to `metrics/reports/` for historical reference.
+Summaries can be written to `.dev-team-reports/` for historical reference.

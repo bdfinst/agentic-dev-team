@@ -44,7 +44,7 @@ def test_record_appends_one_compact_jsonl_line(tmp_path: Path) -> None:
     iteration_journal_gate.record_iteration_entry(
         tmp_path, "round-1", "ran tests", "green", "next issue"
     )
-    log = tmp_path / "metrics" / "iteration-journal.jsonl"
+    log = tmp_path / ".claude" / "metrics" / "iteration-journal.jsonl"
     assert log.is_file()
     raw = log.read_text(encoding="utf-8")
     lines = raw.splitlines()
@@ -61,17 +61,17 @@ def test_record_appends_one_compact_jsonl_line(tmp_path: Path) -> None:
 
 
 def test_record_creates_metrics_dir_when_absent(tmp_path: Path) -> None:
-    assert not (tmp_path / "metrics").exists()
+    assert not (tmp_path / ".claude" / "metrics").exists()
     iteration_journal_gate.record_iteration_entry(
         tmp_path, "round-1", "a", "b", "c"
     )
-    assert (tmp_path / "metrics").is_dir()
+    assert (tmp_path / ".claude" / "metrics").is_dir()
 
 
 def test_record_appends_not_overwrites_across_two_calls(tmp_path: Path) -> None:
     iteration_journal_gate.record_iteration_entry(tmp_path, "round-1", "a", "b", "c")
     iteration_journal_gate.record_iteration_entry(tmp_path, "round-2", "d", "e", "f")
-    entries = _read_jsonl(tmp_path / "metrics" / "iteration-journal.jsonl")
+    entries = _read_jsonl(tmp_path / ".claude" / "metrics" / "iteration-journal.jsonl")
     assert len(entries) == 2
     assert entries[0]["round_id"] == "round-1"
     assert entries[1]["round_id"] == "round-2"
@@ -81,13 +81,13 @@ def test_record_includes_session_id_when_given(tmp_path: Path) -> None:
     iteration_journal_gate.record_iteration_entry(
         tmp_path, "round-1", "a", "b", "c", session_id="sess-1"
     )
-    entry = _read_jsonl(tmp_path / "metrics" / "iteration-journal.jsonl")[0]
+    entry = _read_jsonl(tmp_path / ".claude" / "metrics" / "iteration-journal.jsonl")[0]
     assert entry["session_id"] == "sess-1"
 
 
 def test_record_omits_session_id_when_absent(tmp_path: Path) -> None:
     iteration_journal_gate.record_iteration_entry(tmp_path, "round-1", "a", "b", "c")
-    entry = _read_jsonl(tmp_path / "metrics" / "iteration-journal.jsonl")[0]
+    entry = _read_jsonl(tmp_path / ".claude" / "metrics" / "iteration-journal.jsonl")[0]
     assert "session_id" not in entry
 
 
@@ -109,7 +109,7 @@ def test_record_fails_open_on_arbitrary_exception(tmp_path: Path, monkeypatch) -
     monkeypatch.setattr(iteration_journal_gate, "_isoformat_utc", _boom)
     # Must not raise.
     iteration_journal_gate.record_iteration_entry(tmp_path, "round-1", "a", "b", "c")
-    assert not (tmp_path / "metrics" / "iteration-journal.jsonl").exists()
+    assert not (tmp_path / ".claude" / "metrics" / "iteration-journal.jsonl").exists()
 
 
 # ---------------------------------------------------------------------------
@@ -165,7 +165,7 @@ def test_cli_check_blocks_and_emits_boundary_event(tmp_path: Path) -> None:
     assert result.returncode == 1
     payload = json.loads(result.stdout)
     assert payload["allowed"] is False
-    events = _read_jsonl(tmp_path / "metrics" / "boundary-events.jsonl")
+    events = _read_jsonl(tmp_path / ".claude" / "metrics" / "boundary-events.jsonl")
     assert len(events) == 1
     assert events[0]["hook"] == "iteration_journal_gate"
     assert events[0]["tool"] == "Skill"
@@ -211,4 +211,4 @@ def test_cli_record_then_check_allows(tmp_path: Path) -> None:
     assert result.returncode == 0
     payload = json.loads(result.stdout)
     assert payload["allowed"] is True
-    assert not (tmp_path / "metrics" / "boundary-events.jsonl").exists()
+    assert not (tmp_path / ".claude" / "metrics" / "boundary-events.jsonl").exists()

@@ -43,7 +43,7 @@ def _read_jsonl(path: Path) -> list:
 
 def test_emit_appends_one_compact_jsonl_line(tmp_path: Path) -> None:
     workflow_state.emit_state_transition(tmp_path, "ship", None, "SPEC")
-    log = tmp_path / "metrics" / "workflow-states.jsonl"
+    log = tmp_path / ".claude" / "metrics" / "workflow-states.jsonl"
     assert log.is_file()
     raw = log.read_text(encoding="utf-8")
     lines = raw.splitlines()
@@ -59,15 +59,15 @@ def test_emit_appends_one_compact_jsonl_line(tmp_path: Path) -> None:
 
 
 def test_emit_creates_metrics_dir_when_absent(tmp_path: Path) -> None:
-    assert not (tmp_path / "metrics").exists()
+    assert not (tmp_path / ".claude" / "metrics").exists()
     workflow_state.emit_state_transition(tmp_path, "build", "SPEC", "PLAN")
-    assert (tmp_path / "metrics").is_dir()
+    assert (tmp_path / ".claude" / "metrics").is_dir()
 
 
 def test_emit_appends_not_overwrites_across_two_calls(tmp_path: Path) -> None:
     workflow_state.emit_state_transition(tmp_path, "ship", None, "SPEC")
     workflow_state.emit_state_transition(tmp_path, "ship", "SPEC", "PLAN")
-    events = _read_jsonl(tmp_path / "metrics" / "workflow-states.jsonl")
+    events = _read_jsonl(tmp_path / ".claude" / "metrics" / "workflow-states.jsonl")
     assert len(events) == 2
     assert events[0]["new_state"] == "SPEC"
     assert events[1]["new_state"] == "PLAN"
@@ -75,13 +75,13 @@ def test_emit_appends_not_overwrites_across_two_calls(tmp_path: Path) -> None:
 
 def test_emit_includes_session_id_when_given(tmp_path: Path) -> None:
     workflow_state.emit_state_transition(tmp_path, "ship", None, "SPEC", "sess-1")
-    event = _read_jsonl(tmp_path / "metrics" / "workflow-states.jsonl")[0]
+    event = _read_jsonl(tmp_path / ".claude" / "metrics" / "workflow-states.jsonl")[0]
     assert event["session_id"] == "sess-1"
 
 
 def test_emit_omits_session_id_when_absent(tmp_path: Path) -> None:
     workflow_state.emit_state_transition(tmp_path, "ship", None, "SPEC")
-    event = _read_jsonl(tmp_path / "metrics" / "workflow-states.jsonl")[0]
+    event = _read_jsonl(tmp_path / ".claude" / "metrics" / "workflow-states.jsonl")[0]
     assert "session_id" not in event
 
 

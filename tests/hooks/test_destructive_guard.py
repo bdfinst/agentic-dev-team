@@ -28,10 +28,10 @@ from _repo_root import REPO_ROOT as _REPO_ROOT
 _HOOK_PY = _REPO_ROOT / "plugins" / "dev-team" / "hooks" / "destructive_guard.py"
 _CAREFUL_STATE = _REPO_ROOT / "plugins" / "dev-team" / "hooks" / "careful-state.json"
 
-# Boundary events (#859) resolve metrics/ from payload["cwd"] (falling back
-# to the process's actual OS cwd when absent) — isolate every subprocess run
-# to a scratch dir so tests never write metrics/boundary-events.jsonl into
-# the real repo checkout.
+# Boundary events (#859) resolve .claude/metrics/ from payload["cwd"]
+# (falling back to the process's actual OS cwd when absent) — isolate every
+# subprocess run to a scratch dir so tests never write
+# .claude/metrics/boundary-events.jsonl into the real repo checkout.
 _BOUNDARY_EVENTS_SCRATCH_CWD = tempfile.mkdtemp(prefix="dev-team-destructive-guard-test-")
 
 # _CAREFUL_STATE is the real, fixed path destructive_guard.py itself reads

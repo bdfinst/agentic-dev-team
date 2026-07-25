@@ -25,14 +25,13 @@ replacement — see the issue's Non-goals). This is not a general-purpose
 shell parser.
 
 Fails OPEN on any internal error, with one audit line in
-`metrics/refactor-freeze.jsonl` (hook="bash-freeze") — a broken guard must
-never block work.
+`.claude/metrics/refactor-freeze.jsonl` (hook="bash-freeze") — a broken
+guard must never block work.
 """
 
 from __future__ import annotations
 
 import json
-import os
 import re
 import sys
 from pathlib import Path
@@ -42,6 +41,7 @@ _LIB_DIR = _SCRIPT_DIR / "lib"
 if str(_LIB_DIR) not in sys.path:
     sys.path.insert(0, str(_LIB_DIR))
 
+import artifact_paths
 from boundary_events import emit_boundary_event as _emit_boundary_event
 from refactor_test_freeze_guard import audit
 from stdin_json import read_stdin_json
@@ -213,7 +213,7 @@ def evaluate(
 
 
 def main() -> int:
-    project_dir = Path(os.environ.get("CLAUDE_PROJECT_DIR") or os.getcwd())
+    project_dir = artifact_paths.project_root()
     exit_code, lines = 0, []
     try:
         payload = read_stdin_json()

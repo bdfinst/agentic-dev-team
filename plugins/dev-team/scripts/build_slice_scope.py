@@ -10,9 +10,11 @@ When engaged, `/build` calls this script at slice dispatch to write
 `hooks/freeze-state.json` (the same contract `/freeze` writes and
 `hooks/pre_tool_guard.py` already enforces) with `allowed_patterns` equal to
 the slice's declared paths **plus a fixed bookkeeping allowlist** (the plan
-file itself, `memory/**`, `metrics/**`) — without which `/build` could not
-update its own Build Progress checkboxes or `memory/build-phase.json`. At
-slice completion, `/build` calls this script again to clear the state.
+file itself, `.claude/memory/**`, `.claude/metrics/**`, and the AC3-exempt
+`metrics/verify-log.jsonl`) — without which `/build` could not update its
+own Build Progress checkboxes, `.claude/memory/build-phase.json`, or its
+own exempt verify-log entry. At slice completion, `/build` calls this
+script again to clear the state.
 
 Stdlib-only. Python 3.8+ (ADR 0014/0015).
 """
@@ -62,8 +64,15 @@ def declared_files_for_slice(plan_text: str, slice_id: str) -> list[str]:
 def bookkeeping_allowlist(plan_path: Path) -> list[str]:
     """The fixed allowlist every freeze must include so `/build` never
     self-blocks its own progress writes: the plan file itself, plus
-    `memory/**` and `metrics/**`."""
-    return [plan_path.name, "memory/**", "metrics/**"]
+    `.claude/memory/**`, `.claude/metrics/**`, and the AC3-exempt
+    `metrics/verify-log.jsonl` (deliberately not relocated under `.claude/`
+    — see docs/artifact-migration.md)."""
+    return [
+        plan_path.name,
+        ".claude/memory/**",
+        ".claude/metrics/**",
+        "metrics/verify-log.jsonl",
+    ]
 
 
 def build_allowed_patterns(plan_path: Path, plan_text: str, slice_id: str) -> list[str]:

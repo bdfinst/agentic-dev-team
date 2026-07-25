@@ -6,7 +6,7 @@ description: >-
   Jira). Dispatches by parent URL host to the tracker's own CLI (`az boards`,
   `gh`, `glab`, `acli`). When no parent URL is given, or when the required
   CLI is not installed, falls back to local plan files under
-  `./plans/<workflow>/` after informing the operator. Multi-workflow: called
+  `.claude/plans/<workflow>/` after informing the operator. Multi-workflow: called
   by `/test-improve` (Phase 4), via its own
   `--workflow` namespace so memory paths and tracker labels never collide.
 argument-hint: "<assessment-path> [--parent <issue-url>] [--repo-slug <slug>] [--workflow <name>] [--refactor-mode <no-refactor|refactor-allowed>] [--dry-run]"
@@ -26,8 +26,8 @@ Arguments: $ARGUMENTS
 
 - Positional: `<assessment-path>` — the file `/cd-test-architecture` wrote (`reports/cd-test-architecture-<app>.md`).
 - `--parent <issue-url>` — parent issue / Feature / Epic URL. Empty or omitted → local-files mode.
-- `--repo-slug <slug>` — slug used for the `memory/<workflow>/<slug>/` namespace. Defaults to the assessment file's `<app>` token.
-- `--workflow <name>` — the workflow namespace under `memory/` and `plans/`, and the leading tracker-label token. Defaults to `test-improve`. Callers pass their own namespace so parallel runs stay quarantined.
+- `--repo-slug <slug>` — slug used for the `.claude/memory/<workflow>/<slug>/` namespace. Defaults to the assessment file's `<app>` token.
+- `--workflow <name>` — the workflow namespace under `.claude/memory/` and `.claude/plans/`, and the leading tracker-label token. Defaults to `test-improve`. Callers pass their own namespace so parallel runs stay quarantined.
 - `--refactor-mode <no-refactor|refactor-allowed>` — optional; the caller's Phase-0 refactor choice. Defaults to `refactor-allowed` (unchanged behavior) when omitted. When `no-refactor`, the Phase-5 `[Refactor-for-testability]` work is emitted as **out-of-scope / skipped-in-no-refactor** plan entries — informational context only, **never actionable Stories** — so the written plan shows the coverage/behavior left on the table without offering refactor work this run will not do.
 - `--dry-run` — print the preview list and exit without creating anything.
 
@@ -54,10 +54,10 @@ Parse the `--parent` URL host. Pick the CLI and probe it:
 ```
 gh is not installed. Run `/project-init` to set up this repo's tooling, or install
 gh directly from https://cli.github.com/ and run `gh auth login`.
-Falling back to local-files mode — Stories will be written to ./plans/<workflow>/.
+Falling back to local-files mode — Stories will be written to .claude/plans/<workflow>/.
 ```
 
-Record the resolved sink in `memory/<workflow>/<slug>/phase-1.md` so subsequent workers (`/coverage-baseline`, `/coverage-delta`, `/quality-targets-converge`) reuse the same dispatch decision.
+Record the resolved sink in `.claude/memory/<workflow>/<slug>/phase-1.md` so subsequent workers (`/coverage-baseline`, `/coverage-delta`, `/quality-targets-converge`) reuse the same dispatch decision.
 
 ### 2. Read the assessment + derive children
 
@@ -93,7 +93,7 @@ Do not call any tracker CLI or write any plan files until the operator answers `
 If `--parent <url>` was provided, the parent already exists — capture its ID/number from the URL. Otherwise (local-files mode), create the parent **file**:
 
 ```
-./plans/<workflow>/FEATURE.md
+.claude/plans/<workflow>/FEATURE.md
 ```
 
 Contents: the assessment summary (components table, target pre-merge gate, link to the MinimumCD component-test page), plus a placeholder block for running metric snapshots that `/coverage-baseline`, `/coverage-delta`, and `/quality-targets-converge` will append to.
@@ -162,9 +162,9 @@ acli jira workitem create --type Story --summary "<title>" \
 # Parent + `is blocked by` links via `acli jira workitem link`.
 ```
 
-Record the **child-slug → tracker-id** map as you go (in `memory/<workflow>/<slug>/issue-map.json`).
+Record the **child-slug → tracker-id** map as you go (in `.claude/memory/<workflow>/<slug>/issue-map.json`).
 
-**Local-files mode.** Write one `./plans/<workflow>/phase-<n>/<child-slug>.md` per child. The file's body holds the same fields the tracker would (Phase, Depends On, Acceptance Criteria, Architectural Context, Testing Approach). Cross-Story predecessor links use **relative paths** (e.g. `Blocked by: ../phase-4/baseline-orders-api.md`). A `Status:` line at the top defaults to `Open` and gets flipped to `Done: <date>` by `/coverage-delta` and `/quality-targets-converge` when the matching gate passes.
+**Local-files mode.** Write one `.claude/plans/<workflow>/phase-<n>/<child-slug>.md` per child. The file's body holds the same fields the tracker would (Phase, Depends On, Acceptance Criteria, Architectural Context, Testing Approach). Cross-Story predecessor links use **relative paths** (e.g. `Blocked by: ../phase-4/baseline-orders-api.md`). A `Status:` line at the top defaults to `Open` and gets flipped to `Done: <date>` by `/coverage-delta` and `/quality-targets-converge` when the matching gate passes.
 
 **Partial-failure safety.** If any CLI call (or file write) fails partway, do **not** abort silently. Report:
 
@@ -187,7 +187,7 @@ For local-files mode, the `Blocked by:` lines were written in Step 5 — no back
 
 ### 7. Persist phase-1 progress
 
-Write `memory/<workflow>/<slug>/phase-1.md` with:
+Write `.claude/memory/<workflow>/<slug>/phase-1.md` with:
 
 - Resolved sink (CLI + parent URL or `local-files`).
 - Phase counts per phase tag.
@@ -199,15 +199,15 @@ Write `memory/<workflow>/<slug>/phase-1.md` with:
 
 Print:
 
-- Parent: `<URL>` or `./plans/<workflow>/FEATURE.md`.
+- Parent: `<URL>` or `.claude/plans/<workflow>/FEATURE.md`.
 - N children created across Phases 1, 2, 4, 5 (Phase-3 Stories are created by `/test-audit-disable` + `/coverage-baseline` later).
 - Any partial-failure messages from Step 5.
-- The path to `memory/<workflow>/<slug>/phase-1.md` for `/continue`.
+- The path to `.claude/memory/<workflow>/<slug>/phase-1.md` for `/continue`.
 
 ## Examples / Integration
 
-- `/test-improve` invokes this worker with `--workflow test-improve` from its Phase 4; paths resolve under `memory/test-improve/<slug>/` and labels lead with `test-improve`.
-- `/test-improve` invokes this worker with `--workflow test-improve`; paths resolve under `memory/test-improve/<slug>/` and labels lead with `test-improve`, keeping a mixed board unambiguous when both workflows are active.
+- `/test-improve` invokes this worker with `--workflow test-improve` from its Phase 4; paths resolve under `.claude/memory/test-improve/<slug>/` and labels lead with `test-improve`.
+- `/test-improve` invokes this worker with `--workflow test-improve`; paths resolve under `.claude/memory/test-improve/<slug>/` and labels lead with `test-improve`, keeping a mixed board unambiguous when both workflows are active.
 
 ## Notes
 

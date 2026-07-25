@@ -62,7 +62,13 @@ def test_build_allowed_patterns_includes_bookkeeping_allowlist(tmp_path):
     plan_path = tmp_path / "myplan.md"
     text = "### Slice 1: alpha\n**Depends-on:** none\n**Files:** `a.ts`\n"
     patterns = build_slice_scope.build_allowed_patterns(plan_path, text, "1")
-    assert patterns == ["a.ts", "myplan.md", "memory/**", "metrics/**"]
+    assert patterns == [
+        "a.ts",
+        "myplan.md",
+        ".claude/memory/**",
+        ".claude/metrics/**",
+        "metrics/verify-log.jsonl",
+    ]
 
 
 # ---------------------------------------------------------------------------
@@ -120,8 +126,11 @@ def test_engaged_freeze_blocks_writes_outside_declared_scope(tmp_path):
     )
     assert exit_code == 0
 
-    # Bookkeeping allowlist entries are honored too.
+    # Bookkeeping allowlist entries are honored too — the .claude/-nested
+    # form; the old bare memory/** pattern no longer matches anything real.
     exit_code, lines = pre_tool_guard.evaluate(
-        "memory/build-phase.json", hooks_dir / "guards.json", hooks_dir / "freeze-state.json"
+        ".claude/memory/build-phase.json",
+        hooks_dir / "guards.json",
+        hooks_dir / "freeze-state.json",
     )
     assert exit_code == 0

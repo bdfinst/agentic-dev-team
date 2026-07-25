@@ -4,14 +4,14 @@
 Stop / SubagentStop hook (issue #102). PostToolUse hooks carry no token
 usage, so this fires when a turn finishes, reads `transcript_path` from the
 hook payload, and records a per-session cost summary (tokens + dollars, by
-agent) to `metrics/cost-metering.jsonl` via
+agent) to `.claude/metrics/cost-metering.jsonl` via
 `hooks/lib/cost_meter.py record`.
 
 Token→cost conversion uses `knowledge/model-pricing.json`.
 
 Contract (docs/python-hook-contract.md):
     Input : Stop / SubagentStop JSON on stdin
-    Output: writes metrics/cost-metering.jsonl; no stdout. Exit 0.
+    Output: writes .claude/metrics/cost-metering.jsonl; no stdout. Exit 0.
     Posture: record-only and fail-open. Any error → exit 0 silently.
     Opt-out: DEV_TEAM_COST_METER=off disables.
 
@@ -39,6 +39,12 @@ from pathlib import Path
 
 _HOOK_DIR = Path(__file__).resolve().parent
 _COST_METER_LIB = _HOOK_DIR / "lib" / "cost_meter.py"
+_LIB_DIR = _HOOK_DIR / "lib"
+if str(_LIB_DIR) not in sys.path:
+    sys.path.insert(0, str(_LIB_DIR))
+
+import artifact_paths
+import telemetry_consent
 
 
 def _read_stdin() -> str:
@@ -61,6 +67,8 @@ def _load_input(raw: str) -> dict:
 def main() -> int:
     # Opt-out short-circuit — matches the .sh's env-first check.
     if os.environ.get("DEV_TEAM_COST_METER") == "off":
+        return 0
+    if not telemetry_consent.is_enabled():
         return 0
 
     # Both jq and python3 must be present. The .sh checks both; the .py
@@ -88,7 +96,7 @@ def main() -> int:
     else:
         cwd = os.getcwd()
 
-    log_path = Path(cwd) / "metrics" / "cost-metering.jsonl"
+    log_path = artifact_paths.resolve_file("metrics", "cost-metering.jsonl", cwd)
 
     # Fire-and-forget: the .sh discards stdout/stderr and always exits 0.
     try:

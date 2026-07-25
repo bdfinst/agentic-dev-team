@@ -90,7 +90,7 @@ cost of a false-trivial (wrong route, rework) is higher than the cost of a false
 
 ## Decision log entry
 
-After classifying, append to `memory/decisions.md`:
+After classifying, append to `.claude/memory/decisions.md`:
 
 ```
 **ID**: DEC-<date>-SIZE

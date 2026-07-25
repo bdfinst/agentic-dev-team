@@ -12,7 +12,7 @@ for the operational run procedure see [`eval-running-guide.md`](eval-running-gui
 | Expectations | `evals/expected/*.json` | The **contract**: what a correct verdict looks like per fixture/agent. |
 | Grader | `scripts/eval_grade.py` | Deterministic, model-free: compares recorded actuals to expectations. |
 | Variance | `scripts/eval_variance.py` | Aggregates K trials → pass@k, flap rate, quarantine. |
-| Trend | `metrics/eval-variance.jsonl` | Append-only stability history (metrics only). |
+| Trend | `.claude/metrics/eval-variance.jsonl` | Append-only stability history (metrics only). |
 | Semver contract | `scripts/eval_semver_classify.sh` | The eval corpus IS the version contract (#101). |
 | CI gates | `.github/workflows/agent-eval.yml` | Structural check always; live regression when keyed. |
 
@@ -75,7 +75,7 @@ classifier names.
 ### Watching stability over time
 
 - Run per-agent variance batches periodically (see the running guide). The trend
-  in `metrics/eval-variance.jsonl` accumulates pass@k and flap rate.
+  in `.claude/metrics/eval-variance.jsonl` accumulates pass@k and flap rate.
 - **Flaky pairs** (0 < pass@k < 1) go on the quarantine list — they inform the
   #99 gate but must not hard-block it. A persistently flaky fixture is either
   borderline (tighten it) or genuinely non-deterministic for that agent.

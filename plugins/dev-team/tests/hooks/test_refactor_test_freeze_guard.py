@@ -30,13 +30,13 @@ def _write_state(tmp_path: Path, phase: str = "refactor", **overrides) -> None:
         "test_files_staged": [],
     }
     state.update(overrides)
-    path = tmp_path / "memory" / "build-phase.json"
+    path = tmp_path / ".claude" / "memory" / "build-phase.json"
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(state))
 
 
 def _audit_events(tmp_path: Path):
-    path = tmp_path / "metrics" / "refactor-freeze.jsonl"
+    path = tmp_path / ".claude" / "metrics" / "refactor-freeze.jsonl"
     if not path.is_file():
         return []
     return [json.loads(line) for line in path.read_text().splitlines() if line]
@@ -96,7 +96,7 @@ def test_stale_refactor_state_does_not_linger(tmp_path):
 
 
 def test_malformed_state_fails_open_with_an_audit_line(tmp_path):
-    path = tmp_path / "memory" / "build-phase.json"
+    path = tmp_path / ".claude" / "memory" / "build-phase.json"
     path.parent.mkdir(parents=True)
     path.write_text("{not json")
     code, lines = guard.evaluate("src/thing.test.ts", tmp_path, now=_NOW)
@@ -112,7 +112,7 @@ def test_empty_file_path_passes_silently(tmp_path):
 
 def test_main_fails_open_on_internal_error(tmp_path, monkeypatch, capsys):
     """A crash inside the guard never blocks the tool call."""
-    monkeypatch.setenv("CLAUDE_PROJECT_DIR", str(tmp_path))
+    monkeypatch.chdir(tmp_path)
     monkeypatch.setattr(
         guard, "read_stdin_json", lambda: (_ for _ in ()).throw(RuntimeError("boom"))
     )
@@ -129,7 +129,7 @@ def test_main_blocks_via_stdin_payload(tmp_path, monkeypatch, capsys):
 
     now_iso = datetime.datetime.now(datetime.timezone.utc).isoformat()
     _write_state(tmp_path, written_at=now_iso)
-    monkeypatch.setenv("CLAUDE_PROJECT_DIR", str(tmp_path))
+    monkeypatch.chdir(tmp_path)
     monkeypatch.setattr(
         guard,
         "read_stdin_json",
@@ -137,3 +137,17 @@ def test_main_blocks_via_stdin_payload(tmp_path, monkeypatch, capsys):
     )
     assert guard.main() == 2
     assert "[BLOCK]" in capsys.readouterr().out
+
+
+def test_project_dir_ignores_stale_claude_project_dir_env_var(
+    tmp_path, monkeypatch
+) -> None:
+    """CLAUDE_PROJECT_DIR is no longer read at all — a stale/unset value must
+    never override git-root resolution."""
+    stale = tmp_path / "stale-elsewhere"
+    stale.mkdir()
+    monkeypatch.setenv("CLAUDE_PROJECT_DIR", str(stale))
+    monkeypatch.chdir(tmp_path)
+    assert guard._project_dir() == tmp_path
+    monkeypatch.delenv("CLAUDE_PROJECT_DIR")
+    assert guard._project_dir() == tmp_path

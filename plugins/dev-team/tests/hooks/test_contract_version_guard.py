@@ -188,6 +188,14 @@ def _run_hook_from(
         target_boundary_events.write_bytes(
             (_HOOKS_DIR / "lib" / "boundary_events.py").read_bytes()
         )
+    # boundary_events.py imports artifact_paths (Slice 5, Step 5.3) — its
+    # sibling module must be copied alongside it or the subprocess's import
+    # fails with ModuleNotFoundError.
+    target_artifact_paths = target_lib / "artifact_paths.py"
+    if not target_artifact_paths.exists():
+        target_artifact_paths.write_bytes(
+            (_HOOKS_DIR / "lib" / "artifact_paths.py").read_bytes()
+        )
     # The plugin manifest path is resolved relative to hooks/lib/, i.e.
     # hooks/../.claude-plugin/plugin.json — create a minimal one so
     # emit_boundary_event's version lookup doesn't hit a missing-file path

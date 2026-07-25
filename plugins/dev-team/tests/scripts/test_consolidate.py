@@ -108,7 +108,7 @@ def test_overall_status_reflects_highest_severity():
 
 
 def test_main_reports_malformed_artifact_not_silently_dropped(tmp_path, capsys):
-    raw = tmp_path / "DEV_TEAM_REPORTS" / "code-review" / "raw"
+    raw = tmp_path / ".dev-team-reports" / "code-review" / "raw"
     raw.mkdir(parents=True)
     (raw / "section-0001.json").write_text(json.dumps(_section("0001", [_f("a", 1, "warning", "x")])))
     (raw / "section-0002.json").write_text("{ this is not valid json")
@@ -123,7 +123,7 @@ def test_main_reports_malformed_artifact_not_silently_dropped(tmp_path, capsys):
 
 
 def test_main_treats_wrong_shape_json_as_malformed(tmp_path, capsys):
-    raw = tmp_path / "DEV_TEAM_REPORTS" / "code-review" / "raw"
+    raw = tmp_path / ".dev-team-reports" / "code-review" / "raw"
     raw.mkdir(parents=True)
     (raw / "section-0001.json").write_text(json.dumps(_section("0001", [])))
     # Valid JSON, wrong shape (a list) — must be reported, not crash consolidate().

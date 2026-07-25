@@ -109,7 +109,7 @@ def test_iso_utc_timestamp_z_suffix() -> None:
 def test_log_bypass_audit_writes_hashed_jsonl(tmp_path: Path) -> None:
     cwd = tmp_path
     gate.log_bypass_audit("dotnet stryker --whole-scope", str(cwd))
-    audit = cwd / "metrics" / "gate-bypass.jsonl"
+    audit = cwd / ".claude" / "metrics" / "gate-bypass.jsonl"
     assert audit.is_file()
     lines = audit.read_text().splitlines()
     assert len(lines) == 1
@@ -275,7 +275,7 @@ def test_main_escape_hatch_bypasses_and_audits(tmp_path: Path, monkeypatch) -> N
     rc, out = _run_main(monkeypatch, payload, {"MUTATION_SMOKE_GATE_SKIP": "1"})
     assert rc == 0
     assert out == ""
-    audit = tmp_path / "metrics" / "gate-bypass.jsonl"
+    audit = tmp_path / ".claude" / "metrics" / "gate-bypass.jsonl"
     assert audit.is_file()
 
 

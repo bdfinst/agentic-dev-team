@@ -17,7 +17,7 @@ Role: orchestrator. Mines ground-truth session transcripts and routes
 suggestions into existing machinery — it **suggests, never auto-applies**, and
 preserves every human gate.
 
-Every `metrics/*.jsonl`/`.json` schema referenced below (including
+Every `.claude/metrics/*.jsonl`/`.json` schema referenced below (including
 `pending-review.jsonl` and the boundary-level `boundary-events.jsonl` block/
 warn/bypass/intervention causes, #859) is documented in full at
 `${CLAUDE_PLUGIN_ROOT}/knowledge/telemetry-schema.md` — read it before
@@ -42,7 +42,7 @@ You have been invoked with the `/session-review` command.
 
 - `--cwd <path>`: project whose transcripts to mine (default: current project).
 - `--transcript <file>`: analyze a specific transcript instead of auto-resolving.
-- `--out <report>`: report path (default: `reports/session-review-<date>.md`).
+- `--out <report>`: report path (default: `.dev-team-reports/session-review-<date>.md`).
 
 ## Steps
 
@@ -51,7 +51,7 @@ You have been invoked with the `/session-review` command.
 Before running fresh analysis, check whether background analysis has produced
 findings that are waiting for review.
 
-1. Check `metrics/pending-review.jsonl` for entries where `reviewed_at` is absent.
+1. Check `.claude/metrics/pending-review.jsonl` for entries where `reviewed_at` is absent.
    Count them and note their `queued_at` timestamps.
 2. If one or more unreviewed entries exist, display a **Queued Findings** section:
 
@@ -66,7 +66,7 @@ findings that are waiting for review.
    Then offer: *"Run `/feedback-learning` to approve or reject each queued finding
    before proceeding with fresh analysis."*
 
-3. If `metrics/pending-review.jsonl` does not exist, or all entries have
+3. If `.claude/metrics/pending-review.jsonl` does not exist, or all entries have
    `reviewed_at`, skip this section silently and proceed.
 4. If any JSONL lines are malformed, skip those lines, emit a one-line warning
    (`WARN: skipped N malformed line(s) in pending-review.jsonl`), and continue
@@ -232,7 +232,7 @@ then you read only those few raw logs. This tier needs the cross-machine digests
 
 ### 4. Suggest (write the report)
 
-Write `reports/session-review-<date>.md` (or `--out`). Rank the suggestions and,
+Write `.dev-team-reports/session-review-<date>.md` (or `--out`). Rank the suggestions and,
 for each, record: the tag (`{token|rework|accuracy}` from the digest, or a Tier-2
 lens `{methodology|harness|devex}`), the evidence (metrics only), the concrete
 target artifact, the proposed change, and the hand-off destination from the table

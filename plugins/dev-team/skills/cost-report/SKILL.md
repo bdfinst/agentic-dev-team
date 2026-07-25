@@ -30,23 +30,28 @@ data.
    python3 ${CLAUDE_PLUGIN_ROOT}/hooks/lib/cost_meter.py report --transcript <path>
    ```
 
-   Otherwise show the most recently recorded session from the metrics log:
+   Otherwise show the most recently recorded session from the metrics log
+   (prefer the migrated `.claude/metrics/` location, falling back to the
+   legacy bare `metrics/` path for a project mid-transition):
 
    ```bash
-   tail -n 1 metrics/cost-metering.jsonl | python3 -m json.tool
+   log=".claude/metrics/cost-metering.jsonl"; [ -f "$log" ] || log="metrics/cost-metering.jsonl"
+   tail -n 1 "$log" | python3 -m json.tool
    ```
 
 2. **Regression check.** Compare the latest session's total cost against the
    rolling mean of prior sessions (default tolerance +50%):
 
    ```bash
+   log=".claude/metrics/cost-metering.jsonl"; [ -f "$log" ] || log="metrics/cost-metering.jsonl"
    python3 ${CLAUDE_PLUGIN_ROOT}/hooks/lib/cost_meter.py regression \
-     --log metrics/cost-metering.jsonl --tolerance 0.5
+     --log "$log" --tolerance 0.5
    ```
 
 3. Report the per-model, per-thread (main/subagent), and per-agent-type tokens
    + cost, the session total, and whether a cost regression was detected. Do
-   not invent numbers — print exactly what the meter emits. If `metrics/cost-metering.jsonl`
+   not invent numbers — print exactly what the meter emits. If
+   `.claude/metrics/cost-metering.jsonl` (or the legacy `metrics/cost-metering.jsonl`)
    is absent, tell the user the meter hasn't recorded a session yet (the hook
    records on turn end).
 
@@ -54,8 +59,9 @@ data.
    sessions instead of all-time), pass `--window N`:
 
    ```bash
+   log=".claude/metrics/cost-metering.jsonl"; [ -f "$log" ] || log="metrics/cost-metering.jsonl"
    python3 ${CLAUDE_PLUGIN_ROOT}/hooks/lib/cost_meter.py regression \
-     --log metrics/cost-metering.jsonl --tolerance 0.5 --window 10
+     --log "$log" --tolerance 0.5 --window 10
    ```
 
 ## Attribution dimensions (#102, #170, #1094)
@@ -94,7 +100,8 @@ checkpoints that **found+fixed** a defect vs. those that **passed no-op**, with
 the fix-loop iterations spent:
 
 ```bash
-[ -f metrics/review-value.jsonl ] && jq -s '
+log=".claude/metrics/review-value.jsonl"; [ -f "$log" ] || log="metrics/review-value.jsonl"
+[ -f "$log" ] && jq -s '
   {checkpoints: length,
    no_op:    (map(select(.outcome=="no-op"))    | length),
    fixed:    (map(select(.outcome=="fixed"))     | length),
@@ -102,7 +109,7 @@ the fix-loop iterations spent:
    issues_found: (map(.issues_found) | add // 0),
    issues_fixed: (map(.issues_fixed) | add // 0),
    fix_iterations: (map(.fix_iterations) | add // 0)}' \
-  metrics/review-value.jsonl
+  "$log"
 ```
 
 A run that is mostly `no_op` is evidence the review ceremony is over-provisioned
@@ -123,8 +130,9 @@ metrics-only artifact by construction.
    period — flagging when pace would exhaust a stated budget:
 
    ```bash
+   log=".claude/metrics/cost-metering.jsonl"; [ -f "$log" ] || log="metrics/cost-metering.jsonl"
    python3 ${CLAUDE_PLUGIN_ROOT}/hooks/lib/cost_meter.py pace \
-     --log metrics/cost-metering.jsonl --budget 100 --period-days 30 --window-days 7
+     --log "$log" --budget 100 --period-days 30 --window-days 7
    ```
 
    Without `--budget` it reports pace only (no flag). When it flags an

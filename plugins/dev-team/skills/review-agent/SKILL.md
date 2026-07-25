@@ -54,11 +54,11 @@ Optional:
 - `--since <ref>`: Review files changed since a git ref
 - `--path <dir>`: Target directory (default: current working directory)
 - `--internal`: This is an orchestrator-internal dispatch (e.g. `/build`'s
-  Phase 3 inline checkpoints) — skip the `DEV_TEAM_REPORTS/` report write in
+  Phase 3 inline checkpoints) — skip the `.dev-team-reports/` report write in
   step 4b. `/build` is the only sanctioned caller of this flag today.
 - `--json`: Machine-readable mode. Emit **only** the step-3 JSON result to
   stdout and nothing else — skip the formatted summary (step 4), skip the
-  `DEV_TEAM_REPORTS/` report write (step 4b), and print no confirmation line,
+  `.dev-team-reports/` report write (step 4b), and print no confirmation line,
   preamble, or trailing prose. Used by subprocess callers such as
   `/agent-eval --calibrate` that parse stdout and need a deterministic,
   model-independent result. See step 3c.
@@ -110,7 +110,7 @@ Before reporting, consult `ACCEPTED-RISKS.md` at the repo root if present. For e
 When `--json` is passed, your **entire stdout response MUST be exactly one
 JSON object** matching the step-3 schema — nothing before it, nothing after
 it. Do **not** render the formatted summary (step 4), do **not** write the
-`DEV_TEAM_REPORTS/` report (step 4b), do **not** print a `Report written:`
+`.dev-team-reports/` report (step 4b), do **not** print a `Report written:`
 line, do **not** wrap the object in a code fence, and do **not** add any
 prose, preamble, or trailing commentary. ACCEPTED-RISKS suppression (step 3b)
 still applies — emit the post-suppression result. This mode exists so that
@@ -131,14 +131,14 @@ See `knowledge/report-output-location.md` for the shared write-scope
 convention this step follows.
 
 When neither `--internal` nor `--json` was passed, write the same formatted
-summary shown in step 4 to `DEV_TEAM_REPORTS/<agent-name>.md` in the target repository's
-working directory (creating `DEV_TEAM_REPORTS/` if absent), overwriting any
+summary shown in step 4 to `.dev-team-reports/<agent-name>.md` in the target repository's
+working directory (creating `.dev-team-reports/` if absent), overwriting any
 existing file at that path — write it even when the review found zero
 issues. Print one confirmation line after the chat summary: `Report
-written: DEV_TEAM_REPORTS/<agent-name>.md`, or `Report written:
-DEV_TEAM_REPORTS/<agent-name>.md (replaced previous run)` when a file
+written: .dev-team-reports/<agent-name>.md`, or `Report written:
+.dev-team-reports/<agent-name>.md (replaced previous run)` when a file
 already existed at that path. If the write fails (permission/read-only):
-report `Cannot write DEV_TEAM_REPORTS/<agent-name>.md: <error>` to chat, and
+report `Cannot write .dev-team-reports/<agent-name>.md: <error>` to chat, and
 still return the JSON result and chat summary unchanged — the write failure
 is non-fatal and never blocks or alters the primary output.
 

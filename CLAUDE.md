@@ -30,7 +30,7 @@ plugins/dev-team/          # The plugin source
 docs/                              # Cross-plugin dev documentation (roadmaps, spikes)
 plans/                             # Transient working plans — deleted after implementation
 evals/                             # Agent eval fixtures (not shipped)
-reports/                           # Review reports (not shipped)
+reports/                           # Legacy review reports (not shipped, pre-.dev-team-reports/) — new reports land in .dev-team-reports/
 ```
 
 Two guides explain how the marketplace works:

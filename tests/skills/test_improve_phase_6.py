@@ -45,7 +45,7 @@ def test_phase_6_y_advances_to_phase_7():
 
 def test_phase_6_b_writes_refactor_backlog_md_and_skips_to_phase_8():
     s = _phase_6_section()
-    assert grep(r"memory/test-improve/<slug>/refactor-backlog\.md", s)
+    assert grep(r"\.dev-team-reports/test-improve/<slug>/refactor-backlog\.md", s)
     assert grep(
         r"\[b\].*(Phase[[:space:]]+8|skip)|skip.*Phase[[:space:]]+8.*\[b\]",
         s,

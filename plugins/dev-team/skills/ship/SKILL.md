@@ -63,7 +63,7 @@ Map phases to canonical states: Spec→`SPEC`, Plan→`PLAN`, Build→`BUILD`,
 Review→`REVIEW`, PR→`PR` (an extra `COMMIT` transition is optional — most
 commits happen inside `/build`). Omit `--prior-state` only for the very first
 transition of a run. This is a model-authored, fail-open append (same
-convention as `metrics/review-value.jsonl`) — never let it block a phase.
+convention as `.claude/metrics/review-value.jsonl`) — never let it block a phase.
 
 ## Iteration journal gate (#1168)
 
@@ -179,7 +179,7 @@ findings that need human judgment.
 
 This dispatch deliberately omits `--internal`: `/ship` is a top-level,
 human-typed command, and this Review phase is its pipeline's human-facing
-quality gate, so `/code-review` writing its usual `DEV_TEAM_REPORTS/code-review.md`
+quality gate, so `/code-review` writing its usual `.dev-team-reports/code-review.md`
 report here is intentional — see `knowledge/report-output-location.md`'s
 "Report exception: /ship" section, not an unfixed oversight.
 
