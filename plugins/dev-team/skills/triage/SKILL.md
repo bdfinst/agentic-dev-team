@@ -2,7 +2,7 @@
 name: triage
 description: >-
   Investigate a bug, find its root cause, and write a portable triage record to
-  DEV_TEAM_REPORTS/triage/<slug>.md with a TDD fix plan. Use when the user
+  .dev-team-reports/triage/<slug>.md with a TDD fix plan. Use when the user
   reports a bug and wants it triaged, says "triage this", "investigate and
   write it up", or wants a hands-off bug investigation that produces an
   actionable record.
@@ -16,7 +16,7 @@ allowed-tools: Read, Glob, Grep, Bash, Write, Agent
 Role: worker.
 
 Investigate a bug hands-off, find root cause, and write a TDD fix plan to a
-portable triage record at `DEV_TEAM_REPORTS/triage/<slug>.md` — no
+portable triage record at `.dev-team-reports/triage/<slug>.md` — no
 issue-tracker dependency.
 
 ## Worker constraints
@@ -103,19 +103,19 @@ missing or hand-waved evidence statement means `unconfirmed`, not `confirmed`.
 7. Strip leading/trailing hyphens.
 8. If the result is empty, fall back to `triage-YYYYMMDD` (today's UTC date).
 
-**Resolve collisions:** if `DEV_TEAM_REPORTS/triage/<slug>.md` exists, append
+**Resolve collisions:** if `.dev-team-reports/triage/<slug>.md` exists, append
 `-2`, `-3`, … up to `-99` until a free name is found. **Never overwrite** an
 existing record.
 
 **Write the file:** (see `knowledge/report-output-location.md` for the
-shared `DEV_TEAM_REPORTS/` convention this follows)
+shared `.dev-team-reports/` convention this follows)
 
 ```bash
-mkdir -p DEV_TEAM_REPORTS/triage/
+mkdir -p .dev-team-reports/triage/
 ```
 
-If `DEV_TEAM_REPORTS/triage/` cannot be created or written (permission/read-only):
-report `Cannot write DEV_TEAM_REPORTS/triage/<slug>.md: <error>`, write the
+If `.dev-team-reports/triage/` cannot be created or written (permission/read-only):
+report `Cannot write .dev-team-reports/triage/<slug>.md: <error>`, write the
 same content to a temp file (`tmp/triage-<slug>.md` or `$TMPDIR`), and print
 the full record content to chat so nothing is lost.
 
@@ -125,7 +125,7 @@ sibling PDF per `knowledge/report-pdf-integration.md` (additive; non-fatal if
 no engine):
 
 ```bash
-sh "$CLAUDE_PLUGIN_ROOT/hooks/py.sh" "$CLAUDE_PLUGIN_ROOT/hooks/lib/report_pdf.py" DEV_TEAM_REPORTS/triage/<resolved-slug>.md
+sh "$CLAUDE_PLUGIN_ROOT/hooks/py.sh" "$CLAUDE_PLUGIN_ROOT/hooks/lib/report_pdf.py" .dev-team-reports/triage/<resolved-slug>.md
 ```
 
 The record is YAML frontmatter followed by four sections. Three outcomes are
@@ -205,7 +205,7 @@ Root cause not determined — manual investigation required
 
 Print exactly two lines:
 
-1. `triage-record: DEV_TEAM_REPORTS/triage/<resolved-slug>.md` (the actual resolved path)
+1. `triage-record: .dev-team-reports/triage/<resolved-slug>.md` (the actual resolved path)
 2. A root-cause summary of at most 120 characters.
 
 Do not repeat the full record body in chat.

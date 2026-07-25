@@ -25,6 +25,10 @@ CODE_REVIEW_OUTPUT_FORMAT = (
     PLUGIN_ROOT / "skills" / "code-review" / "output-format.md"
 ).read_text(encoding="utf-8")
 
+TRIAGE_SKILL = (
+    PLUGIN_ROOT / "skills" / "triage" / "SKILL.md"
+).read_text(encoding="utf-8")
+
 
 def test_report_output_location_has_no_legacy_dev_team_reports_references():
     assert "DEV_TEAM_REPORTS" not in REPORT_OUTPUT_LOCATION, (
@@ -65,4 +69,18 @@ def test_code_review_skill_and_output_format_write_to_consolidated_location():
     assert ".dev-team-reports/code-review" in CODE_REVIEW_OUTPUT_FORMAT, (
         "code-review/output-format.md must describe the sliced-mode ledger "
         "under .dev-team-reports/code-review/"
+    )
+
+
+def test_triage_skill_writes_to_consolidated_location_with_collision_suffix_intact():
+    assert "DEV_TEAM_REPORTS" not in TRIAGE_SKILL, (
+        "triage/SKILL.md must not reference the legacy bare DEV_TEAM_REPORTS/ "
+        "path"
+    )
+    assert ".dev-team-reports/triage/<slug>.md" in TRIAGE_SKILL, (
+        "triage/SKILL.md must target .dev-team-reports/triage/<slug>.md"
+    )
+    assert "-2`, `-3`, … up to `-99`" in TRIAGE_SKILL, (
+        "triage/SKILL.md's collision-suffix behavior must remain unchanged "
+        "in substance"
     )
