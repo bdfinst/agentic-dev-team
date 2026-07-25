@@ -33,7 +33,7 @@ When processing a feedback keyword, determine the right destination:
 | Project convention or preference | **Project `CLAUDE.md`** (`.claude/CLAUDE.md` or repo-root `CLAUDE.md`) | Loaded every session, applies to all agents |
 | Review context (domain knowledge, known issues, team norms) | **`REVIEW-CONTEXT.md`** in project root | Read by `/code-review` and passed to every review agent |
 | Agent behavior override for this project | **Project `CLAUDE.md`** under a `## Agent Overrides` section | Overrides plugin defaults without editing plugin files |
-| Cross-session memory (decisions, project state) | **`memory/`** files | Persists across context resets |
+| Cross-session memory (decisions, project state) | **`.claude/memory/`** files | Persists across context resets |
 | Rollback a previous change | Reverse the edit in whichever file it was written to | Logged as `type: "rollback"` |
 
 ### What NOT to do
@@ -217,7 +217,7 @@ lessons accumulate on the strength of the approval that admitted them alone.
   "minimum 10 logged review runs" floor).
 
 **Unmeasurable case** — when no digest metric can plausibly reflect the
-lesson's effect (most prose `memory/` notes land here), write the literal
+lesson's effect (most prose `.claude/memory/` notes land here), write the literal
 string instead of an object:
 
 ```json
@@ -230,7 +230,7 @@ reduce rework, so this is the default rather than refusing to log the
 lesson. Authors can still explicitly set a different metric, direction, or
 `"unmeasurable"`.
 
-**Prose lessons (`memory/` notes) are in scope.** The `evidence` field
+**Prose lessons (`.claude/memory/` notes) are in scope.** The `evidence` field
 attaches at this changelog layer regardless of which resolution-order
 destination the lesson was written to; a memory-note lesson typically carries
 `"unmeasurable"`. Anything not logged to `.claude/metrics/config-changelog.jsonl`
@@ -355,7 +355,7 @@ When a pattern is detected (minimum 3 occurrences), propose the change with rati
 
 ## Pending-Review Queue Disposition
 
-When `/session-review` surfaces entries from `metrics/pending-review.jsonl`, this
+When `/session-review` surfaces entries from `.claude/metrics/pending-review.jsonl`, this
 skill handles the approve or reject decision for each finding.
 
 ### Matching
@@ -369,14 +369,14 @@ content entries safely).
 2. Append to `.claude/metrics/config-changelog.jsonl` as usual.
 3. Write `reviewed_at` (ISO-8601 UTC) and `approved_by` (the user identifier from
    `approved_by` in the existing audit schema) back into the matching entry in
-   `metrics/pending-review.jsonl`.
+   `.claude/metrics/pending-review.jsonl`.
 
 ### Rejection path
 
 1. Do **not** apply the proposed change.
 2. Do **not** write to `.claude/metrics/config-changelog.jsonl`.
 3. Write `rejected_at` (ISO-8601 UTC) and `rejected_by` (same format as
-   `approved_by`) into the matching entry in `metrics/pending-review.jsonl`.
+   `approved_by`) into the matching entry in `.claude/metrics/pending-review.jsonl`.
 
 ### Queue entry schema (reference)
 

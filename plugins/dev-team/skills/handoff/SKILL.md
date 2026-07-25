@@ -58,7 +58,7 @@ Apply in order to all context older than the last 3-5 turns, in both modes:
 
 ## Redaction
 
-Before writing any output in either mode, redact secrets, API keys, tokens, and PII from the content. Fork-mode output leaves the repo-adjacent trust boundary (an OS temp dir another session reads), so redaction is mandatory there. Continue-mode output stays under `memory/` inside the repo, but apply the same redaction pass for consistency — a secret that shouldn't be in conversation history shouldn't be in a committed-adjacent file either.
+Before writing any output in either mode, redact secrets, API keys, tokens, and PII from the content. Fork-mode output leaves the repo-adjacent trust boundary (an OS temp dir another session reads), so redaction is mandatory there. Continue-mode output stays under `.claude/memory/` inside the repo, but apply the same redaction pass for consistency — a secret that shouldn't be in conversation history shouldn't be in a committed-adjacent file either.
 
 ## Continue Mode
 
@@ -77,7 +77,7 @@ windows):
 | < 1x | No action — below the ceiling |
 | 1x – 1.25x | Nudge: consider running `/handoff` |
 | 1.25x – 1.5x | Run `/handoff` now |
-| 1.5x+ | Full summary to `memory/`, start a new conversation |
+| 1.5x+ | Full summary to `.claude/memory/`, start a new conversation |
 
 **Measuring utilization**: `utilization = (input + cache_read + cache_creation) / model_context_window` — the same formula `hooks/context_ceiling_guard.py` reads from the transcript's most recent assistant-message usage. The window is auto-detected from the session; the guard's effective ceiling is `min(ceiling_pct% of window, 150K tokens)`, so the trigger point stays conservative even on very large windows. Fallback signals: turn count > 40, many file reads accumulated, degraded output quality.
 
@@ -85,7 +85,7 @@ windows):
 
 ### Writing Summaries
 
-- **Destination**: `memory/{date}-{task-slug}.md`
+- **Destination**: `.claude/memory/{date}-{task-slug}.md`
 - **Scope**: full relevant history for the task
 - **Requires**: nothing extra — the task is already known
 
@@ -97,14 +97,14 @@ Each phase produces a progress file that onboards the next phase's agent without
 
 ### Using Summaries in New Conversations
 
-1. Read the most recent summary from `memory/`
+1. Read the most recent summary from `.claude/memory/`
 2. Load only **Key Context for Continuation** into active context
 3. Load referenced files on demand, not upfront
 4. Do NOT reload full conversation history -- the summary replaces it
 
 ### Cleanup (Time-Based)
 
-1. Archive summaries older than 30 days to `memory/archive/`
+1. Archive summaries older than 30 days to `.claude/memory/archive/`
 2. Delete archived summaries older than 90 days
 3. Consolidate multiple summaries for the same task into one
 
@@ -118,7 +118,7 @@ Fork mode always needs a one-line purpose describing the side-task. If the user 
 
 ### Writing the Fork Artifact
 
-- **Destination**: the OS temp dir (e.g. `$TMPDIR` or the platform default), never `memory/` — the artifact is disposable and not part of the repo's durable history
+- **Destination**: the OS temp dir (e.g. `$TMPDIR` or the platform default), never `.claude/memory/` — the artifact is disposable and not part of the repo's durable history
 - **Scope**: just the slice of context relevant to the stated purpose, not the full session history
 - **Naming**: `{tmpdir}/handoff-{purpose-slug}-{date}.md`
 

@@ -41,7 +41,7 @@ The helper builds each dispatch to leak as little parent state as possible:
 - **Fresh session id.** A new `uuid.uuid4()` is passed as `--session-id <uuid>`,
   so the nested run cannot reuse the parent `session_id`. This is the key fix.
 - **Clean HOME + config.** A throwaway temp `HOME` and `CLAUDE_CONFIG_DIR` — no
-  shared config, `memory/`, or telemetry state carries over.
+  shared config, `.claude/memory/`, or telemetry state carries over.
 - **Scrubbed env.** Inherited `CLAUDE_*` session/Remote identity vars (e.g.
   `CLAUDE_SESSION_ID`, `CLAUDE_CODE_SESSION_ID`, `CLAUDE_CODE_ENTRYPOINT`,
   `CLAUDE_CODE_REMOTE`) are removed, then `IS_SANDBOX=1` and

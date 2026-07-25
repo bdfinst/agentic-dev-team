@@ -287,6 +287,6 @@ consecutive runs produce identical grades.
 
 `/session-review` appends one metrics-only record per run to the append-only
 trend stream `metrics/session-digest.jsonl`, the real-session counterpart to the
-self-reported `metrics/*-task-log.jsonl` streams. The `session-digest/v1` record
+self-reported `.claude/metrics/*-task-log.jsonl` streams. The `session-digest/v1` record
 schema and the `/harness-audit` join are documented canonically in
 [`session-review.md`](session-review.md#trend-persistence-129).

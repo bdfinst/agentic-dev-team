@@ -173,7 +173,7 @@ captured just before invoking `/ship` in Step 3c, then run the classifier:
 
 ```bash
 python3 ${CLAUDE_PLUGIN_ROOT}/hooks/lib/classify_ship_outcome.py \
-  --review-value metrics/review-value.jsonl \
+  --review-value .claude/metrics/review-value.jsonl \
   --verify-log   metrics/verify-log.jsonl \
   --since        <start_iso>
 ```
@@ -211,12 +211,12 @@ always allows advancement. Skip both calls in `--dry-run` mode.
 
 ### 3f — Append round record
 
-Append one entry per issue to `metrics/autoship-log.jsonl` using the log
+Append one entry per issue to `.claude/metrics/autoship-log.jsonl` using the log
 library:
 
 ```bash
 python3 ${CLAUDE_PLUGIN_ROOT}/hooks/lib/autoship_log.py \
-  --log-path metrics/autoship-log.jsonl \
+  --log-path .claude/metrics/autoship-log.jsonl \
   --json '{"round_id":"<round_id>","issue":<number>,"status":"<status>","blocked_reason":"<reason_or_null>"}'
 ```
 
@@ -252,7 +252,7 @@ Status words used in the table and the log:
 - `blocked` — `requires-stakeholder-input` detected in `/ship` output
 - `skipped` — cost cap reached before this issue started
 
-The round summary is also written to `metrics/autoship-log.jsonl` as a final
+The round summary is also written to `.claude/metrics/autoship-log.jsonl` as a final
 `round_summary` record (not written in dry-run mode):
 
 ```json

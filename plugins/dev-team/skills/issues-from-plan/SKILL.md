@@ -28,7 +28,7 @@ Break an implementation plan into GitHub issues that can be worked independently
 If a path is provided in arguments, read that file. Otherwise, look for the most recent plan in:
 
 - Active plan in conversation context
-- `memory/` directory (phase progress files)
+- `.claude/memory/` directory (phase progress files)
 - `plans/` directory
 
 Arguments: $ARGUMENTS

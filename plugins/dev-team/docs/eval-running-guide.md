@@ -109,7 +109,7 @@ Per agent, per fixture, per trial:
 
    ```bash
    python3 scripts/eval_variance.py --trials-dir <dir-of-trial-actuals> \
-     --expected-dir evals/expected --append metrics/eval-variance.jsonl
+     --expected-dir evals/expected --append .claude/metrics/eval-variance.jsonl
    ```
 
 ## Batch for budget — per agent, highest-recall first

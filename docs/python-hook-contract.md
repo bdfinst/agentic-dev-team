@@ -85,9 +85,11 @@ The bash hooks use a four-tier convention that Claude Code understands:
 Hooks MAY read the following environment variables. They are set by
 Claude Code or by the plugin's own settings.json:
 
-- `CLAUDE_PROJECT_DIR` — absolute path to the project root. Prefer this
-  over `os.getcwd()` when writing to plugin-owned side-effect trees
-  (`.claude/`, `memory/`, `reports/`, `metrics/`, `.telemetry/`).
+- `CLAUDE_PROJECT_DIR` — absolute path to the project root. Prefer
+  `artifact_paths.project_root()` (git-root resolution, with `CLAUDE_PROJECT_DIR`/
+  `os.getcwd()` as its own fallback chain) when writing to plugin-owned
+  side-effect trees (`.claude/memory/`, `.claude/metrics/`, `.claude/plans/`,
+  `.dev-team-reports/`, `.telemetry/`).
 - `CLAUDE_TOOL_NAME` — name of the tool being invoked (`Bash`, `Edit`, …).
 - `CLAUDE_SESSION_ID` — current session UUID (also on stdin, but this env
   var is set for hooks that don't parse stdin).

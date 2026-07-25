@@ -6,7 +6,7 @@ This file holds the implementation detail of Step 2b so the SKILL.md stays a thi
 
 ## Baseline-of-record per file
 
-For each file in `--story-files`, the baseline is the most recent entry in `memory/<workflow>/<slug>/mutation-history.json` for that file (with `<workflow>` resolved from the calling orchestrator's `--workflow` value — e.g. `test-improve`). Lookup procedure:
+For each file in `--story-files`, the baseline is the most recent entry in `.claude/memory/<workflow>/<slug>/mutation-history.json` for that file (with `<workflow>` resolved from the calling orchestrator's `--workflow` value — e.g. `test-improve`). Lookup procedure:
 
 1. Read `mutation-history.json` (if absent, every file is `first_measurement`).
 2. For each file `F`, filter entries where `entry.file == F`; pick the entry with the largest `captured_at` (ISO-8601 lexicographic sort).
@@ -37,7 +37,7 @@ After computing `survivors_after`, classify each file:
 `mutation-history.json` is written via temp-file-then-rename to keep parallel `/coverage-delta` writes from interleaving:
 
 ```bash
-HISTORY="memory/<workflow>/<slug>/mutation-history.json"
+HISTORY=".claude/memory/<workflow>/<slug>/mutation-history.json"
 TMP="$(mktemp "${HISTORY}.XXXXXX")"
 jq '. + [$new]' --argjson new "$NEW_ENTRY" "$HISTORY" > "$TMP" && mv -f "$TMP" "$HISTORY"
 ```

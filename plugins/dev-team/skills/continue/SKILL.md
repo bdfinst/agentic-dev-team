@@ -1,8 +1,8 @@
 ---
 name: continue
 description: >-
-  Resume work from a prior session by reading phase progress files in memory/
-  and active plans. Use this when starting a new session on in-progress work,
+  Resume work from a prior session by reading phase progress files in
+  .claude/memory/ and active plans. Use this when starting a new session on in-progress work,
   or when the user says "continue", "pick up where I left off", "resume",
   or "what was I working on".
 argument-hint: ""
@@ -20,7 +20,7 @@ You have been invoked with the `/continue` command.
 
 ## Orchestrator constraints
 
-1. Resume from memory/ progress files; do not restart completed phases.
+1. Resume from .claude/memory/ progress files; do not restart completed phases.
 2. Summarize prior state; do not replay full history.
 3. **Be concise.** Report where work resumes, no narration.
 
@@ -28,11 +28,11 @@ You have been invoked with the `/continue` command.
 
 ### 1. Scan for in-progress work
 
-Find phase progress files with `Glob("memory/*.md")` — never `Read` the bare `memory/` directory to see what it contains (`${CLAUDE_PLUGIN_ROOT}/knowledge/directory-enumeration.md`). These follow the pattern:
+Find phase progress files with `Glob(".claude/memory/*.md")` — never `Read` the bare `.claude/memory/` directory to see what it contains (`${CLAUDE_PLUGIN_ROOT}/knowledge/directory-enumeration.md`). These follow the pattern:
 
-- `memory/research-progress-*.md` — Research phase output
-- `memory/plan-progress-*.md` — Plan phase output
-- `memory/implementation-progress-*.md` — Implementation phase output
+- `.claude/memory/research-progress-*.md` — Research phase output
+- `.claude/memory/plan-progress-*.md` — Plan phase output
+- `.claude/memory/implementation-progress-*.md` — Implementation phase output
 - `.claude/memory/decisions.md` — Accumulated decision log
 
 Also check (same rule — `Glob`, not a directory `Read`):

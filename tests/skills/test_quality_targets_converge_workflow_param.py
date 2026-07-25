@@ -79,7 +79,7 @@ def test_skill_memory_paths_reference_memory_workflow():
 
 
 def test_skill_plan_paths_reference_plans_workflow_phase_7():
-    assert grep(r"\./plans/<workflow>/phase-7/", _text())
+    assert grep(r"\.claude/plans/<workflow>/phase-7/", _text())
 
 
 # --- test-improve example -----------------------------------------------------

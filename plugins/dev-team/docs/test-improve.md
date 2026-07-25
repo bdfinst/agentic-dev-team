@@ -21,7 +21,7 @@ fits the wider agent architecture see
 ## Phases
 
 Each phase writes a progress file to
-`memory/test-improve/<slug>/phase-<n>.md` so `/continue` (and `--from-phase`)
+`.claude/memory/test-improve/<slug>/phase-<n>.md` so `/continue` (and `--from-phase`)
 can resume.
 
 - **Phase 0 — Approach contract.** Batched prompt (Enter accepts all
@@ -76,13 +76,13 @@ can resume.
   and the Phase 5/7 review loops — the context-heaviest boundaries.
 - **Phase 9 — Executive-summary report.** Interpolates the shipped
   [`templates/executive-summary.md`](../skills/test-improve/templates/executive-summary.md)
-  from `memory/test-improve/<slug>/` files to
-  `reports/test-improve/<repo-slug>-<date>.md`. 10 numbered sections;
+  from `.claude/memory/test-improve/<slug>/` files to
+  `.dev-team-reports/test-improve/<repo-slug>-<date>.md`. 10 numbered sections;
   empty sections render "Not applicable" (never omitted). § 1 includes a
   "Tests by type" table (Baseline/Achieved/Δ per MinimumCD type). § 7
   foregrounds a seam-needed/behavior-gained/estimated-risk table sourced
   from `refactor-backlog.md`. Parent tracker (or
-  `plans/test-improve/FEATURE.md`) is updated with a link to the report.
+  `.claude/plans/test-improve/FEATURE.md`) is updated with a link to the report.
   Report is regeneratable from memory. After Phase 9, if
   `refactor-backlog.md` has entries and Phase 8's re-run prompt never fired
   this run, a close-out `[y/n]` prompt asks whether to re-run with
@@ -97,9 +97,9 @@ can resume.
 | `<repo-path>` | Positional. Path to the repository to improve (required). |
 | `--parent <url>` | Post progress and Stories to this tracker issue URL instead of local plan files. |
 | `--analyze-only` | Run Phase 0–1 only; skip improvement phases. |
-| `--from-phase <n>` | Resume from phase `n` (requires existing `memory/test-improve/<slug>/` files). |
+| `--from-phase <n>` | Resume from phase `n` (requires existing `.claude/memory/test-improve/<slug>/` files). |
 | `--stack <id>` | Override auto-detected stack identifier (e.g. `go`, `python`, `java`). |
 
-`/continue` resumes any phase from `memory/test-improve/<slug>/phase-<n>.md`;
+`/continue` resumes any phase from `.claude/memory/test-improve/<slug>/phase-<n>.md`;
 `--from-phase <n>` does the same explicitly and never re-prompts Phase 0.
 `--analyze-only` runs Phase 0 + Phase 1 and exits before baseline capture.

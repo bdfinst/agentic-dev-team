@@ -5,7 +5,7 @@ description: >-
   tests that cannot fail — no assertions, assertions on constants, expect-true,
   swallowed exceptions, self-equality — and disables each one by skip-and-tag
   (never deletes). Records each disabled test plus its reason in a JSON log
-  under `memory/<workflow>/<slug>/` so a later phase can repair them. Pairs with
+  under `.claude/memory/<workflow>/<slug>/` so a later phase can repair them. Pairs with
   `/coverage-baseline` to produce a true baseline coverage number.
 argument-hint: "<repo-path> [--repo-slug <slug>] [--dry-run]"
 user-invocable: true
@@ -23,7 +23,7 @@ You have been invoked with the `/test-audit-disable` command.
 Arguments: $ARGUMENTS
 
 - Positional: `<repo-path>` — the repo under modernization.
-- `--repo-slug <slug>` — namespace under `memory/<workflow>/`. Defaults to the last path segment.
+- `--repo-slug <slug>` — namespace under `.claude/memory/<workflow>/`. Defaults to the last path segment.
 - `--dry-run` — print the cannot-fail list and exit without disabling.
 
 ## Steps
@@ -111,8 +111,8 @@ For each finding, use `Edit` to insert the framework's skip helper at the matchi
 
 Write:
 
-- `memory/<workflow>/<slug>/disabled-tests.json` — the array from Step 3, augmented with the disabling tag inserted at each site.
-- `memory/<workflow>/<slug>/phase-3-audit.md` — counts by reason, framework, file. Lists any test files the worker could not parse (call out as "needs hand-audit").
+- `.claude/memory/<workflow>/<slug>/disabled-tests.json` — the array from Step 3, augmented with the disabling tag inserted at each site.
+- `.claude/memory/<workflow>/<slug>/phase-3-audit.md` — counts by reason, framework, file. Lists any test files the worker could not parse (call out as "needs hand-audit").
 
 The orchestrator's Phase-3 progress file is owned by `/coverage-baseline`, which runs immediately after this worker.
 
@@ -127,6 +127,6 @@ Print:
 
 ## Notes
 
-- The disabled tag carries the reason and the "repair in Phase 4" hint so the operator can see the audit history in source control, not only in `memory/`.
+- The disabled tag carries the reason and the "repair in Phase 4" hint so the operator can see the audit history in source control, not only in `.claude/memory/`.
 - Test-file detection follows framework conventions; configurable extensions / patterns can be added later, but the defaults cover the matrix above.
 - Tests that pass for the wrong reason but DO assert (e.g. brittle snapshot tests, over-mocked tests with no real-behavior assertion) are out of scope here — those land in Phase 5 `[Re-scope]` Stories, not the cannot-fail audit.

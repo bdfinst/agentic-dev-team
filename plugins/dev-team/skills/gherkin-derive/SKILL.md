@@ -32,7 +32,7 @@ or as the Phase-3 sub-step of `/test-improve`.
 - `--mode <none|xunit-with-annotations|bdd-runner>` — the binding mode. When
   omitted, present the BDD value rubric (Step 1) and let the operator choose.
 - `--repo-slug <slug>` — namespace for the surface inventory under
-  `memory/<workflow>/<slug>/` (`/test-improve` passes `--workflow test-improve`).
+  `.claude/memory/<workflow>/<slug>/` (`/test-improve` passes `--workflow test-improve`).
 
 ## Step 1 — Choose the binding mode (BDD value rubric)
 
@@ -174,7 +174,7 @@ that pass silently.
 
 - `features/<surface>.feature` files (all non-`none` modes).
 - `step_definitions/<surface>_steps.<ext>` pending stubs (`bdd-runner` only).
-- A surface inventory at `memory/<workflow>/<slug>/gherkin.md` listing each
+- A surface inventory at `.claude/memory/<workflow>/<slug>/gherkin.md` listing each
   discovered surface, its discovery source, provenance, mode, and the files
   written. `/test-improve` reads this at Phase 4 (plan fixes) and Phase 5
   (build) to bind tests to the derived scenarios.

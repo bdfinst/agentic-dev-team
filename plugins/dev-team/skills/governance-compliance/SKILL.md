@@ -14,7 +14,7 @@ Requirements and procedures for audit logging, multi-layer quality assurance, an
 ## Constraints
 
 - The audit changelog is append-only; never modify or delete existing entries
-- Never log credentials, API keys, or PII in `metrics/` or `memory/` files
+- Never log credentials, API keys, or PII in `.claude/metrics/` or `.claude/memory/` files
 - All agent decisions must be explainable on request — no black-box outputs
 - Ethical concerns are never auto-resolved; always escalate to the human
 
@@ -24,11 +24,11 @@ Requirements and procedures for audit logging, multi-layer quality assurance, an
 
 | Event | Log Location | Retention |
 | --- | --- | --- |
-| Task start/completion | `metrics/{date}-task-log.jsonl` | 90 days |
+| Task start/completion | `.claude/metrics/{date}-task-log.jsonl` | 90 days |
 | Configuration change | `.claude/metrics/config-changelog.jsonl` | Indefinite |
 | Human approval/override | `.claude/metrics/config-changelog.jsonl` — `proposed`/`evidence_shown`/`risks_surfaced` required (schema: [human-oversight-protocol § Audit trail](../human-oversight-protocol/SKILL.md#audit-trail)) | Indefinite |
 | Hallucination detection | Task log entry (`hallucination_detected` flag) | 90 days |
-| Context summarization | `memory/{date}-{task-slug}.md` | 90 days (30 active + 60 archive) |
+| Context summarization | `.claude/memory/{date}-{task-slug}.md` | 90 days (30 active + 60 archive) |
 
 ### Audit Trail Principles
 
@@ -119,7 +119,7 @@ No task output is delivered until it passes applicable quality gates:
 
 | Data Type | Rule |
 | --- | --- |
-| Credentials, API keys | Never log, never store in memory/ or metrics/ |
+| Credentials, API keys | Never log, never store in .claude/memory/ or .claude/metrics/ |
 | PII (names, emails, etc.) | Do not include in metrics entries or summaries |
 | Business-sensitive data | Minimize in summaries; use references to source files instead |
 | Source code | May be included in summaries when relevant to task continuity |
@@ -134,7 +134,7 @@ No task output is delivered until it passes applicable quality gates:
 
 ## Output
 
-Compliance checklist results (pass/fail per item) and/or new audit log entries written to `metrics/`. Be concise — report failures and entries written; omit passing items.
+Compliance checklist results (pass/fail per item) and/or new audit log entries written to `.claude/metrics/`. Be concise — report failures and entries written; omit passing items.
 
 ## Compliance Checklist
 
@@ -144,7 +144,7 @@ For periodic review (monthly recommended):
 - [ ] No gaps in the config changelog
 - [ ] Gate-record completeness: `approval`/`override` entries from this period carry `proposed`/`evidence_shown`/`risks_surfaced` (pre-schema entries are exempt, not counted as gaps)
 - [ ] Memory summaries exist for long-running tasks
-- [ ] No sensitive data present in metrics/ or memory/ files
+- [ ] No sensitive data present in .claude/metrics/ or .claude/memory/ files
 - [ ] Hallucination rate reviewed qualitatively (no sensor yet — see CLAUDE.md "Claims discipline")
 - [ ] Rework rate trend is stable or improving
 - [ ] All human overrides have been reviewed for systemic issues

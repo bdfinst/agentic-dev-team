@@ -641,7 +641,7 @@
       "anchor": "assembly-is-per-command-not-handed-off"
     },
     "Boundaries": {
-      "summary": "Does not persist to `metrics/` or `memory/` — every underlying datum already",
+      "summary": "Does not persist to `.claude/metrics/` or `.claude/memory/` — every underlying datum already",
       "anchor": "boundaries"
     }
   },
@@ -1211,8 +1211,12 @@
       "anchor": "versioning-lifecycle"
     },
     "Changelog": {
-      "summary": "Additive schema release.",
+      "summary": "Clarification only — no schema or field changes.",
       "anchor": "changelog"
+    },
+    "1.3.1 (2026-07-25)": {
+      "summary": "Clarification only — no schema or field changes.",
+      "anchor": "131-2026-07-25"
     },
     "1.3.0 (2026-04-24)": {
       "summary": "Additive schema release.",
@@ -2049,7 +2053,7 @@
       "anchor": "3e1-hard-block-iteration-journal-gate-1168"
     },
     "3f — Append round record": {
-      "summary": "Append one entry per issue to `metrics/autoship-log.jsonl` using the log",
+      "summary": "Append one entry per issue to `.claude/metrics/autoship-log.jsonl` using the log",
       "anchor": "3f-append-round-record"
     },
     "Step 4 — Round summary": {
@@ -2723,11 +2727,11 @@
       "anchor": "orchestrator-constraints"
     },
     "Steps": {
-      "summary": "Find phase progress files with `Glob(\"memory/*.md\")` — never `Read` the bare `memory/` directory to see what it contains (`${CLAUDE_PLUGIN_ROOT}/knowledge/directory-enumeration.md`).",
+      "summary": "Find phase progress files with `Glob(\".claude/memory/*.md\")` — never `Read` the bare `.claude/memory/` directory to see what it contains (`${CLAUDE_PLUGIN_ROOT}/knowledge/directory-enumeration.md`).",
       "anchor": "steps"
     },
     "1. Scan for in-progress work": {
-      "summary": "Find phase progress files with `Glob(\"memory/*.md\")` — never `Read` the bare `memory/` directory to see what it contains (`${CLAUDE_PLUGIN_ROOT}/knowledge/directory-enumeration.md`).",
+      "summary": "Find phase progress files with `Glob(\".claude/memory/*.md\")` — never `Read` the bare `.claude/memory/` directory to see what it contains (`${CLAUDE_PLUGIN_ROOT}/knowledge/directory-enumeration.md`).",
       "anchor": "1-scan-for-in-progress-work"
     },
     "2. Check git state": {
@@ -2791,7 +2795,7 @@
       "anchor": "3-parse-line-branch-percentages"
     },
     "4. Persist the baseline": {
-      "summary": "Write `memory/<workflow>/<slug>/baseline-coverage.json`:",
+      "summary": "Write `.claude/memory/<workflow>/<slug>/baseline-coverage.json`:",
       "anchor": "4-persist-the-baseline"
     },
     "5. Post to the parent": {
@@ -2813,11 +2817,11 @@
       "anchor": "parse-arguments"
     },
     "Steps": {
-      "summary": "Read `memory/<workflow>/<slug>/baseline-coverage.json`.",
+      "summary": "Read `.claude/memory/<workflow>/<slug>/baseline-coverage.json`.",
       "anchor": "steps"
     },
     "1. Load the baseline": {
-      "summary": "Read `memory/<workflow>/<slug>/baseline-coverage.json`.",
+      "summary": "Read `.claude/memory/<workflow>/<slug>/baseline-coverage.json`.",
       "anchor": "1-load-the-baseline"
     },
     "2. Re-run coverage": {
@@ -2833,7 +2837,7 @@
       "anchor": "3-parse-compute-the-delta"
     },
     "4. Post the snapshot": {
-      "summary": "Append a markdown row to the parent's `## Metrics history` section (tracker mode) or to `./plans/<workflow>/FEATURE.md` (local-files mode):",
+      "summary": "Append a markdown row to the parent's `## Metrics history` section (tracker mode) or to `.claude/plans/<workflow>/FEATURE.md` (local-files mode):",
       "anchor": "4-post-the-snapshot"
     },
     "5. Report": {
@@ -3465,7 +3469,7 @@
       "anchor": "recurring-correction-detection"
     },
     "Pending-Review Queue Disposition": {
-      "summary": "When `/session-review` surfaces entries from `metrics/pending-review.jsonl`, this",
+      "summary": "When `/session-review` surfaces entries from `.claude/metrics/pending-review.jsonl`, this",
       "anchor": "pending-review-queue-disposition"
     },
     "Matching": {
@@ -3589,11 +3593,11 @@
       "anchor": "parse-arguments"
     },
     "Steps": {
-      "summary": "Read `memory/<workflow>/<slug>/phase-1.md` for the components & patterns table.",
+      "summary": "Read `.claude/memory/<workflow>/<slug>/phase-1.md` for the components & patterns table.",
       "anchor": "steps"
     },
     "1. Load the component map": {
-      "summary": "Read `memory/<workflow>/<slug>/phase-1.md` for the components & patterns table.",
+      "summary": "Read `.claude/memory/<workflow>/<slug>/phase-1.md` for the components & patterns table.",
       "anchor": "1-load-the-component-map"
     },
     "2. Pick the output directory": {
@@ -3609,7 +3613,7 @@
       "anchor": "4-cite-the-assessment"
     },
     "5. Persist phase-2 progress": {
-      "summary": "Write `memory/<workflow>/<slug>/phase-2.md` with:",
+      "summary": "Write `.claude/memory/<workflow>/<slug>/phase-2.md` with:",
       "anchor": "5-persist-phase-2-progress"
     },
     "6. STOP for human sign-off": {
@@ -3683,7 +3687,7 @@
       "anchor": "when-ethical-concerns-arise"
     },
     "Output": {
-      "summary": "Compliance checklist results (pass/fail per item) and/or new audit log entries written to `metrics/`.",
+      "summary": "Compliance checklist results (pass/fail per item) and/or new audit log entries written to `.claude/metrics/`.",
       "anchor": "output"
     },
     "Compliance Checklist": {
@@ -3755,7 +3759,7 @@
       "anchor": "when-to-summarize"
     },
     "Writing Summaries": {
-      "summary": "**Destination**: `memory/{date}-{task-slug}.md`",
+      "summary": "**Destination**: `.claude/memory/{date}-{task-slug}.md`",
       "anchor": "writing-summaries"
     },
     "Phase Progress Files": {
@@ -4105,7 +4109,7 @@
       "anchor": "6-backfill-predecessor-links"
     },
     "7. Persist phase-1 progress": {
-      "summary": "Write `memory/<workflow>/<slug>/phase-1.md` with:",
+      "summary": "Write `.claude/memory/<workflow>/<slug>/phase-1.md` with:",
       "anchor": "7-persist-phase-1-progress"
     },
     "8. Report": {
@@ -4113,7 +4117,7 @@
       "anchor": "8-report"
     },
     "Examples / Integration": {
-      "summary": "`/test-improve` invokes this worker with `--workflow test-improve` from its Phase 4; paths resolve under `memory/test-improve/<slug>/` and labels lead with `test-improve`.",
+      "summary": "`/test-improve` invokes this worker with `--workflow test-improve` from its Phase 4; paths resolve under `.claude/memory/test-improve/<slug>/` and labels lead with `test-improve`.",
       "anchor": "examples-integration"
     },
     "Notes": {
@@ -4469,7 +4473,7 @@
   },
   "plugins/dev-team/skills/performance-metrics/SKILL.md": {
     "Overview": {
-      "summary": "Schema and procedures for capturing performance data in `metrics/`.",
+      "summary": "Schema and procedures for capturing performance data in `.claude/metrics/`.",
       "anchor": "overview"
     },
     "Constraints": {
@@ -4493,11 +4497,11 @@
       "anchor": "cost-metrics"
     },
     "Log Format": {
-      "summary": "Metrics are stored in `metrics/` as JSONL files (one JSON object per line).",
+      "summary": "Metrics are stored in `.claude/metrics/` as JSONL files (one JSON object per line).",
       "anchor": "log-format"
     },
     "File Naming": {
-      "summary": "Example: `metrics/2026-02-20-task-log.jsonl`",
+      "summary": "Example: `.claude/metrics/2026-02-20-task-log.jsonl`",
       "anchor": "file-naming"
     },
     "Task Completion Entry": {
@@ -4525,7 +4529,7 @@
       "anchor": "when-to-log"
     },
     "Output": {
-      "summary": "JSONL log entries written to `metrics/` and/or a summary report of metric trends.",
+      "summary": "JSONL log entries written to `.claude/metrics/` and/or a summary report of metric trends.",
       "anchor": "output"
     },
     "Reporting": {
@@ -4793,7 +4797,7 @@
       "anchor": "6-post-the-converge-history"
     },
     "6b. Gherkin effectiveness roll-up (conditional)": {
-      "summary": "When `memory/<workflow>/<slug>/gherkin.md` exists (Phase 3 ran — see",
+      "summary": "When `.claude/memory/<workflow>/<slug>/gherkin.md` exists (Phase 3 ran — see",
       "anchor": "6b-gherkin-effectiveness-roll-up-conditional"
     },
     "7. Waiver handling": {
@@ -4805,7 +4809,7 @@
       "anchor": "8-report"
     },
     "Examples / Integration": {
-      "summary": "`/test-improve` invokes this worker from Phase 8 with `--workflow test-improve`; paths resolve as `memory/test-improve/<slug>/` and `./plans/test-improve/phase-8/`.",
+      "summary": "`/test-improve` invokes this worker from Phase 8 with `--workflow test-improve`; paths resolve as `.claude/memory/test-improve/<slug>/` and `.claude/plans/test-improve/phase-8/`.",
       "anchor": "examples-integration"
     },
     "Notes": {
@@ -5531,7 +5535,7 @@
       "anchor": "7-report"
     },
     "Notes": {
-      "summary": "The disabled tag carries the reason and the \"repair in Phase 4\" hint so the operator can see the audit history in source control, not only in `memory/`.",
+      "summary": "The disabled tag carries the reason and the \"repair in Phase 4\" hint so the operator can see the audit history in source control, not only in `.claude/memory/`.",
       "anchor": "notes"
     }
   },

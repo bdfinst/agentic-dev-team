@@ -237,7 +237,7 @@ always see a mechanically clean (or explicitly annotated) diff.
 
 ## Metrics — fold into the existing sensor
 
-Each checkpoint already appends one line to `metrics/review-value.jsonl`
+Each checkpoint already appends one line to `.claude/metrics/review-value.jsonl`
 (step 4 sub-step 7). The static pass folds into that same record — no new
 file, one sensor: lane tools are appended to `agents_run`, deterministic
 findings/fixes are included in `issues_found`/`issues_fixed`, static attempts
