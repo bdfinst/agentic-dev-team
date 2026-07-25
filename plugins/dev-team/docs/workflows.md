@@ -69,7 +69,7 @@ whose full phase table appears at the end of this page — and
 
 | Command | File | What It Does | Arguments |
 | --- | --- | --- | --- |
-| `/triage` | `skills/triage/SKILL.md` | Investigate a bug and write a triage record to `DEV_TEAM_REPORTS/triage/<slug>.md` with a TDD fix plan | `<bug description or error message> [--pdf]` |
+| `/triage` | `skills/triage/SKILL.md` | Investigate a bug and write a triage record to `.dev-team-reports/triage/<slug>.md` with a TDD fix plan | `<bug description or error message> [--pdf]` |
 | `/apply-fixes` | `skills/apply-fixes/SKILL.md` | Apply correction prompts from `/code-review` output | `<corrections-dir> [--dry] [--skip-tests] [--skip-build] [--skip-lint]` |
 | `/legacy-code` | `skills/legacy-code/SKILL.md` | Safely modify code that lacks tests — apply characterization tests first | `[path]` |
 | `/branch-workflow` | `skills/branch-workflow/SKILL.md` | Clean branch completion: PR creation, merge strategy, and cleanup | `[--base <branch>] [--draft]` |
@@ -172,7 +172,7 @@ whose full phase table appears at the end of this page — and
 | `/help` | `skills/help/SKILL.md` | List the main dev-team workflows; `--all` shows every user command | `[--all]` |
 | `/agent-readiness` | `skills/agent-readiness/SKILL.md` | Score how ready the current repo is for AI-assisted development against the Agent-Readiness Scorecard and emit a tiered report | `[repo-path] [--json <file>] [--markdown <file>]` |
 | `/run-report` | `skills/run-report/SKILL.md` | Report one orchestrated run's timeline — per-state dwell time, rejection count, hook denials/bypasses, and cost — joined from the boundary/cost/state event logs | `[--session <id>]` |
-| `/report-pdf` | `skills/report-pdf/SKILL.md` | Render a dev-team Markdown report (`DEV_TEAM_REPORTS/` or `reports/`) to a polished, shareable PDF | `<path.md> [--out <path>]` |
+| `/report-pdf` | `skills/report-pdf/SKILL.md` | Render a dev-team Markdown report (`.dev-team-reports/` or `reports/`) to a polished, shareable PDF | `<path.md> [--out <path>]` |
 
 ---
 

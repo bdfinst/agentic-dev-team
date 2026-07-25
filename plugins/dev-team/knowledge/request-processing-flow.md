@@ -25,7 +25,7 @@ For trivial tasks (typo fix, simple query), the Orchestrator routes directly to 
 | **Plan** | Specs, API Design, Hexagonal Architecture, Legacy Code | Define what to build, specify interfaces and test strategy |
 | **Plan → Team** | `/issues-from-plan` | Break plan into GitHub issues for team distribution |
 | **Implement** | Test-Driven Development (advisory, on request), Systematic Debugging, Mutation Testing, Browser Testing, Performance Benchmark, CI Debugging | Build in small per-behavior batches (Code-First Small Batches), debug issues (reproduce defects with a failing test first), validate quality, measure performance |
-| **Bug Triage** | `/triage` (Systematic Debugging + file-based triage record in `DEV_TEAM_REPORTS/triage/`) | Investigate bugs and write actionable triage records |
+| **Bug Triage** | `/triage` (Systematic Debugging + file-based triage record in `.dev-team-reports/triage/`) | Investigate bugs and write actionable triage records |
 | **Review** | Quality Gate Pipeline, Farley Score | Validate output before delivery |
 | **Cross-phase** | Context Loading Protocol, Context Summarization, Feedback & Learning, Human Oversight Protocol, Performance Metrics, Governance & Compliance, Branch Workflow | Orchestration, context management, learning |
 

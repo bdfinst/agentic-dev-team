@@ -41,6 +41,24 @@ SLICED_MODE = (
     PLUGIN_ROOT / "skills" / "code-review" / "sliced-mode.md"
 ).read_text(encoding="utf-8")
 
+# Step 9.6 sweep: every remaining reference-only consumer identified in the
+# plan's Slice 9 file list, excluding CHANGELOG.md / metrics/config-changelog.jsonl
+# (historical, append-only) and knowledge/index.json (build artifact, regenerates).
+STEP_9_6_SWEEP_FILES = [
+    PLUGIN_ROOT / "skills" / "ship" / "SKILL.md",
+    PLUGIN_ROOT / "skills" / "exploratory-testing" / "SKILL.md",
+    PLUGIN_ROOT / "skills" / "report-pdf" / "SKILL.md",
+    PLUGIN_ROOT / "skills" / "project-init" / "references" / "configs.md",
+    PLUGIN_ROOT / "knowledge" / "skills-registry.md",
+    PLUGIN_ROOT / "knowledge" / "report-pdf-integration.md",
+    PLUGIN_ROOT / "knowledge" / "report-print.css",
+    PLUGIN_ROOT / "knowledge" / "report-to-pdf.md",
+    PLUGIN_ROOT / "knowledge" / "request-processing-flow.md",
+    PLUGIN_ROOT / "docs" / "triage-workflow.md",
+    PLUGIN_ROOT / "docs" / "workflows.md",
+    PLUGIN_ROOT / "docs" / "skills.md",
+]
+
 
 def test_report_output_location_has_no_legacy_dev_team_reports_references():
     assert "DEV_TEAM_REPORTS" not in REPORT_OUTPUT_LOCATION, (
@@ -123,4 +141,22 @@ def test_sliced_mode_doc_describes_consolidated_root():
     assert ".dev-team-reports/code-review" in SLICED_MODE, (
         "sliced-mode.md must describe the ledger/section artifacts under "
         ".dev-team-reports/code-review/"
+    )
+
+
+def test_step_9_6_sweep_files_have_no_legacy_dev_team_reports_references():
+    for path in STEP_9_6_SWEEP_FILES:
+        text = path.read_text(encoding="utf-8")
+        assert "DEV_TEAM_REPORTS" not in text, (
+            f"{path} must not reference the legacy bare DEV_TEAM_REPORTS/ path"
+        )
+
+
+def test_js_scaffold_gitignore_template_emits_consolidated_location():
+    configs = (
+        PLUGIN_ROOT / "skills" / "project-init" / "references" / "configs.md"
+    ).read_text(encoding="utf-8")
+    assert ".dev-team-reports/" in configs, (
+        "the JS-scaffold .gitignore template must emit .dev-team-reports/ "
+        "for new downstream projects"
     )

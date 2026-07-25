@@ -1,6 +1,6 @@
 /* report-print.css — bundled print stylesheet for dev-team report PDFs (#1114).
  *
- * Applied by hooks/lib/report_pdf.py when converting any DEV_TEAM_REPORTS/*.md
+ * Applied by hooks/lib/report_pdf.py when converting any .dev-team-reports/*.md
  * (or reports/*.md) to a shareable PDF. Goals: accent-colored headings,
  * zebra-striped bordered tables, monospace chips for `file:line`, sane @page
  * margins, and no clipped wide cells or mid-row page breaks.

@@ -1,7 +1,7 @@
 # Rendering a report to PDF
 
 **Prefer the built-in command.** `/report-pdf <path.md> [--out <path>]` renders
-any dev-team Markdown report (`DEV_TEAM_REPORTS/*.md` or `reports/*.md`) to a
+any dev-team Markdown report (`.dev-team-reports/*.md` or `reports/*.md`) to a
 styled PDF, and the `--pdf` flag on `/code-review`, `/test-health`,
 `/cd-test-architecture`, `/triage`, and `/harness-audit` renders the report
 that run just wrote. Both share `hooks/lib/report_pdf.py`, which bundles the

@@ -3,8 +3,8 @@ name: report-pdf
 description: >-
   Render a dev-team Markdown report to a polished, shareable PDF. Use when the
   user says "make a PDF of the report", "export the code-review report as PDF",
-  "turn DEV_TEAM_REPORTS/code-review.md into a PDF", or wants any
-  DEV_TEAM_REPORTS or reports Markdown file as a styled document to attach to a
+  "turn .dev-team-reports/code-review.md into a PDF", or wants any
+  .dev-team-reports or reports Markdown file as a styled document to attach to a
   ticket or hand to a non-terminal stakeholder.
 argument-hint: "<path.md> [--out <path>]"
 user-invocable: true
@@ -22,7 +22,7 @@ You have been invoked with the `/report-pdf` command.
 ## Arguments
 
 - `<path.md>` (required) — path to the Markdown report to render (for example
-  `DEV_TEAM_REPORTS/code-review.md` or `reports/test-health-2026-07-16.md`).
+  `.dev-team-reports/code-review.md` or `reports/test-health-2026-07-16.md`).
 - `--out <path>` (optional) — output PDF path. Defaults to the source path with
   a `.pdf` extension, next to the source. A missing parent directory is created.
 
