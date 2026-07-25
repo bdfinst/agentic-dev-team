@@ -20,3 +20,16 @@ extend-exclude = [
     "evals/refactor-granularity/tasks/*/golden",
     "evals/refactor-granularity/tasks/*/reference",
 ]
+
+# E402 (module-level import not at top of file) is suppressed for the paths
+# below because they rely on the `sys.path.insert(0, ...); import module`
+# idiom to import sibling scripts/libs that aren't installed as packages —
+# a deliberate pattern in this repo's hooks/scripts/tests, not lint debt.
+[lint.per-file-ignores]
+"tests/**" = ["E402"]
+"plugins/dev-team/tests/**" = ["E402"]
+"plugins/dev-team/hooks/**" = ["E402"]
+"plugins/dev-team/scripts/**" = ["E402"]
+"plugins/dev-team/skills/agent-readiness/scanner.py" = ["E402"]
+"scripts/**" = ["E402"]
+"evals/custom-tools/validate.py" = ["E402"]
