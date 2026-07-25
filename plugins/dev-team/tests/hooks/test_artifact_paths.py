@@ -48,3 +48,21 @@ def test_project_root_resolves_from_a_subdirectory(tmp_path: Path) -> None:
     sub = tmp_path / "sub" / "deeper"
     sub.mkdir(parents=True)
     assert artifact_paths.project_root(start=sub) == tmp_path.resolve()
+
+
+# --- category directory accessors -----------------------------------------
+
+
+def test_metrics_dir_resolves_under_dot_claude(tmp_path: Path) -> None:
+    _init_repo(tmp_path)
+    assert artifact_paths.metrics_dir(tmp_path) == tmp_path.resolve() / ".claude" / "metrics"
+
+
+def test_memory_dir_resolves_under_dot_claude(tmp_path: Path) -> None:
+    _init_repo(tmp_path)
+    assert artifact_paths.memory_dir(tmp_path) == tmp_path.resolve() / ".claude" / "memory"
+
+
+def test_plans_dir_resolves_under_dot_claude(tmp_path: Path) -> None:
+    _init_repo(tmp_path)
+    assert artifact_paths.plans_dir(tmp_path) == tmp_path.resolve() / ".claude" / "plans"

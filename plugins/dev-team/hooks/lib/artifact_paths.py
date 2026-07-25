@@ -46,4 +46,26 @@ def project_root(start: "Path | str | None" = None) -> Path:
     return Path(output)
 
 
-__all__ = ("project_root",)
+def _category_dir(name: str, root: "Path | str | None" = None) -> Path:
+    """Return `<project-root>/.claude/<name>`. Pure path-join, no side effects."""
+    return project_root(start=root) / ".claude" / name
+
+
+def metrics_dir(root: "Path | str | None" = None) -> Path:
+    return _category_dir("metrics", root)
+
+
+def memory_dir(root: "Path | str | None" = None) -> Path:
+    return _category_dir("memory", root)
+
+
+def plans_dir(root: "Path | str | None" = None) -> Path:
+    return _category_dir("plans", root)
+
+
+__all__ = (
+    "project_root",
+    "metrics_dir",
+    "memory_dir",
+    "plans_dir",
+)
