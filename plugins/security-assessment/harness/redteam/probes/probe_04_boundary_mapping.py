@@ -1,4 +1,4 @@
-"""04_boundary_mapping — binary-search per-feature decision boundaries.
+"""probe_04_boundary_mapping — binary-search per-feature decision boundaries.
 
 For each sensitive feature (from probe 03's rankings), find the exact value at
 which the fraud score flips between fraud and not-fraud. Assumes the score is

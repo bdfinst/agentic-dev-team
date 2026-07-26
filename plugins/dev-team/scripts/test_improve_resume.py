@@ -63,7 +63,7 @@ _HOOKS_LIB_DIR = Path(__file__).resolve().parent.parent / "hooks" / "lib"
 if str(_HOOKS_LIB_DIR) not in sys.path:
     sys.path.insert(0, str(_HOOKS_LIB_DIR))
 
-import artifact_paths  # noqa: E402
+import artifact_paths
 
 # Execution order (issue #1422), skipping `3` (Phase 3 has no numbered
 # progress file — see module docstring). Phase identities are unchanged

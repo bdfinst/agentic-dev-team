@@ -47,7 +47,7 @@ def exists(name: str) -> bool:
 # ── Typed helpers for common artefacts ────────────────────────────────────────
 
 def get_discovered_features() -> list[str]:
-    """Return the feature list produced by probe 02_schema_discovery."""
+    """Return the feature list produced by probe_02_schema_discovery."""
     data = load("02_schema")
     return list(data.get("features", []))
 

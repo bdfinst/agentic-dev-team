@@ -1,4 +1,4 @@
-"""07_model_extraction — train surrogate models against captured scores.
+"""probe_07_model_extraction — train surrogate models against captured scores.
 
 Latin-Hypercube sampling + three surrogate models (decision tree, random
 forest, linear regression). R² on a held-out 20% sample is the extraction

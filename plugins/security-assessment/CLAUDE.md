@@ -135,7 +135,7 @@ See `install.sh`. It performs four checks:
 **Harness** (Python, under `harness/`):
 
 - `redteam/orchestrator.py` + `config.py` + `lib/{http_client,result_store,scoring,feature_dict,scope_check}.py`
-- 8 probes: `redteam/probes/{01..08}_*.py`
+- 8 probes: `redteam/probes/probe_{01..08}_*.py`
 - `tools/{service-comm-parser,shared-cred-hash-match}.py`
 
 See `plans/security-review-companion-plugin.md` for the step-by-step history.

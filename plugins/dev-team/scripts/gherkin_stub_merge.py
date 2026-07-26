@@ -45,10 +45,12 @@ from pathlib import Path
 _HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(_HERE / "lib"))
 
-from stub_extractors import ERROR_DANGLING_ANNOTATION as ERROR_DANGLING_ANNOTATION  # noqa: F401
-from stub_extractors import ERROR_UNBALANCED_BRACES as ERROR_UNBALANCED_BRACES  # noqa: F401
+from stub_extractors import (
+    ERROR_DANGLING_ANNOTATION,  # noqa: F401
+    ERROR_UNBALANCED_BRACES,  # noqa: F401
+    parse_existing_steps,
+)
 from stub_extractors import go as _go_extractor
-from stub_extractors import parse_existing_steps
 
 # This script's own error sentinels — distinct from the two structural
 # sentinels stub_extractors returns (re-exported above), the same split

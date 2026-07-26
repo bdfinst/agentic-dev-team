@@ -12,7 +12,8 @@
     "test:ci": "bash scripts/ci-local.sh"
   },
   "lint-staged": {
-    "*.{js,jsx,mjs,cjs,ts,tsx}": "eslint --fix"
+    "*.{js,jsx,mjs,cjs,ts,tsx}": "eslint --fix",
+    "*.py": "ruff check --fix"
   },
   "devDependencies": {
     "@commitlint/cli": "^21.0.2",
