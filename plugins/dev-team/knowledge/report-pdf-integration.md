@@ -8,8 +8,7 @@ this file rather than restating the behavior, so the wording never drifts.
 This file defines *how `--pdf` behaves*. `hooks/lib/report_pdf.py` is the render
 engine it calls; [`report-to-pdf.md`](report-to-pdf.md) is the underlying
 recipe; [`report-output-location.md`](report-output-location.md) details the
-`.dev-team-reports/` write rules — the per-skill paths (including the `reports/`
-ones) are in the table below.
+`.dev-team-reports/` write rules — the per-skill paths are in the table below.
 
 ## Contract
 
@@ -53,9 +52,9 @@ self-diagnose which they hit:
 |-------|----------------------------|--------------------|
 | `/code-review` | `.dev-team-reports/code-review.md` | `--json` or `--internal` (no file written) |
 | `/triage` | `.dev-team-reports/triage/<slug>.md` (the path just written) | never — it always writes a file |
-| `/test-health` | `reports/test-health-<date>.md` | never — it always writes a file |
-| `/cd-test-architecture` | `reports/cd-test-architecture-<app>.md` | single-component **chat-only** run (no file) |
-| `/harness-audit` | `reports/harness-audit-<date>.md`, or the `--output <path>` override | never — it always writes a file |
+| `/test-health` | `.dev-team-reports/test-health-<date>.md` | never — it always writes a file |
+| `/cd-test-architecture` | `.dev-team-reports/cd-test-architecture-<app>.md` | single-component **chat-only** run (no file) |
+| `/harness-audit` | `.dev-team-reports/harness-audit-<date>.md`, or the `--output <path>` override | never — it always writes a file |
 
 A new report-producing skill inherits `--pdf` by adding a row here, documenting
 `--pdf` in its `argument-hint`, and calling `report_pdf.py` on the path it wrote

@@ -85,7 +85,7 @@ per constraint 3.
 ### 4. Report
 
 If `--json`, emit the aggregated JSON object and stop. Otherwise produce one
-report (chat for a small target; `reports/frontend-architecture-<date>.md` for a
+report (chat for a small target; `.dev-team-reports/frontend-architecture-<date>.md` for a
 module):
 
 ```markdown

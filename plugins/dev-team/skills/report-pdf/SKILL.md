@@ -22,7 +22,7 @@ You have been invoked with the `/report-pdf` command.
 ## Arguments
 
 - `<path.md>` (required) — path to the Markdown report to render (for example
-  `.dev-team-reports/code-review.md` or `reports/test-health-2026-07-16.md`).
+  `.dev-team-reports/code-review.md` or `.dev-team-reports/test-health-2026-07-16.md`).
 - `--out <path>` (optional) — output PDF path. Defaults to the source path with
   a `.pdf` extension, next to the source. A missing parent directory is created.
 

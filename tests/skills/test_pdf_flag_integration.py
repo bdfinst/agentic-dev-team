@@ -67,9 +67,9 @@ def test_shared_contract_doc_exists_and_pins_wording():
     for path_frag in (
         ".dev-team-reports/code-review.md",
         ".dev-team-reports/triage/<slug>.md",
-        "reports/test-health-<date>.md",
-        "reports/cd-test-architecture-<app>.md",
-        "reports/harness-audit-<date>.md",
+        ".dev-team-reports/test-health-<date>.md",
+        ".dev-team-reports/cd-test-architecture-<app>.md",
+        ".dev-team-reports/harness-audit-<date>.md",
     ):
         assert path_frag in INTEGRATION_DOC
 

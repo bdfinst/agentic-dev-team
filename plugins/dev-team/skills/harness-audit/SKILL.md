@@ -36,7 +36,7 @@ You have been invoked with the `/harness-audit` command.
 
 Arguments: $ARGUMENTS
 
-- `--output <path>`: Write report to a specific path. Default: `reports/harness-audit-<date>.md`
+- `--output <path>`: Write report to a specific path. Default: `.dev-team-reports/harness-audit-<date>.md`
 - `--pdf`: After writing the report, render it to a sibling PDF via `hooks/lib/report_pdf.py`, resolving against the **actual** report path written this run (the `--output` override when given, else the default). See `knowledge/report-pdf-integration.md`. Additive; non-fatal if no engine is available.
 
 ## Steps
@@ -306,7 +306,7 @@ Review the current pipeline for components that may be unnecessary overhead:
 ### 8. Produce report
 
 When `--pdf` was passed, after writing the report render **the actual output
-path** (the `--output` override when given, else `reports/harness-audit-<date>.md`)
+path** (the `--output` override when given, else `.dev-team-reports/harness-audit-<date>.md`)
 to a sibling PDF per `knowledge/report-pdf-integration.md` (additive; non-fatal
 if no engine):
 
