@@ -79,9 +79,21 @@ def test_step_4b_section_exists_between_step_4_and_5():
 
 def test_step_4b_uses_once_and_batched_language():
     sec = _step_4b_section()
+    # Individual diagnostics — kept for granular failure signal, but each
+    # of the three is satisfiable independently and could each match a
+    # different sentence, so they don't by themselves prove the three
+    # phrases describe one coherent "one prompt per run" framing (Problem
+    # A correctness-review finding, issue #1433). The anchored regex below
+    # is the real guard.
     assert grep(r"once per run", sec, ignore_case=True)
     assert grep(r"batched across", sec, ignore_case=True)
     assert grep(r"regardless of adapter kind", sec, ignore_case=True)
+    assert grep(
+        r"once per run,\s*batched across every such component regardless "
+        r"of adapter kind",
+        collapsed(sec),
+        ignore_case=True,
+    )
 
 
 def test_step_4b_documents_unattended_default_cites_human_oversight_protocol():
@@ -174,7 +186,7 @@ def test_database_branch_proposes_testcontainers_story_when_accepted():
         section(
             _step_4b_section(),
             r"\*\*Testcontainers accepted\*\*",
-            boundary_pattern=r"^- \*\*Testcontainers declined\*\*",
+            boundary_pattern=r"^(- \*\*|#### |### )",
         )
     )
     assert grep(r"testcontainers", accepted_bullet, ignore_case=True)
@@ -189,7 +201,7 @@ def test_database_branch_declined_proposes_fake_not_document_only():
     decline_bullet = section(
         sec,
         r"\*\*Testcontainers declined\*\*",
-        boundary_pattern=r"^- \*\*Ambiguous",
+        boundary_pattern=r"^(- \*\*|#### |### )",
     )
     assert grep(r"\bFake\b", decline_bullet)
     assert grep(r"in-memory repository", decline_bullet, ignore_case=True)
@@ -220,15 +232,14 @@ def test_database_branch_cites_test_doubles_and_database_test_patterns():
 def test_ambiguous_testcontainers_answer_treated_as_decline_not_document_only():
     # Bound on the next sibling construct (another `- **` bullet, a
     # `#### ` sub-heading, or the next `### ` section) rather than the
-    # section end. A prior version passed boundary_pattern=r"^### 5\."
-    # against _text() with a comment claiming this fixed an
-    # unreachable-boundary bug — but _step_4b_section() already truncates
-    # at the first "### 5." line, so matching that same boundary against
-    # the full, untruncated text produces a byte-identical result: no fix
-    # at all. The real leak (a future bullet inserted after this one but
-    # before "### 5." would still be captured here) is closed by bounding
-    # on the sibling-construct pattern instead, matching the sibling
-    # bullet tests' own boundaries (test-review finding, issue #1433).
+    # section end. All three bullet-scoped tests in this module now share
+    # this same generalized boundary (test-review finding round 2, issue
+    # #1433) — the two sibling tests
+    # (test_database_branch_proposes_testcontainers_story_when_accepted,
+    # test_database_branch_declined_proposes_fake_not_document_only)
+    # previously used literal next-bullet-text boundaries instead, which
+    # left the same "could leak a future inserted bullet" exposure this
+    # pattern was meant to close for all three.
     ambiguous_bullet = section(
         _step_4b_section(),
         r"\*\*Ambiguous or absent answer to this per-component question\*\*",
@@ -240,9 +251,40 @@ def test_ambiguous_testcontainers_answer_treated_as_decline_not_document_only():
     assert grep(
         r"distinct from.*top-level.*document-only", ambiguous_bullet
     )
+    # Problem B fix (issue #1433, correctness-review round 2): the
+    # sub-question reuses the same CATEGORY of ambiguity as the top-level
+    # question (vague/non-committal/absent answers), not its literal
+    # example set — the top-level's "bare yes/no is ambiguous" example
+    # does not carry over here, since a bare yes/no maps cleanly onto
+    # this sub-question's two labeled options (see the dedicated test
+    # below for the "not ambiguous" half of this fix).
     assert grep(
-        r"same ambiguous definition", ambiguous_bullet, ignore_case=True
+        r"same.{0,15}category.{0,5}of ambiguity", ambiguous_bullet, ignore_case=True
     )
+
+
+def test_per_component_clear_answer_not_treated_as_ambiguous():
+    """Problem B fix (issue #1433, correctness-review round 2): a bare
+    "yes" (accept) or "no" (decline) answer maps directly onto this
+    sub-question's two labeled options (accept/decline) and must NOT be
+    treated as ambiguous here — unlike the top-level question, where a
+    bare yes/no doesn't map to either labeled option ("Build"/
+    "Document-only"). Without this, a clear "yes" was wrongly routed to
+    decline, leaving no real way to reach "accepted" in practice."""
+    ambiguous_bullet = collapsed(
+        section(
+            _step_4b_section(),
+            r"\*\*Ambiguous or absent answer to this per-component question\*\*",
+            boundary_pattern=r"^(- \*\*|#### |### )",
+        )
+    )
+    assert grep(r"not ambiguous", ambiguous_bullet, ignore_case=True)
+    assert grep(
+        r'bare "?yes"?.{0,30}accept', ambiguous_bullet, ignore_case=True
+    )
+    assert grep(r'"?no"?.{0,30}decline', ambiguous_bullet, ignore_case=True)
+    assert grep(r"top-level question", ambiguous_bullet, ignore_case=True)
+    assert grep(r"doesn.t map", ambiguous_bullet, ignore_case=True)
 
 
 def test_knowledge_references_list_includes_test_doubles():
