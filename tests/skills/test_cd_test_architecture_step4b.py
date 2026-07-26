@@ -1,6 +1,10 @@
 """Step 4b (build-vs-document decision) content-guard tests for
-`cd-test-architecture/SKILL.md` — Step 1.1 of
-plans/issue-1433-cd-test-architecture-step-4b.md.
+`cd-test-architecture/SKILL.md`. Traces to issue #1433's design discussion
+and Step 1.1 of the (transient) plan file
+plans/issue-1433-cd-test-architecture-step-4b.md, AC8/AC10 — cite the issue
+number alongside the plan path since the plan file is gitignored/transient
+(deleted after implementation, per this repo's CLAUDE.md) and issue #1433 is
+the durable reference once it's gone.
 
 Every assertion below is scoped to the new `### 4b.` section (or, for the
 Role/Constraints/Integration acknowledgment tests, to the specific existing
@@ -75,8 +79,9 @@ def test_step_4b_section_exists_between_step_4_and_5():
 
 def test_step_4b_uses_once_and_batched_language():
     sec = _step_4b_section()
-    assert grep(r"\bonce\b", sec, ignore_case=True)
-    assert grep(r"batch(ed)?", sec, ignore_case=True)
+    assert grep(r"once per run", sec, ignore_case=True)
+    assert grep(r"batched across", sec, ignore_case=True)
+    assert grep(r"regardless of adapter kind", sec, ignore_case=True)
 
 
 def test_step_4b_documents_unattended_default_cites_human_oversight_protocol():
@@ -86,7 +91,7 @@ def test_step_4b_documents_unattended_default_cites_human_oversight_protocol():
         sec,
         ignore_case=True,
     )
-    assert grep(r"document-only|document only", sec, ignore_case=True)
+    assert grep(DOCUMENT_ONLY_PATTERN, sec, ignore_case=True)
     assert grep(r"no prompt", sec, ignore_case=True)
 
 
@@ -101,7 +106,7 @@ def test_step_4b_ambiguous_answer_defaults_to_document_only():
     # issue #1433).
     assert grep(r'bare "?yes"?.{0,15}"?no"?', sec, ignore_case=True)
     assert grep(r"silence|empty|no answer", sec, ignore_case=True)
-    assert grep(r"document-only|document only", sec, ignore_case=True)
+    assert grep(DOCUMENT_ONLY_PATTERN, sec, ignore_case=True)
 
 
 def test_step_4b_no_gap_no_behavior_change():
@@ -113,8 +118,8 @@ def test_step_4b_no_gap_no_behavior_change():
 def test_step_4b_proposes_story_language_not_dispatch():
     sec = _step_4b_section()
     assert grep(r"propose", sec, ignore_case=True)
-    assert not grep(r"dispatch a Story", sec, ignore_case=True)
-    assert not grep(r"invoke /build", sec, ignore_case=True)
+    assert not grep(r"dispatch(es|ing)? (a|the) Story", sec, ignore_case=True)
+    assert not grep(r"invok(e|es|ing) +`?/build`?", sec, ignore_case=True)
 
 
 # --- Role / Constraints / Integration acknowledgment ------------------------
@@ -157,8 +162,14 @@ FAKE_CAVEAT = (
     "coverage trade-off, not a silent downgrade."
 )
 
+# SKILL.md is standardized (fix for issue #1433) to always use the hyphenated
+# "document-only" form, so this no longer needs the "document only"
+# alternation — kept as a single constant so the three call sites below can't
+# drift apart if the wording changes again.
+DOCUMENT_ONLY_PATTERN = r"document-only"
 
-def test_database_branch_dispatches_testcontainers_story_when_accepted():
+
+def test_database_branch_proposes_testcontainers_story_when_accepted():
     accepted_bullet = collapsed(
         section(
             _step_4b_section(),
@@ -182,11 +193,11 @@ def test_database_branch_declined_proposes_fake_not_document_only():
     )
     assert grep(r"\bFake\b", decline_bullet)
     assert grep(r"in-memory repository", decline_bullet, ignore_case=True)
-    assert not grep(r"document-only|document only", decline_bullet, ignore_case=True)
+    assert not grep(DOCUMENT_ONLY_PATTERN, decline_bullet, ignore_case=True)
 
 
 def test_hand_rolled_fake_caveat_is_logged_explicitly():
-    sec = _step_4b_section()
+    sec = collapsed(_step_4b_section())
     assert FAKE_CAVEAT in sec
 
 
@@ -207,15 +218,21 @@ def test_database_branch_cites_test_doubles_and_database_test_patterns():
 
 
 def test_ambiguous_testcontainers_answer_treated_as_decline_not_document_only():
-    # boundary_pattern uses the full, untruncated text (not
-    # _step_4b_section(), which already excludes "### 5." as its own
-    # boundary — passing that same pattern again here would be
-    # unreachable and silently let a future Step 4b addition after this
-    # bullet leak into scope; test-review finding, issue #1433).
+    # Bound on the next sibling construct (another `- **` bullet, a
+    # `#### ` sub-heading, or the next `### ` section) rather than the
+    # section end. A prior version passed boundary_pattern=r"^### 5\."
+    # against _text() with a comment claiming this fixed an
+    # unreachable-boundary bug — but _step_4b_section() already truncates
+    # at the first "### 5." line, so matching that same boundary against
+    # the full, untruncated text produces a byte-identical result: no fix
+    # at all. The real leak (a future bullet inserted after this one but
+    # before "### 5." would still be captured here) is closed by bounding
+    # on the sibling-construct pattern instead, matching the sibling
+    # bullet tests' own boundaries (test-review finding, issue #1433).
     ambiguous_bullet = section(
-        _text(),
+        _step_4b_section(),
         r"\*\*Ambiguous or absent answer to this per-component question\*\*",
-        boundary_pattern=r"^### 5\.",
+        boundary_pattern=r"^(- \*\*|#### |### )",
     )
     ambiguous_bullet = collapsed(ambiguous_bullet)
     assert grep(r"\bdecline\b", ambiguous_bullet, ignore_case=True)
@@ -238,6 +255,12 @@ def test_knowledge_references_list_includes_test_doubles():
 
 
 def _output_section() -> str:
+    # Load-bearing boundary: the `## Output` block contains a fenced markdown
+    # template whose interior has a `## CD Test Architecture — <app>` line.
+    # `section()` is fence-unaware, so the generic `^## ` boundary used
+    # elsewhere in this file would match that embedded line and truncate the
+    # section early, silently dropping the `Build/Document status` table.
+    # `^## Integration` (the next real top-level heading) avoids that.
     return section(_text(), r"^## Output", boundary_pattern=r"^## Integration")
 
 
@@ -251,10 +274,12 @@ def test_output_template_shows_build_document_status_column():
 
 def test_output_template_caveat_appears_conditionally_on_fake_branch():
     sec = _output_section()
-    fake_row_clause = section(
-        sec,
-        r"row whose status is `Build \(Fake\)`",
-        boundary_pattern=r"^### ",
+    fake_row_clause = collapsed(
+        section(
+            sec,
+            r"row whose status is `Build \(Fake\)`",
+            boundary_pattern=r"^### ",
+        )
     )
     assert FAKE_CAVEAT in fake_row_clause
 
@@ -264,10 +289,10 @@ def test_caveat_appears_in_both_story_and_report():
     # two can't drift apart into independently-typed strings — the Story
     # description (Step 1.2, database branch) and the report's output
     # template (Step 1.3, Target architecture table).
-    assert FAKE_CAVEAT in _step_4b_section()
-    assert FAKE_CAVEAT in _output_section()
+    assert FAKE_CAVEAT in collapsed(_step_4b_section())
+    assert FAKE_CAVEAT in collapsed(_output_section())
 
 
 def test_output_template_does_not_hardcode_legacy_reports_path():
-    text = _text()
-    assert not grep(r"(?<!\.dev-team-)reports/cd-test-architecture-", text)
+    sec = _output_section()
+    assert not grep(r"(?<!\.dev-team-)reports/cd-test-architecture-", sec)

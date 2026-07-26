@@ -99,7 +99,7 @@ Per component, using its pattern: which test types cover which layers, **what to
 When Step 4 identifies one or more components needing a testcontainers-based real-DB test, ask the operator once per run, batched across every such component regardless of adapter kind — this is the shared prompt later adapter-kind slices (#1434 downstream services, #1435 record-and-replay libraries) append to, not a new prompt each run — whether to:
 
 1. **Build** — propose a downstream Story that the operator/orchestrator later drives `/build` against, or
-2. **Document only** (default) — the recommendation lands in the report as today, with no further action.
+2. **Document-only** (default) — the recommendation lands in the report as today, with no further action.
 
 Non-interactive runs (per `human-oversight-protocol`'s `--yes` / `DEV_TEAM_AUTO_APPROVE=1` / no-TTY convention) skip the prompt entirely — no prompt is surfaced, and the recommendation lands in the report only, document-only, exactly as today.
 
@@ -109,7 +109,7 @@ Repos with no such gap see no behavior change: no prompt is asked, and the repor
 
 #### Database-specific branch
 
-For the database-IS-the-SUT band, once the operator has answered "build it" at the batch level, branch further **per component** on testcontainers accept/decline:
+For the database-IS-the-SUT band, once the operator has answered "build it" at the batch level, the testcontainers accept/decline sub-question is asked **per component** — within that same batched interaction, only for the components the operator chose to build — and Step 4b then branches further on the answer:
 
 - **Testcontainers accepted** — propose a Story titled `[<component>] Add testcontainers-based real-DB test`. Its description names Database Sandbox isolation and both teardown options — Transaction Rollback and Table Truncation — and cites `database-test-patterns.md`.
 - **Testcontainers declined** — do **not** revert to a report-only recommendation. Propose a Story titled `[<component>] Add hand-rolled Fake database double` instead. Its description names the Fake as an in-memory repository implementing the same interface, per `test-doubles.md`'s Fake taxonomy, cites both `database-test-patterns.md` and `test-doubles.md`, and carries this caveat verbatim: "Caveat: this hand-rolled Fake cannot verify actual SQL, mapping, or schema correctness the way a real-engine test can — a deliberate coverage trade-off, not a silent downgrade."
