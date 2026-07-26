@@ -24,6 +24,7 @@ Grounded in these knowledge references — read the first two before assessing:
 - `knowledge/cd-test-architecture.md` — the six test types, the determinism→pre-merge-gate rule, the adapter rule, double validation, pipeline stages, and MinimumCD-vs-Fowler terminology.
 - `knowledge/component-test-patterns.md` — per-component patterns (UI / Services / Batch) with isolation strategy and pipeline placement.
 - `knowledge/database-test-patterns.md` — load when a component is database-backed: Database Sandbox isolation, Transaction Rollback / Table Truncation Teardown, and the rule that pushes most data-logic tests onto in-memory Fakes so they stay pre-merge-gate eligible.
+- `knowledge/test-doubles.md` — the Stub/Fake/Mock/Spy taxonomy; load when Step 4b's database branch proposes a hand-rolled Fake fallback, so it's named correctly (a Fake, never a "mock").
 
 ## Constraints
 
@@ -105,6 +106,14 @@ Non-interactive runs (per `human-oversight-protocol`'s `--yes` / `DEV_TEAM_AUTO_
 An ambiguous or absent answer to the batched build-vs-document question — for example "maybe", "I'm not sure", a bare "yes" or "no", or silence/empty input — is treated the same as document-only: never guessed, never blocked on.
 
 Repos with no such gap see no behavior change: no prompt is asked, and the report is unchanged.
+
+#### Database-specific branch
+
+For the database-IS-the-SUT band, once the operator has answered "build it" at the batch level, branch further **per component** on testcontainers accept/decline:
+
+- **Testcontainers accepted** — propose a Story titled `[<component>] Add testcontainers-based real-DB test`. Its description names Database Sandbox isolation and both teardown options — Transaction Rollback and Table Truncation — and cites `database-test-patterns.md`.
+- **Testcontainers declined** — do **not** revert to a report-only recommendation. Propose a Story titled `[<component>] Add hand-rolled Fake database double` instead. Its description names the Fake as an in-memory repository implementing the same interface, per `test-doubles.md`'s Fake taxonomy, cites both `database-test-patterns.md` and `test-doubles.md`, and carries this caveat verbatim: "Caveat: this hand-rolled Fake cannot verify actual SQL, mapping, or schema correctness the way a real-engine test can — a deliberate coverage trade-off, not a silent downgrade."
+- **Ambiguous or absent answer to this per-component question** — using the same ambiguous definition and examples as the top-level batched question above — is treated as **decline** (Fake fallback, caveat logged), not document-only. This is distinct from, and does not defer to, the top-level rule that an ambiguous answer to the batched question defaults to document-only: once the operator has opted in to building at the batch level, the safer default for an undetermined per-component mechanism is the double that doesn't require external tooling.
 
 ### 5. Produce a migration path
 

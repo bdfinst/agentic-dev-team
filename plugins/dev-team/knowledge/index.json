@@ -2374,6 +2374,10 @@
       "summary": "Per component, using its pattern: which test types cover which layers, **what to double to run pre-merge without configuration**, the success scenarios and failure modes to cover, the double-validation loop, and the pipeline stage for each (pre-merge gate vs Stage 1/2 vs out-of-band vs post-deploy).",
       "anchor": "4-recommend-the-target-architecture"
     },
+    "4b. Build-vs-document decision (off-gate adapter test doubles)": {
+      "summary": "When Step 4 identifies one or more components needing a testcontainers-based real-DB test, ask the operator once per run, batched across every such component regardless of adapter kind — this is the shared prompt later adapter-kind slices…",
+      "anchor": "4b-build-vs-document-decision-off-gate-adapter-test-doubles"
+    },
     "5. Produce a migration path": {
       "summary": "Order the moves from current → target, lowest-risk first.",
       "anchor": "5-produce-a-migration-path"
