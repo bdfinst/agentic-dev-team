@@ -124,7 +124,7 @@ Applies to API Consumer, Event Consumer, and Event Producer components (`compone
 
 Every row offers all three options identically, with no ownership-based distinction: `Build (testcontainers)`, `Build (Fake)`, `Document-only`.
 
-**All off-gate validation of a downstream-service test double runs out-of-band, on a schedule — never pre-merge/in-band — regardless of whether the dependency is team-controlled or third-party.** This applies uniformly to both the testcontainers-based adapter-integration test and the Fake's companion provider-contract verification. This is the operator's explicit correction to the original design (issue #1434), not an extension of `component-test-patterns.md`'s or `cd-test-architecture.md`'s existing ownership-tiered adapter-integration placement guidance (team-controlled deps Stage 1/2 in-band, third-party out-of-band) — this skill deliberately narrows/overrides that guidance for this specific decision. Reconciling those knowledge files' own wording with this override is a follow-up, out of this issue's scope.
+**All off-gate validation of a downstream-service test double runs out-of-band, on a schedule — never pre-merge/in-band — regardless of whether the dependency is team-controlled or third-party.** This applies uniformly to both the testcontainers-based adapter-integration test and the Fake's companion provider-contract verification, per `component-test-patterns.md`'s and `cd-test-architecture.md`'s Integration-test placement rule: a real dependency is non-deterministic regardless of who owns it, so it never earns an in-band exception.
 
 An ambiguous or absent answer for a downstream-service row defaults to `Document-only`, the same ambiguous-answer rule as any other ambiguous answer above — not a new rule.
 

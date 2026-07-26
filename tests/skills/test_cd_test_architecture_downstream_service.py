@@ -165,34 +165,25 @@ def test_downstream_service_branch_states_all_validation_is_scheduled_out_of_ban
     )
 
 
-def test_universal_placement_rule_states_it_overrides_knowledge_file_guidance():
-    # correctness-review + ai-provenance-review (confirmed independently):
-    # the universal placement rule narrows/overrides `component-test-
-    # patterns.md`'s and `cd-test-architecture.md`'s still-current
-    # ownership-tiered adapter-integration placement guidance (team-
-    # controlled deps Stage 1/2 in-band, third-party out-of-band). Those
-    # knowledge files are deliberately left unedited (out of this issue's
-    # scope; other skills read them) — this positive assertion pins the
-    # override/caveat sentence added to SKILL.md instead, and confirms the
-    # sentence points at reconciling the knowledge files as a follow-up
-    # rather than pretending no tension exists.
+def test_universal_placement_rule_cites_consistent_knowledge_file_guidance():
+    # correctness-review + ai-provenance-review (confirmed independently)
+    # originally found SKILL.md's universal placement rule citing a
+    # component-test-patterns.md/cd-test-architecture.md ownership-tiered
+    # rule that contradicted it (team-controlled deps Stage 1/2 in-band,
+    # third-party out-of-band). Rather than adding an "override" caveat,
+    # both knowledge files were corrected to state the same universal
+    # out-of-band/scheduled-regardless-of-ownership rule (see
+    # component-test-patterns.md's API Consumer/Event Consumer/Event
+    # Producer Pipeline lines and cd-test-architecture.md's Integration row
+    # + Pre-Merge Gate Rule section) — so SKILL.md's citation is now a
+    # plain, accurate reference, not an override. This test guards that the
+    # citation names both files and doesn't reintroduce override language.
     sec = collapsed(_downstream_service_branch_section())
-    assert grep(
-        r"operator's explicit correction to the original design",
-        sec,
-        ignore_case=True,
-    )
-    assert grep(
-        r"deliberately narrows/overrides that guidance for this specific "
-        r"decision",
-        sec,
-        ignore_case=True,
-    )
-    assert grep(
-        r"reconciling those knowledge files.*is a follow-up",
-        sec,
-        ignore_case=True,
-    )
+    assert grep(r"component-test-patterns\.md", sec)
+    assert grep(r"cd-test-architecture\.md", sec)
+    assert grep(r"placement rule", sec, ignore_case=True)
+    assert not grep(r"overrides", sec, ignore_case=True)
+    assert not grep(r"narrows", sec, ignore_case=True)
 
 
 def test_ambiguous_answer_rule_reused_not_reinvented():

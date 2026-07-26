@@ -16,7 +16,7 @@ Core principle: **a pre-merge gate may contain only deterministic tests.** A tes
 | **Unit** | A unit of behavior through its public interface (what it does, not how) | isolated (doubles) | yes | **yes** | Stage 1 |
 | **Component** | A single component through its public interface, with systems the team doesn't control replaced by doubles | doubles for uncontrolled systems | yes | **yes** | Stage 1 |
 | **Contract** | Interface boundaries with external systems, using doubles (a.k.a. narrow integration). Pins the request sent + response shape depended on | doubles; *validated by integration* | yes | **yes** | Stage 1 |
-| **Integration** | That the contract's doubles still match the real system. Exercises real external dependencies | real systems | **no** | **never** | Stage 1/2 for team-controlled containers; out-of-band/scheduled for third-party |
+| **Integration** | That the contract's doubles still match the real system. Exercises real external dependencies | real systems | **no** | **never** | Out-of-band / scheduled, regardless of ownership |
 | **End-to-end** | Two or more real components up to the full system | real components | **no** | **never** | Post-deploy smoke; never gates the build |
 
 **Unit** has two shapes: *solitary* (all collaborators doubled) and *sociable* (real in-process collaborators, only true boundaries doubled). Both are deterministic and pre-merge.
@@ -29,8 +29,7 @@ Pre-merge (the gate that blocks a merge) contains **only**: static analysis, uni
 
 Integration and end-to-end tests are non-deterministic by nature (real systems, real network, shared state) and **never gate a merge**. They run:
 
-- **Stage 1/2 (still in CI)** when the dependency is a *team-controlled* container (testcontainers/WireMock) the build spins up itself.
-- **Out-of-band / scheduled** when the dependency is a *third-party API, managed broker, or another team's service*.
+- **Out-of-band / scheduled, always** — regardless of whether the dependency is a team-controlled container (testcontainers/WireMock) the build could spin up itself, or a third-party API, managed broker, or another team's service. A locally-run container is still a real system: real network, real state, non-deterministic — ownership of the dependency changes nothing about that, so it never earns an in-band exception.
 - **Post-deploy** for end-to-end smoke of critical journeys against real backends — blocking rollout, not the build.
 
 If a "unit test" needs a database URL, a broker, a downstream service, or environment secrets to run, it is mis-typed — it's an integration test wearing a unit test's name. Re-type it or convert it to a component test with doubles.
