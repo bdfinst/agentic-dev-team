@@ -63,6 +63,24 @@ def cd_test_architecture_output_section(text: str) -> str:
     return section(text, r"^## Output", boundary_pattern=r"^## Integration")
 
 
+def cd_test_architecture_fake_row_clause(text: str) -> str:
+    """Extract cd-test-architecture/SKILL.md's `## Output` section's
+    "row whose status is `Build (Fake)`" caveat-cross-reference sentence
+    from `text` (the skill's full body). Promoted here (structure-review;
+    issue #1434) after the identical extraction (a `section()` call nested
+    inside a locally-defined `_output_section()` wrapper) was duplicated
+    verbatim across test_cd_test_architecture_step4b.py and
+    test_cd_test_architecture_downstream_service.py — same precedent as
+    `cd_test_architecture_output_section` above (issue #968)."""
+    return collapsed(
+        section(
+            cd_test_architecture_output_section(text),
+            r"row whose status is `Build \(Fake\)`",
+            boundary_pattern=r"^### ",
+        )
+    )
+
+
 def collapsed(text: str) -> str:
     """Collapse all whitespace runs (including newlines) to single spaces so
     a phrase hard-wrapped across markdown lines — even mid-word — still

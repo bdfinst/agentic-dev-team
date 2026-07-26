@@ -25,7 +25,7 @@ from __future__ import annotations
 
 from skill_doc_helpers import (
     PLUGIN_ROOT,
-    cd_test_architecture_output_section,
+    cd_test_architecture_fake_row_clause,
     collapsed,
     grep,
     section,
@@ -59,7 +59,55 @@ def _downstream_service_branch_section() -> str:
     )
 
 
+def _step_1_section() -> str:
+    """Scoped to `### 1. Inventory the application's components`, up to the
+    next top-level step. Restored (ai-provenance-review, issue #1434 AC2):
+    the equivalent helper was removed along with the reverted ownership
+    sentence during Step 1.1, leaving AC2 ("Step 1 is NOT amended with any
+    ownership/deployability recording instruction") with zero test
+    coverage."""
+    return section(_text(), r"^### 1\. Inventory", boundary_pattern=r"^### 2\.")
+
+
+def test_step_1_lists_component_patterns_with_no_ownership_classification():
+    # AC2 regression guard: pins the actual reverted wording (via
+    # `git show 168a80b:plugins/dev-team/skills/cd-test-architecture/SKILL.md`)
+    # rather than guessing. That commit's Step 1 sentence read: "For each API
+    # Consumer, Event Consumer, or Event Producer component, also record
+    # whether the dependency is team-controlled (in-house, containerizable)
+    # or third-party/other-team, per `component-test-patterns.md`'s
+    # ownership guidance." Note: "deployab" is deliberately NOT used as a
+    # guard substring here — Step 1's pre-existing, unrelated "Map the
+    # deployable/testable surfaces" sentence (present both before and after
+    # the ownership sentence was ever added) legitimately contains that
+    # substring, so banning it would fail against correct, unrelated text.
+    # "team-controlled" / "third-party" / "ownership guidance" are the
+    # actual reverted phrasing and aren't used anywhere else in Step 1.
+    sec = _step_1_section()
+    assert grep(r"API Consumer", sec)
+    assert grep(r"Event Consumer", sec)
+    assert grep(r"Event Producer", sec)
+    assert grep(r"User Interface", sec)
+    assert grep(r"Stateful Service", sec)
+    assert not grep(r"team-controlled", sec, ignore_case=True)
+    assert not grep(r"third-party", sec, ignore_case=True)
+    assert not grep(r"ownership guidance", sec, ignore_case=True)
+    assert not grep(r"record whether the dependency", sec, ignore_case=True)
+
+
 # --- Boundary reachability sanity check -------------------------------------
+
+
+def test_downstream_service_branch_section_boundary_is_reachable():
+    # structure-review + correctness-review + ai-provenance-review +
+    # test-review (confirmed by all four): this header had no test beneath
+    # it after the old Step-1 boundary test was removed during the revert.
+    # Restore a real boundary-reachability check: the extracted section
+    # must exclude the next step's content, proving the boundary_pattern
+    # actually stops the extraction rather than running to end-of-file.
+    sec = _downstream_service_branch_section()
+    assert not grep(r"### 5\. Produce a migration path", sec)
+    assert not grep(r"Order the moves from current", sec)
 
 
 # --- Step 1.2: Downstream-service branch ------------------------------------
@@ -117,19 +165,50 @@ def test_downstream_service_branch_states_all_validation_is_scheduled_out_of_ban
     )
 
 
-def test_ambiguous_answer_rule_reused_not_reinvented():
-    # "not a new rule" is anaphoric (referring back to "the same ambiguous-
-    # answer rule as any other ambiguous answer above"), but the referent is
-    # pinned here: both phrases are asserted against the same `sec` extract,
-    # which is the single sentence containing both clauses — reviewed and
-    # judged sufficient (ai-provenance-review, iteration 2).
+def test_universal_placement_rule_states_it_overrides_knowledge_file_guidance():
+    # correctness-review + ai-provenance-review (confirmed independently):
+    # the universal placement rule narrows/overrides `component-test-
+    # patterns.md`'s and `cd-test-architecture.md`'s still-current
+    # ownership-tiered adapter-integration placement guidance (team-
+    # controlled deps Stage 1/2 in-band, third-party out-of-band). Those
+    # knowledge files are deliberately left unedited (out of this issue's
+    # scope; other skills read them) — this positive assertion pins the
+    # override/caveat sentence added to SKILL.md instead, and confirms the
+    # sentence points at reconciling the knowledge files as a follow-up
+    # rather than pretending no tension exists.
     sec = collapsed(_downstream_service_branch_section())
     assert grep(
-        r"same ambiguous-answer rule as any other ambiguous answer",
+        r"operator's explicit correction to the original design",
         sec,
         ignore_case=True,
     )
-    assert grep(r"not a new rule", sec, ignore_case=True)
+    assert grep(
+        r"deliberately narrows/overrides that guidance for this specific "
+        r"decision",
+        sec,
+        ignore_case=True,
+    )
+    assert grep(
+        r"reconciling those knowledge files.*is a follow-up",
+        sec,
+        ignore_case=True,
+    )
+
+
+def test_ambiguous_answer_rule_reused_not_reinvented():
+    # "not a new rule" is anaphoric (referring back to "the same ambiguous-
+    # answer rule as any other ambiguous answer above"). A single anchored
+    # regex spanning both clauses pins the anaphoric referent directly,
+    # rather than two independent asserts against the whole subsection
+    # (which could each match a different sentence and not actually prove
+    # the two clauses are joined).
+    sec = collapsed(_downstream_service_branch_section())
+    assert grep(
+        r"same ambiguous-answer rule as any other ambiguous answer "
+        r"above\s*—\s*not a new rule",
+        sec,
+        ignore_case=True,
+    )
 
 
 def test_event_producer_named_alongside_api_and_event_consumer():
@@ -175,10 +254,6 @@ def _downstream_fake_bullet() -> str:
     )
 
 
-def _output_section() -> str:
-    return cd_test_architecture_output_section(_text())
-
-
 def test_testcontainers_story_title_and_description():
     bullet = _downstream_testcontainers_bullet()
     assert grep(
@@ -220,17 +295,38 @@ def test_fake_story_always_requires_scheduled_verification_no_ownership_exemptio
     sec = _downstream_service_branch_section()
     assert not grep(r"team-controlled rows", sec, ignore_case=True)
     assert not grep(r"third-party rows", sec, ignore_case=True)
+    # Positive companion (test-smell-review): the two negative assertions
+    # above guard the real prior wording (git show 168a80b confirms
+    # "**Third-party rows**:" / "**Team-controlled rows**:" were the actual
+    # bolded labels pre-revert), but a positive assertion proves the current
+    # subsection actually states the no-distinction framing rather than
+    # simply omitting the old labels.
+    assert grep(r"no ownership-based distinction", sec, ignore_case=True)
+
+
+def _downstream_document_only_bullet() -> str:
+    return collapsed(
+        section(
+            _downstream_service_branch_section(),
+            r"\*\*Document-only\*\*",
+            boundary_pattern=r"^(#### |### 5\.)",
+        )
+    )
+
+
+def test_downstream_service_branch_document_only_is_report_only_noop():
+    # Mirrors test_database_branch_document_only_is_report_only_noop in the
+    # sibling file — the bare "Document-only" label was already checked
+    # (test_downstream_service_row_offers_all_three_options_uniformly), but
+    # its bullet body content had no assertion of its own (test-review gap).
+    bullet = _downstream_document_only_bullet()
+    assert grep(r"document-only", bullet, ignore_case=True)
+    assert grep(r"report only", bullet, ignore_case=True)
+    assert grep(r"no further action", bullet, ignore_case=True)
 
 
 def test_output_section_caveat_generalized_not_database_specific():
-    sec = _output_section()
-    fake_row_clause = collapsed(
-        section(
-            sec,
-            r"row whose status is `Build \(Fake\)`",
-            boundary_pattern=r"^### ",
-        )
-    )
+    fake_row_clause = cd_test_architecture_fake_row_clause(_text())
     assert not grep(r"SQL, mapping, or schema", fake_row_clause, ignore_case=True)
     assert DOWNSTREAM_FAKE_CAVEAT not in fake_row_clause
     assert grep(r"Database-specific branch", fake_row_clause)
@@ -257,6 +353,5 @@ def test_knowledge_references_bullet_covers_both_branches():
         refs_section,
         ignore_case=True,
     )
-
 
 
