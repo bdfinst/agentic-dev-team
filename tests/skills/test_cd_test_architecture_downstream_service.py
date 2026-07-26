@@ -186,6 +186,70 @@ def test_universal_placement_rule_cites_consistent_knowledge_file_guidance():
     assert not grep(r"narrows", sec, ignore_case=True)
 
 
+def _component_test_patterns_text() -> str:
+    return (
+        (PLUGIN_ROOT / "knowledge" / "component-test-patterns.md")
+        .read_text(encoding="utf-8")
+    )
+
+
+def _cd_test_architecture_knowledge_text() -> str:
+    return (
+        (PLUGIN_ROOT / "knowledge" / "cd-test-architecture.md")
+        .read_text(encoding="utf-8")
+    )
+
+
+def test_knowledge_files_state_the_universal_out_of_band_rule():
+    # ai-provenance-review: SKILL.md:127 cites component-test-patterns.md
+    # and cd-test-architecture.md as the authority for the universal
+    # out-of-band/scheduled-regardless-of-ownership placement rule, but
+    # nothing previously read either file — the citation was load-bearing
+    # and unguarded, so reverting either knowledge file back to the old
+    # ownership-tiered wording would break SKILL.md's citation's truth
+    # with a fully green suite. Pin the corrected wording directly.
+    patterns_text = _component_test_patterns_text()
+    # API Consumer, Event Consumer, Event Producer Pipeline lines each
+    # state adapter integration runs out-of-band on a schedule, with
+    # wording that varies slightly per line but always names both
+    # ownership tiers as covered by the same rule.
+    assert grep(
+        r"adapter integration out-of-band on a schedule.*never in-band",
+        patterns_text,
+        ignore_case=True,
+    )
+    assert grep(
+        r"regardless of whether the dependency is in-house or "
+        r"third-party/other-team",
+        patterns_text,
+        ignore_case=True,
+    )
+    assert grep(
+        r"regardless of whether the broker is team-controlled or "
+        r"managed/third-party",
+        patterns_text,
+        ignore_case=True,
+    )
+    assert not grep(
+        r"adapter integration for \*\*in-house\*\* deps", patterns_text
+    )
+    assert not grep(r"adapter integration vs team-controlled broker", patterns_text)
+
+    arch_text = _cd_test_architecture_knowledge_text()
+    assert grep(
+        r"Out-of-band / scheduled, regardless of ownership", arch_text
+    )
+    assert grep(r"Out-of-band / scheduled, always", arch_text)
+    assert not grep(
+        r"Stage 1/2 for team-controlled containers", arch_text
+    )
+    assert not grep(
+        r"Adapter integration test\*\* \(Stage 1/2\).*for dependencies you "
+        r"control",
+        arch_text,
+    )
+
+
 def test_ambiguous_answer_rule_reused_not_reinvented():
     # "not a new rule" is anaphoric (referring back to "the same ambiguous-
     # answer rule as any other ambiguous answer above"). A single anchored
@@ -256,6 +320,27 @@ def test_testcontainers_story_title_and_description():
     assert grep(r"component-test-patterns\.md", bullet)
 
 
+def test_1435_reference_is_a_maintainer_note_not_emitted_story_content():
+    # ai-provenance-review (still unresolved after a prior fix pass): the
+    # #1435 issue reference was embedded inside the sentence describing
+    # the emitted Story's own description, so a skill run in a downstream
+    # user's repo could copy "#1435" verbatim into that user's Story,
+    # where the number is meaningless. Moved to a clearly-parenthetical
+    # trailing sentence explicitly labeled as a maintainer note.
+    #
+    # `section()`'s boundary matching is line-granular (the whole bullet
+    # is one unwrapped source line, per this SKILL.md's style), so it
+    # can't split "Its description..." from "(This bullet is a
+    # placeholder..." within that single line — use a plain string split
+    # on the bullet text instead.
+    bullet = collapsed(_downstream_testcontainers_bullet())
+    assert grep(r"maintainer note, not emitted Story content", bullet, ignore_case=True)
+    marker = "(This bullet is a placeholder"
+    assert marker in bullet
+    description_clause = bullet.split(marker, 1)[0]
+    assert "#1435" not in description_clause
+
+
 def test_fake_story_title_and_wire_contract_caveat_verbatim():
     bullet = collapsed(_downstream_fake_bullet())
     assert grep(
@@ -296,11 +381,20 @@ def test_fake_story_always_requires_scheduled_verification_no_ownership_exemptio
 
 
 def _downstream_document_only_bullet() -> str:
+    # No boundary_pattern is passed deliberately: `Document-only` is the
+    # last bullet in `_downstream_service_branch_section()`'s own
+    # already-truncated text, so any boundary_pattern here would be
+    # structurally unreachable — that already-truncated text has no
+    # further `#### `/`### 5.` line for it to match (ai-provenance-review:
+    # the prior boundary_pattern=r"^(#### |### 5\.)" could never fire,
+    # the same unreachable-boundary class this file's docstring warns
+    # against, just silently harmless here because there's nothing past
+    # this bullet to over-capture). Extraction correctly runs to the end
+    # of the outer section instead.
     return collapsed(
         section(
             _downstream_service_branch_section(),
             r"\*\*Document-only\*\*",
-            boundary_pattern=r"^(#### |### 5\.)",
         )
     )
 

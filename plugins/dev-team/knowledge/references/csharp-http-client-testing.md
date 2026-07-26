@@ -181,10 +181,10 @@ so they don't belong on the pre-merge gate (see
   the network stack and DNS, not your code. Slow, OS-dependent, flaky.
 - **WireMock.Net / MockServer for unit tests.** These are full HTTP
   servers in-process. Reserve them for the **adapter-integration** layer
-  (Stage 1/2, off-gate) where the network behavior itself is under test —
-  TLS, HTTP/2, proxy, real timeouts. For pre-merge behavior coverage, the
-  in-process `HttpMessageHandler` stub is strictly faster and at least as
-  accurate.
+  (out-of-band, on a schedule — never in-band) where the network behavior
+  itself is under test — TLS, HTTP/2, proxy, real timeouts. For pre-merge
+  behavior coverage, the in-process `HttpMessageHandler` stub is strictly
+  faster and at least as accurate.
 
 ## Common smells in C# HTTP-consumer tests
 
