@@ -73,7 +73,7 @@ def test_step_4b_section_exists_between_step_4_and_5():
     assert _step_4b_section().strip() != ""
 
 
-def test_step_4b_asks_once_batched_per_run_not_per_adapter_kind():
+def test_step_4b_uses_once_and_batched_language():
     sec = _step_4b_section()
     assert grep(r"\bonce\b", sec, ignore_case=True)
     assert grep(r"batch(ed)?", sec, ignore_case=True)
@@ -94,8 +94,12 @@ def test_step_4b_ambiguous_answer_defaults_to_document_only():
     sec = _step_4b_section()
     assert grep(r"maybe", sec, ignore_case=True)
     assert grep(r"not sure", sec, ignore_case=True)
-    assert grep(r"\byes\b", sec, ignore_case=True)
-    assert grep(r"\bno\b", sec, ignore_case=True)
+    # A literal phrase, not \byes\b/\bno\b token checks — those are
+    # satisfiable by the unrelated "--yes" flag citation and ordinary
+    # "no prompt"/"no such gap" prose elsewhere in the section, so they'd
+    # still pass if this actual example were deleted (test-review finding,
+    # issue #1433).
+    assert grep(r'bare "?yes"?.{0,15}"?no"?', sec, ignore_case=True)
     assert grep(r"silence|empty|no answer", sec, ignore_case=True)
     assert grep(r"document-only|document only", sec, ignore_case=True)
 
@@ -155,12 +159,18 @@ FAKE_CAVEAT = (
 
 
 def test_database_branch_dispatches_testcontainers_story_when_accepted():
-    sec = collapsed(_step_4b_section())
-    assert grep(r"testcontainers", sec, ignore_case=True)
-    assert grep(r"propose", sec, ignore_case=True)
-    assert grep(r"Database Sandbox", sec)
-    assert grep(r"Transaction Rollback", sec)
-    assert grep(r"Table Truncation", sec)
+    accepted_bullet = collapsed(
+        section(
+            _step_4b_section(),
+            r"\*\*Testcontainers accepted\*\*",
+            boundary_pattern=r"^- \*\*Testcontainers declined\*\*",
+        )
+    )
+    assert grep(r"testcontainers", accepted_bullet, ignore_case=True)
+    assert grep(r"propose", accepted_bullet, ignore_case=True)
+    assert grep(r"Database Sandbox", accepted_bullet)
+    assert grep(r"Transaction Rollback", accepted_bullet)
+    assert grep(r"Table Truncation", accepted_bullet)
 
 
 def test_database_branch_declined_proposes_fake_not_document_only():
@@ -197,8 +207,13 @@ def test_database_branch_cites_test_doubles_and_database_test_patterns():
 
 
 def test_ambiguous_testcontainers_answer_treated_as_decline_not_document_only():
+    # boundary_pattern uses the full, untruncated text (not
+    # _step_4b_section(), which already excludes "### 5." as its own
+    # boundary — passing that same pattern again here would be
+    # unreachable and silently let a future Step 4b addition after this
+    # bullet leak into scope; test-review finding, issue #1433).
     ambiguous_bullet = section(
-        _step_4b_section(),
+        _text(),
         r"\*\*Ambiguous or absent answer to this per-component question\*\*",
         boundary_pattern=r"^### 5\.",
     )
