@@ -307,7 +307,12 @@ def test_story_titles_follow_the_bracketed_component_template():
 
 
 def test_database_branch_cites_test_doubles_and_database_test_patterns():
-    sec = _step_4b_section()
+    # Scoped to the database branch specifically (not the whole `### 4b.`
+    # section), since #1434 widened the section to also include the
+    # Downstream-service branch, which also cites `test-doubles.md` now —
+    # scoping to `_step_4b_section()` would make the "cites test-doubles.md"
+    # half of this assertion vacuous (ai-provenance-review, iteration 2).
+    sec = _database_specific_branch_section()
     assert grep(r"test-doubles\.md", sec)
     assert grep(r"database-test-patterns\.md", sec)
 

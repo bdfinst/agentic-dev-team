@@ -98,8 +98,8 @@ Per component, using its pattern: which test types cover which layers, **what to
 
 When Step 4 identifies one or more components needing an off-gate adapter test double (today: a testcontainers-based real-DB test, or a downstream-service adapter test), ask the operator once per run, batched across every such component regardless of adapter kind — this is the shared prompt later adapter-kind slices (#1435 record-and-replay libraries) append to, not a new prompt each run. The one prompt lists every such component and asks the operator, for each one, to choose exactly one of the options listed for that row — up to three; a row may offer fewer depending on its ownership tier — there is no separate follow-up sub-question:
 
-1. **Build (testcontainers)** — propose a downstream Story for a testcontainers-based real-DB test that the operator/orchestrator later drives `/build` against.
-2. **Build (Fake)** — propose a downstream Story for a hand-rolled Fake database double.
+1. **Build (testcontainers)** — propose a downstream Story for a real-dependency test using testcontainers (exact Story shape per the branch subsection below).
+2. **Build (Fake)** — propose a downstream Story for a hand-rolled Fake double (exact Story shape per the branch subsection below).
 3. **Document-only** (default) — the recommendation lands in the report as today, with no further action.
 
 The operator answers with one of the choices listed for that row for each listed component in a single reply — one prompt is surfaced per run, carrying a per-component answer, not one verdict applied to every component in the batch.
