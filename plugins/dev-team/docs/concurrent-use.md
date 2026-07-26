@@ -13,7 +13,7 @@ The plugin's local coordination state is per-checkout, not shared:
 
 | State | Where | Shared across checkouts? |
 | --- | --- | --- |
-| Review gate `.review-passed` | repo root, **gitignored** | No — local to each working tree |
+| Review gate `.review-passed` | `.claude/memory/`, **gitignored** | No — local to each working tree |
 | Plan / build progress | `plans/<name>.md` (**tracked**) | Merges through normal git |
 
 So two developers, each with their **own clone**, never collide on these — and

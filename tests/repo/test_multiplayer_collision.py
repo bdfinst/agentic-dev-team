@@ -65,7 +65,9 @@ def _commit_hook(cwd: Path) -> subprocess.CompletedProcess:
 
 
 def _write_gate(cwd: Path) -> None:
-    (cwd / ".review-passed").write_text(_rgh.review_gate_hash(cwd=cwd))
+    gate_path = cwd / ".claude" / "memory" / ".review-passed"
+    gate_path.parent.mkdir(parents=True, exist_ok=True)
+    gate_path.write_text(_rgh.review_gate_hash(cwd=cwd))
 
 
 def test_baseline_gate_written_for_current_staged_content_allows_commit(
@@ -84,7 +86,8 @@ def test_collision_a_second_agent_overwriting_review_passed_falsely_blocks_the_f
     (work / "a.ts").write_text("v1\n")
     subprocess.run(["git", "add", "a.ts"], cwd=work, env=_git_env(), check=True)
     _write_gate(work)  # agent A passed review for its staged content
-    (work / ".review-passed").write_text(
+    gate_path = work / ".claude" / "memory" / ".review-passed"
+    gate_path.write_text(
         "a-different-agents-hash\n"
     )  # agent B (same tree) overwrote it
     res = _commit_hook(work)  # A commits its still-staged change

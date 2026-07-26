@@ -195,6 +195,7 @@ Otherwise read the roster from the **Review Agents** section of `knowledge/agent
 This replaces any hardcoded per-agent dispatch rules. Adding or changing a review agent's trigger scope requires only editing that agent's own body — zero edits to this skill.
 
 **Framework-specific reactivity review** — dispatch based on the project's dependency manifest (`package.json` etc.):
+
 - React (`react` / `react-dom` in deps): include `react-reactivity-review` scoped to `.jsx`/`.tsx` and React-importing `.js`/`.ts` files
 - Vue (`vue` in deps): include `vue-reactivity-review` scoped to `.vue` and Vue-importing `.js`/`.ts` files
 - Angular (`@angular/core` in deps): include `angular-reactivity-review` scoped to `*.component.ts`, `*.component.html`, `*.service.ts`, and general `.ts` files
@@ -420,10 +421,10 @@ For issues NOT auto-fixed (confidence: none, auto-fix failed, or suggestions), g
 
 **Skip this entire step if `--json` was set** (same reason as step 8).
 
-If the review was auto-scoped to uncommitted changes and the overall status is `pass` or `warn`, write `.review-passed` so the pre-commit hook allows the next commit. Use the **shared gate-hash helper** so the writer and the pre-commit hook compute the hash identically — it hashes the staged **content** (the cached patch), not just the file paths (#193), so any edit after review invalidates the gate:
+If the review was auto-scoped to uncommitted changes and the overall status is `pass` or `warn`, write `.review-passed` to `.claude/memory/` so the pre-commit hook allows the next commit. Use the **shared gate-hash helper** so the writer and the pre-commit hook compute the hash identically — it hashes the staged **content** (the cached patch), not just the file paths (#193), so any edit after review invalidates the gate:
 
 ```bash
-python3 ${CLAUDE_PLUGIN_ROOT}/hooks/lib/review_gate_hash.py > .review-passed
+mkdir -p .claude/memory && python3 ${CLAUDE_PLUGIN_ROOT}/hooks/lib/review_gate_hash.py > .claude/memory/.review-passed
 ```
 
 Stage the exact changes you reviewed (`git add` them) before writing the gate, so the staged content the hook hashes matches what was reviewed. If `git diff --cached` is empty (you reviewed unstaged changes), stage them first — the gate binds to the staged patch by design.

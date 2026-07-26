@@ -234,19 +234,23 @@ def test_missing_gate_file_blocks(repo: Path) -> None:
 
 def test_matching_gate_file_passes_and_is_consumed(repo: Path) -> None:
     h = _current_hash(repo)
-    (repo / ".review-passed").write_text(h)
+    gate_path = repo / ".claude" / "memory" / ".review-passed"
+    gate_path.parent.mkdir(parents=True, exist_ok=True)
+    gate_path.write_text(h)
     r = _run(
         {"tool_name": "Bash", "tool_input": {"command": "git commit -m x"}}, cwd=repo
     )
     assert r.returncode == 0
     # Gate file consumed on success.
-    assert not (repo / ".review-passed").exists()
+    assert not (repo / ".claude" / "memory" / ".review-passed").exists()
 
 
 def test_stale_gate_file_blocks(repo: Path) -> None:
     """Reviewed content changed → hash mismatch → block. Gate file NOT removed."""
     h = _current_hash(repo)
-    (repo / ".review-passed").write_text(h)
+    gate_path = repo / ".claude" / "memory" / ".review-passed"
+    gate_path.parent.mkdir(parents=True, exist_ok=True)
+    gate_path.write_text(h)
     # Edit the staged file's content.
     (repo / "a.ts").write_text("v2-unreviewed\n")
     env = hermetic_git_env(home=repo)
@@ -258,12 +262,14 @@ def test_stale_gate_file_blocks(repo: Path) -> None:
     assert "BLOCKED" in r.stdout
     assert "BLOCKED" in r.stderr
     # Gate file preserved because it did NOT match.
-    assert (repo / ".review-passed").exists()
+    assert (repo / ".claude" / "memory" / ".review-passed").exists()
 
 
 def test_extra_staged_file_after_review_blocks(repo: Path) -> None:
     h = _current_hash(repo)
-    (repo / ".review-passed").write_text(h)
+    gate_path = repo / ".claude" / "memory" / ".review-passed"
+    gate_path.parent.mkdir(parents=True, exist_ok=True)
+    gate_path.write_text(h)
     (repo / "b.ts").write_text("new\n")
     env = hermetic_git_env(home=repo)
     subprocess.run(["git", "add", "b.ts"], cwd=repo, env=env, check=True)

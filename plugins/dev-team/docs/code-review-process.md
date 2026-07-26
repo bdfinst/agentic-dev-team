@@ -212,10 +212,10 @@ The full lifecycle of these files — discovery to applied fix, including who ow
 
 ### 9. Pre-commit gate file
 
-When the review was auto-scoped to uncommitted changes and the final status is `pass` or `warn`, the orchestrator writes `.review-passed` — a SHA-256 hash of the reviewed file list:
+When the review was auto-scoped to uncommitted changes and the final status is `pass` or `warn`, the orchestrator writes `.review-passed` to `.claude/memory/` — a SHA-256 hash of the reviewed file list:
 
 ```bash
-git diff --cached --name-only | sort | shasum -a 256 | cut -d' ' -f1 > .review-passed
+mkdir -p .claude/memory && git diff --cached --no-color | shasum -a 256 | cut -d' ' -f1 > .claude/memory/.review-passed
 ```
 
 The pre-commit hook reads this file to verify the staged files match what was actually reviewed. If the review failed, `.review-passed` is **not** written, and commits are blocked until the review is re-run and passes.
