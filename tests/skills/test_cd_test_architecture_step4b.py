@@ -39,6 +39,20 @@ def _step_4b_section() -> str:
     return section(_text(), r"^### 4b\.", boundary_pattern=r"^### 5\.")
 
 
+def _database_specific_branch_section() -> str:
+    # The three-way choice's bolded labels ("**Build (testcontainers)**",
+    # "**Build (Fake)**", "**Document-only**") appear twice in the 4b
+    # section: once as the numbered top-level prompt options, and once as
+    # the `- **` bullets in the "Database-specific branch" subsection. Scope
+    # to the subsection explicitly so `section()`'s first-match search
+    # anchors on the bullet, not the numbered list item.
+    return section(
+        _step_4b_section(),
+        r"^#### Database-specific branch",
+        boundary_pattern=r"^### 5\.",
+    )
+
+
 def _role_paragraph() -> str:
     """The `Role:` paragraph is hard-wrapped across several lines in the
     file — capture from the `Role:`-starting line through the next blank
@@ -181,31 +195,43 @@ FAKE_CAVEAT = (
 DOCUMENT_ONLY_PATTERN = r"document-only"
 
 
-def test_database_branch_proposes_testcontainers_story_when_accepted():
-    accepted_bullet = collapsed(
+def test_database_branch_build_testcontainers_proposes_testcontainers_story():
+    build_testcontainers_bullet = collapsed(
         section(
-            _step_4b_section(),
-            r"\*\*Testcontainers accepted\*\*",
+            _database_specific_branch_section(),
+            r"\*\*Build \(testcontainers\)\*\*",
             boundary_pattern=r"^(- \*\*|#### |### )",
         )
     )
-    assert grep(r"testcontainers", accepted_bullet, ignore_case=True)
-    assert grep(r"propose", accepted_bullet, ignore_case=True)
-    assert grep(r"Database Sandbox", accepted_bullet)
-    assert grep(r"Transaction Rollback", accepted_bullet)
-    assert grep(r"Table Truncation", accepted_bullet)
+    assert grep(r"testcontainers", build_testcontainers_bullet, ignore_case=True)
+    assert grep(r"propose", build_testcontainers_bullet, ignore_case=True)
+    assert grep(r"Database Sandbox", build_testcontainers_bullet)
+    assert grep(r"Transaction Rollback", build_testcontainers_bullet)
+    assert grep(r"Table Truncation", build_testcontainers_bullet)
 
 
-def test_database_branch_declined_proposes_fake_not_document_only():
-    sec = _step_4b_section()
-    decline_bullet = section(
-        sec,
-        r"\*\*Testcontainers declined\*\*",
+def test_database_branch_build_fake_proposes_fake_story_not_document_only():
+    build_fake_bullet = section(
+        _database_specific_branch_section(),
+        r"\*\*Build \(Fake\)\*\*",
         boundary_pattern=r"^(- \*\*|#### |### )",
     )
-    assert grep(r"\bFake\b", decline_bullet)
-    assert grep(r"in-memory repository", decline_bullet, ignore_case=True)
-    assert not grep(DOCUMENT_ONLY_PATTERN, decline_bullet, ignore_case=True)
+    assert grep(r"\bFake\b", build_fake_bullet)
+    assert grep(r"in-memory repository", build_fake_bullet, ignore_case=True)
+    assert not grep(DOCUMENT_ONLY_PATTERN, build_fake_bullet, ignore_case=True)
+
+
+def test_database_branch_document_only_is_report_only_noop():
+    document_only_bullet = collapsed(
+        section(
+            _database_specific_branch_section(),
+            r"\*\*Document-only\*\*",
+            boundary_pattern=r"^(- \*\*|#### |### )",
+        )
+    )
+    assert grep(DOCUMENT_ONLY_PATTERN, document_only_bullet, ignore_case=True)
+    assert grep(r"report only", document_only_bullet, ignore_case=True)
+    assert grep(r"no further action", document_only_bullet, ignore_case=True)
 
 
 def test_hand_rolled_fake_caveat_is_logged_explicitly():
@@ -227,64 +253,6 @@ def test_database_branch_cites_test_doubles_and_database_test_patterns():
     sec = _step_4b_section()
     assert grep(r"test-doubles\.md", sec)
     assert grep(r"database-test-patterns\.md", sec)
-
-
-def test_ambiguous_testcontainers_answer_treated_as_decline_not_document_only():
-    # Bound on the next sibling construct (another `- **` bullet, a
-    # `#### ` sub-heading, or the next `### ` section) rather than the
-    # section end. All three bullet-scoped tests in this module now share
-    # this same generalized boundary (test-review finding round 2, issue
-    # #1433) — the two sibling tests
-    # (test_database_branch_proposes_testcontainers_story_when_accepted,
-    # test_database_branch_declined_proposes_fake_not_document_only)
-    # previously used literal next-bullet-text boundaries instead, which
-    # left the same "could leak a future inserted bullet" exposure this
-    # pattern was meant to close for all three.
-    ambiguous_bullet = section(
-        _step_4b_section(),
-        r"\*\*Ambiguous or absent answer to this per-component question\*\*",
-        boundary_pattern=r"^(- \*\*|#### |### )",
-    )
-    ambiguous_bullet = collapsed(ambiguous_bullet)
-    assert grep(r"\bdecline\b", ambiguous_bullet, ignore_case=True)
-    assert grep(r"\bFake\b", ambiguous_bullet)
-    assert grep(
-        r"distinct from.*top-level.*document-only", ambiguous_bullet
-    )
-    # Problem B fix (issue #1433, correctness-review round 2): the
-    # sub-question reuses the same CATEGORY of ambiguity as the top-level
-    # question (vague/non-committal/absent answers), not its literal
-    # example set — the top-level's "bare yes/no is ambiguous" example
-    # does not carry over here, since a bare yes/no maps cleanly onto
-    # this sub-question's two labeled options (see the dedicated test
-    # below for the "not ambiguous" half of this fix).
-    assert grep(
-        r"same.{0,15}category.{0,5}of ambiguity", ambiguous_bullet, ignore_case=True
-    )
-
-
-def test_per_component_clear_answer_not_treated_as_ambiguous():
-    """Problem B fix (issue #1433, correctness-review round 2): a bare
-    "yes" (accept) or "no" (decline) answer maps directly onto this
-    sub-question's two labeled options (accept/decline) and must NOT be
-    treated as ambiguous here — unlike the top-level question, where a
-    bare yes/no doesn't map to either labeled option ("Build"/
-    "Document-only"). Without this, a clear "yes" was wrongly routed to
-    decline, leaving no real way to reach "accepted" in practice."""
-    ambiguous_bullet = collapsed(
-        section(
-            _step_4b_section(),
-            r"\*\*Ambiguous or absent answer to this per-component question\*\*",
-            boundary_pattern=r"^(- \*\*|#### |### )",
-        )
-    )
-    assert grep(r"not ambiguous", ambiguous_bullet, ignore_case=True)
-    assert grep(
-        r'bare "?yes"?.{0,30}accept', ambiguous_bullet, ignore_case=True
-    )
-    assert grep(r'"?no"?.{0,30}decline', ambiguous_bullet, ignore_case=True)
-    assert grep(r"top-level question", ambiguous_bullet, ignore_case=True)
-    assert grep(r"doesn.t map", ambiguous_bullet, ignore_case=True)
 
 
 def test_knowledge_references_list_includes_test_doubles():

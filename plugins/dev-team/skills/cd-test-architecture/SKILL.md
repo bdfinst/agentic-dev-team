@@ -96,26 +96,27 @@ Per component, using its pattern: which test types cover which layers, **what to
 
 ### 4b. Build-vs-document decision (off-gate adapter test doubles)
 
-When Step 4 identifies one or more components needing a testcontainers-based real-DB test, ask the operator once per run, batched across every such component regardless of adapter kind — this is the shared prompt later adapter-kind slices (#1434 downstream services, #1435 record-and-replay libraries) append to, not a new prompt each run. The one prompt lists every such component and asks the operator, for each one, to choose:
+When Step 4 identifies one or more components needing an off-gate adapter test double (today: a testcontainers-based real-DB test), ask the operator once per run, batched across every such component regardless of adapter kind — this is the shared prompt later adapter-kind slices (#1434 downstream services, #1435 record-and-replay libraries) append to, not a new prompt each run. The one prompt lists every such component and asks the operator, for each one, to choose exactly one of three options — there is no separate follow-up sub-question:
 
-1. **Build** — propose a downstream Story that the operator/orchestrator later drives `/build` against, or
-2. **Document-only** (default) — the recommendation lands in the report as today, with no further action.
+1. **Build (testcontainers)** — propose a downstream Story for a testcontainers-based real-DB test that the operator/orchestrator later drives `/build` against.
+2. **Build (Fake)** — propose a downstream Story for a hand-rolled Fake database double instead.
+3. **Document-only** (default) — the recommendation lands in the report as today, with no further action.
 
-The operator answers Build or Document-only for each listed component in a single reply — one prompt is surfaced per run, carrying a per-component answer, not one verdict applied to every component in the batch.
+The operator answers with one of these three choices for each listed component in a single reply — one prompt is surfaced per run, carrying a per-component three-way answer, not one verdict applied to every component in the batch.
 
 Non-interactive runs (per `human-oversight-protocol`'s `--yes` / `DEV_TEAM_AUTO_APPROVE=1` / no-TTY convention) skip the prompt entirely — no prompt is surfaced, and every such component's recommendation lands in the report only, document-only, exactly as today.
 
-An ambiguous or absent answer for any component in the batched build-vs-document question — for example "maybe", "I'm not sure", a bare "yes" or "no", or silence/empty input — is treated the same as document-only for that component: never guessed, never blocked on.
+An ambiguous or absent answer for any component in the batched three-way question — for example "maybe", "I'm not sure", a bare "yes" or "no" (neither maps to one of the three labeled options), or silence/empty input — defaults to Document-only for that component, same as any other ambiguous answer: never guessed, never blocked on.
 
 Repos with no such gap see no behavior change: no prompt is asked, and the report is unchanged.
 
 #### Database-specific branch
 
-For the database-IS-the-SUT band, once the operator has answered "build it" at the batch level, the testcontainers accept/decline sub-question is asked **per component** — within that same batched interaction, only for the components the operator chose to build — and Step 4b then branches further on the answer:
+For the database-IS-the-SUT band, the three-way answer directly determines the outcome per component:
 
-- **Testcontainers accepted** — propose a Story titled `[<component>] Add testcontainers-based real-DB test`. Its description names Database Sandbox isolation and both teardown options — Transaction Rollback and Table Truncation — and cites `database-test-patterns.md`.
-- **Testcontainers declined** — do **not** revert to a report-only recommendation. Propose a Story titled `[<component>] Add hand-rolled Fake database double` instead. Its description names the Fake as an in-memory repository implementing the same interface, per `test-doubles.md`'s Fake taxonomy, cites both `database-test-patterns.md` and `test-doubles.md`, and carries this caveat verbatim: "Caveat: this hand-rolled Fake cannot verify actual SQL, mapping, or schema correctness the way a real-engine test can — a deliberate coverage trade-off, not a silent downgrade."
-- **Ambiguous or absent answer to this per-component question** — the same *category* of ambiguity as the top-level batched question (vague, non-committal, or absent answers — "maybe", "not sure", or silence/no answer) — is treated as **decline** (Fake fallback, caveat logged), not document-only. Unlike the top-level question, where a bare "yes" or "no" doesn't map cleanly onto either labeled option ("Build"/"Document-only") and so counts as ambiguous there, a clear accept/decline answer to this sub-question — including a bare "yes" (meaning accept) or "no" (meaning decline) — maps directly onto this question's two labeled options and is **not ambiguous** here. This is distinct from, and does not defer to, the top-level rule that an ambiguous answer to the batched question defaults to document-only: once the operator has opted in to building at the batch level, the safer default for a genuinely undetermined per-component mechanism is the double that doesn't require external tooling.
+- **Build (testcontainers)** — propose a Story titled `[<component>] Add testcontainers-based real-DB test`. Its description names Database Sandbox isolation and both teardown options — Transaction Rollback and Table Truncation — and cites `database-test-patterns.md`.
+- **Build (Fake)** — propose a Story titled `[<component>] Add hand-rolled Fake database double` instead. Its description names the Fake as an in-memory repository implementing the same interface, per `test-doubles.md`'s Fake taxonomy, cites both `database-test-patterns.md` and `test-doubles.md`, and carries this caveat verbatim, unconditional on this choice: "Caveat: this hand-rolled Fake cannot verify actual SQL, mapping, or schema correctness the way a real-engine test can — a deliberate coverage trade-off, not a silent downgrade."
+- **Document-only** — the recommendation lands in the report only, as today; no further action.
 
 ### 5. Produce a migration path
 
