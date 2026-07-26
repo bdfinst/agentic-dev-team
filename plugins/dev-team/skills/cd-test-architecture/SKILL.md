@@ -96,7 +96,7 @@ Per component, using its pattern: which test types cover which layers, **what to
 
 ### 4b. Build-vs-document decision (off-gate adapter test doubles)
 
-When Step 4 identifies one or more components needing an off-gate adapter test double (today: a testcontainers-based real-DB test), ask the operator once per run, batched across every such component regardless of adapter kind — this is the shared prompt later adapter-kind slices (#1434 downstream services, #1435 record-and-replay libraries) append to, not a new prompt each run. The one prompt lists every such component and asks the operator, for each one, to choose exactly one of the options listed for that row — up to three; some adapter kinds offer fewer — there is no separate follow-up sub-question:
+When Step 4 identifies one or more components needing an off-gate adapter test double (today: a testcontainers-based real-DB test, or a downstream-service adapter test), ask the operator once per run, batched across every such component regardless of adapter kind — this is the shared prompt later adapter-kind slices (#1435 record-and-replay libraries) append to, not a new prompt each run. The one prompt lists every such component and asks the operator, for each one, to choose exactly one of the options listed for that row — up to three; a row may offer fewer depending on its ownership tier — there is no separate follow-up sub-question:
 
 1. **Build (testcontainers)** — propose a downstream Story for a testcontainers-based real-DB test that the operator/orchestrator later drives `/build` against.
 2. **Build (Fake)** — propose a downstream Story for a hand-rolled Fake database double.
@@ -106,7 +106,7 @@ The operator answers with one of the choices listed for that row for each listed
 
 Non-interactive runs (per `human-oversight-protocol`'s `--yes` / `DEV_TEAM_AUTO_APPROVE=1` / no-TTY convention) skip the prompt entirely — no prompt is surfaced, and every such component's recommendation lands in the report only, document-only, exactly as today.
 
-An ambiguous or absent answer for any component in the batched question — for example "maybe", "I'm not sure", a bare "yes" or "no", an unqualified "build" that does not name which of the two Build options (none of these map to one of the labeled options for that row), or silence/empty input — defaults to Document-only for that component, same as any other ambiguous answer: never guessed, never blocked on.
+An ambiguous or absent answer for any component in the batched question — for example "maybe", "I'm not sure", a bare "yes" or "no", an unqualified "build" that does not name which Build option, when more than one is offered (none of these map to one of the labeled options for that row), or silence/empty input — defaults to Document-only for that component, same as any other ambiguous answer: never guessed, never blocked on.
 
 Repos with no such gap see no behavior change: no prompt is asked, and the report is unchanged.
 
@@ -132,7 +132,7 @@ An answer naming an option not offered for a row's tier — for example, "Build 
 Each selected option proposes a Story, following the database branch's shape:
 
 - **Build (testcontainers)** (team-controlled rows only) — propose a Story titled `[<component>] Add testcontainers-based adapter integration test`. Its description exercises the real outbound client against a real instance of the service/broker, and cites the relevant `component-test-patterns.md` pattern (API Consumer / Event Consumer / Event Producer — name whichever applies).
-- **Build (Fake)** (either tier) — propose a Story titled `[<component>] Add hand-rolled Fake downstream-service double`. Its description names a hand-rolled Fake behind a team-owned thin adapter, per `test-doubles.md`'s Fake taxonomy, and cites `component-test-patterns.md`. It always carries this caveat verbatim: "Caveat: this hand-rolled Fake cannot verify that the adapter actually satisfies the real service's wire contract — pair it with scheduled provider-contract verification against the provider's real environment, per the API Consumer / Event Consumer patterns."
+- **Build (Fake)** (either tier) — propose a Story titled `[<component>] Add hand-rolled Fake downstream-service double`. Its description names a hand-rolled Fake behind a team-owned thin adapter, per `test-doubles.md`'s Fake taxonomy, and cites `component-test-patterns.md`. It always carries this caveat verbatim: "Caveat: this hand-rolled Fake cannot verify that the adapter actually satisfies the real service's wire contract — pair it with scheduled provider-contract verification against the provider's real environment, per the API Consumer / Event Consumer / Event Producer patterns."
   - **Third-party rows**: the Story additionally proposes scheduled, out-of-band provider-contract verification against the provider's real non-prod endpoint as a companion action — not a fourth option.
   - **Team-controlled rows**: the Story carries no such addition.
 - **Document-only** — the recommendation lands in the report only, as today; no further action.

@@ -45,6 +45,24 @@ def phase_8_section(text: str) -> str:
     return section(text, r"^### Phase 8")
 
 
+def cd_test_architecture_output_section(text: str) -> str:
+    """Extract cd-test-architecture/SKILL.md's `## Output` section from
+    `text` (the skill's full body). Promoted here (refactor-opportunity-
+    review, structure-review, domain-review, arch-review; issue #1434)
+    after the same `_output_section()` body was duplicated verbatim across
+    test_cd_test_architecture_step4b.py and
+    test_cd_test_architecture_downstream_service.py — same precedent as
+    `phase_8_section` above (issue #968).
+
+    Fence-avoidance rationale: the `## Output` block contains a fenced
+    markdown template whose interior has a `## CD Test Architecture —
+    <app>` line, so the generic `^## ` boundary would match that embedded
+    line and truncate the section early. `^## Integration` (the next real
+    top-level heading) avoids that.
+    """
+    return section(text, r"^## Output", boundary_pattern=r"^## Integration")
+
+
 def collapsed(text: str) -> str:
     """Collapse all whitespace runs (including newlines) to single spaces so
     a phrase hard-wrapped across markdown lines — even mid-word — still
