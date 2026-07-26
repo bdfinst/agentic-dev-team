@@ -24,7 +24,7 @@ You have been invoked with the `/issues-from-assessment` command.
 
 Arguments: $ARGUMENTS
 
-- Positional: `<assessment-path>` — the file `/cd-test-architecture` wrote (`reports/cd-test-architecture-<app>.md`).
+- Positional: `<assessment-path>` — the file `/cd-test-architecture` wrote (`.dev-team-reports/cd-test-architecture-<app>.md`).
 - `--parent <issue-url>` — parent issue / Feature / Epic URL. Empty or omitted → local-files mode.
 - `--repo-slug <slug>` — slug used for the `.claude/memory/<workflow>/<slug>/` namespace. Defaults to the assessment file's `<app>` token.
 - `--workflow <name>` — the workflow namespace under `.claude/memory/` and `.claude/plans/`, and the leading tracker-label token. Defaults to `test-improve`. Callers pass their own namespace so parallel runs stay quarantined.

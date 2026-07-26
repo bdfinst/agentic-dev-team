@@ -12,11 +12,14 @@ its own memory/metrics scratch-state writes stay bare per the plan's Step
 test-audit-disable/SKILL.md.
 
 `.plans/domain/` (ubiquitous-language/SKILL.md), `~/.claude/agent-memory/`
-(templates/agents/agent-template.md), security-assessment's own memory/
-patterns (static-analysis-integration/references/security-review-adapter.md),
-and every "other" (non-AC19) reports/ domain (test-design, test-design-
-advisor, test-health, orchestration-benchmark's own report path) are
-deliberately excluded — established false-positive categories.
+(templates/agents/agent-template.md), and security-assessment's own memory/
+patterns (static-analysis-integration/references/security-review-adapter.md)
+are deliberately excluded — established false-positive categories.
+
+Note: orchestration-benchmark's own report path (along with 8 other skills)
+was migrated off the bare `reports/` path by #1432 — see
+`tests/skills/test_1432_legacy_reports_path_migration.py`, not the `.claude/`
+metrics/memory migration this module otherwise covers.
 """
 
 from __future__ import annotations
@@ -49,8 +52,6 @@ _BARE_MEMORY_RE = re.compile(r"(?<!\.claude/)memory/")
 
 def test_orchestration_benchmark_review_value_relocated() -> None:
     assert ".claude/metrics/review-value.jsonl" in ORCHESTRATION_BENCHMARK
-    # its own report path is the non-AC19 reports domain, deliberately bare
-    assert "reports/orchestration-benchmark-<date>.md" in ORCHESTRATION_BENCHMARK
 
 
 def test_plan_skill_both_config_changelog_occurrences_relocated() -> None:

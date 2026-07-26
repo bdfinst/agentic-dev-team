@@ -153,7 +153,7 @@ skipped:
 
 ## Report
 
-Write the report to `reports/orchestration-benchmark-<date>.md`.
+Write the report to `.dev-team-reports/orchestration-benchmark-<date>.md`.
 
 For the header block and closing Provenance section, follow
 `knowledge/report-template.md`; the sections below are this skill's own

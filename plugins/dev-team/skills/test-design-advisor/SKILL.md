@@ -118,7 +118,7 @@ Write the recommendation (see Output). Keep it actionable — every recommendati
 
 ## Output
 
-A concise advisory report (to chat for a single unit, or to `reports/test-design-<target>.md` for a module):
+A concise advisory report (to chat for a single unit, or to `.dev-team-reports/test-design-<target>.md` for a module):
 
 ```markdown
 ## Test Design — <target>

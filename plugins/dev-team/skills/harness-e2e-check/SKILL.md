@@ -51,7 +51,7 @@ Arguments: $ARGUMENTS
 - No argument: run all 8 items below.
 - `--item N`: run only item N (1-6).
 - `--output <path>`: write the full report to a specific path. Default:
-  `reports/harness-e2e-check-<date>.md`.
+  `.dev-team-reports/harness-e2e-check-<date>.md`.
 
 ## The 8 items
 

@@ -116,7 +116,7 @@ After listing all gaps, rank the top 5 by impact. Impact considers:
 
 ## Output Format
 
-Write the report to `reports/competitive-analysis-<date>.md` using this structure.
+Write the report to `.dev-team-reports/competitive-analysis-<date>.md` using this structure.
 
 For the header block and closing Provenance section, follow
 `knowledge/report-template.md`; the sections below are this skill's own

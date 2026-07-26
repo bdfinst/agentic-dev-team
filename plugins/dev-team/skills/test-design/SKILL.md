@@ -131,7 +131,7 @@ whole suite), then fragile/obscure smells, then suggestions.
 
 ### 6. Report
 
-Produce one report (chat for a small target; `reports/test-design-<date>.md`
+Produce one report (chat for a small target; `.dev-team-reports/test-design-<date>.md`
 for a module):
 
 ```markdown

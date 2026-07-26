@@ -164,13 +164,13 @@ Produce a risk-ordered, incremental plan — each item a concrete next move (whi
 
 ### 9. Report
 
-Write `reports/test-health-<date>.md`.
+Write `.dev-team-reports/test-health-<date>.md`.
 
 When `--pdf` was passed, render that report to a sibling PDF per
 `knowledge/report-pdf-integration.md` (additive; non-fatal if no engine):
 
 ```bash
-sh "$CLAUDE_PLUGIN_ROOT/hooks/py.sh" "$CLAUDE_PLUGIN_ROOT/hooks/lib/report_pdf.py" reports/test-health-<date>.md
+sh "$CLAUDE_PLUGIN_ROOT/hooks/py.sh" "$CLAUDE_PLUGIN_ROOT/hooks/lib/report_pdf.py" .dev-team-reports/test-health-<date>.md
 ```
 
 ## Output

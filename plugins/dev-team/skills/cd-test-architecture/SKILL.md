@@ -113,13 +113,13 @@ Write the assessment (see Output). Keep every recommendation tied to a concrete 
 
 ## Output
 
-Write to `reports/cd-test-architecture-<app>.md` (or chat for a single component).
+Write to `.dev-team-reports/cd-test-architecture-<app>.md` (or chat for a single component).
 
 When `--pdf` was passed and a report **file** was written, render it to a
 sibling PDF per `knowledge/report-pdf-integration.md`:
 
 ```bash
-sh "$CLAUDE_PLUGIN_ROOT/hooks/py.sh" "$CLAUDE_PLUGIN_ROOT/hooks/lib/report_pdf.py" reports/cd-test-architecture-<app>.md
+sh "$CLAUDE_PLUGIN_ROOT/hooks/py.sh" "$CLAUDE_PLUGIN_ROOT/hooks/lib/report_pdf.py" .dev-team-reports/cd-test-architecture-<app>.md
 ```
 
 In the single-component **chat-only** case no file was written, so `--pdf` is a

@@ -1,7 +1,7 @@
 # Phase 1 — Analysis (test-modernize)
 
 - Repo slug: `orders-api`
-- Assessment file: `reports/cd-test-architecture-orders-api.md`
+- Assessment file: `.dev-team-reports/cd-test-architecture-orders-api.md`
 - Resolved sink: `gh` (<https://github.com/acme/orders-api/issues/42>)
 - Quality targets: line ≥ 90%, branch ≥ 90%, mutants = 0, determinism = 100%, wall-clock = fastest achievable
 

@@ -2383,7 +2383,7 @@
       "anchor": "6-report"
     },
     "Output": {
-      "summary": "Write to `reports/cd-test-architecture-<app>.md` (or chat for a single component).",
+      "summary": "Write to `.dev-team-reports/cd-test-architecture-<app>.md` (or chat for a single component).",
       "anchor": "output"
     },
     "Integration": {
@@ -2639,7 +2639,7 @@
       "anchor": "step-5-prioritization"
     },
     "Output Format": {
-      "summary": "Write the report to `reports/competitive-analysis-<date>.md` using this structure.",
+      "summary": "Write the report to `.dev-team-reports/competitive-analysis-<date>.md` using this structure.",
       "anchor": "output-format"
     },
     "Presenting Results": {
@@ -4409,7 +4409,7 @@
       "anchor": "threats-to-validity"
     },
     "Report": {
-      "summary": "Write the report to `reports/orchestration-benchmark-<date>.md`.",
+      "summary": "Write the report to `.dev-team-reports/orchestration-benchmark-<date>.md`.",
       "anchor": "report"
     },
     "Relationship to other tooling": {
@@ -5593,7 +5593,7 @@
       "anchor": "5-report"
     },
     "Output": {
-      "summary": "A concise advisory report (to chat for a single unit, or to `reports/test-design-<target>.md` for a module):",
+      "summary": "A concise advisory report (to chat for a single unit, or to `.dev-team-reports/test-design-<target>.md` for a module):",
       "anchor": "output"
     },
     "Integration": {
@@ -5635,7 +5635,7 @@
       "anchor": "5-aggregate-and-de-duplicate"
     },
     "6. Report": {
-      "summary": "Produce one report (chat for a small target; `reports/test-design-<date>.md`",
+      "summary": "Produce one report (chat for a small target; `.dev-team-reports/test-design-<date>.md`",
       "anchor": "6-report"
     }
   },
@@ -5747,7 +5747,7 @@
       "anchor": "8-ordered-improvement-plan"
     },
     "9. Report": {
-      "summary": "Write `reports/test-health-<date>.md`.",
+      "summary": "Write `.dev-team-reports/test-health-<date>.md`.",
       "anchor": "9-report"
     },
     "Output": {

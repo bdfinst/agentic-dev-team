@@ -106,7 +106,7 @@ Ordered lowest-risk first, each step independently shippable. The spine is **bas
 
 ### Step 6: Report
 
-Output goes to `reports/cd-test-architecture-<app>.md`. Tables, not prose: components and patterns, current tests and their CD-fitness, gaps, target architecture, pre-merge gate composition, migration path, next steps.
+Output goes to `.dev-team-reports/cd-test-architecture-<app>.md`. Tables, not prose: components and patterns, current tests and their CD-fitness, gaps, target architecture, pre-merge gate composition, migration path, next steps.
 
 ---
 
