@@ -95,29 +95,16 @@ Per component, using its pattern: which test types cover which layers, **what to
 
 ### 4b. Build-vs-document decision (off-gate adapter test doubles)
 
-When Step 4 identifies one or more components needing a testcontainers-based
-real-DB test, ask the operator once per run, batched across every such
-component regardless of adapter kind — this is the shared prompt later
-adapter-kind slices (#1434 downstream services, #1435 record-and-replay
-libraries) append to, not a new prompt each run — whether to:
+When Step 4 identifies one or more components needing a testcontainers-based real-DB test, ask the operator once per run, batched across every such component regardless of adapter kind — this is the shared prompt later adapter-kind slices (#1434 downstream services, #1435 record-and-replay libraries) append to, not a new prompt each run — whether to:
 
-1. **Build** — propose a downstream Story that the operator/orchestrator
-   later drives `/build` against, or
-2. **Document only** (default) — the recommendation lands in the report as
-   today, with no further action.
+1. **Build** — propose a downstream Story that the operator/orchestrator later drives `/build` against, or
+2. **Document only** (default) — the recommendation lands in the report as today, with no further action.
 
-Non-interactive runs (per `human-oversight-protocol`'s `--yes` /
-`DEV_TEAM_AUTO_APPROVE=1` / no-TTY convention) skip the prompt entirely — no
-prompt is surfaced, and the recommendation lands in the report only,
-document-only, exactly as today.
+Non-interactive runs (per `human-oversight-protocol`'s `--yes` / `DEV_TEAM_AUTO_APPROVE=1` / no-TTY convention) skip the prompt entirely — no prompt is surfaced, and the recommendation lands in the report only, document-only, exactly as today.
 
-An ambiguous or absent answer to the batched build-vs-document question —
-for example "maybe", "I'm not sure", a bare "yes" or "no", or silence/empty
-input — is treated the same as document-only: never guessed, never blocked
-on.
+An ambiguous or absent answer to the batched build-vs-document question — for example "maybe", "I'm not sure", a bare "yes" or "no", or silence/empty input — is treated the same as document-only: never guessed, never blocked on.
 
-Repos with no such gap see no behavior change: no prompt is asked, and the
-report is unchanged.
+Repos with no such gap see no behavior change: no prompt is asked, and the report is unchanged.
 
 ### 5. Produce a migration path
 
