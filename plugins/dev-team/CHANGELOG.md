@@ -1,5 +1,54 @@
 # Changelog
 
+## [10.21.0](https://github.com/bdfinst/agentic-dev-team/compare/dev-team-v10.20.0...dev-team-v10.21.0) (2026-07-26)
+
+
+### Features
+
+* **cd-test-architecture:** add downstream-service branch to Step 4b ([532de15](https://github.com/bdfinst/agentic-dev-team/commit/532de154413fd8d179c91e69596e21ce4447882c))
+* **cd-test-architecture:** add downstream-service branch to Step 4b (ownership-independent) ([8f3424c](https://github.com/bdfinst/agentic-dev-team/commit/8f3424ca50288363ddd4bea7ac92b1c2846a1833))
+* **cd-test-architecture:** add downstream-service Story shapes ([2a62193](https://github.com/bdfinst/agentic-dev-team/commit/2a62193ddf19c38604135e20c3d08c38ede9184a))
+* **cd-test-architecture:** add downstream-service Story shapes ([fa2fbf2](https://github.com/bdfinst/agentic-dev-team/commit/fa2fbf290fe8e5e1b5d135f2747944e42f340a3e))
+* **cd-test-architecture:** add Step 4b build-vs-document scaffold ([6bf14aa](https://github.com/bdfinst/agentic-dev-team/commit/6bf14aadacb72a36f5d7f47bbf1bc2531ee12dd5))
+* **cd-test-architecture:** add virtual-service-libraries knowledge file ([a4a81be](https://github.com/bdfinst/agentic-dev-team/commit/a4a81be1fa38e2f70cc7d862b9a21900a9d8e2e7))
+* **cd-test-architecture:** branch Step 4b on testcontainers accept/decline for DB doubles ([45151e2](https://github.com/bdfinst/agentic-dev-team/commit/45151e2d3e2c0e177717beecc9b3445566cea7aa))
+* **cd-test-architecture:** prefer virtual-service libraries over hand-rolled Fakes ([5d01bba](https://github.com/bdfinst/agentic-dev-team/commit/5d01bba1a23c48cb6f3571702c34172c2414f880))
+* **cd-test-architecture:** record downstream-service ownership in Step 1's inventory ([eea24f0](https://github.com/bdfinst/agentic-dev-team/commit/eea24f0787f0b8ab09c6d014d7d4230f0ad80968))
+* **cd-test-architecture:** show build/document status in the report template ([5fcce50](https://github.com/bdfinst/agentic-dev-team/commit/5fcce50865376f89283074ba1937d0dcb77ef45d))
+* **cd-test-architecture:** write a test-double setup guide alongside the assessment report ([c2d4be9](https://github.com/bdfinst/agentic-dev-team/commit/c2d4be96b273b76b8bee2c7125c4127e4cfdd802))
+
+
+### Bug Fixes
+
+* **cd-test-architecture:** address code-review findings on downstream-service branch (iteration 1) ([ff867bb](https://github.com/bdfinst/agentic-dev-team/commit/ff867bb476a8797f99f908d71d53c332468ae2ac))
+* **cd-test-architecture:** address code-review findings on redesign ([c29e62c](https://github.com/bdfinst/agentic-dev-team/commit/c29e62c19004fb6996b899ea4799224aaa069fd3))
+* **cd-test-architecture:** address code-review findings on test-double setup guide ([fa0561e](https://github.com/bdfinst/agentic-dev-team/commit/fa0561e39d9bc618dd7dfc1dbf72e534f6e597d4))
+* **cd-test-architecture:** address code-review findings on virtual-service-library preference ([3765432](https://github.com/bdfinst/agentic-dev-team/commit/376543277b869b033a32c59fa3eb79ab030a1e8f))
+* **cd-test-architecture:** address review-fix iteration-2 findings on downstream-service branch ([be9e946](https://github.com/bdfinst/agentic-dev-team/commit/be9e946ece3878fd016eb71f00156d0af7a32049))
+* **cd-test-architecture:** close code-review findings on Step 4b ([f462f56](https://github.com/bdfinst/agentic-dev-team/commit/f462f5699f218cb2d2b3e5ca9dd6509cc58c0eee))
+* **cd-test-architecture:** close residual knowledge-file gaps ([8bb5148](https://github.com/bdfinst/agentic-dev-team/commit/8bb5148d4f381d6b8a8c998e08c7e21fcb92df47))
+* **cd-test-architecture:** close round-4 correctness cleanups on Step 4b ([f5e7463](https://github.com/bdfinst/agentic-dev-team/commit/f5e7463d21c62fec6a0f91059ffc1687da56e7b3))
+* **cd-test-architecture:** declare --yes, fix stale comment (round-5 cleanup) ([37aa6a5](https://github.com/bdfinst/agentic-dev-team/commit/37aa6a5e31231ecf42e2c595c61f3c08de5260ac))
+* **cd-test-architecture:** propagate virtual-service-library preference to remaining files ([03f48ec](https://github.com/bdfinst/agentic-dev-team/commit/03f48ec90f6407f21598c563e42397f5fc91394f))
+* **cd-test-architecture:** reconcile knowledge-file placement guidance ([e32798d](https://github.com/bdfinst/agentic-dev-team/commit/e32798d72c5127fa7f85688549a90739adc1d467))
+* **cd-test-architecture:** resolve batching-shape and ambiguity-scope gaps ([9f65760](https://github.com/bdfinst/agentic-dev-team/commit/9f6576068760dd0099f7a10ba5ed435f3206bf4c))
+* **cd-test-architecture:** resolve chat-only path gap and citation drift in setup guide ([483590d](https://github.com/bdfinst/agentic-dev-team/commit/483590d86e006bb91329025456064dfa1d0a291c))
+* **knowledge:** correct stale pre-merge guidance to prefer virtual-service libraries ([4573c14](https://github.com/bdfinst/agentic-dev-team/commit/4573c1430cef65a6a4da3cad67a3cfa7aaf19fa5))
+* **lint:** fix pre-existing ruff findings and rename N999 probe modules ([c37c995](https://github.com/bdfinst/agentic-dev-team/commit/c37c995a17ecda438267a873ac9e10b7339770d1)), closes [#1438](https://github.com/bdfinst/agentic-dev-team/issues/1438)
+* **review-gate:** move .review-passed to .claude/memory/ for centralized artifacts ([40f7dfb](https://github.com/bdfinst/agentic-dev-team/commit/40f7dfb4b8732af037437c45f6223f03644632e9))
+* **skills:** migrate remaining skills off the legacy reports/ path ([427e959](https://github.com/bdfinst/agentic-dev-team/commit/427e9591b93bf6e323eff6aa9e6d0c4c0d55ef1e)), closes [#1432](https://github.com/bdfinst/agentic-dev-team/issues/1432)
+
+
+### Code Refactoring
+
+* **cd-test-architecture:** collapse Step 4b to one three-way per-component ask ([e375f8a](https://github.com/bdfinst/agentic-dev-team/commit/e375f8ad6c5020d4f583d90896443a0194b9e56f))
+
+
+### Miscellaneous
+
+* **cd-test-architecture:** wip checkpoint for Step 4b scaffold (Step 1.1) ([e7a307d](https://github.com/bdfinst/agentic-dev-team/commit/e7a307d60f178c6225777f5bce1fda5e1266aac7))
+* **knowledge:** reconcile remaining ownership-tiered placement wording ([cd276d1](https://github.com/bdfinst/agentic-dev-team/commit/cd276d1d79ecbccc30a04fd3b385cbd59b765900)), closes [#1444](https://github.com/bdfinst/agentic-dev-team/issues/1444)
+
 ## [10.20.0](https://github.com/bdfinst/agentic-dev-team/compare/dev-team-v10.19.1...dev-team-v10.20.0) (2026-07-25)
 
 
