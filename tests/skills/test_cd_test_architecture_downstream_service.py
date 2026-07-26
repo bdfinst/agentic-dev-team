@@ -37,17 +37,16 @@ def _text() -> str:
     return SKILL.read_text(encoding="utf-8")
 
 
-def _step_1_section() -> str:
-    return section(_text(), r"^### 1\.", boundary_pattern=r"^### 2\.")
-
-
 def _step_4b_intro_paragraph() -> str:
     """The shared, pre-existing Step 4b intro text — from the `### 4b.`
     heading up to (not including) the first `#### ` sub-heading
-    (`#### Database-specific branch`). This is the general, non-branch-
-    specific scaffold text #1433 shipped and this slice amends (the
-    "choose exactly one of the options listed for that row" sentence) —
-    distinct from either branch's own subsection."""
+    (`#### Database-specific branch`). Still used by
+    `test_third_party_fake_additionally_requires_scheduled_verification`
+    below to confirm no fourth numbered option was added to the shared
+    prompt — the wording-specific tests that used to rely on this helper
+    (guarding #1434's now-reverted ownership-tier generalization) were
+    removed in Step 1.1's revert; this extraction itself is unaffected by
+    that revert."""
     return section(_text(), r"^### 4b\.", boundary_pattern=r"^#### ")
 
 
@@ -73,48 +72,6 @@ def _downstream_service_branch_section() -> str:
 
 
 # --- Boundary reachability sanity check -------------------------------------
-
-
-def test_step_1_section_boundary_is_reachable():
-    # Empirically verify the scoping boundary actually narrows the text —
-    # not an assumption. Step 1's own heading and the Graph-assisted
-    # inventory paragraph must be present; Step 2's heading and content
-    # must be excluded.
-    sec = _step_1_section()
-    assert "### 1. Inventory the application's components" in sec
-    assert "Graph-assisted inventory" in sec
-    assert "### 2." not in sec
-    assert "Inventory the existing tests and classify them" not in sec
-
-
-def test_step_4b_intro_paragraph_boundary_is_reachable():
-    # Empirically verify the scoping boundary actually narrows the text —
-    # not an assumption (issue #1433 round 4 lesson) — mirroring the
-    # boundary-reachability sanity checks this file already has for
-    # `_step_1_section` and `_downstream_service_branch_section`. The
-    # intro's own distinguishing content must be present; content past its
-    # `#### ` boundary (either branch subsection) must be excluded.
-    para = _step_4b_intro_paragraph()
-    assert "exactly one of the options listed for that row" in para
-    assert "Database-specific branch" not in para
-    assert "Downstream-service branch" not in para
-
-
-# --- Step 1.1: ownership/deployability note ---------------------------------
-
-
-def test_step_1_records_ownership_for_downstream_service_components():
-    sec = _step_1_section()
-    assert grep(r"API Consumer", sec)
-    assert grep(r"Event Consumer", sec)
-    assert grep(r"Event Producer", sec)
-    assert grep(r"team-controlled", sec, ignore_case=True)
-    assert grep(r"third-party", sec, ignore_case=True)
-
-
-def test_step_1_cites_component_test_patterns_ownership_guidance():
-    sec = _step_1_section()
-    assert grep(r"component-test-patterns\.md", sec)
 
 
 # --- Step 1.2: Downstream-service branch ------------------------------------
@@ -235,21 +192,6 @@ def test_ambiguous_answer_rule_reused_not_reinvented():
         ignore_case=True,
     )
     assert grep(r"not a new rule", sec, ignore_case=True)
-
-
-# Guards an out-of-plan fix (issue #1434): beyond the plan's literal Step
-# 1.3 text, this also corrects the shared Step 4b intro paragraph's
-# misattribution of the option-count variance to "adapter kind" when the
-# actual variable is a row's ownership tier (team-controlled vs
-# third-party) — cross-cutting adapter kind, not caused by it.
-def test_step_4b_intro_no_longer_overclaims_fixed_three_options():
-    intro = collapsed(_step_4b_intro_paragraph())
-    assert not grep(r"exactly one of three options", intro, ignore_case=True)
-    assert grep(
-        r"exactly one of the options listed for that row", intro, ignore_case=True
-    )
-    assert grep(r"up to three", intro, ignore_case=True)
-    assert grep(r"ownership tier", intro, ignore_case=True)
 
 
 def test_event_producer_named_alongside_api_and_event_consumer():
@@ -407,25 +349,3 @@ def test_knowledge_references_bullet_covers_both_branches():
         refs_section,
         ignore_case=True,
     )
-
-
-# Guards an out-of-plan fix (issue #1434): beyond the plan's literal Step
-# 1.3 text, this also corrects the shared Step 4b intro paragraph's
-# "operator answers" sentence, which previously overclaimed a fixed
-# "per-component three-way answer" — generalized alongside the sibling fix
-# in test_step_4b_intro_no_longer_overclaims_fixed_three_options above.
-def test_step_4b_shared_paragraph_no_longer_overclaims_three_choices():
-    intro = collapsed(_step_4b_intro_paragraph())
-    assert not grep(r"these three choices", intro, ignore_case=True)
-    assert not grep(r"per-component three-way answer", intro, ignore_case=True)
-    assert not grep(r"batched three-way question", intro, ignore_case=True)
-    assert not grep(r"one of the three labeled options", intro, ignore_case=True)
-    assert grep(r"one of the choices listed for that row", intro, ignore_case=True)
-    assert grep(r"the batched question", intro, ignore_case=True)
-    assert grep(
-        r"one of the labeled options for that row", intro, ignore_case=True
-    )
-    # The "when more than one is offered" qualifier (iteration 1 fix) has no
-    # dedicated assertion elsewhere — pin it here alongside this paragraph's
-    # other ambiguous-answer wording checks (ai-provenance-review, iteration 2).
-    assert grep(r"when more than one is offered", intro, ignore_case=True)
