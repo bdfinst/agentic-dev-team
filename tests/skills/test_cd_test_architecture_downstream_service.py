@@ -234,6 +234,34 @@ def test_knowledge_files_state_the_universal_out_of_band_rule():
         r"adapter integration for \*\*in-house\*\* deps", patterns_text
     )
     assert not grep(r"adapter integration vs team-controlled broker", patterns_text)
+    # ai-provenance-review (round 2): the prior version of this test only
+    # positively guarded API Consumer/Event Consumer — the sibling patterns
+    # also converted to the universal rule (API Provider, Event Producer,
+    # Stateful Service, Scheduled Job) had no positive assertion, so
+    # reverting any of them individually would leave this test green.
+    assert grep(
+        r"adapter integration out-of-band on a schedule, regardless of "
+        r"ownership; provider contract verification",
+        patterns_text,
+        ignore_case=True,
+    )
+    assert grep(
+        r"adapter integration out-of-band on a schedule, regardless of "
+        r"ownership; post-deploy synthetic",
+        patterns_text,
+        ignore_case=True,
+    )
+    assert grep(
+        r"cluster tests out-of-band on a schedule, regardless of ownership",
+        patterns_text,
+        ignore_case=True,
+    )
+    assert grep(
+        r"adapter integration out-of-band on a schedule, regardless of "
+        r"ownership; small deployed-binary set out-of-band",
+        patterns_text,
+        ignore_case=True,
+    )
 
     arch_text = _cd_test_architecture_knowledge_text()
     assert grep(
@@ -247,6 +275,15 @@ def test_knowledge_files_state_the_universal_out_of_band_rule():
         r"Adapter integration test\*\* \(Stage 1/2\).*for dependencies you "
         r"control",
         arch_text,
+    )
+    # ai-provenance-review (round 2): Double Validation item 3's fix
+    # (out-of-band/scheduled, regardless of ownership) previously had only
+    # the negative check above — add the positive companion.
+    assert grep(
+        r"out-of-band, on a schedule\s*—\s*never in-band, regardless of "
+        r"ownership",
+        arch_text,
+        ignore_case=True,
     )
 
 
