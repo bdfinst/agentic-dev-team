@@ -25,6 +25,7 @@ from __future__ import annotations
 
 from skill_doc_helpers import (
     PLUGIN_ROOT,
+    cd_test_architecture_downstream_service_branch_section,
     cd_test_architecture_fake_row_clause,
     collapsed,
     grep,
@@ -39,24 +40,14 @@ def _text() -> str:
 
 
 def _downstream_service_branch_section() -> str:
-    """Scoped to the new `#### Downstream-service branch` subsection.
-    Boundary made future-proof for #1435 (arch-review, correctness-review,
-    test-smell-review): `^(#### |### 5\\.)` matches whichever comes first.
-    Today this subsection is the last `####` sub-heading under Step 4b, so
-    the alternation falls through to `^### 5\\.` — the same reachable
-    boundary as before. Once #1435 lands its own sibling `#### ` subsection
-    after this one, the alternation's first branch takes over and the
-    boundary stays correct without another edit — avoiding a repeat of the
-    unreachable-boundary bug (#1433 round 4) in the other direction (a
-    boundary that becomes wrong, rather than one that was never reachable).
-    See `_database_specific_branch_section()` in the sibling file, which
-    already made this same class of fix when #1434 landed its own `#### `
-    subsection."""
-    return section(
-        _text(),
-        r"^#### Downstream-service branch",
-        boundary_pattern=r"^(#### |### 5\.)",
-    )
+    """Scoped to the `#### Downstream-service branch` subsection. Promoted
+    (issue #1435, Step 1.3) to the shared
+    `cd_test_architecture_downstream_service_branch_section` helper in
+    `skill_doc_helpers.py` after `test_cd_test_architecture_virtual_service_
+    libraries.py` needed the identical extraction — see that helper's
+    docstring for the boundary-reachability rationale (#1433 round 4,
+    #1434's `_database_specific_branch_section()` precedent)."""
+    return cd_test_architecture_downstream_service_branch_section(_text())
 
 
 def _step_1_section() -> str:

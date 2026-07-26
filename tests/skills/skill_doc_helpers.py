@@ -81,6 +81,29 @@ def cd_test_architecture_fake_row_clause(text: str) -> str:
     )
 
 
+def cd_test_architecture_downstream_service_branch_section(text: str) -> str:
+    """Extract cd-test-architecture/SKILL.md's `#### Downstream-service
+    branch` subsection from `text` (the skill's full body). Promoted here
+    (issue #1435, Step 1.3) after the identical extraction was needed a
+    second time — in `test_cd_test_architecture_virtual_service_libraries.py`,
+    alongside its original, file-local definition in
+    `test_cd_test_architecture_downstream_service.py` — same precedent as
+    `cd_test_architecture_output_section` above (issue #968 / #1434).
+
+    Boundary `^(#### |### 5\\.)` matches whichever comes first: today this
+    subsection is the last `####` sub-heading under Step 4b, so the
+    alternation falls through to `^### 5\\.`; if a future slice adds its own
+    sibling `#### ` subsection after this one, the alternation's first
+    branch takes over without another edit — avoiding a repeat of the
+    unreachable-boundary bug (#1433 round 4) in the other direction.
+    """
+    return section(
+        text,
+        r"^#### Downstream-service branch",
+        boundary_pattern=r"^(#### |### 5\.)",
+    )
+
+
 def collapsed(text: str) -> str:
     """Collapse all whitespace runs (including newlines) to single spaces so
     a phrase hard-wrapped across markdown lines — even mid-word — still
