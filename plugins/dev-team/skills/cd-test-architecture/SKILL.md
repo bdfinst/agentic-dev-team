@@ -180,7 +180,9 @@ body.
 | Component | Outermost seam | Best outside-in test writable today (no refactor) |
 
 ### Target architecture (per component)
-| Component | Layer | Test type | Double (to run config-free) | Pipeline stage |
+| Component | Layer | Test type | Double (to run config-free) | Pipeline stage | Build/Document status |
+
+`Build/Document status` is one of `Build (testcontainers)`, `Build (Fake)`, or `Document-only` (set per Step 4b). A row whose status is `Build (Fake)` also carries this caveat, verbatim, in the same cell: "Caveat: this hand-rolled Fake cannot verify actual SQL, mapping, or schema correctness the way a real-engine test can — a deliberate coverage trade-off, not a silent downgrade."
 
 When Step 0 loaded a `knowledge/test-stack-profiles/<stack>.md` profile, **cite that profile** (and any reference it points at) in the *Test type* or *Double* column so the concrete tool choice is traceable to the stack-specific reference.
 

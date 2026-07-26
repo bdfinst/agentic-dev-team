@@ -217,3 +217,42 @@ def test_knowledge_references_list_includes_test_doubles():
     text = _text()
     refs_section = section(text, r"^Grounded in these knowledge references", boundary_pattern=r"^## ")
     assert grep(r"test-doubles\.md", refs_section)
+
+
+# --- Output report template (Step 1.3) --------------------------------------
+
+
+def _output_section() -> str:
+    return section(_text(), r"^## Output", boundary_pattern=r"^## Integration")
+
+
+def test_output_template_shows_build_document_status_column():
+    sec = _output_section()
+    assert grep(r"Build/Document status", sec)
+    assert grep(r"Build \(testcontainers\)", sec)
+    assert grep(r"Build \(Fake\)", sec)
+    assert grep(r"Document-only", sec)
+
+
+def test_output_template_caveat_appears_conditionally_on_fake_branch():
+    sec = _output_section()
+    fake_row_clause = section(
+        sec,
+        r"row whose status is `Build \(Fake\)`",
+        boundary_pattern=r"^### ",
+    )
+    assert FAKE_CAVEAT in fake_row_clause
+
+
+def test_caveat_appears_in_both_story_and_report():
+    # Same reusable FAKE_CAVEAT constant checked in both locations, so the
+    # two can't drift apart into independently-typed strings — the Story
+    # description (Step 1.2, database branch) and the report's output
+    # template (Step 1.3, Target architecture table).
+    assert FAKE_CAVEAT in _step_4b_section()
+    assert FAKE_CAVEAT in _output_section()
+
+
+def test_output_template_does_not_hardcode_legacy_reports_path():
+    text = _text()
+    assert not grep(r"(?<!\.dev-team-)reports/cd-test-architecture-", text)
