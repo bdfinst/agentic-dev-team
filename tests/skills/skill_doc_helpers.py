@@ -104,6 +104,59 @@ def cd_test_architecture_downstream_service_branch_section(text: str) -> str:
     )
 
 
+def cd_test_architecture_build_testcontainers_bullet(text: str) -> str:
+    """Extract the `**Build (testcontainers)**` bullet from cd-test-architecture/
+    SKILL.md's `#### Downstream-service branch` subsection (`text` is the
+    skill's full body), collapsed to a single line. Promoted here
+    (structure-review, refactor-opportunity-review, test-smell-review;
+    issue #1435 code-review pass) after the identical extraction was
+    duplicated across test_cd_test_architecture_virtual_service_libraries.py's
+    `_build_testcontainers_bullet()` and
+    test_cd_test_architecture_downstream_service.py's
+    `_downstream_testcontainers_bullet()` — same precedent as
+    `cd_test_architecture_downstream_service_branch_section` above. Always
+    collapsed — the downstream-service test's non-collapsed Fake-bullet
+    variant was the inconsistency the review flagged; no caller needs the
+    line-wrapped form."""
+    return collapsed(
+        section(
+            cd_test_architecture_downstream_service_branch_section(text),
+            r"\*\*Build \(testcontainers\)\*\*",
+            boundary_pattern=r"^- \*\*Build \(Fake\)\*\*",
+        )
+    )
+
+
+def cd_test_architecture_build_fake_bullet(text: str) -> str:
+    """Extract the `**Build (Fake)**` bullet — sibling of
+    `cd_test_architecture_build_testcontainers_bullet` above; same
+    promotion rationale."""
+    return collapsed(
+        section(
+            cd_test_architecture_downstream_service_branch_section(text),
+            r"\*\*Build \(Fake\)\*\*",
+            boundary_pattern=r"^- \*\*Document-only\*\*",
+        )
+    )
+
+
+def cd_test_architecture_document_only_bullet(text: str) -> str:
+    """Extract the `**Document-only**` bullet — sibling of
+    `cd_test_architecture_build_testcontainers_bullet` above; same
+    promotion rationale. No `boundary_pattern` is passed deliberately:
+    `Document-only` is the last bullet in the Downstream-service branch
+    section, so any boundary here would be structurally unreachable (the
+    already-truncated outer section has no further line for it to match) —
+    the same unreachable-boundary trap #1433 round 4 warned against, just
+    harmless here since there's nothing past this bullet to over-capture."""
+    return collapsed(
+        section(
+            cd_test_architecture_downstream_service_branch_section(text),
+            r"\*\*Document-only\*\*",
+        )
+    )
+
+
 def collapsed(text: str) -> str:
     """Collapse all whitespace runs (including newlines) to single spaces so
     a phrase hard-wrapped across markdown lines — even mid-word — still

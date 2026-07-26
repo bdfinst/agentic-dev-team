@@ -1693,6 +1693,10 @@
     "Resolution order": {
       "summary": "Three-valued precedence for selecting the tool a `Build (Fake)` row",
       "anchor": "resolution-order"
+    },
+    "Recorded artifacts contain real traffic — scrub before commit": {
+      "summary": "A recorded cassette or stub mapping (VCR.py/go-vcr cassettes, Nock recorder",
+      "anchor": "recorded-artifacts-contain-real-traffic-scrub-before-commit"
     }
   },
   "plugins/dev-team/skills/adr-tools/SKILL.md": {

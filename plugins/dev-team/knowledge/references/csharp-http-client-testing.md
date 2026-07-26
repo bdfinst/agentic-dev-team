@@ -2,9 +2,13 @@
 
 Reference for testing a .NET service's **outbound** HTTP layer (`HttpClient`,
 the **API Consumer** side of `knowledge/component-test-patterns.md` →
-*API Consumer*). The canonical seam is `HttpMessageHandler` — substitute it
-and the HTTP layer becomes a pure function of inputs: no sockets, no ports,
-no Kestrel, microsecond-fast, bit-for-bit reproducible.
+*API Consumer*). The canonical seam is `HttpMessageHandler`. The hand-rolled
+stub implementation of that seam (below) makes the HTTP layer a pure
+function of inputs: no sockets, no ports, no Kestrel, microsecond-fast,
+bit-for-bit reproducible. WireMock.Net (see "WireMock.Net — the preferred
+pre-merge double when installed" below) fills the same seam through a real
+loopback HTTP server instead — same DI injection point, different traffic
+shape; see that section for the honest trade-off.
 
 This is the .NET realization of the **Adapter Rule** from
 `knowledge/cd-test-architecture.md#the-adapter-rule-own-your-boundaries`:
@@ -185,6 +189,24 @@ deterministic enough for the pre-merge gate, even though it is not a true
 in-memory transport. See `knowledge/virtual-service-libraries.md` for the
 full per-stack catalog and the preferred/backup interaction model this file
 is one instance of.
+
+**Reconciling this with the seam framing above and the anti-pattern below.**
+The opening thesis's "no sockets, no ports, no Kestrel" description applies
+to the hand-rolled `StubHttpMessageHandler`, not to this seam universally —
+WireMock.Net fills the same `HttpMessageHandler` seam, through the same DI
+injection point, but the actual network path is a real loopback HTTP
+request, not an in-memory interception. That is a different claim from the
+"Kestrel on a random port" anti-pattern the `What to avoid` section below
+still flags: that anti-pattern hosts your own application's real inbound
+pipeline (or an ad hoc hand-rolled HTTP host) as the downstream fake, with
+no purpose-built stub tooling. WireMock.Net, by contrast, is purpose-built
+stub tooling — request/response matching and expectation configuration are
+its entire job — launched and torn down within the same test process
+lifecycle, with no separately-managed external server or container to
+configure. The honest trade-off: a real loopback socket is being traded for
+that purpose-built tooling and faster iteration than hand-rolling a host —
+not for the absence of sockets, DNS, or the network stack, which this file
+does not claim WireMock.Net avoids.
 
 ## What to avoid for unit and component tests
 

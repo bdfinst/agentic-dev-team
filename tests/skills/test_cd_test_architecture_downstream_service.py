@@ -25,6 +25,9 @@ from __future__ import annotations
 
 from skill_doc_helpers import (
     PLUGIN_ROOT,
+    cd_test_architecture_build_fake_bullet,
+    cd_test_architecture_build_testcontainers_bullet,
+    cd_test_architecture_document_only_bullet,
     cd_test_architecture_downstream_service_branch_section,
     cd_test_architecture_fake_row_clause,
     collapsed,
@@ -97,6 +100,10 @@ def test_downstream_service_branch_section_boundary_is_reachable():
     # must exclude the next step's content, proving the boundary_pattern
     # actually stops the extraction rather than running to end-of-file.
     sec = _downstream_service_branch_section()
+    # Positive assertion (Fix 10, test-review error-level finding): without
+    # this, a silently-empty extraction would still pass both negatives
+    # below vacuously.
+    assert grep(r"Build \(Fake\)", sec)
     assert not grep(r"### 5\. Produce a migration path", sec)
     assert not grep(r"Order the moves from current", sec)
 
@@ -320,21 +327,18 @@ DOWNSTREAM_FAKE_CAVEAT = (
 
 
 def _downstream_testcontainers_bullet() -> str:
-    return collapsed(
-        section(
-            _downstream_service_branch_section(),
-            r"\*\*Build \(testcontainers\)\*\*",
-            boundary_pattern=r"^- \*\*Build \(Fake\)\*\*",
-        )
-    )
+    return cd_test_architecture_build_testcontainers_bullet(_text())
 
 
 def _downstream_fake_bullet() -> str:
-    return section(
-        _downstream_service_branch_section(),
-        r"\*\*Build \(Fake\)\*\*",
-        boundary_pattern=r"^- \*\*Document-only\*\*",
-    )
+    # Promoted to the shared helper (Fix 6): this previously returned the
+    # non-collapsed extraction while the sibling
+    # test_cd_test_architecture_virtual_service_libraries.py's equivalent
+    # collapsed — an inconsistency the review flagged. The shared helper
+    # always collapses; callers here that used to wrap this in `collapsed()`
+    # themselves now do so redundantly-but-harmlessly (collapsing already-
+    # collapsed text is a no-op).
+    return cd_test_architecture_build_fake_bullet(_text())
 
 
 def test_testcontainers_story_title_and_description():
@@ -348,29 +352,37 @@ def test_testcontainers_story_title_and_description():
     assert grep(r"component-test-patterns\.md", bullet)
 
 
-def test_1435_reference_is_a_maintainer_note_not_emitted_story_content():
-    # ai-provenance-review (still unresolved after a prior fix pass): the
-    # #1435 issue reference was embedded inside the sentence describing
-    # the emitted Story's own description, so a skill run in a downstream
-    # user's repo could copy "#1435" verbatim into that user's Story,
-    # where the number is meaningless. Moved to a clearly-parenthetical
-    # trailing sentence explicitly labeled as a maintainer note.
+def test_testcontainers_bullet_records_1435_scope_decision_not_stale_placeholder():
+    # Fix 2 (ai-provenance-review, code-review correction pass, issue
+    # #1435): the prior maintainer note asserted #1435 would extend this
+    # bullet with library-selection tooling for testcontainers — but #1435
+    # (this build) deliberately did NOT extend it; the sub-question applies
+    # only to the `Build (Fake)` row
+    # (test_sub_question_only_applies_to_build_fake_row in
+    # test_cd_test_architecture_virtual_service_libraries.py enforces this).
+    # The maintainer note must record that scoping decision, not describe a
+    # still-pending extension.
     #
     # `section()`'s boundary matching is line-granular (the whole bullet
     # is one unwrapped source line, per this SKILL.md's style), so it
-    # can't split "Its description..." from "(This bullet is a
-    # placeholder..." within that single line — use a plain string split
-    # on the bullet text instead.
-    bullet = collapsed(_downstream_testcontainers_bullet())
+    # can't split "Its description..." from "(Maintainer note..." within
+    # that single line — use a plain string split on the bullet text
+    # instead.
+    bullet = _downstream_testcontainers_bullet()
     assert grep(r"maintainer note, not emitted Story content", bullet, ignore_case=True)
-    marker = "(This bullet is a placeholder"
+    marker = "(Maintainer note"
     assert marker in bullet
     description_clause = bullet.split(marker, 1)[0]
     assert "#1435" not in description_clause
+    assert grep(r"deliberately scoped", bullet, ignore_case=True)
+    assert grep(r"Build \(Fake\)` row only", bullet)
+    assert grep(r"test_sub_question_only_applies_to_build_fake_row", bullet)
+    assert not grep(r"will extend it", bullet, ignore_case=True)
+    assert not grep(r"placeholder for #1435", bullet, ignore_case=True)
 
 
 def test_fake_story_title_and_wire_contract_caveat_verbatim():
-    bullet = collapsed(_downstream_fake_bullet())
+    bullet = _downstream_fake_bullet()
     assert grep(
         r"\[<component>\]\s*Add hand-rolled Fake downstream-service double",
         bullet,
@@ -392,7 +404,7 @@ def test_fake_story_always_requires_scheduled_verification_no_ownership_exemptio
     # in the Fake bullet — no ownership-based exemption anywhere in this
     # subsection (operator correction, issue #1434: reverses the original
     # build's team-controlled exemption from this requirement).
-    bullet = collapsed(_downstream_fake_bullet())
+    bullet = _downstream_fake_bullet()
     assert grep(r"scheduled", bullet, ignore_case=True)
     assert grep(r"provider-contract verification", bullet, ignore_case=True)
     assert grep(r"not a fourth option", bullet, ignore_case=True)
@@ -409,22 +421,11 @@ def test_fake_story_always_requires_scheduled_verification_no_ownership_exemptio
 
 
 def _downstream_document_only_bullet() -> str:
-    # No boundary_pattern is passed deliberately: `Document-only` is the
-    # last bullet in `_downstream_service_branch_section()`'s own
-    # already-truncated text, so any boundary_pattern here would be
-    # structurally unreachable — that already-truncated text has no
-    # further `#### `/`### 5.` line for it to match (ai-provenance-review:
-    # the prior boundary_pattern=r"^(#### |### 5\.)" could never fire,
-    # the same unreachable-boundary class this file's docstring warns
-    # against, just silently harmless here because there's nothing past
-    # this bullet to over-capture). Extraction correctly runs to the end
-    # of the outer section instead.
-    return collapsed(
-        section(
-            _downstream_service_branch_section(),
-            r"\*\*Document-only\*\*",
-        )
-    )
+    # Promoted to the shared helper (Fix 6) — see
+    # `cd_test_architecture_document_only_bullet`'s docstring in
+    # `skill_doc_helpers.py` for the unreachable-boundary rationale
+    # previously documented inline here.
+    return cd_test_architecture_document_only_bullet(_text())
 
 
 def test_downstream_service_branch_document_only_is_report_only_noop():
