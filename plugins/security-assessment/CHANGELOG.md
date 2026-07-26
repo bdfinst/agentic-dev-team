@@ -1,5 +1,12 @@
 # Changelog
 
+## [3.7.1](https://github.com/bdfinst/agentic-dev-team/compare/security-assessment-v3.7.0...security-assessment-v3.7.1) (2026-07-26)
+
+
+### Bug Fixes
+
+* **lint:** fix pre-existing ruff findings and rename N999 probe modules ([c37c995](https://github.com/bdfinst/agentic-dev-team/commit/c37c995a17ecda438267a873ac9e10b7339770d1)), closes [#1438](https://github.com/bdfinst/agentic-dev-team/issues/1438)
+
 ## [3.7.0](https://github.com/bdfinst/agentic-dev-team/compare/security-assessment-v3.6.0...security-assessment-v3.7.0) (2026-07-24)
 
 
