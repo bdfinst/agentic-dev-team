@@ -137,7 +137,11 @@ def test_step_4b_asks_one_three_way_choice_with_no_second_stage():
         ignore_case=True,
     )
     assert grep(r"there is no separate follow-up sub-question", sec, ignore_case=True)
-    assert grep(r"per-component three-way answer", sec, ignore_case=True)
+    # Issue #1434 Step 1.3 further generalized the sibling "operator answers"
+    # sentence — it no longer claims a fixed "per-component three-way
+    # answer" (see test_cd_test_architecture_downstream_service.py::
+    # test_step_4b_shared_paragraph_no_longer_overclaims_three_choices).
+    assert grep(r"per-component answer", sec, ignore_case=True)
     assert grep(r"1\.\s*\*\*Build \(testcontainers\)\*\*", sec)
     assert grep(r"2\.\s*\*\*Build \(Fake\)\*\*", sec)
     assert grep(r"3\.\s*\*\*Document-only\*\*\s*\(default\)", sec)
@@ -327,6 +331,11 @@ def test_output_template_shows_build_document_status_column():
 
 
 def test_output_template_caveat_appears_conditionally_on_fake_branch():
+    # Issue #1434 Step 1.3 generalized this sentence to cross-reference both
+    # branches instead of hardcoding the database branch's caveat verbatim
+    # here — see test_cd_test_architecture_downstream_service.py::
+    # test_output_section_caveat_generalized_not_database_specific for the
+    # generalization assertion.
     sec = _output_section()
     fake_row_clause = collapsed(
         section(
@@ -335,16 +344,19 @@ def test_output_template_caveat_appears_conditionally_on_fake_branch():
             boundary_pattern=r"^### ",
         )
     )
-    assert FAKE_CAVEAT in fake_row_clause
+    assert grep(r"branch-specific caveat, verbatim", fake_row_clause, ignore_case=True)
+    assert grep(r"Database-specific branch", fake_row_clause)
+    assert grep(r"Downstream-service branch", fake_row_clause)
 
 
-def test_caveat_appears_in_both_story_and_report():
-    # Same reusable FAKE_CAVEAT constant checked in both locations, so the
-    # two can't drift apart into independently-typed strings — the Story
-    # description (Step 1.2, database branch) and the report's output
-    # template (Step 1.3, Target architecture table).
+def test_caveat_appears_in_the_story_but_not_restated_in_the_report():
+    # Issue #1434 Step 1.3 moved the Output section to "cite, don't
+    # restate" (this skill's own Constraints) — the database branch's Story
+    # still carries FAKE_CAVEAT verbatim, but the report's output template
+    # now cross-references the branch instead of duplicating the caveat
+    # text (was test_caveat_appears_in_both_story_and_report).
     assert FAKE_CAVEAT in collapsed(_step_4b_section())
-    assert FAKE_CAVEAT in collapsed(_output_section())
+    assert FAKE_CAVEAT not in collapsed(_output_section())
 
 
 def test_output_template_does_not_hardcode_legacy_reports_path():
