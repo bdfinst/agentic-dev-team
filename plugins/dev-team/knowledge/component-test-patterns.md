@@ -63,7 +63,7 @@ Exposes endpoints **and** calls upstream services. The most failure-prone distri
 - **Failure modes:** **timeout** (deadline enforces, caller gets documented response e.g. 504, no partial commit); connection refused (retry count + backoff → fallback/error); 5xx retried only when retryable; 4xx mapped to documented behavior, generally not retried, 429 respects `Retry-After`; malformed/drifted response per Postel's Law; circuit breaker opens under sustained failure, fast-fails, recovers on half-open probe; partial multi-call failure → compensation/rollback/documented partial success.
 - **Double validation (do not depend on provider cooperation):** assume the provider can break the contract without versioning and that you won't know until an incident. (1) consumer-side contract tests pin request + response shape, block the build; (2) **scheduled provider-contract verification in a test environment** — *you* run your pinned contract against the provider's real non-prod endpoint on a schedule, out-of-band, decoupled from your deploys — this is the primary defense, attributing a break to the provider when it happens rather than to your next unrelated change; (3) adapter integration tests exercise the real outbound client against controlled states (testcontainers) — asserts the *adapter*, not the dependency; (4) resilience component tests (above) prove the consumer **survives** a broken contract, not just detects it. Provider-side verification of your contract is a bonus *if* they offer it — never relied upon.
 - **Anti-pattern:** mocking the third-party SDK directly instead of wrapping + doubling an owned adapter.
-- **Pipeline:** consumer contract + resilience component tests (fault injection) Stage 1; adapter integration for **in-house** deps Stage 1/2; adapter integration for **third-party/other-team** deps out-of-band on schedule, never in-band; post-deploy checks scheduled.
+- **Pipeline:** consumer contract + resilience component tests (fault injection) Stage 1; adapter integration out-of-band on a schedule, decoupled from deploys — regardless of whether the dependency is in-house or third-party/other-team, never in-band; post-deploy checks scheduled.
 - **Stack-specific mechanics — .NET:** the canonical pre-merge seam is `HttpMessageHandler` (stubbed + wired via `IHttpClientFactory.ConfigurePrimaryHttpMessageHandler`), with Polly v8 bound to `FakeTimeProvider` for deterministic resilience. See `references/csharp-http-client-testing.md` and the worked matrix in `test-matrix-examples/dotnet-http-consumer.md`. (Other stacks: Node / MSW; JVM / WireMock-in-process or a stub `HttpClient`; Python / `httpx.MockTransport`. Add to a stack profile as needed.)
 
 ### Event Consumer
@@ -75,7 +75,7 @@ Consumes messages from a broker (Kafka/SQS/RabbitMQ/PubSub).
 - **Success scenarios:** well-formed message → expected state change + documented downstream event; batch policy honored; replay from offset reproduces identical end state; documented schema versions accepted.
 - **Failure modes:** poison message → DLQ with correlation id, consumer survives; duplicate delivery → exactly one record (idempotency); out-of-order per documented policy; mid-batch failure → offsets uncommitted, no data loss; schema skew per version policy; backpressure (slow, don't OOM); rebalancing strands no in-flight messages.
 - **Double validation:** adapter integration tests vs a real broker container the team controls (Docker Kafka, ElasticMQ, Redpanda) assert the adapter speaks the protocol (not broker ordering — that's the broker's job); schema-registry doubles validated via contract tests + post-deploy checks vs the real registry.
-- **Pipeline:** handler unit + component Stage 1; adapter integration vs team-controlled broker Stage 1/2; managed-broker tests + post-deploy synthetic publishes out-of-band.
+- **Pipeline:** handler unit + component Stage 1; adapter integration out-of-band on a schedule — regardless of whether the broker is team-controlled or managed/third-party; post-deploy synthetic publishes out-of-band.
 
 ### Event Producer
 
@@ -85,7 +85,7 @@ Publishes messages to a broker (often paired with a consumer in the same service
 - **Isolation:** double the broker adapter; assert the message that *would* be published (shape, key, headers, idempotency).
 - **Success/failure:** correct schema/partition-key/headers on the happy path; publish failure → documented retry/outbox behavior, no silent drop; transactional outbox prevents loss on crash between state-write and publish.
 - **Double validation:** message schema pinned by contract (consumers verify); adapter integration vs real broker container; post-deploy synthetic publish.
-- **Pipeline:** unit + contract Stage 1; adapter integration Stage 1/2; post-deploy synthetic.
+- **Pipeline:** unit + contract Stage 1; adapter integration out-of-band on a schedule, regardless of ownership; post-deploy synthetic.
 
 ### Stateful Service
 
