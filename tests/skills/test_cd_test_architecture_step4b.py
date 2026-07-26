@@ -143,3 +143,77 @@ def test_integration_section_acknowledges_step_4b_branch():
         r"that hand-off — it still never invokes `?/build`? itself\.",
         sec,
     )
+
+
+# --- Database-specific branch (Step 1.2) ------------------------------------
+
+FAKE_CAVEAT = (
+    "Caveat: this hand-rolled Fake cannot verify actual SQL, mapping, or "
+    "schema correctness the way a real-engine test can — a deliberate "
+    "coverage trade-off, not a silent downgrade."
+)
+
+
+def test_database_branch_dispatches_testcontainers_story_when_accepted():
+    sec = collapsed(_step_4b_section())
+    assert grep(r"testcontainers", sec, ignore_case=True)
+    assert grep(r"propose", sec, ignore_case=True)
+    assert grep(r"Database Sandbox", sec)
+    assert grep(r"Transaction Rollback", sec)
+    assert grep(r"Table Truncation", sec)
+
+
+def test_database_branch_declined_proposes_fake_not_document_only():
+    sec = _step_4b_section()
+    decline_bullet = section(
+        sec,
+        r"\*\*Testcontainers declined\*\*",
+        boundary_pattern=r"^- \*\*Ambiguous",
+    )
+    assert grep(r"\bFake\b", decline_bullet)
+    assert grep(r"in-memory repository", decline_bullet, ignore_case=True)
+    assert not grep(r"document-only|document only", decline_bullet, ignore_case=True)
+
+
+def test_hand_rolled_fake_caveat_is_logged_explicitly():
+    sec = _step_4b_section()
+    assert FAKE_CAVEAT in sec
+
+
+def test_story_titles_follow_the_bracketed_component_template():
+    sec = _step_4b_section()
+    assert grep(
+        r"\[<component>\]\s*Add testcontainers-based real-DB test", sec
+    )
+    assert grep(
+        r"\[<component>\]\s*Add hand-rolled Fake database double", sec
+    )
+
+
+def test_database_branch_cites_test_doubles_and_database_test_patterns():
+    sec = _step_4b_section()
+    assert grep(r"test-doubles\.md", sec)
+    assert grep(r"database-test-patterns\.md", sec)
+
+
+def test_ambiguous_testcontainers_answer_treated_as_decline_not_document_only():
+    ambiguous_bullet = section(
+        _step_4b_section(),
+        r"\*\*Ambiguous or absent answer to this per-component question\*\*",
+        boundary_pattern=r"^### 5\.",
+    )
+    ambiguous_bullet = collapsed(ambiguous_bullet)
+    assert grep(r"\bdecline\b", ambiguous_bullet, ignore_case=True)
+    assert grep(r"\bFake\b", ambiguous_bullet)
+    assert grep(
+        r"distinct from.*top-level.*document-only", ambiguous_bullet
+    )
+    assert grep(
+        r"same ambiguous definition", ambiguous_bullet, ignore_case=True
+    )
+
+
+def test_knowledge_references_list_includes_test_doubles():
+    text = _text()
+    refs_section = section(text, r"^Grounded in these knowledge references", boundary_pattern=r"^## ")
+    assert grep(r"test-doubles\.md", refs_section)
