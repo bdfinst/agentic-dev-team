@@ -234,6 +234,76 @@ When a Downstream-service `Build (Fake)` row resolves to a virtual-service libra
 - `dev-team` plugin version: `<plugin_version>`
 ```
 
+### Companion: test-double setup guide
+
+Whenever Step 4's Target architecture table recommends a testcontainers-based
+test, a virtual-service-library-backed double, or a hand-rolled fallback for
+any component, write a companion **test-double setup guide** — independent of
+that component's Step 4b Build/Document-only outcome: this applies even when
+the operator chose Document-only for that component, or the run was
+non-interactive, and the setup guide still includes that component's section
+exactly as it would if the operator had chosen to build it.
+
+**Path.** Write the guide to `.dev-team-reports/<app>-test-double-setup.md` —
+same directory and naming convention as the main report, never a legacy path
+outside `.dev-team-reports/`. In the single-component chat-only case (the
+main report goes to chat, not a file), the setup guide's content is appended
+to that same chat output instead of written as a second file. When no
+component in the run falls into this off-gate adapter-double decision space,
+write no setup-guide file or chat section at all — never an empty one.
+
+**Per-component sections.** One section per component — even when two
+components resolve to the same tool, each still gets its own section with
+its own component-specific example prompt. A non-off-gate component (no
+adapter-double recommendation at all) gets no section. Each section has:
+
+1. **Tool name + one-line purpose.**
+2. **Doc link** to the tool's official documentation — omitted only for the
+   hand-rolled-fallback case (the issue's explicit exception, not an
+   oversight: there is nothing to link to for hand-rolled code); the other
+   three elements still apply to that case.
+3. **Configuration steps** that cite — never restate — the same
+   `test-stack-profiles/<stack>.md` entry (and, for the virtual-service-
+   library case, the `virtual-service-libraries.md` entry) Step 4 already
+   resolved for that component's `Double` column. When Step 0 resolved no
+   stack profile for the component, state that plainly (e.g. "No matching
+   stack profile for this component") rather than citing a profile that was
+   never resolved.
+4. **One concrete, ready-to-run example prompt** naming the actual component
+   and tool — never a generic template placeholder.
+5. The closing command `/apply-test-doubles <path>`, where `<path>` is
+   always the **main assessment report's own resolved path**
+   (`.dev-team-reports/cd-test-architecture-<app>.md`), never the setup
+   guide's own path — per #1437's own issue text (`/apply-test-doubles
+   <report-path>`). (Maintainer note, not emitted content: #1437 itself is
+   not yet shipped.)
+
+**Classification** — cited from Step 4b's branches above, not invented here:
+
+- **Testcontainers** (Database-specific or Downstream-service branch, `Build
+  (testcontainers)`) — name the testcontainers tool.
+- **Virtual-service library** (Downstream-service branch, `Build (Fake)`
+  resolving to a library) — name the existing-tool-detected or catalog
+  default tool per `virtual-service-libraries.md`'s Resolution order, or the
+  operator's chosen library, not the catalog default, when a named override
+  was given.
+- **Hand-rolled fallback** (`Build (Fake)` resolving to hand-rolled, or no
+  protocol-appropriate library exists for the component's adapter kind) — no
+  doc link; the other three elements (name+purpose, configuration steps, and
+  the example prompt) still describe the specific fake/contract-test to
+  write for that component.
+
+**Downstream-service components with no posed sub-question.** For a
+Downstream-service component whose construction-method sub-question was
+never posed or answered (the operator chose Document-only, the run was
+non-interactive, or the top-level answer was ambiguous), classify it using
+the same Resolution-order default the ambiguous-sub-answer rule already
+defines — existing-tool-detected or catalog default per
+`virtual-service-libraries.md`, falling back to hand-rolled only when no
+protocol-appropriate library exists for the component's adapter kind — never
+a guess at what the operator would have answered, and never an omitted
+section.
+
 ## Integration
 
 - Pairs with `test-design-advisor` (unit/module design) and the `test-smell-review` / `test-review` agents (per-file findings). This skill sets the application-level target those operate within.

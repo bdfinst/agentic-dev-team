@@ -2408,6 +2408,10 @@
       "summary": "Write to `.dev-team-reports/cd-test-architecture-<app>.md` (or chat for a single component).",
       "anchor": "output"
     },
+    "Companion: test-double setup guide": {
+      "summary": "Whenever Step 4's Target architecture table recommends a testcontainers-based",
+      "anchor": "companion-test-double-setup-guide"
+    },
     "Integration": {
       "summary": "Pairs with `test-design-advisor` (unit/module design) and the `test-smell-review` / `test-review` agents (per-file findings).",
       "anchor": "integration"

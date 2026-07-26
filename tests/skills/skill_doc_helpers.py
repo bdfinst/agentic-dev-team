@@ -157,6 +157,25 @@ def cd_test_architecture_document_only_bullet(text: str) -> str:
     )
 
 
+def cd_test_architecture_setup_guide_section(text: str) -> str:
+    """Extract cd-test-architecture/SKILL.md's `### Companion: test-double
+    setup guide` subsection under `## Output` from `text` (the skill's full
+    body). Promoted here (issue #1436, Step 1.1) alongside the other
+    `cd_test_architecture_*` helpers above.
+
+    No `boundary_pattern` is needed: this subsection is the last element in
+    `## Output` — placed after the closing fenced report template, right
+    before `## Integration`, which is itself already excluded by
+    `cd_test_architecture_output_section`'s own boundary — mirroring
+    `cd_test_architecture_document_only_bullet`'s "last bullet, no boundary
+    needed" precedent above.
+    """
+    return section(
+        cd_test_architecture_output_section(text),
+        r"^### Companion: test-double setup guide",
+    )
+
+
 def collapsed(text: str) -> str:
     """Collapse all whitespace runs (including newlines) to single spaces so
     a phrase hard-wrapped across markdown lines — even mid-word — still
