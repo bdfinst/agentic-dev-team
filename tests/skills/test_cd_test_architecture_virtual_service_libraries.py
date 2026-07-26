@@ -26,6 +26,15 @@ from skill_doc_helpers import PLUGIN_ROOT, collapsed, grep, section
 
 KNOWLEDGE_FILE = PLUGIN_ROOT / "knowledge" / "virtual-service-libraries.md"
 
+# Step 1.2 targets: the four existing knowledge files whose stale
+# pre-merge guidance is corrected to prefer virtual-service libraries.
+CSHARP_REFERENCE_FILE = (
+    PLUGIN_ROOT / "knowledge" / "references" / "csharp-http-client-testing.md"
+)
+DOTNET_PROFILE_FILE = PLUGIN_ROOT / "knowledge" / "test-stack-profiles" / "dotnet.md"
+NODE_PROFILE_FILE = PLUGIN_ROOT / "knowledge" / "test-stack-profiles" / "node.md"
+DJANGO_PROFILE_FILE = PLUGIN_ROOT / "knowledge" / "test-stack-profiles" / "django.md"
+
 
 def _text() -> str:
     return KNOWLEDGE_FILE.read_text(encoding="utf-8")
@@ -110,3 +119,85 @@ def test_catalog_states_resolution_order():
     override_idx = sec.index("Operator override or decline")
     assert existing_idx < catalog_idx < override_idx
     assert grep(r"no switch is suggested", sec, ignore_case=True)
+
+
+# --- Step 1.2: correct the four existing knowledge files' stale ---
+# --- pre-merge guidance (mirrors #1434's                         ---
+# --- test_knowledge_files_state_the_universal_out_of_band_rule    ---
+# --- "citation must stay true to its source" regression pattern). ---
+
+
+def test_csharp_reference_states_wiremock_preferred_not_never_in_band():
+    text = collapsed(CSHARP_REFERENCE_FILE.read_text(encoding="utf-8"))
+    # Positive: WireMock.Net is now named the preferred pre-merge double.
+    assert grep(
+        r"WireMock\.Net is the \*\*preferred\*\* pre-merge double",
+        text,
+    )
+    # Negative: the old absolute — "never in-band" — no longer applies to
+    # WireMock.Net anywhere in the file.
+    assert not grep(r"never in-band", text, ignore_case=True)
+    # The file's other, still-valid "what to avoid" reasoning about
+    # Kestrel-on-a-port is unrelated and untouched by this correction.
+    assert grep(
+        r"Kestrel on a random port \+ a real HTTP request", text
+    )
+
+
+def test_csharp_reference_does_not_claim_no_socket_in_process_mode():
+    text = collapsed(CSHARP_REFERENCE_FILE.read_text(encoding="utf-8"))
+    # Positive: names the verified same-process/localhost-only framing.
+    assert grep(
+        r"same-process, localhost-only, on an ephemeral port, with no "
+        r"separately-managed external server",
+        text,
+    )
+    assert grep(
+        r"WireMockServer\.Start\(\)`? always binds a real HTTP listener on "
+        r"localhost",
+        text,
+    )
+    # Negative: never asserts WireMock.Net itself has/provides/supports an
+    # in-process or no-socket transport as an affirmative claim — guards
+    # against re-introducing the unverified claim round-2 review caught.
+    assert not grep(
+        r"WireMock\.Net (has|provides|supports|offers) an? "
+        r"(in-process|no-socket|in-memory)",
+        text,
+        ignore_case=True,
+    )
+
+
+def test_dotnet_profile_no_longer_excludes_wiremock_from_pre_merge_seam():
+    text = collapsed(DOTNET_PROFILE_FILE.read_text(encoding="utf-8"))
+    # Positive: WireMock.Net now named as the seam's preferred implementation.
+    assert grep(
+        r"WireMock\.Net is the preferred implementation of that seam",
+        text,
+    )
+    assert grep(
+        r"hand-rolled `?StubHttpMessageHandler`? kept as backup", text
+    )
+    # Negative: the old "not ... WireMock" exclusion is gone.
+    assert not grep(r"not\s+WireMock\b", text)
+
+
+def test_node_profile_states_nock_preferred_msw_kept_as_fallback():
+    text = collapsed(NODE_PROFILE_FILE.read_text(encoding="utf-8"))
+    assert grep(r"\*\*Nock\*\* . the preferred record-and-replay tool", text)
+    assert grep(
+        r"\*\*MSW\*\* remains a documented fallback alternative", text
+    )
+
+
+def test_django_profile_states_vcrpy_preferred_responses_kept_as_fallback():
+    text = collapsed(DJANGO_PROFILE_FILE.read_text(encoding="utf-8"))
+    assert grep(
+        r"\*\*VCR\.py\*\* \(`vcrpy`\) for outbound HTTP . the preferred "
+        r"record-and-replay tool",
+        text,
+    )
+    assert grep(
+        r"`responses`/`httpx` mock remains a documented fallback alternative",
+        text,
+    )
