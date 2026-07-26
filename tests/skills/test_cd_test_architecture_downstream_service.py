@@ -22,7 +22,13 @@ and it was a real bug, issue #1433 round 4).
 
 from __future__ import annotations
 
-from skill_doc_helpers import PLUGIN_ROOT, collapsed, grep, section
+from skill_doc_helpers import (
+    PLUGIN_ROOT,
+    cd_test_architecture_output_section,
+    collapsed,
+    grep,
+    section,
+)
 
 SKILL = PLUGIN_ROOT / "skills" / "cd-test-architecture" / "SKILL.md"
 
@@ -47,18 +53,22 @@ def _step_4b_intro_paragraph() -> str:
 
 def _downstream_service_branch_section() -> str:
     """Scoped to the new `#### Downstream-service branch` subsection.
-    Empirically verified boundary: this subsection is currently the last
-    `####` sub-heading under Step 4b (no sibling `#### ` follows it), so
-    `^### 5\\.` is the reachable boundary today — not `^#### `, which
-    would never match and silently return "rest of the file" (the
-    unreachable-boundary bug #1433 round 4 warns against). If a future
-    slice adds another `#### ` subsection after this one, this boundary
-    should be revisited the same way `_database_specific_branch_section()`
-    already was in the sibling file."""
+    Boundary made future-proof for #1435 (arch-review, correctness-review,
+    test-smell-review): `^(#### |### 5\\.)` matches whichever comes first.
+    Today this subsection is the last `####` sub-heading under Step 4b, so
+    the alternation falls through to `^### 5\\.` — the same reachable
+    boundary as before. Once #1435 lands its own sibling `#### ` subsection
+    after this one, the alternation's first branch takes over and the
+    boundary stays correct without another edit — avoiding a repeat of the
+    unreachable-boundary bug (#1433 round 4) in the other direction (a
+    boundary that becomes wrong, rather than one that was never reachable).
+    See `_database_specific_branch_section()` in the sibling file, which
+    already made this same class of fix when #1434 landed its own `#### `
+    subsection."""
     return section(
         _text(),
         r"^#### Downstream-service branch",
-        boundary_pattern=r"^### 5\.",
+        boundary_pattern=r"^(#### |### 5\.)",
     )
 
 
@@ -75,6 +85,19 @@ def test_step_1_section_boundary_is_reachable():
     assert "Graph-assisted inventory" in sec
     assert "### 2." not in sec
     assert "Inventory the existing tests and classify them" not in sec
+
+
+def test_step_4b_intro_paragraph_boundary_is_reachable():
+    # Empirically verify the scoping boundary actually narrows the text —
+    # not an assumption (issue #1433 round 4 lesson) — mirroring the
+    # boundary-reachability sanity checks this file already has for
+    # `_step_1_section` and `_downstream_service_branch_section`. The
+    # intro's own distinguishing content must be present; content past its
+    # `#### ` boundary (either branch subsection) must be excluded.
+    para = _step_4b_intro_paragraph()
+    assert "exactly one of the options listed for that row" in para
+    assert "Database-specific branch" not in para
+    assert "Downstream-service branch" not in para
 
 
 # --- Step 1.1: ownership/deployability note ---------------------------------
@@ -123,6 +146,13 @@ def test_downstream_service_branch_cites_component_test_patterns():
     assert grep(r"component-test-patterns\.md", sec)
 
 
+def test_ownership_classification_not_reasked_at_step_4b_time():
+    # AC4: this classification is not itself an interactive question at
+    # Step 4b time — it was already recorded at Step 1.
+    sec = _downstream_service_branch_section()
+    assert grep(r"not re-asked at Step 4b time", sec, ignore_case=True)
+
+
 def test_downstream_service_branch_reuses_same_batched_prompt_not_a_second_one():
     sec = collapsed(_downstream_service_branch_section())
     assert grep(r"\*?same\*?\s+batched per-run prompt", sec, ignore_case=True)
@@ -145,11 +175,19 @@ def test_team_controlled_row_offers_three_options():
 
 def test_third_party_row_offers_only_two_options_no_testcontainers():
     sec = _downstream_service_branch_section()
+    # Boundary tightened (ai-provenance-review, test-review, correctness-
+    # review) beyond the sibling `team_controlled_bullet` extraction above:
+    # `^(- \*\*|### )` alone over-captures here — it sweeps past this single
+    # bullet through the following "not-offered-option" paragraph and the
+    # "Each selected option proposes a Story" lead-in before it reaches the
+    # next `- **` bullet. Adding the blank-line alternative stops capture at
+    # the first blank-line-then-non-bullet-prose transition, whichever
+    # boundary comes first, so this scopes to only the named bullet.
     third_party_bullet = collapsed(
         section(
             sec,
             r"\*\*Third-party/other-team\*\*",
-            boundary_pattern=r"^(- \*\*|### )",
+            boundary_pattern=r"^(- \*\*|### |\s*$)",
         )
     )
     assert grep(r"Build \(Fake\)", third_party_bullet)
@@ -184,6 +222,11 @@ def test_ambiguous_answer_rule_reused_not_reinvented():
     assert grep(r"not a new rule", sec, ignore_case=True)
 
 
+# Guards an out-of-plan fix (issue #1434): beyond the plan's literal Step
+# 1.3 text, this also corrects the shared Step 4b intro paragraph's
+# misattribution of the option-count variance to "adapter kind" when the
+# actual variable is a row's ownership tier (team-controlled vs
+# third-party) — cross-cutting adapter kind, not caused by it.
 def test_step_4b_intro_no_longer_overclaims_fixed_three_options():
     intro = collapsed(_step_4b_intro_paragraph())
     assert not grep(r"exactly one of three options", intro, ignore_case=True)
@@ -191,7 +234,7 @@ def test_step_4b_intro_no_longer_overclaims_fixed_three_options():
         r"exactly one of the options listed for that row", intro, ignore_case=True
     )
     assert grep(r"up to three", intro, ignore_case=True)
-    assert grep(r"some adapter kinds offer fewer", intro, ignore_case=True)
+    assert grep(r"ownership tier", intro, ignore_case=True)
 
 
 def test_event_producer_named_alongside_api_and_event_consumer():
@@ -203,15 +246,17 @@ def test_event_producer_named_alongside_api_and_event_consumer():
 
 # --- Step 1.3: Story-shape bullets, Output/knowledge-ref generalizations ----
 
-# Mirrors test_cd_test_architecture_step4b.py's FAKE_CAVEAT pattern: one
-# reusable constant so the exact verbatim caveat text can't drift apart
-# between the two call sites that check it (the Fake Story bullet itself,
-# and the assertion that the Output section does NOT hardcode it).
-DOWNSTREAM_CAVEAT = (
+# Mirrors test_cd_test_architecture_step4b.py's DATABASE_FAKE_CAVEAT
+# pattern: one reusable constant so the exact verbatim caveat text can't
+# drift apart between the two call sites that check it (the Fake Story
+# bullet itself, and the assertion that the Output section does NOT
+# hardcode it).
+DOWNSTREAM_FAKE_CAVEAT = (
     "Caveat: this hand-rolled Fake cannot verify that the adapter actually "
     "satisfies the real service's wire contract — pair it with scheduled "
     "provider-contract verification against the provider's real "
-    "environment, per the API Consumer / Event Consumer patterns."
+    "environment, per the API Consumer / Event Consumer / Event Producer "
+    "patterns."
 )
 
 
@@ -234,13 +279,7 @@ def _downstream_fake_bullet() -> str:
 
 
 def _output_section() -> str:
-    # Same fence-avoidance rationale as the sibling copy in
-    # test_cd_test_architecture_step4b.py: the `## Output` block contains a
-    # fenced markdown template whose interior has a `## CD Test
-    # Architecture — <app>` line, so the generic `^## ` boundary would
-    # truncate early. `^## Integration` (the next real top-level heading)
-    # avoids that.
-    return section(_text(), r"^## Output", boundary_pattern=r"^## Integration")
+    return cd_test_architecture_output_section(_text())
 
 
 def test_testcontainers_story_title_and_description():
@@ -259,12 +298,16 @@ def test_fake_story_title_and_wire_contract_caveat_verbatim():
         r"\[<component>\]\s*Add hand-rolled Fake downstream-service double",
         bullet,
     )
-    assert DOWNSTREAM_CAVEAT in bullet
+    assert DOWNSTREAM_FAKE_CAVEAT in bullet
 
 
 def test_fake_story_never_says_mock():
     bullet = _downstream_fake_bullet()
     assert not grep(r"\bmock\b", bullet, ignore_case=True)
+    # Positive companion assertion (test-smell-review): the absence check
+    # above would still pass even if the whole bullet were deleted, so
+    # assert the bullet actually names the Fake it's describing.
+    assert grep(r"\bFake\b", bullet)
 
 
 def test_third_party_fake_additionally_requires_scheduled_verification():
@@ -280,9 +323,14 @@ def test_third_party_fake_additionally_requires_scheduled_verification():
     # Explicitly a companion action, not a fourth option — and no new
     # numbered/labeled top-level option (a literal "4. **...**" item) is
     # introduced alongside the existing 1./2./3. choices in the shared
-    # Step 4b intro.
+    # Step 4b intro. Rescoped to `_step_4b_intro_paragraph()` (ai-
+    # provenance-review, correctness-review): the previous scope,
+    # `_downstream_fake_bullet()`, is a 3-line bullet that could never
+    # contain a numbered list, so that check was vacuous — it could never
+    # fail even if a real fourth numbered option were added. The numbered
+    # 1./2./3. list actually lives in the shared Step 4b intro paragraph.
     assert grep(r"\*\*Third-party rows\*\*:[^.]*not a fourth option", bullet, ignore_case=True)
-    assert not grep(r"^\s*4\.\s*\*\*", _downstream_fake_bullet())
+    assert not grep(r"^\s*4\.\s*\*\*", _step_4b_intro_paragraph())
 
 
 def test_team_controlled_fake_has_no_scheduled_verification_requirement_stated_positively():
@@ -309,7 +357,7 @@ def test_output_section_caveat_generalized_not_database_specific():
         )
     )
     assert not grep(r"SQL, mapping, or schema", fake_row_clause, ignore_case=True)
-    assert DOWNSTREAM_CAVEAT not in fake_row_clause
+    assert DOWNSTREAM_FAKE_CAVEAT not in fake_row_clause
     assert grep(r"Database-specific branch", fake_row_clause)
     assert grep(r"Downstream-service branch", fake_row_clause)
     assert grep(r"branch-specific caveat, verbatim", fake_row_clause, ignore_case=True)
@@ -336,6 +384,11 @@ def test_knowledge_references_bullet_covers_both_branches():
     )
 
 
+# Guards an out-of-plan fix (issue #1434): beyond the plan's literal Step
+# 1.3 text, this also corrects the shared Step 4b intro paragraph's
+# "operator answers" sentence, which previously overclaimed a fixed
+# "per-component three-way answer" — generalized alongside the sibling fix
+# in test_step_4b_intro_no_longer_overclaims_fixed_three_options above.
 def test_step_4b_shared_paragraph_no_longer_overclaims_three_choices():
     intro = collapsed(_step_4b_intro_paragraph())
     assert not grep(r"these three choices", intro, ignore_case=True)

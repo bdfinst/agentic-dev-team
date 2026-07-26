@@ -26,7 +26,13 @@ plan's stated check.
 
 from __future__ import annotations
 
-from skill_doc_helpers import PLUGIN_ROOT, collapsed, grep, section
+from skill_doc_helpers import (
+    PLUGIN_ROOT,
+    cd_test_architecture_output_section,
+    collapsed,
+    grep,
+    section,
+)
 
 SKILL = PLUGIN_ROOT / "skills" / "cd-test-architecture" / "SKILL.md"
 
@@ -51,10 +57,13 @@ def _database_specific_branch_section() -> str:
     # `^### 5\.` — that pattern can never occur inside _step_4b_section()'s
     # own already-truncated text (it's consumed as _that_ function's
     # boundary), so it would silently return "rest of 4b" instead of just
-    # this subsection. No other `####` heading exists yet, so this is
-    # behaviorally identical today, but genuinely subsection-scoped once
-    # #1434/#1435 add their own sibling `#### ` subsections after this one
-    # (correctness-review round 4, issue #1433).
+    # this subsection. #1434 has now landed `#### Downstream-service
+    # branch` as a sibling `#### ` heading, so this is no longer merely
+    # forward-looking (correctness-review round 4, issue #1433): the
+    # boundary's behavior has actually changed in this diff — it now
+    # truncates at the Downstream-service branch instead of running to the
+    # end of Step 4b. #1435 may add a further sibling `#### ` subsection
+    # later.
     return section(
         _step_4b_section(),
         r"^#### Database-specific branch",
@@ -230,7 +239,7 @@ def test_integration_section_acknowledges_step_4b_branch():
 
 # --- Database-specific branch (Step 1.2) ------------------------------------
 
-FAKE_CAVEAT = (
+DATABASE_FAKE_CAVEAT = (
     "Caveat: this hand-rolled Fake cannot verify actual SQL, mapping, or "
     "schema correctness the way a real-engine test can — a deliberate "
     "coverage trade-off, not a silent downgrade."
@@ -284,7 +293,7 @@ def test_database_branch_document_only_is_report_only_noop():
 
 def test_hand_rolled_fake_caveat_is_logged_explicitly():
     sec = collapsed(_step_4b_section())
-    assert FAKE_CAVEAT in sec
+    assert DATABASE_FAKE_CAVEAT in sec
 
 
 def test_story_titles_follow_the_bracketed_component_template():
@@ -313,13 +322,7 @@ def test_knowledge_references_list_includes_test_doubles():
 
 
 def _output_section() -> str:
-    # Load-bearing boundary: the `## Output` block contains a fenced markdown
-    # template whose interior has a `## CD Test Architecture — <app>` line.
-    # `section()` is fence-unaware, so the generic `^## ` boundary used
-    # elsewhere in this file would match that embedded line and truncate the
-    # section early, silently dropping the `Build/Document status` table.
-    # `^## Integration` (the next real top-level heading) avoids that.
-    return section(_text(), r"^## Output", boundary_pattern=r"^## Integration")
+    return cd_test_architecture_output_section(_text())
 
 
 def test_output_template_shows_build_document_status_column():
@@ -352,11 +355,11 @@ def test_output_template_caveat_appears_conditionally_on_fake_branch():
 def test_caveat_appears_in_the_story_but_not_restated_in_the_report():
     # Issue #1434 Step 1.3 moved the Output section to "cite, don't
     # restate" (this skill's own Constraints) — the database branch's Story
-    # still carries FAKE_CAVEAT verbatim, but the report's output template
-    # now cross-references the branch instead of duplicating the caveat
-    # text (was test_caveat_appears_in_both_story_and_report).
-    assert FAKE_CAVEAT in collapsed(_step_4b_section())
-    assert FAKE_CAVEAT not in collapsed(_output_section())
+    # still carries DATABASE_FAKE_CAVEAT verbatim, but the report's output
+    # template now cross-references the branch instead of duplicating the
+    # caveat text (was test_caveat_appears_in_both_story_and_report).
+    assert DATABASE_FAKE_CAVEAT in collapsed(_step_4b_section())
+    assert DATABASE_FAKE_CAVEAT not in collapsed(_output_section())
 
 
 def test_output_template_does_not_hardcode_legacy_reports_path():
