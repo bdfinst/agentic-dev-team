@@ -9,7 +9,9 @@ argument-hint: "[--component <name>] [--ci <path>] [--external-tests <path>] [--
 # CD Test Architecture
 
 Role: worker. This command assesses and reports — it does not write tests or
-refactor code; it hands the migration steps to `/plan` or `/build`.
+refactor code; it hands the migration steps to `/plan` or `/build`; Step 4b's
+build-vs-document ask is this skill's one interactive branch point, and even
+there it proposes a Story rather than invoking `/build` itself.
 
 ## Overview
 
@@ -25,7 +27,7 @@ Grounded in these knowledge references — read the first two before assessing:
 
 ## Constraints
 
-- Advisory only. Assess and recommend; do not edit production or test code. Hand the migration steps to `/plan` or `/build`.
+- Advisory only. Assess and recommend; do not edit production or test code. Hand the migration steps to `/plan` or `/build` — including Step 4b's build-vs-document ask: it proposes a downstream Story, it never invokes `/build` or edits code directly.
 - Use MinimumCD vocabulary (unit / component / contract / integration / E2E / static analysis) consistently; when the codebase uses other names, map them explicitly.
 - The pre-merge gate may contain **only deterministic** tests (static, unit, component, contract). Any test that needs a database, broker, downstream service, or environment secrets configured to run is, by definition, not a pre-merge test — flag it.
 - Recommend isolation via in-memory doubles + owned adapters, validated by the double-validation loop. Do **not** recommend standing up the whole system (docker-compose of dependencies) for the gate — that is the configured-dependency problem this architecture removes.
@@ -90,6 +92,32 @@ Per component, using its pattern: which test types cover which layers, **what to
 **E2E justification gate.** Never recommend an E2E test "for completeness" or "to round out the pyramid." For each E2E recommendation, document that **all four** conditions hold: (1) a **contract test** cannot pin the boundary that catches this behavior, (2) a **component test** with doubles cannot exercise it via the component's public interface, (3) a **resilience test** (timeout / retry / circuit-breaker / malformed response) cannot cover the failure mode, AND (4) the behavior is a critical user journey across multiple real components that cannot be decomposed. Record one sentence per behavior explaining why E2E was *not* chosen when (1)–(3) cover it. When E2E is genuinely required, name the user journey, the pipeline stage (post-deploy smoke; never pre-merge), and surface that E2E is non-deterministic per MinimumCD.
 
 **The pyramid is a cost heuristic, not a target shape.** Do not recommend per-layer target counts or "current shape vs recommended shape" tables. Per-component / per-behavior placement is the valid output; if the suite shape is pathological, name the pathology (ice-cream cone, hourglass, cupcake) and the behaviors that suffer from it — do not propose a numeric redistribution.
+
+### 4b. Build-vs-document decision (off-gate adapter test doubles)
+
+When Step 4 identifies one or more components needing a testcontainers-based
+real-DB test, ask the operator once per run, batched across every such
+component regardless of adapter kind — this is the shared prompt later
+adapter-kind slices (#1434 downstream services, #1435 record-and-replay
+libraries) append to, not a new prompt each run — whether to:
+
+1. **Build** — propose a downstream Story that the operator/orchestrator
+   later drives `/build` against, or
+2. **Document only** (default) — the recommendation lands in the report as
+   today, with no further action.
+
+Non-interactive runs (per `human-oversight-protocol`'s `--yes` /
+`DEV_TEAM_AUTO_APPROVE=1` / no-TTY convention) skip the prompt entirely — no
+prompt is surfaced, and the recommendation lands in the report only,
+document-only, exactly as today.
+
+An ambiguous or absent answer to the batched build-vs-document question —
+for example "maybe", "I'm not sure", a bare "yes" or "no", or silence/empty
+input — is treated the same as document-only: never guessed, never blocked
+on.
+
+Repos with no such gap see no behavior change: no prompt is asked, and the
+report is unchanged.
 
 ### 5. Produce a migration path
 
@@ -183,4 +211,4 @@ When Step 0 loaded a `knowledge/test-stack-profiles/<stack>.md` profile, **cite 
 - Pairs with `test-design-advisor` (unit/module design) and the `test-smell-review` / `test-review` agents (per-file findings). This skill sets the application-level target those operate within.
 - For under-tested/legacy components, the characterization-baseline-then-refactor procedure is the **`legacy-code`** skill (Feathers' algorithm: change points → test points/seams → break dependencies → characterization tests → refactor under green). Defer the mechanics to it.
 - Use the **`domain-driven-design`** and **`domain-analysis`** skills to suggest the target structure for the post-baseline refactor — where bounded contexts, ports, and seams should land — so refactoring improves the domain model, not just testability.
-- Hand the migration path to `/plan` or `/build` for TDD implementation. This skill stops at the architecture and plan.
+- Hand the migration path to `/plan` or `/build` for TDD implementation. This skill stops at the architecture and plan, except that Step 4b may propose a downstream Story as part of that hand-off — it still never invokes `/build` itself.
