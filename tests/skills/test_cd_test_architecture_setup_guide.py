@@ -98,19 +98,37 @@ def test_testcontainers_section_has_all_four_elements_and_apply_command():
     )
 
 
-def test_library_default_section_names_catalog_or_existing_tool():
+def test_library_section_points_to_step_4b_tool_resolution_not_restating_it():
+    # arch-review finding (round 2): the Classification block previously
+    # re-derived Step 4b's answer grammar (existing-tool-detected/catalog
+    # default/named override) inline, creating a second source of truth
+    # that could drift silently if Step 4b's grammar changed. It must now
+    # name which Step 4b branch resolves the tool, not restate the rule.
     sec = _section()
     assert grep(
-        r"name the existing-tool-detected or catalog default tool per "
-        r"`?virtual-service-libraries\.md`?'s Resolution order",
+        r"name whichever tool Step 4b's Downstream-service branch's "
+        r"construction-method sub-question resolved for this component",
+        sec,
+        ignore_case=True,
+    )
+    assert grep(
+        r"see that branch above\s*—\s*not restated here",
         sec,
         ignore_case=True,
     )
 
 
-def test_library_named_override_section_names_operator_choice_not_default():
+def test_library_section_no_longer_restates_step_4b_answer_grammar():
+    # Negative companion to the pointer assertion above: the specific
+    # restated phrases from round 1 must not reappear in this bullet, or
+    # the duplication the finding flagged has crept back in.
     sec = _section()
-    assert grep(
+    assert not grep(
+        r"name the existing-tool-detected or catalog default tool per",
+        sec,
+        ignore_case=True,
+    )
+    assert not grep(
         r"the operator's chosen library, not the catalog default, when a "
         r"named override was given",
         sec,
@@ -172,16 +190,37 @@ def test_hand_rolled_fallback_section_omits_doc_link_keeps_other_elements():
         )
     )
     assert not grep(r"doc link to", hand_rolled_bullet, ignore_case=True)
+    # arch-review finding (round 2): the parenthetical previously restated
+    # Step 4b's "no protocol-appropriate library" rule body inline; it must
+    # now point at that branch instead.
+    assert grep(
+        r"Step 4b's Downstream-service branch's no-matching-library "
+        r"fallback applying to this component's adapter kind",
+        hand_rolled_bullet,
+        ignore_case=True,
+    )
+    assert grep(
+        r"see that branch above, not restated here", hand_rolled_bullet, ignore_case=True
+    )
+    assert not grep(
+        r"no protocol-appropriate library exists for the component's "
+        r"adapter kind",
+        hand_rolled_bullet,
+        ignore_case=True,
+    )
 
 
 def test_document_only_downstream_component_still_gets_resolved_library_classification():
     # The design-critic-flagged fallback-default case: a Document-only /
     # non-interactive / ambiguous-top-level Downstream-service component
-    # still gets the Resolution order applied fresh to a row that never got
-    # a sub-question at all — this is NOT a restatement of Step 4b's own
-    # ambiguous-sub-answer rule, which is scoped only to `Build (Fake)` rows
-    # where the sub-question WAS posed (ai-provenance-review finding: the
-    # prior wording falsely claimed to restate an already-defined rule).
+    # still gets Step 4b's tool-resolution rule applied fresh to a row that
+    # never got a sub-question at all — this is NOT a restatement of Step
+    # 4b's own ambiguous-sub-answer rule, which is scoped only to
+    # `Build (Fake)` rows where the sub-question WAS posed. Per the
+    # arch-review round-2 finding, this paragraph now points at Step 4b's
+    # own text for the actual resolution mechanics rather than re-deriving
+    # them (the round-1 ai-provenance-review fix addressed the false
+    # restatement claim; this fixes the still-duplicated rule body).
     sec = _section()
     assert grep(
         r"the operator chose Document-only, the run was non-interactive, "
@@ -190,16 +229,27 @@ def test_document_only_downstream_component_still_gets_resolved_library_classifi
         ignore_case=True,
     )
     assert grep(
-        r"the same Resolution order \(existing-tool-detected . catalog "
-        r"default\) that `?virtual-service-libraries\.md`? defines and "
-        r"that Step 4b's sub-question also uses when it fires",
+        r"the same tool-resolution rule Step 4b's sub-question applies when "
+        r"it does fire",
         sec,
         ignore_case=True,
     )
     assert grep(
-        r"applied here to rows that never got a sub-question in the first "
+        r"see the Downstream-service branch above for what determines the "
+        r"tool, not restated here",
+        sec,
+        ignore_case=True,
+    )
+    assert grep(
+        r"applied to rows that never got a sub-question in the first "
         r"place, because this guide's trigger is independent of the "
         r"Build/Document-only outcome, never a guess and never omitted",
+        sec,
+        ignore_case=True,
+    )
+    assert not grep(
+        r"the same Resolution order \(existing-tool-detected . catalog "
+        r"default\) that `?virtual-service-libraries\.md`? defines",
         sec,
         ignore_case=True,
     )
@@ -250,6 +300,35 @@ def test_every_section_ends_with_apply_test_doubles_command_using_report_path():
     assert grep(r"never the setup guide's own path", sec, ignore_case=True)
     assert grep(r"per #1437's own issue text", sec, ignore_case=True)
     assert grep(r"/apply-test-doubles\s*<report-path>", sec, ignore_case=True)
+
+
+def test_chat_only_case_apply_test_doubles_has_no_path_to_substitute():
+    # arch-review finding (round 2): "always" contradicted the subsection's
+    # own single-component chat-only case, where the main report goes to
+    # chat rather than a file, so there is no main-report path to
+    # substitute for <path>. The closing command must state that gap
+    # explicitly rather than silently falling back to the setup guide's own
+    # path.
+    sec = _section()
+    assert grep(
+        r"In the single-component chat-only case, there is no saved "
+        r"main-report file to substitute for `?<path>`?",
+        sec,
+        ignore_case=True,
+    )
+    assert grep(
+        r"the assessment output is in this chat session, not a saved file",
+        sec,
+        ignore_case=True,
+    )
+    assert grep(
+        r"the closing command is emitted with no path argument",
+        sec,
+        ignore_case=True,
+    )
+    assert grep(
+        r"plain `?/apply-test-doubles`?", sec, ignore_case=True
+    )
 
 
 def test_no_off_gate_components_means_no_setup_guide_written():
@@ -304,3 +383,34 @@ def test_config_steps_cite_stack_profile_not_restate_it():
         ignore_case=True,
     )
     assert grep(r"virtual-service-libraries\.md`? entry", sec, ignore_case=True)
+
+
+def test_setup_guide_adopts_report_template_header_and_provenance():
+    # arch-review finding (round 2): the setup guide is a second report
+    # artifact written into .dev-team-reports/ alongside a main report that
+    # already adopted report-template.md's header/Provenance contract, with
+    # no stated rationale for the setup guide diverging. It must reference
+    # the shared contract using the exact sentence the contract specifies,
+    # and state what its own **Scope** field covers.
+    sec = _section()
+    assert grep(
+        r"For the header block and closing Provenance section, follow "
+        r"`?knowledge/report-template\.md`?",
+        sec,
+        ignore_case=True,
+    )
+    assert grep(
+        r"the per-component sections below are this guide's own body",
+        sec,
+        ignore_case=True,
+    )
+    assert grep(
+        r"\*\*Scope\*\*`?\s+reads the components covered by this guide",
+        sec,
+        ignore_case=True,
+    )
+    assert grep(
+        r"not the full application inventory from Step 1",
+        sec,
+        ignore_case=True,
+    )
