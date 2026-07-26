@@ -19,8 +19,8 @@ if [ -x plugins/dev-team/hooks/lib/build-knowledge-index.sh ]; then
   git add plugins/dev-team/knowledge/index.json
 fi
 
-# 2. Run lint-staged: eslint --fix on the staged JS/TS files, with the
-#    autofixes automatically re-staged (see the lint-staged config in
-#    package.json). The pre-push CI mirror (scripts/ci-local.sh) still runs the
-#    full eslint gate.
+# 2. Run lint-staged: eslint --fix on staged JS/TS files and ruff check --fix
+#    on staged Python files, with the autofixes automatically re-staged (see
+#    the lint-staged config in package.json). The pre-push CI mirror
+#    (scripts/ci-local.sh) still runs the full eslint and ruff gates.
 npx --no-install lint-staged

@@ -1,4 +1,4 @@
-"""01_api_recon — probe documentation paths, HTTP methods, content types, server headers.
+"""probe_01_api_recon — probe documentation paths, HTTP methods, content types, server headers.
 
 Captures what the API leaks before any knowledge of the schema. Output is
 consumed by probe 02 (schema discovery) to pick the right feature-discovery

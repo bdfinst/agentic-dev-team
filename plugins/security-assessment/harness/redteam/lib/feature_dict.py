@@ -1,6 +1,6 @@
 """feature_dict — curated fraud-detection feature dictionary.
 
-Used by `02_schema_discovery.py` as the brute-force fallback when no OpenAPI
+Used by `probe_02_schema_discovery.py` as the brute-force fallback when no OpenAPI
 spec is available. Ten categories × ~20 features each, covering common
 fraud-scoring feature surfaces.
 

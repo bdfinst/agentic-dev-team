@@ -20,9 +20,8 @@ _TESTS_LIB = _REPO_ROOT / "plugins" / "dev-team" / "tests" / "lib"
 if str(_TESTS_LIB) not in sys.path:
     sys.path.insert(0, str(_TESTS_LIB))
 
-import pytest
-
 import artifact_paths  # type: ignore[import-not-found]
+import pytest
 from hermetic import hermetic_git_env  # type: ignore[import-not-found]
 
 

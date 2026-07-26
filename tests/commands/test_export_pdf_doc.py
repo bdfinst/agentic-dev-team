@@ -1,7 +1,7 @@
 """Regression test for the security-assessment plugin's /export-pdf command.
 
 The weasyprint fallback path renders Markdown that is ultimately derived
-from a scanned repo or a probed model (`08_report_generator.py`,
+from a scanned repo or a probed model (`probe_08_report_generator.py`,
 `service-comm-parser.py`) — untrusted input. weasyprint fetches remote
 resources referenced in rendered HTML/CSS (`<img src="https://...">`, CSS
 `url(...)`) by default, which is a plausible SSRF vector at PDF-conversion

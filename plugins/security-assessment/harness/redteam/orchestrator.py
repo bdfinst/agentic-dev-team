@@ -74,14 +74,14 @@ class Agent:
 
 
 AGENTS: list[Agent] = [
-    Agent("01", "01_api_recon.py"),
-    Agent("02", "02_schema_discovery.py", ("01",)),
-    Agent("03", "03_feature_sensitivity.py", ("02",)),
-    Agent("04", "04_boundary_mapping.py", ("02", "03")),
-    Agent("05", "05_evasion_attack.py", ("02", "03", "04")),
-    Agent("06", "06_input_validation.py", ("02",)),
-    Agent("07", "07_model_extraction.py", ("02", "03")),
-    Agent("08", "08_report_generator.py", ("01", "02", "03", "04", "05", "06", "07")),
+    Agent("01", "probe_01_api_recon.py"),
+    Agent("02", "probe_02_schema_discovery.py", ("01",)),
+    Agent("03", "probe_03_feature_sensitivity.py", ("02",)),
+    Agent("04", "probe_04_boundary_mapping.py", ("02", "03")),
+    Agent("05", "probe_05_evasion_attack.py", ("02", "03", "04")),
+    Agent("06", "probe_06_input_validation.py", ("02",)),
+    Agent("07", "probe_07_model_extraction.py", ("02", "03")),
+    Agent("08", "probe_08_report_generator.py", ("01", "02", "03", "04", "05", "06", "07")),
 ]
 
 

@@ -1,5 +1,5 @@
 """Regression test for HTML/Markdown injection in
-probes/08_report_generator.py.
+probes/probe_08_report_generator.py.
 
 `_format_*()` interpolate fields from probe result dicts — which ultimately
 originate from the probed model's own HTTP responses (an attacker-controlled
@@ -31,7 +31,7 @@ sys.path.insert(0, str(HARNESS))
 
 from redteam import orchestrator
 
-report_generator = orchestrator._import_agent("08_report_generator.py")
+report_generator = orchestrator._import_agent("probe_08_report_generator.py")
 
 PAYLOAD = '"><script>alert(document.cookie)</script>'
 

@@ -1,4 +1,4 @@
-"""08_report_generator — compile probe outputs into adversarial-report.md.
+"""probe_08_report_generator — compile probe outputs into adversarial-report.md.
 
 The report is consumed by prompt adversarial-05-report (the red-team-report-
 generator Claude agent) for refinement into executive form. This script

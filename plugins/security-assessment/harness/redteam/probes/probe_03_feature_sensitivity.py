@@ -1,4 +1,4 @@
-"""03_feature_sensitivity — sweep each discovered feature across a value range,
+"""probe_03_feature_sensitivity — sweep each discovered feature across a value range,
 measure how the fraud score responds, rank features by influence.
 
 Produces: results/03_sensitivity.json

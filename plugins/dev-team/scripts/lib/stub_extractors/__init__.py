@@ -44,7 +44,12 @@ from __future__ import annotations
 from _bdd_markers import MARKERS_BY_EXT as _PENDING_MARKERS_BY_EXT
 
 from . import csharp, go, java, jsts
-from ._common import ERROR_DANGLING_ANNOTATION, ERROR_UNBALANCED_BRACES, ParseResult, StepBinding
+from ._common import (
+    ERROR_DANGLING_ANNOTATION,
+    ERROR_UNBALANCED_BRACES,
+    ParseResult,
+    StepBinding,
+)
 
 __all__ = [
     "ERROR_DANGLING_ANNOTATION",

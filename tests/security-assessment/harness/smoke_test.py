@@ -99,7 +99,7 @@ def check_probes_load() -> None:
         fail(f"could not import redteam.orchestrator: {type(e).__name__}: {e}")
         return
 
-    probe_files = sorted(p.name for p in PROBES.glob("[0-9]*.py"))
+    probe_files = sorted(p.name for p in PROBES.glob("probe_[0-9]*.py"))
     if not probe_files:
         fail(f"no probe modules found under {PROBES}")
         return

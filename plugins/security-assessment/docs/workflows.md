@@ -52,14 +52,14 @@ The `security-assessment` plugin provides two **orchestrator** commands that seq
 
 Eight probes (in `harness/redteam/probes/`) run in sequence:
 
-1. `01_api_recon` — documentation paths, HTTP methods, content types, server headers.
-2. `02_schema_discovery` — the model's input feature list.
-3. `03_feature_sensitivity` — sweep each feature across a value range.
-4. `04_boundary_mapping` — binary-search per-feature decision boundaries.
-5. `05_evasion_attack` — adversarial inputs that receive low fraud scores.
-6. `06_input_validation` — malformed-input handling.
-7. `07_model_extraction` — surrogate models trained against captured scores.
-8. `08_report_generator` — compiles probe outputs into `adversarial-report.md`.
+1. `probe_01_api_recon` — documentation paths, HTTP methods, content types, server headers.
+2. `probe_02_schema_discovery` — the model's input feature list.
+3. `probe_03_feature_sensitivity` — sweep each feature across a value range.
+4. `probe_04_boundary_mapping` — binary-search per-feature decision boundaries.
+5. `probe_05_evasion_attack` — adversarial inputs that receive low fraud scores.
+6. `probe_06_input_validation` — malformed-input handling.
+7. `probe_07_model_extraction` — surrogate models trained against captured scores.
+8. `probe_08_report_generator` — compiles probe outputs into `adversarial-report.md`.
 
 ---
 
