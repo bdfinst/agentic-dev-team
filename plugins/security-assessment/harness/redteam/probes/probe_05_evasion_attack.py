@@ -1,4 +1,4 @@
-"""05_evasion_attack — search for adversarial inputs that receive low fraud
+"""probe_05_evasion_attack — search for adversarial inputs that receive low fraud
 scores despite looking like fraud.
 
 Three methods in order of cost:

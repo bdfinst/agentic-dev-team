@@ -1,4 +1,4 @@
-"""02_schema_discovery — discover the model's input feature list.
+"""probe_02_schema_discovery — discover the model's input feature list.
 
 Four-strategy cascade per the opus_repo_scan_test reference:
   1. OpenAPI directly (fetch /openapi.json, parse schema)

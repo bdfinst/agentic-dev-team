@@ -64,7 +64,7 @@ pandoc "$INPUT" \
 **Fallback (weasyprint + python-markdown):**
 
 The input Markdown is derived from a scanned repo / probed model (see
-`08_report_generator.py`, `service-comm-parser.py`) — treat it as
+`probe_08_report_generator.py`, `service-comm-parser.py`) — treat it as
 untrusted. Rendered HTML/CSS can reference remote resources (`<img
 src="https://...">`, CSS `url(...)`), and weasyprint fetches those by
 default, which is a plausible SSRF vector at PDF-conversion time. Pass a

@@ -1,4 +1,4 @@
-"""06_input_validation — exercise malformed inputs.
+"""probe_06_input_validation — exercise malformed inputs.
 
 Type confusion, nulls, oversized strings, Unicode edge cases, NaN/Infinity.
 Detects fail-open paths and information leakage via error messages.
