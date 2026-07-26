@@ -225,7 +225,7 @@ FAKE_CAVEAT = (
 
 # SKILL.md is standardized (fix for issue #1433) to always use the hyphenated
 # "document-only" form, so this no longer needs the "document only"
-# alternation — kept as a single constant so the three call sites below can't
+# alternation — kept as a single constant so its call sites below can't
 # drift apart if the wording changes again.
 DOCUMENT_ONLY_PATTERN = r"document-only"
 

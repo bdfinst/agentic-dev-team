@@ -3,7 +3,7 @@ name: cd-test-architecture
 description: Evaluate an existing application's tests and recommend a CD-pipeline-aligned test architecture — fast, deterministic tests with minimal tooling that fully validate behavior (including cross-service interaction) and run in CI without configuring the rest of the system. Use when the user says "evaluate how this app is tested", "design a test architecture", "align our tests for CD", "make our CI tests deterministic", "our tests need the whole system configured", "our tests live in another repo / Postman / manual scripts", or asks for UI/service/batch test patterns.
 role: worker
 user-invocable: true
-argument-hint: "[--component <name>] [--ci <path>] [--external-tests <path>] [--stack <id>] [--pdf]"
+argument-hint: "[--component <name>] [--ci <path>] [--external-tests <path>] [--stack <id>] [--pdf] [--yes]"
 ---
 
 # CD Test Architecture
@@ -39,7 +39,7 @@ Grounded in these knowledge references — read the first two before assessing:
 
 ## Parse Arguments
 
-Arguments: a target application/repo path or description. Optional `--component <name>` to scope to one component, `--ci <path>` to point at the existing pipeline config, **`--external-tests <path-or-repo-or-description>`** to point at tests that live outside this repo (another repo's suite, a third-party runner, Postman/Insomnia collections, manual test scripts, recorded UI flows, spreadsheets of test cases), and `--stack <id>` to override stack detection (default: detect from manifests; resolved profile key like `dotnet`, `node`, `spring-boot`, `go`, `django`, `react`, `vue`, `ssr-htmx`). If little or no in-repo testing is found and no external location is given, **ask** where the application is actually tested before concluding it is untested. If no target is given, ask for one.
+Arguments: a target application/repo path or description. Optional `--component <name>` to scope to one component, `--ci <path>` to point at the existing pipeline config, **`--external-tests <path-or-repo-or-description>`** to point at tests that live outside this repo (another repo's suite, a third-party runner, Postman/Insomnia collections, manual test scripts, recorded UI flows, spreadsheets of test cases), and `--stack <id>` to override stack detection (default: detect from manifests; resolved profile key like `dotnet`, `node`, `spring-boot`, `go`, `django`, `react`, `vue`, `ssr-htmx`). `--yes` runs unattended: Step 4b's build-vs-document prompt is skipped and every flagged component defaults to Document-only, per `human-oversight-protocol`'s non-interactive convention. If little or no in-repo testing is found and no external location is given, **ask** where the application is actually tested before concluding it is untested. If no target is given, ask for one.
 
 ## Steps
 
