@@ -96,7 +96,7 @@ Per component, using its pattern: which test types cover which layers, **what to
 
 ### 4b. Build-vs-document decision (off-gate adapter test doubles)
 
-When Step 4 identifies one or more components needing an off-gate adapter test double (today: a testcontainers-based real-DB test), ask the operator once per run, batched across every such component regardless of adapter kind — this is the shared prompt later adapter-kind slices (#1434 downstream services, #1435 record-and-replay libraries) append to, not a new prompt each run. The one prompt lists every such component and asks the operator, for each one, to choose exactly one of three options — there is no separate follow-up sub-question:
+When Step 4 identifies one or more components needing an off-gate adapter test double (today: a testcontainers-based real-DB test), ask the operator once per run, batched across every such component regardless of adapter kind — this is the shared prompt later adapter-kind slices (#1434 downstream services, #1435 record-and-replay libraries) append to, not a new prompt each run. The one prompt lists every such component and asks the operator, for each one, to choose exactly one of the options listed for that row — up to three; some adapter kinds offer fewer — there is no separate follow-up sub-question:
 
 1. **Build (testcontainers)** — propose a downstream Story for a testcontainers-based real-DB test that the operator/orchestrator later drives `/build` against.
 2. **Build (Fake)** — propose a downstream Story for a hand-rolled Fake database double.
@@ -117,6 +117,17 @@ For the database-IS-the-SUT band, the three-way answer directly determines the o
 - **Build (testcontainers)** — propose a Story titled `[<component>] Add testcontainers-based real-DB test`. Its description names Database Sandbox isolation and both teardown options — Transaction Rollback and Table Truncation — and cites `database-test-patterns.md`.
 - **Build (Fake)** — propose a Story titled `[<component>] Add hand-rolled Fake database double`. Its description names the Fake as an in-memory repository implementing the same interface, per `test-doubles.md`'s Fake taxonomy, cites both `database-test-patterns.md` and `test-doubles.md`, and always carries this caveat verbatim: "Caveat: this hand-rolled Fake cannot verify actual SQL, mapping, or schema correctness the way a real-engine test can — a deliberate coverage trade-off, not a silent downgrade."
 - **Document-only** — the recommendation lands in the report only, as today; no further action.
+
+#### Downstream-service branch
+
+Applies to API Consumer, Event Consumer, and Event Producer components (`component-test-patterns.md`) that Step 4 flagged for the same off-gate adapter-test-double decision as the database branch above — added to the *same* batched per-run prompt, not a second prompt: the shared prompt above already states later adapter-kind slices append here, and this is that append.
+
+Read the team-controlled/third-party classification from the ownership note Step 1 now records (see "Inventory the application's components") — it is not re-asked at Step 4b time. That classification determines each row's option count:
+
+- **Team-controlled** — offers all three existing options: `Build (testcontainers)`, `Build (Fake)`, `Document-only`.
+- **Third-party/other-team** — offers only two options: `Build (Fake)`, `Document-only`. `Build (testcontainers)` is never offered for a third-party row — there is no container to spin up for a dependency the team doesn't control.
+
+An answer naming an option not offered for a row's tier — for example, "Build (testcontainers)" for a third-party row — is treated as ambiguous, defaulting to `Document-only` for that row. This is the same ambiguous-answer rule as any other ambiguous answer above, extended with this one more named example, not a new rule.
 
 ### 5. Produce a migration path
 
