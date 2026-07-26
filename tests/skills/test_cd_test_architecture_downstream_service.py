@@ -1,18 +1,19 @@
 """Downstream-service branch content-guard tests for
 `cd-test-architecture/SKILL.md`. Traces to issue #1434 (sub-issue of epic
-#1431) and Steps 1.1/1.2 of the (transient) plan file
+#1431) and the (transient) plan file
 plans/issue-1434-cd-test-architecture-downstream-service-branch.md — cite
 the issue number alongside the plan path since the plan file is
 gitignored/transient (deleted after implementation, per this repo's
 CLAUDE.md) and issue #1434 is the durable reference once it's gone.
 
-This file covers Step 1.1 (Step 1's ownership/deployability note), Step 1.2
-(the new `#### Downstream-service branch` subsection under Step 4b, plus the
-generalized shared Step 4b intro sentence), and Step 1.3 (the downstream-
-service branch's Story-shape bullets, the generalized Output-section caveat
-cross-reference, and the generalized `test-doubles.md` knowledge-reference
-bullet) — plus several corrections beyond the plan's literal Step 1.3 text
-(see inline comments on the affected tests).
+This file covers the `#### Downstream-service branch` subsection under
+Step 4b: every row offers all three options uniformly (no ownership-based
+distinction — a corrected design, reversing an original build that gated
+`Build (testcontainers)` on a team-controlled/third-party classification;
+see the plan's "Design Revision" section), the universal out-of-band/
+scheduled validation-placement rule, and the branch's Story-shape bullets,
+Output-section caveat cross-reference, and `test-doubles.md`
+knowledge-reference bullet.
 Assertions here are scoped to the specific section they target, mirroring
 the sibling `test_cd_test_architecture_step4b.py`'s scoped-boundary
 discipline (a boundary regex must be empirically verified reachable, not
