@@ -144,7 +144,7 @@ Map directly to `knowledge/cd-test-architecture.md` § *The Six Test Types*:
 | Pure logic in the adapter (header building, query-string construction, response mapping) | **Unit** (solitary) | xUnit + the adapter constructed directly, no `HttpClient` needed |
 | Adapter speaks the wire correctly to a doubled transport: builds the right request, parses the canned response, maps non-2xx to typed errors | **Contract** | xUnit + `StubHttpMessageHandler` |
 | Resilience policy (retry/backoff/circuit-breaker/timeout) survives a doubled provider failure | **Component** (resilience) | xUnit + `StubHttpMessageHandler` + `FakeTimeProvider` + Polly bound to that `TimeProvider` |
-| Adapter against the real third-party API in a non-prod test environment | **Scheduled provider verification** (out-of-band) | xUnit/console job vs the provider's real endpoint, **never pre-merge** |
+| Adapter against the real provider API (in-house or third-party) in a non-prod test environment | **Scheduled provider verification** (out-of-band) | xUnit/console job vs the provider's real endpoint, **never pre-merge** |
 | Multi-service journey across real deployed components | **E2E** (post-deploy smoke) | Playwright for .NET — only when the four-condition E2E justification gate from `knowledge/cd-test-architecture.md#the-e2e-justification-gate` is satisfied |
 
 Contract and component tests with the stub handler are **deterministic and
@@ -153,7 +153,9 @@ pre-merge** per
 provider-verification job is the **detection** half of
 `knowledge/cd-test-architecture.md#double-validation-keeping-doubles-honest`;
 the resilience component test is the **survival** half — both are required
-when the provider is third-party (no provider cooperation assumed).
+regardless of ownership: assume the provider can break the contract without
+warning even when it's the same team's, per the universal rule in
+`knowledge/component-test-patterns.md#api-consumer`.
 
 ## Off-the-shelf alternatives to the hand-rolled stub
 
