@@ -128,6 +128,12 @@ Every row offers all three options identically, with no ownership-based distinct
 
 An ambiguous or absent answer for a downstream-service row defaults to `Document-only`, the same ambiguous-answer rule as any other ambiguous answer above — not a new rule.
 
+Each selected option proposes a Story, following the database branch's shape:
+
+- **Build (testcontainers)** — propose a Story titled `[<component>] Add testcontainers-based adapter integration test`. Its description exercises the real outbound client against a testcontainers-hosted (or `#1435` virtualization-tool-hosted) protocol-compatible instance, states the test runs out-of-band on a schedule (never pre-merge/in-band), and cites the relevant `component-test-patterns.md` pattern (API Consumer / Event Consumer / Event Producer — name whichever applies).
+- **Build (Fake)** — propose a Story titled `[<component>] Add hand-rolled Fake downstream-service double`. Its description names a hand-rolled Fake behind a team-owned thin adapter, per `test-doubles.md`'s Fake taxonomy, and cites `component-test-patterns.md`. It always carries this caveat verbatim: "Caveat: this hand-rolled Fake cannot verify that the adapter actually satisfies the real service's wire contract — pair it with scheduled provider-contract verification against the provider's real environment, per the API Consumer / Event Consumer / Event Producer patterns." The Story always — no ownership-based exemption — additionally proposes scheduled, out-of-band provider-contract verification against the dependency's real environment as a companion action, not a fourth option.
+- **Document-only** — the recommendation lands in the report only, as today; no further action.
+
 ### 5. Produce a migration path
 
 Order the moves from current → target, lowest-risk first. The spine is **baseline before refactor**: get behavior under test at existing seams *without changing code*, then refactor under that green baseline (never behavior + structure in one step). When tests are out-of-repo (Step 2b — locate and harvest out-of-repo tests), the harvested behaviors feed that baseline. Typical full sequence:
