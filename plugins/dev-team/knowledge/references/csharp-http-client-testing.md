@@ -167,6 +167,23 @@ Either library is a stylistic choice over the hand-rolled stub, **not** an
 escalation up the pyramid; both still test the same `HttpMessageHandler`
 seam in-process, deterministically.
 
+## WireMock.Net — the preferred pre-merge double when installed
+
+When installed, WireMock.Net is the **preferred** pre-merge double for this
+seam — not the hand-rolled `StubHttpMessageHandler` above, which remains the
+**backup** for when WireMock.Net is declined or unavailable. This is not an
+in-process/no-socket claim: verified against WireMock's own docs, the
+no-HTTP-layer `DirectCallHttpServer` mode ("Running Without the HTTP
+Server") is a **WireMock-for-Java-only** feature — WireMock.Net's
+`WireMockServer.Start()` always binds a real HTTP listener on localhost, on
+an ephemeral port. What actually makes it pre-merge-safe despite that real
+socket: it runs **same-process, localhost-only, on an ephemeral port, with
+no separately-managed external server or container** — fast and
+deterministic enough for the pre-merge gate, even though it is not a true
+in-memory transport. See `knowledge/virtual-service-libraries.md` for the
+full per-stack catalog and the preferred/backup interaction model this file
+is one instance of.
+
 ## What to avoid for unit and component tests
 
 These are integration/E2E tooling — fast feedback isn't what they're for,
@@ -179,12 +196,11 @@ so they don't belong on the pre-merge gate (see
   stub handler for the API Consumer side.
 - **Kestrel on a random port + a real HTTP request.** You are now testing
   the network stack and DNS, not your code. Slow, OS-dependent, flaky.
-- **WireMock.Net / MockServer for unit tests.** These are full HTTP
-  servers in-process. Reserve them for the **adapter-integration** layer
-  (out-of-band, on a schedule — never in-band) where the network behavior
-  itself is under test — TLS, HTTP/2, proxy, real timeouts. For pre-merge
-  behavior coverage, the in-process `HttpMessageHandler` stub is strictly
-  faster and at least as accurate.
+- **MockServer for unit tests.** Unlike WireMock.Net (see above), MockServer
+  is typically run as a separately-managed remote or containerized service.
+  Reserve it for the **adapter-integration** layer (out-of-band, on a
+  schedule) where the network behavior itself is under test — TLS, HTTP/2,
+  proxy, real timeouts.
 
 ## Common smells in C# HTTP-consumer tests
 
