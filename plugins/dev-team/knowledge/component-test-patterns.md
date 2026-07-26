@@ -51,7 +51,7 @@ Exposes endpoints, owns its data store, no outbound internal calls.
 - **Success scenarios:** documented endpoints return expected shape/status for valid input; auth succeeds for valid creds/tokens; pagination/filter/sort; idempotent ops idempotent, non-idempotent create exactly one; success-path side effects (events, audit).
 - **Failure modes:** malformed input (bad JSON, missing/extra fields, type errors); out-of-range/unicode; authz failures (missing/expired token, insufficient scope, cross-tenant); not-found returns 404 not 500; concurrency conflicts with correct status; persistence failure without partial commit; rate-limit/size enforcement; idempotency under retry.
 - **Double validation:** adapter integration tests run against a real instance of the **production database engine** via testcontainers (matching version + extensions) — never an SQLite shim for a Postgres prod; provider contract verification confirms the API still satisfies every consumer expectation.
-- **Pipeline:** unit + sociable unit pre-commit/Stage 1; component Stage 1; adapter integration Stage 1 (if fast) or 2; provider contract verification in CD contract/boundary stage.
+- **Pipeline:** unit + sociable unit pre-commit/Stage 1; component Stage 1; adapter integration out-of-band on a schedule, regardless of ownership; provider contract verification in CD contract/boundary stage.
 
 ### API Consumer
 
@@ -96,7 +96,7 @@ Long-lived in-memory state: caches, aggregates, coordinators, websocket gateways
 - **Success scenarios:** transitions follow documented state machine; state rebuilds identically after restart; replication lag within budget.
 - **Failure modes:** crash mid-write → consistent state on restart, no torn writes; concurrent mutations serialize without lost updates; network partition → minority steps down with documented reconciliation; memory pressure → evicts per policy, no OOM; idle connections close cleanly with documented reconnect.
 - **Double validation:** persistence doubles validated by adapter integration vs production engine; consensus doubles validated by cluster testcontainer tests.
-- **Pipeline:** unit + component Stage 1; cluster tests Stage 2; soak + chaos out-of-pipeline vs deployed instances.
+- **Pipeline:** unit + component Stage 1; cluster tests out-of-band on a schedule, regardless of ownership; soak + chaos out-of-pipeline vs deployed instances.
 
 ### CLI / Library
 
@@ -121,7 +121,7 @@ Triggered by cron/queue/scheduler to process data and write output/state.
 - **Success scenarios:** representative input → expected output (report/db update/published message); idempotency (running twice for the same logical period → same result, no duplicates); checkpoint resume without reprocessing; time-window correctness across DST and month/year boundaries; empty input → valid empty report; output conforms to documented schema.
 - **Failure modes:** source unavailable → clean failure with documented exit code, no partial output, safely re-runnable; sink unavailable → no source state change; partial-write → idempotency keys / transactional outbox prevent duplicates on retry; slow run → alertable, locking prevents overlapping runs; malformed records → log context + configured policy (skip/dead-letter/fail); timezone bugs tested via injected clock; concurrent runs → locking/partitioning; mid-run crash → resume from consistent checkpoint.
 - **Double validation:** one out-of-band real-clock check validates production clock wiring (catches "tests UTC, prod container-local"); source/sink contracts pin the shape, post-deploy checks confirm ongoing alignment; a real-scheduler check in non-prod confirms entrypoint discovery, cron timing, env/secret resolution, concurrency policy.
-- **Pipeline:** unit + component + contract Stage 1; adapter integration Stage 1/2; small deployed-binary set Stage 1/2; real-clock + real-scheduler checks out-of-band scheduled vs non-prod; post-deploy synthetic invocation verifies it ran, processed records, met SLO.
+- **Pipeline:** unit + component + contract Stage 1; adapter integration out-of-band on a schedule, regardless of ownership; small deployed-binary set out-of-band on a schedule; real-clock + real-scheduler checks out-of-band scheduled vs non-prod; post-deploy synthetic invocation verifies it ran, processed records, met SLO.
 
 ---
 
