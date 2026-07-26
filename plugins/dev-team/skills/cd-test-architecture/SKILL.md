@@ -24,7 +24,7 @@ Grounded in these knowledge references — read the first two before assessing:
 - `knowledge/cd-test-architecture.md` — the six test types, the determinism→pre-merge-gate rule, the adapter rule, double validation, pipeline stages, and MinimumCD-vs-Fowler terminology.
 - `knowledge/component-test-patterns.md` — per-component patterns (UI / Services / Batch) with isolation strategy and pipeline placement.
 - `knowledge/database-test-patterns.md` — load when a component is database-backed: Database Sandbox isolation, Transaction Rollback / Table Truncation Teardown, and the rule that pushes most data-logic tests onto in-memory Fakes so they stay pre-merge-gate eligible.
-- `knowledge/test-doubles.md` — the Stub/Fake/Mock/Spy taxonomy; load when Step 4b's database branch proposes a hand-rolled Fake double, so it's named correctly (a Fake, never a "mock").
+- `knowledge/test-doubles.md` — the Stub/Fake/Mock/Spy taxonomy; load when Step 4b's database or downstream-service branch proposes a hand-rolled Fake double, so it's named correctly (a Fake, never a "mock").
 
 ## Constraints
 
@@ -102,11 +102,11 @@ When Step 4 identifies one or more components needing an off-gate adapter test d
 2. **Build (Fake)** — propose a downstream Story for a hand-rolled Fake database double.
 3. **Document-only** (default) — the recommendation lands in the report as today, with no further action.
 
-The operator answers with one of these three choices for each listed component in a single reply — one prompt is surfaced per run, carrying a per-component three-way answer, not one verdict applied to every component in the batch.
+The operator answers with one of the choices listed for that row for each listed component in a single reply — one prompt is surfaced per run, carrying a per-component answer, not one verdict applied to every component in the batch.
 
 Non-interactive runs (per `human-oversight-protocol`'s `--yes` / `DEV_TEAM_AUTO_APPROVE=1` / no-TTY convention) skip the prompt entirely — no prompt is surfaced, and every such component's recommendation lands in the report only, document-only, exactly as today.
 
-An ambiguous or absent answer for any component in the batched three-way question — for example "maybe", "I'm not sure", a bare "yes" or "no", an unqualified "build" that does not name which of the two Build options (none of these map to one of the three labeled options), or silence/empty input — defaults to Document-only for that component, same as any other ambiguous answer: never guessed, never blocked on.
+An ambiguous or absent answer for any component in the batched question — for example "maybe", "I'm not sure", a bare "yes" or "no", an unqualified "build" that does not name which of the two Build options (none of these map to one of the labeled options for that row), or silence/empty input — defaults to Document-only for that component, same as any other ambiguous answer: never guessed, never blocked on.
 
 Repos with no such gap see no behavior change: no prompt is asked, and the report is unchanged.
 
@@ -128,6 +128,14 @@ Read the team-controlled/third-party classification from the ownership note Step
 - **Third-party/other-team** — offers only two options: `Build (Fake)`, `Document-only`. `Build (testcontainers)` is never offered for a third-party row — there is no container to spin up for a dependency the team doesn't control.
 
 An answer naming an option not offered for a row's tier — for example, "Build (testcontainers)" for a third-party row — is treated as ambiguous, defaulting to `Document-only` for that row. This is the same ambiguous-answer rule as any other ambiguous answer above, extended with this one more named example, not a new rule.
+
+Each selected option proposes a Story, following the database branch's shape:
+
+- **Build (testcontainers)** (team-controlled rows only) — propose a Story titled `[<component>] Add testcontainers-based adapter integration test`. Its description exercises the real outbound client against a real instance of the service/broker, and cites the relevant `component-test-patterns.md` pattern (API Consumer / Event Consumer / Event Producer — name whichever applies).
+- **Build (Fake)** (either tier) — propose a Story titled `[<component>] Add hand-rolled Fake downstream-service double`. Its description names a hand-rolled Fake behind a team-owned thin adapter, per `test-doubles.md`'s Fake taxonomy, and cites `component-test-patterns.md`. It always carries this caveat verbatim: "Caveat: this hand-rolled Fake cannot verify that the adapter actually satisfies the real service's wire contract — pair it with scheduled provider-contract verification against the provider's real environment, per the API Consumer / Event Consumer patterns."
+  - **Third-party rows**: the Story additionally proposes scheduled, out-of-band provider-contract verification against the provider's real non-prod endpoint as a companion action — not a fourth option.
+  - **Team-controlled rows**: the Story carries no such addition.
+- **Document-only** — the recommendation lands in the report only, as today; no further action.
 
 ### 5. Produce a migration path
 
@@ -196,7 +204,7 @@ body.
 ### Target architecture (per component)
 | Component | Layer | Test type | Double (to run config-free) | Pipeline stage | Build/Document status |
 
-`Build/Document status` is one of `Build (testcontainers)`, `Build (Fake)`, or `Document-only` (set per Step 4b). A row whose status is `Build (Fake)` also carries this caveat, verbatim, in the same cell: "Caveat: this hand-rolled Fake cannot verify actual SQL, mapping, or schema correctness the way a real-engine test can — a deliberate coverage trade-off, not a silent downgrade."
+`Build/Document status` is one of `Build (testcontainers)`, `Build (Fake)`, or `Document-only` (set per Step 4b). A row whose status is `Build (Fake)` also carries that row's branch-specific caveat, verbatim, in the same cell — see the Database-specific branch or Downstream-service branch above for the exact wording.
 
 When Step 0 loaded a `knowledge/test-stack-profiles/<stack>.md` profile, **cite that profile** (and any reference it points at) in the *Test type* or *Double* column so the concrete tool choice is traceable to the stack-specific reference.
 

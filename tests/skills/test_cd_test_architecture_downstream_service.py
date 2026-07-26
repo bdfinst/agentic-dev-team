@@ -6,15 +6,18 @@ the issue number alongside the plan path since the plan file is
 gitignored/transient (deleted after implementation, per this repo's
 CLAUDE.md) and issue #1434 is the durable reference once it's gone.
 
-This file covers Step 1.1 (Step 1's ownership/deployability note) and
-Step 1.2 (the new `#### Downstream-service branch` subsection under Step
-4b, plus the generalized shared Step 4b intro sentence). Step 1.3's Story
-shapes and the Output/knowledge-reference generalizations land in a later
-step of the same plan. Assertions here are scoped to the specific section
-they target, mirroring the sibling `test_cd_test_architecture_step4b.py`'s
-scoped-boundary discipline (a boundary regex must be empirically verified
-reachable, not assumed — a prior round of that file family shipped an
-unreachable boundary and it was a real bug, issue #1433 round 4).
+This file covers Step 1.1 (Step 1's ownership/deployability note), Step 1.2
+(the new `#### Downstream-service branch` subsection under Step 4b, plus the
+generalized shared Step 4b intro sentence), and Step 1.3 (the downstream-
+service branch's Story-shape bullets, the generalized Output-section caveat
+cross-reference, the generalized `test-doubles.md` knowledge-reference
+bullet, and two further shared-paragraph fixes beyond the plan's literal
+Step 1.3 text — see the module-level docstrings on the tests below).
+Assertions here are scoped to the specific section they target, mirroring
+the sibling `test_cd_test_architecture_step4b.py`'s scoped-boundary
+discipline (a boundary regex must be empirically verified reachable, not
+assumed — a prior round of that file family shipped an unreachable boundary
+and it was a real bug, issue #1433 round 4).
 """
 
 from __future__ import annotations
@@ -196,3 +199,151 @@ def test_event_producer_named_alongside_api_and_event_consumer():
     assert grep(r"API Consumer", sec)
     assert grep(r"Event Consumer", sec)
     assert grep(r"Event Producer", sec)
+
+
+# --- Step 1.3: Story-shape bullets, Output/knowledge-ref generalizations ----
+
+# Mirrors test_cd_test_architecture_step4b.py's FAKE_CAVEAT pattern: one
+# reusable constant so the exact verbatim caveat text can't drift apart
+# between the two call sites that check it (the Fake Story bullet itself,
+# and the assertion that the Output section does NOT hardcode it).
+DOWNSTREAM_CAVEAT = (
+    "Caveat: this hand-rolled Fake cannot verify that the adapter actually "
+    "satisfies the real service's wire contract — pair it with scheduled "
+    "provider-contract verification against the provider's real "
+    "environment, per the API Consumer / Event Consumer patterns."
+)
+
+
+def _downstream_testcontainers_bullet() -> str:
+    return collapsed(
+        section(
+            _downstream_service_branch_section(),
+            r"\*\*Build \(testcontainers\)\*\* \(team-controlled rows only\)",
+            boundary_pattern=r"^- \*\*Build \(Fake\)\*\*",
+        )
+    )
+
+
+def _downstream_fake_bullet() -> str:
+    return section(
+        _downstream_service_branch_section(),
+        r"\*\*Build \(Fake\)\*\* \(either tier\)",
+        boundary_pattern=r"^- \*\*Document-only\*\*",
+    )
+
+
+def _output_section() -> str:
+    # Same fence-avoidance rationale as the sibling copy in
+    # test_cd_test_architecture_step4b.py: the `## Output` block contains a
+    # fenced markdown template whose interior has a `## CD Test
+    # Architecture — <app>` line, so the generic `^## ` boundary would
+    # truncate early. `^## Integration` (the next real top-level heading)
+    # avoids that.
+    return section(_text(), r"^## Output", boundary_pattern=r"^## Integration")
+
+
+def test_testcontainers_story_title_and_description():
+    bullet = _downstream_testcontainers_bullet()
+    assert grep(
+        r"\[<component>\]\s*Add testcontainers-based adapter integration test",
+        bullet,
+    )
+    assert grep(r"real outbound client", bullet, ignore_case=True)
+    assert grep(r"component-test-patterns\.md", bullet)
+
+
+def test_fake_story_title_and_wire_contract_caveat_verbatim():
+    bullet = collapsed(_downstream_fake_bullet())
+    assert grep(
+        r"\[<component>\]\s*Add hand-rolled Fake downstream-service double",
+        bullet,
+    )
+    assert DOWNSTREAM_CAVEAT in bullet
+
+
+def test_fake_story_never_says_mock():
+    bullet = _downstream_fake_bullet()
+    assert not grep(r"\bmock\b", bullet, ignore_case=True)
+
+
+def test_third_party_fake_additionally_requires_scheduled_verification():
+    # Anchored on the literal "**Third-party rows**:" prefix so this scopes
+    # to the third-party-specific clause, not the Fake bullet generally.
+    bullet = collapsed(_downstream_fake_bullet())
+    assert grep(
+        r"\*\*Third-party rows\*\*:[^.]*scheduled[^.]*provider-contract "
+        r"verification[^.]*(non-prod|real environment)",
+        bullet,
+        ignore_case=True,
+    )
+    # Explicitly a companion action, not a fourth option — and no new
+    # numbered/labeled top-level option (a literal "4. **...**" item) is
+    # introduced alongside the existing 1./2./3. choices in the shared
+    # Step 4b intro.
+    assert grep(r"\*\*Third-party rows\*\*:[^.]*not a fourth option", bullet, ignore_case=True)
+    assert not grep(r"^\s*4\.\s*\*\*", _downstream_fake_bullet())
+
+
+def test_team_controlled_fake_has_no_scheduled_verification_requirement_stated_positively():
+    # Anchored on the literal "**Team-controlled rows**:" prefix so this
+    # scopes to the team-controlled-specific clause, not the Fake bullet
+    # generally.
+    bullet = collapsed(_downstream_fake_bullet())
+    # Positive statement, not merely the absence of "scheduled" — #1433's
+    # lesson that an unsupported negative is the weakest kind of test.
+    assert grep(
+        r"\*\*Team-controlled rows\*\*:[^.]*carries no such addition",
+        bullet,
+        ignore_case=True,
+    )
+
+
+def test_output_section_caveat_generalized_not_database_specific():
+    sec = _output_section()
+    fake_row_clause = collapsed(
+        section(
+            sec,
+            r"row whose status is `Build \(Fake\)`",
+            boundary_pattern=r"^### ",
+        )
+    )
+    assert not grep(r"SQL, mapping, or schema", fake_row_clause, ignore_case=True)
+    assert DOWNSTREAM_CAVEAT not in fake_row_clause
+    assert grep(r"Database-specific branch", fake_row_clause)
+    assert grep(r"Downstream-service branch", fake_row_clause)
+    assert grep(r"branch-specific caveat, verbatim", fake_row_clause, ignore_case=True)
+
+
+def test_knowledge_references_bullet_covers_both_branches():
+    text = _text()
+    refs_section = collapsed(
+        section(
+            text, r"^Grounded in these knowledge references", boundary_pattern=r"^## "
+        )
+    )
+    assert grep(r"test-doubles\.md", refs_section)
+    assert grep(
+        r"Step 4b's database or downstream-service branch proposes a "
+        r"hand-rolled Fake double",
+        refs_section,
+        ignore_case=True,
+    )
+    assert not grep(
+        r"Step 4b's database branch proposes a hand-rolled Fake double",
+        refs_section,
+        ignore_case=True,
+    )
+
+
+def test_step_4b_shared_paragraph_no_longer_overclaims_three_choices():
+    intro = collapsed(_step_4b_intro_paragraph())
+    assert not grep(r"these three choices", intro, ignore_case=True)
+    assert not grep(r"per-component three-way answer", intro, ignore_case=True)
+    assert not grep(r"batched three-way question", intro, ignore_case=True)
+    assert not grep(r"one of the three labeled options", intro, ignore_case=True)
+    assert grep(r"one of the choices listed for that row", intro, ignore_case=True)
+    assert grep(r"the batched question", intro, ignore_case=True)
+    assert grep(
+        r"one of the labeled options for that row", intro, ignore_case=True
+    )
