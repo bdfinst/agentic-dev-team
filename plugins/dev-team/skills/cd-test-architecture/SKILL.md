@@ -244,9 +244,12 @@ the operator chose Document-only for that component, or the run was
 non-interactive, and the setup guide still includes that component's section
 exactly as it would if the operator had chosen to build it.
 
-**Path.** Write the guide to `.dev-team-reports/<app>-test-double-setup.md` —
-same directory and naming convention as the main report, never a legacy path
-outside `.dev-team-reports/`. In the single-component chat-only case (the
+**Path.** Write the guide to
+`.dev-team-reports/cd-test-architecture-<app>-test-double-setup.md` — the
+main report's own filename (`cd-test-architecture-<app>.md`) with its `.md`
+extension replaced by `-test-double-setup.md`, same directory and naming
+convention as the main report, never a legacy path outside
+`.dev-team-reports/`. In the single-component chat-only case (the
 main report goes to chat, not a file), the setup guide's content is appended
 to that same chat output instead of written as a second file. When no
 component in the run falls into this off-gate adapter-double decision space,
@@ -259,9 +262,8 @@ adapter-double recommendation at all) gets no section. Each section has:
 
 1. **Tool name + one-line purpose.**
 2. **Doc link** to the tool's official documentation — omitted only for the
-   hand-rolled-fallback case (the issue's explicit exception, not an
-   oversight: there is nothing to link to for hand-rolled code); the other
-   three elements still apply to that case.
+   hand-rolled-fallback case (there is nothing to link to for hand-rolled
+   code); the other three elements still apply to that case.
 3. **Configuration steps** that cite — never restate — the same
    `test-stack-profiles/<stack>.md` entry (and, for the virtual-service-
    library case, the `virtual-service-libraries.md` entry) Step 4 already
@@ -274,9 +276,11 @@ adapter-double recommendation at all) gets no section. Each section has:
 5. The closing command `/apply-test-doubles <path>`, where `<path>` is
    always the **main assessment report's own resolved path**
    (`.dev-team-reports/cd-test-architecture-<app>.md`), never the setup
-   guide's own path — per #1437's own issue text (`/apply-test-doubles
-   <report-path>`). (Maintainer note, not emitted content: #1437 itself is
-   not yet shipped.)
+   guide's own path — per #1437's own issue text, quoted verbatim: "New
+   skill, `/apply-test-doubles <report-path> [--component <name>]`" and
+   "invocation is exactly `/apply-test-doubles <report-path-or-target>` (the
+   optional `--component` filter is the only other argument)". (Maintainer
+   note, not emitted content: #1437 itself is not yet shipped.)
 
 **Classification** — cited from Step 4b's branches above, not invented here:
 
@@ -286,7 +290,11 @@ adapter-double recommendation at all) gets no section. Each section has:
   resolving to a library) — name the existing-tool-detected or catalog
   default tool per `virtual-service-libraries.md`'s Resolution order, or the
   operator's chosen library, not the catalog default, when a named override
-  was given.
+  was given. Caveat: this case's configuration steps must also cite
+  `virtual-service-libraries.md`'s "Recorded artifacts contain real
+  traffic — scrub before commit" section (in addition to the per-tool
+  catalog entry) and name that tool's credential-filtering hook as a step
+  ordered before the first recording, never after.
 - **Hand-rolled fallback** (`Build (Fake)` resolving to hand-rolled, or no
   protocol-appropriate library exists for the component's adapter kind) — no
   doc link; the other three elements (name+purpose, configuration steps, and
@@ -297,12 +305,21 @@ adapter-double recommendation at all) gets no section. Each section has:
 Downstream-service component whose construction-method sub-question was
 never posed or answered (the operator chose Document-only, the run was
 non-interactive, or the top-level answer was ambiguous), classify it using
-the same Resolution-order default the ambiguous-sub-answer rule already
-defines — existing-tool-detected or catalog default per
-`virtual-service-libraries.md`, falling back to hand-rolled only when no
-protocol-appropriate library exists for the component's adapter kind — never
-a guess at what the operator would have answered, and never an omitted
-section.
+the same Resolution order (existing-tool-detected → catalog default) that
+`virtual-service-libraries.md` defines and that Step 4b's sub-question also
+uses when it fires — applied here to rows that never got a sub-question in
+the first place, because this guide's trigger is independent of the
+Build/Document-only outcome, never a guess and never omitted — falling back
+to hand-rolled only when no protocol-appropriate library exists for the
+component's adapter kind. This three-case list is illustrative of "no
+sub-question ever reached this row"; it excludes the separate case where a
+`Build (Fake)` row's sub-question WAS posed but got an ambiguous or absent
+answer, which Step 4b's own default (accepting the recommended library)
+already resolves, not this fallback. A volunteered-but-ignored install/
+decline preference on a Document-only row is likewise not honored by this
+fallback either — per Step 4b's own "ignored, not an error" framing, it uses
+the Resolution-order default above, never the operator's
+stated-but-disregarded preference.
 
 ## Integration
 
