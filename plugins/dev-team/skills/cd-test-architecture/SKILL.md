@@ -96,14 +96,16 @@ Per component, using its pattern: which test types cover which layers, **what to
 
 ### 4b. Build-vs-document decision (off-gate adapter test doubles)
 
-When Step 4 identifies one or more components needing a testcontainers-based real-DB test, ask the operator once per run, batched across every such component regardless of adapter kind — this is the shared prompt later adapter-kind slices (#1434 downstream services, #1435 record-and-replay libraries) append to, not a new prompt each run — whether to:
+When Step 4 identifies one or more components needing a testcontainers-based real-DB test, ask the operator once per run, batched across every such component regardless of adapter kind — this is the shared prompt later adapter-kind slices (#1434 downstream services, #1435 record-and-replay libraries) append to, not a new prompt each run. The one prompt lists every such component and asks the operator, for each one, to choose:
 
 1. **Build** — propose a downstream Story that the operator/orchestrator later drives `/build` against, or
 2. **Document-only** (default) — the recommendation lands in the report as today, with no further action.
 
-Non-interactive runs (per `human-oversight-protocol`'s `--yes` / `DEV_TEAM_AUTO_APPROVE=1` / no-TTY convention) skip the prompt entirely — no prompt is surfaced, and the recommendation lands in the report only, document-only, exactly as today.
+The operator answers Build or Document-only for each listed component in a single reply — one prompt is surfaced per run, carrying a per-component answer, not one verdict applied to every component in the batch.
 
-An ambiguous or absent answer to the batched build-vs-document question — for example "maybe", "I'm not sure", a bare "yes" or "no", or silence/empty input — is treated the same as document-only: never guessed, never blocked on.
+Non-interactive runs (per `human-oversight-protocol`'s `--yes` / `DEV_TEAM_AUTO_APPROVE=1` / no-TTY convention) skip the prompt entirely — no prompt is surfaced, and every such component's recommendation lands in the report only, document-only, exactly as today.
+
+An ambiguous or absent answer for any component in the batched build-vs-document question — for example "maybe", "I'm not sure", a bare "yes" or "no", or silence/empty input — is treated the same as document-only for that component: never guessed, never blocked on.
 
 Repos with no such gap see no behavior change: no prompt is asked, and the report is unchanged.
 
@@ -113,7 +115,7 @@ For the database-IS-the-SUT band, once the operator has answered "build it" at t
 
 - **Testcontainers accepted** — propose a Story titled `[<component>] Add testcontainers-based real-DB test`. Its description names Database Sandbox isolation and both teardown options — Transaction Rollback and Table Truncation — and cites `database-test-patterns.md`.
 - **Testcontainers declined** — do **not** revert to a report-only recommendation. Propose a Story titled `[<component>] Add hand-rolled Fake database double` instead. Its description names the Fake as an in-memory repository implementing the same interface, per `test-doubles.md`'s Fake taxonomy, cites both `database-test-patterns.md` and `test-doubles.md`, and carries this caveat verbatim: "Caveat: this hand-rolled Fake cannot verify actual SQL, mapping, or schema correctness the way a real-engine test can — a deliberate coverage trade-off, not a silent downgrade."
-- **Ambiguous or absent answer to this per-component question** — using the same ambiguous definition and examples as the top-level batched question above — is treated as **decline** (Fake fallback, caveat logged), not document-only. This is distinct from, and does not defer to, the top-level rule that an ambiguous answer to the batched question defaults to document-only: once the operator has opted in to building at the batch level, the safer default for an undetermined per-component mechanism is the double that doesn't require external tooling.
+- **Ambiguous or absent answer to this per-component question** — the same *category* of ambiguity as the top-level batched question (vague, non-committal, or absent answers — "maybe", "not sure", or silence/no answer) — is treated as **decline** (Fake fallback, caveat logged), not document-only. Unlike the top-level question, where a bare "yes" or "no" doesn't map cleanly onto either labeled option ("Build"/"Document-only") and so counts as ambiguous there, a clear accept/decline answer to this sub-question — including a bare "yes" (meaning accept) or "no" (meaning decline) — maps directly onto this question's two labeled options and is **not ambiguous** here. This is distinct from, and does not defer to, the top-level rule that an ambiguous answer to the batched question defaults to document-only: once the operator has opted in to building at the batch level, the safer default for a genuinely undetermined per-component mechanism is the double that doesn't require external tooling.
 
 ### 5. Produce a migration path
 
