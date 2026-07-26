@@ -31,6 +31,7 @@ from skill_doc_helpers import (
     cd_test_architecture_setup_guide_section,
     collapsed,
     grep,
+    section,
 )
 
 SKILL = PLUGIN_ROOT / "skills" / "cd-test-architecture" / "SKILL.md"
@@ -117,6 +118,32 @@ def test_library_named_override_section_names_operator_choice_not_default():
     )
 
 
+def test_library_section_carries_recorded_artifact_scrub_caveat():
+    # security-review finding: the setup guide is the setup-time artifact
+    # where #1435's scrub-before-commit temporal ordering can actually be
+    # enforced, so the virtual-service-library classification case must
+    # cite that section — not just the per-tool catalog entry — and name
+    # the credential-filtering hook as ordered before the first recording.
+    sec = _section()
+    assert grep(
+        r"virtual-service-libraries\.md.{0,3}s .Recorded artifacts contain "
+        r"real traffic . scrub before commit. section",
+        sec,
+        ignore_case=True,
+    )
+    assert grep(
+        r"in addition to the per-tool catalog entry",
+        sec,
+        ignore_case=True,
+    )
+    assert grep(
+        r"credential-filtering hook as a step ordered before the first "
+        r"recording",
+        sec,
+        ignore_case=True,
+    )
+
+
 def test_hand_rolled_fallback_section_omits_doc_link_keeps_other_elements():
     sec = _section()
     # Positive assertion the other three elements are present, paired with
@@ -129,14 +156,32 @@ def test_hand_rolled_fallback_section_omits_doc_link_keeps_other_elements():
         sec,
         ignore_case=True,
     )
-    hand_rolled_bullet = sec[sec.index("**Hand-rolled fallback**"):]
+    # Bounded to the Hand-rolled fallback bullet itself — not a slice to the
+    # end of the whole subsection, which would drag the later
+    # Downstream-service-no-posed-sub-question paragraph (and its own
+    # "Resolution order" prose) into this negative assertion's fixture
+    # (test-smell-review finding).
+    hand_rolled_bullet = collapsed(
+        section(
+            cd_test_architecture_setup_guide_section(_text()),
+            r"\*\*Hand-rolled fallback\*\*",
+            boundary_pattern=(
+                r"\*\*Downstream-service components with no posed "
+                r"sub-question\.\*\*"
+            ),
+        )
+    )
     assert not grep(r"doc link to", hand_rolled_bullet, ignore_case=True)
 
 
 def test_document_only_downstream_component_still_gets_resolved_library_classification():
     # The design-critic-flagged fallback-default case: a Document-only /
     # non-interactive / ambiguous-top-level Downstream-service component
-    # still gets the ambiguous-sub-answer-rule default, not an omission.
+    # still gets the Resolution order applied fresh to a row that never got
+    # a sub-question at all — this is NOT a restatement of Step 4b's own
+    # ambiguous-sub-answer rule, which is scoped only to `Build (Fake)` rows
+    # where the sub-question WAS posed (ai-provenance-review finding: the
+    # prior wording falsely claimed to restate an already-defined rule).
     sec = _section()
     assert grep(
         r"the operator chose Document-only, the run was non-interactive, "
@@ -145,14 +190,16 @@ def test_document_only_downstream_component_still_gets_resolved_library_classifi
         ignore_case=True,
     )
     assert grep(
-        r"the same Resolution-order default the ambiguous-sub-answer rule "
-        r"already defines",
+        r"the same Resolution order \(existing-tool-detected . catalog "
+        r"default\) that `?virtual-service-libraries\.md`? defines and "
+        r"that Step 4b's sub-question also uses when it fires",
         sec,
         ignore_case=True,
     )
     assert grep(
-        r"never a guess at what the operator would have answered, and "
-        r"never an omitted section",
+        r"applied here to rows that never got a sub-question in the first "
+        r"place, because this guide's trigger is independent of the "
+        r"Build/Document-only outcome, never a guess and never omitted",
         sec,
         ignore_case=True,
     )
@@ -234,8 +281,18 @@ def test_setup_guide_path_matches_dev_team_reports_convention_no_legacy_path():
     sec = _section()
     # Positive assertion for `.dev-team-reports/`, negative assertion the
     # legacy `reports/` path is never named — scoped to this subsection.
-    assert grep(r"\.dev-team-reports/<app>-test-double-setup\.md", sec)
-    assert not grep(r"(?<!\.dev-team-)reports/<app>-test-double-setup", sec)
+    # Filename matches the main report's own naming convention
+    # (`cd-test-architecture-<app>.md` with `.md` replaced by
+    # `-test-double-setup.md`) — not the app-first inversion the original
+    # build shipped (ai-provenance-review finding).
+    assert grep(
+        r"\.dev-team-reports/cd-test-architecture-<app>-test-double-setup\.md",
+        sec,
+    )
+    assert not grep(
+        r"(?<!\.dev-team-)reports/cd-test-architecture-<app>-test-double-setup",
+        sec,
+    )
 
 
 def test_config_steps_cite_stack_profile_not_restate_it():
