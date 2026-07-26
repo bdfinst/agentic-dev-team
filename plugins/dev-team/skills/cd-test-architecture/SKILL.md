@@ -178,6 +178,9 @@ In the single-component **chat-only** case no file was written, so `--pdf` is a
 no-op: state `--pdf: no report file was written this run, nothing to render.`
 and do nothing else. Additive; non-fatal if no engine is available.
 
+`--pdf` renders the main assessment report only; the setup guide (below) is
+not rendered to PDF.
+
 For the header block and closing Provenance section, follow
 `knowledge/report-template.md`; the sections below are this skill's own
 body.
@@ -255,6 +258,12 @@ to that same chat output instead of written as a second file. When no
 component in the run falls into this off-gate adapter-double decision space,
 write no setup-guide file or chat section at all — never an empty one.
 
+**Header and Provenance.** For the header block and closing Provenance
+section, follow `knowledge/report-template.md`; the per-component sections
+below are this guide's own body. `**Scope**` reads the components covered by
+this guide — the components with a per-component section below, not the
+full application inventory from Step 1.
+
 **Per-component sections.** One section per component — even when two
 components resolve to the same tool, each still gets its own section with
 its own component-specific example prompt. A non-off-gate component (no
@@ -280,46 +289,53 @@ adapter-double recommendation at all) gets no section. Each section has:
    skill, `/apply-test-doubles <report-path> [--component <name>]`" and
    "invocation is exactly `/apply-test-doubles <report-path-or-target>` (the
    optional `--component` filter is the only other argument)". (Maintainer
-   note, not emitted content: #1437 itself is not yet shipped.)
+   note, not emitted content: #1437 itself is not yet shipped.) In the
+   single-component chat-only case, there is no saved main-report file to
+   substitute for `<path>` — the assessment output is in this chat session,
+   not a saved file — so the closing command is emitted with no path
+   argument (plain `/apply-test-doubles`), never falling back to the setup
+   guide's own path.
 
 **Classification** — cited from Step 4b's branches above, not invented here:
 
 - **Testcontainers** (Database-specific or Downstream-service branch, `Build
   (testcontainers)`) — name the testcontainers tool.
 - **Virtual-service library** (Downstream-service branch, `Build (Fake)`
-  resolving to a library) — name the existing-tool-detected or catalog
-  default tool per `virtual-service-libraries.md`'s Resolution order, or the
-  operator's chosen library, not the catalog default, when a named override
-  was given. Caveat: this case's configuration steps must also cite
-  `virtual-service-libraries.md`'s "Recorded artifacts contain real
-  traffic — scrub before commit" section (in addition to the per-tool
-  catalog entry) and name that tool's credential-filtering hook as a step
-  ordered before the first recording, never after.
-- **Hand-rolled fallback** (`Build (Fake)` resolving to hand-rolled, or no
-  protocol-appropriate library exists for the component's adapter kind) — no
-  doc link; the other three elements (name+purpose, configuration steps, and
-  the example prompt) still describe the specific fake/contract-test to
-  write for that component.
+  resolving to a library) — name whichever tool Step 4b's Downstream-service
+  branch's construction-method sub-question resolved for this component
+  (see that branch above — not restated here). Caveat: this case's
+  configuration steps must also cite `virtual-service-libraries.md`'s
+  "Recorded artifacts contain real traffic — scrub before commit" section
+  (in addition to the per-tool catalog entry) and name that tool's
+  credential-filtering hook as a step ordered before the first recording,
+  never after.
+- **Hand-rolled fallback** (`Build (Fake)` resolving to hand-rolled, or Step
+  4b's Downstream-service branch's no-matching-library fallback applying to
+  this component's adapter kind — see that branch above, not restated here)
+  — no doc link; the other three elements (name+purpose, configuration
+  steps, and the example prompt) still describe the specific
+  fake/contract-test to write for that component.
 
 **Downstream-service components with no posed sub-question.** For a
 Downstream-service component whose construction-method sub-question was
 never posed or answered (the operator chose Document-only, the run was
 non-interactive, or the top-level answer was ambiguous), classify it using
-the same Resolution order (existing-tool-detected → catalog default) that
-`virtual-service-libraries.md` defines and that Step 4b's sub-question also
-uses when it fires — applied here to rows that never got a sub-question in
+the same tool-resolution rule Step 4b's sub-question applies when it does
+fire — see the Downstream-service branch above for what determines the
+tool, not restated here — applied to rows that never got a sub-question in
 the first place, because this guide's trigger is independent of the
-Build/Document-only outcome, never a guess and never omitted — falling back
-to hand-rolled only when no protocol-appropriate library exists for the
-component's adapter kind. This three-case list is illustrative of "no
-sub-question ever reached this row"; it excludes the separate case where a
-`Build (Fake)` row's sub-question WAS posed but got an ambiguous or absent
-answer, which Step 4b's own default (accepting the recommended library)
-already resolves, not this fallback. A volunteered-but-ignored install/
-decline preference on a Document-only row is likewise not honored by this
-fallback either — per Step 4b's own "ignored, not an error" framing, it uses
-the Resolution-order default above, never the operator's
-stated-but-disregarded preference.
+Build/Document-only outcome, never a guess and never omitted. It falls back
+to the Hand-rolled fallback classification above only when Step 4b's own
+no-matching-library condition applies for this component's adapter kind —
+again, see that branch, not restated here. This three-case list is
+illustrative of "no sub-question ever reached this row"; it excludes the
+separate case where a `Build (Fake)` row's sub-question WAS posed but got an
+ambiguous or absent answer, which Step 4b's own stated default for that case
+already resolves (see that branch above), not this fallback. A
+volunteered-but-ignored install/decline preference on a Document-only row is
+likewise not honored by this fallback either — per Step 4b's own "ignored,
+not an error" framing, it defers to Step 4b's own resolution rule above (not
+restated here), never the operator's stated-but-disregarded preference.
 
 ## Integration
 

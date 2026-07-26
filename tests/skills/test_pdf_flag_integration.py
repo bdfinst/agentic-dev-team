@@ -17,6 +17,8 @@ Contracts:
 
 from __future__ import annotations
 
+import re
+
 from _repo_root import REPO_ROOT
 
 SKILLS = REPO_ROOT / "plugins" / "dev-team" / "skills"
@@ -101,6 +103,19 @@ def test_cd_test_architecture_states_chatonly_no_op():
     text = _skill("cd-test-architecture")
     assert "chat-only" in text or "chat for a single component" in text
     assert "no report file was written this run" in text
+
+
+def test_cd_test_architecture_pdf_covers_main_report_only_not_setup_guide():
+    # arch-review finding (round 2, #1436): cd-test-architecture now writes
+    # a second artifact (the test-double setup guide) alongside its main
+    # report. The existing --pdf paragraph named only the main report's
+    # path, leaving --pdf coverage for the second artifact unstated.
+    text = _skill("cd-test-architecture")
+    assert re.search(
+        r"`--pdf` renders the main assessment report only; the setup guide"
+        r"\s+\(below\)\s+is\s+not rendered to PDF\.",
+        text,
+    )
 
 
 def test_harness_audit_resolves_against_output_override():
