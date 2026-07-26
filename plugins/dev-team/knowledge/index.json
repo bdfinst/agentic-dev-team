@@ -2393,7 +2393,7 @@
       "anchor": "4-recommend-the-target-architecture"
     },
     "4b. Build-vs-document decision (off-gate adapter test doubles)": {
-      "summary": "When Step 4 identifies one or more components needing an off-gate adapter test double (today: a testcontainers-based real-DB test, or a downstream-service adapter test), ask the operator once per run, batched across every such component regardless of adapter kind — this is the shared prompt later adapter-kind slices (#1435 record-and-replay libraries) append to, not a new prompt each run.",
+      "summary": "When Step 4 identifies one or more components needing an off-gate adapter test double (today: a testcontainers-based real-DB test, or a downstream-service adapter test), ask the operator once per run, batched across every such component regardless of adapter kind — this is the shared prompt every adapter-kind slice appends to, not a new prompt each run; the Downstream-service branch below, including its record-and-replay-library sub-question, is one such append, already shipped, not future work.",
       "anchor": "4b-build-vs-document-decision-off-gate-adapter-test-doubles"
     },
     "5. Produce a migration path": {
