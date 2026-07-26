@@ -10,9 +10,9 @@ This file covers Step 1.1 (Step 1's ownership/deployability note), Step 1.2
 (the new `#### Downstream-service branch` subsection under Step 4b, plus the
 generalized shared Step 4b intro sentence), and Step 1.3 (the downstream-
 service branch's Story-shape bullets, the generalized Output-section caveat
-cross-reference, the generalized `test-doubles.md` knowledge-reference
-bullet, and two further shared-paragraph fixes beyond the plan's literal
-Step 1.3 text — see the module-level docstrings on the tests below).
+cross-reference, and the generalized `test-doubles.md` knowledge-reference
+bullet) — plus several corrections beyond the plan's literal Step 1.3 text
+(see inline comments on the affected tests).
 Assertions here are scoped to the specific section they target, mirroring
 the sibling `test_cd_test_architecture_step4b.py`'s scoped-boundary
 discipline (a boundary regex must be empirically verified reachable, not
@@ -161,11 +161,15 @@ def test_downstream_service_branch_reuses_same_batched_prompt_not_a_second_one()
 
 def test_team_controlled_row_offers_three_options():
     sec = _downstream_service_branch_section()
+    # Boundary tightened to match the sibling third-party bullet extraction
+    # below (ai-provenance-review, iteration 2) — this asymmetry was
+    # previously safe only because the next line happens to be another
+    # bullet, which is undocumented and fragile.
     team_controlled_bullet = collapsed(
         section(
             sec,
             r"\*\*Team-controlled\*\*",
-            boundary_pattern=r"^(- \*\*|### )",
+            boundary_pattern=r"^(- \*\*|### |\s*$)",
         )
     )
     assert grep(r"Build \(testcontainers\)", team_controlled_bullet)
@@ -176,13 +180,15 @@ def test_team_controlled_row_offers_three_options():
 def test_third_party_row_offers_only_two_options_no_testcontainers():
     sec = _downstream_service_branch_section()
     # Boundary tightened (ai-provenance-review, test-review, correctness-
-    # review) beyond the sibling `team_controlled_bullet` extraction above:
-    # `^(- \*\*|### )` alone over-captures here — it sweeps past this single
-    # bullet through the following "not-offered-option" paragraph and the
-    # "Each selected option proposes a Story" lead-in before it reaches the
-    # next `- **` bullet. Adding the blank-line alternative stops capture at
-    # the first blank-line-then-non-bullet-prose transition, whichever
-    # boundary comes first, so this scopes to only the named bullet.
+    # review): `^(- \*\*|### )` alone over-captures here — it sweeps past
+    # this single bullet through the following "not-offered-option"
+    # paragraph and the "Each selected option proposes a Story" lead-in
+    # before it reaches the next `- **` bullet. Adding the blank-line
+    # alternative stops capture at the first blank-line-then-non-bullet-
+    # prose transition, whichever boundary comes first, so this scopes to
+    # only the named bullet. The sibling `team_controlled_bullet` extraction
+    # above uses this same tightened boundary for consistency (ai-
+    # provenance-review, iteration 2).
     third_party_bullet = collapsed(
         section(
             sec,
@@ -193,9 +199,13 @@ def test_third_party_row_offers_only_two_options_no_testcontainers():
     assert grep(r"Build \(Fake\)", third_party_bullet)
     assert grep(r"Document-only", third_party_bullet)
     # Positive supporting text, not just an absence check (#1433's lesson:
-    # an unsupported negative is the weakest kind of test).
+    # an unsupported negative is the weakest kind of test). The extraction
+    # is already scoped to a single bullet line, so no tightness is needed
+    # on the gap between phrases — loosened from a spec-derived-looking
+    # `.{0,40}` to `.*` (ai-provenance-review, iteration 2; actual gap in
+    # shipped prose is 2 characters).
     assert grep(
-        r"Build \(testcontainers\).{0,40}is never offered",
+        r"Build \(testcontainers\).*is never offered",
         third_party_bullet,
         ignore_case=True,
     )
@@ -213,6 +223,11 @@ def test_not_offered_option_answer_treated_as_ambiguous():
 
 
 def test_ambiguous_answer_rule_reused_not_reinvented():
+    # "not a new rule" is anaphoric (referring back to "the same ambiguous-
+    # answer rule as any other ambiguous answer above"), but the referent is
+    # pinned here: both phrases are asserted against the same `sec` extract,
+    # which is the single sentence containing both clauses — reviewed and
+    # judged sufficient (ai-provenance-review, iteration 2).
     sec = collapsed(_downstream_service_branch_section())
     assert grep(
         r"same ambiguous-answer rule as any other ambiguous answer",
@@ -251,6 +266,11 @@ def test_event_producer_named_alongside_api_and_event_consumer():
 # drift apart between the two call sites that check it (the Fake Story
 # bullet itself, and the assertion that the Output section does NOT
 # hardcode it).
+# Extends the plan's literal caveat wording to also cite Event Producer
+# (issue #1434 iteration 1 fix), since the Downstream-service branch
+# explicitly covers Event Producer components and the caveat would
+# otherwise cite an incomplete pattern list for those rows — documented
+# here since the plan predates this addition.
 DOWNSTREAM_FAKE_CAVEAT = (
     "Caveat: this hand-rolled Fake cannot verify that the adapter actually "
     "satisfies the real service's wire contract — pair it with scheduled "
@@ -340,6 +360,11 @@ def test_team_controlled_fake_has_no_scheduled_verification_requirement_stated_p
     bullet = collapsed(_downstream_fake_bullet())
     # Positive statement, not merely the absence of "scheduled" — #1433's
     # lesson that an unsupported negative is the weakest kind of test.
+    # "no such addition" is anaphoric, but the referent is pinned: the
+    # regex requires it to appear within the same `[^.]*`-bounded clause as
+    # the "**Team-controlled rows**:" anchor, so the extracted match always
+    # carries its own referent — reviewed and judged sufficient (ai-
+    # provenance-review, iteration 2).
     assert grep(
         r"\*\*Team-controlled rows\*\*:[^.]*carries no such addition",
         bullet,
@@ -400,3 +425,7 @@ def test_step_4b_shared_paragraph_no_longer_overclaims_three_choices():
     assert grep(
         r"one of the labeled options for that row", intro, ignore_case=True
     )
+    # The "when more than one is offered" qualifier (iteration 1 fix) has no
+    # dedicated assertion elsewhere — pin it here alongside this paragraph's
+    # other ambiguous-answer wording checks (ai-provenance-review, iteration 2).
+    assert grep(r"when more than one is offered", intro, ignore_case=True)
