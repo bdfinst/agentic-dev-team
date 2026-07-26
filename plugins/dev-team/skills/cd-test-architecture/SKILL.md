@@ -49,7 +49,7 @@ Resolve the project's stack so the assessment can resolve concrete tools from `k
 
 ### 1. Inventory the application's components
 
-Map the deployable/testable surfaces and assign each its pattern from `component-test-patterns.md` (User Interface; API Provider / API Consumer / Event Consumer / Event Producer / Stateful Service / CLI-Library; Scheduled Job). A real system is usually several — list each surface. For each API Consumer, Event Consumer, or Event Producer component, also record whether the dependency is team-controlled (in-house, containerizable) or third-party/other-team, per `component-test-patterns.md`'s ownership guidance — assume no provider cooperation for dependencies the team doesn't control.
+Map the deployable/testable surfaces and assign each its pattern from `component-test-patterns.md` (User Interface; API Provider / API Consumer / Event Consumer / Event Producer / Stateful Service / CLI-Library; Scheduled Job). A real system is usually several — list each surface.
 
 **Graph-assisted inventory.** If the target repo has `.codegraph/` (CodeGraph MCP server, `mcp__codegraph__codegraph_explore` — fast callers/callees/impact lookups) and/or a Repowise MCP server (`get_context`/`search_codebase` — verified context and semantic search), prefer them over raw `Grep` for locating components, their deployable surfaces, and existing test suites. Never assume either is present — fall back to `Read`/`Grep`/`Glob` when absent; the tools are simply unavailable (no error) on repos without an index.
 
@@ -96,17 +96,17 @@ Per component, using its pattern: which test types cover which layers, **what to
 
 ### 4b. Build-vs-document decision (off-gate adapter test doubles)
 
-When Step 4 identifies one or more components needing an off-gate adapter test double (today: a testcontainers-based real-DB test, or a downstream-service adapter test), ask the operator once per run, batched across every such component regardless of adapter kind — this is the shared prompt later adapter-kind slices (#1435 record-and-replay libraries) append to, not a new prompt each run. The one prompt lists every such component and asks the operator, for each one, to choose exactly one of the options listed for that row — up to three; a row may offer fewer depending on its ownership tier — there is no separate follow-up sub-question:
+When Step 4 identifies one or more components needing an off-gate adapter test double (today: a testcontainers-based real-DB test, or a downstream-service adapter test), ask the operator once per run, batched across every such component regardless of adapter kind — this is the shared prompt later adapter-kind slices (#1435 record-and-replay libraries) append to, not a new prompt each run. The one prompt lists every such component and asks the operator, for each one, to choose exactly one of three options — there is no separate follow-up sub-question:
 
 1. **Build (testcontainers)** — propose a downstream Story for a real-dependency test using testcontainers (exact Story shape per the branch subsection below).
 2. **Build (Fake)** — propose a downstream Story for a hand-rolled Fake double (exact Story shape per the branch subsection below).
 3. **Document-only** (default) — the recommendation lands in the report as today, with no further action.
 
-The operator answers with one of the choices listed for that row for each listed component in a single reply — one prompt is surfaced per run, carrying a per-component answer, not one verdict applied to every component in the batch.
+The operator answers with one of these three choices for each listed component in a single reply — one prompt is surfaced per run, carrying a per-component three-way answer, not one verdict applied to every component in the batch.
 
 Non-interactive runs (per `human-oversight-protocol`'s `--yes` / `DEV_TEAM_AUTO_APPROVE=1` / no-TTY convention) skip the prompt entirely — no prompt is surfaced, and every such component's recommendation lands in the report only, document-only, exactly as today.
 
-An ambiguous or absent answer for any component in the batched question — for example "maybe", "I'm not sure", a bare "yes" or "no", an unqualified "build" that does not name which Build option, when more than one is offered (none of these map to one of the labeled options for that row), or silence/empty input — defaults to Document-only for that component, same as any other ambiguous answer: never guessed, never blocked on.
+An ambiguous or absent answer for any component in the batched three-way question — for example "maybe", "I'm not sure", a bare "yes" or "no", an unqualified "build" that does not name which of the two Build options (none of these map to one of the three labeled options), or silence/empty input — defaults to Document-only for that component, same as any other ambiguous answer: never guessed, never blocked on.
 
 Repos with no such gap see no behavior change: no prompt is asked, and the report is unchanged.
 

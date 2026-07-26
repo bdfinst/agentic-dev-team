@@ -135,22 +135,16 @@ def test_step_4b_asks_one_three_way_choice_with_no_second_stage():
     # the DB-branch bullet tests and the output-table test would all still
     # pass against either model.
     sec = collapsed(_step_4b_section())
-    # Issue #1434 generalized this sentence — it no longer over-claims a
-    # fixed count of three for every row (third-party downstream-service
-    # rows offer only two) — see test_cd_test_architecture_downstream_
-    # service.py::test_step_4b_intro_no_longer_overclaims_fixed_three_options
-    # for the row-varies-count assertion.
+    # Issue #1434 reverted the ownership-tier row-shape variance (operator
+    # correction: every row offers exactly three options uniformly again) —
+    # this test asserts the restored #1433-original unqualified phrasing.
     assert grep(
-        r"choose exactly one of the options listed for that row",
+        r"choose exactly one of three options",
         sec,
         ignore_case=True,
     )
     assert grep(r"there is no separate follow-up sub-question", sec, ignore_case=True)
-    # Issue #1434 Step 1.3 further generalized the sibling "operator answers"
-    # sentence — it no longer claims a fixed "per-component three-way
-    # answer" (see test_cd_test_architecture_downstream_service.py::
-    # test_step_4b_shared_paragraph_no_longer_overclaims_three_choices).
-    assert grep(r"per-component answer", sec, ignore_case=True)
+    assert grep(r"per-component three-way answer", sec, ignore_case=True)
     assert grep(r"1\.\s*\*\*Build \(testcontainers\)\*\*", sec)
     assert grep(r"2\.\s*\*\*Build \(Fake\)\*\*", sec)
     assert grep(r"3\.\s*\*\*Document-only\*\*\s*\(default\)", sec)
