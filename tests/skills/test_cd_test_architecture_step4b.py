@@ -28,6 +28,7 @@ from __future__ import annotations
 
 from skill_doc_helpers import (
     PLUGIN_ROOT,
+    cd_test_architecture_fake_row_clause,
     cd_test_architecture_output_section,
     collapsed,
     grep,
@@ -145,9 +146,25 @@ def test_step_4b_asks_one_three_way_choice_with_no_second_stage():
     )
     assert grep(r"there is no separate follow-up sub-question", sec, ignore_case=True)
     assert grep(r"per-component three-way answer", sec, ignore_case=True)
+    # The plan's Step 1.1 revert restored three more #1433-original phrases
+    # in this same shared intro paragraph, alongside the primary sentence
+    # above — each had a dedicated assertion missing (test-review gap).
+    assert grep(r"one of these three choices", sec, ignore_case=True)
+    assert grep(r"the batched three-way question", sec, ignore_case=True)
+    assert grep(r"one of the three labeled options", sec, ignore_case=True)
     assert grep(r"1\.\s*\*\*Build \(testcontainers\)\*\*", sec)
     assert grep(r"2\.\s*\*\*Build \(Fake\)\*\*", sec)
     assert grep(r"3\.\s*\*\*Document-only\*\*\s*\(default\)", sec)
+
+
+def test_no_superseded_ownership_tiered_wording_anywhere_in_skill():
+    # Repo-wide negative regression guard (test-review, issue #1434): the
+    # superseded ownership-tiered wording from the original build must not
+    # reappear anywhere in the file, not just within `### 4b.`'s own text.
+    text = _text()
+    assert not grep(r"up to three", text, ignore_case=True)
+    assert not grep(r"may offer fewer", text, ignore_case=True)
+    assert not grep(r"ownership tier", text, ignore_case=True)
 
 
 def test_step_4b_documents_unattended_default_cites_human_oversight_protocol():
@@ -305,7 +322,7 @@ def test_database_branch_cites_test_doubles_and_database_test_patterns():
     # section), since #1434 widened the section to also include the
     # Downstream-service branch, which also cites `test-doubles.md` now —
     # scoping to `_step_4b_section()` would make the "cites test-doubles.md"
-    # half of this assertion vacuous (ai-provenance-review, iteration 2).
+    # half of this assertion vacuous.
     sec = _database_specific_branch_section()
     assert grep(r"test-doubles\.md", sec)
     assert grep(r"database-test-patterns\.md", sec)
@@ -320,12 +337,8 @@ def test_knowledge_references_list_includes_test_doubles():
 # --- Output report template (Step 1.3) --------------------------------------
 
 
-def _output_section() -> str:
-    return cd_test_architecture_output_section(_text())
-
-
 def test_output_template_shows_build_document_status_column():
-    sec = _output_section()
+    sec = cd_test_architecture_output_section(_text())
     assert grep(r"Build/Document status", sec)
     assert grep(r"Build \(testcontainers\)", sec)
     assert grep(r"Build \(Fake\)", sec)
@@ -338,14 +351,7 @@ def test_output_template_caveat_appears_conditionally_on_fake_branch():
     # here — see test_cd_test_architecture_downstream_service.py::
     # test_output_section_caveat_generalized_not_database_specific for the
     # generalization assertion.
-    sec = _output_section()
-    fake_row_clause = collapsed(
-        section(
-            sec,
-            r"row whose status is `Build \(Fake\)`",
-            boundary_pattern=r"^### ",
-        )
-    )
+    fake_row_clause = cd_test_architecture_fake_row_clause(_text())
     assert grep(r"branch-specific caveat, verbatim", fake_row_clause, ignore_case=True)
     assert grep(r"Database-specific branch", fake_row_clause)
     assert grep(r"Downstream-service branch", fake_row_clause)
@@ -358,9 +364,15 @@ def test_caveat_appears_in_the_story_but_not_restated_in_the_report():
     # template now cross-references the branch instead of duplicating the
     # caveat text (was test_caveat_appears_in_both_story_and_report).
     assert DATABASE_FAKE_CAVEAT in collapsed(_step_4b_section())
-    assert DATABASE_FAKE_CAVEAT not in collapsed(_output_section())
+    assert DATABASE_FAKE_CAVEAT not in collapsed(
+        cd_test_architecture_output_section(_text())
+    )
 
 
 def test_output_template_does_not_hardcode_legacy_reports_path():
-    sec = _output_section()
+    sec = cd_test_architecture_output_section(_text())
     assert not grep(r"(?<!\.dev-team-)reports/cd-test-architecture-", sec)
+    # Positive companion (test-smell-review): the negative check above would
+    # still pass if the whole `Write to` line were deleted, so assert the
+    # correct current path is actually present.
+    assert grep(r"\.dev-team-reports/cd-test-architecture-", sec)
