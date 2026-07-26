@@ -78,7 +78,9 @@ def _write_gate(work: Path, hermetic_env: dict[str, str]) -> None:
         text=True,
         check=True,
     )
-    (work / ".review-passed").write_text(result.stdout)
+    gate_path = work / ".claude" / "memory" / ".review-passed"
+    gate_path.parent.mkdir(parents=True, exist_ok=True)
+    gate_path.write_text(result.stdout)
 
 
 def test_gate_exact_staged_content_that_was_reviewed_commits_cleanly(
@@ -89,7 +91,9 @@ def test_gate_exact_staged_content_that_was_reviewed_commits_cleanly(
     _write_gate(work, hermetic_env)
     result = _commit_hook(work, hermetic_env)
     assert result.returncode == 0
-    assert not (work / ".review-passed").is_file()  # consumed on success
+    assert not (
+        work / ".claude" / "memory" / ".review-passed"
+    ).is_file()  # consumed on success
 
 
 def test_gate_editing_a_reviewed_files_content_reblocks_the_commit(

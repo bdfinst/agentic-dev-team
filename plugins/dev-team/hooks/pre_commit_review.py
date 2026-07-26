@@ -237,7 +237,8 @@ def main() -> int:
 
     current_hash = review_gate_hash()
 
-    gate_file = Path(".review-passed")
+    gate_file = Path(".claude/memory/.review-passed")
+    gate_file.parent.mkdir(parents=True, exist_ok=True)
     if gate_file.is_file():
         try:
             stored = gate_file.read_text().strip()
