@@ -24,7 +24,6 @@ from __future__ import annotations
 
 from skill_doc_helpers import (
     PLUGIN_ROOT,
-    cd_test_architecture_output_section,
     collapsed,
     grep,
     section,
@@ -35,19 +34,6 @@ SKILL = PLUGIN_ROOT / "skills" / "cd-test-architecture" / "SKILL.md"
 
 def _text() -> str:
     return SKILL.read_text(encoding="utf-8")
-
-
-def _step_4b_intro_paragraph() -> str:
-    """The shared, pre-existing Step 4b intro text — from the `### 4b.`
-    heading up to (not including) the first `#### ` sub-heading
-    (`#### Database-specific branch`). Still used by
-    `test_third_party_fake_additionally_requires_scheduled_verification`
-    below to confirm no fourth numbered option was added to the shared
-    prompt — the wording-specific tests that used to rely on this helper
-    (guarding #1434's now-reverted ownership-tier generalization) were
-    removed in Step 1.1's revert; this extraction itself is unaffected by
-    that revert."""
-    return section(_text(), r"^### 4b\.", boundary_pattern=r"^#### ")
 
 
 def _downstream_service_branch_section() -> str:
@@ -77,18 +63,6 @@ def _downstream_service_branch_section() -> str:
 # --- Step 1.2: Downstream-service branch ------------------------------------
 
 
-def test_downstream_service_branch_section_boundary_is_reachable():
-    # Empirically verify the scoping boundary actually narrows the text —
-    # not an assumption (issue #1433 round 4 lesson). The subsection's own
-    # heading and content must be present; Step 5's heading and content
-    # must be excluded.
-    sec = _downstream_service_branch_section()
-    assert "#### Downstream-service branch" in sec
-    assert "Third-party/other-team" in sec
-    assert "### 5." not in sec
-    assert "Produce a migration path" not in sec
-
-
 def test_downstream_service_branch_exists_after_database_branch():
     text = _text()
     database_idx = text.index("#### Database-specific branch")
@@ -103,80 +77,42 @@ def test_downstream_service_branch_cites_component_test_patterns():
     assert grep(r"component-test-patterns\.md", sec)
 
 
-def test_ownership_classification_not_reasked_at_step_4b_time():
-    # AC4: this classification is not itself an interactive question at
-    # Step 4b time — it was already recorded at Step 1.
-    sec = _downstream_service_branch_section()
-    assert grep(r"not re-asked at Step 4b time", sec, ignore_case=True)
-
-
 def test_downstream_service_branch_reuses_same_batched_prompt_not_a_second_one():
     sec = collapsed(_downstream_service_branch_section())
     assert grep(r"\*?same\*?\s+batched per-run prompt", sec, ignore_case=True)
     assert grep(r"not a second prompt", sec, ignore_case=True)
 
 
-def test_team_controlled_row_offers_three_options():
+def test_downstream_service_row_offers_all_three_options_uniformly():
+    # Every row offers all three options identically — no ownership-based
+    # row-shape distinction anywhere in the subsection (operator correction,
+    # issue #1434: reverses the original build's team-controlled/third-party
+    # split).
     sec = _downstream_service_branch_section()
-    # Boundary tightened to match the sibling third-party bullet extraction
-    # below (ai-provenance-review, iteration 2) — this asymmetry was
-    # previously safe only because the next line happens to be another
-    # bullet, which is undocumented and fragile.
-    team_controlled_bullet = collapsed(
-        section(
-            sec,
-            r"\*\*Team-controlled\*\*",
-            boundary_pattern=r"^(- \*\*|### |\s*$)",
-        )
-    )
-    assert grep(r"Build \(testcontainers\)", team_controlled_bullet)
-    assert grep(r"Build \(Fake\)", team_controlled_bullet)
-    assert grep(r"Document-only", team_controlled_bullet)
+    assert grep(r"Build \(testcontainers\)", sec)
+    assert grep(r"Build \(Fake\)", sec)
+    assert grep(r"Document-only", sec)
+    # "team-controlled"/"third-party" still appear in the subsection — but
+    # only inside the "runs out-of-band regardless of ownership" placement
+    # rule, not as a row-shape/option-count gate. Assert the no-distinction
+    # framing positively rather than banning the words outright.
+    assert grep(r"no ownership-based distinction", sec, ignore_case=True)
+    assert grep(r"every row offers all three options identically", sec, ignore_case=True)
 
 
-def test_third_party_row_offers_only_two_options_no_testcontainers():
-    sec = _downstream_service_branch_section()
-    # Boundary tightened (ai-provenance-review, test-review, correctness-
-    # review): `^(- \*\*|### )` alone over-captures here — it sweeps past
-    # this single bullet through the following "not-offered-option"
-    # paragraph and the "Each selected option proposes a Story" lead-in
-    # before it reaches the next `- **` bullet. Adding the blank-line
-    # alternative stops capture at the first blank-line-then-non-bullet-
-    # prose transition, whichever boundary comes first, so this scopes to
-    # only the named bullet. The sibling `team_controlled_bullet` extraction
-    # above uses this same tightened boundary for consistency (ai-
-    # provenance-review, iteration 2).
-    third_party_bullet = collapsed(
-        section(
-            sec,
-            r"\*\*Third-party/other-team\*\*",
-            boundary_pattern=r"^(- \*\*|### |\s*$)",
-        )
-    )
-    assert grep(r"Build \(Fake\)", third_party_bullet)
-    assert grep(r"Document-only", third_party_bullet)
-    # Positive supporting text, not just an absence check (#1433's lesson:
-    # an unsupported negative is the weakest kind of test). The extraction
-    # is already scoped to a single bullet line, so no tightness is needed
-    # on the gap between phrases — loosened from a spec-derived-looking
-    # `.{0,40}` to `.*` (ai-provenance-review, iteration 2; actual gap in
-    # shipped prose is 2 characters).
-    assert grep(
-        r"Build \(testcontainers\).*is never offered",
-        third_party_bullet,
-        ignore_case=True,
-    )
-
-
-def test_not_offered_option_answer_treated_as_ambiguous():
+def test_downstream_service_branch_states_all_validation_is_scheduled_out_of_band():
+    # Positive supporting text (#1433's lesson: an unsupported negative is
+    # the weakest kind of test) that all off-gate validation — regardless of
+    # ownership — runs out-of-band, on a schedule, never pre-merge/in-band.
     sec = collapsed(_downstream_service_branch_section())
+    assert grep(r"out-of-band", sec, ignore_case=True)
+    assert grep(r"on a schedule", sec, ignore_case=True)
+    assert grep(r"never pre-merge/in-band", sec, ignore_case=True)
     assert grep(
-        r"answer naming an option not offered for a row's tier",
+        r"regardless of whether the dependency is team-controlled or third-party",
         sec,
         ignore_case=True,
     )
-    assert grep(r"treated as ambiguous", sec, ignore_case=True)
-    assert grep(r"defaulting to `?Document-only`? for that row", sec, ignore_case=True)
 
 
 def test_ambiguous_answer_rule_reused_not_reinvented():
@@ -201,151 +137,4 @@ def test_event_producer_named_alongside_api_and_event_consumer():
     assert grep(r"Event Producer", sec)
 
 
-# --- Step 1.3: Story-shape bullets, Output/knowledge-ref generalizations ----
 
-# Mirrors test_cd_test_architecture_step4b.py's DATABASE_FAKE_CAVEAT
-# pattern: one reusable constant so the exact verbatim caveat text can't
-# drift apart between the two call sites that check it (the Fake Story
-# bullet itself, and the assertion that the Output section does NOT
-# hardcode it).
-# Extends the plan's literal caveat wording to also cite Event Producer
-# (issue #1434 iteration 1 fix), since the Downstream-service branch
-# explicitly covers Event Producer components and the caveat would
-# otherwise cite an incomplete pattern list for those rows — documented
-# here since the plan predates this addition.
-DOWNSTREAM_FAKE_CAVEAT = (
-    "Caveat: this hand-rolled Fake cannot verify that the adapter actually "
-    "satisfies the real service's wire contract — pair it with scheduled "
-    "provider-contract verification against the provider's real "
-    "environment, per the API Consumer / Event Consumer / Event Producer "
-    "patterns."
-)
-
-
-def _downstream_testcontainers_bullet() -> str:
-    return collapsed(
-        section(
-            _downstream_service_branch_section(),
-            r"\*\*Build \(testcontainers\)\*\* \(team-controlled rows only\)",
-            boundary_pattern=r"^- \*\*Build \(Fake\)\*\*",
-        )
-    )
-
-
-def _downstream_fake_bullet() -> str:
-    return section(
-        _downstream_service_branch_section(),
-        r"\*\*Build \(Fake\)\*\* \(either tier\)",
-        boundary_pattern=r"^- \*\*Document-only\*\*",
-    )
-
-
-def _output_section() -> str:
-    return cd_test_architecture_output_section(_text())
-
-
-def test_testcontainers_story_title_and_description():
-    bullet = _downstream_testcontainers_bullet()
-    assert grep(
-        r"\[<component>\]\s*Add testcontainers-based adapter integration test",
-        bullet,
-    )
-    assert grep(r"real outbound client", bullet, ignore_case=True)
-    assert grep(r"component-test-patterns\.md", bullet)
-
-
-def test_fake_story_title_and_wire_contract_caveat_verbatim():
-    bullet = collapsed(_downstream_fake_bullet())
-    assert grep(
-        r"\[<component>\]\s*Add hand-rolled Fake downstream-service double",
-        bullet,
-    )
-    assert DOWNSTREAM_FAKE_CAVEAT in bullet
-
-
-def test_fake_story_never_says_mock():
-    bullet = _downstream_fake_bullet()
-    assert not grep(r"\bmock\b", bullet, ignore_case=True)
-    # Positive companion assertion (test-smell-review): the absence check
-    # above would still pass even if the whole bullet were deleted, so
-    # assert the bullet actually names the Fake it's describing.
-    assert grep(r"\bFake\b", bullet)
-
-
-def test_third_party_fake_additionally_requires_scheduled_verification():
-    # Anchored on the literal "**Third-party rows**:" prefix so this scopes
-    # to the third-party-specific clause, not the Fake bullet generally.
-    bullet = collapsed(_downstream_fake_bullet())
-    assert grep(
-        r"\*\*Third-party rows\*\*:[^.]*scheduled[^.]*provider-contract "
-        r"verification[^.]*(non-prod|real environment)",
-        bullet,
-        ignore_case=True,
-    )
-    # Explicitly a companion action, not a fourth option — and no new
-    # numbered/labeled top-level option (a literal "4. **...**" item) is
-    # introduced alongside the existing 1./2./3. choices in the shared
-    # Step 4b intro. Rescoped to `_step_4b_intro_paragraph()` (ai-
-    # provenance-review, correctness-review): the previous scope,
-    # `_downstream_fake_bullet()`, is a 3-line bullet that could never
-    # contain a numbered list, so that check was vacuous — it could never
-    # fail even if a real fourth numbered option were added. The numbered
-    # 1./2./3. list actually lives in the shared Step 4b intro paragraph.
-    assert grep(r"\*\*Third-party rows\*\*:[^.]*not a fourth option", bullet, ignore_case=True)
-    assert not grep(r"^\s*4\.\s*\*\*", _step_4b_intro_paragraph())
-
-
-def test_team_controlled_fake_has_no_scheduled_verification_requirement_stated_positively():
-    # Anchored on the literal "**Team-controlled rows**:" prefix so this
-    # scopes to the team-controlled-specific clause, not the Fake bullet
-    # generally.
-    bullet = collapsed(_downstream_fake_bullet())
-    # Positive statement, not merely the absence of "scheduled" — #1433's
-    # lesson that an unsupported negative is the weakest kind of test.
-    # "no such addition" is anaphoric, but the referent is pinned: the
-    # regex requires it to appear within the same `[^.]*`-bounded clause as
-    # the "**Team-controlled rows**:" anchor, so the extracted match always
-    # carries its own referent — reviewed and judged sufficient (ai-
-    # provenance-review, iteration 2).
-    assert grep(
-        r"\*\*Team-controlled rows\*\*:[^.]*carries no such addition",
-        bullet,
-        ignore_case=True,
-    )
-
-
-def test_output_section_caveat_generalized_not_database_specific():
-    sec = _output_section()
-    fake_row_clause = collapsed(
-        section(
-            sec,
-            r"row whose status is `Build \(Fake\)`",
-            boundary_pattern=r"^### ",
-        )
-    )
-    assert not grep(r"SQL, mapping, or schema", fake_row_clause, ignore_case=True)
-    assert DOWNSTREAM_FAKE_CAVEAT not in fake_row_clause
-    assert grep(r"Database-specific branch", fake_row_clause)
-    assert grep(r"Downstream-service branch", fake_row_clause)
-    assert grep(r"branch-specific caveat, verbatim", fake_row_clause, ignore_case=True)
-
-
-def test_knowledge_references_bullet_covers_both_branches():
-    text = _text()
-    refs_section = collapsed(
-        section(
-            text, r"^Grounded in these knowledge references", boundary_pattern=r"^## "
-        )
-    )
-    assert grep(r"test-doubles\.md", refs_section)
-    assert grep(
-        r"Step 4b's database or downstream-service branch proposes a "
-        r"hand-rolled Fake double",
-        refs_section,
-        ignore_case=True,
-    )
-    assert not grep(
-        r"Step 4b's database branch proposes a hand-rolled Fake double",
-        refs_section,
-        ignore_case=True,
-    )

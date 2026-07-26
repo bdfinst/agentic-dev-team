@@ -122,20 +122,11 @@ For the database-IS-the-SUT band, the three-way answer directly determines the o
 
 Applies to API Consumer, Event Consumer, and Event Producer components (`component-test-patterns.md`) that Step 4 flagged for the same off-gate adapter-test-double decision as the database branch above — added to the *same* batched per-run prompt, not a second prompt: the shared prompt above already states later adapter-kind slices append here, and this is that append.
 
-Read the team-controlled/third-party classification from the ownership note Step 1 now records (see "Inventory the application's components") — it is not re-asked at Step 4b time. That classification determines each row's option count:
+Every row offers all three options identically, with no ownership-based distinction: `Build (testcontainers)`, `Build (Fake)`, `Document-only`.
 
-- **Team-controlled** — offers all three existing options: `Build (testcontainers)`, `Build (Fake)`, `Document-only`.
-- **Third-party/other-team** — offers only two options: `Build (Fake)`, `Document-only`. `Build (testcontainers)` is never offered for a third-party row — there is no container to spin up for a dependency the team doesn't control.
+**All off-gate validation of a downstream-service test double runs out-of-band, on a schedule — never pre-merge/in-band — regardless of whether the dependency is team-controlled or third-party.** This applies uniformly to both the testcontainers-based adapter-integration test and the Fake's companion provider-contract verification, per `component-test-patterns.md`'s "scheduled provider-contract verification... decoupled from your deploys" framing, now applied to every row rather than only third-party dependencies.
 
-An answer naming an option not offered for a row's tier — for example, "Build (testcontainers)" for a third-party row — is treated as ambiguous, defaulting to `Document-only` for that row. This is the same ambiguous-answer rule as any other ambiguous answer above, extended with this one more named example, not a new rule.
-
-Each selected option proposes a Story, following the database branch's shape:
-
-- **Build (testcontainers)** (team-controlled rows only) — propose a Story titled `[<component>] Add testcontainers-based adapter integration test`. Its description exercises the real outbound client against a real instance of the service/broker, and cites the relevant `component-test-patterns.md` pattern (API Consumer / Event Consumer / Event Producer — name whichever applies).
-- **Build (Fake)** (either tier) — propose a Story titled `[<component>] Add hand-rolled Fake downstream-service double`. Its description names a hand-rolled Fake behind a team-owned thin adapter, per `test-doubles.md`'s Fake taxonomy, and cites `component-test-patterns.md`. It always carries this caveat verbatim: "Caveat: this hand-rolled Fake cannot verify that the adapter actually satisfies the real service's wire contract — pair it with scheduled provider-contract verification against the provider's real environment, per the API Consumer / Event Consumer / Event Producer patterns."
-  - **Third-party rows**: the Story additionally proposes scheduled, out-of-band provider-contract verification against the provider's real non-prod endpoint as a companion action — not a fourth option.
-  - **Team-controlled rows**: the Story carries no such addition.
-- **Document-only** — the recommendation lands in the report only, as today; no further action.
+An ambiguous or absent answer for a downstream-service row defaults to `Document-only`, the same ambiguous-answer rule as any other ambiguous answer above — not a new rule.
 
 ### 5. Produce a migration path
 
