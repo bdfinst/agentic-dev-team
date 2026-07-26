@@ -91,12 +91,12 @@ Publishes messages to a broker (often paired with a consumer in the same service
 
 Long-lived in-memory state: caches, aggregates, coordinators, websocket gateways, real-time engines.
 
-- **Coverage layers:** state-machine logic (solitary unit) → persistence & recovery (component with real or in-memory persistence) → single-node concurrency (component) → replication & leader election (cluster tests with real consensus library) → memory bounds (soak) → connection lifecycle (component).
+- **Coverage layers:** state-machine logic (solitary unit) → persistence & recovery (component with doubled persistence) → single-node concurrency (component) → replication & leader election (cluster tests with real consensus library) → memory bounds (soak) → connection lifecycle (component) → external persistence engine (doubled in component; real engine in adapter integration, out-of-band).
 - **Isolation:** double persistence; control time and event ordering to make concurrency deterministic.
 - **Success scenarios:** transitions follow documented state machine; state rebuilds identically after restart; replication lag within budget.
 - **Failure modes:** crash mid-write → consistent state on restart, no torn writes; concurrent mutations serialize without lost updates; network partition → minority steps down with documented reconciliation; memory pressure → evicts per policy, no OOM; idle connections close cleanly with documented reconnect.
-- **Double validation:** persistence doubles validated by adapter integration vs production engine; consensus doubles validated by cluster testcontainer tests.
-- **Pipeline:** unit + component Stage 1; cluster tests out-of-band on a schedule, regardless of ownership; soak + chaos out-of-pipeline vs deployed instances.
+- **Double validation:** persistence doubles validated by adapter integration against the real persistence engine, out-of-band; consensus doubles validated by cluster testcontainer tests, out-of-band.
+- **Pipeline:** unit + component Stage 1; adapter integration (persistence recovery) out-of-band on a schedule, regardless of ownership; cluster tests out-of-band on a schedule, regardless of ownership; soak + chaos out-of-pipeline vs deployed instances.
 
 ### CLI / Library
 
@@ -105,7 +105,7 @@ Binary or package consumed via CLI or an exported API.
 - **Coverage layers:** public-interface behavior (unit/component invoking the real surface) → process startup for a CLI (deployed-binary test invoking the real artifact) → any external deps via owned adapters.
 - **Isolation:** test through the public invocation surface (args/stdin/stdout/exit codes for a CLI; exported functions for a library); double external deps via adapters.
 - **Success/failure:** documented commands/flags produce documented output + exit code; bad args → documented error + non-zero exit; stdin/stdout/stderr contracts; backward-compatible public API (the consumer's contract).
-- **Double validation:** a small set of deployed-binary tests invoke the real built artifact to catch packaging/startup gaps unit tests miss.
+- **Double validation:** a small set of deployed-binary tests invoke the real built artifact to catch packaging/startup gaps unit tests miss. Unlike Scheduled Job's equivalent check (out-of-band, below), this smoke is deterministic enough to gate in-band when it exercises only the artifact itself — startup, arg parsing, exit codes — with no external system configured: any external dep it does call is already behind an owned adapter (per Isolation above), so the smoke carries none of the source/sink/scheduler coupling that pushes Scheduled Job's version out-of-band.
 - **Pipeline:** unit + component Stage 1; deployed-binary smoke Stage 1/2.
 
 ---
