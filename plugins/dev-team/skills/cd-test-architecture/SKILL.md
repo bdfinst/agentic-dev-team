@@ -49,7 +49,7 @@ Resolve the project's stack so the assessment can resolve concrete tools from `k
 
 ### 1. Inventory the application's components
 
-Map the deployable/testable surfaces and assign each its pattern from `component-test-patterns.md` (User Interface; API Provider / API Consumer / Event Consumer / Event Producer / Stateful Service / CLI-Library; Scheduled Job). A real system is usually several — list each surface.
+Map the deployable/testable surfaces and assign each its pattern from `component-test-patterns.md` (User Interface; API Provider / API Consumer / Event Consumer / Event Producer / Stateful Service / CLI-Library; Scheduled Job). A real system is usually several — list each surface. For each API Consumer, Event Consumer, or Event Producer component, also record whether the dependency is team-controlled (in-house, containerizable) or third-party/other-team, per `component-test-patterns.md`'s ownership guidance — assume no provider cooperation for dependencies the team doesn't control.
 
 **Graph-assisted inventory.** If the target repo has `.codegraph/` (CodeGraph MCP server, `mcp__codegraph__codegraph_explore` — fast callers/callees/impact lookups) and/or a Repowise MCP server (`get_context`/`search_codebase` — verified context and semantic search), prefer them over raw `Grep` for locating components, their deployable surfaces, and existing test suites. Never assume either is present — fall back to `Read`/`Grep`/`Glob` when absent; the tools are simply unavailable (no error) on repos without an index.
 
