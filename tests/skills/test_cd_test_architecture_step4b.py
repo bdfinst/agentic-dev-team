@@ -46,10 +46,19 @@ def _database_specific_branch_section() -> str:
     # the `- **` bullets in the "Database-specific branch" subsection. Scope
     # to the subsection explicitly so `section()`'s first-match search
     # anchors on the bullet, not the numbered list item.
+    #
+    # boundary_pattern is `^#### ` (a sibling `####` sub-heading), not
+    # `^### 5\.` — that pattern can never occur inside _step_4b_section()'s
+    # own already-truncated text (it's consumed as _that_ function's
+    # boundary), so it would silently return "rest of 4b" instead of just
+    # this subsection. No other `####` heading exists yet, so this is
+    # behaviorally identical today, but genuinely subsection-scoped once
+    # #1434/#1435 add their own sibling `#### ` subsections after this one
+    # (correctness-review round 4, issue #1433).
     return section(
         _step_4b_section(),
         r"^#### Database-specific branch",
-        boundary_pattern=r"^### 5\.",
+        boundary_pattern=r"^#### ",
     )
 
 
@@ -110,6 +119,21 @@ def test_step_4b_uses_once_and_batched_language():
     )
 
 
+def test_step_4b_asks_one_three_way_choice_with_no_second_stage():
+    # Guards the round-4 collapse itself (correctness-review, issue #1433):
+    # a revert to the old two-stage "build-vs-document, then a conditional
+    # accept/decline sub-question" model must fail this test, even though
+    # the DB-branch bullet tests and the output-table test would all still
+    # pass against either model.
+    sec = collapsed(_step_4b_section())
+    assert grep(r"choose exactly one of three options", sec, ignore_case=True)
+    assert grep(r"there is no separate follow-up sub-question", sec, ignore_case=True)
+    assert grep(r"per-component three-way answer", sec, ignore_case=True)
+    assert grep(r"1\.\s*\*\*Build \(testcontainers\)\*\*", sec)
+    assert grep(r"2\.\s*\*\*Build \(Fake\)\*\*", sec)
+    assert grep(r"3\.\s*\*\*Document-only\*\*\s*\(default\)", sec)
+
+
 def test_step_4b_documents_unattended_default_cites_human_oversight_protocol():
     sec = _step_4b_section()
     assert grep(
@@ -117,7 +141,13 @@ def test_step_4b_documents_unattended_default_cites_human_oversight_protocol():
         sec,
         ignore_case=True,
     )
-    assert grep(DOCUMENT_ONLY_PATTERN, sec, ignore_case=True)
+    # Anchored to the actual non-interactive-default claim, not just any
+    # "document-only" occurrence in the section (which the option label
+    # itself, "3. **Document-only** (default)", would also satisfy) —
+    # correctness-review round 4, issue #1433.
+    assert grep(
+        r"lands in the report only, document-only", collapsed(sec), ignore_case=True
+    )
     assert grep(r"no prompt", sec, ignore_case=True)
 
 
@@ -132,7 +162,12 @@ def test_step_4b_ambiguous_answer_defaults_to_document_only():
     # issue #1433).
     assert grep(r'bare "?yes"?.{0,15}"?no"?', sec, ignore_case=True)
     assert grep(r"silence|empty|no answer", sec, ignore_case=True)
-    assert grep(DOCUMENT_ONLY_PATTERN, sec, ignore_case=True)
+    # Anchored to the actual ambiguous-defaults-to-Document-only claim, not
+    # just any "document-only" occurrence in the section (correctness-review
+    # round 4, issue #1433).
+    assert grep(
+        r"defaults to Document-only for that component", collapsed(sec), ignore_case=True
+    )
 
 
 def test_step_4b_no_gap_no_behavior_change():

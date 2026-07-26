@@ -24,7 +24,7 @@ Grounded in these knowledge references — read the first two before assessing:
 - `knowledge/cd-test-architecture.md` — the six test types, the determinism→pre-merge-gate rule, the adapter rule, double validation, pipeline stages, and MinimumCD-vs-Fowler terminology.
 - `knowledge/component-test-patterns.md` — per-component patterns (UI / Services / Batch) with isolation strategy and pipeline placement.
 - `knowledge/database-test-patterns.md` — load when a component is database-backed: Database Sandbox isolation, Transaction Rollback / Table Truncation Teardown, and the rule that pushes most data-logic tests onto in-memory Fakes so they stay pre-merge-gate eligible.
-- `knowledge/test-doubles.md` — the Stub/Fake/Mock/Spy taxonomy; load when Step 4b's database branch proposes a hand-rolled Fake fallback, so it's named correctly (a Fake, never a "mock").
+- `knowledge/test-doubles.md` — the Stub/Fake/Mock/Spy taxonomy; load when Step 4b's database branch proposes a hand-rolled Fake double, so it's named correctly (a Fake, never a "mock").
 
 ## Constraints
 
@@ -99,14 +99,14 @@ Per component, using its pattern: which test types cover which layers, **what to
 When Step 4 identifies one or more components needing an off-gate adapter test double (today: a testcontainers-based real-DB test), ask the operator once per run, batched across every such component regardless of adapter kind — this is the shared prompt later adapter-kind slices (#1434 downstream services, #1435 record-and-replay libraries) append to, not a new prompt each run. The one prompt lists every such component and asks the operator, for each one, to choose exactly one of three options — there is no separate follow-up sub-question:
 
 1. **Build (testcontainers)** — propose a downstream Story for a testcontainers-based real-DB test that the operator/orchestrator later drives `/build` against.
-2. **Build (Fake)** — propose a downstream Story for a hand-rolled Fake database double instead.
+2. **Build (Fake)** — propose a downstream Story for a hand-rolled Fake database double.
 3. **Document-only** (default) — the recommendation lands in the report as today, with no further action.
 
 The operator answers with one of these three choices for each listed component in a single reply — one prompt is surfaced per run, carrying a per-component three-way answer, not one verdict applied to every component in the batch.
 
 Non-interactive runs (per `human-oversight-protocol`'s `--yes` / `DEV_TEAM_AUTO_APPROVE=1` / no-TTY convention) skip the prompt entirely — no prompt is surfaced, and every such component's recommendation lands in the report only, document-only, exactly as today.
 
-An ambiguous or absent answer for any component in the batched three-way question — for example "maybe", "I'm not sure", a bare "yes" or "no" (neither maps to one of the three labeled options), or silence/empty input — defaults to Document-only for that component, same as any other ambiguous answer: never guessed, never blocked on.
+An ambiguous or absent answer for any component in the batched three-way question — for example "maybe", "I'm not sure", a bare "yes" or "no", an unqualified "build" that does not name which of the two Build options (none of these map to one of the three labeled options), or silence/empty input — defaults to Document-only for that component, same as any other ambiguous answer: never guessed, never blocked on.
 
 Repos with no such gap see no behavior change: no prompt is asked, and the report is unchanged.
 
@@ -115,7 +115,7 @@ Repos with no such gap see no behavior change: no prompt is asked, and the repor
 For the database-IS-the-SUT band, the three-way answer directly determines the outcome per component:
 
 - **Build (testcontainers)** — propose a Story titled `[<component>] Add testcontainers-based real-DB test`. Its description names Database Sandbox isolation and both teardown options — Transaction Rollback and Table Truncation — and cites `database-test-patterns.md`.
-- **Build (Fake)** — propose a Story titled `[<component>] Add hand-rolled Fake database double` instead. Its description names the Fake as an in-memory repository implementing the same interface, per `test-doubles.md`'s Fake taxonomy, cites both `database-test-patterns.md` and `test-doubles.md`, and carries this caveat verbatim, unconditional on this choice: "Caveat: this hand-rolled Fake cannot verify actual SQL, mapping, or schema correctness the way a real-engine test can — a deliberate coverage trade-off, not a silent downgrade."
+- **Build (Fake)** — propose a Story titled `[<component>] Add hand-rolled Fake database double`. Its description names the Fake as an in-memory repository implementing the same interface, per `test-doubles.md`'s Fake taxonomy, cites both `database-test-patterns.md` and `test-doubles.md`, and always carries this caveat verbatim: "Caveat: this hand-rolled Fake cannot verify actual SQL, mapping, or schema correctness the way a real-engine test can — a deliberate coverage trade-off, not a silent downgrade."
 - **Document-only** — the recommendation lands in the report only, as today; no further action.
 
 ### 5. Produce a migration path
