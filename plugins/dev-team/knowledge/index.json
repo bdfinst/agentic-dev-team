@@ -2009,7 +2009,7 @@
       "anchor": "2-apply-step-4bs-decision-logic"
     },
     "3. Dispatch": {
-      "summary": "Resolving each component's outcome writes or updates that component's Story",
+      "summary": "`cd-test-architecture` is advisory only (its own Constraints: \"it proposes",
       "anchor": "3-dispatch"
     }
   },

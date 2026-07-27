@@ -213,7 +213,7 @@ body.
 ### Target architecture (per component)
 | Component | Layer | Test type | Double (to run config-free) | Pipeline stage | Build/Document status |
 
-`Build/Document status` is one of `Build (testcontainers)`, `Build (Fake)`, or `Document-only` (set per Step 4b). A row whose status is `Build (Fake)` also carries that row's branch-specific caveat, verbatim, in the same cell — see the Database-specific branch or Downstream-service branch above for the exact wording.
+`Build/Document status` is one of `Build (testcontainers)`, `Build (Fake)`, or `Document-only` (set per Step 4b) for a row Step 4 flagged as needing an off-gate adapter test double. A row Step 4 did not flag for that decision (e.g. a component/layer already pre-merge-gate-eligible with no real dependency to double) carries **no value in this column at all** — left blank, never one of the three enum values and never guessed. This blank-vs-set distinction is the literal, table-level signal for which rows are off-gate-eligible; `/apply-test-doubles` cites this sentence rather than re-deriving its own eligibility rule. A row whose status is `Build (Fake)` also carries that row's branch-specific caveat, verbatim, in the same cell — see the Database-specific branch or Downstream-service branch above for the exact wording.
 
 When Step 0 loaded a `knowledge/test-stack-profiles/<stack>.md` profile, **cite that profile** (and any reference it points at) in the *Test type* or *Double* column so the concrete tool choice is traceable to the stack-specific reference.
 
@@ -285,12 +285,8 @@ adapter-double recommendation at all) gets no section. Each section has:
 5. The closing command `/apply-test-doubles <path>`, where `<path>` is
    always the **main assessment report's own resolved path**
    (`.dev-team-reports/cd-test-architecture-<app>.md`), never the setup
-   guide's own path — per #1437's own issue text, quoted verbatim: "New
-   skill, `/apply-test-doubles <report-path> [--component <name>]`" and
-   "invocation is exactly `/apply-test-doubles <report-path-or-target>` (the
-   optional `--component` filter is the only other argument)". (Maintainer
-   note, not emitted content: #1437 has shipped — this citation is now real,
-   working guidance.) In the
+   guide's own path — per `../apply-test-doubles/SKILL.md`'s own Parse
+   Arguments section, not restated here. In the
    single-component chat-only case, there is no saved main-report file to
    substitute for `<path>` — the assessment output is in this chat session,
    not a saved file — so the closing command is emitted with no path

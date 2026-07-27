@@ -288,7 +288,11 @@ def test_no_stack_profile_states_that_plainly_not_an_invented_citation():
 
 def test_every_section_ends_with_apply_test_doubles_command_using_report_path():
     # Asserts <path> is the main report's own resolved path, not the setup
-    # guide's own path — the round-1-review-fixed ambiguity.
+    # guide's own path — the round-1-review-fixed ambiguity. Now that #1437
+    # has shipped, this grounds itself in the real skill's own contract
+    # rather than a quoted issue-text excerpt (arch-review, #1437's
+    # code-review panel: the issue-text quote had already drifted from the
+    # shipped skill's actual, optional-positional argument shape).
     sec = _section()
     assert grep(r"/apply-test-doubles <path>", sec)
     assert grep(
@@ -298,8 +302,13 @@ def test_every_section_ends_with_apply_test_doubles_command_using_report_path():
     )
     assert grep(r"\.dev-team-reports/cd-test-architecture-<app>\.md", sec)
     assert grep(r"never the setup guide's own path", sec, ignore_case=True)
-    assert grep(r"per #1437's own issue text", sec, ignore_case=True)
-    assert grep(r"/apply-test-doubles\s*<report-path>", sec, ignore_case=True)
+    assert grep(
+        r"per `\.\./apply-test-doubles/SKILL\.md`'s own Parse Arguments "
+        r"section, not restated here",
+        sec,
+        ignore_case=True,
+    )
+    assert not grep(r"per #1437's own issue text", sec, ignore_case=True)
 
 
 def test_chat_only_case_apply_test_doubles_has_no_path_to_substitute():

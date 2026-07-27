@@ -57,6 +57,7 @@ categories:
         mutation-testing,
         farley-score,
         cd-test-architecture,
+        apply-test-doubles,
         exploratory-testing,
         explore,
         coverage-baseline,
