@@ -46,73 +46,56 @@ review-agent dispatches in addition to this hash match — not instead of it.
 That module is kept deliberately separate from this one: this module stays
 a small, pure hash function with no registry or metrics-stream knowledge;
 the corroboration module owns that heavier responsibility on its own.
+
+The `-c diff.relative=false` / `--ignore-submodules=none` safety flags below
+are shared with `hooks/pre_commit_review.py`'s `_staged_names()` via
+`hooks/lib/git_safe_diff.py` (#1477) rather than duplicated here — see that
+module's docstring for the full rationale of each shared flag.
 """
 
 from __future__ import annotations
 
 import hashlib
-import subprocess
+import sys
 from pathlib import Path
+
+_LIB_DIR = Path(__file__).resolve().parent
+if str(_LIB_DIR) not in sys.path:
+    sys.path.insert(0, str(_LIB_DIR))
+
+from git_safe_diff import run_safe_git_diff  # noqa: E402
 
 
 def review_gate_hash(cwd: Path | None = None) -> str:
     """Return the sha256 hex digest of `git diff --cached`, rendered with
     git's own built-in diff engine — cwd-relative and submodule-ignoring
     config, plus any external diff/textconv driver, are all deliberately
-    pinned off (#1461 third/fourth/fifth security re-review; see the
-    inline comment on each flag below for its specific rationale). This
-    is NOT simply `git diff --cached --no-color` under a non-default
-    config — that divergence from the literal command text is the point.
+    pinned off (#1461 third/fourth/fifth security re-review). This is NOT
+    simply `git diff --cached --no-color` under a non-default config —
+    that divergence from the literal command text is the point.
+
+    `-c diff.relative=false` and `--ignore-submodules=none` are the shared
+    flags from `git_safe_diff.run_safe_git_diff` (see that module's
+    docstring for the full rationale of each). `--no-color --no-ext-diff
+    --no-textconv` are passed as this function's own `extra_flags` (#1461
+    FOURTH security re-review, error-severity): without them, a
+    `diff.external` config or a `GIT_EXTERNAL_DIFF` env var replaces git's
+    own diff rendering entirely — including the `diff --git`/`index`
+    headers this hash is computed over. `git config diff.external
+    /usr/bin/true` would otherwise collapse this function's output to
+    `sha256(b"")` for EVERY changeset, turning `subject_hash` into a
+    CONSTANT: one honest `/code-review`'s genuine, unforged ledger
+    dispatches would then corroborate every subsequent arbitrary changeset
+    within the recency window, defeating the whole subject-binding fix
+    without forging anything.
 
     sha256 hex-encoded; empty-input digest (`sha256(b"")`) on git failure.
     """
     try:
-        completed = subprocess.run(
-            # `-c diff.relative=false` (#1461 third security re-review):
-            # without it, a repo/global `diff.relative=true` config
-            # silently scopes `git diff` to the invocation's cwd and
-            # relativizes its paths — truncating the hashed patch to a
-            # subtree when this hook runs from a subdirectory, exactly the
-            # kind of cwd-dependent divergence the rest of #1461's hardening
-            # was fixed to avoid. Pinning it false makes this call agree
-            # with `hooks/pre_commit_review.py`'s `_staged_names()`, which
-            # pins the same override for the same reason.
-            #
-            # `--no-ext-diff --no-textconv` (#1461 FOURTH security
-            # re-review, error-severity): without these, a `diff.external`
-            # config or a `GIT_EXTERNAL_DIFF` env var replaces git's own
-            # diff rendering entirely — including the `diff --git`/`index`
-            # headers this hash is computed over. `git config diff.external
-            # /usr/bin/true` collapses this function's output to
-            # `sha256(b"")` for EVERY changeset, turning `subject_hash`
-            # into a CONSTANT: one honest `/code-review`'s genuine,
-            # unforged ledger dispatches would then corroborate every
-            # subsequent arbitrary changeset within the recency window,
-            # defeating the whole subject-binding fix without forging
-            # anything. `--no-ext-diff`/`--no-textconv` disable both the
-            # config and the env-var form of external diff/textconv
-            # drivers.
-            #
-            # `--ignore-submodules=none` (#1461 FIFTH security re-review —
-            # the `-c diff.ignoreSubmodules=none` form tried first does NOT
-            # suffice): a `diff.ignoreSubmodules=all` config only sets the
-            # DEFAULT for `--ignore-submodules` — it is overridden by a
-            # per-submodule `submodule.<name>.ignore` (in `.git/config`) OR
-            # by an `ignore` key in a COMMITTED `.gitmodules` file, neither
-            # of which needs local git-config write access (a hostile PR
-            # can ship the latter). Only the command-line option beats both.
-            # Without it, a changeset consisting only of a submodule pointer
-            # bump (importing arbitrary third-party code) hashes identically
-            # to no change at all.
-            [
-                "git",
-                "-c", "diff.relative=false",
-                "diff", "--cached", "--no-color",
-                "--no-ext-diff", "--no-textconv", "--ignore-submodules=none",
-            ],
-            cwd=str(cwd) if cwd is not None else None,
-            capture_output=True,
-            check=False,
+        completed = run_safe_git_diff(
+            ["--no-color", "--no-ext-diff", "--no-textconv"],
+            cwd=cwd,
+            text=False,
         )
     except (FileNotFoundError, OSError):
         # git not installed; the .sh would have `command not found` on stderr
