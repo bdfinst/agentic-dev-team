@@ -98,7 +98,9 @@ Priority order:
 1. `--path <dir>` — files in that directory (exclude node_modules, .git, dist, build, coverage)
 2. `--since <ref>` — `git diff --name-only <ref>...HEAD`
 3. `--all` — all source files
-4. **Auto-scope** (no flags): run `git diff --name-only` + `git diff --cached --name-only`, combine and dedupe. If non-empty, review those files. If empty, review the full repository.
+4. **Auto-scope** (no flags): run `git -c diff.relative=false diff --name-only` + `git -c diff.relative=false diff --cached --name-only`, combine and dedupe. If non-empty, review those files. If empty, review the full repository. The explicit `-c diff.relative=false` matters here (#1461 fourth security re-review): a repo/global `diff.relative=true` config would otherwise silently scope this listing to the invocation's cwd, and `review_gate_hash()`/`_staged_names()` (which pin the same override) would then hash/gate a broader staged patch than what was actually reviewed.
+
+**Stage auto-scoped changes now, before anything else (#1461).** When the auto-scope path found a non-empty file set, `git add` those files immediately — before pre-flight gates, static analysis, or any agent dispatch — so the staged content's hash is fixed from this point through step 9's gate write. This is not cosmetic: `agent_dispatch_ledger.py` stamps each review-agent dispatch's `subject_hash` with `review_gate_hash()` at **dispatch time** (step 4). If staging happened only at step 9 (after dispatch) as previously documented, the dispatch-time hash and the gate-write-time hash would differ whenever the auto-scope target was unstaged — the common case — and every genuine dispatch would silently fail to corroborate the gate, forcing a hard block on a fully legitimate review. Staging here, before dispatch, is what makes step 9's hash and the dispatch ledger's `subject_hash` the same value. An unstaged working-tree edit after this point does **not** by itself change the staged hash (`review_gate_hash()` hashes `git diff --cached`, not the working tree) — step 6a's fix loop explicitly re-stages (`git add`) each iteration's fixes for exactly this reason; see that step for how corroboration is re-established after a fix loop runs.
 
 **Never `Read` a directory path directly to enumerate its contents** — `Read` on a directory throws `EISDIR` (the same hazard step 3 avoids for agent-roster enumeration). This applies to `--path <dir>`, `--all`, and the full-repository fallback alike: always list files with `Glob` (e.g. `Glob("<dir>/**/*")`), never a bare `Read` on the directory itself. See `${CLAUDE_PLUGIN_ROOT}/knowledge/directory-enumeration.md` for the shared rule.
 
@@ -358,22 +360,36 @@ while actionable_issues > 0 AND iteration ≤ MAX_ITERATIONS:
     2. After each iteration's fixes, run the project's test suite.
        If tests fail, revert the last fix that broke them and mark the
        issue [auto-fix failed — human review required].
-    3. Re-run only the agents that reported actionable issues, against only
+    3. **When the review was auto-scoped to uncommitted changes** (the only
+       scope that ever writes a gate file — see step 9), stage the fixes
+       just applied (`git add` the modified files) — an Edit/Write only
+       touches the working tree, it does not change `git diff --cached`, so
+       without this the fixes would never reach the eventual commit (#1461
+       security re-review: an earlier draft's step 1 claimed a working-tree
+       edit "naturally" changes the staged hash — false for
+       `sha256(git diff --cached)`, and it silently dropped every fix-loop
+       iteration's output from the final commit). For `--path`/`--since`/
+       `--all` scopes, leave the index untouched — no gate is ever written
+       for those scopes, so staging here would only mutate the operator's
+       index unasked, for no corroboration benefit.
+    4. Re-run only the agents that reported actionable issues, against only
        the modified files. Carry forward statuses of agents that passed.
-    4. Re-aggregate. Reclassify remaining issues.
-    5. iteration += 1
+    5. Re-aggregate. Reclassify remaining issues.
+    6. iteration += 1
 
 if iteration > MAX_ITERATIONS AND actionable_issues > 0:
     escalate to human with remaining issues
 ```
+
+**Re-establishing dispatch-ledger corroboration after the loop (#1461, auto-scope only — same condition as item 3 above).** Step 3's `git add` changes the staged content's hash, so `agent_dispatch_ledger.py` stamps each iteration's re-dispatched agents (step 4) with that NEW hash — not step 4 (the outer, pre-loop)'s original dispatch hash, and not an earlier iteration's hash either. Step 9's gate write needs **>= 2 distinct dispatches whose `subject_hash` equals the FINAL staged content's hash** (the one actually committed). Because step 4 of this loop only re-dispatches the agents that had actionable issues, a final iteration that fixes just one agent's finding re-dispatches only that one agent against the final content — insufficient on its own. **Unconditionally, after any loop iteration ran** (i.e. any fix was applied and re-staged) — not only when the count looks short, since that count isn't something to reason about from memory — re-dispatch the FULL original agent panel once more against the final staged content before proceeding to step 7. **This re-dispatch is a real review, not a rubber stamp**: if it reports any actionable issue, treat it exactly like any other iteration — re-enter this loop (subject to `MAX_ITERATIONS`) rather than proceeding to step 7. If the iteration limit is reached with issues still outstanding, follow the existing "escalate to human" exit condition below — step 9's gate-write condition explicitly excludes this case (treat it as if overall status were `fail` for that one purpose, even if every outstanding issue is only `warning`-severity), so an escalation is never silently overridden by a passing gate write. A corroboration pass whose findings carry no consequence would be exactly the "dispatch trivial calls purely to clear the gate" abuse `pre_commit_review.py`'s own module docstring names as the residual risk this mechanism does NOT protect against.
 
 **Exit conditions**:
 
 | Condition | Action |
 | --- | --- |
 | Zero actionable issues | Exit → step 7 |
-| Iteration limit (5) | Exit → escalate |
-| Same issues persist | Exit — not converging |
+| Iteration limit (5) | Exit → escalate (#1461: step 9 treats this as `fail` for its gate-write condition, even if remaining issues are only `warning`-severity) |
+| Same issues persist | Exit → escalate — not converging (same #1461 step 9 treatment as the iteration-limit row: this is also an escalation with actionable issues outstanding, not a quiet exit) |
 | Tests fail after fix and revert | Mark issue human-required; continue |
 
 Track each iteration for the report — template in [`output-format.md`](output-format.md#review-fix-loop-iteration-log-step-6a-iv).
@@ -433,7 +449,7 @@ For issues NOT auto-fixed (confidence: none, auto-fix failed, or suggestions), g
 
 **Skip this entire step if `--json` was set** (same reason as step 8).
 
-If the review was auto-scoped to uncommitted changes and the overall status is `pass` or `warn`, write `.review-passed` to `.claude/memory/` so the pre-commit hook allows the next commit. Use the **shared gate-hash helper** so the writer and the pre-commit hook compute the hash identically — it hashes the staged **content** (the cached patch), not just the file paths (#193), so any edit after review invalidates the gate:
+If the review was auto-scoped to uncommitted changes and the overall status is `pass` or `warn` **and step 6a did not exit with actionable issues outstanding** — whether via the iteration limit or the "not converging" exit, both of which are escalations, per that step's Exit conditions table (regardless of whether those outstanding issues are only `warning`-severity — either escalation overrides `warn` for this condition specifically, since escalating and then writing a passing gate anyway would silently defeat the escalation) — write `.review-passed` to `.claude/memory/` so the pre-commit hook allows the next commit. Use the **shared gate-hash helper** so the writer and the pre-commit hook compute the hash identically — it hashes the staged **content** (the cached patch), not just the file paths (#193), so any edit after review invalidates the gate:
 
 ```bash
 HASH=$(python3 ${CLAUDE_PLUGIN_ROOT}/hooks/lib/review_gate_hash.py)
@@ -446,6 +462,6 @@ mkdir -p .claude/memory && echo "$HASH" > .claude/memory/.review-passed
 python3 ${CLAUDE_PLUGIN_ROOT}/hooks/lib/boundary_events.py --event single-agent --subject-hash "$HASH"
 ```
 
-Stage the exact changes you reviewed (`git add` them) before writing the gate, so the staged content the hook hashes matches what was reviewed. If `git diff --cached` is empty (you reviewed unstaged changes), stage them first — the gate binds to the staged patch by design.
+This step only runs when the review was auto-scoped to uncommitted changes (see the gate condition above), and that path already staged these changes in step 1, before any agent was dispatched — that ordering, not a re-stage here, is what makes this hash match the `subject_hash` `agent_dispatch_ledger.py` recorded at dispatch time (#1461), refreshed by step 6a's own re-staging when a fix loop ran. Do not `git add` a different file set at this point: staging something here that wasn't already staged (and therefore wasn't the reviewed, dispatch-hashed content) would write a gate hash with no corroborating dispatch evidence behind it.
 
 If overall status is `fail`, do **not** write the gate file — the pre-commit hook will keep blocking until issues are resolved and the review re-run.

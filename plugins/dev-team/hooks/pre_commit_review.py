@@ -40,6 +40,53 @@ confirming `Agent`/`Task` tool availability before dispatching any review
 agent, and STOP — no self-applied review, no `.review-passed` write — when
 that capability is absent.
 
+KNOWN RESIDUAL GAPS (#1461 security re-review), disclosed rather than
+silently accepted:
+
+1. `hooks/agent_dispatch_ledger.py` is itself directly executable from Bash
+   with a hand-crafted stdin payload — see that module's own docstring for
+   the full account. Locking down `boundary_events.py`'s CLI closed one
+   forgery path but not this sibling one; genuine harness-level provenance
+   (a signed dispatch receipt) is still needed for full closure and is
+   outside this repo's control.
+2. `git commit -a`/`--all` and pathspec-form commits (e.g. `git commit -am
+   ...` or `git commit path/to/file.txt -m ...`) commit tracked-file changes
+   that were never staged via `git add` — `_staged_names()` sees an empty
+   index and `main()` returns 0 (nothing to gate) before any corroboration
+   logic runs, silently skipping this entire mechanism with no bypass-audit
+   entry. This is pre-existing (predates #1461) but defeats the dispatch-
+   ledger hardening just as completely as the hash-only gate it replaced.
+   Tracked as a follow-up rather than fixed here — see the issue filed
+   alongside this disclosure.
+3. The recency window's anchor (`before_ts`, `.claude/memory/.review-passed`'s
+   own mtime) is a filesystem timestamp fully controlled by the same party
+   the gate constrains — `os.utime()`/`touch -d` can backdate it without
+   touching the file's content or hash. Backdating the anchor into the past
+   can shift the `WINDOW_SECONDS` window to overlap an old, otherwise-stale
+   genuine dispatch for the SAME subject_hash (e.g. a review of this exact
+   content from hours ago, correctly rejected today as stale), re-admitting
+   it without any ledger forgery. No fix applied here: the mtime anchor is
+   also what lets `test_rewritten_gate_file_anchors_on_its_own_new_mtime_not_
+   original_dispatch` simulate time passage hermetically (without a real
+   `sleep`), so switching to wall-clock `now()` isn't a drop-in improvement —
+   it would need a redesign of that test contract too.
+4. The `staged is None` fail-closed check runs BEFORE `has_bypass_flag()` in
+   `main()`, so a gate-setup failure (corrupt/locked git index) also blocks
+   the audited `GATE_BYPASS_REASON` escape hatch — unlike the sibling
+   mkdir/hash-resolution failure further down, which still allows the
+   audited bypass. Errs toward blocking, never toward a silent allow, but
+   the two `gate-setup-failure` sites are inconsistent about whether the
+   sanctioned escape stays reachable. Not restructured here to avoid
+   weakening the fail-closed guarantee under time pressure.
+5. `evidence.same_subject_dispatch_ever` in `review_gate_corroboration.py`
+   is computed before the live-registry filter, so a same-subject,
+   in-window dispatch whose `matched_rule` is no longer a registered agent
+   (renamed/removed) reports `_STALE_MESSAGE` ("outside the window")
+   instead of a more accurate "review agent no longer registered" message.
+   The gate decision itself is still correctly fail-closed; only the
+   operator-facing message and the `dispatch-evidence-stale` audit rule are
+   imprecise in this one edge case.
+
 Non-commit Bash commands pass through immediately (exit 0).
 `git commit --no-verify` (or bare `-n`) is still allowed through — but
 only when the process environment carries a non-empty `GATE_BYPASS_REASON`.
@@ -142,6 +189,7 @@ except ImportError:  # pragma: no cover
 
         agents_in_window: frozenset = frozenset()
         any_dispatch_ever = False
+        same_subject_dispatch_ever = False
         read_failure_reason = "unreadable"
 
     def _evaluate_ledger(cwd, before_ts, window_seconds, subject_hash):  # type: ignore[misc]
@@ -221,11 +269,142 @@ _STALE_MESSAGE = (
     f"{WINDOW_SECONDS}s window — run /code-review again before committing.\n"
 )
 
+# Distinct from _STALE_MESSAGE (#1461 second security re-review, correctness
+# finding): _STALE_MESSAGE means "a genuine dispatch for THIS content
+# happened, just too long ago" — this means "genuine dispatches exist, but
+# only for DIFFERENT staged content" (the diff changed since that review).
+# Conflating the two under _STALE_MESSAGE told the operator to wait/re-run
+# for a staleness problem they didn't have, without naming the actual cause
+# (the staged content changed).
+_DIFFERENT_CONTENT_MESSAGE = (
+    "BLOCKED: Review-agent dispatch evidence found, but for different "
+    "staged content (the diff changed since that review) — run "
+    "/code-review again before committing.\n"
+)
+
 _READ_FAILURE_MESSAGE = (
     "BLOCKED: Could not read the dispatch ledger "
     "(.claude/metrics/boundary-events.jsonl) — check hook registration; "
     "this is an infra problem, not evidence that no review happened.\n"
 )
+
+# Distinct from _READ_FAILURE_MESSAGE (#1461 security re-review, A09
+# finding): the ledger read failure above means "the gate decision itself
+# ran, but couldn't read the corroboration evidence"; this one means "the
+# hook couldn't even determine the gate's own preconditions" — resolving
+# the staged-file list or the gate-file path failed (a corrupt/locked git
+# index, a `.claude/memory` path that exists as a non-directory, a
+# read-only project tree). Reporting both under one rule ID would
+# mislabel every gate-path-setup failure as a ledger problem in the audit
+# trail (`.claude/metrics/boundary-events.jsonl` itself), pointing anyone
+# reading it at the wrong file to fix.
+_GATE_SETUP_FAILURE_MESSAGE = (
+    "BLOCKED: Could not determine the review-gate's own state (staged "
+    "files or the .claude/memory/.review-passed path) — check that "
+    ".claude/memory is a writable directory and the git index is healthy; "
+    "this is an infra problem, not evidence that no review happened.\n"
+)
+
+
+# Re-derives the doc-only exemption's OWN predicate on the verifier side
+# (#1461 security review) rather than trusting the claim in the ledger
+# event: `--event doc-only` (boundary_events.py) is written by the SAME
+# untrusted party this gate exists to constrain, so an unconditional "the
+# event exists, therefore trust it" check is the classic trust-the-client
+# pattern — nothing previously verified the exempted diff was actually
+# documentation.
+#
+# Deliberately a TIGHTER re-implementation of `code-review/SKILL.md`'s
+# doc-only short-circuit and `skills/code-review/scripts/change_shape.py`'s
+# `_is_documentation` (duplicated, not imported — scripts/ is not a
+# dependency hooks/ should take on), not a lockstep copy (#1461 second
+# security re-review found the original copy exploitable): those two only
+# ever ADD a review lens or skip everything on already-honest input; this
+# function is the sole gate deciding whether a "record zero dispatch
+# evidence" exemption is honored at all, so it must be a STRICT SUBSET of
+# what SKILL.md/change_shape.py would call documentation, never a superset.
+# Concretely: (1) a root-doc EXACT NAME (README, LICENSE, ...) only counts
+# at the repository root (`len(parts) == 1`) AND only when the stem carries
+# NO extension at all — `license_manager.py` staged at the repo root must
+# never match merely because its basename starts with "license", and
+# (#1461 FOURTH security re-review) `license-check` or `readme-lint` must
+# never match either, despite also being extensionless: an earlier fix
+# used `stem.startswith(prefix)`, which still admitted any extensionless
+# name merely beginning with a root-doc prefix. Exact membership in
+# `_DOC_ROOT_NAMES` is the only form that matches this comment's own
+# stated intent ("the genuinely extensionless case: LICENSE, NOTICE,
+# AUTHORS") — a `README.txt`-shaped file is already covered by the
+# `_DOC_EXTENSIONS` branch above, so this branch exists ONLY for those
+# exact extensionless root docs, nothing glob-shaped; (2) a `docs/`
+# directory membership alone is NOT sufficient — a doc extension is still
+# required, since `docs/conf.py` or a doc-site build script is executable
+# code that happens to live under `docs/`. Path segments are lower-cased
+# once, matching the stem, so a case-insensitive checkout (`Agents/foo.md`,
+# `.Claude/x.md`) can't escape the functional-config exclusion below by case
+# alone. `_FUNCTIONAL_CONFIG_SEGMENTS`'s bare `"agents"` entry already
+# matches `templates/agents/`, and any other `.../agents/...` path, exactly
+# per `code-review/SKILL.md`'s literal stated rule — no separate
+# templates-specific helper is needed. If this rule ever needs to change,
+# change it here first and only loosen the lens-narrowing siblings to
+# match — never the reverse.
+_DOC_EXTENSIONS = {".md", ".mdx", ".markdown", ".rst", ".txt", ".adoc"}
+_DOC_ROOT_NAMES = {
+    "readme", "changelog", "contributing", "license", "notice",
+    "authors", "code_of_conduct",
+}
+_FUNCTIONAL_CONFIG_SEGMENTS = {".claude", "agents", "skills", "prompts", "knowledge"}
+_FUNCTIONAL_CONFIG_NAMES = {"claude.md", "agents.md"}
+
+# `.txt` is in `_DOC_EXTENSIONS` for real plain-text docs (README.txt), but a
+# `.txt`/`.md`-shaped dependency manifest or build file is executable/
+# supply-chain surface, not documentation (#1461 fourth security re-review) —
+# denylisted by exact name regardless of matching a doc extension above.
+_NON_DOC_NAMES_DESPITE_EXTENSION = {
+    "requirements.txt", "requirements-dev.txt", "constraints.txt",
+    "cmakelists.txt",
+}
+# Same denylist, by directory instead of exact basename (#1461 fifth
+# security re-review): the common multi-file pip layout
+# (`requirements/base.txt`, `constraints/pins.txt`) escapes the exact-name
+# check above while still matching `_DOC_EXTENSIONS`.
+_NON_DOC_DIR_SEGMENTS = {"requirements", "constraints"}
+
+
+def _is_doc_only_changeset(files: list[str]) -> bool:
+    """True only when EVERY given path is provably documentation and none is
+    functional Claude-config markdown. An empty list — or a list whose every
+    entry is blank/unusable — is not doc-only: there is nothing to exempt,
+    so this must never vacuously pass."""
+    saw_any = False
+    for raw in files:
+        name = raw.strip()
+        if not name:
+            continue
+        parts = [p.lower() for p in name.replace("\\", "/").split("/") if p]
+        if not parts:
+            continue
+        saw_any = True
+        stem = parts[-1]
+        suffix = "." + stem.rsplit(".", 1)[-1] if "." in stem else ""
+        in_non_doc_dir = suffix in _DOC_EXTENSIONS and any(
+            seg in _NON_DOC_DIR_SEGMENTS for seg in parts[:-1]
+        )
+        if (
+            stem in _FUNCTIONAL_CONFIG_NAMES
+            or stem in _NON_DOC_NAMES_DESPITE_EXTENSION
+            or in_non_doc_dir
+            or any(seg in _FUNCTIONAL_CONFIG_SEGMENTS for seg in parts)
+        ):
+            return False
+        if suffix in _DOC_EXTENSIONS:
+            continue
+        # A root-doc EXACT NAME (README, LICENSE, ...) only counts at the
+        # repo root — never at any depth, never with an extension, and
+        # never merely as a name PREFIX (`license-check` is not "license").
+        if len(parts) == 1 and stem in _DOC_ROOT_NAMES:
+            continue
+        return False
+    return saw_any
 
 
 def _insufficient_message(n: int) -> str:
@@ -245,25 +424,55 @@ def _emit_block(message: str) -> None:
     sys.stderr.write(message)
 
 
-def _staged_names() -> list[str]:
+def _staged_names(cwd: str | None = None) -> list[str] | None:
+    """Return the staged file list, or `None` when git could not be asked at
+    all (#1461 security re-review, correctness finding): a `None` return
+    means "couldn't determine", a `[]` return means "genuinely nothing
+    staged" — `main()` must fail CLOSED on the former and only silently
+    pass through on the latter. A broad `except Exception` (not just
+    `FileNotFoundError`/`OSError`) is deliberate here: any unexpected
+    failure to even run `git` must be reported as "couldn't determine",
+    never silently folded into "nothing staged"."""
     try:
         completed = subprocess.run(
-            ["git", "diff", "--cached", "--name-only"],
+            # `-c diff.relative=false` (#1461 third security re-review): a
+            # repo/global `diff.relative=true` config silently scopes and
+            # relativizes `git diff` output to the invocation's cwd,
+            # truncating this list when the hook runs from a subdirectory.
+            # `--ignore-submodules=none` (#1461 fifth security re-review —
+            # a `-c diff.ignoreSubmodules=none` default was tried first and
+            # found insufficient: it's overridden by a per-submodule
+            # `submodule.<name>.ignore`, including one shipped in a
+            # COMMITTED `.gitmodules`, which needs no local config-write
+            # access). Without the command-line form, a staged
+            # submodule-pointer-only change (importing arbitrary
+            # third-party code) is omitted from this list entirely, routing
+            # it through `main()`'s "nothing staged" path with no gate
+            # evaluation at all. `review_gate_hash()` pins the same
+            # override for the same reason, so the two functions stay in
+            # agreement.
+            [
+                "git",
+                "-c", "diff.relative=false",
+                "diff", "--cached", "--name-only", "--ignore-submodules=none",
+            ],
+            cwd=cwd or None,
             capture_output=True,
             check=False,
             text=True,
         )
-    except (FileNotFoundError, OSError):
-        return []
+    except Exception:  # noqa: BLE001 - "couldn't determine", not "nothing staged"
+        return None
     if completed.returncode != 0:
-        return []
+        return None
     return [line for line in completed.stdout.splitlines() if line]
 
 
-def _current_branch() -> str:
+def _current_branch(cwd: str | None = None) -> str:
     try:
         completed = subprocess.run(
             ["git", "branch", "--show-current"],
+            cwd=cwd or None,
             capture_output=True,
             check=False,
             text=True,
@@ -303,7 +512,7 @@ def _record_bypass_audit(flag: str, reason: str, staged_count: int, cwd: str) ->
     """
     entry = {
         "timestamp": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
-        "branch": _current_branch(),
+        "branch": _current_branch(cwd),
         "triggeredBy": flag,
         "reason": reason,
         "stagedFileCount": staged_count,
@@ -330,10 +539,23 @@ class GateVerdict:
         self.matched_rule = matched_rule
 
 
-def _evaluate_gate(gate_file: Path, current_hash: str, cwd: str) -> GateVerdict:
+def _evaluate_gate(
+    gate_file: Path, current_hash: str, cwd: str, staged: list[str]
+) -> GateVerdict:
     """Decide whether `.review-passed` corroborates a genuine, recent,
     multi-agent review (#1461) — extracted from `main()` so the decision
     logic is unit-testable independent of stdin/subprocess plumbing.
+
+    `staged` is `main()`'s own already-computed staged-file list (#1461
+    fifth structure re-review) — this function used to re-derive it with a
+    second `_staged_names(cwd)` call (a second `git diff --cached` per
+    commit) for data the caller already had. Passing it through is cheaper
+    and correct for every non-concurrent path; it does shift *when* the
+    doc-only exemption's file list is sampled to slightly before, rather
+    than slightly after, `review_gate_hash(cwd)`'s own read — a difference
+    that only matters under concurrent staging in the same working tree,
+    already dominated by the pre-existing commit-time TOCTOU this module's
+    KNOWN RESIDUAL GAPS block discloses (item 2, `git commit -a`).
 
     The existing hash-match check is preserved unchanged and evaluated
     FIRST, independent of dispatch-ledger evidence — a hash mismatch (or a
@@ -373,24 +595,47 @@ def _evaluate_gate(gate_file: Path, current_hash: str, cwd: str) -> GateVerdict:
         # evidence.
         before_ts = _mtime_to_iso(gate_file.stat().st_mtime)
 
-        if _has_doc_only_exemption(cwd, before_ts, WINDOW_SECONDS, current_hash):
-            return GateVerdict(True)
-        if _has_single_agent_exemption(cwd, before_ts, WINDOW_SECONDS, current_hash):
-            return GateVerdict(True)
-
         evidence = _evaluate_ledger(cwd, before_ts, WINDOW_SECONDS, current_hash)
         if evidence.read_failure_reason is not None:
             return GateVerdict(False, _READ_FAILURE_MESSAGE, "dispatch-ledger-read-failure")
 
         n = len(evidence.agents_in_window)
+
+        # Doc-only exemption (#1461 security review): the ledger event alone
+        # is a self-asserted claim from the same party the gate constrains —
+        # re-derive the predicate here against the ACTUAL staged files
+        # before honoring it. A claimed-but-unproven exemption does not
+        # block outright; it just falls through to the normal dispatch-
+        # evidence requirement below, same as if no exemption were claimed.
+        if _has_doc_only_exemption(
+            cwd, before_ts, WINDOW_SECONDS, current_hash
+        ) and _is_doc_only_changeset(staged):
+            return GateVerdict(True)
+
+        # Single-agent exemption: the sanctioned `--agent <name>` path
+        # deliberately dispatches exactly 1 review agent, which can never
+        # clear the `>= 2` floor on its own — but it must still have
+        # dispatched at least 1 genuine, corroborated agent (#1461 security
+        # review). Requiring `n >= 1` here closes the gap where the
+        # exemption event alone, with zero dispatch evidence, passed the
+        # gate for an arbitrary changeset.
+        if n >= 1 and _has_single_agent_exemption(
+            cwd, before_ts, WINDOW_SECONDS, current_hash
+        ):
+            return GateVerdict(True)
+
         if n >= _MIN_DISTINCT_DISPATCHES:
             return GateVerdict(True)
         if n >= 1:
             return GateVerdict(
                 False, _insufficient_message(n), "dispatch-evidence-insufficient"
             )
-        if evidence.any_dispatch_ever:
+        if evidence.same_subject_dispatch_ever:
             return GateVerdict(False, _STALE_MESSAGE, "dispatch-evidence-stale")
+        if evidence.any_dispatch_ever:
+            return GateVerdict(
+                False, _DIFFERENT_CONTENT_MESSAGE, "dispatch-evidence-different-content"
+            )
         return GateVerdict(False, _NO_DISPATCH_MESSAGE, "dispatch-evidence-missing")
     except Exception:  # noqa: BLE001 - fail CLOSED: an unexpected error is not a pass
         return GateVerdict(False, _READ_FAILURE_MESSAGE, "dispatch-ledger-read-failure")
@@ -412,8 +657,27 @@ def main() -> int:
     if not is_git_commit_command(command):
         return 0
 
-    staged = _staged_names()
-    # Nothing staged → nothing to gate.
+    # Resolved with the payload's own `cwd` (#1461 security review) — a bare
+    # `git diff --cached` without `cwd=` runs against this process's real OS
+    # cwd, which can silently disagree with the payload's project root when
+    # this hook is invoked from a subdirectory. Before this fix, that
+    # divergence meant `_staged_names()` could return `[]` (nothing staged
+    # in the process's cwd) even though the payload's project root had a
+    # real staged commit in flight — silently skipping the entire review
+    # gate, corroboration included, with no audit trail at all.
+    staged = _staged_names(cwd)
+    # `None` means git itself could not answer this question (corrupt/locked
+    # index, bad cwd, ...) — that must fail CLOSED, never be folded into
+    # "nothing staged" (#1461 security re-review): a should-block commit
+    # must not slip through just because the precondition check itself
+    # broke.
+    if staged is None:
+        _emit_block(_GATE_SETUP_FAILURE_MESSAGE)
+        emit_boundary_event(
+            cwd, "pre_commit_review", "Bash", "block", "gate-setup-failure", session_id
+        )
+        return 2
+    # Genuinely nothing staged → nothing to gate.
     if not staged:
         return 0
 
@@ -429,20 +693,46 @@ def main() -> int:
         _emit_block(_BYPASS_BLOCK_MESSAGE)
         return 2
 
-    current_hash = review_gate_hash(cwd)
+    # Everything from here to `verdict = ...` is wrapped in its own
+    # exception handler (#1461 security review) so a failure resolving or
+    # preparing the gate path can never escape to this module's top-level
+    # `except Exception: sys.exit(0)` in `__main__` — that top-level handler
+    # exists to protect against a bug in the pre-detection stdin/argument
+    # plumbing above, not to swallow a failure in the actual gate decision.
+    # Before this fix, `gate_file.parent.mkdir(...)` ran unguarded: a
+    # `.claude/memory` path that exists as a regular file (not a directory),
+    # or a read-only project tree, raised `FileExistsError`/
+    # `NotADirectoryError`/`PermissionError` here, which propagated straight
+    # past `_evaluate_gate`'s own fail-closed try/except (never entered) to
+    # the top-level fail-open — deterministically turning a should-block
+    # commit into an allow, with no gate file written and no bypass-audit
+    # entry recorded at all.
+    try:
+        current_hash = review_gate_hash(cwd)
 
-    # Resolved via the shared artifact_paths helper (#1461 security review),
-    # not a bare relative path — the latter resolves against the process's
-    # real OS cwd, which can silently disagree with `cwd` (the payload's
-    # project root) when this hook runs from a subdirectory. This now
-    # matters beyond cosmetics: the gate file's mtime anchors the dispatch-
-    # ledger recency window, and the ledger itself resolves through this
-    # same helper — a root mismatch here would let the two silently compare
-    # against different projects.
-    gate_file = _resolve_file("memory", ".review-passed", cwd)
-    gate_file.parent.mkdir(parents=True, exist_ok=True)
+        # Resolved via the shared artifact_paths helper (#1461 security
+        # review), not a bare relative path — the latter resolves against
+        # the process's real OS cwd, which can silently disagree with `cwd`
+        # (the payload's project root) when this hook runs from a
+        # subdirectory. This now matters beyond cosmetics: the gate file's
+        # mtime anchors the dispatch-ledger recency window, and the ledger
+        # itself resolves through this same helper — a root mismatch here
+        # would let the two silently compare against different projects.
+        gate_file = _resolve_file("memory", ".review-passed", cwd)
+        gate_file.parent.mkdir(parents=True, exist_ok=True)
+    except Exception:  # noqa: BLE001 - fail CLOSED: setup failure is not a pass
+        _emit_block(_GATE_SETUP_FAILURE_MESSAGE)
+        emit_boundary_event(
+            cwd,
+            "pre_commit_review",
+            "Bash",
+            "block",
+            "gate-setup-failure",
+            session_id,
+        )
+        return 2
 
-    verdict = _evaluate_gate(gate_file, current_hash, cwd)
+    verdict = _evaluate_gate(gate_file, current_hash, cwd, staged)
     if verdict.passed:
         # Review passed for these exact files, corroborated by genuine
         # dispatch evidence (or a doc-only exemption) — consume + allow.

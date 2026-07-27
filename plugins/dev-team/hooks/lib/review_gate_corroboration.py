@@ -89,13 +89,24 @@ class LedgerEvidence(NamedTuple):
 
     Attributes:
         agents_in_window: distinct registered review-agent names
-            (`matched_rule` values) dispatched inside the recency window.
-            Empty on any read failure or when nothing qualifies.
+            (`matched_rule` values) dispatched inside the recency window,
+            for THIS subject_hash. Empty on any read failure or when
+            nothing qualifies.
         any_dispatch_ever: True if at least one genuine `"record"` event
-            exists anywhere in the ledger, regardless of the recency
-            window — lets the caller tell "stale evidence" (dispatches
-            happened, just outside the window) apart from "no dispatch
-            evidence" (none ever recorded). False on any read failure.
+            exists anywhere in the ledger, for ANY subject_hash, regardless
+            of the recency window. False on any read failure.
+        same_subject_dispatch_ever: True if at least one genuine `"record"`
+            event exists anywhere in the ledger for THIS SAME subject_hash,
+            regardless of the recency window (#1461 second security
+            re-review) — distinguishes genuinely STALE evidence (a review
+            of this exact content happened, just too long ago) from
+            evidence that only exists for DIFFERENT staged content
+            (`any_dispatch_ever` true but this one false): the caller picks
+            the "outside the window" message only when this is true, and a
+            "reviewed different content" message when it's false but
+            `any_dispatch_ever` is true — otherwise "outside the window"
+            would misreport a same-window dispatch for unrelated content as
+            if it were this content, just late. False on any read failure.
         read_failure_reason: `None` when the ledger was read successfully
             (whether or not it has qualifying entries); `"missing"` or
             `"unreadable"` when it could not be read at all — see module
@@ -104,6 +115,7 @@ class LedgerEvidence(NamedTuple):
 
     agents_in_window: frozenset
     any_dispatch_ever: bool
+    same_subject_dispatch_ever: bool
     read_failure_reason: Optional[str]
 
 
@@ -203,13 +215,26 @@ def evaluate(cwd, before_ts: str, window_seconds: int, subject_hash: str) -> Led
     """
     entries, failure = _read_ledger(cwd)
     if failure is not None:
-        return LedgerEvidence(frozenset(), False, failure)
+        return LedgerEvidence(frozenset(), False, False, failure)
 
-    dispatches = list(
+    all_dispatches = list(
         metrics_query.filter_entries(entries, event_type=_EVENT_TYPE, gate_outcome=_DECISION)
     )
-    dispatches = [e for e in dispatches if e.get("subject_hash") == subject_hash]
-    any_ever = any(isinstance(e.get("matched_rule"), str) for e in dispatches)
+    # `any_ever` intentionally reads the UNFILTERED dispatch set (#1461
+    # security review) — it means "a genuine dispatch exists somewhere in
+    # the ledger, for ANY subject", which is what `_STALE_MESSAGE` vs
+    # `_NO_DISPATCH_MESSAGE` needs to distinguish. Computing it after the
+    # subject_hash narrowing below would silently redefine it to "a
+    # dispatch for THIS exact hash exists somewhere" — collapsing the
+    # common, legitimate case (a real review of slightly different staged
+    # content) into the same "no dispatch ever" message a genuinely
+    # unreviewed changeset gets.
+    any_ever = any(isinstance(e.get("matched_rule"), str) for e in all_dispatches)
+    dispatches = [e for e in all_dispatches if e.get("subject_hash") == subject_hash]
+    # Same-subject existence, independent of the recency window (#1461
+    # second security re-review) — see the LedgerEvidence docstring for why
+    # this must be tracked separately from `any_ever`.
+    same_subject_ever = any(isinstance(e.get("matched_rule"), str) for e in dispatches)
 
     since = _since_bound(before_ts, window_seconds)
     in_window = metrics_query.filter_entries(dispatches, since=since, until=before_ts)
@@ -219,7 +244,7 @@ def evaluate(cwd, before_ts: str, window_seconds: int, subject_hash: str) -> Led
         for e in in_window
         if isinstance(e.get("matched_rule"), str) and e["matched_rule"] in registered
     )
-    return LedgerEvidence(agents, any_ever, None)
+    return LedgerEvidence(agents, any_ever, same_subject_ever, None)
 
 
 def distinct_review_agent_dispatches(
