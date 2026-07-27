@@ -63,6 +63,8 @@ The local gates (`scripts/ci-local.sh`, run by the `pre-push` hook) need these t
 
 Run `npm ci` as the first step in any new worktree, before committing. An unprovisioned worktree has no `.husky/_`/`node_modules`, so git hooks silently don't run; `scripts/ci-local.sh` and CI backstop what the hooks would have caught.
 
+**Self-healing SessionStart hooks (issue #1469).** `.claude/settings.json` registers two additional, time-boxed, fail-open `SessionStart` hooks alongside `install-dev-team.sh`: `.claude/ensure_npm_ci.py` runs `npm ci` automatically when `node_modules/.bin/husky` is missing (the exact gap above), and `.claude/ensure_code_graph_tools.py` builds the CodeGraph/Repowise/Graphify index for any of those tools that's already installed but not yet indexed in this checkout — it never installs a missing CLI (that stays an explicit `/project-init`/`/setup` opt-in). Both are best-effort: a fresh worktree still benefits from the manual `npm ci` above if a hook's time-box or environment prevents it from completing. The two hooks share their subprocess/path-resolution plumbing via `.claude/lib/session_start_common.py`, mirroring the `plugins/dev-team/hooks/lib/` and `scripts/lib/` shared-helper convention.
+
 ### Script authoring — Python only
 
 **Every shipped script under `plugins/dev-team/` is Python 3.8+ using stdlib only.** See [ADR 0014](docs/adr/0014-python-for-cross-os-scripts.md) (the decision) and [ADR 0015](docs/adr/0015-bash-removal-complete.md) (the completion). Concretely:
