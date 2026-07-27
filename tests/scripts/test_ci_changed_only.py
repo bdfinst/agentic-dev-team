@@ -177,7 +177,7 @@ def test_multi_file_changeset_one_matching_file_is_enough_to_run() -> None:
     r = _run_fn(
         "ci_suite_has_changes",
         "chk_model_routing",
-        "README.md plugins/dev-team/hooks/agent_model_resolve.py",
+        "README.md plugins/dev-team/hooks/context_ceiling_guard.py",
     )
     assert r.returncode == 0
 

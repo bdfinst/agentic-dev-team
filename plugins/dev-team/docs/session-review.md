@@ -29,7 +29,7 @@ does.
 | Suggestion | Handed to |
 |---|---|
 | Config / prompt / convention fix | `/feedback-learning` |
-| Effort re-banding | `/harness-audit` + `.claude/model-ladder.json` |
+| Model/effort re-tuning | `/harness-audit` + the agent's `model:`/`effort:` frontmatter (ADR 0026) |
 | New / changed detection rule | `/agent-eval` |
 | Token-heavy skill / agent | `token-efficiency-review` |
 

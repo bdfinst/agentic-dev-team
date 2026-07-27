@@ -246,7 +246,7 @@ own report heading; never route them to a gate.
 | Suggestion kind | Hand off to |
 |---|---|
 | Config / prompt / convention fix | `/feedback-learning` |
-| Effort re-banding | `/harness-audit` + `.claude/model-ladder.json` |
+| Model/effort re-tuning | `/harness-audit` + the agent's `model:`/`effort:` frontmatter (ADR 0026) |
 | New / changed detection rule | `/agent-eval` (validate before shipping) |
 | Token-heavy skill / agent | `token-efficiency-review` |
 | Operator methodology observation (`methodology`) | the human, as an observation — no artifact, no hook |

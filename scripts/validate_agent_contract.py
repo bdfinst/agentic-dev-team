@@ -3,8 +3,7 @@
 self-audit (used by /agent-audit). The one real implementation ships with
 marketplace-dev (plugins/marketplace-dev/scripts/validate_agent_contract.py)
 so it stays installable standalone in other repos; this wrapper just imports
-it, mirroring the sys.path pattern hooks/agent_model_resolve.py already uses
-for its sibling lib — one implementation, no drift between two copies.
+it — one implementation, no drift between two copies.
 
 CLI usage:
   python3 scripts/validate_agent_contract.py <agent.md> [<agent.md> ...]
