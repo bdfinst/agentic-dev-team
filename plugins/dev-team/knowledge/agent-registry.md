@@ -107,7 +107,7 @@ Skills are reusable knowledge modules in `.claude/skills/` that agents reference
 | Artifact Lifecycle | `skills/artifact-lifecycle/SKILL.md` | ~600 | Orchestrator, `/artifact-lifecycle` command |
 | Autoship | `skills/autoship/SKILL.md` | ~800 | Orchestrator, `/autoship` command |
 | API Design | `skills/api-design/SKILL.md` | 600 | Architect, Software Engineer |
-| Apply Test Doubles | `skills/apply-test-doubles/SKILL.md` | ~750 | `/apply-test-doubles` command, QA Engineer |
+| Apply Test Doubles | `skills/apply-test-doubles/SKILL.md` | ~750 | `/apply-test-doubles` command |
 | Branch Workflow | `skills/branch-workflow/SKILL.md` | 450 | Orchestrator, Software Engineer |
 | Browser Testing | `skills/browser-testing/SKILL.md` | 700 | QA Engineer |
 | CD Test Architecture | `skills/cd-test-architecture/SKILL.md` | ~900 | QA Engineer, Architect, Platform Engineer, Software Engineer |
