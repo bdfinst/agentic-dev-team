@@ -256,9 +256,12 @@ invocation has no reason to need:
    restated), and when the library-vs-hand-rolled sub-question resolves a
    tool, the `Double (to run config-free)` column is updated to name it,
    per the Output section's own tool-citation rule. A row reverting to
-   `Document-only` or `Build (testcontainers)` has any previously-written
-   caveat text removed from the cell — the cell always reflects only the
-   current decision, never a stale one layered under it. Without this
+   `Document-only` or `Build (testcontainers)`, or a `Build (Fake)` row
+   whose sub-question now resolves to hand-rolled, has any
+   previously-written caveat text removed from the status cell **and**
+   any previously-cited tool name removed from the `Double (to run
+   config-free)` column — both cells always reflect only the current
+   decision, never a stale one layered under it. Without this
    write-back, the report and any Story proposed below would disagree
    about what was just decided, and the next `/apply-test-doubles` run
    against the same report would re-read the stale status. This
