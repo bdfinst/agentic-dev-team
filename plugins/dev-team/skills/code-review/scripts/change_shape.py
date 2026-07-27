@@ -29,6 +29,17 @@ documentation *or* config, which the doc-only short-circuit does not cover).
 Scope note: this is a filename-shape gate. Annotation-only edits *inside* a
 source file (e.g. adding a C# attribute) still count as runtime surface — that
 would require diff parsing and is deliberately out of scope for v1.
+
+Shared literal tables (#1477): the documentation-extension, doc-root-word,
+and functional-config-name/segment literals below are byte-identical to
+`hooks/pre_commit_review.py`'s own doc-only classifier and were previously
+hand-duplicated between the two, kept in sync only by comment convention.
+They now live in `hooks/lib/doc_classification.py`, imported here via the
+same `sys.path.insert` cross-boundary pattern `pre_commit_review.py` already
+uses for its own `hooks/lib/` imports — see that module's docstring for why
+this location was chosen and why the *matching logic* (prefix vs. exact
+match) intentionally stays local to each caller rather than being unified
+too.
 """
 
 from __future__ import annotations
@@ -37,22 +48,47 @@ import argparse
 import json
 import sys
 from collections.abc import Iterable
-from pathlib import PurePosixPath
+from pathlib import Path, PurePosixPath
+
+# skills/code-review/scripts -> skills/code-review -> skills -> plugin root
+# -> hooks/lib
+_HOOKS_LIB_DIR = Path(__file__).resolve().parents[3] / "hooks" / "lib"
+if str(_HOOKS_LIB_DIR) not in sys.path:
+    sys.path.insert(0, str(_HOOKS_LIB_DIR))
+
+try:
+    from doc_classification import (  # type: ignore[import-not-found]
+        CORE_FUNCTIONAL_CONFIG_SEGMENTS,
+        DOC_EXTENSIONS,
+        DOC_ROOT_WORDS,
+        FUNCTIONAL_CONFIG_NAMES,
+    )
+except ImportError:  # pragma: no cover - degraded fallback, hooks/lib unreachable
+    DOC_EXTENSIONS = frozenset({".md", ".mdx", ".markdown", ".rst", ".txt", ".adoc"})
+    DOC_ROOT_WORDS = (
+        "readme", "changelog", "contributing", "license", "notice",
+        "authors", "code_of_conduct",
+    )
+    FUNCTIONAL_CONFIG_NAMES = frozenset({"claude.md", "agents.md"})
+    CORE_FUNCTIONAL_CONFIG_SEGMENTS = frozenset(
+        {".claude", "agents", "skills", "prompts", "knowledge"}
+    )
 
 # The lenses this gate can skip. Both are code-only lenses that no-op on diffs
 # with no executable logic to reason about.
 LOW_YIELD_LENSES = ["performance-review", "correctness-review"]
 
 # Documentation extensions (lower-cased). Mirrors SKILL.md's doc-only rule.
-_DOC_EXTENSIONS = {".md", ".mdx", ".markdown", ".rst", ".txt", ".adoc"}
+_DOC_EXTENSIONS = DOC_EXTENSIONS
 
-# Documentation root-file stems (matched case-insensitively on the stem prefix).
-_DOC_ROOT_PREFIXES = (
-    "readme", "changelog", "contributing", "license", "notice",
-    "authors", "code_of_conduct",
-)
+# Documentation root-file stems (matched case-insensitively on the stem
+# prefix) — same word list `pre_commit_review.py`'s doc-only classifier uses
+# for its own (exact-match) root-doc check.
+_DOC_ROOT_PREFIXES = DOC_ROOT_WORDS
 
 # Config / data extensions with no executable logic surface (lower-cased).
+# Unique to this gate — `pre_commit_review.py` has no equivalent "config"
+# concept, so this stays local (nothing to extract against).
 _CONFIG_EXTENSIONS = {
     ".json", ".yaml", ".yml", ".toml", ".ini", ".cfg", ".conf",
     ".properties", ".lock", ".csv", ".tsv",
@@ -68,12 +104,14 @@ _CONFIG_NAMES = {
 # Path segments marking **functional Claude-config**: markdown/paths here drive
 # agent/skill/command behavior and are never "just docs or config" — they always
 # count as runtime surface (must be reviewed). Same exclusion as SKILL.md.
-_FUNCTIONAL_CONFIG_SEGMENTS = {
-    ".claude", "agents", "skills", "prompts", "knowledge", "templates",
-}
+# `"templates"` is this gate's OWN addition on top of the shared core set —
+# `pre_commit_review.py`'s doc-only classifier deliberately does not include
+# it (see that module's docstring on staying a strict subset); preserved
+# exactly as it was before this extraction, not resolved.
+_FUNCTIONAL_CONFIG_SEGMENTS = CORE_FUNCTIONAL_CONFIG_SEGMENTS | {"templates"}
 
 # Functional-config filenames anywhere in the tree.
-_FUNCTIONAL_CONFIG_NAMES = {"claude.md", "agents.md"}
+_FUNCTIONAL_CONFIG_NAMES = FUNCTIONAL_CONFIG_NAMES
 
 
 def _is_functional_config(path: PurePosixPath) -> bool:
