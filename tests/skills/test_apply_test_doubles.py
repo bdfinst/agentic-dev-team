@@ -782,8 +782,25 @@ def test_write_back_carries_full_cell_contract_caveat_and_double_column():
     )
     assert grep(
         r"A row reverting to `?Document-only`? or `?Build "
-        r"\(testcontainers\)`? has any previously-written caveat text "
-        r"removed from the cell",
+        r"\(testcontainers\)`?, or a `?Build \(Fake\)`? row whose "
+        r"sub-question now resolves to hand-rolled, has any "
+        r"previously-written caveat text removed from the status cell",
+        sec,
+        ignore_case=True,
+    )
+    # arch-review round-3: the original clearing rule cleared stale caveat
+    # text but never a stale tool name from the Double column on the same
+    # transitions (e.g. a library-backed Build (Fake) reverting to
+    # hand-rolled) — extended to cover both cells symmetrically.
+    assert grep(
+        r"any previously-cited tool name removed from the `?Double \(to "
+        r"run config-free\)`? column",
+        sec,
+        ignore_case=True,
+    )
+    assert grep(
+        r"both cells always reflect only the current decision, never a "
+        r"stale one layered under it",
         sec,
         ignore_case=True,
     )
