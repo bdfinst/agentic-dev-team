@@ -9,7 +9,7 @@ description: >-
   cd-test-architecture report, says "apply the test doubles", "re-run
   Step 4b", "change the build-vs-document decision", or cites the
   `/apply-test-doubles <path>` command from a test-double setup guide.
-argument-hint: "[<report-path-or-target>] [--component <name>]"
+argument-hint: "[<report-path-or-target>] [--component <name>] [--yes]"
 role: worker
 user-invocable: true
 ---
@@ -26,13 +26,17 @@ You have been invoked with the `/apply-test-doubles` command.
 
 ## Parse Arguments
 
-Arguments: an optional positional `<report-path-or-target>` and an optional
-`--component <name>`.
+Arguments: an optional positional `<report-path-or-target>`, an optional
+`--component <name>`, and an optional `--yes`.
 
 - `<report-path-or-target>` — a path to a previously saved
   `/cd-test-architecture` report, or a target application/repo path to
   assess when no such report exists yet. May be omitted entirely — see the
   absent-path row below.
+- `--yes` — run non-interactively: this step's own re-entrant Step 4b
+  prompt (Step 2) is skipped, per `human-oversight-protocol`'s `--yes` /
+  `DEV_TEAM_AUTO_APPROVE=1` / no-TTY convention — see Step 2 for the exact
+  per-component behavior.
 - `--component <name>` — scope processing to one named component. Applied
   as a post-hoc filter over the resolved report's already-existing rows,
   identically on both paths — **never** forwarded as `cd-test-architecture`'s
@@ -71,9 +75,12 @@ Step 4b prompt never fires; this skill's own re-entrant Step 4b step (a
 later step of this skill) is the sole place the operator is prompted, on
 both paths uniformly. `cd-test-architecture`'s own error handling governs
 an unresolvable target string; this skill does not duplicate that
-validation. The freshly produced report then proceeds through the fast
-path below, exactly as an existing report would — including the
-`--component <name>` filter, applied post-hoc there.
+validation. Resolve the fresh report at
+`.dev-team-reports/cd-test-architecture-<app>.md`, per
+`../cd-test-architecture/SKILL.md`'s own Output Path rule (cited, not
+restated), then proceed through the fast path below exactly as an
+existing report would — including the `--component <name>` filter,
+applied post-hoc there.
 
 **Structural validity check (existing-file case only).** A real
 `cd-test-architecture` report carries three markers, checked together as
@@ -145,7 +152,8 @@ Downstream-service branch, and that branch's library-vs-hand-rolled
 sub-question — as the single source of the build-vs-document branching
 rules. That procedure is not restated here. This citation was chosen over
 physically relocating Step 4b's content into a shared file: Step 4b's
-~230 lines of already-reviewed branching prose would otherwise need
+already-reviewed, multi-branch prose (its Database-specific branch,
+Downstream-service branch, and their sub-question) would otherwise need
 extracting into a new home touching every existing
 `cd-test-architecture` test file, for a purely organizational move this
 skill's actual scope doesn't require; citing it in place fully satisfies
@@ -196,10 +204,14 @@ state that there is nothing to apply and take no further action.
 `human-oversight-protocol`'s `--yes` / `DEV_TEAM_AUTO_APPROVE=1` / no-TTY
 convention (the same convention `cd-test-architecture`'s own Step 4b
 documents at its Parse Arguments section): under any of those conditions,
-surface no prompt for this step either — every off-gate-eligible component
-resolves to `Document-only`, no Story is proposed, and no report write-back
-happens (see Step 3), exactly mirroring what a non-interactive
-`cd-test-architecture` run would have produced for the same components.
+surface no prompt for this step either. A component with **no prior
+recorded decision** defaults to `Document-only`, exactly mirroring what a
+non-interactive `cd-test-architecture` run would have produced; a
+component with an **existing recorded decision** is left exactly as
+recorded, not silently re-resolved to `Document-only` — this step never
+reports an outcome that contradicts what the report already says. Either
+way, no Story is proposed and no report write-back happens (see Step 3)
+for a component this run did not actually decide.
 
 **Version-skew advisory (non-blocking).** Resolve the currently installed
 plugin version with the same resolver `/version` already uses:
@@ -228,21 +240,41 @@ unchanged. This never blocks or alters the decision logic itself.
 
 `cd-test-architecture` is advisory only (its own Constraints: "it proposes
 a downstream Story, it never invokes `/build` or edits code directly") —
-Step 4b's live invocation never writes a Story file, it renders a proposed
-Story as report/chat text. This step's dispatch mechanics match that
-exactly, plus one write-back this skill's own premise requires that Step
-4b's live invocation has no reason to need:
+Step 4b's live invocation proposes a Story within its own report/chat
+output (Step 6's only documented output channel), never as a separate
+file. This step's dispatch mechanics match that exactly, plus one
+write-back this skill's own premise requires that Step 4b's live
+invocation has no reason to need:
 
 1. **Write back the resolved report's `Build/Document status` cell** for
    each component this run resolved, updating the on-disk report in place
-   so it reflects the new decision — this is the authoritative record
-   `../cd-test-architecture/SKILL.md`'s Output section defines that column
-   to be (cited above). Without this, the report and any Story proposed
-   below would disagree about what was just decided, and the next
-   `/apply-test-doubles` run against the same report would re-read the
-   stale status. This write-back is unique to this skill: Step 4b's live
-   invocation writes the cell once, at report-creation time, and never
-   needs to revise it.
+   so it reflects the new decision — matching the **full cell contract**
+   `../cd-test-architecture/SKILL.md`'s Output section defines (cited
+   above), not just the enum value: a `Build (Fake)` write carries that
+   branch's caveat verbatim in the same cell (the hand-rolled or
+   library-backed variant, per the Downstream-service branch, cited not
+   restated), and when the library-vs-hand-rolled sub-question resolves a
+   tool, the `Double (to run config-free)` column is updated to name it,
+   per the Output section's own tool-citation rule. A row reverting to
+   `Document-only` or `Build (testcontainers)` has any previously-written
+   caveat text removed from the cell — the cell always reflects only the
+   current decision, never a stale one layered under it. Without this
+   write-back, the report and any Story proposed below would disagree
+   about what was just decided, and the next `/apply-test-doubles` run
+   against the same report would re-read the stale status. This
+   write-back is unique to this skill: Step 4b's live invocation writes
+   the cell once, at report-creation time, and never needs to revise it.
+   If the write fails (permission, read-only path), state that plainly
+   and surface the resolved decisions in chat instead — per
+   `knowledge/report-output-location.md`'s non-fatal-write convention,
+   never proceed as if the write succeeded. The report's own header and
+   Provenance block (`knowledge/report-template.md`) are deliberately
+   left untouched by this write-back — they continue to describe the
+   original assessment run, not this later revision; the version-skew
+   advisory (Step 2) compares against that same original-run Provenance
+   value on every subsequent invocation, which stays meaningful since a
+   write-back only ever changes a recorded outcome, never Step 4b's own
+   decision logic.
 2. **For a component resolving to a Build outcome, propose a Story** —
    rendered as output text, using exactly the title and description
    conventions `../cd-test-architecture/SKILL.md`'s Database-specific
@@ -250,21 +282,37 @@ exactly, plus one write-back this skill's own premise requires that Step
    2's own citation above, not restated here). This is advisory only,
    identical in kind to Step 4b's own live invocation — it never invokes
    `/build` or writes a Story file itself.
-3. **The setup-guide artifact (#1436) is not touched by this step.** Its
-   per-component sections are keyed to Step 4's recommended double type,
-   independent of the Step 4b Build/Document-only outcome
-   (`../cd-test-architecture/SKILL.md`'s Companion section states this
-   explicitly) — so a component's setup-guide section, if any, does not
-   change when its Build/Document decision changes. There is nothing for
-   this step to update there.
-4. **To materialize a proposed Story into an actual tracker issue or
-   local plan file, run `/issues-from-assessment <the updated
-   report-path>`** — the established, single-owner path from a
-   cd-test-architecture-shaped report to real Stories
-   (`../issues-from-assessment/SKILL.md`). This skill does not duplicate
-   that mechanism.
+3. **The setup-guide artifact (#1436)'s per-component *inclusion* is
+   independent of this decision; its *Classification* is not.**
+   `../cd-test-architecture/SKILL.md`'s Companion section states a
+   component's section is included regardless of whether the operator
+   chose Document-only for it (cited, not restated) — this step never
+   adds or removes a section on that basis. But that same section's
+   Classification is keyed to the resolved Build variant and, for a
+   Downstream-service `Build (Fake)` row, the library-vs-hand-rolled
+   sub-question's answer (cited from the Companion section's own
+   Classification rule, not restated) — both of which Step 2 explicitly
+   lets the operator change. When this run changes a component's
+   Classification (e.g. `Build (testcontainers)` ↔ `Build (Fake)`, or a
+   different library resolves than the guide currently records),
+   re-emit that component's setup-guide section per the Classification
+   rule so the guide never names a tool the report no longer
+   recommends. A component whose Classification is unchanged this run
+   has its setup-guide section left as-is.
+4. **This proposed Story is advisory chat/report output only — there is
+   no automated materialization path today, the same as Step 4b's own
+   live invocation.** `../issues-from-assessment/SKILL.md` derives its
+   own Stories directly from the Target architecture table (one per
+   (component, layer), per its own Step 2), independent of the
+   Build/Document decision or this step's proposed Story text — it is
+   not a consumer of what this step just proposed, and this skill does
+   not invent a second materialization mechanism to bridge that gap. An
+   operator who wants this proposed Story tracked creates it themselves
+   from the proposed text, exactly as they would from a live
+   `cd-test-architecture` run.
 
 **Single ready-to-run command.** Invocation is exactly `/apply-test-doubles
-<path>` — `--component <name>` is the only other argument, matching what
-#1436's setup-guide artifact already emits with the real path filled in. No
-other argument is ever required.
+<path>` — `--component <name>` is the only other **scoping** argument
+(`--yes`, per Parse Arguments, controls interactivity, not scope),
+matching what #1436's setup-guide artifact already emits with the real
+path filled in. No other argument is ever required.

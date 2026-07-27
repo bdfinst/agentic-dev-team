@@ -1993,7 +1993,7 @@
   },
   "plugins/dev-team/skills/apply-test-doubles/SKILL.md": {
     "Parse Arguments": {
-      "summary": "Arguments: an optional positional `<report-path-or-target>` and an optional",
+      "summary": "Arguments: an optional positional `<report-path-or-target>`, an optional",
       "anchor": "parse-arguments"
     },
     "Steps": {
