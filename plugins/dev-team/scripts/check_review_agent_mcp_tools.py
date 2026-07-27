@@ -51,6 +51,12 @@ from pathlib import Path
 # sibling check_agent_tool_mapping.py can import them as a peer (neither script is
 # the other's library). See scripts/lib/mcp_tool_grants.py.
 sys.path.insert(0, str(Path(__file__).parent / "lib"))
+# The *-review glob-discovery logic itself lives in hooks/lib (#1461) — a
+# hook (hooks/agent_dispatch_ledger.py) needs the same closed set of
+# registered review-agent names and must never reach into scripts/, so the
+# dependency direction is scripts/ -> hooks/lib/, not the reverse. This
+# script imports the shared implementation rather than keeping its own copy.
+sys.path.insert(0, str(Path(__file__).parent.parent / "hooks" / "lib"))
 
 from mcp_tool_grants import (
     BASE_MCP_TOOLS,
@@ -66,6 +72,9 @@ from mcp_tool_grants import (
 )
 from mcp_tool_grants import (
     missing_tools as _missing_tools,
+)
+from review_agent_registry import (
+    find_review_agent_files as _find_review_agent_files,
 )
 
 # The five code-intelligence MCP tool names granted to the generic review-agent
@@ -135,8 +144,14 @@ def _skill_file_default() -> Path:
 
 
 def find_review_agents(agents_dir: Path) -> list[Path]:
-    """Return the read-only review agent files (agents/*-review.md), sorted."""
-    return sorted(agents_dir.glob("*-review.md"))
+    """Return the read-only review agent files (agents/*-review.md), sorted.
+
+    Thin wrapper over the shared `hooks/lib/review_agent_registry` extraction
+    (#1461) — kept as a stable public name here since this script's own
+    tests and `hooks/agent_dispatch_ledger.py`'s registry needs both depend
+    on this glob-discovery behavior remaining unchanged.
+    """
+    return _find_review_agent_files(agents_dir)
 
 
 def required_tools_for(name: str) -> list[str]:
