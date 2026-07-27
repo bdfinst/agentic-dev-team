@@ -132,6 +132,7 @@ Project smells (suite-wide):
 Test double misuse (load `test-doubles.md`):
 
 - Mock where a Stub + state assertion would do; mocking value objects/pure functions; mocking the type under test; asserting call order/count that doesn't matter; mocking concrete classes instead of ports
+- Mocking a collaborator internal to / owned by the same component or bounded context as the SUT (not a genuine external-boundary system) — cite `component-test-patterns.md` in the finding's `message` when flagging this, so the citation contract that already governs `remedyFamily` slugs (see the two-field contract above) extends to this misuse too
 
 Pyramid placement (load `test-pyramid.md`; use the MinimumCD six test types from `${CLAUDE_PLUGIN_ROOT}/knowledge/cd-test-architecture.md#the-six-test-types` — static analysis / unit / component / contract / integration / E2E. Prefer "contract test" over "narrow integration test"; gloss once if the alias is needed: `contract test (also called narrow integration test)`):
 

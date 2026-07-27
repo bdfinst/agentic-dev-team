@@ -14,6 +14,9 @@ TEST_DOUBLES = REPO_ROOT / "plugins" / "dev-team" / "knowledge" / "test-doubles.
 SOFTWARE_ENGINEER = (
     REPO_ROOT / "plugins" / "dev-team" / "agents" / "software-engineer.md"
 )
+TEST_SMELL_REVIEW = (
+    REPO_ROOT / "plugins" / "dev-team" / "agents" / "test-smell-review.md"
+)
 
 
 def _text(path) -> str:
@@ -50,3 +53,11 @@ def test_software_engineer_references_test_doubles_knowledge_file() -> None:
     # Loaded at the moment a test double is written or reviewed, not only
     # at review time.
     assert "test double" in text.lower()
+
+
+def test_test_smell_review_lists_internal_collaborator_misuse() -> None:
+    text = _text(TEST_SMELL_REVIEW)
+    assert "internal" in text.lower() and "same component" in text.lower()
+    # The finding's message is instructed to cite component-test-patterns.md
+    # when flagging this specific misuse.
+    assert "component-test-patterns.md" in text
