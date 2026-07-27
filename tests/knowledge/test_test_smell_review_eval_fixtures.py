@@ -62,3 +62,14 @@ def test_clean_doubles_fixture_must_not_add_remedy_family_must_mention() -> None
     must_mention = _must_mention("test-clean-doubles.test.json")
     for family in FAMILY_SLUGS:
         assert family not in must_mention, f"unexpected mustMention: {family}"
+
+
+def test_internal_collaborator_mock_fixture_requires_component_test_patterns_citation() -> (
+    None
+):
+    # Mocking an internal/same-component collaborator is a boundary-selection
+    # misuse, not one of the four remedyFamily slugs — its citation contract
+    # points at component-test-patterns.md instead.
+    _require_must_mention(
+        "test-internal-collaborator-mock.test.json", "component-test-patterns"
+    )
