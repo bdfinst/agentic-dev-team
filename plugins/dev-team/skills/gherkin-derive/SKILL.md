@@ -113,6 +113,23 @@ Each hit is its own surface: route message-queue and event hits to the
 **API / Event Consumer** template, and cron/scheduled hits to the
 **Batch / Scheduled Job** template.
 
+**In-depth, codebase-wide analysis is the mandatory default — always on,
+never operator-supplied (issue #1450).** Every invocation of this step
+performs an in-depth analysis of the codebase, not a shallow scan limited to
+registered entry points. Beyond the cascade above and the async/event/
+scheduled sweep, explicitly analyze **controllers, handlers, services,
+domain logic, workflows, validation rules, error handling, and business
+processes** to identify behavior-driven scenarios that an entry point's bare
+signature does not reveal — e.g. a thin route handler backed by a service
+that enforces three distinct business rules yields three scenarios, one per
+rule, not one generic "invalid input" scenario. This depth requirement is
+unconditional: it is never gated behind an operator-supplied instruction, a
+flag, or a specific prompt phrasing — a run that skips this analysis is a
+spec violation of this skill, not an acceptable shallow default. Record what
+was analyzed for each of these eight categories in the Step 5 surface
+inventory's `## Analysis Coverage` section (see Step 5), so a thin run is
+detectable rather than merely asserted.
+
 **Resolve the existing file before authoring (issue #1420).** Run
 `detect_bdd_convention.py` once per repo to get the project's `.feature`
 destination directory, then compose each surface's path yourself as
@@ -288,7 +305,15 @@ cause it is):
 - A surface inventory at `.claude/memory/<workflow>/<slug>/gherkin.md` listing each
   discovered surface, its discovery source, provenance, mode, and the files
   written. `/test-improve` reads this at Phase 4 (plan fixes) and Phase 5
-  (build) to bind tests to the derived scenarios.
+  (build) to bind tests to the derived scenarios. **The inventory MUST also
+  include an `## Analysis Coverage` section** (issue #1450) recording, for
+  each of the eight mandatory analysis categories named in Step 2 —
+  controllers, handlers, services, domain logic, workflows, validation
+  rules, error handling, business processes — either what was found for
+  that category or an explicit "none found in this codebase" statement.
+  Never omit a category silently: an omitted or empty entry is exactly the
+  thin-analysis gap this section exists to make detectable (see Step 6's
+  `gherkin_analysis_coverage_gate.py` invocation).
 
 ## Step 6 — Report
 
@@ -460,6 +485,25 @@ files found under `<dir>`, re-check the feature-files directory," never as
 an `OK`/all-clear (a scan of zero files finding zero problems is not the
 same as zero problems). Skip entirely in `none` mode (no `.feature` files
 are written).
+
+**Every mode — report the analysis-coverage gate (issue #1450).** Unlike
+the two gates above, this one runs even in `none` mode: the surface
+inventory (and its `## Analysis Coverage` section) is written regardless of
+binding mode, since the mandatory in-depth analysis (Step 2) happens before
+mode-specific output does:
+
+```
+python3 ${CLAUDE_PLUGIN_ROOT}/scripts/gherkin_analysis_coverage_gate.py --file <inventory-path>
+```
+
+Print the gate's result as its own report section: `OK: all 8 analysis
+categories recorded` when it exits 0, or `N analysis categor(y/ies) missing
+from the coverage record`, listing each missing category, when it exits 1.
+**A third outcome exists — exit 2 means the gate did not run** (no
+`## Analysis Coverage` section was found in the inventory, or the inventory
+file itself is missing); report this as "gate did not run — no Analysis
+Coverage section found in `<path>`, re-check the surface inventory," never
+as an `OK`/all-clear.
 
 ## Key differences from `/gherkin-public`
 

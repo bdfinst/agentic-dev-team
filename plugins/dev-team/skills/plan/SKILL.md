@@ -63,6 +63,8 @@ When authoring each slice's Gherkin, cover:
 
 Keep scenarios implementation-independent (no databases, selectors, or internal data structures in step text) and deterministic. Every acceptance criterion from the spec must be covered by at least one scenario across the slices. Each step traces back to one or more scenarios in its slice.
 
+**Depth-audit finding (issue #1450): no behavior change here.** `/gherkin-derive` was made to mandatorily analyze controllers, handlers, services, domain logic, workflows, validation rules, error handling, and business processes in depth, because it derives scenarios directly from a codebase with no prior scoping. This step does not: slice authoring here is deliberately spec-scoped (the spec's Intent/Architecture/Acceptance Criteria are the primary source — step 2 above) and exploration-bounded ("this is planning, not research" — step 2 above). Widening this step into full controller/service/domain-logic discovery would contradict its own designed scope and duplicate work the spec phase already did.
+
 **Filter `LOW_VALUE` findings out of the work streams.** A gap classified `LOW_VALUE` by `/specs` or `/test-health` (no branching logic, no observable outcome, coverage already provided by a higher-layer test) never becomes a slice or a step. List such findings in a `## Skipped (low value)` section with their one-line rationale so the decision is visible — they document why the work was *not* planned, not deferred work to revisit. **The plan gate rejects any slice or step classified `LOW_VALUE`**: if a `LOW_VALUE` finding has leaked into a work stream, move it to the Skipped section before the human gate.
 
 ### 3. Create the plan
