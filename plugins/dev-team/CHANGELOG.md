@@ -1,5 +1,34 @@
 # Changelog
 
+## [10.23.0](https://github.com/bdfinst/agentic-dev-team/compare/dev-team-v10.22.0...dev-team-v10.23.0) (2026-07-27)
+
+
+### Features
+
+* **gherkin-derive:** dispatch two independent Gherkin quality review agents ([1b79dcf](https://github.com/bdfinst/agentic-dev-team/commit/1b79dcfbe154b1d9579a10b2b699c06669f368de))
+* **gherkin-public:** dispatch two independent Gherkin quality review agents ([344ba73](https://github.com/bdfinst/agentic-dev-team/commit/344ba7335f8c9208890ecc96f36f55b3b7f8fd2b)), closes [#1452](https://github.com/bdfinst/agentic-dev-team/issues/1452)
+* **gherkin-quality-review:** add adversarial gap/balance review agent ([0639058](https://github.com/bdfinst/agentic-dev-team/commit/06390589eca0da8ea4133f93ebe86f324ae9d7b1))
+* **gherkin-quality-review:** add runtime isolation check and calibration provenance ([f6ccee3](https://github.com/bdfinst/agentic-dev-team/commit/f6ccee3525df09519824f8701c6552af1ac54aef))
+* **pr:** add a PR template and make the shipped /pr skill template-aware ([ce9037a](https://github.com/bdfinst/agentic-dev-team/commit/ce9037ac70bfc9432117d7595ab4f46a2a99ae5b)), closes [#1472](https://github.com/bdfinst/agentic-dev-team/issues/1472)
+* rather than fix: per the repo's eval-corpus-semver contract. ([6866b43](https://github.com/bdfinst/agentic-dev-team/commit/6866b432508d2733584f865bb4e48a4e8e1b6fb2))
+* **test-smell-review:** flag mocking of internal-to-component collaborators ([6866b43](https://github.com/bdfinst/agentic-dev-team/commit/6866b432508d2733584f865bb4e48a4e8e1b6fb2)), closes [#1451](https://github.com/bdfinst/agentic-dev-team/issues/1451)
+
+
+### Bug Fixes
+
+* **gherkin-derive:** make comprehensive codebase-wide analysis the default ([3a2710c](https://github.com/bdfinst/agentic-dev-team/commit/3a2710c6715543c14d6ce144c4805dba00c7f5dd))
+* **gherkin-quality-review:** address real code-review findings before first PR ([3973f16](https://github.com/bdfinst/agentic-dev-team/commit/3973f16300800bc1520793707da88ca75344eed2))
+* **gherkin-quality-review:** stop pinning a model snapshot in the isolation-check script ([e56f1b7](https://github.com/bdfinst/agentic-dev-team/commit/e56f1b7166a39116fbce906eb616d42e4e67fc54))
+* **hooks:** rewrite SessionStart hooks as Python; fix repo-wide ruff findings ([b2c2544](https://github.com/bdfinst/agentic-dev-team/commit/b2c2544310852bd295ba74f90fdeaca2ea5abd2a))
+* **lint:** remove redundant quoted type annotations (UP037) ([2a2d6ec](https://github.com/bdfinst/agentic-dev-team/commit/2a2d6ec7b867b55a507f3433b17ea92231f554b9)), closes [#1458](https://github.com/bdfinst/agentic-dev-team/issues/1458)
+* **software-engineer:** surface test-double misuse guidance at authoring time ([5814df4](https://github.com/bdfinst/agentic-dev-team/commit/5814df4ba75c0558b26157ea1ee0e4d5af362862))
+* **test-doubles:** address real code-review findings on internal-collaborator misuse ([23a86fd](https://github.com/bdfinst/agentic-dev-team/commit/23a86fd13321105b90608476b35e91762d0a36b8))
+
+
+### Documentation
+
+* **knowledge:** name internal-collaborator mocking as its own test-double misuse ([f9eb231](https://github.com/bdfinst/agentic-dev-team/commit/f9eb23144b47e956b9c1f89744f6b3ac97e9ccc9))
+
 ## [10.22.0](https://github.com/bdfinst/agentic-dev-team/compare/dev-team-v10.21.0...dev-team-v10.22.0) (2026-07-27)
 
 
