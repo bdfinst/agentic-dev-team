@@ -132,7 +132,10 @@ as before this feature. Sliced mode is **report-only** (no interactive fix loop)
 If **every** target file is documentation, short-circuit:
 
 1. Emit: `Documentation-only changeset ({N} files) — skipping code review. Re-run with --force --reason "<text>" to review anyway.`
-2. If the review was auto-scoped to uncommitted changes, write the `.review-passed` gate file (per step 9) so the pre-commit hook allows the commit.
+2. If the review was auto-scoped to uncommitted changes, write the `.review-passed` gate file (per step 9) so the pre-commit hook allows the commit. **Contemporaneously** (before or immediately after that write), record the doc-only exemption as an explicit, auditable boundary event — the `.review-passed` gate's dispatch-ledger corroboration (#1461) reads this event to let the doc-only path stay exempt from agent-dispatch evidence without being a silent, unaccountable code-path skip:
+   ```bash
+   python3 ${CLAUDE_PLUGIN_ROOT}/hooks/lib/boundary_events.py --hook code-review --tool Skill --decision bypass --matched-rule doc-only-review-exempt
+   ```
 3. In `--json` mode, emit `{"status": "skipped", "reason": "documentation-only", "files": [<list>]}` instead.
 4. **Stop.** Do not run pre-flight gates, static analysis, or any agent.
 
