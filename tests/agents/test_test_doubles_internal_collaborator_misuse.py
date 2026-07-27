@@ -11,6 +11,9 @@ from __future__ import annotations
 from _repo_root import REPO_ROOT
 
 TEST_DOUBLES = REPO_ROOT / "plugins" / "dev-team" / "knowledge" / "test-doubles.md"
+SOFTWARE_ENGINEER = (
+    REPO_ROOT / "plugins" / "dev-team" / "agents" / "software-engineer.md"
+)
 
 
 def _text(path) -> str:
@@ -39,3 +42,11 @@ def test_internal_collaborator_row_distinct_from_concrete_class_row() -> None:
     )
     assert concrete_class_line != internal_collaborator_line
     assert "internal" not in concrete_class_line
+
+
+def test_software_engineer_references_test_doubles_knowledge_file() -> None:
+    text = _text(SOFTWARE_ENGINEER)
+    assert "knowledge/test-doubles.md" in text
+    # Loaded at the moment a test double is written or reviewed, not only
+    # at review time.
+    assert "test double" in text.lower()

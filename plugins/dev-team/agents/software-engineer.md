@@ -72,6 +72,7 @@ Three reflexes that fire at the moment code is written — not just at review ti
 ## Knowledge Files
 
 - `${CLAUDE_PLUGIN_ROOT}/knowledge/database-change-management.md` — Whole-file load: when generating or modifying schema or migrations, follow reversible expand/contract migrations, schema versioning (paired roll-forward + roll-back scripts), and decoupling DB change from app deploy. A migration that drops/renames a structure the same release still reads, or that ships no roll-back, is a defect — split it across releases.
+- `${CLAUDE_PLUGIN_ROOT}/knowledge/test-doubles.md` — Load when about to write or review a test double (mock/stub/spy/fake) for a test. Before mocking any collaborator, check its "Common Misuses" table — in particular, confirm the collaborator is a genuine external-boundary system (third-party API, another team's service, infra the team doesn't control) and not internal to / owned by the same component or bounded context as the SUT. A double over an internal collaborator is a defect, not a style choice — assemble the real component and exercise it as real instead.
 
 ## Review Feedback Protocol
 
