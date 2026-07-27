@@ -1991,6 +1991,28 @@
       "anchor": "6-suggest-alternatives"
     }
   },
+  "plugins/dev-team/skills/apply-test-doubles/SKILL.md": {
+    "Parse Arguments": {
+      "summary": "Arguments: an optional positional `<report-path-or-target>` and an optional",
+      "anchor": "parse-arguments"
+    },
+    "Steps": {
+      "summary": "Every invocation resolves to exactly one **report** before anything else in",
+      "anchor": "steps"
+    },
+    "1. Resolve report or target": {
+      "summary": "Every invocation resolves to exactly one **report** before anything else in",
+      "anchor": "1-resolve-report-or-target"
+    },
+    "2. Apply Step 4b's decision logic": {
+      "summary": "This step is the **only** place a decision is made this invocation,",
+      "anchor": "2-apply-step-4bs-decision-logic"
+    },
+    "3. Dispatch": {
+      "summary": "Resolving each component's outcome writes or updates that component's Story",
+      "anchor": "3-dispatch"
+    }
+  },
   "plugins/dev-team/skills/artifact-lifecycle/SKILL.md": {
     "Steps": {
       "summary": "Read `~/.claude/metrics/artifact-usage.json` (home-scoped — never a project-scoped path).",

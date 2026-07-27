@@ -13,9 +13,11 @@ report's own `**Target**` header field) and Step 1.2 (the re-entrant
 4b's branching rules; the off-gate-eligibility parsing rule; the re-offer
 rule for already-resolved components; `--component` scoping and its two
 unmatched/non-eligible cases; the zero-eligible terminal state; and the
-non-blocking plugin-version staleness advisory). Step 1.3 (dispatch
-mechanics, single-command acceptance criterion, registry rows) lands in a
-later commit and is out of scope here.
+non-blocking plugin-version staleness advisory) plus Step 1.3 (the
+`### 3. Dispatch` step: dispatch mechanics cited from Step 4b, the
+single-ready-to-run-command acceptance criterion, and the corrected
+`cd-test-architecture/SKILL.md` maintainer note). Registry rows for the new
+skill are verified by `tests/repo/test_registry_sync.py`, not here.
 
 Every assertion below is scoped to a named heading/section (via the local
 `_resolve_section`/`_decision_section` helpers, built from the shared
@@ -60,6 +62,22 @@ def _resolve_section(text: str | None = None) -> str:
 
 def _collapsed_resolve_section() -> str:
     return collapsed(_resolve_section())
+
+
+def _dispatch_section(text: str | None = None) -> str:
+    """Extract the new skill's `### 3. Dispatch` step (Step 1.3) — the
+    file's last section, so `section()`'s default `^### ` boundary runs to
+    EOF (no later `### ` sibling exists), mirroring the "last section, no
+    boundary surprises" precedent already established by `_decision_section`
+    above for its own Step-1.2-era state."""
+    return section(
+        text if text is not None else _text(),
+        r"^### 3\. Dispatch",
+    )
+
+
+def _collapsed_dispatch_section() -> str:
+    return collapsed(_dispatch_section())
 
 
 def _decision_section(text: str | None = None) -> str:
@@ -452,3 +470,60 @@ def test_plugin_version_staleness_advisory_when_provenance_differs():
     )
     assert grep(r"before applying Step 4b's current logic", sec)
     assert grep(r"This never blocks or alters the decision logic itself", sec)
+
+
+# --- Step 1.3: dispatch mechanics, cited not restated -----------------------
+
+
+def test_dispatch_writes_story_file_and_updates_setup_guide_same_two_artifacts():
+    sec = _collapsed_dispatch_section()
+    assert grep(
+        r"writes or updates that component's Story file for `?/build`? and "
+        r"updates the setup-guide artifact \(#1436\)",
+        sec,
+        ignore_case=True,
+    )
+    assert grep(
+        r"the same dispatch mechanics as Step 4b's own live invocation",
+        sec,
+        ignore_case=True,
+    )
+    assert grep(
+        r"cited from `?\.\./cd-test-architecture/SKILL\.md`?'s `?### 4b\. "
+        r"Build-vs-document decision \(off-gate adapter test doubles\)`? "
+        r"heading",
+        sec,
+    )
+    assert grep(
+        r"never a third artifact, never a different mechanism",
+        sec,
+        ignore_case=True,
+    )
+    # Negative companion: no third artifact type is described as part of
+    # this dispatch — only the Story file and the setup-guide artifact.
+    assert not grep(r"pull request", sec, ignore_case=True)
+    assert not grep(r"opens? an? (new )?issue", sec, ignore_case=True)
+
+
+def test_invocation_is_single_path_argument_component_only_other_arg():
+    sec = _collapsed_dispatch_section()
+    assert grep(
+        r"Invocation is exactly `?/apply-test-doubles <path>`?\s*—\s*"
+        r"`?--component <name>`? is the only other argument",
+        sec,
+        ignore_case=True,
+    )
+    assert grep(r"No other argument is ever required", sec, ignore_case=True)
+
+
+def test_maintainer_note_corrected_no_longer_says_not_yet_shipped():
+    # No existing test pins the stale phrase (verified by repo-wide search
+    # before writing this test) — this is a fresh assertion against the
+    # exact pinned replacement wording, not an update to an existing test.
+    upstream = collapsed(CD_TEST_ARCHITECTURE_SKILL.read_text(encoding="utf-8"))
+    assert grep(
+        r"\(Maintainer note, not emitted content: #1437 has shipped — this "
+        r"citation is now real, working guidance\.\)",
+        upstream,
+    )
+    assert not grep(r"not yet shipped", upstream, ignore_case=True)
