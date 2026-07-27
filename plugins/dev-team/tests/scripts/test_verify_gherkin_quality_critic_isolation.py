@@ -25,8 +25,10 @@ import verify_gherkin_quality_critic_isolation as vgi
 
 
 def test_parse_args_defaults():
+    # No pinned default: omitted, `claude -p` resolves its own configured
+    # model rather than this script hardcoding a snapshot (ADR 0026).
     args = vgi.parse_args([])
-    assert args.model == vgi._DEFAULT_MODEL
+    assert args.model is None
     assert args.timeout == vgi._DEFAULT_TIMEOUT_SECONDS
 
 
@@ -197,6 +199,43 @@ def test_dispatch_returns_stdout_on_success(monkeypatch):
 
     monkeypatch.setattr(vgi.subprocess, "run", lambda *a, **k: _Proc())
     assert vgi.dispatch("prompt", "some-model", 5) == '{"reviewer": "gherkin-quality-critic"}'
+
+
+def test_dispatch_omits_model_flag_when_none(monkeypatch):
+    captured = {}
+
+    class _Proc:
+        stdout = "ok"
+        stderr = ""
+        returncode = 0
+
+    def _fake_run(cmd, **_k):
+        captured["cmd"] = cmd
+        return _Proc()
+
+    monkeypatch.setattr(vgi.subprocess, "run", _fake_run)
+    vgi.dispatch("prompt", None, 5)
+
+    assert "--model" not in captured["cmd"]
+
+
+def test_dispatch_includes_model_flag_when_given(monkeypatch):
+    captured = {}
+
+    class _Proc:
+        stdout = "ok"
+        stderr = ""
+        returncode = 0
+
+    def _fake_run(cmd, **_k):
+        captured["cmd"] = cmd
+        return _Proc()
+
+    monkeypatch.setattr(vgi.subprocess, "run", _fake_run)
+    vgi.dispatch("prompt", "some-model", 5)
+
+    assert "--model" in captured["cmd"]
+    assert captured["cmd"][captured["cmd"].index("--model") + 1] == "some-model"
 
 
 # ---------------------------------------------------------------------------

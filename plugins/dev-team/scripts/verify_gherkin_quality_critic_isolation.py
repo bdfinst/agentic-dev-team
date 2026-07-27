@@ -42,7 +42,7 @@ Stdlib only. Python 3.8+ (ADR 0014/0015).
 
 Usage:
     python3 verify_gherkin_quality_critic_isolation.py
-    python3 verify_gherkin_quality_critic_isolation.py --model claude-sonnet-4-6 --timeout 300
+    python3 verify_gherkin_quality_critic_isolation.py --model <model-id> --timeout 300
 """
 
 from __future__ import annotations
@@ -57,7 +57,6 @@ import tempfile
 import textwrap
 from pathlib import Path
 
-_DEFAULT_MODEL = "claude-sonnet-4-6"
 _DEFAULT_TIMEOUT_SECONDS = 300.0
 
 
@@ -76,8 +75,10 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
         "--model",
-        default=_DEFAULT_MODEL,
-        help=f"model id passed to `claude -p --model` (default: {_DEFAULT_MODEL})",
+        default=None,
+        help="model id passed to `claude -p --model` (default: omitted, so "
+        "`claude -p` uses its own configured default model — this script "
+        "does not pin a snapshot; see ADR 0026)",
     )
     parser.add_argument(
         "--timeout",
@@ -152,30 +153,33 @@ def build_prompt(feature_path: Path, canary: str) -> str:
     ).strip()
 
 
-def dispatch(prompt: str, model: str, timeout: float) -> str | None:
+def dispatch(prompt: str, model: str | None, timeout: float) -> str | None:
     """Run one fully independent `claude -p` subprocess. Returns the raw
     captured stdout (the "transcript"), or None on any infrastructure
     problem (CLI crash, timeout, no output) — callers must treat None as
-    fail-open, never as a contamination finding."""
+    fail-open, never as a contamination finding. `model` is only appended to
+    the command when explicitly given — omitted, `claude -p` resolves its
+    own configured default rather than this script pinning a snapshot."""
+    cmd = [
+        "claude",
+        "-p",
+        prompt,
+        "--output-format",
+        "json",
+        "--max-turns",
+        "30",
+        "--allowedTools",
+        "Read",
+        "Glob",
+        "Grep",
+        "Skill(review-agent *)",
+        "Agent",
+    ]
+    if model:
+        cmd += ["--model", model]
     try:
         proc = subprocess.run(
-            [
-                "claude",
-                "-p",
-                prompt,
-                "--model",
-                model,
-                "--output-format",
-                "json",
-                "--max-turns",
-                "30",
-                "--allowedTools",
-                "Read",
-                "Glob",
-                "Grep",
-                "Skill(review-agent *)",
-                "Agent",
-            ],
+            cmd,
             capture_output=True,
             text=True,
             timeout=timeout,
