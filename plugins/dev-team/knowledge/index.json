@@ -745,6 +745,32 @@
       "anchor": "what-not-to-flag"
     }
   },
+  "plugins/dev-team/knowledge/gherkin-quality-review-dispatch.md": {
+    "Dispatch": {
+      "summary": "Spawn **two** independent instances of the `gherkin-quality-critic` agent as",
+      "anchor": "dispatch"
+    },
+    "Aggregation": {
+      "summary": "The calling skill performs the fold itself — no third agent, mirroring how",
+      "anchor": "aggregation"
+    },
+    "Failure handling": {
+      "summary": "If either `Agent` call errors, times out, or returns output that cannot be",
+      "anchor": "failure-handling"
+    },
+    "Zero-findings state": {
+      "summary": "Both report sections — \"Agreed Gherkin quality findings\" and \"Single-source",
+      "anchor": "zero-findings-state"
+    },
+    "Report section format": {
+      "summary": "Each calling skill's report step prints two sections, distinct from every",
+      "anchor": "report-section-format"
+    },
+    "Scope of this doc": {
+      "summary": "This doc owns the dispatch/aggregation/failure/zero-findings mechanics and",
+      "anchor": "scope-of-this-doc"
+    }
+  },
   "plugins/dev-team/knowledge/legacy-test-strategy.md": {
     "1. Reason about effects": {
       "summary": "Every functional change has a chain of effects that propagates outward — through the methods that call the changed code — until it reaches a place you can observe, or stops because nothing downstream depends on it.",
@@ -3622,6 +3648,10 @@
       "summary": "`features/<surface>.feature` files (all non-`none` modes) — **merged, not",
       "anchor": "step-5-output"
     },
+    "Step 5b — Adversarial Gherkin Quality Review": {
+      "summary": "Whenever this run wrote or merged at least one `.feature` file in Step 5,",
+      "anchor": "step-5b-adversarial-gherkin-quality-review"
+    },
     "Step 6 — Report": {
       "summary": "Print the mode, the count of surfaces by discovery source (OpenAPI / route /",
       "anchor": "step-6-report"
@@ -3659,6 +3689,10 @@
     "4. Cite the assessment": {
       "summary": "In every `.feature` file's header, include:",
       "anchor": "4-cite-the-assessment"
+    },
+    "4b. Adversarial Gherkin Quality Review": {
+      "summary": "Dispatch the adversarial review against Step 3's authored `.feature` files",
+      "anchor": "4b-adversarial-gherkin-quality-review"
     },
     "5. Persist phase-2 progress": {
       "summary": "Write `.claude/memory/<workflow>/<slug>/phase-2.md` with:",

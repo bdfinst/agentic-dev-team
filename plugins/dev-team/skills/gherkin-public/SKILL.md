@@ -155,6 +155,23 @@ In every `.feature` file's header, include:
 
 This lets the operator trace each scenario back to a component row at the Phase-2 human sign-off (Step 6), and lets `/feature-file-validation` — which `/code-review` invokes automatically whenever `.feature` or step-definition files are in the changeset — verify each scenario has matching test automation once the bound Stories are built.
 
+### 4b. Adversarial Gherkin Quality Review
+
+Dispatch the adversarial review against Step 3's authored `.feature` files
+unconditionally — this skill has no `none` mode, so every completed Step 3
+authors at least one `.feature` file, and no operator opt-in is required.
+This runs **before** Step 5 (Persist phase-2 progress) and before the Step 6
+human sign-off, so the operator sees the dual-agent findings alongside the
+scenario inventory at the sign-off decision point.
+
+Follow `knowledge/gherkin-quality-review-dispatch.md` for the shared dispatch,
+aggregation, failure-handling, and zero-findings mechanics — this step states
+only what's specific to `/gherkin-public`: each of the two
+`gherkin-quality-critic` instances receives, for every surface reviewed, that
+surface's `.feature` file content plus its Step 4 header (`# Source:`,
+`# Component:`, `# Pattern:`, `# Public surface:`). The resulting
+`agreed`/`single-source` buckets feed Step 8's two new report sections.
+
 ### 5. Persist phase-2 progress
 
 Write `.claude/memory/<workflow>/<slug>/phase-2.md` with:
@@ -228,6 +245,13 @@ Print:
 - Any components flagged for hand-authoring.
 - N `[Component tests]` Stories created with scenario-binding count per Story.
 - The phase-2 progress file path and the `gherkin-bindings.json` path.
+
+**Print Step 4b's two Gherkin quality sections — "Agreed Gherkin quality
+findings" and "Single-source (unconfirmed) Gherkin quality findings" —
+distinct from the hand-authoring-flagged-components callout above:** follow
+`knowledge/gherkin-quality-review-dispatch.md`'s Report section format for the
+exact per-finding line format, the zero-findings sentence, and the
+failure-handling wording.
 
 ## Notes
 

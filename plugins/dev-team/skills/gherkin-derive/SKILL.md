@@ -315,12 +315,41 @@ cause it is):
   thin-analysis gap this section exists to make detectable (see Step 6's
   `gherkin_analysis_coverage_gate.py` invocation).
 
+## Step 5b — Adversarial Gherkin Quality Review
+
+Whenever this run wrote or merged at least one `.feature` file in Step 5,
+dispatch the adversarial review before Step 6's report — no operator opt-in
+required. **Skip entirely** in `none` mode (no `.feature` files exist) or on a
+run that wrote/merged zero `.feature` content.
+
+Follow `knowledge/gherkin-quality-review-dispatch.md` for the shared dispatch,
+aggregation, failure-handling, and zero-findings mechanics — this step states
+only what's specific to `/gherkin-derive`: each of the two
+`gherkin-quality-critic` instances receives, for every surface reviewed, that
+surface's `.feature` file content plus its Step 3 `# Source:` header (the
+route, OpenAPI path, test file, or signature it was derived from), so the
+agent can check scenarios against the actual cited source. The resulting
+`agreed`/`single-source` buckets feed Step 6's two new report sections below.
+
 ## Step 6 — Report
 
 Print the mode, the count of surfaces by discovery source (OpenAPI / route /
 test / signature / message-queue / scheduled-cron / websocket-graphql), the
 specification-vs-characterization split, and the paths written. In `none`
 mode, print only the one-line recommendation.
+
+**Print Step 5b's two Gherkin quality sections — "Agreed Gherkin quality
+findings" and "Single-source (unconfirmed) Gherkin quality findings":**
+whenever Step 5b ran (skip this pair of sections entirely when it was skipped
+— `none` mode or zero `.feature` writes), follow
+`knowledge/gherkin-quality-review-dispatch.md`'s Report section format for the
+exact per-finding line format, the zero-findings sentence, and the
+failure-handling wording.
+
+Neither section is folded into the characterization, possibly-stale,
+title-mismatch, or skipped-duplicate callouts below — this is semantic
+gap/balance judgment from an independent reviewer, not a structural-presence
+check.
 
 **Call out characterization scenarios separately — never fold them into the
 same summary line as specification scenarios.** Print a distinct line: "N
