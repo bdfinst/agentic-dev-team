@@ -43,16 +43,18 @@ def _text() -> str:
 
 
 def _resolve_section(text: str | None = None) -> str:
-    """Extract the new skill's `### 1. Resolve report or target` step. No
-    `##`-level heading exists yet in this file (Step 1.1 is the file's first
-    content) so the default `^### ` boundary would swallow nothing early —
-    bounded explicitly to `^## ` so a future `## Steps` sibling or later
-    top-level section added in Step 1.2/1.3 can't silently truncate this
-    extraction differently than intended."""
+    """Extract the new skill's `### 1. Resolve report or target` step,
+    bounded at the next `### ` sibling heading (Step 1.2's `### 2. Apply
+    Step 4b's decision logic`) — `section()`'s default boundary. An earlier
+    version of this helper overrode the boundary to `^## ` from when Step
+    1.1 was the file's only content and no `### ` sibling existed yet to
+    bound against; left uncorrected once Step 1.2 landed, it silently
+    over-captured Step 2's content into every Step-1-scoped assertion
+    here. Fixed to the default `^### ` boundary now that a real sibling
+    exists."""
     return section(
         text if text is not None else _text(),
         r"^### 1\. Resolve report or target",
-        boundary_pattern=r"^## ",
     )
 
 
