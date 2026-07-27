@@ -289,7 +289,8 @@ adapter-double recommendation at all) gets no section. Each section has:
    skill, `/apply-test-doubles <report-path> [--component <name>]`" and
    "invocation is exactly `/apply-test-doubles <report-path-or-target>` (the
    optional `--component` filter is the only other argument)". (Maintainer
-   note, not emitted content: #1437 itself is not yet shipped.) In the
+   note, not emitted content: #1437 has shipped — this citation is now real,
+   working guidance.) In the
    single-component chat-only case, there is no saved main-report file to
    substitute for `<path>` — the assessment output is in this chat session,
    not a saved file — so the closing command is emitted with no path
