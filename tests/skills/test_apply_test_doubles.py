@@ -19,13 +19,16 @@ applied as a post-hoc filter on *both* paths, never forwarded into the
 cases; the zero-eligible terminal state; this step's own non-interactive
 behavior; and the non-blocking plugin-version staleness advisory, including
 its resolver-failure handling), and Step 1.3 (the `### 3. Dispatch` step:
-the write-back of the resolved report's own `Build/Document status` cell,
-the advisory-only Story proposal, the explicit non-touching of the
-setup-guide artifact, the citation to `/issues-from-assessment` for actual
-Story materialization, the single-ready-to-run-command acceptance
-criterion, and the corrected `cd-test-architecture/SKILL.md` maintainer
-note). Registry rows for the new skill are verified by
-`tests/repo/test_registry_sync.py`, not here.
+the write-back of the resolved report's own `Build/Document status` cell —
+including its full cell contract (verbatim caveat, `Double` column,
+revert-clears-caveat), write-failure handling, and the deliberately
+untouched report Provenance block — the advisory-only Story proposal, the
+setup-guide's inclusion-vs-Classification distinction (inclusion is
+decision-independent, Classification is re-emitted on change), the honest
+no-automated-materialization-path statement for `/issues-from-assessment`,
+the single-ready-to-run-command acceptance criterion, and the corrected
+`cd-test-architecture/SKILL.md` maintainer note). Registry rows for the
+new skill are verified by `tests/repo/test_registry_sync.py`, not here.
 
 Most assertions below are scoped to a named heading/section (via the local
 `_resolve_section`/`_decision_section`/`_dispatch_section` helpers, or the
@@ -129,8 +132,19 @@ def test_skill_file_exists_with_correct_frontmatter():
     assert grep(r"^role:\s*worker\s*$", fm)
     assert grep(r"^user-invocable:\s*true\s*$", fm)
     assert grep(
-        r'^argument-hint:\s*"\[<report-path-or-target>\]\s*\[--component <name>\]"\s*$',
+        r'^argument-hint:\s*"\[<report-path-or-target>\]\s*\[--component <name>\]'
+        r'\s*\[--yes\]"\s*$',
         fm,
+    )
+
+
+def test_parse_arguments_documents_yes_flag():
+    parse_args = collapsed(section(_text(), r"^## Parse Arguments"))
+    assert grep(
+        r"`?--yes`? — run non-interactively: this step's own re-entrant "
+        r"Step 4b prompt \(Step 2\) is skipped",
+        parse_args,
+        ignore_case=True,
     )
 
 
@@ -308,6 +322,21 @@ def test_component_flag_never_forwarded_to_cd_test_architecture_on_target_path()
     # Negative companion: the abandoned "single-component-scoped fresh
     # assessment" design is not described anywhere in this new file.
     assert not grep(r"single-component-scoped fresh assessment", _text())
+
+
+def test_target_path_resolves_fresh_report_path_per_upstream_output_rule():
+    # arch-review round-2 fix-verification: Step 1 previously left implicit
+    # how the target path locates the report it just asked
+    # cd-test-architecture to produce — now load-bearing since Step 3's
+    # write-back needs a real path to mutate.
+    sec = _collapsed_resolve_section()
+    assert grep(
+        r"resolve the fresh report at "
+        r"`?\.dev-team-reports/cd-test-architecture-<app>\.md`?, per "
+        r"`?\.\./cd-test-architecture/SKILL\.md`?'s own Output Path rule",
+        sec,
+        ignore_case=True,
+    )
 
 
 # --- Companion setup guide located via Target header, not filename ----------
@@ -592,10 +621,26 @@ def test_zero_eligible_components_reports_nothing_to_apply_no_dispatch():
 
 def test_non_interactive_behavior_documented_for_own_prompt():
     sec = _collapsed_decision_section()
+    assert grep(r"surface no prompt for this step either", sec, ignore_case=True)
     assert grep(
-        r"surface no prompt for this step either\s*—\s*every "
-        r"off-gate-eligible component resolves to `?Document-only`?, no "
-        r"Story is proposed, and no report write-back happens",
+        r"a component with \*\*no prior recorded decision\*\* defaults to "
+        r"`?Document-only`?, exactly mirroring what a non-interactive "
+        r"`?cd-test-architecture`? run would have produced",
+        sec,
+        ignore_case=True,
+    )
+    assert grep(
+        r"a component with an \*\*existing recorded decision\*\* is left "
+        r"exactly as recorded, not silently re-resolved to `?Document-only`?",
+        sec,
+        ignore_case=True,
+    )
+    # Negative: round-2 fix-verification found the prior wording claimed
+    # every eligible component resolves to Document-only under --yes,
+    # contradicting an already-decided report's own recorded status.
+    assert not grep(
+        r"every off-gate-eligible component resolves to `?Document-only`?, "
+        r"no Story is proposed",
         sec,
         ignore_case=True,
     )
@@ -610,7 +655,10 @@ def test_plugin_version_staleness_advisory_cites_version_resolver_only():
     # `/upgrade` does NOT use hooks/lib/plugin_version.py — only `/version`
     # does. The claim must name `/version` alone.
     assert grep(r"the same resolver `?/version`? already uses", sec)
-    assert not grep(r"/version`? and `?/upgrade`? already use", sec)
+    # test-review round-2 fix-verification: broadened from the narrower
+    # exact-phrase pin (which would miss any reworded reintroduction) to a
+    # blanket "no legitimate reason to mention /upgrade at all" check.
+    assert not grep(r"/upgrade", sec, ignore_case=True)
     assert grep(
         r"sh \"?\$CLAUDE_PLUGIN_ROOT/hooks/py\.sh\"? "
         r"\"?\$CLAUDE_PLUGIN_ROOT/hooks/lib/plugin_version\.py\"?",
@@ -671,8 +719,9 @@ def test_dispatch_never_writes_a_story_file_advisory_only():
         ignore_case=True,
     )
     assert grep(
-        r"Step 4b's live invocation never writes a Story file, it renders "
-        r"a proposed Story as report/chat text",
+        r"Step 4b's live invocation proposes a Story within its own "
+        r"report/chat output \(Step 6's only documented output channel\), "
+        r"never as a separate file",
         sec,
         ignore_case=True,
     )
@@ -692,6 +741,11 @@ def test_dispatch_writes_back_build_document_status_cell():
         ignore_case=True,
     )
     assert grep(
+        r"matching the \*\*full cell contract\*\*",
+        sec,
+        ignore_case=True,
+    )
+    assert grep(
         r"the next `?/apply-test-doubles`? run against the same report "
         r"would re-read the stale status",
         sec,
@@ -701,6 +755,61 @@ def test_dispatch_writes_back_build_document_status_cell():
         r"this write-back is unique to this skill\s*:\s*Step 4b's live "
         r"invocation writes the cell once, at report-creation time, and "
         r"never needs to revise it",
+        sec,
+        ignore_case=True,
+    )
+
+
+def test_write_back_carries_full_cell_contract_caveat_and_double_column():
+    # arch-review + ai-provenance-review round-2 fix-verification: the
+    # write-back originally specified only the enum value, but
+    # cd-test-architecture's Output section's cell contract also requires
+    # the branch-specific caveat (Build (Fake)) and the resolved tool name
+    # (Double column) — omitting either produces a report violating the
+    # very contract this bullet claims to honor.
+    sec = _collapsed_dispatch_section()
+    assert grep(
+        r"a `?Build \(Fake\)`? write carries that branch's caveat verbatim "
+        r"in the same cell",
+        sec,
+        ignore_case=True,
+    )
+    assert grep(
+        r"the `?Double \(to run config-free\)`? column is updated to name "
+        r"it, per the Output section's own tool-citation rule",
+        sec,
+        ignore_case=True,
+    )
+    assert grep(
+        r"A row reverting to `?Document-only`? or `?Build "
+        r"\(testcontainers\)`? has any previously-written caveat text "
+        r"removed from the cell",
+        sec,
+        ignore_case=True,
+    )
+
+
+def test_write_back_handles_write_failure_and_leaves_provenance_untouched():
+    # arch-review round-2 fix-verification: the write-back had no failure
+    # handling (report-output-location.md's non-fatal-write convention)
+    # and no statement of how it interacts with the report's own
+    # Provenance block, which the version-skew advisory (Step 2) reads on
+    # every subsequent run.
+    sec = _collapsed_dispatch_section()
+    assert grep(
+        r"if the write fails \(permission, read-only path\), state that "
+        r"plainly and surface the resolved decisions in chat instead",
+        sec,
+        ignore_case=True,
+    )
+    assert grep(
+        r"never proceed as if the write succeeded",
+        sec,
+        ignore_case=True,
+    )
+    assert grep(
+        r"the report's own header and Provenance block.*are deliberately "
+        r"left untouched by this write-back",
         sec,
         ignore_case=True,
     )
@@ -720,68 +829,111 @@ def test_dispatch_proposes_story_text_for_build_outcome_advisory_only():
     )
 
 
-def test_dispatch_does_not_touch_setup_guide_artifact():
+def test_setup_guide_inclusion_independent_but_classification_reemitted_on_change():
+    # arch-review + ai-provenance-review round-2 fix-verification: the
+    # original claim ("not touched by this step... nothing to update
+    # there") was false against cd-test-architecture's own Companion
+    # Classification list, which keys section content on the resolved
+    # Build variant and library choice — exactly what Step 2 lets the
+    # operator change. Corrected to distinguish inclusion (independent)
+    # from Classification (not independent, must be re-emitted on change).
     sec = _collapsed_dispatch_section()
     assert grep(
-        r"The setup-guide artifact \(#1436\) is not touched by this step",
+        r"per-component \*inclusion\* is independent of this decision; "
+        r"its \*Classification\* is not",
         sec,
         ignore_case=True,
     )
     assert grep(
-        r"independent of the Step 4b Build/Document-only outcome",
+        r"both of which Step 2 explicitly lets the operator change",
         sec,
         ignore_case=True,
     )
     assert grep(
-        r"There is nothing for this step to update there",
+        r"re-emit that component's setup-guide section per the "
+        r"Classification rule so the guide never names a tool the report "
+        r"no longer recommends",
         sec,
         ignore_case=True,
+    )
+    # Negative: the old, disproven "nothing to update there" claim is gone.
+    assert not grep(
+        r"there is nothing for this step to update there", sec, ignore_case=True
     )
 
 
-def test_dispatch_cites_issues_from_assessment_for_story_materialization():
+def test_dispatch_states_no_automated_story_materialization_path():
+    # arch-review + ai-provenance-review round-2 fix-verification: the
+    # original citation claimed /issues-from-assessment materializes this
+    # step's proposed Story, but that skill's Step 2 never reads
+    # Build/Document status or reproduces Step 4b's Story shapes — it
+    # derives its own, independent per-(component, layer) Stories.
+    # Corrected to state the honest parity with Step 4b's own live
+    # invocation: advisory chat/report output only, no materialization.
     sec = _collapsed_dispatch_section()
     assert grep(
-        r"run `?/issues-from-assessment <the updated report-path>`?",
+        r"there is no automated materialization path today, the same as "
+        r"Step 4b's own live invocation",
         sec,
         ignore_case=True,
     )
     assert grep(
+        r"`?\.\./issues-from-assessment/SKILL\.md`? derives its own "
+        r"Stories directly from the Target architecture table.*"
+        r"independent of the Build/Document decision or this step's "
+        r"proposed Story text",
+        sec,
+        ignore_case=True,
+    )
+    assert grep(
+        r"it is not a consumer of what this step just proposed, and this "
+        r"skill does not invent a second materialization mechanism to "
+        r"bridge that gap",
+        sec,
+        ignore_case=True,
+    )
+    # Negative: the old, disproven "established, single-owner path to real
+    # Stories" claim is gone.
+    assert not grep(
         r"the established, single-owner path from a "
         r"cd-test-architecture-shaped report to real Stories",
         sec,
         ignore_case=True,
     )
-    assert grep(
-        r"This skill does not duplicate that mechanism",
-        sec,
-        ignore_case=True,
-    )
 
 
-def test_issues_from_assessment_referenced_file_exists_and_claims_sole_ownership():
-    # ai-provenance-adjacent check: confirm the cited sibling skill is real
-    # and genuinely claims the sole-owner status this new skill defers to,
-    # rather than trusting the citation on faith.
+def test_issues_from_assessment_step_2_does_not_read_build_document_status():
+    # Companion pin proving the corrected claim above is itself accurate:
+    # issues-from-assessment's Step 2 genuinely has no Build/Document-
+    # status-aware or Step-4b-Story-shape-aware logic to hand off to.
     issues_from_assessment = PLUGIN_ROOT / "skills" / "issues-from-assessment" / "SKILL.md"
     assert issues_from_assessment.is_file()
-    notes = collapsed(
+    step_2 = collapsed(
         section(
-            issues_from_assessment.read_text(encoding="utf-8"), r"^## Notes"
+            issues_from_assessment.read_text(encoding="utf-8"),
+            r"^### 2\. Read the assessment \+ derive children",
         )
     )
     assert grep(
-        r"this worker is the only place tracker-CLI knowledge sits",
-        notes,
-        ignore_case=True,
+        r"Target architecture \(per component\).*Phase-5 Stories per "
+        r"\(component, layer\)",
+        step_2,
     )
+    assert not grep(r"Build/Document status", step_2, ignore_case=True)
 
 
-def test_invocation_is_single_path_argument_component_only_other_arg():
+def test_invocation_is_single_path_argument_component_only_other_scoping_arg():
     sec = _collapsed_dispatch_section()
     assert grep(
         r"Invocation is exactly `?/apply-test-doubles <path>`?\s*—\s*"
-        r"`?--component <name>`? is the only other argument",
+        r"`?--component <name>`? is the only other \*\*scoping\*\* "
+        r"argument",
+        sec,
+        ignore_case=True,
+    )
+    assert grep(
+        r"`?--yes`?, per Parse Arguments, controls interactivity, not "
+        r"scope",
         sec,
         ignore_case=True,
     )
