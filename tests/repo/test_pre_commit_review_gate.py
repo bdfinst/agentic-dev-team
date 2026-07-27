@@ -11,6 +11,7 @@ from __future__ import annotations
 import json
 import subprocess
 import sys
+from datetime import datetime, timezone
 from pathlib import Path
 
 import pytest
@@ -83,12 +84,40 @@ def _write_gate(work: Path, hermetic_env: dict[str, str]) -> None:
     gate_path.write_text(result.stdout)
 
 
+def _write_dispatch_evidence(work: Path) -> None:
+    """Seed .claude/metrics/boundary-events.jsonl with 2 distinct genuine
+    review-agent dispatches (#1461) — required, alongside the hash match,
+    for the gate to accept a write since the dispatch-ledger corroboration
+    hardening. See plugins/dev-team/tests/hooks/test_pre_commit_review.py
+    for the full scenario coverage; this helper only seeds the passing case
+    these repo-level gate tests need."""
+    log = work / ".claude" / "metrics" / "boundary-events.jsonl"
+    log.parent.mkdir(parents=True, exist_ok=True)
+    now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    with log.open("a", encoding="utf-8") as fh:
+        for agent in ("security-review", "structure-review"):
+            fh.write(
+                json.dumps(
+                    {
+                        "ts": now,
+                        "hook": "agent_dispatch_ledger",
+                        "tool": "Agent",
+                        "decision": "record",
+                        "matched_rule": agent,
+                        "plugin_version": "0.0.0",
+                    }
+                )
+                + "\n"
+            )
+
+
 def test_gate_exact_staged_content_that_was_reviewed_commits_cleanly(
     work: Path, hermetic_env: dict[str, str]
 ) -> None:
     (work / "a.ts").write_text("v1\n")
     _git(work, hermetic_env, "add", "a.ts")
     _write_gate(work, hermetic_env)
+    _write_dispatch_evidence(work)
     result = _commit_hook(work, hermetic_env)
     assert result.returncode == 0
     assert not (
@@ -129,5 +158,6 @@ def test_gate_writer_and_hook_compute_the_same_content_hash(
     # the helper's output (writer) must equal the hash the hook recomputes
     # (reader)
     _write_gate(work, hermetic_env)
+    _write_dispatch_evidence(work)
     result = _commit_hook(work, hermetic_env)
     assert result.returncode == 0
