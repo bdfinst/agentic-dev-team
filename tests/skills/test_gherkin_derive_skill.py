@@ -135,6 +135,61 @@ def test_writes_the_surface_inventory_under_memory_workflow():
     assert grep(r"memory/<workflow>/.*gherkin", _text())
 
 
+def test_step_2_mandates_in_depth_analysis_of_named_categories():
+    # issue #1450: comprehensive codebase-wide analysis must be the
+    # unconditional default, not an operator-supplied instruction.
+    text = _text()
+    idx = text.find("Discover the public surface")
+    assert idx != -1
+    step3_idx = text.find("## Step 3", idx)
+    section_text = text[idx : step3_idx if step3_idx != -1 else None]
+    for category in (
+        "controllers",
+        "handlers",
+        "services",
+        r"domain\s+logic",
+        "workflows",
+        r"validation\s+rules",
+        r"error\s+handling",
+        r"business\s+processes",
+    ):
+        assert grep(category, section_text, ignore_case=True), category
+    assert grep(r"mandatory|unconditional", section_text, ignore_case=True)
+    assert grep(r"always on|never.*(operator|gated)", section_text, ignore_case=True)
+
+
+def test_step_5_requires_analysis_coverage_section_in_inventory():
+    text = _text()
+    idx = text.find("## Step 5")
+    assert idx != -1
+    step6_idx = text.find("## Step 6", idx)
+    section_text = text[idx : step6_idx if step6_idx != -1 else None]
+    assert grep(r"Analysis Coverage", section_text)
+    for category in (
+        "controllers",
+        "handlers",
+        "services",
+        r"domain\s+logic",
+        "workflows",
+        r"validation\s+rules",
+        r"error\s+handling",
+        r"business\s+processes",
+    ):
+        assert grep(category, section_text, ignore_case=True), category
+
+
+def test_step_6_reports_analysis_coverage_gate_outcomes():
+    text = _text()
+    idx = text.find("## Step 6")
+    assert idx != -1
+    next_heading_idx = text.find("## Key differences", idx)
+    section_text = text[idx : next_heading_idx if next_heading_idx != -1 else None]
+    assert "gherkin_analysis_coverage_gate.py" in section_text
+    assert grep(r"\bOK\b", section_text)
+    assert grep(r"missing", section_text, ignore_case=True)
+    assert grep(r"gate did not run", section_text, ignore_case=True)
+
+
 def test_registered_in_skills_registry():
     assert "skills/gherkin-derive/SKILL.md" in SKILLS_REG.read_text()
     assert "skills/gherkin-derive/SKILL.md" in AGENT_REG.read_text()
