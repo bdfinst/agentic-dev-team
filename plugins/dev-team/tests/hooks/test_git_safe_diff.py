@@ -83,6 +83,51 @@ def test_cwd_none_passes_none_not_string(monkeypatch: pytest.MonkeyPatch) -> Non
     assert captured["kwargs"]["cwd"] is None
 
 
+def test_target_head_shaped_argv(monkeypatch: pytest.MonkeyPatch) -> None:
+    """#1476: `working_tree_gate_hash()` passes `target="HEAD"`."""
+    captured = {}
+
+    def _fake_run(argv, **kwargs):
+        captured["argv"] = argv
+        return subprocess.CompletedProcess(argv, 0, stdout=b"", stderr=b"")
+
+    monkeypatch.setattr(subprocess, "run", _fake_run)
+    gsd.run_safe_git_diff(
+        ["--no-color", "--no-ext-diff", "--no-textconv"],
+        cwd=None,
+        text=False,
+        target="HEAD",
+    )
+    assert captured["argv"] == [
+        "git",
+        "-c", "diff.relative=false",
+        "diff", "HEAD",
+        "--no-color", "--no-ext-diff", "--no-textconv",
+        "--ignore-submodules=none",
+    ]
+
+
+def test_target_none_omits_target_argument(monkeypatch: pytest.MonkeyPatch) -> None:
+    """#1476: `_working_tree_modified_names()` passes `target=None` for a
+    bare `git diff` (index vs. working tree) — the target argument must be
+    omitted entirely, not passed as the literal string "None"."""
+    captured = {}
+
+    def _fake_run(argv, **kwargs):
+        captured["argv"] = argv
+        return subprocess.CompletedProcess(argv, 0, stdout="", stderr="")
+
+    monkeypatch.setattr(subprocess, "run", _fake_run)
+    gsd.run_safe_git_diff(["--name-only"], cwd="/tmp/repo", text=True, target=None)
+    assert captured["argv"] == [
+        "git",
+        "-c", "diff.relative=false",
+        "diff",
+        "--name-only",
+        "--ignore-submodules=none",
+    ]
+
+
 def test_real_git_diff_cached_name_only(tmp_path: Path) -> None:
     env = hermetic_git_env(home=tmp_path)
     subprocess.run(["git", "init", "-q"], cwd=tmp_path, env=env, check=True)

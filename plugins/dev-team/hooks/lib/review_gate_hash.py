@@ -112,6 +112,41 @@ def review_gate_hash(cwd: Path | None = None) -> str:
     return hashlib.sha256(completed.stdout).hexdigest()
 
 
+def working_tree_gate_hash(cwd: Path | None = None) -> str:
+    """Return the sha256 hex digest of `git diff HEAD` — the EFFECTIVE
+    content (staged + unstaged, relative to HEAD) a `git commit -a`/`--all`
+    or pathspec-form commit would actually commit (#1476).
+
+    `review_gate_hash()` above hashes `git diff --cached`, which is empty
+    by definition for these commit forms (nothing was ever `git add`-ed) —
+    using it here would let such a commit sail through on an empty-hash
+    match. This sibling function is otherwise identical: same shared safety
+    flags via `git_safe_diff.run_safe_git_diff` (just `target="HEAD"`
+    instead of the default `"--cached"`), same `--no-color --no-ext-diff
+    --no-textconv` extra flags, same empty-input digest on git failure.
+    Kept in lockstep with `review_gate_hash()` deliberately — a future
+    safety-flag fix applied to one and forgotten on the other would reopen
+    exactly the subject-binding bypass both functions exist to prevent.
+    """
+    try:
+        completed = run_safe_git_diff(
+            ["--no-color", "--no-ext-diff", "--no-textconv"],
+            cwd=cwd,
+            text=False,
+            target="HEAD",
+        )
+    except (FileNotFoundError, OSError):
+        return hashlib.sha256(b"").hexdigest()
+
+    if completed.returncode != 0:
+        # Includes the unborn-HEAD case (a repo with no commits yet) —
+        # `git diff HEAD` fails there just like `git diff --cached` fails
+        # outside a repo. Fail-closed to the same empty-input digest.
+        return hashlib.sha256(b"").hexdigest()
+
+    return hashlib.sha256(completed.stdout).hexdigest()
+
+
 def _main() -> int:
     """When the .sh is executed directly it prints the hash. Same for us."""
     print(review_gate_hash())
@@ -122,4 +157,4 @@ if __name__ == "__main__":
     raise SystemExit(_main())
 
 
-__all__ = ("review_gate_hash",)
+__all__ = ("review_gate_hash", "working_tree_gate_hash")
