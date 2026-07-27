@@ -148,7 +148,29 @@ proceed with a body the linter flagged without fixing the phrasing.
 gh pr create --title "<title>" --body "<body>" [--draft] --base <base>
 ```
 
-Use the structured template:
+**Check for a repo-provided template first**: `.github/PULL_REQUEST_TEMPLATE.md`
+(the canonical GitHub location). If it exists, use it as the body's base
+structure instead of this skill's own hardcoded template below:
+
+- Fill each of the template's existing sections with the corresponding
+  generated content where an obvious semantic match exists — a
+  "Summary"/"What"/"Description"-shaped heading gets the summary bullets; a
+  "Test(ing) Plan"/"How to test"/"Verification"-shaped heading gets the test
+  plan steps; a "Checklist" heading that already lists gate-shaped items gets
+  the Quality Gate results.
+- Preserve every section the template defines, in its own order, even when
+  nothing here auto-fills it — leave the template's own placeholder/comment
+  text for the operator rather than deleting the section.
+- Append this skill's own **Decisions & Assumptions** and **Evidence
+  Bundle** sections at the end, under their own headings, whenever the
+  template has no equivalent section for them. Never drop that content
+  silently just because the repo's template didn't ask for it.
+- Preserve the template's own HTML comments (`<!-- ... -->`) — they are
+  operator-facing instructions (e.g. "PR title must be conventional"), not
+  placeholders to strip.
+
+If no such file exists, fall back to this skill's own structured template
+exactly as before:
 
 ```markdown
 ## Summary
