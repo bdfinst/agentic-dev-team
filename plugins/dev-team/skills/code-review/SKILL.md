@@ -132,9 +132,11 @@ as before this feature. Sliced mode is **report-only** (no interactive fix loop)
 If **every** target file is documentation, short-circuit:
 
 1. Emit: `Documentation-only changeset ({N} files) — skipping code review. Re-run with --force --reason "<text>" to review anyway.`
-2. If the review was auto-scoped to uncommitted changes, write the `.review-passed` gate file (per step 9) so the pre-commit hook allows the commit. **Contemporaneously** (before or immediately after that write), record the doc-only exemption as an explicit, auditable boundary event — the `.review-passed` gate's dispatch-ledger corroboration (#1461) reads this event to let the doc-only path stay exempt from agent-dispatch evidence without being a silent, unaccountable code-path skip:
+2. If the review was auto-scoped to uncommitted changes, write the `.review-passed` gate file (per step 9) so the pre-commit hook allows the commit. **Contemporaneously** (before or immediately after that write), record the doc-only exemption as an explicit, auditable boundary event — the `.review-passed` gate's dispatch-ledger corroboration (#1461) reads this event, bound to the gate's own hash, to let the doc-only path stay exempt from agent-dispatch evidence without being a silent, unaccountable code-path skip:
    ```bash
-   python3 ${CLAUDE_PLUGIN_ROOT}/hooks/lib/boundary_events.py --hook code-review --tool Skill --decision bypass --matched-rule doc-only-review-exempt
+   HASH=$(python3 ${CLAUDE_PLUGIN_ROOT}/hooks/lib/review_gate_hash.py)
+   mkdir -p .claude/memory && echo "$HASH" > .claude/memory/.review-passed
+   python3 ${CLAUDE_PLUGIN_ROOT}/hooks/lib/boundary_events.py --event doc-only --subject-hash "$HASH"
    ```
 3. In `--json` mode, emit `{"status": "skipped", "reason": "documentation-only", "files": [<list>]}` instead.
 4. **Stop.** Do not run pre-flight gates, static analysis, or any agent.
@@ -235,11 +237,14 @@ explicit single-agent request always runs that agent).
 and the change-shape gate above have both been applied, apply this gate —
 never before, and never in a way that re-adds an agent either already removed.
 It narrows the `Scope: always` roster by diff *size* rather than file *type*:
-the pre-commit hook (`hooks/pre_commit_review.py`) only checks that a
-`.review-passed` hash matches the staged diff — it has no coupling to which or
-how many agents ran — so unconditionally dispatching the full panel on every
-review, down to a 2-line change, is this step's decision to make, not the
-hook's.
+the pre-commit hook (`hooks/pre_commit_review.py`) requires a `.review-passed`
+hash match **and** (#1461) >= 2 distinct, recent, registered review-agent
+dispatches recorded in the dispatch ledger — so this gate must never narrow
+`keepAgents` below 2, and today's four-agent floor (`security-review`,
+`correctness-review`, `spec-compliance-review`, `doc-review`) clears that with
+room to spare. Which specific agents to keep at a given diff size remains
+this step's decision, not the hook's — the hook only enforces the *count*
+floor, never which agents satisfy it.
 
 **Applies only to diff-scoped reviews** — auto-scoped uncommitted changes, or
 `--since <ref>`. `--path`, `--all`, and the full-repository fallback review
@@ -431,7 +436,14 @@ For issues NOT auto-fixed (confidence: none, auto-fix failed, or suggestions), g
 If the review was auto-scoped to uncommitted changes and the overall status is `pass` or `warn`, write `.review-passed` to `.claude/memory/` so the pre-commit hook allows the next commit. Use the **shared gate-hash helper** so the writer and the pre-commit hook compute the hash identically — it hashes the staged **content** (the cached patch), not just the file paths (#193), so any edit after review invalidates the gate:
 
 ```bash
-mkdir -p .claude/memory && python3 ${CLAUDE_PLUGIN_ROOT}/hooks/lib/review_gate_hash.py > .claude/memory/.review-passed
+HASH=$(python3 ${CLAUDE_PLUGIN_ROOT}/hooks/lib/review_gate_hash.py)
+mkdir -p .claude/memory && echo "$HASH" > .claude/memory/.review-passed
+```
+
+**If `--agent <name>` was used** (a sanctioned single-agent review — it deliberately dispatches exactly 1 agent, which can never clear the dispatch-ledger gate's `>= 2` distinct-dispatch floor on its own), record that as an explicit, auditable exemption event bound to this same hash **contemporaneously** with the write above — same pattern as the doc-only short-circuit's exemption event (step 1a):
+
+```bash
+python3 ${CLAUDE_PLUGIN_ROOT}/hooks/lib/boundary_events.py --event single-agent --subject-hash "$HASH"
 ```
 
 Stage the exact changes you reviewed (`git add` them) before writing the gate, so the staged content the hook hashes matches what was reviewed. If `git diff --cached` is empty (you reviewed unstaged changes), stage them first — the gate binds to the staged patch by design.

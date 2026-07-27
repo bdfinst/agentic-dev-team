@@ -12,13 +12,17 @@ dispatches — not just a self-computed hash (issue #1461's residual gap; see
 On each Agent/Task dispatch, reads `tool_input.subagent_type`. If and only if
 it is present in `hooks/lib/review_agent_registry`'s closed set of registered
 `agents/*-review.md` stems, records one `"record"` boundary event carrying
-that agent name as `matched_rule`. Anything not in the closed set — a typo, a
-non-review team agent, or a fabricated name — is silently NOT recorded, never
-written as free text: matching `boundary_events.py`'s own no-free-text
-constraint (rule IDs / closed-vocabulary values only, never arbitrary
-strings). `"record"` is a new, fifth-plus decision value: an observation, not
-a block/warn/bypass/intervention/revert policy verdict — see
-`knowledge/telemetry-schema.md` for its full documentation.
+that agent name as `matched_rule`, stamped with the CURRENT
+`review_gate_hash()` value as `subject_hash` — binding this dispatch to
+whatever content is staged right now, so a review of one changeset can't
+later corroborate an unrelated one (#1461 security review). Anything not in
+the closed set — a typo, a non-review team agent, or a fabricated name — is
+silently NOT recorded, never written as free text: matching
+`boundary_events.py`'s own no-free-text constraint (rule IDs / closed-
+vocabulary values only, never arbitrary strings). `"record"` is a new,
+fifth-plus decision value: an observation, not a block/warn/bypass/
+intervention/revert policy verdict — see `knowledge/telemetry-schema.md` for
+its full documentation.
 
 Fail-open, matching this codebase's own hook convention (and
 `emit_boundary_event`'s own fail-open write side): any error here — a
@@ -45,6 +49,7 @@ if str(_LIB_DIR) not in sys.path:
 
 from boundary_events import emit_boundary_event as _emit_boundary_event  # noqa: E402
 from review_agent_registry import registered_review_agent_names  # noqa: E402
+from review_gate_hash import review_gate_hash  # noqa: E402
 from stdin_json import read_stdin_json  # noqa: E402
 
 
@@ -89,8 +94,29 @@ def main() -> int:
     cwd = payload.get("cwd") or "."
     session_id = payload.get("session_id")
     tool_name = payload.get("tool_name") or "Agent"
+
+    # Stamp the CURRENT staged-content hash (#1461 security review) — binds
+    # this dispatch to whatever is staged right now, so the corroboration
+    # reader can require dispatch evidence for the SAME content as the
+    # eventual .review-passed write, not merely "some review happened
+    # recently" against unrelated staged content. A hash-computation failure
+    # (e.g. no git repo) fails open per this hook's own convention: still
+    # record the dispatch, just without a subject_hash — such an event can
+    # never satisfy a gate check, which requires an exact hash match, so
+    # this can only ever under-record, never forge evidence.
+    try:
+        subject_hash = review_gate_hash(cwd)
+    except Exception:  # noqa: BLE001 - fail-open: a hash failure never blocks a dispatch
+        subject_hash = None
+
     emit_boundary_event(
-        cwd, "agent_dispatch_ledger", tool_name, "record", subagent_type, session_id
+        cwd,
+        "agent_dispatch_ledger",
+        tool_name,
+        "record",
+        subagent_type,
+        session_id,
+        subject_hash=subject_hash,
     )
     return 0
 

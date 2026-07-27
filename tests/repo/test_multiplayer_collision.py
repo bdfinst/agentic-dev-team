@@ -76,7 +76,10 @@ def _write_dispatch_evidence(cwd: Path) -> None:
     """Seed .claude/metrics/boundary-events.jsonl with 2 distinct genuine
     review-agent dispatches (#1461) — required, alongside the hash match,
     for the gate to accept a write since the dispatch-ledger corroboration
-    hardening."""
+    hardening. `subject_hash` (#1461 security review) is stamped to the
+    CURRENT staged content's hash so this evidence corroborates THIS test's
+    changeset, not an unrelated one."""
+    subject_hash = _rgh.review_gate_hash(cwd=cwd)
     log = cwd / ".claude" / "metrics" / "boundary-events.jsonl"
     log.parent.mkdir(parents=True, exist_ok=True)
     now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
@@ -91,6 +94,7 @@ def _write_dispatch_evidence(cwd: Path) -> None:
                         "decision": "record",
                         "matched_rule": agent,
                         "plugin_version": "0.0.0",
+                        "subject_hash": subject_hash,
                     }
                 )
                 + "\n"

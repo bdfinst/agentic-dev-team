@@ -65,20 +65,22 @@ if str(_LIB_DIR) not in sys.path:
 
 import artifact_paths  # noqa: E402
 import metrics_query  # noqa: E402
+import review_agent_registry  # noqa: E402
+from boundary_events import TS_FORMAT as _TS_FORMAT  # noqa: E402
 
 _LEDGER_STREAM_NAME = "boundary-events.jsonl"
 _EVENT_TYPE = "agent_dispatch_ledger"
 _DECISION = "record"
 
-# The doc-only short-circuit's exemption event (#1461): emitted directly by
-# `skills/code-review/SKILL.md`'s doc-only write site via
-# `boundary_events.py`'s CLI, not by a PreToolUse hook — see that module's
-# `_main()` docstring.
+# The doc-only / single-agent short-circuit exemption events (#1461): emitted
+# directly by `skills/code-review/SKILL.md`'s write sites via
+# `boundary_events.py`'s purpose-locked CLI (`--event doc-only` /
+# `--event single-agent`), not by a PreToolUse hook — see that module's
+# `_main()` docstring and its `_CLI_EVENTS` mapping.
 _DOC_ONLY_HOOK = "code-review"
 _DOC_ONLY_DECISION = "bypass"
 _DOC_ONLY_RULE = "doc-only-review-exempt"
-
-_TS_FORMAT = "%Y-%m-%dT%H:%M:%SZ"
+_SINGLE_AGENT_RULE = "single-agent-review-exempt"
 
 
 class LedgerEvidence(NamedTuple):
@@ -133,6 +135,29 @@ def _ledger_path(cwd) -> Path:
     return artifact_paths.resolve_file("metrics", _LEDGER_STREAM_NAME, base, migrate=False)
 
 
+def _agents_dir() -> Path:
+    # hooks/lib/review_gate_corroboration.py -> hooks/lib -> hooks -> plugin
+    # root -> agents. Matches `agent_dispatch_ledger.py`'s own
+    # `_agents_dir_default()` exactly — the review-agent roster lives in the
+    # plugin's own fixed file set, not in the target project's `cwd`.
+    return _LIB_DIR.parent.parent / "agents"
+
+
+def _registered_agents() -> frozenset:
+    """Re-validate against the live registry at READ time too (#1461 security
+    review), not just at write time in `agent_dispatch_ledger.py` — defense
+    in depth against a stale ledger (written by an older plugin version, or
+    copied from another checkout) supplying names no longer registered.
+    Fails CLOSED: any read error returns an empty set, so a broken registry
+    read can only ever narrow — never widen — what counts as corroborating
+    evidence.
+    """
+    try:
+        return review_agent_registry.registered_review_agent_names(_agents_dir())
+    except Exception:  # noqa: BLE001 - fail closed: treat as "no agents registered"
+        return frozenset()
+
+
 def _read_ledger(cwd) -> tuple:
     """Return `(entries, failure_reason)`.
 
@@ -152,13 +177,29 @@ def _read_ledger(cwd) -> tuple:
     return entries, None
 
 
-def evaluate(cwd, before_ts: str, window_seconds: int) -> LedgerEvidence:
+def evaluate(cwd, before_ts: str, window_seconds: int, subject_hash: str) -> LedgerEvidence:
     """Single-read-pass corroboration evaluation — the primary entry point.
 
     `before_ts` anchors the recency window (typically the gate file's own
     mtime, converted via `mtime_to_iso`); qualifying dispatches must fall in
     `(before_ts - window_seconds, before_ts]`, inclusive of both bounds via
     `metrics_query.filter_entries`'s `since`/`until` semantics.
+
+    `subject_hash` (#1461 security review) is `.review-passed`'s own
+    `review_gate_hash()` value — required, not optional. Dispatch events are
+    stamped with the `review_gate_hash()` value in effect at dispatch time
+    (`agent_dispatch_ledger.py`); only events whose `subject_hash` matches
+    THIS gate's current hash count as evidence. Without this, a genuine
+    review of one changeset (file A) would satisfy the gate for an unrelated
+    later changeset (file B) staged and self-hashed within the same recency
+    window — this binds "a review happened recently" to "a review of THIS
+    staged content happened recently". An event missing `subject_hash`
+    entirely (e.g. written before this field existed) never matches.
+
+    Also re-validates each dispatch's `matched_rule` against the LIVE
+    registered-agent set (`_registered_agents()`), not just trusting
+    whatever the ledger says — defense in depth against a stale or
+    hand-edited ledger.
     """
     entries, failure = _read_ledger(cwd)
     if failure is not None:
@@ -167,36 +208,36 @@ def evaluate(cwd, before_ts: str, window_seconds: int) -> LedgerEvidence:
     dispatches = list(
         metrics_query.filter_entries(entries, event_type=_EVENT_TYPE, gate_outcome=_DECISION)
     )
+    dispatches = [e for e in dispatches if e.get("subject_hash") == subject_hash]
     any_ever = any(isinstance(e.get("matched_rule"), str) for e in dispatches)
 
     since = _since_bound(before_ts, window_seconds)
     in_window = metrics_query.filter_entries(dispatches, since=since, until=before_ts)
+    registered = _registered_agents()
     agents = frozenset(
-        e["matched_rule"] for e in in_window if isinstance(e.get("matched_rule"), str)
+        e["matched_rule"]
+        for e in in_window
+        if isinstance(e.get("matched_rule"), str) and e["matched_rule"] in registered
     )
     return LedgerEvidence(agents, any_ever, None)
 
 
-def distinct_review_agent_dispatches(cwd, before_ts: str, window_seconds: int) -> set:
+def distinct_review_agent_dispatches(
+    cwd, before_ts: str, window_seconds: int, subject_hash: str
+) -> set:
     """Distinct registered review-agent names dispatched inside the recency
-    window before `before_ts`. Pinned convenience signature (#1461 plan) —
-    see `evaluate()` for the fuller result a caller needs to distinguish a
-    "ledger read failure" rejection from a "no dispatch evidence" or "stale
-    evidence" one.
+    window before `before_ts`, bound to `subject_hash`. Pinned convenience
+    signature (#1461 plan) — see `evaluate()` for the fuller result a caller
+    needs to distinguish a "ledger read failure" rejection from a "no
+    dispatch evidence" or "stale evidence" one.
 
     Fails CLOSED: any read failure returns an empty set — see module
     docstring.
     """
-    return set(evaluate(cwd, before_ts, window_seconds).agents_in_window)
+    return set(evaluate(cwd, before_ts, window_seconds, subject_hash).agents_in_window)
 
 
-def has_doc_only_exemption(cwd, before_ts: str, window_seconds: int) -> bool:
-    """True if the doc-only short-circuit's `"doc-only-review-exempt"`
-    bypass event was recorded inside the recency window before `before_ts`
-    — the doc-only path's auditable alternative to dispatch-ledger evidence
-    (#1461). Fails CLOSED like every other read in this module: any read
-    failure returns False, same as "no exemption found".
-    """
+def _has_exemption(cwd, before_ts: str, window_seconds: int, subject_hash: str, rule: str) -> bool:
     entries, failure = _read_ledger(cwd)
     if failure is not None:
         return False
@@ -208,7 +249,33 @@ def has_doc_only_exemption(cwd, before_ts: str, window_seconds: int) -> bool:
         since=since,
         until=before_ts,
     )
-    return any(e.get("matched_rule") == _DOC_ONLY_RULE for e in matched)
+    return any(
+        e.get("matched_rule") == rule and e.get("subject_hash") == subject_hash for e in matched
+    )
+
+
+def has_doc_only_exemption(cwd, before_ts: str, window_seconds: int, subject_hash: str) -> bool:
+    """True if the doc-only short-circuit's `"doc-only-review-exempt"`
+    bypass event was recorded inside the recency window before `before_ts`,
+    bound to `subject_hash` — the doc-only path's auditable alternative to
+    dispatch-ledger evidence (#1461). Fails CLOSED like every other read in
+    this module: any read failure returns False, same as "no exemption
+    found". The `subject_hash` requirement means an exemption emitted for
+    one changeset cannot be replayed to pass the gate for a different one.
+    """
+    return _has_exemption(cwd, before_ts, window_seconds, subject_hash, _DOC_ONLY_RULE)
+
+
+def has_single_agent_exemption(cwd, before_ts: str, window_seconds: int, subject_hash: str) -> bool:
+    """True if `--agent <name>`'s `"single-agent-review-exempt"` bypass
+    event was recorded inside the recency window before `before_ts`, bound
+    to `subject_hash` (#1461) — a sanctioned single-agent `/code-review`
+    run only ever dispatches 1 distinct agent, which can never clear the
+    `>= 2` distinct-dispatch floor on its own; this exemption keeps that
+    documented workflow from regressing to an always-blocked gate. Fails
+    CLOSED like every other read in this module.
+    """
+    return _has_exemption(cwd, before_ts, window_seconds, subject_hash, _SINGLE_AGENT_RULE)
 
 
 __all__ = (
@@ -216,5 +283,6 @@ __all__ = (
     "distinct_review_agent_dispatches",
     "evaluate",
     "has_doc_only_exemption",
+    "has_single_agent_exemption",
     "mtime_to_iso",
 )

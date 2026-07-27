@@ -91,6 +91,9 @@ try:
         has_doc_only_exemption as _has_doc_only_exemption,
     )
     from review_gate_corroboration import (  # type: ignore[import-not-found]
+        has_single_agent_exemption as _has_single_agent_exemption,
+    )
+    from review_gate_corroboration import (  # type: ignore[import-not-found]
         mtime_to_iso as _mtime_to_iso,
     )
     from review_gate_hash import review_gate_hash  # type: ignore[import-not-found]
@@ -141,10 +144,17 @@ except ImportError:  # pragma: no cover
         any_dispatch_ever = False
         read_failure_reason = "unreadable"
 
-    def _evaluate_ledger(cwd, before_ts, window_seconds):  # type: ignore[misc]
+    def _evaluate_ledger(cwd, before_ts, window_seconds, subject_hash):  # type: ignore[misc]
         return _DegradedLedgerEvidence()
 
-    def _has_doc_only_exemption(cwd, before_ts, window_seconds) -> bool:  # type: ignore[misc]
+    def _has_doc_only_exemption(  # type: ignore[misc]
+        cwd, before_ts, window_seconds, subject_hash
+    ) -> bool:
+        return False
+
+    def _has_single_agent_exemption(  # type: ignore[misc]
+        cwd, before_ts, window_seconds, subject_hash
+    ) -> bool:
         return False
 
     def _mtime_to_iso(mtime: float) -> str:  # type: ignore[misc]
@@ -189,11 +199,12 @@ _BYPASS_BLOCK_MESSAGE = (
 WINDOW_SECONDS = 1800
 
 # Minimum number of DISTINCT registered review-agent dispatches required in
-# the recency window (#1461). Per docs/team-structure.md, doc-review and
-# arch-review "always run" regardless of file type in every real
-# /code-review pass, so a legitimately small, non-doc-only change already
-# clears this bar under existing behavior — no separate size-based
-# exemption is needed.
+# the recency window (#1461). code-review/SKILL.md's change-size gate keeps
+# at least 4 agents (security-review, correctness-review,
+# spec-compliance-review, doc-review) even on its narrowest fast-path run, so
+# a legitimately small, non-doc-only change already clears this bar under
+# existing behavior. A sanctioned single-agent run (`--agent <name>`) is
+# exempted separately below, since it deliberately dispatches exactly 1.
 _MIN_DISTINCT_DISPATCHES = 2
 
 # Pinned rejection message templates (#1461 plan) — each names the problem
@@ -342,30 +353,47 @@ def _evaluate_gate(gate_file: Path, current_hash: str, cwd: str) -> GateVerdict:
     if not stored or stored != current_hash:
         return GateVerdict(False, _BLOCK_MESSAGE, "pre-commit-review")
 
-    # Hash matches — anchor the recency window on the gate file's OWN mtime,
-    # not "when the diff was staged" (git has no such native value). A
-    # later rewrite of .review-passed (new mtime, no fresh dispatch) is
-    # therefore evaluated against ITS OWN new anchor, never the original
-    # write's — so a hash rewrite alone is never itself dispatch evidence.
-    before_ts = _mtime_to_iso(gate_file.stat().st_mtime)
+    # Hash matches — everything from here on is the dispatch-ledger
+    # corroboration path (#1461 security review): wrapped in its own
+    # exception handler so this stays fail-CLOSED on any unexpected error
+    # (a stat race if the gate file is unlinked between is_file() and
+    # stat(), an out-of-range mtime, a malformed timestamp, a MemoryError
+    # from an oversized ledger, ...) — none of those should silently fall
+    # through to main()'s top-level `except Exception: sys.exit(0)`, which
+    # would convert a should-reject into an allow. Contrast with
+    # `emit_boundary_event`'s write-side fail-open: this is the read/verdict
+    # side, and it must never let "something went wrong evaluating
+    # corroboration" look the same as "corroboration passed".
+    try:
+        # Anchor the recency window on the gate file's OWN mtime, not "when
+        # the diff was staged" (git has no such native value). A later
+        # rewrite of .review-passed (new mtime, no fresh dispatch) is
+        # therefore evaluated against ITS OWN new anchor, never the original
+        # write's — so a hash rewrite alone is never itself dispatch
+        # evidence.
+        before_ts = _mtime_to_iso(gate_file.stat().st_mtime)
 
-    if _has_doc_only_exemption(cwd, before_ts, WINDOW_SECONDS):
-        return GateVerdict(True)
+        if _has_doc_only_exemption(cwd, before_ts, WINDOW_SECONDS, current_hash):
+            return GateVerdict(True)
+        if _has_single_agent_exemption(cwd, before_ts, WINDOW_SECONDS, current_hash):
+            return GateVerdict(True)
 
-    evidence = _evaluate_ledger(cwd, before_ts, WINDOW_SECONDS)
-    if evidence.read_failure_reason is not None:
+        evidence = _evaluate_ledger(cwd, before_ts, WINDOW_SECONDS, current_hash)
+        if evidence.read_failure_reason is not None:
+            return GateVerdict(False, _READ_FAILURE_MESSAGE, "dispatch-ledger-read-failure")
+
+        n = len(evidence.agents_in_window)
+        if n >= _MIN_DISTINCT_DISPATCHES:
+            return GateVerdict(True)
+        if n >= 1:
+            return GateVerdict(
+                False, _insufficient_message(n), "dispatch-evidence-insufficient"
+            )
+        if evidence.any_dispatch_ever:
+            return GateVerdict(False, _STALE_MESSAGE, "dispatch-evidence-stale")
+        return GateVerdict(False, _NO_DISPATCH_MESSAGE, "dispatch-evidence-missing")
+    except Exception:  # noqa: BLE001 - fail CLOSED: an unexpected error is not a pass
         return GateVerdict(False, _READ_FAILURE_MESSAGE, "dispatch-ledger-read-failure")
-
-    n = len(evidence.agents_in_window)
-    if n >= _MIN_DISTINCT_DISPATCHES:
-        return GateVerdict(True)
-    if n >= 1:
-        return GateVerdict(
-            False, _insufficient_message(n), "dispatch-evidence-insufficient"
-        )
-    if evidence.any_dispatch_ever:
-        return GateVerdict(False, _STALE_MESSAGE, "dispatch-evidence-stale")
-    return GateVerdict(False, _NO_DISPATCH_MESSAGE, "dispatch-evidence-missing")
 
 
 def main() -> int:
@@ -401,9 +429,17 @@ def main() -> int:
         _emit_block(_BYPASS_BLOCK_MESSAGE)
         return 2
 
-    current_hash = review_gate_hash()
+    current_hash = review_gate_hash(cwd)
 
-    gate_file = Path(".claude/memory/.review-passed")
+    # Resolved via the shared artifact_paths helper (#1461 security review),
+    # not a bare relative path — the latter resolves against the process's
+    # real OS cwd, which can silently disagree with `cwd` (the payload's
+    # project root) when this hook runs from a subdirectory. This now
+    # matters beyond cosmetics: the gate file's mtime anchors the dispatch-
+    # ledger recency window, and the ledger itself resolves through this
+    # same helper — a root mismatch here would let the two silently compare
+    # against different projects.
+    gate_file = _resolve_file("memory", ".review-passed", cwd)
     gate_file.parent.mkdir(parents=True, exist_ok=True)
 
     verdict = _evaluate_gate(gate_file, current_hash, cwd)

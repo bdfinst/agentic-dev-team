@@ -35,8 +35,17 @@ import artifact_paths
 _LOG_NAME = "boundary-events.jsonl"
 
 
+# The single source of truth for this stream's `ts` format (#1461 structure
+# review). `hooks/lib/review_gate_corroboration.py` imports this directly
+# rather than re-declaring its own literal — its lexical since/until
+# comparison over `ts` strings is only correct because every emitter uses
+# this exact format, so a format change must move both modules in lockstep,
+# not by convention/comment alone.
+TS_FORMAT = "%Y-%m-%dT%H:%M:%SZ"
+
+
 def _isoformat_utc() -> str:
-    return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    return datetime.now(timezone.utc).strftime(TS_FORMAT)
 
 
 def _load_plugin_version() -> str:
@@ -59,6 +68,7 @@ def emit_boundary_event(
     decision: str,
     matched_rule: str,
     session_id: str | None = None,
+    subject_hash: str | None = None,
 ) -> None:
     """Append one compact JSON line to
     `<cwd>/.claude/metrics/boundary-events.jsonl`.
@@ -82,6 +92,15 @@ def emit_boundary_event(
             text (no command text, prompt text, file paths, or reasons).
         session_id: Optional opaque session ID from the hook payload,
             enabling per-session joins with session-digest.jsonl.
+        subject_hash: Optional `review_gate_hash()` value (#1461) binding
+            this event to the specific staged-content hash it corroborates
+            — not free text (a hex digest carries no path/prompt/reason
+            information), but a derived value naming what was reviewed.
+            `hooks/lib/review_gate_corroboration.py` requires this to match
+            the gate's current hash before treating a "record" or exemption
+            event as corroborating evidence, so a genuine dispatch/exemption
+            for one diff can't satisfy the gate for a different, unrelated
+            one.
     """
     try:
         base = Path(cwd) if cwd else Path.cwd()
@@ -98,6 +117,8 @@ def emit_boundary_event(
         }
         if session_id:
             payload["session_id"] = session_id
+        if subject_hash:
+            payload["subject_hash"] = subject_hash
 
         with open(log, "a", encoding="utf-8") as handle:
             handle.write(json.dumps(payload, separators=(",", ":")) + "\n")
@@ -105,15 +126,38 @@ def emit_boundary_event(
         pass
 
 
+# Fixed (hook, tool, decision, matched_rule) tuples the CLI may emit — see
+# `_main()`'s docstring. This is a closed set, not a free-form pass-through:
+# a skill invoking this CLI picks one of these named events, it can never
+# supply its own hook/tool/decision/matched_rule. In particular, "record"
+# (the decision `agent_dispatch_ledger.py` uses) is not reachable from this
+# CLI at all — only the real PreToolUse hook can emit it — closing a
+# ledger-forgery vector security review found in an earlier draft (#1461):
+# an unrestricted CLI writer could otherwise fabricate arbitrary dispatch
+# evidence, including fake "record" rows for unregistered agent names,
+# byte-identical to genuine hook output.
+_CLI_EVENTS = {
+    "doc-only": ("code-review", "Skill", "bypass", "doc-only-review-exempt"),
+    "single-agent": ("code-review", "Skill", "bypass", "single-agent-review-exempt"),
+}
+
+
 def _main() -> int:
-    """CLI entry point (#1461): lets a *skill's* bash-block prose emit a
-    boundary event directly, the same way `hooks/lib/iteration_journal_gate.py`
-    and `hooks/lib/review_gate_hash.py` are invoked from skill markdown —
-    hooks read a stdin JSON payload, but a skill step has no such payload to
-    hand this module, only CLI-style arguments. Used today by
-    `skills/code-review/SKILL.md`'s doc-only short-circuit to record the
-    `"doc-only-review-exempt"` bypass event contemporaneously with the
-    `.review-passed` gate write.
+    """CLI entry point (#1461): lets a *skill's* bash-block prose emit one of
+    a small, fixed set of exemption events, the same way
+    `hooks/lib/iteration_journal_gate.py` and `hooks/lib/review_gate_hash.py`
+    are invoked from skill markdown — hooks read a stdin JSON payload, but a
+    skill step has no such payload to hand this module, only CLI-style
+    arguments. Used today by `skills/code-review/SKILL.md`'s doc-only
+    short-circuit (`--event doc-only`) and its `--agent <name>` single-agent
+    review path (`--event single-agent`), each recording their exemption
+    event contemporaneously with the `.review-passed` gate write, bound via
+    `--subject-hash` to that write's own `review_gate_hash()` value so the
+    exemption can't be replayed for a different, unrelated diff.
+
+    Deliberately NOT a generic `--hook/--tool/--decision/--matched-rule`
+    pass-through (see `_CLI_EVENTS`) — `--event` selects one of two fixed
+    tuples, nothing else is constructible from the command line.
 
     Fail-open, same posture as `emit_boundary_event` itself: always exits 0.
     """
@@ -121,15 +165,20 @@ def _main() -> int:
 
     parser = argparse.ArgumentParser(description=_main.__doc__)
     parser.add_argument("--cwd", default=None)
-    parser.add_argument("--hook", required=True)
-    parser.add_argument("--tool", required=True)
-    parser.add_argument("--decision", required=True)
-    parser.add_argument("--matched-rule", required=True, dest="matched_rule")
+    parser.add_argument("--event", required=True, choices=sorted(_CLI_EVENTS))
+    parser.add_argument("--subject-hash", required=True, dest="subject_hash")
     parser.add_argument("--session-id", default=None, dest="session_id")
     args = parser.parse_args()
 
+    hook, tool, decision, matched_rule = _CLI_EVENTS[args.event]
     emit_boundary_event(
-        args.cwd, args.hook, args.tool, args.decision, args.matched_rule, args.session_id
+        args.cwd,
+        hook,
+        tool,
+        decision,
+        matched_rule,
+        args.session_id,
+        subject_hash=args.subject_hash,
     )
     return 0
 
