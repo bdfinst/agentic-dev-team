@@ -154,6 +154,10 @@
           {
             "type": "command",
             "command": "sh hooks/py.sh hooks/context_ceiling_guard.py"
+          },
+          {
+            "type": "command",
+            "command": "sh hooks/py.sh hooks/agent_dispatch_ledger.py"
           }
         ]
       }

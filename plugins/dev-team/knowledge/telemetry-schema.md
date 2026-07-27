@@ -27,22 +27,37 @@ in shipped code against this doc's coverage and fails on omission.
 **Added by #859.** The boundary-level (policy-gateway) channel: every guard
 hook's block/warn/bypass decision, plus human-intervention keywords. Extended
 by #906 with a fifth decision, `revert`, for hooks that don't warn or block
-but actively correct state after the fact.
+but actively correct state after the fact. Extended again by #1461 with a
+sixth decision, `record` — a **non-verdict, observational** entry: it does
+not block, warn, bypass, intervene, or revert anything, it merely notes that
+a genuine, registered review-agent dispatch occurred. Emitted by
+`hooks/agent_dispatch_ledger.py` on every `Agent`/`Task` dispatch whose
+`subagent_type` is a real, registered `agents/*-review.md` name (never a
+fabricated/unregistered one — those are never written to the ledger at all).
+This is a **high-frequency** entry (one per genuine review-agent dispatch,
+not a rare guard trip like the other five decisions) — a consumer counting
+"policy decisions" or "guard verdicts" from this stream must explicitly
+exclude `record` rows, or it will badly overcount routine dispatch activity
+as gate verdicts. `hooks/pre_commit_review.py`'s `.review-passed` gate reads
+this stream (via `hooks/lib/review_gate_corroboration.py`) to corroborate
+that a hash-matching gate write was backed by real, independent Agent-tool
+dispatch — see that module's own docstring for its fail-**closed** posture,
+the deliberate opposite of this stream's own fail-open write side.
 
 | Field | Type | Values / source |
 |---|---|---|
 | `ts` | string | ISO-8601 UTC `%Y-%m-%dT%H:%M:%SZ` |
-| `hook` | string | Emitting hook's module name, e.g. `destructive_guard`, `verify_guard`, `pre_commit_review`, `telemetry` |
+| `hook` | string | Emitting hook's module name, e.g. `destructive_guard`, `verify_guard`, `pre_commit_review`, `telemetry`, `agent_dispatch_ledger` |
 | `tool` | string | Hooked tool/event: `Bash`, `Write`, `Edit`, `Skill`, `Agent`, `UserPromptSubmit` |
-| `decision` | string enum | `block` \| `warn` \| `bypass` \| `intervention` \| `revert` |
-| `matched_rule` | string | Rule ID from a closed vocabulary (pattern ID, hook-defined constant, bypass flag name, or intervention keyword) — never free text |
+| `decision` | string enum | `block` \| `warn` \| `bypass` \| `intervention` \| `revert` \| `record` |
+| `matched_rule` | string | Rule ID from a closed vocabulary (pattern ID, hook-defined constant, bypass flag name, intervention keyword, or — for `record` — the dispatched review-agent's registered name) — never free text |
 | `plugin_version` | string | From `.claude-plugin/plugin.json` |
 | `session_id` | string, optional | Opaque per-session ID, when present in the hook payload — enables joins with `session-digest.jsonl` |
 
-- **Emitter:** `hooks/lib/boundary_events.py::emit_boundary_event()`, called from `destructive_guard.py`, `verify_guard.py`, `pre_commit_review.py`, `telemetry.py` (intervention keywords), and the mechanically-adopted guards (`pre_tool_guard.py`, `context_ceiling_guard.py`, `bash_retry_guard.py`, `refactor_test_freeze_guard.py`, `refactor_test_bash_guard.py`, `refactor_test_revert_guard.py` (decision `revert`, #906), `contract_version_guard.py`, `mutation_testing_smoke_gate.py`, `mutation_gate.py`, `tdd_guard.py`).
+- **Emitter:** `hooks/lib/boundary_events.py::emit_boundary_event()`, called from `destructive_guard.py`, `verify_guard.py`, `pre_commit_review.py`, `telemetry.py` (intervention keywords), `agent_dispatch_ledger.py` (decision `record`, #1461), and the mechanically-adopted guards (`pre_tool_guard.py`, `context_ceiling_guard.py`, `bash_retry_guard.py`, `refactor_test_freeze_guard.py`, `refactor_test_bash_guard.py`, `refactor_test_revert_guard.py` (decision `revert`, #906), `contract_version_guard.py`, `mutation_testing_smoke_gate.py`, `mutation_gate.py`, `tdd_guard.py`).
 - **Consent:** ALWAYS-ON — not gated by `DEV_TEAM_TELEMETRY`. Local-only, rule-IDs-only safety/accountability channel; no observability holes by design.
 - **Fail-open:** every exception in the emit helper is swallowed — never changes the calling hook's exit code, stdout, or stderr.
-- **Consumers:** `skills/session-review/SKILL.md`, `skills/harness-audit/SKILL.md`, `agents/session-analysis.md`, `skills/cost-report/`, `skills/run-report/SKILL.md` (#1167), future `agent-telemetry` cross-machine aggregation (#178).
+- **Consumers:** `skills/session-review/SKILL.md`, `skills/harness-audit/SKILL.md`, `agents/session-analysis.md`, `skills/cost-report/`, `skills/run-report/SKILL.md` (#1167), `hooks/lib/review_gate_corroboration.py` (#1461, `record` rows only), future `agent-telemetry` cross-machine aggregation (#178).
 
 ---
 

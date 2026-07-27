@@ -72,7 +72,12 @@ def emit_boundary_event(
             event. Accepts `str` or `Path`.
         hook: Emitting hook's module name (e.g. "destructive_guard").
         tool: Hooked tool / event name (e.g. "Bash", "UserPromptSubmit").
-        decision: One of "block", "warn", "bypass", "intervention".
+        decision: One of "block", "warn", "bypass", "intervention", "revert",
+            "record". "record" (#1461) is a non-verdict, observational entry
+            — it does not block/warn/bypass/intervene/revert anything, it
+            merely notes that a genuine, registered review-agent dispatch
+            occurred (emitted by `agent_dispatch_ledger.py`). Exclude it from
+            verdict counts; see `knowledge/telemetry-schema.md`.
         matched_rule: A rule ID from a closed vocabulary — never free
             text (no command text, prompt text, file paths, or reasons).
         session_id: Optional opaque session ID from the hook payload,
@@ -98,3 +103,36 @@ def emit_boundary_event(
             handle.write(json.dumps(payload, separators=(",", ":")) + "\n")
     except Exception:  # noqa: BLE001, S110 — fail-open by design, see module docstring
         pass
+
+
+def _main() -> int:
+    """CLI entry point (#1461): lets a *skill's* bash-block prose emit a
+    boundary event directly, the same way `hooks/lib/iteration_journal_gate.py`
+    and `hooks/lib/review_gate_hash.py` are invoked from skill markdown —
+    hooks read a stdin JSON payload, but a skill step has no such payload to
+    hand this module, only CLI-style arguments. Used today by
+    `skills/code-review/SKILL.md`'s doc-only short-circuit to record the
+    `"doc-only-review-exempt"` bypass event contemporaneously with the
+    `.review-passed` gate write.
+
+    Fail-open, same posture as `emit_boundary_event` itself: always exits 0.
+    """
+    import argparse
+
+    parser = argparse.ArgumentParser(description=_main.__doc__)
+    parser.add_argument("--cwd", default=None)
+    parser.add_argument("--hook", required=True)
+    parser.add_argument("--tool", required=True)
+    parser.add_argument("--decision", required=True)
+    parser.add_argument("--matched-rule", required=True, dest="matched_rule")
+    parser.add_argument("--session-id", default=None, dest="session_id")
+    args = parser.parse_args()
+
+    emit_boundary_event(
+        args.cwd, args.hook, args.tool, args.decision, args.matched_rule, args.session_id
+    )
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(_main())
