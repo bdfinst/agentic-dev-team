@@ -3686,6 +3686,10 @@
       "summary": "In every `.feature` file's header, include:",
       "anchor": "4-cite-the-assessment"
     },
+    "4b. Adversarial Gherkin Quality Review": {
+      "summary": "Dispatch the adversarial review against Step 3's authored `.feature` files",
+      "anchor": "4b-adversarial-gherkin-quality-review"
+    },
     "5. Persist phase-2 progress": {
       "summary": "Write `.claude/memory/<workflow>/<slug>/phase-2.md` with:",
       "anchor": "5-persist-phase-2-progress"
