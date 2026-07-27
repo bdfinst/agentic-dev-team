@@ -101,7 +101,7 @@ _LIB_DIR = Path(__file__).resolve().parent
 if str(_LIB_DIR) not in sys.path:
     sys.path.insert(0, str(_LIB_DIR))
 
-import artifact_paths  # noqa: E402
+import artifact_paths
 
 # ---------------------------------------------------------------------------
 # Incremental `record` state — a byte offset + running aggregates, keyed by

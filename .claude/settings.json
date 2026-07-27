@@ -9,11 +9,11 @@
           },
           {
             "type": "command",
-            "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/ensure-npm-ci.sh\""
+            "command": "python3 \"$CLAUDE_PROJECT_DIR/.claude/ensure_npm_ci.py\""
           },
           {
             "type": "command",
-            "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/ensure-code-graph-tools.sh\""
+            "command": "python3 \"$CLAUDE_PROJECT_DIR/.claude/ensure_code_graph_tools.py\""
           }
         ]
       }

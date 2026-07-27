@@ -245,12 +245,12 @@ def dev_team_reports_dir(root: Path | str | None = None) -> Path:
 
 
 __all__ = (
-    "project_root",
-    "metrics_dir",
-    "memory_dir",
-    "plans_dir",
-    "resolve_file",
     "category_dir",
-    "migrate_dir",
     "dev_team_reports_dir",
+    "memory_dir",
+    "metrics_dir",
+    "migrate_dir",
+    "plans_dir",
+    "project_root",
+    "resolve_file",
 )
