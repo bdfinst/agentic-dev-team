@@ -23,6 +23,7 @@ Cites:
 - testability-patterns
 - result-verification
 - database-test-patterns
+- component-test-patterns
 - cd-test-architecture
 - microservice-testing
 - adversarial-review-protocol
@@ -98,6 +99,7 @@ Load on demand by finding type — do not load them all unless the target needs 
 - `${CLAUDE_PLUGIN_ROOT}/knowledge/test-organization.md` — the named remedy for structure smells (Obscure Test, Test Code Duplication, High Test Maintenance Cost): Four-Phase Test, Testcase Class per Fixture, Test Utility Method, Parameterized Test.
 - `${CLAUDE_PLUGIN_ROOT}/knowledge/test-refactoring.md` — the goals/principles a smell violates and the behavior-preserving move toward the target pattern. Cite a **named refactoring**, not prose, for each remedy.
 - `${CLAUDE_PLUGIN_ROOT}/knowledge/database-test-patterns.md` — the named remedy for DB-backed Erratic/Slow tests (Database Sandbox, Transaction Rollback / Table Truncation Teardown). Load when the target hits a real database.
+- `${CLAUDE_PLUGIN_ROOT}/knowledge/component-test-patterns.md` — Whole-file load: load when flagging a mocked collaborator internal to / owned by the same component or bounded context as the SUT; cite its core principle (double only genuine external-boundary systems) in the finding.
 - `${CLAUDE_PLUGIN_ROOT}/knowledge/test-stack-profiles/<stack>.md` — stack-specific tool resolution and seam choice (and any references the profile points at). Load on stack match. Detection mirrors `skills/test-design-advisor/SKILL.md:31, 62`: read manifests at the target — `package.json` (refined to react/vue via dependency, or to ssr-htmx when an htmx dep is present alongside `templates/*.html`), `*.csproj` / `*.sln`, `pom.xml` / `build.gradle*`, `go.mod`, `pyproject.toml` / `requirements.txt` — and resolve the profile key. When a finding is stack-specific, cite the matching `${CLAUDE_PLUGIN_ROOT}/knowledge/test-stack-profiles/<stack>.md` (and any reference it points at) by knowledge path in the finding's `message` or `suggestedFix`. When no profile matches, produce stack-agnostic guidance and name the missing profile in the `summary` — never block on it.
 
 ## Skip

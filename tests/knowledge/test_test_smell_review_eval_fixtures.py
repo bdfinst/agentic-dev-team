@@ -67,9 +67,9 @@ def test_clean_doubles_fixture_must_not_add_remedy_family_must_mention() -> None
 def test_internal_collaborator_mock_fixture_requires_component_test_patterns_citation() -> (
     None
 ):
-    # Issue #1451: mocking an internal/same-component collaborator is a
-    # boundary-selection misuse, not one of the four remedyFamily slugs —
-    # its citation contract points at component-test-patterns.md instead.
+    # Mocking an internal/same-component collaborator is a boundary-selection
+    # misuse, not one of the four remedyFamily slugs — its citation contract
+    # points at component-test-patterns.md instead.
     _require_must_mention(
         "test-internal-collaborator-mock.test.json", "component-test-patterns"
     )
