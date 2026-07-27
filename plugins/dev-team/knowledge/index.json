@@ -5176,12 +5176,12 @@
       "summary": "Full field reference: `${CLAUDE_PLUGIN_ROOT}/knowledge/telemetry-schema.md`",
       "anchor": "pending-reviewjsonl-schema"
     },
-    "1. Cross-machine Telemetry — validate config, then sync (#178)": {
-      "summary": "Before analysing, check whether a **telemetry repository** (the cross-machine",
-      "anchor": "1-cross-machine-telemetry-validate-config-then-sync-178"
+    "1. Cross-machine Telemetry — opt-in only (#178, #1480)": {
+      "summary": "**Local-only is the default.** A plain `/session-review` never touches the",
+      "anchor": "1-cross-machine-telemetry-opt-in-only-178-1480"
     },
     "2. Extract (deterministic, zero model tokens)": {
-      "summary": "Run the extractor to produce the digest:",
+      "summary": "Run the extractor to produce the local digest:",
       "anchor": "2-extract-deterministic-zero-model-tokens"
     },
     "3. Analyze (digest-only)": {

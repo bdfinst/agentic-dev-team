@@ -5,7 +5,7 @@ description: >-
   cut token spend, reduce re-work, and improve accuracy. Use when the user asks
   to "review my sessions", "where am I wasting tokens", "why does this keep
   re-doing work", or "/session-review".
-argument-hint: "[--cwd <path>] [--transcript <file>] [--out <report>]"
+argument-hint: "[--cwd <path>] [--transcript <file>] [--out <report>] [--cross-machine]"
 user-invocable: true
 allowed-tools: >-
   Read, Glob, Bash(python3 *, date *, mkdir *), Write, Agent
@@ -43,6 +43,7 @@ You have been invoked with the `/session-review` command.
 - `--cwd <path>`: project whose transcripts to mine (default: current project).
 - `--transcript <file>`: analyze a specific transcript instead of auto-resolving.
 - `--out <report>`: report path (default: `.dev-team-reports/session-review-<date>.md`).
+- `--cross-machine`: opt into cross-machine telemetry sync + rollup (#1480). **Absent by default** — a plain `/session-review` analyzes only this machine's local digest. See Step 1.
 
 ## Steps
 
@@ -100,11 +101,16 @@ Optional fields added by `/feedback-learning` after disposition:
 
 ---
 
-### 1. Cross-machine Telemetry — validate config, then sync (#178)
+### 1. Cross-machine Telemetry — opt-in only (#178, #1480)
 
-Before analysing, check whether a **telemetry repository** (the cross-machine
-"database", Delta D) is configured, so the digest reflects every machine, not
-just this one:
+**Local-only is the default.** A plain `/session-review` never touches the
+cross-machine telemetry repo — skip this step entirely (go straight to Step 2)
+unless `--cross-machine` is present in `$ARGUMENTS`. This keeps a normal
+invocation about *this developer's own working patterns on this machine*, not
+conflated with every other machine's sessions.
+
+**Only when `--cross-machine` is given:** check whether a **telemetry
+repository** (the cross-machine "database", Delta D) is configured:
 
 ```bash
 bash ${CLAUDE_PLUGIN_ROOT}/../../scripts/telemetry-sync.sh --check
@@ -131,7 +137,7 @@ Never invent a URL or enable anything without the user's explicit location.
 
 ### 2. Extract (deterministic, zero model tokens)
 
-Run the extractor to produce the digest:
+Run the extractor to produce the local digest:
 
 ```bash
 python3 ${CLAUDE_PLUGIN_ROOT}/../../scripts/session_extract.py \
@@ -139,30 +145,39 @@ python3 ${CLAUDE_PLUGIN_ROOT}/../../scripts/session_extract.py \
 ```
 
 (Pass `--transcript <file>` or `--cwd <path>` through from `$ARGUMENTS`.) If the
-extractor finds no transcripts, tell the user and stop — nothing to review.
+extractor finds no transcripts, tell the user and stop — nothing to review. The
+local digest is always current-version-scoped by construction — it's a live
+extraction tagged with the plugin version installed right now (`plugin_version`,
+#1471) — so no extra filtering is needed here.
 
-**If a telemetry repo synced in Step 1 (cross-machine telemetry sync)**, also build the cross-machine rollup
-(the union of every host's digest, #178) and prefer it for analysis — it sees
-all machines and projects, not just this one:
+**Only when `--cross-machine` synced in Step 1 (cross-machine telemetry sync)**,
+also build the cross-machine rollup (the union of every host's digest, #178)
+and prefer it for analysis — it sees all machines and projects, not just this
+one. Scope it to the **current and immediately previous plugin version**
+(`--version-scope current-and-previous`, #1480) so a friction already fixed in
+a newer version, or telemetry from a host still several versions behind,
+doesn't weigh into current-version suggestions:
 
 ```bash
 CLONE="${DEV_TEAM_TELEMETRY_CLONE:-$HOME/.claude/.dev-team/agent-telemetry}"
 python3 ${CLAUDE_PLUGIN_ROOT}/../../scripts/session_extract.py \
   --plugin-root ${CLAUDE_PLUGIN_ROOT} --rollup "$CLONE/digests" \
+  --version-scope current-and-previous \
   -o memory/telemetry-rollup.json
 ```
 
 The rollup is metrics-only (`telemetry-rollup/v1`): per-host and per-project
 token/cost, summed rework/accuracy, and skills/agents **never invoked on any
-machine**. Hand the analysis agent the rollup when present, the local digest
-otherwise.
+machine**, plus the `version_window` actually applied. Hand the analysis agent
+the rollup when present, the local digest otherwise.
 
 Then compute the **frequency → lever escalation** (Delta C, #179) — recurrence
-decides how strong a response each friction earns:
+decides how strong a response each friction earns — with the same version scope:
 
 ```bash
 python3 ${CLAUDE_PLUGIN_ROOT}/../../scripts/session_extract.py \
   --plugin-root ${CLAUDE_PLUGIN_ROOT} --escalate "$CLONE/digests" \
+  --version-scope current-and-previous \
   -o memory/telemetry-escalation.json
 ```
 
@@ -173,11 +188,13 @@ shipping). "Matchable" is the deterministic side of the rules-vs-prompts ≤10% 
 policy. Use the escalation `lever` to set the hand-off in Step 3 (Analyze, digest-only).
 
 Optionally compute the **gate correlation** (process eval, #111) — does bypassing
-the pre-commit review gate correlate with more rework across sessions?
+the pre-commit review gate correlate with more rework across sessions? — again
+version-scoped:
 
 ```bash
 python3 ${CLAUDE_PLUGIN_ROOT}/../../scripts/session_extract.py \
   --plugin-root ${CLAUDE_PLUGIN_ROOT} --correlate "$CLONE/digests" \
+  --version-scope current-and-previous \
   -o memory/gate-correlation.json
 ```
 
@@ -200,6 +217,8 @@ operator habit (deferring decisions with no owner). Surface those with a **bound
 second tier: the deterministic digest decides *where* it is worth spending tokens,
 then you read only those few raw logs. This tier needs the cross-machine digests
 (the `$CLONE/digests` from Step 1 (cross-machine telemetry sync)); if no telemetry repo synced, **skip it**.
+Step 1 is opt-in (#1480) — that includes the default plain-invocation case,
+where it never runs.
 
 1. Flag the worst sessions (deterministic, zero model tokens):
 

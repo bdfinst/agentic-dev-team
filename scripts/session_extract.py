@@ -113,6 +113,37 @@ def _load_pricing(path: Path | None) -> dict:
     return {}
 
 
+# A version string is trusted input only when it's OUR OWN plugin.json (this
+# function); everywhere else it arrives from a peer machine's synced digest
+# (a different trust domain, #1480 security review). This allowlist bounds
+# every plugin_version value to a short semver-ish token on the way IN, so
+# nothing larger or differently-shaped ever reaches a persisted stream or a
+# numeric parse — see `_normalize_plugin_version` below, the ingestion-side
+# twin that applies this same pattern to foreign records.
+_VERSION_RE = re.compile(r"^[0-9A-Za-z._+-]{1,32}$")
+
+
+def _load_plugin_version(plugin_root: Path | None) -> str:
+    """Read `.claude-plugin/plugin.json`'s version so every digest/rollup/
+    trend record can be tagged with the plugin version active when it was
+    produced (#1471) — mirrors the hooks' own `_load_plugin_version` helper
+    (`hooks/lib/boundary_events.py` et al.), resolved via --plugin-root since
+    session_extract.py already takes that flag for the skills/agents registry."""
+    if plugin_root is None:
+        plugin_root = Path(__file__).resolve().parent.parent / "plugins" / "dev-team"
+    manifest = Path(plugin_root) / ".claude-plugin" / "plugin.json"
+    try:
+        if manifest.stat().st_size > 64_000:
+            return "unknown"
+        data = json.loads(manifest.read_text(encoding="utf-8"))
+        version = data.get("version")
+        if isinstance(version, str) and _VERSION_RE.match(version):
+            return version
+    except (OSError, ValueError):
+        pass
+    return "unknown"
+
+
 def _rate(pricing: dict, model: str):
     models = pricing.get("models", {})
     if model in models:
@@ -331,7 +362,9 @@ def _slim(d: dict) -> dict:
     return {k: dict(sorted(v.items())) for k, v in sorted(d.items())}
 
 
-def extract(paths: list[Path], pricing: dict, registry: dict) -> dict:
+def extract(
+    paths: list[Path], pricing: dict, registry: dict, plugin_version: str = "unknown"
+) -> dict:
     tokens_total = Counter()
     cost_total = 0.0
     by_model: dict[str, Counter] = defaultdict(Counter)
@@ -470,6 +503,7 @@ def extract(paths: list[Path], pricing: dict, registry: dict) -> dict:
 
     return {
         "schema": "session-digest/v1",
+        "plugin_version": plugin_version,
         "sessions": len(sessions),
         "token": {
             "totals": dict(sorted(tokens_total.items())),
@@ -606,6 +640,7 @@ def sync_record(
     }
     return {
         "schema": "session-sync/v1",
+        "plugin_version": digest.get("plugin_version", "unknown"),
         "host": host,
         "project": project,
         "session_id": session_id,
@@ -650,7 +685,9 @@ def _load_watermark(path: Path) -> dict:
     return {"synced": {}}
 
 
-def cmd_sync(args, pricing: dict, registry: dict, host: str) -> int:
+def cmd_sync(
+    args, pricing: dict, registry: dict, host: str, plugin_version: str
+) -> int:
     """Incremental, cross-project sync (#178): emit one metrics-only record per
     session that is NEW or has grown since the machine's last sync, into the
     host digest file. The watermark dedups by session_id + byte size, so re-runs
@@ -684,7 +721,7 @@ def cmd_sync(args, pricing: dict, registry: dict, host: str) -> int:
             if isinstance(prev, int) and prev >= size:
                 continue  # already synced and unchanged
             project, ts = _project_and_ts(path)
-            digest = extract([path], pricing, registry)
+            digest = extract([path], pricing, registry, plugin_version)
             rec = sync_record(digest, host, project, session_id, ts)
             fh.write(json.dumps(rec, sort_keys=True) + "\n")
             synced[session_id] = size
@@ -698,13 +735,26 @@ def cmd_sync(args, pricing: dict, registry: dict, host: str) -> int:
     return 0
 
 
-def rollup(digests_root: Path, registry: dict) -> dict:
-    """Union read across machines (#178): aggregate every host's per-session
-    `session-sync/v1` records under `digests/<host>/session-digest.jsonl` into one
-    cross-machine view. Metrics only — sums, ratios, and registry-name maps.
+def _normalize_plugin_version(value) -> str | None:
+    """Bound + validate a `plugin_version` read back from a PEER's synced
+    digest — a different trust domain than our own plugin.json (#1480
+    security review): any host that can write to the shared telemetry repo
+    controls this value. Anything that isn't a short semver-ish token (not a
+    string, wrong charset, or longer than `_VERSION_RE` allows) collapses to
+    None, same as a genuinely-missing field — so a malicious or malformed
+    peer record can never reach a numeric parse (`_parse_semver_key`) or get
+    persisted unbounded into a rollup/escalation output."""
+    return value if isinstance(value, str) and _VERSION_RE.match(value) else None
 
-    A session_id seen on multiple host files (or re-emitted after growth) is
-    deduped, keeping the LAST record for that id (newest size/sync)."""
+
+def _read_synced_records(digests_root: Path) -> list[dict]:
+    """Union read + dedup (#178): every host's per-session `session-sync/v1`
+    record under `digests_root/<host>/session-digest.jsonl`, keeping the LAST
+    record for a session_id seen on multiple host files (or re-emitted after
+    growth). Shared by `rollup()`, `correlate_gate_rework()`, and `cost_log()`
+    so the dedup logic lives in one place. Each record's `plugin_version` is
+    normalized on the way in (`_normalize_plugin_version`) since it
+    originates on a peer machine, not this one."""
     by_id: dict[str, dict] = {}
     for f in sorted(digests_root.glob("*/session-digest.jsonl")):
         for rec in _iter_records([f]):
@@ -712,9 +762,73 @@ def rollup(digests_root: Path, registry: dict) -> dict:
                 continue
             sid = rec.get("session_id")
             if sid:
+                rec["plugin_version"] = _normalize_plugin_version(
+                    rec.get("plugin_version")
+                )
                 by_id[str(sid)] = rec  # last write wins -> dedup on session_id
+    return list(by_id.values())
 
-    records = list(by_id.values())
+
+def _filter_by_version(
+    records: list[dict], version_window: set[str] | None
+) -> list[dict]:
+    """Drop records whose `plugin_version` isn't in `version_window` (#1480).
+    `None` means unscoped — every record passes through unchanged. A record
+    with no `plugin_version` (pre-#1471 data, or a foreign value normalized
+    away by `_normalize_plugin_version`) never matches a concrete window —
+    it can't be proven current, so it can't be included either."""
+    if version_window is None:
+        return records
+    return [r for r in records if r.get("plugin_version") in version_window]
+
+
+def _parse_semver_key(version: str) -> tuple:
+    return tuple(int(p) for p in re.findall(r"\d{1,9}", version or "")) or (0,)
+
+
+def compute_version_window(records: list[dict], current: str) -> set[str]:
+    """The current plugin version plus the newest version OBSERVED in
+    `records` that is strictly OLDER than it (#1480). session_extract.py has
+    no access to the plugin's release history, so "previous" means the most
+    recent `plugin_version` actually present in the telemetry being scoped
+    that predates `current` — never a lookup against CHANGELOG/git tags, and
+    never a version that happens to be newer (a host or peer ahead of this
+    one must not count as "previous").
+
+    The `"unknown"` sentinel (an unreadable local manifest) is never treated
+    as a real version on either side: if `current` itself is `"unknown"` the
+    window is empty rather than silently admitting every peer record that is
+    equally unattributable — an indeterminate current version can't prove
+    anything else is current either."""
+    if current == "unknown":
+        return set()
+    current_key = _parse_semver_key(current)
+    older = sorted(
+        (
+            r.get("plugin_version")
+            for r in records
+            if r.get("plugin_version")
+            and r.get("plugin_version") != "unknown"
+            and _parse_semver_key(r.get("plugin_version")) < current_key
+        ),
+        key=_parse_semver_key,
+    )
+    window = {current}
+    if older:
+        window.add(older[-1])
+    return window
+
+
+def rollup(
+    records: list[dict], registry: dict, version_window: set[str] | None = None
+) -> dict:
+    """Aggregate cross-machine `session-sync/v1` records (#178) — callers pass
+    the already union-read + deduped list from `_read_synced_records()` (so a
+    caller that also needs `compute_version_window()` reads the digests
+    directory only once, #1480). Metrics only — sums, ratios, and
+    registry-name maps. When `version_window` is given, only records tagged
+    with a `plugin_version` in the window are aggregated."""
+    records = _filter_by_version(records, version_window)
     hosts: set[str] = set()
     projects: set[str] = set()
     tok = Counter()
@@ -787,6 +901,7 @@ def rollup(digests_root: Path, registry: dict) -> dict:
 
     return {
         "schema": "telemetry-rollup/v1",
+        "version_window": sorted(version_window) if version_window is not None else [],
         "hosts": sorted(hosts),
         "projects": sorted(projects),
         "sessions": len(records),
@@ -814,13 +929,30 @@ def rollup(digests_root: Path, registry: dict) -> dict:
     }
 
 
-def cmd_rollup(args, registry: dict) -> int:
+def _resolve_version_window(
+    args, records: list[dict], plugin_root: Path | None
+) -> set[str] | None:
+    """#1480: only when --version-scope current-and-previous is requested,
+    compute the window from the CURRENT plugin.json version plus whichever
+    version immediately precedes it among `records` (already read by the
+    caller — this is a pure computation, no I/O, so the digests directory is
+    read exactly once per invocation regardless of whether scoping is on).
+    Default (`all`) returns None — unscoped, unbounded history — so existing
+    callers of --rollup/--escalate/--correlate keep their prior behavior."""
+    if args.version_scope != "current-and-previous":
+        return None
+    current = _load_plugin_version(plugin_root)
+    return compute_version_window(records, current)
+
+
+def cmd_rollup(args, registry: dict, plugin_root: Path | None) -> int:
     root = Path(args.rollup)
     if not root.is_dir():
         print(
             json.dumps(
                 {
                     "schema": "telemetry-rollup/v1",
+                    "version_window": [],
                     "sessions": 0,
                     "hosts": [],
                     "projects": [],
@@ -830,7 +962,9 @@ def cmd_rollup(args, registry: dict) -> int:
             )
         )
         return 0
-    out = json.dumps(rollup(root, registry), indent=2, sort_keys=True)
+    records = _read_synced_records(root)
+    window = _resolve_version_window(args, records, plugin_root)
+    out = json.dumps(rollup(records, registry, window), indent=2, sort_keys=True)
     if args.out:
         Path(args.out).write_text(out + "\n")
     else:
@@ -863,21 +997,19 @@ def _session_rework(rec: dict) -> int:
     return sum(int(rw.get(k, 0) or 0) for k in _REWORK_KEYS)
 
 
-def correlate_gate_rework(digests_root: Path) -> dict:
+def correlate_gate_rework(
+    records: list[dict], version_window: set[str] | None = None
+) -> dict:
     """Across all sessions that committed, compare mean rework between those that
-    bypassed the review gate and those that didn't (#111)."""
-    by_id: dict[str, dict] = {}
-    for f in sorted(digests_root.glob("*/session-digest.jsonl")):
-        for rec in _iter_records([f]):
-            if rec.get("schema") != "session-sync/v1":
-                continue
-            sid = rec.get("session_id")
-            if sid:
-                by_id[str(sid)] = rec
+    bypassed the review gate and those that didn't (#111). `records` is the
+    already union-read + deduped list from `_read_synced_records()`.
+    `version_window` (#1480) scopes the comparison to a set of
+    `plugin_version` values."""
+    records = _filter_by_version(records, version_window)
 
     bypass_rework: list[int] = []
     clean_rework: list[int] = []
-    for rec in by_id.values():
+    for rec in records:
         gate = rec.get("gate", {}) if isinstance(rec.get("gate"), dict) else {}
         if int(gate.get("commit_attempts", 0) or 0) <= 0:
             continue  # only sessions that actually committed are comparable
@@ -908,6 +1040,7 @@ def correlate_gate_rework(digests_root: Path) -> dict:
 
     return {
         "schema": "gate-correlation/v1",
+        "version_window": sorted(version_window) if version_window is not None else [],
         "committing_sessions": len(bypass_rework) + len(clean_rework),
         "bypass_sessions": len(bypass_rework),
         "clean_sessions": len(clean_rework),
@@ -917,17 +1050,19 @@ def correlate_gate_rework(digests_root: Path) -> dict:
     }
 
 
-def cmd_correlate(args) -> int:
+def cmd_correlate(args, plugin_root: Path | None) -> int:
     root = Path(args.correlate)
-    result = (
-        correlate_gate_rework(root)
-        if root.is_dir()
-        else {
+    if root.is_dir():
+        records = _read_synced_records(root)
+        window = _resolve_version_window(args, records, plugin_root)
+        result = correlate_gate_rework(records, window)
+    else:
+        result = {
             "schema": "gate-correlation/v1",
+            "version_window": [],
             "committing_sessions": 0,
             "interpretation": "no digests directory",
         }
-    )
     out = json.dumps(result, indent=2, sort_keys=True)
     if args.out:
         Path(args.out).write_text(out + "\n")
@@ -941,21 +1076,13 @@ def cost_log(digests_root: Path) -> list[dict]:
 
     `rollup()` returns one aggregate; the regression check in `cost_meter.py`
     instead needs a time-ordered list of per-session costs so it can compare the
-    most recent session against the cross-machine rolling baseline. This reads
-    the same `digests/<host>/session-digest.jsonl` union, dedups on session_id
-    (last write wins), orders oldest->newest by `ts`, and emits cost-meter
-    records: `{"ts": ..., "total": {"cost_usd": ...}}` (extra `ts` is ignored by
-    `regression` and used by `pace`)."""
-    by_id: dict[str, dict] = {}
-    for f in sorted(digests_root.glob("*/session-digest.jsonl")):
-        for rec in _iter_records([f]):
-            if rec.get("schema") != "session-sync/v1":
-                continue
-            sid = rec.get("session_id")
-            if sid:
-                by_id[str(sid)] = rec  # last write wins -> dedup on session_id
+    most recent session against the cross-machine rolling baseline. This reuses
+    `_read_synced_records()`'s union read + dedup, orders oldest->newest by
+    `ts`, and emits cost-meter records: `{"ts": ..., "total": {"cost_usd":
+    ...}}` (extra `ts` is ignored by `regression` and used by `pace`)."""
     recs = sorted(
-        by_id.values(), key=lambda r: (r.get("ts") or "", str(r.get("session_id")))
+        _read_synced_records(digests_root),
+        key=lambda r: (r.get("ts") or "", str(r.get("session_id"))),
     )
     return [
         {"ts": r.get("ts"), "total": {"cost_usd": r.get("cost_usd", 0.0) or 0.0}}
@@ -1047,14 +1174,20 @@ def escalate(roll: dict, rare_rate: float = 0.25, frequent_rate: float = 1.0) ->
     return {
         "schema": "telemetry-escalation/v1",
         "sessions": sessions,
+        "version_window": roll.get("version_window", []),
         "thresholds": {"rare_rate": rare_rate, "frequent_rate": frequent_rate},
         "recommendations": recs,
     }
 
 
-def cmd_escalate(args, registry: dict) -> int:
+def cmd_escalate(args, registry: dict, plugin_root: Path | None) -> int:
     root = Path(args.escalate)
-    roll = rollup(root, registry) if root.is_dir() else {"sessions": 0}
+    if root.is_dir():
+        records = _read_synced_records(root)
+        window = _resolve_version_window(args, records, plugin_root)
+        roll = rollup(records, registry, window)
+    else:
+        roll = {"sessions": 0, "version_window": []}
     out = json.dumps(
         escalate(roll, rare_rate=args.rare_rate, frequent_rate=args.frequent_rate),
         indent=2,
@@ -1163,6 +1296,15 @@ def main(argv=None) -> int:
         help="per-session rate at/above which a matchable friction "
         "becomes a hook (default 1.0)",
     )
+    ap.add_argument(
+        "--version-scope",
+        choices=["all", "current-and-previous"],
+        default="all",
+        help="scope --rollup/--escalate/--correlate to plugin_version-tagged "
+        "records (#1480): 'all' (default, unbounded history) or "
+        "'current-and-previous' (only the current + immediately previous "
+        "plugin_version observed in the digests being read)",
+    )
     args = ap.parse_args(argv)
 
     pricing_path = (
@@ -1174,11 +1316,13 @@ def main(argv=None) -> int:
         )
     )
     pricing = _load_pricing(pricing_path)
-    registry = load_registry(Path(args.plugin_root) if args.plugin_root else None)
+    plugin_root = Path(args.plugin_root) if args.plugin_root else None
+    registry = load_registry(plugin_root)
+    version = _load_plugin_version(plugin_root)
 
     # Cross-machine union read (Delta D, #178).
     if args.rollup:
-        return cmd_rollup(args, registry)
+        return cmd_rollup(args, registry, plugin_root)
 
     # Cross-machine cost baseline for the regression gate (#171).
     if args.cost_log:
@@ -1186,18 +1330,18 @@ def main(argv=None) -> int:
 
     # Frequency -> lever escalation (Delta C, #179).
     if args.escalate:
-        return cmd_escalate(args, registry)
+        return cmd_escalate(args, registry, plugin_root)
 
     # Gate-bypass vs rework correlation (process eval, #111).
     if args.correlate:
-        return cmd_correlate(args)
+        return cmd_correlate(args, plugin_root)
 
     # Cross-project incremental sync mode (Delta D, #178).
     if args.sync_out:
         import socket
 
         host = args.host or socket.gethostname()
-        return cmd_sync(args, pricing, registry, host)
+        return cmd_sync(args, pricing, registry, host, version)
 
     paths = (
         resolve_all_transcripts(args)
@@ -1205,7 +1349,7 @@ def main(argv=None) -> int:
         else resolve_transcripts(args)
     )
 
-    digest = extract(paths, pricing, registry)
+    digest = extract(paths, pricing, registry, version)
     digest["transcripts"] = len(paths)
     out = json.dumps(digest, indent=2, sort_keys=True)
     if args.out:
@@ -1236,6 +1380,7 @@ def slim_record(digest: dict) -> dict:
     return {
         "recorded_at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
         "schema": "session-digest/v1",
+        "plugin_version": digest.get("plugin_version", "unknown"),
         "sessions": digest.get("sessions", 0),
         "transcripts": digest.get("transcripts", 0),
         "tokens": {
