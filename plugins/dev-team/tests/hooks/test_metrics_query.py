@@ -192,6 +192,40 @@ def test_gate_outcome_fallback_uses_outcome_when_decision_absent() -> None:
     )
 
 
+def test_filter_entries_by_until_is_inclusive_upper_bound() -> None:
+    result = list(metrics_query.filter_entries(_SAMPLE, until="2026-01-02T00:00:00Z"))
+    assert len(result) == 2
+    assert {e["decision"] for e in result} == {"block", "warn"}
+
+
+def test_filter_entries_until_omitted_behaves_exactly_as_before() -> None:
+    """Regression: omitting `until` must be a no-op identical to pre-#1461
+    behavior — every other filter combination is unaffected."""
+    assert list(metrics_query.filter_entries(_SAMPLE)) == _SAMPLE
+    assert list(
+        metrics_query.filter_entries(_SAMPLE, event_type="destructive_guard")
+    ) == list(metrics_query.filter_entries(_SAMPLE, event_type="destructive_guard", until=None))
+
+
+def test_filter_entries_since_and_until_compose_as_a_window() -> None:
+    result = list(
+        metrics_query.filter_entries(
+            _SAMPLE, since="2026-01-01T12:00:00Z", until="2026-01-02T12:00:00Z"
+        )
+    )
+    assert len(result) == 1
+    assert result[0]["decision"] == "warn"
+
+
+def test_until_fallback_uses_timestamp_when_ts_absent() -> None:
+    entries = [
+        {"timestamp": "2026-01-01T00:00:00Z"},
+        {"timestamp": "2026-01-03T00:00:00Z"},
+    ]
+    result = list(metrics_query.filter_entries(entries, until="2026-01-02T00:00:00Z"))
+    assert result == [{"timestamp": "2026-01-01T00:00:00Z"}]
+
+
 def test_since_fallback_uses_timestamp_when_ts_absent() -> None:
     entries = [
         {"timestamp": "2026-01-01T00:00:00Z"},

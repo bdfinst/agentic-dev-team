@@ -37,6 +37,14 @@ rather than writing this gate file on its own say-so. This hash mechanism's
 real integrity therefore depends on the calling skill's own honesty about
 whether it actually dispatched independent reviewers — not on anything this
 function can verify by itself.
+
+`hooks/lib/review_gate_corroboration.py` (#1461) closes part of this gap:
+it cross-references `hooks/agent_dispatch_ledger.py`'s recorded dispatch
+evidence so `pre_commit_review.py` can require genuine, recent, distinct
+review-agent dispatches in addition to this hash match — not instead of it.
+That module is kept deliberately separate from this one: this module stays
+a small, pure hash function with no registry or metrics-stream knowledge;
+the corroboration module owns that heavier responsibility on its own.
 """
 
 from __future__ import annotations
