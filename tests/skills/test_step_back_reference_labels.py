@@ -132,8 +132,8 @@ def test_session_review_corrects_raw_log_tier_step_number_at_orchestrator_constr
 def test_session_review_corrects_telemetry_sync_step_number_at_extract():
     text = _session_review_text()
     assert (
-        "**If a telemetry repo synced in Step 1 (cross-machine telemetry sync)**, "
-        "also build the cross-machine rollup" in text
+        "**Only when `--cross-machine` synced in Step 1 (cross-machine telemetry "
+        "sync)**,\nalso build the cross-machine rollup" in text
     )
 
 
@@ -178,7 +178,7 @@ def test_session_review_has_no_bare_step_3_at_escalation_lever_left():
 def test_session_review_step_headings_are_unchanged():
     text = _session_review_text()
     assert "### 0. Queued Findings — surface pending-review queue before fresh analysis" in text
-    assert "### 1. Cross-machine Telemetry — validate config, then sync (#178)" in text
+    assert "### 1. Cross-machine Telemetry — opt-in only (#178, #1480)" in text
     assert "### 3. Analyze (digest-only)" in text
     assert "### 3b. Raw-log semantic tier — only the worst sessions (#214, Delta A/B)" in text
 

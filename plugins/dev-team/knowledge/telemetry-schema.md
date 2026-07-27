@@ -186,6 +186,7 @@ aggregate counts only, no file names, prompts, command strings, or code.
 | Field | Type | Values / source |
 |---|---|---|
 | `recorded_at` | string | UTC ISO-8601 of the run |
+| `plugin_version` | string | The `dev-team` plugin's `.claude-plugin/plugin.json` version active when this record was produced (`"unknown"` if the manifest couldn't be read), #1471. Lets consumers tell a friction already fixed in a newer version apart from one that's still current — see `--version-scope` below |
 | `sessions`, `transcripts` | integer | How many sessions/transcripts the digest covered |
 | `tokens` | object | Input/output/cache token totals |
 | `cost_usd`, `cache_hit_ratio` | number | Session cost and cache-read efficiency |
@@ -196,6 +197,8 @@ aggregate counts only, no file names, prompts, command strings, or code.
 - **Emitter:** `/session-review` skill via `scripts/session_extract.py`.
 - **Consent:** unconditional (aggregate counts only, no file/prompt/command content).
 - **Consumers:** `skills/harness-audit/SKILL.md` (joins with self-reported task logs), `agents/session-analysis.md`.
+- **Version tagging (#1471):** `plugin_version` is also carried on the per-session `session-sync/v1` records synced by `--sync-out` (used by `--rollup`/`--escalate`/`--correlate`) and on the single-shot digest itself — every one of these tags reflects the plugin version active on the machine *at extraction time*, not the version that was necessarily active during the original raw session (transcripts carry no version tag of their own to correlate against).
+- **Version scoping (#1480):** `session_extract.py --rollup`/`--escalate`/`--correlate` accept `--version-scope {all,current-and-previous}` (default `all`, unbounded history). `current-and-previous` drops any record whose `plugin_version` isn't the currently-installed version or the version immediately before it *as observed in the digests being read* (there is no release-history lookup) — records with no `plugin_version` at all (pre-#1471 data) are dropped too, since they can't be proven current. The result gains a `version_window` field (the concrete versions included; `[]` when unscoped). `/session-review` defaults to local-only; its `--cross-machine` opt-in always applies `current-and-previous` scoping (see its SKILL.md) — the skill itself never exposes an unscoped cross-machine mode. Unbounded history across every version remains available only via a direct `session_extract.py --rollup ... --version-scope all` invocation (the CLI default), outside the skill.
 
 ---
 
