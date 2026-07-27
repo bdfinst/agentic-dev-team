@@ -91,6 +91,7 @@ Use it to: gain control of an indirect input without a full injection refactor; 
 | Stub returns drive an `if` that's never asserted | Dead control; the test proves nothing about that branch | Assert the branch's effect, or remove the setup |
 | A Mock where a Stub would do (no side-effect being verified) | Tests implementation detail instead of outcome | Downgrade to Stub + state assertion |
 | Mocking a concrete class instead of an interface/port | Couples to the implementation type; see `testability-patterns.md` | Extract an interface/port; double that |
+| Mocking a collaborator internal to / owned by the same component or bounded context as the SUT | This is a boundary-selection error, distinct from the injection-mechanism problem above — the collaborator isn't a true external-boundary system (third-party API, another team's service, infra the team doesn't control), it's part of what should be under test | Assemble the real component and exercise the collaborator as real (sociable unit/component test); double only genuine external-boundary systems — see `component-test-patterns.md`'s core principle |
 
 ---
 
