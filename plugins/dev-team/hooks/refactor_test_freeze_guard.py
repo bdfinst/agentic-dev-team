@@ -69,7 +69,7 @@ def audit(
         path.parent.mkdir(parents=True, exist_ok=True)
         with open(path, "a", encoding="utf-8") as handle:
             handle.write(json.dumps(entry) + "\n")
-    except OSError as exc:  # noqa: BLE001 - fail-open: auditing never crashes a guard
+    except OSError as exc:
         sys.stderr.write(f"[refactor_test_freeze_guard] failed to write audit line: {exc}\n")
 
 

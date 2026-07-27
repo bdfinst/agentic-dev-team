@@ -46,7 +46,6 @@ blanket "everything is scoped" statement.
 from __future__ import annotations
 
 import pytest
-
 from skill_doc_helpers import (
     PLUGIN_ROOT,
     cd_test_architecture_downstream_service_branch_section,

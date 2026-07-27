@@ -45,7 +45,9 @@ _LIB_DIR = _HOOK_DIR / "lib"
 
 sys.path.insert(0, str(_LIB_DIR))
 try:
-    from artifact_paths import resolve_file as _resolve_file  # type: ignore[import-not-found]
+    from artifact_paths import (
+        resolve_file as _resolve_file,  # type: ignore[import-not-found]
+    )
     from boundary_events import (  # type: ignore[import-not-found]
         emit_boundary_event as _emit_boundary_event,
     )
@@ -198,7 +200,7 @@ def _record_bypass_audit(flag: str, reason: str, staged_count: int, cwd: str) ->
         audit_log_path.parent.mkdir(parents=True, exist_ok=True)
         with open(audit_log_path, "a", encoding="utf-8") as handle:
             handle.write(json.dumps(entry, separators=(",", ":")) + "\n")
-    except OSError as exc:  # noqa: BLE001 - fail-open: a broken audit write must never block a commit
+    except OSError as exc:
         sys.stderr.write(f"[pre_commit_review] failed to record bypass audit: {exc}\n")
 
 
