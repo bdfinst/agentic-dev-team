@@ -2,7 +2,7 @@
 
 name: doc-review
 description: Documentation accuracy, README staleness, API doc alignment, inline comment drift, ADR update triggers
-tools: Read, Grep, Glob, mcp__codegraph__*, mcp__plugin_repowise_repowise__get_context, mcp__plugin_repowise_repowise__get_symbol, mcp__plugin_repowise_repowise__search_codebase, mcp__plugin_repowise_repowise__get_risk
+tools: Read, Grep, Glob, mcp__codegraph__*, mcp__plugin_repowise_repowise__get_context, mcp__plugin_repowise_repowise__get_symbol, mcp__plugin_repowise_repowise__get_why
 model: haiku
 effort: high
 color: green
@@ -100,6 +100,9 @@ across any language and comment syntax (`//`, `#`, `/* */`, `--`):
 - `README.md` workflow section describes a workflow that differs from current implementation
 - `docs/agent-architecture.md` references a configuration or governance detail that is no longer current
 - Agent or skill files changed without corresponding update to `CLAUDE.md` registry tables
+
+`get_why` (recorded decision rationale) is available to check whether stale-looking
+code/docs still have a live rationale before flagging staleness.
 
 ## Self-Challenge
 

@@ -13,7 +13,15 @@ Detection is conservative — a false negative (no signal, which prompts the
 operator) is preferred over a false positive (the wrong directory), so any
 ambiguity (multiple unrelated .feature roots) reports "none". Vendored and
 generated trees (node_modules/, vendor/, dist/, build/, .git/, virtualenvs)
-are never treated as a signal.
+are never treated as a signal. A common .feature directory is only a signal
+when at least one of its path components is a conventional BDD scenario
+directory name (see `_CONVENTIONAL_FEATURE_DIR_NAMES`, issue #1462) — the
+signal is then the ancestor path up to and including the deepest such
+component (not necessarily the full common directory, which may sit deeper
+under an incidentally-nested leaf). Otherwise it reports "none", since a
+single incidental `.feature` root elsewhere in the repo (e.g. a
+narrowly-scoped test fixture directory) is not evidence of a repo-wide
+Gherkin convention.
 
 Stdlib-only. Python 3.8+.
 """
@@ -34,6 +42,17 @@ sys.path.insert(0, str(_HERE / "lib"))
 
 from _vendored_tree import iter_files as _iter_files
 
+# Recognized final-path-component names for a genuine BDD scenario directory
+# (case-insensitive). Mirrors MANIFEST_RULES' own "features"/"Features"
+# convention below. A computed common .feature directory whose last
+# component isn't one of these is treated as no signal rather than a false
+# positive — see issue #1462 (evals/skills/ in this repo has a narrowly-scoped
+# documented purpose, not a general Gherkin destination, but was the only
+# .feature root and so was wrongly returned as "the" convention).
+_CONVENTIONAL_FEATURE_DIR_NAMES = frozenset(
+    {"features", "feature", "specs", "spec", "bdd", "acceptance"}
+)
+
 
 def _common_directory(paths: Iterable[Path]) -> Path:
     """Longest common ancestor of relative paths ('.' when they share none)."""
@@ -48,10 +67,29 @@ def _common_directory(paths: Iterable[Path]) -> Path:
 def scan_feature_dir(root: Path) -> str | None:
     """Repo-relative common directory of the project's .feature files.
 
-    None when no .feature file exists outside vendored trees, or when the
+    None when no .feature file exists outside vendored trees, when the
     files' common ancestor is the project root itself — which covers both
     multiple unrelated roots and root-level orphans (conservative: prompt
-    rather than guess).
+    rather than guess) — or when NO component of that common ancestor is a
+    conventional BDD scenario directory name (see
+    `_CONVENTIONAL_FEATURE_DIR_NAMES`, issue #1462): the only existing
+    `.feature` root in a repo is not by itself evidence of a general Gherkin
+    convention.
+
+    When a component DOES match (e.g. `features` in `features/checkout`, or
+    in `src/test/resources/features`), the signal is the ancestor path up to
+    and including the DEEPEST matching component — not necessarily the full
+    common directory. This matters when every `.feature` file happens to sit
+    under one nested leaf of an otherwise-conventional root (e.g. only
+    `features/checkout/*.feature` exists, no sibling directly under
+    `features/` itself): the common ancestor is `features/checkout`, whose
+    *final* component (`checkout`) isn't conventional, but `features` — a
+    real ancestor — is. Checking only the final component would wrongly
+    report no signal here. Taking the deepest (not shallowest) matching
+    component matters too: for `specs/features`, both `specs` and `features`
+    are individually conventional names, but the deepest match (`features`)
+    is the one that yields the existing, expected `specs/features`
+    destination rather than truncating to the shallower `specs`.
     """
     parents = sorted(
         {
@@ -65,7 +103,15 @@ def scan_feature_dir(root: Path) -> str | None:
     common = _common_directory(parents)
     if common == Path("."):
         return None
-    return common.as_posix()
+    lowered_parts = [part.lower() for part in common.parts]
+    conventional_positions = [
+        index
+        for index, part in enumerate(lowered_parts)
+        if part in _CONVENTIONAL_FEATURE_DIR_NAMES
+    ]
+    if not conventional_positions:
+        return None
+    return Path(*common.parts[: max(conventional_positions) + 1]).as_posix()
 
 
 class ManifestRule(NamedTuple):

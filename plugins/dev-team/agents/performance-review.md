@@ -2,7 +2,7 @@
 
 name: performance-review
 description: Resource leaks, N+1 queries, unbounded growth, timeouts, algorithmic issues
-tools: Read, Grep, Glob, mcp__codegraph__*, mcp__plugin_repowise_repowise__get_context, mcp__plugin_repowise_repowise__get_symbol, mcp__plugin_repowise_repowise__search_codebase, mcp__plugin_repowise_repowise__get_risk
+tools: Read, Grep, Glob, mcp__codegraph__*, mcp__plugin_repowise_repowise__get_context, mcp__plugin_repowise_repowise__get_symbol, mcp__plugin_repowise_repowise__search_codebase, mcp__plugin_repowise_repowise__get_health
 model: haiku
 effort: high
 color: green
@@ -67,6 +67,8 @@ Algorithmic:
 - Repeated computation that could be memoized
 - Large object cloning where partial updates suffice (deep clone in loops)
 - String concatenation in loops — use `join`/`StringBuilder` (Java/C#) or `Array.join` (JS/TS)
+
+`get_health`'s performance-dimension scoring is available to corroborate findings.
 
 ## Self-Challenge
 

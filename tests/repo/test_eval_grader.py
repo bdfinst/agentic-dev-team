@@ -586,6 +586,108 @@ def test_registry_check_corpus_rejects_unknown_grader(case: Path) -> None:
     assert "unknown grader 'nope'" in out
 
 
+# --- Calibration provenance (#1466) -----------------------------------------
+
+
+def test_check_corpus_accepts_calibration_field(case: Path) -> None:
+    """A `_calibration` note beside an agent's min/max bounds must not break
+    --check-corpus -- it's informational provenance, not a grading input."""
+    (case / "expected" / "ar-demo.json").write_text(
+        """{
+  "fixture": "ar-demo.ts",
+  "applicableAgents": ["arch-review"],
+  "agents": {
+    "arch-review": {
+      "expectedStatus": "fail",
+      "issueCount": { "min": 1, "max": 3 },
+      "_calibration": {
+        "source": "measured",
+        "note": "Bounds observed from a live agent-eval run at HEAD"
+      }
+    }
+  }
+}
+"""
+    )
+    res = _grade(
+        case,
+        "--check-corpus",
+        "--expected-dir",
+        str(case / "expected"),
+        "--fixtures-dir",
+        str(case / "fixtures"),
+    )
+    out = res.stdout + res.stderr
+    assert res.returncode == 0, out
+    assert "Eval corpus OK" in out
+
+
+def test_check_corpus_rejects_invalid_calibration_source(case: Path) -> None:
+    (case / "expected" / "ar-demo.json").write_text(
+        """{
+  "fixture": "ar-demo.ts",
+  "applicableAgents": ["arch-review"],
+  "agents": {
+    "arch-review": {
+      "expectedStatus": "fail",
+      "_calibration": { "source": "vibes", "note": "seemed about right" }
+    }
+  }
+}
+"""
+    )
+    res = _grade(
+        case,
+        "--check-corpus",
+        "--expected-dir",
+        str(case / "expected"),
+        "--fixtures-dir",
+        str(case / "fixtures"),
+    )
+    out = res.stdout + res.stderr
+    assert res.returncode == 2, out
+    assert "_calibration.source" in out
+
+
+def test_calibration_field_does_not_affect_grading(case: Path) -> None:
+    """The field is ignored by the verdict grader -- a fixture that passes
+    without it must still pass identically with it present."""
+    (case / "expected" / "ar-demo.json").write_text(
+        """{
+  "fixture": "ar-demo.ts",
+  "applicableAgents": ["arch-review"],
+  "agents": {
+    "arch-review": {
+      "expectedStatus": "fail",
+      "mustMention": ["layer"],
+      "_calibration": {
+        "source": "estimated-by-analogy",
+        "note": "Modeled on ar-layer-violation's bounds"
+      }
+    }
+  }
+}
+"""
+    )
+    _write(
+        case,
+        "actuals.json",
+        """{ "ar-demo": { "agents": { "arch-review": {
+  "status": "fail",
+  "issues": [{ "severity": "error", "message": "domain imports infra layer" }],
+  "summary": "" } } } }
+""",
+    )
+    res = _grade(
+        case,
+        "--expected-dir",
+        str(case / "expected"),
+        "--actuals",
+        str(case / "actuals.json"),
+    )
+    assert res.returncode == 0, res.stdout + res.stderr
+
+
 def test_registry_check_corpus_accepts_registered_grader(case: Path) -> None:
     (case / "expected" / "ar-demo.json").write_text(
         """{

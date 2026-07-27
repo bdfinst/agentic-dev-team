@@ -19,6 +19,8 @@ You have been invoked with the `/plan` command.
 
 ## Orchestrator constraints
 
+**MUST — confirm agent-dispatch capability before Step 5b (issue #1461).** Step 5b below dispatches the five `plan-review-*` critics as parallel sub-agents. Before that dispatch, you MUST confirm the `Agent` (or `Task`) tool is actually present and available in your current toolset. If it is not: **STOP.** Do not self-apply the plan-review critics' checklists inline as a substitute for independent dispatch, and do not present the plan as reviewed or approved on that basis — a self-certified pass is not a review. Report to the user/operator plainly: plan review cannot run in this environment because no agent-dispatch capability (`Agent`/`Task` tool) is available; name exactly what's missing; and state that `/plan` cannot complete Step 5b, and the plan cannot reach the human approval gate (Step 6), until it is re-run from a session with that capability. This is a hard requirement, not a preference.
+
 1. **Do not implement.** Produce only the plan. No code, no scaffolding, no file edits beyond the plan file itself. One narrow carve-out: **after approval**, derived `.feature` files are written via the export script `plan_gherkin_export.py` (step 6) — never before approval, never by hand.
 2. **Every step is one behavior with a full cycle.** The cadence is Code-First Small Batches — each step follows IMPLEMENT → TEST → REFACTOR (`docs/experiments/RECOMMENDATIONS.md` Rec 3). The refactor runs in every cycle.
 3. **Incremental.** Each step must leave the codebase in a working, committable state.

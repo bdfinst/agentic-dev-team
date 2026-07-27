@@ -17,9 +17,11 @@ after approval (step 6 of `SKILL.md`).
 
    Precedence is conservative — feature-files > manifest > none: existing
    `.feature` files beat a manifest dependency, and any ambiguity (multiple
-   roots, conflicting destinations) reports `none`. A non-zero exit is treated
-   as no-signal: surface the script's stderr in the run output and continue —
-   planning never dies on a detection failure.
+   roots, conflicting destinations, or a single existing root whose directory
+   name is not a conventional BDD scenario directory name — issue #1462)
+   reports `none`. A non-zero exit is treated as no-signal: surface the
+   script's stderr in the run output and continue — planning never dies on a
+   detection failure.
 3. **Detected signal** → record the reported `dir` as the destination.
 4. **No signal + interactive** → prompt the operator once:
    *"Persist Gherkin as .feature files? [y = features/<plan-slug>/ | n = plan file only | c = custom path]"*.

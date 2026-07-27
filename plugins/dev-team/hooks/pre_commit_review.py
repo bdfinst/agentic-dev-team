@@ -12,6 +12,27 @@ cwd with a hash matching the currently staged content. The /code-review
 command auto-scopes to uncommitted changes and writes this file when
 review passes.
 
+Known limitation (issue #1461): this hook only checks that the stored hash
+matches `git diff --cached` (via `review_gate_hash()` — see that module's
+own docstring for the full account) — it has no way to verify the hash was
+written *because an independent review agent actually ran*, versus a caller
+computing and writing the same hash itself. That gap is real and was
+observed in production: an orchestrating agent with no Agent/Task dispatch
+tool available silently self-applied review checklists inline instead of
+hard-failing, then wrote a matching `.review-passed` and committed/opened a
+PR off a self-certified pass that a later genuine multi-agent review showed
+had missed real defects. Full cryptographic hardening of this gate (e.g.
+requiring the file to be signed by a token only real Agent-tool dispatch can
+produce) is out of scope here — it needs changes to the Agent-tool dispatch
+mechanism itself, not to this hook. The actual mitigation is upstream, in
+the calling skills: `skills/code-review/SKILL.md`, `skills/plan/SKILL.md`,
+and `skills/build/SKILL.md` each now hard-require confirming `Agent`/`Task`
+tool availability before dispatching any review agent, and STOP — no
+self-applied review, no `.review-passed` write — when that capability is
+absent. This hook's gate is therefore only as trustworthy as the calling
+skill's honesty about whether it actually dispatched independent reviewers;
+it cannot detect a self-certified pass on its own.
+
 Non-commit Bash commands pass through immediately (exit 0).
 `git commit --no-verify` (or bare `-n`) is still allowed through — but
 only when the process environment carries a non-empty `GATE_BYPASS_REASON`.

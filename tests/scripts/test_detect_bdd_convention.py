@@ -167,6 +167,73 @@ class TestFeatureFileScan:
 
         assert detect_bdd_convention.detect(tmp_path) == _no_signal()
 
+    def test_feature_files_under_an_unconventional_dir_name_yield_none(
+        self, tmp_path: Path
+    ) -> None:
+        """Regression for issue #1462: a repo whose only `.feature` root is a
+        narrowly-scoped directory (e.g. this repo's own evals/skills/, which
+        has a documented, non-Gherkin-convention purpose) must not be
+        misreported as "the" BDD convention just because it's the only
+        `.feature` root that exists."""
+        _touch(
+            tmp_path,
+            "evals/skills/some-workflow/thing.feature",
+            "Feature: thing\n",
+        )
+
+        assert detect_bdd_convention.detect(tmp_path) == _no_signal()
+
+    @pytest.mark.parametrize(
+        "dir_name",
+        sorted(detect_bdd_convention._CONVENTIONAL_FEATURE_DIR_NAMES)
+        + ["Features", "SPECS"],
+    )
+    def test_every_conventional_dir_name_signals_case_insensitively(
+        self, tmp_path: Path, dir_name: str
+    ) -> None:
+        """Regression for issue #1462: all six allowlisted names — not just
+        "features" — must signal, and matching must be case-insensitive
+        (detect_bdd_convention.py:88's `.lower()`), covering a gap the
+        original single "specs/features" example left untested."""
+        _touch(tmp_path, f"specs/{dir_name}/login.feature", "Feature: login\n")
+
+        result = detect_bdd_convention.detect(tmp_path)
+        assert result["signal"] == "feature-files"
+        assert result["dir"] == f"specs/{dir_name}"
+
+    def test_single_nested_leaf_under_a_conventional_root_still_signals(
+        self, tmp_path: Path
+    ) -> None:
+        """Regression for issue #1462 (correctness-review finding): when
+        every `.feature` file sits under one nested leaf of an otherwise-
+        conventional root (no sibling directly under `features/` itself),
+        the common ancestor's *final* component ("checkout") is not
+        conventional, but "features" — a real ancestor two levels up — is.
+        The allowlist check must walk every path component, not just the
+        last one, and return the ancestor path up to the first match."""
+        _touch(tmp_path, "features/checkout/pay.feature", "Feature: pay\n")
+
+        assert detect_bdd_convention.detect(tmp_path) == {
+            "signal": "feature-files",
+            "framework": None,
+            "dir": "features",
+        }
+
+    def test_conventional_and_unconventional_roots_together_are_still_ambiguous(
+        self, tmp_path: Path
+    ) -> None:
+        """A conventional dir and an unconventional dir with no common
+        ancestor other than root fall back to the existing "common == '.'"
+        None case, independent of the new allowlist check."""
+        _touch(tmp_path, "specs/features/login.feature", "Feature: login\n")
+        _touch(
+            tmp_path,
+            "evals/skills/some-workflow/thing.feature",
+            "Feature: thing\n",
+        )
+
+        assert detect_bdd_convention.detect(tmp_path) == _no_signal()
+
 
 # ---------------------------------------------------------------------------
 # Manifest signals — signal "manifest", canonical destination per stack
@@ -424,6 +491,32 @@ class TestMappingDocSync:
             assert any(token in doc for token in rule.tokens), (
                 f"{rule.framework}: none of its dependency tokens {rule.tokens} appear in {_BDD_FRAMEWORKS_DOC.name} — "
                 "update the doc or the mapping"
+            )
+
+
+class TestConventionalNameAllowlistSync:
+    """Issue #1462/#1467-adjacent (arch-review finding): `MANIFEST_RULES`
+    destinations and `_CONVENTIONAL_FEATURE_DIR_NAMES` are two independent
+    tables that decide overlapping things — a manifest-driven canonical
+    destination, and a feature-file-scan signal — and nothing previously
+    caught them drifting apart. If a future manifest destination's final
+    path component isn't in the allowlist, `scan_feature_dir` would silently
+    fail to recognize that destination as a signal on a re-scan."""
+
+    def test_every_manifest_destination_final_component_is_conventional(self) -> None:
+        for rule in detect_bdd_convention.MANIFEST_RULES:
+            destination = (
+                rule.destination or detect_bdd_convention.CSPROJ_FEATURES_SUBDIR
+            )
+            final_component = destination.rstrip("/").rsplit("/", 1)[-1].lower()
+            assert (
+                final_component in detect_bdd_convention._CONVENTIONAL_FEATURE_DIR_NAMES
+            ), (
+                f"{rule.framework}: destination `{destination}` ends in "
+                f"`{final_component}`, which is not in "
+                "_CONVENTIONAL_FEATURE_DIR_NAMES — scan_feature_dir would not "
+                "recognize this destination as a signal; update the allowlist "
+                "or the mapping"
             )
 
 

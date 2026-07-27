@@ -1,20 +1,40 @@
 #!/usr/bin/env python3
-"""Validate that every read-only *-review agent grants the code-intelligence MCP tools.
+"""Validate per-agent-tier MCP tool grants on every read-only *-review agent.
 
 Review agents (agents/*-review.md) do structural and behavioral review. When a
 target repo has a CodeGraph index (.codegraph/) and/or a Repowise MCP server, the
 agents should call those tools for verified skeletons and resolved call graphs
 instead of re-reading whole files. That only works if the tool names are present
-in each agent's `tools:` frontmatter allowlist. This check enforces that, and
---fix appends any missing names (merge, never replace — Read/Grep/Glob/Skill are
-preserved). A granted tool whose MCP server is absent is simply unavailable at
-runtime (no error); agents fall back to Read/Grep/Glob.
+in each agent's `tools:` frontmatter allowlist.
 
-It also verifies the code-review skill documents detecting the index and
-preferring it over full-file reads (the guidance that makes the grant useful).
+Grants are no longer one-size-fits-all (#1467). Three tiers:
 
-Exit 0 if every review agent grants all five tools and the skill prose is present.
-Exit 1 (detection) or applies fixes (--fix) otherwise.
+- ``EXEMPT_AGENTS`` (``claude-setup-review``, ``token-efficiency-review``) — pure
+  text/regex/frontmatter validators on the ``haiku`` tier that never touch code
+  structure. They require **none** of the code-intelligence MCP tools, and this
+  check actively asserts they carry **none** of them — a "forbidden tools
+  present" failure mode, reported and JSON-exposed distinctly from the ordinary
+  "missing tools" offenders, so a future edit can't silently regrant the tools
+  these two never needed.
+- ``REASSIGNED_TOOLS`` agents (``refactor-opportunity-review``,
+  ``performance-review``, ``complexity-review``, ``doc-review``) — require their
+  own specific tool set (see the mapping below) instead of the generic
+  ``BASE_MCP_TOOLS`` five.
+- Every other ``*-review.md`` agent keeps the original ``BASE_MCP_TOOLS``
+  requirement, unchanged.
+
+``--fix`` behavior: for ``REASSIGNED_TOOLS`` (and generic-tier) agents, it
+appends the agent's own missing required tools (reusing
+``run_grants_check``/``fix_tools_line`` from ``mcp_tool_grants.py``, which are
+generic over the ``required`` list). For ``EXEMPT_AGENTS``, ``--fix`` is a
+no-op for "missing" (there is nothing required). **`--fix` does NOT strip
+forbidden tools from exempt agents** — removing an already-present token is a
+different, riskier operation than appending one, so a forbidden-tools finding
+on an exempt agent always requires a human edit; detection still fails the run
+so it can't be missed.
+
+Exit 0 if every review agent's grant matches its tier and the skill prose is
+present. Exit 1 (detection) or applies fixes (--fix) otherwise.
 
 Usage:
     python3 check_review_agent_mcp_tools.py [--agents-dir <path>] [--skill-file <path>]
@@ -34,6 +54,9 @@ sys.path.insert(0, str(Path(__file__).parent / "lib"))
 
 from mcp_tool_grants import (
     BASE_MCP_TOOLS,
+    GET_DEAD_CODE,
+    GET_HEALTH,
+    GET_WHY,
     build_json_report,
     parse_tools,  # noqa: F401 -- re-exported: imported directly by this script's own tests
     run_grants_check,
@@ -45,10 +68,50 @@ from mcp_tool_grants import (
     missing_tools as _missing_tools,
 )
 
-# The five code-intelligence MCP tool names granted to read-only review agents.
-# Kept as MCP_TOOL_NAMES for this script's public API (imported by the pytest
-# wrapper and agent-audit); the canonical values live in the shared lib.
+# The five code-intelligence MCP tool names granted to the generic review-agent
+# tier. Kept as MCP_TOOL_NAMES for this script's public API (imported by the
+# pytest wrapper and agent-audit); the canonical values live in the shared lib.
 MCP_TOOL_NAMES = BASE_MCP_TOOLS
+
+# Agents that do pure text/regex/frontmatter validation and never touch code
+# structure — they require zero code-intelligence MCP tools (#1467).
+EXEMPT_AGENTS = {"claude-setup-review", "token-efficiency-review"}
+
+# Agents whose grant is reassigned to a specific set instead of the generic
+# BASE_MCP_TOOLS five (#1467).
+REASSIGNED_TOOLS = {
+    "refactor-opportunity-review": [
+        "mcp__codegraph__codegraph_explore",
+        "mcp__plugin_repowise_repowise__get_context",
+        "mcp__plugin_repowise_repowise__get_symbol",
+        GET_DEAD_CODE,
+        GET_HEALTH,
+    ],
+    "performance-review": [
+        "mcp__codegraph__codegraph_explore",
+        "mcp__plugin_repowise_repowise__get_context",
+        "mcp__plugin_repowise_repowise__get_symbol",
+        "mcp__plugin_repowise_repowise__search_codebase",
+        GET_HEALTH,
+    ],
+    "complexity-review": [
+        "mcp__codegraph__codegraph_explore",
+        "mcp__plugin_repowise_repowise__get_context",
+        "mcp__plugin_repowise_repowise__get_symbol",
+        "mcp__plugin_repowise_repowise__search_codebase",
+        GET_HEALTH,
+    ],
+    "doc-review": [
+        "mcp__codegraph__codegraph_explore",
+        "mcp__plugin_repowise_repowise__get_context",
+        "mcp__plugin_repowise_repowise__get_symbol",
+        GET_WHY,
+    ],
+}
+
+# Every code-intelligence MCP tool name that must be ABSENT from an
+# EXEMPT_AGENTS agent's tools: line.
+FORBIDDEN_FOR_EXEMPT = BASE_MCP_TOOLS + [GET_WHY, GET_HEALTH, GET_DEAD_CODE]
 
 # Phrases the code-review skill must contain so the granted tools are actually used:
 # detection of each index, the preference instruction, and the documented fallback.
@@ -76,19 +139,39 @@ def find_review_agents(agents_dir: Path) -> list[Path]:
     return sorted(agents_dir.glob("*-review.md"))
 
 
-def missing_mcp_tools(text: str) -> list[str]:
-    """Return the MCP tool names absent from the agent's tools: line (all five if no line)."""
-    return _missing_tools(text, MCP_TOOL_NAMES)
+def required_tools_for(name: str) -> list[str]:
+    """Return the tool-name list a review agent named `name` must grant.
 
-
-def fix_tools_line(text: str) -> tuple[str, list[str]]:
-    """Append any missing MCP tool names to the tools: line. Idempotent.
-
-    Thin wrapper over the shared helper, bound to this script's MCP_TOOL_NAMES.
-    Returns (new_text, added_names); a line already containing all five is
-    returned unchanged (added == []).
+    Empty for EXEMPT_AGENTS, the agent's own set for REASSIGNED_TOOLS, and
+    the generic BASE_MCP_TOOLS five for every other *-review agent.
     """
-    return _fix_tools_line(text, MCP_TOOL_NAMES)
+    if name in EXEMPT_AGENTS:
+        return []
+    if name in REASSIGNED_TOOLS:
+        return REASSIGNED_TOOLS[name]
+    return MCP_TOOL_NAMES
+
+
+def missing_mcp_tools(text: str, name: str) -> list[str]:
+    """Return the tool names required for agent `name` absent from its tools: line."""
+    return _missing_tools(text, required_tools_for(name))
+
+
+def fix_tools_line(text: str, name: str) -> tuple[str, list[str]]:
+    """Append any missing required tool names for agent `name`. Idempotent.
+
+    Thin wrapper over the shared helper, bound to `name`'s required set via
+    `required_tools_for`. Returns (new_text, added_names); a line already
+    containing every required name is returned unchanged (added == []). For
+    an EXEMPT_AGENTS name (required == []), always returns unchanged.
+    """
+    return _fix_tools_line(text, required_tools_for(name))
+
+
+def forbidden_present(text: str) -> list[str]:
+    """Return the FORBIDDEN_FOR_EXEMPT tool names actually granted in `text`."""
+    missing = _missing_tools(text, FORBIDDEN_FOR_EXEMPT)
+    return [name for name in FORBIDDEN_FOR_EXEMPT if name not in missing]
 
 
 def check_skill(skill_text: str) -> list[str]:
@@ -103,31 +186,44 @@ def _skill_missing(skill_file: Path) -> list[str]:
 
 
 def _targets(agents: list[Path]) -> dict[str, tuple[Path, list[str]]]:
-    return {agent_file.stem: (agent_file, MCP_TOOL_NAMES) for agent_file in agents}
+    return {agent_file.stem: (agent_file, required_tools_for(agent_file.stem)) for agent_file in agents}
 
 
 def apply_fixes(agents: list[Path]) -> tuple[dict[str, list[str]], list[str]]:
-    """Append missing MCP tools to each review agent. Returns (fixed, unfixable).
+    """Append missing required tools to each review agent. Returns (fixed, unfixable).
 
     `unfixable` names agents with no inline `tools:` line the regex can append
     to (a missing line, or a block-list form) — these are reported and cause a
     non-zero exit rather than a silent false "OK" (they can't be auto-fixed).
+    Never strips forbidden tools from EXEMPT_AGENTS — see module docstring.
     """
     _offenders, fixed, unfixable = run_grants_check(_targets(agents), apply_fix=True)
     return fixed, unfixable
 
 
 def find_offenders(agents: list[Path]) -> dict[str, list[str]]:
-    """Return {agent: missing tool names} for review agents lacking any of the five."""
+    """Return {agent: missing tool names} for review agents lacking their required set."""
     offenders, _fixed, _unfixable = run_grants_check(_targets(agents))
     return offenders
+
+
+def find_forbidden(agents: list[Path]) -> dict[str, list[str]]:
+    """Return {agent: [forbidden tool names present]} for EXEMPT_AGENTS only."""
+    forbidden = {}
+    for agent_file in agents:
+        if agent_file.stem not in EXEMPT_AGENTS or not agent_file.is_file():
+            continue
+        present = forbidden_present(agent_file.read_text(encoding="utf-8"))
+        if present:
+            forbidden[agent_file.stem] = present
+    return forbidden
 
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--agents-dir", type=Path, default=None)
     parser.add_argument("--skill-file", type=Path, default=None)
-    parser.add_argument("--fix", action="store_true", help="append missing MCP tool names")
+    parser.add_argument("--fix", action="store_true", help="append missing required tool names")
     parser.add_argument("--json", action="store_true", help="machine-readable output")
     args = parser.parse_args()
 
@@ -141,9 +237,10 @@ def main() -> int:
     agents = find_review_agents(agents_dir)
     skill_missing = _skill_missing(skill_file)
     offenders, fixed, unfixable = run_grants_check(_targets(agents), apply_fix=args.fix)
+    forbidden = find_forbidden(agents)
 
     if args.fix:
-        rc = 1 if (unfixable or skill_missing) else 0
+        rc = 1 if (unfixable or skill_missing or forbidden) else 0
         if args.json:
             # --json owns stdout: emit ONLY the JSON object, nothing else.
             report = build_json_report(
@@ -153,7 +250,7 @@ def main() -> int:
                 ok=(rc == 0),
                 fixed=fixed,
                 unfixable=unfixable,
-                notes={"skill_missing_phrases": skill_missing},
+                notes={"skill_missing_phrases": skill_missing, "forbidden": forbidden},
             )
             print(json.dumps(report, indent=2))
             return rc
@@ -161,16 +258,20 @@ def main() -> int:
             for name, added in fixed.items():
                 print(f"FIXED: {name} — added {', '.join(added)}")
         else:
-            print(f"OK: all {len(agents)} review agents already grant the MCP tools.")
+            print(f"OK: all {len(agents)} review agents already grant their required MCP tools.")
         if unfixable:
             print("WARN: review agents with no inline tools: line (fix by hand): "
                   + ", ".join(unfixable), file=sys.stderr)
         if skill_missing:
             print("WARN: code-review SKILL.md is missing phrases (fix by hand): "
                   + ", ".join(skill_missing), file=sys.stderr)
+        if forbidden:
+            print("WARN: exempt review agents granted forbidden MCP tools (fix by hand): "
+                  + "; ".join(f"{name}: {', '.join(tools)}" for name, tools in forbidden.items()),
+                  file=sys.stderr)
         return rc
 
-    rc = 1 if (offenders or skill_missing) else 0
+    rc = 1 if (offenders or skill_missing or forbidden) else 0
     if args.json:
         # --json owns stdout: emit ONLY the JSON object, nothing else.
         report = build_json_report(
@@ -178,19 +279,23 @@ def main() -> int:
             [a.stem for a in agents],
             offenders,
             ok=(rc == 0),
-            notes={"skill_missing_phrases": skill_missing},
+            notes={"skill_missing_phrases": skill_missing, "forbidden": forbidden},
         )
         print(json.dumps(report, indent=2))
         return rc
     if offenders:
-        print("FAIL: review agents missing code-intelligence MCP tools in tools::")
+        print("FAIL: review agents missing their required code-intelligence MCP tools in tools::")
         for name, missing in offenders.items():
             print(f"  - {name}: missing {', '.join(missing)}")
         print("\nRun: python3 scripts/check_review_agent_mcp_tools.py --fix")
+    if forbidden:
+        print("FAIL: exempt review agents granted forbidden code-intelligence MCP tools (should have none):")
+        for name, tools in forbidden.items():
+            print(f"  - {name}: forbidden {', '.join(tools)}")
     if skill_missing:
         print("FAIL: code-review SKILL.md missing required phrases: " + ", ".join(skill_missing))
     if rc == 0:
-        print(f"OK: all {len(agents)} review agents grant the five MCP tools; skill prose present.")
+        print(f"OK: all {len(agents)} review agents grant their required MCP tools; skill prose present.")
     return rc
 
 

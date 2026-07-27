@@ -105,6 +105,25 @@ independent reviewer, never folded into a structural-presence check:
   unparseable output, state that here per the failure-handling rule above,
   rather than silently treating it as "no findings."
 
+## Runtime isolation check
+
+The mutual-blindness property above — "one message, two calls, read neither
+result until both are issued" — is asserted only in this doc's prose and in
+content-guards that check the markdown *says* the right thing; nothing runs
+two real dispatches and checks isolation held at runtime.
+`scripts/verify_gherkin_quality_critic_isolation.py` closes that gap: it
+dispatches the real `gherkin-quality-critic` agent twice via two fully
+independent `claude -p` subprocess calls, each against a fixture carrying its
+own randomly-generated canary marker, and fails if either transcript contains
+the *other* dispatch's canary. Like `evals/README.md`'s live eval gate, it is
+**opt-in and paid** (needs the `claude` CLI + `ANTHROPIC_API_KEY`) and
+**fails open** — missing credentials print a skip message and exit 0, never a
+failure. It is not wired into any CI workflow by default. Run it locally:
+
+```bash
+ANTHROPIC_API_KEY=sk-... python3 plugins/dev-team/scripts/verify_gherkin_quality_critic_isolation.py
+```
+
 ## Scope of this doc
 
 This doc owns the dispatch/aggregation/failure/zero-findings mechanics and
