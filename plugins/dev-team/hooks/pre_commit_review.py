@@ -40,6 +40,24 @@ confirming `Agent`/`Task` tool availability before dispatching any review
 agent, and STOP — no self-applied review, no `.review-passed` write — when
 that capability is absent.
 
+`git commit -a`/`--all` and pathspec-form commits (e.g. `git commit -am
+...` or `git commit path/to/file.txt -m ...`) commit tracked-file changes
+that were never staged via `git add` (#1476, closed here). `_staged_names()`
+seeing an empty index used to make `main()` return 0 ("nothing to gate")
+before any corroboration logic ran — silently skipping this entire
+mechanism with no bypass-audit entry. `main()` now also checks
+`_working_tree_modified_names()`: when the index is empty but tracked files
+differ from HEAD in the working tree, that combination is the `-a`/
+pathspec-form-commit signature, and the commit is routed through the exact
+same `_evaluate_gate()` pipeline (hash match, dispatch-ledger corroboration,
+doc-only/single-agent exemptions) using an EFFECTIVE content hash —
+`review_gate_hash.working_tree_gate_hash()`, `git diff HEAD` — instead of
+`review_gate_hash()`'s `git diff --cached`, so the hash-binding/
+corroboration machinery runs against the content that would actually be
+committed rather than exempting it. A genuinely empty commit (nothing
+staged AND no tracked-file working-tree changes at all) still passes
+through untouched.
+
 KNOWN RESIDUAL GAPS (#1461 security re-review), disclosed rather than
 silently accepted:
 
@@ -49,16 +67,7 @@ silently accepted:
    forgery path but not this sibling one; genuine harness-level provenance
    (a signed dispatch receipt) is still needed for full closure and is
    outside this repo's control.
-2. `git commit -a`/`--all` and pathspec-form commits (e.g. `git commit -am
-   ...` or `git commit path/to/file.txt -m ...`) commit tracked-file changes
-   that were never staged via `git add` — `_staged_names()` sees an empty
-   index and `main()` returns 0 (nothing to gate) before any corroboration
-   logic runs, silently skipping this entire mechanism with no bypass-audit
-   entry. This is pre-existing (predates #1461) but defeats the dispatch-
-   ledger hardening just as completely as the hash-only gate it replaced.
-   Tracked as a follow-up rather than fixed here — see the issue filed
-   alongside this disclosure.
-3. The recency window's anchor (`before_ts`, `.claude/memory/.review-passed`'s
+2. The recency window's anchor (`before_ts`, `.claude/memory/.review-passed`'s
    own mtime) is a filesystem timestamp fully controlled by the same party
    the gate constrains — `os.utime()`/`touch -d` can backdate it without
    touching the file's content or hash. Backdating the anchor into the past
@@ -70,7 +79,7 @@ silently accepted:
    original_dispatch` simulate time passage hermetically (without a real
    `sleep`), so switching to wall-clock `now()` isn't a drop-in improvement —
    it would need a redesign of that test contract too.
-4. The `staged is None` fail-closed check runs BEFORE `has_bypass_flag()` in
+3. The `staged is None` fail-closed check runs BEFORE `has_bypass_flag()` in
    `main()`, so a gate-setup failure (corrupt/locked git index) also blocks
    the audited `GATE_BYPASS_REASON` escape hatch — unlike the sibling
    mkdir/hash-resolution failure further down, which still allows the
@@ -78,7 +87,7 @@ silently accepted:
    the two `gate-setup-failure` sites are inconsistent about whether the
    sanctioned escape stays reachable. Not restructured here to avoid
    weakening the fail-closed guarantee under time pressure.
-5. `evidence.same_subject_dispatch_ever` in `review_gate_corroboration.py`
+4. `evidence.same_subject_dispatch_ever` in `review_gate_corroboration.py`
    is computed before the live-registry filter, so a same-subject,
    in-window dispatch whose `matched_rule` is no longer a registered agent
    (renamed/removed) reports `_STALE_MESSAGE` ("outside the window")
@@ -158,7 +167,10 @@ try:
     from review_gate_corroboration import (  # type: ignore[import-not-found]
         mtime_to_iso as _mtime_to_iso,
     )
-    from review_gate_hash import review_gate_hash  # type: ignore[import-not-found]
+    from review_gate_hash import (  # type: ignore[import-not-found]
+        review_gate_hash,
+        working_tree_gate_hash,
+    )
     from stdin_json import read_stdin_json  # type: ignore[import-not-found]
 except ImportError:  # pragma: no cover
 
@@ -185,6 +197,9 @@ except ImportError:  # pragma: no cover
         return None
 
     def review_gate_hash(cwd=None) -> str:  # type: ignore[misc]
+        return ""
+
+    def working_tree_gate_hash(cwd=None) -> str:  # type: ignore[misc]
         return ""
 
     def read_stdin_json() -> dict | None:  # type: ignore[misc]
@@ -256,6 +271,26 @@ _BLOCK_MESSAGE = (
     "\n"
     "Run /code-review to review staged files.\n"
     "If review passes, the commit will be allowed on the next attempt.\n"
+    "\n"
+    "To bypass: use git commit --no-verify\n"
+)
+
+# #1476: `git commit -a`/`--all` and pathspec-form `git commit <path> -m ...`
+# commit tracked-file changes that were never `git add`-ed — distinct from
+# `_BLOCK_MESSAGE` (missing/mismatched gate file on an ordinary staged
+# commit) so the operator is pointed at the actual remediation (`git add`
+# first) rather than a generic "review required" that doesn't explain why
+# no gate file could possibly have matched.
+_UNSTAGED_BLOCK_MESSAGE = (
+    "BLOCKED: Code review required before committing.\n"
+    "\n"
+    "This looks like `git commit -a`/`--all` or a pathspec-form commit —\n"
+    "tracked file changes were modified but never explicitly staged with\n"
+    "`git add`, so no `.review-passed` gate could have been written for\n"
+    "them.\n"
+    "\n"
+    "Run `git add` on the files you intend to commit, then /code-review,\n"
+    "then retry the commit.\n"
     "\n"
     "To bypass: use git commit --no-verify\n"
 )
@@ -381,6 +416,37 @@ def _staged_names(cwd: str | None = None) -> list[str] | None:
     return [line for line in completed.stdout.splitlines() if line]
 
 
+def _working_tree_modified_names(cwd: str | None = None) -> list[str] | None:
+    """Return tracked files whose content differs between the index and the
+    working tree (bare `git diff --name-only`, no `--cached`), or `None`
+    when git could not be asked at all — same `None`-vs-`[]` fail-closed
+    contract as `_staged_names()` (see its docstring).
+
+    Used to detect the `git commit -a`/pathspec-form-commit signature
+    (#1476): `main()` calls this only after `_staged_names()` has already
+    returned `[]` (genuinely nothing staged). If THIS also returns `[]`,
+    nothing changed for any tracked file and there is truly nothing to
+    gate. If it returns a non-empty list, tracked files were modified in
+    the working tree without ever being `git add`-ed — exactly what `git
+    commit -a`/`--all` and pathspec-form `git commit <path> -m ...` commit
+    directly, bypassing `git add` (and this hook's ordinary staged-content
+    gate) entirely.
+
+    Shares `_staged_names()`'s safety flags via `git_safe_diff.run_safe_git_diff`
+    (`target=None` — a bare `git diff`, index vs. working tree, rather than
+    the default `--cached`).
+    """
+    try:
+        completed = run_safe_git_diff(
+            ["--name-only"], cwd=(cwd or None), text=True, target=None
+        )
+    except Exception:  # noqa: BLE001 - "couldn't determine", not "nothing modified"
+        return None
+    if completed.returncode != 0:
+        return None
+    return [line for line in completed.stdout.splitlines() if line]
+
+
 def _current_branch(cwd: str | None = None) -> str:
     try:
         completed = subprocess.run(
@@ -452,7 +518,9 @@ class GateVerdict:
         self.matched_rule = matched_rule
 
 
-def _hash_verdict(gate_file: Path, current_hash: str) -> GateVerdict | None:
+def _hash_verdict(
+    gate_file: Path, current_hash: str, *, unstaged_commit: bool = False
+) -> GateVerdict | None:
     """Lens 1/4: the original hash-match check, unchanged, evaluated FIRST
     and independent of dispatch-ledger evidence — a hash mismatch (or a
     missing/unreadable gate file) always rejects with the original,
@@ -460,18 +528,27 @@ def _hash_verdict(gate_file: Path, current_hash: str) -> GateVerdict | None:
     much genuine dispatch evidence exists (Gherkin: "Gate still rejects on
     hash mismatch even with ample genuine dispatch evidence").
 
+    `unstaged_commit` (#1476): True when `main()` detected the `git commit
+    -a`/pathspec-form-commit signature. The check itself is identical —
+    only the rejection message/rule swaps to `_UNSTAGED_BLOCK_MESSAGE`/
+    `"pre-commit-review-unstaged"`, pointing the operator at `git add`
+    instead of a generic "review required" that wouldn't explain why no
+    gate file could possibly have matched an empty staged index.
+
     Returns a rejecting `GateVerdict` when the hash doesn't match; `None`
     when it does, meaning "hash OK, continue to the dispatch-ledger
     corroboration lenses".
     """
+    block_message = _UNSTAGED_BLOCK_MESSAGE if unstaged_commit else _BLOCK_MESSAGE
+    block_rule = "pre-commit-review-unstaged" if unstaged_commit else "pre-commit-review"
     if not gate_file.is_file():
-        return GateVerdict(False, _BLOCK_MESSAGE, "pre-commit-review")
+        return GateVerdict(False, block_message, block_rule)
     try:
         stored = gate_file.read_text().strip()
     except OSError:
         stored = ""
     if not stored or stored != current_hash:
-        return GateVerdict(False, _BLOCK_MESSAGE, "pre-commit-review")
+        return GateVerdict(False, block_message, block_rule)
     return None
 
 
@@ -539,7 +616,12 @@ def _dispatch_count_verdict(evidence, n: int) -> GateVerdict:
 
 
 def _evaluate_gate(
-    gate_file: Path, current_hash: str, cwd: str, staged: list[str]
+    gate_file: Path,
+    current_hash: str,
+    cwd: str,
+    staged: list[str],
+    *,
+    unstaged_commit: bool = False,
 ) -> GateVerdict:
     """Decide whether `.review-passed` corroborates a genuine, recent,
     multi-agent review (#1461) — extracted from `main()` so the decision
@@ -554,18 +636,31 @@ def _evaluate_gate(
     lens after the hash check returns `None` to mean "not decisive, try the
     next lens" or a concrete `GateVerdict` to short-circuit the pipeline.
 
-    `staged` is `main()`'s own already-computed staged-file list (#1461
-    fifth structure re-review) — this function used to re-derive it with a
-    second `_staged_names(cwd)` call (a second `git diff --cached` per
-    commit) for data the caller already had. Passing it through is cheaper
-    and correct for every non-concurrent path; it does shift *when* the
-    doc-only exemption's file list is sampled to slightly before, rather
-    than slightly after, `review_gate_hash(cwd)`'s own read — a difference
-    that only matters under concurrent staging in the same working tree,
-    already dominated by the pre-existing commit-time TOCTOU this module's
-    KNOWN RESIDUAL GAPS block discloses (item 2, `git commit -a`).
+    `unstaged_commit` (#1476) is True when `main()` detected the `git
+    commit -a`/pathspec-form-commit signature — nothing staged, but tracked
+    files modified in the working tree. `staged` is then `main()`'s
+    working-tree-modified list (not the empty staged-index list) and
+    `current_hash` is `working_tree_gate_hash()` (`git diff HEAD`) rather
+    than `review_gate_hash()` (`git diff --cached`) — but every check below
+    this point (dispatch-ledger corroboration, doc-only/single-agent
+    exemptions) is identical either way; only `_hash_verdict`'s
+    message/rule differ, pointing the operator at `git add` instead of a
+    generic "review required". See `_hash_verdict()`'s own docstring.
+
+    `staged` is `main()`'s own already-computed staged-file (or, for an
+    `unstaged_commit`, working-tree-modified) list (#1461 fifth structure
+    re-review) — this function used to re-derive it with a second
+    `_staged_names(cwd)` call (a second `git diff --cached` per commit) for
+    data the caller already had. Passing it through is cheaper and correct
+    for every non-concurrent path; it does shift *when* the doc-only
+    exemption's file list is sampled to slightly before, rather than
+    slightly after, the current-hash function's own read — an inherent,
+    low-severity commit-time TOCTOU of any PreToolUse hook (the hook
+    observes state at invocation time; the actual `git commit` subprocess
+    runs afterward) that only matters under concurrent staging in the same
+    working tree.
     """
-    verdict = _hash_verdict(gate_file, current_hash)
+    verdict = _hash_verdict(gate_file, current_hash, unstaged_commit=unstaged_commit)
     if verdict is not None:
         return verdict
 
@@ -627,7 +722,9 @@ def _handle_bypass(
     return 2
 
 
-def _prepare_gate(cwd: str, session_id) -> tuple[str, Path] | None:
+def _prepare_gate(
+    cwd: str, session_id, *, unstaged_commit: bool = False
+) -> tuple[str, Path] | None:
     """`main()` lens: resolve the current staged-content hash and the
     `.review-passed` gate-file path, creating its parent directory.
     Everything here is wrapped in its own exception handler (#1461 security
@@ -644,12 +741,20 @@ def _prepare_gate(cwd: str, session_id) -> tuple[str, Path] | None:
     a should-block commit into an allow, with no gate file written and no
     bypass-audit entry recorded at all.
 
+    `unstaged_commit` (#1476): for the `git commit -a`/pathspec-form-commit
+    signature, `current_hash` must be the EFFECTIVE content such a commit
+    would actually commit — `working_tree_gate_hash()` (`git diff HEAD`) —
+    rather than `review_gate_hash()`'s `git diff --cached`, which is empty
+    by definition here (nothing was ever `git add`-ed).
+
     Returns `(current_hash, gate_file)` on success; `None` on failure,
     having already emitted the block message and boundary event — the
     caller returns exit code 2.
     """
     try:
-        current_hash = review_gate_hash(cwd)
+        current_hash = (
+            working_tree_gate_hash(cwd) if unstaged_commit else review_gate_hash(cwd)
+        )
 
         # Resolved via the shared artifact_paths helper (#1461 security
         # review), not a bare relative path — the latter resolves against
@@ -706,20 +811,46 @@ def main() -> int:
             cwd, "pre_commit_review", "Bash", "block", "gate-setup-failure", session_id
         )
         return 2
-    # Genuinely nothing staged → nothing to gate.
+
+    # Nothing staged via `git add` — could be genuinely nothing to gate, OR
+    # the `git commit -a`/pathspec-form-commit signature (#1476): tracked
+    # files modified in the working tree without ever being staged that
+    # way. `_staged_names()` alone can't tell the two apart; check the
+    # working tree too before deciding.
+    unstaged_commit = False
     if not staged:
-        return 0
+        working_modified = _working_tree_modified_names(cwd)
+        # Same fail-CLOSED contract as `_staged_names()` above: "couldn't
+        # determine" must never be folded into "nothing to gate".
+        if working_modified is None:
+            _emit_block(_GATE_SETUP_FAILURE_MESSAGE)
+            emit_boundary_event(
+                cwd, "pre_commit_review", "Bash", "block", "gate-setup-failure", session_id
+            )
+            return 2
+        if not working_modified:
+            # Genuinely nothing staged AND no tracked-file working-tree
+            # changes at all → nothing to gate.
+            return 0
+        # The `-a`/pathspec-form signature: route through the gate on the
+        # working-tree file list, exactly as `staged` would normally carry
+        # it (used below for the bypass audit's file count and for the
+        # doc-only exemption's `_is_doc_only_changeset` check).
+        unstaged_commit = True
+        staged = working_modified
 
     bypass_exit_code = _handle_bypass(command, cwd, staged, session_id)
     if bypass_exit_code is not None:
         return bypass_exit_code
 
-    prepared = _prepare_gate(cwd, session_id)
+    prepared = _prepare_gate(cwd, session_id, unstaged_commit=unstaged_commit)
     if prepared is None:
         return 2
     current_hash, gate_file = prepared
 
-    verdict = _evaluate_gate(gate_file, current_hash, cwd, staged)
+    verdict = _evaluate_gate(
+        gate_file, current_hash, cwd, staged, unstaged_commit=unstaged_commit
+    )
     if verdict.passed:
         # Review passed for these exact files, corroborated by genuine
         # dispatch evidence (or a doc-only exemption) — consume + allow.

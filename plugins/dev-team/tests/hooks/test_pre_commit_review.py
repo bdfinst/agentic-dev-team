@@ -1251,3 +1251,183 @@ def test_degraded_ledger_evidence_field_shape_matches_real_ledger_evidence() -> 
     import review_gate_corroboration as _rgc  # type: ignore[import-not-found]
 
     assert degraded_fields == _rgc.LedgerEvidence._fields
+
+
+# ---------------------------------------------------------------------------
+# #1476: `git commit -a`/`--all` and pathspec-form commits — tracked-file
+# changes committed without ever being `git add`-ed used to skip the entire
+# gate (empty staged index -> "nothing to gate"). These scenarios need a
+# repo with a real HEAD commit, since the fix hashes `git diff HEAD`.
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture
+def committed_repo(tmp_path: Path) -> Path:
+    """A hermetic git repo with one real commit already on HEAD, then a
+    further tracked-file edit left unstaged — the `git commit -a`/pathspec
+    signature (nothing in the index, but tracked files differ from HEAD in
+    the working tree)."""
+    env = hermetic_git_env(home=tmp_path)
+    subprocess.run(["git", "init", "-q"], cwd=tmp_path, env=env, check=True)
+    subprocess.run(["git", "config", "user.email", "t@t"], cwd=tmp_path, env=env, check=True)
+    subprocess.run(["git", "config", "user.name", "t"], cwd=tmp_path, env=env, check=True)
+    (tmp_path / "a.ts").write_text("v1\n")
+    subprocess.run(["git", "add", "a.ts"], cwd=tmp_path, env=env, check=True)
+    subprocess.run(["git", "commit", "-q", "-m", "initial"], cwd=tmp_path, env=env, check=True)
+    # Modify the tracked file WITHOUT staging — the index still matches
+    # HEAD; only the working tree differs.
+    (tmp_path / "a.ts").write_text("v2\n")
+    return tmp_path
+
+
+def _current_working_tree_hash(repo: Path) -> str:
+    """Compute the effective (`git diff HEAD`) hash via the Python lib."""
+    lib_dir = _REPO_ROOT / "plugins" / "dev-team" / "hooks" / "lib"
+    if str(lib_dir) not in sys.path:
+        sys.path.insert(0, str(lib_dir))
+    import review_gate_hash as _rgh  # type: ignore[import-not-found]
+
+    return _rgh.working_tree_gate_hash(cwd=repo)
+
+
+def test_unstaged_a_flag_commit_blocks_with_git_add_guidance(committed_repo: Path) -> None:
+    r = _run(
+        {"tool_name": "Bash", "tool_input": {"command": "git commit -a -m x"}},
+        cwd=committed_repo,
+    )
+    assert r.returncode == 2
+    assert "git add" in r.stdout
+    assert "BLOCKED" in r.stdout
+    assert r.stdout == r.stderr
+
+
+def test_unstaged_pathspec_commit_blocks_with_git_add_guidance(committed_repo: Path) -> None:
+    r = _run(
+        {"tool_name": "Bash", "tool_input": {"command": "git commit a.ts -m x"}},
+        cwd=committed_repo,
+    )
+    assert r.returncode == 2
+    assert "git add" in r.stdout
+
+
+def test_unstaged_a_flag_commit_with_matching_hash_and_dispatch_evidence_passes(
+    committed_repo: Path,
+) -> None:
+    h = _current_working_tree_hash(committed_repo)
+    gate_path = committed_repo / ".claude" / "memory" / ".review-passed"
+    gate_path.parent.mkdir(parents=True, exist_ok=True)
+    gate_path.write_text(h)
+    _write_dispatch_events(committed_repo, ["security-review", "structure-review"], h)
+    r = _run(
+        {"tool_name": "Bash", "tool_input": {"command": "git commit -a -m x"}},
+        cwd=committed_repo,
+    )
+    assert r.returncode == 0
+    assert not gate_path.exists()
+
+
+def test_unstaged_a_flag_commit_with_matching_hash_but_no_dispatch_evidence_blocks(
+    committed_repo: Path,
+) -> None:
+    """Distinct from the missing-gate-file case: the hash matches (so the
+    generic `git add` guidance doesn't apply), it's the dispatch-ledger
+    corroboration lens that rejects — same as an ordinary staged commit
+    with no genuine review dispatch."""
+    h = _current_working_tree_hash(committed_repo)
+    gate_path = committed_repo / ".claude" / "memory" / ".review-passed"
+    gate_path.parent.mkdir(parents=True, exist_ok=True)
+    gate_path.write_text(h)
+    r = _run(
+        {"tool_name": "Bash", "tool_input": {"command": "git commit -a -m x"}},
+        cwd=committed_repo,
+    )
+    assert r.returncode == 2
+    assert "git add" not in r.stdout
+    assert "review-agent dispatch" in r.stdout.lower() or "dispatch" in r.stdout.lower()
+
+
+def test_unstaged_a_flag_commit_stale_gate_hash_blocks_with_git_add_guidance(
+    committed_repo: Path,
+) -> None:
+    """A gate file exists but for DIFFERENT content than the current
+    working tree — still the unstaged-specific message, since a hash
+    mismatch never proves this content was ever reviewed regardless."""
+    gate_path = committed_repo / ".claude" / "memory" / ".review-passed"
+    gate_path.parent.mkdir(parents=True, exist_ok=True)
+    gate_path.write_text("0" * 64)
+    r = _run(
+        {"tool_name": "Bash", "tool_input": {"command": "git commit -a -m x"}},
+        cwd=committed_repo,
+    )
+    assert r.returncode == 2
+    assert "git add" in r.stdout
+
+
+def test_unstaged_a_flag_no_verify_without_reason_blocks(committed_repo: Path) -> None:
+    """Secondary #1476 fix: `git commit -a --no-verify` used to skip the
+    GATE_BYPASS_REASON audit requirement entirely (the old empty-staged
+    early-return ran before the bypass-flag check)."""
+    r = _run(
+        {"tool_name": "Bash", "tool_input": {"command": "git commit -a --no-verify -m x"}},
+        cwd=committed_repo,
+    )
+    assert r.returncode == 2
+    assert "GATE_BYPASS_REASON" in r.stdout
+    assert not (committed_repo / ".claude" / "metrics" / "gate-bypass-audit.jsonl").exists()
+
+
+def test_unstaged_a_flag_no_verify_with_reason_allows_and_audits(committed_repo: Path) -> None:
+    r = _run(
+        {"tool_name": "Bash", "tool_input": {"command": "git commit -a --no-verify -m x"}},
+        cwd=committed_repo,
+        extra_env={"GATE_BYPASS_REASON": "hotfix, review to follow"},
+    )
+    assert r.returncode == 0
+    audit = committed_repo / ".claude" / "metrics" / "gate-bypass-audit.jsonl"
+    assert audit.exists()
+    entry = json.loads(audit.read_text().splitlines()[0])
+    assert entry["reason"] == "hotfix, review to follow"
+    assert entry["stagedFileCount"] == 1
+
+
+def test_unborn_head_with_nothing_staged_or_modified_stays_silent(tmp_path: Path) -> None:
+    """Regression: an unborn-HEAD repo (no commits at all) with nothing
+    staged and nothing tracked must still silently pass — the new
+    `_working_tree_modified_names()` check must not itself misfire when
+    there is no HEAD to compare against (a bare `git diff`, no target,
+    needs no HEAD)."""
+    env = hermetic_git_env(home=tmp_path)
+    subprocess.run(["git", "init", "-q"], cwd=tmp_path, env=env, check=True)
+    subprocess.run(["git", "config", "user.email", "t@t"], cwd=tmp_path, env=env, check=True)
+    subprocess.run(["git", "config", "user.name", "t"], cwd=tmp_path, env=env, check=True)
+    r = _run(
+        {"tool_name": "Bash", "tool_input": {"command": "git commit -a -m x"}},
+        cwd=tmp_path,
+    )
+    assert r.returncode == 0
+
+
+def test_normal_staged_commit_on_repo_with_history_still_gated_normally(
+    committed_repo: Path,
+) -> None:
+    """Regression: an ordinary `git add` + `git commit` on a repo that
+    already has history (not the -a/pathspec path) must be completely
+    unaffected — `_staged_names()` returns non-empty, so `unstaged_commit`
+    is never set."""
+    subprocess.run(
+        ["git", "add", "a.ts"],
+        cwd=committed_repo,
+        env=hermetic_git_env(home=committed_repo),
+        check=True,
+    )
+    h = _current_hash(committed_repo)
+    gate_path = committed_repo / ".claude" / "memory" / ".review-passed"
+    gate_path.parent.mkdir(parents=True, exist_ok=True)
+    gate_path.write_text(h)
+    _write_dispatch_events(committed_repo, ["security-review", "structure-review"], h)
+    r = _run(
+        {"tool_name": "Bash", "tool_input": {"command": "git commit -m x"}},
+        cwd=committed_repo,
+    )
+    assert r.returncode == 0
+    assert not gate_path.exists()
