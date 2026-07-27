@@ -7,7 +7,7 @@ Feature: gherkin-public dispatches independent Gherkin quality review
   Scenario: authored scenarios are reviewed before human sign-off
     Given a gherkin-public run that authored .feature files in Step 3
     When Step 4 (Cite the assessment) completes
-    Then two gherkin-quality-review Agent calls are issued in one message
+    Then two gherkin-quality-critic Agent calls are issued in one message
     And this happens before Step 5 (Persist phase-2 progress) and before the
       Step 6 human sign-off
 

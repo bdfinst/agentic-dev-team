@@ -1,9 +1,18 @@
 """Contract for gherkin-public's adversarial dual-agent Gherkin quality
-review dispatch (issue #1452): a new Step 4b, inserted between Step 4 (Cite
-the assessment) and Step 5 (Persist phase-2 progress) — before the Step 6
-human sign-off — dispatches two independent `gherkin-quality-review`
-instances unconditionally, and Step 8's report gains two new, distinct
-sections for the resulting agreed / single-source findings.
+review dispatch: a new Step 4b, inserted between Step 4 (Cite the
+assessment) and Step 5 (Persist phase-2 progress) — before the Step 6 human
+sign-off — dispatches two independent `gherkin-quality-critic` instances
+unconditionally, and Step 8's report gains two new, distinct sections for the
+resulting agreed / single-source findings.
+
+The exact per-finding line format, zero-findings sentence, and
+failure-handling wording live once in
+`knowledge/gherkin-quality-review-dispatch.md` (see
+`tests/agents/test_gherkin_quality_critic_agent.py`) — this file asserts only
+what's specific to `/gherkin-public`'s own SKILL.md: step placement, the
+section names appearing, and that the step delegates to the shared doc for
+format rather than re-deriving it. Symmetric with
+`test_gherkin_derive_quality_review_dispatch.py`.
 """
 
 from __future__ import annotations
@@ -36,7 +45,7 @@ def test_step_4b_names_the_agent_and_cites_shared_dispatch_doc():
         boundary_pattern=r"^### 5\. Persist phase-2 progress",
     )
     assert scope, "Step 4b section not found"
-    assert "gherkin-quality-review" in scope
+    assert "gherkin-quality-critic" in scope
     assert "gherkin-quality-review-dispatch.md" in scope
 
 
@@ -47,9 +56,8 @@ def test_step_4b_runs_before_the_human_sign_off():
         r"^### 4b\. Adversarial Gherkin Quality Review",
         boundary_pattern=r"^### 5\. Persist phase-2 progress",
     )
-    assert grep(
-        r"before.*Step 6|before the Step 6 human sign-off", scope, ignore_case=True
-    )
+    assert grep(r"before.*Step 6", scope, ignore_case=True)
+    assert grep(r"before\s+the\s+Step\s+6\s+human\s+sign-off", scope, ignore_case=True)
 
 
 def test_step_4b_states_no_operator_opt_in():
@@ -59,13 +67,25 @@ def test_step_4b_states_no_operator_opt_in():
         r"^### 4b\. Adversarial Gherkin Quality Review",
         boundary_pattern=r"^### 5\. Persist phase-2 progress",
     )
-    assert grep(r"no operator opt-in|unconditionally", scope, ignore_case=True)
+    assert grep(r"no operator opt-in", scope, ignore_case=True)
+    assert grep(r"unconditionally", scope, ignore_case=True)
 
 
 def test_step_8_has_two_distinct_new_report_sections():
     text = _text()
-    assert '"Agreed Gherkin quality findings"' in text
-    assert '"Single-source (unconfirmed) Gherkin quality findings"' in text
+    assert grep(r'"Agreed\s+Gherkin\s+quality\s+findings"', text)
+    assert grep(
+        r'"Single-source\s+\(unconfirmed\)\s+Gherkin\s+quality\s+findings"', text
+    )
+
+
+def test_report_sections_delegate_format_to_shared_dispatch_doc():
+    text = _text()
+    assert grep(
+        r"gherkin-quality-review-dispatch\.md.*Report section format",
+        text,
+        ignore_case=True,
+    )
 
 
 def test_report_sections_distinct_from_hand_authoring_callout():

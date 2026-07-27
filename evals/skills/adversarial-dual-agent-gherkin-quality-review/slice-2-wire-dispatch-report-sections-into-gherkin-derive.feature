@@ -8,13 +8,13 @@ Feature: gherkin-derive dispatches independent Gherkin quality review
     Given a gherkin-derive run in xunit-with-annotations or bdd-runner mode
     And at least one .feature file was written or merged this run
     When Step 5 (Output) completes
-    Then two gherkin-quality-review Agent calls are issued in one message
+    Then two gherkin-quality-critic Agent calls are issued in one message
     And neither call's prompt contains the other call's output
     And this happens before Step 6's report
 
   Scenario: none mode skips the dispatch
     Given a gherkin-derive run in none mode
-    Then no gherkin-quality-review agent is dispatched
+    Then no gherkin-quality-critic agent is dispatched
 
   Scenario: report separates agreed and single-source findings
     Given both agent instances returned at least one finding
@@ -33,7 +33,7 @@ Feature: gherkin-derive dispatches independent Gherkin quality review
       "None — both instances raised no findings"
 
   Scenario: one instance fails or returns unparseable output
-    Given one gherkin-quality-review call errored, timed out, or returned
+    Given one gherkin-quality-critic call errored, timed out, or returned
       JSON that could not be parsed
     When Step 6 prints the report
     Then the run does not crash and treats that instance's findings as empty
