@@ -37,6 +37,12 @@ in priority order and uses the first one present on a given entry:
     because every emitter in this repo stamps `%Y-%m-%dT%H:%M:%SZ` UTC
     (confirmed against `boundary_events.py` and `workflow_state.py`), which
     sorts identically lexically and chronologically.
+  * `until` (inclusive upper bound, symmetric to `since`; #1461) tries the
+    same `ts`/`timestamp` fallback order and the same lexical comparison.
+    Python-API-only today (no `--until` CLI flag) — added for
+    `hooks/lib/review_gate_corroboration.py`'s recency-window read, which
+    needs both bounds to select entries strictly between a gate file's mtime
+    and that mtime minus a window.
   * `--session` matches the `session_id` field only — every stream that
     carries a session join key names it identically.
 
@@ -99,12 +105,14 @@ def filter_entries(
     event_type: str | None = None,
     session_id: str | None = None,
     since: str | None = None,
+    until: str | None = None,
     gate_outcome: str | None = None,
 ) -> Iterator[dict]:
     """Apply every provided filter (AND-composed) to `entries`, a pure filter.
 
     Each filter is skipped entirely when its argument is `None`, so calling
-    with no filters is an identity pass-through.
+    with no filters is an identity pass-through — omitting `until` behaves
+    exactly as before its addition (#1461).
     """
     for entry in entries:
         if event_type is not None and _first_present(entry, _TYPE_FIELDS) != event_type:
@@ -114,6 +122,10 @@ def filter_entries(
         if since is not None:
             ts = _first_present(entry, _TS_FIELDS)
             if not isinstance(ts, str) or ts < since:
+                continue
+        if until is not None:
+            ts = _first_present(entry, _TS_FIELDS)
+            if not isinstance(ts, str) or ts > until:
                 continue
         if gate_outcome is not None and _first_present(entry, _GATE_OUTCOME_FIELDS) != gate_outcome:
             continue
