@@ -6,20 +6,24 @@ alongside the plan path since the plan file is gitignored/transient (deleted
 after implementation, per this repo's CLAUDE.md) and issue #1437 is the
 durable reference once it's gone.
 
-This file covers Step 1.1 (the whole slice's first step): report-vs-target
-resolution, the three-part structural validity check, and companion
-setup-guide-file location via the report's own `**Target**` header field.
-Steps 1.2 (Step 4b decision application, `--component` scoping, staleness
-advisory) and 1.3 (dispatch mechanics, registry rows) land in later commits
-and are out of scope here.
+This file covers Step 1.1 (report-vs-target resolution, the three-part
+structural validity check, and companion setup-guide-file location via the
+report's own `**Target**` header field) and Step 1.2 (the re-entrant
+`### 2. Apply Step 4b's decision logic` step: citing, not restating, Step
+4b's branching rules; the off-gate-eligibility parsing rule; the re-offer
+rule for already-resolved components; `--component` scoping and its two
+unmatched/non-eligible cases; the zero-eligible terminal state; and the
+non-blocking plugin-version staleness advisory). Step 1.3 (dispatch
+mechanics, single-command acceptance criterion, registry rows) lands in a
+later commit and is out of scope here.
 
-Every assertion below is scoped to the new skill file's `### 1. Resolve
-report or target` step (via the local `_resolve_section` helper, built from
-the shared `section()`/`grep()`/`collapsed()` helpers in
-`skill_doc_helpers.py`) rather than an unscoped whole-file substring check,
-per this session's established false-positive-avoidance discipline and the
-plan's explicit AC (every new content-guard assertion scoped to a named
-heading/section via the existing helpers).
+Every assertion below is scoped to a named heading/section (via the local
+`_resolve_section`/`_decision_section` helpers, built from the shared
+`section()`/`grep()`/`collapsed()` helpers in `skill_doc_helpers.py`) rather
+than an unscoped whole-file substring check, per this session's established
+false-positive-avoidance discipline and the plan's explicit AC (every new
+content-guard assertion scoped to a named heading/section via the existing
+helpers).
 """
 
 from __future__ import annotations
@@ -54,6 +58,24 @@ def _resolve_section(text: str | None = None) -> str:
 
 def _collapsed_resolve_section() -> str:
     return collapsed(_resolve_section())
+
+
+def _decision_section(text: str | None = None) -> str:
+    """Extract the new skill's `### 2. Apply Step 4b's decision logic` step
+    (Step 1.2). Uses `section()`'s default `^### ` sibling-heading boundary
+    — correct today (there is no later `### ` sibling yet, so extraction
+    runs to EOF) and self-correcting once Step 1.3 adds `### 3. Dispatch`,
+    unlike `_resolve_section` above, which had to override its boundary to
+    `^## ` because at Step 1.1 time there was no later `### ` sibling to
+    bound against at all."""
+    return section(
+        text if text is not None else _text(),
+        r"^### 2\. Apply Step 4b's decision logic",
+    )
+
+
+def _collapsed_decision_section() -> str:
+    return collapsed(_decision_section())
 
 
 # --- Frontmatter -------------------------------------------------------------
@@ -246,3 +268,185 @@ def test_missing_companion_file_created_fresh_when_eligible_components_predate_1
         sec,
         ignore_case=True,
     )
+
+
+# --- Step 1.2: decision applied exactly once, regardless of path ------------
+
+
+def test_decision_applied_exactly_once_named_skipped_steps_on_fast_path():
+    sec = _collapsed_decision_section()
+    assert grep(
+        r"the \*\*only\*\* place a decision is made this invocation, "
+        r"regardless of which path produced the resolved report",
+        sec,
+    )
+    assert grep(
+        r"\*\*Fast path\*\*\s*—\s*Steps 0, 1, 2, 2b, 3, 3b, 5, and 6 never "
+        r"ran at all this invocation",
+        sec,
+    )
+
+
+def test_target_path_inline_step_4b_is_noop_decision_still_made_once():
+    sec = _collapsed_decision_section()
+    assert grep(r"\*\*Target path\*\*\s*—\s*those same steps did run", sec)
+    assert grep(r"their own inline Step 4b was a no-op", sec)
+    assert grep(r"because Step 1 already forwards `?--yes`?", sec, ignore_case=True)
+    assert grep(
+        r"is still the first and only place the operator is actually "
+        r"prompted",
+        sec,
+    )
+
+
+# --- Step 1.2: citation, not restatement ------------------------------------
+
+
+def test_decision_logic_cites_cd_test_architecture_step_4b_not_restated():
+    sec = _collapsed_decision_section()
+    assert grep(
+        r"Apply exactly the decision procedure in "
+        r"`?\.\./cd-test-architecture/SKILL\.md`?'s `?### 4b\. "
+        r"Build-vs-document decision \(off-gate adapter test doubles\)`? "
+        r"heading",
+        sec,
+    )
+    assert grep(
+        r"its Database-specific branch, its Downstream-service branch, and "
+        r"that branch's library-vs-hand-rolled sub-question",
+        sec,
+    )
+    assert grep(r"is not restated here", sec)
+    # Negative: the Database-specific branch's own caveat text (Step 4b's
+    # actual branching content) must not be duplicated verbatim here.
+    assert not grep(
+        r"cannot verify actual SQL, mapping, or schema correctness", sec
+    )
+    assert not grep(r"propose a Story titled", sec)
+
+
+def test_cd_test_architecture_4b_heading_pinned_for_citation_break_detection():
+    # Pins the exact heading text this new skill cites against the real,
+    # shipped source of truth — a future rename/renumber in
+    # cd-test-architecture/SKILL.md breaks this loudly instead of silently
+    # drifting out of sync with what apply-test-doubles cites.
+    upstream = CD_TEST_ARCHITECTURE_SKILL.read_text(encoding="utf-8")
+    assert grep(
+        r"^### 4b\. Build-vs-document decision \(off-gate adapter test "
+        r"doubles\)\s*$",
+        upstream,
+    )
+
+
+# --- Step 1.2: off-gate-eligibility parsing rule ----------------------------
+
+
+def test_off_gate_eligibility_parsing_rule_stated_explicitly():
+    sec = _collapsed_decision_section()
+    assert grep(
+        r"off-gate-eligible \*\*iff\*\* it has at least one row in the "
+        r"Target architecture table whose `?Build/Document status`? cell "
+        r"holds a non-blank value",
+        sec,
+    )
+
+
+# --- Step 1.2: already-resolved components are re-offered ------------------
+
+
+def test_already_resolved_component_reoffered_status_may_change():
+    sec = _collapsed_decision_section()
+    assert grep(
+        r"re-offered this decision on every run, regardless of its "
+        r"currently-recorded `?Build/Document status`?\s*—\s*including a "
+        r"component already resolved to `?Build \(testcontainers\)`? or "
+        r"`?Build \(Fake\)`?",
+        sec,
+    )
+    assert grep(r"the operator may change a prior decision", sec)
+
+
+# --- Step 1.2: --component scoping ------------------------------------------
+
+
+def test_component_flag_scopes_to_one_component_others_untouched():
+    sec = _collapsed_decision_section()
+    assert grep(
+        r"only that component's row resolves through this decision\s*—\s*"
+        r"no other component's row is touched",
+        sec,
+    )
+
+
+def test_no_component_flag_processes_every_eligible_component_in_one_batch():
+    sec = _collapsed_decision_section()
+    assert grep(
+        r"every off-gate-eligible component in the resolved report is "
+        r"processed in one batched pass, mirroring Step 4b's own batching "
+        r"rule",
+        sec,
+    )
+
+
+def test_component_flag_unmatched_name_reports_no_match_takes_no_action():
+    sec = _collapsed_decision_section()
+    assert grep(
+        r"`?<name>`? does not appear anywhere in the resolved report's "
+        r"Target architecture table\s*—\s*state that `?<name>`? was not "
+        r"found in the resolved report",
+        sec,
+    )
+
+
+def test_component_flag_matches_non_eligible_component_reports_no_decision_point():
+    sec = _collapsed_decision_section()
+    assert grep(
+        r"no Target architecture row with a non-blank `?Build/Document "
+        r"status`? cell\s*—\s*state that `?<name>`? has no build-vs-document "
+        r"decision to apply",
+        sec,
+    )
+
+
+def test_component_flag_never_fuzzy_matched_to_similarly_named_component():
+    sec = _collapsed_decision_section()
+    assert grep(r"never a fuzzy or nearest-match substitution", sec)
+
+
+# --- Step 1.2: zero eligible components -------------------------------------
+
+
+def test_zero_eligible_components_reports_nothing_to_apply_no_dispatch():
+    sec = _collapsed_decision_section()
+    assert grep(
+        r"finds no off-gate-eligible component, state that there is "
+        r"nothing to apply and take no further action",
+        sec,
+    )
+
+
+# --- Step 1.2: non-blocking plugin-version staleness advisory --------------
+
+
+def test_plugin_version_staleness_advisory_when_provenance_differs():
+    sec = _collapsed_decision_section()
+    assert grep(
+        r"the same resolver `?/version`? and `?/upgrade`? already use",
+        sec,
+    )
+    assert grep(
+        r"sh \"?\$CLAUDE_PLUGIN_ROOT/hooks/py\.sh\"? "
+        r"\"?\$CLAUDE_PLUGIN_ROOT/hooks/lib/plugin_version\.py\"?",
+        sec,
+    )
+    assert grep(
+        r"Compare it against the resolved report's Provenance `?dev-team "
+        r"plugin version`? field",
+        sec,
+    )
+    assert grep(
+        r"emit one non-blocking advisory line naming both versions",
+        sec,
+    )
+    assert grep(r"before applying Step 4b's current logic", sec)
+    assert grep(r"This never blocks or alters the decision logic itself", sec)
