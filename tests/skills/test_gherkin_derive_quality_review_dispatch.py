@@ -1,9 +1,16 @@
 """Contract for gherkin-derive's adversarial dual-agent Gherkin quality
-review dispatch (issue #1452): a new Step 5b, inserted between Step 5
-(Output) and Step 6 (Report), dispatches two independent
-`gherkin-quality-review` instances whenever `.feature` files were written or
-merged, and Step 6 gains two new, distinct report sections for the resulting
-agreed / single-source findings.
+review dispatch: a new Step 5b, inserted between Step 5 (Output) and Step 6
+(Report), dispatches two independent `gherkin-quality-critic` instances
+whenever `.feature` files were written or merged, and Step 6 gains two new,
+distinct report sections for the resulting agreed / single-source findings.
+
+The exact per-finding line format, zero-findings sentence, and
+failure-handling wording live once in
+`knowledge/gherkin-quality-review-dispatch.md` (see
+`tests/agents/test_gherkin_quality_critic_agent.py`) — this file asserts only
+what's specific to `/gherkin-derive`'s own SKILL.md: step placement, the
+section names appearing, and that the step delegates to the shared doc for
+format rather than re-deriving it.
 """
 
 from __future__ import annotations
@@ -36,7 +43,7 @@ def test_step_5b_names_the_agent_and_cites_shared_dispatch_doc():
         boundary_pattern=r"^## Step 6 — Report",
     )
     assert scope, "Step 5b section not found"
-    assert "gherkin-quality-review" in scope
+    assert "gherkin-quality-critic" in scope
     assert "gherkin-quality-review-dispatch.md" in scope
 
 
@@ -48,7 +55,8 @@ def test_step_5b_states_the_skip_conditions():
         boundary_pattern=r"^## Step 6 — Report",
     )
     assert grep(r"none.*mode", scope, ignore_case=True)
-    assert grep(r"zero|no operator opt-in", scope, ignore_case=True)
+    assert grep(r"zero", scope, ignore_case=True)
+    assert grep(r"no operator opt-in", scope, ignore_case=True)
 
 
 def test_step_5b_states_no_operator_opt_in():
@@ -63,15 +71,18 @@ def test_step_5b_states_no_operator_opt_in():
 
 def test_step_6_has_two_distinct_new_report_sections():
     text = _text()
-    assert '"Agreed Gherkin quality findings"' in text
-    assert '"Single-source (unconfirmed) Gherkin quality findings"' in text
-
-
-def test_report_sections_state_zero_findings_and_failure_handling():
-    text = _text()
-    assert grep(r"None — both instances raised no findings", text)
+    assert grep(r'"Agreed\s+Gherkin\s+quality\s+findings"', text)
     assert grep(
-        r"failed.*unparseable|shared dispatch doc.*failure", text, ignore_case=True
+        r'"Single-source\s+\(unconfirmed\)\s+Gherkin\s+quality\s+findings"', text
+    )
+
+
+def test_report_sections_delegate_format_to_shared_dispatch_doc():
+    text = _text()
+    assert grep(
+        r"gherkin-quality-review-dispatch\.md.*Report section format",
+        text,
+        ignore_case=True,
     )
 
 

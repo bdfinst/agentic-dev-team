@@ -9,7 +9,7 @@ This file contains the complete registry tables. CLAUDE.md references this file 
 | ADR Author | `agents/adr-author.md` | 320 | Creates and manages Architecture Decision Records |
 | Architect | `agents/architect.md` | 360 | System design, architecture |
 | Codebase Recon | `agents/codebase-recon.md` | ~900 | Repo reconnaissance — surfaces entry points, dependencies, security surface, git history. Produces RECON artifact per security-primitives-contract. Dispatched on demand by architect and domain-analysis. |
-| Gherkin Quality Review | `agents/gherkin-quality-review.md` | ~700 | Adversarial review of freshly-derived/authored Gherkin — coverage gaps and positive/negative balance. Dispatched by `/gherkin-derive` and `/gherkin-public`, never directly. |
+| Gherkin Quality Critic | `agents/gherkin-quality-critic.md` | ~115 | Adversarial review of freshly-derived/authored Gherkin — coverage gaps and positive/negative balance. Dispatched by `/gherkin-derive` and `/gherkin-public`, never directly. |
 | Orchestrator | `agents/orchestrator.md` | 500 | Task routing, model selection, review coordination |
 | Plan Review Acceptance Critic | `agents/plan-review-acceptance.md` | ~880 | Adversarial plan review — acceptance criteria, Gherkin scenario, and TDD step traceability quality. Dispatched by `/plan` step 5b, never directly. |
 | Plan Review Design Critic | `agents/plan-review-design.md` | ~920 | Adversarial plan review — coupling, abstraction, structural risk, and pattern-adherence quality. Dispatched by `/plan` step 5b, never directly. |

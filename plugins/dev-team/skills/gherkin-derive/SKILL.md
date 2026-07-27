@@ -300,7 +300,7 @@ run that wrote/merged zero `.feature` content.
 Follow `knowledge/gherkin-quality-review-dispatch.md` for the shared dispatch,
 aggregation, failure-handling, and zero-findings mechanics — this step states
 only what's specific to `/gherkin-derive`: each of the two
-`gherkin-quality-review` instances receives, for every surface reviewed, that
+`gherkin-quality-critic` instances receives, for every surface reviewed, that
 surface's `.feature` file content plus its Step 3 `# Source:` header (the
 route, OpenAPI path, test file, or signature it was derived from), so the
 agent can check scenarios against the actual cited source. The resulting
@@ -313,22 +313,13 @@ test / signature / message-queue / scheduled-cron / websocket-graphql), the
 specification-vs-characterization split, and the paths written. In `none`
 mode, print only the one-line recommendation.
 
-**Print Step 5b's two Gherkin quality sections, distinct from every other
-callout in this step (issue #1452).** Whenever Step 5b ran (skip this pair of
-sections entirely when it was skipped — `none` mode or zero `.feature`
-writes):
-
-- **"Agreed Gherkin quality findings"** — every `(feature file, title)` pair
-  both `gherkin-quality-review` instances raised, one line each:
-  `<feature_file>:<title> — <rationale>`. Per the shared dispatch doc's
-  zero-findings rule, print `None — both instances raised no findings.` when
-  this bucket is empty — never omit the section itself.
-- **"Single-source (unconfirmed) Gherkin quality findings"** — every pair
-  only one instance raised, same line format, explicitly labeled unconfirmed
-  (never elevated to the same confidence as an agreed finding). Same
-  zero-findings rule applies. If either review instance failed or returned
-  unparseable output, state that here per the shared dispatch doc's failure-
-  handling rule, rather than silently treating it as "no findings."
+**Print Step 5b's two Gherkin quality sections — "Agreed Gherkin quality
+findings" and "Single-source (unconfirmed) Gherkin quality findings":**
+whenever Step 5b ran (skip this pair of sections entirely when it was skipped
+— `none` mode or zero `.feature` writes), follow
+`knowledge/gherkin-quality-review-dispatch.md`'s Report section format for the
+exact per-finding line format, the zero-findings sentence, and the
+failure-handling wording.
 
 Neither section is folded into the characterization, possibly-stale,
 title-mismatch, or skipped-duplicate callouts below — this is semantic

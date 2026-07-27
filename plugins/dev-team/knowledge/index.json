@@ -747,7 +747,7 @@
   },
   "plugins/dev-team/knowledge/gherkin-quality-review-dispatch.md": {
     "Dispatch": {
-      "summary": "Spawn **two** independent instances of the `gherkin-quality-review` agent as",
+      "summary": "Spawn **two** independent instances of the `gherkin-quality-critic` agent as",
       "anchor": "dispatch"
     },
     "Aggregation": {
@@ -762,8 +762,12 @@
       "summary": "Both report sections — \"Agreed Gherkin quality findings\" and \"Single-source",
       "anchor": "zero-findings-state"
     },
+    "Report section format": {
+      "summary": "Each calling skill's report step prints two sections, distinct from every",
+      "anchor": "report-section-format"
+    },
     "Scope of this doc": {
-      "summary": "This doc owns only the dispatch/aggregation/failure/zero-findings mechanics.",
+      "summary": "This doc owns the dispatch/aggregation/failure/zero-findings mechanics and",
       "anchor": "scope-of-this-doc"
     }
   },

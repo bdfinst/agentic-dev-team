@@ -34,6 +34,12 @@ For each acceptance criterion, evaluate:
 
 ### BDD Scenario Quality
 
+This section applies to plan-authored Gherkin only. Freshly-derived or
+freshly-authored Gherkin outside a plan (`/gherkin-derive`, `/gherkin-public`)
+is reviewed instead by `gherkin-quality-critic` — a narrower agent scoped to
+coverage gaps and positive/negative balance against a cited source, with no
+plan context.
+
 For each Gherkin scenario, evaluate:
 
 1. **Implementation independence** — Does the scenario describe behavior from the user's perspective, or does it leak implementation details? Scenarios that mention databases, API calls, or internal data structures are implementation-coupled.
