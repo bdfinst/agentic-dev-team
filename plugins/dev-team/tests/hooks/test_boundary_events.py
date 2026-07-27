@@ -452,14 +452,10 @@ def test_cli_emits_one_event(tmp_path: Path) -> None:
             str(_LIB_DIR / "boundary_events.py"),
             "--cwd",
             str(tmp_path),
-            "--hook",
-            "code-review",
-            "--tool",
-            "Skill",
-            "--decision",
-            "bypass",
-            "--matched-rule",
-            "doc-only-review-exempt",
+            "--event",
+            "doc-only",
+            "--subject-hash",
+            "deadbeef",
         ],
         capture_output=True,
         check=False,
@@ -471,6 +467,7 @@ def test_cli_emits_one_event(tmp_path: Path) -> None:
     assert events[0]["tool"] == "Skill"
     assert events[0]["decision"] == "bypass"
     assert events[0]["matched_rule"] == "doc-only-review-exempt"
+    assert events[0]["subject_hash"] == "deadbeef"
 
 
 def test_cli_includes_session_id_when_given(tmp_path: Path) -> None:
@@ -480,14 +477,10 @@ def test_cli_includes_session_id_when_given(tmp_path: Path) -> None:
             str(_LIB_DIR / "boundary_events.py"),
             "--cwd",
             str(tmp_path),
-            "--hook",
-            "code-review",
-            "--tool",
-            "Skill",
-            "--decision",
-            "bypass",
-            "--matched-rule",
-            "doc-only-review-exempt",
+            "--event",
+            "doc-only",
+            "--subject-hash",
+            "deadbeef",
             "--session-id",
             "sess-cli",
         ],
@@ -497,6 +490,76 @@ def test_cli_includes_session_id_when_given(tmp_path: Path) -> None:
     assert result.returncode == 0
     events = _read_jsonl(tmp_path / ".claude" / "metrics" / "boundary-events.jsonl")
     assert events[0]["session_id"] == "sess-cli"
+
+
+def test_cli_single_agent_event_emits_the_other_fixed_tuple(tmp_path: Path) -> None:
+    result = subprocess.run(
+        [
+            sys.executable,
+            str(_LIB_DIR / "boundary_events.py"),
+            "--cwd",
+            str(tmp_path),
+            "--event",
+            "single-agent",
+            "--subject-hash",
+            "cafef00d",
+        ],
+        capture_output=True,
+        check=False,
+    )
+    assert result.returncode == 0
+    events = _read_jsonl(tmp_path / ".claude" / "metrics" / "boundary-events.jsonl")
+    assert events[0]["matched_rule"] == "single-agent-review-exempt"
+
+
+def test_cli_rejects_arbitrary_hook_decision_matched_rule(tmp_path: Path) -> None:
+    """#1461 security review: the CLI must NOT accept free-form
+    --hook/--tool/--decision/--matched-rule — that would let anyone forge an
+    arbitrary boundary event, including a fake "record" row for an
+    unregistered agent name, defeating the whole dispatch-ledger gate. Only
+    a fixed, named --event may be selected; the old free-form flags must no
+    longer be recognized at all."""
+    result = subprocess.run(
+        [
+            sys.executable,
+            str(_LIB_DIR / "boundary_events.py"),
+            "--cwd",
+            str(tmp_path),
+            "--hook",
+            "agent_dispatch_ledger",
+            "--tool",
+            "Agent",
+            "--decision",
+            "record",
+            "--matched-rule",
+            "security-review",
+        ],
+        capture_output=True,
+        check=False,
+    )
+    assert result.returncode != 0
+    log = tmp_path / ".claude" / "metrics" / "boundary-events.jsonl"
+    assert not log.exists()
+
+
+def test_cli_rejects_unknown_event_name(tmp_path: Path) -> None:
+    result = subprocess.run(
+        [
+            sys.executable,
+            str(_LIB_DIR / "boundary_events.py"),
+            "--cwd",
+            str(tmp_path),
+            "--event",
+            "agent-dispatch-ledger-record",
+            "--subject-hash",
+            "deadbeef",
+        ],
+        capture_output=True,
+        check=False,
+    )
+    assert result.returncode != 0
+    log = tmp_path / ".claude" / "metrics" / "boundary-events.jsonl"
+    assert not log.exists()
 
 
 def test_cli_missing_required_arg_exits_nonzero() -> None:

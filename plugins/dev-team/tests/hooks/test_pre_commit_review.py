@@ -90,11 +90,15 @@ def _iso(dt) -> str:
     return dt.strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
-def _write_dispatch_events(repo: Path, agents: list[str], ts=None) -> None:
+def _write_dispatch_events(repo: Path, agents: list[str], subject_hash: str, ts=None) -> None:
     """Seed .claude/metrics/boundary-events.jsonl with one 'record' event
     per agent name (#1461) — the dispatch-ledger evidence
     `_evaluate_gate` reads. Defaults each event's ts to "now" (UTC) unless
-    an explicit `ts` datetime is given."""
+    an explicit `ts` datetime is given. `subject_hash` (#1461 security
+    review) must match the gate's current `review_gate_hash()` value for
+    the event to count — the subject-binding fix that closes the
+    review-A-commit-B bypass a corroboration mechanism without it would
+    have."""
     when = ts or datetime.now(timezone.utc)
     log = repo / ".claude" / "metrics" / "boundary-events.jsonl"
     log.parent.mkdir(parents=True, exist_ok=True)
@@ -109,13 +113,14 @@ def _write_dispatch_events(repo: Path, agents: list[str], ts=None) -> None:
                         "decision": "record",
                         "matched_rule": agent,
                         "plugin_version": "0.0.0",
+                        "subject_hash": subject_hash,
                     }
                 )
                 + "\n"
             )
 
 
-def _write_doc_only_exemption(repo: Path, ts=None) -> None:
+def _write_doc_only_exemption(repo: Path, subject_hash: str, ts=None) -> None:
     when = ts or datetime.now(timezone.utc)
     log = repo / ".claude" / "metrics" / "boundary-events.jsonl"
     log.parent.mkdir(parents=True, exist_ok=True)
@@ -129,6 +134,28 @@ def _write_doc_only_exemption(repo: Path, ts=None) -> None:
                     "decision": "bypass",
                     "matched_rule": "doc-only-review-exempt",
                     "plugin_version": "0.0.0",
+                    "subject_hash": subject_hash,
+                }
+            )
+            + "\n"
+        )
+
+
+def _write_single_agent_exemption(repo: Path, subject_hash: str, ts=None) -> None:
+    when = ts or datetime.now(timezone.utc)
+    log = repo / ".claude" / "metrics" / "boundary-events.jsonl"
+    log.parent.mkdir(parents=True, exist_ok=True)
+    with log.open("a", encoding="utf-8") as fh:
+        fh.write(
+            json.dumps(
+                {
+                    "ts": _iso(when),
+                    "hook": "code-review",
+                    "tool": "Skill",
+                    "decision": "bypass",
+                    "matched_rule": "single-agent-review-exempt",
+                    "plugin_version": "0.0.0",
+                    "subject_hash": subject_hash,
                 }
             )
             + "\n"
@@ -296,7 +323,7 @@ def test_matching_gate_file_passes_and_is_consumed(repo: Path) -> None:
     gate_path = repo / ".claude" / "memory" / ".review-passed"
     gate_path.parent.mkdir(parents=True, exist_ok=True)
     gate_path.write_text(h)
-    _write_dispatch_events(repo, ["security-review", "structure-review"])
+    _write_dispatch_events(repo, ["security-review", "structure-review"], h)
     r = _run(
         {"tool_name": "Bash", "tool_input": {"command": "git commit -m x"}}, cwd=repo
     )
@@ -355,7 +382,7 @@ def test_hash_match_with_one_distinct_dispatch_blocks_as_insufficient(repo: Path
     gate_path = repo / ".claude" / "memory" / ".review-passed"
     gate_path.parent.mkdir(parents=True, exist_ok=True)
     gate_path.write_text(h)
-    _write_dispatch_events(repo, ["security-review"])
+    _write_dispatch_events(repo, ["security-review"], h)
     r = _run(
         {"tool_name": "Bash", "tool_input": {"command": "git commit -m x"}}, cwd=repo
     )
@@ -370,7 +397,7 @@ def test_hash_match_with_same_agent_dispatched_twice_counts_as_one_distinct(
     gate_path = repo / ".claude" / "memory" / ".review-passed"
     gate_path.parent.mkdir(parents=True, exist_ok=True)
     gate_path.write_text(h)
-    _write_dispatch_events(repo, ["security-review", "security-review"])
+    _write_dispatch_events(repo, ["security-review", "security-review"], h)
     r = _run(
         {"tool_name": "Bash", "tool_input": {"command": "git commit -m x"}}, cwd=repo
     )
@@ -384,7 +411,7 @@ def test_hash_match_with_stale_dispatch_evidence_blocks_distinctly(repo: Path) -
     gate_path.parent.mkdir(parents=True, exist_ok=True)
     gate_path.write_text(h)
     stale_ts = datetime.now(timezone.utc) - timedelta(seconds=_WINDOW_SECONDS + 600)
-    _write_dispatch_events(repo, ["security-review", "structure-review"], ts=stale_ts)
+    _write_dispatch_events(repo, ["security-review", "structure-review"], h, ts=stale_ts)
     r = _run(
         {"tool_name": "Bash", "tool_input": {"command": "git commit -m x"}}, cwd=repo
     )
@@ -401,8 +428,8 @@ def test_hash_match_with_only_one_dispatch_inside_window_is_insufficient(
     gate_path.parent.mkdir(parents=True, exist_ok=True)
     gate_path.write_text(h)
     stale_ts = datetime.now(timezone.utc) - timedelta(seconds=_WINDOW_SECONDS + 600)
-    _write_dispatch_events(repo, ["security-review"], ts=stale_ts)
-    _write_dispatch_events(repo, ["structure-review"])
+    _write_dispatch_events(repo, ["security-review"], h, ts=stale_ts)
+    _write_dispatch_events(repo, ["structure-review"], h)
     r = _run(
         {"tool_name": "Bash", "tool_input": {"command": "git commit -m x"}}, cwd=repo
     )
@@ -415,7 +442,7 @@ def test_hash_mismatch_rejects_even_with_ample_dispatch_evidence(repo: Path) -> 
     gate_path = repo / ".claude" / "memory" / ".review-passed"
     gate_path.parent.mkdir(parents=True, exist_ok=True)
     gate_path.write_text(h)
-    _write_dispatch_events(repo, ["security-review", "structure-review", "arch-review"])
+    _write_dispatch_events(repo, ["security-review", "structure-review", "arch-review"], h)
     # Edit the staged file's content after the gate write — hash now mismatches.
     (repo / "a.ts").write_text("v2-unreviewed\n")
     env = hermetic_git_env(home=repo)
@@ -438,7 +465,7 @@ def test_rewritten_gate_file_anchors_on_its_own_new_mtime_not_original_dispatch(
     passage in a fast test."""
     h = _current_hash(repo)
     dispatch_ts = datetime.now(timezone.utc)
-    _write_dispatch_events(repo, ["security-review", "structure-review"], ts=dispatch_ts)
+    _write_dispatch_events(repo, ["security-review", "structure-review"], h, ts=dispatch_ts)
     gate_path = repo / ".claude" / "memory" / ".review-passed"
     gate_path.parent.mkdir(parents=True, exist_ok=True)
     gate_path.write_text(h)
@@ -479,7 +506,7 @@ def test_doc_only_exemption_satisfies_the_gate_without_dispatch_evidence(
     gate_path = repo / ".claude" / "memory" / ".review-passed"
     gate_path.parent.mkdir(parents=True, exist_ok=True)
     gate_path.write_text(h)
-    _write_doc_only_exemption(repo)
+    _write_doc_only_exemption(repo, h)
     r = _run(
         {"tool_name": "Bash", "tool_input": {"command": "git commit -m x"}}, cwd=repo
     )

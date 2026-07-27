@@ -90,7 +90,19 @@ def _write_dispatch_evidence(work: Path) -> None:
     for the gate to accept a write since the dispatch-ledger corroboration
     hardening. See plugins/dev-team/tests/hooks/test_pre_commit_review.py
     for the full scenario coverage; this helper only seeds the passing case
-    these repo-level gate tests need."""
+    these repo-level gate tests need.
+
+    Stamps `subject_hash` (#1461 security review) to the CURRENT staged
+    content's hash — recomputed the same way `_write_gate` does — so this
+    evidence corroborates THIS test's changeset, not an unrelated one."""
+    result = subprocess.run(
+        [sys.executable, str(GATEHASH)],
+        cwd=str(work),
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    subject_hash = result.stdout.strip()
     log = work / ".claude" / "metrics" / "boundary-events.jsonl"
     log.parent.mkdir(parents=True, exist_ok=True)
     now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
@@ -105,6 +117,7 @@ def _write_dispatch_evidence(work: Path) -> None:
                         "decision": "record",
                         "matched_rule": agent,
                         "plugin_version": "0.0.0",
+                        "subject_hash": subject_hash,
                     }
                 )
                 + "\n"
