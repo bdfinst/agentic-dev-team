@@ -1,9 +1,9 @@
-"""Contract for issue #1451: test-double misuse guidance for a collaborator
-internal to / owned by the same component or bounded context as the SUT must
-be (1) named as its own distinct entry in the misuse taxonomy, (2) wired into
-the software-engineer agent's Knowledge Files so it's in scope at authoring
-time, and (3) named as its own detection target in test-smell-review's
-"Test double misuse" list so it's flagged as a review-time backstop.
+"""Contract: test-double misuse guidance for a collaborator internal to /
+owned by the same component or bounded context as the SUT must be (1) named
+as its own distinct entry in the misuse taxonomy, (2) wired into the
+software-engineer agent's Knowledge Files so it's in scope at authoring time,
+and (3) named as its own detection target in test-smell-review's "Test double
+misuse" list so it's flagged as a review-time backstop.
 """
 
 from __future__ import annotations
@@ -34,14 +34,24 @@ def test_internal_collaborator_row_distinct_from_concrete_class_row() -> None:
     text = _text(TEST_DOUBLES)
     # The two misuses must be separate table rows, not merged into one.
     concrete_class_line = next(
-        line
-        for line in text.splitlines()
-        if "concrete class instead of an interface/port" in line
+        (
+            line
+            for line in text.splitlines()
+            if "concrete class instead of an interface/port" in line
+        ),
+        None,
     )
     internal_collaborator_line = next(
-        line
-        for line in text.splitlines()
-        if "internal to / owned by the same component or bounded context" in line
+        (
+            line
+            for line in text.splitlines()
+            if "internal to / owned by the same component or bounded context" in line
+        ),
+        None,
+    )
+    assert concrete_class_line is not None, "concrete-class misuse row not found"
+    assert internal_collaborator_line is not None, (
+        "internal-collaborator misuse row not found"
     )
     assert concrete_class_line != internal_collaborator_line
     assert "internal" not in concrete_class_line
@@ -57,7 +67,8 @@ def test_software_engineer_references_test_doubles_knowledge_file() -> None:
 
 def test_test_smell_review_lists_internal_collaborator_misuse() -> None:
     text = _text(TEST_SMELL_REVIEW)
-    assert "internal" in text.lower() and "same component" in text.lower()
+    assert "internal" in text.lower()
+    assert "same component" in text.lower()
     # The finding's message is instructed to cite component-test-patterns.md
     # when flagging this specific misuse.
     assert "component-test-patterns.md" in text
