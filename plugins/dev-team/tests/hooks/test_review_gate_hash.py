@@ -123,3 +123,31 @@ def test_missing_git_returns_empty(tmp_path: Path) -> None:
     # so long as it doesn't blow up on a non-git directory.
     h = gate.review_gate_hash(cwd=tmp_path)
     assert h == "" or (len(h) == 64 and int(h, 16) >= 0)
+
+
+def test_external_diff_driver_config_does_not_collapse_the_hash(tmp_path: Path) -> None:
+    """#1461 FOURTH security re-review (error severity): a `diff.external`
+    config replaces git's own diff rendering entirely — including the
+    `diff --git`/`index` headers this hash is computed over — which would
+    otherwise collapse this function's output to `sha256(b"")` for EVERY
+    changeset regardless of actual content, turning the dispatch-ledger
+    gate's `subject_hash` binding into a constant (one honest review's
+    genuine ledger evidence would then corroborate any future arbitrary
+    changeset). `--no-ext-diff`/`--no-textconv` must keep the hash
+    content-sensitive even with an external diff driver configured."""
+    _init_repo(tmp_path)
+    env = hermetic_git_env(home=tmp_path)
+    subprocess.run(
+        ["git", "config", "diff.external", "/bin/true"],
+        cwd=tmp_path, env=env, check=True,
+    )
+    (tmp_path / "a.ts").write_text("v1\n")
+    subprocess.run(["git", "add", "a.ts"], cwd=tmp_path, env=env, check=True)
+    h1 = gate.review_gate_hash(cwd=tmp_path)
+    (tmp_path / "a.ts").write_text("v2-different\n")
+    subprocess.run(["git", "add", "a.ts"], cwd=tmp_path, env=env, check=True)
+    h2 = gate.review_gate_hash(cwd=tmp_path)
+    assert h1 != h2
+    empty_hash = "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    assert h1 != empty_hash
+    assert h2 != empty_hash

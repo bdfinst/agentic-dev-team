@@ -149,6 +149,7 @@ def test_evaluate_missing_ledger_reason_is_missing(tmp_path: Path) -> None:
     result = rgc.evaluate(tmp_path, _ANCHOR, _WINDOW, _HASH)
     assert result.agents_in_window == frozenset()
     assert result.any_dispatch_ever is False
+    assert result.same_subject_dispatch_ever is False
     assert result.read_failure_reason == "missing"
 
 
@@ -157,13 +158,15 @@ def test_evaluate_readable_empty_ledger_reason_is_none(tmp_path: Path) -> None:
     result = rgc.evaluate(tmp_path, _ANCHOR, _WINDOW, _HASH)
     assert result.agents_in_window == frozenset()
     assert result.any_dispatch_ever is False
+    assert result.same_subject_dispatch_ever is False
     assert result.read_failure_reason is None
 
 
 def test_evaluate_stale_evidence_distinguishes_any_dispatch_ever(tmp_path: Path) -> None:
-    """Dispatches happened, just outside the window — any_dispatch_ever is
-    True even though agents_in_window is empty, letting the caller pick
-    the "stale" message over "no dispatch evidence"."""
+    """Dispatches happened, just outside the window, for THIS SAME
+    subject_hash — both any_dispatch_ever and same_subject_dispatch_ever are
+    True even though agents_in_window is empty, letting the caller pick the
+    "stale" message over "no dispatch evidence"."""
     _write_ledger(
         tmp_path,
         [
@@ -174,6 +177,28 @@ def test_evaluate_stale_evidence_distinguishes_any_dispatch_ever(tmp_path: Path)
     result = rgc.evaluate(tmp_path, _ANCHOR, _WINDOW, _HASH)
     assert result.agents_in_window == frozenset()
     assert result.any_dispatch_ever is True
+    assert result.same_subject_dispatch_ever is True
+    assert result.read_failure_reason is None
+
+
+def test_evaluate_different_subject_in_window_is_not_same_subject_stale(
+    tmp_path: Path,
+) -> None:
+    """#1461 second security re-review: a genuine, RECENT dispatch for a
+    DIFFERENT subject_hash must set any_dispatch_ever True but
+    same_subject_dispatch_ever False — the caller needs this distinction to
+    avoid reporting "outside the window" (factually wrong; it's inside the
+    window, just for unrelated content) for this case."""
+    _write_ledger(
+        tmp_path,
+        [
+            _record("2026-01-01T11:55:00Z", "security-review", subject_hash="other-changeset"),
+        ],
+    )
+    result = rgc.evaluate(tmp_path, _ANCHOR, _WINDOW, _HASH)
+    assert result.agents_in_window == frozenset()
+    assert result.any_dispatch_ever is True
+    assert result.same_subject_dispatch_ever is False
     assert result.read_failure_reason is None
 
 
@@ -187,6 +212,7 @@ def test_evaluate_unreadable_ledger_reason_is_unreadable(tmp_path: Path) -> None
     result = rgc.evaluate(tmp_path, _ANCHOR, _WINDOW, _HASH)
     assert result.agents_in_window == frozenset()
     assert result.any_dispatch_ever is False
+    assert result.same_subject_dispatch_ever is False
     assert result.read_failure_reason == "unreadable"
 
 
@@ -294,6 +320,12 @@ def test_mixed_subject_hashes_only_matching_ones_count(tmp_path: Path) -> None:
     )
     result = rgc.distinct_review_agent_dispatches(tmp_path, _ANCHOR, _WINDOW, _HASH)
     assert result == {"security-review"}
+
+
+# Note: the "different subject_hash in window" scenario is covered by
+# test_evaluate_different_subject_in_window_is_not_same_subject_stale above,
+# which also asserts the same_subject_dispatch_ever distinction added in a
+# later security re-review round.
 
 
 def test_event_missing_subject_hash_field_entirely_does_not_count(tmp_path: Path) -> None:

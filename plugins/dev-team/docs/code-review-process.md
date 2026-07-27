@@ -212,13 +212,14 @@ The full lifecycle of these files — discovery to applied fix, including who ow
 
 ### 9. Pre-commit gate file
 
-When the review was auto-scoped to uncommitted changes and the final status is `pass` or `warn`, the orchestrator writes `.review-passed` to `.claude/memory/` — a SHA-256 hash of the reviewed file list:
+When the review was auto-scoped to uncommitted changes, the final status is `pass` or `warn`, and step 6a's fix loop (if it ran) did not exit with actionable issues still outstanding, the orchestrator writes `.review-passed` to `.claude/memory/` — a SHA-256 hash of the staged **content** (the cached patch, not just the file list — an edit after review changes this hash and re-blocks the commit):
 
 ```bash
-mkdir -p .claude/memory && git diff --cached --no-color | shasum -a 256 | cut -d' ' -f1 > .claude/memory/.review-passed
+HASH=$(python3 ${CLAUDE_PLUGIN_ROOT}/hooks/lib/review_gate_hash.py)
+mkdir -p .claude/memory && echo "$HASH" > .claude/memory/.review-passed
 ```
 
-The pre-commit hook reads this file to verify the staged files match what was actually reviewed. If the review failed, `.review-passed` is **not** written, and commits are blocked until the review is re-run and passes.
+Always use this shared helper, not a hand-rolled `git diff | shasum` pipeline — the helper pins several git config overrides (relative-path scoping, external diff drivers, submodule visibility) that a raw pipeline would not, and a hash computed any other way will not match what the pre-commit hook itself computes. The pre-commit hook reads this file to verify the staged content matches what was actually reviewed, corroborated by genuine review-agent dispatch evidence (see [`../hooks/pre_commit_review.py`](../hooks/pre_commit_review.py)'s module docstring). If the review failed, `.review-passed` is **not** written, and commits are blocked until the review is re-run and passes.
 
 ### Reasoned bypass (`--no-verify` / `-n`)
 

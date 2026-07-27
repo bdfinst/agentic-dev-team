@@ -30,6 +30,27 @@ missing/unreadable `agents/` directory, a malformed payload, an exception
 from the shared helper — must never block a real Agent dispatch. This hook
 always exits 0.
 
+KNOWN RESIDUAL GAP (#1461 security re-review): this module is itself a
+directly executable script that reads an attacker-/self-controlled stdin
+payload. Anyone with Bash access to this repo can run
+`echo '{"tool_name":"Task","tool_input":{"subagent_type":"security-review"},
+"cwd":"."}' | python3 hooks/agent_dispatch_ledger.py` (repeated with a second
+registered agent stem) and produce two byte-genuine "record" rows, correctly
+subject-hash-bound, with NO actual Agent/Task dispatch ever occurring. Locking
+down `boundary_events.py`'s CLI (this module's sibling forgery vector) does
+not close this one — the forge just moves one file over. Registered agent
+names are public filenames, so the registry re-validation in
+`review_gate_corroboration.py` does not help either. This is not fixable at
+this module's level: it requires the harness itself to supply something a
+hand-run process cannot fabricate (a signed dispatch receipt, or a
+session/turn-identity check against a live stream the harness — not this
+script — controls). Until that exists, this control raises the bar against
+an agent that takes an *accidental* self-certification shortcut under
+ambiguity (this issue's original, observed failure mode); it is not effective
+against a deliberate, adversarial bypass. See
+`hooks/pre_commit_review.py`'s module docstring for the matching disclosure
+on the read side.
+
 Contract (docs/python-hook-contract.md):
     Input : PreToolUse JSON on stdin (Agent/Task matcher)
     Output: always exit 0 — fail-open, this hook never blocks a dispatch.

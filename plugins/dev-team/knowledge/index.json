@@ -2667,7 +2667,7 @@
       "anchor": "6-present-findings-and-ask-for-direction"
     },
     "6a. Review-fix loop": {
-      "summary": "**Exit conditions**:",
+      "summary": "**Re-establishing dispatch-ledger corroboration after the loop (#1461, auto-scope only — same condition as item 3 above).** Step 3's `git add` changes the staged content's hash, so `agent_dispatch_ledger.py` stamps each iteration's re-dispatched agents (step 4) with that NEW hash — not step 4 (the outer, pre-loop)'s original dispatch hash, and not an earlier iteration's hash either.",
       "anchor": "6a-review-fix-loop"
     },
     "7. Generate report": {

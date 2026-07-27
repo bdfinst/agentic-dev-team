@@ -128,6 +128,53 @@ def test_fabricated_name_never_appears_as_free_text(tmp_path: Path) -> None:
         assert sentinel not in log.read_text(encoding="utf-8")
 
 
+def test_recorded_dispatch_is_stamped_with_the_current_subject_hash(
+    tmp_path: Path,
+) -> None:
+    """#1461 security re-review: the write side of the subject-hash binding
+    fix was untested — a regression silently dropping `subject_hash` would
+    make every future dispatch permanently uncorroborating (the gate
+    requires an exact hash match), yet no test caught that class of bug.
+    Uses a real hermetic git repo (not a bare tmp_path) so
+    `review_gate_hash()` computes a genuine, non-None hash to assert
+    against."""
+    _tests_lib = Path(__file__).resolve().parents[2] / "tests" / "lib"
+    if str(_tests_lib) not in sys.path:
+        sys.path.insert(0, str(_tests_lib))
+    from hermetic import hermetic_git_env  # type: ignore[import-not-found]
+
+    lib_dir = _PLUGIN_DIR / "hooks" / "lib"
+    if str(lib_dir) not in sys.path:
+        sys.path.insert(0, str(lib_dir))
+    import review_gate_hash as _rgh  # type: ignore[import-not-found]
+
+    env = hermetic_git_env(home=tmp_path)
+    subprocess.run(["git", "init", "-q"], cwd=tmp_path, env=env, check=True)
+    subprocess.run(
+        ["git", "config", "user.email", "t@t"], cwd=tmp_path, env=env, check=True
+    )
+    subprocess.run(
+        ["git", "config", "user.name", "t"], cwd=tmp_path, env=env, check=True
+    )
+    (tmp_path / "a.ts").write_text("v1\n")
+    subprocess.run(["git", "add", "a.ts"], cwd=tmp_path, env=env, check=True)
+
+    expected_hash = _rgh.review_gate_hash(cwd=tmp_path)
+    assert expected_hash  # sanity: a real repo yields a non-empty hash
+
+    result = _run_hook(
+        {
+            "tool_name": "Agent",
+            "tool_input": {"subagent_type": _REAL_REVIEW_AGENT},
+            "cwd": str(tmp_path),
+        }
+    )
+    assert result.returncode == 0
+    events = _read_jsonl(tmp_path / ".claude" / "metrics" / "boundary-events.jsonl")
+    assert len(events) == 1
+    assert events[0]["subject_hash"] == expected_hash
+
+
 def test_two_distinct_registered_dispatches_recorded_as_two_events(tmp_path: Path) -> None:
     _run_hook(
         {
