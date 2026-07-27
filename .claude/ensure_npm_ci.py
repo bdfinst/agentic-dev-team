@@ -16,11 +16,19 @@ Fail-open and time-boxed — never blocks session start. Stdlib-only.
 from __future__ import annotations
 
 import json
-import os
 import shutil
-import subprocess
 import sys
 from pathlib import Path
+
+_LIB_DIR = Path(__file__).resolve().parent / "lib"
+if str(_LIB_DIR) not in sys.path:
+    sys.path.insert(0, str(_LIB_DIR))
+try:
+    from session_start_common import resolve_project_root, run_logged
+except ImportError:
+    # The shared module must be present for this hook to do anything useful;
+    # if it's missing (e.g. a partial checkout), fail open rather than raise.
+    sys.exit(0)
 
 _TIMEOUT_SECONDS = 180
 
@@ -39,49 +47,39 @@ def _emit(message: str) -> None:
 
 
 def main() -> int:
-    root = Path(os.environ.get("CLAUDE_PROJECT_DIR") or Path(__file__).parent.parent)
-
-    # Only meaningful in this repo's own checkout(s).
-    if not (root / "package.json").is_file():
-        return 0
-
-    # Already provisioned: nothing to do.
-    if (root / "node_modules" / ".bin" / "husky").is_file():
-        return 0
-
-    npm = shutil.which("npm")
-    if npm is None:
-        return 0
-
-    log_path = Path.home() / ".cache" / "npm-ci-sessionstart.log"
-    log_path.parent.mkdir(parents=True, exist_ok=True)
-
     try:
-        with log_path.open("w", encoding="utf-8") as log_file:
-            result = subprocess.run(
-                [npm, "ci"],
-                cwd=root,
-                stdout=log_file,
-                stderr=subprocess.STDOUT,
-                timeout=_TIMEOUT_SECONDS,
-                check=False,
-            )
-        ok = result.returncode == 0
-    except subprocess.TimeoutExpired:
-        ok = False
+        root = resolve_project_root()
 
-    if ok:
-        _emit(
-            "This checkout had no node_modules/husky — ran npm ci to provision "
-            "it, so pre-commit/pre-push git hooks are no longer silently inert."
-        )
-    else:
-        _emit(
-            "This checkout is missing node_modules and an automatic npm ci "
-            f"failed or timed out — pre-commit/pre-push hooks stay silently "
-            f"inert until you run npm ci by hand. See {log_path}."
-        )
-    return 0
+        # Only meaningful in this repo's own checkout(s).
+        if not (root / "package.json").is_file():
+            return 0
+
+        # Already provisioned: nothing to do.
+        if (root / "node_modules" / ".bin" / "husky").is_file():
+            return 0
+
+        npm = shutil.which("npm")
+        if npm is None:
+            return 0
+
+        log_path = Path.home() / ".cache" / "npm-ci-sessionstart.log"
+        ok = run_logged([npm, "ci"], root, log_path, _TIMEOUT_SECONDS)
+
+        if ok:
+            _emit(
+                "This checkout had no node_modules/husky — ran npm ci to provision "
+                "it, so pre-commit/pre-push git hooks are no longer silently inert."
+            )
+        else:
+            _emit(
+                "This checkout is missing node_modules and an automatic npm ci "
+                f"failed or timed out — pre-commit/pre-push hooks stay silently "
+                f"inert until you run npm ci by hand. See {log_path}."
+            )
+        return 0
+    except Exception:
+        # Never let this hook block or fail session start.
+        return 0
 
 
 if __name__ == "__main__":
