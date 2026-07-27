@@ -852,7 +852,22 @@ def test_is_doc_only_changeset_false_for_code_file() -> None:
 def test_is_doc_only_changeset_rejects_root_prefix_match_at_depth(tmp_path: Path) -> None:
     """A basename merely STARTING WITH a root-doc prefix must not count
     unless it's actually at the repo root — `src/license_manager.py` is
-    code, not a LICENSE file, regardless of its basename."""
+    code, not a LICENSE file, regardless of its basename.
+
+    #1477 judgment call: under the CURRENT exact-match implementation, this
+    test and `test_is_doc_only_changeset_rejects_root_prefix_match_with_
+    code_extension` below both resolve to `_is_doc_only_changeset` returning
+    `False` — but via genuinely different sub-branches of the same `if
+    len(parts) == 1 and stem in _DOC_ROOT_NAMES` condition (this one
+    short-circuits on `len(parts) == 1` being False for a non-root path;
+    the other reaches `stem in _DOC_ROOT_NAMES` being False for a root-level
+    path whose full basename, extension included, never equals a bare
+    word). Each test also documents a DIFFERENT historical security-review
+    finding (the depth axis vs. the extension axis, fixed in separate
+    #1461 rounds) — kept as two separate regression artifacts rather than
+    consolidated, per the "cheap insurance, distinct documented findings"
+    guidance: a future mutant flipping `and` to `or`, or removing either
+    half of that condition, is caught by one test but not the other."""
     assert _pcr._is_doc_only_changeset(["src/license_manager.py"]) is False
     assert _pcr._is_doc_only_changeset(["lib/notice_handler.js"]) is False
     assert _pcr._is_doc_only_changeset(["hooks/changelog_writer.py"]) is False
@@ -879,7 +894,12 @@ def test_is_doc_only_changeset_rejects_root_prefix_match_with_code_extension() -
     prior fix closed the depth axis but left this extension axis open,
     since the root-prefix branch runs unconditionally after the doc-
     extension check merely fails, with no check on what the actual
-    extension is."""
+    extension is.
+
+    #1477: see `test_is_doc_only_changeset_rejects_root_prefix_match_at_
+    depth`'s docstring above for the judgment call on why this test is kept
+    separate rather than consolidated with it, despite both currently
+    returning `False` for the same top-level reason."""
     assert _pcr._is_doc_only_changeset(["license_manager.py"]) is False
     assert _pcr._is_doc_only_changeset(["readme_deploy.sh"]) is False
     assert _pcr._is_doc_only_changeset(["changelog.py"]) is False
@@ -1064,3 +1084,170 @@ def test_dispatch_for_different_subject_hash_in_window_reports_different_content
     assert r.returncode == 2
     assert "for different staged content" in r.stdout
     assert "outside the" not in r.stdout
+
+
+# ---------------------------------------------------------------------------
+# #1477 test-completeness gap 1: full `_DOC_EXTENSIONS`/`_DOC_ROOT_NAMES`
+# branch coverage on the ACCEPT path (prior tests only exercised `.md` and
+# rejection-path `.txt`; the other four extensions and two of the seven
+# root-doc words had zero accept-path coverage).
+# ---------------------------------------------------------------------------
+
+
+def test_is_doc_only_changeset_accepts_every_doc_extension() -> None:
+    """Every entry in `_DOC_EXTENSIONS` on the accept path, not just `.md`."""
+    assert _pcr._is_doc_only_changeset(["guide.md"]) is True
+    assert _pcr._is_doc_only_changeset(["guide.mdx"]) is True
+    assert _pcr._is_doc_only_changeset(["guide.markdown"]) is True
+    assert _pcr._is_doc_only_changeset(["guide.rst"]) is True
+    assert _pcr._is_doc_only_changeset(["guide.adoc"]) is True
+    assert _pcr._is_doc_only_changeset(["guide.txt"]) is True
+
+
+def test_is_doc_only_changeset_accepts_every_doc_root_name() -> None:
+    """Every entry in `_DOC_ROOT_NAMES` on the accept path — prior coverage
+    only exercised LICENSE/NOTICE; `contributing` and `code_of_conduct`
+    (matched case-insensitively, per the module's lower-casing) had zero
+    coverage."""
+    assert _pcr._is_doc_only_changeset(["README"]) is True
+    assert _pcr._is_doc_only_changeset(["CHANGELOG"]) is True
+    assert _pcr._is_doc_only_changeset(["CONTRIBUTING"]) is True
+    assert _pcr._is_doc_only_changeset(["LICENSE"]) is True
+    assert _pcr._is_doc_only_changeset(["NOTICE"]) is True
+    assert _pcr._is_doc_only_changeset(["AUTHORS"]) is True
+    assert _pcr._is_doc_only_changeset(["CODE_OF_CONDUCT"]) is True
+
+
+# ---------------------------------------------------------------------------
+# #1477 test-completeness gap 2: a filename that hits two simultaneously-
+# triggering reject predicates at once.
+# ---------------------------------------------------------------------------
+
+
+def test_is_doc_only_changeset_rejects_combined_non_doc_dir_and_functional_config() -> None:
+    """`requirements/agents.md` hits BOTH the non-doc-dir branch
+    (`requirements` in `_NON_DOC_DIR_SEGMENTS`) AND the functional-config-
+    segment branch (`agents` in `_FUNCTIONAL_CONFIG_SEGMENTS`) at once —
+    confirms the combination still correctly rejects, not merely that each
+    predicate rejects it alone (each is independently tested elsewhere:
+    `test_is_doc_only_changeset_rejects_manifest_files_under_a_subdirectory`
+    for the former, `test_functional_config_segments_all_rejected` for the
+    latter)."""
+    assert _pcr._is_doc_only_changeset(["requirements/agents.md"]) is False
+
+
+# ---------------------------------------------------------------------------
+# #1477 test-completeness gap 3: `_current_branch()`/`_plugin_version()`
+# exception-fallback branches, previously untested.
+# ---------------------------------------------------------------------------
+
+
+def test_current_branch_returns_empty_string_on_subprocess_failure(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def _boom(*_args, **_kwargs):
+        raise FileNotFoundError("git executable not found")
+
+    monkeypatch.setattr(_pcr.subprocess, "run", _boom)
+    assert _pcr._current_branch() == ""
+
+
+def test_current_branch_returns_empty_string_on_nonzero_exit(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def _fake_run(*_args, **_kwargs):
+        return subprocess.CompletedProcess([], returncode=128, stdout="", stderr="fatal")
+
+    monkeypatch.setattr(_pcr.subprocess, "run", _fake_run)
+    assert _pcr._current_branch() == ""
+
+
+def test_plugin_version_returns_unknown_on_malformed_manifest(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """`_plugin_version()` resolves `_HOOK_DIR / ".." / ".claude-plugin" /
+    "plugin.json"` — pointing `_HOOK_DIR` at a directory whose sibling
+    manifest is malformed JSON exercises the `except (OSError, ValueError)`
+    fallback (`json.JSONDecodeError` is a `ValueError` subclass)."""
+    fake_hook_dir = tmp_path / "hooks"
+    fake_hook_dir.mkdir()
+    plugin_dir = tmp_path / ".claude-plugin"
+    plugin_dir.mkdir()
+    (plugin_dir / "plugin.json").write_text("{not valid json")
+
+    monkeypatch.setattr(_pcr, "_HOOK_DIR", fake_hook_dir)
+    assert _pcr._plugin_version() == "unknown"
+
+
+def test_plugin_version_returns_unknown_when_manifest_missing(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A missing manifest raises `OSError` (`FileNotFoundError`) from
+    `.read_text()` — the sibling half of the same except clause."""
+    fake_hook_dir = tmp_path / "hooks"
+    fake_hook_dir.mkdir()
+    # No .claude-plugin/plugin.json written at all.
+
+    monkeypatch.setattr(_pcr, "_HOOK_DIR", fake_hook_dir)
+    assert _pcr._plugin_version() == "unknown"
+
+
+# ---------------------------------------------------------------------------
+# #1477 structural finding 5: `_DegradedLedgerEvidence` (the ImportError-
+# fallback stand-in for `review_gate_corroboration.LedgerEvidence`) hand-
+# duplicates its field shape with no test asserting parity — a future field
+# addition to the real NamedTuple could silently leave the degraded path
+# stale without this.
+# ---------------------------------------------------------------------------
+
+
+def test_degraded_ledger_evidence_field_shape_matches_real_ledger_evidence() -> None:
+    """Compares `_DegradedLedgerEvidence`'s field shape (names AND order)
+    against the real `review_gate_corroboration.LedgerEvidence` NamedTuple —
+    a future field added to the real shape without updating this hand-
+    written stand-in now fails a test instead of silently drifting.
+
+    Triggers the ImportError-fallback path in a FRESH subprocess, not via
+    the in-process `sys.modules["artifact_paths"] = None` + re-exec trick
+    `test_import_error_fallback_resolves_under_dot_claude` uses: that trick
+    turns out not to reliably re-raise `ImportError` when
+    `pre_commit_review.py` has already been exec'd once for real earlier in
+    the same process (as `_pcr` at this file's collection time always
+    does) — some CPython-version-dependent caching on the already-loaded
+    code object appears to let the second `exec_module()` resolve
+    `artifact_paths` successfully regardless of the poisoned entry. A
+    subprocess sidesteps that entirely: `artifact_paths` is poisoned before
+    `pre_commit_review.py` is ever imported for the first time in that
+    process, which reliably raises. (`test_import_error_fallback_resolves_
+    under_dot_claude` itself still passes today only because
+    `artifact_paths.resolve_file`'s real, non-degraded implementation
+    happens to return the identical path for that specific call — it does
+    not actually prove the fallback path ran; not touched here since fixing
+    that is outside this issue's scope.)"""
+    script = (
+        "import sys, importlib.util, json\n"
+        "sys.modules['artifact_paths'] = None\n"
+        "spec = importlib.util.spec_from_file_location('pcr_degraded_probe', "
+        + repr(str(_HOOK))
+        + ")\n"
+        "module = importlib.util.module_from_spec(spec)\n"
+        "spec.loader.exec_module(module)\n"
+        "degraded = module._DegradedLedgerEvidence\n"
+        "fields = [n for n in vars(degraded) if not n.startswith('__')]\n"
+        "print(json.dumps(fields))\n"
+    )
+    proc = subprocess.run(
+        ["python3", "-c", script],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert proc.returncode == 0, proc.stderr
+    degraded_fields = tuple(json.loads(proc.stdout))
+
+    lib_dir = _REPO_ROOT / "plugins" / "dev-team" / "hooks" / "lib"
+    if str(lib_dir) not in sys.path:
+        sys.path.insert(0, str(lib_dir))
+    import review_gate_corroboration as _rgc  # type: ignore[import-not-found]
+
+    assert degraded_fields == _rgc.LedgerEvidence._fields
