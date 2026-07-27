@@ -141,6 +141,13 @@ path, it never asks the script to resolve one itself:
 python3 ${CLAUDE_PLUGIN_ROOT}/scripts/detect_bdd_convention.py
 ```
 
+A `"dir": null` result (`"signal": "none"`) means the script found no usable
+convention — including, since issue #1462, a repo whose only existing
+`.feature` root sits under a non-conventionally-named directory. Never
+compose a path from `null`; fall back to
+`../plan/references/gherkin-persistence.md`'s no-signal handling (prompt the
+operator, or its non-interactive default) instead of guessing a destination.
+
 If a file already exists at that composed path, **read it** before authoring
 anything for that surface — Step 5 merges into it rather than overwriting.
 

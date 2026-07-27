@@ -30,7 +30,11 @@ the plan explicitly deferred. So the spec and its enforcement are split:
 
 ## Keeping them honest
 
-Each `.feature` carries an `# Enforced by:` header naming its bats contract.
-[`tests/repo/feature_spec_refs_test.bats`](../../tests/repo/feature_spec_refs_test.bats)
-asserts that header is present and points at a file that exists, so a spec can't
-silently drift from (or outlive) the suite that enforces it.
+Each `.feature` carries an `# Enforced by:` header naming its executable
+contract — `tests/skills/<name>.bats`, `tests/skills/<name>.py`, or (per this
+repo's own established convention of placing agent-frontmatter content-guard
+tests under `tests/agents/`, issue #1463) `tests/agents/<name>.py`.
+[`tests/repo/test_feature_spec_refs.py`](../../tests/repo/test_feature_spec_refs.py)
+asserts that header is present and points at a file that exists (and is
+non-empty), so a spec can't silently drift from (or outlive) the suite that
+enforces it.

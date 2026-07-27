@@ -92,6 +92,10 @@ def _entry_grader(block: str, espec: dict) -> str:
 # Corpus integrity (model-free CI gate).
 # --------------------------------------------------------------------------
 
+# Allowed `_calibration.source` values (#1466: calibration provenance).
+CALIBRATION_SOURCES = {"measured", "estimated-by-analogy"}
+
+
 def check_corpus(expected_dir: Path, fixtures_dir: Path):
     """Return (fatal_problems, warnings).
 
@@ -169,6 +173,27 @@ def check_corpus(expected_dir: Path, fixtures_dir: Path):
                         f"{ef.name}: {block}.{name} declares unknown grader "
                         f"{g!r} (known: {', '.join(registered_graders())})"
                     )
+                # Calibration provenance (#1466): an optional, purely
+                # informational note on *why* a min/max tolerance window was
+                # set the way it was — "measured" against a real agent run,
+                # or "estimated-by-analogy" to a neighboring fixture. Ignored
+                # by grading; explicitly recognized and shape-checked here so
+                # a future schema-tightening pass doesn't silently reject it,
+                # and so a typo'd source doesn't silently mean nothing. See
+                # evals/README.md "Calibration provenance".
+                calib = espec.get("_calibration")
+                if calib is not None:
+                    if not isinstance(calib, dict):
+                        problems.append(
+                            f"{ef.name}: {block}.{name}._calibration must be "
+                            f"an object"
+                        )
+                    elif calib.get("source") not in CALIBRATION_SOURCES:
+                        problems.append(
+                            f"{ef.name}: {block}.{name}._calibration.source "
+                            f"must be one of {sorted(CALIBRATION_SOURCES)}, "
+                            f"got {calib.get('source')!r}"
+                        )
         if fixture_stems and stem not in fixture_stems:
             warnings.append(
                 f"{ef.name}: no fixture file/dir with stem {stem!r} in "

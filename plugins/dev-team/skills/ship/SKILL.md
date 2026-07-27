@@ -31,6 +31,7 @@ You have been invoked with the `/ship` command.
    `${CLAUDE_PLUGIN_ROOT}/knowledge/decision-defaults.md` and confirm any ambiguous high-reversal-cost axis
    (replace-vs-merge, format fidelity, migrate-vs-edit-stub, scope) in one batch.
 4. **Be concise.** Report each phase's outcome and the next gate, nothing more.
+5. **Agent-dispatch capability is a pipeline-wide precondition, enforced by the delegated skills, not duplicated here (issue #1461).** `/plan` (Step 5b), `/build` (Steps 3, 4, 6), and `/code-review` (Step 4) each independently confirm the `Agent`/`Task` tool is present before dispatching any review agent, and each hard-fails — STOP, no self-applied review, no gate file written — when it is missing. `/ship` does not re-check or restate that logic; if a delegated phase halts on missing dispatch capability, `/ship` reports that halt and stops with it (per constraint 2, "Honor the human gates") rather than working around it or advancing past the phase that failed.
 5. **Idempotent per issue.** Never re-run the pipeline for an issue that is
    already shipped or in-flight. The Step 1 resume guard decides this from
    durable tracker/PR state — not conversation memory — so a re-fired command

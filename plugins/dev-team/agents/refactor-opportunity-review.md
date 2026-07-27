@@ -2,7 +2,7 @@
 
 name: refactor-opportunity-review
 description: Assesses refactoring opportunities after tests pass (TDD REFACTOR phase), distinguishing semantic duplication from structural similarity
-tools: Read, Grep, Glob, mcp__codegraph__*, mcp__plugin_repowise_repowise__get_context, mcp__plugin_repowise_repowise__get_symbol, mcp__plugin_repowise_repowise__search_codebase, mcp__plugin_repowise_repowise__get_risk
+tools: Read, Grep, Glob, mcp__codegraph__*, mcp__plugin_repowise_repowise__get_context, mcp__plugin_repowise_repowise__get_symbol, mcp__plugin_repowise_repowise__get_dead_code, mcp__plugin_repowise_repowise__get_health
 model: haiku
 effort: high
 color: green
@@ -87,6 +87,9 @@ Return `{"status": "skip", "issues": [], "summary": "No refactoring candidates i
 - Code that's already well-factored
 - Simple delegation methods
 - Generated or config files
+
+`get_dead_code` and `get_health` are available to confirm dead-code, duplication,
+and complexity candidates against verified analysis before flagging them.
 
 ## Semantic vs Structural Duplication Test
 

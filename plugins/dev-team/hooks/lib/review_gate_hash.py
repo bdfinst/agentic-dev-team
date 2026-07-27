@@ -16,6 +16,27 @@ Stdlib-only. Python 3.8+. See docs/python-hook-contract.md.
 Byte-parity note: `git diff --cached --no-color` is invariant across bash
 and Python callers because git itself owns the format. sha256 hex-encoded
 matches the `shasum -a 256 | cut -d' ' -f1` pipeline the .sh uses.
+
+Known limitation (issue #1461): this hash proves the STAGED CONTENT hasn't
+changed since a `.review-passed` file was written — it does NOT prove an
+independent review actually produced that file. `review_gate_hash()` is a
+small, public, pure function; any agent (including the one whose own work is
+being gated) can import it, or reimplement the equivalent
+`git diff --cached --no-color | sha256sum` pipeline, and self-write a
+matching `.review-passed` without any independent review ever running.
+Closing that gap with cryptographic hardening (e.g. requiring the file to be
+signed by a token only genuine Agent-tool dispatch can produce) is out of
+scope for this module and for `pre_commit_review.py` — it needs
+infrastructure changes to the Agent-tool dispatch mechanism itself. The
+mitigation that does exist lives one layer up, in the calling skills:
+`skills/code-review/SKILL.md`, `skills/plan/SKILL.md`, and
+`skills/build/SKILL.md` each carry a hard "confirm Agent/Task tool
+availability before dispatching any review agent, or STOP" instruction, so a
+session without real dispatch capability refuses to self-certify a review
+rather than writing this gate file on its own say-so. This hash mechanism's
+real integrity therefore depends on the calling skill's own honesty about
+whether it actually dispatched independent reviewers — not on anything this
+function can verify by itself.
 """
 
 from __future__ import annotations

@@ -766,6 +766,10 @@
       "summary": "Each calling skill's report step prints two sections, distinct from every",
       "anchor": "report-section-format"
     },
+    "Runtime isolation check": {
+      "summary": "The mutual-blindness property above — \"one message, two calls, read neither",
+      "anchor": "runtime-isolation-check"
+    },
     "Scope of this doc": {
       "summary": "This doc owns the dispatch/aggregation/failure/zero-findings mechanics and",
       "anchor": "scope-of-this-doc"
@@ -2293,7 +2297,7 @@
   },
   "plugins/dev-team/skills/build/SKILL.md": {
     "Orchestrator constraints": {
-      "summary": "1.",
+      "summary": "**MUST — confirm agent-dispatch capability before any review-agent dispatch (issue #1461).** This skill dispatches review agents at three points: Step 3 (`spec-compliance-review` acceptance-criteria gate), sub-step 4 (per-step review checkpoint for `complex` steps), and sub-step 6 (slice review checkpoint).",
       "anchor": "orchestrator-constraints"
     },
     "Parse Arguments": {
@@ -2321,7 +2325,7 @@
       "anchor": "2-verify-plan-status"
     },
     "3. Verify acceptance criteria (gate)": {
-      "summary": "Before implementation begins, dispatch the `spec-compliance-review` agent (by `subagent_type`) in **criteria verification mode**: pass it the plan's acceptance criteria and per-step test expectations, and ask it to evaluate the criteria themselves (see below) rather than a diff.",
+      "summary": "**Dispatch-capability gate (re-confirm here — issue #1461).** Before dispatching `spec-compliance-review` below, re-verify the `Agent`/`Task` tool is present.",
       "anchor": "3-verify-acceptance-criteria-gate"
     },
     "4. Implement each step": {
@@ -2611,7 +2615,7 @@
   },
   "plugins/dev-team/skills/code-review/SKILL.md": {
     "Orchestrator constraints": {
-      "summary": "1.",
+      "summary": "**MUST — confirm agent-dispatch capability before anything else in this skill (issue #1461).** Before attempting to dispatch ANY review agent (Step 4), you MUST confirm the `Agent` (or `Task`) tool is actually present and available in your current toolset.",
       "anchor": "orchestrator-constraints"
     },
     "Parse Arguments": {
@@ -2651,7 +2655,7 @@
       "anchor": "3-determine-enabled-agents"
     },
     "4. Run each enabled agent": {
-      "summary": "Spawn agents as parallel subagents in a single message using the Agent tool.",
+      "summary": "**Dispatch-capability gate (re-confirm here, not just at the top of this file — issue #1461).** Before spawning anything below, re-verify the `Agent`/`Task` tool is present in this toolset.",
       "anchor": "4-run-each-enabled-agent"
     },
     "5. Aggregate results": {
@@ -4621,7 +4625,7 @@
   },
   "plugins/dev-team/skills/plan/SKILL.md": {
     "Orchestrator constraints": {
-      "summary": "1.",
+      "summary": "**MUST — confirm agent-dispatch capability before Step 5b (issue #1461).** Step 5b below dispatches the five `plan-review-*` critics as parallel sub-agents.",
       "anchor": "orchestrator-constraints"
     },
     "Parse Arguments": {

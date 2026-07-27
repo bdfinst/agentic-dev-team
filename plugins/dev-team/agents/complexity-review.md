@@ -2,7 +2,7 @@
 
 name: complexity-review
 description: Cyclomatic complexity, nesting depth, function size, parameter count
-tools: Read, Grep, Glob, mcp__codegraph__*, mcp__plugin_repowise_repowise__get_context, mcp__plugin_repowise_repowise__get_symbol, mcp__plugin_repowise_repowise__search_codebase, mcp__plugin_repowise_repowise__get_risk
+tools: Read, Grep, Glob, mcp__codegraph__*, mcp__plugin_repowise_repowise__get_context, mcp__plugin_repowise_repowise__get_symbol, mcp__plugin_repowise_repowise__search_codebase, mcp__plugin_repowise_repowise__get_health
 model: sonnet
 effort: high
 color: green
@@ -71,6 +71,8 @@ Cognitive load:
 
 - Too many concepts per function
 - Non-obvious control flow
+
+`get_health`'s complexity-dimension scoring is available to corroborate findings.
 
 ## Self-Challenge
 

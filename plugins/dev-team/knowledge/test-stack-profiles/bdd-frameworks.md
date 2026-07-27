@@ -7,6 +7,19 @@ language. Use this **after** `../references/bdd-value-guide.md` recommends
 Every runner here outputs JUnit-XML (or an equivalent the CI already understands),
 so the BDD suite plugs into the existing pipeline without new reporting.
 
+**Directory naming (issue #1462).** Every canonical destination named below —
+`features/`, `Features/`, `src/test/resources/features/` — ends in a name
+`scripts/detect_bdd_convention.py`'s `_CONVENTIONAL_FEATURE_DIR_NAMES`
+allowlist recognizes (`features`, `feature`, `specs`, `spec`, `bdd`,
+`acceptance`, case-insensitive). That script's feature-file scan only
+signals a project's existing `.feature` directory as "the" convention when
+at least one path component matches this allowlist — an incidental
+`.feature` root elsewhere in the repo, under an unrelated directory name,
+is not treated as evidence of a repo-wide convention. Adding a new stack
+below with a differently-named destination requires adding that name to the
+allowlist too (`tests/scripts/test_detect_bdd_convention.py::TestConventionalNameAllowlistSync`
+enforces the two tables stay in sync).
+
 ---
 
 ## JS/TS — Cucumber.js

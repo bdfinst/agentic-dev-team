@@ -38,6 +38,12 @@ BASE_MCP_TOOLS = [
 # rationale) — see check_agent_tool_mapping.py.
 GET_WHY = "mcp__plugin_repowise_repowise__get_why"
 
+# Reassigned-tools tier (#1467): health scoring and dead-code detection granted
+# to specific review agents in place of get_risk/search_codebase — see
+# check_review_agent_mcp_tools.py's REASSIGNED_TOOLS mapping.
+GET_HEALTH = "mcp__plugin_repowise_repowise__get_health"
+GET_DEAD_CODE = "mcp__plugin_repowise_repowise__get_dead_code"
+
 # Match the inline `tools:` line only. Group 1 (`tools:` + horizontal space) and
 # group 3 (trailing horizontal space) use `[ \t]` — NOT `\s` — so the match can
 # never cross a newline into a YAML block-scalar/sequence form

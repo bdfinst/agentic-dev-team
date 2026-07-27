@@ -170,6 +170,71 @@ skill/knowledge file, else it is flagged as drift with token + line number. It
 runs in `/agent-audit` and in CI. **Phase 1 is advisory** (always exit 0) to
 collect signal before hardening. Code fences and blockquotes are excluded.
 
+## Calibration provenance (issue #1466)
+
+An expected fixture's `min`/`max` tolerance windows (`issueCount`,
+`severities.<sev>`) have no way to carry *why* those specific bounds were
+chosen — JSON can't carry comments. A future "tidy up the ranges" pass could
+narrow or widen a fixture's bounds to match a neighboring fixture's shape
+without realizing the original bound was tuned against that fixture's own
+measured behavior, silently weakening the eval's discriminating power with
+nothing to catch it.
+
+**Convention: an optional `_calibration` field**, nested inside the specific
+`agents.<name>` / `skills.<name>` entry — sibling to `issueCount` /
+`severities` — not at the fixture's top level. This keeps the note next to
+the bounds it explains and scales to a (currently nonexistent, but possible)
+multi-target fixture where different targets' bounds have different
+provenance.
+
+Shape:
+
+```json
+"_calibration": {
+  "source": "measured" | "estimated-by-analogy",
+  "note": "<one-line rationale>"
+}
+```
+
+- `source: "measured"` — the bound was derived from an actual calibration run
+  against the target agent/skill's real output on this fixture.
+- `source: "estimated-by-analogy"` — the bound was guessed by analogy to a
+  neighboring fixture's shape, not independently measured.
+- `note` — one line of free-text rationale (which run, or which neighbor it
+  was modeled on).
+
+`eval_grade.py --check-corpus` explicitly recognizes and shape-checks
+`_calibration` when present (unknown `source` values fail the corpus gate),
+but the field is **purely informational** — the grader never reads it when
+scoring an actual run, so its presence or absence never changes pass/fail.
+
+**Required for every NEW fixture going forward** that declares a `min`/`max`
+tolerance window. **Do not retrofit** the ~140 existing `evals/expected/*.json`
+fixtures — that is out of scope and would be pure churn with no discovered
+provenance to record.
+
+Worked example:
+
+```json
+{
+  "fixture": "test-internal-collaborator-mock.test",
+  "applicableAgents": ["test-smell-review"],
+  "agents": {
+    "test-smell-review": {
+      "expectedStatus": "warn",
+      "issueCount": { "min": 1, "max": 3 },
+      "severities": { "warning": { "min": 1, "max": 2 } },
+      "mustMention": ["same component", "component-test-patterns"],
+      "mustNotMention": [],
+      "_calibration": {
+        "source": "measured",
+        "note": "Bounds observed from 3 live agent-eval runs against test-smell-review at HEAD (2026-07-27)"
+      }
+    }
+  }
+}
+```
+
 ## Integration tier — golden repo (issue #313)
 
 The unit graders score a single agent's output in isolation. The integration

@@ -52,6 +52,8 @@ Resolve the project's stack so the assessment can resolve concrete tools from `k
 
 Map the deployable/testable surfaces and assign each its pattern from `component-test-patterns.md` (User Interface; API Provider / API Consumer / Event Consumer / Event Producer / Stateful Service / CLI-Library; Scheduled Job). A real system is usually several — list each surface.
 
+**Exhaustive surface-type discovery is the mandatory default — always on, never operator-gated (issue #1464).** Every invocation of this step actively searches for each pattern type in `component-test-patterns.md`'s table (Step 1's own list above already names all eight — not a separate list to invent here), not just the first or most obvious one found. Stopping after the first obvious surface type — e.g. finding a couple of HTTP routes and concluding the inventory is complete — is a spec violation of this step, not an acceptable shallow default: a real system frequently has surfaces in more than one pattern group at once (Services *and* Batch *and* UI, say), and each group must be actively searched for, not merely recorded when stumbled upon. **Record the search itself, not only what it found**: in the Output's `### Components & patterns` table (Step 6), include a row for every pattern type actively searched for — even one with no matching surface (state `None found` rather than omitting the row) — mirroring `/gherkin-derive` Step 2's `## Analysis Coverage` section (issue #1450), so a thin run is detectable from the report rather than merely asserted here.
+
 **Existing-tool detection (feeds Step 4b's Downstream-service branch).** While inventorying, also check the target's dependency manifest and test files for an existing virtual-service/record-replay library (e.g. Nock, WireMock, WireMock.Net, VCR.py, go-vcr). When found, note it: per `knowledge/virtual-service-libraries.md`'s Resolution order, it becomes the default recommended tool for that component's `Build (Fake)` row in Step 4b instead of the catalog's per-stack default, with no switch suggested. This is inventory-phase data gathering, not a Step 4 recommendation.
 
 **Graph-assisted inventory.** If the target repo has `.codegraph/` (CodeGraph MCP server, `mcp__codegraph__codegraph_explore` — fast callers/callees/impact lookups) and/or a Repowise MCP server (`get_context`/`search_codebase` — verified context and semantic search), prefer them over raw `Grep` for locating components, their deployable surfaces, and existing test suites. Never assume either is present — fall back to `Read`/`Grep`/`Glob` when absent; the tools are simply unavailable (no error) on repos without an index.
@@ -197,6 +199,11 @@ body.
 
 ### Components & patterns
 | Component | Pattern | Surfaces |
+
+Include a row for every pattern type actively searched for in Step 1 (issue
+#1464) — even when no surface of that type was found (`None found` rather
+than an omitted row) — so the report shows search coverage, not just found
+surfaces.
 
 ### Current tests (in-repo)
 | Suite | MinimumCD type | Deterministic? | Requires to run | Pre-merge-safe? |
