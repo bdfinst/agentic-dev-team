@@ -3644,6 +3644,10 @@
       "summary": "`features/<surface>.feature` files (all non-`none` modes) — **merged, not",
       "anchor": "step-5-output"
     },
+    "Step 5b — Adversarial Gherkin Quality Review": {
+      "summary": "Whenever this run wrote or merged at least one `.feature` file in Step 5,",
+      "anchor": "step-5b-adversarial-gherkin-quality-review"
+    },
     "Step 6 — Report": {
       "summary": "Print the mode, the count of surfaces by discovery source (OpenAPI / route /",
       "anchor": "step-6-report"

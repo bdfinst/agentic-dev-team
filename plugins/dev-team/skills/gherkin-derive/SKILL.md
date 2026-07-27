@@ -290,12 +290,50 @@ cause it is):
   written. `/test-improve` reads this at Phase 4 (plan fixes) and Phase 5
   (build) to bind tests to the derived scenarios.
 
+## Step 5b — Adversarial Gherkin Quality Review
+
+Whenever this run wrote or merged at least one `.feature` file in Step 5,
+dispatch the adversarial review before Step 6's report — no operator opt-in
+required. **Skip entirely** in `none` mode (no `.feature` files exist) or on a
+run that wrote/merged zero `.feature` content.
+
+Follow `knowledge/gherkin-quality-review-dispatch.md` for the shared dispatch,
+aggregation, failure-handling, and zero-findings mechanics — this step states
+only what's specific to `/gherkin-derive`: each of the two
+`gherkin-quality-review` instances receives, for every surface reviewed, that
+surface's `.feature` file content plus its Step 3 `# Source:` header (the
+route, OpenAPI path, test file, or signature it was derived from), so the
+agent can check scenarios against the actual cited source. The resulting
+`agreed`/`single-source` buckets feed Step 6's two new report sections below.
+
 ## Step 6 — Report
 
 Print the mode, the count of surfaces by discovery source (OpenAPI / route /
 test / signature / message-queue / scheduled-cron / websocket-graphql), the
 specification-vs-characterization split, and the paths written. In `none`
 mode, print only the one-line recommendation.
+
+**Print Step 5b's two Gherkin quality sections, distinct from every other
+callout in this step (issue #1452).** Whenever Step 5b ran (skip this pair of
+sections entirely when it was skipped — `none` mode or zero `.feature`
+writes):
+
+- **"Agreed Gherkin quality findings"** — every `(feature file, title)` pair
+  both `gherkin-quality-review` instances raised, one line each:
+  `<feature_file>:<title> — <rationale>`. Per the shared dispatch doc's
+  zero-findings rule, print `None — both instances raised no findings.` when
+  this bucket is empty — never omit the section itself.
+- **"Single-source (unconfirmed) Gherkin quality findings"** — every pair
+  only one instance raised, same line format, explicitly labeled unconfirmed
+  (never elevated to the same confidence as an agreed finding). Same
+  zero-findings rule applies. If either review instance failed or returned
+  unparseable output, state that here per the shared dispatch doc's failure-
+  handling rule, rather than silently treating it as "no findings."
+
+Neither section is folded into the characterization, possibly-stale,
+title-mismatch, or skipped-duplicate callouts below — this is semantic
+gap/balance judgment from an independent reviewer, not a structural-presence
+check.
 
 **Call out characterization scenarios separately — never fold them into the
 same summary line as specification scenarios.** Print a distinct line: "N
