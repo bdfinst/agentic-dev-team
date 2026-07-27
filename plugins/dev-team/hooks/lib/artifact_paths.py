@@ -22,7 +22,7 @@ import sys
 from pathlib import Path
 
 
-def project_root(start: "Path | str | None" = None) -> Path:
+def project_root(start: Path | str | None = None) -> Path:
     """Return the project root, resolved via `git rev-parse --show-toplevel`.
 
     `start` is the directory to resolve from (defaults to the current
@@ -76,21 +76,21 @@ def _log_migrate_failure(legacy_path: Path, new_path: Path, exc: OSError) -> Non
     )
 
 
-def _category_dir(name: str, root: "Path | str | None" = None) -> Path:
+def _category_dir(name: str, root: Path | str | None = None) -> Path:
     """Return `<project-root>/.claude/<name>`. Pure path-join, no side effects."""
     _validate_segment(name, "category")
     return project_root(start=root) / ".claude" / name
 
 
-def metrics_dir(root: "Path | str | None" = None) -> Path:
+def metrics_dir(root: Path | str | None = None) -> Path:
     return _category_dir("metrics", root)
 
 
-def memory_dir(root: "Path | str | None" = None) -> Path:
+def memory_dir(root: Path | str | None = None) -> Path:
     return _category_dir("memory", root)
 
 
-def plans_dir(root: "Path | str | None" = None) -> Path:
+def plans_dir(root: Path | str | None = None) -> Path:
     return _category_dir("plans", root)
 
 
@@ -120,7 +120,7 @@ def _is_git_tracked(path: Path, root: Path) -> bool:
 def resolve_file(
     category: str,
     filename: str,
-    root: "Path | str | None" = None,
+    root: Path | str | None = None,
     migrate: bool = True,
 ) -> Path:
     """Return the `.claude/<category>/<filename>` path for a runtime artifact.
@@ -169,7 +169,7 @@ def resolve_file(
     return new_path
 
 
-def category_dir(category: str, root: "Path | str | None" = None) -> Path:
+def category_dir(category: str, root: Path | str | None = None) -> Path:
     """Return `<project-root>/.claude/<category>`. Pure path-join, no side effects.
 
     Public, generic promotion of the internal per-name accessors
@@ -182,8 +182,8 @@ def category_dir(category: str, root: "Path | str | None" = None) -> Path:
 def migrate_dir(
     category: str,
     subpath: str,
-    root: "Path | str | None" = None,
-    exclude: "set[str] | None" = None,
+    root: Path | str | None = None,
+    exclude: set[str] | None = None,
 ) -> None:
     """Move every untracked file under a legacy directory tree into place.
 
@@ -232,7 +232,7 @@ def migrate_dir(
             _log_migrate_failure(legacy_path, new_path, exc)
 
 
-def dev_team_reports_dir(root: "Path | str | None" = None) -> Path:
+def dev_team_reports_dir(root: Path | str | None = None) -> Path:
     """Return `<project-root>/.dev-team-reports`. Pure path-join, no side effects.
 
     Deliberately not folded into `category_dir()`/`resolve_file()`/
