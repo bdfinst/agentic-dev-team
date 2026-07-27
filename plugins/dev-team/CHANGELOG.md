@@ -1,5 +1,21 @@
 # Changelog
 
+## [10.22.0](https://github.com/bdfinst/agentic-dev-team/compare/dev-team-v10.21.0...dev-team-v10.22.0) (2026-07-27)
+
+
+### Features
+
+* **apply-test-doubles:** add report-vs-target resolution and cd-test-architecture fallback ([94ab53c](https://github.com/bdfinst/agentic-dev-team/commit/94ab53c595bebdfa04bd34d06e537adafa11a47c))
+* **apply-test-doubles:** apply Step 4b's decision logic by citation, with --component scoping ([9f07bb1](https://github.com/bdfinst/agentic-dev-team/commit/9f07bb150826cec30f21446c785c8f5ac960578a))
+* **apply-test-doubles:** wire dispatch mechanics and register the new skill ([f2915c6](https://github.com/bdfinst/agentic-dev-team/commit/f2915c6fc3d98269325cd0a7a5b0b982efb2a4fc))
+
+
+### Bug Fixes
+
+* **apply-test-doubles:** clear stale Double-column tool name on revert ([198f717](https://github.com/bdfinst/agentic-dev-team/commit/198f717d570019d3cb3a75d08aec5e10365ceac8))
+* **apply-test-doubles:** correct dispatch mechanics after 2nd review round ([7430fbf](https://github.com/bdfinst/agentic-dev-team/commit/7430fbf388f9bc2c32c06af3ba642ae62183ca38))
+* **apply-test-doubles:** correct dispatch mechanics and 8 other review findings ([c31e06b](https://github.com/bdfinst/agentic-dev-team/commit/c31e06b365bd2c7fca000df9a0d705d957755741))
+
 ## [10.21.0](https://github.com/bdfinst/agentic-dev-team/compare/dev-team-v10.20.0...dev-team-v10.21.0) (2026-07-26)
 
 
