@@ -1,5 +1,32 @@
 # Changelog
 
+## [10.24.0](https://github.com/bdfinst/agentic-dev-team/compare/dev-team-v10.23.0...dev-team-v10.24.0) (2026-07-27)
+
+
+### Features
+
+* **cd-test-architecture:** wire and test the Step 1 surface-coverage gate ([b6576db](https://github.com/bdfinst/agentic-dev-team/commit/b6576db9aae9443a85a8d3bd0cbaf094303f1051)), closes [#1464](https://github.com/bdfinst/agentic-dev-team/issues/1464)
+* **hooks:** add fail-closed dispatch-ledger corroboration reader on metrics_query ([4fc90f9](https://github.com/bdfinst/agentic-dev-team/commit/4fc90f9ed6e4a9af1b0be4e1a26a12201a56fb1f))
+* **hooks:** ledger genuine Agent-tool dispatches via a shared review-agent registry ([6741c30](https://github.com/bdfinst/agentic-dev-team/commit/6741c3040943c545f24239808ce65b2b7f3aaa16))
+
+
+### Bug Fixes
+
+* **hooks:** close dispatch-ledger forgery and subject-binding gaps found by security review ([b7f6379](https://github.com/bdfinst/agentic-dev-team/commit/b7f6379b638f692860e44ef3853dd6d890514b0c))
+* **hooks:** close remaining gaps found by four more security review rounds ([0509271](https://github.com/bdfinst/agentic-dev-team/commit/0509271578d1a98e660f1c95d748dea297eeea65))
+* **hooks:** require corroborating dispatch-ledger evidence for the review-passed gate ([524b578](https://github.com/bdfinst/agentic-dev-team/commit/524b5780b73254a5daf4371f265e4ff3dd073c87))
+* **hooks:** route git commit -a / pathspec commits through the dispatch-ledger gate ([dca71c3](https://github.com/bdfinst/agentic-dev-team/commit/dca71c38af61f41382817c59ad796de791e10f7b)), closes [#1476](https://github.com/bdfinst/agentic-dev-team/issues/1476)
+* **hooks:** stop referencing the retired agent_model_resolve.py hook ([48101c0](https://github.com/bdfinst/agentic-dev-team/commit/48101c0e901d8d01465c717a7a43b64674a9ae97)), closes [#1475](https://github.com/bdfinst/agentic-dev-team/issues/1475)
+* **session-review:** version-tag telemetry and default to local-only analysis ([2d6bb63](https://github.com/bdfinst/agentic-dev-team/commit/2d6bb63f5f8011bb456dea607786256deacadf9b)), closes [#1471](https://github.com/bdfinst/agentic-dev-team/issues/1471) [#1480](https://github.com/bdfinst/agentic-dev-team/issues/1480)
+
+
+### Code Refactoring
+
+* **hooks:** extract shared doc-classification constants ([#1477](https://github.com/bdfinst/agentic-dev-team/issues/1477)) ([fe1699d](https://github.com/bdfinst/agentic-dev-team/commit/fe1699d52de9d58323a25c187ed43d5a00a14ca8))
+* **hooks:** extract shared git safety flags ([#1477](https://github.com/bdfinst/agentic-dev-team/issues/1477)) ([5a73567](https://github.com/bdfinst/agentic-dev-team/commit/5a73567f3a82074a133b5858b97a5a1f0b03f2fd))
+* **hooks:** split pre_commit_review.py's decision pipeline ([#1477](https://github.com/bdfinst/agentic-dev-team/issues/1477)) ([c9e75bc](https://github.com/bdfinst/agentic-dev-team/commit/c9e75bc37ffb7176aa3d8f39a05f3ecbc3ad5b45))
+* **scripts:** parameterize gherkin_analysis_coverage_gate by heading level/section/categories ([97f8077](https://github.com/bdfinst/agentic-dev-team/commit/97f807752157674c8891bcf8b42f1fd212a25dc5))
+
 ## [10.23.0](https://github.com/bdfinst/agentic-dev-team/compare/dev-team-v10.22.0...dev-team-v10.23.0) (2026-07-27)
 
 
