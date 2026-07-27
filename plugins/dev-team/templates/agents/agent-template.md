@@ -27,18 +27,24 @@ tools: Read, Grep, Glob
 # Use when you want to inherit most tools but block a few specific ones.
 # disallowedTools: Write, Edit
 
-# OPTIONAL — model to use
-# Use a tier alias: sonnet | opus | haiku | inherit
-# Tier → snapshot resolution flows through knowledge/model-routing.json
-# and the PreToolUse hook hooks/agent-model-resolve.sh. Do not pin a
-# snapshot ID here; the hook is the authoritative dispatch gate.
+# OPTIONAL — model to use for this agent's dispatch
+# An alias (haiku | sonnet | opus | fable), a full model ID, or inherit.
+# Resolved natively by the harness before dispatch (ADR 0026) — there is no
+# plugin-side PreToolUse hook, routing map, or ladder file in this path.
+# Do not pin a dated snapshot ID here; use the alias.
 # inherit: use the same model as the main conversation (default if omitted)
 #
 # Routing guidance:
 #   haiku  — high-volume, structured extraction, simple classification
 #   sonnet — balanced capability and speed; most agents
 #   opus   — frontier reasoning, security analysis, architectural judgment
-effort: medium
+model: sonnet
+
+# OPTIONAL — reasoning effort for this agent's model calls
+# Values: low | medium | high | xhigh | max (available levels depend on model)
+# ADR 0026 sets every agent to `high` uniformly as the safe default; a
+# follow-up calibration pass may tune this per agent later.
+effort: high
 
 # OPTIONAL — permission mode
 # WARNING: Ignored for plugin agents (silently has no effect).

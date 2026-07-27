@@ -289,7 +289,7 @@ proposals.
 
 ### 6. Analyze model routing
 
-For each agent listed in `knowledge/agent-registry.md` (with model tier from its `model:` frontmatter, resolved via the PreToolUse hook per `agents/orchestrator.md` → Resolution Procedure):
+For each agent listed in `knowledge/agent-registry.md` (with its `model:`/`effort:` frontmatter, resolved natively by the harness per `agents/orchestrator.md` → Model/Effort Resolution — ADR 0026):
 
 1. **Over-tiered agents**: Agents assigned to opus that consistently produce simple pattern-match findings may work equally well on sonnet or haiku.
 2. **Under-tiered agents**: Agents on haiku that frequently miss issues caught by human review may need a higher tier.

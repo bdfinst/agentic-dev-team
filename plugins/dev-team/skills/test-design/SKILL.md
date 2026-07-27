@@ -22,9 +22,9 @@ sub-agents and the test-design-advisor skill, then aggregates one report. It
 does not review files itself — it coordinates.
 
 This command is executed under orchestrator direction. Dispatch each agent with
-its tier alias (from its `model:` frontmatter); the PreToolUse hook
-`hooks/agent_model_resolve.py` resolves it to the active snapshot per the
-Resolution Procedure in `agents/orchestrator.md`.
+its `model:`/`effort:` frontmatter as declared — the harness resolves both
+fields natively before dispatch, per Model/Effort Resolution in
+`agents/orchestrator.md` (ADR 0026).
 
 ## Orchestrator constraints
 

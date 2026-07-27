@@ -43,9 +43,12 @@ pytest-asyncio>=0.23
 
 # Parallelizes the content-guard pytest run (chk_hook_units in scripts/ci-local.sh)
 # across cores. The suite is the local/CI wall-clock long pole; ci-local.sh runs it
-# with `-n auto --dist loadfile` when this is present and falls back to a serial run
-# when it is not. loadfile keeps each file's tests on one worker so order-dependent
-# git-subprocess suites stay deterministic.
+# with `--dist loadgroup` (`-n auto` under `--only`, otherwise `cores - cores/3`)
+# when this is present and falls back to a serial run when it is not. loadgroup is
+# a strict superset of loadfile — it keeps each file's tests on one worker (so
+# order-dependent git-subprocess suites stay deterministic) and additionally pins
+# any test carrying an explicit xdist_group mark to the same worker even across
+# different files, closing a flakiness source loadfile alone didn't cover.
 pytest-xdist>=3.0
 
 # Required by the Python static-analysis lane (dev-team plugin): /build's

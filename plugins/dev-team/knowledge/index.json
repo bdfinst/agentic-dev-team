@@ -3911,7 +3911,7 @@
       "anchor": "5-lesson-validation-validated-outcome-weighting-866"
     },
     "6. Analyze model routing": {
-      "summary": "For each agent listed in `knowledge/agent-registry.md` (with model tier from its `model:` frontmatter, resolved via the PreToolUse hook per `agents/orchestrator.md` → Resolution Procedure):",
+      "summary": "For each agent listed in `knowledge/agent-registry.md` (with its `model:`/`effort:` frontmatter, resolved natively by the harness per `agents/orchestrator.md` → Model/Effort Resolution — ADR 0026):",
       "anchor": "6-analyze-model-routing"
     },
     "7. Analyze orchestration complexity": {

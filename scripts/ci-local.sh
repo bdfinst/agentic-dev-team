@@ -239,8 +239,20 @@ chk_hook_units() {
   # chk_bats_content_rest, retired with bats-core itself) — excluding the
   # csharp_stryker_net_* wrapper tests, which stay on their own dedicated
   # Windows workflow (wrapper-windows.yml) because they are timing/signal
-  # sensitive and not portable to this runner, matching the pre-existing
-  # tests/hooks/ exclusion below.
+  # sensitive and not portable to this runner.
+  # tests/hooks/ (repo-root, distinct from plugins/dev-team/tests/hooks/)
+  # joined this list in #1475: it used to be excluded on the belief its
+  # suites needed stryker/pitest or were timing-based. Neither is true of
+  # this directory's own *.py test files — the stryker/pitest/mutmut ADAPTER
+  # tests that actually shell out to those tools live in
+  # plugins/dev-team/tests/hooks/ (already covered by `plugins/dev-team/tests`
+  # below); this directory's tests only read static fixture files it hosts at
+  # tests/hooks/fixtures/ + tests/hooks/fake-bin/ (consumed cross-tree by
+  # plugins/dev-team/tests/hooks/test_mutation_adapters_lib.py), never invoke
+  # a real stryker/pitest binary. Repo-root tests/hooks/ is fast,
+  # deterministic, and portable. Its exclusion let two hooks.json dispatch-
+  # matcher regressions from ADR 0026's retirement of
+  # hooks/agent_model_resolve.py go silently red for a full migration.
   # This suite is the wall-clock long pole. Parallelize it across cores when
   # pytest-xdist is installed (declared in requirements-dev.txt); fall back to a
   # serial run when it is absent so the gate never hard-depends on xdist.
@@ -279,7 +291,7 @@ chk_hook_units() {
     parallel=(-n "$workers" --dist loadgroup)
   fi
   python3 -m pytest plugins/dev-team/tests tests/repo tests/agents tests/commands \
-    tests/docs tests/knowledge tests/bats tests/skills tests/scripts \
+    tests/docs tests/knowledge tests/bats tests/skills tests/scripts tests/hooks \
     --ignore=tests/scripts/test_csharp_stryker_net_wrapper.py \
     --ignore=tests/scripts/test_csharp_stryker_net_status_loop.py \
     ${parallel[@]+"${parallel[@]}"}
@@ -298,7 +310,7 @@ chk_coverage_report() {
     return 0
   fi
   python3 -m pytest plugins/dev-team/tests tests/repo tests/agents tests/commands \
-    tests/docs tests/knowledge tests/bats tests/skills tests/scripts \
+    tests/docs tests/knowledge tests/bats tests/skills tests/scripts tests/hooks \
     --ignore=tests/scripts/test_csharp_stryker_net_wrapper.py \
     --ignore=tests/scripts/test_csharp_stryker_net_status_loop.py \
     --cov=plugins/dev-team/hooks --cov=scripts --cov-report=term -q \

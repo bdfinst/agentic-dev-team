@@ -89,9 +89,6 @@ jobs:
       # agent knowledge-anchor citations (AC19), command/doc registry sync.
       # Pure bash/jq/python3 — no external toolchains.
       #
-      # tests/hooks/ is intentionally excluded: its mutation-gate end-to-end
-      # tests require stryker/pitest and its overhead tests are timing-based,
-      # neither of which is portable to a clean CI runner.
       # Markdown reference integrity: a skill/agent/knowledge file that names a
       # real repo file by a path which resolves nowhere (a rename left behind, a
       # bare subdir path the runtime reads file-relative) fails here with the
@@ -102,8 +99,13 @@ jobs:
       # (tests/repo + knowledge/agents/commands/docs/scripts), skills-catalog
       # freshness, and the rules-vs-prompts boundary sensor (#118) — all defined
       # once in scripts/ci-local.sh so CI and the local pre-push gate can't
-      # drift. Tests/hooks mutation-gate suites are still excluded (they need
-      # stryker/pitest); only the pure bash+python+jq ones run.
+      # drift. chk_hook_units now also covers repo-root tests/hooks/ (#1475):
+      # it was believed to need stryker/pitest or to be timing-based, but the
+      # stryker/pitest/mutmut adapter tests that actually shell out to those
+      # tools live in plugins/dev-team/tests/hooks/ (already in scope via
+      # `plugins/dev-team/tests`) — repo-root tests/hooks/ only hosts the
+      # static fixture files those adapter tests read, and is itself pure
+      # bash+python+jq, same as everything else this job runs.
       - name: Content + hook-conformance checks (via ci-local)
         run:
           bash scripts/ci-local.sh

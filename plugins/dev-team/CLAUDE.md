@@ -44,7 +44,7 @@ Teams can create `REVIEW-CONTEXT.md` in the project root with domain knowledge c
 
 ## Skills Registry
 
-See [knowledge/skills-registry.md](knowledge/skills-registry.md) for the full command reference. All review skills run under orchestrator direction via the Resolution Procedure (`agents/orchestrator.md`).
+See [knowledge/skills-registry.md](knowledge/skills-registry.md) for the full command reference. All review skills run under orchestrator direction (`agents/orchestrator.md`).
 
 ## Request Processing Flow
 

@@ -117,7 +117,6 @@ categories:
         agent-audit,
         agent-eval,
         harness-audit,
-        model-routing-check,
         agent-readiness,
         competitive-analysis,
         feedback-learning,

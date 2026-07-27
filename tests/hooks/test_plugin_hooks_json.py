@@ -13,7 +13,14 @@ These tests pin three things:
      two must never drift).
   3. The subagent-dispatch matcher covers BOTH dispatch tool names —
      "Task" (pre-2.1.63) and "Agent" (post-rename) — so a harness rename
-     can't silently kill model routing again.
+     can't silently kill the dispatch-time hooks again.
+
+ADR 0026 retired `hooks/agent_model_resolve.py` (agents now declare
+`model:`/`effort:` directly in frontmatter, resolved natively by the
+harness before dispatch — no plugin-side PreToolUse hook in that path
+anymore). `context_ceiling_guard.py` is the hook that remains registered
+on the subagent-dispatch matcher, enforcing the context ceiling on every
+Agent/Task dispatch.
 """
 
 from __future__ import annotations
@@ -29,7 +36,7 @@ HOOKS_JSON = PLUGIN / "hooks" / "hooks.json"
 SETTINGS_JSON = PLUGIN / "settings.json"
 
 DISPATCH_TOOL_NAMES = ("Agent", "Task")
-DISPATCH_HOOK_SCRIPTS = ("agent_model_resolve.py", "context_ceiling_guard.py")
+DISPATCH_HOOK_SCRIPTS = ("context_ceiling_guard.py",)
 
 
 def _load_hooks(path: Path) -> dict:
@@ -87,32 +94,41 @@ def test_hooks_json_mirrors_settings_json_registrations() -> None:
 
 
 def _dispatch_entries(hooks: dict) -> list[dict]:
-    """PreToolUse entries that register the model-routing dispatch hook."""
+    """PreToolUse entries whose matcher covers subagent dispatch (Agent/Task).
+
+    Matched by matcher, not by script name: context_ceiling_guard.py is also
+    registered under the separate "Skill" matcher (it nudges on capability
+    loading generally, not just subagent dispatch), so filtering by script
+    name alone would incorrectly pull that entry in too.
+    """
     return [
         entry
         for entry in hooks.get("PreToolUse", [])
-        if "agent_model_resolve.py" in _script_names(entry)
+        if any(
+            re.fullmatch(entry.get("matcher", ""), tool_name)
+            for tool_name in DISPATCH_TOOL_NAMES
+        )
     ]
 
 
 def test_dispatch_matcher_covers_both_dispatch_tool_names() -> None:
     """The regression guard #1178 asked for: whichever name the harness
     uses for subagent dispatch ("Task" pre-2.1.63, "Agent" after), the
-    routing hooks must fire."""
+    dispatch-time hooks must fire."""
     for path in (HOOKS_JSON, SETTINGS_JSON):
         entries = _dispatch_entries(_load_hooks(path))
-        assert entries, f"{path.name}: agent_model_resolve.py not registered"
+        assert entries, f"{path.name}: no dispatch-time hook registered"
         for entry in entries:
             matcher = entry["matcher"]
             for tool_name in DISPATCH_TOOL_NAMES:
                 assert re.fullmatch(matcher, tool_name), (
                     f"{path.name}: PreToolUse matcher {matcher!r} does not "
-                    f"match dispatch tool name {tool_name!r} — model "
-                    f"routing would silently never fire (#1178)"
+                    f"match dispatch tool name {tool_name!r} — dispatch-time "
+                    f"hooks would silently never fire (#1178)"
                 )
 
 
-def test_dispatch_entry_registers_both_dispatch_hooks() -> None:
+def test_dispatch_entry_registers_the_dispatch_hooks() -> None:
     for path in (HOOKS_JSON, SETTINGS_JSON):
         entries = _dispatch_entries(_load_hooks(path))
         scripts = [s for entry in entries for s in _script_names(entry)]

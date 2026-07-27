@@ -56,7 +56,8 @@ Arguments: $ARGUMENTS
   the result **exploratory, not decidable** — say so in the report and do not
   apply the decision rule to it.
 - `--dry-run`: Print the run plan — interleaved schedule, selected fixtures,
-  pinned band→model map, and a cost estimate — without dispatching anything.
+  each arm's agents' declared `model:`/`effort:` frontmatter, and a cost
+  estimate — without dispatching anything.
 
 ## Arms (3, matched rigor)
 
@@ -96,11 +97,12 @@ possible; add fixtures only where a class has none.
   parent-session identity or state carries over.
 - **Cache parity: interleave arm order** — A, B, C, A, B, C, … Never batch
   all runs of one arm together; batching gives later arms warmer caches.
-- **Model pinning:** record the exact model ID(s) per run. All arms use the
-  same band→model map — capture `/model-routing-check` output before the
-  first run and include it in the report. If the map changes mid-experiment
-  (ladder edit, routing bump), **abort and restart**; do not mix runs across
-  maps.
+- **Model pinning:** record the exact model ID(s) per run. All arms dispatch
+  the same agents, each resolved by the harness from its own `model:`/
+  `effort:` frontmatter (ADR 0026) — record that frontmatter before the
+  first run and include it in the report. If any dispatched agent's
+  frontmatter changes mid-experiment, **abort and restart**; do not mix runs
+  across frontmatter versions.
 
 ## Metrics (instrument named per metric)
 
@@ -127,8 +129,7 @@ Apply per task class:
 1. **Adopt C over B** only if **all three** hold:
    - median cost reduction ≥ 25%;
    - no quality regression — every run passes the fixture's acceptance
-     checks / stays at-or-above its calibration floor
-     (`knowledge/calibration-floors.json`);
+     checks;
    - the mechanism check passes.
 2. **Retain B over A** only if B beats A on cost **or** quality. If A
    dominates B on a class, **report it** — that finding feeds
@@ -146,7 +147,7 @@ skipped:
    that dominates small tasks and vanishes on large ones.
 3. **Cache warmth** — runs batched by arm give later arms warmer caches;
    interleaving (above) is the control, state whether it held.
-4. **Model drift** — the band→model map or an underlying model changed
+4. **Model drift** — a dispatched agent's `model:`/`effort:` frontmatter or an underlying model changed
    mid-experiment; the abort/restart rule (above) is the control.
 5. **Fixture overfitting** — the crossover threshold generalizes only as far
    as the task matrix; say so wherever the threshold is quoted.
@@ -170,9 +171,9 @@ Body sections, in order:
    pre-registered rule, including the mechanism-check result.
 4. **Threats to validity** — all five items above, each with how this run
    addressed it.
-5. **Run log** — pinned model map (`/model-routing-check` output), exact
-   model IDs per run, interleaved schedule as executed, discarded runs and
-   why.
+5. **Run log** — each dispatched agent's declared `model:`/`effort:`
+   frontmatter, exact model IDs per run, interleaved schedule as executed,
+   discarded runs and why.
 
 ## Relationship to other tooling
 
@@ -181,8 +182,8 @@ Body sections, in order:
 - `/headless-run` is the isolation mechanism for every dispatched run;
   `/agent-eval` fixtures supply the tasks and acceptance checks;
   `/cost-report` and `hooks/lib/cost_meter.py` are the cost instruments;
-  `/model-routing-check` pins the model map; `/harness-audit` consumes any
-  "A dominates B" finding.
+  each agent's `model:`/`effort:` frontmatter is the model-pinning source of
+  truth (ADR 0026); `/harness-audit` consumes any "A dominates B" finding.
 - **Instrumentation flip belongs to the run, not to this skill.** After the
   first full documented protocol run (#1099), the instrumentation list in
   `plugins/dev-team/CLAUDE.md` moves "efficiency gains" from *Not yet* to

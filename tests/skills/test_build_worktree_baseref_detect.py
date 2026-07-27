@@ -2,10 +2,11 @@
 
 Step 1.1: plugins/dev-team/scripts/build_worktree_baseref.py `detect`
 subcommand. Prints exactly one of head|fresh|unset|unknown and exits 0
-(degrade-never-abort — mirrors hooks/lib/model_resolve.py's precedent).
+(degrade-never-abort — the same posture the now-retired
+hooks/lib/model_resolve.py used before ADR 0026 removed it).
 
-Env var seam (test-only injection, mirrors MODEL_ROUTING_JSON/
-MODEL_LADDER_JSON in model-resolve.sh):
+Env var seam (test-only injection, the same pattern the retired
+model-resolve.sh used via MODEL_ROUTING_JSON/MODEL_LADDER_JSON):
   BASEREF_SETTINGS_PATHS — colon-separated list of settings files,
   highest precedence first. When unset, the script falls back to its
   real default order (.claude/settings.json → ~/.claude/settings.json).

@@ -21,7 +21,7 @@ You are not reviewing code yourself. You select reviewers, dispatch them, and ac
 - The unit of work that just passed Stage 1 spec-compliance review
 - The diff of files changed
 - The plan step's `Complexity` classification (`trivial`, `standard`, `complex`)
-- A reference to the Resolution Procedure in `agents/orchestrator.md` (each agent's `model:` frontmatter declares its tier alias; the PreToolUse hook resolves to the active snapshot)
+- A reference to Model/Effort Resolution in `agents/orchestrator.md` (each agent declares `model:`/`effort:` directly in frontmatter; the harness resolves both natively before dispatch — ADR 0026)
 
 ## Procedure
 
@@ -48,7 +48,7 @@ If `Complexity: complex`, also add the opus-tier agents: `security-review`, `dom
 
 ### 3. Dispatch in parallel
 
-Spawn all selected agents in a **single message** using the Agent tool. Pass each agent's tier alias from its `model:` frontmatter — the PreToolUse hook resolves it to the active snapshot automatically. Pass only the files matching each agent's scope.
+Spawn all selected agents in a **single message** using the Agent tool. Each agent's `model:`/`effort:` frontmatter is resolved natively by the harness before dispatch (ADR 0026) — do not override it. Pass only the files matching each agent's scope.
 
 ### 4. Classify findings
 
