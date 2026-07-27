@@ -42,7 +42,7 @@ for _p in (_HOOKS_DIR, _LIB_DIR, _TESTS_LIB):
 import boundary_events  # type: ignore[import-not-found]
 from hermetic import hermetic_git_env  # type: ignore[import-not-found]
 
-_DECISION_ENUM = {"block", "warn", "bypass", "intervention", "revert"}
+_DECISION_ENUM = {"block", "warn", "bypass", "intervention", "revert", "record"}
 _SCHEMA_FIELDS = {"ts", "hook", "tool", "decision", "matched_rule", "plugin_version"}
 _OPTIONAL_FIELDS = {"session_id"}
 
@@ -438,6 +438,74 @@ def test_no_free_text_leaks_into_boundary_events(tmp_path: Path) -> None:
         assert keys <= (_SCHEMA_FIELDS | _OPTIONAL_FIELDS)
         assert _SCHEMA_FIELDS <= keys
         assert event["decision"] in _DECISION_ENUM
+
+
+# ---------------------------------------------------------------------------
+# CLI entry point (#1461) — lets skill markdown emit an event directly.
+# ---------------------------------------------------------------------------
+
+
+def test_cli_emits_one_event(tmp_path: Path) -> None:
+    result = subprocess.run(
+        [
+            sys.executable,
+            str(_LIB_DIR / "boundary_events.py"),
+            "--cwd",
+            str(tmp_path),
+            "--hook",
+            "code-review",
+            "--tool",
+            "Skill",
+            "--decision",
+            "bypass",
+            "--matched-rule",
+            "doc-only-review-exempt",
+        ],
+        capture_output=True,
+        check=False,
+    )
+    assert result.returncode == 0
+    events = _read_jsonl(tmp_path / ".claude" / "metrics" / "boundary-events.jsonl")
+    assert len(events) == 1
+    assert events[0]["hook"] == "code-review"
+    assert events[0]["tool"] == "Skill"
+    assert events[0]["decision"] == "bypass"
+    assert events[0]["matched_rule"] == "doc-only-review-exempt"
+
+
+def test_cli_includes_session_id_when_given(tmp_path: Path) -> None:
+    result = subprocess.run(
+        [
+            sys.executable,
+            str(_LIB_DIR / "boundary_events.py"),
+            "--cwd",
+            str(tmp_path),
+            "--hook",
+            "code-review",
+            "--tool",
+            "Skill",
+            "--decision",
+            "bypass",
+            "--matched-rule",
+            "doc-only-review-exempt",
+            "--session-id",
+            "sess-cli",
+        ],
+        capture_output=True,
+        check=False,
+    )
+    assert result.returncode == 0
+    events = _read_jsonl(tmp_path / ".claude" / "metrics" / "boundary-events.jsonl")
+    assert events[0]["session_id"] == "sess-cli"
+
+
+def test_cli_missing_required_arg_exits_nonzero() -> None:
+    result = subprocess.run(
+        [sys.executable, str(_LIB_DIR / "boundary_events.py"), "--hook", "x"],
+        capture_output=True,
+        check=False,
+    )
+    assert result.returncode != 0
 
 
 # ---------------------------------------------------------------------------

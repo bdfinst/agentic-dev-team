@@ -14,9 +14,11 @@ worktree's refs).
 
 from __future__ import annotations
 
+import json
 import os
 import subprocess
 import sys
+from datetime import datetime, timezone
 from pathlib import Path
 
 import pytest
@@ -70,12 +72,38 @@ def _write_gate(cwd: Path) -> None:
     gate_path.write_text(_rgh.review_gate_hash(cwd=cwd))
 
 
+def _write_dispatch_evidence(cwd: Path) -> None:
+    """Seed .claude/metrics/boundary-events.jsonl with 2 distinct genuine
+    review-agent dispatches (#1461) — required, alongside the hash match,
+    for the gate to accept a write since the dispatch-ledger corroboration
+    hardening."""
+    log = cwd / ".claude" / "metrics" / "boundary-events.jsonl"
+    log.parent.mkdir(parents=True, exist_ok=True)
+    now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    with log.open("a", encoding="utf-8") as fh:
+        for agent in ("security-review", "structure-review"):
+            fh.write(
+                json.dumps(
+                    {
+                        "ts": now,
+                        "hook": "agent_dispatch_ledger",
+                        "tool": "Agent",
+                        "decision": "record",
+                        "matched_rule": agent,
+                        "plugin_version": "0.0.0",
+                    }
+                )
+                + "\n"
+            )
+
+
 def test_baseline_gate_written_for_current_staged_content_allows_commit(
     work: Path,
 ) -> None:
     (work / "a.ts").write_text("v1\n")
     subprocess.run(["git", "add", "a.ts"], cwd=work, env=_git_env(), check=True)
     _write_gate(work)
+    _write_dispatch_evidence(work)
     res = _commit_hook(work)
     assert res.returncode == 0, res.stdout + res.stderr
 
