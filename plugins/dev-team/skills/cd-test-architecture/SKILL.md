@@ -165,6 +165,28 @@ Each step is behavior-preserving and independently shippable.
 
 Write the assessment (see Output). Keep every recommendation tied to a concrete next action.
 
+**Report the surface-coverage gate (issue #1464).** Step 1's "Exhaustive
+surface-type discovery is the mandatory default" mandate is backed by the
+same coverage-gate script `/gherkin-derive` uses for its own `## Analysis
+Coverage` section (issue #1450), run here against this skill's own
+`### Components & patterns` section in its cd-test-architecture
+configuration:
+
+```
+python3 ${CLAUDE_PLUGIN_ROOT}/scripts/gherkin_analysis_coverage_gate.py --file <report-path> --config cd-test-architecture
+```
+
+Print the gate's result as its own report section: `OK: all 8
+component-pattern categories recorded` when it exits 0, or `N
+component-pattern categor(y/ies) missing from the coverage record`, listing
+each missing category, when it exits 1. **A third outcome exists — exit 2
+means the gate did not run** (no `### Components & patterns` section was
+found in the report, or the report file itself is missing); report this as
+"gate did not run — no Components & patterns section found in `<path>`,
+re-check the assessment report," never as an `OK`/all-clear (a scan that
+never found the section is not the same as a section with nothing
+missing).
+
 ## Output
 
 Write to `.dev-team-reports/cd-test-architecture-<app>.md` (or chat for a single component).
