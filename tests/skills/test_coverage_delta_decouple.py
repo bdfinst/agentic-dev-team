@@ -14,7 +14,7 @@ Ported from tests/skills/coverage_delta_decouple_tests.bats (issue #674).
 
 from __future__ import annotations
 
-from skill_doc_helpers import PLUGIN_ROOT, grep
+from skill_doc_helpers import PLUGIN_ROOT, grep, section
 
 SKILL = PLUGIN_ROOT / "skills" / "coverage-delta" / "SKILL.md"
 TEST_IMPROVE = PLUGIN_ROOT / "skills" / "test-improve" / "SKILL.md"
@@ -54,7 +54,19 @@ def test_coverage_delta_workflow_defaults_to_test_improve():
 
 
 def test_coverage_delta_baseline_path_namespaced_by_workflow():
-    assert grep(r"memory/<workflow>/<slug>/baseline-coverage\.json", _text())
+    assert grep(
+        r"\.dev-team-reports/<workflow>/<slug>/data/baseline-coverage\.json",
+        _text(),
+    )
+
+
+def test_coverage_delta_step_1_never_falls_back_to_claude_memory():
+    """Step 2.1 negative assertion: Scenario 2 ("it never falls back...")
+    is otherwise only asserted in the plan's prose. Scope the check to
+    Step 1's own section so a fallback mention anywhere else in the file
+    (e.g. Step 2b's mutation-history lookup) can't hide a regression here."""
+    step_1 = section(_text(), r"^### 1\. Load the baseline", boundary_pattern=r"^### ")
+    assert not grep(r"\.claude/memory/<workflow>/<slug>/", step_1)
 
 
 def test_coverage_delta_coverage_history_path_namespaced_by_workflow():
