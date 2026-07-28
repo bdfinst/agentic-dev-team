@@ -108,11 +108,20 @@ def test_phase_9_copies_baseline_and_history_artifacts_into_tracked_data():
 def test_phase_8_no_longer_branches_on_the_removed_report_opt_in():
     """#1412: Phase 8's branch-scoped-mutation-validation paragraph no longer
     conditions the whole-repo splice on a knob-7 opt-in — the splice source
-    (Phase 2's unconditional .claude/memory/ baseline write) is always
+    (Phase 2's unconditional, direct tracked-data/ baseline write) is always
     available regardless."""
     s = _phase_8_section()
     assert s, "Phase 8 section not found in test-improve/SKILL.md"
     assert not grep(r"knob-7|report opt-in", s, ignore_case=True)
+
+
+def test_phase_8_whole_repo_splice_no_longer_describes_a_separate_phase_9_copy():
+    """Slice 4 Step 4.3 (plans/test-improve-baseline-persistence.md): there is
+    no longer a separate git-tracked data/ copy Phase 9 produces later — the
+    tracked file Phase 2 wrote directly IS the only copy, so this paragraph
+    no longer describes a deferred Phase-9 copy."""
+    s = _phase_8_section()
+    assert not grep(r"Phase 9 produces|produces later|Phase 9.*copy", s, ignore_case=True)
 
 
 def test_phase_9_falls_back_to_reading_data_directly_when_memory_copy_is_absent():
