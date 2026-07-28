@@ -68,11 +68,10 @@ _LIB_DIR = _HOOK_DIR / "lib"
 if str(_LIB_DIR) not in sys.path:
     sys.path.insert(0, str(_LIB_DIR))
 
-from boundary_events import emit_boundary_event as _emit_boundary_event  # noqa: E402
-from review_agent_registry import registered_review_agent_names  # noqa: E402
-from review_agent_registry import strip_plugin_prefix  # noqa: E402
-from review_gate_hash import review_gate_hash  # noqa: E402
-from stdin_json import read_stdin_json  # noqa: E402
+from boundary_events import emit_boundary_event as _emit_boundary_event
+from review_agent_registry import registered_review_agent_names, strip_plugin_prefix
+from review_gate_hash import review_gate_hash
+from stdin_json import read_stdin_json
 
 
 def emit_boundary_event(*args, **kwargs) -> None:

@@ -62,7 +62,7 @@ _LIB_DIR = Path(__file__).resolve().parent
 if str(_LIB_DIR) not in sys.path:
     sys.path.insert(0, str(_LIB_DIR))
 
-from doc_classification import (  # noqa: E402
+from doc_classification import (
     CORE_FUNCTIONAL_CONFIG_SEGMENTS,
     DOC_EXTENSIONS,
     DOC_ROOT_WORDS,

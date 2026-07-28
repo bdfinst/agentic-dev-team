@@ -17,7 +17,6 @@ import stat
 import subprocess
 from pathlib import Path
 
-
 from _repo_root import REPO_ROOT
 
 SCRIPT = REPO_ROOT / ".claude" / "ensure_code_graph_tools.py"

@@ -253,7 +253,7 @@ def test_main_fails_open_when_prerequisites_missing(monkeypatch, capsys):
 
 
 def test_main_exits_zero_when_no_contamination(monkeypatch, capsys):
-    monkeypatch.setattr(vgi, "check_prerequisites", lambda: [])
+    monkeypatch.setattr(vgi, "check_prerequisites", list)
     monkeypatch.setattr(vgi, "dispatch", lambda prompt, model, timeout: "clean transcript, no canaries")
     rc = vgi.main([])
     out = capsys.readouterr().out
@@ -264,7 +264,7 @@ def test_main_exits_zero_when_no_contamination(monkeypatch, capsys):
 def test_main_skips_when_a_dispatch_returns_none(monkeypatch, capsys):
     # One dispatch failing (infra problem) must fail OPEN — skip, not fail —
     # even though the other succeeded.
-    monkeypatch.setattr(vgi, "check_prerequisites", lambda: [])
+    monkeypatch.setattr(vgi, "check_prerequisites", list)
     transcripts = iter(["A-side output", None])
     monkeypatch.setattr(vgi, "dispatch", lambda prompt, model, timeout: next(transcripts))
     rc = vgi.main([])
@@ -287,7 +287,7 @@ def test_main_exits_one_when_contamination_detected(monkeypatch, capsys):
             return "clean transcript A"
         return f"transcript B unexpectedly mentions {canaries[0]}"
 
-    monkeypatch.setattr(vgi, "check_prerequisites", lambda: [])
+    monkeypatch.setattr(vgi, "check_prerequisites", list)
     monkeypatch.setattr(vgi, "dispatch", _fake_dispatch)
     rc = vgi.main([])
     out = capsys.readouterr().out
@@ -297,7 +297,7 @@ def test_main_exits_one_when_contamination_detected(monkeypatch, capsys):
 
 
 def test_main_skips_when_first_dispatch_returns_none(monkeypatch, capsys):
-    monkeypatch.setattr(vgi, "check_prerequisites", lambda: [])
+    monkeypatch.setattr(vgi, "check_prerequisites", list)
     monkeypatch.setattr(vgi, "dispatch", lambda prompt, model, timeout: None)
     rc = vgi.main([])
     out = capsys.readouterr().out

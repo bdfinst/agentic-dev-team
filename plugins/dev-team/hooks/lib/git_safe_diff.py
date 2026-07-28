@@ -54,8 +54,8 @@ Stdlib only. Python 3.8+.
 from __future__ import annotations
 
 import subprocess
+from collections.abc import Sequence
 from pathlib import Path
-from typing import Sequence
 
 # `-c diff.relative=false` must precede the `diff` subcommand — see module
 # docstring.
