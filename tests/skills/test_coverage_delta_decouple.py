@@ -74,7 +74,10 @@ def test_coverage_delta_coverage_history_path_namespaced_by_workflow():
 
 
 def test_coverage_delta_mutation_history_path_namespaced_by_workflow():
-    assert grep(r"memory/<workflow>/<slug>/mutation-history\.json", _text())
+    assert grep(
+        r"\.dev-team-reports/<workflow>/<slug>/data/mutation-history\.json",
+        _text(),
+    )
 
 
 def test_coverage_delta_no_hardcoded_memory_test_modernize_path_remains():
