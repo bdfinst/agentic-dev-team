@@ -204,9 +204,9 @@ coverage/mutation movement (issue #1296):
 python3 plugins/dev-team/scripts/gherkin_effectiveness_rollup.py \
   --gherkin-md .claude/memory/<workflow>/<slug>/gherkin.md \
   --bindings-json .claude/memory/<workflow>/<slug>/gherkin-bindings.json \
-  --baseline-coverage .claude/memory/<workflow>/<slug>/baseline-coverage.json \
+  --baseline-coverage .dev-team-reports/<workflow>/<slug>/data/baseline-coverage.json \
   --current-coverage <this iteration's coverage measurement> \
-  --baseline-mutation .claude/memory/<workflow>/<slug>/baseline-mutation.json \
+  --baseline-mutation .dev-team-reports/<workflow>/<slug>/data/baseline-mutation.json \
   --current-mutation <this iteration's mutation measurement> \
   --out .claude/metrics/gherkin-derive-effectiveness.jsonl
 ```

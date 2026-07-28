@@ -32,6 +32,10 @@ def _step2() -> str:
     return section(_text(), r"^### 2\.", boundary_pattern=r"^### 3\.")
 
 
+def _step6b() -> str:
+    return section(_text(), r"^### 6b\.")
+
+
 # --- Slice 3 (plans/test-improve-baseline-persistence.md): tracked storage,
 # no opt-in gate. Step 3.1: coverage reads the tracked data/ path.
 
@@ -169,6 +173,31 @@ def test_step_2_or_6_operator_report_names_mutation_reused_n_measured_m_cost_sav
 
 def test_step_2_filters_status_accepted_alongside_status_equivalent():
     assert grep(r'"equivalent".+"accepted"|"accepted".+"equivalent"', _step2())
+
+
+# --- Step 3.4: Step 6b's gherkin-effectiveness rollup reads baselines from
+# the tracked data/ path; --gherkin-md / --bindings-json stay in .claude/memory/.
+
+
+def test_step_6b_baseline_flags_name_tracked_dev_team_reports_data_path():
+    step6b = _step6b()
+    assert (
+        "--baseline-coverage .dev-team-reports/<workflow>/<slug>/data/baseline-coverage.json"
+        in step6b
+    )
+    assert (
+        "--baseline-mutation .dev-team-reports/<workflow>/<slug>/data/baseline-mutation.json"
+        in step6b
+    )
+
+
+def test_step_6b_gherkin_md_and_bindings_json_flags_stay_in_claude_memory():
+    step6b = _step6b()
+    assert "--gherkin-md .claude/memory/<workflow>/<slug>/gherkin.md" in step6b
+    assert (
+        "--bindings-json .claude/memory/<workflow>/<slug>/gherkin-bindings.json"
+        in step6b
+    )
 
 
 # --- Step 4 and Step 5 byte-identical to snapshot ------------------------
