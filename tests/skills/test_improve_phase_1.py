@@ -173,3 +173,33 @@ def test_phase_1_non_interactive_defaults_to_keep_and_logs_the_decision():
         s,
     )
     assert grep(r"decision-defaults\.md", s)
+
+
+# --- malformed-file-treated-as-absent branch (issue #1502) -------------------
+
+
+def test_phase_1_malformed_snapshot_treated_as_absent_with_warning():
+    """A corrupt/unparseable test-counts-before.json is treated as absent —
+    a fresh capture with a warning, never silently kept — matching the shared
+    re-capture axis the two newer guards already implement (#1502)."""
+    s = _phase_1_section()
+    assert grep(r"malformed|corrupt", s, ignore_case=True)
+    assert grep_multiline(
+        r"(malformed or\s+corrupt|fails to parse).{0,120}treat it as absent",
+        s,
+        ignore_case=True,
+    )
+    assert grep(r"never as a snapshot to keep", s, ignore_case=True)
+    assert grep(r"emit a warning", s, ignore_case=True)
+
+
+def test_phase_1_snapshot_guard_cites_the_shared_recapture_axis():
+    """Phase 1's guard cites decision-defaults.md's re-capture axis for the
+    *why* rather than continuing to duplicate an incomplete copy (#1502)."""
+    s = _phase_1_section()
+    assert grep(r"decision-defaults\.md", s)
+    assert grep(
+        r"Re-capture: keep vs\. overwrite an existing\s+tracked artifact",
+        s,
+        ignore_case=True,
+    )
