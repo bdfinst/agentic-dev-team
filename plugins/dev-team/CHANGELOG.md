@@ -1,5 +1,12 @@
 # Changelog
 
+## [10.24.1](https://github.com/bdfinst/agentic-dev-team/compare/dev-team-v10.24.0...dev-team-v10.24.1) (2026-07-28)
+
+
+### Bug Fixes
+
+* **project-init:** correct graphify/repowise setup docs and add missing gitignore rule ([2e6fa25](https://github.com/bdfinst/agentic-dev-team/commit/2e6fa254b62e2504692f812ce9485240354b54a0)), closes [#1483](https://github.com/bdfinst/agentic-dev-team/issues/1483) [#1484](https://github.com/bdfinst/agentic-dev-team/issues/1484) [#1486](https://github.com/bdfinst/agentic-dev-team/issues/1486) [#1487](https://github.com/bdfinst/agentic-dev-team/issues/1487)
+
 ## [10.24.0](https://github.com/bdfinst/agentic-dev-team/compare/dev-team-v10.23.0...dev-team-v10.24.0) (2026-07-27)
 
 
