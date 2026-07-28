@@ -46,7 +46,19 @@ Read the build manifest at the repo root and pick the appropriate command:
 
 If the repo has its own coverage script (e.g. `npm run coverage`, `make coverage`), prefer that — detect via `package.json#scripts.coverage`, the `Makefile`, or a documented run target in `README.md`. If detection is ambiguous, ask the operator for the exact command.
 
-### 2. Run coverage
+### 2. Existing-baseline guard
+
+Check whether `.dev-team-reports/<workflow>/<slug>/data/baseline-coverage.json` already exists for the resolved slug. This existing-baseline guard is this worker's application of the shared existing-tracked-artifact re-capture guard — the canonical definition and rationale live once in `knowledge/decision-defaults.md`'s "Re-capture: keep vs. overwrite an existing tracked artifact" axis; this step cites that axis for the *why* and spells out the operational branches below so an executing agent doesn't need to open a second file mid-task to know what to do.
+
+Applied here:
+
+- **No existing file, or overwrite chosen** — proceed to Step 3 (Run coverage) and the rest of the normal flow.
+- **Existing file, interactive session** — prompt keep/overwrite (default keep). An answer that is neither "keep" nor "overwrite" (case-insensitive) re-prompts with the identical choice — never falls back silently to either option, no retry limit, no timeout.
+- **Existing file, non-interactive** (no usable TTY, or `DEV_TEAM_AUTO_APPROVE=1`) — keep the existing baseline automatically; both log the auto-decision and echo it to run output, not only record it to a file.
+- **Existing file is malformed or corrupt** (fails to parse as JSON — e.g. left over from a prior interrupted write) — treat it as absent, never as a baseline to keep. Emit a warning naming why a fresh capture is happening, then proceed to Step 3.
+- **On keep** — skip straight to Step 7 (Report). Reuse the existing file's `tool`, `line_pct`, and `branch_pct`, and report its `captured_at` instead of a freshly captured timestamp. Do not dispatch a coverage run.
+
+### 3. Run coverage
 
 Run the chosen command from `<repo-path>`. Capture stdout, stderr, and the exit code.
 
@@ -56,7 +68,7 @@ If the run fails:
 - Do NOT write a baseline. The floor must be a true measurement.
 - Stop.
 
-### 3. Parse line + branch percentages
+### 4. Parse line + branch percentages
 
 For each tool, parse the report into `{ "line": <pct>, "branch": <pct>, "tool": "<name>", "raw_path": "<file>" }`:
 
@@ -72,11 +84,14 @@ For each tool, parse the report into `{ "line": <pct>, "branch": <pct>, "tool": 
 - cargo-llvm-cov → `--json` → `data[0].totals.lines.percent`, `…branches.percent`.
 - Go → `go tool cover -func` → `total:` line; branch coverage isn't native, report `null` and flag.
 
-### 4. Persist the baseline
+### 5. Persist the baseline
 
-Write `.claude/memory/<workflow>/<slug>/baseline-coverage.json`:
+Write `.dev-team-reports/<workflow>/<slug>/data/baseline-coverage.json` directly to tracked storage, via temp-file-then-rename (write to `<path>.tmp` then `mv -f <path>.tmp <path>`) — never a direct, non-atomic write. "Tracked" depends on the resolved `<workflow>` having a matching `.gitignore` re-include: today only `!/.dev-team-reports/test-improve/` exists, so this write is genuinely git-tracked for the `test-improve` caller; a future caller passing a different `--workflow` value would need its own `.gitignore` exception added first, or this write silently lands in ignored space despite the tracked-storage framing above.
 
-```json
+```bash
+BASELINE=".dev-team-reports/<workflow>/<slug>/data/baseline-coverage.json"
+mkdir -p "$(dirname "$BASELINE")"
+cat > "${BASELINE}.tmp" <<'JSON'
 {
   "phase": 3,
   "captured_at": "<ISO-8601>",
@@ -86,13 +101,15 @@ Write `.claude/memory/<workflow>/<slug>/baseline-coverage.json`:
   "raw_report": "coverage/coverage-summary.json",
   "disabled_test_count": 47
 }
+JSON
+mv -f "${BASELINE}.tmp" "$BASELINE"
 ```
 
 `disabled_test_count` is included **only** when `.claude/memory/<workflow>/<slug>/disabled-tests.json` exists (present when a caller ran `/test-audit-disable` first); omit the field otherwise. `phase` carries the calling workflow's phase number when it has one, and may be omitted for workflows without numbered phases.
 
-Append a baseline summary to the workflow's baseline memory file (for `/test-improve`, `.claude/memory/<workflow>/<slug>/phase-2.md`; other workflows write to their own baseline phase file). Just the coverage block — auditing is a separate worker.
+Append a baseline summary to the workflow's baseline memory file (for `/test-improve`, `.claude/memory/<workflow>/<slug>/phase-2.md`; other workflows write to their own baseline phase file). Just the coverage block — auditing is a separate worker. This is process bookkeeping, distinct from the baseline data file above, and is unaffected by the atomic-write change.
 
-### 5. Post to the parent
+### 6. Post to the parent
 
 **Tracker mode** — append a markdown block to the parent issue's description (the resolved CLI was recorded in Phase 1):
 
@@ -123,7 +140,7 @@ acli jira workitem comment add --key <parent-key> --body "$(cat phase-3-block.md
 
 **Local-files mode** — append the block to `.claude/plans/<workflow>/FEATURE.md` under a `## Metrics history` heading (create the heading if missing).
 
-### 6. Report
+### 7. Report
 
 Print:
 

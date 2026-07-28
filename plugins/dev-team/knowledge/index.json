@@ -431,6 +431,10 @@
     "Scope: touch only what was requested": {
       "summary": "Trigger: a request names specific files, slides, or targets.",
       "anchor": "scope-touch-only-what-was-requested"
+    },
+    "Re-capture: keep vs. overwrite an existing tracked artifact": {
+      "summary": "Trigger: a worker is about to re-run an expensive capture for an artifact that",
+      "anchor": "re-capture-keep-vs-overwrite-an-existing-tracked-artifact"
     }
   },
   "plugins/dev-team/knowledge/dependency-breaking-techniques.md": {
@@ -2864,25 +2868,29 @@
       "summary": "Read the build manifest at the repo root and pick the appropriate command:",
       "anchor": "1-detect-the-coverage-tool"
     },
-    "2. Run coverage": {
+    "2. Existing-baseline guard": {
+      "summary": "Check whether `.dev-team-reports/<workflow>/<slug>/data/baseline-coverage.json` already exists for the resolved slug.",
+      "anchor": "2-existing-baseline-guard"
+    },
+    "3. Run coverage": {
       "summary": "Run the chosen command from `<repo-path>`.",
-      "anchor": "2-run-coverage"
+      "anchor": "3-run-coverage"
     },
-    "3. Parse line + branch percentages": {
+    "4. Parse line + branch percentages": {
       "summary": "For each tool, parse the report into `{ \"line\": <pct>, \"branch\": <pct>, \"tool\": \"<name>\", \"raw_path\": \"<file>\" }`:",
-      "anchor": "3-parse-line-branch-percentages"
+      "anchor": "4-parse-line-branch-percentages"
     },
-    "4. Persist the baseline": {
-      "summary": "Write `.claude/memory/<workflow>/<slug>/baseline-coverage.json`:",
-      "anchor": "4-persist-the-baseline"
+    "5. Persist the baseline": {
+      "summary": "Write `.dev-team-reports/<workflow>/<slug>/data/baseline-coverage.json` directly to tracked storage, via temp-file-then-rename (write to `<path>.tmp` then `mv -f <path>.tmp <path>`) — never a direct, non-atomic write.",
+      "anchor": "5-persist-the-baseline"
     },
-    "5. Post to the parent": {
+    "6. Post to the parent": {
       "summary": "**Tracker mode** — append a markdown block to the parent issue's description (the resolved CLI was recorded in Phase 1):",
-      "anchor": "5-post-to-the-parent"
+      "anchor": "6-post-to-the-parent"
     },
-    "6. Report": {
+    "7. Report": {
       "summary": "Print:",
-      "anchor": "6-report"
+      "anchor": "7-report"
     },
     "Notes": {
       "summary": "Coverage tools may legitimately differ by repo; never replace the repo's own script with a generic one unless detection fails.",
