@@ -140,9 +140,9 @@ def main() -> int:
         for ensure_fn in (_ensure_codegraph, _ensure_repowise, _ensure_graphify):
             try:
                 ensure_fn(root, notes)
-            except Exception:
-                # Fail-open per tool: one tool's unexpected failure must
-                # never block the others.
+            except Exception:  # noqa: BLE001, S112 - fail-open per tool: one
+                # tool's unexpected failure must never block the others, and
+                # there is nothing worth logging for a best-effort probe.
                 continue
 
         if notes:
@@ -157,8 +157,7 @@ def main() -> int:
                 )
             )
         return 0
-    except Exception:
-        # Never let this hook block or fail session start.
+    except Exception:  # noqa: BLE001 - never let this hook block or fail session start.
         return 0
 
 

@@ -31,12 +31,12 @@ _TESTS_LIB = Path(__file__).resolve().parents[2] / "tests" / "lib"
 if str(_TESTS_LIB) not in sys.path:
     sys.path.insert(0, str(_TESTS_LIB))
 
-from hermetic import hermetic_git_env  # type: ignore[import-not-found]
-
 # Direct module import (not subprocess) for unit-level testing of pure
 # helpers like `_is_doc_only_changeset` — safe because `main()` only runs
 # under `if __name__ == "__main__":`, so importing has no side effects.
 import importlib.util as _importlib_util
+
+from hermetic import hermetic_git_env  # type: ignore[import-not-found]
 
 _pcr_spec = _importlib_util.spec_from_file_location("pre_commit_review_direct", _HOOK)
 assert _pcr_spec is not None and _pcr_spec.loader is not None
