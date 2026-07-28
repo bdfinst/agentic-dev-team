@@ -14,11 +14,18 @@ Graphify is a separate opt-in (its footprint is repo-level, not because of a
 key).
 
 #1224 — Graphify's AST structural graph builds keyless: it is offered
-regardless of key presence, and on accept its keyless AST graph always builds.
-A provider key gates only the semantic-enrichment add-on (community names via
-`graphify label`, inferred edges via `extract --mode deep`). When no key is
-present, enrichment is skipped and recorded as `enrichment_skipped_no_key` —
-the graph still builds and the repo-level integration is still written.
+regardless of key presence, and on accept a graph always builds — either full
+extraction (with a working backend) or the `--code-only` fallback (without
+one). When no key is present, full extraction and the semantic-enrichment
+add-on (community names via `graphify label`, inferred edges via `extract
+--mode deep`) are skipped and recorded as `enrichment_skipped_no_key` — the
+`--code-only` graph still builds and the repo-level integration is still
+written.
+
+#1483 — `graphify extract .` (full extraction) is the target invocation, not
+`--code-only`: the semantic pass is what indexes docs/images, and a backend
+failure there must not discard a completed AST pass — it re-runs
+`--code-only` and reports the result as degraded, never as a full success.
 
 Content-guard sensor over the shipped project-init SKILL.md prose — a pure text
 grep, no state-mutating operations.
@@ -89,7 +96,7 @@ def test_repowise_subsection_present():
 
 def test_repowise_install_is_keyless_and_gitignored():
     text = _text()
-    assert "--index-only" in text  # keyless index
+    assert "--no-prose" in text  # keyless index (no --index-only flag exists)
     assert ".repowise/" in text  # gitignored index location
 
 

@@ -3,6 +3,11 @@ log must be ignored so corporate config and per-user metrics never leak into
 version control. The retired model-overrides.json no longer needs an entry.
 
 Ported from tests/repo/gitignore_overrides.bats (#673).
+
+.claude/project-stack.json (issue #1487) is the same class of regeneratable,
+pure-detection-output artifact: /setup's Step 11 downstream ignore-rule append
+is explicitly skipped in-repo, so this repo's curated .gitignore is the only
+place that keeps it from being captured by a stray `git add -A`.
 """
 
 from __future__ import annotations
@@ -20,6 +25,7 @@ from _repo_root import REPO_ROOT
         ".claude/model-ladder.json",
         ".claude/session-model",
         ".claude/metrics/model-routing.log",
+        ".claude/project-stack.json",
     ],
 )
 def test_path_is_gitignored(path: str) -> None:

@@ -79,6 +79,47 @@ def test_pip_install_only_runs_in_the_else_arm():
     ), "install must live in the else arm below the satisfied guard"
 
 
+def test_pip_install_success_message_is_gated_on_exit_status():
+    """#1486 — the `ok "installed from requirements-dev.txt"` line must sit
+    inside the `if <pip chain>; then` branch, never printed unconditionally
+    after the pip attempts run. A regression that hoists it out (or drops the
+    `if`) would report success even when every pip attempt failed."""
+    body = _dev_setup()
+    install_if_idx = body.index("if python3 -m pip install --quiet -r requirements-dev.txt")
+    then_idx = body.index("; then", install_if_idx)
+    ok_idx = body.index('ok "installed from requirements-dev.txt"')
+    else_idx = body.index("else", then_idx)
+    # The success message must fall strictly between `then` and the matching
+    # `else` — i.e. inside the success branch, not after the whole if/else.
+    assert then_idx < ok_idx < else_idx
+
+
+def test_pip_install_falls_back_through_pep668_escape_hatches():
+    """#1486 — a bare `pip install` is rejected outright on a PEP 668
+    externally-managed interpreter; the script must retry with `--user` and
+    then `--break-system-packages`, in that order, before giving up — both
+    anchored inside the same `if <pip chain>; then` this file's sibling tests
+    anchor to, not merely present somewhere in the script."""
+    body = _dev_setup()
+    install_if_idx = body.index("if python3 -m pip install --quiet -r requirements-dev.txt")
+    then_idx = body.index("; then", install_if_idx)
+    user_idx = body.index("--user -r requirements-dev.txt")
+    break_idx = body.index("--break-system-packages -r requirements-dev.txt")
+    assert install_if_idx < user_idx < break_idx < then_idx
+
+
+def test_pip_install_failure_reports_error_and_notes_failure():
+    """#1486 — when every pip attempt fails, the else arm must print an
+    actionable error and call note_failure(), not silently continue."""
+    body = _dev_setup()
+    install_if_idx = body.index("if python3 -m pip install --quiet -r requirements-dev.txt")
+    else_idx = body.index("else", install_if_idx)
+    fi_idx = body.index("\nfi\n", else_idx)
+    else_arm = body[else_idx:fi_idx]
+    assert "pip install -r requirements-dev.txt failed" in else_arm
+    assert "note_failure" in else_arm
+
+
 def test_probe_module_list_covers_every_requirement():
     """Every requirements-dev.txt dist is checked by the probe: importable ones
     appear in the find_spec module list; ruff (CLI-only) via shutil.which."""

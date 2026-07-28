@@ -55,10 +55,11 @@ function."
 
 ### CodeGraph
 
-- Offered opt-in during `/project-init`'s "Step 4c — Offer graph-tools"
+- Offered opt-in during `/project-init`'s Step 4c
   ([`skills/project-init/SKILL.md`](../skills/project-init/SKILL.md)) as part
-  of the CodeGraph + Repowise + Graphify all-or-none group: the skill checks
-  `command -v codegraph` and the presence of `.codegraph/`, and when the group
+  of the keyless CodeGraph + Repowise all-or-none pair (Graphify is a separate
+  opt-in — see below): the skill checks `command -v codegraph` and the
+  presence of `.codegraph/`, and when the pair
   is accepted **installs the CLI keylessly** (`npm install -g
   @colbymchenry/codegraph`) and builds the index non-interactively
   (`codegraph init .`, no `-i`), recording the choice in
@@ -85,9 +86,10 @@ function."
 
 ### Repowise
 
-- Offered opt-in during `/project-init`'s "Step 4c — Offer graph-tools"
+- Offered opt-in during `/project-init`'s Step 4c
   ([`skills/project-init/SKILL.md`](../skills/project-init/SKILL.md)),
-  alongside CodeGraph and Graphify as one **all-or-none** group.
+  alongside CodeGraph as one **all-or-none** keyless pair (Graphify is a
+  separate opt-in, offered after this pair — see below).
 - Installed keyless (`uv`/`pipx`/`pip`), it indexes without prompting for an
   LLM API key and stores its index under `.repowise/`, which is gitignored so
   the index never clutters the repo.
@@ -106,15 +108,19 @@ function."
   (`.claude/skills/graphify/SKILL.md` in this repo), not part of the
   `dev-team` plugin's shipped skill set.
 - Also offered opt-in during `/project-init`'s Step 4c, after the keyless
-  CodeGraph + Repowise pair. **Graphify's AST structural graph builds keyless**
-  — `graphify extract .` runs the AST pass with no model/API key, exits 0, and
-  produces the `graph.json` the agents traverse (issue #1224). A model/API key
-  is required **only** for the semantic-enrichment layer: human-readable
-  community names (`graphify label`) and inferred edges (`extract --mode
-  deep`). When accepted, the skill builds the keyless graph (`graphify extract
-  .`, or `graphify update .` when a graph already exists) and offers enrichment
-  only when a key is present; when graphify is absent, consuming agents fall
-  back to `Read`/`Grep`/`Glob`.
+  CodeGraph + Repowise pair. **Only Graphify's AST pass builds keyless** —
+  `graphify extract .` is full extraction (AST + semantic LLM pass) and is the
+  target invocation, producing the `graph.json` the agents traverse (issue
+  #1224); a model/API key with a working backend is required for the semantic
+  pass, which is what indexes docs and images, not just community names and
+  inferred edges (issue #1483). Without a working backend, use
+  `graphify extract . --code-only` instead — a degraded, code-only graph, not
+  the full multi-modal index. When accepted, the skill runs full extraction
+  when a key/backend is available (or `graphify update .` when a graph already
+  exists), falling back to `--code-only` when it is not, and offers the
+  further label/`--mode deep` enrichment add-ons only on top of a successful
+  full extraction; when graphify is absent, consuming agents fall back to
+  `Read`/`Grep`/`Glob`.
 - Build a graph with `graphify extract .` (or the full `/graphify` pipeline),
   which writes `graphify-out/graph.json` (gitignored) plus
   `graphify-out/GRAPH_REPORT.md` and an HTML visualization.
@@ -171,8 +177,8 @@ All three are optional and independently adopted per project:
 - CodeGraph requires an explicit `/project-init` opt-in and a successful
   `codegraph init`; a project can decline both the install and the init
   prompts and never have `.codegraph/`.
-- Repowise requires the `/project-init` graph-tools opt-in and a keyless
-  index; a project can decline it and never have `.repowise/` or the MCP
+- Repowise requires the `/project-init` code-lookup-tools opt-in and a
+  keyless index; a project can decline it and never have `.repowise/` or the MCP
   server registered — and even when installed, the grant is inert if the
   server name differs (see the coupling caveat above).
 - Graphify requires someone to run `/graphify` (or `graphify extract`) at

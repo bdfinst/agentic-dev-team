@@ -14,6 +14,8 @@ bats -> pytest).
 
 from __future__ import annotations
 
+import re
+
 from _repo_root import REPO_ROOT
 
 PLUGIN_DOCS = REPO_ROOT / "plugins" / "dev-team"
@@ -51,11 +53,19 @@ BANNED_TARGETS = [
 
 
 def test_no_metaphor_as_mechanism_buzzwords_in_shipped_plugin_prose() -> None:
+    # Word-boundary match (not raw substring): a banned phrase must appear as
+    # its own word(s), not merely as a run of characters inside an unrelated
+    # identifier — e.g. the real env var `GEMINI_API_KEY` contains "gemini"
+    # as a substring but is not the banned "Gemini" buzzword (issue #1483:
+    # project-init/SKILL.md must be able to name that key literally). `_` is
+    # a `\w` character, so `\bgemini\b` correctly excludes it while still
+    # matching "Gemini" anywhere it stands alone.
     hits = []
     for file in sorted(PLUGIN_DOCS.rglob("*.md")):
         content = file.read_text(encoding="utf-8").lower()
         for phrase in BANNED_PHRASES:
-            if phrase.lower() in content:
+            pattern = r"\b" + re.escape(phrase.lower()) + r"\b"
+            if re.search(pattern, content):
                 hits.append(f'{file.relative_to(REPO_ROOT)}: "{phrase}"')
 
     assert not hits, (
