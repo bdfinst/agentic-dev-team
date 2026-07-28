@@ -11,7 +11,7 @@ from __future__ import annotations
 import json
 import subprocess
 import sys
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 import pytest
@@ -105,13 +105,29 @@ def _write_dispatch_evidence(work: Path) -> None:
     subject_hash = result.stdout.strip()
     log = work / ".claude" / "metrics" / "boundary-events.jsonl"
     log.parent.mkdir(parents=True, exist_ok=True)
-    now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    # Anchor the seeded dispatch timestamp to the gate file's OWN mtime — which
+    # is exactly what the hook uses as the recency window's upper bound
+    # (`before_ts`; see review_gate_corroboration.mtime_to_iso). The window is
+    # inclusive-upper: `(before_ts - WINDOW_SECONDS, before_ts]`.
+    #
+    # Stamping wall-clock `now()` here was flaky under `pytest -n auto` (#1505):
+    # this evidence is written just AFTER `_write_gate`, and both timestamps are
+    # truncated to whole seconds. Under worker contention the gate-write and
+    # this evidence-write can straddle a 1-second boundary, so `now()` floors to
+    # one second LATER than the gate mtime — landing just past `before_ts` and
+    # falling outside the window ("outside the 1800s window"). Seeding a fixed
+    # margin BEFORE the gate mtime is immune to that boundary and to system
+    # load, while staying far inside the 1800s window.
+    gate_mtime = (work / ".claude" / "memory" / ".review-passed").stat().st_mtime
+    stamp = (
+        datetime.fromtimestamp(gate_mtime, tz=timezone.utc) - timedelta(seconds=60)
+    ).strftime("%Y-%m-%dT%H:%M:%SZ")
     with log.open("a", encoding="utf-8") as fh:
         for agent in ("security-review", "structure-review"):
             fh.write(
                 json.dumps(
                     {
-                        "ts": now,
+                        "ts": stamp,
                         "hook": "agent_dispatch_ledger",
                         "tool": "Agent",
                         "decision": "record",
