@@ -2895,11 +2895,11 @@
       "anchor": "parse-arguments"
     },
     "Steps": {
-      "summary": "Read `.claude/memory/<workflow>/<slug>/baseline-coverage.json`.",
+      "summary": "Read `.dev-team-reports/<workflow>/<slug>/data/baseline-coverage.json`.",
       "anchor": "steps"
     },
     "1. Load the baseline": {
-      "summary": "Read `.claude/memory/<workflow>/<slug>/baseline-coverage.json`.",
+      "summary": "Read `.dev-team-reports/<workflow>/<slug>/data/baseline-coverage.json`.",
       "anchor": "1-load-the-baseline"
     },
     "2. Re-run coverage": {

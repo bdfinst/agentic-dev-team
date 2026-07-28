@@ -33,7 +33,7 @@ Arguments: $ARGUMENTS
 
 ### 1. Load the baseline
 
-Read `.claude/memory/<workflow>/<slug>/baseline-coverage.json`. If missing, tell the operator the baseline has not been captured (`/coverage-baseline` must run first; for `/test-improve` that is Phase 2) and stop.
+Read `.dev-team-reports/<workflow>/<slug>/data/baseline-coverage.json`. If missing, tell the operator the baseline has not been captured (`/coverage-baseline` must run first; for `/test-improve` that is Phase 2) and stop.
 
 ### 2. Re-run coverage
 
