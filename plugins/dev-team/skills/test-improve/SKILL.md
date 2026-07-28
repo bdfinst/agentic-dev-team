@@ -765,64 +765,24 @@ output path.
 
 **Output path.** `.dev-team-reports/test-improve/<slug>/report-<date>.md` —
 the file is always relative to the invocation directory, whether the run used
-a tracker sink or local-files mode. Its git-tracked `data/` sibling (see "Copy
-report data" below) is `.dev-team-reports/test-improve/<slug>/data/`.
-
-**Copy report data (before rendering).** Before interpolating the template,
-unconditionally **copy** (never move) the following from their canonical
-`.claude/memory/test-improve/<slug>/` working-copy locations into
-`.dev-team-reports/test-improve/<slug>/data/`: `baseline-coverage.json`,
-`baseline-mutation.json` (only when `baseline+kill-loop` mode ran), and
-`coverage-history.json`. This copy is unconditional — it does not depend on
-any Phase-0 opt-in. The canonical `.claude/memory/` copy that
-`/coverage-baseline`/`/coverage-delta`/`/quality-targets-converge` read and
-write is left completely in place, untouched — this is a copy for the report,
-never a relocation of that shared contract. **If a canonical copy is absent**
-(e.g. re-running Phase 9 alone in a checkout where only `data/` was ever
-tracked — the `.claude/memory/` state has since been cleaned), skip the copy
-for that file and read directly from whatever `data/` already has.
-
-**Existing-copy guard (`baseline-coverage.json`).** The same keep/overwrite
-consent-gate discipline as Phase 1's `test-counts-before.json` guard above
-applies here: before copying a freshly-captured `baseline-coverage.json` over
-an **existing** `data/` copy for the resolved slug, prompt (interactive
-session): *"An existing
-baseline-coverage.json was found under data/ for `<slug>` — overwrite it
-(recaptures the baseline every downstream delta compares against) or keep it
-(reuse the existing tracked baseline)? `[keep/overwrite, default: keep]`"*
-Answering `overwrite` replaces the `data/` copy with the fresh
-`.claude/memory/` capture. Answering `keep` (or declining) leaves the
-existing `data/` copy in place — the fresh capture is **not** copied over it.
-An unrecognized answer re-prompts with the identical text, same as Phase 1's
-guard. When the run is **non-interactive** (no usable TTY /
-`DEV_TEAM_AUTO_APPROVE=1`), the prompt is never shown; Phase 9 keeps the
-existing `data/` copy and logs the auto-decision, per
-`decision-defaults.md`'s non-interactive rule.
-
-**Existing-copy guard (`baseline-mutation.json`, `baseline+kill-loop` mode
-only).** The identical guard applies to `baseline-mutation.json`'s `data/`
-copy, with wording specific to what a mutation-baseline recapture means:
-*"An existing baseline-mutation.json was found under data/ for `<slug>` —
-overwrite it (recaptures the mutation kill-rate baseline every downstream
-delta compares against) or keep it (reuse the existing tracked baseline)?
-`[keep/overwrite, default: keep]`"* Same keep/overwrite/unrecognized-answer
-behavior as `baseline-coverage.json`'s guard above. When the run is
-**non-interactive** (no usable TTY / `DEV_TEAM_AUTO_APPROVE=1`), Phase 9
-keeps the existing `data/` copy and logs the auto-decision — never
-overwriting silently.
+a tracker sink or local-files mode. Its git-tracked `data/` sibling is
+`.dev-team-reports/test-improve/<slug>/data/`.
 
 **Interpolation.** Every placeholder is **interpolated** from two sources:
 the git-tracked `.dev-team-reports/test-improve/<slug>/data/` directory
 (`test-counts-before.json`, `test-counts-after.json` if Phase 8 ran,
 `baseline-coverage.json`, `baseline-mutation.json` in `baseline+kill-loop`
-mode, and `coverage-history.json` — copied there by the step above, or
-already present when the canonical copy was absent), and the process/audit
-state still under `.claude/memory/test-improve/<slug>/` (`phase-0.md`,
-`phase-1.md`, `phase-4.md`, `phase-5-review.json`, `phase-7-review.json` if
-Phase 7 ran, `waivers.json`, `phase-8.md`), plus
+mode, and `coverage-history.json` — each already current there, written
+directly at the point of capture by Phase 2 and Phase 5 respectively), and the
+process/audit state still under `.claude/memory/test-improve/<slug>/`
+(`phase-0.md`, `phase-1.md`, `phase-4.md`, `phase-5-review.json`,
+`phase-7-review.json` if Phase 7 ran, `waivers.json`, `phase-8.md`), plus
 `.dev-team-reports/test-improve/<slug>/refactor-backlog.md` if Phase 6 chose
-`[b]` or Phase 8 wrote a no-refactor-mode entry to it. No placeholder is left
-literal.
+`[b]` or Phase 8 wrote a no-refactor-mode entry to it. `mutation-history.json`
+is outside this interpolation set — and always has been; it is consumed by
+`/coverage-delta` and `/quality-targets-converge`, not by the
+executive-summary report, so its absence from this list is not the bug this
+plan fixes. No placeholder is left literal.
 
 **Empty-section rule.** Sections with no data render `_Not applicable —
 <reason>._` (e.g. § 6 when Phase 7 was declined reads "*Phase 7 not run —
@@ -848,14 +808,12 @@ updated with the same link.
 
 **Regeneratable-from-tracked-data contract.** The report is a **pure
 function** of the git-tracked `.dev-team-reports/test-improve/<slug>/data/`
-directory (the numbers) plus the process/audit state still under
-`.claude/memory/test-improve/<slug>/` (the narrative). Deleting the report
-file and re-invoking Phase 9 reproduces the report byte-for-byte: when the
-`.claude/memory/` working copies are still present (a normal same-session
-run), the "Copy report data" step above refreshes `data/` from them first;
-when they are absent (e.g. a fresh checkout where only `data/` survived), the
-same step falls back to reading `data/`'s already-present copies directly —
-either path reproduces the identical report.
+directory (the numbers, already current by construction — each file was
+written directly there at the point of capture) plus the process/audit
+narrative still under `.claude/memory/test-improve/<slug>/`. Deleting the
+report file and re-invoking Phase 9 reproduces the report byte-for-byte —
+there is no copy step to re-run, and always exactly one place to read the
+numbers from; Phase 9 always reads `data/` directly, unconditionally.
 
 ### After Phase 9 — Re-run-with-refactor close-out prompt
 
