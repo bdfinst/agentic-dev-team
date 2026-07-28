@@ -56,3 +56,33 @@ directly when the user has asked for it; a direct merge can bypass checks and lo
 Trigger: a request names specific files, slides, or targets. Default: change only
 those; do not expand scope to adjacent items. Confirm: if neighboring changes seem
 warranted, propose them separately rather than folding them in unasked.
+
+## Re-capture: keep vs. overwrite an existing tracked artifact
+
+Trigger: a worker is about to re-run an expensive capture for an artifact that
+already has a tracked copy for the same key (e.g. a coverage baseline, a mutation
+history entry, a benchmark snapshot). Default: **keep** — recommend reuse of the
+existing tracked artifact, and confirm before discarding what may be a comparison
+baseline. Overwriting without confirmation risks silently invalidating the
+baseline every later phase measures against.
+
+Mechanics:
+
+- **Interactive**: prompt keep/overwrite with default keep. An unrecognized answer
+  (anything other than "keep" or "overwrite", case-insensitive) re-prompts with the
+  identical choice — never silently falls back to either option. There is no retry
+  limit and no timeout; the guard keeps re-prompting until it receives "keep" or
+  "overwrite".
+- **Non-interactive** (no usable TTY, or `DEV_TEAM_AUTO_APPROVE=1`): keep the
+  existing tracked artifact automatically, without prompting. The auto-decision is
+  both **logged** (to the worker's own record/audit trail) **and echoed** to run
+  output — a decision recorded only to a file the operator never sees is not an
+  auto-decision the operator can trust.
+- **Existing file is malformed or corrupt**: if the existing tracked artifact fails to parse
+  (e.g. invalid JSON from a prior interrupted write), treat it as absent — never
+  silently keep a file that cannot be read back. Emit a warning naming why a fresh
+  capture is happening.
+
+Confirm: on overwrite, replace the tracked artifact with the fresh capture; on keep
+(or an equivalent non-interactive default), skip the expensive capture entirely and
+reuse the existing artifact's recorded values.
