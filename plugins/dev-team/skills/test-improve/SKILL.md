@@ -295,7 +295,7 @@ the whole run.
 
 **Coverage baseline.** Invoke `/coverage-baseline --workflow test-improve`
 against the resolved repo path. `/coverage-baseline` owns its own
-existing-baseline guard and persist step — see `coverage-baseline/SKILL.md`'s
+existing-baseline guard and persist step — see `../coverage-baseline/SKILL.md`'s
 "Existing-baseline guard" and "Persist the baseline" steps for the full
 mechanics. The result lands directly and atomically at
 `.dev-team-reports/test-improve/<slug>/data/baseline-coverage.json`; there is
