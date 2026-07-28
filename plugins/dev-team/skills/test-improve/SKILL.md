@@ -38,8 +38,8 @@ You have been invoked with the `/test-improve` command.
 3. **Confirm the approach first.** Phase 0 owns the approach contract; do not
    start work until it has completed and its answers are persisted.
 4. **Baseline before changing anything.** Coverage (and mutation, when
-   enabled) must land in `.claude/memory/test-improve/<slug>/` before any file under
-   the stack's test directory is modified.
+   enabled) must land directly in `.dev-team-reports/test-improve/<slug>/data/`
+   before any file under the stack's test directory is modified.
 5. **Be concise.** Report each phase's outcome and the next gate, nothing
    more.
 
