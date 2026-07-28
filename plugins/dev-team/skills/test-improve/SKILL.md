@@ -453,9 +453,19 @@ configured static-analysis tooling at all, the key is `0`, not omitted.
 
 **Existing-snapshot guard.** Before persisting, check whether
 `test-counts-before.json` already exists under
-`.dev-team-reports/test-improve/<slug>/data/` for the resolved slug. **No
-existing file** → write the fresh snapshot directly; no prompt is needed. **An
-existing file**, interactive session → prompt: *"An existing
+`.dev-team-reports/test-improve/<slug>/data/` for the resolved slug. This
+guard is Phase 1's application of the shared existing-tracked-artifact
+re-capture guard — the canonical definition and rationale live once in
+`knowledge/decision-defaults.md`'s "Re-capture: keep vs. overwrite an existing
+tracked artifact" axis; this step cites that axis for the *why* and spells out
+the operational branches below so an executing agent doesn't need to open a
+second file mid-task. **No existing file** → write the fresh snapshot
+directly; no prompt is needed. **An existing file that is malformed or
+corrupt** (fails to parse as JSON — e.g. left over from a prior interrupted
+write) → treat it as absent, never as a snapshot to keep; emit a warning
+naming why a fresh capture is happening, then write the fresh snapshot
+directly (no prompt — there is nothing valid to keep). **An existing, readable
+file**, interactive session → prompt: *"An existing
 test-counts-before.json was found for `<slug>` — overwrite it (starts a fresh
 before/after comparison) or keep it (reuse for this run)? `[keep/overwrite,
 default: keep]`"* Answering `overwrite` replaces the existing file with a
@@ -466,7 +476,10 @@ text — it never silently falls back to the default. When the run is
 **non-interactive** (no usable TTY / `DEV_TEAM_AUTO_APPROVE=1`), the prompt is
 never shown; Phase 1 defaults to **keep existing** and logs the
 auto-decision, mirroring `decision-defaults.md`'s non-interactive rule — never
-a non-default stance (overwrite) with nobody present to confirm it.
+a non-default stance (overwrite) with nobody present to confirm it. The
+malformed-file branch above is the one exception to that keep-by-default
+posture — an unreadable file is treated as absent in every mode, since there
+is nothing valid to keep.
 
 This pass does **not** invoke `/test-health` or `/cd-test-architecture`'s
 full skill.
