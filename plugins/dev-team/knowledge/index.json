@@ -4895,7 +4895,7 @@
       "anchor": "8-report"
     },
     "Examples / Integration": {
-      "summary": "`/test-improve` invokes this worker from Phase 8 with `--workflow test-improve`; paths resolve as `.claude/memory/test-improve/<slug>/` and `.claude/plans/test-improve/phase-8/`.",
+      "summary": "`/test-improve` invokes this worker from Phase 8 with `--workflow test-improve`; paths resolve as `.claude/memory/test-improve/<slug>/` and `.claude/plans/test-improve/phase-8/`, with tracked evidence (coverage/mutation history, baselines) under `.dev-team-reports/test-improve/<slug>/data/`.",
       "anchor": "examples-integration"
     },
     "Notes": {
