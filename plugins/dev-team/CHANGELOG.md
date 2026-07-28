@@ -1,5 +1,37 @@
 # Changelog
 
+## [10.25.0](https://github.com/bdfinst/agentic-dev-team/compare/dev-team-v10.24.1...dev-team-v10.25.0) (2026-07-28)
+
+
+### Features
+
+* **coverage-baseline:** guard and persist baseline at the tracked path ([a5f2885](https://github.com/bdfinst/agentic-dev-team/commit/a5f28856d32641fadb7a31859a02522ca91beea1)), closes [#1491](https://github.com/bdfinst/agentic-dev-team/issues/1491)
+* **coverage-delta:** append coverage-history.json under tracked data/ ([0aa2075](https://github.com/bdfinst/agentic-dev-team/commit/0aa2075c86fc9b539b08b28b8ae9d7e7c91c5213))
+* **coverage-delta:** persist mutation-history.json under tracked data/ ([ff2799c](https://github.com/bdfinst/agentic-dev-team/commit/ff2799c947f9aeaa25f56f164cd80416917c2c3d))
+* **coverage-delta:** read baseline-coverage.json from tracked data/ ([27ffd88](https://github.com/bdfinst/agentic-dev-team/commit/27ffd882c91c3826839267349712584777b5fd61))
+* **quality-targets-converge:** read coverage-history.json from tracked data/ ([89a910e](https://github.com/bdfinst/agentic-dev-team/commit/89a910e1be37405f342aca4de915ed7df5b13df5))
+* **quality-targets-converge:** read mutation-history.json from tracked data/, atomic write-back ([d69da67](https://github.com/bdfinst/agentic-dev-team/commit/d69da67d885f2e4e0625c9d6eb089c2f62f461a0))
+* **test-improve:** capture Phase 2 baselines directly to tracked data/ ([8e8b193](https://github.com/bdfinst/agentic-dev-team/commit/8e8b193ed7ca796133efcfe1a641bb231681cdd7))
+
+
+### Bug Fixes
+
+* **hooks:** agent_dispatch_ledger never matches plugin-qualified subagent_type ([c9c1f99](https://github.com/bdfinst/agentic-dev-team/commit/c9c1f992fb9e38b17ca6ec11323da14bfa7eff8d))
+* **lint:** clear repo-wide ruff debt so the pre-push gate is green ([d3e34a3](https://github.com/bdfinst/agentic-dev-team/commit/d3e34a3e31ba3dc1059c68819147182a809c63d0))
+* **quality-targets-converge:** point gherkin-effectiveness rollup at tracked baselines ([90efe5f](https://github.com/bdfinst/agentic-dev-team/commit/90efe5f92a6f190d65213f301d5edc8f9ddaec05))
+* **quality-targets-converge:** remove stale knob-7 opt-in language ([7bda2fd](https://github.com/bdfinst/agentic-dev-team/commit/7bda2fdf12445ba3670fcd234e492454ed387b35))
+* **test-improve:** correct Phase 8's whole-repo-splice source description ([a685289](https://github.com/bdfinst/agentic-dev-team/commit/a6852895b0eb33f91b8a022bf0368972c69e3ae1))
+* **test-improve:** correct two code-review findings from the final panel ([ba89d06](https://github.com/bdfinst/agentic-dev-team/commit/ba89d069c7cfdf08ba07d07ac07a04b2f242ad8b))
+* **test-improve:** make the coverage-baseline cross-reference file-relative ([5236f28](https://github.com/bdfinst/agentic-dev-team/commit/5236f287b5f526c91ed8710497cdfb3d85b81360))
+* **test-improve:** point Phase 5 coverage-history mention at tracked data/ ([318519b](https://github.com/bdfinst/agentic-dev-team/commit/318519b6dd4a67bf2108da4836079aefda0b4648))
+* **test-improve:** remove Phase 9's now-redundant copy-report-data step ([24876a2](https://github.com/bdfinst/agentic-dev-team/commit/24876a2e83ce9a6fd8468ebb14bf87a3cbcb1aee))
+* **tests:** resolve xdist parallel-worker races on shared /tmp and careful-state.json ([9887aee](https://github.com/bdfinst/agentic-dev-team/commit/9887aee9fa74395f9d2bb9bcb0f914d8507919cf))
+
+
+### Documentation
+
+* correct report-output-location.md's [#1412](https://github.com/bdfinst/agentic-dev-team/issues/1412) rationale wording ([eafe06b](https://github.com/bdfinst/agentic-dev-team/commit/eafe06b4e04bf68ecc4a07505553d162269ecd18))
+
 ## [10.24.1](https://github.com/bdfinst/agentic-dev-team/compare/dev-team-v10.24.0...dev-team-v10.24.1) (2026-07-28)
 
 
