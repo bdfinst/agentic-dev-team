@@ -79,8 +79,8 @@ FUNCTIONAL_CONFIG_NAMES = frozenset({"claude.md", "agents.md"})
 CORE_FUNCTIONAL_CONFIG_SEGMENTS = frozenset({".claude", "agents", "skills", "prompts", "knowledge"})
 
 __all__ = (
+    "CORE_FUNCTIONAL_CONFIG_SEGMENTS",
     "DOC_EXTENSIONS",
     "DOC_ROOT_WORDS",
     "FUNCTIONAL_CONFIG_NAMES",
-    "CORE_FUNCTIONAL_CONFIG_SEGMENTS",
 )

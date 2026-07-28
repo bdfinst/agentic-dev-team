@@ -63,7 +63,7 @@ _LIB_DIR = Path(__file__).resolve().parent
 if str(_LIB_DIR) not in sys.path:
     sys.path.insert(0, str(_LIB_DIR))
 
-from git_safe_diff import run_safe_git_diff  # noqa: E402
+from git_safe_diff import run_safe_git_diff
 
 
 def review_gate_hash(cwd: Path | None = None) -> str:

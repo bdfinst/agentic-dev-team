@@ -510,7 +510,7 @@ class GateVerdict:
     """One evaluated outcome of `_evaluate_gate`: whether the gate passes,
     and — when it doesn't — the message and `matched_rule` to report."""
 
-    __slots__ = ("passed", "message", "matched_rule")
+    __slots__ = ("matched_rule", "message", "passed")
 
     def __init__(self, passed: bool, message: str = "", matched_rule: str = "") -> None:
         self.passed = passed

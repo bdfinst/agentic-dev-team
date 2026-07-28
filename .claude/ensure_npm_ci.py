@@ -77,8 +77,7 @@ def main() -> int:
                 f"inert until you run npm ci by hand. See {log_path}."
             )
         return 0
-    except Exception:
-        # Never let this hook block or fail session start.
+    except Exception:  # noqa: BLE001 - never let this hook block or fail session start.
         return 0
 
 

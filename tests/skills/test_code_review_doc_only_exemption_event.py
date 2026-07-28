@@ -29,7 +29,7 @@ _LIB_DIR = PLUGIN_ROOT / "hooks" / "lib"
 if str(_LIB_DIR) not in sys.path:
     sys.path.insert(0, str(_LIB_DIR))
 
-import boundary_events  # type: ignore[import-not-found]  # noqa: E402
+import boundary_events  # type: ignore[import-not-found]
 
 
 def test_doc_only_short_circuit_emits_the_exemption_boundary_event():
