@@ -243,20 +243,27 @@ single all-or-none group of #1108):
   run — it is not a "print instructions and leave it to the user" step (issues
   #1134, #1135). CodeGraph installs its CLI (`npm install -g
   @colbymchenry/codegraph`) and runs `codegraph init .`; Repowise installs and
-  runs a `--index-only` index.
-- **Graphify — keyless AST build, with an optional key-gated enrichment
-  add-on.** Graphify's **AST structural graph builds with no model/API key** —
-  `graphify extract .` (and `graphify update .`) run keyless, exit 0, and
-  produce the `graph.json` that `graphify query`/`path`/`explain` traverse. A
-  model/API key is required **only** for the *semantic-enrichment layer*:
-  inferred edges (`extract --mode deep`) and human-readable community names
-  (`graphify label`; without it communities stay `Community N` placeholders).
-  Graphify is offered as **its own opt-in prompt after the keyless pair** —
-  separate not because of a key, but because its integration is **repo-level**
-  (it writes a `## graphify` CLAUDE.md section + git hooks; see the sub-section
-  below). On accept, always build the keyless AST graph; then, **only when a
-  provider key is present**, additionally offer semantic enrichment. When
-  Graphify is absent the agents that use it fall back gracefully (see
+  runs `repowise init . --no-prose -y` for a keyless index.
+- **Graphify — full extraction is the target; `--code-only` is a degraded
+  fallback, not the goal.** `graphify extract .` is Graphify's documented
+  headless full extraction (**AST + semantic LLM pass**) — it is what indexes
+  this plugin's multi-modal target (code + docs + schemas + infra) into the
+  `graph.json` that `graphify query`/`path`/`explain` traverse. Only the
+  **AST pass** builds with **no model/API key**; the **semantic pass** is what
+  pulls docs and images into the graph at all — with no working backend, that
+  pass is skipped and `--code-only` must be used explicitly, which excludes
+  docs and images. Two further add-ons sit on top of a successful full
+  extraction and are also key-gated: inferred edges (`extract --mode deep`)
+  and human-readable community names (`graphify label`; without them
+  communities stay `Community N` placeholders). Graphify is offered as
+  **its own opt-in prompt after the keyless pair** — separate not because of a
+  key, but because its integration is **repo-level** (it writes a `## graphify`
+  CLAUDE.md section + git hooks; see the sub-section below). On accept: with a
+  working backend, run full extraction, repairing the backend's dependencies
+  first if needed and never discarding a completed AST pass if the semantic
+  pass then fails; without one, build the **code-only** graph and say so
+  plainly — it is a degraded index, not the full one. When Graphify is absent
+  the agents that use it fall back gracefully (see
   `knowledge/codegraph-vs-graphify.md`).
 
 **Detect which are already present** (so re-runs are idempotent and each offer
@@ -264,7 +271,13 @@ scopes to the *missing* set):
 
 - CodeGraph — `command -v codegraph` succeeds **and** `.codegraph/` exists.
 - Repowise — the Repowise MCP server is registered / `.repowise/` exists.
-- Graphify — `command -v graphify` succeeds **and** `graphify-out/graph.json` exists.
+- Graphify — `command -v graphify` succeeds, `graphify-out/graph.json` exists,
+  **and** it is not a degraded build waiting on a key that has since shown up:
+  if `.claude/init-state.json` has `graphify.code_only_build == true` **and** a
+  provider key is now present, treat Graphify as still in the missing set (so
+  the opt-in re-offers full extraction) rather than as already present — a
+  `--code-only` graph must not permanently block ever reaching the full index
+  (issue #1483). Otherwise, present.
 
 Also read `.claude/init-state.json`: honor any prior **explicit decline**
 (e.g. `codegraph.install_declined == true`) — a declined tool is excluded from
@@ -289,7 +302,7 @@ to re-prompt`).
     - CodeGraph  — personal, user-level MCP; nothing committed to the repo.
                    Keyless: `npm install -g @colbymchenry/codegraph` + `codegraph init .`.
     - Repowise   — local keyless index under .repowise/ (gitignored); MCP server.
-                   Keyless: `--index-only`, no API key requested.
+                   Keyless: `init . --no-prose -y`, no API key requested.
   ```
 
 **Under `--yes`, treat the keyless-pair prompt as yes** and install the whole
@@ -323,24 +336,46 @@ in the missing set (regardless of key presence — its AST graph builds keyless)
      - Graphify — repo-level: writes a `## graphify` section into this repo's
                   CLAUDE.md and installs git hooks (guarded against the known
                   over-delete bug — see the Graphify sub-section).
-                  Its AST structural graph builds WITHOUT an API key.
+                  Its AST structural graph builds WITHOUT an API key; indexing
+                  docs and images needs a working backend (see below).
    ```
 
 3. **On yes:** run the Graphify sub-section below (install + guarded native
-   integration + **keyless** `graphify extract .`), recording the accept in
+   integration + build the graph — full extraction when a working backend is
+   available, `--code-only` fallback otherwise), recording the accept in
    `.claude/init-state.json`.
-4. **Semantic enrichment (key-gated add-on).** After the keyless graph is
-   built, detect a provider key — `ANTHROPIC_API_KEY`, `GOOGLE_API_KEY`,
-   `MOONSHOT_API_KEY`, `OPENAI_API_KEY` (among the set graphify's own error
-   lists):
-   - **Key present:** offer `graphify label` (community naming) and/or
-     `extract --mode deep` (inferred edges) on top of the keyless graph. Its
-     build stays non-fatal (partial-failure rule) if the key is rejected at
-     build time.
-   - **No key:** the keyless graph stands as-is; print `Graphify: keyless AST graph built — set a provider key (e.g. ANTHROPIC_API_KEY) and re-run /project-init for semantic enrichment (community names + inferred edges).` Merge
-     `{"graphify": {"enrichment_skipped_no_key": true}}` into
-     `.claude/init-state.json`.
-5. **On no:** install nothing, record `{"graphify": {"install_declined": true}}`.
+4. **Full extraction vs. `--code-only` fallback.** Detect a provider key —
+   `ANTHROPIC_API_KEY`, `GEMINI_API_KEY`, `GOOGLE_API_KEY`, `MOONSHOT_API_KEY`,
+   `OPENAI_API_KEY` (`GEMINI_API_KEY` and `GOOGLE_API_KEY` both select the
+   same backend — `.claude/skills/graphify/SKILL.md`'s own detection checks
+   either):
+   - **Key present:** run full extraction (`graphify extract .`), first
+     verifying/repairing the selected backend's dependency (the Graphify
+     sub-section's backend-repair step) so the semantic pass does not fail on
+     a missing extra. On success, merge `{"graphify": {"code_only_build":
+     false}}` — explicitly `false`, not omitted, so it overrides a `true` left
+     by an earlier degraded run. If the semantic pass still fails after the
+     AST pass succeeds, re-run `--code-only` to keep the completed AST work,
+     report the result as **degraded** — never as a full success — and merge
+     `{"graphify": {"code_only_build": true}}` so the next `/project-init` run
+     re-offers full extraction instead of treating this graph as done (issue
+     #1483; see the "Detect which are already present" rule above).
+   - **No key:** run `graphify extract . --code-only` directly and say so
+     plainly: `Graphify: no provider key — code-only graph built (docs/images
+     not indexed). Set a provider key (e.g. ANTHROPIC_API_KEY) and re-run
+     /project-init for the full index.` Merge
+     `{"graphify": {"enrichment_skipped_no_key": true, "code_only_build":
+     true}}` into `.claude/init-state.json` — the latter is what keeps this
+     run from being mistaken for a completed build once a key shows up.
+5. **Semantic enrichment (key-gated add-on, on top of a successful full
+   extraction).** `graphify label` (community naming) and
+   `extract . --mode deep` (inferred edges) are additional passes over an
+   already-fully-extracted graph — they do not gate whether docs/images are in
+   the graph at all (full extraction in step 4 does). Offer both when a
+   provider key is present and full extraction succeeded; both stay non-fatal
+   (partial-failure rule) if the key is rejected at build time. Skip entirely
+   when step 4 took the `--code-only` path.
+6. **On no:** install nothing, record `{"graphify": {"install_declined": true}}`.
 
 The per-tool mechanics below are unchanged; Step 4c only decides *whether* each
 runs. Each remains user-scoped/gitignored exactly as before, except Graphify's
@@ -458,7 +493,11 @@ It installs and indexes **without any LLM API key** and stores its index under
 Run this tool's install/index through the `repowise-setup` skill (or the
 `index-codebase` skill), which handles the install (`uv`/`pipx`/`pip`), adds
 `.repowise/` to git's **global** ignore so the index never clutters the repo,
-and runs a **keyless** index (`--index-only`, no provider key requested).
+and runs a **keyless** index (`repowise init . --no-prose -y`, no provider key
+requested). There is no `--index-only` flag — `--no-prose` renders the whole
+wiki from structure with no model/key, and `-y` skips the cost-confirmation
+prompt so an unattended `--yes` run does not block on it. Budget for it: on a
+~1600-file repo this took ~5.5 minutes.
 
 The install steps below run only when Step 4c's keyless-group opt-in accepts
 and Repowise is in the missing set. **The one exception is the `.mcp.json`
@@ -471,8 +510,8 @@ check (#1367) makes below.
 
 1. Install: prefer `uv tool install repowise`, else `pipx install repowise`,
    else `python3 -m pip install --user repowise`.
-2. Index keyless: run the repowise index in `--index-only` mode so no API key
-   is requested; the index lands under `.repowise/` (gitignored). This step
+2. Index keyless: run `repowise init . --no-prose -y` so no API key is
+   requested; the index lands under `.repowise/` (gitignored). This step
    (or an equivalent `repowise init` invocation) is known to write a
    project-root `.mcp.json` registering the repowise MCP server, with an
    `args` array baking in this machine's absolute filesystem path — the
@@ -654,11 +693,16 @@ fix_settings(Path(".claude/settings.json"), Path(".claude/settings.local.json"))
 This is what makes `/setup` self-healing for repos that already carry the
 baked-in path: no re-install, no opt-in prompt, just a scan-and-relocate.
 
-**Build the graph — keyless AST pass (issue #1224).** Graphify's AST
-structural graph builds with **no model/API key**: `graphify extract .` runs
-the AST pass, skips the semantic pass gracefully when no key is present, and
-exits 0 with a valid `graph.json`. This is the graph the agents actually
-traverse (`graphify query`/`path`/`explain`).
+**Build the graph — full extraction is the target (issue #1224, revised by
+#1483).** `graphify extract .` is documented in its own `--help` as headless
+full extraction (**AST + semantic LLM**) and is the invocation to run: it is
+what indexes this plugin's multi-modal target (code + docs + schemas + infra)
+into `graph.json`, the graph the agents actually traverse (`graphify
+query`/`path`/`explain`). Whether the semantic pass actually runs is gated on
+**backend health, not just key presence** — `extract` dispatches the semantic
+pass whenever a backend is configured, and discards the completed AST work if
+that pass then fails outright, so a naive `graphify extract .` can silently
+produce no `graph.json` at all despite a clean AST run.
 
 - **Idempotent:** if `graphify-out/graph.json` already exists, skip extraction
   and offer the incremental, keyless refresh instead:
@@ -667,27 +711,65 @@ traverse (`graphify query`/`path`/`explain`).
   graphify update .
   ```
 
-- **Otherwise build it (keyless):**
+- **Before extracting, repair the selected backend if a provider key is
+  present.** Graphify auto-selects a backend from whichever key it finds
+  (`ANTHROPIC_API_KEY`, `GEMINI_API_KEY`/`GOOGLE_API_KEY` — either selects the
+  same backend, `MOONSHOT_API_KEY`, `OPENAI_API_KEY`). At least one of these
+  backends routes through an OpenAI-compatible client and needs an extra a
+  plain `uv tool install graphifyy` does not provide. If the semantic pass
+  fails citing a missing package for the selected backend, install the matching
+  extra from the **fixed, hardcoded mapping** in `scripts/dev-setup.sh`'s
+  `GRAPHIFY_SPEC` selection (keyed off the same detected provider key) —
+  never a package/extra name copied out of the failing tool's own error text,
+  which is untrusted third-party output, not a safe source for a command to
+  run. `ANTHROPIC_API_KEY` and `MOONSHOT_API_KEY` need no extra.
+
+  ```bash
+  uv tool install "graphifyy[<extra from dev-setup.sh's GRAPHIFY_SPEC>]" --force   # or the pipx/pip equivalent
+  ```
+
+  If the extra install fails, or the failing backend has no entry in that
+  mapping, prefer selecting a backend whose deps are already present instead
+  — e.g. `graphify extract . --backend claude` when `ANTHROPIC_API_KEY` is
+  set, since that backend needs no extra.
+
+- **Run full extraction:**
 
   ```bash
   graphify extract .
   ```
 
-  This writes `graphify-out/graph.json` (gitignored) plus `GRAPH_REPORT.md`.
-  Without a provider key it structurally clusters communities but leaves them
-  unlabeled (`Community N`) and skips inferred edges — the structure is intact.
-- **Non-fatal:** if extraction fails, print the error, merge
-  `{"graphify": {"build_failed": true}}` into `.claude/init-state.json`, and
-  continue — never abort the rest of setup, and never claim the group fully
-  installed (the partial-failure rule). Agents that consume graphify fall back
-  to `Read`/`Grep`/`Glob` when `graphify-out/` is absent (see
-  `knowledge/codegraph-vs-graphify.md`).
+  This writes `graphify-out/graph.json` (gitignored) plus `GRAPH_REPORT.md`,
+  indexing code, docs, schemas, and infra. Without a provider key it
+  structurally clusters communities but leaves them unlabeled (`Community N`)
+  and skips inferred edges — the structure is intact.
+- **If the semantic pass fails after the AST pass already completed:** never
+  discard that finished work. Re-run `graphify extract . --code-only` to land
+  a graph from what already succeeded, and report the result as **degraded**
+  — e.g. `Graphify: semantic pass failed (<reason>) — code-only graph built,
+  docs/images not indexed. See error above.` Never report this as a full
+  success.
+- **`--code-only` is the fallback, never the default when a key is
+  present.** Use it directly only when no key is present or no backend can be
+  made to work, and say so plainly rather than reporting a successful full
+  build:
+  `Graphify: no usable backend — code-only graph built, docs/images not
+  indexed.`
+- **Non-fatal:** if extraction fails outright (the AST pass itself errors),
+  print the error, merge `{"graphify": {"build_failed": true}}` into
+  `.claude/init-state.json`, and continue — never abort the rest of setup,
+  and never claim the group fully installed (the partial-failure rule).
+  Agents that consume graphify fall back to `Read`/`Grep`/`Glob` when
+  `graphify-out/` is absent (see `knowledge/codegraph-vs-graphify.md`).
 
-**Semantic enrichment (key-gated add-on).** Only when a provider key is present
-(per Step 4c step 4), enrich the keyless graph: `graphify label` names the
-structural communities, and `graphify extract . --mode deep` adds INFERRED
-semantic edges. Both stay non-fatal — if the key is rejected at build time the
-keyless graph stands as-is. With no key, skip this step entirely.
+**Semantic enrichment (key-gated add-on, on top of a successful full
+extraction).** Only when a provider key is present (per Step 4c step 4) and
+full extraction above succeeded (not the `--code-only` fallback), further
+enrich the graph: `graphify label` names the structural communities, and
+`graphify extract . --mode deep` adds INFERRED semantic edges. Both stay
+non-fatal — if the key is rejected at build time the existing graph stands
+as-is. With no key, or when the graph is `--code-only`, skip this step
+entirely.
 
 **Gitignore advice.** `graphify hook install` creates machine-specific
 generated git hooks. Tell the user to gitignore them the same way this
@@ -754,11 +836,14 @@ After every configured lane probes green, give the user:
   (installed/initialized, MCP registration command printed or skipped) and
   Repowise state — plus Graphify state: installed with native integration
   applied (and whether the CLAUDE.md corruption guard fired and repaired
-  anything) and its keyless AST graph built, **whether semantic enrichment ran
-  or was skipped because no provider key was detected**, or declined. Note
-  CodeGraph is strictly user-level/personal and Graphify is the repo-level
-  native integration; its AST build is keyless, with semantic enrichment as a
-  key-gated add-on.
+  anything) and whether the graph it built was **full extraction** (docs and
+  images indexed) or the **`--code-only` fallback** (degraded — no provider
+  key or no working backend), **whether semantic enrichment ran or was
+  skipped because no provider key was detected or the graph was
+  `--code-only`**, or declined. Note CodeGraph is strictly user-level/personal
+  and Graphify is the repo-level native integration; only its AST pass is
+  keyless — full extraction (docs + images) needs a working backend, and
+  semantic enrichment is a further key-gated add-on on top of that.
 - **`.mcp.json` machine-specific-path hygiene** (issue #1416, runs
   independently of Repowise's own install/decline state): added the block,
   found it already covered, or flagged that `.mcp.json` is still git-tracked

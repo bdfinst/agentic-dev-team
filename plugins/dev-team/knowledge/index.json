@@ -277,15 +277,15 @@
       "anchor": "graphify"
     },
     "How each is installed and invoked here": {
-      "summary": "Offered opt-in during `/project-init`'s \"Step 4c — Offer graph-tools\"",
+      "summary": "Offered opt-in during `/project-init`'s Step 4c",
       "anchor": "how-each-is-installed-and-invoked-here"
     },
     "CodeGraph (2)": {
-      "summary": "Offered opt-in during `/project-init`'s \"Step 4c — Offer graph-tools\"",
+      "summary": "Offered opt-in during `/project-init`'s Step 4c",
       "anchor": "codegraph-1"
     },
     "Repowise (2)": {
-      "summary": "Offered opt-in during `/project-init`'s \"Step 4c — Offer graph-tools\"",
+      "summary": "Offered opt-in during `/project-init`'s Step 4c",
       "anchor": "repowise-1"
     },
     "Graphify (2)": {

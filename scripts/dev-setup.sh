@@ -204,29 +204,63 @@ fi
 # an isolated CLI app (uv/pipx), NOT into the repo's Python env. Optional and
 # best-effort throughout: absence never fails setup.
 section "Graphify (code knowledge graph)"
+# Graphify auto-selects a semantic-pass backend from whichever provider key is
+# present. The `gemini` backend (selected by GEMINI_API_KEY or GOOGLE_API_KEY —
+# see .claude/skills/graphify/SKILL.md) routes through an OpenAI-compatible
+# client and needs the `[gemini]` extra — a plain `graphifyy` install leaves
+# `graphify extract .` failing every semantic chunk the first time it runs
+# with only that key set (issue #1483). Install the matching extra up front
+# when that's the key we detect; other backends (claude, openai) need no
+# extra.
 GRAPHIFY_SPEC="graphifyy"
+if { [ -n "${GEMINI_API_KEY:-}" ] || [ -n "${GOOGLE_API_KEY:-}" ]; } && [ -z "${ANTHROPIC_API_KEY:-}" ] && [ -z "${OPENAI_API_KEY:-}" ]; then
+  GRAPHIFY_SPEC="graphifyy[gemini]"
+fi
 if command -v graphify >/dev/null 2>&1; then
   ok "graphify ($(graphify --version 2>/dev/null | head -1))"
+  # Idempotent repair: a machine that already has plain `graphifyy` installed
+  # (the exact state issue #1483 was filed from) is the population this fix
+  # exists for — re-running dev-setup.sh must actually add the missing extra,
+  # not short-circuit on `command -v graphify` and leave it broken.
+  if [ "$GRAPHIFY_SPEC" != "graphifyy" ]; then
+    if command -v uv >/dev/null 2>&1; then
+      printf '  repairing graphify install with %s …\n' "$GRAPHIFY_SPEC"
+      if uv tool install "$GRAPHIFY_SPEC" --force >/dev/null 2>&1; then
+        ok "graphify backend extra repaired via uv"
+      else
+        warn "uv tool install --force failed (optional) — install manually: uv tool install '$GRAPHIFY_SPEC' --force"
+      fi
+    elif command -v pipx >/dev/null 2>&1; then
+      printf '  repairing graphify install with %s …\n' "$GRAPHIFY_SPEC"
+      if pipx install "$GRAPHIFY_SPEC" --force >/dev/null 2>&1; then
+        ok "graphify backend extra repaired via pipx"
+      else
+        warn "pipx install --force failed (optional) — install manually: pipx install '$GRAPHIFY_SPEC' --force"
+      fi
+    else
+      warn "graphify backend extra may be missing — install manually: pip install --user --upgrade '$GRAPHIFY_SPEC'"
+    fi
+  fi
 elif command -v uv >/dev/null 2>&1; then
   printf '  installing %s via uv …\n' "$GRAPHIFY_SPEC"
   if uv tool install "$GRAPHIFY_SPEC" >/dev/null 2>&1; then
     ok "graphify installed via uv"
   else
-    warn "uv tool install failed (optional) — install manually: uv tool install $GRAPHIFY_SPEC"
+    warn "uv tool install failed (optional) — install manually: uv tool install '$GRAPHIFY_SPEC'"
   fi
 elif command -v pipx >/dev/null 2>&1; then
   printf '  installing %s via pipx …\n' "$GRAPHIFY_SPEC"
   if pipx install "$GRAPHIFY_SPEC" >/dev/null 2>&1; then
     ok "graphify installed via pipx"
   else
-    warn "pipx install failed (optional) — install manually: pipx install $GRAPHIFY_SPEC"
+    warn "pipx install failed (optional) — install manually: pipx install '$GRAPHIFY_SPEC'"
   fi
 elif python3 -m pip --version >/dev/null 2>&1; then
   printf '  installing %s via pip --user …\n' "$GRAPHIFY_SPEC"
   if python3 -m pip install --quiet --user "$GRAPHIFY_SPEC" >/dev/null 2>&1; then
     ok "graphify installed via pip --user"
   else
-    warn "pip install failed (optional) — install manually: pip install --user $GRAPHIFY_SPEC"
+    warn "pip install failed (optional) — install manually: pip install --user '$GRAPHIFY_SPEC'"
   fi
 else
   warn "no uv/pipx/pip to install graphify (optional) — see https://github.com/Graphify-Labs/graphify"
