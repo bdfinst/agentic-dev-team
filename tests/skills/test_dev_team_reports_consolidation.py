@@ -74,6 +74,21 @@ def test_report_output_location_has_no_legacy_dev_team_reports_references():
     )
 
 
+def test_report_output_location_1412_rationale_describes_direct_write_not_a_phase_9_copy():
+    """Slice 4 Step 4.6 (plans/test-improve-baseline-persistence.md): the
+    #1412 tracked-exception rationale must describe direct-write durability,
+    not the superseded copy-at-Phase-9 mechanism — pinning this so a future
+    edit can't silently regress it back to the old description."""
+    assert not re.search(
+        r"copy.{0,80}Phase 9|Phase 9.{0,80}copy", REPORT_OUTPUT_LOCATION, re.IGNORECASE
+    ), (
+        "report-output-location.md's #1412 line must not pair 'copy' "
+        "language with 'Phase 9' — the artifact is written directly at "
+        "capture time, never copied there later"
+    )
+    assert "#1412" in REPORT_OUTPUT_LOCATION
+
+
 def test_review_agent_skill_writes_to_consolidated_location():
     assert "DEV_TEAM_REPORTS" not in REVIEW_AGENT_SKILL, (
         "review-agent/SKILL.md must not reference the legacy bare "
