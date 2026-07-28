@@ -102,7 +102,7 @@ Parse line + branch percentages with the same logic `/coverage-baseline` used. C
 
 `phase` is the calling workflow's phase number when it has one (`/test-improve` supplies `4`); workflows without a phase model supply `null`.
 
-Append to `.claude/memory/<workflow>/<slug>/coverage-history.json` (array of snapshots, newest last).
+Append to `.dev-team-reports/<workflow>/<slug>/data/coverage-history.json` (array of snapshots, newest last).
 
 ### 4. Post the snapshot
 

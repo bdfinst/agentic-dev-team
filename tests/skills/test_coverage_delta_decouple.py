@@ -70,7 +70,10 @@ def test_coverage_delta_step_1_never_falls_back_to_claude_memory():
 
 
 def test_coverage_delta_coverage_history_path_namespaced_by_workflow():
-    assert grep(r"memory/<workflow>/<slug>/coverage-history\.json", _text())
+    assert grep(
+        r"\.dev-team-reports/<workflow>/<slug>/data/coverage-history\.json",
+        _text(),
+    )
 
 
 def test_coverage_delta_mutation_history_path_namespaced_by_workflow():
