@@ -26,6 +26,16 @@ if str(_LIB_DIR) not in sys.path:
 
 from boundary_events import emit_boundary_event as _emit_boundary_event
 
+try:
+    from atomic_state import atomic_write
+except ImportError:  # pragma: no cover
+
+    def atomic_write(path: Path, text: str) -> None:  # type: ignore[misc]
+        try:
+            path.write_text(text)
+        except OSError:
+            pass
+
 
 def emit_boundary_event(*args, **kwargs) -> None:
     """Local safety net (#859): even a misbehaving helper must never affect
@@ -161,14 +171,13 @@ def _read_state(state_file: Path) -> tuple[str, int]:
 
 
 def _write_state(state_file: Path, file_path: str, now: int) -> None:
-    try:
-        state_file.parent.mkdir(parents=True, exist_ok=True)
-    except OSError:
-        return
-    try:
-        state_file.write_text(f"{file_path}\n{now}\n")
-    except OSError:
-        pass
+    # Atomic (tempfile + rename) so a concurrent _read_state never observes a
+    # torn/partial file (#1501). No lock is needed here: unlike the counter
+    # hooks (bash_retry_guard, session_learning_trigger), this write is NOT a
+    # function of the prior read — the state is simply "the most recent test
+    # edit," so two concurrent test-file edits racing to write is correct
+    # last-writer-wins, not a lost update. atomic_write handles the mkdir.
+    atomic_write(state_file, f"{file_path}\n{now}\n")
 
 
 def main() -> int:

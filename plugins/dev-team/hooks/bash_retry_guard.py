@@ -36,16 +36,35 @@ _LIB_DIR = _HOOK_DIR / "lib"
 
 sys.path.insert(0, str(_LIB_DIR))
 try:
+    from atomic_state import (  # type: ignore[import-not-found]
+        atomic_write,
+        locked_state,
+        race_window_delay,
+    )
     from boundary_events import (  # type: ignore[import-not-found]
         emit_boundary_event as _emit_boundary_event,
     )
     from stdin_json import read_stdin_json  # type: ignore[import-not-found]
 except ImportError:  # pragma: no cover
+    import contextlib as _contextlib
 
     def read_stdin_json() -> dict | None:  # type: ignore[misc]
         return None
 
     def _emit_boundary_event(*_args, **_kwargs) -> None:  # type: ignore[misc]
+        return None
+
+    def atomic_write(path: Path, text: str) -> None:  # type: ignore[misc]
+        try:
+            path.write_text(text, encoding="utf-8")
+        except OSError:
+            pass
+
+    @_contextlib.contextmanager
+    def locked_state(_path: Path):  # type: ignore[misc]
+        yield
+
+    def race_window_delay(_env_var: str) -> None:  # type: ignore[misc]
         return None
 
 
@@ -150,11 +169,10 @@ def _read_state(path: Path) -> dict[str, Any]:
 
 
 def _write_state(path: Path, state: dict[str, Any]) -> None:
-    try:
-        path.write_text(json.dumps(state, separators=(",", ":")), encoding="utf-8")
-    except OSError:
-        # Best-effort — the hook is advisory; failing to persist is not fatal.
-        pass
+    # Atomic (tempfile + rename) so a concurrent reader never sees a torn
+    # file. The read-increment-write cycle is additionally serialized under
+    # locked_state() in main() (#1501). Best-effort — advisory hook.
+    atomic_write(path, json.dumps(state, separators=(",", ":")))
 
 
 def main() -> int:
@@ -184,13 +202,18 @@ def main() -> int:
     normalized = _normalize(command)
     cur_hash = _cksum(normalized)
 
-    prev = _read_state(state_path)
-    if cur_hash == prev["hash"]:
-        count = prev["count"] + 1
-    else:
-        count = 1
-
-    _write_state(state_path, {"hash": cur_hash, "count": count})
+    # Serialize the read-increment-write so two concurrent invocations of the
+    # same command (e.g. a shared-cwd state key across two sessions) each add
+    # exactly one to the consecutive-run count instead of racing and losing an
+    # increment (#1501). Fail-open: an unlockable environment runs unlocked.
+    with locked_state(state_path):
+        prev = _read_state(state_path)
+        if cur_hash == prev["hash"]:
+            count = prev["count"] + 1
+        else:
+            count = 1
+        race_window_delay("DEV_TEAM_BASH_RETRY_TEST_DELAY_MS")
+        _write_state(state_path, {"hash": cur_hash, "count": count})
 
     if count >= threshold:
         print(f"bash-retry-guard: This command has run {count} consecutive times.")
