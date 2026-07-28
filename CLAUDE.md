@@ -99,6 +99,16 @@ After changes, run `/agent-audit` to verify structural compliance.
 
 [`plugins/dev-team/docs/developer-notes.md`](plugins/dev-team/docs/developer-notes.md) is the maintainer-facing entry point: an index of the plugin-development docs plus the playbook for adding a new static-analysis language.
 
+### Testing hook changes before release
+
+**A hook edit in this checkout does not affect a live session until it ships.** Real hook invocations — PreToolUse/PostToolUse hooks like `agent_dispatch_ledger.py`, `pre_commit_review.py`, the guards — run from the **installed plugin cache** (`~/.claude/plugins/cache/bfinster/dev-team/<version>/hooks/`), not from `plugins/dev-team/hooks/` in your working tree. `settings.json` registers each hook by a plugin-root-relative path (`sh hooks/py.sh hooks/<name>.py`), and that root resolves to the cache copy for the running session. So a hook fix cannot be validated by the very session you fix it in — it only takes effect after the change ships in a release and the cache updates (`/dev-team:upgrade`). This bit issue #1500: a fix to the dispatch-ledger's `subject_type` matching (PR #1498) could not record a single `agent_dispatch_ledger` "record" event during the session that authored it, because that session was still running the pre-fix cached hook. Validate hook changes one of two ways instead:
+
+1. **Unit-test the hook directly (fast, deterministic, no live session — the primary path).** Every shipped hook is invoked as a subprocess with a crafted stdin payload by a `test_*.py` under `plugins/dev-team/tests/hooks/` (plus the repo-level gate/contract tests under `tests/hooks/` and `tests/repo/`). This runs the code **in your working tree**, so it reflects your edit immediately. Any hook whose behavior is only observable through a live Agent/tool dispatch (e.g. the ledger → `.review-passed` corroboration chain) must carry module-level coverage of that end-to-end path, so a fix is verifiable here rather than only after release. Run e.g. `python3 -m pytest plugins/dev-team/tests/hooks tests/hooks tests/repo -q`.
+
+2. **End-to-end against a live session (when you must exercise the real dispatch path).** Install the plugin from the local checkout marketplace into a throwaway project (see [Testing locally](#testing-locally) for the two `claude plugin` commands). **`claude plugin install` copies the checkout into the versioned cache**, so it is a snapshot, not a live link — **re-run the install after every hook edit** to refresh the cache, then start a fresh session in the test project. Confirm the hook fired by inspecting its side effect — for the dispatch ledger, a `"decision":"record"` line in `.claude/metrics/boundary-events.jsonl` after a real review dispatch.
+
+Prefer path 1; reach for path 2 only when the behavior genuinely cannot be reproduced by invoking the hook module directly.
+
 ### Releasing
 
 Releases are managed by release-please. Push conventional commits to main:
