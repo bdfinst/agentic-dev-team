@@ -70,6 +70,7 @@ if str(_LIB_DIR) not in sys.path:
 
 from boundary_events import emit_boundary_event as _emit_boundary_event  # noqa: E402
 from review_agent_registry import registered_review_agent_names  # noqa: E402
+from review_agent_registry import strip_plugin_prefix  # noqa: E402
 from review_gate_hash import review_gate_hash  # noqa: E402
 from stdin_json import read_stdin_json  # noqa: E402
 
@@ -101,6 +102,11 @@ def main() -> int:
     subagent_type = tool_input.get("subagent_type")
     if not isinstance(subagent_type, str) or not subagent_type:
         return 0
+
+    # Normalize the plugin-qualified dispatch form ("dev-team:doc-review") to
+    # the bare name the registry's closed set uses, so the plugin's normal,
+    # installed invocation form is recognized identically to a bare-named one.
+    subagent_type = strip_plugin_prefix(subagent_type)
 
     try:
         registered = registered_review_agent_names(_agents_dir_default())

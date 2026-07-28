@@ -175,6 +175,37 @@ def test_recorded_dispatch_is_stamped_with_the_current_subject_hash(
     assert events[0]["subject_hash"] == expected_hash
 
 
+def test_plugin_qualified_dispatch_is_recorded_under_its_bare_name(tmp_path: Path) -> None:
+    """#1461 follow-up: a real Agent-tool dispatch of this plugin's own
+    installed review agent is named "dev-team:<agent-name>", not the bare
+    stem — this must be recognized identically to the bare form, and
+    recorded under the bare (closed-vocabulary) name, never the qualified
+    string verbatim."""
+    result = _run_hook(
+        {
+            "tool_name": "Agent",
+            "tool_input": {"subagent_type": f"dev-team:{_REAL_REVIEW_AGENT}"},
+            "cwd": str(tmp_path),
+        }
+    )
+    assert result.returncode == 0
+    events = _read_jsonl(tmp_path / ".claude" / "metrics" / "boundary-events.jsonl")
+    assert len(events) == 1
+    assert events[0]["matched_rule"] == _REAL_REVIEW_AGENT
+
+
+def test_a_different_plugins_qualified_name_is_never_recorded(tmp_path: Path) -> None:
+    result = _run_hook(
+        {
+            "tool_name": "Agent",
+            "tool_input": {"subagent_type": f"other-plugin:{_REAL_REVIEW_AGENT}"},
+            "cwd": str(tmp_path),
+        }
+    )
+    assert result.returncode == 0
+    assert not (tmp_path / ".claude" / "metrics" / "boundary-events.jsonl").exists()
+
+
 def test_two_distinct_registered_dispatches_recorded_as_two_events(tmp_path: Path) -> None:
     _run_hook(
         {
