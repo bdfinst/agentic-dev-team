@@ -32,6 +32,16 @@ def _step2() -> str:
     return section(_text(), r"^### 2\.", boundary_pattern=r"^### 3\.")
 
 
+# --- Slice 3 (plans/test-improve-baseline-persistence.md): tracked storage,
+# no opt-in gate. Step 3.1: coverage reads the tracked data/ path.
+
+
+def test_step_2_coverage_bullet_names_tracked_dev_team_reports_data_path():
+    assert (
+        ".dev-team-reports/<workflow>/<slug>/data/coverage-history.json" in _step2()
+    )
+
+
 # --- Reuse rule placement: BEFORE existing /mutation-testing call ----------
 
 
