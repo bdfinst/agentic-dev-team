@@ -294,27 +294,41 @@ compares against; running any test edit before baseline capture invalidates
 the whole run.
 
 **Coverage baseline.** Invoke `/coverage-baseline --workflow test-improve`
-against the resolved repo path. `/coverage-baseline`'s own
-`.claude/memory/test-improve/<slug>/baseline-coverage.json` write is
-**unconditional** and unaffected by this change — that skill has no opt-in
-awareness of its own. Persist the result there:
-`.claude/memory/test-improve/<slug>/baseline-coverage.json`. The git-tracked
-copy under `data/` (for the executive-summary report) is produced later,
-unconditionally, by Phase 9 (see Phase 9's "Copy report data" step) — Phase 2
-itself has no branching write-path logic.
+against the resolved repo path. `/coverage-baseline` owns its own
+existing-baseline guard and persist step — see `coverage-baseline/SKILL.md`'s
+"Existing-baseline guard" and "Persist the baseline" steps for the full
+mechanics. The result lands directly and atomically at
+`.dev-team-reports/test-improve/<slug>/data/baseline-coverage.json`; there is
+no `.claude/memory/` write and no later copy step for this file — that skill
+has no opt-in awareness of its own, and this write is **unconditional**.
 
 This is independent of the mutation mode: a coverage baseline is persisted in
 every mode, and the mutation baseline is written **only** in
 `baseline+kill-loop` mode (see below).
 
 **Mutation baseline (`baseline+kill-loop` only).** When `phase-0.md` recorded
-mutation mode **`baseline+kill-loop`**, invoke
-`/mutation-testing --baseline --workflow test-improve`. Persist the result to
-`.claude/memory/test-improve/<slug>/baseline-mutation.json` — the same
-unconditional, opt-in-free write as the coverage baseline above; its
-git-tracked `data/` copy is likewise produced later by Phase 9, not here.
-The file records the **honest score**: hard kills / effective total, with the
-**timeout count reported separately** (timeouts are not counted as kills).
+mutation mode **`baseline+kill-loop`**, check for an existing tracked baseline
+before invoking `/mutation-testing --baseline` — this is Phase 2's own
+existing-baseline guard for `baseline-mutation.json`, needed here (unlike the
+coverage case) because `/mutation-testing` owns no persistence of its own: it
+has no `--baseline`-specific write path of its own to guard. This
+existing-baseline guard is this phase's application of the shared
+existing-tracked-artifact re-capture guard — the canonical definition and
+rationale live once in `knowledge/decision-defaults.md`'s "Re-capture: keep
+vs. overwrite an existing tracked artifact" axis; applied here:
+
+- **No existing file, or overwrite chosen** — invoke `/mutation-testing --baseline --workflow test-improve` and persist the result (below).
+- **Existing file, interactive session** — prompt keep/overwrite (default keep). An answer that is neither "keep" nor "overwrite" (case-insensitive) re-prompts with the identical choice — never falls back silently to either option, no retry limit, no timeout.
+- **Existing file, non-interactive** (no usable TTY, or `DEV_TEAM_AUTO_APPROVE=1`) — keep the existing baseline automatically; both log the auto-decision and echo it to Phase 2's own progress output, naming the reused baseline's `captured_at` — reporting parity with the coverage-baseline case, not a silent reuse.
+- **Existing file is malformed or corrupt** (fails to parse as JSON — e.g. left over from a prior interrupted write) — treat it as absent, never as a baseline to keep. Emit a warning naming why a fresh capture is happening, then invoke `/mutation-testing --baseline --workflow test-improve`.
+- **On keep** — do not invoke `/mutation-testing --baseline`; reuse the existing file's fields and report its `captured_at` instead of a freshly captured timestamp.
+
+Persist a freshly captured result directly and atomically (temp-file-then-rename:
+write to `<path>.tmp` then `mv -f <path>.tmp <path>`) to
+`.dev-team-reports/test-improve/<slug>/data/baseline-mutation.json` — never a
+direct, non-atomic write. The file records the **honest score**: hard kills /
+effective total, with the **timeout count reported separately** (timeouts are
+not counted as kills).
 
 **No-baseline modes skip (`off` and `kill-loop`).** When `phase-0.md` recorded
 mutation mode **`off`** or **`kill-loop`**, `/mutation-testing --baseline` is
