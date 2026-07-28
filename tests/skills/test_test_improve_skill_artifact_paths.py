@@ -22,6 +22,10 @@ SKILL = (PLUGIN_ROOT / "skills" / "test-improve" / "SKILL.md").read_text(
     encoding="utf-8"
 )
 
+CONVERGE_SKILL = (
+    PLUGIN_ROOT / "skills" / "quality-targets-converge" / "SKILL.md"
+).read_text(encoding="utf-8")
+
 _BARE_MEMORY_RE = re.compile(r"(?<!\.claude/)(?<!\.dev-team-)memory/test-improve/")
 _BARE_REPORTS_RE = re.compile(r"(?<!\.dev-team-)reports/test-improve/")
 _BARE_PLANS_RE = re.compile(r"(?<!\.claude/)plans/test-improve/")
@@ -80,3 +84,48 @@ def test_every_refactor_backlog_reference_resolves_to_dev_team_reports_path():
             f"refactor-backlog.md reference at offset {idx} does not resolve to "
             "the .dev-team-reports/test-improve/<slug>/ path"
         )
+
+
+# --- Slice 4 Step 4.7 (plans/test-improve-baseline-persistence.md): pin that
+# --- the unrelated .claude/memory/ process files this plan never touches
+# --- didn't silently move to .dev-team-reports/ alongside the ones that did.
+
+_UNRELATED_MEMORY_PATTERNS_TEST_IMPROVE = [
+    r"phase-\d+\.md",
+    r"phase-5-review\.json",
+    r"phase-7-review\.json",
+    r"waivers\.json",
+    r"phase-8\.md",
+    r"gherkin\.md",
+]
+
+_UNRELATED_MEMORY_PATTERNS_CONVERGE = [
+    r"converge-<iteration>\.json",
+    r"waivers\.json",
+    r"gherkin\.md",
+    r"gherkin-bindings\.json",
+]
+
+
+def _assert_never_paired_with_dev_team_reports(text: str, pattern: str, window: int = 60):
+    for m in re.finditer(pattern, text):
+        before = text[max(0, m.start() - window) : m.start()]
+        assert ".dev-team-reports/" not in before, (
+            f"{m.group()!r} at offset {m.start()} is paired with "
+            ".dev-team-reports/ — this file belongs under .claude/memory/, "
+            "unaffected by this plan's tracked-data migration"
+        )
+
+
+def test_test_improve_unrelated_memory_files_never_paired_with_dev_team_reports():
+    for pattern in _UNRELATED_MEMORY_PATTERNS_TEST_IMPROVE:
+        assert re.search(pattern, SKILL), f"expected to find {pattern!r} in test-improve/SKILL.md"
+        _assert_never_paired_with_dev_team_reports(SKILL, pattern)
+
+
+def test_quality_targets_converge_unrelated_memory_files_never_paired_with_dev_team_reports():
+    for pattern in _UNRELATED_MEMORY_PATTERNS_CONVERGE:
+        assert re.search(pattern, CONVERGE_SKILL), (
+            f"expected to find {pattern!r} in quality-targets-converge/SKILL.md"
+        )
+        _assert_never_paired_with_dev_team_reports(CONVERGE_SKILL, pattern)
