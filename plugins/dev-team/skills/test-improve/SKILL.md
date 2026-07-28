@@ -720,10 +720,11 @@ whole-repo score by splicing the freshly-measured changed files over the
 module it could not measure (OOM/timeout) as **held at baseline** rather than
 omitting it. No extra flag is threaded through the delegation above — the
 worker resolves the branch base itself using the same idiom as `/build`'s
-Farley-Score step. The whole-repo splice relies on the `.claude/memory/test-improve/<slug>/baseline-mutation.json`
-that Phase 2 persisted unconditionally (see Phase 2) — always available for
-this same run, independent of the separate git-tracked `data/` copy Phase 9
-produces later for the executive-summary report.
+Farley-Score step. The whole-repo splice relies on the
+`.dev-team-reports/test-improve/<slug>/data/baseline-mutation.json` that
+Phase 2 persisted directly and unconditionally (see Phase 2) — always
+available for this same run; there is no separate copy to fall back on or
+diverge from.
 
 **Coverage < 90% in no-refactor mode.** When Phase 8 closes with coverage
 below 90% and Phase 0 recorded `refactor-mode: no-refactor`,
