@@ -13,10 +13,10 @@ absent (never silently kept) with a warning.
 from __future__ import annotations
 
 import pytest
-
-from _repo_root import REPO_ROOT
 from skill_doc_helpers import grep
 from skill_doc_helpers import section as _section
+
+from _repo_root import REPO_ROOT
 
 DEFAULTS = REPO_ROOT / "plugins" / "dev-team" / "knowledge" / "decision-defaults.md"
 
