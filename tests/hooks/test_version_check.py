@@ -28,6 +28,15 @@ from _repo_root import REPO_ROOT as _REPO_ROOT
 
 _HOOK_PY = _REPO_ROOT / "plugins" / "dev-team" / "hooks" / "version_check.py"
 
+# Every test in this file shares one fixed, non-worker-scoped path
+# (/tmp/adt-version-check-<today>, see _cache_path() below) with no per-worker
+# isolation. Under `-n auto`, two of these tests can land on different
+# workers and race each other's read/write of that same file. Force them
+# onto a single worker so they're serialized relative to each other instead
+# (issue #1495) — this trades this file's own internal parallelism for
+# correctness; it does not affect any other file's distribution.
+pytestmark = pytest.mark.xdist_group(name="version-check-shared-cache")
+
 
 def _cache_path() -> Path:
     # Must match version_check.py's own local-time `today` exactly (it

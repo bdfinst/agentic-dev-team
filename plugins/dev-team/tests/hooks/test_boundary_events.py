@@ -30,6 +30,19 @@ import pytest
 
 from _repo_root import REPO_ROOT as _REPO_ROOT
 
+# One test in this file toggles the REAL, fixed-path
+# plugins/dev-team/hooks/careful-state.json (destructive_guard.py's actual
+# state file, not a tmp_path-scoped copy) to exercise careful-mode blocking.
+# Every other test that invokes destructive_guard.py as a subprocess asserts
+# it is NOT blocked — under `-n auto`, if that toggling test lands on a
+# different worker and runs concurrently, the other tests can see the
+# temporarily-active careful-state.json and fail with a spurious block.
+# Force the whole file onto one worker so the toggle is never concurrent
+# with a read (issue #1495) — a single per-function marker on only the
+# toggling test does not prevent this, since the *readers* also need to be
+# excluded from running in parallel with it.
+pytestmark = pytest.mark.xdist_group(name="careful-state-shared-file")
+
 _PLUGIN_DIR = _REPO_ROOT / "plugins" / "dev-team"
 _HOOKS_DIR = _PLUGIN_DIR / "hooks"
 _LIB_DIR = _HOOKS_DIR / "lib"
@@ -169,14 +182,14 @@ def test_destructive_guard_warn_emits_boundary_event(tmp_path: Path) -> None:
     assert "Process destruction" in event["matched_rule"]
 
 
-@pytest.mark.xdist_group(name="careful-state-shared-file")
 def test_destructive_guard_block_emits_boundary_event(tmp_path: Path) -> None:
     # careful-state.json is destructive_guard.py's real, fixed-path state
     # file, shared with tests/hooks/test_destructive_guard.py and
     # plugins/dev-team/tests/hooks/test_code_intelligence_nudge.py (same
-    # xdist_group name there). --dist loadgroup (scripts/ci-local.sh) forces
-    # everything in this group onto one worker so they never race on the
-    # shared file across pytest-xdist worker processes.
+    # xdist_group name there, applied module-wide in both — see this file's
+    # own module-level pytestmark above). --dist loadgroup (scripts/ci-local.sh)
+    # forces everything in this group onto one worker so they never race on
+    # the shared file across pytest-xdist worker processes.
     careful_state = _HOOKS_DIR / "careful-state.json"
     original = careful_state.read_text() if careful_state.is_file() else None
     try:
