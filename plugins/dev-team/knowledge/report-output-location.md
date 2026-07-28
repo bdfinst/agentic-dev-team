@@ -106,7 +106,9 @@ newly-provisioned target repos — matching the existing treatment of
 same anchored deny-all + re-included tracked-exception shape (`/.dev-team-reports/*`
 followed by `!/.dev-team-reports/test-improve/`), not a blanket directory
 ignore — `/test-improve`'s `<slug>/data/` sibling directory (issue #1412) is
-git-tracked so its report is a pure function of tracked data and regeneratable
+git-tracked, and each artifact under it is written there directly, atomically,
+at the point of capture (never copied there later from a separate working
+location), so its report is a pure function of tracked data and regeneratable
 from a fresh checkout.
 
 ## Related
