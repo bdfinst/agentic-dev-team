@@ -527,7 +527,7 @@ Iterate the approved Phase-5 Story set. For **each Story**:
    feature-file citations.
 3. **Coverage delta** — after `/build` closes the Story, invoke
    `/coverage-delta --workflow test-improve --story <id>`. The delta is
-   appended to `.claude/memory/test-improve/<slug>/coverage-history.json`.
+   appended to `.dev-team-reports/test-improve/<slug>/data/coverage-history.json`.
 4. **Mutation-kill (`kill-loop` and `baseline+kill-loop`; skipped when `off`).**
    Invoke the **`mutation-kill` agent**
    with `--file <story-file> --max-rounds 3`. Residual survivors trigger the
