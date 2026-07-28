@@ -260,7 +260,7 @@ def test_exempt_agents_grant_zero_mcp_tools_in_the_real_repo():
 
 
 def test_reassigned_agents_grant_their_specific_set_in_the_real_repo():
-    for name, required in REASSIGNED_TOOLS.items():
+    for name in REASSIGNED_TOOLS:
         agent_file = REAL_AGENTS_DIR / f"{name}.md"
         assert agent_file.is_file(), f"expected reassigned agent {name}"
         text = agent_file.read_text(encoding="utf-8")

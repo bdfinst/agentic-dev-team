@@ -57,16 +57,16 @@ from __future__ import annotations
 import sys
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from typing import NamedTuple, Optional
+from typing import NamedTuple
 
 _LIB_DIR = Path(__file__).resolve().parent
 if str(_LIB_DIR) not in sys.path:
     sys.path.insert(0, str(_LIB_DIR))
 
-import artifact_paths  # noqa: E402
-import metrics_query  # noqa: E402
-import review_agent_registry  # noqa: E402
-from boundary_events import TS_FORMAT as _TS_FORMAT  # noqa: E402
+import artifact_paths
+import metrics_query
+import review_agent_registry
+from boundary_events import TS_FORMAT as _TS_FORMAT
 
 _LEDGER_STREAM_NAME = "boundary-events.jsonl"
 _EVENT_TYPE = "agent_dispatch_ledger"
@@ -116,7 +116,7 @@ class LedgerEvidence(NamedTuple):
     agents_in_window: frozenset
     any_dispatch_ever: bool
     same_subject_dispatch_ever: bool
-    read_failure_reason: Optional[str]
+    read_failure_reason: str | None
 
 
 def mtime_to_iso(mtime: float) -> str:
