@@ -94,6 +94,20 @@ def test_step_2_reuse_rule_names_mutation_history_json_as_the_source():
     assert "mutation-history.json" in _step2()
 
 
+# --- Step 3.2: mutation reuse rule reads/writes the tracked data/ path,
+# atomically.
+
+
+def test_step_2_reuse_rule_names_tracked_dev_team_reports_data_path_for_mutation_history():
+    assert (
+        ".dev-team-reports/<workflow>/<slug>/data/mutation-history.json" in _step2()
+    )
+
+
+def test_step_2_reuse_rule_write_back_documents_temp_file_then_rename():
+    assert grep(r"temp-file-then-rename", _step2(), ignore_case=True)
+
+
 # --- converge-<n>.json schema additions ----------------------------------
 
 
