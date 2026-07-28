@@ -90,7 +90,7 @@ In one pass before the loop body:
   2. For whatever still cannot be measured, **hold it at its persisted baseline count** — the `survivors_after` recorded for that file in `baseline-mutation.json` / `mutation-history.json` — and record it in the snapshot's `held_at_baseline` list.
   3. Report it in Step 6 verbatim as **"held at baseline (could not measure — needs ≥N GB agent)"** — never as a fresh zero, never dropped from the module list.
 
-- **Whole-repo score via splice over the persisted baseline (issue #1208, criterion 2).** Report BOTH the branch-scoped result AND a whole-repo number, but do **not** re-run the whole repo to obtain it. The whole-repo score is a **splice**: the freshly-measured changed files (above) layered over the **persisted per-file baseline** for every untouched file. The baseline of record is `baseline-mutation.json` (written by `/test-improve` Phase 2) plus the per-file `survivors_after` in `mutation-history.json` (see `/coverage-delta`'s [`references/mutation-gate.md`](../coverage-delta/references/mutation-gate.md)). This requires those baseline per-file reports to be **persisted, not transient**: Phase 2's knob-7 opt-in writes them to the git-tracked `.dev-team-reports/test-improve/<slug>/` path so a later convergence session splices without re-running the unchanged modules. When the baseline was left on the transient `.claude/memory/` path (opt-in declined), the splice still works within the branch's own sessions, but the whole-repo number degrades to "baseline unavailable for untouched modules — reporting branch-scoped only."
+- **Whole-repo score via splice over the persisted baseline (issue #1208, criterion 2).** Report BOTH the branch-scoped result AND a whole-repo number, but do **not** re-run the whole repo to obtain it. The whole-repo score is a **splice**: the freshly-measured changed files (above) layered over the **persisted per-file baseline** for every untouched file. The baseline of record is `baseline-mutation.json` plus the per-file `survivors_after` in `mutation-history.json` (see `/coverage-delta`'s [`references/mutation-gate.md`](../coverage-delta/references/mutation-gate.md)). Both files are written directly to `.dev-team-reports/<workflow>/<slug>/data/` at capture/append time — `baseline-mutation.json` by `/coverage-baseline` and `/test-improve` Phase 2, `mutation-history.json` by `/coverage-delta` (other agents are landing those write paths concurrently) — so the splice source is always available for every convergence session.
 
 - **Determinism** — re-run the test suite `determinism_runs` times. Capture: pass rate, the names of any test that failed in some runs but passed in others, the total wall-clock per run (lowest = current baseline).
 
@@ -242,7 +242,7 @@ Print:
 
 ## Examples / Integration
 
-- `/test-improve` invokes this worker from Phase 8 with `--workflow test-improve`; paths resolve as `.claude/memory/test-improve/<slug>/` and `.claude/plans/test-improve/phase-8/`.
+- `/test-improve` invokes this worker from Phase 8 with `--workflow test-improve`; paths resolve as `.claude/memory/test-improve/<slug>/` and `.claude/plans/test-improve/phase-8/`, with tracked evidence (coverage/mutation history, baselines) under `.dev-team-reports/test-improve/<slug>/data/`.
 - `/test-improve` invokes this worker from Phase 8 with `--workflow test-improve`; the same template resolves with `<workflow>` = `test-improve`.
 
 ## Notes

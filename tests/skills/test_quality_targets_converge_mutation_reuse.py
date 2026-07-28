@@ -108,6 +108,23 @@ def test_step_2_reuse_rule_write_back_documents_temp_file_then_rename():
     assert grep(r"temp-file-then-rename", _step2(), ignore_case=True)
 
 
+# --- Step 3.3: whole-repo splice paragraph drops the knob-7 opt-in framing
+# and always names the tracked path as available with no fallback.
+
+
+def test_step_2_whole_repo_splice_names_no_knob_7_opt_in_or_declined():
+    step2 = _step2()
+    assert "knob-7" not in step2
+    assert not grep(r"opt-in|opt in", step2, ignore_case=True)
+    assert "declined" not in step2.lower()
+
+
+def test_step_2_whole_repo_splice_names_tracked_data_path_as_always_available():
+    step2 = _step2()
+    assert ".dev-team-reports/<workflow>/<slug>/data/" in step2
+    assert grep(r"always available", step2, ignore_case=True)
+
+
 # --- converge-<n>.json schema additions ----------------------------------
 
 
