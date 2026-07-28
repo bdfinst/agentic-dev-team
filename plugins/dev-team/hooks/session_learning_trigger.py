@@ -28,6 +28,18 @@ if str(_LIB_DIR) not in sys.path:
 import artifact_paths
 import telemetry_consent
 
+try:
+    from atomic_state import locked_state, race_window_delay
+except ImportError:  # pragma: no cover
+    import contextlib as _contextlib
+
+    @_contextlib.contextmanager
+    def locked_state(_path: Path):  # type: ignore[misc]
+        yield
+
+    def race_window_delay(_env_var: str) -> None:  # type: ignore[misc]
+        return None
+
 
 def _load_counter(state_file: Path) -> int:
     """Return the persisted counter, recovering to 0 on any error."""
@@ -165,13 +177,25 @@ def main() -> int:
     state_file = artifact_paths.resolve_file("metrics", "learning-loop-state.json", cwd)
     hook_dir = Path(__file__).resolve().parent
 
-    counter = _load_counter(state_file) + 1
+    # Serialize the load-increment-write so two SessionEnd hooks ending in the
+    # same cwd near-simultaneously each advance the counter exactly once
+    # instead of racing and losing an increment (#1501). The write itself is
+    # already atomic (tempfile + os.replace in _write_state); the lock closes
+    # the remaining read-modify-write gap. Fail-open: unlockable → runs
+    # unlocked. The dispatch stays outside the lock — it is fire-and-forget and
+    # must not hold the lock across a subprocess spawn.
+    dispatch = False
+    with locked_state(state_file):
+        counter = _load_counter(state_file) + 1
+        race_window_delay("DEV_TEAM_SESSION_LEARNING_TEST_DELAY_MS")
+        if counter >= threshold:
+            _write_state(state_file, 0)
+            dispatch = True
+        else:
+            _write_state(state_file, counter)
 
-    if counter >= threshold:
-        _write_state(state_file, 0)
+    if dispatch:
         _dispatch_background_analysis(cwd, session_id, hook_dir)
-    else:
-        _write_state(state_file, counter)
 
     return 0
 
