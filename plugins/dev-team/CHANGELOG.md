@@ -1,5 +1,13 @@
 # Changelog
 
+## [10.25.1](https://github.com/bdfinst/agentic-dev-team/compare/dev-team-v10.25.0...dev-team-v10.25.1) (2026-07-28)
+
+
+### Bug Fixes
+
+* **hooks:** serialize hook state read-modify-write to close lost-update races ([#1507](https://github.com/bdfinst/agentic-dev-team/issues/1507)) ([2c1859e](https://github.com/bdfinst/agentic-dev-team/commit/2c1859e67c573230ea27a24053a6dc4047466b14)), closes [#1501](https://github.com/bdfinst/agentic-dev-team/issues/1501)
+* **test-improve:** handle a malformed test-counts-before.json as absent in Phase 1 ([#1508](https://github.com/bdfinst/agentic-dev-team/issues/1508)) ([336f770](https://github.com/bdfinst/agentic-dev-team/commit/336f770cd262c27cca898d5d9cab953068a828ea)), closes [#1502](https://github.com/bdfinst/agentic-dev-team/issues/1502)
+
 ## [10.25.0](https://github.com/bdfinst/agentic-dev-team/compare/dev-team-v10.24.1...dev-team-v10.25.0) (2026-07-28)
 
 
