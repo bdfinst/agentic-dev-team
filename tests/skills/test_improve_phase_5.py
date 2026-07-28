@@ -47,6 +47,16 @@ def test_phase_5_measures_per_story_coverage_via_coverage_delta():
     )
 
 
+def test_phase_5_coverage_delta_appends_to_the_tracked_data_path():
+    """Slice 4 Step 4.2 (plans/test-improve-baseline-persistence.md):
+    coverage-history.json lives at the tracked data/ path, not
+    .claude/memory/."""
+    assert grep(
+        r"\.dev-team-reports/test-improve/<slug>/data/coverage-history\.json",
+        _phase_5_section(),
+    )
+
+
 def test_phase_5_invokes_the_mutation_kill_agent_per_story_with_file_and_max_rounds_3():
     s = _phase_5_section()
     assert grep(r"mutation-kill", s, ignore_case=True)
