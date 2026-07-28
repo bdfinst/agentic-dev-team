@@ -15,6 +15,25 @@ from __future__ import annotations
 
 from pathlib import Path
 
+# This plugin's own marketplace-qualified prefix. A real Agent-tool dispatch
+# of one of this plugin's registered review agents, once installed, is named
+# "dev-team:<agent-name>" (e.g. "dev-team:doc-review") — the closed set below
+# is built from bare `agents/*-review.md` file stems, so an unstripped
+# qualified name never matches it (#1461 follow-up: this silently dropped
+# every dispatch's ledger record for the plugin's normal, installed
+# invocation form). A prefix for a DIFFERENT plugin is left untouched — it
+# is never one of this registry's own agents.
+_PLUGIN_PREFIX = "dev-team:"
+
+
+def strip_plugin_prefix(subagent_type: str) -> str:
+    """Normalize a dispatch's `subagent_type` to the bare agent name this
+    registry's closed set uses, stripping only this plugin's own
+    `dev-team:` qualifier."""
+    if subagent_type.startswith(_PLUGIN_PREFIX):
+        return subagent_type[len(_PLUGIN_PREFIX) :]
+    return subagent_type
+
 
 def find_review_agent_files(agents_dir: Path) -> list[Path]:
     """Return the read-only review agent files (agents/*-review.md), sorted.

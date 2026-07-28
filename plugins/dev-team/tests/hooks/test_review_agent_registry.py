@@ -99,3 +99,24 @@ def test_real_repo_registry_excludes_non_review_agents() -> None:
     names = review_agent_registry.registered_review_agent_names(_REAL_AGENTS_DIR)
     assert "orchestrator" not in names
     assert "product-manager" not in names
+
+
+# ---------------------------------------------------------------------------
+# strip_plugin_prefix()
+# ---------------------------------------------------------------------------
+
+
+def test_strip_plugin_prefix_removes_dev_team_qualifier() -> None:
+    assert review_agent_registry.strip_plugin_prefix("dev-team:doc-review") == "doc-review"
+
+
+def test_strip_plugin_prefix_leaves_bare_name_unchanged() -> None:
+    assert review_agent_registry.strip_plugin_prefix("doc-review") == "doc-review"
+
+
+def test_strip_plugin_prefix_leaves_a_different_plugins_qualifier_unchanged() -> None:
+    # Not this registry's agent — must not be silently claimed as one.
+    assert (
+        review_agent_registry.strip_plugin_prefix("other-plugin:doc-review")
+        == "other-plugin:doc-review"
+    )
