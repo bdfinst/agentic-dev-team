@@ -89,20 +89,35 @@ def test_phase_9_documents_regeneratable_from_memory_contract():
     )
 
 
-def test_phase_9_copies_baseline_and_history_artifacts_into_tracked_data():
-    """#1412: Phase 9 unconditionally copies (never moves) baseline-coverage.json,
-    baseline-mutation.json (baseline+kill-loop only), and coverage-history.json
-    from their canonical .claude/memory/ working copy into the tracked data/
-    sibling — no report opt-in gates this anymore."""
+def test_phase_9_no_longer_has_a_copy_report_data_step_or_guard_prompts():
+    """Slice 4 Step 4.4 (plans/test-improve-baseline-persistence.md): there is
+    nothing to copy or guard at Phase 9 anymore — baseline-coverage.json,
+    baseline-mutation.json, and coverage-history.json are each written
+    directly to tracked data/ at the point of capture (Phase 2 / Phase 5)."""
     s = _phase_9_section()
-    assert grep(r"[Cc]opy report data", s)
-    assert grep(r"unconditionally", s, ignore_case=True)
-    assert grep(r"never[[:space:]]+move|never[[:space:]]+relocat", s, ignore_case=True)
-    assert grep(r"baseline-coverage\.json", s)
-    assert grep(r"baseline-mutation\.json", s)
-    assert grep(r"coverage-history\.json", s)
-    assert grep(r"data/", s)
-    assert not grep(r"knob-7|report opt-in", s, ignore_case=True)
+    assert not grep(r"[Cc]opy report data", s)
+    assert not grep(r"existing-copy guard", s, ignore_case=True)
+    assert not grep(r"keep/overwrite", s, ignore_case=True)
+
+
+def test_phase_9_regeneratable_contract_describes_direct_write_durability():
+    """Slice 4 Step 4.4: the regeneratable-from-tracked-data contract no
+    longer branches on whether the .claude/memory/ working copy is present —
+    data/ is always current by construction, so there is no copy step to
+    re-run and no such branch to consider."""
+    s = _phase_9_section()
+    assert grep(r"already current by construction", s, ignore_case=True)
+    assert not grep(r"memory-present|memory-absent", s, ignore_case=True)
+
+
+def test_phase_9_names_mutation_history_as_outside_its_interpolation_set():
+    """Slice 4 Step 4.4: mutation-history.json is not part of Phase 9's
+    read/interpolation set — and never has been; it's consumed by
+    /coverage-delta and /quality-targets-converge, not the executive-summary
+    report."""
+    s = _phase_9_section()
+    assert grep(r"mutation-history\.json", s)
+    assert grep(r"outside", s, ignore_case=True)
 
 
 def test_phase_8_no_longer_branches_on_the_removed_report_opt_in():
@@ -124,18 +139,14 @@ def test_phase_8_whole_repo_splice_no_longer_describes_a_separate_phase_9_copy()
     assert not grep(r"Phase 9 produces|produces later|Phase 9.*copy", s, ignore_case=True)
 
 
-def test_phase_9_falls_back_to_reading_data_directly_when_memory_copy_is_absent():
-    """#1412: when the canonical .claude/memory/ working copy is absent (e.g.
-    a fresh checkout where only data/ was ever tracked), Phase 9 skips the
-    copy and reads directly from data/'s already-present copies — this is
-    the specific behavior the regeneratable-from-tracked-data contract
-    depends on."""
+def test_phase_9_makes_no_memory_copy_present_or_absent_distinction():
+    """Slice 4 Step 4.5 (plans/test-improve-baseline-persistence.md): the old
+    "memory copy absent, read tracked directly" fallback branch no longer
+    applies — the tracked file is unconditionally the only copy, so Phase 9's
+    text makes no such distinction anywhere."""
     s = _phase_9_section()
-    assert grep_multiline(
-        r"absent.{0,200}skip[[:space:]]+the[[:space:]]+copy.{0,200}read[[:space:]]+directly",
-        s,
-        ignore_case=True,
-    )
+    assert not grep(r"canonical copy is absent", s, ignore_case=True)
+    assert not grep(r"skip the copy", s, ignore_case=True)
 
 
 def test_phase_9_mutation_row_shape_covers_all_three_modes():
@@ -221,84 +232,3 @@ def test_close_out_prompt_fires_only_when_run_was_no_refactor():
     assert grep(r"refactor-mode:[[:space:]]+no-refactor", s)
 
 
-# --- baseline-coverage.json / baseline-mutation.json existing-copy guard ----
-# --- (issue #1412, Slice 2) -------------------------------------------------
-
-
-def test_phase_9_baseline_coverage_prompts_with_keep_overwrite_default_keep():
-    s = _phase_9_section()
-    assert grep(r"baseline-coverage\.json", s)
-    assert grep_multiline(
-        r"overwrite it\s+\(recaptures the baseline every\s+downstream delta compares against\)",
-        s,
-    )
-    assert grep_multiline(r"\[keep/overwrite,\s+default: keep\]", s)
-
-
-def test_phase_9_declining_baseline_coverage_overwrite_keeps_existing_copy():
-    s = _phase_9_section()
-    assert grep_multiline(
-        r"keep.{0,80}leaves the\s+existing `data/` copy in place",
-        s,
-        ignore_case=True,
-    )
-    assert grep_multiline(
-        r"fresh capture is \*\*not\*\*\s+copied over it", s
-    )
-
-
-def test_phase_9_confirming_baseline_coverage_overwrite_replaces_data_copy():
-    s = _phase_9_section()
-    assert grep_multiline(
-        r"overwrite.{0,40}replaces the\s+`data/` copy with the fresh",
-        s,
-        ignore_case=True,
-    )
-
-
-def test_phase_9_baseline_coverage_non_interactive_keeps_and_logs():
-    s = _phase_9_section()
-    assert grep_multiline(
-        r"non-interactive.{0,40}\(no usable TTY /\s*`DEV_TEAM_AUTO_APPROVE=1`\)",
-        s,
-    )
-    assert grep_multiline(
-        r"keeps the\s+existing `data/` copy and logs the auto-decision",
-        s,
-    )
-    assert grep(r"decision-defaults\.md", s)
-
-
-def test_phase_9_baseline_mutation_non_interactive_keeps_and_logs():
-    s = _phase_9_section()
-    assert grep(r"baseline-mutation\.json", s)
-    assert grep_multiline(
-        r"overwrite it \(recaptures the mutation kill-rate baseline every\s+downstream\s+delta compares against\)",
-        s,
-    )
-    assert grep_multiline(r"\[keep/overwrite,\s+default: keep\]", s)
-    assert grep_multiline(
-        r"non-interactive.{0,60}\(no usable TTY /\s*`DEV_TEAM_AUTO_APPROVE=1`\).{0,60}Phase 9",
-        s,
-    )
-    assert grep_multiline(
-        r"keeps the\s+existing `data/` copy and logs the auto-decision.{0,60}never",
-        s,
-    )
-
-
-def test_phase_9_baseline_mutation_guard_declares_parity_with_coverage_guard():
-    # #1412, Slice 2: baseline-mutation.json's guard is documented as the
-    # identical keep/overwrite/unrecognized-answer discipline as
-    # baseline-coverage.json's guard, not an independently-invented one —
-    # this pins the cross-reference so the two never silently diverge.
-    s = _phase_9_section()
-    assert grep_multiline(
-        r"identical guard applies to `baseline-mutation\.json`",
-        s,
-    )
-    assert grep_multiline(
-        r"[Ss]ame keep/overwrite/unrecognized-answer\s+behavior as"
-        r"\s+`baseline-coverage\.json`'s guard above",
-        s,
-    )
