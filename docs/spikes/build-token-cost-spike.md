@@ -4,11 +4,16 @@ Answers the questions in #1512 (part of epic #1511). **Deliverable is analysis, 
 
 ## TL;DR
 
-- **The instrumentation to answer this empirically does not exist yet.** The cost meter's
-  `by_agent_type` breakdown only ever records `main` — across every ledger sampled, **zero
-  subagent threads were captured.** So per-agent overhead (Q1), spawn break-even (Q2), and the
-  real fan-out multiplier (Q3) cannot be measured from history. **A prerequisite slice must make
-  the cost meter attribute tokens to each dispatched worktree agent before any threshold is set.**
+- **CORRECTION (verified at #1513 build-time):** this spike's original claim that "the
+  instrumentation does not exist" was **wrong**. Per-subagent attribution already ships (#1094):
+  `cost_meter.py report --json` produces a full `by_agent_type` breakdown and reads the sibling
+  `subagents/agent-*.jsonl` files — confirmed on a live transcript with subagent turns (15 agent-type
+  buckets: `main` + every dispatched lens). The original "only `main`" reading was a sampling
+  artifact — the sampled `cost-metering.jsonl` records were written before any subagent was
+  dispatched. So per-agent overhead (Q1), spawn break-even (Q2), and the fan-out multiplier (Q3) **are
+  measurable today** via `cost_meter report --json <transcript>`. The only real gap #1513 closed was
+  persisting `cache_creation_input_tokens` (the F component) in the durable `cost-metering.jsonl`, not
+  just in the on-demand report.
 - **The review-value sample is far too thin and biased to prune any lens (Q4).** 10 records total,
   ~100% "found something" on nearly every lens — because the only slices that got logged happened
   to have findings. This is a sampling artifact, not evidence a lens is valuable. **Do not
@@ -83,13 +88,16 @@ volume).
 | Epic slice | Threshold from this spike |
 |---|---|
 | Default sequential / opt-in fan-out | **Adopt now** — analytically sound independent of F. |
-| Slice-packing cost model | **Blocked on measuring F.** Ship the meter-per-subagent instrumentation first, then set the pack-below-F cutoff. |
-| Shared context pack | Justified in principle (re-exploration is per-agent); size the win from the measured re-exploration component of F. |
+| Slice-packing cost model | **Unblocked** — F is measurable now via `cost_meter report --json` (and, after #1513, from the durable log). Measure F on a representative fan-out build, then set the pack-below-F cutoff. |
+| Shared context pack | Justified in principle (re-exploration is per-agent); size the win from the measured re-exploration component of F (same meter). |
 | Diff-gated / cheap-first review | **Adopt now** — gate dispatch on diff domain regardless of Q4 data. |
 | Auto-prune lenses from review-value | **Do not adopt.** Sample too small/biased; revisit at N≥100. |
 
-## New prerequisite slice this spike surfaces
+## Prerequisite slice — RESOLVED
 
-**`chore: meter per-subagent token usage during fan-out builds`** — the cost meter's `by_agent_type`
-must record dispatched worktree agents, not just `main`. Without it, F stays unmeasured and the
-slice-packing cutoff is a guess. This blocks the slice-packing and shared-context-pack slices.
+**`chore: meter per-subagent token usage during fan-out builds`** (#1513) was filed on the mistaken
+premise that the cost meter could not attribute per-subagent tokens. It can — #1094 already did.
+#1513 was narrowed at build-time to its one real gap: persisting `cache_creation_input_tokens` (the
+F component) in the durable `cost-metering.jsonl` so F is legible from the log, not only from
+`cost_meter report --json`. The slice-packing and shared-context-pack slices are **not blocked** —
+F is measurable now.
