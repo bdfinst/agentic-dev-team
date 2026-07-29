@@ -131,6 +131,93 @@ def test_cmd_record_persists_byte_offset_state(hermetic_cost_meter):
     assert state["offset"] == transcript.stat().st_size
 
 
+def _usage_line_with_cache(model, inp, out, cache_create, cache_read, *, sidechain=False, attribution=None):
+    rec = {
+        "message": {
+            "model": model,
+            "usage": {
+                "input_tokens": inp,
+                "output_tokens": out,
+                "cache_creation_input_tokens": cache_create,
+                "cache_read_input_tokens": cache_read,
+            },
+        },
+    }
+    if sidechain:
+        rec["isSidechain"] = True
+    if attribution:
+        rec["attributionAgent"] = attribution
+    return json.dumps(rec) + "\n"
+
+
+def test_cmd_record_persists_cache_tokens_per_bucket(hermetic_cost_meter):
+    """#1513 — the durable log's per-bucket slim output must carry
+    cache_creation_input_tokens (the spawn-floor F component), so F is readable
+    from cost-metering.jsonl, not only from `report --json`."""
+    tmp_path = hermetic_cost_meter
+    transcript = tmp_path / "transcript.jsonl"
+    log = tmp_path / "metrics" / "cost-metering.jsonl"
+    transcript.write_text(
+        _usage_line_with_cache("claude-x", 100, 50, 108000, 5000)
+        + _usage_line_with_cache(
+            "claude-x", 20, 900, 40000, 2000, sidechain=True, attribution="security-review"
+        )
+    )
+
+    cost_meter.cmd_record(SimpleNamespace(transcript=str(transcript), log=str(log)), _PRICING)
+
+    entry = json.loads(log.read_text().splitlines()[-1])
+    # Every dimension's buckets carry both cache fields.
+    for dim in ("by_agent_type", "by_thread", "by_model"):
+        for bucket in entry[dim].values():
+            assert "cache_creation_input_tokens" in bucket
+            assert "cache_read_input_tokens" in bucket
+    # The subagent's spawn floor is now legible from the log — both cache
+    # fields, on all three dimensions, value-checked (not just present).
+    assert entry["by_agent_type"]["security-review"]["cache_creation_input_tokens"] == 40000
+    assert entry["by_agent_type"]["security-review"]["cache_read_input_tokens"] == 2000
+    assert entry["by_agent_type"]["main"]["cache_creation_input_tokens"] == 108000
+    assert entry["by_agent_type"]["main"]["cache_read_input_tokens"] == 5000
+    assert entry["by_thread"]["subagent"]["cache_creation_input_tokens"] == 40000
+    assert entry["by_thread"]["subagent"]["cache_read_input_tokens"] == 2000
+    # by_model aggregates both records (same model claude-x): 108000+40000, 5000+2000.
+    assert entry["by_model"]["claude-x"]["cache_creation_input_tokens"] == 148000
+    assert entry["by_model"]["claude-x"]["cache_read_input_tokens"] == 7000
+
+
+def test_log_round_trips_cache_keys_and_readers_consume_it(hermetic_cost_meter, capsys):
+    """AC3 — a durable log whose buckets carry the new cache keys round-trips
+    intact and is consumed by readers. Asserts observable output, not just a
+    (tautological) return code: regression must hit the real >=2-session branch
+    ('no cost regression'), and pace must print the cumulative spend."""
+    tmp_path = hermetic_cost_meter
+    transcript = tmp_path / "transcript.jsonl"
+    log = tmp_path / "metrics" / "cost-metering.jsonl"
+    transcript.write_text(_usage_line_with_cache("claude-x", 100, 50, 108000, 5000))
+    cost_meter.cmd_record(SimpleNamespace(transcript=str(transcript), log=str(log)), _PRICING)
+    # A second session so regression exercises the real comparison branch.
+    transcript.write_text(_usage_line_with_cache("claude-x", 120, 60, 90000, 4000))
+    cost_meter._state_file(transcript).unlink(missing_ok=True)
+    cost_meter.cmd_record(SimpleNamespace(transcript=str(transcript), log=str(log)), _PRICING)
+
+    lines = log.read_text().splitlines()
+    assert len(lines) == 2  # both sessions persisted (disambiguates the branch below)
+    # Round-trip: the new cache keys survive in the durable log's buckets.
+    assert json.loads(lines[-1])["by_agent_type"]["main"]["cache_creation_input_tokens"] == 90000
+
+    rc = cost_meter.cmd_regression(
+        SimpleNamespace(log=str(log), tolerance=0.5, window=0), _PRICING
+    )
+    out = capsys.readouterr().out
+    assert rc == 0
+    assert "no cost regression" in out  # the real >=2-session branch, not "only N session(s)"
+
+    cost_meter.cmd_pace(
+        SimpleNamespace(log=str(log), budget=None, period_days=30, window_days=7), _PRICING
+    )
+    assert "cumulative spend" in capsys.readouterr().out
+
+
 def test_cmd_record_second_fire_only_tails_new_content(
     hermetic_cost_meter, monkeypatch
 ):

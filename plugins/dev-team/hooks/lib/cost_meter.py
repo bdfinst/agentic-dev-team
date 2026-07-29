@@ -616,12 +616,14 @@ def cmd_record(args, pricing) -> int:
     from datetime import datetime, timezone
 
     def _slim(bucket: dict) -> dict:
+        # Persist cost + every token field per bucket (#1513), deriving the
+        # token names from _TOKEN_FIELDS (the single source of truth used by
+        # _new_bucket/_accumulate_lines) so a future field flows into the
+        # durable log automatically. cache_creation is the spawn-floor F
+        # component the epic measures — it must live in the log, not only in
+        # `report --json`.
         return {
-            k: {
-                "cost_usd": b["cost_usd"],
-                "input_tokens": b["input_tokens"],
-                "output_tokens": b["output_tokens"],
-            }
+            k: {"cost_usd": b["cost_usd"], **{f: b[f] for f in _TOKEN_FIELDS}}
             for k, b in bucket.items()
         }
 
