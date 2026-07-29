@@ -23,7 +23,6 @@ from __future__ import annotations
 
 import argparse
 import json
-import re
 import sys
 from pathlib import Path
 
@@ -33,30 +32,10 @@ sys.path.insert(0, str(_HERE / "lib"))
 from _gherkin_text import FEATURE_PREFIX as _FEATURE_PREFIX
 from _gherkin_text import SCENARIO_OUTLINE_PREFIX as _SCENARIO_OUTLINE_PREFIX
 from _gherkin_text import SCENARIO_PREFIX as _SCENARIO_PREFIX
+from _gherkin_text import safe_for_terminal as _safe_for_terminal
 from _gherkin_text import stripped as _stripped
+from _gherkin_text import trim_trailing_tag_run as _trim_trailing_tag_run
 from _vendored_tree import find_files as _find_files
-
-# C0/C1 control characters (excluding the ordinary whitespace already
-# stripped elsewhere) — stripped before printing scanned-file content to a
-# terminal. A `.feature` file's Feature: title is untrusted (it comes from
-# whatever repository is being scanned) and could otherwise inject terminal
-# escape sequences (CWE-150) or masquerade as trusted tool output fed back
-# into an agent's report.
-_CONTROL_CHARS = re.compile(r"[\x00-\x08\x0b-\x1f\x7f-\x9f]")
-
-
-def _safe_for_terminal(text: str, limit: int = 200) -> str:
-    """Strip control characters and bound length before printing untrusted
-    scanned-file text to a terminal (the `--json` path is unaffected —
-    `json.dumps` already escapes control characters)."""
-    return _CONTROL_CHARS.sub("", text)[:limit]
-
-
-def _is_tag_line(line: str) -> bool:
-    stripped = _stripped(line).strip()
-    if not stripped:
-        return False
-    return all(tok.startswith("@") for tok in stripped.split())
 
 # Entries are literal substrings, not stems — "exceeds" does not match
 # "exceed" — matching gherkin_feature_merge.py's `is_stale` in spirit (a
@@ -106,19 +85,12 @@ def parse_features(text: str, path) -> list:
         title = _stripped(lines[header_index]).strip()[len(_FEATURE_PREFIX) :].strip()
         end_index = header_indices[idx + 1] if idx + 1 < len(header_indices) else len(lines)
         # A `@tag`/blank-line run immediately preceding the next Feature:
-        # header belongs to that next block, not this one (Gherkin tags
-        # attach to the declaration that follows them) — mirrors
-        # gherkin_feature_merge.py's _block_end fix for the identical bug.
-        # Without this, a tag like `@error-handling` on the *following*
-        # Feature block leaks into this block's scenario_text, and a
-        # keyword match against that leaked tag can make this block pass
-        # the gate even though it has no failure-path scenario of its own.
-        while end_index > header_index + 1:
-            prev = lines[end_index - 1]
-            if _stripped(prev).strip() == "" or _is_tag_line(prev):
-                end_index -= 1
-            else:
-                break
+        # header belongs to that next block, not this one. Without this, a
+        # tag like `@error-handling` on the *following* Feature block leaks
+        # into this block's scenario_text, and a keyword match against that
+        # leaked tag can make this block pass the gate even though it has no
+        # failure-path scenario of its own.
+        end_index = _trim_trailing_tag_run(lines, header_index, end_index)
         body = lines[header_index + 1 : end_index]
         scenario_titles = []
         for line in body:
@@ -201,7 +173,10 @@ def main(argv: list | None = None) -> int:
         if args.json:
             print(json.dumps({"scanned": [], "findings": [], "warning": message}, indent=2))
         else:
-            print(f"WARN: {message}")
+            # --dir is composed by gherkin-derive from a probe of the target
+            # repo, not always typed by a human — the same untrusted-path
+            # class as a scanned file's path, sanitized the same way.
+            print(f"WARN: no .feature files found under {_safe_for_terminal(dirs_display)} — gate did not run")
         return 2
 
     all_features = []
@@ -218,7 +193,9 @@ def main(argv: list | None = None) -> int:
     if findings:
         print(f"FAIL: {len(findings)} Feature block(s) missing a failure-path scenario:")
         for entry in findings:
-            print(f"  - {entry['file']}:{entry['line']} — {_safe_for_terminal(entry['feature_title'])}")
+            path = _safe_for_terminal(entry["file"])
+            title = _safe_for_terminal(entry["feature_title"])
+            print(f"  - {path}:{entry['line']} — {title}")
         return 1
 
     print(f"OK: {len(all_features)} Feature block(s) scanned, all have a failure-path scenario.")

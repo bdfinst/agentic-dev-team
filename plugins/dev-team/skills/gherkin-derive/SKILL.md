@@ -151,6 +151,20 @@ operator, or its non-interactive default) instead of guessing a destination.
 If a file already exists at that composed path, **read it** before authoring
 anything for that surface — Step 5 merges into it rather than overwriting.
 
+**Surface identifiers must be unique per method+path (or equivalent
+distinguishing element for non-HTTP surfaces) — never collapse two different
+surfaces onto the same `<surface>` stem (issue #1526).** For an API Provider
+surface, derive `<surface>` from both the HTTP method and the normalized
+path (e.g. `GET /users/{id}` → `get_users_id`, `DELETE /users/{id}` →
+`delete_users_id`) so two endpoints that differ only by method or path never
+compose the same file/feature-title pair. For a non-HTTP surface
+(message-queue consumer, cron job, CLI command, exported function), use the
+fully-qualified name (queue/topic name, job name, module.function) for the
+same reason. A surface-identifier collision is a defect regardless of how it
+happens — it silently merges two unrelated behaviors' scenarios into one
+Feature block, where the exact-title dedup in Step 5 will treat a second
+surface's same-titled scenario as an existing duplicate and drop it.
+
 ## Step 3 — Author scenarios
 
 Use the same templates as `/gherkin-public`: **API Provider**, **UI**,
@@ -170,6 +184,21 @@ directly when the tools are unavailable. Do not invent a generic
 the surface's name or signature. When no such condition is discoverable for a
 surface, mark that scenario `# TODO: no observed failure path — hand-author`
 instead of fabricating one — an honest gap beats an invented scenario.
+
+**Titles must be specific enough to identify the surface without relying on
+the `Feature:` header for context (issue #1526).** A `Scenario:` title read
+in isolation — in a CI report, a BDD runner's scenario list, or a coverage
+dashboard — must be recognizable as belonging to its specific surface, not a
+generic category label that could describe any endpoint (e.g. `returns error
+for invalid input`, `handles success case`). Prefer wording that names the
+concrete condition or resource involved (e.g. `rejects the request when the
+id path parameter is non-numeric`, `returns the created order with a 201 and
+Location header`) over a bare category name. This applies to success-path
+titles as well as failure-path titles — the no-generic-placeholder rule
+above already covers failure-path *content*; this rule covers *all* scenario
+*titles*. A title that is merely a paraphrase of the surface name (the same
+words as the `Feature:` line, reworded) fails this rule the same way a
+placeholder failure condition does.
 
 **Label the provenance** in each `.feature` file header:
 
@@ -521,6 +550,28 @@ files found under `<dir>`, re-check the feature-files directory," never as
 an `OK`/all-clear (a scan of zero files finding zero problems is not the
 same as zero problems). Skip entirely in `none` mode (no `.feature` files
 are written).
+
+**Every mode that writes `.feature` files — report the cross-feature
+duplicate-title gate (issue #1526).** Same scope as the failure-path gate
+immediately above — not `bdd-runner`-only, since the collision this checks
+for exists whenever `.feature` files exist:
+
+```
+python3 ${CLAUDE_PLUGIN_ROOT}/scripts/gherkin_cross_feature_duplicate_titles_gate.py --dir <feature-files-dir>
+```
+
+Print the gate's result as its own report section, never folded into the
+general summary: `OK: no scenario title is duplicated across distinct
+Feature blocks` when it exits 0, or `N scenario title(s) duplicated across
+distinct Feature blocks` when it exits 1, listing each finding as `"<title>"
+appears in <feature-title-A> (<file>:<line>) and <feature-title-B>
+(<file>:<line>) — confirm these are genuinely the same behavior, or rename
+one to be surface-specific`. **A third outcome exists — exit 2 means the
+gate did not run** (no `.feature` files were found under the scanned
+directory, most often a mistyped or mis-probed `--dir`); report this as
+"gate did not run — no `.feature` files found under `<dir>`, re-check the
+feature-files directory," never as an `OK`/all-clear. Skip entirely in
+`none` mode (no `.feature` files are written).
 
 **Every mode — report the analysis-coverage gate (issue #1450).** Unlike
 the two gates above, this one runs even in `none` mode: the surface

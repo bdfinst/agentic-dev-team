@@ -53,7 +53,6 @@ from __future__ import annotations
 
 import argparse
 import json
-import re
 import sys
 from pathlib import Path
 
@@ -61,21 +60,8 @@ _HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(_HERE / "lib"))
 
 from _bdd_markers import MARKERS_BY_EXT as _MARKERS_BY_EXT
+from _gherkin_text import safe_for_terminal as _safe_for_terminal
 from _vendored_tree import find_files as _find_files
-
-# See gherkin_failure_path_gate.py's identical constant/helper: strips
-# control characters from untrusted scanned-file content before it reaches
-# a terminal (CWE-150 / indirect prompt-injection via tool output). Below
-# the repo's own "third occurrence" extraction threshold (two call sites),
-# so kept local rather than hoisted to lib/.
-_CONTROL_CHARS = re.compile(r"[\x00-\x08\x0b-\x1f\x7f-\x9f]")
-
-
-def _safe_for_terminal(text: str, limit: int = 200) -> str:
-    """Strip control characters and bound length before printing untrusted
-    scanned-file text to a terminal (the `--json` path is unaffected —
-    `json.dumps` already escapes control characters)."""
-    return _CONTROL_CHARS.sub("", text)[:limit]
 
 
 def find_step_definition_files(directories: list[Path]) -> list[Path]:
@@ -146,7 +132,13 @@ def main(argv: list[str] | None = None) -> int:
         if args.json:
             print(json.dumps({"scanned": [], "pending": [], "warning": message}, indent=2))
         else:
-            print(f"WARN: {message}")
+            # --dir is composed by gherkin-derive from a probe of the target
+            # repo, not always typed by a human — the same untrusted-path
+            # class as a scanned file's path, sanitized the same way.
+            print(
+                f"WARN: no step-definition files found under "
+                f"{_safe_for_terminal(dirs_display)} — gate did not run"
+            )
         return 2
 
     pending = find_pending_stubs(files)
@@ -158,10 +150,9 @@ def main(argv: list[str] | None = None) -> int:
     if pending:
         print(f"FAIL: {len(pending)} pending step definition(s) — bdd-runner mode is not done:")
         for entry in pending:
-            print(
-                f"  - {entry['file']}:{entry['line']} ({entry['language']}) — "
-                f"{_safe_for_terminal(entry['text'])}"
-            )
+            path = _safe_for_terminal(entry["file"])
+            text = _safe_for_terminal(entry["text"])
+            print(f"  - {path}:{entry['line']} ({entry['language']}) — {text}")
         return 1
 
     print(f"OK: {len(files)} step-definition file(s) scanned, no pending stubs remain.")

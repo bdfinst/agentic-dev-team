@@ -10,6 +10,8 @@ from __future__ import annotations
 import json
 import sys
 
+import pytest
+
 from _repo_root import REPO_ROOT as _REPO_ROOT
 
 sys.path.insert(0, str(_REPO_ROOT / "plugins" / "dev-team" / "scripts"))
@@ -202,3 +204,52 @@ def test_main_json_warns_when_dir_does_not_exist(tmp_path, capsys):
     assert payload["scanned"] == []
     assert payload["findings"] == []
     assert "no .feature files found" in payload["warning"]
+
+
+@pytest.mark.skipif(
+    sys.platform.startswith("win"),
+    reason="NTFS rejects raw control-byte filenames; POSIX-only fixture",
+)
+def test_main_strips_control_characters_from_file_path_in_text_output(tmp_path, capsys):
+    """Security regression (issue #1526 review): the scanned file's path is
+    drawn from the same untrusted repository as the Feature title printed
+    right next to it, and must get the same CWE-150 terminal-escape guard —
+    a crafted filename must not bypass it."""
+    hostile_name = "orders\x1b[31m.feature"
+    (tmp_path / hostile_name).write_text(HAPPY_ONLY)
+    exit_code = gate.main(["--dir", str(tmp_path)])
+    assert exit_code == 1
+    out = capsys.readouterr().out
+    assert "\x1b" not in out
+
+
+def test_main_strips_control_characters_from_feature_title_in_text_output(tmp_path, capsys):
+    """The Feature: title guard is a separate _safe_for_terminal call site
+    from the file-path guard above — each needs its own hostile-input
+    coverage, or reverting just this one call would leave the suite green."""
+    hostile = """Feature: Orders API\x1b[31m
+
+  Scenario: Create order succeeds
+    Given a valid payload
+    When the order is created
+    Then the response status is 201
+"""
+    (tmp_path / "orders.feature").write_text(hostile)
+    exit_code = gate.main(["--dir", str(tmp_path)])
+    assert exit_code == 1
+    out = capsys.readouterr().out
+    assert "\x1b" not in out
+    assert "Orders API" in out
+
+
+def test_main_strips_control_characters_from_dirs_display_when_dir_is_missing(tmp_path, capsys):
+    """--dir is composed by gherkin-derive from a probe of the target repo,
+    not always typed by a human — the WARN branch's dirs_display needs the
+    same guard as a scanned file's path, since it's the same untrusted-path
+    class."""
+    hostile_dir = tmp_path / "nope\x1b[31m"
+    exit_code = gate.main(["--dir", str(hostile_dir)])
+    assert exit_code == 2
+    out = capsys.readouterr().out
+    assert "\x1b" not in out
+    assert "no .feature files found" in out
