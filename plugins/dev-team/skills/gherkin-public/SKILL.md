@@ -48,6 +48,8 @@ For each component in the map, generate one `.feature` file per public surface u
 
 **Grounding scenarios in real behavior.** The component map names each surface but not its actual branches or error-handling depth. If the target repo has `.codegraph/` (CodeGraph MCP server, `mcp__codegraph__codegraph_explore` — fast callers/callees/impact lookups) and/or a Repowise MCP server (`get_context`/`search_codebase` — verified context and semantic search), prefer them over raw `Grep` to inspect a surface's real failure conditions before writing its failure scenario, rather than inferring one from the surface name alone. Never assume either is present — fall back to `Read`/`Grep`/`Glob` when absent; the tools are simply unavailable (no error) on repos without an index.
 
+**Titles must be specific enough to identify the surface without relying on the `Feature:` header for context (issue #1526).** A `Scenario:` title read in isolation — in a CI report, a BDD runner's scenario list, or a coverage dashboard — must be recognizable as belonging to its specific surface, not a generic category label that could describe any endpoint (e.g. `returns error for invalid input`, `handles success case`). Prefer wording that names the concrete condition or resource involved (e.g. `rejects the request when the id path parameter is non-numeric`, `returns the created order with a 201 and Location header`) over a bare category name. A title that is merely a paraphrase of the surface name (the same words as the `Feature:` line, reworded) fails this rule.
+
 **API Provider** (one `.feature` per endpoint):
 
 ```gherkin
