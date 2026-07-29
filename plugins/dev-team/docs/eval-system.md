@@ -74,7 +74,6 @@ Specialized agents that require LLM judgment. The full roster — with counts, f
 | token-efficiency-review | Token optimization (full analysis beyond hook) |
 | security-review | Injection, auth, data exposure, crypto |
 | js-fp-review | Mutation detection (full analysis beyond hook) |
-| svelte-review | Svelte reactivity, closure state leaks, store subscriptions |
 
 Each agent outputs a structured result:
 
@@ -187,7 +186,6 @@ evals/
 │   ├── st-*.ts         # structure-review (5 files)
 │   ├── dm-*.ts         # domain-review (5 files)
 │   ├── te-*.md/.ts     # token-efficiency-review (5 files)
-│   ├── sv-*.svelte.ts  # svelte-review (8 files)
 │   ├── cs-*/           # claude-setup-review (4 directories)
 │   └── tlg-*.md        # test-design-advisor behavior pre-gates (11 files)
 ├── expected/           # Reference solutions (checked in)

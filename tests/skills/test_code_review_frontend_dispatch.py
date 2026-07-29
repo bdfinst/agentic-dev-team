@@ -88,8 +88,6 @@ def test_step3_keeps_layered_gates_and_manifest_rule():
     assert CODE_REVIEW.index("select_lenses.py") < CODE_REVIEW.index("change_shape.py")
 
 
-def test_step3_reconciled_redundant_svelte_and_ai_provenance_prose():
-    # Old Svelte framework bullet is gone (svelte-review is resolver-governed).
-    assert "files present): include `svelte-review`" not in CODE_REVIEW
+def test_step3_reconciled_ai_provenance_prose():
     # Old narrower ai-provenance prose is gone (it is Scope: always → resolver-governed).
     assert "include `ai-provenance-review` whenever test files or production code" not in CODE_REVIEW

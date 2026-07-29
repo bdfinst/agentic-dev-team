@@ -38,4 +38,12 @@ NON_REVIEW_AGENTS = {
     "spec-reviewer",  # Stage-1 spec gate, orchestrator-dispatched — not a lens
     "tech-writer",
     "ui-ux-designer",
+    # Plan/Gherkin critics dispatched by /plan and /gherkin-derive — not code-review
+    # lenses, so no per-file Scope (closes #1525: check_agent_scope was red for these).
+    "gherkin-quality-critic",
+    "plan-review-acceptance",
+    "plan-review-design",
+    "plan-review-parallelization",
+    "plan-review-strategic",
+    "plan-review-ux",
 }

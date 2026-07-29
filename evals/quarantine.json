@@ -44,14 +44,6 @@
       "pass_at_k": 0.3333,
       "trials": 3
     },
-    "sv-closure-state-leak.svelte::svelte-review": {
-      "pass_at_k": 0.6667,
-      "trials": 3
-    },
-    "sv-effect-pitfalls.svelte::svelte-review": {
-      "pass_at_k": 0.6667,
-      "trials": 3
-    },
     "te-duplicate-code::token-efficiency-review": {
       "pass_at_k": 0.3333,
       "trials": 3
@@ -90,8 +82,6 @@
     "sec-safe-headers::security-review",
     "st-god-object::structure-review",
     "st-mixed-concerns::structure-review",
-    "sv-closure-state-leak.svelte::svelte-review",
-    "sv-effect-pitfalls.svelte::svelte-review",
     "te-duplicate-code::token-efficiency-review",
     "te-long-functions::token-efficiency-review",
     "test-clean-doubles.test::test-smell-review",

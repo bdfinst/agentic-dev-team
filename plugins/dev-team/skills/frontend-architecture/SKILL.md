@@ -37,8 +37,8 @@ fields natively before dispatch, per Model/Effort Resolution in
 2. **Scope to the frontend.** Only pass frontend component files to the agent;
    skip the run with a one-line note if none are in scope.
 3. **No double-reporting.** This review owns component *reuse and composition*.
-   Defer accessibility to `a11y-review`, framework reactivity to `svelte-review`
-   (and other framework agents), non-UI logic duplication and SRP/coupling to
+   Defer accessibility to `a11y-review`, framework reactivity to the framework-reactivity reviewers
+   (`react-reactivity-review`/`vue-reactivity-review`/`angular-reactivity-review`), non-UI logic duplication and SRP/coupling to
    `structure-review`/`refactor-opportunity-review`, and naming to
    `naming-review`. When the same line belongs to one of those, drop it here.
 4. **Be concise.** One aggregated report. Issue messages one sentence;

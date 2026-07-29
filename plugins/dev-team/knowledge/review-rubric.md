@@ -38,7 +38,7 @@ integrity failures escalate faster than style or naming issues.
 | Architecture | arch-review, domain-review | 2+ fail → 🔴 overall |
 | Correctness | test-review, concurrency-review | Normal scoring |
 | Quality | structure-review, complexity-review, js-fp-review, naming-review | Normal scoring |
-| Accessibility | a11y-review, svelte-review | Normal scoring |
+| Accessibility | a11y-review | Normal scoring |
 | Ops | doc-review, claude-setup-review, token-efficiency-review, performance-review | Normal scoring |
 
 ## Issue Severity Mapping
