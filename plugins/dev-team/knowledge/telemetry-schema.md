@@ -100,6 +100,27 @@ transcript on each `Stop` hook fire.
 
 ---
 
+## `phase-markers.jsonl`
+
+Per-phase context-pollution markers (#1520), one row appended at each `/handoff`
+(a phase boundary). Distinct stream from `cost-metering.jsonl` — deliberately
+kept out of that log's incremental `record` state so this additive dimension
+never touches the security-sensitive hot path.
+
+| Field | Type | Values / source |
+|---|---|---|
+| `timestamp` | string | ISO-8601 UTC |
+| `transcript` | string | Transcript file basename (not full path) |
+| `phase` | string | Phase label — the first `/handoff` args token when sane, else `handoff` (or `unlabeled` for a direct library call) |
+| `resident_tokens` | int | Main-loop context occupancy at the boundary: the most-recent non-sidechain turn's `input + cache_read + cache_creation` |
+| `spent_output_cumulative` | int | Cumulative main-loop `output_tokens` across the session up to this boundary (monotonic; `phase-report` deltas it into per-phase spend) |
+
+- **Emitter:** `hooks/phase_marker.py` (PostToolUse:Skill, filters to `handoff`) → `hooks/lib/cost_meter.py::cmd_phase_mark()`.
+- **Consent:** gated by `telemetry_consent.is_enabled()`; shares the cost meter's `DEV_TEAM_COST_METER=off` opt-out.
+- **Consumers:** `skills/cost-report/SKILL.md` (§ Context pollution, via `phase-report`), `skills/harness-audit/SKILL.md` (§ Analyze orchestration complexity).
+
+---
+
 ## `artifact-usage.json`
 
 Not JSONL — a single JSON object keyed by skill/agent name, upserted on

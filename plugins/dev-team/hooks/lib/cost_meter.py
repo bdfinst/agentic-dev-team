@@ -79,6 +79,20 @@ pace     --log .claude/metrics/cost-metering.jsonl [--budget B] [--period-days 3
          period. With --budget it flags when the current pace would exhaust the
          budget and suggests dropping a model tier for the rest of the window.
 
+phase-mark --transcript T --phase LABEL [--log .claude/metrics/phase-markers.jsonl]
+         Context-pollution measurement (#1520): append one phase-boundary
+         marker capturing the main-loop resident context occupancy and the
+         cumulative output spend at a `/handoff` boundary. Fired by the
+         `phase_marker.py` PostToolUse hook. Kept in its own log, never folded
+         into the incremental `record` state.
+
+phase-report --log .claude/metrics/phase-markers.jsonl [--json]
+         Report per-phase resident-vs-spent ratios from the phase markers: for
+         each phase, the context still resident at its boundary vs the output
+         tokens spent during it. A high ratio distinguishes context that
+         lingered (pollution) from one-time cost — a distinction the session
+         totals cannot make.
+
 The transcript schema is read defensively (usage may sit on the record or under
 `message`; model + agent attribution likewise), so it tolerates schema drift.
 """
@@ -751,6 +765,157 @@ def cmd_pace(args, pricing) -> int:
     return 0
 
 
+def _resident_and_spent(path: Path) -> tuple[int, int]:
+    """(resident_tokens, spent_output_cumulative) for the MAIN-LOOP context (#1520).
+
+    Context-pollution measurement is about the *live orchestrating* context —
+    the one that "charges rent" every subsequent turn per Martin Fowler's "The
+    Orchestrator's Tax" — so both figures are computed over main-loop
+    (non-sidechain) turns only; subagent contexts are separate and are
+    discarded at their own SubagentStop.
+
+      * resident_tokens = the MOST-RECENT main-loop usage record's context
+        occupancy (input + cache_read + cache_creation) — what still occupies
+        the window at this point, the same numerator context_ceiling_guard.py
+        uses. Overwritten each turn so it ends as the last turn's occupancy.
+      * spent_output_cumulative = the sum of output_tokens across all main-loop
+        turns so far — the one-time generation bill accrued to this point.
+
+    Read defensively (schema drift tolerated the same way parse_transcript does);
+    a missing/unreadable transcript returns (0, 0) rather than raising, so the
+    fail-open phase-mark hook never breaks a turn.
+    """
+    resident = 0
+    spent_output = 0
+    try:
+        lines = path.read_text().splitlines()
+    except OSError:
+        return 0, 0
+    for line in lines:
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            rec = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        if rec.get("isSidechain"):
+            continue  # main-loop context only
+        usage = _first_present_field(rec, "usage")
+        if not isinstance(usage, dict):
+            continue
+        resident = (
+            (usage.get("input_tokens", 0) or 0)
+            + (usage.get("cache_read_input_tokens", 0) or 0)
+            + (usage.get("cache_creation_input_tokens", 0) or 0)
+        )
+        spent_output += usage.get("output_tokens", 0) or 0
+    return resident, spent_output
+
+
+def cmd_phase_mark(args, pricing) -> int:
+    """Append one phase-boundary marker to the phase-markers log (#1520).
+
+    Fired by the `phase_marker.py` PostToolUse hook when `/handoff` runs (a
+    phase boundary). Captures the resident/spent snapshot at the boundary so
+    `phase-report` can later derive per-phase context-pollution ratios the
+    session totals alone cannot (the harness records no phase marker itself —
+    the reason per-phase cost attribution was removed in #170). Kept in its OWN
+    log, deliberately NOT folded into the incremental `record` state, so this
+    additive dimension never touches that security-sensitive hot path.
+
+    Fail-open: a missing transcript is a no-op success (the hook must never
+    break a turn)."""
+    tpath = Path(args.transcript)
+    if not tpath.is_file():
+        return 0
+    resident, spent = _resident_and_spent(tpath)
+    from datetime import datetime, timezone
+
+    line = {
+        "timestamp": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "transcript": tpath.name,
+        "phase": args.phase or "unlabeled",
+        "resident_tokens": resident,
+        "spent_output_cumulative": spent,
+    }
+    log = Path(args.log)
+    log.parent.mkdir(parents=True, exist_ok=True)
+    with log.open("a") as fh:
+        fh.write(json.dumps(line) + "\n")
+    return 0
+
+
+def _phase_rows(entries: list) -> list:
+    """Per-phase resident/spent rows from ordered phase markers (#1520).
+
+    `spent_output_cumulative` is monotonic across a session, so a phase's own
+    spend is the delta from the prior marker; `resident_tokens` is a snapshot,
+    used as-is. `resident_to_spent_ratio = resident / spent_phase` is the
+    context-pollution proxy — high means a large resident footprint relative to
+    the fresh generation the phase did (context that lingered rather than being
+    compacted). `None` when the phase spent nothing new (ratio undefined), never
+    a divide-by-zero.
+    """
+    rows = []
+    prev_spent = 0
+    for e in entries:
+        resident = e.get("resident_tokens", 0) or 0
+        spent_cum = e.get("spent_output_cumulative", 0) or 0
+        # A cumulative counter can only go up within a session; clamp at 0 so a
+        # transcript rotation (counter reset) never yields a negative phase spend.
+        spent_phase = max(spent_cum - prev_spent, 0)
+        prev_spent = spent_cum
+        ratio = round(resident / spent_phase, 2) if spent_phase > 0 else None
+        rows.append(
+            {
+                "phase": e.get("phase", "unlabeled"),
+                "resident_tokens": resident,
+                "spent_tokens": spent_phase,
+                "resident_to_spent_ratio": ratio,
+            }
+        )
+    return rows
+
+
+def cmd_phase_report(args, pricing) -> int:
+    """Print per-phase resident/spent ratios from the phase-markers log (#1520)."""
+    log = Path(args.log)
+    if not log.is_file():
+        print("no phase markers recorded yet; nothing to report")
+        return 0
+    entries = []
+    for line in log.read_text().splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            entries.append(json.loads(line))
+        except json.JSONDecodeError:
+            continue
+    rows = _phase_rows(entries)
+    if getattr(args, "json", False):
+        print(json.dumps({"by_phase": rows}, indent=2))
+        return 0
+    print("# Context pollution — resident vs one-time spend, per phase (#1520)")
+    print(f"{'PHASE':<24} {'RESIDENT':>10} {'SPENT':>10} {'RESIDENT/SPENT':>15}")
+    print("-" * 62)
+    for r in rows:
+        ratio = "-" if r["resident_to_spent_ratio"] is None else f"{r['resident_to_spent_ratio']:.2f}"
+        print(
+            f"{r['phase']:<24} {r['resident_tokens']:>10} {r['spent_tokens']:>10} "
+            f"{ratio:>15}"
+        )
+    print(
+        "\nresident = main-loop context occupancy at the phase's /handoff boundary; "
+        "spent = output tokens generated during the phase. A high ratio flags a "
+        "phase whose context lingered (pollution) rather than being one-time cost. "
+        "Session-scoped proxy: resident is sampled at the /handoff marker, the "
+        "closest phase boundary the harness exposes."
+    )
+    return 0
+
+
 def main(argv: list[str]) -> int:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--pricing", default=str(_DEFAULT_PRICING))
@@ -791,6 +956,21 @@ def main(argv: list[str]) -> int:
         default=7,
         help="rolling lookback used to estimate the current daily rate",
     )
+    p = sub.add_parser("phase-mark")
+    p.add_argument("--transcript", required=True)
+    p.add_argument(
+        "--phase",
+        default=None,
+        help="phase label for this boundary marker (e.g. research/plan/implement)",
+    )
+    p.add_argument(
+        "--log", default=str(artifact_paths.metrics_dir() / "phase-markers.jsonl")
+    )
+    p = sub.add_parser("phase-report")
+    p.add_argument(
+        "--log", default=str(artifact_paths.metrics_dir() / "phase-markers.jsonl")
+    )
+    p.add_argument("--json", action="store_true")
 
     args = ap.parse_args(argv)
     pricing = _load_pricing(Path(args.pricing))
@@ -799,6 +979,8 @@ def main(argv: list[str]) -> int:
         "record": cmd_record,
         "regression": cmd_regression,
         "pace": cmd_pace,
+        "phase-mark": cmd_phase_mark,
+        "phase-report": cmd_phase_report,
     }[args.cmd](args, pricing)
 
 

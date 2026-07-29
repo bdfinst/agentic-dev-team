@@ -302,6 +302,14 @@ Review the current pipeline for components that may be unnecessary overhead:
 1. **Phase count**: Are all three phases (Research, Plan, Implement) needed for the types of tasks being run? If most tasks are simple, suggest a fast path.
 2. **Review checkpoint frequency**: Are inline reviews running on every step? If most steps are trivial, the complexity classification (see `skills/plan/SKILL.md` § Complexity Classification) should be catching this.
 3. **Unused skills**: Skills loaded but never applied in logged sessions.
+4. **Context pollution per phase (#1520)**: Read the per-phase resident-vs-spend ratios from the phase markers (`phase-report`) and flag phases whose context lingered rather than being one-time cost — candidates for earlier mid-phase compaction or narrower subagent scoping. Skip if the log is absent.
+
+   ```bash
+   log=".claude/metrics/phase-markers.jsonl"; [ -f "$log" ] || log="metrics/phase-markers.jsonl"
+   [ -f "$log" ] && python3 ${CLAUDE_PLUGIN_ROOT}/hooks/lib/cost_meter.py phase-report --log "$log" --json
+   ```
+
+   A phase with a high `resident_to_spent_ratio` spent proportionally little fresh generation while carrying a large resident context — cite it in § Orchestration Simplification Opportunities as a compaction/scoping candidate. This is a session-scoped proxy (resident is sampled at the `/handoff` boundary — see `skills/cost-report/SKILL.md` § Context pollution), not exact per-phase accounting.
 
 ### 8. Produce report
 
@@ -406,6 +414,7 @@ Write the report to the output path using this structure:
 ## Orchestration Simplification Opportunities
 
 - <Finding and recommendation>
+- <Context-pollution candidates (#1520): any phase with a high resident/spent ratio from `phase-report` — recommend earlier mid-phase compaction or narrower subagent scoping. Omit if no phase markers logged.>
 
 ## Summary
 
