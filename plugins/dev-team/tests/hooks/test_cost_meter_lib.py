@@ -511,3 +511,45 @@ def test_dig_helper_renamed_descriptively():
         "cache_read_tokens",
     ):
         assert descriptive in cost_source
+
+
+# ---------------------------------------------------------------------------
+# #1531 — cmd_regression decision-branch coverage. The spike/within-tolerance
+# return-code and the --window baseline flip are already covered by
+# tests/repo/test_cost_meter.py; these pin the three remaining branches:
+# the <2-session short-circuit, the strict latest==limit boundary, and the
+# mean>0 zero-baseline guard. Expected values hand-derived from the documented
+# mean*(1+tolerance) rule and verified against the live function.
+# ---------------------------------------------------------------------------
+def _write_cost_log(path, costs):
+    path.write_text("".join(json.dumps({"total": {"cost_usd": c}}) + "\n" for c in costs))
+
+
+@pytest.mark.parametrize("costs,count", [([2.0], 1), ([], 0)])
+def test_cmd_regression_short_circuits_under_two_sessions(hermetic_cost_meter, capsys, costs, count):
+    log = hermetic_cost_meter / "c.jsonl"
+    _write_cost_log(log, costs)
+    rc = cost_meter.cmd_regression(SimpleNamespace(log=str(log), tolerance=0.5, window=0), _PRICING)
+    out = capsys.readouterr().out
+    assert rc == 0
+    assert f"only {count} session(s) logged; need >=2" in out
+
+
+def test_cmd_regression_latest_equal_to_limit_is_not_a_regression(hermetic_cost_meter, capsys):
+    # prior [1.0, 1.0] -> mean 1.0, +50% -> limit 1.5; latest 1.5 == limit; strict > means no regression.
+    log = hermetic_cost_meter / "c.jsonl"
+    _write_cost_log(log, [1.0, 1.0, 1.5])
+    rc = cost_meter.cmd_regression(SimpleNamespace(log=str(log), tolerance=0.5, window=0), _PRICING)
+    out = capsys.readouterr().out
+    assert rc == 0
+    assert "no cost regression" in out
+
+
+def test_cmd_regression_zero_baseline_never_flags(hermetic_cost_meter, capsys):
+    # prior mean 0.0 -> the `mean > 0` guard suppresses a regression even though latest > limit(==0).
+    log = hermetic_cost_meter / "c.jsonl"
+    _write_cost_log(log, [0.0, 0.0, 5.0])
+    rc = cost_meter.cmd_regression(SimpleNamespace(log=str(log), tolerance=0.5, window=0), _PRICING)
+    out = capsys.readouterr().out
+    assert rc == 0
+    assert "no cost regression" in out
