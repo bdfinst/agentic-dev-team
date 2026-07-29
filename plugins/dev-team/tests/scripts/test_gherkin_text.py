@@ -52,6 +52,28 @@ def test_safe_for_terminal_strips_tabs():
     assert gherkin_text.safe_for_terminal("orders\ttab") == "orderstab"
 
 
+def test_safe_for_terminal_strips_unicode_line_and_paragraph_separators():
+    """Issue #1529: some terminals render U+2028/U+2029 as a hard line
+    break even though they're outside the ASCII C0/C1 range the CR/LF fix
+    (issue #1526) covered — the same fake-report-line-forgery risk, in a
+    non-ASCII variant."""
+    assert gherkin_text.safe_for_terminal("orders\u2028OK: fake line") == "ordersOK: fake line"
+    assert gherkin_text.safe_for_terminal("orders\u2029OK: fake line") == "ordersOK: fake line"
+
+
+def test_safe_for_terminal_strips_unicode_bidi_override_characters():
+    """Issue #1529: a bidirectional-override character (e.g. U+202E
+    RIGHT-TO-LEFT OVERRIDE) can visually spoof a printed path/title
+    (Trojan-Source-style) by reordering how the surrounding text renders."""
+    assert gherkin_text.safe_for_terminal("orders\u202etitle") == "orderstitle"
+    assert gherkin_text.safe_for_terminal("orders\u202atitle") == "orderstitle"
+
+
+def test_safe_for_terminal_strips_unicode_bidi_isolate_characters():
+    assert gherkin_text.safe_for_terminal("orders\u2066iso\u2069") == "ordersiso"
+
+
+
 def test_is_tag_line_true_for_single_tag():
     assert gherkin_text.is_tag_line("  @error-handling\n") is True
 

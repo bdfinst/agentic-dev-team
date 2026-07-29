@@ -324,6 +324,60 @@ def test_cli_merge_malformed_candidates_exits_2_and_leaves_file_unchanged(tmp_pa
     assert "malformed" in proc.stderr.lower()
 
 
+@pytest.mark.skipif(
+    sys.platform.startswith("win"),
+    reason="NTFS rejects raw control-byte filenames; POSIX-only fixture",
+)
+def test_cli_merge_malformed_candidates_strips_control_characters_from_candidates_path(tmp_path):
+    """Security regression (issue #1529): --candidates is composed by
+    gherkin-derive from a probe of the target repository, the same
+    untrusted-path class as --existing in the sibling gherkin_feature_merge.py
+    — a crafted path must not bypass the CWE-150 terminal-escape guard
+    applied there."""
+    existing = tmp_path / "a_steps.js"
+    existing.write_text(_IMPLEMENTED_JS, encoding="utf-8")
+    hostile_dir = tmp_path / "cand\x1b[31m"
+    hostile_dir.mkdir()
+    candidates = hostile_dir / "candidates.txt"
+    candidates.write_text("Given('unterminated', function () {\n  return this.pending();\n", encoding="utf-8")
+
+    proc = _run_cli(
+        "merge", "--existing", str(existing), "--candidates", str(candidates), "--ext", ".js"
+    )
+    assert proc.returncode == 2
+    assert "\x1b" not in proc.stderr
+    assert "malformed" in proc.stderr.lower()
+
+
+@pytest.mark.skipif(
+    sys.platform.startswith("win"),
+    reason="NTFS rejects raw control-byte filenames; POSIX-only fixture",
+)
+def test_cli_merge_missing_candidates_file_strips_control_characters_from_candidates_path(
+    tmp_path,
+):
+    """Security regression (issue #1529): the unreadable-candidates error
+    branch (a distinct _safe_for_terminal call site from the malformed-
+    candidates branch above) must sanitize --candidates the same way."""
+    existing = tmp_path / "a_steps.js"
+    existing.write_text(_IMPLEMENTED_JS, encoding="utf-8")
+    hostile_dir = tmp_path / "cand\x1b[31m"
+    hostile_dir.mkdir()
+
+    proc = _run_cli(
+        "merge",
+        "--existing",
+        str(existing),
+        "--candidates",
+        str(hostile_dir / "does_not_exist.txt"),
+        "--ext",
+        ".js",
+    )
+    assert proc.returncode == 2
+    assert "\x1b" not in proc.stderr
+    assert "could not be read" in proc.stderr
+
+
 def test_cli_merge_malformed_candidates_json_error_is_distinct_from_existing_structural_error(
     tmp_path,
 ):
@@ -448,6 +502,58 @@ def test_cli_merge_malformed_existing_file_exits_2_and_leaves_file_unchanged(tmp
     assert existing.read_text(encoding="utf-8") == malformed
     assert "structure could not be parsed" in proc.stderr
     assert f"error={gsm.ERROR_UNBALANCED_BRACES}" in proc.stderr
+
+
+@pytest.mark.skipif(
+    sys.platform.startswith("win"),
+    reason="NTFS rejects raw control-byte filenames; POSIX-only fixture",
+)
+def test_cli_merge_malformed_existing_file_strips_control_characters_from_existing_path(
+    tmp_path,
+):
+    """Security regression (issue #1529): --existing is composed by
+    gherkin-derive from a probe of the target repository — the structural-
+    error branch's _safe_for_terminal call must sanitize it the same way
+    the sibling gherkin_feature_merge.py does."""
+    hostile_dir = tmp_path / "exist\x1b[31m"
+    hostile_dir.mkdir()
+    existing = hostile_dir / "a_steps.js"
+    malformed = "Given('a thing', function () {\n  return this.pending();\n"  # never closes
+    existing.write_text(malformed, encoding="utf-8")
+    candidates = tmp_path / "candidates.txt"
+    candidates.write_text(_js_candidate("a new thing").text, encoding="utf-8")
+
+    proc = _run_cli(
+        "merge", "--existing", str(existing), "--candidates", str(candidates), "--ext", ".js"
+    )
+    assert proc.returncode == 2
+    assert "\x1b" not in proc.stderr
+    assert "structure could not be parsed" in proc.stderr
+
+
+@pytest.mark.skipif(
+    sys.platform.startswith("win"),
+    reason="NTFS rejects raw control-byte filenames; POSIX-only fixture",
+)
+def test_cli_merge_writes_file_strips_control_characters_from_existing_path_in_text_output(
+    tmp_path,
+):
+    """Security regression (issue #1529): the merge-success branch's
+    _safe_for_terminal call is a separate call site from the structural-
+    error branch above — each needs its own hostile-input coverage."""
+    hostile_dir = tmp_path / "exist\x1b[31m"
+    hostile_dir.mkdir()
+    existing = hostile_dir / "a_steps.js"
+    existing.write_text(_IMPLEMENTED_JS, encoding="utf-8")
+    candidates = tmp_path / "candidates.txt"
+    candidates.write_text(_js_candidate("a new thing").text, encoding="utf-8")
+
+    proc = _run_cli(
+        "merge", "--existing", str(existing), "--candidates", str(candidates), "--ext", ".js"
+    )
+    assert proc.returncode == 0, proc.stderr
+    assert "\x1b" not in proc.stdout
+    assert "OK: merged" in proc.stdout
 
 
 def test_cli_merge_dangling_annotation_java_exits_2_and_leaves_file_unchanged(tmp_path):

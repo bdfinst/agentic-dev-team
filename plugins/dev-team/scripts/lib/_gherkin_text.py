@@ -26,18 +26,25 @@ FEATURE_PREFIX = "Feature:"
 SCENARIO_OUTLINE_PREFIX = "Scenario Outline:"
 SCENARIO_PREFIX = "Scenario:"
 
-# Full C0 + C1 control-character range — stripped before printing untrusted
-# scanned-file content (or a path derived from it) to a terminal. A
-# `.feature` file's content (titles, and the path it was found at) comes
-# from whatever repository is being scanned, and could otherwise inject
-# terminal escape sequences (CWE-150), forge fake report lines via an
-# embedded CR/LF, or masquerade as trusted tool output fed back into an
-# agent's report. Titles are always single lines (parsed via `splitlines()`
-# then `.strip()`), so stripping CR/LF/tab from title text is a no-op; a
-# filesystem path has no such guarantee, so the full range — not just the
-# subset that happened to matter for line-oriented title text — is needed
-# now that this function also sanitizes paths.
-CONTROL_CHARS = re.compile(r"[\x00-\x1f\x7f-\x9f]")
+# Full C0 + C1 control-character range, plus Unicode line/paragraph
+# separators and bidirectional-control characters — stripped before printing
+# untrusted scanned-file content (or a path derived from it) to a terminal.
+# A `.feature` file's content (titles, and the path it was found at) comes
+# from whatever repository is being scanned, and could otherwise:
+#   - inject terminal escape sequences (CWE-150) via the C0/C1 range;
+#   - forge a fake extra report line via an embedded CR/LF (C0), or via
+#     U+2028/U+2029, which several terminals still render as a hard line
+#     break even though they're outside the ASCII control range;
+#   - visually spoof a printed path/title (Trojan-Source-style) via a
+#     bidirectional-override character (U+202A-U+202E) or isolate
+#     (U+2066-U+2069), reordering how the surrounding text renders.
+# Titles are always single lines (parsed via `splitlines()` then `.strip()`),
+# so stripping any of these from title text is a no-op; a filesystem path
+# has no such guarantee, so the full range is needed now that this function
+# also sanitizes paths. `repr()`-based print sites (e.g.
+# `gherkin_feature_merge.py`'s check-stale branch) don't need this guard —
+# Python's `repr()` already escapes every character struck here.
+CONTROL_CHARS = re.compile("[\x00-\x1f\x7f-\x9f\u2028\u2029\u202a-\u202e\u2066-\u2069]")
 
 TERMINAL_DISPLAY_LIMIT = 200
 
