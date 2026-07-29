@@ -8,6 +8,8 @@ import os
 import subprocess
 import sys
 
+import pytest
+
 from _repo_root import REPO_ROOT as _REPO_ROOT
 
 _SCRIPT = _REPO_ROOT / "plugins" / "dev-team" / "scripts" / "select_lenses.py"
@@ -239,3 +241,83 @@ def test_cli_empty_files_yields_no_lenses():
         env={"PATH": os.environ.get("PATH", "/usr/bin:/bin"), "LANG": "C.UTF-8"},
     )
     assert json.loads(r.stdout)["lenses"] == []
+
+
+# ---------------------------------------------------------------------------
+# #1523 — frozen equivalence baseline for /code-review Step 3 adoption.
+# ALWAYS_LENSES and the expected sets are hand-derived from the agents' own
+# Scope: declarations (the pre-#1523 in-model rule's output), NOT copied from
+# select_lenses' output — so a match proves equivalence rather than restating
+# the resolver. A new Scope: always review lens must update ALWAYS_LENSES
+# deliberately (that break is the intended "review the baseline" signal).
+# ---------------------------------------------------------------------------
+ALWAYS_LENSES = {
+    "ai-provenance-review", "arch-review", "claude-setup-review", "complexity-review",
+    "concurrency-review", "correctness-review", "doc-review", "domain-review",
+    "naming-review", "performance-review", "refactor-opportunity-review",
+    "security-review", "spec-compliance-review", "structure-review", "test-review",
+    "test-smell-review", "token-efficiency-review",
+}
+FILE_TYPE_LENSES = {
+    "a11y-review", "js-fp-review", "component-architecture-review", "svelte-review",
+}
+REACTIVITY_LENSES = {
+    "react-reactivity-review", "vue-reactivity-review", "angular-reactivity-review",
+}
+
+_BASELINE = [
+    (["svc/foo.py"], set()),                                                    # backend — A only
+    (["docs/x.md"], set()),                                                     # docs — A only
+    (["svc/handler.ts"], {"js-fp-review"}),                                     # .ts→js-fp boundary
+    (["src/App.tsx"], {"js-fp-review", "a11y-review", "component-architecture-review"}),
+    (["src/W.vue"], {"a11y-review", "component-architecture-review"}),          # NOT js-fp
+    (["src/W.svelte"], {"a11y-review", "component-architecture-review", "svelte-review"}),
+    (["a/x.component.ts"], {"js-fp-review", "component-architecture-review"}),  # NOT a11y
+    (["tpl/p.html"], {"a11y-review"}),                                          # a11y only
+    # .component.html matches BOTH a11y (.html suffix) and component-architecture (.component.html).
+    (["a/x.component.html"], {"a11y-review", "component-architecture-review"}),
+    # multi-file union pulls file-type lenses from both members (.ts→js-fp; .svelte→a11y+comp-arch+svelte).
+    (["svc/handler.ts", "src/W.svelte"],
+     {"js-fp-review", "a11y-review", "component-architecture-review", "svelte-review"}),
+]
+
+
+@pytest.mark.parametrize("files,extra", _BASELINE)
+def test_frozen_baseline_selection(files, extra):
+    lenses = set(json.loads(_run(*files).stdout)["lenses"])
+    assert lenses == ALWAYS_LENSES | extra
+
+
+def test_manifest_governed_reactivity_lenses_never_in_roster():
+    # Input-independent invariant (build_review_roster excludes MANIFEST_GOVERNED),
+    # so asserted once rather than per baseline shape.
+    lenses = set(json.loads(_run("src/App.tsx").stdout)["lenses"])
+    assert lenses.isdisjoint(REACTIVITY_LENSES)
+
+
+def test_baseline_fixture_exercises_every_file_type_lens():
+    # Guards the _BASELINE fixture table (not select_lenses runtime): every
+    # file-type lens must be triggered by at least one shape.
+    covered = set()
+    for _files, extra in _BASELINE:
+        covered |= extra
+    assert FILE_TYPE_LENSES <= covered
+
+
+def test_file_type_lens_set_is_pinned_to_the_known_four():
+    # Guard: a future agent introducing a new file-type Scope pattern trips this,
+    # forcing a new baseline shape rather than going silently unverified.
+    roster, _ = SL.build_review_roster(
+        SL._HERE.parent / "agents", SL._HERE.parent / "knowledge" / "agent-registry.md"
+    )
+    file_type = {name for name, scope, _ in roster if isinstance(scope, list)}
+    assert file_type == FILE_TYPE_LENSES
+    always = {name for name, scope, _ in roster if scope == "always"}
+    assert always == ALWAYS_LENSES
+
+
+# review-config.json "enabled: false" honoring is orchestrator-executed prose
+# (no shared function implements it), so it has no executable unit oracle — a
+# set-difference test would be a self-referential tautology. Its presence is
+# guarded instead by the content-guard in test_code_review_frontend_dispatch.py
+# (review-config.json paragraph still in Step 3). See #1523 plan AC6.
