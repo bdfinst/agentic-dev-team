@@ -6,13 +6,15 @@ Resolve the effective build concurrency for a wave:
     effective = min(requested --jobs, DEV_TEAM_MAX_PARALLEL_BUILDS, wave width)
 
 A requested value or max that is zero, negative, or non-integer clamps to 1
-(deterministic, never an error). When `DEV_TEAM_MAX_PARALLEL_BUILDS` is unset,
-the max defaults to a per-host ceiling `min(16, cores-2)` (floored at 1) so an
-unset `--jobs` fans a wave out to its full width, bounded by the machine — the
-same cap the Agent/Workflow harness uses (#1170). An explicit env value is
-honored verbatim and is never re-capped by that ceiling. `--jobs 1` therefore
-resolves to 1 — the sequential decision. Prints the effective integer on stdout
-and a human-readable resolution line on stderr.
+(deterministic, never an error). Parallel fan-out is opt-in: when neither
+`--jobs` nor `DEV_TEAM_MAX_PARALLEL_BUILDS` is set, the default is sequential
+(effective 1) — fan-out never *saves* tokens, it trades them for wall-clock, so
+it is never the silent default (#1515). An explicit `--jobs N` opts in, bounded
+only by wave width; an explicit `DEV_TEAM_MAX_PARALLEL_BUILDS` opts in and is
+honored verbatim (never re-capped by any per-host ceiling), with an unset
+`--jobs` then fanning out to that env max. `--jobs 1` resolves to 1 — the
+sequential decision. Prints the effective integer on stdout and a human-readable
+resolution line on stderr.
 
 Usage: build_jobs.py --wave-width W [--jobs N]
 
@@ -25,23 +27,18 @@ import os
 import sys
 
 
-def _default_max_parallel_builds(cpu_count: int | None) -> int:
-    """Default `DEV_TEAM_MAX_PARALLEL_BUILDS` ceiling when the env var is unset:
-    fan a wave out as wide as the machine allows, bounded by the harness's own
-    concurrency cap `min(16, cores-2)` and floored at 1 (#1170). Takes the core
-    count as a parameter so it is unit-testable independent of the real host —
-    mirrors `default_concurrency()` in the csharp-stryker wrapper."""
-    return max(1, min(16, (cpu_count or 1) - 2))
-
-
 def _norm(value: str) -> int:
     """A positive integer stays; anything else (empty, 0, negative, non-numeric)
-    clamps to 1 — matches the .sh's `norm()` function exactly."""
+    clamps to 1 — matches the .sh's `norm()` function exactly, deterministic and
+    never raising."""
     if not value:
         return 1
-    # Bash's `case '$1' in ''|*[!0-9]*) echo 1` also treats "-2" as non-numeric
-    # (the leading dash is a non-digit character). Preserve that semantics.
-    if not value.isdigit():
+    # Require ASCII decimals. `str.isdigit()` alone is True for non-decimal
+    # Unicode digits (e.g. superscript "²") that `int()` then rejects with
+    # ValueError — the `isascii()` guard keeps the "never an error" contract.
+    # Bash's `case '$1' in ''|*[!0-9]*) echo 1` likewise treats "-2" as
+    # non-numeric (the leading dash is a non-digit character).
+    if not (value.isascii() and value.isdigit()):
         return 1
     n = int(value)
     return max(n, 1)
@@ -67,21 +64,34 @@ def _parse_argv(argv: list[str]) -> tuple:
     return jobs, width
 
 
+def _resolve_max(width: int, max_env: str | None) -> tuple:
+    """Resolve the concurrency ceiling and report whether the env opted in. The
+    env var's presence is the opt-in-to-parallel signal: set → honored verbatim
+    (even above any old per-host ceiling); unset → no independent ceiling, so
+    wave width alone bounds an explicit --jobs (#1515). Returns (max_, env_set)."""
+    env_set = bool(max_env)
+    return (_norm(max_env) if env_set else width), env_set
+
+
+def _resolve_jobs(jobs_raw: str, env_set: bool, max_: int) -> int:
+    """Resolve the requested job count. Default is sequential (#1515): with
+    neither --jobs nor the env var set, nothing opts into fan-out, so jobs is 1.
+    An explicit env with no --jobs fans to that env max; an explicit --jobs is
+    honored as requested."""
+    if jobs_raw:
+        return _norm(jobs_raw)
+    if env_set:
+        return max_
+    return 1
+
+
 def main(argv: list[str]) -> int:
     jobs_raw, width_raw = _parse_argv(argv)
 
-    # Unset env → per-host default ceiling min(16, cores-2); an explicit value
-    # (even one above that ceiling) is honored verbatim by _norm (#1170).
-    max_env = os.environ.get("DEV_TEAM_MAX_PARALLEL_BUILDS")
-    default_max = str(_default_max_parallel_builds(os.cpu_count()))
-    max_ = _norm(max_env if max_env else default_max)
     width = _norm(width_raw if width_raw else "1")
-    # An unset --jobs means "as parallel as allowed": default to the max.
-    jobs = _norm(jobs_raw if jobs_raw else str(max_))
-
-    eff = jobs
-    eff = min(eff, max_)
-    eff = min(eff, width)
+    max_, env_set = _resolve_max(width, os.environ.get("DEV_TEAM_MAX_PARALLEL_BUILDS"))
+    jobs = _resolve_jobs(jobs_raw, env_set, max_)
+    eff = min(jobs, max_, width)
 
     # Bash: requested=${JOBS:-(unset)} — literal "(unset)" when empty.
     requested = jobs_raw if jobs_raw else "(unset)"

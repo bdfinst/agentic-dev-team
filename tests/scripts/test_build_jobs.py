@@ -5,7 +5,6 @@ concurrency policy from `DEV_TEAM_MAX_PARALLEL_BUILDS`.
 
 from __future__ import annotations
 
-import importlib.util
 import os
 import subprocess
 import sys
@@ -15,18 +14,6 @@ import pytest
 from _repo_root import REPO_ROOT as _REPO_ROOT
 
 _SCRIPT_PY = _REPO_ROOT / "plugins" / "dev-team" / "scripts" / "build_jobs.py"
-
-
-def _load_build_jobs():
-    """Import build_jobs.py as a module so its internals are unit-testable
-    directly (the seam #1170 added), independent of the subprocess harness."""
-    spec = importlib.util.spec_from_file_location("build_jobs", _SCRIPT_PY)
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    return module
-
-
-_BUILD_JOBS = _load_build_jobs()
 
 
 def _run(*args, max_env=None):
@@ -63,6 +50,31 @@ def test_non_integer_clamps_to_one() -> None:
     assert r.stdout.strip() == "1"
 
 
+@pytest.mark.parametrize(
+    "args,max_env",
+    [
+        (("--jobs", "0", "--wave-width", "5"), None),  # zero --jobs, env unset
+        (("--jobs", "abc", "--wave-width", "5"), None),  # non-integer --jobs
+        (("--wave-width", "5"), "0"),  # zero env
+        (("--wave-width", "5"), "-3"),  # negative env
+        (("--wave-width", "5"), "abc"),  # non-integer env
+        (("--wave-width", "abc"), None),  # non-integer width (same _norm clamp)
+        (("--wave-width", "0"), None),  # zero width
+        (("--wave-width", "-3"), None),  # negative width
+        (("--jobs", "²", "--wave-width", "5"), None),  # unicode digit --jobs
+        (("--wave-width", "5"), "²"),  # unicode digit env (isdigit-true edge)
+    ],
+)
+def test_invalid_value_clamps_to_sequential_without_error(args, max_env) -> None:
+    """Every invalid --jobs or env value clamps to 1, exits 0, and writes no
+    traceback — a rewritten branch must never turn bad input into a crash
+    (#1515, AC5)."""
+    r = _run(*args, max_env=max_env)
+    assert r.stdout.strip() == "1"
+    assert r.returncode == 0
+    assert "Traceback" not in r.stderr
+
+
 def test_wave_width_caps_concurrency() -> None:
     r = _run("--jobs", "8", "--wave-width", "1", max_env="8")
     assert r.stdout.strip() == "1"
@@ -82,37 +94,63 @@ def test_explicit_max_one_forces_sequential() -> None:
     assert r.stdout.strip() == "1"
 
 
+def test_unset_both_defaults_to_sequential() -> None:
+    """The core #1515 change: neither `--jobs` nor the env var set → sequential
+    (1), regardless of wave width. Parallel fan-out is opt-in only."""
+    r = _run("--wave-width", "5")
+    assert r.returncode == 0
+    assert r.stdout.strip() == "1"
+
+
 @pytest.mark.parametrize(
-    "cpu_count,expected",
+    "jobs,width,expected",
     [
-        (None, 1),  # unknown core count floors at 1
-        (1, 1),  # 1-2 = -1 -> floored to 1
-        (2, 1),  # 2-2 = 0 -> floored to 1
-        (3, 1),  # 3-2 = 1 -> the exact floor-transition edge
-        (7, 5),  # 7-2 = 5, under the 16 ceiling
-        (8, 6),  # 8-2 = 6
-        (18, 16),  # 18-2 = 16, exactly at the ceiling
-        (100, 16),  # clamp engages above 18 cores
+        ("3", "5", "3"),  # N < W
+        ("3", "3", "3"),  # N == W
+        ("5", "2", "2"),  # N > W, width caps
     ],
 )
-def test_default_max_parallel_builds_formula(cpu_count, expected) -> None:
-    """The extracted seam computes min(16, cores-2) floored at 1, proven with
-    literal inputs independent of the real host (#1170)."""
-    assert _BUILD_JOBS._default_max_parallel_builds(cpu_count) == expected
+def test_explicit_jobs_opts_in_bounded_by_width(jobs, width, expected) -> None:
+    """Env unset: an explicit `--jobs N` opts into fan-out, bounded only by wave
+    width (no per-host ceiling anymore, #1515)."""
+    r = _run("--jobs", jobs, "--wave-width", width)
+    assert r.stdout.strip() == expected
 
 
-def test_default_max_when_env_unset() -> None:
-    """`DEV_TEAM_MAX_PARALLEL_BUILDS` unset → the cores-derived ceiling. This
-    is a wiring check: it composes the same imported helper the code uses
-    rather than re-deriving the formula, so it cannot pass vacuously (#1170)."""
-    expected = min(5, _BUILD_JOBS._default_max_parallel_builds(os.cpu_count()))
-    r = _run("--jobs", "5", "--wave-width", "5")
-    assert r.stdout.strip() == str(expected)
+@pytest.mark.parametrize(
+    "env,width,expected",
+    [
+        ("4", "6", "4"),  # K < W, env honored verbatim
+        ("5", "5", "5"),  # K == W
+        ("8", "3", "3"),  # K > W, width caps
+    ],
+)
+def test_explicit_env_opts_in_bounded_by_width(env, width, expected) -> None:
+    """Env set + `--jobs` unset: fan out to the env max, bounded by wave width
+    (#1515)."""
+    r = _run("--wave-width", width, max_env=env)
+    assert r.stdout.strip() == expected
 
 
-def test_default_equals_wave_width_one_host_independent() -> None:
-    """Env unset, wave width 1 → effective 1 on every host, because the
-    cores-derived default is always >= 1."""
+@pytest.mark.parametrize(
+    "jobs,env,width,expected",
+    [
+        ("6", "8", "5", "5"),  # width tightest
+        ("6", "2", "8", "2"),  # env tightest — proves env is not dropped
+        ("3", "8", "8", "3"),  # jobs tightest
+    ],
+)
+def test_both_set_resolves_to_tightest_bound(jobs, env, width, expected) -> None:
+    """Both `--jobs` and env set → min(jobs, env, width); the env-tightest row
+    guards against a regression that drops the env term (#1515)."""
+    r = _run("--jobs", jobs, "--wave-width", width, max_env=env)
+    assert r.stdout.strip() == expected
+
+
+def test_wave_width_one_caps_to_one() -> None:
+    """Env unset, wave width 1 → effective 1: wave width caps regardless of the
+    default. (The sequential-default change itself is guarded by
+    test_unset_both_defaults_to_sequential, which uses width > 1.)"""
     r = _run("--wave-width", "1")
     assert r.stdout.strip() == "1"
 
@@ -142,6 +180,13 @@ def test_stderr_has_resolution_line() -> None:
 def test_stderr_shows_unset_literal() -> None:
     r = _run("--wave-width", "4", max_env="2")
     assert "requested=(unset)" in r.stderr
+
+
+def test_stderr_max_falls_back_to_wave_width_when_env_unset() -> None:
+    """With the env var unset, `max` has no independent ceiling — it falls back
+    to wave width, and the resolution line must surface that value (#1515)."""
+    r = _run("--jobs", "2", "--wave-width", "5")
+    assert "max=5" in r.stderr
 
 
 def test_unknown_flag_is_usage_error() -> None:
