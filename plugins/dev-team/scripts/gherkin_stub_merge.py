@@ -45,6 +45,7 @@ from pathlib import Path
 _HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(_HERE / "lib"))
 
+from _gherkin_text import safe_for_terminal as _safe_for_terminal
 from stub_extractors import (
     ERROR_DANGLING_ANNOTATION,  # noqa: F401
     ERROR_UNBALANCED_BRACES,  # noqa: F401
@@ -335,8 +336,8 @@ def _cmd_merge(args: argparse.Namespace) -> int:
             print(json.dumps(_merge_payload(written=False, error=ERROR_UNREADABLE_CANDIDATES)))
         else:
             _write_error(
-                f"gherkin_stub_merge: --candidates {args.candidates} could not be read "
-                f"({exc}) — no steps merged"
+                f"gherkin_stub_merge: --candidates {_safe_for_terminal(args.candidates)} "
+                f"could not be read ({exc}) — no steps merged"
             )
         return 2
 
@@ -360,8 +361,9 @@ def _cmd_merge(args: argparse.Namespace) -> int:
             print(json.dumps(_merge_payload(written=False, error=ERROR_MALFORMED_CANDIDATES)))
         else:
             _write_error(
-                f"gherkin_stub_merge: candidates file {args.candidates} is malformed "
-                f"(error={candidates_error}) — no steps merged, existing file left untouched"
+                f"gherkin_stub_merge: candidates file {_safe_for_terminal(args.candidates)} "
+                f"is malformed (error={candidates_error}) — no steps merged, existing file "
+                f"left untouched"
             )
         return 2
 
@@ -372,8 +374,9 @@ def _cmd_merge(args: argparse.Namespace) -> int:
             print(json.dumps(_merge_payload(written=False, error=result.error)))
         else:
             _write_error(
-                f"gherkin_stub_merge: {args.existing} structure could not be parsed "
-                f"(error={result.error}) — no steps merged, existing file left untouched"
+                f"gherkin_stub_merge: {_safe_for_terminal(args.existing)} structure could not "
+                f"be parsed (error={result.error}) — no steps merged, existing file left "
+                f"untouched"
             )
         return 2
 
@@ -406,7 +409,10 @@ def _cmd_merge(args: argparse.Namespace) -> int:
             )
         )
     else:
-        print(f"OK: merged {len(result.added_patterns)} new step(s) into {args.existing}")
+        print(
+            f"OK: merged {len(result.added_patterns)} new step(s) into "
+            f"{_safe_for_terminal(args.existing)}"
+        )
     return 0
 
 
