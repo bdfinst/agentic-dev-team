@@ -553,3 +553,34 @@ def test_cmd_regression_zero_baseline_never_flags(hermetic_cost_meter, capsys):
     out = capsys.readouterr().out
     assert rc == 0
     assert "no cost regression" in out
+
+
+# ---------------------------------------------------------------------------
+# #1535 — cmd_regression's remaining untested branches: an absent log file and
+# the malformed-JSON-line skip.
+# ---------------------------------------------------------------------------
+def test_cmd_regression_missing_log_is_noop(hermetic_cost_meter, capsys):
+    missing = hermetic_cost_meter / "does-not-exist.jsonl"
+    rc = cost_meter.cmd_regression(SimpleNamespace(log=str(missing), tolerance=0.5, window=0), _PRICING)
+    out = capsys.readouterr().out
+    assert rc == 0
+    assert "no metrics log yet" in out
+
+
+def test_cmd_regression_skips_malformed_lines_and_counts_valid(hermetic_cost_meter, capsys):
+    # A garbage line between valid entries must be skipped, and the 3 valid costs
+    # ([1.0, 1.0] prior -> limit 1.5; latest 5.0) must still drive the verdict.
+    log = hermetic_cost_meter / "c.jsonl"
+    log.write_text(
+        '{"total": {"cost_usd": 1.0}}\n'
+        "NOT JSON {{\n"
+        '{"total": {"cost_usd": 1.0}}\n'
+        '{"total": {"cost_usd": 5.0}}\n'
+    )
+    rc = cost_meter.cmd_regression(SimpleNamespace(log=str(log), tolerance=0.5, window=0), _PRICING)
+    out = capsys.readouterr().out
+    assert rc == 1
+    assert "COST REGRESSION" in out
+    # "prior 2" proves all 3 valid entries were counted (2 priors + latest); if the
+    # skip had also dropped a valid entry it would read "prior 1".
+    assert "rolling-mean(prior 2)=$1.0000" in out
