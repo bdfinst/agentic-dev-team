@@ -73,6 +73,21 @@ def test_build_skill_keeps_per_slice_worktree_isolation(build_text: str) -> None
     assert 'isolation: "worktree"' in build_text
 
 
+def test_build_inline_checkpoints_gate_lenses_via_resolver(build_text: str) -> None:
+    """#1516 — the inline checkpoints (sub-steps 4 and 6) select quality lenses
+    via select_lenses.py, dispatch cheap-first, and no longer dispatch the full
+    quality suite unconditionally; the #1461 gate and #348 recording survive."""
+    # Referenced at both checkpoints (per-step complex + slice batch).
+    assert build_text.count("select_lenses.py") >= 2
+    # The unconditional-dispatch phrasing is gone from sub-step 4.
+    assert "full quality agent suite" not in build_text
+    # Cheap-first ordering is stated.
+    assert "cheap-first" in build_text.lower()
+    # Preserved mechanisms (guard against an over-eager rewrite dropping them).
+    assert "issue #1461" in build_text
+    assert "review-value.jsonl" in build_text
+
+
 def test_orchestrator_documents_wave_dispatch_worktree_reconcile(
     orch_text: str,
 ) -> None:

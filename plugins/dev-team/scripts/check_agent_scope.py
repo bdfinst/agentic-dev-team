@@ -20,27 +20,14 @@ import re
 import sys
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parent / "lib"))
+
 # Review agents are the agents named in the Review Agents section of
 # knowledge/agent-registry.md.  Rather than parsing that file we check all
 # agents/*.md files that contain a 'description:' frontmatter field and are
-# not one of the well-known non-review agents.
-NON_REVIEW_AGENTS = {
-    "adr-author",
-    "architect",
-    "codebase-recon",
-    "data-flow-tracer",
-    "mutation-kill",
-    "orchestrator",
-    "platform-engineer",
-    "product-manager",
-    "progress-guardian",
-    "qa-engineer",
-    "security-engineer",
-    "session-analysis",
-    "software-engineer",
-    "tech-writer",
-    "ui-ux-designer",
-}
+# not one of the well-known non-review agents.  The exclusion set is shared
+# with select_lenses.py (#1516) — see scripts/lib/review_roster.py.
+from review_roster import NON_REVIEW_AGENTS
 
 SCOPE_RE = re.compile(r"^\s*Scope\s*:\s*(.*)$")
 
