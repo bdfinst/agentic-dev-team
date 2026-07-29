@@ -84,6 +84,10 @@ When the orchestrator sends review findings as correction context:
 4. **Report**: After revision, state what changed and why in one sentence per finding.
 5. **Limit**: The orchestrator will re-run failed review agents. Expect up to 2 correction cycles before escalation to human.
 
+## Constraints
+
+- When running Bash `git` commands outside a wave-isolated worktree (e.g. the no-plan fast path or any inline-review fix loop that operates directly in the orchestrator's shared working tree), stage and commit **only** the specific files your current unit of work touched — never `git add -A`, `git add .`, or `git commit -a`. Repo-wide staging in the shared tree can sweep in a sibling agent's or the operator's unrelated changes. Inside a wave-isolated worktree the tree is already isolated (see `agents/orchestrator.md` § Wave-Aware Build Dispatch), so this constraint targets the in-session, non-worktree path.
+
 ## Behavioral Guidelines
 
 ### Decision Making
