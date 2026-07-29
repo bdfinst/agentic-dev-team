@@ -201,15 +201,13 @@ Otherwise read the roster from the **Review Agents** section of `knowledge/agent
 python3 ${CLAUDE_PLUGIN_ROOT}/scripts/select_lenses.py --files <target files>
 ```
 
-Take its `lenses` array as the Scope-eligible roster, and **surface its `warnings`** in the review output (an agent missing its `Scope:` declaration is included include-biased and named — never silently dropped). The resolver reads each review agent's body-level `Scope:` declaration — `Scope: always` (eligible for any non-empty changeset) or a glob list (eligible only when at least one target file matches a declared glob). `Scope:` is a body declaration, not frontmatter (`agent-contract.json`). This is the single source of truth shared with `/build`'s inline checkpoints: adding or changing an agent's trigger scope needs only an edit to that agent's own body — zero edits to this skill. (The framework-reactivity agents react/vue/angular are **not** in the resolver's roster; they are governed by the manifest rule below. `svelte-review` and `ai-provenance-review` **are** resolver-governed via their own `Scope:` declarations.)
+Take its `lenses` array as the Scope-eligible roster, and **surface its `warnings`** in the review output (an agent missing its `Scope:` declaration is included include-biased and named — never silently dropped). The resolver reads each review agent's body-level `Scope:` declaration — `Scope: always` (eligible for any non-empty changeset) or a glob list (eligible only when at least one target file matches a declared glob). `Scope:` is a body declaration, not frontmatter (`agent-contract.json`). This is the single source of truth shared with `/build`'s inline checkpoints: adding or changing an agent's trigger scope needs only an edit to that agent's own body — zero edits to this skill. (The framework-reactivity agents react/vue/angular are **not** in the resolver's roster; they are governed by the manifest rule below. `ai-provenance-review` **is** resolver-governed via its own `Scope: always` declaration.)
 
 **Framework-specific reactivity review** — dispatch based on the project's dependency manifest (`package.json` etc.):
 
 - React (`react` / `react-dom` in deps): include `react-reactivity-review` scoped to `.jsx`/`.tsx` and React-importing `.js`/`.ts` files
 - Vue (`vue` in deps): include `vue-reactivity-review` scoped to `.vue` and Vue-importing `.js`/`.ts` files
 - Angular (`@angular/core` in deps): include `angular-reactivity-review` scoped to `*.component.ts`, `*.component.html`, `*.service.ts`, and general `.ts` files
-
-(Svelte needs no bullet here: `svelte-review` is resolver-governed via its own `**/*.svelte` `Scope:` globs — file presence triggers it through `select_lenses.py` above.)
 
 **AI-provenance review**: `ai-provenance-review` is resolver-governed via its own `Scope: always` declaration — the resolver includes it on every non-empty changeset. It audits AI-authored assertions and non-obvious decisions for verification debt and regeneration risk.
 

@@ -161,7 +161,6 @@ def test_cli_backend_only_diff():
         "a11y-review",
         "js-fp-review",
         "component-architecture-review",
-        "svelte-review",
         "react-reactivity-review",
         "vue-reactivity-review",
         "angular-reactivity-review",
@@ -259,7 +258,7 @@ ALWAYS_LENSES = {
     "test-smell-review", "token-efficiency-review",
 }
 FILE_TYPE_LENSES = {
-    "a11y-review", "js-fp-review", "component-architecture-review", "svelte-review",
+    "a11y-review", "js-fp-review", "component-architecture-review",
 }
 REACTIVITY_LENSES = {
     "react-reactivity-review", "vue-reactivity-review", "angular-reactivity-review",
@@ -271,14 +270,14 @@ _BASELINE = [
     (["svc/handler.ts"], {"js-fp-review"}),                                     # .ts→js-fp boundary
     (["src/App.tsx"], {"js-fp-review", "a11y-review", "component-architecture-review"}),
     (["src/W.vue"], {"a11y-review", "component-architecture-review"}),          # NOT js-fp
-    (["src/W.svelte"], {"a11y-review", "component-architecture-review", "svelte-review"}),
+    (["src/W.svelte"], {"a11y-review", "component-architecture-review"}),        # the svelte lens is gone (#1524)
     (["a/x.component.ts"], {"js-fp-review", "component-architecture-review"}),  # NOT a11y
     (["tpl/p.html"], {"a11y-review"}),                                          # a11y only
     # .component.html matches BOTH a11y (.html suffix) and component-architecture (.component.html).
     (["a/x.component.html"], {"a11y-review", "component-architecture-review"}),
-    # multi-file union pulls file-type lenses from both members (.ts→js-fp; .svelte→a11y+comp-arch+svelte).
+    # multi-file union pulls file-type lenses from both members (.ts→js-fp; .svelte→a11y+comp-arch).
     (["svc/handler.ts", "src/W.svelte"],
-     {"js-fp-review", "a11y-review", "component-architecture-review", "svelte-review"}),
+     {"js-fp-review", "a11y-review", "component-architecture-review"}),
 ]
 
 
@@ -304,7 +303,7 @@ def test_baseline_fixture_exercises_every_file_type_lens():
     assert FILE_TYPE_LENSES <= covered
 
 
-def test_file_type_lens_set_is_pinned_to_the_known_four():
+def test_file_type_lens_set_is_pinned_to_the_known_three():
     # Guard: a future agent introducing a new file-type Scope pattern trips this,
     # forcing a new baseline shape rather than going silently unverified.
     roster, _ = SL.build_review_roster(

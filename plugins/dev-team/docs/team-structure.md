@@ -10,7 +10,7 @@ The Orchestrator sits at the root and routes every request to one or more of the
 
 ## Review Agent Dispatch (Phase 3 Inline Checkpoints)
 
-![Dispatch diagram: a unit of work on the left, a file-type decision layer in the middle, and fan-out to targeted review agents on the right (e.g., JS/TS files → js-fp-review + complexity-review; Svelte → svelte-review; any change → arch-review + doc-review; security surface → security-review).](diagrams/review-dispatch.svg)
+![Dispatch diagram: a unit of work on the left, a file-type decision layer in the middle, and fan-out to targeted review agents on the right (e.g., JS/TS files → js-fp-review + complexity-review; any change → arch-review + doc-review; security surface → security-review).](diagrams/review-dispatch.svg)
 
 The Orchestrator selects review agents based on what changed in each unit of work. Language-agnostic agents (doc-review, arch-review, claude-setup-review, token-efficiency-review) always run; language-specific agents run only when matching file types are present. Full list of review agents and their scopes: [Agents → Review Agents](agent_info.md#review-agents).
 

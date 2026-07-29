@@ -1,8 +1,7 @@
 # Reactive Effect Patterns — Cross-Framework Reference
 
 Shared reactivity patterns that appear in multiple UI frameworks. Cited by
-`react-reactivity-review`, `vue-reactivity-review`, `angular-reactivity-review`,
-and `svelte-review`. Agents read this file for the shared taxonomy, then apply
+`react-reactivity-review`, `vue-reactivity-review`, and `angular-reactivity-review`. Agents read this file for the shared taxonomy, then apply
 their own framework-specific detection sections.
 
 ## Effect self-writes (infinite loop)

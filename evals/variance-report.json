@@ -45,11 +45,6 @@
       "mean_pass_at_k": 0.6,
       "pairs": 5
     },
-    "svelte-review": {
-      "flaky_fixtures": 2,
-      "mean_pass_at_k": 0.9167,
-      "pairs": 8
-    },
     "test-review": {
       "flaky_fixtures": 2,
       "mean_pass_at_k": 0.1111,
@@ -319,54 +314,6 @@
       "passes": 3,
       "trials": 3
     },
-    "sv-clean-lifecycle.svelte::svelte-review": {
-      "flap": false,
-      "pass_at_k": 1.0,
-      "passes": 3,
-      "trials": 3
-    },
-    "sv-closure-state-leak.svelte::svelte-review": {
-      "flap": true,
-      "pass_at_k": 0.6667,
-      "passes": 2,
-      "trials": 3
-    },
-    "sv-effect-pitfalls.svelte::svelte-review": {
-      "flap": true,
-      "pass_at_k": 0.6667,
-      "passes": 2,
-      "trials": 3
-    },
-    "sv-lifecycle-issues.svelte::svelte-review": {
-      "flap": false,
-      "pass_at_k": 1.0,
-      "passes": 3,
-      "trials": 3
-    },
-    "sv-proper-reactive.svelte::svelte-review": {
-      "flap": false,
-      "pass_at_k": 1.0,
-      "passes": 3,
-      "trials": 3
-    },
-    "sv-safe-stores.svelte::svelte-review": {
-      "flap": false,
-      "pass_at_k": 1.0,
-      "passes": 3,
-      "trials": 3
-    },
-    "sv-state-proxy-pitfalls.svelte::svelte-review": {
-      "flap": false,
-      "pass_at_k": 1.0,
-      "passes": 3,
-      "trials": 3
-    },
-    "sv-store-subscription-leak.svelte::svelte-review": {
-      "flap": false,
-      "pass_at_k": 1.0,
-      "passes": 3,
-      "trials": 3
-    },
     "te-clean-code::token-efficiency-review": {
       "flap": false,
       "pass_at_k": 1.0,
@@ -458,9 +405,9 @@
       "trials": 3
     }
   },
-  "flaky_count": 19,
+  "flaky_count": 17,
   "harvest_id": "20260607-231840",
-  "pairs_evaluated": 65,
+  "pairs_evaluated": 57,
   "quarantine": [
     "cs-complete-setup::claude-setup-review",
     "cs-missing-sections::claude-setup-review",
@@ -473,8 +420,6 @@
     "sec-safe-headers::security-review",
     "st-god-object::structure-review",
     "st-mixed-concerns::structure-review",
-    "sv-closure-state-leak.svelte::svelte-review",
-    "sv-effect-pitfalls.svelte::svelte-review",
     "te-duplicate-code::token-efficiency-review",
     "te-long-functions::token-efficiency-review",
     "test-clean-doubles.test::test-smell-review",

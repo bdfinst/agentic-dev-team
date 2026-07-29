@@ -1,7 +1,6 @@
 {
   "blockOnFail": false,
   "agents": {
-    "svelte-review": { "enabled": false },
     "a11y-review": { "enabled": false }
   }
 }

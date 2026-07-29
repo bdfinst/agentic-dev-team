@@ -57,9 +57,6 @@ function cleanFixtures() {
 }
 
 const clean = cleanFixtures();
-const cleanSvelte = clean.filter(
-  (f) => f.endsWith(".svelte.ts") || f.endsWith(".svelte.js"),
-);
 
 export default tseslint.config(
   // Never lint dependencies or generated build output. The `build/`/`dist/` `.js`
@@ -116,16 +113,6 @@ export default tseslint.config(
       // review agent to read, not to call. "Defined but never used" is inherent
       // to that format and carries no signal about whether the code is clean.
       "@typescript-eslint/no-unused-vars": "off",
-    },
-  },
-
-  // Svelte fixtures: `$state` runes MUST be declared with `let` (they are
-  // reassigned in markup/handlers this module can't see). Without
-  // `svelte-eslint-parser`, `prefer-const` misfires on them.
-  {
-    files: cleanSvelte,
-    rules: {
-      "prefer-const": "off",
     },
   },
 );
