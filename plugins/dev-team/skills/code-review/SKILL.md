@@ -195,22 +195,23 @@ If `--background`: run only `doc-review`, `arch-review`, `naming-review`, `struc
 
 Otherwise read the roster from the **Review Agents** section of `knowledge/agent-registry.md` — each row names an agent and its `agents/<name>.md` file. **Never `Read` the bare `agents/` directory** (it throws `EISDIR`); if you must confirm files on disk, list them with `Glob("agents/*.md")`, never a directory `Read` (see `${CLAUDE_PLUGIN_ROOT}/knowledge/directory-enumeration.md`). All are enabled by default.
 
-**Agent eligibility is self-declared via a `Scope:` body declaration.** `Scope:` is not part of the official sub-agent frontmatter contract (`agent-contract.json`), so it lives in the agent's body, not its frontmatter. For each agent in the roster, read its `agents/<name>.md` body and apply this rule:
+**Agent eligibility is resolved by `select_lenses.py` (#1523).** Run:
 
-- `Scope: always` → agent is eligible regardless of tech stack or file types in scope.
-- `Scope:` (list of glob patterns) → agent is eligible only when at least one target file matches at least one of the declared globs (e.g. `**/*.svelte` matches any `.svelte` file). Skip the agent entirely if no target file matches.
-- Agent has no `Scope:` declaration → treat as `Scope: always` and emit a warning that the agent is missing its `Scope:` declaration.
+```bash
+python3 ${CLAUDE_PLUGIN_ROOT}/scripts/select_lenses.py --files <target files>
+```
 
-This replaces any hardcoded per-agent dispatch rules. Adding or changing a review agent's trigger scope requires only editing that agent's own body — zero edits to this skill.
+Take its `lenses` array as the Scope-eligible roster, and **surface its `warnings`** in the review output (an agent missing its `Scope:` declaration is included include-biased and named — never silently dropped). The resolver reads each review agent's body-level `Scope:` declaration — `Scope: always` (eligible for any non-empty changeset) or a glob list (eligible only when at least one target file matches a declared glob). `Scope:` is a body declaration, not frontmatter (`agent-contract.json`). This is the single source of truth shared with `/build`'s inline checkpoints: adding or changing an agent's trigger scope needs only an edit to that agent's own body — zero edits to this skill. (The framework-reactivity agents react/vue/angular are **not** in the resolver's roster; they are governed by the manifest rule below. `svelte-review` and `ai-provenance-review` **are** resolver-governed via their own `Scope:` declarations.)
 
 **Framework-specific reactivity review** — dispatch based on the project's dependency manifest (`package.json` etc.):
 
 - React (`react` / `react-dom` in deps): include `react-reactivity-review` scoped to `.jsx`/`.tsx` and React-importing `.js`/`.ts` files
 - Vue (`vue` in deps): include `vue-reactivity-review` scoped to `.vue` and Vue-importing `.js`/`.ts` files
 - Angular (`@angular/core` in deps): include `angular-reactivity-review` scoped to `*.component.ts`, `*.component.html`, `*.service.ts`, and general `.ts` files
-- Svelte (`.svelte`/`.svelte.ts`/`.svelte.js` files present): include `svelte-review` scoped to those files (Svelte projects do not require a manifest entry — file presence is sufficient)
 
-**AI-provenance review**: include `ai-provenance-review` whenever test files or production code are in scope. It audits AI-authored assertions and non-obvious decisions for verification debt and regeneration risk.
+(Svelte needs no bullet here: `svelte-review` is resolver-governed via its own `**/*.svelte` `Scope:` globs — file presence triggers it through `select_lenses.py` above.)
+
+**AI-provenance review**: `ai-provenance-review` is resolver-governed via its own `Scope: always` declaration — the resolver includes it on every non-empty changeset. It audits AI-authored assertions and non-obvious decisions for verification debt and regeneration risk.
 
 If `review-config.json` exists at the repo root, honor its per-agent `"enabled": false` flags.
 

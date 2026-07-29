@@ -69,3 +69,27 @@ def test_review_agent_skill_does_not_key_on_retired_model_tier_line():
 
 def test_frontend_architecture_notes_the_code_review_integration():
     assert "/code-review" in FRONTEND_ARCH
+
+
+# ---------------------------------------------------------------------------
+# #1523 — /code-review Step 3 adopts the shared select_lenses.py resolver.
+# ---------------------------------------------------------------------------
+def test_step3_resolves_eligibility_via_select_lenses_and_surfaces_warnings():
+    assert "select_lenses.py" in CODE_REVIEW
+    assert "surface its `warnings`" in CODE_REVIEW  # AC1 — one contiguous phrase, not two loose substrings
+
+
+def test_step3_keeps_layered_gates_and_manifest_rule():
+    # The shape/size gates and review-config honoring stay, layered on top.
+    assert "change_shape.py" in CODE_REVIEW
+    assert "change_size.py" in CODE_REVIEW
+    assert "review-config.json" in CODE_REVIEW
+    # Layering direction: resolver selection precedes the change-shape/size gates.
+    assert CODE_REVIEW.index("select_lenses.py") < CODE_REVIEW.index("change_shape.py")
+
+
+def test_step3_reconciled_redundant_svelte_and_ai_provenance_prose():
+    # Old Svelte framework bullet is gone (svelte-review is resolver-governed).
+    assert "files present): include `svelte-review`" not in CODE_REVIEW
+    # Old narrower ai-provenance prose is gone (it is Scope: always → resolver-governed).
+    assert "include `ai-provenance-review` whenever test files or production code" not in CODE_REVIEW
