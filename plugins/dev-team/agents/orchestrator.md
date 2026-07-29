@@ -335,6 +335,8 @@ After each discrete unit of work classified as **standard** or **complex** (a fu
 
 **Step 2 — Run selected agents in parallel** using the Agent tool by `subagent_type` — the harness reads each agent's `model:`/`effort:` frontmatter natively per Model/Effort Resolution above.
 
+When the selection above would dispatch 5+ agents in one wave, note the coordination-cost signal and consider batching high-overlap lenses per `${CLAUDE_PLUGIN_ROOT}/knowledge/wave-consolidation-guidance.md#when-it-applies` — advisory only; dispatch still proceeds.
+
 **Step 3 — Aggregate findings and apply Review Loop:**
 
 - `pass` / `warn` → log findings in phase output, continue

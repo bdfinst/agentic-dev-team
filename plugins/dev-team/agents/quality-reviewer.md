@@ -46,6 +46,8 @@ Apply the **Inline Review Checkpoint** dispatch table from `agents/orchestrator.
 
 If `Complexity: complex`, also add the opus-tier agents: `security-review`, `domain-review`, `arch-review` (regardless of file type).
 
+When this selection would dispatch 5+ agents in one wave, note the coordination-cost signal and consider batching high-overlap lenses per `${CLAUDE_PLUGIN_ROOT}/knowledge/wave-consolidation-guidance.md#when-it-applies` — advisory only; dispatch still proceeds.
+
 ### 3. Dispatch in parallel
 
 Spawn all selected agents in a **single message** using the Agent tool. Each agent's `model:`/`effort:` frontmatter is resolved natively by the harness before dispatch (ADR 0026) — do not override it. Pass only the files matching each agent's scope.

@@ -1737,6 +1737,24 @@
       "anchor": "recorded-artifacts-contain-real-traffic-scrub-before-commit"
     }
   },
+  "plugins/dev-team/knowledge/wave-consolidation-guidance.md": {
+    "When it applies": {
+      "summary": "When a single wave's agent-selection would dispatch **5 or more** review agents in one wave — whether the Inline Review Checkpoint dispatch table in `agents/orchestrator.md` or Step 2 of `agents/quality-reviewer.md` selected them — note it in the phase/review output as a coordination-cost signal, not a hard block.",
+      "anchor": "when-it-applies"
+    },
+    "Why five": {
+      "summary": "Martin Fowler's [\"The Orchestrator's Tax\"](https://martinfowler.com/articles/orchestrator-tax.html) recommends 2–4 concurrent agents per wave as a default and consolidating rather than scaling past ~5.",
+      "anchor": "why-five"
+    },
+    "What to do": {
+      "summary": "**Surface, don't block.** Emit a one-line note in the phase/review output — e.g. `wave fan-out: 9 agents selected (>5 coordination-cost threshold)`.",
+      "anchor": "what-to-do"
+    },
+    "What this is not": {
+      "summary": "Not a gate.",
+      "anchor": "what-this-is-not"
+    }
+  },
   "plugins/dev-team/skills/adr-tools/SKILL.md": {
     "Pre-flight": {
       "summary": "If the pre-flight reports `adr` missing, run `/project-init` to set up this repo's tooling — it installs the `adr` CLI as a capability tool (see its `${CLAUDE_PLUGIN_ROOT}/skills/project-init/references/capability-tools.md`) — or install it directly: see [npryce/adr-tools](https://github.com/npryce/adr-tools) (the CLI link is the fallback).",
