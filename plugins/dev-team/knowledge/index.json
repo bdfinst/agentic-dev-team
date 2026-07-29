@@ -1322,6 +1322,10 @@
       "summary": "Per-session token/cost summary, incrementally accumulated from the",
       "anchor": "cost-meteringjsonl"
     },
+    "`phase-markers.jsonl`": {
+      "summary": "Per-phase context-pollution markers (#1520), one row appended at each `/handoff`",
+      "anchor": "phase-markersjsonl"
+    },
     "`artifact-usage.json`": {
       "summary": "Not JSONL — a single JSON object keyed by skill/agent name, upserted on",
       "anchor": "artifact-usagejson"
@@ -2845,6 +2849,10 @@
     "Review value (#348)": {
       "summary": "`/build` records, per inline review checkpoint, whether review actually changed",
       "anchor": "review-value-348"
+    },
+    "Context pollution — per-phase resident vs one-time spend (#1520)": {
+      "summary": "A one-time token bill and context that lingers and \"charges rent\" on every",
+      "anchor": "context-pollution-per-phase-resident-vs-one-time-spend-1520"
     },
     "Privacy boundary": {
       "summary": "The meter persists **only** token counts, dollar amounts, model identifiers,",

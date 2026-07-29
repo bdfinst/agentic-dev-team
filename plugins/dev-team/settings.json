@@ -231,6 +231,15 @@
             "command": "sh hooks/py.sh hooks/code_intelligence_turn_mark.py"
           }
         ]
+      },
+      {
+        "matcher": "Skill",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "sh hooks/py.sh hooks/phase_marker.py"
+          }
+        ]
       }
     ],
     "SessionEnd": [

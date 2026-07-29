@@ -116,12 +116,44 @@ A run that is mostly `no_op` is evidence the review ceremony is over-provisioned
 for that class of work — feed it back into the `/plan` plan-tier and `/build`
 per-step complexity routing. Counts only; no code or file content is stored.
 
+## Context pollution — per-phase resident vs one-time spend (#1520)
+
+A one-time token bill and context that lingers and "charges rent" on every
+subsequent turn are economically different costs (Martin Fowler, "The
+Orchestrator's Tax"). The session totals above cannot tell them apart. The
+`phase_marker.py` PostToolUse hook records a marker at every `/handoff` (a
+phase boundary) capturing, for the **main-loop** context, the resident
+occupancy and the cumulative output spend at that boundary. `phase-report`
+turns the marker sequence into a per-phase ratio:
+
+```bash
+log=".claude/metrics/phase-markers.jsonl"; [ -f "$log" ] || log="metrics/phase-markers.jsonl"
+python3 ${CLAUDE_PLUGIN_ROOT}/hooks/lib/cost_meter.py phase-report --log "$log"
+```
+
+Report the per-phase `resident_tokens`, `spent_tokens` (output generated during
+the phase), and `resident_to_spent_ratio`. A **high** ratio flags a phase whose
+context stayed resident (pollution — a candidate for earlier mid-phase
+compaction or narrower subagent scoping) rather than being one-time cost; a low
+ratio means most of the phase's spend was transient. If the log is absent, tell
+the user no phase boundary has been recorded yet (the hook records on each
+`/handoff`).
+
+**Honesty caveat — this is a session-scoped proxy, not exact per-phase
+accounting.** `resident` is sampled at the `/handoff` marker because that is the
+closest phase boundary the harness exposes; the harness records no explicit
+phase marker of its own (the same reason per-command/per-phase *cost*
+attribution was removed in #170 — see Attribution dimensions above). The metric
+lives in its own `phase-markers.jsonl` log and is never folded into the
+`cost-metering.jsonl` incremental state.
+
 ## Privacy boundary
 
 The meter persists **only** token counts, dollar amounts, model identifiers,
-the main/subagent thread flag, and agent-type identifiers — never prompt text,
-code, file paths, or tool payloads. `metrics/cost-metering.jsonl` is a
-metrics-only artifact by construction.
+the main/subagent thread flag, agent-type identifiers, and — for phase markers —
+a phase label and the resident/spent token counts. It never records prompt
+text, code, file paths, or tool payloads. `metrics/cost-metering.jsonl` and
+`metrics/phase-markers.jsonl` are metrics-only artifacts by construction.
 
 1. **Account pace (optional, #142).** When the user asks "am I on track for my
    budget", "how much have I burned this week", or "which model should I use for
