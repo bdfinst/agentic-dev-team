@@ -481,6 +481,36 @@ def test_cli_merge_malformed_candidates_json_error_is_distinct_from_existing_blo
     assert payload["error"] != gfm.ERROR_MALFORMED_FEATURE_BLOCK
 
 
+@pytest.mark.skipif(
+    sys.platform.startswith("win"),
+    reason="NTFS rejects raw control-byte filenames; POSIX-only fixture",
+)
+def test_cli_merge_malformed_candidates_strips_control_characters_from_candidates_path(tmp_path):
+    """Security regression (issue #1526 review round 3): the malformed-
+    candidates error branch is a separate _safe_for_terminal call site from
+    the merge-success branch already covered — --candidates is the same
+    untrusted-path class as --existing."""
+    existing = tmp_path / "orders.feature"
+    existing.write_text(ORDERS_FEATURE, encoding="utf-8")
+    hostile_dir = tmp_path / "cand\x1b[31m"
+    hostile_dir.mkdir()
+    candidates = hostile_dir / "candidates.txt"
+    candidates.write_text("  @dangling-tag-with-no-scenario\n", encoding="utf-8")
+
+    proc = _run_cli(
+        "merge",
+        "--existing",
+        str(existing),
+        "--candidates",
+        str(candidates),
+        "--feature-title",
+        "Orders API",
+    )
+    assert proc.returncode == 2
+    assert "\x1b" not in proc.stderr
+    assert "malformed" in proc.stderr.lower()
+
+
 def test_cli_merge_title_mismatch_exits_2_and_leaves_file_unchanged(tmp_path):
     existing = tmp_path / "orders.feature"
     existing.write_text(ORDERS_FEATURE, encoding="utf-8")
@@ -524,6 +554,66 @@ def test_cli_merge_malformed_existing_block_exits_2_and_leaves_file_unchanged(tm
     assert "structure could not be parsed" in proc.stderr
     assert "error=malformed-feature-block" in proc.stderr
     assert existing.read_text(encoding="utf-8") == before
+
+
+@pytest.mark.skipif(
+    sys.platform.startswith("win"),
+    reason="NTFS rejects raw control-byte filenames; POSIX-only fixture",
+)
+def test_cli_merge_title_mismatch_strips_control_characters_from_existing_path(tmp_path):
+    """Security regression (issue #1526 review round 3): the feature-not-
+    found error branch is a separate _safe_for_terminal call site from the
+    merge-success branch already covered."""
+    hostile_dir = tmp_path / "exist\x1b[31m"
+    hostile_dir.mkdir()
+    existing = hostile_dir / "orders.feature"
+    existing.write_text(ORDERS_FEATURE, encoding="utf-8")
+    candidates = tmp_path / "candidates.txt"
+    candidates.write_text(_unit("New one").text, encoding="utf-8")
+
+    proc = _run_cli(
+        "merge",
+        "--existing",
+        str(existing),
+        "--candidates",
+        str(candidates),
+        "--feature-title",
+        "Nonexistent Surface",
+    )
+    assert proc.returncode == 2
+    assert "\x1b" not in proc.stderr
+    assert "could not locate Feature" in proc.stderr
+
+
+@pytest.mark.skipif(
+    sys.platform.startswith("win"),
+    reason="NTFS rejects raw control-byte filenames; POSIX-only fixture",
+)
+def test_cli_merge_malformed_existing_block_strips_control_characters_from_existing_path(
+    tmp_path,
+):
+    """Security regression (issue #1526 review round 3): the malformed-
+    feature-block error branch is a separate _safe_for_terminal call site
+    from the merge-success branch already covered."""
+    hostile_dir = tmp_path / "exist\x1b[31m"
+    hostile_dir.mkdir()
+    existing = hostile_dir / "orders.feature"
+    existing.write_text("Feature: Orders API\n\n  @smoke\n", encoding="utf-8")
+    candidates = tmp_path / "candidates.txt"
+    candidates.write_text(_unit("New one").text, encoding="utf-8")
+
+    proc = _run_cli(
+        "merge",
+        "--existing",
+        str(existing),
+        "--candidates",
+        str(candidates),
+        "--feature-title",
+        "Orders API",
+    )
+    assert proc.returncode == 2
+    assert "\x1b" not in proc.stderr
+    assert "structure could not be parsed" in proc.stderr
 
 
 def test_cli_merge_dry_run_never_touches_filesystem(tmp_path):
@@ -670,6 +760,64 @@ def test_cli_check_stale_non_json_report_names_file_and_line(tmp_path):
     assert proc.returncode == 0
     assert f"{existing}:4" in proc.stdout
     assert "possibly stale" in proc.stdout
+
+
+@pytest.mark.skipif(
+    sys.platform.startswith("win"),
+    reason="NTFS rejects raw control-byte filenames; POSIX-only fixture",
+)
+def test_cli_check_stale_strips_control_characters_from_existing_path_in_text_output(tmp_path):
+    """Security regression (issue #1526 review round 3): check-stale's
+    'possibly stale' report is a separate _safe_for_terminal call site from
+    merge's success-branch guard already covered — --existing is the same
+    untrusted-path class in both subcommands."""
+    hostile_dir = tmp_path / "orders\x1b[31m"
+    hostile_dir.mkdir()
+    existing = hostile_dir / "orders.feature"
+    existing.write_text(ORDERS_FEATURE, encoding="utf-8")
+    proc = _run_cli(
+        "check-stale",
+        "--existing",
+        str(existing),
+        "--feature-title",
+        "Orders API",
+        "--observed",
+        "Create order succeeds with valid payload=202",
+    )
+    assert proc.returncode == 0
+    assert "\x1b" not in proc.stdout
+    assert "possibly stale" in proc.stdout
+
+
+@pytest.mark.skipif(
+    sys.platform.startswith("win"),
+    reason="NTFS rejects raw control-byte filenames; POSIX-only fixture",
+)
+def test_cli_merge_strips_control_characters_from_existing_path_in_text_output(tmp_path):
+    """Security regression (issue #1526 review): --existing is composed by
+    gherkin-derive from a probe of the target repository, the same
+    untrusted-path class as a scanned file's path in the sibling gate
+    scripts — a crafted path must not bypass the CWE-150 terminal-escape
+    guard applied there."""
+    hostile_dir = tmp_path / "orders\x1b[31m"
+    hostile_dir.mkdir()
+    existing = hostile_dir / "orders.feature"
+    existing.write_text(ORDERS_FEATURE, encoding="utf-8")
+    candidates = tmp_path / "candidates.txt"
+    candidates.write_text(_unit("New one").text, encoding="utf-8")
+
+    proc = _run_cli(
+        "merge",
+        "--existing",
+        str(existing),
+        "--candidates",
+        str(candidates),
+        "--feature-title",
+        "Orders API",
+    )
+    assert proc.returncode == 0, proc.stderr
+    assert "\x1b" not in proc.stdout
+    assert "OK: merged" in proc.stdout
 
 
 def test_cli_check_stale_observed_title_containing_equals_is_not_truncated(tmp_path):

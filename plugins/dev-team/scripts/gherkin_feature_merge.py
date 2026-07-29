@@ -42,7 +42,10 @@ sys.path.insert(0, str(_HERE / "lib"))
 from _gherkin_text import FEATURE_PREFIX as _FEATURE_PREFIX
 from _gherkin_text import SCENARIO_OUTLINE_PREFIX as _SCENARIO_OUTLINE_PREFIX
 from _gherkin_text import SCENARIO_PREFIX as _SCENARIO_PREFIX
+from _gherkin_text import is_tag_line as _is_tag_line
+from _gherkin_text import safe_for_terminal as _safe_for_terminal
 from _gherkin_text import stripped as _stripped
+from _gherkin_text import trim_trailing_tag_run as _trim_trailing_tag_run
 
 _BACKGROUND_PREFIX = "Background:"
 _SCENARIO_PREFIXES = (_SCENARIO_OUTLINE_PREFIX, _SCENARIO_PREFIX)
@@ -101,13 +104,6 @@ def _split_lines(text: str) -> list:
     return text.splitlines(keepends=True)
 
 
-def _is_tag_line(line: str) -> bool:
-    stripped = _stripped(line).strip()
-    if not stripped:
-        return False
-    return all(tok.startswith("@") for tok in stripped.split())
-
-
 def _scenario_title(line: str) -> str | None:
     """Return the title text if `line` is a Scenario:/Scenario Outline: line."""
     stripped = _stripped(line).strip()
@@ -143,14 +139,7 @@ def _block_end(lines: list, header_index: int) -> int:
     malformed-feature-block."""
     for j in range(header_index + 1, len(lines)):
         if _stripped(lines[j]).strip().startswith(_FEATURE_PREFIX):
-            end = j
-            while end > header_index + 1:
-                prev = lines[end - 1]
-                if _stripped(prev).strip() == "" or _is_tag_line(prev):
-                    end -= 1
-                else:
-                    break
-            return end
+            return _trim_trailing_tag_run(lines, header_index, j)
     return len(lines)
 
 
@@ -542,8 +531,9 @@ def _cmd_merge(args: argparse.Namespace) -> int:
             print(json.dumps(_merge_payload(written=False, error=ERROR_MALFORMED_CANDIDATES)))
         else:
             _write_error(
-                f"gherkin_feature_merge: candidates file {args.candidates} is malformed "
-                f"(error={candidates_error}) — no scenarios merged, existing file left untouched"
+                f"gherkin_feature_merge: candidates file {_safe_for_terminal(args.candidates)} "
+                f"is malformed (error={candidates_error}) — no scenarios merged, existing file "
+                f"left untouched"
             )
         return 2
 
@@ -555,14 +545,14 @@ def _cmd_merge(args: argparse.Namespace) -> int:
         elif result.error == ERROR_FEATURE_NOT_FOUND:
             _write_error(
                 f"gherkin_feature_merge: could not locate Feature: {args.feature_title!r} "
-                f"in {args.existing} — no scenarios merged, existing file left untouched "
-                f"(error={result.error})"
+                f"in {_safe_for_terminal(args.existing)} — no scenarios merged, existing file "
+                f"left untouched (error={result.error})"
             )
         else:
             _write_error(
-                f"gherkin_feature_merge: found Feature: {args.feature_title!r} in {args.existing} "
-                f"but its structure could not be parsed — no scenarios merged, existing file "
-                f"left untouched (error={result.error})"
+                f"gherkin_feature_merge: found Feature: {args.feature_title!r} in "
+                f"{_safe_for_terminal(args.existing)} but its structure could not be parsed — "
+                f"no scenarios merged, existing file left untouched (error={result.error})"
             )
         return 2
 
@@ -595,7 +585,10 @@ def _cmd_merge(args: argparse.Namespace) -> int:
             )
         )
     else:
-        print(f"OK: merged {len(result.added_titles)} new scenario(s) into {args.existing}")
+        print(
+            f"OK: merged {len(result.added_titles)} new scenario(s) into "
+            f"{_safe_for_terminal(args.existing)}"
+        )
     return 0
 
 
@@ -655,8 +648,9 @@ def _cmd_check_stale(args: argparse.Namespace) -> int:
     else:
         for entry in findings:
             print(
-                f"possibly stale: {args.existing}:{entry['line']} ({entry['title']!r}) — "
-                f"asserts {entry['then_text']!r}, code now does {entry['observed']!r}"
+                f"possibly stale: {_safe_for_terminal(args.existing)}:{entry['line']} "
+                f"({entry['title']!r}) — asserts {entry['then_text']!r}, "
+                f"code now does {entry['observed']!r}"
             )
         for title in unmatched_titles:
             print(
