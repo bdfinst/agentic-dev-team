@@ -85,6 +85,7 @@ Failures from `/browse` enter the same review-fix loop (max 2 iterations).
 - Do not run agents whose file scope does not match the diff.
 - Do not skip the fix loop on findings classified as actionable.
 - Do not auto-apply fixes for findings with `confidence: none` — these require human judgment.
+- When running Bash `git` commands outside a wave-isolated worktree (e.g. driving the fix loop directly in the orchestrator's shared working tree), stage and commit **only** the specific files your current unit of work touched — never `git add -A`, `git add .`, or `git commit -a`. Repo-wide staging in the shared tree can sweep in a sibling agent's or the operator's unrelated changes. Inside a wave-isolated worktree the tree is already isolated (see `agents/orchestrator.md` § Wave-Aware Build Dispatch), so this constraint targets the in-session, non-worktree path.
 - Enumerate every auto-applied fix whose confidence was `medium` in the `summary`
   field — medium is defined by the review agents as "direction clear but context may
   differ" (e.g. a rename where domain terminology may vary), so in a non-interactive
