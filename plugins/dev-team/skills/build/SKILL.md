@@ -142,7 +142,7 @@ python3 ${CLAUDE_PLUGIN_ROOT}/scripts/build_wave.py <plan-file>          # order
 python3 ${CLAUDE_PLUGIN_ROOT}/scripts/build_jobs.py --wave-width <W> [--jobs N]  # effective concurrency
 ```
 
-`build_jobs.py` resolves `min(--jobs, DEV_TEAM_MAX_PARALLEL_BUILDS, wave width)` (when `DEV_TEAM_MAX_PARALLEL_BUILDS` is unset the max defaults to the per-host ceiling `min(16, cores-2)`, floored at 1, so an unset `--jobs` fans a wave out to its full width bounded by the machine; an explicit env value is honored verbatim and never re-capped; non-positive/non-integer clamp to 1). **Sequential fallback:** when effective concurrency is **1** (a fully-dependent plan, `--jobs 1`, or max 1), build slices one at a time in a single worktree in dependency order — **no worktree fan-out, no reconcile step** (today's behavior exactly).
+`build_jobs.py` resolves `min(--jobs, DEV_TEAM_MAX_PARALLEL_BUILDS, wave width)`. Parallel fan-out is **opt-in**: when neither `--jobs` nor `DEV_TEAM_MAX_PARALLEL_BUILDS` is set, the **default is sequential** (effective 1) — fan-out never *saves* tokens, it trades them for wall-clock (#1515). Opt in with `--jobs N` (bounded only by wave width) or `DEV_TEAM_MAX_PARALLEL_BUILDS` (an explicit env value is honored verbatim, never re-capped); non-positive/non-integer values clamp to 1. **Sequential fallback:** when effective concurrency is **1** (the unset default, a fully-dependent plan, `--jobs 1`, or max 1), build slices one at a time in a single worktree in dependency order — **no worktree fan-out, no reconcile step** (today's behavior exactly).
 
 **Concurrent dispatch (effective concurrency > 1):**
 
