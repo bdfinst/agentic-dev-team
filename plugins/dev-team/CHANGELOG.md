@@ -1,5 +1,32 @@
 # Changelog
 
+## [11.0.0](https://github.com/bdfinst/agentic-dev-team/compare/dev-team-v10.25.1...dev-team-v11.0.0) (2026-07-29)
+
+
+### ⚠ BREAKING CHANGES
+
+* the svelte-review review agent is removed from the plugin. Projects relying on it should use a11y-review + component-architecture-review for Svelte files.
+
+### Features
+
+* **build:** default to sequential, make wide fan-out opt-in ([#1517](https://github.com/bdfinst/agentic-dev-team/issues/1517)) ([7da3139](https://github.com/bdfinst/agentic-dev-team/commit/7da31394443aa82aaebf2e367f22f3311567b551))
+* **build:** gate inline review dispatch on diff domain via shared resolver ([#1527](https://github.com/bdfinst/agentic-dev-team/issues/1527)) ([1bf2647](https://github.com/bdfinst/agentic-dev-team/commit/1bf2647833a08c41901230ac717f96bf4eca22bf))
+* **code-review:** adopt the shared select_lenses resolver in Step 3 ([#1533](https://github.com/bdfinst/agentic-dev-team/issues/1533)) ([379df81](https://github.com/bdfinst/agentic-dev-team/commit/379df8107d1fee9e97c01e087ea9a609cacd1c86))
+* **cost-meter:** persist per-subagent cache tokens in the durable log ([#1532](https://github.com/bdfinst/agentic-dev-team/issues/1532)) ([3c56ceb](https://github.com/bdfinst/agentic-dev-team/commit/3c56ceba32c30ed94cee255b2e888be73c05579b))
+* remove the svelte-review agent from the plugin ([#1534](https://github.com/bdfinst/agentic-dev-team/issues/1534)) ([eb46568](https://github.com/bdfinst/agentic-dev-team/commit/eb4656829128514b0e35b778eb1b915e6e09a8a9))
+
+
+### Bug Fixes
+
+* **agents:** scope git staging/commit commands to touched files outside worktree isolation ([#1538](https://github.com/bdfinst/agentic-dev-team/issues/1538)) ([38beaa8](https://github.com/bdfinst/agentic-dev-team/commit/38beaa8ad362ab802c198271637bbbfc64b7fa39)), closes [#1519](https://github.com/bdfinst/agentic-dev-team/issues/1519)
+* **gherkin-derive:** require endpoint-specific scenario titles ([#1528](https://github.com/bdfinst/agentic-dev-team/issues/1528)) ([e81955b](https://github.com/bdfinst/agentic-dev-team/commit/e81955bbf0a4a2d285566d993269bed7d65bd112)), closes [#1526](https://github.com/bdfinst/agentic-dev-team/issues/1526)
+* **gherkin-scripts:** sanitize gherkin_stub_merge.py, widen bidi hardening ([#1530](https://github.com/bdfinst/agentic-dev-team/issues/1530)) ([5035e21](https://github.com/bdfinst/agentic-dev-team/commit/5035e210184b684c56abf93e57e653faf373a465)), closes [#1529](https://github.com/bdfinst/agentic-dev-team/issues/1529)
+
+
+### Documentation
+
+* **orchestrator:** state explicit rule against full-transcript subagent status checks ([#1539](https://github.com/bdfinst/agentic-dev-team/issues/1539)) ([43a0feb](https://github.com/bdfinst/agentic-dev-team/commit/43a0feb4cc572a7ae72ec1df34e788874676ad62)), closes [#1518](https://github.com/bdfinst/agentic-dev-team/issues/1518)
+
 ## [10.25.1](https://github.com/bdfinst/agentic-dev-team/compare/dev-team-v10.25.0...dev-team-v10.25.1) (2026-07-28)
 
 
