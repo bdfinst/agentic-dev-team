@@ -80,6 +80,12 @@ Utilization is estimated via proxy signals (tool call volume, message count, acc
 
 A typical task loads 1 agent + 1-2 skills: roughly 1,000-2,000 tokens of configuration overhead. Review agents and plan review personas run as isolated sub-agents — their context burden does not accumulate in the parent.
 
+### Subagent status checks
+
+A subagent's progress or status reaches a *live* orchestrating agent's context only as its structured summary output — the verdict/findings contract the `Agent` tool already returns — never as a raw transcript read. Pulling a running subagent's full transcript into the orchestrator's working context is the failure mode Martin Fowler's ["The Orchestrator's Tax"](https://martinfowler.com/articles/orchestrator-tax.html) warns about: unlike a one-time token bill, that transcript then persists and degrades every subsequent turn. The `Agent` tool's contract already enforces this — it returns only final text/schema output, not a transcript — so the failure cannot occur through the standard dispatch path; this subsection states the rule explicitly for future tool and skill authors.
+
+**Offline-resume exception.** The `Workflow` tool's resume mechanism legitimately reads `journal.jsonl` / `agent-<id>.jsonl` transcript files to reconstruct cached results for continuation. That is an *offline* diagnostic read, not a feed into a live orchestrator's context, and is fine. The constraint targets specifically a raw-transcript read flowing back into an *active* orchestrating agent's working context.
+
 ## Plan Review Personas
 
 Before the human reviews a plan (Phase 2), a tier-scaled set of critical review personas runs **in parallel** as sub-agents. The reviewer set scales to a **plan tier** (`trivial`/`standard`/`complex`, derived from slice count, file count, per-step complexity, and whether the plan takes a stance on any high-reversal-cost decision axis) so a one-function plan does not pay a complex feature's review ceremony: `trivial` runs the Acceptance Test Critic alone, `standard` adds the Design & Architecture Critic (plus the UX Critic for user-facing plans and the Parallelization Critic when the slice count > 1), and `complex` runs all five. The Acceptance Test Critic always runs; the Parallelization Critic runs only when slice count > 1. Each persona challenges the plan from a distinct perspective:
