@@ -703,8 +703,7 @@ def test_dotnet_test_passes_a_timeout(monkeypatch: pytest.MonkeyPatch):
 
     monkeypatch.setattr(loop.subprocess, "run", fake_run)
 
-    loop.dotnet_test(["test/Foo.Tests/Foo.Tests.csproj"], "FooTests")
-
+    assert loop.dotnet_test(["test/Foo.Tests/Foo.Tests.csproj"], "FooTests") is True
     assert captured["timeout"] == loop.DOTNET_TEST_TIMEOUT_S
 
 
@@ -765,6 +764,10 @@ def test_git_revert_timeout_is_logged_not_raised(
     err = capsys.readouterr().err
     assert str(loop.GIT_TIMEOUT_S) in err
     assert "DEV_TEAM_MUTATION_GIT_TIMEOUT_S" in err
+    # git_revert, git_commit's "add" leg, and git_commit's "commit" leg all
+    # share GIT_TIMEOUT_S/DEV_TEAM_MUTATION_GIT_TIMEOUT_S — the operation_label text
+    # is what distinguishes their timeout messages from one another.
+    assert "git checkout" in err
 
 
 def test_git_commit_passes_a_timeout_to_add_and_commit(
@@ -781,15 +784,16 @@ def test_git_commit_passes_a_timeout_to_add_and_commit(
 
     monkeypatch.setattr(loop.subprocess, "run", fake_run)
 
-    loop.git_commit("msg", tmp_path / "PaymentServiceTests.cs")
+    result = loop.git_commit("msg", tmp_path / "PaymentServiceTests.cs")
 
+    assert result is True
     assert calls[0][0] == ["git", "add", "--", str(tmp_path / "PaymentServiceTests.cs")]
     assert calls[0][1]["timeout"] == loop.GIT_TIMEOUT_S
     assert calls[1][0][:2] == ["git", "commit"]
     assert calls[1][1]["timeout"] == loop.GIT_TIMEOUT_S
 
 
-def test_git_commit_timeout_returns_false(
+def test_git_commit_add_leg_timeout_returns_false(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys
 ):
     def fake_run(argv, **kwargs):
@@ -801,6 +805,66 @@ def test_git_commit_timeout_returns_false(
     err = capsys.readouterr().err
     assert str(loop.GIT_TIMEOUT_S) in err
     assert "DEV_TEAM_MUTATION_GIT_TIMEOUT_S" in err
+    assert "git add" in err
+
+
+def test_git_commit_commit_leg_timeout_returns_false(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys
+):
+    """The `git add` leg succeeds; only the `git commit` leg's own
+    _run_with_timeout call times out — a distinct branch from the add-leg
+    timeout above, since git_commit short-circuits on add before ever
+    reaching commit."""
+
+    calls: list = []
+
+    class _R:
+        returncode = 0
+
+    def fake_run(argv, **kwargs):
+        calls.append(argv)
+        if len(calls) == 1:
+            return _R()
+        raise loop.subprocess.TimeoutExpired(argv, kwargs["timeout"])
+
+    monkeypatch.setattr(loop.subprocess, "run", fake_run)
+
+    assert loop.git_commit("msg", tmp_path / "PaymentServiceTests.cs") is False
+    # Pin the branch this test targets by call order, not just count — a
+    # future reordering of the add/commit calls should fail loudly here
+    # rather than silently exercising the wrong leg.
+    assert calls[0][:2] == ["git", "add"]
+    err = capsys.readouterr().err
+    assert str(loop.GIT_TIMEOUT_S) in err
+    assert "DEV_TEAM_MUTATION_GIT_TIMEOUT_S" in err
+    assert "git commit" in err
+
+
+def test_git_commit_proceeds_to_commit_after_a_non_timeout_add_failure(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    """Pins the documented (not-changed-by-#1593) behavior: git_commit only
+    inspects git add's timeout, not its returncode, so a non-timeout git add
+    failure (e.g. bad pathspec) still falls through to attempting the
+    commit."""
+
+    calls: list = []
+
+    class _R:
+        def __init__(self, returncode):
+            self.returncode = returncode
+
+    def fake_run(argv, **kwargs):
+        calls.append(argv)
+        return _R(returncode=1) if len(calls) == 1 else _R(returncode=0)
+
+    monkeypatch.setattr(loop.subprocess, "run", fake_run)
+
+    result = loop.git_commit("msg", tmp_path / "PaymentServiceTests.cs")
+
+    assert result is True
+    assert len(calls) == 2
+    assert calls[1][:2] == ["git", "commit"]
 
 
 # =============================================================================
@@ -815,6 +879,7 @@ def test_script_invocation_dispatches_to_headless_main():
         capture_output=True,
         text=True,
         check=False,
+        timeout=30,
     )
 
     assert result.returncode == 1
