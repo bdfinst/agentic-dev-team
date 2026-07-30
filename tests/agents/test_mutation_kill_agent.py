@@ -523,14 +523,27 @@ def test_ask_operator_is_an_outcome_distinct_from_degrade(
     )
 
 
-def test_only_shim_decline_or_capture_failure_auto_degrade(
+def test_auto_degrade_is_unconditional_for_two_hard_blockers(
     feasibility_flat: str,
 ) -> None:
     assert re.search(
         r"unconditional.{0,20}for the two hard blockers", feasibility_flat
     )
+
+
+def test_auto_degrade_covers_shim_decline_referenced_by_1160(
+    feasibility_flat: str,
+) -> None:
     assert re.search(r"shim.{0,20}#1160", feasibility_flat)
+
+
+def test_auto_degrade_covers_capture_probe_failure_referenced_by_1157(
+    feasibility_flat: str,
+) -> None:
     assert re.search(r"capture.{0,20}probe.{0,20}#1157", feasibility_flat)
+
+
+def test_budget_alone_is_not_a_hard_blocker(feasibility_flat: str) -> None:
     # Budget alone must never be named as an unconditional-degrade trigger.
     assert re.search(r"not a hard blocker|is not a hard blocker", feasibility_flat)
     # Retired behavior must be gone, not just supplemented: budget alone
@@ -542,17 +555,43 @@ def test_only_shim_decline_or_capture_failure_auto_degrade(
     )
 
 
-def test_confirmation_prompt_names_human_readable_duration_scope_and_consequences(
-    feasibility_section: str, feasibility_flat: str
+def test_confirmation_prompt_uses_human_readable_duration_term(
+    feasibility_section: str,
 ) -> None:
     assert re.search(r"human-readable", feasibility_section, re.IGNORECASE)
+
+
+def test_confirmation_prompt_never_shows_raw_seconds(feasibility_flat: str) -> None:
     assert re.search(r"never raw seconds", feasibility_flat, re.IGNORECASE)
+
+
+def test_confirmation_prompt_duration_cites_scope_file_count(
+    feasibility_flat: str,
+) -> None:
     assert re.search(r"scope-file count", feasibility_flat)
+
+
+def test_confirmation_prompt_duration_cites_per_file_probe_seconds(
+    feasibility_flat: str,
+) -> None:
     assert re.search(r"per-file probe seconds", feasibility_flat)
+
+
+def test_confirmation_prompt_names_proceed_anyway_label(
+    feasibility_section: str,
+) -> None:
     assert re.search(r"proceed anyway", feasibility_section, re.IGNORECASE)
-    assert re.search(
-        r"re-enters the loop for this invocation", feasibility_flat
-    )
+
+
+def test_confirmation_prompt_proceed_anyway_reenters_loop(
+    feasibility_flat: str,
+) -> None:
+    assert re.search(r"re-enters the loop for this invocation", feasibility_flat)
+
+
+def test_confirmation_prompt_names_degrade_consequence(
+    feasibility_flat: str,
+) -> None:
     assert re.search(
         r"single advisory pass \(score only.{0,40}no mutants killed.{0,20}no commits",
         feasibility_flat,
@@ -578,7 +617,7 @@ def test_off_script_reply_is_reasked_never_guessed(feasibility_flat: str) -> Non
     assert re.search(r"never default or guess", feasibility_flat, re.IGNORECASE)
 
 
-def test_non_interactive_default_to_degrade_fallback_is_documented(
+def test_non_interactive_session_triggers_default_to_degrade(
     feasibility_flat: str,
 ) -> None:
     assert re.search(
@@ -586,7 +625,15 @@ def test_non_interactive_default_to_degrade_fallback_is_documented(
         feasibility_flat,
         re.IGNORECASE,
     )
+
+
+def test_non_interactive_default_choice_is_degrade(feasibility_flat: str) -> None:
     assert re.search(r"default to `?degrade`?", feasibility_flat, re.IGNORECASE)
+
+
+def test_non_interactive_auto_decision_logged_same_way(
+    feasibility_flat: str,
+) -> None:
     assert re.search(
         r"log the auto-decision.{0,20}the same way", feasibility_flat, re.IGNORECASE
     )
