@@ -127,13 +127,8 @@ def load_loop_config(config_path: Path) -> LoopConfig:
     )
 
 
-def dotnet_build_targets(config: LoopConfig) -> list[str]:
-    """Build targets are exactly the configured test-projects."""
-    return list(config.test_projects)
-
-
-def dotnet_test_targets(config: LoopConfig) -> list[str]:
-    """Test targets are exactly the configured test-projects."""
+def dotnet_test_project_targets(config: LoopConfig) -> list[str]:
+    """Both the build and test targets are exactly the configured test-projects."""
     return list(config.test_projects)
 
 
@@ -439,11 +434,11 @@ def _run_round(
         ctx.log(f"  not inserted ({outcome.reason}) — stopping")
         return None
 
-    if not dotnet_build(dotnet_build_targets(ctx.config), cwd=ctx.cwd):
+    if not dotnet_build(dotnet_test_project_targets(ctx.config), cwd=ctx.cwd):
         ctx.log("  build failed — reverting")
         git_revert(ctx.test_file, cwd=ctx.cwd)
         return None
-    if not dotnet_test(dotnet_test_targets(ctx.config), ctx.test_file.stem, cwd=ctx.cwd):
+    if not dotnet_test(dotnet_test_project_targets(ctx.config), ctx.test_file.stem, cwd=ctx.cwd):
         ctx.log("  tests failed — reverting")
         git_revert(ctx.test_file, cwd=ctx.cwd)
         return None
