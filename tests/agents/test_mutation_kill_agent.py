@@ -74,7 +74,10 @@ def test_agent_body_stays_under_500_line_limit(text: str) -> None:
     # three-counter run-summary line, and the --concurrency 1-only scope.
     # Bumped by 1 more (#1545 review): added a mutation_baseline_reuse.py row
     # to the scripted-mechanics table (arch-review finding).
-    assert len(text.splitlines()) < 605
+    # Bumped by 2 more (#1561/#1562): mutation_kill_loop.py split into three
+    # files — added mutation_kill_insert.py and mutation_kill_headless.py
+    # rows to the scripted-mechanics table.
+    assert len(text.splitlines()) < 607
 
 
 def test_defines_honest_score_formula(text: str) -> None:
