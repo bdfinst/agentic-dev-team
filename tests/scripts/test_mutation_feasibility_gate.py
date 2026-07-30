@@ -5,18 +5,10 @@ from __future__ import annotations
 
 import json
 import sys
-from pathlib import Path
 
 import pytest
+from _mutation_test_helpers import SCRIPTS_DIR
 
-SCRIPTS_DIR = (
-    Path(__file__).resolve().parents[2]
-    / "plugins"
-    / "dev-team"
-    / "skills"
-    / "mutation-testing"
-    / "scripts"
-)
 sys.path.insert(0, str(SCRIPTS_DIR))
 
 import mutation_feasibility_gate as gate

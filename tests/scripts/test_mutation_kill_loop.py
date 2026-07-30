@@ -22,23 +22,14 @@ import sys
 from pathlib import Path
 
 import pytest
+from _mutation_test_helpers import FORBIDDEN_LITERALS, SCRIPTS_DIR
 
 # Ensure the module's dir is on the path so we can import it directly.
-SCRIPTS_DIR = (
-    Path(__file__).resolve().parents[2]
-    / "plugins"
-    / "dev-team"
-    / "skills"
-    / "mutation-testing"
-    / "scripts"
-)
 sys.path.insert(0, str(SCRIPTS_DIR))
 
 import mutation_kill_headless  # module-split literal check below
 import mutation_kill_insert  # module-split literal check below
 import mutation_kill_loop as loop
-
-FORBIDDEN_LITERALS = ["Aci.Speedpay", "Controllers", "AwesomeAssertions", "Moq", "AutoFixture"]
 
 
 # =============================================================================
