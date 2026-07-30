@@ -188,6 +188,113 @@ def test_scoped_run_delegates_dotnet_root_and_sln_to_wrapper(
 
 
 # =============================================================================
+# Scenario: A hung Stryker subprocess is bounded by a timeout, not left to
+# hang forever (#1558)
+# =============================================================================
+def test_scoped_stryker_run_passes_a_timeout(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    config = loop.load_loop_config(_write_config(tmp_path, solution=None))
+    monkeypatch.setattr(
+        loop.wrapper, "resolve_dotnet_root", lambda preset, candidates: ("/fake", None)
+    )
+    monkeypatch.setattr(loop.wrapper, "default_probe_candidates", list)
+    captured: dict = {}
+
+    def fake_run(argv, **kwargs):
+        captured.update(kwargs)
+
+        class _R:
+            returncode = 0
+
+        return _R()
+
+    monkeypatch.setattr(loop.subprocess, "run", fake_run)
+
+    loop.run_scoped_stryker(config, "Foo.cs", output_dir=tmp_path / "out")
+
+    assert captured["timeout"] == loop.STRYKER_RUN_TIMEOUT_S
+
+
+def test_scoped_stryker_run_timeout_raises_a_named_error(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    config = loop.load_loop_config(_write_config(tmp_path, solution=None))
+    monkeypatch.setattr(
+        loop.wrapper, "resolve_dotnet_root", lambda preset, candidates: ("/fake", None)
+    )
+    monkeypatch.setattr(loop.wrapper, "default_probe_candidates", list)
+
+    def fake_run(argv, **kwargs):
+        raise loop.subprocess.TimeoutExpired(argv, kwargs.get("timeout"))
+
+    monkeypatch.setattr(loop.subprocess, "run", fake_run)
+
+    with pytest.raises(RuntimeError) as exc_info:
+        loop.run_scoped_stryker(config, "Foo.cs", output_dir=tmp_path / "out")
+
+    assert str(loop.STRYKER_RUN_TIMEOUT_S) in str(exc_info.value)
+    assert "DEV_TEAM_MUTATION_STRYKER_TIMEOUT_S" in str(exc_info.value)
+
+
+def test_scoped_stryker_run_restores_sln_even_on_timeout(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    # A timeout is just another exception path through run_scoped_stryker's
+    # try/finally — the .sln must be restored and the scoped config cleaned
+    # up exactly as on any other failure, not just the happy path.
+    config = loop.load_loop_config(_write_config(tmp_path, solution="App.sln"))
+    monkeypatch.setattr(
+        loop.wrapper, "resolve_dotnet_root", lambda preset, candidates: ("/fake", None)
+    )
+    monkeypatch.setattr(loop.wrapper, "default_probe_candidates", list)
+    calls: list = []
+    monkeypatch.setattr(
+        loop.wrapper, "hide_sln", lambda sln, sln_hidden: calls.append("hide_sln")
+    )
+    monkeypatch.setattr(
+        loop.wrapper, "restore_sln", lambda sln, sln_hidden: calls.append("restore_sln")
+    )
+
+    def fake_run(argv, **kwargs):
+        raise loop.subprocess.TimeoutExpired(argv, kwargs.get("timeout"))
+
+    monkeypatch.setattr(loop.subprocess, "run", fake_run)
+
+    with pytest.raises(RuntimeError):
+        loop.run_scoped_stryker(config, "Foo.cs", output_dir=tmp_path / "out")
+
+    assert calls == ["hide_sln", "restore_sln"]
+
+
+# =============================================================================
+# Scenario: Timeout env vars parse cleanly, or fail with a named message
+# (#1558) — pinned against literal values, not the module constant under
+# test, so a regression to the parsing logic itself is actually caught.
+# =============================================================================
+def test_timeout_from_env_returns_the_default_when_unset(monkeypatch: pytest.MonkeyPatch):
+    monkeypatch.delenv("SOME_TIMEOUT_VAR", raising=False)
+    assert loop._timeout_from_env("SOME_TIMEOUT_VAR", 42) == 42
+
+
+def test_timeout_from_env_parses_an_override(monkeypatch: pytest.MonkeyPatch):
+    monkeypatch.setenv("SOME_TIMEOUT_VAR", "99")
+    assert loop._timeout_from_env("SOME_TIMEOUT_VAR", 42) == 99
+
+
+def test_timeout_from_env_rejects_a_non_numeric_override(monkeypatch: pytest.MonkeyPatch):
+    monkeypatch.setenv("SOME_TIMEOUT_VAR", "not-a-number")
+    with pytest.raises(ValueError, match="SOME_TIMEOUT_VAR"):
+        loop._timeout_from_env("SOME_TIMEOUT_VAR", 42)
+
+
+def test_timeout_from_env_rejects_a_non_positive_override(monkeypatch: pytest.MonkeyPatch):
+    monkeypatch.setenv("SOME_TIMEOUT_VAR", "0")
+    with pytest.raises(ValueError, match="SOME_TIMEOUT_VAR"):
+        loop._timeout_from_env("SOME_TIMEOUT_VAR", 42)
+
+
+# =============================================================================
 # run_for_file harness — mocks every dotnet / git / Stryker touch.
 # =============================================================================
 def _loop_fixture(
@@ -544,6 +651,75 @@ def test_dotnet_build_uses_configured_test_project(
         "Debug",
         "--nologo",
     ]
+
+
+# =============================================================================
+# Scenario: A hung `dotnet build`/`dotnet test` is bounded by a timeout — it
+# fails (and reverts) rather than hanging the loop forever (#1558)
+# =============================================================================
+def test_dotnet_build_passes_a_timeout(monkeypatch: pytest.MonkeyPatch):
+    captured: dict = {}
+
+    def fake_run(argv, **kwargs):
+        captured.update(kwargs)
+
+        class _R:
+            returncode = 0
+
+        return _R()
+
+    monkeypatch.setattr(loop.subprocess, "run", fake_run)
+
+    loop.dotnet_build(["test/Foo.Tests/Foo.Tests.csproj"])
+
+    assert captured["timeout"] == loop.DOTNET_BUILD_TIMEOUT_S
+
+
+def test_dotnet_build_timeout_is_treated_as_a_build_failure(
+    monkeypatch: pytest.MonkeyPatch, capsys
+):
+    def fake_run(argv, **kwargs):
+        raise loop.subprocess.TimeoutExpired(argv, kwargs["timeout"])
+
+    monkeypatch.setattr(loop.subprocess, "run", fake_run)
+
+    assert loop.dotnet_build(["test/Foo.Tests/Foo.Tests.csproj"]) is False
+    err = capsys.readouterr().err
+    assert str(loop.DOTNET_BUILD_TIMEOUT_S) in err
+    assert "DEV_TEAM_MUTATION_BUILD_TIMEOUT_S" in err
+
+
+def test_dotnet_test_passes_a_timeout(monkeypatch: pytest.MonkeyPatch):
+    captured: dict = {}
+
+    class _R:
+        returncode = 0
+        stdout = ""
+        stderr = ""
+
+    def fake_run(argv, **kwargs):
+        captured.update(kwargs)
+        return _R()
+
+    monkeypatch.setattr(loop.subprocess, "run", fake_run)
+
+    loop.dotnet_test(["test/Foo.Tests/Foo.Tests.csproj"], "FooTests")
+
+    assert captured["timeout"] == loop.DOTNET_TEST_TIMEOUT_S
+
+
+def test_dotnet_test_timeout_is_treated_as_a_test_failure(
+    monkeypatch: pytest.MonkeyPatch, capsys
+):
+    def fake_run(argv, **kwargs):
+        raise loop.subprocess.TimeoutExpired(argv, kwargs["timeout"])
+
+    monkeypatch.setattr(loop.subprocess, "run", fake_run)
+
+    assert loop.dotnet_test(["test/Foo.Tests/Foo.Tests.csproj"], "FooTests") is False
+    err = capsys.readouterr().err
+    assert str(loop.DOTNET_TEST_TIMEOUT_S) in err
+    assert "DEV_TEAM_MUTATION_TEST_TIMEOUT_S" in err
 
 
 def test_git_revert_checks_out_only_the_test_file(
