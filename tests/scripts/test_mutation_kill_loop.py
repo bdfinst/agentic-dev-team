@@ -84,8 +84,7 @@ def test_build_and_test_targets_derive_from_config(tmp_path: Path):
         _write_config(tmp_path, test_projects=("test/Foo.Tests/Foo.Tests.csproj",))
     )
 
-    assert loop.dotnet_build_targets(config) == ["test/Foo.Tests/Foo.Tests.csproj"]
-    assert loop.dotnet_test_targets(config) == ["test/Foo.Tests/Foo.Tests.csproj"]
+    assert loop.dotnet_test_project_targets(config) == ["test/Foo.Tests/Foo.Tests.csproj"]
 
 
 def test_config_supports_both_wrapper_and_flat_shapes(tmp_path: Path):
@@ -116,7 +115,7 @@ def test_end_to_end_fixture_derives_paths_and_extracts_survivors(tmp_path: Path)
     )
 
     # Paths derive from config — the configured test-project, no ACI literal.
-    assert loop.dotnet_build_targets(config) == [
+    assert loop.dotnet_test_project_targets(config) == [
         "test/Widget.WebApi.Tests/Widget.WebApi.Tests.csproj"
     ]
 
@@ -536,7 +535,7 @@ def test_dotnet_build_uses_configured_test_project(
         loop.subprocess, "run", lambda argv, **k: seen.append(argv) or _R()
     )
 
-    assert loop.dotnet_build(loop.dotnet_build_targets(config)) is True
+    assert loop.dotnet_build(loop.dotnet_test_project_targets(config)) is True
     assert seen[0] == [
         "dotnet",
         "build",
