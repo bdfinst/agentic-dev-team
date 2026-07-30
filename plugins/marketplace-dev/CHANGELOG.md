@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.2.2](https://github.com/bdfinst/agentic-dev-team/compare/marketplace-dev-v1.2.1...marketplace-dev-v1.2.2) (2026-07-30)
+
+
+### Documentation
+
+* document TaskCreate/ScheduleWakeup tool contracts + parallel-build git-race guidance ([#1594](https://github.com/bdfinst/agentic-dev-team/issues/1594)) ([35277e9](https://github.com/bdfinst/agentic-dev-team/commit/35277e9c1b1ff8447ba4bfd8a88c175abe3d423f)), closes [#1546](https://github.com/bdfinst/agentic-dev-team/issues/1546) [#1548](https://github.com/bdfinst/agentic-dev-team/issues/1548) [#1571](https://github.com/bdfinst/agentic-dev-team/issues/1571)
+
 ## [1.2.1](https://github.com/bdfinst/agentic-dev-team/compare/marketplace-dev-v1.2.0...marketplace-dev-v1.2.1) (2026-07-24)
 
 
