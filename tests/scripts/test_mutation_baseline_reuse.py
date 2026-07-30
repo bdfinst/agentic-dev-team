@@ -16,15 +16,8 @@ import sys
 from pathlib import Path
 
 import pytest
+from _mutation_test_helpers import FORBIDDEN_LITERALS, SCRIPTS_DIR
 
-SCRIPTS_DIR = (
-    Path(__file__).resolve().parents[2]
-    / "plugins"
-    / "dev-team"
-    / "skills"
-    / "mutation-testing"
-    / "scripts"
-)
 sys.path.insert(0, str(SCRIPTS_DIR))
 
 import mutation_baseline_reuse as mbr
@@ -544,7 +537,6 @@ def test_cli_mark_consumed_success_false_with_error_on_forced_write_failure(
 def test_module_source_carries_no_repo_specific_literal():
     source = (SCRIPTS_DIR / "mutation_baseline_reuse.py").read_text(encoding="utf-8")
 
-    forbidden = ["Aci.Speedpay", "Controllers", "AwesomeAssertions", "Moq", "AutoFixture"]
-    present = [lit for lit in forbidden if lit in source]
+    present = [lit for lit in FORBIDDEN_LITERALS if lit in source]
 
     assert present == [], f"repo-specific literals leaked into module: {present}"

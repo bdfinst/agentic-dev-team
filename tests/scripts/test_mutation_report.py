@@ -18,16 +18,9 @@ import sys
 from pathlib import Path
 
 import pytest
+from _mutation_test_helpers import FORBIDDEN_LITERALS, SCRIPTS_DIR
 
 # Ensure the module's dir is on the path so we can import it directly.
-SCRIPTS_DIR = (
-    Path(__file__).resolve().parents[2]
-    / "plugins"
-    / "dev-team"
-    / "skills"
-    / "mutation-testing"
-    / "scripts"
-)
 sys.path.insert(0, str(SCRIPTS_DIR))
 
 import mutation_report
@@ -341,12 +334,5 @@ def test_file_discovery_helpers_are_empty_for_absent_report(tmp_path: Path):
 def test_module_source_carries_no_repo_specific_literal():
     source = (SCRIPTS_DIR / "mutation_report.py").read_text(encoding="utf-8")
 
-    forbidden = [
-        "Aci.Speedpay",
-        "Controllers",
-        "AwesomeAssertions",
-        "Moq",
-        "AutoFixture",
-    ]
-    present = [literal for literal in forbidden if literal in source]
+    present = [literal for literal in FORBIDDEN_LITERALS if literal in source]
     assert present == [], f"repo-specific literals leaked into module: {present}"
