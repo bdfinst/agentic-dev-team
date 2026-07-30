@@ -71,6 +71,11 @@ tool surface from the surrounding Remote runtime. The two tell-tale symptoms:
 - **Remote-injected tool surface** — the nested run sees Remote-runtime tools
   (`CronCreate`, `PushNotification`, `ScheduleWakeup`, etc.) that a local CLI
   session would never expose, changing the tool set under test.
+  `ScheduleWakeup`'s own calling contract is worth knowing if you ever touch
+  one of these tools directly: it requires `prompt` (and `reason`) on every
+  call unless `stop: true` is passed instead — there is no "just wait, no
+  prompt" shape. This is upstream Remote-runtime tool-contract behavior, not
+  anything this plugin defines or can wrap.
 
 This inheritance is an **upstream Claude Code / Remote-runtime behavior — it is
 not fixable in this plugin repo** (no plugin setting, hook, or config removes the
