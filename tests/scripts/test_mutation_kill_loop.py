@@ -728,6 +728,42 @@ def test_round_log_line_scopes_to_target_file_in_multi_file_baseline_report(
 
 
 # =============================================================================
+# Scenario: A baseline-seeded round 1 with 0 survivors skips the scoped run
+# entirely (#1545 core value scenario)
+# =============================================================================
+def test_baseline_seeded_zero_survivors_never_calls_scoped_stryker(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    """When the baseline report seeded via ``initial_report_path`` already
+    shows 0 survivors for the target file, round 1 must converge immediately
+    on that baseline data — ``run_scoped_stryker`` must never be invoked. This
+    is the redundant-run this whole issue exists to avoid."""
+    report_override = {
+        "files": {
+            "src/Widget.WebApi/PaymentService.cs": {
+                "mutants": [_mutant("Killed", line=1), _mutant("Killed", line=2)]
+            },
+        }
+    }
+    kwargs, events = _loop_fixture(tmp_path, monkeypatch, report_override=report_override)
+    logs: list[str] = []
+    kwargs["log"] = logs.append
+    monkeypatch.setattr(
+        loop,
+        "run_scoped_stryker",
+        lambda *a, **k: pytest.fail(
+            "run_scoped_stryker must not be called when the baseline already "
+            "shows 0 survivors"
+        ),
+    )
+
+    loop.run_for_file(**kwargs)
+
+    assert any("no survivors" in msg for msg in logs)
+    assert not any(e[0] in ("generate", "commit", "revert") for e in events)
+
+
+# =============================================================================
 # Verify/commit subprocess wiring — targets come from config (no literals)
 # =============================================================================
 def test_dotnet_build_uses_configured_test_project(

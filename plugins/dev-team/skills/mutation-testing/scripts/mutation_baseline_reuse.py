@@ -180,20 +180,23 @@ def _cli(argv: Sequence[str]) -> int:
     )
     sub = parser.add_subparsers(dest="command", required=True)
 
+    parent_parser = argparse.ArgumentParser(add_help=False)
+    parent_parser.add_argument("--file", required=True)
+    parent_parser.add_argument("--capture-commit", required=True)
+    parent_parser.add_argument("--tracking", required=True)
+
     resolve_parser = sub.add_parser(
-        "resolve", help="resolve whether a file may reuse the baseline report"
+        "resolve",
+        help="resolve whether a file may reuse the baseline report",
+        parents=[parent_parser],
     )
-    resolve_parser.add_argument("--file", required=True)
-    resolve_parser.add_argument("--capture-commit", required=True)
-    resolve_parser.add_argument("--tracking", required=True)
     resolve_parser.add_argument("--cwd", default=None)
 
-    mark_parser = sub.add_parser(
-        "mark-consumed", help="record a file's consumption of a baseline"
+    sub.add_parser(
+        "mark-consumed",
+        help="record a file's consumption of a baseline",
+        parents=[parent_parser],
     )
-    mark_parser.add_argument("--file", required=True)
-    mark_parser.add_argument("--capture-commit", required=True)
-    mark_parser.add_argument("--tracking", required=True)
 
     args = parser.parse_args(list(argv))
 

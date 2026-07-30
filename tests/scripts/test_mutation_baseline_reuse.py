@@ -188,6 +188,29 @@ def test_mark_consumed_write_failure_returns_error_and_never_raises(
 # =============================================================================
 # _git_last_commit_sha / _git_is_ancestor
 # =============================================================================
+def test_mark_consumed_second_failure_during_cleanup_never_masks_original_error(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    """``os.replace`` fails, and the best-effort ``tmp.unlink()`` cleanup that
+    follows it *also* raises ``OSError``. The inner failure must be swallowed
+    — never overwriting or masking the original ``os.replace`` error, and
+    never propagating to the caller."""
+    path = tmp_path / "tracking.json"
+
+    def replace_boom(_src, _dst):
+        raise OSError("disk full")
+
+    def unlink_boom(self, missing_ok=False):
+        raise OSError("permission denied")
+
+    monkeypatch.setattr(mbr.os, "replace", replace_boom)
+    monkeypatch.setattr(mbr.Path, "unlink", unlink_boom)
+
+    result = mbr.mark_consumed(path, "src/Foo.cs", "capture-sha")
+
+    assert result == {"success": False, "error": "disk full"}
+
+
 def test_git_last_commit_sha_returns_stripped_sha(monkeypatch: pytest.MonkeyPatch):
     seen: list = []
 
