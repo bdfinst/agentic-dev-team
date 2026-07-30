@@ -23,15 +23,21 @@ Stdlib-only. Python 3.8+.
 from __future__ import annotations
 
 import argparse
+import enum
 import json
 import os
 import sys
 from collections.abc import Sequence
 from dataclasses import asdict, dataclass
 
-ENTER_LOOP = "enter-loop"
-DEGRADE = "degrade"
-ASK_OPERATOR = "ask-operator"
+
+class Outcome(enum.Enum):
+    """The three valid ``Decision.outcome`` values the arbiter can return."""
+
+    ENTER_LOOP = "enter-loop"
+    DEGRADE = "degrade"
+    ASK_OPERATOR = "ask-operator"
+
 
 # Wall-clock ceiling for a single estimated loop round. Not a magic constant on
 # the probe side — the round estimate is *derived from the measured probe*
@@ -71,8 +77,19 @@ def estimate_round_seconds(probe_seconds: float, scope_file_count: int) -> float
 
 
 @dataclass(frozen=True)
+class ProbeResult:
+    """The shim-first one-file probe's measurements — the four values that
+    always travel together as one probe's result set."""
+
+    shim_declined: bool
+    capture_failed: bool
+    probe_seconds: float
+    scope_file_count: int
+
+
+@dataclass(frozen=True)
 class Decision:
-    outcome: str  # ENTER_LOOP | DEGRADE | ASK_OPERATOR
+    outcome: Outcome
     reason: str
     estimated_round_seconds: float | None = None
     budget_seconds: float | None = None
@@ -82,17 +99,16 @@ class Decision:
         """The precise waiver line to record when degrading; None when the
         loop is entered (no waiver needed) or when the operator still has to
         be asked (no waiver yet — pending operator input)."""
-        return None if self.outcome in (ENTER_LOOP, ASK_OPERATOR) else WAIVER_MESSAGE
+        if self.outcome is Outcome.ENTER_LOOP:
+            return None
+        if self.outcome is Outcome.ASK_OPERATOR:
+            return None
+        if self.outcome is Outcome.DEGRADE:
+            return WAIVER_MESSAGE
+        raise ValueError(f"unknown outcome: {self.outcome!r}")
 
 
-def decide(
-    *,
-    shim_declined: bool,
-    capture_failed: bool,
-    probe_seconds: float,
-    scope_file_count: int,
-    budget_seconds: float | None = None,
-) -> Decision:
+def decide(probe: ProbeResult, *, budget_seconds: float | None = None) -> Decision:
     """Arbitrate between entering the loop, asking the operator, or degrading
     from the shim-first probe.
 
@@ -104,30 +120,30 @@ def decide(
     if budget_seconds is None:
         budget_seconds = resolve_budget_seconds()
 
-    if shim_declined:
+    if probe.shim_declined:
         return Decision(
-            DEGRADE,
+            Outcome.DEGRADE,
             "operator declined the shim path at the v3-feature gate (#1160)",
         )
-    if capture_failed:
+    if probe.capture_failed:
         return Decision(
-            DEGRADE,
+            Outcome.DEGRADE,
             "per-test coverage capture failed on the probe (#1157) — Stryker "
             "fell back to whole-suite-per-mutant, so each loop round pays the "
             "full-suite cost",
         )
 
-    estimated = estimate_round_seconds(probe_seconds, scope_file_count)
+    estimated = estimate_round_seconds(probe.probe_seconds, probe.scope_file_count)
     if estimated > budget_seconds:
         return Decision(
-            ASK_OPERATOR,
+            Outcome.ASK_OPERATOR,
             f"estimated round {estimated:.0f}s exceeds the {budget_seconds:.0f}s "
             "budget (per-test works but the suite is too slow to iterate)",
             estimated_round_seconds=estimated,
             budget_seconds=budget_seconds,
         )
     return Decision(
-        ENTER_LOOP,
+        Outcome.ENTER_LOOP,
         f"per-test capture works and the estimated round {estimated:.0f}s is "
         f"within the {budget_seconds:.0f}s budget",
         estimated_round_seconds=estimated,
@@ -163,14 +179,15 @@ def _cli(argv: Sequence[str]) -> int:
     )
     args = parser.parse_args(list(argv))
 
-    decision = decide(
+    probe = ProbeResult(
         shim_declined=args.shim_declined,
         capture_failed=args.capture_failed,
         probe_seconds=args.probe_seconds,
         scope_file_count=args.scope_files,
-        budget_seconds=args.budget_seconds,
     )
+    decision = decide(probe, budget_seconds=args.budget_seconds)
     payload = asdict(decision)
+    payload["outcome"] = decision.outcome.value
     payload["waiver"] = decision.waiver
     print(json.dumps(payload, indent=2))
     # Exit 0 either way — this is an advisory arbiter, not a gate that fails a run.
