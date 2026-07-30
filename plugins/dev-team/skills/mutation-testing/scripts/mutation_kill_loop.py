@@ -60,6 +60,37 @@ from mutation_kill_insert import apply_generated_methods, count_methods
 Generator = Callable[[str, list[dict], str, str], str]
 
 
+def _timeout_from_env(name: str, default: int) -> int:
+    """Parse a positive-integer timeout (seconds) from an env var.
+
+    Fails fast with a message naming the offending env var, rather than the
+    bare, unattributed ``ValueError`` a naked ``int(os.environ.get(...))``
+    would raise on a malformed override.
+    """
+    raw = os.environ.get(name)
+    if raw is None:
+        return default
+    try:
+        value = int(raw)
+    except ValueError:
+        raise ValueError(
+            f"{name} must be an integer number of seconds, got {raw!r}"
+        ) from None
+    if value <= 0:
+        raise ValueError(f"{name} must be a positive number of seconds, got {value}")
+    return value
+
+
+# Timeouts for the long-running subprocesses this loop shells out to. Each is
+# overridable via env var since a legitimately slow project (a large solution,
+# a heavyweight test suite) may need a larger budget than these defaults —
+# unlike the 30s used by this codebase's git-shelling helpers, these
+# subprocesses (a Stryker run, a dotnet build/test) routinely run for minutes.
+STRYKER_RUN_TIMEOUT_S = _timeout_from_env("DEV_TEAM_MUTATION_STRYKER_TIMEOUT_S", 3600)
+DOTNET_BUILD_TIMEOUT_S = _timeout_from_env("DEV_TEAM_MUTATION_BUILD_TIMEOUT_S", 600)
+DOTNET_TEST_TIMEOUT_S = _timeout_from_env("DEV_TEAM_MUTATION_TEST_TIMEOUT_S", 600)
+
+
 # =============================================================================
 # Config — everything path-shaped comes from stryker-config.json.
 # =============================================================================
@@ -168,18 +199,25 @@ def run_scoped_stryker(
     try:
         if sln is not None and sln_hidden is not None:
             wrapper.hide_sln(sln, sln_hidden)
-        subprocess.run(
-            [
-                stryker_bin,
-                "--config-file",
-                str(config_path),
-                "--output",
-                str(output_dir),
-            ],
-            env=env,
-            cwd=cwd,
-            check=False,
-        )
+        try:
+            subprocess.run(
+                [
+                    stryker_bin,
+                    "--config-file",
+                    str(config_path),
+                    "--output",
+                    str(output_dir),
+                ],
+                env=env,
+                cwd=cwd,
+                check=False,
+                timeout=STRYKER_RUN_TIMEOUT_S,
+            )
+        except subprocess.TimeoutExpired as exc:
+            raise RuntimeError(
+                f"Stryker run timed out after {STRYKER_RUN_TIMEOUT_S}s for "
+                f"{source_file} (set DEV_TEAM_MUTATION_STRYKER_TIMEOUT_S to raise it)"
+            ) from exc
     finally:
         if sln is not None and sln_hidden is not None:
             wrapper.restore_sln(sln, sln_hidden)
@@ -201,15 +239,24 @@ def extract_survivors(report_path: Path, source_file: str) -> list[dict]:
 # Verify / commit / revert — all dotnet & git go through subprocess.
 # =============================================================================
 def dotnet_build(targets: Sequence[str], *, cwd: Path | None = None) -> bool:
-    """Build every configured test-project. False if any target fails."""
+    """Build every configured test-project. False if any target fails or
+    times out."""
     for target in targets:
-        rc = subprocess.run(
-            ["dotnet", "build", target, "-c", "Debug", "--nologo"],
-            capture_output=True,
-            text=True,
-            cwd=cwd,
-            check=False,
-        ).returncode
+        try:
+            rc = subprocess.run(
+                ["dotnet", "build", target, "-c", "Debug", "--nologo"],
+                capture_output=True,
+                text=True,
+                cwd=cwd,
+                check=False,
+                timeout=DOTNET_BUILD_TIMEOUT_S,
+            ).returncode
+        except subprocess.TimeoutExpired:
+            sys.stderr.write(
+                f"error: dotnet build timed out after {DOTNET_BUILD_TIMEOUT_S}s "
+                f"for {target} (set DEV_TEAM_MUTATION_BUILD_TIMEOUT_S to raise it)\n"
+            )
+            return False
         if rc != 0:
             return False
     return True
@@ -219,24 +266,32 @@ def dotnet_test(
     targets: Sequence[str], test_filter: str, *, cwd: Path | None = None
 ) -> bool:
     """Run the scoped test filter across every test-project. False on any
-    non-zero exit or reported failure."""
+    non-zero exit, reported failure, or timeout."""
     for target in targets:
-        result = subprocess.run(
-            [
-                "dotnet",
-                "test",
-                target,
-                "-c",
-                "Debug",
-                "--no-build",
-                "--filter",
-                f"FullyQualifiedName~{test_filter}",
-            ],
-            capture_output=True,
-            text=True,
-            cwd=cwd,
-            check=False,
-        )
+        try:
+            result = subprocess.run(
+                [
+                    "dotnet",
+                    "test",
+                    target,
+                    "-c",
+                    "Debug",
+                    "--no-build",
+                    "--filter",
+                    f"FullyQualifiedName~{test_filter}",
+                ],
+                capture_output=True,
+                text=True,
+                cwd=cwd,
+                check=False,
+                timeout=DOTNET_TEST_TIMEOUT_S,
+            )
+        except subprocess.TimeoutExpired:
+            sys.stderr.write(
+                f"error: dotnet test timed out after {DOTNET_TEST_TIMEOUT_S}s "
+                f"for {target} (set DEV_TEAM_MUTATION_TEST_TIMEOUT_S to raise it)\n"
+            )
+            return False
         failed = 0
         for line in (result.stdout + result.stderr).splitlines():
             match = re.search(r"Failed:\s*(\d+)", line)

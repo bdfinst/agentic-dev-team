@@ -141,6 +141,42 @@ def test_headless_generator_invokes_claude_print_and_strips_fences(
     assert "New_Case_KillsMutant" in out
 
 
+# Scenario: A hung `claude --print` generation call is bounded by a timeout,
+# not left to hang forever (#1558)
+def test_headless_generator_passes_a_timeout(monkeypatch: pytest.MonkeyPatch):
+    captured: dict = {}
+
+    def fake_run(argv, **kwargs):
+        captured.update(kwargs)
+
+        class _R:
+            returncode = 0
+            stdout = "void New_Case() {}"
+            stderr = ""
+
+        return _R()
+
+    monkeypatch.setattr(headless.subprocess, "run", fake_run)
+    generate = headless.make_headless_generator(None)
+    generate("S.cs", [_mutant("Survived", "ArithmeticOperator", 10)], "class S {}", "class T {}")
+
+    assert captured["timeout"] == headless.CLAUDE_GENERATION_TIMEOUT_S
+
+
+def test_headless_generator_timeout_raises_a_named_error(monkeypatch: pytest.MonkeyPatch):
+    def fake_run(argv, **kwargs):
+        raise headless.subprocess.TimeoutExpired(argv, kwargs.get("timeout"))
+
+    monkeypatch.setattr(headless.subprocess, "run", fake_run)
+    generate = headless.make_headless_generator(None)
+
+    with pytest.raises(RuntimeError) as exc_info:
+        generate("S.cs", [_mutant("Survived", "ArithmeticOperator", 10)], "class S {}", "class T {}")
+
+    assert str(headless.CLAUDE_GENERATION_TIMEOUT_S) in str(exc_info.value)
+    assert "DEV_TEAM_MUTATION_GENERATION_TIMEOUT_S" in str(exc_info.value)
+
+
 # Scenario: --model resolves from the flag, then the env var, else None
 def test_model_resolves_from_env_when_set(monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setenv("DEV_TEAM_MUTATION_MODEL", "env-model")

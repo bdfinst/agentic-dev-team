@@ -19,7 +19,19 @@ import sys
 from collections.abc import Sequence
 from pathlib import Path
 
-from mutation_kill_loop import Generator, RunContext, load_loop_config, run_for_file
+from mutation_kill_loop import (
+    Generator,
+    RunContext,
+    _timeout_from_env,
+    load_loop_config,
+    run_for_file,
+)
+
+# Timeout for the `claude --print` generation subprocess. Overridable via env
+# var since a legitimately slow/large prompt may need a larger budget than
+# this default — unlike the 30s used by this codebase's git-shelling
+# helpers, this subprocess routinely runs for tens of seconds to minutes.
+CLAUDE_GENERATION_TIMEOUT_S = _timeout_from_env("DEV_TEAM_MUTATION_GENERATION_TIMEOUT_S", 300)
 
 # The Claude CLI binary. Overridable via CLAUDE_BIN so a non-PATH install can
 # be pointed at without editing this module.
@@ -154,13 +166,21 @@ def make_headless_generator(
         if model:
             cmd += ["--model", model]
         cmd.append(prompt)
-        result = subprocess.run(
-            cmd,
-            capture_output=True,
-            text=True,
-            cwd=cwd,
-            check=False,
-        )
+        try:
+            result = subprocess.run(
+                cmd,
+                capture_output=True,
+                text=True,
+                cwd=cwd,
+                check=False,
+                timeout=CLAUDE_GENERATION_TIMEOUT_S,
+            )
+        except subprocess.TimeoutExpired as exc:
+            raise RuntimeError(
+                f"claude --print generation timed out after "
+                f"{CLAUDE_GENERATION_TIMEOUT_S}s (set "
+                "DEV_TEAM_MUTATION_GENERATION_TIMEOUT_S to raise it)"
+            ) from exc
         if result.returncode != 0:
             raise RuntimeError(
                 f"claude CLI failed (exit {result.returncode}): {result.stderr[:500]}"
