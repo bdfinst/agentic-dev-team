@@ -35,6 +35,27 @@ requires_npx = pytest.mark.skipif(
     reason="npx/node_modules not available — run `npm ci` first",
 )
 
+# All five tests below spawn their own `npx eslint` subprocess. Measured
+# directly (issue #1557): one invocation takes ~18-20s wall-clock alone on
+# this machine, but climbs to ~42s when 5 run concurrently — `npx` resolves
+# the local binary and node_modules on every call, and that resolution
+# contends across concurrently-spawned processes. Under `pytest -n auto`,
+# each parametrized case lands on a different xdist worker by default, so
+# all 5 were racing for that same resolution work simultaneously, on top of
+# whatever else the wider `-n auto` run was doing — enough to occasionally
+# exceed the 60s subprocess timeout (observed: 3-5 of 5 timing out). This
+# mirrors the file-level xdist_group fix already used in this repo for
+# careful-state.json contention (see test_code_intelligence_nudge.py) — force
+# all 5 subprocess-spawning tests here onto the SAME worker so they run
+# sequentially instead of concurrently, removing the intra-file contention
+# that was the dominant multiplier. Requires --dist loadgroup (set in
+# scripts/ci-local.sh). The per-call timeout below is doubled to 120s (from
+# 60s) as CI-variance margin on top of that fix, not a substitute for it:
+# once xdist_group removes the concurrent-resolution multiplier, no single
+# invocation should exceed the ~18-20s measured above, so 120s leaves ~6x
+# headroom for a slower CI box rather than tolerating the prior contention.
+pytestmark = pytest.mark.xdist_group(name="eslint-fixture-scoping-subprocess")
+
 
 @requires_npx
 @pytest.mark.parametrize("fixture", DIRTY_JS_FIXTURES)
@@ -46,7 +67,7 @@ def test_dirty_js_fixture_is_not_linted(fixture: str) -> None:
         cwd=REPO_ROOT,
         capture_output=True,
         text=True,
-        timeout=60,
+        timeout=120,
         check=False,
     )
     assert result.returncode == 0, (
@@ -68,7 +89,7 @@ def test_first_party_js_is_still_linted(tmp_path: Path) -> None:
             cwd=REPO_ROOT,
             capture_output=True,
             text=True,
-            timeout=60,
+            timeout=120,
             check=False,
         )
         assert result.returncode != 0, (
