@@ -12,6 +12,7 @@ from __future__ import annotations
 import re
 
 import pytest
+from skill_doc_helpers import section
 
 from _repo_root import REPO_ROOT
 
@@ -60,7 +61,13 @@ def test_agent_body_stays_under_500_line_limit(text: str) -> None:
     # Bumped by 23 more (#1369): a new "Accepted survivors: raw vs adjusted
     # score" subsection documenting per-mutant status: "accepted" deferrals
     # alongside the existing file-level EXCLUDED convention.
-    assert len(text.splitlines()) < 529
+    # Bumped by 12 more (#1543): split the single `degrade` bullet in the
+    # "Pre-loop feasibility gate" section into the unconditional
+    # shim-decline/capture-failure degrade and the new `ask-operator`
+    # budget-only outcome, with its confirmation-prompt content, echo-back
+    # rule, off-script re-ask rule, and non-interactive default-to-degrade
+    # fallback.
+    assert len(text.splitlines()) < 541
 
 
 def test_defines_honest_score_formula(text: str) -> None:
@@ -473,3 +480,106 @@ def test_retains_generation_and_exclusion_as_the_llm_only_responsibilities(
     assert re.search(r"generat", text, re.IGNORECASE)
     # Exclusion criteria retained, not merely named.
     assert re.search(r"15%", text) and re.search(r"50%", text)
+
+
+# --- Issue #1543: split the pre-loop feasibility gate's single `degrade`
+# bullet into the unconditional shim-decline/capture-failure degrade and a new
+# `ask-operator` outcome for the budget-only case.
+
+
+@pytest.fixture(scope="module")
+def feasibility_section(text: str) -> str:
+    result = section(
+        text,
+        r"^## Pre-loop feasibility gate",
+        boundary_pattern=r"^## ",
+        include_start_line=False,
+    )
+    assert result, "Pre-loop feasibility gate section not found"
+    return result
+
+
+@pytest.fixture(scope="module")
+def feasibility_flat(feasibility_section: str) -> str:
+    return feasibility_section.replace("\n", " ")
+
+
+def test_ask_operator_is_an_outcome_distinct_from_degrade(
+    feasibility_section: str,
+) -> None:
+    assert "ask-operator" in feasibility_section
+    assert "degrade" in feasibility_section
+    assert re.search(
+        r"distinct.*third outcome|third.*outcome|two separate outcomes",
+        feasibility_section,
+        re.IGNORECASE,
+    )
+
+
+def test_only_shim_decline_or_capture_failure_auto_degrade(
+    feasibility_flat: str,
+) -> None:
+    assert re.search(
+        r"unconditional.{0,20}for the two hard blockers", feasibility_flat
+    )
+    assert re.search(r"shim.{0,20}#1160", feasibility_flat)
+    assert re.search(r"capture.{0,20}probe.{0,20}#1157", feasibility_flat)
+    # Budget alone must never be named as an unconditional-degrade trigger.
+    assert re.search(r"not a hard blocker|is not a hard blocker", feasibility_flat)
+    # Retired behavior must be gone, not just supplemented: budget alone
+    # unconditionally degrading (the pre-#1543 shape) must not reappear.
+    assert not re.search(
+        r"budget.{0,30}(alone|only).{0,30}unconditional.{0,20}degrade",
+        feasibility_flat,
+        re.IGNORECASE,
+    )
+
+
+def test_confirmation_prompt_names_human_readable_duration_scope_and_consequences(
+    feasibility_section: str, feasibility_flat: str
+) -> None:
+    assert re.search(r"human-readable", feasibility_section, re.IGNORECASE)
+    assert re.search(r"never raw seconds", feasibility_flat, re.IGNORECASE)
+    assert re.search(r"scope-file count", feasibility_flat)
+    assert re.search(r"per-file probe seconds", feasibility_flat)
+    assert re.search(r"proceed anyway", feasibility_section, re.IGNORECASE)
+    assert re.search(
+        r"re-enters the loop for this invocation", feasibility_flat
+    )
+    assert re.search(
+        r"single advisory pass \(score only.{0,40}no mutants killed.{0,20}no commits",
+        feasibility_flat,
+        re.IGNORECASE,
+    )
+
+
+def test_agent_echoes_back_chosen_path_before_acting(
+    feasibility_flat: str,
+) -> None:
+    assert re.search(
+        r"echo back which path.*before acting", feasibility_flat, re.IGNORECASE
+    )
+
+
+def test_off_script_reply_is_reasked_never_guessed(feasibility_flat: str) -> None:
+    assert re.search(
+        r"matching neither documented choice.{0,20}re-asked.{0,60}"
+        r"same two choices restated",
+        feasibility_flat,
+        re.IGNORECASE,
+    )
+    assert re.search(r"never default or guess", feasibility_flat, re.IGNORECASE)
+
+
+def test_non_interactive_default_to_degrade_fallback_is_documented(
+    feasibility_flat: str,
+) -> None:
+    assert re.search(
+        r"non-interactive session.{0,40}no usable tty.{0,20}no operator available",
+        feasibility_flat,
+        re.IGNORECASE,
+    )
+    assert re.search(r"default to `?degrade`?", feasibility_flat, re.IGNORECASE)
+    assert re.search(
+        r"log the auto-decision.{0,20}the same way", feasibility_flat, re.IGNORECASE
+    )

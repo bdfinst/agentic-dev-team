@@ -77,7 +77,7 @@ def test_shim_declined_degrades():
     assert d.waiver == gate.WAIVER_MESSAGE
 
 
-def test_over_budget_degrades():
+def test_over_budget_asks_operator():
     d = gate.decide(
         shim_declined=False,
         capture_failed=False,
@@ -85,9 +85,39 @@ def test_over_budget_degrades():
         scope_file_count=40,  # 4000s estimated
         budget_seconds=1800.0,
     )
-    assert d.outcome == gate.DEGRADE
+    assert d.outcome == gate.ASK_OPERATOR
     assert "budget" in d.reason
     assert d.estimated_round_seconds == 4000.0
+    assert d.waiver is None
+
+
+def test_estimate_exactly_at_budget_enters_loop():
+    d = gate.decide(
+        shim_declined=False,
+        capture_failed=False,
+        probe_seconds=10.0,
+        scope_file_count=180,  # 1800s estimated == budget
+        budget_seconds=1800.0,
+    )
+    assert d.outcome == gate.ENTER_LOOP
+    assert d.waiver is None
+
+
+def test_shim_decline_wins_precedence_over_budget_alone():
+    # Isolates shim_declined from capture_failed (unlike the sibling
+    # precedence test below) so this exercises a genuinely distinct case:
+    # a decline still short-circuits even when capture succeeded and only
+    # the budget signal would otherwise fire.
+    d = gate.decide(
+        shim_declined=True,
+        capture_failed=False,
+        probe_seconds=100.0,
+        scope_file_count=40,  # also over budget
+        budget_seconds=1800.0,
+    )
+    assert d.outcome == gate.DEGRADE
+    assert "#1160" in d.reason
+    assert "budget" not in d.reason
 
 
 def test_shim_decline_takes_precedence_over_capture_and_budget():
@@ -190,11 +220,12 @@ def test_cli_shim_declined_flag_wiring(capsys):
 
 
 def test_cli_budget_flag_wiring(capsys):
-    # Small budget + slow probe drives the over-budget degrade through argparse.
+    # Small budget + slow probe drives the over-budget ask-operator through argparse.
     rc = gate._cli(
         ["--probe-seconds", "100", "--scope-files", "40", "--budget-seconds", "10"]
     )
     payload = json.loads(capsys.readouterr().out)
     assert rc == 0
-    assert payload["outcome"] == gate.DEGRADE
+    assert payload["outcome"] == gate.ASK_OPERATOR
     assert "budget" in payload["reason"]
+    assert payload["waiver"] is None

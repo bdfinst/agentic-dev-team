@@ -9,9 +9,13 @@ whole-suite-per-mutant, or a single round would blow a wall-clock budget, then
 looping is infeasible — pay the cost once as a single advisory pass, never loop.
 
 This module is the pure, testable **arbiter**: given the shim-first one-file
-probe's results it returns ``enter-loop`` or ``degrade`` with a reason. The
-agent runs the probe (reusing the wrapper + #1157's capture detection) and
-feeds the measurements here; applying the shim exclusions is #1159's job.
+probe's results it returns ``enter-loop``, ``degrade``, or ``ask-operator``
+with a reason. A shim decline or a capture failure returns ``degrade``
+unconditionally; an estimated round over budget with no other blocker returns
+``ask-operator`` instead — a pure time estimate is not a hard blocker, so the
+gate defers to the operator rather than degrading on its own. The agent runs
+the probe (reusing the wrapper + #1157's capture detection) and feeds the
+measurements here; applying the shim exclusions is #1159's job.
 
 Stdlib-only. Python 3.8+.
 """
@@ -27,6 +31,7 @@ from dataclasses import asdict, dataclass
 
 ENTER_LOOP = "enter-loop"
 DEGRADE = "degrade"
+ASK_OPERATOR = "ask-operator"
 
 # Wall-clock ceiling for a single estimated loop round. Not a magic constant on
 # the probe side — the round estimate is *derived from the measured probe*
@@ -67,7 +72,7 @@ def estimate_round_seconds(probe_seconds: float, scope_file_count: int) -> float
 
 @dataclass(frozen=True)
 class Decision:
-    outcome: str  # ENTER_LOOP | DEGRADE
+    outcome: str  # ENTER_LOOP | DEGRADE | ASK_OPERATOR
     reason: str
     estimated_round_seconds: float | None = None
     budget_seconds: float | None = None
@@ -75,8 +80,9 @@ class Decision:
     @property
     def waiver(self) -> str | None:
         """The precise waiver line to record when degrading; None when the
-        loop is entered."""
-        return None if self.outcome == ENTER_LOOP else WAIVER_MESSAGE
+        loop is entered (no waiver needed) or when the operator still has to
+        be asked (no waiver yet — pending operator input)."""
+        return None if self.outcome in (ENTER_LOOP, ASK_OPERATOR) else WAIVER_MESSAGE
 
 
 def decide(
@@ -87,7 +93,8 @@ def decide(
     scope_file_count: int,
     budget_seconds: float | None = None,
 ) -> Decision:
-    """Arbitrate loop-vs-degrade from the shim-first probe.
+    """Arbitrate between entering the loop, asking the operator, or degrading
+    from the shim-first probe.
 
     Order matters: an operator's decline and a hard capture failure both make
     the loop infeasible regardless of timing, so they short-circuit before the
@@ -113,7 +120,7 @@ def decide(
     estimated = estimate_round_seconds(probe_seconds, scope_file_count)
     if estimated > budget_seconds:
         return Decision(
-            DEGRADE,
+            ASK_OPERATOR,
             f"estimated round {estimated:.0f}s exceeds the {budget_seconds:.0f}s "
             "budget (per-test works but the suite is too slow to iterate)",
             estimated_round_seconds=estimated,
