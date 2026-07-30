@@ -739,6 +739,71 @@ def test_git_revert_checks_out_only_the_test_file(
 
 
 # =============================================================================
+# Scenario: A hung `git checkout`/`git add`/`git commit` is bounded by a
+# timeout, not left to hang the loop forever (#1572 — same class of fix as
+# #1558's dotnet_build/dotnet_test/Stryker timeouts).
+# =============================================================================
+def test_git_revert_passes_a_timeout(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    captured: dict = {}
+    monkeypatch.setattr(loop.subprocess, "run", lambda argv, **k: captured.update(k))
+
+    loop.git_revert(tmp_path / "PaymentServiceTests.cs")
+
+    assert captured["timeout"] == loop.GIT_TIMEOUT_S
+
+
+def test_git_revert_timeout_is_logged_not_raised(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys
+):
+    def fake_run(argv, **kwargs):
+        raise loop.subprocess.TimeoutExpired(argv, kwargs["timeout"])
+
+    monkeypatch.setattr(loop.subprocess, "run", fake_run)
+
+    loop.git_revert(tmp_path / "PaymentServiceTests.cs")  # must not raise
+
+    err = capsys.readouterr().err
+    assert str(loop.GIT_TIMEOUT_S) in err
+    assert "DEV_TEAM_MUTATION_GIT_TIMEOUT_S" in err
+
+
+def test_git_commit_passes_a_timeout_to_add_and_commit(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    calls: list = []
+
+    class _R:
+        returncode = 0
+
+    def fake_run(argv, **kwargs):
+        calls.append((argv, kwargs))
+        return _R()
+
+    monkeypatch.setattr(loop.subprocess, "run", fake_run)
+
+    loop.git_commit("msg", tmp_path / "PaymentServiceTests.cs")
+
+    assert calls[0][0] == ["git", "add", "--", str(tmp_path / "PaymentServiceTests.cs")]
+    assert calls[0][1]["timeout"] == loop.GIT_TIMEOUT_S
+    assert calls[1][0][:2] == ["git", "commit"]
+    assert calls[1][1]["timeout"] == loop.GIT_TIMEOUT_S
+
+
+def test_git_commit_timeout_returns_false(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys
+):
+    def fake_run(argv, **kwargs):
+        raise loop.subprocess.TimeoutExpired(argv, kwargs["timeout"])
+
+    monkeypatch.setattr(loop.subprocess, "run", fake_run)
+
+    assert loop.git_commit("msg", tmp_path / "PaymentServiceTests.cs") is False
+    err = capsys.readouterr().err
+    assert str(loop.GIT_TIMEOUT_S) in err
+    assert "DEV_TEAM_MUTATION_GIT_TIMEOUT_S" in err
+
+
+# =============================================================================
 # Scenario: `python mutation_kill_loop.py --headless ...` — the real
 # subprocess entry point stryker_shard_pipeline.py invokes by filename —
 # dispatches to mutation_kill_headless.main() without double-loading this

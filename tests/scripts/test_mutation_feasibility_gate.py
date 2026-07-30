@@ -239,3 +239,27 @@ def test_cli_budget_flag_wiring(capsys):
     assert payload["outcome"] == gate.Outcome.ASK_OPERATOR.value
     assert "budget" in payload["reason"]
     assert payload["waiver"] is None
+
+
+def test_cli_explicit_nonpositive_budget_is_clamped_not_passed_through(capsys):
+    # #1549: `--budget-seconds 0` used to reach decide() unclamped (argparse
+    # sets 0.0, not None, so the `budget_seconds is None` branch never fired),
+    # forcing ASK_OPERATOR regardless of how fast the probe was. A fast probe
+    # with an explicit non-positive override must now enter the loop, exactly
+    # as it would with no --budget-seconds flag at all.
+    rc = gate._cli(
+        ["--probe-seconds", "1", "--scope-files", "1", "--budget-seconds", "0"]
+    )
+    payload = json.loads(capsys.readouterr().out)
+    assert rc == 0
+    assert payload["outcome"] == gate.Outcome.ENTER_LOOP.value
+    assert payload["budget_seconds"] == gate.DEFAULT_ROUND_BUDGET_SECONDS
+
+
+def test_decide_clamps_an_explicit_negative_budget_seconds():
+    probe = gate.ProbeResult(
+        shim_declined=False, capture_failed=False, probe_seconds=1.0, scope_file_count=1
+    )
+    decision = gate.decide(probe, budget_seconds=-5.0)
+    assert decision.outcome is gate.Outcome.ENTER_LOOP
+    assert decision.budget_seconds == gate.DEFAULT_ROUND_BUDGET_SECONDS

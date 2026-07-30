@@ -38,6 +38,12 @@ def _feed(monkeypatch, payload: dict) -> None:
 
 
 def test_main_warns_on_process_destruction(monkeypatch, capsys):
+    # #1574/#1578: isolate from the real, repo-shared careful-state.json —
+    # every other main()-calling test in this file that exercises the warn
+    # path already does this; these two didn't, so a concurrent session
+    # flipping real careful-mode state mid-run could flip this test from
+    # warn (exit 0) to block (exit 2).
+    monkeypatch.setattr(destructive_guard, "_careful_active", lambda: False)
     _feed(monkeypatch, {"tool_input": {"command": "kill -9 1234"}})
     assert destructive_guard.main() == 0
     out = capsys.readouterr().out
@@ -47,6 +53,7 @@ def test_main_warns_on_process_destruction(monkeypatch, capsys):
 
 
 def test_main_warns_on_permission_escalation(monkeypatch, capsys):
+    monkeypatch.setattr(destructive_guard, "_careful_active", lambda: False)
     _feed(monkeypatch, {"tool_input": {"command": "chmod 777 /etc/passwd"}})
     assert destructive_guard.main() == 0
     out = capsys.readouterr().out

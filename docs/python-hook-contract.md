@@ -99,6 +99,10 @@ Claude Code or by the plugin's own settings.json:
   `1` routes to the `.py` port.
 - `MUTATION_SMOKE_GATE_SKIP` — hook-specific escape hatch (see the
   smoke-gate hook).
+- `DEV_TEAM_VERSION_CHECK_CACHE_DIR` — overrides `version_check.py`'s daily
+  cache directory (default `/tmp`). Test-only escape hatch (#1574) so pytest
+  can give each worker/run its own cache path instead of racing on the one
+  real, shared `/tmp` file; production callers never set it.
 
 A hook MUST NOT depend on any variable not listed here without adding it
 to this doc. That is the mechanism that keeps parity fixtures reproducible
