@@ -244,6 +244,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             output_dir=Path(args.output),
             stryker_bin=args.stryker_bin,
             initial_report_path=Path(args.report) if args.report else None,
+            generator_label=f"headless ({model or 'default'})",
         ),
         generate=make_headless_generator(model),
         max_rounds=args.max_rounds,

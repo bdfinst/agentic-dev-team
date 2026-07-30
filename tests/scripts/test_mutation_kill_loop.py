@@ -16,6 +16,7 @@ subprocess wiring, and ``run_for_file`` orchestration.
 
 from __future__ import annotations
 
+import dataclasses
 import json
 import subprocess
 import sys
@@ -320,6 +321,56 @@ def test_green_round_commits(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     kinds = [e[0] for e in events]
     assert "commit" in kinds
     assert "revert" not in kinds
+
+
+# =============================================================================
+# Scenario: A headless (unattended, zero-human-review) commit carries an
+# audit trail distinguishing it from an agent-driven one (#1560)
+# =============================================================================
+def test_commit_message_omits_generator_trailer_by_default():
+    message = loop._commit_message(1, "Foo.cs", 2, "public async Task X() {}\n")
+    assert "Generator:" not in message
+
+
+def test_commit_message_includes_generator_trailer_when_labeled():
+    message = loop._commit_message(
+        1, "Foo.cs", 2, "public async Task X() {}\n", generator_label="headless (some-model)"
+    )
+    assert "Generator: headless (some-model)" in message
+
+
+def test_commit_message_generator_label_newlines_cannot_forge_extra_lines():
+    # A pipeline-supplied model string containing newlines must not be able
+    # to inject a second, forged "Generator:" trailer *line* into the
+    # commit — the injected text is neutralized onto the same line instead.
+    message = loop._commit_message(
+        1,
+        "Foo.cs",
+        2,
+        "public async Task X() {}\n",
+        generator_label="some-model\n\nGenerator: agent-driven (reviewed)",
+    )
+    lines_starting_with_generator = [
+        line for line in message.splitlines() if line.startswith("Generator:")
+    ]
+    assert len(lines_starting_with_generator) == 1
+
+
+def test_headless_commit_records_generator_label_via_run_context(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    source_file, ctx, kwargs, events = _loop_fixture(tmp_path, monkeypatch, [_mutant("Survived")])
+    ctx = dataclasses.replace(ctx, generator_label="headless (some-model)")
+    monkeypatch.setattr(loop, "dotnet_build", lambda targets, **k: True)
+    monkeypatch.setattr(loop, "dotnet_test", lambda targets, flt, **k: True)
+    clean = _write_report(tmp_path / "clean", "src/Widget.WebApi/PaymentService.cs", [])
+    (tmp_path / "clean").mkdir(exist_ok=True)
+    monkeypatch.setattr(loop, "run_scoped_stryker", lambda *a, **k: clean)
+
+    loop.run_for_file(source_file, ctx, **kwargs)
+
+    commit_msg = next(e[1] for e in events if e[0] == "commit")
+    assert "Generator: headless (some-model)" in commit_msg
 
 
 # =============================================================================
