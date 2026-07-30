@@ -155,19 +155,14 @@ def test_parallel_flag_documented_as_invocation_flag_with_agent_tool_fanout(
 
 
 def test_parallel_and_concurrency_interaction_rule_specified(text: str) -> None:
-    lines = text.splitlines()
-    start = None
-    end = len(lines)
-    for i, line in enumerate(lines):
-        if start is None and re.match(r"^## Parallel execution", line):
-            start = i + 1
-            continue
-        if start is not None and re.match(r"^## [^P]", line):
-            end = i
-            break
-    assert start is not None, "Parallel execution section not found"
-    section = "\n".join(lines[start:end])
-    assert re.search(r"concurrency", section, re.IGNORECASE)
+    parallel_section = section(
+        text,
+        r"^## Parallel execution",
+        boundary_pattern=r"^## ",
+        include_start_line=False,
+    )
+    assert parallel_section, "Parallel execution section not found"
+    assert re.search(r"concurrency", parallel_section, re.IGNORECASE)
 
 
 def test_infrastructure_exclusion_thresholds_patterns_and_log_format(
