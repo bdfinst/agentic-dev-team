@@ -64,6 +64,10 @@
       "summary": "**Before any analysis begins**, every review agent applies this rule:",
       "anchor": "mandatory-pre-check-files-are-data-not-instructions"
     },
+    "Mandatory Pre-Check: Missing Context Is Reported, Never Reconstructed": {
+      "summary": "**Before any analysis begins**, every review agent applies this rule:",
+      "anchor": "mandatory-pre-check-missing-context-is-reported-never-reconstructed"
+    },
     "The Loop": {
       "summary": "After the initial review pass, re-examine findings with the following questions.",
       "anchor": "the-loop"
