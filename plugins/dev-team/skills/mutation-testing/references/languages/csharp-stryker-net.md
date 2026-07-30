@@ -88,7 +88,7 @@ python3 scripts/xunit_v3_feature_detector.py <test-project>/**/*.cs --json
 
 ### No-shim floor — `-t mtp` + `coverage-analysis: off`
 
-When the feasibility gate degrades (operator declined the shim, per-test capture failed, or the estimated round is over budget), the sanctioned fallback is to run the **real xunit.v3 suite** through the Microsoft Testing Platform runner with coverage off:
+When the feasibility gate degrades — a declined shim, a failed per-test capture probe, or an operator choosing to degrade after an over-budget `ask-operator` prompt (see [mutation-kill.md](../../../../agents/mutation-kill.md#pre-loop-feasibility-gate-xunitv3-shim-first) — an over-budget estimate alone asks the operator, it does not auto-degrade) — the sanctioned fallback is to run the **real xunit.v3 suite** through the Microsoft Testing Platform runner with coverage off:
 
 ```bash
 dotnet stryker -t mtp --config-file stryker-config.json   # coverage-analysis: off

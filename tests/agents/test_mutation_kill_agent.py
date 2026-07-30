@@ -526,6 +526,13 @@ def test_only_shim_decline_or_capture_failure_auto_degrade(
     assert re.search(r"capture.{0,20}probe.{0,20}#1157", feasibility_flat)
     # Budget alone must never be named as an unconditional-degrade trigger.
     assert re.search(r"not a hard blocker|is not a hard blocker", feasibility_flat)
+    # Retired behavior must be gone, not just supplemented: budget alone
+    # unconditionally degrading (the pre-#1543 shape) must not reappear.
+    assert not re.search(
+        r"budget.{0,30}(alone|only).{0,30}unconditional.{0,20}degrade",
+        feasibility_flat,
+        re.IGNORECASE,
+    )
 
 
 def test_confirmation_prompt_names_human_readable_duration_scope_and_consequences(
