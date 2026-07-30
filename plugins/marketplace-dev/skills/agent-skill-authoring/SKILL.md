@@ -105,3 +105,4 @@ New or updated `$PLUGIN/skills/*/SKILL.md` file(s) with all registry tables and 
 | Agent without Skills section | All knowledge is inline, nothing is reusable | Identify extractable capabilities |
 | Overly broad skill | Tries to cover too much, hard to reference precisely | Split into focused skills |
 | Hand-authoring an agent file | Drifts from the schema enforced by /plugin-audit | Use /agent-add (invokes the agent-create skill) |
+| Deferred tool called before its schema loads | Assumed shape (e.g. batched `TaskCreate`) fails with `InputValidationError` | Call `ToolSearch("select:<ToolName>")` first; state the real per-call contract |

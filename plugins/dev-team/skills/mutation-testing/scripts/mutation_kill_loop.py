@@ -89,6 +89,10 @@ def _timeout_from_env(name: str, default: int) -> int:
 STRYKER_RUN_TIMEOUT_S = _timeout_from_env("DEV_TEAM_MUTATION_STRYKER_TIMEOUT_S", 3600)
 DOTNET_BUILD_TIMEOUT_S = _timeout_from_env("DEV_TEAM_MUTATION_BUILD_TIMEOUT_S", 600)
 DOTNET_TEST_TIMEOUT_S = _timeout_from_env("DEV_TEAM_MUTATION_TEST_TIMEOUT_S", 600)
+# 30s matches this codebase's other git-shelling helper
+# (mutation_baseline_reuse.py's ``_run_git``) — near-instant local git
+# operations against a repo that's presumably already responsive.
+GIT_TIMEOUT_S = _timeout_from_env("DEV_TEAM_MUTATION_GIT_TIMEOUT_S", 30)
 
 
 # =============================================================================
@@ -299,19 +303,46 @@ def dotnet_test(
 
 def git_revert(test_file: Path, *, cwd: Path | None = None) -> None:
     """Discard working-tree changes to one file (``git checkout -- <file>``)."""
-    subprocess.run(["git", "checkout", "--", str(test_file)], cwd=cwd, check=False)
+    try:
+        subprocess.run(
+            ["git", "checkout", "--", str(test_file)],
+            cwd=cwd,
+            check=False,
+            timeout=GIT_TIMEOUT_S,
+        )
+    except subprocess.TimeoutExpired:
+        sys.stderr.write(
+            f"error: git checkout timed out after {GIT_TIMEOUT_S}s reverting "
+            f"{test_file} (set DEV_TEAM_MUTATION_GIT_TIMEOUT_S to raise it)\n"
+        )
 
 
 def git_commit(message: str, test_file: Path, *, cwd: Path | None = None) -> bool:
     """Stage and commit only ``test_file``. Returns True on a successful commit."""
-    subprocess.run(["git", "add", str(test_file)], cwd=cwd, check=False)
-    rc = subprocess.run(
-        ["git", "commit", "-m", message],
-        capture_output=True,
-        text=True,
-        cwd=cwd,
-        check=False,
-    ).returncode
+    try:
+        # `--` guards against a test_file path that happens to start with
+        # `-` being parsed as a git flag instead of a path (#1584) —
+        # matching git_revert's existing `git checkout --` convention.
+        subprocess.run(
+            ["git", "add", "--", str(test_file)],
+            cwd=cwd,
+            check=False,
+            timeout=GIT_TIMEOUT_S,
+        )
+        rc = subprocess.run(
+            ["git", "commit", "-m", message],
+            capture_output=True,
+            text=True,
+            cwd=cwd,
+            check=False,
+            timeout=GIT_TIMEOUT_S,
+        ).returncode
+    except subprocess.TimeoutExpired:
+        sys.stderr.write(
+            f"error: git add/commit timed out after {GIT_TIMEOUT_S}s for "
+            f"{test_file} (set DEV_TEAM_MUTATION_GIT_TIMEOUT_S to raise it)\n"
+        )
+        return False
     return rc == 0
 
 

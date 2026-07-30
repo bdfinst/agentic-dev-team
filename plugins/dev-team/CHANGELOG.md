@@ -1,5 +1,41 @@
 # Changelog
 
+## [11.1.0](https://github.com/bdfinst/agentic-dev-team/compare/dev-team-v11.0.0...dev-team-v11.1.0) (2026-07-30)
+
+
+### Features
+
+* **mutation-kill:** reuse an available baseline mutation report for Round 1 ([#1565](https://github.com/bdfinst/agentic-dev-team/issues/1565)) ([f88a9e9](https://github.com/bdfinst/agentic-dev-team/commit/f88a9e9d7d28ec9b2b0b1991335951b5ff2a43d5))
+
+
+### Bug Fixes
+
+* **mutation-kill:** --headless mode auto-commits LLM-generated test code with no content vetting ([#1589](https://github.com/bdfinst/agentic-dev-team/issues/1589)) ([54197e0](https://github.com/bdfinst/agentic-dev-team/commit/54197e08de1661f26baf37ef3a32e7e709f20196))
+* **mutation-kill:** add missing subprocess timeouts, fix xdist races, clamp budget_seconds ([#1592](https://github.com/bdfinst/agentic-dev-team/issues/1592)) ([cf5d1a7](https://github.com/bdfinst/agentic-dev-team/commit/cf5d1a764bb2c9f9d13d18203421157e3245ea22)), closes [#1572](https://github.com/bdfinst/agentic-dev-team/issues/1572) [#1574](https://github.com/bdfinst/agentic-dev-team/issues/1574) [#1578](https://github.com/bdfinst/agentic-dev-team/issues/1578) [#1549](https://github.com/bdfinst/agentic-dev-team/issues/1549)
+* **mutation-kill:** ask the operator before degrading on time budget alone ([#1552](https://github.com/bdfinst/agentic-dev-team/issues/1552)) ([cc6cd27](https://github.com/bdfinst/agentic-dev-team/commit/cc6cd27df3603a28c063af58bcab90e3141f858e))
+
+
+### Code Refactoring
+
+* **mutation-kill:** extract round-runner + split loop module ([#1586](https://github.com/bdfinst/agentic-dev-team/issues/1586)) ([40bf112](https://github.com/bdfinst/agentic-dev-team/commit/40bf1127e2f58e0c11f86f981673a59cf3f9f00d))
+* **mutation-report:** split parse_mutmut_junitxml's per-testcase status/dict-assembly logic ([#1587](https://github.com/bdfinst/agentic-dev-team/issues/1587)) ([4c914aa](https://github.com/bdfinst/agentic-dev-team/commit/4c914aa7ec3e3a508ed7fe07485fde6b8a284886))
+
+
+### Performance Improvements
+
+* **mutation-kill:** add timeouts to long-running subprocess.run calls ([#1576](https://github.com/bdfinst/agentic-dev-team/issues/1576)) ([7854dce](https://github.com/bdfinst/agentic-dev-team/commit/7854dce4f5002618d2c26bef6c96271793d1d2fd))
+
+
+### Documentation
+
+* document TaskCreate/ScheduleWakeup tool contracts + parallel-build git-race guidance ([#1594](https://github.com/bdfinst/agentic-dev-team/issues/1594)) ([35277e9](https://github.com/bdfinst/agentic-dev-team/commit/35277e9c1b1ff8447ba4bfd8a88c175abe3d423f)), closes [#1546](https://github.com/bdfinst/agentic-dev-team/issues/1546) [#1548](https://github.com/bdfinst/agentic-dev-team/issues/1548) [#1571](https://github.com/bdfinst/agentic-dev-team/issues/1571)
+
+
+### Miscellaneous
+
+* **mutation-feasibility-gate:** type Decision.outcome as an Enum and group probe params ([#1575](https://github.com/bdfinst/agentic-dev-team/issues/1575)) ([29e6113](https://github.com/bdfinst/agentic-dev-team/commit/29e611350581a69e3ecb3b30e8854984b2f45d91))
+* **mutation-kill:** consolidate identical dotnet_build_targets/dotnet_test_targets ([#1581](https://github.com/bdfinst/agentic-dev-team/issues/1581)) ([a4bcf09](https://github.com/bdfinst/agentic-dev-team/commit/a4bcf09ebd1c7b847707af33fa1afd1bfefe59d3))
+
 ## [11.0.0](https://github.com/bdfinst/agentic-dev-team/compare/dev-team-v10.25.1...dev-team-v11.0.0) (2026-07-29)
 
 

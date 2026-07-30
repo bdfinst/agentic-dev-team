@@ -18,11 +18,11 @@
       "repository": "https://github.com/bdfinst/agentic-dev-team",
       "source": {
         "path": "plugins/dev-team",
-        "ref": "dev-team-v11.0.0",
+        "ref": "dev-team-v11.1.0",
         "source": "git-subdir",
         "url": "https://github.com/bdfinst/agentic-dev-team.git"
       },
-      "version": "11.0.0"
+      "version": "11.1.0"
     },
     {
       "author": {
@@ -52,11 +52,11 @@
       "repository": "https://github.com/bdfinst/agentic-dev-team",
       "source": {
         "path": "plugins/marketplace-dev",
-        "ref": "marketplace-dev-v1.2.1",
+        "ref": "marketplace-dev-v1.2.2",
         "source": "git-subdir",
         "url": "https://github.com/bdfinst/agentic-dev-team.git"
       },
-      "version": "1.2.1"
+      "version": "1.2.2"
     }
   ]
 }

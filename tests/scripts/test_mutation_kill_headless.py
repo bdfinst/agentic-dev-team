@@ -321,3 +321,31 @@ def test_claude_cli_available_reflects_subprocess_outcome(
 
     monkeypatch.setattr(headless.subprocess, "run", _missing)
     assert headless.claude_cli_available() is False
+
+
+def test_claude_cli_available_passes_a_timeout(monkeypatch: pytest.MonkeyPatch):
+    captured: dict = {}
+
+    class _OK:
+        returncode = 0
+
+    def fake_run(*a, **k):
+        captured.update(k)
+        return _OK()
+
+    monkeypatch.setattr(headless.subprocess, "run", fake_run)
+
+    headless.claude_cli_available()
+
+    assert captured["timeout"] == headless.CLAUDE_VERSION_TIMEOUT_S
+
+
+def test_claude_cli_available_treats_a_timeout_as_unavailable(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    def fake_run(*a, **k):
+        raise headless.subprocess.TimeoutExpired(a[0] if a else [], k.get("timeout"))
+
+    monkeypatch.setattr(headless.subprocess, "run", fake_run)
+
+    assert headless.claude_cli_available() is False

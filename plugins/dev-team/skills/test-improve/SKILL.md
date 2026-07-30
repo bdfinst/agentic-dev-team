@@ -527,6 +527,18 @@ operator. **Phase 5 does not run** until the operator approves the set.
 
 Iterate the approved Phase-5 Story set. For **each Story**:
 
+**Never dispatch multiple Stories' build loops in parallel against one shared
+working tree (issue #1571).** Each Story's step 1 runs `/build`, which
+`git add`/`git commit`s as it goes — two or more concurrent dispatches
+against the same checkout race on the index and working files, and that race
+is real: it has produced observed data loss (reverted test files, deleted
+`.feature` files) even when the assigned files looked disjoint, because git
+index/commit operations aren't file-scoped the way file edits are. Process
+Stories one at a time in this session, or — if you fan out multiple Stories
+concurrently via the `Agent` tool — dispatch every one of them with
+`isolation: "worktree"` so each gets its own git working tree; disjoint file
+assignment alone is not a substitute for worktree isolation here.
+
 1. **Build** — invoke `/build <story-id>`. `/build` inherits the **no-refactor**
    mode from Phase 0: production-code changes are **rejected**. A Story that
    would require a production-code change is surfaced as a REFACTOR_REQUIRED
@@ -683,6 +695,11 @@ corresponding Phase-5 baseline Story that could not close under no-refactor.
 Before `/build` runs a Phase-7 Story, `/test-improve` **verifies the paired
 Phase-5 Story is closed and green**. A missing or failing Phase-5 baseline
 halts that Story until the operator resolves it.
+
+**Phase 5's parallel-dispatch warning (issue #1571) applies equally here** —
+Phase 7 runs the same per-Story `/build` loop against the same shared
+working tree; never dispatch multiple Phase-7 Stories' build loops
+concurrently without `isolation: "worktree"` on every dispatch.
 
 **End-of-phase review loop.** After all Phase-7 Stories close, run the
 **same review loop as Phase 5** (see the Phase 5 end-of-phase review loop

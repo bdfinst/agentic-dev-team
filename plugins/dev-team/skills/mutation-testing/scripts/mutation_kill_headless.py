@@ -33,6 +33,10 @@ from mutation_kill_loop import (
 # helpers, this subprocess routinely runs for tens of seconds to minutes.
 CLAUDE_GENERATION_TIMEOUT_S = _timeout_from_env("DEV_TEAM_MUTATION_GENERATION_TIMEOUT_S", 300)
 
+# Timeout for the `claude --version` availability probe — small, since it's
+# a startup check, not a generation call.
+CLAUDE_VERSION_TIMEOUT_S = _timeout_from_env("DEV_TEAM_MUTATION_VERSION_TIMEOUT_S", 30)
+
 # The Claude CLI binary. Overridable via CLAUDE_BIN so a non-PATH install can
 # be pointed at without editing this module.
 CLAUDE_CLI = os.environ.get("CLAUDE_BIN", "claude")
@@ -135,9 +139,13 @@ def claude_cli_available() -> bool:
     """True if the Claude CLI responds to ``--version``."""
     try:
         result = subprocess.run(
-            [CLAUDE_CLI, "--version"], capture_output=True, text=True, check=False
+            [CLAUDE_CLI, "--version"],
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=CLAUDE_VERSION_TIMEOUT_S,
         )
-    except (FileNotFoundError, OSError):
+    except (FileNotFoundError, OSError, subprocess.TimeoutExpired):
         return False
     return result.returncode == 0
 
