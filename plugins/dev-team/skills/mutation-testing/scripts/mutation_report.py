@@ -260,9 +260,12 @@ def files_with_timeouts(report_path: Path) -> list[str]:
 # =============================================================================
 # mutmut — no native JSON report; junitxml is its only structured output.
 # =============================================================================
-def parse_mutmut_junitxml(xml_text: str) -> dict:
-    """Convert ``mutmut junitxml`` output into the internal ``{"files": {...}}``
-    shape every scoring/survivor function above already consumes.
+def _testcase_to_entry(testcase) -> tuple[str, dict] | None:
+    """Derive the status and build the mutant dict for one ``<testcase>``
+    element from ``mutmut junitxml`` output.
+
+    Returns ``None`` when the testcase carries no ``file`` attribute — there
+    is nothing to key it into the ``files`` dict by, so it is skipped.
 
     mutmut marks a survived mutant with a ``<failure>`` child
     (``message="bad_survived"``) and a timed-out mutant with a distinct
@@ -271,9 +274,36 @@ def parse_mutmut_junitxml(xml_text: str) -> dict:
     Survived. Every other ``<testcase>`` — including a suspicious-but-ignored
     mutant under mutmut's default ``suspicious_policy="ignore"`` — is Killed;
     mutmut's default reporting granularity cannot distinguish "cleanly
-    killed" from "suspicious but ignored" any further than that. mutmut has
-    no NoCoverage concept (it always runs the full scoped test command
-    against every mutant), so that count is always zero here.
+    killed" from "suspicious but ignored" any further than that.
+    """
+    file_key = testcase.get("file")
+    if not file_key:
+        return None
+    if testcase.find("failure") is not None:
+        status = STATUS_SURVIVED
+    elif testcase.find("error") is not None:
+        status = STATUS_TIMEOUT
+    else:
+        status = STATUS_KILLED
+    line = testcase.get("line")
+    mutant = {
+        "id": testcase.get("name", "?"),
+        "mutatorName": "mutmut",
+        "status": status,
+        "location": {
+            "start": {"line": int(line) if line and line.isdigit() else None}
+        },
+        "replacement": "",
+    }
+    return file_key, mutant
+
+
+def parse_mutmut_junitxml(xml_text: str) -> dict:
+    """Convert ``mutmut junitxml`` output into the internal ``{"files": {...}}``
+    shape every scoring/survivor function above already consumes.
+
+    mutmut has no NoCoverage concept (it always runs the full scoped test
+    command against every mutant), so that count is always zero here.
 
     Malformed or empty input returns an empty ``{"files": {}}`` rather than
     raising — callers see it as an empty report, same as a missing file.
@@ -287,25 +317,10 @@ def parse_mutmut_junitxml(xml_text: str) -> dict:
         return {"files": files}
 
     for testcase in root.iter("testcase"):
-        file_key = testcase.get("file")
-        if not file_key:
+        entry = _testcase_to_entry(testcase)
+        if entry is None:
             continue
-        if testcase.find("failure") is not None:
-            status = STATUS_SURVIVED
-        elif testcase.find("error") is not None:
-            status = STATUS_TIMEOUT
-        else:
-            status = STATUS_KILLED
-        line = testcase.get("line")
-        mutant = {
-            "id": testcase.get("name", "?"),
-            "mutatorName": "mutmut",
-            "status": status,
-            "location": {
-                "start": {"line": int(line) if line and line.isdigit() else None}
-            },
-            "replacement": "",
-        }
+        file_key, mutant = entry
         files.setdefault(file_key, {"mutants": []})["mutants"].append(mutant)
 
     return {"files": files}
