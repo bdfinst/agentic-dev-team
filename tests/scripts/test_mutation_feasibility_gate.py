@@ -7,6 +7,8 @@ import json
 import sys
 from pathlib import Path
 
+import pytest
+
 SCRIPTS_DIR = (
     Path(__file__).resolve().parents[2]
     / "plugins"
@@ -23,14 +25,14 @@ import mutation_feasibility_gate as gate
 
 
 def test_fast_pertest_probe_enters_loop():
-    d = gate.decide(
+    probe = gate.ProbeResult(
         shim_declined=False,
         capture_failed=False,
         probe_seconds=10.0,
         scope_file_count=5,
-        budget_seconds=1800.0,
     )
-    assert d.outcome == gate.ENTER_LOOP
+    d = gate.decide(probe, budget_seconds=1800.0)
+    assert d.outcome is gate.Outcome.ENTER_LOOP
     assert d.waiver is None
     assert d.estimated_round_seconds == 50.0
 
@@ -40,66 +42,68 @@ def test_healthy_v2_repo_enters_loop_no_regression(monkeypatch):
     # path must be unchanged. Strip the budget env so the default applies
     # regardless of the host shell (hermetic).
     monkeypatch.delenv("DEV_TEAM_MUTATION_ROUND_BUDGET_SECONDS", raising=False)
-    d = gate.decide(
+    probe = gate.ProbeResult(
         shim_declined=False,
         capture_failed=False,
         probe_seconds=1.0,
         scope_file_count=1,
     )
-    assert d.outcome == gate.ENTER_LOOP
+    d = gate.decide(probe)
+    assert d.outcome is gate.Outcome.ENTER_LOOP
 
 
 # --- decide: degrade paths --------------------------------------------------
 
 
 def test_capture_failure_degrades_regardless_of_timing():
-    d = gate.decide(
+    probe = gate.ProbeResult(
         shim_declined=False,
         capture_failed=True,
         probe_seconds=0.1,  # would be "fast" but capture failed
         scope_file_count=1,
-        budget_seconds=1800.0,
     )
-    assert d.outcome == gate.DEGRADE
+    d = gate.decide(probe, budget_seconds=1800.0)
+    assert d.outcome is gate.Outcome.DEGRADE
     assert "#1157" in d.reason
     assert d.waiver == gate.WAIVER_MESSAGE
 
 
 def test_shim_declined_degrades():
-    d = gate.decide(
+    probe = gate.ProbeResult(
         shim_declined=True,
         capture_failed=False,
         probe_seconds=1.0,
         scope_file_count=1,
     )
-    assert d.outcome == gate.DEGRADE
+    d = gate.decide(probe)
+    assert d.outcome is gate.Outcome.DEGRADE
     assert "#1160" in d.reason
     assert d.waiver == gate.WAIVER_MESSAGE
 
 
 def test_over_budget_asks_operator():
-    d = gate.decide(
+    probe = gate.ProbeResult(
         shim_declined=False,
         capture_failed=False,
         probe_seconds=100.0,
         scope_file_count=40,  # 4000s estimated
-        budget_seconds=1800.0,
     )
-    assert d.outcome == gate.ASK_OPERATOR
+    d = gate.decide(probe, budget_seconds=1800.0)
+    assert d.outcome is gate.Outcome.ASK_OPERATOR
     assert "budget" in d.reason
     assert d.estimated_round_seconds == 4000.0
     assert d.waiver is None
 
 
 def test_estimate_exactly_at_budget_enters_loop():
-    d = gate.decide(
+    probe = gate.ProbeResult(
         shim_declined=False,
         capture_failed=False,
         probe_seconds=10.0,
         scope_file_count=180,  # 1800s estimated == budget
-        budget_seconds=1800.0,
     )
-    assert d.outcome == gate.ENTER_LOOP
+    d = gate.decide(probe, budget_seconds=1800.0)
+    assert d.outcome is gate.Outcome.ENTER_LOOP
     assert d.waiver is None
 
 
@@ -108,38 +112,52 @@ def test_shim_decline_wins_precedence_over_budget_alone():
     # precedence test below) so this exercises a genuinely distinct case:
     # a decline still short-circuits even when capture succeeded and only
     # the budget signal would otherwise fire.
-    d = gate.decide(
+    probe = gate.ProbeResult(
         shim_declined=True,
         capture_failed=False,
         probe_seconds=100.0,
         scope_file_count=40,  # also over budget
-        budget_seconds=1800.0,
     )
-    assert d.outcome == gate.DEGRADE
+    d = gate.decide(probe, budget_seconds=1800.0)
+    assert d.outcome is gate.Outcome.DEGRADE
     assert "#1160" in d.reason
     assert "budget" not in d.reason
 
 
 def test_shim_decline_takes_precedence_over_capture_and_budget():
-    d = gate.decide(
+    probe = gate.ProbeResult(
         shim_declined=True,
         capture_failed=True,
         probe_seconds=100.0,
         scope_file_count=40,
     )
-    assert d.outcome == gate.DEGRADE
+    d = gate.decide(probe)
+    assert d.outcome is gate.Outcome.DEGRADE
     assert "#1160" in d.reason  # decline reason wins the short-circuit
 
 
 def test_capture_failure_takes_precedence_over_budget():
-    d = gate.decide(
+    probe = gate.ProbeResult(
         shim_declined=False,
         capture_failed=True,
         probe_seconds=100.0,
         scope_file_count=40,
     )
-    assert d.outcome == gate.DEGRADE
+    d = gate.decide(probe)
+    assert d.outcome is gate.Outcome.DEGRADE
     assert "#1157" in d.reason
+
+
+# --- Decision.waiver: explicit branch over all three Outcome members -------
+
+
+def test_waiver_raises_on_unrecognized_outcome():
+    # Decision.outcome is typed as Outcome, so this can only happen via a
+    # value bypassing the type system — the explicit branch must still guard
+    # against it rather than silently falling through to a wrong answer.
+    d = gate.Decision(outcome="bogus", reason="not a real Outcome member")
+    with pytest.raises(ValueError, match="unknown outcome"):
+        _ = d.waiver
 
 
 # --- estimate_round_seconds -------------------------------------------------
@@ -197,7 +215,7 @@ def test_cli_enter_loop_json(capsys):
     out = capsys.readouterr().out
     assert rc == 0
     payload = json.loads(out)
-    assert payload["outcome"] == gate.ENTER_LOOP
+    assert payload["outcome"] == gate.Outcome.ENTER_LOOP.value
     assert payload["waiver"] is None
 
 
@@ -206,7 +224,7 @@ def test_cli_capture_failed_json(capsys):
     out = capsys.readouterr().out
     assert rc == 0
     payload = json.loads(out)
-    assert payload["outcome"] == gate.DEGRADE
+    assert payload["outcome"] == gate.Outcome.DEGRADE.value
     assert payload["waiver"] == gate.WAIVER_MESSAGE
 
 
@@ -215,7 +233,7 @@ def test_cli_shim_declined_flag_wiring(capsys):
     out = capsys.readouterr().out
     assert rc == 0
     payload = json.loads(out)
-    assert payload["outcome"] == gate.DEGRADE
+    assert payload["outcome"] == gate.Outcome.DEGRADE.value
     assert "#1160" in payload["reason"]
 
 
@@ -226,6 +244,6 @@ def test_cli_budget_flag_wiring(capsys):
     )
     payload = json.loads(capsys.readouterr().out)
     assert rc == 0
-    assert payload["outcome"] == gate.ASK_OPERATOR
+    assert payload["outcome"] == gate.Outcome.ASK_OPERATOR.value
     assert "budget" in payload["reason"]
     assert payload["waiver"] is None
