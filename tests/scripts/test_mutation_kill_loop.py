@@ -28,6 +28,8 @@ SCRIPTS_DIR = (
 )
 sys.path.insert(0, str(SCRIPTS_DIR))
 
+import mutation_kill_headless as headless
+import mutation_kill_insert as insert
 import mutation_kill_loop as loop
 
 FORBIDDEN_LITERALS = ["Aci.Speedpay", "Controllers", "AwesomeAssertions", "Moq", "AutoFixture"]
@@ -199,9 +201,9 @@ def test_bare_cli_no_generator_fails_fast_at_startup(
         raise AssertionError("startup preflight must run before any subprocess")
 
     monkeypatch.setattr(loop, "run_scoped_stryker", explode)
-    monkeypatch.setattr(loop.subprocess, "run", explode)
+    monkeypatch.setattr(headless.subprocess, "run", explode)
 
-    rc = loop.main(["--config", "stryker-config.json", "--file", "PaymentService.cs"])
+    rc = headless.main(["--config", "stryker-config.json", "--file", "PaymentService.cs"])
 
     assert rc != 0
     err = capsys.readouterr().err
@@ -220,12 +222,12 @@ def test_headless_flag_does_not_trip_the_no_generator_preflight(
     # positively proves the no-generator preflight was passed (not merely that
     # the no-generator text is absent). Pin claude_cli_available so the emitted
     # message is deterministic regardless of the host's PATH.
-    monkeypatch.setattr(loop, "claude_cli_available", lambda: True)
+    monkeypatch.setattr(headless, "claude_cli_available", lambda: True)
 
-    rc = loop.main(["--headless"])
+    rc = headless.main(["--headless"])
 
     err = capsys.readouterr().err
-    assert loop.NO_GENERATOR_MESSAGE not in err
+    assert headless.NO_GENERATOR_MESSAGE not in err
     assert "--headless requires --file, --test-file, and --source-path" in err
     assert rc != 0
 
@@ -248,9 +250,9 @@ def test_headless_generator_invokes_claude_print_and_strips_fences(
         captured["argv"] = argv
         return _R()
 
-    monkeypatch.setattr(loop.subprocess, "run", fake_run)
+    monkeypatch.setattr(headless.subprocess, "run", fake_run)
 
-    generate = loop.make_headless_generator("some-test-model")
+    generate = headless.make_headless_generator("some-test-model")
     survivors = [_mutant("Survived", "ArithmeticOperator", 10)]
     out = generate(
         "PaymentService.cs",
@@ -260,7 +262,7 @@ def test_headless_generator_invokes_claude_print_and_strips_fences(
     )
 
     argv = captured["argv"]
-    assert argv[0] == loop.CLAUDE_CLI
+    assert argv[0] == headless.CLAUDE_CLI
     assert "--print" in argv
     # --model carries the resolved model.
     assert argv[argv.index("--model") + 1] == "some-test-model"
@@ -278,9 +280,9 @@ def test_headless_generator_invokes_claude_print_and_strips_fences(
 # Scenario: --model resolves from the flag, then the env var, else None
 def test_model_resolves_from_env_when_set(monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setenv("DEV_TEAM_MUTATION_MODEL", "env-model")
-    assert loop.resolve_model() == "env-model"
+    assert headless.resolve_model() == "env-model"
     # An explicit --model wins over the env var.
-    assert loop.resolve_model("flag-model") == "flag-model"
+    assert headless.resolve_model("flag-model") == "flag-model"
 
 
 def test_model_resolves_to_none_when_env_unset(
@@ -289,7 +291,7 @@ def test_model_resolves_to_none_when_env_unset(
     # No model snapshot id is pinned in source (cf. ADR 0008 / no-pinned-snapshots
     # guard); unresolved means None so `claude --print` uses its own default.
     monkeypatch.delenv("DEV_TEAM_MUTATION_MODEL", raising=False)
-    assert loop.resolve_model() is None
+    assert headless.resolve_model() is None
 
 
 def test_headless_omits_model_flag_when_unresolved(monkeypatch: pytest.MonkeyPatch):
@@ -304,8 +306,8 @@ def test_headless_omits_model_flag_when_unresolved(monkeypatch: pytest.MonkeyPat
         captured["argv"] = argv
         return _R()
 
-    monkeypatch.setattr(loop.subprocess, "run", fake_run)
-    generate = loop.make_headless_generator(None)
+    monkeypatch.setattr(headless.subprocess, "run", fake_run)
+    generate = headless.make_headless_generator(None)
     generate("S.cs", [_mutant("Survived", "ArithmeticOperator", 10)], "class S {}", "class T {}")
     # --model is absent entirely; claude --print falls back to its own default.
     assert "--model" not in captured["argv"]
@@ -319,28 +321,28 @@ def test_default_non_headless_spawns_no_claude_subprocess(
     def explode(*a, **k):
         raise AssertionError("no subprocess may be spawned in the default mode")
 
-    monkeypatch.setattr(loop.subprocess, "run", explode)
+    monkeypatch.setattr(headless.subprocess, "run", explode)
     monkeypatch.setattr(
-        loop, "claude_cli_available", lambda: pytest.fail("must not probe the CLI")
+        headless, "claude_cli_available", lambda: pytest.fail("must not probe the CLI")
     )
 
-    rc = loop.main(["--config", "stryker-config.json", "--file", "Foo.cs"])
+    rc = headless.main(["--config", "stryker-config.json", "--file", "Foo.cs"])
 
     assert rc != 0
-    assert loop.NO_GENERATOR_MESSAGE in capsys.readouterr().err
+    assert headless.NO_GENERATOR_MESSAGE in capsys.readouterr().err
 
 
 # Scenario: Missing Claude CLI under headless fails cleanly and names the fix
 def test_missing_claude_cli_under_headless_names_remediation(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys
 ):
-    monkeypatch.setattr(loop, "claude_cli_available", lambda: False)
+    monkeypatch.setattr(headless, "claude_cli_available", lambda: False)
     # No file may be mutated: run_for_file must never be reached.
     monkeypatch.setattr(
         loop, "run_for_file", lambda *a, **k: pytest.fail("must not run — CLI missing")
     )
 
-    rc = loop.main(
+    rc = headless.main(
         [
             "--headless",
             "--file", "Foo.cs",
@@ -363,14 +365,14 @@ def test_claude_cli_available_reflects_subprocess_outcome(
     class _OK:
         returncode = 0
 
-    monkeypatch.setattr(loop.subprocess, "run", lambda *a, **k: _OK())
-    assert loop.claude_cli_available() is True
+    monkeypatch.setattr(headless.subprocess, "run", lambda *a, **k: _OK())
+    assert headless.claude_cli_available() is True
 
     def _missing(*a, **k):
         raise FileNotFoundError("claude")
 
-    monkeypatch.setattr(loop.subprocess, "run", _missing)
-    assert loop.claude_cli_available() is False
+    monkeypatch.setattr(headless.subprocess, "run", _missing)
+    assert headless.claude_cli_available() is False
 
 
 # =============================================================================
@@ -424,7 +426,7 @@ def test_duplicate_method_names_abort_insertion(tmp_path: Path):
         "        }\n"
     )
 
-    outcome = loop.apply_generated_methods(test_file, dup_block)
+    outcome = insert.apply_generated_methods(test_file, dup_block)
 
     assert outcome.inserted is False
     assert "duplicate" in outcome.reason.lower()
@@ -433,7 +435,7 @@ def test_duplicate_method_names_abort_insertion(tmp_path: Path):
 
 
 def test_detect_duplicate_methods_reports_only_collisions():
-    dupes = loop.detect_duplicate_methods(
+    dupes = insert.detect_duplicate_methods(
         _BLOCK_NAMESPACE_CLASS,
         "public async Task Existing_Case_Works() {}\n"
         "public async Task Brand_New_Case() {}\n",
@@ -448,9 +450,10 @@ def test_methods_inserted_before_class_closing_brace(tmp_path: Path):
     test_file = tmp_path / "PaymentServiceTests.cs"
     test_file.write_text(_BLOCK_NAMESPACE_CLASS, encoding="utf-8")
 
-    outcome = loop.apply_generated_methods(test_file, _NEW_METHOD)
+    outcome = insert.apply_generated_methods(test_file, _NEW_METHOD)
 
     assert outcome.inserted is True
+    assert outcome.method_count == 1
     lines = test_file.read_text(encoding="utf-8").splitlines()
     new_idx = next(i for i, ln in enumerate(lines) if "New_Case_KillsMutant" in ln)
     # The class-close ("    }") and namespace-close ("}") follow the new method.
@@ -471,8 +474,8 @@ def test_file_scoped_namespace_is_refused_not_corrupted(tmp_path: Path):
     test_file.write_text(_FILE_SCOPED_CLASS, encoding="utf-8")
     before = test_file.read_text(encoding="utf-8")
 
-    with pytest.raises(loop.InsertionRefused) as exc:
-        loop.insert_before_class_close(test_file, _NEW_METHOD)
+    with pytest.raises(insert.InsertionRefused) as exc:
+        insert.insert_before_class_close(test_file, _NEW_METHOD)
 
     assert "file-scoped" in str(exc.value).lower()
     # Never silently appended — file is byte-for-byte unchanged.
@@ -494,8 +497,8 @@ def test_non_four_space_indent_is_refused(tmp_path: Path):
     test_file.write_text(tabbed, encoding="utf-8")
     before = test_file.read_text(encoding="utf-8")
 
-    with pytest.raises(loop.InsertionRefused):
-        loop.insert_before_class_close(test_file, _NEW_METHOD)
+    with pytest.raises(insert.InsertionRefused):
+        insert.insert_before_class_close(test_file, _NEW_METHOD)
 
     assert test_file.read_text(encoding="utf-8") == before
 
@@ -505,7 +508,7 @@ def test_apply_wraps_refusal_as_outcome_without_writing(tmp_path: Path):
     test_file.write_text(_FILE_SCOPED_CLASS, encoding="utf-8")
     before = test_file.read_text(encoding="utf-8")
 
-    outcome = loop.apply_generated_methods(test_file, _NEW_METHOD)
+    outcome = insert.apply_generated_methods(test_file, _NEW_METHOD)
 
     assert outcome.inserted is False
     assert "file-scoped" in outcome.reason.lower()
@@ -813,8 +816,12 @@ def test_git_revert_checks_out_only_the_test_file(
 # =============================================================================
 # Scenario: The module carries no repo-specific literal
 # =============================================================================
-def test_module_source_carries_no_repo_specific_literal():
-    source = (SCRIPTS_DIR / "mutation_kill_loop.py").read_text(encoding="utf-8")
+@pytest.mark.parametrize(
+    "module_name",
+    ["mutation_kill_loop.py", "mutation_kill_insert.py", "mutation_kill_headless.py"],
+)
+def test_module_source_carries_no_repo_specific_literal(module_name: str):
+    source = (SCRIPTS_DIR / module_name).read_text(encoding="utf-8")
 
     present = [lit for lit in FORBIDDEN_LITERALS if lit in source]
-    assert present == [], f"repo-specific literals leaked into module: {present}"
+    assert present == [], f"repo-specific literals leaked into {module_name}: {present}"

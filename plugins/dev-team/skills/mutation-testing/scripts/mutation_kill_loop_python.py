@@ -9,8 +9,8 @@ command, so there is no config-file abstraction here (unlike
 and survivor extraction reuse ``mutation_report``'s mutmut-junitxml support
 (#1357); the two generic (non-.NET) headless-generation helpers —
 ``strip_code_fences``, ``resolve_model``, ``claude_cli_available``,
-``CLAUDE_CLI`` — are imported from ``mutation_kill_loop`` rather than
-duplicated, since neither depends on anything C#-specific.
+``CLAUDE_CLI`` — are imported from ``mutation_kill_headless`` (#1562) rather
+than duplicated, since neither depends on anything C#-specific.
 
 **Generation is a seam, not a mechanism** (same contract as the C# loop):
 the loop never decides *what* tests to write — a caller supplies a
@@ -32,23 +32,23 @@ from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 
-import mutation_kill_loop as _cs_loop
+import mutation_kill_headless as _cs_headless
 import mutation_report
 
 Generator = Callable[[str, list[dict], str, str], str]
 
-# Mirrors mutation_kill_loop.NO_GENERATOR_MESSAGE — pinned so a contract test
-# can assert it verbatim.
+# Mirrors mutation_kill_headless.NO_GENERATOR_MESSAGE — pinned so a contract
+# test can assert it verbatim.
 NO_GENERATOR_MESSAGE = (
     "no test generator available — invoke via the mutation-kill agent "
     "or pass --headless"
 )
 
 # Reused verbatim — neither helper is C#-specific.
-strip_code_fences = _cs_loop.strip_code_fences
-resolve_model = _cs_loop.resolve_model
-claude_cli_available = _cs_loop.claude_cli_available
-CLAUDE_CLI = _cs_loop.CLAUDE_CLI
+strip_code_fences = _cs_headless.strip_code_fences
+resolve_model = _cs_headless.resolve_model
+claude_cli_available = _cs_headless.claude_cli_available
+CLAUDE_CLI = _cs_headless.CLAUDE_CLI
 
 MISSING_CLAUDE_MESSAGE = (
     f"--headless requires the Claude CLI but '{CLAUDE_CLI}' is not available. "
@@ -397,8 +397,9 @@ def build_generation_prompt(
 
     The existing test file is the *only* pattern — assertion style and
     fixture usage are inferred from it, never hardcoded here (mirrors
-    ``mutation_kill_loop.build_generation_prompt``, adapted for pytest's flat
-    ``def test_*():`` convention rather than a class/namespace-wrapped one).
+    ``mutation_kill_headless.build_generation_prompt``, adapted for pytest's
+    flat ``def test_*():`` convention rather than a class/namespace-wrapped
+    one).
     """
     return (
         f"You are adding new pytest test functions that KILL surviving "
@@ -429,8 +430,8 @@ def make_headless_generator(
 ) -> Generator:
     """Return a :data:`Generator` that shells to ``claude --print``.
 
-    Identical contract to ``mutation_kill_loop.make_headless_generator``, but
-    with the Python-flavored prompt above.
+    Identical contract to ``mutation_kill_headless.make_headless_generator``,
+    but with the Python-flavored prompt above.
     """
 
     def generate(
@@ -491,8 +492,8 @@ def parse_args(argv: Sequence[str]) -> argparse.Namespace:
 
 
 def main(argv: Sequence[str] | None = None) -> int:
-    """CLI entry point — see :func:`mutation_kill_loop.main` for the contract
-    this mirrors."""
+    """CLI entry point — see :func:`mutation_kill_headless.main` for the
+    contract this mirrors."""
     argv = list(sys.argv[1:] if argv is None else argv)
     args = parse_args(argv)
 

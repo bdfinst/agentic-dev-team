@@ -51,8 +51,10 @@ re-describe or re-implement their mechanics:
 | --- | --- |
 | `mutation_report.py` | Parse the report; compute the **honest** and **reported** scores; extract survivors per file grouped by mutator. Stryker/Stryker.NET's JSON report is read directly; mutmut's `junitxml` output is normalized into the same internal shape first (`parse_mutmut_junitxml` / `score_mutmut_junitxml` / `survivors_from_mutmut_junitxml`). |
 | `mutation_baseline_reuse.py` | Round-1 baseline-reuse eligibility (git-ancestor + per-commit consumption check) and consumption bookkeeping via resolve/mark-consumed subcommands. |
-| `mutation_kill_loop.py` | The C#/Stryker.NET per-file loop: scoped run → score → survivor check → **your** generation → duplicate-guard → insert-before-class-close → build → test → commit-on-green / revert-on-failure → no-improvement stop. Delegates DOTNET_ROOT + `.sln` hide/restore to the wrapper. |
-| `mutation_kill_loop_python.py` | The Python/mutmut per-file loop — same contract, adapted for pytest: scoped `mutmut run` (clears stale `.mutmut-cache` first) → score via `mutation_report` junitxml support → **your** generation → duplicate-guard → append-at-end-of-file (refuses on a class-based test file) → `py_compile` → scoped `pytest` → commit-on-green / revert-on-failure → no-improvement stop. Reuses `mutation_kill_loop.py`'s generic headless helpers rather than duplicating them. |
+| `mutation_kill_loop.py` | The C#/Stryker.NET per-file loop orchestration: `run_for_file` drives scoped run → score → survivor check → **your** generation → build → test → commit-on-green / revert-on-failure → no-improvement stop. Delegates DOTNET_ROOT + `.sln` hide/restore to the wrapper. |
+| `mutation_kill_insert.py` | Insertion mechanics for the C#/Stryker.NET loop: duplicate-guard → insert-before-class-close (detect-or-refuse on a file-scoped namespace or non-4-space indentation). |
+| `mutation_kill_headless.py` | Headless generation (prompt building, fence stripping, `claude --print` shell-out) plus the script's CLI entry point (`--headless`, argument parsing) invoked by the shard pipeline. |
+| `mutation_kill_loop_python.py` | The Python/mutmut per-file loop — same contract, adapted for pytest: scoped `mutmut run` (clears stale `.mutmut-cache` first) → score via `mutation_report` junitxml support → **your** generation → duplicate-guard → append-at-end-of-file (refuses on a class-based test file) → `py_compile` → scoped `pytest` → commit-on-green / revert-on-failure → no-improvement stop. Reuses `mutation_kill_headless.py`'s generic headless helpers rather than duplicating them. |
 | `stryker_shard_setup.py` | Generate one `stryker-config.shard-<slug>.json` per source project, `Stryker.sln`, and `stryker-pipeline.json` from a `.sln`. |
 | `stryker_shard_pipeline.py` | The unattended sharded pipeline: discover shards, one compounding git worktree per shard from `HEAD`, run Stryker through the wrapper's line-callback, timeout-abort, launch the survivor-fix loop **forced into `--headless`**, honest-score summary. |
 | `stryker_timeout_retry.py` | Emit a retry config scoped to only the timed-out files with an increased `additional-timeout`. |
@@ -74,7 +76,7 @@ Generation is a seam the loop calls into; it never decides *what* tests to write
   `mutation_kill_loop.run_for_file` directly, passing a `generate` hook backed by
   a **live agent turn** — you read the survivors, source, and existing test file,
   and return the new test methods. No `claude` subprocess is spawned.
-- **`--headless`.** For unattended CI, `mutation_kill_loop.py --headless` shells to
+- **`--headless`.** For unattended CI, `mutation_kill_headless.py --headless` shells to
   `claude --print --model <m>` for generation. `--model` resolves from
   `DEV_TEAM_MUTATION_MODEL` then a pinned default — never an unstated literal.
   Invoking the bare CLI with neither an agent generator nor `--headless` fails

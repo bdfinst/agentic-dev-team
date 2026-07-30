@@ -5,8 +5,9 @@ Migrated from the ACI ``nextgen-test-upgrade-process`` ``stryker-pipeline.py``
 and de-hardcoded: nothing repo-specific lives here. Shards are discovered from
 ``stryker-config.shard-*.json`` files (emitted by ``stryker_shard_setup.py``);
 each shard runs Stryker through the shipped ``csharp_stryker_net_wrapper`` and
-the per-shard survivor-fix loop is ``mutation_kill_loop`` forced into
-``--headless`` mode (the pipeline is unattended — there is no live agent turn).
+the per-shard survivor-fix loop is ``mutation_kill_headless`` (the CLI entry
+point over ``mutation_kill_loop``, #1562) forced into ``--headless`` mode (the
+pipeline is unattended — there is no live agent turn).
 
 Compounding worktrees: shards are processed **sequentially**, each in its own
 git worktree created from the current ``HEAD``. Because the survivor-fix loop
@@ -43,7 +44,7 @@ import mutation_report
 # ── Constants ────────────────────────────────────────────────────────────────
 
 PYTHON = sys.executable
-LOOP_SCRIPT = str(Path(__file__).resolve().parent / "mutation_kill_loop.py")
+LOOP_SCRIPT = str(Path(__file__).resolve().parent / "mutation_kill_headless.py")
 
 SHARD_GLOB = "stryker-config.shard-*.json"
 SHARD_PREFIX = "stryker-config.shard-"
@@ -260,8 +261,9 @@ def build_loop_command(
     model: str | None,
     max_rounds: int,
 ) -> list[str]:
-    """Build the ``mutation_kill_loop`` invocation. ``--headless`` is forced —
-    the pipeline is unattended and can never depend on a live agent turn."""
+    """Build the ``mutation_kill_headless`` invocation. ``--headless`` is
+    forced — the pipeline is unattended and can never depend on a live agent
+    turn."""
     cmd = [
         PYTHON,
         LOOP_SCRIPT,
@@ -298,8 +300,9 @@ def launch_survivor_fix(
 ) -> None:
     """Launch the forced-headless survivor-fix loop for a shard's survivors.
 
-    Invokes ``mutation_kill_loop`` (always with ``--headless``) once per source
-    file that still has survivors, seeding round 1 from the shard's report.
+    Invokes ``mutation_kill_headless`` (always with ``--headless``) once per
+    source file that still has survivors, seeding round 1 from the shard's
+    report.
     Runs from ``repo_root`` so fixes commit onto ``HEAD`` — that is what makes
     the *next* shard's worktree compounding.
     """
