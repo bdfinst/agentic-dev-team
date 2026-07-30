@@ -11,16 +11,9 @@ child, and a killed (or suspicious-but-ignored) mutant carries neither.
 from __future__ import annotations
 
 import sys
-from pathlib import Path
 
-SCRIPTS_DIR = (
-    Path(__file__).resolve().parents[2]
-    / "plugins"
-    / "dev-team"
-    / "skills"
-    / "mutation-testing"
-    / "scripts"
-)
+from _mutation_test_helpers import SCRIPTS_DIR
+
 sys.path.insert(0, str(SCRIPTS_DIR))
 
 import mutation_report

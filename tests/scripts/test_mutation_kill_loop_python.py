@@ -13,20 +13,11 @@ import sys
 from pathlib import Path
 
 import pytest
+from _mutation_test_helpers import FORBIDDEN_LITERALS, SCRIPTS_DIR
 
-SCRIPTS_DIR = (
-    Path(__file__).resolve().parents[2]
-    / "plugins"
-    / "dev-team"
-    / "skills"
-    / "mutation-testing"
-    / "scripts"
-)
 sys.path.insert(0, str(SCRIPTS_DIR))
 
 import mutation_kill_loop_python as loop
-
-FORBIDDEN_LITERALS = ["Aci.Speedpay", "Controllers", "AwesomeAssertions", "Moq", "AutoFixture"]
 
 
 # =============================================================================
