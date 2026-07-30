@@ -34,6 +34,7 @@ from pathlib import Path
 
 import mutation_kill_headless as _cs_headless
 import mutation_report
+import mutation_safety_gate
 
 Generator = Callable[[str, list[dict], str, str], str]
 
@@ -206,15 +207,61 @@ def append_at_end_of_file(test_file: Path, new_tests: str) -> None:
     test_file.write_text(text + separator + body + "\n", encoding="utf-8")
 
 
+# A deny-list of APIs a test function that merely kills mutants never
+# legitimately needs. Scoped to generated *test* text only — never to the
+# source-under-test. Same rationale and same category names as
+# ``mutation_kill_insert``'s C# counterpart (kept consistent as a stable,
+# operator-facing and test-pinned contract) — this is the Python/pytest
+# equivalent, guarding this loop's own ``--headless`` unattended-commit path
+# against a prompt-injection payload in the mutated source producing
+# generated test code with network/filesystem/process side effects that
+# would still pass compile+test and get committed with zero human review.
+_UNSAFE_PATTERNS: dict[str, re.Pattern[str]] = {
+    "network": re.compile(
+        r"\b(requests\s*\.|urllib\s*\.\s*request|urllib3\s*\.|httpx\s*\.|socket\s*\.|http\s*\.\s*client)\b"
+    ),
+    "process": re.compile(
+        r"\b(subprocess\s*\.|os\s*\.\s*system|os\s*\.\s*popen|os\s*\.\s*exec\w*|"
+        r"os\s*\.\s*(spawn\w*|posix_spawn|fork|forkpty)|Popen)\b"
+    ),
+    "filesystem": re.compile(
+        r"\b(shutil\s*\.\s*rmtree|os\s*\.\s*(remove|unlink))\b"
+        r"|\.\s*(write_text|write_bytes|unlink)\s*\("
+        r"|open\s*\([^)]*[\"'][waxA]"
+    ),
+    "environment": re.compile(r"\b(os\s*\.\s*environ|os\s*\.\s*getenv)\b"),
+    "reflection": re.compile(r"\b(importlib\s*\.\s*import_module|__import__)\b"),
+    "interop": re.compile(r"\b(eval|exec)\s*\(|\bctypes\s*\.|\bpickle\s*\.\s*loads\s*\("),
+}
+
+
+def scan_for_unsafe_patterns(new_tests: str) -> list[str]:
+    """Return the category names of any unsafe pattern found in generated text.
+
+    A non-empty result refuses insertion outright — this deny-list is
+    deliberately conservative for *generated test* code specifically (a
+    legitimate mutant-killing test never needs network/filesystem/process/env
+    access), so a false positive refuses-and-logs rather than silently
+    inserting unreviewed code. Delegates to :mod:`mutation_safety_gate`,
+    shared with :mod:`mutation_kill_insert`, so a future bypass fix or new
+    category lands once for both languages.
+    """
+    return mutation_safety_gate.scan_for_unsafe_patterns(new_tests, _UNSAFE_PATTERNS)
+
+
 def apply_generated_tests(test_file: Path, new_tests: str) -> InsertOutcome:
     """Insert generated tests, guarding duplicates and unsafe structure.
 
     Returns an :class:`InsertOutcome`; the file is only ever written on the
-    ``inserted=True`` path. Empty generation, duplicate function names, and
-    a refused insert all leave the file untouched.
+    ``inserted=True`` path. Empty generation, an unsafe pattern, duplicate
+    function names, and a refused insert all leave the file untouched.
     """
     if not new_tests.strip():
         return InsertOutcome(False, "no tests generated")
+
+    unsafe_categories = scan_for_unsafe_patterns(new_tests)
+    if unsafe_categories:
+        return InsertOutcome(False, f"refused — unsafe pattern(s): {unsafe_categories}")
 
     dupes = detect_duplicate_functions(test_file.read_text(encoding="utf-8"), new_tests)
     if dupes:
@@ -272,12 +319,20 @@ def git_commit(message: str, test_file: Path, *, cwd: Path | None = None) -> boo
     return rc == 0
 
 
-def _commit_message(round_num: int, source_file: str, survivors: int, new_tests: str) -> str:
+def _commit_message(
+    round_num: int,
+    source_file: str,
+    survivors: int,
+    new_tests: str,
+    *,
+    generator_label: str | None = None,
+) -> str:
     count = len(_FUNC_RE.findall(new_tests))
-    return (
+    message = (
         f"test(mutation): kill round {round_num} — {source_file}\n\n"
         f"{count} new test(s) targeting {survivors} surviving mutant(s)"
     )
+    return mutation_safety_gate.append_generator_trailer(message, generator_label)
 
 
 # =============================================================================
@@ -294,6 +349,7 @@ def run_for_file(
     initial_junitxml: str | None = None,
     cwd: Path | None = None,
     log: Callable[[str], None] = print,
+    generator_label: str | None = None,
 ) -> None:
     """Drive the deterministic survivor-kill loop for one Python source file.
 
@@ -302,6 +358,9 @@ def run_for_file(
     scoring, duplicate/insert guards, compile/test verification,
     revert-on-failure, commit-on-green, and the no-improvement stop — is
     mechanical, mirroring :func:`mutation_kill_loop.run_for_file`'s contract.
+    ``generator_label``, when set, is recorded in the commit message as an
+    audit trail (e.g. distinguishing an unattended ``--headless`` commit from
+    an agent-driven one).
     """
     prev_survivors: int | None = None
 
@@ -365,7 +424,13 @@ def run_for_file(
 
         log("  green — committing")
         git_commit(
-            _commit_message(round_num, source_file, survivor_count, new_tests),
+            _commit_message(
+                round_num,
+                source_file,
+                survivor_count,
+                new_tests,
+                generator_label=generator_label,
+            ),
             test_file,
             cwd=cwd,
         )
@@ -520,6 +585,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         test_command=args.test_command,
         generate=make_headless_generator(model),
         max_rounds=args.max_rounds,
+        generator_label=f"headless ({model or 'default'})",
     )
     return 0
 

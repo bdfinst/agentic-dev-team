@@ -49,6 +49,7 @@ from pathlib import Path
 
 import csharp_stryker_net_wrapper as wrapper
 import mutation_report
+import mutation_safety_gate
 from mutation_kill_insert import apply_generated_methods, count_methods
 
 # A generator is any callable the agent (or the headless CLI) supplies: given
@@ -264,12 +265,20 @@ def git_commit(message: str, test_file: Path, *, cwd: Path | None = None) -> boo
     return rc == 0
 
 
-def _commit_message(round_num: int, source_file: str, survivors: int, new_methods: str) -> str:
+def _commit_message(
+    round_num: int,
+    source_file: str,
+    survivors: int,
+    new_methods: str,
+    *,
+    generator_label: str | None = None,
+) -> str:
     count = count_methods(new_methods)
-    return (
+    message = (
         f"test(mutation): kill round {round_num} — {source_file}\n\n"
         f"{count} new test method(s) targeting {survivors} surviving mutant(s)"
     )
+    return mutation_safety_gate.append_generator_trailer(message, generator_label)
 
 
 # =============================================================================
@@ -283,7 +292,9 @@ class RunContext:
     Bundles the clump that already travels together at every call site
     (``main()`` here and the ``_loop_fixture`` test helper), separating "how
     to run this file" from ``run_for_file``'s own ``generate``/``max_rounds``
-    controls (#1561).
+    controls (#1561). ``generator_label``, when set, is recorded in the
+    commit message as an audit trail (e.g. distinguishing an unattended
+    ``--headless`` commit from an agent-driven one).
     """
 
     config: LoopConfig
@@ -294,6 +305,7 @@ class RunContext:
     cwd: Path | None = None
     log: Callable[[str], None] = print
     initial_report_path: Path | None = None
+    generator_label: str | None = None
 
 
 def _score_round(
@@ -383,7 +395,13 @@ def _run_round(
 
     ctx.log("  green — committing")
     git_commit(
-        _commit_message(round_num, source_file, survivor_count, new_methods),
+        _commit_message(
+            round_num,
+            source_file,
+            survivor_count,
+            new_methods,
+            generator_label=ctx.generator_label,
+        ),
         ctx.test_file,
         cwd=ctx.cwd,
     )

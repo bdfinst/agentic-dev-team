@@ -9,6 +9,7 @@ patches actually take effect: ``main()``, ``claude_cli_available()``, and
 
 from __future__ import annotations
 
+import json
 import sys
 from pathlib import Path
 
@@ -27,6 +28,20 @@ sys.path.insert(0, str(SCRIPTS_DIR))
 import mutation_kill_headless as headless
 
 FORBIDDEN_LITERALS = ["Aci.Speedpay", "Controllers", "AwesomeAssertions", "Moq", "AutoFixture"]
+
+
+def _write_config(repo_root: Path) -> Path:
+    payload = {
+        "stryker-config": {
+            "solution": "App.sln",
+            "project": "src/Widget.WebApi/Widget.WebApi.csproj",
+            "test-projects": ["test/Widget.WebApi.Tests/Widget.WebApi.Tests.csproj"],
+            "mutate": ["**/*.cs"],
+        }
+    }
+    path = repo_root / "stryker-config.json"
+    path.write_text(json.dumps(payload), encoding="utf-8")
+    return path
 
 
 def _mutant(status: str, mutator: str = "ArithmeticOperator", line: int = 1) -> dict:
@@ -206,6 +221,54 @@ def test_missing_claude_cli_under_headless_names_remediation(
     assert "install" in err.lower()
     assert "claude" in err.lower()
     assert "authenticate" in err.lower() or "ANTHROPIC_API_KEY" in err
+
+
+# =============================================================================
+# Scenario: A headless run's resolved model reaches the commit audit trail,
+# including the unresolved-model fallback (#1560)
+# =============================================================================
+def test_headless_main_records_resolved_model_in_generator_label(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    monkeypatch.setattr(headless, "claude_cli_available", lambda: True)
+    captured: dict = {}
+    monkeypatch.setattr(headless, "run_for_file", lambda *a, **k: captured.update(a[1].__dict__))
+    config_path = _write_config(tmp_path)
+
+    headless.main(
+        [
+            "--config", str(config_path),
+            "--headless",
+            "--model", "some-model",
+            "--file", "Foo.cs",
+            "--test-file", str(tmp_path / "FooTests.cs"),
+            "--source-path", str(tmp_path / "Foo.cs"),
+        ]
+    )
+
+    assert captured["generator_label"] == "headless (some-model)"
+
+
+def test_headless_main_uses_default_label_when_model_unresolved(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    monkeypatch.setattr(headless, "claude_cli_available", lambda: True)
+    monkeypatch.delenv("DEV_TEAM_MUTATION_MODEL", raising=False)
+    captured: dict = {}
+    monkeypatch.setattr(headless, "run_for_file", lambda *a, **k: captured.update(a[1].__dict__))
+    config_path = _write_config(tmp_path)
+
+    headless.main(
+        [
+            "--config", str(config_path),
+            "--headless",
+            "--file", "Foo.cs",
+            "--test-file", str(tmp_path / "FooTests.cs"),
+            "--source-path", str(tmp_path / "Foo.cs"),
+        ]
+    )
+
+    assert captured["generator_label"] == "headless (default)"
 
 
 def test_claude_cli_available_reflects_subprocess_outcome(
