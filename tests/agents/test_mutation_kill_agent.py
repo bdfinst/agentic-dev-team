@@ -67,7 +67,14 @@ def test_agent_body_stays_under_500_line_limit(text: str) -> None:
     # budget-only outcome, with its confirmation-prompt content, echo-back
     # rule, off-script re-ask rule, and non-interactive default-to-degrade
     # fallback.
-    assert len(text.splitlines()) < 541
+    # Bumped by 63 more (#1545): added a new "Baseline reuse for Round 1
+    # (--concurrency 1 only)" section documenting the canonical baseline and
+    # tracking-file paths, the per-file resolve-before/mark-consumed-after
+    # procedure, the capture-commit lifetime, the no-baseline fallback, the
+    # three-counter run-summary line, and the --concurrency 1-only scope.
+    # Bumped by 1 more (#1545 review): added a mutation_baseline_reuse.py row
+    # to the scripted-mechanics table (arch-review finding).
+    assert len(text.splitlines()) < 605
 
 
 def test_defines_honest_score_formula(text: str) -> None:
