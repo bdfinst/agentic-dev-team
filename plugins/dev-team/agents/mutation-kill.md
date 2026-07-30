@@ -32,12 +32,12 @@ structurally-unkillable code. Everything else is delegated.
 
 ```
 /mutation-kill [<repo-path>] [--file <path>] [--all] [--max-rounds <n>]
-               [--from-report <path>] [--concurrency <n>] [--parallel <n>]
+               [--report <path>] [--concurrency <n>] [--parallel <n>]
 ```
 
 - `--file <path>` — target a single source file.
 - `--all` — run all files in survivor-count order (highest first).
-- `--from-report <path>` — load an existing report instead of running the tool (first round only).
+- `--report <path>` — load an existing report instead of running the tool (first round only).
 - `--max-rounds <n>` — maximum rounds per file (default: 5).
 - `--concurrency <n>` — parallel files via git worktrees when using `--all` (default: 2; max = physical cores − 2).
 - `--parallel <n>` — Phase 4 sub-agent fan-out via the Agent tool (in-process, no worktrees; see [Parallel execution (Phase 4)](#parallel-execution-phase-4)).
@@ -50,6 +50,7 @@ re-describe or re-implement their mechanics:
 | Script | Deterministic responsibility it owns |
 | --- | --- |
 | `mutation_report.py` | Parse the report; compute the **honest** and **reported** scores; extract survivors per file grouped by mutator. Stryker/Stryker.NET's JSON report is read directly; mutmut's `junitxml` output is normalized into the same internal shape first (`parse_mutmut_junitxml` / `score_mutmut_junitxml` / `survivors_from_mutmut_junitxml`). |
+| `mutation_baseline_reuse.py` | Round-1 baseline-reuse eligibility (git-ancestor + per-commit consumption check) and consumption bookkeeping via resolve/mark-consumed subcommands. |
 | `mutation_kill_loop.py` | The C#/Stryker.NET per-file loop: scoped run → score → survivor check → **your** generation → duplicate-guard → insert-before-class-close → build → test → commit-on-green / revert-on-failure → no-improvement stop. Delegates DOTNET_ROOT + `.sln` hide/restore to the wrapper. |
 | `mutation_kill_loop_python.py` | The Python/mutmut per-file loop — same contract, adapted for pytest: scoped `mutmut run` (clears stale `.mutmut-cache` first) → score via `mutation_report` junitxml support → **your** generation → duplicate-guard → append-at-end-of-file (refuses on a class-based test file) → `py_compile` → scoped `pytest` → commit-on-green / revert-on-failure → no-improvement stop. Reuses `mutation_kill_loop.py`'s generic headless helpers rather than duplicating them. |
 | `stryker_shard_setup.py` | Generate one `stryker-config.shard-<slug>.json` per source project, `Stryker.sln`, and `stryker-pipeline.json` from a `.sln`. |
@@ -246,6 +247,68 @@ generated code that this test surface cannot reach?
 This is the same `EXCLUDED` log format used for the [structurally unkillable
 files](#structurally-unkillable-files) section — a single audit trail either way.
 
+## Baseline reuse for Round 1 (`--concurrency 1` only)
+
+The pre-loop baseline scan that [Infrastructure exclusion
+detection](#infrastructure-exclusion-detection-before-the-loop-starts) above
+already reads can also seed a file's Round 1 — skipping a redundant fresh
+scoped run — when the baseline is still fresh for that file.
+
+**Scope: `--concurrency 1` only (or omitted).** Each `--concurrency >1` git
+worktree does not share the main checkout's `StrykerOutput/`, so under
+`--concurrency >1` every file's Round 1 falls back to today's fresh-per-file
+behavior, stated here explicitly, never silently.
+
+**Canonical paths** — the baseline report:
+`StrykerOutput/baseline/reports/mutation-report.json` (per-tool equivalent per
+the [per-language translation](#per-language-translation) table's own "Native
+report" mapping, matching the already-documented `-O StrykerOutput/baseline`
+named-run convention); the consumption-tracking file (sibling to
+`StrykerOutput/mutation-kill-convergence.json`):
+`StrykerOutput/mutation-kill-baseline-consumption.json`.
+
+**No baseline report at the canonical path** — skip `resolve` entirely; every
+file's Round 1 runs fresh, exactly as today.
+
+**Capture commit.** Once, right when the pre-loop baseline scan completes,
+record `git rev-parse HEAD` as the capture commit and hold it only for the
+rest of this invocation — it is not persisted to a separate file.
+
+**Per file, before that file's Round 1** (never batched):
+
+```
+python3 mutation_baseline_reuse.py resolve --file <path> \
+  --capture-commit <capture-sha> \
+  --tracking StrykerOutput/mutation-kill-baseline-consumption.json
+```
+
+`eligible: true` → seed Round 1 via `--report <baseline-path>` instead of a
+fresh scoped run. `eligible: false` → Round 1 runs fresh, unchanged from today.
+
+**Immediately after that file's round concludes** (per file, not batched at
+the end of the invocation), when the file was baseline-seeded:
+
+```
+python3 mutation_baseline_reuse.py mark-consumed --file <path> \
+  --capture-commit <capture-sha> \
+  --tracking StrykerOutput/mutation-kill-baseline-consumption.json
+```
+
+**Check its `success` field.** On `success: false`, print an operator-visible
+warning naming the file and the `error` reason before continuing to the next
+file — a `mark-consumed` failure is never silently absorbed into a
+successful-looking summary.
+
+Once the `--all` run concludes, print the run-level summary:
+
+```
+baseline: seeded N, ran-fresh M, mark-failed K
+```
+
+`seeded` counts baseline-seeded files, `ran-fresh` counts every file whose
+Round 1 ran fresh (no baseline present, ineligible, or `--concurrency >1`),
+and `mark-failed` tallies the `mark-consumed` warnings above.
+
 ## Pre-loop feasibility gate (xunit.v3 shim-first)
 
 On **xunit.v3** the loop is viable only through the v2 shim, because it re-runs mutation every round and that is affordable only with **per-test** coverage. Prove per-test capture works before entering — measured, not assumed. Plain xunit.v2 / other stacks skip this gate. Steps: (1) run [`xunit_v3_feature_detector.py`](../skills/mutation-testing/scripts/xunit_v3_feature_detector.py) and resolve its **always-ask** human gate (#1160 — operator excludes shim-breaking tests or declines the shim path); (2) build the shim and run **one timed one-file probe** under `coverage-analysis: perTest`, scanning its output for the #1157 capture-failure signal; (3) arbitrate with [`mutation_feasibility_gate.py`](../skills/mutation-testing/scripts/mutation_feasibility_gate.py) (`--probe-seconds --scope-files [--capture-failed] [--shim-declined]`). **`enter-loop`** → proceed to the scripted loop.
@@ -289,8 +352,9 @@ owns everything mechanical:
   indefinitely.
 
 Commits carry a structured message citing round number, method count, and survivor
-count. `--from-report` seeds round 1 from an existing report instead of a fresh
-scoped run.
+count. `--report` seeds round 1 from an existing report instead of a fresh
+scoped run — manually via the flag, or automatically via [baseline
+reuse](#baseline-reuse-for-round-1---concurrency-1-only) below.
 
 ## Per-language translation
 

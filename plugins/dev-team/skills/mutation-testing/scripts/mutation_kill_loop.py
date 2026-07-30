@@ -432,7 +432,10 @@ def run_for_file(
 
         survivors = extract_survivors(report_path, source_file)
         survivor_count = len(survivors)
-        summary = mutation_report.score_report(report_path)
+        # File-scoped, not score_report(): a baseline-seeded round 1 report can
+        # cover multiple files (#1545) — score_report() would leak another
+        # file's score into this line.
+        summary = mutation_report.score_report_for_file(report_path, source_file)
         log(
             f"  round {round_num}: honest={summary.honest_score:.1f}% "
             f"survivors={survivor_count}"

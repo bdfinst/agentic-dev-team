@@ -515,15 +515,32 @@ def test_apply_wraps_refusal_as_outcome_without_writing(tmp_path: Path):
 # =============================================================================
 # run_for_file harness — mocks every dotnet / git / Stryker touch.
 # =============================================================================
-def _loop_fixture(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, mutants):
+def _loop_fixture(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    mutants=None,
+    *,
+    report_override: dict | None = None,
+):
     """Wire a run_for_file invocation with a fixed initial report and a
-    generator that records its calls. Returns (kwargs, events)."""
+    generator that records its calls. Returns (kwargs, events).
+
+    By default the initial report is the single-file shape ``_write_report``
+    builds from ``mutants``. Pass ``report_override`` (a full report payload,
+    e.g. a multi-file ``{"files": {...}}`` shape) instead when a caller needs
+    a custom report; ``mutants`` is ignored in that case.
+    """
     config = loop.load_loop_config(_write_config(tmp_path))
     test_file = tmp_path / "PaymentServiceTests.cs"
     test_file.write_text(_BLOCK_NAMESPACE_CLASS, encoding="utf-8")
     source_path = tmp_path / "PaymentService.cs"
     source_path.write_text("public class PaymentService {}\n", encoding="utf-8")
-    report = _write_report(tmp_path, "src/Widget.WebApi/PaymentService.cs", mutants)
+    if report_override is not None:
+        report = tmp_path / "reports" / "mutation-report.json"
+        report.parent.mkdir(parents=True, exist_ok=True)
+        report.write_text(json.dumps(report_override), encoding="utf-8")
+    else:
+        report = _write_report(tmp_path, "src/Widget.WebApi/PaymentService.cs", mutants)
 
     events: list = []
 
@@ -631,6 +648,119 @@ def test_non_improving_round_ends_the_file(
     # Exactly one commit (round 1); round 2 detected no improvement and stopped.
     commits = [e for e in events if e[0] == "commit"]
     assert len(commits) == 1
+
+
+# =============================================================================
+# Scenario: The round's log line uses the file-scoped score (Step 3.1, #1545)
+# =============================================================================
+def test_round_log_line_uses_file_scoped_score_for_single_file_report(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    """A single-file scoped report — round log score must match that file's
+    own counts (existing behavior, must stay equivalent)."""
+    kwargs, _events = _loop_fixture(
+        tmp_path, monkeypatch, [_mutant("Survived", line=1), _mutant("Killed", line=2)]
+    )
+    logs: list[str] = []
+    kwargs["log"] = logs.append
+    monkeypatch.setattr(loop, "dotnet_build", lambda targets, **k: True)
+    monkeypatch.setattr(loop, "dotnet_test", lambda targets, flt, **k: True)
+    clean = _write_report(tmp_path / "clean", "src/Widget.WebApi/PaymentService.cs", [])
+    (tmp_path / "clean").mkdir(exist_ok=True)
+    monkeypatch.setattr(loop, "run_scoped_stryker", lambda *a, **k: clean)
+
+    loop.run_for_file(**kwargs)
+
+    round_1_log = next(m for m in logs if m.startswith("  round 1:"))
+    # 1 killed, 1 survived => honest = 1/2 * 100 = 50.0%
+    assert "honest=50.0%" in round_1_log
+    assert "survivors=1" in round_1_log
+
+
+def test_round_log_line_scopes_to_target_file_in_multi_file_baseline_report(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    """A multi-file report seeded via ``initial_report_path`` — the printed
+    score must reflect only the target file's own counts, never the whole
+    report's, across multiple rounds."""
+    # Multi-file baseline report: the target file scores 50% (1 killed, 1
+    # survived); another file in the same report scores far worse (0%). A
+    # whole-report score would leak that worse number into the target's line.
+    report_override = {
+        "files": {
+            "src/Widget.WebApi/PaymentService.cs": {
+                "mutants": [_mutant("Killed", line=1), _mutant("Survived", line=2)]
+            },
+            "src/Widget.WebApi/OtherService.cs": {
+                "mutants": [
+                    _mutant("Survived", line=1),
+                    _mutant("Survived", line=2),
+                    _mutant("Survived", line=3),
+                ]
+            },
+        }
+    }
+    kwargs, _events = _loop_fixture(
+        tmp_path, monkeypatch, report_override=report_override
+    )
+    kwargs["max_rounds"] = 2
+    logs: list[str] = []
+    kwargs["log"] = logs.append
+    monkeypatch.setattr(loop, "dotnet_build", lambda targets, **k: True)
+    monkeypatch.setattr(loop, "dotnet_test", lambda targets, flt, **k: True)
+
+    # Round 2's scoped run reports only the target file, at the same score —
+    # exercising round 2+'s equivalence claim alongside round 1's baseline seed.
+    round2_report = _write_report(
+        tmp_path / "r2",
+        "src/Widget.WebApi/PaymentService.cs",
+        [_mutant("Killed", line=1), _mutant("Survived", line=2)],
+    )
+    monkeypatch.setattr(loop, "run_scoped_stryker", lambda *a, **k: round2_report)
+
+    loop.run_for_file(**kwargs)
+
+    round_logs = [m for m in logs if m.startswith("  round")]
+    assert len(round_logs) == 2, "expected both round 1 (baseline) and round 2 (scoped) to log"
+    for msg in round_logs:
+        assert "honest=50.0%" in msg
+        assert "survivors=1" in msg
+
+
+# =============================================================================
+# Scenario: A baseline-seeded round 1 with 0 survivors skips the scoped run
+# entirely (#1545 core value scenario)
+# =============================================================================
+def test_baseline_seeded_zero_survivors_never_calls_scoped_stryker(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    """When the baseline report seeded via ``initial_report_path`` already
+    shows 0 survivors for the target file, round 1 must converge immediately
+    on that baseline data — ``run_scoped_stryker`` must never be invoked. This
+    is the redundant-run this whole issue exists to avoid."""
+    report_override = {
+        "files": {
+            "src/Widget.WebApi/PaymentService.cs": {
+                "mutants": [_mutant("Killed", line=1), _mutant("Killed", line=2)]
+            },
+        }
+    }
+    kwargs, events = _loop_fixture(tmp_path, monkeypatch, report_override=report_override)
+    logs: list[str] = []
+    kwargs["log"] = logs.append
+    monkeypatch.setattr(
+        loop,
+        "run_scoped_stryker",
+        lambda *a, **k: pytest.fail(
+            "run_scoped_stryker must not be called when the baseline already "
+            "shows 0 survivors"
+        ),
+    )
+
+    loop.run_for_file(**kwargs)
+
+    assert any("no survivors" in msg for msg in logs)
+    assert not any(e[0] in ("generate", "commit", "revert") for e in events)
 
 
 # =============================================================================

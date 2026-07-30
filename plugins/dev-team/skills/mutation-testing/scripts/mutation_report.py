@@ -70,15 +70,21 @@ class ScoreSummary:
     reported_score: float
 
 
-def _load_report(report_path: Path) -> dict:
-    """Return the parsed report, or ``{}`` when the file is absent/empty."""
+def load_report(report_path: Path) -> dict:
+    """Return the parsed report, or ``{}`` when the file is absent, empty,
+    malformed JSON, or valid JSON that isn't a dict (e.g. a report file
+    containing ``[]`` or ``42``) — never raises."""
     path = Path(report_path)
     if not path.exists():
         return {}
     text = path.read_text(encoding="utf-8").strip()
     if not text:
         return {}
-    return json.loads(text)
+    try:
+        parsed = json.loads(text)
+    except json.JSONDecodeError:
+        return {}
+    return parsed if isinstance(parsed, dict) else {}
 
 
 def _iter_mutants(data: dict):
@@ -87,11 +93,32 @@ def _iter_mutants(data: dict):
         yield from info.get("mutants", [])
 
 
-def _score_data(data: dict) -> ScoreSummary:
-    """Compute the honest and reported scores for an already-parsed report
-    dict (the ``{"files": {...}}`` shape shared by every supported tool)."""
+def _find_file_info(data: dict, file_path: str) -> dict | None:
+    """Return one file's report entry (the ``{"mutants": [...]}`` dict) from
+    an already-parsed report dict.
+
+    Matches ``file_path`` against report keys by exact match first, then by
+    basename, so a caller can pass either the full report key or just the
+    filename. Returns ``None`` when no file matches.
+    """
+    files = data.get("files", {})
+
+    info = files.get(file_path)
+    if info is not None:
+        return info
+
+    target = Path(file_path).name
+    for key, value in files.items():
+        if Path(key).name == target:
+            return value
+    return None
+
+
+def _tally(mutants: list[dict]) -> ScoreSummary:
+    """Compute the honest and reported scores for a flat list of mutant
+    dicts (one file's ``mutants`` list, or every file's combined)."""
     killed = survived = timeout = no_coverage = 0
-    for mutant in _iter_mutants(data):
+    for mutant in mutants:
         status = mutant.get("status")
         if status == STATUS_KILLED:
             killed += 1
@@ -120,6 +147,12 @@ def _score_data(data: dict) -> ScoreSummary:
     )
 
 
+def _score_data(data: dict) -> ScoreSummary:
+    """Compute the honest and reported scores for an already-parsed report
+    dict (the ``{"files": {...}}`` shape shared by every supported tool)."""
+    return _tally(list(_iter_mutants(data)))
+
+
 def score_report(report_path: Path) -> ScoreSummary:
     """Compute the honest and reported scores for a Stryker-shaped mutation
     report on disk.
@@ -127,7 +160,33 @@ def score_report(report_path: Path) -> ScoreSummary:
     Returns a fully zeroed :class:`ScoreSummary` when the report is absent
     or empty — never raises for a missing file.
     """
-    return _score_data(_load_report(report_path))
+    return _score_data(load_report(report_path))
+
+
+def _score_data_for_file(data: dict, file_path: str) -> ScoreSummary:
+    """Compute the honest and reported scores for one file within an
+    already-parsed report dict.
+
+    Matches ``file_path`` the same way ``_find_file_info`` does (exact key,
+    then basename). Returns a fully zeroed :class:`ScoreSummary` when the
+    file is not matched — never raises.
+    """
+    info = _find_file_info(data, file_path)
+    if info is None:
+        return _tally([])
+    return _tally(info.get("mutants", []))
+
+
+def score_report_for_file(report_path: Path, file_path: str) -> ScoreSummary:
+    """Compute the honest and reported scores for one file within a
+    Stryker-shaped mutation report on disk.
+
+    Matches ``file_path`` against report keys by exact match first, then by
+    basename (same rule as ``survivors_by_mutator``). Returns a fully zeroed
+    :class:`ScoreSummary` when the report is absent/empty or the file is not
+    matched — never raises.
+    """
+    return _score_data_for_file(load_report(report_path), file_path)
 
 
 def _survivors_from_data(data: dict, file_path: str) -> dict[str, list[dict]]:
@@ -140,15 +199,7 @@ def _survivors_from_data(data: dict, file_path: str) -> dict[str, list[dict]]:
     uncovered mutants are not survivors. Returns ``{}`` when the file is not
     in the report or has no survivors.
     """
-    files = data.get("files", {})
-
-    info = files.get(file_path)
-    if info is None:
-        target = Path(file_path).name
-        for key, value in files.items():
-            if Path(key).name == target:
-                info = value
-                break
+    info = _find_file_info(data, file_path)
     if info is None:
         return {}
 
@@ -164,7 +215,7 @@ def _survivors_from_data(data: dict, file_path: str) -> dict[str, list[dict]]:
 def survivors_by_mutator(report_path: Path, file_path: str) -> dict[str, list[dict]]:
     """Return the Survived mutants for one source file, grouped by mutator
     name, from a Stryker-shaped mutation report on disk."""
-    return _survivors_from_data(_load_report(report_path), file_path)
+    return _survivors_from_data(load_report(report_path), file_path)
 
 
 def _files_with_status_from_data(data: dict, status: str) -> list[str]:
@@ -185,7 +236,7 @@ def _files_with_status(report_path: Path, status: str) -> list[str]:
     """Return the sorted report file keys having >= 1 mutant of ``status``,
     from a Stryker-shaped mutation report on disk. Returns ``[]`` for an
     absent/empty report — never raises."""
-    return _files_with_status_from_data(_load_report(report_path), status)
+    return _files_with_status_from_data(load_report(report_path), status)
 
 
 def files_with_survivors(report_path: Path) -> list[str]:
