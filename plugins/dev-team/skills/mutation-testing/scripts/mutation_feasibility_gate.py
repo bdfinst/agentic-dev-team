@@ -52,6 +52,18 @@ WAIVER_MESSAGE = (
 )
 
 
+def _clamp_budget_seconds(budget_seconds: float) -> float:
+    """Clamp a non-positive budget back to ``DEFAULT_ROUND_BUDGET_SECONDS``.
+
+    Shared by :func:`resolve_budget_seconds` (env-sourced) and
+    :func:`decide` (an explicit ``budget_seconds``/``--budget-seconds``
+    override) so a non-positive value is treated identically regardless of
+    which path it arrived by (#1549) — an explicit ``0``/negative override
+    no longer silently bypasses the clamp and forces ``ASK_OPERATOR`` on
+    every invocation."""
+    return budget_seconds if budget_seconds > 0 else DEFAULT_ROUND_BUDGET_SECONDS
+
+
 def resolve_budget_seconds(env: dict | None = None) -> float:
     """The per-round wall-clock ceiling — ``DEFAULT_ROUND_BUDGET_SECONDS``
     unless ``DEV_TEAM_MUTATION_ROUND_BUDGET_SECONDS`` overrides it. A
@@ -64,7 +76,7 @@ def resolve_budget_seconds(env: dict | None = None) -> float:
         val = float(raw)
     except (TypeError, ValueError):
         return DEFAULT_ROUND_BUDGET_SECONDS
-    return val if val > 0 else DEFAULT_ROUND_BUDGET_SECONDS
+    return _clamp_budget_seconds(val)
 
 
 def estimate_round_seconds(probe_seconds: float, scope_file_count: int) -> float:
@@ -119,6 +131,8 @@ def decide(probe: ProbeResult, *, budget_seconds: float | None = None) -> Decisi
     """
     if budget_seconds is None:
         budget_seconds = resolve_budget_seconds()
+    else:
+        budget_seconds = _clamp_budget_seconds(budget_seconds)
 
     if probe.shim_declined:
         return Decision(

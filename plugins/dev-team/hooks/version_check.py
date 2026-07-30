@@ -17,6 +17,7 @@ Stdlib-only. Python 3.8+. See docs/python-hook-contract.md.
 
 from __future__ import annotations
 
+import os
 import subprocess
 import sys
 from datetime import datetime
@@ -31,8 +32,14 @@ def _cache_dir() -> Path:
     MSYS-mounted temp directory, so the same literal is portable across the
     three platforms this port targets. Byte-parity with the .sh requires
     the same literal here.
+
+    ``DEV_TEAM_VERSION_CHECK_CACHE_DIR``, when set, overrides this — a
+    test-only escape hatch (#1574) so pytest can give each worker/run its
+    own cache path instead of racing on the one real, shared `/tmp` file.
+    Production callers never set it, so real behavior is unchanged.
     """
-    return Path("/tmp")
+    override = os.environ.get("DEV_TEAM_VERSION_CHECK_CACHE_DIR")
+    return Path(override) if override else Path("/tmp")
 
 
 def _today_cache_file() -> Path:
