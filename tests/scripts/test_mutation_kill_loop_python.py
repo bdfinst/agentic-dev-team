@@ -30,15 +30,15 @@ FORBIDDEN_LITERALS = ["Aci.Speedpay", "Controllers", "AwesomeAssertions", "Moq",
 
 
 # =============================================================================
-# Reused headless helpers actually come from mutation_kill_loop
+# Reused headless helpers actually come from mutation_kill_headless
 # =============================================================================
 def test_headless_helpers_are_reused_not_duplicated():
-    import mutation_kill_loop as cs_loop
+    import mutation_kill_headless as cs_headless
 
-    assert loop.strip_code_fences is cs_loop.strip_code_fences
-    assert loop.resolve_model is cs_loop.resolve_model
-    assert loop.claude_cli_available is cs_loop.claude_cli_available
-    assert loop.CLAUDE_CLI == cs_loop.CLAUDE_CLI
+    assert loop.strip_code_fences is cs_headless.strip_code_fences
+    assert loop.resolve_model is cs_headless.resolve_model
+    assert loop.claude_cli_available is cs_headless.claude_cli_available
+    assert loop.CLAUDE_CLI == cs_headless.CLAUDE_CLI
 
 
 # =============================================================================
