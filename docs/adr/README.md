@@ -29,3 +29,4 @@
 * [27. Require and mechanically derive color on every agent](0027-require-and-mechanically-derive-color-on-every-agent.md)
 * [28. Require skills: preload and memory: project on matching agents](0028-require-skills-preload-and-memory-project-on-matching-agents.md)
 * [29. Code-modifying agent personas remain separate from software-engineer](0029-code-modifying-agent-personas-remain-separate-from-software-engineer.md)
+* [30. Use ancestor-check instead of exact-SHA comparison for mutation baseline reuse](0030-use-ancestor-check-instead-of-exact-sha-comparison-for-mutation-baseline-reuse.md)
