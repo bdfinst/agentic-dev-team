@@ -1,5 +1,18 @@
 # Changelog
 
+## [11.3.0](https://github.com/bdfinst/agentic-dev-team/compare/dev-team-v11.2.0...dev-team-v11.3.0) (2026-07-31)
+
+
+### Features
+
+* **evals:** fix js-fp-review eval-corpus hygiene gaps and repair issue-1620 fallout ([#1632](https://github.com/bdfinst/agentic-dev-team/issues/1632)) ([35df9b4](https://github.com/bdfinst/agentic-dev-team/commit/35df9b463d1e4bde00daea8de2eab5a0970162b2))
+* **harness:** reduce review-agent re-review churn — all six [#1623](https://github.com/bdfinst/agentic-dev-team/issues/1623) slices ([#1631](https://github.com/bdfinst/agentic-dev-team/issues/1631)) ([cbee175](https://github.com/bdfinst/agentic-dev-team/commit/cbee1753cc11e431982225bcadfeb7113f0ba861))
+
+
+### Bug Fixes
+
+* **tests:** stop change_impact's real-diff test asserting on the current branch ([#1640](https://github.com/bdfinst/agentic-dev-team/issues/1640)) ([c807435](https://github.com/bdfinst/agentic-dev-team/commit/c80743574eae6d2c4b83c771677b07c2b40a894c))
+
 ## [11.2.0](https://github.com/bdfinst/agentic-dev-team/compare/dev-team-v11.1.1...dev-team-v11.2.0) (2026-07-31)
 
 
