@@ -81,6 +81,7 @@ Before calling `Monitor` on a job whose completion time matters:
 2. If a signal exists, set `timeout_ms` to a safety margin over that estimate (e.g., double it), capped at the tool's documented max (3,600,000 ms / 1 hour).
 3. If no signal exists, don't guess — set `persistent: true` and pair it with a command that exits on the job's own terminal state (success/failure/timeout), never an unbounded `tail -f`/`while true` with no exit condition, so the monitor self-terminates instead of requiring a manual `TaskStop`.
 4. Never silently re-arm after a timeout without noting the estimate was wrong; if a re-arm is needed, widen the estimate or switch to `persistent: true` rather than repeating the same timeout.
+5. If the wait is handled by a scheduled wake-up instead of `Monitor` (no stream to watch, or a backstop against a missed notification), follow the calling contract in [`knowledge/long-run-waiting.md`](../../knowledge/long-run-waiting.md) — an arm/re-arm call needs the instruction to replay plus a reason, and standing down is a `stop`-only call. A malformed call arms no timer at all.
 
 ### 5. Fix and verify
 
