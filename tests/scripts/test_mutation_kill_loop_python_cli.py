@@ -17,12 +17,11 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import _mutation_kill_loop_python_test_helpers  # noqa: F401 (sys.path side effect)
+import mutation_kill_loop_python as loop
+import mutation_kill_shared as shared
 import pytest
 from _mutation_test_helpers import FORBIDDEN_LITERALS, SCRIPTS_DIR
-
-import _mutation_kill_loop_python_test_helpers  # noqa: F401 (sys.path side effect)
-import mutation_kill_loop_python as loop  # noqa: E402
-import mutation_kill_shared as shared  # noqa: E402
 
 
 # =============================================================================
