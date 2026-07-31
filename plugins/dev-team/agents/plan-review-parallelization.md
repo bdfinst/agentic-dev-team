@@ -17,8 +17,11 @@ You are not reviewing code, design, scope, or test quality — other reviewers h
 
 ## What you receive
 
-- The implementation plan, including each slice's `Depends-on` and `Files`, the `## Parallelization` section (Mermaid DAG + wave table), and any `collisions` reported by `scripts/plan_waves.py`.
-- Any spec artifacts (intent, architecture notes) if they exist.
+Per `${CLAUDE_PLUGIN_ROOT}/knowledge/plan-review-rubric.md` (Whole-file load:
+short, shared rubric). This agent's plan reading additionally covers each
+slice's `Depends-on` and `Files`, the `## Parallelization` section (Mermaid
+DAG + wave table), and any
+`collisions` reported by `scripts/plan_waves.py`.
 
 ## What you check
 
@@ -75,6 +78,7 @@ You are not reviewing code, design, scope, or test quality — other reviewers h
 
 ## Verdict rules
 
-- Any `blocker` → `needs-revision`
-- 2+ warnings with no blockers → `needs-revision`
-- Otherwise (including a fully sequential plan with no same-wave pairs) → `approve`
+Per `${CLAUDE_PLUGIN_ROOT}/knowledge/plan-review-rubric.md` (Whole-file load:
+short, shared rubric)'s documented 2-warning exception for this agent. A
+fully sequential plan with no
+same-wave pairs approves trivially (empty `issues`).

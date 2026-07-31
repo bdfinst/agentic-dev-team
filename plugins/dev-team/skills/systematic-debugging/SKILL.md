@@ -39,7 +39,7 @@ When LLMs hit failures, they tend to guess at fixes — changing code, re-runnin
 **Investigate** (use as many techniques as needed):
 - **Read the error**: Parse the stack trace. What file, line, and function? What's the actual error type?
 - **Trace the data flow**: Follow the input from entry point to failure point. Where does the actual value diverge from the expected value?
-- **Graph-assisted tracing**: If the target repo has `.codegraph/` (CodeGraph MCP server — `codegraph_trace`/`codegraph_callers`/`codegraph_callees` for "how does X reach Y" call-path questions) and/or a Repowise MCP server (`get_context`/`search_codebase`), prefer them over hand-walking the codebase to trace the call path from symptom to source. Never assume either is present — fall back to `Grep`/`Read` when absent.
+- **Graph-assisted tracing**: prefer CodeGraph/Repowise over hand-walking the codebase to trace the call path from symptom to source — see [`knowledge/codegraph-vs-graphify.md`](../../knowledge/codegraph-vs-graphify.md) for tool selection and the fallback contract.
 - **Check recent changes**: What changed since this last worked? (`git diff`, `git log`)
 - **Add observation points**: Temporary logging or print statements at key points to see actual values
 - **Multi-component systems**: Add diagnostics at each component boundary — log data entering and exiting each layer to find which layer fails

@@ -28,7 +28,7 @@ Cites:
 - microservice-testing
 - adversarial-review-protocol
 
-Output JSON:
+Output JSON (extends the shared contract in `${CLAUDE_PLUGIN_ROOT}/knowledge/review-agent-output-contract.md` with `smell` and `remedyFamily` fields. Whole-file load: short, canonical schema):
 
 ```json
 {"status": "pass|warn|fail|skip", "issues": [{"severity": "error|warning|suggestion", "confidence": "high|medium|none", "file": "", "line": 0, "smell": "", "message": "", "remedyFamily": "fixture-construction|result-verification|test-organization|test-refactoring|null", "suggestedFix": ""}], "summary": ""}

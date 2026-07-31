@@ -263,6 +263,16 @@
       "anchor": "the-e2e-justification-gate"
     }
   },
+  "plugins/dev-team/knowledge/ci-cd-file-scope.md": {
+    "Glob list": {
+      "summary": "The canonical glob list for \"files that carry CI/CD pipeline configuration.\"",
+      "anchor": "glob-list"
+    },
+    "Empty-scan reporting": {
+      "summary": "If a target has no files in any of these classes, record an empty scan",
+      "anchor": "empty-scan-reporting"
+    }
+  },
   "plugins/dev-team/knowledge/codegraph-vs-graphify.md": {
     "What each tool is": {
       "summary": "Third-party tool (<https://github.com/colbymchenry/codegraph>).",
@@ -831,6 +841,20 @@
       "anchor": "boundaries"
     }
   },
+  "plugins/dev-team/knowledge/mutation-score-formulas.md": {
+    "Honest vs. reported score": {
+      "summary": "Mutation tools count **timed-out** mutations as \"killed.\" They are not — a",
+      "anchor": "honest-vs-reported-score"
+    },
+    "Raw vs. adjusted score (accepted survivors)": {
+      "summary": "When one or more survivors are marked `status: \"accepted\"` (a real, killable",
+      "anchor": "raw-vs-adjusted-score-accepted-survivors"
+    },
+    "NoCoverage is a first-class signal": {
+      "summary": "Each `NoCoverage → Killed` conversion improves the score as much as killing",
+      "anchor": "nocoverage-is-a-first-class-signal"
+    }
+  },
   "plugins/dev-team/knowledge/object-calisthenics.md": {
     "The Rules": {
       "summary": "If a method has nested `if`/`for`/`while`, extract the inner block into a named method.",
@@ -936,6 +960,10 @@
       "summary": "**Pattern-visible classes detected by semgrep rules (agent assesses exploitability only):**",
       "anchor": "a02-cryptographic-failures"
     },
+    "Hardcoded-key pattern": {
+      "summary": "The runnable form of the pattern above.",
+      "anchor": "hardcoded-key-pattern"
+    },
     "A03: Injection": {
       "summary": "**Pattern-visible classes detected by semgrep rules (agent assesses exploitability only):**",
       "anchor": "a03-injection"
@@ -967,6 +995,20 @@
     "A10: SSRF": {
       "summary": "| Pattern | Language | Grep Signal |",
       "anchor": "a10-ssrf"
+    }
+  },
+  "plugins/dev-team/knowledge/plan-review-rubric.md": {
+    "What you receive": {
+      "summary": "The implementation plan (goal, acceptance criteria, and slices/steps —",
+      "anchor": "what-you-receive"
+    },
+    "Output shape": {
+      "summary": "Four of the five (`plan-review-design`, `plan-review-parallelization`,",
+      "anchor": "output-shape"
+    },
+    "Verdict rules": {
+      "summary": "Any `blocker` → `needs-revision`",
+      "anchor": "verdict-rules"
     }
   },
   "plugins/dev-team/knowledge/proxy-connectivity.md": {
@@ -1145,6 +1187,32 @@
     "How this connects to the rest of the toolkit": {
       "summary": "**`test-smells.md`** — the smells these fix: Assertion Roulette, Obscure Test, Fragile/Overspecified Test, Hard-Coded Values.",
       "anchor": "how-this-connects-to-the-rest-of-the-toolkit"
+    }
+  },
+  "plugins/dev-team/knowledge/review-agent-output-contract.md": {
+    "Canonical schema": {
+      "summary": "**pass**: zero issues",
+      "anchor": "canonical-schema"
+    },
+    "Status values": {
+      "summary": "**pass**: zero issues",
+      "anchor": "status-values"
+    },
+    "`severity` values": {
+      "summary": "`error` (must fix), `warning` (should fix), `suggestion` (could improve).",
+      "anchor": "severity-values"
+    },
+    "`confidence` values": {
+      "summary": "| Value | Meaning | `apply-fixes` behavior |",
+      "anchor": "confidence-values"
+    },
+    "Documented per-agent extensions": {
+      "summary": "A handful of agents extend the canonical schema with extra fields specific",
+      "anchor": "documented-per-agent-extensions"
+    },
+    "Aggregation": {
+      "summary": "`/code-review` wraps each agent's raw result with `agentName` and",
+      "anchor": "aggregation"
     }
   },
   "plugins/dev-team/knowledge/review-rubric.md": {

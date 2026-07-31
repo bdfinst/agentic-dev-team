@@ -31,14 +31,12 @@ Capture the optional path and flags from `$ARGUMENTS`.
 
 Invoke the semantic-duplication-scan skill.
 
-**Graph-assisted discovery.** If the target repo has `.codegraph/` (CodeGraph
-MCP server, `codegraph_explore` — fast callers/callees/impact lookups) and/or
-a Repowise MCP server (`get_context`/`search_codebase` — semantic search is
-especially well suited to finding duplicate implementations across layers),
-prefer them over raw `Grep`/`Read` when locating and comparing candidate
-implementations. Never assume either is present — fall back to
-`Read`/`Grep`/`Glob` when absent; the tools are simply unavailable (no error)
-on repos without an index.
+**Graph-assisted discovery.** Prefer CodeGraph/Repowise over raw `Grep`/`Read`
+when locating and comparing candidate implementations — Repowise's semantic
+search is especially well suited to finding duplicate implementations across
+layers. See
+[`knowledge/codegraph-vs-graphify.md`](../../knowledge/codegraph-vs-graphify.md)
+for tool selection and the fallback contract.
 
 ### 3. Report
 

@@ -90,58 +90,49 @@ Generation is a seam the loop calls into; it never decides *what* tests to write
 
 ## The honest score — hard kills only
 
-Mutation tools count **timed-out** mutations as "killed". They are not. In one
-observed run 76% of "kills" were timeouts; adding faster targeted tests let those
-mutations *complete* instead of timing out, and the score fell from 61.3% to
-30.36%. A score inflated by timeouts is not evidence of good tests.
+Mutation tools count **timed-out** mutations as "killed." They are not — see
+`${CLAUDE_PLUGIN_ROOT}/knowledge/mutation-score-formulas.md` (canonical for
+this agent and the `/mutation-testing` skill alike; Whole-file load: short
+formula reference) for the full rationale and worked example.
 
 `mutation_report.py` computes both scores; you gate on **hard kills only**
 (`status == Killed`). Stryker.NET 4.x keeps `NoCoverage` mutants in its own
 denominator, so the honest formula matches:
 
 ```
-honest_score  = Killed / (Killed + Survived + NoCoverage)
+honest_score   = Killed / (Killed + Survived + NoCoverage)
 reported_score = (Killed + Timeout) / (Killed + Survived + Timeout + NoCoverage)
 ```
 
-Report **both**. `honest_score` is the only number that gates a round or a file —
-Timeout stays out of the numerator, and the script never gates on it.
-`reported_score` mirrors what the Stryker HTML report prints, so a reviewer
-comparing the two numbers gets an honest gap (numerator delta) rather than a
-formula mismatch. `Timeout` and `NoCoverage` counts always print separately
-alongside both scores.
+`honest_score` is the only number that gates a round or a file — the script
+never gates on `reported_score`.
 
 ### NoCoverage is a first-class signal
 
 Each `NoCoverage → Killed` conversion improves the score as much as killing a
-`Survived` mutant — and NoCoverage paths are usually easier, because **any** test
-that reaches the line kills the mutant (no specific-value assertion required).
-**Prioritize NoCoverage coverage before attacking hard Survived mutations.** A
-file with 27 NoCoverage mutants at 0% score drags the overall number down more
-than a file with 20 Survived at 70%; fix the NoCoverage first.
+`Survived` mutant — any test that reaches the line kills a `NoCoverage`
+mutant, no specific-value assertion required. **Prioritize NoCoverage**
+coverage before attacking hard Survived mutations.
 
 ### Accepted survivors: raw vs adjusted score
 
-A per-file/round report can carry individual survivors marked `status: "accepted"`
-— a real, killable mutant you deliberately deferred this pass (not equivalent;
-just out of scope, low-signal, or pre-existing debt). This is **per-mutant**
-granularity underneath the file-level `EXCLUDED` convention below, not a
-replacement for it — see [Structurally unkillable
-files](#structurally-unkillable-files). Every accepted entry carries a `reason`
-string; never accept a mutant silently.
+A per-file/round report can carry individual survivors marked
+`status: "accepted"` — a real, killable mutant you deliberately deferred this
+pass (not equivalent; just out of scope, low-signal, or pre-existing debt).
+This is **per-mutant** granularity underneath the file-level `EXCLUDED`
+convention below, not a replacement for it — see [Structurally unkillable
+files](#structurally-unkillable-files). Every accepted entry carries a
+`reason` string; never accept a mutant silently.
 
-When any survivor is accepted, print both:
+When any survivor is accepted, print both, labeled clearly (e.g. `Raw:
+68.57% (24/35) · Adjusted for 11 accepted survivors: 100% (24/24)`), plus a
+per-mutant "Accepted Survivors (deferred)" table (file, line, operator,
+reason):
 
 ```
 raw_score      = honest_score (unchanged)
 adjusted_score = Killed / (Killed + (Survived - Accepted) + NoCoverage)
 ```
-
-labeled clearly (e.g. `Raw: 68.57% (24/35) · Adjusted for 11 accepted survivors:
-100% (24/24)`), plus a per-mutant "Accepted Survivors (deferred)" table (file,
-line, operator, reason) — mirroring the existing equivalent-mutants table. Never
-let `adjusted_score` stand alone; `raw_score` plus the reason table is what keeps
-a documented deferral from silently vanishing.
 
 ## Shard vs full-run scores are not comparable
 

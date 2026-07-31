@@ -18,11 +18,7 @@ Cites:
 - ubiquitous-language
 - adversarial-review-protocol
 
-Output JSON:
-
-```json
-{"status": "pass|warn|fail|skip", "issues": [{"severity": "error|warning|suggestion", "confidence": "high|medium|none", "file": "", "line": 0, "message": "", "suggestedFix": ""}], "summary": ""}
-```
+Output JSON: per `${CLAUDE_PLUGIN_ROOT}/knowledge/review-agent-output-contract.md` (Whole-file load: short, canonical schema).
 
 Status: pass=clean model, warn=minor issues, fail=boundary violations
 Severity: error=violation that causes data exposure, cross-context coupling, or untestable code; warning=misplaced logic or missing abstraction that adds friction; suggestion=modeling improvement with no immediate harm

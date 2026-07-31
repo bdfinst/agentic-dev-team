@@ -24,11 +24,7 @@ Skip this agent entirely if the project has no `@angular/core` dependency in
 Covers Zone.js-based Angular (Angular 2–17) and Angular Signals (Angular 16+
 `signal()`, `computed()`, `effect()`).
 
-Output JSON:
-
-```json
-{"status": "pass|warn|fail|skip", "issues": [{"severity": "error|warning|suggestion", "confidence": "high|medium|none", "file": "", "line": 0, "message": "", "suggestedFix": ""}], "summary": ""}
-```
+Output JSON: per `${CLAUDE_PLUGIN_ROOT}/knowledge/review-agent-output-contract.md` (Whole-file load: short, canonical schema).
 
 Status: pass=no reactivity issues, warn=potential concerns, fail=likely silent reactivity breakage
 Severity: error=silent change-detection failure or subscription leak; warning=potential reactivity concern; suggestion=defensive improvement

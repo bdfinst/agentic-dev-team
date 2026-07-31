@@ -7,7 +7,8 @@ effort: high
 color: cyan
 ---
 
-Output JSON:
+Output JSON: matches the shared review-agent contract in
+`${CLAUDE_PLUGIN_ROOT}/knowledge/review-agent-output-contract.md` (Whole-file load: short, canonical schema).
 
 ```json
 {"status": "pass|warn|fail|skip", "issues": [{"severity": "error|warning|suggestion", "confidence": "high|medium|none", "file": "", "line": 0, "message": "", "suggestedFix": ""}], "summary": ""}

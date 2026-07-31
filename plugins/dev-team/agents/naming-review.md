@@ -15,11 +15,7 @@ Cites:
 - design-smells
 - adversarial-review-protocol
 
-Output JSON:
-
-```json
-{"status": "pass|warn|fail|skip", "issues": [{"severity": "error|warning|suggestion", "confidence": "high|medium|none", "file": "", "line": 0, "message": "", "suggestedFix": ""}], "summary": ""}
-```
+Output JSON: per `${CLAUDE_PLUGIN_ROOT}/knowledge/review-agent-output-contract.md` (Whole-file load: short, canonical schema).
 
 Status (derive from the highest-severity finding, do not let finding *volume* alone change the tier): `fail` when any finding is `error` (misleading name) or `warning` (unclear name, magic value, or inconsistent naming) — both harm readability; `warn` when the only findings are `suggestion` (style); `pass` when there are no findings.
 Severity: error=misleading names, warning=unclear, suggestion=style

@@ -87,14 +87,7 @@ These tools default to making network calls; in restricted-egress environments t
 
 Dispatch each available tool's invocation. Each returns SARIF on stdout (or via its adapter). Collect SARIF documents keyed by tool name.
 
-**Target walk MUST include CI/CD workflow files** even when they live outside the walked tree (monorepo case — walk up to the repo root to find them):
-
-- `.github/workflows/*.{yml,yaml}` (GitHub Actions)
-- `.gitlab-ci.yml` + `.gitlab/**/*.{yml,yaml}` (GitLab CI)
-- `.circleci/config.yml` (CircleCI)
-- `azure-pipelines.yml` + `.azure-pipelines/**/*.{yml,yaml}` (Azure Pipelines)
-- `bitbucket-pipelines.yml`
-- `Jenkinsfile` + `jenkinsfile.d/**/*` (Jenkins)
+**Target walk MUST include CI/CD workflow files** even when they live outside the walked tree (monorepo case — walk up to the repo root to find them). Glob list: [`knowledge/ci-cd-file-scope.md`](../../knowledge/ci-cd-file-scope.md).
 
 Invoke every Tier-1 tool that can process them — actionlint for GitHub Actions, trivy-config for any CI YAML, semgrep with `p/github-actions` (or the bundled `crypto-anti-patterns.yaml` rule that catches `printenv` in workflow `run:` blocks).
 

@@ -59,14 +59,15 @@ discovers and checks agents from both directories; add new plugin agent director
 to `AGENTS_DIRS` in that test file when a new plugin is introduced.
 
 Read each file in `.claude/agents/*.md` whose body contains a structured JSON
-output schema (a line with `"status": "pass|warn|fail|skip"`) — these are
+output schema — either inline (a line with `"status": "pass|warn|fail|skip"`)
+or a citation of `knowledge/review-agent-output-contract.md` — these are
 review agents. Check:
 
 1. **Structured output format**: Does the agent specify a JSON output
-   schema?
+   schema, inline or by citing the shared contract?
    - Review agents MUST include `status`, `issues`, and `summary`
-     fields
-   - FAIL if a review agent has no output format
+     fields (inline or via the cited contract)
+   - FAIL if a review agent has no output format and no contract citation
 
 2. **Severity definitions**: Does the agent define severity levels?
    - MUST define `error`, `warning`, and `suggestion` with clear
@@ -439,11 +440,12 @@ item:
 - Missing output format → insert after the `# <Agent Name>` heading:
 
   ```text
-  Output JSON:
-  \```json
-  {"status": "pass|warn|fail|skip", "issues": [...], "summary": ""}
-  \```
+  Output JSON: per `${CLAUDE_PLUGIN_ROOT}/knowledge/review-agent-output-contract.md` (Whole-file load: short, canonical schema).
   ```
+
+  Prefer this citation form over inlining the schema — see
+  `knowledge/review-agent-output-contract.md` for the canonical shape and
+  its documented per-agent extensions/status exceptions.
 
 - Missing severity definitions → insert after the output format:
 
