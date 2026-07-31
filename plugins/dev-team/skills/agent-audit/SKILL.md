@@ -310,7 +310,7 @@ semantic checks. Run these scripts for a fast, CI-safe structural pass:
 bands, duplicate rules):
 
 ```
-python3 scripts/claude_setup_review.py --plugin-root <plugin-root-path>
+python3 ${CLAUDE_PLUGIN_ROOT}/scripts/claude_setup_review.py --plugin-root <plugin-root-path>
 ```
 
 **Token-efficiency review** (file line counts, CLAUDE.md size, LLM

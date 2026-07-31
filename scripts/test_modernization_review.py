@@ -22,7 +22,13 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
-from lib.review_result import build_result, main_exit, make_issue
+# review_result moved under plugins/dev-team/scripts/lib — see the note in
+# progress_guardian.py.
+sys.path.insert(
+    0,
+    str(Path(__file__).resolve().parents[1] / "plugins" / "dev-team" / "scripts" / "lib"),
+)
+from review_result import build_result, main_exit, make_issue
 
 # ---------------------------------------------------------------------------
 # Artifact resolution

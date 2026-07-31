@@ -23,7 +23,14 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
-from lib.review_result import build_result, main_exit, make_issue, skipped_llm_warning
+# review_result moved under plugins/dev-team/scripts/lib — see the note in
+# progress_guardian.py. Explicit path, not `lib.`, so the two namespace-package
+# `lib` directories never have to merge implicitly.
+sys.path.insert(
+    0,
+    str(Path(__file__).resolve().parents[1] / "plugins" / "dev-team" / "scripts" / "lib"),
+)
+from review_result import build_result, main_exit, make_issue, skipped_llm_warning
 
 sys.path.insert(
     0,

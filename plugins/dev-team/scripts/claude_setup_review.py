@@ -25,10 +25,13 @@ import subprocess
 import sys
 from pathlib import Path
 
-import yaml  # PyYAML — required dev dep
-
 sys.path.insert(0, str(Path(__file__).parent))
+# `minimal_yaml` rather than PyYAML: this script ships with the plugin, and
+# shipped code is stdlib-only (ADR 0014). It parses agent frontmatter, which is
+# exactly the subset `minimal_yaml` exists to cover.
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "hooks" / "lib"))
 from lib.review_result import make_issue
+from minimal_yaml import YamlError, parse_yaml
 
 # ---------------------------------------------------------------------------
 # Module-level constants (REFACTOR: extracted here for easy maintenance)
@@ -68,9 +71,10 @@ def _parse_frontmatter(text: str) -> dict | None:
     if end == -1:
         return None
     try:
-        return yaml.safe_load(text[3:end])
-    except yaml.YAMLError:
+        parsed = parse_yaml(text[3:end])
+    except YamlError:
         return None
+    return parsed if isinstance(parsed, dict) else None
 
 
 # ---------------------------------------------------------------------------

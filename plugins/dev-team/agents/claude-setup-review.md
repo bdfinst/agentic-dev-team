@@ -24,7 +24,12 @@ Cites:
 - directory-enumeration
 Enforcement: script
 
-> **Implemented by:** scripts/claude_setup_review.py
+> **Implemented by:** `${CLAUDE_PLUGIN_ROOT}/scripts/claude_setup_review.py`
+> — a deterministic validator, so prefer running it over re-deriving its checks
+> by reading files. It was previously named as a bare `scripts/…` path while
+> living only at this repository's root, so for anyone who installed the plugin
+> the reference resolved nowhere and the agent silently degraded to a pure-LLM
+> pass.
 
 Output JSON: per `${CLAUDE_PLUGIN_ROOT}/knowledge/review-agent-output-contract.md` (Whole-file load: short, canonical schema).
 

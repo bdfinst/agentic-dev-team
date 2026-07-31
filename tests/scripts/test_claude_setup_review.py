@@ -15,7 +15,10 @@ import pytest
 
 from _repo_root import REPO_ROOT
 
-SCRIPT = REPO_ROOT / "scripts" / "claude_setup_review.py"
+# Ships with the plugin: the `claude-setup-review` agent and the `/agent-audit`
+# skill both name it via `${CLAUDE_PLUGIN_ROOT}/scripts/`, so it has to be
+# inside the plugin for a user's install to resolve it at all.
+SCRIPT = REPO_ROOT / "plugins" / "dev-team" / "scripts" / "claude_setup_review.py"
 
 
 @pytest.fixture
