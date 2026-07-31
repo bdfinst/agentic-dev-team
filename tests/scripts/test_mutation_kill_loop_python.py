@@ -764,6 +764,60 @@ def test_run_for_file_stops_on_no_improvement(tmp_path: Path, monkeypatch):
 
 
 # =============================================================================
+# Scenario: max_rounds is exhausted while survivors are still strictly
+# improving each round (never reaching 0, and never repeating the previous
+# round's count) — the loop must stop because the round budget ran out, not
+# because of either the "zero survivors" or "no improvement" stop_reason
+# paths (#1563 gap 6, mirrors the C# loop's equivalent scenario).
+# =============================================================================
+def test_max_rounds_exhausted_while_survivors_keep_improving(
+    tmp_path: Path, monkeypatch
+):
+    xml_two_survivors = _junit(
+        _survived("Mutant #1", "src/a.py", 3),
+        _survived("Mutant #2", "src/a.py", 5),
+        failures=2,
+    )
+    xml_one_survivor = _junit(_survived("Mutant #1", "src/a.py", 3), failures=1)
+    responses = [xml_two_survivors, xml_one_survivor]
+    monkeypatch.setattr(loop, "run_scoped_mutmut", lambda *a, **k: responses.pop(0))
+    monkeypatch.setattr(loop, "python_compiles", lambda *a, **k: True)
+    monkeypatch.setattr(loop, "run_scoped_pytest", lambda *a, **k: True)
+
+    committed = []
+    monkeypatch.setattr(loop, "git_commit", lambda m, f, **k: committed.append(m) or True)
+    monkeypatch.setattr(loop, "git_revert", lambda *a, **k: pytest.fail("must not revert on green"))
+
+    test_file = tmp_path / "test_a.py"
+    test_file.write_text("def test_existing():\n    assert True\n", encoding="utf-8")
+    source_file = tmp_path / "a.py"
+    source_file.write_text("x = 1\n", encoding="utf-8")
+
+    logged = []
+    calls = {"n": 0}
+
+    def unique_generate(*_a):
+        calls["n"] += 1
+        return f"def test_new_{calls['n']}():\n    assert True\n"
+
+    loop.run_for_file(
+        "src/a.py",
+        _ctx(test_file, source_file, log=logged.append),
+        generate=unique_generate,
+        max_rounds=2,
+    )
+
+    round_logs = [m for m in logged if m.startswith("  round")]
+    assert len(round_logs) == 2, "max_rounds=2 must cap the loop at exactly 2 rounds"
+    assert "survivors=2" in round_logs[0]
+    assert "survivors=1" in round_logs[1]
+    # Neither stop_reason fired — the loop ended solely because the round
+    # budget (max_rounds) was exhausted.
+    assert not any("no survivors" in m or "no improvement" in m for m in logged)
+    assert len(committed) == 2
+
+
+# =============================================================================
 # Scenario: A failed commit is a round failure, not a silent success (#1598),
 # mirroring mutation_kill_loop.py's C# equivalent scenario.
 # =============================================================================

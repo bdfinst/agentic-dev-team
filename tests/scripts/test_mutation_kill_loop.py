@@ -95,14 +95,6 @@ def test_scoped_run_delegates_dotnet_root_and_sln_to_wrapper(
     config = loop.load_loop_config(_write_config(tmp_path, solution="App.sln"))
     calls: list = []
 
-    def spy_resolve(preset, candidates):
-        calls.append(("resolve_dotnet_root", candidates))
-        return "/fake/dotnet-root", None
-
-    def spy_candidates():
-        calls.append(("default_probe_candidates", None))
-        return ["/fake/candidate"]
-
     def spy_hide(sln, sln_hidden):
         calls.append(("hide_sln", str(sln)))
 
@@ -112,8 +104,14 @@ def test_scoped_run_delegates_dotnet_root_and_sln_to_wrapper(
     def fake_subprocess_run(argv, **kwargs):
         calls.append(("subprocess.run", argv, kwargs))
 
-    monkeypatch.setattr(loop.wrapper, "resolve_dotnet_root", spy_resolve)
-    monkeypatch.setattr(loop.wrapper, "default_probe_candidates", spy_candidates)
+    monkeypatch.setattr(
+        loop.wrapper, "resolve_dotnet_root", lambda preset, candidates: ("/fake/dotnet-root", None)
+    )
+    monkeypatch.setattr(
+        loop.wrapper,
+        "default_probe_candidates",
+        lambda: calls.append(("default_probe_candidates",)) or ["/fake/candidate"],
+    )
     monkeypatch.setattr(loop.wrapper, "hide_sln", spy_hide)
     monkeypatch.setattr(loop.wrapper, "restore_sln", spy_restore)
     monkeypatch.setattr(loop.subprocess, "run", fake_subprocess_run)
@@ -122,24 +120,52 @@ def test_scoped_run_delegates_dotnet_root_and_sln_to_wrapper(
         config, "PaymentService.cs", output_dir=tmp_path / "out", stryker_bin="dotnet-stryker"
     )
 
+    # sln hidden/restored around the run, in that order (finally-block-runs-
+    # after-subprocess is the actual behavior under test here — a legitimate
+    # ordering assertion, unlike asserting exact call order between
+    # default_probe_candidates and resolve_dotnet_root, which is incidental
+    # implementation detail rather than an observable outcome (#1563 gap 8)).
     kinds = [c[0] for c in calls]
-    assert "default_probe_candidates" in kinds
-    assert "resolve_dotnet_root" in kinds
-    assert "hide_sln" in kinds
-    assert "restore_sln" in kinds
-    # restore runs after the Stryker subprocess (finally block).
     assert kinds.index("hide_sln") < kinds.index("subprocess.run") < kinds.index(
         "restore_sln"
     )
+    # The loop doesn't reimplement wrapper probe logic itself — it delegates
+    # to wrapper.default_probe_candidates() for the candidate list handed to
+    # resolve_dotnet_root (the AC4 delegation this test is named for).
+    assert "default_probe_candidates" in kinds
     # The Stryker subprocess is invoked through the configured bin.
     stryker_call = next(c for c in calls if c[0] == "subprocess.run")
     stryker_argv = stryker_call[1]
     assert stryker_argv[0] == "dotnet-stryker"
-    # The RESOLVED DOTNET_ROOT (from the spied resolver) is threaded into the
+    # Observable outcome: the RESOLVED DOTNET_ROOT is threaded into the
     # Stryker subprocess environment — not merely resolved and dropped.
     stryker_kwargs = stryker_call[2]
     assert stryker_kwargs["env"]["DOTNET_ROOT"] == "/fake/dotnet-root"
     assert report_path == tmp_path / "out" / "reports" / "mutation-report.json"
+
+
+# =============================================================================
+# Scenario: A DOTNET_ROOT resolution failure aborts the run with a named
+# error, before any Stryker subprocess is spawned (#1563 gap 4)
+# =============================================================================
+def test_run_scoped_stryker_raises_when_dotnet_root_resolution_fails(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    config = loop.load_loop_config(_write_config(tmp_path, solution=None))
+    monkeypatch.setattr(
+        loop.wrapper,
+        "resolve_dotnet_root",
+        lambda preset, candidates: (None, "no DOTNET_ROOT candidate found"),
+    )
+    monkeypatch.setattr(loop.wrapper, "default_probe_candidates", list)
+
+    def explode(*a, **k):
+        raise AssertionError("Stryker must not run when DOTNET_ROOT can't resolve")
+
+    monkeypatch.setattr(loop.subprocess, "run", explode)
+
+    with pytest.raises(RuntimeError, match="no DOTNET_ROOT candidate found"):
+        loop.run_scoped_stryker(config, "Foo.cs", output_dir=tmp_path / "out")
 
 
 # =============================================================================

@@ -109,6 +109,20 @@ def test_commit_message_generator_label_newlines_cannot_forge_extra_lines():
     assert len(lines_starting_with_generator) == 1
 
 
+def test_commit_message_counts_new_methods_via_count_methods():
+    """_commit_message's method count is _METHOD_RE-derived (count_methods),
+    not the raw number of survivors — direct assertion on the rendered count,
+    not just the generator trailer (#1563 gap 3)."""
+    message = loop._commit_message(
+        1,
+        "Foo.cs",
+        5,
+        "public async Task A() {}\n\npublic async Task B() {}\n",
+    )
+    assert "2 new test method(s)" in message
+    assert "targeting 5 surviving mutant(s)" in message
+
+
 def test_headless_commit_records_generator_label_via_run_context(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ):
@@ -230,6 +244,65 @@ def test_round_log_line_scopes_to_target_file_in_multi_file_baseline_report(
     for msg in round_logs:
         assert "honest=50.0%" in msg
         assert "survivors=1" in msg
+
+
+# =============================================================================
+# Scenario: max_rounds is exhausted while survivors are still strictly
+# improving each round (never reaching 0, and never repeating the previous
+# round's count) — the loop must stop because the round budget ran out, not
+# because of either the "no survivors" or "no improvement" stop_reason paths
+# (#1563 gap 6).
+# =============================================================================
+def test_max_rounds_exhausted_while_survivors_keep_improving(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    logs: list[str] = []
+    source_file, ctx, kwargs, events = _loop_fixture(
+        tmp_path,
+        monkeypatch,
+        [_mutant("Survived", line=1), _mutant("Survived", line=2)],
+        log=logs.append,
+    )
+    kwargs["max_rounds"] = 2
+    monkeypatch.setattr(loop, "dotnet_build", lambda targets, **k: True)
+    monkeypatch.setattr(loop, "dotnet_test", lambda targets, flt, **k: True)
+
+    # Round 2's scoped run reports FEWER survivors than round 1 (2 -> 1) —
+    # real improvement, so stop_reason returns None and a round 3 would run
+    # if max_rounds allowed it.
+    round2_report = _write_report(
+        tmp_path / "r2", "src/Widget.WebApi/PaymentService.cs", [_mutant("Survived", line=1)]
+    )
+    monkeypatch.setattr(loop, "run_scoped_stryker", lambda *a, **k: round2_report)
+
+    # A uniquely-named method per round — the fixture's default generator
+    # returns the same method name every round, which round 2 would refuse
+    # to insert as a duplicate (a different code path than the one this test
+    # targets). A unique name per call keeps both rounds' inserts genuine.
+    calls = {"n": 0}
+
+    def unique_generator(src, survivors, src_text, test_text):
+        calls["n"] += 1
+        return (
+            "        [Test]\n"
+            f"        public async Task New_Case_{calls['n']}()\n"
+            "        {\n"
+            "        }\n"
+        )
+
+    kwargs["generate"] = unique_generator
+
+    loop.run_for_file(source_file, ctx, **kwargs)
+
+    round_logs = [m for m in logs if m.startswith("  round")]
+    assert len(round_logs) == 2, "max_rounds=2 must cap the loop at exactly 2 rounds"
+    assert "survivors=2" in round_logs[0]
+    assert "survivors=1" in round_logs[1]
+    # Neither stop_reason fired — the loop ended solely because the round
+    # budget (max_rounds) was exhausted.
+    assert not any("no survivors" in m or "no improvement" in m for m in logs)
+    assert [e[0] for e in events].count("commit") == 2
+    assert "revert" not in [e[0] for e in events]
 
 
 # =============================================================================

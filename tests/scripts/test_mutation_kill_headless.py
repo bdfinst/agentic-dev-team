@@ -177,6 +177,26 @@ def test_headless_generator_timeout_raises_a_named_error(monkeypatch: pytest.Mon
     assert "DEV_TEAM_MUTATION_GENERATION_TIMEOUT_S" in str(exc_info.value)
 
 
+# Scenario: A non-zero `claude --print` exit is a generation failure, not a
+# silent empty result — shared by both loops' make_headless_generator
+# factories, since both delegate to run_claude_headless (#1563 gap 5).
+def test_headless_generator_raises_on_a_nonzero_claude_exit(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    class _R:
+        returncode = 1
+        stdout = ""
+        stderr = "authentication required\n"
+
+    monkeypatch.setattr(headless.subprocess, "run", lambda argv, **kwargs: _R())
+    generate = headless.make_headless_generator(None)
+
+    with pytest.raises(RuntimeError) as exc_info:
+        generate("S.cs", [_mutant("Survived", "ArithmeticOperator", 10)], "class S {}", "class T {}")
+
+    assert "authentication required" in str(exc_info.value)
+
+
 # Scenario: --model resolves from the flag, then the env var, else None
 def test_model_resolves_from_env_when_set(monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setenv("DEV_TEAM_MUTATION_MODEL", "env-model")
@@ -307,7 +327,7 @@ def test_headless_main_uses_default_label_when_model_unresolved(
     assert captured["generator_label"] == "headless (default)"
 
 
-def test_claude_cli_available_reflects_subprocess_outcome(
+def test_claude_cli_available_is_true_when_the_cli_responds(
     monkeypatch: pytest.MonkeyPatch,
 ):
     class _OK:
@@ -316,6 +336,10 @@ def test_claude_cli_available_reflects_subprocess_outcome(
     monkeypatch.setattr(headless.subprocess, "run", lambda *a, **k: _OK())
     assert headless.claude_cli_available() is True
 
+
+def test_claude_cli_available_is_false_when_the_binary_is_missing(
+    monkeypatch: pytest.MonkeyPatch,
+):
     def _missing(*a, **k):
         raise FileNotFoundError("claude")
 

@@ -140,3 +140,26 @@ def test_git_commit_stages_then_commits_only_the_given_file(tmp_path: Path, monk
         "--",
         str(tmp_path / "Foo.txt"),
     ]
+
+
+def test_git_commit_returns_false_on_a_non_timeout_commit_failure(
+    tmp_path: Path, monkeypatch
+):
+    """git_commit's own commit-leg failure branch (a non-zero returncode with
+    no timeout involved — e.g. "nothing to commit") — direct coverage, not
+    just the timeout variant already covered elsewhere (#1563 gap 2)."""
+
+    class _R:
+        def __init__(self, returncode):
+            self.returncode = returncode
+
+    calls: list = []
+
+    def fake_run(argv, **k):
+        calls.append(argv)
+        return _R(0) if len(calls) == 1 else _R(1)
+
+    monkeypatch.setattr(shared.subprocess, "run", fake_run)
+
+    assert shared.git_commit("msg", tmp_path / "Foo.txt") is False
+    assert [c[2] for c in calls] == ["add", "commit"]

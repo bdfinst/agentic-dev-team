@@ -100,6 +100,32 @@ def test_dotnet_build_returns_false_on_nonzero_returncode(
     assert loop.dotnet_build(["Foo.Tests.csproj"]) is False
 
 
+def test_dotnet_build_stops_after_the_first_failing_target(
+    monkeypatch: pytest.MonkeyPatch
+):
+    """dotnet_build's per-target loop short-circuits on the first failure —
+    a second, later-configured test-project target must never be built once
+    an earlier one has already failed (#1563 gap 1)."""
+
+    class _R:
+        def __init__(self, returncode):
+            self.returncode = returncode
+            self.stdout = ""
+            self.stderr = ""
+
+    calls: list = []
+
+    def fake_run(argv, **k):
+        calls.append(argv)
+        return _R(1) if len(calls) == 1 else _R(0)
+
+    monkeypatch.setattr(loop.subprocess, "run", fake_run)
+
+    assert loop.dotnet_build(["Foo.Tests.csproj", "Bar.Tests.csproj"]) is False
+    assert len(calls) == 1
+    assert calls[0][2] == "Foo.Tests.csproj"
+
+
 def test_dotnet_test_returns_false_on_nonzero_returncode_even_with_zero_failed(
     monkeypatch: pytest.MonkeyPatch
 ):
@@ -167,6 +193,32 @@ def test_dotnet_test_trailing_lowercase_rollup_line_does_not_flip_a_clean_run(
     monkeypatch.setattr(loop.subprocess, "run", lambda argv, **k: _R())
 
     assert loop.dotnet_test(["Foo.Tests.csproj"], "FooTests") is True
+
+
+def test_dotnet_test_stops_after_the_first_failing_target(
+    monkeypatch: pytest.MonkeyPatch
+):
+    """dotnet_test's per-target loop short-circuits on the first failure —
+    a second, later-configured test-project target must never be tested once
+    an earlier one has already failed (#1563 gap 1)."""
+
+    class _R:
+        def __init__(self, returncode):
+            self.returncode = returncode
+            self.stdout = "Failed:     1, Passed:     0\n" if returncode else ""
+            self.stderr = ""
+
+    calls: list = []
+
+    def fake_run(argv, **k):
+        calls.append(argv)
+        return _R(1) if len(calls) == 1 else _R(0)
+
+    monkeypatch.setattr(loop.subprocess, "run", fake_run)
+
+    assert loop.dotnet_test(["Foo.Tests.csproj", "Bar.Tests.csproj"], "FooTests") is False
+    assert len(calls) == 1
+    assert calls[0][2] == "Foo.Tests.csproj"
 
 
 def test_sum_failed_counts_is_case_sensitive_not_double_counting_the_rollup_line():
