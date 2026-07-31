@@ -453,8 +453,13 @@ def _commit_message(
     generator_label: str | None = None,
 ) -> str:
     count = count_methods(new_methods)
+    # Whitespace-collapsed the same way append_generator_trailer sanitizes
+    # generator_label (#1607): source_file is caller-supplied, and a value
+    # containing a newline could otherwise forge an extra "Generator:"
+    # trailer line into the commit message.
+    safe_source_file = " ".join(str(source_file).split())
     message = (
-        f"test(mutation): kill round {round_num} — {source_file}\n\n"
+        f"test(mutation): kill round {round_num} — {safe_source_file}\n\n"
         f"{count} new test method(s) targeting {survivors} surviving mutant(s)"
     )
     return mutation_safety_gate.append_generator_trailer(message, generator_label)
@@ -522,6 +527,24 @@ def _score_round(
         f"  round {round_num}: honest={summary.honest_score:.1f}% "
         f"survivors={survivor_count}"
     )
+
+    # Mirrors the Python loop's equivalent guard (#1359/#1606): mutation_report's
+    # own documented contract is to return a fully-zeroed ScoreSummary (never
+    # raise) for an absent/empty report or an unmatched file key, and
+    # run_scoped_stryker runs Stryker with check=False — a crashed Stryker
+    # process, or a scoped-config file-key mismatch, can therefore yield
+    # survivor_count == 0 here with zero mutants ever actually having run.
+    # Without this check that would be indistinguishable from a genuine
+    # "no survivors — done" convergence.
+    total_mutants = summary.killed + summary.survived + summary.timeout + summary.no_coverage
+    if total_mutants == 0:
+        ctx.log(
+            "  zero mutants generated — this is NOT convergence. Stryker "
+            "produced no results at all for this file (a crashed run, or a "
+            "scoped-config file-key mismatch). Stopping without declaring "
+            "survivors == 0 (#1606)."
+        )
+        return None
 
     reason = stop_reason(survivor_count, prev_survivor_count)
     if reason is not None:

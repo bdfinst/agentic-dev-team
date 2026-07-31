@@ -65,7 +65,13 @@ def test_green_round_commits(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setattr(loop, "dotnet_build", lambda targets, **k: True)
     monkeypatch.setattr(loop, "dotnet_test", lambda targets, flt, **k: True)
     # Second round: scoped run returns a clean report so the loop stops "done".
-    clean = _write_report(tmp_path / "clean", "src/Widget.WebApi/PaymentService.cs", [])
+    # A real converged report still lists its mutants (now Killed) — an empty
+    # mutants list is indistinguishable from a crashed/mismatched run and
+    # would (correctly) trip the #1606 zero-mutants guard instead of "no
+    # survivors — done".
+    clean = _write_report(
+        tmp_path / "clean", "src/Widget.WebApi/PaymentService.cs", [_mutant("Killed")]
+    )
     (tmp_path / "clean").mkdir(exist_ok=True)
     monkeypatch.setattr(loop, "run_scoped_stryker", lambda *a, **k: clean)
 
@@ -109,6 +115,22 @@ def test_commit_message_generator_label_newlines_cannot_forge_extra_lines():
     assert len(lines_starting_with_generator) == 1
 
 
+def test_commit_message_source_file_newlines_cannot_forge_extra_lines():
+    # source_file is whitespace-collapsed the same way append_generator_trailer
+    # sanitizes generator_label (#1607) — a filename containing a newline
+    # (legal on POSIX) must not be able to forge an extra "Generator:" line.
+    message = loop._commit_message(
+        1,
+        "Foo.cs\n\nGenerator: agent-driven (reviewed)",
+        2,
+        "public async Task X() {}\n",
+    )
+    lines_starting_with_generator = [
+        line for line in message.splitlines() if line.startswith("Generator:")
+    ]
+    assert len(lines_starting_with_generator) == 0
+
+
 def test_commit_message_counts_new_methods_via_count_methods():
     """_commit_message's method count is _METHOD_RE-derived (count_methods),
     not the raw number of survivors — direct assertion on the rendered count,
@@ -130,7 +152,13 @@ def test_headless_commit_records_generator_label_via_run_context(
     ctx = dataclasses.replace(ctx, generator_label="headless (some-model)")
     monkeypatch.setattr(loop, "dotnet_build", lambda targets, **k: True)
     monkeypatch.setattr(loop, "dotnet_test", lambda targets, flt, **k: True)
-    clean = _write_report(tmp_path / "clean", "src/Widget.WebApi/PaymentService.cs", [])
+    # A real converged report still lists its mutants (now Killed) — an empty
+    # mutants list is indistinguishable from a crashed/mismatched run and
+    # would (correctly) trip the #1606 zero-mutants guard instead of "no
+    # survivors — done".
+    clean = _write_report(
+        tmp_path / "clean", "src/Widget.WebApi/PaymentService.cs", [_mutant("Killed")]
+    )
     (tmp_path / "clean").mkdir(exist_ok=True)
     monkeypatch.setattr(loop, "run_scoped_stryker", lambda *a, **k: clean)
 
@@ -185,7 +213,13 @@ def test_round_log_line_uses_file_scoped_score_for_single_file_report(
     )
     monkeypatch.setattr(loop, "dotnet_build", lambda targets, **k: True)
     monkeypatch.setattr(loop, "dotnet_test", lambda targets, flt, **k: True)
-    clean = _write_report(tmp_path / "clean", "src/Widget.WebApi/PaymentService.cs", [])
+    # A real converged report still lists its mutants (now Killed) — an empty
+    # mutants list is indistinguishable from a crashed/mismatched run and
+    # would (correctly) trip the #1606 zero-mutants guard instead of "no
+    # survivors — done".
+    clean = _write_report(
+        tmp_path / "clean", "src/Widget.WebApi/PaymentService.cs", [_mutant("Killed")]
+    )
     (tmp_path / "clean").mkdir(exist_ok=True)
     monkeypatch.setattr(loop, "run_scoped_stryker", lambda *a, **k: clean)
 
@@ -340,6 +374,57 @@ def test_baseline_seeded_zero_survivors_never_calls_scoped_stryker(
 
     assert any("no survivors" in msg for msg in logs)
     assert not any(e[0] in ("generate", "commit", "revert") for e in events)
+
+
+# =============================================================================
+# Scenario: A baseline report with zero mutants at all (a crashed Stryker
+# run, or a scoped-config file-key mismatch) must NOT be treated as
+# convergence — mirrors the Python loop's #1359 guard, added to the C# loop
+# in #1606 after verifying mutation_report's documented contract
+# (score_report_for_file/survivors_by_mutator never raise, and
+# run_scoped_stryker runs with check=False) makes this reachable, not just
+# theoretical.
+# =============================================================================
+def test_baseline_zero_total_mutants_is_not_treated_as_convergence(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    report_override = {"files": {"src/Widget.WebApi/PaymentService.cs": {"mutants": []}}}
+    logs: list[str] = []
+    source_file, ctx, kwargs, events = _loop_fixture(
+        tmp_path, monkeypatch, report_override=report_override, log=logs.append
+    )
+
+    loop.run_for_file(source_file, ctx, **kwargs)
+
+    assert not any("no survivors" in msg for msg in logs)
+    assert any("zero mutants generated" in msg for msg in logs)
+    assert any("NOT convergence" in msg for msg in logs)
+    assert not any(e[0] in ("generate", "commit", "revert") for e in events)
+
+
+def test_scoped_run_zero_total_mutants_is_not_treated_as_convergence(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    """Same guard, but for a round-2+ scoped run (not baseline-seeded) — a
+    crashed scoped Stryker invocation returning an empty/mismatched report
+    must not be mistaken for "this file has zero survivors"."""
+    logs: list[str] = []
+    source_file, ctx, kwargs, events = _loop_fixture(
+        tmp_path, monkeypatch, [_mutant("Survived")], log=logs.append
+    )
+    monkeypatch.setattr(loop, "dotnet_build", lambda targets, **k: True)
+    monkeypatch.setattr(loop, "dotnet_test", lambda targets, flt, **k: True)
+
+    crashed = _write_report(tmp_path / "crashed", "src/Widget.WebApi/PaymentService.cs", [])
+    monkeypatch.setattr(loop, "run_scoped_stryker", lambda *a, **k: crashed)
+
+    loop.run_for_file(source_file, ctx, **kwargs)
+
+    # Round 1 (baseline-seeded) commits normally; round 2's crashed scoped
+    # run must stop the file without a second (bogus) "no survivors" commit.
+    assert [e[0] for e in events].count("commit") == 1
+    assert not any("no survivors" in msg for msg in logs)
+    assert any("zero mutants generated" in msg for msg in logs)
 
 
 # =============================================================================

@@ -26,9 +26,9 @@ from — never the reverse — mirroring the C# split
 (``mutation_kill_insert.py``). Headless generation's shared ``claude --print``
 invocation glue and the generic (non-language-specific) helpers
 (``strip_code_fences``, ``resolve_model``, ``claude_cli_available``,
-``CLAUDE_CLI``, ``run_claude_headless``) live in ``mutation_kill_headless.py``
-and are reused, not duplicated, here — only the Python-flavored prompt
-(``build_generation_prompt``/``build_survivor_summary``) and the
+``CLAUDE_CLI``, ``run_claude_headless``) live in ``mutation_kill_shared.py``
+(#1601) and are reused, not duplicated, here — only the Python-flavored
+prompt (``build_generation_prompt``/``build_survivor_summary``) and the
 ``--headless`` CLI argument parsing for THIS loop stay local, since mutmut's
 CLI args (``--test-command``, no ``--config``/``--stryker-bin``) genuinely
 differ from the C# loop's.
@@ -39,13 +39,18 @@ rounds" stop predicate are imported from ``mutation_kill_shared.py`` rather
 than defined here — they were byte-for-byte duplicated with
 ``mutation_kill_loop.py`` before that module existed.
 
-**Import boundary.** Everything this module reaches for in
-``mutation_kill_headless`` is imported explicitly by name in one block below
-(``strip_code_fences``, ``resolve_model``, ``claude_cli_available``,
-``CLAUDE_CLI``, ``run_claude_headless``) — never via a module-qualified reach
-into a private, underscore-prefixed name at an arbitrary call site. This
-keeps every cross-module dependency visible in one place instead of scattered
-through the file.
+**Import boundary (#1601).** ``resolve_model``, ``claude_cli_available``,
+``CLAUDE_CLI``, and ``run_claude_headless`` are imported directly from
+``mutation_kill_shared`` — never from ``mutation_kill_headless``, which is
+the C#/Stryker.NET CLI module (it imports ``mutation_kill_loop`` at module
+scope and owns the C#-only ``--config``/``--stryker-bin`` CLI surface).
+(``strip_code_fences`` also moved to ``mutation_kill_shared`` but isn't
+imported here directly — this module only reaches it indirectly, through
+``run_claude_headless``'s own internal call.) Reaching into
+``mutation_kill_headless`` for these language-neutral names used to
+transitively pull the entire C# stack into this Python-only loop; importing
+them from the neutral ``mutation_kill_shared`` module instead removes that
+coupling entirely.
 """
 
 from __future__ import annotations
@@ -60,7 +65,6 @@ from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 
-import mutation_kill_headless as _cs_headless
 import mutation_report
 import mutation_safety_gate
 from mutation_kill_insert_python import apply_generated_tests, count_tests
@@ -68,10 +72,14 @@ from mutation_kill_shared import (
     GIT_TIMEOUT_S,  # noqa: F401 — re-exported for tests (loop.GIT_TIMEOUT_S), matching the C# sibling's export name
 )
 from mutation_kill_shared import (
+    CLAUDE_CLI,
     _timeout_from_env,
+    claude_cli_available,
     git_commit,
     git_reset_and_revert,
     git_revert,
+    resolve_model,
+    run_claude_headless,
     stop_reason,
 )
 
@@ -83,13 +91,6 @@ NO_GENERATOR_MESSAGE = (
     "no test generator available — invoke via the mutation-kill agent "
     "or pass --headless"
 )
-
-# Reused verbatim — none of these are Python-specific.
-strip_code_fences = _cs_headless.strip_code_fences
-resolve_model = _cs_headless.resolve_model
-claude_cli_available = _cs_headless.claude_cli_available
-CLAUDE_CLI = _cs_headless.CLAUDE_CLI
-run_claude_headless = _cs_headless.run_claude_headless
 
 MISSING_CLAUDE_MESSAGE = (
     f"--headless requires the Claude CLI but '{CLAUDE_CLI}' is not available. "
@@ -121,6 +122,17 @@ _MUTMUT_CACHE_LOCK_TIMEOUT_S = _timeout_from_env(
 # waiting. Small enough to notice a release promptly; large enough not to
 # busy-loop.
 _MUTMUT_CACHE_LOCK_POLL_INTERVAL_S = 0.1
+
+# Timeouts for the mutmut subprocesses themselves (#1605) — previously
+# unbounded, unlike the C# loop's DOTNET_BUILD_TIMEOUT_S/DOTNET_TEST_TIMEOUT_S
+# equivalents. The scoped `mutmut run` mutates and re-tests every mutant for
+# one file, so its budget mirrors STRYKER_RUN_TIMEOUT_S's order of magnitude;
+# `mutmut junitxml` only reformats already-computed results, so it gets a
+# short budget instead.
+_MUTMUT_RUN_TIMEOUT_S = _timeout_from_env("DEV_TEAM_MUTATION_MUTMUT_TIMEOUT_S", 3600)
+_MUTMUT_JUNITXML_TIMEOUT_S = _timeout_from_env(
+    "DEV_TEAM_MUTATION_MUTMUT_JUNITXML_TIMEOUT_S", 60
+)
 
 
 def _acquire_mutmut_cache_lock(root: Path, *, timeout: float = _MUTMUT_CACHE_LOCK_TIMEOUT_S) -> Path:
@@ -224,13 +236,38 @@ def run_scoped_mutmut(
         ]
         try:
             try:
-                subprocess.run(argv, cwd=cwd, capture_output=True, text=True, check=False)
+                subprocess.run(
+                    argv,
+                    cwd=cwd,
+                    capture_output=True,
+                    text=True,
+                    check=False,
+                    timeout=_MUTMUT_RUN_TIMEOUT_S,
+                )
             except (FileNotFoundError, OSError) as exc:
                 raise RuntimeError(f"mutmut run failed to start: {exc}") from exc
+            except subprocess.TimeoutExpired as exc:
+                raise RuntimeError(
+                    f"mutmut run timed out after {_MUTMUT_RUN_TIMEOUT_S}s for "
+                    f"{source_file} (set DEV_TEAM_MUTATION_MUTMUT_TIMEOUT_S to "
+                    "raise it)"
+                ) from exc
 
-            junit = subprocess.run(
-                [*prefix, "junitxml"], cwd=cwd, capture_output=True, text=True, check=False
-            )
+            try:
+                junit = subprocess.run(
+                    [*prefix, "junitxml"],
+                    cwd=cwd,
+                    capture_output=True,
+                    text=True,
+                    check=False,
+                    timeout=_MUTMUT_JUNITXML_TIMEOUT_S,
+                )
+            except subprocess.TimeoutExpired as exc:
+                raise RuntimeError(
+                    "mutmut junitxml extraction timed out after "
+                    f"{_MUTMUT_JUNITXML_TIMEOUT_S}s (set "
+                    "DEV_TEAM_MUTATION_MUTMUT_JUNITXML_TIMEOUT_S to raise it)"
+                ) from exc
             return junit.stdout or ""
         finally:
             git_revert(Path(source_file), cwd=cwd)
@@ -258,27 +295,63 @@ def extract_survivors(junitxml_text: str, source_file: str) -> list[dict]:
 # git_revert/git_reset_and_revert/git_commit are imported from
 # mutation_kill_shared.py (#1583) rather than defined in this section.
 # =============================================================================
+# Timeouts for the compile-check and scoped-test subprocesses (#1605) —
+# previously unbounded, unlike the C# loop's DOTNET_BUILD_TIMEOUT_S/
+# DOTNET_TEST_TIMEOUT_S equivalents.
+_PYTHON_COMPILE_TIMEOUT_S = _timeout_from_env(
+    "DEV_TEAM_MUTATION_PYTHON_COMPILE_TIMEOUT_S", 600
+)
+_PYTEST_TIMEOUT_S = _timeout_from_env("DEV_TEAM_MUTATION_PYTEST_TIMEOUT_S", 600)
+
+
+def _neutralize_leading_dash(path: Path) -> str:
+    """Return ``str(path)`` guarded against being parsed as a CLI flag
+    instead of a positional filename (#1607) — a ``test_file`` value like
+    ``-p`` would otherwise let pytest interpret it as ``-p <plugin>`` rather
+    than a (nonexistent) file. A ``--`` end-of-options marker is the usual
+    fix (and is what ``py_compile``'s own ``argparse``-based CLI honors),
+    but pytest's own argument parser does NOT treat ``--`` as ending option
+    parsing — a flag placed after it is still parsed, not treated as a bare
+    positional — so prefixing a relative, dash-leading path with ``./``
+    instead, which works regardless of a tool's own ``--`` support.
+    """
+    text = str(path)
+    return f"./{text}" if text.startswith("-") else text
+
+
 def python_compiles(test_file: Path, *, cwd: Path | None = None) -> bool:
-    """Syntax-check the test file — Python's equivalent of a build step."""
-    rc = subprocess.run(
-        [sys.executable, "-m", "py_compile", str(test_file)],
-        capture_output=True,
-        text=True,
-        cwd=cwd,
-        check=False,
-    ).returncode
+    """Syntax-check the test file — Python's equivalent of a build step.
+
+    False (not raised) on a timeout, matching this function's existing
+    "non-zero returncode -> False" contract for a plain compile failure.
+    """
+    try:
+        rc = subprocess.run(
+            [sys.executable, "-m", "py_compile", _neutralize_leading_dash(test_file)],
+            capture_output=True,
+            text=True,
+            cwd=cwd,
+            check=False,
+            timeout=_PYTHON_COMPILE_TIMEOUT_S,
+        ).returncode
+    except subprocess.TimeoutExpired:
+        return False
     return rc == 0
 
 
 def run_scoped_pytest(test_file: Path, *, cwd: Path | None = None) -> bool:
-    """Run the test file under pytest. False on any non-zero exit."""
-    rc = subprocess.run(
-        [sys.executable, "-m", "pytest", str(test_file), "-q"],
-        capture_output=True,
-        text=True,
-        cwd=cwd,
-        check=False,
-    ).returncode
+    """Run the test file under pytest. False on any non-zero exit or timeout."""
+    try:
+        rc = subprocess.run(
+            [sys.executable, "-m", "pytest", "-q", _neutralize_leading_dash(test_file)],
+            capture_output=True,
+            text=True,
+            cwd=cwd,
+            check=False,
+            timeout=_PYTEST_TIMEOUT_S,
+        ).returncode
+    except subprocess.TimeoutExpired:
+        return False
     return rc == 0
 
 
@@ -291,8 +364,13 @@ def _commit_message(
     generator_label: str | None = None,
 ) -> str:
     count = count_tests(new_tests)
+    # Whitespace-collapsed the same way append_generator_trailer sanitizes
+    # generator_label (#1607): source_file is caller-supplied, and a value
+    # containing a newline could otherwise forge an extra "Generator:"
+    # trailer line into the commit message.
+    safe_source_file = " ".join(str(source_file).split())
     message = (
-        f"test(mutation): kill round {round_num} — {source_file}\n\n"
+        f"test(mutation): kill round {round_num} — {safe_source_file}\n\n"
         f"{count} new test(s) targeting {survivors} surviving mutant(s)"
     )
     return mutation_safety_gate.append_generator_trailer(message, generator_label)
@@ -585,8 +663,9 @@ def make_headless_generator(
 
     Builds the Python-flavored prompt above, then delegates everything else
     (the ``--model`` flag, the timeout, error handling, and fence-stripping)
-    to the shared :func:`mutation_kill_headless.run_claude_headless` (#1583)
-    — previously duplicated byte-for-byte in this function.
+    to the shared :func:`mutation_kill_shared.run_claude_headless` (#1583,
+    relocated from ``mutation_kill_headless`` in #1601) — previously
+    duplicated byte-for-byte in this function.
     """
 
     def generate(

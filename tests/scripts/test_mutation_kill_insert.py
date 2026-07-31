@@ -23,7 +23,7 @@ SCRIPTS_DIR = (
 sys.path.insert(0, str(SCRIPTS_DIR))
 
 import mutation_kill_insert as insert
-import mutation_safety_gate
+import mutation_kill_shared
 
 FORBIDDEN_LITERALS = ["Aci.Speedpay", "Controllers", "AwesomeAssertions", "Moq", "AutoFixture"]
 
@@ -307,10 +307,11 @@ def test_count_methods_counts_public_test_methods():
 
 
 # =============================================================================
-# Scenario: InsertOutcome/InsertionRefused are the same objects mutation_safety_gate
-# defines, not a local duplicate (#1583 unification — parity with the Python
+# Scenario: InsertOutcome/InsertionRefused are the same objects
+# mutation_kill_shared defines (relocated from mutation_safety_gate in
+# #1602), not a local duplicate (#1583 unification — parity with the Python
 # sibling's equivalent identity test in test_mutation_kill_insert_python.py).
 # =============================================================================
-def test_insert_outcome_and_refused_are_shared_with_mutation_safety_gate():
-    assert insert.InsertOutcome is mutation_safety_gate.InsertOutcome
-    assert insert.InsertionRefused is mutation_safety_gate.InsertionRefused
+def test_insert_outcome_and_refused_are_shared_with_mutation_kill_shared():
+    assert insert.InsertOutcome is mutation_kill_shared.InsertOutcome
+    assert insert.InsertionRefused is mutation_kill_shared.InsertionRefused
