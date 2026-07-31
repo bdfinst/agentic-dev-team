@@ -53,8 +53,18 @@ KEBAB_RE = re.compile(r"^[a-z0-9]+(-[a-z0-9]+)*\.md$")
 
 # Pattern for skill/path references in CLAUDE.md we want to resolve:
 # matches strings like `skills/foo/SKILL.md` or `agents/bar.md`
+#
+# The excluded set must contain every markdown delimiter that can abut a path,
+# not just the closing paren. It originally omitted `[`, `]` and `(`, so an
+# ordinary link whose label is itself a path —
+# `[knowledge/x.md](knowledge/x.md)` — matched straight across the `](` and
+# produced the single bogus path `knowledge/x.md](knowledge/x.md`. That fired
+# three times on this plugin's own CLAUDE.md, so the validator reported `fail`
+# on a correct tree; a check that cries wolf on valid input gets ignored.
 PATH_REF_RE = re.compile(
-    r"(?:skills|agents|hooks|knowledge)/[^\s`\)\"\']+\.(?:md|sh|json|yaml|yml|py|js|ts)"
+    r"(?:skills|agents|hooks|knowledge)/"
+    r"[^\s`\(\)\[\]\"\']+"
+    r"\.(?:md|sh|json|yaml|yml|py|js|ts)"
 )
 
 
@@ -231,10 +241,18 @@ def check_path_references(root: Path) -> list[dict]:
     lines = text.splitlines()
 
     for lineno, line in enumerate(lines, start=1):
+        # A markdown link whose label is also a path yields that path twice
+        # (label and target). One missing file on one line is one finding.
+        # Keyed per line rather than per file so the same broken reference is
+        # still reported at each place it appears.
+        seen_on_line = set()
         for match in PATH_REF_RE.finditer(line):
             ref_path = match.group(0)
             # Strip trailing punctuation that might follow the path
             ref_path = ref_path.rstrip(".,;:!?")
+            if ref_path in seen_on_line:
+                continue
+            seen_on_line.add(ref_path)
             resolved = root / ref_path
             if not resolved.exists():
                 errors.append(

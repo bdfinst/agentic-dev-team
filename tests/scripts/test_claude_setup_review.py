@@ -338,3 +338,75 @@ def test_1_3_llm_unavailable_causes_exit_2_not_exit_1(
     # Must NOT be exit 1 (that would mean structural errors caused by LLM
     # failure). Should be exit 2 (LLM unavailable = warning, not error).
     assert result.returncode == 2
+
+
+# ---------------------------------------------------------------------------
+# Markdown-link path references (regression)
+#
+# PATH_REF_RE excluded whitespace, backticks, `)` and quotes from a path, but
+# not `]` or `(`. So a perfectly ordinary markdown link —
+# `[knowledge/x.md](knowledge/x.md)` — matched straight across the `](` and
+# yielded the single bogus path `knowledge/x.md](knowledge/x.md`, reported as
+# unresolvable. This repo's own plugin CLAUDE.md tripped it three times, so the
+# validator returned `fail` on a tree with nothing wrong with it. A check that
+# cries wolf on correct input gets ignored, which is how it stayed broken.
+# ---------------------------------------------------------------------------
+
+
+def test_markdown_link_to_an_existing_file_is_not_reported(plugin_root: Path) -> None:
+    (plugin_root / "knowledge").mkdir()
+    (plugin_root / "knowledge" / "registry.md").write_text("# Registry\n")
+    (plugin_root / "CLAUDE.md").write_text(
+        "# Test\n\nSee [knowledge/registry.md](knowledge/registry.md) for details.\n"
+    )
+    result = run_review(plugin_root, "--skip-llm")
+    assert "Unresolvable path reference" not in result.stdout, result.stdout
+
+
+def test_markdown_link_to_a_missing_file_is_reported_once_and_unmangled(
+    plugin_root: Path,
+) -> None:
+    """The label and the target are the same path; one missing file is one
+    finding, and the path in it must be the real path."""
+    (plugin_root / "CLAUDE.md").write_text(
+        "# Test\n\nSee [knowledge/absent.md](knowledge/absent.md) for details.\n"
+    )
+    result = run_review(plugin_root, "--skip-llm")
+    payload = json.loads(
+        [line for line in result.stdout.splitlines() if line.startswith("{")][0]
+    )
+    unresolvable = [
+        issue
+        for issue in payload["issues"]
+        if "Unresolvable path reference" in issue["message"]
+    ]
+    assert len(unresolvable) == 1, unresolvable
+    assert "knowledge/absent.md'" in unresolvable[0]["message"]
+    assert "](" not in unresolvable[0]["message"]
+
+
+def test_distinct_missing_paths_on_one_line_are_reported_separately(
+    plugin_root: Path,
+) -> None:
+    """Dedupe must be per path, not per line — collapsing the line would hide
+    the second broken reference."""
+    (plugin_root / "CLAUDE.md").write_text(
+        "# Test\n\n[one](knowledge/gone-a.md) and [two](knowledge/gone-b.md)\n"
+    )
+    result = run_review(plugin_root, "--skip-llm")
+    payload = json.loads(
+        [line for line in result.stdout.splitlines() if line.startswith("{")][0]
+    )
+    paths = {
+        issue["message"].split("'")[1]
+        for issue in payload["issues"]
+        if "Unresolvable path reference" in issue["message"]
+    }
+    assert paths == {"knowledge/gone-a.md", "knowledge/gone-b.md"}
+
+
+def test_the_real_plugin_tree_has_no_unresolvable_references(plugin_root: Path) -> None:
+    """The shipped plugin is the case that exposed this. It must come back
+    clean, or the validator is still crying wolf."""
+    result = run_review(REPO_ROOT / "plugins" / "dev-team", "--skip-llm")
+    assert "Unresolvable path reference" not in result.stdout, result.stdout
