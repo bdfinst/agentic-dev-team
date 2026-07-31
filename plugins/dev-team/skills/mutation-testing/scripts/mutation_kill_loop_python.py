@@ -69,10 +69,8 @@ import mutation_report
 import mutation_safety_gate
 from mutation_kill_insert_python import apply_generated_tests, count_tests
 from mutation_kill_shared import (
-    GIT_TIMEOUT_S,  # noqa: F401 — re-exported for tests (loop.GIT_TIMEOUT_S), matching the C# sibling's export name
-)
-from mutation_kill_shared import (
     CLAUDE_CLI,
+    GIT_TIMEOUT_S,  # noqa: F401 — re-exported for tests (loop.GIT_TIMEOUT_S), matching the C# sibling's export name
     _timeout_from_env,
     claude_cli_available,
     git_commit,
