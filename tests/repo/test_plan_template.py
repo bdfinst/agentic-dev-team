@@ -2,7 +2,8 @@
 an `### Acceptance Criteria` mirror inside `## Build Progress`, and /build
 no longer tries to tick items in that (removed) subsection. Ships with a
 belt-and-suspenders assertion that the #525 guardian inner-skip logic is
-still present in scripts/progress_guardian.py so legacy plans still work.
+still present in plugins/dev-team/scripts/progress_guardian.py so legacy
+plans still work.
 
 Ported from tests/repo/plan-template-tests.bats (#673).
 """
@@ -26,7 +27,7 @@ PLAN_TEMPLATE = (
     / "plan-template.md"
 )
 BUILD_SKILL = REPO_ROOT / "plugins" / "dev-team" / "skills" / "build" / "SKILL.md"
-GUARDIAN = REPO_ROOT / "scripts" / "progress_guardian.py"
+GUARDIAN = REPO_ROOT / "plugins" / "dev-team" / "scripts" / "progress_guardian.py"
 
 # ---------------------------------------------------------------------------
 # Slice 1 - /plan template + Step 4 prose

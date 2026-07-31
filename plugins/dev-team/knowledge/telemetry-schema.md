@@ -306,7 +306,7 @@ with a runtime surface was marked complete. Schema modeled on
 
 - **Emitter:** `/build` skill (model-authored append, sub-step 4.9).
 - **Consent:** unconditional.
-- **Consumers:** `scripts/progress_guardian.py --pre-pr` (fails closed on a runtime-surface change with no matching entry), `skills/performance-metrics/SKILL.md`.
+- **Consumers:** `${CLAUDE_PLUGIN_ROOT}/scripts/progress_guardian.py --pre-pr` (fails closed on a runtime-surface change with no matching entry), `skills/performance-metrics/SKILL.md`.
 
 ---
 

@@ -22,8 +22,11 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
-# review_result moved under plugins/dev-team/scripts/lib — see the note in
-# progress_guardian.py.
+# This script stays at repo-root (dev/CI tooling, not shipped — #1636), but
+# review_result.py itself lives under the plugin, so both `lib` dirs land on
+# sys.path: this repo-root scripts/lib/ (unrelated modules) and the plugin's
+# scripts/lib/ (review_result.py). Explicit path import below, not `lib.`, so
+# the two same-named namespace packages never have to merge implicitly.
 sys.path.insert(
     0,
     str(Path(__file__).resolve().parents[1] / "plugins" / "dev-team" / "scripts" / "lib"),

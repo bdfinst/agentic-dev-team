@@ -7,7 +7,7 @@ effort: high
 color: cyan
 ---
 
-> **Implemented by:** scripts/codebase_recon.py
+> **Implemented by:** ${CLAUDE_PLUGIN_ROOT}/scripts/codebase_recon.py
 
 ## Thinking Guidance
 
@@ -116,7 +116,7 @@ Run these git commands (read-only). If the target is not a git repo, fill arrays
 Run the canonical enumeration pipeline to produce the authoritative list of files the recon considered in-scope. This file backs the envelope's `file_inventory` field (primitives contract 1.2.0+) and is the anchor for any consumer that wants to detect reads of files outside the recon surface (e.g., Gap 6's manifest-membership hook).
 
 ```
-plugins/dev-team/scripts/recon_inventory.py <repo-root> \
+${CLAUDE_PLUGIN_ROOT}/scripts/recon_inventory.py <repo-root> \
     --slug <slug> \
     --emit-main-inventory-json <tmpfile-for-main-envelope-fragment>
 ```

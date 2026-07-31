@@ -44,7 +44,7 @@ Verify:
 If a plan file is present (check `plans/` for the most recently modified approved or implemented plan), run the plan completion gate:
 
 ```bash
-python3 scripts/progress_guardian.py --pre-pr --plan <plan-file>
+python3 ${CLAUDE_PLUGIN_ROOT}/scripts/progress_guardian.py --pre-pr --plan <plan-file>
 ```
 
 A non-zero exit means incomplete steps remain; stop and surface the findings — do not open the PR until all steps are `[x]`.

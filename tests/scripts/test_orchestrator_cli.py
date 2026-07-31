@@ -1,4 +1,4 @@
-"""Slice 6 — scripts/orchestrator.py CLI integration tests.
+"""Slice 6 — plugins/dev-team/scripts/orchestrator.py CLI integration tests.
 
 Covers task classification, fast-path branch, --resume flag, phase state,
 concurrent persona dispatch, and wave barrier — driven through the CLI
@@ -17,7 +17,7 @@ from pathlib import Path
 
 from _repo_root import REPO_ROOT
 
-ORCH = REPO_ROOT / "scripts" / "orchestrator.py"
+ORCH = REPO_ROOT / "plugins" / "dev-team" / "scripts" / "orchestrator.py"
 
 
 def _run(
@@ -96,7 +96,7 @@ def test_6_2b_resume_with_prior_research_state_skips_research_and_exits_0(
 def test_6_3a_wave_barrier_failure_prints_resume_hint_to_stderr(tmp_path: Path) -> None:
     result = _run(tmp_path, "--skip-llm", "--fail-wave", stdin_text="a task")
     assert result.returncode == 1
-    hint = "Resume with: python3 scripts/orchestrator.py --resume"
+    hint = f"Resume with: python3 {ORCH} --resume"
     assert hint in result.stdout or hint in result.stderr
 
 

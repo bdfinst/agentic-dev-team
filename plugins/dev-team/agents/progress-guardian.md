@@ -14,7 +14,7 @@ Cites:
 - directory-enumeration
 Enforcement: script
 
-> **Implemented by:** scripts/progress_guardian.py
+> **Implemented by:** ${CLAUDE_PLUGIN_ROOT}/scripts/progress_guardian.py
 
 Output JSON: per `${CLAUDE_PLUGIN_ROOT}/knowledge/review-agent-output-contract.md` (Whole-file load: short, canonical schema).
 

@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 """orchestrator.py — Python dispatcher for the dev-team three-phase pipeline.
 
-CLI: python3 scripts/orchestrator.py [--resume] [--skip-llm] [--memory-dir <path>]
-     [--classify trivial|standard|complex] [--fail-wave] [--dispatch-personas]
+CLI: python3 ${CLAUDE_PLUGIN_ROOT}/scripts/orchestrator.py [--resume] [--skip-llm]
+     [--memory-dir <path>] [--classify trivial|standard|complex] [--fail-wave]
+     [--dispatch-personas]
 
 Flags:
   --resume            Skip phases whose state files already exist in memory-dir.
@@ -21,6 +22,7 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import functools
 import json
 import subprocess
 import sys
@@ -71,19 +73,25 @@ async def classify(request: str, skip_llm: bool = False) -> dict:
     try:
         # Offload the blocking call to a thread so an awaiting/gathered caller
         # keeps a free event loop instead of serializing on subprocess.run (#1213).
-        result = await asyncio.to_thread(
-            subprocess.run,
-            [
-                "claude",
-                "-p",
-                (
-                    "Classify this task as exactly one of: trivial, standard, or complex. "
-                    f"Reply with only one word. Task: {request}"
-                ),
-            ],
-            capture_output=True,
-            text=True,
-            timeout=30,
+        # run_in_executor, not asyncio.to_thread (3.9+) — this module ships under
+        # the plugin and must run on the Python 3.8 floor (ADR 0014).
+        loop = asyncio.get_running_loop()
+        result = await loop.run_in_executor(
+            None,
+            functools.partial(
+                subprocess.run,
+                [
+                    "claude",
+                    "-p",
+                    (
+                        "Classify this task as exactly one of: trivial, standard, or complex. "
+                        f"Reply with only one word. Task: {request}"
+                    ),
+                ],
+                capture_output=True,
+                text=True,
+                timeout=30,
+            ),
         )
         if result.returncode == 0 and result.stdout.strip():
             raw = result.stdout.strip().lower()
@@ -136,12 +144,17 @@ async def dispatch_persona(persona: str, plan: dict, skip_llm: bool = False) -> 
         )
         # Offload to a thread so asyncio.gather over multiple personas actually
         # overlaps instead of blocking the event loop on subprocess.run (#1213).
-        result = await asyncio.to_thread(
-            subprocess.run,
-            ["claude", "-p", prompt],
-            capture_output=True,
-            text=True,
-            timeout=60,
+        # run_in_executor, not asyncio.to_thread (3.9+) — see classify() above.
+        loop = asyncio.get_running_loop()
+        result = await loop.run_in_executor(
+            None,
+            functools.partial(
+                subprocess.run,
+                ["claude", "-p", prompt],
+                capture_output=True,
+                text=True,
+                timeout=60,
+            ),
         )
         if result.returncode == 0 and result.stdout.strip():
             raw = result.stdout.strip()
@@ -227,7 +240,10 @@ async def run_pipeline(
     # Wave barrier failure simulation (for testing)
     if fail_wave:
         print("ERROR: wave barrier failed on slice 'slice-1'", file=sys.stderr)
-        print("Resume with: python3 scripts/orchestrator.py --resume", file=sys.stderr)
+        print(
+            f"Resume with: python3 {SCRIPTS / 'orchestrator.py'} --resume",
+            file=sys.stderr,
+        )
         return 1
 
     # Persona dispatch (for testing --dispatch-personas flag)

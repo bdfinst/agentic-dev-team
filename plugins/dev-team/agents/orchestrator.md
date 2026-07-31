@@ -24,7 +24,7 @@ skills:
   - branch-workflow
 ---
 
-> **Implemented by:** scripts/orchestrator.py
+> **Implemented by:** ${CLAUDE_PLUGIN_ROOT}/scripts/orchestrator.py
 
 # Orchestrator Agent
 

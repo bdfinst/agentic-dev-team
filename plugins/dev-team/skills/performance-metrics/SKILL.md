@@ -220,13 +220,13 @@ first place.
 
 | Field | Type | Description |
 | --- | --- | --- |
-| `branch` | string | Current branch name — `scripts/progress_guardian.py --pre-pr` matches on this |
+| `branch` | string | Current branch name — `${CLAUDE_PLUGIN_ROOT}/scripts/progress_guardian.py --pre-pr` matches on this |
 | `files` | string[] | The slice's changed runtime files the verification was scoped to |
 | `outcome` | string | `ran` (the verification ran and passed), `skipped` (no runtime surface — see `reason`), or `failed-then-fixed` (the verification failed at least once before the fix landed) |
 | `reason` | string \| null | Required when `outcome` is `skipped` (e.g. `"tests-only"`, `"docs-only"`); `null` otherwise |
 
 **Not disableable.** Unlike Review Value logging (`DEV_TEAM_REVIEW_VALUE=off`),
-there is no env var to turn this off — `scripts/progress_guardian.py --pre-pr`
+there is no env var to turn this off — `${CLAUDE_PLUGIN_ROOT}/scripts/progress_guardian.py --pre-pr`
 fails closed on a branch with runtime-surface changes and no matching entry,
 and that gate is a correctness control, not a metrics-collection nicety.
 

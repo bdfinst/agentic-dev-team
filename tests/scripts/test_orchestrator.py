@@ -1,4 +1,4 @@
-"""Pytest async tests for scripts/orchestrator.py — Slice 6.
+"""Pytest async tests for plugins/dev-team/scripts/orchestrator.py — Slice 6.
 
 Tests classification, fast-path routing, phase state persistence,
 --resume skip logic, persona dispatch concurrency, and wave barrier.
@@ -14,8 +14,8 @@ from unittest.mock import patch
 
 import pytest
 
-# Ensure scripts/ is on the path so we can import orchestrator
-SCRIPTS = Path(__file__).resolve().parents[2] / "scripts"
+# Ensure plugins/dev-team/scripts/ is on the path so we can import orchestrator
+SCRIPTS = Path(__file__).resolve().parents[2] / "plugins" / "dev-team" / "scripts"
 sys.path.insert(0, str(SCRIPTS))
 
 import orchestrator as orch
