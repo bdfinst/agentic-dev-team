@@ -120,6 +120,22 @@ review agents. Check:
      frontmatter. WARN if a body line restates either as prose (e.g. an
      `Effort:` line, or a body-level model-tier label) — that duplicate is a
      drift source and must be removed.
+   - **Carve-out — `Verify-model:` / `Verify-effort:` (#1628)**: these two
+     body declarations are NOT a restatement of `model:`/`effort:` and must
+     never be flagged by the single-source rule above. They name a *different*
+     tier — the one used for fix-verification re-dispatches only — and they
+     live in the body for the same reason `Scope:` and `Cites:` do (#1333:
+     frontmatter is reserved for the official contract; these are not part
+     of it). Validate them with:
+
+     ```bash
+     python3 scripts/verify_tier.py --all
+     ```
+
+     Fold a non-empty `errors` array into WARN, naming the agent and the
+     invalid value. An agent with no declaration is correct, not incomplete —
+     the default is deliberately "same tier as discovery". Contract:
+     `knowledge/verification-mode.md`.
 
 9. **Context needs**: Does the agent declare a `Context needs:` field?
    - All agents MUST declare what input context they need

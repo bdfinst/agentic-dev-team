@@ -11,6 +11,12 @@ color: green
 # Naming Review
 
 Scope: always
+Verify-model: haiku
+Verify-effort: medium
+<!-- Verification-mode opt-in (#1628): confirming a rename landed
+     consistently is near-mechanical once the rename itself is applied.
+     Discovery stays sonnet/high. Contract: ${CLAUDE_PLUGIN_ROOT}/knowledge/verification-mode.md
+     (Whole-file load: short shared contract, no anchors). -->
 Cites:
 - design-smells
 - adversarial-review-protocol

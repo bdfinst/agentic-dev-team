@@ -437,8 +437,14 @@ while actionable_issues > 0 AND iteration ≤ MAX_ITERATIONS:
        checkpoints (`../build/SKILL.md` sub-steps 4/6) — one shared habit,
        not a duplicated checklist.
     4. Re-run only the agents whose remaining actionable issues were not
-       already closed by step 3b's deterministic triage, against only the
-       modified files. Carry forward statuses of agents that passed.
+       already closed by step 3b's deterministic triage, **in verification
+       mode** (#1628) — pass the finding, the fix diff hunks ± ~20 lines,
+       and the agent's lens definition, NOT the full target file set, and
+       grant the mandatory `insufficient-context` escape. Resolve each
+       agent's verification tier with `python3
+       "$CLAUDE_PLUGIN_ROOT/scripts/verify_tier.py" --agent <name>`. Full
+       contract: [`knowledge/verification-mode.md`](../../knowledge/verification-mode.md).
+       Carry forward statuses of agents that passed.
     5. Re-aggregate. Reclassify remaining issues.
     5a. **Classify the round against the ledger (#1625).** Run the round
        ledger (below). It decides new-vs-carried by finding signature and

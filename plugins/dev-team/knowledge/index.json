@@ -1795,6 +1795,36 @@
       "anchor": "how-this-connects-to-the-rest-of-the-toolkit"
     }
   },
+  "plugins/dev-team/knowledge/verification-mode.md": {
+    "The problem": {
+      "summary": "When a fix loop re-dispatches an agent to confirm a fix, that dispatch is",
+      "anchor": "the-problem"
+    },
+    "Stage 1 — context narrowing (no routing change)": {
+      "summary": "A verification re-dispatch passes **only**:",
+      "anchor": "stage-1-context-narrowing-no-routing-change"
+    },
+    "Stage 2 — tier-down, declared per agent, never inferred": {
+      "summary": "An agent may opt in to a cheaper tier **for verification dispatches only** by",
+      "anchor": "stage-2-tier-down-declared-per-agent-never-inferred"
+    },
+    "Why a body declaration, not frontmatter": {
+      "summary": "Issue #1333 established that this plugin's own tooling metadata lives in the",
+      "anchor": "why-a-body-declaration-not-frontmatter"
+    },
+    "Initial opt-ins": {
+      "summary": "| Agent | Verify tier | Why |",
+      "anchor": "initial-opt-ins"
+    },
+    "Recording": {
+      "summary": "Every verification dispatch is recorded with `dispatch_purpose: \"verification\"`",
+      "anchor": "recording"
+    },
+    "Out of scope": {
+      "summary": "Auto-inferring the tier from a finding's severity or confidence.",
+      "anchor": "out-of-scope"
+    }
+  },
   "plugins/dev-team/knowledge/virtual-service-libraries.md": {
     "Preferred vs. backup": {
       "summary": "A record-and-replay virtual-service library is the **preferred** pre-merge",
