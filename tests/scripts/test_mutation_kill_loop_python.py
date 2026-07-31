@@ -34,10 +34,10 @@ from _mutation_test_helpers import (
 sys.path.insert(0, str(SCRIPTS_DIR))
 
 import mutation_kill_loop_python as loop
-import mutation_kill_shared as shared  # noqa: E402
+import mutation_kill_shared as shared
 
 
-def _ctx(test_file: Path, source_file: Path, *, log=print, **overrides) -> "loop.RunContext":
+def _ctx(test_file: Path, source_file: Path, *, log=print, **overrides) -> loop.RunContext:
     """Build a RunContext for these tests — a thin local convenience since
     the vast majority of tests here only vary test_file/source_file/log."""
     fields = {

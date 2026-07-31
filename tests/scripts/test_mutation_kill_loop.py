@@ -24,11 +24,10 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+import mutation_kill_loop as loop
 import pytest
 from _mutation_kill_loop_test_helpers import _mutant, _write_config, _write_report
 from _mutation_test_helpers import FORBIDDEN_LITERALS
-
-import mutation_kill_loop as loop  # noqa: E402 (sys.path set up by the helper import above)
 
 
 # =============================================================================

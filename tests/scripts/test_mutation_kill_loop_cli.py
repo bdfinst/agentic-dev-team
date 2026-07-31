@@ -13,13 +13,12 @@ from __future__ import annotations
 import subprocess
 import sys
 
-from _mutation_test_helpers import FORBIDDEN_LITERALS, SCRIPTS_DIR
-
 import _mutation_kill_loop_test_helpers  # noqa: F401 (sys.path side effect)
 import mutation_kill_headless  # module-split literal check below
 import mutation_kill_insert  # module-split literal check below
-import mutation_kill_loop as loop  # noqa: E402
+import mutation_kill_loop as loop
 import mutation_kill_shared  # module-split literal check below
+from _mutation_test_helpers import FORBIDDEN_LITERALS, SCRIPTS_DIR
 
 
 # =============================================================================
