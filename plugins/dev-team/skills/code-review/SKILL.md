@@ -187,6 +187,21 @@ Skip if `--no-static-analysis` or `--background`.
 
 Follow the detection, execution, and deduplication procedure in [`skills/static-analysis-integration/SKILL.md`](../static-analysis-integration/SKILL.md). Output is structured findings injected into agent context in step 4. **This step does not gate execution** — it collects context only.
 
+**Repo-specific invariant pre-pass (#1608).** Also run:
+
+```bash
+python3 "$CLAUDE_PLUGIN_ROOT/skills/code-review/scripts/repo_invariants.py"
+```
+
+It checks a small, growable list of this repo's own "every X should have
+exactly one corresponding Y" invariants — mechanically checkable facts a full
+agent panel would otherwise re-derive independently, once per agent, every
+round. Its `findings` array merges into step 4's static-analysis context using
+the same envelope and the same "detected by static analysis — do not
+re-report, focus on semantic concerns" framing. Expand `CHECKS` in that script
+as more rediscovered-N-times cases turn up; this step never needs to change to
+pick up a new check.
+
 If Semgrep already ran in the pre-flight gate, reuse those findings. Do not run Semgrep twice.
 
 ### 3. Determine enabled agents
@@ -371,8 +386,29 @@ while actionable_issues > 0 AND iteration ≤ MAX_ITERATIONS:
        `--all` scopes, leave the index untouched — no gate is ever written
        for those scopes, so staging here would only mutate the operator's
        index unasked, for no corroboration benefit.
-    4. Re-run only the agents that reported actionable issues, against only
-       the modified files. Carry forward statuses of agents that passed.
+    3b. **Deterministic-first triage (#1610).** Before re-dispatching an agent
+       to re-verify a fix, check whether the fix already qualifies for a
+       cheaper, deterministic close: (a) it is a pure rename/mechanical edit
+       (docstring correction, import fix, identifier rename), (b) the
+       project's linter/type-checker (`ruff check`, `tsc`, etc.) and full test
+       suite already ran clean in step 2, and (c) the specific claim needing
+       verification is itself checkable by a targeted `grep`/diff (e.g. "every
+       occurrence was renamed, no partial/mangled identifiers", "the removed
+       import has no remaining references"). When all three hold, run that
+       deterministic check now and mark the issue resolved on a pass — do not
+       spend a re-dispatch confirming what ruff/pytest/grep already proved.
+       Escalate to the normal per-agent re-dispatch (step 4) whenever any
+       condition fails to hold, or the check itself can't fully close the
+       question (e.g. judging whether a restored docstring's *prose* is
+       accurate needs semantic reading, not a grep). This is a triage habit,
+       not a gate: it only ever *removes* work from step 4, never adds new
+       issues or skips a fix that genuinely needs judgment. The same triage
+       applies to ad-hoc fix-verification inside `/build`'s inline review
+       checkpoints (`../build/SKILL.md` sub-steps 4/6) — one shared habit,
+       not a duplicated checklist.
+    4. Re-run only the agents whose remaining actionable issues were not
+       already closed by step 3b's deterministic triage, against only the
+       modified files. Carry forward statuses of agents that passed.
     5. Re-aggregate. Reclassify remaining issues.
     6. iteration += 1
 

@@ -1,7 +1,14 @@
 """Pytest tests for mutation_kill_loop.py's verify/commit subprocess wiring —
-``dotnet_build``/``dotnet_test``/``git_revert``/``git_commit``/
-``git_reset_and_revert`` (#1564 split of ``test_mutation_kill_loop.py``).
-Every dotnet/git subprocess is mocked; no real .NET tooling runs.
+``dotnet_build``/``dotnet_test`` (#1564 split of ``test_mutation_kill_loop.py``).
+Every dotnet subprocess is mocked; no real .NET tooling runs.
+
+``git_revert``/``git_commit``/``git_reset_and_revert`` are re-exported
+bindings onto ``mutation_kill_shared.py``'s implementation (#1583); their
+full behavioral suite (timeout handling, argv shape, add/commit/reset branch
+coverage) lives in ``test_mutation_kill_shared.py`` as the single source of
+truth (#1603) — this file keeps only the identity check below, confirming
+the re-export stays wired to the shared implementation rather than drifting
+into a local copy.
 
 The script's CLI dispatch and the cross-module no-repo-specific-literal sweep
 live in ``test_mutation_kill_loop_cli.py`` — a separate file so this one stays
@@ -14,6 +21,7 @@ import pytest
 from _mutation_kill_loop_test_helpers import _write_config
 
 import mutation_kill_loop as loop  # noqa: E402 (sys.path set up by the helper import above)
+import mutation_kill_shared as shared  # noqa: E402
 
 
 # =============================================================================
@@ -274,278 +282,14 @@ def test_dotnet_test_timeout_is_treated_as_a_test_failure(
     assert "DEV_TEAM_MUTATION_TEST_TIMEOUT_S" in err
 
 
-def test_git_revert_checks_out_only_the_test_file(
-    tmp_path, monkeypatch: pytest.MonkeyPatch
-):
-    seen: list = []
-    monkeypatch.setattr(loop.subprocess, "run", lambda argv, **k: seen.append(argv))
-
-    loop.git_revert(tmp_path / "PaymentServiceTests.cs")
-
-    assert seen[0] == [
-        "git",
-        "--literal-pathspecs",
-        "checkout",
-        "--",
-        str(tmp_path / "PaymentServiceTests.cs"),
-    ]
-
-
 # =============================================================================
-# Scenario: A hung `git checkout`/`git add`/`git commit` is bounded by a
-# timeout, not left to hang the loop forever (#1572 — same class of fix as
-# #1558's dotnet_build/dotnet_test/Stryker timeouts).
+# git_revert / git_commit / git_reset_and_revert — identity check only.
+# Full behavioral coverage (timeout handling, argv shape, add/commit/reset
+# branch coverage) lives in test_mutation_kill_shared.py as the single
+# source of truth (#1603); this confirms the re-export stays wired to that
+# shared implementation rather than drifting into a local copy.
 # =============================================================================
-def test_git_revert_passes_a_timeout(tmp_path, monkeypatch: pytest.MonkeyPatch):
-    captured: dict = {}
-    monkeypatch.setattr(loop.subprocess, "run", lambda argv, **k: captured.update(k))
-
-    loop.git_revert(tmp_path / "PaymentServiceTests.cs")
-
-    assert captured["timeout"] == loop.GIT_TIMEOUT_S
-
-
-def test_git_revert_timeout_is_logged_not_raised(
-    tmp_path, monkeypatch: pytest.MonkeyPatch, capsys
-):
-    def fake_run(argv, **kwargs):
-        raise loop.subprocess.TimeoutExpired(argv, kwargs["timeout"])
-
-    monkeypatch.setattr(loop.subprocess, "run", fake_run)
-
-    loop.git_revert(tmp_path / "PaymentServiceTests.cs")  # must not raise
-
-    err = capsys.readouterr().err
-    assert str(loop.GIT_TIMEOUT_S) in err
-    assert "DEV_TEAM_MUTATION_GIT_TIMEOUT_S" in err
-    # git_revert, git_commit's "add" leg, and git_commit's "commit" leg all
-    # share GIT_TIMEOUT_S/DEV_TEAM_MUTATION_GIT_TIMEOUT_S — the inline stderr
-    # text each mutation_kill_shared.py function writes on TimeoutExpired
-    # (#1583; no longer routed through _run_with_timeout) is what distinguishes
-    # their timeout messages from one another.
-    assert "git checkout" in err
-
-
-def test_git_commit_passes_a_timeout_to_add_and_commit(
-    tmp_path, monkeypatch: pytest.MonkeyPatch
-):
-    calls: list = []
-
-    class _R:
-        returncode = 0
-
-    def fake_run(argv, **kwargs):
-        calls.append((argv, kwargs))
-        return _R()
-
-    monkeypatch.setattr(loop.subprocess, "run", fake_run)
-
-    result = loop.git_commit("msg", tmp_path / "PaymentServiceTests.cs")
-
-    assert result is True
-    assert calls[0][0] == [
-        "git",
-        "--literal-pathspecs",
-        "add",
-        "--",
-        str(tmp_path / "PaymentServiceTests.cs"),
-    ]
-    assert calls[0][1]["timeout"] == loop.GIT_TIMEOUT_S
-    assert calls[1][0][:3] == ["git", "--literal-pathspecs", "commit"]
-    assert calls[1][1]["timeout"] == loop.GIT_TIMEOUT_S
-
-
-def test_git_commit_add_leg_timeout_returns_false(
-    tmp_path, monkeypatch: pytest.MonkeyPatch, capsys
-):
-    def fake_run(argv, **kwargs):
-        raise loop.subprocess.TimeoutExpired(argv, kwargs["timeout"])
-
-    monkeypatch.setattr(loop.subprocess, "run", fake_run)
-
-    assert loop.git_commit("msg", tmp_path / "PaymentServiceTests.cs") is False
-    err = capsys.readouterr().err
-    assert str(loop.GIT_TIMEOUT_S) in err
-    assert "DEV_TEAM_MUTATION_GIT_TIMEOUT_S" in err
-    assert "git add" in err
-
-
-def test_git_commit_commit_leg_timeout_returns_false(
-    tmp_path, monkeypatch: pytest.MonkeyPatch, capsys
-):
-    """The `git add` leg succeeds; only the `git commit` leg's own
-    subprocess.run call (mutation_kill_shared.git_commit, #1583) times out —
-    a distinct branch from the add-leg timeout above, since git_commit
-    short-circuits on add before ever reaching commit."""
-
-    calls: list = []
-
-    class _R:
-        returncode = 0
-
-    def fake_run(argv, **kwargs):
-        calls.append(argv)
-        if len(calls) == 1:
-            return _R()
-        raise loop.subprocess.TimeoutExpired(argv, kwargs["timeout"])
-
-    monkeypatch.setattr(loop.subprocess, "run", fake_run)
-
-    assert loop.git_commit("msg", tmp_path / "PaymentServiceTests.cs") is False
-    # Pin the branch this test targets by call order, not just count — a
-    # future reordering of the add/commit calls should fail loudly here
-    # rather than silently exercising the wrong leg.
-    assert calls[0][:3] == ["git", "--literal-pathspecs", "add"]
-    err = capsys.readouterr().err
-    assert str(loop.GIT_TIMEOUT_S) in err
-    assert "DEV_TEAM_MUTATION_GIT_TIMEOUT_S" in err
-    assert "git commit" in err
-
-
-def test_git_commit_scopes_the_commit_call_to_the_test_file(
-    tmp_path, monkeypatch: pytest.MonkeyPatch
-):
-    """git commit -m message with no pathspec commits the WHOLE index, not
-    just test_file — the commit call must carry the same `-- <path>`
-    pathspec `git add` already uses (#1598)."""
-    calls: list = []
-
-    class _R:
-        returncode = 0
-
-    def fake_run(argv, **kwargs):
-        calls.append(argv)
-        return _R()
-
-    monkeypatch.setattr(loop.subprocess, "run", fake_run)
-
-    result = loop.git_commit("msg", tmp_path / "PaymentServiceTests.cs")
-
-    assert result is True
-    assert calls[1] == [
-        "git",
-        "--literal-pathspecs",
-        "commit",
-        "-m",
-        "msg",
-        "--",
-        str(tmp_path / "PaymentServiceTests.cs"),
-    ]
-
-
-def test_git_revert_returns_true_on_success(
-    tmp_path, monkeypatch: pytest.MonkeyPatch
-):
-    class _R:
-        returncode = 0
-
-    monkeypatch.setattr(loop.subprocess, "run", lambda argv, **k: _R())
-
-    assert loop.git_revert(tmp_path / "PaymentServiceTests.cs") is True
-
-
-def test_git_revert_returns_false_on_nonzero_exit(
-    tmp_path, monkeypatch: pytest.MonkeyPatch
-):
-    class _R:
-        returncode = 1
-
-    monkeypatch.setattr(loop.subprocess, "run", lambda argv, **k: _R())
-
-    assert loop.git_revert(tmp_path / "PaymentServiceTests.cs") is False
-
-
-def test_git_revert_returns_false_on_timeout(
-    tmp_path, monkeypatch: pytest.MonkeyPatch
-):
-    def fake_run(argv, **kwargs):
-        raise loop.subprocess.TimeoutExpired(argv, kwargs["timeout"])
-
-    monkeypatch.setattr(loop.subprocess, "run", fake_run)
-
-    assert loop.git_revert(tmp_path / "PaymentServiceTests.cs") is False
-
-
-def test_git_commit_proceeds_to_commit_after_a_non_timeout_add_failure(
-    tmp_path, monkeypatch: pytest.MonkeyPatch
-):
-    """Pins the documented (not-changed-by-#1593) behavior: git_commit only
-    inspects git add's timeout, not its returncode, so a non-timeout git add
-    failure (e.g. bad pathspec) still falls through to attempting the
-    commit."""
-
-    calls: list = []
-
-    class _R:
-        def __init__(self, returncode):
-            self.returncode = returncode
-
-    def fake_run(argv, **kwargs):
-        calls.append(argv)
-        return _R(returncode=1) if len(calls) == 1 else _R(returncode=0)
-
-    monkeypatch.setattr(loop.subprocess, "run", fake_run)
-
-    result = loop.git_commit("msg", tmp_path / "PaymentServiceTests.cs")
-
-    assert result is True
-    assert len(calls) == 2
-    assert calls[1][:3] == ["git", "--literal-pathspecs", "commit"]
-
-
-# =============================================================================
-# Scenario: git_reset_and_revert's own internal failure branches — every
-# other test either exercises the full real-git success path or mocks
-# git_reset_and_revert away wholesale (#1598/#1584 review, item 10).
-# =============================================================================
-def test_git_reset_and_revert_returns_false_when_reset_fails(
-    tmp_path, monkeypatch: pytest.MonkeyPatch
-):
-    calls: list = []
-
-    class _R:
-        def __init__(self, returncode):
-            self.returncode = returncode
-
-    def fake_run(argv, **kwargs):
-        calls.append(argv)
-        return _R(1)  # reset fails
-
-    monkeypatch.setattr(loop.subprocess, "run", fake_run)
-
-    assert loop.git_reset_and_revert(tmp_path / "PaymentServiceTests.cs") is False
-    # Only the reset call happens — checkout (git_revert) is never reached.
-    assert len(calls) == 1
-    assert calls[0][:3] == ["git", "--literal-pathspecs", "reset"]
-
-
-def test_git_reset_and_revert_returns_false_when_checkout_fails_after_reset_succeeds(
-    tmp_path, monkeypatch: pytest.MonkeyPatch
-):
-    calls: list = []
-
-    class _R:
-        def __init__(self, returncode):
-            self.returncode = returncode
-
-    def fake_run(argv, **kwargs):
-        calls.append(argv)
-        if argv[2] == "reset":
-            return _R(0)  # reset succeeds
-        return _R(1)  # checkout (git_revert) fails
-
-    monkeypatch.setattr(loop.subprocess, "run", fake_run)
-
-    assert loop.git_reset_and_revert(tmp_path / "PaymentServiceTests.cs") is False
-    assert [c[2] for c in calls] == ["reset", "checkout"]
-
-
-def test_git_reset_and_revert_returns_true_when_both_steps_succeed(
-    tmp_path, monkeypatch: pytest.MonkeyPatch
-):
-    class _R:
-        returncode = 0
-
-    monkeypatch.setattr(loop.subprocess, "run", lambda argv, **k: _R())
-
-    assert loop.git_reset_and_revert(tmp_path / "PaymentServiceTests.cs") is True
+def test_git_helpers_are_the_shared_implementation():
+    assert loop.git_revert is shared.git_revert
+    assert loop.git_commit is shared.git_commit
+    assert loop.git_reset_and_revert is shared.git_reset_and_revert
