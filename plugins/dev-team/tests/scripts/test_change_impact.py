@@ -218,20 +218,85 @@ class TestCli:
         assert payload["skipLenses"] == []
 
 
-class TestAgainstRealRepoDiffs:
-    def test_this_prs_own_diff_has_architectural_impact(self):
-        """Sanity check against real git output rather than only synthetic
-        fixtures: this branch adds new script modules, so the gate must keep
-        arch-review."""
-        diff = subprocess.run(
-            ["git", "diff", "--no-color", "origin/main...HEAD"],
-            cwd=str(_REPO_ROOT),
-            capture_output=True,
-            text=True,
-            check=False,
+def _git(repo, *args):
+    subprocess.run(["git", *args], cwd=str(repo), check=True, capture_output=True)
+
+
+def _real_diff(tmp_path, filename, before, after):
+    """A genuine `git diff` for one file, produced by git itself.
+
+    The point of this class is to exercise the parser against real git output
+    rather than the hand-built strings above — `_diff` encodes an assumption
+    about what git emits, and an assumption is exactly what these tests exist
+    to check.
+    """
+    repo = tmp_path / "repo"
+    (repo / "src").mkdir(parents=True)
+    (repo / "docs").mkdir(parents=True)
+    _git(repo.parent, "init", "-q", str(repo))
+    _git(repo, "config", "user.email", "t@example.com")
+    _git(repo, "config", "user.name", "t")
+    target = repo / filename
+    target.write_text(before, encoding="utf-8")
+    _git(repo, "add", "-A")
+    _git(repo, "commit", "-qm", "base")
+    target.write_text(after, encoding="utf-8")
+    result = subprocess.run(
+        ["git", "diff", "--no-color"],
+        cwd=str(repo),
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    return result.stdout
+
+
+class TestAgainstRealGitDiffs:
+    """Real `git diff` output, on changesets whose expected verdict is fixed.
+
+    This replaces a test that ran `git diff origin/main...HEAD` and asserted
+    the result had architectural impact, on the reasoning that "this branch
+    adds new script modules". That was true of the branch it was written on
+    and false of most others: it asserted a property of whatever happened to
+    be checked out, not a property of the code under test. It went red on the
+    release PR (a CHANGELOG and version bump, correctly carrying no
+    architectural signal) and would have done the same on any docs-only or
+    pure-refactor branch. A test coupled to incidental repo state is green for
+    reasons unrelated to the thing it names.
+    """
+
+    def test_a_new_exported_function_keeps_arch_review(self, tmp_path):
+        diff = _real_diff(
+            tmp_path,
+            "src/pricing.js",
+            "export function total(items) {\n  return items.length\n}\n",
+            "export function total(items) {\n  return items.length\n}\n\n"
+            "export function applyDiscount(total, pct) {\n  return total * pct\n}\n",
         )
-        if diff.returncode != 0 or not diff.stdout.strip():
-            pytest.skip("no origin/main..HEAD diff available in this checkout")
-        result = change_impact.evaluate(diff.stdout)
+        result = change_impact.evaluate(diff)
         assert result["skipLenses"] == []
-        assert "structure" in result["signals"]
+        assert result["hasArchitecturalImpact"] is True
+
+    def test_a_docs_only_change_skips_arch_review(self, tmp_path):
+        """The shape that broke the release PR: no runtime surface, so the
+        gate correctly drops the lens."""
+        diff = _real_diff(
+            tmp_path,
+            "docs/notes.md",
+            "# Notes\n\nOne line.\n",
+            "# Notes\n\nOne line.\n\nAnother line.\n",
+        )
+        result = change_impact.evaluate(diff)
+        assert result["skipLenses"] == ["arch-review"]
+        assert result["hasArchitecturalImpact"] is False
+
+    def test_a_body_only_edit_skips_arch_review(self, tmp_path):
+        """No boundary moved — same function, different internals."""
+        diff = _real_diff(
+            tmp_path,
+            "src/pricing.js",
+            "export function total(items) {\n  return items.length\n}\n",
+            "export function total(items) {\n  return items.filter(Boolean).length\n}\n",
+        )
+        result = change_impact.evaluate(diff)
+        assert result["skipLenses"] == ["arch-review"]
