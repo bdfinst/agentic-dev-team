@@ -46,10 +46,28 @@ _pcr_spec.loader.exec_module(_pcr)
 # --- layer 1: normalization semantics -------------------------------------
 
 
-def _patch(path: str, removed: list, added: list) -> str:
-    lines = [f"diff --git a/{path} b/{path}", f"--- a/{path}", f"+++ b/{path}", "@@ -1,2 +1,2 @@"]
+def _patch(path: str, removed: list, added: list, context: list | None = None) -> str:
+    """A minimal well-formed unified diff for one file.
+
+    The hunk header's counts MUST match the body: `normalize_patch` consumes
+    hunk bodies by those counts (#1631 security review — dispatching on line
+    prefixes let a removed `-- ...` line masquerade as a file header), and a
+    header that over-runs its body is a malformed patch it deliberately fails
+    closed on. Real git output is always self-consistent; a fixture that
+    isn't tests nothing a hook will ever see.
+    """
+    context = context or []
+    old_count = len(removed) + len(context)
+    new_count = len(added) + len(context)
+    lines = [
+        f"diff --git a/{path} b/{path}",
+        f"--- a/{path}",
+        f"+++ b/{path}",
+        f"@@ -1,{old_count} +1,{new_count} @@",
+    ]
     lines += [f"-{ln}" for ln in removed]
     lines += [f"+{ln}" for ln in added]
+    lines += [f" {ln}" for ln in context]
     return "\n".join(lines) + "\n"
 
 
@@ -146,6 +164,125 @@ class TestNormalizePatch:
         """An empty-input digest would be a CONSTANT across every broken-git
         invocation — exactly the subject-binding bypass the raw hash's
         docstring warns about."""
+        assert ngh.normalized_gate_hash(tmp_path) is None
+
+
+class TestNormalizationCollisions:
+    """#1631 adversarial review. Each test pins one collision where two
+    behaviorally DIFFERENT changesets normalized to the same digest, letting
+    unreviewed content ride a carry-forward. See fixes 1-5 in the module
+    docstring."""
+
+    def test_an_insertion_at_a_different_position_is_not_the_same_change(self):
+        """Fix 2. Flat per-file removed/added lists carry no position, so
+        `+audit()` before vs. after a call produced one digest. Context lines
+        are what make an insertion point part of the subject."""
+        header = "diff --git a/a.js b/a.js\n--- a/a.js\n+++ b/a.js\n@@ -1,2 +1,3 @@\n"
+        early = header + "+audit()\n a()\n b()\n"
+        late = header + " a()\n b()\n+audit()\n"
+        # Identical added and removed line sets; only the position differs.
+        assert ngh.normalize_patch(early) != ngh.normalize_patch(late)
+        assert ngh.normalize_patch(early) not in ("", None)
+
+    def test_a_line_moved_between_hunks_is_not_formatting(self):
+        """Fix 3. Whole-file removed-equals-added read a relocated
+        `lock.acquire()` as formatting, because the file's removed and added
+        lists matched across the two hunks."""
+        moved = (
+            "diff --git a/svc.js b/svc.js\n"
+            "--- a/svc.js\n"
+            "+++ b/svc.js\n"
+            "@@ -1,2 +1,1 @@\n"
+            "-lock.acquire()\n"
+            " work()\n"
+            "@@ -20,1 +19,2 @@\n"
+            " more()\n"
+            "+lock.acquire()\n"
+        )
+        assert ngh.normalize_patch(moved) not in ("", None)
+
+    @pytest.mark.parametrize(
+        "metadata",
+        [
+            "old mode 100644\nnew mode 100755",
+            "similarity index 100%\nrename from old.js\nrename to new.js",
+            "new file mode 100644",
+            "deleted file mode 100644",
+        ],
+    )
+    def test_a_change_carried_only_by_patch_metadata_is_recorded(self, metadata):
+        """Fix 4. A mode flip, a rename, and an empty new or deleted file
+        produce a diff with NO hunk body. Skipping them made such a change
+        invisible, so it could be staged on top of corroborated content."""
+        patch = f"diff --git a/x.js b/x.js\n{metadata}\n"
+        assert ngh.normalize_patch(patch) not in ("", None)
+
+    def test_a_binary_swap_binds_its_blob_shas(self):
+        """Fix 4. A binary file has no textual hunk at all; its `index` blob
+        SHAs are the only content signal a textual diff exposes."""
+        one = (
+            "diff --git a/blob.bin b/blob.bin\n"
+            "index 1111111..2222222 100644\n"
+            "Binary files a/blob.bin and b/blob.bin differ\n"
+        )
+        two = one.replace("2222222", "3333333")
+        assert ngh.normalize_patch(one) not in ("", None)
+        assert ngh.normalize_patch(one) != ngh.normalize_patch(two)
+
+    def test_a_removed_comment_line_cannot_masquerade_as_a_file_header(self):
+        """Fix 1, the sharpest of the five. A REMOVED source line beginning
+        `-- ` (a SQL/Lua/Haskell comment) renders as `--- ...`. Dispatching on
+        that prefix read it as a file header and silently terminated the
+        hunk, so every following line — including injected code — vanished
+        from the digest."""
+        benign = _patch("db.sql", ["-- legacy note"], [], context=["SELECT 1;"])
+        injected = _patch(
+            "db.sql", ["-- legacy note"], ["GRANT ALL ON *.* TO 'x'@'%';"], context=["SELECT 1;"]
+        )
+        normalized = ngh.normalize_patch(injected)
+        assert normalized not in ("", None)
+        assert "GRANT ALL" in normalized, "injected code must reach the digest"
+        assert ngh.normalize_patch(benign) != normalized
+
+    def test_an_added_line_beginning_with_plus_plus_cannot_either(self):
+        """Fix 1, the `+++ ` half of the same confusion."""
+        normalized = ngh.normalize_patch(_patch("a.js", [], ["++ x", "evil()"]))
+        assert normalized is not None and "evil()" in normalized
+
+    def test_a_hunk_body_that_contradicts_its_header_fails_closed(self):
+        """Real git output is always self-consistent. A patch whose body does
+        not match its declared counts is a shape this module cannot reason
+        about, so it must not produce a digest at all."""
+        malformed = (
+            "diff --git a/a.js b/a.js\n--- a/a.js\n+++ b/a.js\n@@ -1,2 +1,2 @@\n-x\n"
+            "diff --git a/b.js b/b.js\n--- a/b.js\n+++ b/b.js\n@@ -1,1 +1,1 @@\n-y\n+z\n"
+        )
+        assert ngh.normalize_patch(malformed) is None
+
+    def test_a_fully_cosmetic_changeset_gets_no_digest(self, tmp_path):
+        """Fix 5, and the reason the whole chain was exploitable end to end.
+
+        `sha256("")` is a CONSTANT shared by every fully-cosmetic changeset
+        AND by every dispatch recorded while the index was still clean. Two
+        review dispatches made before anything was staged stamped exactly the
+        value a later mode-only or rename-only stage recomputes — clearing
+        the `>= 2` floor with evidence from agents that reviewed nothing.
+        """
+        env = hermetic_git_env(home=tmp_path)
+        subprocess.run(["git", "init", "-q"], cwd=tmp_path, env=env, check=True)
+        subprocess.run(["git", "config", "user.email", "t@t"], cwd=tmp_path, env=env, check=True)
+        subprocess.run(["git", "config", "user.name", "t"], cwd=tmp_path, env=env, check=True)
+        (tmp_path / "a.js").write_text("x\n")
+        subprocess.run(["git", "add", "a.js"], cwd=tmp_path, env=env, check=True)
+        subprocess.run(["git", "commit", "-qm", "init"], cwd=tmp_path, env=env, check=True)
+
+        # A clean index is the bootstrap: it must yield no digest at all.
+        assert ngh.normalized_gate_hash(tmp_path) is None
+        assert ngh.normalize_patch("") == ""
+
+        # And so must a changeset whose entire delta is documentation.
+        (tmp_path / "NOTES.md").write_text("notes\n")
+        subprocess.run(["git", "add", "NOTES.md"], cwd=tmp_path, env=env, check=True)
         assert ngh.normalized_gate_hash(tmp_path) is None
 
 
@@ -412,6 +549,58 @@ class TestCarryForwardLens:
         (tmp_path / "a.js").write_text("const x = 1\n")
         subprocess.run(["git", "add", "a.js"], cwd=tmp_path, env=env, check=True)
         assert _run_hook(_commit_payload(tmp_path), tmp_path).returncode == 2
+
+    def test_a_binary_swap_on_top_of_reviewed_code_is_blocked(self, reviewed_repo):
+        """#1631. A binary file produces no hunk body, so it was invisible to
+        the digest: staging one on top of already-corroborated code left the
+        normalized hash untouched and rode the carry-forward."""
+        env = hermetic_git_env(home=reviewed_repo)
+        (reviewed_repo / "blob.bin").write_bytes(b"\x00\x01MALICIOUS")
+        subprocess.run(["git", "add", "blob.bin"], cwd=reviewed_repo, env=env, check=True)
+        assert _run_hook(_commit_payload(reviewed_repo), reviewed_repo).returncode == 2
+
+    def test_making_a_file_executable_on_top_of_reviewed_code_is_blocked(self, reviewed_repo):
+        """#1631. Same shape as the binary swap: a mode flip has no hunk."""
+        env = hermetic_git_env(home=reviewed_repo)
+        script = reviewed_repo / "deploy.sh"
+        script.write_text("echo hi\n")
+        subprocess.run(["git", "add", "deploy.sh"], cwd=reviewed_repo, env=env, check=True)
+        subprocess.run(["git", "commit", "-qm", "add script"], cwd=reviewed_repo, env=env, check=True)
+        script.chmod(0o755)
+        subprocess.run(["git", "add", "deploy.sh"], cwd=reviewed_repo, env=env, check=True)
+        assert _run_hook(_commit_payload(reviewed_repo), reviewed_repo).returncode == 2
+
+    def test_dispatches_recorded_against_a_clean_index_corroborate_nothing(self, tmp_path):
+        """#1631, the end-to-end bypass chain, and the reason fix 5 exists.
+
+        Two genuine review dispatches made BEFORE anything was staged used to
+        stamp `sha256("")` — the same constant a later mode-only stage
+        recomputes. That cleared the `>= 2` distinct-dispatch floor with
+        evidence from agents that had reviewed nothing at all, which is
+        exactly the #1461 property this slice must not reopen.
+        """
+        env = hermetic_git_env(home=tmp_path)
+        subprocess.run(["git", "init", "-q"], cwd=tmp_path, env=env, check=True)
+        subprocess.run(["git", "config", "user.email", "t@t"], cwd=tmp_path, env=env, check=True)
+        subprocess.run(["git", "config", "user.name", "t"], cwd=tmp_path, env=env, check=True)
+        (tmp_path / "a.js").write_text("const x = 1\n")
+        (tmp_path / "deploy.sh").write_text("echo hi\n")
+        subprocess.run(["git", "add", "-A"], cwd=tmp_path, env=env, check=True)
+        subprocess.run(["git", "commit", "-qm", "init"], cwd=tmp_path, env=env, check=True)
+
+        # Reviews dispatched against a clean index: whatever they stamp must
+        # never be a value a real changeset can recompute.
+        clean_index_normalized = ngh.normalized_gate_hash(tmp_path)
+        assert clean_index_normalized is None
+        _seed_dispatches(tmp_path, ["correctness-review", "doc-review"], "rawhash", None)
+        _write_gate(tmp_path, "rawhash", None)
+
+        # Now stage a mode-only change and try to ride that "evidence".
+        (tmp_path / "deploy.sh").chmod(0o755)
+        subprocess.run(["git", "add", "-A"], cwd=tmp_path, env=env, check=True)
+        result = _run_hook(_commit_payload(tmp_path), tmp_path)
+        assert result.returncode == 2, result.stdout + result.stderr
+        assert "cosmetic-delta-carry-forward" not in _boundary_rules(tmp_path)
 
 
 class TestSingleSourceNormalization:
