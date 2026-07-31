@@ -15,10 +15,21 @@ zero-argument function returning a list of finding dicts:
 
     {"invariant": <str>, "file": <repo-relative str>, "message": <str>}
 
-Add new checks by writing a function and appending it to `CHECKS` below. Start
-narrow — this ships with exactly one check (mutation-testing scripts
-documented) — and expand opportunistically as more "N agents rediscovered the
-same mechanical fact" cases turn up (see the issue for the intended pattern).
+**Not Python-specific — a check operates on whatever file types the
+invariant it's proving is about.** The one shipped here happens to walk a
+directory that is entirely `.py` today only because this repo's own shipped
+scripts are Python-only by convention (ADR 0014/0015); the glob itself
+matches every file in that directory regardless of extension, and a future
+check is free to target `.ts`/`.cs`/`.java`/`.go`/anything else this repo or
+a downstream project's own conventions call for — `/code-review` runs
+against projects in every language this plugin supports (see
+`skills/static-analysis-integration/references/tool-configs.md`'s
+per-language tool tiers), so new checks should not assume a Python target
+just because the first one did. Add new checks by writing a function and
+appending it to `CHECKS` below. Start narrow — this ships with exactly one
+check (mutation-testing scripts documented) — and expand opportunistically
+as more "N agents rediscovered the same mechanical fact" cases turn up (see
+the issue for the intended pattern).
 
 Wired into `/code-review` step 2b (see `skills/code-review/SKILL.md`):
 findings are injected into agent context the same way static-analysis
@@ -47,11 +58,19 @@ def _read_text(path: Path) -> str:
         return ""
 
 
+_IGNORED_SCRIPT_NAMES = frozenset({"__init__.py", "__pycache__"})
+
+
 def check_mutation_kill_scripts_documented() -> list[dict]:
-    """Every .py module under the mutation-testing skill's scripts/ dir must be
+    """Every module under the mutation-testing skill's scripts/ dir must be
     named at least once across that skill's own documentation set — the
     mutation-kill agent, its SKILL.md, and its references/ tree — so a
     reviewer can find a script's purpose without re-deriving it from source.
+
+    Matches every file regardless of extension (not just `.py`) — this
+    directory happens to be all-Python today (ADR 0014/0015), but the
+    invariant itself ("every module is documented") is language-agnostic and
+    must keep holding if a differently-extensioned file ever lands here.
     """
     scripts_dir = _PLUGIN_ROOT / "skills" / "mutation-testing" / "scripts"
     if not scripts_dir.is_dir():
@@ -68,7 +87,9 @@ def check_mutation_kill_scripts_documented() -> list[dict]:
     combined = "\n".join(_read_text(p) for p in doc_files)
 
     findings = []
-    for script in sorted(scripts_dir.glob("*.py")):
+    for script in sorted(scripts_dir.iterdir()):
+        if not script.is_file() or script.name in _IGNORED_SCRIPT_NAMES:
+            continue
         if script.name in combined:
             continue
         findings.append(

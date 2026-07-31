@@ -58,6 +58,47 @@ class TestMutationKillScriptsDocumented:
         monkeypatch.setattr(repo_invariants, "_PLUGIN_ROOT", tmp_path / "empty")
         assert repo_invariants.check_mutation_kill_scripts_documented() == []
 
+    def test_flags_a_non_python_script_absent_from_the_doc_set(self, tmp_path, monkeypatch):
+        # The check is not Python-specific: it must catch an undocumented
+        # module regardless of extension, not just `.py` files.
+        plugin_root = tmp_path / "plugin"
+        scripts_dir = plugin_root / "skills" / "mutation-testing" / "scripts"
+        scripts_dir.mkdir(parents=True)
+        (scripts_dir / "documented.sh").write_text("# documented\n")
+        (scripts_dir / "undocumented_wrapper.ts").write_text("// new\n")
+
+        agent_dir = plugin_root / "agents"
+        agent_dir.mkdir(parents=True)
+        (agent_dir / "mutation-kill.md").write_text(
+            "Invoke `documented.sh` to score the run.\n"
+        )
+        (plugin_root / "skills" / "mutation-testing" / "SKILL.md").write_text(
+            "See the agent for details.\n"
+        )
+
+        monkeypatch.setattr(repo_invariants, "_PLUGIN_ROOT", plugin_root)
+
+        findings = repo_invariants.check_mutation_kill_scripts_documented()
+
+        assert len(findings) == 1
+        assert findings[0]["file"].endswith("undocumented_wrapper.ts")
+
+    def test_ignores_pycache_and_init(self, tmp_path, monkeypatch):
+        plugin_root = tmp_path / "plugin"
+        scripts_dir = plugin_root / "skills" / "mutation-testing" / "scripts"
+        (scripts_dir / "__pycache__").mkdir(parents=True)
+        (scripts_dir / "__pycache__" / "mutation_report.cpython-311.pyc").write_text("x")
+        (scripts_dir / "__init__.py").write_text("")
+
+        agent_dir = plugin_root / "agents"
+        agent_dir.mkdir(parents=True)
+        (agent_dir / "mutation-kill.md").write_text("nothing relevant here\n")
+        (plugin_root / "skills" / "mutation-testing" / "SKILL.md").write_text("n/a\n")
+
+        monkeypatch.setattr(repo_invariants, "_PLUGIN_ROOT", plugin_root)
+
+        assert repo_invariants.check_mutation_kill_scripts_documented() == []
+
 
 class TestRunAll:
     def test_run_all_aggregates_every_registered_check(self):

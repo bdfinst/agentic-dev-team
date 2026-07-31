@@ -386,19 +386,26 @@ while actionable_issues > 0 AND iteration ≤ MAX_ITERATIONS:
        `--all` scopes, leave the index untouched — no gate is ever written
        for those scopes, so staging here would only mutate the operator's
        index unasked, for no corroboration benefit.
-    3b. **Deterministic-first triage (#1610).** Before re-dispatching an agent
-       to re-verify a fix, check whether the fix already qualifies for a
-       cheaper, deterministic close: (a) it is a pure rename/mechanical edit
-       (docstring correction, import fix, identifier rename), (b) the
-       project's linter/type-checker (`ruff check`, `tsc`, etc.) and full test
-       suite already ran clean in step 2, and (c) the specific claim needing
-       verification is itself checkable by a targeted `grep`/diff (e.g. "every
-       occurrence was renamed, no partial/mangled identifiers", "the removed
-       import has no remaining references"). When all three hold, run that
-       deterministic check now and mark the issue resolved on a pass — do not
-       spend a re-dispatch confirming what ruff/pytest/grep already proved.
-       Escalate to the normal per-agent re-dispatch (step 4) whenever any
-       condition fails to hold, or the check itself can't fully close the
+    3b. **Deterministic-first triage (#1610) — language-agnostic, not
+       Python-specific.** Before re-dispatching an agent to re-verify a fix,
+       check whether the fix already qualifies for a cheaper, deterministic
+       close: (a) it is a pure rename/mechanical edit (docstring correction,
+       import fix, identifier rename), (b) **whichever language-appropriate
+       lint/type-check tool(s) step 2b's static-analysis pre-pass already
+       detected and ran for this repo** — Tier 1 in
+       `skills/static-analysis-integration/references/tool-configs.md`
+       (semgrep + ruff/mypy for Python, pmd for Java/Kotlin, ESLint/tsc for
+       JS/TS, `dotnet format`/`dotnet build` for C#, gofmt/`go vet` for Go,
+       etc. — whatever the target project's own stack is, never assume
+       Python) — plus the full test suite already ran clean in step 2, and
+       (c) the specific claim needing verification is itself checkable by a
+       targeted `grep`/diff (e.g. "every occurrence was renamed, no
+       partial/mangled identifiers", "the removed import has no remaining
+       references"). When all three hold, run that deterministic check now
+       and mark the issue resolved on a pass — do not spend a re-dispatch
+       confirming what the language's own lint/test/grep tooling already
+       proved. Escalate to the normal per-agent re-dispatch (step 4) whenever
+       any condition fails to hold, or the check itself can't fully close the
        question (e.g. judging whether a restored docstring's *prose* is
        accurate needs semantic reading, not a grep). This is a triage habit,
        not a gate: it only ever *removes* work from step 4, never adds new
