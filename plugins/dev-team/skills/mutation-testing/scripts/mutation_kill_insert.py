@@ -131,14 +131,24 @@ def _find_block_namespace_class_close(lines: Sequence[str]) -> int | None:
     return None
 
 
-def insert_before_class_close(test_file: Path, new_methods: str) -> None:
+def insert_before_class_close(test_file: Path, new_methods: str, text: str) -> None:
     """Insert ``new_methods`` before the test class's closing brace.
 
     Raises :class:`InsertionRefused` for a file-scoped namespace or any
     non-4-space-indented class the heuristic can't safely locate. The file is
     left untouched on refusal.
+
+    ``text`` is the current test-file content, already read by the caller
+    (:func:`apply_generated_methods`) — this function performs no read of its
+    own. A previous, optional ``test_text=`` shape let a caller pass in
+    content that bypassed reading the file's CURRENT state (including this
+    function's own refusal-guard check running against stale content rather
+    than what's actually on disk) — a real hazard even though no caller
+    exploited it. Removing the optional/None-triggered-fallback shape closes
+    that off: freshness is now entirely ``apply_generated_methods``'s
+    responsibility, which reads immediately before calling this (#1598/#1584
+    review, item 7).
     """
-    text = test_file.read_text(encoding="utf-8")
     if _FILE_SCOPED_NS_RE.search(text):
         raise InsertionRefused(
             f"refusing to insert into {test_file.name}: file-scoped namespace "
@@ -169,6 +179,18 @@ def apply_generated_methods(test_file: Path, new_methods: str) -> InsertOutcome:
     Returns an :class:`InsertOutcome`; the file is only ever written on the
     ``inserted=True`` path. Empty generation, an unsafe pattern, duplicate
     method names, and a refused insert all leave the file untouched.
+
+    Reads ``test_file`` exactly once here — immediately before the
+    duplicate-name check — and reuses that single fresh read for both the
+    check and the write (passed through to :func:`insert_before_class_close`,
+    which performs no read of its own). A prior shape let the caller (e.g.
+    ``_run_round``) thread in its OWN already-read ``test_text`` for the
+    duplicate check — but that text was read *before* the possibly
+    multi-minute ``generate()`` call, so the check ran against a stale
+    snapshot: a method name added to the file during generation (by another
+    process, or a second concurrent round) would go undetected as a
+    duplicate. Reading fresh here, after ``generate()`` has already
+    returned, closes that gap (#1598/#1584 review, item 7).
     """
     if not new_methods.strip():
         return InsertOutcome(False, "no methods generated")
@@ -177,12 +199,14 @@ def apply_generated_methods(test_file: Path, new_methods: str) -> InsertOutcome:
     if unsafe_categories:
         return InsertOutcome(False, f"refused — unsafe pattern(s): {unsafe_categories}")
 
-    dupes = detect_duplicate_methods(test_file.read_text(encoding="utf-8"), new_methods)
+    text = test_file.read_text(encoding="utf-8")
+
+    dupes = detect_duplicate_methods(text, new_methods)
     if dupes:
         return InsertOutcome(False, f"duplicate method names: {dupes}")
 
     try:
-        insert_before_class_close(test_file, new_methods)
+        insert_before_class_close(test_file, new_methods, text)
     except InsertionRefused as exc:
         return InsertOutcome(False, str(exc))
     return InsertOutcome(True, "inserted")

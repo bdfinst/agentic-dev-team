@@ -124,12 +124,16 @@ def _run_with_timeout(
     cwd: Path | None = None,
     capture_output: bool = False,
     text: bool = False,
+    env: dict[str, str] | None = None,
 ) -> subprocess.CompletedProcess | None:
     """Run ``argv`` with a bounded timeout. On ``TimeoutExpired``, logs to
     stderr and returns ``None`` instead of raising, so ``dotnet_build``,
     ``dotnet_test``, ``git_revert``, and ``git_commit`` share one timeout/log
     shape instead of four copies (#1593). No ``shell``/``**kwargs``
-    passthrough: every ``argv`` runs as a list, never through a shell."""
+    passthrough: every ``argv`` runs as a list, never through a shell.
+    ``env`` defaults to ``None`` (inherit the ambient process environment,
+    today's behavior) — tests pass a scrubbed env to keep real-git regression
+    tests hermetic (#1598/#1584 review, item 4 follow-up)."""
     try:
         return subprocess.run(
             argv,
@@ -138,6 +142,7 @@ def _run_with_timeout(
             capture_output=capture_output,
             text=text,
             check=False,
+            env=env,
         )
     except subprocess.TimeoutExpired:
         sys.stderr.write(
@@ -220,6 +225,54 @@ def _write_scoped_config(config: LoopConfig, source_file: str) -> Path:
     return path
 
 
+def _validate_solution_path(solution: str, *, cwd: Path | None = None) -> Path:
+    """Reject a ``stryker-config.json`` ``solution`` value that would escape
+    the working tree once used to derive ``sln_hidden``, and return the
+    resolved, validated absolute path.
+
+    ``solution`` is read verbatim from ``stryker-config.json`` and, before
+    this check existed, was concatenated straight into a filename
+    (``f"{config.solution}.stryker-hidden"``) with no validation — a
+    traversal-shaped value (e.g. ``"../../etc/cron.d/evil"``) would let a
+    hostile config target a file outside the repo if the config is ever read
+    from an untrusted checkout (#1598). Resolves ``solution`` against
+    ``cwd`` (or the current working directory) and rejects it unless the
+    resolved path stays under that root.
+
+    Callers must build ``sln``/``sln_hidden`` from THIS function's return
+    value, not by independently re-deriving ``Path(config.solution)`` — the
+    latter resolves against the *process* working directory when
+    ``wrapper.hide_sln``/``restore_sln``'s bare ``Path.rename()`` runs, not
+    against ``cwd`` (which only ever reaches ``subprocess.run``), so the
+    validated path and the actually-renamed path could silently diverge
+    whenever a caller passes a ``cwd`` different from the real process cwd
+    (caught in #1598/#1584 review).
+
+    **Requires a relative ``solution``; an absolute value is rejected in
+    every practical case (#1598/#1584 review, item 11).** ``pathlib``'s ``/``
+    operator silently discards ``base`` outright when the right-hand operand
+    is itself absolute (``base / "/etc/passwd" == Path("/etc/passwd")``), so
+    ``candidate`` becomes that absolute value verbatim — not "``base`` plus
+    the absolute path" as the name might suggest. The ``relative_to(base)``
+    check below then rejects it as escaping, UNLESS the absolute value
+    happens to already lie under ``base`` (a degenerate case with no
+    practical use, since a relative value achieves the same result without
+    depending on ``base``'s exact prefix). This narrows what a bare
+    ``Path(config.solution)`` used to accept before this validation existed
+    — an absolute ``solution`` is not a supported input; pass a
+    repo-relative path.
+    """
+    base = (cwd or Path.cwd()).resolve()
+    candidate = (base / solution).resolve()
+    try:
+        candidate.relative_to(base)
+    except ValueError:
+        raise ValueError(
+            f"stryker-config.json 'solution' escapes the working tree: {solution!r}"
+        ) from None
+    return candidate
+
+
 def run_scoped_stryker(
     config: LoopConfig,
     source_file: str,
@@ -244,9 +297,39 @@ def run_scoped_stryker(
     assert dotnet_root is not None
     env = {**os.environ, "DOTNET_ROOT": dotnet_root}
 
+    sln: Path | None = None
+    if config.solution:
+        # Use the validated, resolved path for BOTH the check and the actual
+        # rename below — never re-derive a second, independently-resolved
+        # Path(config.solution) (#1598/#1584 review: the two could diverge).
+        sln = _validate_solution_path(config.solution, cwd=cwd)
+
     config_path = _write_scoped_config(config, source_file)
-    sln = Path(config.solution) if config.solution else None
-    sln_hidden = Path(f"{config.solution}.stryker-hidden") if config.solution else None
+    # Fixed name, no PID suffix. A PID-suffixed name was tried (#1584) to
+    # guard two processes scoped-running Stryker against the same solution
+    # concurrently, but reverted after review: stryker_shard_pipeline.py
+    # runs shards sequentially, not concurrently (see its own module
+    # docstring), so that race doesn't exist today — and a PID-suffixed name
+    # is invisible to csharp_stryker_net_wrapper.py's check_stale_hidden_sln()
+    # crash-recovery, which looks for the exact literal ".stryker-hidden"
+    # suffix, so a crashed run would leave an orphaned hidden .sln that
+    # existing recovery can no longer find or restore. If true concurrent
+    # execution is ever introduced, add uniqueness at the
+    # csharp_stryker_net_wrapper level (shared with
+    # csharp_stryker_net_slice_runner.py) with a matching update to
+    # check_stale_hidden_sln's stale-file scan.
+    sln_hidden = Path(f"{sln}.stryker-hidden") if sln is not None else None
+    if sln is not None and sln_hidden is not None:
+        # Crash-recovery refusal (#1598/#1584 review, item 6): the wrapper's
+        # own main() and csharp_stryker_net_slice_runner.py both call this
+        # before hide_sln — a stale hidden .sln left over from a prior crash
+        # is exactly what the fixed (no-PID) hidden-filename choice above is
+        # meant to make findable by this check. This caller never wired it
+        # in, silently skipping the recovery it depends on.
+        stale_err = wrapper.check_stale_hidden_sln(sln, sln_hidden)
+        if stale_err is not None:
+            config_path.unlink(missing_ok=True)
+            raise RuntimeError(stale_err)
     try:
         if sln is not None and sln_hidden is not None:
             wrapper.hide_sln(sln, sln_hidden)
@@ -254,8 +337,7 @@ def run_scoped_stryker(
             # Deliberately not routed through _run_with_timeout: a Stryker
             # timeout aborts the whole file (raise), it doesn't return a
             # None-means-failure signal for a caller to revert-and-continue
-            # like dotnet_build/dotnet_test/git_revert/git_commit do. This
-            # call also needs `env=`, which _run_with_timeout doesn't accept.
+            # like dotnet_build/dotnet_test/git_revert/git_commit do.
             subprocess.run(
                 [
                     stryker_bin,
@@ -311,6 +393,28 @@ def dotnet_build(targets: Sequence[str], *, cwd: Path | None = None) -> bool:
     return True
 
 
+# Capital-F "Failed:" only — a per-assembly `dotnet test` summary line, NOT
+# the newer SDK's trailing lowercase rollup ("Test summary: ... failed: 0 ...").
+# Kept case-sensitive (no re.IGNORECASE) deliberately: matching the rollup
+# line too would double-count every assembly's failures on top of the
+# rollup's own total (#1598/#1584 review, item 12 — see
+# test_sum_failed_counts_is_case_sensitive_not_double_counting_the_rollup_line
+# for a fixture that actually distinguishes the two, unlike a fixture where
+# both a correct and a buggy (case-insensitive) scan sum to 0).
+_FAILED_COUNT_RE = re.compile(r"Failed:\s*(\d+)")
+
+
+def _sum_failed_counts(text: str) -> int:
+    """Sum every capital-F "Failed: N" occurrence in ``text``.
+
+    Accumulates, not overwrites: a multi-assembly `dotnet test` run prints
+    one "Failed: N" line per assembly, and a last-match-wins scan would let
+    an early assembly's failures be silently masked by a later, clean
+    assembly's "Failed: 0" line (#1598).
+    """
+    return sum(int(m.group(1)) for m in _FAILED_COUNT_RE.finditer(text))
+
+
 def dotnet_test(
     targets: Sequence[str], test_filter: str, *, cwd: Path | None = None
 ) -> bool:
@@ -336,27 +440,81 @@ def dotnet_test(
         )
         if result is None:
             return False
-        failed = 0
-        for line in (result.stdout + result.stderr).splitlines():
-            match = re.search(r"Failed:\s*(\d+)", line)
-            if match:
-                failed = int(match.group(1))
-        if result.returncode != 0 or failed > 0:
+        if result.returncode != 0 or _sum_failed_counts(result.stdout + result.stderr) > 0:
             return False
     return True
 
 
-def git_revert(test_file: Path, *, cwd: Path | None = None) -> None:
-    """Discard working-tree changes to one file (``git checkout -- <file>``)."""
-    _run_with_timeout(
-        ["git", "checkout", "--", str(test_file)],
+def git_revert(
+    test_file: Path, *, cwd: Path | None = None, env: dict[str, str] | None = None
+) -> bool:
+    """Discard working-tree changes to one file (``git checkout -- <file>``).
+
+    Returns True on a successful revert, False on a non-zero exit or a
+    timeout — callers can no longer mistake a failed/timed-out revert for a
+    successful one (#1598); a leftover, uncommitted mutation left on disk
+    after a revert *claims* success is exactly the integrity gap this fixes.
+
+    ``env`` defaults to ``None`` (inherit the ambient environment); tests
+    pass a scrubbed env so this real git subprocess can't be redirected by
+    an inherited ``GIT_DIR``/``GIT_WORK_TREE`` (#1598/#1584 review, item 4
+    follow-up).
+    """
+    result = _run_with_timeout(
+        ["git", "--literal-pathspecs", "checkout", "--", str(test_file)],
         _GIT_TIMEOUT,
         operation_label=f"git checkout reverting {test_file}",
         cwd=cwd,
+        env=env,
     )
+    if result is None:
+        return False
+    return result.returncode == 0
 
 
-def git_commit(message: str, test_file: Path, *, cwd: Path | None = None) -> bool:
+def git_reset_and_revert(
+    test_file: Path, *, cwd: Path | None = None, env: dict[str, str] | None = None
+) -> bool:
+    """Unstage AND restore ``test_file`` — the correct revert after a FAILED
+    commit specifically, distinct from :func:`git_revert`.
+
+    ``git_commit`` runs ``git add -- <test_file>`` *before* attempting the
+    commit. If the commit itself then fails, ``test_file`` is left staged
+    with the mutated content. A plain ``git checkout -- <file>`` (what
+    :func:`git_revert` does) restores the working tree **from the index**,
+    which still holds the mutation — so that revert *reports* success while
+    the mutated content survives on disk, staged. This is exactly the
+    integrity gap #1598 was meant to close, still open on this specific path
+    (caught in #1598/#1584 review). Unstaging first
+    (``git reset -q HEAD -- <file>``) before the checkout makes HEAD, the
+    index, and the working tree all agree afterward.
+
+    The build-failure and test-failure revert paths never ran ``git add``,
+    so their index already equals HEAD — they intentionally keep calling
+    plain :func:`git_revert` rather than this function (a reset there would
+    be a harmless no-op, but there's no reason to pay the extra subprocess).
+
+    Returns True only if both the unstage step and the restore step succeed.
+    """
+    reset_result = _run_with_timeout(
+        ["git", "--literal-pathspecs", "reset", "-q", "HEAD", "--", str(test_file)],
+        _GIT_TIMEOUT,
+        operation_label=f"git reset unstaging {test_file}",
+        cwd=cwd,
+        env=env,
+    )
+    if reset_result is None or reset_result.returncode != 0:
+        return False
+    return git_revert(test_file, cwd=cwd, env=env)
+
+
+def git_commit(
+    message: str,
+    test_file: Path,
+    *,
+    cwd: Path | None = None,
+    env: dict[str, str] | None = None,
+) -> bool:
     """Stage and commit only ``test_file``. Returns True on a successful commit.
 
     Mirrors the pre-#1593 behavior of not inspecting ``git add``'s own
@@ -365,21 +523,33 @@ def git_commit(message: str, test_file: Path, *, cwd: Path | None = None) -> boo
     before this extraction."""
     # `--` guards against a test_file path that happens to start with `-`
     # being parsed as a git flag instead of a path (#1584).
+    # `--literal-pathspecs` (right after `git`, #1598/#1584 review, item 5)
+    # forces every pathspec argument below — including this one — to be
+    # treated as a literal path, not a pathspec: `--` alone does NOT disable
+    # pathspec magic (`:/`, `:(exclude)`, `:!`, etc.) for the argument that
+    # follows it, so a test_file value containing those characters could
+    # otherwise silently broaden what a git command actually touches.
     add_result = _run_with_timeout(
-        ["git", "add", "--", str(test_file)],
+        ["git", "--literal-pathspecs", "add", "--", str(test_file)],
         _GIT_TIMEOUT,
         operation_label=f"git add for {test_file}",
         cwd=cwd,
+        env=env,
     )
     if add_result is None:
         return False
+    # Scoped with the same `-- <path>` pathspec as `git add` above: without
+    # it, `git commit -m message` commits the *entire* index, not just
+    # test_file — silently sweeping in whatever else happens to be staged
+    # (#1598).
     commit_result = _run_with_timeout(
-        ["git", "commit", "-m", message],
+        ["git", "--literal-pathspecs", "commit", "-m", message, "--", str(test_file)],
         _GIT_TIMEOUT,
         operation_label=f"git commit for {test_file}",
         capture_output=True,
         text=True,
         cwd=cwd,
+        env=env,
     )
     if commit_result is None:
         return False
@@ -474,48 +644,55 @@ def _score_round(
     return survivors, survivor_count
 
 
-def _run_round(
+def _revert_or_raise(ctx: RunContext, reason: str, *, after_commit: bool = False) -> None:
+    """Revert ``ctx.test_file``, raising if the revert itself fails.
+
+    ``after_commit=True`` routes through :func:`git_reset_and_revert`
+    (unstage + checkout), not plain :func:`git_revert` — ``git_commit``
+    already staged ``ctx.test_file`` before the commit attempt failed, so a
+    plain checkout alone would restore from that still-mutated index, not
+    HEAD (#1598/#1584 review). A revert that itself fails is fatal: it
+    leaves the working tree in an unknown, possibly-mutated state, so this
+    raises rather than letting the loop continue silently.
+    """
+    revert_ok = (
+        git_reset_and_revert(ctx.test_file, cwd=ctx.cwd)
+        if after_commit
+        else git_revert(ctx.test_file, cwd=ctx.cwd)
+    )
+    if not revert_ok:
+        raise RuntimeError(
+            f"revert failed for {ctx.test_file} after {reason} — the "
+            "working tree is left in an unknown state (mutated test "
+            "content may still be on disk, uncommitted)"
+        )
+
+
+def _verify_and_commit(
     round_num: int,
     source_file: str,
+    survivor_count: int,
+    new_methods: str,
     ctx: RunContext,
-    generate: Generator,
-    *,
-    prev_survivors: int | None,
 ) -> int | None:
-    """Run one round: score (via :func:`_score_round`) → generate → insert →
-    verify → commit.
+    """Build → scoped test → commit-on-green / revert-on-failure.
 
-    Returns this round's survivor count (to seed the next round's
-    no-improvement check), or ``None`` when the file is done.
+    Returns ``survivor_count`` on a successful commit, or ``None`` when the
+    round is abandoned (build failure, test failure, or commit failure —
+    each reverted via :func:`_revert_or_raise`, which raises if the revert
+    itself fails).
     """
-    scored = _score_round(round_num, source_file, ctx, prev_survivors=prev_survivors)
-    if scored is None:
-        return None
-    survivors, survivor_count = scored
-
-    new_methods = generate(
-        source_file,
-        survivors,
-        ctx.source_path.read_text(encoding="utf-8"),
-        ctx.test_file.read_text(encoding="utf-8"),
-    )
-
-    outcome = apply_generated_methods(ctx.test_file, new_methods)
-    if not outcome.inserted:
-        ctx.log(f"  not inserted ({outcome.reason}) — stopping")
-        return None
-
     if not dotnet_build(dotnet_test_project_targets(ctx.config), cwd=ctx.cwd):
         ctx.log("  build failed — reverting")
-        git_revert(ctx.test_file, cwd=ctx.cwd)
+        _revert_or_raise(ctx, "a failed build")
         return None
     if not dotnet_test(dotnet_test_project_targets(ctx.config), ctx.test_file.stem, cwd=ctx.cwd):
         ctx.log("  tests failed — reverting")
-        git_revert(ctx.test_file, cwd=ctx.cwd)
+        _revert_or_raise(ctx, "a failed test run")
         return None
 
     ctx.log("  green — committing")
-    git_commit(
+    committed = git_commit(
         _commit_message(
             round_num,
             source_file,
@@ -526,7 +703,59 @@ def _run_round(
         ctx.test_file,
         cwd=ctx.cwd,
     )
+    if not committed:
+        # A failed/timed-out commit is a round failure, not a silent
+        # success — without this check the loop would advance to the next
+        # round believing this one landed, while the test methods sit
+        # uncommitted (and possibly still staged) on disk (#1598).
+        ctx.log("  commit failed — reverting")
+        _revert_or_raise(ctx, "a failed commit", after_commit=True)
+        return None
     return survivor_count
+
+
+def _run_round(
+    round_num: int,
+    source_file: str,
+    ctx: RunContext,
+    generate: Generator,
+    *,
+    prev_survivors: int | None,
+) -> int | None:
+    """Run one round: score (via :func:`_score_round`) → generate → insert →
+    verify → commit (via :func:`_verify_and_commit`).
+
+    Returns this round's survivor count (to seed the next round's
+    no-improvement check), or ``None`` when the file is done.
+    """
+    scored = _score_round(round_num, source_file, ctx, prev_survivors=prev_survivors)
+    if scored is None:
+        return None
+    survivors, survivor_count = scored
+
+    # Read once and thread the text through both the generation prompt and
+    # the insertion helper below — apply_generated_methods (and, inside it,
+    # insert_before_class_close) accept the already-read text instead of
+    # re-reading test_file from disk a second and third time (#1584).
+    test_text = ctx.test_file.read_text(encoding="utf-8")
+    new_methods = generate(
+        source_file,
+        survivors,
+        ctx.source_path.read_text(encoding="utf-8"),
+        test_text,
+    )
+
+    # No test_text= here on purpose (#1598/#1584 review, item 7):
+    # apply_generated_methods always does its own fresh read now, shared
+    # between its duplicate-name check and the write — this pre-generation
+    # `test_text` snapshot (read above, before the possibly multi-minute
+    # `generate()` call) is only for the generation prompt.
+    outcome = apply_generated_methods(ctx.test_file, new_methods)
+    if not outcome.inserted:
+        ctx.log(f"  not inserted ({outcome.reason}) — stopping")
+        return None
+
+    return _verify_and_commit(round_num, source_file, survivor_count, new_methods, ctx)
 
 
 def run_for_file(
@@ -543,6 +772,16 @@ def run_for_file(
     duplicate/insert guards, build/test verification, revert-on-failure,
     commit-on-green, and the no-improvement stop — is mechanical, driven one
     round at a time by :func:`_run_round`.
+
+    A failed revert (after a build failure, a test failure, or a failed
+    commit) is fatal: it raises :class:`RuntimeError` rather than returning
+    silently, because a revert that can't be verified as having succeeded
+    means the working tree is left in an unknown, possibly-mutated state —
+    silently continuing to the next round or file would risk committing
+    mutated content later under a false assumption of a clean tree (#1598).
+    A failed commit itself is also a round failure, not a silent success: it
+    is reverted (unstage + restore, via :func:`git_reset_and_revert`) and the
+    round stops without advancing.
     """
     prev_survivors: int | None = None
     for round_num in range(1, max_rounds + 1):

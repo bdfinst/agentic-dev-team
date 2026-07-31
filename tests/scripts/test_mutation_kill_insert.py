@@ -113,6 +113,53 @@ def test_methods_inserted_before_class_closing_brace(tmp_path: Path):
     assert new_idx < class_close_idx < ns_close_idx
 
 
+def test_insert_before_class_close_operates_on_the_given_text_not_disk_content(
+    tmp_path: Path,
+):
+    """insert_before_class_close takes the current text as a required,
+    positional argument and performs no read of its own (#1598/#1584
+    review, item 7) — freshness is entirely apply_generated_methods's
+    responsibility. The on-disk content here has NO valid class-closing
+    brace at all (a file-scoped namespace, which the heuristic refuses)
+    while the explicitly-passed text DOES have a well-formed
+    block-namespace class. If the function silently re-read from disk
+    instead of using the given text, this would raise InsertionRefused;
+    using the given text, it must succeed."""
+    test_file = tmp_path / "PaymentServiceTests.cs"
+    test_file.write_text(_FILE_SCOPED_CLASS, encoding="utf-8")
+
+    insert.insert_before_class_close(test_file, _NEW_METHOD, _BLOCK_NAMESPACE_CLASS)
+
+    written = test_file.read_text(encoding="utf-8")
+    assert "New_Case_KillsMutant" in written
+
+
+def test_apply_generated_methods_duplicate_check_uses_fresh_disk_content(
+    tmp_path: Path,
+):
+    """The duplicate-name check must run against the CURRENT file content —
+    not a pre-generation snapshot a caller might otherwise thread through —
+    so a method added to the file externally between an earlier read (e.g.
+    before generate()) and this call (e.g. by another process, or a second
+    concurrent round) is still caught as a duplicate rather than silently
+    double-inserted (#1598/#1584 review, item 7)."""
+    test_file = tmp_path / "PaymentServiceTests.cs"
+    # Stands in for: the file already has New_Case_KillsMutant by the time
+    # apply_generated_methods actually runs, even though an earlier read
+    # (simulated by generate() in the real loop) would not have seen it yet.
+    already_has_it = _BLOCK_NAMESPACE_CLASS.replace(
+        "    }\n}\n", _NEW_METHOD + "    }\n}\n"
+    )
+    test_file.write_text(already_has_it, encoding="utf-8")
+    before = test_file.read_text(encoding="utf-8")
+
+    outcome = insert.apply_generated_methods(test_file, _NEW_METHOD)
+
+    assert outcome.inserted is False
+    assert "duplicate" in outcome.reason.lower()
+    assert test_file.read_text(encoding="utf-8") == before
+
+
 # =============================================================================
 # Scenario: Insertion into a file-scoped-namespace class is handled or refused
 # =============================================================================
@@ -122,7 +169,7 @@ def test_file_scoped_namespace_is_refused_not_corrupted(tmp_path: Path):
     before = test_file.read_text(encoding="utf-8")
 
     with pytest.raises(insert.InsertionRefused) as exc:
-        insert.insert_before_class_close(test_file, _NEW_METHOD)
+        insert.insert_before_class_close(test_file, _NEW_METHOD, _FILE_SCOPED_CLASS)
 
     assert "file-scoped" in str(exc.value).lower()
     # Never silently appended — file is byte-for-byte unchanged.
@@ -145,7 +192,7 @@ def test_non_four_space_indent_is_refused(tmp_path: Path):
     before = test_file.read_text(encoding="utf-8")
 
     with pytest.raises(insert.InsertionRefused):
-        insert.insert_before_class_close(test_file, _NEW_METHOD)
+        insert.insert_before_class_close(test_file, _NEW_METHOD, tabbed)
 
     assert test_file.read_text(encoding="utf-8") == before
 

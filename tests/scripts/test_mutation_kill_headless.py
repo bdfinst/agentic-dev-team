@@ -349,3 +349,35 @@ def test_claude_cli_available_treats_a_timeout_as_unavailable(
     monkeypatch.setattr(headless.subprocess, "run", fake_run)
 
     assert headless.claude_cli_available() is False
+
+
+# =============================================================================
+# Scenario: A round-abandoning RuntimeError (failed revert, failed commit —
+# #1598) propagates to a non-zero exit code instead of a silent 0 return or
+# a raw traceback (#1598/#1584 review, item 6).
+# =============================================================================
+def test_main_exits_non_zero_when_run_for_file_raises(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys
+):
+    monkeypatch.setattr(headless, "claude_cli_available", lambda: True)
+
+    def boom(*a, **k):
+        raise RuntimeError("revert failed for FooTests.cs after a failed commit")
+
+    monkeypatch.setattr(headless, "run_for_file", boom)
+    config_path = _write_config(tmp_path)
+
+    rc = headless.main(
+        [
+            "--config", str(config_path),
+            "--headless",
+            "--file", "Foo.cs",
+            "--test-file", str(tmp_path / "FooTests.cs"),
+            "--source-path", str(tmp_path / "Foo.cs"),
+        ]
+    )
+
+    assert rc != 0
+    assert rc not in (1, 2, 3)  # distinct from the existing preflight exit codes
+    err = capsys.readouterr().err
+    assert "revert failed" in err

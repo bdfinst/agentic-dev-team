@@ -347,7 +347,14 @@ owns everything mechanical:
 - **Verify + revert.** The loop builds, then runs the scoped test class. If the
   build or the scoped test run fails after insertion it reverts
   (`git checkout -- <test-file>`), logs the failure, and stops the file — never
-  leaving a broken or non-compiling test file behind.
+  leaving a broken or non-compiling test file behind. A commit failure gets the
+  matching **unstage + restore** revert (`git reset -q HEAD -- <test-file>` then
+  `git checkout -- <test-file>`), because `git add` already staged the file before
+  the commit attempt failed — a plain checkout alone would restore from that
+  still-staged, still-mutated index, not HEAD. **A revert that itself fails (after
+  any of these three failure kinds) is fatal**, not silently absorbed: the loop
+  raises and aborts the file rather than continuing with the working tree in an
+  unknown state (#1598).
 - **No-improvement exit.** A round whose `survivors >= prev_survivors` does not
   reduce survivors, so the loop stops that file. This mandatory exit is what keeps
   the loop from looping forever chasing the same survivors — never loop

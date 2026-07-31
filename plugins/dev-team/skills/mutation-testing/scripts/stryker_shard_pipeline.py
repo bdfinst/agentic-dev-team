@@ -292,26 +292,34 @@ def launch_survivor_fix(
     config_path: Path,
     model: str | None,
     max_rounds: int,
-    run: Callable[..., object] = subprocess.run,
+    run: Callable[..., subprocess.CompletedProcess] = subprocess.run,
     resolve_test_file: TestFileResolver | None = None,
     log: Callable[[str], None] = print,
-) -> None:
+) -> bool:
     """Launch the forced-headless survivor-fix loop for a shard's survivors.
 
     Invokes ``mutation_kill_loop`` (always with ``--headless``) once per source
     file that still has survivors, seeding round 1 from the shard's report.
     Runs from ``repo_root`` so fixes commit onto ``HEAD`` — that is what makes
     the *next* shard's worktree compounding.
+
+    Returns True when every launched fix exited zero (or none were launched);
+    False the moment one exits non-zero. A non-zero exit from the headless
+    loop — including the fatal-revert exit code 4 (``mutation_kill_headless``/
+    ``mutation_kill_loop_python`` #1598) — means the working tree was just
+    declared to be in an unknown/possibly-mutated state, so processing stops
+    for the remaining files in this shard rather than silently continuing
+    onto a tree that may already be broken.
     """
     resolve_test_file = resolve_test_file or default_resolve_test_file
     report = report_path(out_dir)
     if not report.exists():
         log(f"[{ts()}] Agent SKIP: no report for {shard}")
-        return
+        return True
     files = survivor_source_files(report)
     if not files:
         log(f"[{ts()}] Agent SKIP: no survivors in {shard}")
-        return
+        return True
 
     test_projects = shard_test_projects(config_path)
     for source in files:
@@ -329,7 +337,17 @@ def launch_survivor_fix(
             max_rounds=max_rounds,
         )
         log(f"[{ts()}] Agent START (headless): {shard} — {source}")
-        run(cmd, cwd=str(repo_root))
+        result = run(cmd, cwd=str(repo_root))
+        rc = result.returncode
+        if rc != 0:
+            log(
+                f"[{ts()}] Agent FAILED (headless): {shard} — {source} "
+                f"(exit {rc}) — stopping further files in this shard; the "
+                "working tree may be left in an unknown/possibly-mutated "
+                "state"
+            )
+            return False
+    return True
 
 
 # ── Resume (skip-existing wins over max-age) ────────────────────────────────────
@@ -449,7 +467,7 @@ def process_shard(
     log(f"[{ts()}] Shard DONE: {shard}")
 
     if not skip_agent:
-        launch_survivor_fix(
+        fix_ok = launch_survivor_fix(
             shard,
             repo_root=repo_root,
             out_dir=out_dir,
@@ -462,6 +480,8 @@ def process_shard(
         )
         if events is not None:
             events.append(("fix", shard))
+        if not fix_ok:
+            return "failed"
     return "ok"
 
 
