@@ -1,0 +1,20 @@
+{
+  "fixture": "fp-point-free-wrappers.ts",
+  "description": "Redundant function wrappers (x => f(x) forwarding unchanged args) and a three-deep nested pipeline that could be compose/pipe - should flag style suggestions, not errors. Exactly 3 candidates are planted (shout, sumPair, cleanTitle); isNumeric preserves the `this` receiver a bare `digitsOnly.test` reference would lose (RegExp.prototype.test throws on an incompatible receiver) and must not add a 4th finding.",
+  "applicableAgents": ["js-fp-review"],
+  "agents": {
+    "js-fp-review": {
+      "expectedStatus": "warn",
+      "issueCount": { "min": 2, "max": 3 },
+      "severities": {
+        "suggestion": { "min": 2, "max": 3 }
+      },
+      "mustMention": ["wrapper", "compose"],
+      "mustNotMention": [],
+      "_calibration": {
+        "source": "estimated-by-analogy",
+        "note": "Bounds modeled on a live js-fp-review run against an earlier revision of this fixture (3 planted candidates flagged, the delayed-evaluation wrapper correctly excluded); not re-measured after the negative-control example was swapped several times (Date.now()-thunk -> Cache/this-binding -> Intl.NumberFormat/this-binding [rejected: format is a spec-bound getter per ECMA-402, so that example's this-loss claim was false] -> RegExp.prototype.test/this-binding [verified: ECMA-262 test step 2 throws a TypeError on an unbound receiver; the exact message text is engine-specific, not spec-mandated]), since a run against a superseded revision isn't 'measured' for this one per evals/README.md's definition. issueCount.max is pinned to 3 (the exact planted count) rather than relying on mustNotMention, which is negation-blind against the agent's summary text"
+      }
+    }
+  }
+}

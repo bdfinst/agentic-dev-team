@@ -38,7 +38,7 @@ Review agents run as sub-agents during Phase 3 inline checkpoints and full `/cod
 | `data-flow-tracer` | [`data-flow-tracer.md`](../agents/data-flow-tracer.md) | sonnet | Data flow tracing through architecture layers (analysis-only) |
 | `doc-review` | [`doc-review.md`](../agents/doc-review.md) | sonnet | README accuracy, API doc alignment, comment drift |
 | `domain-review` | [`domain-review.md`](../agents/domain-review.md) | opus | Abstraction leaks, boundary violations |
-| `js-fp-review` | [`js-fp-review.md`](../agents/js-fp-review.md) | sonnet | Array mutations, impure patterns (JS/TS) |
+| `js-fp-review` | [`js-fp-review.md`](../agents/js-fp-review.md) | haiku | Array mutations, impure patterns, global state, point-free/composition opportunities (JS/TS) |
 | `mutation-kill` | [`mutation-kill.md`](../agents/mutation-kill.md) | opus | Autonomous survivor-reduction loop — generates targeted tests, verifies, commits, repeats; not a reviewer, invoked per Story by `/test-improve` Phase 5 or directly |
 | `naming-review` | [`naming-review.md`](../agents/naming-review.md) | haiku | Intent-revealing names, magic values |
 | `performance-review` | [`performance-review.md`](../agents/performance-review.md) | haiku | Resource leaks, N+1 queries |

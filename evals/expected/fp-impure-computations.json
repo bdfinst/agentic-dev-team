@@ -1,0 +1,20 @@
+{
+  "fixture": "fp-impure-computations.ts",
+  "description": "Side effects (console, DOM, network, non-determinism) buried inside otherwise value-returning computations - flagged as errors (external interaction breaks referential transparency the same way a mutation does). Named to avoid colliding with js-fp-review's own *.effects.* effect-boundary exception vocabulary.",
+  "applicableAgents": ["js-fp-review"],
+  "agents": {
+    "js-fp-review": {
+      "expectedStatus": "fail",
+      "issueCount": { "min": 4, "max": 8 },
+      "severities": {
+        "error": { "min": 4, "max": 8 }
+      },
+      "mustMention": ["console", "querySelector", "fetch", "random"],
+      "mustNotMention": [],
+      "_calibration": {
+        "source": "measured",
+        "note": "Both live js-fp-review runs at HEAD (2026-07-31) reported exactly 5 errors (all 5 planted effects) - the first against an earlier revision (fp-buried-effects.ts), the second against this fixture's current name/content (fp-impure-computations.ts, with readRoundedTotal/loadClampedUserScore/generateRequestId). issueCount/severities.error widened to 4-8 deliberately (min 4 tolerates one missed effect, max 8 tolerates per-statement splitting of the same effect) - do not narrow to 5-5 without re-measuring"
+      }
+    }
+  }
+}
