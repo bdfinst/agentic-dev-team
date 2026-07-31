@@ -5,6 +5,11 @@ tests -> verify -> commit -> repeat, gated on hard kills only.
 
 Ported from tests/agents/mutation_kill_agent_tests.bats (issue #675:
 bats -> pytest).
+
+Baseline-reuse doc tests moved to ``test_mutation_kill_baseline_reuse_doc.py``
+(#1545) and pre-loop feasibility-gate doc tests moved to
+``test_mutation_kill_feasibility_gate_doc.py`` (#1543/#1564) — both split out
+of this file once it grew past the project's 500-line guideline.
 """
 
 from __future__ import annotations
@@ -80,7 +85,10 @@ def test_agent_body_stays_under_500_line_limit(text: str) -> None:
     # Bumped by 7 more (#1598/#1584 review): documented the corrected
     # commit-failure revert (unstage + restore, not a plain checkout) and
     # the fatal-on-failed-revert contract in the "Verify + revert" bullet.
-    assert len(text.splitlines()) < 614
+    # Bumped by 5 more (#1580/#1583 review): added mutation_kill_shared.py
+    # and mutation_kill_insert_python.py rows to the scripted-mechanics
+    # table, and added run_claude_headless to the reused-helpers list.
+    assert len(text.splitlines()) < 621
 
 
 def test_defines_honest_score_formula(text: str) -> None:
@@ -489,152 +497,3 @@ def test_retains_generation_and_exclusion_as_the_llm_only_responsibilities(
     # Exclusion criteria retained, not merely named.
     assert re.search(r"15%", text) and re.search(r"50%", text)
 
-
-# --- Issue #1543: split the pre-loop feasibility gate's single `degrade`
-# bullet into the unconditional shim-decline/capture-failure degrade and a new
-# `ask-operator` outcome for the budget-only case.
-
-
-@pytest.fixture(scope="module")
-def feasibility_section(text: str) -> str:
-    result = section(
-        text,
-        r"^## Pre-loop feasibility gate",
-        boundary_pattern=r"^## ",
-        include_start_line=False,
-    )
-    assert result, "Pre-loop feasibility gate section not found"
-    return result
-
-
-@pytest.fixture(scope="module")
-def feasibility_flat(feasibility_section: str) -> str:
-    return feasibility_section.replace("\n", " ")
-
-
-def test_ask_operator_is_an_outcome_distinct_from_degrade(
-    feasibility_section: str,
-) -> None:
-    assert "ask-operator" in feasibility_section
-    assert "degrade" in feasibility_section
-    assert re.search(
-        r"distinct.*third outcome|third.*outcome|two separate outcomes",
-        feasibility_section,
-        re.IGNORECASE,
-    )
-
-
-def test_auto_degrade_is_unconditional_for_two_hard_blockers(
-    feasibility_flat: str,
-) -> None:
-    assert re.search(
-        r"unconditional.{0,20}for the two hard blockers", feasibility_flat
-    )
-
-
-def test_auto_degrade_covers_shim_decline_referenced_by_1160(
-    feasibility_flat: str,
-) -> None:
-    assert re.search(r"shim.{0,20}#1160", feasibility_flat)
-
-
-def test_auto_degrade_covers_capture_probe_failure_referenced_by_1157(
-    feasibility_flat: str,
-) -> None:
-    assert re.search(r"capture.{0,20}probe.{0,20}#1157", feasibility_flat)
-
-
-def test_budget_alone_is_not_a_hard_blocker(feasibility_flat: str) -> None:
-    # Budget alone must never be named as an unconditional-degrade trigger.
-    assert re.search(r"not a hard blocker|is not a hard blocker", feasibility_flat)
-    # Retired behavior must be gone, not just supplemented: budget alone
-    # unconditionally degrading (the pre-#1543 shape) must not reappear.
-    assert not re.search(
-        r"budget.{0,30}(alone|only).{0,30}unconditional.{0,20}degrade",
-        feasibility_flat,
-        re.IGNORECASE,
-    )
-
-
-def test_confirmation_prompt_uses_human_readable_duration_term(
-    feasibility_section: str,
-) -> None:
-    assert re.search(r"human-readable", feasibility_section, re.IGNORECASE)
-
-
-def test_confirmation_prompt_never_shows_raw_seconds(feasibility_flat: str) -> None:
-    assert re.search(r"never raw seconds", feasibility_flat, re.IGNORECASE)
-
-
-def test_confirmation_prompt_duration_cites_scope_file_count(
-    feasibility_flat: str,
-) -> None:
-    assert re.search(r"scope-file count", feasibility_flat)
-
-
-def test_confirmation_prompt_duration_cites_per_file_probe_seconds(
-    feasibility_flat: str,
-) -> None:
-    assert re.search(r"per-file probe seconds", feasibility_flat)
-
-
-def test_confirmation_prompt_names_proceed_anyway_label(
-    feasibility_section: str,
-) -> None:
-    assert re.search(r"proceed anyway", feasibility_section, re.IGNORECASE)
-
-
-def test_confirmation_prompt_proceed_anyway_reenters_loop(
-    feasibility_flat: str,
-) -> None:
-    assert re.search(r"re-enters the loop for this invocation", feasibility_flat)
-
-
-def test_confirmation_prompt_names_degrade_consequence(
-    feasibility_flat: str,
-) -> None:
-    assert re.search(
-        r"single advisory pass \(score only.{0,40}no mutants killed.{0,20}no commits",
-        feasibility_flat,
-        re.IGNORECASE,
-    )
-
-
-def test_agent_echoes_back_chosen_path_before_acting(
-    feasibility_flat: str,
-) -> None:
-    assert re.search(
-        r"echo back which path.*before acting", feasibility_flat, re.IGNORECASE
-    )
-
-
-def test_off_script_reply_is_reasked_never_guessed(feasibility_flat: str) -> None:
-    assert re.search(
-        r"matching neither documented choice.{0,20}re-asked.{0,60}"
-        r"same two choices restated",
-        feasibility_flat,
-        re.IGNORECASE,
-    )
-    assert re.search(r"never default or guess", feasibility_flat, re.IGNORECASE)
-
-
-def test_non_interactive_session_triggers_default_to_degrade(
-    feasibility_flat: str,
-) -> None:
-    assert re.search(
-        r"non-interactive session.{0,40}no usable tty.{0,20}no operator available",
-        feasibility_flat,
-        re.IGNORECASE,
-    )
-
-
-def test_non_interactive_default_choice_is_degrade(feasibility_flat: str) -> None:
-    assert re.search(r"default to `?degrade`?", feasibility_flat, re.IGNORECASE)
-
-
-def test_non_interactive_auto_decision_logged_same_way(
-    feasibility_flat: str,
-) -> None:
-    assert re.search(
-        r"log the auto-decision.{0,20}the same way", feasibility_flat, re.IGNORECASE
-    )

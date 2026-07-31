@@ -6,36 +6,22 @@ generated test methods before a test class's closing brace. The heuristic
 supports only conventional block-namespace, 4-space-indented C# test classes
 — a file-scoped namespace or non-4-space indentation is refused rather than
 risk a mis-insertion.
+
+``InsertOutcome``/``InsertionRefused`` are imported from
+``mutation_safety_gate`` (#1583), not defined here — they're structurally
+identical to the Python sibling's (``mutation_kill_insert_python.py``), so
+both modules share one definition instead of two hand-maintained copies. See
+``mutation_safety_gate``'s module docstring for the unification rationale.
 """
 
 from __future__ import annotations
 
 import re
 from collections.abc import Sequence
-from dataclasses import dataclass
 from pathlib import Path
 
 import mutation_safety_gate
-
-
-class InsertionRefused(Exception):
-    """Raised when the class-closing brace can't be located safely.
-
-    The insert heuristic only supports conventional block-namespace,
-    4-space-indented C# test classes. For a file-scoped namespace (no wrapping
-    braces) or non-4-space indentation, the loop refuses rather than append
-    into a structurally wrong location.
-    """
-
-
-@dataclass(frozen=True)
-class InsertOutcome:
-    """Result of attempting to apply generated methods. ``inserted`` is False
-    when the file was left untouched; ``reason`` says why."""
-
-    inserted: bool
-    reason: str
-
+from mutation_safety_gate import InsertionRefused, InsertOutcome
 
 # Matches a public test-method declaration (async Task or void), capturing the
 # method name. Framework-agnostic — no attribute or library name is assumed.
@@ -104,7 +90,7 @@ def scan_for_unsafe_patterns(new_methods: str) -> list[str]:
     legitimate mutant-killing test never needs network/filesystem/process/env
     access), so a false positive refuses-and-logs rather than silently
     inserting unreviewed code. Delegates to :mod:`mutation_safety_gate`,
-    shared with :mod:`mutation_kill_loop_python`, so a future bypass fix or
+    shared with :mod:`mutation_kill_insert_python`, so a future bypass fix or
     new category lands once for both languages.
     """
     return mutation_safety_gate.scan_for_unsafe_patterns(new_methods, _UNSAFE_PATTERNS)

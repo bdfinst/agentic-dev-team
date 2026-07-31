@@ -7,6 +7,14 @@ argument parsing and entry point. The agent-driven (default, interactive)
 path never touches this module — the mutation-kill agent calls
 :func:`mutation_kill_loop.run_for_file` directly with its own ``generate``
 hook.
+
+``run_claude_headless`` (#1583) is the shared ``claude --print`` invocation
+glue: building the generation prompt is language-specific (this module's own
+``build_generation_prompt`` for C#; ``mutation_kill_loop_python.py``'s
+own for Python), but everything *after* the prompt is built — the
+``--model`` flag, the timeout, error handling, and fence-stripping — was
+duplicated byte-for-byte between the two modules' ``make_headless_generator``
+factories. This function is the one definition both now call.
 """
 
 from __future__ import annotations
@@ -19,13 +27,8 @@ import sys
 from collections.abc import Sequence
 from pathlib import Path
 
-from mutation_kill_loop import (
-    Generator,
-    RunContext,
-    _timeout_from_env,
-    load_loop_config,
-    run_for_file,
-)
+from mutation_kill_loop import Generator, RunContext, load_loop_config, run_for_file
+from mutation_kill_shared import _timeout_from_env
 
 # Timeout for the `claude --print` generation subprocess. Overridable via env
 # var since a legitimately slow/large prompt may need a larger budget than
@@ -150,6 +153,41 @@ def claude_cli_available() -> bool:
     return result.returncode == 0
 
 
+def run_claude_headless(prompt: str, *, model: str | None, cwd: Path | None = None) -> str:
+    """Shell to ``claude --print`` with an already-built ``prompt``; return
+    stdout with markdown code fences stripped.
+
+    The single shared invocation glue behind both languages'
+    ``make_headless_generator`` factories (#1583). ``--model`` is passed only
+    when ``model`` is set; when ``None`` the Claude CLI uses its own default
+    (the plugin pins no model snapshot id, cf. ADR 0008).
+    """
+    cmd = [CLAUDE_CLI, "--print"]
+    if model:
+        cmd += ["--model", model]
+    cmd.append(prompt)
+    try:
+        result = subprocess.run(
+            cmd,
+            capture_output=True,
+            text=True,
+            cwd=cwd,
+            check=False,
+            timeout=CLAUDE_GENERATION_TIMEOUT_S,
+        )
+    except subprocess.TimeoutExpired as exc:
+        raise RuntimeError(
+            f"claude --print generation timed out after "
+            f"{CLAUDE_GENERATION_TIMEOUT_S}s (set "
+            "DEV_TEAM_MUTATION_GENERATION_TIMEOUT_S to raise it)"
+        ) from exc
+    if result.returncode != 0:
+        raise RuntimeError(
+            f"claude CLI failed (exit {result.returncode}): {result.stderr[:500]}"
+        )
+    return strip_code_fences(result.stdout)
+
+
 def make_headless_generator(
     model: str | None = None, *, cwd: Path | None = None
 ) -> Generator:
@@ -157,10 +195,8 @@ def make_headless_generator(
     ``claude --print``.
 
     The returned callable builds the prompt from the existing test file (the
-    pattern) plus the survivor summary, invokes the Claude CLI, and strips
-    markdown code fences from the result before it is inserted. ``--model`` is
-    passed only when ``model`` is set; when ``None`` the Claude CLI uses its own
-    default (the plugin pins no model snapshot id).
+    pattern) plus the survivor summary, then delegates everything else to
+    :func:`run_claude_headless`.
     """
 
     def generate(
@@ -170,30 +206,7 @@ def make_headless_generator(
         test_text: str,
     ) -> str:
         prompt = build_generation_prompt(source_file, survivors, source_text, test_text)
-        cmd = [CLAUDE_CLI, "--print"]
-        if model:
-            cmd += ["--model", model]
-        cmd.append(prompt)
-        try:
-            result = subprocess.run(
-                cmd,
-                capture_output=True,
-                text=True,
-                cwd=cwd,
-                check=False,
-                timeout=CLAUDE_GENERATION_TIMEOUT_S,
-            )
-        except subprocess.TimeoutExpired as exc:
-            raise RuntimeError(
-                f"claude --print generation timed out after "
-                f"{CLAUDE_GENERATION_TIMEOUT_S}s (set "
-                "DEV_TEAM_MUTATION_GENERATION_TIMEOUT_S to raise it)"
-            ) from exc
-        if result.returncode != 0:
-            raise RuntimeError(
-                f"claude CLI failed (exit {result.returncode}): {result.stderr[:500]}"
-            )
-        return strip_code_fences(result.stdout)
+        return run_claude_headless(prompt, model=model, cwd=cwd)
 
     return generate
 

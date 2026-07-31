@@ -24,6 +24,13 @@ into it lazily, inside ``if __name__ == "__main__":``, specifically to avoid
 the circular import that a module-scope import in both directions would
 create.
 
+**Shared mechanics (#1583).** ``_timeout_from_env``, ``git_revert``,
+``git_reset_and_revert``, ``git_commit``, and the "no improvement across
+rounds" stop predicate are imported from ``mutation_kill_shared.py`` rather
+than defined here — they were byte-for-byte duplicated with
+``mutation_kill_loop_python.py`` (the Python/mutmut sibling) before that
+module existed. See its module docstring for the full rationale.
+
 **Generation is a seam, not a mechanism.** The loop never decides *what*
 tests to write — a caller supplies a ``generate`` callable that returns the
 new test-method text. The default (interactive) path is agent-driven: the
@@ -52,6 +59,14 @@ import csharp_stryker_net_wrapper as wrapper
 import mutation_report
 import mutation_safety_gate
 from mutation_kill_insert import apply_generated_methods, count_methods
+from mutation_kill_shared import (
+    GIT_TIMEOUT_S,  # noqa: F401 — re-exported for tests (loop.GIT_TIMEOUT_S)
+    _timeout_from_env,
+    git_commit,
+    git_reset_and_revert,
+    git_revert,
+    stop_reason,
+)
 
 # A generator is any callable the agent (or the headless CLI) supplies: given
 # the source filename, the surviving mutants, the source text, and the
@@ -59,27 +74,6 @@ from mutation_kill_insert import apply_generated_methods, count_methods
 # The loop owns everything *around* this call; the callable owns the single
 # genuinely-LLM step.
 Generator = Callable[[str, list[dict], str, str], str]
-
-
-def _timeout_from_env(name: str, default: int) -> int:
-    """Parse a positive-integer timeout (seconds) from an env var.
-
-    Fails fast with a message naming the offending env var, rather than the
-    bare, unattributed ``ValueError`` a naked ``int(os.environ.get(...))``
-    would raise on a malformed override.
-    """
-    raw = os.environ.get(name)
-    if raw is None:
-        return default
-    try:
-        value = int(raw)
-    except ValueError:
-        raise ValueError(
-            f"{name} must be an integer number of seconds, got {raw!r}"
-        ) from None
-    if value <= 0:
-        raise ValueError(f"{name} must be a positive number of seconds, got {value}")
-    return value
 
 
 class _Timeout(NamedTuple):
@@ -105,15 +99,15 @@ def _make_timeout(env_var_name: str, default: int) -> _Timeout:
 _STRYKER_TIMEOUT = _make_timeout("DEV_TEAM_MUTATION_STRYKER_TIMEOUT_S", 3600)
 _BUILD_TIMEOUT = _make_timeout("DEV_TEAM_MUTATION_BUILD_TIMEOUT_S", 600)
 _TEST_TIMEOUT = _make_timeout("DEV_TEAM_MUTATION_TEST_TIMEOUT_S", 600)
-# 30s matches this codebase's other git-shelling helper
-# (mutation_baseline_reuse.py's ``_run_git``) — near-instant local git
-# operations against a repo that's presumably already responsive.
-_GIT_TIMEOUT = _make_timeout("DEV_TEAM_MUTATION_GIT_TIMEOUT_S", 30)
+# GIT_TIMEOUT_S itself comes from mutation_kill_shared (imported above) —
+# shared verbatim with mutation_kill_loop_python.py (#1583). No local
+# _GIT_TIMEOUT _Timeout pairing exists here anymore: git_revert/git_commit/
+# git_reset_and_revert are themselves imported from that module, so they
+# already close over its own GIT_TIMEOUT_S rather than taking one as a param.
 
 STRYKER_RUN_TIMEOUT_S = _STRYKER_TIMEOUT.seconds
 DOTNET_BUILD_TIMEOUT_S = _BUILD_TIMEOUT.seconds
 DOTNET_TEST_TIMEOUT_S = _TEST_TIMEOUT.seconds
-GIT_TIMEOUT_S = _GIT_TIMEOUT.seconds
 
 
 def _run_with_timeout(
@@ -127,10 +121,13 @@ def _run_with_timeout(
     env: dict[str, str] | None = None,
 ) -> subprocess.CompletedProcess | None:
     """Run ``argv`` with a bounded timeout. On ``TimeoutExpired``, logs to
-    stderr and returns ``None`` instead of raising, so ``dotnet_build``,
-    ``dotnet_test``, ``git_revert``, and ``git_commit`` share one timeout/log
-    shape instead of four copies (#1593). No ``shell``/``**kwargs``
-    passthrough: every ``argv`` runs as a list, never through a shell.
+    stderr and returns ``None`` instead of raising, so ``dotnet_build`` and
+    ``dotnet_test`` share one timeout/log shape instead of two copies (#1593).
+    ``git_revert``/``git_commit``/``git_reset_and_revert`` moved to
+    ``mutation_kill_shared.py`` (#1583) with their own, behaviorally-identical
+    inline timeout handling — they no longer call this helper. No
+    ``shell``/``**kwargs`` passthrough: every ``argv`` runs as a list, never
+    through a shell.
     ``env`` defaults to ``None`` (inherit the ambient process environment,
     today's behavior) — tests pass a scrubbed env to keep real-git regression
     tests hermetic (#1598/#1584 review, item 4 follow-up)."""
@@ -374,7 +371,9 @@ def extract_survivors(report_path: Path, source_file: str) -> list[dict]:
 
 
 # =============================================================================
-# Verify / commit / revert — all dotnet & git go through subprocess.
+# Verify — dotnet build/test go through subprocess here; git_revert/
+# git_reset_and_revert/git_commit are imported from mutation_kill_shared.py
+# (#1583) rather than defined in this section.
 # =============================================================================
 def dotnet_build(targets: Sequence[str], *, cwd: Path | None = None) -> bool:
     """Build every configured test-project. False if any target fails or
@@ -445,117 +444,6 @@ def dotnet_test(
     return True
 
 
-def git_revert(
-    test_file: Path, *, cwd: Path | None = None, env: dict[str, str] | None = None
-) -> bool:
-    """Discard working-tree changes to one file (``git checkout -- <file>``).
-
-    Returns True on a successful revert, False on a non-zero exit or a
-    timeout — callers can no longer mistake a failed/timed-out revert for a
-    successful one (#1598); a leftover, uncommitted mutation left on disk
-    after a revert *claims* success is exactly the integrity gap this fixes.
-
-    ``env`` defaults to ``None`` (inherit the ambient environment); tests
-    pass a scrubbed env so this real git subprocess can't be redirected by
-    an inherited ``GIT_DIR``/``GIT_WORK_TREE`` (#1598/#1584 review, item 4
-    follow-up).
-    """
-    result = _run_with_timeout(
-        ["git", "--literal-pathspecs", "checkout", "--", str(test_file)],
-        _GIT_TIMEOUT,
-        operation_label=f"git checkout reverting {test_file}",
-        cwd=cwd,
-        env=env,
-    )
-    if result is None:
-        return False
-    return result.returncode == 0
-
-
-def git_reset_and_revert(
-    test_file: Path, *, cwd: Path | None = None, env: dict[str, str] | None = None
-) -> bool:
-    """Unstage AND restore ``test_file`` — the correct revert after a FAILED
-    commit specifically, distinct from :func:`git_revert`.
-
-    ``git_commit`` runs ``git add -- <test_file>`` *before* attempting the
-    commit. If the commit itself then fails, ``test_file`` is left staged
-    with the mutated content. A plain ``git checkout -- <file>`` (what
-    :func:`git_revert` does) restores the working tree **from the index**,
-    which still holds the mutation — so that revert *reports* success while
-    the mutated content survives on disk, staged. This is exactly the
-    integrity gap #1598 was meant to close, still open on this specific path
-    (caught in #1598/#1584 review). Unstaging first
-    (``git reset -q HEAD -- <file>``) before the checkout makes HEAD, the
-    index, and the working tree all agree afterward.
-
-    The build-failure and test-failure revert paths never ran ``git add``,
-    so their index already equals HEAD — they intentionally keep calling
-    plain :func:`git_revert` rather than this function (a reset there would
-    be a harmless no-op, but there's no reason to pay the extra subprocess).
-
-    Returns True only if both the unstage step and the restore step succeed.
-    """
-    reset_result = _run_with_timeout(
-        ["git", "--literal-pathspecs", "reset", "-q", "HEAD", "--", str(test_file)],
-        _GIT_TIMEOUT,
-        operation_label=f"git reset unstaging {test_file}",
-        cwd=cwd,
-        env=env,
-    )
-    if reset_result is None or reset_result.returncode != 0:
-        return False
-    return git_revert(test_file, cwd=cwd, env=env)
-
-
-def git_commit(
-    message: str,
-    test_file: Path,
-    *,
-    cwd: Path | None = None,
-    env: dict[str, str] | None = None,
-) -> bool:
-    """Stage and commit only ``test_file``. Returns True on a successful commit.
-
-    Mirrors the pre-#1593 behavior of not inspecting ``git add``'s own
-    returncode (only its timeout) — a non-timeout ``git add`` failure (e.g.
-    bad pathspec) still falls through to attempting the commit, exactly as
-    before this extraction."""
-    # `--` guards against a test_file path that happens to start with `-`
-    # being parsed as a git flag instead of a path (#1584).
-    # `--literal-pathspecs` (right after `git`, #1598/#1584 review, item 5)
-    # forces every pathspec argument below — including this one — to be
-    # treated as a literal path, not a pathspec: `--` alone does NOT disable
-    # pathspec magic (`:/`, `:(exclude)`, `:!`, etc.) for the argument that
-    # follows it, so a test_file value containing those characters could
-    # otherwise silently broaden what a git command actually touches.
-    add_result = _run_with_timeout(
-        ["git", "--literal-pathspecs", "add", "--", str(test_file)],
-        _GIT_TIMEOUT,
-        operation_label=f"git add for {test_file}",
-        cwd=cwd,
-        env=env,
-    )
-    if add_result is None:
-        return False
-    # Scoped with the same `-- <path>` pathspec as `git add` above: without
-    # it, `git commit -m message` commits the *entire* index, not just
-    # test_file — silently sweeping in whatever else happens to be staged
-    # (#1598).
-    commit_result = _run_with_timeout(
-        ["git", "--literal-pathspecs", "commit", "-m", message, "--", str(test_file)],
-        _GIT_TIMEOUT,
-        operation_label=f"git commit for {test_file}",
-        capture_output=True,
-        text=True,
-        cwd=cwd,
-        env=env,
-    )
-    if commit_result is None:
-        return False
-    return commit_result.returncode == 0
-
-
 def _commit_message(
     round_num: int,
     source_file: str,
@@ -604,7 +492,7 @@ def _score_round(
     source_file: str,
     ctx: RunContext,
     *,
-    prev_survivors: int | None,
+    prev_survivor_count: int | None,
 ) -> tuple[list[dict], int] | None:
     """Score one round: baseline-seed-or-scoped-run → survivor extraction →
     log → stop-checks.
@@ -635,11 +523,9 @@ def _score_round(
         f"survivors={survivor_count}"
     )
 
-    if survivor_count == 0:
-        ctx.log("  no survivors — done")
-        return None
-    if prev_survivors is not None and survivor_count >= prev_survivors:
-        ctx.log("  no improvement this round — stopping")
+    reason = stop_reason(survivor_count, prev_survivor_count)
+    if reason is not None:
+        ctx.log(f"  {reason}")
         return None
     return survivors, survivor_count
 
@@ -720,7 +606,7 @@ def _run_round(
     ctx: RunContext,
     generate: Generator,
     *,
-    prev_survivors: int | None,
+    prev_survivor_count: int | None,
 ) -> int | None:
     """Run one round: score (via :func:`_score_round`) → generate → insert →
     verify → commit (via :func:`_verify_and_commit`).
@@ -728,7 +614,7 @@ def _run_round(
     Returns this round's survivor count (to seed the next round's
     no-improvement check), or ``None`` when the file is done.
     """
-    scored = _score_round(round_num, source_file, ctx, prev_survivors=prev_survivors)
+    scored = _score_round(round_num, source_file, ctx, prev_survivor_count=prev_survivor_count)
     if scored is None:
         return None
     survivors, survivor_count = scored
@@ -783,12 +669,12 @@ def run_for_file(
     is reverted (unstage + restore, via :func:`git_reset_and_revert`) and the
     round stops without advancing.
     """
-    prev_survivors: int | None = None
+    prev_survivor_count: int | None = None
     for round_num in range(1, max_rounds + 1):
-        prev_survivors = _run_round(
-            round_num, source_file, ctx, generate, prev_survivors=prev_survivors
+        prev_survivor_count = _run_round(
+            round_num, source_file, ctx, generate, prev_survivor_count=prev_survivor_count
         )
-        if prev_survivors is None:
+        if prev_survivor_count is None:
             return
 
 
