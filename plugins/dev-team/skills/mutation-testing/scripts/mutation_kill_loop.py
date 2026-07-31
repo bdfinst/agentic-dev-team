@@ -46,6 +46,7 @@ import tempfile
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from pathlib import Path
+from typing import NamedTuple
 
 import csharp_stryker_net_wrapper as wrapper
 import mutation_report
@@ -81,18 +82,69 @@ def _timeout_from_env(name: str, default: int) -> int:
     return value
 
 
+class _Timeout(NamedTuple):
+    """A timeout value paired with the env var that overrides it — kept
+    together so the two can't drift out of sync at a ``_run_with_timeout``
+    call site (#1593 review)."""
+
+    seconds: float
+    env_var_name: str
+
+
+def _make_timeout(env_var_name: str, default: int) -> _Timeout:
+    """Parse+pair in one step, so the env-var name is written once, not
+    once for ``_timeout_from_env`` and again for the ``_Timeout`` it feeds."""
+    return _Timeout(_timeout_from_env(env_var_name, default), env_var_name)
+
+
 # Timeouts for the long-running subprocesses this loop shells out to. Each is
 # overridable via env var since a legitimately slow project (a large solution,
 # a heavyweight test suite) may need a larger budget than these defaults —
 # unlike the 30s used by this codebase's git-shelling helpers, these
 # subprocesses (a Stryker run, a dotnet build/test) routinely run for minutes.
-STRYKER_RUN_TIMEOUT_S = _timeout_from_env("DEV_TEAM_MUTATION_STRYKER_TIMEOUT_S", 3600)
-DOTNET_BUILD_TIMEOUT_S = _timeout_from_env("DEV_TEAM_MUTATION_BUILD_TIMEOUT_S", 600)
-DOTNET_TEST_TIMEOUT_S = _timeout_from_env("DEV_TEAM_MUTATION_TEST_TIMEOUT_S", 600)
+_STRYKER_TIMEOUT = _make_timeout("DEV_TEAM_MUTATION_STRYKER_TIMEOUT_S", 3600)
+_BUILD_TIMEOUT = _make_timeout("DEV_TEAM_MUTATION_BUILD_TIMEOUT_S", 600)
+_TEST_TIMEOUT = _make_timeout("DEV_TEAM_MUTATION_TEST_TIMEOUT_S", 600)
 # 30s matches this codebase's other git-shelling helper
 # (mutation_baseline_reuse.py's ``_run_git``) — near-instant local git
 # operations against a repo that's presumably already responsive.
-GIT_TIMEOUT_S = _timeout_from_env("DEV_TEAM_MUTATION_GIT_TIMEOUT_S", 30)
+_GIT_TIMEOUT = _make_timeout("DEV_TEAM_MUTATION_GIT_TIMEOUT_S", 30)
+
+STRYKER_RUN_TIMEOUT_S = _STRYKER_TIMEOUT.seconds
+DOTNET_BUILD_TIMEOUT_S = _BUILD_TIMEOUT.seconds
+DOTNET_TEST_TIMEOUT_S = _TEST_TIMEOUT.seconds
+GIT_TIMEOUT_S = _GIT_TIMEOUT.seconds
+
+
+def _run_with_timeout(
+    argv: list[str],
+    timeout_spec: _Timeout,
+    *,
+    operation_label: str,
+    cwd: Path | None = None,
+    capture_output: bool = False,
+    text: bool = False,
+) -> subprocess.CompletedProcess | None:
+    """Run ``argv`` with a bounded timeout. On ``TimeoutExpired``, logs to
+    stderr and returns ``None`` instead of raising, so ``dotnet_build``,
+    ``dotnet_test``, ``git_revert``, and ``git_commit`` share one timeout/log
+    shape instead of four copies (#1593). No ``shell``/``**kwargs``
+    passthrough: every ``argv`` runs as a list, never through a shell."""
+    try:
+        return subprocess.run(
+            argv,
+            cwd=cwd,
+            timeout=timeout_spec.seconds,
+            capture_output=capture_output,
+            text=text,
+            check=False,
+        )
+    except subprocess.TimeoutExpired:
+        sys.stderr.write(
+            f"error: {operation_label} timed out after {timeout_spec.seconds}s "
+            f"(set {timeout_spec.env_var_name} to raise it)\n"
+        )
+        return None
 
 
 # =============================================================================
@@ -199,6 +251,11 @@ def run_scoped_stryker(
         if sln is not None and sln_hidden is not None:
             wrapper.hide_sln(sln, sln_hidden)
         try:
+            # Deliberately not routed through _run_with_timeout: a Stryker
+            # timeout aborts the whole file (raise), it doesn't return a
+            # None-means-failure signal for a caller to revert-and-continue
+            # like dotnet_build/dotnet_test/git_revert/git_commit do. This
+            # call also needs `env=`, which _run_with_timeout doesn't accept.
             subprocess.run(
                 [
                     stryker_bin,
@@ -210,12 +267,12 @@ def run_scoped_stryker(
                 env=env,
                 cwd=cwd,
                 check=False,
-                timeout=STRYKER_RUN_TIMEOUT_S,
+                timeout=_STRYKER_TIMEOUT.seconds,
             )
         except subprocess.TimeoutExpired as exc:
             raise RuntimeError(
-                f"Stryker run timed out after {STRYKER_RUN_TIMEOUT_S}s for "
-                f"{source_file} (set DEV_TEAM_MUTATION_STRYKER_TIMEOUT_S to raise it)"
+                f"error: Stryker run timed out after {_STRYKER_TIMEOUT.seconds}s for "
+                f"{source_file} (set {_STRYKER_TIMEOUT.env_var_name} to raise it)"
             ) from exc
     finally:
         if sln is not None and sln_hidden is not None:
@@ -241,22 +298,15 @@ def dotnet_build(targets: Sequence[str], *, cwd: Path | None = None) -> bool:
     """Build every configured test-project. False if any target fails or
     times out."""
     for target in targets:
-        try:
-            rc = subprocess.run(
-                ["dotnet", "build", target, "-c", "Debug", "--nologo"],
-                capture_output=True,
-                text=True,
-                cwd=cwd,
-                check=False,
-                timeout=DOTNET_BUILD_TIMEOUT_S,
-            ).returncode
-        except subprocess.TimeoutExpired:
-            sys.stderr.write(
-                f"error: dotnet build timed out after {DOTNET_BUILD_TIMEOUT_S}s "
-                f"for {target} (set DEV_TEAM_MUTATION_BUILD_TIMEOUT_S to raise it)\n"
-            )
-            return False
-        if rc != 0:
+        result = _run_with_timeout(
+            ["dotnet", "build", target, "-c", "Debug", "--nologo"],
+            _BUILD_TIMEOUT,
+            operation_label=f"dotnet build for {target}",
+            capture_output=True,
+            text=True,
+            cwd=cwd,
+        )
+        if result is None or result.returncode != 0:
             return False
     return True
 
@@ -267,29 +317,24 @@ def dotnet_test(
     """Run the scoped test filter across every test-project. False on any
     non-zero exit, reported failure, or timeout."""
     for target in targets:
-        try:
-            result = subprocess.run(
-                [
-                    "dotnet",
-                    "test",
-                    target,
-                    "-c",
-                    "Debug",
-                    "--no-build",
-                    "--filter",
-                    f"FullyQualifiedName~{test_filter}",
-                ],
-                capture_output=True,
-                text=True,
-                cwd=cwd,
-                check=False,
-                timeout=DOTNET_TEST_TIMEOUT_S,
-            )
-        except subprocess.TimeoutExpired:
-            sys.stderr.write(
-                f"error: dotnet test timed out after {DOTNET_TEST_TIMEOUT_S}s "
-                f"for {target} (set DEV_TEAM_MUTATION_TEST_TIMEOUT_S to raise it)\n"
-            )
+        result = _run_with_timeout(
+            [
+                "dotnet",
+                "test",
+                target,
+                "-c",
+                "Debug",
+                "--no-build",
+                "--filter",
+                f"FullyQualifiedName~{test_filter}",
+            ],
+            _TEST_TIMEOUT,
+            operation_label=f"dotnet test for {target}",
+            capture_output=True,
+            text=True,
+            cwd=cwd,
+        )
+        if result is None:
             return False
         failed = 0
         for line in (result.stdout + result.stderr).splitlines():
@@ -303,47 +348,42 @@ def dotnet_test(
 
 def git_revert(test_file: Path, *, cwd: Path | None = None) -> None:
     """Discard working-tree changes to one file (``git checkout -- <file>``)."""
-    try:
-        subprocess.run(
-            ["git", "checkout", "--", str(test_file)],
-            cwd=cwd,
-            check=False,
-            timeout=GIT_TIMEOUT_S,
-        )
-    except subprocess.TimeoutExpired:
-        sys.stderr.write(
-            f"error: git checkout timed out after {GIT_TIMEOUT_S}s reverting "
-            f"{test_file} (set DEV_TEAM_MUTATION_GIT_TIMEOUT_S to raise it)\n"
-        )
+    _run_with_timeout(
+        ["git", "checkout", "--", str(test_file)],
+        _GIT_TIMEOUT,
+        operation_label=f"git checkout reverting {test_file}",
+        cwd=cwd,
+    )
 
 
 def git_commit(message: str, test_file: Path, *, cwd: Path | None = None) -> bool:
-    """Stage and commit only ``test_file``. Returns True on a successful commit."""
-    try:
-        # `--` guards against a test_file path that happens to start with
-        # `-` being parsed as a git flag instead of a path (#1584) —
-        # matching git_revert's existing `git checkout --` convention.
-        subprocess.run(
-            ["git", "add", "--", str(test_file)],
-            cwd=cwd,
-            check=False,
-            timeout=GIT_TIMEOUT_S,
-        )
-        rc = subprocess.run(
-            ["git", "commit", "-m", message],
-            capture_output=True,
-            text=True,
-            cwd=cwd,
-            check=False,
-            timeout=GIT_TIMEOUT_S,
-        ).returncode
-    except subprocess.TimeoutExpired:
-        sys.stderr.write(
-            f"error: git add/commit timed out after {GIT_TIMEOUT_S}s for "
-            f"{test_file} (set DEV_TEAM_MUTATION_GIT_TIMEOUT_S to raise it)\n"
-        )
+    """Stage and commit only ``test_file``. Returns True on a successful commit.
+
+    Mirrors the pre-#1593 behavior of not inspecting ``git add``'s own
+    returncode (only its timeout) — a non-timeout ``git add`` failure (e.g.
+    bad pathspec) still falls through to attempting the commit, exactly as
+    before this extraction."""
+    # `--` guards against a test_file path that happens to start with `-`
+    # being parsed as a git flag instead of a path (#1584).
+    add_result = _run_with_timeout(
+        ["git", "add", "--", str(test_file)],
+        _GIT_TIMEOUT,
+        operation_label=f"git add for {test_file}",
+        cwd=cwd,
+    )
+    if add_result is None:
         return False
-    return rc == 0
+    commit_result = _run_with_timeout(
+        ["git", "commit", "-m", message],
+        _GIT_TIMEOUT,
+        operation_label=f"git commit for {test_file}",
+        capture_output=True,
+        text=True,
+        cwd=cwd,
+    )
+    if commit_result is None:
+        return False
+    return commit_result.returncode == 0
 
 
 def _commit_message(
