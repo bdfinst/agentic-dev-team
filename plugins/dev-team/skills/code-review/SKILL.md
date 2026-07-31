@@ -190,7 +190,7 @@ Follow the detection, execution, and deduplication procedure in [`skills/static-
 **Repo-specific invariant pre-pass (#1608).** Also run:
 
 ```bash
-python3 "$CLAUDE_PLUGIN_ROOT/skills/code-review/scripts/repo_invariants.py"
+python3 "$CLAUDE_PLUGIN_ROOT/skills/code-review/scripts/repo_invariants.py" --files <target files>
 ```
 
 It checks a small, growable list of this repo's own "every X should have
@@ -201,6 +201,23 @@ the same envelope and the same "detected by static analysis — do not
 re-report, focus on semantic concerns" framing. Expand `CHECKS` in that script
 as more rediscovered-N-times cases turn up; this step never needs to change to
 pick up a new check.
+
+**Pass `--files` (#1629).** Several checks are scoped to the changeset,
+because the conventions they enforce are "required going forward, do not
+retrofit" (`evals/README.md`'s `_calibration` rule is the motivating case).
+Without `--files` those checks stay silent rather than reporting the ~150
+pre-existing findings the conventions explicitly do not require fixing. The
+`--all` flag exists for deliberate backlog triage and must **not** be used
+here.
+
+**Authoring-time ordering (#1629).** When *writing* fixtures or agent files,
+run this same command at edit time, before the first panel dispatches — same
+command, earlier. Of #1619's 8 follow-up rounds, at least 4 were triggered by
+defect classes these deterministic checks catch, plus factually wrong
+runtime-semantics claims that `evals/README.md`'s **executable-claims
+convention** requires verifying by execution at authoring time. A claim the
+author has already run is a claim the panel reviews as evidence rather than
+adjudicates from scratch.
 
 If Semgrep already ran in the pre-flight gate, reuse those findings. Do not run Semgrep twice.
 
