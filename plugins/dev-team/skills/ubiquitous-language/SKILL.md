@@ -39,7 +39,7 @@ The script writes to `.plans/raw/domain-language/`:
 
 If the script is unavailable, gather manually using `Grep` with the patterns documented in the script's comments.
 
-**Graph-assisted disambiguation.** If the target repo has `.codegraph/` (CodeGraph MCP server, `codegraph_explore`) and/or a Repowise MCP server (`get_context`/`search_codebase`), use them — in preference to more `Grep` passes — to check a candidate term's actual call sites and surrounding context when the raw signal is ambiguous (e.g. a name that could be a technical or a business concept, or two near-duplicate names that might be the same concept under different spellings). This is a supplement to Phase 1's grep-based collection, not a replacement — fall back to `Grep`/`Read` alone when neither tool is available; the collector script output is still the primary candidate source.
+**Graph-assisted disambiguation.** Prefer CodeGraph/Repowise over more `Grep` passes to check a candidate term's actual call sites and surrounding context when the raw signal is ambiguous (e.g. a name that could be a technical or a business concept, or two near-duplicate names that might be the same concept under different spellings). This is a supplement to Phase 1's grep-based collection, not a replacement — the collector script output is still the primary candidate source. See [`knowledge/codegraph-vs-graphify.md`](../../knowledge/codegraph-vs-graphify.md) for tool selection and the fallback contract.
 
 ---
 

@@ -205,7 +205,7 @@ Assert.AreEqual("expected-value", response.Data.FieldName);
 4. **Classify** — missing assertion, missing test, boundary gap, equivalent, or accepted (real, killable, deliberately deferred this pass — record the `reason`).
 5. **Write the fix test** with RED-GREEN discipline: must fail against the mutant and pass against the original.
 
-**Graph-assisted triage.** For steps 1 and 3, prefer `codegraph_explore` (CodeGraph) or Repowise `get_context`/`search_codebase` over raw `Grep` when the target repo has an index — they surface a mutated line's callers and its covering tests directly, which is faster and more complete than grepping for the symbol name. Fall back to `Read`/`Grep`/`Glob` when neither tool is available; the tools are simply absent (no error) on repos without an index.
+**Graph-assisted triage.** For steps 1 and 3, prefer CodeGraph/Repowise over raw `Grep` — they surface a mutated line's callers and its covering tests directly, which is faster and more complete than grepping for the symbol name. See [`knowledge/codegraph-vs-graphify.md`](../../knowledge/codegraph-vs-graphify.md) for tool selection and the fallback contract.
 
 ### Weak vs strong test patterns
 
@@ -252,11 +252,11 @@ expect(db.save).toHaveBeenCalledWith(order);  // catches removed save()
 
 ## Output format
 
-Report the **honest** figure as the operator's primary signal. Tool-claimed scoring counts timeouts as kills and inflates — on a real Stryker.NET run, 999 of 1305 headline "kills" were timeouts (~23 % honest vs. ~61 % as Stryker reported it). Show both, honest above claimed, and emit the timeout warning when it fires. Formula derivation is documented in the [Machine-readable output](#machine-readable-output) section.
+Report the **honest** figure as the operator's primary signal. Tool-claimed scoring counts timeouts as kills and inflates — on a real Stryker.NET run, 999 of 1305 headline "kills" were timeouts (~23 % honest vs. ~61 % as Stryker reported it). Show both, honest above claimed, and emit the timeout warning when it fires. Formulas and rationale are canonical in `${CLAUDE_PLUGIN_ROOT}/knowledge/mutation-score-formulas.md` (shared with the `mutation-kill` agent); derivation for the machine-readable field names is in the [Machine-readable output](#machine-readable-output) section below.
 
 The illustrative counts below are self-consistent under those formulas (verify: `100 / (100+200+135) = 23.0 %`; `(100+430) / (100+200+430+135) = 61.3 %`; `430 / (100+200+430) = 58.9 %`). Do not tune wording without re-checking the arithmetic.
 
-When Step 4 marks one or more survivors `status: "accepted"` (a real, killable mutant intentionally deferred this pass — distinct from `"equivalent"`), also print the **raw/adjusted** pair so a documented deferral never reads as unaddressed test-quality debt: `raw_score` is the honest score restated (unchanged formula), `adjusted_score` excludes accepted survivors from the denominator. Verify: `24 / (24+11+0) = 68.57 %`; `24 / (24+(11-11)+0) = 100 %`.
+When Step 4 marks one or more survivors `status: "accepted"` (a real, killable mutant intentionally deferred this pass — distinct from `"equivalent"`), also print the **raw/adjusted** pair per the knowledge file above, so a documented deferral never reads as unaddressed test-quality debt. Verify: `24 / (24+11+0) = 68.57 %`; `24 / (24+(11-11)+0) = 100 %`.
 
 ```markdown
 ## Mutation Testing Results

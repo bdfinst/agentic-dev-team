@@ -16,7 +16,7 @@ Cites:
 - accepted-risks-schema
 - adversarial-review-protocol
 
-Output JSON:
+Output JSON (extends the shared contract in `${CLAUDE_PLUGIN_ROOT}/knowledge/review-agent-output-contract.md` with a `category` field. Whole-file load: short, canonical schema):
 
 ```json
 {"status": "pass|warn|fail|skip", "issues": [{"category": "A<NN>.<slug>", "severity": "error|warning|suggestion", "confidence": "high|medium|none", "file": "", "line": 0, "message": "", "suggestedFix": ""}], "summary": ""}
@@ -105,7 +105,7 @@ Return `{"status": "skip", "issues": [], "summary": "No source files with securi
 
 Every review run examines these file classes in addition to the primary source tree, because security-relevant content in them often escapes the `src/` tree walk:
 
-- CI/CD workflow files: `.github/workflows/*.{yml,yaml}`, `.gitlab-ci.yml`, `.gitlab/**/*.{yml,yaml}`, `.circleci/config.yml`, `azure-pipelines.yml`, `bitbucket-pipelines.yml`, `Jenkinsfile`, `jenkinsfile.d/**`. Check each for: `printenv` / `env |` in `run:` blocks, `continue-on-error: true` on security-scanning steps, excessive `permissions:` (especially `contents: write` + `id-token: write` combined), hardcoded PAT / API-key patterns, `npm audit` / `pip audit` behind `continue-on-error`, auto-version commit steps with write permissions.
+- CI/CD workflow files — glob list: `${CLAUDE_PLUGIN_ROOT}/knowledge/ci-cd-file-scope.md` (Whole-file load: short glob list). Check each for: `printenv` / `env |` in `run:` blocks, `continue-on-error: true` on security-scanning steps, excessive `permissions:` (especially `contents: write` + `id-token: write` combined), hardcoded PAT / API-key patterns, `npm audit` / `pip audit` behind `continue-on-error`, auto-version commit steps with write permissions.
 - Dockerfiles: `Dockerfile`, `Dockerfile.*`, `*.dockerfile`. Check for: final-stage `USER` directive absent, unpinned base images (no `@sha256:` or `:<version>`), secrets COPYed from build context, `--trusted-host *` in pip invocations, apt-get / curl pipelines running as root.
 - Infrastructure manifests: `docker-compose*.yml`, `helm/**/*.yaml`, `k8s/**/*.yaml`, `terraform/**/*.tf`. Check for: hardcoded credentials, overly permissive RBAC, missing resource limits, missing NetworkPolicy, container security context (privileged, allowPrivilegeEscalation).
 
@@ -118,30 +118,16 @@ context, incorporate them — assess exploitability and real-world
 risk. Focus AI analysis on issues semgrep cannot detect (logic
 flaws, authz gaps, business-layer leaks).
 
-Injection:
-
-- SQL: unsanitized input in queries, missing parameterized queries
-- XSS: unescaped user input in HTML output
-- Command: user input in shell execution
-- Template: unescaped template variables
-- Path traversal: user input in file paths
-
-Auth/authz:
-
-- Weak password hashing (not bcrypt/argon2)
-- Insecure token generation
-- Missing session management
-- Missing authorization checks
-- No brute force protection
-- JWT issues (algorithm confusion, no expiration validation)
-
-Data exposure:
-
-- Hardcoded secrets/API keys/passwords **in source files**
-- Sensitive data in logs
-- Unencrypted sensitive storage
-- PII mishandling
-- Verbose error messages exposing internals
+Apply the per-language detection patterns from
+`${CLAUDE_PLUGIN_ROOT}/knowledge/owasp-detection.md` (Whole-file load: same
+load as the Knowledge Files section above) — it is the canonical list for
+**all ten** OWASP categories, A01 through A10, including Insecure Design
+(A04: no rate limiting, no brute-force protection, missing CSRF). Judgment-
+class rows there are this agent's to detect directly; pattern-visible rows
+are semgrep's — assess exploitability over the semgrep finding instead of
+re-detecting it. The one exception is A06 (Vulnerable Components): that
+section is trivy's, not this agent's — see its "Agent does not re-detect"
+note.
 
 **`.env` false-positive guard:** Before flagging secrets in `.env`
 files, check whether the file is gitignored (`grep -q '^\.env' .gitignore`)
@@ -152,27 +138,14 @@ are the *correct* place for secrets — flagging them produces false
 positives and erodes trust in the agent's findings. Only flag `.env`
 if it is tracked by git or missing from `.gitignore`.
 
-Config:
+Judgment areas the OWASP pattern table doesn't itemize on its own —
+apply these directly:
 
-- Missing security headers (CSP, HSTS, X-Frame-Options)
-- Permissive CORS
-- Debug enabled in production
-- Default credentials
-- Missing rate limiting
-
-Crypto:
-
-- MD5/SHA1 for security purposes
-- Insecure random generation
-- Hardcoded keys
-- Deprecated crypto functions
-
-Input:
-
-- Missing server-side validation
-- Unsafe file uploads
-- Insecure deserialization
-- Open redirects
+- Unencrypted sensitive storage, and PII mishandling outside logs (A09
+  covers PII in logs only, via `A09.pii-in-logs`)
+- Missing server-side validation, unsafe file uploads, open redirects
+  (input handling not covered by A08's pattern-visible deserialization
+  classes)
 
 Review manipulation (supply-chain integrity):
 

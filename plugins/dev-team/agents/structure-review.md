@@ -16,11 +16,7 @@ Cites:
 - object-calisthenics
 - adversarial-review-protocol
 
-Output JSON:
-
-```json
-{"status": "pass|warn|fail|skip", "issues": [{"severity": "error|warning|suggestion", "confidence": "high|medium|none", "file": "", "line": 0, "message": "", "suggestedFix": ""}], "summary": ""}
-```
+Output JSON: per `${CLAUDE_PLUGIN_ROOT}/knowledge/review-agent-output-contract.md` (Whole-file load: short, canonical schema).
 
 Status: pass=clean, warn=minor issues, fail=architectural problems
 Severity: error=breaks maintainability, warning=tech debt, suggestion=improvement

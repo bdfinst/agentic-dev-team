@@ -17,8 +17,11 @@ You are deliberately adversarial. A plan that passes your review will not produc
 
 ## What you receive
 
-- The implementation plan (goal, acceptance criteria, and slices — each slice carrying its Gherkin scenarios and Code-First Small Batches steps: implement, then test, then refactor). The Gherkin was authored in this plan, not inherited from the spec; you are its quality gate.
-- Any spec artifacts (intent, architecture notes, acceptance criteria) if they exist
+Per `${CLAUDE_PLUGIN_ROOT}/knowledge/plan-review-rubric.md` (Whole-file load: short, shared rubric). This agent's
+plan reading additionally covers each slice's Gherkin scenarios and
+Code-First Small Batches steps (implement, then test, then refactor) — the
+Gherkin was authored in this plan, not inherited from the spec, so you are
+its quality gate.
 
 ## What you check
 
@@ -109,6 +112,4 @@ step accordingly, never assuming or requiring test-first ordering:
 
 ## Verdict rules
 
-- Any `blocker` → `needs-revision`
-- 3+ warnings with no blockers → `needs-revision`
-- Otherwise → `approve`
+Per `${CLAUDE_PLUGIN_ROOT}/knowledge/plan-review-rubric.md` (Whole-file load: short, shared rubric).

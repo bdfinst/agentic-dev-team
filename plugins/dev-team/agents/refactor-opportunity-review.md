@@ -15,11 +15,7 @@ Cites:
 - design-smells
 - adversarial-review-protocol
 
-Output JSON:
-
-```json
-{"status": "pass|warn|fail|skip", "issues": [{"severity": "error|warning|suggestion", "confidence": "high|medium|none", "file": "", "line": 0, "message": "", "suggestedFix": ""}], "summary": ""}
-```
+Output JSON: per `${CLAUDE_PLUGIN_ROOT}/knowledge/review-agent-output-contract.md` (Whole-file load: short, canonical schema).
 
 Status: pass=code is clean, warn=refactoring opportunities exist, fail=critical duplication or complexity
 Severity: error=semantic duplication (real DRY violation), warning=high-value refactor opportunity, suggestion=nice-to-have cleanup

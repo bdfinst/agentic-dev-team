@@ -22,11 +22,7 @@ that import from `react`). Skip this agent entirely if the project has no
 `react` or `react-dom` dependency in `package.json` (or equivalent manifest).
 Covers React 16.8+ hooks and class-component lifecycle patterns.
 
-Output JSON:
-
-```json
-{"status": "pass|warn|fail|skip", "issues": [{"severity": "error|warning|suggestion", "confidence": "high|medium|none", "file": "", "line": 0, "message": "", "suggestedFix": ""}], "summary": ""}
-```
+Output JSON: per `${CLAUDE_PLUGIN_ROOT}/knowledge/review-agent-output-contract.md` (Whole-file load: short, canonical schema).
 
 Status: pass=no reactivity issues, warn=potential concerns, fail=likely silent reactivity breakage
 Severity: error=silent stale-closure or infinite-loop bug; warning=potential reactivity concern; suggestion=defensive improvement

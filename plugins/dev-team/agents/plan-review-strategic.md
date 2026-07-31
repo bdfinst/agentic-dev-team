@@ -17,8 +17,7 @@ You are not reviewing code, design, or test quality — other reviewers handle t
 
 ## What you receive
 
-- The implementation plan (goal, acceptance criteria, steps)
-- Any spec artifacts (intent description, architecture notes) if they exist
+Per `${CLAUDE_PLUGIN_ROOT}/knowledge/plan-review-rubric.md` (Whole-file load: short, shared rubric).
 
 ## What you check
 
@@ -94,6 +93,4 @@ You are not reviewing code, design, or test quality — other reviewers handle t
 
 ## Verdict rules
 
-- Any `blocker` → `needs-revision`
-- 3+ warnings with no blockers → `needs-revision`
-- Otherwise → `approve`
+Per `${CLAUDE_PLUGIN_ROOT}/knowledge/plan-review-rubric.md` (Whole-file load: short, shared rubric).
