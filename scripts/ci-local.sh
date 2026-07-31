@@ -195,9 +195,10 @@ chk_python_only() {
 #
 # Byte-compile catches syntax; the import probe catches evaluation (a PEP 585
 # generic in a module-level type alias compiles everywhere and raises on 3.8).
-# Running the shipped suite on 3.8 is the strong form and belongs in CI, where
-# provisioning an interpreter plus test deps is free; see the note in
-# tests/repo/test_python_floor.py.
+# Running the shipped suite on 3.8 is the strong form and belongs in CI; the
+# "Python 3.8 floor" job in .github/workflows/plugin-tests.yml runs this
+# check today, not yet the full suite — see the scope note in
+# scripts/import_probe_shipped.py (issue #1635's "Out of scope").
 #
 # Fails — never skips — when no 3.8 can be obtained. A gate that quietly
 # downgrades to "skipped" on the machines least likely to have the floor

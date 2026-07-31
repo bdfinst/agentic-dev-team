@@ -51,9 +51,11 @@ extend-exclude = [
 #
 # This stops ruff's autofixes from rewriting shipped code into 3.9+ syntax. It
 # is NOT what proves the floor holds: that is the "Python 3.8 floor" job in
-# .github/workflows/plugin-tests.yml, which runs the plugin's real test suite
-# on a real 3.8 interpreter. The interpreter is the oracle — neither a linter
-# setting nor a hand-maintained list of "APIs newer than 3.8" can be trusted
+# .github/workflows/plugin-tests.yml, which byte-compiles and imports every
+# shipped module on a real 3.8 interpreter (not yet the plugin's full test
+# suite — see issue #1635's "Out of scope" for that follow-up). The
+# interpreter is the oracle — neither a linter setting nor a hand-maintained
+# list of "APIs newer than 3.8" can be trusted
 # to know what 3.8 accepts, and the list version of this gate proved exactly
 # that by passing a `dict | dict` merge which 3.8 rejects.
 #
