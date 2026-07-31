@@ -20,6 +20,8 @@ You have been invoked with the `/agent-audit` skill. Audit agents and
 skills for compliance with the eval system patterns documented in
 `.claude/docs/eval-system.md`.
 
+**Monorepo-relative by design (#1637).** Steps 8 and 2e's `scripts/validate_agent_contract.py` and `scripts/check_registry_sync.py` calls are intentionally bare, not a dangling-path defect. `check_registry_sync.py` hardcodes `plugins/dev-team` and checks *this marketplace repo's own* registry — it exists only at this repo's root, so no `${CLAUDE_PLUGIN_ROOT}` path could ever resolve it. `validate_agent_contract.py`'s repo-root copy is a thin wrapper delegating to `plugins/marketplace-dev/scripts/validate_agent_contract.py` (which does ship and is portable) — but there is no single variable spanning two independently-installed plugins, so the wrapper is reachable only from this monorepo checkout, where both plugin directories are siblings on disk. Both calls only make sense run from a dev-team-monorepo-shaped checkout (this repo, or a structural fork), never an installed plugin cache. See `tests/repo/test_agent_implemented_by_resolves.py`'s `INTENTIONAL_BARE_INVOCATION` set, which checks the "does not ship" premise mechanically. (This skill's `allowed-tools` frontmatter grants no `Bash` at all, so none of these three script steps — including `verify_tier.py` below — can actually execute today regardless of path form; tracked separately in #1652.)
+
 ## Orchestrator constraints
 
 1. **Check structure, not semantics.** Verify required sections,
@@ -129,8 +131,15 @@ review agents. Check:
      of it). Validate them with:
 
      ```bash
-     python3 scripts/verify_tier.py --all
+     python3 plugins/dev-team/scripts/verify_tier.py --all
      ```
+
+     This one is repo-relative, not `${CLAUDE_PLUGIN_ROOT}`-qualified, even
+     though the script ships: `/agent-audit`'s whole job is auditing the
+     agents in the *current working tree* the operator just edited.
+     `${CLAUDE_PLUGIN_ROOT}` would resolve to the installed plugin cache
+     instead — silently auditing a stale, already-released copy rather than
+     the edit under review.
 
      Fold a non-empty `errors` array into WARN, naming the agent and the
      invalid value. An agent with no declaration is correct, not incomplete —
@@ -186,12 +195,12 @@ Include the result in the agent report table under a `Skills-Tool` column.
    - FAIL if a code-reading agent's `tools:` line is missing one or more of the five names, or an agent on disk is in neither roster (unclassified).
    - PASS if every code-reading agent grants all five and every agent on disk is classified.
 
-**Mechanics for invariants 2–4**: all three delegate to `scripts/lib/mcp_tool_grants.py`'s shared `run_grants_check` (single read+parse pass per agent, both for detection and `--fix`) and, under `--json`, report the same envelope (`check`/`evaluated`/`offenders`/`unclassified`/`fixed`/`unfixable`/`ok`/`notes`) so results are comparable across the three checks.
+**Mechanics for invariants 2–4**: all three delegate to `${CLAUDE_PLUGIN_ROOT}/scripts/lib/mcp_tool_grants.py`'s shared `run_grants_check` (single read+parse pass per agent, both for detection and `--fix`) and, under `--json`, report the same envelope (`check`/`evaluated`/`offenders`/`unclassified`/`fixed`/`unfixable`/`ok`/`notes`) so results are comparable across the three checks.
 
 | Invariant | Report column | Delegated script | Config source of truth | Unclassified handling |
 |---|---|---|---|---|
-| 2. Code-intelligence (review agents) | `Code-Intel` | `scripts/check_review_agent_mcp_tools.py` | `MCP_TOOL_NAMES` | n/a — glob-discovered, no roster |
-| 3. Code-intelligence mapping (non-review) | `Mapping` | `scripts/check_agent_tool_mapping.py` | `TIER_CONFIG` / `EXCLUSIONS` | reported, not auto-fixed |
+| 2. Code-intelligence (review agents) | `Code-Intel` | `${CLAUDE_PLUGIN_ROOT}/scripts/check_review_agent_mcp_tools.py` | `MCP_TOOL_NAMES` | n/a — glob-discovered, no roster |
+| 3. Code-intelligence mapping (non-review) | `Mapping` | `${CLAUDE_PLUGIN_ROOT}/scripts/check_agent_tool_mapping.py` | `TIER_CONFIG` / `EXCLUSIONS` | reported, not auto-fixed |
 | 4. Code-intelligence (security-assessment) | `SA-MCP` | `plugins/dev-team/scripts/check_security_assessment_mcp_tools.py` | `CODE_READING_AGENTS` / `NON_CODE_READING_AGENTS` | reported, not auto-fixed |
 
 Include each invariant's result in the agent report table under its column above. Invariant 4 is additionally wired into `scripts/ci-local.sh` as `chk_sa_mcp_tools`, so drift fails CI, not just this manual audit pass.

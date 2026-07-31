@@ -1,32 +1,39 @@
-"""Tests for scripts/install-java-static-analysis.py — the pinned, repo-local
+"""Tests for plugins/dev-team/scripts/install-java-static-analysis.py — the pinned, repo-local
 PMD installer backing the Java static-analysis lane.
 
 The installer is Python 3.8+ stdlib-only (ADR 0014) and installs a pinned
 PMD distribution into a repo-local, gitignored ``.pmd/`` directory (or
 ``PMD_INSTALL_DIR`` when set). Detection is repo-local first, then PATH.
 
-No test here touches the network: every in-process run stubs
-``urllib.request.urlretrieve`` to fail loudly, so a short-circuit path that
-accidentally reaches the download is a test failure, not a download.
+No test here touches the network. Most in-process runs use the ``installer``
+fixture, which stubs ``urllib.request.urlretrieve`` to fail loudly, so a
+short-circuit path that accidentally reaches the download is a test failure,
+not a download. The two checksum tests deliberately reach the download step
+(to exercise the SHA-256 verification) and stub ``urlretrieve`` themselves to
+write local bytes instead of touching the network.
 """
 
 from __future__ import annotations
 
 import ast
+import hashlib
 import importlib.util
 import os
 import subprocess
 import sys
+import zipfile
 from pathlib import Path
 
 import pytest
 
 from _repo_root import REPO_ROOT
 
-SCRIPT = REPO_ROOT / "scripts" / "install-java-static-analysis.py"
+SCRIPT = REPO_ROOT / "plugins" / "dev-team" / "scripts" / "install-java-static-analysis.py"
 
 # Modules the installer may import — all stdlib, per ADR 0014.
 ALLOWED_IMPORTS = {
+    "hashlib",
+    "hmac",
     "os",
     "shutil",
     "subprocess",
@@ -75,7 +82,7 @@ def _make_launcher(install_dir: Path, version: str) -> Path:
 
 
 def test_installer_exists_and_is_stdlib_only():
-    assert SCRIPT.is_file(), "scripts/install-java-static-analysis.py missing"
+    assert SCRIPT.is_file(), "plugins/dev-team/scripts/install-java-static-analysis.py missing"
     tree = ast.parse(SCRIPT.read_text())
     imported = set()
     for node in ast.walk(tree):
@@ -86,6 +93,71 @@ def test_installer_exists_and_is_stdlib_only():
     assert imported <= ALLOWED_IMPORTS, (
         f"non-stdlib (or unexpected) imports: {sorted(imported - ALLOWED_IMPORTS)}"
     )
+
+
+def test_malformed_sha256_pin_fails_at_import_not_at_the_end_of_a_download():
+    """A wrong-length or non-hex PMD_SHA256 must be caught immediately, not
+    discovered only after a real download during a real install."""
+    src = SCRIPT.read_text().replace(
+        'PMD_SHA256 = "be8bf68f6c1d66984bd9645a93e631b78a1c2f42f5f0f8719082fead67553940"',
+        'PMD_SHA256 = "not-a-real-digest"',
+    )
+    assert "not-a-real-digest" in src, "the literal to replace has changed — update this test"
+    namespace = {"__name__": "install_java_static_analysis_malformed_pin"}
+    with pytest.raises(ValueError, match="PMD_SHA256"):
+        exec(compile(src, str(SCRIPT), "exec"), namespace)  # noqa: S102
+
+
+def test_checksum_mismatch_refuses_to_extract(monkeypatch, tmp_path, capsys):
+    """A downloaded archive with the wrong checksum must be rejected before
+    extraction — the download can be network-tampered or the pin can be
+    stale; either way, don't unzip and chmod +x an unverified artifact."""
+    module = _load_installer()
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.delenv("PMD_INSTALL_DIR", raising=False)
+    monkeypatch.setattr(module.shutil, "which", _fake_which({"java": "/usr/bin/java"}))
+
+    def _fake_urlretrieve(url, dest):
+        Path(dest).write_bytes(b"not the real pmd archive")
+
+    monkeypatch.setattr(module.urllib.request, "urlretrieve", _fake_urlretrieve)
+
+    assert module.main() == 1
+    err = capsys.readouterr().err.lower()
+    assert "checksum" in err or "mismatch" in err
+    assert not list((tmp_path / ".pmd").rglob("pmd*")), (
+        "must not extract the archive on checksum mismatch"
+    )
+
+
+def test_checksum_match_extracts_and_installs(monkeypatch, tmp_path, capsys):
+    """The full happy path with a real (small, fake-content) archive whose
+    checksum genuinely matches the pin: extraction runs, the launcher's
+    exec bit is restored, and the installer reports success."""
+    module = _load_installer()
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.delenv("PMD_INSTALL_DIR", raising=False)
+    monkeypatch.setattr(module.shutil, "which", _fake_which({"java": "/usr/bin/java"}))
+
+    archive_src = tmp_path / "src.zip"
+    with zipfile.ZipFile(archive_src, "w") as zf:
+        zf.writestr(
+            f"pmd-bin-{module.PMD_VERSION}/bin/{LAUNCHER_NAME}", "#!/bin/sh\nexit 0\n"
+        )
+    real_hash = hashlib.sha256(archive_src.read_bytes()).hexdigest()
+    monkeypatch.setattr(module, "PMD_SHA256", real_hash)
+
+    def _fake_urlretrieve(url, dest):
+        Path(dest).write_bytes(archive_src.read_bytes())
+
+    monkeypatch.setattr(module.urllib.request, "urlretrieve", _fake_urlretrieve)
+
+    assert module.main() == 0
+    launcher = tmp_path / ".pmd" / f"pmd-bin-{module.PMD_VERSION}" / "bin" / LAUNCHER_NAME
+    assert launcher.is_file()
+    if os.name != "nt":
+        assert launcher.stat().st_mode & 0o111, "exec bit must be restored"
+    assert "PMD installed" in capsys.readouterr().out
 
 
 def test_missing_java_exits_1_with_actionable_message(installer, monkeypatch, capsys):
@@ -191,7 +263,7 @@ def test_version_pin_lives_only_in_the_installer():
         if line.strip()
     }
     files.discard("plugins/dev-team/CHANGELOG.md")
-    assert files == {"scripts/install-java-static-analysis.py"}, (
+    assert files == {"plugins/dev-team/scripts/install-java-static-analysis.py"}, (
         f"PMD version literal leaked outside the installer: {sorted(files)}"
     )
 

@@ -165,7 +165,7 @@ def test_tier1_pmd_detection_is_repo_local_first():
 
 
 def test_tier1_pmd_install_hint_names_the_repo_level_installer():
-    assert "install-java-static-analysis.py" in _pmd_tier1_entry()
+    assert "${CLAUDE_PLUGIN_ROOT}/scripts/install-java-static-analysis.py" in _pmd_tier1_entry()
 
 
 def test_skill_tier1_table_lists_pmd():
@@ -294,7 +294,7 @@ def test_java_guide_covers_tools_and_roles():
 
 def test_java_guide_covers_repo_level_install():
     guide = _java_guide_section()
-    assert "install-java-static-analysis.py" in guide
+    assert "${CLAUDE_PLUGIN_ROOT}/scripts/install-java-static-analysis.py" in guide
     assert ".pmd/" in guide
 
 
@@ -340,4 +340,4 @@ def test_dev_setup_pmd_check_is_warn_only():
 
 
 def test_dev_setup_pmd_check_names_the_installer():
-    assert "install-java-static-analysis.py" in _dev_setup_pmd_block()
+    assert "plugins/dev-team/scripts/install-java-static-analysis.py" in _dev_setup_pmd_block()

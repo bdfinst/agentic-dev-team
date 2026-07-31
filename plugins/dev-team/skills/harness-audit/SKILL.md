@@ -26,6 +26,8 @@ You have been invoked with the `/harness-audit` command.
 > companion here is `/session-review`, whose `session-digest.jsonl` this command
 > consumes (Step 1).
 
+**Monorepo-relative by design (#1637).** The `scripts/eval_ablation.py --find-latest` call below is intentionally bare, not a dangling-path defect: `eval_ablation.py` does not ship under `plugins/dev-team/scripts/` (verified mechanically — see `tests/repo/test_agent_implemented_by_resolves.py`'s `INTENTIONAL_BARE_INVOCATION` set), so no `${CLAUDE_PLUGIN_ROOT}` path could ever resolve it. It reads *this repo's own* `metrics/eval-ablation.jsonl`, consistent with the note above that this command audits the dev-team plugin's own harness — it only makes sense run from a dev-team-monorepo-shaped checkout, never an installed plugin cache.
+
 ## Orchestrator constraints
 
 1. **Do not modify agents or configuration.** Produce a report only. All remediation requires human action.

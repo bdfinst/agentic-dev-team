@@ -201,7 +201,7 @@ there is a standing signal on whether the derived scenarios track real
 coverage/mutation movement (issue #1296):
 
 ```bash
-python3 plugins/dev-team/scripts/gherkin_effectiveness_rollup.py \
+python3 ${CLAUDE_PLUGIN_ROOT}/scripts/gherkin_effectiveness_rollup.py \
   --gherkin-md .claude/memory/<workflow>/<slug>/gherkin.md \
   --bindings-json .claude/memory/<workflow>/<slug>/gherkin-bindings.json \
   --baseline-coverage .dev-team-reports/<workflow>/<slug>/data/baseline-coverage.json \

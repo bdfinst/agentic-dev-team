@@ -74,7 +74,7 @@ xunit.v2 stack, setting `RootNamespace`/`AssemblyName`, adding the linked-`Compi
 glob and the product `ProjectReference`) plus a `stryker-config.json`:
 
 ```bash
-python3 scripts/generate_shim.py tests/<TestProject>/<TestProject>.csproj \
+python3 ${CLAUDE_PLUGIN_ROOT}/skills/stryker-xunit-v2-shim/scripts/generate_shim.py tests/<TestProject>/<TestProject>.csproj \
   --mutate-exclude '**/gRPC/**/*.cs' --mutate-exclude '**/Caching/**/*.cs'
 ```
 

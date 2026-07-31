@@ -111,7 +111,7 @@ The mutual-blindness property above — "one message, two calls, read neither
 result until both are issued" — is asserted only in this doc's prose and in
 content-guards that check the markdown *says* the right thing; nothing runs
 two real dispatches and checks isolation held at runtime.
-`scripts/verify_gherkin_quality_critic_isolation.py` closes that gap: it
+`${CLAUDE_PLUGIN_ROOT}/scripts/verify_gherkin_quality_critic_isolation.py` closes that gap: it
 dispatches the real `gherkin-quality-critic` agent twice via two fully
 independent `claude -p` subprocess calls, each against a fixture carrying its
 own randomly-generated canary marker, and fails if either transcript contains
@@ -121,7 +121,7 @@ the *other* dispatch's canary. Like `evals/README.md`'s live eval gate, it is
 failure. It is not wired into any CI workflow by default. Run it locally:
 
 ```bash
-ANTHROPIC_API_KEY=sk-... python3 plugins/dev-team/scripts/verify_gherkin_quality_critic_isolation.py
+ANTHROPIC_API_KEY=sk-... python3 ${CLAUDE_PLUGIN_ROOT}/scripts/verify_gherkin_quality_critic_isolation.py
 ```
 
 ## Scope of this doc

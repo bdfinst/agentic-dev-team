@@ -1,9 +1,11 @@
 #!/usr/bin/env python3
-"""scripts/install-java-static-analysis.py — install a pinned PMD distribution.
+"""install-java-static-analysis.py — install a pinned PMD distribution.
 
 Stdlib-only (urllib.request, zipfile) so it runs unchanged on macOS, Linux,
 and Windows — no curl, unzip, or Git Bash required (ADR 0014).
 """
+import hashlib
+import hmac
 import os
 import shutil
 import subprocess
@@ -15,6 +17,17 @@ from pathlib import Path
 
 PMD_VERSION = "7.7.0"  # single source of truth for the pin; bump deliberately
                        # (check https://github.com/pmd/pmd/releases)
+# SHA-256 of pmd-dist-7.7.0-bin.zip, pinned alongside the version above so the
+# two can never drift apart — verified against the published GitHub release
+# asset (curl the release URL below, then `shasum -a 256`). Bump together
+# with PMD_VERSION.
+PMD_SHA256 = "be8bf68f6c1d66984bd9645a93e631b78a1c2f42f5f0f8719082fead67553940"
+if len(PMD_SHA256) != 64 or any(c not in "0123456789abcdef" for c in PMD_SHA256):
+    # Fail loudly at import time, not at the end of a real download — a
+    # malformed pin (wrong length, uppercase, stray whitespace) must never
+    # silently degrade into "every install fails checksum" discovered only
+    # in the field.
+    raise ValueError(f"PMD_SHA256 is not a 64-char lowercase hex digest: {PMD_SHA256!r}")
 
 
 def main() -> int:
@@ -51,13 +64,29 @@ def main() -> int:
     with tempfile.TemporaryDirectory() as tmp:
         zip_path = Path(tmp) / archive
         urllib.request.urlretrieve(url, zip_path)
+
+        digest = hashlib.sha256()
+        with zip_path.open("rb") as fh:
+            for chunk in iter(lambda: fh.read(65536), b""):
+                digest.update(chunk)
+        if not hmac.compare_digest(digest.hexdigest(), PMD_SHA256.strip().lower()):
+            print(
+                f"Downloaded archive checksum mismatch: expected {PMD_SHA256}, "
+                f"got {digest.hexdigest()}. Refusing to extract.",
+                file=sys.stderr,
+            )
+            return 1
+
         with zipfile.ZipFile(zip_path) as zf:
             zf.extractall(install_dir)
 
     bin_dir = install_dir / f"pmd-bin-{PMD_VERSION}" / "bin"
-    # zipfile does not preserve the executable bit; restore it (no-op on Windows).
-    for entry in bin_dir.iterdir():
-        entry.chmod(entry.stat().st_mode | 0o755)
+    # zipfile does not preserve the executable bit; restore it on the two
+    # launchers only (no-op on Windows) rather than every extracted entry.
+    for name in ("pmd", "pmd.bat"):
+        launcher = bin_dir / name
+        if launcher.exists():
+            launcher.chmod(launcher.stat().st_mode | 0o755)
 
     print(f"PMD installed to {bin_dir}")
     print("No PATH change needed: detection probes the repo-local .pmd/ bin "

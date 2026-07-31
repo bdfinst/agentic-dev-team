@@ -349,7 +349,7 @@ fi
 if command -v pmd >/dev/null 2>&1; then
   ok "pmd"
 else
-  warn "pmd not found — only needed for Java projects; install repo-locally with: python3 scripts/install-java-static-analysis.py"
+  warn "pmd not found — only needed for Java projects; install repo-locally with: python3 plugins/dev-team/scripts/install-java-static-analysis.py"
 fi
 
 # ruff + mypy arrive via requirements-dev.txt (pip), like semgrep — verify the
