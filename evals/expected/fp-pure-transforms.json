@@ -1,5 +1,5 @@
 {
-  "fixture": "fp-pure-transforms.js",
+  "fixture": "fp-pure-transforms.ts",
   "description": "Pure functional transforms with no mutations - should pass cleanly",
   "applicableAgents": ["js-fp-review"],
   "agents": {

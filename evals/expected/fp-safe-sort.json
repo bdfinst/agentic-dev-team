@@ -1,5 +1,5 @@
 {
-  "fixture": "fp-safe-sort.js",
+  "fixture": "fp-safe-sort.ts",
   "description": "Sorting via spread-copy before sort, toSorted, or slice().sort() - should pass cleanly",
   "applicableAgents": ["js-fp-review"],
   "agents": {
