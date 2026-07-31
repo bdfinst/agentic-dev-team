@@ -1,5 +1,22 @@
 # Changelog
 
+## [11.2.0](https://github.com/bdfinst/agentic-dev-team/compare/dev-team-v11.1.1...dev-team-v11.2.0) (2026-07-31)
+
+
+### Features
+
+* **agents:** extend js-fp-review with Mostly Adequate Guide concepts ([#1619](https://github.com/bdfinst/agentic-dev-team/issues/1619)) ([bcfe35a](https://github.com/bdfinst/agentic-dev-team/commit/bcfe35aae02cdb552668900e31584c1fe17e2d5b))
+
+
+### Bug Fixes
+
+* **mutation-kill:** resolve six review findings from PR [#1600](https://github.com/bdfinst/agentic-dev-team/issues/1600) ([#1615](https://github.com/bdfinst/agentic-dev-team/issues/1615)) ([0facee8](https://github.com/bdfinst/agentic-dev-team/commit/0facee8d77d3b0fb480a2e4340e212ddcfe6fbd9))
+
+
+### Code Refactoring
+
+* **dev-team:** deduplicate knowledge across agents and skills ([#1617](https://github.com/bdfinst/agentic-dev-team/issues/1617)) ([dd750da](https://github.com/bdfinst/agentic-dev-team/commit/dd750da923280c087afc1382feba6a181dd72b41))
+
 ## [11.1.1](https://github.com/bdfinst/agentic-dev-team/compare/dev-team-v11.1.0...dev-team-v11.1.1) (2026-07-31)
 
 
