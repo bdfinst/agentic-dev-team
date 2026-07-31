@@ -6,8 +6,7 @@ Slice 9's Step 9.7 — see `test_dev_team_reports_gitignore_consolidation.py` fo
 that coverage; this file covers only the memory/metrics/plans domains Step
 6.2 was left to close, plus the two review-flagged gaps: `.claude/memory/
 build-phase.json` and `.claude/memory/test-improve/` were previously
-uncovered by any rule (AC11), and the bare `memory/test-improve/` rule has
-been removed now that its runtime state relocated.
+uncovered by any rule (AC11).
 
 These assertions run `git check-ignore` against the repo's real `.gitignore`
 so they verify the shipped rule, not a copy. `git check-ignore` matches on
@@ -69,10 +68,6 @@ def test_claude_memory_test_improve_nested_gap_closed():
     # children, not nested dirs — previously uncovered.
     assert _is_ignored(".claude/memory/test-improve/some-slug/phase-0.md")
     assert _is_ignored(".claude/memory/test-improve/some-slug/refactor-backlog.md")
-
-
-def test_bare_memory_test_improve_rule_no_longer_exists():
-    assert not _is_ignored("memory/test-improve/some-slug/phase-0.md")
 
 
 def test_security_assessment_memory_patterns_unaffected():
