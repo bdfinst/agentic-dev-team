@@ -27,7 +27,12 @@ So the floor is declared in exactly one machine-readable place —
 `ruff.toml`'s `[per-file-target-version]` — and proven by `chk_python_floor`
 in `scripts/ci-local.sh`, which resolves a real 3.8 interpreter and makes it
 byte-compile and import every shipped module. That check runs in the default
-gate, so the pre-push hook enforces it on every push.
+gate, so the pre-push hook enforces it on every push — and, since #1635, a
+dedicated `python-floor` job in `.github/workflows/plugin-tests.yml` also
+runs it on every PR, so a push that bypasses local hooks (`--no-verify`, a
+hookless cloud session) is still caught by CI. Making a red run actually
+block a GitHub-UI merge needs the job's name added to `main`'s
+required-status-check ruleset — a follow-up, not yet configured.
 
 What follows pins those parts to each other. It deliberately contains no
 opinion about which APIs are too new; that question belongs to the
@@ -48,6 +53,7 @@ RUFF_CONFIG = REPO_ROOT / "ruff.toml"
 ADR = REPO_ROOT / "docs" / "adr" / "0014-python-for-cross-os-scripts.md"
 CI_LOCAL = REPO_ROOT / "scripts" / "ci-local.sh"
 IMPORT_PROBE = REPO_ROOT / "scripts" / "import_probe_shipped.py"
+CI_WORKFLOW = REPO_ROOT / ".github" / "workflows" / "plugin-tests.yml"
 
 #: The floor every part below must agree on, in each part's own notation.
 FLOOR_RUFF = "py38"
@@ -78,6 +84,24 @@ def ci_local() -> str:
     return CI_LOCAL.read_text(encoding="utf-8")
 
 
+@pytest.fixture(scope="module")
+def ci_workflow() -> str:
+    return CI_WORKFLOW.read_text(encoding="utf-8")
+
+
+def _only_lists(workflow: str) -> list[list[str]]:
+    """Every `--only=<comma-list>` argument actually invoked in the
+    workflow, split into its component check names. Comment lines are
+    stripped first — a future `#`-prefixed mention of `--only=chk_python_
+    floor` (a commented-out step, or a comment quoting the rejected
+    content-guard-tests wiring this file's own docstrings describe) must
+    not satisfy a caller looking for the real invocation."""
+    body = "\n".join(
+        line for line in workflow.splitlines() if not line.lstrip().startswith("#")
+    )
+    return [lst.split(",") for lst in re.findall(r"--only=([\w,-]+)", body)]
+
+
 class TestTheFloorIsDeclaredOnce:
     def test_ruff_declares_it_for_the_shipped_tree(self):
         """The single source of truth, and the only thing that keeps ruff's own
@@ -102,8 +126,10 @@ class TestTheFloorIsDeclaredOnce:
 
     def test_the_adr_states_the_same_floor(self):
         """ADR 0014 carries the rationale. Prose that disagrees with the
-        tooling is how a floor quietly stops meaning anything."""
-        assert FLOOR_DOTTED in ADR.read_text(encoding="utf-8")
+        tooling is how a floor quietly stops meaning anything. Anchored to
+        "Python 3.8" rather than a bare "3.8" substring, which could match an
+        unrelated version reference or section number."""
+        assert re.search(r"Python\s+" + re.escape(FLOOR_DOTTED), ADR.read_text(encoding="utf-8"))
 
 
 def _floor_check_body(ci_local: str) -> str:
@@ -116,9 +142,9 @@ class TestTheFloorIsProvenByRunningIt:
     skip itself, should fail here.
 
     Wiring note: `chk_python_floor` runs in the default (no `--only`) gate, so
-    the pre-push hook enforces it on every push. Adding it to a CI job means
-    appending `chk_python_floor` to that job's `--only=` list, which needs
-    `workflow` scope on the pushing credential.
+    the pre-push hook enforces it on every push. Since #1635 it also runs in
+    its own `python-floor` CI job, via a `--only=chk_python_floor` invocation
+    — see `TestTheFloorIsCheckedInCI` below for that leg's pin.
     """
 
     def test_ci_local_defines_the_floor_check(self, ci_local):
@@ -164,3 +190,67 @@ class TestTheFloorIsProvenByRunningIt:
         source = IMPORT_PROBE.read_text(encoding="utf-8")
         assert "exec_module" in source, "the probe must actually import modules"
         assert "VERSION_ERRORS" in source, "failures must come from the interpreter"
+
+
+class TestTheFloorIsCheckedInCI:
+    """chk_python_floor running in the default local gate (above) only
+    enforces it on pushes that go through the pre-push hook. #1635: a push
+    that bypasses hooks — --no-verify, a hookless cloud session — must still
+    be run by something, which means a CI job has to name chk_python_floor
+    in its own --only= list explicitly. (Blocking a GitHub-UI merge on a red
+    run additionally needs the job in main's required-status-check ruleset
+    — a follow-up, not something a test in this repo can pin.)"""
+
+    def test_a_ci_job_runs_the_floor_check(self, ci_workflow):
+        """A bare `in workflow` check passes on any mention of the name — a
+        comment, a doc reference, a commented-out step — without the check
+        being wired into a job's --only= list. Anchor to the real invocation,
+        matching this file's own _floor_check_body/CHECKS-array rigor
+        elsewhere."""
+        only_lists = _only_lists(ci_workflow)
+        assert any("chk_python_floor" in lst for lst in only_lists), (
+            "no job in .github/workflows/plugin-tests.yml passes chk_python_floor "
+            "in a --only= list — the floor is only enforced by the local "
+            "pre-push hook, which a --no-verify push, a hookless cloud "
+            "session, or a GitHub-UI merge all bypass"
+        )
+
+    def test_the_floor_job_runs_nothing_else(self, ci_workflow):
+        """Defence-in-depth against #1635's own review fallout: a first
+        attempt co-tenanted this check via actions/setup-python, which DID
+        put the floor interpreter on PATH ahead of a check that needs 3.9+
+        (chk_md_references' str.removeprefix) and silently degraded a
+        pytest-backed check to 'skipped' (chk_hook_units). The shipped `uv`
+        mechanism doesn't have that failure mode, but pinning the isolation
+        — not just the presence — means a future edit can't quietly revert
+        to co-tenanting without this test noticing, without also forbidding
+        a second, equally-isolated invocation (e.g. a future matrix leg)
+        that the isolation property itself has no objection to."""
+        floor_lists = [lst for lst in _only_lists(ci_workflow) if "chk_python_floor" in lst]
+        assert floor_lists and all(lst == ["chk_python_floor"] for lst in floor_lists), (
+            "chk_python_floor must be the only check in every --only= list "
+            f"that invokes it — found {floor_lists!r}. Co-tenanting it risks "
+            "the exact PATH-shadowing regression #1635's review caught once "
+            "already"
+        )
+
+    def test_the_floor_job_is_named_for_the_docs_that_reference_it(self, ci_workflow):
+        """ruff.toml and root CLAUDE.md both cite a "Python 3.8 floor" job by
+        that exact string. Nothing else pins the job's `name:` to those
+        references, so a rename would leave both silently stale. Anchored to
+        end-of-line: an unanchored match would also satisfy on the job's own
+        *step* name ("Python 3.8 floor check (via ci-local)"), which shares
+        the same literal prefix but isn't the job-level name at all — a
+        step's `name:` is preceded by a `- ` list-item marker when it's the
+        step's first key, as it is here, which `^\\s*` cannot absorb, so
+        this pattern doesn't match it. The "3.8" here is deliberately a
+        literal, not FLOOR_DOTTED: this string will be the status-check
+        context the `main` ruleset matches once the job is added there (see
+        the module docstring above — not yet configured), so it must change
+        only with a deliberate ruleset update, never silently alongside a
+        future floor bump."""
+        assert re.search(r"(?m)^\s*name:\s*Python 3\.8 floor\s*$", ci_workflow), (
+            'no job in .github/workflows/plugin-tests.yml is named exactly '
+            '"Python 3.8 floor" — ruff.toml and CLAUDE.md both reference it '
+            "by that literal string"
+        )

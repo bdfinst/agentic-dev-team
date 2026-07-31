@@ -2,9 +2,9 @@
 """Import every shipped plugin module under the current interpreter.
 
 Run by the "Python 3.8 floor" job in `.github/workflows/plugin-tests.yml`.
-That job's main gate is the plugin's own test suite on a real 3.8; this probe
-covers the remainder — modules the suite never imports, which would otherwise
-reach users untested on the floor interpreter.
+That job's gate is this probe plus a byte-compile pass over the shipped tree
+(not yet the plugin's full test suite on 3.8 — see issue #1635's "Out of
+scope" for that follow-up).
 
 Byte-compiling proves a file *parses*. It does not prove it *imports*, and the
 gap between those two is exactly where the shipped tree had drifted: PEP 585
