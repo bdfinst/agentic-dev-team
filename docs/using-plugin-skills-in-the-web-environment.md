@@ -75,7 +75,10 @@ tool surface from the surrounding Remote runtime. The two tell-tale symptoms:
   one of these tools directly: it requires `prompt` (and `reason`) on every
   call unless `stop: true` is passed instead — there is no "just wait, no
   prompt" shape. This is upstream Remote-runtime tool-contract behavior, not
-  anything this plugin defines or can wrap.
+  anything this plugin defines or can wrap — but the skills that tell an agent
+  to wait on a long-running job now carry that contract, in
+  [`plugins/dev-team/knowledge/long-run-waiting.md`](../plugins/dev-team/knowledge/long-run-waiting.md),
+  so a backstop timer is not silently lost to a malformed arm call.
 
 This inheritance is an **upstream Claude Code / Remote-runtime behavior — it is
 not fixable in this plugin repo** (no plugin setting, hook, or config removes the

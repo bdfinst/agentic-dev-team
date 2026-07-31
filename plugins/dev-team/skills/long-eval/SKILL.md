@@ -102,14 +102,23 @@ is **never persisted**, so `cells()` reconstructs it each launch.
 
 4. **Arm a backstop timer** as insurance against a missed wake. Schedule a
    self-re-arming check-in (the session's scheduling tool — e.g. `send_later` /
-   a Routine, ~20 min out) whose body runs the same `ensure-alive` + `status`
-   and re-arms itself, **unless** the run is `DONE` or the user said stop. The
-   backstop only matters if a wake is ever missed; the recycle-wake is the
-   primary trigger.
+   `ScheduleWakeup` / a Routine, ~20 min out) whose body runs the same
+   `ensure-alive` + `status` and re-arms itself, **unless** the run is `DONE`
+   or the user said stop. The backstop only matters if a wake is ever missed;
+   the recycle-wake is the primary trigger.
+
+   Follow the calling contract in
+   [`knowledge/long-run-waiting.md`](../../knowledge/long-run-waiting.md):
+   every arm/re-arm call carries the instruction to replay (`prompt`) and a
+   `reason` — a call with only a delay fails the "prompt is required when stop
+   is not true" validation and **arms nothing**, which silently costs you the
+   backstop you thought you had.
 
 5. **Report and stop when `DONE`.** When `status` shows `DONE=True`, read
    `summary.json` from the out-dir, report the final result, and **stop
-   re-arming the backstop.** A `flap`-flagged cell (mixed pass/fail across
+   re-arming the backstop** — for a wake-up scheduler that means one
+   `stop: true`-only call, not a call that merely explains why you are
+   stopping. A `flap`-flagged cell (mixed pass/fail across
    samples) is low-confidence — surface it for quarantine/rewrite rather than
    trusting its verdict.
 

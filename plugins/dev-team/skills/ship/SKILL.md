@@ -126,8 +126,11 @@ not re-running:
   stop. Do not re-run any phase.
 - **Open PR for the issue → in-flight; MONITOR.** Report the PR and its CI
   state (`gh pr checks <pr>`). If the PR is `BEHIND` main, rebase it onto
-  `main` and hand back to its checks; otherwise wait on the open gate. Do
-  **not** re-enter spec→plan→build.
+  `main` and hand back to its checks; otherwise wait on the open gate — if you
+  arm a timer to re-check, follow
+  [`knowledge/long-run-waiting.md`](../../knowledge/long-run-waiting.md), whose
+  contract makes the re-fired prompt this guard already expects. Do **not**
+  re-enter spec→plan→build.
 - **Spec / sub-issues / plan exist but no PR yet → partially in-flight;
   RESUME.** Continue from the earliest incomplete phase against the existing
   artifacts (e.g. `--skip-spec` when the spec epic already exists; build onto

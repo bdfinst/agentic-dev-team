@@ -819,6 +819,20 @@
       "anchor": "how-this-connects-to-the-rest-of-the-toolkit"
     }
   },
+  "plugins/dev-team/knowledge/long-run-waiting.md": {
+    "Pick the waiting mechanism first": {
+      "summary": "| Situation | Mechanism |",
+      "anchor": "pick-the-waiting-mechanism-first"
+    },
+    "The scheduled wake-up calling contract": {
+      "summary": "Every scheduler in this family takes the **work to do on wake** as a required",
+      "anchor": "the-scheduled-wake-up-calling-contract"
+    },
+    "Re-arming loops": {
+      "summary": "A check-in that is supposed to repeat must carry its own continuation: the",
+      "anchor": "re-arming-loops"
+    }
+  },
   "plugins/dev-team/knowledge/microservice-testing.md": {
     "The Layers (per service)": {
       "summary": "| Layer | Scope | What it verifies | Doubles |",

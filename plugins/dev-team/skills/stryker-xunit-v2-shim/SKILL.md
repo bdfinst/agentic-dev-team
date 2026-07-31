@@ -150,7 +150,10 @@ A full run can take hours; a wrong harness wastes all of it. Two gates:
 
 Widen `mutate` back to the full scope and launch. A full Stryker run is
 long-running — start it in the background and watch it (a Monitor plus a periodic
-status check), rather than blocking on it.
+status check), rather than blocking on it. If the periodic check is a scheduled
+wake-up, follow the calling contract in
+[`knowledge/long-run-waiting.md`](../../knowledge/long-run-waiting.md) — a
+wake-up armed without its replay instruction schedules nothing.
 
 Before recording any score, **reject the observation-failure signature**: a
 near-zero score with almost everything *Survived* means it bound to the v3 project
