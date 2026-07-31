@@ -39,7 +39,9 @@ integrity failures escalate faster than style or naming issues.
 | Correctness | test-review, concurrency-review | Normal scoring |
 | Quality | structure-review, complexity-review, js-fp-review, naming-review | Normal scoring |
 | Accessibility | a11y-review | Normal scoring |
-| Ops | doc-review, claude-setup-review, token-efficiency-review, performance-review | Normal scoring |
+| Ops | doc-review, token-efficiency-review, performance-review | Normal scoring |
+
+`claude-setup-review` is deliberately absent: it is dispatched by the `/claude-setup-review` command, not by `/code-review`'s panel, so it never contributes to a code-review verdict.
 
 ## Issue Severity Mapping
 

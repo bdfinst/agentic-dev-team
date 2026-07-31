@@ -53,6 +53,19 @@ the deliberate opposite of this stream's own fail-open write side.
 | `matched_rule` | string | Rule ID from a closed vocabulary (pattern ID, hook-defined constant, bypass flag name, intervention keyword, or — for `record` — the dispatched review-agent's registered name) — never free text |
 | `plugin_version` | string | From `.claude-plugin/plugin.json` |
 | `session_id` | string, optional | Opaque per-session ID, when present in the hook payload — enables joins with `session-digest.jsonl` |
+| `subject_hash` | string, optional | `review_gate_hash()` value (#1461) binding this event to the staged content it corroborates. A hex digest, not free text |
+| `subject_hash_normalized` | string, optional | `normalized_gate_hash()` value (#1627) — the same binding computed after doc-hunk and indentation normalization. Stamped by `agent_dispatch_ledger.py` alongside `subject_hash`, and read by the gate's cosmetic-delta carry-forward lens. Absent on events written before #1627, which therefore never match on the normalized path |
+
+**`cosmetic-delta-carry-forward` (#1627).** `pre_commit_review.py` emits this
+`bypass`-decision event **every** time the gate passes a commit whose raw
+staged hash mismatched but whose normalized hash matched, with `>= 2` distinct
+in-window dispatches carrying that same `subject_hash_normalized`. The event
+is mandatory on that path — carry-forward is never silent — so every use is
+auditable from the same stream the gate itself is audited from. It is not a
+weakening of the `>= 2` floor or the recency window: only *which* hash binds
+the evidence changes. The exemption is a property of content recomputed by
+the hook at gate time, never a claim written by the gated party — see
+`hooks/lib/review_gate_normalized_hash.py` for why this does not reopen #1461.
 
 - **Emitter:** `hooks/lib/boundary_events.py::emit_boundary_event()`, called from `destructive_guard.py`, `verify_guard.py`, `pre_commit_review.py`, `telemetry.py` (intervention keywords), `agent_dispatch_ledger.py` (decision `record`, #1461), and the mechanically-adopted guards (`pre_tool_guard.py`, `context_ceiling_guard.py`, `bash_retry_guard.py`, `refactor_test_freeze_guard.py`, `refactor_test_bash_guard.py`, `refactor_test_revert_guard.py` (decision `revert`, #906), `contract_version_guard.py`, `mutation_testing_smoke_gate.py`, `mutation_gate.py`, `tdd_guard.py`).
 - **Consent:** ALWAYS-ON — not gated by `DEV_TEAM_TELEMETRY`. Local-only, rule-IDs-only safety/accountability channel; no observability holes by design.
@@ -246,6 +259,31 @@ counts and outcomes only, never code or file content.
 - **Consent:** unconditional when enabled (no code/file content recorded).
 - **Consumers:** `skills/cost-report/SKILL.md`, `skills/harness-audit/SKILL.md`.
 - **Provenance (#1257):** fix-rate ROI is only meaningful for fix-applying rows. A read-only review that never applies fixes (`source: "code-review"`) always has `issues_fixed: 0`; Step 4 must not read that as a zero-value drop candidate — it reports finding-rate for those instead.
+
+### Round rows — `source: "code-review"` with a `round` field (#1624)
+
+`/code-review` appends one row **per dispatch round** (round 1 = the initial
+panel; each fix-loop iteration's re-dispatch set is one further round), so
+#1623's "is this agent's dispatch frequency value or churn?" becomes
+answerable. Written by `skills/code-review/scripts/review_round_log.py`.
+
+| Field | Type | Values / source |
+|---|---|---|
+| `timestamp` | string | ISO-8601 UTC |
+| `source` | string enum | Always `code-review` for these rows |
+| `round` | integer | 1 = initial panel; each fix-loop re-dispatch set increments. **Presence of this field is what distinguishes a round row** from the original whole-run `code-review` row |
+| `agents_run` | array of string | Registered review agents dispatched this round (sorted, deduped) |
+| `findings_new` | integer | Findings whose signature was not present in a prior round (signature identity: #1625). The round-row analogue of `issues_found` |
+| `findings_carried` | integer | Prior-round signatures that survived this round's fix attempt |
+| `severity_breakdown` | object | `{errors, warnings, suggestions}` over `findings_new`; same enum as the `/build` rows |
+| `fix_provenance_new` | integer | How many of `findings_new` fall inside the line ranges the **previous** round's fix touched — the judgment-free "the fix introduced it" signal. Computed by unified-diff interval math, never by model judgment. Always `0` for `round: 1` (no preceding fix) |
+| `dispatch_purpose` | string enum | `discovery` (a panel looking for new problems) \| `verification` (confirming a specific fix, #1628) \| `closing` (the scoped gate-closing pass, #1626) |
+| `outcome` | string enum | `no-op` \| `fixed` \| `escalated` — same enum as the `/build` rows |
+
+- **Emitter:** `/code-review` (steps 5b-i and 6a) via `review_round_log.py`.
+- **Consent:** **unconditional** — written to `.claude/metrics/` like `boundary-events.jsonl`, *not* gated behind `~/.claude/telemetry.json` the way `/build`'s rows are. Rationale (#1624 design item 2): this is the same class of local, counts-only operational stream the commit gate itself already depends on, and consent-gating it would make #1623's success criteria depend on consent being enabled per dev machine. Rows carry counts, agent names, and enum values only — no file paths, code, or finding text.
+- **Consumers:** `skills/harness-audit/SKILL.md` Step 4a (churn ratio, per-agent discovery-vs-verification split, gate recidivism).
+- **Reconciling the two `source` values.** `build-checkpoint` rows are fix-applying and carry `plan`/`slice`/`step`/`checkpoint`/`complexity`/`issues_found`/`issues_fixed`/`fix_iterations`. `code-review` rows are read-only; those with a `round` field use the round schema above. A consumer wanting "how many issues did this row surface" should read `(.issues_found // .findings_new)`, which covers all three shapes.
 
 ---
 

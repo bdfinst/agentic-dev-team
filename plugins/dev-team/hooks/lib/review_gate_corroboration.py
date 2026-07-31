@@ -262,6 +262,41 @@ def distinct_review_agent_dispatches(
     return set(evaluate(cwd, before_ts, window_seconds, subject_hash).agents_in_window)
 
 
+def distinct_normalized_dispatches(
+    cwd, before_ts: str, window_seconds: int, subject_hash_normalized: str
+) -> set:
+    """Distinct registered review-agent names dispatched inside the recency
+    window before `before_ts` whose `subject_hash_normalized` matches (#1627).
+
+    Same fail-CLOSED posture and same live-registry re-validation as
+    `evaluate()` — this is the raw-hash query with one field swapped, not a
+    weaker check. An empty or falsy `subject_hash_normalized` matches nothing:
+    events written before that field existed carry no value for it, and
+    treating "both sides absent" as a match would let any pre-#1627 ledger
+    corroborate any changeset.
+    """
+    if not subject_hash_normalized:
+        return set()
+    entries, failure = _read_ledger(cwd)
+    if failure is not None:
+        return set()
+    dispatches = [
+        e
+        for e in metrics_query.filter_entries(
+            entries, event_type=_EVENT_TYPE, gate_outcome=_DECISION
+        )
+        if e.get("subject_hash_normalized") == subject_hash_normalized
+    ]
+    since = _since_bound(before_ts, window_seconds)
+    in_window = metrics_query.filter_entries(dispatches, since=since, until=before_ts)
+    registered = _registered_agents()
+    return {
+        e["matched_rule"]
+        for e in in_window
+        if isinstance(e.get("matched_rule"), str) and e["matched_rule"] in registered
+    }
+
+
 def _has_exemption(cwd, before_ts: str, window_seconds: int, subject_hash: str, rule: str) -> bool:
     entries, failure = _read_ledger(cwd)
     if failure is not None:
@@ -305,6 +340,7 @@ def has_single_agent_exemption(cwd, before_ts: str, window_seconds: int, subject
 
 __all__ = (
     "LedgerEvidence",
+    "distinct_normalized_dispatches",
     "distinct_review_agent_dispatches",
     "evaluate",
     "has_doc_only_exemption",

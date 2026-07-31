@@ -11,6 +11,12 @@ color: green
 # Structure Review
 
 Scope: always
+Verify-model: haiku
+Verify-effort: medium
+<!-- Verification-mode opt-in (#1628): confirming an extracted function or a
+     flattened nesting level is a structural read, not a judgment call.
+     Discovery stays sonnet/high. Contract: ${CLAUDE_PLUGIN_ROOT}/knowledge/verification-mode.md
+     (Whole-file load: short shared contract, no anchors). -->
 Cites:
 - design-smells
 - object-calisthenics

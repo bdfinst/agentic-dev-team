@@ -190,7 +190,7 @@ Follow the detection, execution, and deduplication procedure in [`skills/static-
 **Repo-specific invariant pre-pass (#1608).** Also run:
 
 ```bash
-python3 "$CLAUDE_PLUGIN_ROOT/skills/code-review/scripts/repo_invariants.py"
+python3 "$CLAUDE_PLUGIN_ROOT/skills/code-review/scripts/repo_invariants.py" --files <target files>
 ```
 
 It checks a small, growable list of this repo's own "every X should have
@@ -201,6 +201,23 @@ the same envelope and the same "detected by static analysis — do not
 re-report, focus on semantic concerns" framing. Expand `CHECKS` in that script
 as more rediscovered-N-times cases turn up; this step never needs to change to
 pick up a new check.
+
+**Pass `--files` (#1629).** Several checks are scoped to the changeset,
+because the conventions they enforce are "required going forward, do not
+retrofit" (`evals/README.md`'s `_calibration` rule is the motivating case).
+Without `--files` those checks stay silent rather than reporting the ~150
+pre-existing findings the conventions explicitly do not require fixing. The
+`--all` flag exists for deliberate backlog triage and must **not** be used
+here.
+
+**Authoring-time ordering (#1629).** When *writing* fixtures or agent files,
+run this same command at edit time, before the first panel dispatches — same
+command, earlier. Of #1619's 8 follow-up rounds, at least 4 were triggered by
+defect classes these deterministic checks catch, plus factually wrong
+runtime-semantics claims that `evals/README.md`'s **executable-claims
+convention** requires verifying by execution at authoring time. A claim the
+author has already run is a claim the panel reviews as evidence rather than
+adjudicates from scratch.
 
 If Semgrep already ran in the pre-flight gate, reuse those findings. Do not run Semgrep twice.
 
@@ -295,6 +312,50 @@ case where a cheap, self-certifying review is a problem, so it never qualifies
 for the shortcut it defines, regardless of size. Bypassed by `--force` and by
 `--agent <name>`, matching the change-shape gate's bypass list.
 
+**Architectural-impact gate for structural lenses.** Apply this **third**,
+after `Scope:` eligibility, the change-shape gate, and the change-size gate —
+never before, and never to re-add an agent an earlier gate already removed.
+It narrows by *architectural signal* rather than by file type or diff size.
+
+`arch-review` is `Scope: always` and opus-tier, so it runs on every non-empty
+changeset — including diffs that cannot exhibit what it looks for. Its scope
+is ADR compliance, layer-boundary violations, dependency direction, and
+pattern consistency: all properties of *structure*. A diff that adds a guard
+clause inside an existing function, with no import change, no added/moved/
+deleted file, no manifest edit, and no public-interface change, has moved no
+boundary for it to evaluate. Decide deterministically:
+
+```bash
+# Auto-scope (uncommitted changes):
+{ git -c diff.relative=false diff --no-color; git -c diff.relative=false diff --cached --no-color; } \
+  | python3 "$CLAUDE_PLUGIN_ROOT/skills/code-review/scripts/change_impact.py" --files <target files>
+
+# --since <ref>:
+git -c diff.relative=false diff --no-color <ref>...HEAD \
+  | python3 "$CLAUDE_PLUGIN_ROOT/skills/code-review/scripts/change_impact.py" --files <target files>
+```
+
+It prints `{"signals": [...], "hasArchitecturalImpact": <bool>, "skipLenses":
+[...], "reason": <str|null>}`. Exclude any agent in `skipLenses` and note the
+skip in the report (gated by architectural impact, not by `Scope:`). The six
+signals are `structure` (file added/deleted/renamed), `dependency` (an
+import/require line added or removed), `manifest`, `infra`, `interface` (a
+public/exported symbol declaration added or removed), and `adr`.
+
+The gate is **fail-safe and include-biased**: an unparseable diff, an empty
+diff, or any file it cannot classify all count as impact and keep every lens.
+It can only remove a lens it can prove has nothing to look at. Bypassed by
+`--force` and `--agent <name>`, matching the other two gates' bypass list.
+
+**Only `arch-review` is gated in this pass, deliberately.** `domain-review`
+is the obvious next candidate and is excluded on purpose: its scope covers
+"business logic placement", and putting business logic into a controller
+method body is a real violation introduced by a *body-only* edit with no
+structural signal — exactly the diff shape this gate skips. Widen
+`GATED_LENSES` from #1624's measured per-agent data, not from intuition about
+which lens probably no-ops. Same evidence-first discipline
+`knowledge/verification-mode.md` applies to tier-down opt-ins.
+
 ### 4. Run each enabled agent
 
 **Dispatch-capability gate (re-confirm here, not just at the top of this file — issue #1461).** Before spawning anything below, re-verify the `Agent`/`Task` tool is present in this toolset. If it is not, STOP per the Orchestrator constraints above — do not fall back to reviewing the files yourself, inline, as a stand-in for the panel; report the missing capability and halt the run before any agent is spawned.
@@ -344,6 +405,29 @@ Classify each issue by actionability:
 | suggestion | any | No — report only |
 
 **Actionable issues** drive the fix loop.
+
+#### 5b-i. Record round 1 (#1624)
+
+The initial panel is **round 1**. Append its row to
+`.claude/metrics/review-value.jsonl` now, before any fix is applied — this
+stream is what makes #1623's "is this churn or value?" question answerable at
+all, and a row written only on the happy path would bias every derived metric:
+
+```bash
+python3 "$CLAUDE_PLUGIN_ROOT/skills/code-review/scripts/review_round_log.py" \
+  --round 1 --agents "<comma-separated agents dispatched>" \
+  --findings <path-to-this-round's-findings.json> \
+  --purpose discovery --outcome "<fixed|no-op|escalated>"
+```
+
+Round 1 never passes `--fix-diff`: it has no preceding fix, so its
+`fix_provenance_new` is `0` by definition. The script writes counts, agent
+names, and enum values only — never file paths, code, or finding text.
+Full schema: `knowledge/telemetry-schema.md` § `review-value.jsonl`.
+
+Every later round records itself the same way from step 6a — see that step's
+"Record each round" item for the `--fix-diff` argument that turns
+`fix_provenance_new` into the "the previous fix introduced this" signal.
 
 #### 5c. Consolidate cross-agent findings
 
@@ -414,25 +498,147 @@ while actionable_issues > 0 AND iteration ≤ MAX_ITERATIONS:
        checkpoints (`../build/SKILL.md` sub-steps 4/6) — one shared habit,
        not a duplicated checklist.
     4. Re-run only the agents whose remaining actionable issues were not
-       already closed by step 3b's deterministic triage, against only the
-       modified files. Carry forward statuses of agents that passed.
+       already closed by step 3b's deterministic triage, **in verification
+       mode** (#1628) — pass the finding, the fix diff hunks ± ~20 lines,
+       and the agent's lens definition, NOT the full target file set, and
+       grant the mandatory `insufficient-context` escape. Resolve each
+       agent's verification tier with `python3
+       "$CLAUDE_PLUGIN_ROOT/scripts/verify_tier.py" --agent <name>`. Full
+       contract: [`knowledge/verification-mode.md`](../../knowledge/verification-mode.md).
+       Carry forward statuses of agents that passed.
     5. Re-aggregate. Reclassify remaining issues.
+    5a. **Classify the round against the ledger (#1625).** Run the round
+       ledger (below). It decides new-vs-carried by finding signature and
+       returns `terminate`/`reason` — honor it: `converged` and `round-cap`
+       both leave this loop.
+    5b. **Record this round (#1624).** Append one row per re-dispatch round
+       to `.claude/metrics/review-value.jsonl`, passing THIS iteration's fix
+       diff so `fix_provenance_new` can be computed (see below).
     6. iteration += 1
 
 if iteration > MAX_ITERATIONS AND actionable_issues > 0:
     escalate to human with remaining issues
 ```
 
-**Re-establishing dispatch-ledger corroboration after the loop (#1461, auto-scope only — same condition as item 3 above).** Step 3's `git add` changes the staged content's hash, so `agent_dispatch_ledger.py` stamps each iteration's re-dispatched agents (step 4) with that NEW hash — not step 4 (the outer, pre-loop)'s original dispatch hash, and not an earlier iteration's hash either. Step 9's gate write needs **>= 2 distinct dispatches whose `subject_hash` equals the FINAL staged content's hash** (the one actually committed). Because step 4 of this loop only re-dispatches the agents that had actionable issues, a final iteration that fixes just one agent's finding re-dispatches only that one agent against the final content — insufficient on its own. **Unconditionally, after any loop iteration ran** (i.e. any fix was applied and re-staged) — not only when the count looks short, since that count isn't something to reason about from memory — re-dispatch the FULL original agent panel once more against the final staged content before proceeding to step 7. **This re-dispatch is a real review, not a rubber stamp**: if it reports any actionable issue, treat it exactly like any other iteration — re-enter this loop (subject to `MAX_ITERATIONS`) rather than proceeding to step 7. If the iteration limit is reached with issues still outstanding, follow the existing "escalate to human" exit condition below — step 9's gate-write condition explicitly excludes this case (treat it as if overall status were `fail` for that one purpose, even if every outstanding issue is only `warning`-severity), so an escalation is never silently overridden by a passing gate write. A corroboration pass whose findings carry no consequence would be exactly the "dispatch trivial calls purely to clear the gate" abuse `pre_commit_review.py`'s own module docstring names as the residual risk this mechanism does NOT protect against.
+**Round ledger and termination rules (#1625).** The loop above has an
+iteration cap but, on its own, no notion of finding *identity* across rounds
+— so nothing detects "this round found only residue from the last fix" or
+"we are churning". Classify every round's findings with the shared helper:
+
+```bash
+# RUN_ID identifies this changeset; the ledger is discarded if it belongs to
+# a different one. Any stable digest of the target set works.
+RUN_ID=$(printf '%s\n' <target files> | sort | sha256sum | cut -c1-16)
+python3 "$CLAUDE_PLUGIN_ROOT/skills/code-review/scripts/finding_signature.py" \
+  --round <N> --findings <this-round's-findings.json> \
+  --run-id "$RUN_ID" \
+  --state .claude/memory/review-round-state.json
+```
+
+It prints `{"round", "new", "carried", "actionable_new", "ledger_reset",
+"terminate", "reason"}` and maintains the durable ledger at
+`.claude/memory/review-round-state.json`, so `/continue` can resume a review
+mid-loop and step 6a's `--carried` count for #1624 comes from the same
+source rather than being re-derived from memory.
+
+**Ledger lifecycle — the ledger must never leak across runs.** Reusing a
+ledger built for a different changeset would misclassify a genuinely new
+finding as "carried" (silently skipping a round that should have run) and
+inflate the round counter toward the cap on unrelated history. Four reset
+triggers, in precedence order, all handled by the script:
+
+| Trigger | When |
+| --- | --- |
+| `--reset` | Explicit, caller-forced |
+| Round 1 | The initial panel **is** the start of a new run by definition. `/code-review` always calls round 1 first, so an abandoned ledger can never leak into the next review — no caller bookkeeping needed |
+| `run-id-mismatch` | The stored ledger was built for different target files. Catches a resume that legitimately starts at round ≥ 2 against a different changeset |
+| `stale-state` | The run started more than 24h ago — abandoned residue |
+
+Reported as `ledger_reset` on every call (`null` when a stored ledger was
+legitimately resumed). The script fails **toward** a reset: an unreadable or
+malformed state file starts fresh. Starting fresh costs at most one extra
+round; reusing a wrong ledger silently skips one. A finding's signature is
+`(agent, file, rule/category, normalized message)` with the line compared at
+±3 rather than hashed — see the script's own docstring for why the line is
+deliberately outside the hash.
+
+Three termination rules, evaluated at each round boundary, **first match
+wins** — the helper implements all three, this text is the contract:
+
+| Rule | Trigger | Effect |
+| --- | --- | --- |
+| **Hard round cap** | `round >= 4` (initial panel + 3) | Escalate to human, attaching the round ledger as evidence — which rounds found what, with fix provenance. Same posture as the existing `MAX_ITERATIONS` escalation, and step 9 treats it the same way (no gate write). Applied to #1619's case study, this alone would have surfaced the churn at round 4 instead of round 9. |
+| **Severity floor** (rounds ≥ 2) | No *new-signature* finding is `error`/`warning` at `high`/`medium` confidence | Converged — leave the loop. Suggestion-tier and low-confidence findings from round ≥ 2 still go to `corrections/` and the report: **logged, never chased.** Round 1 is unaffected — its actionability is step 5b's table, not this floor. |
+| **Loop-until-dry** | A round produces zero new-signature findings clearing the floor | Converged. Carried signatures that survived a fix attempt are already covered by the existing "same issues persist → escalate" exit; they are not a reason to keep going here. |
+
+The same three rules govern `/build`'s inline checkpoint fix loops
+(`../build/SKILL.md` sub-steps 4/6) — one shared statement, one shared
+implementation, not a duplicated table.
+
+**Record each round (#1624).** The initial panel was round 1 (step 5b-i);
+each fix-loop iteration's re-dispatch set is one further round. Capture the
+iteration's fix diff **before** re-staging (item 3) so the row can attribute
+this round's new findings to the previous round's fix:
+
+```bash
+# Item 1 applied fixes; capture them as a diff, then (item 3) `git add` them.
+git -c diff.relative=false diff --no-color > "$FIX_DIFF"
+# …after item 5's re-aggregation:
+python3 "$CLAUDE_PLUGIN_ROOT/skills/code-review/scripts/review_round_log.py" \
+  --round <N> --agents "<agents re-dispatched this round>" \
+  --findings <this-round's-NEW-findings.json> \
+  --carried <count of findings carried over from the prior round> \
+  --purpose "<discovery|verification|closing>" \
+  --outcome "<fixed|no-op|escalated>" \
+  --fix-diff "$FIX_DIFF"
+```
+
+`fix_provenance_new` — how many of this round's new findings land inside the
+line ranges the previous round's fix touched — is the judgment-free "the fix
+introduced it" signal #1623 asks for. It is interval math over the diff, not
+an LLM call: a round whose new error/warning findings **all** carry
+provenance is churn by construction. `--purpose` distinguishes a discovery
+panel from a fix-verification re-dispatch and from the gate-closing pass, so
+per-agent cost can be split by purpose rather than lumped into one dispatch
+count. Derived metrics (churn ratio, per-agent discovery-vs-verification
+split, gate recidivism) are computed by `/harness-audit` — see its Step 4a.
+
+**Closing pass — re-establishing dispatch-ledger corroboration after the loop (#1461, narrowed by #1626; auto-scope only — same condition as item 3 above).** Step 3's `git add` changes the staged content's hash, so `agent_dispatch_ledger.py` stamps each iteration's re-dispatched agents (step 4) with that NEW hash — not step 4 (the outer, pre-loop)'s original dispatch hash, and not an earlier iteration's hash either. Step 9's gate write needs **>= 2 distinct dispatches whose `subject_hash` equals the FINAL staged content's hash** (the one actually committed). Because step 4 of this loop only re-dispatches the agents that had actionable issues, a final iteration that fixes just one agent's finding re-dispatches only that one agent against the final content — insufficient on its own.
+
+This used to be satisfied by re-dispatching the **full** original panel, which made a one-line fix cost an 18-agent round. **Unconditionally, after any loop iteration ran** (i.e. any fix was applied and re-staged) — not only when the count looks short, since that count isn't something to reason about from memory — run a **closing pass** instead. Compose it deterministically, don't pick the set by hand:
+
+```bash
+python3 "$CLAUDE_PLUGIN_ROOT/skills/code-review/scripts/closing_pass.py" \
+  --fixed-by "<agents whose findings were fixed during the loop>" \
+  --roster "@<select_lenses.py output>" --panel "<the round-1 panel>" \
+  --panel-files "<files the round-1 panel targeted>" \
+  --fix-delta-files "<files the cumulative fix touched>"
+```
+
+It prints `{"agents", "scope", "escape_hatch", "reason", "topped_up"}`. Dispatch exactly the `agents` it returns, and record them with `dispatch_purpose: "closing"` (#1624) so the cost effect is measurable.
+
+- **Composition**: every agent whose findings were fixed during the loop (each verifies its own fixes at the final hash), plus — only if that set has fewer than 2 distinct agents — a cheap-first top-up from the resolver's eligible roster until 2 distinct registered agents have dispatched at the final hash.
+- **Why this is sound**: 2 is `pre_commit_review.py`'s `_MIN_DISTINCT_DISPATCHES`, so the gate's corroboration floor is satisfied **by construction** — no hook change, no exemption event, no ledger change. The threat model #1461 closed (self-certification without dispatch) is untouched: these are genuine dispatches carrying real review authority over the only content that changed since full-panel coverage. A drift test pins the script's constant to the hook's, so raising the gate's floor can never silently under-compose this pass.
+- **Scope**: the closing pass reviews the **cumulative fix delta** — the diff between what the round-1 panel reviewed and the final staged content — with the round ledger's fixed findings as context. Not the whole changeset: the panel's round-1 coverage of unchanged content is still valid; only the fix delta is unreviewed.
+- **Escape hatch**: when the fix delta touches files outside the original panel's target set (scope grew mid-loop), the script returns `escape_hatch: true` and `scope: "full-changeset"` — fall back to the full re-dispatch. This is a set comparison of two file lists, not a judgment call.
+
+**This pass is a real review, not a rubber stamp**: closing-pass agents keep full authority. If any reports an actionable issue, treat it exactly like any other iteration — re-enter this loop (subject to `MAX_ITERATIONS` and #1625's round cap) rather than proceeding to step 7. What #1626 changed is only *how many* agents re-read *how much* content; never whether their findings count. If the iteration limit or the round cap is reached with issues still outstanding, follow the existing "escalate to human" exit condition below — step 9's gate-write condition explicitly excludes this case (treat it as if overall status were `fail` for that one purpose, even if every outstanding issue is only `warning`-severity), so an escalation is never silently overridden by a passing gate write. A corroboration pass whose findings carry no consequence would be exactly the "dispatch trivial calls purely to clear the gate" abuse `pre_commit_review.py`'s own module docstring names as the residual risk this mechanism does NOT protect against.
 
 **Exit conditions**:
 
 | Condition | Action |
 | --- | --- |
 | Zero actionable issues | Exit → step 7 |
+| Round ledger returns `converged` (#1625) | Exit → step 7. A clean convergence, not an escalation: no new-signature finding cleared the severity floor, so step 9's gate write proceeds normally |
+| Round ledger returns `round-cap` (#1625) | Exit → escalate with the round ledger attached. Treated exactly like the iteration-limit row below for step 9's gate-write condition |
 | Iteration limit (5) | Exit → escalate (#1461: step 9 treats this as `fail` for its gate-write condition, even if remaining issues are only `warning`-severity) |
 | Same issues persist | Exit → escalate — not converging (same #1461 step 9 treatment as the iteration-limit row: this is also an escalation with actionable issues outstanding, not a quiet exit) |
 | Tests fail after fix and revert | Mark issue human-required; continue |
+
+The round cap (4) binds before `MAX_ITERATIONS` (5) in practice: the cap
+counts total dispatch rounds including the initial panel, the iteration
+limit counts fix-loop passes only. Both remain — the cap is the churn
+control, the iteration limit the original backstop.
 
 Track each iteration for the report — template in [`output-format.md`](output-format.md#review-fix-loop-iteration-log-step-6a-iv).
 
@@ -495,8 +701,20 @@ If the review was auto-scoped to uncommitted changes and the overall status is `
 
 ```bash
 HASH=$(python3 ${CLAUDE_PLUGIN_ROOT}/hooks/lib/review_gate_hash.py)
-mkdir -p .claude/memory && echo "$HASH" > .claude/memory/.review-passed
+NORM=$(python3 ${CLAUDE_PLUGIN_ROOT}/hooks/lib/review_gate_normalized_hash.py || true)
+mkdir -p .claude/memory && printf '%s\n%s\n' "$HASH" "$NORM" > .claude/memory/.review-passed
 ```
+
+The **second line** is the normalization-invariant hash (#1627). It lets the
+pre-commit gate carry this review's corroboration forward across a later
+re-stage that provably changed no behavior — a whitespace fix, or a markdown
+edit alongside the reviewed code — instead of forcing fresh dispatches whose
+only purpose is to re-feed the ledger. Write it with the shared helper, never
+by hand: the hook recomputes the same value from the staged content at gate
+time and compares, so a hand-authored or stale second line simply fails to
+match and the gate behaves exactly as it did before this line existed. If the
+helper fails (`$NORM` empty), the file degrades to raw-only and the gate falls
+back to today's behavior — that is the intended failure mode, not an error.
 
 **If `--agent <name>` was used** (a sanctioned single-agent review — it deliberately dispatches exactly 1 agent, which can never clear the dispatch-ledger gate's `>= 2` distinct-dispatch floor on its own), record that as an explicit, auditable exemption event bound to this same hash **contemporaneously** with the write above — same pattern as the doc-only short-circuit's exemption event (step 1a):
 

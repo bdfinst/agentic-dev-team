@@ -61,7 +61,11 @@ import shutil
 import subprocess
 import sys
 import time
-from collections.abc import Callable, Sequence
+# typing, not collections.abc: the `Generator` alias below is a real runtime
+# expression, so `from __future__ import annotations` cannot defer it, and
+# collections.abc generics are only subscriptable from 3.9. ADR 0014 puts the
+# shipped floor at 3.8.
+from typing import Callable, Dict, List, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -81,7 +85,7 @@ from mutation_kill_shared import (
     stop_reason,
 )
 
-Generator = Callable[[str, list[dict], str, str], str]
+Generator = Callable[[str, List[Dict], str, str], str]
 
 # Mirrors mutation_kill_headless.NO_GENERATOR_MESSAGE — pinned so a contract test
 # can assert it verbatim.

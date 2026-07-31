@@ -29,7 +29,14 @@ from typing import Any
 # Allow importing sibling lib modules regardless of cwd
 sys.path.insert(0, str(Path(__file__).parent))
 from lib import deterministic_recon
-from lib.review_result import build_result, main_exit
+
+# review_result moved under plugins/dev-team/scripts/lib — see the note in
+# progress_guardian.py.
+sys.path.insert(
+    0,
+    str(Path(__file__).resolve().parents[1] / "plugins" / "dev-team" / "scripts" / "lib"),
+)
+from review_result import build_result, main_exit
 
 # ---------------------------------------------------------------------------
 # Schema loading

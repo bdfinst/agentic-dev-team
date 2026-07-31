@@ -91,7 +91,14 @@ case "${HUSKY_RUN_EVALS:-}" in
     # permission bits, which pass even from GUI git clients (VS Code, JetBrains)
     # where there is no tty — writing then fails with "Device not configured"
     # and aborts the hook under `sh -e`. Test-open it instead.
-    if { : > /dev/tty; } 2>/dev/null; then
+    #
+    # `true`, NOT `:` — they are interchangeable everywhere except here. `:` is
+    # a POSIX *special* builtin, and a redirection error on a special builtin
+    # is fatal to a non-interactive shell: the probe that exists to detect a
+    # missing tty would itself kill the hook with exit 2 in precisely the
+    # environment it is meant to handle. `true` is a regular builtin, so the
+    # failed redirection just yields a non-zero status the `if` can read.
+    if { true > /dev/tty; } 2>/dev/null; then
       printf '\nRun live agent-evals for changed agents/skills? (costs API tokens) [y/N] ' > /dev/tty
       read -r answer < /dev/tty || answer=n
     else

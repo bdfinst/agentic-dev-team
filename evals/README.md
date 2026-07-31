@@ -235,6 +235,86 @@ Worked example:
 }
 ```
 
+## Convention: executable claims (issue #1629)
+
+**Any fixture line or `_calibration` note that asserts concrete runtime
+behavior must be verified by *running* it at authoring time**, with the probe
+and its observed output recorded next to the claim.
+
+"Concrete runtime behavior" means a checkable statement about what code
+actually does: *"X throws when unbound"*, *"Y mutates its receiver"*, *"Z
+returns a new array"*, *"this call is O(n²)"*. It does not mean a design
+opinion or a naming judgment — those are what the reviewer is for.
+
+### Why this exists
+
+In PR #1619, a negative-control fixture asserted that
+`Intl.NumberFormat.prototype.format` loses its receiver when called unbound.
+The claim was wrong, so the fixture didn't test what it said it tested — and
+nothing caught it until an opus-tier `correctness-review` adjudicated it
+**two rounds later**, which then cost another round to verify that the
+replacement (`RegExp.prototype.test`) was itself correct per ECMA-262.
+
+Every step of that was avoidable. The claim was checkable by execution in
+about one second — and executing it shows the situation is not even the one
+the fixture described (verified on Node 22.22.2, 2026-07-31):
+
+```console
+$ node -e 'Intl.NumberFormat.prototype.format'
+TypeError: Method UnwrapNumberFormat called on incompatible receiver undefined
+```
+
+`format` is an **accessor**, not a data property (`Object.getOwnPropertyDescriptor(Intl.NumberFormat.prototype, "format").get` is a
+function). Merely *reading* it off the prototype throws, because the getter
+runs with `this === undefined`. So the method can never be extracted from the
+prototype to be "called unbound" in the first place. Extracted from an
+*instance*, it works fine unbound — the getter returns an already-bound
+closure:
+
+```console
+$ node -e 'const f = new Intl.NumberFormat("en-US").format; console.log(f(1234.5))'
+1,234.5
+```
+
+This example is itself the convention in action: the first draft of this
+section asserted that the bare prototype access returns `1`. Running the
+probe disproved it in one second, before any reviewer saw it.
+
+The panel should be reviewing an **evidenced** claim, not adjudicating an
+unevidenced one. This is the `ai-provenance-review` lens's own
+"human-verification evidence" principle applied to this plugin's fixtures:
+an AI-authored assertion about runtime behavior carries verification debt
+until someone actually ran it.
+
+### How to record the evidence
+
+Put the probe and its output in the fixture's `_calibration.note`, or in a
+sibling comment in the fixture file itself when the fixture's format allows
+comments:
+
+```json
+"_calibration": {
+  "source": "measured",
+  "note": "Negative control verified by execution: `node -e 'const t = RegExp.prototype.test; try { t(\"x\") } catch (e) { console.log(e.constructor.name) }'` -> TypeError (ECMA-262 22.2.6.16 requires an Object receiver). 2026-07-31."
+}
+```
+
+### Ordering: run the deterministic checks *before* the first panel
+
+`repo_invariants.py` and the language linters already run inside
+`/code-review` step 2b. When authoring fixtures or agent files, run them at
+**edit time** instead — same commands, earlier, before any panel dispatches:
+
+```bash
+python3 plugins/dev-team/skills/code-review/scripts/repo_invariants.py --files <the files you touched>
+```
+
+That pre-pass mechanically enforces the conventions this repo has already
+paid for rediscovering: `_calibration` blocks on new bounded fixtures,
+`mustNotMention` terms that actually appear in their paired fixture, and
+`Scope:`-glob/Skip-prose extension agreement. Add `--all` to triage the
+pre-existing backlog these conventions deliberately do not retrofit.
+
 ## Integration tier — golden repo (issue #313)
 
 The unit graders score a single agent's output in isolation. The integration

@@ -69,6 +69,7 @@ def emit_boundary_event(
     matched_rule: str,
     session_id: str | None = None,
     subject_hash: str | None = None,
+    subject_hash_normalized: str | None = None,
 ) -> None:
     """Append one compact JSON line to
     `<cwd>/.claude/metrics/boundary-events.jsonl`.
@@ -101,6 +102,15 @@ def emit_boundary_event(
             event as corroborating evidence, so a genuine dispatch/exemption
             for one diff can't satisfy the gate for a different, unrelated
             one.
+        subject_hash_normalized: Optional `normalized_gate_hash()` value
+            (#1627) — the same binding, computed over the staged patch after
+            doc-hunk and indentation normalization. Lets the gate carry
+            corroboration forward across a re-stage that provably changed no
+            behavior, without a fresh dispatch whose only purpose is to feed
+            the ledger. Like `subject_hash`, a derived digest carrying no
+            path/prompt/reason information. Events written before this field
+            existed simply never match on the normalized path — the same
+            backward-compat posture `subject_hash` itself has.
     """
     try:
         base = Path(cwd) if cwd else Path.cwd()
@@ -119,6 +129,8 @@ def emit_boundary_event(
             payload["session_id"] = session_id
         if subject_hash:
             payload["subject_hash"] = subject_hash
+        if subject_hash_normalized:
+            payload["subject_hash_normalized"] = subject_hash_normalized
 
         with open(log, "a", encoding="utf-8") as handle:
             handle.write(json.dumps(payload, separators=(",", ":")) + "\n")

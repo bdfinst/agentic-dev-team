@@ -23,7 +23,17 @@ from dataclasses import dataclass
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
-from lib.review_result import build_result, main_exit, make_issue, skipped_llm_warning
+# review_result now lives in the plugin: it implements the shipped review-agent
+# output contract, and the agent implementations that use it are being moved
+# under plugins/dev-team/scripts so a plugin USER can resolve them (the
+# `Implemented by:` reference in agents/*.md was dangling for anyone who
+# installed the plugin). Imported by explicit path rather than as `lib.` —
+# two namespace-package `lib` dirs on sys.path merge only implicitly.
+sys.path.insert(
+    0,
+    str(Path(__file__).resolve().parents[1] / "plugins" / "dev-team" / "scripts" / "lib"),
+)
+from review_result import build_result, main_exit, make_issue, skipped_llm_warning
 
 # ---------------------------------------------------------------------------
 # Module constants (REFACTOR: extracted for easy maintenance)

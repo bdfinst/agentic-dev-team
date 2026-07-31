@@ -250,8 +250,13 @@ def test_cli_empty_files_yields_no_lenses():
 # the resolver. A new Scope: always review lens must update ALWAYS_LENSES
 # deliberately (that break is the intended "review the baseline" signal).
 # ---------------------------------------------------------------------------
+# `claude-setup-review` was here until it moved to NON_REVIEW_AGENTS: it reviews
+# the harness (CLAUDE.md, rules, skills, agent frontmatter), not the changeset,
+# so `Scope: always` had it joining an 18-lens panel for a two-file JS change in
+# a project with no Claude config at all. It is now dispatched on demand by the
+# user-invocable `/claude-setup-review` command.
 ALWAYS_LENSES = {
-    "ai-provenance-review", "arch-review", "claude-setup-review", "complexity-review",
+    "ai-provenance-review", "arch-review", "complexity-review",
     "concurrency-review", "correctness-review", "doc-review", "domain-review",
     "naming-review", "performance-review", "refactor-opportunity-review",
     "security-review", "spec-compliance-review", "structure-review", "test-review",

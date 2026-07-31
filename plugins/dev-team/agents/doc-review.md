@@ -11,6 +11,13 @@ color: green
 # Documentation Review
 
 Scope: always
+Verify-model: haiku
+Verify-effort: medium
+<!-- Verification-mode opt-in (#1628): confirming a doc line now matches the
+     code it describes is a comparison, not an inference. Already haiku for
+     discovery; this drops effort high -> medium for confirmations only.
+     Contract: ${CLAUDE_PLUGIN_ROOT}/knowledge/verification-mode.md
+     (Whole-file load: short shared contract, no anchors). -->
 Cites: [adversarial-review-protocol]
 
 Output JSON: per `${CLAUDE_PLUGIN_ROOT}/knowledge/review-agent-output-contract.md` (Whole-file load: short, canonical schema).
