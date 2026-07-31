@@ -54,7 +54,16 @@ _HOOKS_LIB_DIR = _PLUGIN_ROOT / "hooks" / "lib"
 if str(_HOOKS_LIB_DIR) not in sys.path:
     sys.path.insert(0, str(_HOOKS_LIB_DIR))
 
-import artifact_paths
+try:
+    import artifact_paths  # type: ignore[import-not-found]
+except ImportError:  # pragma: no cover - degraded fallback, hooks/lib unreachable
+    # Guarded-import form matching `change_shape.py`'s sibling pattern: this
+    # directory is not in `ruff.toml`'s E402 per-file-ignore list, and the
+    # import genuinely cannot precede the `sys.path` setup above. The fallback
+    # resolves the same default location `artifact_paths.resolve_file` would,
+    # minus the legacy-path migration — enough for an append-only metrics
+    # writer that is already fail-open.
+    artifact_paths = None
 
 _STREAM_NAME = "review-value.jsonl"
 _SOURCE = "code-review"
@@ -252,7 +261,11 @@ def append_round(entry: dict, cwd=None) -> Path | None:
     """
     try:
         base = Path(cwd) if cwd else Path.cwd()
-        log = artifact_paths.resolve_file("metrics", _STREAM_NAME, base)
+        log = (
+            artifact_paths.resolve_file("metrics", _STREAM_NAME, base)
+            if artifact_paths is not None
+            else base / ".claude" / "metrics" / _STREAM_NAME
+        )
         log.parent.mkdir(parents=True, exist_ok=True)
         with open(log, "a", encoding="utf-8") as handle:
             handle.write(json.dumps(entry, separators=(",", ":"), sort_keys=True) + "\n")

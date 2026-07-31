@@ -287,19 +287,35 @@ class TestScopeGlobSkipProseDrift:
 
 
 class TestBacklogSweep:
-    def test_sweep_all_surfaces_the_deliberately_unretrofitted_backlog(self):
-        """--all is the triage escape hatch. It must find the pre-existing
-        findings the pre-pass deliberately stays silent about — otherwise the
-        checks would be unverifiable against the real corpus."""
-        findings = repo_invariants._sweep_all()
-        kinds = {f["invariant"] for f in findings}
-        assert "scope-glob-skip-prose-extension-drift" in kinds
-        assert "must-not-mention-term-absent-from-fixture" in kinds
+    """`--all` is the triage escape hatch: it runs the changeset-scoped checks
+    across the whole corpus so a maintainer can see the pre-existing findings
+    each convention chose not to retrofit.
 
-    def test_js_fp_review_is_the_known_mjs_cjs_case(self):
-        drift = [
-            f
-            for f in repo_invariants._sweep_all()
-            if f["invariant"] == "scope-glob-skip-prose-extension-drift"
-        ]
-        assert any("js-fp-review" in f["file"] for f in drift)
+    These tests deliberately assert **shape, not census**. An earlier draft
+    pinned `js-fp-review` as the known `.mjs`/`.cjs` drift case; PR #1632 then
+    fixed it upstream and the test went red for a good outcome. A backlog test
+    that fails when the backlog shrinks is measuring the wrong thing — the
+    detector's correctness is pinned by the synthetic fixtures above, which
+    cannot be invalidated by someone fixing the corpus.
+    """
+
+    def test_sweep_all_runs_against_the_real_corpus_without_error(self):
+        findings = repo_invariants._sweep_all()
+        assert isinstance(findings, list)
+
+    def test_every_sweep_finding_is_well_formed(self):
+        for finding in repo_invariants._sweep_all():
+            assert set(finding) == {"invariant", "file", "message"}
+            assert finding["invariant"] in {
+                "mutation-kill-scripts-documented",
+                "eval-calibration-block-required",
+                "must-not-mention-term-absent-from-fixture",
+                "scope-glob-skip-prose-extension-drift",
+            }
+            assert finding["file"] and finding["message"]
+
+    def test_sweep_finds_strictly_more_than_the_silent_pre_pass(self):
+        """The whole point of the flag: the pre-pass stays silent on legacy
+        findings, `--all` surfaces them. If these ever agreed, the scoping
+        would be doing nothing."""
+        assert len(repo_invariants._sweep_all()) > len(repo_invariants.run_all(None))
