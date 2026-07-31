@@ -13,10 +13,10 @@ at all (e.g. tests organized as ``class Test...:`` methods) doesn't match
 this convention, and the loop refuses rather than guess.
 
 ``InsertOutcome``/``InsertionRefused`` are imported from
-``mutation_safety_gate`` (not defined here) — they're structurally identical
-to the C# sibling's, so both modules share one definition instead of two
-hand-maintained copies. See ``mutation_safety_gate``'s module docstring for
-the unification rationale.
+``mutation_kill_shared`` (relocated from ``mutation_safety_gate`` in #1602;
+not defined here) — they're structurally identical to the C# sibling's, so
+both modules share one definition instead of two hand-maintained copies. See
+``mutation_kill_shared``'s module docstring for the unification rationale.
 """
 
 from __future__ import annotations
@@ -25,7 +25,7 @@ import re
 from pathlib import Path
 
 import mutation_safety_gate
-from mutation_safety_gate import InsertionRefused, InsertOutcome
+from mutation_kill_shared import InsertionRefused, InsertOutcome
 
 # A top-level (unindented) pytest test function declaration, capturing the name.
 _FUNC_RE = re.compile(r"^def\s+(test_\w+)\s*\(", re.MULTILINE)
