@@ -2647,6 +2647,36 @@
       "anchor": "integration"
     }
   },
+  "plugins/dev-team/skills/claude-setup-review/SKILL.md": {
+    "Why this is a command and not a review lens": {
+      "summary": "This agent reviews the **harness**, not the changeset.",
+      "anchor": "why-this-is-a-command-and-not-a-review-lens"
+    },
+    "Orchestrator constraints": {
+      "summary": "1.",
+      "anchor": "orchestrator-constraints"
+    },
+    "Parse Arguments": {
+      "summary": "Arguments: $ARGUMENTS",
+      "anchor": "parse-arguments"
+    },
+    "Steps": {
+      "summary": "Collect the project's Claude configuration from the target root:",
+      "anchor": "steps"
+    },
+    "1. Determine target files": {
+      "summary": "Collect the project's Claude configuration from the target root:",
+      "anchor": "1-determine-target-files"
+    },
+    "2. Dispatch": {
+      "summary": "Dispatch the `claude-setup-review` agent once, passing the collected file list.",
+      "anchor": "2-dispatch"
+    },
+    "3. Report": {
+      "summary": "Emit the agent's findings per",
+      "anchor": "3-report"
+    }
+  },
   "plugins/dev-team/skills/co-evolution-audit/SKILL.md": {
     "The Problem": {
       "summary": "A file that churns repeatedly while its tests never change is a high-risk",

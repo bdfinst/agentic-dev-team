@@ -12,7 +12,7 @@ The Orchestrator sits at the root and routes every request to one or more of the
 
 ![Dispatch diagram: a unit of work on the left, a file-type decision layer in the middle, and fan-out to targeted review agents on the right (e.g., JS/TS files → js-fp-review + complexity-review; any change → arch-review + doc-review; security surface → security-review).](diagrams/review-dispatch.svg)
 
-The Orchestrator selects review agents based on what changed in each unit of work. Language-agnostic agents (doc-review, arch-review, claude-setup-review, token-efficiency-review) always run; language-specific agents run only when matching file types are present. Full list of review agents and their scopes: [Agents → Review Agents](agent_info.md#review-agents).
+The Orchestrator selects review agents based on what changed in each unit of work. Language-agnostic agents (doc-review, arch-review, token-efficiency-review) always run; language-specific agents run only when matching file types are present. `claude-setup-review` is not in this fan-out — it reviews the harness rather than the changeset, and is dispatched on demand by the `/claude-setup-review` command. Full list of review agents and their scopes: [Agents → Review Agents](agent_info.md#review-agents).
 
 ## Special-purpose review agents
 

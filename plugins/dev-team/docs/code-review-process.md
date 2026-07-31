@@ -111,12 +111,13 @@ Unlike pre-flight gates, the pre-pass never stops the pipeline — its purpose i
 
 ### 3. Select enabled agents
 
-All review agents in `agents/*.md` that declare an `effort:` band are enabled by default. Four language-agnostic agents always run regardless of tech stack:
+All review agents in `agents/*.md` that declare an `effort:` band are enabled by default. Three language-agnostic agents always run regardless of tech stack:
 
 - `doc-review` — README, API docs, inline comments, ADRs
 - `arch-review` — layer boundaries, dependency direction, pattern consistency
-- `claude-setup-review` — CLAUDE.md completeness and accuracy
 - `token-efficiency-review` — CLAUDE.md and rule verbosity
+
+`claude-setup-review` used to be a fourth, but it reviews the **harness** rather than the changeset, so it had nothing to say about a diff — `Scope: always` put it in an 18-lens panel for a two-file JavaScript change in a project with no Claude configuration at all. It is now dispatched on demand by the user-invocable `/claude-setup-review` command.
 
 A project-local `review-config.json` can disable specific agents. `--background` mode restricts the run to `doc-review`, `arch-review`, `naming-review`, and `structure-review`.
 
