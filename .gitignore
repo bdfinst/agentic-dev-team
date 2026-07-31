@@ -215,9 +215,7 @@ DEV_TEAM_REPORTS/
 # shape above — the union of both legacy blocks' tracked exceptions.
 /.dev-team-reports/*
 !/.dev-team-reports/test-improve/
-!/.dev-team-reports/orchestration-benchmark-2026-07-18.md
-!/.dev-team-reports/orchestration-benchmark-2026-07-18-data/
-!/.dev-team-reports/harness-audit-2026-07-20.md
+
 
 # refactor-granularity campaign: per-arm shards are intermediate (resume targets);
 # the merged dataset (refactor-granularity-campaign.jsonl) is committed instead.
@@ -226,3 +224,4 @@ docs/experiments/data/refactor-granularity-test-after-*.jsonl
 
 # dev-team hygiene — machine-specific MCP config (absolute-path pollution — issues #1376, #1416)
 .mcp.json
+memory/

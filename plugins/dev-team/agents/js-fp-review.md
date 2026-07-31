@@ -19,7 +19,7 @@ Scope:
 - **/*.cjs
 Cites: [adversarial-review-protocol]
 
-Scope: JavaScript and TypeScript files only (`.js`, `.ts`, `.jsx`, `.tsx`).
+Scope: JavaScript and TypeScript files only (`.js`, `.ts`, `.jsx`, `.tsx`, `.mjs`, `.cjs`).
 Skip this agent entirely if the project has no JS/TS files.
 
 Output JSON: per `${CLAUDE_PLUGIN_ROOT}/knowledge/review-agent-output-contract.md` (Whole-file load: short, canonical schema).
@@ -34,7 +34,7 @@ Context needs: diff-only
 
 Return `{"status": "skip", "issues": [], "summary": "No JS/TS files in target"}` when:
 
-- No `.js`, `.ts`, `.jsx`, or `.tsx` files exist in the target
+- No `.js`, `.ts`, `.jsx`, `.tsx`, `.mjs`, or `.cjs` files exist in the target
 - All target files are non-JavaScript/TypeScript
 
 ## Detect

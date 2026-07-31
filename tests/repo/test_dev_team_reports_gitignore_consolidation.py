@@ -1,9 +1,12 @@
 """Slice 9, Step 9.7 (= Slice 6, Step 6.2): `.gitignore`'s reports-domain block
 consolidates `DEV_TEAM_REPORTS/` and `reports/` into one new top-level
-`.dev-team-reports/` catch-all, carrying the union of both legacy blocks'
-tracked exceptions. Both legacy blocks (bare `/reports/*` and the standalone
-`DEV_TEAM_REPORTS/` line) stay completely unchanged as a safety net for
-un-migrated content (AC19, plan Slice 9 Step 9.7).
+`.dev-team-reports/` catch-all. Both legacy blocks (bare `/reports/*` and the
+standalone `DEV_TEAM_REPORTS/` line) stay completely unchanged as a safety
+net for un-migrated content (AC19, plan Slice 9 Step 9.7). The
+`orchestration-benchmark`/`harness-audit` tracked exceptions this block once
+also carried were dropped from `.dev-team-reports/*`; the legacy bare
+`reports/*` exceptions for those same two artifacts remain, see
+`test_legacy_reports_root_stays_unchanged` below.
 
 These assertions run `git check-ignore` against the repo's real `.gitignore`
 so they verify the shipped rule, not a copy. `git check-ignore` matches on the
@@ -45,13 +48,8 @@ def test_adhoc_dev_team_reports_output_is_ignored():
     assert _is_ignored(".dev-team-reports/review-agent-output.md")
 
 
-def test_dev_team_reports_tracked_exceptions_are_unignored():
+def test_dev_team_reports_test_improve_exception_is_unignored():
     assert not _is_ignored(".dev-team-reports/test-improve/some-repo/baseline.json")
-    assert not _is_ignored(".dev-team-reports/orchestration-benchmark-2026-07-18.md")
-    assert not _is_ignored(
-        ".dev-team-reports/orchestration-benchmark-2026-07-18-data/raw.json"
-    )
-    assert not _is_ignored(".dev-team-reports/harness-audit-2026-07-20.md")
 
 
 def test_legacy_dev_team_reports_root_stays_ignored_unchanged():

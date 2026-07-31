@@ -1,5 +1,5 @@
 {
-  "fixture": "fp-global-state.js",
+  "fixture": "fp-global-state.ts",
   "description": "Global state mutations via window, process.env, and module-level variables - should flag errors",
   "applicableAgents": ["js-fp-review"],
   "agents": {

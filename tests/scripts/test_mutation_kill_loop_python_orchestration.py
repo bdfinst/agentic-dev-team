@@ -14,11 +14,10 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import mutation_kill_loop_python as loop
 import pytest
 from _mutation_kill_loop_python_test_helpers import _ctx, _junit, _killed, _survived
 from _mutation_test_helpers import git_hermetic, hermetic_git_env
-
-import mutation_kill_loop_python as loop  # noqa: E402 (sys.path set up by the helper import above)
 
 
 # =============================================================================
