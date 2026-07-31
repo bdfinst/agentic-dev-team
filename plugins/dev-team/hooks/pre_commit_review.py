@@ -175,6 +175,9 @@ try:
         is_doc_only_changeset as _is_doc_only_changeset,
     )
     from review_gate_corroboration import (  # type: ignore[import-not-found]
+        distinct_normalized_dispatches as _distinct_normalized_dispatches,
+    )
+    from review_gate_corroboration import (  # type: ignore[import-not-found]
         evaluate as _evaluate_ledger,
     )
     from review_gate_corroboration import (  # type: ignore[import-not-found]
@@ -185,9 +188,6 @@ try:
     )
     from review_gate_corroboration import (  # type: ignore[import-not-found]
         mtime_to_iso as _mtime_to_iso,
-    )
-    from review_gate_corroboration import (  # type: ignore[import-not-found]
-        distinct_normalized_dispatches as _distinct_normalized_dispatches,
     )
     from review_gate_hash import (  # type: ignore[import-not-found]
         review_gate_hash,

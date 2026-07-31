@@ -15,6 +15,7 @@ import subprocess
 import sys
 
 import pytest
+
 from _repo_root import REPO_ROOT as _REPO_ROOT
 
 _SCRIPTS_DIR = _REPO_ROOT / "plugins" / "dev-team" / "skills" / "code-review" / "scripts"
@@ -276,6 +277,110 @@ class TestCli:
                 "--state",
                 str(state),
             ],
+            input=json.dumps([_f()]),
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+        assert json.loads(result.stdout)["new"] == 1
+
+
+class TestRoundStateLifecycle:
+    """The durable ledger must never leak across runs. Reusing a ledger from
+    an unrelated changeset would misclassify a genuinely-new finding as
+    'carried' (suppressing a round that should have run) and inflate the
+    round counter toward the cap on unrelated history."""
+
+    def _run(self, tmp_path, state, round_number, findings, run_id=None, reset=False):
+        cmd = [
+            sys.executable,
+            str(_SCRIPTS_DIR / "finding_signature.py"),
+            "--round",
+            str(round_number),
+            "--state",
+            str(state),
+        ]
+        if run_id:
+            cmd += ["--run-id", run_id]
+        if reset:
+            cmd += ["--reset"]
+        result = subprocess.run(
+            cmd, input=json.dumps(findings), capture_output=True, text=True, check=True
+        )
+        return json.loads(result.stdout)
+
+    def test_round_one_always_starts_a_fresh_ledger(self, tmp_path):
+        state = tmp_path / "s.json"
+        self._run(tmp_path, state, 1, [_f()])
+        # A brand-new review of a different changeset, starting at round 1.
+        payload = self._run(tmp_path, state, 1, [_f()])
+        assert payload["new"] == 1, "round 1 must not treat the prior run's finding as carried"
+        assert payload["carried"] == 0
+        assert payload["ledger_reset"] == "new-run-round-1"
+
+    def test_round_two_resumes_the_same_run(self, tmp_path):
+        state = tmp_path / "s.json"
+        self._run(tmp_path, state, 1, [_f()], run_id="abc")
+        payload = self._run(tmp_path, state, 2, [_f(line=44)], run_id="abc")
+        assert payload["carried"] == 1
+        assert payload["ledger_reset"] is None
+
+    def test_a_different_run_id_discards_the_stored_ledger(self, tmp_path):
+        state = tmp_path / "s.json"
+        self._run(tmp_path, state, 1, [_f()], run_id="changeset-A")
+        payload = self._run(tmp_path, state, 2, [_f(line=44)], run_id="changeset-B")
+        assert payload["new"] == 1, "a different changeset must not inherit signatures"
+        assert payload["ledger_reset"] == "run-id-mismatch"
+
+    def test_an_explicit_reset_discards_the_stored_ledger(self, tmp_path):
+        state = tmp_path / "s.json"
+        self._run(tmp_path, state, 1, [_f()], run_id="abc")
+        payload = self._run(tmp_path, state, 2, [_f(line=44)], run_id="abc", reset=True)
+        assert payload["new"] == 1
+        assert payload["ledger_reset"] == "explicit-reset"
+
+    def test_a_stale_ledger_is_discarded(self, tmp_path):
+        state = tmp_path / "s.json"
+        self._run(tmp_path, state, 1, [_f()], run_id="abc")
+        stored = json.loads(state.read_text(encoding="utf-8"))
+        stored["started_at"] = "2020-01-01T00:00:00Z"
+        state.write_text(json.dumps(stored), encoding="utf-8")
+
+        payload = self._run(tmp_path, state, 2, [_f(line=44)], run_id="abc")
+        assert payload["new"] == 1
+        assert payload["ledger_reset"] == "stale-state"
+
+    def test_a_corrupt_ledger_starts_fresh_rather_than_half_parsed(self, tmp_path):
+        state = tmp_path / "s.json"
+        state.write_text("{not json", encoding="utf-8")
+        payload = self._run(tmp_path, state, 3, [_f()], run_id="abc")
+        assert payload["new"] == 1
+        assert payload["ledger_reset"] == "unreadable-state"
+
+    def test_reset_precedence_explicit_beats_round_number(self, tmp_path):
+        state = tmp_path / "s.json"
+        self._run(tmp_path, state, 1, [_f()], run_id="abc")
+        payload = self._run(tmp_path, state, 5, [_f()], run_id="abc", reset=True)
+        assert payload["ledger_reset"] == "explicit-reset"
+
+    def test_the_state_file_records_run_identity_and_timestamps(self, tmp_path):
+        state = tmp_path / "s.json"
+        self._run(tmp_path, state, 1, [_f()], run_id="abc")
+        stored = json.loads(state.read_text(encoding="utf-8"))
+        assert stored["run_id"] == "abc"
+        assert stored["started_at"]
+        assert stored["updated_at"]
+
+    def test_started_at_is_preserved_across_rounds_of_one_run(self, tmp_path):
+        state = tmp_path / "s.json"
+        self._run(tmp_path, state, 1, [_f()], run_id="abc")
+        first = json.loads(state.read_text(encoding="utf-8"))["started_at"]
+        self._run(tmp_path, state, 2, [_f(line=90, rule="other")], run_id="abc")
+        assert json.loads(state.read_text(encoding="utf-8"))["started_at"] == first
+
+    def test_no_state_path_still_works(self, tmp_path):
+        result = subprocess.run(
+            [sys.executable, str(_SCRIPTS_DIR / "finding_signature.py"), "--round", "1"],
             input=json.dumps([_f()]),
             capture_output=True,
             text=True,

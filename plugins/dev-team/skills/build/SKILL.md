@@ -206,10 +206,26 @@ Work each step **one behavior at a time** — never all the code then all the te
    **Round-ledger termination rules (#1625) — applies to both checkpoint fix loops above (sub-steps 4 and 6).** The 5-iteration cap is a backstop, not a churn control: it counts passes, not finding *identity*, so a loop that keeps re-finding residue from its own fixes looks identical to one making progress. Classify each checkpoint round with the shared helper and honor its verdict:
 
    ```bash
+   # RUN_ID scopes the ledger to THIS checkpoint. Each checkpoint is its own
+   # run — without it, one step's signatures would suppress the next step's
+   # genuinely-new findings as "carried".
    python3 "$CLAUDE_PLUGIN_ROOT/skills/code-review/scripts/finding_signature.py" \
      --round <N> --findings <this-round's-findings.json> \
+     --run-id "<plan>-slice<S>-step<N.M>" \
      --state .claude/memory/review-round-state.json
    ```
+
+   The script resets the ledger on round 1, on a `--run-id` mismatch, and on
+   a state file older than 24h — see [`../code-review/SKILL.md`](../code-review/SKILL.md) step 6a's ledger-lifecycle table. Pass a `--run-id` that is unique per checkpoint; the step/slice identity above is sufficient.
+
+   **Architectural-impact gate.** The resolver's `lenses` list is narrowed
+   further for structural lenses: pipe the checkpoint's diff through
+   `skills/code-review/scripts/change_impact.py --files <changed files>` and
+   drop any agent in its `skipLenses`. A step whose diff changes no import,
+   adds/moves/deletes no file, edits no manifest or infra file, and changes
+   no public symbol has moved no boundary for `arch-review` to evaluate. The
+   gate is fail-safe — anything it cannot classify keeps every lens. Contract
+   and rationale: `../code-review/SKILL.md` step 3.
 
    The three rules — hard round cap at 4, severity floor from round 2 (only `error`/`warning` at `high`/`medium` confidence justifies another round; suggestion-tier findings are logged, never chased), and loop-until-dry — are stated once in [`../code-review/SKILL.md`](../code-review/SKILL.md) step 6a and implemented once in that script. They are not restated here: this is the same contract, same implementation, reached from a different caller. A `round-cap` verdict escalates to the user with the ledger attached, exactly like a non-converging loop.
 

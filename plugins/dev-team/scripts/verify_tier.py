@@ -44,8 +44,8 @@ from pathlib import Path
 _PLUGIN_ROOT = Path(__file__).resolve().parents[1]
 _AGENTS_DIR = _PLUGIN_ROOT / "agents"
 
-_VERIFY_MODEL_RE = re.compile(r"^\s*Verify-model\s*:\s*(\S+)\s*$", re.I)
-_VERIFY_EFFORT_RE = re.compile(r"^\s*Verify-effort\s*:\s*(\S+)\s*$", re.I)
+_VERIFY_MODEL_RE = re.compile(r"^\s*Verify-model\s*:\s*(\S+)\s*$", re.IGNORECASE)
+_VERIFY_EFFORT_RE = re.compile(r"^\s*Verify-effort\s*:\s*(\S+)\s*$", re.IGNORECASE)
 _FM_MODEL_RE = re.compile(r"^\s*model\s*:\s*(\S+)\s*$")
 _FM_EFFORT_RE = re.compile(r"^\s*effort\s*:\s*(\S+)\s*$")
 

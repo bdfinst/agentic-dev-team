@@ -20,6 +20,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 import pytest
+
 from _repo_root import REPO_ROOT as _REPO_ROOT
 
 _PLUGIN_ROOT = _REPO_ROOT / "plugins" / "dev-team"
@@ -32,10 +33,9 @@ _TESTS_LIB = Path(__file__).resolve().parents[2] / "tests" / "lib"
 if str(_TESTS_LIB) not in sys.path:
     sys.path.insert(0, str(_TESTS_LIB))
 
-from hermetic import hermetic_git_env  # type: ignore[import-not-found]
-
 import review_gate_hash as _rgh  # type: ignore[import-not-found]
 import review_gate_normalized_hash as ngh  # type: ignore[import-not-found]
+from hermetic import hermetic_git_env  # type: ignore[import-not-found]
 
 _pcr_spec = _importlib_util.spec_from_file_location("pcr_normalized", _HOOK)
 assert _pcr_spec is not None and _pcr_spec.loader is not None

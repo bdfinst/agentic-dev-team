@@ -13,13 +13,13 @@ import subprocess
 import sys
 
 import pytest
+
 from _repo_root import REPO_ROOT as _REPO_ROOT
 
 _SCRIPTS_DIR = _REPO_ROOT / "plugins" / "dev-team" / "skills" / "code-review" / "scripts"
 sys.path.insert(0, str(_SCRIPTS_DIR))
 
 import review_round_log
-
 
 SIMPLE_DIFF = """diff --git a/src/cache.js b/src/cache.js
 index 1111111..2222222 100644

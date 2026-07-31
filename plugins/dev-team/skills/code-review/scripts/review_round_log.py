@@ -54,7 +54,7 @@ _HOOKS_LIB_DIR = _PLUGIN_ROOT / "hooks" / "lib"
 if str(_HOOKS_LIB_DIR) not in sys.path:
     sys.path.insert(0, str(_HOOKS_LIB_DIR))
 
-import artifact_paths  # noqa: E402
+import artifact_paths
 
 _STREAM_NAME = "review-value.jsonl"
 _SOURCE = "code-review"
@@ -114,10 +114,10 @@ def changed_line_intervals(diff_text: str) -> dict:
             flush()
             target = raw[4:].strip()
             # Strip git's `b/` prefix; tolerate `--src-prefix`-less diffs.
-            path = None if target == "/dev/null" else target[2:] if target.startswith("b/") else target
+            path = None if target == "/dev/null" else target.removeprefix("b/")
             new_line = 0
             continue
-        if raw.startswith("--- ") or raw.startswith("diff --git "):
+        if raw.startswith(("--- ", "diff --git ")):
             flush()
             continue
         match = _HUNK_RE.match(raw)

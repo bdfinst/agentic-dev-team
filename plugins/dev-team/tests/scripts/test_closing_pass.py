@@ -50,7 +50,7 @@ class TestGateFloorByConstruction:
         the gate's own floor. If the hook raises the floor and this constant
         doesn't move, the pass would silently under-compose."""
         source = (_PLUGIN_ROOT / "hooks" / "pre_commit_review.py").read_text(encoding="utf-8")
-        match = re.search(r"^_MIN_DISTINCT_DISPATCHES\s*=\s*(\d+)", source, re.M)
+        match = re.search(r"^_MIN_DISTINCT_DISPATCHES\s*=\s*(\d+)", source, re.MULTILINE)
         assert match, "could not locate _MIN_DISTINCT_DISPATCHES in pre_commit_review.py"
         assert int(match.group(1)) == closing_pass.MIN_DISTINCT_DISPATCHES
 

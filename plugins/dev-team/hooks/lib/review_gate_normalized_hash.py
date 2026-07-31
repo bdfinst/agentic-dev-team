@@ -183,14 +183,14 @@ def _target_path(header: str) -> str | None:
     target = header[4:].strip()
     if target == "/dev/null":
         return None
-    return target[2:] if target.startswith("b/") else target
+    return target.removeprefix("b/")
 
 
 def _source_path(header: str) -> str | None:
     source = header[4:].strip()
     if source == "/dev/null":
         return None
-    return source[2:] if source.startswith("a/") else source
+    return source.removeprefix("a/")
 
 
 def normalize_patch(patch_text: str) -> str | None:

@@ -73,8 +73,8 @@ ACTIONABLE_CONFIDENCES = frozenset({"high", "medium"})
 MAX_ROUNDS = 4
 
 _TIMESTAMP_RE = re.compile(r"\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}:\d{2}(?:\.\d+)?Z?")
-_LINE_REF_RE = re.compile(r"(?::\d+(?::\d+)?\b)|(?:\bl(?:ine)?s?\.?\s*\d+(?:\s*[-,]\s*\d+)*)", re.I)
-_HEX_RE = re.compile(r"\b[0-9a-f]{7,}\b", re.I)
+_LINE_REF_RE = re.compile(r"(?::\d+(?::\d+)?\b)|(?:\bl(?:ine)?s?\.?\s*\d+(?:\s*[-,]\s*\d+)*)", re.IGNORECASE)
+_HEX_RE = re.compile(r"\b[0-9a-f]{7,}\b", re.IGNORECASE)
 _QUOTED_RE = re.compile(r"`[^`]*`|\"[^\"]*\"|'[^']*'")
 _NUMBER_RE = re.compile(r"\b\d+\b")
 _WS_RE = re.compile(r"\s+")
@@ -122,7 +122,7 @@ def signature(finding: dict) -> str:
     path = _normalize_path(finding.get("file"))
     rule = str(finding.get("rule") or finding.get("category") or finding.get("ruleId") or "")
     message = normalize_message(finding.get("message"))
-    payload = "\x1f".join((agent.lower(), path, rule.lower(), message))
+    payload = f"{agent.lower()}\x1f{path}\x1f{rule.lower()}\x1f{message}"
     return hashlib.sha256(payload.encode("utf-8")).hexdigest()
 
 
@@ -235,6 +235,85 @@ def classify_round(findings, prior_keys, round_number: int) -> dict:
     }
 
 
+#: A stored ledger older than this is discarded rather than reused. A review
+#: run does not legitimately span a day; a state file that old is abandoned
+#: residue, and reusing it would suppress genuinely-new findings as "carried"
+#: against signatures from unrelated work.
+STATE_TTL_SECONDS = 24 * 60 * 60
+
+
+def _now_iso() -> str:
+    from datetime import datetime, timezone
+
+    return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
+def _age_seconds(iso: str) -> float | None:
+    from datetime import datetime, timezone
+
+    try:
+        stamp = datetime.strptime(iso, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=timezone.utc)
+    except (TypeError, ValueError):
+        return None
+    return (datetime.now(timezone.utc) - stamp).total_seconds()
+
+
+def _empty_state() -> dict:
+    return {"rounds": [], "all_keys": [], "run_id": None, "started_at": None}
+
+
+def _load_state(state_path, run_id, round_number: int, force_reset: bool):
+    """Load the durable ledger, discarding it when it belongs to a different
+    run. Returns `(state, reset_reason)`; `reset_reason` is `None` when a
+    stored ledger was legitimately resumed.
+
+    Four reset triggers, in precedence order — each one exists because
+    reusing the ledger in that situation would silently misclassify a genuinely
+    new finding as "carried" (suppressing a round that should have run) or
+    inflate the round counter toward the cap on unrelated history:
+
+    1. `--reset` — explicit.
+    2. **Round 1** — the initial panel *is* the start of a new run by
+       definition. This is the common case and needs no caller bookkeeping:
+       `/code-review` always calls round 1 first, so an abandoned ledger from
+       a previous review can never leak into the next one. `/continue`
+       resuming mid-loop calls round >= 2 and correctly resumes.
+    3. **`run_id` mismatch** — the stored ledger was built for a different
+       changeset. Catches a resume that legitimately starts at round >= 2 but
+       against different targets.
+    4. **Staleness** — `STATE_TTL_SECONDS` since the run started.
+
+    Fails toward a reset: an unreadable or malformed state file starts fresh
+    rather than propagating a half-parsed ledger. Starting fresh only ever
+    costs an extra round; reusing a wrong ledger silently skips one.
+    """
+    if state_path is None or not state_path.is_file():
+        return _empty_state(), None
+
+    if force_reset:
+        return _empty_state(), "explicit-reset"
+    if round_number <= 1:
+        return _empty_state(), "new-run-round-1"
+
+    try:
+        stored = json.loads(state_path.read_text("utf-8"))
+    except (OSError, ValueError):
+        return _empty_state(), "unreadable-state"
+    if not isinstance(stored, dict):
+        return _empty_state(), "unreadable-state"
+
+    if run_id is not None and stored.get("run_id") != run_id:
+        return _empty_state(), "run-id-mismatch"
+
+    age = _age_seconds(stored.get("started_at"))
+    if age is not None and age > STATE_TTL_SECONDS:
+        return _empty_state(), "stale-state"
+
+    stored.setdefault("rounds", [])
+    stored.setdefault("all_keys", [])
+    return stored, None
+
+
 def main(argv=None) -> int:
     parser = argparse.ArgumentParser(
         description="Classify one review round's findings against the prior rounds' ledger."
@@ -248,6 +327,21 @@ def main(argv=None) -> int:
         default=None,
         help="Path to the durable round-ledger state file (read + rewritten in place)",
     )
+    parser.add_argument(
+        "--run-id",
+        default=None,
+        dest="run_id",
+        help=(
+            "Stable identity for this review run (e.g. the digest of the sorted "
+            "target-file list). A stored ledger with a different run_id belongs "
+            "to another changeset and is discarded rather than reused."
+        ),
+    )
+    parser.add_argument(
+        "--reset",
+        action="store_true",
+        help="Discard any stored ledger and start a fresh run.",
+    )
     args = parser.parse_args(argv)
 
     from pathlib import Path
@@ -257,18 +351,20 @@ def main(argv=None) -> int:
     if isinstance(data, dict):
         data = data.get("findings", [])
 
-    state = {"rounds": [], "all_keys": []}
     state_path = Path(args.state) if args.state else None
-    if state_path is not None and state_path.is_file():
-        try:
-            state = json.loads(state_path.read_text("utf-8"))
-        except (OSError, ValueError):
-            pass
+    state, reset_reason = _load_state(state_path, args.run_id, args.round_number, args.reset)
 
     result = classify_round(data, state.get("all_keys", []), args.round_number)
 
     if state_path is not None:
         state["all_keys"] = result["all_keys"]
+        state["run_id"] = args.run_id
+        # `setdefault` is wrong here: `_empty_state()` seeds an explicit None,
+        # which setdefault would preserve — leaving every fresh run with no
+        # start time and so permanently exempt from the staleness TTL.
+        if not state.get("started_at"):
+            state["started_at"] = _now_iso()
+        state["updated_at"] = _now_iso()
         state.setdefault("rounds", []).append(
             {
                 "round": result["round"],
@@ -292,6 +388,7 @@ def main(argv=None) -> int:
                 "new": len(result["new"]),
                 "carried": len(result["carried"]),
                 "actionable_new": len(result["actionable_new"]),
+                "ledger_reset": reset_reason,
                 "terminate": result["terminate"],
                 "reason": result["reason"],
             },

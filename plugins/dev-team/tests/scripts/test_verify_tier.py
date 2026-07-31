@@ -12,6 +12,7 @@ import subprocess
 import sys
 
 import pytest
+
 from _repo_root import REPO_ROOT as _REPO_ROOT
 
 _PLUGIN_ROOT = _REPO_ROOT / "plugins" / "dev-team"

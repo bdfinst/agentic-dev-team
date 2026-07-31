@@ -317,8 +317,8 @@ def check_must_not_mention_terms_appear_in_fixture(changed_files=None) -> list[d
 #: review agent that declares `**/*.{js,mjs,cjs,ts}` in `Scope:` but whose
 #: Skip section only names `.js`/`.ts` self-skips on files the resolver
 #: correctly routed to it — the `.mjs`/`.cjs` mismatch class from #1622.
-_SCOPE_BLOCK_RE = re.compile(r"^\s*Scope\s*:\s*(.*)$", re.M)
-_EXT_RE = re.compile(r"\.([a-z0-9]{1,6})\b", re.I)
+_SCOPE_BLOCK_RE = re.compile(r"^\s*Scope\s*:\s*(.*)$", re.MULTILINE)
+_EXT_RE = re.compile(r"\.([a-z0-9]{1,6})\b", re.IGNORECASE)
 _BRACE_RE = re.compile(r"\{([^}]*)\}")
 
 
@@ -341,7 +341,7 @@ def _scope_extensions(body: str) -> set:
     for group in _BRACE_RE.findall(text):
         for part in group.split(","):
             part = part.strip().lstrip(".")
-            if part and re.fullmatch(r"[a-z0-9]{1,6}", part, re.I):
+            if part and re.fullmatch(r"[a-z0-9]{1,6}", part, re.IGNORECASE):
                 exts.add("." + part.lower())
     text = _BRACE_RE.sub(" ", text)
     exts.update(m.group(0).lower() for m in _EXT_RE.finditer(text))
@@ -350,11 +350,11 @@ def _scope_extensions(body: str) -> set:
 
 def _skip_section_extensions(body: str) -> set:
     """Extensions named in the agent's prose `## Skip` section."""
-    match = re.search(r"^##\s+Skip\s*$", body, re.M)
+    match = re.search(r"^##\s+Skip\s*$", body, re.MULTILINE)
     if not match:
         return set()
     rest = body[match.end() :]
-    end = re.search(r"^##\s+", rest, re.M)
+    end = re.search(r"^##\s+", rest, re.MULTILINE)
     section = rest[: end.start()] if end else rest
     return {m.group(0).lower() for m in _EXT_RE.finditer(section)}
 

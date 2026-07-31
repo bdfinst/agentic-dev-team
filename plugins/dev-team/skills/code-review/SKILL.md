@@ -312,6 +312,50 @@ case where a cheap, self-certifying review is a problem, so it never qualifies
 for the shortcut it defines, regardless of size. Bypassed by `--force` and by
 `--agent <name>`, matching the change-shape gate's bypass list.
 
+**Architectural-impact gate for structural lenses.** Apply this **third**,
+after `Scope:` eligibility, the change-shape gate, and the change-size gate —
+never before, and never to re-add an agent an earlier gate already removed.
+It narrows by *architectural signal* rather than by file type or diff size.
+
+`arch-review` is `Scope: always` and opus-tier, so it runs on every non-empty
+changeset — including diffs that cannot exhibit what it looks for. Its scope
+is ADR compliance, layer-boundary violations, dependency direction, and
+pattern consistency: all properties of *structure*. A diff that adds a guard
+clause inside an existing function, with no import change, no added/moved/
+deleted file, no manifest edit, and no public-interface change, has moved no
+boundary for it to evaluate. Decide deterministically:
+
+```bash
+# Auto-scope (uncommitted changes):
+{ git -c diff.relative=false diff --no-color; git -c diff.relative=false diff --cached --no-color; } \
+  | python3 "$CLAUDE_PLUGIN_ROOT/skills/code-review/scripts/change_impact.py" --files <target files>
+
+# --since <ref>:
+git -c diff.relative=false diff --no-color <ref>...HEAD \
+  | python3 "$CLAUDE_PLUGIN_ROOT/skills/code-review/scripts/change_impact.py" --files <target files>
+```
+
+It prints `{"signals": [...], "hasArchitecturalImpact": <bool>, "skipLenses":
+[...], "reason": <str|null>}`. Exclude any agent in `skipLenses` and note the
+skip in the report (gated by architectural impact, not by `Scope:`). The six
+signals are `structure` (file added/deleted/renamed), `dependency` (an
+import/require line added or removed), `manifest`, `infra`, `interface` (a
+public/exported symbol declaration added or removed), and `adr`.
+
+The gate is **fail-safe and include-biased**: an unparseable diff, an empty
+diff, or any file it cannot classify all count as impact and keep every lens.
+It can only remove a lens it can prove has nothing to look at. Bypassed by
+`--force` and `--agent <name>`, matching the other two gates' bypass list.
+
+**Only `arch-review` is gated in this pass, deliberately.** `domain-review`
+is the obvious next candidate and is excluded on purpose: its scope covers
+"business logic placement", and putting business logic into a controller
+method body is a real violation introduced by a *body-only* edit with no
+structural signal — exactly the diff shape this gate skips. Widen
+`GATED_LENSES` from #1624's measured per-agent data, not from intuition about
+which lens probably no-ops. Same evidence-first discipline
+`knowledge/verification-mode.md` applies to tier-down opt-ins.
+
 ### 4. Run each enabled agent
 
 **Dispatch-capability gate (re-confirm here, not just at the top of this file — issue #1461).** Before spawning anything below, re-verify the `Agent`/`Task` tool is present in this toolset. If it is not, STOP per the Orchestrator constraints above — do not fall back to reviewing the files yourself, inline, as a stand-in for the panel; report the missing capability and halt the run before any agent is spawned.
@@ -482,16 +526,38 @@ iteration cap but, on its own, no notion of finding *identity* across rounds
 "we are churning". Classify every round's findings with the shared helper:
 
 ```bash
+# RUN_ID identifies this changeset; the ledger is discarded if it belongs to
+# a different one. Any stable digest of the target set works.
+RUN_ID=$(printf '%s\n' <target files> | sort | sha256sum | cut -c1-16)
 python3 "$CLAUDE_PLUGIN_ROOT/skills/code-review/scripts/finding_signature.py" \
   --round <N> --findings <this-round's-findings.json> \
+  --run-id "$RUN_ID" \
   --state .claude/memory/review-round-state.json
 ```
 
-It prints `{"round", "new", "carried", "actionable_new", "terminate",
-"reason"}` and maintains the durable ledger at
+It prints `{"round", "new", "carried", "actionable_new", "ledger_reset",
+"terminate", "reason"}` and maintains the durable ledger at
 `.claude/memory/review-round-state.json`, so `/continue` can resume a review
 mid-loop and step 6a's `--carried` count for #1624 comes from the same
-source rather than being re-derived from memory. A finding's signature is
+source rather than being re-derived from memory.
+
+**Ledger lifecycle — the ledger must never leak across runs.** Reusing a
+ledger built for a different changeset would misclassify a genuinely new
+finding as "carried" (silently skipping a round that should have run) and
+inflate the round counter toward the cap on unrelated history. Four reset
+triggers, in precedence order, all handled by the script:
+
+| Trigger | When |
+| --- | --- |
+| `--reset` | Explicit, caller-forced |
+| Round 1 | The initial panel **is** the start of a new run by definition. `/code-review` always calls round 1 first, so an abandoned ledger can never leak into the next review — no caller bookkeeping needed |
+| `run-id-mismatch` | The stored ledger was built for different target files. Catches a resume that legitimately starts at round ≥ 2 against a different changeset |
+| `stale-state` | The run started more than 24h ago — abandoned residue |
+
+Reported as `ledger_reset` on every call (`null` when a stored ledger was
+legitimately resumed). The script fails **toward** a reset: an unreadable or
+malformed state file starts fresh. Starting fresh costs at most one extra
+round; reusing a wrong ledger silently skips one. A finding's signature is
 `(agent, file, rule/category, normalized message)` with the line compared at
 ±3 rather than hashed — see the script's own docstring for why the line is
 deliberately outside the hash.
