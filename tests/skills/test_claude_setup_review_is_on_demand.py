@@ -29,7 +29,7 @@ SELECT_LENSES = PLUGIN_ROOT / "scripts" / "select_lenses.py"
 
 sys.path.insert(0, str(PLUGIN_ROOT / "scripts" / "lib"))
 
-import review_roster  # noqa: E402
+import review_roster
 
 
 def _lenses_for(*files):

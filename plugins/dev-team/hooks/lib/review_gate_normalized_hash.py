@@ -222,7 +222,7 @@ def _encode(parts) -> str:
     injection hazard, and a real one here because the digest's whole job is
     to be hard to collide with.
     """
-    return _FIELD_SEP.join("{}:{}".format(len(part), part) for part in parts)
+    return _FIELD_SEP.join(f"{len(part)}:{part}" for part in parts)
 
 #: Patch-metadata prefixes that carry a real change with no hunk body — a
 #: mode flip, a rename, a copy, an empty new or deleted file. See fix 4 in
@@ -317,7 +317,7 @@ def _structural_marker(raw: str) -> str | None:
 class _FileSection:
     """Accumulator for one `diff --git` section."""
 
-    __slots__ = ("path", "old_path", "fallback", "structural", "hunks", "binary", "index_line")
+    __slots__ = ("binary", "fallback", "hunks", "index_line", "old_path", "path", "structural")
 
     def __init__(self, fallback: str) -> None:
         self.path: str | None = None
@@ -457,7 +457,7 @@ def normalize_patch(patch_text: str) -> str | None:
                     close_hunk()
             elif raw.startswith("index "):
                 current.index_line = raw.strip()
-            elif raw.startswith("Binary files ") or raw.startswith("GIT binary patch"):
+            elif raw.startswith(("Binary files ", "GIT binary patch")):
                 current.binary = True
             else:
                 marker = _structural_marker(raw)

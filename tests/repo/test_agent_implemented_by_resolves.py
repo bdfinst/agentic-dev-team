@@ -62,22 +62,16 @@ def test_implemented_by_resolves_inside_the_plugin(agent):
 
     if agent.name in KNOWN_UNSHIPPED:
         pytest.xfail(
-            "known unshipped implementation — {} names a repo-root script".format(
-                agent.name
-            )
+            f"known unshipped implementation — {agent.name} names a repo-root script"
         )
 
     assert reference.startswith("${CLAUDE_PLUGIN_ROOT}/"), (
-        "{}: `Implemented by: {}` is a bare path. It resolves against the user's "
-        "cwd, not the plugin, so it points nowhere on an install.".format(
-            agent.name, reference
-        )
+        f"{agent.name}: `Implemented by: {reference}` is a bare path. It resolves against the user's "
+        "cwd, not the plugin, so it points nowhere on an install."
     )
     relative = reference[len("${CLAUDE_PLUGIN_ROOT}/") :]
     assert (PLUGIN_ROOT / relative).is_file(), (
-        "{}: `Implemented by:` names {}, which does not ship".format(
-            agent.name, relative
-        )
+        f"{agent.name}: `Implemented by:` names {relative}, which does not ship"
     )
 
 
@@ -120,10 +114,10 @@ def test_skills_invoke_plugin_scripts_by_plugin_root(skill):
     ]
     if skill.parent.name in KNOWN_BARE_INVOCATION:
         assert offenders, (
-            "{} is listed as a known offender but is now clean — remove it from "
-            "KNOWN_BARE_INVOCATION".format(skill.parent.name)
+            f"{skill.parent.name} is listed as a known offender but is now clean — remove it from "
+            "KNOWN_BARE_INVOCATION"
         )
-        pytest.xfail("known bare invocation in {}".format(skill.parent.name))
+        pytest.xfail(f"known bare invocation in {skill.parent.name}")
 
     assert not offenders, (
         "{}: invokes a plugin script by a bare relative path; use "

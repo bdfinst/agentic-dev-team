@@ -61,13 +61,14 @@ import shutil
 import subprocess
 import sys
 import time
+from dataclasses import dataclass
+from pathlib import Path
+
 # typing, not collections.abc: the `Generator` alias below is a real runtime
 # expression, so `from __future__ import annotations` cannot defer it, and
 # collections.abc generics are only subscriptable from 3.9. ADR 0014 puts the
 # shipped floor at 3.8.
 from typing import Callable, Dict, List, Sequence
-from dataclasses import dataclass
-from pathlib import Path
 
 import mutation_report
 import mutation_safety_gate
