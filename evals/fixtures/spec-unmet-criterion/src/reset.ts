@@ -13,7 +13,7 @@ export async function requestReset(email: string, store: Store): Promise<string>
   if (!user) {
     return "no account found for that email";
   }
-  const token = insecureRandomToken()();
+  const token = insecureRandomToken();
   await store.saveToken(user.id, token, Date.now());
   return "reset link sent";
 }
@@ -24,6 +24,6 @@ export async function exportAllUsers(store: Store): Promise<unknown> {
   return (store as unknown as { dump(): unknown }).dump();
 }
 
-function insecureRandomToken()(): string {
+function insecureRandomToken(): string {
   return Math.random().toString(36).slice(2);
 }
