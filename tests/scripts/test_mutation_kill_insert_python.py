@@ -17,17 +17,18 @@ from _mutation_test_helpers import FORBIDDEN_LITERALS, SCRIPTS_DIR
 sys.path.insert(0, str(SCRIPTS_DIR))
 
 import mutation_kill_insert_python as insert
-import mutation_safety_gate
+import mutation_kill_shared
 
 
 # =============================================================================
 # Scenario: InsertOutcome/InsertionRefused are unified with the C# sibling
-# module, not duplicated (#1583) — see mutation_safety_gate's module
-# docstring for the unification rationale.
+# module, not duplicated (#1583) — see mutation_kill_shared's module
+# docstring for the unification rationale (relocated from
+# mutation_safety_gate in #1602).
 # =============================================================================
-def test_insert_outcome_and_refused_are_shared_with_mutation_safety_gate():
-    assert insert.InsertOutcome is mutation_safety_gate.InsertOutcome
-    assert insert.InsertionRefused is mutation_safety_gate.InsertionRefused
+def test_insert_outcome_and_refused_are_shared_with_mutation_kill_shared():
+    assert insert.InsertOutcome is mutation_kill_shared.InsertOutcome
+    assert insert.InsertionRefused is mutation_kill_shared.InsertionRefused
 
 
 # =============================================================================

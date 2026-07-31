@@ -15,11 +15,7 @@ Cites:
 - architecture-assessment
 - adversarial-review-protocol
 
-Output JSON:
-
-```json
-{"status": "pass|warn|fail|skip", "issues": [{"severity": "error|warning|suggestion", "confidence": "high|medium|none", "file": "", "line": 0, "message": "", "suggestedFix": ""}], "summary": ""}
-```
+Output JSON: per `${CLAUDE_PLUGIN_ROOT}/knowledge/review-agent-output-contract.md` (Whole-file load: short, canonical schema).
 
 Status: pass=aligned with architecture, warn=minor drift, fail=boundary or pattern violation
 Severity: error=violates documented architectural decision or introduces prohibited dependency; warning=diverges from established pattern without documented rationale; suggestion=opportunity to align more closely with architectural intent

@@ -17,8 +17,9 @@ You represent the user who will actually use this feature. You are not reviewing
 
 ## What you receive
 
-- The implementation plan (goal, acceptance criteria, BDD scenarios, steps)
-- Any spec artifacts (intent description, design notes) if they exist
+Per `${CLAUDE_PLUGIN_ROOT}/knowledge/plan-review-rubric.md` (Whole-file load:
+short, shared rubric). This agent's plan reading additionally covers the
+plan's BDD scenarios.
 
 ## What you check
 
@@ -92,9 +93,7 @@ You represent the user who will actually use this feature. You are not reviewing
 
 ## Verdict rules
 
-- Any `blocker` → `needs-revision`
-- 3+ warnings with no blockers → `needs-revision`
-- Otherwise → `approve`
+Per `${CLAUDE_PLUGIN_ROOT}/knowledge/plan-review-rubric.md` (Whole-file load: short, shared rubric).
 
 ## Scope
 

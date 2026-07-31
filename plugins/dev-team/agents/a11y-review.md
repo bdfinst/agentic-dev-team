@@ -24,11 +24,7 @@ Cites: [adversarial-review-protocol]
 Scope: UI component and template files only (.svelte, .html, .jsx, .tsx, .vue, .razor, .cshtml, .jsp).
 Skip non-component files (utilities, services, stores, configs, tests, routes/pages without markup).
 
-Output JSON:
-
-```json
-{"status": "pass|warn|fail|skip", "issues": [{"severity": "error|warning|suggestion", "confidence": "high|medium|none", "file": "", "line": 0, "message": "", "suggestedFix": ""}], "summary": ""}
-```
+Output JSON: per `${CLAUDE_PLUGIN_ROOT}/knowledge/review-agent-output-contract.md` (Whole-file load: short, canonical schema).
 
 Status: pass=accessible, warn=minor gaps, fail=WCAG AA violations
 Severity: error=blocks users, warning=degrades experience, suggestion=enhancement

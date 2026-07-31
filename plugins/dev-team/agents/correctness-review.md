@@ -13,11 +13,7 @@ color: green
 Scope: always
 Cites: [adversarial-review-protocol]
 
-Output JSON:
-
-```json
-{"status": "pass|warn|fail|skip", "issues": [{"severity": "error|warning|suggestion", "confidence": "high|medium|none", "file": "", "line": 0, "message": "", "suggestedFix": ""}], "summary": ""}
-```
+Output JSON: per `${CLAUDE_PLUGIN_ROOT}/knowledge/review-agent-output-contract.md` (Whole-file load: short, canonical schema).
 
 Status: pass=implementation matches evident intent everywhere reviewed, warn=one or more suspected divergences that need human confirmation, fail=a clear behavioral defect where the code visibly contradicts its own name/comment/sibling logic
 Severity: error=the implementation will silently produce the wrong result on a realistic input path (missing assignment, non-interpolated string, missing guard, dropped boundary case, inverted condition); warning=the divergence is plausible but the evident intent is inferred rather than explicitly stated; suggestion=a minor mismatch between docstring/name and behavior with no observed defect

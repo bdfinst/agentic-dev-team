@@ -38,8 +38,20 @@ the full list mapped to rule_ids.
 
 | Pattern | Language | Grep Signal |
 |---------|----------|-------------|
-| Hardcoded keys | All | `(?i)(api[_-]?key\|secret\|password\|token)\s*[:=]\s*['"][^'"]{8,}` — note: `gitleaks` + `llm-safety.hardcoded-api-key` are authoritative for detection; agent's role here is exploitability assessment over tool findings, not primary detection |
+| Hardcoded keys | All | see [Hardcoded-key pattern](#hardcoded-key-pattern) below — note: `gitleaks` + `llm-safety.hardcoded-api-key` are authoritative for detection; agent's role here is exploitability assessment over tool findings, not primary detection. **Exception: a pre-commit/pre-flight gate with no other secret-scan tool available runs this regex directly as primary detection** — do not skip it while waiting on gitleaks. |
 | No TLS validation | C# | `ServerCertificateValidationCallback` returning true |
+| Deprecated cipher/mode | All | DES/3DES/RC4 cipher construction; ECB block mode (`CipherMode.ECB`, `AES/ECB/`, `MODE_ECB`) — category `A02.deprecated-cipher` |
+
+### Hardcoded-key pattern
+
+The runnable form of the pattern above. Markdown table cells escape `|` as
+`\|`, which is a **literal pipe** in a grep/regex context, not alternation —
+copy the pattern from this fenced block, never from the table row, or the
+scan silently matches nothing:
+
+```
+(?i)(api[_-]?key|secret|password|token)\s*[:=]\s*['"][^'"]{8,}
+```
 
 ## A03: Injection
 

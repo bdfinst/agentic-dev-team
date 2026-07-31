@@ -22,11 +22,7 @@ dependency in `package.json` (or equivalent manifest).
 Covers Vue 3 Composition API (`ref`, `reactive`, `computed`, `watch`,
 `watchEffect`) and Vue 2 Options API reactivity pitfalls.
 
-Output JSON:
-
-```json
-{"status": "pass|warn|fail|skip", "issues": [{"severity": "error|warning|suggestion", "confidence": "high|medium|none", "file": "", "line": 0, "message": "", "suggestedFix": ""}], "summary": ""}
-```
+Output JSON: per `${CLAUDE_PLUGIN_ROOT}/knowledge/review-agent-output-contract.md` (Whole-file load: short, canonical schema).
 
 Status: pass=no reactivity issues, warn=potential concerns, fail=likely silent reactivity breakage
 Severity: error=silent reactivity breakage; warning=potential reactivity concern; suggestion=defensive improvement

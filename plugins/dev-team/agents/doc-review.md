@@ -13,11 +13,7 @@ color: green
 Scope: always
 Cites: [adversarial-review-protocol]
 
-Output JSON:
-
-```json
-{"status": "pass|warn|fail|skip", "issues": [{"severity": "error|warning|suggestion", "confidence": "high|medium|none", "file": "", "line": 0, "message": "", "suggestedFix": ""}], "summary": ""}
-```
+Output JSON: per `${CLAUDE_PLUGIN_ROOT}/knowledge/review-agent-output-contract.md` (Whole-file load: short, canonical schema).
 
 Status (derive from the highest-severity finding, do not let finding *volume* alone change the tier): `fail` when any finding is `error` (actively misleading — wrong behavior, removed feature still documented) or `warning` (stale, incomplete, or a detached doc comment); `warn` when the only findings are `suggestion`; `pass` when there are no findings. Comment-hygiene / tracker-ID findings are `suggestion` and on their own never raise status above `warn`.
 Severity: error=documentation actively misleads (wrong behavior, removed feature still documented); warning=documentation is stale or incomplete; suggestion=docs could be clearer or more complete

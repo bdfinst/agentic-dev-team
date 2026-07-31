@@ -1,48 +1,40 @@
 #!/usr/bin/env python3
 """mutation_kill_headless.py — unattended generation + CLI entry point.
 
-Split out of ``mutation_kill_loop.py`` (#1562): shelling to ``claude --print``
-for unattended (CI / shard-pipeline) generation, plus the ``--headless`` CLI
-argument parsing and entry point. The agent-driven (default, interactive)
-path never touches this module — the mutation-kill agent calls
-:func:`mutation_kill_loop.run_for_file` directly with its own ``generate``
-hook.
+Split out of ``mutation_kill_loop.py`` (#1562): the ``--headless`` CLI
+argument parsing and entry point for the C#/Stryker.NET loop. The
+agent-driven (default, interactive) path never touches this module — the
+mutation-kill agent calls :func:`mutation_kill_loop.run_for_file` directly
+with its own ``generate`` hook.
 
-``run_claude_headless`` (#1583) is the shared ``claude --print`` invocation
-glue: building the generation prompt is language-specific (this module's own
-``build_generation_prompt`` for C#; ``mutation_kill_loop_python.py``'s
-own for Python), but everything *after* the prompt is built — the
-``--model`` flag, the timeout, error handling, and fence-stripping — was
-duplicated byte-for-byte between the two modules' ``make_headless_generator``
-factories. This function is the one definition both now call.
+The ``claude --print`` invocation glue itself (``run_claude_headless``,
+``resolve_model``, ``strip_code_fences``, ``claude_cli_available``,
+``CLAUDE_CLI``) lives in ``mutation_kill_shared.py``, not here (#1601) — it's
+reused verbatim by ``mutation_kill_loop_python.py``, and none of it is
+C#-specific. This module only builds the C#-flavored prompt
+(``build_generation_prompt``) and imports the handful of shared names it
+actually calls (``CLAUDE_CLI``, ``resolve_model``, ``claude_cli_available``,
+``run_claude_headless``); ``mutation_kill_loop_python.py`` now imports the
+same names directly from ``mutation_kill_shared`` too, rather than through
+this module, which previously dragged the whole C#/Stryker.NET stack
+(``mutation_kill_loop`` and everything it imports) into the Python loop just
+to reuse five language-neutral names.
 """
 
 from __future__ import annotations
 
 import argparse
-import os
-import re
-import subprocess
 import sys
 from collections.abc import Sequence
 from pathlib import Path
 
 from mutation_kill_loop import Generator, RunContext, load_loop_config, run_for_file
-from mutation_kill_shared import _timeout_from_env
-
-# Timeout for the `claude --print` generation subprocess. Overridable via env
-# var since a legitimately slow/large prompt may need a larger budget than
-# this default — unlike the 30s used by this codebase's git-shelling
-# helpers, this subprocess routinely runs for tens of seconds to minutes.
-CLAUDE_GENERATION_TIMEOUT_S = _timeout_from_env("DEV_TEAM_MUTATION_GENERATION_TIMEOUT_S", 300)
-
-# Timeout for the `claude --version` availability probe — small, since it's
-# a startup check, not a generation call.
-CLAUDE_VERSION_TIMEOUT_S = _timeout_from_env("DEV_TEAM_MUTATION_VERSION_TIMEOUT_S", 30)
-
-# The Claude CLI binary. Overridable via CLAUDE_BIN so a non-PATH install can
-# be pointed at without editing this module.
-CLAUDE_CLI = os.environ.get("CLAUDE_BIN", "claude")
+from mutation_kill_shared import (
+    CLAUDE_CLI,
+    claude_cli_available,
+    resolve_model,
+    run_claude_headless,
+)
 
 # The exact message the bare-CLI startup preflight prints. Pinned so the
 # contract test can assert it verbatim.
@@ -59,32 +51,6 @@ MISSING_CLAUDE_MESSAGE = (
     "authenticate it (run `claude` once to log in, or set ANTHROPIC_API_KEY) — "
     "or set CLAUDE_BIN to the CLI's path."
 )
-
-
-def resolve_model(explicit: str | None = None) -> str | None:
-    """Resolve the generation model: ``--model`` > ``DEV_TEAM_MUTATION_MODEL``
-    > ``None``. When ``None``, ``--model`` is omitted from the ``claude --print``
-    invocation and the Claude CLI uses its own default — the plugin never pins a
-    model snapshot id in source (models are resolved dynamically, not literalized;
-    cf. ADR 0008 and the no-pinned-snapshots guard)."""
-    if explicit:
-        return explicit
-    return os.environ.get("DEV_TEAM_MUTATION_MODEL") or None
-
-
-_FENCE_OPEN_RE = re.compile(r"^```[\w-]*\n?")
-_FENCE_CLOSE_RE = re.compile(r"\n?```$")
-
-
-def strip_code_fences(text: str) -> str:
-    """Strip one leading and one trailing markdown code fence, if present.
-
-    Claude may wrap generated methods in a ```` ```csharp ```` block; the loop
-    inserts raw method text, so the fence is removed on both ends.
-    """
-    text = _FENCE_OPEN_RE.sub("", text.strip())
-    text = _FENCE_CLOSE_RE.sub("", text.strip())
-    return text.strip()
 
 
 def build_survivor_summary(survivors: list[dict], *, limit: int = 40) -> str:
@@ -136,56 +102,6 @@ def build_generation_prompt(
         "5. Do not redeclare fields or helpers already present.\n"
         "6. Do not emit closing braces for the class or namespace.\n"
     )
-
-
-def claude_cli_available() -> bool:
-    """True if the Claude CLI responds to ``--version``."""
-    try:
-        result = subprocess.run(
-            [CLAUDE_CLI, "--version"],
-            capture_output=True,
-            text=True,
-            check=False,
-            timeout=CLAUDE_VERSION_TIMEOUT_S,
-        )
-    except (FileNotFoundError, OSError, subprocess.TimeoutExpired):
-        return False
-    return result.returncode == 0
-
-
-def run_claude_headless(prompt: str, *, model: str | None, cwd: Path | None = None) -> str:
-    """Shell to ``claude --print`` with an already-built ``prompt``; return
-    stdout with markdown code fences stripped.
-
-    The single shared invocation glue behind both languages'
-    ``make_headless_generator`` factories (#1583). ``--model`` is passed only
-    when ``model`` is set; when ``None`` the Claude CLI uses its own default
-    (the plugin pins no model snapshot id, cf. ADR 0008).
-    """
-    cmd = [CLAUDE_CLI, "--print"]
-    if model:
-        cmd += ["--model", model]
-    cmd.append(prompt)
-    try:
-        result = subprocess.run(
-            cmd,
-            capture_output=True,
-            text=True,
-            cwd=cwd,
-            check=False,
-            timeout=CLAUDE_GENERATION_TIMEOUT_S,
-        )
-    except subprocess.TimeoutExpired as exc:
-        raise RuntimeError(
-            f"claude --print generation timed out after "
-            f"{CLAUDE_GENERATION_TIMEOUT_S}s (set "
-            "DEV_TEAM_MUTATION_GENERATION_TIMEOUT_S to raise it)"
-        ) from exc
-    if result.returncode != 0:
-        raise RuntimeError(
-            f"claude CLI failed (exit {result.returncode}): {result.stderr[:500]}"
-        )
-    return strip_code_fences(result.stdout)
 
 
 def make_headless_generator(

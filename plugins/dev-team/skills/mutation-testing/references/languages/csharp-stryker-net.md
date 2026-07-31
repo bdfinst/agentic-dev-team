@@ -563,7 +563,7 @@ Stryker.NET's own score formula (v4.x):
 score = (Killed + Timeout) / (Killed + Survived + Timeout + NoCoverage)
 ```
 
-`NoCoverage` sits in the denominator even though those mutants are never executed. A file with 27 `NoCoverage` mutants at 0% score drags the overall score down more than a file with 20 `Survived` mutants at 70%. **Fix `NoCoverage` first** — any test that reaches the line kills a `NoCoverage` mutant, so ROI is higher than crafting value-specific assertions to kill hard `Survived` mutants. This mirrors the mutation-kill agent's [NoCoverage-first-class-signal](../../../../agents/mutation-kill.md#nocoverage-is-a-first-class-signal) guidance.
+`NoCoverage` sits in the denominator even though those mutants are never executed. A file with 27 `NoCoverage` mutants at 0% score drags the overall score down more than a file with 20 `Survived` mutants at 70%. **Fix `NoCoverage` first** — any test that reaches the line kills a `NoCoverage` mutant, so ROI is higher than crafting value-specific assertions to kill hard `Survived` mutants. This mirrors the canonical [NoCoverage is a first-class signal](../../../../knowledge/mutation-score-formulas.md#nocoverage-is-a-first-class-signal) guidance, shared by the mutation-kill agent and the `/mutation-testing` skill.
 
 ## Per-mutant timeout flag
 

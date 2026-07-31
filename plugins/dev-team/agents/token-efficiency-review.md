@@ -16,11 +16,7 @@ Scope: always
 Cites: [adversarial-review-protocol]
 Enforcement: script
 
-Output JSON:
-
-```json
-{"status": "pass|warn|fail|skip", "issues": [{"severity": "error|warning|suggestion", "confidence": "high|medium|none", "file": "", "line": 0, "message": "", "suggestedFix": ""}], "summary": ""}
-```
+Output JSON: per `${CLAUDE_PLUGIN_ROOT}/knowledge/review-agent-output-contract.md` (Whole-file load: short, canonical schema).
 
 Status: pass=efficient, warn=optimization opportunities, fail=major waste
 Severity: error=critical waste, warning=significant, suggestion=minor

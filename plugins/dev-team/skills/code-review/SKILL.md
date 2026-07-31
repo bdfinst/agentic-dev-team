@@ -159,7 +159,7 @@ If `REVIEW-CONTEXT.md` exists at the repo root, read it and pass its contents to
 | Documentation MCP | wiki/docs search available | Architecture docs |
 | Semgrep | `which semgrep` | SAST context for security-review |
 
-Pass availability info to each agent so they can use enhanced tools or fall back to Glob/Grep/Read. When CodeGraph or Repowise is available, instruct agents to **prefer `get_context` (verified skeleton) first, then `get_symbol`/`codegraph_explore` for bodies**, and use `Read`/`Grep` only to confirm a specific line or when the index can't serve a file — this cuts token cost and gives resolved call graphs instead of grep heuristics. All read-only review agents grant these MCP tools; the grant is inert (no error) when the server is absent. Include availability in the final report per `knowledge/review-template.md`.
+Pass availability info to each agent so they can use enhanced tools or fall back to Glob/Grep/Read. All read-only review agents grant these MCP tools; see [`knowledge/codegraph-vs-graphify.md`](../../knowledge/codegraph-vs-graphify.md) for tool selection and the fallback contract. Include availability in the final report per `knowledge/review-template.md`.
 
 ### 2. Pre-flight gates
 
@@ -175,7 +175,7 @@ Otherwise run these in sequence (stop on first failure):
 
 1. **Lint**: `npx eslint` (or project lint command) on target files.
 2. **Type check**: `npx tsc --noEmit` if `tsconfig.json` exists.
-3. **Secret scan**: grep target files for `(?i)(api[_-]?key|secret|password|token)\s*[:=]\s*['"][^'"]{8,}`.
+3. **Secret scan**: grep target files for the runnable pattern in [`knowledge/owasp-detection.md`](../../knowledge/owasp-detection.md) § Hardcoded-key pattern (the fenced code block, not the table row — table cells escape `|` as `\|`, a literal pipe rather than alternation).
 4. **Semgrep SAST**: `semgrep scan --config auto --quiet --json` on target files if installed. ERROR-severity → fail. WARNING-severity → continue, include in report. Save findings for security-review context.
 5. **Pipeline-red check**: `gh run list --branch $(git branch --show-current) --limit 1 --json conclusion -q '.[0].conclusion'` if `gh` is available. If the last CI run failed, warn: "Pipeline is red. Fix CI before adding new code. Use `--force` to override."
 
@@ -309,9 +309,9 @@ Spawn agents as parallel subagents in a single message using the Agent tool.
   - When reviewing full repository (clean auto-scope, `--all`, or `--path`), always pass full files.
 - **Model**: pass each agent's declared `model:`/`effort:` frontmatter. The harness resolves both fields natively before dispatch, per `agents/orchestrator.md` → Model/Effort Resolution (ADR 0026).
 - **Static analysis context**: if step 2b produced findings, inject into every agent's prompt using the format in `skills/static-analysis-integration/SKILL.md`: "These issues were detected by static analysis. Do not re-report them. Focus on semantic concerns."
-- **Per-agent output**: `{"agentName": "<name>", "status": "pass|warn|fail", "issues": [], "summary": "..."}` (full schema in `output-format.md`).
+- **Per-agent output**: the shared contract in [`knowledge/review-agent-output-contract.md`](../../knowledge/review-agent-output-contract.md), wrapped with `agentName`/`modelTier` (full aggregation shape in `output-format.md`).
 
-**Graph-assisted review**: if the target repo has `.codegraph/` (CodeGraph MCP server, `mcp__codegraph__codegraph_explore` — fast callers/callees/impact lookups), a Repowise MCP server (`get_context`/`get_symbol`/`search_codebase`/`get_risk` — verified context + modification risk), and/or `graphify-out/graph.json` (Graphify CLI — `graphify query`/`path`/`explain` — architecture and cross-artifact questions), pass availability to **all read-only review agents** — the structural lenses (`arch-review`, `component-architecture-review`, `structure-review`, `domain-review`) benefit most from resolved call graphs, but every lens gains cheaper verified reads — so they may consult the index for impact/dependency context before flagging findings. When CodeGraph or Repowise is present, prefer `get_context` for a verified skeleton, then `get_symbol`/`codegraph_explore` for bodies, using `Read`/`Grep` only to confirm a specific line or when the index can't serve a file. See `knowledge/codegraph-vs-graphify.md` for when to use which. Never assume any tool exists — agents fall back to Read/Grep/Glob when absent, and the granted MCP tools are simply unavailable (no error) on repos without an index.
+**Graph-assisted review**: pass tool availability to **all read-only review agents** — the structural lenses (`arch-review`, `component-architecture-review`, `structure-review`, `domain-review`) benefit most from resolved call graphs, but every lens gains cheaper verified reads — so they may consult the index for impact/dependency context before flagging findings. Tool selection and the fallback contract are the same as step 1c above; see [`knowledge/codegraph-vs-graphify.md`](../../knowledge/codegraph-vs-graphify.md).
 
 Wait for all agents to complete before aggregating.
 

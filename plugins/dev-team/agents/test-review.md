@@ -20,11 +20,7 @@ Cites:
 - adversarial-review-protocol
 - oracle-provenance
 
-Output JSON:
-
-```json
-{"status": "pass|warn|fail|skip", "issues": [{"severity": "error|warning|suggestion", "confidence": "high|medium|none", "file": "", "line": 0, "message": "", "suggestedFix": ""}], "summary": ""}
-```
+Output JSON: per `${CLAUDE_PLUGIN_ROOT}/knowledge/review-agent-output-contract.md` (Whole-file load: short, canonical schema).
 
 Status: pass=no issues, warn=minor, fail=critical
 Severity: error=compromises test effectiveness, warning=should fix, suggestion=improvement

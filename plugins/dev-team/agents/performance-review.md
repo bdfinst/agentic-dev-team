@@ -13,11 +13,7 @@ color: green
 Scope: always
 Cites: [adversarial-review-protocol]
 
-Output JSON:
-
-```json
-{"status": "pass|warn|fail|skip", "issues": [{"severity": "error|warning|suggestion", "confidence": "high|medium|none", "file": "", "line": 0, "message": "", "suggestedFix": ""}], "summary": ""}
-```
+Output JSON: per `${CLAUDE_PLUGIN_ROOT}/knowledge/review-agent-output-contract.md` (Whole-file load: short, canonical schema).
 
 Status: pass=no performance issues, warn=potential bottlenecks, fail=critical performance defects
 Severity: error=resource leak or unbounded growth, warning=likely bottleneck, suggestion=optimization opportunity

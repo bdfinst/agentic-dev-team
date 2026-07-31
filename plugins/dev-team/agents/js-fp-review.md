@@ -22,11 +22,7 @@ Cites: [adversarial-review-protocol]
 Scope: JavaScript and TypeScript files only (`.js`, `.ts`, `.jsx`, `.tsx`).
 Skip this agent entirely if the project has no JS/TS files.
 
-Output JSON:
-
-```json
-{"status": "pass|warn|fail|skip", "issues": [{"severity": "error|warning|suggestion", "confidence": "high|medium|none", "file": "", "line": 0, "message": "", "suggestedFix": ""}], "summary": ""}
-```
+Output JSON: per `${CLAUDE_PLUGIN_ROOT}/knowledge/review-agent-output-contract.md` (Whole-file load: short, canonical schema).
 
 Status: pass=no mutations or impure patterns, warn=only style/point-free suggestions, fail=external mutation or a buried side effect
 Severity: error=external state mutation or a side effect buried inside a value-returning computation, warning=local mutation, suggestion=style (point-free/composition)

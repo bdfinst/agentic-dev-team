@@ -31,18 +31,7 @@ If `Complexity: trivial`, return `status: skip` immediately. The final `/code-re
 
 ### 2. Select review agents by what changed
 
-Apply the **Inline Review Checkpoint** dispatch table from `agents/orchestrator.md` § Inline Review Checkpoint. Summary:
-
-- JS/TS function changes → `complexity-review`, `naming-review`, `js-fp-review`
-- Test files → `test-review`
-- API surface / auth → `security-review`
-- Domain / business logic → `domain-review`
-- UI components → `a11y-review`, `structure-review`
-- Agent or command files → run `/agent-audit`
-- Dockerfile / `.dockerignore` → `docker-image-audit` skill
-- Documentation (`.md`) → `doc-review`
-- Architecture / dependency changes → `arch-review`
-- **Every change** → `structure-review` (baseline)
+Apply the **Inline Review Checkpoint** dispatch table from `agents/orchestrator.md` § Inline Review Checkpoint, Step 1 — that table is the single source of truth for which agents run on which changed-file classes; do not re-duplicate it here, it drifts.
 
 If `Complexity: complex`, also add the opus-tier agents: `security-review`, `domain-review`, `arch-review` (regardless of file type).
 
@@ -64,16 +53,20 @@ When all agents return, classify each finding:
 
 ### 5. Review-fix loop
 
-If actionable findings exist, enter the loop (up to **5 iterations**):
+If actionable findings exist, run the **Review Loop** in `agents/orchestrator.md`
+§ Review Loop — that section is the single source of truth for the fix-loop
+mechanics (file-by-file fix order, test-revert handling, 5-iteration cap,
+re-run/converge/escalate exits; step 4 above already covers this agent's own
+actionability classification); do not re-duplicate it here, it drifts.
+Statuses of agents that previously passed carry forward unchanged across
+loop iterations — the loop only re-runs and re-aggregates agents that
+reported actionable findings. Map the loop's exits to this agent's own
+status enum:
 
-1. Apply fixes for actionable findings file-by-file, top-to-bottom by line number within each file.
-2. After fixes are applied, run the project's test suite. If tests fail, revert the last fix that broke them and mark that finding `[auto-fix failed — human required]`.
-3. Re-run **only** the agents that reported actionable findings, against **only** the files that changed.
-4. Re-aggregate. Statuses of agents that previously passed carry forward.
-5. Increment iteration. Repeat or exit:
-   - Zero actionable findings → exit to step 6 with `status: pass` (or `warn` if non-actionable findings remain)
-   - Iteration limit reached → exit with `status: escalate`
-   - Same findings persist after a fix attempt → not converging; exit with `status: escalate`
+- Zero actionable findings after a loop pass → exit to step 6 with
+  `status: pass` (or `warn` if non-actionable findings remain)
+- Iteration limit reached, or findings stop converging → exit with
+  `status: escalate`
 
 ### 6. UI verification (UI changes only)
 

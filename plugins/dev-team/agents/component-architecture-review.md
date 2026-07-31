@@ -25,11 +25,7 @@ Scope: frontend component files (`.jsx`, `.tsx`, `.vue`, `.svelte`, Angular
 `*.component.ts` + their templates, and `.js`/`.ts` modules that render UI).
 Skip this agent entirely if the target has no frontend component files.
 
-Output JSON:
-
-```json
-{"status": "pass|warn|fail|skip", "issues": [{"severity": "error|warning|suggestion", "confidence": "high|medium|none", "file": "", "line": 0, "message": "", "suggestedFix": ""}], "summary": ""}
-```
+Output JSON: per `${CLAUDE_PLUGIN_ROOT}/knowledge/review-agent-output-contract.md` (Whole-file load: short, canonical schema).
 
 Status: pass=components are well factored, warn=extraction or composition opportunities, fail=duplicated render/behavior forcing multi-site edits
 Severity: error=semantic UI duplication (a behavioral rule copied across components), warning=high-value extraction or prop-drilling fix, suggestion=composition/API-consistency cleanup

@@ -54,10 +54,10 @@ re-describe or re-implement their mechanics:
 | `mutation_kill_loop.py` | The C#/Stryker.NET per-file loop: scoped run → score → survivor check → **your** generation → duplicate-guard → insert-before-class-close → build → test → commit-on-green / revert-on-failure → no-improvement stop. Delegates DOTNET_ROOT + `.sln` hide/restore to the wrapper. Config parsing and `run_for_file` orchestration only — insertion mechanics and headless generation live in the sibling scripts below. |
 | `mutation_kill_insert.py` | C# test-method insertion mechanics: detect-or-refuse — duplicate-name guard, and inserting generated methods before the test class's closing brace (refuses on a file-scoped namespace or non-4-space indentation rather than risk a mis-insertion). |
 | `mutation_kill_insert_python.py` | Python/pytest test-function insertion mechanics — the Python mirror of `mutation_kill_insert.py`: detect-or-refuse duplicate-name guard, and appending generated functions at the end of the file (refuses on a class-based test file rather than risk a mis-insertion). |
-| `mutation_kill_shared.py` | Cross-language loop mechanics shared verbatim between the two loops: env-var timeout parsing, `git_revert`/`git_reset_and_revert`/`git_commit`, and the "no improvement across rounds" stop predicate. |
-| `mutation_safety_gate.py` | Shared deny-list scan + refuse-on-match guard against prompt-injection payloads in generated test code, the commit audit-trailer, and the unified `InsertOutcome`/`InsertionRefused` result types both loops' insertion scripts return. |
-| `mutation_kill_headless.py` | Headless generation + the `--headless` CLI/entry point: builds the generation prompt, shells to `claude --print`, and resolves `--model`. Its generic (non-C#-specific) helpers (`strip_code_fences`, `resolve_model`, `claude_cli_available`, `CLAUDE_CLI`, `run_claude_headless`) are reused, not duplicated, by `mutation_kill_loop_python.py`. |
-| `mutation_kill_loop_python.py` | The Python/mutmut per-file loop — same contract, adapted for pytest: scoped `mutmut run` (clears stale `.mutmut-cache` first) → score via `mutation_report` junitxml support → **your** generation → duplicate-guard → append-at-end-of-file → `py_compile` → scoped `pytest` → commit-on-green / revert-on-failure → no-improvement stop. Insertion mechanics live in `mutation_kill_insert_python.py`; reuses `mutation_kill_headless.py`'s generic headless helpers and `mutation_kill_shared.py`'s git/timeout/stop-predicate mechanics rather than duplicating them. |
+| `mutation_kill_shared.py` | Cross-language loop mechanics shared verbatim between the two loops: env-var timeout parsing, `git_revert`/`git_reset_and_revert`/`git_commit`, the "no improvement across rounds" stop predicate, the `claude --print` headless-generation glue (`resolve_model`, `strip_code_fences`, `claude_cli_available`, `CLAUDE_CLI`, `run_claude_headless`), and the unified `InsertOutcome`/`InsertionRefused` result types both loops' insertion scripts return. |
+| `mutation_safety_gate.py` | Shared deny-list scan + refuse-on-match guard against prompt-injection payloads in generated test code, plus the commit audit-trailer (`append_generator_trailer`). |
+| `mutation_kill_headless.py` | The C#-specific headless generation + `--headless` CLI/entry point: builds the C#-flavored generation prompt and dispatches `mutation_kill_loop.run_for_file`. Imports its generic (non-C#-specific) helpers (`resolve_model`, `claude_cli_available`, `CLAUDE_CLI`, `run_claude_headless`) from `mutation_kill_shared.py` rather than defining them — `mutation_kill_loop_python.py` imports the same names directly from `mutation_kill_shared.py`, not through this module, so the Python loop carries no dependency on the C#/Stryker.NET stack. |
+| `mutation_kill_loop_python.py` | The Python/mutmut per-file loop — same contract, adapted for pytest: scoped `mutmut run` (clears stale `.mutmut-cache` first) → score via `mutation_report` junitxml support → **your** generation → duplicate-guard → append-at-end-of-file → `py_compile` → scoped `pytest` → commit-on-green / revert-on-failure → no-improvement stop. Insertion mechanics live in `mutation_kill_insert_python.py`; reuses `mutation_kill_shared.py`'s git/timeout/stop-predicate/headless-generation mechanics rather than duplicating them. |
 | `stryker_shard_setup.py` | Generate one `stryker-config.shard-<slug>.json` per source project, `Stryker.sln`, and `stryker-pipeline.json` from a `.sln`. |
 | `stryker_shard_pipeline.py` | The unattended sharded pipeline: discover shards, one compounding git worktree per shard from `HEAD`, run Stryker through the wrapper's line-callback, timeout-abort, launch the survivor-fix loop **forced into `--headless`**, honest-score summary. |
 | `stryker_timeout_retry.py` | Emit a retry config scoped to only the timed-out files with an increased `additional-timeout`. |
@@ -90,58 +90,49 @@ Generation is a seam the loop calls into; it never decides *what* tests to write
 
 ## The honest score — hard kills only
 
-Mutation tools count **timed-out** mutations as "killed". They are not. In one
-observed run 76% of "kills" were timeouts; adding faster targeted tests let those
-mutations *complete* instead of timing out, and the score fell from 61.3% to
-30.36%. A score inflated by timeouts is not evidence of good tests.
+Mutation tools count **timed-out** mutations as "killed." They are not — see
+`${CLAUDE_PLUGIN_ROOT}/knowledge/mutation-score-formulas.md` (canonical for
+this agent and the `/mutation-testing` skill alike; Whole-file load: short
+formula reference) for the full rationale and worked example.
 
 `mutation_report.py` computes both scores; you gate on **hard kills only**
 (`status == Killed`). Stryker.NET 4.x keeps `NoCoverage` mutants in its own
 denominator, so the honest formula matches:
 
 ```
-honest_score  = Killed / (Killed + Survived + NoCoverage)
+honest_score   = Killed / (Killed + Survived + NoCoverage)
 reported_score = (Killed + Timeout) / (Killed + Survived + Timeout + NoCoverage)
 ```
 
-Report **both**. `honest_score` is the only number that gates a round or a file —
-Timeout stays out of the numerator, and the script never gates on it.
-`reported_score` mirrors what the Stryker HTML report prints, so a reviewer
-comparing the two numbers gets an honest gap (numerator delta) rather than a
-formula mismatch. `Timeout` and `NoCoverage` counts always print separately
-alongside both scores.
+`honest_score` is the only number that gates a round or a file — the script
+never gates on `reported_score`.
 
 ### NoCoverage is a first-class signal
 
 Each `NoCoverage → Killed` conversion improves the score as much as killing a
-`Survived` mutant — and NoCoverage paths are usually easier, because **any** test
-that reaches the line kills the mutant (no specific-value assertion required).
-**Prioritize NoCoverage coverage before attacking hard Survived mutations.** A
-file with 27 NoCoverage mutants at 0% score drags the overall number down more
-than a file with 20 Survived at 70%; fix the NoCoverage first.
+`Survived` mutant — any test that reaches the line kills a `NoCoverage`
+mutant, no specific-value assertion required. **Prioritize NoCoverage**
+coverage before attacking hard Survived mutations.
 
 ### Accepted survivors: raw vs adjusted score
 
-A per-file/round report can carry individual survivors marked `status: "accepted"`
-— a real, killable mutant you deliberately deferred this pass (not equivalent;
-just out of scope, low-signal, or pre-existing debt). This is **per-mutant**
-granularity underneath the file-level `EXCLUDED` convention below, not a
-replacement for it — see [Structurally unkillable
-files](#structurally-unkillable-files). Every accepted entry carries a `reason`
-string; never accept a mutant silently.
+A per-file/round report can carry individual survivors marked
+`status: "accepted"` — a real, killable mutant you deliberately deferred this
+pass (not equivalent; just out of scope, low-signal, or pre-existing debt).
+This is **per-mutant** granularity underneath the file-level `EXCLUDED`
+convention below, not a replacement for it — see [Structurally unkillable
+files](#structurally-unkillable-files). Every accepted entry carries a
+`reason` string; never accept a mutant silently.
 
-When any survivor is accepted, print both:
+When any survivor is accepted, print both, labeled clearly (e.g. `Raw:
+68.57% (24/35) · Adjusted for 11 accepted survivors: 100% (24/24)`), plus a
+per-mutant "Accepted Survivors (deferred)" table (file, line, operator,
+reason):
 
 ```
 raw_score      = honest_score (unchanged)
 adjusted_score = Killed / (Killed + (Survived - Accepted) + NoCoverage)
 ```
-
-labeled clearly (e.g. `Raw: 68.57% (24/35) · Adjusted for 11 accepted survivors:
-100% (24/24)`), plus a per-mutant "Accepted Survivors (deferred)" table (file,
-line, operator, reason) — mirroring the existing equivalent-mutants table. Never
-let `adjusted_score` stand alone; `raw_score` plus the reason table is what keeps
-a documented deferral from silently vanishing.
 
 ## Shard vs full-run scores are not comparable
 

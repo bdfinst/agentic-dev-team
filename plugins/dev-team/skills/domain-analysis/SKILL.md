@@ -33,15 +33,11 @@ Classify each finding by confidence:
 - **inferred** — visible at folder or module level without reading implementation (directory name, package dependency in package.json)
 - **suspected** — requires runtime knowledge or cannot be confirmed from static analysis alone
 
-**Graph-assisted evidence gathering.** If the target repo has `.codegraph/`
-(CodeGraph MCP server, `mcp__codegraph__codegraph_explore` — fast
-callers/callees/impact lookups) and/or a Repowise MCP server
-(`get_context`/`search_codebase` — verified context and semantic search),
-prefer them over raw `Grep` for tracing imports, call relationships, and
-cross-context dependencies — they're cheaper and more accurate than re-deriving
-the call graph from text search. Never assume either is present — fall back
-to `Read`/`Grep`/`Glob` when absent; the tools are simply unavailable (no
-error) on repos without an index.
+**Graph-assisted evidence gathering.** Prefer CodeGraph/Repowise over raw `Grep`
+for tracing imports, call relationships, and cross-context dependencies — they're
+cheaper and more accurate than re-deriving the call graph from text search. See
+[`knowledge/codegraph-vs-graphify.md`](../../knowledge/codegraph-vs-graphify.md)
+for tool selection and the fallback contract.
 
 ## Analysis Framework
 

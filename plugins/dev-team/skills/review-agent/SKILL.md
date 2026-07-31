@@ -82,15 +82,19 @@ Same auto-scope logic as `/code-review`:
 
 ### 3. Run review
 
-Follow the agent definition to review each target file. Produce a JSON result:
+Follow the agent definition to review each target file. Produce a JSON result
+per the shared contract in
+[`knowledge/review-agent-output-contract.md`](../../knowledge/review-agent-output-contract.md),
+wrapped with `agentName`:
 
 ```json
 {
   "agentName": "<name>",
-  "status": "pass|warn|fail",
+  "status": "pass|warn|fail|skip",
   "issues": [
     {
       "severity": "error|warning|suggestion",
+      "confidence": "high|medium|none",
       "file": "<path>",
       "line": 0,
       "message": "<description>",

@@ -18,11 +18,7 @@ Enforcement: script
 
 > **Implemented by:** scripts/claude_setup_review.py
 
-Output JSON:
-
-```json
-{"status": "pass|warn|fail|skip", "issues": [{"severity": "error|warning|suggestion", "confidence": "high|medium|none", "file": "", "line": 0, "message": "", "suggestedFix": ""}], "summary": ""}
-```
+Output JSON: per `${CLAUDE_PLUGIN_ROOT}/knowledge/review-agent-output-contract.md` (Whole-file load: short, canonical schema).
 
 Status: pass=complete config, warn=gaps, fail=critical missing
 Severity: error=blocks AI effectiveness or violates required schema; warning=reduces quality or uses unsupported field; suggestion=enhancement or style improvement

@@ -42,14 +42,11 @@ Bad hypotheses:
 - "Something is wrong with the tests"
 - "CI is flaky"
 
-**Graph-assisted hypothesis grounding.** If the target repo has `.codegraph/`
-(CodeGraph MCP server, `mcp__codegraph__codegraph_explore` — fast
-callers/callees/impact lookups) and/or a Repowise MCP server
-(`get_context`/`search_codebase` — verified context and semantic search),
-prefer them over raw `Grep` for locating the actual source/test code behind
-the failing log line before stating the hypothesis. Never assume either is
-present — fall back to `Read`/`Grep`/`Glob` when absent; the tools are simply
-unavailable (no error) on repos without an index.
+**Graph-assisted hypothesis grounding.** Prefer CodeGraph/Repowise over raw
+`Grep` for locating the actual source/test code behind the failing log line
+before stating the hypothesis. See
+[`knowledge/codegraph-vs-graphify.md`](../../knowledge/codegraph-vs-graphify.md)
+for tool selection and the fallback contract.
 
 ### 3. Environment delta analysis
 
