@@ -11,7 +11,7 @@ Exit codes (matches review_result contract):
   2 = warnings only OR LLM check skipped
 
 Usage:
-  python3 scripts/token_efficiency_review.py --files <path> [<path>...] [--skip-llm]
+  python3 ${CLAUDE_PLUGIN_ROOT}/scripts/token_efficiency_review.py --files <path> [<path>...] [--skip-llm]
 """
 
 from __future__ import annotations
@@ -23,18 +23,11 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
-# review_result moved under plugins/dev-team/scripts/lib — see the note in
-# progress_guardian.py. Explicit path, not `lib.`, so the two namespace-package
-# `lib` directories never have to merge implicitly.
-sys.path.insert(
-    0,
-    str(Path(__file__).resolve().parents[1] / "plugins" / "dev-team" / "scripts" / "lib"),
-)
-from review_result import build_result, main_exit, make_issue, skipped_llm_warning
+from lib.review_result import build_result, main_exit, make_issue, skipped_llm_warning
 
 sys.path.insert(
     0,
-    str(Path(__file__).resolve().parents[1] / "plugins" / "dev-team" / "hooks" / "lib"),
+    str(Path(__file__).resolve().parent.parent / "hooks" / "lib"),
 )
 from token_efficiency_limits import (
     CLAUDE_MD_CHAR_LIMIT,
@@ -171,39 +164,6 @@ def check_line_counts(files: list[Path]) -> list[dict]:
                 )
             )
     return issues
-
-
-# ---------------------------------------------------------------------------
-# Token count (measure-tokens.sh integration)
-# ---------------------------------------------------------------------------
-
-
-def get_token_count(path: Path) -> int | None:
-    """Run measure-tokens.sh on path and return token count, or None on failure."""
-    script = Path(__file__).parent / "measure-tokens.sh"
-    if not script.exists():
-        return None
-    try:
-        result = subprocess.run(
-            ["bash", str(script), str(path)],
-            capture_output=True,
-            text=True,
-            timeout=30,
-            check=False,
-        )
-        if result.returncode != 0:
-            return None
-        # The script outputs a table; extract the last numeric line
-        for line in reversed(result.stdout.splitlines()):
-            parts = line.strip().split()
-            if parts:
-                try:
-                    return int(parts[-1])
-                except ValueError:
-                    continue
-    except (FileNotFoundError, subprocess.TimeoutExpired, OSError):
-        pass
-    return None
 
 
 # ---------------------------------------------------------------------------

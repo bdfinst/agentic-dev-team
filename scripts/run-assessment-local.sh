@@ -22,6 +22,7 @@ set -uo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 LIB_DIR="$SCRIPT_DIR/lib"
+PLUGIN_LIB_DIR="$REPO_ROOT/plugins/dev-team/scripts/lib"
 OUTPUT_DIR=""
 TARGETS=()
 USE_LLM=1  # 1 = try; 0 = force off. Auto-downgraded to 0 if claude missing.
@@ -216,7 +217,7 @@ for t in "${ABS_TARGETS[@]}"; do
   sub_slug="$(basename "$t" | tr '[:upper:]_' '[:lower:]-')"
   out_json="$OUTPUT_DIR/recon-$sub_slug.json"
   [[ -z "$RECON_PRIMARY" ]] && RECON_PRIMARY="$out_json"
-  python3 "$LIB_DIR/deterministic_recon.py" "$t" "$out_json" &
+  python3 "$PLUGIN_LIB_DIR/deterministic_recon.py" "$t" "$out_json" &
   pids+=($!)
 done
 for pid in "${pids[@]}"; do wait "$pid" || true; done

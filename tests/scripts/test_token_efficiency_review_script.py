@@ -1,7 +1,7 @@
-"""Tests for scripts/token_efficiency_review.py (Slice 2 of Python Agent
-Harness Pattern) — the CLI review script, distinct from the PostToolUse
-hook at plugins/dev-team/hooks/token_efficiency_review.py (covered by
-tests/hooks/test_token_efficiency_review.py).
+"""Tests for plugins/dev-team/scripts/token_efficiency_review.py (Slice 2 of
+Python Agent Harness Pattern) — the CLI review script, distinct from the
+PostToolUse hook at plugins/dev-team/hooks/token_efficiency_review.py
+(covered by tests/hooks/test_token_efficiency_review.py).
 
 Ported from tests/scripts/token_efficiency_review_tests.bats (issue #676).
 """
@@ -15,7 +15,7 @@ from pathlib import Path
 
 from _repo_root import REPO_ROOT
 
-SCRIPT = REPO_ROOT / "scripts" / "token_efficiency_review.py"
+SCRIPT = REPO_ROOT / "plugins" / "dev-team" / "scripts" / "token_efficiency_review.py"
 
 
 def run_review(*args: str) -> subprocess.CompletedProcess:
@@ -104,7 +104,7 @@ def test_claude_md_with_200_top_level_bullet_items_exits_0(tmp_path: Path) -> No
 
 
 # ---------------------------------------------------------------------------
-# Step 2.2 — Per-file line count, measure-tokens, LLM filter, --skip-llm
+# Step 2.2 — Per-file line count, LLM filter, --skip-llm
 # ---------------------------------------------------------------------------
 
 

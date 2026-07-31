@@ -6,9 +6,10 @@ LLM steps (via `claude -p`) into a schema-validated RECON envelope, then
 writes it atomically to the output directory.
 
 Usage:
-    python3 scripts/codebase_recon.py <repo-root> [--output-dir <path>]
-                                                   [--skip-llm]
-                                                   [--inventory-script <path>]
+    python3 ${CLAUDE_PLUGIN_ROOT}/scripts/codebase_recon.py <repo-root>
+                                                             [--output-dir <path>]
+                                                             [--skip-llm]
+                                                             [--inventory-script <path>]
 
 Exit codes:
     0 = pass (artifact written successfully)
@@ -29,26 +30,23 @@ from typing import Any
 # Allow importing sibling lib modules regardless of cwd
 sys.path.insert(0, str(Path(__file__).parent))
 from lib import deterministic_recon
+from lib.review_result import build_result, main_exit
 
-# review_result moved under plugins/dev-team/scripts/lib — see the note in
-# progress_guardian.py.
-sys.path.insert(
-    0,
-    str(Path(__file__).resolve().parents[1] / "plugins" / "dev-team" / "scripts" / "lib"),
-)
-from review_result import build_result, main_exit
+# jsonschema is a dev-only dependency (requirements-dev.txt) — not guaranteed on
+# a plugin user's interpreter. Degrade to a skipped-validation warning rather
+# than crash the whole recon run when it's absent (ADR 0014: shipped scripts
+# must work on stdlib alone).
+try:
+    import jsonschema
+except ImportError:
+    jsonschema = None
 
 # ---------------------------------------------------------------------------
 # Schema loading
 # ---------------------------------------------------------------------------
 
 _SCHEMA_PATH = (
-    Path(__file__).parent.parent
-    / "plugins"
-    / "dev-team"
-    / "knowledge"
-    / "schemas"
-    / "recon-envelope-v1.json"
+    Path(__file__).parent.parent / "knowledge" / "schemas" / "recon-envelope-v1.json"
 )
 
 
@@ -301,10 +299,9 @@ def _derive_slug(root: Path) -> str:
 def validate_schema(artifact: dict) -> None:
     """Validate artifact against the recon-envelope-v1 schema.
 
-    Raises jsonschema.ValidationError on failure.
+    Raises jsonschema.ValidationError on failure. Caller must check
+    `jsonschema is not None` first — this function assumes it's available.
     """
-    import jsonschema
-
     schema = _load_schema()
     jsonschema.validate(instance=artifact, schema=schema)
 
@@ -338,20 +335,15 @@ def step7_emit(
 ) -> tuple[bool, list[dict]]:
     """Run recon_inventory.py, validate schema, write artifact atomically.
 
-    Returns (success: bool, errors: list[dict]).
+    Returns (success: bool, issues: list[dict]) — errors when success is
+    False, warnings (e.g. schema validation skipped) when True.
     """
     errors: list[dict] = []
 
     # Resolve inventory script path
     if inventory_script is None:
-        # Default: look for recon_inventory.py relative to plugin scripts
-        inventory_script = (
-            Path(__file__).parent.parent
-            / "plugins"
-            / "dev-team"
-            / "scripts"
-            / "recon_inventory.py"
-        )
+        # Default: recon_inventory.py is a sibling in this same scripts/ dir
+        inventory_script = Path(__file__).parent / "recon_inventory.py"
 
     slug = _derive_slug(root)
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -391,27 +383,38 @@ def step7_emit(
         "notes": meta.get("notes", []),
     }
 
-    # Schema validation
-    import jsonschema
-
-    try:
-        validate_schema(artifact)
-    except jsonschema.ValidationError as exc:
-        errors.append(
+    # Schema validation (skipped gracefully when jsonschema isn't installed)
+    warnings: list[dict] = []
+    if jsonschema is None:
+        warnings.append(
             {
-                "severity": "error",
+                "severity": "warning",
                 "confidence": "high",
                 "file": "",
                 "line": 0,
-                "message": f"Schema validation failed: {exc}",
-                "suggestedFix": "Ensure all required fields are present and correctly typed.",
+                "message": "Schema validation skipped: jsonschema is not installed.",
+                "suggestedFix": "pip install jsonschema>=4.0 to enable full envelope validation.",
             }
         )
-        return False, errors
+    else:
+        try:
+            validate_schema(artifact)
+        except jsonschema.ValidationError as exc:
+            errors.append(
+                {
+                    "severity": "error",
+                    "confidence": "high",
+                    "file": "",
+                    "line": 0,
+                    "message": f"Schema validation failed: {exc}",
+                    "suggestedFix": "Ensure all required fields are present and correctly typed.",
+                }
+            )
+            return False, errors
 
     # Atomic write
     write_atomically(artifact_path, artifact)
-    return True, []
+    return True, warnings
 
 
 # ---------------------------------------------------------------------------
@@ -479,7 +482,7 @@ def run(
             entry_points = det_ep
 
     # Step 7: inventory + emit
-    success, errors = step7_emit(
+    success, step7_issues = step7_emit(
         root=root,
         output_dir=output_dir,
         meta=meta,
@@ -492,9 +495,10 @@ def run(
     )
 
     if not success:
-        result = build_result(errors, warnings)
+        result = build_result(step7_issues, warnings)
         return main_exit(result)
 
+    warnings.extend(step7_issues)
     result = build_result([], warnings, summary=f"RECON written to {output_dir}")
     return main_exit(result)
 

@@ -8,7 +8,7 @@ effort: high
 color: green
 ---
 
-> **Implemented by:** scripts/token_efficiency_review.py
+> **Implemented by:** ${CLAUDE_PLUGIN_ROOT}/scripts/token_efficiency_review.py
 
 # Token Efficiency Review
 
@@ -47,7 +47,7 @@ Return `{"status": "skip", "issues": [], "summary": "No Claude Code config or so
 
 ## Findings
 
-Metric thresholds are enforced by `scripts/token_efficiency_review.py` (exit 1 for errors, exit 2 for warnings). This agent provides qualitative analysis for issues the script cannot detect mechanically.
+Metric thresholds are enforced by `${CLAUDE_PLUGIN_ROOT}/scripts/token_efficiency_review.py` (exit 1 for errors, exit 2 for warnings). This agent provides qualitative analysis for issues the script cannot detect mechanically.
 
 ### CLAUDE.md
 

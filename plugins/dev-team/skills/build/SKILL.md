@@ -252,7 +252,7 @@ A "done" step that only passed its own tests is not the same as a feature that w
    {"timestamp":"<ISO8601>","plan":"<plan-file>","slice":"<N>","branch":"<branch>","files":["<changed runtime file>","..."],"outcome":"ran|skipped|failed-then-fixed","reason":"<set when outcome is skipped>"}
    ```
 
-   `outcome` is `ran` (the verification ran and passed), `skipped` (no runtime surface in the diff — `reason` states why, e.g. `"tests-only"` or `"docs-only"`), or `failed-then-fixed` (the verification failed at least once before the fix landed). `python3 scripts/progress_guardian.py --pre-pr` reads this log: a branch with runtime-surface changes and no matching entry fails the pre-PR gate the same way an incomplete step or a missing commit does.
+   `outcome` is `ran` (the verification ran and passed), `skipped` (no runtime surface in the diff — `reason` states why, e.g. `"tests-only"` or `"docs-only"`), or `failed-then-fixed` (the verification failed at least once before the fix landed). `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/progress_guardian.py --pre-pr` reads this log: a branch with runtime-surface changes and no matching entry fails the pre-PR gate the same way an incomplete step or a missing commit does.
 
 ### 4.10. Run slice invariants (issue #865)
 
@@ -355,5 +355,5 @@ unresolved escalation.
 - `${CLAUDE_PLUGIN_ROOT}/knowledge/evidence-bundle.md` defines the structured evidence bundle assembled in Step 7.5 and surfaced in the Step 8 completion report
 - `/pr` creates the pull request after a successful build, assembling its own evidence bundle independently (no handoff file)
 - `/continue` can resume a partially completed build across sessions
-- `python3 scripts/progress_guardian.py --plan <plan-file>` validates step completion and commit discipline at each step boundary; `--pre-pr` also fails closed when runtime-surface changes have no matching `metrics/verify-log.jsonl` entry (issue #727), and warns (never fails) on out-of-scope edits against declared slice `Files` (issue #865)
-- `scripts/build_slice_scope.py`, `scripts/build_rollback_point.py`, and `scripts/run_invariants.py` implement the plan-as-contract fields (issue #865): opt-in freeze scope, rollback-point resolution/recording, and the slice invariants gate, respectively
+- `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/progress_guardian.py --plan <plan-file>` validates step completion and commit discipline at each step boundary; `--pre-pr` also fails closed when runtime-surface changes have no matching `metrics/verify-log.jsonl` entry (issue #727), and warns (never fails) on out-of-scope edits against declared slice `Files` (issue #865)
+- `${CLAUDE_PLUGIN_ROOT}/scripts/build_slice_scope.py`, `${CLAUDE_PLUGIN_ROOT}/scripts/build_rollback_point.py`, and `${CLAUDE_PLUGIN_ROOT}/scripts/run_invariants.py` implement the plan-as-contract fields (issue #865): opt-in freeze scope, rollback-point resolution/recording, and the slice invariants gate, respectively

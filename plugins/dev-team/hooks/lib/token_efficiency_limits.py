@@ -3,7 +3,7 @@
 
 Single source of truth for the limits enforced by both
 `hooks/token_efficiency_review.py` (the shipped PostToolUse hook) and
-`scripts/token_efficiency_review.py` (the repo-root CI runner). Both
+`plugins/dev-team/scripts/token_efficiency_review.py` (the review-agent CI runner). Both
 previously hardcoded their own copy of these numbers.
 
 Stdlib-only. Python 3.8+. See docs/python-hook-contract.md.

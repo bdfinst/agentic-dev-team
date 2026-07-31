@@ -1,16 +1,17 @@
 #!/usr/bin/env python3
 """deterministic_recon — structural reconnaissance without LLM.
 
-Produces a recon envelope conforming (approximately) to
-plugins/dev-team/knowledge/schemas/recon-envelope-v1.json by running
-file-system and grep-based heuristics. This is a best-effort stand-in for
-the codebase-recon agent when the plugin is not installed; it covers the
-structural fields (repo metadata, languages, entry points, security surface
-by grep) but produces empty `architecture.notable_anti_patterns` and thin
-prose in `architecture.summary` since those need reasoning.
+The deterministic half of `codebase_recon.py` (this file's sibling one
+directory up): produces a recon envelope conforming (approximately) to
+`../../knowledge/schemas/recon-envelope-v1.json` by running file-system and
+grep-based heuristics. It covers the structural fields (repo metadata,
+languages, entry points, security surface by grep) but produces empty
+`architecture.notable_anti_patterns` and thin prose in `architecture.summary`
+since those need reasoning — `codebase_recon.py` fills that gap with an
+optional LLM step (`claude -p`) layered on top of this module's output.
 
 Usage:
-    python3 scripts/lib/deterministic_recon.py <target-path> [<output-json>]
+    python3 ${CLAUDE_PLUGIN_ROOT}/scripts/lib/deterministic_recon.py <target-path> [<output-json>]
 
 Emits JSON to stdout (or to <output-json> if given).
 """
@@ -377,7 +378,7 @@ def build_recon(root: Path) -> dict:
         "architecture": build_architecture(files, root),
         "security_surface": grep_security_surface(files, root),
         "git_history": probe_git_history(root),
-        "notes": ["Deterministic recon produced by scripts/lib/deterministic_recon.py. No LLM reasoning applied; semantic fields (architecture.summary prose, notable_anti_patterns) are omitted or minimal."],
+        "notes": ["Deterministic recon produced by plugins/dev-team/scripts/lib/deterministic_recon.py. No LLM reasoning applied; semantic fields (architecture.summary prose, notable_anti_patterns) are omitted or minimal."],
     }
 
 

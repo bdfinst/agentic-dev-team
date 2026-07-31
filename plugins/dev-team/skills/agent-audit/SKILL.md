@@ -317,7 +317,7 @@ python3 ${CLAUDE_PLUGIN_ROOT}/scripts/claude_setup_review.py --plugin-root <plug
 anti-patterns):
 
 ```
-python3 scripts/token_efficiency_review.py --files <path>...
+python3 ${CLAUDE_PLUGIN_ROOT}/scripts/token_efficiency_review.py --files <path>...
 ```
 
 Both scripts exit 0 and emit JSON findings to stdout. Surface any `error`

@@ -17,7 +17,7 @@ import pytest
 
 from _repo_root import REPO_ROOT
 
-SCRIPT = REPO_ROOT / "scripts" / "codebase_recon.py"
+SCRIPT = REPO_ROOT / "plugins" / "dev-team" / "scripts" / "codebase_recon.py"
 
 
 def _hermetic_git_env(home: Path) -> dict:
@@ -112,6 +112,37 @@ def test_5_1c_harness_does_not_hang_and_produces_output_with_skip_llm(
         check=False,
     )
     assert result.returncode != 124  # 124 = timeout killed
+
+
+def test_5_1d_missing_jsonschema_degrades_to_a_warning_not_a_crash(repo: Path) -> None:
+    """`python3 -S` skips site-packages initialization, so a site-installed
+    package like jsonschema is unimportable while stdlib and the script's own
+    sys.path.insert()-based sibling imports are unaffected — a real absent-
+    dependency environment, not a mock."""
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-S",
+            str(SCRIPT),
+            str(repo),
+            "--skip-llm",
+            "--output-dir",
+            str(repo / "out"),
+        ],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert result.returncode == 2, result.stderr
+    payload = json.loads(result.stdout)
+    assert payload["status"] == "warn"
+    assert any(
+        "jsonschema is not installed" in issue["message"] for issue in payload["issues"]
+    )
+    artifacts = list((repo / "out").glob("recon-*.json"))
+    assert artifacts, "artifact should still be written"
+    written = json.loads(artifacts[0].read_text())
+    assert written["schema_version"] == "1.0"
 
 
 # ---------------------------------------------------------------------------

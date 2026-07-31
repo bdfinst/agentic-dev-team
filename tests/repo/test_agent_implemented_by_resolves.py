@@ -40,13 +40,10 @@ _IMPLEMENTED_BY = re.compile(r"\*\*Implemented by:\*\*\s*`?([^`\s]+)`?")
 #: Each is the same defect as `claude-setup-review`'s: the shipped agent names a
 #: script that only exists at this repository's root, so a user's install cannot
 #: run it. Tracked rather than silently tolerated — delete an entry when its
-#: script moves under `plugins/dev-team/scripts/`.
-KNOWN_UNSHIPPED = {
-    "codebase-recon.md",
-    "orchestrator.md",
-    "progress-guardian.md",
-    "token-efficiency-review.md",
-}
+#: script moves under `plugins/dev-team/scripts/`. Empty as of #1636: all four
+#: originally-tracked agents (codebase-recon, orchestrator, progress-guardian,
+#: token-efficiency-review) now ship their scripts under `plugins/dev-team/scripts/`.
+KNOWN_UNSHIPPED: set[str] = set()
 
 
 def _implemented_by(path):
@@ -77,9 +74,10 @@ def test_implemented_by_resolves_inside_the_plugin(agent):
 
 def test_the_known_unshipped_list_does_not_grow_silently():
     """A new `Enforcement: script` agent must ship its script rather than be
-    added here. The list only shrinks."""
-    assert len(KNOWN_UNSHIPPED) <= 4, (
-        "new entries mean a new shipped agent with an unreachable implementation"
+    added here. The list only shrinks — it's empty now, so it must stay that
+    way."""
+    assert len(KNOWN_UNSHIPPED) == 0, (
+        "a new entry means a new shipped agent with an unreachable implementation"
     )
 
 
@@ -97,7 +95,6 @@ KNOWN_BARE_INVOCATION = {
     "agent-audit",
     "agent-eval",
     "harness-audit",
-    "pr",
     "project-init",
     "stryker-xunit-v2-shim",
 }
@@ -110,7 +107,7 @@ def test_skills_invoke_plugin_scripts_by_plugin_root(skill):
     offenders = [
         line.strip()
         for line in skill.read_text(encoding="utf-8").splitlines()
-        if re.search(r"^\s*python3?\s+scripts/[\w./-]+\.py", line)
+        if re.search(r"python3?\s+scripts/[\w./-]+\.py", line)
     ]
     if skill.parent.name in KNOWN_BARE_INVOCATION:
         assert offenders, (
@@ -128,6 +125,6 @@ def test_skills_invoke_plugin_scripts_by_plugin_root(skill):
 
 
 def test_the_known_bare_invocation_list_does_not_grow():
-    assert len(KNOWN_BARE_INVOCATION) <= 6, (
+    assert len(KNOWN_BARE_INVOCATION) <= 5, (
         "a new shipped skill invokes a script by a bare relative path"
     )

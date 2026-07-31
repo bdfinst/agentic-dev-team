@@ -1,4 +1,4 @@
-"""Slice 3 — scripts/progress_guardian.py
+"""Slice 3 — plugins/dev-team/scripts/progress_guardian.py
 Covers checkbox parsing, git-log cross-reference, uncommitted-change check,
 pre-PR flag, and scope creep.
 
@@ -25,7 +25,7 @@ from pathlib import Path
 
 from _repo_root import REPO_ROOT
 
-PG = REPO_ROOT / "scripts" / "progress_guardian.py"
+PG = REPO_ROOT / "plugins" / "dev-team" / "scripts" / "progress_guardian.py"
 
 _GIT_SCRUB_ENV_VARS = (
     "GIT_DIR",

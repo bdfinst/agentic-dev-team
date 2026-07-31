@@ -233,7 +233,7 @@ def render_report(
     lines.append("**Deterministic-only skeleton pipeline:**")
     lines.append("")
     lines.append(
-        "- Codebase reconnaissance via `scripts/lib/deterministic_recon.py` (grep-based)"
+        "- Codebase reconnaissance via `plugins/dev-team/scripts/lib/deterministic_recon.py` (grep-based)"
     )
     lines.append(
         "- Custom SARIF-emitting scripts: `entropy-check`, `model-hash-verify`"
