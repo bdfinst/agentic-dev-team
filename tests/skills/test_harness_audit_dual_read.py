@@ -31,9 +31,19 @@ def _bash_blocks() -> list[str]:
     return _BASH_BLOCK_RE.findall(SKILL)
 
 
-def test_four_bash_commands_reference_the_migrated_metrics_files():
+#: Exact count of bash blocks in harness-audit/SKILL.md that touch a migrated
+#: metrics file. Pinned so a dual-read block cannot be silently *dropped*
+#: (the idiom test below already catches a newly-added block that forgets the
+#: idiom, but it cannot notice one going missing). Moved 4 -> 6 in #1624,
+#: which added the churn-ratio and per-agent-purpose-split queries to Step 4a.
+_EXPECTED_AFFECTED_BLOCKS = 6
+
+
+def test_expected_number_of_bash_commands_reference_the_migrated_metrics_files():
     blocks = [b for b in _bash_blocks() if any(f in b for f in _TARGET_FILES)]
-    assert len(blocks) == 4, f"expected 4 affected bash commands, found {len(blocks)}"
+    assert len(blocks) == _EXPECTED_AFFECTED_BLOCKS, (
+        f"expected {_EXPECTED_AFFECTED_BLOCKS} affected bash commands, found {len(blocks)}"
+    )
 
 
 def test_every_affected_block_uses_the_dual_read_idiom():

@@ -1422,6 +1422,10 @@
       "summary": "Whether a `/build` inline review checkpoint actually changed anything —",
       "anchor": "review-valuejsonl"
     },
+    "Round rows — `source: \"code-review\"` with a `round` field (#1624)": {
+      "summary": "`/code-review` appends one row **per dispatch round** (round 1 = the initial",
+      "anchor": "round-rows-source-code-review-with-a-round-field-1624"
+    },
     "`verify-log.jsonl`": {
       "summary": "Evidence that the project's own test/verification tooling actually exercised",
       "anchor": "verify-logjsonl"
@@ -2765,7 +2769,7 @@
       "anchor": "6-present-findings-and-ask-for-direction"
     },
     "6a. Review-fix loop": {
-      "summary": "**Re-establishing dispatch-ledger corroboration after the loop (#1461, auto-scope only — same condition as item 3 above).** Step 3's `git add` changes the staged content's hash, so `agent_dispatch_ledger.py` stamps each iteration's re-dispatched agents (step 4) with that NEW hash — not step 4 (the outer, pre-loop)'s original dispatch hash, and not an earlier iteration's hash either.",
+      "summary": "**Record each round (#1624).** The initial panel was round 1 (step 5b-i);",
       "anchor": "6a-review-fix-loop"
     },
     "7. Generate report": {
@@ -4011,6 +4015,10 @@
     "4. Analyze review-value fix rates": {
       "summary": "Read `metrics/review-value.jsonl` (written by `/build` per #348, schema in `performance-metrics`).",
       "anchor": "4-analyze-review-value-fix-rates"
+    },
+    "4a. Analyze re-review churn (#1624)": {
+      "summary": "Rows carrying a `round` field are `/code-review`'s per-round instrumentation",
+      "anchor": "4a-analyze-re-review-churn-1624"
     },
     "5. Lesson Validation — validated-outcome weighting (#866)": {
       "summary": "Close the loop on `/feedback-learning` lessons: does an adopted lesson",

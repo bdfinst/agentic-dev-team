@@ -345,6 +345,29 @@ Classify each issue by actionability:
 
 **Actionable issues** drive the fix loop.
 
+#### 5b-i. Record round 1 (#1624)
+
+The initial panel is **round 1**. Append its row to
+`.claude/metrics/review-value.jsonl` now, before any fix is applied — this
+stream is what makes #1623's "is this churn or value?" question answerable at
+all, and a row written only on the happy path would bias every derived metric:
+
+```bash
+python3 "$CLAUDE_PLUGIN_ROOT/skills/code-review/scripts/review_round_log.py" \
+  --round 1 --agents "<comma-separated agents dispatched>" \
+  --findings <path-to-this-round's-findings.json> \
+  --purpose discovery --outcome "<fixed|no-op|escalated>"
+```
+
+Round 1 never passes `--fix-diff`: it has no preceding fix, so its
+`fix_provenance_new` is `0` by definition. The script writes counts, agent
+names, and enum values only — never file paths, code, or finding text.
+Full schema: `knowledge/telemetry-schema.md` § `review-value.jsonl`.
+
+Every later round records itself the same way from step 6a — see that step's
+"Record each round" item for the `--fix-diff` argument that turns
+`fix_provenance_new` into the "the previous fix introduced this" signal.
+
 #### 5c. Consolidate cross-agent findings
 
 When multiple agents flag the same `file:line`, emit one `topFindings` entry: `severity` = the single **highest** enum for that finding, `agents` = an array of the reporting agents (e.g. `["structure-review", "complexity-review"]`). Never pack multiple values into `severity` or any agent scalar — no slash- or comma-joined strings. Every scalar field stays single-valued; multi-agent attribution lives only in the `agents: []` array. Schema: [`output-format.md`](output-format.md#aggregated-json-result---json-flag).
@@ -417,11 +440,42 @@ while actionable_issues > 0 AND iteration ≤ MAX_ITERATIONS:
        already closed by step 3b's deterministic triage, against only the
        modified files. Carry forward statuses of agents that passed.
     5. Re-aggregate. Reclassify remaining issues.
+    5b. **Record this round (#1624).** Append one row per re-dispatch round
+       to `.claude/metrics/review-value.jsonl`, passing THIS iteration's fix
+       diff so `fix_provenance_new` can be computed (see below).
     6. iteration += 1
 
 if iteration > MAX_ITERATIONS AND actionable_issues > 0:
     escalate to human with remaining issues
 ```
+
+**Record each round (#1624).** The initial panel was round 1 (step 5b-i);
+each fix-loop iteration's re-dispatch set is one further round. Capture the
+iteration's fix diff **before** re-staging (item 3) so the row can attribute
+this round's new findings to the previous round's fix:
+
+```bash
+# Item 1 applied fixes; capture them as a diff, then (item 3) `git add` them.
+git -c diff.relative=false diff --no-color > "$FIX_DIFF"
+# …after item 5's re-aggregation:
+python3 "$CLAUDE_PLUGIN_ROOT/skills/code-review/scripts/review_round_log.py" \
+  --round <N> --agents "<agents re-dispatched this round>" \
+  --findings <this-round's-NEW-findings.json> \
+  --carried <count of findings carried over from the prior round> \
+  --purpose "<discovery|verification|closing>" \
+  --outcome "<fixed|no-op|escalated>" \
+  --fix-diff "$FIX_DIFF"
+```
+
+`fix_provenance_new` — how many of this round's new findings land inside the
+line ranges the previous round's fix touched — is the judgment-free "the fix
+introduced it" signal #1623 asks for. It is interval math over the diff, not
+an LLM call: a round whose new error/warning findings **all** carry
+provenance is churn by construction. `--purpose` distinguishes a discovery
+panel from a fix-verification re-dispatch and from the gate-closing pass, so
+per-agent cost can be split by purpose rather than lumped into one dispatch
+count. Derived metrics (churn ratio, per-agent discovery-vs-verification
+split, gate recidivism) are computed by `/harness-audit` — see its Step 4a.
 
 **Re-establishing dispatch-ledger corroboration after the loop (#1461, auto-scope only — same condition as item 3 above).** Step 3's `git add` changes the staged content's hash, so `agent_dispatch_ledger.py` stamps each iteration's re-dispatched agents (step 4) with that NEW hash — not step 4 (the outer, pre-loop)'s original dispatch hash, and not an earlier iteration's hash either. Step 9's gate write needs **>= 2 distinct dispatches whose `subject_hash` equals the FINAL staged content's hash** (the one actually committed). Because step 4 of this loop only re-dispatches the agents that had actionable issues, a final iteration that fixes just one agent's finding re-dispatches only that one agent against the final content — insufficient on its own. **Unconditionally, after any loop iteration ran** (i.e. any fix was applied and re-staged) — not only when the count looks short, since that count isn't something to reason about from memory — re-dispatch the FULL original agent panel once more against the final staged content before proceeding to step 7. **This re-dispatch is a real review, not a rubber stamp**: if it reports any actionable issue, treat it exactly like any other iteration — re-enter this loop (subject to `MAX_ITERATIONS`) rather than proceeding to step 7. If the iteration limit is reached with issues still outstanding, follow the existing "escalate to human" exit condition below — step 9's gate-write condition explicitly excludes this case (treat it as if overall status were `fail` for that one purpose, even if every outstanding issue is only `warning`-severity), so an escalation is never silently overridden by a passing gate write. A corroboration pass whose findings carry no consequence would be exactly the "dispatch trivial calls purely to clear the gate" abuse `pre_commit_review.py`'s own module docstring names as the residual risk this mechanism does NOT protect against.
 
