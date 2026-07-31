@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
-"""mutation_safety_gate.py — shared deny-list scan, commit audit-trail, and
-insertion-result helpers for mutation_kill_loop.py and
-mutation_kill_loop_python.py.
+"""mutation_safety_gate.py — shared deny-list scan and commit audit-trail
+helpers for mutation_kill_loop.py and mutation_kill_loop_python.py.
 
 Both loops share the same ``--headless`` unattended-commit architecture and
 the same threat: a prompt-injection payload in the mutated source could
@@ -14,51 +13,20 @@ once for both languages instead of drifting between two hand-maintained
 copies — a drift risk that fixing this exact vulnerability once already
 demonstrated in practice.
 
-``InsertOutcome``/``InsertionRefused`` (#1583) are unified here too: both
-``mutation_kill_insert.py`` (C#, before this change) and
-``mutation_kill_insert_python.py`` (Python) defined these nearly verbatim —
-same two fields (``inserted: bool``, ``reason: str``), same "refuse rather
-than guess" contract for the exception. Only the *condition* that triggers a
-refusal is language-specific (a non-4-space-indented C# class vs. a
-class-based Python test file); the *shape* of the result the loop consumes
-is identical, so unifying avoided a third near-duplicate definition rather
-than adding a third insertion-mechanics module purely to hold two
-data-only types.
+``InsertOutcome``/``InsertionRefused`` used to live here too (#1583), but
+neither is actually a safety concept — this module is specifically scoped to
+the unattended-commit prompt-injection threat model, while ``InsertOutcome``
+is returned on plain structural refusals as well (duplicate method/function
+names, no methods/tests generated). They moved to ``mutation_kill_shared.py``
+instead (#1602), which already exists to hold cross-language types that
+aren't safety-specific — see that module's docstring.
 
-Stdlib-only (``dataclasses``, ``re``). Python 3.8+. See ADR 0014.
+Stdlib-only (``re``). Python 3.8+. See ADR 0014.
 """
 
 from __future__ import annotations
 
 import re
-from dataclasses import dataclass
-
-
-class InsertionRefused(Exception):
-    """Raised when a language-specific insertion heuristic can't safely
-    locate where to insert generated tests/methods, and refuses rather than
-    guess and risk a mis-insertion.
-
-    Framework-agnostic and shared verbatim between ``mutation_kill_insert.py``
-    (C# — refuses on a file-scoped namespace or non-4-space class indentation)
-    and ``mutation_kill_insert_python.py`` (Python — refuses on a test file
-    with no top-level ``def test_*():``) (#1583).
-    """
-
-
-@dataclass(frozen=True)
-class InsertOutcome:
-    """Result of attempting to apply generated tests/methods to a test file.
-
-    ``inserted`` is False when the file was left untouched; ``reason`` says
-    why. Framework-agnostic and shared verbatim between
-    ``mutation_kill_insert.py`` and ``mutation_kill_insert_python.py``
-    (#1583) — the two languages' insertion heuristics differ, but the result
-    shape each reports back to its loop is identical.
-    """
-
-    inserted: bool
-    reason: str
 
 
 def scan_for_unsafe_patterns(text: str, patterns: dict[str, re.Pattern[str]]) -> list[str]:

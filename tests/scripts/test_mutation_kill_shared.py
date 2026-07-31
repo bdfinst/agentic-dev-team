@@ -14,6 +14,13 @@ is mutation_kill_shared.git_revert``, etc.) plus whatever integration coverage
 is genuinely loop-specific (e.g. the Python loop's real-git hermetic
 regression tests, which exercise these same functions against a real repo
 rather than a mocked ``subprocess.run``).
+
+The ``claude --print`` headless-generation glue (``resolve_model``,
+``strip_code_fences``, ``claude_cli_available``, ``run_claude_headless``) and
+the ``InsertOutcome``/``InsertionRefused`` result shape also live here now
+(moved from ``mutation_kill_headless.py`` and ``mutation_safety_gate.py``
+respectively, #1601/#1602) — both loops import them from this module rather
+than from each other or from a module scoped to a different concept.
 """
 
 from __future__ import annotations
@@ -365,3 +372,238 @@ def test_git_reset_and_revert_returns_false_when_checkout_fails_after_reset_succ
 
     assert shared.git_reset_and_revert(tmp_path / "Foo.txt") is False
     assert [c[2] for c in calls] == ["reset", "checkout"]
+
+
+# =============================================================================
+# resolve_model / strip_code_fences / claude_cli_available / run_claude_headless
+# — the claude --print invocation glue, moved here from
+# mutation_kill_headless.py (#1601). mutation_kill_headless.py (C#) and
+# mutation_kill_loop_python.py both import these directly from this module.
+# =============================================================================
+def test_resolve_model_prefers_explicit_over_env(monkeypatch: pytest.MonkeyPatch):
+    monkeypatch.setenv("DEV_TEAM_MUTATION_MODEL", "env-model")
+    assert shared.resolve_model("flag-model") == "flag-model"
+
+
+def test_resolve_model_falls_back_to_env(monkeypatch: pytest.MonkeyPatch):
+    monkeypatch.setenv("DEV_TEAM_MUTATION_MODEL", "env-model")
+    assert shared.resolve_model() == "env-model"
+
+
+def test_resolve_model_is_none_when_nothing_is_set(monkeypatch: pytest.MonkeyPatch):
+    monkeypatch.delenv("DEV_TEAM_MUTATION_MODEL", raising=False)
+    assert shared.resolve_model() is None
+
+
+def test_strip_code_fences_removes_leading_and_trailing_fence():
+    text = "```python\ndef test_new():\n    assert True\n```"
+    assert shared.strip_code_fences(text) == "def test_new():\n    assert True"
+
+
+def test_strip_code_fences_is_a_noop_without_fences():
+    assert shared.strip_code_fences("def test_new():\n    assert True") == (
+        "def test_new():\n    assert True"
+    )
+
+
+def test_claude_cli_available_is_true_when_the_cli_responds(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    class _OK:
+        returncode = 0
+
+    monkeypatch.setattr(shared.subprocess, "run", lambda *a, **k: _OK())
+    assert shared.claude_cli_available() is True
+
+
+def test_claude_cli_available_is_false_when_the_binary_is_missing(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    def _missing(*a, **k):
+        raise FileNotFoundError("claude")
+
+    monkeypatch.setattr(shared.subprocess, "run", _missing)
+    assert shared.claude_cli_available() is False
+
+
+def test_claude_cli_available_passes_a_timeout(monkeypatch: pytest.MonkeyPatch):
+    captured: dict = {}
+
+    class _OK:
+        returncode = 0
+
+    def fake_run(*a, **k):
+        captured.update(k)
+        return _OK()
+
+    monkeypatch.setattr(shared.subprocess, "run", fake_run)
+    shared.claude_cli_available()
+    assert captured["timeout"] == shared.CLAUDE_VERSION_TIMEOUT_S
+
+
+def test_claude_cli_available_treats_a_timeout_as_unavailable(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    def fake_run(*a, **k):
+        raise shared.subprocess.TimeoutExpired(a[0] if a else [], k.get("timeout"))
+
+    monkeypatch.setattr(shared.subprocess, "run", fake_run)
+    assert shared.claude_cli_available() is False
+
+
+def test_run_claude_headless_sends_the_prompt_over_stdin_not_argv(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    """The prompt must not appear as a trailing argv element (#1607) — an
+    argv-passed prompt is parsed for dash-prefixed option injection by the
+    CLI's own arg parser, and is visible to any other process on the host via
+    ps/procfs for the subprocess's lifetime. Routed over stdin instead."""
+    captured: dict = {}
+
+    class _R:
+        returncode = 0
+        stdout = "def test_new(): pass"
+        stderr = ""
+
+    def fake_run(argv, **kwargs):
+        captured["argv"] = argv
+        captured["kwargs"] = kwargs
+        return _R()
+
+    monkeypatch.setattr(shared.subprocess, "run", fake_run)
+
+    out = shared.run_claude_headless("a prompt with -- dashes and -flags", model=None)
+
+    assert "a prompt with -- dashes and -flags" not in captured["argv"]
+    assert captured["kwargs"]["input"] == "a prompt with -- dashes and -flags"
+    assert out == "def test_new(): pass"
+
+
+def test_run_claude_headless_passes_the_model_flag_when_set(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    captured: dict = {}
+
+    class _R:
+        returncode = 0
+        stdout = "ok"
+        stderr = ""
+
+    def fake_run(argv, **kwargs):
+        captured["argv"] = argv
+        return _R()
+
+    monkeypatch.setattr(shared.subprocess, "run", fake_run)
+    shared.run_claude_headless("prompt", model="some-model")
+
+    argv = captured["argv"]
+    assert argv[0] == shared.CLAUDE_CLI
+    assert "--print" in argv
+    assert argv[argv.index("--model") + 1] == "some-model"
+
+
+def test_run_claude_headless_omits_model_flag_when_unset(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    captured: dict = {}
+
+    class _R:
+        returncode = 0
+        stdout = "ok"
+        stderr = ""
+
+    def fake_run(argv, **kwargs):
+        captured["argv"] = argv
+        return _R()
+
+    monkeypatch.setattr(shared.subprocess, "run", fake_run)
+    shared.run_claude_headless("prompt", model=None)
+
+    assert "--model" not in captured["argv"]
+
+
+def test_run_claude_headless_passes_a_timeout(monkeypatch: pytest.MonkeyPatch):
+    captured: dict = {}
+
+    class _R:
+        returncode = 0
+        stdout = "ok"
+        stderr = ""
+
+    def fake_run(argv, **kwargs):
+        captured.update(kwargs)
+        return _R()
+
+    monkeypatch.setattr(shared.subprocess, "run", fake_run)
+    shared.run_claude_headless("prompt", model=None)
+
+    assert captured["timeout"] == shared.CLAUDE_GENERATION_TIMEOUT_S
+
+
+def test_run_claude_headless_timeout_raises_a_named_error(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    def fake_run(argv, **kwargs):
+        raise shared.subprocess.TimeoutExpired(argv, kwargs.get("timeout"))
+
+    monkeypatch.setattr(shared.subprocess, "run", fake_run)
+
+    with pytest.raises(RuntimeError) as exc_info:
+        shared.run_claude_headless("prompt", model=None)
+
+    assert str(shared.CLAUDE_GENERATION_TIMEOUT_S) in str(exc_info.value)
+    assert "DEV_TEAM_MUTATION_GENERATION_TIMEOUT_S" in str(exc_info.value)
+
+
+def test_run_claude_headless_raises_on_a_nonzero_claude_exit(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    class _R:
+        returncode = 1
+        stdout = ""
+        stderr = "authentication required\n"
+
+    monkeypatch.setattr(shared.subprocess, "run", lambda argv, **kwargs: _R())
+
+    with pytest.raises(RuntimeError, match="authentication required"):
+        shared.run_claude_headless("prompt", model=None)
+
+
+def test_run_claude_headless_strips_fences_from_the_result(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    class _R:
+        returncode = 0
+        stdout = "```python\ndef test_new():\n    assert True\n```"
+        stderr = ""
+
+    monkeypatch.setattr(shared.subprocess, "run", lambda argv, **kwargs: _R())
+
+    out = shared.run_claude_headless("prompt", model=None)
+
+    assert "```" not in out
+    assert "test_new" in out
+
+
+# =============================================================================
+# InsertOutcome / InsertionRefused — moved here from mutation_safety_gate.py
+# (#1602): neither is a safety concept, they're the plain result/exception
+# shape both loops' insertion mechanics (mutation_kill_insert.py,
+# mutation_kill_insert_python.py) share verbatim (#1583).
+# =============================================================================
+def test_insert_outcome_carries_inserted_and_reason():
+    outcome = shared.InsertOutcome(True, "inserted")
+    assert outcome.inserted is True
+    assert outcome.reason == "inserted"
+
+
+def test_insert_outcome_is_frozen():
+    outcome = shared.InsertOutcome(False, "no tests generated")
+    with pytest.raises(AttributeError):
+        outcome.inserted = True
+
+
+def test_insertion_refused_is_an_exception():
+    assert issubclass(shared.InsertionRefused, Exception)
+    with pytest.raises(shared.InsertionRefused, match="nope"):
+        raise shared.InsertionRefused("nope")

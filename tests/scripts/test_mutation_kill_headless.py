@@ -5,6 +5,16 @@ Monkeypatches target this module directly (not ``mutation_kill_loop``) so
 patches actually take effect: ``main()``, ``claude_cli_available()``, and
 ``run_for_file`` (imported from ``mutation_kill_loop``) are all looked up in
 *this* module's globals when called from here.
+
+The ``claude --print`` invocation glue itself (``resolve_model``,
+``strip_code_fences``, ``claude_cli_available``, ``run_claude_headless``) now
+lives in ``mutation_kill_shared.py`` (#1601) — its full behavioral coverage
+(timeout handling, argv/stdin shape, model-flag presence, fence-stripping,
+nonzero-exit handling) lives in ``test_mutation_kill_shared.py`` as the
+single source of truth. This file keeps only an identity check plus whatever
+coverage is genuinely headless-CLI-specific: the C#-flavored prompt
+``make_headless_generator`` builds, and the ``--headless`` CLI's own
+argument parsing/dispatch/preflight behavior.
 """
 
 from __future__ import annotations
@@ -26,6 +36,7 @@ SCRIPTS_DIR = (
 sys.path.insert(0, str(SCRIPTS_DIR))
 
 import mutation_kill_headless as headless
+import mutation_kill_shared as shared
 
 FORBIDDEN_LITERALS = ["Aci.Speedpay", "Controllers", "AwesomeAssertions", "Moq", "AutoFixture"]
 
@@ -55,6 +66,17 @@ def _mutant(status: str, mutator: str = "ArithmeticOperator", line: int = 1) -> 
 
 
 # =============================================================================
+# Reused headless glue actually comes from mutation_kill_shared (#1601) —
+# identity check, mirroring the Python loop's equivalent test.
+# =============================================================================
+def test_headless_glue_is_reused_not_duplicated():
+    assert headless.resolve_model is shared.resolve_model
+    assert headless.claude_cli_available is shared.claude_cli_available
+    assert headless.CLAUDE_CLI == shared.CLAUDE_CLI
+    assert headless.run_claude_headless is shared.run_claude_headless
+
+
+# =============================================================================
 # Scenario: Bare-CLI default mode with no generator fails fast at startup
 # =============================================================================
 def test_bare_cli_no_generator_fails_fast_at_startup(
@@ -65,7 +87,7 @@ def test_bare_cli_no_generator_fails_fast_at_startup(
         raise AssertionError("startup preflight must run before any subprocess")
 
     monkeypatch.setattr(headless, "run_for_file", explode)
-    monkeypatch.setattr(headless.subprocess, "run", explode)
+    monkeypatch.setattr(shared.subprocess, "run", explode)
 
     rc = headless.main(["--config", "stryker-config.json", "--file", "PaymentService.cs"])
 
@@ -97,10 +119,11 @@ def test_headless_flag_does_not_trip_the_no_generator_preflight(
 
 
 # =============================================================================
-# Slice 3 — Optional --headless generation mode
+# Scenario: make_headless_generator builds the C#-flavored prompt (the
+# headless-specific piece) and delegates everything else to the shared
+# run_claude_headless (tested directly in test_mutation_kill_shared.py).
 # =============================================================================
-# Scenario: Headless mode generates via the Claude CLI
-def test_headless_generator_invokes_claude_print_and_strips_fences(
+def test_make_headless_generator_builds_the_csharp_prompt_and_strips_fences(
     monkeypatch: pytest.MonkeyPatch,
 ):
     captured: dict = {}
@@ -112,9 +135,10 @@ def test_headless_generator_invokes_claude_print_and_strips_fences(
 
     def fake_run(argv, **kwargs):
         captured["argv"] = argv
+        captured["kwargs"] = kwargs
         return _R()
 
-    monkeypatch.setattr(headless.subprocess, "run", fake_run)
+    monkeypatch.setattr(shared.subprocess, "run", fake_run)
 
     generate = headless.make_headless_generator("some-test-model")
     survivors = [_mutant("Survived", "ArithmeticOperator", 10)]
@@ -130,7 +154,11 @@ def test_headless_generator_invokes_claude_print_and_strips_fences(
     assert "--print" in argv
     # --model carries the resolved model.
     assert argv[argv.index("--model") + 1] == "some-test-model"
-    prompt = argv[-1]
+    # The prompt is sent over stdin (#1607), not a trailing argv element —
+    # assert its absence from argv, not just its presence in kwargs["input"],
+    # so a regression back to argv-based passing at this call site is caught.
+    prompt = captured["kwargs"]["input"]
+    assert prompt not in argv
     # The existing test file is the pattern, and the survivor summary is present.
     assert "PaymentServiceTests" in prompt
     assert "ArithmeticOperator" in prompt
@@ -141,107 +169,16 @@ def test_headless_generator_invokes_claude_print_and_strips_fences(
     assert "New_Case_KillsMutant" in out
 
 
-# Scenario: A hung `claude --print` generation call is bounded by a timeout,
-# not left to hang forever (#1558)
-def test_headless_generator_passes_a_timeout(monkeypatch: pytest.MonkeyPatch):
-    captured: dict = {}
-
-    def fake_run(argv, **kwargs):
-        captured.update(kwargs)
-
-        class _R:
-            returncode = 0
-            stdout = "void New_Case() {}"
-            stderr = ""
-
-        return _R()
-
-    monkeypatch.setattr(headless.subprocess, "run", fake_run)
-    generate = headless.make_headless_generator(None)
-    generate("S.cs", [_mutant("Survived", "ArithmeticOperator", 10)], "class S {}", "class T {}")
-
-    assert captured["timeout"] == headless.CLAUDE_GENERATION_TIMEOUT_S
-
-
-def test_headless_generator_timeout_raises_a_named_error(monkeypatch: pytest.MonkeyPatch):
-    def fake_run(argv, **kwargs):
-        raise headless.subprocess.TimeoutExpired(argv, kwargs.get("timeout"))
-
-    monkeypatch.setattr(headless.subprocess, "run", fake_run)
-    generate = headless.make_headless_generator(None)
-
-    with pytest.raises(RuntimeError) as exc_info:
-        generate("S.cs", [_mutant("Survived", "ArithmeticOperator", 10)], "class S {}", "class T {}")
-
-    assert str(headless.CLAUDE_GENERATION_TIMEOUT_S) in str(exc_info.value)
-    assert "DEV_TEAM_MUTATION_GENERATION_TIMEOUT_S" in str(exc_info.value)
-
-
-# Scenario: A non-zero `claude --print` exit is a generation failure, not a
-# silent empty result — shared by both loops' make_headless_generator
-# factories, since both delegate to run_claude_headless (#1563 gap 5).
-def test_headless_generator_raises_on_a_nonzero_claude_exit(
-    monkeypatch: pytest.MonkeyPatch,
-):
-    class _R:
-        returncode = 1
-        stdout = ""
-        stderr = "authentication required\n"
-
-    monkeypatch.setattr(headless.subprocess, "run", lambda argv, **kwargs: _R())
-    generate = headless.make_headless_generator(None)
-
-    with pytest.raises(RuntimeError) as exc_info:
-        generate("S.cs", [_mutant("Survived", "ArithmeticOperator", 10)], "class S {}", "class T {}")
-
-    assert "authentication required" in str(exc_info.value)
-
-
-# Scenario: --model resolves from the flag, then the env var, else None
-def test_model_resolves_from_env_when_set(monkeypatch: pytest.MonkeyPatch):
-    monkeypatch.setenv("DEV_TEAM_MUTATION_MODEL", "env-model")
-    assert headless.resolve_model() == "env-model"
-    # An explicit --model wins over the env var.
-    assert headless.resolve_model("flag-model") == "flag-model"
-
-
-def test_model_resolves_to_none_when_env_unset(
-    monkeypatch: pytest.MonkeyPatch,
-):
-    # No model snapshot id is pinned in source (cf. ADR 0008 / no-pinned-snapshots
-    # guard); unresolved means None so `claude --print` uses its own default.
-    monkeypatch.delenv("DEV_TEAM_MUTATION_MODEL", raising=False)
-    assert headless.resolve_model() is None
-
-
-def test_headless_omits_model_flag_when_unresolved(monkeypatch: pytest.MonkeyPatch):
-    captured = {}
-
-    class _R:
-        returncode = 0
-        stdout = "void New_Case() {}"
-        stderr = ""
-
-    def fake_run(argv, **k):
-        captured["argv"] = argv
-        return _R()
-
-    monkeypatch.setattr(headless.subprocess, "run", fake_run)
-    generate = headless.make_headless_generator(None)
-    generate("S.cs", [_mutant("Survived", "ArithmeticOperator", 10)], "class S {}", "class T {}")
-    # --model is absent entirely; claude --print falls back to its own default.
-    assert "--model" not in captured["argv"]
-    assert "--print" in captured["argv"]
-
-
+# =============================================================================
 # Scenario: Default (non-headless) mode spawns no Claude subprocess
+# =============================================================================
 def test_default_non_headless_spawns_no_claude_subprocess(
     monkeypatch: pytest.MonkeyPatch, capsys
 ):
     def explode(*a, **k):
         raise AssertionError("no subprocess may be spawned in the default mode")
 
-    monkeypatch.setattr(headless.subprocess, "run", explode)
+    monkeypatch.setattr(shared.subprocess, "run", explode)
     monkeypatch.setattr(
         headless, "claude_cli_available", lambda: pytest.fail("must not probe the CLI")
     )
@@ -252,7 +189,9 @@ def test_default_non_headless_spawns_no_claude_subprocess(
     assert headless.NO_GENERATOR_MESSAGE in capsys.readouterr().err
 
 
+# =============================================================================
 # Scenario: Missing Claude CLI under headless fails cleanly and names the fix
+# =============================================================================
 def test_missing_claude_cli_under_headless_names_remediation(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys
 ):
@@ -325,54 +264,6 @@ def test_headless_main_uses_default_label_when_model_unresolved(
     )
 
     assert captured["generator_label"] == "headless (default)"
-
-
-def test_claude_cli_available_is_true_when_the_cli_responds(
-    monkeypatch: pytest.MonkeyPatch,
-):
-    class _OK:
-        returncode = 0
-
-    monkeypatch.setattr(headless.subprocess, "run", lambda *a, **k: _OK())
-    assert headless.claude_cli_available() is True
-
-
-def test_claude_cli_available_is_false_when_the_binary_is_missing(
-    monkeypatch: pytest.MonkeyPatch,
-):
-    def _missing(*a, **k):
-        raise FileNotFoundError("claude")
-
-    monkeypatch.setattr(headless.subprocess, "run", _missing)
-    assert headless.claude_cli_available() is False
-
-
-def test_claude_cli_available_passes_a_timeout(monkeypatch: pytest.MonkeyPatch):
-    captured: dict = {}
-
-    class _OK:
-        returncode = 0
-
-    def fake_run(*a, **k):
-        captured.update(k)
-        return _OK()
-
-    monkeypatch.setattr(headless.subprocess, "run", fake_run)
-
-    headless.claude_cli_available()
-
-    assert captured["timeout"] == headless.CLAUDE_VERSION_TIMEOUT_S
-
-
-def test_claude_cli_available_treats_a_timeout_as_unavailable(
-    monkeypatch: pytest.MonkeyPatch,
-):
-    def fake_run(*a, **k):
-        raise headless.subprocess.TimeoutExpired(a[0] if a else [], k.get("timeout"))
-
-    monkeypatch.setattr(headless.subprocess, "run", fake_run)
-
-    assert headless.claude_cli_available() is False
 
 
 # =============================================================================

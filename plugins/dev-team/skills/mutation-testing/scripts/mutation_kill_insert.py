@@ -8,10 +8,11 @@ supports only conventional block-namespace, 4-space-indented C# test classes
 risk a mis-insertion.
 
 ``InsertOutcome``/``InsertionRefused`` are imported from
-``mutation_safety_gate`` (#1583), not defined here — they're structurally
-identical to the Python sibling's (``mutation_kill_insert_python.py``), so
-both modules share one definition instead of two hand-maintained copies. See
-``mutation_safety_gate``'s module docstring for the unification rationale.
+``mutation_kill_shared`` (#1583, relocated from ``mutation_safety_gate`` in
+#1602), not defined here — they're structurally identical to the Python
+sibling's (``mutation_kill_insert_python.py``), so both modules share one
+definition instead of two hand-maintained copies. See
+``mutation_kill_shared``'s module docstring for the unification rationale.
 """
 
 from __future__ import annotations
@@ -21,7 +22,7 @@ from collections.abc import Sequence
 from pathlib import Path
 
 import mutation_safety_gate
-from mutation_safety_gate import InsertionRefused, InsertOutcome
+from mutation_kill_shared import InsertionRefused, InsertOutcome
 
 # Matches a public test-method declaration (async Task or void), capturing the
 # method name. Framework-agnostic — no attribute or library name is assumed.
