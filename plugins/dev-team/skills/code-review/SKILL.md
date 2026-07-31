@@ -440,6 +440,10 @@ while actionable_issues > 0 AND iteration ≤ MAX_ITERATIONS:
        already closed by step 3b's deterministic triage, against only the
        modified files. Carry forward statuses of agents that passed.
     5. Re-aggregate. Reclassify remaining issues.
+    5a. **Classify the round against the ledger (#1625).** Run the round
+       ledger (below). It decides new-vs-carried by finding signature and
+       returns `terminate`/`reason` — honor it: `converged` and `round-cap`
+       both leave this loop.
     5b. **Record this round (#1624).** Append one row per re-dispatch round
        to `.claude/metrics/review-value.jsonl`, passing THIS iteration's fix
        diff so `fix_provenance_new` can be computed (see below).
@@ -448,6 +452,39 @@ while actionable_issues > 0 AND iteration ≤ MAX_ITERATIONS:
 if iteration > MAX_ITERATIONS AND actionable_issues > 0:
     escalate to human with remaining issues
 ```
+
+**Round ledger and termination rules (#1625).** The loop above has an
+iteration cap but, on its own, no notion of finding *identity* across rounds
+— so nothing detects "this round found only residue from the last fix" or
+"we are churning". Classify every round's findings with the shared helper:
+
+```bash
+python3 "$CLAUDE_PLUGIN_ROOT/skills/code-review/scripts/finding_signature.py" \
+  --round <N> --findings <this-round's-findings.json> \
+  --state .claude/memory/review-round-state.json
+```
+
+It prints `{"round", "new", "carried", "actionable_new", "terminate",
+"reason"}` and maintains the durable ledger at
+`.claude/memory/review-round-state.json`, so `/continue` can resume a review
+mid-loop and step 6a's `--carried` count for #1624 comes from the same
+source rather than being re-derived from memory. A finding's signature is
+`(agent, file, rule/category, normalized message)` with the line compared at
+±3 rather than hashed — see the script's own docstring for why the line is
+deliberately outside the hash.
+
+Three termination rules, evaluated at each round boundary, **first match
+wins** — the helper implements all three, this text is the contract:
+
+| Rule | Trigger | Effect |
+| --- | --- | --- |
+| **Hard round cap** | `round >= 4` (initial panel + 3) | Escalate to human, attaching the round ledger as evidence — which rounds found what, with fix provenance. Same posture as the existing `MAX_ITERATIONS` escalation, and step 9 treats it the same way (no gate write). Applied to #1619's case study, this alone would have surfaced the churn at round 4 instead of round 9. |
+| **Severity floor** (rounds ≥ 2) | No *new-signature* finding is `error`/`warning` at `high`/`medium` confidence | Converged — leave the loop. Suggestion-tier and low-confidence findings from round ≥ 2 still go to `corrections/` and the report: **logged, never chased.** Round 1 is unaffected — its actionability is step 5b's table, not this floor. |
+| **Loop-until-dry** | A round produces zero new-signature findings clearing the floor | Converged. Carried signatures that survived a fix attempt are already covered by the existing "same issues persist → escalate" exit; they are not a reason to keep going here. |
+
+The same three rules govern `/build`'s inline checkpoint fix loops
+(`../build/SKILL.md` sub-steps 4/6) — one shared statement, one shared
+implementation, not a duplicated table.
 
 **Record each round (#1624).** The initial panel was round 1 (step 5b-i);
 each fix-loop iteration's re-dispatch set is one further round. Capture the
@@ -484,9 +521,16 @@ split, gate recidivism) are computed by `/harness-audit` — see its Step 4a.
 | Condition | Action |
 | --- | --- |
 | Zero actionable issues | Exit → step 7 |
+| Round ledger returns `converged` (#1625) | Exit → step 7. A clean convergence, not an escalation: no new-signature finding cleared the severity floor, so step 9's gate write proceeds normally |
+| Round ledger returns `round-cap` (#1625) | Exit → escalate with the round ledger attached. Treated exactly like the iteration-limit row below for step 9's gate-write condition |
 | Iteration limit (5) | Exit → escalate (#1461: step 9 treats this as `fail` for its gate-write condition, even if remaining issues are only `warning`-severity) |
 | Same issues persist | Exit → escalate — not converging (same #1461 step 9 treatment as the iteration-limit row: this is also an escalation with actionable issues outstanding, not a quiet exit) |
 | Tests fail after fix and revert | Mark issue human-required; continue |
+
+The round cap (4) binds before `MAX_ITERATIONS` (5) in practice: the cap
+counts total dispatch rounds including the initial panel, the iteration
+limit counts fix-loop passes only. Both remain — the cap is the churn
+control, the iteration limit the original backstop.
 
 Track each iteration for the report — template in [`output-format.md`](output-format.md#review-fix-loop-iteration-log-step-6a-iv).
 
