@@ -1,5 +1,5 @@
 {
-  "fixture": "fp-object-mutations.js",
+  "fixture": "fp-object-mutations.ts",
   "description": "Direct object property mutation and Object.assign on targets - should flag errors",
   "applicableAgents": ["js-fp-review"],
   "agents": {
