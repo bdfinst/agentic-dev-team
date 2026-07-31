@@ -82,6 +82,13 @@ def git_revert(
     incidentally depend on (a ``lambda`` whose body is a bare
     ``list.append(...)``/``dict.update(...)`` call returns ``None``, not a
     ``CompletedProcess``).
+
+    ``mutation_kill_loop_python.py``'s ``run_scoped_mutmut`` always-revert
+    ``finally`` cleanup calls this too but, matching its pre-existing
+    best-effort contract, deliberately does not inspect the return value —
+    that path reverts opportunistically on the way out regardless of outcome,
+    unlike ``run_for_file``'s build/test/commit-failure paths below, which
+    treat a failed revert as fatal.
     """
     try:
         result = subprocess.run(
@@ -120,6 +127,12 @@ def git_reset_and_revert(
     index, and the working tree all agree afterward.
 
     Returns True only if both the unstage step and the restore step succeed.
+
+    Both loops call this specifically on the after-a-failed-commit path
+    (``_revert_or_raise(..., after_commit=True)``); a build failure or test
+    failure calls plain :func:`git_revert` instead — their index already
+    equals HEAD in that case (nothing was ever staged), so there's no reason
+    to pay the extra ``git reset`` subprocess.
     """
     try:
         reset_result = subprocess.run(

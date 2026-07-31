@@ -17,8 +17,8 @@ import pytest
 from _mutation_kill_loop_test_helpers import _loop_fixture, _mutant, _write_report
 from _mutation_test_helpers import git_hermetic, hermetic_git_env
 
-import mutation_kill_insert  # noqa: E402
-import mutation_kill_loop as loop  # noqa: E402
+import mutation_kill_insert  # noqa: E402 (sys.path set up by the helper import above)
+import mutation_kill_loop as loop  # noqa: E402 (sys.path set up by the helper import above)
 
 
 # =============================================================================

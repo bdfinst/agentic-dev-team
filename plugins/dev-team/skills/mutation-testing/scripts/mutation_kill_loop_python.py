@@ -65,7 +65,7 @@ import mutation_report
 import mutation_safety_gate
 from mutation_kill_insert_python import apply_generated_tests, count_tests
 from mutation_kill_shared import (
-    GIT_TIMEOUT_S as _GIT_TIMEOUT_S,  # noqa: F401 — re-exported under this module's historical name
+    GIT_TIMEOUT_S,  # noqa: F401 — re-exported for tests (loop.GIT_TIMEOUT_S), matching the C# sibling's export name
 )
 from mutation_kill_shared import (
     _timeout_from_env,

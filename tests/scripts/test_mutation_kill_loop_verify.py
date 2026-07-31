@@ -13,7 +13,7 @@ from __future__ import annotations
 import pytest
 from _mutation_kill_loop_test_helpers import _write_config
 
-import mutation_kill_loop as loop  # noqa: E402
+import mutation_kill_loop as loop  # noqa: E402 (sys.path set up by the helper import above)
 
 
 # =============================================================================
@@ -319,8 +319,10 @@ def test_git_revert_timeout_is_logged_not_raised(
     assert str(loop.GIT_TIMEOUT_S) in err
     assert "DEV_TEAM_MUTATION_GIT_TIMEOUT_S" in err
     # git_revert, git_commit's "add" leg, and git_commit's "commit" leg all
-    # share GIT_TIMEOUT_S/DEV_TEAM_MUTATION_GIT_TIMEOUT_S — the operation_label text
-    # is what distinguishes their timeout messages from one another.
+    # share GIT_TIMEOUT_S/DEV_TEAM_MUTATION_GIT_TIMEOUT_S — the inline stderr
+    # text each mutation_kill_shared.py function writes on TimeoutExpired
+    # (#1583; no longer routed through _run_with_timeout) is what distinguishes
+    # their timeout messages from one another.
     assert "git checkout" in err
 
 
@@ -372,9 +374,9 @@ def test_git_commit_commit_leg_timeout_returns_false(
     tmp_path, monkeypatch: pytest.MonkeyPatch, capsys
 ):
     """The `git add` leg succeeds; only the `git commit` leg's own
-    _run_with_timeout call times out — a distinct branch from the add-leg
-    timeout above, since git_commit short-circuits on add before ever
-    reaching commit."""
+    subprocess.run call (mutation_kill_shared.git_commit, #1583) times out —
+    a distinct branch from the add-leg timeout above, since git_commit
+    short-circuits on add before ever reaching commit."""
 
     calls: list = []
 

@@ -492,7 +492,7 @@ def _score_round(
     source_file: str,
     ctx: RunContext,
     *,
-    prev_survivors: int | None,
+    prev_survivor_count: int | None,
 ) -> tuple[list[dict], int] | None:
     """Score one round: baseline-seed-or-scoped-run → survivor extraction →
     log → stop-checks.
@@ -523,7 +523,7 @@ def _score_round(
         f"survivors={survivor_count}"
     )
 
-    reason = stop_reason(survivor_count, prev_survivors)
+    reason = stop_reason(survivor_count, prev_survivor_count)
     if reason is not None:
         ctx.log(f"  {reason}")
         return None
@@ -606,7 +606,7 @@ def _run_round(
     ctx: RunContext,
     generate: Generator,
     *,
-    prev_survivors: int | None,
+    prev_survivor_count: int | None,
 ) -> int | None:
     """Run one round: score (via :func:`_score_round`) → generate → insert →
     verify → commit (via :func:`_verify_and_commit`).
@@ -614,7 +614,7 @@ def _run_round(
     Returns this round's survivor count (to seed the next round's
     no-improvement check), or ``None`` when the file is done.
     """
-    scored = _score_round(round_num, source_file, ctx, prev_survivors=prev_survivors)
+    scored = _score_round(round_num, source_file, ctx, prev_survivor_count=prev_survivor_count)
     if scored is None:
         return None
     survivors, survivor_count = scored
@@ -669,12 +669,12 @@ def run_for_file(
     is reverted (unstage + restore, via :func:`git_reset_and_revert`) and the
     round stops without advancing.
     """
-    prev_survivors: int | None = None
+    prev_survivor_count: int | None = None
     for round_num in range(1, max_rounds + 1):
-        prev_survivors = _run_round(
-            round_num, source_file, ctx, generate, prev_survivors=prev_survivors
+        prev_survivor_count = _run_round(
+            round_num, source_file, ctx, generate, prev_survivor_count=prev_survivor_count
         )
-        if prev_survivors is None:
+        if prev_survivor_count is None:
             return
 
 

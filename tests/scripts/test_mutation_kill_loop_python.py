@@ -385,7 +385,7 @@ def test_git_commit_scopes_add_and_commit_to_the_test_file(tmp_path: Path, monke
 # =============================================================================
 # Scenario: A hung `git checkout`/`git add`/`git commit`/`git reset` is
 # bounded by a timeout, not left to hang the loop forever — mirrors
-# mutation_kill_loop.py's _GIT_TIMEOUT coverage (#1598/#1584 review, item 2).
+# mutation_kill_loop.py's GIT_TIMEOUT_S coverage (#1598/#1584 review, item 2).
 # Previously none of git_revert/git_reset_and_revert/git_commit passed
 # timeout= at all, so an unbounded git call here could hang forever instead
 # of ever reaching the RuntimeError/exit-4 fatal-revert path. These now
@@ -406,7 +406,7 @@ def test_git_revert_passes_a_timeout(tmp_path: Path, monkeypatch):
 
     loop.git_revert(tmp_path / "test_calc.py")
 
-    assert captured["timeout"] == loop._GIT_TIMEOUT_S
+    assert captured["timeout"] == loop.GIT_TIMEOUT_S
 
 
 def test_git_revert_timeout_is_logged_not_raised(tmp_path: Path, monkeypatch, capsys):
@@ -417,7 +417,7 @@ def test_git_revert_timeout_is_logged_not_raised(tmp_path: Path, monkeypatch, ca
 
     assert loop.git_revert(tmp_path / "test_calc.py") is False  # must not raise
     err = capsys.readouterr().err
-    assert str(loop._GIT_TIMEOUT_S) in err
+    assert str(loop.GIT_TIMEOUT_S) in err
     assert "DEV_TEAM_MUTATION_GIT_TIMEOUT_S" in err
     assert "git checkout" in err
 
@@ -455,8 +455,8 @@ def test_git_commit_passes_a_timeout_to_add_and_commit(tmp_path: Path, monkeypat
     result = loop.git_commit("msg", tmp_path / "test_calc.py")
 
     assert result is True
-    assert calls[0][1]["timeout"] == loop._GIT_TIMEOUT_S
-    assert calls[1][1]["timeout"] == loop._GIT_TIMEOUT_S
+    assert calls[0][1]["timeout"] == loop.GIT_TIMEOUT_S
+    assert calls[1][1]["timeout"] == loop.GIT_TIMEOUT_S
 
 
 def test_git_commit_add_leg_timeout_returns_false(tmp_path: Path, monkeypatch, capsys):
@@ -467,7 +467,7 @@ def test_git_commit_add_leg_timeout_returns_false(tmp_path: Path, monkeypatch, c
 
     assert loop.git_commit("msg", tmp_path / "test_calc.py") is False
     err = capsys.readouterr().err
-    assert str(loop._GIT_TIMEOUT_S) in err
+    assert str(loop.GIT_TIMEOUT_S) in err
     assert "git add" in err
 
 
@@ -490,7 +490,7 @@ def test_git_commit_commit_leg_timeout_returns_false(tmp_path: Path, monkeypatch
     assert loop.git_commit("msg", tmp_path / "test_calc.py") is False
     assert calls[0][:3] == ["git", "--literal-pathspecs", "add"]
     err = capsys.readouterr().err
-    assert str(loop._GIT_TIMEOUT_S) in err
+    assert str(loop.GIT_TIMEOUT_S) in err
     assert "git commit" in err
 
 

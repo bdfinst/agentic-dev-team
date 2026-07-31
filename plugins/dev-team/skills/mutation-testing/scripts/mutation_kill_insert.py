@@ -90,7 +90,7 @@ def scan_for_unsafe_patterns(new_methods: str) -> list[str]:
     legitimate mutant-killing test never needs network/filesystem/process/env
     access), so a false positive refuses-and-logs rather than silently
     inserting unreviewed code. Delegates to :mod:`mutation_safety_gate`,
-    shared with :mod:`mutation_kill_loop_python`, so a future bypass fix or
+    shared with :mod:`mutation_kill_insert_python`, so a future bypass fix or
     new category lands once for both languages.
     """
     return mutation_safety_gate.scan_for_unsafe_patterns(new_methods, _UNSAFE_PATTERNS)

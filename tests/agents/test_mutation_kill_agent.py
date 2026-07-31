@@ -85,7 +85,10 @@ def test_agent_body_stays_under_500_line_limit(text: str) -> None:
     # Bumped by 7 more (#1598/#1584 review): documented the corrected
     # commit-failure revert (unstage + restore, not a plain checkout) and
     # the fatal-on-failed-revert contract in the "Verify + revert" bullet.
-    assert len(text.splitlines()) < 614
+    # Bumped by 5 more (#1580/#1583 review): added mutation_kill_shared.py
+    # and mutation_kill_insert_python.py rows to the scripted-mechanics
+    # table, and added run_claude_headless to the reused-helpers list.
+    assert len(text.splitlines()) < 621
 
 
 def test_defines_honest_score_formula(text: str) -> None:

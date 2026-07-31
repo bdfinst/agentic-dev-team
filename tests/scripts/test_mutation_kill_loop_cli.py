@@ -19,6 +19,7 @@ import _mutation_kill_loop_test_helpers  # noqa: F401 (sys.path side effect)
 import mutation_kill_headless  # module-split literal check below
 import mutation_kill_insert  # module-split literal check below
 import mutation_kill_loop as loop  # noqa: E402
+import mutation_kill_shared  # module-split literal check below
 
 
 # =============================================================================
@@ -42,13 +43,15 @@ def test_script_invocation_dispatches_to_headless_main():
 
 # =============================================================================
 # Scenario: No module in the mutation_kill_loop split carries a repo-specific
-# literal (#1562 split into three files — every one is checked).
+# literal (#1562 split into three files, joined by mutation_kill_shared.py
+# in #1583 — every one is checked).
 # =============================================================================
 def test_module_source_carries_no_repo_specific_literal():
     for mod, filename in (
         (loop, "mutation_kill_loop.py"),
         (mutation_kill_insert, "mutation_kill_insert.py"),
         (mutation_kill_headless, "mutation_kill_headless.py"),
+        (mutation_kill_shared, "mutation_kill_shared.py"),
     ):
         source = (SCRIPTS_DIR / filename).read_text(encoding="utf-8")
         present = [lit for lit in FORBIDDEN_LITERALS if lit in source]
