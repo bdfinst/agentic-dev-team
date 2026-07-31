@@ -1,5 +1,6 @@
-"""Pytest tests for mutation_safety_gate.py — the shared deny-list scan and
-commit audit-trail helpers used by both mutation_kill_loop.py (C#) and
+"""Pytest tests for mutation_safety_gate.py — the shared deny-list scan,
+commit audit-trail, and insertion-result (InsertOutcome/InsertionRefused,
+#1583) helpers used by both mutation_kill_loop.py (C#) and
 mutation_kill_loop_python.py (Python/mutmut).
 """
 
@@ -8,6 +9,8 @@ from __future__ import annotations
 import re
 import sys
 from pathlib import Path
+
+import pytest
 
 SCRIPTS_DIR = (
     Path(__file__).resolve().parents[2]
@@ -61,3 +64,27 @@ def test_append_generator_trailer_collapses_embedded_newlines():
         line for line in result.splitlines() if line.startswith("Generator:")
     ]
     assert len(lines_starting_with_generator) == 1
+
+
+# =============================================================================
+# InsertOutcome / InsertionRefused — unified here (#1583) rather than
+# defined separately in mutation_kill_insert.py (C#) and
+# mutation_kill_insert_python.py (Python); those modules import both names
+# from this one.
+# =============================================================================
+def test_insert_outcome_carries_inserted_and_reason():
+    outcome = gate.InsertOutcome(True, "inserted")
+    assert outcome.inserted is True
+    assert outcome.reason == "inserted"
+
+
+def test_insert_outcome_is_frozen():
+    outcome = gate.InsertOutcome(False, "no tests generated")
+    with pytest.raises(AttributeError):
+        outcome.inserted = True
+
+
+def test_insertion_refused_is_an_exception():
+    assert issubclass(gate.InsertionRefused, Exception)
+    with pytest.raises(gate.InsertionRefused, match="nope"):
+        raise gate.InsertionRefused("nope")
