@@ -23,7 +23,12 @@ import sys
 from pathlib import Path
 
 import pytest
-from _mutation_test_helpers import FORBIDDEN_LITERALS, SCRIPTS_DIR
+from _mutation_test_helpers import (
+    FORBIDDEN_LITERALS,
+    SCRIPTS_DIR,
+    git_hermetic,
+    hermetic_git_env,
+)
 
 # Ensure the module's dir is on the path so we can import it directly.
 sys.path.insert(0, str(SCRIPTS_DIR))
@@ -354,7 +359,18 @@ def _loop_fixture(
         events.append(("generate", len(survivors)))
         return new_method
 
-    monkeypatch.setattr(loop, "git_revert", lambda tf, **k: events.append(("revert", str(tf))))
+    monkeypatch.setattr(
+        loop, "git_revert", lambda tf, **k: events.append(("revert", str(tf))) or True
+    )
+    # git_reset_and_revert is what the commit-failure path actually calls
+    # (#1598/#1584 review) — tagged "revert" too so the existing
+    # kinds.count("revert") assertions keep meaning "a revert happened",
+    # regardless of which of the two functions performed it.
+    monkeypatch.setattr(
+        loop,
+        "git_reset_and_revert",
+        lambda tf, **k: events.append(("revert", str(tf))) or True,
+    )
     monkeypatch.setattr(
         loop, "git_commit", lambda msg, tf, **k: events.append(("commit", msg)) or True
     )
@@ -623,6 +639,373 @@ def test_baseline_seeded_zero_survivors_never_calls_scoped_stryker(
 
 
 # =============================================================================
+# Scenario: A failed commit is a round failure, not a silent success (#1598)
+# =============================================================================
+def test_failed_commit_reverts_and_stops_the_round(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    source_file, ctx, kwargs, events = _loop_fixture(
+        tmp_path, monkeypatch, [_mutant("Survived")]
+    )
+    monkeypatch.setattr(loop, "dotnet_build", lambda targets, **k: True)
+    monkeypatch.setattr(loop, "dotnet_test", lambda targets, flt, **k: True)
+    monkeypatch.setattr(
+        loop, "git_commit", lambda msg, tf, **k: events.append(("commit", msg)) or False
+    )
+
+    loop.run_for_file(source_file, ctx, **kwargs)
+
+    kinds = [e[0] for e in events]
+    # The commit was attempted, failed, and was NOT mistaken for success:
+    # exactly one revert follows it, and the loop stops (a second "generate"
+    # would mean it wrongly believed round 1 had landed).
+    assert kinds.count("commit") == 1
+    assert kinds.count("revert") == 1
+    assert kinds.count("generate") == 1
+
+
+def test_revert_failure_after_failed_commit_is_fatal(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    source_file, ctx, kwargs, _events = _loop_fixture(
+        tmp_path, monkeypatch, [_mutant("Survived")]
+    )
+    monkeypatch.setattr(loop, "dotnet_build", lambda targets, **k: True)
+    monkeypatch.setattr(loop, "dotnet_test", lambda targets, flt, **k: True)
+    monkeypatch.setattr(loop, "git_commit", lambda msg, tf, **k: False)
+    # The commit-failure revert path calls git_reset_and_revert, not plain
+    # git_revert (#1598/#1584 review) — that's the function that must fail
+    # here for this scenario.
+    monkeypatch.setattr(loop, "git_reset_and_revert", lambda tf, **k: False)
+
+    with pytest.raises(RuntimeError, match="revert failed"):
+        loop.run_for_file(source_file, ctx, **kwargs)
+
+
+def test_revert_failure_after_build_failure_is_fatal(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    source_file, ctx, kwargs, _events = _loop_fixture(
+        tmp_path, monkeypatch, [_mutant("Survived")]
+    )
+    monkeypatch.setattr(loop, "dotnet_build", lambda targets, **k: False)
+    monkeypatch.setattr(loop, "git_revert", lambda tf, **k: False)
+
+    with pytest.raises(RuntimeError, match="revert failed"):
+        loop.run_for_file(source_file, ctx, **kwargs)
+
+
+def test_revert_failure_after_test_failure_is_fatal(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    source_file, ctx, kwargs, _events = _loop_fixture(
+        tmp_path, monkeypatch, [_mutant("Survived")]
+    )
+    monkeypatch.setattr(loop, "dotnet_build", lambda targets, **k: True)
+    monkeypatch.setattr(loop, "dotnet_test", lambda targets, flt, **k: False)
+    monkeypatch.setattr(loop, "git_revert", lambda tf, **k: False)
+
+    with pytest.raises(RuntimeError, match="revert failed"):
+        loop.run_for_file(source_file, ctx, **kwargs)
+
+
+# =============================================================================
+# Scenario (real git, no mocks): git_reset_and_revert actually leaves both
+# the index AND the working tree matching HEAD after a commit-failure-style
+# staged mutation — the exact #1598 regression a fully-mocked test (like
+# test_failed_commit_reverts_and_stops_the_round above) cannot catch, since
+# mocking git_revert/git_commit never exercises real git index state.
+# =============================================================================
+def test_git_reset_and_revert_restores_index_and_worktree_after_a_staged_mutation(
+    tmp_path: Path,
+):
+    git_hermetic(tmp_path, "init", "-q")
+    git_hermetic(tmp_path, "config", "user.email", "test@example.com")
+    git_hermetic(tmp_path, "config", "user.name", "Test")
+    git_hermetic(tmp_path, "config", "commit.gpgsign", "false")
+
+    test_file = tmp_path / "PaymentServiceTests.cs"
+    original = "namespace Widget.Tests\n{\n    // original\n}\n"
+    test_file.write_text(original, encoding="utf-8")
+    git_hermetic(tmp_path, "add", "-A")
+    git_hermetic(tmp_path, "commit", "-q", "-m", "initial")
+
+    # Simulate what git_commit does before a commit attempt fails: the loop
+    # mutates the test file, then `git add`s it.
+    mutated = original.replace("// original", "// mutated (never actually committed)")
+    test_file.write_text(mutated, encoding="utf-8")
+    git_hermetic(tmp_path, "add", "--", str(test_file))
+
+    # Sanity: the mutation IS staged before the fix runs — this is what makes
+    # a plain `git checkout --` (git_revert alone) insufficient, and what
+    # this test would fail to prove without this check.
+    staged = git_hermetic(tmp_path, "diff", "--cached", "--name-only")
+    assert "PaymentServiceTests.cs" in staged.stdout
+
+    # env= is the point of this test: the SUT's own git subprocess must run
+    # hermetically too, not just this test's setup calls above (#1598/#1584
+    # review, round 3 — test-smell-review/ai-provenance-review found the
+    # round-2 fix scrubbed only the setup calls).
+    assert (
+        loop.git_reset_and_revert(
+            test_file, cwd=tmp_path, env=hermetic_git_env(home=tmp_path)
+        )
+        is True
+    )
+
+    # Working tree matches HEAD (not the staged mutation).
+    assert test_file.read_text(encoding="utf-8") == original
+    # Index matches HEAD too — nothing left staged.
+    status = git_hermetic(tmp_path, "status", "--porcelain")
+    assert status.stdout.strip() == ""
+
+
+# =============================================================================
+# Scenario: A refused/duplicate insertion stops the round before build/test/
+# commit ever run — orchestration-level coverage (previously only exercised
+# via mutation_kill_insert's own functions directly, #1584)
+# =============================================================================
+def test_refused_insertion_stops_the_round_without_verify_or_commit(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    source_file, ctx, kwargs, events = _loop_fixture(
+        tmp_path, monkeypatch, [_mutant("Survived")]
+    )
+    monkeypatch.setattr(
+        loop, "dotnet_build", lambda *a, **k: pytest.fail("must not build after a refused insert")
+    )
+    monkeypatch.setattr(
+        loop,
+        "apply_generated_methods",
+        lambda *a, **k: mutation_kill_insert.InsertOutcome(
+            False, "duplicate method names: ['Existing_Case_Works']"
+        ),
+    )
+
+    loop.run_for_file(source_file, ctx, **kwargs)
+
+    kinds = [e[0] for e in events]
+    assert kinds == ["generate"]
+
+
+# =============================================================================
+# Scenario: _validate_solution_path requires a RELATIVE solution — an
+# absolute value is rejected in every practical case, since pathlib's `/`
+# silently discards `base` when the right operand is already absolute
+# (#1598/#1584 review, item 11).
+# =============================================================================
+def test_validate_solution_path_rejects_an_absolute_solution_outside_cwd(
+    tmp_path: Path,
+):
+    with pytest.raises(ValueError, match="escapes the working tree"):
+        loop._validate_solution_path("/etc/passwd", cwd=tmp_path)
+
+
+def test_validate_solution_path_accepts_an_absolute_solution_already_under_cwd(
+    tmp_path: Path,
+):
+    """Pins the degenerate case the docstring names: `base / solution`
+    discards `base` outright for an absolute `solution`, so an absolute
+    value is accepted only when it already happens to lie under `base` —
+    the resulting candidate is identical to the absolute value itself, not
+    `base` joined with it."""
+    absolute_solution = str((tmp_path / "App.sln").resolve())
+
+    result = loop._validate_solution_path(absolute_solution, cwd=tmp_path)
+
+    assert result == (tmp_path / "App.sln").resolve()
+
+
+# =============================================================================
+# Scenario: config.solution is sanitized before it's used to derive the
+# hidden-.sln filename (#1598). The filename itself is FIXED, not
+# process-unique — a PID-suffixed name was tried (#1584) to guard two
+# concurrent scoped runs against the same solution, but reverted after
+# review: it would be invisible to csharp_stryker_net_wrapper.py's
+# check_stale_hidden_sln() crash-recovery, which looks for the exact literal
+# ".stryker-hidden" suffix (see test_scoped_stryker_hidden_sln_name_has_no_pid_suffix
+# below).
+# =============================================================================
+def test_run_scoped_stryker_rejects_a_traversal_solution_path(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    config = loop.load_loop_config(
+        _write_config(tmp_path, solution="../../etc/cron.d/evil.sln")
+    )
+    monkeypatch.setattr(
+        loop.wrapper, "resolve_dotnet_root", lambda preset, candidates: ("/fake", None)
+    )
+    monkeypatch.setattr(loop.wrapper, "default_probe_candidates", list)
+    monkeypatch.setattr(
+        loop.wrapper,
+        "hide_sln",
+        lambda *a, **k: pytest.fail("must not hide before the solution path is validated"),
+    )
+
+    with pytest.raises(ValueError, match="escapes the working tree"):
+        loop.run_scoped_stryker(
+            config, "Foo.cs", output_dir=tmp_path / "out", cwd=tmp_path
+        )
+
+
+def test_run_scoped_stryker_accepts_a_normal_relative_solution_path(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    """Not just "must not raise" — the resolved, validated path is what
+    actually gets hidden/restored, at the FIXED (no-PID) name (#1598/#1584
+    review, item 10 test-review finding)."""
+    config = loop.load_loop_config(_write_config(tmp_path, solution="App.sln"))
+    monkeypatch.setattr(
+        loop.wrapper, "resolve_dotnet_root", lambda preset, candidates: ("/fake", None)
+    )
+    monkeypatch.setattr(loop.wrapper, "default_probe_candidates", list)
+    hide_calls: list = []
+    restore_calls: list = []
+    monkeypatch.setattr(
+        loop.wrapper,
+        "hide_sln",
+        lambda sln, sln_hidden: hide_calls.append((sln, sln_hidden)),
+    )
+    monkeypatch.setattr(
+        loop.wrapper,
+        "restore_sln",
+        lambda sln, sln_hidden: restore_calls.append((sln, sln_hidden)),
+    )
+
+    class _R:
+        returncode = 0
+
+    monkeypatch.setattr(loop.subprocess, "run", lambda *a, **k: _R())
+
+    loop.run_scoped_stryker(config, "Foo.cs", output_dir=tmp_path / "out", cwd=tmp_path)
+
+    expected_sln = (tmp_path / "App.sln").resolve()
+    expected_hidden = Path(f"{expected_sln}.stryker-hidden")
+    assert hide_calls == [(expected_sln, expected_hidden)]
+    assert restore_calls == [(expected_sln, expected_hidden)]
+
+
+def test_run_scoped_stryker_calls_check_stale_hidden_sln_before_hiding(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    """Mirrors the wrapper's own main() and
+    csharp_stryker_net_slice_runner.py's fleet-level caller (#1598/#1584
+    review, item 6): the stale-hidden-.sln crash-recovery check must run
+    BEFORE hide_sln, or a stale file left by a prior crash is never caught
+    here."""
+    config = loop.load_loop_config(_write_config(tmp_path, solution="App.sln"))
+    monkeypatch.setattr(
+        loop.wrapper, "resolve_dotnet_root", lambda preset, candidates: ("/fake", None)
+    )
+    monkeypatch.setattr(loop.wrapper, "default_probe_candidates", list)
+    calls: list = []
+    monkeypatch.setattr(
+        loop.wrapper,
+        "check_stale_hidden_sln",
+        lambda sln, sln_hidden: calls.append("check_stale_hidden_sln") or None,
+    )
+    monkeypatch.setattr(loop.wrapper, "hide_sln", lambda *a, **k: calls.append("hide_sln"))
+    monkeypatch.setattr(
+        loop.wrapper, "restore_sln", lambda *a, **k: calls.append("restore_sln")
+    )
+
+    class _R:
+        returncode = 0
+
+    monkeypatch.setattr(loop.subprocess, "run", lambda *a, **k: _R())
+
+    loop.run_scoped_stryker(config, "Foo.cs", output_dir=tmp_path / "out", cwd=tmp_path)
+
+    assert calls[:2] == ["check_stale_hidden_sln", "hide_sln"]
+
+
+def test_run_scoped_stryker_raises_when_stale_hidden_sln_check_fails(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    config = loop.load_loop_config(_write_config(tmp_path, solution="App.sln"))
+    monkeypatch.setattr(
+        loop.wrapper, "resolve_dotnet_root", lambda preset, candidates: ("/fake", None)
+    )
+    monkeypatch.setattr(loop.wrapper, "default_probe_candidates", list)
+    monkeypatch.setattr(
+        loop.wrapper,
+        "check_stale_hidden_sln",
+        lambda sln, sln_hidden: "error: stale .stryker-hidden present\n",
+    )
+    monkeypatch.setattr(
+        loop.wrapper,
+        "hide_sln",
+        lambda *a, **k: pytest.fail("must not hide when the stale-hidden check refuses"),
+    )
+
+    with pytest.raises(RuntimeError, match="stale"):
+        loop.run_scoped_stryker(config, "Foo.cs", output_dir=tmp_path / "out", cwd=tmp_path)
+
+
+def test_scoped_stryker_hidden_sln_name_has_no_pid_suffix(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    """PID-suffixing the hidden .sln name was tried (#1584) and reverted
+    after review: stryker_shard_pipeline.py runs shards sequentially (no
+    concurrent race to guard against today), and a PID-suffixed name is
+    invisible to csharp_stryker_net_wrapper.py's check_stale_hidden_sln()
+    crash-recovery, which looks for the exact literal ".stryker-hidden"
+    suffix."""
+    config = loop.load_loop_config(_write_config(tmp_path, solution="App.sln"))
+    monkeypatch.setattr(
+        loop.wrapper, "resolve_dotnet_root", lambda preset, candidates: ("/fake", None)
+    )
+    monkeypatch.setattr(loop.wrapper, "default_probe_candidates", list)
+    hidden_names: list = []
+    monkeypatch.setattr(
+        loop.wrapper, "hide_sln", lambda sln, sln_hidden: hidden_names.append(str(sln_hidden))
+    )
+    monkeypatch.setattr(loop.wrapper, "restore_sln", lambda *a, **k: None)
+
+    class _R:
+        returncode = 0
+
+    monkeypatch.setattr(loop.subprocess, "run", lambda *a, **k: _R())
+
+    loop.run_scoped_stryker(config, "Foo.cs", output_dir=tmp_path / "out", cwd=tmp_path)
+
+    assert hidden_names == [str((tmp_path / "App.sln").resolve()) + ".stryker-hidden"]
+    assert str(loop.os.getpid()) not in hidden_names[0]
+
+
+# =============================================================================
+# Scenario: make_scoped_config's output shape — mutate glob, coverage
+# analysis, reporters, and dropping of unset (None) keys (#1584)
+# =============================================================================
+def test_make_scoped_config_shape(tmp_path: Path):
+    config = loop.load_loop_config(_write_config(tmp_path, solution=None))
+
+    scoped = loop.make_scoped_config(config, "PaymentService.cs")
+
+    inner = scoped["stryker-config"]
+    assert inner["mutate"] == ["**/PaymentService.cs"]
+    assert inner["coverage-analysis"] == "perTest"
+    assert inner["reporters"] == ["json"]
+    assert inner["project"] == config.project
+    assert inner["test-projects"] == config.test_projects
+    # solution was unset (None) in the loaded config — dropped entirely,
+    # never carried forward as a null value for Stryker to choke on.
+    assert "solution" not in inner
+
+
+def test_make_scoped_config_carries_a_set_solution_through(tmp_path: Path):
+    """The solution=None branch above only proves dropping — this proves the
+    opposite branch: a real configured solution is carried into the scoped
+    config, not silently dropped too (#1598/#1584 review, item 10)."""
+    config = loop.load_loop_config(_write_config(tmp_path, solution="App.sln"))
+
+    scoped = loop.make_scoped_config(config, "PaymentService.cs")
+
+    inner = scoped["stryker-config"]
+    assert inner["solution"] == "App.sln"
+
+
+# =============================================================================
 # Verify/commit subprocess wiring — targets come from config (no literals)
 # =============================================================================
 def test_dotnet_build_uses_configured_test_project(
@@ -689,6 +1072,113 @@ def test_dotnet_build_timeout_is_treated_as_a_build_failure(
     assert "DEV_TEAM_MUTATION_BUILD_TIMEOUT_S" in err
 
 
+def test_dotnet_build_returns_false_on_nonzero_returncode(
+    monkeypatch: pytest.MonkeyPatch
+):
+    """dotnet_build's own failure-path logic (a non-zero exit, no timeout
+    involved) — direct coverage, not mocked away at the orchestration level
+    (#1584)."""
+
+    class _R:
+        returncode = 1
+        stdout = ""
+        stderr = "error CS0000: something broke\n"
+
+    monkeypatch.setattr(loop.subprocess, "run", lambda argv, **k: _R())
+
+    assert loop.dotnet_build(["Foo.Tests.csproj"]) is False
+
+
+def test_dotnet_test_returns_false_on_nonzero_returncode_even_with_zero_failed(
+    monkeypatch: pytest.MonkeyPatch
+):
+    """A non-zero `dotnet test` exit fails the round even when the "Failed:"
+    line itself parses to 0 (e.g. the process crashed before reporting) —
+    direct coverage of dotnet_test's own failure-path logic (#1584)."""
+
+    class _R:
+        returncode = 1
+        stdout = "Failed: 0, Passed: 5\n"
+        stderr = ""
+
+    monkeypatch.setattr(loop.subprocess, "run", lambda argv, **k: _R())
+
+    assert loop.dotnet_test(["Foo.Tests.csproj"], "FooTests") is False
+
+
+def test_dotnet_test_accumulates_failed_count_across_multiple_assemblies(
+    monkeypatch: pytest.MonkeyPatch
+):
+    """A single `dotnet test` invocation spanning multiple test assemblies
+    prints one "Failed: N" line per assembly. The scan must SUM them, not
+    let a later, clean assembly's "Failed: 0" line overwrite an earlier
+    assembly's real failures — a last-match-wins scan would falsely report
+    success here (#1598). Fixture shape matches real `dotnet test` per-
+    assembly summary lines (item 11, #1598/#1584 review), not a synthetic
+    shorthand — see also the rollup-line non-double-count test below."""
+
+    class _R:
+        returncode = 0
+        stdout = (
+            "Failed!  - Failed:     3, Passed:     7, Skipped:     0, "
+            "Total:    10, Duration: 120 ms - Bar.Tests.dll\n"
+            "Passed!  - Failed:     0, Passed:    12, Skipped:     0, "
+            "Total:    12, Duration: 40 ms - Foo.Tests.dll\n"
+        )
+        stderr = ""
+
+    monkeypatch.setattr(loop.subprocess, "run", lambda argv, **k: _R())
+
+    assert loop.dotnet_test(["Foo.Tests.csproj"], "FooTests") is False
+
+
+def test_dotnet_test_trailing_lowercase_rollup_line_does_not_flip_a_clean_run(
+    monkeypatch: pytest.MonkeyPatch
+):
+    """Newer `dotnet test` SDKs (7/8) also print a final, lowercase rollup
+    line ("Test summary: total: ... failed: 0 ...") after the per-assembly
+    summaries. The scan is capital-F "Failed:" only, so this rollup line
+    must not be mistaken for a second, independent "Failed:" occurrence —
+    a fully clean multi-assembly run (returncode 0, every real "Failed:"
+    count is 0) must still report success (item 11, #1598/#1584 review)."""
+
+    class _R:
+        returncode = 0
+        stdout = (
+            "Passed!  - Failed:     0, Passed:    10, Skipped:     0, "
+            "Total:    10, Duration: 40 ms - Foo.Tests.dll\n"
+            "\n"
+            "Test summary: total: 10, failed: 0, succeeded: 10, skipped: 0, "
+            "duration: 0.1s\n"
+        )
+        stderr = ""
+
+    monkeypatch.setattr(loop.subprocess, "run", lambda argv, **k: _R())
+
+    assert loop.dotnet_test(["Foo.Tests.csproj"], "FooTests") is True
+
+
+def test_sum_failed_counts_is_case_sensitive_not_double_counting_the_rollup_line():
+    """A fixture where both a correct (case-sensitive) scan and a buggy
+    (case-insensitive) scan sum to 0 can't actually catch a regression to
+    ``re.IGNORECASE`` (#1598/#1584 review, item 12) — the boolean
+    ``dotnet_test`` result would be identical either way. Asserting the
+    NUMERIC total directly against a nonzero per-assembly count (3) plus a
+    nonzero lowercase rollup count (3) proves the scan is case-sensitive:
+    a case-insensitive regex would sum both `Failed:`-shaped occurrences
+    (3 + 3 = 6); the correct, case-sensitive scan counts only the real
+    capital-F per-assembly line (3)."""
+    text = (
+        "Failed!  - Failed:     3, Passed:     7, Skipped:     0, "
+        "Total:    10, Duration: 120 ms - Bar.Tests.dll\n"
+        "\n"
+        "Test summary: total: 10, failed: 3, succeeded: 7, skipped: 0, "
+        "duration: 0.1s\n"
+    )
+
+    assert loop._sum_failed_counts(text) == 3
+
+
 def test_dotnet_test_passes_a_timeout(monkeypatch: pytest.MonkeyPatch):
     captured: dict = {}
 
@@ -731,6 +1221,7 @@ def test_git_revert_checks_out_only_the_test_file(
 
     assert seen[0] == [
         "git",
+        "--literal-pathspecs",
         "checkout",
         "--",
         str(tmp_path / "PaymentServiceTests.cs"),
@@ -787,9 +1278,15 @@ def test_git_commit_passes_a_timeout_to_add_and_commit(
     result = loop.git_commit("msg", tmp_path / "PaymentServiceTests.cs")
 
     assert result is True
-    assert calls[0][0] == ["git", "add", "--", str(tmp_path / "PaymentServiceTests.cs")]
+    assert calls[0][0] == [
+        "git",
+        "--literal-pathspecs",
+        "add",
+        "--",
+        str(tmp_path / "PaymentServiceTests.cs"),
+    ]
     assert calls[0][1]["timeout"] == loop.GIT_TIMEOUT_S
-    assert calls[1][0][:2] == ["git", "commit"]
+    assert calls[1][0][:3] == ["git", "--literal-pathspecs", "commit"]
     assert calls[1][1]["timeout"] == loop.GIT_TIMEOUT_S
 
 
@@ -833,11 +1330,75 @@ def test_git_commit_commit_leg_timeout_returns_false(
     # Pin the branch this test targets by call order, not just count — a
     # future reordering of the add/commit calls should fail loudly here
     # rather than silently exercising the wrong leg.
-    assert calls[0][:2] == ["git", "add"]
+    assert calls[0][:3] == ["git", "--literal-pathspecs", "add"]
     err = capsys.readouterr().err
     assert str(loop.GIT_TIMEOUT_S) in err
     assert "DEV_TEAM_MUTATION_GIT_TIMEOUT_S" in err
     assert "git commit" in err
+
+
+def test_git_commit_scopes_the_commit_call_to_the_test_file(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    """git commit -m message with no pathspec commits the WHOLE index, not
+    just test_file — the commit call must carry the same `-- <path>`
+    pathspec `git add` already uses (#1598)."""
+    calls: list = []
+
+    class _R:
+        returncode = 0
+
+    def fake_run(argv, **kwargs):
+        calls.append(argv)
+        return _R()
+
+    monkeypatch.setattr(loop.subprocess, "run", fake_run)
+
+    result = loop.git_commit("msg", tmp_path / "PaymentServiceTests.cs")
+
+    assert result is True
+    assert calls[1] == [
+        "git",
+        "--literal-pathspecs",
+        "commit",
+        "-m",
+        "msg",
+        "--",
+        str(tmp_path / "PaymentServiceTests.cs"),
+    ]
+
+
+def test_git_revert_returns_true_on_success(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    class _R:
+        returncode = 0
+
+    monkeypatch.setattr(loop.subprocess, "run", lambda argv, **k: _R())
+
+    assert loop.git_revert(tmp_path / "PaymentServiceTests.cs") is True
+
+
+def test_git_revert_returns_false_on_nonzero_exit(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    class _R:
+        returncode = 1
+
+    monkeypatch.setattr(loop.subprocess, "run", lambda argv, **k: _R())
+
+    assert loop.git_revert(tmp_path / "PaymentServiceTests.cs") is False
+
+
+def test_git_revert_returns_false_on_timeout(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    def fake_run(argv, **kwargs):
+        raise loop.subprocess.TimeoutExpired(argv, kwargs["timeout"])
+
+    monkeypatch.setattr(loop.subprocess, "run", fake_run)
+
+    assert loop.git_revert(tmp_path / "PaymentServiceTests.cs") is False
 
 
 def test_git_commit_proceeds_to_commit_after_a_non_timeout_add_failure(
@@ -864,7 +1425,65 @@ def test_git_commit_proceeds_to_commit_after_a_non_timeout_add_failure(
 
     assert result is True
     assert len(calls) == 2
-    assert calls[1][:2] == ["git", "commit"]
+    assert calls[1][:3] == ["git", "--literal-pathspecs", "commit"]
+
+
+# =============================================================================
+# Scenario: git_reset_and_revert's own internal failure branches — every
+# other test either exercises the full real-git success path or mocks
+# git_reset_and_revert away wholesale (#1598/#1584 review, item 10).
+# =============================================================================
+def test_git_reset_and_revert_returns_false_when_reset_fails(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    calls: list = []
+
+    class _R:
+        def __init__(self, returncode):
+            self.returncode = returncode
+
+    def fake_run(argv, **kwargs):
+        calls.append(argv)
+        return _R(1)  # reset fails
+
+    monkeypatch.setattr(loop.subprocess, "run", fake_run)
+
+    assert loop.git_reset_and_revert(tmp_path / "PaymentServiceTests.cs") is False
+    # Only the reset call happens — checkout (git_revert) is never reached.
+    assert len(calls) == 1
+    assert calls[0][:3] == ["git", "--literal-pathspecs", "reset"]
+
+
+def test_git_reset_and_revert_returns_false_when_checkout_fails_after_reset_succeeds(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    calls: list = []
+
+    class _R:
+        def __init__(self, returncode):
+            self.returncode = returncode
+
+    def fake_run(argv, **kwargs):
+        calls.append(argv)
+        if argv[2] == "reset":
+            return _R(0)  # reset succeeds
+        return _R(1)  # checkout (git_revert) fails
+
+    monkeypatch.setattr(loop.subprocess, "run", fake_run)
+
+    assert loop.git_reset_and_revert(tmp_path / "PaymentServiceTests.cs") is False
+    assert [c[2] for c in calls] == ["reset", "checkout"]
+
+
+def test_git_reset_and_revert_returns_true_when_both_steps_succeed(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    class _R:
+        returncode = 0
+
+    monkeypatch.setattr(loop.subprocess, "run", lambda argv, **k: _R())
+
+    assert loop.git_reset_and_revert(tmp_path / "PaymentServiceTests.cs") is True
 
 
 # =============================================================================

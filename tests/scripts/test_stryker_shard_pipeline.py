@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import json
 import re
+import subprocess
 import sys
 import threading
 import time
@@ -82,12 +83,21 @@ def _write_report(out_dir: Path, files: dict) -> Path:
 
 
 class _Recorder:
-    """Collects log lines + git commands + loop-launch commands."""
+    """Collects log lines + git commands + loop-launch commands.
+
+    ``run`` returns a ``subprocess.CompletedProcess``-shaped stand-in (with a
+    ``.returncode``) — mirrors the real ``subprocess.run`` contract that
+    ``launch_survivor_fix`` inspects. Set ``run_returncode`` (or
+    ``run_returncodes`` for a per-call sequence) before invoking to simulate
+    a launched fix exiting non-zero (e.g. the #1598 fatal-revert exit code).
+    """
 
     def __init__(self):
         self.logs = []
         self.git = []
         self.launches = []
+        self.run_returncode = 0
+        self.run_returncodes: list[int] | None = None
 
     def log(self, line):
         self.logs.append(line)
@@ -97,6 +107,12 @@ class _Recorder:
 
     def run(self, cmd, cwd=None):
         self.launches.append(list(cmd))
+        rc = (
+            self.run_returncodes.pop(0)
+            if self.run_returncodes
+            else self.run_returncode
+        )
+        return subprocess.CompletedProcess(cmd, rc)
 
 
 # =============================================================================
@@ -202,6 +218,98 @@ def test_survivor_fix_launch_forces_headless(tmp_path):
     assert pipeline.LOOP_SCRIPT in cmd
     assert "--file" in cmd and "Foo.cs" in cmd
     assert "--report" in cmd
+
+
+# =============================================================================
+# Scenario: A non-zero exit from the headless loop (e.g. the #1598
+# fatal-revert exit code) stops the per-file loop instead of silently
+# continuing onto a working tree that may already be in an unknown state.
+# =============================================================================
+def test_survivor_fix_stops_launching_further_files_after_a_nonzero_exit(tmp_path):
+    rec = _Recorder()
+    rec.run_returncode = 4  # mutation_kill_headless's fatal-revert exit code
+    out_dir = tmp_path / "out" / "a"
+    config = _write_shard_config(tmp_path, "a")
+    _write_report(
+        out_dir,
+        {
+            "src/W.a/Foo.cs": {"mutants": [_mutant("Survived")]},
+            "src/W.a/Bar.cs": {"mutants": [_mutant("Survived")]},
+        },
+    )
+
+    ok = pipeline.launch_survivor_fix(
+        "a",
+        repo_root=tmp_path,
+        out_dir=out_dir,
+        config_path=config,
+        model=None,
+        max_rounds=2,
+        run=rec.run,
+        resolve_test_file=lambda source, *a: Path(f"test/W.Tests/{Path(source).stem}Tests.cs"),
+        log=rec.log,
+    )
+
+    assert ok is False
+    # Only the first file's fix is launched — the second file is never
+    # reached once the first exits non-zero.
+    assert len(rec.launches) == 1
+    assert any("FAILED (headless)" in line and "exit 4" in line for line in rec.logs)
+
+
+def test_survivor_fix_all_files_launched_when_every_exit_is_zero(tmp_path):
+    rec = _Recorder()
+    out_dir = tmp_path / "out" / "a"
+    config = _write_shard_config(tmp_path, "a")
+    _write_report(
+        out_dir,
+        {
+            "src/W.a/Foo.cs": {"mutants": [_mutant("Survived")]},
+            "src/W.a/Bar.cs": {"mutants": [_mutant("Survived")]},
+        },
+    )
+
+    ok = pipeline.launch_survivor_fix(
+        "a",
+        repo_root=tmp_path,
+        out_dir=out_dir,
+        config_path=config,
+        model=None,
+        max_rounds=2,
+        run=rec.run,
+        resolve_test_file=lambda source, *a: Path(f"test/W.Tests/{Path(source).stem}Tests.cs"),
+        log=rec.log,
+    )
+
+    assert ok is True
+    assert len(rec.launches) == 2
+
+
+def test_process_shard_marks_failed_when_a_survivor_fix_exits_nonzero(tmp_path):
+    rec = _Recorder()
+    rec.run_returncode = 4
+    _write_shard_config(tmp_path, "a")
+    _write_report(tmp_path / "out" / "a", {"src/W.a/Foo.cs": {"mutants": [_mutant("Survived")]}})
+
+    result = pipeline.process_shard(
+        "a",
+        repo_root=tmp_path,
+        worktree_base=tmp_path / ".wt",
+        shard_out_base=tmp_path / "out",
+        stryker_bin="fake-stryker",
+        model=None,
+        max_rounds=3,
+        skip_agent=False,
+        skip_existing=False,
+        max_age_hours=0,
+        log=rec.log,
+        run_stryker=lambda **kw: 0,
+        run=rec.run,
+        resolve_test_file=lambda *a: Path("test/W.Tests/FooTests.cs"),
+        git_run=rec.git_run,
+    )
+
+    assert result == "failed"
 
 
 def test_build_loop_command_always_includes_headless():

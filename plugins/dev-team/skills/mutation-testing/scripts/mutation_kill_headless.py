@@ -263,20 +263,29 @@ def main(argv: Sequence[str] | None = None) -> int:
         )
         return 2
 
-    run_for_file(
-        args.file,
-        RunContext(
-            config=load_loop_config(Path(args.config)),
-            test_file=Path(args.test_file),
-            source_path=Path(args.source_path),
-            output_dir=Path(args.output),
-            stryker_bin=args.stryker_bin,
-            initial_report_path=Path(args.report) if args.report else None,
-            generator_label=f"headless ({model or 'default'})",
-        ),
-        generate=make_headless_generator(model),
-        max_rounds=args.max_rounds,
-    )
+    try:
+        run_for_file(
+            args.file,
+            RunContext(
+                config=load_loop_config(Path(args.config)),
+                test_file=Path(args.test_file),
+                source_path=Path(args.source_path),
+                output_dir=Path(args.output),
+                stryker_bin=args.stryker_bin,
+                initial_report_path=Path(args.report) if args.report else None,
+                generator_label=f"headless ({model or 'default'})",
+            ),
+            generate=make_headless_generator(model),
+            max_rounds=args.max_rounds,
+        )
+    except RuntimeError as exc:
+        # A failed revert or a failed-commit round-abandonment raises
+        # RuntimeError (#1598) — without this, that either propagated as a
+        # raw traceback or (before the fix) was silently absorbed and this
+        # CLI still exited 0. Fits the existing 1/2/3 exit-code taxonomy
+        # above with the next unused code.
+        sys.stderr.write(f"error: {exc}\n")
+        return 4
     return 0
 
 
