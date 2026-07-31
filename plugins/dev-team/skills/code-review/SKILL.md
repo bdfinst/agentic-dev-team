@@ -612,8 +612,20 @@ If the review was auto-scoped to uncommitted changes and the overall status is `
 
 ```bash
 HASH=$(python3 ${CLAUDE_PLUGIN_ROOT}/hooks/lib/review_gate_hash.py)
-mkdir -p .claude/memory && echo "$HASH" > .claude/memory/.review-passed
+NORM=$(python3 ${CLAUDE_PLUGIN_ROOT}/hooks/lib/review_gate_normalized_hash.py || true)
+mkdir -p .claude/memory && printf '%s\n%s\n' "$HASH" "$NORM" > .claude/memory/.review-passed
 ```
+
+The **second line** is the normalization-invariant hash (#1627). It lets the
+pre-commit gate carry this review's corroboration forward across a later
+re-stage that provably changed no behavior — a whitespace fix, or a markdown
+edit alongside the reviewed code — instead of forcing fresh dispatches whose
+only purpose is to re-feed the ledger. Write it with the shared helper, never
+by hand: the hook recomputes the same value from the staged content at gate
+time and compares, so a hand-authored or stale second line simply fails to
+match and the gate behaves exactly as it did before this line existed. If the
+helper fails (`$NORM` empty), the file degrades to raw-only and the gate falls
+back to today's behavior — that is the intended failure mode, not an error.
 
 **If `--agent <name>` was used** (a sanctioned single-agent review — it deliberately dispatches exactly 1 agent, which can never clear the dispatch-ledger gate's `>= 2` distinct-dispatch floor on its own), record that as an explicit, auditable exemption event bound to this same hash **contemporaneously** with the write above — same pattern as the doc-only short-circuit's exemption event (step 1a):
 

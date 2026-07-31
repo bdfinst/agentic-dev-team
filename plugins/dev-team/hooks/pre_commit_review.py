@@ -40,6 +40,25 @@ confirming `Agent`/`Task` tool availability before dispatching any review
 agent, and STOP — no self-applied review, no `.review-passed` write — when
 that capability is absent.
 
+COSMETIC-DELTA CARRY-FORWARD (#1627). Hashing the raw staged patch means ANY
+re-stage after the corroborating dispatches — a whitespace fix, a markdown
+edit alongside code — voids the evidence and forces fresh dispatches that
+review nothing new and exist only to feed the ledger; 4 of the last ~5
+sessions to reach this gate hit that (#1623 §2). `_cosmetic_carry_forward_verdict()`
+adds one lens, evaluated ONLY after `_hash_verdict()` has already rejected on
+a raw-hash mismatch: it passes iff `.review-passed`'s optional second line
+(the `normalized_gate_hash()` value) equals the one THIS HOOK recomputes from
+the current staged content, AND `>= 2` distinct in-window dispatches carry
+that same `subject_hash_normalized`. The `>= 2` floor and the recency window
+are untouched — only *which* hash binds the evidence changes. This is not a
+self-certification hole: the exemption is a property of CONTENT recomputed
+here at gate time, not a claim written by the gated party, and the
+normalization refuses to treat `agents/`, `skills/`, `.claude/`, `CLAUDE.md`,
+string-literal edits, or indentation in indentation-significant languages as
+cosmetic. Every pass on this path emits a mandatory
+`cosmetic-delta-carry-forward` boundary event. See
+`hooks/lib/review_gate_normalized_hash.py` for the full argument.
+
 `git commit -a`/`--all` and pathspec-form commits (e.g. `git commit -am
 ...` or `git commit path/to/file.txt -m ...`) commit tracked-file changes
 that were never staged via `git add` (#1476, closed here). `_staged_names()`
@@ -167,9 +186,15 @@ try:
     from review_gate_corroboration import (  # type: ignore[import-not-found]
         mtime_to_iso as _mtime_to_iso,
     )
+    from review_gate_corroboration import (  # type: ignore[import-not-found]
+        distinct_normalized_dispatches as _distinct_normalized_dispatches,
+    )
     from review_gate_hash import (  # type: ignore[import-not-found]
         review_gate_hash,
         working_tree_gate_hash,
+    )
+    from review_gate_normalized_hash import (  # type: ignore[import-not-found]
+        normalized_gate_hash,
     )
     from stdin_json import read_stdin_json  # type: ignore[import-not-found]
 except ImportError:  # pragma: no cover
@@ -255,6 +280,17 @@ except ImportError:  # pragma: no cover
 
     def _mtime_to_iso(mtime: float) -> str:  # type: ignore[misc]
         return datetime.fromtimestamp(mtime, tz=timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+    def normalized_gate_hash(cwd=None, target: str = "--cached"):  # type: ignore[misc]
+        # Degraded-import fallback: no normalized hash means the
+        # carry-forward lens is never decisive, so the gate behaves exactly
+        # as it did before #1627. Fails CLOSED like the rest of this block.
+        return None
+
+    def _distinct_normalized_dispatches(  # type: ignore[misc]
+        cwd, before_ts, window_seconds, subject_hash_normalized
+    ) -> set:
+        return set()
 
 
 def emit_boundary_event(*args, **kwargs) -> None:
@@ -552,6 +588,89 @@ def _hash_verdict(
     return None
 
 
+def _stored_gate_hashes(gate_file: Path) -> tuple[str, str | None]:
+    """Read `.review-passed`'s hashes: `(raw, normalized_or_None)`.
+
+    The file gained an optional SECOND line in #1627 (raw hash, then
+    normalized hash). A 1-line file stays raw-only and returns `None` for the
+    normalized value — fully backward compatible, and such a file can never
+    satisfy the carry-forward lens below.
+    """
+    try:
+        lines = [ln.strip() for ln in gate_file.read_text().splitlines()]
+    except OSError:
+        return "", None
+    raw = lines[0] if lines else ""
+    normalized = lines[1] if len(lines) > 1 and lines[1] else None
+    return raw, normalized
+
+
+def _cosmetic_carry_forward_verdict(
+    gate_file: Path, cwd: str, *, unstaged_commit: bool = False
+) -> GateVerdict | None:
+    """Lens 1b/5: cosmetic-delta carry-forward (#1627).
+
+    Runs ONLY after `_hash_verdict` has already rejected on a raw-hash
+    mismatch. Passes iff ALL of:
+
+      (a) `.review-passed` carries a stored normalized hash (its optional
+          second line), AND
+      (b) that stored normalized hash equals the one recomputed HERE, by this
+          hook, from the current staged content, AND
+      (c) at least `_MIN_DISTINCT_DISPATCHES` distinct registered review
+          agents dispatched in the recency window carrying that same
+          `subject_hash_normalized`.
+
+    Why this does not reopen #1461: the exemption is a property of CONTENT,
+    recomputed by the hook itself at gate time from `git diff --cached` —
+    there is no claim by the gated party to trust. `normalize_patch` drops
+    doc-classified hunks using the gate's own STRICT classifier (so a
+    "cosmetic" edit to `agents/`, `skills/`, `.claude/`, or `CLAUDE.md` can
+    never ride this path) and collapses only leading/trailing-whitespace
+    changes on lines carrying no quote character (so a string-literal change
+    is never cosmetic). The `>= 2` distinct-dispatch floor and the recency
+    window are unchanged — this lens relaxes WHICH hash binds the evidence,
+    never how much evidence is required.
+
+    Emits a mandatory `cosmetic-delta-carry-forward` audit event on the pass
+    path, so every use is visible in the same boundary-events stream the gate
+    itself is audited from.
+
+    Returns a passing `GateVerdict` when all three hold; `None` otherwise —
+    "not decisive", meaning `_evaluate_gate` returns the original rejection
+    unchanged. Fails CLOSED on any error.
+    """
+    try:
+        _, stored_normalized = _stored_gate_hashes(gate_file)
+        if not stored_normalized:
+            return None
+
+        target = "HEAD" if unstaged_commit else "--cached"
+        current_normalized = normalized_gate_hash(cwd, target)
+        if not current_normalized or current_normalized != stored_normalized:
+            return None
+
+        before_ts = _mtime_to_iso(gate_file.stat().st_mtime)
+        agents = _distinct_normalized_dispatches(
+            cwd, before_ts, WINDOW_SECONDS, current_normalized
+        )
+        if len(agents) < _MIN_DISTINCT_DISPATCHES:
+            return None
+
+        emit_boundary_event(
+            cwd,
+            "pre_commit_review",
+            "Bash",
+            "bypass",
+            "cosmetic-delta-carry-forward",
+            None,
+            subject_hash_normalized=current_normalized,
+        )
+        return GateVerdict(True, matched_rule="cosmetic-delta-carry-forward")
+    except Exception:  # noqa: BLE001 - fail CLOSED: not decisive, keep the rejection
+        return None
+
+
 def _doc_only_exemption_verdict(
     cwd: str, before_ts: str, subject_hash: str, staged: list[str]
 ) -> GateVerdict | None:
@@ -662,6 +781,17 @@ def _evaluate_gate(
     """
     verdict = _hash_verdict(gate_file, current_hash, unstaged_commit=unstaged_commit)
     if verdict is not None:
+        # The raw hash mismatched. Before returning that rejection, give the
+        # cosmetic-delta carry-forward lens (#1627) its chance: a re-stage
+        # that provably changed no behavior (doc hunks, indentation) should
+        # not force fresh dispatches whose only purpose is to feed the
+        # ledger. The lens returns None unless it can prove the case, so the
+        # rejection below is the default, not the exception.
+        carry_forward = _cosmetic_carry_forward_verdict(
+            gate_file, cwd, unstaged_commit=unstaged_commit
+        )
+        if carry_forward is not None:
+            return carry_forward
         return verdict
 
     # Hash matches — everything from here on is the dispatch-ledger

@@ -53,6 +53,19 @@ the deliberate opposite of this stream's own fail-open write side.
 | `matched_rule` | string | Rule ID from a closed vocabulary (pattern ID, hook-defined constant, bypass flag name, intervention keyword, or — for `record` — the dispatched review-agent's registered name) — never free text |
 | `plugin_version` | string | From `.claude-plugin/plugin.json` |
 | `session_id` | string, optional | Opaque per-session ID, when present in the hook payload — enables joins with `session-digest.jsonl` |
+| `subject_hash` | string, optional | `review_gate_hash()` value (#1461) binding this event to the staged content it corroborates. A hex digest, not free text |
+| `subject_hash_normalized` | string, optional | `normalized_gate_hash()` value (#1627) — the same binding computed after doc-hunk and indentation normalization. Stamped by `agent_dispatch_ledger.py` alongside `subject_hash`, and read by the gate's cosmetic-delta carry-forward lens. Absent on events written before #1627, which therefore never match on the normalized path |
+
+**`cosmetic-delta-carry-forward` (#1627).** `pre_commit_review.py` emits this
+`bypass`-decision event **every** time the gate passes a commit whose raw
+staged hash mismatched but whose normalized hash matched, with `>= 2` distinct
+in-window dispatches carrying that same `subject_hash_normalized`. The event
+is mandatory on that path — carry-forward is never silent — so every use is
+auditable from the same stream the gate itself is audited from. It is not a
+weakening of the `>= 2` floor or the recency window: only *which* hash binds
+the evidence changes. The exemption is a property of content recomputed by
+the hook at gate time, never a claim written by the gated party — see
+`hooks/lib/review_gate_normalized_hash.py` for why this does not reopen #1461.
 
 - **Emitter:** `hooks/lib/boundary_events.py::emit_boundary_event()`, called from `destructive_guard.py`, `verify_guard.py`, `pre_commit_review.py`, `telemetry.py` (intervention keywords), `agent_dispatch_ledger.py` (decision `record`, #1461), and the mechanically-adopted guards (`pre_tool_guard.py`, `context_ceiling_guard.py`, `bash_retry_guard.py`, `refactor_test_freeze_guard.py`, `refactor_test_bash_guard.py`, `refactor_test_revert_guard.py` (decision `revert`, #906), `contract_version_guard.py`, `mutation_testing_smoke_gate.py`, `mutation_gate.py`, `tdd_guard.py`).
 - **Consent:** ALWAYS-ON — not gated by `DEV_TEAM_TELEMETRY`. Local-only, rule-IDs-only safety/accountability channel; no observability holes by design.

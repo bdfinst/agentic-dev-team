@@ -71,6 +71,7 @@ if str(_LIB_DIR) not in sys.path:
 from boundary_events import emit_boundary_event as _emit_boundary_event
 from review_agent_registry import registered_review_agent_names, strip_plugin_prefix
 from review_gate_hash import review_gate_hash
+from review_gate_normalized_hash import normalized_gate_hash
 from stdin_json import read_stdin_json
 
 
@@ -135,6 +136,16 @@ def main() -> int:
     except Exception:  # noqa: BLE001 - fail-open: a hash failure never blocks a dispatch
         subject_hash = None
 
+    # Stamp the normalization-invariant hash alongside the raw one (#1627),
+    # computed by this same hook from the same staged content — never
+    # supplied by the dispatching party. It only ever ADDS a field: an event
+    # without it can never match on the normalized path, so a failure here
+    # degrades to exactly the pre-#1627 behavior.
+    try:
+        subject_hash_normalized = normalized_gate_hash(cwd)
+    except Exception:  # noqa: BLE001 - fail-open: same posture as the raw hash above
+        subject_hash_normalized = None
+
     emit_boundary_event(
         cwd,
         "agent_dispatch_ledger",
@@ -143,6 +154,7 @@ def main() -> int:
         subagent_type,
         session_id,
         subject_hash=subject_hash,
+        subject_hash_normalized=subject_hash_normalized,
     )
     return 0
 
