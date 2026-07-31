@@ -38,6 +38,12 @@ NON_REVIEW_AGENTS = {
     "spec-reviewer",  # Stage-1 spec gate, orchestrator-dispatched — not a lens
     "tech-writer",
     "ui-ux-designer",
+    # Reviews the *harness* (CLAUDE.md, rules, skills, agent frontmatter), not the
+    # changeset — so it has nothing to say about a diff and was firing on every
+    # code review as dead weight. `Scope: always` put it in an 18-lens panel for a
+    # two-file JS change in a project with no Claude config at all. Now dispatched
+    # only on demand, by the user-invocable `/claude-setup-review` skill.
+    "claude-setup-review",
     # Plan/Gherkin critics dispatched by /plan and /gherkin-derive — not code-review
     # lenses, so no per-file Scope (closes #1525: check_agent_scope was red for these).
     "gherkin-quality-critic",

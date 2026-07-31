@@ -175,17 +175,93 @@ apply no fixes by design — a 0% fix rate there is expected, not a signal:
 log=".claude/metrics/review-value.jsonl"; [ -f "$log" ] || log="metrics/review-value.jsonl"
 [ -f "$log" ] && jq -s '
   map(select(.source == "code-review"))
+  | map(. + {found: ((.issues_found // .findings_new) // 0)})
   | if length == 0 then "no read-only rows" else
     group_by(.agents_run | sort | join(","))
     | map({
         agents:       (.[0].agents_run | sort | join(", ")),
         total:        length,
-        found_issues: (map(select(.issues_found > 0)) | length),
-        finding_rate: ((map(select(.issues_found > 0)) | length) / length * 100 | round)
+        found_issues: (map(select(.found > 0)) | length),
+        finding_rate: ((map(select(.found > 0)) | length) / length * 100 | round)
       })
     end' \
   "$log"
 ```
+
+`(.issues_found // .findings_new)` covers both read-only row shapes: the
+original whole-run `code-review` row (`issues_found`) and the per-round row
+`/code-review` writes from #1624 (`findings_new`). Both are `source:
+"code-review"`; only the round rows carry `round`/`dispatch_purpose`.
+
+### 4a. Analyze re-review churn (#1624)
+
+Rows carrying a `round` field are `/code-review`'s per-round instrumentation
+(#1624) — one per dispatch round, with `fix_provenance_new` counting how many
+of that round's new findings landed inside the previous round's fix delta.
+**If no row carries `round`, report "no round data yet" and skip this
+section** — do not infer churn from the dispatch ledger's frequency counts
+alone, which is exactly the inference #1623 documents as unavailable.
+
+**Churn ratio** — of the rounds that exist only because an earlier round's fix
+was applied (`round >= 2`), what fraction found *nothing but* problems that
+fix created? A high ratio means the loop is chasing its own tail:
+
+```bash
+log=".claude/metrics/review-value.jsonl"; [ -f "$log" ] || log="metrics/review-value.jsonl"
+[ -f "$log" ] && jq -s '
+  map(select(.round != null and .round >= 2))
+  | if length == 0 then "no round data yet" else
+    {
+      rounds_after_first: length,
+      pure_churn_rounds:  (map(select(.findings_new > 0 and .fix_provenance_new == .findings_new)) | length),
+      churn_ratio:        ((map(select(.findings_new > 0 and .fix_provenance_new == .findings_new)) | length) / length * 100 | round),
+      max_round_reached:  (map(.round) | max)
+    }
+    end' \
+  "$log"
+```
+
+**Per-agent discovery-vs-verification split** — how much of each agent's
+dispatch cost is spent confirming fixes rather than finding new problems.
+Cross-reference against the `agent_dispatch_ledger` frequency table from
+Step 3: an agent near the top of that table whose rounds are mostly
+`verification` is a tier-down candidate for #1628's opt-in `verify_model:`,
+not evidence of high discovery value:
+
+```bash
+log=".claude/metrics/review-value.jsonl"; [ -f "$log" ] || log="metrics/review-value.jsonl"
+[ -f "$log" ] && jq -s '
+  map(select(.dispatch_purpose != null))
+  | map({purpose: .dispatch_purpose, agent: .agents_run[]})
+  | group_by(.agent)
+  | map({
+      agent:        .[0].agent,
+      discovery:    (map(select(.purpose=="discovery"))    | length),
+      verification: (map(select(.purpose=="verification")) | length),
+      closing:      (map(select(.purpose=="closing"))      | length)
+    })' \
+  "$log"
+```
+
+**Gate recidivism** — how often the pre-commit gate blocked a commit because
+a fix invalidated the prior round's corroboration. This needs no new stream;
+`boundary-events.jsonl` already records it. A session with repeated blocks is
+the operator-visible symptom of the same churn:
+
+```bash
+log=".claude/metrics/boundary-events.jsonl"
+[ -f "$log" ] && jq -rs '
+  map(select(.hook == "pre_commit_review" and (.matched_rule | startswith("dispatch-evidence-"))))
+  | group_by(.session_id)
+  | map({session: (.[0].session_id // "unknown"), blocks: length, rules: (map(.matched_rule) | unique)})
+  | sort_by(-.blocks)' \
+  "$log"
+```
+
+Report all three together. State the sample size next to each number —
+small-N honesty, consistent with Step 5. These metrics exist to tell whether
+#1623's churn-reduction slices worked; a ratio computed from three rounds is
+not evidence either way, and should be reported as such.
 
 Flag **drop candidates**: any checkpoint+agents combination (from the
 fix-applying rows only) with `fix_rate == 0` across **N ≥ 5** logged runs is a

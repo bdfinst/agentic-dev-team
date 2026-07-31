@@ -11,7 +11,10 @@ import sys
 
 from _repo_root import REPO_ROOT
 
-SCRIPTS_DIR = REPO_ROOT / "scripts"
+# review_result moved into the plugin: it implements the shipped review-agent
+# output contract, and the agent implementations that import it must be
+# resolvable from a user's plugin install.
+SCRIPTS_DIR = REPO_ROOT / "plugins" / "dev-team" / "scripts"
 
 ERR = [
     {
@@ -39,8 +42,8 @@ NONE: list = []
 def _call_make_issue(**kwargs) -> subprocess.CompletedProcess:
     code = f"""
 import sys, json
-sys.path.insert(0, {str(SCRIPTS_DIR)!r})
-from lib.review_result import make_issue
+sys.path.insert(0, {str(SCRIPTS_DIR / 'lib')!r})
+from review_result import make_issue
 
 kwargs = json.loads(sys.argv[1])
 print(json.dumps(make_issue(**kwargs)))
@@ -108,8 +111,8 @@ def test_make_issue_defaults_file_and_line_when_omitted() -> None:
 def _call_helper(errors: list, warnings: list) -> subprocess.CompletedProcess:
     code = f"""
 import sys, json
-sys.path.insert(0, {str(SCRIPTS_DIR)!r})
-from lib.review_result import build_result, main_exit
+sys.path.insert(0, {str(SCRIPTS_DIR / 'lib')!r})
+from review_result import build_result, main_exit
 
 errors   = json.loads(sys.argv[1])
 warnings = json.loads(sys.argv[2])

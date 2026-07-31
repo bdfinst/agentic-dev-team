@@ -10,13 +10,26 @@ color: green
 
 # Claude Setup Review
 
-Scope: always
+Scope: on-demand — dispatched by the user-invocable `/claude-setup-review`
+command, never by `/code-review`'s automatic panel. This agent reviews the
+**harness** (CLAUDE.md, rules, skills, agent
+frontmatter), not the changeset, so it has nothing to say about a diff: under
+the old `Scope: always` it joined an 18-lens panel for a two-file JS change in
+a project with no Claude config at all. It is listed in
+`scripts/lib/review_roster.py`'s `NON_REVIEW_AGENTS`, which both excludes it
+from `select_lenses.py`'s dispatchable roster and exempts it from the per-file
+`Scope:` requirement.
 Cites:
 - adversarial-review-protocol
 - directory-enumeration
 Enforcement: script
 
-> **Implemented by:** scripts/claude_setup_review.py
+> **Implemented by:** `${CLAUDE_PLUGIN_ROOT}/scripts/claude_setup_review.py`
+> — a deterministic validator, so prefer running it over re-deriving its checks
+> by reading files. It was previously named as a bare `scripts/…` path while
+> living only at this repository's root, so for anyone who installed the plugin
+> the reference resolved nowhere and the agent silently degraded to a pure-LLM
+> pass.
 
 Output JSON: per `${CLAUDE_PLUGIN_ROOT}/knowledge/review-agent-output-contract.md` (Whole-file load: short, canonical schema).
 

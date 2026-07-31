@@ -187,6 +187,51 @@ chk_python_only() {
     python3 scripts/check-python-only.py  # defaults to origin/main, blocking
   fi
 }
+# ADR 0014 puts shipped plugin code on Python 3.8. This check proves it by
+# asking a real 3.8 interpreter, never by pattern-matching source for
+# "APIs newer than 3.8" — the first version of this gate was exactly such a
+# denylist, and it reported the shipped tree clean while hooks/lib/cost_meter.py
+# used PEP 584's `dict | dict`, which 3.8 rejects.
+#
+# Byte-compile catches syntax; the import probe catches evaluation (a PEP 585
+# generic in a module-level type alias compiles everywhere and raises on 3.8).
+# Running the shipped suite on 3.8 is the strong form and belongs in CI, where
+# provisioning an interpreter plus test deps is free; see the note in
+# tests/repo/test_python_floor.py.
+#
+# Fails — never skips — when no 3.8 can be obtained. A gate that quietly
+# downgrades to "skipped" on the machines least likely to have the floor
+# interpreter is the failure mode this whole check exists to prevent.
+_resolve_python38() {
+  if command -v python3.8 >/dev/null 2>&1; then
+    command -v python3.8
+    return 0
+  fi
+  if command -v uv >/dev/null 2>&1; then
+    uv python find 3.8 2>/dev/null && return 0
+    uv python install 3.8 >/dev/null 2>&1 && uv python find 3.8 2>/dev/null && return 0
+  fi
+  return 1
+}
+
+chk_python_floor() {
+  local py38
+  if ! py38="$(_resolve_python38)" || [ -z "$py38" ]; then
+    printf 'No Python 3.8 interpreter available, and this gate does not skip.\n' >&2
+    printf 'Install one:  uv python install 3.8   (or apt/brew a python3.8)\n' >&2
+    printf 'ADR 0014 sets the shipped floor at 3.8; see tests/repo/test_python_floor.py.\n' >&2
+    return 1
+  fi
+  printf 'floor interpreter: %s (%s)\n' "$py38" "$("$py38" -V 2>&1)"
+
+  find plugins/dev-team -name '*.py' \
+    -not -path '*/tests/*' \
+    -not -path '*rule-fixtures*' \
+    -print0 | xargs -0 -n1 "$py38" -m py_compile || return 1
+
+  "$py38" scripts/import_probe_shipped.py
+}
+
 chk_semgrep_fixtures() { python3 scripts/audit-semgrep-fixtures.py; }
 chk_harness_smoke()    { python3 tests/security-assessment/harness/smoke_test.py; }
 chk_harness_scope()    { python3 tests/security-assessment/harness/scope_enforcement_test.py; }
@@ -340,6 +385,7 @@ CHECKS=(
   "eval-corpus semver contract::chk_eval_semver"
   "eslint::chk_eslint"
   "ruff check (Python lint)::chk_ruff"
+  "shipped Python 3.8 floor (compile + import on a real 3.8)::chk_python_floor"
   "plugin hook + script unit tests (pytest plugins/dev-team/tests)::chk_hook_units"
 )
 

@@ -1422,6 +1422,10 @@
       "summary": "Whether a `/build` inline review checkpoint actually changed anything —",
       "anchor": "review-valuejsonl"
     },
+    "Round rows — `source: \"code-review\"` with a `round` field (#1624)": {
+      "summary": "`/code-review` appends one row **per dispatch round** (round 1 = the initial",
+      "anchor": "round-rows-source-code-review-with-a-round-field-1624"
+    },
     "`verify-log.jsonl`": {
       "summary": "Evidence that the project's own test/verification tooling actually exercised",
       "anchor": "verify-logjsonl"
@@ -1789,6 +1793,36 @@
     "How this connects to the rest of the toolkit": {
       "summary": "**`test-smells.md`** — Hard-Coded Values, Irrelevant Information, Erratic Test (from random values) are the smells these patterns prevent or, misused, cause.",
       "anchor": "how-this-connects-to-the-rest-of-the-toolkit"
+    }
+  },
+  "plugins/dev-team/knowledge/verification-mode.md": {
+    "The problem": {
+      "summary": "When a fix loop re-dispatches an agent to confirm a fix, that dispatch is",
+      "anchor": "the-problem"
+    },
+    "Stage 1 — context narrowing (no routing change)": {
+      "summary": "A verification re-dispatch passes **only**:",
+      "anchor": "stage-1-context-narrowing-no-routing-change"
+    },
+    "Stage 2 — tier-down, declared per agent, never inferred": {
+      "summary": "An agent may opt in to a cheaper tier **for verification dispatches only** by",
+      "anchor": "stage-2-tier-down-declared-per-agent-never-inferred"
+    },
+    "Why a body declaration, not frontmatter": {
+      "summary": "Issue #1333 established that this plugin's own tooling metadata lives in the",
+      "anchor": "why-a-body-declaration-not-frontmatter"
+    },
+    "Initial opt-ins": {
+      "summary": "| Agent | Verify tier | Why |",
+      "anchor": "initial-opt-ins"
+    },
+    "Recording": {
+      "summary": "Every verification dispatch is recorded with `dispatch_purpose: \"verification\"`",
+      "anchor": "recording"
+    },
+    "Out of scope": {
+      "summary": "Auto-inferring the tier from a finding's severity or confidence.",
+      "anchor": "out-of-scope"
     }
   },
   "plugins/dev-team/knowledge/virtual-service-libraries.md": {
@@ -2613,6 +2647,36 @@
       "anchor": "integration"
     }
   },
+  "plugins/dev-team/skills/claude-setup-review/SKILL.md": {
+    "Why this is a command and not a review lens": {
+      "summary": "This agent reviews the **harness**, not the changeset.",
+      "anchor": "why-this-is-a-command-and-not-a-review-lens"
+    },
+    "Orchestrator constraints": {
+      "summary": "1.",
+      "anchor": "orchestrator-constraints"
+    },
+    "Parse Arguments": {
+      "summary": "Arguments: $ARGUMENTS",
+      "anchor": "parse-arguments"
+    },
+    "Steps": {
+      "summary": "Collect the project's Claude configuration from the target root:",
+      "anchor": "steps"
+    },
+    "1. Determine target files": {
+      "summary": "Collect the project's Claude configuration from the target root:",
+      "anchor": "1-determine-target-files"
+    },
+    "2. Dispatch": {
+      "summary": "Dispatch the `claude-setup-review` agent once, passing the collected file list.",
+      "anchor": "2-dispatch"
+    },
+    "3. Report": {
+      "summary": "Emit the agent's findings per",
+      "anchor": "3-report"
+    }
+  },
   "plugins/dev-team/skills/co-evolution-audit/SKILL.md": {
     "The Problem": {
       "summary": "A file that churns repeatedly while its tests never change is a high-risk",
@@ -2765,7 +2829,7 @@
       "anchor": "6-present-findings-and-ask-for-direction"
     },
     "6a. Review-fix loop": {
-      "summary": "**Re-establishing dispatch-ledger corroboration after the loop (#1461, auto-scope only — same condition as item 3 above).** Step 3's `git add` changes the staged content's hash, so `agent_dispatch_ledger.py` stamps each iteration's re-dispatched agents (step 4) with that NEW hash — not step 4 (the outer, pre-loop)'s original dispatch hash, and not an earlier iteration's hash either.",
+      "summary": "**Round ledger and termination rules (#1625).** The loop above has an",
       "anchor": "6a-review-fix-loop"
     },
     "7. Generate report": {
@@ -4011,6 +4075,10 @@
     "4. Analyze review-value fix rates": {
       "summary": "Read `metrics/review-value.jsonl` (written by `/build` per #348, schema in `performance-metrics`).",
       "anchor": "4-analyze-review-value-fix-rates"
+    },
+    "4a. Analyze re-review churn (#1624)": {
+      "summary": "Rows carrying a `round` field are `/code-review`'s per-round instrumentation",
+      "anchor": "4a-analyze-re-review-churn-1624"
     },
     "5. Lesson Validation — validated-outcome weighting (#866)": {
       "summary": "Close the loop on `/feedback-learning` lessons: does an adopted lesson",
