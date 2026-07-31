@@ -24,10 +24,14 @@ The same lesson is already written into `package.json`: `engines.node` sat at
 eslint *while still reporting success*.
 
 So the floor is declared in exactly one machine-readable place —
-`ruff.toml`'s `target-version` — and proven by the "Python 3.8 floor" CI job
-running the plugin's real test suite on a real 3.8. What follows pins those
-parts to each other. It deliberately contains no opinion about which APIs are
-too new; that question belongs to the interpreter.
+`ruff.toml`'s `[per-file-target-version]` — and proven by `chk_python_floor`
+in `scripts/ci-local.sh`, which resolves a real 3.8 interpreter and makes it
+byte-compile and import every shipped module. That check runs in the default
+gate, so the pre-push hook enforces it on every push.
+
+What follows pins those parts to each other. It deliberately contains no
+opinion about which APIs are too new; that question belongs to the
+interpreter.
 
 See the "deterministic tools over inference" rule in the repo CLAUDE.md.
 """
@@ -42,7 +46,7 @@ from _repo_root import REPO_ROOT
 
 RUFF_CONFIG = REPO_ROOT / "ruff.toml"
 ADR = REPO_ROOT / "docs" / "adr" / "0014-python-for-cross-os-scripts.md"
-WORKFLOW = REPO_ROOT / ".github" / "workflows" / "plugin-tests.yml"
+CI_LOCAL = REPO_ROOT / "scripts" / "ci-local.sh"
 IMPORT_PROBE = REPO_ROOT / "scripts" / "import_probe_shipped.py"
 
 #: The floor every part below must agree on, in each part's own notation.
@@ -70,8 +74,8 @@ def _ruff_shipped_target_version() -> str | None:
 
 
 @pytest.fixture(scope="module")
-def workflow() -> str:
-    return WORKFLOW.read_text(encoding="utf-8")
+def ci_local() -> str:
+    return CI_LOCAL.read_text(encoding="utf-8")
 
 
 class TestTheFloorIsDeclaredOnce:
@@ -102,49 +106,61 @@ class TestTheFloorIsDeclaredOnce:
         assert FLOOR_DOTTED in ADR.read_text(encoding="utf-8")
 
 
+def _floor_check_body(ci_local: str) -> str:
+    return ci_local.split("chk_python_floor()", 1)[-1].split("\nchk_", 1)[0]
+
+
 class TestTheFloorIsProvenByRunningIt:
-    """The gate is a real interpreter executing real tests. These pin that it
-    stays that way — a future edit that downgrades this job to a linter pass
-    or a static scan should fail here."""
+    """The gate is a real interpreter, not a description of one. These pin that
+    it stays that way — an edit that downgrades it to a source scan, or lets it
+    skip itself, should fail here.
 
-    def test_a_job_pins_the_floor_interpreter(self, workflow):
-        assert 'python-version: "{}"'.format(FLOOR_DOTTED) in workflow, (
-            "no CI job provisions Python {} — without a real interpreter the floor "
-            "is only ever an assertion".format(FLOOR_DOTTED)
+    Wiring note: `chk_python_floor` runs in the default (no `--only`) gate, so
+    the pre-push hook enforces it on every push. Adding it to a CI job means
+    appending `chk_python_floor` to that job's `--only=` list, which needs
+    `workflow` scope on the pushing credential.
+    """
+
+    def test_ci_local_defines_the_floor_check(self, ci_local):
+        assert "chk_python_floor()" in ci_local, (
+            "scripts/ci-local.sh must define the floor check — it is the single "
+            "place CI jobs and the pre-push hook both call into"
         )
 
-    def test_that_job_runs_the_plugin_test_suite(self, workflow):
-        """Byte-compiling and importing are necessary but not sufficient: a
-        3.9-only call inside a function body only surfaces when the body runs.
-        Executing the suite is what makes this gate behavioural."""
-        floor_job = workflow.split("python-floor:", 1)[-1].split("\n  shell-tests:", 1)[0]
-        assert "pytest plugins/dev-team/tests" in floor_job, (
-            "the floor job must run the plugin suite, not merely import-check it — "
-            "`dict | dict` in cost_meter.py imported fine and failed 9 tests"
+    def test_the_check_runs_in_the_default_gate(self, ci_local):
+        """Opt-in-only checks live in a separate array and never run unless
+        named. The floor must not be one of them."""
+        # Split on a line that is exactly `)`; check labels contain literal
+        # parens ("(run-all.sh)"), so a bare `)` split truncates the array.
+        registry = ci_local.split("CHECKS=(", 1)[-1].split("\n)", 1)[0]
+        assert "chk_python_floor" in registry, (
+            "the floor check must be in the always-run CHECKS array, not opt-in"
         )
 
-    def test_that_job_also_byte_compiles_and_imports(self, workflow):
-        """Covers shipped modules the suite never touches."""
-        floor_job = workflow.split("python-floor:", 1)[-1].split("\n  shell-tests:", 1)[0]
-        assert "py_compile" in floor_job
-        assert "import_probe_shipped.py" in floor_job
+    def test_the_check_uses_a_real_interpreter(self, ci_local):
+        body = _floor_check_body(ci_local)
+        assert "_resolve_python38" in body
+        assert "py_compile" in body, "must byte-compile under the floor interpreter"
+        assert "import_probe_shipped.py" in body, "must import under it too"
 
-    def test_the_import_probe_exists_and_is_not_a_pattern_matcher(self):
+    def test_the_check_fails_rather_than_skips_without_an_interpreter(self, ci_local):
+        """The decisive property. A floor check that reports 'skipped' on
+        machines without 3.8 is silent exactly where it is most needed —
+        the same shape as `engines.node` at >=24 letting ci-local skip eslint
+        while printing 'All local CI checks passed'."""
+        body = _floor_check_body(ci_local)
+        assert "does not skip" in body, (
+            "the no-interpreter branch must fail with an actionable message"
+        )
+        assert "return 1" in body
+        assert "skipped" not in body, (
+            "the floor check must never emit a 'skipped' status — see the module "
+            "docstring"
+        )
+
+    def test_the_import_probe_actually_imports(self):
         """The probe must load modules, not grep them. If it ever grows a list
         of banned API names it has become the thing this gate replaced."""
         source = IMPORT_PROBE.read_text(encoding="utf-8")
         assert "exec_module" in source, "the probe must actually import modules"
-
-
-class TestTheFloorJobCannotSilentlyVanish:
-    def test_the_job_is_not_conditional(self, workflow):
-        """A floor job behind an `if:` can skip on the very pushes that break
-        it, and a skipped required check reads as a passing one."""
-        floor_job = workflow.split("python-floor:", 1)[-1].split("\n  shell-tests:", 1)[0]
-        assert "\n    if:" not in floor_job, (
-            "the floor job must run unconditionally on every PR"
-        )
-
-    def test_the_job_does_not_continue_on_error(self, workflow):
-        floor_job = workflow.split("python-floor:", 1)[-1].split("\n  shell-tests:", 1)[0]
-        assert "continue-on-error" not in floor_job
+        assert "VERSION_ERRORS" in source, "failures must come from the interpreter"
