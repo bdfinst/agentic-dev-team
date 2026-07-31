@@ -1,5 +1,24 @@
 # Changelog
 
+## [11.1.1](https://github.com/bdfinst/agentic-dev-team/compare/dev-team-v11.1.0...dev-team-v11.1.1) (2026-07-31)
+
+
+### Bug Fixes
+
+* **code-review:** review agents confabulate a missing diff instead of reporting the gap ([#1595](https://github.com/bdfinst/agentic-dev-team/issues/1595)) ([bdcc178](https://github.com/bdfinst/agentic-dev-team/commit/bdcc17864a877db294cb16cbd6256a811ae9a968)), closes [#1591](https://github.com/bdfinst/agentic-dev-team/issues/1591)
+* **mutation-kill:** scope git commit/revert integrity, sanitize sln path, harden survivor-kill loop ([#1599](https://github.com/bdfinst/agentic-dev-team/issues/1599)) ([5343af1](https://github.com/bdfinst/agentic-dev-team/commit/5343af1b6a0c50e5073cd7e65f46c3ab8efc7f68))
+
+
+### Code Refactoring
+
+* **mutation-kill:** extract shared subprocess-timeout-and-log helper ([#1597](https://github.com/bdfinst/agentic-dev-team/issues/1597)) ([96c1b33](https://github.com/bdfinst/agentic-dev-team/commit/96c1b33ab9607aa7487f7fe348af63b631203144)), closes [#1593](https://github.com/bdfinst/agentic-dev-team/issues/1593)
+
+
+### Miscellaneous
+
+* **code-review:** deterministic pre-pass, fix-loop triage, de-dup mutation-kill git tests ([#1612](https://github.com/bdfinst/agentic-dev-team/issues/1612)) ([c9907f9](https://github.com/bdfinst/agentic-dev-team/commit/c9907f9b32c1e552423ec077a32fb04a8ae3c4b3))
+* **orchestrator:** warn that disjoint final files don't excuse worktree isolation ([#1613](https://github.com/bdfinst/agentic-dev-team/issues/1613)) ([643aad2](https://github.com/bdfinst/agentic-dev-team/commit/643aad2ee3b81db6fcbbd468f9d70b33b5ec12ad)), closes [#1609](https://github.com/bdfinst/agentic-dev-team/issues/1609)
+
 ## [11.1.0](https://github.com/bdfinst/agentic-dev-team/compare/dev-team-v11.0.0...dev-team-v11.1.0) (2026-07-30)
 
 
