@@ -89,7 +89,7 @@ def main() -> int:
             spec.loader.exec_module(module)
         except VERSION_ERRORS:
             failures.append((path, traceback.format_exc()))
-        except Exception:
+        except Exception:  # noqa: BLE001, S110 — deliberately broad, see VERSION_ERRORS above
             # Anything else (ImportError for an unresolvable sibling, an
             # OSError from a module probing its environment) is not evidence
             # about the interpreter version.
@@ -103,9 +103,9 @@ def main() -> int:
         )
     )
     if failures:
-        print("\n{} module(s) failed to import:\n".format(len(failures)), file=sys.stderr)
+        print(f"\n{len(failures)} module(s) failed to import:\n", file=sys.stderr)
         for path, tb in failures:
-            print("=== {} ===".format(path.relative_to(REPO_ROOT)), file=sys.stderr)
+            print(f"=== {path.relative_to(REPO_ROOT)} ===", file=sys.stderr)
             print(tb, file=sys.stderr)
         print(
             "ADR 0014 sets the shipped floor at Python 3.8. See "

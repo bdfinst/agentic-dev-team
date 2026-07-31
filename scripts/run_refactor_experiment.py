@@ -23,6 +23,8 @@ Usage:
   python3 scripts/run_refactor_experiment.py --skip-dispatch            # free self-test
   python3 scripts/run_refactor_experiment.py --arm one-shot-single --task fare --trials 1
 """
+from __future__ import annotations
+
 import argparse
 import ast
 import json

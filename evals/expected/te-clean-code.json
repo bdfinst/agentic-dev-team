@@ -1,5 +1,5 @@
 {
-  "fixture": "te-clean-code.js",
+  "fixture": "te-clean-code.ts",
   "description": "Clean concise code with short functions and no duplication",
   "applicableAgents": ["token-efficiency-review"],
   "agents": {

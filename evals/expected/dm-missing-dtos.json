@@ -1,5 +1,5 @@
 {
-  "fixture": "dm-missing-dtos.js",
+  "fixture": "dm-missing-dtos.ts",
   "description": "Missing DTOs causing domain entities to leak across boundaries",
   "applicableAgents": ["domain-review"],
   "agents": {

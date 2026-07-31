@@ -50,14 +50,14 @@ import re
 import subprocess
 import sys
 import tempfile
+from dataclasses import dataclass
+from pathlib import Path
+
 # typing, not collections.abc: the `Generator` alias below is a real runtime
 # expression (mutation_kill_headless imports the name), so `from __future__
 # import annotations` cannot defer it, and collections.abc generics are only
 # subscriptable from 3.9. ADR 0014 puts the shipped floor at 3.8.
-from typing import Callable, Dict, List, Sequence
-from dataclasses import dataclass
-from pathlib import Path
-from typing import NamedTuple
+from typing import Callable, Dict, List, NamedTuple, Sequence
 
 import csharp_stryker_net_wrapper as wrapper
 import mutation_report

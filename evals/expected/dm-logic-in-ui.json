@@ -1,5 +1,5 @@
 {
-  "fixture": "dm-logic-in-ui.js",
+  "fixture": "dm-logic-in-ui.ts",
   "description": "Business logic incorrectly placed in UI or controller layer",
   "applicableAgents": ["domain-review"],
   "agents": {

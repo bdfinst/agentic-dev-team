@@ -1,5 +1,5 @@
 {
-  "fixture": "dm-proper-events.js",
+  "fixture": "dm-proper-events.ts",
   "description": "Proper use of domain events for cross-boundary communication",
   "applicableAgents": ["domain-review"],
   "agents": {

@@ -33,13 +33,14 @@ import subprocess
 import sys
 import threading
 import time
+from datetime import datetime, timezone
+from pathlib import Path
+
 # typing, not collections.abc: the module-level type aliases below are real
 # runtime expressions, so `from __future__ import annotations` cannot defer
 # them, and collections.abc generics are only subscriptable from 3.9. ADR 0014
 # puts the shipped floor at 3.8.
 from typing import Callable, Optional, Sequence
-from datetime import datetime, timezone
-from pathlib import Path
 
 import csharp_stryker_net_wrapper as wrapper
 import mutation_report

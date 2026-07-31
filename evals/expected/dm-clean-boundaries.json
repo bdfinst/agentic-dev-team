@@ -1,5 +1,5 @@
 {
-  "fixture": "dm-clean-boundaries.js",
+  "fixture": "dm-clean-boundaries.ts",
   "description": "Clean domain boundaries with proper separation of concerns",
   "applicableAgents": ["domain-review"],
   "agents": {

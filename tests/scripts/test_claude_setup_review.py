@@ -373,7 +373,7 @@ def test_markdown_link_to_a_missing_file_is_reported_once_and_unmangled(
     )
     result = run_review(plugin_root, "--skip-llm")
     payload = json.loads(
-        [line for line in result.stdout.splitlines() if line.startswith("{")][0]
+        next(line for line in result.stdout.splitlines() if line.startswith("{"))
     )
     unresolvable = [
         issue
@@ -395,7 +395,7 @@ def test_distinct_missing_paths_on_one_line_are_reported_separately(
     )
     result = run_review(plugin_root, "--skip-llm")
     payload = json.loads(
-        [line for line in result.stdout.splitlines() if line.startswith("{")][0]
+        next(line for line in result.stdout.splitlines() if line.startswith("{"))
     )
     paths = {
         issue["message"].split("'")[1]
