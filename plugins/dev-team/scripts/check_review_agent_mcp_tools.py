@@ -42,6 +42,12 @@ Usage:
     python3 check_review_agent_mcp_tools.py --json        # machine-readable report
 """
 
+# Keeps PEP 585 annotations (`list[Path]`, `dict[str, list[str]]`) as strings,
+# so this module imports on the Python 3.8 floor ADR 0014 sets for shipped
+# code. Without it this file raised `TypeError: 'type' object is not
+# subscriptable` at import time.
+from __future__ import annotations
+
 import argparse
 import json
 import sys

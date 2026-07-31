@@ -170,14 +170,14 @@ def analyze_diff(diff_text: str) -> dict:
         if raw.startswith("+++ "):
             target = raw[4:].strip()
             if target != "/dev/null":
-                current = target.removeprefix("b/")
+                current = target[2:] if target.startswith("b/") else target
                 files.append(current)
                 signals |= classify_path(current)
             continue
         if raw.startswith("--- "):
             source = raw[4:].strip()
             if source != "/dev/null":
-                name = source.removeprefix("a/")
+                name = source[2:] if source.startswith("a/") else source
                 signals |= classify_path(name)
             continue
         if raw.startswith("@@"):

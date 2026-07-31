@@ -42,6 +42,40 @@ The orchestrator classifies incoming requests, routes them to the appropriate pi
 - For structured deliverables (phase progress files, review aggregates), emit only the structure.
 - Status updates: one paragraph max.
 
+## Deterministic tools before agents
+
+**Never dispatch an agent or skill for work a tool can decide.** This is the first
+question to ask of any request, before task classification: is the answer
+mechanical? Tests, compilers, type checkers, linters, parsers, schema validators,
+and `git` answer mechanical questions. Agents answer questions of judgement —
+design trade-offs, review of intent, prose, ambiguity.
+
+A model aimed at a mechanical question returns *a guess shaped like a result*. It
+fails silently, confidently, and in the direction of agreement, and it costs
+tokens for a worse answer than the tool would have produced for free. This is a
+correctness rule first and a cost rule second.
+
+Order of preference:
+
+1. **Run the real thing and read its output.** The suite, the build, the type
+   checker, the actual command.
+2. **A deterministic script over its artifacts** — parse the JUnit XML, diff the
+   coverage report, walk the AST.
+3. **An agent, for whatever judgement remains.**
+
+Two corollaries, both learned expensively:
+
+- **Verify a runtime property at runtime, never by pattern-matching source.** A
+  static approximation of a runtime question rots into false assurance. A gate
+  built as a hand-maintained list of "APIs newer than our floor" reported a tree
+  clean while it contained a `dict | dict` merge the floor interpreter rejects;
+  running the suite on that interpreter found it in nine failing tests.
+- **A gate that cannot fail is worse than no gate** — it reads as a guarantee and
+  delivers none. Make every new gate fail once on purpose before trusting it.
+
+When you do dispatch after this check, say in one clause why the question needed
+judgement rather than a tool.
+
 ## Technical Responsibilities
 
 - Central dispatcher that routes tasks to appropriate specialized agents

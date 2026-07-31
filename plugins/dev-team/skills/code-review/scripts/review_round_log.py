@@ -123,7 +123,10 @@ def changed_line_intervals(diff_text: str) -> dict:
             flush()
             target = raw[4:].strip()
             # Strip git's `b/` prefix; tolerate `--src-prefix`-less diffs.
-            path = None if target == "/dev/null" else target.removeprefix("b/")
+            if target == "/dev/null":
+                path = None
+            else:
+                path = target[2:] if target.startswith("b/") else target
             new_line = 0
             continue
         if raw.startswith(("--- ", "diff --git ")):

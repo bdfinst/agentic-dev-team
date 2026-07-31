@@ -15,6 +15,10 @@ The agents directory defaults to plugins/dev-team/agents/ relative to the
 repo root (inferred from this script's location).
 """
 
+# Keeps PEP 585 annotations (`list[str]`) as strings, so this module imports on
+# the Python 3.8 floor ADR 0014 sets for shipped code.
+from __future__ import annotations
+
 import argparse
 import re
 import sys

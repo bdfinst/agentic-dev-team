@@ -1,5 +1,15 @@
 # Config for `ruff check` (wired into scripts/ci-local.sh's chk_ruff gate).
-#
+
+# Repo-root tooling (scripts/, tests/) runs on a maintainer's or CI's
+# interpreter, never a user's, so it is deliberately NOT held to the shipped
+# floor — root CLAUDE.md puts it outside ADR 0014's scope. py39 is what the
+# existing suite already uses (parenthesized `with`).
+target-version = "py39"
+
+# The shipped floor itself is declared in [per-file-target-version] at the
+# bottom of this file — TOML puts every key after a table header inside that
+# table, so it cannot live up here.
+
 # extend-exclude adds to ruff's built-in default exclude list rather than
 # replacing it. Every entry here is a corpus of intentionally non-conformant
 # or frozen snapshot Python that lint debt should never accrue against:
@@ -33,3 +43,21 @@ extend-exclude = [
 "plugins/dev-team/skills/agent-readiness/scanner.py" = ["E402"]
 "scripts/**" = ["E402"]
 "evals/custom-tools/validate.py" = ["E402"]
+
+# THE shipped Python floor — the single machine-readable declaration of ADR
+# 0014's "Python 3.8+, stdlib only", and the Python analogue of package.json's
+# `engines.node`. Scoped to the shipped tree because that is the only code a
+# user's own Python ever executes.
+#
+# This stops ruff's autofixes from rewriting shipped code into 3.9+ syntax. It
+# is NOT what proves the floor holds: that is the "Python 3.8 floor" job in
+# .github/workflows/plugin-tests.yml, which runs the plugin's real test suite
+# on a real 3.8 interpreter. The interpreter is the oracle — neither a linter
+# setting nor a hand-maintained list of "APIs newer than 3.8" can be trusted
+# to know what 3.8 accepts, and the list version of this gate proved exactly
+# that by passing a `dict | dict` merge which 3.8 rejects.
+#
+# tests/repo/test_python_floor.py pins this value, the ADR, and that CI job
+# together so the three cannot drift apart.
+[per-file-target-version]
+"plugins/dev-team/**" = "py38"

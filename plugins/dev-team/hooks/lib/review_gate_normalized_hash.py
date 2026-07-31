@@ -288,14 +288,14 @@ def _target_path(header: str) -> str | None:
     target = header[4:].strip()
     if target == "/dev/null":
         return None
-    return target.removeprefix("b/")
+    return target[2:] if target.startswith("b/") else target
 
 
 def _source_path(header: str) -> str | None:
     source = header[4:].strip()
     if source == "/dev/null":
         return None
-    return source.removeprefix("a/")
+    return source[2:] if source.startswith("a/") else source
 
 
 def _structural_marker(raw: str) -> str | None:
