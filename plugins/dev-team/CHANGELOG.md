@@ -1,5 +1,12 @@
 # Changelog
 
+## [11.3.0](https://github.com/bdfinst/agentic-dev-team/compare/dev-team-v11.2.0...dev-team-v11.3.0) (2026-07-31)
+
+
+### Features
+
+* **evals:** fix js-fp-review eval-corpus hygiene gaps and repair issue-1620 fallout ([#1632](https://github.com/bdfinst/agentic-dev-team/issues/1632)) ([35df9b4](https://github.com/bdfinst/agentic-dev-team/commit/35df9b463d1e4bde00daea8de2eab5a0970162b2))
+
 ## [11.2.0](https://github.com/bdfinst/agentic-dev-team/compare/dev-team-v11.1.1...dev-team-v11.2.0) (2026-07-31)
 
 
