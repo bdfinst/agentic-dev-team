@@ -1,5 +1,5 @@
 {
-  "fixture": "te-long-functions.js",
+  "fixture": "te-long-functions.ts",
   "description": "Code with excessively long functions exceeding recommended line limits",
   "applicableAgents": ["token-efficiency-review"],
   "agents": {

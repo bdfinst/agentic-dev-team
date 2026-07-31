@@ -1,5 +1,5 @@
 {
-  "fixture": "te-duplicate-code.js",
+  "fixture": "te-duplicate-code.ts",
   "description": "Code with duplicated logic that should be extracted and reused",
   "applicableAgents": ["token-efficiency-review"],
   "agents": {

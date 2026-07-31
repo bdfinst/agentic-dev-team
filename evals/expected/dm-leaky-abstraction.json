@@ -1,5 +1,5 @@
 {
-  "fixture": "dm-leaky-abstraction.js",
+  "fixture": "dm-leaky-abstraction.ts",
   "description": "Leaky abstractions exposing infrastructure details to domain layer",
   "applicableAgents": ["domain-review"],
   "agents": {
