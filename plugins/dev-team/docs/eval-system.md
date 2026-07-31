@@ -178,7 +178,7 @@ The `evals/` directory contains a test corpus for validating agent accuracy:
 ```text
 evals/
 ├── fixtures/           # 54+ code samples (checked in)
-│   ├── fp-*.ts         # js-fp-review (6 files)
+│   ├── fp-*.ts         # js-fp-review (9 files)
 │   ├── sec-*.ts        # security-review (5 files)
 │   ├── test-*.test.ts  # test-review (6 files)
 │   ├── cx-*.ts         # complexity-review (5 files)

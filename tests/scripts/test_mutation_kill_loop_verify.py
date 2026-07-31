@@ -17,11 +17,10 @@ scoped to the verify/commit subprocess primitives alone.
 
 from __future__ import annotations
 
+import mutation_kill_loop as loop
+import mutation_kill_shared as shared
 import pytest
 from _mutation_kill_loop_test_helpers import _write_config
-
-import mutation_kill_loop as loop  # noqa: E402 (sys.path set up by the helper import above)
-import mutation_kill_shared as shared  # noqa: E402
 
 
 # =============================================================================

@@ -1,0 +1,15 @@
+{
+  "fixture": "fp-effect-boundary.adapter.ts",
+  "description": "File name carries the *.adapter.ts dotted suffix - a declared effect boundary per js-fp-review.md's Impure-patterns exception - so the console/fetch side effects here are expected and must not be flagged as buried effects.",
+  "applicableAgents": ["js-fp-review"],
+  "agents": {
+    "js-fp-review": {
+      "expectedStatus": "pass",
+      "issueCount": { "min": 0, "max": 0 },
+      "_calibration": {
+        "source": "estimated-by-analogy",
+        "note": "Not independently measured against this fixture; modeled on js-fp-review.md's documented effect-boundary exception (a dotted *.adapter.ts suffix) and the corpus's existing PASS-fixture shape"
+      }
+    }
+  }
+}

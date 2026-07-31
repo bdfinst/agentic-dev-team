@@ -42,7 +42,7 @@ Spawned by the orchestrator during Phase 3 inline checkpoints and full `/code-re
 | data-flow-tracer | `agents/data-flow-tracer.md` | Data flow tracing through architecture layers (analysis-only) |
 | doc-review | `agents/doc-review.md` | README accuracy, API doc alignment, inline comment drift, ADR update triggers |
 | domain-review | `agents/domain-review.md` | Domain boundaries, abstraction leaks, entity/DTO confusion |
-| js-fp-review | `agents/js-fp-review.md` | Array mutations, impure patterns, global state |
+| js-fp-review | `agents/js-fp-review.md` | Array mutations, impure patterns, global state, point-free/composition opportunities |
 | mutation-kill | `agents/mutation-kill.md` | Autonomous survivor-reduction loop — generates targeted tests, verifies, commits, repeats; gates on hard kills only (Go advisory). Not a reviewer; invoked per Story by `/test-improve` Phase 5 or directly |
 | naming-review | `agents/naming-review.md` | Intent-revealing names, boolean prefixes, magic values |
 | performance-review | `agents/performance-review.md` | Resource leaks, N+1 queries, unbounded growth |

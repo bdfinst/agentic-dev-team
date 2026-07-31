@@ -17,7 +17,7 @@ sys.path.insert(
     str(_REPO_ROOT / "plugins" / "dev-team" / "skills" / "code-review" / "scripts"),
 )
 
-import repo_invariants  # noqa: E402
+import repo_invariants
 
 
 class TestMutationKillScriptsDocumented:

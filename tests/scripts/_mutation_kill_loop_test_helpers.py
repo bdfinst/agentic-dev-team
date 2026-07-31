@@ -36,7 +36,7 @@ from _mutation_test_helpers import SCRIPTS_DIR
 # Ensure the module's dir is on the path so we can import it directly.
 sys.path.insert(0, str(SCRIPTS_DIR))
 
-import mutation_kill_loop as loop  # noqa: E402
+import mutation_kill_loop as loop
 
 
 def _write_config(

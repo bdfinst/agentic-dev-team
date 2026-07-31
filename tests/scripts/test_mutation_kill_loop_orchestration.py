@@ -13,12 +13,11 @@ from __future__ import annotations
 import dataclasses
 from pathlib import Path
 
+import mutation_kill_insert
+import mutation_kill_loop as loop
 import pytest
 from _mutation_kill_loop_test_helpers import _loop_fixture, _mutant, _write_report
 from _mutation_test_helpers import git_hermetic, hermetic_git_env
-
-import mutation_kill_insert  # noqa: E402 (sys.path set up by the helper import above)
-import mutation_kill_loop as loop  # noqa: E402 (sys.path set up by the helper import above)
 
 
 # =============================================================================
