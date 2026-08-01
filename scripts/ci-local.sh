@@ -90,7 +90,7 @@ section() { printf '\n%s== %s ==%s\n' "$bold" "$1" "$reset"; }
 # tools per job, so a full-toolchain gate here would false-fail those jobs.
 if [ -z "$ONLY" ]; then
   missing=()
-  for t in shellcheck jq python3 semgrep; do
+  for t in shellcheck jq python3 semgrep uv; do
     command -v "$t" >/dev/null 2>&1 || missing+=("$t")
   done
   # ruff is probed as a MODULE, matching how chk_ruff invokes it (#1676). A
@@ -201,11 +201,11 @@ chk_python_only() {
 #
 # Byte-compile catches syntax; the import probe catches evaluation (a PEP 585
 # generic in a module-level type alias compiles everywhere and raises below
-# the floor). Running the shipped suite on 3.10 is the strong form and belongs
-# in CI; the
-# "Python 3.10 floor" job in .github/workflows/plugin-tests.yml runs this
-# check today, not yet the full suite — see the scope note in
-# scripts/import_probe_shipped.py (issue #1635's "Out of scope").
+# the floor). Neither executes a function BODY, so a runtime-only API used
+# only inside one stays invisible to both — closed by also actually running
+# the shipped-agent-script test slice under the floor interpreter (#1650; see
+# scripts/import_probe_shipped.py's docstring and this function's own
+# comments below for the current three-stage shape: compile, import, run).
 #
 # Fails — never skips — when no 3.10 can be obtained. A gate that quietly
 # downgrades to "skipped" on the machines least likely to have the floor
@@ -237,7 +237,49 @@ chk_python_floor() {
     -not -path '*rule-fixtures*' \
     -print0 | xargs -0 -n1 "$py310" -m py_compile || return 1
 
-  "$py310" scripts/import_probe_shipped.py
+  "$py310" scripts/import_probe_shipped.py || return 1
+
+  # Byte-compile + import prove the shipped tree PARSES and LOADS on the floor
+  # interpreter, but neither executes a function BODY — a runtime-only API used
+  # only inside a function (e.g. asyncio.to_thread, 3.9+) stays invisible to
+  # both (issue #1650; the real incident was orchestrator.py, caught only by
+  # manual review, not this gate). Actually EXERCISE a representative slice of
+  # the suite under the floor interpreter to close that gap, per this repo's
+  # own "verify a runtime property by exercising it at runtime" rule.
+  #
+  # Scoped to the test files that exercise the five currently-shipped
+  # plugins/dev-team/scripts/*.py agent scripts (progress_guardian,
+  # token_efficiency_review, codebase_recon, orchestrator, claude_setup_review)
+  # — six test files below for five scripts, since orchestrator alone has two
+  # (test_orchestrator.py + test_orchestrator_cli.py) — NOT all of
+  # tests/scripts/, which also covers non-shipped repo-root dev
+  # tooling (mutation-testing harnesses, stryker wrappers, etc.) that isn't
+  # bound by the shipped-tree floor and legitimately uses newer stdlib APIs
+  # (confirmed live: scripts/experiment_install_harness.py's `from datetime
+  # import UTC` needs 3.11+ and correctly has no business running on 3.10).
+  # jsonschema/pytest-asyncio are the two extra runtime deps some of these
+  # files need beyond pytest itself — pinned to requirements-dev.txt's exact
+  # specifiers (the single declaration point for these versions) so this
+  # slice can never resolve a different toolchain than the rest of the gate
+  # is pinned to (#1676's lesson: an unbounded --with spec makes the gate's
+  # verdict depend on the day a contributor last resolved their environment).
+  # Provisioned into an ephemeral uv-managed venv so this gate never touches
+  # the system/dev interpreter's own site-packages.
+  if ! command -v uv >/dev/null 2>&1; then
+    printf 'uv not found — cannot provision pytest for the floor interpreter.\n' >&2
+    printf 'Install uv (https://docs.astral.sh/uv/) so this gate can run the floor-interpreter test slice under %s.\n' "$py310" >&2
+    return 1
+  fi
+  uv run --python "$py310" \
+    --with 'pytest>=7.0' --with 'pytest-asyncio>=0.23' --with 'jsonschema>=4.0' \
+    -m pytest \
+    tests/scripts/test_codebase_recon.py \
+    tests/scripts/test_orchestrator.py \
+    tests/scripts/test_orchestrator_cli.py \
+    tests/scripts/test_progress_guardian.py \
+    tests/scripts/test_token_efficiency_review_script.py \
+    tests/scripts/test_claude_setup_review.py \
+    -q
 }
 
 chk_semgrep_fixtures() { python3 scripts/audit-semgrep-fixtures.py; }
@@ -291,7 +333,7 @@ chk_hook_units() {
     return 0
   fi
   # tests/agents/, tests/commands/, tests/docs/, tests/knowledge/, and
-  # tests/bats/ were ported from bats to pytest under issue #675 (epic
+  # tests/stack_aware/ (formerly tests/bats/) were ported from bats to pytest under issue #675 (epic
   # #668). tests/repo/'s eval/cost/telemetry/workflow-audit suites were
   # ported under #672 (epic #668) and already ran here. tests/skills/ was
   # ported under issue #674. tests/scripts/ was ported under issue #676 and
@@ -351,7 +393,7 @@ chk_hook_units() {
     parallel=(-n "$workers" --dist loadgroup)
   fi
   python3 -m pytest plugins/dev-team/tests tests/repo tests/agents tests/commands \
-    tests/docs tests/knowledge tests/bats tests/skills tests/scripts tests/hooks \
+    tests/docs tests/knowledge tests/stack_aware tests/skills tests/scripts tests/hooks \
     --ignore=tests/scripts/test_csharp_stryker_net_wrapper.py \
     --ignore=tests/scripts/test_csharp_stryker_net_status_loop.py \
     ${parallel[@]+"${parallel[@]}"}
@@ -370,7 +412,7 @@ chk_coverage_report() {
     return 0
   fi
   python3 -m pytest plugins/dev-team/tests tests/repo tests/agents tests/commands \
-    tests/docs tests/knowledge tests/bats tests/skills tests/scripts tests/hooks \
+    tests/docs tests/knowledge tests/stack_aware tests/skills tests/scripts tests/hooks \
     --ignore=tests/scripts/test_csharp_stryker_net_wrapper.py \
     --ignore=tests/scripts/test_csharp_stryker_net_status_loop.py \
     --cov=plugins/dev-team/hooks --cov=scripts --cov-report=term -q \
@@ -412,7 +454,7 @@ CHECKS=(
   # a correctly-configured contributor machine enforces.
   "eslint::chk_eslint"
   "ruff check (Python lint)::chk_ruff"
-  "shipped Python 3.10 floor (compile + import on a real 3.10)::chk_python_floor"
+  "shipped Python 3.10 floor (compile + import + test slice on a real 3.10)::chk_python_floor"
   "plugin hook + script unit tests (pytest plugins/dev-team/tests)::chk_hook_units"
 )
 

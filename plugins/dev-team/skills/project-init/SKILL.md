@@ -44,13 +44,11 @@ Arguments: $ARGUMENTS
 - **Step 4b capability tools** — install every tool whose detection signal
   fired and that is still missing. Tools whose signal did not fire are still
   not installed.
-- **Step 4c keyless pair (CodeGraph + Repowise)** — install the missing
-  members (their recommended default is already yes). Repowise's own write
-  to the tracked `.claude/CLAUDE.md` (see its sub-section below) lands under
-  `--yes` the same as it would interactively — it is intended, not a
-  surprise mutation, so it does not move Repowise into the Conservative
-  bucket below. Whether that same reasoning should also cover Graphify's
-  repo-level writes is a separate policy question, tracked in #1690.
+- **Step 4c CodeGraph** — install if missing (its recommended default is
+  already yes, as part of the interactive keyless-pair prompt — see Step 4c).
+  CodeGraph never writes to the repo, so it stays in this bucket. Repowise,
+  offered alongside it in the same interactive prompt, does **not** stay
+  here — see the Conservative bucket below (#1690).
 
 **Conservative** (skip with a printed note — never mutate the repo by
 surprise):
@@ -60,15 +58,24 @@ surprise):
   absolute binary path into the shared, git-tracked `.claude/settings.json`
   (see the settings.json absolute-path guard, #1367, in the Graphify
   sub-section below) — a write that file cannot simply be gitignored out of
-  (unlike the generated git hooks themselves, which are). Repowise's own
-  `.mcp.json` write carries a comparable machine-specific path, but that
-  file IS gitignored by the standing check below, so it doesn't force the
-  same choice; #1690 tracks whether Graphify's own CLAUDE.md write (as
-  opposed to its settings.json write) should also move to this bucket.
-  Print
+  (unlike the generated git hooks themselves, which are). It also writes a
+  `## graphify` section into the tracked `.claude/CLAUDE.md`. Print
   `Graphify: skipped under --yes (repo-writing; run /project-init without --yes to add it)`
   and do **not** record a durable decline in `.claude/init-state.json`, so a
   later interactive run still offers it.
+- **Step 4c Repowise** — skipped for this run, because `repowise init` writes
+  a `## Codebase Intelligence for <project> (Repowise)` section into the
+  tracked `.claude/CLAUDE.md` (see the Repowise sub-section below) — the same
+  class of repo-level write Graphify is gated for above (#1670 item 3 made
+  this write explicit; #1690 is what moves Repowise to this bucket to match).
+  Repowise's own `.mcp.json` write also carries a machine-specific path, but
+  that file IS gitignored by the standing check below — it is the tracked
+  CLAUDE.md write, not the `.mcp.json` write, that puts Repowise here. Print
+  `Repowise: skipped under --yes (repo-writing; run /project-init without --yes to add it)`
+  and do **not** record a durable decline in `.claude/init-state.json`, so a
+  later interactive run still offers it as part of the keyless-pair prompt.
+  CodeGraph, the other half of that same prompt, is unaffected — it stays in
+  the Affirmative bucket above and installs under `--yes` regardless.
 - **Step 1 zero/ambiguous stack** — never guess. Report the supported stacks
   and exit gracefully without writing files or installing anything, exactly as
   the interactive path's "something else" branch.
@@ -326,11 +333,19 @@ to re-prompt`).
                    changes, not reverted.
   ```
 
-**Under `--yes`, treat the keyless-pair prompt as yes** and install the whole
-missing set without waiting (its recommended default is already yes).
+**Under `--yes`, treat the keyless-pair prompt as yes for CodeGraph only.**
+Repowise moved to the Conservative bucket (Arguments section, #1690) because
+`repowise init` also writes a `## Codebase Intelligence for <project>
+(Repowise)` section into the tracked `.claude/CLAUDE.md` — a repo-level write
+gated the same way below. Install CodeGraph without waiting (its recommended
+default is already yes); skip Repowise for this run, print `Repowise:
+skipped under --yes (repo-writing; run /project-init without --yes to add
+it)`, and do **not** record a durable decline in `.claude/init-state.json`,
+so a later interactive run still offers it as part of this same prompt.
 
-- On **yes**: install **every** tool in the missing set by running its
-  sub-section below (CodeGraph, Repowise), recording each tool's accept in
+- On **yes** (interactive only — see the `--yes` split above): install
+  **every** tool in the missing set by running its sub-section below
+  (CodeGraph, Repowise), recording each tool's accept in
   `.claude/init-state.json`.
   - **Partial failure is surfaced, never hidden.** If one tool's install
     errors after another already succeeded, print the failing tool's error,
@@ -529,11 +544,15 @@ prompt so an unattended `--yes` run does not block on it. Budget for it: on a
 ~1600-file repo this took ~5.5 minutes.
 
 The install steps below run only when Step 4c's keyless-group opt-in accepts
-and Repowise is in the missing set. **The one exception is the `.mcp.json`
-standing check at the end of this sub-section (#1416)**, which runs on every
-`/project-init` pass regardless of the group's outcome — accept, decline, or
-already-present — the same carve-out the Graphify sub-section's own Standing
-check (#1367) makes below.
+and Repowise is in the missing set. **Under `--yes`, that acceptance never
+happens for Repowise** — it is in the Conservative bucket (Arguments
+section, #1690), so an unattended run skips these steps and prints the
+`Repowise: skipped under --yes` note instead; only an interactive accept of
+the keyless-pair prompt reaches this sub-section's install steps. **The one
+exception is the `.mcp.json` standing check at the end of this sub-section
+(#1416)**, which runs on every `/project-init` pass regardless of the
+group's outcome — accept, decline, or already-present — the same carve-out
+the Graphify sub-section's own Standing check (#1367) makes below.
 
 **Install steps (executed only when the all-or-none group is accepted):**
 

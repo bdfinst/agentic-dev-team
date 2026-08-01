@@ -1,0 +1,18 @@
+{
+  "fixture": "cr-runtime-claim-no-probe",
+  "description": "Positive fixture for #1639/#1695: correctness-review's Detect category 6 (unverified runtime/library claim). A docstring asserts bisect.insort is O(log n); the real complexity is O(n) overall (the list.insert shift dominates the O(log n) search), with nothing in the file recording a probe or citation for the claim.",
+  "applicableAgents": ["correctness-review"],
+  "agents": {
+    "correctness-review": {
+      "expectedStatus": "warn",
+      "issueCount": { "min": 1, "max": 2 },
+      "severities": { "suggestion": { "min": 1, "max": 2 } },
+      "minConfidenceAnyOf": ["high", "medium", "none"],
+      "mustMention": ["insort"],
+      "_calibration": {
+        "source": "measured",
+        "note": "Measured 2026-08-01 against a live correctness-review dispatch on this fixture: 1 issue, severity suggestion, confidence high, status warn — flagged the O(log n) claim as inaccurate (bisect.insort's insertion step shifts the list and is O(n)). Framed by the agent as a docstring-vs-behavior mismatch rather than literally invoking category 6's 'no recorded probe' wording. ai-provenance-review flagged (#1695 review round) that pinning minConfidenceAnyOf to only high/medium is circular and rewards a spec deviation: agents/correctness-review.md's Confidence table (Exception 2) requires confidence:none for a genuine category-6 finding, since category 6 is evidence-only and must not adjudicate the claim's truth — the measured run's confidence:high did exactly the adjudication the category forbids. 'none' was added to minConfidenceAnyOf so this fixture stays green under EITHER the currently-measured behavior or a future fix that makes the agent correctly emit confidence:none for this case, rather than pinning the non-compliant behavior as the only passing baseline. Disclosure (ai-provenance-review, same review round): {high, medium, none} is the COMPLETE confidence enum per agents/correctness-review.md, so this key no longer discriminates on confidence value at all — it now only asserts the field is present and legal, which it always is for a contract-conforming agent. It is retained as a schema-presence check, not a behavioral one, and is deliberately unpinned until the category-6 confidence-none spec deviation is fixed, at which point it should be narrowed to [\"none\"]."
+      }
+    }
+  }
+}

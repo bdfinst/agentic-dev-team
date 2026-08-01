@@ -55,6 +55,11 @@ def main() -> int:
 
     install_dir.mkdir(parents=True, exist_ok=True)
     archive = f"pmd-dist-{PMD_VERSION}-bin.zip"
+    # %2F is a deliberately percent-encoded slash: the real PMD release tag is
+    # literally "pmd_releases/{PMD_VERSION}" (a slash inside one path
+    # segment), not two path segments — do not "fix" this to a literal "/".
+    # This exact fragment is also asserted, separately, by
+    # scripts/verify_pmd_checksum_pin.py's _check_url_shape_matches_installer.
     url = (
         "https://github.com/pmd/pmd/releases/download/"
         f"pmd_releases%2F{PMD_VERSION}/{archive}"

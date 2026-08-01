@@ -31,6 +31,7 @@ from __future__ import annotations
 
 import json
 import re
+import traceback
 from collections.abc import Callable
 from pathlib import Path
 
@@ -119,6 +120,38 @@ def run_install_with_guard(
 
     Returns True if a machine-specific hook entry was detected and relocated
     to `local_settings_path`, False if the installer's output was left as-is.
+
+    `fix_settings` runs even if `installer()` itself raises partway through a
+    write (e.g. it appends the polluting hook entry and then fails later in
+    the same run) — it happens in a `finally` block, and the original
+    exception still propagates once the relocation completes. No separate
+    `_read_or_none`-style helper is needed here: `fix_settings` already reads
+    `settings_path` through `_load_json`, which returns `{}` rather than
+    raising when the file doesn't exist, so it never assumes the file is
+    present.
     """
-    installer()
-    return fix_settings(settings_path, local_settings_path)
+    was_relocated = False
+    installer_raised = False
+
+    try:
+        installer()
+    except BaseException:
+        # Bound to THIS call, not read from ambient `sys.exc_info()` inside
+        # `finally` below — see the identical pattern (and rationale) in
+        # claude_md_guard.py's run_install_with_guard.
+        installer_raised = True
+        raise
+    finally:
+        try:
+            was_relocated = fix_settings(settings_path, local_settings_path)
+        except Exception:
+            # A secondary failure while relocating must never displace
+            # installer()'s own in-flight exception — see the identical
+            # pattern (and rationale) in claude_md_guard.py's
+            # run_install_with_guard.
+            if installer_raised:
+                traceback.print_exc()
+            else:
+                raise
+
+    return was_relocated

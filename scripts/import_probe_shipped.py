@@ -2,9 +2,13 @@
 """Import every shipped plugin module under the current interpreter.
 
 Run by the "Python 3.10 floor" job in `.github/workflows/plugin-tests.yml`.
-That job's gate is this probe plus a byte-compile pass over the shipped tree
-(not yet the plugin's full test suite on 3.10 — see issue #1635's "Out of
-scope" for that follow-up).
+That job's gate is this probe, plus a byte-compile pass over the shipped
+tree, plus (since issue #1650) actually running the test slice covering the
+five shipped agent scripts under the floor interpreter via `uv run
+--python` — not the plugin's entire suite (that would double this gate's
+wall-clock re-running everything under a second interpreter), but enough to
+catch a runtime-only API used inside a function body, which byte-compiling
+and importing alone cannot (see `chk_python_floor` in `scripts/ci-local.sh`).
 
 Byte-compiling proves a file *parses*. It does not prove it *imports*, and the
 gap between those two is exactly where the shipped tree had drifted: PEP 585

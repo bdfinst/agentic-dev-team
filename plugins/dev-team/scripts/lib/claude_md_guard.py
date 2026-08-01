@@ -35,6 +35,7 @@ Stdlib-only, per ADR 0014/0015 (Python for cross-OS scripts).
 
 from __future__ import annotations
 
+import traceback
 from collections import Counter
 from collections.abc import Callable
 from pathlib import Path
@@ -102,25 +103,55 @@ def run_install_with_guard(
     Returns True if corruption was detected and repaired (snapshot restored
     + canonical section appended), False if the installer's output was left
     as-is because nothing pre-existing was lost.
+
+    The compare-and-repair check runs even if `installer()` itself raises
+    partway through a write (a build error after the `CLAUDE.md` edit already
+    landed, for instance) — it happens in a `finally` block, and the original
+    exception still propagates once the repair completes. Reads go through
+    `_read_or_none` rather than assuming `claude_md_path` exists, since an
+    installer can fail before ever creating the file.
     """
-    snapshot = claude_md_path.read_text(encoding="utf-8")
+    snapshot = _read_or_none(claude_md_path)
+    was_repaired = False
+    installer_raised = False
 
-    installer()
+    try:
+        installer()
+    except BaseException:
+        # Bound to THIS call, not read from ambient `sys.exc_info()` inside
+        # `finally` below — the ambient form would report whatever exception
+        # is being handled if this function is ever called from inside an
+        # active `except:` block elsewhere, which is not necessarily
+        # installer()'s own.
+        installer_raised = True
+        raise
+    finally:
+        try:
+            post_install = _read_or_none(claude_md_path)
+            missing = find_missing_lines(snapshot or "", post_install or "")
 
-    post_install = claude_md_path.read_text(encoding="utf-8")
-    missing = find_missing_lines(snapshot, post_install)
+            if missing:
+                was_repaired = True
+                repaired = snapshot or ""
+                if not repaired.endswith("\n"):
+                    repaired += "\n"
+                if not canonical_section.startswith("\n"):
+                    repaired += "\n"
+                repaired += canonical_section
+                claude_md_path.write_text(repaired, encoding="utf-8")
+        except Exception:
+            # A secondary failure while repairing must never displace
+            # installer()'s own in-flight exception — that would mask the
+            # real failure with an unrelated one from the repair path itself
+            # (e.g. a permission error writing the repair back). If
+            # installer() did NOT raise, this secondary failure is the only
+            # one there is, so it must propagate normally.
+            if installer_raised:
+                traceback.print_exc()
+            else:
+                raise
 
-    if not missing:
-        return False
-
-    repaired = snapshot
-    if not repaired.endswith("\n"):
-        repaired += "\n"
-    if not canonical_section.startswith("\n"):
-        repaired += "\n"
-    repaired += canonical_section
-    claude_md_path.write_text(repaired, encoding="utf-8")
-    return True
+    return was_repaired
 
 
 def find_added_lines(old_text: str, new_text: str) -> list[str]:

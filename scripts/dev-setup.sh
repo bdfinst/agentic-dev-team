@@ -141,29 +141,33 @@ ensure_tool gh optional
 
 # --- Python 3.10, the shipped floor ---------------------------------------
 # ci-local.sh's chk_python_floor makes a real 3.10 byte-compile and import the
-# shipped tree (ADR 0031, superseding ADR 0014's version stanza). That check
-# FAILS rather than skips when no 3.10 is reachable, so provision one here — a
-# gate that silently downgrades on the machines least likely to have the floor
-# interpreter is no gate at all. uv is the portable route: it fetches a
-# standalone build on every platform, so this works whether or not the host's
-# package manager still carries 3.10.
-section "Python 3.10 (shipped floor — ADR 0031)"
+# shipped tree, then (#1650) actually RUN the shipped-agent-script test slice
+# under that interpreter via `uv run --python` — so uv is now an unconditional
+# requirement of the gate, not just a fallback for locating 3.10 itself. That
+# check FAILS rather than skips when either is missing, so provision both
+# here — a gate that silently downgrades on the machines least likely to have
+# them is no gate at all.
+section "Python 3.10 (shipped floor — ADR 0031) + uv"
+if ! command -v uv >/dev/null 2>&1; then
+  warn "installing uv (fetches the 3.10 floor interpreter and runs the floor-interpreter test slice)"
+  curl -LsSf https://astral.sh/uv/install.sh | sh >/dev/null 2>&1 || true
+  export PATH="$HOME/.local/bin:$PATH"
+fi
+if command -v uv >/dev/null 2>&1; then
+  ok "uv ($(uv --version 2>&1))"
+else
+  warn "could not install uv — chk_python_floor will fail until you do"
+  warn "  see: https://docs.astral.sh/uv/"
+fi
 if command -v python3.10 >/dev/null 2>&1; then
   ok "python3.10 ($(python3.10 -V 2>&1))"
 elif command -v uv >/dev/null 2>&1 && uv python find 3.10 >/dev/null 2>&1; then
   ok "python3.10 via uv ($(uv python find 3.10))"
+elif command -v uv >/dev/null 2>&1 && uv python install 3.10 >/dev/null 2>&1; then
+  ok "python3.10 installed via uv"
 else
-  if ! command -v uv >/dev/null 2>&1; then
-    warn "installing uv (used to fetch the 3.10 floor interpreter)"
-    curl -LsSf https://astral.sh/uv/install.sh | sh >/dev/null 2>&1 || true
-    export PATH="$HOME/.local/bin:$PATH"
-  fi
-  if command -v uv >/dev/null 2>&1 && uv python install 3.10 >/dev/null 2>&1; then
-    ok "python3.10 installed via uv"
-  else
-    warn "could not provision Python 3.10 — chk_python_floor will fail until you do"
-    warn "  try: uv python install 3.10   (or install a python3.10 package)"
-  fi
+  warn "could not provision Python 3.10 — chk_python_floor will fail until you do"
+  warn "  try: uv python install 3.10   (or install a python3.10 package)"
 fi
 
 # --- pip ------------------------------------------------------------------
@@ -314,7 +318,7 @@ fi
 # Re-check everything from scratch so the summary reflects the real end state,
 # not what we believe we installed.
 section "Verifying"
-for tool in jq shellcheck python3; do
+for tool in jq shellcheck python3 uv; do
   if command -v "$tool" >/dev/null 2>&1; then
     ok "$tool"
   else
