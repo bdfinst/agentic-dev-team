@@ -8,7 +8,14 @@ description: >-
   correct", or any time agent/skill files change.
 argument-hint: "[file-path | --all] [--fix]"
 user-invocable: true
-allowed-tools: Read, Edit, Grep, Glob
+allowed-tools: >-
+  Read, Edit, Grep, Glob,
+  Bash(python3 scripts/validate_agent_contract.py *,
+       python3 scripts/check_registry_sync.py *,
+       python3 plugins/dev-team/scripts/verify_tier.py *,
+       python3 -m pytest tests/agents/test_agent_knowledge_anchor.py,
+       python3 ${CLAUDE_PLUGIN_ROOT}/scripts/claude_setup_review.py *,
+       python3 ${CLAUDE_PLUGIN_ROOT}/scripts/token_efficiency_review.py *)
 ---
 
 # Agent Audit

@@ -12,8 +12,8 @@ User-invocable workflows in `.claude/skills/`. All review skills are executed un
 
 | Command | File | Role | What It Does |
 | --------- | ------ | ------ | -------------- |
-| `/agent-audit` | `skills/agent-audit/SKILL.md` | orchestrator | Audit agents/skills/hooks for structural compliance |
-| `/agent-eval` | `skills/agent-eval/SKILL.md` | orchestrator | Run eval fixtures, grade accuracy, detect regressions |
+| `/agent-audit` | `skills/agent-audit/SKILL.md` | orchestrator | Audit agents/skills/hooks for structural compliance (self-audits this plugin's own agents/skills — largely repo-checkout-relative, see ADR 0032) |
+| `/agent-eval` | `skills/agent-eval/SKILL.md` | orchestrator | Run eval fixtures, grade accuracy, detect regressions (operates on this repo's own `evals/` corpus — monorepo-checkout-only, see ADR 0032) |
 | `/agent-readiness` | `skills/agent-readiness/SKILL.md` | worker | Score how agent-ready the current project repo is against the Agent-Readiness Scorecard; emits a tiered JSON/Markdown report (scores your project, not the plugin — use `/harness-audit` for that) |
 | `/apply-fixes` | `skills/apply-fixes/SKILL.md` | implementation | Apply correction prompts from `/code-review` output |
 | `/apply-test-doubles` | `skills/apply-test-doubles/SKILL.md` | worker | Apply `/cd-test-architecture`'s Step 4b build-vs-document decision logic against an existing, saved assessment report — or, when no valid report path is given, against a target to assess first — without re-running the full Steps 0-6 assessment each time |
@@ -34,7 +34,7 @@ User-invocable workflows in `.claude/skills/`. All review skills are executed un
 | `/gherkin-derive` | `skills/gherkin-derive/SKILL.md` | worker | Standalone Gherkin derivation from code — discovers the public surface (OpenAPI → routes → tests → signatures), recommends a BDD binding mode via the value rubric, writes `.feature` files and (bdd-runner) pending step stubs; no tracker Stories. Phase 3 of `/test-improve` |
 | `/gherkin-public` | `skills/gherkin-public/SKILL.md` | worker | Standalone worker — author Gherkin scenarios for the entire public interface (API endpoints, UI flows, batch-job entry points, library exports, event types) at the observable boundary. Standalone; not part of the current `/test-improve` orchestrator flow |
 | `/guard` | `skills/guard/SKILL.md` | worker | Combined `/careful` + `/freeze` for production-critical sessions |
-| `/harness-audit` | `skills/harness-audit/SKILL.md` | orchestrator | Analyze harness effectiveness and flag stale components |
+| `/harness-audit` | `skills/harness-audit/SKILL.md` | orchestrator | Analyze harness effectiveness and flag stale components (audits this plugin's own agents/skills/hooks — not your project, see ADR 0032; contrast `/agent-readiness`, which scores your project) |
 | `/harness-e2e-check` | `skills/harness-e2e-check/SKILL.md` | worker | On-demand end-to-end integration check of the harness's own mechanisms (failure-class routing, dead-end detection, evidence bundles, invariants/rollback, refactor-freeze guard family, lesson-validation weighting, handoff rename) — originated as issue #907's post-merge test plan, kept repeatable via `skills/harness-e2e-check/references/watchlist.md`'s regression tracking |
 | `/headless-run` | `skills/headless-run/SKILL.md` | worker | Run a Claude Code skill/command headlessly in an isolated subprocess (fresh `--session-id`, clean HOME/config, scrubbed env, JSON result, timeout) so a benchmark harness (e.g. #821 running `/code-review` per case) doesn't inherit the parent Remote session identity/tool surface — the reusable #842 workaround |
 | `/help` | `skills/help/SKILL.md` | worker | List the main dev-team workflows, with `--all` to show every user command |

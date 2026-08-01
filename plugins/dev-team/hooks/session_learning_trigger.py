@@ -84,13 +84,43 @@ def _write_state(state_file: Path, counter: int) -> None:
             pass
 
 
+def _resolve_session_extract(hook_dir: Path) -> Path:
+    """The repo-root `scripts/session_extract.py` this monorepo's own dev
+    checkout carries, resolved from a shipped hook's install location.
+
+    `session_extract.py` is deliberately monorepo-only tooling, never shipped
+    inside the plugin (see `tests/repo/test_shipped_script_refs.py`'s
+    allowlist comment for `/session-review` — the sibling maintainer tool
+    this same script backs) — so for every downstream plugin install this
+    path resolves to a location that simply does not exist, and
+    `_dispatch_background_analysis` must treat that as the normal case, not
+    a failure to hide.
+
+    `hook_dir` is `plugins/dev-team/hooks`; `scripts/` sits three levels up
+    from there (`hooks` -> `dev-team` -> `plugins` -> repo root), not two
+    (#1649 — the original `../..` landed on `plugins/scripts/`, which has
+    never existed anywhere in this repo, so this call has been a silent
+    no-op since it shipped).
+    """
+    return (hook_dir / ".." / ".." / ".." / "scripts" / "session_extract.py").resolve()
+
+
 def _dispatch_background_analysis(
     cwd: Path, session_id: str | None, hook_dir: Path
 ) -> None:
-    """Fire-and-forget background analysis run. Silent on any failure."""
-    session_extract = (
-        hook_dir / ".." / ".." / "scripts" / "session_extract.py"
-    ).resolve()
+    """Fire-and-forget background analysis run.
+
+    Skips entirely, rather than composing a shell command guaranteed to fail,
+    when `session_extract.py` isn't present (every downstream install, and
+    any dev checkout missing the repo-root `scripts/` tree) — see
+    `_resolve_session_extract`. When it IS present but the dispatch itself
+    fails, the failure is logged to `metrics_dir/session-learning-errors.log`
+    rather than swallowed by a bare `|| true`, so a future regression here
+    is visible instead of permanently silent (#1649).
+    """
+    session_extract = _resolve_session_extract(hook_dir)
+    if not session_extract.is_file():
+        return
     pending = artifact_paths.resolve_file("metrics", "pending-review.jsonl", cwd)
 
     prompt = (
@@ -113,9 +143,17 @@ def _dispatch_background_analysis(
 
     # Compose a shell script that runs asynchronously — same fire-and-forget
     # semantics as bash's `( ... ) &`.
+    #
+    # session_extract.py's stderr is appended to a log file, not discarded
+    # (#1649): the `|| true` still keeps this line from aborting the rest of
+    # the chain on failure (though it never would — these are `;`-joined,
+    # not `&&`), but a failure here previously left zero evidence anywhere.
+    # `2>>` (append) rather than `2>` so repeated dispatches accumulate a
+    # history instead of each one erasing the last.
+    extract_log = metrics_dir / "session-learning-errors.log"
     shell_body = (
         f"python3 {shell_quote(str(session_extract))} --since last "
-        ">/dev/null 2>&1 || true; "
+        f">/dev/null 2>>{shell_quote(str(extract_log))} || true; "
         f"tmp_out=$(mktemp {shell_quote(str(metrics_dir / '.pending-XXXXXX.jsonl'))} "
         "2>/dev/null) || exit 0; "
         f"if claude {' '.join(shell_quote(a) for a in session_id_args)} "

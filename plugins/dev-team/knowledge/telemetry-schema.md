@@ -367,7 +367,7 @@ a controlled baseline-vs-ablated integration-tier delta (issues caught,
 | `delta` | object | `{issues_caught, test_commands_passed, tokens}` (ablated − baseline) |
 | `verdict` | string | e.g. `"no measured impact — supports drop"` / `"agent is load-bearing — retain"` / `"baseline failed — inconclusive"` |
 
-- **Emitter:** `scripts/eval_ablation.py --mode agent`.
+- **Emitter:** `plugins/dev-team/scripts/eval_ablation.py --mode agent` (moved from `scripts/` in #1653).
 - **Consent:** unconditional (eval infra, not user-session telemetry); opt-in/label-gated dispatch per the live-eval cost policy (#134) — the record is only ever written after an explicit operator-confirmed live run.
 - **Consumers:** `skills/harness-audit/SKILL.md` (Step 3 drop-candidate recommendations cite the measured delta/verdict when a record exists).
 

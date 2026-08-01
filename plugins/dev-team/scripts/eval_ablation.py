@@ -61,15 +61,44 @@ from __future__ import annotations
 import argparse
 import json
 import sys
-from datetime import UTC, datetime
+from datetime import datetime, timezone
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parent))
-from eval_grade import run_grading
-from eval_variance import aggregate_trials
+
+#: `eval_grade.py`/`eval_variance.py` are monorepo-dev-only eval-corpus
+#: tooling (they read `evals/` fixtures that are never shipped), unlike this
+#: module's own `--find-latest` mode — a generic JSONL reader with no
+#: repo-shape assumption. #1653 moved this file into the plugin so a shipped
+#: skill (harness-audit) can invoke `--find-latest` via `${CLAUDE_PLUGIN_ROOT}`,
+#: but `--mode knowledge`/`--mode agent` still only make sense run from this
+#: repo's own dev checkout, where the sibling modules below actually resolve.
+#: Deferred (not module-level) so importing this file — or invoking
+#: `--find-latest` — never requires them to be importable at all; a plugin
+#: user has no `evals/` corpus and no reason to hit this path.
+def _grading_deps():
+    this_dir = Path(__file__).resolve().parent
+    for candidate in (this_dir, _repo_root_scripts_dir(this_dir)):
+        entry = str(candidate)
+        if candidate.is_dir() and entry not in sys.path:
+            sys.path.insert(0, entry)
+    from eval_grade import run_grading
+    from eval_variance import aggregate_trials
+
+    return run_grading, aggregate_trials
+
+
+def _repo_root_scripts_dir(this_dir: Path) -> Path:
+    """The monorepo's own root `scripts/` dir, reached from this file's
+    shipped location (`plugins/dev-team/scripts/`) by climbing three levels
+    (`scripts` -> `dev-team` -> `plugins` -> repo root) then descending into
+    `scripts/` again — where `eval_grade.py`/`eval_variance.py` still live,
+    unmoved. Resolves to a real path only inside this repo's own checkout;
+    harmless (simply not a directory) anywhere else."""
+    return (this_dir / ".." / ".." / ".." / "scripts").resolve()
 
 
 def _passing(expected_dir: Path, actuals: dict, only: set | None) -> set:
+    run_grading, _ = _grading_deps()
     results, _ = run_grading(expected_dir, actuals, None, only)
     return {pair for pair, passed, _ in results if passed}
 
@@ -134,6 +163,7 @@ def summarize_arm(expected_dir: Path, trial_actuals: list[dict]) -> dict:
     if not trial_actuals:
         return {"grade": "fail", "issues_caught": 0, "test_commands": [], "tokens": 0}
 
+    _, aggregate_trials = _grading_deps()
     variance = aggregate_trials(expected_dir, trial_actuals)
     by_pair = variance.get("by_pair", {})
     # Scope the pass@k bar to the integration pairs this arm actually
@@ -224,7 +254,7 @@ def agent_ablation_report(
 
     return {
         "schema": "eval-ablation/v1",
-        "recorded_at": datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "recorded_at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
         "ablated_agent": ablated_agent,
         "fixtures": fixtures,
         "model": model,

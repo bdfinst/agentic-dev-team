@@ -29,7 +29,10 @@ from _repo_root import REPO_ROOT
 
 SCRIPTS = REPO_ROOT / "scripts"
 RIE_PATH = SCRIPTS / "run_integration_eval.py"
-ABLATION_PATH = SCRIPTS / "eval_ablation.py"
+# Moved to the plugin in #1653 — its --find-latest mode ships with the
+# plugin; --mode agent (what this test file exercises) still only works from
+# this repo's own checkout, where eval_grade.py/eval_variance.py remain.
+ABLATION_PATH = REPO_ROOT / "plugins" / "dev-team" / "scripts" / "eval_ablation.py"
 
 
 def _load_module(path: Path, name: str):

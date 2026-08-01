@@ -203,3 +203,108 @@ class TestTelemetryConsent:
         assert slt.main() == 0
         state = tmp_path / ".claude" / "metrics" / "learning-loop-state.json"
         assert json.loads(state.read_text()) == {"counter": 1}
+
+
+# ---------------------------------------------------------------------------
+# _resolve_session_extract / _dispatch_background_analysis (#1649)
+# ---------------------------------------------------------------------------
+
+
+def test_resolve_session_extract_targets_repo_root_scripts_dir():
+    """hook_dir is plugins/dev-team/hooks; scripts/ sits three levels up
+    (hooks -> dev-team -> plugins -> repo root), not two. The original
+    `../..` landed on `plugins/scripts/session_extract.py`, which has never
+    existed anywhere in this repo."""
+    hook_dir = _REPO_ROOT / "plugins" / "dev-team" / "hooks"
+    resolved = slt._resolve_session_extract(hook_dir)
+    assert resolved == (_REPO_ROOT / "scripts" / "session_extract.py").resolve()
+
+
+def test_resolve_session_extract_finds_the_real_file_in_this_checkout():
+    """This repo's own dev checkout is exactly the case #1649 says should
+    work: session_extract.py genuinely exists three levels up from the
+    shipped hook's location here."""
+    hook_dir = _REPO_ROOT / "plugins" / "dev-team" / "hooks"
+    assert slt._resolve_session_extract(hook_dir).is_file()
+
+
+def _patch_dispatch_popen(monkeypatch, popen_calls):
+    """Intercept only the `["sh", "-c", ...]` Popen call `_dispatch_background_
+    analysis` makes, delegating everything else to the real `subprocess.Popen`.
+
+    `slt.subprocess` is the same module object `artifact_paths.py` imports as
+    `subprocess` — Python modules are singletons — so a blanket
+    `monkeypatch.setattr(slt.subprocess, "Popen", ...)` also replaces the
+    `Popen` that `artifact_paths.resolve_file()`'s own unrelated subprocess
+    call (used to locate the repo root) runs through, breaking it with no
+    connection to what this test is actually exercising. Selecting on the
+    call shape keeps the patch scoped to the one call under test."""
+    real_popen = slt.subprocess.Popen
+
+    class _NoOpProcess:
+        pass
+
+    def fake_popen(args, *rest, **kwargs):
+        if isinstance(args, list) and args[:2] == ["sh", "-c"]:
+            popen_calls.append((args, kwargs))
+            return _NoOpProcess()
+        return real_popen(args, *rest, **kwargs)
+
+    monkeypatch.setattr(slt.subprocess, "Popen", fake_popen)
+
+
+def test_dispatch_skips_entirely_when_session_extract_is_absent(monkeypatch, tmp_path):
+    """The normal case for every downstream plugin install: session_extract.py
+    is deliberately not shipped, so there is nothing this dispatch could ever
+    do. It must skip cleanly rather than compose a shell command guaranteed
+    to fail — and, before #1649's fix, it composed and ran one anyway on
+    every single install, forever, for no possible benefit."""
+    fake_hook_dir = tmp_path / "plugins" / "dev-team" / "hooks"
+    fake_hook_dir.mkdir(parents=True)
+    popen_calls = []
+    monkeypatch.setattr(
+        slt.subprocess, "Popen", lambda *a, **k: popen_calls.append((a, k))
+    )
+    slt._dispatch_background_analysis(tmp_path, "sess-1", fake_hook_dir)
+    assert popen_calls == [], "no subprocess should be spawned when the target script is absent"
+
+
+def test_dispatch_spawns_when_session_extract_is_present(monkeypatch, tmp_path):
+    """The one case where dispatch should actually happen: a dev checkout
+    (real or faked here) where session_extract.py genuinely resolves."""
+    fake_hook_dir = tmp_path / "plugins" / "dev-team" / "hooks"
+    fake_hook_dir.mkdir(parents=True)
+    fake_scripts = tmp_path / "scripts"
+    fake_scripts.mkdir()
+    (fake_scripts / "session_extract.py").write_text("# fake\n")
+
+    popen_calls = []
+    _patch_dispatch_popen(monkeypatch, popen_calls)
+    slt._dispatch_background_analysis(tmp_path, "sess-1", fake_hook_dir)
+    assert len(popen_calls) == 1
+    argv = popen_calls[0][0]
+    assert argv[:2] == ["sh", "-c"]
+
+
+def test_dispatch_logs_session_extract_stderr_instead_of_discarding_it(
+    monkeypatch, tmp_path
+):
+    """#1649: a genuine failure inside this checkout must leave evidence
+    (metrics_dir/session-learning-errors.log), not vanish behind a bare
+    `|| true`."""
+    fake_hook_dir = tmp_path / "plugins" / "dev-team" / "hooks"
+    fake_hook_dir.mkdir(parents=True)
+    fake_scripts = tmp_path / "scripts"
+    fake_scripts.mkdir()
+    (fake_scripts / "session_extract.py").write_text("# fake\n")
+
+    popen_calls = []
+    _patch_dispatch_popen(monkeypatch, popen_calls)
+    slt._dispatch_background_analysis(tmp_path, "sess-1", fake_hook_dir)
+
+    shell_body = popen_calls[0][0][2]
+    assert "/dev/null 2>&1 || true" not in shell_body.split(";")[0], (
+        "session_extract's stderr must not be discarded to /dev/null"
+    )
+    assert "session-learning-errors.log" in shell_body
+    assert "2>>" in shell_body, "must append, not truncate, across repeated dispatches"

@@ -26,7 +26,7 @@ You have been invoked with the `/harness-audit` command.
 > companion here is `/session-review`, whose `session-digest.jsonl` this command
 > consumes (Step 1).
 
-**Monorepo-relative by design (#1637).** The `scripts/eval_ablation.py --find-latest` call below is intentionally bare, not a dangling-path defect: `eval_ablation.py` does not ship under `plugins/dev-team/scripts/` (verified mechanically — see `tests/repo/test_agent_implemented_by_resolves.py`'s `INTENTIONAL_BARE_INVOCATION` set), so no `${CLAUDE_PLUGIN_ROOT}` path could ever resolve it. It reads *this repo's own* `metrics/eval-ablation.jsonl`, consistent with the note above that this command audits the dev-team plugin's own harness — it only makes sense run from a dev-team-monorepo-shaped checkout, never an installed plugin cache.
+**Portable executable, repo-relative data (#1653).** `eval_ablation.py` now ships under `plugins/dev-team/scripts/` — its `--find-latest`/`--jsonl` mode is a generic JSONL reader with no repo-shape assumption, unlike the module's `--mode knowledge`/`--mode agent` paths, which stay monorepo-only (they read `evals/` fixtures never shipped). The call below is therefore `${CLAUDE_PLUGIN_ROOT}`-qualified like any other shipped script; only the `--jsonl` argument stays bare — `metrics/eval-ablation.jsonl` is genuinely *this repo's own* runtime metrics stream, consistent with the note above that this command audits the dev-team plugin's own harness.
 
 ## Orchestrator constraints
 
@@ -283,7 +283,7 @@ for causal evidence:
 
 ```bash
 for agent in <each single-agent drop candidate>; do
-  python3 scripts/eval_ablation.py --find-latest "$agent" \
+  python3 "$CLAUDE_PLUGIN_ROOT/scripts/eval_ablation.py" --find-latest "$agent" \
     --jsonl metrics/eval-ablation.jsonl
 done
 ```
