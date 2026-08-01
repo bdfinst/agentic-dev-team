@@ -36,12 +36,12 @@ import json
 import shutil
 import subprocess
 import sys
-from typing import List, Optional, Sequence, Tuple
+from collections.abc import Sequence
 
 TIMEOUT_SECONDS = 120
 
 # (label, argv, required, why-it-matters)
-COMMAND_CHECKS: List[Tuple[str, Sequence[str], bool, str]] = [
+COMMAND_CHECKS: list[tuple[str, Sequence[str], bool, str]] = [
     ("jq", ["jq", "--version"], True, "mutation gate + ci-local.sh"),
     ("python3", ["python3", "--version"], True, "everything"),
     ("shellcheck", ["shellcheck", "--version"], True, "ci-local.sh shell lint"),
@@ -59,7 +59,7 @@ COMMAND_CHECKS: List[Tuple[str, Sequence[str], bool, str]] = [
 ]
 
 # (module, required, why-it-matters)
-IMPORT_CHECKS: List[Tuple[str, bool, str]] = [
+IMPORT_CHECKS: list[tuple[str, bool, str]] = [
     ("yaml", True, "agent-readiness scanner, static-analysis adapter"),
     ("pytest", True, "every content-guard suite"),
     ("httpx", True, "red-team harness smoke test"),
@@ -96,7 +96,7 @@ def _first_line(text: str) -> str:
     return ""
 
 
-def _run(argv: Sequence[str]) -> Tuple[bool, str]:
+def _run(argv: Sequence[str]) -> tuple[bool, str]:
     """Execute argv. Return (ok, detail). Never raises."""
     if shutil.which(argv[0]) is None:
         return False, "not on PATH"
@@ -109,9 +109,9 @@ def _run(argv: Sequence[str]) -> Tuple[bool, str]:
             check=False,
         )
     except subprocess.TimeoutExpired:
-        return False, "timed out after {}s".format(TIMEOUT_SECONDS)
+        return False, f"timed out after {TIMEOUT_SECONDS}s"
     except OSError as exc:
-        return False, "could not execute: {}".format(exc)
+        return False, f"could not execute: {exc}"
 
     output = proc.stdout.decode("utf-8", "replace")
     if proc.returncode != 0:
@@ -122,7 +122,7 @@ def _run(argv: Sequence[str]) -> Tuple[bool, str]:
     return True, _first_line(output)
 
 
-def check_commands() -> List[Result]:
+def check_commands() -> list[Result]:
     results = []
     for label, argv, required, why in COMMAND_CHECKS:
         ok, detail = _run(argv)
@@ -130,7 +130,7 @@ def check_commands() -> List[Result]:
     return results
 
 
-def check_imports() -> List[Result]:
+def check_imports() -> list[Result]:
     """Import each module in a SUBPROCESS.
 
     A broken native extension does not raise a catchable ImportError — the
@@ -140,8 +140,8 @@ def check_imports() -> List[Result]:
     """
     results = []
     for module, required, why in IMPORT_CHECKS:
-        ok, detail = _run([sys.executable, "-c", "import {}".format(module)])
-        results.append(Result("python: {}".format(module), ok, required, why, detail))
+        ok, detail = _run([sys.executable, "-c", f"import {module}"])
+        results.append(Result(f"python: {module}", ok, required, why, detail))
     return results
 
 
@@ -149,16 +149,16 @@ def render(results: Sequence[Result], quiet: bool) -> None:
     for r in results:
         if r.ok:
             if not quiet:
-                suffix = " ({})".format(r.detail) if r.detail else ""
-                print("  ✓ {}{}".format(r.label, suffix))
+                suffix = f" ({r.detail})" if r.detail else ""
+                print(f"  ✓ {r.label}{suffix}")
         else:
             tag = "✗" if r.required else "∼"
             scope = "REQUIRED" if r.required else "optional"
-            print("  {} {} [{}] — {}".format(tag, r.label, scope, r.detail))
-            print("      needed for: {}".format(r.why))
+            print(f"  {tag} {r.label} [{scope}] — {r.detail}")
+            print(f"      needed for: {r.why}")
 
 
-def main(argv: Optional[Sequence[str]] = None) -> int:
+def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--quiet", action="store_true", help="print only failures")
     parser.add_argument("--json", action="store_true", help="emit JSON instead of text")

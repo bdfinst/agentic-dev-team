@@ -70,30 +70,44 @@ errs closed: a Python reindent, or an indentation fix on a quoted line,
 simply doesn't get carry-forward — costing one re-dispatch rather than
 weakening the gate.
 
-## Unquoted heredoc bodies (#1638)
+## Unquoted multi-line literal bodies (#1638, #1660, #1661, #1667)
 
 The quote-character rule above is what keeps string DATA out of the cosmetic
-bucket — but it only sees quote characters, and Ruby's `<<~SQL`, PHP's
-`<<<TXT`, and Perl's `<<EOF` heredocs carry a data body with no quote
-character anywhere on its lines. `_heredoc_body_marks` tracks each
-language's opener/closer grammar per hunk side (`_HEREDOC_GRAMMARS`,
-extension-keyed so PHP's three-angle-bracket form can never cross-match
-Ruby/Perl's two-angle-bracket form) and forces every line between an opener
-and its closer to byte-exact comparison, bypassing `_canonical_line`'s
-collapsible/quote-char rules entirely.
+bucket — but it only sees quote characters, and a whole family of multi-line
+literal forms carries a data body with no quote character on its interior
+lines: Ruby's `<<~SQL`, PHP's `<<<TXT`, Perl's `<<EOF`, Lua's `[[ ]]`,
+PostgreSQL's `$$ $$`, Go raw strings and JS/TS template literals, C++'s
+`R"( )"`, and PHP's inline-HTML region between `?>` and `<?`.
+`_heredoc_body_marks` tracks each language's grammars per hunk side
+(`_HEREDOC_GRAMMARS`, extension-keyed so PHP's three-angle-bracket form can
+never cross-match Ruby/Perl's two-angle-bracket form) and forces every line
+between an opener and its closer to byte-exact comparison, bypassing
+`_canonical_line`'s collapsible/quote-char rules entirely.
 
-Failing closed here means two things, both load-bearing:
+Failing closed here means three things, all load-bearing:
 
 - **An opener with no closer inside the visible hunk side marks every
   remaining line, not just up to end-of-context.** The true close may be
   outside what this hunk shows; the safe assumption is that it hasn't
   closed yet, so nothing after it is eligible for whitespace collapsing.
-- **An opener could be invisible entirely** — more than a few lines of
-  context above the first line this function ever sees. `normalized_gate_hash`
-  closes that gap at the source instead of guessing: it requests
-  `--unified=100000` context, so for any realistically-sized file every
-  hunk spans start-to-end and an opener anywhere earlier in the file is
-  always part of the same hunk `_heredoc_body_marks` reasons over.
+- **An opener could be invisible entirely** — above the first line this
+  function ever sees. `normalized_gate_hash` narrows that gap at the source
+  by requesting `--unified=100000` context, so for any realistically-sized
+  file every hunk spans start-to-end.
+- **That context request is a magic number, so it is checked rather than
+  trusted (#1662).** A file longer than the window still yields a hunk that
+  does not start at line 1, and an opener above it is invisible — the exact
+  hazard the grammars close, reopened silently, and failing OPEN rather than
+  closed. `normalize_patch` therefore reads the hunk's declared start lines
+  and drops any grammared file's non-line-1 hunk to byte-exact comparison
+  instead of believing the context flag did its job.
+
+The same call is bounded in both directions (#1663): an explicit subprocess
+timeout on the `git diff`, and a cap on the patch size accepted for
+processing. Whole-file context means a one-line edit to a large tracked file
+(a `.json` lockfile, a generated fixture) otherwise produces and canonicalizes
+that entire file, several in-memory copies deep, synchronously inside a
+PreToolUse hook on every commit.
 
 ## What the canonical form must contain to bind a subject (#1631 review)
 
@@ -168,8 +182,11 @@ from __future__ import annotations
 
 import hashlib
 import re
+import subprocess
 import sys
 from pathlib import Path
+from types import MappingProxyType
+from typing import Callable, NamedTuple
 
 _LIB_DIR = Path(__file__).resolve().parent
 if str(_LIB_DIR) not in sys.path:
@@ -215,13 +232,19 @@ _WHITESPACE_INSIGNIFICANT_EXTENSIONS = frozenset(
         ".cs", ".go", ".rs", ".swift", ".m", ".mm",
         ".php", ".rb", ".pl", ".pm", ".lua", ".dart",
         ".css", ".scss", ".less",
-        ".json", ".jsonc", ".xml",
+        # `.xml` is deliberately ABSENT (#1660): element text and CDATA
+        # sections preserve whitespace across most of a document, and no
+        # per-delimiter grammar would mark meaningfully fewer lines than
+        # "all of them". Falling back to the byte-exact default is both
+        # cheaper and safer — it costs one re-dispatch, never a weakened
+        # gate. See `_HEREDOC_GRAMMARS`' KNOWN RESIDUAL note.
+        ".json", ".jsonc",
         ".sql", ".proto", ".tf", ".hcl",
     }
 )
 
-#: Shared by `_HEREDOC_GRAMMARS` below — see that dict's own comment for the
-#: grammar contract. Ruby's `<<~`/`<<-`/bare, HCL's `<<-`/bare, and Perl's
+#: Shared by `_HEREDOC_GRAMMARS` below — see that mapping's own comment for
+#: the grammar contract. Ruby's `<<~`/`<<-`/bare, HCL's `<<-`/bare, and Perl's
 #: `<<~`/bare all share this exact closer rule.
 def _bareish_heredoc_close(line: str, ident: str, modifier: str) -> bool:
     """Shared closer for grammars whose only modifier axis is "must the
@@ -240,26 +263,230 @@ def _bareish_heredoc_close(line: str, ident: str, modifier: str) -> bool:
     return line == ident if modifier == "" else line.lstrip() == ident
 
 
-#: Per-language heredoc grammars (#1638). The quote-character rule in
-#: `_canonical_line` is what keeps string data out of the cosmetic bucket,
-#: and it does not see an UNQUOTED heredoc body — Ruby's `<<~SQL`, PHP's
-#: `<<<TXT`, Perl's `<<EOF`. Reindenting a line inside one is a data change
-#: this module would otherwise read as formatting.
+def _line_terminated(predicate):
+    """Adapt a whole-line closer predicate to the positional closer protocol.
+
+    A heredoc terminator is a whole LINE, never a delimiter embedded in one.
+    Returning `len(line)` on a match means "this region consumed the entire
+    line", which is what stops the scanner re-scanning a terminator line for
+    a fresh opener — sound only because every predicate used here requires
+    the whole (stripped) line to equal the identifier, so a closing line can
+    never also carry an opener. `from_pos > 0` only happens when an INLINE
+    region already closed earlier on this line, and a heredoc terminator
+    cannot begin mid-line, so that case correctly never matches.
+    """
+
+    def close(line: str, ident: str, modifier: str, from_pos: int):
+        if from_pos:
+            return None
+        return len(line) if predicate(line, ident, modifier) else None
+
+    return close
+
+
+def _delimited(build_close):
+    """Positional closer for an INLINE multi-line literal — one whose closing
+    delimiter is embedded in a line rather than being the whole line (Go/JS
+    backticks, Lua long brackets, SQL dollar-quoting, C++ raw strings, PHP's
+    inline-HTML region).
+
+    Returns the index just past the delimiter so the scanner can resume
+    hunting for a fresh opener on the remainder of the SAME line. That
+    resumption is what makes these forms safe to mix with heredocs: an inline
+    form genuinely can close and re-open on one line, the case the pre-#1660
+    scanner could not represent (and whose absence its own docstring flagged
+    as the thing a "grammar with a looser closer" would need).
+    """
+
+    def close(line: str, ident: str, modifier: str, from_pos: int):
+        needle = build_close(ident, modifier)
+        index = line.find(needle, from_pos)
+        return None if index < 0 else index + len(needle)
+
+    return close
+
+
+class _Grammar(NamedTuple):
+    """One unquoted multi-line-literal form for one language family.
+
+    `open_re` matches an opener anywhere on a line. Two OPTIONAL named groups
+    carry what a closer needs: `ident` (the delimiter identifier — a heredoc
+    tag, a Lua bracket level, a SQL dollar tag, a C++ raw-string delimiter)
+    and `mod` (the modifier axis, e.g. Ruby's `~`/`-`). NAMED, not positional
+    (#1665): the old convention lived only in a comment, and forced PHP's
+    regex to carry a phantom empty capture group purely to keep `group(2)`
+    aligned across grammars.
+
+    `close(line, ident, mod, from_pos)` returns the index just past this
+    region's terminator in `line`, or `None` if it does not terminate there.
+
+    `inline` records where the body starts: `False` for heredocs (body starts
+    on the line AFTER the opener, so an opener never closes itself), `True`
+    for inline spans (body starts mid-line, and the region may open and close
+    on one line).
+    """
+
+    open_re: re.Pattern
+    close: Callable[[str, str, str, int], int | None]
+    inline: bool
+
+
+def _opener_parts(match) -> tuple[str, str]:
+    """`(ident, modifier)` from an opener match, tolerating grammars that
+    declare only some of the optional named groups.
+
+    `qident` is the QUOTED-delimiter alternative, kept a separate group so the
+    unquoted alternative can keep its `[A-Za-z_]` first-character rule — which
+    is what stops Ruby/Perl's shovel operator (`x << 2`) reading as a heredoc
+    opener — while a quoted delimiter may legally start with a digit
+    (`<<~'1SQL'`) or be empty (Perl's blank-line-terminated `<<""`). Both are
+    #1667. An empty `qident` is a real match, so the `is not None` test must
+    not be shortened to a truthiness test.
+    """
+    groups = match.groupdict()
+    quoted = groups.get("qident")
+    ident = quoted if quoted is not None else (groups.get("ident") or "")
+    return ident, (groups.get("mod") or "")
+
+
+#: Ruby's `<<~SQL`/`<<-SQL`/`<<SQL`, plus its backtick command form
+#: ``<<`EOC` `` (#1667). The alternation keeps the digit-permissive delimiter
+#: behind a required quote — see `_opener_parts`.
+_RUBY_HEREDOC = _Grammar(
+    re.compile(
+        r"<<(?P<mod>[~-]?)"
+        r"(?:(?P<q>['\"`])(?P<qident>[A-Za-z0-9_]+)(?P=q)"
+        r"|(?P<ident>[A-Za-z_][A-Za-z0-9_]*))"
+    ),
+    _line_terminated(_bareish_heredoc_close),
+    inline=False,
+)
+
+#: Perl's `<<EOF`/`<<~EOF`, its spaced-quoted (`print << "EOF";`) and
+#: backslash-quoted (`print <<\EOF;`) forms, and its empty-delimiter
+#: blank-line-terminated form `print <<"";` (#1667 — `qident` uses `*`, not
+#: `+`, and `_bareish_heredoc_close` then closes on a genuinely empty line).
+_PERL_HEREDOC = _Grammar(
+    re.compile(
+        r"<<(?P<mod>~?)(?:\s+(?=['\"]))?"
+        r"(?:(?P<q>['\"])(?P<qident>[A-Za-z0-9_]*)(?P=q)"
+        r"|\\?(?P<ident>[A-Za-z_][A-Za-z0-9_]*))"
+    ),
+    _line_terminated(_bareish_heredoc_close),
+    inline=False,
+)
+
+#: PHP's `<<<TXT` heredoc and `<<<'TXT'` nowdoc. The closer is `.lstrip()`
+#: (never `.strip()` — see `_bareish_heredoc_close`) plus `.rstrip(";,)")`,
+#: since a real PHP terminator may be trailed by a statement terminator, an
+#: array-element comma, or a call-argument close-paren. Known, accepted
+#: residual: that makes PHP's close check looser than the "more body, never
+#: fewer" rule for trailing PUNCTUATION — a body line reading exactly `TXT)`
+#: false-closes. Distinguishing it needs the real PHP closer grammar, not a
+#: regex tweak.
+_PHP_HEREDOC = _Grammar(
+    re.compile(r"<<<\s*(?P<q>['\"]?)(?P<ident>[A-Za-z_][A-Za-z0-9_]*)(?P=q)"),
+    _line_terminated(lambda line, ident, _mod: line.lstrip().rstrip(";,)") == ident),
+    inline=False,
+)
+
+#: PHP's inline-HTML region: everything between a `?>` and the next `<?` is
+#: emitted verbatim, so reindenting it changes program OUTPUT (#1660).
+_PHP_INLINE_HTML = _Grammar(
+    re.compile(r"\?>"),
+    _delimited(lambda _ident, _mod: "<?"),
+    inline=True,
+)
+
+#: Lua long brackets — `[[ ... ]]`, `[==[ ... ]==]` (#1660). `ident` is the
+#: `=` run, so the closer is level-matched and a `]]` at a different level
+#: cannot close it. Also covers long comments (`--[[ ... ]]`), which share
+#: the bracket grammar.
+_LUA_LONG_BRACKET = _Grammar(
+    re.compile(r"\[(?P<ident>=*)\["),
+    _delimited(lambda ident, _mod: f"]{ident}]"),
+    inline=True,
+)
+
+#: PostgreSQL dollar-quoting — `$$ ... $$`, `$tag$ ... $tag$` (#1660). `ident`
+#: is the tag (absent for the bare `$$` form), so the closer is tag-matched.
+_SQL_DOLLAR_QUOTE = _Grammar(
+    re.compile(r"\$(?P<ident>[A-Za-z_][A-Za-z0-9_]*)?\$"),
+    _delimited(lambda ident, _mod: f"${ident}$"),
+    inline=True,
+)
+
+#: Go raw strings and JS/TS template literals — both backtick-delimited
+#: (#1661). The OPENER line is already byte-exact under `_canonical_line`'s
+#: quote-character rule (a backtick is in `_QUOTE_CHARS`); the gap this
+#: closes is the INTERIOR lines, which routinely carry no quote character at
+#: all. Over-matching is safe and expected here: a lone backtick in a comment
+#: opens a region that never closes, and an unclosed region marks the rest of
+#: the hunk byte-exact — a lost carry-forward, never a weakened gate.
+_BACKTICK_RAW_STRING = _Grammar(
+    re.compile(r"`"),
+    _delimited(lambda _ident, _mod: "`"),
+    inline=True,
+)
+
+#: C++ raw string literals — `R"(...)"`, `R"delim(...)delim"` (#1661).
+_CPP_RAW_STRING = _Grammar(
+    re.compile(r'R"(?P<ident>[^()\\\s]{0,16})\('),
+    _delimited(lambda ident, _mod: f'){ident}"'),
+    inline=True,
+)
+
+#: Shared tuples, so the `is`-identity aliases below stay identity-equal.
+_RUBY_FORMS = (_RUBY_HEREDOC,)
+_PERL_FORMS = (_PERL_HEREDOC,)
+_PHP_FORMS = (_PHP_HEREDOC, _PHP_INLINE_HTML)
+_LUA_FORMS = (_LUA_LONG_BRACKET,)
+_SQL_FORMS = (_SQL_DOLLAR_QUOTE,)
+_BACKTICK_FORMS = (_BACKTICK_RAW_STRING,)
+_CPP_FORMS = (_CPP_RAW_STRING,)
+
+#: Per-language unquoted multi-line-literal grammars (#1638, extended by
+#: #1660/#1661/#1667). The quote-character rule in `_canonical_line` is what
+#: keeps string data out of the cosmetic bucket, and it does not see an
+#: UNQUOTED body — Ruby's `<<~SQL`, PHP's `<<<TXT`, Perl's `<<EOF`, Lua's
+#: `[[`, SQL's `$$`, Go/JS backticks, C++'s `R"(`. Reindenting a line inside
+#: one is a data change this module would otherwise read as formatting.
 #:
-#: Each entry is `(open_re, is_close)`: `open_re` matches an opener anywhere
-#: on a line, capturing the modifier (group 1) and the delimiter identifier
-#: (group 2); `is_close(line, ident, modifier)` decides whether a later line
-#: closes that specific heredoc. Deliberately erring toward MORE lines
-#: counting as heredoc body, never fewer — see `_heredoc_body_marks`'s
-#: docstring for why the closing-match direction matters (an early false
-#: close would let real body content fall back to normal whitespace
-#: collapsing, which is the hazard this exists to close).
-#: Keyed by extension, not by a single cross-language regex, so PHP's `<<<`
-#: and Ruby/Perl's `<<` can never cross-match each other's grammar. `.tf`/
-#: `.hcl` alias to `.rb`'s tuple rather than `.pl`'s: Terraform/HCL heredocs
-#: support the bare and dash (`<<-EOT`) forms but not the squiggly one, and
-#: only `.rb`'s regex captures a dash modifier — `.pl`'s does not, so it
-#: would silently fail to match `<<-EOT` at all.
+#: Deliberately erring toward MORE lines counting as body, never fewer — see
+#: `_heredoc_body_marks`'s docstring for why the closing-match direction
+#: matters (an early false close drops real body content back into whitespace
+#: collapsing, the hazard this exists to close).
+#:
+#: Keyed by extension, not by one cross-language regex, so PHP's `<<<` and
+#: Ruby/Perl's `<<` can never cross-match. `.tf`/`.hcl` alias `.rb`'s forms
+#: rather than `.pl`'s: Terraform/HCL heredocs support the bare and dash
+#: (`<<-EOT`) forms but not the squiggly one, and only `.rb`'s regex captures
+#: a dash modifier — `.pl`'s does not, so it would silently fail to match
+#: `<<-EOT` at all.
+#:
+#: A `MappingProxyType` (#1665): this table is safety-relevant, and it was
+#: previously a plain dict mutated after construction, so any importer could
+#: rewrite a language's grammar at runtime. Its sibling language tables
+#: (`_INDENT_SIGNIFICANT_EXTENSIONS`, `_WHITESPACE_INSIGNIFICANT_EXTENSIONS`)
+#: are already `frozenset` for the same reason.
+#:
+#: KNOWN RESIDUAL (restored per #1660 — #1638 replaced the original residual
+#: note with the grammar dict, leaving this class recorded nowhere):
+#: - A `.php` file's leading inline-HTML region, before the file's FIRST
+#:   `<?php`, is not marked: `_PHP_INLINE_HTML` needs a `?>` to open, and
+#:   the file itself opens in HTML mode with no such token. Reaching it also
+#:   requires a hunk starting at line 1, which the #1662 guard below already
+#:   constrains.
+#: - `.cs` verbatim strings (`@"..."`) and `.py`-style triple-quoted forms in
+#:   other whitespace-insignificant languages have no grammar. Triple-quoted
+#:   forms are covered incidentally — their delimiter IS a quote character,
+#:   so `_canonical_line` keeps those lines byte-exact — but only on lines
+#:   that carry the quote, never on interior lines.
+#: - `.xml` was DROPPED from `_WHITESPACE_INSIGNIFICANT_EXTENSIONS` instead
+#:   of being given a grammar: element text and CDATA sections are
+#:   whitespace-preserving over most of a document, so the fail-closed option
+#:   #1660 offers is both cheaper and safer than a grammar that would have to
+#:   mark nearly every line anyway.
 #:
 #: Ruby/Perl's bare `<<` is also their shift/append ("shovel") operator
 #: (`arr << item`, `x << 2`), but every real style guide writes that with
@@ -268,51 +495,50 @@ def _bareish_heredoc_close(line: str, ident: str, modifier: str) -> bool:
 #: `\s*`) structurally cannot match the idiomatic spaced operator form.
 #: Verified directly: `arr << item` and `x << 2` do not match; only the
 #: unidiomatic no-space `arr<<item` would, which costs a rare false-positive
-#: carry-forward loss. Perl's grammar carries two exceptions, both in the
-#: SAFE (over-detection, never under-detection) direction:
+#: carry-forward loss. This is also exactly why #1667's digit-permissive
+#: delimiter sits behind a REQUIRED quote: allowing `[0-9]` to lead an
+#: unquoted delimiter would make `x << 2` a heredoc opener. Perl's grammar
+#: carries two further exceptions, both in the SAFE (over-detection, never
+#: under-detection) direction:
 #: - A space IS legal (and not deprecated) before a QUOTED delimiter
 #:   (`print << "EOF";`), so `.pl`'s regex allows whitespace only when
 #:   immediately followed by a quote character — never bare — keeping the
 #:   shovel-operator distinction intact while still matching this real
 #:   heredoc form.
 #: - A backslash-quoted delimiter (`print <<\EOF;`, perlop's no-interpolation
-#:   shorthand for `<<'EOF'`) is matched by including `\` alongside `'`/`"`
-#:   in the optional marker class. Over-matching an opener costs at most a
-#:   spurious carry-forward loss (marking replaces a line with itself,
-#:   byte-exact, never creating a collision); missing one is the unsafe
-#:   direction this whole grammar exists to close.
-_HEREDOC_GRAMMARS = {
-    ".rb": (
-        re.compile(r"<<([~-]?)['\"]?([A-Za-z_][A-Za-z0-9_]*)['\"]?"),
-        _bareish_heredoc_close,
-    ),
-    ".pl": (
-        re.compile(r"<<(~?)(?:\s+(?=['\"]))?['\"\\]?([A-Za-z_][A-Za-z0-9_]*)['\"]?"),
-        _bareish_heredoc_close,
-    ),
-    ".php": (
-        # The leading `()` is an empty capture group, not a mistake: it pads
-        # PHP's regex so the delimiter identifier still lands in group 2,
-        # matching the `.rb`/`.pl` group numbering that `_heredoc_body_marks`
-        # unpacks uniformly across every grammar. PHP has no modifier axis.
-        re.compile(r"<<<\s*()['\"]?([A-Za-z_][A-Za-z0-9_]*)['\"]?"),
-        # `.lstrip()` (never `.strip()` — see `_bareish_heredoc_close`'s
-        # docstring for why trailing whitespace must not be stripped) plus
-        # `.rstrip(";,)")` for a real PHP heredoc closer, which may be
-        # trailed by a statement terminator, an array-element comma, or a
-        # call-argument close-paren. Known, accepted residual: this still
-        # makes PHP's close check looser than the "more body, never less"
-        # rule above for trailing PUNCTUATION — a body line reading exactly
-        # `TXT)` would false-close. Not fixed here: distinguishing "closer
-        # plus trailing punctuation" from "body line matching that shape"
-        # needs the actual PHP closer grammar (identifier alone on the line,
-        # optionally re-indented per PHP 7.3+), not a per-language regex
-        # tweak.
-        lambda line, ident, _modifier: line.lstrip().rstrip(";,)") == ident,
-    ),
-}
-_HEREDOC_GRAMMARS[".pm"] = _HEREDOC_GRAMMARS[".pl"]
-_HEREDOC_GRAMMARS[".tf"] = _HEREDOC_GRAMMARS[".hcl"] = _HEREDOC_GRAMMARS[".rb"]
+#:   shorthand for `<<'EOF'`) is matched by an optional `\` before the
+#:   unquoted alternative. Over-matching an opener costs at most a spurious
+#:   carry-forward loss (marking replaces a line with itself, byte-exact,
+#:   never creating a collision); missing one is the unsafe direction this
+#:   whole grammar exists to close.
+_HEREDOC_GRAMMARS = MappingProxyType(
+    {
+        ".rb": _RUBY_FORMS,
+        ".tf": _RUBY_FORMS,
+        ".hcl": _RUBY_FORMS,
+        ".pl": _PERL_FORMS,
+        ".pm": _PERL_FORMS,
+        ".php": _PHP_FORMS,
+        ".lua": _LUA_FORMS,
+        ".sql": _SQL_FORMS,
+        ".go": _BACKTICK_FORMS,
+        ".js": _BACKTICK_FORMS,
+        ".jsx": _BACKTICK_FORMS,
+        ".mjs": _BACKTICK_FORMS,
+        ".cjs": _BACKTICK_FORMS,
+        ".ts": _BACKTICK_FORMS,
+        ".tsx": _BACKTICK_FORMS,
+        ".mts": _BACKTICK_FORMS,
+        ".cts": _BACKTICK_FORMS,
+        ".cc": _CPP_FORMS,
+        ".cpp": _CPP_FORMS,
+        ".cxx": _CPP_FORMS,
+        ".hpp": _CPP_FORMS,
+        ".hxx": _CPP_FORMS,
+        ".h": _CPP_FORMS,
+    }
+)
+
 
 
 def _heredoc_body_marks(lines: list, suffix: str) -> list:
@@ -339,35 +565,84 @@ def _heredoc_body_marks(lines: list, suffix: str) -> list:
     always part of the same hunk as any body line it covers — this function
     only needs to reason within one hunk side, never across hunks.
 
-    A line that closes the head of the queue is not re-scanned for a new
-    opener of its own. Sound only because every `is_close` in
-    `_HEREDOC_GRAMMARS` requires the entire (stripped) line to equal the
-    ident, so a closing line can never also carry an opener — there is no
-    "fresh opener on the closer's line" case to miss today. A grammar with a
-    looser closer would need the opener scan to run on the closing line too,
-    or the following body would silently fall back to whitespace
-    collapsing.
+    A line that closes a heredoc is not re-scanned for a new opener of its
+    own, because `_line_terminated` reports that the terminator consumed the
+    whole line. That is sound only for grammars whose closer IS the entire
+    (stripped) line. INLINE grammars (#1660/#1661 — Lua long brackets, SQL
+    dollar-quoting, Go/JS backticks, C++ raw strings, PHP inline HTML) have a
+    genuinely looser closer, so `_delimited` reports the position just past
+    the delimiter and the scan resumes there — the "fresh opener on the
+    closer's line" case this docstring previously recorded as a hazard a
+    looser grammar would reopen.
 
     An opener line itself is never marked — evident intent, and it usually
     carries no body content (`sql = <<~SQL`) — only lines strictly after it,
-    through and including whatever line closes it.
+    through and including whatever line closes it. For inline forms the
+    opener line is additionally already byte-exact under `_canonical_line`'s
+    quote-character rule wherever the delimiter is a quote character.
     """
-    grammar = _HEREDOC_GRAMMARS.get(suffix)
-    if grammar is None:
+    grammars = _HEREDOC_GRAMMARS.get(suffix)
+    if not grammars:
         return [False] * len(lines)
-    open_re, is_close = grammar
     marks = [False] * len(lines)
-    pending: list = []  # FIFO of (ident, modifier); bodies close in this order
-    for i, line in enumerate(lines):
+    # FIFO of (ident, modifier, close); bodies close in the order opened.
+    pending: list = []
+    for index, line in enumerate(lines):
+        position = 0
         if pending:
-            marks[i] = True
-            ident, modifier = pending[0]
-            if is_close(line, ident, modifier):
+            marks[index] = True
+            while pending:
+                ident, modifier, close = pending[0]
+                end = close(line, ident, modifier, position)
+                if end is None:
+                    break
                 pending.pop(0)
-            continue
-        for match in open_re.finditer(line):
-            pending.append((match.group(2), match.group(1)))
+                position = end
+            if pending:
+                continue
+        _enqueue_openers(line, position, grammars, pending)
     return marks
+
+
+def _enqueue_openers(line: str, position: int, grammars, pending: list) -> None:
+    """Enqueue every region opened at or after `position` on `line`.
+
+    Openers are consumed in POSITIONAL order across ALL of a language's
+    grammars, not one grammar at a time, so a line mixing two forms (PHP's
+    `<<<TXT` heredoc and its `?>` inline-HTML region) enqueues them in the
+    order their bodies actually close. Scanning grammar-by-grammar would
+    invert that order and pair a body with the wrong closer.
+
+    An INLINE region that closes on its own line spills nothing into the
+    following lines, so the scan simply resumes past it. One that does NOT
+    close consumes the rest of the line by definition — no further opener can
+    start inside it — so the scan stops. A heredoc opener never consumes its
+    own line: stacked openers (`assert_equal(<<~A, <<~B)`) are ordinary
+    idioms, and all of them must be enqueued.
+    """
+    while position <= len(line):
+        best = None
+        for grammar in grammars:
+            match = grammar.open_re.search(line, position)
+            if match is None:
+                continue
+            if best is None or match.start() < best[0].start():
+                best = (match, grammar)
+        if best is None:
+            return
+        match, grammar = best
+        ident, modifier = _opener_parts(match)
+        # Never let a zero-width match stall the scan.
+        advanced = max(match.end(), match.start() + 1)
+        if grammar.inline:
+            closed_at = grammar.close(line, ident, modifier, match.end())
+            if closed_at is not None:
+                position = max(closed_at, advanced)
+                continue
+            pending.append((ident, modifier, grammar.close))
+            return
+        pending.append((ident, modifier, grammar.close))
+        position = advanced
 
 
 #: Field/record separators for the canonical serialization. Chosen from the
@@ -378,6 +653,15 @@ def _heredoc_body_marks(lines: list, suffix: str) -> list:
 #: an assumption about content an attacker supplies (#1631 review).
 _FIELD_SEP = "\x1f"
 _RECORD_SEP = "\x1e"
+
+#: Bounds on the one caller that asks git for whole-file context (#1663).
+#: Both are fail-closed: exceeding either returns `None`, which every caller
+#: already treats as "this lens is not decisive", never as a pass.
+#: `run_safe_git_diff` had no timeout at all, so a wedged or pathologically
+#: slow `git diff` hung the `pre_commit_review.py` PreToolUse hook
+#: indefinitely.
+_GIT_DIFF_TIMEOUT_SECONDS = 30.0
+_MAX_PATCH_BYTES = 8 * 1024 * 1024
 
 
 def _encode(parts) -> str:
@@ -420,7 +704,7 @@ def _is_documentation(path: str) -> bool:
     return is_doc_only_changeset([path])
 
 
-def _extension(path: str) -> str | None:
+def _suffix(path: str) -> str | None:
     """Lowercased extension including the dot, or None for an extensionless
     file — shared by `_whitespace_collapsible` and the heredoc grammar
     lookup so the two never disagree about what a path's extension is."""
@@ -435,7 +719,7 @@ def _whitespace_collapsible(path: str) -> bool:
     delimited. Everything else — including every unknown extension and every
     extensionless file — is compared byte-exactly. Fail-closed by default:
     the safe answer to "is this language's indentation meaningless?" is no."""
-    suffix = _extension(path)
+    suffix = _suffix(path)
     if suffix is None or suffix in _INDENT_SIGNIFICANT_EXTENSIONS:
         return False
     return suffix in _WHITESPACE_INSIGNIFICANT_EXTENSIONS
@@ -518,19 +802,30 @@ class _FileSection:
         return self.path is not None or self.old_path is not None
 
 
-def _parse_hunk_header(raw: str) -> tuple[int, int] | None:
-    """`(old_count, new_count)` from an `@@ -a,b +c,d @@` header.
+def _parse_hunk_header(raw: str) -> tuple[int, int, int, int] | None:
+    """`(old_count, new_count, old_start, new_start)` from an `@@ -a,b +c,d @@`
+    header.
 
     An omitted count means 1 (`@@ -1 +1 @@`). Returns `None` for anything
     that is not a well-formed unified-diff hunk header, including the
     combined `@@@` form, which this module never asks git to produce.
+
+    The START lines were previously parsed and discarded, with a comment
+    explaining that they shift whenever an earlier hunk gains or loses a line
+    while the counts are what bound the body. That reasoning went stale in
+    #1638: the heredoc grammars made "does this hunk begin at the top of the
+    file" a question the digest depends on, because an opener above a hunk is
+    only visible when the hunk reaches back to line 1. #1662 makes them
+    load-bearing again — see `normalize_patch`.
     """
     match = _HUNK_HEADER_RE.match(raw)
     if match is None:
         return None
+    old_start = int(match.group(1))
     old_count = int(match.group(2)) if match.group(2) is not None else 1
+    new_start = int(match.group(3))
     new_count = int(match.group(4)) if match.group(4) is not None else 1
-    return old_count, new_count
+    return old_count, new_count, old_start, new_start
 
 
 def normalize_patch(patch_text: str) -> str | None:
@@ -560,12 +855,14 @@ def normalize_patch(patch_text: str) -> str | None:
     new_side: list = []
     old_remaining = 0
     new_remaining = 0
+    old_start = 0
+    new_start = 0
     in_hunk = False
 
     def close_hunk() -> None:
         nonlocal old_side, new_side, in_hunk
         if in_hunk and current is not None:
-            current.hunks.append((old_side, new_side))
+            current.hunks.append((old_side, new_side, old_start, new_start))
         old_side, new_side = [], []
         in_hunk = False
 
@@ -623,7 +920,7 @@ def normalize_patch(patch_text: str) -> str | None:
                 counts = _parse_hunk_header(raw)
                 if counts is None:
                     return None
-                old_remaining, new_remaining = counts
+                old_remaining, new_remaining, old_start, new_start = counts
                 in_hunk = True
                 if old_remaining <= 0 and new_remaining <= 0:
                     # A degenerate `@@ -0,0 +0,0 @@`: nothing to consume.
@@ -647,14 +944,38 @@ def normalize_patch(patch_text: str) -> str | None:
             if section.has_real_path and _is_documentation(name):
                 continue
             collapsible = _whitespace_collapsible(name)
-            suffix = _extension(name)
+            suffix = _suffix(name)
             parts = list(section.structural)
             if section.binary:
                 # The blob SHAs are the only content signal a textual diff
                 # exposes for a binary file, and without them any binary
                 # replacement is invisible to this digest.
                 parts.append(section.index_line or "binary")
-            for old_lines, new_lines in section.hunks:
+            grammared = suffix in _HEREDOC_GRAMMARS
+            for old_lines, new_lines, hunk_old_start, hunk_new_start in section.hunks:
+                if grammared and (hunk_old_start > 1 or hunk_new_start > 1):
+                    # #1662: `_heredoc_body_marks` can only see an opener that
+                    # is inside the hunk it is given. `normalized_gate_hash`
+                    # asks for `--unified=100000` so that in practice every
+                    # hunk spans the whole file — but that is a magic number,
+                    # not a guarantee. A file longer than that context window
+                    # still yields a hunk starting partway down, and an opener
+                    # ABOVE it is invisible: the exact hazard the grammars
+                    # exist to close, silently reopened, and failing OPEN
+                    # rather than closed. Rather than trust the number, detect
+                    # the condition it is supposed to make impossible and fall
+                    # back to byte-exact for this hunk. Costs a carry-forward
+                    # on files past the window; costs nothing otherwise, since
+                    # a whole-file hunk starts at line 1 by construction.
+                    # A pure add/delete reports start 0 on its empty side, so
+                    # `> 1` (not `!= 1`) is what keeps those on the fast path.
+                    old_canon = list(old_lines)
+                    new_canon = list(new_lines)
+                    if old_canon == new_canon:
+                        continue
+                    parts.append("\n".join(old_canon))
+                    parts.append("\n".join(new_canon))
+                    continue
                 old_heredoc = _heredoc_body_marks(old_lines, suffix)
                 new_heredoc = _heredoc_body_marks(new_lines, suffix)
                 old_canon = [
@@ -728,11 +1049,25 @@ def normalized_gate_hash(cwd=None, target: str = "--cached") -> str | None:
             cwd=cwd,
             text=False,
             target=target,
+            timeout=_GIT_DIFF_TIMEOUT_SECONDS,
         )
-    except (FileNotFoundError, OSError):
+    except (FileNotFoundError, OSError, subprocess.SubprocessError):
+        # `SubprocessError` covers `TimeoutExpired`, which is NOT an `OSError`
+        # subclass. Fail closed, matching every other failure path here.
         return None
 
     if completed.returncode != 0:
+        return None
+
+    if len(completed.stdout) > _MAX_PATCH_BYTES:
+        # #1663: `--unified=100000` turns a one-line edit to a large tracked
+        # file into a whole-file diff, and `normalize_patch` holds several
+        # full in-memory copies of it (split lines, per-hunk old/new sides,
+        # canonicalized sides, joined strings, encoded records). `.json` is a
+        # whitespace-insignificant extension, so an ordinary lockfile touch
+        # hits this path on every commit. Refusing above the cap costs a
+        # carry-forward on very large files; processing an unbounded payload
+        # synchronously inside a PreToolUse hook costs the commit.
         return None
 
     try:
