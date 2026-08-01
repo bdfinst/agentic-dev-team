@@ -1,5 +1,12 @@
 # Changelog
 
+## [3.7.2](https://github.com/bdfinst/agentic-dev-team/compare/security-assessment-v3.7.1...security-assessment-v3.7.2) (2026-08-01)
+
+
+### Bug Fixes
+
+* **ci:** raise the shipped Python floor from 3.8 to 3.10 ([#1682](https://github.com/bdfinst/agentic-dev-team/issues/1682)) ([6230ae8](https://github.com/bdfinst/agentic-dev-team/commit/6230ae8aa7a88a586ad8b236af640bb152ab0b42))
+
 ## [3.7.1](https://github.com/bdfinst/agentic-dev-team/compare/security-assessment-v3.7.0...security-assessment-v3.7.1) (2026-07-26)
 
 
