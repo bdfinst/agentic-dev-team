@@ -167,101 +167,124 @@ class TestNormalizePatch:
         assert ngh.normalized_gate_hash(tmp_path) is None
 
 
+#: `(path, opener, closer)` for every form whose body is line-granular
+#: (heredocs) or delimiter-granular (inline spans). Collapsed from seven
+#: hand-copied near-duplicates (#1666): each differed only in these three
+#: literals while sharing one arrange-act-assert shape, and the copies had
+#: already drifted — some asserted the non-empty postcondition, some did
+#: not. Cases with a genuinely different assertion shape stay separate
+#: tests below.
+_REINDENT_FORMS = [
+    ("a.rb", "sql = <<~SQL", "SQL"),
+    ("a.rb", "x = <<-EOF", "  EOF"),
+    ("a.rb", "x = <<EOF", "EOF"),
+    ("a.rb", "r = <<`EOC`", "EOC"),
+    ("a.rb", "s = <<~'1SQL'", "1SQL"),
+    ("a.php", "$msg = <<<TXT", "TXT;"),
+    ("a.pl", "my $t = <<EOF;", "EOF"),
+    ("a.pl", 'print << "EOF";', "EOF"),
+    ("a.pl", "print <<\\EOF;", "EOF"),
+    ("a.tf", "user_data = <<-EOT", "  EOT"),
+    ("a.lua", "local s = [[", "]]"),
+    ("a.lua", "local s = [==[", "]==]"),
+    ("a.sql", "CREATE FUNCTION f() RETURNS int AS $$", "$$"),
+    ("a.sql", "CREATE FUNCTION f() RETURNS int AS $body$", "$body$"),
+    ("a.go", "s := `", "`"),
+    ("a.ts", "const s = `", "`;"),
+    ("a.js", "const s = `", "`;"),
+    ("a.cpp", 'auto s = R"(', ')";'),
+    ("a.cpp", 'auto s = R"xy(', ')xy";'),
+]
+
+
 class TestHeredocBodies:
     """#1638. Unquoted heredoc bodies carry no quote character, so the rule
     in `_canonical_line` that keeps string data out of the cosmetic bucket
     never sees them. Each language test opens, reindents, and closes a
     heredoc within one hunk — the shape `_heredoc_body_marks` reasons over."""
 
-    def test_ruby_squiggly_heredoc_reindent_survives(self):
-        before = _patch(
-            "a.rb",
-            ["sql = <<~SQL", "  SELECT * FROM users WHERE role = admin", "SQL"],
-            ["sql = <<~SQL", "  SELECT * FROM users WHERE role = admin", "SQL"],
-        )
-        after = _patch(
-            "a.rb",
-            ["sql = <<~SQL", "  SELECT * FROM users WHERE role = admin", "SQL"],
-            ["sql = <<~SQL", "    SELECT * FROM users WHERE role = admin", "SQL"],
-        )
+    @pytest.mark.parametrize("path, opener, closer", _REINDENT_FORMS)
+    def test_reindenting_a_multiline_literal_body_survives(self, path, opener, closer):
+        """Reindenting a line INSIDE an unquoted multi-line literal is a data
+        change, and must never normalize away as cosmetic. Covers #1638's
+        original heredoc forms plus #1660's Lua long brackets and SQL
+        dollar-quoting, #1661's Go/JS/TS/C++ raw-string forms, and #1667's
+        Ruby backtick, quoted-digit-leading, and Perl empty-delimiter
+        openers."""
+        body = "  literal text that matters"
+        unchanged = [opener, body, closer]
+        reindented = [opener, "  " + body, closer]
+        before = _patch(path, unchanged, list(unchanged))
+        after = _patch(path, unchanged, reindented)
         assert ngh.normalize_patch(before) != ngh.normalize_patch(after)
         assert ngh.normalize_patch(after) not in ("", None)
 
-    def test_ruby_dash_heredoc_reindent_survives(self):
-        before = _patch("a.rb", ["x = <<-EOF", "  body", "  EOF"], ["x = <<-EOF", "  body", "  EOF"])
-        after = _patch("a.rb", ["x = <<-EOF", "  body", "  EOF"], ["x = <<-EOF", "    body", "  EOF"])
-        assert ngh.normalize_patch(before) != ngh.normalize_patch(after)
-
-    def test_ruby_bare_heredoc_reindent_survives(self):
-        before = _patch("a.rb", ["x = <<EOF", "  body", "EOF"], ["x = <<EOF", "  body", "EOF"])
-        after = _patch("a.rb", ["x = <<EOF", "  body", "EOF"], ["x = <<EOF", "    body", "EOF"])
-        assert ngh.normalize_patch(before) != ngh.normalize_patch(after)
-
-    def test_php_heredoc_reindent_survives(self):
-        before = _patch(
-            "a.php",
-            ["$msg = <<<TXT", "  Dear customer, your balance is overdue", "TXT;"],
-            ["$msg = <<<TXT", "  Dear customer, your balance is overdue", "TXT;"],
-        )
-        after = _patch(
-            "a.php",
-            ["$msg = <<<TXT", "  Dear customer, your balance is overdue", "TXT;"],
-            ["$msg = <<<TXT", "    Dear customer, your balance is overdue", "TXT;"],
-        )
+    def test_perl_empty_delimiter_heredoc_reindent_survives(self):
+        """#1667: Perl's `<<"";` is terminated by a BLANK line, so its closer
+        is the empty string rather than an identifier — a shape the shared
+        `(opener, closer)` parametrization above cannot express."""
+        unchanged = ['print <<"";', "  literal text", ""]
+        reindented = ['print <<"";', "    literal text", ""]
+        before = _patch("a.pl", unchanged, list(unchanged))
+        after = _patch("a.pl", unchanged, reindented)
         assert ngh.normalize_patch(before) != ngh.normalize_patch(after)
         assert ngh.normalize_patch(after) not in ("", None)
 
-    def test_perl_shell_style_heredoc_reindent_survives(self):
-        """Perl and shell share the `<<EOF` grammar (the issue's own grouping
-        of the two); `.pl`/`.pm` are the tracked extension, matching
-        `_WHITESPACE_INSIGNIFICANT_EXTENSIONS`."""
-        before = _patch(
-            "a.pl",
-            ["my $t = <<EOF;", "  literal text that matters", "EOF"],
-            ["my $t = <<EOF;", "  literal text that matters", "EOF"],
-        )
-        after = _patch(
-            "a.pl",
-            ["my $t = <<EOF;", "  literal text that matters", "EOF"],
-            ["my $t = <<EOF;", "    literal text that matters", "EOF"],
-        )
+    def test_php_inline_html_reindent_survives(self):
+        """#1660: text between `?>` and the next `<?` is emitted verbatim, so
+        reindenting it changes program OUTPUT."""
+        unchanged = ["<?php $a = 1; ?>", "  <div>hello</div>", "<?php $b = 2;"]
+        reindented = ["<?php $a = 1; ?>", "    <div>hello</div>", "<?php $b = 2;"]
+        before = _patch("a.php", unchanged, list(unchanged))
+        after = _patch("a.php", unchanged, reindented)
         assert ngh.normalize_patch(before) != ngh.normalize_patch(after)
         assert ngh.normalize_patch(after) not in ("", None)
 
-    def test_perl_spaced_quoted_heredoc_opener_reindent_survives(self):
-        """Perl legally allows whitespace before a QUOTED delimiter
-        (`print << "EOF";`) — only the bare spaced form (`<< EOF`) is
-        deprecated/fatal. The `.pl` regex must still catch this: missing it
-        would be a false negative on a real heredoc, the unsafe direction."""
-        before = _patch(
-            "a.pl",
-            ['print << "EOF";', "  literal text that matters", "EOF"],
-            ['print << "EOF";', "  literal text that matters", "EOF"],
-        )
-        after = _patch(
-            "a.pl",
-            ['print << "EOF";', "  literal text that matters", "EOF"],
-            ['print << "EOF";', "    literal text that matters", "EOF"],
-        )
-        assert ngh.normalize_patch(before) != ngh.normalize_patch(after)
-        assert ngh.normalize_patch(after) not in ("", None)
+    def test_an_inline_literal_closed_on_its_own_line_does_not_swallow_the_rest(self):
+        """A one-line template literal closes where it opened, so following
+        lines stay eligible for whitespace collapsing. Without the positional
+        resume in `_enqueue_openers` an inline grammar would mark the entire
+        remainder of every hunk containing one backtick pair."""
+        assert ngh._heredoc_body_marks(["const s = `abc`;", "  code()"], ".ts") == [
+            False,
+            False,
+        ]
 
-    def test_perl_backslash_quoted_heredoc_opener_reindent_survives(self):
-        """`<<\\EOF` (perlop: no-interpolation shorthand for `<<'EOF'`) must
-        still be recognized as an opener — missing it is a false negative on
-        a real heredoc, the unsafe direction this grammar exists to close."""
-        before = _patch(
-            "a.pl",
-            ["print <<\\EOF;", "  literal text that matters", "EOF"],
-            ["print <<\\EOF;", "  literal text that matters", "EOF"],
-        )
-        after = _patch(
-            "a.pl",
-            ["print <<\\EOF;", "  literal text that matters", "EOF"],
-            ["print <<\\EOF;", "    literal text that matters", "EOF"],
-        )
+    def test_an_inline_literal_may_reopen_on_the_line_that_closed_it(self):
+        """The case the pre-#1660 scanner could not represent: a closer line
+        that also carries a fresh opener. Marking must continue past it."""
+        assert ngh._heredoc_body_marks(["a := `", "x", "` + `", "y", "`"], ".go") == [
+            False,
+            True,
+            True,
+            True,
+            True,
+        ]
+
+    @pytest.mark.parametrize(
+        "suffix, line",
+        [(".lua", "t[idx] = other[key]"), (".sql", "SELECT cost * 2 FROM t")],
+    )
+    def test_inline_grammars_do_not_false_open_on_ordinary_code(self, suffix, line):
+        """Lua's `[[` and SQL's `$...$` must not match ordinary indexing or
+        arithmetic — a false opener marks the rest of the hunk byte-exact,
+        which is safe but costs every carry-forward on the file."""
+        assert ngh._heredoc_body_marks([line, "  next_line()"], suffix) == [False, False]
+
+    def test_xml_is_compared_byte_exactly(self):
+        """#1660: `.xml` was dropped from `_WHITESPACE_INSIGNIFICANT_EXTENSIONS`
+        rather than given a grammar — element text and CDATA preserve
+        whitespace across most of a document."""
+        assert ".xml" not in ngh._WHITESPACE_INSIGNIFICANT_EXTENSIONS
+        before = _patch("a.xml", ["  <note>text</note>"], ["  <note>text</note>"])
+        after = _patch("a.xml", ["  <note>text</note>"], ["    <note>text</note>"])
         assert ngh.normalize_patch(before) != ngh.normalize_patch(after)
-        assert ngh.normalize_patch(after) not in ("", None)
+
+    def test_the_grammar_table_cannot_be_mutated_by_an_importer(self):
+        """#1665: a safety-relevant table that any importer could rewrite at
+        runtime. Its sibling language tables are already `frozenset`."""
+        with pytest.raises(TypeError):
+            ngh._HEREDOC_GRAMMARS[".rb"] = ()
 
     def test_indented_closer_with_trailing_whitespace_does_not_false_close(self):
         """#1638 regression: `_bareish_heredoc_close` used `.strip()` for the
@@ -486,6 +509,100 @@ class TestHeredocBodies:
             "a heredoc-body reindent must never normalize to nothing, even when its "
             "opener sits outside git's default hunk context"
         )
+
+
+class TestHunkStartGuard:
+    """#1662. `--unified=100000` was trusted to guarantee every hunk spans the
+    whole file, so a heredoc opener above a changed body line is always
+    visible. That is a magic number, not a guarantee: a file longer than the
+    context window still yields a hunk starting partway down, and an opener
+    above it is invisible — failing OPEN, the one exception to this module's
+    fail-closed posture."""
+
+    @staticmethod
+    def _offset_patch(path: str, removed: list, added: list, start: int) -> str:
+        lines = [
+            f"diff --git a/{path} b/{path}",
+            f"--- a/{path}",
+            f"+++ b/{path}",
+            f"@@ -{start},{len(removed)} +{start},{len(added)} @@",
+        ]
+        lines += [f"-{ln}" for ln in removed]
+        lines += [f"+{ln}" for ln in added]
+        return "\n".join(lines) + "\n"
+
+    def test_a_hunk_not_starting_at_line_one_is_byte_exact_for_grammared_files(self):
+        """The body could be inside a heredoc opened above the window. Without
+        the guard this reindent normalizes away as cosmetic."""
+        before = self._offset_patch("a.rb", ["  body text"], ["  body text"], 5000)
+        after = self._offset_patch("a.rb", ["  body text"], ["    body text"], 5000)
+        assert ngh.normalize_patch(before) != ngh.normalize_patch(after)
+        assert ngh.normalize_patch(after) not in ("", None)
+
+    def test_a_whole_file_hunk_still_takes_the_normal_path(self):
+        """A hunk starting at line 1 has its openers in view by construction,
+        so the guard must not cost the invariance this module exists for."""
+        before = self._offset_patch("a.rb", ["  x = 1"], ["  x = 1"], 1)
+        after = self._offset_patch("a.rb", ["  x = 1"], ["      x = 1"], 1)
+        assert ngh.normalize_patch(before) == ngh.normalize_patch(after) == ""
+
+    def test_an_added_file_reports_start_zero_and_still_collapses(self):
+        """A pure add is `@@ -0,0 +1,n @@`. `> 1` (not `!= 1`) is what keeps
+        that on the fast path."""
+        patch = (
+            "diff --git a/a.rb b/a.rb\n"
+            "--- /dev/null\n"
+            "+++ b/a.rb\n"
+            "@@ -0,0 +1,1 @@\n"
+            "+  x = 1\n"
+        )
+        assert ngh.normalize_patch(patch) not in (None,)
+
+    def test_an_offset_hunk_in_a_grammarless_language_is_unaffected(self):
+        """The guard is scoped to extensions with a grammar — everything else
+        already had no opener to miss."""
+        before = self._offset_patch("a.java", ["  int x = 1;"], ["  int x = 1;"], 900)
+        after = self._offset_patch("a.java", ["  int x = 1;"], ["      int x = 1;"], 900)
+        assert ngh.normalize_patch(before) == ngh.normalize_patch(after) == ""
+
+
+class TestNormalizerBounds:
+    """#1663. `--unified=100000` turns a one-line edit to a large tracked file
+    into a whole-file diff, processed synchronously inside a PreToolUse hook
+    with no subprocess timeout and no cap on the payload."""
+
+    def test_the_git_diff_call_carries_an_explicit_timeout(self, monkeypatch):
+        seen = {}
+
+        def fake(extra_flags, cwd=None, text=False, target="--cached", timeout=None):
+            seen["timeout"] = timeout
+            raise AssertionError("stop after recording")
+
+        monkeypatch.setattr(ngh, "run_safe_git_diff", fake)
+        with pytest.raises(AssertionError):
+            ngh.normalized_gate_hash()
+        assert seen["timeout"] == ngh._GIT_DIFF_TIMEOUT_SECONDS
+        assert seen["timeout"] > 0
+
+    def test_a_timed_out_git_diff_fails_closed(self, monkeypatch):
+        """`TimeoutExpired` is a `SubprocessError`, NOT an `OSError` — the
+        pre-existing `except (FileNotFoundError, OSError)` would not have
+        caught it, and an uncaught raise inside the hook is not fail-closed."""
+
+        def fake(*_args, **_kwargs):
+            raise subprocess.TimeoutExpired(cmd=["git", "diff"], timeout=1)
+
+        monkeypatch.setattr(ngh, "run_safe_git_diff", fake)
+        assert ngh.normalized_gate_hash() is None
+
+    def test_an_oversized_patch_fails_closed(self, monkeypatch):
+        oversized = b"x" * (ngh._MAX_PATCH_BYTES + 1)
+
+        def fake(*_args, **_kwargs):
+            return subprocess.CompletedProcess(["git"], 0, stdout=oversized, stderr=b"")
+
+        monkeypatch.setattr(ngh, "run_safe_git_diff", fake)
+        assert ngh.normalized_gate_hash() is None
 
 
 class TestNormalizationCollisions:
