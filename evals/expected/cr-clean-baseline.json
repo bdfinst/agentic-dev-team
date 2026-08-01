@@ -4,8 +4,12 @@
   "applicableAgents": ["correctness-review"],
   "agents": {
     "correctness-review": {
-      "expectedStatus": "pass",
-      "issueCount": { "min": 0, "max": 2 }
+      "expectedStatus": "warn",
+      "issueCount": { "min": 0, "max": 2 },
+      "_calibration": {
+        "source": "measured",
+        "note": "#1639 part 2 added Detect category 6 (unverified runtime/library claim). A measured run against this fixture found 2 genuine category-6 findings (the docstring's unprobed 'Git Bash surfaces forward slashes on Windows' claim, and the unprobed '.sh byte-parity' claim) — both suggestion-severity, no observed defect, issueCount still within the existing 0-2 budget. Per the shared output contract, any issue (even suggestion-severity) makes status 'warn' rather than 'pass', so expectedStatus was updated from 'pass' to 'warn' to match. Not a detection regression: the agent correctly declined to flag two other candidate claims in the same file (order-preservation, Python-3.8-floor) as out of category-6's scope."
+      }
     }
   }
 }
