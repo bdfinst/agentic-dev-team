@@ -78,7 +78,19 @@ intend to commit from the session — it adds a minute to setup.)
 
 ## Verify it worked
 
-Run the headless probe in the session. It boots a fresh Claude, lists every
+The Setup script must `exit 0` even when provisioning went wrong, so it can only
+*report* a broken toolchain — it can never refuse to hand one over. Two things
+close that gap:
+
+- [`scripts/verify_toolchain.py`](../scripts/verify_toolchain.py) — runs every
+  tool instead of probing `PATH`, so an installed-but-unstartable tool fails
+  instead of passing. The Setup script calls it at the end; run it yourself any
+  time with `python3 scripts/verify_toolchain.py`.
+- [`cloud-startup-prompt.md`](cloud-startup-prompt.md) — the first message to
+  send in a fresh session, so Claude checks the environment (and the baseline
+  gate result) before it starts changing code.
+
+Then run the headless probe in the session. It boots a fresh Claude, lists every
 available skill, and counts the `dev-team:*` ones:
 
 ```bash

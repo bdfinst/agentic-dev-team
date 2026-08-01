@@ -25,8 +25,64 @@ python3 -m pip install --quiet -r requirements-dev.txt \
   || pip3 install --quiet -r requirements-dev.txt \
   || true
 
+# Repair the interpreter after the requirements-dev.txt install.
+#
+# On Debian/Ubuntu images, `pip install semgrep` pulls a newer PyJWT into
+# user-site but CANNOT remove the distro-packaged one ("Cannot uninstall PyJWT
+# 2.7.0, RECORD file not found. Hint: The package was installed by debian").
+# The surviving mix leaves user-site `jwt` importing the SYSTEM `cryptography`,
+# whose Rust bindings then abort with
+# `ModuleNotFoundError: No module named '_cffi_backend'` — a pyo3 panic, not a
+# catchable ImportError. semgrep imports jwt, so semgrep dies on startup while
+# still sitting on PATH looking perfectly healthy. Downstream, every
+# plugins/security-assessment/ rule reports NO-FIRE and the fixture audit fails
+# with no clue why. Reinstalling both into user-site makes the resolution
+# consistent. Cheap, idempotent, and harmless when the conflict never happened.
+python3 -m pip install --quiet --user --upgrade --force-reinstall cffi cryptography || true
+
 # gh CLI (PR operations), if the image doesn't already ship it.
 command -v gh >/dev/null 2>&1 || apt-get install -y gh || true
+
+# --- uv: the installer for tools pip cannot build ---------------------------
+# Needed below for mutmut, and used by scripts/dev-setup.sh for the Python 3.8
+# floor interpreter and graphify.
+if ! command -v uv >/dev/null 2>&1; then
+  curl -fsSL https://astral.sh/uv/install.sh | sh >/dev/null 2>&1 || true
+fi
+export PATH="$HOME/.local/bin:$PATH"
+
+# --- mutmut: the Python mutation lane (/mutation-testing) -------------------
+# MUST be `mutmut<3`: mutmut 3.x changed its config/CLI contract (source_paths
+# in a [mutmut] setup.cfg section, no --paths-to-mutate) and the shipped
+# adapter (plugins/dev-team/hooks/mutation_adapters/mutmut.py) does not speak it.
+#
+# MUST go through uv, not pip: mutmut 2.x depends on glob2 0.7, whose setup.py
+# uses `install_layout` and fails to build against setuptools >= 60 with
+# `AttributeError: install_layout`. uv's build isolation supplies a compatible
+# setuptools; a bare `pip install "mutmut<3"` fails outright on a modern image.
+# The adapter resolves it via shutil.which("mutmut"), so uv's isolated
+# console-script install is exactly what it looks for.
+if ! command -v mutmut >/dev/null 2>&1; then
+  uv tool install "mutmut<3" >/dev/null 2>&1 || true
+fi
+
+# --- adr-tools: /adr-tools + the adr-author agent ---------------------------
+# There is no apt package on Ubuntu. The scripts resolve their siblings through
+# `$(dirname $0)`, so EVERY executable in src/ has to land on PATH — symlinking
+# only `adr` yields "adr-config: No such file or directory".
+if ! command -v adr >/dev/null 2>&1; then
+  mkdir -p "$HOME/.local/opt" "$HOME/.local/bin" || true
+  if [ ! -d "$HOME/.local/opt/adr-tools" ]; then
+    git clone --depth 1 https://github.com/npryce/adr-tools \
+      "$HOME/.local/opt/adr-tools" >/dev/null 2>&1 || true
+  fi
+  for f in "$HOME"/.local/opt/adr-tools/src/*; do
+    case "$f" in *.md) continue ;; esac
+    if [ -f "$f" ]; then
+      ln -sf "$f" "$HOME/.local/bin/$(basename "$f")" || true
+    fi
+  done
+fi
 
 # --- Node + git hooks (husky) ----------------------------------------------
 # `npm ci` runs the package.json `prepare: husky` script, which writes the
@@ -72,5 +128,19 @@ else
   echo "cloud setup: claude CLI not found — skipping plugin install (run skills from files)."
 fi
 
-echo "agentic-dev-team cloud setup complete: jq shellcheck python-deps gh node+husky-hooks dev-team-plugin"
+# --- Verify by EXECUTING every tool, not by looking for it ------------------
+# The whole point of this step: `command -v <tool>` passes for a tool that
+# cannot start, so a provisioning run can report success and hand back a broken
+# environment. verify_toolchain.py spawns each tool and reads its exit status.
+#
+# Its non-zero exit is deliberately NOT propagated — a non-zero Setup script
+# fails session startup, and a partially-provisioned session you can see the
+# failures in beats no session at all. Read the ✗ lines; they name the tool and
+# quote the interpreter's own error.
+if [ -f scripts/verify_toolchain.py ]; then
+  python3 scripts/verify_toolchain.py || \
+    echo "cloud setup: WARNING — required tools above could not run; the gates that need them will fail."
+fi
+
+echo "agentic-dev-team cloud setup complete: jq shellcheck python-deps gh node+husky-hooks uv mutmut adr dev-team-plugin"
 exit 0
