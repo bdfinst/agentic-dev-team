@@ -40,6 +40,13 @@ _mkdocs_src/
 # capture-prone (issue #1487).
 .claude/project-stack.json
 
+# /project-init's Step 4c code-lookup decision state (which of CodeGraph /
+# Repowise / Graphify were installed, declined, or built --code-only). Same
+# machine-local, regeneratable, capture-prone class as the stack cache above
+# and written by the same /setup -> /project-init pass, so it needs the same
+# rule — the in-repo skip of /setup's Step 11 leaves it untracked otherwise.
+.claude/init-state.json
+
 # Runtime metrics — ignored by default (deny-by-default: metrics/ is
 # generated-runtime-data territory — session digests, telemetry, review-value,
 # verify-log, boundary-events, cost-metering, learning-loop state, ... — a new
