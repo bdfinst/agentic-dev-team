@@ -1,0 +1,40 @@
+{
+  "_comment": [
+    "The status-check contexts that must block a merge into main, and the",
+    "PR-triggered jobs deliberately exempted from blocking. This file is the",
+    "in-tree mirror of the `main` ruleset's required_status_checks; the ruleset",
+    "itself lives in repo settings, where nothing in the tree can see it.",
+    "",
+    "tests/repo/test_required_status_checks.py pins all three parties to each",
+    "other: every context here must name a real job, every PR-triggered job must",
+    "be required or listed in `exempt` with a reason, and — wherever an",
+    "authenticated `gh` can reach the API — this list must equal what the live",
+    "ruleset actually enforces. Editing this file without editing the ruleset",
+    "(or the reverse) fails that test.",
+    "",
+    "A context is matched by the job's `name:` string, so renaming a job here",
+    "and in the workflow but not in the ruleset leaves a check that still runs",
+    "and still reports green while no longer blocking anything."
+  ],
+  "required": [
+    "PR title lint",
+    "Eval corpus & graders",
+    "Eval corpus semver",
+    "Plugin content & hooks",
+    "Shell scripts & suite",
+    "Semgrep rule fixtures",
+    "Cost regression",
+    "Red-team harness smoke",
+    "Python 3.10 floor",
+    "Lint (ruff + eslint)",
+    "Docs nav integrity",
+    "Docs link check"
+  ],
+  "exempt": {
+    "Eval live regression (opt-in)": "Dispatches the real agents and costs model tokens. Runs only behind a 'run-eval' label plus ANTHROPIC_API_KEY, and skips (not fails) without them — a required check would report success on every PR that didn't opt in.",
+    "Eval integration tier (opt-in)": "Same opt-in posture as the live gate: real orchestrator dispatch, real tokens, label-gated.",
+    "Stryker.NET POSIX signal tests": "Path-filtered to the mutation wrapper. A path-filtered workflow reports NO status on PRs that don't match, so requiring it would deadlock every unrelated PR at 'Waiting for status to be reported'.",
+    "Orchestrator real-subprocess test": "Schedule and workflow_dispatch only — it shells out to the real `claude` CLI, whose outcome, latency, and cost vary by host. It reports no status on a PR at all.",
+    "Pytest on native Windows": "Path-filtered to the mutation wrapper for cost reasons (Windows runners), so it reports no status on unrelated PRs — same deadlock as the Stryker.NET signal tests above."
+  }
+}
