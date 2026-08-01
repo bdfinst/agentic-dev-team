@@ -1,26 +1,33 @@
 #!/usr/bin/env python3
 """autoship_group.py — deterministic issue grouping for `/dev-team:autoship` (Slice 1).
 
-Groups eligible `autoship:ready` (or `--label`) issues into batches using two
-native signals, via union-find:
+Groups eligible `autoship:ready` (or `--label`) issues into batches using
+three signals, via union-find:
 
 - **Native dependency**: issue A's `blockedBy`/`blocking` field names issue B,
   and B is also in the eligible input set.
 - **Shared parent**: two eligible issues name the same non-null `parent`
   issue number.
+- **Shared label**: two eligible issues carry any label in common outside
+  the `autoship:*` prefix AND outside the configured eligibility label
+  itself (every eligible issue carries that label by construction — see
+  `is_eligible` — so it can never be a grouping signal on its own,
+  regardless of whether it happens to start with `autoship:`).
 
-Issues with no signal at all land in `ungrouped`. This step implements only
-the two signals above — the shared-label signal and the `--max-batch-size`
-cap are later steps in this same slice and are not built here; the same
-union-find design lets each future signal be added as its own small,
+Issues with no signal at all land in `ungrouped`. Any batch larger than
+`--max-batch-size` (default 5) is trimmed to its oldest N members; the
+overflow members move to `ungrouped` rather than being dropped. The same
+union-find design lets each signal be added as its own small,
 independently-testable function (see `has_dependency_edge`/
-`has_shared_parent`) rather than one growing conditional.
+`has_shared_parent`/`has_shared_label`) rather than one growing conditional.
 
 Shares its `gh` fetch, `--input-file` schema validation, and eligibility
 filter with `autoship_discover.py` via `autoship_state.fetch_eligible_issues`
-— this script requests a richer field set (`blockedBy`, `blocking`, `parent`)
-on top of the base required fields, and operates on the FULL eligible pool
-(no `--max-issues`-style cap; that stays a downstream script's concern).
+— this script requests `blockedBy`/`blocking`/`parent` as `extra_fields` on
+top of the base required fields, so a live `gh` call fetches them but an
+`--input-file` fixture may omit them entirely (they're optional enrichment,
+not required schema). Operates on the FULL eligible pool (no
+`--max-issues`-style cap; that stays a downstream script's concern).
 
 Usage:
     autoship_group.py --label autoship:ready
@@ -43,15 +50,18 @@ sys.path.insert(0, str(_HERE / "lib"))
 import autoship_state
 
 DEFAULT_LABEL = autoship_state.READY_LABEL
+DEFAULT_MAX_BATCH_SIZE = 5
 
-# The base discovery fields plus the dependency/parent fields this script's
-# signals need — passed as both the `--input-file` schema requirement and
-# the live `gh issue list --json` field list (via `required_fields`).
-REQUIRED_ISSUE_FIELDS = autoship_state.BASE_REQUIRED_FIELDS + (
-    "blockedBy",
-    "blocking",
-    "parent",
-)
+# Every label starting with this prefix is excluded from the shared-label
+# signal — never a naming carve-out for one specific label.
+_AUTOSHIP_LABEL_PREFIX = "autoship:"
+
+# The dependency/parent fields this script's signals need, on top of
+# autoship_state.BASE_REQUIRED_FIELDS. Requested as `extra_fields` (not
+# `required_fields`) from `fetch_eligible_issues` — see `main()` — so they're
+# fetched from a live `gh` call but stay OPTIONAL on the `--input-file` path,
+# matching the plan's "no blockedBy/blocking data present" scenario.
+_DEPENDENCY_FIELDS = ("blockedBy", "blocking", "parent")
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -65,6 +75,12 @@ def build_parser() -> argparse.ArgumentParser:
         "--label",
         default=DEFAULT_LABEL,
         help=f"Label marking an issue eligible for autoship (default: {DEFAULT_LABEL!r}).",
+    )
+    parser.add_argument(
+        "--max-batch-size",
+        type=autoship_state.positive_int_validator("--max-batch-size"),
+        default=DEFAULT_MAX_BATCH_SIZE,
+        help=f"Maximum members per batch; overflow moves to ungrouped (default: {DEFAULT_MAX_BATCH_SIZE}).",
     )
     autoship_state.add_input_seam_args(parser)
     return parser
@@ -125,6 +141,63 @@ def has_shared_parent(a: dict[str, Any], b: dict[str, Any]) -> bool:
     return a_parent is not None and a_parent == b_parent
 
 
+def _non_autoship_label_names(issue: dict[str, Any], exclude_label: str) -> set[str]:
+    """Label names on `issue` outside the `autoship:*` prefix AND outside
+    `exclude_label`.
+
+    `exclude_label` is the CLI's configured eligibility label (`--label`,
+    not necessarily `autoship:*`-prefixed — see `build_parser`). Every
+    eligible issue carries it by construction (`is_eligible` requires it),
+    so without this exclusion every eligible pool would share it and
+    `has_shared_label` would collapse the entire pool into one batch.
+
+    The `autoship:*` exclusion is otherwise a plain, general rule — every
+    `autoship:*` label is excluded, with no carve-out for any specific one
+    (e.g. `autoship:batch-confirmed`). A later, wholly independent signal
+    function is what recognizes `autoship:batch-confirmed`; this function
+    must never special-case it.
+    """
+    names = set()
+    for label in issue.get("labels") or []:
+        name = label.get("name") if isinstance(label, dict) else label
+        if (
+            name
+            and name != exclude_label
+            and not name.startswith(_AUTOSHIP_LABEL_PREFIX)
+        ):
+            names.add(name)
+    return names
+
+
+def has_shared_label(a_labels: set[str], b_labels: set[str]) -> bool:
+    """True when `a_labels` and `b_labels` (each already filtered by
+    `_non_autoship_label_names`) share any label name."""
+    return bool(a_labels & b_labels)
+
+
+def _matches_any_signal(
+    a: dict[str, Any],
+    b: dict[str, Any],
+    exclude_label: str,
+    label_names_by_number: dict[int, set[str]],
+) -> bool:
+    """True when `a` and `b` match any grouping signal: native dependency,
+    shared parent, or a shared label (outside `autoship:*` and
+    `exclude_label`).
+
+    `label_names_by_number` is `group_issues`'s once-per-issue precomputed
+    label-name lookup — passed in rather than recomputed here so the O(n^2)
+    pairwise loop never re-scans an issue's label list more than once.
+    """
+    if has_dependency_edge(a, b):
+        return True
+    if has_shared_parent(a, b):
+        return True
+    return has_shared_label(
+        label_names_by_number[a["number"]], label_names_by_number[b["number"]]
+    )
+
+
 class _UnionFind:
     """Minimal union-find over a fixed set of keys (issue numbers)."""
 
@@ -151,22 +224,51 @@ def _member_view(issue: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def group_issues(issues: list[dict[str, Any]]) -> dict[str, Any]:
-    """Group `issues` into batches by native-dependency and shared-parent
-    signals, via union-find.
+def _trim_batch(
+    member_issues: list[dict[str, Any]], max_batch_size: int
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    """Split `member_issues` (already sorted oldest-first) into the kept
+    (oldest `max_batch_size`) and overflow (newest, beyond the cap) slices."""
+    return member_issues[:max_batch_size], member_issues[max_batch_size:]
+
+
+def group_issues(
+    issues: list[dict[str, Any]],
+    max_batch_size: int = DEFAULT_MAX_BATCH_SIZE,
+    label: str = DEFAULT_LABEL,
+) -> dict[str, Any]:
+    """Group `issues` into batches by native-dependency, shared-parent, and
+    shared-label signals, via union-find.
+
+    `label` is the CLI's configured eligibility label — excluded from the
+    shared-label signal alongside the `autoship:*` prefix, since every
+    eligible issue carries it by construction (see `_non_autoship_label_names`).
+
+    A batch whose member count exceeds `max_batch_size` is trimmed to its
+    oldest `max_batch_size` members; the overflow (newest) members move to
+    `ungrouped` rather than being dropped. A group trimmed down to a single
+    kept member is itself routed to `ungrouped` instead of emitted as a
+    1-member batch — consistent with the untrimmed `len(members) == 1` case
+    just below.
 
     Returns the stdout contract shape: `{"batches": [...], "ungrouped":
     [...]}`. Each batch's `batch_id` is `grp-<oldest-member-number>`,
-    derived from the oldest (by `createdAt`) member — deterministic, never
-    random.
+    derived from the oldest (by `createdAt`, tie-broken by issue `number`)
+    member of the TRIMMED batch — deterministic, never random. In practice
+    this is always the same member as the pre-trim oldest: trimming keeps
+    the oldest N of a sorted list, so the overall-oldest member is never the
+    one trimmed away.
     """
     numbers = [issue["number"] for issue in issues]
     by_number = {issue["number"]: issue for issue in issues}
+    label_names_by_number = {
+        issue["number"]: _non_autoship_label_names(issue, label) for issue in issues
+    }
     union_find = _UnionFind(numbers)
 
     for i, a in enumerate(issues):
         for b in issues[i + 1 :]:
-            if has_dependency_edge(a, b) or has_shared_parent(a, b):
+            if _matches_any_signal(a, b, label, label_names_by_number):
                 union_find.union(a["number"], b["number"])
 
     groups: dict[int, list[int]] = {}
@@ -182,12 +284,17 @@ def group_issues(issues: list[dict[str, Any]]) -> dict[str, Any]:
             continue
         member_issues = sorted(
             (by_number[number] for number in members),
-            key=lambda issue: issue["createdAt"],
+            key=lambda issue: (issue["createdAt"], issue["number"]),
         )
+        kept, overflow = _trim_batch(member_issues, max_batch_size)
+        ungrouped.extend(_member_view(issue) for issue in overflow)
+        if len(kept) == 1:
+            ungrouped.append(_member_view(kept[0]))
+            continue
         batches.append(
             {
-                "batch_id": f"grp-{member_issues[0]['number']}",
-                "members": [_member_view(issue) for issue in member_issues],
+                "batch_id": f"grp-{kept[0]['number']}",
+                "members": [_member_view(issue) for issue in kept],
             }
         )
 
@@ -202,13 +309,17 @@ def main(argv: list[str] | None = None) -> int:
         eligible = autoship_state.fetch_eligible_issues(
             args.label,
             input_file=args.input_file,
-            required_fields=REQUIRED_ISSUE_FIELDS,
+            extra_fields=_DEPENDENCY_FIELDS,
         )
     except autoship_state.FetchError as exc:
         print(f"autoship_group: {exc}", file=sys.stderr)
         return 1
 
-    print(json.dumps(group_issues(eligible)))
+    print(
+        json.dumps(
+            group_issues(eligible, max_batch_size=args.max_batch_size, label=args.label)
+        )
+    )
     return 0
 
 
