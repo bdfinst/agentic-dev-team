@@ -35,7 +35,7 @@ limitations below.
    `boundary-events.jsonl` and `workflow-states.jsonl`:
 
    ```bash
-   python3 ${CLAUDE_PLUGIN_ROOT}/hooks/lib/run_report.py report --session <id>
+   python3 "${CLAUDE_PLUGIN_ROOT}/hooks/lib/run_report.py" report --session <id>
    ```
 
 2. **Present a readable summary, not raw JSON.** Render the JSON the library

@@ -110,7 +110,7 @@ Work the plan **wave by wave** (the plan's `## Parallelization` section, derived
 **Base-ref check (top-level session, before any subagent dispatch).** Worktree subagents (`isolation: "worktree"`) must branch from the caller's local HEAD, not `origin/<default>`, so the `docs/specs/<slug>.md` (when the spec was file-persisted — see `/specs`' GitHub-issue persistence path for the alternative, which leaves no local file to miss) and `plans/<slug>.md` files `/ship` just produced are visible to them (issue #553). This is controlled by Claude Code's `worktree.baseRef` setting, which is honored only at project (`.claude/settings.json`) or user (`~/.claude/settings.json`) scope — **not** at plugin or project-local scope (`docs/spikes/worktree-baseref-head-spike.md`). `/build` cannot set this on the user's behalf, so it runs a read-only detect-and-warn **in this top-level `/build` session, before any subagent dispatch**, so the warning is visible in the human-facing transcript:
 
 ```bash
-python3 ${CLAUDE_PLUGIN_ROOT}/scripts/build_worktree_baseref.py detect   # prints head|fresh|unset|unknown
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/build_worktree_baseref.py" detect   # prints head|fresh|unset|unknown
 ```
 
 - **`head`** → no warning. Proceed.
@@ -138,8 +138,8 @@ python3 ${CLAUDE_PLUGIN_ROOT}/scripts/build_worktree_baseref.py detect   # print
 **Resolve the wave schedule and concurrency first:**
 
 ```bash
-python3 ${CLAUDE_PLUGIN_ROOT}/scripts/build_wave.py <plan-file>          # ordered waves + members
-python3 ${CLAUDE_PLUGIN_ROOT}/scripts/build_jobs.py --wave-width <W> [--jobs N]  # effective concurrency
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/build_wave.py" <plan-file>          # ordered waves + members
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/build_jobs.py" --wave-width <W> [--jobs N]  # effective concurrency
 ```
 
 `build_jobs.py` resolves `min(--jobs, DEV_TEAM_MAX_PARALLEL_BUILDS, wave width)`. Parallel fan-out is **opt-in**: when neither `--jobs` nor `DEV_TEAM_MAX_PARALLEL_BUILDS` is set, the **default is sequential** (effective 1) — fan-out never *saves* tokens, it trades them for wall-clock (#1515). Opt in with `--jobs N` (bounded only by wave width) or `DEV_TEAM_MAX_PARALLEL_BUILDS` (an explicit env value is honored verbatim, never re-capped); non-positive/non-integer values clamp to 1. **Sequential fallback:** when effective concurrency is **1** (the unset default, a fully-dependent plan, `--jobs 1`, or max 1), build slices one at a time in a single worktree in dependency order — **no worktree fan-out, no reconcile step** (today's behavior exactly).
@@ -259,7 +259,7 @@ A "done" step that only passed its own tests is not the same as a feature that w
 When the slice declares `**Invariants:**`, run them **after** the slice's own suite is green (sub-step 5) and its review checkpoint(s) have run (sub-steps 4/6) — invariants check what must stay green *beyond* the slice's new acceptance tests, so they gate on top of everything else, not instead of it:
 
 ```bash
-python3 ${CLAUDE_PLUGIN_ROOT}/scripts/run_invariants.py --plan <plan-file> --slice <id> --repo <worktree>
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/run_invariants.py" --plan <plan-file> --slice <id> --repo <worktree>
 ```
 
 A non-zero exit **fails the slice gate exactly like a red test** — fix it or escalate (Escalation section below), never step over it, and never flip the slice checkbox to `[x]` until it's green. A slice with no `Invariants` line runs its gate unchanged (the script itself no-ops with "No invariants declared" — nothing to enforce). Invariant commands run as-is from the repo root; the plan author owns their portability, same trust model as the plan's own test commands.

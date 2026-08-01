@@ -14,8 +14,8 @@ allowed-tools: >-
        python3 scripts/check_registry_sync.py *,
        python3 plugins/dev-team/scripts/verify_tier.py *,
        python3 -m pytest tests/agents/test_agent_knowledge_anchor.py,
-       python3 ${CLAUDE_PLUGIN_ROOT}/scripts/claude_setup_review.py *,
-       python3 ${CLAUDE_PLUGIN_ROOT}/scripts/token_efficiency_review.py *)
+       python3 "${CLAUDE_PLUGIN_ROOT}/scripts/claude_setup_review.py" *,
+       python3 "${CLAUDE_PLUGIN_ROOT}/scripts/token_efficiency_review.py" *)
 ---
 
 # Agent Audit
@@ -202,15 +202,17 @@ Include the result in the agent report table under a `Skills-Tool` column.
    - FAIL if a code-reading agent's `tools:` line is missing one or more of the five names, or an agent on disk is in neither roster (unclassified).
    - PASS if every code-reading agent grants all five and every agent on disk is classified.
 
-**Mechanics for invariants 2–4**: all three delegate to `${CLAUDE_PLUGIN_ROOT}/scripts/lib/mcp_tool_grants.py`'s shared `run_grants_check` (single read+parse pass per agent, both for detection and `--fix`) and, under `--json`, report the same envelope (`check`/`evaluated`/`offenders`/`unclassified`/`fixed`/`unfixable`/`ok`/`notes`) so results are comparable across the three checks.
+**Mechanics for invariants 2–4**: all three delegate to `plugins/dev-team/scripts/lib/mcp_tool_grants.py`'s shared `run_grants_check` (single read+parse pass per agent, both for detection and `--fix`) and, under `--json`, report the same envelope (`check`/`evaluated`/`offenders`/`unclassified`/`fixed`/`unfixable`/`ok`/`notes`) so results are comparable across the three checks.
 
 | Invariant | Report column | Delegated script | Config source of truth | Unclassified handling |
 |---|---|---|---|---|
-| 2. Code-intelligence (review agents) | `Code-Intel` | `${CLAUDE_PLUGIN_ROOT}/scripts/check_review_agent_mcp_tools.py` | `MCP_TOOL_NAMES` | n/a — glob-discovered, no roster |
-| 3. Code-intelligence mapping (non-review) | `Mapping` | `${CLAUDE_PLUGIN_ROOT}/scripts/check_agent_tool_mapping.py` | `TIER_CONFIG` / `EXCLUSIONS` | reported, not auto-fixed |
+| 2. Code-intelligence (review agents) | `Code-Intel` | `plugins/dev-team/scripts/check_review_agent_mcp_tools.py` | `MCP_TOOL_NAMES` | n/a — glob-discovered, no roster |
+| 3. Code-intelligence mapping (non-review) | `Mapping` | `plugins/dev-team/scripts/check_agent_tool_mapping.py` | `TIER_CONFIG` / `EXCLUSIONS` | reported, not auto-fixed |
 | 4. Code-intelligence (security-assessment) | `SA-MCP` | `plugins/dev-team/scripts/check_security_assessment_mcp_tools.py` | `CODE_READING_AGENTS` / `NON_CODE_READING_AGENTS` | reported, not auto-fixed |
 
 Include each invariant's result in the agent report table under its column above. Invariant 4 is additionally wired into `scripts/ci-local.sh` as `chk_sa_mcp_tools`, so drift fails CI, not just this manual audit pass.
+
+All three delegated scripts above are repo-root-relative, not `${CLAUDE_PLUGIN_ROOT}`-qualified — same working-tree-vs-cache reasoning as `verify_tier.py` above (§2b): each mutates agent files resolved relative to its own `__file__`, so a `${CLAUDE_PLUGIN_ROOT}`-qualified invocation would silently edit the installed plugin cache's copy instead of the operator's own checkout.
 
 **Fix (when `--fix` is passed)**: run the delegated script above with `--fix` — it appends its missing tool names to `tools:` (merge, never replacing existing grants such as `Read, Grep, Glob`/`Skill`). Unclassified agents, where applicable, are reported, not auto-fixed — classify each into the config or exclusion list named above. Report `FIXED: <agent> — added <tool names>`.
 
@@ -326,14 +328,14 @@ semantic checks. Run these scripts for a fast, CI-safe structural pass:
 bands, duplicate rules):
 
 ```
-python3 ${CLAUDE_PLUGIN_ROOT}/scripts/claude_setup_review.py --plugin-root <plugin-root-path>
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/claude_setup_review.py" --plugin-root <plugin-root-path>
 ```
 
 **Token-efficiency review** (file line counts, CLAUDE.md size, LLM
 anti-patterns):
 
 ```
-python3 ${CLAUDE_PLUGIN_ROOT}/scripts/token_efficiency_review.py --files <path>...
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/token_efficiency_review.py" --files <path>...
 ```
 
 Both scripts exit 0 and emit JSON findings to stdout. Surface any `error`

@@ -27,7 +27,7 @@ data.
    know the current transcript path), run an exact per-agent report:
 
    ```bash
-   python3 ${CLAUDE_PLUGIN_ROOT}/hooks/lib/cost_meter.py report --transcript <path>
+   python3 "${CLAUDE_PLUGIN_ROOT}/hooks/lib/cost_meter.py" report --transcript <path>
    ```
 
    Otherwise show the most recently recorded session from the metrics log
@@ -44,7 +44,7 @@ data.
 
    ```bash
    log=".claude/metrics/cost-metering.jsonl"; [ -f "$log" ] || log="metrics/cost-metering.jsonl"
-   python3 ${CLAUDE_PLUGIN_ROOT}/hooks/lib/cost_meter.py regression \
+   python3 "${CLAUDE_PLUGIN_ROOT}/hooks/lib/cost_meter.py" regression \
      --log "$log" --tolerance 0.5
    ```
 
@@ -60,7 +60,7 @@ data.
 
    ```bash
    log=".claude/metrics/cost-metering.jsonl"; [ -f "$log" ] || log="metrics/cost-metering.jsonl"
-   python3 ${CLAUDE_PLUGIN_ROOT}/hooks/lib/cost_meter.py regression \
+   python3 "${CLAUDE_PLUGIN_ROOT}/hooks/lib/cost_meter.py" regression \
      --log "$log" --tolerance 0.5 --window 10
    ```
 
@@ -128,7 +128,7 @@ turns the marker sequence into a per-phase ratio:
 
 ```bash
 log=".claude/metrics/phase-markers.jsonl"; [ -f "$log" ] || log="metrics/phase-markers.jsonl"
-python3 ${CLAUDE_PLUGIN_ROOT}/hooks/lib/cost_meter.py phase-report --log "$log"
+python3 "${CLAUDE_PLUGIN_ROOT}/hooks/lib/cost_meter.py" phase-report --log "$log"
 ```
 
 Report the per-phase `resident_tokens`, `spent_tokens` (output generated during
@@ -163,7 +163,7 @@ text, code, file paths, or tool payloads. `metrics/cost-metering.jsonl` and
 
    ```bash
    log=".claude/metrics/cost-metering.jsonl"; [ -f "$log" ] || log="metrics/cost-metering.jsonl"
-   python3 ${CLAUDE_PLUGIN_ROOT}/hooks/lib/cost_meter.py pace \
+   python3 "${CLAUDE_PLUGIN_ROOT}/hooks/lib/cost_meter.py" pace \
      --log "$log" --budget 100 --period-days 30 --window-days 7
    ```
 

@@ -36,10 +36,12 @@ so it can't be missed.
 Exit 0 if every review agent's grant matches its tier and the skill prose is
 present. Exit 1 (detection) or applies fixes (--fix) otherwise.
 
-Usage:
-    python3 check_review_agent_mcp_tools.py [--agents-dir <path>] [--skill-file <path>]
-    python3 check_review_agent_mcp_tools.py --fix        # append missing tool names
-    python3 check_review_agent_mcp_tools.py --json        # machine-readable report
+Usage (repo-root-relative — this script mutates the agent files next to
+wherever it itself resides, so it must run against the maintainer's own
+checkout, never a `${CLAUDE_PLUGIN_ROOT}`-qualified installed-cache path):
+    python3 plugins/dev-team/scripts/check_review_agent_mcp_tools.py [--agents-dir <path>] [--skill-file <path>]
+    python3 plugins/dev-team/scripts/check_review_agent_mcp_tools.py --fix        # append missing tool names
+    python3 plugins/dev-team/scripts/check_review_agent_mcp_tools.py --json        # machine-readable report
 """
 
 # Keeps PEP 585 annotations (`list[Path]`, `dict[str, list[str]]`) as strings,
@@ -308,7 +310,7 @@ def main() -> int:
         print("FAIL: review agents missing their required code-intelligence MCP tools in tools::")
         for name, missing in offenders.items():
             print(f"  - {name}: missing {', '.join(missing)}")
-        print("\nRun: python3 scripts/check_review_agent_mcp_tools.py --fix")
+        print("\nRun: python3 plugins/dev-team/scripts/check_review_agent_mcp_tools.py --fix")
     if forbidden:
         print("FAIL: exempt review agents granted forbidden code-intelligence MCP tools (should have none):")
         for name, tools in forbidden.items():

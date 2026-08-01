@@ -25,7 +25,11 @@ def test_build_skill_does_not_dispatch_progress_guardian_agent() -> None:
 
 
 def test_pr_skill_references_progress_guardian_py_pre_pr() -> None:
-    assert "scripts/progress_guardian.py --pre-pr" in PR_SKILL.read_text()
+    # An optional closing quote may sit between the script path and its flag
+    # (e.g. `"${CLAUDE_PLUGIN_ROOT}/scripts/progress_guardian.py" --pre-pr`,
+    # per #1656's quoting sweep) — quoting doesn't change which command runs,
+    # so this check tolerates it rather than requiring one exact spelling.
+    assert re.search(r'scripts/progress_guardian\.py"?[ \t]+--pre-pr', PR_SKILL.read_text())
 
 
 def test_pr_skill_does_not_dispatch_progress_guardian_agent() -> None:

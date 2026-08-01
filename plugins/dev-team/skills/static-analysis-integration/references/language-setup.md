@@ -182,7 +182,7 @@ Registered by #810.
 From your project root (requires a JDK/JRE — `java` on PATH):
 
 ```bash
-python3 ${CLAUDE_PLUGIN_ROOT}/scripts/install-java-static-analysis.py
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/install-java-static-analysis.py"
 ```
 
 Installs a pinned PMD distribution into the repo-local **`.pmd/`**

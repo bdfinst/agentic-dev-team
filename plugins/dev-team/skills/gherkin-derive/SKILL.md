@@ -135,7 +135,7 @@ single project-wide directory probe; this skill composes the per-surface
 path, it never asks the script to resolve one itself:
 
 ```
-python3 ${CLAUDE_PLUGIN_ROOT}/scripts/detect_bdd_convention.py
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/detect_bdd_convention.py"
 ```
 
 A `"dir": null` result (`"signal": "none"`) means the script found no usable
@@ -226,7 +226,7 @@ Then call `gherkin_feature_merge.py check-stale` to decide match/mismatch
 deterministically, never by eyeballing the comparison yourself:
 
 ```
-python3 ${CLAUDE_PLUGIN_ROOT}/scripts/gherkin_feature_merge.py check-stale \
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/gherkin_feature_merge.py" check-stale \
   --existing <dir>/<surface>.feature --feature-title "<surface>" \
   --observed "<scenario title>=<observed value>" --json
 ```
@@ -260,7 +260,7 @@ table above) to a scratch candidates file, then invoke
 `gherkin_stub_merge.py merge`:
 
 ```
-python3 ${CLAUDE_PLUGIN_ROOT}/scripts/gherkin_stub_merge.py merge \
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/gherkin_stub_merge.py" merge \
   --existing <dir>/<surface>_steps.<ext> --candidates <scratch-file> \
   --ext <.js|.ts|.mjs|.cjs|.java|.cs|.go> --json
 ```
@@ -303,7 +303,7 @@ cause it is):
   file on disk:
 
   ```
-  python3 ${CLAUDE_PLUGIN_ROOT}/scripts/gherkin_feature_merge.py merge \
+  python3 "${CLAUDE_PLUGIN_ROOT}/scripts/gherkin_feature_merge.py" merge \
     --existing <dir>/<surface>.feature --candidates <scratch-file> \
     --feature-title "<surface>" --json
   ```
@@ -477,7 +477,7 @@ fills them in (that happens later, in `/test-improve` Phase 5 or whatever
 follow-up work the operator does after a standalone run). Run the gate:
 
 ```
-python3 ${CLAUDE_PLUGIN_ROOT}/scripts/gherkin_stub_gate.py --dir <step-definitions-dir>
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/gherkin_stub_gate.py" --dir <step-definitions-dir>
 ```
 
 - **Pending stubs remain → print one consolidated statement as the FIRST
@@ -533,7 +533,7 @@ whenever `.feature` files exist, independent of whether `bdd-runner` mode
 wired a runner:
 
 ```
-python3 ${CLAUDE_PLUGIN_ROOT}/scripts/gherkin_failure_path_gate.py --dir <feature-files-dir>
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/gherkin_failure_path_gate.py" --dir <feature-files-dir>
 ```
 
 Print the gate's result as its own report section, never folded into the
@@ -554,7 +554,7 @@ immediately above — not `bdd-runner`-only, since the collision this checks
 for exists whenever `.feature` files exist:
 
 ```
-python3 ${CLAUDE_PLUGIN_ROOT}/scripts/gherkin_cross_feature_duplicate_titles_gate.py --dir <feature-files-dir>
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/gherkin_cross_feature_duplicate_titles_gate.py" --dir <feature-files-dir>
 ```
 
 Print the gate's result as its own report section, never folded into the
@@ -577,7 +577,7 @@ binding mode, since the mandatory in-depth analysis (Step 2) happens before
 mode-specific output does:
 
 ```
-python3 ${CLAUDE_PLUGIN_ROOT}/scripts/gherkin_analysis_coverage_gate.py --file <inventory-path>
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/gherkin_analysis_coverage_gate.py" --file <inventory-path>
 ```
 
 Print the gate's result as its own report section: `OK: all 8 analysis

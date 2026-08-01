@@ -173,7 +173,7 @@ Coverage` section (issue #1450), run here against this skill's own
 configuration:
 
 ```
-python3 ${CLAUDE_PLUGIN_ROOT}/scripts/gherkin_analysis_coverage_gate.py --file <report-path> --config cd-test-architecture
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/gherkin_analysis_coverage_gate.py" --file <report-path> --config cd-test-architecture
 ```
 
 Print the gate's result as its own report section: `OK: all 8

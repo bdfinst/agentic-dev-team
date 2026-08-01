@@ -66,7 +66,7 @@ to `autoship:blocked` before discovery, so they are not counted against
 `--max-issues` and are instead queued for human triage.
 
 ```bash
-python3 ${CLAUDE_PLUGIN_ROOT}/scripts/autoship_reclaim.py \
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/autoship_reclaim.py" \
   [--dry-run]           # pass when --dry-run was given
 ```
 
@@ -78,7 +78,7 @@ reclaim failure is non-fatal — log the error and continue to discovery.
 Run the discovery script to select the issues this round will process.
 
 ```bash
-python3 ${CLAUDE_PLUGIN_ROOT}/scripts/autoship_discover.py \
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/autoship_discover.py" \
   --max-issues <N> \
   --max-cost-usd <max_cost_usd> \
   [--label <label>]     # pass when --label was given
@@ -172,7 +172,7 @@ After a non-blocked `/ship` completes, record the start ISO timestamp that was
 captured just before invoking `/ship` in Step 3c, then run the classifier:
 
 ```bash
-python3 ${CLAUDE_PLUGIN_ROOT}/hooks/lib/classify_ship_outcome.py \
+python3 "${CLAUDE_PLUGIN_ROOT}/hooks/lib/classify_ship_outcome.py" \
   --review-value .claude/metrics/review-value.jsonl \
   --verify-log   metrics/verify-log.jsonl \
   --since        <start_iso>
@@ -192,14 +192,14 @@ this issue and confirm the gate allows advancement — this is a hard block,
 not the advisory `progress-guardian` gate:
 
 ```bash
-python3 ${CLAUDE_PLUGIN_ROOT}/hooks/lib/iteration_journal_gate.py record \
+python3 "${CLAUDE_PLUGIN_ROOT}/hooks/lib/iteration_journal_gate.py" record \
   --round-id "<round_id>" \
   --attempted "<short note: what was attempted>" \
   --outcome "<short note: shipped|failed|blocked|unrecognized>" \
   --next-action "<short note: next issue or stop>" \
   --session "$CLAUDE_SESSION_ID"
 
-python3 ${CLAUDE_PLUGIN_ROOT}/hooks/lib/iteration_journal_gate.py check \
+python3 "${CLAUDE_PLUGIN_ROOT}/hooks/lib/iteration_journal_gate.py" check \
   --round-id "<round_id>" \
   --session "$CLAUDE_SESSION_ID"
 ```
@@ -215,7 +215,7 @@ Append one entry per issue to `.claude/metrics/autoship-log.jsonl` using the log
 library:
 
 ```bash
-python3 ${CLAUDE_PLUGIN_ROOT}/hooks/lib/autoship_log.py \
+python3 "${CLAUDE_PLUGIN_ROOT}/hooks/lib/autoship_log.py" \
   --log-path .claude/metrics/autoship-log.jsonl \
   --json '{"round_id":"<round_id>","issue":<number>,"status":"<status>","blocked_reason":"<reason_or_null>"}'
 ```

@@ -50,7 +50,7 @@ resolution actually the right semantics for this invocation?**
 The script lives under `plugins/dev-team/scripts/` (or `hooks/`), and the
 invoking skill references it as `${CLAUDE_PLUGIN_ROOT}/scripts/<name>.py` (or
 the quoted equivalent, `"$CLAUDE_PLUGIN_ROOT/scripts/<name>.py"` — house style
-per ADR-pending #1656). This is the common case, and what #1636/#1637 fixed
+per ADR 0033). This is the common case, and what #1636/#1637 fixed
 most invocations into. `eval_ablation.py` (#1653) is the most recent addition:
 moved from repo-root into the plugin specifically so its `--find-latest`
 mode — a generic JSONL reader with no repo-shape assumption — could be
@@ -104,9 +104,31 @@ shrink-only, currently empty — the two real defects #1637 found
 remaining in the older two-way split was reclassified into category 2 above,
 not left here.
 
+### 4. Shipped for copy-out
+
+The script ships under `plugins/dev-team/`, but the invoking doc's whole
+point is instructing the OPERATOR to copy it into **their own project**
+before running it there — `skills/mutation-testing/references/languages/
+csharp-stryker-net.md` tells the reader to copy `csharp_stryker_net_wrapper.py`
+(plus its status-loop sibling) into their repo's own `scripts/` directory,
+then shows the resulting invocation as a bare `python3 scripts/
+csharp_stryker_net_wrapper.py`. That bare path is correct precisely because
+the file deliberately no longer lives in the plugin at all once copied —
+`${CLAUDE_PLUGIN_ROOT}` would be actively wrong here, not merely
+unqualified, since the invocation targets a file that exists only in the
+operator's own tree. This differs from categories 1–3: the script DOES ship
+(unlike category 2) and the reference is not portable-as-is (unlike category
+1), because the reference describes a file at its POST-copy location, not
+its shipped one.
+
+Tracked in `tests/repo/test_bare_invocation_wide_scan.py`'s
+`INTENTIONAL_WIDE_SCAN_INVOCATIONS` under the `copied-out-by-operator`
+category, premise-checked by confirming the doc still instructs the
+operator to copy the script into their own project.
+
 ## Decision
 
-Adopt this three-category (plus the category-1 sub-case) taxonomy as the
+Adopt this four-category (plus the category-1 sub-case) taxonomy as the
 one place the "does this reference need fixing" judgment is recorded, and
 require every new bare or non-standard script invocation in a shipped
 skill/agent to be classified into it — mechanically, where possible, not by
@@ -119,6 +141,9 @@ comment alone:
   deliberately still cwd-relative).
 - `KNOWN_BARE_INVOCATION` — category 3, shrink-only, never grown without a
   fix landing in the same PR.
+- `INTENTIONAL_WIDE_SCAN_INVOCATIONS`'s `copied-out-by-operator` category —
+  category 4 (ships, but the reference describes the file's post-copy
+  location in the operator's own project).
 
 The Skills Registry (`plugins/dev-team/CLAUDE.md` and `knowledge/skills-
 registry.md`) should disambiguate a skill whose primary purpose is
@@ -180,5 +205,8 @@ maintainer-only tool at a glance, not merely be correctly coded as one.
   RELATIVE`
 - `tests/repo/test_shipped_script_refs.py` — the `${CLAUDE_PLUGIN_ROOT}`
   resolver and its own allowlist
+- `tests/repo/test_bare_invocation_wide_scan.py` — widens this guard past
+  `SKILL.md` files (#1655) and tracks category 4 above
+- ADR 0033 — the quoting house style this ADR's category 1 forward-references
 - `knowledge/skills-registry.md` — `/agent-readiness`'s disambiguation
   precedent

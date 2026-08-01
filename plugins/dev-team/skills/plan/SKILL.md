@@ -92,7 +92,7 @@ Create `plans/` if it doesn't exist. When writing the plan file, populate the `#
 Then derive the waves — never hand-author them:
 
 ```bash
-python3 ${CLAUDE_PLUGIN_ROOT}/scripts/plan_waves.py <plan-file>
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/plan_waves.py" <plan-file>
 ```
 
 Render the `## Parallelization` Mermaid DAG + wave table and the wave-grouped
@@ -168,7 +168,7 @@ directory, run the export **from the repo root** (destinations resolve against
 the invocation cwd):
 
 ```bash
-python3 ${CLAUDE_PLUGIN_ROOT}/scripts/plan_gherkin_export.py <plan-file>
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/plan_gherkin_export.py" <plan-file>
 ```
 
 Show its summary (destination, files written, overwritten, stale removed) to
@@ -183,7 +183,7 @@ script no-ops with a note).
 After approval, classify the origin remote — **only** offer issue creation on an actual GitHub host:
 
 ```bash
-python3 ${CLAUDE_PLUGIN_ROOT}/scripts/git_origin_host.py
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/git_origin_host.py"
 ```
 
 - **`github`** → prompt **once**, showing the count: *"Open 1 parent issue and N linked slice issues from this plan? [y/N]"* (N = number of slices). The default is **No**. Invoke `/issues-from-plan` **only on explicit `y`**; on No (or anything else), create nothing and continue.

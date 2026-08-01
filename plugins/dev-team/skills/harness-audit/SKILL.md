@@ -326,7 +326,7 @@ computation):
 
 ```bash
 changelog=".claude/metrics/config-changelog.jsonl"; [ -f "$changelog" ] || changelog="metrics/config-changelog.jsonl"
-python3 ${CLAUDE_PLUGIN_ROOT}/skills/harness-audit/scripts/lesson_validate.py \
+python3 "${CLAUDE_PLUGIN_ROOT}/skills/harness-audit/scripts/lesson_validate.py" \
   --changelog "$changelog" \
   --digest metrics/session-digest.jsonl \
   --apply -o memory/lesson-validation.json
@@ -384,7 +384,7 @@ Review the current pipeline for components that may be unnecessary overhead:
 
    ```bash
    log=".claude/metrics/phase-markers.jsonl"; [ -f "$log" ] || log="metrics/phase-markers.jsonl"
-   [ -f "$log" ] && python3 ${CLAUDE_PLUGIN_ROOT}/hooks/lib/cost_meter.py phase-report --log "$log" --json
+   [ -f "$log" ] && python3 "${CLAUDE_PLUGIN_ROOT}/hooks/lib/cost_meter.py" phase-report --log "$log" --json
    ```
 
    A phase with a high `resident_to_spent_ratio` spent proportionally little fresh generation while carrying a large resident context — cite it in § Orchestration Simplification Opportunities as a compaction/scoping candidate. This is a session-scoped proxy (resident is sampled at the `/handoff` boundary — see `skills/cost-report/SKILL.md` § Context pollution), not exact per-phase accounting.

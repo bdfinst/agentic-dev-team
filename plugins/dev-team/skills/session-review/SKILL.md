@@ -113,14 +113,14 @@ conflated with every other machine's sessions.
 repository** (the cross-machine "database", Delta D) is configured:
 
 ```bash
-bash ${CLAUDE_PLUGIN_ROOT}/../../scripts/telemetry-sync.sh --check
+bash "${CLAUDE_PLUGIN_ROOT}/../../scripts/telemetry-sync.sh" --check
 ```
 
 - **Exit 0** → a repo is configured. Run the sync to push this machine's digest
   and pull the others, then continue:
 
   ```bash
-  bash ${CLAUDE_PLUGIN_ROOT}/../../scripts/telemetry-sync.sh
+  bash "${CLAUDE_PLUGIN_ROOT}/../../scripts/telemetry-sync.sh"
   ```
 
 - **Exit 3** → no repo configured. **Ask the user** for the telemetry repo
@@ -140,8 +140,8 @@ Never invent a URL or enable anything without the user's explicit location.
 Run the extractor to produce the local digest:
 
 ```bash
-python3 ${CLAUDE_PLUGIN_ROOT}/../../scripts/session_extract.py \
-  --plugin-root ${CLAUDE_PLUGIN_ROOT} -o memory/session-digest.json
+python3 "${CLAUDE_PLUGIN_ROOT}/../../scripts/session_extract.py" \
+  --plugin-root "${CLAUDE_PLUGIN_ROOT}" -o memory/session-digest.json
 ```
 
 (Pass `--transcript <file>` or `--cwd <path>` through from `$ARGUMENTS`.) If the
@@ -160,8 +160,8 @@ doesn't weigh into current-version suggestions:
 
 ```bash
 CLONE="${DEV_TEAM_TELEMETRY_CLONE:-$HOME/.claude/.dev-team/agent-telemetry}"
-python3 ${CLAUDE_PLUGIN_ROOT}/../../scripts/session_extract.py \
-  --plugin-root ${CLAUDE_PLUGIN_ROOT} --rollup "$CLONE/digests" \
+python3 "${CLAUDE_PLUGIN_ROOT}/../../scripts/session_extract.py" \
+  --plugin-root "${CLAUDE_PLUGIN_ROOT}" --rollup "$CLONE/digests" \
   --version-scope current-and-previous \
   -o memory/telemetry-rollup.json
 ```
@@ -175,8 +175,8 @@ Then compute the **frequency → lever escalation** (Delta C, #179) — recurren
 decides how strong a response each friction earns — with the same version scope:
 
 ```bash
-python3 ${CLAUDE_PLUGIN_ROOT}/../../scripts/session_extract.py \
-  --plugin-root ${CLAUDE_PLUGIN_ROOT} --escalate "$CLONE/digests" \
+python3 "${CLAUDE_PLUGIN_ROOT}/../../scripts/session_extract.py" \
+  --plugin-root "${CLAUDE_PLUGIN_ROOT}" --escalate "$CLONE/digests" \
   --version-scope current-and-previous \
   -o memory/telemetry-escalation.json
 ```
@@ -192,8 +192,8 @@ the pre-commit review gate correlate with more rework across sessions? — again
 version-scoped:
 
 ```bash
-python3 ${CLAUDE_PLUGIN_ROOT}/../../scripts/session_extract.py \
-  --plugin-root ${CLAUDE_PLUGIN_ROOT} --correlate "$CLONE/digests" \
+python3 "${CLAUDE_PLUGIN_ROOT}/../../scripts/session_extract.py" \
+  --plugin-root "${CLAUDE_PLUGIN_ROOT}" --correlate "$CLONE/digests" \
   --version-scope current-and-previous \
   -o memory/gate-correlation.json
 ```
@@ -223,7 +223,7 @@ where it never runs.
 1. Flag the worst sessions (deterministic, zero model tokens):
 
    ```bash
-   python3 ${CLAUDE_PLUGIN_ROOT}/../../scripts/eval_rawlog.py \
+   python3 "${CLAUDE_PLUGIN_ROOT}/../../scripts/eval_rawlog.py" \
      --flag "$CLONE/digests" --top 5 -o memory/worst-sessions.json
    ```
 
@@ -245,7 +245,7 @@ where it never runs.
    not report) any finding with violations:
 
    ```bash
-   python3 ${CLAUDE_PLUGIN_ROOT}/../../scripts/eval_rawlog.py \
+   python3 "${CLAUDE_PLUGIN_ROOT}/../../scripts/eval_rawlog.py" \
      --validate memory/tier2-findings.json
    ```
 
@@ -276,8 +276,8 @@ Append one metrics-only summary record to the trend stream so `/harness-audit`
 can consume real-session data over time:
 
 ```bash
-python3 ${CLAUDE_PLUGIN_ROOT}/../../scripts/session_extract.py \
-  --plugin-root ${CLAUDE_PLUGIN_ROOT} --append metrics/session-digest.jsonl >/dev/null
+python3 "${CLAUDE_PLUGIN_ROOT}/../../scripts/session_extract.py" \
+  --plugin-root "${CLAUDE_PLUGIN_ROOT}" --append metrics/session-digest.jsonl >/dev/null
 ```
 
 The appended record holds aggregate counts only — no file names, prompts, or

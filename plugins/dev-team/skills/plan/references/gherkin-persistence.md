@@ -12,7 +12,7 @@ after approval (step 6 of `SKILL.md`).
 2. **Detect the target project's BDD convention** — from the repo root, run:
 
    ```bash
-   python3 ${CLAUDE_PLUGIN_ROOT}/scripts/detect_bdd_convention.py
+   python3 "${CLAUDE_PLUGIN_ROOT}/scripts/detect_bdd_convention.py"
    ```
 
    Precedence is conservative — feature-files > manifest > none: existing
