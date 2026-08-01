@@ -29,52 +29,52 @@ below run fine from the Setup script.
 
 ## The snippet to paste into the Setup script field
 
-claude.ai/code → Environment → **Setup script**. The script below always exits
-without error (a non-zero exit **fails** session startup). It uses a
-repo-committed bootstrap when one exists, and otherwise installs the plugin
-directly. It **refreshes** the plugin (re-pulls the catalog and `plugin update`)
-rather than only installing — because `plugin install` is a no-op once a version
-is cached, and the reused environment snapshot would otherwise pin the first
-version forever (see [Keeping the plugin version current](#keeping-the-plugin-version-current)):
+claude.ai/code → Environment → **Setup script**. Paste this **delegating**
+trampoline — it keeps the UI field stable and lets the real logic live in the
+repo, so improvements ship by merging a PR rather than by editing environment
+config and forcing a snapshot rebuild:
 
 ```bash
 #!/bin/bash
 set -uo pipefail
-MARKETPLACE_REPO="bdfinst/agentic-dev-team"
-PLUGIN="dev-team@bfinster"
-MARKET="bfinster"
+
 ROOT="${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}"
-BOOTSTRAP="$ROOT/.claude/scripts/dev-team-bootstrap.sh"
-if [ -f "$BOOTSTRAP" ]; then
-  bash "$BOOTSTRAP" || echo "[setup] bootstrap reported issues — continuing."
-  exit 0
-fi
-echo "[setup] no $BOOTSTRAP — installing/refreshing dev-team inline for this session."
-if command -v claude >/dev/null 2>&1; then
-  claude plugin marketplace add    "$MARKETPLACE_REPO"    >/dev/null 2>&1 || true
-  claude plugin marketplace update "$MARKET"              >/dev/null 2>&1 || true
-  claude plugin install              "$PLUGIN"            >/dev/null 2>&1 || true
-  claude plugin update  --scope user "$PLUGIN"            >/dev/null 2>&1 || true
-  # Enable auto-update so later releases refresh at launch without a snapshot rebuild.
-  AU="$ROOT/plugins/dev-team/skills/upgrade/scripts/enable_autoupdate.py"
-  [ -f "$AU" ] && python3 "$AU" --enable >/dev/null 2>&1 || true
+cd "$ROOT" || { echo "[env-setup] cannot cd to $ROOT — skipping setup."; exit 0; }
+
+SETUP="$ROOT/.claude/cloud-setup.sh"
+if [ -f "$SETUP" ]; then
+  # Always exits 0 by design — a non-zero Setup script FAILS session startup.
+  # Read its ✗ lines (from scripts/verify_toolchain.py) for real failures.
+  bash "$SETUP"
+else
+  echo "[env-setup] MISSING: $SETUP — repo hasn't adopted the dev-team cloud setup."
+  npm ci || true   # fallback so the husky git hooks still land
 fi
 exit 0
 ```
 
-> This snippet now enables marketplace auto-update itself (via the plugin's
-> `skills/upgrade/scripts/enable_autoupdate.py`). Pasting the body of
-> [`.claude/cloud-setup.sh`](../.claude/cloud-setup.sh) instead additionally
-> installs this repo's test/gate toolchain and reports version drift — see below.
+[`.claude/cloud-setup.sh`](../.claude/cloud-setup.sh) is the actual work:
+this repo's test/gate toolchain (`jq`, `shellcheck`, the Python dev deps, `gh`,
+`uv`, `mutmut`, `adr`), Node 24+ plus `npm ci` for the git hooks
+(`pre-commit`, `pre-push`, `commit-msg`), the plugin install/refresh, and a
+closing [`scripts/verify_toolchain.py`](../scripts/verify_toolchain.py) pass.
+It **refreshes** the plugin (re-pulls the catalog and `plugin update`) rather
+than only installing — `plugin install` is a no-op once a version is cached, and
+the reused snapshot would otherwise pin the first version forever (see
+[Keeping the plugin version current](#keeping-the-plugin-version-current)).
 
-If you also want this repo's test/gate toolchain (`jq`, `shellcheck`,
-the Python dev deps, `gh`) in the same step, paste the body of
-[`.claude/cloud-setup.sh`](../.claude/cloud-setup.sh) instead — it installs the
-toolchain *and* the plugin, and follows the same exit-0 discipline. It also
-installs Node 24+ and runs `npm ci`, which sets up the git hooks
-(`pre-commit`, `pre-push`, `commit-msg`) so commits and pushes in the cloud
-session run the same checks you'd run locally. (Skip this only if you don't
-intend to commit from the session — it adds a minute to setup.)
+Two details worth knowing:
+
+- **`cd "$ROOT"` in the trampoline is not decoration.** Resolving `$ROOT`, using
+  it only to locate the script, and then not `cd`-ing there is an easy mistake —
+  and a quiet one. `cloud-setup.sh`'s paths are relative and its steps are all
+  guarded with `|| true`, so from the wrong directory it skips everything and
+  still prints `cloud setup complete`. The script now resolves and validates its
+  own root as a backstop, but the `cd` keeps the two independent.
+- **Pasting the body of `cloud-setup.sh` directly still works** if you'd rather
+  not delegate. Its root resolution validates each candidate against a marker
+  file, so it detects that it is running from a pasted temp file and falls back
+  to the working directory. You then give up the ship-by-merge property above.
 
 ## Verify it worked
 

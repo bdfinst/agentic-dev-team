@@ -16,6 +16,54 @@
 # optional step is guarded with `|| true` and the script always ends with exit 0.
 set -uo pipefail
 
+# --- Anchor to the repo root ------------------------------------------------
+# Every path below is relative — requirements-dev.txt, .nvmrc, package.json (for
+# `npm ci`), scripts/verify_toolchain.py, plugins/dev-team/... — and every step
+# is guarded with `|| true` so it cannot fail session startup. Those two facts
+# combine badly: invoked from the wrong working directory, this script skips its
+# entire job in silence and still prints "cloud setup complete". That is exactly
+# the false-green class scripts/verify_toolchain.py exists to catch, so don't
+# reproduce it here.
+#
+# A caller that resolves the root and then does not `cd` to it is the common
+# shape of this bug — the value gets used to locate this file and is then
+# dropped. So resolve the root here rather than trusting the caller's cwd, and
+# VALIDATE each candidate against a marker instead of assuming the first one is
+# right. Markers are the same pair /setup Step 2 uses for its in-repo check.
+_is_repo_root() {
+  [ -n "${1:-}" ] &&
+    [ -f "$1/requirements-dev.txt" ] &&
+    [ -f "$1/plugins/dev-team/.claude-plugin/plugin.json" ]
+}
+
+# This file lives at <root>/.claude/cloud-setup.sh, so its own directory's
+# parent is the root — correct whenever it is invoked as the repo file. When the
+# BODY of this script was pasted into the cloud UI instead, BASH_SOURCE points
+# at a temp file whose parent fails the marker check, and the loop falls through
+# to the next candidate. No special-casing needed either way.
+_self_parent=""
+_self_dir="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" 2>/dev/null && pwd)" || _self_dir=""
+[ -n "$_self_dir" ] && _self_parent="$(dirname "$_self_dir")"
+
+ROOT=""
+for _cand in "$_self_parent" "${CLAUDE_PROJECT_DIR:-}" \
+             "$(git rev-parse --show-toplevel 2>/dev/null)" "$PWD"; do
+  if _is_repo_root "$_cand"; then
+    ROOT="$_cand"
+    break
+  fi
+done
+
+if [ -n "$ROOT" ]; then
+  cd "$ROOT" || { echo "cloud setup: cannot cd to $ROOT — aborting."; exit 0; }
+  echo "cloud setup: repo root = $ROOT"
+else
+  # Say so loudly rather than proceeding to no-op behind a wall of `|| true`.
+  echo "cloud setup: WARNING — could not locate the repo root (no candidate had"
+  echo "cloud setup: requirements-dev.txt + plugins/dev-team/.claude-plugin/plugin.json)."
+  echo "cloud setup: continuing from $PWD; relative steps will likely be skipped."
+fi
+
 # --- Toolchain the repo's tests/gates need ---------------------------------
 apt-get update -y || true
 apt-get install -y jq shellcheck || true
