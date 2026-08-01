@@ -679,19 +679,42 @@ If `python3` or `pip` is not found, tell the user: "Python 3 with pip is
 required for mutmut. Install it from <https://www.python.org> and re-run
 `/setup`."
 
-**Check if mutmut is already installed in the active environment:**
+**Check if mutmut is already installed:**
 
 ```bash
-python3 -m mutmut --version 2>/dev/null || mutmut --version 2>/dev/null
+mutmut version 2>/dev/null || python3 -m mutmut version 2>/dev/null
 ```
 
-**If not installed, install it locally — scoped to the active virtual
-environment, never `--user` or system-wide** (that puts mutmut in a location
-whose `PATH` presence depends on shell config, the silent-failure trap this
-step exists to avoid). **Pin `mutmut<3`** — mutmut 3.x ships an incompatible
-config/CLI contract (`source_paths` in a `[mutmut]` setup.cfg section, no
-`--paths-to-mutate` flag) that the shipped adapter
-(`hooks/mutation_adapters/mutmut.py`) does not speak:
+Use the `version` **subcommand**, not `--version`. mutmut 2.x — the range this
+step pins — has no `--version` flag and exits 2 on it, so a `--version` probe
+reports "not installed" for a perfectly good install and this step reinstalls
+on every run.
+
+**If not installed, install it — isolated, never `--user` or system-wide** (that
+puts mutmut in a location whose `PATH` presence depends on shell config, the
+silent-failure trap this step exists to avoid). **Pin `mutmut<3`** — mutmut 3.x
+ships an incompatible config/CLI contract (`source_paths` in a `[mutmut]`
+setup.cfg section, no `--paths-to-mutate` flag) that the shipped adapter
+(`hooks/mutation_adapters/mutmut.py`) does not speak.
+
+**Prefer `uv`, because `pip` cannot build this pin on a current toolchain.**
+mutmut 2.x depends on `glob2` 0.7, whose `setup.py` uses `install_layout` and
+fails against setuptools >= 60 with `AttributeError: install_layout`, ending in
+`Could not build wheels for mutmut, glob2`. That is not an edge case — it is
+every machine with a modern setuptools. uv supplies a compatible setuptools
+inside its own build isolation and succeeds where pip cannot:
+
+```bash
+uv tool install "mutmut<3"
+```
+
+uv installs the console script into an isolated environment and puts `mutmut`
+on `PATH`, which is exactly what the adapter looks for: `_mutmut_argv()` in
+`hooks/mutation_adapters/mutmut.py` resolves `shutil.which("mutmut")` first and
+only falls back to `python3 -m mutmut`.
+
+If `uv` is unavailable, fall back to pip **inside an activated virtualenv**
+(never `--user`), accepting that it only succeeds on setuptools < 60:
 
 ```bash
 python3 -m pip install "mutmut<3"
@@ -705,7 +728,7 @@ dev-dependency flow instead of a bare `pip install`.
 **Verify:**
 
 ```bash
-python3 -m mutmut --version 2>/dev/null || mutmut --version
+mutmut version 2>/dev/null || python3 -m mutmut version
 ```
 
 ---
