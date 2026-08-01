@@ -1,5 +1,28 @@
 # Changelog
 
+## [12.0.0](https://github.com/bdfinst/agentic-dev-team/compare/dev-team-v11.3.1...dev-team-v12.0.0) (2026-08-01)
+
+
+### ⚠ BREAKING CHANGES
+
+* **agents:** correctness-review's eval-corpus contract changes — cr-clean-baseline.json's expectedStatus flips from "pass" to "warn" now that category 6 can detect the two unprobed runtime claims already present in that fixture's target file. Per issue #101's eval-corpus-is-the-semver- contract convention, a flipped verdict in an existing fixture is a breaking change to the agent's observable behavior, not a patch.
+
+### Bug Fixes
+
+* **agents:** add correctness-review's 6th/7th detect categories and protocol ([#1697](https://github.com/bdfinst/agentic-dev-team/issues/1697)) ([516cad0](https://github.com/bdfinst/agentic-dev-team/commit/516cad02417d6ffd8b115cf6ad454a41c5e26a0f)), closes [#1639](https://github.com/bdfinst/agentic-dev-team/issues/1639)
+* **agents:** settle category as the canonical finding taxonomy field ([#1693](https://github.com/bdfinst/agentic-dev-team/issues/1693)) ([2f877e0](https://github.com/bdfinst/agentic-dev-team/commit/2f877e013187c04d0583eb8f3f4b31791a882d67)), closes [#1639](https://github.com/bdfinst/agentic-dev-team/issues/1639)
+* **ci:** raise the shipped Python floor from 3.8 to 3.10 ([#1682](https://github.com/bdfinst/agentic-dev-team/issues/1682)) ([6230ae8](https://github.com/bdfinst/agentic-dev-team/commit/6230ae8aa7a88a586ad8b236af640bb152ab0b42))
+* **hooks:** harden the review-gate multi-line-literal normalizer ([#1677](https://github.com/bdfinst/agentic-dev-team/issues/1677)) ([7f3378d](https://github.com/bdfinst/agentic-dev-team/commit/7f3378d96d99451e16c62ca6ca0e6961e8211d22))
+* **scripts:** revert Repowise's unexpected .claude/CLAUDE.md writes ([#1688](https://github.com/bdfinst/agentic-dev-team/issues/1688)) ([f224d91](https://github.com/bdfinst/agentic-dev-team/commit/f224d917361464d8ed97fa9c7bc364dd00a047fd)), closes [#1670](https://github.com/bdfinst/agentic-dev-team/issues/1670)
+* **skills:** Repowise's CLAUDE.md write is intended, not a bug ([#1691](https://github.com/bdfinst/agentic-dev-team/issues/1691)) ([be22cc8](https://github.com/bdfinst/agentic-dev-team/commit/be22cc897322e5d48c00f28873ae7e75269b6365)), closes [#1670](https://github.com/bdfinst/agentic-dev-team/issues/1670)
+* **skills:** resolve shipped-script paths and portability, batch 2 ([#1683](https://github.com/bdfinst/agentic-dev-team/issues/1683)) ([f88cdb5](https://github.com/bdfinst/agentic-dev-team/commit/f88cdb58bfd119af79885ba746b06ee8eaf97f65))
+* **tests:** widen bare-invocation guard and quote CLAUDE_PLUGIN_ROOT expansions ([#1687](https://github.com/bdfinst/agentic-dev-team/issues/1687)) ([e2e3879](https://github.com/bdfinst/agentic-dev-team/commit/e2e38793bfe0b4050214dc0f34e3aa997e9066eb))
+
+
+### Miscellaneous
+
+* **scripts:** clean up recon and token-efficiency script nits ([#1680](https://github.com/bdfinst/agentic-dev-team/issues/1680)) ([50eb3c7](https://github.com/bdfinst/agentic-dev-team/commit/50eb3c7b751962d32c72bd49968c59ee6b0f8acb)), closes [#1651](https://github.com/bdfinst/agentic-dev-team/issues/1651)
+
 ## [11.3.1](https://github.com/bdfinst/agentic-dev-team/compare/dev-team-v11.3.0...dev-team-v11.3.1) (2026-08-01)
 
 
