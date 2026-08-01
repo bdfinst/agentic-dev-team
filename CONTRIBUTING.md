@@ -60,6 +60,10 @@ Also delete `~/.claude/plugins/cache/agentic-dev-team/` — it can regenerate fr
 
 Run `/agent-audit` after any agent, skill, or hook change. Run `/agent-eval` after changing a review agent to check detection accuracy against the eval corpus.
 
+### CI status checks
+
+`.github/required-status-checks.json` mirrors the `main` ruleset: which job names block a merge, and which PR-triggered jobs deliberately report without blocking (each with its reason). Adding a job to a workflow does **not** make it block anything — the ruleset lives in repo settings, outside this tree. `tests/repo/test_required_status_checks.py` fails until a new PR-triggered job is listed as `required` (and added to the ruleset) or as `exempt`. Where `gh` is authenticated it also reconciles the file against the live ruleset; elsewhere that single assertion skips and the rest still run.
+
 ### Comparative-testing harness (security-assessment)
 
 Regression-test the `/security-assessment` pipeline against a seeded fixture and reference baseline:
