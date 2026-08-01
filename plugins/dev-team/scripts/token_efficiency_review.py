@@ -31,15 +31,9 @@ sys.path.insert(
 )
 from token_efficiency_limits import (
     CLAUDE_MD_CHAR_LIMIT,
+    CLAUDE_MD_RULE_LIMIT,
     FILE_LINE_LIMIT,
 )
-
-# ---------------------------------------------------------------------------
-# Constants
-# ---------------------------------------------------------------------------
-
-CLAUDE_MD_RULE_LIMIT: int = 200
-
 
 # ---------------------------------------------------------------------------
 # CLAUDE.md checks
@@ -302,12 +296,12 @@ def main(argv: list[str] | None = None) -> int:
     # LLM review for prose (.md) files
     prose_files = [p for p in files if is_prose_file(p)]
     if args.skip_llm:
-        if prose_files or any(is_prose_file(p) for p in files):
-            warnings.append(skipped_llm_warning())
-        else:
-            # Even if no prose files, add the skipped warning when flag is set
-            # (the flag is explicit intent to skip)
-            warnings.append(skipped_llm_warning())
+        # Unconditional by design: --skip-llm is explicit intent to skip, so
+        # the warning is recorded whether or not any prose file was in scope.
+        # This was previously an if/else whose two branches were identical
+        # (#1651) — the condition read as though the prose-file case differed,
+        # and it never did.
+        warnings.append(skipped_llm_warning())
     else:
         for path in prose_files:
             warnings.extend(run_llm_review(path))
