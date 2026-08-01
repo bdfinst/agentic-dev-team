@@ -302,7 +302,10 @@ to re-prompt`).
     - CodeGraph  — personal, user-level MCP; nothing committed to the repo.
                    Keyless: `npm install -g @colbymchenry/codegraph` + `codegraph init .`.
     - Repowise   — local keyless index under .repowise/ (gitignored); MCP server.
-                   Keyless: `init . --no-prose -y`, no API key requested.
+                   Keyless: `init . --no-prose -y`, no API key requested. Its
+                   own installer is known to also try writing a section into
+                   the tracked .claude/CLAUDE.md; the guard below reverts that
+                   automatically, so nothing lands in the repo either way.
   ```
 
 **Under `--yes`, treat the keyless-pair prompt as yes** and install the whole
@@ -517,6 +520,29 @@ check (#1367) makes below.
    `args` array baking in this machine's absolute filesystem path — the
    **standing check below** (not gated behind this install branch) covers it
    regardless of whether `.mcp.json` existed before this run.
+2b. **CLAUDE.md write guard (#1670 item 3).** The same `repowise init` call
+   is also known to append a `## Codebase Intelligence for <project>
+   (Repowise)` section straight into the tracked `.claude/CLAUDE.md`,
+   contradicting this skill's own Step 4c prompt. `.claude/CLAUDE.md` is
+   expected to be **completely untouched** by this step — unlike Graphify's
+   own guard (below), there's no stable section header to scope a
+   corruption check to (the header bakes in the project name), so nothing
+   about the write is tolerated. Wrap step 2 in the reverting guard instead
+   of running it bare: `scripts/lib/claude_md_guard.py`'s
+   `run_install_reverting_unexpected_writes` (unit-tested at
+   `tests/scripts/test_claude_md_guard.py`) snapshots `.claude/CLAUDE.md`,
+   runs the installer, and — if it changed at all, even if the installer
+   itself then raises — restores the snapshot (or removes the file, if it
+   did not exist before). It returns `(reverted, added)`: branch on
+   `reverted`, not on whether `added` is non-empty — a write that only
+   *removes* lines still reverts and still needs reporting, even though it
+   adds nothing. If `reverted` is True, print one line for the operator
+   giving only the **count** of added lines, never their content verbatim
+   (e.g. `Repowise attempted to write N line(s) to .claude/CLAUDE.md —
+   reverted; nothing committed`, or the same sentence with "an unexpected
+   change" in place of "N line(s)" when nothing was added) — so silence is
+   never mistaken for "nothing happened." If `reverted` is False, this step
+   is a no-op and nothing is printed.
 3. Register the MCP server for this Claude Code installation (user scope), the
    same way any personal MCP server is added — point the user at
    `claude mcp add --help` for the exact invocation. **Server-name caveat:**
