@@ -194,12 +194,14 @@ section "Python dev dependencies (requirements-dev.txt)"
 # (issue #1236). The module list mirrors requirements-dev.txt; keep it in sync.
 dev_deps_satisfied() {
   python3 - <<'PY' >/dev/null 2>&1
-import importlib.util, shutil, sys
+import importlib.util, sys
 mods = ["yaml", "httpx", "jsonschema", "pytest",
         "pytest_asyncio", "xdist", "pytest_cov", "semgrep", "mypy"]
-if any(importlib.util.find_spec(m) is None for m in mods):
-    sys.exit(1)
-sys.exit(0 if shutil.which("ruff") else 1)
+# ruff is probed as an importable MODULE, not via shutil.which (#1676):
+# chk_ruff runs `python3 -m ruff`, so a stray PATH binary at some other
+# version must not satisfy this check and skip the pinned install.
+mods.append("ruff")
+sys.exit(1 if any(importlib.util.find_spec(m) is None for m in mods) else 0)
 PY
 }
 

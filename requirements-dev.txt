@@ -59,12 +59,23 @@ pytest-xdist>=3.0
 # scope — including this repo's own Python sources. Also the tool behind
 # chk_ruff in scripts/ci-local.sh, which lints the repo's own Python against
 # ruff.toml (repo root) as a blocking pre-push gate.
-ruff>=0.3.1
+# EXACTLY pinned, not a floor (#1676). ruff gates `main` via chk_ruff, and its
+# lint rules broaden with every minor release — so an unbounded `>=` made the
+# gate's verdict depend on the day a contributor last resolved their
+# environment. This container had two ruffs installed simultaneously (a uv
+# binary at 0.15.8 on PATH, and 0.16.1 from this file) that disagreed by 21
+# findings on an unmodified tree. Raise this deliberately, fixing whatever the
+# new release surfaces in the same commit.
+ruff==0.16.1
 
 # Required by the same Python static-analysis lane: mypy (type checking,
 # diagnostic-only) feeds /code-review through the Tier 3 JSON adapter, which
 # needs the --output json flag introduced in 1.11.
-mypy>=1.11
+# Upper-bounded for the same reason as ruff's pin above, though loosely: mypy
+# is diagnostic-only here (it gates nothing), so a minor bump cannot turn
+# `main` red — only a major's rule overhaul could surprise the /code-review
+# adapter.
+mypy>=1.11,<3
 
 # Powers chk_coverage_report (scripts/ci-local.sh) with a line+branch coverage
 # report over the plugin's own source (plugins/dev-team/hooks, scripts/) —
