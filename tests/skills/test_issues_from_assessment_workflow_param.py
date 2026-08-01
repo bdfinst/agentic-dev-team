@@ -16,7 +16,7 @@ Ported from tests/skills/issues_from_assessment_workflow_param_tests.bats
 
 from __future__ import annotations
 
-from skill_doc_helpers import PLUGIN_ROOT, grep, section
+from skill_doc_helpers import PLUGIN_ROOT, grep, parse_arguments_section
 
 SKILL = PLUGIN_ROOT / "skills" / "issues-from-assessment" / "SKILL.md"
 COV_BASELINE = PLUGIN_ROOT / "skills" / "coverage-baseline" / "SKILL.md"
@@ -28,12 +28,7 @@ def _text() -> str:
 
 
 def _parse_arguments_section() -> str:
-    return section(
-        _text(),
-        r"^## Parse Arguments",
-        boundary_pattern=r"^## ",
-        include_start_line=False,
-    )
+    return parse_arguments_section(_text())
 
 
 # --- Step 11.1: --workflow surface -------------------------------------------

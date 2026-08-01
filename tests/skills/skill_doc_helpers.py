@@ -45,6 +45,22 @@ def phase_8_section(text: str) -> str:
     return section(text, r"^### Phase 8")
 
 
+def parse_arguments_section(text: str) -> str:
+    """Extract a skill's `## Parse Arguments` section from `text` (the
+    skill's full body), excluding the heading line itself. Promoted here
+    (test-smell-review) after an identical `_parse_arguments_section()` body
+    was duplicated across four tests/skills/test_*.py files with an
+    `include_start_line` drift — one file (test_ship_skill_doc.py) relied on
+    the default (`True`, heading line included), the other three passed
+    `include_start_line=False` explicitly. Reconciled to always exclude the
+    heading line, matching the majority and matching every caller's actual
+    usage — none of the four asserts on the heading text itself, only on
+    content within the section."""
+    return section(
+        text, r"^## Parse Arguments", boundary_pattern=r"^## ", include_start_line=False
+    )
+
+
 def cd_test_architecture_output_section(text: str) -> str:
     """Extract cd-test-architecture/SKILL.md's `## Output` section from
     `text` (the skill's full body). Promoted here (refactor-opportunity-
