@@ -1,11 +1,15 @@
 """autoship_state — shared round-state helpers for /dev-team:autoship (#989).
 
-Shared by `autoship_discover.py` and `autoship_reclaim.py` so neither has to
-inspect the other's code to reuse common logic: the `autoship:*` label
-constants both scripts filter on, the `--input-file`/`--now-override` CLI
-seam, and the positive-value CLI validators. `is_stale`/`format_round_timestamp`
-are consumed only by `autoship_reclaim.py`'s staleness check — discovery has
-no staleness concept of its own.
+Shared by `autoship_discover.py`, `autoship_group.py`, and
+`autoship_reclaim.py` so none has to inspect another's code to reuse common
+logic: the `autoship:*` label constants scripts filter on, the
+`--input-file`/`--now-override` CLI seam, the positive-value CLI validators,
+and (as of the Slice 1 grouping work) the shared `gh issue list` fetch +
+eligibility-filter pipeline (`fetch_eligible_issues`) that both
+`autoship_discover.py` and `autoship_group.py` build on.
+`is_stale`/`format_round_timestamp` are consumed only by
+`autoship_reclaim.py`'s staleness check — discovery/grouping have no
+staleness concept of their own.
 
 Stdlib-only. See docs/python-hook-contract.md.
 """
@@ -13,11 +17,39 @@ Stdlib-only. See docs/python-hook-contract.md.
 from __future__ import annotations
 
 import argparse
+import json
+import subprocess
 from datetime import datetime
+from typing import Any
 
 READY_LABEL = "autoship:ready"
 IN_PROGRESS_LABEL = "autoship:in-progress"
 BLOCKED_LABEL = "autoship:blocked"
+
+# Same fields `gh issue list --json` returns for these names — no schema
+# invention. `title` is required because `autoship_discover.py`'s stdout
+# contract emits it; `state` is required because `is_eligible` checks it
+# directly. Callers needing richer data (e.g. `autoship_group.py`'s
+# dependency/parent signals) pass their own, larger `required_fields` tuple
+# to `fetch_eligible_issues`/`validate_issues`/`load_issues_from_file`.
+BASE_REQUIRED_FIELDS = (
+    "number",
+    "title",
+    "state",
+    "createdAt",
+    "labels",
+    "closedByPullRequestsReferences",
+    "subIssuesSummary",
+)
+
+# gh subprocess calls get a hard timeout so a hung/stalled network call never
+# blocks a caller script indefinitely.
+_GH_TIMEOUT_SECONDS = 30
+
+
+class FetchError(Exception):
+    """A discovery/grouping-input or `gh` fetch problem that must surface as
+    a clear CLI error message, not an uncaught exception/traceback."""
 
 
 def format_round_timestamp(dt: datetime) -> str:
@@ -65,6 +97,198 @@ def positive_float_validator(flag_name: str):
         return value
 
     return _validator
+
+
+def positive_int_validator(flag_name: str):
+    """Return an `argparse` `type=` validator that rejects `<= 0` for `flag_name`.
+
+    Same shape as `positive_float_validator`, for integer-valued flags —
+    shared by `autoship_discover.py`'s `--max-issues` so the CLI boundary
+    fails loud the same way `--max-cost-usd` does.
+    """
+
+    def _validator(raw: str) -> int:
+        value = int(raw)
+        if value <= 0:
+            raise argparse.ArgumentTypeError(
+                f"{flag_name} must be a positive integer, got {raw!r}"
+            )
+        return value
+
+    return _validator
+
+
+def _label_names(issue: dict[str, Any]) -> list[str]:
+    return [label["name"] for label in issue["labels"]]
+
+
+def _is_epic(issue: dict[str, Any]) -> bool:
+    return issue["subIssuesSummary"].get("total", 0) > 0
+
+
+def _has_open_linked_pr(issue: dict[str, Any]) -> bool:
+    """True when any entry in `closedByPullRequestsReferences` is itself
+    still open — a single open PR anywhere in the list excludes the issue,
+    even when other entries in the same list are closed/merged."""
+    return any(
+        pr.get("state") == "OPEN" for pr in issue["closedByPullRequestsReferences"]
+    )
+
+
+def is_eligible(issue: dict[str, Any], label: str) -> bool:
+    """True when `issue` qualifies for autoship dispatch: open, carries
+    `label`, is not in-progress/blocked, is not an epic, and has no open
+    linked pull request."""
+    if issue["state"] != "OPEN":
+        return False
+    labels = _label_names(issue)
+    if label not in labels:
+        return False
+    if IN_PROGRESS_LABEL in labels or BLOCKED_LABEL in labels:
+        return False
+    if _is_epic(issue):
+        return False
+    return not _has_open_linked_pr(issue)
+
+
+def validate_issues(
+    issues: Any, required_fields: tuple[str, ...] = BASE_REQUIRED_FIELDS
+) -> None:
+    """Validate `issues` is a JSON array of objects each carrying every
+    `required_fields` entry.
+
+    Raises `FetchError` naming the malformed entry (by issue number if
+    present, by index otherwise) rather than letting a `KeyError` propagate
+    uncaught.
+    """
+    if not isinstance(issues, list):
+        raise FetchError(
+            "--input-file must contain a JSON array of issue objects, got "
+            f"{type(issues).__name__}"
+        )
+    for idx, issue in enumerate(issues):
+        if not isinstance(issue, dict):
+            raise FetchError(
+                f"malformed --input-file entry at index {idx}: not a JSON object"
+            )
+        missing = [field for field in required_fields if field not in issue]
+        if missing:
+            identifier = f"#{issue['number']}" if "number" in issue else f"index {idx}"
+            raise FetchError(
+                f"malformed --input-file entry ({identifier}): missing required "
+                f"field(s) {', '.join(missing)}"
+            )
+
+
+def load_issues_from_file(
+    path: str, required_fields: tuple[str, ...] = BASE_REQUIRED_FIELDS
+) -> list[dict[str, Any]]:
+    """Read and validate an `--input-file` JSON array of issue objects.
+
+    Raises `FetchError` on unreadable/malformed JSON or a schema violation —
+    never an uncaught exception.
+    """
+    try:
+        with open(path, encoding="utf-8") as fh:
+            issues = json.load(fh)
+    except json.JSONDecodeError as exc:
+        raise FetchError(f"--input-file {path!r} is not valid JSON: {exc}") from exc
+    except OSError as exc:
+        raise FetchError(f"--input-file {path!r} could not be read: {exc}") from exc
+    validate_issues(issues, required_fields)
+    return issues
+
+
+def fetch_issues_from_gh(
+    label: str,
+    required_fields: tuple[str, ...] = BASE_REQUIRED_FIELDS,
+    extra_fields: tuple[str, ...] = (),
+) -> list[dict[str, Any]]:
+    """Fetch open issues labeled `label` via a live `gh issue list` call,
+    using `gh`'s cwd-based repo auto-detection (no `--repo` flag).
+
+    `--json` requests `required_fields` plus any `extra_fields` a caller
+    needs on top of that base set (e.g. `autoship_group.py`'s dependency/
+    parent fields), deduplicated while preserving order.
+
+    The `--state open` server-side filter and the requested `state` field
+    are intentionally redundant with `is_eligible`'s own `state == "OPEN"`
+    check — this is what makes the `--input-file` and live paths behave
+    identically.
+
+    Raises `FetchError` on a non-zero `gh` exit, a timeout, or malformed
+    JSON output — never an uncaught
+    `CalledProcessError`/`TimeoutExpired`/`JSONDecodeError`/traceback.
+    """
+    fields = list(required_fields)
+    for field in extra_fields:
+        if field not in fields:
+            fields.append(field)
+    gh_json_fields = ",".join(fields)
+
+    try:
+        result = subprocess.run(
+            [
+                "gh",
+                "issue",
+                "list",
+                "--state",
+                "open",
+                "--label",
+                label,
+                "--json",
+                gh_json_fields,
+            ],
+            capture_output=True,
+            text=True,
+            check=True,
+            timeout=_GH_TIMEOUT_SECONDS,
+        )
+    except FileNotFoundError as exc:
+        raise FetchError(f"gh CLI not found: {exc}") from exc
+    except subprocess.TimeoutExpired as exc:
+        raise FetchError(
+            f"gh issue list timed out after {_GH_TIMEOUT_SECONDS}s: {exc}"
+        ) from exc
+    except subprocess.CalledProcessError as exc:
+        stderr = (exc.stderr or "").strip()
+        raise FetchError(
+            f"gh issue list failed (exit {exc.returncode}): {stderr}"
+        ) from exc
+
+    try:
+        issues = json.loads(result.stdout)
+    except json.JSONDecodeError as exc:
+        raise FetchError(f"gh issue list returned malformed JSON: {exc}") from exc
+
+    validate_issues(issues, required_fields)
+    return issues
+
+
+def fetch_eligible_issues(
+    label: str,
+    extra_fields: tuple[str, ...] = (),
+    input_file: str | None = None,
+    required_fields: tuple[str, ...] = BASE_REQUIRED_FIELDS,
+) -> list[dict[str, Any]]:
+    """Return the FULL eligible pool for `label`, oldest-first by
+    `createdAt` — no `--max-issues`-style truncation (that stays each
+    caller's own concern, applied after this returns).
+
+    Sources issues from `input_file` when given (bypassing the live `gh`
+    call, the shared `--input-file` test seam), otherwise from a live
+    `gh issue list` call requesting `required_fields` plus `extra_fields`.
+    Raises `FetchError` on any fetch/validation problem (never an uncaught
+    exception).
+    """
+    if input_file:
+        issues = load_issues_from_file(input_file, required_fields)
+    else:
+        issues = fetch_issues_from_gh(label, required_fields, extra_fields)
+
+    eligible = [issue for issue in issues if is_eligible(issue, label)]
+    eligible.sort(key=lambda issue: issue["createdAt"])
+    return eligible
 
 
 def add_input_seam_args(parser: argparse.ArgumentParser) -> None:
