@@ -30,7 +30,12 @@ DIST_TO_MODULE = {
     "pytest-asyncio": "pytest_asyncio",
     "pytest-xdist": "xdist",
     "pytest-cov": "pytest_cov",
-    "ruff": None,
+    # ruff was mapped to None ("CLI-only, probed via shutil.which") until
+    # #1676. It ships an importable package as well as a console script, and
+    # chk_ruff now invokes `python3 -m ruff`, so the probe must confirm the
+    # MODULE is present — a stray PATH binary at a different version than the
+    # pinned one must not satisfy it.
+    "ruff": "ruff",
     "mypy": "mypy",
 }
 
@@ -121,8 +126,9 @@ def test_pip_install_failure_reports_error_and_notes_failure():
 
 
 def test_probe_module_list_covers_every_requirement():
-    """Every requirements-dev.txt dist is checked by the probe: importable ones
-    appear in the find_spec module list; ruff (CLI-only) via shutil.which."""
+    """Every requirements-dev.txt dist is checked by the probe, all of them via
+    the find_spec module list (#1676 — ruff was the last `shutil.which`
+    holdout)."""
     body = _dev_setup()
     # Isolate the embedded Python probe so we don't match module names elsewhere.
     probe = body[body.index("python3 - <<'PY'") : body.index("\nPY\n")]
@@ -135,9 +141,29 @@ def test_probe_module_list_covers_every_requirement():
 
     for dist in declared:
         module = DIST_TO_MODULE[dist]
-        if module is None:
-            assert 'which("ruff")' in probe, "ruff must be checked via which()"
-        else:
-            assert (
-                f'"{module}"' in probe
-            ), f"probe omits module {module!r} for dist {dist!r}"
+        assert module is not None, f"no module mapped for dist {dist!r}"
+        assert f'"{module}"' in probe, f"probe omits module {module!r} for dist {dist!r}"
+
+    # No dist may regress to a PATH-binary probe: `which` cannot tell a pinned
+    # install from whatever else happens to be on PATH, which is the exact
+    # skew #1676 was filed for. Comment lines are stripped first — the probe
+    # explains in prose why it no longer uses `shutil.which`, and that
+    # explanation must not read as the thing it warns against.
+    code = "\n".join(
+        line for line in probe.splitlines() if not line.lstrip().startswith("#")
+    )
+    assert "shutil" not in code, "probe must not fall back to a PATH-binary check"
+
+
+def test_ruff_is_pinned_exactly():
+    """#1676 — ruff gates `main` via chk_ruff, and its rule set broadens every
+    minor release, so an unbounded floor makes the gate's verdict depend on
+    when a contributor last resolved their environment."""
+    for line in REQUIREMENTS.read_text(encoding="utf-8").splitlines():
+        stripped = line.strip()
+        if stripped.startswith("ruff"):
+            assert re.match(r"^ruff==\d+\.\d+\.\d+$", stripped), (
+                f"ruff must be pinned exactly, found: {stripped!r}"
+            )
+            return
+    raise AssertionError("requirements-dev.txt declares no ruff entry")

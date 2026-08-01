@@ -112,10 +112,16 @@ jobs:
       # once in scripts/ci-local.sh so CI and the local pre-push gate can't
       # drift. Tests/hooks mutation-gate suites are still excluded (they need
       # stryker/pitest); only the pure bash+python+jq ones run.
+      # chk_sa_mcp_tools joined this list in #1676: it sits in ci-local.sh's
+      # always-run CHECKS array but was named by no CI job, and it is
+      # stdlib-only Python needing nothing this job does not already install.
+      # chk_harness_scope is NOT here for exactly that reason — its checks 5-6
+      # shell out to the red-team orchestrator, which imports httpx. It runs in
+      # the harness-smoke job below, which installs it.
       - name: Content + hook-conformance checks (via ci-local)
         run:
           bash scripts/ci-local.sh
-          --only=chk_md_references,chk_skills_index,chk_rules_vs_prompts,chk_hook_units
+          --only=chk_md_references,chk_skills_index,chk_rules_vs_prompts,chk_hook_units,chk_sa_mcp_tools
 
   # ADR 0014's Python 3.8 floor, proven by running it (#1635). Isolated in its
   # own job, matching semgrep-fixtures' and cost-regression's precedent below:
@@ -260,4 +266,41 @@ jobs:
         run: pip install --quiet httpx
 
       - name: Red-team harness smoke test (via ci-local)
-        run: bash scripts/ci-local.sh --only=chk_harness_smoke
+        run: bash scripts/ci-local.sh --only=chk_harness_smoke,chk_harness_scope
+
+  # Both language linters (#1676). They were declared in ci-local.sh's
+  # always-run CHECKS array but named by NO CI job's --only= list, so they ran
+  # only on a contributor machine with a working pre-push hook — and only at
+  # whatever linter version happened to resolve there. scripts/verify_toolchain.py
+  # reached main carrying 20 ruff findings that way.
+  #
+  # ruff is installed from requirements-dev.txt, which pins it exactly, and
+  # chk_ruff invokes `python3 -m ruff` rather than a PATH binary, so this job
+  # and a contributor's machine cannot disagree about what "clean" means.
+  lint:
+    name: Lint (ruff + eslint)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Cache pip packages
+        uses: actions/cache@v6
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('requirements-dev.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-
+
+      - name: Install pinned ruff
+        run: pip install --quiet "$(grep -E '^ruff==' requirements-dev.txt)"
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - name: Install node dev dependencies (eslint)
+        run: npm ci
+
+      - name: Lint checks (via ci-local)
+        run: bash scripts/ci-local.sh --only=chk_ruff,chk_eslint

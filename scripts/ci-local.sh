@@ -90,9 +90,13 @@ section() { printf '\n%s== %s ==%s\n' "$bold" "$1" "$reset"; }
 # tools per job, so a full-toolchain gate here would false-fail those jobs.
 if [ -z "$ONLY" ]; then
   missing=()
-  for t in shellcheck jq python3 semgrep ruff; do
+  for t in shellcheck jq python3 semgrep; do
     command -v "$t" >/dev/null 2>&1 || missing+=("$t")
   done
+  # ruff is probed as a MODULE, matching how chk_ruff invokes it (#1676). A
+  # `command -v ruff` here would pass on a machine whose only ruff is a stray
+  # PATH binary at a different version from the pinned one the gate runs.
+  python3 -m ruff --version >/dev/null 2>&1 || missing+=("ruff (python3 -m ruff)")
   if [ "${#missing[@]}" -gt 0 ]; then
     printf '%s%sMissing required tools: %s%s\n' "$bold" "$red" "${missing[*]}" "$reset" >&2
     printf 'Install everything the dev gates need: bash scripts/dev-setup.sh\n' >&2
@@ -263,7 +267,14 @@ chk_eslint() {
 # /build's self-heal dispatch on Python files (plugins/dev-team/skills/
 # static-analysis-integration/SKILL.md); this gate keeps the repo's own
 # Python at the bar those skills hold contributor changes to.
-chk_ruff() { ruff check .; }
+#
+# Invoked as `python3 -m ruff`, never the bare `ruff` binary (#1676). Both can
+# be present at once and disagree — this repo's own container carried a uv-
+# installed 0.15.8 on PATH alongside requirements-dev.txt's 0.16.1, which
+# reported 21 findings the binary called clean. The module form resolves to
+# the version this repo PINS, so the gate means the same thing here, in CI,
+# and on every contributor machine.
+chk_ruff() { python3 -m ruff check .; }
 # plugins/dev-team/tests/hooks/parity/ (the .sh↔.py parity harness) was retired
 # in #618 (epic #572) once every shipped hook + script became Python-only. The
 # going-forward coverage lives in plugins/dev-team/tests/hooks/test_*.py and
@@ -384,6 +395,18 @@ CHECKS=(
   "skills catalog freshness (docs/skills.md)::chk_skills_index"
   "nav integrity (mkdocs nav → assembled file)::chk_nav_integrity"
   "eval-corpus semver contract::chk_eval_semver"
+  # CI coverage of this array, audited in #1676 (union of every `--only=` list
+  # in .github/workflows/ vs. the entries here). Two entries below run ONLY
+  # here, and that is deliberate rather than an oversight:
+  #   - chk_eval_semver   self-skips unless a BASE/HEAD range is supplied, so
+  #                       it is structurally a range-driven check, not a
+  #                       standing one.
+  #   - chk_oe_staleness  declared advisory in its own label.
+  # chk_nav_integrity is the fast local subset of link-check.yml's required
+  # `nav-integrity` job (see that workflow's header). Everything else in this
+  # array is named by some CI job's --only= list. Re-run that audit when
+  # adding an entry: an always-run check that no CI job names is a gate only
+  # a correctly-configured contributor machine enforces.
   "eslint::chk_eslint"
   "ruff check (Python lint)::chk_ruff"
   "shipped Python 3.8 floor (compile + import on a real 3.8)::chk_python_floor"

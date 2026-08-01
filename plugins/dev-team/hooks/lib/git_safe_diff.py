@@ -71,6 +71,7 @@ def run_safe_git_diff(
     cwd: str | Path | None = None,
     text: bool = False,
     target: str | None = "--cached",
+    timeout: float | None = None,
 ) -> subprocess.CompletedProcess:
     """Run `git diff [target]` with the shared safety flags, plus
     caller-specific `extra_flags` inserted between the target and the
@@ -84,6 +85,16 @@ def run_safe_git_diff(
     `target=None` omits the target argument entirely (bare `git diff` —
     index vs. working tree); any other string (`"--cached"`, `"HEAD"`, ...)
     is inserted as-is right after `diff`.
+
+    `timeout` (#1663): seconds to wait before `subprocess.run` raises
+    `TimeoutExpired`. Defaults to `None` (wait forever), preserving every
+    pre-existing caller's behavior exactly. Only `normalized_gate_hash()`
+    passes a value today — it is the one caller that asks git for
+    whole-file context (`--unified=100000`), so it is the one caller whose
+    runtime scales with repository content rather than with changeset size.
+    `TimeoutExpired` propagates to the caller for the same reason a launch
+    failure does: this helper builds and runs the safe argv, it does not
+    decide what a given caller should do about a slow git.
 
     Raises on subprocess launch failure — callers keep their own
     try/except around this call, since `_staged_names()` and
@@ -103,6 +114,7 @@ def run_safe_git_diff(
         capture_output=True,
         check=False,
         text=text,
+        timeout=timeout,
     )
 
 
