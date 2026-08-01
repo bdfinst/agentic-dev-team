@@ -70,6 +70,31 @@ errs closed: a Python reindent, or an indentation fix on a quoted line,
 simply doesn't get carry-forward — costing one re-dispatch rather than
 weakening the gate.
 
+## Unquoted heredoc bodies (#1638)
+
+The quote-character rule above is what keeps string DATA out of the cosmetic
+bucket — but it only sees quote characters, and Ruby's `<<~SQL`, PHP's
+`<<<TXT`, and Perl's `<<EOF` heredocs carry a data body with no quote
+character anywhere on its lines. `_heredoc_body_marks` tracks each
+language's opener/closer grammar per hunk side (`_HEREDOC_GRAMMARS`,
+extension-keyed so PHP's three-angle-bracket form can never cross-match
+Ruby/Perl's two-angle-bracket form) and forces every line between an opener
+and its closer to byte-exact comparison, bypassing `_canonical_line`'s
+collapsible/quote-char rules entirely.
+
+Failing closed here means two things, both load-bearing:
+
+- **An opener with no closer inside the visible hunk side marks every
+  remaining line, not just up to end-of-context.** The true close may be
+  outside what this hunk shows; the safe assumption is that it hasn't
+  closed yet, so nothing after it is eligible for whitespace collapsing.
+- **An opener could be invisible entirely** — more than a few lines of
+  context above the first line this function ever sees. `normalized_gate_hash`
+  closes that gap at the source instead of guessing: it requests
+  `--unified=100000` context, so for any realistically-sized file every
+  hunk spans start-to-end and an opener anywhere earlier in the file is
+  always part of the same hunk `_heredoc_body_marks` reasons over.
+
 ## What the canonical form must contain to bind a subject (#1631 review)
 
 The first draft of this module compared, per file, the flat list of removed
@@ -195,14 +220,155 @@ _WHITESPACE_INSIGNIFICANT_EXTENSIONS = frozenset(
     }
 )
 
-#: KNOWN RESIDUAL (#1631 review). The quote-character rule in
+#: Shared by `_HEREDOC_GRAMMARS` below — see that dict's own comment for the
+#: grammar contract. Ruby's `<<~`/`<<-`/bare, HCL's `<<-`/bare, and Perl's
+#: `<<~`/bare all share this exact closer rule.
+def _bareish_heredoc_close(line: str, ident: str, modifier: str) -> bool:
+    """Shared closer for grammars whose only modifier axis is "must the
+    closing line sit in column 0". No modifier means the opener demands an
+    unindented closer (`line == ident`); `~`/`-` means the closer may be
+    indented (`line.lstrip() == ident`).
+
+    Leading whitespace only — never `.strip()`. A real heredoc terminator
+    (Ruby, Perl, HCL) is the identifier and nothing else on the line; text
+    AFTER it, including trailing whitespace, means the line is not a
+    terminator at all. Stripping trailing whitespace here would false-close
+    on a body line like `"  SQL  "` (trailing spaces) and dump every
+    subsequent body line back into whitespace collapsing — the "more body,
+    never fewer" rule this grammar exists to uphold, breached by the exact
+    kind of over-eager closer match that rule warns against."""
+    return line == ident if modifier == "" else line.lstrip() == ident
+
+
+#: Per-language heredoc grammars (#1638). The quote-character rule in
 #: `_canonical_line` is what keeps string data out of the cosmetic bucket,
-#: and it does not see an unquoted heredoc body — Ruby's `<<~SQL`, PHP's
+#: and it does not see an UNQUOTED heredoc body — Ruby's `<<~SQL`, PHP's
 #: `<<<TXT`, Perl's `<<EOF`. Reindenting a line inside one is a data change
-#: this module would read as formatting. Narrower than the indentation-
-#: significance hazard (which moves code between blocks) and it needs the
-#: same language awareness that defers comment stripping to v2, so it is
-#: recorded here rather than papered over with a heuristic.
+#: this module would otherwise read as formatting.
+#:
+#: Each entry is `(open_re, is_close)`: `open_re` matches an opener anywhere
+#: on a line, capturing the modifier (group 1) and the delimiter identifier
+#: (group 2); `is_close(line, ident, modifier)` decides whether a later line
+#: closes that specific heredoc. Deliberately erring toward MORE lines
+#: counting as heredoc body, never fewer — see `_heredoc_body_marks`'s
+#: docstring for why the closing-match direction matters (an early false
+#: close would let real body content fall back to normal whitespace
+#: collapsing, which is the hazard this exists to close).
+#: Keyed by extension, not by a single cross-language regex, so PHP's `<<<`
+#: and Ruby/Perl's `<<` can never cross-match each other's grammar. `.tf`/
+#: `.hcl` alias to `.rb`'s tuple rather than `.pl`'s: Terraform/HCL heredocs
+#: support the bare and dash (`<<-EOT`) forms but not the squiggly one, and
+#: only `.rb`'s regex captures a dash modifier — `.pl`'s does not, so it
+#: would silently fail to match `<<-EOT` at all.
+#:
+#: Ruby/Perl's bare `<<` is also their shift/append ("shovel") operator
+#: (`arr << item`, `x << 2`), but every real style guide writes that with
+#: spaces around it. A heredoc opener has no space before an UNQUOTED
+#: delimiter, so the identifier group starting immediately after `<<` (no
+#: `\s*`) structurally cannot match the idiomatic spaced operator form.
+#: Verified directly: `arr << item` and `x << 2` do not match; only the
+#: unidiomatic no-space `arr<<item` would, which costs a rare false-positive
+#: carry-forward loss. Perl's grammar carries two exceptions, both in the
+#: SAFE (over-detection, never under-detection) direction:
+#: - A space IS legal (and not deprecated) before a QUOTED delimiter
+#:   (`print << "EOF";`), so `.pl`'s regex allows whitespace only when
+#:   immediately followed by a quote character — never bare — keeping the
+#:   shovel-operator distinction intact while still matching this real
+#:   heredoc form.
+#: - A backslash-quoted delimiter (`print <<\EOF;`, perlop's no-interpolation
+#:   shorthand for `<<'EOF'`) is matched by including `\` alongside `'`/`"`
+#:   in the optional marker class. Over-matching an opener costs at most a
+#:   spurious carry-forward loss (marking replaces a line with itself,
+#:   byte-exact, never creating a collision); missing one is the unsafe
+#:   direction this whole grammar exists to close.
+_HEREDOC_GRAMMARS = {
+    ".rb": (
+        re.compile(r"<<([~-]?)['\"]?([A-Za-z_][A-Za-z0-9_]*)['\"]?"),
+        _bareish_heredoc_close,
+    ),
+    ".pl": (
+        re.compile(r"<<(~?)(?:\s+(?=['\"]))?['\"\\]?([A-Za-z_][A-Za-z0-9_]*)['\"]?"),
+        _bareish_heredoc_close,
+    ),
+    ".php": (
+        # The leading `()` is an empty capture group, not a mistake: it pads
+        # PHP's regex so the delimiter identifier still lands in group 2,
+        # matching the `.rb`/`.pl` group numbering that `_heredoc_body_marks`
+        # unpacks uniformly across every grammar. PHP has no modifier axis.
+        re.compile(r"<<<\s*()['\"]?([A-Za-z_][A-Za-z0-9_]*)['\"]?"),
+        # `.lstrip()` (never `.strip()` — see `_bareish_heredoc_close`'s
+        # docstring for why trailing whitespace must not be stripped) plus
+        # `.rstrip(";,)")` for a real PHP heredoc closer, which may be
+        # trailed by a statement terminator, an array-element comma, or a
+        # call-argument close-paren. Known, accepted residual: this still
+        # makes PHP's close check looser than the "more body, never less"
+        # rule above for trailing PUNCTUATION — a body line reading exactly
+        # `TXT)` would false-close. Not fixed here: distinguishing "closer
+        # plus trailing punctuation" from "body line matching that shape"
+        # needs the actual PHP closer grammar (identifier alone on the line,
+        # optionally re-indented per PHP 7.3+), not a per-language regex
+        # tweak.
+        lambda line, ident, _modifier: line.lstrip().rstrip(";,)") == ident,
+    ),
+}
+_HEREDOC_GRAMMARS[".pm"] = _HEREDOC_GRAMMARS[".pl"]
+_HEREDOC_GRAMMARS[".tf"] = _HEREDOC_GRAMMARS[".hcl"] = _HEREDOC_GRAMMARS[".rb"]
+
+
+def _heredoc_body_marks(lines: list, suffix: str) -> list:
+    """Return one bool per entry in `lines`: True where the line is inside an
+    unquoted heredoc body (or is an unresolved opener's tail — see below),
+    and must therefore be compared byte-exact regardless of the
+    collapsible/quote-char rules `_canonical_line` otherwise applies.
+
+    Tracks a FIFO queue of pending `(ident, modifier)` pairs, not a single
+    one: stacked openers on one line are ordinary idioms (Ruby
+    `assert_equal(<<~A, <<~B)`, Perl `print <<A, <<B;`), and their bodies
+    close in the same order the openers appeared. Marking only the first of
+    several openers — losing the rest to ordinary whitespace collapsing —
+    is exactly the hazard this function exists to close, so every opener
+    found while the queue is empty is enqueued, not just the first match on
+    the line.
+
+    Fails closed on an unmatched opener: if a heredoc opens within `lines`
+    but no closing delimiter is found before `lines` ends, every remaining
+    line is marked True. The true close may lie outside what this hunk's
+    side shows; the safe assumption is that it has not closed yet.
+    `normalized_gate_hash` additionally requests full-file diff context (see
+    its docstring) so that in real use an opener earlier in the same file is
+    always part of the same hunk as any body line it covers — this function
+    only needs to reason within one hunk side, never across hunks.
+
+    A line that closes the head of the queue is not re-scanned for a new
+    opener of its own. Sound only because every `is_close` in
+    `_HEREDOC_GRAMMARS` requires the entire (stripped) line to equal the
+    ident, so a closing line can never also carry an opener — there is no
+    "fresh opener on the closer's line" case to miss today. A grammar with a
+    looser closer would need the opener scan to run on the closing line too,
+    or the following body would silently fall back to whitespace
+    collapsing.
+
+    An opener line itself is never marked — evident intent, and it usually
+    carries no body content (`sql = <<~SQL`) — only lines strictly after it,
+    through and including whatever line closes it.
+    """
+    grammar = _HEREDOC_GRAMMARS.get(suffix)
+    if grammar is None:
+        return [False] * len(lines)
+    open_re, is_close = grammar
+    marks = [False] * len(lines)
+    pending: list = []  # FIFO of (ident, modifier); bodies close in this order
+    for i, line in enumerate(lines):
+        if pending:
+            marks[i] = True
+            ident, modifier = pending[0]
+            if is_close(line, ident, modifier):
+                pending.pop(0)
+            continue
+        for match in open_re.finditer(line):
+            pending.append((match.group(2), match.group(1)))
+    return marks
+
 
 #: Field/record separators for the canonical serialization. Chosen from the
 #: ASCII separator block because they are vanishingly rare in source, but NOT
@@ -254,16 +420,23 @@ def _is_documentation(path: str) -> bool:
     return is_doc_only_changeset([path])
 
 
+def _extension(path: str) -> str | None:
+    """Lowercased extension including the dot, or None for an extensionless
+    file — shared by `_whitespace_collapsible` and the heredoc grammar
+    lookup so the two never disagree about what a path's extension is."""
+    name = str(path or "").replace("\\", "/").rsplit("/", 1)[-1].lower()
+    if "." not in name:
+        return None
+    return "." + name.rsplit(".", 1)[-1]
+
+
 def _whitespace_collapsible(path: str) -> bool:
     """True only for extensions this module can prove are brace/keyword-
     delimited. Everything else — including every unknown extension and every
     extensionless file — is compared byte-exactly. Fail-closed by default:
     the safe answer to "is this language's indentation meaningless?" is no."""
-    name = str(path or "").replace("\\", "/").rsplit("/", 1)[-1].lower()
-    if "." not in name:
-        return False
-    suffix = "." + name.rsplit(".", 1)[-1]
-    if suffix in _INDENT_SIGNIFICANT_EXTENSIONS:
+    suffix = _extension(path)
+    if suffix is None or suffix in _INDENT_SIGNIFICANT_EXTENSIONS:
         return False
     return suffix in _WHITESPACE_INSIGNIFICANT_EXTENSIONS
 
@@ -468,29 +641,41 @@ def normalize_patch(patch_text: str) -> str | None:
         return None
 
     records = []
-    for section in sorted(sections, key=lambda s: s.name):
-        name = section.name
-        if section.has_real_path and _is_documentation(name):
-            continue
-        collapsible = _whitespace_collapsible(name)
-        parts = list(section.structural)
-        if section.binary:
-            # The blob SHAs are the only content signal a textual diff
-            # exposes for a binary file, and without them any binary
-            # replacement is invisible to this digest.
-            parts.append(section.index_line or "binary")
-        for old_lines, new_lines in section.hunks:
-            old_canon = [_canonical_line(ln, collapsible) for ln in old_lines]
-            new_canon = [_canonical_line(ln, collapsible) for ln in new_lines]
-            if old_canon == new_canon:
-                # This hunk's two sides canonicalize identically — its whole
-                # delta was formatting.
+    try:
+        for section in sorted(sections, key=lambda s: s.name):
+            name = section.name
+            if section.has_real_path and _is_documentation(name):
                 continue
-            parts.append("\n".join(old_canon))
-            parts.append("\n".join(new_canon))
-        if not parts:
-            continue
-        records.append(_encode([name] + parts))
+            collapsible = _whitespace_collapsible(name)
+            suffix = _extension(name)
+            parts = list(section.structural)
+            if section.binary:
+                # The blob SHAs are the only content signal a textual diff
+                # exposes for a binary file, and without them any binary
+                # replacement is invisible to this digest.
+                parts.append(section.index_line or "binary")
+            for old_lines, new_lines in section.hunks:
+                old_heredoc = _heredoc_body_marks(old_lines, suffix)
+                new_heredoc = _heredoc_body_marks(new_lines, suffix)
+                old_canon = [
+                    ln if marked else _canonical_line(ln, collapsible)
+                    for ln, marked in zip(old_lines, old_heredoc)
+                ]
+                new_canon = [
+                    ln if marked else _canonical_line(ln, collapsible)
+                    for ln, marked in zip(new_lines, new_heredoc)
+                ]
+                if old_canon == new_canon:
+                    # This hunk's two sides canonicalize identically — its
+                    # whole delta was formatting.
+                    continue
+                parts.append("\n".join(old_canon))
+                parts.append("\n".join(new_canon))
+            if not parts:
+                continue
+            records.append(_encode([name] + parts))
+    except Exception:  # noqa: BLE001 - fail closed, see module docstring
+        return None
     return _RECORD_SEP.join(_encode([record]) for record in records)
 
 
@@ -503,6 +688,20 @@ def normalized_gate_hash(cwd=None, target: str = "--cached") -> str | None:
     otherwise collapse this function's input to empty for every changeset,
     turning the normalized hash into a constant — the same subject-binding
     bypass `review_gate_hash()`'s docstring documents at length.
+
+    Also passes `--unified=100000` (#1638): `_heredoc_body_marks` reasons
+    only within one hunk side, never across hunks, so a heredoc opener more
+    than the default 3 lines of context above a changed body line would
+    otherwise be invisible to it — the exact "opened outside the visible
+    hunk" hazard the heredoc handling has to fail closed against. Requesting
+    enough context to cover any realistically-sized file makes each file's
+    changes arrive as one hunk spanning start to end, so an opener anywhere
+    earlier in the file is always part of the same hunk as any body line it
+    covers. This is strictly safer than the default, never less: wider
+    context only ever MERGES hunks, and a merged hunk whose two sides still
+    canonicalize identically was purely formatting regardless of how many
+    original hunks it absorbed (see the "costs some invariance, never
+    safety" trade already accepted for fixes 2-3 in the module docstring).
 
     `target` mirrors `review_gate_hash()`/`working_tree_gate_hash()`'s split:
     `--cached` for an ordinary staged commit, `HEAD` for the `git commit
@@ -525,7 +724,7 @@ def normalized_gate_hash(cwd=None, target: str = "--cached") -> str | None:
     """
     try:
         completed = run_safe_git_diff(
-            ["--no-color", "--no-ext-diff", "--no-textconv"],
+            ["--no-color", "--no-ext-diff", "--no-textconv", "--unified=100000"],
             cwd=cwd,
             text=False,
             target=target,

@@ -167,6 +167,327 @@ class TestNormalizePatch:
         assert ngh.normalized_gate_hash(tmp_path) is None
 
 
+class TestHeredocBodies:
+    """#1638. Unquoted heredoc bodies carry no quote character, so the rule
+    in `_canonical_line` that keeps string data out of the cosmetic bucket
+    never sees them. Each language test opens, reindents, and closes a
+    heredoc within one hunk — the shape `_heredoc_body_marks` reasons over."""
+
+    def test_ruby_squiggly_heredoc_reindent_survives(self):
+        before = _patch(
+            "a.rb",
+            ["sql = <<~SQL", "  SELECT * FROM users WHERE role = admin", "SQL"],
+            ["sql = <<~SQL", "  SELECT * FROM users WHERE role = admin", "SQL"],
+        )
+        after = _patch(
+            "a.rb",
+            ["sql = <<~SQL", "  SELECT * FROM users WHERE role = admin", "SQL"],
+            ["sql = <<~SQL", "    SELECT * FROM users WHERE role = admin", "SQL"],
+        )
+        assert ngh.normalize_patch(before) != ngh.normalize_patch(after)
+        assert ngh.normalize_patch(after) not in ("", None)
+
+    def test_ruby_dash_heredoc_reindent_survives(self):
+        before = _patch("a.rb", ["x = <<-EOF", "  body", "  EOF"], ["x = <<-EOF", "  body", "  EOF"])
+        after = _patch("a.rb", ["x = <<-EOF", "  body", "  EOF"], ["x = <<-EOF", "    body", "  EOF"])
+        assert ngh.normalize_patch(before) != ngh.normalize_patch(after)
+
+    def test_ruby_bare_heredoc_reindent_survives(self):
+        before = _patch("a.rb", ["x = <<EOF", "  body", "EOF"], ["x = <<EOF", "  body", "EOF"])
+        after = _patch("a.rb", ["x = <<EOF", "  body", "EOF"], ["x = <<EOF", "    body", "EOF"])
+        assert ngh.normalize_patch(before) != ngh.normalize_patch(after)
+
+    def test_php_heredoc_reindent_survives(self):
+        before = _patch(
+            "a.php",
+            ["$msg = <<<TXT", "  Dear customer, your balance is overdue", "TXT;"],
+            ["$msg = <<<TXT", "  Dear customer, your balance is overdue", "TXT;"],
+        )
+        after = _patch(
+            "a.php",
+            ["$msg = <<<TXT", "  Dear customer, your balance is overdue", "TXT;"],
+            ["$msg = <<<TXT", "    Dear customer, your balance is overdue", "TXT;"],
+        )
+        assert ngh.normalize_patch(before) != ngh.normalize_patch(after)
+        assert ngh.normalize_patch(after) not in ("", None)
+
+    def test_perl_shell_style_heredoc_reindent_survives(self):
+        """Perl and shell share the `<<EOF` grammar (the issue's own grouping
+        of the two); `.pl`/`.pm` are the tracked extension, matching
+        `_WHITESPACE_INSIGNIFICANT_EXTENSIONS`."""
+        before = _patch(
+            "a.pl",
+            ["my $t = <<EOF;", "  literal text that matters", "EOF"],
+            ["my $t = <<EOF;", "  literal text that matters", "EOF"],
+        )
+        after = _patch(
+            "a.pl",
+            ["my $t = <<EOF;", "  literal text that matters", "EOF"],
+            ["my $t = <<EOF;", "    literal text that matters", "EOF"],
+        )
+        assert ngh.normalize_patch(before) != ngh.normalize_patch(after)
+        assert ngh.normalize_patch(after) not in ("", None)
+
+    def test_perl_spaced_quoted_heredoc_opener_reindent_survives(self):
+        """Perl legally allows whitespace before a QUOTED delimiter
+        (`print << "EOF";`) — only the bare spaced form (`<< EOF`) is
+        deprecated/fatal. The `.pl` regex must still catch this: missing it
+        would be a false negative on a real heredoc, the unsafe direction."""
+        before = _patch(
+            "a.pl",
+            ['print << "EOF";', "  literal text that matters", "EOF"],
+            ['print << "EOF";', "  literal text that matters", "EOF"],
+        )
+        after = _patch(
+            "a.pl",
+            ['print << "EOF";', "  literal text that matters", "EOF"],
+            ['print << "EOF";', "    literal text that matters", "EOF"],
+        )
+        assert ngh.normalize_patch(before) != ngh.normalize_patch(after)
+        assert ngh.normalize_patch(after) not in ("", None)
+
+    def test_perl_backslash_quoted_heredoc_opener_reindent_survives(self):
+        """`<<\\EOF` (perlop: no-interpolation shorthand for `<<'EOF'`) must
+        still be recognized as an opener — missing it is a false negative on
+        a real heredoc, the unsafe direction this grammar exists to close."""
+        before = _patch(
+            "a.pl",
+            ["print <<\\EOF;", "  literal text that matters", "EOF"],
+            ["print <<\\EOF;", "  literal text that matters", "EOF"],
+        )
+        after = _patch(
+            "a.pl",
+            ["print <<\\EOF;", "  literal text that matters", "EOF"],
+            ["print <<\\EOF;", "    literal text that matters", "EOF"],
+        )
+        assert ngh.normalize_patch(before) != ngh.normalize_patch(after)
+        assert ngh.normalize_patch(after) not in ("", None)
+
+    def test_indented_closer_with_trailing_whitespace_does_not_false_close(self):
+        """#1638 regression: `_bareish_heredoc_close` used `.strip()` for the
+        indent-tolerant (`~`/`-`) forms, which also strips TRAILING
+        whitespace — so a body line reading exactly the identifier plus
+        trailing spaces (`"  SQL  "`) falsely closed the heredoc, dumping
+        every later body line back into whitespace collapsing. A real
+        terminator is the identifier and nothing else on the line."""
+        before = _patch(
+            "a.rb",
+            ["sql = <<~SQL", "  SELECT 1", "  SQL  ", "    secret data", "SQL"],
+            ["sql = <<~SQL", "  SELECT 1", "  SQL  ", "    secret data", "SQL"],
+        )
+        after = _patch(
+            "a.rb",
+            ["sql = <<~SQL", "  SELECT 1", "  SQL  ", "    secret data", "SQL"],
+            ["sql = <<~SQL", "  SELECT 1", "  SQL  ", "        secret data", "SQL"],
+        )
+        assert ngh.normalize_patch(before) != ngh.normalize_patch(after)
+        assert ngh.normalize_patch(after) not in ("", None)
+
+    def test_php_closer_with_trailing_whitespace_does_not_false_close(self):
+        """#1638 regression: the PHP closer carried the identical
+        trailing-whitespace false-close defect just fixed in
+        `_bareish_heredoc_close` — `.strip()` (not `.lstrip()`) let a body
+        line reading the identifier plus trailing spaces close the heredoc
+        early."""
+        before = _patch(
+            "a.php",
+            ["$m = <<<TXT", "  Dear customer", "  TXT  ", "    secret data", "TXT;"],
+            ["$m = <<<TXT", "  Dear customer", "  TXT  ", "    secret data", "TXT;"],
+        )
+        after = _patch(
+            "a.php",
+            ["$m = <<<TXT", "  Dear customer", "  TXT  ", "    secret data", "TXT;"],
+            ["$m = <<<TXT", "  Dear customer", "  TXT  ", "        secret data", "TXT;"],
+        )
+        assert ngh.normalize_patch(before) != ngh.normalize_patch(after)
+        assert ngh.normalize_patch(after) not in ("", None)
+
+    def test_perl_module_extension_uses_the_same_grammar_as_pl(self):
+        assert ngh._HEREDOC_GRAMMARS[".pm"] is ngh._HEREDOC_GRAMMARS[".pl"]
+
+    @pytest.mark.parametrize("suffix", [".tf", ".hcl"])
+    def test_terraform_and_hcl_alias_the_ruby_style_grammar(self, suffix):
+        """Terraform/HCL heredocs (`<<EOT` / `<<-EOT`) share Ruby's exact
+        opener/closer grammar — not Perl's, whose regex has no dash-modifier
+        capture and would silently fail to match `<<-EOT` at all."""
+        assert ngh._HEREDOC_GRAMMARS[suffix] is ngh._HEREDOC_GRAMMARS[".rb"]
+
+    def test_terraform_heredoc_reindent_survives(self):
+        before = _patch(
+            "main.tf",
+            ["user_data = <<-EOF", "  #!/bin/bash", "  echo hi", "EOF"],
+            ["user_data = <<-EOF", "  #!/bin/bash", "  echo hi", "EOF"],
+        )
+        after = _patch(
+            "main.tf",
+            ["user_data = <<-EOF", "  #!/bin/bash", "  echo hi", "EOF"],
+            ["user_data = <<-EOF", "  #!/bin/bash", "    echo hi", "EOF"],
+        )
+        assert ngh.normalize_patch(before) != ngh.normalize_patch(after)
+        assert ngh.normalize_patch(after) not in ("", None)
+
+    def test_an_opener_with_no_close_inside_the_hunk_fails_closed(self):
+        """The true closer might be outside this hunk's side entirely; the
+        safe assumption is that every line after an unresolved opener is
+        still inside the heredoc body, not eligible for collapsing. Only the
+        FAR line is reindented — leaving the near line byte-identical between
+        before/after — so a regression that only marks the line immediately
+        after the opener (rather than every remaining line) would still be
+        caught here."""
+        before = _patch("a.rb", ["x = <<~SQL", "  line one", "  line two"], ["x = <<~SQL", "  line one", "  line two"])
+        after = _patch("a.rb", ["x = <<~SQL", "  line one", "  line two"], ["x = <<~SQL", "  line one", "    line two"])
+        assert ngh.normalize_patch(before) != ngh.normalize_patch(after)
+        assert ngh.normalize_patch(after) not in ("", None)
+
+    def test_ordinary_reindented_code_outside_a_heredoc_still_collapses(self):
+        """Regression guard: the heredoc handling must not make Ruby/PHP/Perl
+        stop getting carry-forward for perfectly ordinary reindents."""
+        assert ngh.normalize_patch(_patch("a.rb", ["  x = 1"], ["x = 1"])) == ""
+        assert ngh.normalize_patch(_patch("a.php", ["  $x = 1;"], ["$x = 1;"])) == ""
+        assert ngh.normalize_patch(_patch("a.pl", ["  $x = 1;"], ["$x = 1;"])) == ""
+
+    @pytest.mark.parametrize(
+        "suffix,line",
+        [
+            (".rb", "arr << item"),
+            (".rb", "x << y"),
+            (".rb", "result = a << 2"),
+            (".pl", "arr << item"),
+            (".pl", "x << y"),
+            (".pl", "result = a << 2"),
+        ],
+    )
+    def test_idiomatic_spaced_shift_or_shovel_is_never_mistaken_for_a_heredoc(self, suffix, line):
+        """Ruby/Perl's `<<` is also their shift/append operator, always
+        written with spaces by convention. A heredoc opener has no space
+        between `<<` and its delimiter, so the idiomatic spaced form must
+        never be misread as one. Exercised through the public API: if the
+        regex falsely opened a heredoc on `line`, the ordinary reindent right
+        after it would be swept into the (fail-closed, byte-exact) heredoc
+        body and stop collapsing — this asserts it still collapses to ""."""
+        before = _patch(f"a{suffix}", ["  x = 1"], ["x = 1"], context=[line])
+        assert ngh.normalize_patch(before) == "", (
+            f"{line!r} on {suffix} must not open a phantom heredoc that blocks "
+            "carry-forward for an unrelated ordinary reindent in the same hunk"
+        )
+
+    def test_two_heredocs_opened_on_one_line_both_get_body_tracking(self):
+        """#1638 regression: the original fix tracked only ONE pending
+        heredoc via `.search()` (leftmost match), so a line with two stacked
+        openers — an ordinary idiom (`print <<A, <<B;`) — left the SECOND
+        heredoc's body unmarked and collapsible. Reindenting body b alone
+        must still survive normalization."""
+        before = _patch(
+            "a.pl",
+            ["print <<A, <<B;", "  body a", "A", "  body b", "B"],
+            ["print <<A, <<B;", "  body a", "A", "  body b", "B"],
+        )
+        after = _patch(
+            "a.pl",
+            ["print <<A, <<B;", "  body a", "A", "  body b", "B"],
+            ["print <<A, <<B;", "  body a", "A", "      body b", "B"],
+        )
+        assert ngh.normalize_patch(before) != ngh.normalize_patch(after)
+        assert ngh.normalize_patch(after) not in ("", None)
+
+    def test_two_sequential_heredocs_in_one_hunk_each_get_body_tracking(self):
+        before = _patch(
+            "a.rb",
+            ["a = <<~A", "  body a", "A", "b = <<~B", "  body b", "B"],
+            ["a = <<~A", "  body a", "A", "b = <<~B", "  body b", "B"],
+        )
+        after = _patch(
+            "a.rb",
+            ["a = <<~A", "  body a", "A", "b = <<~B", "  body b", "B"],
+            ["a = <<~A", "  body a", "A", "b = <<~B", "      body b", "B"],
+        )
+        assert ngh.normalize_patch(before) != ngh.normalize_patch(after)
+        assert ngh.normalize_patch(after) not in ("", None)
+
+    def test_php_nowdoc_single_quoted_delimiter_reindent_survives(self):
+        before = _patch(
+            "a.php",
+            ["$msg = <<<'TXT'", "  Dear customer, your balance is overdue", "TXT;"],
+            ["$msg = <<<'TXT'", "  Dear customer, your balance is overdue", "TXT;"],
+        )
+        after = _patch(
+            "a.php",
+            ["$msg = <<<'TXT'", "  Dear customer, your balance is overdue", "TXT;"],
+            ["$msg = <<<'TXT'", "    Dear customer, your balance is overdue", "TXT;"],
+        )
+        assert ngh.normalize_patch(before) != ngh.normalize_patch(after)
+        assert ngh.normalize_patch(after) not in ("", None)
+
+    def test_body_line_containing_identifier_as_substring_does_not_false_close(self):
+        before = _patch(
+            "a.rb",
+            ["x = <<~SQL", "  SQL is fun to write", "SQL"],
+            ["x = <<~SQL", "  SQL is fun to write", "SQL"],
+        )
+        after = _patch(
+            "a.rb",
+            ["x = <<~SQL", "  SQL is fun to write", "SQL"],
+            ["x = <<~SQL", "    SQL is fun to write", "SQL"],
+        )
+        assert ngh.normalize_patch(before) != ngh.normalize_patch(after)
+        assert ngh.normalize_patch(after) not in ("", None)
+
+    def test_reindenting_staged_ruby_heredoc_body_leaves_the_normalized_hash_changed(
+        self, tmp_path
+    ):
+        """End to end against real git, with an opener far enough above the
+        changed line that it would be invisible under git's default 3-line
+        hunk context — the exact hazard `normalized_gate_hash`'s
+        `--unified=100000` closes. Padding sits BETWEEN the opener and the
+        edited line, not after it, so this genuinely exercises the gap."""
+        env = hermetic_git_env(home=tmp_path)
+        subprocess.run(["git", "init", "-q"], cwd=tmp_path, env=env, check=True)
+        subprocess.run(["git", "config", "user.email", "t@t"], cwd=tmp_path, env=env, check=True)
+        subprocess.run(["git", "config", "user.name", "t"], cwd=tmp_path, env=env, check=True)
+
+        lines = ["sql = <<~SQL"]
+        lines += [f"  -- padding comment {i}" for i in range(10)]
+        lines.append("  SELECT * FROM users WHERE role = admin")
+        lines.append("SQL")
+        (tmp_path / "a.rb").write_text("\n".join(lines) + "\n")
+        subprocess.run(["git", "add", "a.rb"], cwd=tmp_path, env=env, check=True)
+        subprocess.run(["git", "commit", "-qm", "init"], cwd=tmp_path, env=env, check=True)
+
+        lines[-2] = "      SELECT * FROM users WHERE role = admin"
+        (tmp_path / "a.rb").write_text("\n".join(lines) + "\n")
+
+        # Confirm the setup actually creates the gap this test is for, using
+        # the actual UNSTAGED edit (captured only now, after the write —
+        # capturing it earlier on the clean post-commit tree would make this
+        # assertion vacuously true regardless of the padding size): with
+        # git's default 3-line hunk context, the opener 11 lines above the
+        # edited line must not appear among the hunk's BODY lines (the ones
+        # `normalize_patch` actually consumes). `@@ ... @@` header lines are
+        # excluded from this check on purpose — git appends a heuristic
+        # "nearest preceding line" section heading to the header for
+        # readability (confirmed here: it echoes `sql = <<~SQL`), but that
+        # heading is never fed to `_heredoc_body_marks`; only `+`/`-`/` `
+        # body lines are, and the assertion must mirror what the module
+        # under test actually sees, not raw diff text.
+        default_diff = subprocess.run(
+            ["git", "diff"], cwd=tmp_path, env=env, capture_output=True, text=True, check=True
+        )
+        body_lines = "\n".join(
+            ln for ln in default_diff.stdout.splitlines() if not ln.startswith("@@")
+        )
+        assert "<<~SQL" not in body_lines, (
+            "setup didn't create the gap: the opener leaked into the default-context "
+            "diff's body lines before the edit, so this test wouldn't exercise "
+            "--unified=100000"
+        )
+
+        subprocess.run(["git", "add", "a.rb"], cwd=tmp_path, env=env, check=True)
+        assert ngh.normalized_gate_hash(tmp_path) is not None, (
+            "a heredoc-body reindent must never normalize to nothing, even when its "
+            "opener sits outside git's default hunk context"
+        )
+
+
 class TestNormalizationCollisions:
     """#1631 adversarial review. Each test pins one collision where two
     behaviorally DIFFERENT changesets normalized to the same digest, letting
