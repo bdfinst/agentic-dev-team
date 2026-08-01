@@ -16,7 +16,7 @@ Cites:
 - accepted-risks-schema
 - adversarial-review-protocol
 
-Output JSON (extends the shared contract in `${CLAUDE_PLUGIN_ROOT}/knowledge/review-agent-output-contract.md` with a `category` field. Whole-file load: short, canonical schema):
+Output JSON (the canonical `category` field from the shared contract in `${CLAUDE_PLUGIN_ROOT}/knowledge/review-agent-output-contract.md`, populated with this agent's own OWASP taxonomy below. Whole-file load: short, canonical schema):
 
 ```json
 {"status": "pass|warn|fail|skip", "issues": [{"category": "A<NN>.<slug>", "severity": "error|warning|suggestion", "confidence": "high|medium|none", "file": "", "line": 0, "message": "", "suggestedFix": ""}], "summary": ""}

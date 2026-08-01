@@ -558,7 +558,7 @@ Reported as `ledger_reset` on every call (`null` when a stored ledger was
 legitimately resumed). The script fails **toward** a reset: an unreadable or
 malformed state file starts fresh. Starting fresh costs at most one extra
 round; reusing a wrong ledger silently skips one. A finding's signature is
-`(agent, file, rule/category, normalized message)` with the line compared at
+`(agent, file, category, normalized message)` with the line compared at
 ±3 rather than hashed — see the script's own docstring for why the line is
 deliberately outside the hash.
 

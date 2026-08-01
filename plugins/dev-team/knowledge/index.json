@@ -1205,8 +1205,12 @@
   },
   "plugins/dev-team/knowledge/review-agent-output-contract.md": {
     "Canonical schema": {
-      "summary": "**pass**: zero issues",
+      "summary": "`category` is optional per finding — omit it rather than emit an empty",
       "anchor": "canonical-schema"
+    },
+    "`category` (#1639)": {
+      "summary": "A short, stable tag identifying the *kind* of finding within an agent's own",
+      "anchor": "category-1639"
     },
     "Status values": {
       "summary": "**pass**: zero issues",
