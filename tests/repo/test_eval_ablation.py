@@ -16,7 +16,7 @@ import pytest
 
 from _repo_root import REPO_ROOT
 
-ABLATION = REPO_ROOT / "scripts" / "eval_ablation.py"
+ABLATION = REPO_ROOT / "plugins" / "dev-team" / "scripts" / "eval_ablation.py"
 
 EXPECTED_DEP = (
     '{"fixture":"dep.ts","applicableAgents":["a"],'

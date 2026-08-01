@@ -11,7 +11,7 @@ allowed-tools: >-
   Read, Grep, Glob,
   Bash(readlink *, ls *, date *, mkdir *, command -v claude, claude -p *,
        python3 scripts/eval_cache.py *, python3 scripts/run_integration_eval.py *,
-       python3 scripts/eval_variance.py *, python3 scripts/eval_ablation.py *,
+       python3 scripts/eval_variance.py *, python3 ${CLAUDE_PLUGIN_ROOT}/scripts/eval_ablation.py *,
        python3 scripts/citation_lint.py *),
   Skill(review-agent *), Skill(test-design-advisor *)
 ---
@@ -180,12 +180,20 @@ reverts the instant the subprocess exits. Never edit an agent/skill file to
 achieve the exclusion.
 
 **Delta computation and persistence.** Hand both trial directories to
-`scripts/eval_ablation.py --mode agent` — the deterministic, model-free half
+`eval_ablation.py --mode agent` — the deterministic, model-free half
 that grades each arm (pass@k over the 3 trials, per the same machinery
-`eval_variance.py` uses for `--trials`) and computes the delta:
+`eval_variance.py` uses for `--trials`) and computes the delta. `eval_ablation.py`
+ships under `plugins/dev-team/scripts/` (#1653 — its `--find-latest` mode has
+no repo-shape assumption), so it is `${CLAUDE_PLUGIN_ROOT}`-qualified below
+even though this specific invocation (`--mode agent --expected-dir evals/`)
+still only succeeds from this repo's own dev checkout, same as its
+still-bare siblings (`eval_cache.py`, `eval_variance.py`,
+`run_integration_eval.py`, `citation_lint.py`) — this is per-script, not
+per-skill: the FILE moved, the eval-corpus dependency the `--mode agent` path
+carries did not:
 
 ```bash
-python3 scripts/eval_ablation.py --mode agent \
+python3 "$CLAUDE_PLUGIN_ROOT/scripts/eval_ablation.py" --mode agent \
   --expected-dir evals/expected \
   --baseline-trials-dir baseline-trials --ablated-trials-dir ablated-trials \
   --ablated-agent <agent> --model <model> \

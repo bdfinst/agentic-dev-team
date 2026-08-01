@@ -2,8 +2,10 @@
 # run-ablation.sh — measure a knowledge file's retrieval value (#107).
 #
 # Runs the eval corpus WITH a knowledge file, then ABLATED (file hidden + index
-# rebuilt), and diffs the grades via scripts/eval_ablation.py. Pairs that pass
-# with the file but fail without it are its measured value.
+# rebuilt), and diffs the grades via plugins/dev-team/scripts/eval_ablation.py
+# (moved there in #1653 — its --find-latest mode ships with the plugin, this
+# script's --mode knowledge invocation is still monorepo-only). Pairs that
+# pass with the file but fail without it are its measured value.
 #
 # This costs API tokens (two corpus runs). Opt-in.
 #
@@ -65,6 +67,6 @@ trap 'rm -rf "$WORK"' EXIT
 echo "== retrieval value =="
 ONLY_ARG=""; [ -n "$ONLY_AGENT" ] && ONLY_ARG="--only $ONLY_AGENT"
 # shellcheck disable=SC2086
-python3 scripts/eval_ablation.py --expected-dir evals/expected \
+python3 plugins/dev-team/scripts/eval_ablation.py --expected-dir evals/expected \
   --baseline "$WORK/with.json" --ablated "$WORK/without.json" \
   --knowledge "$KFILE" $ONLY_ARG

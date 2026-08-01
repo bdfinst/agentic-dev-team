@@ -128,9 +128,7 @@ INTENTIONAL_BARE_INVOCATION = {
     ("agent-eval", "eval_cache.py"),
     ("agent-eval", "run_integration_eval.py"),
     ("agent-eval", "eval_variance.py"),
-    ("agent-eval", "eval_ablation.py"),
     ("agent-eval", "citation_lint.py"),
-    ("harness-audit", "eval_ablation.py"),
 }
 
 #: (skill, script) pairs whose invocation is `plugins/dev-team/scripts/<script>`
