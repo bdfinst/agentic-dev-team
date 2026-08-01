@@ -43,12 +43,14 @@ You have been invoked with the `/autoship` command.
 Arguments: $ARGUMENTS
 
 Required:
+
 - `--max-issues N` — maximum number of issues to process this round (positive
   integer).
 - `--max-cost-usd N` — budget ceiling in USD for the entire round (positive
   number).
 
 Optional:
+
 - `--dry-run` — preview mode: report what would run without side effects.
 - `--label LABEL` — override the eligibility label (default: `autoship:ready`).
 
@@ -75,23 +77,47 @@ reclaim failure is non-fatal — log the error and continue to discovery.
 
 ## Step 2 — Discover eligible issues
 
-Run the discovery script to select the issues this round will process.
+Run the two-stage grouping/queueing pipeline to select and order the issues
+this round will process:
 
 ```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/autoship_discover.py" \
-  --max-issues <N> \
-  --max-cost-usd <max_cost_usd> \
-  [--label <label>]     # pass when --label was given
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/autoship_group.py" \
+  [--label <label>] \
+  | python3 "${CLAUDE_PLUGIN_ROOT}/scripts/autoship_queue.py" \
+  --max-issues <N>
 ```
 
-The script prints a JSON array of `{number, title}` objects, oldest-first,
-capped at `--max-issues`. Parse it.
+`autoship_group.py` self-fetches the **full** eligible pool — it takes no
+`--max-issues` truncation at that layer, because grouping needs full
+visibility across every eligible issue to find dependency, shared-parent,
+and shared-label signals before anything is capped. It groups that pool into
+batches and ungrouped singles via those deterministic signals.
 
-If the array is empty, print "No eligible issues found this round." and stop
-(record an empty round in the log before exiting).
+Its output is piped directly into `autoship_queue.py`, which applies this
+round's real `--max-issues` cap and produces the ordered dispatch queue:
+`{"queue": [...], "deferred": [...]}`. Batches dispatch **whole** or are
+deferred **whole** — a batch is never split across `queue` and `deferred`.
 
-In `--dry-run` mode, print the discovered list and stop here without proceeding
-to per-issue processing.
+`autoship_discover.py` is **not** part of this pipeline anymore. Its own CLI
+remains available unchanged for any other caller — do not modify or remove
+that script.
+
+The `queue` array is what the per-issue loop (Step 3) will process — one
+entry per dispatch unit, each either `{"type": "batch", "batch_id": ...,
+"issues": [...]}` or `{"type": "solo", "issue": N}`. **Step 3's prose below is
+still written for the old `{number, title}` shape** — it has not yet been
+updated to consume this new queue shape. That update is a later, separate
+change; do not treat Step 3 as already handling batch/solo units.
+
+If the queue is empty (both `queue` and `deferred` empty), print "No eligible
+issues found this round." and stop (record an empty round in the log before
+exiting).
+
+In `--dry-run` mode, print the discovered queue and stop here without
+proceeding to per-issue processing.
+
+The `--label` flag, when given, now flows to `autoship_group.py --label
+<label>` instead of `autoship_discover.py --label <label>`.
 
 ## Step 3 — Per-issue processing loop
 
@@ -129,6 +155,7 @@ gh issue edit <number> \
 ### 3c — Invoke /ship
 
 Invoke `/ship` with:
+
 - The issue title/number as the feature description
 - `--no-auto-merge` (always — the round does not auto-merge PRs)
 - `DEV_TEAM_AUTO_APPROVE=1` in the environment so the pipeline does not pause
@@ -152,16 +179,20 @@ If found:
 1. Extract the blocking question(s) from the output (the text immediately
    following the `requires-stakeholder-input` marker).
 2. Label the issue:
+
    ```bash
    gh issue edit <number> \
      --remove-label autoship:in-progress \
      --add-label autoship:blocked
    ```
+
 3. Post a comment on the issue with the blocking question(s):
+
    ```bash
    gh issue comment <number> \
      --body "autoship blocked: requires stakeholder input\n\n<questions>"
    ```
+
 4. Record outcome `"blocked"` with `blocked_reason: "<questions>"` for this
    issue.
 5. **Continue to the next issue.** A blocked issue does not halt the round.
@@ -181,6 +212,7 @@ python3 "${CLAUDE_PLUGIN_ROOT}/hooks/lib/classify_ship_outcome.py" \
 The classifier prints one of: `success`, `convergence_failure`, `unrecognized`.
 
 Map to a display status word:
+
 - `success` → `"shipped"`
 - `convergence_failure` → `"failed"`
 - `unrecognized` → `"unrecognized"`
@@ -246,6 +278,7 @@ Budget   : $<accumulated:.2f> / $<max_cost_usd:.2f>
 ```
 
 Status words used in the table and the log:
+
 - `shipped` — `/ship` completed and classifier returned `success`
 - `failed` — classifier returned `convergence_failure`
 - `unrecognized` — classifier returned `unrecognized`
