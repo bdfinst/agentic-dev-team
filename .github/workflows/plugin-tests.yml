@@ -138,14 +138,12 @@ jobs:
   # existing `uv python find 3.10` branch in ci-local.sh) and never touches
   # PATH's `python3`.
   #
-  # This job's `name:` is the status-check context branch protection would
-  # match on (see agent-eval.yml and pr-title-lint.yml for the same
-  # convention, where the ruleset entry already exists). It is NOT yet
-  # listed as a required check in the `main` ruleset — until it is, a red
-  # run here reports in the PR checks list but does not block merge, so a
-  # push that bypasses local hooks isn't fully caught yet. Once added, a
-  # rename here needs a matching ruleset update, or the check silently stops
-  # blocking while still reporting green.
+  # This job's `name:` IS the status-check context branch protection matches
+  # on, and it is listed as a required check in the `main` ruleset (same
+  # convention as agent-eval.yml and pr-title-lint.yml), so a red run here
+  # blocks merge — which is what catches a push that bypassed local hooks.
+  # A rename here needs a matching ruleset update, or the check silently
+  # stops blocking while still reporting green.
   python-floor:
     name: Python 3.10 floor
     runs-on: ubuntu-latest
@@ -278,6 +276,10 @@ jobs:
   # ruff is installed from requirements-dev.txt, which pins it exactly, and
   # chk_ruff invokes `python3 -m ruff` rather than a PATH binary, so this job
   # and a contributor's machine cannot disagree about what "clean" means.
+  #
+  # This job's `name:` is a required status-check context in the `main`
+  # ruleset — renaming it here without updating the ruleset leaves a check
+  # that still reports but no longer blocks.
   lint:
     name: Lint (ruff + eslint)
     runs-on: ubuntu-latest

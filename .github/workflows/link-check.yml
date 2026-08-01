@@ -12,12 +12,14 @@ name: Docs checks
 # `chk_nav_integrity` is the fast subset every developer can run before pushing.
 
 on:
-  # No 'paths' filter, on purpose. nav-integrity and body-links are REQUIRED
-  # status checks, and a path-filtered workflow reports NO status on PRs that
-  # don't match the filter — deadlocking every unrelated PR at "Waiting for
-  # status to be reported" (it can never go green). Both jobs are cheap and
-  # hermetic (assemble + mkdocs build + offline lychee), so they run on every
-  # PR and always report. (Same rationale as agent-eval.yml's free gates.)
+  # No 'paths' filter, on purpose. Both jobs' `name:`s are REQUIRED status-check
+  # contexts in the `main` ruleset ("Docs nav integrity", "Docs link check"), and
+  # a path-filtered workflow reports NO status on PRs that don't match the filter
+  # — deadlocking every unrelated PR at "Waiting for status to be reported" (it
+  # can never go green). Both jobs are cheap and hermetic (assemble + mkdocs
+  # build + offline lychee), so they run on every PR and always report. (Same
+  # rationale as agent-eval.yml's free gates.) Renaming either job needs a
+  # matching ruleset update, or the check still reports but stops blocking.
   pull_request:
   push:
     branches: [main]
