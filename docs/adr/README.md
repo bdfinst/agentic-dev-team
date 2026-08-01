@@ -33,3 +33,4 @@
 * [31. Raise the shipped Python floor from 3.8 to 3.10](0031-raise-shipped-python-floor-to-3-10.md)
 * [32. Shipped-script path-resolution taxonomy](0032-shipped-script-path-resolution-taxonomy.md)
 * [33. Quote every `${CLAUDE_PLUGIN_ROOT}` expansion in a shell fence](0033-quote-claude-plugin-root-expansions.md)
+* [34. Do not build a shared-context pre-pass for duplicate full-file reads (#1611)](0034-do-not-build-shared-context-pre-pass-for-duplicate-full-file-reads-1611.md)
