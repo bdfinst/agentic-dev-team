@@ -36,9 +36,8 @@ byte-compile and import every shipped module. That check runs in the default
 gate, so the pre-push hook enforces it on every push — and, since #1635, a
 dedicated `python-floor` job in `.github/workflows/plugin-tests.yml` also
 runs it on every PR, so a push that bypasses local hooks (`--no-verify`, a
-hookless cloud session) is still caught by CI. Making a red run actually
-block a GitHub-UI merge needs the job's name added to `main`'s
-required-status-check ruleset — a follow-up, not yet configured.
+hookless cloud session) is still caught by CI. That job's name is a required
+status check on `main`, so a red run blocks a GitHub-UI merge too.
 
 What follows pins those parts to each other. It deliberately contains no
 opinion about which APIs are too new; that question belongs to the
@@ -208,8 +207,9 @@ class TestTheFloorIsCheckedInCI:
     that bypasses hooks — --no-verify, a hookless cloud session — must still
     be run by something, which means a CI job has to name chk_python_floor
     in its own --only= list explicitly. (Blocking a GitHub-UI merge on a red
-    run additionally needs the job in main's required-status-check ruleset
-    — a follow-up, not something a test in this repo can pin.)"""
+    run additionally needs the job in main's required-status-check ruleset,
+    where it now is — repo settings live outside the tree, so no test here
+    can pin that half.)"""
 
     def test_a_ci_job_runs_the_floor_check(self, ci_workflow):
         """A bare `in workflow` check passes on any mention of the name — a
@@ -255,9 +255,9 @@ class TestTheFloorIsCheckedInCI:
         step's first key, as it is here, which `^\\s*` cannot absorb, so
         this pattern doesn't match it. The version here is deliberately a
         literal built from FLOOR_DOTTED at assertion time, not hardcoded:
-        this string will be the status-check context the `main` ruleset
-        matches once the job is added there (see the module docstring above
-        — not yet configured), so a future floor bump (ADR 0031's own
+        this string IS the status-check context the `main` ruleset matches
+        on (see the module docstring above), so a future floor bump (ADR 0031's
+        own
         successor) must update the workflow job name deliberately — this
         test failing IS that reminder, not something to silence by hardcoding
         a stale version here instead."""
