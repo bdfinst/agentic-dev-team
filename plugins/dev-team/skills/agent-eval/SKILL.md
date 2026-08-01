@@ -24,6 +24,8 @@ grades results — it does not review code itself.
 You have been invoked with the `/agent-eval` skill. Run review agents
 against eval fixtures and grade the results.
 
+**Monorepo-relative by design (#1637).** Every `scripts/eval_*.py`/`citation_lint.py` call in this skill is intentionally bare, not a dangling-path defect: none of these scripts ship under `plugins/dev-team/scripts/` (verified mechanically — see `tests/repo/test_agent_implemented_by_resolves.py`'s `INTENTIONAL_BARE_INVOCATION` set), so no `${CLAUDE_PLUGIN_ROOT}` path could ever resolve one. They operate on *this repo's own* `evals/` corpus, explicitly not shipped — see repo CLAUDE.md's Repository Structure — and the repo-root eval runners (`scripts/run-full-eval.sh`, `scripts/eval-changed.sh`, `scripts/run-ablation.sh`) plus `.github/workflows/agent-eval.yml` all materialize `evals/fixtures`/`evals/expected` into `.claude/evals/` via a `$PWD`-relative symlink before invoking this skill — meaningful only from this checkout's own root. The `allowed-tools` frontmatter above additionally hardcodes these bare strings as Bash permission patterns, which would stop matching if qualified.
+
 ## Orchestrator constraints
 
 1. **Do not review or design yourself.** Delegate reviews to
@@ -433,7 +435,7 @@ then aggregate deterministically and append to the trend so stability is tracked
 over time, not recomputed and lost:
 
 ```bash
-python3 ${CLAUDE_PLUGIN_ROOT}/../../scripts/eval_variance.py \
+python3 scripts/eval_variance.py \
   --trials-dir <dir-of-trial-actuals> \
   --append .claude/metrics/eval-variance.jsonl -o .claude/memory/eval-variance.json
 ```

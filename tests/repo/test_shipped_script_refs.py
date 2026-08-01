@@ -17,14 +17,21 @@ Three invariants, each model-free and deterministic:
   3. every hook command registered in settings.json resolves to a shipped
      file.
 
-Allowlist (invariant 2): /agent-eval and /session-review are maintainer
-tools that operate on THIS repo's own infrastructure (eval fixtures, session
-transcripts). They only ever run from the dev checkout, where ../../scripts/
-resolves, and their helpers (session_extract.py et al.) are coupled
-repo-root tooling that is intentionally not shipped. A NEW ../../ reference
-in ANY OTHER skill is a shipping bug - add the helper under
-plugins/dev-team/scripts/ and reference it as
-${CLAUDE_PLUGIN_ROOT}/scripts/<name> instead of exempting it.
+Allowlist (invariant 2): /session-review is a maintainer tool that operates
+on THIS repo's own infrastructure (session transcripts). It only ever runs
+from the dev checkout, where ../../scripts/ resolves, and its helpers
+(session_extract.py et al.) are coupled repo-root tooling that is
+intentionally not shipped. A NEW ../../ reference in ANY OTHER skill is a
+shipping bug - add the helper under plugins/dev-team/scripts/ and reference
+it as ${CLAUDE_PLUGIN_ROOT}/scripts/<name> instead of exempting it.
+
+/agent-eval was in this allowlist until #1637: it's the same kind of
+maintainer-only, repo-self-referential tool, but its `allowed-tools`
+frontmatter hardcodes its script invocations as BARE `scripts/<name>.py`
+Bash permission patterns (not `${CLAUDE_PLUGIN_ROOT}/../../scripts/<name>`),
+so its body must use the bare form to match — see
+tests/repo/test_agent_implemented_by_resolves.py's
+`INTENTIONAL_BARE_INVOCATION` set for that guard.
 
 Ported from tests/repo/shipped_script_refs_test.bats (#673).
 """
@@ -41,7 +48,7 @@ PLUGIN = REPO_ROOT / "plugins" / "dev-team"
 SHIPPED_DIRS = [PLUGIN / "skills", PLUGIN / "agents", PLUGIN / "prompts"]
 
 # Skills permitted to reference repo-root tooling via ../../ (see header).
-ESCAPE_ALLOWLIST = ["skills/agent-eval/", "skills/session-review/"]
+ESCAPE_ALLOWLIST = ["skills/session-review/"]
 
 _REF_RE = re.compile(
     r"\$\{CLAUDE_PLUGIN_ROOT\}/(scripts|hooks)/[a-zA-Z0-9_./-]+\.(sh|py)"

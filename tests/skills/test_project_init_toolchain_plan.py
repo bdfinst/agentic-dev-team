@@ -97,7 +97,7 @@ def test_csharp_installs_nothing_and_honors_a_global_json_pin():
 
 def test_java_wraps_the_pinned_pmd_installer_script():
     s = _install_section()
-    assert "install-java-static-analysis.py" in s
+    assert "${CLAUDE_PLUGIN_ROOT}/scripts/install-java-static-analysis.py" in s
     assert ".pmd/" in s
     assert ".gitignore" in s
 

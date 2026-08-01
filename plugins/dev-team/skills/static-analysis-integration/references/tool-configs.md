@@ -167,10 +167,10 @@ pmd check -d . -R <resolved-ruleset> -f sarif --no-progress
 - **Language-conditional**: dispatch pmd, and surface its missing-tool
   install hint, only when `.java` files are in the target set — a non-Java
   repo never sees a "pmd missing" warning (graceful-degradation constraint).
-- **Install**: repo-level, `python3 scripts/install-java-static-analysis.py`
+- **Install**: repo-level, `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/install-java-static-analysis.py`
   — installs the pinned PMD distribution into the target repo's gitignored
   `.pmd/` directory (`PMD_INSTALL_DIR` overrides). Never user-level/global.
-- **Install hint**: `pmd — Java code quality. install: python3 scripts/install-java-static-analysis.py` (surfaced only for Java target sets)
+- **Install hint**: `pmd — Java code quality. install: python3 ${CLAUDE_PLUGIN_ROOT}/scripts/install-java-static-analysis.py` (surfaced only for Java target sets)
 - **Detection**: repo-local first — the `.pmd/pmd-bin-*/bin/pmd` launcher
   (`pmd.bat` on Windows) — then `command -v pmd`; verify with `pmd --version`.
 - **Capability tier**: Java code quality
@@ -473,7 +473,7 @@ Registered by #810.
 - **Ruleset**: identical to the `/code-review` invocation — see
   [Ruleset resolution](#ruleset-resolution-shared-by-both-pmd-invocations)
   under the Tier 1 pmd entry.
-- **Install**: repo-level, `python3 scripts/install-java-static-analysis.py`
+- **Install**: repo-level, `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/install-java-static-analysis.py`
   (pinned PMD into the gitignored `.pmd/` dir; `PMD_INSTALL_DIR` overrides).
 
 **checkstyle (recognized equivalent provider)**

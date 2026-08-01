@@ -90,7 +90,7 @@ evals/code-review-benchmark/.cache/
 feature-file-validation-workspace/
 
 # Repo-local pinned PMD distribution (installed by
-# scripts/install-java-static-analysis.py; large JVM binaries, never committed)
+# plugins/dev-team/scripts/install-java-static-analysis.py; large JVM binaries, never committed)
 .pmd/
 
 # Python caches

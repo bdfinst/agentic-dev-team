@@ -214,7 +214,7 @@ The four landed lanes established conventions that new lanes inherit:
   (dotnet), or a repo-local gitignored tool directory (`.pmd/`). Never
   `npm install -g`, `pip install --user`, or a global toolchain assumption.
 - **A standalone installer is the exception, not the rule.** Of the four
-  lanes, only Java needed one (`scripts/install-java-static-analysis.py`),
+  lanes, only Java needed one (`plugins/dev-team/scripts/install-java-static-analysis.py`),
   because PMD has no project-level dependency mechanism to ride. Prefer the
   project's own mechanism; write an installer only when none exists.
 - **Idempotent re-runs.** Running the install twice must be safe and cheap —

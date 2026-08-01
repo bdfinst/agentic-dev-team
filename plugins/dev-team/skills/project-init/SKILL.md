@@ -173,7 +173,7 @@ pipx install, never `npm install -g`.
   hand:
 
   ```bash
-  python3 scripts/install-java-static-analysis.py
+  python3 ${CLAUDE_PLUGIN_ROOT}/scripts/install-java-static-analysis.py
   ```
 
   It installs a pinned PMD distribution into the repo-local, gitignored
