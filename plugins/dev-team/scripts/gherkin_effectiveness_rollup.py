@@ -30,7 +30,7 @@ scanned for columns whose header contains "surface", "source", "provenance",
 or "mode" (case-insensitive); a file with no such table yields a warning on
 stderr and zero scenario records, rather than crashing.
 
-Stdlib-only. Python 3.8+ (ADR 0014/0015).
+Stdlib-only. (ADR 0014/0015).
 """
 
 from __future__ import annotations

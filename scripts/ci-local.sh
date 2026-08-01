@@ -191,50 +191,53 @@ chk_python_only() {
     python3 scripts/check-python-only.py  # defaults to origin/main, blocking
   fi
 }
-# ADR 0014 puts shipped plugin code on Python 3.8. This check proves it by
-# asking a real 3.8 interpreter, never by pattern-matching source for
-# "APIs newer than 3.8" — the first version of this gate was exactly such a
-# denylist, and it reported the shipped tree clean while hooks/lib/cost_meter.py
-# used PEP 584's `dict | dict`, which 3.8 rejects.
+# ADR 0014 puts shipped plugin code on Python 3.10. This check proves it by
+# asking a real 3.10 interpreter, never by pattern-matching source for
+# "APIs newer than the floor" — the first version of this gate was exactly
+# such a denylist, and it reported the shipped tree clean while
+# hooks/lib/cost_meter.py used PEP 584's `dict | dict`, which the then-floor
+# 3.8 rejected. The floor has since moved to 3.10 (ADR 0031); the lesson that
+# the interpreter is the oracle has not.
 #
 # Byte-compile catches syntax; the import probe catches evaluation (a PEP 585
-# generic in a module-level type alias compiles everywhere and raises on 3.8).
-# Running the shipped suite on 3.8 is the strong form and belongs in CI; the
-# "Python 3.8 floor" job in .github/workflows/plugin-tests.yml runs this
+# generic in a module-level type alias compiles everywhere and raises below
+# the floor). Running the shipped suite on 3.10 is the strong form and belongs
+# in CI; the
+# "Python 3.10 floor" job in .github/workflows/plugin-tests.yml runs this
 # check today, not yet the full suite — see the scope note in
 # scripts/import_probe_shipped.py (issue #1635's "Out of scope").
 #
-# Fails — never skips — when no 3.8 can be obtained. A gate that quietly
+# Fails — never skips — when no 3.10 can be obtained. A gate that quietly
 # downgrades to "skipped" on the machines least likely to have the floor
 # interpreter is the failure mode this whole check exists to prevent.
-_resolve_python38() {
-  if command -v python3.8 >/dev/null 2>&1; then
-    command -v python3.8
+_resolve_python310() {
+  if command -v python3.10 >/dev/null 2>&1; then
+    command -v python3.10
     return 0
   fi
   if command -v uv >/dev/null 2>&1; then
-    uv python find 3.8 2>/dev/null && return 0
-    uv python install 3.8 >/dev/null 2>&1 && uv python find 3.8 2>/dev/null && return 0
+    uv python find 3.10 2>/dev/null && return 0
+    uv python install 3.10 >/dev/null 2>&1 && uv python find 3.10 2>/dev/null && return 0
   fi
   return 1
 }
 
 chk_python_floor() {
-  local py38
-  if ! py38="$(_resolve_python38)" || [ -z "$py38" ]; then
-    printf 'No Python 3.8 interpreter available, and this gate does not skip.\n' >&2
-    printf 'Install one:  uv python install 3.8   (or apt/brew a python3.8)\n' >&2
-    printf 'ADR 0014 sets the shipped floor at 3.8; see tests/repo/test_python_floor.py.\n' >&2
+  local py310
+  if ! py310="$(_resolve_python310)" || [ -z "$py310" ]; then
+    printf 'No Python 3.10 interpreter available, and this gate does not skip.\n' >&2
+    printf 'Install one:  uv python install 3.10   (or apt/brew a python3.10)\n' >&2
+    printf 'ADR 0014 sets the shipped floor at 3.10; see tests/repo/test_python_floor.py.\n' >&2
     return 1
   fi
-  printf 'floor interpreter: %s (%s)\n' "$py38" "$("$py38" -V 2>&1)"
+  printf 'floor interpreter: %s (%s)\n' "$py310" "$("$py310" -V 2>&1)"
 
   find plugins/dev-team -name '*.py' \
     -not -path '*/tests/*' \
     -not -path '*rule-fixtures*' \
-    -print0 | xargs -0 -n1 "$py38" -m py_compile || return 1
+    -print0 | xargs -0 -n1 "$py310" -m py_compile || return 1
 
-  "$py38" scripts/import_probe_shipped.py
+  "$py310" scripts/import_probe_shipped.py
 }
 
 chk_semgrep_fixtures() { python3 scripts/audit-semgrep-fixtures.py; }
@@ -409,7 +412,7 @@ CHECKS=(
   # a correctly-configured contributor machine enforces.
   "eslint::chk_eslint"
   "ruff check (Python lint)::chk_ruff"
-  "shipped Python 3.8 floor (compile + import on a real 3.8)::chk_python_floor"
+  "shipped Python 3.10 floor (compile + import on a real 3.10)::chk_python_floor"
   "plugin hook + script unit tests (pytest plugins/dev-team/tests)::chk_hook_units"
 )
 

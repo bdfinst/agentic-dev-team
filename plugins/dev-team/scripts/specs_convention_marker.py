@@ -30,7 +30,7 @@ testing, or to point at an arbitrary CLAUDE.md directly).
 
 Usage: specs_convention_marker.py [claude-md-path]
 
-Stdlib-only. Python 3.8+. See docs/python-hook-contract.md.
+Stdlib-only. See docs/python-hook-contract.md.
 """
 
 from __future__ import annotations

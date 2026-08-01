@@ -35,7 +35,7 @@ import subprocess
 import sys
 import tempfile
 import time
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -521,7 +521,7 @@ def grade(workdir, env, fixture_dir, acc_files):
 
 # ── stage execution ─────────────────────────────────────────────────────────────
 def _utc():
-    return datetime.now(timezone.utc).isoformat()
+    return datetime.now(UTC).isoformat()
 
 
 def enforce_refactor(workdir, green_sha):

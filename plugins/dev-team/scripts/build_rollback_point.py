@@ -9,7 +9,7 @@ to a concrete SHA at slice dispatch and records it in the slice's build
 bookkeeping so a dead-end escalation (issue #864) can name the exact revert
 boundary: "revert to <sha> (<symbolic>)".
 
-Stdlib-only. Python 3.8+ (ADR 0014/0015).
+Stdlib-only. (ADR 0014/0015).
 """
 
 from __future__ import annotations

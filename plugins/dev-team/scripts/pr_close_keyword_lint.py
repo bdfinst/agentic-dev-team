@@ -19,7 +19,7 @@ Usage:
   python3 pr_close_keyword_lint.py --body-file <path> [--json]
   echo "$BODY" | python3 pr_close_keyword_lint.py [--json]
 
-Always exits 0 (advisory only). Stdlib-only. Python 3.8+.
+Always exits 0 (advisory only). Stdlib-only.
 """
 
 from __future__ import annotations

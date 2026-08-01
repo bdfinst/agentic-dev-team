@@ -19,7 +19,7 @@ Contract (docs/python-hook-contract.md):
     Output: exit 0 = allow (silent)
             exit 2 = block; stderr contains the operator message
 
-Stdlib-only (json/os/pathlib/re/subprocess/sys). Python 3.8+. See ADR 0014.
+Stdlib-only (json/os/pathlib/re/subprocess/sys). See ADR 0014.
 
 Refs: #572 (bash → Python migration epic).
 """

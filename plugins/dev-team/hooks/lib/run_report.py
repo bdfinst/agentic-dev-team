@@ -14,7 +14,7 @@ Stop hook that writes it never learns the session ID. There is no reliable
 join key today, so `cost` in the report is explicitly marked `joinable:
 false` rather than guessing an attribution the data doesn't support.
 
-Stdlib only. Python 3.8+. See ADR 0014 / ADR 0015.
+Stdlib only. See ADR 0014 / ADR 0015.
 """
 
 from __future__ import annotations

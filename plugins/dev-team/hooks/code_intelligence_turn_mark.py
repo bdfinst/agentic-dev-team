@@ -48,7 +48,7 @@ Contract (docs/python-hook-contract.md):
     Posture: fail-open. Any internal error → exit 0; sentinel may not be
              written, the nudge hook will simply emit its (advisory) warning.
 
-Stdlib-only (json/os/pathlib/sys/tempfile). Python 3.8+. See ADR 0014.
+Stdlib-only (json/os/pathlib/sys/tempfile). See ADR 0014.
 
 Refs: #572 (bash → Python migration epic), #1368 (multi-tool nudge).
 """

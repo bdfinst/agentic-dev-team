@@ -17,7 +17,7 @@ gate defers to the operator rather than degrading on its own. The agent runs
 the probe (reusing the wrapper + #1157's capture detection) and feeds the
 measurements here; applying the shim exclusions is #1159's job.
 
-Stdlib-only. Python 3.8+.
+Stdlib-only.
 """
 
 from __future__ import annotations

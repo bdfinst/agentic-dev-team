@@ -24,7 +24,7 @@ Modes:
 
 Idempotent and fail-open: ``--enable`` never exits non-zero, so it can never
 break a Setup script or block session start. Honors ``CLAUDE_CONFIG_DIR``.
-Stdlib only, Python 3.8+ (ADR 0014 / 0015).
+Stdlib only, (ADR 0014 / 0015).
 """
 from __future__ import annotations
 

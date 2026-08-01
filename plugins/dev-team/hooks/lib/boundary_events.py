@@ -16,7 +16,7 @@ Fail-open: every exception is swallowed. A full disk, read-only
 `.claude/metrics/`, or malformed state must never change the calling
 hook's stdout, stderr, or exit code.
 
-Stdlib only. Python 3.8+. See ADR 0014 / ADR 0015.
+Stdlib only. See ADR 0014 / ADR 0015.
 """
 
 from __future__ import annotations

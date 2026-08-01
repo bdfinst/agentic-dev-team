@@ -63,7 +63,7 @@ Contract (docs/python-hook-contract.md):
             exit 2 = block (strict mode over ceiling)
     Posture: fail-open on any parse or IO error.
 
-Stdlib-only (json/os/pathlib/re/sys). Python 3.8+. See ADR 0014.
+Stdlib-only (json/os/pathlib/re/sys). See ADR 0014.
 
 Refs: #572 (bash → Python migration epic).
 """

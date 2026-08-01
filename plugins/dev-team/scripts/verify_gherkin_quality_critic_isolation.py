@@ -38,7 +38,7 @@ workflow by this change; see `knowledge/gherkin-quality-review-dispatch.md`
 for how to run it locally (or gate it into CI the same way the existing live
 eval gate is: a label + `ANTHROPIC_API_KEY`).
 
-Stdlib only. Python 3.8+ (ADR 0014/0015).
+Stdlib only. (ADR 0014/0015).
 
 Usage:
     python3 verify_gherkin_quality_critic_isolation.py

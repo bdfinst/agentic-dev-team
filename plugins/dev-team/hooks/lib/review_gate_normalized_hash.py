@@ -175,7 +175,7 @@ Any parse or normalization error returns `None`. `pre_commit_review.py` treats
 behavior — never to a pass. Same posture as every other read-side check in
 the gate path.
 
-Stdlib only. Python 3.8+. See ADR 0014 / ADR 0015.
+Stdlib only. See ADR 0014 / ADR 0015.
 """
 
 from __future__ import annotations
@@ -184,9 +184,10 @@ import hashlib
 import re
 import subprocess
 import sys
+from collections.abc import Callable
 from pathlib import Path
 from types import MappingProxyType
-from typing import Callable, NamedTuple
+from typing import NamedTuple
 
 _LIB_DIR = Path(__file__).resolve().parent
 if str(_LIB_DIR) not in sys.path:
@@ -745,14 +746,14 @@ def _target_path(header: str) -> str | None:
     target = header[4:].strip()
     if target == "/dev/null":
         return None
-    return target[2:] if target.startswith("b/") else target
+    return target.removeprefix("b/")
 
 
 def _source_path(header: str) -> str | None:
     source = header[4:].strip()
     if source == "/dev/null":
         return None
-    return source[2:] if source.startswith("a/") else source
+    return source.removeprefix("a/")
 
 
 def _structural_marker(raw: str) -> str | None:

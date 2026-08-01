@@ -44,7 +44,7 @@ Exit status: 0 when `ready` (after any patch), 1 when a JS/TS repo is not
 ready, 2 when the repo is not a JS/TS project (no package.json) — callers
 treat 2 as "not applicable, skip".
 
-Stdlib-only. Python 3.8+.
+Stdlib-only.
 """
 
 from __future__ import annotations

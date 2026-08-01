@@ -22,7 +22,7 @@ out to the library. Reuses the library directly via subprocess to keep
 byte-parity with the .sh's stdout/stderr/exit behavior (record's own
 stdout is suppressed in both cases).
 
-Stdlib-only (json/os/pathlib/shutil/subprocess/sys). Python 3.8+.
+Stdlib-only (json/os/pathlib/shutil/subprocess/sys).
 See ADR 0014.
 
 Refs: #572 (bash → Python migration epic).

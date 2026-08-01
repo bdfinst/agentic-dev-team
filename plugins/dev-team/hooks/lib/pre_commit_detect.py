@@ -29,7 +29,7 @@ Exposes:
     True when `cmd` is a `git commit` we should gate on (no bypass flag).
     Kept for backward compatibility with existing callers/tests.
 
-Stdlib-only. Python 3.8+. See docs/python-hook-contract.md.
+Stdlib-only. See docs/python-hook-contract.md.
 """
 
 from __future__ import annotations

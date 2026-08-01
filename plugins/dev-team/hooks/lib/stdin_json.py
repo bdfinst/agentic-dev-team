@@ -8,7 +8,7 @@ validate step (#732). This module is the shared extraction. Also adopted by
 context_ceiling_guard.py (#779), replacing its own local copy of the same
 read/parse/validate step.
 
-Stdlib-only. Python 3.8+. See docs/python-hook-contract.md.
+Stdlib-only. See docs/python-hook-contract.md.
 """
 
 from __future__ import annotations

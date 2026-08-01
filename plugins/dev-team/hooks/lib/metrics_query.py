@@ -50,7 +50,7 @@ All provided filters compose with AND. Malformed JSON lines are skipped,
 not fatal — these streams are hand-authored-adjacent, append-only logs and
 a single corrupt line must never break a query over the rest of the file.
 
-Stdlib only. Python 3.8+. See ADR 0014 / ADR 0015.
+Stdlib only. See ADR 0014 / ADR 0015.
 """
 
 from __future__ import annotations

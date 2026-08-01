@@ -5,7 +5,7 @@ decide "is this a test file?" (the refactor test-freeze guards), plus the
 reader for the build-phase state `/build` records at each step-phase
 transition (`.claude/memory/build-phase.json`).
 
-Stdlib-only. Python 3.8+. See docs/python-hook-contract.md.
+Stdlib-only. See docs/python-hook-contract.md.
 """
 
 from __future__ import annotations

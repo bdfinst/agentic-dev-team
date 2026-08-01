@@ -8,7 +8,7 @@ plus one file per language keeps each file's responsibility narrow, mirroring
 how `_vendored_tree.py` and `_gherkin_text.py` were already extracted from
 their own call sites once a second/third occurrence appeared.
 
-Stdlib-only. Python 3.8+ (ADR 0014/0015).
+Stdlib-only. (ADR 0014/0015).
 """
 
 from __future__ import annotations

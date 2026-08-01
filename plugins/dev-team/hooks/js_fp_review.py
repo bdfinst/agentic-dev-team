@@ -11,7 +11,7 @@ Contract (docs/python-hook-contract.md):
     Output: advisory feedback on stdout
     Exit  : 0 always (advisory)
 
-Stdlib-only (json/pathlib/re/sys). Python 3.8+. See ADR 0014.
+Stdlib-only (json/pathlib/re/sys). See ADR 0014.
 """
 
 from __future__ import annotations

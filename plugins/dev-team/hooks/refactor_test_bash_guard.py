@@ -145,8 +145,7 @@ def _normalize_target(target: str) -> str:
     stripped = target.strip()
     if len(stripped) >= 2 and stripped[0] == stripped[-1] and stripped[0] in ("'", '"'):
         stripped = stripped[1:-1]
-    if stripped.startswith("./"):
-        stripped = stripped[2:]
+    stripped = stripped.removeprefix("./")
     return stripped
 
 

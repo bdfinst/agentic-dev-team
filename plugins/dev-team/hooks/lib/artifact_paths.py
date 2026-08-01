@@ -10,7 +10,7 @@ that root is — instead of each hook independently trusting
 disagrees with the project root when a hook is invoked from a
 subdirectory).
 
-Stdlib-only. Python 3.8+. See docs/python-hook-contract.md.
+Stdlib-only. See docs/python-hook-contract.md.
 """
 
 from __future__ import annotations

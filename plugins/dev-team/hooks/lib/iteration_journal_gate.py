@@ -21,7 +21,7 @@ Two operations:
 Complements, does not replace, `progress-guardian` (advisory, plan-step-keyed).
 This gate is per-iteration, hard-blocking, and scoped to `/autoship`/`/ship`.
 
-Stdlib only. Python 3.8+. See ADR 0014 / ADR 0015.
+Stdlib only. See ADR 0014 / ADR 0015.
 """
 
 from __future__ import annotations

@@ -49,7 +49,7 @@ every other consumer of that stream relies on the same tolerance. "Unreadable"
 covers a ledger file that exists but can't be read as text at all (permission
 error, undecodable bytes, or the path is not a regular file).
 
-Stdlib only. Python 3.8+. See ADR 0014 / ADR 0015.
+Stdlib only. See ADR 0014 / ADR 0015.
 """
 
 from __future__ import annotations

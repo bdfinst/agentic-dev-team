@@ -3,8 +3,7 @@
 
 Cross-platform authoritative: macOS, Linux, Windows Git Bash, and native
 Windows all execute the same code path through Python 3's ``subprocess``,
-``signal``, and ``pathlib``. Sole runtime dependency is ``python3`` (≥ 3.8)
-on PATH — no shell-tooling divergence.
+``signal``, and ``pathlib`` — no shell-tooling divergence.
 
 Copy this file AND ``csharp_stryker_net_status_loop.py`` together into your
 repo's ``scripts/`` directory, and run in place of a bare ``dotnet stryker``

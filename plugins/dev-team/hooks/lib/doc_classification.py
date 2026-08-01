@@ -34,7 +34,7 @@ reaches it via the identical `sys.path.insert` pattern
 choice, not an established repo-wide convention — revisit if a genuine
 `shared/` location emerges later.
 
-Stdlib only. Python 3.8+.
+Stdlib only.
 """
 
 from __future__ import annotations

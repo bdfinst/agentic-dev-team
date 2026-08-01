@@ -28,7 +28,7 @@ This mirrors and improves on the isolation precedent in
 version does `env = dict(os.environ)` and does NOT scrub identity vars — this
 one does.
 
-Stdlib only, Python 3.8+ (ADR 0014 / 0015). uuid/tempfile/subprocess are fine
+Stdlib only, (ADR 0014 / 0015). uuid/tempfile/subprocess are fine.
 in a shipped script — the no-random/no-Date restriction applies only to
 Workflow scripts, not shipped Python.
 

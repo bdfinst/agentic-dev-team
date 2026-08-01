@@ -11,7 +11,7 @@ review invalidates the gate and forces a re-review.
 Both the writer (`/code-review` step 9) and the reader (pre_commit_review)
 MUST compute the hash identically. This module IS that shared computation.
 
-Stdlib-only. Python 3.8+. See docs/python-hook-contract.md.
+Stdlib-only. See docs/python-hook-contract.md.
 
 The `.sh` sibling this module ported was retired in #618 — there is no
 second implementation left to stay byte-parity with. `review_gate_hash()`'s

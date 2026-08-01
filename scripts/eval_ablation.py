@@ -61,7 +61,7 @@ from __future__ import annotations
 import argparse
 import json
 import sys
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
@@ -224,7 +224,7 @@ def agent_ablation_report(
 
     return {
         "schema": "eval-ablation/v1",
-        "recorded_at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "recorded_at": datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ"),
         "ablated_agent": ablated_agent,
         "fixtures": fixtures,
         "model": model,

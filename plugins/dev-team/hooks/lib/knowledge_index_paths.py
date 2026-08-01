@@ -19,7 +19,7 @@ Excluded:
 Anchor: top-level knowledge .md OR <skills-dir>/<one segment>/SKILL.md.
 A leading `(^|/)` allows repo-relative or absolute paths.
 
-Stdlib-only. Python 3.8+. See docs/python-hook-contract.md.
+Stdlib-only. See docs/python-hook-contract.md.
 """
 
 from __future__ import annotations

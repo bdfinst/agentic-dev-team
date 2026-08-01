@@ -139,29 +139,30 @@ done
 # gh is used for PR operations in CI/cloud, not by the local gates — best effort.
 ensure_tool gh optional
 
-# --- Python 3.8, the shipped floor ---------------------------------------
-# ci-local.sh's chk_python_floor makes a real 3.8 byte-compile and import the
-# shipped tree (ADR 0014). That check FAILS rather than skips when no 3.8 is
-# reachable, so provision one here — a gate that silently downgrades on the
-# machines least likely to have the floor interpreter is no gate at all.
-# uv is the portable route: 3.8 is EOL, so most package managers no longer
-# carry it, while uv fetches a standalone build on every platform.
-section "Python 3.8 (shipped floor — ADR 0014)"
-if command -v python3.8 >/dev/null 2>&1; then
-  ok "python3.8 ($(python3.8 -V 2>&1))"
-elif command -v uv >/dev/null 2>&1 && uv python find 3.8 >/dev/null 2>&1; then
-  ok "python3.8 via uv ($(uv python find 3.8))"
+# --- Python 3.10, the shipped floor ---------------------------------------
+# ci-local.sh's chk_python_floor makes a real 3.10 byte-compile and import the
+# shipped tree (ADR 0031, superseding ADR 0014's version stanza). That check
+# FAILS rather than skips when no 3.10 is reachable, so provision one here — a
+# gate that silently downgrades on the machines least likely to have the floor
+# interpreter is no gate at all. uv is the portable route: it fetches a
+# standalone build on every platform, so this works whether or not the host's
+# package manager still carries 3.10.
+section "Python 3.10 (shipped floor — ADR 0031)"
+if command -v python3.10 >/dev/null 2>&1; then
+  ok "python3.10 ($(python3.10 -V 2>&1))"
+elif command -v uv >/dev/null 2>&1 && uv python find 3.10 >/dev/null 2>&1; then
+  ok "python3.10 via uv ($(uv python find 3.10))"
 else
   if ! command -v uv >/dev/null 2>&1; then
-    warn "installing uv (used to fetch the EOL 3.8 interpreter)"
+    warn "installing uv (used to fetch the 3.10 floor interpreter)"
     curl -LsSf https://astral.sh/uv/install.sh | sh >/dev/null 2>&1 || true
     export PATH="$HOME/.local/bin:$PATH"
   fi
-  if command -v uv >/dev/null 2>&1 && uv python install 3.8 >/dev/null 2>&1; then
-    ok "python3.8 installed via uv"
+  if command -v uv >/dev/null 2>&1 && uv python install 3.10 >/dev/null 2>&1; then
+    ok "python3.10 installed via uv"
   else
-    warn "could not provision Python 3.8 — chk_python_floor will fail until you do"
-    warn "  try: uv python install 3.8   (or install a python3.8 package)"
+    warn "could not provision Python 3.10 — chk_python_floor will fail until you do"
+    warn "  try: uv python install 3.10   (or install a python3.10 package)"
   fi
 fi
 

@@ -16,7 +16,7 @@ against it, since ad-hoc workflows may define their own):
 Fail-open on emit: every exception is swallowed. A full disk, read-only
 `.claude/metrics/`, or malformed state must never raise into the caller.
 
-Stdlib only. Python 3.8+. See ADR 0014 / ADR 0015.
+Stdlib only. See ADR 0014 / ADR 0015.
 """
 
 from __future__ import annotations

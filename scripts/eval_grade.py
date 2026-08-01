@@ -55,6 +55,8 @@ from pathlib import Path
 # (sys.path[0] is scripts/) or imported by a sibling (eval_variance/eval_ablation
 # already insert scripts/ first, but this keeps the import robust either way).
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+from datetime import UTC
+
 from eval_graders import (
     DEFAULT_GRADERS,
     get_grader,
@@ -314,7 +316,7 @@ def main(argv: list[str]) -> int:
         graded_pass = {p for p, ok, _ in results if ok}
         graded_fail = {p for p, ok, _ in results if not ok}
         merged = (existing | graded_pass) - graded_fail
-        from datetime import datetime, timezone
+        from datetime import datetime
         target.write_text(json.dumps({
             "_comment": "Regression baseline for the agent-eval CI gate (#99). "
                         "Pairs listed here must not regress. Update with "
@@ -324,7 +326,7 @@ def main(argv: list[str]) -> int:
             # Stamped 'measured' because this baseline came from grading a real
             # actuals.json run, distinguishing it from a hand-authored seed (#133).
             "provenance": "measured",
-            "recorded_at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+            "recorded_at": datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ"),
             "passing": sorted(merged),
         }, indent=2) + "\n")
         added = sorted(graded_pass - existing)

@@ -15,7 +15,7 @@ dedup only ever compares titles *within* the Feature block it is merging
 into, so a cross-file collision like this is otherwise invisible until a
 human notices two features documenting "the same" scenario.
 
-Stdlib-only. Python 3.8+ (ADR 0014/0015).
+Stdlib-only. (ADR 0014/0015).
 
 Usage:
     python3 gherkin_cross_feature_duplicate_titles_gate.py --dir <dir> [--dir <dir> ...] [--json]

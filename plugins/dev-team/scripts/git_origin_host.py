@@ -13,7 +13,7 @@ Reads `git remote get-url origin` unless a URL is given as argv[1] (for testing)
 
 Usage: git_origin_host.py [remote-url]
 
-Stdlib-only. Python 3.8+. See docs/python-hook-contract.md.
+Stdlib-only. See docs/python-hook-contract.md.
 """
 
 from __future__ import annotations

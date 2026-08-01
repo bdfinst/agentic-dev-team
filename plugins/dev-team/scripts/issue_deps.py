@@ -18,7 +18,7 @@ Delegates DAG analysis to plan_waves.py — same reason as build_wave.py: until
 plan_waves.py converts, calling into it preserves the single source of truth
 for cycle / missing / unknown-dep diagnostics.
 
-Stdlib-only. Python 3.8+. See docs/python-hook-contract.md.
+Stdlib-only. See docs/python-hook-contract.md.
 """
 
 from __future__ import annotations

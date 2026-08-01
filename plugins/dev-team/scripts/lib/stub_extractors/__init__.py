@@ -36,7 +36,7 @@ re-deriving it — a lib-level sibling import, not a reach into the parent
 insertion reaching up to `scripts/`, the only module under `scripts/lib/` in
 the repo that imported from that parent layer).
 
-Stdlib-only. Python 3.8+ (ADR 0014/0015).
+Stdlib-only. (ADR 0014/0015).
 """
 
 from __future__ import annotations

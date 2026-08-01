@@ -16,7 +16,7 @@ a synthetic roster); ``build_review_roster`` is the only I/O and fails open
 (a read error never raises — the affected lens is include-biased with a
 warning).
 
-Stdlib-only. Python 3.8+. See docs/python-hook-contract.md.
+Stdlib-only. See docs/python-hook-contract.md.
 """
 
 from __future__ import annotations

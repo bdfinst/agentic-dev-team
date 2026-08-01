@@ -18,7 +18,7 @@ resolution line on stderr.
 
 Usage: build_jobs.py --wave-width W [--jobs N]
 
-Stdlib-only. Python 3.8+. See docs/python-hook-contract.md.
+Stdlib-only. See docs/python-hook-contract.md.
 """
 
 from __future__ import annotations

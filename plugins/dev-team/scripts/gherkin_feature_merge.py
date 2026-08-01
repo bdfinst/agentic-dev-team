@@ -17,7 +17,7 @@ file at all — most likely a human renamed it) and `malformed-feature-block`
 `Examples:` keyword has no table rows). Both refuse to write rather than
 silently corrupting or duplicating content.
 
-Stdlib-only. Python 3.8+ (ADR 0014/0015).
+Stdlib-only. (ADR 0014/0015).
 
 Usage:
     python3 gherkin_feature_merge.py merge --existing <path> --candidates <path> \

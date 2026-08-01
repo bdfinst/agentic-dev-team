@@ -55,7 +55,7 @@ Contract (docs/python-hook-contract.md):
     Input : PreToolUse JSON on stdin (Agent/Task matcher)
     Output: always exit 0 — fail-open, this hook never blocks a dispatch.
 
-Stdlib only. Python 3.8+. See ADR 0014 / ADR 0015.
+Stdlib only. See ADR 0014 / ADR 0015.
 """
 
 from __future__ import annotations

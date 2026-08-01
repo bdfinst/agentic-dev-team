@@ -37,7 +37,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 SCRIPTS = Path(__file__).resolve().parent
@@ -132,7 +132,7 @@ CHANGE_PROMPTS["batched-red"] = (
 )
 
 def _utc() -> str:
-    return datetime.now(timezone.utc).isoformat()
+    return datetime.now(UTC).isoformat()
 
 
 def contamination_flags(home: Path, cost: dict) -> list[str]:

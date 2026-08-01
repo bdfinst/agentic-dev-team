@@ -30,7 +30,7 @@ import json
 import re
 import sys
 from dataclasses import dataclass
-from datetime import date, datetime, timezone
+from datetime import UTC, date, datetime
 from pathlib import Path
 from typing import Any
 
@@ -278,7 +278,7 @@ def main() -> int:
         print(f"ACCEPTED-RISKS schema error: {e}", file=sys.stderr)
         return 2
 
-    today = datetime.now(tz=timezone.utc).date()
+    today = datetime.now(tz=UTC).date()
     expired_rules = [r for r in rules if _is_expired(r, today)]
     active_rules = [r for r in rules if not _is_expired(r, today)]
 

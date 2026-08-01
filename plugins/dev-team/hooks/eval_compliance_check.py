@@ -10,7 +10,7 @@ Contract (docs/python-hook-contract.md):
     Output: advisory feedback on stdout (shown to Claude)
     Exit  : 0 always (advisory, never blocks)
 
-Stdlib-only (json/pathlib/re/sys). Python 3.8+. See ADR 0014.
+Stdlib-only (json/pathlib/re/sys). See ADR 0014.
 
 Refs: #572 (bash → Python migration epic).
 """

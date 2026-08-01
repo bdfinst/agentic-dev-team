@@ -66,6 +66,8 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+from datetime import UTC
+
 from eval_grade import run_grading
 
 CACHE_VERSION = 1
@@ -285,13 +287,13 @@ def cache_get(cache: dict, pair: str, sha: str):
 
 
 def cache_put(cache: dict, pair: str, sha: str, actual: dict, model: str = DEFAULT_MODEL) -> None:
-    from datetime import datetime, timezone
+    from datetime import datetime
     cache.setdefault("entries", {})[pair] = {
         "sha": sha,
         "passed": True,
         "actual": actual,
         "model": model,
-        "recorded_at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "recorded_at": datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ"),
     }
 
 

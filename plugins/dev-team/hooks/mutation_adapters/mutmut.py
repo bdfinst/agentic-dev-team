@@ -47,12 +47,8 @@ def mutmut_detect() -> bool:
 def _derive_python_source(test_file: str) -> str:
     """Strip test_ prefix / _test suffix from `test_file` to find the source."""
     base = Path(test_file).stem
-    # Slice rather than str.removeprefix/removesuffix: those are 3.9+, and
-    # ADR 0014 puts the shipped floor at 3.8.
-    if base.startswith("test_"):
-        base = base[len("test_") :]
-    if base.endswith("_test"):
-        base = base[: -len("_test")]
+    base = base.removeprefix("test_")
+    base = base.removesuffix("_test")
     for dir_ in ("src", "", "lib"):
         candidate = f"{dir_}/{base}.py" if dir_ else f"{base}.py"
         if Path(candidate).is_file():

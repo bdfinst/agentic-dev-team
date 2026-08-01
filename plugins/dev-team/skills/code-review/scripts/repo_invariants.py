@@ -49,7 +49,7 @@ findings already are — "detected by static analysis, do not re-report,
 focus on semantic concerns" — so agents stop spending tokens re-deriving
 facts this script already proved.
 
-Stdlib-only. Python 3.8+. See docs/python-hook-contract.md.
+Stdlib-only. See docs/python-hook-contract.md.
 """
 
 from __future__ import annotations

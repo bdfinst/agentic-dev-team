@@ -7,7 +7,7 @@ leave an issue permanently stuck "in progress". Deterministic, testable
 Python — no model judgment, per the epic's architecture rationale (see plan
 `plans/issue-989-autoship-discovery-reclaim.md`, Slice 3).
 
-Stdlib-only. Python 3.8+.
+Stdlib-only.
 """
 
 from __future__ import annotations

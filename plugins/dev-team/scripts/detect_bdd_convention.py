@@ -23,7 +23,7 @@ single incidental `.feature` root elsewhere in the repo (e.g. a
 narrowly-scoped test fixture directory) is not evidence of a repo-wide
 Gherkin convention.
 
-Stdlib-only. Python 3.8+.
+Stdlib-only.
 """
 
 from __future__ import annotations

@@ -16,7 +16,7 @@ own Build Progress checkboxes, `.claude/memory/build-phase.json`, or its
 own exempt verify-log entry. At slice completion, `/build` calls this
 script again to clear the state.
 
-Stdlib-only. Python 3.8+ (ADR 0014/0015).
+Stdlib-only. (ADR 0014/0015).
 """
 
 from __future__ import annotations

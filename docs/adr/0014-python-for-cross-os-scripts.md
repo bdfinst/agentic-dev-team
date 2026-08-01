@@ -4,7 +4,7 @@ Date: 2026-07-02
 
 ## Status
 
-Accepted, superseded by [ADR 0015](0015-bash-removal-complete.md) for the shipped-script surface (the bash → Python migration completed with epic #572).
+Accepted, superseded by [ADR 0015](0015-bash-removal-complete.md) for the shipped-script surface (the bash → Python migration completed with epic #572), and by [ADR 0031](0031-raise-shipped-python-floor-to-3-10.md) for the "Minimum Python version" design question below (the floor moved 3.8 → 3.10; every other decision here stands).
 
 ## Context
 
@@ -27,7 +27,7 @@ Design questions considered:
    - **Full pip/virtualenv ecosystem.** Powerful but a friction bump for downstream .NET-repo operators copying scripts. Rejected.
    - **Stdlib-only.** Chosen. Every plugin hook and shipped script ships as a single file that runs under any `python3` ≥ 3.8. No `requirements.txt`, no virtualenvs, no pip.
 
-3. **Minimum Python version.** Python 3.8 is what the plugin's other python scripts already target (`scripts/session_extract.py`, `hooks/lib/cost_meter.py`, `plugins/dev-team/hooks/mutation-adapters/lib.sh`'s python3 shells). 3.8 is EOL upstream, but is the floor most operating systems still support (Ubuntu 20.04 LTS, macOS Homebrew, Windows Python.org). Chosen.
+3. **Minimum Python version.** Python 3.8 is what the plugin's other python scripts already target (`scripts/session_extract.py`, `hooks/lib/cost_meter.py`, `plugins/dev-team/hooks/mutation-adapters/lib.sh`'s python3 shells). 3.8 is EOL upstream, but is the floor most operating systems still support (Ubuntu 20.04 LTS, macOS Homebrew, Windows Python.org). Chosen. **Superseded by [ADR 0031](0031-raise-shipped-python-floor-to-3-10.md):** by 2026 this premise no longer held — 3.9 had also gone EOL and Ubuntu 20.04 had left standard support — so the floor moved to 3.10.
 
 4. **Are shell hooks with a JSON stdin/exit-code contract portable to Python?** Yes — Claude Code hooks are invoked as `bash hooks/foo.sh` (see `settings.json`), which we change to `python3 hooks/foo.py` per hook as it converts. The stdin JSON payload and exit-code semantics are identical.
 
@@ -35,7 +35,7 @@ Design questions considered:
 
 ## Decision
 
-**All new scripts in this plugin (shipped hooks, dev/CI helpers, and user-invocable shipped tooling) are authored in Python 3.8+ using stdlib only.** Existing bash scripts stay in place until converted; conversions land as part of the phased plan in #572 (bash → Python migration epic).
+**All new scripts in this plugin (shipped hooks, dev/CI helpers, and user-invocable shipped tooling) are authored in Python (floor version per [ADR 0031](0031-raise-shipped-python-floor-to-3-10.md), currently 3.10+) using stdlib only.** Existing bash scripts stay in place until converted; conversions land as part of the phased plan in #572 (bash → Python migration epic).
 
 Concretely:
 
@@ -51,11 +51,11 @@ Enforcement: an audit script (`scripts/check-python-only.py`) flags any new `.sh
 - **Cross-platform behavior converges on one runtime.** Python stdlib's `subprocess`, `signal`, `pathlib`, `json`, `hashlib`, `argparse` behave identically on macOS, Linux, Windows Git Bash, and native Windows. Every script we author now works everywhere without per-platform forks.
 - **The MSYS class of bug goes away for new scripts.** #571 (fork-hang in bash setup) doesn't reappear.
 - **CI infrastructure simplifies.** Once bash conversion is complete, `bats`, `shellcheck`, and the Windows Git Bash CI job get retired. Existing Linux CI keeps running for the transition period.
-- **The plugin still requires `python3` — no new dep.** Every hook already checks for it. Documented as ≥ 3.8 baseline.
+- **The plugin still requires `python3` — no new dep.** Every hook already checks for it. Baseline version per [ADR 0031](0031-raise-shipped-python-floor-to-3-10.md) (currently ≥ 3.10).
 - **Downstream .NET consumers who copy shipped scripts** now copy `.py` files. Migration story: one file (`csharp_stryker_net_wrapper.py`) or two (`+ csharp_stryker_net_status_loop.py`), same as bash was.
 - **~30-100ms per-hook startup overhead** on cold-cache Python. Instrumented via `cost-meter.sh`'s telemetry; if aggregate hook time regresses meaningfully, the epic's Phase 2 revisits.
 - **Existing bash scripts continue to work** during the transition; nothing regresses. The rule only constrains *new* scripts.
-- **Contributors need Python 3.8+ locally.** Already required by the current plugin's test suite; not a new burden.
+- **Contributors need the current floor version locally** (see [ADR 0031](0031-raise-shipped-python-floor-to-3-10.md)). Already required by the current plugin's test suite; not a new burden.
 
 ## Alternatives considered
 

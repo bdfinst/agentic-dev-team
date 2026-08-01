@@ -15,7 +15,7 @@ analysis-only agents, and the orchestrator-dispatched coordinators/gates
 (``quality-reviewer``, ``spec-reviewer``) that the registry's Review Agents
 table lists but which are never dispatched as standalone lenses.
 
-Stdlib-only. Python 3.8+.
+Stdlib-only.
 """
 
 from __future__ import annotations

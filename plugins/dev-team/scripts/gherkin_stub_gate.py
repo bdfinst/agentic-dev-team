@@ -42,7 +42,7 @@ directory is never walked or grepped — via the shared `_vendored_tree.py`
 helper (issue #1420), also used by `detect_bdd_convention.py` and
 `gherkin_failure_path_gate.py`.
 
-Stdlib-only. Python 3.8+ (ADR 0014/0015).
+Stdlib-only. (ADR 0014/0015).
 
 Usage:
     python3 gherkin_stub_gate.py --dir <step-definitions-dir> [--dir <dir> ...]

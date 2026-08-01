@@ -142,7 +142,7 @@ those modules' docstrings), and the security-critical git safety flags
 pipeline of named decision-lens functions rather than one long branch-laden
 body — see each function's own docstring for its lens breakdown.
 
-Stdlib-only. Python 3.8+.
+Stdlib-only.
 """
 
 from __future__ import annotations

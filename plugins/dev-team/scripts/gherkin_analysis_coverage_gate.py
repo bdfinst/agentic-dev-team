@@ -50,7 +50,7 @@ zero recognized category rows beneath it at all (a stub section, never
 actually filled in — a different claim than "N of the required categories
 are genuinely missing").
 
-Stdlib-only. Python 3.8+ (ADR 0014/0015).
+Stdlib-only. (ADR 0014/0015).
 
 Usage:
     python3 gherkin_analysis_coverage_gate.py --file <path/to/gherkin.md> [--json]

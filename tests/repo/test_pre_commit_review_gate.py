@@ -11,7 +11,7 @@ from __future__ import annotations
 import json
 import subprocess
 import sys
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import pytest
@@ -120,7 +120,7 @@ def _write_dispatch_evidence(work: Path) -> None:
     # load, while staying far inside the 1800s window.
     gate_mtime = (work / ".claude" / "memory" / ".review-passed").stat().st_mtime
     stamp = (
-        datetime.fromtimestamp(gate_mtime, tz=timezone.utc) - timedelta(seconds=60)
+        datetime.fromtimestamp(gate_mtime, tz=UTC) - timedelta(seconds=60)
     ).strftime("%Y-%m-%dT%H:%M:%SZ")
     with log.open("a", encoding="utf-8") as fh:
         for agent in ("security-review", "structure-review"):

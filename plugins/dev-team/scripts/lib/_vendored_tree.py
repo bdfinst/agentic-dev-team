@@ -11,7 +11,7 @@ and its callers) — each of the three callers above resolves this directory
 onto `sys.path` via `sys.path.insert(0, str(Path(__file__).resolve().parent
 / "lib"))` before importing it.
 
-Stdlib-only. Python 3.8+ (ADR 0014/0015).
+Stdlib-only. (ADR 0014/0015).
 """
 
 from __future__ import annotations

@@ -1,8 +1,7 @@
 #!/usr/bin/env python3
 """stryker_shard_setup.py — auto-configure Stryker mutation shards for any C# repo.
 
-Generic, stdlib-only, cross-platform (macOS, Linux, Windows). Sole runtime
-dependency is python3 (>= 3.8) on PATH. Carries no repo-specific literal —
+Generic, stdlib-only, cross-platform (macOS, Linux, Windows). Carries no repo-specific literal —
 project names, test-library names, and paths all come from the solution file
 being parsed and the repo root supplied on the command line, never from this
 module.
@@ -81,16 +80,9 @@ def _rel_to_root(path: Path, repo_root: Path) -> str:
 def _is_within(path: Path, root: Path) -> bool:
     """Return True iff ``path`` resolves to a location inside ``root``.
 
-    ``Path.is_relative_to`` is 3.9+, so we use ``relative_to`` and catch the
-    ``ValueError`` it raises for a path outside ``root`` — a 3.8-compatible
-    containment check used to refuse any shard-config write that would escape
-    the repo root.
+    Used to refuse any shard-config write that would escape the repo root.
     """
-    try:
-        path.resolve().relative_to(root.resolve())
-        return True
-    except ValueError:
-        return False
+    return path.resolve().is_relative_to(root.resolve())
 
 
 # ── Pipeline config + solution discovery (inlined — no shared _common) ───────

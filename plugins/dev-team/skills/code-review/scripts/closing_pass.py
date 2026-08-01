@@ -41,7 +41,7 @@ fall back to the full re-dispatch over the whole changeset. That condition is
 a deterministic set-comparison of two file lists, checked here rather than
 judged in prose.
 
-Stdlib-only. Python 3.8+. See docs/python-hook-contract.md.
+Stdlib-only. See docs/python-hook-contract.md.
 """
 
 from __future__ import annotations

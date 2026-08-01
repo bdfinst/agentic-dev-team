@@ -19,7 +19,7 @@ Env seams (test-only):
     CODEGRAPH_DB_FILE        index path (default: $CWD/.codegraph/codegraph.db)
     CODEGRAPH_BOOTSTRAP_SYNC when "1", run the build in the foreground
 
-Stdlib-only. Python 3.8+.
+Stdlib-only.
 """
 
 from __future__ import annotations

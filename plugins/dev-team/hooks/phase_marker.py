@@ -23,7 +23,7 @@ Contract (docs/python-hook-contract.md):
     Posture: record-only and fail-open. Any error → exit 0 silently.
     Opt-out: DEV_TEAM_COST_METER=off disables (shares the cost meter's switch).
 
-Stdlib-only. Python 3.8+. See ADR 0014.
+Stdlib-only. See ADR 0014.
 """
 
 from __future__ import annotations

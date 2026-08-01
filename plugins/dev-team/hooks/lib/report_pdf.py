@@ -2,7 +2,7 @@
 """Render a Markdown report to a styled PDF.
 
 Backs the ``/report-pdf`` command and the ``--pdf`` flag on report-producing
-skills. Stdlib only, Python 3.8+ (ADR 0014 / 0015). Detects a PDF engine via
+skills. Stdlib only, (ADR 0014 / 0015). Detects a PDF engine via.
 runtime probes and converts Markdown -> PDF, **never raising for a missing
 engine** — callers get a structured :class:`RenderResult` and the underlying
 Markdown report is left untouched.

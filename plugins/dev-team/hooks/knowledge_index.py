@@ -17,7 +17,7 @@ Contract (docs/python-hook-contract.md):
 Env seams (TEST-ONLY):
     KNOWLEDGE_INDEX_BUILDER  override the builder path
 
-Stdlib-only. Python 3.8+.
+Stdlib-only.
 """
 
 from __future__ import annotations

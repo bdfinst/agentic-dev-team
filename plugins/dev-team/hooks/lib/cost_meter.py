@@ -247,8 +247,6 @@ _TOKEN_FIELDS = (
 
 
 def _new_bucket() -> dict:
-    # Built by literal rather than `|`: PEP 584's dict-merge operator is 3.9+,
-    # and ADR 0014 puts the shipped floor at 3.8.
     bucket = {f: 0 for f in _TOKEN_FIELDS}
     bucket["cost_usd"] = 0.0
     bucket["messages"] = 0

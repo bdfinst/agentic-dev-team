@@ -9,7 +9,7 @@ not a per-project or per-invocation one.
 Fail-open: a missing file, a malformed file, or any read error is treated as
 "not enabled" — never raises, never blocks the calling hook.
 
-Stdlib only. Python 3.8+. See ADR 0014 / ADR 0015.
+Stdlib only. See ADR 0014 / ADR 0015.
 """
 
 from __future__ import annotations

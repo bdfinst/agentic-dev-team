@@ -15,7 +15,7 @@ blank-line look-back loop that was independently duplicated in all three
 `.feature`-file parsers (`gherkin_feature_merge.py`'s `_block_end`, and the two
 gate scripts' own block-scanning loops).
 
-Stdlib-only. Python 3.8+ (ADR 0014/0015).
+Stdlib-only. (ADR 0014/0015).
 """
 
 from __future__ import annotations
