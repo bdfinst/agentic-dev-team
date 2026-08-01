@@ -245,30 +245,26 @@ class TestTheFloorIsCheckedInCI:
         )
 
     def test_the_floor_job_is_named_for_the_docs_that_reference_it(self, ci_workflow):
-        """Pins the CI job's exact `name:` so a rename can't happen silently.
-        Anchored to end-of-line: an unanchored match would also satisfy on
-        the job's own *step* name ("Python N floor check (via ci-local)"),
-        which shares the same literal prefix but isn't the job-level name at
-        all — a step's `name:` is preceded by a `- ` list-item marker when
-        it's the step's first key, as it is here, which `^\\s*` cannot
-        absorb, so this pattern doesn't match it.
-
-        Deliberately hardcoded to "3.8" here, NOT built from FLOOR_DOTTED
-        (currently "3.10"): this string will be the status-check context the
-        `main` ruleset matches once the job is added there (see the module
-        docstring above — not yet configured). ADR 0031 raised the floor to
-        3.10 everywhere else in this repo (ruff.toml, this file's own
-        FLOOR_DOTTED, the ADR itself), but this session's git credentials
-        cannot push a `.github/workflows/` edit (no `workflow` OAuth scope),
-        so the workflow's actual job name has NOT moved off "Python 3.8
-        floor" yet as of this commit. A human applies a combined patch
-        (workflow rename + this one literal, together) once `workflow` scope
-        is available or a maintainer applies it directly — the exact
-        "deliberate ruleset update" this test's design has always required,
-        never something that should silently follow FLOOR_DOTTED on its own.
-        """
-        assert re.search(r"(?m)^\s*name:\s*Python 3\.8 floor\s*$", ci_workflow), (
+        """ruff.toml and root CLAUDE.md both cite a "Python N floor" job by
+        that exact string. Nothing else pins the job's `name:` to those
+        references, so a rename would leave both silently stale. Anchored to
+        end-of-line: an unanchored match would also satisfy on the job's own
+        *step* name ("Python N floor check (via ci-local)"), which shares
+        the same literal prefix but isn't the job-level name at all — a
+        step's `name:` is preceded by a `- ` list-item marker when it's the
+        step's first key, as it is here, which `^\\s*` cannot absorb, so
+        this pattern doesn't match it. The version here is deliberately a
+        literal built from FLOOR_DOTTED at assertion time, not hardcoded:
+        this string will be the status-check context the `main` ruleset
+        matches once the job is added there (see the module docstring above
+        — not yet configured), so a future floor bump (ADR 0031's own
+        successor) must update the workflow job name deliberately — this
+        test failing IS that reminder, not something to silence by hardcoding
+        a stale version here instead."""
+        assert re.search(
+            rf"(?m)^\s*name:\s*Python {re.escape(FLOOR_DOTTED)} floor\s*$", ci_workflow
+        ), (
             "no job in .github/workflows/plugin-tests.yml is named exactly "
-            '"Python 3.8 floor" (pending the ADR 0031 workflow patch — see '
-            "this test's own docstring)"
+            f'"Python {FLOOR_DOTTED} floor" — ruff.toml and CLAUDE.md both '
+            "reference it by that literal string"
         )

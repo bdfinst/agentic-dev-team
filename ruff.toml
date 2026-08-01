@@ -51,8 +51,8 @@ extend-exclude = [
 # because that is the only code a user's own Python ever executes.
 #
 # This stops ruff's autofixes from rewriting shipped code into 3.11+ syntax.
-# It is NOT what proves the floor holds: that is the CI job in
-# .github/workflows/plugin-tests.yml, which byte-compiles and imports every
+# It is NOT what proves the floor holds: that is the "Python 3.10 floor" job
+# in .github/workflows/plugin-tests.yml, which byte-compiles and imports every
 # shipped module on a real 3.10 interpreter (not yet the plugin's full test
 # suite — see issue #1635's "Out of scope" for that follow-up). The
 # interpreter is the oracle — neither a linter setting nor a hand-maintained
