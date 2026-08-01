@@ -23,7 +23,7 @@ result the severity floor and loop-until-dry rules must not get. Proximity
 is not an equivalence relation, so it cannot be folded into a hash without
 introducing boundary artifacts.
 
-So `signature()` hashes the *stable* identity — agent, file, rule/category,
+So `signature()` hashes the *stable* identity — agent, file, category,
 and the normalized message — and the line is carried alongside it in
 `FindingKey`. `same_finding()` then applies the true ±`LINE_TOLERANCE`
 proximity test. Callers that want one hashable key for set membership use
@@ -116,13 +116,23 @@ def _normalize_path(value) -> str:
 
 
 def signature(finding: dict) -> str:
-    """Stable identity hash for one finding: agent, file, rule/category, and
-    the normalized message. Deliberately excludes the line number."""
+    """Stable identity hash for one finding: agent, file, category, and the
+    normalized message. Deliberately excludes the line number.
+
+    `category` is the canonical taxonomy field (#1639) — settled on `category`
+    rather than `rule` because that is what the three agents on this contract
+    already emitting one (`security-review`, `ai-provenance-review`,
+    `spec-compliance-review`) already spell it as, so no existing agent needed
+    to migrate. `rule` and `ruleId` remain accepted fallbacks for a finding
+    shaped by a future agent or an external tool that uses the more
+    conventional linter-rule name — never required, never the preferred
+    spelling to emit.
+    """
     agent = str(finding.get("agent") or finding.get("agentName") or "")
     path = _normalize_path(finding.get("file"))
-    rule = str(finding.get("rule") or finding.get("category") or finding.get("ruleId") or "")
+    category = str(finding.get("category") or finding.get("rule") or finding.get("ruleId") or "")
     message = normalize_message(finding.get("message"))
-    payload = f"{agent.lower()}\x1f{path}\x1f{rule.lower()}\x1f{message}"
+    payload = f"{agent.lower()}\x1f{path}\x1f{category.lower()}\x1f{message}"
     return hashlib.sha256(payload.encode("utf-8")).hexdigest()
 
 

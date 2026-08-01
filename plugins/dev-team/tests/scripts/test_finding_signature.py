@@ -79,6 +79,40 @@ class TestSignatureStability:
     def test_different_files_are_distinct_findings(self):
         assert fs.signature(_f(file="src/a.js")) != fs.signature(_f(file="src/b.js"))
 
+    def test_category_alone_is_read_the_same_way_rule_is(self):
+        # `category` is the canonical taxonomy field (#1639); a finding that
+        # only sets `category` (no `rule` at all) must hash identically to
+        # the equivalent `rule=`-only finding — the two are the same field
+        # under different names, not two independent pieces of identity.
+        del_rule = _f()
+        del del_rule["rule"]
+        with_category = {**del_rule, "category": "missing-guard"}
+        assert fs.signature(with_category) == fs.signature(_f(rule="missing-guard"))
+
+    def test_category_takes_priority_over_rule_when_both_are_present(self):
+        # #1639 settled `category` as canonical; `rule`/`ruleId` are legacy
+        # fallbacks only. When a finding somehow carries both (a producer
+        # migrating, or an external tool), `category` must win — pinning the
+        # fallback order `signature()` actually implements, not just the
+        # order that happens to produce the same result when only one field
+        # is set (the common case every other test in this class exercises).
+        a = _f(category="unmet-criterion", rule="missing-guard")
+        b = _f(category="unmet-criterion", rule="something-else-entirely")
+        assert fs.signature(a) == fs.signature(b)
+
+        different_category = _f(category="different-category", rule="missing-guard")
+        assert fs.signature(a) != fs.signature(different_category)
+
+    def test_rule_id_is_used_only_when_category_and_rule_are_both_absent(self):
+        # Unlike test_category_takes_priority_over_rule_when_both_are_present
+        # above, this does NOT exercise the category-vs-rule ordering —
+        # both are absent here, so it only pins ruleId's own terminal-
+        # fallback role (true before and after #1639's reorder).
+        del_rule = _f()
+        del del_rule["rule"]
+        rule_id_only = {**del_rule, "ruleId": "missing-guard"}
+        assert fs.signature(rule_id_only) == fs.signature(_f(rule="missing-guard"))
+
     def test_leading_dot_slash_does_not_change_the_signature(self):
         assert fs.signature(_f(file="./src/cache.js")) == fs.signature(_f(file="src/cache.js"))
 
