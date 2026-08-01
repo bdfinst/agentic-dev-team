@@ -1,5 +1,21 @@
 # Changelog
 
+## [11.3.1](https://github.com/bdfinst/agentic-dev-team/compare/dev-team-v11.3.0...dev-team-v11.3.1) (2026-08-01)
+
+
+### Features
+
+* **evals:** fix 8 more evals/expected/*.json fixture pointers still saying .js for .ts fixtures ([#1641](https://github.com/bdfinst/agentic-dev-team/issues/1641)) ([03742a2](https://github.com/bdfinst/agentic-dev-team/commit/03742a205d9f109ff2c3b38908001b708511e650))
+
+
+### Bug Fixes
+
+* **agents:** ship four agents' Implemented-by scripts inside the plugin ([#1647](https://github.com/bdfinst/agentic-dev-team/issues/1647)) ([441a9ec](https://github.com/bdfinst/agentic-dev-team/commit/441a9ecae24a64b8ef8cf71a725faf7ba9a91be0)), closes [#1636](https://github.com/bdfinst/agentic-dev-team/issues/1636)
+* **hooks:** fix stacked heredoc opener and closer whitespace bugs in normalizer ([#1659](https://github.com/bdfinst/agentic-dev-team/issues/1659)) ([8551a79](https://github.com/bdfinst/agentic-dev-team/commit/8551a799533c69de3c42f8b296cda092752a1e72)), closes [#1638](https://github.com/bdfinst/agentic-dev-team/issues/1638)
+* **skills:** /setup's mutmut install and version probes cannot succeed ([#1673](https://github.com/bdfinst/agentic-dev-team/issues/1673)) ([f7afbd7](https://github.com/bdfinst/agentic-dev-team/commit/f7afbd75436e28d0a403e27f20dad2080fdb945c))
+* **skills:** pin the scheduled-wake-up calling contract for long-running jobs ([#1643](https://github.com/bdfinst/agentic-dev-team/issues/1643)) ([42d2223](https://github.com/bdfinst/agentic-dev-team/commit/42d2223c800f8c431f0f254d38387e66a582bb78))
+* **skills:** six shipped skills invoke scripts by bare relative paths ([#1658](https://github.com/bdfinst/agentic-dev-team/issues/1658)) ([5a20f7a](https://github.com/bdfinst/agentic-dev-team/commit/5a20f7ab787ad56278d0516109834174e0942623)), closes [#1637](https://github.com/bdfinst/agentic-dev-team/issues/1637)
+
 ## [11.3.0](https://github.com/bdfinst/agentic-dev-team/compare/dev-team-v11.2.0...dev-team-v11.3.0) (2026-07-31)
 
 
