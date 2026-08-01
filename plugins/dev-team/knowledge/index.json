@@ -2236,6 +2236,10 @@
       "summary": "Arguments: $ARGUMENTS",
       "anchor": "parse-arguments"
     },
+    "gh CLI availability (#1700)": {
+      "summary": "Check once, before Step 1: `command -v gh`.",
+      "anchor": "gh-cli-availability-1700"
+    },
     "Step 1 — Reclaim orphaned issues": {
       "summary": "Run the reclaim script to relabel any stale `autoship:in-progress` issues back",
       "anchor": "step-1-reclaim-orphaned-issues"
@@ -2253,7 +2257,7 @@
       "anchor": "3a-cost-cap-check"
     },
     "3b — Label issue in-progress": {
-      "summary": "Invoke `/ship` with:",
+      "summary": "**gh present:**",
       "anchor": "3b-label-issue-in-progress"
     },
     "3c — Invoke /ship": {

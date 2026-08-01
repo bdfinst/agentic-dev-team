@@ -326,6 +326,69 @@ def test_guard_relocates_polluting_hook_from_live_install(tmp_path: Path):
     ]
 
 
+def _raising_pollute_installer(settings_path: Path, exe: str = ALICE_EXE) -> None:
+    """Appends the machine-specific hook entry and then fails partway
+    through, like a build error after the polluting write already
+    happened."""
+    _pollute_installer(settings_path, exe)
+    raise RuntimeError("simulated installer failure")
+
+
+def test_guard_relocates_polluting_hook_even_when_installer_raises(tmp_path: Path):
+    """If `installer()` raises after already writing the polluting entry,
+    `fix_settings` must still run (not be skipped because the installer
+    never returned), and the original exception must still propagate to the
+    caller rather than being swallowed."""
+    settings_path = tmp_path / "settings.json"
+    local_settings_path = tmp_path / "settings.local.json"
+    _write_json(
+        settings_path,
+        {
+            "hooks": {
+                "SessionStart": [{"hooks": [{"type": "command", "command": "echo hi"}]}],
+                "PreToolUse": [
+                    {
+                        "matcher": "Write",
+                        "hooks": [{"type": "command", "command": "echo preexisting"}],
+                    }
+                ],
+            },
+            "enabledPlugins": {"foo": True},
+        },
+    )
+
+    try:
+        settings_hook_guard.run_install_with_guard(
+            settings_path,
+            local_settings_path,
+            installer=lambda: _raising_pollute_installer(settings_path),
+        )
+        raise AssertionError("expected the installer's RuntimeError to propagate")
+    except RuntimeError as exc:
+        assert "simulated installer failure" in str(exc)
+
+    shared = json.loads(settings_path.read_text(encoding="utf-8"))
+    # Pre-existing content survives untouched.
+    assert shared["enabledPlugins"] == {"foo": True}
+    assert shared["hooks"]["SessionStart"] == [
+        {"hooks": [{"type": "command", "command": "echo hi"}]}
+    ]
+    shared_commands = [
+        h["command"] for entry in shared["hooks"]["PreToolUse"] for h in entry["hooks"]
+    ]
+    assert shared_commands == ["echo preexisting"]
+    assert not any(ALICE_EXE in c for c in shared_commands)
+
+    local = json.loads(local_settings_path.read_text(encoding="utf-8"))
+    local_commands = [
+        h["command"] for entry in local["hooks"]["PreToolUse"] for h in entry["hooks"]
+    ]
+    assert local_commands == [
+        f"{ALICE_EXE} hook-guard search",
+        f"{ALICE_EXE} hook-guard read",
+    ]
+
+
 def test_guard_leaves_clean_install_untouched(tmp_path: Path):
     settings_path = tmp_path / "settings.json"
     local_settings_path = tmp_path / "settings.local.json"
@@ -427,3 +490,46 @@ def test_fix_settings_noop_when_settings_file_absent(tmp_path: Path):
 
     assert settings_hook_guard.fix_settings(settings_path, local_settings_path) is False
     assert not local_settings_path.exists()
+
+
+def test_guard_does_not_mask_installer_exception_when_relocation_also_fails(
+    tmp_path: Path, monkeypatch, capsys
+):
+    """A secondary failure while relocating (e.g. a permission error writing
+    settings.json back) must never replace installer()'s own in-flight
+    exception — the caller needs the REAL failure, not an unrelated one from
+    the relocation path itself."""
+    settings_path = tmp_path / "settings.json"
+    local_settings_path = tmp_path / "settings.local.json"
+    _write_json(
+        settings_path,
+        {"hooks": {}, "enabledPlugins": {"foo": True}},
+    )
+
+    # The installer's own polluting write must still succeed (call #1); only
+    # the guard's later relocation-write (call #2) should fail, so the
+    # sequence actually reaches the masking scenario under test.
+    real_write_text = Path.write_text
+    call_count = {"n": 0}
+
+    def _write_text_fails_on_second_call(self, *args, **kwargs):
+        call_count["n"] += 1
+        if call_count["n"] >= 2:
+            raise OSError("simulated relocation-write failure")
+        return real_write_text(self, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "write_text", _write_text_fails_on_second_call)
+
+    try:
+        settings_hook_guard.run_install_with_guard(
+            settings_path,
+            local_settings_path,
+            installer=lambda: _raising_pollute_installer(settings_path),
+        )
+        raise AssertionError("expected the installer's RuntimeError to propagate")
+    except RuntimeError as exc:
+        assert "simulated installer failure" in str(exc)
+
+    # The secondary relocation failure is still surfaced (not silently
+    # dropped), just not as the exception that propagates to the caller.
+    assert "simulated relocation-write failure" in capsys.readouterr().err

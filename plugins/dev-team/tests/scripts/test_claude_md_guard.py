@@ -284,6 +284,42 @@ def test_reverting_guard_reports_a_deletion_only_write_as_reverted(tmp_path: Pat
     assert claude_md.read_text(encoding="utf-8") == FIXTURE_CLAUDE_MD
 
 
+def _raising_corrupting_installer(path: Path) -> None:
+    """Reproduces the over-deletion bug and then fails partway through, like
+    a build error after the corrupting `CLAUDE.md` edit already happened."""
+    _corrupting_installer(path)
+    raise RuntimeError("simulated installer failure")
+
+
+def test_guard_repairs_corrupting_installer_even_when_installer_raises(tmp_path: Path):
+    """If `installer()` raises after already corrupting CLAUDE.md, the
+    compare-and-repair logic must still run (not be skipped because the
+    installer never returned), and the original exception must still
+    propagate to the caller rather than being swallowed."""
+    claude_md = tmp_path / "CLAUDE.md"
+    claude_md.write_text(FIXTURE_CLAUDE_MD, encoding="utf-8")
+    original_lines = FIXTURE_CLAUDE_MD.splitlines()
+
+    try:
+        claude_md_guard.run_install_with_guard(
+            claude_md,
+            installer=lambda: _raising_corrupting_installer(claude_md),
+            canonical_section=CANONICAL_GRAPHIFY_SECTION,
+        )
+        raise AssertionError("expected the installer's RuntimeError to propagate")
+    except RuntimeError as exc:
+        assert "simulated installer failure" in str(exc)
+
+    final_text = claude_md.read_text(encoding="utf-8")
+    final_lines = final_text.splitlines()
+
+    for line in original_lines:
+        assert line in final_lines, f"lost pre-existing line: {line!r}"
+
+    assert "## graphify" in final_text
+    assert "graphify query" in final_text
+
+
 def test_reverting_guard_restores_even_when_installer_raises(tmp_path: Path):
     """A real installer can append its section and then fail later in the
     same run (build error, network, tool crash) — the guard must still
@@ -302,3 +338,42 @@ def test_reverting_guard_restores_even_when_installer_raises(tmp_path: Path):
         assert "simulated installer failure" in str(exc)
 
     assert claude_md.read_text(encoding="utf-8") == FIXTURE_CLAUDE_MD
+
+
+def test_guard_does_not_mask_installer_exception_when_repair_also_fails(
+    tmp_path: Path, monkeypatch, capsys
+):
+    """A secondary failure while repairing (e.g. a permission error writing
+    the repair back) must never replace installer()'s own in-flight
+    exception — the caller needs the REAL failure, not an unrelated one from
+    the repair path itself."""
+    claude_md = tmp_path / "CLAUDE.md"
+    claude_md.write_text(FIXTURE_CLAUDE_MD, encoding="utf-8")
+
+    # The installer's own corrupting write must still succeed (call #1);
+    # only the guard's later repair-write (call #2) should fail, so the
+    # sequence actually reaches the masking scenario under test.
+    real_write_text = Path.write_text
+    call_count = {"n": 0}
+
+    def _write_text_fails_on_second_call(self, *args, **kwargs):
+        call_count["n"] += 1
+        if call_count["n"] >= 2:
+            raise OSError("simulated repair-write failure")
+        return real_write_text(self, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "write_text", _write_text_fails_on_second_call)
+
+    try:
+        claude_md_guard.run_install_with_guard(
+            claude_md,
+            installer=lambda: _raising_corrupting_installer(claude_md),
+            canonical_section=CANONICAL_GRAPHIFY_SECTION,
+        )
+        raise AssertionError("expected the installer's RuntimeError to propagate")
+    except RuntimeError as exc:
+        assert "simulated installer failure" in str(exc)
+
+    # The secondary repair failure is still surfaced (not silently dropped),
+    # just not as the exception that propagates to the caller.
+    assert "simulated repair-write failure" in capsys.readouterr().err

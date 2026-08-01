@@ -101,6 +101,17 @@ def _build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Preview reclaims without commenting or relabeling (no gh calls).",
     )
+    parser.add_argument(
+        "--emit-actions-only",
+        action="store_true",
+        help=(
+            "Commit to reclaiming each orphaned issue, but never call gh — "
+            "print one JSON action per line to stdout instead, for a caller "
+            "without a gh CLI (e.g. a cloud session) to execute via another "
+            "mechanism (issue #1700). Ignored when --dry-run is also given: "
+            "dry-run's 'nothing happens yet' semantics take priority."
+        ),
+    )
     autoship_state.add_input_seam_args(parser)
     return parser
 
@@ -338,7 +349,11 @@ def _relabel(number: int) -> None:
 
 
 def _reclaim_issue(
-    issue: dict, stale_after_hours: float, now: datetime, dry_run: bool
+    issue: dict,
+    stale_after_hours: float,
+    now: datetime,
+    dry_run: bool,
+    emit_actions_only: bool = False,
 ) -> int:
     """Reclaim a single orphaned `issue`: comment first, then relabel.
 
@@ -358,6 +373,24 @@ def _reclaim_issue(
         print(
             f"would-reclaim #{number}: {IN_PROGRESS_LABEL} -> {BLOCKED_LABEL} "
             f"(comment: {comment!r})"
+        )
+        return 0
+
+    if emit_actions_only:
+        # No gh call at all — the caller (e.g. a cloud session with no gh
+        # binary, per issue #1700) is committing to actually reclaim this
+        # issue and executes the action itself via another mechanism (GitHub
+        # MCP tools). One compact JSON object per line, so a caller can
+        # stream-process without buffering the whole run's output.
+        print(
+            json.dumps(
+                {
+                    "number": number,
+                    "comment": comment,
+                    "relabel_from": IN_PROGRESS_LABEL,
+                    "relabel_to": BLOCKED_LABEL,
+                }
+            )
         )
         return 0
 
@@ -388,6 +421,13 @@ def _reclaim_issue(
 def main(argv=None) -> int:
     parser = _build_parser()
     args = parser.parse_args(argv)
+    if args.emit_actions_only and not args.input_file:
+        # --emit-actions-only's whole contract is "never call gh" (issue
+        # #1700's cloud-session caller has none available). Without
+        # --input-file, _load_issues falls through to the live gh fetch on
+        # the READ side — --emit-actions-only only ever suppressed the WRITE
+        # side. Fail loudly here rather than silently degrading the promise.
+        parser.error("--emit-actions-only requires --input-file (it never calls gh)")
     now = args.now_override or datetime.now(timezone.utc).replace(tzinfo=None)
 
     try:
@@ -399,12 +439,24 @@ def main(argv=None) -> int:
     orphaned = select_orphaned(issues, args.stale_after_hours, now)
 
     if not orphaned:
-        print("No orphaned autoship:in-progress issues found.")
+        # Under --emit-actions-only, stdout is a one-JSON-action-per-line
+        # machine contract (see _reclaim_issue) — this notice goes to stderr
+        # so a caller parsing stdout line-by-line never hits a non-JSON line
+        # on the empty-round path, the most common one. --dry-run still
+        # takes precedence (matching _reclaim_issue's own dry-run-wins rule):
+        # its "would-reclaim" preview lines print to stdout for a non-empty
+        # round, so this notice must too for an empty one, on the same
+        # --dry-run --emit-actions-only combination the SKILL.md documents.
+        emitting = args.emit_actions_only and not args.dry_run
+        stream = sys.stderr if emitting else sys.stdout
+        print("No orphaned autoship:in-progress issues found.", file=stream)
         return 0
 
     exit_code = 0
     for issue in orphaned:
-        rc = _reclaim_issue(issue, args.stale_after_hours, now, args.dry_run)
+        rc = _reclaim_issue(
+            issue, args.stale_after_hours, now, args.dry_run, args.emit_actions_only
+        )
         if rc != 0:
             exit_code = rc
 

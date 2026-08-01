@@ -113,6 +113,66 @@ class TestSignatureStability:
         rule_id_only = {**del_rule, "ruleId": "missing-guard"}
         assert fs.signature(rule_id_only) == fs.signature(_f(rule="missing-guard"))
 
+    def test_smell_only_findings_with_different_smells_are_distinct_signatures(self):
+        # Regression for #1692: test-smell-review findings carry `smell`,
+        # not `category`/`rule`/`ruleId` (review-agent-output-contract.md's
+        # "Documented per-agent extensions"). Before the fix, `signature()`
+        # ignored `smell` entirely, so two genuinely different smells with
+        # similar normalized messages, close enough together to fall inside
+        # `same_finding()`'s `±3` line window, would collide as one finding
+        # across rounds. `del_rule` also drops `severity`/`confidence` since
+        # `test-smell-review` findings never carry `rule`/`ruleId` either.
+        del_rule = _f()
+        del del_rule["rule"]
+        mystery_guest = {
+            **del_rule,
+            "smell": "mystery-guest",
+            "line": 42,
+            "message": "Test reads fixture data from an external file the test body never sets up",
+        }
+        general_fixture = {
+            **del_rule,
+            "smell": "general-fixture",
+            "line": 44,
+            "message": "Test reads fixture data the test body never sets up or names",
+        }
+        key_a = fs.finding_key(mystery_guest)
+        key_b = fs.finding_key(general_fixture)
+        assert key_a.signature != key_b.signature
+        assert not fs.same_finding(key_a, key_b)
+
+    def test_smell_alone_is_read_the_same_way_category_is(self):
+        # A finding that only sets `smell` (no `category`/`rule`/`ruleId`)
+        # must hash identically to the equivalent `category=`-only finding —
+        # `smell` is now a recognized spelling of the same taxonomy identity,
+        # not a separate concept.
+        del_rule = _f()
+        del del_rule["rule"]
+        smell_only = {**del_rule, "smell": "mystery-guest"}
+        category_only = {**del_rule, "category": "mystery-guest"}
+        assert fs.signature(smell_only) == fs.signature(category_only)
+
+    def test_category_takes_priority_over_smell_when_both_are_present(self):
+        # Pins the fallback order: category -> smell -> rule -> ruleId.
+        del_rule = _f()
+        del del_rule["rule"]
+        a = {**del_rule, "category": "unmet-criterion", "smell": "mystery-guest"}
+        b = {**del_rule, "category": "unmet-criterion", "smell": "general-fixture"}
+        assert fs.signature(a) == fs.signature(b)
+
+        different_category = {**del_rule, "category": "different-category", "smell": "mystery-guest"}
+        assert fs.signature(a) != fs.signature(different_category)
+
+    def test_smell_takes_priority_over_rule_when_both_are_present(self):
+        # Pins the other half of the ordering: smell must win over rule/
+        # ruleId, matching category's existing precedence over them.
+        a = _f(smell="mystery-guest", rule="missing-guard")
+        b = _f(smell="mystery-guest", rule="something-else-entirely")
+        assert fs.signature(a) == fs.signature(b)
+
+        different_smell = _f(smell="general-fixture", rule="missing-guard")
+        assert fs.signature(a) != fs.signature(different_smell)
+
     def test_leading_dot_slash_does_not_change_the_signature(self):
         assert fs.signature(_f(file="./src/cache.js")) == fs.signature(_f(file="src/cache.js"))
 

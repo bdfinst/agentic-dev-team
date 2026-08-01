@@ -4,7 +4,7 @@ stack-aware reference loading per plans/stack-aware-reference-loading.md
 
 Pattern source: plugins/dev-team/skills/test-design-advisor/SKILL.md:31, 62.
 
-Ported from tests/bats/stack-aware-test-smell-review.bats (issue #675:
+Ported from stack-aware-test-smell-review.bats (issue #675:
 bats -> pytest).
 """
 

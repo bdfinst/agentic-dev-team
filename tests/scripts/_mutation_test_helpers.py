@@ -4,7 +4,7 @@ Named with a leading underscore (not ``conftest``) to avoid ambiguity with
 pytest's own conftest.py fixture-collection mechanism — this is a plain
 importable module, not a pytest plugin. Follows this repo's existing
 convention for cross-directory test helpers (``tests/agents/_plugin_dirs.py``,
-``tests/bats/_stack_aware_helpers.py``, ``tests/repo/_repo_root.py``).
+``tests/stack_aware/_stack_aware_helpers.py``, ``_repo_root.py`` at the repo root).
 
 ``SCRIPTS_DIR`` resolves the mutation-testing skill's scripts directory so
 each test module can put it on ``sys.path`` before importing the module

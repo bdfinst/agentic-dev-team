@@ -127,10 +127,26 @@ def signature(finding: dict) -> str:
     shaped by a future agent or an external tool that uses the more
     conventional linter-rule name — never required, never the preferred
     spelling to emit.
+
+    `smell` is also accepted (#1692): `test-smell-review` carries its
+    taxonomy in a `smell` field per `review-agent-output-contract.md`'s
+    "Documented per-agent extensions" section, not `category`/`rule`/
+    `ruleId`. Without this fallback every `test-smell-review` finding hashed
+    with an empty taxonomy segment, risking false "carried" collisions
+    between genuinely different smells whose normalized messages happen to
+    be similar within `same_finding()`'s line-proximity window. It sits
+    between `category` and `rule` in the fallback chain — after the
+    genuinely canonical field, before the linter-style fallbacks.
     """
     agent = str(finding.get("agent") or finding.get("agentName") or "")
     path = _normalize_path(finding.get("file"))
-    category = str(finding.get("category") or finding.get("rule") or finding.get("ruleId") or "")
+    category = str(
+        finding.get("category")
+        or finding.get("smell")
+        or finding.get("rule")
+        or finding.get("ruleId")
+        or ""
+    )
     message = normalize_message(finding.get("message"))
     payload = f"{agent.lower()}\x1f{path}\x1f{category.lower()}\x1f{message}"
     return hashlib.sha256(payload.encode("utf-8")).hexdigest()

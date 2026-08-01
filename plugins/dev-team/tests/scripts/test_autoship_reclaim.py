@@ -629,6 +629,125 @@ def test_multi_issue_run_reports_one_status_line_per_issue(tmp_path, capsys) -> 
     assert "reclaimed #41" in captured.out
 
 
+def test_emit_actions_only_makes_zero_gh_calls(tmp_path, capsys) -> None:
+    """Issue #1700: a caller without a gh CLI (e.g. a cloud session) commits
+    to reclaiming, but never lets this script call gh."""
+    input_file = _stale_issue_file(tmp_path, 30)
+    with patch("autoship_reclaim.subprocess.run") as mock_run:
+        rc = autoship_reclaim.main(
+            [
+                "--input-file",
+                str(input_file),
+                "--now-override",
+                "2026-07-03T00:00:00Z",
+                "--emit-actions-only",
+            ]
+        )
+    assert rc == 0
+    assert mock_run.call_count == 0
+    action = json.loads(capsys.readouterr().out.strip())
+    assert action["number"] == 30
+
+
+def test_emit_actions_only_prints_one_parseable_json_action_per_issue(
+    tmp_path, capsys
+) -> None:
+    fixture = [_issue(40, "2026-07-01T00:00:00Z"), _issue(41, "2026-07-01T00:00:00Z")]
+    input_file = tmp_path / "issues.json"
+    input_file.write_text(json.dumps(fixture))
+
+    with patch("autoship_reclaim.subprocess.run") as mock_run:
+        rc = autoship_reclaim.main(
+            [
+                "--input-file",
+                str(input_file),
+                "--now-override",
+                "2026-07-03T00:00:00Z",
+                "--emit-actions-only",
+            ]
+        )
+    assert rc == 0
+    assert mock_run.call_count == 0
+
+    lines = [line for line in capsys.readouterr().out.splitlines() if line.strip()]
+    actions = [json.loads(line) for line in lines]
+    assert [a["number"] for a in actions] == [40, 41]
+    for action in actions:
+        assert action["relabel_from"] == "autoship:in-progress"
+        assert action["relabel_to"] == "autoship:blocked"
+        assert action.get("comment")
+
+
+def test_emit_actions_only_without_input_file_is_rejected(capsys) -> None:
+    """Issue #1700 correctness-review finding: --emit-actions-only's whole
+    contract is 'never call gh' — without --input-file, main() would still
+    fall through to the live gh fetch on the read side. Must fail loudly at
+    the argparse boundary, not silently degrade the guarantee."""
+    with (
+        patch("autoship_reclaim.subprocess.run") as mock_run,
+        pytest.raises(SystemExit) as exc_info,
+    ):
+        autoship_reclaim.main(["--emit-actions-only"])
+    assert exc_info.value.code != 0
+    assert mock_run.call_count == 0
+    captured = capsys.readouterr()
+    assert "--input-file" in captured.err
+
+
+def test_emit_actions_only_empty_round_notice_goes_to_stderr(tmp_path, capsys) -> None:
+    """Issue #1700 finding (domain-review/ai-provenance-review/correctness-review):
+    under --emit-actions-only, stdout is a one-JSON-action-per-line machine
+    contract. The empty-round notice must not appear on stdout, where a
+    caller parsing line-by-line would hit a JSONDecodeError."""
+    input_file = tmp_path / "issues.json"
+    input_file.write_text("[]")
+    rc = autoship_reclaim.main(
+        ["--input-file", str(input_file), "--emit-actions-only"]
+    )
+    assert rc == 0
+    captured = capsys.readouterr()
+    assert captured.out == ""
+    assert "No orphaned" in captured.err
+
+
+def test_dry_run_empty_round_notice_stays_on_stdout_even_with_emit_actions_only(
+    tmp_path, capsys
+) -> None:
+    """domain-review finding (#1700 closing-pass round): --dry-run must take
+    precedence over --emit-actions-only for the empty-round notice's output
+    stream too, matching _reclaim_issue's own dry-run-wins rule for the
+    non-empty case (its 'would-reclaim' preview lines print to stdout).
+    Uncovered combination the prior stderr-routing fix missed."""
+    input_file = tmp_path / "issues.json"
+    input_file.write_text("[]")
+    rc = autoship_reclaim.main(
+        ["--input-file", str(input_file), "--dry-run", "--emit-actions-only"]
+    )
+    assert rc == 0
+    captured = capsys.readouterr()
+    assert "No orphaned" in captured.out
+    assert captured.err == ""
+
+
+def test_dry_run_takes_priority_over_emit_actions_only(tmp_path, capsys) -> None:
+    input_file = _stale_issue_file(tmp_path, 30)
+    with patch("autoship_reclaim.subprocess.run") as mock_run:
+        rc = autoship_reclaim.main(
+            [
+                "--input-file",
+                str(input_file),
+                "--now-override",
+                "2026-07-03T00:00:00Z",
+                "--dry-run",
+                "--emit-actions-only",
+            ]
+        )
+    assert rc == 0
+    assert mock_run.call_count == 0
+    captured = capsys.readouterr()
+    assert "would-reclaim #30" in captured.out
+
+
 def test_multi_issue_run_continues_after_one_issue_fails(tmp_path, capsys) -> None:
     """A failure on one issue must not abort the batch (#989 code review finding):
     every orphaned issue is attempted, not just those before the first failure."""

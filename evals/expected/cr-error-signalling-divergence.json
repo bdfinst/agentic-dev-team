@@ -1,0 +1,18 @@
+{
+  "fixture": "cr-error-signalling-divergence",
+  "description": "Positive fixture for #1639/#1695: correctness-review's Detect category 7 (error-signalling divergence). load_config's docstring documents a Raises: contract (FileNotFoundError, json.JSONDecodeError) that the function body directly contradicts by catching both and returning {} instead.",
+  "applicableAgents": ["correctness-review"],
+  "agents": {
+    "correctness-review": {
+      "expectedStatus": "fail",
+      "issueCount": { "min": 1, "max": 2 },
+      "severities": { "error": { "min": 1, "max": 2 } },
+      "minConfidenceAnyOf": ["high", "medium"],
+      "mustMention": ["load_config"],
+      "_calibration": {
+        "source": "measured",
+        "note": "Measured 2026-08-01 against a live correctness-review dispatch on this fixture: 1 issue, severity error, confidence high, status fail — flagged the except clause swallowing both documented exceptions and returning {} instead, contradicting the docstring's Raises: section verbatim."
+      }
+    }
+  }
+}

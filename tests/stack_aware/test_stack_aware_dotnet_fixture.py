@@ -2,7 +2,7 @@
 only — whether the LLM-produced excerpts are semantically correct is the
 human merge reviewer's call.
 
-Ported from tests/bats/stack-aware-dotnet-fixture.bats (issue #675:
+Ported from stack-aware-dotnet-fixture.bats (issue #675:
 bats -> pytest).
 """
 

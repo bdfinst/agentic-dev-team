@@ -65,13 +65,13 @@ shape) is still recognized.
   reviewed case by case against ADR 0032's taxonomy instead, since a
   script's own working directory and mutation target (not word-splitting
   safety) is usually the more load-bearing question there.
-- The guard verifies an OPENING quote precedes the expansion, not a balanced
-  closing one — a malformed partial form like
-  `"${CLAUDE_PLUGIN_ROOT}"/scripts/x.py` is not distinguished from the fully
-  quoted `"${CLAUDE_PLUGIN_ROOT}/scripts/x.py"`. Accepted as a residual gap:
-  the uncaught shapes are either a visible shell syntax error or already
-  word-split-safe, so this narrows what "enforced" means here without
-  narrowing what's actually safe.
+- The guard tracks the closing quote, not just the opening one: a quote that
+  closes partway through the token — `"${CLAUDE_PLUGIN_ROOT}"/scripts/x.py`,
+  leaving `/scripts/x.py` outside the quotes — is distinguished from the
+  fully quoted `"${CLAUDE_PLUGIN_ROOT}/scripts/x.py"` and flagged as a
+  partial form. Trailing shell syntax with no space before the close (a
+  command substitution's `)`, `;`, a backtick, a pipe/redirect) is not part
+  of the path token and does not trigger a false positive.
 
 ## References
 

@@ -18,11 +18,16 @@ Fence tracking is per-line, matching this repo's own established lesson
 (see `test_bare_invocation_wide_scan.py`'s docstring) that a blob-wide regex
 can bridge a fence's own opening line with an unrelated line beyond it.
 
-**Residual gap (ADR 0033's Consequences):** `_UNQUOTED_EXPANSION_RE` checks
-for an OPENING quote only, not a balanced closing one — a malformed partial
-form like `"${CLAUDE_PLUGIN_ROOT}"/scripts/x.py` is not distinguished from
-the fully quoted form. Accepted: the uncaught shapes are either a visible
-shell syntax error or already word-split-safe.
+**Balanced quote tracking, not a single-character lookbehind.** ADR 0033's
+house style requires the WHOLE path token to be quoted, not just the
+`${CLAUDE_PLUGIN_ROOT}` variable — `"${CLAUDE_PLUGIN_ROOT}/scripts/x.py"`,
+not `"${CLAUDE_PLUGIN_ROOT}"/scripts/x.py`. A single-character lookbehind for
+an opening quote can't tell those two apart: both start with a quote
+immediately before the expansion. `_is_fully_quoted_token` instead locates
+the *closing* quote and checks that nothing but trailing shell syntax (a
+command substitution's `)`, `;`, `` ` ``, a pipe/redirect) follows it before
+the next whitespace — so a quote that closes partway through the token,
+leaving a literal path segment exposed, is now correctly flagged.
 
 **Fences indented inside a list item are still fences.** A first draft of
 this guard anchored the fence regex at column 0 (`^```...`), which made every
@@ -63,7 +68,8 @@ PLUGIN_ROOT = REPO_ROOT / "plugins" / "dev-team"
 _SHELL_LANGS = {"", "bash", "sh", "shell"}
 
 _FENCE_RE = re.compile(r"^\s*(`{3,})(\w*)\s*$")
-_UNQUOTED_EXPANSION_RE = re.compile(r'(?<!")\$\{?CLAUDE_PLUGIN_ROOT\}?\b')
+_EXPANSION_RE = re.compile(r'\$\{?CLAUDE_PLUGIN_ROOT\}?\b')
+_TRAILING_SHELL_SYNTAX_RE = re.compile(r'^[)`;&|<>]*$')
 
 SCANNED_FILES = scanned_markdown_files(PLUGIN_ROOT, PLUGIN_MARKDOWN_SCAN_DIRS)
 assert len(SCANNED_FILES) > 100, (
@@ -72,9 +78,30 @@ assert len(SCANNED_FILES) > 100, (
 )
 
 
+def _is_fully_quoted_token(line: str, start: int) -> bool:
+    """Whether the expansion match starting at `start` sits inside a
+    double-quoted string that covers the WHOLE path token, per ADR 0033's
+    house style — the quote opens immediately before the expansion AND
+    closes only after the entire path, not partway through it. Trailing
+    shell syntax with no space before the close (a command substitution's
+    `)`, `;`, a backtick, a pipe/redirect) isn't part of the path token and
+    doesn't count against it."""
+    if start == 0 or line[start - 1] != '"':
+        return False
+    closing = line.find('"', start)
+    if closing == -1:
+        return False
+    tail_end = closing + 1
+    while tail_end < len(line) and not line[tail_end].isspace():
+        tail_end += 1
+    trailing = line[closing + 1 : tail_end]
+    return _TRAILING_SHELL_SYNTAX_RE.match(trailing) is not None
+
+
 def _unquoted_expansions(text: str):
-    """[(lineno, line_text), ...] for every unquoted `${CLAUDE_PLUGIN_ROOT}`
-    found inside a bash/sh/shell/untagged fenced code block in `text`."""
+    """[(lineno, line_text), ...] for every `${CLAUDE_PLUGIN_ROOT}` found
+    inside a bash/sh/shell/untagged fenced code block in `text` that is not
+    fully quoted as a single path token (see `_is_fully_quoted_token`)."""
     lines = text.splitlines()
     hits = []
     in_fence = False
@@ -98,8 +125,11 @@ def _unquoted_expansions(text: str):
                 lang = fence_match.group(2).lower()
                 opener_marker_len = marker_len
             continue
-        if in_fence and lang in _SHELL_LANGS and _UNQUOTED_EXPANSION_RE.search(line):
-            hits.append((lineno, line.strip()))
+        if in_fence and lang in _SHELL_LANGS:
+            for match in _EXPANSION_RE.finditer(line):
+                if not _is_fully_quoted_token(line, match.start()):
+                    hits.append((lineno, line.strip()))
+                    break
     return hits
 
 
@@ -168,6 +198,25 @@ class TestFenceScopingBehavior:
 
     def test_quoted_unbraced_expansion_is_not_flagged(self):
         text = '```bash\npython3 "$CLAUDE_PLUGIN_ROOT/scripts/x.py"\n```\n'
+        assert _unquoted_expansions(text) == []
+
+    def test_partial_quoting_that_leaves_the_path_exposed_is_flagged(self):
+        """Regression fixture for the gap ADR 0033's Consequences used to
+        document as accepted: a quote that closes right after the variable,
+        leaving the rest of the path token unquoted, is a violation of the
+        house style ("the whole path token, not just the variable"), not a
+        safe partial form — `_is_fully_quoted_token` now catches it via
+        balanced quote tracking instead of a single-character lookbehind."""
+        text = '```bash\npython3 "${CLAUDE_PLUGIN_ROOT}"/scripts/x.py\n```\n'
+        hits = _unquoted_expansions(text)
+        assert len(hits) == 1
+        assert hits[0][0] == 2
+
+    def test_quoted_expansion_followed_by_command_substitution_close_is_not_flagged(self):
+        """A fully-quoted path token immediately followed by a command
+        substitution's closing `)` — no space, no exposed path segment — is
+        still safe and must not be misclassified as partial quoting."""
+        text = '```bash\nHASH=$(python3 "${CLAUDE_PLUGIN_ROOT}/hooks/lib/x.py")\n```\n'
         assert _unquoted_expansions(text) == []
 
     def test_shorter_fence_nested_inside_a_longer_one_is_literal_content(self):

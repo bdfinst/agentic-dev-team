@@ -1,0 +1,15 @@
+{
+  "fixture": "cr-sanctioned-runtime-claim",
+  "description": "True-negative counterpart to cr-runtime-claim-no-probe (#1695): the same bisect.insort complexity-claim surface shape, but the module docstring carries a recorded timeit probe (real measurements, 2026-08-01) backing the O(n) claim. Guards against category 6 over-firing on a runtime claim that IS backed by recorded evidence.",
+  "applicableAgents": ["correctness-review"],
+  "agents": {
+    "correctness-review": {
+      "expectedStatus": "pass",
+      "issueCount": { "min": 0, "max": 0 },
+      "_calibration": {
+        "source": "measured",
+        "note": "Measured 2026-08-01 against a live correctness-review dispatch on this fixture: status pass, 0 issues. The agent explicitly reasoned that the docstring's O(n) claim is 'backed by a stated runtime measurement rather than inference, so it is not flagged.' issueCount pinned strictly to 0 rather than a 0-1 window: ai-provenance-review/correctness-review (#1695 review round) flagged that a 0-1 window paired with expectedStatus:pass does not actually provide the 'one benign suggestion can't flip this to fail' cushion the note originally (incorrectly) claimed — scripts/eval_graders/verdict.py compares status strictly, and knowledge/review-agent-output-contract.md defines pass as zero issues, so a single suggestion makes status warn and fails the status check regardless of issueCount headroom. If future variance needs a real cushion, expectedStatus must be relaxed to 'warn' alongside the wider issueCount window, matching cr-clean-baseline.json's precedent for that combination. Re-attested 2026-08-01, same review round: the fixture's probe methodology was independently found flawed (scores.pop() removed the list's max, not the just-inserted value, degenerating the benchmark) and corrected (pop by bisected index instead), with new real timeit numbers and a softened growth-rate claim. Re-dispatched correctness-review against the corrected fixture body: same result, status pass, 0 issues — including an independent trace of the bisect_left/insort_right duplicate-value edge case confirming the probe's pop-by-index invariant holds. This bound and status are attested against the CURRENT fixture content, not stale."
+      }
+    }
+  }
+}

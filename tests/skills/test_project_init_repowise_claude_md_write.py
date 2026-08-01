@@ -89,17 +89,16 @@ def test_repowise_prompt_bullet_uses_the_full_section_header():
     assert "Codebase Intelligence for <project> (Repowise)" in collapsed(prompt_bullet)
 
 
-def _yes_semantics_affirmative_repowise_bullet() -> str:
-    """Bound to just the Affirmative bucket's keyless-pair bullet — not the
-    whole `--yes` semantics section — so a `#1690` match can't be satisfied
-    by the *Conservative* Graphify bullet instead, which cites the same
-    issue for a different reason (#1670 item 3 review finding: both bullets
-    mention #1690, so an unscoped assertion doesn't actually sense either
-    one's own tracking pointer)."""
+def _yes_semantics_conservative_repowise_bullet() -> str:
+    """Bound to just the Conservative bucket's `Step 4c Repowise` bullet —
+    not the whole `--yes` semantics section — so a `#1690` match can't be
+    satisfied by the sibling *Graphify* bullet instead, which cites the same
+    issue for a different reason (mirrors the scoping rationale of the
+    original Affirmative-bucket helper this replaces, #1690)."""
     return section_outside_code(
         PROJECT_INIT,
-        r"^- \*\*Step 4c keyless pair",
-        boundary_pattern=r"^\*\*Conservative\*\*",
+        r"^- \*\*Step 4c Repowise",
+        boundary_pattern=r"^- \*\*Step 1 zero/ambiguous stack",
         include_start_line=True,
     )
 
@@ -116,15 +115,15 @@ def test_step_6_summary_reports_the_claude_md_write():
     assert "#1670" in text
 
 
-def test_yes_semantics_note_why_repowise_stays_in_the_affirmative_bucket():
-    # #1670's correction means Repowise now writes to the tracked
-    # CLAUDE.md same as Graphify does — the `--yes` Affirmative/Conservative
-    # split must explain why that doesn't move Repowise into the
-    # Conservative bucket below. Asserts on the load-bearing phrase and the
-    # tracking pointer directly, rather than on "Repowise"/"CLAUDE.md"
-    # alone — both already appear in pre-existing prose nearby and would
-    # leave this sensor unable to catch the explanatory sentence itself
-    # being deleted.
-    text = collapsed(_yes_semantics_affirmative_repowise_bullet())
-    assert "not a surprise mutation" in text
+def test_yes_semantics_note_why_repowise_moved_to_the_conservative_bucket():
+    # #1690 (correcting the earlier #1670 item 3 reasoning): Repowise writes
+    # to the tracked CLAUDE.md the same as Graphify does, so under `--yes`
+    # it is skipped rather than auto-confirmed. Asserts on the load-bearing
+    # skip-note and tracking pointer directly, rather than on
+    # "Repowise"/"CLAUDE.md" alone — both already appear in pre-existing
+    # prose nearby and would leave this sensor unable to catch the
+    # explanatory sentence itself being deleted.
+    text = collapsed(_yes_semantics_conservative_repowise_bullet())
+    assert "Repowise: skipped under --yes" in text
+    assert "not** record a durable decline" in text
     assert "#1690" in text

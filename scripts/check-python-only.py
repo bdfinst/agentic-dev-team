@@ -20,8 +20,6 @@ docs/enforce-prefer-python-over-bash.md for the full rationale table):
     scenarios as test data, not shipped tooling.
   - ``.claude/cloud-setup.sh``, ``.claude/install-dev-team.sh`` (exact files)
     — same install-trampoline rationale as install.sh.
-  - ``tests/lib/hermetic_tests.bats`` (exact file) — named out-of-scope-here
-    in #700; owned by #677 (retire bats-core), not this gate.
 
 Everything else repo-wide — including new repo-root ``scripts/*.sh`` — is in
 scope: new additions there are blocked, not just discouraged (existing files
@@ -55,8 +53,6 @@ ALLOWLIST_EXACT_PATHS = {
     # Cloud SessionStart / setup-script install trampolines — same rationale.
     ".claude/cloud-setup.sh",
     ".claude/install-dev-team.sh",
-    # Named out-of-scope-here in #700; owned by #677 (retire bats-core).
-    "tests/lib/hermetic_tests.bats",
     # Curated repo-root orchestration lib sourced by scripts/ci-local.sh (itself
     # a sanctioned repo-root shell gate, not shipped plugin code). Kept as a
     # bash-sourced pure helper alongside its sibling scripts/lib/ci-changed-only.sh

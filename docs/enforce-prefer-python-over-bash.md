@@ -80,7 +80,6 @@ Changes to `scripts/check-python-only.py`:
   | `tests/security-assessment/**` | Test suite for the above; same rationale. |
   | `evals/**` | Eval fixtures deliberately exercise shell-script scenarios (e.g. `evals/codebase-recon/fixtures/polyglot/scripts/deploy.sh`) as **test data**, not shipped tooling. A fixture that's supposed to look like an arbitrary repo's shell script needs to stay a shell script. |
   | `.claude/*.sh` (exact files: `cloud-setup.sh`, `install-dev-team.sh`) | Same install-trampoline rationale as `install.sh` — these run in a `SessionStart` hook / cloud setup-script context before this repo's Python toolchain is guaranteed present. |
-  | `tests/lib/hermetic_tests.bats` (exact file) | Named as out-of-scope-here in #700 itself; owned by #677 (retire bats-core), not this gate. Existing-file edits aren't flagged anyway (the script only checks **added** files), so this entry only matters if the file is ever deleted and re-added. |
 
   Everything else repo-wide — including `tests/skills/`, `tests/repo/`,
   `tests/agents/`, `tests/commands/`, `tests/docs/`, `tests/knowledge/`, and
