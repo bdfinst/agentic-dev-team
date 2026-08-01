@@ -259,7 +259,18 @@ def grep_security_surface(files: list[Path], root: Path) -> dict:
     return out
 
 
-def probe_git_history(root: Path) -> dict:
+def probe_git_history(root: Path, notes: list | None = None) -> dict:
+    """Probe branch/activity/sensitive-file history.
+
+    `notes` (#1651): an optional sink for degrade warnings. The
+    sensitive-file scan shells out to `git log --all --name-only` under a
+    timeout, and swallowing that timeout leaves `sensitive_file_history`
+    empty — indistinguishable from "scanned the whole history, found
+    nothing." On a large repo those are opposite conclusions, and the empty
+    one reads as the reassuring answer. When a sink is supplied, a degraded
+    probe says so; #1636 established this pattern for the jsonschema-absent
+    case in `codebase_recon.py` rather than degrading silently.
+    """
     out: dict[str, Any] = {
         "branches": {"current": "", "main_count": 0, "feature_count": 0, "names": []},
         "recent_activity": {"last_commit_date": "1970-01-01T00:00:00Z", "commits_last_30d": 0, "authors_last_30d": 0},
@@ -312,8 +323,19 @@ def probe_git_history(root: Path) -> dict:
                         "removed_commit": None,
                     })
                     break
-    except (subprocess.TimeoutExpired, subprocess.SubprocessError):
-        pass
+    except (subprocess.TimeoutExpired, subprocess.SubprocessError) as exc:
+        if notes is not None:
+            kind = (
+                "timed out"
+                if isinstance(exc, subprocess.TimeoutExpired)
+                else "failed"
+            )
+            notes.append(
+                f"DEGRADED: the git-history probe {kind}, so branch, recent-activity, "
+                "and sensitive-file-history fields are partial or empty. An empty "
+                "sensitive_file_history here does NOT mean none was found — the scan "
+                "did not complete."
+            )
     return out
 
 
@@ -357,6 +379,19 @@ def build_recon(root: Path) -> dict:
     files = walk_source_files(root)
     monorepo, workspaces = detect_monorepo(root)
 
+    # Built before the envelope so probes can append degrade warnings to it
+    # (#1651). `probe_git_history` mutates this list in place, and the dict
+    # literal below evaluates that call before reading `notes`, so anything
+    # appended during the probe is present in the emitted envelope.
+    notes = [
+        (
+            "Deterministic recon produced by "
+            "plugins/dev-team/scripts/lib/deterministic_recon.py. No LLM reasoning "
+            "applied; semantic fields (architecture.summary prose, "
+            "notable_anti_patterns) are omitted or minimal."
+        )
+    ]
+
     return {
         "schema_version": "1.0",
         "generated_at": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
@@ -377,8 +412,8 @@ def build_recon(root: Path) -> dict:
         "dependencies": identify_dependencies(root),
         "architecture": build_architecture(files, root),
         "security_surface": grep_security_surface(files, root),
-        "git_history": probe_git_history(root),
-        "notes": ["Deterministic recon produced by plugins/dev-team/scripts/lib/deterministic_recon.py. No LLM reasoning applied; semantic fields (architecture.summary prose, notable_anti_patterns) are omitted or minimal."],
+        "git_history": probe_git_history(root, notes),
+        "notes": notes,
     }
 
 

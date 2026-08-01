@@ -328,3 +328,85 @@ def test_default_output_dir_uses_derived_slug_for_a_name_needing_slugification(
         p.name for p in (workdir / "memory").glob("*")
     )
     assert len(list(expected_out_dir.glob("*.json"))) == 1
+
+
+# --- #1651: the git-history probe must not degrade silently -----------------
+
+
+def _deterministic_recon_module():
+    """Import deterministic_recon.py as a module, mirroring how the shipped
+    scripts import their siblings (sys.path insert, not a package)."""
+    import importlib.util
+
+    path = REPO_ROOT / "plugins" / "dev-team" / "scripts" / "lib" / "deterministic_recon.py"
+    spec = importlib.util.spec_from_file_location("deterministic_recon_under_test", path)
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    sys.path.insert(0, str(path.parent))
+    spec.loader.exec_module(module)
+    return module
+
+
+@pytest.mark.parametrize(
+    "exc, expected",
+    [
+        (subprocess.TimeoutExpired(cmd=["git"], timeout=30), "timed out"),
+        (subprocess.SubprocessError("boom"), "failed"),
+    ],
+)
+def test_git_history_probe_records_a_degrade_note(tmp_path, monkeypatch, exc, expected):
+    """An empty `sensitive_file_history` must be distinguishable from a scan
+    that never completed. Before #1651 the probe swallowed both timeout and
+    subprocess errors with a bare `pass`, so a git-history scan that died on a
+    large repo reported exactly what a clean repo reports."""
+    module = _deterministic_recon_module()
+    (tmp_path / ".git").mkdir()
+
+    def boom(*_args, **_kwargs):
+        raise exc
+
+    monkeypatch.setattr(module.subprocess, "run", boom)
+
+    notes: list = []
+    result = module.probe_git_history(tmp_path, notes)
+
+    assert result["sensitive_file_history"] == []
+    assert len(notes) == 1, "a degraded probe must say so exactly once"
+    assert notes[0].startswith("DEGRADED:")
+    assert expected in notes[0]
+    # The note must warn against the specific misreading, not just say "error".
+    assert "does NOT mean none was found" in notes[0]
+
+
+def test_git_history_probe_stays_silent_when_it_succeeds(tmp_path):
+    """The degrade note must be absent on the happy path, or it is noise that
+    trains readers to ignore it."""
+    module = _deterministic_recon_module()
+    subprocess.run(["git", "init", "-q", str(tmp_path)], check=True)
+
+    notes: list = []
+    module.probe_git_history(tmp_path, notes)
+
+    assert notes == []
+
+
+def test_build_recon_surfaces_the_degrade_note_in_the_envelope(tmp_path, monkeypatch):
+    """The note has to reach the emitted envelope's `notes` array — the schema
+    pins `git_history` to additionalProperties:false, so `notes` is the only
+    channel a degrade signal can travel through."""
+    module = _deterministic_recon_module()
+    (tmp_path / ".git").mkdir()
+    (tmp_path / "a.py").write_text("x = 1\n", encoding="utf-8")
+
+    real_run = module.subprocess.run
+
+    def boom(argv, *args, **kwargs):
+        if isinstance(argv, list) and "log" in argv and "--all" in argv:
+            raise subprocess.TimeoutExpired(cmd=argv, timeout=30)
+        return real_run(argv, *args, **kwargs)
+
+    monkeypatch.setattr(module.subprocess, "run", boom)
+
+    envelope = module.build_recon(tmp_path)
+
+    assert any(n.startswith("DEGRADED:") for n in envelope["notes"])
