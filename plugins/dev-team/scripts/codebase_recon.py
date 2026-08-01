@@ -71,7 +71,7 @@ def step1_discover_metadata(root: Path) -> dict:
 # ---------------------------------------------------------------------------
 
 
-def step2_enumerate_languages(root: Path, meta: dict) -> list[dict]:
+def step2_enumerate_languages(meta: dict) -> list[dict]:
     """Extract language stats from the meta dict produced in step 1."""
     return meta.get("languages", [])
 
@@ -435,7 +435,7 @@ def run(
     meta = step1_discover_metadata(root)
 
     # Step 2: enumerate languages
-    lang_stats = step2_enumerate_languages(root, meta)
+    lang_stats = step2_enumerate_languages(meta)
 
     # Step 3: entry points
     entry_points = step3_entry_points(root, lang_stats, skip_llm=skip_llm)
