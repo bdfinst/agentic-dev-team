@@ -29,7 +29,7 @@ Usage:
     python3 verify_tier.py --agent structure-review
     python3 verify_tier.py --all
 
-Stdlib-only. Python 3.8+. See docs/python-hook-contract.md.
+Stdlib-only. See docs/python-hook-contract.md.
 """
 
 from __future__ import annotations

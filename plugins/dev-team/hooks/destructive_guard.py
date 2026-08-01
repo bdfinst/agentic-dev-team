@@ -13,7 +13,7 @@ Contract (docs/python-hook-contract.md):
     Output: exit 0 = allow (optionally with CAUTION warning on stdout)
             exit 2 = block; stdout contains the block message
 
-Stdlib-only (json/pathlib/sys). Python 3.8+. See ADR 0014.
+Stdlib-only (json/pathlib/sys). See ADR 0014.
 
 Refs: #572 (bash → Python migration epic).
 """

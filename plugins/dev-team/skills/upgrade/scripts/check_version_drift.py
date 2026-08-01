@@ -17,7 +17,7 @@ Modes:
   --session-start   Print a SessionStart hookSpecificOutput JSON wrapping the
                     advisory, or nothing when current — for the cloud hook.
 
-Honors ``CLAUDE_CONFIG_DIR``. Stdlib only, Python 3.8+ (ADR 0014 / 0015).
+Honors ``CLAUDE_CONFIG_DIR``. Stdlib only, (ADR 0014 / 0015).
 """
 from __future__ import annotations
 

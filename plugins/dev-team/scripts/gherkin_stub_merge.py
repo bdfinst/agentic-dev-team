@@ -25,7 +25,7 @@ missing or can't be read at all, and `unsupported-extension` for an `--ext`
 naming no known step-definition language. Every error leaves the existing
 file completely untouched.
 
-Stdlib-only. Python 3.8+ (ADR 0014/0015).
+Stdlib-only. (ADR 0014/0015).
 
 Usage:
     python3 gherkin_stub_merge.py merge --existing <path> --candidates <path> \

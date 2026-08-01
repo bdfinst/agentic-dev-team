@@ -19,7 +19,7 @@ Eligibility is a two-part test:
      baseline capture commit? If so it is not eligible again until a
      different (not-yet-consumed) baseline capture commit comes along.
 
-Stdlib-only. Python 3.8+ (ADR 0014/0015).
+Stdlib-only. (ADR 0014/0015).
 """
 
 from __future__ import annotations

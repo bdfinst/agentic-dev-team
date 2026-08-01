@@ -28,7 +28,7 @@ Python would drift on Windows line-endings and locale collation. The .sh is
 authoritative; this port dispatches the same greps so both sides find the same
 matches. Additional filtering + regex substitution is done in-process.
 
-Stdlib-only. Python 3.8+. See docs/python-hook-contract.md.
+Stdlib-only. See docs/python-hook-contract.md.
 """
 
 from __future__ import annotations

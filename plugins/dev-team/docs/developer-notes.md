@@ -23,7 +23,7 @@ topic.
 | Adapter & ruleset lifecycle | [`static-analysis-integration/maintenance.md`](../skills/static-analysis-integration/maintenance.md) | Ownership, drift detection, and deprecation for shipped adapters and rulesets. |
 | Adding agents, skills, or hooks | [root `CLAUDE.md`](../../../CLAUDE.md) § "Adding agents, skills, or hooks" | Where each artifact type lives and the structural audit to run afterwards. |
 | Code knowledge graphs | [`codegraph-vs-graphify.md`](../knowledge/codegraph-vs-graphify.md) | When to use CodeGraph vs Graphify, how `/project-init` installs each, and the CLAUDE.md-preservation guard. |
-| Script conventions | [ADR 0014](../../../docs/adr/0014-python-for-cross-os-scripts.md), [ADR 0015](../../../docs/adr/0015-bash-removal-complete.md) | Why every shipped script is Python 3.8+ stdlib-only, and the completed bash removal. |
+| Script conventions | [ADR 0014](../../../docs/adr/0014-python-for-cross-os-scripts.md), [ADR 0015](../../../docs/adr/0015-bash-removal-complete.md), [ADR 0031](../../../docs/adr/0031-raise-shipped-python-floor-to-3-10.md) | Why every shipped script is Python 3.10+ stdlib-only, the completed bash removal, and the floor's move off EOL 3.8. |
 
 The rest of this page covers the one extension path that touches several of
 these files at once and has no other single writeup: adding a new language to
@@ -203,7 +203,7 @@ above:
 
 The four landed lanes established conventions that new lanes inherit:
 
-- **Shipped scripts are Python 3.8+ stdlib-only.** No bash, no Git Bash
+- **Shipped scripts are Python 3.10+ stdlib-only.** No bash, no Git Bash
   requirement; Windows portability comes from the Python stdlib. See
   [ADR 0014](../../../docs/adr/0014-python-for-cross-os-scripts.md) and
   [ADR 0015](../../../docs/adr/0015-bash-removal-complete.md).

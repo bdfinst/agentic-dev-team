@@ -26,7 +26,7 @@ Exit codes:
     2  usage error
     3  repo root not a directory
 
-Stdlib-only. Python 3.8+. See docs/python-hook-contract.md.
+Stdlib-only. See docs/python-hook-contract.md.
 """
 
 from __future__ import annotations

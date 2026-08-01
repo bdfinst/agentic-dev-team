@@ -15,7 +15,7 @@ Contract:
     Exit 1 : plugin not recorded as installed (stderr explains)
     Exit 2 : environment error — install record missing/malformed (stderr)
 
-Honors ``CLAUDE_CONFIG_DIR``. Stdlib only, Python 3.8+ (ADR 0014 / 0015).
+Honors ``CLAUDE_CONFIG_DIR``. Stdlib only, (ADR 0014 / 0015).
 """
 from __future__ import annotations
 

@@ -39,7 +39,7 @@ drifting between two copies (the exact drift risk #1598/#1599 already
 demonstrated in practice). Language-specific scoring, insertion mechanics,
 and round orchestration stay in each loop's own module.
 
-Stdlib-only. Python 3.8+. See ADR 0014.
+Stdlib-only. See ADR 0014.
 """
 
 from __future__ import annotations

@@ -7,7 +7,7 @@ seam, and the positive-value CLI validators. `is_stale`/`format_round_timestamp`
 are consumed only by `autoship_reclaim.py`'s staleness check — discovery has
 no staleness concept of its own.
 
-Stdlib-only. Python 3.8+. See docs/python-hook-contract.md.
+Stdlib-only. See docs/python-hook-contract.md.
 """
 
 from __future__ import annotations

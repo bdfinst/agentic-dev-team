@@ -30,7 +30,7 @@ Every change must reduce friction: **fewer missteps, less rework, lower token co
 4. **Human-in-the-Loop**: Autonomous agents, human oversight.
 5. **Dynamic Configuration**: Config changes → `.claude/metrics/config-changelog.jsonl`.
 6. **ATDD + Code-First Small Batches** (sole build cadence — Rec 3, docs/experiments/RECOMMENDATIONS.md): no code without a `/plan` scenario.
-7. **Python for cross-OS scripts**: shipped hooks/scripts are Python 3.8+ stdlib-only (ADR 0014, 0015).
+7. **Python for cross-OS scripts**: shipped hooks/scripts are Python 3.10+ stdlib-only (ADR 0014, 0015, 0031).
 
 ## Team Organization
 

@@ -12,7 +12,7 @@ Contract (docs/python-hook-contract.md):
             checks; replays cached message if any
     Exit  : Always 0 (advisory, never blocks)
 
-Stdlib-only. Python 3.8+. See docs/python-hook-contract.md.
+Stdlib-only. See docs/python-hook-contract.md.
 """
 
 from __future__ import annotations

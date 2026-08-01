@@ -1,11 +1,17 @@
 """The shipped Python floor is declared once and proven by running it (#1623).
 
-ADR 0014 puts shipped plugin code on **Python 3.8, stdlib only**, because 3.8
-is what Ubuntu 20.04 LTS, Homebrew, and python.org still hand a user who
-installs this plugin. Nothing enforced that, and it drifted: five shipped
-scripts raised `TypeError: 'type' object is not subscriptable` at import time
-on a real 3.8.20, eight more called `str.removeprefix` (3.9+), and
-`cost_meter.py` used PEP 584's `dict | dict` merge (3.9+).
+ADR 0014 originally put shipped plugin code on **Python 3.8, stdlib only**,
+because 3.8 is what Ubuntu 20.04 LTS, Homebrew, and python.org still handed a
+user who installed this plugin at the time. Nothing enforced that, and it
+drifted: five shipped scripts raised `TypeError: 'type' object is not
+subscriptable` at import time on a real 3.8.20, eight more called
+`str.removeprefix` (3.9+), and `cost_meter.py` used PEP 584's `dict | dict`
+merge (3.9+).
+
+ADR 0031 later raised the floor to **Python 3.10** once 3.8's own
+justification had expired (3.9 also went EOL; Ubuntu 20.04 left standard
+support) — see issue #1679. The mechanism this file pins is unchanged by
+that move; only the version and the ADR of record are.
 
 ## Why this file pins a mechanism and not a list of APIs
 
@@ -50,14 +56,18 @@ import pytest
 from _repo_root import REPO_ROOT
 
 RUFF_CONFIG = REPO_ROOT / "ruff.toml"
-ADR = REPO_ROOT / "docs" / "adr" / "0014-python-for-cross-os-scripts.md"
+# The current floor version's ADR of record (ADR 0031), not ADR 0014 where the
+# floor was originally set — 0014's own version stanza is superseded by 0031,
+# and prose that disagrees with the tooling is exactly the drift this file
+# exists to catch.
+ADR = REPO_ROOT / "docs" / "adr" / "0031-raise-shipped-python-floor-to-3-10.md"
 CI_LOCAL = REPO_ROOT / "scripts" / "ci-local.sh"
 IMPORT_PROBE = REPO_ROOT / "scripts" / "import_probe_shipped.py"
 CI_WORKFLOW = REPO_ROOT / ".github" / "workflows" / "plugin-tests.yml"
 
 #: The floor every part below must agree on, in each part's own notation.
-FLOOR_RUFF = "py38"
-FLOOR_DOTTED = "3.8"
+FLOOR_RUFF = "py310"
+FLOOR_DOTTED = "3.10"
 
 
 def _ruff_shipped_target_version() -> str | None:
@@ -165,15 +175,15 @@ class TestTheFloorIsProvenByRunningIt:
 
     def test_the_check_uses_a_real_interpreter(self, ci_local):
         body = _floor_check_body(ci_local)
-        assert "_resolve_python38" in body
+        assert "_resolve_python310" in body
         assert "py_compile" in body, "must byte-compile under the floor interpreter"
         assert "import_probe_shipped.py" in body, "must import under it too"
 
     def test_the_check_fails_rather_than_skips_without_an_interpreter(self, ci_local):
         """The decisive property. A floor check that reports 'skipped' on
-        machines without 3.8 is silent exactly where it is most needed —
-        the same shape as `engines.node` at >=24 letting ci-local skip eslint
-        while printing 'All local CI checks passed'."""
+        machines without the floor interpreter is silent exactly where it is
+        most needed — the same shape as `engines.node` at >=24 letting
+        ci-local skip eslint while printing 'All local CI checks passed'."""
         body = _floor_check_body(ci_local)
         assert "does not skip" in body, (
             "the no-interpreter branch must fail with an actionable message"
@@ -235,22 +245,26 @@ class TestTheFloorIsCheckedInCI:
         )
 
     def test_the_floor_job_is_named_for_the_docs_that_reference_it(self, ci_workflow):
-        """ruff.toml and root CLAUDE.md both cite a "Python 3.8 floor" job by
+        """ruff.toml and root CLAUDE.md both cite a "Python N floor" job by
         that exact string. Nothing else pins the job's `name:` to those
         references, so a rename would leave both silently stale. Anchored to
         end-of-line: an unanchored match would also satisfy on the job's own
-        *step* name ("Python 3.8 floor check (via ci-local)"), which shares
+        *step* name ("Python N floor check (via ci-local)"), which shares
         the same literal prefix but isn't the job-level name at all — a
         step's `name:` is preceded by a `- ` list-item marker when it's the
         step's first key, as it is here, which `^\\s*` cannot absorb, so
-        this pattern doesn't match it. The "3.8" here is deliberately a
-        literal, not FLOOR_DOTTED: this string will be the status-check
-        context the `main` ruleset matches once the job is added there (see
-        the module docstring above — not yet configured), so it must change
-        only with a deliberate ruleset update, never silently alongside a
-        future floor bump."""
-        assert re.search(r"(?m)^\s*name:\s*Python 3\.8 floor\s*$", ci_workflow), (
-            'no job in .github/workflows/plugin-tests.yml is named exactly '
-            '"Python 3.8 floor" — ruff.toml and CLAUDE.md both reference it '
-            "by that literal string"
+        this pattern doesn't match it. The version here is deliberately a
+        literal built from FLOOR_DOTTED at assertion time, not hardcoded:
+        this string will be the status-check context the `main` ruleset
+        matches once the job is added there (see the module docstring above
+        — not yet configured), so a future floor bump (ADR 0031's own
+        successor) must update the workflow job name deliberately — this
+        test failing IS that reminder, not something to silence by hardcoding
+        a stale version here instead."""
+        assert re.search(
+            rf"(?m)^\s*name:\s*Python {re.escape(FLOOR_DOTTED)} floor\s*$", ci_workflow
+        ), (
+            "no job in .github/workflows/plugin-tests.yml is named exactly "
+            f'"Python {FLOOR_DOTTED} floor" — ruff.toml and CLAUDE.md both '
+            "reference it by that literal string"
         )

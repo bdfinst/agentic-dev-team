@@ -7,7 +7,7 @@ as intended for a "future PR." Both hooks now import from here so the
 transcript_id/turn_counter computation can't drift between the two sides
 of the sentinel contract.
 
-Stdlib-only. Python 3.8+.
+Stdlib-only.
 """
 
 from __future__ import annotations

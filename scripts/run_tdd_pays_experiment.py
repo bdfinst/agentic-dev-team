@@ -35,7 +35,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from statistics import mean, stdev
 
@@ -197,7 +197,7 @@ CLARITY_PAIRS = {
 
 
 def _utc() -> str:
-    return datetime.now(timezone.utc).isoformat()
+    return datetime.now(UTC).isoformat()
 
 
 # ── git utilities ─────────────────────────────────────────────────────────────

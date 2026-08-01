@@ -12,7 +12,7 @@ this script implements the actual dependency checks.
 Usage:
     plugins/dev-team/install.py
 
-Stdlib-only. Python 3.8+.
+Stdlib-only.
 """
 
 from __future__ import annotations
@@ -70,7 +70,7 @@ def check_platform(result: Result) -> None:
     """Report the Windows shell environment, informationally only.
 
     Per ADR 0015 (docs/adr/0015-bash-removal-complete.md), every shipped
-    hook and helper script under plugins/dev-team/ is now Python 3.8+
+    hook and helper script under plugins/dev-team/ is now.
     stdlib-only — Windows CI is fully bash-free and nothing in the
     runtime requires Git Bash on Windows anymore. Native Windows without
     Git Bash is a legitimate install path, so this check never fails; it

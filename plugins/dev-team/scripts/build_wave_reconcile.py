@@ -14,7 +14,7 @@ side** (it aborts the merge), starting no next-wave slice.
 Usage:
   build_wave_reconcile.py --into <branch> --base <ref> [--test-cmd CMD] <slice-branch>...
 
-Stdlib-only. Python 3.8+. See docs/python-hook-contract.md.
+Stdlib-only. See docs/python-hook-contract.md.
 """
 
 from __future__ import annotations

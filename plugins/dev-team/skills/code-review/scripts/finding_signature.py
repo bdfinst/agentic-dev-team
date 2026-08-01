@@ -42,7 +42,7 @@ unrelated fix keeps its identity:
   not read as a different finding
 - whitespace runs and letter case
 
-Stdlib-only. Python 3.8+. See docs/python-hook-contract.md.
+Stdlib-only. See docs/python-hook-contract.md.
 """
 
 from __future__ import annotations

@@ -50,7 +50,7 @@ templates-specific helper is needed. If this rule ever needs to change,
 change it here first and only loosen the lens-narrowing siblings to
 match — never the reverse.
 
-Stdlib only. Python 3.8+.
+Stdlib only.
 """
 
 from __future__ import annotations

@@ -31,6 +31,8 @@ from collections import defaultdict
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+from datetime import UTC
+
 from eval_grade import run_grading
 
 
@@ -135,7 +137,7 @@ def write_baseline(report: dict, target_path, demote_below: float,
     baseline write that only tops up pairs shouldn't silently blank the
     field); when there is no prior value either, the field is left unset —
     the pre-migration case `/harness-audit` treats as "no prompt"."""
-    from datetime import datetime, timezone
+    from datetime import datetime
     target = Path(target_path)
     existing: set = set()
     existing_model: str | None = None
@@ -160,7 +162,7 @@ def write_baseline(report: dict, target_path, demote_below: float,
                     "is added only when it passed all trials. Written by "
                     "eval_variance.py --write-baseline.",
         "provenance": "measured",
-        "recorded_at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "recorded_at": datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ"),
         "trials": report.get("trials", 0),
         "passing": sorted(merged),
     }
@@ -175,12 +177,12 @@ def write_baseline(report: dict, target_path, demote_below: float,
 
 def write_quarantine(report: dict, target_path, harvest_id: str | None = None) -> None:
     """Persist the flaky-pair set the #99 grader excludes from blocking (#231)."""
-    from datetime import datetime, timezone
+    from datetime import datetime
     detail = {p: {"pass_at_k": d["pass_at_k"], "trials": d["trials"]}
               for p, d in report["by_pair"].items() if d["flap"]}
     record = {
         "schema": "eval-variance/v1",
-        "recorded_at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "recorded_at": datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ"),
         "trials": report.get("trials", 0),
         "quarantine": report.get("quarantine", []),
         "detail": detail,
@@ -201,12 +203,12 @@ def _load_trials(trials_dir: Path) -> list[dict]:
 
 
 def _slim(report: dict) -> dict:
-    from datetime import datetime, timezone
+    from datetime import datetime
     agents = report.get("by_agent", {})
     mean = (round(sum(a["mean_pass_at_k"] for a in agents.values()) / len(agents), 4)
             if agents else 0.0)
     return {
-        "recorded_at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "recorded_at": datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ"),
         "schema": "eval-variance/v1",
         "trials": report.get("trials", 0),
         "pairs_evaluated": report.get("pairs_evaluated", 0),

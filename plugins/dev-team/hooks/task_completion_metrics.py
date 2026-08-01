@@ -49,7 +49,7 @@ a single 2026-07-20 audit run emitted 172 empty heartbeats vs 10 real rows).
     Posture: record-only and fail-open. Any error -> exit 0 silently.
     Opt-out: DEV_TEAM_TASK_METRICS=off disables entirely.
 
-Stdlib-only (datetime/json/os/pathlib/sys/uuid). Python 3.8+.
+Stdlib-only (datetime/json/os/pathlib/sys/uuid).
 See ADR 0014, ADR 0015.
 
 Refs: #1044 (this hook), #1042 (parent epic).

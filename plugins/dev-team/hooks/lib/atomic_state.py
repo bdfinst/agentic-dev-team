@@ -19,7 +19,7 @@ on behavior. Everything here is fail-open: any I/O or locking failure runs
 the critical section unlocked / skips the persist rather than raising —
 these are advisory nudges, never gates.
 
-Stdlib-only. Python 3.8+.
+Stdlib-only.
 """
 
 from __future__ import annotations

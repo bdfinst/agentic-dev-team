@@ -48,7 +48,7 @@ safety flags either way — the vulnerability class (`diff.relative`,
 submodule-ignore config, external diff drivers) doesn't care which two
 trees are being compared.
 
-Stdlib only. Python 3.8+.
+Stdlib only.
 """
 
 from __future__ import annotations

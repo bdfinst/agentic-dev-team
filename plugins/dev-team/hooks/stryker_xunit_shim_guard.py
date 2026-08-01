@@ -30,7 +30,7 @@ Contract (docs/python-hook-contract.md):
             exit 0 + no stdout for SILENT-PASS
     Env   : DEV_TEAM_STRYKER_XUNIT3_GATE_SKIP=1 -> silent bypass
 
-Stdlib-only. Python 3.8+.
+Stdlib-only.
 """
 from __future__ import annotations
 

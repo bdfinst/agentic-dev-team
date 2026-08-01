@@ -9,7 +9,7 @@ Contract (docs/python-hook-contract.md):
     Output: Advisory warnings on stdout, or empty
     Exit  : Always 0
 
-Stdlib-only. Python 3.8+. See docs/python-hook-contract.md.
+Stdlib-only. See docs/python-hook-contract.md.
 """
 
 from __future__ import annotations

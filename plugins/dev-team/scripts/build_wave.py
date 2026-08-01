@@ -19,7 +19,7 @@ Delegates DAG analysis to plan_waves.py (the authoritative implementation
 until its own port lands per #572). Once plan_waves.py is ported to Python,
 switch the subprocess call for a direct import.
 
-Stdlib-only. Python 3.8+. See docs/python-hook-contract.md.
+Stdlib-only. See docs/python-hook-contract.md.
 """
 
 from __future__ import annotations

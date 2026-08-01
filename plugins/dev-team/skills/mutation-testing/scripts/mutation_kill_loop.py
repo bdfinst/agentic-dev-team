@@ -50,14 +50,16 @@ import re
 import subprocess
 import sys
 import tempfile
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 
-# typing, not collections.abc: the `Generator` alias below is a real runtime
-# expression (mutation_kill_headless imports the name), so `from __future__
-# import annotations` cannot defer it, and collections.abc generics are only
-# subscriptable from 3.9. ADR 0014 puts the shipped floor at 3.8.
-from typing import Callable, Dict, List, NamedTuple, Sequence
+# The `Generator` alias below is a real runtime expression
+# (mutation_kill_headless imports the name), so `from __future__ import
+# annotations` cannot defer it — it must be subscriptable at import time.
+# collections.abc generics have been since 3.9, which the 3.10 floor
+# (ADR 0031) clears.
+from typing import NamedTuple
 
 import csharp_stryker_net_wrapper as wrapper
 import mutation_report
@@ -77,7 +79,7 @@ from mutation_kill_shared import (
 # current test text, it returns the raw text of new test methods to insert.
 # The loop owns everything *around* this call; the callable owns the single
 # genuinely-LLM step.
-Generator = Callable[[str, List[Dict], str, str], str]
+Generator = Callable[[str, list[dict], str, str], str]
 
 
 class _Timeout(NamedTuple):

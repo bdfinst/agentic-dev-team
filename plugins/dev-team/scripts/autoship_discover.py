@@ -19,7 +19,7 @@ could dispatch unboundedly. `--input-file` bypasses the live `gh` fetch
 entirely for tests/dry runs; production use relies on `gh`'s cwd-based repo
 auto-detection (no `--repo` flag — see the plan's Decision-defaults stance).
 
-Stdlib-only. Python 3.8+.
+Stdlib-only.
 """
 
 from __future__ import annotations

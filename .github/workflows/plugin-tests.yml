@@ -123,19 +123,20 @@ jobs:
           bash scripts/ci-local.sh
           --only=chk_md_references,chk_skills_index,chk_rules_vs_prompts,chk_hook_units,chk_sa_mcp_tools
 
-  # ADR 0014's Python 3.8 floor, proven by running it (#1635). Isolated in its
-  # own job, matching semgrep-fixtures' and cost-regression's precedent below:
-  # it needs a toolchain (a 3.8 interpreter) the other jobs don't provision.
-  # A first attempt co-tenanted it in content-guard-tests via
-  # actions/setup-python, which put that interpreter's bin dir on PATH ahead
-  # of the system python3 for every other step in that job — breaking
-  # chk_md_references (needs 3.9+ str.removeprefix) and silently degrading
-  # chk_hook_units's pytest guard to "skipped". `uv` avoids that entirely:
-  # `uv python install 3.8` only adds 3.8 to uv's own managed toolchain
-  # (found via `_resolve_python38`'s existing `uv python find 3.8` branch in
-  # ci-local.sh) and never touches PATH's `python3`. uv also has actual 3.8
-  # builds for ubuntu-latest's Ubuntu 24.04, unlike actions/setup-python,
-  # which stopped publishing 3.8 for that image.
+  # ADR 0031's Python 3.10 floor (raised from ADR 0014's original 3.8 once that
+  # floor's OS-availability rationale expired — see issue #1679), proven by
+  # running it (#1635). Isolated in its own job, matching semgrep-fixtures' and
+  # cost-regression's precedent below: it needs a toolchain (a 3.10
+  # interpreter) the other jobs don't provision.
+  # A first attempt at the original 3.8-era job co-tenanted it in
+  # content-guard-tests via actions/setup-python, which put that
+  # interpreter's bin dir on PATH ahead of the system python3 for every other
+  # step in that job — breaking chk_md_references (needs 3.9+
+  # str.removeprefix) and silently degrading chk_hook_units's pytest guard to
+  # "skipped". `uv` avoids that entirely: `uv python install 3.10` only adds
+  # 3.10 to uv's own managed toolchain (found via `_resolve_python310`'s
+  # existing `uv python find 3.10` branch in ci-local.sh) and never touches
+  # PATH's `python3`.
   #
   # This job's `name:` is the status-check context branch protection would
   # match on (see agent-eval.yml and pr-title-lint.yml for the same
@@ -146,7 +147,7 @@ jobs:
   # rename here needs a matching ruleset update, or the check silently stops
   # blocking while still reporting green.
   python-floor:
-    name: Python 3.8 floor
+    name: Python 3.10 floor
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -154,7 +155,7 @@ jobs:
       - name: Install uv
         uses: astral-sh/setup-uv@v6
 
-      - name: Python 3.8 floor check (via ci-local)
+      - name: Python 3.10 floor check (via ci-local)
         run: bash scripts/ci-local.sh --only=chk_python_floor
 
   # Cost-regression gate (#140 mechanism, #171 real baseline). Isolated in its

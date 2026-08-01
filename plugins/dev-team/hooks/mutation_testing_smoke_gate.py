@@ -13,7 +13,7 @@ Contract (docs/python-hook-contract.md):
             exit 0 + ADVISORY-prefixed stdout for missing-dep / malformed / drift
     Env   : MUTATION_SMOKE_GATE_SKIP=1 → silent bypass + audit-log line
 
-Stdlib-only. Python 3.8+. See docs/python-hook-contract.md.
+Stdlib-only. See docs/python-hook-contract.md.
 
 Refs: #565 (the .sh predecessor), #554, #557 (the failure modes it guards).
 """

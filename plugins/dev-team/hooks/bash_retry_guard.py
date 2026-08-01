@@ -16,7 +16,7 @@ where <key> is the session_id when present, else a cksum of $cwd. Files
 are tiny and short-lived — no cleanup story needed beyond the OS's tmp
 sweeping.
 
-Stdlib-only. Python 3.8+. See #591 / #572 Phase 3.
+Stdlib-only. See #591 / #572 Phase 3.
 """
 
 from __future__ import annotations

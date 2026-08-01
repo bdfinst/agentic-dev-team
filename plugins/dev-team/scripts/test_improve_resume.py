@@ -48,7 +48,7 @@ Output is JSON on stdout so the skill can consume it deterministically:
 Exit codes: 0 = resolved (or already complete), 2 = error (message on
 stderr and in the JSON `error` field).
 
-Stdlib-only. Python 3.8+ (ADR 0014/0015).
+Stdlib-only. (ADR 0014/0015).
 """
 
 from __future__ import annotations

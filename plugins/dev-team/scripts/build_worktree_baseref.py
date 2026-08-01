@@ -30,7 +30,7 @@ Env vars (TEST-ONLY injection seam):
                              highest precedence first. Defaults to
                              ".claude/settings.json:$HOME/.claude/settings.json".
 
-Stdlib-only (json/os/pathlib/sys). Python 3.8+. See ADR 0014.
+Stdlib-only (json/os/pathlib/sys). See ADR 0014.
 
 Refs: #572, #577, #553.
 """

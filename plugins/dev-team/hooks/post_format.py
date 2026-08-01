@@ -9,7 +9,7 @@ Input : JSON on stdin with `tool_input.file_path`.
 Output: silent on success (all formatters redirect stdout/stderr to devnull);
         exits 0 even when a formatter is missing or fails.
 
-Ported per docs/python-hook-contract.md — stdlib-only, Python 3.8+.
+Ported per docs/python-hook-contract.md — stdlib-only,.
 """
 
 from __future__ import annotations

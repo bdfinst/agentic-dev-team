@@ -74,7 +74,7 @@ async def classify(request: str, skip_llm: bool = False) -> dict:
         # Offload the blocking call to a thread so an awaiting/gathered caller
         # keeps a free event loop instead of serializing on subprocess.run (#1213).
         # run_in_executor, not asyncio.to_thread (3.9+) — this module ships under
-        # the plugin and must run on the Python 3.8 floor (ADR 0014).
+        # the plugin and must run on the floor (ADR 0014).
         loop = asyncio.get_running_loop()
         result = await loop.run_in_executor(
             None,

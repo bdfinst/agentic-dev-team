@@ -19,7 +19,7 @@ Contract (docs/python-hook-contract.md):
 Posture: fail-open. Any internal error → exit 0. The hook is a nudge,
 never a gate.
 
-Stdlib-only. Python 3.8+.
+Stdlib-only.
 """
 
 from __future__ import annotations

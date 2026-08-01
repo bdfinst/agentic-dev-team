@@ -11,7 +11,7 @@ Each command is run in its own subshell via `shell=True` (same trust model
 as the plan's own test commands — the plan author owns portability). Runs
 stop at the first failure so the failing command is unambiguous.
 
-Stdlib-only. Python 3.8+ (ADR 0014/0015).
+Stdlib-only. (ADR 0014/0015).
 """
 
 from __future__ import annotations

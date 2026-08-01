@@ -41,7 +41,7 @@ fallback review complete files, not a diff, so `SKILL.md` never invokes this
 module for those scopes. That decision is documented in `SKILL.md` Step 3's
 "Change-size gate" subsection, not enforced here.
 
-Pure policy — no filesystem, no globals. Stdlib-only. Python 3.8+.
+Pure policy — no filesystem, no globals. Stdlib-only.
 """
 
 from __future__ import annotations

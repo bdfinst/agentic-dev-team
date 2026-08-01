@@ -36,7 +36,7 @@ unambiguously structural, record the skip (`review-value.jsonl`'s
 `dispatch_purpose`/agent split, #1624), and let measured data authorize
 widening `GATED_LENSES` — not intuition about which lens "probably" no-ops.
 
-Stdlib-only. Python 3.8+. See docs/python-hook-contract.md.
+Stdlib-only. See docs/python-hook-contract.md.
 """
 
 from __future__ import annotations
@@ -170,14 +170,14 @@ def analyze_diff(diff_text: str) -> dict:
         if raw.startswith("+++ "):
             target = raw[4:].strip()
             if target != "/dev/null":
-                current = target[2:] if target.startswith("b/") else target
+                current = target.removeprefix("b/")
                 files.append(current)
                 signals |= classify_path(current)
             continue
         if raw.startswith("--- "):
             source = raw[4:].strip()
             if source != "/dev/null":
-                name = source[2:] if source.startswith("a/") else source
+                name = source.removeprefix("a/")
                 signals |= classify_path(name)
             continue
         if raw.startswith("@@"):

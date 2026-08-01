@@ -42,7 +42,7 @@ Usage:
 PROJECT_DIR defaults to the current directory; the stack file is read from
 `<PROJECT_DIR>/.claude/project-stack.json`.
 
-Stdlib-only. Python 3.8+. See docs/python-hook-contract.md.
+Stdlib-only. See docs/python-hook-contract.md.
 """
 
 from __future__ import annotations

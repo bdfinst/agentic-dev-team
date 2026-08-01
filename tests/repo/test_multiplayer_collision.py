@@ -18,7 +18,7 @@ import json
 import os
 import subprocess
 import sys
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 import pytest
@@ -82,7 +82,7 @@ def _write_dispatch_evidence(cwd: Path) -> None:
     subject_hash = _rgh.review_gate_hash(cwd=cwd)
     log = cwd / ".claude" / "metrics" / "boundary-events.jsonl"
     log.parent.mkdir(parents=True, exist_ok=True)
-    now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    now = datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
     with log.open("a", encoding="utf-8") as fh:
         for agent in ("security-review", "structure-review"):
             fh.write(

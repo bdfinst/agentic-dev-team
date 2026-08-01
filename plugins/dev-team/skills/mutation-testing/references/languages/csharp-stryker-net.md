@@ -307,7 +307,7 @@ The plugin ships a Python wrapper + status loop under `plugins/dev-team/skills/m
 - **`csharp_stryker_net_wrapper.py`** — hides `.sln` during the run + restores on any exit path, exports `DOTNET_ROOT` (auto-probed across all supported platforms; a pre-set value is respected), pre-builds `${SLN}` and optional `${SHIM_PROJECT}` **before** hiding, runs Stryker as a subprocess so SIGINT/SIGTERM kill the child too (no orphans), and redirects log via file descriptor (never a bare `| tee`).
 - **`csharp_stryker_net_status_loop.py`** — status + red-flag inspection loop invoked by the wrapper. Ticks every `STATUS_INTERVAL` seconds emitting one status record plus zero-or-more `[RED-FLAG]` lines when known-broken patterns are observed (mutation-switch not observing; CompileError count over threshold; SolutionPath trap; Stryker died mid-run; parser drift).
 
-Cross-platform authoritative: same code runs identically on macOS, Linux, Windows Git Bash, and native Windows via Python 3.8+'s stdlib. Requires only `python3` on PATH — no bash-shell tooling, no MSYS quirks. See [ADR 0014](../../../../../../docs/adr/0014-python-for-cross-os-scripts.md).
+Cross-platform authoritative: same code runs identically on macOS, Linux, Windows Git Bash, and native Windows via Python 3.10+'s stdlib. Requires only `python3` on PATH — no bash-shell tooling, no MSYS quirks. See [ADR 0014](../../../../../../docs/adr/0014-python-for-cross-os-scripts.md).
 
 ### Install
 

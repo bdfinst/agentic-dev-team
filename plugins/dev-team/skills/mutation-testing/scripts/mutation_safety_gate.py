@@ -21,7 +21,7 @@ names, no methods/tests generated). They moved to ``mutation_kill_shared.py``
 instead (#1602), which already exists to hold cross-language types that
 aren't safety-specific — see that module's docstring.
 
-Stdlib-only (``re``). Python 3.8+. See ADR 0014.
+Stdlib-only (``re``). See ADR 0014.
 """
 
 from __future__ import annotations

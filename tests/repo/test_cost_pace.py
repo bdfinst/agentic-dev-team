@@ -7,7 +7,7 @@ from __future__ import annotations
 
 import subprocess
 import sys
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 from _repo_root import REPO_ROOT
@@ -17,7 +17,7 @@ METER = REPO_ROOT / "plugins" / "dev-team" / "hooks" / "lib" / "cost_meter.py"
 
 def _ts(days_ago: int) -> str:
     """A timestamp N days before now, in the meter's ISO format."""
-    when = datetime.now(timezone.utc) - timedelta(days=days_ago)
+    when = datetime.now(UTC) - timedelta(days=days_ago)
     return when.strftime("%Y-%m-%dT%H:%M:%SZ")
 
 

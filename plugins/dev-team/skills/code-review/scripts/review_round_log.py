@@ -36,7 +36,7 @@ epic's success criteria depend on consent being enabled on dev machines.
 Rows carry counts, agent names, and enum values only — never code, file
 content, or message text.
 
-Stdlib-only. Python 3.8+. See docs/python-hook-contract.md.
+Stdlib-only. See docs/python-hook-contract.md.
 """
 
 from __future__ import annotations
@@ -126,7 +126,7 @@ def changed_line_intervals(diff_text: str) -> dict:
             if target == "/dev/null":
                 path = None
             else:
-                path = target[2:] if target.startswith("b/") else target
+                path = target.removeprefix("b/")
             new_line = 0
             continue
         if raw.startswith(("--- ", "diff --git ")):

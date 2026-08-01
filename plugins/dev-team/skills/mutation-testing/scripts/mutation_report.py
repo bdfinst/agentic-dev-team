@@ -1,8 +1,7 @@
 #!/usr/bin/env python3
 """mutation_report.py — parse a native mutation report and compute scores.
 
-Generic, stdlib-only, cross-platform (macOS, Linux, Windows). Sole runtime
-dependency is python3 (>= 3.8) on PATH. Carries no repo-specific literal —
+Generic, stdlib-only, cross-platform (macOS, Linux, Windows). Carries no repo-specific literal —
 project names, controller names, and test-library names live in the report
 being parsed, never in this module.
 

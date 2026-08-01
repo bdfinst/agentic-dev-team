@@ -56,6 +56,7 @@ import json
 import os
 import re
 from collections import Counter, defaultdict
+from datetime import UTC
 from pathlib import Path
 
 # --- verification / classification vocabularies (counted, never emitted) -----
@@ -1369,7 +1370,7 @@ def slim_record(digest: dict) -> dict:
     so the persisted trend stream carries no file names — strictly metrics, no
     raw prompt/code content. `recorded_at` is the only wall-clock field and lives
     on the trend log, never in the deterministic digest output."""
-    from datetime import datetime, timezone
+    from datetime import datetime
 
     tok = digest.get("token", {})
     rew = digest.get("rework", {})
@@ -1378,7 +1379,7 @@ def slim_record(digest: dict) -> dict:
     util = digest.get("utilization", {})
     totals = tok.get("totals", {})
     return {
-        "recorded_at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "recorded_at": datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ"),
         "schema": "session-digest/v1",
         "plugin_version": digest.get("plugin_version", "unknown"),
         "sessions": digest.get("sessions", 0),

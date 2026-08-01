@@ -22,7 +22,7 @@ Contract (docs/python-hook-contract.md):
             2 (block) at/above threshold with threshold > 0
     Env   : DEV_TEAM_VERIFY_THRESHOLD (default 3), TMPDIR
 
-Stdlib-only. Python 3.8+. See docs/python-hook-contract.md.
+Stdlib-only. See docs/python-hook-contract.md.
 """
 
 from __future__ import annotations

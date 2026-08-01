@@ -43,7 +43,7 @@ Usage:
 """
 
 # Keeps PEP 585 annotations (`list[Path]`, `dict[str, list[str]]`) as strings,
-# so this module imports on the Python 3.8 floor ADR 0014 sets for shipped
+# so this module imports on the floor ADR 0014 sets for shipped.
 # code. Without it this file raised `TypeError: 'type' object is not
 # subscriptable` at import time.
 from __future__ import annotations

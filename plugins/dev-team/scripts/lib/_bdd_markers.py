@@ -12,7 +12,7 @@ under a public name.
 
 Extension (lowercase) -> (language label, pending marker substrings).
 
-Stdlib-only. Python 3.8+ (ADR 0014/0015).
+Stdlib-only. (ADR 0014/0015).
 """
 
 from __future__ import annotations
