@@ -45,13 +45,27 @@ Arguments: $ARGUMENTS
   fired and that is still missing. Tools whose signal did not fire are still
   not installed.
 - **Step 4c keyless pair (CodeGraph + Repowise)** — install the missing
-  members (their recommended default is already yes).
+  members (their recommended default is already yes). Repowise's own write
+  to the tracked `.claude/CLAUDE.md` (see its sub-section below) lands under
+  `--yes` the same as it would interactively — it is intended, not a
+  surprise mutation, so it does not move Repowise into the Conservative
+  bucket below. Whether that same reasoning should also cover Graphify's
+  repo-level writes is a separate policy question, tracked in #1690.
 
 **Conservative** (skip with a printed note — never mutate the repo by
 surprise):
 
-- **Step 4c Graphify** — skipped for this run, because it writes to the repo
-  (a `## graphify` CLAUDE.md section + git hooks). Print
+- **Step 4c Graphify** — skipped for this run, because `graphify install
+  --project` writes PreToolUse hook entries embedding this machine's
+  absolute binary path into the shared, git-tracked `.claude/settings.json`
+  (see the settings.json absolute-path guard, #1367, in the Graphify
+  sub-section below) — a write that file cannot simply be gitignored out of
+  (unlike the generated git hooks themselves, which are). Repowise's own
+  `.mcp.json` write carries a comparable machine-specific path, but that
+  file IS gitignored by the standing check below, so it doesn't force the
+  same choice; #1690 tracks whether Graphify's own CLAUDE.md write (as
+  opposed to its settings.json write) should also move to this bucket.
+  Print
   `Graphify: skipped under --yes (repo-writing; run /project-init without --yes to add it)`
   and do **not** record a durable decline in `.claude/init-state.json`, so a
   later interactive run still offers it.
@@ -257,8 +271,10 @@ single all-or-none group of #1108):
   and human-readable community names (`graphify label`; without them
   communities stay `Community N` placeholders). Graphify is offered as
   **its own opt-in prompt after the keyless pair** — separate not because of a
-  key, but because its integration is **repo-level** (it writes a `## graphify`
-  CLAUDE.md section + git hooks; see the sub-section below). On accept: with a
+  key, but because its integration is **repo-level** (it writes PreToolUse
+  hook entries into this repo's tracked `.claude/settings.json` and a
+  `## graphify` CLAUDE.md section; the generated git hooks it also installs
+  are gitignored — see the sub-section below). On accept: with a
   working backend, run full extraction, repairing the backend's dependencies
   first if needed and never discarding a completed AST pass if the semantic
   pass then fails; without one, build the **code-only** graph and say so
@@ -302,10 +318,12 @@ to re-prompt`).
     - CodeGraph  — personal, user-level MCP; nothing committed to the repo.
                    Keyless: `npm install -g @colbymchenry/codegraph` + `codegraph init .`.
     - Repowise   — local keyless index under .repowise/ (gitignored); MCP server.
-                   Keyless: `init . --no-prose -y`, no API key requested. Its
-                   own installer is known to also try writing a section into
-                   the tracked .claude/CLAUDE.md; the guard below reverts that
-                   automatically, so nothing lands in the repo either way.
+                   Keyless: `init . --no-prose -y`, no API key requested. Also
+                   adds a `## Codebase Intelligence for <project> (Repowise)`
+                   section to the tracked .claude/CLAUDE.md documenting the
+                   codebase — intended (confirmed by the repo owner, #1670
+                   item 3), and committed along with the rest of this run's
+                   changes, not reverted.
   ```
 
 **Under `--yes`, treat the keyless-pair prompt as yes** and install the whole
@@ -326,19 +344,27 @@ missing set without waiting (its recommended default is already yes).
 **The Graphify opt-in.** After the keyless pair, offer Graphify whenever it is
 in the missing set (regardless of key presence — its AST graph builds keyless):
 
-0. **Under `--yes`, skip Graphify for this run** — it writes to the repo, so it
-   stays opt-in even unattended. Print the skip note from the Arguments section
-   and do not record a durable decline. Do not run the prompt below.
+0. **Under `--yes`, skip Graphify for this run** — `graphify install
+   --project` writes a machine-specific absolute path into the tracked
+   `.claude/settings.json`, so it stays opt-in even unattended (see the
+   Arguments section's `--yes` semantics). Print the skip note from the
+   Arguments section and do not record a durable decline. Do not run the
+   prompt below.
 1. **Skip if already present or previously declined** — same missing-set rule
    as above.
 2. **Prompt once** (recommended default **no**, because — unlike the keyless
-   pair — Graphify writes to this repo):
+   pair — Graphify writes a machine-specific path into this repo's tracked
+   `.claude/settings.json`):
 
    ```
    Also install Graphify for architecture/onboarding-level code intelligence? (y/N)
-     - Graphify — repo-level: writes a `## graphify` section into this repo's
-                  CLAUDE.md and installs git hooks (guarded against the known
-                  over-delete bug — see the Graphify sub-section).
+     - Graphify — repo-level: writes PreToolUse hook entries with this
+                  machine's graphify path into the tracked
+                  `.claude/settings.json` (relocated to settings.local.json
+                  by the #1367 guard) and a `## graphify` section into this
+                  repo's CLAUDE.md (guarded against the known over-delete
+                  bug — see the Graphify sub-section). Also installs git
+                  hooks, which are gitignored.
                   Its AST structural graph builds WITHOUT an API key; indexing
                   docs and images needs a working backend (see below).
    ```
@@ -519,30 +545,18 @@ check (#1367) makes below.
    project-root `.mcp.json` registering the repowise MCP server, with an
    `args` array baking in this machine's absolute filesystem path — the
    **standing check below** (not gated behind this install branch) covers it
-   regardless of whether `.mcp.json` existed before this run.
-2b. **CLAUDE.md write guard (#1670 item 3).** The same `repowise init` call
-   is also known to append a `## Codebase Intelligence for <project>
-   (Repowise)` section straight into the tracked `.claude/CLAUDE.md`,
-   contradicting this skill's own Step 4c prompt. `.claude/CLAUDE.md` is
-   expected to be **completely untouched** by this step — unlike Graphify's
-   own guard (below), there's no stable section header to scope a
-   corruption check to (the header bakes in the project name), so nothing
-   about the write is tolerated. Wrap step 2 in the reverting guard instead
-   of running it bare: `scripts/lib/claude_md_guard.py`'s
-   `run_install_reverting_unexpected_writes` (unit-tested at
-   `tests/scripts/test_claude_md_guard.py`) snapshots `.claude/CLAUDE.md`,
-   runs the installer, and — if it changed at all, even if the installer
-   itself then raises — restores the snapshot (or removes the file, if it
-   did not exist before). It returns `(reverted, added)`: branch on
-   `reverted`, not on whether `added` is non-empty — a write that only
-   *removes* lines still reverts and still needs reporting, even though it
-   adds nothing. If `reverted` is True, print one line for the operator
-   giving only the **count** of added lines, never their content verbatim
-   (e.g. `Repowise attempted to write N line(s) to .claude/CLAUDE.md —
-   reverted; nothing committed`, or the same sentence with "an unexpected
-   change" in place of "N line(s)" when nothing was added) — so silence is
-   never mistaken for "nothing happened." If `reverted` is False, this step
-   is a no-op and nothing is printed.
+   regardless of whether `.mcp.json` existed before this run. It also appends
+   a `## Codebase Intelligence for <project> (Repowise)` section to the
+   tracked `.claude/CLAUDE.md` — intended, expected behavior (confirmed by
+   the repo owner, issue #1670 item 3), not a bug to guard against: the
+   section documents the codebase for readers of `CLAUDE.md` and is
+   committed along with the rest of this run's changes, not reverted. It is
+   derived structurally (`--no-prose`, no model/key involved — see the
+   Repowise sub-section above), not free-form model-generated prose — a
+   lower-risk profile than fully model-authored text, though it is still
+   third-party-tool-generated content landing in an agent-loaded file, so
+   the normal PR review before merge is what actually vets it, not this
+   note alone.
 3. Register the MCP server for this Claude Code installation (user scope), the
    same way any personal MCP server is added — point the user at
    `claude mcp add --help` for the exact invocation. **Server-name caveat:**
@@ -860,7 +874,9 @@ After every configured lane probes green, give the user:
   Playwright is repo-level and the rest are user/system-level CLIs.
 - **Graph tools** (Step 4c): the keyless pair — CodeGraph state
   (installed/initialized, MCP registration command printed or skipped) and
-  Repowise state — plus Graphify state: installed with native integration
+  Repowise state, including whether it wrote its `## Codebase Intelligence
+  for <project> (Repowise)` section to `.claude/CLAUDE.md` this run (#1670
+  item 3) — plus Graphify state: installed with native integration
   applied (and whether the CLAUDE.md corruption guard fired and repaired
   anything) and whether the graph it built was **full extraction** (docs and
   images indexed) or the **`--code-only` fallback** (degraded — no provider

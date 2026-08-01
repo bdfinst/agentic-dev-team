@@ -15,19 +15,20 @@ pre-existing unrelated content along with the stale graphify section.
    installer's in-place edit.
 4. If nothing was lost, leave the installer's output as-is.
 
-**`run_install_reverting_unexpected_writes`** — for `repowise init` (#1670
-item 3), which is documented (`project-init/SKILL.md`'s Step 4c prompt) as a
-purely keyless, nothing-committed local index under `.repowise/`, but is
-known to also append a `## Codebase Intelligence for <project> (Repowise)`
-section straight into the tracked `.claude/CLAUDE.md` — content whose
-project-name header text isn't fixed across repos the way graphify's is, so
-there's no stable section marker to scope a corruption check to. Unlike the
-`run_install_with_guard` contract, this one does not tolerate the write at
-all: `CLAUDE.md` is expected to be **completely untouched**, so ANY diff —
-added or removed lines, even a write followed by the installer itself
+**`run_install_reverting_unexpected_writes`** — general-purpose guard for an
+installer that is expected to leave `CLAUDE.md` **completely untouched**: ANY
+diff — added or removed lines, even a write followed by the installer itself
 raising — is reverted in full. The reverted-or-not outcome and any added
-lines are returned separately, so a deletion-only write is never mistaken
-for a no-op.
+lines are returned separately, so a deletion-only write is never mistaken for
+a no-op. Originally written for `repowise init` (#1670 item 3), whose
+`## Codebase Intelligence for <project> (Repowise)` write into
+`.claude/CLAUDE.md` turned out to be intended, expected behavior, not a bug —
+so `project-init/SKILL.md` does not call this function today. Kept as
+reviewed, tested infra for a future installer that genuinely needs a
+zero-tolerance guard (unlike `run_install_with_guard`'s scoped-section
+tolerance above), rather than deleted, since the two guards' contracts are
+otherwise easy to conflate and re-deriving this one from scratch later would
+repeat work already done once.
 
 Stdlib-only, per ADR 0014/0015 (Python for cross-OS scripts).
 """
@@ -127,11 +128,11 @@ def find_added_lines(old_text: str, new_text: str) -> list[str]:
     `old_text`. Order-preserving relative to `new_text`.
 
     Unlike `find_missing_lines`, this does NOT exclude any section — the
-    Repowise contract this serves tolerates no section at all (see the module
-    docstring), so excluding a `## graphify` body here would under-report a
-    genuine addition landing inside one. Not a strict mirror of
-    `find_missing_lines` for that reason; both share their multiset-diff
-    logic via `_lines_only_in`.
+    zero-tolerance contract this serves (see `run_install_reverting_unexpected_writes`
+    and the module docstring) tolerates no section at all, so excluding a
+    `## graphify` body here would under-report a genuine addition landing
+    inside one. Not a strict mirror of `find_missing_lines` for that reason;
+    both share their multiset-diff logic via `_lines_only_in`.
     """
     return _lines_only_in(new_text.splitlines(), Counter(old_text.splitlines()))
 
@@ -154,6 +155,9 @@ def run_install_reverting_unexpected_writes(
     installer: Callable[[], None],
 ) -> tuple[bool, list[str]]:
     """Run `installer()` against `claude_md_path`, reverting ANY write it made.
+
+    No shipped caller today — kept deliberately, see module docstring
+    (#1670 item 3).
 
     Unlike `run_install_with_guard`, which expects and tolerates changes
     scoped to one known section, this treats `claude_md_path` as a file the

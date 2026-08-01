@@ -9,11 +9,16 @@ Validates two distinct guards:
   literal `## graphify` and deletes through the next `##` heading, including
   content that should have survived) and asserts the guard never loses
   pre-existing content.
-- The snapshot -> diff -> full-revert guard for `repowise init`, which is
-  documented as writing nothing to the repo but is known to append a section
-  to `.claude/CLAUDE.md` anyway (#1670 item 3). Stubs a "writing installer"
-  that reproduces that append and asserts the guard reverts it completely,
-  reporting exactly what was reverted.
+- The general-purpose snapshot -> diff -> full-revert guard,
+  `run_install_reverting_unexpected_writes`. Originally written for
+  `repowise init` (#1670 item 3) after it was observed appending a section to
+  `.claude/CLAUDE.md` — that write turned out to be intended, expected
+  behavior, not a bug, so `project-init/SKILL.md` does not call this function
+  today (see its module-docstring note). Kept and tested here as reviewed
+  infra for a future installer that genuinely needs a zero-tolerance guard.
+  Stubs a "writing installer" that reproduces an unexpected append and
+  asserts the guard reverts it completely, reporting exactly what was
+  reverted.
 """
 
 from __future__ import annotations
@@ -149,20 +154,21 @@ def test_guard_leaves_clean_install_untouched(tmp_path: Path):
         assert line in final_lines, f"lost pre-existing line: {line!r}"
 
 
-REPOWISE_SECTION = """\
-## Codebase Intelligence for agentic-dev-team (Repowise)
-Indexed at commit deadbeef on 2026-01-01. Health score: 87/100.
+UNEXPECTED_SECTION = """\
+## Unexpected Section (stub installer)
+This line should never survive a run of the guard under test.
 """
 
 
-def _repowise_writing_installer(path: Path) -> None:
-    """Reproduce Repowise's real behavior: append an unannounced section to
-    the tracked CLAUDE.md, on top of whatever else it does (index build,
-    .mcp.json write) that this guard doesn't need to know about."""
+def _writing_installer(path: Path) -> None:
+    """An installer that appends a section to CLAUDE.md when it was
+    expected to write nothing, on top of whatever else it does that this
+    guard doesn't need to know about — the generic zero-tolerance-write
+    shape `run_install_reverting_unexpected_writes` guards against."""
     existing = path.read_text(encoding="utf-8") if path.exists() else ""
     if not existing.endswith("\n"):
         existing += "\n"
-    path.write_text(existing + "\n" + REPOWISE_SECTION, encoding="utf-8")
+    path.write_text(existing + "\n" + UNEXPECTED_SECTION, encoding="utf-8")
 
 
 def _no_op_installer(path: Path) -> None:
@@ -180,11 +186,10 @@ def _removing_installer(path: Path) -> None:
 
 def _raising_installer(path: Path) -> None:
     """An installer that writes its section and then fails partway through —
-    e.g. a real index-build error after the CLAUDE.md append already
-    happened. The guard must still revert the write before the exception
-    propagates."""
-    _repowise_writing_installer(path)
-    raise RuntimeError("simulated repowise index-build failure")
+    e.g. a build error after the CLAUDE.md append already happened. The
+    guard must still revert the write before the exception propagates."""
+    _writing_installer(path)
+    raise RuntimeError("simulated installer failure")
 
 
 def test_find_added_lines_detects_new_content():
@@ -217,17 +222,17 @@ def test_reverting_guard_undoes_an_unexpected_write(tmp_path: Path):
 
     reverted, added = claude_md_guard.run_install_reverting_unexpected_writes(
         claude_md,
-        installer=lambda: _repowise_writing_installer(claude_md),
+        installer=lambda: _writing_installer(claude_md),
     )
 
     assert reverted is True
-    # _repowise_writing_installer inserts one blank-line separator before the
+    # _writing_installer inserts one blank-line separator before the
     # section, same as run_install_with_guard's own canonical_section append.
-    assert added == ["", *REPOWISE_SECTION.splitlines()]
+    assert added == ["", *UNEXPECTED_SECTION.splitlines()]
 
     final_text = claude_md.read_text(encoding="utf-8")
     assert final_text == FIXTURE_CLAUDE_MD
-    assert "Codebase Intelligence" not in final_text
+    assert "Unexpected Section" not in final_text
 
 
 def test_reverting_guard_leaves_a_true_no_op_untouched(tmp_path: Path):
@@ -245,20 +250,20 @@ def test_reverting_guard_leaves_a_true_no_op_untouched(tmp_path: Path):
 
 
 def test_reverting_guard_deletes_a_file_the_installer_created(tmp_path: Path):
-    """CLAUDE.md may not exist at all before the first `repowise init` in a
-    repo that has none yet — the guard must remove the file it created, not
-    leave the unexpected write in place because "restore the snapshot" has
-    nothing to restore to."""
+    """CLAUDE.md may not exist at all before an installer's first run against
+    a repo that has none yet — the guard must remove the file it created,
+    not leave the unexpected write in place because "restore the snapshot"
+    has nothing to restore to."""
     claude_md = tmp_path / "CLAUDE.md"
     assert not claude_md.exists()
 
     reverted, added = claude_md_guard.run_install_reverting_unexpected_writes(
         claude_md,
-        installer=lambda: claude_md.write_text(REPOWISE_SECTION, encoding="utf-8"),
+        installer=lambda: claude_md.write_text(UNEXPECTED_SECTION, encoding="utf-8"),
     )
 
     assert reverted is True
-    assert added == REPOWISE_SECTION.splitlines()
+    assert added == UNEXPECTED_SECTION.splitlines()
     assert not claude_md.exists()
 
 
@@ -280,10 +285,10 @@ def test_reverting_guard_reports_a_deletion_only_write_as_reverted(tmp_path: Pat
 
 
 def test_reverting_guard_restores_even_when_installer_raises(tmp_path: Path):
-    """A real `repowise init` can append its section and then fail later in
-    the same run (index-build error, network, tool crash) — the guard must
-    still revert the write, and the original exception must still surface
-    to the caller rather than being swallowed."""
+    """A real installer can append its section and then fail later in the
+    same run (build error, network, tool crash) — the guard must still
+    revert the write, and the original exception must still surface to the
+    caller rather than being swallowed."""
     claude_md = tmp_path / "CLAUDE.md"
     claude_md.write_text(FIXTURE_CLAUDE_MD, encoding="utf-8")
 
@@ -294,6 +299,6 @@ def test_reverting_guard_restores_even_when_installer_raises(tmp_path: Path):
         )
         raise AssertionError("expected the installer's RuntimeError to propagate")
     except RuntimeError as exc:
-        assert "simulated repowise index-build failure" in str(exc)
+        assert "simulated installer failure" in str(exc)
 
     assert claude_md.read_text(encoding="utf-8") == FIXTURE_CLAUDE_MD
