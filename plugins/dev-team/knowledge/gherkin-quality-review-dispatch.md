@@ -121,7 +121,7 @@ the *other* dispatch's canary. Like `evals/README.md`'s live eval gate, it is
 failure. It is not wired into any CI workflow by default. Run it locally:
 
 ```bash
-ANTHROPIC_API_KEY=sk-... python3 ${CLAUDE_PLUGIN_ROOT}/scripts/verify_gherkin_quality_critic_isolation.py
+ANTHROPIC_API_KEY=sk-... python3 "${CLAUDE_PLUGIN_ROOT}/scripts/verify_gherkin_quality_critic_isolation.py"
 ```
 
 ## Scope of this doc

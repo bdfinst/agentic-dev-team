@@ -43,7 +43,7 @@ as `deferred` and excluded from the renormalized overall score.
 ## Run
 
 ```bash
-python3 ${CLAUDE_PLUGIN_ROOT}/skills/agent-readiness/scanner.py [REPO_PATH] \
+python3 "${CLAUDE_PLUGIN_ROOT}/skills/agent-readiness/scanner.py" [REPO_PATH] \
   [--json out.json] [--markdown out.md]
 ```
 

@@ -79,7 +79,7 @@ The v2 shim is the only path that gives the mutant-kill **loop** per-test covera
 - **coverage impact** — `neutral` (excluding the test from the shim changes no coverage — e.g. `Explicit=true` tests are skipped by default, **provided the run does not enable explicit tests** via `-explicit` / `xunit.runner.json` `explicit=on`) vs `bearing` (the test runs and covers code, so excluding it inflates the loop's survivor set and makes it generate redundant tests).
 
 ```bash
-python3 ${CLAUDE_PLUGIN_ROOT}/skills/mutation-testing/scripts/xunit_v3_feature_detector.py <test-project>/**/*.cs --json
+python3 "${CLAUDE_PLUGIN_ROOT}/skills/mutation-testing/scripts/xunit_v3_feature_detector.py" <test-project>/**/*.cs --json
 ```
 
 **Human gate — always ask, never auto-drop.** Present the full classified list every run, even when every hit is coverage-neutral. For each test the operator chooses whether to exclude it from the shim for the duration of the loop; nothing is deactivated silently. Coverage-bearing tests are flagged with the lines that go dark if excluded. The detector's `summary.recommendation` is **advisory** sizing only (few + neutral → shim path is reasonable; many or coverage-bearing → prefer skipping the loop for a single-pass `coverage-analysis: off` advisory) — the human always decides.
@@ -384,7 +384,7 @@ around them.
 ### Invocation
 
 ```bash
-python3 ${CLAUDE_PLUGIN_ROOT}/skills/mutation-testing/scripts/csharp_stryker_net_slice_runner.py \
+python3 "${CLAUDE_PLUGIN_ROOT}/skills/mutation-testing/scripts/csharp_stryker_net_slice_runner.py" \
   --slices-config mutation-slices.json \
   --slice <name>       # a single configured slice by name
   --slice all          # every configured slice, resuming past terminal ones

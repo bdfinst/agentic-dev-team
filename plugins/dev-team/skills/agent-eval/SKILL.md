@@ -11,7 +11,7 @@ allowed-tools: >-
   Read, Grep, Glob,
   Bash(readlink *, ls *, date *, mkdir *, command -v claude, claude -p *,
        python3 scripts/eval_cache.py *, python3 scripts/run_integration_eval.py *,
-       python3 scripts/eval_variance.py *, python3 ${CLAUDE_PLUGIN_ROOT}/scripts/eval_ablation.py *,
+       python3 scripts/eval_variance.py *, python3 "$CLAUDE_PLUGIN_ROOT/scripts/eval_ablation.py" *,
        python3 scripts/citation_lint.py *),
   Skill(review-agent *), Skill(test-design-advisor *)
 ---

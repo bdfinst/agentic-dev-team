@@ -136,9 +136,9 @@ If **every** target file is documentation, short-circuit:
 1. Emit: `Documentation-only changeset ({N} files) — skipping code review. Re-run with --force --reason "<text>" to review anyway.`
 2. If the review was auto-scoped to uncommitted changes, write the `.review-passed` gate file (per step 9) so the pre-commit hook allows the commit. **Contemporaneously** (before or immediately after that write), record the doc-only exemption as an explicit, auditable boundary event — the `.review-passed` gate's dispatch-ledger corroboration (#1461) reads this event, bound to the gate's own hash, to let the doc-only path stay exempt from agent-dispatch evidence without being a silent, unaccountable code-path skip:
    ```bash
-   HASH=$(python3 ${CLAUDE_PLUGIN_ROOT}/hooks/lib/review_gate_hash.py)
+   HASH=$(python3 "${CLAUDE_PLUGIN_ROOT}/hooks/lib/review_gate_hash.py")
    mkdir -p .claude/memory && echo "$HASH" > .claude/memory/.review-passed
-   python3 ${CLAUDE_PLUGIN_ROOT}/hooks/lib/boundary_events.py --event doc-only --subject-hash "$HASH"
+   python3 "${CLAUDE_PLUGIN_ROOT}/hooks/lib/boundary_events.py" --event doc-only --subject-hash "$HASH"
    ```
 3. In `--json` mode, emit `{"status": "skipped", "reason": "documentation-only", "files": [<list>]}` instead.
 4. **Stop.** Do not run pre-flight gates, static analysis, or any agent.
@@ -230,7 +230,7 @@ Otherwise read the roster from the **Review Agents** section of `knowledge/agent
 **Agent eligibility is resolved by `select_lenses.py` (#1523).** Run:
 
 ```bash
-python3 ${CLAUDE_PLUGIN_ROOT}/scripts/select_lenses.py --files <target files>
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/select_lenses.py" --files <target files>
 ```
 
 Take its `lenses` array as the Scope-eligible roster, and **surface its `warnings`** in the review output (an agent missing its `Scope:` declaration is included include-biased and named — never silently dropped). The resolver reads each review agent's body-level `Scope:` declaration — `Scope: always` (eligible for any non-empty changeset) or a glob list (eligible only when at least one target file matches a declared glob). `Scope:` is a body declaration, not frontmatter (`agent-contract.json`). This is the single source of truth shared with `/build`'s inline checkpoints: adding or changing an agent's trigger scope needs only an edit to that agent's own body — zero edits to this skill. (The framework-reactivity agents react/vue/angular are **not** in the resolver's roster; they are governed by the manifest rule below. `ai-provenance-review` **is** resolver-governed via its own `Scope: always` declaration.)
@@ -700,8 +700,8 @@ For issues NOT auto-fixed (confidence: none, auto-fix failed, or suggestions), g
 If the review was auto-scoped to uncommitted changes and the overall status is `pass` or `warn` **and step 6a did not exit with actionable issues outstanding** — whether via the iteration limit or the "not converging" exit, both of which are escalations, per that step's Exit conditions table (regardless of whether those outstanding issues are only `warning`-severity — either escalation overrides `warn` for this condition specifically, since escalating and then writing a passing gate anyway would silently defeat the escalation) — write `.review-passed` to `.claude/memory/` so the pre-commit hook allows the next commit. Use the **shared gate-hash helper** so the writer and the pre-commit hook compute the hash identically — it hashes the staged **content** (the cached patch), not just the file paths (#193), so any edit after review invalidates the gate:
 
 ```bash
-HASH=$(python3 ${CLAUDE_PLUGIN_ROOT}/hooks/lib/review_gate_hash.py)
-NORM=$(python3 ${CLAUDE_PLUGIN_ROOT}/hooks/lib/review_gate_normalized_hash.py || true)
+HASH=$(python3 "${CLAUDE_PLUGIN_ROOT}/hooks/lib/review_gate_hash.py")
+NORM=$(python3 "${CLAUDE_PLUGIN_ROOT}/hooks/lib/review_gate_normalized_hash.py" || true)
 mkdir -p .claude/memory && printf '%s\n%s\n' "$HASH" "$NORM" > .claude/memory/.review-passed
 ```
 
@@ -719,7 +719,7 @@ back to today's behavior — that is the intended failure mode, not an error.
 **If `--agent <name>` was used** (a sanctioned single-agent review — it deliberately dispatches exactly 1 agent, which can never clear the dispatch-ledger gate's `>= 2` distinct-dispatch floor on its own), record that as an explicit, auditable exemption event bound to this same hash **contemporaneously** with the write above — same pattern as the doc-only short-circuit's exemption event (step 1a):
 
 ```bash
-python3 ${CLAUDE_PLUGIN_ROOT}/hooks/lib/boundary_events.py --event single-agent --subject-hash "$HASH"
+python3 "${CLAUDE_PLUGIN_ROOT}/hooks/lib/boundary_events.py" --event single-agent --subject-hash "$HASH"
 ```
 
 This step only runs when the review was auto-scoped to uncommitted changes (see the gate condition above), and that path already staged these changes in step 1, before any agent was dispatched — that ordering, not a re-stage here, is what makes this hash match the `subject_hash` `agent_dispatch_ledger.py` recorded at dispatch time (#1461), refreshed by step 6a's own re-staging when a fix loop ran. Do not `git add` a different file set at this point: staging something here that wasn't already staged (and therefore wasn't the reviewed, dispatch-hashed content) would write a gate hash with no corroborating dispatch evidence behind it.

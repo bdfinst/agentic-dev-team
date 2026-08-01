@@ -73,7 +73,7 @@ check, and the citation-lint suite. All clean.
 ### Item 3 — `/build` end-to-end smoke test
 
 ```bash
-python3 ${CLAUDE_PLUGIN_ROOT}/skills/harness-e2e-check/scripts/make_toy_repo.py \
+python3 "${CLAUDE_PLUGIN_ROOT}/skills/harness-e2e-check/scripts/make_toy_repo.py" \
   --target <scratch>/toy-repo --date "$(date +%F)"
 ```
 
@@ -111,9 +111,9 @@ flipped (which would mean someone fixed it without updating the watchlist).
 ### Item 5 — `feedback-learning` + `harness-audit` combined run
 
 ```bash
-python3 ${CLAUDE_PLUGIN_ROOT}/skills/harness-e2e-check/scripts/make_lesson_fixtures.py \
+python3 "${CLAUDE_PLUGIN_ROOT}/skills/harness-e2e-check/scripts/make_lesson_fixtures.py" \
   --target <scratch>/lesson-fixture --mode validated
-python3 ${CLAUDE_PLUGIN_ROOT}/skills/harness-audit/scripts/lesson_validate.py \
+python3 "${CLAUDE_PLUGIN_ROOT}/skills/harness-audit/scripts/lesson_validate.py" \
   --changelog <scratch>/lesson-fixture/metrics/config-changelog.jsonl \
   --digest <scratch>/lesson-fixture/metrics/session-digest.jsonl \
   --apply -o <scratch>/lesson-fixture/memory/lesson-validation.json

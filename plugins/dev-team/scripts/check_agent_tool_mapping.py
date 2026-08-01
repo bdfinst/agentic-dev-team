@@ -29,10 +29,12 @@ escape the mapping:
 A granted MCP tool whose server is absent is inert at runtime; agents fall back to
 Read/Grep/Glob.
 
-Usage:
-    python3 check_agent_tool_mapping.py [--agents-dir <path>]
-    python3 check_agent_tool_mapping.py --fix     # append missing tier tools
-    python3 check_agent_tool_mapping.py --json     # machine-readable report
+Usage (repo-root-relative — this script mutates the agent files next to
+wherever it itself resides, so it must run against the maintainer's own
+checkout, never a `${CLAUDE_PLUGIN_ROOT}`-qualified installed-cache path):
+    python3 plugins/dev-team/scripts/check_agent_tool_mapping.py [--agents-dir <path>]
+    python3 plugins/dev-team/scripts/check_agent_tool_mapping.py --fix     # append missing tier tools
+    python3 plugins/dev-team/scripts/check_agent_tool_mapping.py --json     # machine-readable report
 """
 
 from __future__ import annotations
@@ -195,7 +197,7 @@ def main(argv=None) -> int:
         print("FAIL: non-review agents missing their tier's code-intelligence tools:")
         for name, missing in offenders.items():
             print(f"  - {name}: missing {', '.join(missing)}")
-        print("\nRun: python3 scripts/check_agent_tool_mapping.py --fix")
+        print("\nRun: python3 plugins/dev-team/scripts/check_agent_tool_mapping.py --fix")
     if unclassified:
         print("FAIL: team agents in neither the mapping nor the exclusion list "
               "(classify each into TIER_CONFIG or EXCLUSIONS):")

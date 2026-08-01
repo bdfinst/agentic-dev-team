@@ -56,7 +56,7 @@ At the start of each phase below (2-6), append one state-transition event so
 even when a phase resumes/monitors rather than running fresh:
 
 ```bash
-python3 ${CLAUDE_PLUGIN_ROOT}/hooks/lib/workflow_state.py record \
+python3 "${CLAUDE_PLUGIN_ROOT}/hooks/lib/workflow_state.py" record \
   --workflow ship --prior-state <PRIOR> --new-state <NEW> --session "$CLAUDE_SESSION_ID"
 ```
 
@@ -73,14 +73,14 @@ decision entry and confirm the gate allows advancement — a hard block,
 distinct from the advisory, plan-step-keyed `progress-guardian` gate:
 
 ```bash
-python3 ${CLAUDE_PLUGIN_ROOT}/hooks/lib/iteration_journal_gate.py record \
+python3 "${CLAUDE_PLUGIN_ROOT}/hooks/lib/iteration_journal_gate.py" record \
   --round-id "<issue-identifier>" \
   --attempted "<short note: which phase just ran>" \
   --outcome "<short note: passed|failed|blocked>" \
   --next-action "<short note: next phase or stop>" \
   --session "$CLAUDE_SESSION_ID"
 
-python3 ${CLAUDE_PLUGIN_ROOT}/hooks/lib/iteration_journal_gate.py check \
+python3 "${CLAUDE_PLUGIN_ROOT}/hooks/lib/iteration_journal_gate.py" check \
   --round-id "<issue-identifier>" \
   --session "$CLAUDE_SESSION_ID"
 ```

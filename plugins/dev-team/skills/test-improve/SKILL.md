@@ -239,7 +239,7 @@ explicitly.
 calling the helper — do **not** infer it in prose:
 
 ```
-python3 ${CLAUDE_PLUGIN_ROOT}/scripts/test_improve_resume.py <repo-path>
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/test_improve_resume.py" <repo-path>
 ```
 
 The helper resolves the slug from `<repo-path>` (its last path segment), scans
@@ -571,7 +571,7 @@ After **all Phase-5 Stories have closed**, and only when Phase 0 selected
 reported closed — a hard gate, not prose:
 
 ```
-python3 ${CLAUDE_PLUGIN_ROOT}/scripts/gherkin_stub_gate.py --dir <step-definitions-dir>
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/gherkin_stub_gate.py" --dir <step-definitions-dir>
 ```
 
 (`<step-definitions-dir>` is wherever test-improve's own Phase 3 —

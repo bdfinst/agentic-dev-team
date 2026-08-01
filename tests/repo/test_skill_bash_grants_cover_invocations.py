@@ -58,19 +58,22 @@ SKILLS = sorted(SKILLS_DIR.glob("*/SKILL.md"))
 #: leave it stale. `agent-audit` must never appear here again (#1652).
 KNOWN_UNCOVERED_INVOCATIONS = {
     ("apply-test-doubles", 'sh "$CLAUDE_PLUGIN_ROOT/hooks/py.sh" "$CLAUDE_PLUGIN_ROOT/hooks/lib/plugin_version.py"'),
-    ("cd-test-architecture", "python3 ${CLAUDE_PLUGIN_ROOT}/scripts/gherkin_analysis_coverage_gate.py --file <report-path> --config cd-test-architecture"),
+    # Quoting updated by #1656's sweep (SKILL bodies only — allowed-tools
+    # grant patterns are unaffected by quoting, see _unquoted() above; these
+    # remain uncovered by any grant either way).
+    ("cd-test-architecture", 'python3 "${CLAUDE_PLUGIN_ROOT}/scripts/gherkin_analysis_coverage_gate.py" --file <report-path> --config cd-test-architecture'),
     ("cd-test-architecture", 'sh "$CLAUDE_PLUGIN_ROOT/hooks/py.sh" "$CLAUDE_PLUGIN_ROOT/hooks/lib/report_pdf.py" .dev-team-reports/cd-test-architecture-<app>.md'),
     ("harness-audit", 'sh "$CLAUDE_PLUGIN_ROOT/hooks/py.sh" "$CLAUDE_PLUGIN_ROOT/hooks/lib/report_pdf.py" <the-output-path>'),
-    ("plan", "python3 ${CLAUDE_PLUGIN_ROOT}/scripts/plan_waves.py <plan-file>"),
-    ("plan", "python3 ${CLAUDE_PLUGIN_ROOT}/scripts/plan_gherkin_export.py <plan-file>"),
-    ("plan", "python3 ${CLAUDE_PLUGIN_ROOT}/scripts/git_origin_host.py"),
-    ("pr", "python3 ${CLAUDE_PLUGIN_ROOT}/scripts/progress_guardian.py --pre-pr --plan <plan-file>"),
-    ("pr", "python3 ${CLAUDE_PLUGIN_ROOT}/scripts/pr_close_keyword_lint.py --body-file <body-file>"),
-    ("project-init", "python3 ${CLAUDE_PLUGIN_ROOT}/scripts/install-java-static-analysis.py"),
-    ("ship", "python3 ${CLAUDE_PLUGIN_ROOT}/hooks/lib/workflow_state.py record \\"),
-    ("ship", "python3 ${CLAUDE_PLUGIN_ROOT}/hooks/lib/iteration_journal_gate.py record \\"),
-    ("ship", "python3 ${CLAUDE_PLUGIN_ROOT}/hooks/lib/iteration_journal_gate.py check \\"),
-    ("stryker-xunit-v2-shim", "python3 ${CLAUDE_PLUGIN_ROOT}/skills/stryker-xunit-v2-shim/scripts/generate_shim.py tests/<TestProject>/<TestProject>.csproj \\"),
+    ("plan", 'python3 "${CLAUDE_PLUGIN_ROOT}/scripts/plan_waves.py" <plan-file>'),
+    ("plan", 'python3 "${CLAUDE_PLUGIN_ROOT}/scripts/plan_gherkin_export.py" <plan-file>'),
+    ("plan", 'python3 "${CLAUDE_PLUGIN_ROOT}/scripts/git_origin_host.py"'),
+    ("pr", 'python3 "${CLAUDE_PLUGIN_ROOT}/scripts/progress_guardian.py" --pre-pr --plan <plan-file>'),
+    ("pr", 'python3 "${CLAUDE_PLUGIN_ROOT}/scripts/pr_close_keyword_lint.py" --body-file <body-file>'),
+    ("project-init", 'python3 "${CLAUDE_PLUGIN_ROOT}/scripts/install-java-static-analysis.py"'),
+    ("ship", 'python3 "${CLAUDE_PLUGIN_ROOT}/hooks/lib/workflow_state.py" record \\'),
+    ("ship", 'python3 "${CLAUDE_PLUGIN_ROOT}/hooks/lib/iteration_journal_gate.py" record \\'),
+    ("ship", 'python3 "${CLAUDE_PLUGIN_ROOT}/hooks/lib/iteration_journal_gate.py" check \\'),
+    ("stryker-xunit-v2-shim", 'python3 "${CLAUDE_PLUGIN_ROOT}/skills/stryker-xunit-v2-shim/scripts/generate_shim.py" tests/<TestProject>/<TestProject>.csproj \\'),
     ("test-health", 'sh "$CLAUDE_PLUGIN_ROOT/hooks/py.sh" "$CLAUDE_PLUGIN_ROOT/hooks/lib/report_pdf.py" .dev-team-reports/test-health-<date>.md'),
     ("ubiquitous-language", 'python3 .claude/skills/ubiquitous-language/scripts/collect_domain_signals.py "$ARGUMENTS"'),
 }
@@ -118,6 +121,19 @@ def _body_invocations(body: str) -> list:
     return invocations
 
 
+def _unquoted(text: str) -> str:
+    """Drop ASCII quote characters before comparing. Quoting a path (`"$VAR/
+    scripts/foo.py"` vs. an unquoted `$VAR/scripts/foo.py`) is a shell-syntax
+    nicety — it changes nothing about which executable and path get
+    invoked, and a grant author may quote one side of a comparison without
+    the other (#1656's quoting sweep touched SKILL bodies, not their own
+    `allowed-tools` grant patterns, precisely because the two were never
+    required to match character-for-character). Stripping quotes from both
+    sides before comparing keeps this guard about coverage, not a
+    string-identical-formatting requirement it never needed to enforce."""
+    return text.replace('"', "").replace("'", "")
+
+
 def _covered(invocation: str, patterns: list) -> bool:
     """True if `invocation` matches one of `patterns`.
 
@@ -126,7 +142,10 @@ def _covered(invocation: str, patterns: list) -> bool:
     prefix match is therefore the correct and sufficient test; nothing here
     needs full glob semantics.
     """
-    return any(invocation.startswith(pattern.rstrip("*").strip()) for pattern in patterns)
+    invocation = _unquoted(invocation)
+    return any(
+        invocation.startswith(_unquoted(pattern.rstrip("*").strip())) for pattern in patterns
+    )
 
 
 def _uncovered_invocations_by_skill():

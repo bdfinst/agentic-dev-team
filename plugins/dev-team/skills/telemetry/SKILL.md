@@ -63,7 +63,7 @@ network egress here, that work belongs in `/session-review` instead.
 3. **report** — summarize the event log:
 
    ```bash
-   python3 ${CLAUDE_PLUGIN_ROOT}/hooks/lib/telemetry_report.py \
+   python3 "${CLAUDE_PLUGIN_ROOT}/hooks/lib/telemetry_report.py" \
      --log "$HOME/.claude/metrics/telemetry.jsonl"
    ```
 

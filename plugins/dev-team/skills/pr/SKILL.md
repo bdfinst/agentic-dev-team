@@ -44,7 +44,7 @@ Verify:
 If a plan file is present (check `plans/` for the most recently modified approved or implemented plan), run the plan completion gate:
 
 ```bash
-python3 ${CLAUDE_PLUGIN_ROOT}/scripts/progress_guardian.py --pre-pr --plan <plan-file>
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/progress_guardian.py" --pre-pr --plan <plan-file>
 ```
 
 A non-zero exit means incomplete steps remain; stop and surface the findings — do not open the PR until all steps are `[x]`.
@@ -137,7 +137,7 @@ is deferred to #124", "see #123 for the rest of this work" — never
 Before calling `gh pr create`, lint the drafted body for accidental matches:
 
 ```bash
-python3 ${CLAUDE_PLUGIN_ROOT}/scripts/pr_close_keyword_lint.py --body-file <body-file>
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/pr_close_keyword_lint.py" --body-file <body-file>
 ```
 
 This is advisory only (always exits 0). If it prints warnings, rephrase the

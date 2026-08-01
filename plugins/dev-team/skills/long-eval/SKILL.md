@@ -81,7 +81,7 @@ is **never persisted**, so `cells()` reconstructs it each launch.
 2. **Launch it durably** (backgrounded, from the repo root):
 
    ```bash
-   python3 ${CLAUDE_PLUGIN_ROOT}/skills/long-eval/run_eval.py ensure-alive \
+   python3 "${CLAUDE_PLUGIN_ROOT}/skills/long-eval/run_eval.py" ensure-alive \
      --module <path-to-your-module.py> \
      --out .claude/evals/<slug>
    ```
@@ -96,7 +96,7 @@ is **never persisted**, so `cells()` reconstructs it each launch.
    progress with `status` (add `--json` for a machine-readable line):
 
    ```bash
-   python3 ${CLAUDE_PLUGIN_ROOT}/skills/long-eval/run_eval.py status \
+   python3 "${CLAUDE_PLUGIN_ROOT}/skills/long-eval/run_eval.py" status \
      --out .claude/evals/<slug>
    ```
 

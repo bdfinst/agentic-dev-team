@@ -216,7 +216,7 @@ The full lifecycle of these files — discovery to applied fix, including who ow
 When the review was auto-scoped to uncommitted changes, the final status is `pass` or `warn`, and step 6a's fix loop (if it ran) did not exit with actionable issues still outstanding, the orchestrator writes `.review-passed` to `.claude/memory/` — a SHA-256 hash of the staged **content** (the cached patch, not just the file list — an edit after review changes this hash and re-blocks the commit):
 
 ```bash
-HASH=$(python3 ${CLAUDE_PLUGIN_ROOT}/hooks/lib/review_gate_hash.py)
+HASH=$(python3 "${CLAUDE_PLUGIN_ROOT}/hooks/lib/review_gate_hash.py")
 mkdir -p .claude/memory && echo "$HASH" > .claude/memory/.review-passed
 ```
 
