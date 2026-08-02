@@ -405,6 +405,30 @@ def test_batch_confirmed_override_does_not_union_on_marker_mismatch() -> None:
     assert {m["number"] for m in result["ungrouped"]} == {320, 321}
 
 
+def test_batch_confirmed_override_unions_with_string_typed_member_numbers() -> None:
+    # An agent regex-extracting digits from a GitHub comment naturally
+    # yields strings ("301", "302"), not ints — the signal must still fire
+    # rather than silently never matching.
+    issue_a = _issue(
+        number=301,
+        title="A",
+        labels=[{"name": "autoship:ready"}, {"name": "autoship:batch-confirmed"}],
+        confirmed_batch_members=["302"],
+    )
+    issue_b = _issue(
+        number=302,
+        title="B",
+        labels=[{"name": "autoship:ready"}, {"name": "autoship:batch-confirmed"}],
+        confirmed_batch_members=["301"],
+    )
+
+    result = autoship_group.group_issues([issue_a, issue_b])
+
+    assert len(result["batches"]) == 1
+    assert {m["number"] for m in result["batches"][0]["members"]} == {301, 302}
+    assert result["ungrouped"] == []
+
+
 def test_identical_createdat_tie_breaks_by_issue_number() -> None:
     # Both members share the exact same createdAt — the sort must still be
     # deterministic via a secondary key (issue number), not input order.

@@ -33,8 +33,10 @@ BLOCKED_LABEL = autoship_state.BLOCKED_LABEL
 # mutually exclusive with the other two states" invariant
 # (`skills/autoship/SKILL.md`) and letting a later human relabel back to
 # `ready` silently re-trigger `has_batch_confirmed_override` on a stale,
-# no-longer-reconfirmed marker.
-BATCH_CONFIRMED_LABEL = "autoship:batch-confirmed"
+# no-longer-reconfirmed marker. Defined once in `autoship_state` alongside
+# the other `autoship:*` label constants; `autoship_group.py` imports the
+# same shared constant.
+BATCH_CONFIRMED_LABEL = autoship_state.BATCH_CONFIRMED_LABEL
 
 # gh subprocess calls get a hard timeout so a hung/stalled network call never
 # blocks this script indefinitely.
@@ -155,7 +157,7 @@ def _fetch_in_progress_issues() -> list:
                 "--label",
                 IN_PROGRESS_LABEL,
                 "--limit",
-                "500",
+                autoship_state.GH_LIST_LIMIT,
                 "--json",
                 "number,title,state,labels,updatedAt",
             ],

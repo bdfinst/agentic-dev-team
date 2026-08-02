@@ -129,7 +129,12 @@ python3 "${CLAUDE_PLUGIN_ROOT}/scripts/autoship_reclaim.py" \
 
 1. Fetch open issues labeled `autoship:in-progress` via
    `mcp__github__search_issues` (`query: "is:issue is:open label:autoship:in-progress"`,
-   `fields: ["number", "title", "labels", "updated_at"]`).
+   `fields: ["number", "title", "labels", "updated_at"]`). `mcp__github__search_issues`
+   is a paginated search tool with its own default page cap — page through every
+   result page until exhausted, up to 500 issues, matching the gh-present path's
+   `--limit 500` above: without this, a repo with more than one page of stale
+   in-progress issues would silently have this step see only the first page,
+   reclaiming only part of the full eligible pool.
 2. Build a JSON array matching `autoship_reclaim.py`'s `--input-file` schema
    — one object per issue with `number`, `title`, `state: "OPEN"`, `labels`
    (as `[{"name": "..."}, ...]`), and `labeled_at` (use `updated_at` from the
@@ -246,7 +251,12 @@ absent` path worked before this pipeline replaced `autoship_discover.py`:
 
 1. Fetch open issues labeled `autoship:ready` (or `--label`) via
    `mcp__github__search_issues` (`query: "is:issue is:open label:<label>"`,
-   `fields: ["number", "title", "labels", "created_at"]`).
+   `fields: ["number", "title", "labels", "created_at"]`). `mcp__github__search_issues`
+   is a paginated search tool with its own default page cap — page through every
+   result page until exhausted, up to 500 issues, matching the gh-present path's
+   `--limit 500` above: without this, a repo with more than one page of eligible
+   issues would silently have this step see only the first page, undermining
+   `autoship_group.py`'s requirement to see the full eligible pool before grouping.
 2. For each candidate, resolve the two fields `gh issue list --json` computes
    for free but the search result doesn't carry (see the "Known gap" note
    above):
@@ -448,6 +458,14 @@ proceed to `autoship_queue.py` as solo dispatch units this round, exactly
 like any other non-batched issue. Do this before the second command of Step
 2's pipeline (`autoship_queue.py`) runs against that file.
 
+**Track blocked-pending-confirmation counts.** Count `blocked_pending_confirmation_units`
+— the number of proposed batches actually BLOCKED above this round (never a
+rejected-by-validation proposal, which was never blocked) — and
+`blocked_pending_confirmation_issues`, the sum of their member counts. Carry
+both forward: they gate the empty-queue status check below and populate
+Step 4's round summary regardless of this round's eventual outcome. Both are
+`0` when Step 2b/2c never ran or blocked nothing.
+
 **Comment**: post a comment to every member issue. Compose the comment body
 in a scratch file and post it via `--body-file`, never inline `--body "..."`
 — the rationale text is agent-derived and must never be interpolated
@@ -574,9 +592,24 @@ entry per dispatch unit, each either `{"type": "batch", "batch_id": ...,
 "issues": [...]}` or `{"type": "solo", "issue": N}`. Step 3 processes this
 queue directly, one dispatch unit at a time, in order.
 
-If the queue is empty (both `queue` and `deferred` empty), print "No eligible
-issues found this round." and stop, recording the round with
-`status: "no_eligible_issues"` (see Step 4's status enum) before exiting.
+If the queue is empty (both `queue` and `deferred` empty):
+
+- **`blocked_pending_confirmation_units` > 0 this round** — every eligible
+  issue this round ended up in a proposed batch that Step 2c blocked pending
+  human confirmation, not a genuine absence of eligible issues. Print:
+
+  ```
+  No dispatchable unit this round: <blocked_pending_confirmation_units> unit(s)
+  (<blocked_pending_confirmation_issues> issue(s)) blocked pending human
+  confirmation of a proposed batch.
+  ```
+
+  and stop, recording the round with `status: "blocked_pending_confirmation"`,
+  `blocked_pending_confirmation_units`, and `blocked_pending_confirmation_issues`
+  (see Step 4's status enum) before exiting.
+- **Otherwise** — print "No eligible issues found this round." and stop,
+  recording the round with `status: "no_eligible_issues"` (see Step 4's
+  status enum) before exiting.
 
 If `queue` is empty but `deferred` is **not** empty, no dispatchable unit fits
 this round's `--max-issues` cap — a batch is deferred whole (never split), so
@@ -879,6 +912,13 @@ failed to land; retry it before continuing. A successful `record` followed
 immediately by `check` for the same `round_id` always allows advancement.
 Skip both calls in `--dry-run` mode.
 
+`--attempted`/`--outcome`/`--next-action` must never carry `blocked_reason`,
+the extracted stakeholder question, or any other issue-sourced free text —
+only the fixed unit-naming templates shown above. This is the same "never
+interpolate agent-derived text into a shell command string" rule Step 2c
+and 3d/3d.1/3f already enforce for their own comment and log-record
+composition, applied here to this inline `record` invocation too.
+
 ### 3f — Append round record
 
 Append log entries to `.claude/metrics/autoship-log.jsonl` using the log
@@ -976,8 +1016,10 @@ The round summary is also written to `.claude/metrics/autoship-log.jsonl` as a f
   "discovered_issues": <N>,
   "deferred_units": <N>,
   "deferred_issues": <M>,
+  "blocked_pending_confirmation_units": <N>,
+  "blocked_pending_confirmation_issues": <M>,
   "cost_usd": <accumulated>,
-  "status": "complete" | "cost_cap_reached" | "dry_run" | "no_eligible_issues" | "no_unit_fits_cap"
+  "status": "complete" | "cost_cap_reached" | "dry_run" | "no_eligible_issues" | "no_unit_fits_cap" | "blocked_pending_confirmation"
 }
 ```
 
@@ -995,10 +1037,18 @@ the cost-cap check (Step 3a) is excluded from `processed_*`. `discovered_*`
 counts every dispatch unit `autoship_queue.py` produced this round —
 `queue` and `deferred` combined. `deferred_units` is the count of dispatch
 units — batch or solo — left in `deferred`; `deferred_issues` is the sum of
-their member-issue counts (a solo unit counts as 1). `no_eligible_issues`
-and `no_unit_fits_cap` are the round statuses for Step 2's two early-exit
-stops (both fire before Step 3's loop is ever entered, so every
-`processed_*` field is always `0` for either).
+their member-issue counts (a solo unit counts as 1). `blocked_pending_confirmation_units`/
+`blocked_pending_confirmation_issues` are Step 2c's own tracked counts (see
+that step) — always present, `0` when Step 2b/2c never ran or blocked
+nothing this round, regardless of the round's eventual `status`.
+`no_eligible_issues` and `no_unit_fits_cap` are two of Step 2's three
+possible early-exit statuses (all three fire before Step 3's loop is ever
+entered, so every `processed_*` field is always `0` for any of them); the
+third, `blocked_pending_confirmation`, fires instead of `no_eligible_issues`
+specifically when the queue and deferred are both empty because every
+eligible issue this round was blocked pending confirmation of a proposed
+batch, not because zero issues were eligible — see Step 2's empty-queue
+check above.
 
 ## Notes
 

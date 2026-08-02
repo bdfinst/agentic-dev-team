@@ -65,7 +65,9 @@ _AUTOSHIP_LABEL_PREFIX = "autoship:"
 # The label a human confirmation applies (Step 2c, `skills/autoship/SKILL.md`)
 # — recognized by `has_batch_confirmed_override`, its own independent signal
 # function, never as a carve-out inside `has_shared_label`'s exclusion rule.
-BATCH_CONFIRMED_LABEL = "autoship:batch-confirmed"
+# Defined once in `autoship_state` alongside the other `autoship:*` label
+# constants; `autoship_reclaim.py` imports the same shared constant.
+BATCH_CONFIRMED_LABEL = autoship_state.BATCH_CONFIRMED_LABEL
 
 # The dependency/parent fields this script's signals need, on top of
 # autoship_state.BASE_REQUIRED_FIELDS. Requested as `extra_fields` (not
@@ -202,12 +204,37 @@ def _raw_label_names(issue: dict[str, Any]) -> set[str]:
     }
 
 
+def _confirmed_member_numbers(issue: dict[str, Any]) -> set[int]:
+    """Coerce `issue`'s `confirmed_batch_members` entries to `int`,
+    tolerating a digit-only string shape alongside a native int — the same
+    multi-shape tolerance `_referenced_numbers` already applies to
+    `blockedBy`/`blocking`.
+
+    The marker's parsed values (Step 2c, `skills/autoship/SKILL.md`) are
+    produced by an agent regex-extracting digits from a GitHub comment
+    (`^[0-9]+$` validation), whose natural implementation yields strings
+    (`["301", "302"]`), not ints. Without this coercion, a strict `int`-only
+    comparison would silently never match — the same class of silent
+    no-signal failure `_referenced_numbers` already guards against. Any
+    entry that is neither an int nor a digit-only string is skipped rather
+    than raising.
+    """
+    numbers: set[int] = set()
+    for entry in issue.get("confirmed_batch_members") or []:
+        if isinstance(entry, int):
+            numbers.add(entry)
+        elif isinstance(entry, str) and entry.isdigit():
+            numbers.add(int(entry))
+    return numbers
+
+
 def has_batch_confirmed_override(a: dict[str, Any], b: dict[str, Any]) -> bool:
     """True iff both `a` and `b` carry the `autoship:batch-confirmed` label
     AND each one's `confirmed_batch_members` field contains the other's
     issue number.
 
-    `confirmed_batch_members` is an optional field (a list of ints, read via
+    `confirmed_batch_members` is an optional field (a list of ints or
+    digit-only strings — see `_confirmed_member_numbers` — read via
     `.get(...)` — same convention as `blockedBy`/`blocking`/`parent`); its
     absence is "no signal", never an error. Requiring BOTH issues to be
     labeled AND to still cross-reference each other is what supports partial
@@ -220,8 +247,8 @@ def has_batch_confirmed_override(a: dict[str, Any], b: dict[str, Any]) -> bool:
         return False
     if BATCH_CONFIRMED_LABEL not in _raw_label_names(b):
         return False
-    a_members = set(a.get("confirmed_batch_members") or [])
-    b_members = set(b.get("confirmed_batch_members") or [])
+    a_members = _confirmed_member_numbers(a)
+    b_members = _confirmed_member_numbers(b)
     return b["number"] in a_members and a["number"] in b_members
 
 

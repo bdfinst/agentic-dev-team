@@ -26,6 +26,20 @@ READY_LABEL = "autoship:ready"
 IN_PROGRESS_LABEL = "autoship:in-progress"
 BLOCKED_LABEL = "autoship:blocked"
 
+# The label a human confirmation applies to an agent-proposed batch (Step 2c,
+# `skills/autoship/SKILL.md`) — recognized by `autoship_group.py`'s
+# `has_batch_confirmed_override` signal function, and stripped by
+# `autoship_reclaim.py`'s reclaim relabel. Lives here, alongside the other
+# three `autoship:*` label constants, so both scripts import one definition
+# instead of each redefining it independently.
+BATCH_CONFIRMED_LABEL = "autoship:batch-confirmed"
+
+# `gh issue list` applies a default result cap (typically 30) — every caller
+# that needs the FULL matching pool (discovery/grouping's eligible pool,
+# reclaim's in-progress pool) passes this explicit override instead of each
+# hardcoding its own "500" literal.
+GH_LIST_LIMIT = "500"
+
 # Same fields `gh issue list --json` returns for these names — no schema
 # invention. `title` is required because `autoship_discover.py`'s stdout
 # contract emits it; `state` is required because `is_eligible` checks it
@@ -243,7 +257,7 @@ def fetch_issues_from_gh(
                 "--label",
                 label,
                 "--limit",
-                "500",
+                GH_LIST_LIMIT,
                 "--json",
                 gh_json_fields,
             ],

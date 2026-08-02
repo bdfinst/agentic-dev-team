@@ -1489,7 +1489,7 @@
       "anchor": "adding-a-new-stream"
     },
     "`autoship-log.jsonl`": {
-      "summary": "One entry per `/autoship` round, recording the outcome and cost of each automated ship attempt.",
+      "summary": "One record per `/autoship` dispatch-unit outcome (a solo issue or a batch),",
       "anchor": "autoship-logjsonl"
     },
     "`workflow-states.jsonl`": {
