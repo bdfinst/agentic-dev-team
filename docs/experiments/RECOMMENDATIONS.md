@@ -106,6 +106,17 @@ statistically indistinguishable maintainability.
   consistent quality gain — its marginally higher mutation scores never offset
   the coordination tax (Experiments 04 and 05).
 
+**A note on external claims about cadence:** an unreplicated external report
+of a different cadence's cost/quality numbers (e.g. batch-red-per-class
+testing) is not grounds to change this recommendation — it wasn't measured
+against this repo's own tasks or harness (this harness's runs are
+clean-room `claude -p` dispatches with no plugin loaded either, so neither
+side of the comparison is controlled on agent configuration — the gap is
+the corpus and harness, not "our agents vs. theirs"). See
+[`../../plugins/dev-team/knowledge/test-cadence-tradeoffs.md`](../../plugins/dev-team/knowledge/test-cadence-tradeoffs.md)
+for the decision rule and what a local replication would require before this
+recommendation changes.
+
 ## 4. Refactor on every small batch — never only at the end
 
 **Recommendation:** refactor immediately after each green increment, as part

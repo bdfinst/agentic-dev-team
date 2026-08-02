@@ -370,6 +370,7 @@ acceptance criteria.
   before presenting to the human. Aggregate all findings (including
   warnings from approving reviewers) into the plan review summary.
 - **Human gate**: Human reviews the plan and the aggregated review findings. This is the primary review artifact — 200 lines of plan is far more reviewable than 2,000 lines of code. If the plan is wrong, fix it here, not in code.
+- **Design intent: no choice made during Implementation is meant to compensate for a weak plan.** A plan carrying an unresolved `needs-revision` verdict (a blocker, or 3+ warnings — 2+ for `plan-review-parallelization` — per `${CLAUDE_PLUGIN_ROOT}/knowledge/plan-review-rubric.md#verdict-rules`) is revised and re-reviewed before the human gate — see the plan skill's [Run plan review personas step](../skills/plan/SKILL.md#5-run-plan-review-personas) for that iteration cap and its escalation path — and never carried silently into Phase 3. Code-First Small Batches (Phase 3's sole cadence, per ADR 0017) is not a substitute for plan quality, it is what a *good* plan gets executed with. When a plan looks weak going into the human gate, the fix is another Phase 2 iteration, never a Phase 3 workaround. See `${CLAUDE_PLUGIN_ROOT}/knowledge/test-cadence-tradeoffs.md#the-decision-rule` for the evidence bar an alternative Phase 3 cadence has to clear before it changes this.
 - **Context**: Compact after this phase — write progress file, start fresh context for Phase 3
 
 #### Plan persona roster (`orchestrator.py`'s `PLAN_CORE_PERSONAS`)
