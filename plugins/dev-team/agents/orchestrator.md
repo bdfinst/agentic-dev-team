@@ -350,7 +350,7 @@ acceptance criteria.
 ### Phase 2: Plan
 
 - **Goal**: Specify every change to be made — files, snippets, test strategy, verification steps
-- **Agents**: Architect (primary), Product Manager (if requirements unclear), Orchestrator
+- **Agents**: `product-manager`, `architect`, `qa-engineer` (core trio that drafts the plan — always dispatched, see Plan persona roster below), then the `plan-review-*` critics reviewing that draft (below)
 - **Input**: Research progress file from Phase 1 + approved design doc (if produced in Phase 1)
 - **Output**: An implementation plan with explicit file changes, test expectations, and acceptance criteria
 - **Automated plan review**: Before the human gate, dispatch the plan review
@@ -371,6 +371,28 @@ acceptance criteria.
   warnings from approving reviewers) into the plan review summary.
 - **Human gate**: Human reviews the plan and the aggregated review findings. This is the primary review artifact — 200 lines of plan is far more reviewable than 2,000 lines of code. If the plan is wrong, fix it here, not in code.
 - **Context**: Compact after this phase — write progress file, start fresh context for Phase 3
+
+#### Plan persona roster (`orchestrator.py`'s `PLAN_CORE_PERSONAS`)
+
+`orchestrator.py`'s `_default_phase_plan` — the `Enforcement: script`
+deterministic implementation of this phase — dispatches a two-stage
+sequence for every `standard`/`complex`-classified task: first the core
+trio `product-manager`, `architect`, `qa-engineer` (`PLAN_CORE_PERSONAS`),
+unconditionally, with the Research phase's aggregated state as context;
+then the five `plan-review-*` critics (`DEFAULT_PERSONAS`), against the
+core trio's own results as the draft under review — unless every core-trio
+result failed, in which case critic dispatch is skipped entirely (an
+LLM-cost guard: with no usable draft, the five `claude -p` critic dispatches
+would only critique identical failure stubs — a deliberate degraded-path
+divergence from the agent-facing policy above) and the persisted state
+records why (`critics_skipped_reason: "all_core_personas_failed"`).
+
+**Script gap.** The "Automated plan review" bullet above describes
+reviewer-set scaling by plan tier — that scaling is not implemented by the
+script: `_default_phase_plan` always dispatches all five critics
+(`DEFAULT_PERSONAS`) unconditionally, with no notion of plan tier in its
+persisted state at all. This is a known gap tracked against spec #1707,
+not yet implemented.
 
 ### Phase 3: Implement
 

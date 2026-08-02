@@ -117,9 +117,22 @@ def test_research_personas_is_exactly_the_three_always_on_trio():
     assert orch.RESEARCH_PERSONAS == ("codebase-recon", "architect", "data-flow-tracer")
 
 
+def test_plan_core_personas_is_exactly_the_three_always_on_trio():
+    """PLAN_CORE_PERSONAS must equal exactly the three real Plan-phase core
+    agent names, in the declared order, matching RESEARCH_PERSONAS's own
+    exact-equality pinning pattern."""
+    assert orch.PLAN_CORE_PERSONAS == ("product-manager", "architect", "qa-engineer")
+
+
 @pytest.mark.parametrize(
     "persona",
-    [*orch.RESEARCH_PERSONAS, *orch.DEFAULT_PERSONAS, *orch.CODE_REVIEW_PANEL, orch.SECURITY_ENGINEER_PERSONA],
+    [
+        *orch.RESEARCH_PERSONAS,
+        *orch.PLAN_CORE_PERSONAS,
+        *orch.DEFAULT_PERSONAS,
+        *orch.CODE_REVIEW_PANEL,
+        orch.SECURITY_ENGINEER_PERSONA,
+    ],
 )
 def test_every_dispatchable_persona_resolves_to_a_real_agent(persona):
     """Every persona name orchestrator.py can pass to `claude -p --agent
@@ -1130,7 +1143,20 @@ async def test_trivial_task_never_calls_dispatch_personas_with_real_research_fn(
 async def test_resume_skips_dispatch_and_leaves_file_unchanged_with_real_research_fn():
     """--resume with a pre-seeded orchestrator-research.json still skips
     Research dispatch entirely and leaves the file unchanged, re-verified
-    against the real (non-stub) research function."""
+    against the real (non-stub) research function.
+
+    Scoped to Research alone via a no-op phase_plan_fn stub: this test
+    pre-seeds only orchestrator-research.json (no orchestrator-plan.json),
+    which is also the realistic "Research done, Plan pending" partial-resume
+    shape — Plan-phase dispatch behavior for that shape has its own
+    dedicated coverage (test_resume_with_research_done_dispatches_plan_using_resumed_research_state
+    below); this test's purpose stays narrowly "Research's own resume-skip
+    still works", so it must not depend on how Plan's real dispatch
+    handles a bare, non-list-returning mock_dispatch."""
+
+    async def noop_phase_plan_fn(request, task, research_state, skip_llm):
+        return {"stub": "plan"}
+
     with tempfile.TemporaryDirectory() as tmp:
         memory_dir = Path(tmp)
         prior_state = {
@@ -1148,6 +1174,7 @@ async def test_resume_skips_dispatch_and_leaves_file_unchanged_with_real_researc
                 skip_llm=True,
                 resume=True,
                 classify_fn=lambda req: {"size": "standard"},
+                phase_plan_fn=noop_phase_plan_fn,
             )
 
         post_run_contents = orch.phase_state_path("research", memory_dir).read_text()
@@ -1168,7 +1195,13 @@ async def test_default_phase_research_records_one_failed_persona_verbatim_withou
     Also the one case (unlike the all-failed/all-success tests) that can
     prove the stderr WARNING names only the failed persona, not the whole
     roster — a mutant that joined `personas` instead of `failed_personas`
-    would still pass those two degenerate tests but fail this one."""
+    would still pass those two degenerate tests but fail this one.
+
+    Scoped to Research alone via a no-op phase_plan_fn stub: dispatch_personas
+    is patched globally (it must be, to fake Research's own dispatch), so
+    without a stub the same fake would also serve Plan's two dispatch calls
+    and merge a second, Plan-labeled WARNING into this test's stderr —
+    muddying what this test is actually asserting."""
     fake_results = [
         {"persona": "codebase-recon", "status": "success"},
         {"persona": "architect", "status": "failed", "error": "llm_unavailable"},
@@ -1177,6 +1210,9 @@ async def test_default_phase_research_records_one_failed_persona_verbatim_withou
 
     async def fake_dispatch_personas(personas, plan, skip_llm=False):
         return fake_results
+
+    async def noop_phase_plan_fn(request, task, research_state, skip_llm):
+        return {"stub": "plan"}
 
     with (
         patch.object(orch, "dispatch_personas", side_effect=fake_dispatch_personas),
@@ -1188,6 +1224,7 @@ async def test_default_phase_research_records_one_failed_persona_verbatim_withou
             memory_dir=memory_dir,
             skip_llm=True,
             classify_fn=lambda req: {"size": "standard"},
+            phase_plan_fn=noop_phase_plan_fn,
         )
         state = orch.read_progress("research", memory_dir)
 
@@ -1209,7 +1246,12 @@ async def test_default_phase_research_records_all_personas_failed_verbatim_witho
     failure case above. Also asserts the stderr WARNING _default_phase_research
     prints when any persona failed, naming each failed persona — otherwise a
     run where every persona failed would look identical, on the console, to
-    one that fully succeeded."""
+    one that fully succeeded.
+
+    Scoped to Research alone via a no-op phase_plan_fn stub — see the
+    identical rationale on test_default_phase_research_records_one_failed_persona_verbatim_without_raising
+    above: without it, this same fake would also serve Plan's dispatch
+    calls and merge a second WARNING into this test's stderr."""
     fake_results = [
         {"persona": "codebase-recon", "status": "failed", "error": "llm_unavailable"},
         {"persona": "architect", "status": "failed", "error": "llm_unavailable"},
@@ -1223,6 +1265,9 @@ async def test_default_phase_research_records_all_personas_failed_verbatim_witho
     async def fake_dispatch_personas(personas, plan, skip_llm=False):
         return fake_results
 
+    async def noop_phase_plan_fn(request, task, research_state, skip_llm):
+        return {"stub": "plan"}
+
     with (
         patch.object(orch, "dispatch_personas", side_effect=fake_dispatch_personas),
         tempfile.TemporaryDirectory() as tmp,
@@ -1233,6 +1278,7 @@ async def test_default_phase_research_records_all_personas_failed_verbatim_witho
             memory_dir=memory_dir,
             skip_llm=True,
             classify_fn=lambda req: {"size": "standard"},
+            phase_plan_fn=noop_phase_plan_fn,
         )
         state = orch.read_progress("research", memory_dir)
 
@@ -1243,3 +1289,547 @@ async def test_default_phase_research_records_all_personas_failed_verbatim_witho
     assert "codebase-recon" in stderr
     assert "architect" in stderr
     assert "data-flow-tracer" in stderr
+
+
+# ---------------------------------------------------------------------------
+# Step 1.2 — _default_phase_plan() two-stage dispatch (core trio, then critics)
+# ---------------------------------------------------------------------------
+
+
+def _capturing_dispatch_personas_recorder(calls):
+    """Return a dispatch_personas fake that appends each call's args (as a
+    dict) to `calls`, in call order, and returns a canned all-success result
+    per persona. Shared helper for the _default_phase_plan tests below,
+    mirroring _capturing_dispatch_personas_stub's single-call variant above
+    but supporting the two-call (core trio, then critics) sequence."""
+
+    async def fake_dispatch_personas(personas, plan, skip_llm=False):
+        calls.append({"personas": personas, "plan": plan, "skip_llm": skip_llm})
+        return [{"persona": p, "status": "success"} for p in personas]
+
+    return fake_dispatch_personas
+
+
+@pytest.mark.asyncio
+async def test_default_phase_plan_dispatches_core_trio_first_then_critics():
+    """_default_phase_plan must call dispatch_personas exactly twice: first
+    with PLAN_CORE_PERSONAS, then with DEFAULT_PERSONAS (the five
+    plan-review-* critics) — in that order."""
+    calls = []
+    task = {"size": "standard"}
+
+    with patch.object(
+        orch, "dispatch_personas", side_effect=_capturing_dispatch_personas_recorder(calls)
+    ):
+        await orch._default_phase_plan(
+            "add a login form", task, research_state={"personas": []}, skip_llm=True
+        )
+
+    assert len(calls) == 2
+    assert calls[0]["personas"] == list(orch.PLAN_CORE_PERSONAS)
+    assert calls[1]["personas"] == orch.DEFAULT_PERSONAS
+
+
+@pytest.mark.asyncio
+async def test_default_phase_plan_core_trio_payload_has_task_request_and_research():
+    """The first (core trio) dispatch_personas call's plan payload must be
+    {"task": task, "request": request, "research": research_state}."""
+    calls = []
+    task = {"size": "standard"}
+    research_state = {"personas": ["codebase-recon"], "results": [], "skip_llm": True}
+
+    with patch.object(
+        orch, "dispatch_personas", side_effect=_capturing_dispatch_personas_recorder(calls)
+    ):
+        await orch._default_phase_plan(
+            "add a login form", task, research_state=research_state, skip_llm=True
+        )
+
+    assert calls[0]["plan"] == {
+        "task": task,
+        "request": "add a login form",
+        "research": research_state,
+    }
+    assert calls[0]["skip_llm"] is True
+
+
+@pytest.mark.asyncio
+async def test_default_phase_plan_critics_payload_has_task_request_and_plan_draft():
+    """The second (critics) dispatch_personas call's plan payload must be
+    {"task": task, "request": request, "plan_draft": core_results} — where
+    core_results is exactly the first call's returned results."""
+    calls = []
+    task = {"size": "standard"}
+
+    with patch.object(
+        orch, "dispatch_personas", side_effect=_capturing_dispatch_personas_recorder(calls)
+    ):
+        await orch._default_phase_plan(
+            "add a login form", task, research_state={}, skip_llm=True
+        )
+
+    expected_core_results = [
+        {"persona": p, "status": "success"} for p in orch.PLAN_CORE_PERSONAS
+    ]
+    assert calls[1]["plan"] == {
+        "task": task,
+        "request": "add a login form",
+        "plan_draft": expected_core_results,
+    }
+    assert calls[1]["skip_llm"] is True
+
+
+def test_all_personas_failed_is_false_on_empty_list():
+    """The emptiness check is load-bearing per the function's own docstring:
+    a bare all(...) over an empty list is vacuously True, which would wrongly
+    report an empty core_results as \"all failed\" and skip critic dispatch."""
+    assert orch._all_personas_failed([]) is False
+    assert (
+        orch._all_personas_failed([{"persona": "architect", "status": "failed"}])
+        is True
+    )
+
+
+@pytest.mark.asyncio
+async def test_default_phase_plan_returns_expected_persisted_shape():
+    """_default_phase_plan's return value must have exactly the persisted
+    shape: core_personas, core_results, critic_personas, critic_results,
+    critics_skipped_reason, skip_llm."""
+    calls = []
+    task = {"size": "standard"}
+
+    with patch.object(
+        orch, "dispatch_personas", side_effect=_capturing_dispatch_personas_recorder(calls)
+    ):
+        result = await orch._default_phase_plan(
+            "add a login form", task, research_state={}, skip_llm=True
+        )
+
+    assert set(result.keys()) == {
+        "core_personas",
+        "core_results",
+        "critic_personas",
+        "critic_results",
+        "critics_skipped_reason",
+        "skip_llm",
+    }
+    assert result["core_personas"] == list(orch.PLAN_CORE_PERSONAS)
+    assert result["critic_personas"] == orch.DEFAULT_PERSONAS
+    assert result["critic_personas"] is not orch.DEFAULT_PERSONAS
+    assert result["critics_skipped_reason"] is None
+    assert result["skip_llm"] is True
+    assert all(r["status"] == "success" for r in result["core_results"])
+    assert all(r["status"] == "success" for r in result["critic_results"])
+
+
+@pytest.mark.asyncio
+async def test_default_phase_plan_partial_core_failure_still_dispatches_critics():
+    """A partially-failed core trio (one of three failed) must still
+    dispatch critics normally against whatever draft the surviving personas
+    produced, with critics_skipped_reason left None."""
+
+    async def fake_dispatch_personas(personas, plan, skip_llm=False):
+        if personas == list(orch.PLAN_CORE_PERSONAS):
+            return [
+                {"persona": "product-manager", "status": "success"},
+                {"persona": "architect", "status": "failed", "error": "llm_unavailable"},
+                {"persona": "qa-engineer", "status": "success"},
+            ]
+        return [{"persona": p, "status": "success"} for p in personas]
+
+    with patch.object(orch, "dispatch_personas", side_effect=fake_dispatch_personas):
+        result = await orch._default_phase_plan(
+            "add a login form", {"size": "standard"}, research_state={}, skip_llm=True
+        )
+
+    assert result["critics_skipped_reason"] is None
+    assert len(result["critic_results"]) == len(orch.DEFAULT_PERSONAS)
+    assert all(r["status"] == "success" for r in result["critic_results"])
+    assert any(
+        r["persona"] == "architect" and r["status"] == "failed"
+        for r in result["core_results"]
+    )
+
+
+@pytest.mark.asyncio
+async def test_default_phase_plan_all_core_failed_skips_critic_dispatch(capsys):
+    """A wholly-failed core trio must skip critic dispatch entirely:
+    dispatch_personas is called exactly once (for the core trio only),
+    critic_results is an empty list, critics_skipped_reason is
+    CRITICS_SKIPPED_ALL_CORE_FAILED, and the merged stderr WARNING still
+    fires naming all three failed core personas even though critic_results
+    is empty (guards against a mutant that breaks the
+    `core_results + critic_results` concatenation only when critic_results
+    is empty), and the INFO line announcing the skip fires too."""
+    call_count = 0
+
+    async def fake_dispatch_personas(personas, plan, skip_llm=False):
+        nonlocal call_count
+        call_count += 1
+        return [
+            {"persona": p, "status": "failed", "error": "llm_unavailable"}
+            for p in personas
+        ]
+
+    with patch.object(orch, "dispatch_personas", side_effect=fake_dispatch_personas):
+        result = await orch._default_phase_plan(
+            "add a login form", {"size": "standard"}, research_state={}, skip_llm=True
+        )
+
+    assert call_count == 1
+    assert result["critic_results"] == []
+    assert result["critics_skipped_reason"] == orch.CRITICS_SKIPPED_ALL_CORE_FAILED
+    stderr = capsys.readouterr().err
+    assert "WARNING: Plan persona dispatch failed" in stderr
+    for persona in orch.PLAN_CORE_PERSONAS:
+        assert persona in stderr
+    assert "INFO: all Plan core personas failed — skipping critic dispatch" in stderr
+
+
+@pytest.mark.asyncio
+async def test_default_phase_plan_no_warning_when_every_persona_succeeds(capsys):
+    """No stderr WARNING is printed when every Plan-phase persona (both
+    groups) succeeds."""
+    with patch.object(
+        orch, "dispatch_personas", side_effect=_capturing_dispatch_personas_recorder([])
+    ):
+        await orch._default_phase_plan(
+            "add a login form", {"size": "standard"}, research_state={}, skip_llm=True
+        )
+
+    assert "WARNING: Plan persona dispatch failed" not in capsys.readouterr().err
+
+
+@pytest.mark.asyncio
+async def test_default_phase_plan_warns_on_failed_core_persona(capsys):
+    """A failed core-trio persona ("architect") is named in a single stderr
+    WARNING line."""
+
+    async def fake_dispatch_personas(personas, plan, skip_llm=False):
+        if personas == list(orch.PLAN_CORE_PERSONAS):
+            return [
+                {"persona": "product-manager", "status": "success"},
+                {"persona": "architect", "status": "failed", "error": "llm_unavailable"},
+                {"persona": "qa-engineer", "status": "success"},
+            ]
+        return [{"persona": p, "status": "success"} for p in personas]
+
+    with patch.object(orch, "dispatch_personas", side_effect=fake_dispatch_personas):
+        await orch._default_phase_plan(
+            "add a login form", {"size": "standard"}, research_state={}, skip_llm=True
+        )
+
+    stderr = capsys.readouterr().err
+    assert stderr.count("WARNING: Plan persona dispatch failed") == 1
+    assert "architect" in stderr
+
+
+@pytest.mark.asyncio
+async def test_default_phase_plan_warns_on_failed_critic_persona_only(capsys):
+    """A failed critic-only persona (core trio all succeeds) is named in a
+    single stderr WARNING line."""
+
+    async def fake_dispatch_personas(personas, plan, skip_llm=False):
+        if personas == orch.DEFAULT_PERSONAS:
+            return [
+                {"persona": p, "status": "failed" if p == "plan-review-ux" else "success"}
+                for p in personas
+            ]
+        return [{"persona": p, "status": "success"} for p in personas]
+
+    with patch.object(orch, "dispatch_personas", side_effect=fake_dispatch_personas):
+        await orch._default_phase_plan(
+            "add a login form", {"size": "standard"}, research_state={}, skip_llm=True
+        )
+
+    stderr = capsys.readouterr().err
+    assert stderr.count("WARNING: Plan persona dispatch failed") == 1
+    assert "plan-review-ux" in stderr
+
+
+@pytest.mark.asyncio
+async def test_default_phase_plan_warns_once_naming_both_a_core_and_a_critic_failure(capsys):
+    """A failed core persona ("architect") and a failed critic persona
+    ("plan-review-ux") are both named in the SAME single stderr WARNING
+    line — not one line per group."""
+
+    async def fake_dispatch_personas(personas, plan, skip_llm=False):
+        if personas == list(orch.PLAN_CORE_PERSONAS):
+            return [
+                {"persona": p, "status": "failed" if p == "architect" else "success"}
+                for p in personas
+            ]
+        return [
+            {"persona": p, "status": "failed" if p == "plan-review-ux" else "success"}
+            for p in personas
+        ]
+
+    with patch.object(orch, "dispatch_personas", side_effect=fake_dispatch_personas):
+        await orch._default_phase_plan(
+            "add a login form", {"size": "standard"}, research_state={}, skip_llm=True
+        )
+
+    stderr = capsys.readouterr().err
+    assert stderr.count("WARNING: Plan persona dispatch failed") == 1
+    assert "architect" in stderr
+    assert "plan-review-ux" in stderr
+
+
+@pytest.mark.asyncio
+async def test_default_phase_plan_forwards_skip_llm_false_to_both_dispatch_calls():
+    """skip_llm=False must be forwarded verbatim to both dispatch_personas
+    calls (core trio and critics) and recorded verbatim in the persisted
+    "skip_llm" key."""
+    calls = []
+
+    with patch.object(
+        orch, "dispatch_personas", side_effect=_capturing_dispatch_personas_recorder(calls)
+    ):
+        result = await orch._default_phase_plan(
+            "add a login form", {"size": "standard"}, research_state={}, skip_llm=False
+        )
+
+    assert len(calls) == 2
+    assert calls[0]["skip_llm"] is False
+    assert calls[1]["skip_llm"] is False
+    assert result["skip_llm"] is False
+
+
+# ---------------------------------------------------------------------------
+# Step 1.2 — run_pipeline wiring: phase_plan_fn / orchestrator-plan.json
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_run_pipeline_writes_plan_state_for_standard_task():
+    """A standard-classified task must write orchestrator-plan.json with the
+    exact ordered core_personas and critic_personas lists, one success
+    result per persona, and critics_skipped_reason None."""
+    with tempfile.TemporaryDirectory() as tmp:
+        memory_dir = Path(tmp)
+        exit_code = await orch.run_pipeline(
+            request="add a login form",
+            memory_dir=memory_dir,
+            skip_llm=True,
+            classify_fn=lambda req: {"size": "standard"},
+        )
+        state = orch.read_progress("plan", memory_dir)
+
+    assert exit_code == 0
+    assert state["core_personas"] == list(orch.PLAN_CORE_PERSONAS)
+    assert state["critic_personas"] == orch.DEFAULT_PERSONAS
+    assert len(state["core_results"]) == len(orch.PLAN_CORE_PERSONAS)
+    assert len(state["critic_results"]) == len(orch.DEFAULT_PERSONAS)
+    assert all(r["status"] == "success" for r in state["core_results"])
+    assert all(r["status"] == "success" for r in state["critic_results"])
+    assert state["critics_skipped_reason"] is None
+
+
+@pytest.mark.asyncio
+async def test_run_pipeline_writes_plan_state_for_complex_task():
+    """A complex-classified task dispatches the identical Plan-phase
+    personas — the only branch point in run_pipeline is the trivial fast
+    path."""
+    with tempfile.TemporaryDirectory() as tmp:
+        memory_dir = Path(tmp)
+        exit_code = await orch.run_pipeline(
+            request="redesign the payment pipeline",
+            memory_dir=memory_dir,
+            skip_llm=True,
+            classify_fn=lambda req: {"size": "complex"},
+        )
+        state = orch.read_progress("plan", memory_dir)
+
+    assert exit_code == 0
+    assert state["core_personas"] == list(orch.PLAN_CORE_PERSONAS)
+    assert state["critic_personas"] == orch.DEFAULT_PERSONAS
+
+
+@pytest.mark.asyncio
+async def test_run_pipeline_trivial_task_never_writes_plan_state():
+    """A trivial-classified task must never write orchestrator-plan.json."""
+    with tempfile.TemporaryDirectory() as tmp:
+        memory_dir = Path(tmp)
+        exit_code = await orch.run_pipeline(
+            request="fix a typo",
+            memory_dir=memory_dir,
+            skip_llm=True,
+            classify_fn=lambda req: {"size": "trivial"},
+        )
+        state = orch.read_progress("plan", memory_dir)
+
+    assert exit_code == 0
+    assert state is None
+
+
+# ---------------------------------------------------------------------------
+# Step 1.2 — --resume: full resume (Plan state exists) and partial resume
+# (Research done, Plan pending)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_resume_with_existing_plan_state_skips_plan_dispatch_entirely():
+    """--resume with an existing orchestrator-plan.json (and an existing
+    orchestrator-research.json) must skip Plan-phase dispatch entirely:
+    dispatch_personas is not called at all, and orchestrator-plan.json is
+    byte-identical to its pre-run contents. Asserted via call-count, not
+    just content equality — deterministic skip_llm=True stub output means a
+    broken resume guard that redundantly re-dispatches would still produce
+    byte-identical content."""
+    with tempfile.TemporaryDirectory() as tmp:
+        memory_dir = Path(tmp)
+        orch.write_progress(
+            "research", {"personas": [], "results": [], "skip_llm": True}, memory_dir
+        )
+        prior_plan_state = {
+            "core_personas": list(orch.PLAN_CORE_PERSONAS),
+            "core_results": [],
+            "critic_personas": orch.DEFAULT_PERSONAS,
+            "critic_results": [],
+            "critics_skipped_reason": None,
+            "skip_llm": True,
+        }
+        orch.write_progress("plan", prior_plan_state, memory_dir)
+        pre_run_contents = orch.phase_state_path("plan", memory_dir).read_text()
+
+        with patch.object(orch, "dispatch_personas") as mock_dispatch:
+            exit_code = await orch.run_pipeline(
+                request="add a login form",
+                memory_dir=memory_dir,
+                skip_llm=True,
+                resume=True,
+                classify_fn=lambda req: {"size": "standard"},
+            )
+
+        post_run_contents = orch.phase_state_path("plan", memory_dir).read_text()
+
+    assert exit_code == 0
+    mock_dispatch.assert_not_called()
+    assert post_run_contents == pre_run_contents
+
+
+@pytest.mark.asyncio
+async def test_resume_with_research_done_dispatches_plan_using_resumed_research_state():
+    """--resume with an existing orchestrator-research.json but no
+    orchestrator-plan.json yet must dispatch Plan-phase fresh, using the
+    disk-read Research state — not a freshly re-dispatched one — as the
+    core trio's "research" payload value. dispatch_personas must not have
+    been called with RESEARCH_PERSONAS during this run (Research itself
+    stays skipped; only Plan dispatches)."""
+    calls = []
+    prior_research_state = {
+        "personas": ["codebase-recon", "architect", "data-flow-tracer"],
+        "results": [{"persona": "codebase-recon", "status": "success"}],
+        "skip_llm": True,
+    }
+
+    with tempfile.TemporaryDirectory() as tmp:
+        memory_dir = Path(tmp)
+        orch.write_progress("research", prior_research_state, memory_dir)
+
+        with patch.object(
+            orch,
+            "dispatch_personas",
+            side_effect=_capturing_dispatch_personas_recorder(calls),
+        ):
+            exit_code = await orch.run_pipeline(
+                request="add a login form",
+                memory_dir=memory_dir,
+                skip_llm=True,
+                resume=True,
+                classify_fn=lambda req: {"size": "standard"},
+            )
+
+        plan_state = orch.read_progress("plan", memory_dir)
+
+    assert exit_code == 0
+    assert not any(call["personas"] == list(orch.RESEARCH_PERSONAS) for call in calls)
+    assert len(calls) == 2, "Plan phase must dispatch (core trio + critics)"
+    assert calls[0]["plan"]["research"] == prior_research_state
+    assert plan_state is not None
+
+
+@pytest.mark.asyncio
+async def test_stub_phase_plan_fn_is_honored_end_to_end_through_run_pipeline():
+    """A stub phase_plan_fn returning a fixed sentinel result dict must have
+    that exact sentinel written to orchestrator-plan.json — mirroring the
+    existing stub_research-through-run_pipeline test pattern. skip_llm=True
+    is also passed so the Research phase (only phase_plan_fn is stubbed
+    here) never risks a live claude CLI call in this test."""
+    sentinel = {"sentinel": "plan-result", "core_results": [], "critic_results": []}
+
+    async def stub_plan(request, task, research_state, skip_llm):
+        return sentinel
+
+    with tempfile.TemporaryDirectory() as tmp:
+        memory_dir = Path(tmp)
+        exit_code = await orch.run_pipeline(
+            request="add a login form",
+            memory_dir=memory_dir,
+            skip_llm=True,
+            classify_fn=lambda req: {"size": "standard"},
+            phase_plan_fn=stub_plan,
+        )
+        state = orch.read_progress("plan", memory_dir)
+
+    assert exit_code == 0
+    assert state == sentinel
+
+
+# ---------------------------------------------------------------------------
+# Step 1.2 — --dispatch-personas debug branch: plan payload now includes request
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_dispatch_personas_flag_plan_payload_includes_task_and_request():
+    """The --dispatch-personas CLI debug branch's plan payload must have
+    both a "task" key and a "request" key (closes follow-up #1716's note),
+    matching the convention established by the Plan phase's own real
+    dispatch calls."""
+    calls = []
+
+    with (
+        patch.object(
+            orch, "dispatch_personas", side_effect=_capturing_dispatch_personas_recorder(calls)
+        ),
+        tempfile.TemporaryDirectory() as tmp,
+    ):
+        memory_dir = Path(tmp)
+        exit_code = await orch.run_pipeline(
+            request="add a login form",
+            memory_dir=memory_dir,
+            skip_llm=True,
+            classify_fn=lambda req: {"size": "standard"},
+            dispatch_personas_flag=True,
+        )
+
+    assert exit_code == 0
+    assert len(calls) == 1
+    assert calls[0]["plan"]["task"] == {"size": "standard"}
+    assert calls[0]["plan"]["request"] == "add a login form"
+
+
+@pytest.mark.asyncio
+async def test_skip_llm_true_plan_results_have_no_output_or_review_status_field():
+    """--skip-llm short-circuits Plan dispatch with no live CLI output: each
+    entry in both core_results and critic_results has status "success" with
+    no "output" or "review_status" field, and orchestrator-plan.json's
+    "skip_llm" key is exactly True."""
+    with tempfile.TemporaryDirectory() as tmp:
+        memory_dir = Path(tmp)
+        exit_code = await orch.run_pipeline(
+            request="add a login form",
+            memory_dir=memory_dir,
+            skip_llm=True,
+            classify_fn=lambda req: {"size": "standard"},
+        )
+        state = orch.read_progress("plan", memory_dir)
+
+    assert exit_code == 0
+    for r in state["core_results"] + state["critic_results"]:
+        assert r["status"] == "success"
+        assert "output" not in r
+        assert "review_status" not in r
+    assert state["skip_llm"] is True
