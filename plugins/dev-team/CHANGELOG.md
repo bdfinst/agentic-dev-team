@@ -1,5 +1,12 @@
 # Changelog
 
+## [12.1.0](https://github.com/bdfinst/agentic-dev-team/compare/dev-team-v12.0.0...dev-team-v12.1.0) (2026-08-02)
+
+
+### Features
+
+* batch of 11 issue fixes across autoship, review gates, and content guards ([#1704](https://github.com/bdfinst/agentic-dev-team/issues/1704)) ([b9a4d86](https://github.com/bdfinst/agentic-dev-team/commit/b9a4d86f271e8f90c0fb804f9283aff6195b16ce))
+
 ## [12.0.0](https://github.com/bdfinst/agentic-dev-team/compare/dev-team-v11.3.1...dev-team-v12.0.0) (2026-08-01)
 
 
