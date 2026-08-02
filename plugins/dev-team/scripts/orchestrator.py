@@ -8,7 +8,7 @@ CLI: python3 ${CLAUDE_PLUGIN_ROOT}/scripts/orchestrator.py [--resume] [--skip-ll
 Flags:
   --resume            Skip phases whose state files already exist in memory-dir.
   --skip-llm          Use stubs for classify() and all LLM dispatch.
-  --memory-dir <path> Where to read/write phase state (default: memory/ relative to CWD).
+  --memory-dir <path> Where to read/write phase state (default: .claude/memory/ relative to CWD).
   --classify <size>   Override classification (trivial|standard|complex). For testing only.
   --fail-wave         Simulate a wave barrier failure (for testing).
   --dispatch-personas Dispatch plan-review personas (for testing).
@@ -49,6 +49,56 @@ CODE_REVIEW_PANEL = ["doc-review", "arch-review", "token-efficiency-review"]
 # and should be parsed rather than stored as freeform prose.
 JSON_CONTRACT_PERSONAS = DEFAULT_PERSONAS + CODE_REVIEW_PANEL
 
+# Keyword heuristic for the Research phase's security-engineer dispatch
+# decision. This tuple is the one normative source in CODE for the keyword
+# list — _touches_security() consumes it, it is not duplicated in any other
+# .py module. agents/orchestrator.md's Security Engineer dispatch section
+# restates the same seven keywords in prose for its own (agent-facing,
+# standalone) audience; that restatement is not mechanically bound to this
+# tuple today — keep the two in sync by hand until a content-guard test
+# exists (see follow-up #1716).
+SECURITY_KEYWORDS = (
+    "auth",
+    "secret",
+    "crypto",
+    "password",
+    "token",
+    "credential",
+    "encrypt",
+)
+
+# Research-phase always-on persona roster (see agents/orchestrator.md §
+# Phase 1: Research). Named module constant, matching the DEFAULT_PERSONAS/
+# CODE_REVIEW_PANEL pattern above, so it has one definition instead of being
+# re-typed at each call/test site. A tuple (like SECURITY_KEYWORDS), not a
+# list: this is a fixed roster, so `list(RESEARCH_PERSONAS)` at its one call
+# site is a genuine type conversion into a mutable working copy, not a
+# defensive copy guarding against accidental in-place mutation of the
+# constant itself.
+RESEARCH_PERSONAS = ("codebase-recon", "architect", "data-flow-tracer")
+
+# The conditionally-dispatched fourth Research persona (see _touches_security
+# below). Named for the same reason RESEARCH_PERSONAS is: avoid re-typing the
+# literal at each call/test site.
+SECURITY_ENGINEER_PERSONA = "security-engineer"
+
+# Timeouts (seconds) for the two `claude -p` subprocess dispatch sites below.
+# Unverified placeholders, not measured against a real dispatch — see
+# follow-up #1716.
+CLASSIFY_TIMEOUT_S = 30
+PERSONA_DISPATCH_TIMEOUT_S = 60
+
+
+def _touches_security(request: str) -> bool:
+    """Return True if request case-insensitively contains a security keyword.
+
+    Heuristic, not a precise classifier: substring matching means false
+    positives are expected and accepted (e.g. "cryptocurrency" matches via
+    "crypto") per the plan's Risks section.
+    """
+    lowered = request.lower()
+    return any(keyword in lowered for keyword in SECURITY_KEYWORDS)
+
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -86,8 +136,6 @@ async def classify(request: str, skip_llm: bool = False) -> dict:
     try:
         # Offload the blocking call to a thread so an awaiting/gathered caller
         # keeps a free event loop instead of serializing on subprocess.run (#1213).
-        # run_in_executor, not asyncio.to_thread (3.9+) — this module ships under
-        # the plugin and must run on the floor (ADR 0014).
         loop = asyncio.get_running_loop()
         result = await loop.run_in_executor(
             None,
@@ -103,7 +151,7 @@ async def classify(request: str, skip_llm: bool = False) -> dict:
                 ],
                 capture_output=True,
                 text=True,
-                timeout=30,
+                timeout=CLASSIFY_TIMEOUT_S,
             ),
         )
         if result.returncode == 0 and result.stdout.strip():
@@ -120,13 +168,43 @@ async def classify(request: str, skip_llm: bool = False) -> dict:
 
 
 # ---------------------------------------------------------------------------
-# Phase stubs
+# Research phase
 # ---------------------------------------------------------------------------
 
 
-async def _default_phase_research(task: dict, skip_llm: bool) -> dict:
-    """Default research phase stub (returns minimal result)."""
-    return {"result": "research_done", "files": [], "skip_llm": skip_llm}
+async def _default_phase_research(request: str, task: dict, skip_llm: bool) -> dict:
+    """Dispatch the Research-phase personas and aggregate their results.
+
+    Always dispatches RESEARCH_PERSONAS (codebase-recon, architect,
+    data-flow-tracer); additionally dispatches security-engineer when the
+    request text touches auth/secrets/crypto per _touches_security(). A
+    status: "failed" entry among the dispatched results is recorded
+    verbatim — reconcile()/WaveError are scoped to the Implement phase's
+    wave loop, not Research.
+    """
+    # RESEARCH_PERSONAS is an immutable tuple; list() converts it into the
+    # mutable working copy the conditional security-engineer append below
+    # needs (see the constant's own definition for why it's a tuple).
+    personas = list(RESEARCH_PERSONAS)
+    if _touches_security(request):
+        personas.append(SECURITY_ENGINEER_PERSONA)
+    # "task" here is the classify() output dict (e.g. {"size": "standard"}),
+    # not the request text — kept as a distinct key from "request" so a
+    # later Plan-phase slice reading this precedent doesn't conflate them.
+    results = await dispatch_personas(
+        personas, plan={"task": task, "request": request}, skip_llm=skip_llm
+    )
+    failed_personas = [r["persona"] for r in results if r.get("status") == "failed"]
+    if failed_personas:
+        # Research records failures verbatim and never raises (see docstring
+        # above) — but a run where any persona failed must not look
+        # identical, on the console, to one that succeeded fully. Mirrors
+        # classify()'s own degraded-but-non-fatal WARNING.
+        print(
+            f"WARNING: Research persona dispatch failed (recorded, non-fatal): {', '.join(failed_personas)}",
+            file=sys.stderr,
+        )
+    return {"personas": personas, "results": results, "skip_llm": skip_llm}
 
 
 # ---------------------------------------------------------------------------
@@ -143,6 +221,23 @@ class WaveError(Exception):
         super().__init__(f"Wave barrier failed on slice '{failing_slice}'")
 
 
+def _failed_result(persona: str, error: str) -> dict:
+    """Return the canonical dispatch-failure stub shared by every failure site.
+
+    One normative shape for {persona, status: "failed", error} so a future
+    change to the shape (e.g. adding a distinguishing field) touches one
+    definition instead of the four call sites that used to hand-construct it
+    independently. `error` is required, not defaulted, so a new call site
+    must name its cause rather than silently inheriting one that doesn't
+    describe it — the four callers today: a malformed dispatch envelope
+    ("malformed_envelope"), a non-serializable plan payload
+    ("unserializable_plan"), a subprocess/CLI failure ("llm_unavailable"),
+    and an unexpected throwable surfaced by asyncio.gather
+    ("dispatch_exception").
+    """
+    return {"persona": persona, "status": "failed", "error": error}
+
+
 def _parse_dispatch_envelope(stdout: str, persona: str) -> dict:
     """Parse a `claude -p --output-format json` envelope into a dispatch result.
 
@@ -156,8 +251,9 @@ def _parse_dispatch_envelope(stdout: str, persona: str) -> dict:
     persona, `result` is always stored verbatim under `output`. A malformed
     or non-object payload — the top-level envelope itself, or (for a
     JSON_CONTRACT_PERSONAS member) the inner `result` — degrades gracefully
-    rather than raising: a bad envelope maps to the generalized failure stub
-    with no `verdict` key, and a bad inner `result` maps to `output` plus a
+    rather than raising: a bad envelope maps to a `"malformed_envelope"`
+    failure stub (see `_failed_result`) with no `verdict` key, and a bad
+    inner `result` maps to `output` plus a
     `parse_error: True` marker while the already-derived status is left
     untouched.
     """
@@ -166,7 +262,7 @@ def _parse_dispatch_envelope(stdout: str, persona: str) -> dict:
         if not isinstance(envelope, dict):
             raise TypeError("envelope is not a JSON object")
     except (json.JSONDecodeError, TypeError, ValueError):
-        return {"persona": persona, "status": "failed", "error": "llm_unavailable"}
+        return _failed_result(persona, error="malformed_envelope")
 
     data = {
         "persona": persona,
@@ -209,11 +305,20 @@ async def dispatch_persona(persona: str, plan: dict, skip_llm: bool = False) -> 
     print(f"INFO: dispatching persona {persona}", file=sys.stderr)
     if skip_llm:
         return {"persona": persona, "status": "success"}
-    task_prompt = json.dumps(plan)
+    try:
+        # A non-serializable plan value degrades to a failure stub, scoped
+        # to this one call, instead of raising out of this coroutine and
+        # breaking the asyncio.gather() fan-out in dispatch_personas() for
+        # every sibling persona in the same wave. Kept as its own try/except
+        # (distinct from the subprocess dispatch below) so a TypeError/
+        # ValueError from a genuine bug in the dispatch machinery itself is
+        # never mislabeled as this same, narrower serialization failure.
+        task_prompt = json.dumps(plan)
+    except (TypeError, ValueError):
+        return _failed_result(persona, error="unserializable_plan")
     try:
         # Offload to a thread so asyncio.gather over multiple personas actually
         # overlaps instead of blocking the event loop on subprocess.run (#1213).
-        # run_in_executor, not asyncio.to_thread (3.9+) — see classify() above.
         loop = asyncio.get_running_loop()
         result = await loop.run_in_executor(
             None,
@@ -230,19 +335,41 @@ async def dispatch_persona(persona: str, plan: dict, skip_llm: bool = False) -> 
                 ],
                 capture_output=True,
                 text=True,
-                timeout=60,
+                timeout=PERSONA_DISPATCH_TIMEOUT_S,
             ),
         )
     except (FileNotFoundError, subprocess.TimeoutExpired, OSError):
-        return {"persona": persona, "status": "failed", "error": "llm_unavailable"}
+        return _failed_result(persona, error="llm_unavailable")
 
     return _parse_dispatch_envelope(result.stdout, persona)
 
 
 async def dispatch_personas(personas: list, plan: dict, skip_llm: bool = False) -> list:
-    """Dispatch all personas concurrently and return their results."""
+    """Dispatch all personas concurrently and return their results.
+
+    return_exceptions=True keeps one persona's unexpected exception (any
+    throwable dispatch_persona's own try/except doesn't already convert to a
+    failure stub) from cancelling its siblings' in-flight dispatches —
+    Research's contract is to aggregate and persist every persona's outcome,
+    never to let one bad result silently discard the rest. Matched here on
+    BaseException, not Exception: asyncio.CancelledError has subclassed
+    BaseException directly (not Exception) since Python 3.8, and a cancelled
+    child task's result is exactly what return_exceptions=True aggregates
+    here rather than propagates — an Exception-only guard would let it
+    through un-normalized and fail JSON serialization downstream.
+    """
     tasks = [dispatch_persona(p, plan, skip_llm) for p in personas]
-    return list(await asyncio.gather(*tasks))
+    results = await asyncio.gather(*tasks, return_exceptions=True)
+    return [
+        # Distinct from "llm_unavailable" (a CLI/subprocess-level failure,
+        # already handled inside dispatch_persona's own try/except): this
+        # branch means something threw out of the coroutine itself — a
+        # cancellation or an unforeseen bug — which is not evidence the LLM
+        # was unreachable, and the persisted research state must keep the
+        # two distinguishable.
+        _failed_result(p, error="dispatch_exception") if isinstance(r, BaseException) else r
+        for p, r in zip(personas, results)
+    ]
 
 
 async def reconcile(results: list, wave_slices: list) -> None:
@@ -316,7 +443,7 @@ async def run_pipeline(
     # Phase 1: Research
     research_state = read_progress("research", memory_dir) if resume else None
     if research_state is None:
-        research_state = await phase_research_fn(task, skip_llm)
+        research_state = await phase_research_fn(request, task, skip_llm)
         write_progress("research", research_state, memory_dir)
 
     return 0
@@ -325,6 +452,18 @@ async def run_pipeline(
 # ---------------------------------------------------------------------------
 # Entry point
 # ---------------------------------------------------------------------------
+
+
+def _resolve_request_from_stdin() -> str:
+    """Return the piped stdin request, or "default request" as fallback.
+
+    Tests stdin CONTENT, not just whether it's a tty: a piped-but-empty
+    stdin (e.g. `< /dev/null` in a hook/CI invocation) must still resolve
+    to "default request" — an empty request now drives live persona
+    dispatch (the Research phase), not just classify().
+    """
+    piped_text = sys.stdin.read().strip() if not sys.stdin.isatty() else ""
+    return piped_text or "default request"
 
 
 def main(argv=None) -> int:
@@ -341,9 +480,9 @@ def main(argv=None) -> int:
     )
     ap.add_argument(
         "--memory-dir",
-        default="memory",
+        default=".claude/memory",
         metavar="PATH",
-        help="Where to read/write phase state (default: memory/)",
+        help="Where to read/write phase state (default: .claude/memory/)",
     )
     ap.add_argument(
         "--classify",
@@ -364,7 +503,7 @@ def main(argv=None) -> int:
     )
     args = ap.parse_args(argv)
 
-    request = sys.stdin.read().strip() if not sys.stdin.isatty() else "default request"
+    request = _resolve_request_from_stdin()
     memory_dir = Path(args.memory_dir)
 
     # Build classify_fn: use CLI override if provided

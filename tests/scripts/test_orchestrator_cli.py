@@ -21,14 +21,22 @@ ORCH = REPO_ROOT / "plugins" / "dev-team" / "scripts" / "orchestrator.py"
 
 
 def _run(
-    memory_dir: Path, *args: str, stdin_text: str = "a task"
+    memory_dir: Path,
+    *args: str,
+    stdin_text: str = "a task",
+    include_memory_dir: bool = True,
+    cwd: Path | None = None,
 ) -> subprocess.CompletedProcess:
+    argv = [sys.executable, str(ORCH), *args]
+    if include_memory_dir:
+        argv += ["--memory-dir", str(memory_dir)]
     return subprocess.run(
-        [sys.executable, str(ORCH), *args, "--memory-dir", str(memory_dir)],
+        argv,
         input=stdin_text,
         capture_output=True,
         text=True,
         check=False,
+        cwd=cwd,
     )
 
 
@@ -86,6 +94,18 @@ def test_6_2b_resume_with_prior_research_state_skips_research_and_exits_0(
     )
     result = _run(tmp_path, "--resume", "--skip-llm", stdin_text="a task")
     assert result.returncode == 0
+
+
+def test_6_2c_default_memory_dir_lands_under_dot_claude_memory(tmp_path: Path) -> None:
+    """With no --memory-dir override, phase state must land under
+    .claude/memory/ relative to CWD — matching agents/orchestrator.md's
+    documented convention — not a bare memory/ directory."""
+    result = _run(
+        tmp_path, "--skip-llm", include_memory_dir=False, cwd=tmp_path
+    )
+    assert result.returncode == 0
+    assert (tmp_path / ".claude" / "memory" / "orchestrator-research.json").exists()
+    assert not (tmp_path / "memory").exists()
 
 
 # ---------------------------------------------------------------------------
