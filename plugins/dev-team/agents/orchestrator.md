@@ -263,26 +263,67 @@ Every non-trivial task follows three explicit phases. Each phase runs in minimal
 ### Phase 1: Research
 
 - **Goal**: Understand how the system works, identify all relevant files, locate the problem or feature surface area
-- **Agents**: Orchestrator + sub-agents for exploration (context isolation — sub-agents search, read, and return concise findings so the parent context stays clean)
+- **Agents**: `codebase-recon`, `architect`, `data-flow-tracer` (always dispatched — see Codebase Recon dispatch and Research persona roster below), `security-engineer` (conditional — see Security Engineer dispatch), plus the Orchestrator itself and further sub-agents for exploration as needed (context isolation — sub-agents search, read, and return concise findings so the parent context stays clean)
 - **Output**: A research progress file with file paths, line numbers, data flows, and key findings
 - **Design doc**: For non-trivial features (see Design Doc skill for criteria), produce a design document at `docs/specs/{feature-name}.md` with problem statement, proposed approach, alternatives, key decisions, and scope boundaries. The human approves the design doc as part of the research gate.
 - **Human gate**: Human reviews the research findings and design doc before planning begins. Catching a misunderstanding here prevents hundreds of bad lines of code downstream.
 - **Context**: Compact after this phase — write progress file, start fresh context for Phase 2
 
+**Implementation status.** `orchestrator.py`'s `run_pipeline` dispatches the
+Research persona roster below and writes the progress file, then returns —
+it does not yet emit a design doc and there is no in-script human gate
+between phases. Both remain the operator's own responsibility today (the
+interactive session reviews the written research state before continuing to
+Phase 2 by hand); tracked against spec #1707 for a future slice.
+
+#### Research persona roster (`orchestrator.py`'s `RESEARCH_PERSONAS`)
+
+`orchestrator.py`'s `_default_phase_research` — the `Enforcement: script`
+deterministic implementation of this phase — always dispatches
+`codebase-recon`, `architect`, and `data-flow-tracer` for every
+`standard`/`complex`-classified task routed to the full three-phase pipeline
+(`run_pipeline`'s only classification-driven branch point is the `trivial`
+fast-path — the `--resume`, `--fail-wave`, and `--dispatch-personas` flags
+each short-circuit earlier for their own test/debug purposes, but none is
+reachable from a normal classified run; the single-module `standard`
+fast-path leg of §Task Size Gate above is not yet implemented by the
+script, a known gap tracked against spec #1707);
+`security-engineer` is additional and conditional (below). This is the
+current, authoritative roster (spec issue #1707's Architecture
+Specification); `architect` and `data-flow-tracer` were not previously
+listed under Phase 1 because Research dispatch was a stub before that
+spec's slices landed.
+
 #### Codebase Recon dispatch
 
-At the start of Research, check whether a RECON artifact already exists for this project at `.claude/memory/recon-<slug>.md` (where `<slug>` is the repo basename). If no artifact exists, or if the existing one is more than 24 hours old, dispatch `codebase-recon` as a sub-agent before any other exploration. It returns entry points, dependency graph, security surface, and git history in a structured artifact that onboards the Architect and Security Engineer without those agents needing to re-read the codebase themselves. Skip the dispatch (silently) when a fresh artifact is present.
+`codebase-recon` dispatches unconditionally at the start of Research for
+every `standard`/`complex`-classified task — it is not gated on RECON
+artifact freshness. It returns entry points, dependency graph, security
+surface, and git history in a structured artifact
+(`.claude/memory/recon-<slug>.json` / `.claude/memory/recon-<slug>.md`, where `<slug>` is the repo
+basename) intended to onboard the Architect and Security Engineer without
+those agents needing to re-read the codebase themselves. That hand-off is
+not yet wired: `orchestrator.py` dispatches all Research personas
+concurrently in one `asyncio.gather` wave with no barrier, so `architect`,
+`data-flow-tracer`, and (when dispatched) `security-engineer` run alongside
+`codebase-recon` rather than after it, and none of them reads the recon
+artifact from disk today. Bridging that artifact path into the Research
+phase's own aggregated output — and sequencing consumers after it — is a
+known gap tracked against the Plan-phase slice of spec #1707, not yet
+implemented.
 
 #### Security Engineer dispatch
 
-Dispatch `security-engineer` during Research when **any** of these signals are present in the task description or plan:
-
-- The task touches authentication, authorization, cryptography, session management, or secrets handling
-- The task introduces a new external integration or API surface
-- `security-review` produced a `fail` verdict with high-severity findings in a recent `/code-review` run
-- The user explicitly requests threat modeling or a security review
-
-Do **not** dispatch `security-engineer` on every task — its `effort: high` cost is only justified on security-relevant work. When dispatched, it produces a threat model or security analysis that feeds into the design doc and the plan's acceptance criteria.
+`orchestrator.py` dispatches `security-engineer` during Research when the
+request text case-insensitively contains one of `SECURITY_KEYWORDS`: `auth`,
+`secret`, `crypto`, `password`, `token`, `credential`, `encrypt` — a
+substring heuristic, not a precise classifier (deliberate false positives
+and negatives are documented and tested; see `orchestrator.py`'s
+`_touches_security`). Its `effort: high` cost is only justified on
+security-relevant work, so this heuristic exists to keep the dispatch
+conditional rather than unconditional. When dispatched, it produces a threat
+model or security analysis that feeds into the design doc and the plan's
+acceptance criteria.
 
 ### Phase 2: Plan
 
