@@ -24,7 +24,7 @@ import pytest
 SCRIPTS_DIR = Path(__file__).resolve().parents[2] / "scripts"
 sys.path.insert(0, str(SCRIPTS_DIR))
 
-import run_refactor_experiment as exp  # noqa: E402
+import run_refactor_experiment as exp
 
 
 @pytest.mark.parametrize("arm", list(exp.ARMS))
