@@ -49,6 +49,31 @@ CODE_REVIEW_PANEL = ["doc-review", "arch-review", "token-efficiency-review"]
 # and should be parsed rather than stored as freeform prose.
 JSON_CONTRACT_PERSONAS = DEFAULT_PERSONAS + CODE_REVIEW_PANEL
 
+# Keyword heuristic for the Research phase's security-engineer dispatch
+# decision (spec #1707 AC #2). This tuple is the one normative source for
+# the keyword list — Step 1.2 consumes it via _touches_security(), it is
+# not duplicated anywhere else.
+SECURITY_KEYWORDS = (
+    "auth",
+    "secret",
+    "crypto",
+    "password",
+    "token",
+    "credential",
+    "encrypt",
+)
+
+
+def _touches_security(request: str) -> bool:
+    """Return True if request case-insensitively contains a security keyword.
+
+    Heuristic, not a precise classifier: substring matching means false
+    positives are expected and accepted (e.g. "cryptocurrency" matches via
+    "crypto") per the plan's Risks section.
+    """
+    lowered = request.lower()
+    return any(keyword in lowered for keyword in SECURITY_KEYWORDS)
+
 
 # ---------------------------------------------------------------------------
 # Helpers

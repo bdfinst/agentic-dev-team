@@ -68,6 +68,50 @@ def test_json_contract_personas_is_exactly_the_union():
 
 
 # ---------------------------------------------------------------------------
+# Step 1.1 — _touches_security() keyword heuristic
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "keyword",
+    [
+        "auth",
+        "secret",
+        "crypto",
+        "password",
+        "token",
+        "credential",
+        "encrypt",
+    ],
+)
+def test_touches_security_matches_each_keyword_individually(keyword):
+    """Each keyword in SECURITY_KEYWORDS must trigger a True result on its own."""
+    assert orch._touches_security(f"please rotate the {keyword} now") is True
+
+
+def test_touches_security_returns_false_when_no_keyword_present():
+    assert orch._touches_security("fix a typo in the README") is False
+
+
+def test_touches_security_is_case_insensitive():
+    """"AUTHENTICATE" must still match the lowercase "auth" keyword."""
+    assert orch._touches_security("AUTHENTICATE the user via OAuth") is True
+
+
+def test_touches_security_returns_false_for_empty_string():
+    assert orch._touches_security("") is False
+
+
+def test_touches_security_accepts_substring_false_positive_as_intentional():
+    """"cryptocurrency" contains the "crypto" substring, so this heuristic
+    returns True even though the request has nothing to do with security.
+    This is documented, accepted heuristic behavior (plan Risks section),
+    not a bug — Step 1.1 is a keyword/substring check, not a precise
+    classifier."""
+    assert orch._touches_security("track the cryptocurrency market") is True
+
+
+# ---------------------------------------------------------------------------
 # Step 6.1 — Task classification and fast-path branch
 # ---------------------------------------------------------------------------
 
