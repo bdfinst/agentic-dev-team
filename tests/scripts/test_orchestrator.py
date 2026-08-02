@@ -124,6 +124,24 @@ def test_plan_core_personas_is_exactly_the_three_always_on_trio():
     assert orch.PLAN_CORE_PERSONAS == ("product-manager", "architect", "qa-engineer")
 
 
+def test_implement_persona_is_exactly_software_engineer():
+    """SOFTWARE_ENGINEER_PERSONA must equal exactly "software-engineer", matching
+    SECURITY_ENGINEER_PERSONA's own exact-equality pinning pattern."""
+    assert orch.SOFTWARE_ENGINEER_PERSONA == "software-engineer"
+
+
+def test_tech_writer_persona_is_exactly_tech_writer():
+    """TECH_WRITER_PERSONA must equal exactly "tech-writer"."""
+    assert orch.TECH_WRITER_PERSONA == "tech-writer"
+
+
+def test_implement_wave_slices_is_exactly_the_single_synthetic_slice():
+    """IMPLEMENT_WAVE_SLICES must equal exactly ("implement-1",) — the one
+    normative definition of this persisted, operator-facing slice name,
+    matching the persona constants' own exact-equality pinning pattern."""
+    assert orch.IMPLEMENT_WAVE_SLICES == ("implement-1",)
+
+
 @pytest.mark.parametrize(
     "persona",
     [
@@ -132,6 +150,8 @@ def test_plan_core_personas_is_exactly_the_three_always_on_trio():
         *orch.DEFAULT_PERSONAS,
         *orch.CODE_REVIEW_PANEL,
         orch.SECURITY_ENGINEER_PERSONA,
+        orch.SOFTWARE_ENGINEER_PERSONA,
+        orch.TECH_WRITER_PERSONA,
     ],
 )
 def test_every_dispatchable_persona_resolves_to_a_real_agent(persona):
@@ -1145,17 +1165,21 @@ async def test_resume_skips_dispatch_and_leaves_file_unchanged_with_real_researc
     Research dispatch entirely and leaves the file unchanged, re-verified
     against the real (non-stub) research function.
 
-    Scoped to Research alone via a no-op phase_plan_fn stub: this test
-    pre-seeds only orchestrator-research.json (no orchestrator-plan.json),
-    which is also the realistic "Research done, Plan pending" partial-resume
-    shape — Plan-phase dispatch behavior for that shape has its own
-    dedicated coverage (test_resume_with_research_done_dispatches_plan_using_resumed_research_state
+    Scoped to Research alone via no-op phase_plan_fn/phase_implement_fn
+    stubs: this test pre-seeds only orchestrator-research.json (no
+    orchestrator-plan.json or orchestrator-implement.json), which is also
+    the realistic "Research done, Plan pending" partial-resume shape —
+    Plan-phase dispatch behavior for that shape has its own dedicated
+    coverage (test_resume_with_research_done_dispatches_plan_using_resumed_research_state
     below); this test's purpose stays narrowly "Research's own resume-skip
-    still works", so it must not depend on how Plan's real dispatch
-    handles a bare, non-list-returning mock_dispatch."""
+    still works", so it must not depend on how Plan's or Implement's real
+    dispatch handles a bare, non-list-returning mock_dispatch."""
 
     async def noop_phase_plan_fn(request, task, research_state, skip_llm):
         return {"stub": "plan"}
+
+    async def noop_phase_implement_fn(request, task, plan_state, skip_llm):
+        return {"stub": "implement"}
 
     with tempfile.TemporaryDirectory() as tmp:
         memory_dir = Path(tmp)
@@ -1175,6 +1199,7 @@ async def test_resume_skips_dispatch_and_leaves_file_unchanged_with_real_researc
                 resume=True,
                 classify_fn=lambda req: {"size": "standard"},
                 phase_plan_fn=noop_phase_plan_fn,
+                phase_implement_fn=noop_phase_implement_fn,
             )
 
         post_run_contents = orch.phase_state_path("research", memory_dir).read_text()
@@ -1197,11 +1222,13 @@ async def test_default_phase_research_records_one_failed_persona_verbatim_withou
     roster — a mutant that joined `personas` instead of `failed_personas`
     would still pass those two degenerate tests but fail this one.
 
-    Scoped to Research alone via a no-op phase_plan_fn stub: dispatch_personas
-    is patched globally (it must be, to fake Research's own dispatch), so
-    without a stub the same fake would also serve Plan's two dispatch calls
-    and merge a second, Plan-labeled WARNING into this test's stderr —
-    muddying what this test is actually asserting."""
+    Scoped to Research alone via no-op phase_plan_fn/phase_implement_fn
+    stubs: dispatch_personas is patched globally (it must be, to fake
+    Research's own dispatch), so without stubs the same fake would also
+    serve Plan's and Implement's dispatch calls — merging extra WARNINGs
+    into this test's stderr and (for Implement) breaking on the
+    slice-tagging/reconcile() machinery since fake_results carries no
+    "slice" key — muddying what this test is actually asserting."""
     fake_results = [
         {"persona": "codebase-recon", "status": "success"},
         {"persona": "architect", "status": "failed", "error": "llm_unavailable"},
@@ -1214,6 +1241,9 @@ async def test_default_phase_research_records_one_failed_persona_verbatim_withou
     async def noop_phase_plan_fn(request, task, research_state, skip_llm):
         return {"stub": "plan"}
 
+    async def noop_phase_implement_fn(request, task, plan_state, skip_llm):
+        return {"stub": "implement"}
+
     with (
         patch.object(orch, "dispatch_personas", side_effect=fake_dispatch_personas),
         tempfile.TemporaryDirectory() as tmp,
@@ -1225,6 +1255,7 @@ async def test_default_phase_research_records_one_failed_persona_verbatim_withou
             skip_llm=True,
             classify_fn=lambda req: {"size": "standard"},
             phase_plan_fn=noop_phase_plan_fn,
+            phase_implement_fn=noop_phase_implement_fn,
         )
         state = orch.read_progress("research", memory_dir)
 
@@ -1248,10 +1279,11 @@ async def test_default_phase_research_records_all_personas_failed_verbatim_witho
     run where every persona failed would look identical, on the console, to
     one that fully succeeded.
 
-    Scoped to Research alone via a no-op phase_plan_fn stub — see the
-    identical rationale on test_default_phase_research_records_one_failed_persona_verbatim_without_raising
-    above: without it, this same fake would also serve Plan's dispatch
-    calls and merge a second WARNING into this test's stderr."""
+    Scoped to Research alone via no-op phase_plan_fn/phase_implement_fn
+    stubs — see the identical rationale on
+    test_default_phase_research_records_one_failed_persona_verbatim_without_raising
+    above: without them, this same fake would also serve Plan's and
+    Implement's dispatch calls."""
     fake_results = [
         {"persona": "codebase-recon", "status": "failed", "error": "llm_unavailable"},
         {"persona": "architect", "status": "failed", "error": "llm_unavailable"},
@@ -1268,6 +1300,9 @@ async def test_default_phase_research_records_all_personas_failed_verbatim_witho
     async def noop_phase_plan_fn(request, task, research_state, skip_llm):
         return {"stub": "plan"}
 
+    async def noop_phase_implement_fn(request, task, plan_state, skip_llm):
+        return {"stub": "implement"}
+
     with (
         patch.object(orch, "dispatch_personas", side_effect=fake_dispatch_personas),
         tempfile.TemporaryDirectory() as tmp,
@@ -1279,6 +1314,7 @@ async def test_default_phase_research_records_all_personas_failed_verbatim_witho
             skip_llm=True,
             classify_fn=lambda req: {"size": "standard"},
             phase_plan_fn=noop_phase_plan_fn,
+            phase_implement_fn=noop_phase_implement_fn,
         )
         state = orch.read_progress("research", memory_dir)
 
@@ -1676,7 +1712,16 @@ async def test_resume_with_existing_plan_state_skips_plan_dispatch_entirely():
     byte-identical to its pre-run contents. Asserted via call-count, not
     just content equality — deterministic skip_llm=True stub output means a
     broken resume guard that redundantly re-dispatches would still produce
-    byte-identical content."""
+    byte-identical content.
+
+    Scoped to Plan alone via a no-op phase_implement_fn stub: no
+    orchestrator-implement.json is pre-seeded here, so without the stub the
+    real Implement phase would also call the unconfigured dispatch_personas
+    mock and break this test's assert_not_called()."""
+
+    async def noop_phase_implement_fn(request, task, plan_state, skip_llm):
+        return {"stub": "implement"}
+
     with tempfile.TemporaryDirectory() as tmp:
         memory_dir = Path(tmp)
         orch.write_progress(
@@ -1700,6 +1745,7 @@ async def test_resume_with_existing_plan_state_skips_plan_dispatch_entirely():
                 skip_llm=True,
                 resume=True,
                 classify_fn=lambda req: {"size": "standard"},
+                phase_implement_fn=noop_phase_implement_fn,
             )
 
         post_run_contents = orch.phase_state_path("plan", memory_dir).read_text()
@@ -1716,13 +1762,22 @@ async def test_resume_with_research_done_dispatches_plan_using_resumed_research_
     disk-read Research state — not a freshly re-dispatched one — as the
     core trio's "research" payload value. dispatch_personas must not have
     been called with RESEARCH_PERSONAS during this run (Research itself
-    stays skipped; only Plan dispatches)."""
+    stays skipped; only Plan dispatches).
+
+    Scoped to Plan alone via a no-op phase_implement_fn stub: no
+    orchestrator-implement.json is pre-seeded either, so without the stub
+    the real Implement phase would also dispatch through this same fake and
+    inflate `calls` beyond the two Plan-phase dispatches this test asserts
+    on."""
     calls = []
     prior_research_state = {
         "personas": ["codebase-recon", "architect", "data-flow-tracer"],
         "results": [{"persona": "codebase-recon", "status": "success"}],
         "skip_llm": True,
     }
+
+    async def noop_phase_implement_fn(request, task, plan_state, skip_llm):
+        return {"stub": "implement"}
 
     with tempfile.TemporaryDirectory() as tmp:
         memory_dir = Path(tmp)
@@ -1739,6 +1794,7 @@ async def test_resume_with_research_done_dispatches_plan_using_resumed_research_
                 skip_llm=True,
                 resume=True,
                 classify_fn=lambda req: {"size": "standard"},
+                phase_implement_fn=noop_phase_implement_fn,
             )
 
         plan_state = orch.read_progress("plan", memory_dir)
@@ -1833,3 +1889,979 @@ async def test_skip_llm_true_plan_results_have_no_output_or_review_status_field(
         assert "output" not in r
         assert "review_status" not in r
     assert state["skip_llm"] is True
+
+
+# ---------------------------------------------------------------------------
+# Step 1.2 — _default_phase_implement() unit tests (direct calls, fakes for
+# dispatch_persona / dispatch_personas)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_default_phase_implement_wave_payload_has_task_request_and_plan():
+    """The wave dispatch_personas call's plan payload must be
+    {"task": task, "request": request, "plan_state": plan_state}, checked
+    directly on the call arguments."""
+    calls = []
+
+    async def fake_dispatch_personas(personas, plan, skip_llm=False):
+        calls.append({"personas": list(personas), "plan": plan, "skip_llm": skip_llm})
+        return [{"persona": p, "status": "success"} for p in personas]
+
+    async def fake_dispatch_persona(persona, plan, skip_llm=False):
+        return {"persona": persona, "status": "success"}
+
+    task = {"size": "standard"}
+    plan_state = {"core_results": []}
+
+    with (
+        patch.object(orch, "dispatch_personas", side_effect=fake_dispatch_personas),
+        patch.object(orch, "dispatch_persona", side_effect=fake_dispatch_persona),
+    ):
+        await orch._default_phase_implement(
+            "add a login form", task, plan_state, skip_llm=True
+        )
+
+    wave_call = calls[0]
+    assert wave_call["personas"] == [orch.SOFTWARE_ENGINEER_PERSONA]
+    assert wave_call["plan"] == {
+        "task": task,
+        "request": "add a login form",
+        "plan_state": plan_state,
+    }
+    assert wave_call["skip_llm"] is True
+
+
+@pytest.mark.asyncio
+async def test_default_phase_implement_verification_payload_has_task_request_and_implement_results():
+    """The post-success CODE_REVIEW_PANEL and tech-writer dispatch_personas
+    calls' plan payloads must each be exactly
+    {"task": task, "request": request, "implement_results": results} — where
+    "results" is the wave dispatch's own returned results list. Previously
+    only the wave's own payload shape was asserted anywhere in this file."""
+    calls = []
+
+    async def fake_dispatch_personas(personas, plan, skip_llm=False):
+        calls.append({"personas": list(personas), "plan": plan})
+        return [{"persona": p, "status": "success"} for p in personas]
+
+    task = {"size": "standard"}
+    plan_state = {"core_results": []}
+
+    with patch.object(orch, "dispatch_personas", side_effect=fake_dispatch_personas):
+        result = await orch._default_phase_implement(
+            "add a login form", task, plan_state, skip_llm=True
+        )
+
+    expected_payload = {
+        "task": task,
+        "request": "add a login form",
+        "implement_results": result["results"],
+    }
+    panel_call = next(c for c in calls if c["personas"] == list(orch.CODE_REVIEW_PANEL))
+    tech_writer_call = next(c for c in calls if c["personas"] == [orch.TECH_WRITER_PERSONA])
+    assert panel_call["plan"] == expected_payload
+    assert tech_writer_call["plan"] == expected_payload
+
+
+@pytest.mark.asyncio
+async def test_default_phase_implement_results_carry_slice_key():
+    """Each wave result must have its "slice" key set (matching its
+    position in wave_slices) before reconcile() runs — reconcile() indexes
+    r["slice"] directly, not via .get."""
+
+    async def fake_dispatch_personas(personas, plan, skip_llm=False):
+        return [{"persona": p, "status": "success"} for p in personas]
+
+    async def fake_dispatch_persona(persona, plan, skip_llm=False):
+        return {"persona": persona, "status": "success"}
+
+    with (
+        patch.object(orch, "dispatch_personas", side_effect=fake_dispatch_personas),
+        patch.object(orch, "dispatch_persona", side_effect=fake_dispatch_persona),
+    ):
+        result = await orch._default_phase_implement(
+            "add a login form", {"size": "standard"}, {}, skip_llm=True
+        )
+
+    assert result["results"] == [
+        {"persona": "software-engineer", "status": "success", "slice": "implement-1"}
+    ]
+
+
+@pytest.mark.asyncio
+async def test_default_phase_implement_failed_wave_raises_wave_error_and_skips_review():
+    """A failed wave slice must raise WaveError with failing_slice ==
+    "implement-1" and must never reach the review-panel/tech-writer
+    dispatch calls. Both post-wave dispatches (CODE_REVIEW_PANEL and
+    TECH_WRITER_PERSONA) go through dispatch_personas, so a single
+    unconditional "any non-wave call" branch in the fake below catches
+    either — no separate dispatch_persona fake is needed or reachable,
+    since dispatch_persona is only ever called from inside the real
+    dispatch_personas, which is fully replaced here."""
+    post_wave_calls = []
+
+    async def fake_dispatch_personas(personas, plan, skip_llm=False):
+        if list(personas) == [orch.SOFTWARE_ENGINEER_PERSONA]:
+            return [
+                {
+                    "persona": "software-engineer",
+                    "status": "failed",
+                    "error": "llm_unavailable",
+                }
+            ]
+        post_wave_calls.append(list(personas))
+        return [{"persona": p, "status": "success"} for p in personas]
+
+    with (
+        patch.object(orch, "dispatch_personas", side_effect=fake_dispatch_personas),
+        pytest.raises(orch.WaveError) as exc_info,
+    ):
+        await orch._default_phase_implement(
+            "add a login form", {"size": "standard"}, {}, skip_llm=True
+        )
+
+    assert exc_info.value.failing_slice == "implement-1"
+    assert post_wave_calls == []
+
+
+@pytest.mark.asyncio
+async def test_default_phase_implement_wave_exception_converted_to_dispatch_exception_and_raises():
+    """An exception raised by dispatch_persona during the wave call is
+    converted, via dispatch_personas' own real return_exceptions=True gather
+    normalization (reused, not re-derived — dispatch_personas itself is NOT
+    patched here), to a "dispatch_exception" failure stub that still
+    carries the correct "slice" key and still raises WaveError."""
+    captured = {}
+    real_reconcile = orch.reconcile
+
+    async def spying_reconcile(results, wave_slices):
+        captured["results"] = results
+        await real_reconcile(results, wave_slices)
+
+    async def fake_dispatch_persona(persona, plan, skip_llm=False):
+        raise RuntimeError("boom")
+
+    with (
+        patch.object(orch, "dispatch_persona", side_effect=fake_dispatch_persona),
+        patch.object(orch, "reconcile", side_effect=spying_reconcile),
+        pytest.raises(orch.WaveError) as exc_info,
+    ):
+        await orch._default_phase_implement(
+            "add a login form", {"size": "standard"}, {}, skip_llm=False
+        )
+
+    assert exc_info.value.failing_slice == "implement-1"
+    assert captured["results"] == [
+        {
+            "persona": "software-engineer",
+            "status": "failed",
+            "error": "dispatch_exception",
+            "slice": "implement-1",
+        }
+    ]
+
+
+@pytest.mark.asyncio
+async def test_default_phase_implement_successful_wave_dispatches_in_order():
+    """A successful wave must dispatch_personas([SOFTWARE_ENGINEER_PERSONA]) then
+    dispatch_personas(CODE_REVIEW_PANEL) then
+    dispatch_personas([TECH_WRITER_PERSONA]), in that order — tech-writer
+    goes through dispatch_personas (plural), not a bare dispatch_persona
+    call, per _dispatch_implement_verification."""
+    call_order = []
+
+    async def fake_dispatch_personas(personas, plan, skip_llm=False):
+        call_order.append(("dispatch_personas", list(personas)))
+        return [{"persona": p, "status": "success"} for p in personas]
+
+    with patch.object(orch, "dispatch_personas", side_effect=fake_dispatch_personas):
+        await orch._default_phase_implement(
+            "add a login form", {"size": "standard"}, {}, skip_llm=True
+        )
+
+    assert call_order == [
+        ("dispatch_personas", [orch.SOFTWARE_ENGINEER_PERSONA]),
+        ("dispatch_personas", list(orch.CODE_REVIEW_PANEL)),
+        ("dispatch_personas", [orch.TECH_WRITER_PERSONA]),
+    ]
+
+
+@pytest.mark.asyncio
+async def test_default_phase_implement_failed_review_panel_persona_warns_and_is_recorded(
+    capsys,
+):
+    """A failed review-panel entry (via the dispatch_personas fake) must
+    trigger the second, independent _warn_on_failed_personas("Implement
+    review", ...) call and still be recorded verbatim in review_results."""
+
+    async def fake_dispatch_personas(personas, plan, skip_llm=False):
+        if list(personas) == [orch.SOFTWARE_ENGINEER_PERSONA]:
+            return [{"persona": "software-engineer", "status": "success"}]
+        return [
+            {"persona": p, "status": "failed" if p == "arch-review" else "success"}
+            for p in personas
+        ]
+
+    async def fake_dispatch_persona(persona, plan, skip_llm=False):
+        return {"persona": persona, "status": "success"}
+
+    with (
+        patch.object(orch, "dispatch_personas", side_effect=fake_dispatch_personas),
+        patch.object(orch, "dispatch_persona", side_effect=fake_dispatch_persona),
+    ):
+        result = await orch._default_phase_implement(
+            "add a login form", {"size": "standard"}, {}, skip_llm=True
+        )
+
+    stderr = capsys.readouterr().err
+    assert (
+        "WARNING: Implement review persona dispatch failed (recorded, non-fatal): arch-review"
+        in stderr
+    )
+    assert any(
+        r["persona"] == "arch-review" and r["status"] == "failed"
+        for r in result["review_results"]
+    )
+
+
+@pytest.mark.asyncio
+async def test_default_phase_implement_failed_tech_writer_warns_and_is_recorded(capsys):
+    """A failed tech-writer dispatch (via the dispatch_personas fake) must
+    trigger the second, independent _warn_on_failed_personas("Implement
+    review", ...) call and still be recorded verbatim as tech_writer_result."""
+
+    async def fake_dispatch_personas(personas, plan, skip_llm=False):
+        if list(personas) == [orch.TECH_WRITER_PERSONA]:
+            return [
+                {
+                    "persona": "tech-writer",
+                    "status": "failed",
+                    "error": "llm_unavailable",
+                }
+            ]
+        return [{"persona": p, "status": "success"} for p in personas]
+
+    with patch.object(orch, "dispatch_personas", side_effect=fake_dispatch_personas):
+        result = await orch._default_phase_implement(
+            "add a login form", {"size": "standard"}, {}, skip_llm=True
+        )
+
+    stderr = capsys.readouterr().err
+    assert (
+        "WARNING: Implement review persona dispatch failed (recorded, non-fatal): tech-writer"
+        in stderr
+    )
+    assert result["tech_writer_result"]["status"] == "failed"
+
+
+@pytest.mark.asyncio
+async def test_default_phase_implement_no_warning_when_all_succeed(capsys):
+    """No WARNING of either label ("Implement" or "Implement review") fires
+    when every dispatch across both groups succeeds."""
+
+    async def fake_dispatch_personas(personas, plan, skip_llm=False):
+        return [{"persona": p, "status": "success"} for p in personas]
+
+    async def fake_dispatch_persona(persona, plan, skip_llm=False):
+        return {"persona": persona, "status": "success"}
+
+    with (
+        patch.object(orch, "dispatch_personas", side_effect=fake_dispatch_personas),
+        patch.object(orch, "dispatch_persona", side_effect=fake_dispatch_persona),
+    ):
+        await orch._default_phase_implement(
+            "add a login form", {"size": "standard"}, {}, skip_llm=True
+        )
+
+    stderr = capsys.readouterr().err
+    assert "WARNING: Implement persona dispatch failed" not in stderr
+    assert "WARNING: Implement review persona dispatch failed" not in stderr
+
+
+@pytest.mark.asyncio
+async def test_default_phase_implement_returns_expected_persisted_shape():
+    """_default_phase_implement's return value must have exactly the
+    persisted shape: wave_slices, results, review_personas, review_results,
+    tech_writer_result, skip_llm."""
+
+    async def fake_dispatch_personas(personas, plan, skip_llm=False):
+        return [{"persona": p, "status": "success"} for p in personas]
+
+    async def fake_dispatch_persona(persona, plan, skip_llm=False):
+        return {"persona": persona, "status": "success"}
+
+    with (
+        patch.object(orch, "dispatch_personas", side_effect=fake_dispatch_personas),
+        patch.object(orch, "dispatch_persona", side_effect=fake_dispatch_persona),
+    ):
+        result = await orch._default_phase_implement(
+            "add a login form", {"size": "standard"}, {}, skip_llm=True
+        )
+
+    assert set(result.keys()) == {
+        "wave_slices",
+        "results",
+        "review_personas",
+        "review_results",
+        "tech_writer_result",
+        "skip_llm",
+    }
+    assert result["wave_slices"] == ["implement-1"]
+    assert result["review_personas"] == list(orch.CODE_REVIEW_PANEL)
+    assert result["review_personas"] is not orch.CODE_REVIEW_PANEL
+    assert result["skip_llm"] is True
+
+
+# ---------------------------------------------------------------------------
+# Step 1.2 — run_pipeline wiring: phase_implement_fn / orchestrator-implement.json
+# (translating the plan's Gherkin scenario block into real pytest tests)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_run_pipeline_standard_task_writes_implement_state():
+    """Standard-classified task dispatches the Implement-phase wave after
+    Plan, matching the Gherkin scenario's exact observables."""
+    with tempfile.TemporaryDirectory() as tmp:
+        memory_dir = Path(tmp)
+        exit_code = await orch.run_pipeline(
+            request="add a login form",
+            memory_dir=memory_dir,
+            skip_llm=True,
+            classify_fn=lambda req: {"size": "standard"},
+        )
+        state = orch.read_progress("implement", memory_dir)
+
+    assert exit_code == 0
+    assert state["wave_slices"] == ["implement-1"]
+    assert len(state["results"]) == 1
+    assert state["results"][0]["status"] == "success"
+    assert state["results"][0]["slice"] == "implement-1"
+    assert state["review_personas"] == list(orch.CODE_REVIEW_PANEL)
+    assert len(state["review_results"]) == len(orch.CODE_REVIEW_PANEL)
+    assert all(r["status"] == "success" for r in state["review_results"])
+    assert state["tech_writer_result"]["status"] == "success"
+
+
+@pytest.mark.asyncio
+async def test_run_pipeline_complex_task_dispatches_same_implement_wave():
+    """Complex-classified task dispatches the identical single-slice
+    Implement-phase wave — the only branch point in run_pipeline is the
+    trivial fast-path."""
+    with tempfile.TemporaryDirectory() as tmp:
+        memory_dir = Path(tmp)
+        exit_code = await orch.run_pipeline(
+            request="redesign the payment pipeline",
+            memory_dir=memory_dir,
+            skip_llm=True,
+            classify_fn=lambda req: {"size": "complex"},
+        )
+        state = orch.read_progress("implement", memory_dir)
+
+    assert exit_code == 0
+    assert state["wave_slices"] == ["implement-1"]
+
+
+@pytest.mark.asyncio
+async def test_run_pipeline_trivial_task_never_writes_implement_state():
+    """Trivial-classified task never reaches the Implement phase: no
+    orchestrator-implement.json file is written and exit code is 0 — also
+    re-verifying dispatch_personas/dispatch_persona are never called at all
+    (Research and Plan are skipped too, not just Implement)."""
+    with (
+        patch.object(orch, "dispatch_personas") as mock_dispatch_personas,
+        patch.object(orch, "dispatch_persona") as mock_dispatch_persona,
+        tempfile.TemporaryDirectory() as tmp,
+    ):
+        memory_dir = Path(tmp)
+        exit_code = await orch.run_pipeline(
+            request="fix a typo",
+            memory_dir=memory_dir,
+            skip_llm=True,
+            classify_fn=lambda req: {"size": "trivial"},
+        )
+        state = orch.read_progress("implement", memory_dir)
+
+    assert exit_code == 0
+    mock_dispatch_personas.assert_not_called()
+    mock_dispatch_persona.assert_not_called()
+    assert state is None
+
+
+@pytest.mark.asyncio
+async def test_run_pipeline_implement_wave_payload_carries_plan_phase_state():
+    """The Implement-phase dispatch receives the Plan phase's aggregated
+    state: the software-engineer call's plan payload has a "plan_state" key
+    equal to the written orchestrator-plan.json contents, and "task"/
+    "request" keys matching the classified task dict and request text."""
+    calls = []
+
+    async def fake_dispatch_personas(personas, plan, skip_llm=False):
+        calls.append({"personas": list(personas), "plan": plan})
+        return [{"persona": p, "status": "success"} for p in personas]
+
+    async def fake_dispatch_persona(persona, plan, skip_llm=False):
+        return {"persona": persona, "status": "success"}
+
+    task = {"size": "standard"}
+    with (
+        patch.object(orch, "dispatch_personas", side_effect=fake_dispatch_personas),
+        patch.object(orch, "dispatch_persona", side_effect=fake_dispatch_persona),
+        tempfile.TemporaryDirectory() as tmp,
+    ):
+        memory_dir = Path(tmp)
+        exit_code = await orch.run_pipeline(
+            request="add a login form",
+            memory_dir=memory_dir,
+            skip_llm=True,
+            classify_fn=lambda req: task,
+        )
+        plan_state = orch.read_progress("plan", memory_dir)
+
+    assert exit_code == 0
+    wave_call = next(c for c in calls if c["personas"] == [orch.SOFTWARE_ENGINEER_PERSONA])
+    assert wave_call["plan"]["plan_state"] == plan_state
+    assert wave_call["plan"]["task"] == task
+    assert wave_call["plan"]["request"] == "add a login form"
+
+
+@pytest.mark.asyncio
+async def test_run_pipeline_failed_wave_slice_warning_precedes_error_and_skips_review(
+    capsys,
+):
+    """A failed wave slice's WARNING prints before WaveError turns into exit
+    code 1: the WARNING appears exactly once and before the ERROR line,
+    stderr contains "Resume with:", exit code is 1, no
+    orchestrator-implement.json file is written, and the review panel and
+    tech-writer are never dispatched. This test runs the full pipeline
+    (Research and Plan dispatch for real, through this same fake), so the
+    post-wave tracking below matches only the two known post-wave rosters
+    (CODE_REVIEW_PANEL, [TECH_WRITER_PERSONA]) rather than any non-wave
+    call — both go through dispatch_personas, so this one check catches
+    either; no separate dispatch_persona fake is reachable, since it is
+    only ever called from inside the real dispatch_personas, which is
+    fully replaced here."""
+    post_wave_calls = []
+    post_wave_rosters = (list(orch.CODE_REVIEW_PANEL), [orch.TECH_WRITER_PERSONA])
+
+    async def fake_dispatch_personas(personas, plan, skip_llm=False):
+        if list(personas) == [orch.SOFTWARE_ENGINEER_PERSONA]:
+            return [
+                {
+                    "persona": "software-engineer",
+                    "status": "failed",
+                    "error": "llm_unavailable",
+                }
+            ]
+        if list(personas) in post_wave_rosters:
+            post_wave_calls.append(list(personas))
+        return [{"persona": p, "status": "success"} for p in personas]
+
+    with (
+        patch.object(orch, "dispatch_personas", side_effect=fake_dispatch_personas),
+        tempfile.TemporaryDirectory() as tmp,
+    ):
+        memory_dir = Path(tmp)
+        exit_code = await orch.run_pipeline(
+            request="add a login form",
+            memory_dir=memory_dir,
+            skip_llm=True,
+            classify_fn=lambda req: {"size": "standard"},
+        )
+        state = orch.read_progress("implement", memory_dir)
+
+    stderr = capsys.readouterr().err
+    warning_marker = (
+        "WARNING: Implement persona dispatch failed (wave barrier will fail): "
+        "software-engineer"
+    )
+    error_marker = "ERROR: wave barrier failed on slice 'implement-1'"
+    assert stderr.count(warning_marker) == 1
+    assert error_marker in stderr
+    assert stderr.index(warning_marker) < stderr.index(error_marker)
+    assert "Resume with:" in stderr
+    assert exit_code == 1
+    assert state is None
+    assert post_wave_calls == []
+
+
+@pytest.mark.asyncio
+async def test_run_pipeline_wave_dispatch_exception_results_in_wave_error_exit_1(
+    capsys,
+):
+    """An exception raised during the wave dispatch is converted to a
+    dispatch_exception failure by dispatch_personas' own real
+    return_exceptions=True normalization, then reaches reconcile() like any
+    other failed slice — stderr shows the ERROR message, exit code is 1, and
+    no orchestrator-implement.json file is written.
+
+    ASSUMPTION (recorded per this repo's convention of naming under-specified
+    plan details explicitly rather than resolving them silently): the plan's
+    Gherkin literally says "a fake dispatch_personas that raises RuntimeError
+    for the software-engineer call". Patching dispatch_personas itself
+    wholesale to raise would propagate the RuntimeError straight out of
+    _default_phase_implement's `results = await dispatch_personas(...)` line
+    uncaught — past run_pipeline's `except WaveError` (which only catches
+    WaveError, not a bare RuntimeError) — contradicting the scenario's own
+    stated observable (stderr's ERROR message, exit code 1). Patching
+    dispatch_persona instead (leaving the real, unpatched dispatch_personas'
+    gather/return_exceptions=True path intact, exactly as the plan's own
+    "(the dispatch_exception status value itself is asserted at the
+    _default_phase_implement unit-test level...)" parenthetical describes)
+    is the only wiring that produces the scenario's literal stated outcome.
+
+    Scoped to Implement alone via no-op phase_research_fn/phase_plan_fn
+    stubs — matching the established convention elsewhere in this file
+    (e.g. test_default_phase_research_records_one_failed_persona_verbatim_without_raising):
+    without them, this same globally-raising dispatch_persona patch would
+    also fail every Research and Plan persona dispatch, which is unrelated
+    to what this test verifies."""
+
+    async def fake_dispatch_persona(persona, plan, skip_llm=False):
+        raise RuntimeError("boom")
+
+    async def noop_phase_research_fn(request, task, skip_llm):
+        return {"stub": "research"}
+
+    async def noop_phase_plan_fn(request, task, research_state, skip_llm):
+        return {"stub": "plan"}
+
+    with (
+        patch.object(orch, "dispatch_persona", side_effect=fake_dispatch_persona),
+        tempfile.TemporaryDirectory() as tmp,
+    ):
+        memory_dir = Path(tmp)
+        exit_code = await orch.run_pipeline(
+            request="add a login form",
+            memory_dir=memory_dir,
+            skip_llm=True,
+            classify_fn=lambda req: {"size": "standard"},
+            phase_research_fn=noop_phase_research_fn,
+            phase_plan_fn=noop_phase_plan_fn,
+        )
+        state = orch.read_progress("implement", memory_dir)
+
+    stderr = capsys.readouterr().err
+    assert "ERROR: wave barrier failed on slice 'implement-1'" in stderr
+    assert exit_code == 1
+    assert state is None
+
+
+@pytest.mark.asyncio
+async def test_run_pipeline_resume_retries_implement_from_scratch_after_wave_error():
+    """--resume retries the Implement phase from scratch after a real
+    WaveError failure: the first run exits 1 with no orchestrator-
+    implement.json written; a second run with --resume re-dispatches
+    software-engineer (not a skip) and succeeds, proving the uncaught-
+    WaveError-propagation design's real payoff — a failed wave leaves no
+    trace for _run_phase to find."""
+    call_count = {"n": 0}
+
+    async def fake_dispatch_personas(personas, plan, skip_llm=False):
+        if list(personas) == [orch.SOFTWARE_ENGINEER_PERSONA]:
+            call_count["n"] += 1
+            if call_count["n"] == 1:
+                return [
+                    {
+                        "persona": "software-engineer",
+                        "status": "failed",
+                        "error": "llm_unavailable",
+                    }
+                ]
+            return [{"persona": "software-engineer", "status": "success"}]
+        return [{"persona": p, "status": "success"} for p in personas]
+
+    async def fake_dispatch_persona(persona, plan, skip_llm=False):
+        return {"persona": persona, "status": "success"}
+
+    with (
+        patch.object(orch, "dispatch_personas", side_effect=fake_dispatch_personas),
+        patch.object(orch, "dispatch_persona", side_effect=fake_dispatch_persona),
+        tempfile.TemporaryDirectory() as tmp,
+    ):
+        memory_dir = Path(tmp)
+        exit_code_1 = await orch.run_pipeline(
+            request="add a login form",
+            memory_dir=memory_dir,
+            skip_llm=True,
+            classify_fn=lambda req: {"size": "standard"},
+        )
+        state_after_failure = orch.read_progress("implement", memory_dir)
+
+        exit_code_2 = await orch.run_pipeline(
+            request="add a login form",
+            memory_dir=memory_dir,
+            skip_llm=True,
+            resume=True,
+            classify_fn=lambda req: {"size": "standard"},
+        )
+        state_after_resume = orch.read_progress("implement", memory_dir)
+
+    assert exit_code_1 == 1
+    assert state_after_failure is None
+    assert call_count["n"] == 2, "dispatch_personas must be called again for software-engineer"
+    assert exit_code_2 == 0
+    assert state_after_resume["results"][0]["status"] == "success"
+
+
+@pytest.mark.asyncio
+async def test_run_pipeline_successful_wave_dispatches_engineer_then_panel_then_tech_writer_in_order():
+    """A successful wave dispatches software-engineer, then the code-review
+    panel, then tech-writer, in that order — verified end-to-end through
+    run_pipeline via a dependency-injected fake that records call order.
+    tech-writer is dispatched via dispatch_personas (plural), not a bare
+    dispatch_persona call — see _dispatch_implement_verification."""
+    call_order = []
+
+    async def fake_dispatch_personas(personas, plan, skip_llm=False):
+        call_order.append(("dispatch_personas", list(personas)))
+        return [{"persona": p, "status": "success"} for p in personas]
+
+    with (
+        patch.object(orch, "dispatch_personas", side_effect=fake_dispatch_personas),
+        tempfile.TemporaryDirectory() as tmp,
+    ):
+        memory_dir = Path(tmp)
+        exit_code = await orch.run_pipeline(
+            request="add a login form",
+            memory_dir=memory_dir,
+            skip_llm=True,
+            classify_fn=lambda req: {"size": "standard"},
+        )
+
+    assert exit_code == 0
+    wave_index = call_order.index(("dispatch_personas", [orch.SOFTWARE_ENGINEER_PERSONA]))
+    panel_index = call_order.index(("dispatch_personas", list(orch.CODE_REVIEW_PANEL)))
+    tech_writer_index = call_order.index(("dispatch_personas", [orch.TECH_WRITER_PERSONA]))
+    assert wave_index < panel_index < tech_writer_index
+
+
+@pytest.mark.asyncio
+async def test_run_pipeline_failed_review_panel_persona_is_recorded_non_fatal(capsys):
+    """A failed review-panel persona is recorded, non-fatal, with its own
+    warning: stderr contains the Implement-review WARNING for "arch-review",
+    exit code is 0, and orchestrator-implement.json's "review_results"
+    contains a status "failed" entry for "arch-review"."""
+
+    async def fake_dispatch_personas(personas, plan, skip_llm=False):
+        if list(personas) == [orch.SOFTWARE_ENGINEER_PERSONA]:
+            return [{"persona": "software-engineer", "status": "success"}]
+        if list(personas) == list(orch.CODE_REVIEW_PANEL):
+            return [
+                {"persona": p, "status": "failed" if p == "arch-review" else "success"}
+                for p in personas
+            ]
+        return [{"persona": p, "status": "success"} for p in personas]
+
+    async def fake_dispatch_persona(persona, plan, skip_llm=False):
+        return {"persona": persona, "status": "success"}
+
+    with (
+        patch.object(orch, "dispatch_personas", side_effect=fake_dispatch_personas),
+        patch.object(orch, "dispatch_persona", side_effect=fake_dispatch_persona),
+        tempfile.TemporaryDirectory() as tmp,
+    ):
+        memory_dir = Path(tmp)
+        exit_code = await orch.run_pipeline(
+            request="add a login form",
+            memory_dir=memory_dir,
+            skip_llm=True,
+            classify_fn=lambda req: {"size": "standard"},
+        )
+        state = orch.read_progress("implement", memory_dir)
+
+    stderr = capsys.readouterr().err
+    assert (
+        "WARNING: Implement review persona dispatch failed (recorded, non-fatal): arch-review"
+        in stderr
+    )
+    assert exit_code == 0
+    assert any(
+        r["persona"] == "arch-review" and r["status"] == "failed"
+        for r in state["review_results"]
+    )
+
+
+@pytest.mark.asyncio
+async def test_run_pipeline_failed_tech_writer_is_recorded_non_fatal(capsys):
+    """A failed tech-writer dispatch is recorded, non-fatal, with its own
+    warning: stderr contains the Implement-review WARNING for "tech-writer",
+    exit code is 0, and orchestrator-implement.json's "tech_writer_result"
+    has status "failed". The fake dispatch_persona only fails for
+    "tech-writer" (not every persona) since dispatch_persona is also the
+    function the real dispatch_personas calls internally for Research,
+    Plan, and the wave/review-panel dispatches in this same run — failing
+    universally would break those groups too."""
+
+    async def fake_dispatch_persona(persona, plan, skip_llm=False):
+        if persona == orch.TECH_WRITER_PERSONA:
+            return {"persona": persona, "status": "failed", "error": "llm_unavailable"}
+        return {"persona": persona, "status": "success"}
+
+    with (
+        patch.object(orch, "dispatch_persona", side_effect=fake_dispatch_persona),
+        tempfile.TemporaryDirectory() as tmp,
+    ):
+        memory_dir = Path(tmp)
+        exit_code = await orch.run_pipeline(
+            request="add a login form",
+            memory_dir=memory_dir,
+            skip_llm=True,
+            classify_fn=lambda req: {"size": "standard"},
+        )
+        state = orch.read_progress("implement", memory_dir)
+
+    stderr = capsys.readouterr().err
+    assert (
+        "WARNING: Implement review persona dispatch failed (recorded, non-fatal): tech-writer"
+        in stderr
+    )
+    assert exit_code == 0
+    assert state["tech_writer_result"]["status"] == "failed"
+
+
+@pytest.mark.asyncio
+async def test_run_pipeline_no_implement_warning_when_all_dispatches_succeed(capsys):
+    """No Implement WARNING is printed when every dispatch in both groups
+    succeeds."""
+    with tempfile.TemporaryDirectory() as tmp:
+        memory_dir = Path(tmp)
+        exit_code = await orch.run_pipeline(
+            request="add a login form",
+            memory_dir=memory_dir,
+            skip_llm=True,
+            classify_fn=lambda req: {"size": "standard"},
+        )
+
+    assert exit_code == 0
+    stderr = capsys.readouterr().err
+    assert "WARNING: Implement persona dispatch failed" not in stderr
+    assert "WARNING: Implement review persona dispatch failed" not in stderr
+
+
+@pytest.mark.asyncio
+async def test_run_pipeline_skip_llm_true_implement_state_has_no_output_or_review_status_fields():
+    """--skip-llm short-circuits Implement dispatch with no live CLI output:
+    each entry in "results", "review_results", and "tech_writer_result" has
+    status "success" with no "output" or "review_status" field, and
+    orchestrator-implement.json's "skip_llm" key is exactly True."""
+    with tempfile.TemporaryDirectory() as tmp:
+        memory_dir = Path(tmp)
+        exit_code = await orch.run_pipeline(
+            request="add a login form",
+            memory_dir=memory_dir,
+            skip_llm=True,
+            classify_fn=lambda req: {"size": "standard"},
+        )
+        state = orch.read_progress("implement", memory_dir)
+
+    assert exit_code == 0
+    for r in state["results"] + state["review_results"] + [state["tech_writer_result"]]:
+        assert r["status"] == "success"
+        assert "output" not in r
+        assert "review_status" not in r
+    assert state["skip_llm"] is True
+
+
+@pytest.mark.asyncio
+async def test_run_pipeline_skip_llm_false_is_forwarded_to_every_implement_dispatch_call():
+    """skip_llm=False is forwarded to every Implement-phase dispatch call
+    (dependency-injected fakes for both dispatch_persona and
+    dispatch_personas; no live CLI call is made) and recorded verbatim in
+    the persisted "skip_llm" key."""
+    skip_llm_values = []
+
+    async def fake_dispatch_personas(personas, plan, skip_llm=False):
+        skip_llm_values.append(skip_llm)
+        return [{"persona": p, "status": "success"} for p in personas]
+
+    async def fake_dispatch_persona(persona, plan, skip_llm=False):
+        skip_llm_values.append(skip_llm)
+        return {"persona": persona, "status": "success"}
+
+    with (
+        patch.object(orch, "dispatch_personas", side_effect=fake_dispatch_personas),
+        patch.object(orch, "dispatch_persona", side_effect=fake_dispatch_persona),
+        tempfile.TemporaryDirectory() as tmp,
+    ):
+        memory_dir = Path(tmp)
+        exit_code = await orch.run_pipeline(
+            request="add a login form",
+            memory_dir=memory_dir,
+            skip_llm=False,
+            classify_fn=lambda req: {"size": "standard"},
+        )
+        state = orch.read_progress("implement", memory_dir)
+
+    assert exit_code == 0
+    assert all(v is False for v in skip_llm_values)
+    assert state["skip_llm"] is False
+
+
+@pytest.mark.asyncio
+async def test_resume_with_existing_implement_state_skips_implement_dispatch_entirely():
+    """--resume with existing orchestrator-research.json,
+    orchestrator-plan.json, and orchestrator-implement.json already present
+    skips Implement-phase dispatch entirely: neither dispatch_persona nor
+    dispatch_personas is called, and orchestrator-implement.json is
+    byte-identical to its pre-run contents. Re-verified against the real
+    (non-stub) _default_phase_implement, asserting on call count directly —
+    not just output-content equality — mirroring the Slice 3 precedent for
+    why content equality alone cannot prove a resume guard fired under
+    deterministic --skip-llm stub output."""
+    with tempfile.TemporaryDirectory() as tmp:
+        memory_dir = Path(tmp)
+        orch.write_progress(
+            "research", {"personas": [], "results": [], "skip_llm": True}, memory_dir
+        )
+        orch.write_progress(
+            "plan",
+            {
+                "core_personas": list(orch.PLAN_CORE_PERSONAS),
+                "core_results": [],
+                "critic_personas": orch.DEFAULT_PERSONAS,
+                "critic_results": [],
+                "critics_skipped_reason": None,
+                "skip_llm": True,
+            },
+            memory_dir,
+        )
+        prior_implement_state = {
+            "wave_slices": ["implement-1"],
+            "results": [
+                {"persona": "software-engineer", "status": "success", "slice": "implement-1"}
+            ],
+            "review_personas": list(orch.CODE_REVIEW_PANEL),
+            "review_results": [
+                {"persona": p, "status": "success"} for p in orch.CODE_REVIEW_PANEL
+            ],
+            "tech_writer_result": {"persona": "tech-writer", "status": "success"},
+            "skip_llm": True,
+        }
+        orch.write_progress("implement", prior_implement_state, memory_dir)
+        pre_run_contents = orch.phase_state_path("implement", memory_dir).read_text()
+
+        with (
+            patch.object(orch, "dispatch_personas") as mock_dispatch_personas,
+            patch.object(orch, "dispatch_persona") as mock_dispatch_persona,
+        ):
+            exit_code = await orch.run_pipeline(
+                request="add a login form",
+                memory_dir=memory_dir,
+                skip_llm=True,
+                resume=True,
+                classify_fn=lambda req: {"size": "standard"},
+            )
+
+        post_run_contents = orch.phase_state_path("implement", memory_dir).read_text()
+
+    assert exit_code == 0
+    mock_dispatch_personas.assert_not_called()
+    mock_dispatch_persona.assert_not_called()
+    assert post_run_contents == pre_run_contents
+
+
+@pytest.mark.asyncio
+async def test_resume_with_plan_done_dispatches_implement_using_resumed_plan_state():
+    """--resume with Plan done but Implement pending dispatches Implement
+    using the resumed plan state: the software-engineer call's plan
+    payload's "plan_state" key equals the existing orchestrator-plan.json
+    contents (not a freshly re-dispatched one), and orchestrator-implement.json
+    is written. Re-verified against the real (non-stub) _default_phase_implement,
+    asserting on dispatch_personas' call count directly (the tech-writer
+    call, dispatched via dispatch_personas, plural) — not just
+    output-content equality."""
+    calls = []
+    prior_plan_state = {
+        "core_personas": list(orch.PLAN_CORE_PERSONAS),
+        "core_results": [{"persona": "product-manager", "status": "success"}],
+        "critic_personas": orch.DEFAULT_PERSONAS,
+        "critic_results": [],
+        "critics_skipped_reason": None,
+        "skip_llm": True,
+    }
+
+    async def fake_dispatch_personas(personas, plan, skip_llm=False):
+        calls.append({"personas": list(personas), "plan": plan})
+        return [{"persona": p, "status": "success"} for p in personas]
+
+    with tempfile.TemporaryDirectory() as tmp:
+        memory_dir = Path(tmp)
+        orch.write_progress(
+            "research", {"personas": [], "results": [], "skip_llm": True}, memory_dir
+        )
+        orch.write_progress("plan", prior_plan_state, memory_dir)
+
+        with patch.object(orch, "dispatch_personas", side_effect=fake_dispatch_personas):
+            exit_code = await orch.run_pipeline(
+                request="add a login form",
+                memory_dir=memory_dir,
+                skip_llm=True,
+                resume=True,
+                classify_fn=lambda req: {"size": "standard"},
+            )
+
+        implement_state = orch.read_progress("implement", memory_dir)
+
+    assert exit_code == 0
+    wave_call = next(c for c in calls if c["personas"] == [orch.SOFTWARE_ENGINEER_PERSONA])
+    assert wave_call["plan"]["plan_state"] == prior_plan_state
+    assert implement_state is not None
+    assert any(c["personas"] == [orch.TECH_WRITER_PERSONA] for c in calls)
+
+
+@pytest.mark.asyncio
+async def test_stub_phase_implement_fn_is_honored_end_to_end_through_run_pipeline():
+    """A stub phase_implement_fn returning a fixed sentinel result dict must
+    have that exact sentinel written to orchestrator-implement.json —
+    mirroring the existing stub_research/stub_plan-through-run_pipeline test
+    pattern. skip_llm=True is also passed so neither Research nor Plan risks
+    a live claude CLI call in this test."""
+    sentinel = {"sentinel": "implement-result", "results": [], "review_results": []}
+
+    async def stub_implement(request, task, plan_state, skip_llm):
+        return sentinel
+
+    with tempfile.TemporaryDirectory() as tmp:
+        memory_dir = Path(tmp)
+        exit_code = await orch.run_pipeline(
+            request="add a login form",
+            memory_dir=memory_dir,
+            skip_llm=True,
+            classify_fn=lambda req: {"size": "standard"},
+            phase_implement_fn=stub_implement,
+        )
+        state = orch.read_progress("implement", memory_dir)
+
+    assert exit_code == 0
+    assert state == sentinel
+
+
+@pytest.mark.asyncio
+async def test_run_pipeline_wave_error_from_injected_phase_implement_fn_prints_message_and_exits_1(
+    capsys,
+):
+    """A WaveError-raising phase_implement_fn (patched directly, not via the
+    real dispatch fakes) results in exit code 1, the two-line stderr
+    message, and no orchestrator-implement.json written."""
+
+    async def failing_phase_implement_fn(request, task, plan_state, skip_llm):
+        raise orch.WaveError(failing_slice="implement-1", succeeded=[])
+
+    with tempfile.TemporaryDirectory() as tmp:
+        memory_dir = Path(tmp)
+        exit_code = await orch.run_pipeline(
+            request="add a login form",
+            memory_dir=memory_dir,
+            skip_llm=True,
+            classify_fn=lambda req: {"size": "standard"},
+            phase_implement_fn=failing_phase_implement_fn,
+        )
+        state = orch.read_progress("implement", memory_dir)
+
+    stderr = capsys.readouterr().err
+    assert "ERROR: wave barrier failed on slice 'implement-1'" in stderr
+    assert f"Resume with: python3 {orch.SCRIPTS / 'orchestrator.py'} --resume" in stderr
+    assert exit_code == 1
+    assert state is None
