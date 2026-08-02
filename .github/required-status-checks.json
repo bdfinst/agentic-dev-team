@@ -34,6 +34,7 @@
     "Eval live regression (opt-in)": "Dispatches the real agents and costs model tokens. Runs only behind a 'run-eval' label plus ANTHROPIC_API_KEY, and skips (not fails) without them — a required check would report success on every PR that didn't opt in.",
     "Eval integration tier (opt-in)": "Same opt-in posture as the live gate: real orchestrator dispatch, real tokens, label-gated.",
     "Stryker.NET POSIX signal tests": "Path-filtered to the mutation wrapper. A path-filtered workflow reports NO status on PRs that don't match, so requiring it would deadlock every unrelated PR at 'Waiting for status to be reported'.",
+    "PMD checksum verify": "Path-filtered to the PMD installer + its checksum verifier (plus the shared weekly schedule). Same deadlock shape as the Stryker.NET signal tests above — a path-filtered workflow reports no status on unrelated PRs.",
     "Orchestrator real-subprocess test": "Schedule and workflow_dispatch only — it shells out to the real `claude` CLI, whose outcome, latency, and cost vary by host. It reports no status on a PR at all.",
     "Pytest on native Windows": "Path-filtered to the mutation wrapper for cost reasons (Windows runners), so it reports no status on unrelated PRs — same deadlock as the Stryker.NET signal tests above."
   }

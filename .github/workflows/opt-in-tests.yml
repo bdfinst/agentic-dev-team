@@ -15,11 +15,22 @@ name: Opt-in tests
 #      runs only on a schedule and manual dispatch, NOT on every PR — mirroring
 #      the opt-in posture of the "Eval live regression" lane.
 #
-# The default local/pre-push run keeps skipping all three: this workflow imposes
+# A fourth, related-but-distinct lane lives in this same workflow (issue #1657):
+#   3. PMD checksum verify — downloads the real, currently-published PMD release
+#      asset and asserts its SHA-256 matches install-java-static-analysis.py's
+#      pinned PMD_SHA256. Keyless and cheap, so it runs on every PR that touches
+#      the installer (path-filtered) and on the shared weekly schedule, so an
+#      upstream re-publish under the same version tag is still caught even with
+#      no local change.
+#
+# The default local/pre-push run keeps skipping all four: this workflow imposes
 # no new requirement on any dev machine. A failure here is a real red run
-# (surfaced on the PR for the wrapper job; a failed scheduled run for the
+# (surfaced on the PR for the wrapper/PMD jobs; a failed scheduled run for the
 # orchestrator job, which GitHub notifies the repo admins about) — never a
 # silent green.
+
+permissions:
+  contents: read
 
 on:
   # path-filtered: fires the wrapper job only when the wrapper / its tests / this
@@ -30,11 +41,15 @@ on:
     paths:
       - "plugins/dev-team/skills/mutation-testing/scripts/csharp_stryker_net_wrapper.py"
       - "tests/scripts/test_csharp_stryker_net_wrapper.py"
+      - "plugins/dev-team/scripts/install-java-static-analysis.py"
+      - "scripts/verify_pmd_checksum_pin.py"
       - ".github/workflows/opt-in-tests.yml"
   pull_request:
     paths:
       - "plugins/dev-team/skills/mutation-testing/scripts/csharp_stryker_net_wrapper.py"
       - "tests/scripts/test_csharp_stryker_net_wrapper.py"
+      - "plugins/dev-team/scripts/install-java-static-analysis.py"
+      - "scripts/verify_pmd_checksum_pin.py"
       - ".github/workflows/opt-in-tests.yml"
   # Weekly heartbeat (Mondays 06:17 UTC) so both lanes exercise their code even
   # when nothing in the paths above changed.
@@ -120,3 +135,28 @@ jobs:
           python -m pytest \
             "tests/scripts/test_orchestrator.py::test_classify_real_subprocess_returns_valid_size" \
             -v -ra --tb=short
+
+  pmd-checksum-verify:
+    name: PMD checksum verify
+    # Keyless and cheap (a single download + hash), so — unlike the pricier
+    # orchestrator lane above — this runs on every PR that touches the
+    # installer (path-filtered) as well as the shared weekly schedule.
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Set up Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: "3.x"
+
+      # Downloads the real, currently-published PMD release asset and asserts
+      # its SHA-256 matches install-java-static-analysis.py's pinned
+      # PMD_SHA256 — the last unverified premise in #1637's PMD-installer
+      # security hardening (issue #1657).
+      # test_checksum_mismatch_refuses_to_extract (hermetic) only proves the
+      # *rejection* path against a synthetic tampered archive; nothing in the
+      # offline suite ever re-fetches the real network artifact.
+      - name: Verify PMD_SHA256 pin against the real release asset
+        run: python3 scripts/verify_pmd_checksum_pin.py
