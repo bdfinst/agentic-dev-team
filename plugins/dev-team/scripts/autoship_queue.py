@@ -19,8 +19,12 @@ and never needs `autoship_state.fetch_eligible_issues`. It reuses only
 `autoship_state.positive_int_validator` for its own `--max-issues` flag.
 
 Usage:
-    autoship_group.py --input-file eligible.json | autoship_queue.py --max-issues 10
     autoship_queue.py --max-issues 10 --input-file grouping-output.json
+    autoship_group.py --input-file eligible.json | autoship_queue.py --max-issues 10
+    # `/dev-team:autoship` itself always uses the --input-file form above, so
+    # Step 2b/2c (skills/autoship/SKILL.md) can interpose on the scratch file
+    # between the two commands; the piped form remains a supported shortcut
+    # for any other caller with no need for that interposition.
 
 Stdlib-only.
 """
@@ -210,8 +214,9 @@ def _validate_grouping_output(data: dict[str, Any]) -> None:
 
 def _load_grouping_output(input_file: str | None) -> dict[str, Any]:
     """Read and parse the grouping-output JSON object from `input_file`
-    when given, otherwise from stdin (the real pipeline's wiring: `gh` ->
-    `autoship_group.py` -> `autoship_queue.py`).
+    when given, otherwise from stdin (a still-supported shortcut for callers
+    with no need to interpose between the two stages — `/dev-team:autoship`
+    itself always uses `--input-file`, see the module Usage note above).
 
     Raises `QueueError` on an unreadable file/stdin, invalid JSON, a
     non-object payload, or a malformed `batches`/`ungrouped` structure —

@@ -2,7 +2,7 @@
 """autoship_group.py — deterministic issue grouping for `/dev-team:autoship` (Slice 1).
 
 Groups eligible `autoship:ready` (or `--label`) issues into batches using
-three signals, via union-find:
+four signals, via union-find:
 
 - **Native dependency**: issue A's `blockedBy`/`blocking` field names issue B,
   and B is also in the eligible input set.
@@ -13,6 +13,12 @@ three signals, via union-find:
   itself (every eligible issue carries that label by construction — see
   `is_eligible` — so it can never be a grouping signal on its own,
   regardless of whether it happens to start with `autoship:`).
+- **Confirmed-batch override** (Step 4.3): two eligible issues both carry
+  `autoship:batch-confirmed` AND each one's `confirmed_batch_members` field
+  names the other's issue number — see `has_batch_confirmed_override`.
+  Supports partial confirmation of an agent-proposed batch (Step 2c,
+  `skills/autoship/SKILL.md`): the signal only fires between two members
+  that are both confirmed and both still list each other.
 
 Issues with no signal at all land in `ungrouped`. Any batch larger than
 `--max-batch-size` (default 5) is trimmed to its oldest N members; the
@@ -55,6 +61,11 @@ DEFAULT_MAX_BATCH_SIZE = 5
 # Every label starting with this prefix is excluded from the shared-label
 # signal — never a naming carve-out for one specific label.
 _AUTOSHIP_LABEL_PREFIX = "autoship:"
+
+# The label a human confirmation applies (Step 2c, `skills/autoship/SKILL.md`)
+# — recognized by `has_batch_confirmed_override`, its own independent signal
+# function, never as a carve-out inside `has_shared_label`'s exclusion rule.
+BATCH_CONFIRMED_LABEL = "autoship:batch-confirmed"
 
 # The dependency/parent fields this script's signals need, on top of
 # autoship_state.BASE_REQUIRED_FIELDS. Requested as `extra_fields` (not
@@ -153,9 +164,9 @@ def _non_autoship_label_names(issue: dict[str, Any], exclude_label: str) -> set[
 
     The `autoship:*` exclusion is otherwise a plain, general rule — every
     `autoship:*` label is excluded, with no carve-out for any specific one
-    (e.g. `autoship:batch-confirmed`). A later, wholly independent signal
-    function is what recognizes `autoship:batch-confirmed`; this function
-    must never special-case it.
+    (e.g. `autoship:batch-confirmed`). `has_batch_confirmed_override` (Step
+    4.3) is the wholly independent signal function that recognizes
+    `autoship:batch-confirmed`; this function must never special-case it.
     """
     names = set()
     for label in issue.get("labels") or []:
@@ -175,6 +186,40 @@ def has_shared_label(a_labels: set[str], b_labels: set[str]) -> bool:
     return bool(a_labels & b_labels)
 
 
+def _raw_label_names(issue: dict[str, Any]) -> set[str]:
+    """Every label name on `issue`, unfiltered (unlike
+    `_non_autoship_label_names`, which excludes `autoship:*` and the
+    configured eligibility label) — used by `has_batch_confirmed_override`
+    to check for `autoship:batch-confirmed` itself."""
+    return {
+        label.get("name") if isinstance(label, dict) else label
+        for label in issue.get("labels") or []
+    }
+
+
+def has_batch_confirmed_override(a: dict[str, Any], b: dict[str, Any]) -> bool:
+    """True iff both `a` and `b` carry the `autoship:batch-confirmed` label
+    AND each one's `confirmed_batch_members` field contains the other's
+    issue number.
+
+    `confirmed_batch_members` is an optional field (a list of ints, read via
+    `.get(...)` — same convention as `blockedBy`/`blocking`/`parent`); its
+    absence is "no signal", never an error. Requiring BOTH issues to be
+    labeled AND to still cross-reference each other is what supports partial
+    confirmation (Step 2c, `skills/autoship/SKILL.md`): a human confirming
+    only a subset of an agent-proposed batch unions exactly that subset,
+    never pulling in a member that was never relabeled or whose own marker
+    no longer lists its counterpart.
+    """
+    if BATCH_CONFIRMED_LABEL not in _raw_label_names(a):
+        return False
+    if BATCH_CONFIRMED_LABEL not in _raw_label_names(b):
+        return False
+    a_members = set(a.get("confirmed_batch_members") or [])
+    b_members = set(b.get("confirmed_batch_members") or [])
+    return b["number"] in a_members and a["number"] in b_members
+
+
 def _matches_any_signal(
     a: dict[str, Any],
     b: dict[str, Any],
@@ -182,8 +227,8 @@ def _matches_any_signal(
     label_names_by_number: dict[int, set[str]],
 ) -> bool:
     """True when `a` and `b` match any grouping signal: native dependency,
-    shared parent, or a shared label (outside `autoship:*` and
-    `exclude_label`).
+    shared parent, confirmed-batch override, or a shared label (outside
+    `autoship:*` and `exclude_label`).
 
     `label_names_by_number` is `group_issues`'s once-per-issue precomputed
     label-name lookup — passed in rather than recomputed here so the O(n^2)
@@ -192,6 +237,8 @@ def _matches_any_signal(
     if has_dependency_edge(a, b):
         return True
     if has_shared_parent(a, b):
+        return True
+    if has_batch_confirmed_override(a, b):
         return True
     return has_shared_label(
         label_names_by_number[a["number"]], label_names_by_number[b["number"]]
@@ -237,8 +284,8 @@ def group_issues(
     max_batch_size: int = DEFAULT_MAX_BATCH_SIZE,
     label: str = DEFAULT_LABEL,
 ) -> dict[str, Any]:
-    """Group `issues` into batches by native-dependency, shared-parent, and
-    shared-label signals, via union-find.
+    """Group `issues` into batches by native-dependency, shared-parent,
+    shared-label, and confirmed-batch-override signals, via union-find.
 
     `label` is the CLI's configured eligibility label — excluded from the
     shared-label signal alongside the `autoship:*` prefix, since every

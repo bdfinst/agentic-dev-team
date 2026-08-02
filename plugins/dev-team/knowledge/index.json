@@ -2245,8 +2245,16 @@
       "anchor": "step-1-reclaim-orphaned-issues"
     },
     "Step 2 — Discover eligible issues": {
-      "summary": "Run the two-stage grouping/queueing pipeline to select and order the issues",
+      "summary": "Run the grouping/queueing pipeline to select and order the issues this round",
       "anchor": "step-2-discover-eligible-issues"
+    },
+    "Step 2b — Ungrouped-issue grouping": {
+      "summary": "After `autoship_group.py`'s deterministic pass produces `<scratch-grouping.json>`",
+      "anchor": "step-2b-ungrouped-issue-grouping"
+    },
+    "Step 2c — Block-and-comment on proposed batches": {
+      "summary": "Every agent-PROPOSED batch surviving Step 2b's validation is gated on human",
+      "anchor": "step-2c-block-and-comment-on-proposed-batches"
     },
     "Step 3 — Per-issue processing loop": {
       "summary": "**Note**: this step's prose still assumes the old `{number, title}` per-issue",

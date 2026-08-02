@@ -315,6 +315,73 @@ def test_max_batch_size_one_routes_trimmed_group_to_ungrouped_not_a_batch() -> N
 # ---------------------------------------------------------------------------
 
 
+# ---------------------------------------------------------------------------
+# Step 4.3 — has_batch_confirmed_override (confirmed-batch signal)
+# ---------------------------------------------------------------------------
+
+
+def test_batch_confirmed_override_unions_two_mutually_confirmed_issues() -> None:
+    issue_a = _issue(
+        number=300,
+        title="A",
+        labels=[{"name": "autoship:ready"}, {"name": "autoship:batch-confirmed"}],
+        confirmed_batch_members=[301],
+    )
+    issue_b = _issue(
+        number=301,
+        title="B",
+        labels=[{"name": "autoship:ready"}, {"name": "autoship:batch-confirmed"}],
+        confirmed_batch_members=[300],
+    )
+
+    result = autoship_group.group_issues([issue_a, issue_b])
+
+    assert len(result["batches"]) == 1
+    assert {m["number"] for m in result["batches"][0]["members"]} == {300, 301}
+    assert result["ungrouped"] == []
+
+
+def test_batch_confirmed_override_does_not_union_when_only_one_is_confirmed() -> None:
+    # Issue B never received `autoship:batch-confirmed` — the signal must
+    # never fire on a one-sided confirmation.
+    issue_a = _issue(
+        number=310,
+        title="A",
+        labels=[{"name": "autoship:ready"}, {"name": "autoship:batch-confirmed"}],
+        confirmed_batch_members=[311],
+    )
+    issue_b = _issue(number=311, title="B", labels=[{"name": "autoship:ready"}])
+
+    result = autoship_group.group_issues([issue_a, issue_b])
+
+    assert result["batches"] == []
+    assert {m["number"] for m in result["ungrouped"]} == {310, 311}
+
+
+def test_batch_confirmed_override_does_not_union_on_marker_mismatch() -> None:
+    # Partial confirmation: both carry autoship:batch-confirmed, but B's
+    # confirmed_batch_members no longer lists A (e.g. B was confirmed as
+    # part of a different subset of the original proposal) — the signal
+    # must require BOTH sides to still cross-reference each other.
+    issue_a = _issue(
+        number=320,
+        title="A",
+        labels=[{"name": "autoship:ready"}, {"name": "autoship:batch-confirmed"}],
+        confirmed_batch_members=[321],
+    )
+    issue_b = _issue(
+        number=321,
+        title="B",
+        labels=[{"name": "autoship:ready"}, {"name": "autoship:batch-confirmed"}],
+        confirmed_batch_members=[999],
+    )
+
+    result = autoship_group.group_issues([issue_a, issue_b])
+
+    assert result["batches"] == []
+    assert {m["number"] for m in result["ungrouped"]} == {320, 321}
+
+
 def test_identical_createdat_tie_breaks_by_issue_number() -> None:
     # Both members share the exact same createdAt — the sort must still be
     # deterministic via a secondary key (issue number), not input order.
