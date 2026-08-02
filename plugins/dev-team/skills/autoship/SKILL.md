@@ -970,8 +970,9 @@ Skip the log write in `--dry-run` mode.
 ## Step 4 — Round summary
 
 After the loop ends — all dispatch units processed, cost cap reached,
-dry-run, or one of Step 2's two early-exit stops (no eligible issues at all,
-or no unit fit `--max-issues`) — print a round summary to chat:
+dry-run, or one of Step 2's three early-exit stops (no eligible issues at
+all, no unit fit `--max-issues`, or every eligible unit blocked pending
+confirmation) — print a round summary to chat:
 
 ```
 ## Autoship round summary

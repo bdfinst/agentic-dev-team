@@ -264,7 +264,9 @@ counts and outcomes only, never code or file content.
 
 `/code-review` appends one row **per dispatch round** (round 1 = the initial
 panel; each fix-loop iteration's re-dispatch set is one further round), so
+
 # 1623's "is this agent's dispatch frequency value or churn?" becomes
+
 answerable. Written by `skills/code-review/scripts/review_round_log.py`.
 
 | Field | Type | Values / source |
@@ -538,6 +540,7 @@ per-dispatch-unit loop ends (skipped in `--dry-run`):
 
 | Field | Type | Values / source |
 | --- | --- | --- |
+| `logged_at` | string | ISO-8601 (UTC) — stamped by `autoship_log.py` |
 | `round_id` | string | Same round-start timestamp as this round's solo/batch entries |
 | `event` | string | Always `"round_summary"` — distinguishes this record from a solo/batch entry above |
 | `processed_units` / `processed_issues` | integer | Dispatch units Step 3c actually dispatched this round / their total member-issue count |

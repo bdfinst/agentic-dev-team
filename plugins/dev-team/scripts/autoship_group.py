@@ -216,14 +216,17 @@ def _confirmed_member_numbers(issue: dict[str, Any]) -> set[int]:
     (`["301", "302"]`), not ints. Without this coercion, a strict `int`-only
     comparison would silently never match — the same class of silent
     no-signal failure `_referenced_numbers` already guards against. Any
-    entry that is neither an int nor a digit-only string is skipped rather
-    than raising.
+    entry that is neither an int nor an ASCII digit-only string is skipped
+    rather than raising — `str.isdigit()` alone is `True` for non-decimal
+    Unicode digits (e.g. superscript "2") that `int()` then rejects with
+    `ValueError`; the `isascii()` guard keeps the "never an error" contract
+    (same pattern as `scripts/build_jobs.py`'s own digit-string validation).
     """
     numbers: set[int] = set()
     for entry in issue.get("confirmed_batch_members") or []:
         if isinstance(entry, int):
             numbers.add(entry)
-        elif isinstance(entry, str) and entry.isdigit():
+        elif isinstance(entry, str) and entry.isascii() and entry.isdigit():
             numbers.add(int(entry))
     return numbers
 

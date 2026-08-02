@@ -429,6 +429,29 @@ def test_batch_confirmed_override_unions_with_string_typed_member_numbers() -> N
     assert result["ungrouped"] == []
 
 
+def test_batch_confirmed_override_skips_non_ascii_digit_member_numbers() -> None:
+    # str.isdigit() alone is True for non-decimal Unicode digits (e.g.
+    # superscript "²") that int() then rejects with ValueError — such an
+    # entry must be skipped rather than raising, never crash the round.
+    issue_a = _issue(
+        number=301,
+        title="A",
+        labels=[{"name": "autoship:ready"}, {"name": "autoship:batch-confirmed"}],
+        confirmed_batch_members=["²"],
+    )
+    issue_b = _issue(
+        number=302,
+        title="B",
+        labels=[{"name": "autoship:ready"}, {"name": "autoship:batch-confirmed"}],
+        confirmed_batch_members=["301"],
+    )
+
+    result = autoship_group.group_issues([issue_a, issue_b])
+
+    assert result["batches"] == []
+    assert {m["number"] for m in result["ungrouped"]} == {301, 302}
+
+
 def test_identical_createdat_tie_breaks_by_issue_number() -> None:
     # Both members share the exact same createdAt — the sort must still be
     # deterministic via a secondary key (issue number), not input order.
