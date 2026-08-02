@@ -115,6 +115,13 @@ Be concise in summaries -- preserve decisions and artifacts, discard process nar
 - [Integration tests]
 - [Acceptance criteria from spec]
 
+## Plan Quality Signal
+- **Tier**: [from the plan's `## Plan Review Summary`, e.g. "standard"]
+- **Reviewer set**: [e.g. "Acceptance, Design, Parallelization"]
+- **Final verdicts**: [approve/needs-revision per reviewer]
+- **Revision iterations**: [how many Phase 2 iterations it took to reach approve]
+- **Outstanding warnings**: [carried-forward warnings from approving reviewers, if any — these are still worth Implement's attention even though they didn't block the human gate]
+
 ## Execution Order
 1. [First change -- why it must come first]
 2. [Second change -- depends on first because...]
@@ -128,6 +135,12 @@ Be concise in summaries -- preserve decisions and artifacts, discard process nar
 - [ ] Change 2
 - [ ] All tests passing
 ```
+
+Fill in the **Plan Quality Signal** section above from the plan's own
+`## Plan Review Summary` — see `agents/orchestrator.md` Phase 2 for why this
+signal matters (stated there in full; not restated here). Carrying it
+forward means Implement inherits how much scrutiny the plan already
+received, rather than starting Phase 3 blind to it.
 
 ---
 

@@ -1567,6 +1567,24 @@
       "anchor": "how-this-connects-to-the-rest-of-the-toolkit"
     }
   },
+  "plugins/dev-team/knowledge/test-cadence-tradeoffs.md": {
+    "The standing default: Code-First Small Batches": {
+      "summary": "**Code-First Small Batches** (IMPLEMENT → TEST → REFACTOR per behavior,",
+      "anchor": "the-standing-default-code-first-small-batches"
+    },
+    "The external claim: batch-red-per-class": {
+      "summary": "claude-flow's batch-vs-strict-TDD experiment (see the competitive analysis",
+      "anchor": "the-external-claim-batch-red-per-class"
+    },
+    "The decision rule": {
+      "summary": "**Do not adopt batch-red-per-class, and do not remove or deprecate",
+      "anchor": "the-decision-rule"
+    },
+    "Local measurement, once you have a result": {
+      "summary": "Use `.claude/metrics/` (see `skills/performance-metrics/SKILL.md`) to keep",
+      "anchor": "local-measurement-once-you-have-a-result"
+    }
+  },
   "plugins/dev-team/knowledge/test-doubles.md": {
     "The Five Doubles": {
       "summary": "| Double | What it does | Verification style | Use when |",

@@ -188,6 +188,7 @@ Knowledge files in `knowledge/` provide progressive disclosure — agents read t
 | Review Rubric | `knowledge/review-rubric.md` | 300 | `/code-review` (health scoring) |
 | Review Template | `knowledge/review-template.md` | 400 | `/code-review` (report assembly) |
 | Test Automation Maturity | `knowledge/test-automation-maturity.md` | ~450 | test-review, test-health |
+| Test Cadence Tradeoffs | `knowledge/test-cadence-tradeoffs.md` | ~1000 | Orchestrator (Phase 2, `agents/orchestrator.md`) |
 | Test Doubles | `knowledge/test-doubles.md` | ~700 | test-smell-review, test-design-advisor |
 | Test File Indicators | `knowledge/test-file-indicators.md` | ~200 | test-review, test-smell-review, `/test-design`, `/build` |
 | Test Layer Gates | `knowledge/test-layer-gates.md` | ~480 | test-design-advisor |
