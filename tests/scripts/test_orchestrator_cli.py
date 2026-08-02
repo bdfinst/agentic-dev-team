@@ -105,5 +105,6 @@ def test_6_3b_skip_llm_dispatches_personas_and_prints_startup_line_per_persona(
 ) -> None:
     result = _run(tmp_path, "--skip-llm", "--dispatch-personas", stdin_text="a task")
     assert result.returncode == 0
-    marker = "dispatching plan-review persona"
+    marker = "dispatching persona"
     assert marker in result.stdout or marker in result.stderr
+    assert "dispatching plan-review persona" not in result.stderr
