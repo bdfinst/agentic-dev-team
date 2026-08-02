@@ -52,8 +52,31 @@ def test_prevents_selective_attention_phrase_present(text: str) -> None:
 
 def test_anchors_before_applying_judgment_phrase_present(text: str) -> None:
     assert "anchors" in text
-    assert "before applying judgment" in text
+    idx = text.index("anchors")
+    assert "before applying judgment" in text[idx : idx + 200]
 
 
 def test_proportional_to_distinct_problems_phrase_present(text: str) -> None:
     assert "proportional to the number of distinct problems" in text
+
+
+def test_correctness_review_protocol_has_no_duplicated_methodology_prose() -> None:
+    """Regression guard for the dedup this file's methodology extraction
+    performed (issue #1696) — a future edit re-pasting the old inline
+    paragraph into the citing agent would defeat the whole extraction.
+    """
+    agent = (
+        REPO_ROOT
+        / "plugins"
+        / "dev-team"
+        / "agents"
+        / "correctness-review.md"
+    ).read_text(encoding="utf-8")
+    assert "the finding count proportional to" not in agent
+
+
+def test_naming_review_protocol_has_no_duplicated_methodology_prose() -> None:
+    agent = (
+        REPO_ROOT / "plugins" / "dev-team" / "agents" / "naming-review.md"
+    ).read_text(encoding="utf-8")
+    assert "the finding count proportional to" not in agent

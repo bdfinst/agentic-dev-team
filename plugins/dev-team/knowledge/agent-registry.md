@@ -165,6 +165,7 @@ Knowledge files in `knowledge/` provide progressive disclosure — agents read t
 | ------ | ------ | --------- | --------- |
 | Adversarial Review Protocol | `knowledge/adversarial-review-protocol.md` | ~600 | all 25 review agents (a11y-review, angular-reactivity-review, arch-review, claude-setup-review, complexity-review, component-architecture-review, concurrency-review, correctness-review, data-flow-tracer, doc-review, domain-review, js-fp-review, naming-review, performance-review, progress-guardian, react-reactivity-review, refactor-opportunity-review, security-review, session-analysis, spec-compliance-review, structure-review, test-review, test-smell-review, token-efficiency-review, vue-reactivity-review) |
 | Agent Registry | `knowledge/agent-registry.md` | 1,200 | Orchestrator (routing decisions) |
+| Shared Review Methodology | `knowledge/agent-review-methodology.md` | ~880 | correctness-review, naming-review |
 | Architecture Assessment | `knowledge/architecture-assessment.md` | 450 | arch-review |
 | CD Maturity Model | `knowledge/cd-maturity-model.md` | ~870 | Platform Engineer, QA Engineer |
 | CD Test Architecture | `knowledge/cd-test-architecture.md` | ~1,100 | cd-test-architecture, test-design-advisor |

@@ -67,3 +67,14 @@ An agent citing this file keeps its own `## Protocol` section short: name
 the three phases, cite this file for the shared rationale, and describe only
 what is domain-specific — what Enumerate lists, what rules Classify applies,
 and what Group's collapsing criteria are for that agent's findings.
+
+**Whole-file load, not anchor-scoped.** This file is cited with `Whole-file
+load:`, matching `adversarial-review-protocol.md`'s established convention
+for a shared methodology every citing agent must apply in full — the
+Enumerate/Classify/Group phases are one coherent discipline, not
+independently-usable sections a citing agent could safely load a slice of.
+This costs more per-invocation than the single inline paragraph it replaced
+(the file is ~880 tokens; the removed paragraph was ~70), a deliberate
+trade of runtime load for eliminating hand-maintained source duplication
+and drift risk across every citing agent — the same trade this repo already
+made for `adversarial-review-protocol.md`.
