@@ -12,7 +12,7 @@ Ported from tests/skills/quality_targets_converge_workflow_param_tests.bats
 
 from __future__ import annotations
 
-from skill_doc_helpers import PLUGIN_ROOT, grep, section
+from skill_doc_helpers import PLUGIN_ROOT, grep, parse_arguments_section
 
 SKILL = PLUGIN_ROOT / "skills" / "quality-targets-converge" / "SKILL.md"
 ARCH = PLUGIN_ROOT / "docs" / "agent-architecture.md"
@@ -23,12 +23,7 @@ def _text() -> str:
 
 
 def _parse_arguments_section() -> str:
-    return section(
-        _text(),
-        r"^## Parse Arguments",
-        boundary_pattern=r"^## ",
-        include_start_line=False,
-    )
+    return parse_arguments_section(_text())
 
 
 def _dispatch_table_row() -> str:

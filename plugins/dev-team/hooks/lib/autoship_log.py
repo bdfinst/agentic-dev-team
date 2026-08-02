@@ -6,7 +6,9 @@ mirroring the metrics/config-changelog.jsonl convention.
 
 CLI usage:
     python autoship_log.py --log-path <path> --json <json-string>
+    python autoship_log.py --log-path <path> --json-file <path-to-json-file>
 """
+
 import argparse
 import json
 import pathlib
@@ -38,8 +40,16 @@ def _build_parser() -> argparse.ArgumentParser:
         description="Append one JSON line to an autoship round log."
     )
     parser.add_argument("--log-path", required=True, help="Path to the JSONL log file.")
-    parser.add_argument(
-        "--json", required=True, dest="json_str", help="JSON object string to append."
+    source = parser.add_mutually_exclusive_group(required=True)
+    source.add_argument("--json", dest="json_str", help="JSON object string to append.")
+    source.add_argument(
+        "--json-file",
+        help=(
+            "Path to a file containing a JSON object to append — the "
+            "--body-file convention applied to this log write, so "
+            "agent-derived text (e.g. a synthesized blocked_reason) never "
+            "needs to be interpolated into an inline --json shell string."
+        ),
     )
     return parser
 
@@ -48,8 +58,21 @@ def main(argv=None) -> int:
     parser = _build_parser()
     args = parser.parse_args(argv)
 
+    if args.json_file is not None:
+        try:
+            with open(args.json_file, encoding="utf-8") as fh:
+                raw = fh.read()
+        except OSError as exc:
+            print(
+                f"error: could not read --json-file {args.json_file!r}: {exc}",
+                file=sys.stderr,
+            )
+            return 1
+    else:
+        raw = args.json_str
+
     try:
-        record = json.loads(args.json_str)
+        record = json.loads(raw)
     except json.JSONDecodeError as exc:
         print(f"error: invalid JSON: {exc}", file=sys.stderr)
         return 1

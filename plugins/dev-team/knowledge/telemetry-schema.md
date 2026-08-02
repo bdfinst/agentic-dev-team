@@ -45,7 +45,7 @@ dispatch — see that module's own docstring for its fail-**closed** posture,
 the deliberate opposite of this stream's own fail-open write side.
 
 | Field | Type | Values / source |
-|---|---|---|
+| --- | --- | --- |
 | `ts` | string | ISO-8601 UTC `%Y-%m-%dT%H:%M:%SZ` |
 | `hook` | string | Emitting hook's module name, e.g. `destructive_guard`, `verify_guard`, `pre_commit_review`, `telemetry`, `agent_dispatch_ledger` |
 | `tool` | string | Hooked tool/event: `Bash`, `Write`, `Edit`, `Skill`, `Agent`, `UserPromptSubmit` |
@@ -80,7 +80,7 @@ Opt-in usage beacon: which slash commands / skills get invoked, and whether
 the pre-commit review gate fired or was bypassed.
 
 | Field | Type | Values / source |
-|---|---|---|
+| --- | --- | --- |
 | `ts` | string | ISO-8601 UTC |
 | `event` | string enum | `command` \| `skill` \| `gate` |
 | `name` | string | Grammar-matched slash-command name, skill name, or `pre-commit-review` |
@@ -99,7 +99,7 @@ Per-session token/cost summary, incrementally accumulated from the
 transcript on each `Stop` hook fire.
 
 | Field | Type | Values / source |
-|---|---|---|
+| --- | --- | --- |
 | `timestamp` | string | ISO-8601 UTC |
 | `transcript` | string | Transcript file basename (not full path) |
 | `total` | object | Aggregated token counts + `cost_usd` + `messages` across the session |
@@ -121,7 +121,7 @@ kept out of that log's incremental `record` state so this additive dimension
 never touches the security-sensitive hot path.
 
 | Field | Type | Values / source |
-|---|---|---|
+| --- | --- | --- |
 | `timestamp` | string | ISO-8601 UTC |
 | `transcript` | string | Transcript file basename (not full path) |
 | `phase` | string | Phase label — the first `/handoff` args token when sane, else `handoff` (or `unlabeled` for a direct library call) |
@@ -140,7 +140,7 @@ Not JSONL — a single JSON object keyed by skill/agent name, upserted on
 every invocation.
 
 | Field | Type | Values / source |
-|---|---|---|
+| --- | --- | --- |
 | `<skill_name>.use_count` | integer | Cumulative invocation count |
 | `<skill_name>.last_used_at` | string | ISO-8601 UTC of the most recent invocation |
 | `<skill_name>.lifecycle` | string | `active` (set on creation; other lifecycle states are assigned externally by `/artifact-lifecycle`) |
@@ -157,7 +157,7 @@ Accountability record for `git commit --no-verify`/`-n` bypasses of the
 pre-commit review gate.
 
 | Field | Type | Values / source |
-|---|---|---|
+| --- | --- | --- |
 | `timestamp` | string | ISO-8601 UTC |
 | `branch` | string | Current git branch |
 | `triggeredBy` | string | Bypass flag name (`--no-verify` or `-n`) |
@@ -178,7 +178,7 @@ mutation-testing smoke gate. Distinct stream from `gate-bypass-audit.jsonl`
 above (different gate, different hook).
 
 | Field | Type | Values / source |
-|---|---|---|
+| --- | --- | --- |
 | `timestamp` | string | ISO-8601 UTC (`Z`-suffixed) |
 | `hook` | string | Always `mutation-testing-smoke-gate` |
 | `command_hash` | string | First 16 hex chars of `sha256(raw_command)` — the raw command is never logged |
@@ -196,7 +196,7 @@ Audit trail for `/feedback-learning` config changes and human-oversight
 protocol events (approval / override / pause / stop).
 
 | Field | Type | Values / source |
-|---|---|---|
+| --- | --- | --- |
 | `timestamp` | string | ISO-8601 UTC |
 | `type` | string enum | `amend` \| `approval` \| `override` \| `pause` \| `stop` (feedback-learning change types, or oversight event types) |
 | `trigger` | string | `user` (who/what triggered the change) |
@@ -218,7 +218,7 @@ Trend digest from `/session-review` (backed by `scripts/session_extract.py`):
 aggregate counts only, no file names, prompts, command strings, or code.
 
 | Field | Type | Values / source |
-|---|---|---|
+| --- | --- | --- |
 | `recorded_at` | string | UTC ISO-8601 of the run |
 | `plugin_version` | string | The `dev-team` plugin's `.claude-plugin/plugin.json` version active when this record was produced (`"unknown"` if the manifest couldn't be read), #1471. Lets consumers tell a friction already fixed in a newer version apart from one that's still current — see `--version-scope` below |
 | `sessions`, `transcripts` | integer | How many sessions/transcripts the digest covered |
@@ -242,7 +242,7 @@ Whether a `/build` inline review checkpoint actually changed anything —
 counts and outcomes only, never code or file content.
 
 | Field | Type | Values / source |
-|---|---|---|
+| --- | --- | --- |
 | `timestamp` | string | ISO-8601 UTC |
 | `plan` | string | Plan file path |
 | `slice` | string | Slice number |
@@ -264,11 +264,13 @@ counts and outcomes only, never code or file content.
 
 `/code-review` appends one row **per dispatch round** (round 1 = the initial
 panel; each fix-loop iteration's re-dispatch set is one further round), so
-#1623's "is this agent's dispatch frequency value or churn?" becomes
+
+# 1623's "is this agent's dispatch frequency value or churn?" becomes
+
 answerable. Written by `skills/code-review/scripts/review_round_log.py`.
 
 | Field | Type | Values / source |
-|---|---|---|
+| --- | --- | --- |
 | `timestamp` | string | ISO-8601 UTC |
 | `source` | string enum | Always `code-review` for these rows |
 | `round` | integer | 1 = initial panel; each fix-loop re-dispatch set increments. **Presence of this field is what distinguishes a round row** from the original whole-run `code-review` row |
@@ -295,7 +297,7 @@ with a runtime surface was marked complete. Schema modeled on
 `review-value.jsonl`.
 
 | Field | Type | Values / source |
-|---|---|---|
+| --- | --- | --- |
 | `timestamp` | string | ISO-8601 UTC |
 | `plan` | string | Plan file path |
 | `slice` | string | Slice number |
@@ -316,7 +318,7 @@ Audit trail for `/code-review --force --reason "<text>"`, which skips all
 gates and the documentation-only short-circuit.
 
 | Field | Type | Values / source |
-|---|---|---|
+| --- | --- | --- |
 | `timestamp` | string | ISO-8601 |
 | `branch` | string | Current git branch |
 | `triggeredBy` | string | Always `--force` |
@@ -335,7 +337,7 @@ gates and the documentation-only short-circuit.
 Multi-trial pass@k stability trend for `/agent-eval` fixtures.
 
 | Field | Type | Values / source |
-|---|---|---|
+| --- | --- | --- |
 | `recorded_at` | string | ISO-8601 UTC |
 | `schema` | string | `eval-variance/v1` |
 | `trials` | integer | Number of trials in this run |
@@ -356,7 +358,7 @@ a controlled baseline-vs-ablated integration-tier delta (issues caught,
 `testCommands` results, token cost), not accumulated usage data.
 
 | Field | Type | Values / source |
-|---|---|---|
+| --- | --- | --- |
 | `schema` | string | `eval-ablation/v1` |
 | `recorded_at` | string | ISO-8601 UTC |
 | `ablated_agent` | string | Target agent name |
@@ -380,7 +382,7 @@ enforcement decision and any fail-open diagnostic. Extended by `#906` with
 `bash-freeze`, the preventive PreToolUse(Bash) sibling of `freeze`.
 
 | Field | Type | Values / source |
-|---|---|---|
+| --- | --- | --- |
 | `timestamp` | string | ISO-8601 |
 | `hook` | string | `freeze` \| `bash-freeze` \| `revert` |
 | `event` | string enum | `block` \| `fail-open` \| `revert` \| `remove` |
@@ -400,7 +402,7 @@ Audit log for release-please's bypass of the security-primitives-contract
 version-bump requirement.
 
 | Field | Type | Values / source |
-|---|---|---|
+| --- | --- | --- |
 | `ts` | string | ISO-8601 UTC |
 | `bypass` | boolean | Always `true` |
 | `reason` | string | Always `release-please-actor` |
@@ -434,7 +436,7 @@ Queued findings from the background session-analysis dispatch, before
 `/session-review` consumes them.
 
 | Field | Type | Values / source |
-|---|---|---|
+| --- | --- | --- |
 | `queued_at` | string | ISO-8601 UTC |
 | `source` | string | Always `session-learning-trigger` |
 | `session_id` | string, optional | Session ID when available |
@@ -451,7 +453,7 @@ Queued findings from the background session-analysis dispatch, before
 Self-reported per-task completion log, one file per calendar date.
 
 | Field | Type | Values / source |
-|---|---|---|
+| --- | --- | --- |
 | `timestamp` | string | ISO-8601 |
 | (task-specific fields) | — | Tokens, cost, agents used, rework cycles, hallucination events — see `skills/performance-metrics/SKILL.md` for the full field list |
 
@@ -471,7 +473,7 @@ roll-up run — not deduplicated across runs, since coverage/mutation deltas
 are re-measured every convergence iteration.
 
 | Field | Type | Values / source |
-|---|---|---|
+| --- | --- | --- |
 | `surface` | string, nullable | The discovered surface name/path from `gherkin.md`'s surface-inventory table |
 | `discovery_source` | string, nullable | `openapi` \| `route` \| `test` \| `signature` (per `/gherkin-derive` Step 2), as recorded in the inventory |
 | `provenance` | string, nullable | `specification` \| `characterization`, as recorded in the inventory |
@@ -503,20 +505,53 @@ are re-measured every convergence iteration.
 
 ## `autoship-log.jsonl`
 
-One entry per `/autoship` round, recording the outcome and cost of each automated ship attempt.
+One record per `/autoship` dispatch-unit outcome (a solo issue or a batch),
+plus one `round_summary` event per round. Every record is appended via the
+shared `hooks/lib/autoship_log.py` appender (its `--json`/`--json-file`
+CLI), which stamps `logged_at` regardless of which of the three shapes
+below the caller passes it — the library itself is schema-agnostic; the
+shape is entirely determined by `/autoship`'s own SKILL.md (Steps 3f/4).
+
+**Solo entry** — one record per solo-dispatched issue:
 
 | Field | Type | Values / source |
-|---|---|---|
+| --- | --- | --- |
 | `logged_at` | string | ISO-8601 (UTC) — stamped by `autoship_log.py` |
-| `round` | integer | Monotonically increasing round counter |
-| `issues_attempted` | integer | Number of issues dispatched this round |
-| `issues_shipped` | integer | Issues that reached a merged PR |
-| `issues_blocked` | integer | Issues that required stakeholder input |
-| `total_cost_usd` | number | Cumulative USD spend for this round |
-| `outcome` | string | `"success"` \| `"convergence_failure"` \| `"cost_cap_reached"` \| `"unrecognized"` |
+| `round_id` | string | ISO-8601 timestamp generated once at round start (before Step 1) |
+| `issue` | integer | The dispatched issue number |
+| `status` | string enum | `shipped` \| `failed` \| `unrecognized` \| `blocked` |
+| `blocked_reason` | string, nullable | The extracted stakeholder question (`blocked`), the Step-3d.1-synthesized classifier-verdict string (`failed`/`unrecognized`), or `null` for `shipped` |
 
-- **Emitter:** `hooks/lib/autoship_log.py` called from the `/autoship` skill.
-- **Consent:** unconditional (cost/count aggregates only — no prompt text or file contents).
+**Batch entry** — one record per batch dispatch unit, never one per member
+issue, applying identically across every outcome (`shipped`, `blocked`,
+`failed`, and `unrecognized` alike):
+
+| Field | Type | Values / source |
+| --- | --- | --- |
+| `logged_at` | string | ISO-8601 (UTC) — stamped by `autoship_log.py` |
+| `round_id` | string | Same round-start timestamp as any solo entry logged the same round |
+| `batch_id` | string | e.g. `grp-101` — `autoship_group.py`'s deterministic batch id |
+| `issues` | array of integer | Every member issue number |
+| `status` | string enum | `shipped` \| `failed` \| `unrecognized` \| `blocked` |
+| `blocked_reason` | string, nullable | Same convention as the solo entry's field, applied to the whole batch |
+
+**`round_summary` event** — one per round, appended after Step 3's
+per-dispatch-unit loop ends (skipped in `--dry-run`):
+
+| Field | Type | Values / source |
+| --- | --- | --- |
+| `logged_at` | string | ISO-8601 (UTC) — stamped by `autoship_log.py` |
+| `round_id` | string | Same round-start timestamp as this round's solo/batch entries |
+| `event` | string | Always `"round_summary"` — distinguishes this record from a solo/batch entry above |
+| `processed_units` / `processed_issues` | integer | Dispatch units Step 3c actually dispatched this round / their total member-issue count |
+| `discovered_units` / `discovered_issues` | integer | Every dispatch unit `autoship_queue.py` produced this round (`queue` + `deferred` combined) / their total member-issue count |
+| `deferred_units` / `deferred_issues` | integer | Dispatch units left in `deferred` / their total member-issue count (a solo unit counts as 1) |
+| `blocked_pending_confirmation_units` / `blocked_pending_confirmation_issues` | integer | Proposed batches Step 2c actually blocked pending human confirmation this round / their total member-issue count — always present, `0` when Step 2b/2c never ran or blocked nothing |
+| `cost_usd` | number | Accumulated round cost |
+| `status` | string enum | `complete` \| `cost_cap_reached` \| `dry_run` \| `no_eligible_issues` \| `no_unit_fits_cap` \| `blocked_pending_confirmation` |
+
+- **Emitter:** `hooks/lib/autoship_log.py` called from the `/autoship` skill (Step 3f for solo/batch entries, Step 4 for the `round_summary` event).
+- **Consent:** unconditional (cost/count aggregates and enum values only — no prompt text or file contents).
 - **Consumers:** `/cost-report`, `/telemetry` (aggregate reporting).
 
 ---
@@ -532,7 +567,7 @@ from. Canonical (informational, not enforced) lifecycle: `SPEC -> PLAN ->
 BUILD -> REVIEW -> COMMIT -> PR`.
 
 | Field | Type | Values / source |
-|---|---|---|
+| --- | --- | --- |
 | `ts` | string | ISO-8601 UTC `%Y-%m-%dT%H:%M:%SZ` |
 | `workflow` | string | Orchestrated flow name, e.g. `ship`, `autoship`, `build` |
 | `prior_state` | string, optional (`null` for the initial transition) | State the workflow was in before this transition |
@@ -557,7 +592,7 @@ autonomous run needs to be debuggable after the fact. Unlike
 entry is a durable, once-written decision note.
 
 | Field | Type | Values / source |
-|---|---|---|
+| --- | --- | --- |
 | `ts` | string | ISO-8601 UTC `%Y-%m-%dT%H:%M:%SZ` |
 | `round_id` | string | Identifier for the current round/iteration (`/autoship`'s round_id, or `/ship`'s issue identifier) |
 | `attempted` | string | Short structured note — what was attempted this iteration (deliberate, agent-authored rationale, not incidental free text — same precedent as `config-changelog.jsonl`'s `description`) |

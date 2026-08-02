@@ -26,6 +26,18 @@ import autoship_state
 IN_PROGRESS_LABEL = autoship_state.IN_PROGRESS_LABEL
 BLOCKED_LABEL = autoship_state.BLOCKED_LABEL
 
+# Stripped alongside IN_PROGRESS_LABEL on every reclaim relabel — a crashed
+# batch round can leave a member `in-progress` + `batch-confirmed`; without
+# also removing this label here, reclaim would produce `blocked` +
+# `batch-confirmed` still co-present, violating the "autoship:blocked is
+# mutually exclusive with the other two states" invariant
+# (`skills/autoship/SKILL.md`) and letting a later human relabel back to
+# `ready` silently re-trigger `has_batch_confirmed_override` on a stale,
+# no-longer-reconfirmed marker. Defined once in `autoship_state` alongside
+# the other `autoship:*` label constants; `autoship_group.py` imports the
+# same shared constant.
+BATCH_CONFIRMED_LABEL = autoship_state.BATCH_CONFIRMED_LABEL
+
 # gh subprocess calls get a hard timeout so a hung/stalled network call never
 # blocks this script indefinitely.
 _GH_TIMEOUT_SECONDS = 30
@@ -123,7 +135,10 @@ def _fetch_in_progress_issues() -> list:
     `labels` and `state` are requested even though the live fetch is already
     server-filtered to open + `autoship:in-progress`, so the fetched shape
     matches exactly what `select_orphaned` checks — same reasoning as
-    discovery's live-fetch step. A failure fetching the issue list itself
+    discovery's live-fetch step. `--limit 500` overrides `gh issue list`'s
+    default result cap (typically 30) so a repo with more than a page of
+    stale in-progress issues doesn't silently reclaim only part of them. A
+    failure fetching the issue list itself
     (missing `gh` binary, non-zero exit, timeout, or malformed JSON) is
     unrecoverable and propagates to the caller, which translates it to a
     clear stderr message. A failure looking up one issue's timeline is NOT
@@ -141,6 +156,8 @@ def _fetch_in_progress_issues() -> list:
                 "open",
                 "--label",
                 IN_PROGRESS_LABEL,
+                "--limit",
+                autoship_state.GH_LIST_LIMIT,
                 "--json",
                 "number,title,state,labels,updatedAt",
             ],
@@ -330,6 +347,11 @@ def _post_comment(number: int, body: str) -> None:
 
 
 def _relabel(number: int) -> None:
+    """Relabel `number` from `IN_PROGRESS_LABEL` to `BLOCKED_LABEL`, also
+    stripping `BATCH_CONFIRMED_LABEL` in the same operation (a no-op via
+    `gh issue edit` when the label isn't present) — see `BATCH_CONFIRMED_LABEL`
+    for why this must never be a bare `IN_PROGRESS_LABEL` -> `BLOCKED_LABEL`
+    swap."""
     subprocess.run(
         [
             "gh",
@@ -338,6 +360,8 @@ def _relabel(number: int) -> None:
             str(number),
             "--remove-label",
             IN_PROGRESS_LABEL,
+            "--remove-label",
+            BATCH_CONFIRMED_LABEL,
             "--add-label",
             BLOCKED_LABEL,
         ],
@@ -382,13 +406,17 @@ def _reclaim_issue(
         # issue and executes the action itself via another mechanism (GitHub
         # MCP tools). One compact JSON object per line, so a caller can
         # stream-process without buffering the whole run's output.
+        # `relabel_remove`/`relabel_add` are lists (not a single
+        # `relabel_from`/`relabel_to` pair) because a reclaimed issue may
+        # need more than one label stripped — see `_relabel`'s
+        # `BATCH_CONFIRMED_LABEL` handling for why.
         print(
             json.dumps(
                 {
                     "number": number,
                     "comment": comment,
-                    "relabel_from": IN_PROGRESS_LABEL,
-                    "relabel_to": BLOCKED_LABEL,
+                    "relabel_remove": [IN_PROGRESS_LABEL, BATCH_CONFIRMED_LABEL],
+                    "relabel_add": [BLOCKED_LABEL],
                 }
             )
         )
