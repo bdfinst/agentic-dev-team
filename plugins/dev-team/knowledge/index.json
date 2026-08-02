@@ -2256,40 +2256,44 @@
       "summary": "Every agent-PROPOSED batch surviving Step 2b's validation is gated on human",
       "anchor": "step-2c-block-and-comment-on-proposed-batches"
     },
-    "Step 3 — Per-issue processing loop": {
-      "summary": "**Note**: this step's prose still assumes the old `{number, title}` per-issue",
-      "anchor": "step-3-per-issue-processing-loop"
+    "Step 3 — Per-dispatch-unit processing loop": {
+      "summary": "Process each entry in the `queue` array — each a **dispatch unit**, either",
+      "anchor": "step-3-per-dispatch-unit-processing-loop"
     },
     "3a — Cost cap check": {
-      "summary": "Before starting an issue, read the current round cost:",
+      "summary": "Before starting a dispatch unit, read the current round cost:",
       "anchor": "3a-cost-cap-check"
     },
-    "3b — Label issue in-progress": {
-      "summary": "**gh present:**",
-      "anchor": "3b-label-issue-in-progress"
+    "3b — Label in-progress": {
+      "summary": "**Solo** — unchanged from today's single-issue behavior:",
+      "anchor": "3b-label-in-progress"
     },
     "3c — Invoke /ship": {
-      "summary": "Invoke `/ship` with:",
+      "summary": "Before invoking `/ship` — solo or batch — capture the current ISO-8601",
       "anchor": "3c-invoke-ship"
     },
     "3d — Detect stakeholder-input blocker": {
       "summary": "Scan `ship_output` for the pattern `requires-stakeholder-input` (case-insensitive).",
       "anchor": "3d-detect-stakeholder-input-blocker"
     },
+    "3d.1 — Dispatch-unit ship failure/unrecognized handling": {
+      "summary": "Run 3e's classifier first (below); return here only if it reports `failed`",
+      "anchor": "3d1-dispatch-unit-ship-failureunrecognized-handling"
+    },
     "3e — Classify outcome": {
       "summary": "After a non-blocked `/ship` completes, record the start ISO timestamp that was",
       "anchor": "3e-classify-outcome"
     },
     "3e.1 — Hard-block: iteration journal gate (#1168)": {
-      "summary": "Before advancing to the next issue, append a structured decision entry for",
+      "summary": "Before advancing to the next dispatch unit, append a structured decision",
       "anchor": "3e1-hard-block-iteration-journal-gate-1168"
     },
     "3f — Append round record": {
-      "summary": "Append one entry per issue to `.claude/metrics/autoship-log.jsonl` using the log",
+      "summary": "Append log entries to `.claude/metrics/autoship-log.jsonl` using the log",
       "anchor": "3f-append-round-record"
     },
     "Step 4 — Round summary": {
-      "summary": "After the loop ends — all issues processed, cost cap reached, dry-run, or one",
+      "summary": "After the loop ends — all dispatch units processed, cost cap reached,",
       "anchor": "step-4-round-summary"
     },
     "Notes": {

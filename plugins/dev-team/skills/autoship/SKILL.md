@@ -23,7 +23,7 @@ allowed-tools: >-
 
 Role: orchestrator. This skill runs one bounded round of automated issue
 dispatch. It does not implement code, review, or merge — it sequences the
-existing `/ship` pipeline per issue and logs each outcome.
+existing `/ship` pipeline per dispatch unit and logs each outcome.
 
 You have been invoked with the `/autoship` command.
 
@@ -548,12 +548,10 @@ may have rewritten its `ungrouped` array in between — see those subsections).
 remains available unchanged for any other caller — do not modify or remove
 that script.
 
-The `queue` array is what the per-issue loop (Step 3) will process — one
+The `queue` array is what the per-dispatch-unit loop (Step 3) processes — one
 entry per dispatch unit, each either `{"type": "batch", "batch_id": ...,
-"issues": [...]}` or `{"type": "solo", "issue": N}`. **Step 3's prose below is
-still written for the old `{number, title}` shape** — it has not yet been
-updated to consume this new queue shape. That update is a later, separate
-change; do not treat Step 3 as already handling batch/solo units.
+"issues": [...]}` or `{"type": "solo", "issue": N}`. Step 3 processes this
+queue directly, one dispatch unit at a time, in order.
 
 If the queue is empty (both `queue` and `deferred` empty), print "No eligible
 issues found this round." and stop, recording the round with
@@ -575,25 +573,20 @@ and stop, recording the round with `status: "no_unit_fits_cap"`,
 unit's member count) before exiting.
 
 In `--dry-run` mode, print the discovered queue and stop here without
-proceeding to per-issue processing.
+proceeding to per-dispatch-unit processing.
 
 The `--label` flag, when given, now flows to `autoship_group.py --label
 <label>` instead of `autoship_discover.py --label <label>`.
 
-## Step 3 — Per-issue processing loop
+## Step 3 — Per-dispatch-unit processing loop
 
-**Note**: this step's prose still assumes the old `{number, title}` per-issue
-shape (see Step 2's discovery pipeline) and has not yet been updated to
-consume the `queue` array's `batch`/`solo` dispatch units — that update is a
-later, separate change.
-
-Process each discovered issue **strictly in order** (no concurrency).
-
-For each issue `{number, title}`:
+Process each entry in the `queue` array — each a **dispatch unit**, either
+`{"type": "batch", "batch_id": ..., "issues": [n1, n2, ...]}` or
+`{"type": "solo", "issue": N}` — **strictly in order** (no concurrency).
 
 ### 3a — Cost cap check
 
-Before starting an issue, read the current round cost:
+Before starting a dispatch unit, read the current round cost:
 
 ```bash
 # Invoke /cost-report to get the total cost incurred since round start
@@ -604,13 +597,18 @@ loop with the message:
 
 ```
 autoship: cost cap reached (${accumulated:.2f} >= ${max_cost_usd:.2f}).
-Stopping before issue #<number>.
+Stopping before <unit>.
 ```
 
-Record the round summary with `status: "cost_cap_reached"` for the remaining
-issues.
+`<unit>` names the dispatch unit generically — `issue #<number>` for a solo
+unit, or `batch <batch_id> (issues #<n1>, #<n2>, ...)` for a batch unit.
 
-### 3b — Label issue in-progress
+Record the round summary with `status: "cost_cap_reached"` for the remaining
+dispatch units.
+
+### 3b — Label in-progress
+
+**Solo** — unchanged from today's single-issue behavior:
 
 **gh present:**
 
@@ -626,7 +624,31 @@ then pass the full `labels` list with `autoship:ready` removed and
 `autoship:in-progress` added (the tool replaces the full label set, it does
 not diff against `--remove-label`/`--add-label` semantics).
 
+**Batch** — label EVERY member issue `autoship:in-progress` together, in one
+operation:
+
+**gh present:**
+
+```bash
+gh issue edit <n1> <n2> ... \
+  --remove-label autoship:ready \
+  --add-label autoship:in-progress
+```
+
+(the same multi-issue `gh issue edit` block pattern Step 2c's Block already
+uses)
+
+**gh absent:** `mcp__github__issue_write` per member issue — read each
+issue's current labels first, then pass the full `labels` list with
+`autoship:ready` removed and `autoship:in-progress` added, same
+read-labels-first pattern as the solo path above.
+
 ### 3c — Invoke /ship
+
+Before invoking `/ship` — solo or batch — capture the current ISO-8601
+timestamp as `<start_iso>`; 3e passes it to the classifier as `--since`.
+
+**Solo** — unchanged from today's single-issue invocation:
 
 Invoke `/ship` with:
 
@@ -643,7 +665,20 @@ Ensure every PR body created by this `/ship` invocation includes `Closes #<numbe
 Pass the issue number to `/ship` so it can include the closing reference when
 calling `/pr`.
 
-Capture the full output of `/ship` as `ship_output`.
+**Batch** — invoke `/ship` **once**, with `--issues <n1>,<n2>,...` naming
+every member issue, and a feature description that names the batch, plus the
+same `--no-auto-merge` and `DEV_TEAM_AUTO_APPROVE=1` environment variable as
+the solo path:
+
+```
+/ship "Batch <batch_id>: issues #<n1>, #<n2>, ..." --issues <n1>,<n2>,... --no-auto-merge
+```
+
+`/ship`'s own `--issues` path already emits one `Closes #<N>` line per member
+issue in the created PR body (`skills/ship/SKILL.md` Step 6) — this skill
+inherits that behavior and does not restate the logic here.
+
+Either way, capture the full output of `/ship` as `ship_output`.
 
 ### 3d — Detect stakeholder-input blocker
 
@@ -652,19 +687,24 @@ If found:
 
 1. Extract the blocking question(s) from the output (the text immediately
    following the `requires-stakeholder-input` marker).
-2. Label the issue:
+2. Label EVERY member issue of the dispatch unit `autoship:blocked`,
+   removing `autoship:in-progress` in the same operation — solo has one
+   member, a batch has all of them, applied together:
 
    **gh present:**
 
    ```bash
-   gh issue edit <number> \
+   gh issue edit <number-or-n1-n2-...> \
      --remove-label autoship:in-progress \
+     --remove-label autoship:batch-confirmed \
      --add-label autoship:blocked
    ```
 
-   **gh absent:** `mcp__github__issue_write` (method `update`), same
-   read-current-labels-first pattern as Step 3b.
-3. Post a comment on the issue with the blocking question(s):
+   **gh absent:** `mcp__github__issue_write` (method `update`) per member
+   issue, same read-current-labels-first pattern as Step 3b — the full
+   replacement label set must also exclude `autoship:batch-confirmed`.
+3. Post the SAME blocking-question comment to EVERY member issue of the
+   dispatch unit:
 
    **gh present:**
 
@@ -673,10 +713,94 @@ If found:
      --body "autoship blocked: requires stakeholder input\n\n<questions>"
    ```
 
-   **gh absent:** `mcp__github__add_issue_comment` with the same body.
-4. Record outcome `"blocked"` with `blocked_reason: "<questions>"` for this
-   issue.
-5. **Continue to the next issue.** A blocked issue does not halt the round.
+   (repeat per member issue for a batch)
+
+   **gh absent:** `mcp__github__add_issue_comment` with the same body, per
+   member issue.
+4. Record outcome `"blocked"` with `blocked_reason: "<questions>"` for EVERY
+   member issue of the dispatch unit.
+5. **Skip 3d.1 and 3e's classifier** (the outcome is already `blocked`) —
+   but still run 3e.1 and 3f for this unit before advancing to the next
+   dispatch unit. A blocked unit does not halt the round.
+
+### 3d.1 — Dispatch-unit ship failure/unrecognized handling
+
+Run 3e's classifier first (below); return here only if it reports `failed`
+or `unrecognized`.
+
+This sub-step applies to ANY dispatch unit — solo or batch — whose 3e
+classification comes back `failed` or `unrecognized`. The "revert every
+member to a consistent label state together" instruction below already
+generalizes cleanly to a solo unit's single member.
+
+After a non-blocked `/ship` (solo) or `/ship --issues` (batch) invocation
+completes, if 3e classifies the outcome as `"failed"` or `"unrecognized"`:
+
+1. **Revert every member to a consistent label state together** — never a
+   mix of in-progress/blocked across members. Relabel every member
+   `autoship:blocked`, removing `autoship:in-progress` in the same
+   operation, mirroring 3d's block pattern:
+
+   **gh present:**
+
+   ```bash
+   gh issue edit <n1> <n2> ... \
+     --remove-label autoship:in-progress \
+     --remove-label autoship:batch-confirmed \
+     --add-label autoship:blocked
+   ```
+
+   (a solo unit passes its single issue number in place of `<n1> <n2> ...`)
+
+   **gh absent:** `mcp__github__issue_write` per member issue, same
+   read-current-labels-first pattern as 3b/3d — the full replacement label
+   set must also exclude `autoship:batch-confirmed`.
+2. **Post a failure/unrecognized comment.** Compose the comment body in a
+   scratch file and post it via `--body-file`, never inline `--body "..."`
+   — this comment includes classifier/branch text that could in principle
+   carry unexpected characters (same rationale as Step 2c's comment). The
+   comment's REQUIRED content:
+
+   - The batch id (or solo issue number).
+   - Every member issue number.
+   - The classifier's verdict word (`failed` or `unrecognized`).
+   - The shared branch/PR link `/ship` produced before failing, if
+     available.
+   - A copy-pasteable re-queue command covering every member:
+
+     ```
+     gh issue edit <n1> <n2> ... --remove-label autoship:blocked --add-label autoship:ready
+     ```
+
+   The pipeline has no mechanism to identify which specific member issue
+   caused the failure — `classify_ship_outcome.py` returns a batch-wide
+   verdict from review-value/verify-log metrics, not per-issue attribution,
+   and `/ship --issues` collapses the batch into one shared spec/plan/PR
+   with no per-member work product to point to. The comment is therefore
+   always ONE deterministic, batch-level (or solo) comment posted to every
+   member — never a named-cause-for-one-member variant.
+
+   **No idempotency check is needed here** — unlike Step 2c's repeatable
+   proposal comments, this fires once per dispatch unit per round terminal
+   outcome.
+
+   **gh present:**
+
+   ```bash
+   gh issue comment <n1> --body-file <scratch-comment-file>
+   ```
+
+   (repeat for every member issue)
+
+   **gh absent:** `mcp__github__add_issue_comment` with the same composed
+   body, per member issue.
+3. Record outcome `"failed"` or `"unrecognized"` (matching 3e's
+   classification) for every member of the dispatch unit. Populate
+   `blocked_reason` with a short synthesized string naming the classifier
+   verdict — e.g. `"convergence_failure — see comment on issue(s) <n1>,
+   <n2>, ... for detail"` — never leave it `null` for this outcome. See 3f
+   below: a batch is logged as ONE batch entry, never one record per
+   member; a solo unit logs its usual single-issue entry.
 
 ### 3e — Classify outcome
 
@@ -698,18 +822,22 @@ Map to a display status word:
 - `convergence_failure` → `"failed"`
 - `unrecognized` → `"unrecognized"`
 
+This runs **once per dispatch unit** — a batch's single `/ship --issues`
+invocation produces one `ship_output`, so it gets one classification applied
+to all its members, never one classification per member issue.
+
 ### 3e.1 — Hard-block: iteration journal gate (#1168)
 
-Before advancing to the next issue, append a structured decision entry for
-this issue and confirm the gate allows advancement — this is a hard block,
-not the advisory `progress-guardian` gate:
+Before advancing to the next dispatch unit, append a structured decision
+entry for this dispatch unit and confirm the gate allows advancement — this
+is a hard block, not the advisory `progress-guardian` gate:
 
 ```bash
 python3 "${CLAUDE_PLUGIN_ROOT}/hooks/lib/iteration_journal_gate.py" record \
   --round-id "<round_id>" \
   --attempted "<short note: what was attempted>" \
   --outcome "<short note: shipped|failed|blocked|unrecognized>" \
-  --next-action "<short note: next issue or stop>" \
+  --next-action "<short note: next dispatch unit or stop>" \
   --session "$CLAUDE_SESSION_ID"
 
 python3 "${CLAUDE_PLUGIN_ROOT}/hooks/lib/iteration_journal_gate.py" check \
@@ -717,15 +845,20 @@ python3 "${CLAUDE_PLUGIN_ROOT}/hooks/lib/iteration_journal_gate.py" check \
   --session "$CLAUDE_SESSION_ID"
 ```
 
-If `check` exits non-zero, do not advance to the next issue — the `record`
-call above must have failed to land; retry it before continuing. A
-successful `record` followed immediately by `check` for the same `round_id`
-always allows advancement. Skip both calls in `--dry-run` mode.
+The `--attempted`/`--next-action` notes name the dispatch unit the same way
+3a's stop message does — `issue #<number>` for solo, `batch <batch_id>
+(issues #<n1>, #<n2>, ...)` for a batch. If `check` exits non-zero, do not
+advance to the next dispatch unit — the `record` call above must have
+failed to land; retry it before continuing. A successful `record` followed
+immediately by `check` for the same `round_id` always allows advancement.
+Skip both calls in `--dry-run` mode.
 
 ### 3f — Append round record
 
-Append one entry per issue to `.claude/metrics/autoship-log.jsonl` using the log
-library:
+Append log entries to `.claude/metrics/autoship-log.jsonl` using the log
+library. The JSON shape differs by dispatch-unit type:
+
+**Solo** — unchanged, one entry per issue:
 
 ```bash
 python3 "${CLAUDE_PLUGIN_ROOT}/hooks/lib/autoship_log.py" \
@@ -733,32 +866,55 @@ python3 "${CLAUDE_PLUGIN_ROOT}/hooks/lib/autoship_log.py" \
   --json '{"round_id":"<round_id>","issue":<number>,"status":"<status>","blocked_reason":"<reason_or_null>"}'
 ```
 
+**Batch** — ONE entry per batch, never one entry per member issue — this
+shape applies to EVERY outcome alike (`shipped`, `blocked`, and `failed`):
+
+```bash
+python3 "${CLAUDE_PLUGIN_ROOT}/hooks/lib/autoship_log.py" \
+  --log-path .claude/metrics/autoship-log.jsonl \
+  --json '{"round_id":"<round_id>","batch_id":"<batch_id>","issues":[<n1>,<n2>,...],"status":"<status>","blocked_reason":"<reason_or_null>"}'
+```
+
 `round_id` is an ISO-8601 timestamp generated once at round start (before
-Step 1). `blocked_reason` is the extracted question string for blocked issues,
-`null` otherwise.
+Step 1). `blocked_reason` is the extracted question string for blocked
+dispatch units, the 3d.1-synthesized classifier-verdict string for
+failed or unrecognized dispatch units, and `null` for every other outcome.
+A batch's 3d.1 failure is logged as this ONE `"batch_id"` + `"issues"` entry
+with `"status":"failed"` — structurally distinguishable from a solo entry's
+single-issue `"failed"` record, and never expanded into three separate
+failed-solo records for a 3-member batch. The same one-entry convention
+applies to a batch's `"unrecognized"` outcome, and 3d.1 now applies
+identically to a solo unit's failed or unrecognized outcome (see 3d.1).
 
 Skip the log write in `--dry-run` mode.
 
 ## Step 4 — Round summary
 
-After the loop ends — all issues processed, cost cap reached, dry-run, or one
-of Step 2's two early-exit stops (no eligible issues at all, or no unit fit
-`--max-issues`) — print a round summary to chat:
+After the loop ends — all dispatch units processed, cost cap reached,
+dry-run, or one of Step 2's two early-exit stops (no eligible issues at all,
+or no unit fit `--max-issues`) — print a round summary to chat:
 
 ```
 ## Autoship round summary
 
 Round ID : <round_id>
-Issues   : <processed_count> processed, <total_discovered> discovered
+Issues   : <processed_issues> processed (<processed_units> unit(s)), <discovered_issues> discovered (<discovered_units> unit(s))
 Deferred : <N> unit(s), <M> issue(s)
 Budget   : $<accumulated:.2f> / $<max_cost_usd:.2f>
 
-| Issue | Title                     | Status       | Notes                    |
-|-------|---------------------------|--------------|--------------------------|
-| #NNN  | <title (truncated at 40)> | shipped      |                          |
-| #NNN  | <title>                   | blocked      | <blocked_reason>         |
-| #NNN  | <title>                   | skipped      | cost cap reached         |
+| Issue(s)         | Batch ID   | Status  | Notes            |
+|------------------|------------|---------|------------------|
+| #NNN             |            | shipped |                  |
+| #NNN             |            | blocked | <blocked_reason> |
+| #NNN             |            | skipped | cost cap reached |
+| #101, #102, #103 | <batch_id> | shipped |                  |
 ```
+
+A **batch dispatch unit occupies exactly ONE row** in this table —
+regardless of outcome (`shipped`, `blocked`, or `failed` alike) — naming
+every member issue number in the `Issue(s)` column and the batch's
+`batch_id` in the `Batch ID` column. A **solo dispatch unit** occupies one
+row per issue, same as today, with `Batch ID` left blank.
 
 Status words used in the table and the log:
 
@@ -766,7 +922,7 @@ Status words used in the table and the log:
 - `failed` — classifier returned `convergence_failure`
 - `unrecognized` — classifier returned `unrecognized`
 - `blocked` — `requires-stakeholder-input` detected in `/ship` output
-- `skipped` — cost cap reached before this issue started
+- `skipped` — cost cap reached before this dispatch unit started
 
 The round summary is also written to `.claude/metrics/autoship-log.jsonl` as a final
 `round_summary` record (not written in dry-run mode):
@@ -775,8 +931,10 @@ The round summary is also written to `.claude/metrics/autoship-log.jsonl` as a f
 {
   "round_id": "<round_id>",
   "event": "round_summary",
-  "processed": <N>,
-  "discovered": <N>,
+  "processed_units": <N>,
+  "processed_issues": <N>,
+  "discovered_units": <N>,
+  "discovered_issues": <N>,
   "deferred_units": <N>,
   "deferred_issues": <M>,
   "cost_usd": <accumulated>,
@@ -784,13 +942,24 @@ The round summary is also written to `.claude/metrics/autoship-log.jsonl` as a f
 }
 ```
 
-`deferred_units` is the count of dispatch units (batches) left in `deferred`;
-`deferred_issues` is the sum of their member-issue counts — the two differ
-whenever any deferred unit is a multi-issue batch, so both are recorded
-rather than one ambiguous `deferred` count. `no_eligible_issues` and
-`no_unit_fits_cap` are the round statuses for Step 2's two early-exit stops
-(both fire before Step 3's loop is ever entered, so `processed` is always `0`
-for either).
+`processed_units`/`discovered_units` count dispatch units (a shipped,
+blocked, or failed batch counts as ONE unit no matter how many issues it
+covers); `processed_issues`/`discovered_issues` count member issues (that
+same batch contributes all of its member issues to this count) — the same
+units-vs-issues split `deferred_units`/`deferred_issues` already applies to
+the deferred case, applied consistently to the processed and discovered
+counts too, rather than silently picking one meaning for `processed`. A
+round that ships one 3-issue batch and two solo issues therefore reports
+`processed_units: 3` and `processed_issues: 5`. A unit counts as
+`processed` only if Step 3c actually dispatched it — a unit `skip`ped by
+the cost-cap check (Step 3a) is excluded from `processed_*`. `discovered_*`
+counts every dispatch unit `autoship_queue.py` produced this round —
+`queue` and `deferred` combined. `deferred_units` is the count of dispatch
+units — batch or solo — left in `deferred`; `deferred_issues` is the sum of
+their member-issue counts (a solo unit counts as 1). `no_eligible_issues`
+and `no_unit_fits_cap` are the round statuses for Step 2's two early-exit
+stops (both fire before Step 3's loop is ever entered, so every
+`processed_*` field is always `0` for either).
 
 ## Notes
 

@@ -5,11 +5,11 @@ single `autoship_discover.py` call.
 
 Plan: plans/autoship-issue-batching.md — Slice 3, Step 3.1.
 
-This is an intentionally intermediate state: Step 3's per-issue loop prose
-is not updated in this slice (that's Slice 6's job, later in the same plan)
-— it still describes the old `{number, title}` array shape. Step 2's prose
-must name that gap explicitly rather than silently imply Step 3 already
-consumes the new queue shape.
+Also covers Slice 6 (Step 6.1/6.2): Step 3's per-dispatch-unit loop and
+Step 4's round summary now consume the `queue` array's `batch`/`solo`
+dispatch-unit shape directly — the Slice-3-era "Step 3 still assumes the
+old {number, title} shape" gap this file used to assert no longer exists,
+by design, as of Slice 6.
 """
 
 from __future__ import annotations
@@ -117,18 +117,42 @@ def test_step_2_documents_dry_run_prints_queue_and_stops():
     )
 
 
-# --- 7. Step 3 transition gap named explicitly -------------------------------
-
-
-def test_step_2_names_step_3_transition_gap_for_old_shape():
+def test_step_2_dry_run_stop_line_uses_per_dispatch_unit_wording():
+    # Fix K: stale "per-issue processing" predates the batch rewrite.
     section_text = collapsed(_step_2_section())
     assert grep(
+        r"stop here without\s*proceeding to per-dispatch-unit processing",
+        section_text,
+    )
+    assert not grep(r"per-issue processing", section_text)
+
+
+def test_role_description_uses_per_dispatch_unit_not_per_issue():
+    # Fix K: the Role/description section near the top of the file predates
+    # the batch rewrite too.
+    text = _text()
+    assert "pipeline per dispatch unit and logs each outcome" in text
+    assert "pipeline per issue and logs each outcome" not in text
+
+
+# --- 7. Step 3 now processes the queue directly (Slice 6 supersedes the ---
+# --- Slice-3-era transition-gap disclaimer) ----------------------------------
+
+
+def test_step_2_no_longer_names_a_step_3_transition_gap():
+    # Slice 6 wired Step 3 to consume the queue's batch/solo dispatch units,
+    # so the Slice-3-era disclaimer that Step 3 "has not yet been updated"
+    # must not survive into this doc.
+    section_text = collapsed(_step_2_section())
+    assert not grep(
         r"Step 3's prose below is still written for the old "
         r"`\{number, title\}` shape",
         section_text,
     )
     assert grep(
-        r"has not yet been\s*updated to consume this new queue shape", section_text
+        r"Step 3 processes this\s*queue directly, one dispatch unit at a "
+        r"time, in order",
+        section_text,
     )
 
 
@@ -205,26 +229,31 @@ def test_step_2_quotes_label_and_max_issues_placeholders_in_both_fences():
     assert section_text.count('--max-issues "<N>"') >= 2
 
 
-# --- 11. Fix 4: Step 3 forward-pointer note --------------------------------
+# --- 11. Step 3 processes the queue's dispatch units directly (Slice 6) ----
 
 
 def _step_3_section():
     return section(_text(), r"^## Step 3", boundary_pattern=r"^## Step 4")
 
 
-def test_step_3_opens_with_forward_pointer_to_shape_mismatch():
+def test_step_3_no_longer_opens_with_the_shape_mismatch_disclaimer():
     section_text = collapsed(_step_3_section())
-    assert grep(
+    assert not grep(
         r"this step's prose still assumes the old `\{number, title\}` "
         r"per-issue shape",
         section_text,
     )
-    assert grep(r"see Step 2's discovery pipeline", section_text)
+
+
+def test_step_3_processes_queue_array_dispatch_units_directly():
+    section_text = collapsed(_step_3_section())
     assert grep(
-        r"has not yet been updated to consume the `queue` array's "
-        r"`batch`/`solo` dispatch units",
+        r"each a \*\*dispatch unit\*\*, either\s*"
+        r'`\{"type": "batch", "batch_id": \.\.\., "issues": \[n1, n2, \.\.\.\]\}`',
         section_text,
     )
+    assert grep(r'`\{"type": "solo", "issue": N\}`', section_text)
+    assert grep(r"strictly in order", section_text, ignore_case=True)
 
 
 # --- 12. Fix 5: Step 1's reclaim rationale is corrected --------------------
@@ -680,3 +709,420 @@ def test_step_2c_documents_concurrency_caveat():
     )
     assert grep(r"accepted limitation", section_text)
     assert grep(r"existing \"Sequential\s*only\" constraint", section_text)
+
+
+# --- Slice 6, Step 6.1: batch dispatch via /ship --issues, outcome ----------
+# --- propagated to every member ---------------------------------------------
+
+
+def _step_3b_section():
+    return section(_step_3_section(), r"^### 3b", boundary_pattern=r"^### 3c")
+
+
+def _step_3c_section():
+    return section(_step_3_section(), r"^### 3c", boundary_pattern=r"^### 3d")
+
+
+def _step_3d_section():
+    return section(_step_3_section(), r"^### 3d ", boundary_pattern=r"^### 3d\.1")
+
+
+def _step_3d1_section():
+    return section(_step_3_section(), r"^### 3d\.1", boundary_pattern=r"^### 3e ")
+
+
+def _step_3e_section():
+    return section(_step_3_section(), r"^### 3e ", boundary_pattern=r"^### 3e\.1")
+
+
+def _step_3f_section():
+    return section(_step_3_section(), r"^### 3f", boundary_pattern=r"^## Step 4")
+
+
+def test_step_3a_stop_message_names_dispatch_unit_generically():
+    section_text = collapsed(_step_3_section())
+    assert grep(r"Stopping before <unit>", section_text)
+    assert grep(
+        r"`<unit>` names the dispatch unit generically.*`issue #<number>` "
+        r"for a solo\s*unit, or `batch <batch_id> \(issues #<n1>, #<n2>, "
+        r"\.\.\.\)` for a batch unit",
+        section_text,
+    )
+
+
+def test_step_3b_documents_batch_multi_issue_label_in_progress():
+    section_text = collapsed(_step_3b_section())
+    assert grep(
+        r"label EVERY member issue `autoship:in-progress` together, in one\s*"
+        r"operation",
+        section_text,
+    )
+    assert grep(r"gh issue edit <n1> <n2> \.\.\. \\", section_text)
+    assert grep(r"add-label autoship:in-progress", section_text)
+
+
+def test_step_3b_documents_solo_path_unchanged():
+    section_text = collapsed(_step_3b_section())
+    assert grep(
+        r"\*\*Solo\*\* — unchanged from today's single-issue behavior", section_text
+    )
+
+
+def test_step_3c_documents_batch_invokes_ship_once_with_issues_flag():
+    section_text = collapsed(_step_3c_section())
+    assert grep(
+        r"invoke `/ship` \*\*once\*\*, with `--issues <n1>,<n2>,\.\.\.` naming\s*"
+        r"every member issue",
+        section_text,
+    )
+    assert grep(r"--issues <n1>,<n2>,\.\.\. --no-auto-merge", section_text)
+
+
+def test_step_3c_batch_cites_ship_closes_logic_without_restating():
+    section_text = collapsed(_step_3c_section())
+    assert grep(
+        r"already emits one `Closes #<N>` line per member\s*issue in the "
+        r"created PR body",
+        section_text,
+    )
+    assert grep(r"does not restate the logic here", section_text)
+
+
+def test_step_3c_documents_solo_path_unchanged():
+    section_text = collapsed(_step_3c_section())
+    assert grep(
+        r"\*\*Solo\*\* — unchanged from today's single-issue invocation",
+        section_text,
+    )
+
+
+def test_step_3c_documents_start_iso_capture_for_both_paths():
+    # Fix C: 3e says it uses the start ISO timestamp "captured just before
+    # invoking /ship in Step 3c" — but 3c never actually said to capture it.
+    section_text = collapsed(_step_3c_section())
+    assert grep(
+        r"Before invoking `/ship`.*capture the current ISO-8601 timestamp "
+        r"as\s*`<start_iso>`",
+        section_text,
+    )
+    assert grep(r"3e passes it to the classifier as `--since`", section_text)
+
+
+def test_step_3d_blocked_outcome_applies_to_every_member():
+    section_text = collapsed(_step_3d_section())
+    assert grep(
+        r"Label EVERY member issue of the dispatch unit\s*`autoship:blocked`",
+        section_text,
+    )
+    assert grep(
+        r"Post the SAME blocking-question comment to EVERY member issue",
+        section_text,
+    )
+    assert grep(
+        r'Record outcome `"blocked"` with `blocked_reason: "<questions>"` '
+        r"for EVERY\s*member issue",
+        section_text,
+    )
+
+
+def test_step_3d_step5_skips_3d1_and_classifier_but_runs_3e1_and_3f():
+    # Fix A: 3d's step 5 used to route straight past 3e.1 (the hard-block
+    # journal gate) and 3f (the log-append step), both of which explicitly
+    # handle the "blocked" outcome.
+    section_text = collapsed(_step_3d_section())
+    assert grep(
+        r"Skip 3d\.1 and 3e's classifier\*\*\s*\(the outcome is already "
+        r"`blocked`\)",
+        section_text,
+    )
+    assert grep(
+        r"still run 3e\.1 and 3f for this unit before advancing",
+        section_text,
+    )
+
+
+def test_step_3d_block_transition_also_removes_batch_confirmed():
+    # Fix B: blocking a batch formed via the batch-confirmed override must
+    # also strip autoship:batch-confirmed, or the "mutually exclusive"
+    # invariant this file states elsewhere is violated.
+    section_text = collapsed(_step_3d_section())
+    assert grep(r"remove-label autoship:batch-confirmed", section_text)
+    assert grep(
+        r"full replacement label\s*set must also exclude "
+        r"`autoship:batch-confirmed`",
+        section_text,
+    )
+
+
+# --- New: dispatch-unit ship failure/unrecognized handling (3d.1) -----------
+
+
+def test_step_3d1_exists_and_applies_to_any_dispatch_unit():
+    # Fix H: the batch-only restriction is gone — 3d.1 now applies to any
+    # dispatch unit (solo or batch) whose 3e classification is failed or
+    # unrecognized.
+    section_text = collapsed(_step_3d1_section())
+    assert grep(
+        r"### 3d\.1 — Dispatch-unit ship failure/unrecognized handling",
+        section_text,
+    )
+    assert grep(
+        r"applies to ANY dispatch unit — solo or batch — whose 3e\s*"
+        r"classification comes back `failed` or `unrecognized`",
+        section_text,
+    )
+    assert not grep(r"applies only to a \*\*batch\*\* dispatch unit", section_text)
+
+
+def test_step_3d1_documents_classifier_ordering_dependency():
+    # Fix D: 3d.1 sits before 3e in document order, so the dependency on 3e
+    # running first must be stated explicitly.
+    section_text = collapsed(_step_3d1_section())
+    assert grep(
+        r"Run 3e's classifier first \(below\); return here only if it "
+        r"reports\s*`failed` or `unrecognized`",
+        section_text,
+    )
+
+
+def test_step_3d1_documents_consistent_label_reversion():
+    section_text = collapsed(_step_3d1_section())
+    assert grep(
+        r"Revert every member to a consistent label state together", section_text
+    )
+    assert grep(r"never a\s*mix of in-progress/blocked across members", section_text)
+    assert grep(r"gh issue edit <n1> <n2> \.\.\. \\", section_text)
+    assert grep(r"add-label autoship:blocked", section_text)
+
+
+def test_step_3d1_block_transition_also_removes_batch_confirmed():
+    # Fix B: the block relabel must also strip autoship:batch-confirmed —
+    # otherwise a batch formed via the batch-confirmed override keeps that
+    # label after being blocked, violating the mutual-exclusivity invariant.
+    section_text = collapsed(_step_3d1_section())
+    assert grep(r"remove-label autoship:batch-confirmed", section_text)
+    assert grep(
+        r"full replacement label\s*set must also exclude "
+        r"`autoship:batch-confirmed`",
+        section_text,
+    )
+
+
+def test_step_3d1_documents_deterministic_batch_level_comment_no_attribution():
+    # Fix G: the pipeline has no per-issue attribution signal — the comment
+    # is always one deterministic, batch-level (or solo) comment, never a
+    # named-cause-for-one-member variant.
+    section_text = collapsed(_step_3d1_section())
+    assert grep(
+        r"no mechanism to identify which specific member issue\s*caused the "
+        r"failure",
+        section_text,
+    )
+    assert grep(
+        r"always ONE deterministic, batch-level \(or solo\) comment posted "
+        r"to every\s*member",
+        section_text,
+    )
+    assert not grep(r"name that member explicitly", section_text)
+    assert not grep(
+        r"fall back to ONE generic\s*batch-level failure comment", section_text
+    )
+
+
+def test_step_3d1_documents_comment_required_content_and_body_file():
+    # Fix I: REQUIRED-content list + --body-file convention, mirroring 2c's
+    # comment shape.
+    section_text = collapsed(_step_3d1_section())
+    assert grep(r"The batch id \(or solo issue number\)", section_text)
+    assert grep(r"Every member issue number", section_text)
+    assert grep(r"The classifier's verdict word", section_text)
+    assert grep(r"shared branch/PR link `/ship` produced before failing", section_text)
+    assert grep(r"copy-pasteable re-queue command", section_text)
+    assert grep(
+        r"gh issue edit <n1> <n2> \.\.\. --remove-label autoship:blocked "
+        r"--add-label autoship:ready",
+        section_text,
+    )
+    assert grep(r"--body-file", section_text)
+    assert grep(r"never inline `--body", section_text)
+
+
+def test_step_3d1_documents_no_idempotency_check_needed():
+    # Fix I: unlike 2c's repeatable proposal comments, this fires once per
+    # dispatch unit per round terminal outcome — state that explicitly.
+    section_text = collapsed(_step_3d1_section())
+    assert grep(
+        r"\*\*No idempotency check is needed here\*\* — unlike Step 2c's\s*"
+        r"repeatable proposal comments",
+        section_text,
+    )
+
+
+def test_step_3d1_records_failed_or_unrecognized_outcome_for_every_member():
+    section_text = collapsed(_step_3d1_section())
+    assert grep(
+        r"Record outcome `\"failed\"` or `\"unrecognized\"` \(matching 3e's\s*"
+        r"classification\) for every member of the dispatch unit",
+        section_text,
+    )
+
+
+def test_step_3d1_documents_blocked_reason_populated():
+    # Fix J: unlike a blocked entry's extracted question, 3d.1's failed/
+    # unrecognized entry had no reason field at all — now it does.
+    section_text = collapsed(_step_3d1_section())
+    assert grep(
+        r"Populate\s*`blocked_reason` with a short synthesized string naming "
+        r"the classifier\s*verdict",
+        section_text,
+    )
+    assert grep(r"convergence_failure — see comment on issue\(s\)", section_text)
+    assert grep(r"never leave it `null` for this outcome", section_text)
+
+
+def test_step_3e_classifies_once_per_dispatch_unit():
+    section_text = collapsed(_step_3e_section())
+    assert grep(r"runs \*\*once per dispatch unit\*\*", section_text)
+    assert grep(
+        r"never one classification per member issue",
+        section_text,
+    )
+
+
+def test_step_3e1_names_dispatch_unit_generically_like_3a():
+    section_text = collapsed(_step_3_section())
+    assert grep(
+        r"attempted.*next-action.*notes name the dispatch unit the same way\s*"
+        r"3a's stop message does",
+        section_text,
+        ignore_case=True,
+    )
+
+
+def test_step_3f_documents_solo_log_shape_unchanged():
+    section_text = collapsed(_step_3f_section())
+    assert grep(r"\*\*Solo\*\* — unchanged, one entry per issue", section_text)
+    assert grep(
+        r'"round_id":"<round_id>","issue":<number>,"status":"<status>"',
+        section_text,
+    )
+
+
+def test_step_3f_documents_batch_log_shape_one_entry_for_all_outcomes():
+    section_text = collapsed(_step_3f_section())
+    assert grep(
+        r"\*\*Batch\*\* — ONE entry per batch, never one entry per member "
+        r"issue",
+        section_text,
+    )
+    assert grep(
+        r"this\s*shape applies to EVERY outcome alike \(`shipped`, "
+        r"`blocked`, and `failed`\)",
+        section_text,
+    )
+    assert grep(
+        r'"round_id":"<round_id>","batch_id":"<batch_id>","issues":'
+        r'\[<n1>,<n2>,\.\.\.\],"status":"<status>"',
+        section_text,
+    )
+
+
+def test_step_3f_batch_failure_distinguished_from_solo_failed_record():
+    section_text = collapsed(_step_3f_section())
+    assert grep(
+        r'logged as this\s*ONE `"batch_id"` \+ `"issues"` entry with '
+        r'`"status":"failed"`',
+        section_text,
+    )
+    assert grep(
+        r"structurally\s*distinguishable from a solo entry's single-issue "
+        r'`"failed"` record',
+        section_text,
+    )
+    assert grep(r"never expanded into three separate failed-solo records", section_text)
+
+
+# --- Slice 6, Step 6.2: round summary distinguishes batch vs solo entries --
+
+
+def test_step_4_summary_table_shows_batch_as_one_row_naming_all_issues():
+    section_text = collapsed(_step_4_section())
+    assert grep(r"\| Issue\(s\)\s*\| Batch ID\s*\| Status\s*\| Notes", section_text)
+    assert grep(r"#101, #102, #103\s*\| <batch_id> \| shipped", section_text)
+
+
+def test_step_4_batch_row_documented_for_every_outcome():
+    section_text = collapsed(_step_4_section())
+    assert grep(
+        r"batch dispatch unit occupies exactly ONE row.*regardless of "
+        r"outcome\s*\(`shipped`, `blocked`, or `failed` alike\)",
+        section_text,
+    )
+
+
+def test_step_4_solo_rows_leave_batch_id_blank():
+    section_text = collapsed(_step_4_section())
+    assert grep(
+        r"solo dispatch unit\*\* occupies one\s*row per issue, same as "
+        r"today, with `Batch ID` left blank",
+        section_text,
+        ignore_case=True,
+    )
+
+
+def test_step_4_round_summary_json_splits_processed_and_discovered_units_vs_issues():
+    section_text = collapsed(_step_4_section())
+    assert grep(r'"processed_units":\s*<N>', section_text)
+    assert grep(r'"processed_issues":\s*<N>', section_text)
+    assert grep(r'"discovered_units":\s*<N>', section_text)
+    assert grep(r'"discovered_issues":\s*<N>', section_text)
+    assert not grep(r'"processed":\s*<N>', section_text)
+    assert not grep(r'"discovered":\s*<N>', section_text)
+
+
+def test_step_4_documents_units_vs_issues_counting_example():
+    section_text = collapsed(_step_4_section())
+    assert grep(
+        r"ships one 3-issue batch and two solo issues therefore reports\s*"
+        r"`processed_units: 3` and `processed_issues: 5`",
+        section_text,
+    )
+
+
+def test_step_4_deferred_units_parenthetical_covers_batch_and_solo():
+    # Fix E: autoship_queue.py's build_queue defers any unit type that
+    # doesn't fit the cap, solo included — not just batches.
+    section_text = collapsed(_step_4_section())
+    assert grep(
+        r"count of dispatch units — batch or solo — left in\s*`deferred`",
+        section_text,
+    )
+    assert grep(r"a solo unit counts as 1", section_text)
+    assert not grep(r"count of dispatch units \(batches\) left in", section_text)
+
+
+def test_step_4_documents_processed_counting_rule_excludes_skipped_units():
+    # Fix F: a unit skipped by the cost-cap check never dispatched, so it
+    # must not count toward processed_*.
+    section_text = collapsed(_step_4_section())
+    assert grep(
+        r"unit counts as\s*`processed` only if Step 3c actually dispatched "
+        r"it",
+        section_text,
+    )
+    assert grep(
+        r"unit `skip`ped by\s*the cost-cap check \(Step 3a\) is excluded "
+        r"from `processed_\*`",
+        section_text,
+    )
+
+
+def test_step_4_documents_discovered_counts_queue_and_deferred_combined():
+    # Fix F: discovered_* counts every unit autoship_queue.py produced this
+    # round, queue and deferred combined.
+    section_text = collapsed(_step_4_section())
+    assert grep(
+        r"`discovered_\*`\s*counts every dispatch unit `autoship_queue\.py` "
+        r"produced this round\s*—\s*`queue` and `deferred` combined",
+        section_text,
+    )
