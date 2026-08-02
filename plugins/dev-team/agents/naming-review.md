@@ -20,6 +20,7 @@ Verify-effort: medium
 Cites:
 - design-smells
 - adversarial-review-protocol
+- agent-review-methodology
 
 Output JSON: per `${CLAUDE_PLUGIN_ROOT}/knowledge/review-agent-output-contract.md` (Whole-file load: short, canonical schema).
 
@@ -42,7 +43,7 @@ Return `{"status": "skip", "issues": [], "summary": "No code files with nameable
 
 ## Protocol
 
-Run in three phases — enumerate first, classify second, group third. This prevents selective attention (stopping after the first issue), anchors findings to concrete identifiers before applying judgment, and keeps the finding count proportional to the number of distinct problems rather than the number of lines.
+Run the shared three-phase methodology in `${CLAUDE_PLUGIN_ROOT}/knowledge/agent-review-methodology.md` (Whole-file load: the Enumerate/Classify/Group phases and their rationale, read in full) — enumerate first, classify second, group third.
 
 **Phase 1 — Enumerate**: List every identifier visible in the diff:
 

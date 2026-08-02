@@ -11,7 +11,9 @@ color: green
 # Correctness Review
 
 Scope: always
-Cites: [adversarial-review-protocol]
+Cites:
+- adversarial-review-protocol
+- agent-review-methodology
 
 Output JSON: per `${CLAUDE_PLUGIN_ROOT}/knowledge/review-agent-output-contract.md` (Whole-file load: short, canonical schema).
 
@@ -54,11 +56,10 @@ Return `{"status": "skip", "issues": [], "summary": "No behavioral logic to anal
 
 ## Protocol
 
-Run in three phases — enumerate first, classify second, group third. This
-prevents selective attention (stopping after the first plausible defect),
-anchors each finding to a specific evident-intent citation before applying
-judgment, and keeps the finding count proportional to the number of distinct
-problems rather than the number of lines reviewed.
+Run the shared three-phase methodology in
+`${CLAUDE_PLUGIN_ROOT}/knowledge/agent-review-methodology.md` (Whole-file load:
+the Enumerate/Classify/Group phases and their rationale, read in full) —
+enumerate first, classify second, group third.
 
 **Phase 1 — Enumerate**: Walk the full diff/file(s) under review and list
 every candidate divergence against the seven Detect categories below —

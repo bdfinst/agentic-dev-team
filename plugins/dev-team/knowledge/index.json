@@ -111,6 +111,28 @@
       "anchor": "agent-templates"
     }
   },
+  "plugins/dev-team/knowledge/agent-review-methodology.md": {
+    "Enumerate": {
+      "summary": "List every candidate in scope before judging any of them — every identifier,",
+      "anchor": "enumerate"
+    },
+    "Classify": {
+      "summary": "For each candidate listed in Enumerate, apply the agent's domain-specific",
+      "anchor": "classify"
+    },
+    "Group": {
+      "summary": "Report at the granularity of distinct problems, not one finding per",
+      "anchor": "group"
+    },
+    "Rationale": {
+      "summary": "Running these three phases in strict sequence, rather than judging each",
+      "anchor": "rationale"
+    },
+    "Citing this file": {
+      "summary": "An agent citing this file keeps its own `## Protocol` section short: name",
+      "anchor": "citing-this-file"
+    }
+  },
   "plugins/dev-team/knowledge/architecture-assessment.md": {
     "Exploration Patterns": {
       "summary": "Map the architectural landscape before detecting issues.",
