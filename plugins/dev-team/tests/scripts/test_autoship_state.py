@@ -3,13 +3,31 @@
 from __future__ import annotations
 
 import argparse
+import json
+import subprocess
 import sys
 from datetime import datetime
 from pathlib import Path
 
+import pytest
+
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "scripts" / "lib"))
 
 import autoship_state
+
+
+def _issue(**overrides) -> dict:
+    base = {
+        "number": 1,
+        "title": "Some issue",
+        "state": "OPEN",
+        "createdAt": "2026-07-01T00:00:00Z",
+        "labels": [{"name": "autoship:ready"}],
+        "closedByPullRequestsReferences": [],
+        "subIssuesSummary": {"total": 0},
+    }
+    base.update(overrides)
+    return base
 
 
 def test_format_round_timestamp_returns_iso8601_z_suffixed() -> None:
@@ -53,3 +71,89 @@ def test_add_input_seam_args_both_flags_optional() -> None:
     args = parser.parse_args([])
     assert args.input_file is None
     assert args.now_override is None
+
+
+# ---------------------------------------------------------------------------
+# positive_int_validator
+# ---------------------------------------------------------------------------
+
+
+def test_positive_int_validator_accepts_positive_value() -> None:
+    validator = autoship_state.positive_int_validator("--max-issues")
+    assert validator("3") == 3
+
+
+def test_positive_int_validator_rejects_zero() -> None:
+    validator = autoship_state.positive_int_validator("--max-issues")
+    with pytest.raises(argparse.ArgumentTypeError):
+        validator("0")
+
+
+def test_positive_int_validator_rejects_negative() -> None:
+    validator = autoship_state.positive_int_validator("--max-issues")
+    with pytest.raises(argparse.ArgumentTypeError):
+        validator("-1")
+
+
+# ---------------------------------------------------------------------------
+# fetch_eligible_issues / FetchError
+# ---------------------------------------------------------------------------
+
+
+def test_fetch_eligible_issues_from_input_file_filters_and_sorts_oldest_first(
+    tmp_path,
+) -> None:
+    older = _issue(number=1, createdAt="2026-07-01T00:00:00Z")
+    newer = _issue(number=2, createdAt="2026-07-02T00:00:00Z")
+    ineligible = _issue(number=3, state="CLOSED")
+    fixture = tmp_path / "issues.json"
+    fixture.write_text(json.dumps([newer, older, ineligible]), encoding="utf-8")
+
+    result = autoship_state.fetch_eligible_issues(
+        "autoship:ready", input_file=str(fixture)
+    )
+
+    assert [issue["number"] for issue in result] == [1, 2]
+
+
+def test_fetch_issues_from_gh_passes_limit_500(monkeypatch) -> None:
+    # `gh issue list` applies a default result cap (typically 30);
+    # fetch_issues_from_gh is documented as returning the FULL eligible
+    # pool, which is only true with an explicit --limit override.
+    captured_argv = {}
+
+    def _fake_run(argv, **kwargs):
+        captured_argv["argv"] = argv
+        return subprocess.CompletedProcess(
+            args=argv, returncode=0, stdout="[]", stderr=""
+        )
+
+    monkeypatch.setattr(subprocess, "run", _fake_run)
+
+    autoship_state.fetch_issues_from_gh("autoship:ready")
+
+    argv = captured_argv["argv"]
+    assert "--limit" in argv
+    assert argv[argv.index("--limit") + 1] == "500"
+
+
+def test_fetch_eligible_issues_gh_not_found_raises_fetch_error(monkeypatch) -> None:
+    def _raise(*args, **kwargs):
+        raise FileNotFoundError("gh not on PATH")
+
+    monkeypatch.setattr(subprocess, "run", _raise)
+
+    with pytest.raises(autoship_state.FetchError):
+        autoship_state.fetch_eligible_issues("autoship:ready")
+
+
+def test_fetch_eligible_issues_malformed_input_file_raises_fetch_error(
+    tmp_path,
+) -> None:
+    bad_issue = _issue()
+    del bad_issue["state"]
+    fixture = tmp_path / "issues.json"
+    fixture.write_text(json.dumps([bad_issue]), encoding="utf-8")
+
+    with pytest.raises(autoship_state.FetchError):
+        autoship_state.fetch_eligible_issues("autoship:ready", input_file=str(fixture))

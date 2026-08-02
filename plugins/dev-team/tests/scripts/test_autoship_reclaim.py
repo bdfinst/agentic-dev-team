@@ -153,6 +153,18 @@ def _completed(stdout: str) -> subprocess.CompletedProcess:
     )
 
 
+def test_fetch_in_progress_issues_passes_limit_500() -> None:
+    # gh issue list applies a default result cap (typically 30); without an
+    # explicit --limit override a repo with more than a page of stale
+    # in-progress issues would silently reclaim only part of them.
+    issue_list = _completed(json.dumps([]))
+    with patch("autoship_reclaim.subprocess.run", return_value=issue_list) as mock_run:
+        autoship_reclaim._fetch_in_progress_issues()
+    argv = mock_run.call_args_list[0].args[0]
+    assert "--limit" in argv
+    assert argv[argv.index("--limit") + 1] == "500"
+
+
 def test_fetch_in_progress_issues_raises_on_issue_list_failure() -> None:
     with patch(
         "autoship_reclaim.subprocess.run",
@@ -549,7 +561,9 @@ def test_comment_failure_exits_nonzero_and_leaves_issue_retryable(
     with open(input_file, encoding="utf-8") as fh:
         issues = json.load(fh)
     reselected = autoship_reclaim.select_orphaned(
-        issues, 24, datetime(2026, 7, 3, 0, 0, 0)  # noqa: DTZ001 - naive-UTC to pair with is_stale's naive comparison
+        issues,
+        24,
+        datetime(2026, 7, 3, 0, 0, 0),  # noqa: DTZ001 - naive-UTC to pair with is_stale's naive comparison
     )
     assert [issue["number"] for issue in reselected] == [30]
 
@@ -588,7 +602,9 @@ def test_relabel_failure_after_successful_comment_exits_nonzero_and_retryable(
     with open(input_file, encoding="utf-8") as fh:
         issues = json.load(fh)
     reselected = autoship_reclaim.select_orphaned(
-        issues, 24, datetime(2026, 7, 3, 0, 0, 0)  # noqa: DTZ001 - naive-UTC to pair with is_stale's naive comparison
+        issues,
+        24,
+        datetime(2026, 7, 3, 0, 0, 0),  # noqa: DTZ001 - naive-UTC to pair with is_stale's naive comparison
     )
     assert [issue["number"] for issue in reselected] == [30]
 
@@ -673,8 +689,11 @@ def test_emit_actions_only_prints_one_parseable_json_action_per_issue(
     actions = [json.loads(line) for line in lines]
     assert [a["number"] for a in actions] == [40, 41]
     for action in actions:
-        assert action["relabel_from"] == "autoship:in-progress"
-        assert action["relabel_to"] == "autoship:blocked"
+        assert action["relabel_remove"] == [
+            "autoship:in-progress",
+            "autoship:batch-confirmed",
+        ]
+        assert action["relabel_add"] == ["autoship:blocked"]
         assert action.get("comment")
 
 
@@ -701,9 +720,7 @@ def test_emit_actions_only_empty_round_notice_goes_to_stderr(tmp_path, capsys) -
     caller parsing line-by-line would hit a JSONDecodeError."""
     input_file = tmp_path / "issues.json"
     input_file.write_text("[]")
-    rc = autoship_reclaim.main(
-        ["--input-file", str(input_file), "--emit-actions-only"]
-    )
+    rc = autoship_reclaim.main(["--input-file", str(input_file), "--emit-actions-only"])
     assert rc == 0
     captured = capsys.readouterr()
     assert captured.out == ""
@@ -851,6 +868,23 @@ def test_fetch_in_progress_issues_passes_timeout() -> None:
     assert mock_run.call_args_list[0].kwargs["timeout"] == (
         autoship_reclaim._GH_TIMEOUT_SECONDS
     )
+
+
+def test_relabel_also_strips_batch_confirmed_label() -> None:
+    # A crashed batch round can leave a member in-progress + batch-confirmed;
+    # reclaim must strip both, or the resulting blocked + batch-confirmed
+    # state violates the "blocked is mutually exclusive" invariant and lets
+    # a later ready-relabel silently re-trigger has_batch_confirmed_override
+    # on a stale marker.
+    ok = subprocess.CompletedProcess(args=["gh"], returncode=0, stdout="", stderr="")
+    with patch("autoship_reclaim.subprocess.run", return_value=ok) as mock_run:
+        autoship_reclaim._relabel(30)
+    argv = mock_run.call_args_list[0].args[0]
+    assert argv.count("--remove-label") == 2
+    assert "autoship:in-progress" in argv
+    assert "autoship:batch-confirmed" in argv
+    assert "--add-label" in argv
+    assert "autoship:blocked" in argv
 
 
 def test_post_comment_and_relabel_pass_timeout() -> None:

@@ -16,7 +16,7 @@ Ported from tests/skills/coverage_delta_mutation_tests.bats (issue #674).
 
 from __future__ import annotations
 
-from skill_doc_helpers import PLUGIN_ROOT, grep, section
+from skill_doc_helpers import PLUGIN_ROOT, grep, parse_arguments_section, section
 
 SKILL = PLUGIN_ROOT / "skills" / "coverage-delta" / "SKILL.md"
 
@@ -38,12 +38,7 @@ def _step_2b() -> str:
 
 
 def _parse_arguments_section() -> str:
-    return section(
-        _text(),
-        r"^## Parse Arguments",
-        boundary_pattern=r"^## ",
-        include_start_line=False,
-    )
+    return parse_arguments_section(_text())
 
 
 # --- Flag surface -----------------------------------------------------------

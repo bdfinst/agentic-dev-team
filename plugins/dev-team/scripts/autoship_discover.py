@@ -8,6 +8,11 @@ is deterministic filtering, not model judgment — see the plan's Architectural
 Context (`plans/issue-989-autoship-discovery-reclaim.md`) for the precedent
 this follows (`scripts/plan_waves.py`, `scripts/git_origin_host.py`).
 
+The `gh` fetch, `--input-file` schema validation, and eligibility filter are
+shared with `autoship_group.py` via `autoship_state.fetch_eligible_issues` —
+this script's own concern is only the `--max-issues` cap on top of that
+shared, full eligible pool.
+
 Usage:
     autoship_discover.py --max-issues 3 --max-cost-usd 25
     autoship_discover.py --max-issues 3 --max-cost-usd 25 --label autoship:ready
@@ -26,7 +31,6 @@ from __future__ import annotations
 
 import argparse
 import json
-import subprocess
 import sys
 from pathlib import Path
 from typing import Any
@@ -37,44 +41,6 @@ sys.path.insert(0, str(_HERE / "lib"))
 import autoship_state
 
 DEFAULT_LABEL = autoship_state.READY_LABEL
-IN_PROGRESS_LABEL = autoship_state.IN_PROGRESS_LABEL
-BLOCKED_LABEL = autoship_state.BLOCKED_LABEL
-
-# Same fields `gh issue list --json` returns for these names — no schema
-# invention. `title` is required because the stdout contract emits it;
-# `state` is required because `select_eligible` checks it directly.
-REQUIRED_ISSUE_FIELDS = (
-    "number",
-    "title",
-    "state",
-    "createdAt",
-    "labels",
-    "closedByPullRequestsReferences",
-    "subIssuesSummary",
-)
-
-GH_JSON_FIELDS = ",".join(REQUIRED_ISSUE_FIELDS)
-
-# gh subprocess calls get a hard timeout so a hung/stalled network call never
-# blocks this script indefinitely.
-_GH_TIMEOUT_SECONDS = 30
-
-
-class DiscoveryError(Exception):
-    """A discovery-input or `gh` fetch problem that must surface as a clear
-    CLI error message, not an uncaught exception/traceback."""
-
-
-def _positive_int(raw: str) -> int:
-    """`argparse` `type=` validator for `--max-issues`: rejects `<= 0` at the
-    CLI boundary rather than silently clamping downstream — mirrors
-    `evals/code-review-benchmark/cli.py`'s `_positive_int`."""
-    value = int(raw)
-    if value <= 0:
-        raise argparse.ArgumentTypeError(
-            f"--max-issues must be a positive integer, got {raw!r}"
-        )
-    return value
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -87,7 +53,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--max-issues",
-        type=_positive_int,
+        type=autoship_state.positive_int_validator("--max-issues"),
         required=True,
         help="Maximum number of issues to select this round. Must be > 0.",
     )
@@ -109,90 +75,19 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def validate_issues(issues: Any) -> None:
-    """Validate `issues` is a JSON array of objects each carrying every
-    `REQUIRED_ISSUE_FIELDS` entry.
-
-    Raises `DiscoveryError` naming the malformed entry (by issue number if
-    present, by index otherwise) rather than letting a `KeyError` propagate
-    uncaught.
-    """
-    if not isinstance(issues, list):
-        raise DiscoveryError(
-            "--input-file must contain a JSON array of issue objects, got "
-            f"{type(issues).__name__}"
-        )
-    for idx, issue in enumerate(issues):
-        if not isinstance(issue, dict):
-            raise DiscoveryError(
-                f"malformed --input-file entry at index {idx}: not a JSON object"
-            )
-        missing = [field for field in REQUIRED_ISSUE_FIELDS if field not in issue]
-        if missing:
-            identifier = f"#{issue['number']}" if "number" in issue else f"index {idx}"
-            raise DiscoveryError(
-                f"malformed --input-file entry ({identifier}): missing required "
-                f"field(s) {', '.join(missing)}"
-            )
-
-
-def load_issues_from_file(path: str) -> list[dict[str, Any]]:
-    """Read and validate the `--input-file` JSON array of issue objects.
-
-    Raises `DiscoveryError` on unreadable/malformed JSON or a schema
-    violation — never an uncaught exception.
-    """
-    try:
-        with open(path, encoding="utf-8") as fh:
-            issues = json.load(fh)
-    except json.JSONDecodeError as exc:
-        raise DiscoveryError(f"--input-file {path!r} is not valid JSON: {exc}") from exc
-    except OSError as exc:
-        raise DiscoveryError(f"--input-file {path!r} could not be read: {exc}") from exc
-    validate_issues(issues)
-    return issues
-
-
-def _label_names(issue: dict[str, Any]) -> list[str]:
-    return [label["name"] for label in issue["labels"]]
-
-
-def _is_epic(issue: dict[str, Any]) -> bool:
-    return issue["subIssuesSummary"].get("total", 0) > 0
-
-
-def _has_open_linked_pr(issue: dict[str, Any]) -> bool:
-    """True when any entry in `closedByPullRequestsReferences` is itself
-    still open — a single open PR anywhere in the list excludes the issue,
-    even when other entries in the same list are closed/merged."""
-    return any(
-        pr.get("state") == "OPEN" for pr in issue["closedByPullRequestsReferences"]
-    )
-
-
-def is_eligible(issue: dict[str, Any], label: str) -> bool:
-    """True when `issue` qualifies for autoship dispatch: open, carries
-    `label`, is not in-progress/blocked, is not an epic, and has no open
-    linked pull request."""
-    if issue["state"] != "OPEN":
-        return False
-    labels = _label_names(issue)
-    if label not in labels:
-        return False
-    if IN_PROGRESS_LABEL in labels or BLOCKED_LABEL in labels:
-        return False
-    if _is_epic(issue):
-        return False
-    return not _has_open_linked_pr(issue)
-
-
 def select_eligible(
     issues: list[dict[str, Any]], label: str, max_issues: int
 ) -> list[dict[str, Any]]:
     """Filter `issues` to those eligible for autoship dispatch, sorted
     oldest-first by `createdAt` and truncated to `max_issues` (a cap of `0`
-    truncates to an empty list, not an error)."""
-    eligible = [issue for issue in issues if is_eligible(issue, label)]
+    truncates to an empty list, not an error).
+
+    A pure post-processing step over an already-loaded issue list — kept
+    independent of `autoship_state.fetch_eligible_issues`'s own fetch/filter/
+    sort (which `main()` uses to source the full pool) so this stays testable
+    against arbitrary in-memory issue data.
+    """
+    eligible = [issue for issue in issues if autoship_state.is_eligible(issue, label)]
     eligible.sort(key=lambda issue: issue["createdAt"])
     return eligible[:max_issues]
 
@@ -205,73 +100,19 @@ def render_selection(issues: list[dict[str, Any]]) -> str:
     )
 
 
-def fetch_issues_from_gh(label: str) -> list[dict[str, Any]]:
-    """Fetch open issues labeled `label` via a live `gh issue list` call,
-    using `gh`'s cwd-based repo auto-detection (no `--repo` flag — see the
-    plan's Decision-defaults stance).
-
-    The `--state open` server-side filter and the requested `state` field
-    are intentionally redundant with `select_eligible`'s own `state ==
-    "OPEN"` check — this is what makes the `--input-file` and live paths
-    behave identically.
-
-    Raises `DiscoveryError` on a non-zero `gh` exit, a timeout, or malformed
-    JSON output — never an uncaught
-    `CalledProcessError`/`TimeoutExpired`/`JSONDecodeError`/traceback.
-    """
-    try:
-        result = subprocess.run(
-            [
-                "gh",
-                "issue",
-                "list",
-                "--state",
-                "open",
-                "--label",
-                label,
-                "--json",
-                GH_JSON_FIELDS,
-            ],
-            capture_output=True,
-            text=True,
-            check=True,
-            timeout=_GH_TIMEOUT_SECONDS,
-        )
-    except FileNotFoundError as exc:
-        raise DiscoveryError(f"gh CLI not found: {exc}") from exc
-    except subprocess.TimeoutExpired as exc:
-        raise DiscoveryError(
-            f"gh issue list timed out after {_GH_TIMEOUT_SECONDS}s: {exc}"
-        ) from exc
-    except subprocess.CalledProcessError as exc:
-        stderr = (exc.stderr or "").strip()
-        raise DiscoveryError(
-            f"gh issue list failed (exit {exc.returncode}): {stderr}"
-        ) from exc
-
-    try:
-        issues = json.loads(result.stdout)
-    except json.JSONDecodeError as exc:
-        raise DiscoveryError(f"gh issue list returned malformed JSON: {exc}") from exc
-
-    validate_issues(issues)
-    return issues
-
-
 def main(argv: list[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
 
     try:
-        if args.input_file:
-            issues = load_issues_from_file(args.input_file)
-        else:
-            issues = fetch_issues_from_gh(args.label)
-    except DiscoveryError as exc:
+        eligible = autoship_state.fetch_eligible_issues(
+            args.label, input_file=args.input_file
+        )
+    except autoship_state.FetchError as exc:
         print(f"autoship_discover: {exc}", file=sys.stderr)
         return 1
 
-    selected = select_eligible(issues, args.label, args.max_issues)
+    selected = eligible[: args.max_issues]
     print(render_selection(selected))
     return 0
 
