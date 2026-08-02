@@ -5,6 +5,10 @@ Factors (and nothing more):
   - granularity:  none / one-shot / continuous refactoring
   - authorship:   single agent vs split (independent coder + tester)
   - plus the tdd-refactor reference arm
+  - plus two test-first batch variants (ARMS' `batch` key): "big" (all tests for
+    the whole task, then all code — all-tests-first-*) and "per-class" (tests
+    batched and verified-red per class/unit, then implemented, before the next
+    unit — batch-red-per-class-single, issue #1727)
 INVARIANT (all arms): refactoring never changes the tests. Clear specs only. No
 spec-plan-build arm. No reuse of prior scripts or data.
 
@@ -46,11 +50,14 @@ MAX_MUTANTS = 25
 # ── arms: corrected design ───────────────────────────────────────────────
 # INVARIANT in every arm: refactoring restructures production code only and leaves
 # the tests unchanged. Tests change only to express new behavior (the change chain),
-# never during a refactor step. We vary granularity x authorship; ordering is fixed
-# to test-after except for the tdd-refactor reference (test-first). Enforcement: a
-# separate refactor dispatch has any test-file edits reverted to the pre-refactor
-# ("green") snapshot. Inline-refactor arms (continuous, tdd) can't be reverted
-# mid-dispatch, so their refactor-commit test churn is recorded as a violation flag.
+# never during a refactor step. We vary granularity x authorship; ordering is
+# test-after for the granularity x authorship cells — the tdd-refactor reference and
+# the batch arms (all-tests-first-*, batch-red-per-class-single) are test-first,
+# differentiated by the `batch` key (absent = per-behavior TDD, "big" = whole-task,
+# "per-class" = per-unit). Enforcement: a separate refactor dispatch has any
+# test-file edits reverted to the pre-refactor ("green") snapshot. Inline-refactor
+# arms (continuous, tdd) can't be reverted mid-dispatch, so their refactor-commit
+# test churn is recorded as a violation flag.
 PYTEST_RULE = (
     " Write tests as pytest tests in files named test_*.py so they run with "
     "`python -m pytest -q`. Keep production code in the module named in the spec."
@@ -63,6 +70,14 @@ REFACTOR_RULE = (
     "delete any test_*.py file — the existing tests must keep passing. Commit refactor "
     "steps with a message starting 'refactor:'."
 )
+NO_REFACTOR_YET_RULE = " Do NOT refactor yet — a separate refactoring step follows."
+
+# `batch` values for test-first arms — shared between ARMS and the prompt builders
+# below so a typo raises instead of silently falling through to the strict-TDD
+# prompt (which would then double up refactoring: per-behavior inline AND the
+# separate one-shot dispatch).
+BATCH_BIG = "big"
+BATCH_PER_CLASS = "per-class"
 
 # granularity x authorship (+ ordering); reference arm flagged
 ARMS = {
@@ -85,9 +100,19 @@ ARMS = {
     # carries the "refactor after each iteration" rule; batch="big" selects the
     # write-all-tests-then-all-code prompt instead of the incremental TDD loop.
     "all-tests-first-single": {"granularity": "one-shot", "authorship": "single",
-                                   "ordering": "test-first", "batch": "big"},
+                                   "ordering": "test-first", "batch": BATCH_BIG},
     "all-tests-first-split": {"granularity": "one-shot", "authorship": "split",
-                                  "ordering": "test-first", "batch": "big"},
+                                  "ordering": "test-first", "batch": BATCH_BIG},
+    # Issue #1727: claude-flow's batch-red-per-class protocol — RED/GREEN batched
+    # per class/unit (not per behavior like tdd-refactor, not for the whole task
+    # like all-tests-first-single). Reuses the one-shot mechanism for the separate,
+    # revertable refactor step; batch="per-class" selects the per-unit prompt. No
+    # split (independent tester/coder) counterpart: the split test-first path
+    # (_do_stage's tester_first_prompt/coder_topass_prompt) doesn't consult `batch`
+    # at all, so a "-split" arm would silently run big-batch prompts under a
+    # per-class label — deliberately out of scope for #1727, not an oversight.
+    "batch-red-per-class-single": {"granularity": "one-shot", "authorship": "single",
+                                       "ordering": "test-first", "batch": BATCH_PER_CLASS},
 }
 
 # Arms whose refactoring is interleaved inside the write dispatch — cannot be
@@ -95,27 +120,51 @@ ARMS = {
 INLINE_REFACTOR = {"tdd-refactor", "continuous-single"}
 
 
+def _test_first_big_write_prompt(spec: str) -> str:
+    return (f"Implement the spec in {spec} test-first in one batch: FIRST write a "
+            "complete pytest suite covering every behavior in the spec, including edge "
+            "and boundary cases (all tests fail — no production code exists yet). THEN "
+            "write the production code until the whole suite passes."
+            + NO_REFACTOR_YET_RULE + PYTEST_RULE + GREEN_RULE)
+
+
+def _test_first_per_class_write_prompt(spec: str) -> str:
+    return (f"Implement the spec in {spec} using batch-red-per-class TDD: identify the "
+            "distinct classes/units the spec describes. For EACH one, in turn: FIRST "
+            "write a complete batch of pytest tests covering that unit's behavior, "
+            "including edge cases (verify they fail — no implementation for that unit "
+            "exists yet), THEN write the production code for that unit until its tests "
+            "pass. Only move to the next unit once the current one is green. Do NOT "
+            "write tests for more than one unit before implementing any of them."
+            + NO_REFACTOR_YET_RULE + PYTEST_RULE + GREEN_RULE)
+
+
+_TEST_FIRST_WRITE_BUILDERS = {
+    BATCH_BIG: _test_first_big_write_prompt,
+    BATCH_PER_CLASS: _test_first_per_class_write_prompt,
+}
+
+
 def write_prompt_single(arm: str, spec: str) -> str:
     a = ARMS[arm]
     if a["ordering"] == "test-first":
-        if a.get("batch") == "big":
-            return (f"Implement the spec in {spec} test-first in one batch: FIRST write a "
-                    "complete pytest suite covering every behavior in the spec, including edge "
-                    "and boundary cases (all tests fail — no production code exists yet). THEN "
-                    "write the production code until the whole suite passes. Do NOT refactor "
-                    "yet — a separate refactoring step follows." + PYTEST_RULE + GREEN_RULE)
-        return (f"Implement the spec in {spec} using strict TDD: for each behavior write "
-                "a failing test (RED), the minimum code to pass (GREEN), then REFACTOR "
-                "the production code before the next behavior. Make the acceptance "
-                "behavior correct." + PYTEST_RULE + GREEN_RULE + REFACTOR_RULE)
+        batch = a.get("batch")
+        if batch is None:
+            return (f"Implement the spec in {spec} using strict TDD: for each behavior write "
+                    "a failing test (RED), the minimum code to pass (GREEN), then REFACTOR "
+                    "the production code before the next behavior. Make the acceptance "
+                    "behavior correct." + PYTEST_RULE + GREEN_RULE + REFACTOR_RULE)
+        builder = _TEST_FIRST_WRITE_BUILDERS.get(batch)
+        if builder is None:
+            raise ValueError(f"arm {arm!r}: unrecognized batch {batch!r}")
+        return builder(spec)
     body = (f"Implement the spec in {spec}. Write the production code, then a pytest suite "
             "covering the behavior, until all tests pass.")
     if a["granularity"] == "continuous":
         body += (" Build incrementally: after each behavior is green, refactor the "
                  "production code (without changing any test) before the next.")
         return body + PYTEST_RULE + GREEN_RULE + REFACTOR_RULE
-    body += (" Do NOT refactor yet — a separate refactoring step follows."
-             if a["granularity"] == "one-shot" else " Do not refactor.")
+    body += (NO_REFACTOR_YET_RULE if a["granularity"] == "one-shot" else " Do not refactor.")
     return body + PYTEST_RULE + GREEN_RULE
 
 
@@ -141,26 +190,48 @@ def refactor_prompt(doc: str) -> str:
             "pass unchanged. Commit each step with a message starting 'refactor:'.")
 
 
+def _test_first_big_change_prompt(change: str) -> str:
+    return (f"This is an existing, working feature. Apply the change in {change} "
+            "test-first in one batch: FIRST add or update tests covering the new "
+            "behavior (they fail), THEN change the production code until all tests "
+            "pass." + NO_REFACTOR_YET_RULE + PYTEST_RULE + GREEN_RULE)
+
+
+def _test_first_per_class_change_prompt(change: str) -> str:
+    return (f"This is an existing, working feature. Apply the change in {change} using "
+            "batch-red-per-class TDD: identify the distinct classes/units the change "
+            "touches. For EACH one, in turn: FIRST add or update a batch of tests "
+            "covering that unit's new behavior (verify they fail), THEN update that "
+            "unit's production code until its tests pass. Only move to the next unit "
+            "once the current one is green." + NO_REFACTOR_YET_RULE + PYTEST_RULE
+            + GREEN_RULE)
+
+
+_TEST_FIRST_CHANGE_BUILDERS = {
+    BATCH_BIG: _test_first_big_change_prompt,
+    BATCH_PER_CLASS: _test_first_per_class_change_prompt,
+}
+
+
 def change_write_prompt(arm: str, change: str) -> str:
     a = ARMS[arm]
     if a["ordering"] == "test-first":
-        if a.get("batch") == "big":
-            return (f"This is an existing, working feature. Apply the change in {change} "
-                    "test-first in one batch: FIRST add or update tests covering the new "
-                    "behavior (they fail), THEN change the production code until all tests "
-                    "pass. Do NOT refactor yet — a separate refactoring step follows."
-                    + PYTEST_RULE + GREEN_RULE)
-        return (f"This is an existing feature. Apply the change in {change} with strict "
-                "TDD: RED for the new behavior, GREEN, then REFACTOR the production code "
-                "without changing existing tests." + PYTEST_RULE + GREEN_RULE
-                + REFACTOR_RULE)
+        batch = a.get("batch")
+        if batch is None:
+            return (f"This is an existing feature. Apply the change in {change} with strict "
+                    "TDD: RED for the new behavior, GREEN, then REFACTOR the production code "
+                    "without changing existing tests." + PYTEST_RULE + GREEN_RULE
+                    + REFACTOR_RULE)
+        builder = _TEST_FIRST_CHANGE_BUILDERS.get(batch)
+        if builder is None:
+            raise ValueError(f"arm {arm!r}: unrecognized batch {batch!r}")
+        return builder(change)
     base = (f"This is an existing, working feature. Apply the change in {change}. Update "
             "or add tests for the NEW behavior and keep all tests passing.")
     if a["granularity"] == "continuous":
         base += " After it is green, refactor the production code without changing tests."
         return base + PYTEST_RULE + GREEN_RULE + REFACTOR_RULE
-    base += (" Do NOT refactor yet — a separate refactoring step follows."
-             if a["granularity"] == "one-shot" else " Do not refactor.")
+    base += (NO_REFACTOR_YET_RULE if a["granularity"] == "one-shot" else " Do not refactor.")
     return base + PYTEST_RULE + GREEN_RULE
 
 
@@ -569,6 +640,15 @@ def _do_stage(workdir, arm, doc, model, env, run_root, cell, change):
                                   raw("-refactor")))
             attempted = enforce_refactor(workdir, green)
     elif a["ordering"] == "test-first":  # split, test-first (W4): tests authored first
+        # This path doesn't consult `batch` — it only implements the whole-task
+        # write-all-tests-then-code protocol. Fail loud rather than silently
+        # mislabeling a future per-class-split arm's rows (issue #1727).
+        if a.get("batch") not in (None, BATCH_BIG):
+            raise ValueError(
+                f"arm {arm!r}: batch {a['batch']!r} is not honored on the split "
+                "test-first path (tester_first_prompt/coder_topass_prompt implement "
+                "only the whole-task protocol)"
+            )
         tp = change_tester_first_prompt(doc) if change else tester_first_prompt(doc)
         parts.append(dispatch(workdir, tp, model, env, raw("-tester")))
         commit_all(workdir, "checkpoint: tests-first (red)")

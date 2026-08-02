@@ -23,29 +23,33 @@ Adding a batch-red-per-class arm to this harness does not, by itself, let
 you compare on that specific axis; treat instrumenting test-run count as
 part of the arm's setup cost, not a given.
 
-No arm in this harness is currently configured as batch-red-per-class. The
-closest existing analogue is `all-tests-first-single` ("All Tests, Then
-Code (Single Agent)") — write all tests, then all code — which the base
-campaign already measured at $2.31/cell, composite quality 0.525
-(`05-final-results.md`'s "Efficiency frontier (quality per dollar)" table;
-its mutation score alone is 0.978, in the separate "Raw metrics by arm"
-table — mutation score is not the composite figure the standing default's
-0.961 is quoted on) — worse composite quality at more
+`batch-red-per-class-single` is now configured in this harness (step 1,
+below). The closest existing analogue remains `all-tests-first-single`
+("All Tests, Then Code (Single Agent)") — write all tests, then all
+code — which the base campaign already measured at $2.31/cell, composite
+quality 0.525 (`05-final-results.md`'s "Efficiency frontier (quality per
+dollar)" table; its mutation score alone is 0.978, in the separate "Raw
+metrics by arm" table — mutation score is not the composite figure the
+standing default's 0.961 is quoted on) — worse composite quality at more
 than double `continuous-single`'s $0.99/cell (`continuous-single` is the
 harness's arm name for Code-First Small Batches, Single Agent). This
 analogue is not evidence in batch-red-per-class's favor; it only bounds
-the cost a similarly-shaped arm might run at. A dedicated
-`batch-red-per-class` arm (tests-per-unit rather than tests-for-the-whole-task)
-still needs to be added; `all-tests-first-single`'s numbers are a rough
-reference point, not a substitute for running it.
+the cost a similarly-shaped arm might run at — `all-tests-first-single`'s
+numbers are a rough reference point, not a substitute for running the new
+arm.
 
 ## Steps
 
-1. Add a `batch-red-per-class-single` arm to `run_refactor_experiment.py`
-   (name it with the harness's `-single`/`-split` authorship suffix
-   convention) alongside the existing `continuous-single` baseline arm —
-   matching claude-flow's protocol (tests written and verified-red per
-   unit, not for the whole task at once) as closely as the harness allows.
+1. **Done.** `batch-red-per-class-single` is now a configured arm in
+   `run_refactor_experiment.py`'s `ARMS` (name follows the harness's
+   `-single`/`-split` authorship suffix convention), alongside the existing
+   `continuous-single` baseline arm — matching claude-flow's protocol (tests
+   written and verified-red per unit, not for the whole task at once) as
+   closely as the harness allows. Not yet registered in
+   `run_workflow_matrix.py`'s `MATRIX`/`ARM_COST` or
+   `analyze_refactor_experiment.py`'s hardcoded arm list — step 4's report
+   uses a dedicated comparison against the raw JSONL instead of those two
+   scripts, which is why this was left as a known gap rather than fixed here.
 2. Run both arms against the same fixture tasks used in the base campaign
    (`evals/refactor-granularity/tasks/`: `cart`, `fare`, `grades`, `payroll`
    — the Experiment 04/05 corpus), at least 1 trial per task as a smoke
