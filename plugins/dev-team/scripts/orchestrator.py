@@ -30,11 +30,24 @@ from pathlib import Path
 
 SCRIPTS = Path(__file__).resolve().parent
 
-# Default personas for plan review
+# Default personas for plan review — the five plan-review-* critics.
 DEFAULT_PERSONAS = [
-    "acceptance-test-critic",
-    "design-architecture-critic",
+    "plan-review-acceptance",
+    "plan-review-design",
+    "plan-review-ux",
+    "plan-review-strategic",
+    "plan-review-parallelization",
 ]
+
+# Language-agnostic always-run code-review trio per docs/team-structure.md's
+# review-dispatch fan-out. Conditional language-specific reviewers are out
+# of scope for this iteration.
+CODE_REVIEW_PANEL = ["doc-review", "arch-review", "token-efficiency-review"]
+
+# Personas whose --output-format json envelope's "result" field is itself
+# documented structured JSON (per knowledge/review-agent-output-contract.md)
+# and should be parsed rather than stored as freeform prose.
+JSON_CONTRACT_PERSONAS = DEFAULT_PERSONAS + CODE_REVIEW_PANEL
 
 
 # ---------------------------------------------------------------------------
@@ -130,18 +143,74 @@ class WaveError(Exception):
         super().__init__(f"Wave barrier failed on slice '{failing_slice}'")
 
 
-async def dispatch_persona(persona: str, plan: dict, skip_llm: bool = False) -> dict:
-    """Dispatch a plan-review persona. In --skip-llm mode, returns a stub approval."""
-    print(f"INFO: dispatching plan-review persona {persona}", file=sys.stderr)
-    if skip_llm:
-        return {"persona": persona, "verdict": "approve", "issues": []}
-    # Real dispatch via claude -p (not tested in unit tests)
+def _parse_dispatch_envelope(stdout: str, persona: str) -> dict:
+    """Parse a `claude -p --output-format json` envelope into a dispatch result.
+
+    Status is derived solely from the envelope's `is_error` field and is
+    never overwritten by the parsed payload. For personas in
+    JSON_CONTRACT_PERSONAS, the envelope's `result` field is additionally
+    parsed as JSON and its keys merged in, except `status` (exposed
+    separately as `review_status`, since CODE_REVIEW_PANEL's own contract
+    reuses that key name for an unrelated pass/warn/fail/skip vocabulary)
+    and `persona` (discarded — already dispatch-owned). For every other
+    persona, `result` is always stored verbatim under `output`. A malformed
+    or non-object payload — the top-level envelope itself, or (for a
+    JSON_CONTRACT_PERSONAS member) the inner `result` — degrades gracefully
+    rather than raising: a bad envelope maps to the generalized failure stub
+    with no `verdict` key, and a bad inner `result` maps to `output` plus a
+    `parse_error: True` marker while the already-derived status is left
+    untouched.
+    """
     try:
-        prompt = (
-            f"You are the {persona}. Review this plan and return approve or needs-revision "
-            f'with findings as JSON: {{"verdict": "approve|needs-revision", "issues": []}}. '
-            f"Plan: {json.dumps(plan)}"
-        )
+        envelope = json.loads(stdout)
+        if not isinstance(envelope, dict):
+            raise TypeError("envelope is not a JSON object")
+    except (json.JSONDecodeError, TypeError, ValueError):
+        return {"persona": persona, "status": "failed", "error": "llm_unavailable"}
+
+    data = {
+        "persona": persona,
+        # default True: an envelope that doesn't state whether it errored
+        # is not evidence of success.
+        "status": "failed" if envelope.get("is_error", True) else "success",
+    }
+    result_text = envelope.get("result", "")
+    if persona in JSON_CONTRACT_PERSONAS:
+        try:
+            parsed = json.loads(result_text)
+            if not isinstance(parsed, dict):
+                raise TypeError("parsed result is not a JSON object")
+        except (json.JSONDecodeError, TypeError, ValueError):
+            data["output"] = result_text
+            data["parse_error"] = True
+        else:
+            # status/persona stay dispatch-owned (AC #3): dispatch status is
+            # derived only from the envelope's is_error, never from the
+            # parsed payload. CODE_REVIEW_PANEL's own contract reuses the
+            # key name "status" for an unrelated pass/warn/fail/skip
+            # vocabulary, so expose it separately rather than merge it over.
+            for key, value in parsed.items():
+                if key == "status":
+                    data["review_status"] = value
+                elif key == "persona":
+                    continue
+                else:
+                    data[key] = value
+    else:
+        data["output"] = result_text
+    return data
+
+
+async def dispatch_persona(persona: str, plan: dict, skip_llm: bool = False) -> dict:
+    """Dispatch a persona via `claude -p --agent <persona> --output-format json`.
+
+    In --skip-llm mode, returns a stub success result without invoking the CLI.
+    """
+    print(f"INFO: dispatching persona {persona}", file=sys.stderr)
+    if skip_llm:
+        return {"persona": persona, "status": "success"}
+    task_prompt = json.dumps(plan)
+    try:
         # Offload to a thread so asyncio.gather over multiple personas actually
         # overlaps instead of blocking the event loop on subprocess.run (#1213).
         # run_in_executor, not asyncio.to_thread (3.9+) — see classify() above.
@@ -150,33 +219,24 @@ async def dispatch_persona(persona: str, plan: dict, skip_llm: bool = False) -> 
             None,
             functools.partial(
                 subprocess.run,
-                ["claude", "-p", prompt],
+                [
+                    "claude",
+                    "-p",
+                    "--agent",
+                    persona,
+                    "--output-format",
+                    "json",
+                    task_prompt,
+                ],
                 capture_output=True,
                 text=True,
                 timeout=60,
             ),
         )
-        if result.returncode == 0 and result.stdout.strip():
-            raw = result.stdout.strip()
-            start = raw.find("{")
-            end = raw.rfind("}") + 1
-            if start >= 0 and end > start:
-                data = json.loads(raw[start:end])
-                data["persona"] = persona
-                return data
-    except (
-        FileNotFoundError,
-        subprocess.TimeoutExpired,
-        OSError,
-        json.JSONDecodeError,
-    ):
-        pass
-    return {
-        "persona": persona,
-        "verdict": "approve",
-        "issues": [],
-        "error": "llm_unavailable",
-    }
+    except (FileNotFoundError, subprocess.TimeoutExpired, OSError):
+        return {"persona": persona, "status": "failed", "error": "llm_unavailable"}
+
+    return _parse_dispatch_envelope(result.stdout, persona)
 
 
 async def dispatch_personas(personas: list, plan: dict, skip_llm: bool = False) -> list:
