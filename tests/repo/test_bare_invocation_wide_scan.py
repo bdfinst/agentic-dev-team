@@ -1,55 +1,32 @@
 r"""Widens `test_agent_implemented_by_resolves.py`'s bare-invocation guard
-past `SKILL.md` files and the `python3 scripts/....py` shape it alone
-matches (#1655).
+past `SKILL.md` files and the single-line `python3 scripts/....py` shape it
+alone matches (#1655). Three gaps found during #1637's own triage: bare
+invocations in maintainer-only docs under `plugins/dev-team/docs/`; in
+skills' own `references/*.md`, not just the top-level `SKILL.md`; and in
+unmatched forms (`bash scripts/x.sh`, `./scripts/x.py`, a genuine
+`\`-continued two-line invocation).
 
-That guard only globs `plugins/dev-team/skills/*/SKILL.md` and only matches
-`python3?\\s+scripts/....py`. Three real gaps followed from those two
-narrownesses, found during #1637's own triage:
+Scans the same surface as `test_claude_plugin_root_quoting.py` — `docs/`,
+`knowledge/`, `agents/`, and every skill's `**/*.md` — via
+`_content_guard_scan.scanned_markdown_files`. Continuation is matched
+per-line-pair, not via a blob-wide regex: an earlier draft's blob-wide regex
+matched a fenced code block's own opening ` ```bash ` line against an
+unrelated invocation two lines later. A continuation only counts when the
+FIRST line itself ends in a real trailing backslash.
 
-1. **Shipped maintainer docs** under `plugins/dev-team/docs/`:
-   `eval-maintenance.md`, `eval-running-guide.md`, `telemetry-ci-access.md`
-   all carry bare `python3`/`bash` invocations — dev-team-maintainer-only
-   docs, never scanned at all.
-2. **Skills' own `references/*.md` files**, not just the top-level
-   `SKILL.md` — the glob's `*/SKILL.md` shape doesn't reach a directory
-   below the skill root.
-3. **Other invocation forms** — `bash scripts/x.sh`, `./scripts/x.py`, and
-   line-continuation (`python3 \\` + the path on the next line) all evade
-   `_BARE_INVOCATION`'s single-line, `python3?`-only pattern.
-
-This file adds `plugins/dev-team/docs/`, `plugins/dev-team/knowledge/`,
-`plugins/dev-team/agents/`, and every skill's `**/*.md` (covering
-`references/`) to the scanned set — the same surface
-`test_claude_plugin_root_quoting.py` scans, via the shared
-`_content_guard_scan.scanned_markdown_files` helper — and recognizes
-`bash`/`sh`/`./` prefixes plus a genuine `\`-continued line pair —
-deliberately NOT a blob-wide regex allowing an unconditional multi-line
-gap, which a first draft of this file tried and which matched a fenced code
-block's own opening ` ```bash ` line against an unrelated invocation two
-lines later. Continuation is only recognized when the FIRST line itself
-ends in a real trailing backslash.
-
-## Relationship to the original guard
-
-This file does not re-implement `INTENTIONAL_BARE_INVOCATION`/
-`INTENTIONAL_WORKTREE_RELATIVE` — it imports and reuses them, so a
-`SKILL.md` pair already classified there is not double-tracked here under a
-second, parallel registry that could drift out of sync. Every genuinely NEW
-exemption this wider scan needs — docs-only maintainer references, and one
-instance of a materially different kind (below) — is tracked in
+Reuses `INTENTIONAL_BARE_INVOCATION`/`INTENTIONAL_WORKTREE_RELATIVE` from the
+original guard rather than re-tracking `SKILL.md` pairs a second time. Every
+genuinely new exemption this wider scan needs is tracked in
 `INTENTIONAL_WIDE_SCAN_INVOCATIONS`, keyed by `(relative_path,
-invocation_line, category)`. Like its two siblings, every entry is a
-justified exemption, never a defect awaiting a fix — nothing in it is
-expected to reach zero — but per this repo's own "mechanically, not by
-comment alone" discipline (docs/adr/0032), each category carries its own
-premise test (below) re-checking the reason the exemption holds, not just
-that the line still reproduces.
+invocation_line, category)`; like its two siblings, nothing in it is
+expected to reach zero, and each category carries its own premise test below
+re-checking the reason the exemption holds (docs/adr/0032's "mechanically,
+not by comment alone").
 
-## A fourth path-resolution case
-
-ADR 0032 § "4. Shipped for copy-out" — tracked here under the
-`_COPIED_OUT_BY_OPERATOR` category, premise-checked by
-`test_copied_out_exemption_still_instructs_operator_to_copy`.
+A fourth category, `_COPIED_OUT_BY_OPERATOR`, covers ADR 0032 § "4. Shipped
+for copy-out": docs instructing the operator to copy a script into their own
+project, where a bare path is correct because the file no longer lives in
+the plugin once copied.
 """
 
 from __future__ import annotations
@@ -75,8 +52,11 @@ def _load_sibling_module(name: str):
     putting a test file's own directory on `sys.path`. A bare
     `from test_agent_implemented_by_resolves import ...` is therefore
     unresolvable by design, not an oversight to work around; loading by path
-    is the pattern this repo's own tests already use for the same reason
-    (e.g. `test_import_probe_shipped.py`, `test_codebase_recon.py`).
+    mirrors the pattern this repo's own tests already use for loading a
+    module outside `pytest.ini`'s `pythonpath` list — though `test_import_
+    probe_shipped.py` and `test_codebase_recon.py` apply it to *production*
+    scripts, not a sibling *test* module as here (#1686 item 2); this is the
+    same mechanism reused one layer over, not a literal precedent.
     """
     path = Path(__file__).resolve().parent / f"{name}.py"
     spec = importlib.util.spec_from_file_location(name, path)
@@ -180,6 +160,14 @@ _COPIED_OUT_BY_OPERATOR = "copied-out-by-operator"
 #: removed or requalified (checked by `test_no_stale_wide_scan_exemptions`),
 #: and each category's premise is re-checked below rather than trusted from
 #: the comment alone.
+#:
+#: Keyed by exact line text (not `(rel_path, subpath)` like its sibling
+#: `INTENTIONAL_BARE_INVOCATION`) on purpose, not by oversight — reviewed in
+#: #1686 item 1: a line-text key churns on any cosmetic edit to the
+#: invocation, which did cost 7 re-transcribed entries during the #1656
+#: quoting sweep. Re-keying to `(rel_path, subpath)` was deliberately deferred
+#: rather than spent here, pending a second churn event that would prove the
+#: cost recurring rather than a one-off.
 INTENTIONAL_WIDE_SCAN_INVOCATIONS = {
     # _MONOREPO_ONLY — these scripts only exist at, and only make sense run
     # from, this repo's own root; none of them ship under

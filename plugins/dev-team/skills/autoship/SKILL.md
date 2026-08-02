@@ -11,9 +11,12 @@ argument-hint: "--max-issues N --max-cost-usd N [--dry-run] [--label LABEL]"
 user-invocable: true
 effort: medium
 allowed-tools: >-
-  Read, Glob, Grep,
-  Bash(python3 *), Bash(gh *),
-  Skill(ship *), Skill(cost-report *)
+  Read, Write, Glob, Grep,
+  Bash(python3 *), Bash(gh *), Bash(command -v gh),
+  Skill(ship *), Skill(cost-report *),
+  mcp__github__search_issues, mcp__github__issue_read,
+  mcp__github__search_pull_requests, mcp__github__issue_write,
+  mcp__github__add_issue_comment
 ---
 
 # Autoship
@@ -61,16 +64,94 @@ autoship: --max-issues and --max-cost-usd are both required.
 Usage: /autoship --max-issues N --max-cost-usd N [--dry-run] [--label LABEL]
 ```
 
+## gh CLI availability (#1700)
+
+Check once, before Step 1: `command -v gh`.
+
+- **gh present** (the normal case — a local/CI session with the CLI
+  installed and authenticated): every step below runs exactly as written,
+  invoking `gh` directly (via `autoship_reclaim.py`/`autoship_group.py`'s
+  live fetch, and the raw `gh issue edit`/`gh issue comment` calls in Steps
+  3b/3d).
+- **gh absent** (a Claude Code web/cloud session — GitHub access there is
+  provided only through the `mcp__github__*` tools, never a `gh` binary):
+  every step below that would otherwise shell out to `gh` instead uses the
+  MCP-tool path called out in that step. The scripts themselves never gain a
+  network code path of their own — they stay pure decision logic over
+  `--input-file` JSON (already true for `autoship_discover.py`'s read side
+  and, since #1700, `autoship_reclaim.py`'s write side too via
+  `--emit-actions-only`); only the data gathering and the actual GitHub
+  mutation move up to this skill, because MCP tools are only callable from
+  the agent context, never from inside a Python subprocess.
+  - **Known gap, gh-absent discovery only**: `autoship_group.py` (via the
+    shared `autoship_state.fetch_eligible_issues` eligibility filter it
+    calls into) needs two GraphQL-shaped fields (`subIssuesSummary`,
+    `closedByPullRequestsReferences`) that `gh issue list --json` computes
+    for free but that the REST-backed MCP tools don't return in one call.
+    The MCP-path instructions in Step 2 approximate them —
+    `mcp__github__issue_read` (method `get`) per candidate for the epic
+    check, and a `mcp__github__search_pull_requests` query for the
+    open-linked-PR check — and are deliberately conservative (treat an
+    ambiguous match as "has an open PR", i.e. skip it) since a false include
+    is worse than a false exclude for an autoship gate. This is real but
+    bounded: it only touches the small number of issues that already carry
+    the ready label, not the whole repo. Step 2 also documents a second,
+    narrower gh-absent gap specific to grouping itself — the
+    `blockedBy`/`blocking`/`parent` fields `autoship_group.py`'s dependency
+    and shared-parent signals need, which this skill's MCP toolset has no
+    call for at all.
+  - `/ship` (Step 3c) has its own separate `gh` dependency (`Bash(gh pr *)`,
+    `Bash(gh issue *)` in its own `allowed-tools`) that this fix does not
+    touch — a gh-absent round can reclaim/discover/label via MCP, but `/ship`
+    itself still needs `gh` to open the PR. Out of scope for #1700; file a
+    follow-up if full gh-less autoship end-to-end is wanted.
+
 ## Step 1 — Reclaim orphaned issues
 
 Run the reclaim script to relabel any stale `autoship:in-progress` issues back
 to `autoship:blocked` before discovery, so they are not counted against
 `--max-issues` and are instead queued for human triage.
 
+**gh present:**
+
 ```bash
 python3 "${CLAUDE_PLUGIN_ROOT}/scripts/autoship_reclaim.py" \
   [--dry-run]           # pass when --dry-run was given
 ```
+
+**gh absent:**
+
+1. Fetch open issues labeled `autoship:in-progress` via
+   `mcp__github__search_issues` (`query: "is:issue is:open label:autoship:in-progress"`,
+   `fields: ["number", "title", "labels", "updated_at"]`).
+2. Build a JSON array matching `autoship_reclaim.py`'s `--input-file` schema
+   — one object per issue with `number`, `title`, `state: "OPEN"`, `labels`
+   (as `[{"name": "..."}, ...]`), and `labeled_at` (use `updated_at` from the
+   search result — the script's own live-fetch path falls back to
+   `updatedAt` the same way when it can't resolve the real timeline event, so
+   this is not a regression). Write it to a scratch file.
+3. Run the script against that file, with `--emit-actions-only` (never
+   `--dry-run` and `--emit-actions-only` together unless `--dry-run` was
+   itself given — dry-run alone already previews correctly with no gh calls):
+
+   ```bash
+   python3 "${CLAUDE_PLUGIN_ROOT}/scripts/autoship_reclaim.py" \
+     --input-file <scratch-file> --emit-actions-only \
+     [--dry-run]           # pass when --dry-run was given
+   ```
+
+4. In `--dry-run` mode, the script's `would-reclaim` preview lines are the
+   report — stop here, nothing to execute. Otherwise, the script prints one
+   JSON action per line (`{"number", "comment", "relabel_from",
+   "relabel_to"}`, exit 0) or, on a failure it detects itself (e.g. a
+   malformed input file), a `autoship_reclaim: ...` error on stderr with a
+   non-zero exit — treat that the same as today's "reclaim failure is
+   non-fatal" handling below. For each successfully-emitted action, execute
+   it directly: `mcp__github__add_issue_comment` with the action's `comment`,
+   then `mcp__github__issue_write` (method `update`, removing
+   `relabel_from` and adding `relabel_to` via the `labels` field — read the
+   issue's current labels first, since `issue_write`'s `labels` replaces the
+   full set rather than diffing it).
 
 Report how many issues were reclaimed (or would be reclaimed in dry-run). A
 reclaim failure is non-fatal — log the error and continue to discovery.
@@ -79,6 +160,8 @@ reclaim failure is non-fatal — log the error and continue to discovery.
 
 Run the two-stage grouping/queueing pipeline to select and order the issues
 this round will process:
+
+**gh present:**
 
 ```bash
 python3 "${CLAUDE_PLUGIN_ROOT}/scripts/autoship_group.py" \
@@ -92,6 +175,58 @@ python3 "${CLAUDE_PLUGIN_ROOT}/scripts/autoship_group.py" \
 visibility across every eligible issue to find dependency, shared-parent,
 and shared-label signals before anything is capped. It groups that pool into
 batches and ungrouped singles via those deterministic signals.
+
+**gh absent** — `autoship_group.py` already supports `--input-file` to
+bypass `gh` entirely on the read side (no script change needed); this skill
+supplies that file via MCP tools instead, the same way this step's `gh
+absent` path worked before this pipeline replaced `autoship_discover.py`:
+
+1. Fetch open issues labeled `autoship:ready` (or `--label`) via
+   `mcp__github__search_issues` (`query: "is:issue is:open label:<label>"`,
+   `fields: ["number", "title", "labels", "created_at"]`).
+2. For each candidate, resolve the two fields `gh issue list --json` computes
+   for free but the search result doesn't carry (see the "Known gap" note
+   above):
+   - **Epic check**: `mcp__github__issue_read` (method `get`, that issue
+     number) — use its `sub_issues_summary.total` (or `has_children`) as
+     `subIssuesSummary.total`.
+   - **Open-linked-PR check**: `mcp__github__search_pull_requests`
+     (`query: "is:pr is:open <number> in:body repo:<owner>/<repo>"`). Any
+     result found → treat as an open linked PR (conservative: this is an
+     approximation of GitHub's own closing-keyword graph, not an exact
+     match — a false "has an open PR" only costs deferring the issue to next
+     round, which is safe; a false negative would let a genuinely
+     PR-in-flight issue double-dispatch, which is not).
+3. **Known gap, gh-absent grouping only**: `autoship_group.py`'s
+   native-dependency and shared-parent signals need `blockedBy`, `blocking`,
+   and `parent` — fields this skill's REST-backed MCP toolset (the
+   `mcp__github__*` tools listed above) has no call for. A gh-absent round
+   cannot resolve them, so leave all three out of the scratch file entirely
+   rather than guessing — `autoship_group.py`'s signal functions already
+   treat a missing field as "no signal", never an error (they read it via
+   `.get(...)`, same as the epic/PR-check gap above). Only the shared-label
+   signal (which needs just the `labels` field already fetched in step 1)
+   still groups issues in this mode; the round still ships every eligible
+   issue, just solo instead of batched wherever a dependency/parent signal
+   would otherwise have fired.
+4. Build a JSON array matching `autoship_group.py`'s required fields —
+   `autoship_state.BASE_REQUIRED_FIELDS` (`number`, `title`, `state:
+   "OPEN"`, `createdAt` from `created_at`, `labels`,
+   `closedByPullRequestsReferences` as `[{"state": "OPEN"}]` or `[]` per the
+   step-2 check, `subIssuesSummary` as `{"total": N}`) — omitting
+   `blockedBy`/`blocking`/`parent` per the gap above; they are optional on
+   the `--input-file` path, not required. Write it to a scratch file.
+5. Run the pipeline's first stage with `--input-file <scratch-file>`; the
+   second stage (`autoship_queue.py`) never touches `gh` and needs no
+   `gh absent` variant of its own:
+
+   ```bash
+   python3 "${CLAUDE_PLUGIN_ROOT}/scripts/autoship_group.py" \
+     --input-file <scratch-file> \
+     [--label <label>] \
+     | python3 "${CLAUDE_PLUGIN_ROOT}/scripts/autoship_queue.py" \
+     --max-issues <N>
+   ```
 
 Its output is piped directly into `autoship_queue.py`, which applies this
 round's real `--max-issues` cap and produces the ordered dispatch queue:
@@ -146,11 +281,19 @@ issues.
 
 ### 3b — Label issue in-progress
 
+**gh present:**
+
 ```bash
 gh issue edit <number> \
   --remove-label autoship:ready \
   --add-label autoship:in-progress
 ```
+
+**gh absent:** `mcp__github__issue_write` (method `update`, that issue
+number) — read the issue's current labels first (`issue_read` method `get`),
+then pass the full `labels` list with `autoship:ready` removed and
+`autoship:in-progress` added (the tool replaces the full label set, it does
+not diff against `--remove-label`/`--add-label` semantics).
 
 ### 3c — Invoke /ship
 
@@ -180,19 +323,26 @@ If found:
    following the `requires-stakeholder-input` marker).
 2. Label the issue:
 
+   **gh present:**
+
    ```bash
    gh issue edit <number> \
      --remove-label autoship:in-progress \
      --add-label autoship:blocked
    ```
 
+   **gh absent:** `mcp__github__issue_write` (method `update`), same
+   read-current-labels-first pattern as Step 3b.
 3. Post a comment on the issue with the blocking question(s):
+
+   **gh present:**
 
    ```bash
    gh issue comment <number> \
      --body "autoship blocked: requires stakeholder input\n\n<questions>"
    ```
 
+   **gh absent:** `mcp__github__add_issue_comment` with the same body.
 4. Record outcome `"blocked"` with `blocked_reason: "<questions>"` for this
    issue.
 5. **Continue to the next issue.** A blocked issue does not halt the round.

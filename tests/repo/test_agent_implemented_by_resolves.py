@@ -152,8 +152,21 @@ INTENTIONAL_BARE_INVOCATION = {
 #: #1637 qualified it properly instead (that script had no reason to be
 #: cwd-relative — it takes all its inputs as explicit flags).
 #: Keyed on the path after `scripts/`, same reasoning as INTENTIONAL_BARE_INVOCATION.
+#:
+#: `agent-audit`'s own invariant table (`§2b`) names three delegated scripts
+#: as bare `plugins/dev-team/scripts/…` table cells with no `python3` prefix
+#: — the same repo-root-relative-by-design shape as `verify_tier.py` above
+#: (its own SKILL.md text at that table says so explicitly: "All three
+#: delegated scripts above are repo-root-relative... same working-tree-vs-
+#: cache reasoning as verify_tier.py above"), just spelled as a table cell
+#: rather than a shell invocation. `_WORKTREE_RELATIVE_INVOCATION` widened to
+#: match that shape too (#1686) — all three rows land here together, not
+#: just the two the guard previously couldn't see at all.
 INTENTIONAL_WORKTREE_RELATIVE = {
     ("agent-audit", "verify_tier.py"),
+    ("agent-audit", "check_review_agent_mcp_tools.py"),
+    ("agent-audit", "check_agent_tool_mapping.py"),
+    ("agent-audit", "check_security_assessment_mcp_tools.py"),
 }
 
 # Group 1 is the path after `scripts/`, kept wide (including `/`) so a nested
@@ -161,8 +174,16 @@ INTENTIONAL_WORKTREE_RELATIVE = {
 # distinct key (not collapsed to a basename that could collide with an
 # unrelated top-level `foo.py`).
 _BARE_INVOCATION = re.compile(r"python3?\s+(scripts/[\w./-]+\.py)")
+# Two shapes count as a worktree-relative reference: a `python3 …` shell
+# invocation, or a bare backticked path sitting in a markdown table cell
+# (`| \`plugins/dev-team/scripts/x.py\` |`) — the latter is how
+# agent-audit/SKILL.md's §2b invariant table names its delegated scripts,
+# with no `python3` prefix for a single-character lookbehind to anchor on.
+# A plain prose mention (`` delegate to `plugins/dev-team/scripts/lib/x.py`'s
+# shared … `` — no leading `|`) is deliberately NOT matched: it isn't a
+# reference to a script a reader would separately invoke.
 _WORKTREE_RELATIVE_INVOCATION = re.compile(
-    r"python3?\s+(plugins/dev-team/scripts/[\w./-]+\.py)"
+    r"(?:python3?\s+|\|\s*`)(plugins/dev-team/scripts/[\w./-]+\.py)`?"
 )
 
 

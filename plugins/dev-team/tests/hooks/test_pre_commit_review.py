@@ -693,6 +693,65 @@ def test_single_agent_exemption_with_one_real_dispatch_passes(repo: Path) -> Non
     assert not (repo / ".claude" / "memory" / ".review-passed").exists()
 
 
+def test_two_line_gate_file_with_correct_first_line_hash_passes_via_hash_verdict(
+    repo: Path,
+) -> None:
+    """#1646: `_hash_verdict()` used to `.strip()` the WHOLE gate file and
+    compare that against the single-line `current_hash` — for a 2-line gate
+    file (#1627's optional normalized-hash second line) `stored` became
+    `"line1\\nline2"`, which can never equal a single-line hash, so this
+    lens always rejected regardless of whether the first line's hash was
+    correct. Reproduces with a 2-line gate file whose first line IS the
+    correct hash and asserts the gate passes directly through
+    `_hash_verdict()` — not by falling through to the cosmetic-delta
+    carry-forward lens, which only ever fires after a raw-hash MISMATCH."""
+    h = _current_hash(repo)
+    gate_path = repo / ".claude" / "memory" / ".review-passed"
+    gate_path.parent.mkdir(parents=True, exist_ok=True)
+    # Dispatch evidence must be written BEFORE the gate file — the
+    # corroboration window is anchored on the gate file's own mtime and only
+    # accepts evidence timestamped at or before it (see the invariant note
+    # in _evaluate_gate). Writing the gate first leaves the dispatch write
+    # free to land in a later wall-clock second under load, pushing it
+    # outside the window (issue #1668's exact flake mechanism).
+    _write_dispatch_events(repo, ["security-review", "correctness-review"], h)
+    gate_path.write_text(f"{h}\nsome-normalized-hash-that-does-not-matter\n")
+    r = _run(
+        {"tool_name": "Bash", "tool_input": {"command": "git commit -m x"}}, cwd=repo
+    )
+    assert r.returncode == 0, r.stdout + r.stderr
+    assert not gate_path.exists()
+    audit_log = repo / ".claude" / "metrics" / "boundary-events.jsonl"
+    assert audit_log.is_file()
+    entries = [
+        json.loads(ln) for ln in audit_log.read_text().splitlines() if ln.strip()
+    ]
+    assert not any(
+        e.get("matched_rule") == "cosmetic-delta-carry-forward" for e in entries
+    )
+
+
+def test_single_agent_exemption_reachable_with_two_line_gate_file(repo: Path) -> None:
+    """#1646: the single-agent exemption path (`_single_agent_exemption_verdict`)
+    is only reached once `_hash_verdict()` returns `None` (hash OK). Before
+    the fix, a 2-line gate file made `_hash_verdict()` always reject, so this
+    sanctioned `--agent <name>` exemption was structurally unreachable
+    whenever the gate file carried #1627's optional second line."""
+    h = _current_hash(repo)
+    gate_path = repo / ".claude" / "memory" / ".review-passed"
+    gate_path.parent.mkdir(parents=True, exist_ok=True)
+    # Dispatch/exemption evidence must be written BEFORE the gate file — see
+    # the identical ordering note in the sibling test above (issue #1668).
+    _write_dispatch_events(repo, ["security-review"], h)
+    _write_single_agent_exemption(repo, h)
+    gate_path.write_text(f"{h}\nsome-normalized-hash-that-does-not-matter\n")
+    r = _run(
+        {"tool_name": "Bash", "tool_input": {"command": "git commit -m x"}}, cwd=repo
+    )
+    assert r.returncode == 0, r.stdout + r.stderr
+    assert not gate_path.exists()
+
+
 def test_gate_path_setup_failure_fails_closed_not_open(repo: Path) -> None:
     """#1461 security re-review: `gate_file.parent.mkdir(...)` previously
     ran OUTSIDE `_evaluate_gate`'s own fail-closed try/except, in `main()`

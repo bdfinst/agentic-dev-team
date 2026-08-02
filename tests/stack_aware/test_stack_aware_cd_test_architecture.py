@@ -4,7 +4,7 @@ plans/stack-aware-reference-loading.md (Slice 2, issue #524).
 
 Pattern source: plugins/dev-team/skills/test-design-advisor/SKILL.md:31, 62.
 
-Ported from tests/bats/stack-aware-cd-test-architecture.bats (issue #675:
+Ported from stack-aware-cd-test-architecture.bats (issue #675:
 bats -> pytest).
 """
 

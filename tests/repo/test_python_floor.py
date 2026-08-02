@@ -31,13 +31,25 @@ eslint *while still reporting success*.
 
 So the floor is declared in exactly one machine-readable place —
 `ruff.toml`'s `[per-file-target-version]` — and proven by `chk_python_floor`
-in `scripts/ci-local.sh`, which resolves a real 3.8 interpreter and makes it
+in `scripts/ci-local.sh`, which resolves a real floor interpreter and makes it
 byte-compile and import every shipped module. That check runs in the default
 gate, so the pre-push hook enforces it on every push — and, since #1635, a
 dedicated `python-floor` job in `.github/workflows/plugin-tests.yml` also
 runs it on every PR, so a push that bypasses local hooks (`--no-verify`, a
 hookless cloud session) is still caught by CI. That job's name is a required
 status check on `main`, so a red run blocks a GitHub-UI merge too.
+
+Byte-compiling and importing still has a blind spot of its own, closed in
+#1650: neither one executes a function *body*, so a runtime-only API used
+only inside a function (`asyncio.to_thread` in `orchestrator.py`, 3.9+) stays
+invisible to both regardless of which version the floor is pinned to.
+`chk_python_floor` now also actually runs, under the resolved floor
+interpreter, the test slice covering the five shipped agent scripts
+(`codebase_recon`, `orchestrator`, `progress_guardian`,
+`token_efficiency_review`, `claude_setup_review`) — not the plugin's entire
+suite, which would double this gate's wall-clock re-running everything under
+a second interpreter, but enough real execution to catch what compiling and
+importing alone cannot.
 
 What follows pins those parts to each other. It deliberately contains no
 opinion about which APIs are too new; that question belongs to the
@@ -199,6 +211,30 @@ class TestTheFloorIsProvenByRunningIt:
         source = IMPORT_PROBE.read_text(encoding="utf-8")
         assert "exec_module" in source, "the probe must actually import modules"
         assert "VERSION_ERRORS" in source, "failures must come from the interpreter"
+
+    def test_the_check_also_runs_a_real_test_slice_under_the_floor_interpreter(self, ci_local):
+        """#1650: byte-compiling and importing prove a module parses and
+        loads, not that its function bodies run clean under the floor
+        interpreter. `chk_python_floor` must actually execute pytest against
+        the shipped-agent-script test files, under the resolved floor
+        interpreter specifically (not whatever `python3` happens to be on
+        PATH), or a runtime-only API used only inside a function stays
+        invisible to this gate again."""
+        body = _floor_check_body(ci_local)
+        assert "uv run" in body and "--python" in body and '"$py310"' in body, (
+            "must invoke the resolved floor interpreter via `uv run --python "
+            '"$py310"`, not the default `python3`'
+        )
+        assert "-m pytest" in body, "must actually run pytest, not just import"
+        for test_file in (
+            "tests/scripts/test_codebase_recon.py",
+            "tests/scripts/test_orchestrator.py",
+            "tests/scripts/test_orchestrator_cli.py",
+            "tests/scripts/test_progress_guardian.py",
+            "tests/scripts/test_token_efficiency_review_script.py",
+            "tests/scripts/test_claude_setup_review.py",
+        ):
+            assert test_file in body, f"floor check must run {test_file}"
 
 
 class TestTheFloorIsCheckedInCI:

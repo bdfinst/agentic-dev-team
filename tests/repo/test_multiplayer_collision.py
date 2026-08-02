@@ -106,8 +106,22 @@ def test_baseline_gate_written_for_current_staged_content_allows_commit(
 ) -> None:
     (work / "a.ts").write_text("v1\n")
     subprocess.run(["git", "add", "a.ts"], cwd=work, env=_git_env(), check=True)
-    _write_gate(work)
+    # Investigated under #1668: write dispatch evidence BEFORE the gate file,
+    # not after. The corroboration window is anchored on the gate file's own
+    # mtime (`before_ts`) and only accepts dispatch events with
+    # `ts <= before_ts` (whole-second resolution). Writing the gate first (as
+    # this test previously did) leaves the dispatch event's `datetime.now(UTC)`
+    # timestamp free to land in a LATER second under scheduling delay — which
+    # is exactly what a heavily loaded `pytest -n auto` run can introduce
+    # between the two `Path.write_text` calls — silently pushing the evidence
+    # outside the window and producing a false "outside the 1800s window"
+    # block. Writing dispatch evidence first, then the gate, mirrors
+    # `pre_commit_review.py`'s own documented invariant ("gate writes must
+    # happen strictly after every dispatch/exemption event they're meant to
+    # corroborate") and makes `dispatch_ts <= gate_mtime` true by construction
+    # rather than by luck, independent of real elapsed wall-clock time.
     _write_dispatch_evidence(work)
+    _write_gate(work)
     res = _commit_hook(work)
     assert res.returncode == 0, res.stdout + res.stderr
 

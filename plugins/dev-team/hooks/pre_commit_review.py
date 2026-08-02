@@ -574,15 +574,24 @@ def _hash_verdict(
     Returns a rejecting `GateVerdict` when the hash doesn't match; `None`
     when it does, meaning "hash OK, continue to the dispatch-ledger
     corroboration lenses".
+
+    Reads the stored hash via `_stored_gate_hashes()` (issue #1646) rather
+    than its own raw `.strip()` of the whole file: `.review-passed` gained
+    an optional second line in #1627 (the normalization-invariant hash), and
+    stripping the WHOLE file compared `"line1\\nline2"` against a single-line
+    `current_hash` — never equal, so a 2-line gate file always mismatched
+    here regardless of whether the first line's hash was correct. That made
+    `_single_agent_exemption_verdict()` (only reached once this lens returns
+    `None`) structurally unreachable for any gate file carrying the optional
+    second line. `_stored_gate_hashes()` already parses just the first line
+    correctly; reuse it instead of duplicating (and mis-duplicating) that
+    parse here.
     """
     block_message = _UNSTAGED_BLOCK_MESSAGE if unstaged_commit else _BLOCK_MESSAGE
     block_rule = "pre-commit-review-unstaged" if unstaged_commit else "pre-commit-review"
     if not gate_file.is_file():
         return GateVerdict(False, block_message, block_rule)
-    try:
-        stored = gate_file.read_text().strip()
-    except OSError:
-        stored = ""
+    stored, _normalized = _stored_gate_hashes(gate_file)
     if not stored or stored != current_hash:
         return GateVerdict(False, block_message, block_rule)
     return None
@@ -812,6 +821,15 @@ def _evaluate_gate(
         # therefore evaluated against ITS OWN new anchor, never the original
         # write's — so a hash rewrite alone is never itself dispatch
         # evidence.
+        #
+        # This is intentional, not a bug (issue #1646): it means a
+        # dispatch/exemption event timestamped AFTER the gate file's own
+        # mtime falls outside the window and will not corroborate it. The
+        # natural human workflow — write the gate, then realize one more
+        # check is needed and dispatch it — silently produces evidence
+        # outside the window this way, with no error pointing at why. Gate
+        # writes must happen strictly after every dispatch/exemption event
+        # they're meant to corroborate.
         before_ts = _mtime_to_iso(gate_file.stat().st_mtime)
 
         evidence = _evaluate_ledger(cwd, before_ts, WINDOW_SECONDS, current_hash)

@@ -21,7 +21,11 @@ linter-style rule ID. Its purpose is round-to-round finding identity:
 `skills/code-review/scripts/finding_signature.py`'s `signature()` hashes
 `(agent, file, category, normalized-message)`, with the finding's `line`
 compared separately at a `±3` tolerance by `same_finding()` rather than
-folded into the hash. Message normalization strips quoted spans and numbers
+folded into the hash. The `category` component of that hash is resolved
+from a fallback chain — `category` → `smell` → `rule` → `ruleId` (#1692) —
+so an agent that spells its taxonomy tag `smell` (`test-smell-review`) gets
+the same round-to-round identity protection as an agent that spells it
+`category`. Message normalization strips quoted spans and numbers
 by design, so two genuinely *different* findings from the same agent, same
 file, and within a few lines of each other can normalize to the same text
 (e.g. two distinct missing-guard-clause defects a couple of lines apart
@@ -96,9 +100,10 @@ intentional, documented exceptions — not drift:
 
 - **`test-smell-review`**: adds `"smell": ""` and
   `"remedyFamily": "fixture-construction|result-verification|test-organization|test-refactoring|null"`
-  to each issue. `smell` is this agent's own taxonomy tag but is not read by
-  `signature()`'s `category`/`rule`/`ruleId` fallback chain, so its findings
-  currently hash with an empty taxonomy component — tracked in #1692.
+  to each issue. `smell` is this agent's own taxonomy tag; `signature()`'s
+  fallback chain is `category` → `smell` → `rule` → `ruleId` (#1692), so its
+  findings hash with `smell` as their taxonomy component instead of an empty
+  segment.
 
 An agent that needs a new field beyond these documents it here rather than
 drifting silently.

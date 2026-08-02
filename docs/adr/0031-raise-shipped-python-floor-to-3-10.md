@@ -119,11 +119,15 @@ Concretely:
   it only resets the clock. A future revisit should consider whether the
   floor should track "N-2 supported CPython minors" as a standing policy
   rather than a number re-chosen by hand each time.
-- **#1650 is not resolved by this ADR.** The floor gate still only
-  byte-compiles and imports; it still cannot see a runtime-only API used
-  inside a function body, regardless of which version it targets. A future
-  3.11-only API misused in shipped code would reproduce #1650's exact failure
-  mode at the new floor.
+- **#1650 was not resolved by this ADR, but was subsequently closed.** At the
+  time this ADR was accepted, the floor gate only byte-compiled and imported;
+  it could not see a runtime-only API used inside a function body, regardless
+  of which version it targeted. `chk_python_floor` (`scripts/ci-local.sh`)
+  now also actually runs, under the resolved floor interpreter via `uv run
+  --python`, the test slice covering the shipped agent scripts — closing that
+  blind spot for the scripts it covers. It remains a slice, not the full
+  suite, so a runtime-only API misused in a shipped script outside that
+  slice would still reproduce #1650's original failure mode.
 - **`ruff.toml`'s global `target-version` (repo-root tooling, not user-facing)
   moves `py39` → `py311`**, matching this container's actual interpreter
   (3.11.15) and every currently-supported OS default. Repo-root scripts may

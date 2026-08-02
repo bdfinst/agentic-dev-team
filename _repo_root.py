@@ -11,7 +11,7 @@ Named ``_repo_root`` (not ``conftest``) to avoid any ambiguity with pytest's
 own conftest.py fixture-collection mechanism; it is a plain importable
 module, not a pytest plugin. Follows this repo's existing convention for
 cross-directory test helpers (``tests/agents/_plugin_dirs.py``,
-``tests/bats/_stack_aware_helpers.py``), just scoped to the repo root via the
+``tests/stack_aware/_stack_aware_helpers.py``), just scoped to the repo root via the
 ``pythonpath = .`` entry in ``pytest.ini`` instead of a per-directory one.
 """
 

@@ -18,7 +18,7 @@ Contract:
 
 from __future__ import annotations
 
-from skill_doc_helpers import PLUGIN_ROOT, collapsed, grep
+from skill_doc_helpers import PLUGIN_ROOT, collapsed, grep, section_outside_code
 
 SETUP = PLUGIN_ROOT / "skills" / "setup" / "SKILL.md"
 PROJECT_INIT = PLUGIN_ROOT / "skills" / "project-init" / "SKILL.md"
@@ -30,6 +30,22 @@ def _setup() -> str:
 
 def _project_init() -> str:
     return PROJECT_INIT.read_text(encoding="utf-8")
+
+
+def _yes_semantics_conservative_repowise_bullet() -> str:
+    """Bound to just the Conservative bucket's `Step 4c Repowise` bullet —
+    not the whole document — so a match here can't be satisfied by an
+    earlier, unrelated occurrence of "Repowise" (e.g. the Affirmative-bucket
+    CodeGraph bullet) or a later occurrence of the target phrase belonging
+    to a sibling bullet (e.g. Graphify's own "does not record a durable
+    decline" clause). Mirrors the identical helper already added in
+    tests/skills/test_project_init_repowise_claude_md_write.py, #1690."""
+    return section_outside_code(
+        _project_init(),
+        r"^- \*\*Step 4c Repowise",
+        boundary_pattern=r"^- \*\*Step 1 zero/ambiguous stack",
+        include_start_line=True,
+    )
 
 
 # --- argument-hint frontmatter -----------------------------------------------
@@ -99,3 +115,19 @@ def test_project_init_yes_exits_on_ambiguous_stack():
     body = collapsed(_project_init())
     assert grep(r"[Uu]nder `--yes`, do not prompt", body)
     assert grep(r"never guess a stack", body)
+
+
+# --- /project-init: Repowise moved to the Conservative bucket (#1690),
+# matching Graphify's own `--yes`-skip treatment ---------------------------
+
+
+def test_project_init_yes_skips_repowise_without_durable_decline():
+    bullet = collapsed(_yes_semantics_conservative_repowise_bullet())
+    assert grep(r"Repowise: skipped under --yes", bullet)
+    assert grep(r"not\*\* record a durable decline", bullet)
+
+
+def test_project_init_yes_keeps_codegraph_affirmative_only():
+    body = collapsed(_project_init())
+    assert grep(r"Step 4c CodeGraph.*already yes", body)
+    assert grep(r"Repowise.*does \*\*not\*\* stay", body)
