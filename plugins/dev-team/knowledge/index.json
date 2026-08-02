@@ -2245,7 +2245,7 @@
       "anchor": "step-1-reclaim-orphaned-issues"
     },
     "Step 2 — Discover eligible issues": {
-      "summary": "Run the discovery script to select the issues this round will process.",
+      "summary": "Run the two-stage grouping/queueing pipeline to select and order the issues",
       "anchor": "step-2-discover-eligible-issues"
     },
     "Step 3 — Per-issue processing loop": {
