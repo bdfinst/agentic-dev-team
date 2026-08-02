@@ -116,6 +116,27 @@ def test_fetch_eligible_issues_from_input_file_filters_and_sorts_oldest_first(
     assert [issue["number"] for issue in result] == [1, 2]
 
 
+def test_fetch_issues_from_gh_passes_limit_500(monkeypatch) -> None:
+    # `gh issue list` applies a default result cap (typically 30);
+    # fetch_issues_from_gh is documented as returning the FULL eligible
+    # pool, which is only true with an explicit --limit override.
+    captured_argv = {}
+
+    def _fake_run(argv, **kwargs):
+        captured_argv["argv"] = argv
+        return subprocess.CompletedProcess(
+            args=argv, returncode=0, stdout="[]", stderr=""
+        )
+
+    monkeypatch.setattr(subprocess, "run", _fake_run)
+
+    autoship_state.fetch_issues_from_gh("autoship:ready")
+
+    argv = captured_argv["argv"]
+    assert "--limit" in argv
+    assert argv[argv.index("--limit") + 1] == "500"
+
+
 def test_fetch_eligible_issues_gh_not_found_raises_fetch_error(monkeypatch) -> None:
     def _raise(*args, **kwargs):
         raise FileNotFoundError("gh not on PATH")

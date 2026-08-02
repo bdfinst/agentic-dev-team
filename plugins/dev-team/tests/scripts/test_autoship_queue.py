@@ -254,6 +254,38 @@ def test_non_dict_top_level_payload_is_a_clean_error(tmp_path, capsys) -> None:
     assert "must be a JSON object" in captured.err
 
 
+def test_missing_batches_key_is_a_clean_error(tmp_path, capsys) -> None:
+    # Fix 5 (autoship-issue-batching full-feature review): a malformed
+    # rewrite of <scratch-grouping.json> between Step 2b/2c and
+    # autoship_queue.py that drops a top-level key must surface as an
+    # error, not silently default to an empty list.
+    fixture = tmp_path / "grouping-output.json"
+    fixture.write_text(json.dumps({"ungrouped": []}), encoding="utf-8")
+
+    exit_code = autoship_queue.main(
+        ["--max-issues", "10", "--input-file", str(fixture)]
+    )
+
+    assert exit_code == 1
+    captured = capsys.readouterr()
+    assert "autoship_queue:" in captured.err
+    assert '"batches"' in captured.err
+
+
+def test_missing_ungrouped_key_is_a_clean_error(tmp_path, capsys) -> None:
+    fixture = tmp_path / "grouping-output.json"
+    fixture.write_text(json.dumps({"batches": []}), encoding="utf-8")
+
+    exit_code = autoship_queue.main(
+        ["--max-issues", "10", "--input-file", str(fixture)]
+    )
+
+    assert exit_code == 1
+    captured = capsys.readouterr()
+    assert "autoship_queue:" in captured.err
+    assert '"ungrouped"' in captured.err
+
+
 def test_batch_missing_members_is_a_clean_error(tmp_path, capsys) -> None:
     fixture = tmp_path / "grouping-output.json"
     fixture.write_text(

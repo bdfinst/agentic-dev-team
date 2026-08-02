@@ -115,6 +115,13 @@ def build_queue(grouping_output: dict[str, Any], max_issues: int) -> dict[str, A
     """Build the ordered, `max_issues`-capped dispatch queue from
     `autoship_group.py`'s output shape.
 
+    `grouping_output` must already carry both `"batches"` and `"ungrouped"`
+    keys — callers reaching this function have gone through
+    `_validate_grouping_output`/`_load_grouping_output`, which now requires
+    both keys present rather than defaulting a missing one to `[]` (a
+    malformed rewrite of `<scratch-grouping.json>` between the pipeline's
+    two commands must surface as an error, not silent data loss).
+
     Units are sorted oldest-first by `createdAt`; ties break on the unit's
     identifying issue number (a batch's oldest member, or the solo issue
     itself) for deterministic ordering — the same tie-break convention
@@ -128,8 +135,8 @@ def build_queue(grouping_output: dict[str, Any], max_issues: int) -> dict[str, A
     stop the scan, since a later, smaller unit may still fit under the same
     cap.
     """
-    units = [_batch_unit(batch) for batch in grouping_output.get("batches", [])]
-    units += [_solo_unit(entry) for entry in grouping_output.get("ungrouped", [])]
+    units = [_batch_unit(batch) for batch in grouping_output["batches"]]
+    units += [_solo_unit(entry) for entry in grouping_output["ungrouped"]]
     units.sort(key=lambda unit: (unit["_created_at"], unit["_tie_break"]))
 
     queue: list[dict[str, Any]] = []
@@ -152,12 +159,26 @@ def _validate_grouping_output(data: dict[str, Any]) -> None:
     never receives a payload malformed enough to trip a raw
     `KeyError`/`IndexError` in `_batch_unit`/`_solo_unit`.
 
+    Both `"batches"` and `"ungrouped"` are REQUIRED top-level keys — this
+    was safe to default to `[]` when `autoship_group.py` was the sole
+    producer (it always emits both), but Step 2c
+    (`skills/autoship/SKILL.md`) now instructs rewriting
+    `<scratch-grouping.json>`'s `ungrouped` array in place between the
+    pipeline's two commands, so a malformed rewrite that drops a top-level
+    key must surface as an error here rather than being silently treated as
+    a legitimately empty result.
+
     Raises `QueueError` naming the offending entry (by `batch_id` if
     present, by index otherwise; by issue `number` if present, by index
     otherwise for `ungrouped` entries) and the specific missing/malformed
     field — mirroring `autoship_state.validate_issues`'s convention.
     """
-    batches = data.get("batches", [])
+    if "batches" not in data:
+        raise QueueError('grouping output missing required top-level key "batches"')
+    if "ungrouped" not in data:
+        raise QueueError('grouping output missing required top-level key "ungrouped"')
+
+    batches = data["batches"]
     if not isinstance(batches, list):
         raise QueueError(
             f'"batches" must be a JSON array, got {type(batches).__name__}'
@@ -193,7 +214,7 @@ def _validate_grouping_output(data: dict[str, Any]) -> None:
                     f"{member_idx} missing required field(s) {', '.join(missing)}"
                 )
 
-    ungrouped = data.get("ungrouped", [])
+    ungrouped = data["ungrouped"]
     if not isinstance(ungrouped, list):
         raise QueueError(
             f'"ungrouped" must be a JSON array, got {type(ungrouped).__name__}'

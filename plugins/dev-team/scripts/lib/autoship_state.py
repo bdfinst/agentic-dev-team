@@ -216,6 +216,12 @@ def fetch_issues_from_gh(
     check — this is what makes the `--input-file` and live paths behave
     identically.
 
+    `--limit 500` is required here: `gh issue list` applies a default
+    result cap (typically 30), and this function is documented (see
+    `fetch_eligible_issues`) as returning the FULL eligible pool — without
+    an explicit override that claim is false on any repo with more than a
+    page of matching issues.
+
     Raises `FetchError` on a non-zero `gh` exit, a timeout, or malformed
     JSON output — never an uncaught
     `CalledProcessError`/`TimeoutExpired`/`JSONDecodeError`/traceback.
@@ -236,6 +242,8 @@ def fetch_issues_from_gh(
                 "open",
                 "--label",
                 label,
+                "--limit",
+                "500",
                 "--json",
                 gh_json_fields,
             ],

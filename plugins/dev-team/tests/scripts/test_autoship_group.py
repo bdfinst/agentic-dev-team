@@ -102,6 +102,29 @@ def test_native_dependency_groups_two_issues_via_blockedby() -> None:
     assert [m["number"] for m in result["ungrouped"]] == [12]
 
 
+def test_native_dependency_groups_via_real_gh_connection_object_shape() -> None:
+    # A live `gh issue list --json blockedBy,blocking` returns a GraphQL
+    # connection object shaped {"nodes": [...], "totalCount": N} — NOT a
+    # bare list. `_referenced_numbers` must unwrap this shape rather than
+    # silently iterating the dict's keys ("nodes", "totalCount") and
+    # finding zero matches.
+    issue_a = _issue(
+        number=13,
+        title="A",
+        createdAt="2026-07-01T00:00:00Z",
+        blockedBy={"nodes": [{"number": 14}], "totalCount": 1},
+    )
+    issue_b = _issue(number=14, title="B", createdAt="2026-07-02T00:00:00Z")
+
+    result = autoship_group.group_issues([issue_a, issue_b])
+
+    assert len(result["batches"]) == 1
+    batch = result["batches"][0]
+    assert batch["batch_id"] == "grp-13"
+    assert {m["number"] for m in batch["members"]} == {13, 14}
+    assert result["ungrouped"] == []
+
+
 def test_blockedby_edge_to_ineligible_issue_leaves_referencer_ungrouped() -> None:
     # Issue #999 is not present in the eligible input set at all — simulating
     # upstream filtering having already excluded it (e.g. an open linked PR).

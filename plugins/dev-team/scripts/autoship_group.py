@@ -100,12 +100,17 @@ def build_parser() -> argparse.ArgumentParser:
 def _referenced_numbers(field: Any) -> set[int]:
     """Extract issue numbers referenced by a `blockedBy`/`blocking` field.
 
-    Accepts either a list of issue-like dicts (each carrying a `number`) or
-    a list of bare ints — the exact shape isn't pinned down yet, so this
-    tolerates both rather than assuming one.
+    A live `gh issue list --json blockedBy,blocking` returns a GraphQL
+    connection object shaped `{"nodes": [...], "totalCount": N}` — NOT a
+    bare list — so the primary case unwraps `field["nodes"]` before
+    iterating. `--input-file` fixtures may still reasonably use the
+    simpler bare-list-of-dicts (or bare-list-of-ints) shape documented in
+    the plan, so both are still tolerated as a fallback.
     """
     if not field:
         return set()
+    if isinstance(field, dict):
+        field = field.get("nodes") or []
     numbers: set[int] = set()
     for entry in field:
         if isinstance(entry, dict):
