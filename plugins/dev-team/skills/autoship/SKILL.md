@@ -7,7 +7,7 @@ description: >-
   blocked items without halting the round. Requires `--max-issues` and
   `--max-cost-usd`. Use when you want a self-contained automated delivery
   round driven from the issue tracker.
-argument-hint: "--max-issues N --max-cost-usd N [--dry-run] [--label LABEL]"
+argument-hint: "--max-issues N --max-cost-usd N [--dry-run] [--label LABEL] [--max-batch-size N]"
 user-invocable: true
 effort: medium
 allowed-tools: >-
@@ -56,12 +56,14 @@ Optional:
 
 - `--dry-run` — preview mode: report what would run without side effects.
 - `--label LABEL` — override the eligibility label (default: `autoship:ready`).
+- `--max-batch-size N` — override `autoship_group.py`'s per-batch member cap
+  (default: 5, matching the script's own default).
 
 If either required argument is absent, print this message and stop:
 
 ```
 autoship: --max-issues and --max-cost-usd are both required.
-Usage: /autoship --max-issues N --max-cost-usd N [--dry-run] [--label LABEL]
+Usage: /autoship --max-issues N --max-cost-usd N [--dry-run] [--label LABEL] [--max-batch-size N]
 ```
 
 ## gh CLI availability (#1700)
@@ -109,8 +111,12 @@ Check once, before Step 1: `command -v gh`.
 ## Step 1 — Reclaim orphaned issues
 
 Run the reclaim script to relabel any stale `autoship:in-progress` issues back
-to `autoship:blocked` before discovery, so they are not counted against
-`--max-issues` and are instead queued for human triage.
+to `autoship:blocked` before discovery. This does not change `--max-issues`
+accounting — `autoship_state.is_eligible` already excludes any issue carrying
+`autoship:in-progress` or `autoship:blocked` regardless of whether reclaim has
+run, so a stale in-progress issue is excluded from the eligible pool either
+way. Reclaim's real purpose is unsticking issues orphaned by a crashed round
+and routing them to human triage before they sit invisibly forever.
 
 **gh present:**
 
@@ -165,10 +171,16 @@ this round will process:
 
 ```bash
 python3 "${CLAUDE_PLUGIN_ROOT}/scripts/autoship_group.py" \
-  [--label <label>] \
+  [--label "<label>"] [--max-batch-size "<max_batch_size>"] \
   | python3 "${CLAUDE_PLUGIN_ROOT}/scripts/autoship_queue.py" \
-  --max-issues <N>
+  --max-issues "<N>"
 ```
+
+Unlike Step 1's reclaim, a discovery failure is fatal for the round — abort
+and report the error. When `autoship_group.py` fails, note that
+`autoship_queue.py` will report its own unrelated "grouping output is not
+valid JSON" message; the actionable error is the `autoship_group:`-prefixed
+line on stderr from the FIRST command in the pipe, not the second.
 
 `autoship_group.py` self-fetches the **full** eligible pool — it takes no
 `--max-issues` truncation at that layer, because grouping needs full
@@ -223,10 +235,16 @@ absent` path worked before this pipeline replaced `autoship_discover.py`:
    ```bash
    python3 "${CLAUDE_PLUGIN_ROOT}/scripts/autoship_group.py" \
      --input-file <scratch-file> \
-     [--label <label>] \
+     [--label "<label>"] [--max-batch-size "<max_batch_size>"] \
      | python3 "${CLAUDE_PLUGIN_ROOT}/scripts/autoship_queue.py" \
-     --max-issues <N>
+     --max-issues "<N>"
    ```
+
+   Same failure contract as the `gh present` pipe above: a failure here is
+   fatal for the round, and the actionable error is the
+   `autoship_group:`-prefixed stderr line from the first command, not
+   `autoship_queue.py`'s unrelated "grouping output is not valid JSON"
+   message.
 
 Its output is piped directly into `autoship_queue.py`, which applies this
 round's real `--max-issues` cap and produces the ordered dispatch queue:
@@ -245,8 +263,23 @@ updated to consume this new queue shape. That update is a later, separate
 change; do not treat Step 3 as already handling batch/solo units.
 
 If the queue is empty (both `queue` and `deferred` empty), print "No eligible
-issues found this round." and stop (record an empty round in the log before
-exiting).
+issues found this round." and stop, recording the round with
+`status: "no_eligible_issues"` (see Step 4's status enum) before exiting.
+
+If `queue` is empty but `deferred` is **not** empty, no dispatchable unit fits
+this round's `--max-issues` cap — a batch is deferred whole (never split), so
+it can be the only eligible work and still produce an empty queue. Do not
+silently fall through to Step 3's loop over zero entries. Print a distinct
+message naming the situation, e.g.:
+
+```
+No dispatchable unit fits --max-issues <N> this round; <M> unit(s) deferred
+whole (smallest deferred unit has <K> issues).
+```
+
+and stop, recording the round with `status: "no_unit_fits_cap"`,
+`deferred_units: <M>`, and `deferred_issues` (the sum of every deferred
+unit's member count) before exiting.
 
 In `--dry-run` mode, print the discovered queue and stop here without
 proceeding to per-issue processing.
@@ -255,6 +288,11 @@ The `--label` flag, when given, now flows to `autoship_group.py --label
 <label>` instead of `autoship_discover.py --label <label>`.
 
 ## Step 3 — Per-issue processing loop
+
+**Note**: this step's prose still assumes the old `{number, title}` per-issue
+shape (see Step 2's discovery pipeline) and has not yet been updated to
+consume the `queue` array's `batch`/`solo` dispatch units — that update is a
+later, separate change.
 
 Process each discovered issue **strictly in order** (no concurrency).
 
@@ -410,14 +448,16 @@ Skip the log write in `--dry-run` mode.
 
 ## Step 4 — Round summary
 
-After the loop ends (all issues processed, cost cap reached, or dry-run),
-print a round summary to chat:
+After the loop ends — all issues processed, cost cap reached, dry-run, or one
+of Step 2's two early-exit stops (no eligible issues at all, or no unit fit
+`--max-issues`) — print a round summary to chat:
 
 ```
 ## Autoship round summary
 
 Round ID : <round_id>
 Issues   : <processed_count> processed, <total_discovered> discovered
+Deferred : <N> unit(s), <M> issue(s)
 Budget   : $<accumulated:.2f> / $<max_cost_usd:.2f>
 
 | Issue | Title                     | Status       | Notes                    |
@@ -444,10 +484,20 @@ The round summary is also written to `.claude/metrics/autoship-log.jsonl` as a f
   "event": "round_summary",
   "processed": <N>,
   "discovered": <N>,
+  "deferred_units": <N>,
+  "deferred_issues": <M>,
   "cost_usd": <accumulated>,
-  "status": "complete" | "cost_cap_reached" | "dry_run"
+  "status": "complete" | "cost_cap_reached" | "dry_run" | "no_eligible_issues" | "no_unit_fits_cap"
 }
 ```
+
+`deferred_units` is the count of dispatch units (batches) left in `deferred`;
+`deferred_issues` is the sum of their member-issue counts — the two differ
+whenever any deferred unit is a multi-issue batch, so both are recorded
+rather than one ambiguous `deferred` count. `no_eligible_issues` and
+`no_unit_fits_cap` are the round statuses for Step 2's two early-exit stops
+(both fire before Step 3's loop is ever entered, so `processed` is always `0`
+for either).
 
 ## Notes
 

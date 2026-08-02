@@ -2249,7 +2249,7 @@
       "anchor": "step-2-discover-eligible-issues"
     },
     "Step 3 — Per-issue processing loop": {
-      "summary": "Process each discovered issue **strictly in order** (no concurrency).",
+      "summary": "**Note**: this step's prose still assumes the old `{number, title}` per-issue",
       "anchor": "step-3-per-issue-processing-loop"
     },
     "3a — Cost cap check": {
@@ -2281,7 +2281,7 @@
       "anchor": "3f-append-round-record"
     },
     "Step 4 — Round summary": {
-      "summary": "After the loop ends (all issues processed, cost cap reached, or dry-run),",
+      "summary": "After the loop ends — all issues processed, cost cap reached, dry-run, or one",
       "anchor": "step-4-round-summary"
     },
     "Notes": {
