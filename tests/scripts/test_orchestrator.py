@@ -6,6 +6,7 @@ Tests classification, fast-path routing, phase state persistence,
 
 from __future__ import annotations
 
+import asyncio
 import io
 import json
 import os
@@ -113,15 +114,12 @@ def test_research_personas_is_exactly_the_three_always_on_trio():
     """RESEARCH_PERSONAS must equal exactly the three real always-on
     Research-phase agent names, matching DEFAULT_PERSONAS/CODE_REVIEW_PANEL's
     own exact-equality pinning pattern."""
-    assert orch.RESEARCH_PERSONAS == ["codebase-recon", "architect", "data-flow-tracer"]
+    assert orch.RESEARCH_PERSONAS == ("codebase-recon", "architect", "data-flow-tracer")
 
 
 @pytest.mark.parametrize(
     "persona",
-    orch.RESEARCH_PERSONAS
-    + orch.DEFAULT_PERSONAS
-    + orch.CODE_REVIEW_PANEL
-    + [orch.SECURITY_ENGINEER_PERSONA],
+    [*orch.RESEARCH_PERSONAS, *orch.DEFAULT_PERSONAS, *orch.CODE_REVIEW_PANEL, orch.SECURITY_ENGINEER_PERSONA],
 )
 def test_every_dispatchable_persona_resolves_to_a_real_agent(persona):
     """Every persona name orchestrator.py can pass to `claude -p --agent
@@ -195,7 +193,11 @@ def test_resolve_request_from_stdin_returns_piped_content_when_present(monkeypat
 
 
 def test_resolve_request_from_stdin_returns_default_on_interactive_tty(monkeypatch):
-    fake_stdin = io.StringIO("")
+    """Non-empty content must still be ignored when isatty() is True — an
+    empty-stdin fixture would pass even if the isatty() guard were removed
+    or inverted, since empty content already defaults regardless of the tty
+    branch. Real piped text proves the guard, not just agrees with it."""
+    fake_stdin = io.StringIO("real piped text, should be ignored")
     monkeypatch.setattr(fake_stdin, "isatty", lambda: True)
     monkeypatch.setattr(orch.sys, "stdin", fake_stdin)
 
@@ -376,9 +378,11 @@ async def test_dispatch_personas_concurrently():
 async def test_dispatch_personas_maps_unexpected_exception_to_failed_stub_without_dropping_siblings():
     """An exception escaping one persona's dispatch_persona call (anything
     outside its own try/except's catch tuple) must not cancel or discard
-    the other personas' results — dispatch_personas maps it to the same
-    failure-stub shape dispatch_persona itself produces for an expected
-    failure, via asyncio.gather(..., return_exceptions=True)."""
+    the other personas' results — dispatch_personas maps it to a failure
+    stub, via asyncio.gather(..., return_exceptions=True), using a distinct
+    "dispatch_exception" error code rather than dispatch_persona's own
+    "llm_unavailable": this branch means something threw out of the
+    coroutine itself, not that the CLI/subprocess failed."""
 
     async def fake_dispatch_persona(persona, plan, skip_llm=False):
         if persona == "architect":
@@ -397,8 +401,39 @@ async def test_dispatch_personas_maps_unexpected_exception_to_failed_stub_withou
     assert by_persona["architect"] == {
         "persona": "architect",
         "status": "failed",
-        "error": "llm_unavailable",
+        "error": "dispatch_exception",
     }
+
+
+@pytest.mark.asyncio
+async def test_dispatch_personas_maps_cancelled_error_to_failed_stub():
+    """asyncio.CancelledError is a BaseException, not an Exception (since
+    Python 3.8) — a child task cancelled under
+    asyncio.gather(..., return_exceptions=True) must still normalize to the
+    same failure stub as any other unexpected throwable, not fall through
+    unmapped and later break write_progress's json.dumps of the aggregated
+    research state."""
+
+    async def fake_dispatch_persona(persona, plan, skip_llm=False):
+        if persona == "architect":
+            raise asyncio.CancelledError()
+        return {"persona": persona, "status": "success"}
+
+    with patch.object(orch, "dispatch_persona", side_effect=fake_dispatch_persona):
+        results = await orch.dispatch_personas(
+            ["codebase-recon", "architect", "data-flow-tracer"], plan={}, skip_llm=False
+        )
+
+    assert len(results) == 3
+    by_persona = {r["persona"]: r for r in results}
+    assert by_persona["codebase-recon"]["status"] == "success"
+    assert by_persona["data-flow-tracer"]["status"] == "success"
+    assert by_persona["architect"] == {
+        "persona": "architect",
+        "status": "failed",
+        "error": "dispatch_exception",
+    }
+    json.dumps(results)  # must not raise — the exact failure mode this guards against
 
 
 @pytest.mark.asyncio
@@ -670,11 +705,14 @@ async def test_dispatch_persona_subprocess_exception_maps_to_failed_stub(
 
 @pytest.mark.asyncio
 async def test_dispatch_persona_non_serializable_plan_maps_to_failed_stub():
-    """json.dumps(plan) lives inside dispatch_persona's own try/except — a
-    non-JSON-serializable plan value (e.g. a set, which json.dumps rejects
-    with TypeError) must degrade to the same failure stub as a subprocess
-    error, not raise out of the coroutine and break dispatch_personas'
-    asyncio.gather fan-out for sibling personas."""
+    """A non-JSON-serializable plan value (e.g. a set, which json.dumps
+    rejects with TypeError) must degrade to a failure stub — via its own
+    narrow try/except, scoped to serialization only — rather than raise out
+    of the coroutine and break dispatch_personas' asyncio.gather fan-out for
+    sibling personas. Distinct error code from a subprocess/CLI failure
+    ("unserializable_plan" vs. "llm_unavailable"): this is a caller-side bug
+    in the dispatched plan payload, not the LLM being unavailable, and the
+    two must stay distinguishable in the persisted research state."""
     with patch.object(orch.subprocess, "run") as mock_run:
         result = await orch.dispatch_persona(
             "architect", plan={"not_serializable": {1, 2, 3}}, skip_llm=False
@@ -684,7 +722,7 @@ async def test_dispatch_persona_non_serializable_plan_maps_to_failed_stub():
     assert result == {
         "persona": "architect",
         "status": "failed",
-        "error": "llm_unavailable",
+        "error": "unserializable_plan",
     }
 
 
@@ -694,8 +732,12 @@ async def test_dispatch_persona_non_serializable_plan_maps_to_failed_stub():
 @pytest.mark.asyncio
 async def test_dispatch_persona_malformed_envelope_maps_to_failed_stub(persona):
     """A malformed (non-JSON) top-level --output-format json envelope must
-    map to the generalized failure stub, not raise, for both a critic and a
-    non-critic persona."""
+    map to the failure stub, not raise, for both a critic and a non-critic
+    persona. Distinct error code from a subprocess/CLI failure
+    ("malformed_envelope" vs. "llm_unavailable"): here the CLI ran and
+    returned bytes, they just weren't parseable JSON — a different cause
+    than the CLI being unreachable, and the persisted research state must
+    keep the two distinguishable."""
 
     def fake_run(argv, **kwargs):
         return _FakeCompletedProcess("not json at all {")
@@ -706,7 +748,7 @@ async def test_dispatch_persona_malformed_envelope_maps_to_failed_stub(persona):
     assert result == {
         "persona": persona,
         "status": "failed",
-        "error": "llm_unavailable",
+        "error": "malformed_envelope",
     }
     assert "verdict" not in result
 
@@ -717,9 +759,9 @@ async def test_dispatch_persona_malformed_envelope_maps_to_failed_stub(persona):
 @pytest.mark.asyncio
 async def test_dispatch_persona_non_object_envelope_maps_to_failed_stub(persona):
     """A top-level envelope that is syntactically valid JSON but not a JSON
-    object (e.g. a bare array) must degrade to the generalized failure stub,
-    not raise AttributeError from envelope.get() on a non-dict, for both a
-    critic and a non-critic persona."""
+    object (e.g. a bare array) must degrade to the "malformed_envelope"
+    failure stub, not raise AttributeError from envelope.get() on a
+    non-dict, for both a critic and a non-critic persona."""
 
     def fake_run(argv, **kwargs):
         return _FakeCompletedProcess("[1, 2, 3]")
@@ -730,7 +772,7 @@ async def test_dispatch_persona_non_object_envelope_maps_to_failed_stub(persona)
     assert result == {
         "persona": persona,
         "status": "failed",
-        "error": "llm_unavailable",
+        "error": "malformed_envelope",
     }
     assert "verdict" not in result
 
@@ -855,7 +897,7 @@ def _capturing_dispatch_personas_stub(captured):
 
 
 @pytest.mark.asyncio
-async def test_default_phase_research_standard_dispatches_three_always_on_personas():
+async def test_default_phase_research_standard_dispatches_three_always_on_personas(capsys):
     """A standard-classified request with no security signal dispatches
     exactly the three always-on personas."""
     captured = {}
@@ -875,6 +917,9 @@ async def test_default_phase_research_standard_dispatches_three_always_on_person
     # equality, not list equality: the approved plan's Step 1.2 explicitly
     # states dispatch order is not a contract.
     assert set(result["personas"]) == RESEARCH_ALWAYS_ON
+    # Negative case for the failed-persona WARNING: an all-success dispatch
+    # must print nothing about failures.
+    assert "WARNING: Research persona dispatch failed" not in capsys.readouterr().err
     assert result["skip_llm"] is True
 
 
@@ -1113,11 +1158,17 @@ async def test_resume_skips_dispatch_and_leaves_file_unchanged_with_real_researc
 
 
 @pytest.mark.asyncio
-async def test_default_phase_research_records_one_failed_persona_verbatim_without_raising():
+async def test_default_phase_research_records_one_failed_persona_verbatim_without_raising(
+    capsys,
+):
     """A faked dispatch_personas result list — one status: "failed" entry
     and two status: "success" entries, matching the three-persona
     ("add a login form") case — is recorded verbatim in the written JSON,
-    does not raise WaveError, and run_pipeline still returns exit code 0."""
+    does not raise WaveError, and run_pipeline still returns exit code 0.
+    Also the one case (unlike the all-failed/all-success tests) that can
+    prove the stderr WARNING names only the failed persona, not the whole
+    roster — a mutant that joined `personas` instead of `failed_personas`
+    would still pass those two degenerate tests but fail this one."""
     fake_results = [
         {"persona": "codebase-recon", "status": "success"},
         {"persona": "architect", "status": "failed", "error": "llm_unavailable"},
@@ -1142,13 +1193,23 @@ async def test_default_phase_research_records_one_failed_persona_verbatim_withou
 
     assert exit_code == 0
     assert state["results"] == fake_results
+    stderr = capsys.readouterr().err
+    assert "WARNING: Research persona dispatch failed" in stderr
+    assert "architect" in stderr
+    assert "codebase-recon" not in stderr
+    assert "data-flow-tracer" not in stderr
 
 
 @pytest.mark.asyncio
-async def test_default_phase_research_records_all_personas_failed_verbatim_without_raising():
+async def test_default_phase_research_records_all_personas_failed_verbatim_without_raising(
+    capsys,
+):
     """The boundary case of all three personas failing is also recorded
     verbatim — record, don't raise — not just the one-of-three partial
-    failure case above."""
+    failure case above. Also asserts the stderr WARNING _default_phase_research
+    prints when any persona failed, naming each failed persona — otherwise a
+    run where every persona failed would look identical, on the console, to
+    one that fully succeeded."""
     fake_results = [
         {"persona": "codebase-recon", "status": "failed", "error": "llm_unavailable"},
         {"persona": "architect", "status": "failed", "error": "llm_unavailable"},
@@ -1177,3 +1238,8 @@ async def test_default_phase_research_records_all_personas_failed_verbatim_witho
 
     assert exit_code == 0
     assert state["results"] == fake_results
+    stderr = capsys.readouterr().err
+    assert "WARNING: Research persona dispatch failed" in stderr
+    assert "codebase-recon" in stderr
+    assert "architect" in stderr
+    assert "data-flow-tracer" in stderr

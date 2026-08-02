@@ -263,7 +263,7 @@ Every non-trivial task follows three explicit phases. Each phase runs in minimal
 ### Phase 1: Research
 
 - **Goal**: Understand how the system works, identify all relevant files, locate the problem or feature surface area
-- **Agents**: `codebase-recon`, `architect`, `data-flow-tracer` (always dispatched — see Codebase Recon dispatch and Research persona roster below), `security-engineer` (conditional — see Security Engineer dispatch), plus the Orchestrator itself and further sub-agents for exploration as needed (context isolation — sub-agents search, read, and return concise findings so the parent context stays clean)
+- **Agents**: `codebase-recon` (gated on RECON artifact freshness — see Codebase Recon dispatch below), `architect`, `data-flow-tracer` (always dispatched — see Research persona roster below), `security-engineer` (conditional — see Security Engineer dispatch), plus the Orchestrator itself and further sub-agents for exploration as needed (context isolation — sub-agents search, read, and return concise findings so the parent context stays clean)
 - **Output**: A research progress file with file paths, line numbers, data flows, and key findings
 - **Design doc**: For non-trivial features (see Design Doc skill for criteria), produce a design document at `docs/specs/{feature-name}.md` with problem statement, proposed approach, alternatives, key decisions, and scope boundaries. The human approves the design doc as part of the research gate.
 - **Human gate**: Human reviews the research findings and design doc before planning begins. Catching a misunderstanding here prevents hundreds of bad lines of code downstream.
@@ -283,11 +283,14 @@ deterministic implementation of this phase — always dispatches
 `codebase-recon`, `architect`, and `data-flow-tracer` for every
 `standard`/`complex`-classified task routed to the full three-phase pipeline
 (`run_pipeline`'s only classification-driven branch point is the `trivial`
-fast-path — the `--resume`, `--fail-wave`, and `--dispatch-personas` flags
-each short-circuit earlier for their own test/debug purposes, but none is
-reachable from a normal classified run; the single-module `standard`
-fast-path leg of §Task Size Gate above is not yet implemented by the
-script, a known gap tracked against spec #1707);
+fast-path — `--fail-wave` and `--dispatch-personas` short-circuit earlier
+for their own test/debug purposes and are not reachable from a normal
+classified run; `--resume` is a separate, operational flag, not test-only —
+it exits 1 only when no prior phase state exists at all, and otherwise
+falls through to Phase 1 and skips only the phases whose state files are
+already present; the single-module `standard` fast-path leg of §Task Size
+Gate above is not yet implemented by the script, a known gap tracked
+against spec #1707);
 `security-engineer` is additional and conditional (below). This is the
 current, authoritative roster (spec issue #1707's Architecture
 Specification); `architect` and `data-flow-tracer` were not previously
@@ -296,32 +299,51 @@ spec's slices landed.
 
 #### Codebase Recon dispatch
 
-`codebase-recon` dispatches unconditionally at the start of Research for
-every `standard`/`complex`-classified task — it is not gated on RECON
-artifact freshness. It returns entry points, dependency graph, security
-surface, and git history in a structured artifact
-(`.claude/memory/recon-<slug>.json` / `.claude/memory/recon-<slug>.md`, where `<slug>` is the repo
-basename) intended to onboard the Architect and Security Engineer without
-those agents needing to re-read the codebase themselves. That hand-off is
-not yet wired: `orchestrator.py` dispatches all Research personas
-concurrently in one `asyncio.gather` wave with no barrier, so `architect`,
-`data-flow-tracer`, and (when dispatched) `security-engineer` run alongside
-`codebase-recon` rather than after it, and none of them reads the recon
-artifact from disk today. Bridging that artifact path into the Research
-phase's own aggregated output — and sequencing consumers after it — is a
-known gap tracked against the Plan-phase slice of spec #1707, not yet
-implemented.
+Dispatch `codebase-recon` as a sub-agent **before any other exploration**,
+at the start of Research, when no `.claude/memory/recon-<slug>.json`
+artifact exists, or the existing one is more than 24 hours old (`<slug>` is
+the repo basename) — skip the dispatch (silently) when a fresh artifact is
+present. It returns entry points, dependency graph, security surface, and
+git history in a structured artifact (`.claude/memory/recon-<slug>.json` /
+`.claude/memory/recon-<slug>.md`, checked for freshness against the `.json`
+half since that's the machine-readable artifact other agents consume)
+intended to onboard the Architect and Security Engineer without those
+agents needing to re-read the codebase themselves.
+
+**Script gap.** `orchestrator.py`'s `_default_phase_research` does not yet
+implement the freshness gate or the ordering above — it dispatches
+`codebase-recon` unconditionally on every `standard`/`complex`-classified
+task, concurrently with the other Research personas in one `asyncio.gather`
+wave with no barrier, so nothing reads the recon artifact from disk before
+`architect`, `data-flow-tracer`, and (when dispatched) `security-engineer`
+run — so the ordering guarantee above is unmet on the script path too, not
+just the freshness gate. Both the freshness check and the ordering /
+artifact-bridging into the aggregated Research output are known gaps
+tracked against spec #1707's Plan-phase slice, not yet implemented.
 
 #### Security Engineer dispatch
 
-`orchestrator.py` dispatches `security-engineer` during Research when the
-request text case-insensitively contains one of `SECURITY_KEYWORDS`: `auth`,
-`secret`, `crypto`, `password`, `token`, `credential`, `encrypt` — a
-substring heuristic, not a precise classifier (deliberate false positives
-and negatives are documented and tested; see `orchestrator.py`'s
-`_touches_security`). Its `effort: high` cost is only justified on
-security-relevant work, so this heuristic exists to keep the dispatch
-conditional rather than unconditional. When dispatched, it produces a threat
+Dispatch `security-engineer` during Research when any of these signals is
+present: the task touches authentication, authorization, cryptography,
+session management, or secrets handling; it introduces a new external
+integration or API surface; or the user explicitly asks to "threat model
+this", "design this securely", or "what's the attack surface here" (these
+three match `agents/security-engineer.md`'s own dispatch description) — or a
+recent `/code-review` run's `security-review` produced a `fail` verdict with
+high-severity findings on this area (orchestrator-owned: only the
+orchestrator sees `/code-review` history). Its `effort: high` cost is only
+justified on security-relevant work, so this dispatch stays conditional
+rather than unconditional.
+
+**Script approximation.** `orchestrator.py`'s `_touches_security` implements
+only the first signal above, and only partially: a case-insensitive
+substring match against `SECURITY_KEYWORDS` (`auth`, `secret`, `crypto`,
+`password`, `token`, `credential`, `encrypt`) — a heuristic, not a precise
+classifier (deliberate false positives and negatives are documented and
+tested). The other three signals — new integration/API surface, a prior
+`security-review` fail verdict, and an explicit user request — have no
+script implementation yet; a known gap tracked against spec #1707. When
+dispatched (by either mechanism), `security-engineer` produces a threat
 model or security analysis that feeds into the design doc and the plan's
 acceptance criteria.
 

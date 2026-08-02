@@ -56,7 +56,7 @@ JSON_CONTRACT_PERSONAS = DEFAULT_PERSONAS + CODE_REVIEW_PANEL
 # restates the same seven keywords in prose for its own (agent-facing,
 # standalone) audience; that restatement is not mechanically bound to this
 # tuple today — keep the two in sync by hand until a content-guard test
-# exists (see the follow-up tracked against this slice).
+# exists (see follow-up #1716).
 SECURITY_KEYWORDS = (
     "auth",
     "secret",
@@ -70,8 +70,12 @@ SECURITY_KEYWORDS = (
 # Research-phase always-on persona roster (see agents/orchestrator.md §
 # Phase 1: Research). Named module constant, matching the DEFAULT_PERSONAS/
 # CODE_REVIEW_PANEL pattern above, so it has one definition instead of being
-# re-typed at each call/test site.
-RESEARCH_PERSONAS = ["codebase-recon", "architect", "data-flow-tracer"]
+# re-typed at each call/test site. A tuple (like SECURITY_KEYWORDS), not a
+# list: this is a fixed roster, so `list(RESEARCH_PERSONAS)` at its one call
+# site is a genuine type conversion into a mutable working copy, not a
+# defensive copy guarding against accidental in-place mutation of the
+# constant itself.
+RESEARCH_PERSONAS = ("codebase-recon", "architect", "data-flow-tracer")
 
 # The conditionally-dispatched fourth Research persona (see _touches_security
 # below). Named for the same reason RESEARCH_PERSONAS is: avoid re-typing the
@@ -79,8 +83,8 @@ RESEARCH_PERSONAS = ["codebase-recon", "architect", "data-flow-tracer"]
 SECURITY_ENGINEER_PERSONA = "security-engineer"
 
 # Timeouts (seconds) for the two `claude -p` subprocess dispatch sites below.
-# Unverified placeholders, not measured against a real dispatch — see the
-# follow-up tracked against this slice.
+# Unverified placeholders, not measured against a real dispatch — see
+# follow-up #1716.
 CLASSIFY_TIMEOUT_S = 30
 PERSONA_DISPATCH_TIMEOUT_S = 60
 
@@ -178,9 +182,9 @@ async def _default_phase_research(request: str, task: dict, skip_llm: bool) -> d
     verbatim — reconcile()/WaveError are scoped to the Implement phase's
     wave loop, not Research.
     """
-    # Defensive copy: RESEARCH_PERSONAS is a module-level constant shared
-    # across every call/test in this process — appending directly to it
-    # would permanently mutate it for every subsequent request.
+    # RESEARCH_PERSONAS is an immutable tuple; list() converts it into the
+    # mutable working copy the conditional security-engineer append below
+    # needs (see the constant's own definition for why it's a tuple).
     personas = list(RESEARCH_PERSONAS)
     if _touches_security(request):
         personas.append(SECURITY_ENGINEER_PERSONA)
@@ -190,6 +194,16 @@ async def _default_phase_research(request: str, task: dict, skip_llm: bool) -> d
     results = await dispatch_personas(
         personas, plan={"task": task, "request": request}, skip_llm=skip_llm
     )
+    failed_personas = [r["persona"] for r in results if r.get("status") == "failed"]
+    if failed_personas:
+        # Research records failures verbatim and never raises (see docstring
+        # above) — but a run where any persona failed must not look
+        # identical, on the console, to one that succeeded fully. Mirrors
+        # classify()'s own degraded-but-non-fatal WARNING.
+        print(
+            f"WARNING: Research persona dispatch failed (recorded, non-fatal): {', '.join(failed_personas)}",
+            file=sys.stderr,
+        )
     return {"personas": personas, "results": results, "skip_llm": skip_llm}
 
 
@@ -207,6 +221,23 @@ class WaveError(Exception):
         super().__init__(f"Wave barrier failed on slice '{failing_slice}'")
 
 
+def _failed_result(persona: str, error: str) -> dict:
+    """Return the canonical dispatch-failure stub shared by every failure site.
+
+    One normative shape for {persona, status: "failed", error} so a future
+    change to the shape (e.g. adding a distinguishing field) touches one
+    definition instead of the four call sites that used to hand-construct it
+    independently. `error` is required, not defaulted, so a new call site
+    must name its cause rather than silently inheriting one that doesn't
+    describe it — the four callers today: a malformed dispatch envelope
+    ("malformed_envelope"), a non-serializable plan payload
+    ("unserializable_plan"), a subprocess/CLI failure ("llm_unavailable"),
+    and an unexpected throwable surfaced by asyncio.gather
+    ("dispatch_exception").
+    """
+    return {"persona": persona, "status": "failed", "error": error}
+
+
 def _parse_dispatch_envelope(stdout: str, persona: str) -> dict:
     """Parse a `claude -p --output-format json` envelope into a dispatch result.
 
@@ -220,8 +251,9 @@ def _parse_dispatch_envelope(stdout: str, persona: str) -> dict:
     persona, `result` is always stored verbatim under `output`. A malformed
     or non-object payload — the top-level envelope itself, or (for a
     JSON_CONTRACT_PERSONAS member) the inner `result` — degrades gracefully
-    rather than raising: a bad envelope maps to the generalized failure stub
-    with no `verdict` key, and a bad inner `result` maps to `output` plus a
+    rather than raising: a bad envelope maps to a `"malformed_envelope"`
+    failure stub (see `_failed_result`) with no `verdict` key, and a bad
+    inner `result` maps to `output` plus a
     `parse_error: True` marker while the already-derived status is left
     untouched.
     """
@@ -230,7 +262,7 @@ def _parse_dispatch_envelope(stdout: str, persona: str) -> dict:
         if not isinstance(envelope, dict):
             raise TypeError("envelope is not a JSON object")
     except (json.JSONDecodeError, TypeError, ValueError):
-        return {"persona": persona, "status": "failed", "error": "llm_unavailable"}
+        return _failed_result(persona, error="malformed_envelope")
 
     data = {
         "persona": persona,
@@ -274,12 +306,17 @@ async def dispatch_persona(persona: str, plan: dict, skip_llm: bool = False) -> 
     if skip_llm:
         return {"persona": persona, "status": "success"}
     try:
-        # json.dumps(plan) lives inside this try so a non-serializable plan
-        # value degrades to the same failure stub as a CLI/subprocess error,
-        # instead of raising out of this coroutine and breaking the
-        # asyncio.gather() fan-out in dispatch_personas() for every sibling
-        # persona in the same wave.
+        # A non-serializable plan value degrades to a failure stub, scoped
+        # to this one call, instead of raising out of this coroutine and
+        # breaking the asyncio.gather() fan-out in dispatch_personas() for
+        # every sibling persona in the same wave. Kept as its own try/except
+        # (distinct from the subprocess dispatch below) so a TypeError/
+        # ValueError from a genuine bug in the dispatch machinery itself is
+        # never mislabeled as this same, narrower serialization failure.
         task_prompt = json.dumps(plan)
+    except (TypeError, ValueError):
+        return _failed_result(persona, error="unserializable_plan")
+    try:
         # Offload to a thread so asyncio.gather over multiple personas actually
         # overlaps instead of blocking the event loop on subprocess.run (#1213).
         loop = asyncio.get_running_loop()
@@ -301,8 +338,8 @@ async def dispatch_persona(persona: str, plan: dict, skip_llm: bool = False) -> 
                 timeout=PERSONA_DISPATCH_TIMEOUT_S,
             ),
         )
-    except (FileNotFoundError, subprocess.TimeoutExpired, OSError, TypeError, ValueError):
-        return {"persona": persona, "status": "failed", "error": "llm_unavailable"}
+    except (FileNotFoundError, subprocess.TimeoutExpired, OSError):
+        return _failed_result(persona, error="llm_unavailable")
 
     return _parse_dispatch_envelope(result.stdout, persona)
 
@@ -311,17 +348,26 @@ async def dispatch_personas(personas: list, plan: dict, skip_llm: bool = False) 
     """Dispatch all personas concurrently and return their results.
 
     return_exceptions=True keeps one persona's unexpected exception (any
-    error class dispatch_persona's own try/except doesn't already convert to
-    a failure stub) from cancelling its siblings' in-flight dispatches —
+    throwable dispatch_persona's own try/except doesn't already convert to a
+    failure stub) from cancelling its siblings' in-flight dispatches —
     Research's contract is to aggregate and persist every persona's outcome,
-    never to let one bad result silently discard the rest.
+    never to let one bad result silently discard the rest. Matched here on
+    BaseException, not Exception: asyncio.CancelledError has subclassed
+    BaseException directly (not Exception) since Python 3.8, and a cancelled
+    child task's result is exactly what return_exceptions=True aggregates
+    here rather than propagates — an Exception-only guard would let it
+    through un-normalized and fail JSON serialization downstream.
     """
     tasks = [dispatch_persona(p, plan, skip_llm) for p in personas]
     results = await asyncio.gather(*tasks, return_exceptions=True)
     return [
-        {"persona": p, "status": "failed", "error": "llm_unavailable"}
-        if isinstance(r, Exception)
-        else r
+        # Distinct from "llm_unavailable" (a CLI/subprocess-level failure,
+        # already handled inside dispatch_persona's own try/except): this
+        # branch means something threw out of the coroutine itself — a
+        # cancellation or an unforeseen bug — which is not evidence the LLM
+        # was unreachable, and the persisted research state must keep the
+        # two distinguishable.
+        _failed_result(p, error="dispatch_exception") if isinstance(r, BaseException) else r
         for p, r in zip(personas, results)
     ]
 
