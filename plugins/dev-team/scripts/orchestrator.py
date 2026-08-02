@@ -77,6 +77,23 @@ SECURITY_KEYWORDS = (
 # constant itself.
 RESEARCH_PERSONAS = ("codebase-recon", "architect", "data-flow-tracer")
 
+# Plan-phase core-trio roster (see agents/orchestrator.md § Phase 2: Plan).
+# Dispatched first, before the plan-review-* critics in DEFAULT_PERSONAS —
+# see _default_phase_plan below. A tuple, matching RESEARCH_PERSONAS's own
+# convention; unlike RESEARCH_PERSONAS, nothing is ever conditionally
+# appended to this roster, so no defensive-copy note is needed here.
+# agents/orchestrator.md's "Plan persona roster" section restates this same
+# trio (and CRITICS_SKIPPED_ALL_CORE_FAILED's value) in prose; that
+# restatement is not mechanically bound to this tuple today — keep the two
+# in sync by hand until a content-guard test exists (see follow-up #1716).
+PLAN_CORE_PERSONAS = ("product-manager", "architect", "qa-engineer")
+
+# Persisted-state vocabulary for _default_phase_plan's all-core-failed guard
+# (see below) — named alongside the module's other cross-process vocabulary
+# constants (SECURITY_KEYWORDS, RESEARCH_PERSONAS) so the sentinel has one
+# definition instead of being re-typed at the production site and in tests.
+CRITICS_SKIPPED_ALL_CORE_FAILED = "all_core_personas_failed"
+
 # The conditionally-dispatched fourth Research persona (see _touches_security
 # below). Named for the same reason RESEARCH_PERSONAS is: avoid re-typing the
 # literal at each call/test site.
@@ -87,6 +104,24 @@ SECURITY_ENGINEER_PERSONA = "security-engineer"
 # follow-up #1716.
 CLASSIFY_TIMEOUT_S = 30
 PERSONA_DISPATCH_TIMEOUT_S = 60
+
+
+def _warn_on_failed_personas(phase_label: str, results: list) -> None:
+    """Print a single stderr WARNING naming every failed persona in results,
+    or nothing at all if none failed.
+
+    Shared by _default_phase_research and _default_phase_plan so the
+    degraded-but-non-fatal WARNING message has one normative
+    formatting/behavior definition instead of two independently maintained
+    copies — deferred from Research's own Slice 2 landing pending Plan's
+    own implementation existing to compare against (now it does).
+    """
+    failed_personas = [r["persona"] for r in results if r.get("status") == "failed"]
+    if failed_personas:
+        print(
+            f"WARNING: {phase_label} persona dispatch failed (recorded, non-fatal): {', '.join(failed_personas)}",
+            file=sys.stderr,
+        )
 
 
 def _touches_security(request: str) -> bool:
@@ -194,17 +229,88 @@ async def _default_phase_research(request: str, task: dict, skip_llm: bool) -> d
     results = await dispatch_personas(
         personas, plan={"task": task, "request": request}, skip_llm=skip_llm
     )
-    failed_personas = [r["persona"] for r in results if r.get("status") == "failed"]
-    if failed_personas:
-        # Research records failures verbatim and never raises (see docstring
-        # above) — but a run where any persona failed must not look
-        # identical, on the console, to one that succeeded fully. Mirrors
-        # classify()'s own degraded-but-non-fatal WARNING.
+    # Research records failures verbatim and never raises (see docstring
+    # above) — but a run where any persona failed must not look identical,
+    # on the console, to one that succeeded fully. Mirrors classify()'s own
+    # degraded-but-non-fatal WARNING.
+    _warn_on_failed_personas("Research", results)
+    return {"personas": personas, "results": results, "skip_llm": skip_llm}
+
+
+# ---------------------------------------------------------------------------
+# Plan phase
+# ---------------------------------------------------------------------------
+
+
+def _all_personas_failed(results: list) -> bool:
+    """True if results is non-empty and every entry has status "failed".
+
+    Deliberately False on an empty list: an empty core_results would make a
+    bare all(...) vacuously True and wrongly skip critic dispatch, so the
+    emptiness check is load-bearing, not defensive noise — unreachable
+    today (dispatch_personas always returns one entry per persona and
+    PLAN_CORE_PERSONAS is a fixed 3-tuple), but would matter the moment a
+    future slice makes the core roster dynamic.
+    """
+    return bool(results) and all(r.get("status") == "failed" for r in results)
+
+
+async def _default_phase_plan(
+    request: str, task: dict, research_state: dict, skip_llm: bool
+) -> dict:
+    """Dispatch the Plan-phase core trio, then the plan-review-* critics.
+
+    Two-stage dispatch: PLAN_CORE_PERSONAS (product-manager, architect,
+    qa-engineer) drafts a plan using the Research phase's aggregated state
+    as context, then DEFAULT_PERSONAS (the five plan-review-* critics)
+    critiques that draft — unless every core-trio result has
+    status: "failed", in which case critic dispatch is skipped entirely
+    (see the all-core-failed guard below). A status: "failed" entry among
+    either group's results is recorded verbatim — reconcile()/WaveError
+    stay scoped to the Implement phase's wave loop, not Plan. Note this
+    phase still dispatches the core trio even when research_state's own
+    results are entirely failed: the raw request text is sufficient context
+    for the trio to draft from, unlike the critics, which genuinely have
+    nothing to critique when the trio itself produced nothing.
+    """
+    core_personas = list(PLAN_CORE_PERSONAS)
+    core_results = await dispatch_personas(
+        core_personas,
+        plan={"task": task, "request": request, "research": research_state},
+        skip_llm=skip_llm,
+    )
+    critics_skipped_reason = None
+    if _all_personas_failed(core_results):
+        # Every core-trio persona failed (most plausibly: the claude CLI is
+        # unreachable) — skip the five critic dispatches entirely rather
+        # than spend real LLM cost critiquing identical failure stubs.
+        critic_results = []
+        critics_skipped_reason = CRITICS_SKIPPED_ALL_CORE_FAILED
         print(
-            f"WARNING: Research persona dispatch failed (recorded, non-fatal): {', '.join(failed_personas)}",
+            "INFO: all Plan core personas failed — skipping critic dispatch",
             file=sys.stderr,
         )
-    return {"personas": personas, "results": results, "skip_llm": skip_llm}
+    else:
+        critic_results = await dispatch_personas(
+            DEFAULT_PERSONAS,
+            plan={"task": task, "request": request, "plan_draft": core_results},
+            skip_llm=skip_llm,
+        )
+    # Exactly one merged WARNING per Plan-phase run, naming every failed
+    # persona across both groups — not one line per group.
+    _warn_on_failed_personas("Plan", core_results + critic_results)
+    return {
+        "core_personas": core_personas,
+        "core_results": core_results,
+        # list(...), not a bare reference: critic_personas is persisted
+        # (json.dumps doesn't care, but a future in-memory consumer
+        # mutating this list would otherwise corrupt the shared module
+        # constant DEFAULT_PERSONAS for the rest of the process).
+        "critic_personas": list(DEFAULT_PERSONAS),
+        "critic_results": critic_results,
+        "critics_skipped_reason": critics_skipped_reason,
+        "skip_llm": skip_llm,
+    }
 
 
 # ---------------------------------------------------------------------------
@@ -382,6 +488,36 @@ async def reconcile(results: list, wave_slices: list) -> None:
         )
 
 
+def _resolve_default(fn, default_fn):
+    """Return fn if the caller supplied one, else default_fn.
+
+    Shared by run_pipeline's phase_research_fn/phase_plan_fn injection
+    points so a third (Implement, in a later slice) doesn't add a fourth
+    hand-written `if X_fn is None: X_fn = ...` branch to run_pipeline's own
+    body, each one pushing its cyclomatic complexity and parameter count
+    higher.
+    """
+    return fn if fn is not None else default_fn
+
+
+async def _run_phase(
+    phase_name: str, phase_fn, memory_dir: Path, resume: bool, *fn_args
+) -> dict:
+    """Resume-check/dispatch/write a phase's state, shared by every phase.
+
+    Reads the phase's prior state from disk when resuming; otherwise calls
+    phase_fn with fn_args and persists the result via write_progress. This is
+    the shape run_pipeline previously hand-inlined once for Research
+    (Slice 2) — extracted here so a second (Plan) and third (Implement, in a
+    later slice) call site reuse one definition instead of re-copying it.
+    """
+    state = read_progress(phase_name, memory_dir) if resume else None
+    if state is None:
+        state = await phase_fn(*fn_args)
+        write_progress(phase_name, state, memory_dir)
+    return state
+
+
 # ---------------------------------------------------------------------------
 # Main pipeline
 # ---------------------------------------------------------------------------
@@ -394,6 +530,7 @@ async def run_pipeline(
     resume: bool = False,
     classify_fn=None,
     phase_research_fn=None,
+    phase_plan_fn=None,
     fail_wave: bool = False,
     dispatch_personas_flag: bool = False,
 ) -> int:
@@ -406,8 +543,8 @@ async def run_pipeline(
         if asyncio.iscoroutine(task):
             task = await task
 
-    if phase_research_fn is None:
-        phase_research_fn = _default_phase_research
+    phase_research_fn = _resolve_default(phase_research_fn, _default_phase_research)
+    phase_plan_fn = _resolve_default(phase_plan_fn, _default_phase_plan)
 
     # Fast path for trivial tasks
     if task.get("size") == "trivial":
@@ -436,15 +573,21 @@ async def run_pipeline(
     # Persona dispatch (for testing --dispatch-personas flag)
     if dispatch_personas_flag:
         await dispatch_personas(
-            DEFAULT_PERSONAS, plan={"task": task}, skip_llm=skip_llm
+            DEFAULT_PERSONAS,
+            plan={"task": task, "request": request},
+            skip_llm=skip_llm,
         )
         return 0
 
     # Phase 1: Research
-    research_state = read_progress("research", memory_dir) if resume else None
-    if research_state is None:
-        research_state = await phase_research_fn(request, task, skip_llm)
-        write_progress("research", research_state, memory_dir)
+    research_state = await _run_phase(
+        "research", phase_research_fn, memory_dir, resume, request, task, skip_llm
+    )
+
+    # Phase 2: Plan
+    await _run_phase(
+        "plan", phase_plan_fn, memory_dir, resume, request, task, research_state, skip_llm
+    )
 
     return 0
 
