@@ -99,6 +99,29 @@ CRITICS_SKIPPED_ALL_CORE_FAILED = "all_core_personas_failed"
 # literal at each call/test site.
 SECURITY_ENGINEER_PERSONA = "security-engineer"
 
+# The Implement-phase wave persona and its post-success doc-verification
+# persona (see _default_phase_implement below). Named for the same reason
+# SECURITY_ENGINEER_PERSONA is: avoid re-typing the literal at each
+# call/test site.
+SOFTWARE_ENGINEER_PERSONA = "software-engineer"
+TECH_WRITER_PERSONA = "tech-writer"
+
+# Implement-phase wave slice roster (see _dispatch_implement_wave below). A
+# tuple, matching RESEARCH_PERSONAS/PLAN_CORE_PERSONAS's own convention.
+# Load-bearing, not decorative: persisted into orchestrator-implement.json
+# and printed verbatim in the operator-facing "wave barrier failed on slice
+# '<name>'" message. One definition on the production side (test_orchestrator
+# pins its exact value directly below, alongside SOFTWARE_ENGINEER_PERSONA/
+# TECH_WRITER_PERSONA's own pinning tests) — most test sites deliberately
+# still pin the literal value independently rather than importing this
+# constant, matching how this file's persona constants are pinned rather
+# than merely referenced. A single synthetic slice representing "the whole
+# task" today (see the Script gap in agents/orchestrator.md for why); the
+# --fail-wave simulation branch below deliberately prints a different,
+# unrelated slice name ("slice-1") since it doesn't go through this
+# constant at all.
+IMPLEMENT_WAVE_SLICES = ("implement-1",)
+
 # Timeouts (seconds) for the two `claude -p` subprocess dispatch sites below.
 # Unverified placeholders, not measured against a real dispatch — see
 # follow-up #1716.
@@ -106,20 +129,26 @@ CLASSIFY_TIMEOUT_S = 30
 PERSONA_DISPATCH_TIMEOUT_S = 60
 
 
-def _warn_on_failed_personas(phase_label: str, results: list) -> None:
+def _warn_on_failed_personas(phase_label: str, results: list, fatal: bool = False) -> None:
     """Print a single stderr WARNING naming every failed persona in results,
     or nothing at all if none failed.
 
-    Shared by _default_phase_research and _default_phase_plan so the
-    degraded-but-non-fatal WARNING message has one normative
-    formatting/behavior definition instead of two independently maintained
-    copies — deferred from Research's own Slice 2 landing pending Plan's
-    own implementation existing to compare against (now it does).
+    Shared by _default_phase_research, _default_phase_plan, and
+    _default_phase_implement so the WARNING message has one normative
+    formatting/behavior definition instead of independently maintained
+    copies. Research/Plan's failures (and Implement's post-success review
+    group) are genuinely recorded and non-fatal, which is the default
+    wording — but the Implement wave dispatch is a different case: a
+    failure there is about to raise WaveError uncaught (the state file is
+    never written) and end the process with exit code 1, so `fatal=True`
+    selects wording that says so instead of falsely claiming
+    "(recorded, non-fatal)".
     """
     failed_personas = [r["persona"] for r in results if r.get("status") == "failed"]
     if failed_personas:
+        suffix = "wave barrier will fail" if fatal else "recorded, non-fatal"
         print(
-            f"WARNING: {phase_label} persona dispatch failed (recorded, non-fatal): {', '.join(failed_personas)}",
+            f"WARNING: {phase_label} persona dispatch failed ({suffix}): {', '.join(failed_personas)}",
             file=sys.stderr,
         )
 
@@ -314,6 +343,103 @@ async def _default_phase_plan(
 
 
 # ---------------------------------------------------------------------------
+# Implement phase
+# ---------------------------------------------------------------------------
+
+
+async def _dispatch_implement_wave(
+    request: str, task: dict, plan_state: dict, skip_llm: bool
+) -> list:
+    """Dispatch the Implement-phase wave and reconcile its results.
+
+    Dispatches SOFTWARE_ENGINEER_PERSONA once per IMPLEMENT_WAVE_SLICES entry
+    via dispatch_personas — reused verbatim rather than a hand-rolled second
+    copy of its gather/BaseException-normalization logic. The `* len(...)`
+    below is what keeps `personas` index-aligned with IMPLEMENT_WAVE_SLICES
+    for the "slice" tagging that follows — a real invariant, not decorative,
+    even though both are length 1 today (see IMPLEMENT_WAVE_SLICES's own
+    comment for why). reconcile() raises WaveError uncaught (no try/except
+    here) on any failed slice, so _run_phase's write_progress call never
+    runs for a failed wave — the phase's state file stays absent and a
+    subsequent --resume run retries Implement from scratch.
+    """
+    results = await dispatch_personas(
+        [SOFTWARE_ENGINEER_PERSONA] * len(IMPLEMENT_WAVE_SLICES),
+        plan={"task": task, "request": request, "plan_state": plan_state},
+        skip_llm=skip_llm,
+    )
+    for slice_name, result in zip(IMPLEMENT_WAVE_SLICES, results):
+        result["slice"] = slice_name
+    # fatal=True: this failure is about to raise WaveError uncaught (state
+    # never persisted, exit code 1) — the opposite of the "recorded,
+    # non-fatal" wording _warn_on_failed_personas defaults to.
+    _warn_on_failed_personas("Implement", results, fatal=True)
+    await reconcile(results, list(IMPLEMENT_WAVE_SLICES))  # raises WaveError; propagates uncaught
+    return results
+
+
+async def _dispatch_implement_verification(
+    request: str, task: dict, results: list, skip_llm: bool
+) -> tuple:
+    """Dispatch post-success review-panel + tech-writer verification.
+
+    Only reached after _dispatch_implement_wave's reconcile() succeeds.
+    Both go through dispatch_personas (never a bare dispatch_persona call),
+    so an unexpected throwable from either is normalized to a failure stub
+    rather than escaping past run_pipeline's `except WaveError` and
+    discarding a successful wave's results. A second, independent
+    _warn_on_failed_personas call ("Implement review", genuinely non-fatal)
+    surfaces a failed member of either dispatch as a stderr WARNING,
+    mirroring Research/Plan's own non-fatal-failure-visibility convention.
+    """
+    verification_payload = {
+        "task": task,
+        "request": request,
+        "implement_results": results,
+    }
+    review_results = await dispatch_personas(
+        CODE_REVIEW_PANEL, plan=verification_payload, skip_llm=skip_llm
+    )
+    (tech_writer_result,) = await dispatch_personas(
+        [TECH_WRITER_PERSONA],
+        plan=verification_payload,
+        skip_llm=skip_llm,
+    )
+    _warn_on_failed_personas("Implement review", review_results + [tech_writer_result])
+    return review_results, tech_writer_result
+
+
+async def _default_phase_implement(
+    request: str, task: dict, plan_state: dict, skip_llm: bool
+) -> dict:
+    """Dispatch the Implement-phase wave, reconcile it, then verify on success.
+
+    Composes two independently-changing concerns (see their own docstrings):
+    _dispatch_implement_wave (the wave-dispatch/reconcile barrier, whose
+    per-step decomposition is tracked future work — see the Script gap in
+    agents/orchestrator.md) and _dispatch_implement_verification (a stable
+    concern that shouldn't need to move when that lands).
+    """
+    results = await _dispatch_implement_wave(request, task, plan_state, skip_llm)
+    review_results, tech_writer_result = await _dispatch_implement_verification(
+        request, task, results, skip_llm
+    )
+    return {
+        "wave_slices": list(IMPLEMENT_WAVE_SLICES),
+        "results": results,
+        # list(...), not a bare reference: review_personas is persisted,
+        # and a future in-memory consumer mutating this list would
+        # otherwise corrupt the shared module constant CODE_REVIEW_PANEL
+        # for the rest of the process (same rationale as critic_personas
+        # in _default_phase_plan above).
+        "review_personas": list(CODE_REVIEW_PANEL),
+        "review_results": review_results,
+        "tech_writer_result": tech_writer_result,
+        "skip_llm": skip_llm,
+    }
+
+
+# ---------------------------------------------------------------------------
 # Persona dispatch and wave barrier
 # ---------------------------------------------------------------------------
 
@@ -488,11 +614,23 @@ async def reconcile(results: list, wave_slices: list) -> None:
         )
 
 
+def _print_wave_failure(failing_slice: str) -> None:
+    """Print the shared two-line wave-barrier-failure message to stderr.
+
+    Shared by the --fail-wave simulation branch and the real WaveError-catch
+    site in run_pipeline so the resume-hint message has one normative
+    definition instead of two independently maintained copies of the same
+    two print() calls.
+    """
+    print(f"ERROR: wave barrier failed on slice '{failing_slice}'", file=sys.stderr)
+    print(f"Resume with: python3 {SCRIPTS / 'orchestrator.py'} --resume", file=sys.stderr)
+
+
 def _resolve_default(fn, default_fn):
     """Return fn if the caller supplied one, else default_fn.
 
-    Shared by run_pipeline's phase_research_fn/phase_plan_fn injection
-    points so a third (Implement, in a later slice) doesn't add a fourth
+    Shared by run_pipeline's phase_research_fn/phase_plan_fn/
+    phase_implement_fn injection points so each doesn't add its own
     hand-written `if X_fn is None: X_fn = ...` branch to run_pipeline's own
     body, each one pushing its cyclomatic complexity and parameter count
     higher.
@@ -508,8 +646,8 @@ async def _run_phase(
     Reads the phase's prior state from disk when resuming; otherwise calls
     phase_fn with fn_args and persists the result via write_progress. This is
     the shape run_pipeline previously hand-inlined once for Research
-    (Slice 2) — extracted here so a second (Plan) and third (Implement, in a
-    later slice) call site reuse one definition instead of re-copying it.
+    (Slice 2) — extracted here so the Plan and Implement call sites reuse
+    one definition instead of re-copying it.
     """
     state = read_progress(phase_name, memory_dir) if resume else None
     if state is None:
@@ -531,6 +669,7 @@ async def run_pipeline(
     classify_fn=None,
     phase_research_fn=None,
     phase_plan_fn=None,
+    phase_implement_fn=None,
     fail_wave: bool = False,
     dispatch_personas_flag: bool = False,
 ) -> int:
@@ -545,6 +684,7 @@ async def run_pipeline(
 
     phase_research_fn = _resolve_default(phase_research_fn, _default_phase_research)
     phase_plan_fn = _resolve_default(phase_plan_fn, _default_phase_plan)
+    phase_implement_fn = _resolve_default(phase_implement_fn, _default_phase_implement)
 
     # Fast path for trivial tasks
     if task.get("size") == "trivial":
@@ -563,11 +703,7 @@ async def run_pipeline(
 
     # Wave barrier failure simulation (for testing)
     if fail_wave:
-        print("ERROR: wave barrier failed on slice 'slice-1'", file=sys.stderr)
-        print(
-            f"Resume with: python3 {SCRIPTS / 'orchestrator.py'} --resume",
-            file=sys.stderr,
-        )
+        _print_wave_failure("slice-1")
         return 1
 
     # Persona dispatch (for testing --dispatch-personas flag)
@@ -585,9 +721,18 @@ async def run_pipeline(
     )
 
     # Phase 2: Plan
-    await _run_phase(
+    plan_state = await _run_phase(
         "plan", phase_plan_fn, memory_dir, resume, request, task, research_state, skip_llm
     )
+
+    # Phase 3: Implement
+    try:
+        await _run_phase(
+            "implement", phase_implement_fn, memory_dir, resume, request, task, plan_state, skip_llm
+        )
+    except WaveError as exc:
+        _print_wave_failure(exc.failing_slice)
+        return 1
 
     return 0
 

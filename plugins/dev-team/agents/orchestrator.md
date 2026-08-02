@@ -418,6 +418,91 @@ not yet implemented.
 - **Human gate**: Human reviews the final output. If the plan was good, implementation review is lightweight.
 - **Context**: If implementation is large, compact mid-phase — update the plan progress file with completed steps and continue in a fresh context
 
+**Implementation status.** `orchestrator.py`'s `run_pipeline` dispatches
+this phase via `_default_phase_implement` immediately after Plan completes,
+for every `standard`/`complex`-classified task — the same classification-
+driven scope Research and Plan already use (the `trivial` fast-path is
+`run_pipeline`'s only *classification*-driven branch point; `--fail-wave`,
+`--dispatch-personas`, and the no-prior-state `--resume` guard are separate,
+test/debug-only early-return paths, not part of this classification logic).
+See the Implement persona roster
+subsection below for what the script actually dispatches, and its Script
+gap paragraph for what the agent-facing policy above still describes that
+the script does not yet implement.
+
+#### Implement persona roster (`orchestrator.py`'s `SOFTWARE_ENGINEER_PERSONA`/`TECH_WRITER_PERSONA`)
+
+`orchestrator.py`'s `_default_phase_implement` — the `Enforcement: script`
+deterministic implementation of this phase — composes two helpers for every
+`standard`/`complex`-classified task. `_dispatch_implement_wave` dispatches
+`SOFTWARE_ENGINEER_PERSONA` (`software-engineer`) once, for the sole
+synthetic slice in `IMPLEMENT_WAVE_SLICES` (`("implement-1",)`), via the
+existing `dispatch_personas` (reused verbatim rather than a second
+hand-rolled `asyncio.gather`/`BaseException`-normalization copy), with the
+Plan phase's aggregated state as context. Each result is tagged with its
+`"slice"` key before `reconcile()` runs directly against the wave's results;
+a `status: "failed"` entry raises `WaveError`, which propagates uncaught out
+of `_dispatch_implement_wave` — `_run_phase`'s `write_progress` call never
+runs for a failed wave, so the phase's state file stays absent and a
+subsequent `--resume` run retries Implement from scratch. `run_pipeline`
+catches `WaveError` at its own call site, prints
+`ERROR: wave barrier failed on slice '<failing_slice>'` followed by
+`Resume with: python3 <script-path> --resume` (via the shared
+`_print_wave_failure` helper, also used by the `--fail-wave` test/debug
+simulation branch, which deliberately prints an unrelated `'slice-1'` name
+since it doesn't go through `IMPLEMENT_WAVE_SLICES`), and returns exit code
+1. The wave's own stderr WARNING (labeled `"Implement"`) uses different
+wording than Research/Plan's non-fatal WARNINGs — `(wave barrier will
+fail)`, not `(recorded, non-fatal)` — since a wave failure here is neither:
+it is about to raise `WaveError` uncaught and end the process.
+
+On a successful wave (no failed slice), `_dispatch_implement_verification`
+dispatches the existing `CODE_REVIEW_PANEL` (`doc-review`, `arch-review`,
+`token-efficiency-review`) and `TECH_WRITER_PERSONA` (`tech-writer`) — both
+via `dispatch_personas`, never a bare `dispatch_persona` call, so an
+unexpected throwable from either is normalized into a failure stub instead
+of escaping past `run_pipeline`'s `except WaveError` and discarding a
+successful wave's results — against the wave's own results as context. Both
+dispatches receive the task classification, the original request text, and
+the wave's dispatch-result metadata (persona/status/slice per entry) — not
+the actual changeset diff or the affected documentation files, so neither
+call performs a real code review or doc pass today — narrower than their
+names promise, mirroring the same narrowing Phase 2's
+`plan-review-*` critics already carry against a rendered plan document. A
+second, independent `_warn_on_failed_personas` call (labeled
+`"Implement review"`, genuinely non-fatal this time) surfaces a failed
+review-panel member or a failed tech-writer dispatch as a stderr WARNING —
+exit code stays 0, and the state file still records the failed entry
+verbatim — mirroring the same non-fatal-failure-visibility convention
+Research and Plan already established.
+
+**Script gap.** `_dispatch_implement_wave` dispatches a single synthetic
+slice representing "the whole task," not real per-plan-step decomposition —
+Phase 2's persisted shape (`orchestrator-plan.json`) has no
+machine-parseable ordered list of implementation steps to derive
+`IMPLEMENT_WAVE_SLICES` from. The script also does not implement the
+three-stage inline review loop described above (`spec-reviewer` →
+`quality-reviewer` → browser verification), nor the final `/code-review`
+`fail`/`warn`/`pass` branching before its doc-review pass — the review
+panel's `review_status` verdicts are persisted but not read or gated on;
+a `fail` verdict has the same observable outcome (exit 0, state persisted)
+as a clean pass. All of the above (the inline review loop, the
+`/code-review` branching, real per-step decomposition, and verdict gating)
+remain the operator's own responsibility today; tracked against spec
+#1707/a future slice. Separately: `--resume` after a wave failure
+re-dispatches `software-engineer` against a working tree that may already
+carry partial edits from the failed attempt (a realistic case under
+`PERSONA_DISPATCH_TIMEOUT_S`'s unverified 60s placeholder — see follow-up
+#1716) — reconciling that state is the operator's own responsibility today,
+not something this script checks or compensates for. This phase's dispatch
+of `CODE_REVIEW_PANEL` is also the first place in this script where a
+`/code-review`-shaped fan-out is driven deterministically rather than by
+skill instructions. This is a deliberate, spec-#1707-scoped choice, not an
+oversight against [ADR 0013](../../../docs/adr/0013-llm-driven-orchestration-over-deterministic-workflow-scripts.md#amendment-2026-08-02-orchestratorpys-deterministic-code_review_panel-dispatch)'s
+LLM-driven-orchestration preference — see that ADR's amendment for why this
+standalone script's fixed, judgment-free panel dispatch does not replace or
+contradict the interactive `/code-review` skill's own unchanged fan-out.
+
 #### Review Depth by Complexity
 
 Each plan step includes a **Complexity** classification that controls review depth:

@@ -94,3 +94,49 @@ architecture.
 **Easier:** Adding new agents, changing routing rules, and adjusting human gates
 requires editing markdown skill files rather than releasing JavaScript. The pipeline
 can adapt to mid-run judgment calls that structural computation cannot anticipate.
+
+## Amendment (2026-08-02): `orchestrator.py`'s deterministic `CODE_REVIEW_PANEL` dispatch
+
+Epic #1648/spec #1707 ("Wire orchestrator.py to Real Agent Dispatch") wired
+`plugins/dev-team/scripts/orchestrator.py`'s Implement phase
+(`_dispatch_implement_verification`) to dispatch a fixed three-agent panel
+(`doc-review`, `arch-review`, `token-efficiency-review`) plus `tech-writer`
+on every successful Implement wave, with no per-run selection judgment, via
+a deterministic Python script rather than LLM judgment — the first place
+this codebase drives a `CODE_REVIEW_PANEL`-shaped
+fan-out from code instead of from the `/code-review` skill's own runtime
+reasoning.
+
+This does not contradict the Decision above, for the same reason [ADR
+0020](0020-fold-mutation-pipeline-into-the-plugin.md) already drew the line
+for the mutation-kill pipeline: ADR 0013 protects the **fan-out dispatch
+decision inside the interactive `/build` and `/code-review` skills** —
+whether and how to spawn sub-agents when a human-in-the-loop session is
+driving the Research→Plan→Implement pipeline, where mid-run
+judgment (serializing two nominally-independent slices, collapsing a wave
+after an unexpected conflict, re-planning instead of fixing) has real
+adaptation value a script cannot supply. `orchestrator.py` is not that skill
+and does not replace it: `/code-review`, invoked interactively, is
+completely unchanged by this work and still fans out exactly as this ADR
+decided. `orchestrator.py` is a separate, standalone, headless CLI script —
+`Enforcement: script` on `agents/orchestrator.md`, a body-level convention
+documented in `plugins/dev-team/docs/agent_info.md` (§Non-standard body
+declarations) and enforced by `skills/agent-audit/SKILL.md`, already carried
+by four other
+agents (`progress-guardian`, `token-efficiency-review`,
+`claude-setup-review`, `codebase-recon`) — and `orchestrator.py`'s own
+Research and Plan phases were already script-driven before this slice, so
+its Implement phase now dispatches that same fixed panel every time it
+runs (on every successful wave — see the Known gap below), with no
+per-run adaptation: no serialization judgment, no wave-collapse decision, no
+re-planning branch. Its control flow carries no adaptation value to lose,
+the same category ADR 0020 already carved out. Scripting a fixed,
+judgment-free fan-out inside a pre-existing standalone script is not the
+move this ADR declined.
+
+**Known gap, not a contradiction of this amendment:** `orchestrator.py`'s
+dispatch does not yet read or gate on the panel's `review_status` verdicts
+(a `fail` verdict has the same observable outcome as a clean pass today) —
+tracked against spec #1707/a future slice in
+`agents/orchestrator.md`'s Implement-phase Script gap paragraph, not
+resolved by this amendment.
