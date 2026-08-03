@@ -1,5 +1,26 @@
 # Changelog
 
+## [12.2.0](https://github.com/bdfinst/agentic-dev-team/compare/dev-team-v12.1.0...dev-team-v12.2.0) (2026-08-02)
+
+
+### Features
+
+* **autoship:** group related issues into shared spec/plan/PR batches ([#1714](https://github.com/bdfinst/agentic-dev-team/issues/1714)) ([f7e9409](https://github.com/bdfinst/agentic-dev-team/commit/f7e9409bb69036734ca58d951260d7d87e608e8e))
+* **orchestrator:** make plan-quality drive code quality; publish cadence rule ([#1728](https://github.com/bdfinst/agentic-dev-team/issues/1728)) ([9cf8f52](https://github.com/bdfinst/agentic-dev-team/commit/9cf8f5261719df97ecad6e55799af858d931fe5f))
+* **scripts:** wire orchestrator.py Implement phase to real persona dispatch ([#1724](https://github.com/bdfinst/agentic-dev-team/issues/1724)) ([ebb8a9c](https://github.com/bdfinst/agentic-dev-team/commit/ebb8a9c79d26a2f5a93999658deb3293663bbde4))
+* **scripts:** wire orchestrator.py Plan phase to real persona dispatch ([#1721](https://github.com/bdfinst/agentic-dev-team/issues/1721)) ([08b64e1](https://github.com/bdfinst/agentic-dev-team/commit/08b64e1b65ff94777015e9da0bd5932a5263c916))
+* **scripts:** wire orchestrator.py Research phase to real persona dispatch ([#1718](https://github.com/bdfinst/agentic-dev-team/issues/1718)) ([2329123](https://github.com/bdfinst/agentic-dev-team/commit/2329123b08d173a45cf5b35c7db75914dfaab38c))
+
+
+### Bug Fixes
+
+* **scripts:** guard non-object dispatch envelopes in orchestrator.py ([#1712](https://github.com/bdfinst/agentic-dev-team/issues/1712)) ([e940c38](https://github.com/bdfinst/agentic-dev-team/commit/e940c38f561b051184b085ab289c500d3c4c8f26))
+
+
+### Documentation
+
+* extract shared review methodology to knowledge file ([#1710](https://github.com/bdfinst/agentic-dev-team/issues/1710)) ([4aa6c02](https://github.com/bdfinst/agentic-dev-team/commit/4aa6c02be880061c39b843d98920995853f97e01))
+
 ## [12.1.0](https://github.com/bdfinst/agentic-dev-team/compare/dev-team-v12.0.0...dev-team-v12.1.0) (2026-08-02)
 
 
