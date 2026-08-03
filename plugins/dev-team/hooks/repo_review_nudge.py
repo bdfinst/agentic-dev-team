@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""repo_review_nudge — Claude Code SessionStart hook (#1739/#1743).
+"""repo_review_nudge — Claude Code SessionStart hook (#1739/#1743/#1746).
 
 `/repo-review` (#1733/#1735) tracks drift in
 `.claude/memory/repo-review-state.json` (`{"last_commit", "last_run_at"}`)
@@ -31,6 +31,23 @@ deleted lines are comparatively low-risk.
   the empty tree again — which makes "never run" resolve to exactly 100%
   (the whole current codebase is unreviewed) with no special-cased branch.
 
+**Pure percentage fails at both size extremes (#1746)**, so the trigger is
+three-part, percentage in the middle with absolute floor/ceiling guards on
+either side:
+
+    trigger = added >= MAX_ADDED_LINES
+              OR (added >= MIN_ADDED_LINES AND percent >= PERCENT_THRESHOLD)
+
+- **Floor** (`MIN_ADDED_LINES`): below it, never nudge regardless of
+  percentage — otherwise a trivial change in a small repo (a few dozen
+  lines can already be 10%+ of a tiny codebase) reads as "the codebase
+  changed," which is naggy, not useful.
+- **Ceiling** (`MAX_ADDED_LINES`): above it, always nudge regardless of
+  percentage — otherwise a huge repo's percent threshold could take dozens
+  of sessions to reach, and the nudge goes silently dormant exactly where
+  drift review matters most.
+- Between the two, the percentage rule applies as before.
+
 **`last_commit` is untrusted input, validated before touching any git
 command (#1743).** `.claude/memory/repo-review-state.json` is written by
 `/repo-review`, but nothing stops a hostile PR from committing its own copy
@@ -42,11 +59,12 @@ still be misparsed as a git flag rather than a revspec (argument
 injection). Any value not matching `^[0-9a-fA-F]{7,40}$` is treated exactly
 like "no prior state".
 
-Env seams:
-    DEV_TEAM_REPO_REVIEW_PERCENT_THRESHOLD  percentage threshold (default
-        10, meaning 10%) — a starting guess, not an empirically measured
-        number (no real cadence data exists yet); override if live usage
-        shows it's too tight or too loose.
+Env seams (all starting guesses, not empirically measured — no real
+cadence data exists yet; override if live usage shows any of them too
+tight or too loose):
+    DEV_TEAM_REPO_REVIEW_PERCENT_THRESHOLD  percentage threshold, default 10
+    DEV_TEAM_REPO_REVIEW_MIN_ADDED_LINES    anti-nagging floor, default 200
+    DEV_TEAM_REPO_REVIEW_MAX_ADDED_LINES    anti-silence ceiling, default 5000
 
 Contract (docs/python-hook-contract.md):
     Input : SessionStart JSON on stdin (hook_event_name, cwd, model, ...).
@@ -74,6 +92,8 @@ if str(_LIB_DIR) not in sys.path:
 import artifact_paths
 
 _DEFAULT_THRESHOLD_PERCENT = 10.0
+_DEFAULT_MIN_ADDED_LINES = 200
+_DEFAULT_MAX_ADDED_LINES = 5000
 
 # Same trust-boundary guard `skills/repo-review/SKILL.md` applies to this
 # exact field before it touches any git command (#1743).
@@ -95,6 +115,43 @@ def _threshold_percent() -> float:
     except (TypeError, ValueError):
         return _DEFAULT_THRESHOLD_PERCENT
     return value if value > 0 else _DEFAULT_THRESHOLD_PERCENT
+
+
+def _min_added_lines() -> int:
+    """Anti-nagging floor from DEV_TEAM_REPO_REVIEW_MIN_ADDED_LINES,
+    falling back to _DEFAULT_MIN_ADDED_LINES on anything that isn't a
+    non-negative int."""
+    raw = os.environ.get("DEV_TEAM_REPO_REVIEW_MIN_ADDED_LINES", "")
+    try:
+        value = int(raw)
+    except (TypeError, ValueError):
+        return _DEFAULT_MIN_ADDED_LINES
+    return value if value >= 0 else _DEFAULT_MIN_ADDED_LINES
+
+
+def _max_added_lines() -> int:
+    """Anti-silence ceiling from DEV_TEAM_REPO_REVIEW_MAX_ADDED_LINES,
+    falling back to _DEFAULT_MAX_ADDED_LINES on anything that isn't a
+    positive int."""
+    raw = os.environ.get("DEV_TEAM_REPO_REVIEW_MAX_ADDED_LINES", "")
+    try:
+        value = int(raw)
+    except (TypeError, ValueError):
+        return _DEFAULT_MAX_ADDED_LINES
+    return value if value > 0 else _DEFAULT_MAX_ADDED_LINES
+
+
+def _should_nudge(percent: float, added: int) -> bool:
+    """Three-part trigger (#1746): the ceiling overrides everything (a
+    huge absolute change always warrants a nudge, however small a
+    percentage it is of a huge repo); short of that, the floor suppresses
+    the percentage rule for a trivial absolute change (however large a
+    percentage it is of a tiny repo)."""
+    if added >= _max_added_lines():
+        return True
+    if added < _min_added_lines():
+        return False
+    return percent >= _threshold_percent()
 
 
 def _is_git_repo(cwd: str) -> bool:
@@ -227,7 +284,7 @@ def main() -> int:
     if result is None:
         return 0
     percent, added, total = result
-    if percent < _threshold_percent():
+    if not _should_nudge(percent, added):
         return 0
 
     sys.stdout.write(_nudge_message(percent, added, total))
