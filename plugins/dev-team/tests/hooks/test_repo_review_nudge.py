@@ -181,7 +181,7 @@ def test_default_threshold_used_when_env_var_invalid(tmp_path: Path) -> None:
     last = _commit_lines(tmp_path, "a.txt", 1000, "large baseline")
     _write_state(tmp_path, last)
     _commit_lines(tmp_path, "b.txt", 5, "tiny follow-up")
-    # 5 added / 1005 total =~ 0.5% — below the 1% default.
+    # 5 added / 1005 total =~ 0.5% — below the 10% default.
     r = _run(tmp_path, {"DEV_TEAM_REPO_REVIEW_PERCENT_THRESHOLD": "not-a-number"})
     assert r.returncode == 0
     assert r.stdout == ""

@@ -44,7 +44,7 @@ like "no prior state".
 
 Env seams:
     DEV_TEAM_REPO_REVIEW_PERCENT_THRESHOLD  percentage threshold (default
-        1, meaning 1%) — a starting guess, not an empirically measured
+        10, meaning 10%) — a starting guess, not an empirically measured
         number (no real cadence data exists yet); override if live usage
         shows it's too tight or too loose.
 
@@ -73,7 +73,7 @@ if str(_LIB_DIR) not in sys.path:
 
 import artifact_paths
 
-_DEFAULT_THRESHOLD_PERCENT = 1.0
+_DEFAULT_THRESHOLD_PERCENT = 10.0
 
 # Same trust-boundary guard `skills/repo-review/SKILL.md` applies to this
 # exact field before it touches any git command (#1743).
