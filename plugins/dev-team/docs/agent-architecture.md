@@ -172,6 +172,18 @@ A second `PreToolUse` hook (`hooks/destructive_guard.py`) monitors Bash tool cal
 
 By default, destructive commands produce a **warning** (exit 0). When `/careful` mode is active, they are **blocked** (exit 2).
 
+### Pre-Commit Review Gate
+
+A `PreToolUse` hook on `git commit` (`hooks/pre_commit_review.py`) blocks the commit (exit 2) unless `.claude/memory/.review-passed` carries a hash matching the currently staged content, corroborated by genuine review-agent dispatch evidence — see [Code Review Process → Pre-commit gate file](code-review-process.md#9-pre-commit-gate-file) for the full mechanism.
+
+**Reasoned bypass.** `git commit --no-verify` (or `-n`) still works, but only when the process environment carries a non-empty `GATE_BYPASS_REASON`; without one the commit is blocked with a message naming the required variable. When present, the bypass is logged — timestamp, branch, reason, staged file count — to `.claude/metrics/gate-bypass-audit.jsonl` (#709), unconditionally:
+
+```bash
+GATE_BYPASS_REASON="hotfix, review to follow" git commit --no-verify -m "..."
+```
+
+Full detail: [Code Review Process → Reasoned bypass](code-review-process.md#reasoned-bypass---no-verify--n).
+
 ### Code-Intelligence Nudge
 
 A `PreToolUse` hook (`hooks/code_intelligence_nudge.py`) registered on `Read`, `Grep`, and `Glob` detects which of CodeGraph (`.codegraph/`), Repowise (`.repowise/`), and Graphify (`graphify-out/graph.json`) are present in the project and recommends whichever are present and not yet used this turn over multi-file exploration — composing a single-tool message when only one is present, or a combined, precedence-ordered message (Graphify, then Repowise, then CodeGraph) when two or more are. The hook is silent for single-file Read calls, for Grep with a regular-file `path`, for Glob with a literal `pattern`, and for any tool already used earlier in the current turn (tracked via a sentinel accumulating `tools_used`, written by a companion `PostToolUse` hook on `mcp__codegraph__.*` and `mcp__plugin_repowise_repowise__.*`). Warns to stderr by default; blocks (`exit 2`) under `/careful`. Fail-open posture throughout — any internal error, or a missing/malformed detection or sentinel surface, exits 0. See `docs/code-intelligence-nudge.md` for the full mechanism.
