@@ -168,6 +168,22 @@ def test_setup_step_11_cross_references_project_init_1416():
     assert "project-init" in block
 
 
+def test_repowise_standing_check_relocates_before_deferring_to_operator():
+    # #1747: before falling back to the operator, the check should try the
+    # finer-grained fix — relocate the repowise entry specifically, leaving
+    # every other tracked mcpServers entry untouched.
+    check = collapsed(_mcp_json_standing_check())
+    assert "mcp_json_repowise.py" in check
+    assert "relocate" in check
+    assert "#1747" in check
+    assert "--scope local" in check
+
+
+def test_repowise_standing_check_records_relocate_outcome():
+    check = collapsed(_mcp_json_standing_check())
+    assert '"repowise_relocated"' in check
+
+
 def test_step_6_summary_mentions_mcp_json_hygiene_outcome():
     # Mirrors test_setup_gitignore_hygiene.py's
     # test_step_12_report_mentions_both_new_gitignore_entries — the
