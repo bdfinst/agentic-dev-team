@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""repo_review_nudge — Claude Code SessionStart hook (#1739).
+"""repo_review_nudge — Claude Code SessionStart hook (#1739/#1743/#1746).
 
 `/repo-review` (#1733/#1735) tracks drift in
 `.claude/memory/repo-review-state.json` (`{"last_commit", "last_run_at"}`)
@@ -8,24 +8,63 @@ crossed a threshold worth acting on. This hook is that proactive nudge,
 mirroring `pending_review_notify.py`'s shape: read a small state signal,
 print a one-line stdout notice, fail-open, stdlib-only.
 
-Drift signal: **added lines since `last_commit`**, not commit count and not
-elapsed time — a single commit can carry thousands of added lines, and a
-week can pass with none; the drift this skill's roster cares about (file/
-CLAUDE.md size, verification debt, component duplication) tracks how much
-code actually changed, not how many commits or how much wall-clock it took
-to change it. Computed via `git diff --numstat <last_commit>..HEAD`, summing
-only the added-lines column — matching `change_size.py`'s own established
-rationale in this codebase: added lines are unverified, newly introduced
-content; deleted lines are comparatively low-risk. No prior state, or
-`last_commit` no longer resolving (rewritten history), both read as "never
-run": the signal falls back to added lines from the repository's very first
-commit (diffed against git's empty-tree object) to HEAD.
+Drift signal: **percentage of the codebase changed since `last_commit`**,
+not an absolute line count, commit count, or elapsed time (#1743). An
+absolute line count doesn't scale with repo size — a fixed threshold is
+noise for a small repo and meaningless for a huge one; a percentage of the
+current codebase is the size-independent version of the same "how much
+actually changed" signal #1739 established.
 
-Env seams:
-    DEV_TEAM_REPO_REVIEW_LINE_THRESHOLD  added-lines threshold (default
-        2000) — a starting guess, not an empirically measured number (no
-        real cadence data exists yet); override if live usage shows it's
-        too tight or too loose.
+    percentage = added_lines_since_baseline / total_current_loc * 100
+
+Both quantities come from `git diff --numstat <revspec>`, summing only the
+added-lines column — matching `change_size.py`'s own established rationale
+in this codebase: added lines are unverified, newly introduced content;
+deleted lines are comparatively low-risk.
+
+- `total_current_loc`: diffed from git's empty-tree object to HEAD. Every
+  line in HEAD is necessarily an "addition" relative to nothing, so this
+  doubles as a cheap, accurate current-LOC count with no need to `wc -l`
+  every tracked file.
+- `added_lines_since_baseline`: baseline is `last_commit` if on record and
+  it both passes validation and is still reachable (see below); otherwise
+  the empty tree again — which makes "never run" resolve to exactly 100%
+  (the whole current codebase is unreviewed) with no special-cased branch.
+
+**Pure percentage fails at both size extremes (#1746)**, so the trigger is
+three-part, percentage in the middle with absolute floor/ceiling guards on
+either side:
+
+    trigger = added >= MAX_ADDED_LINES
+              OR (added >= MIN_ADDED_LINES AND percent >= PERCENT_THRESHOLD)
+
+- **Floor** (`MIN_ADDED_LINES`): below it, never nudge regardless of
+  percentage — otherwise a trivial change in a small repo (a few dozen
+  lines can already be 10%+ of a tiny codebase) reads as "the codebase
+  changed," which is naggy, not useful.
+- **Ceiling** (`MAX_ADDED_LINES`): above it, always nudge regardless of
+  percentage — otherwise a huge repo's percent threshold could take dozens
+  of sessions to reach, and the nudge goes silently dormant exactly where
+  drift review matters most.
+- Between the two, the percentage rule applies as before.
+
+**`last_commit` is untrusted input, validated before touching any git
+command (#1743).** `.claude/memory/repo-review-state.json` is written by
+`/repo-review`, but nothing stops a hostile PR from committing its own copy
+with an arbitrary string (see `skills/repo-review/SKILL.md`'s own matching
+guard) — this hook reads the same file. `last_commit` is never
+shell-interpolated (subprocess args, not a shell string), so classic shell
+injection doesn't apply, but an unvalidated value starting with `-` could
+still be misparsed as a git flag rather than a revspec (argument
+injection). Any value not matching `^[0-9a-fA-F]{7,40}$` is treated exactly
+like "no prior state".
+
+Env seams (all starting guesses, not empirically measured — no real
+cadence data exists yet; override if live usage shows any of them too
+tight or too loose):
+    DEV_TEAM_REPO_REVIEW_PERCENT_THRESHOLD  percentage threshold, default 10
+    DEV_TEAM_REPO_REVIEW_MIN_ADDED_LINES    anti-nagging floor, default 200
+    DEV_TEAM_REPO_REVIEW_MAX_ADDED_LINES    anti-silence ceiling, default 5000
 
 Contract (docs/python-hook-contract.md):
     Input : SessionStart JSON on stdin (hook_event_name, cwd, model, ...).
@@ -40,6 +79,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import subprocess
 import sys
 from pathlib import Path
@@ -51,26 +91,67 @@ if str(_LIB_DIR) not in sys.path:
 
 import artifact_paths
 
-_DEFAULT_THRESHOLD = 2000
+_DEFAULT_THRESHOLD_PERCENT = 10.0
+_DEFAULT_MIN_ADDED_LINES = 200
+_DEFAULT_MAX_ADDED_LINES = 5000
+
+# Same trust-boundary guard `skills/repo-review/SKILL.md` applies to this
+# exact field before it touches any git command (#1743).
+_COMMIT_SHA_RE = re.compile(r"^[0-9a-fA-F]{7,40}$")
 
 # The hash of an empty git tree object — identical in every git repository,
 # always resolvable, and needs no repo-specific root-commit lookup (which
-# can return more than one commit in a history with multiple roots). Diffing
-# against it gives "every added line since the repository began", the
-# correct "never run" fallback signal.
+# can return more than one commit in a history with multiple roots).
 _EMPTY_TREE = "4b825dc642cb6eb9a060e54bf8d69288fbee4904"
 
 
-def _threshold() -> int:
-    """Added-lines threshold from DEV_TEAM_REPO_REVIEW_LINE_THRESHOLD,
-    falling back to _DEFAULT_THRESHOLD on anything that isn't a positive
-    int."""
-    raw = os.environ.get("DEV_TEAM_REPO_REVIEW_LINE_THRESHOLD", "")
+def _threshold_percent() -> float:
+    """Percentage threshold from DEV_TEAM_REPO_REVIEW_PERCENT_THRESHOLD,
+    falling back to _DEFAULT_THRESHOLD_PERCENT on anything that isn't a
+    positive number."""
+    raw = os.environ.get("DEV_TEAM_REPO_REVIEW_PERCENT_THRESHOLD", "")
+    try:
+        value = float(raw)
+    except (TypeError, ValueError):
+        return _DEFAULT_THRESHOLD_PERCENT
+    return value if value > 0 else _DEFAULT_THRESHOLD_PERCENT
+
+
+def _min_added_lines() -> int:
+    """Anti-nagging floor from DEV_TEAM_REPO_REVIEW_MIN_ADDED_LINES,
+    falling back to _DEFAULT_MIN_ADDED_LINES on anything that isn't a
+    non-negative int."""
+    raw = os.environ.get("DEV_TEAM_REPO_REVIEW_MIN_ADDED_LINES", "")
     try:
         value = int(raw)
     except (TypeError, ValueError):
-        return _DEFAULT_THRESHOLD
-    return value if value > 0 else _DEFAULT_THRESHOLD
+        return _DEFAULT_MIN_ADDED_LINES
+    return value if value >= 0 else _DEFAULT_MIN_ADDED_LINES
+
+
+def _max_added_lines() -> int:
+    """Anti-silence ceiling from DEV_TEAM_REPO_REVIEW_MAX_ADDED_LINES,
+    falling back to _DEFAULT_MAX_ADDED_LINES on anything that isn't a
+    positive int."""
+    raw = os.environ.get("DEV_TEAM_REPO_REVIEW_MAX_ADDED_LINES", "")
+    try:
+        value = int(raw)
+    except (TypeError, ValueError):
+        return _DEFAULT_MAX_ADDED_LINES
+    return value if value > 0 else _DEFAULT_MAX_ADDED_LINES
+
+
+def _should_nudge(percent: float, added: int) -> bool:
+    """Three-part trigger (#1746): the ceiling overrides everything (a
+    huge absolute change always warrants a nudge, however small a
+    percentage it is of a huge repo); short of that, the floor suppresses
+    the percentage rule for a trivial absolute change (however large a
+    percentage it is of a tiny repo)."""
+    if added >= _max_added_lines():
+        return True
+    if added < _min_added_lines():
+        return False
+    return percent >= _threshold_percent()
 
 
 def _is_git_repo(cwd: str) -> bool:
@@ -129,6 +210,9 @@ def _added_lines(cwd: str, revspec: str) -> int | None:
 
 
 def _load_last_commit(cwd: str) -> str | None:
+    """The recorded `last_commit`, or None for "no prior state" — including
+    when the field fails the commit-sha shape check (#1743): the state file
+    is untrusted input, not just possibly absent."""
     state_file = artifact_paths.resolve_file(
         "memory", "repo-review-state.json", cwd, migrate=False
     )
@@ -141,29 +225,37 @@ def _load_last_commit(cwd: str) -> str | None:
     if not isinstance(data, dict):
         return None
     last_commit = data.get("last_commit")
-    return last_commit if isinstance(last_commit, str) and last_commit else None
+    if not isinstance(last_commit, str) or not _COMMIT_SHA_RE.match(last_commit):
+        return None
+    return last_commit
 
 
-def _drift_lines(cwd: str) -> int | None:
-    """Added lines since the last /repo-review run, or since the
-    repository's first commit when there is no prior run or `last_commit`
-    no longer resolves (rewritten history) — both read as "never run".
-    None on git failure."""
+def _drift_percentage(cwd: str) -> tuple[float, int, int] | None:
+    """(percentage, added, total) since the last /repo-review run, or since
+    the repository's first commit when there is no prior run, `last_commit`
+    fails validation, or it no longer resolves (rewritten history) — all
+    read as "never run", which correctly yields exactly 100%. None on git
+    failure (unreachable HEAD, corrupt index, git not installed, timeout)."""
+    total = _added_lines(cwd, f"{_EMPTY_TREE}..HEAD")
+    if total is None or total <= 0:
+        return None
+
     last_commit = _load_last_commit(cwd)
+    added = None
     if last_commit is not None:
-        count = _added_lines(cwd, f"{last_commit}..HEAD")
-        if count is not None:
-            return count
-    # No prior state, or last_commit didn't resolve — fall back to added
-    # lines since the repository began.
-    return _added_lines(cwd, f"{_EMPTY_TREE}..HEAD")
+        added = _added_lines(cwd, f"{last_commit}..HEAD")
+    if added is None:
+        added = total  # no prior state / unreachable last_commit => "never run"
+
+    return (added / total) * 100, added, total
 
 
-def _nudge_message(added: int) -> str:
+def _nudge_message(percent: float, added: int, total: int) -> str:
     return (
-        f"\U0001f300 ~{added} added line(s) since the last /repo-review — "
-        "consider running it to catch drift no per-diff review sees "
-        "(file/CLAUDE.md size, verification debt, component duplication)\n"
+        f"\U0001f300 ~{percent:.1f}% of the codebase ({added:,} of {total:,} "
+        "lines) has changed since the last /repo-review — consider running "
+        "it to catch drift no per-diff review sees (file/CLAUDE.md size, "
+        "verification debt, component duplication)\n"
     )
 
 
@@ -188,11 +280,14 @@ def main() -> int:
     if not _is_git_repo(cwd):
         return 0
 
-    added = _drift_lines(cwd)
-    if added is None or added < _threshold():
+    result = _drift_percentage(cwd)
+    if result is None:
+        return 0
+    percent, added, total = result
+    if not _should_nudge(percent, added):
         return 0
 
-    sys.stdout.write(_nudge_message(added))
+    sys.stdout.write(_nudge_message(percent, added, total))
     return 0
 
 
