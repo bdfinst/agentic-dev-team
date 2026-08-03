@@ -12,7 +12,14 @@ color: green
 
 # Token Efficiency Review
 
-Scope: always
+Scope: on-demand — dispatched by the whole-tree `/repo-review` command, never
+by `/code-review`'s per-diff panel (#1733). Its findings (file length,
+CLAUDE.md size, LLM anti-patterns) are properties of absolute size and
+accumulated drift, not of any single diff's delta — a diff-scoped review of a
+20-line PR can't even see a file that crept past a size threshold over 10
+separate small PRs. It is listed in `scripts/lib/review_roster.py`'s
+`NON_REVIEW_AGENTS`, which both excludes it from `select_lenses.py`'s
+dispatchable roster and exempts it from the per-file `Scope:` requirement.
 Cites: [adversarial-review-protocol]
 Enforcement: script
 

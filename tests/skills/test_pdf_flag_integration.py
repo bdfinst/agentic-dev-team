@@ -6,7 +6,7 @@ the required strings appear in each SKILL.md and in the shared contract doc.
 
 Contracts:
 
-1. Each of the five report-producing skills documents `--pdf` in its
+1. Each report-producing skill in `REPORT_SKILLS` documents `--pdf` in its
    `argument-hint` and references the shared `report-pdf-integration.md`.
 2. Each skill invokes the shared render module (`hooks/lib/report_pdf.py`) via
    `hooks/py.sh`, not a bare `python3`.
@@ -24,12 +24,13 @@ from _repo_root import REPO_ROOT
 SKILLS = REPO_ROOT / "plugins" / "dev-team" / "skills"
 KNOWLEDGE = REPO_ROOT / "plugins" / "dev-team" / "knowledge"
 
-FIVE_SKILLS = [
+REPORT_SKILLS = [
     "code-review",
     "test-health",
     "cd-test-architecture",
     "triage",
     "harness-audit",
+    "repo-review",
 ]
 
 
@@ -72,19 +73,20 @@ def test_shared_contract_doc_exists_and_pins_wording():
         ".dev-team-reports/test-health-<date>.md",
         ".dev-team-reports/cd-test-architecture-<app>.md",
         ".dev-team-reports/harness-audit-<date>.md",
+        ".dev-team-reports/repo-review.md",
     ):
         assert path_frag in INTEGRATION_DOC
 
 
 def test_every_skill_documents_pdf_flag_in_argument_hint():
-    for name in FIVE_SKILLS:
+    for name in REPORT_SKILLS:
         hint = _argument_hint(_skill(name))
         assert hint, f"{name} has no argument-hint"
         assert "--pdf" in hint, f"{name} argument-hint omits --pdf"
 
 
 def test_every_skill_references_shared_doc_and_module():
-    for name in FIVE_SKILLS:
+    for name in REPORT_SKILLS:
         text = _skill(name)
         assert "report-pdf-integration.md" in text, f"{name} does not reference the shared doc"
         assert "hooks/lib/report_pdf.py" in text, f"{name} does not invoke the render module"

@@ -11,14 +11,14 @@ color: green
 # Claude Setup Review
 
 Scope: on-demand — dispatched by the user-invocable `/claude-setup-review`
-command, never by `/code-review`'s automatic panel. This agent reviews the
-**harness** (CLAUDE.md, rules, skills, agent
-frontmatter), not the changeset, so it has nothing to say about a diff: under
-the old `Scope: always` it joined an 18-lens panel for a two-file JS change in
-a project with no Claude config at all. It is listed in
-`scripts/lib/review_roster.py`'s `NON_REVIEW_AGENTS`, which both excludes it
-from `select_lenses.py`'s dispatchable roster and exempts it from the per-file
-`Scope:` requirement.
+command and by the whole-tree `/repo-review` command (#1735), never by
+`/code-review`'s automatic panel. This agent reviews the **harness**
+(CLAUDE.md, rules, skills, agent frontmatter), not the changeset, so it has
+nothing to say about a diff: under the old `Scope: always` it joined an
+18-lens panel for a two-file JS change in a project with no Claude config at
+all. It is listed in `scripts/lib/review_roster.py`'s `NON_REVIEW_AGENTS`,
+which both excludes it from `select_lenses.py`'s dispatchable roster and
+exempts it from the per-file `Scope:` requirement.
 Cites:
 - adversarial-review-protocol
 - directory-enumeration

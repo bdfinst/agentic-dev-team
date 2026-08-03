@@ -55,6 +55,14 @@ _TABLE_ROW_RE = re.compile(r"^\|\s*([a-z][a-z0-9-]*)\s*\|")
 
 # The sentinel an agent uses to declare it applies to every diff (`Scope: always`).
 SCOPE_ALWAYS = "always"
+# The sentinel an agent uses to declare it should only fire when a matching
+# file is newly *added*, not merely modified (#1733's dual-placement rule for
+# `component-architecture-review`: unconditional whole-inventory pass in
+# `/repo-review`, narrowed to added-only in `/code-review`'s per-diff panel).
+# Parsed the same way as the empty-inline-value case (bullet block of globs)
+# and encoded as `(SCOPE_ADDED_ONLY, globs)` so callers can tell it apart from
+# a plain glob-list scope.
+SCOPE_ADDED_ONLY = "added-only"
 # Heading substring that marks the Review Agents section of agent-registry.md.
 # Named so a heading rename over there is greppable from here (the coupling).
 _REVIEW_AGENTS_HEADING_MARKER = "review agent"
@@ -73,14 +81,17 @@ def _consume_bullet_block(lines, start_index):
 
 
 def parse_scope(text: str):
-    """Return ``"always"`` | ``list[str]`` (globs) | ``None`` from agent markdown.
+    """Return ``"always"`` | ``list[str]`` | ``(SCOPE_ADDED_ONLY, list[str])`` |
+    ``None`` from agent markdown.
 
     The **first** ``Scope:`` line is authoritative. An empty inline value
     followed by a ``- **/*.ext`` bullet block yields that structured,
     fnmatch-ready list (preferred over the free-text second ``Scope:`` line some
-    agents also carry). ``Scope: always`` -> ``"always"``. Other inline prose ->
-    ``.ext`` tokens extracted as a fallback (``None`` if it names no extension).
-    No ``Scope:`` line -> ``None``.
+    agents also carry). ``Scope: always`` -> ``"always"``. ``Scope: added-only``
+    followed by the same bullet-block shape -> ``(SCOPE_ADDED_ONLY, globs)`` (no
+    bullet block -> ``None``, same fail-open rule as a missing declaration).
+    Other inline prose -> ``.ext`` tokens extracted as a fallback (``None`` if it
+    names no extension). No ``Scope:`` line -> ``None``.
     """
     lines = text.splitlines()
     for i, line in enumerate(lines):
@@ -90,6 +101,9 @@ def parse_scope(text: str):
         value = m.group(1).strip()
         if value.lower() == SCOPE_ALWAYS:
             return SCOPE_ALWAYS
+        if value.lower() == SCOPE_ADDED_ONLY:
+            globs = _consume_bullet_block(lines, i)
+            return (SCOPE_ADDED_ONLY, globs) if globs else None
         if value:
             tokens = _EXT_TOKEN_RE.findall(value)
             return [f"**/*{t}" for t in tokens] or None
@@ -127,7 +141,26 @@ def _scope_matches(scope, changed_files) -> bool:
     return any(_matches(f, g) for f in changed_files for g in scope)
 
 
-def applicable_lenses(changed_files, roster):
+def _is_added_only_scope(scope) -> bool:
+    """True if ``scope`` is the ``(SCOPE_ADDED_ONLY, globs)`` shape."""
+    return isinstance(scope, tuple) and scope[0] == SCOPE_ADDED_ONLY
+
+
+def _added_only_eligible(globs, changed_files, added_files) -> bool:
+    """True if an added-only scope's ``globs`` match within the eligible set.
+
+    ``added_files=None`` (no change-type data supplied) falls back to
+    matching any changed file — the fail-safe direction every other
+    ambiguity in this module already resolves toward. A supplied set (even
+    empty) narrows eligibility to only files present in it.
+    """
+    eligible = changed_files if added_files is None else [
+        f for f in changed_files if f in added_files
+    ]
+    return bool(eligible) and _scope_matches(globs, eligible)
+
+
+def applicable_lenses(changed_files, roster, added_files=None):
     """Pure resolver. ``roster`` = ``[(name, scope, is_opus)]``. Returns
     ``(lenses, warnings)`` with lenses ordered cheap-first (non-opus, then opus).
 
@@ -135,6 +168,20 @@ def applicable_lenses(changed_files, roster):
     lens (not even ``Scope: always``) is selected. ``scope is None`` ->
     include-biased + warn; ``"always"`` -> include; glob list -> include iff any
     changed file matches.
+
+    ``added_files`` (#1733) narrows a ``(SCOPE_ADDED_ONLY, globs)`` scope to
+    only the changed files that are also newly *added* — but **only when the
+    caller actually supplies it**. ``added_files=None`` (the default — a
+    caller, e.g. ``/build``'s inline checkpoints, that has no change-type data
+    to offer) makes an added-only scope behave exactly like a plain glob list,
+    matching any changed file. This is deliberately fail-safe in the same
+    direction every other gate in this module already leans: ambiguity always
+    resolves toward *keeping* a lens, never toward silently dropping one a
+    caller never asked to narrow. When that fallback fires (a lens selected
+    via an added-only scope with no ``added_files`` supplied), it is recorded
+    in ``warnings`` as ``unnarrowed-added-only:<name>`` — the same "never
+    silently dropped" transparency the missing-``Scope:`` case already gets,
+    applied to a silent *widening* instead.
     """
     if not changed_files:
         return [], []
@@ -144,7 +191,15 @@ def applicable_lenses(changed_files, roster):
         if scope is None:
             warnings.append(name)
             selected.append((name, is_opus))
-        elif scope == SCOPE_ALWAYS or _scope_matches(scope, changed_files):
+        elif scope == SCOPE_ALWAYS:
+            selected.append((name, is_opus))
+        elif _is_added_only_scope(scope):
+            if not _added_only_eligible(scope[1], changed_files, added_files):
+                continue
+            selected.append((name, is_opus))
+            if added_files is None:
+                warnings.append(f"unnarrowed-added-only:{name}")
+        elif _scope_matches(scope, changed_files):
             selected.append((name, is_opus))
     # Stable cheap-first: False (non-opus) sorts before True (opus).
     selected.sort(key=lambda pair: pair[1])
@@ -194,6 +249,16 @@ def build_review_roster(agents_dir: Path, registry_path: Path):
 def main(argv=None) -> int:
     parser = argparse.ArgumentParser(description="Resolve applicable review lenses.")
     parser.add_argument("--files", nargs="*", default=[], help="Changed file paths")
+    parser.add_argument(
+        "--added", nargs="*", default=None,
+        help=(
+            "Paths that are newly added (git change-type A) in this "
+            "changeset, e.g. from changed_file_list.py's 'added' list. "
+            "Narrows any 'Scope: added-only' lens to only these paths; "
+            "omit when the caller has no change-type data (fail-safe: "
+            "added-only scopes then match like a plain glob list)."
+        ),
+    )
     parser.add_argument("--agents-dir", type=Path, default=_HERE.parent / "agents")
     parser.add_argument(
         "--registry",
@@ -201,9 +266,10 @@ def main(argv=None) -> int:
         default=_HERE.parent / "knowledge" / "agent-registry.md",
     )
     args = parser.parse_args(argv)
-    roster, enum_warnings = build_review_roster(args.agents_dir, args.registry)
-    lenses, warnings = applicable_lenses(args.files, roster)
-    print(json.dumps({"lenses": lenses, "warnings": enum_warnings + warnings}))
+    roster, roster_warnings = build_review_roster(args.agents_dir, args.registry)
+    added_files = set(args.added) if args.added is not None else None
+    lenses, warnings = applicable_lenses(args.files, roster, added_files=added_files)
+    print(json.dumps({"lenses": lenses, "warnings": roster_warnings + warnings}))
     return 0
 
 

@@ -26,6 +26,13 @@ Confidence: high=mechanical (add missing DTO, rename to domain term); medium=dir
 
 Context needs: project-structure
 
+**No Bash grant — never invoke git yourself (#1734).** This agent's `tools:`
+line has no Bash. The orchestrator's `project-structure` dispatch already
+includes full files, the directory tree, and (for a diff-scoped review) a
+changed-file list with each file's change type. Do not attempt `git diff`/
+`git status` to "see what changed" — that call is denied and surfaces as a
+spurious tool-error finding instead of a real one.
+
 ## Knowledge Files
 
 Read `${CLAUDE_PLUGIN_ROOT}/knowledge/domain-modeling.md` before starting analysis. Whole-file load: the agent uses every section — exploration patterns, anti-pattern recognition, ubiquitous-language drift detection, and the per-language ORM / boundary / application-service signals.

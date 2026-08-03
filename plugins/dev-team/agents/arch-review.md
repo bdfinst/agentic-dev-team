@@ -23,6 +23,15 @@ Confidence: high=clear violation of explicit rule (wrong import direction, prohi
 
 Context needs: project-structure
 
+**No Bash grant — never invoke git yourself (#1734).** This agent's `tools:`
+line has no Bash. The orchestrator's dispatch for `Context needs:
+project-structure` already includes full files, the directory tree, and (for
+a diff-scoped review) a changed-file list with each file's change type
+(`A`/`M`/`D`/`R`/`C`). Everything this agent needs to know what changed
+arrives in that payload — do not attempt `git diff`, `git status`, or any
+other git/Bash call to "see what changed" first; that call is denied and
+surfaces as a spurious tool-error finding instead of a real one.
+
 ## Knowledge Files
 
 Read `${CLAUDE_PLUGIN_ROOT}/knowledge/architecture-assessment.md` before starting analysis. Whole-file load: the agent uses every section — exploration patterns, ADR compliance checks, layer boundary rules, dependency direction, pattern consistency, and the optional MCP guidance.

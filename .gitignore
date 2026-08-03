@@ -20,6 +20,10 @@ _mkdocs_src/
 .claude/memory/test-improve/
 .claude/memory/archive/
 .claude/memory/recon-*
+# /repo-review's own per-run drift state (#1735) — regeneratable, and
+# un-ignored would make it committable, which combined with an unvalidated
+# read would be a hostile-PR delivery vector (see repo-review/SKILL.md § 2).
+.claude/memory/repo-review-state.json
 
 # Performance logs (generated at runtime)
 .claude/metrics/*.json

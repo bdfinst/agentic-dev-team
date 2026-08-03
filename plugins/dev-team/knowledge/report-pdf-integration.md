@@ -2,8 +2,9 @@
 
 The single contract for the `--pdf` pass-through, shared by every skill that
 writes a Markdown report (`/code-review`, `/test-health`,
-`/cd-test-architecture`, `/triage`, `/harness-audit`). Each skill references
-this file rather than restating the behavior, so the wording never drifts.
+`/cd-test-architecture`, `/triage`, `/harness-audit`, `/repo-review`). Each
+skill references this file rather than restating the behavior, so the
+wording never drifts.
 
 This file defines *how `--pdf` behaves*. `hooks/lib/report_pdf.py` is the render
 engine it calls; [`report-to-pdf.md`](report-to-pdf.md) is the underlying
@@ -55,6 +56,7 @@ self-diagnose which they hit:
 | `/test-health` | `.dev-team-reports/test-health-<date>.md` | never — it always writes a file |
 | `/cd-test-architecture` | `.dev-team-reports/cd-test-architecture-<app>.md` | single-component **chat-only** run (no file) |
 | `/harness-audit` | `.dev-team-reports/harness-audit-<date>.md`, or the `--output <path>` override | never — it always writes a file |
+| `/repo-review` | `.dev-team-reports/repo-review.md` | `--json` (no file written) |
 
 A new report-producing skill inherits `--pdf` by adding a row here, documenting
 `--pdf` in its `argument-hint`, and calling `report_pdf.py` on the path it wrote

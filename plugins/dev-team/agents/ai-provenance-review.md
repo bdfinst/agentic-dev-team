@@ -10,7 +10,14 @@ color: green
 
 # AI Provenance & Regeneration Safety Review
 
-Scope: always
+Scope: on-demand — dispatched by the whole-tree `/repo-review` command, never
+by `/code-review`'s per-diff panel (#1733). "Verification debt" and
+"regeneration risk" are trend/accumulation metrics by definition — best
+judged by sweeping the whole codebase for AI-authored artifacts, not by
+re-deriving the same judgment call independently on every diff. It is listed
+in `scripts/lib/review_roster.py`'s `NON_REVIEW_AGENTS`, which both excludes
+it from `select_lenses.py`'s dispatchable roster and exempts it from the
+per-file `Scope:` requirement.
 Cites: [adversarial-review-protocol]
 
 Context needs: full-file
