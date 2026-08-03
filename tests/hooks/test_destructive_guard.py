@@ -32,6 +32,14 @@ _CAREFUL_STATE = _REPO_ROOT / "plugins" / "dev-team" / "hooks" / "careful-state.
 # (falling back to the process's actual OS cwd when absent) — isolate every
 # subprocess run to a scratch dir so tests never write
 # .claude/metrics/boundary-events.jsonl into the real repo checkout.
+# This scratch dir also becomes the subprocess's real OS cwd (see _run()):
+# destructive_guard.py's branch-escalation probes (#862) shell out to `git`
+# from its own cwd with no override, so leaving it at the test runner's real
+# cwd let _current_branch()/_default_branch() both resolve to "main" on a
+# direct push to main, hard-blocking `git push --force` regardless of
+# careful mode and failing this suite's careful-inactive-is-advisory-only
+# assertion — a failure invisible on feature-branch PR runs, where the
+# checked-out branch never equals the default branch.
 _BOUNDARY_EVENTS_SCRATCH_CWD = tempfile.mkdtemp(prefix="dev-team-destructive-guard-test-")
 
 # _CAREFUL_STATE is the real, fixed path destructive_guard.py itself reads
@@ -62,6 +70,7 @@ def _run(payload: dict) -> subprocess.CompletedProcess:
         [sys.executable, str(_HOOK_PY)],
         input=json.dumps(payload).encode(),
         env=env,
+        cwd=_BOUNDARY_EVENTS_SCRATCH_CWD,
         capture_output=True,
         timeout=10,
         check=False,
