@@ -631,17 +631,40 @@ This check is intentionally **not** scoped to the downstream-only, Step 2
 `in-repo`-skip case the way `/setup`'s own backstop check is — a
 machine-specific path in `.mcp.json` breaks every clone or teammate
 regardless of whether the repo is this plugin's own checkout or a downstream
-project, so this standing check applies in both. If `.mcp.json` is already
-tracked by git (`git ls-files --error-unmatch .mcp.json` exits 0), do not
-untrack it automatically — tell the operator to run `git rm --cached
-.mcp.json` themselves, same posture as #1376, and record that outcome too.
-Merge one of `{"mcp_hygiene": {"gitignore": "added"}}`,
-`{"mcp_hygiene": {"gitignore": "already-covered"}}`, or (when the
-already-tracked case above fires) `{"mcp_hygiene": {"gitignore":
-"added-but-tracked"}}` into `.claude/init-state.json` — a top-level key
-rather than nested under `repowise`, since this check runs independently of
-Repowise's own install state. Report the outcome as its own line in Step 6's
-summary below (and the caller's own report, when `/setup` is the caller).
+project, so this standing check applies in both.
+
+**If `.mcp.json` is already tracked by git** (`git ls-files --error-unmatch
+.mcp.json` exits 0), gitignoring the whole file isn't viable — a team that
+legitimately commits `.mcp.json` to distribute other MCP servers (e.g.
+`codegraph`, an internal org server) would lose those too (#1731). Before
+falling back to the operator, try the finer-grained fix (#1747):
+
+```bash
+python3 "${CLAUDE_PLUGIN_ROOT}/hooks/lib/mcp_json_repowise.py" relocate --cwd .
+```
+
+This strips only the `repowise` key from the tracked `.mcp.json`'s
+`mcpServers` object — every other entry is left untouched — and re-registers
+it at `local` scope (`claude mcp add repowise --scope local -- repowise mcp
+"$(pwd)" --transport stdio`) instead, in that order (register succeeds
+before the tracked entry is ever removed, so a failed registration never
+leaves `.mcp.json` with no working entry at all). It prints one of
+`not-tracked`, `no-repowise-entry`, `relocated`, or `relocate-failed`.
+Record the outcome as `{"mcp_hygiene": {"repowise_relocated": "<that
+string>"}}`.
+
+**Residual fallback**: `relocate` only ever touches the `repowise` key. If
+the printed outcome is `relocate-failed`, or `.mcp.json` is tracked for a
+reason unrelated to Repowise, do not untrack it automatically — tell the
+operator to run `git rm --cached .mcp.json` themselves, same posture as
+#1376, and record that outcome too. Merge one of `{"mcp_hygiene":
+{"gitignore": "added"}}`, `{"mcp_hygiene": {"gitignore":
+"already-covered"}}`, or (when this residual fallback fires) `{"mcp_hygiene":
+{"gitignore": "added-but-tracked"}}` into `.claude/init-state.json` — a
+top-level key rather than nested under `repowise`, since this check runs
+independently of Repowise's own install state. Report both outcomes as their
+own lines in Step 6's summary below (and the caller's own report, when
+`/setup` is the caller).
 
 #### Graphify — native integration, opt-in, with corruption/pollution guards
 
@@ -907,8 +930,9 @@ After every configured lane probes green, give the user:
   semantic enrichment is a further key-gated add-on on top of that.
 - **`.mcp.json` machine-specific-path hygiene** (issue #1416, runs
   independently of Repowise's own install/decline state): added the block,
-  found it already covered, or flagged that `.mcp.json` is still git-tracked
-  and needs `git rm --cached`.
+  found it already covered, or — when it's git-tracked — relocated a
+  `repowise` entry to local scope (#1747) or, if that wasn't applicable/
+  failed, flagged that `.mcp.json` still needs `git rm --cached`.
 - Files created (greenfield only).
 
 ## Greenfield JS/TS scaffold

@@ -70,6 +70,7 @@ KNOWN_UNCOVERED_INVOCATIONS = {
     ("pr", 'python3 "${CLAUDE_PLUGIN_ROOT}/scripts/progress_guardian.py" --pre-pr --plan <plan-file>'),
     ("pr", 'python3 "${CLAUDE_PLUGIN_ROOT}/scripts/pr_close_keyword_lint.py" --body-file <body-file>'),
     ("project-init", 'python3 "${CLAUDE_PLUGIN_ROOT}/scripts/install-java-static-analysis.py"'),
+    ("project-init", 'python3 "${CLAUDE_PLUGIN_ROOT}/hooks/lib/mcp_json_repowise.py" relocate --cwd .'),
     ("ship", 'python3 "${CLAUDE_PLUGIN_ROOT}/hooks/lib/workflow_state.py" record \\'),
     ("ship", 'python3 "${CLAUDE_PLUGIN_ROOT}/hooks/lib/iteration_journal_gate.py" record \\'),
     ("ship", 'python3 "${CLAUDE_PLUGIN_ROOT}/hooks/lib/iteration_journal_gate.py" check \\'),
