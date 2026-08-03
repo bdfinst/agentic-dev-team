@@ -1,5 +1,25 @@
 # Changelog
 
+## [12.3.0](https://github.com/bdfinst/agentic-dev-team/compare/dev-team-v12.2.0...dev-team-v12.3.0) (2026-08-03)
+
+
+### Features
+
+* **code-review:** decouple drift-style review agents into /repo-review ([#1742](https://github.com/bdfinst/agentic-dev-team/issues/1742)) ([a8b5454](https://github.com/bdfinst/agentic-dev-team/commit/a8b5454dc540613b73d9d93ada6107d1f5187401))
+* **hooks:** SessionStart nudge suggesting /repo-review on drift ([#1740](https://github.com/bdfinst/agentic-dev-team/issues/1740)) ([2d20b5a](https://github.com/bdfinst/agentic-dev-team/commit/2d20b5a28f5987fe24a62915eacb8cc654e2b696))
+
+
+### Bug Fixes
+
+* **hooks:** pre_commit_review block messages should mention the --no-verify bypass ([#1738](https://github.com/bdfinst/agentic-dev-team/issues/1738)) ([3485e98](https://github.com/bdfinst/agentic-dev-team/commit/3485e989d04e7abf3a321cb109208b169f25fdb0))
+* **hooks:** relocate repowise's tracked .mcp.json entry to local scope ([#1749](https://github.com/bdfinst/agentic-dev-team/issues/1749)) ([0f3e90e](https://github.com/bdfinst/agentic-dev-team/commit/0f3e90ec4ddb8eca910174ed9d2d3f7629960115)), closes [#1747](https://github.com/bdfinst/agentic-dev-team/issues/1747)
+* **hooks:** repo_review_nudge should trigger on % of codebase changed ([#1744](https://github.com/bdfinst/agentic-dev-team/issues/1744)) ([8531c05](https://github.com/bdfinst/agentic-dev-team/commit/8531c05bd5bd0b9732c6f9fead475ac2b9386e9b))
+
+
+### Documentation
+
+* **hooks:** document the GATE_BYPASS_REASON pre-commit-review escape hatch ([#1745](https://github.com/bdfinst/agentic-dev-team/issues/1745)) ([df40d77](https://github.com/bdfinst/agentic-dev-team/commit/df40d77de8b882c909d8e2191470980dd74f9329))
+
 ## [12.2.0](https://github.com/bdfinst/agentic-dev-team/compare/dev-team-v12.1.0...dev-team-v12.2.0) (2026-08-02)
 
 
