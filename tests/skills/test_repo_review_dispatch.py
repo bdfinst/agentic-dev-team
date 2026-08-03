@@ -30,10 +30,13 @@ PLUGIN_ROOT = REPO_ROOT / "plugins" / "dev-team"
 SKILL = PLUGIN_ROOT / "skills" / "repo-review" / "SKILL.md"
 SELECT_LENSES = PLUGIN_ROOT / "scripts" / "select_lenses.py"
 REVIEW_RUBRIC = PLUGIN_ROOT / "knowledge" / "review-rubric.md"
+AGENTS_DIR = PLUGIN_ROOT / "agents"
 
 sys.path.insert(0, str(PLUGIN_ROOT / "scripts" / "lib"))
+sys.path.insert(0, str(PLUGIN_ROOT / "scripts"))
 
 import review_roster
+import select_lenses
 
 REPO_REVIEW_ROSTER = (
     "token-efficiency-review",
@@ -56,11 +59,16 @@ def _lenses_for(*files, added=None):
 
 class TestTokenEfficiencyAndAiProvenanceAreNotCodeReviewLenses:
     @pytest.mark.parametrize("agent", ["token-efficiency-review", "ai-provenance-review"])
-    def test_declared_non_review_agents(self, agent):
-        assert agent in review_roster.NON_REVIEW_AGENTS, (
-            "membership here is what both excludes it from select_lenses' roster "
-            "and exempts it from the per-file Scope: requirement"
-        )
+    def test_declares_scope_on_demand(self, agent):
+        text = (AGENTS_DIR / f"{agent}.md").read_text(encoding="utf-8")
+        assert select_lenses.parse_scope(text) == select_lenses.SCOPE_ON_DEMAND
+
+    @pytest.mark.parametrize("agent", ["token-efficiency-review", "ai-provenance-review"])
+    def test_is_not_a_non_review_agent(self, agent):
+        """It has a real per-file Scope: declaration (`on-demand`), so it
+        must not also be exempted via NON_REVIEW_AGENTS — that set is for
+        agents with no Scope: concept at all (#1733 closing-pass finding)."""
+        assert agent not in review_roster.NON_REVIEW_AGENTS
 
     @pytest.mark.parametrize(
         "files",

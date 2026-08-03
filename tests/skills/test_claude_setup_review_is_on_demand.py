@@ -10,6 +10,13 @@ Moving it out is the same principle the rest of #1623 is about — stop paying
 for dispatches that review nothing — so these tests pin both halves of the
 move: it must stay out of the dispatchable roster, and it must stay reachable
 on demand.
+
+The exclusion mechanism itself changed later (#1733's closing-pass follow-up):
+this agent declares `Scope: on-demand` directly in its own body, which
+`select_lenses.parse_scope`/`applicable_lenses` read and exclude on their own
+— it is no longer a member of `review_roster.NON_REVIEW_AGENTS` (that set is
+reserved for agents with no per-file review scope at all; this one has one,
+it just declares "never per-diff").
 """
 
 from __future__ import annotations
@@ -28,8 +35,10 @@ SKILL = PLUGIN_ROOT / "skills" / "claude-setup-review" / "SKILL.md"
 SELECT_LENSES = PLUGIN_ROOT / "scripts" / "select_lenses.py"
 
 sys.path.insert(0, str(PLUGIN_ROOT / "scripts" / "lib"))
+sys.path.insert(0, str(PLUGIN_ROOT / "scripts"))
 
 import review_roster
+import select_lenses
 
 
 def _lenses_for(*files):
@@ -45,11 +54,16 @@ def _lenses_for(*files):
 
 
 class TestItIsNotACodeReviewLens:
-    def test_it_is_declared_a_non_review_agent(self):
-        assert "claude-setup-review" in review_roster.NON_REVIEW_AGENTS, (
-            "membership here is what both excludes it from select_lenses' roster "
-            "and exempts it from the per-file Scope: requirement"
-        )
+    def test_it_declares_scope_on_demand(self):
+        scope = select_lenses.parse_scope(AGENT.read_text(encoding="utf-8"))
+        assert scope == select_lenses.SCOPE_ON_DEMAND
+
+    def test_it_is_not_a_non_review_agent(self):
+        """It has a real per-file Scope: declaration (`on-demand`), so it
+        must not also be exempted via NON_REVIEW_AGENTS — that set is for
+        agents with no Scope: concept at all, and double-exempting would
+        make the exclusion mechanism ambiguous (#1733 closing-pass finding)."""
+        assert "claude-setup-review" not in review_roster.NON_REVIEW_AGENTS
 
     @pytest.mark.parametrize(
         "files",

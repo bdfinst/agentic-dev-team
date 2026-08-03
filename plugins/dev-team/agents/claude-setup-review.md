@@ -10,19 +10,22 @@ color: green
 
 # Claude Setup Review
 
-Scope: on-demand — dispatched by the user-invocable `/claude-setup-review`
-command and by the whole-tree `/repo-review` command (#1735), never by
-`/code-review`'s automatic panel. This agent reviews the **harness**
-(CLAUDE.md, rules, skills, agent frontmatter), not the changeset, so it has
-nothing to say about a diff: under the old `Scope: always` it joined an
-18-lens panel for a two-file JS change in a project with no Claude config at
-all. It is listed in `scripts/lib/review_roster.py`'s `NON_REVIEW_AGENTS`,
-which both excludes it from `select_lenses.py`'s dispatchable roster and
-exempts it from the per-file `Scope:` requirement.
+Scope: on-demand
 Cites:
 - adversarial-review-protocol
 - directory-enumeration
 Enforcement: script
+
+Dispatched by the user-invocable `/claude-setup-review` command and by the
+whole-tree `/repo-review` command (#1735), never by `/code-review`'s
+automatic panel. This agent reviews the **harness** (CLAUDE.md, rules,
+skills, agent frontmatter), not the changeset, so it has nothing to say
+about a diff: under the old `Scope: always` it joined an 18-lens panel for a
+two-file JS change in a project with no Claude config at all.
+`select_lenses.py`'s resolver reads this `Scope: on-demand` declaration
+directly and never selects it for the per-diff roster — the agent body is
+the single source of truth for this exclusion, same as any other `Scope:`
+kind.
 
 > **Implemented by:** `${CLAUDE_PLUGIN_ROOT}/scripts/claude_setup_review.py`
 > — a deterministic validator, so prefer running it over re-deriving its checks

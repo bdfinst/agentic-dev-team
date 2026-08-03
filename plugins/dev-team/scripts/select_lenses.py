@@ -12,9 +12,14 @@ Roster source: the **Review Agents** table in ``knowledge/agent-registry.md``
 the manifest-governed framework-reactivity agents — see ``MANIFEST_GOVERNED``.
 
 Design: ``parse_scope`` and ``applicable_lenses`` are pure (unit-testable with
-a synthetic roster); ``build_review_roster`` is the only I/O and fails open
-(a read error never raises — the affected lens is include-biased with a
-warning).
+a synthetic roster). ``build_review_roster`` and ``_read_lines_from`` are the
+I/O boundaries; both fail open (a read error never raises) and both report
+the failure in ``warnings`` rather than silently narrowing the result —
+``unreadable-registry:<file>`` / ``unreadable-files-from:<path>`` /
+``unreadable-added-from:<path>``. An affected *agent* additionally stays
+include-biased (``build_review_roster``'s unreadable-agent-file case); an
+affected *file list* does not fabricate paths, so its warning is the only
+signal that the returned list is short.
 
 Stdlib-only. See docs/python-hook-contract.md.
 """
@@ -44,7 +49,7 @@ MANIFEST_GOVERNED = {
     "angular-reactivity-review",
 }
 
-_SCOPE_RE = re.compile(r"^\s*Scope\s*:\s*(.*)$")
+_SCOPE_RE = review_roster.SCOPE_LINE_RE
 _MODEL_RE = re.compile(r"^\s*model\s*:\s*(.*)$")
 _BULLET_RE = re.compile(r"^\s*-\s*(\S+)")
 _EXT_TOKEN_RE = re.compile(r"`?(\.\w[\w.]*)`?")
@@ -63,6 +68,16 @@ SCOPE_ALWAYS = "always"
 # and encoded as `(SCOPE_ADDED_ONLY, globs)` so callers can tell it apart from
 # a plain glob-list scope.
 SCOPE_ADDED_ONLY = "added-only"
+# The sentinel an agent uses to declare it is a genuine review agent whose
+# findings are properties of the whole repository, not any single diff, and
+# so must never be dispatched by the per-diff resolver — only by name (e.g.
+# `/claude-setup-review`) or by the whole-tree `/repo-review` skill (#1735).
+# A bare declaration, no bullet block: unlike `added-only`, there is no glob
+# data to carry, so the resolver just excludes the lens outright. Replaces a
+# prior, competing mechanism (listing the agent in `NON_REVIEW_AGENTS`) that
+# also incorrectly exempted it from the `Scope:` declaration requirement it
+# actually satisfies — see `scripts/lib/review_roster.py`'s docstring.
+SCOPE_ON_DEMAND = "on-demand"
 # Heading substring that marks the Review Agents section of agent-registry.md.
 # Named so a heading rename over there is greppable from here (the coupling).
 _REVIEW_AGENTS_HEADING_MARKER = "review agent"
@@ -81,17 +96,19 @@ def _consume_bullet_block(lines, start_index):
 
 
 def parse_scope(text: str):
-    """Return ``"always"`` | ``list[str]`` | ``(SCOPE_ADDED_ONLY, list[str])`` |
-    ``None`` from agent markdown.
+    """Return ``"always"`` | ``"on-demand"`` | ``list[str]`` |
+    ``(SCOPE_ADDED_ONLY, list[str])`` | ``None`` from agent markdown.
 
     The **first** ``Scope:`` line is authoritative. An empty inline value
     followed by a ``- **/*.ext`` bullet block yields that structured,
     fnmatch-ready list (preferred over the free-text second ``Scope:`` line some
-    agents also carry). ``Scope: always`` -> ``"always"``. ``Scope: added-only``
-    followed by the same bullet-block shape -> ``(SCOPE_ADDED_ONLY, globs)`` (no
-    bullet block -> ``None``, same fail-open rule as a missing declaration).
-    Other inline prose -> ``.ext`` tokens extracted as a fallback (``None`` if it
-    names no extension). No ``Scope:`` line -> ``None``.
+    agents also carry). ``Scope: always`` -> ``"always"``. ``Scope: on-demand``
+    -> ``SCOPE_ON_DEMAND`` (a bare declaration — no bullet block, unlike
+    ``added-only``). ``Scope: added-only`` followed by the same bullet-block
+    shape -> ``(SCOPE_ADDED_ONLY, globs)`` (no bullet block -> ``None``, same
+    fail-open rule as a missing declaration). Other inline prose -> ``.ext``
+    tokens extracted as a fallback (``None`` if it names no extension). No
+    ``Scope:`` line -> ``None``.
     """
     lines = text.splitlines()
     for i, line in enumerate(lines):
@@ -101,6 +118,8 @@ def parse_scope(text: str):
         value = m.group(1).strip()
         if value.lower() == SCOPE_ALWAYS:
             return SCOPE_ALWAYS
+        if value.lower() == SCOPE_ON_DEMAND:
+            return SCOPE_ON_DEMAND
         if value.lower() == SCOPE_ADDED_ONLY:
             globs = _consume_bullet_block(lines, i)
             return (SCOPE_ADDED_ONLY, globs) if globs else None
@@ -167,7 +186,8 @@ def applicable_lenses(changed_files, roster, added_files=None):
     An empty ``changed_files`` yields ``([], [])`` — nothing to review, so no
     lens (not even ``Scope: always``) is selected. ``scope is None`` ->
     include-biased + warn; ``"always"`` -> include; glob list -> include iff any
-    changed file matches.
+    changed file matches; ``SCOPE_ON_DEMAND`` -> never include, no warning
+    (a deliberate, self-declared exclusion, not a defect to surface).
 
     ``added_files`` (#1733) narrows a ``(SCOPE_ADDED_ONLY, globs)`` scope to
     only the changed files that are also newly *added* — but **only when the
@@ -193,6 +213,8 @@ def applicable_lenses(changed_files, roster, added_files=None):
             selected.append((name, is_opus))
         elif scope == SCOPE_ALWAYS:
             selected.append((name, is_opus))
+        elif scope == SCOPE_ON_DEMAND:
+            continue  # never dispatched by the per-diff resolver, by design
         elif _is_added_only_scope(scope):
             if not _added_only_eligible(scope[1], changed_files, added_files):
                 continue
@@ -246,17 +268,63 @@ def build_review_roster(agents_dir: Path, registry_path: Path):
     return roster, warnings
 
 
+def _read_lines_from(path_or_dash: str):
+    """Read newline-separated, non-blank lines from a file or stdin (``-``).
+
+    Returns ``(lines, error)``. Never raises — a missing or unreadable file
+    contributes no lines, matching `changed_file_list.py`'s identical helper
+    — but unlike that helper, the failure is reported back via ``error``
+    (``None`` on success, including a genuinely empty readable source) so
+    the caller can tell "nothing was there" apart from "couldn't read it"
+    and warn on the latter. Silently treating the two the same would make an
+    unreadable ``--files-from`` indistinguishable from a legitimate
+    "nothing changed" result.
+    """
+    try:
+        if path_or_dash == "-":
+            text = sys.stdin.read()
+        else:
+            with open(path_or_dash, encoding="utf-8") as handle:
+                text = handle.read()
+    except (OSError, ValueError) as exc:
+        return [], type(exc).__name__
+    return [line for line in text.splitlines() if line.strip()], None
+
+
 def main(argv=None) -> int:
     parser = argparse.ArgumentParser(description="Resolve applicable review lenses.")
     parser.add_argument("--files", nargs="*", default=[], help="Changed file paths")
+    parser.add_argument(
+        "--files-from", default=None,
+        help=(
+            "Read newline-separated changed-file paths from this file "
+            "('-' for stdin), combined with --files. Prefer this for a "
+            "machine-generated or caller-uncontrolled list: it avoids "
+            "argparse's own argv-parsing hazards (a path starting with '-' "
+            "reinterpreted as a flag, word-splitting on an unquoted space) "
+            "— it does NOT by itself protect against a caller that "
+            "builds the file this reads from by shell-interpolating "
+            "untrusted path text; that boundary is the caller's to hold "
+            "(mirrors changed_file_list.py's --name-status-from)."
+        ),
+    )
     parser.add_argument(
         "--added", nargs="*", default=None,
         help=(
             "Paths that are newly added (git change-type A) in this "
             "changeset, e.g. from changed_file_list.py's 'added' list. "
             "Narrows any 'Scope: added-only' lens to only these paths; "
-            "omit when the caller has no change-type data (fail-safe: "
-            "added-only scopes then match like a plain glob list)."
+            "omit both this and --added-from when the caller has no "
+            "change-type data (fail-safe: added-only scopes then match "
+            "like a plain glob list)."
+        ),
+    )
+    parser.add_argument(
+        "--added-from", default=None,
+        help=(
+            "Read newline-separated added-file paths from this file "
+            "('-' for stdin), combined with --added. Same caveat as "
+            "--files-from."
         ),
     )
     parser.add_argument("--agents-dir", type=Path, default=_HERE.parent / "agents")
@@ -266,10 +334,35 @@ def main(argv=None) -> int:
         default=_HERE.parent / "knowledge" / "agent-registry.md",
     )
     args = parser.parse_args(argv)
+    if args.files_from == "-" and args.added_from == "-":
+        parser.error(
+            "--files-from and --added-from cannot both read stdin ('-') — "
+            "the second read gets nothing, silently. Use a file path or "
+            "process substitution for at least one."
+        )
     roster, roster_warnings = build_review_roster(args.agents_dir, args.registry)
-    added_files = set(args.added) if args.added is not None else None
-    lenses, warnings = applicable_lenses(args.files, roster, added_files=added_files)
-    print(json.dumps({"lenses": lenses, "warnings": roster_warnings + warnings}))
+
+    resolver_warnings: list[str] = []
+
+    files = list(args.files)
+    if args.files_from:
+        extra, error = _read_lines_from(args.files_from)
+        files.extend(extra)
+        if error:
+            resolver_warnings.append(f"unreadable-files-from:{args.files_from}")
+
+    added_files = None
+    if args.added is not None or args.added_from:
+        added_files = set(args.added or [])
+        if args.added_from:
+            extra, error = _read_lines_from(args.added_from)
+            added_files.update(extra)
+            if error:
+                resolver_warnings.append(f"unreadable-added-from:{args.added_from}")
+
+    lenses, warnings = applicable_lenses(files, roster, added_files=added_files)
+    all_warnings = roster_warnings + resolver_warnings + warnings
+    print(json.dumps({"lenses": lenses, "warnings": all_warnings}))
     return 0
 
 

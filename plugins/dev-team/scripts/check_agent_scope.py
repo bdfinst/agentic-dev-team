@@ -20,7 +20,6 @@ repo root (inferred from this script's location).
 from __future__ import annotations
 
 import argparse
-import re
 import sys
 from pathlib import Path
 
@@ -32,8 +31,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent / "lib"))
 # not one of the well-known non-review agents.  The exclusion set is shared
 # with select_lenses.py (#1516) — see scripts/lib/review_roster.py.
 from review_roster import NON_REVIEW_AGENTS
-
-SCOPE_RE = re.compile(r"^\s*Scope\s*:\s*(.*)$")
+from review_roster import SCOPE_LINE_RE as SCOPE_RE
 
 
 def has_frontmatter(text: str) -> bool:
@@ -95,8 +93,10 @@ def main() -> int:
         for name in missing:
             print(f"  - {name}")
         print(
-            "\nAdd 'Scope: always' for language-agnostic agents, or a list of glob patterns "
-            "for file-type-scoped agents.  See plugins/dev-team/docs/developer-notes.md."
+            "\nAdd one of: 'Scope: always' (language-agnostic, every diff), a bullet list "
+            "of glob patterns (file-type-scoped), 'Scope: added-only' + globs (only newly-"
+            "added matching files), or 'Scope: on-demand' (never per-diff — dispatched by "
+            "name or by /repo-review).  See plugins/dev-team/docs/developer-notes.md."
         )
         return 1
 

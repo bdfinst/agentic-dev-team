@@ -14,7 +14,7 @@ full files and tree.
 This module is that data, computed once from `git diff --name-status` output
 so `/code-review` never invents it twice: `SKILL.md` step 4 feeds it into the
 `project-structure` context payload, and step 3 feeds its `added` list into
-`select_lenses.py`'s `--added` flag for `component-architecture-review`'s
+`select_lenses.py`'s `--added-from` flag for `component-architecture-review`'s
 added-only `Scope:` gate (#1733) — one changed-file computation, two
 consumers, not two ways to derive the same fact.
 
@@ -36,6 +36,20 @@ already reviewed elsewhere (a copy, and only reachable at all when a caller
 passes `-C`/`--find-copies`, which none of this module's callers do today).
 This is a deliberate, narrow choice, not an oversight — widen it (e.g.
 `status in ("A", "C")`) only with a test pinning the new behavior.
+
+**Known limitation: a path git C-quotes is stored quoted, not unquoted.**
+Git always quotes a control character (including an embedded newline) or a
+literal backslash/double-quote in a path — regardless of `core.quotePath` —
+by wrapping it in `"..."` with C-style escapes (verified empirically: a file
+literally named with an embedded newline round-trips through `git diff
+--name-status` as the single line `"a\nb.txt"`, quotes included). This
+module does not strip that quoting, so such a path reaches `select_lenses.py`
+still wrapped in `"..."`, and its `_matches()` suffix check (`.endswith(...)`)
+then fails against every glob — the file is invisible to every non-`always`
+lens. Narrow in practice (control characters in filenames are rare) and not
+a regression this module introduces (the pre-existing `--name-only` listing
+step 1 uses has the identical exposure); fixing it needs a C-quote-aware
+unquote step here, not attempted in this pass.
 
 Pure policy except for the one I/O boundary in `main()` (reading
 `--name-status-from <file>`, guarded against a missing/unreadable path).
@@ -99,17 +113,21 @@ def main(argv=None) -> int:
 
     lines = list(args.name_status)
     if args.name_status_from:
-        if args.name_status_from == "-":
-            text = sys.stdin.read()
-        else:
-            try:
+        try:
+            if args.name_status_from == "-":
+                text = sys.stdin.read()
+            else:
                 with open(args.name_status_from) as handle:
                     text = handle.read()
-            except OSError:
-                # Missing/unreadable path: contribute no lines rather than
-                # crash the whole invocation — consistent with every other
-                # unparseable-input case in this module.
-                text = ""
+        except (OSError, ValueError):
+            # Missing/unreadable path, closed stdin, or undecodable bytes:
+            # contribute no lines rather than crash the whole invocation —
+            # consistent with every other unparseable-input case in this
+            # module. `ValueError` also covers `UnicodeDecodeError` (a
+            # subclass), reachable here because SKILL.md's caller mandates
+            # `-c core.quotePath=false`, which makes git emit raw path bytes
+            # instead of escaped octal for a non-ASCII path.
+            text = ""
         lines.extend(line for line in text.splitlines() if line.strip())
 
     print(json.dumps(evaluate(lines), sort_keys=True))
