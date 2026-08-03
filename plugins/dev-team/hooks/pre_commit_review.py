@@ -366,11 +366,15 @@ _MIN_DISTINCT_DISPATCHES = 2
 _NO_DISPATCH_MESSAGE = (
     f"BLOCKED: No genuine review-agent dispatch found in the last "
     f"{WINDOW_SECONDS}s — run /code-review before committing.\n"
+    "\n"
+    "To bypass: use git commit --no-verify\n"
 )
 
 _STALE_MESSAGE = (
     f"BLOCKED: Review-agent dispatch evidence found but outside the "
     f"{WINDOW_SECONDS}s window — run /code-review again before committing.\n"
+    "\n"
+    "To bypass: use git commit --no-verify\n"
 )
 
 # Distinct from _STALE_MESSAGE (#1461 second security re-review, correctness
@@ -384,12 +388,16 @@ _DIFFERENT_CONTENT_MESSAGE = (
     "BLOCKED: Review-agent dispatch evidence found, but for different "
     "staged content (the diff changed since that review) — run "
     "/code-review again before committing.\n"
+    "\n"
+    "To bypass: use git commit --no-verify\n"
 )
 
 _READ_FAILURE_MESSAGE = (
     "BLOCKED: Could not read the dispatch ledger "
     "(.claude/metrics/boundary-events.jsonl) — check hook registration; "
     "this is an infra problem, not evidence that no review happened.\n"
+    "\n"
+    "To bypass: use git commit --no-verify\n"
 )
 
 # Distinct from _READ_FAILURE_MESSAGE (#1461 security re-review, A09
@@ -407,6 +415,8 @@ _GATE_SETUP_FAILURE_MESSAGE = (
     "files or the .claude/memory/.review-passed path) — check that "
     ".claude/memory is a writable directory and the git index is healthy; "
     "this is an infra problem, not evidence that no review happened.\n"
+    "\n"
+    "To bypass: use git commit --no-verify\n"
 )
 
 
@@ -414,6 +424,8 @@ def _insufficient_message(n: int) -> str:
     return (
         f"BLOCKED: Only {n} distinct review agent(s) dispatched (need >= "
         f"{_MIN_DISTINCT_DISPATCHES}) — run /code-review before committing.\n"
+        "\n"
+        "To bypass: use git commit --no-verify\n"
     )
 
 
