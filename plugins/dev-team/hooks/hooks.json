@@ -9,6 +9,10 @@
           },
           {
             "type": "command",
+            "command": "sh \"${CLAUDE_PLUGIN_ROOT}/hooks/py.sh\" \"${CLAUDE_PLUGIN_ROOT}/hooks/repo_review_nudge.py\""
+          },
+          {
+            "type": "command",
             "command": "sh \"${CLAUDE_PLUGIN_ROOT}/hooks/py.sh\" \"${CLAUDE_PLUGIN_ROOT}/hooks/codegraph_bootstrap.py\""
           }
         ]

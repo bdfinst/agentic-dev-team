@@ -25,6 +25,10 @@
           },
           {
             "type": "command",
+            "command": "sh hooks/py.sh hooks/repo_review_nudge.py"
+          },
+          {
+            "type": "command",
             "command": "sh hooks/py.sh hooks/codegraph_bootstrap.py"
           }
         ]
