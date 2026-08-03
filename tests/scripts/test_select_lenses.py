@@ -43,6 +43,19 @@ def test_parse_scope_prose_fallback_when_no_block():
     assert SL.parse_scope(text) == ["**/*.js", "**/*.ts"]
 
 
+def test_parse_scope_added_only_bullet_block():
+    text = "Scope: added-only\n- **/*.tsx\n- **/*.vue\nCites: foo\n"
+    assert SL.parse_scope(text) == (SL.SCOPE_ADDED_ONLY, ["**/*.tsx", "**/*.vue"])
+
+
+def test_parse_scope_added_only_without_bullet_block_is_none():
+    assert SL.parse_scope("Scope: added-only\nCites: foo\n") is None
+
+
+def test_parse_scope_on_demand():
+    assert SL.parse_scope("Scope: on-demand\nCites: foo\n") == SL.SCOPE_ON_DEMAND
+
+
 def test_parse_scope_missing_is_none():
     assert SL.parse_scope("---\nname: x\n---\nNo scope here.\n") is None
 
@@ -138,16 +151,71 @@ def test_extensionless_file_excludes_globbed_lens():
     assert SL.applicable_lenses(["Makefile"], roster) == ([], [])
 
 
+def test_added_only_scope_with_no_added_files_arg_matches_like_plain_glob():
+    # Fail-safe: a caller (e.g. /build) that never passes added_files gets the
+    # pre-#1733 behavior — any matching changed file, modified or added.
+    roster = [("component-architecture-review", (SL.SCOPE_ADDED_ONLY, ["**/*.tsx"]), False)]
+    lenses, warnings = SL.applicable_lenses(["src/App.tsx"], roster)
+    assert lenses == ["component-architecture-review"]
+    # The fallback is silent widening, not silent dropping — it must be named
+    # in warnings the same way a missing Scope: already is (domain-review).
+    assert warnings == ["unnarrowed-added-only:component-architecture-review"]
+
+
+def test_added_only_scope_narrowed_by_caller_emits_no_warning():
+    roster = [("component-architecture-review", (SL.SCOPE_ADDED_ONLY, ["**/*.tsx"]), False)]
+    lenses, warnings = SL.applicable_lenses(
+        ["src/App.tsx"], roster, added_files={"src/App.tsx"}
+    )
+    assert lenses == ["component-architecture-review"]
+    assert warnings == []
+
+
+def test_added_only_scope_excludes_merely_modified_file():
+    roster = [("component-architecture-review", (SL.SCOPE_ADDED_ONLY, ["**/*.tsx"]), False)]
+    lenses, _ = SL.applicable_lenses(["src/App.tsx"], roster, added_files=set())
+    assert lenses == []
+
+
+def test_added_only_scope_includes_added_file():
+    roster = [("component-architecture-review", (SL.SCOPE_ADDED_ONLY, ["**/*.tsx"]), False)]
+    lenses, _ = SL.applicable_lenses(
+        ["src/App.tsx", "src/Existing.tsx"], roster, added_files={"src/App.tsx"}
+    )
+    assert lenses == ["component-architecture-review"]
+
+
+def test_added_only_scope_non_matching_added_file_excluded():
+    roster = [("component-architecture-review", (SL.SCOPE_ADDED_ONLY, ["**/*.tsx"]), False)]
+    lenses, _ = SL.applicable_lenses(["src/App.vue"], roster, added_files={"src/App.vue"})
+    assert lenses == []
+
+
+def test_on_demand_scope_never_selected_and_never_warned():
+    # Deliberate self-exclusion (claude-setup-review, token-efficiency-review,
+    # ai-provenance-review) — unlike a missing Scope:, this is not a defect,
+    # so it gets no entry in warnings either.
+    roster = [
+        ("correctness-review", "always", True),
+        ("claude-setup-review", SL.SCOPE_ON_DEMAND, False),
+    ]
+    lenses, warnings = SL.applicable_lenses(["foo.py"], roster)
+    assert lenses == ["correctness-review"]
+    assert warnings == []
+
+
 # --------------------------------------------------------------------------
 # integration — real agent files + registry via the CLI
 # --------------------------------------------------------------------------
-def _run(*files, agents_dir=None, registry=None):
+def _run(*files, agents_dir=None, registry=None, added=None):
     env = {"PATH": os.environ.get("PATH", "/usr/bin:/bin"), "LANG": "C.UTF-8"}
     args = [sys.executable, str(_SCRIPT), "--files", *files]
     if agents_dir is not None:
         args += ["--agents-dir", str(agents_dir)]
     if registry is not None:
         args += ["--registry", str(registry)]
+    if added is not None:
+        args += ["--added", *added]
     r = subprocess.run(args, capture_output=True, text=True, check=False, env=env)
     return r
 
@@ -200,6 +268,9 @@ def test_cli_non_review_agents_never_appear():
         "data-flow-tracer",
         "mutation-kill",
         "session-analysis",
+        "claude-setup-review",
+        "token-efficiency-review",
+        "ai-provenance-review",
     ):
         assert nonlens not in both
 
@@ -233,13 +304,143 @@ def test_cli_fails_open_on_unreadable_registry(tmp_path):
     assert any(w.startswith("unreadable-registry:") for w in out["warnings"])
 
 
+def test_cli_added_flag_narrows_component_architecture_review_to_added_files():
+    # Modified-only .tsx: excluded from /code-review's per-diff panel now
+    # that component-architecture-review's Scope is added-only (#1733).
+    # added=[] states "an --added flag was supplied, with zero added files"
+    # explicitly, rather than relying on argparse's option-boundary behavior
+    # to infer it from a bare trailing "--added" (test-review/test-smell-review).
+    r = _run("src/App.tsx", added=[])
+    assert r.returncode == 0
+    assert "component-architecture-review" not in json.loads(r.stdout)["lenses"]
+
+
+def test_cli_added_flag_includes_matching_added_file():
+    r = _run("src/App.tsx", added=["src/App.tsx"])
+    assert r.returncode == 0
+    assert "component-architecture-review" in json.loads(r.stdout)["lenses"]
+
+
+def test_cli_without_added_flag_matches_plain_glob_fail_safe():
+    # No --added at all (e.g. /build's caller): unchanged pre-#1733 behavior.
+    r = _run("src/App.tsx")
+    assert r.returncode == 0
+    assert "component-architecture-review" in json.loads(r.stdout)["lenses"]
+
+
 def test_cli_empty_files_yields_no_lenses():
+    r = _run()
+    assert json.loads(r.stdout)["lenses"] == []
+
+
+def test_cli_files_from_stdin():
     r = subprocess.run(
-        [sys.executable, str(_SCRIPT), "--files"],
+        [sys.executable, str(_SCRIPT), "--files-from", "-"],
+        input="src/App.tsx\n",
         capture_output=True, text=True, check=False,
         env={"PATH": os.environ.get("PATH", "/usr/bin:/bin"), "LANG": "C.UTF-8"},
     )
-    assert json.loads(r.stdout)["lenses"] == []
+    assert r.returncode == 0
+    assert "component-architecture-review" in json.loads(r.stdout)["lenses"]
+
+
+def test_cli_files_from_combines_with_files():
+    r = subprocess.run(
+        [sys.executable, str(_SCRIPT), "--files", "src/App.tsx", "--files-from", "-"],
+        input="src/handler.ts\n",
+        capture_output=True, text=True, check=False,
+        env={"PATH": os.environ.get("PATH", "/usr/bin:/bin"), "LANG": "C.UTF-8"},
+    )
+    assert r.returncode == 0
+    lenses = json.loads(r.stdout)["lenses"]
+    assert "component-architecture-review" in lenses  # from --files
+    assert "js-fp-review" in lenses  # from --files-from
+
+
+def test_cli_files_from_missing_file_fails_open_but_warns():
+    # Fails open (still returns the always-on lens, exit 0) but the failure
+    # is NOT silent — an unreadable --files-from must not read the same as
+    # "nothing changed" (security-review: a silently-empty review gate).
+    r = subprocess.run(
+        [sys.executable, str(_SCRIPT), "--files", "app.py", "--files-from", "/nonexistent/path.txt"],
+        capture_output=True, text=True, check=False,
+        env={"PATH": os.environ.get("PATH", "/usr/bin:/bin"), "LANG": "C.UTF-8"},
+    )
+    assert r.returncode == 0
+    out = json.loads(r.stdout)
+    assert "correctness-review" in out["lenses"]
+    assert any(w.startswith("unreadable-files-from:") for w in out["warnings"])
+
+
+def test_cli_files_from_readable_empty_file_emits_no_warning():
+    # A genuinely empty (but readable) --files-from source is not an error —
+    # only an unreadable one is.
+    r = subprocess.run(
+        [sys.executable, str(_SCRIPT), "--files-from", "-"],
+        input="",
+        capture_output=True, text=True, check=False,
+        env={"PATH": os.environ.get("PATH", "/usr/bin:/bin"), "LANG": "C.UTF-8"},
+    )
+    assert r.returncode == 0
+    out = json.loads(r.stdout)
+    assert not any(w.startswith("unreadable-files-from:") for w in out["warnings"])
+
+
+def test_cli_added_from_stdin_narrows_added_only_scope():
+    r = subprocess.run(
+        [sys.executable, str(_SCRIPT), "--files", "src/App.tsx", "--added-from", "-"],
+        input="src/App.tsx\n",
+        capture_output=True, text=True, check=False,
+        env={"PATH": os.environ.get("PATH", "/usr/bin:/bin"), "LANG": "C.UTF-8"},
+    )
+    assert r.returncode == 0
+    assert "component-architecture-review" in json.loads(r.stdout)["lenses"]
+
+
+def test_cli_added_from_stdin_empty_excludes_added_only_scope():
+    r = subprocess.run(
+        [sys.executable, str(_SCRIPT), "--files", "src/App.tsx", "--added-from", "-"],
+        input="",
+        capture_output=True, text=True, check=False,
+        env={"PATH": os.environ.get("PATH", "/usr/bin:/bin"), "LANG": "C.UTF-8"},
+    )
+    assert r.returncode == 0
+    assert "component-architecture-review" not in json.loads(r.stdout)["lenses"]
+
+
+def test_cli_added_from_missing_file_warns():
+    r = subprocess.run(
+        [sys.executable, str(_SCRIPT), "--files", "src/App.tsx", "--added-from", "/nonexistent/added.txt"],
+        capture_output=True, text=True, check=False,
+        env={"PATH": os.environ.get("PATH", "/usr/bin:/bin"), "LANG": "C.UTF-8"},
+    )
+    assert r.returncode == 0
+    out = json.loads(r.stdout)
+    assert any(w.startswith("unreadable-added-from:") for w in out["warnings"])
+
+
+def test_cli_added_and_added_from_combine():
+    r = subprocess.run(
+        [
+            sys.executable, str(_SCRIPT), "--files", "src/App.tsx", "src/Other.vue",
+            "--added", "src/App.tsx", "--added-from", "-",
+        ],
+        input="src/Other.vue\n",
+        capture_output=True, text=True, check=False,
+        env={"PATH": os.environ.get("PATH", "/usr/bin:/bin"), "LANG": "C.UTF-8"},
+    )
+    assert r.returncode == 0
+    assert "component-architecture-review" in json.loads(r.stdout)["lenses"]
+
+
+def test_cli_rejects_both_flags_reading_stdin():
+    r = subprocess.run(
+        [sys.executable, str(_SCRIPT), "--files-from", "-", "--added-from", "-"],
+        capture_output=True, text=True, check=False,
+        env={"PATH": os.environ.get("PATH", "/usr/bin:/bin"), "LANG": "C.UTF-8"},
+    )
+    assert r.returncode != 0
+    assert "cannot both read stdin" in r.stderr
 
 
 # ---------------------------------------------------------------------------
@@ -250,21 +451,35 @@ def test_cli_empty_files_yields_no_lenses():
 # the resolver. A new Scope: always review lens must update ALWAYS_LENSES
 # deliberately (that break is the intended "review the baseline" signal).
 # ---------------------------------------------------------------------------
-# `claude-setup-review` was here until it moved to NON_REVIEW_AGENTS: it reviews
-# the harness (CLAUDE.md, rules, skills, agent frontmatter), not the changeset,
-# so `Scope: always` had it joining an 18-lens panel for a two-file JS change in
-# a project with no Claude config at all. It is now dispatched on demand by the
-# user-invocable `/claude-setup-review` command.
+# `claude-setup-review` was here until it declared `Scope: on-demand`: it
+# reviews the harness (CLAUDE.md, rules, skills, agent frontmatter), not the
+# changeset, so `Scope: always` had it joining an 18-lens panel for a
+# two-file JS change in a project with no Claude config at all. It is now
+# dispatched on demand by the user-invocable `/claude-setup-review` command.
+# `ai-provenance-review` and `token-efficiency-review` moved the same way
+# (#1733): both are repo-wide drift/trend metrics, not per-diff correctness
+# gates, so they now run only in the whole-tree `/repo-review` skill (#1735).
+# All three declare `Scope: on-demand` directly (SL.SCOPE_ON_DEMAND) rather
+# than being listed in `review_roster.NON_REVIEW_AGENTS`.
 ALWAYS_LENSES = {
-    "ai-provenance-review", "arch-review", "complexity-review",
+    "arch-review", "complexity-review",
     "concurrency-review", "correctness-review", "doc-review", "domain-review",
     "naming-review", "performance-review", "refactor-opportunity-review",
     "security-review", "spec-compliance-review", "structure-review", "test-review",
-    "test-smell-review", "token-efficiency-review",
+    "test-smell-review",
 }
 FILE_TYPE_LENSES = {
     "a11y-review", "js-fp-review", "component-architecture-review",
 }
+# `component-architecture-review`'s Scope is now `(SCOPE_ADDED_ONLY, globs)`,
+# not a plain glob list (#1733) — it still belongs in FILE_TYPE_LENSES
+# conceptually (file-type-gated, not `Scope: always`), so this helper picks
+# both scope shapes apart from `test_file_type_lens_set_is_pinned_to_the_known_three`'s
+# `isinstance(scope, list)` check rather than folding it into that check.
+def _is_file_type_scope(scope) -> bool:
+    return isinstance(scope, list) or (
+        isinstance(scope, tuple) and scope and scope[0] == SL.SCOPE_ADDED_ONLY
+    )
 REACTIVITY_LENSES = {
     "react-reactivity-review", "vue-reactivity-review", "angular-reactivity-review",
 }
@@ -314,7 +529,7 @@ def test_file_type_lens_set_is_pinned_to_the_known_three():
     roster, _ = SL.build_review_roster(
         SL._HERE.parent / "agents", SL._HERE.parent / "knowledge" / "agent-registry.md"
     )
-    file_type = {name for name, scope, _ in roster if isinstance(scope, list)}
+    file_type = {name for name, scope, _ in roster if _is_file_type_scope(scope)}
     assert file_type == FILE_TYPE_LENSES
     always = {name for name, scope, _ in roster if scope == "always"}
     assert always == ALWAYS_LENSES

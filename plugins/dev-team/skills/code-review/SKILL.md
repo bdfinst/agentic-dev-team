@@ -56,7 +56,7 @@ Arguments: $ARGUMENTS
 | Flag | Behavior |
 | --- | --- |
 | `--agent <name>` | Run only the named agent (delegates to `/review-agent`) |
-| `--since <ref>` | Review files changed since the ref (`git diff --name-only <ref>...HEAD`) |
+| `--since <ref>` | Review files changed since the ref — see step 1 for the exact command (the `-c diff.relative=false -c core.quotePath=false` overrides there are load-bearing, not cosmetic) |
 | `--path <dir>` | Review only files in this directory |
 | `--all` | Force full-repository review even when uncommitted changes exist |
 | `--slice <N>` | Engage sliced large-repo review explicitly, capping each slice at N files (module-aligned) at any repo size. `N` must be a positive integer. See [`sliced-mode.md`](sliced-mode.md). |
@@ -96,9 +96,9 @@ Arguments: $ARGUMENTS
 Priority order:
 
 1. `--path <dir>` — files in that directory (exclude node_modules, .git, dist, build, coverage)
-2. `--since <ref>` — `git diff --name-only <ref>...HEAD`
+2. `--since <ref>` — `git -c diff.relative=false -c core.quotePath=false diff --name-only <ref>...HEAD`
 3. `--all` — all source files
-4. **Auto-scope** (no flags): run `git -c diff.relative=false diff --name-only` + `git -c diff.relative=false diff --cached --name-only`, combine and dedupe. If non-empty, review those files. If empty, review the full repository. The explicit `-c diff.relative=false` matters here (#1461 fourth security re-review): a repo/global `diff.relative=true` config would otherwise silently scope this listing to the invocation's cwd, and `review_gate_hash()`/`_staged_names()` (which pin the same override) would then hash/gate a broader staged patch than what was actually reviewed.
+4. **Auto-scope** (no flags): run `git -c diff.relative=false -c core.quotePath=false diff --name-only` + `git -c diff.relative=false -c core.quotePath=false diff --cached --name-only`, combine and dedupe. If non-empty, review those files. If empty, review the full repository. The explicit `-c diff.relative=false` matters here (#1461 fourth security re-review): a repo/global `diff.relative=true` config would otherwise silently scope this listing to the invocation's cwd, and `review_gate_hash()`/`_staged_names()` (which pin the same override) would then hash/gate a broader staged patch than what was actually reviewed. `-c core.quotePath=false` (#1733) keeps this listing byte-identical to step 3's `changed_file_list.py` input for the same ref/scope — without it, a non-ASCII path would arrive C-quoted here but raw there, and `select_lenses.py`'s `--added` membership test (an exact string comparison) would silently fail to match it.
 
 **Stage auto-scoped changes now, before anything else (#1461).** When the auto-scope path found a non-empty file set, `git add` those files immediately — before pre-flight gates, static analysis, or any agent dispatch — so the staged content's hash is fixed from this point through step 9's gate write. This is not cosmetic: `agent_dispatch_ledger.py` stamps each review-agent dispatch's `subject_hash` with `review_gate_hash()` at **dispatch time** (step 4). If staging happened only at step 9 (after dispatch) as previously documented, the dispatch-time hash and the gate-write-time hash would differ whenever the auto-scope target was unstaged — the common case — and every genuine dispatch would silently fail to corroborate the gate, forcing a hard block on a fully legitimate review. Staging here, before dispatch, is what makes step 9's hash and the dispatch ledger's `subject_hash` the same value. An unstaged working-tree edit after this point does **not** by itself change the staged hash (`review_gate_hash()` hashes `git diff --cached`, not the working tree) — step 6a's fix loop explicitly re-stages (`git add`) each iteration's fixes for exactly this reason; see that step for how corroboration is re-established after a fix loop runs.
 
@@ -227,21 +227,53 @@ If `--background`: run only `doc-review`, `arch-review`, `naming-review`, `struc
 
 Otherwise read the roster from the **Review Agents** section of `knowledge/agent-registry.md` — each row names an agent and its `agents/<name>.md` file. **Never `Read` the bare `agents/` directory** (it throws `EISDIR`); if you must confirm files on disk, list them with `Glob("agents/*.md")`, never a directory `Read` (see `${CLAUDE_PLUGIN_ROOT}/knowledge/directory-enumeration.md`). All are enabled by default.
 
-**Agent eligibility is resolved by `select_lenses.py` (#1523).** Run:
+**Agent eligibility is resolved by `select_lenses.py` (#1523).** For a diff-scoped run (auto-scope or `--since <ref>`) compute the changed-file list first — the same helper step 4 reuses for the `project-structure` context payload, so this is one computation feeding two consumers, not two ways to derive the same fact (#1733, #1734). **Always** carry the same `-c diff.relative=false -c core.quotePath=false` overrides step 1's own listing uses — omitting them here would let a repo/global `diff.relative=true` (or a non-ASCII path under default `core.quotePath`) desync this list from step 1's `--files`, silently zeroing every `--added` membership match below:
 
 ```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/select_lenses.py" --files <target files>
+set -o pipefail  # a pipeline's status is its LAST command's without this —
+                  # changed_file_list.py succeeds trivially on empty stdin, so
+                  # an upstream git failure would otherwise pass silently.
+
+# Auto-scope (uncommitted changes):
+CHANGED_JSON=$({ git -c diff.relative=false -c core.quotePath=false diff --name-status; \
+  git -c diff.relative=false -c core.quotePath=false diff --cached --name-status; } \
+  | python3 "$CLAUDE_PLUGIN_ROOT/skills/code-review/scripts/changed_file_list.py" --name-status-from -) \
+  || { echo "ERROR: failed to compute the changed-file list" >&2; exit 1; }
+
+# --since <ref>:
+CHANGED_JSON=$(git -c diff.relative=false -c core.quotePath=false diff --name-status <ref>...HEAD \
+  | python3 "$CLAUDE_PLUGIN_ROOT/skills/code-review/scripts/changed_file_list.py" --name-status-from -) \
+  || { echo "ERROR: failed to compute the changed-file list" >&2; exit 1; }
 ```
 
-Take its `lenses` array as the Scope-eligible roster, and **surface its `warnings`** in the review output (an agent missing its `Scope:` declaration is included include-biased and named — never silently dropped). The resolver reads each review agent's body-level `Scope:` declaration — `Scope: always` (eligible for any non-empty changeset) or a glob list (eligible only when at least one target file matches a declared glob). `Scope:` is a body declaration, not frontmatter (`agent-contract.json`). This is the single source of truth shared with `/build`'s inline checkpoints: adding or changing an agent's trigger scope needs only an edit to that agent's own body — zero edits to this skill. (The framework-reactivity agents react/vue/angular are **not** in the resolver's roster; they are governed by the manifest rule below. `ai-provenance-review` **is** resolver-governed via its own `Scope: always` declaration.)
+`$CHANGED_JSON` holds `{"files": [{"path", "status"}, ...], "added": [...]}`. Extract both lists into their own variables **first, with an explicit failure check** — a process substitution's own exit status is invisible to the command it feeds, so if the extraction silently produced nothing this step is where that must be caught, not left for `select_lenses.py` to (indistinguishably) treat as "nothing changed":
+
+```bash
+FILES_LIST=$(printf '%s' "$CHANGED_JSON" | python3 -c 'import json, sys; print("\n".join(f["path"] for f in json.load(sys.stdin)["files"]))') \
+  || { echo "ERROR: failed to extract file list from CHANGED_JSON" >&2; exit 1; }
+ADDED_LIST=$(printf '%s' "$CHANGED_JSON" | python3 -c 'import json, sys; print("\n".join(json.load(sys.stdin)["added"]))') \
+  || { echo "ERROR: failed to extract added-file list from CHANGED_JSON" >&2; exit 1; }
+```
+
+Now run, feeding those two variables — not a separately-interpolated `<target files>` placeholder — to `select_lenses.py` via `--files-from`/`--added-from` process substitution:
+
+```bash
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/select_lenses.py" \
+  --files-from <(printf '%s\n' "$FILES_LIST") \
+  --added-from <(printf '%s\n' "$ADDED_LIST")
+```
+
+Deriving both from the same quoted `$CHANGED_JSON` variable — rather than re-interpolating individual paths as shell words — is what actually closes the injection surface; `--files-from`/`--added-from` on their own only fix the two hazards specific to `select_lenses.py`'s **own** argv parsing (a path beginning with `-` reinterpreted as a flag; word-splitting on an unquoted space) and do not by themselves protect a caller that builds their input by shell-interpolating untrusted path text some other way. For `--path`/`--all`/the full-repository fallback, where there is no diff and therefore no `$CHANGED_JSON`, this skill still passes the target-file list as plain `--files <target files>` argv, matching every other file-list-consuming script call in this skill (`change_shape.py`, `change_size.py`, `closing_pass.py`) — narrowing that broader, pre-existing pattern is a separate initiative, not part of this fix.
+
+Always pass `--added-from` for a diff-scoped run, **even when `added` is `[]`** — an empty process substitution still supplies an explicit empty set (narrows away any added-only lens), whereas omitting the flag entirely reverts to the fail-safe fallback (matches an added-only `Scope:` like a plain glob list). Omit both `--files-from` and `--added-from` only for `--path`/`--all`/the full-repository fallback.
+
+Take its `lenses` array as the Scope-eligible roster, and **surface its `warnings`** in the review output — a bare agent name means that agent is missing its `Scope:` declaration and was included include-biased; `unnarrowed-added-only:<name>` (#1733) means an added-only lens was kept un-narrowed (matched like a plain glob list) because this run supplied no `--added`/`--added-from`; `unreadable-registry:<file>` means the roster could not be read at all; `unreadable-files-from:<path>`/`unreadable-added-from:<path>` mean the named `--files-from`/`--added-from` source could not be read — **treat either as equivalent to a `fail` status** for this run (an unreadable source is not "nothing changed") rather than proceeding as if the (now-truncated) file list were complete. Never silently drop any of these shapes from the report. The resolver reads each review agent's body-level `Scope:` declaration — `Scope: always` (eligible for any non-empty changeset), a glob list (eligible only when at least one target file matches a declared glob), `Scope: added-only` + globs (eligible only when a target file matching a declared glob was newly *added* — `component-architecture-review`'s dual-placement rule, #1733: unconditional in `/repo-review`, added-only here), or `Scope: on-demand` (never eligible for this per-diff roster at all — `token-efficiency-review`, `ai-provenance-review`, and `claude-setup-review` declare this; they are repo-wide drift/trend metrics dispatched instead by the whole-tree `/repo-review` command, #1735). `Scope:` is a body declaration, not frontmatter (`agent-contract.json`). This is the single source of truth shared with `/build`'s inline checkpoints: adding or changing an agent's trigger scope needs only an edit to that agent's own body — zero edits to this skill. (The framework-reactivity agents react/vue/angular are **not** in the resolver's roster; they are governed by the manifest rule below.)
 
 **Framework-specific reactivity review** — dispatch based on the project's dependency manifest (`package.json` etc.):
 
 - React (`react` / `react-dom` in deps): include `react-reactivity-review` scoped to `.jsx`/`.tsx` and React-importing `.js`/`.ts` files
 - Vue (`vue` in deps): include `vue-reactivity-review` scoped to `.vue` and Vue-importing `.js`/`.ts` files
 - Angular (`@angular/core` in deps): include `angular-reactivity-review` scoped to `*.component.ts`, `*.component.html`, `*.service.ts`, and general `.ts` files
-
-**AI-provenance review**: `ai-provenance-review` is resolver-governed via its own `Scope: always` declaration — the resolver includes it on every non-empty changeset. It audits AI-authored assertions and non-obvious decisions for verification debt and regeneration risk.
 
 If `review-config.json` exists at the repo root, honor its per-agent `"enabled": false` flags.
 
@@ -366,7 +398,7 @@ Spawn agents as parallel subagents in a single message using the Agent tool.
 - **Context payload** (controlled by the agent's `Context needs`):
   - `diff-only` → diff output only (for auto-scope or `--since` only)
   - `full-file` → complete files
-  - `project-structure` → full files + directory tree
+  - `project-structure` → full files + directory tree + the changed-file list (path + change type — `A`/`M`/`D`/`R`/`C`) computed in step 3 via `changed_file_list.py`, for diff-scoped runs (auto-scope or `--since`). Omit the changed-file list for `--path`/`--all`/full-repository scope — there is no diff to describe. Every `project-structure` agent (`arch-review`, `doc-review`, `domain-review`) has no Bash grant and must never invoke `git` itself to "see what changed" — that call is denied and surfaces as a spurious error (#1734); this payload is what makes that unnecessary.
   - When reviewing full repository (clean auto-scope, `--all`, or `--path`), always pass full files.
 - **Model**: pass each agent's declared `model:`/`effort:` frontmatter. The harness resolves both fields natively before dispatch, per `agents/orchestrator.md` → Model/Effort Resolution (ADR 0026).
 - **Static analysis context**: if step 2b produced findings, inject into every agent's prompt using the format in `skills/static-analysis-integration/SKILL.md`: "These issues were detected by static analysis. Do not re-report them. Focus on semantic concerns."

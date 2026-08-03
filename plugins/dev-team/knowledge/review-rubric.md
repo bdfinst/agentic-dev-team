@@ -39,9 +39,9 @@ integrity failures escalate faster than style or naming issues.
 | Correctness | test-review, concurrency-review | Normal scoring |
 | Quality | structure-review, complexity-review, js-fp-review, naming-review | Normal scoring |
 | Accessibility | a11y-review | Normal scoring |
-| Ops | doc-review, token-efficiency-review, performance-review | Normal scoring |
+| Ops | doc-review, performance-review | Normal scoring |
 
-`claude-setup-review` is deliberately absent: it is dispatched by the `/claude-setup-review` command, not by `/code-review`'s panel, so it never contributes to a code-review verdict.
+This table is not exhaustive — an agent absent from every row above (e.g. `correctness-review`, `spec-compliance-review`, `component-architecture-review`) still scores under the general pass/warn/fail rule, it just carries no category escalation. `claude-setup-review`, `token-efficiency-review`, and `ai-provenance-review` are the specific case worth calling out: none are dispatched by `/code-review`'s panel at all (#1733) — `claude-setup-review` runs on demand via the `/claude-setup-review` command, and all three run unconditionally in the whole-tree `/repo-review` skill (#1735) — so none ever contributes to a code-review verdict, in any row or under the general rule.
 
 ## Issue Severity Mapping
 

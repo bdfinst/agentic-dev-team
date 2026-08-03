@@ -10,7 +10,7 @@ color: green
 
 # Component Architecture Review
 
-Scope:
+Scope: added-only
 - **/*.jsx
 - **/*.tsx
 - **/*.vue
@@ -21,9 +21,14 @@ Cites:
 - frontend-component-architecture
 - adversarial-review-protocol
 
-Scope: frontend component files (`.jsx`, `.tsx`, `.vue`, `.svelte`, Angular
-`*.component.ts` + their templates, and `.js`/`.ts` modules that render UI).
-Skip this agent entirely if the target has no frontend component files.
+Scope: newly-added frontend component files matching the globs above
+(`.jsx`, `.tsx`, `.vue`, `.svelte`, Angular `*.component.ts` + their
+templates) in `/code-review`'s per-diff panel — merely *modifying* an
+existing component file does not trigger this agent there (#1733):
+whole-inventory duplication assessment is best judged against the entire
+component set, which is exactly what `/repo-review` (#1735) runs this agent
+against, unconditionally, every pass. Skip this agent entirely if the target
+has no frontend component files.
 
 Output JSON: per `${CLAUDE_PLUGIN_ROOT}/knowledge/review-agent-output-contract.md` (Whole-file load: short, canonical schema).
 

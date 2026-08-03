@@ -10,11 +10,21 @@ color: green
 
 # AI Provenance & Regeneration Safety Review
 
-Scope: always
+Scope: on-demand
 Cites: [adversarial-review-protocol]
 
+Dispatched by the whole-tree `/repo-review` command, never by
+`/code-review`'s per-diff panel (#1733). "Verification debt" and
+"regeneration risk" are trend/accumulation metrics by definition — best
+judged by sweeping the whole codebase for AI-authored artifacts, not by
+re-deriving the same judgment call independently on every diff.
+`select_lenses.py`'s resolver reads this `Scope: on-demand` declaration
+directly and never selects it for the per-diff roster — the agent body is
+the single source of truth for this exclusion, same as any other `Scope:`
+kind.
+
 Context needs: full-file
-File scope: All changed files
+File scope: whole repository (see `/repo-review`) — never the per-diff changed-file list
 
 ## What This Agent Checks
 

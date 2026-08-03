@@ -28,6 +28,13 @@ Confidence: high=mechanical update (update version, remove reference to deleted 
 
 Context needs: project-structure
 
+**No Bash grant — never invoke git yourself (#1734).** This agent's `tools:`
+line has no Bash. The orchestrator's `project-structure` dispatch already
+includes full files, the directory tree, and (for a diff-scoped review) a
+changed-file list with each file's change type. Do not attempt `git diff`/
+`git status` to "see what changed" — that call is denied and surfaces as a
+spurious tool-error finding instead of a real one.
+
 ## Contract precedence
 
 Before asserting that a frontmatter or tool-grant pattern (e.g. an MCP

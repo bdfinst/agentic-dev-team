@@ -20,10 +20,15 @@ Role: orchestrator. This command scopes the changeset to frontend component
 files and dispatches the `component-architecture-review` agent, then aggregates
 one report. It does not review files itself — it coordinates.
 
-`/code-review` dispatches the same agent automatically whenever frontend
-component files are in its target set, so ordinary reviews already carry this
-lens. Use this command for a standalone, frontend-only pass (e.g. before
-extracting a component library) or to scope beyond a diff.
+`/code-review` dispatches the same agent automatically, but only when a
+frontend component file is newly *added* (`Scope: added-only`, #1733) —
+merely modifying an existing one does not trigger it there. This command
+scopes the agent to the frontend files you name (`--path`/`--since`/`--all`),
+regardless of whether any are newly added — use it for a diff that only
+modifies existing components, a standalone frontend-only pass (e.g. before
+extracting a component library), or to scope beyond a diff. `/repo-review`
+(#1735) covers the third, unconditional case: the whole component inventory,
+every pass, with no scoping flags at all.
 
 This command is executed under orchestrator direction. Dispatch the agent with
 its `model:`/`effort:` frontmatter as declared — the harness resolves both

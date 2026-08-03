@@ -5151,6 +5151,48 @@
       "anchor": "notes"
     }
   },
+  "plugins/dev-team/skills/repo-review/SKILL.md": {
+    "Orchestrator constraints": {
+      "summary": "1.",
+      "anchor": "orchestrator-constraints"
+    },
+    "Parse Arguments": {
+      "summary": "Arguments: $ARGUMENTS",
+      "anchor": "parse-arguments"
+    },
+    "Steps": {
+      "summary": "`--path <dir>`: `Glob(\"<dir>/**/*\")`, excluding `node_modules`, `.git`, `dist`, `build`, `coverage`.",
+      "anchor": "steps"
+    },
+    "1. Determine target files": {
+      "summary": "`--path <dir>`: `Glob(\"<dir>/**/*\")`, excluding `node_modules`, `.git`, `dist`, `build`, `coverage`.",
+      "anchor": "1-determine-target-files"
+    },
+    "2. Load drift state": {
+      "summary": "Read `.claude/memory/repo-review-state.json` if it exists: `{\"last_commit\": \"<sha>\", \"last_run_at\": \"<ISO 8601>\"}`.",
+      "anchor": "2-load-drift-state"
+    },
+    "3. Confirm agent-dispatch capability": {
+      "summary": "Before dispatching anything, confirm the `Agent`/`Task` tool is present in this toolset.",
+      "anchor": "3-confirm-agent-dispatch-capability"
+    },
+    "4. Dispatch the fixed roster": {
+      "summary": "Spawn all four as parallel subagents in a single message using the `Agent` tool.",
+      "anchor": "4-dispatch-the-fixed-roster"
+    },
+    "5. Aggregate and score": {
+      "summary": "Consolidate findings the same way `/code-review` step 5c does: when multiple agents flag the same `file:line`, one `topFindings` entry with `severity` = the highest single enum, `agents` = the reporting agents array.",
+      "anchor": "5-aggregate-and-score"
+    },
+    "6. Generate report": {
+      "summary": "**`--json`**: emit the aggregated JSON object (same shape as `/code-review`'s `--json` output — see [`../code-review/output-format.md`](../code-review/output-format.md#aggregated-json-result-json-flag), plus a top-level `commitsSinceLastAudit` field from step 2) to **stdout**.",
+      "anchor": "6-generate-report"
+    },
+    "7. Write the report and update drift state": {
+      "summary": "**Skip this step entirely if `--json`** (already stopped in step 6).",
+      "anchor": "7-write-the-report-and-update-drift-state"
+    }
+  },
   "plugins/dev-team/skills/report-pdf/SKILL.md": {
     "Arguments": {
       "summary": "`<path.md>` (required) — path to the Markdown report to render (for example",

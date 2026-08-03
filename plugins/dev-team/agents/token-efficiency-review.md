@@ -12,9 +12,19 @@ color: green
 
 # Token Efficiency Review
 
-Scope: always
+Scope: on-demand
 Cites: [adversarial-review-protocol]
 Enforcement: script
+
+Dispatched by the whole-tree `/repo-review` command, never by
+`/code-review`'s per-diff panel (#1733). Its findings (file length, CLAUDE.md
+size, LLM anti-patterns) are properties of absolute size and accumulated
+drift, not of any single diff's delta — a diff-scoped review of a 20-line PR
+can't even see a file that crept past a size threshold over 10 separate small
+PRs. `select_lenses.py`'s resolver reads this `Scope: on-demand` declaration
+directly and never selects it for the per-diff roster — the agent body is
+the single source of truth for this exclusion, same as any other `Scope:`
+kind.
 
 Output JSON: per `${CLAUDE_PLUGIN_ROOT}/knowledge/review-agent-output-contract.md` (Whole-file load: short, canonical schema).
 
