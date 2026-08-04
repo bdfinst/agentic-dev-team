@@ -264,6 +264,34 @@ def _format_stale_warning(stale_exclusions: list) -> str:
     )
 
 
+def format_active_exclusions(config: dict) -> str | None:
+    """Render `config`'s currently-active `excluded` entries as one line per
+    entry: `"Excluded: '<path>' (reason: '<reason>')"`, joined with
+    newlines. Returns `None` when `excluded` is empty.
+
+    This is informational, always-shown context — printed on EVERY run
+    regardless of staleness — distinct from `drift_check`'s
+    `stale_warning_message`, which flags a DIFFERENT problem: an excluded
+    path no longer being discovered at all. An exclusion can be active
+    (still discovered, reason unchanged) and still worth surfacing so an
+    operator sees what is currently excluded and why, on every run — not
+    only when something about it goes stale.
+
+    Same bare-string/missing-`"reason"` tolerance as `_format_stale_warning`."""
+    excluded_entries = config.get("excluded", [])
+    if not excluded_entries:
+        return None
+    normalized = [
+        {"path": entry, "reason": ""} if isinstance(entry, str) else entry
+        for entry in excluded_entries
+    ]
+    return "\n".join(
+        f"Excluded: '{entry['path']}' (reason: "
+        f"'{entry.get('reason', '<no reason recorded>')}')"
+        for entry in normalized
+    )
+
+
 def weighted_merge(project_reports: list) -> dict:
     """Merge per-project coverage reports, weighted by statement/branch
     count — never a per-project average.

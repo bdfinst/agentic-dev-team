@@ -15,6 +15,7 @@ from coverage_config import (
     atomic_write_json,
     discovery_error,
     drift_check,
+    format_active_exclusions,
     load_or_bootstrap,
     measurement_basis_notice,
     needs_accounting,
@@ -482,6 +483,43 @@ def test_measurement_basis_notice_none_for_same_instant_different_iso_suffix():
     )
 
     assert notice is None
+
+
+# ---------------------------------------------------------------------------
+# format_active_exclusions — always-shown, informational exclusion listing
+# (issue #1759, Slice 5 fix — distinct from drift_check's stale_warning)
+# ---------------------------------------------------------------------------
+
+
+def test_format_active_exclusions_empty_excluded_returns_none():
+    assert format_active_exclusions({"included": ["A"], "excluded": []}) is None
+
+
+def test_format_active_exclusions_one_entry_exact_template():
+    config = {
+        "included": ["A"],
+        "excluded": [{"path": "tests/ProjectStubs/ProjectStubs.csproj", "reason": "all pending stubs"}],
+    }
+
+    assert format_active_exclusions(config) == (
+        "Excluded: 'tests/ProjectStubs/ProjectStubs.csproj' (reason: "
+        "'all pending stubs')"
+    )
+
+
+def test_format_active_exclusions_multiple_entries_newline_joined():
+    config = {
+        "included": ["A"],
+        "excluded": [
+            {"path": "B", "reason": "flaky"},
+            {"path": "C", "reason": "all pending stubs"},
+        ],
+    }
+
+    assert format_active_exclusions(config) == (
+        "Excluded: 'B' (reason: 'flaky')\n"
+        "Excluded: 'C' (reason: 'all pending stubs')"
+    )
 
 
 # ---------------------------------------------------------------------------

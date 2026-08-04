@@ -3155,8 +3155,12 @@
       "anchor": "1-load-the-baseline"
     },
     "2. Re-run coverage": {
-      "summary": "Use the same `tool` and command that `/coverage-baseline` recorded — DO NOT switch tools mid-workflow or the delta is meaningless.",
+      "summary": "Use the same coverage **tool** `/coverage-baseline` recorded — DO NOT switch tools mid-workflow, or the delta is meaningless.",
       "anchor": "2-re-run-coverage"
+    },
+    "2a. Multi-project re-derivation (.NET solutions & JS/TS workspaces)": {
+      "summary": "When a `.sln` file exists at the repo root (.NET), or a workspace signal is present (JS/TS) — the same triggers `coverage-baseline`'s Step 1a uses — re-run the appropriate discovery script **fresh, every call**, never reusing a…",
+      "anchor": "2a-multi-project-re-derivation-net-solutions-jsts-workspaces"
     },
     "2b. Measure scoped mutation (only when both `--story` AND `--story-files` are present)": {
       "summary": "**Worker boundary.** This worker measures and reports; it does NOT halt the workflow on net-new survivors.",

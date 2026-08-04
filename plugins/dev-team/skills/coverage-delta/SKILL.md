@@ -37,9 +37,31 @@ Read `.dev-team-reports/<workflow>/<slug>/data/baseline-coverage.json`. If missi
 
 ### 2. Re-run coverage
 
-Use the same `tool` and command that `/coverage-baseline` recorded — DO NOT switch tools mid-workflow or the delta is meaningless. Capture exit code + stdout + stderr.
+Use the same coverage **tool** `/coverage-baseline` recorded — DO NOT switch tools mid-workflow, or the delta is meaningless. This governs the tool only, never the project/package list: for a multi-project repo (Step 2a below), the set of included projects/packages is re-derived from fresh discovery on every call, never reused from a prior run — a frozen, never-revisited list is exactly what caused issue #1759's ~30x underreported delta.
+
+For a multi-project repo, load the persisted `coverage-config.json` first (Step 2a) and print `coverage_config.measurement_basis_notice(config.get("bootstrapped_at"), baseline["captured_at"])`'s result verbatim when non-`None` — a non-blocking notice that the comparison baseline predates multi-project discovery, so a reported delta may reflect a widened measurement scope rather than a real coverage change.
+
+Capture exit code + stdout + stderr.
 
 If the run fails, surface the first error and stop. Do not post a delta from a broken run.
+
+### 2a. Multi-project re-derivation (.NET solutions & JS/TS workspaces)
+
+When a `.sln` file exists at the repo root (.NET), or a workspace signal is present (JS/TS) — the same triggers `coverage-baseline`'s Step 1a uses — re-run the appropriate discovery script **fresh, every call**, never reusing a project/package list recorded by a prior run:
+
+- **.NET**: `coverage_discovery_dotnet.discover_dotnet_projects(repo_root)`
+- **JS/TS**: `coverage_discovery_js.discover_js_packages(repo_root)`
+
+Implementation mechanics (the bootstrap/drift-check contract, weighted-merge, and the exact message templates): [`../coverage-baseline/references/multi-project-discovery.md`](../coverage-baseline/references/multi-project-discovery.md) — this section pins the contract surface only, mirroring how `coverage-baseline`'s own Step 1a links the same file rather than re-deriving the mechanics a second time.
+
+Read the persisted `.dev-team-reports/<workflow>/<slug>/data/coverage-config.json` (written by the prior `/coverage-baseline` run) and call `coverage_config.drift_check(config, discovered)` against it:
+
+- `drift["hard_failure"]` is `True` (an unaccounted-for or conflicting project/package) — print `drift["hard_failure_message"]` **verbatim, as its own distinct, named block** headed `Coverage capture stopped:` — the same hard-failure rule and message `coverage-baseline` applies, never folded into or reusing this skill's own generic run-failure wording above. Stop; post no delta.
+- `drift["hard_failure"]` is `False` — run the coverage command per included project/package (never once for the whole repo) and merge the results with `coverage_config.weighted_merge(project_reports)`, same as `coverage-baseline` Step 1a.
+
+`drift["stale_warning_message"]` is carried forward regardless of `hard_failure` — see Step 5 (Report) for where it surfaces.
+
+Single-project and mixed-stack repos (`coverage-baseline`'s Step 1b unaffected cases) never reach this step — Step 2's single-command path runs unchanged, and no `coverage-config.json` is ever read here for them.
 
 ### 2b. Measure scoped mutation (only when both `--story` AND `--story-files` are present)
 
@@ -132,6 +154,8 @@ Print:
 - Line + branch percentages and deltas.
 - The destination (parent issue URL or `FEATURE.md`).
 - The path to `coverage-history.json` for `/continue`.
+- **Multi-project repos only**: when Step 2a's `drift["stale_warning_message"]` is non-`None` (an `excluded` entry that no longer matches any freshly-discovered project/package), print it **verbatim, as a named, non-blocking warning line** — it never blocks the run and never overrides the reported delta.
+- **Multi-project repos only, every run**: print `coverage_config.format_active_exclusions(config)`'s result **verbatim** whenever it is non-`None` — one line per currently-excluded project/package naming its path and reason. This is informational context shown on every run (not a warning, not blocking), distinct from the stale-warning line above: it surfaces what is currently excluded and why, regardless of whether that exclusion has gone stale.
 
 If the delta is **negative** (a Story made coverage worse), surface that as a warning so the operator can decide whether to keep the Story.
 
