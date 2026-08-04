@@ -622,3 +622,38 @@ entry is a durable, once-written decision note.
 - **Gate:** `hooks/lib/iteration_journal_gate.py::check_iteration_journal()` (`check` CLI subcommand) hard-blocks advancement to the next issue/iteration — exit 1 — unless >=1 entry exists for the current `round_id`; a block also emits a `boundary-events.jsonl` event (`hook: iteration_journal_gate`, `decision: block`, `matched_rule: iteration-journal-missing`). This is a skill-level check-before-advance (mirroring `verify-log.jsonl`'s `progress_guardian.py --pre-pr` pattern), not a `settings.json` PreToolUse/PostToolUse registration — `/autoship`'s and `/ship`'s loop advancement is model-authored control flow inside a skill, not a tool call the harness intercepts at a distinct boundary. Complements, does not replace, the advisory plan-step-keyed `progress-guardian` agent.
 - **Consent:** unconditional (a deliberate per-iteration accountability record, not passive usage telemetry).
 - **Consumers:** `skills/autoship/SKILL.md`, `skills/ship/SKILL.md`, joinable with `skills/run-report/SKILL.md` (#1167) via `round_id`/`session_id`.
+
+---
+
+## `xunit-v3-shim-decisions.json`
+
+**Added by #1791.** Not JSONL — a single current-value JSON object keyed by test
+project name, holding the operator's chosen remediation when xunit.v3
+constructs block the Stryker v2 shim. This is the enforcement record, not
+telemetry: `stryker_xunit_shim_guard.py` blocks every `dotnet-stryker` run
+against a blocked project until an entry covering the current blocker set
+exists, which is what makes the always-ask gate a guarantee rather than hook
+stdout an agent may paraphrase or skip.
+
+Each value:
+
+| Field | Type | Values / source |
+| --- | --- | --- |
+| `project` | string | Test project name (the real test `.csproj` stem) |
+| `choice` | string | `port` \| `exclude` \| `skip` \| `degrade` — the four documented remediations; any other value is rejected at write time |
+| `fingerprint` | string, nullable | 16-hex digest over the blocker set's `file::construct` pairs (line numbers deliberately excluded). Scopes the decision to the blockers the operator actually saw; a mismatch re-asks |
+| `files` | array of string | Flagged files the choice covers, project-relative |
+| `note` | string, nullable | Operator rationale, when given |
+| `recorded_at` | string | ISO-8601 UTC `%Y-%m-%dT%H:%M:%SZ` |
+
+- **Emitter:** `hooks/lib/xunit_v3_operator_gate.py::record_decision()`, invoked
+  via its `record` CLI subcommand after the operator answers the gate.
+- **Gate:** `hooks/lib/xunit_v3_operator_gate.py::decision_for()`, read by
+  `hooks/stryker_xunit_shim_guard.py` (PreToolUse on `Bash`). No covering entry
+  → exit 2 with the operator question as the block body.
+- **Consent:** unconditional (an explicit operator decision record, not passive
+  usage telemetry).
+- **Consumers:** `hooks/stryker_xunit_shim_guard.py`,
+  `skills/mutation-testing/scripts/mutation_feasibility_gate.py` (same question
+  payload), `skills/stryker-xunit-v2-shim/SKILL.md` Step 1a. Path override:
+  `DEV_TEAM_XUNIT3_SHIM_DECISION_FILE`.

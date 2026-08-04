@@ -1521,6 +1521,10 @@
     "`iteration-journal.jsonl`": {
       "summary": "**Added by #1168.** Hard per-iteration decision journal for the autonomous",
       "anchor": "iteration-journaljsonl"
+    },
+    "`xunit-v3-shim-decisions.json`": {
+      "summary": "**Added by #1791.** Not JSONL — a single current-value JSON object keyed by test",
+      "anchor": "xunit-v3-shim-decisionsjson"
     }
   },
   "plugins/dev-team/knowledge/test-automation-maturity.md": {
