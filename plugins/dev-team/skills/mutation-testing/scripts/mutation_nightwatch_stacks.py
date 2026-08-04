@@ -203,6 +203,14 @@ class StackResult:
     summary: mutation_report.ScoreSummary | None = None
     survivors: list[dict] = field(default_factory=list)
     duration_seconds: float = 0.0
+    # The native report path on disk, when the tool produces one at a fixed
+    # convention path (Stryker-shaped JSON: javascript, csharp). ``None``
+    # for mutmut (python) — junitxml is captured in-memory, not written to
+    # a fixed path — and for any non-"measured" status. Consumed by
+    # mutation_exclude_policy.py's per-file drafting (#1757), which needs
+    # the native report to compute a per-file score, not just the
+    # already-flattened `survivors` list.
+    report_path: Path | None = None
 
 
 def _flat_survivors(report_path: Path, stack: str) -> list[dict]:
@@ -279,6 +287,7 @@ def measure_javascript(
         summary=mutation_report.score_report(report_path),
         survivors=_flat_survivors(report_path, "javascript"),
         duration_seconds=duration,
+        report_path=report_path,
     )
 
 
@@ -380,6 +389,7 @@ def measure_csharp(
         summary=mutation_report.score_report(report_path),
         survivors=_flat_survivors(report_path, "csharp"),
         duration_seconds=duration,
+        report_path=report_path,
     )
 
 

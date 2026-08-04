@@ -113,6 +113,20 @@ all this run (tool missing, timed out, or crashed before writing its native
 report) — its prior night's `SURVIVORS.json` entries (if any) are stale, not
 confirmed-fixed; re-run that stack before trusting a "clean" reading.
 
+**Exclude-policy proposal, if present.** When the summary's Notes mention no
+committed `mutation-exclude-policy.json` was found, review
+`reports/mutation-nightwatch/LATEST/EXCLUDE-POLICY-PROPOSAL.json` — its
+`always` entries carry a filename-convention hint (DI wiring, middleware,
+generated code), its `propose_and_ask` entries are signal-only and need a
+human look. Approve what you agree with:
+
+```bash
+python3 "${CLAUDE_PLUGIN_ROOT}/skills/mutation-testing/scripts/mutation_exclude_policy.py" --approve reports/mutation-nightwatch/LATEST/EXCLUDE-POLICY-PROPOSAL.json --repo-root .
+```
+
+This is the only code path that writes the committed policy file — the
+night-watch run itself only ever drafts a proposal, never approves one.
+
 ## When not to apply
 
 - No mutation tool is set up yet for any stack → run
