@@ -49,10 +49,6 @@ def write(path: Path, content) -> None:
 # ---------------------------------------------------------------------------
 
 
-def test_step_1b_exists():
-    assert _step_1b_section().strip() != ""
-
-
 def test_step_1b_states_single_project_repos_unaffected():
     step_1b = collapsed(_step_1b_section())
     assert "no .sln" in step_1b or "no `.sln`" in step_1b
