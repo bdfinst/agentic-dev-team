@@ -686,14 +686,51 @@ assignment alone is not a substitute for worktree isolation here.
 3. **Coverage delta** — after `/build` closes the Story, invoke
    `/coverage-delta --workflow test-improve --story <id>`. The delta is
    appended to `.dev-team-reports/test-improve/<slug>/data/coverage-history.json`.
-4. **Mutation-kill (`kill-loop` and `baseline+kill-loop`; skipped when `off`).**
+4. **Coverage-delta steering check (issue #1790).** After the delta is
+   appended — **every Story, not only at the end of the phase** — run the
+   trailing-streak check. Do not eyeball the history:
+
+   ```
+   python3 "${CLAUDE_PLUGIN_ROOT}/scripts/coverage_delta_steering.py" \
+     --history .dev-team-reports/test-improve/<slug>/data/coverage-history.json \
+     --json
+   ```
+
+   - **Exit 0** (`ok`, or `insufficient_history` while fewer Stories have
+     closed than the streak threshold) — continue to the mutation-kill step.
+   - **Exit 3** (`flat_streak`) — three or more consecutive Stories (the
+     default; `--consecutive` and `--min-line-delta` tune it) moved line
+     coverage by less than the minimum expected per-Story delta.
+     **Surface it now, mid-phase** — a run once spent its entire Phase-5
+     budget on an already-covered layer because this signal was only read at
+     the end; **never defer it to the Phase-9 report.** Print the script's
+     flat-Story list and running average, name the top `seam: absent` modules
+     from `coverage-gap-ranking.json`, and prompt **`[t] re-check Phase-1
+     targeting / [c] continue`** (shape `[t/c]` — `t` is unused elsewhere in
+     this flow, and `c` keeps the "accept and move on" meaning it already has
+     in mutation-kill's `[c/r/w/q]`):
+     - **`[t]`** — re-read `coverage-gap-ranking.json` and re-order the
+       remaining Story set into its rank order (Phase 4's rule, applied to
+       what is left) before the next Story's `/build`. A remaining Story whose
+       target module reads `seam: absent` under `refactor-mode: no-refactor` is
+       re-classified **REFACTOR_REQUIRED for Phase 6 rather than retried** —
+       retrying it under no-refactor is what produced the flat streak.
+     - **`[c]`** — continue, recording `coverage_flat_streak: <n> stories` in
+       `.claude/memory/test-improve/<slug>/phase-5.md` so Phase 8 and the
+       report read it from a durable record instead of re-deriving it.
+     - **Non-interactive runs** record the streak and continue — the same
+       **record-and-continue posture, never a silent pass**.
+   - **Exit 2** — the history file is missing or unreadable. Resolve it (the
+     Story's `/coverage-delta` did not append) rather than treating the
+     unknown as `ok`.
+5. **Mutation-kill (`kill-loop` and `baseline+kill-loop`; skipped when `off`).**
    Invoke the **`mutation-kill` agent**
    with `--file <story-file> --max-rounds 3`. Residual survivors trigger the
    **`[c]ontinue / [r]etry / [w]aive / [q]uit`** prompt — the shape is
    `[c/r/w/q]`. `[c]` accepts the residual and moves on; `[r]` re-runs one
    more mutation-kill round; `[w]` waives the residual to `waivers.json`;
    `[q]` quits Phase 5.
-5. **Go mutation-kill is advisory.** On Go stacks, `mutation-kill` logs
+6. **Go mutation-kill is advisory.** On Go stacks, `mutation-kill` logs
    survivors but makes **no commit** — the operator is instructed to apply
    changes manually. Advisory-only handling matches the Phase-0 Go advisory.
 
@@ -945,7 +982,9 @@ process/audit state still under `.claude/memory/test-improve/<slug>/`
 is outside this interpolation set — and always has been; it is consumed by
 `/coverage-delta` and `/quality-targets-converge`, not by the
 executive-summary report, so its absence from this list is not the bug this
-plan fixes. No placeholder is left literal.
+plan fixes. `coverage-gap-ranking.json` (issue #1786) is outside it for the
+same reason: it is a targeting input read by Phases 1, 4, and 5, not a number
+the report interpolates. No placeholder is left literal.
 
 **Empty-section rule.** Sections with no data render `_Not applicable —
 <reason>._` (e.g. § 6 when Phase 7 was declined reads "*Phase 7 not run —

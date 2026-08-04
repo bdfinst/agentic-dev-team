@@ -23,6 +23,7 @@ from skill_doc_helpers import PLUGIN_ROOT, collapsed, grep, section
 
 SKILL = PLUGIN_ROOT / "skills" / "test-improve" / "SKILL.md"
 RANKING_SCRIPT = PLUGIN_ROOT / "scripts" / "coverage_gap_ranking.py"
+STEERING_SCRIPT = PLUGIN_ROOT / "scripts" / "coverage_delta_steering.py"
 
 RANKING_ARTIFACT = (
     r"\.dev-team-reports/test-improve/<slug>/data/coverage-gap-ranking\.json"
@@ -252,3 +253,86 @@ def test_phase_4_does_not_let_issues_from_assessment_rederive_the_order():
     assert grep(
         r"does not re-derive an order of its own", _flat(4), ignore_case=True
     )
+
+
+# ---------------------------------------------------------------------------
+# #1790 — per-Story deltas steer Phase 5 live
+# ---------------------------------------------------------------------------
+
+
+def test_coverage_delta_steering_script_ships():
+    assert STEERING_SCRIPT.is_file()
+
+
+def test_steering_script_is_invoked_via_plugin_root():
+    assert grep(
+        r"\$\{CLAUDE_PLUGIN_ROOT\}/scripts/coverage_delta_steering\.py", _text()
+    )
+
+
+def test_phase_5_runs_the_steering_check_after_every_story_delta():
+    s = _flat(5)
+    assert grep(r"coverage_delta_steering\.py", s)
+    assert grep(r"coverage-history\.json", s)
+    assert grep(r"every Story, not only at the end of the phase", s)
+
+
+def test_phase_5_steering_check_is_a_script_not_an_eyeball():
+    assert grep(r"do not eyeball the history", _flat(5), ignore_case=True)
+
+
+def test_phase_5_flat_streak_prompts_a_targeting_recheck_mid_phase():
+    s = _flat(5)
+    assert grep(r"`flat_streak`", s)
+    assert grep(r"\[t/c\]", s)
+    assert grep(r"\[t\] re-check Phase-1 targeting", s)
+    assert grep(r"\[c\] continue", s)
+
+
+def test_phase_5_flat_streak_is_surfaced_mid_phase_not_in_the_final_report():
+    s = _flat(5)
+    assert grep(r"[Ss]urface it now, mid-phase", s)
+    assert grep(r"never defer it to the Phase-9 report", s, ignore_case=True)
+
+
+def test_phase_5_steering_exit_codes_are_both_documented():
+    s = _flat(5)
+    assert grep(r"[Ee]xit 0", s)
+    assert grep(r"[Ee]xit 3", s)
+    assert grep(r"`insufficient_history`", s)
+
+
+def test_phase_5_targeting_recheck_reorders_the_remaining_story_set():
+    s = _flat(5)
+    assert grep(r"coverage-gap-ranking\.json", s)
+    assert grep(r"re-order the remaining Story set", s, ignore_case=True)
+
+
+def test_phase_5_seam_absent_story_under_no_refactor_is_reclassified_not_retried():
+    assert grep(
+        r"`seam: absent`.{0,200}REFACTOR_REQUIRED for Phase 6 rather than retried",
+        _flat(5),
+        ignore_case=True,
+    )
+
+
+def test_phase_5_continue_answer_records_the_streak_durably():
+    s = _flat(5)
+    assert grep(r"coverage_flat_streak", s)
+    assert grep(r"phase-5\.md", s)
+
+
+def test_phase_5_non_interactive_records_and_continues_never_silently_passes():
+    assert grep(
+        r"record-and-continue posture, never a silent pass",
+        _flat(5),
+        ignore_case=True,
+    )
+
+
+def test_phase_5_steering_prompt_letters_do_not_collide_with_the_existing_prompts():
+    """The skill is deliberate about prompt letters (see the Phase-6 `[y/b/q]`
+    rationale); `[t/c]` must carry the same explicit justification."""
+    s = _flat(5)
+    assert grep(r"`t` is unused elsewhere in this flow", s)
+    assert grep(r"\[c/r/w/q\]", s)

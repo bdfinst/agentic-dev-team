@@ -46,28 +46,46 @@ is `none`, +1 once Phase 6 enters Phase 7) rather than a hardcoded 9 or 10.
   code-lookup install (explicit `y`/`n`, not part of Enter-accepts-all). An
   Enter-through run now performs the mutant-kill loop by default. Go stack shows
   the alpha go-mutesting advisory before the mutation prompt. Answers are
-  immutable for the run.
+  immutable for the run. A stated coverage target that is structurally
+  unreachable under `no-refactor` is surfaced here as `[w] waive / [s] switch
+  to refactor-allowed / [c] continue as-is`, computed by
+  `scripts/coverage_gap_ranking.py`; with no coverage report on disk yet the
+  check is recorded `deferred` and re-run at Phase 2 (#1787).
 - **Phase 2 — Baseline (before any test edit).**
   `/coverage-baseline --workflow test-improve` unconditionally;
   `/mutation-testing --baseline --workflow test-improve` only in
   `baseline+kill-loop` mode (`off` and `kill-loop` take no baseline).
   Go = advisory-only marker. Honest score = hard kills, timeouts separate.
+  Then `scripts/coverage_gap_ranking.py` writes
+  `data/coverage-gap-ranking.json` — per-module buckets ranked by uncovered
+  lines descending, each marked `seam: established|absent` — the targeting
+  input Phases 1, 4, and 5 read instead of mutation survivors (#1786), and the
+  place a deferred Phase-0 conflict check resolves.
 - **Phase 3 — Derive Gherkin (conditional).** `none` skips entirely (Phase 1
   follows Phase 2 directly in that case); `xunit-with-annotations` writes
   `.feature` files without a runner; `bdd-runner` wires the native parser.
 - **Phase 1 — Analyze.** Delegate to `/test-health` (sole worker). No
   separate calls to `/cd-test-architecture`, `/test-design`,
-  `/mutation-testing`. Mutation section respects Phase-0 setting. A
+  `/mutation-testing`. Whenever a coverage percentage is a stated goal, the
+  improvement plan's coverage-driven items are ordered by
+  `coverage-gap-ranking.json` rank, never by mutation survivor count —
+  survivors order work only *within* a `seam: established` module (#1786).
+  Mutation section respects Phase-0 setting. A
   separate, direct classification pass persists a before-snapshot of test
   counts by MinimumCD type to `test-counts-before.json`. `--analyze-only`
   runs Phase 0 then this phase directly, bypassing the Baseline/Derive-Gherkin
   ordering above, and exits with no baseline captured.
 - **Phase 4 — Plan fixes.** `/issues-from-assessment --workflow test-improve`
   partitions findings into `NO_REFACTOR` (Phase-5 Stories) /
-  `REFACTOR_REQUIRED` (deferred to Phase 7) / `LOW_VALUE` (advisory-only).
+  `REFACTOR_REQUIRED` (deferred to Phase 7) / `LOW_VALUE` (advisory-only). The
+  NO_REFACTOR Story set is written in `coverage-gap-ranking.json` rank order
+  when a coverage percentage is a stated goal (#1786).
 - **Phase 5 — Improve without refactoring.** Per Story: `/build`
   (no-refactor) → `/coverage-delta --workflow test-improve --story <id>` →
-  `mutation-kill` agent (`--file <story-file> --max-rounds 3`, `[c/r/w/q]` on
+  `scripts/coverage_delta_steering.py` (three consecutive near-zero-delta
+  Stories exit 3 and prompt `[t] re-check Phase-1 targeting / [c] continue`
+  mid-phase, #1790) → `mutation-kill` agent (`--file <story-file>
+  --max-rounds 3`, `[c/r/w/q]` on
   residuals). End-of-phase review loop runs `/test-design --since` and
   `/code-review --since` in parallel, `/apply-fixes` then re-run, cap 2
   iterations, `[r/w/q]` escalation. Evidence in `phase-5-review.json`.
