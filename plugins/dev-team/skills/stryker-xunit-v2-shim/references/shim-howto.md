@@ -49,7 +49,32 @@ git grep -l "AutoFixture.Xunit3\|\[AutoData\|InlineAutoData\|AutoMoqData\|Member
 git grep -l "TestContext\|Assert.Skip\|Assert.Multiple\|IAsyncLifetime\|Assert.Equivalent" -- 'tests/**/*.cs'
 ```
 
-Each hit is a file to port in step 4. Zero/few hits → this is a ~10-minute job.
+Each hit is a file the operator gate asks about. Zero hits → this is a ~10-minute
+unattended job.
+
+### 2a. The operator gate, recorded (#1791)
+
+Any hit means the operator picks between `port`, `exclude`, `skip`, and
+`degrade`, and `stryker_xunit_shim_guard.py` blocks every `dotnet-stryker` run
+against that project until the choice is recorded. The guard's block body prints
+the classified breakdown, the four tradeoffs, and the exact command to run —
+including the fingerprint of *this* blocker set. Its shape:
+
+```bash
+sh "$CLAUDE_PLUGIN_ROOT/hooks/py.sh" \
+   "$CLAUDE_PLUGIN_ROOT/hooks/lib/xunit_v3_operator_gate.py" record \
+   --project <TestProject> --choice exclude --fingerprint <from-the-block-body>
+```
+
+Prefer the command the guard printed (absolute paths, correct fingerprint) over
+retyping this. `--fingerprint` is what scopes a decision to the blockers the
+operator actually saw: omit it and the choice silently covers blockers added
+later; reuse a stale one and the gate re-asks. Add `--file <path>` per flagged
+file and `--note "<why>"` to leave the rationale in the record. `check --project
+<TestProject>` prints the stored decision and exits non-zero when there is none.
+
+Recorded decisions live in `.claude/metrics/xunit-v3-shim-decisions.json`
+(override with `DEV_TEAM_XUNIT3_SHIM_DECISION_FILE`).
 
 ---
 

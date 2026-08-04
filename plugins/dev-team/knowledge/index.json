@@ -5814,6 +5814,10 @@
       "summary": "Detection is one check: a test `.csproj` contains `Include=\"xunit.v3\"`.",
       "anchor": "when-to-build-it"
     },
+    "Canonical invocations — copy these, don't improvise": {
+      "summary": "Every command below is written to run **from the repository root** unless it says",
+      "anchor": "canonical-invocations-copy-these-dont-improvise"
+    },
     "Workflow": {
       "summary": "Before editing an artifact this workflow has already produced, read it first — each of these only exists once the workflow has reached the step that creates it, so don't expect all three on the proactive, before-the-first-run path:",
       "anchor": "workflow"
@@ -5825,6 +5829,10 @@
     "Step 1 — Scope probe (decide whether the shim is cheap)": {
       "summary": "Run against the branch under test to find v3-only usage that would need porting:",
       "anchor": "step-1-scope-probe-decide-whether-the-shim-is-cheap"
+    },
+    "Step 1a — Operator gate (always-ask; you cannot skip it)": {
+      "summary": "When the probe finds shim-breaking constructs, the operator chooses how to",
+      "anchor": "step-1a-operator-gate-always-ask-you-cannot-skip-it"
     },
     "Step 2 — Scaffold the shim project": {
       "summary": "Use the bundled script — it reads the real test `.csproj` and writes the shim",

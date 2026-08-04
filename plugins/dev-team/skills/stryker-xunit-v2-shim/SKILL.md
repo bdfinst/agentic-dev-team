@@ -30,7 +30,7 @@ and any edge case not covered here.
 
 ## Scope — one path, not the only one
 
-The shim is the path that keeps the **mutant-kill loop** viable on xunit.v3, because it restores per-test coverage (fast covering-subset per mutant). It is not mandatory for every xunit.v3 run. Within `mutation-kill` the shim-first feasibility gate ([#1158](https://github.com/bdfinst/agentic-dev-team/issues/1158)) decides per run: build the shim and probe under `perTest`; if per-test capture works and a round fits the budget, enter the loop; otherwise **degrade** to the no-shim floor — the real v3 suite via `-t mtp` + `coverage-analysis: off` (a real but slow, whole-suite-per-mutant single advisory pass; see [`csharp-stryker-net.md`](../mutation-testing/references/languages/csharp-stryker-net.md)). Before building, [`xunit_v3_feature_detector.py`](../mutation-testing/scripts/xunit_v3_feature_detector.py) classifies the shim-breaking v3-only constructs for an always-ask human gate; pass the operator's selections to `generate_shim.py --compile-exclude` to drop them from the shim's compile set.
+The shim is the path that keeps the **mutant-kill loop** viable on xunit.v3, because it restores per-test coverage (fast covering-subset per mutant). It is not mandatory for every xunit.v3 run. Within `mutation-kill` the shim-first feasibility gate ([#1158](https://github.com/bdfinst/agentic-dev-team/issues/1158)) decides per run: build the shim and probe under `perTest`; if per-test capture works and a round fits the budget, enter the loop; otherwise **degrade** to the no-shim floor — the real v3 suite via `-t mtp` + `coverage-analysis: off` (a real but slow, whole-suite-per-mutant single advisory pass; see [`csharp-stryker-net.md`](../mutation-testing/references/languages/csharp-stryker-net.md)). Before building, [`xunit_v3_feature_detector.py`](../mutation-testing/scripts/xunit_v3_feature_detector.py) classifies the shim-breaking v3-only constructs for the always-ask operator gate in Step 1a — enforced by the guard hook, which stays blocked until the operator's choice is recorded ([#1791](https://github.com/bdfinst/agentic-dev-team/issues/1791)). On `exclude`, the guard passes their selections to `generate_shim.py --compile-exclude` itself.
 
 ## When to build it
 
@@ -39,15 +39,61 @@ shim **proactively, before the first Stryker run** — because the failure is si
 (the run succeeds and the score is bogus), waiting for the symptom wastes a full,
 possibly hours-long run. As a backstop the `stryker_xunit_shim_guard.py` PreToolUse
 hook auto-scaffolds the shim (and reports what it wrote) when you run
-`dotnet-stryker` against a xunit.v3 project without one, then blocks so you re-run
-from the shim dir — but build it proactively rather than relying on the interception. (The guard **exempts** an explicit `-t mtp` run — the no-shim floor — so it is not forced into a shim; see the Scope section.) Within `mutation-kill` the feasibility gate may still degrade to that floor after the shim is built and probed.
+`dotnet-stryker` against a xunit.v3 project whose sources are clean, then blocks so
+you re-run from the shim dir; when the sources are **not** clean it presents the
+Step 1a operator gate instead of scaffolding. Build proactively rather than relying
+on the interception. (The guard **exempts** an explicit `-t mtp` run — the no-shim floor — so it is not forced into a shim; see the Scope section.) Within `mutation-kill` the feasibility gate may still degrade to that floor after the shim is built and probed.
 
 One precondition decides whether the shim is cheap: source compatibility with
 xunit.v2. `[Fact]`, `[Theory]`, `[InlineData]`, `TheoryData<>`, `MemberData`,
 `ClassData`, and `Assert.*` are source-identical between v2 and v3, so a plain
 suite ports in minutes. `AutoFixture.Xunit3` `[AutoData]`/`[InlineAutoData]` are
-**not** v2-compatible; if the suite leans on them heavily, say so and stop rather
-than forcing it. The Step 1 scope probe quantifies this.
+**not** v2-compatible. The Step 1 scope probe quantifies how much of that a suite
+has; when there is any, Step 1a's operator gate decides what to do about it —
+"say so and stop" is not yours to choose, it is one of four options the operator
+picks between.
+
+## Canonical invocations — copy these, don't improvise
+
+Every command below is written to run **from the repository root** unless it says
+otherwise. Guessing at the working directory or at a flag that doesn't exist is
+the single biggest source of retried commands here ([#1777](https://github.com/bdfinst/agentic-dev-team/issues/1777)), so paste these and
+substitute only `<TestProject>`.
+
+```bash
+# Detect (repo root) — a test .csproj referencing xunit.v3 is the whole check
+git grep -l 'Include="xunit.v3"' -- '*.csproj'
+
+# Scope probe (repo root) — every hit is a file the operator gate will ask about
+git grep -n 'AutoFixture.Xunit3\|\[AutoData\|InlineAutoData\|AutoMoqData\|MemberAutoData' -- '*.cs'
+git grep -n 'TestContext\|Assert.Skip\|Assert.Multiple\|Assert.Equivalent\|ValueTask InitializeAsync' -- '*.cs'
+
+# Green baseline (repo root) — expect the SAME test count as the real project, 0 failed
+dotnet build tests/<TestProject>.Mutation -c Release
+dotnet test  tests/<TestProject>.Mutation -c Release --no-build
+
+# Mutation run — the ONLY correct form: from the shim dir, no arguments
+cd tests/<TestProject>.Mutation
+dotnet-stryker
+
+# No-shim floor (from the REAL test project dir) — set "coverage-analysis": "off"
+# in stryker-config.json first; it is config-file-only, there is no CLI flag
+cd tests/<TestProject>
+dotnet-stryker -t mtp
+```
+
+Three invocations that look right, fail, and get retried:
+
+| Don't | Do instead | Why |
+|---|---|---|
+| `dotnet-stryker` at the repo root | `cd tests/<TestProject>.Mutation && dotnet-stryker` | A root run auto-detects the `.sln`, enters solution mode, and binds to the real xunit.v3 project → false ~0% |
+| `dotnet-stryker --solution ../../App.sln` (or a `SolutionPath` in the shim's config) | omit it entirely — `test-projects` in the shim's `stryker-config.json` is the selection | With both set Stryker enumerates the solution and prefers the v3 project over the shim (the SolutionPath trap, [#557](https://github.com/bdfinst/agentic-dev-team/issues/557)) |
+| `dotnet-stryker --coverage-analysis off` | set `"coverage-analysis"` in `stryker-config.json` | `coverage-analysis` is **config-file-only** in Stryker.NET 4.15 — there is no CLI flag, so the run dies on an unknown option |
+
+Shim *selection* is not a command-line argument at all: it is the cwd having no
+`.sln` (project mode) plus the `test-projects` entry the generator wrote. If a
+run reports the observation-failure signature from a shim directory, check those
+two before reaching for a flag.
 
 ## Workflow
 
@@ -75,9 +121,37 @@ git grep -l "AutoFixture.Xunit3\|\[AutoData\|InlineAutoData\|AutoMoqData\|Member
 git grep -l "TestContext\|Assert.Skip\|Assert.Multiple\|IAsyncLifetime\|Assert.Equivalent" -- 'tests/**/*.cs'
 ```
 
-Each hit is a file to port in Step 3. **Zero/few hits → ~10-minute job, proceed.**
-**Pervasive `[AutoData]` / AutoFixture.Xunit3 → stop** and tell the user this
-approach isn't a good fit for their suite (porting would rewrite too many tests).
+Each hit is a file the operator gate below will ask about. **Zero hits → the shim
+builds unattended, proceed to Step 2.** Any hits → Step 1a; do not decide for the
+operator, and in particular do not quietly conclude the approach "isn't a good
+fit" — that is one of four options, and it is theirs to pick.
+
+### Step 1a — Operator gate (always-ask; you cannot skip it)
+
+When the probe finds shim-breaking constructs, the operator chooses how to
+proceed. This is enforced, not advisory: `stryker_xunit_shim_guard.py` blocks
+every `dotnet-stryker` invocation against that project until a choice is
+**recorded**, so paraphrasing the gate or picking on the operator's behalf does
+not get the run through ([#1791](https://github.com/bdfinst/agentic-dev-team/issues/1791)).
+
+The block body is the question, already assembled: the per-construct breakdown
+from [`xunit_v3_feature_detector.py`](../mutation-testing/scripts/xunit_v3_feature_detector.py) (which construct, translatable or
+not, coverage-bearing or neutral, with file and line), the four options with
+their tradeoffs, and the exact `record` command carrying this blocker set's
+fingerprint. Present the four options to the operator with `AskUserQuestion`,
+then run the printed command verbatim — the fingerprint is per-blocker-set, so
+don't reuse one from an earlier run.
+
+| Choice | What happens next |
+|---|---|
+| `port` | Rewrite the flagged constructs to v2-compatible forms (Step 3). The guard auto-scaffolds once the sources are clean. |
+| `exclude` | The guard scaffolds with `--compile-exclude` on the flagged files. They stay **unmeasured** — their mutants report as survivors. |
+| `skip` | Deactivate just the offending tests (Step 3), then re-run. Undo at teardown. |
+| `degrade` | Skip the shim; run the no-shim floor (`-t mtp`, `coverage-analysis: off`) for one slow advisory pass. |
+
+Add a new blocking file after the operator answered and the gate **re-asks** —
+a decision covers only the blockers they actually saw. A reply matching none of
+the four is re-asked with the same four; never default or guess.
 
 ### Step 2 — Scaffold the shim project
 
