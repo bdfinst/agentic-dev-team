@@ -67,7 +67,9 @@ def _stub_ci_local(root: Path, body: str) -> None:
     (root / "scripts" / "ci-local.sh").chmod(0o755)
 
 
-def _run_hook(scratch: dict[str, object]) -> subprocess.CompletedProcess:
+def _run_hook(
+    scratch: dict[str, object], stdin: str | None = None
+) -> subprocess.CompletedProcess:
     root: Path = scratch["root"]  # type: ignore[assignment]
     env: dict[str, str] = dict(scratch["env"])  # type: ignore[arg-type]
     env["HUSKY_RUN_EVALS"] = "0"
@@ -75,11 +77,25 @@ def _run_hook(scratch: dict[str, object]) -> subprocess.CompletedProcess:
         ["sh", "-e", ".husky/pre-push"],
         cwd=str(root),
         env=env,
-        input=scratch["stdin"],
+        input=scratch["stdin"] if stdin is None else stdin,
         capture_output=True,
         text=True,
         check=False,
     )
+
+
+def _add_sibling_worktree(
+    root: Path, env: dict[str, str], branch: str, name: str = "sibling-wt"
+) -> Path:
+    """Register a second worktree on `branch`, sharing root's ref store.
+
+    Sibling of `root`, not a child: `root` is itself the scratch repo. The
+    per-test `root.name` keeps the path unique — `root.parent` is shared by
+    every test in the run.
+    """
+    path = root.parent / f"{root.name}-{name}"
+    _git(root, env, "worktree", "add", "-q", "-b", branch, str(path), "main")
+    return path
 
 
 def test_guard_refs_stable_and_ci_local_passes_hook_exits_0(
@@ -161,6 +177,71 @@ def test_guard_ref_created_during_hook_exits_nonzero(
     output = result.stdout + result.stderr
     assert "refs/heads/stray" in output
     assert "created" in output or "absent" in output
+
+
+def test_guard_sibling_worktree_branch_drift_is_noted_not_blocking(
+    scratch: dict[str, object],
+) -> None:
+    """A branch owned by another worktree may legitimately move — issue #1815.
+
+    All worktrees of a clone share one ref store, and ci-local runs for
+    minutes; a sibling session committing during that window is concurrency,
+    not corruption.
+    """
+    root: Path = scratch["root"]  # type: ignore[assignment]
+    env: dict[str, str] = scratch["env"]  # type: ignore[assignment]
+    sibling = _add_sibling_worktree(root, env, "sibling")
+    orig = _git(root, env, "rev-parse", "refs/heads/sibling").stdout.strip()
+    # The sibling worktree commits on its own branch while ci-local "runs".
+    _stub_ci_local(root, f'cd "{sibling}" && git commit -q --allow-empty -m concurrent')
+
+    result = _run_hook(scratch)
+    output = result.stdout + result.stderr
+    assert result.returncode == 0, output
+    assert "ABORT" not in output
+    # The drift is still surfaced, with both SHAs, as a non-blocking note.
+    assert "refs/heads/sibling" in output
+    assert orig in output
+    assert "not blocking" in output
+
+
+def test_guard_pushed_branch_never_exempt_even_when_a_worktree_owns_it(
+    scratch: dict[str, object],
+) -> None:
+    """The ref being pushed is guarded even if a sibling worktree holds it."""
+    root: Path = scratch["root"]  # type: ignore[assignment]
+    env: dict[str, str] = scratch["env"]  # type: ignore[assignment]
+    sibling = _add_sibling_worktree(root, env, "sibling")
+    orig = _git(root, env, "rev-parse", "refs/heads/sibling").stdout.strip()
+    _stub_ci_local(root, f'cd "{sibling}" && git commit -q --allow-empty -m concurrent')
+
+    stdin = f"refs/heads/sibling {orig} refs/heads/sibling {'0' * 40}\n"
+    result = _run_hook(scratch, stdin=stdin)
+    output = result.stdout + result.stderr
+    assert result.returncode != 0
+    assert "ABORT" in output
+    assert "refs/heads/sibling" in output
+    assert orig in output
+
+
+def test_guard_this_worktrees_own_branch_never_exempt(
+    scratch: dict[str, object],
+) -> None:
+    """Our own checked-out branch stays guarded despite being in the worktree list."""
+    root: Path = scratch["root"]  # type: ignore[assignment]
+    env: dict[str, str] = scratch["env"]  # type: ignore[assignment]
+    _add_sibling_worktree(root, env, "sibling")
+    orig = _git(root, env, "rev-parse", "refs/heads/feature").stdout.strip()
+    _stub_ci_local(
+        root,
+        f'cd "{root}" && git commit -q --allow-empty -m evil && '
+        "git update-ref refs/heads/feature HEAD",
+    )
+    result = _run_hook(scratch)
+    output = result.stdout + result.stderr
+    assert result.returncode != 0
+    assert "refs/heads/feature" in output
+    assert orig in output
 
 
 def test_guard_ci_local_fails_and_refs_drifted_still_names_the_drift(
