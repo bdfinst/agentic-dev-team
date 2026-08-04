@@ -91,10 +91,13 @@ def emit_boundary_event(
             `agent_dispatch_ledger.py`). "dispatch-failure" (#1763) is also
             non-verdict-counted, observational — it notes that a dispatched
             review agent failed to return a contract-valid result even after
-            one retry; unlike "record" it is only ever consumed as NEGATIVE
-            evidence (`hooks/lib/review_gate_corroboration.py`'s gate veto),
-            so a forged event can only narrow corroboration, never widen it.
-            Exclude both from verdict counts; see
+            one retry. Unlike "record" it is designed to be consumed ONLY as
+            NEGATIVE evidence, by a gate veto in
+            `hooks/lib/review_gate_corroboration.py` (a later slice of the
+            same #1763 epic this event's write side landed in — until that
+            read path exists, this event is write-only telemetry with no
+            consumer), so a forged event can only ever narrow corroboration,
+            never widen it. Exclude both from verdict counts; see
             `knowledge/telemetry-schema.md`.
         matched_rule: A rule ID from a closed vocabulary — never free
             text (no command text, prompt text, file paths, or reasons).
@@ -157,31 +160,42 @@ def emit_boundary_event(
 # byte-identical to genuine hook output.
 #
 # Bounded exception (#1763): `--event dispatch-failure` (below, handled by
-# its own branch in `_main()`, not this dict) is deliberately NOT a fixed
-# tuple — it carries one piece of caller-supplied, per-invocation data (the
-# failed agent's name) as `matched_rule`, which a static tuple can't express.
-# This is still safe: the decision value it writes ("dispatch-failure") is
-# consumed ONLY as negative evidence by
-# `hooks/lib/review_gate_corroboration.py`'s gate veto — never as
-# corroborating evidence for a `.review-passed` write. A forged/hand-run
-# invocation can therefore only ever narrow corroboration (cause a false
-# block on a gate that would otherwise pass), never widen it (cause a false
-# pass) — the opposite direction from the "record" forgery vector this
-# comment is otherwise about. The agent name is still validated at write
-# time against the registered review-agent set
-# (`review_agent_registry.registered_review_agent_names`), matching
-# `agent_dispatch_ledger.py`'s own posture: an unregistered name is silently
-# NOT recorded, never written even as a rejected/flagged entry.
+# its own branch in `_main()`, via `_CLI_AGENT_EVENTS`, not this dict) is
+# deliberately NOT a fixed tuple — it carries one piece of caller-supplied,
+# per-invocation data (the failed agent's name) as `matched_rule`, which a
+# static tuple can't express. This is still safe BY DESIGN, independent of
+# whether the read side has landed yet: the decision value it writes
+# ("dispatch-failure") is intended to be consumed ONLY as negative evidence,
+# by a gate veto in `hooks/lib/review_gate_corroboration.py` — never as
+# corroborating evidence for a `.review-passed` write — so a forged/hand-run
+# invocation can only ever narrow corroboration (cause a false block on a
+# gate that would otherwise pass), never widen it (cause a false pass), once
+# that veto exists. Until the veto's read path lands (a later slice of this
+# same epic), this event is inert write-only telemetry — no code path
+# consumes it yet, so it can neither cause a false block nor prevent one;
+# the safety property above describes the design's intended end state, not
+# a claim that enforcement is already wired up. The opposite forgery
+# direction from "record" either way. The agent name is still validated at
+# write time against the registered review-agent set
+# (`review_agent_registry.registered_review_agent_names`, with the same
+# plugin-prefix normalization `agent_dispatch_ledger.py` applies), matching
+# that hook's own posture: an unregistered name is silently NOT recorded,
+# never written even as a rejected/flagged entry.
 _CLI_EVENTS = {
     "doc-only": ("code-review", "Skill", "bypass", "doc-only-review-exempt"),
     "single-agent": ("code-review", "Skill", "bypass", "single-agent-review-exempt"),
 }
 
-# (hook, tool, decision) for the dispatch-failure event — `matched_rule` is
-# supplied per-invocation via `--agent`, not fixed here. See the comment
-# above `_CLI_EVENTS` for why this is a bounded, safe exception to the
-# closed-tuple design.
-_DISPATCH_FAILURE_EVENT = ("code-review", "Skill", "dispatch-failure")
+# (hook, tool, decision) for events whose `matched_rule` is supplied
+# per-invocation via `--agent` rather than fixed in the tuple — a second,
+# small registry alongside `_CLI_EVENTS` (not folded into it, since those
+# tuples carry a fixed `matched_rule` and this one doesn't) so the set of
+# CLI-constructible events stays declarable in one place per event shape.
+# See the comment above `_CLI_EVENTS` for why a dynamic `matched_rule` here
+# is still a bounded, safe exception to the closed-tuple design.
+_CLI_AGENT_EVENTS = {
+    "dispatch-failure": ("code-review", "Skill", "dispatch-failure"),
+}
 
 
 def _main() -> int:
@@ -199,21 +213,30 @@ def _main() -> int:
 
     Deliberately NOT a generic `--hook/--tool/--decision/--matched-rule`
     pass-through (see `_CLI_EVENTS`) — `--event` selects one of two fixed
-    tuples, or (#1763) `dispatch-failure`, whose `matched_rule` comes from
-    `--agent` and is validated against the registered review-agent set
-    before being written; nothing else is constructible from the command
-    line.
+    tuples, or (#1763) `dispatch-failure` (see `_CLI_AGENT_EVENTS`), whose
+    `matched_rule` comes from `--agent` and is validated against the
+    registered review-agent set before being written; nothing else is
+    constructible from the command line.
 
     `--event dispatch-failure --agent <name> --subject-hash <hash>`
-    (#1763): used by `SKILL.md` Step 4 and `sliced-mode.md`'s per-slice
-    dispatch when a dispatched review agent still fails to return a
-    contract-valid result after its single retry, recording that fact as
-    negative evidence for `hooks/lib/review_gate_corroboration.py`'s gate
-    veto. `<name>` must be a registered `agents/*-review.md` stem — an
-    unregistered name is silently NOT recorded, matching
-    `agent_dispatch_ledger.py`'s own validation posture.
+    (#1763): used by `SKILL.md` Step 4 when a dispatched review agent still
+    fails to return a contract-valid result after its single retry,
+    recording that fact as negative evidence intended for
+    `hooks/lib/review_gate_corroboration.py`'s gate veto (landing in the
+    same epic, #1763's later slice — this event is write-only telemetry
+    until that read path exists; do not assume a `.review-passed` write is
+    blocked by it before that lands). `<name>` must be a registered
+    `agents/*-review.md` stem — an unregistered name is silently NOT
+    recorded, matching `agent_dispatch_ledger.py`'s own validation posture
+    (including the same plugin-prefix normalization, `strip_plugin_prefix`).
 
-    Fail-open, same posture as `emit_boundary_event` itself: always exits 0.
+    Fail-open, same posture as `emit_boundary_event` itself: the emit path
+    never raises — a missing `--agent`, a broken registry read, or an
+    unregistered name all degrade to a silent no-op (return 0), never an
+    exception or a nonzero exit. (Argument-parsing usage errors from
+    `argparse` itself — e.g. an unrecognized `--event` value — still exit
+    nonzero via `parser.error`, as for any CLI; that is a caller-code bug,
+    not a runtime condition this fail-open contract covers.)
     """
     import argparse
 
@@ -222,41 +245,52 @@ def _main() -> int:
     parser.add_argument(
         "--event",
         required=True,
-        choices=sorted({*_CLI_EVENTS, "dispatch-failure"}),
+        choices=sorted({*_CLI_EVENTS, *_CLI_AGENT_EVENTS}),
     )
     parser.add_argument("--subject-hash", required=True, dest="subject_hash")
     parser.add_argument("--session-id", default=None, dest="session_id")
     parser.add_argument("--agent", default=None, dest="agent")
     args = parser.parse_args()
 
-    if args.event == "dispatch-failure":
+    if args.event in _CLI_AGENT_EVENTS:
         if not args.agent:
-            parser.error("--event dispatch-failure requires --agent <name>")
-        # Local import: only the dispatch-failure CLI branch needs this
-        # sibling module, so callers that merely import
-        # `emit_boundary_event` (every guard hook) never pay for it, and
-        # copy-into-tmp-dir test harnesses that stage only
-        # boundary_events.py + artifact_paths.py alongside the hook under
-        # test (see test_contract_version_guard.py::_run_hook_from) keep
-        # working unmodified.
-        import review_agent_registry
-
-        agents_dir = Path(__file__).resolve().parents[2] / "agents"
+            # Fail-open: a caller that forgot --agent gets a silent no-op,
+            # not a nonzero exit from a telemetry emitter — matches this
+            # function's own "always exits 0" contract for the emit path.
+            return 0
         try:
+            # Local import: only this branch needs this sibling module, so
+            # callers that merely import `emit_boundary_event` (every guard
+            # hook) never pay for it, and copy-into-tmp-dir test harnesses
+            # that stage only boundary_events.py + artifact_paths.py
+            # alongside the hook under test (see
+            # test_contract_version_guard.py::_run_hook_from) keep working
+            # unmodified. Inside the try/except below so an ImportError from
+            # a partial install degrades the same way a broken registry
+            # read does, rather than raising.
+            import review_agent_registry
+
+            agents_dir = Path(__file__).resolve().parents[2] / "agents"
             registered = review_agent_registry.registered_review_agent_names(agents_dir)
         except Exception:  # noqa: BLE001 - fail-open: a broken registry read never records
             return 0
-        if args.agent not in registered:
+        # Normalize the plugin-qualified form ("dev-team:security-review")
+        # to the bare stem the registry's closed set uses, matching
+        # agent_dispatch_ledger.py's own normalization exactly — otherwise
+        # the plugin's normal, installed invocation form would be silently
+        # dropped as "unregistered".
+        agent = review_agent_registry.strip_plugin_prefix(args.agent)
+        if agent not in registered:
             # Unregistered name -> silently NOT recorded (matches
             # agent_dispatch_ledger.py's own posture; see module comment).
             return 0
-        hook, tool, decision = _DISPATCH_FAILURE_EVENT
+        hook, tool, decision = _CLI_AGENT_EVENTS[args.event]
         emit_boundary_event(
             args.cwd,
             hook,
             tool,
             decision,
-            args.agent,
+            agent,
             args.session_id,
             subject_hash=args.subject_hash,
         )

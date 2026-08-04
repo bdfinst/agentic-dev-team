@@ -596,7 +596,67 @@ def test_cli_dispatch_failure_unregistered_agent_is_dropped(tmp_path: Path) -> N
     assert not log.exists()
 
 
-def test_cli_dispatch_failure_missing_agent_exits_nonzero(tmp_path: Path) -> None:
+def test_cli_dispatch_failure_normalizes_plugin_qualified_agent_name(
+    tmp_path: Path,
+) -> None:
+    """The plugin's normal, installed invocation form ("dev-team:<agent>")
+    must be recognized identically to the bare stem and recorded under the
+    bare (closed-vocabulary) name — matching agent_dispatch_ledger.py's own
+    strip_plugin_prefix normalization exactly (see that hook's
+    test_a_qualified_name_is_normalized_to_the_bare_stem)."""
+    result = subprocess.run(
+        [
+            sys.executable,
+            str(_LIB_DIR / "boundary_events.py"),
+            "--cwd",
+            str(tmp_path),
+            "--event",
+            "dispatch-failure",
+            "--agent",
+            "dev-team:security-review",
+            "--subject-hash",
+            "feedface",
+        ],
+        capture_output=True,
+        check=False,
+    )
+    assert result.returncode == 0
+    events = _read_jsonl(tmp_path / ".claude" / "metrics" / "boundary-events.jsonl")
+    assert len(events) == 1
+    assert events[0]["matched_rule"] == "security-review"
+
+
+def test_cli_dispatch_failure_other_plugin_qualified_name_is_dropped(
+    tmp_path: Path,
+) -> None:
+    """A DIFFERENT plugin's qualified name must never be recorded — only
+    this plugin's own "dev-team:" prefix is stripped, matching
+    agent_dispatch_ledger.py's own posture."""
+    result = subprocess.run(
+        [
+            sys.executable,
+            str(_LIB_DIR / "boundary_events.py"),
+            "--cwd",
+            str(tmp_path),
+            "--event",
+            "dispatch-failure",
+            "--agent",
+            "other-plugin:security-review",
+            "--subject-hash",
+            "feedface",
+        ],
+        capture_output=True,
+        check=False,
+    )
+    assert result.returncode == 0
+    log = tmp_path / ".claude" / "metrics" / "boundary-events.jsonl"
+    assert not log.exists()
+
+
+def test_cli_dispatch_failure_missing_agent_is_a_silent_noop(tmp_path: Path) -> None:
+    """Fail-open, matching _main()'s own "always exits 0" emit-path contract
+    (module docstring) — a caller that forgot --agent gets a no-op, not a
+    nonzero exit from a telemetry emitter."""
     result = subprocess.run(
         [
             sys.executable,
@@ -611,7 +671,7 @@ def test_cli_dispatch_failure_missing_agent_exits_nonzero(tmp_path: Path) -> Non
         capture_output=True,
         check=False,
     )
-    assert result.returncode != 0
+    assert result.returncode == 0
     log = tmp_path / ".claude" / "metrics" / "boundary-events.jsonl"
     assert not log.exists()
 

@@ -63,4 +63,4 @@ if __name__ == "__main__":
     raise SystemExit(main(sys.argv[1:]))
 
 
-__all__ = ("main", "reconcile_dispatch")
+__all__ = ("reconcile_dispatch",)
