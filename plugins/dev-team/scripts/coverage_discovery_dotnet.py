@@ -1,0 +1,263 @@
+#!/usr/bin/env python3
+"""coverage_discovery_dotnet.py — discover and classify every project in a
+.NET solution for multi-project coverage discovery (issue #1759, Slice 2).
+
+Enumerates every project via `dotnet sln <solution> list` and classifies
+each `.csproj` using `coverage_config.TestClassification`, checking in
+order:
+
+1. An inline `Microsoft.NET.Test.Sdk` `PackageReference` in the `.csproj`
+   itself (matched on `Include="Microsoft.NET.Test.Sdk"`, case-insensitively
+   per NuGet package ID convention, regardless of attribute order or
+   whether a `Version` attribute is present — this also covers Central
+   Package Management's version-less inline form) -> `TEST`.
+2. If absent inline, walk every `Directory.Build.props` from the project's
+   directory up to the solution root (inclusive). An **unconditioned** match
+   (no `Condition` attribute on the `PackageReference` itself or its
+   enclosing `ItemGroup`) -> `TEST`. A match that exists only inside a
+   `Condition` -> `AMBIGUOUS` (this script deliberately never evaluates
+   MSBuild conditions, matching this repo's stdlib-only,
+   no-runner-execution convention already established by
+   `coverage_readiness.py`).
+3. No match anywhere -> `NOT_TEST`.
+
+**Known, documented limitation.** A `GlobalPackageReference` declared in
+`Directory.Packages.props` (MSBuild Central Package Management's other,
+zero-inline-reference mechanism, distinct from the `Directory.Build.props`
+ancestor walk above) is not walked. A project relying solely on it
+classifies `NOT_TEST` — see the plan's Risks section.
+
+**Security hardening.** Every resolved project path is verified to stay
+within the resolved repository root before it is read or classified — a
+`.sln` entry containing `..` or an absolute path can never cause this
+module to read or XML-parse a file outside the repository. Every `.csproj`
+and `Directory.Build.props` file is also screened for `<!DOCTYPE`/
+`<!ENTITY` declarations before being parsed (entity-expansion hardening) —
+neither file legitimately carries either.
+
+The `dotnet` subprocess boundary (`shutil.which("dotnet")` and
+`subprocess.run([...])`) is mocked/stubbed in this module's unit tests — no
+real .NET SDK is required to run them, keeping this module inside the
+required `ci-local.sh`/pre-push pytest gate.
+
+Stdlib-only (ADR 0014/0015).
+"""
+
+from __future__ import annotations
+
+import os
+import shutil
+import subprocess
+import sys
+import xml.etree.ElementTree as ET
+from pathlib import Path
+
+_HERE = Path(__file__).resolve().parent
+sys.path.insert(0, str(_HERE))
+
+import coverage_config  # noqa: E402
+from coverage_config import TestClassification  # noqa: E402
+
+TEST_SDK_PACKAGE = "Microsoft.NET.Test.Sdk"
+
+# `dotnet sln ... list` per-run wall-clock timeout, matching this repo's
+# convention in sibling scripts (e.g. codebase_recon.py).
+_SLN_LIST_TIMEOUT_SECONDS = 120
+
+# A .csproj / Directory.Build.props file never legitimately carries a
+# DOCTYPE or ENTITY declaration — presence of either is a zero-false-positive
+# signal of an entity-expansion attempt, not a legitimate MSBuild file.
+_UNSAFE_XML_MARKERS = ("<!DOCTYPE", "<!ENTITY")
+_UNSAFE_XML_SNIFF_BYTES = 1024
+
+
+def discover_dotnet_projects(repo_root):
+    """Discover and classify every project in `repo_root`'s `.sln`.
+
+    Returns a list of `{"path": <repo-relative project path as returned by
+    "dotnet sln list">, "classification": TestClassification}` entries on
+    success, `coverage_config.DISCOVERY_NOT_APPLICABLE` when no `.sln` is
+    present, or `coverage_config.discovery_error(...)` for any
+    tooling/parsing failure.
+    """
+    root = Path(repo_root).resolve()
+
+    sln_files = sorted(root.glob("*.sln"))
+    if not sln_files:
+        return coverage_config.DISCOVERY_NOT_APPLICABLE
+    if len(sln_files) > 1:
+        names = ", ".join(f.name for f in sln_files)
+        return coverage_config.discovery_error(
+            f"Multiple .sln files found at repository root: {names}. "
+            "Multi-solution repositories are not supported for discovery; "
+            "leave exactly one .sln at the repository root."
+        )
+    sln_path = sln_files[0]
+
+    dotnet_path = shutil.which("dotnet")
+    if dotnet_path is None:
+        return coverage_config.discovery_error(
+            "The `dotnet` CLI is not on PATH; install the .NET SDK to "
+            "enable solution discovery."
+        )
+
+    try:
+        result = subprocess.run(
+            [dotnet_path, "sln", str(sln_path.resolve()), "list"],
+            cwd=str(root),
+            capture_output=True,
+            text=True,
+            env={**os.environ, "DOTNET_CLI_UI_LANGUAGE": "en"},
+            timeout=_SLN_LIST_TIMEOUT_SECONDS,
+        )
+    except subprocess.TimeoutExpired:
+        return coverage_config.discovery_error(
+            f"`dotnet sln {sln_path.name} list` timed out after "
+            f"{_SLN_LIST_TIMEOUT_SECONDS}s."
+        )
+    except OSError as exc:
+        return coverage_config.discovery_error(
+            f"Failed to run `dotnet sln {sln_path.name} list`: {exc}"
+        )
+
+    if result.returncode != 0:
+        return coverage_config.discovery_error(
+            f"`dotnet sln {sln_path.name} list` failed: {result.stderr.strip()}"
+        )
+
+    project_rel_paths = _parse_sln_list_output(result.stdout)
+
+    projects = []
+    for rel_path in project_rel_paths:
+        csproj_path = (root / rel_path).resolve()
+        if not (csproj_path == root or root in csproj_path.parents):
+            return coverage_config.discovery_error(
+                f"Solution '{sln_path.name}' references project "
+                f"'{rel_path}', which resolves outside the repository "
+                f"root ('{root}'); refusing to read or classify it."
+            )
+        if not csproj_path.is_file():
+            return coverage_config.discovery_error(
+                f"Solution '{sln_path.name}' references project "
+                f"'{rel_path}' but the file does not exist on disk."
+            )
+        classification = _classify_project(csproj_path, root)
+        if isinstance(classification, dict):
+            return classification  # a discovery_error propagated up
+        projects.append({"path": rel_path, "classification": classification})
+
+    return projects
+
+
+def _parse_sln_list_output(stdout: str) -> list:
+    """Parse `dotnet sln list`'s stdout into a list of project paths exactly
+    as printed, skipping the `Project(s)` header and its underline."""
+    projects = []
+    for raw_line in stdout.splitlines():
+        line = raw_line.strip()
+        if not line:
+            continue
+        if line == "Project(s)":
+            continue
+        if set(line) == {"-"}:
+            continue
+        projects.append(line)
+    return projects
+
+
+def _reject_unsafe_xml(path: Path):
+    """Return a `coverage_config.discovery_error(...)` dict if `path`'s
+    first ~1KB contains a `<!DOCTYPE` or `<!ENTITY` declaration
+    (entity-expansion hardening) — a `.csproj`/`Directory.Build.props` file
+    never legitimately carries either. Returns `None` when the file looks
+    safe to parse."""
+    try:
+        with path.open("r", encoding="utf-8", errors="replace") as handle:
+            head = handle.read(_UNSAFE_XML_SNIFF_BYTES)
+    except OSError as exc:
+        return coverage_config.discovery_error(f"Could not read '{path}': {exc}")
+    for marker in _UNSAFE_XML_MARKERS:
+        if marker in head:
+            return coverage_config.discovery_error(
+                f"Refusing to parse '{path}': contains a disallowed "
+                f"'{marker}' declaration (XML entity-expansion hardening)."
+            )
+    return None
+
+
+def _classify_project(csproj_path: Path, solution_root: Path):
+    """Classify a single project's `.csproj`, walking ancestor
+    `Directory.Build.props` files (never climbing above `solution_root`)
+    when no inline marker is found. Returns a `TestClassification` value, or
+    `coverage_config.discovery_error(...)` if the `.csproj` (or an ancestor
+    `Directory.Build.props`) is not well-formed XML, is unreadable, or fails
+    the entity-expansion safety check."""
+    unsafe = _reject_unsafe_xml(csproj_path)
+    if unsafe is not None:
+        return unsafe
+    try:
+        csproj_root = ET.parse(csproj_path).getroot()
+    except (ET.ParseError, OSError) as exc:
+        return coverage_config.discovery_error(
+            f"Could not parse '{csproj_path}' as XML: {exc}"
+        )
+
+    if _test_sdk_reference_kind(csproj_root) is not None:
+        return TestClassification.TEST
+
+    found_conditioned = False
+    current_dir = csproj_path.parent
+    while current_dir == solution_root or solution_root in current_dir.parents:
+        props_path = current_dir / "Directory.Build.props"
+        if props_path.is_file():
+            unsafe = _reject_unsafe_xml(props_path)
+            if unsafe is not None:
+                return unsafe
+            try:
+                props_root = ET.parse(props_path).getroot()
+            except (ET.ParseError, OSError) as exc:
+                return coverage_config.discovery_error(
+                    f"Could not parse '{props_path}' as XML: {exc}"
+                )
+            kind = _test_sdk_reference_kind(props_root)
+            if kind == "unconditioned":
+                return TestClassification.TEST
+            if kind == "conditioned":
+                found_conditioned = True
+        if current_dir == solution_root:
+            break
+        current_dir = current_dir.parent
+
+    if found_conditioned:
+        return TestClassification.AMBIGUOUS
+    return TestClassification.NOT_TEST
+
+
+def _test_sdk_reference_kind(root) -> str | None:
+    """Return `"unconditioned"`, `"conditioned"`, or `None` for whether
+    `root` contains a `Microsoft.NET.Test.Sdk` `PackageReference` (matched
+    case-insensitively, per NuGet package ID convention), and whether it (or
+    its enclosing `ItemGroup`) carries an MSBuild `Condition` attribute.
+    This script deliberately never evaluates the condition's truth value —
+    presence alone drives the distinction."""
+    found_conditioned = False
+    for item_group in root.iter():
+        if _local_name(item_group.tag) != "ItemGroup":
+            continue
+        group_conditioned = "Condition" in item_group.attrib
+        for child in item_group:
+            if _local_name(child.tag) != "PackageReference":
+                continue
+            include = (child.get("Include") or "").strip().casefold()
+            if include != TEST_SDK_PACKAGE.casefold():
+                continue
+            if group_conditioned or "Condition" in child.attrib:
+                found_conditioned = True
+            else:
+                return "unconditioned"
+    return "conditioned" if found_conditioned else None
+
+
+def _local_name(tag: str) -> str:
+    """Strip an XML namespace prefix (`{ns}Tag` -> `Tag`) if present."""
+    return tag.split("}", 1)[-1] if "}" in tag else tag
