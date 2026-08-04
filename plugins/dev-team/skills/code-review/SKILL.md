@@ -412,12 +412,23 @@ Prints `{"maxParallel": N, "waves": [[...], [...]]}` — `maxParallel` defaults 
 
 **Graph-assisted review**: pass tool availability to **all read-only review agents** — the structural lenses (`arch-review`, `component-architecture-review`, `structure-review`, `domain-review`) benefit most from resolved call graphs, but every lens gains cheaper verified reads — so they may consult the index for impact/dependency context before flagging findings. Tool selection and the fallback contract are the same as step 1c above; see [`knowledge/codegraph-vs-graphify.md`](../../knowledge/codegraph-vs-graphify.md).
 
-**Dispatch failure handling — retry once, never drop silently (issue #1752).** After each wave returns, check every dispatched agent for a valid per-agent result matching [`review-agent-output-contract.md`](../../knowledge/review-agent-output-contract.md). A call that comes back as `[Tool result missing due to internal error]`, with no `agentId`, or with output that doesn't parse against the contract is a **dispatch failure** — distinct from `skip` (agent had nothing to review this run — [`review-agent-output-contract.md`](../../knowledge/review-agent-output-contract.md#status-values)) and from `fail` (agent ran and found errors); it means the lens never actually ran.
+**Dispatch failure handling — retry once, never drop silently (issue #1752).** After each wave returns, check every dispatched agent for a valid per-agent result matching [`review-agent-output-contract.md`](../../knowledge/review-agent-output-contract.md). Compute this dispatched-vs-returned coverage check deterministically instead of eyeballing the two lists:
+
+```bash
+python3 "$CLAUDE_PLUGIN_ROOT/skills/code-review/scripts/dispatch_reconcile.py" --dispatched "<roster>" --returned "<contract-valid agent names>"
+```
+
+Prints `{"missing": [...]}` — every name it returns is a **dispatch failure**: a call that came back as `[Tool result missing due to internal error]`, with no `agentId`, or with output that doesn't parse against the contract, so it never produced a contract-valid return. Distinct from `skip` (agent had nothing to review this run — [`review-agent-output-contract.md`](../../knowledge/review-agent-output-contract.md#status-values)) and from `fail` (agent ran and found errors); it means the lens never actually ran.
 
 1. Retry each failed agent **exactly once**, individually — same prompt, model, context payload, and file scope as the original call, dispatched on its own (not re-batched with the rest of that wave).
-2. If the retry succeeds, use its result and continue as normal — this never shows up as a failure in the final report.
+2. If the retry succeeds, use its result and continue as normal — this never shows up as a failure in the final report. A recovered dispatch — one that fails once but succeeds on its single retry — never reaches the dispatch-failure emission point in step 3 below: no `dispatch-failure` boundary event is ever emitted for it.
 3. If the retry also fails, do **not** proceed as if that lens's coverage were complete:
    - Carry it into step 5's aggregation as a `dispatchFailures` entry (`{agentName, attempts: 2, error}`) — the `dispatchFailures` key itself is always present in `--json` output (an empty array when there are none, per `output-format.md`); the prose report's `## Dispatch Failures` section renders only when the array is non-empty, and is never omitted in that case because "the rest of the panel passed."
+   - At this same moment — the point an unrecovered failure is determined — also emit a `dispatch-failure` boundary event, bound to the `subject_hash` in effect for this dispatch (the same `review_gate_hash()` value this file's doc-only/single-agent exemption calls already compute):
+     ```bash
+     HASH=$(python3 "${CLAUDE_PLUGIN_ROOT}/hooks/lib/review_gate_hash.py")
+     python3 "${CLAUDE_PLUGIN_ROOT}/hooks/lib/boundary_events.py" --event dispatch-failure --agent <name> --subject-hash "$HASH"
+     ```
    - Treat it as fail-equivalent for step 9's gate-write condition — the same treatment step 3's `unreadable-registry`/`unreadable-files-from` handling already gets: a lens that never ran is a coverage gap, not a passing result, so `.review-passed` must not be written while any dispatch failure is outstanding.
    - State plainly, in both prose and `--json` output, which agent(s) failed twice and the error text — a missing lens must always be visible, never inferred from a shorter-than-expected agent table.
 
