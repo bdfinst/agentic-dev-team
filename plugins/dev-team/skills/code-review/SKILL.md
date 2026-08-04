@@ -392,7 +392,13 @@ which lens probably no-ops. Same evidence-first discipline
 
 **Dispatch-capability gate (re-confirm here, not just at the top of this file — issue #1461).** Before spawning anything below, re-verify the `Agent`/`Task` tool is present in this toolset. If it is not, STOP per the Orchestrator constraints above — do not fall back to reviewing the files yourself, inline, as a stand-in for the panel; report the missing capability and halt the run before any agent is spawned.
 
-Spawn agents as parallel subagents in a single message using the Agent tool.
+**Dispatch batching — bounded dispatch waves (issue #1752).** A real run that spawned all 16 eligible agents as parallel `Agent` calls in one message lost its last 6 to `[Tool result missing due to internal error]` — see `dispatch_waves.py`'s module docstring for the full incident account; not restated here to avoid two copies drifting apart. Before spawning, compute the wave split deterministically instead of guessing a safe batch size by eye:
+
+```bash
+python3 "$CLAUDE_PLUGIN_ROOT/skills/code-review/scripts/dispatch_waves.py" --agents "<comma-separated eligible agent names, cheap-first order as select_lenses.py returned them, filtered by the change-shape/change-size/change-impact gates but not re-sorted>"
+```
+
+Prints `{"maxParallel": N, "waves": [[...], [...]]}` — `maxParallel` defaults to **10**, overridable with `DEV_TEAM_MAX_PARALLEL_REVIEW_AGENTS` (see the script's own docstring for the exact fallback rule; don't re-derive it here). Dispatch **exactly the waves the script printed, in that order** as parallel subagents in a single message per wave using the Agent tool — exactly as before, just bounded per message — waiting for each wave to fully return before dispatching the next, and for the last wave before aggregating. A roster no larger than `maxParallel` is always a single wave; nothing changes from today's behavior in that case.
 
 - **File scope**: pass only files matching each agent's declared scope. Skip the agent if no files match.
 - **Context payload** (controlled by the agent's `Context needs`):
@@ -406,9 +412,20 @@ Spawn agents as parallel subagents in a single message using the Agent tool.
 
 **Graph-assisted review**: pass tool availability to **all read-only review agents** — the structural lenses (`arch-review`, `component-architecture-review`, `structure-review`, `domain-review`) benefit most from resolved call graphs, but every lens gains cheaper verified reads — so they may consult the index for impact/dependency context before flagging findings. Tool selection and the fallback contract are the same as step 1c above; see [`knowledge/codegraph-vs-graphify.md`](../../knowledge/codegraph-vs-graphify.md).
 
-Wait for all agents to complete before aggregating.
+**Dispatch failure handling — retry once, never drop silently (issue #1752).** After each wave returns, check every dispatched agent for a valid per-agent result matching [`review-agent-output-contract.md`](../../knowledge/review-agent-output-contract.md). A call that comes back as `[Tool result missing due to internal error]`, with no `agentId`, or with output that doesn't parse against the contract is a **dispatch failure** — distinct from `skip` (agent had nothing to review this run — [`review-agent-output-contract.md`](../../knowledge/review-agent-output-contract.md#status-values)) and from `fail` (agent ran and found errors); it means the lens never actually ran.
+
+1. Retry each failed agent **exactly once**, individually — same prompt, model, context payload, and file scope as the original call, dispatched on its own (not re-batched with the rest of that wave).
+2. If the retry succeeds, use its result and continue as normal — this never shows up as a failure in the final report.
+3. If the retry also fails, do **not** proceed as if that lens's coverage were complete:
+   - Carry it into step 5's aggregation as a `dispatchFailures` entry (`{agentName, attempts: 2, error}`) — the `dispatchFailures` key itself is always present in `--json` output (an empty array when there are none, per `output-format.md`); the prose report's `## Dispatch Failures` section renders only when the array is non-empty, and is never omitted in that case because "the rest of the panel passed."
+   - Treat it as fail-equivalent for step 9's gate-write condition — the same treatment step 3's `unreadable-registry`/`unreadable-files-from` handling already gets: a lens that never ran is a coverage gap, not a passing result, so `.review-passed` must not be written while any dispatch failure is outstanding.
+   - State plainly, in both prose and `--json` output, which agent(s) failed twice and the error text — a missing lens must always be visible, never inferred from a shorter-than-expected agent table.
 
 ### 5. Aggregate results
+
+**Fold in dispatch failures first (issue #1752).** Before scoring or suppression, add every step 4 `dispatchFailures` entry (agents that failed dispatch, then failed their single retry) to the aggregation. They are not agent results — they carry no `issues[]` and never enter ACCEPTED-RISKS suppression or health scoring — but they are never dropped either: carry the full `dispatchFailures` list through to the report (step 7) and the `--json` object (`output-format.md`) unchanged, and remember it for step 9's gate condition.
+
+**A non-empty `dispatchFailures` forces `overall: "fail"`, unconditionally (issue #1752).** This is not the same rule as step 9's gate-blocking condition below — it belongs here, in the aggregate itself, because step 9 (and its gate) is **skipped entirely under `--json`** (step 7), while `overall` is the one field every `--json` caller reads. `/pr --json` (the sole such caller) checks only `overall`/`status` before proceeding to open a PR; without this rule here, a lens that failed dispatch twice could sit invisibly behind an `overall: "pass"` computed only from the agents that did return, and `/pr` would open the PR anyway — the exact silent-coverage-gap failure mode #1752 exists to close, just reached through a different caller than the interactive gate. Apply this override after health scoring computes what `overall` would otherwise be, so it always wins regardless of the per-agent severity mix.
 
 #### 5a. Apply ACCEPTED-RISKS.md
 
@@ -728,6 +745,8 @@ For issues NOT auto-fixed (confidence: none, auto-fix failed, or suggestions), g
 ### 9. Write pre-commit gate file
 
 **Skip this entire step if `--json` was set** (same reason as step 8).
+
+**Dispatch failures block the gate (issue #1752).** If step 5's `dispatchFailures` list is non-empty — any agent that failed dispatch and then failed its single retry — do not write `.review-passed`, regardless of the overall status computed from the agents that did return. The same rationale as step 3's `unreadable-registry` treatment: a lens that never ran is a coverage gap, not a passing result, so this condition is checked **before** the status check below, not folded into it.
 
 If the review was auto-scoped to uncommitted changes and the overall status is `pass` or `warn` **and step 6a did not exit with actionable issues outstanding** — whether via the iteration limit or the "not converging" exit, both of which are escalations, per that step's Exit conditions table (regardless of whether those outstanding issues are only `warning`-severity — either escalation overrides `warn` for this condition specifically, since escalating and then writing a passing gate anyway would silently defeat the escalation) — write `.review-passed` to `.claude/memory/` so the pre-commit hook allows the next commit. Use the **shared gate-hash helper** so the writer and the pre-commit hook compute the hash identically — it hashes the staged **content** (the cached patch), not just the file paths (#193), so any edit after review invalidates the gate:
 

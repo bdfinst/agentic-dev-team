@@ -55,14 +55,19 @@
       "message": "God object: handler mixes routing, validation, and persistence"
     }
   ],
-  "summary": "WARN (N agents passed, N warned, N failed). N total issues."
+  "dispatchFailures": [
+    {"agentName": "arch-review", "attempts": 2, "error": "Tool result missing due to internal error"}
+  ],
+  "summary": "FAIL (N agents passed, N warned, N failed). N total issues. 1 lens never ran (dispatch failure)."
 }
 ```
 
 The `tokenEstimate` field provides rough cost observability:
 
 - `totalInputFiles`: approximate character count of all input files passed to agents
-- `agentCount`: number of agents that ran (not skipped)
+- `agentCount`: number of agents that actually reviewed content this run —
+  excludes `skip` (contract-shaped, but nothing was reviewed) and
+  `dispatchFailures` (never ran)
 - `contextStrategy`: whether diff-only, full-file, or a mix was used
 
 The `topFindings` array is the consolidated cross-agent view — one entry per
@@ -73,6 +78,24 @@ distinct `file:line`, so a finding surfaced by several agents appears once:
 - `agents` is an explicit array of the reporting agents. Multi-agent
   attribution lives here; never join multiple values into `severity` or an
   `agent` scalar.
+
+`dispatchFailures` (issue #1752, always present, empty array when none):
+agents whose `Agent` tool dispatch failed and then failed a single individual
+retry — the lens never actually ran. Distinct from an `agents[]` entry with
+`status: "skip"` (agent had nothing to review this run — see
+[`knowledge/review-agent-output-contract.md`](../../knowledge/review-agent-output-contract.md#status-values))
+and from `status: "fail"` (agent ran and found error-severity issues). A
+non-empty `dispatchFailures` list is never omitted because the rest of the
+panel returned cleanly.
+
+**A non-empty `dispatchFailures` forces `overall: "fail"`**, unconditionally,
+regardless of what the per-agent results alone would compute — the coverage
+gap is enforced by this DTO itself, not by each caller re-deriving it from
+`dispatchFailures` separately. This matters because `SKILL.md` step 9 (the
+`.review-passed` gate) never runs under `--json` — without this rule, a
+`--json` caller (e.g. `/pr`, which reads only `overall`/`status`) could see
+`overall: "pass"` and proceed despite a lens that never ran, exactly the
+silent-gap failure mode #1752 exists to close.
 
 **`--json` output contract.** When `--json` is set, the object above is the
 run's *only* output: printed to stdout, and no `corrections/*.json` files or
@@ -212,7 +235,11 @@ Correction prompts are only generated for issues with `confidence: high` or `con
 - **pass**: Zero issues
 - **warn**: Issues found, none are errors
 - **fail**: At least one error-severity issue
-- **skip**: Agent is inapplicable to the target (e.g., no JS/TS files for js-fp-review)
+- **skip**: see the canonical definition in [`knowledge/review-agent-output-contract.md`](../../knowledge/review-agent-output-contract.md#status-values)
+
+`dispatchFailures` entries carry no `status` at all — the agent never ran, so
+none of the four values above apply. See the `dispatchFailures` field
+description above.
 
 ## Model tier values
 
@@ -294,7 +321,21 @@ Loop stopped after 5 iterations. 2 issues remain:
 
 Overall: WARN after 2 fix iterations (N agents passed, N warned, N failed)
 Total issues found: N | Auto-fixed: N | Human review required: N
+
+## Dispatch Failures
+
+| Agent | Attempts | Error |
+|-------|----------|-------|
+| arch-review | 2 | Tool result missing due to internal error |
+
+Gate NOT written: 1 lens never ran and its retry also failed. Re-run
+/code-review to retry the missing lens(es).
 ```
+
+The **Dispatch Failures** section is present only when `dispatchFailures` is
+non-empty (issue #1752) — omit it entirely on a clean run, but never omit it
+when there is at least one entry, regardless of how the rest of the panel
+scored.
 
 After the summary, list remaining issues grouped by file, sorted by severity. Mark each with: `[confidence: none]`, `[auto-fix failed]`, or `[suggestion]`. Append the iteration table above.
 

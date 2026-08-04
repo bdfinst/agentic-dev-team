@@ -50,6 +50,7 @@
     "agentCount": 3,
     "contextStrategy": "full-file"
   },
+  "dispatchFailures": [],
   "topFindings": [
     {
       "severity": "warning",

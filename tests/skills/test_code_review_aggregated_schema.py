@@ -27,6 +27,7 @@ ALLOWED_TOP_LEVEL = {
     "totals",
     "tokenEstimate",
     "topFindings",
+    "dispatchFailures",
     "summary",
 }
 SEVERITY_ENUM = {"error", "warning", "suggestion"}

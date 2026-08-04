@@ -34,6 +34,21 @@ The orchestrator reads this file during Step 5 (Aggregate and report).
 
 **Totals:** {N} errors, {N} warnings, {N} suggestions
 
+## Dispatch Failures
+
+| Agent | Attempts | Error |
+|-------|----------|-------|
+| {name} | 2 | {error text, e.g. "Tool result missing due to internal error"} |
+
+Gate NOT written: {N} lens(es) never ran and their retry also failed. Re-run
+/code-review to retry the missing lens(es).
+
+{Present only when one or more agents failed dispatch and then failed their
+single retry (issue #1752) — a lens that never ran. Never omit this section
+when it has at least one row, regardless of how the rest of the panel
+scored; omit it entirely on a clean run. A non-empty table here means the
+`.review-passed` gate was not written this run — see SKILL.md step 9.}
+
 ## Institutional Context
 
 {If REVIEW-CONTEXT.md was found, summarize key points that influenced the review.

@@ -72,7 +72,10 @@ prompt's `category` carries a finding's taxonomy tag through unchanged.
 - **pass**: zero issues
 - **warn**: issues found, none are errors
 - **fail**: at least one error-severity issue
-- **skip**: agent is inapplicable to the target (e.g., no JS/TS files for `js-fp-review`)
+- **skip**: agent had nothing to review this run — no files in scope (e.g.,
+  no JS/TS files for `js-fp-review`), or excluded by a pre-flight gate.
+  Canonical definition — `output-format.md` and `SKILL.md` cite this rather
+  than restate it.
 
 **Documented per-agent status exception:** `doc-review` and `naming-review`
 escalate a `warning`-severity finding to `fail` as well as `error` — for
