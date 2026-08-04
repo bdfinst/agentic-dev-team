@@ -490,6 +490,46 @@ def test_registry_read_failure_fails_closed_for_dispatch_failure_agents_not_open
     assert result.agents_in_window == frozenset()
 
 
+def test_registered_agents_returns_none_for_a_real_missing_agents_dir(
+    tmp_path: Path, monkeypatch
+) -> None:
+    """#1763 correctness/security review (both reviewers independently found
+    this): the REAL failure mode — a missing/unreadable `agents/` directory
+    — must be checked explicitly, because `Path.glob()` never raises for it;
+    an earlier version of this fix only handled an exception, which this
+    real path never throws, so it silently returned an empty frozenset
+    instead of None. Exercises the actual function, not a monkeypatched
+    stand-in for it."""
+    missing = tmp_path / "no-such-agents-dir"
+    monkeypatch.setattr(rgc, "_agents_dir", lambda: missing)
+    assert rgc._registered_agents() is None
+
+
+def test_registered_agents_returns_none_for_zero_registered_files(
+    tmp_path: Path, monkeypatch
+) -> None:
+    """An `agents/` directory that exists but contains zero `*-review.md`
+    files is a broken install, never a legitimate empty registry — must
+    also report None, not an empty frozenset."""
+    empty_dir = tmp_path / "agents"
+    empty_dir.mkdir()
+    monkeypatch.setattr(rgc, "_agents_dir", lambda: empty_dir)
+    assert rgc._registered_agents() is None
+
+
+def test_missing_real_agents_dir_fails_closed_end_to_end(
+    tmp_path: Path, monkeypatch
+) -> None:
+    """End-to-end: a real (unmocked) missing agents/ directory must still
+    produce the fail-closed sentinel through evaluate(), not just through
+    the internal _registered_agents() unit above."""
+    missing = tmp_path / "no-such-agents-dir"
+    monkeypatch.setattr(rgc, "_agents_dir", lambda: missing)
+    _write_ledger(tmp_path, [_dispatch_failure("2026-01-01T11:55:00Z", "security-review")])
+    result = rgc.evaluate(tmp_path, _ANCHOR, _WINDOW, _HASH)
+    assert result.dispatch_failure_agents == rgc._UNPROVABLE_DISPATCH_FAILURE
+
+
 def test_registry_read_failure_fails_closed_for_normalized_dispatch_failure_agents(
     tmp_path: Path, monkeypatch
 ) -> None:

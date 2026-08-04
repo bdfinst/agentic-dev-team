@@ -254,8 +254,16 @@ def main(argv: list[str] | None = None) -> int:
         # to "fail" for a few lines up in consolidate(), and for the same
         # reason: an unexamined slice must never ride out as "pass" just
         # because the READABLE sections happened to look clean (#1763
-        # security review — /pr --json checks only overall/status).
+        # security review — /pr --json checks only overall/status). The
+        # `summary` string is rebuilt too (#1763 correctness review) — it
+        # is built from `overall` INSIDE consolidate(), before this
+        # override runs, so leaving it alone would print a "PASS ..."
+        # summary alongside `"overall": "fail"`, contradicting itself.
         result["overall"] = "fail"
+        result["summary"] = (
+            f"FAIL across {len(sections)} slices — {len(malformed)} malformed "
+            f"artifact(s) unreadable; {result['summary']}"
+        )
     print(json.dumps(result, indent=2, sort_keys=True))
     # Non-zero exit if any artifact was unreadable, so a caller notices.
     return 2 if malformed else 0

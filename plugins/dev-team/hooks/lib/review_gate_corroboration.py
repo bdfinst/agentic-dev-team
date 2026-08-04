@@ -232,11 +232,29 @@ def _registered_agents() -> frozenset | None:
     `_UNPROVABLE_DISPATCH_FAILURE` exists to prevent. See
     `_agents_with_unsuperseded_failure`, which checks for `None` explicitly
     rather than treating it as "no agents registered".
+
+    Two failure modes are checked EXPLICITLY, not left to an exception,
+    because the underlying read cannot be trusted to raise for either
+    (#1763 correctness/security review — both reviewers independently
+    found this): `registered_review_agent_names()` globs
+    `agents/*-review.md`, and `Path.glob()` silently yields nothing for a
+    missing directory and swallows a permission error — it does not raise.
+    Without the explicit checks below, a missing/unreadable `agents/`
+    directory would produce an empty `frozenset()`, not `None`, defeating
+    the very distinction this function's contract promises: a genuine
+    registry read failure would be indistinguishable from "the plugin
+    genuinely ships zero review agents" (which never happens — a plugin
+    tree with no `*-review.md` files at all is a broken install, not a
+    legitimate empty registry).
     """
+    agents_dir = _agents_dir()
+    if not agents_dir.is_dir():
+        return None
     try:
-        return review_agent_registry.registered_review_agent_names(_agents_dir())
+        names = review_agent_registry.registered_review_agent_names(agents_dir)
     except Exception:  # noqa: BLE001 - caller decides how to fail closed for its own evidence direction
         return None
+    return names or None
 
 
 def _read_ledger(cwd) -> tuple:

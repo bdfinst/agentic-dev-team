@@ -428,7 +428,7 @@ Both flags are required — pass an empty string (`--returned ""`) when no agent
      ```bash
      HASH=$(python3 "${CLAUDE_PLUGIN_ROOT}/hooks/lib/review_gate_hash.py")
      NORM=$(python3 "${CLAUDE_PLUGIN_ROOT}/hooks/lib/review_gate_normalized_hash.py" || true)
-     python3 "${CLAUDE_PLUGIN_ROOT}/hooks/lib/boundary_events.py" --event dispatch-failure --agent <name> --subject-hash "$HASH" --subject-hash-normalized "$NORM"
+     python3 "${CLAUDE_PLUGIN_ROOT}/hooks/lib/boundary_events.py" --event dispatch-failure --agent "<name>" --subject-hash "$HASH" --subject-hash-normalized "$NORM"
      ```
    - Treat it as fail-equivalent for step 9's gate-write condition — the same treatment step 3's `unreadable-registry`/`unreadable-files-from` handling already gets: a lens that never ran is a coverage gap, not a passing result, so `.review-passed` must not be written while any dispatch failure is outstanding.
    - State plainly, in both prose and `--json` output, which agent(s) failed twice and the error text — a missing lens must always be visible, never inferred from a shorter-than-expected agent table.

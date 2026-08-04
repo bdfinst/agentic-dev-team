@@ -132,7 +132,7 @@ For each slice, once its panel's waves (per the section above) return:
    ```bash
    HASH=$(python3 "${CLAUDE_PLUGIN_ROOT}/hooks/lib/review_gate_hash.py")
    NORM=$(python3 "${CLAUDE_PLUGIN_ROOT}/hooks/lib/review_gate_normalized_hash.py" || true)
-   python3 "${CLAUDE_PLUGIN_ROOT}/hooks/lib/boundary_events.py" --event dispatch-failure --agent <name> --subject-hash "$HASH" --subject-hash-normalized "$NORM"
+   python3 "${CLAUDE_PLUGIN_ROOT}/hooks/lib/boundary_events.py" --event dispatch-failure --agent "<name>" --subject-hash "$HASH" --subject-hash-normalized "$NORM"
    ```
 5. **Drop** the findings from orchestrator context. **Retain only a one-line tally per slice** — e.g. `section-0001: 3 findings (1 error, 2 warnings)`. This
    is the move that keeps context flat regardless of repo size: never hold more
