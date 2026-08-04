@@ -356,6 +356,35 @@ def test_missing_gate_file_blocks(repo: Path) -> None:
     assert "BLOCKED" in r.stderr
 
 
+def test_undecodable_gate_file_blocks_not_fail_open(repo: Path) -> None:
+    """#1813 security review: `_stored_gate_hashes()` used to read
+    `.review-passed` with `read_text()` and catch only `OSError` — undecodable
+    bytes raised `UnicodeDecodeError`, which escaped `_evaluate_gate` (called
+    unwrapped by `main()`) to the module's top-level `except Exception:
+    sys.exit(0)`, silently ALLOWING the commit with no block message and no
+    boundary event. `_stored_gate_hashes()` now reads with `errors="replace"`,
+    so undecodable bytes degrade to a line that simply can't match any real
+    hash instead of raising — the gate blocks exactly like a missing file."""
+    gate_path = repo / ".claude" / "memory" / ".review-passed"
+    gate_path.parent.mkdir(parents=True, exist_ok=True)
+    gate_path.write_bytes(b"\xff\xfe\x00not valid utf-8\x80\x81")
+    r = _run(
+        {"tool_name": "Bash", "tool_input": {"command": "git commit -m x"}}, cwd=repo
+    )
+    assert r.returncode == 2
+    assert "BLOCKED" in r.stdout
+    # The block was actually recorded, not just the exit code/message
+    # (test-review closing-pass finding): this test's own docstring claims
+    # "no boundary event" as half of the old bug, so verify that half too.
+    audit_log = repo / ".claude" / "metrics" / "boundary-events.jsonl"
+    assert audit_log.is_file()
+    entries = [json.loads(ln) for ln in audit_log.read_text().splitlines() if ln.strip()]
+    assert any(
+        e.get("decision") == "block" and e.get("matched_rule") == "pre-commit-review"
+        for e in entries
+    )
+
+
 def test_matching_gate_file_passes_and_is_consumed(repo: Path) -> None:
     """#1461: a hash match alone is no longer sufficient — this now also
     requires >= 2 distinct genuine review-agent dispatches recorded in the
