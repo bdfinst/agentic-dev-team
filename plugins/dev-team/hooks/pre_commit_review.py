@@ -175,6 +175,9 @@ try:
         is_doc_only_changeset as _is_doc_only_changeset,
     )
     from review_gate_corroboration import (  # type: ignore[import-not-found]
+        _UNPROVABLE_DISPATCH_FAILURE,
+    )
+    from review_gate_corroboration import (  # type: ignore[import-not-found]
         distinct_normalized_dispatches as _distinct_normalized_dispatches,
     )
     from review_gate_corroboration import (  # type: ignore[import-not-found]
@@ -254,6 +257,10 @@ except ImportError:  # pragma: no cover
     _DEGRADED_DISPATCH_FAILURE_SENTINEL = frozenset(
         {"<degraded-import: cannot prove no dispatch failure>"}
     )
+    # Same name as the real import above, so sentinel-detection code below
+    # (`_dispatch_failure_verdict`/`_cosmetic_carry_forward_verdict`) works
+    # identically regardless of which import path is active.
+    _UNPROVABLE_DISPATCH_FAILURE = _DEGRADED_DISPATCH_FAILURE_SENTINEL
 
     class _DegradedLedgerEvidence:  # type: ignore[misc]
         """Degraded-import stand-in for `review_gate_corroboration.LedgerEvidence`.
@@ -445,6 +452,57 @@ def _insufficient_message(n: int) -> str:
     )
 
 
+_REGISTRY_READ_FAILURE_MESSAGE = (
+    "BLOCKED: Could not read the registered review-agent set — cannot "
+    "prove no dispatch failure exists for this content; this is an infra "
+    "problem, not evidence that no review happened.\n"
+    "\n"
+    "To bypass: use git commit --no-verify\n"
+)
+
+
+def _dispatch_failure_message(agents: frozenset) -> str:
+    """Pinned rejection message for the mechanical dispatch-failure veto
+    (#1763). A FUNCTION, not a bare `ALL_CAPS` constant — mirrors
+    `_insufficient_message(n)`'s own precedent above, since the message
+    must name the specific failing agent(s), which a static constant can't
+    carry.
+
+    `agents` must never be the `_UNPROVABLE_DISPATCH_FAILURE` sentinel —
+    callers check for that distinct case first (see
+    `_dispatch_failure_verdict`/`_cosmetic_carry_forward_verdict`) and
+    render `_REGISTRY_READ_FAILURE_MESSAGE` instead, since the sentinel
+    names an infra problem, not a real agent, and "a clean rerun clears
+    it" would be false guidance for a broken registry read.
+
+    Sorting `agents` before joining makes the output byte-identical across
+    the two call sites that render it (`_dispatch_failure_verdict` in the
+    main pipeline, and `_cosmetic_carry_forward_verdict`) for the same input
+    set, regardless of the frozenset's own iteration order. An empty set is
+    guarded against explicitly (both call sites already check truthiness
+    before calling this, but a defensive fallback here means a future call
+    site that forgets the guard degrades to a labeled placeholder instead of
+    silently rendering a nameless, malformed block message.
+
+    Covers all four properties the plan requires: (1) names the failing
+    agent(s); (2) states this is a dispatch/infra failure, not a
+    code-review finding; (3) states that a clean rerun of /code-review
+    against the same, unchanged content clears it (the supersession
+    `review_gate_corroboration.py`'s `dispatch_failure_agents` already
+    implements); (4) ends with the standard --no-verify bypass line.
+    """
+    names = ", ".join(sorted(agents)) or "an unnamed review agent"
+    return (
+        f"BLOCKED: Dispatch failure recorded for {names} — this is a "
+        "dispatch/infra failure, not a code-review finding.\n"
+        "\n"
+        "Run /code-review again against this same, unchanged content — a "
+        "clean rerun clears this block.\n"
+        "\n"
+        "To bypass: use git commit --no-verify\n"
+    )
+
+
 def _emit_block(message: str) -> None:
     """Write a block message to both stdout and stderr (#1367).
 
@@ -585,7 +643,7 @@ class GateVerdict:
 def _hash_verdict(
     gate_file: Path, current_hash: str, *, unstaged_commit: bool = False
 ) -> GateVerdict | None:
-    """Lens 1/4: the original hash-match check, unchanged, evaluated FIRST
+    """Lens: the original hash-match check, unchanged, evaluated FIRST
     and independent of dispatch-ledger evidence — a hash mismatch (or a
     missing/unreadable gate file) always rejects with the original,
     untouched `_BLOCK_MESSAGE`/`"pre-commit-review"` rule, regardless of how
@@ -643,9 +701,9 @@ def _stored_gate_hashes(gate_file: Path) -> tuple[str, str | None]:
 
 
 def _cosmetic_carry_forward_verdict(
-    gate_file: Path, cwd: str, *, unstaged_commit: bool = False
+    gate_file: Path, cwd: str, current_hash: str, *, unstaged_commit: bool = False
 ) -> GateVerdict | None:
-    """Lens 1b/5: cosmetic-delta carry-forward (#1627).
+    """Lens: cosmetic-delta carry-forward (#1627).
 
     Runs ONLY after `_hash_verdict` has already rejected on a raw-hash
     mismatch. Passes iff ALL of:
@@ -656,7 +714,19 @@ def _cosmetic_carry_forward_verdict(
           hook, from the current staged content, AND
       (c) at least `_MIN_DISTINCT_DISPATCHES` distinct registered review
           agents dispatched in the recency window carrying that same
-          `subject_hash_normalized`.
+          `subject_hash_normalized`, AND
+      (d) no unsuperseded dispatch-failure exists for the current
+          normalized hash, `current_hash` (today's RAW hash), OR the
+          gate file's own STORED raw hash (the content that was actually
+          reviewed — #1763 correctness review) — checked first, ahead of
+          (c)'s count, same priority order as the main pipeline. Checking
+          only the normalized hash would be blind to a dispatch-failure
+          event that never got a `subject_hash_normalized` stamped on it
+          (the emission command computes it with `|| true`, so a
+          normalization failure silently omits the field); a review-time
+          failure would have been recorded against the STORED raw hash,
+          not `current_hash` (which by construction mismatches it on this
+          path) — checking both closes the gap for either binding.
 
     Why this does not reopen #1461: the exemption is a property of CONTENT,
     recomputed by the hook itself at gate time from `git diff --cached` —
@@ -673,12 +743,12 @@ def _cosmetic_carry_forward_verdict(
     path, so every use is visible in the same boundary-events stream the gate
     itself is audited from.
 
-    Returns a passing `GateVerdict` when all three hold; `None` otherwise —
+    Returns a passing `GateVerdict` when all four hold; `None` otherwise —
     "not decisive", meaning `_evaluate_gate` returns the original rejection
     unchanged. Fails CLOSED on any error.
     """
     try:
-        _, stored_normalized = _stored_gate_hashes(gate_file)
+        stored_raw, stored_normalized = _stored_gate_hashes(gate_file)
         if not stored_normalized:
             return None
 
@@ -688,12 +758,50 @@ def _cosmetic_carry_forward_verdict(
             return None
 
         before_ts = _mtime_to_iso(gate_file.stat().st_mtime)
-        # `_dispatch_failure_agents` is unpacked but not yet consulted here —
-        # that's Step 3.2's job (the veto itself). Unpacking now keeps this
-        # call site in sync with #1763's new 2-tuple return shape.
-        agents, _dispatch_failure_agents = _distinct_normalized_dispatches(
+        agents, dispatch_failure_agents = _distinct_normalized_dispatches(
             cwd, before_ts, WINDOW_SECONDS, current_normalized
         )
+        # #1763: also check RAW-hash negative evidence — a dispatch-failure
+        # event that never got a `subject_hash_normalized` stamped would
+        # otherwise be invisible to the normalized-only query above. Two
+        # raw hashes matter here, not one: `stored_raw` is the hash of the
+        # content that was ACTUALLY reviewed (when the review-time dispatch
+        # failure, if any, would have been recorded against it) — checking
+        # only `current_hash` (today's, post-cosmetic-edit hash, which by
+        # construction mismatches `stored_raw` on this path) would miss
+        # exactly the stale-but-real failure this lens exists to carry
+        # forward correctly. `current_hash` is checked too, independently,
+        # in case a failure was separately recorded against today's exact
+        # content. Union, don't replace: any source finding an unsuperseded
+        # failure vetoes.
+        stored_raw_evidence = (
+            _evaluate_ledger(cwd, before_ts, WINDOW_SECONDS, stored_raw)
+            if stored_raw
+            else None
+        )
+        current_raw_evidence = _evaluate_ledger(cwd, before_ts, WINDOW_SECONDS, current_hash)
+        raw_failure_sets = [current_raw_evidence.dispatch_failure_agents]
+        if stored_raw_evidence is not None:
+            raw_failure_sets.append(stored_raw_evidence.dispatch_failure_agents)
+        combined_dispatch_failures = dispatch_failure_agents.union(*raw_failure_sets)
+
+        # #1763: the same mechanical dispatch-failure veto the main pipeline
+        # applies (`_dispatch_failure_verdict`), checked here BEFORE the
+        # distinct-dispatch count below — same priority order as the main
+        # pipeline (the veto overrides the count, not the other way round).
+        # A failed dispatch can't launder around the gate via the cosmetic
+        # carry-forward path. Renders the identical pinned message via
+        # `_dispatch_failure_message` (or the distinct registry-read-failure
+        # message for the sentinel case), not a generic fallback.
+        if _UNPROVABLE_DISPATCH_FAILURE in (dispatch_failure_agents, *raw_failure_sets):
+            return GateVerdict(False, _REGISTRY_READ_FAILURE_MESSAGE, "registry-read-failure")
+        if combined_dispatch_failures:
+            return GateVerdict(
+                False,
+                _dispatch_failure_message(combined_dispatch_failures),
+                "dispatch-failure-veto",
+            )
+
         if len(agents) < _MIN_DISTINCT_DISPATCHES:
             return None
 
@@ -711,10 +819,55 @@ def _cosmetic_carry_forward_verdict(
         return None
 
 
+def _dispatch_failure_verdict(evidence) -> GateVerdict | None:
+    """Lens (#1763): the mechanical dispatch-failure veto. Evaluated
+    immediately after the ledger read-failure check and BEFORE
+    `_doc_only_exemption_verdict`/`_single_agent_exemption_verdict` — it
+    takes priority over every exemption AND the terminal distinct-dispatch
+    count: the veto applies regardless of how many other agents genuinely
+    dispatched and returned for this same subject_hash.
+
+    Returns a decisive rejecting `GateVerdict` when
+    `evidence.dispatch_failure_agents` is non-empty — a dispatched review
+    agent failed to return a contract-valid result even after its single
+    retry, and no later genuine "record" event for that same agent/hash has
+    superseded it (see `review_gate_corroboration.py`'s `LedgerEvidence.
+    dispatch_failure_agents` for the unbounded-by-`WINDOW_SECONDS`
+    supersession semantics — this veto is scoped only by subject_hash
+    equality, never by the recency window). Returns `None` otherwise (not
+    decisive — continue to the exemption lenses).
+
+    `evidence.read_failure_reason is None` (the caller checks that first)
+    rules out a LEDGER read failure reaching here, but NOT a REGISTRY read
+    failure (#1763 correctness review): `review_gate_corroboration.
+    _agents_with_unsuperseded_failure` returns the
+    `_UNPROVABLE_DISPATCH_FAILURE` sentinel on a broken registry read even
+    when the ledger itself read fine — `evaluate()` pairs that sentinel
+    with `read_failure_reason=None`. Checked explicitly below so the
+    sentinel is never rendered as if it were a real agent name.
+
+    KNOWN RESIDUAL GAP (mirrors `LedgerEvidence.dispatch_failure_agents`'s
+    own disclosure): supersession clears this veto on any LATER "record"
+    event for the same agent+hash, and "record" is a dispatch-START signal
+    — a bare re-dispatch of the failed agent clears the veto the instant it
+    starts, not once it actually returns a valid result. Not fixed here;
+    see that field's docstring for why.
+    """
+    if evidence.dispatch_failure_agents == _UNPROVABLE_DISPATCH_FAILURE:
+        return GateVerdict(False, _REGISTRY_READ_FAILURE_MESSAGE, "registry-read-failure")
+    if evidence.dispatch_failure_agents:
+        return GateVerdict(
+            False,
+            _dispatch_failure_message(evidence.dispatch_failure_agents),
+            "dispatch-failure-veto",
+        )
+    return None
+
+
 def _doc_only_exemption_verdict(
     cwd: str, before_ts: str, subject_hash: str, staged: list[str]
 ) -> GateVerdict | None:
-    """Lens 2/4: the doc-only short-circuit exemption (#1461 security
+    """Lens: the doc-only short-circuit exemption (#1461 security
     review). The ledger event alone is a self-asserted claim from the same
     party the gate constrains — re-derive the predicate here against the
     ACTUAL staged files before honoring it. A claimed-but-unproven exemption
@@ -734,7 +887,7 @@ def _doc_only_exemption_verdict(
 def _single_agent_exemption_verdict(
     cwd: str, before_ts: str, subject_hash: str, n: int
 ) -> GateVerdict | None:
-    """Lens 3/4: the sanctioned `--agent <name>` single-agent exemption,
+    """Lens: the sanctioned `--agent <name>` single-agent exemption,
     which deliberately dispatches exactly 1 review agent and so can never
     clear the `>= 2` distinct-dispatch floor on its own. Requiring `n >= 1`
     here (#1461 security review) closes the gap where the exemption event
@@ -751,7 +904,7 @@ def _single_agent_exemption_verdict(
 
 
 def _dispatch_count_verdict(evidence, n: int) -> GateVerdict:
-    """Lens 4/4: the terminal decision once no exemption applies — always
+    """Lens: the terminal decision once no exemption applies — always
     returns a concrete verdict (never `None`). `n >= _MIN_DISTINCT_DISPATCHES`
     passes outright; `n == 1` reports "insufficient" (a single dispatch,
     typically without the single-agent exemption event, is genuinely close
@@ -786,14 +939,16 @@ def _evaluate_gate(
     multi-agent review (#1461) — extracted from `main()` so the decision
     logic is unit-testable independent of stdin/subprocess plumbing.
 
-    A short pipeline over four named decision lenses (#1477 structure
-    review — this function used to be one ~90-line body with all four
-    inlined): `_hash_verdict` (always evaluated first — a hash mismatch
-    rejects regardless of dispatch evidence), then, only once the hash
-    matches, `_doc_only_exemption_verdict`, `_single_agent_exemption_verdict`,
-    and finally `_dispatch_count_verdict` as the terminal fallback. Each
-    lens after the hash check returns `None` to mean "not decisive, try the
-    next lens" or a concrete `GateVerdict` to short-circuit the pipeline.
+    A short pipeline over named decision lenses (#1477 structure review —
+    this function used to be one ~90-line body with all four original
+    lenses inlined): `_hash_verdict` (always evaluated first — a hash
+    mismatch rejects regardless of dispatch evidence), then, only once the
+    hash matches and the ledger read succeeds, `_dispatch_failure_verdict`
+    (#1763 — takes priority over every exemption and the terminal count),
+    `_doc_only_exemption_verdict`, `_single_agent_exemption_verdict`, and
+    finally `_dispatch_count_verdict` as the terminal fallback. Each lens
+    after the hash check returns `None` to mean "not decisive, try the next
+    lens" or a concrete `GateVerdict` to short-circuit the pipeline.
 
     `unstaged_commit` (#1476) is True when `main()` detected the `git
     commit -a`/pathspec-form-commit signature — nothing staged, but tracked
@@ -828,7 +983,7 @@ def _evaluate_gate(
         # ledger. The lens returns None unless it can prove the case, so the
         # rejection below is the default, not the exception.
         carry_forward = _cosmetic_carry_forward_verdict(
-            gate_file, cwd, unstaged_commit=unstaged_commit
+            gate_file, cwd, current_hash, unstaged_commit=unstaged_commit
         )
         if carry_forward is not None:
             return carry_forward
@@ -866,6 +1021,14 @@ def _evaluate_gate(
         evidence = _evaluate_ledger(cwd, before_ts, WINDOW_SECONDS, current_hash)
         if evidence.read_failure_reason is not None:
             return GateVerdict(False, _READ_FAILURE_MESSAGE, "dispatch-ledger-read-failure")
+
+        # #1763: the mechanical dispatch-failure veto runs BEFORE every
+        # exemption and the terminal dispatch-count lens — it takes
+        # priority over both, per the plan's "regardless of how many other
+        # agents succeeded" requirement.
+        verdict = _dispatch_failure_verdict(evidence)
+        if verdict is not None:
+            return verdict
 
         n = len(evidence.agents_in_window)
 
