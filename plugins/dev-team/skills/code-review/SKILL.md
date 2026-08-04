@@ -424,10 +424,11 @@ Both flags are required — pass an empty string (`--returned ""`) when no agent
 2. If the retry succeeds, use its result and continue as normal — this never shows up as a failure in the final report. A recovered dispatch — one that fails once but succeeds on its single retry — never reaches the dispatch-failure emission point in step 3 below: no `dispatch-failure` boundary event is ever emitted for it.
 3. If the retry also fails, do **not** proceed as if that lens's coverage were complete:
    - Carry it into step 5's aggregation as a `dispatchFailures` entry (`{agentName, attempts: 2, error}`) — the `dispatchFailures` key itself is always present in `--json` output (an empty array when there are none, per `output-format.md`); the prose report's `## Dispatch Failures` section renders only when the array is non-empty, and is never omitted in that case because "the rest of the panel passed."
-   - At this same moment — the point an unrecovered failure is determined — also emit a `dispatch-failure` boundary event, bound to the `subject_hash` in effect for this dispatch (the same `review_gate_hash()` value this file's doc-only/single-agent exemption calls already compute):
+   - At this same moment — the point an unrecovered failure is determined — also emit a `dispatch-failure` boundary event, bound to the `subject_hash` in effect for this dispatch (the same `review_gate_hash()` value this file's doc-only/single-agent exemption calls already compute), **and** the normalized hash — omitting it would leave the gate's cosmetic-delta carry-forward lens (which reads only the normalized hash) unable to ever see a genuine dispatch failure:
      ```bash
      HASH=$(python3 "${CLAUDE_PLUGIN_ROOT}/hooks/lib/review_gate_hash.py")
-     python3 "${CLAUDE_PLUGIN_ROOT}/hooks/lib/boundary_events.py" --event dispatch-failure --agent <name> --subject-hash "$HASH"
+     NORM=$(python3 "${CLAUDE_PLUGIN_ROOT}/hooks/lib/review_gate_normalized_hash.py" || true)
+     python3 "${CLAUDE_PLUGIN_ROOT}/hooks/lib/boundary_events.py" --event dispatch-failure --agent <name> --subject-hash "$HASH" --subject-hash-normalized "$NORM"
      ```
    - Treat it as fail-equivalent for step 9's gate-write condition — the same treatment step 3's `unreadable-registry`/`unreadable-files-from` handling already gets: a lens that never ran is a coverage gap, not a passing result, so `.review-passed` must not be written while any dispatch failure is outstanding.
    - State plainly, in both prose and `--json` output, which agent(s) failed twice and the error text — a missing lens must always be visible, never inferred from a shorter-than-expected agent table.

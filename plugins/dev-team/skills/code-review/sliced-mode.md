@@ -125,12 +125,14 @@ For each slice, once its panel's waves (per the section above) return:
    "error": "<message>"}` — never a different key for the agent name.
 4. **Emit the boundary event for each unrecovered failure**: at the same
    moment step 3 records the failure, emit the `dispatch-failure` boundary
-   event (Slice 1's shared CLI), bound to the `subject_hash` in effect for
-   that slice's dispatch — the same `review_gate_hash()` value used
-   elsewhere in this run:
+   event (Slice 1's shared CLI), bound to the `subject_hash` **and**
+   normalized hash in effect for that slice's dispatch — the same values
+   used elsewhere in this run (omitting the normalized hash would leave the
+   gate's cosmetic-delta carry-forward lens unable to ever see it):
    ```bash
    HASH=$(python3 "${CLAUDE_PLUGIN_ROOT}/hooks/lib/review_gate_hash.py")
-   python3 "${CLAUDE_PLUGIN_ROOT}/hooks/lib/boundary_events.py" --event dispatch-failure --agent <name> --subject-hash "$HASH"
+   NORM=$(python3 "${CLAUDE_PLUGIN_ROOT}/hooks/lib/review_gate_normalized_hash.py" || true)
+   python3 "${CLAUDE_PLUGIN_ROOT}/hooks/lib/boundary_events.py" --event dispatch-failure --agent <name> --subject-hash "$HASH" --subject-hash-normalized "$NORM"
    ```
 5. **Drop** the findings from orchestrator context. **Retain only a one-line tally per slice** — e.g. `section-0001: 3 findings (1 error, 2 warnings)`. This
    is the move that keeps context flat regardless of repo size: never hold more

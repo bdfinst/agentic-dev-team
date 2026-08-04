@@ -245,6 +245,16 @@ except ImportError:  # pragma: no cover
         # same way the rest of this degraded block does.
         return False
 
+    # Degraded-import fail-CLOSED sentinel (#1763): mirrors
+    # `review_gate_corroboration._UNPROVABLE_DISPATCH_FAILURE` — a failed
+    # import means this module can't prove no dispatch failure exists any
+    # more than it can prove a review happened, so the degraded value must
+    # be a non-empty "cannot prove no failure" set, never an empty/all-clear
+    # one. Not a real registered agent name.
+    _DEGRADED_DISPATCH_FAILURE_SENTINEL = frozenset(
+        {"<degraded-import: cannot prove no dispatch failure>"}
+    )
+
     class _DegradedLedgerEvidence:  # type: ignore[misc]
         """Degraded-import stand-in for `review_gate_corroboration.LedgerEvidence`.
 
@@ -264,6 +274,7 @@ except ImportError:  # pragma: no cover
         any_dispatch_ever = False
         same_subject_dispatch_ever = False
         read_failure_reason = "unreadable"
+        dispatch_failure_agents: frozenset = _DEGRADED_DISPATCH_FAILURE_SENTINEL
 
     def _evaluate_ledger(cwd, before_ts, window_seconds, subject_hash):  # type: ignore[misc]
         return _DegradedLedgerEvidence()
@@ -289,8 +300,13 @@ except ImportError:  # pragma: no cover
 
     def _distinct_normalized_dispatches(  # type: ignore[misc]
         cwd, before_ts, window_seconds, subject_hash_normalized
-    ) -> set:
-        return set()
+    ) -> tuple:
+        # Degraded-import fallback: matches the real function's new 2-tuple
+        # shape (#1763). Empty agents_in_window keeps the carry-forward lens
+        # never decisive on positive evidence (unchanged posture); the
+        # dispatch-failure side fails CLOSED with the same sentinel
+        # `_DegradedLedgerEvidence` uses, rather than an empty/all-clear set.
+        return frozenset(), _DEGRADED_DISPATCH_FAILURE_SENTINEL
 
 
 def emit_boundary_event(*args, **kwargs) -> None:
@@ -672,7 +688,10 @@ def _cosmetic_carry_forward_verdict(
             return None
 
         before_ts = _mtime_to_iso(gate_file.stat().st_mtime)
-        agents = _distinct_normalized_dispatches(
+        # `_dispatch_failure_agents` is unpacked but not yet consulted here —
+        # that's Step 3.2's job (the veto itself). Unpacking now keeps this
+        # call site in sync with #1763's new 2-tuple return shape.
+        agents, _dispatch_failure_agents = _distinct_normalized_dispatches(
             cwd, before_ts, WINDOW_SECONDS, current_normalized
         )
         if len(agents) < _MIN_DISTINCT_DISPATCHES:

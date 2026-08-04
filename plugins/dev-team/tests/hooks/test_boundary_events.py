@@ -596,6 +596,64 @@ def test_cli_dispatch_failure_unregistered_agent_is_dropped(tmp_path: Path) -> N
     assert not log.exists()
 
 
+def test_cli_dispatch_failure_stamps_subject_hash_normalized_when_given(
+    tmp_path: Path,
+) -> None:
+    """Mirrors agent_dispatch_ledger.py's "record" events, which stamp both
+    hashes — without this, review_gate_corroboration's cosmetic-delta
+    carry-forward lens (which reads only the normalized hash) could never
+    see a genuine dispatch failure."""
+    result = subprocess.run(
+        [
+            sys.executable,
+            str(_LIB_DIR / "boundary_events.py"),
+            "--cwd",
+            str(tmp_path),
+            "--event",
+            "dispatch-failure",
+            "--agent",
+            "security-review",
+            "--subject-hash",
+            "feedface",
+            "--subject-hash-normalized",
+            "normface",
+        ],
+        capture_output=True,
+        check=False,
+    )
+    assert result.returncode == 0
+    events = _read_jsonl(tmp_path / ".claude" / "metrics" / "boundary-events.jsonl")
+    assert len(events) == 1
+    assert events[0]["subject_hash_normalized"] == "normface"
+
+
+def test_cli_dispatch_failure_omits_subject_hash_normalized_when_absent(
+    tmp_path: Path,
+) -> None:
+    """--subject-hash-normalized is optional — an event written without it
+    carries no such key, matching every other optional field's convention
+    in this module."""
+    result = subprocess.run(
+        [
+            sys.executable,
+            str(_LIB_DIR / "boundary_events.py"),
+            "--cwd",
+            str(tmp_path),
+            "--event",
+            "dispatch-failure",
+            "--agent",
+            "security-review",
+            "--subject-hash",
+            "feedface",
+        ],
+        capture_output=True,
+        check=False,
+    )
+    assert result.returncode == 0
+    events = _read_jsonl(tmp_path / ".claude" / "metrics" / "boundary-events.jsonl")
+    assert "subject_hash_normalized" not in events[0]
+
+
 def test_cli_dispatch_failure_normalizes_plugin_qualified_agent_name(
     tmp_path: Path,
 ) -> None:

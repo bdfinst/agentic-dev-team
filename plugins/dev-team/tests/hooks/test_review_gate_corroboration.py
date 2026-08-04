@@ -51,6 +51,21 @@ def _record(ts: str, agent: str, subject_hash: str = _HASH) -> dict:
     }
 
 
+def _dispatch_failure(ts: str, agent: str, subject_hash: str = _HASH) -> dict:
+    """Matches the shape `boundary_events.py`'s `--event dispatch-failure`
+    CLI writes (#1763): hook="code-review", tool="Skill",
+    decision="dispatch-failure", matched_rule=<agent name>."""
+    return {
+        "ts": ts,
+        "hook": "code-review",
+        "tool": "Skill",
+        "decision": "dispatch-failure",
+        "matched_rule": agent,
+        "plugin_version": "0.0.0",
+        "subject_hash": subject_hash,
+    }
+
+
 # ---------------------------------------------------------------------------
 # distinct_review_agent_dispatches() — in-window distinct extraction
 # ---------------------------------------------------------------------------
@@ -363,6 +378,233 @@ def test_unregistered_agent_name_is_excluded_even_with_correct_hash(tmp_path: Pa
     result = rgc.distinct_review_agent_dispatches(tmp_path, _ANCHOR, _WINDOW, _HASH)
     assert result == {"security-review"}
     assert "totally-fake-review" not in result
+
+
+# ---------------------------------------------------------------------------
+# dispatch_failure_agents (#1763) — unbounded-by-window negative evidence,
+# with supersession by a later "record" for the same agent+hash.
+# ---------------------------------------------------------------------------
+
+
+def test_dispatch_failure_event_is_detected_for_matching_hash_and_agent(
+    tmp_path: Path,
+) -> None:
+    _write_ledger(tmp_path, [_dispatch_failure("2026-01-01T11:55:00Z", "security-review")])
+    result = rgc.evaluate(tmp_path, _ANCHOR, _WINDOW, _HASH)
+    assert result.dispatch_failure_agents == frozenset({"security-review"})
+
+
+def test_later_record_supersedes_earlier_dispatch_failure_regardless_of_window(
+    tmp_path: Path,
+) -> None:
+    """Both events are outside the 30-minute window relative to the anchor —
+    supersession must still apply, since `dispatch_failure_agents` is
+    unbounded by `window_seconds` (unlike `agents_in_window`)."""
+    _write_ledger(
+        tmp_path,
+        [
+            _dispatch_failure("2026-01-01T09:00:00Z", "security-review"),
+            _record("2026-01-01T09:30:00Z", "security-review"),
+        ],
+    )
+    result = rgc.evaluate(tmp_path, _ANCHOR, _WINDOW, _HASH)
+    assert result.dispatch_failure_agents == frozenset()
+
+
+def test_dispatch_failure_older_than_window_with_no_supersession_still_counts(
+    tmp_path: Path,
+) -> None:
+    """Direct proof of the unbounded-by-window behavior: a dispatch-failure
+    event 2 hours before the anchor (well outside the 30-minute window),
+    with no later superseding "record" for the same agent+hash, still
+    counts as negative evidence."""
+    _write_ledger(tmp_path, [_dispatch_failure("2026-01-01T10:00:00Z", "security-review")])
+    result = rgc.evaluate(tmp_path, _ANCHOR, _WINDOW, _HASH)
+    assert result.dispatch_failure_agents == frozenset({"security-review"})
+    # And it is genuinely outside the window that bounds agents_in_window.
+    assert result.agents_in_window == frozenset()
+
+
+def test_dispatch_failure_for_different_subject_hash_is_not_counted(
+    tmp_path: Path,
+) -> None:
+    _write_ledger(
+        tmp_path,
+        [_dispatch_failure("2026-01-01T11:55:00Z", "security-review", subject_hash="other-hash")],
+    )
+    result = rgc.evaluate(tmp_path, _ANCHOR, _WINDOW, _HASH)
+    assert result.dispatch_failure_agents == frozenset()
+
+
+def test_unregistered_agent_name_excluded_from_dispatch_failure_agents(
+    tmp_path: Path,
+) -> None:
+    _write_ledger(
+        tmp_path,
+        [
+            _dispatch_failure("2026-01-01T11:55:00Z", "security-review"),
+            _dispatch_failure("2026-01-01T11:56:00Z", "totally-fake-review"),
+        ],
+    )
+    result = rgc.evaluate(tmp_path, _ANCHOR, _WINDOW, _HASH)
+    assert result.dispatch_failure_agents == frozenset({"security-review"})
+    assert "totally-fake-review" not in result.dispatch_failure_agents
+
+
+def test_missing_ledger_fails_closed_for_dispatch_failure_agents(tmp_path: Path) -> None:
+    """A missing ledger means "cannot prove no dispatch failure exists" —
+    treated the same as "a failure exists" (non-empty), never as an
+    empty/all-clear set."""
+    result = rgc.evaluate(tmp_path, _ANCHOR, _WINDOW, _HASH)
+    assert result.dispatch_failure_agents == rgc._UNPROVABLE_DISPATCH_FAILURE
+    assert result.dispatch_failure_agents != frozenset()
+
+
+def test_unreadable_ledger_fails_closed_for_dispatch_failure_agents(tmp_path: Path) -> None:
+    log = tmp_path / ".claude" / "metrics" / "boundary-events.jsonl"
+    log.parent.mkdir(parents=True, exist_ok=True)
+    log.write_bytes(b"\xff\xfe\x00not valid utf-8\x80\x81")
+    result = rgc.evaluate(tmp_path, _ANCHOR, _WINDOW, _HASH)
+    assert result.dispatch_failure_agents == rgc._UNPROVABLE_DISPATCH_FAILURE
+    assert result.dispatch_failure_agents != frozenset()
+
+
+def test_registry_read_failure_fails_closed_for_dispatch_failure_agents_not_open(
+    tmp_path: Path, monkeypatch
+) -> None:
+    """A broken registry read must never collapse to an empty
+    dispatch_failure_agents set — that would read as "provably no dispatch
+    failures" (an all-clear) when it actually means "cannot tell". This is
+    the opposite-of-agents_in_window direction: narrowing agents_in_window
+    via an empty registered set is safe; narrowing dispatch_failure_agents
+    the same way would WIDEN the gate instead (#1763 security/correctness
+    review) — a ledger read failure already exercises the sentinel above;
+    this exercises the DISTINCT registry-read-failure path."""
+    _write_ledger(tmp_path, [_dispatch_failure("2026-01-01T11:55:00Z", "security-review")])
+    monkeypatch.setattr(rgc, "_registered_agents", lambda: None)
+    result = rgc.evaluate(tmp_path, _ANCHOR, _WINDOW, _HASH)
+    assert result.dispatch_failure_agents == rgc._UNPROVABLE_DISPATCH_FAILURE
+    assert result.dispatch_failure_agents != frozenset()
+    # Positive evidence still fails closed the OLD (safe) way: narrowed to
+    # empty, never widened.
+    assert result.agents_in_window == frozenset()
+
+
+def test_registry_read_failure_fails_closed_for_normalized_dispatch_failure_agents(
+    tmp_path: Path, monkeypatch
+) -> None:
+    _write_ledger(
+        tmp_path,
+        [_dispatch_failure_normalized("2026-01-01T11:55:00Z", "security-review", "norm-hash")],
+    )
+    monkeypatch.setattr(rgc, "_registered_agents", lambda: None)
+    _agents, dispatch_failure_agents = rgc.distinct_normalized_dispatches(
+        tmp_path, _ANCHOR, _WINDOW, "norm-hash"
+    )
+    assert dispatch_failure_agents == rgc._UNPROVABLE_DISPATCH_FAILURE
+
+
+def test_dispatch_failure_entry_with_timestamp_field_instead_of_ts_is_not_dropped(
+    tmp_path: Path,
+) -> None:
+    """Every shipped emitter stamps `ts`, but this module's OTHER reads
+    (`filter_entries`) resolve via metrics_query's `ts`/`timestamp`
+    fallback — the dispatch-failure timeline must use the same resolution,
+    not a bare `entry.get("ts")`, or a `timestamp`-keyed entry (a hand-edited
+    or foreign-stream ledger) silently vanishes from negative evidence."""
+    entry = _dispatch_failure("2026-01-01T11:55:00Z", "security-review")
+    entry["timestamp"] = entry.pop("ts")
+    _write_ledger(tmp_path, [entry])
+    result = rgc.evaluate(tmp_path, _ANCHOR, _WINDOW, _HASH)
+    assert result.dispatch_failure_agents == frozenset({"security-review"})
+
+
+# ---------------------------------------------------------------------------
+# distinct_normalized_dispatches() — new (agents_in_window,
+# dispatch_failure_agents) 2-tuple return (#1763).
+# ---------------------------------------------------------------------------
+
+
+def _record_normalized(ts: str, agent: str, subject_hash_normalized: str) -> dict:
+    return {
+        "ts": ts,
+        "hook": "agent_dispatch_ledger",
+        "tool": "Agent",
+        "decision": "record",
+        "matched_rule": agent,
+        "plugin_version": "0.0.0",
+        "subject_hash_normalized": subject_hash_normalized,
+    }
+
+
+def _dispatch_failure_normalized(ts: str, agent: str, subject_hash_normalized: str) -> dict:
+    """Matches the shape `boundary_events.py`'s `--event dispatch-failure`
+    CLI writes when given `--subject-hash-normalized` (#1763)."""
+    return {
+        "ts": ts,
+        "hook": "code-review",
+        "tool": "Skill",
+        "decision": "dispatch-failure",
+        "matched_rule": agent,
+        "plugin_version": "0.0.0",
+        "subject_hash_normalized": subject_hash_normalized,
+    }
+
+
+def test_distinct_normalized_dispatches_detects_a_real_dispatch_failure(
+    tmp_path: Path,
+) -> None:
+    """Direct proof the normalized read path surfaces genuine data, not
+    only the read-failure sentinel — closing the stale "Known gap" this
+    function's docstring used to claim (#1763 correctness review)."""
+    _write_ledger(
+        tmp_path,
+        [_dispatch_failure_normalized("2026-01-01T11:55:00Z", "security-review", "norm-hash-1")],
+    )
+    _agents, dispatch_failure_agents = rgc.distinct_normalized_dispatches(
+        tmp_path, _ANCHOR, _WINDOW, "norm-hash-1"
+    )
+    assert dispatch_failure_agents == frozenset({"security-review"})
+
+
+def test_distinct_normalized_dispatches_supersession(tmp_path: Path) -> None:
+    _write_ledger(
+        tmp_path,
+        [
+            _dispatch_failure_normalized("2026-01-01T09:00:00Z", "security-review", "norm-hash-1"),
+            _record_normalized("2026-01-01T09:30:00Z", "security-review", "norm-hash-1"),
+        ],
+    )
+    _agents, dispatch_failure_agents = rgc.distinct_normalized_dispatches(
+        tmp_path, _ANCHOR, _WINDOW, "norm-hash-1"
+    )
+    assert dispatch_failure_agents == frozenset()
+
+
+def test_distinct_normalized_dispatches_returns_two_tuple_of_frozensets(
+    tmp_path: Path,
+) -> None:
+    _write_ledger(
+        tmp_path, [_record_normalized("2026-01-01T11:55:00Z", "security-review", "norm-hash-1")]
+    )
+    result = rgc.distinct_normalized_dispatches(tmp_path, _ANCHOR, _WINDOW, "norm-hash-1")
+    assert result == (frozenset({"security-review"}), frozenset())
+    assert isinstance(result, tuple)
+    assert isinstance(result[0], frozenset)
+    assert isinstance(result[1], frozenset)
+
+
+def test_distinct_normalized_dispatches_missing_ledger_fails_closed(tmp_path: Path) -> None:
+    result = rgc.distinct_normalized_dispatches(tmp_path, _ANCHOR, _WINDOW, "norm-hash-1")
+    assert result == (frozenset(), rgc._UNPROVABLE_DISPATCH_FAILURE)
+
+
+def test_distinct_normalized_dispatches_empty_hash_matches_nothing(tmp_path: Path) -> None:
+    _write_ledger(
+        tmp_path, [_record_normalized("2026-01-01T11:55:00Z", "security-review", "norm-hash-1")]
+    )
+    result = rgc.distinct_normalized_dispatches(tmp_path, _ANCHOR, _WINDOW, "")
+    assert result == (frozenset(), frozenset())
 
 
 # ---------------------------------------------------------------------------

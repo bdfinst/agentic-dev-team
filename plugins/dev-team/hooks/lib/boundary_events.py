@@ -218,17 +218,23 @@ def _main() -> int:
     registered review-agent set before being written; nothing else is
     constructible from the command line.
 
-    `--event dispatch-failure --agent <name> --subject-hash <hash>`
-    (#1763): used by `SKILL.md` Step 4 when a dispatched review agent still
-    fails to return a contract-valid result after its single retry,
+    `--event dispatch-failure --agent <name> --subject-hash <hash>
+    [--subject-hash-normalized <hash>]` (#1763): used by `SKILL.md` Step 4
+    (and `sliced-mode.md`'s per-slice loop) when a dispatched review agent
+    still fails to return a contract-valid result after its single retry,
     recording that fact as negative evidence intended for
     `hooks/lib/review_gate_corroboration.py`'s gate veto (landing in the
     same epic, #1763's later slice — this event is write-only telemetry
     until that read path exists; do not assume a `.review-passed` write is
-    blocked by it before that lands). `<name>` must be a registered
-    `agents/*-review.md` stem — an unregistered name is silently NOT
-    recorded, matching `agent_dispatch_ledger.py`'s own validation posture
-    (including the same plugin-prefix normalization, `strip_plugin_prefix`).
+    blocked by it before that lands). The optional
+    `--subject-hash-normalized` mirrors `agent_dispatch_ledger.py`'s own
+    `"record"` events, which stamp both hashes — without it, the gate's
+    cosmetic-delta carry-forward lens (which reads only the normalized
+    hash) could never see a genuine dispatch-failure. `<name>` must be a
+    registered `agents/*-review.md` stem — an unregistered name is silently
+    NOT recorded, matching `agent_dispatch_ledger.py`'s own validation
+    posture (including the same plugin-prefix normalization,
+    `strip_plugin_prefix`).
 
     Fail-open, same posture as `emit_boundary_event` itself: the emit path
     never raises — a missing `--agent`, a broken registry read, or an
@@ -248,6 +254,9 @@ def _main() -> int:
         choices=sorted({*_CLI_EVENTS, *_CLI_AGENT_EVENTS}),
     )
     parser.add_argument("--subject-hash", required=True, dest="subject_hash")
+    parser.add_argument(
+        "--subject-hash-normalized", default=None, dest="subject_hash_normalized"
+    )
     parser.add_argument("--session-id", default=None, dest="session_id")
     parser.add_argument("--agent", default=None, dest="agent")
     args = parser.parse_args()
@@ -293,6 +302,7 @@ def _main() -> int:
             agent,
             args.session_id,
             subject_hash=args.subject_hash,
+            subject_hash_normalized=args.subject_hash_normalized,
         )
         return 0
 
