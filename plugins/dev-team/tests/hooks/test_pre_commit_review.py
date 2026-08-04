@@ -325,6 +325,236 @@ def test_missing_gate_file_blocks(repo: Path) -> None:
     assert "BLOCKED" in r.stderr
 
 
+def test_dash_c_commit_gates_against_target_repo_not_payload_cwd(
+    repo: Path, tmp_path_factory: pytest.TempPathFactory
+) -> None:
+    """Independent security-review finding (#1761/#1762/#1763 Slice 3
+    build): `git -C <dir> commit` genuinely commits into `<dir>` — the gate
+    must be evaluated (and, on failure, its bypass-audit trail written)
+    against THAT repo, not the hook payload's own cwd, or the commit slips
+    through with zero trace just because the hook happened to be invoked
+    from elsewhere."""
+    outside = tmp_path_factory.mktemp("outside")
+    r = _run(
+        {"tool_name": "Bash", "tool_input": {"command": f"git -C {repo} commit -m x"}},
+        cwd=outside,
+    )
+    assert r.returncode == 2
+    assert "BLOCKED" in r.stdout
+    # The gate-setup path (mkdir) must have run against the -C target...
+    assert (repo / ".claude" / "memory").exists()
+    # ...never against the payload cwd it was actually invoked from.
+    assert not (outside / ".claude").exists()
+
+
+def test_dash_c_commit_passes_when_target_repo_gate_satisfied(
+    repo: Path, tmp_path_factory: pytest.TempPathFactory
+) -> None:
+    outside = tmp_path_factory.mktemp("outside")
+    h = _current_hash(repo)
+    gate_path = repo / ".claude" / "memory" / ".review-passed"
+    gate_path.parent.mkdir(parents=True, exist_ok=True)
+    gate_path.write_text(h)
+    _write_dispatch_events(repo, ["security-review", "structure-review"], h)
+    r = _run(
+        {"tool_name": "Bash", "tool_input": {"command": f"git -C {repo} commit -m x"}},
+        cwd=outside,
+    )
+    assert r.returncode == 0
+    assert not gate_path.exists()
+    assert not (outside / ".claude").exists()
+
+
+def test_dash_c_relative_path_resolves_against_payload_cwd(
+    repo: Path, tmp_path_factory: pytest.TempPathFactory
+) -> None:
+    """test-review coverage gap (#1801 second round, tightened in the
+    third round): the relative-`-C` branch had zero test coverage — every
+    prior `-C` test used an absolute path. `-C sub` must resolve against
+    `payload_cwd/sub`, not the literal string `sub` relative to the
+    process's real OS cwd. The FIRST version of this test launched the
+    subprocess with `cwd=repo` and no explicit payload `cwd`, making the
+    payload cwd and the process's real OS cwd identical — a resolution
+    bug that used the wrong one would still have passed (test-review
+    round-2 re-review). Mirrors `test_staged_names_uses_payload_cwd_not_
+    process_cwd`'s pattern: explicit payload `cwd`, process launched from
+    an unrelated directory."""
+    sub = repo / "sub"
+    sub.mkdir()
+    outside = tmp_path_factory.mktemp("outside")
+    r = _run(
+        {
+            "tool_name": "Bash",
+            "tool_input": {"command": "git -C sub commit -m x"},
+            "cwd": str(repo),
+        },
+        cwd=outside,
+    )
+    assert r.returncode == 2
+    assert "BLOCKED" in r.stdout
+    # Gate-setup ran against repo/sub, which walks up to the same repo root
+    # (repo) for `.claude/memory` — not a bare, unresolved "sub" relative
+    # to the process's real OS cwd (`outside`).
+    assert (repo / ".claude" / "memory").exists()
+    assert not (outside / ".claude").exists()
+
+
+def _empty_repo(tmp_path: Path) -> Path:
+    """A hermetic git repo with no commits and nothing staged or
+    modified — genuinely nothing to gate, used as an inert decoy target."""
+    env = hermetic_git_env(home=tmp_path)
+    subprocess.run(["git", "init", "-q"], cwd=tmp_path, env=env, check=True)
+    subprocess.run(
+        ["git", "config", "user.email", "t@t"], cwd=tmp_path, env=env, check=True
+    )
+    subprocess.run(
+        ["git", "config", "user.name", "t"], cwd=tmp_path, env=env, check=True
+    )
+    return tmp_path
+
+
+def test_decoy_dash_c_commit_does_not_bypass_payload_repo_gate(
+    repo: Path, tmp_path_factory: pytest.TempPathFactory
+) -> None:
+    """#1801 second round (security-review FAIL, confirmed by hand-tracing
+    the first version's control flow): a prepended `git -C <decoy> commit`
+    segment used to become the ONLY thing the gate resolved and evaluated
+    — `<decoy>` correctly reported "nothing to gate" and `main()` returned
+    0 for the WHOLE command, without ever separately checking the second,
+    real, fully-staged commit against `repo` in the same command. `repo`
+    (the `payload_cwd`) must still be independently evaluated and block."""
+    decoy = _empty_repo(tmp_path_factory.mktemp("decoy"))
+    r = _run(
+        {
+            "tool_name": "Bash",
+            "tool_input": {
+                "command": f"git -C {decoy} commit --allow-empty -m x; git commit -m real"
+            },
+        },
+        cwd=repo,
+    )
+    assert r.returncode == 2
+    assert "BLOCKED" in r.stdout
+
+
+@pytest.mark.parametrize(
+    "command",
+    [
+        "env X=1 git commit -m x",
+        "git -c user.name=x commit -m x",
+        "git --git-dir=/nonexistent/.git commit -m x",
+        "cd sub && git commit -m x",
+        "bash -c 'git commit -m x'",
+        'git "commit" -m x',
+    ],
+)
+def test_widened_detection_forms_gate_at_hook_level(command: str, repo: Path) -> None:
+    """test-review coverage gap (#1801 second round): only the `-C` form
+    had an end-to-end hook test proving `main()` actually blocks/passes —
+    the other widened-detection forms were verified only at the
+    `is_git_commit_command()` regex/token-unit level. Each of these must
+    still reach `_emit_block` through the full stdin -> detection -> gate
+    -> exit-code pipeline, not just match at the detection layer."""
+    r = _run({"tool_name": "Bash", "tool_input": {"command": command}}, cwd=repo)
+    assert r.returncode == 2
+    assert "BLOCKED" in r.stdout
+
+
+def test_combined_env_prefix_and_relative_dash_c_gate_together(
+    repo: Path, tmp_path_factory: pytest.TempPathFactory
+) -> None:
+    """test-review coverage gap (#1801 second round): no test combined two
+    or more widened-detection mechanisms in one command. `env X=1 git -C
+    sub commit` stacks a bare env-assignment prefix with a relative `-C`
+    onto the same invocation and must still resolve/gate correctly.
+    Explicit payload `cwd` + an unrelated process cwd (test-review round-2
+    re-review), same rationale as the test above."""
+    sub = repo / "sub"
+    sub.mkdir()
+    outside = tmp_path_factory.mktemp("outside")
+    r = _run(
+        {
+            "tool_name": "Bash",
+            "tool_input": {"command": "env X=1 git -C sub commit -m x"},
+            "cwd": str(repo),
+        },
+        cwd=outside,
+    )
+    assert r.returncode == 2
+    assert "BLOCKED" in r.stdout
+    assert (repo / ".claude" / "memory").exists()
+    assert not (outside / ".claude").exists()
+
+
+def test_multi_target_same_repo_shared_gate_file_passes_once(repo: Path) -> None:
+    """#1801 third round (security-review + correctness-review both
+    confirmed): `-C sub` and the plain payload target both walk up to the
+    SAME `.git` root and therefore share one `.review-passed`. The old
+    per-target `gate_file.unlink()` (called as soon as ITS target passed)
+    would have the first target consume the shared file, leaving the
+    second target to find it missing and wrongly block a fully reviewed
+    commit. Consumption is now deferred until every target has passed, so
+    both targets sharing one gate file must still pass together and the
+    file is removed exactly once (no crash on the second target's
+    would-be duplicate unlink)."""
+    sub = repo / "sub"
+    sub.mkdir()
+    h = _current_hash(repo)
+    gate_path = repo / ".claude" / "memory" / ".review-passed"
+    gate_path.parent.mkdir(parents=True, exist_ok=True)
+    gate_path.write_text(h)
+    _write_dispatch_events(repo, ["security-review", "structure-review"], h)
+    r = _run(
+        {
+            "tool_name": "Bash",
+            "tool_input": {"command": "git -C sub commit -m a; git commit -m b"},
+        },
+        cwd=repo,
+    )
+    assert r.returncode == 0, r.stdout + r.stderr
+    assert not gate_path.exists()
+
+
+def test_gate_file_not_destroyed_when_later_target_blocks(
+    repo: Path, tmp_path_factory: pytest.TempPathFactory
+) -> None:
+    """#1801 third round (security-review, high confidence): the old
+    per-target unlink consumed a PASSING target's gate file immediately,
+    even when a LATER target in the same command went on to block the
+    whole command — destroying valid review evidence for a commit that
+    never happened, forcing a fresh >=2-agent `/code-review` just to
+    retry. `repo`'s gate must still be there after the overall command is
+    blocked by an unrelated second target."""
+    h = _current_hash(repo)
+    gate_path = repo / ".claude" / "memory" / ".review-passed"
+    gate_path.parent.mkdir(parents=True, exist_ok=True)
+    gate_path.write_text(h)
+    _write_dispatch_events(repo, ["security-review", "structure-review"], h)
+
+    other = tmp_path_factory.mktemp("other")
+    env = hermetic_git_env(home=other)
+    subprocess.run(["git", "init", "-q"], cwd=other, env=env, check=True)
+    subprocess.run(["git", "config", "user.email", "t@t"], cwd=other, env=env, check=True)
+    subprocess.run(["git", "config", "user.name", "t"], cwd=other, env=env, check=True)
+    (other / "b.ts").write_text("v1\n")
+    subprocess.run(["git", "add", "b.ts"], cwd=other, env=env, check=True)
+    # `other` has staged content and no .review-passed of its own — it blocks.
+
+    r = _run(
+        {
+            "tool_name": "Bash",
+            "tool_input": {"command": f"git commit -m real; git -C {other} commit -m x"},
+        },
+        cwd=repo,
+    )
+    assert r.returncode == 2, r.stdout + r.stderr
+    assert "BLOCKED" in r.stdout
+    # repo's own passing evidence must survive — it was never actually
+    # committed, since the overall compound command was blocked.
+    assert gate_path.exists()
+    assert gate_path.read_text() == h
+
+
 def test_matching_gate_file_passes_and_is_consumed(repo: Path) -> None:
     """#1461: a hash match alone is no longer sufficient — this now also
     requires >= 2 distinct genuine review-agent dispatches recorded in the
