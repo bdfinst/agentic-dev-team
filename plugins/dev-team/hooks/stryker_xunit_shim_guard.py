@@ -233,9 +233,14 @@ def _run_generator(
 def _compile_exclude_globs(name: str, flagged: list[str]) -> list[str]:
     """`--compile-exclude` values for the flagged files.
 
-    `generate_shim.py` links `..\\<Name>\\**\\*.cs`, so an exclusion has to be
-    expressed in that same MSBuild-relative, backslashed form — a POSIX path
-    here silently excludes nothing.
+    Shaped to match what the generator emits, which is the only thing verifiable
+    from here: `generate_shim.py` writes `<Compile Include="..\\<Name>\\**\\*.cs"
+    Exclude="<;-joined values>">`, and its own default exclusions are spelled
+    `..\\<Name>\\obj\\**\\*.cs`. So an exclusion is expressed shim-relative and
+    backslashed, and the separator conversion below produces that on both POSIX
+    and Windows hosts. (Whether MSBuild would additionally normalise a
+    forward-slash value is not asserted here — the shape the generator already
+    uses is the one to match, and the emitted value is pinned by test.)
     """
     return [f"..\\{name}\\" + rel.replace("/", "\\").replace(os.sep, "\\")
             for rel in flagged]
@@ -340,6 +345,21 @@ def _operator_gate_block(
         if choice == "port"
         else "Deactivate/skip these tests for the duration of the measurement"
     )
+    tail = [
+        "See the stryker-xunit-v2-shim skill, Step 3 for the v3->v2 replacements.",
+    ]
+    if choice == "skip":
+        # Deactivating a test does not delete the construct from the file the shim
+        # links, so `skip` only clears this gate where the deactivation itself
+        # removes the offending syntax. Saying so here beats the operator
+        # re-running into the same block and concluding the gate is broken.
+        tail.append(
+            "NOTE: deactivating a test removes it from the RUN, not from the "
+            "SOURCE the shim compiles. It clears this gate only where the "
+            'deactivation removes the construct itself (e.g. [Fact(Explicit = '
+            'true)] -> [Fact(Skip = "...")]). For a construct in the test body '
+            "or on a data attribute, re-record as 'port' or 'exclude'."
+        )
     return [
         header + f" — the operator chose '{choice}', which is not done yet.",
         (
@@ -350,9 +370,7 @@ def _operator_gate_block(
     ] + [
         f"  - {d['file']}:{d['line']}  {d['construct']}  {d['snippet']}"
         for d in findings[:20]
-    ] + [f"  - {f}  (unclassified — manual triage)" for f in unclassified[:20]] + [
-        "See the stryker-xunit-v2-shim skill, Step 3 for the v3->v2 replacements.",
-    ]
+    ] + [f"  - {f}  (unclassified — manual triage)" for f in unclassified[:20]] + tail
 
 
 def _handle_v3_project(real_csproj: Path, cwd: Path) -> list[str]:

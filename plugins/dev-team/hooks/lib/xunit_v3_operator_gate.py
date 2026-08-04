@@ -100,10 +100,15 @@ REMEDIATION_OPTIONS: tuple[Option, ...] = (
     Option(
         id="skip",
         label="Temporarily deactivate/skip just the offending tests",
-        tradeoff="Lets the shim compile and the bulk of the suite still get "
-        "measured, with a smaller edit than a full port. The skipped tests stop "
-        "protecting their code for the duration, so it is a measurement-scaffold "
-        "change to undo at teardown, not a permanent one.",
+        tradeoff="Deactivate the tests instead of rewriting what they assert — a "
+        "smaller edit than a full port. It clears the gate ONLY where the "
+        "deactivation itself removes the offending construct, e.g. "
+        '[Fact(Explicit = true)] becoming [Fact(Skip = "...")]. A construct in the '
+        "test BODY (Assert.Skip, TestContext) or on a data attribute ([AutoData], "
+        "TheoryDataRow) stays in the source the shim links, so deactivating alone "
+        "will not make it compile — those need port or exclude. The deactivated "
+        "tests stop protecting their code meanwhile: scaffolding to undo at "
+        "teardown, not a permanent change.",
     ),
     Option(
         id="degrade",
@@ -383,18 +388,27 @@ def record_decision(
     choice: str,
     cwd: Path | str | None = None,
     *,
-    fingerprint: str | None = None,
+    fingerprint: str,
     files: Sequence[str] = (),
     note: str | None = None,
 ) -> dict:
     """Persist the operator's choice for ``project``. Returns the entry.
 
     Raises ``ValueError`` on a choice outside :data:`VALID_CHOICES` — an
-    unrecognised answer must be re-asked, never coerced into one of the four.
+    unrecognised answer must be re-asked, never coerced into one of the four —
+    and on a missing ``fingerprint``, without which the entry would cover no
+    blocker set at all (see :func:`decision_for`). Refusing loudly at write time
+    beats writing a record the operator believes answered the gate while the
+    gate keeps asking.
     """
     if choice not in VALID_CHOICES:
         raise ValueError(
             f"invalid choice {choice!r}: expected one of {', '.join(VALID_CHOICES)}"
+        )
+    if not fingerprint:
+        raise ValueError(
+            "a fingerprint is required: it scopes the decision to the blockers "
+            "the operator actually saw. Use the value the guard printed."
         )
     entry = {
         "project": project,
@@ -424,16 +438,26 @@ def decision_for(
     """The decision that covers ``question``, or None when the operator must
     (re-)decide.
 
-    A recorded choice covers only the blocker set it was made about: when the
-    fingerprint differs, blockers appeared or changed since the operator
-    answered, and riding on the old answer would silently exclude something
-    they never saw.
+    Fails closed on every axis, because every "yes" here is a run that proceeds
+    without asking:
+
+    - A recorded choice covers only the blocker set it was made about. When the
+      fingerprint differs — or is absent, which would otherwise make the entry a
+      blanket answer covering every future blocker set — the operator has not
+      seen these blockers, and riding on the old answer would silently exclude
+      something they never agreed to.
+    - A stored ``choice`` outside :data:`VALID_CHOICES` (or missing entirely)
+      re-asks rather than being coerced into whichever branch happens to be
+      last. ``record_decision`` rejects those on the write side, so reaching
+      here means a hand-edited or externally-produced store — precisely why the
+      read side is where the guarantee has to hold.
     """
     entry = read_decision(question.project, cwd)
     if entry is None:
         return None
-    recorded = entry.get("fingerprint")
-    if recorded and recorded != question.fingerprint:
+    if entry.get("choice") not in VALID_CHOICES:
+        return None
+    if entry.get("fingerprint") != question.fingerprint:
         return None
     return entry
 
@@ -447,7 +471,13 @@ def _cli(argv: Sequence[str]) -> int:
     rec = sub.add_parser("record", help="record the operator's choice")
     rec.add_argument("--project", required=True, help="test project name (csproj stem)")
     rec.add_argument("--choice", required=True, choices=list(VALID_CHOICES))
-    rec.add_argument("--fingerprint", default=None, help="blocker-set fingerprint")
+    rec.add_argument(
+        "--fingerprint",
+        required=True,
+        help="blocker-set fingerprint, as printed by the guard's block body — "
+        "required, since it is what scopes the decision to the blockers the "
+        "operator saw",
+    )
     rec.add_argument(
         "--file", action="append", default=[], help="flagged file the choice covers"
     )

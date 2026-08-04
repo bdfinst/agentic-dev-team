@@ -146,12 +146,13 @@ don't reuse one from an earlier run.
 |---|---|
 | `port` | Rewrite the flagged constructs to v2-compatible forms (Step 3). The guard auto-scaffolds once the sources are clean. |
 | `exclude` | The guard scaffolds with `--compile-exclude` on the flagged files. They stay **unmeasured** — their mutants report as survivors. |
-| `skip` | Deactivate just the offending tests (Step 3), then re-run. Undo at teardown. |
+| `skip` | Deactivate just the offending tests, then re-run. Clears the gate **only** where the deactivation removes the construct itself (`[Fact(Explicit = true)]` → `[Fact(Skip = "…")]`); a construct in a test body or on a data attribute stays in the source the shim compiles, so those need `port` or `exclude`. Undo at teardown. |
 | `degrade` | Skip the shim; run the no-shim floor (`-t mtp`, `coverage-analysis: off`) for one slow advisory pass. |
 
-Add a new blocking file after the operator answered and the gate **re-asks** —
-a decision covers only the blockers they actually saw. A reply matching none of
-the four is re-asked with the same four; never default or guess.
+The fingerprint is **mandatory** — it is what scopes a decision to the blockers
+the operator actually saw. Add a new blocking file after they answered and the
+gate **re-asks**. A reply matching none of the four is re-asked with the same
+four; never default or guess.
 
 ### Step 2 — Scaffold the shim project
 

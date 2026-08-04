@@ -24,6 +24,21 @@ import xunit_v3_operator_gate as ogate
 _MODULE = _LIB / "xunit_v3_operator_gate.py"
 
 
+@pytest.fixture(autouse=True)
+def _pin_decision_store(tmp_path, monkeypatch):
+    """Pin the store to tmp_path via the env seam.
+
+    Without it, `decision_store_path` resolves through `artifact_paths`, which
+    shells out to `git rev-parse --show-toplevel` per call — safe only because
+    pytest's temp root happens to sit outside a repo. Pinning it makes these
+    unit tests hermetic rather than incidentally-hermetic, and drops a real git
+    subprocess per call.
+    """
+    monkeypatch.setenv(
+        "DEV_TEAM_XUNIT3_SHIM_DECISION_FILE", str(tmp_path / "decisions.json")
+    )
+
+
 def _finding(file: str, construct: str, **over) -> dict:
     base = {
         "file": file,
@@ -57,7 +72,9 @@ def test_every_option_carries_a_tradeoff_not_just_a_label():
 
 
 def test_valid_choices_matches_the_option_ids():
-    assert ogate.VALID_CHOICES == tuple(o.id for o in ogate.REMEDIATION_OPTIONS)
+    # Literal, not derived from REMEDIATION_OPTIONS: a constant built from a
+    # wrong-but-internally-consistent source would satisfy a circular oracle.
+    assert ogate.VALID_CHOICES == ("port", "exclude", "skip", "degrade")
 
 
 # --- build_question: what is blocking ---------------------------------------
@@ -124,6 +141,48 @@ def test_unclassified_files_are_reported_separately_not_silently_dropped():
 def test_no_blockers_means_no_question_to_ask():
     q = ogate.build_question("T", [])
     assert not q.blocking
+
+
+def test_the_detectors_own_dataclass_is_accepted_identically_to_a_dict():
+    # The documented input shape is "the detector's dataclass OR its --json dict
+    # form". Only the dict half was exercised, leaving the getattr branch — and
+    # therefore the direct in-process wiring — unproven.
+    sys.path.insert(
+        0,
+        str(
+            _REPO_ROOT / "plugins" / "dev-team" / "skills" / "mutation-testing"
+            / "scripts"
+        ),
+    )
+    import xunit_v3_feature_detector as det
+
+    real = det.scan_text("A.cs", "[Theory, AutoData]")
+    assert real, "fixture line no longer produces a detector finding"
+
+    from_objects = ogate.build_question("T", real)
+    from_dicts = ogate.build_question(
+        "T",
+        [
+            {
+                "file": f.file,
+                "line": f.line,
+                "construct": f.construct,
+                "compile_ability": f.compile_ability,
+                "coverage_impact": f.coverage_impact,
+                "snippet": f.snippet,
+            }
+            for f in real
+        ],
+    )
+    assert from_objects.blockers == from_dicts.blockers
+    assert from_objects.fingerprint == from_dicts.fingerprint
+
+
+def test_a_non_numeric_line_degrades_to_zero_rather_than_raising():
+    # A malformed detector entry must not take the gate down — a crashed gate is
+    # a gate that does not ask.
+    q = ogate.build_question("T", [_finding("A.cs", "assert-skip", line="nope")])
+    assert q.blockers[0].line == 0
 
 
 # --- render_question: the operator-facing payload ---------------------------
@@ -236,9 +295,60 @@ def test_re_recording_the_same_project_replaces_the_choice(tmp_path):
     assert ogate.decision_for(q, cwd=tmp_path)["choice"] == "degrade"
 
 
+def test_a_fingerprintless_entry_does_not_cover_anything(tmp_path):
+    # Fail closed. `if recorded and recorded != fingerprint` let a blanket entry
+    # cover every future blocker set forever, which is the opposite of the
+    # guarantee this module exists for — a coverage-bearing file added later
+    # would be excluded from the shim without the operator ever seeing it.
+    q = ogate.build_question("T", [_finding("A.cs", "assert-skip")])
+    store = ogate.decision_store_path(tmp_path)
+    store.parent.mkdir(parents=True, exist_ok=True)
+    store.write_text(
+        json.dumps({"T": {"project": "T", "choice": "exclude", "files": []}}),
+        encoding="utf-8",
+    )
+    assert ogate.read_decision("T", tmp_path) is not None  # the entry is there
+    assert ogate.decision_for(q, cwd=tmp_path) is None  # but covers nothing
+
+
+def test_a_stored_choice_outside_the_four_is_reasked_not_coerced(tmp_path):
+    # record_decision rejects these on the write side, so reaching this needs a
+    # hand-edited or externally-produced store. The read side is exactly where
+    # the "never coerced into one of the four" guarantee has to hold.
+    q = ogate.build_question("T", [_finding("A.cs", "assert-skip")])
+    store = ogate.decision_store_path(tmp_path)
+    store.parent.mkdir(parents=True, exist_ok=True)
+    store.write_text(
+        json.dumps(
+            {"T": {"project": "T", "choice": "whatever", "fingerprint": q.fingerprint}}
+        ),
+        encoding="utf-8",
+    )
+    assert ogate.decision_for(q, cwd=tmp_path) is None
+
+
+def test_a_stored_entry_with_no_choice_key_is_reasked(tmp_path):
+    q = ogate.build_question("T", [_finding("A.cs", "assert-skip")])
+    store = ogate.decision_store_path(tmp_path)
+    store.parent.mkdir(parents=True, exist_ok=True)
+    store.write_text(
+        json.dumps({"T": {"project": "T", "fingerprint": q.fingerprint}}),
+        encoding="utf-8",
+    )
+    assert ogate.decision_for(q, cwd=tmp_path) is None
+
+
 def test_unknown_choice_is_rejected(tmp_path):
     with pytest.raises(ValueError, match="choice"):
         ogate.record_decision("T", "whatever", cwd=tmp_path, fingerprint="abc")
+
+
+@pytest.mark.parametrize("blank", ["", None])
+def test_recording_without_a_fingerprint_is_rejected(tmp_path, blank):
+    # A record that covers nothing is worse than no record: the operator thinks
+    # they answered and the gate keeps asking. Reject at write time, loudly.
+    with pytest.raises(ValueError, match="fingerprint"):
+        ogate.record_decision("T", "exclude", cwd=tmp_path, fingerprint=blank)
 
 
 def test_corrupt_store_reads_as_no_decision_rather_than_raising(tmp_path):
@@ -276,7 +386,8 @@ def _cli(args: list[str], cwd) -> subprocess.CompletedProcess:
 
 def test_cli_record_and_check_round_trip(tmp_path):
     rec = _cli(
-        ["record", "--project", "Acme.Tests", "--choice", "exclude", "--file", "A.cs"],
+        ["record", "--project", "Acme.Tests", "--choice", "exclude", "--file", "A.cs",
+         "--fingerprint", "deadbeefdeadbeef"],
         tmp_path,
     )
     assert rec.returncode == 0, rec.stderr
@@ -294,8 +405,18 @@ def test_cli_check_without_a_decision_exits_nonzero(tmp_path):
 
 
 def test_cli_record_rejects_an_unknown_choice(tmp_path):
-    rec = _cli(["record", "--project", "T", "--choice", "nonsense"], tmp_path)
+    rec = _cli(
+        ["record", "--project", "T", "--choice", "nonsense",
+         "--fingerprint", "abc"],
+        tmp_path,
+    )
     assert rec.returncode != 0
+
+
+def test_cli_record_requires_a_fingerprint(tmp_path):
+    rec = _cli(["record", "--project", "T", "--choice", "exclude"], tmp_path)
+    assert rec.returncode != 0
+    assert "fingerprint" in rec.stderr
 
 
 def test_cli_options_lists_the_four_choices(tmp_path):

@@ -42,13 +42,17 @@ def test_detects_every_construct_in_fixture():
         "test-context",
         "async-lifetime-valuetask",
         "theory-data-row",
+        "autofixture-auto-data",
+        "assert-multiple",
+        "assert-equivalent",
     }
 
 
 def test_fact_explicit_is_neutral_and_no_equivalent():
     findings = _by_construct(det.scan_file(FIXTURE))["fact-explicit"]
-    # Both [Fact(Explicit=true)] and [Theory(Explicit=true)] are caught.
-    assert len(findings) == 2
+    # [Fact(Explicit=true)], [Theory(Explicit=true)], and the form whose
+    # Explicit sits after a string-valued property.
+    assert len(findings) == 3
     for f in findings:
         assert f.compile_ability == det.NO_V2_EQUIVALENT
         assert f.coverage_impact == det.COVERAGE_NEUTRAL
@@ -119,6 +123,31 @@ def test_autofixture_xunit2_package_not_flagged():
     assert det.scan_text("A.cs", "using AutoFixture.Xunit2;") == []
 
 
+def test_autofixture_xunit2_usage_not_flagged():
+    # The attribute NAMES are identical between AutoFixture.Xunit2 and .Xunit3,
+    # so the name alone cannot decide. A file that declares the v2 package
+    # compiles fine in the shim; flagging it would block the gate on nothing and,
+    # if the operator picks `exclude`, drop v2-compatible tests from measurement.
+    text = "using AutoFixture.Xunit2;\n[Theory, AutoData]\npublic void X(int a) {}\n"
+    assert det.scan_text("A.cs", text) == []
+
+
+def test_autofixture_xunit3_wins_when_a_file_names_both():
+    text = (
+        "using AutoFixture.Xunit2;\nusing AutoFixture.Xunit3;\n[Theory, AutoData]\n"
+    )
+    constructs = {f.construct for f in det.scan_text("A.cs", text)}
+    assert "autofixture-auto-data" in constructs
+
+
+def test_auto_data_with_no_package_hint_is_still_flagged():
+    # Unknown package (global using, or the reference lives in the .csproj) ->
+    # flag and let the operator decide. Blocking-and-asking is the safe default;
+    # silently proceeding into an uncompilable shim is not.
+    findings = det.scan_text("A.cs", "[Theory, AutoData]")
+    assert [f.construct for f in findings] == ["autofixture-auto-data"]
+
+
 def test_member_auto_data_counted_once_not_twice():
     # `\bAutoData\b` must not also fire inside `MemberAutoData`/`InlineAutoData`,
     # or the operator sees an inflated blocker count.
@@ -167,9 +196,27 @@ def test_linq_skip_not_flagged():
 
 
 def test_display_name_containing_explicit_not_flagged():
-    # `[^\]"]*` must stop the property match at the opening quote.
+    # A quoted argument's CONTENTS must never satisfy the property match.
     findings = det.scan_text("N.cs", '[Fact(DisplayName="Explicit = true story")]')
     assert findings == []
+
+
+@pytest.mark.parametrize(
+    "source",
+    [
+        '[Fact(DisplayName = "weekly sweep", Explicit = true)]',
+        '[Theory(Skip = "flaky", Explicit = true)]',
+        '[Trait("area", "slow"), Fact(Explicit = true)]',
+        '[Fact(Explicit = true, DisplayName = "x")]',
+    ],
+)
+def test_explicit_found_regardless_of_argument_order_or_bracket_owner(source):
+    # The old pattern could not cross a COMPLETED quoted argument, only refuse to
+    # enter one, so any string-valued property before Explicit hid the construct
+    # entirely — and the guard has no Explicit token to fall back on, so it would
+    # auto-scaffold a shim whose linked sources then fail to compile.
+    findings = det.scan_text("N.cs", source)
+    assert [f.construct for f in findings] == ["fact-explicit"], source
 
 
 def test_fixture_negatives_not_flagged():

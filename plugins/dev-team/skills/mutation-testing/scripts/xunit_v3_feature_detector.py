@@ -55,9 +55,21 @@ _CONSTRUCTS: list[Construct] = [
     Construct(
         name="fact-explicit",
         # [Fact(Explicit = true)] / [Theory(Explicit=true)] — the property does
-        # not exist on v2's FactAttribute. `[^\]"]*` stops the property match
-        # from crossing into a quoted argument (e.g. DisplayName="Explicit = true").
-        pattern=re.compile(r"\[\s*(?:Fact|Theory)\s*\([^\]\"]*\bExplicit\s*=\s*true"),
+        # not exist on v2's FactAttribute.
+        #
+        # `(?:[^\]"]|"[^"]*")*` consumes either a non-quote character or a WHOLE
+        # quoted span, never a lone `"`. So the property match can never land
+        # inside a string (a DisplayName="Explicit = true" is still not a hit),
+        # but it can step over a completed one — the previous `[^\]"]*` could
+        # only refuse to enter a quote, which silently hid every form where a
+        # string-valued property came first: `[Fact(DisplayName = "x",
+        # Explicit = true)]`. The same construct is allowed to share its bracket
+        # (`[Trait("a","b"), Fact(Explicit = true)]`) rather than having to own
+        # it, matching the autofixture construct's reasoning below.
+        pattern=re.compile(
+            r"\[(?:[^\]\"]|\"[^\"]*\")*?\b(?:Fact|Theory)\s*\("
+            r"(?:[^\]\"]|\"[^\"]*\")*?\bExplicit\s*=\s*true"
+        ),
         compile_ability=NO_V2_EQUIVALENT,
         coverage_impact=COVERAGE_NEUTRAL,
         note="Explicit tests are skipped unless the run opts in (-explicit / "
@@ -125,8 +137,10 @@ _CONSTRUCTS: list[Construct] = [
         "mirrors the package reference verbatim, so the linked sources fail to "
         "compile under xunit.v2. Porting means a manual `new Fixture()` in the "
         "body or [Theory]+[InlineData] rows — heavy if pervasive. Coverage-bearing "
-        "(these tests run and cover code). AutoFixture.Xunit2 is NOT flagged: it "
-        "is the v2-compatible package and already compiles in the shim.",
+        "(these tests run and cover code). A file that names AutoFixture.Xunit2 "
+        "and not .Xunit3 is NOT flagged (see _suppressed_constructs): the "
+        "attribute names are identical between the two packages, and the v2 one "
+        "already compiles in the shim.",
     ),
     Construct(
         name="assert-multiple",
@@ -159,6 +173,32 @@ class Finding:
     snippet: str
 
 
+#: Constructs whose pattern alone cannot decide, keyed to the file-level signal
+#: that resolves them. See :func:`_suppressed_constructs`.
+_V2_AUTOFIXTURE = "AutoFixture.Xunit2"
+_V3_AUTOFIXTURE = "AutoFixture.Xunit3"
+
+
+def _suppressed_constructs(text: str) -> frozenset[str]:
+    """Constructs to skip for this file because a file-level signal clears them.
+
+    ``[AutoData]`` and friends are spelled IDENTICALLY by AutoFixture.Xunit2 and
+    AutoFixture.Xunit3, so the attribute name alone cannot tell a shim blocker
+    from code that already compiles under v2. When a file declares the v2
+    package and not the v3 one, it is not a blocker — flagging it would stall
+    the operator gate on nothing and, if they chose ``exclude``, drop
+    v2-compatible tests out of measurement.
+
+    Absence of both signals is NOT treated as v2: the reference may be a global
+    using or live in the ``.csproj``, so the construct is still reported and the
+    operator decides. Blocking and asking is the safe default here; silently
+    proceeding into a shim that cannot compile is not.
+    """
+    if _V2_AUTOFIXTURE in text and _V3_AUTOFIXTURE not in text:
+        return frozenset({"autofixture-auto-data"})
+    return frozenset()
+
+
 def scan_text(path: str, text: str) -> list[Finding]:
     """Return the v3-only constructs found in ``text``, attributed to ``path``.
 
@@ -166,6 +206,7 @@ def scan_text(path: str, text: str) -> list[Finding]:
     snippet the operator will see at the gate.
     """
     findings: list[Finding] = []
+    suppressed = _suppressed_constructs(text)
     for lineno, line in enumerate(text.splitlines(), start=1):
         # Skip fully commented-out lines so a `// [Fact(Explicit = true)]` in
         # dead code isn't flagged as a shim-breaker. A trailing comment on a
@@ -173,6 +214,8 @@ def scan_text(path: str, text: str) -> list[Finding]:
         if line.lstrip().startswith("//"):
             continue
         for construct in _CONSTRUCTS:
+            if construct.name in suppressed:
+                continue
             if construct.pattern.search(line):
                 findings.append(
                     Finding(

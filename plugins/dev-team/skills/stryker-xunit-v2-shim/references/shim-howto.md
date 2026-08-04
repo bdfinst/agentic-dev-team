@@ -67,10 +67,11 @@ sh "$CLAUDE_PLUGIN_ROOT/hooks/py.sh" \
 ```
 
 Prefer the command the guard printed (absolute paths, correct fingerprint) over
-retyping this. `--fingerprint` is what scopes a decision to the blockers the
-operator actually saw: omit it and the choice silently covers blockers added
-later; reuse a stale one and the gate re-asks. Add `--file <path>` per flagged
-file and `--note "<why>"` to leave the rationale in the record. `check --project
+retyping this. `--fingerprint` is **required** — it is what scopes a decision to
+the blockers the operator actually saw. Omitting it is rejected outright rather
+than writing a blanket record that would silently cover blockers added later;
+reuse a stale one and the gate re-asks. Add `--file <path>` per flagged file and
+`--note "<why>"` to leave the rationale in the record. `check --project
 <TestProject>` prints the stored decision and exits non-zero when there is none.
 
 Recorded decisions live in `.claude/metrics/xunit-v3-shim-decisions.json`

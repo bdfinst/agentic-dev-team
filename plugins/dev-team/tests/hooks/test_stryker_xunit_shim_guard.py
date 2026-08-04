@@ -188,15 +188,29 @@ def _run_in(project_dir: Path, decisions: Path, command: str = "dotnet stryker")
     )
 
 
-def _record(decisions: Path, choice: str, fingerprint: str | None = None) -> None:
+def _answer(project_dir: Path, decisions: Path, choice: str) -> str:
+    """Walk the real loop: ask, take the printed fingerprint, record the answer.
+
+    Recording against the fingerprint the guard actually published — rather
+    than a bare `record --choice X` — is the only realistic path now that a
+    fingerprint is mandatory, and it exercises ask -> record -> re-run end to
+    end instead of just the recorded state.
+    """
+    asked = _run_in(project_dir, decisions)
+    fingerprint = _fingerprint_from(asked.stdout)
+    assert fingerprint, f"the gate published no fingerprint:\n{asked.stdout}"
+    _record(decisions, choice, fingerprint)
+    return fingerprint
+
+
+def _record(decisions: Path, choice: str, fingerprint: str) -> None:
     module = (
         _REPO_ROOT / "plugins" / "dev-team" / "hooks" / "lib"
         / "xunit_v3_operator_gate.py"
     )
     args = ["python3", str(module), "record", "--project",
-            "Acme.Widgets.Tests", "--choice", choice]
-    if fingerprint:
-        args += ["--fingerprint", fingerprint]
+            "Acme.Widgets.Tests", "--choice", choice,
+            "--fingerprint", fingerprint]
     done = subprocess.run(
         args,
         env={
@@ -242,21 +256,58 @@ def test_asking_twice_does_not_scaffold_behind_the_operators_back(tmp_path):
 def test_recorded_exclude_scaffolds_with_the_flagged_file_excluded(tmp_path):
     d = _blocked_project(tmp_path)
     decisions = tmp_path / "decisions.json"
-    _record(decisions, "exclude")
+    _answer(d, decisions, "exclude")
     proc = _run_in(d, decisions)
     assert proc.returncode == 2
     shim = tmp_path / "tests" / "Acme.Widgets.Tests.Mutation"
     csproj = shim / "Acme.Widgets.Tests.Mutation.csproj"
     assert csproj.exists(), proc.stdout
-    # The operator's exclusion actually reached the shim's compile set.
-    assert "AutoTests.cs" in csproj.read_text()
+    # The operator's exclusion reached the shim's compile set in the exact shape
+    # the generator's own Exclude values use — shim-relative and backslashed. A
+    # bare "AutoTests.cs in the text" check would pass for either separator form
+    # and so would not pin the shape the exclusion depends on.
+    assert r"..\Acme.Widgets.Tests\AutoTests.cs" in csproj.read_text()
     assert "Acme.Widgets.Tests.Mutation" in proc.stdout
+
+
+def test_exclusions_keep_the_subdirectory_when_the_flagged_file_is_nested(tmp_path):
+    d = _v3_project(tmp_path)
+    nested = d / "Widgets" / "Deep"
+    nested.mkdir(parents=True)
+    (nested / "AutoTests.cs").write_text(
+        "public class T {\n    [Theory, AutoData]\n    public void X(int a) {}\n}\n"
+    )
+    decisions = tmp_path / "decisions.json"
+    _answer(d, decisions, "exclude")
+    proc = _run_in(d, decisions)
+    csproj = (tmp_path / "tests" / "Acme.Widgets.Tests.Mutation"
+              / "Acme.Widgets.Tests.Mutation.csproj")
+    assert csproj.exists(), proc.stdout
+    assert r"..\Acme.Widgets.Tests\Widgets\Deep\AutoTests.cs" in csproj.read_text()
+
+
+def test_exclude_scaffold_failure_is_reported_not_swallowed(tmp_path):
+    d = _blocked_project(tmp_path)
+    decisions = tmp_path / "decisions.json"
+    _answer(d, decisions, "exclude")
+    # Make the shim's parent directory unwritable so the generator cannot create
+    # it: the guard must say scaffolding failed rather than claim success.
+    tests_dir = tmp_path / "tests"
+    original = tests_dir.stat().st_mode
+    tests_dir.chmod(0o500)
+    try:
+        proc = _run_in(d, decisions)
+    finally:
+        tests_dir.chmod(original)
+    assert proc.returncode == 2
+    assert "exclusions failed" in proc.stdout, proc.stdout
+    assert not (tmp_path / "tests" / "Acme.Widgets.Tests.Mutation").exists()
 
 
 def test_recorded_degrade_hands_back_the_no_shim_floor_command(tmp_path):
     d = _blocked_project(tmp_path)
     decisions = tmp_path / "decisions.json"
-    _record(decisions, "degrade")
+    _answer(d, decisions, "degrade")
     proc = _run_in(d, decisions)
     assert proc.returncode == 2
     assert "-t mtp" in proc.stdout
@@ -270,7 +321,7 @@ def test_recorded_degrade_hands_back_the_no_shim_floor_command(tmp_path):
 def test_recorded_port_or_skip_blocks_until_the_sources_are_clean(tmp_path, choice):
     d = _blocked_project(tmp_path)
     decisions = tmp_path / "decisions.json"
-    _record(decisions, choice)
+    _answer(d, decisions, choice)
     proc = _run_in(d, decisions)
     assert proc.returncode == 2
     assert choice in proc.stdout
@@ -279,10 +330,23 @@ def test_recorded_port_or_skip_blocks_until_the_sources_are_clean(tmp_path, choi
     assert not (tmp_path / "tests" / "Acme.Widgets.Tests.Mutation").exists()
 
 
+def test_skip_says_deactivating_alone_will_not_clear_a_body_construct(tmp_path):
+    # Deactivating a test removes it from the RUN, not from the SOURCE the shim
+    # compiles, so `skip` cannot clear the gate for a body/data-attribute
+    # construct. Without saying so, the operator re-runs into the same block and
+    # concludes the gate is broken.
+    d = _blocked_project(tmp_path)
+    decisions = tmp_path / "decisions.json"
+    _answer(d, decisions, "skip")
+    proc = _run_in(d, decisions)
+    assert "not from the" in proc.stdout or "NOTE:" in proc.stdout
+    assert "'port'" in proc.stdout and "'exclude'" in proc.stdout
+
+
 def test_port_choice_then_clean_sources_scaffolds_normally(tmp_path):
     d = _blocked_project(tmp_path)
     decisions = tmp_path / "decisions.json"
-    _record(decisions, "port")
+    _answer(d, decisions, "port")
     (d / "AutoTests.cs").write_text(
         "public class T {\n    [Theory]\n    [InlineData(1)]\n    public void X(int a) {}\n}\n"
     )
@@ -370,7 +434,7 @@ def test_paths_in_the_block_body_are_short_and_copy_pasteable(tmp_path):
 def test_floor_command_omits_a_no_op_cd_when_already_in_the_project_dir(tmp_path):
     d = _blocked_project(tmp_path)
     decisions = tmp_path / "decisions.json"
-    _record(decisions, "degrade")
+    _answer(d, decisions, "degrade")
     proc = _run_in(d, decisions)
     assert "cd .\n" not in proc.stdout
     assert "dotnet-stryker -t mtp" in proc.stdout
@@ -429,6 +493,36 @@ def test_solution_mode_at_root_scaffolds_and_blocks(tmp_path):
     # The v3 project found in the solution is scaffolded too.
     assert (tmp_path / "tests" / "Acme.Widgets.Tests.Mutation"
             / "Acme.Widgets.Tests.Mutation.csproj").exists()
+
+
+def test_solution_mode_with_blockers_asks_the_operator_too(tmp_path):
+    # Solution mode reaches the same handler, but only its no-blockers path was
+    # covered — the operator gate through this entry point was inferred from
+    # code-sharing rather than exercised.
+    _blocked_project(tmp_path)
+    (tmp_path / "Acme.sln").write_text("")
+    proc = _run_in(tmp_path, tmp_path / "decisions.json")
+    assert proc.returncode == 2
+    assert "solution mode" in proc.stdout
+    assert "autofixture-auto-data" in proc.stdout
+    for choice in ("port", "exclude", "skip", "degrade"):
+        assert choice in proc.stdout
+    assert not (tmp_path / "tests" / "Acme.Widgets.Tests.Mutation").exists()
+
+
+def test_floor_command_cds_into_the_project_when_run_from_elsewhere(tmp_path):
+    # The omission of a no-op `cd .` was pinned; the presence and content of a
+    # real `cd <relpath>` was not. Solution mode runs from the repo root, so the
+    # project is a genuine relative hop away.
+    _blocked_project(tmp_path)
+    (tmp_path / "Acme.sln").write_text("")
+    decisions = tmp_path / "decisions.json"
+    asked = _run_in(tmp_path, decisions)
+    fingerprint = _fingerprint_from(asked.stdout)
+    assert fingerprint
+    _record(decisions, "degrade", fingerprint)
+    proc = _run_in(tmp_path, decisions)
+    assert "cd tests/Acme.Widgets.Tests" in proc.stdout, proc.stdout
 
 
 def test_solution_root_without_v3_passes(tmp_path):

@@ -641,7 +641,7 @@ Each value:
 | --- | --- | --- |
 | `project` | string | Test project name (the real test `.csproj` stem) |
 | `choice` | string | `port` \| `exclude` \| `skip` \| `degrade` — the four documented remediations; any other value is rejected at write time |
-| `fingerprint` | string, nullable | 16-hex digest over the blocker set's `file::construct` pairs (line numbers deliberately excluded). Scopes the decision to the blockers the operator actually saw; a mismatch re-asks |
+| `fingerprint` | string, required | 16-hex digest over the blocker set's `file::construct` pairs (line numbers deliberately excluded). Scopes the decision to the blockers the operator actually saw; a mismatch — or an absent value, which would make the entry a blanket answer — re-asks |
 | `files` | array of string | Flagged files the choice covers, project-relative |
 | `note` | string, nullable | Operator rationale, when given |
 | `recorded_at` | string | ISO-8601 UTC `%Y-%m-%dT%H:%M:%SZ` |
@@ -650,7 +650,9 @@ Each value:
   via its `record` CLI subcommand after the operator answers the gate.
 - **Gate:** `hooks/lib/xunit_v3_operator_gate.py::decision_for()`, read by
   `hooks/stryker_xunit_shim_guard.py` (PreToolUse on `Bash`). No covering entry
-  → exit 2 with the operator question as the block body.
+  → exit 2 with the operator question as the block body. Fails closed on every
+  axis: a fingerprint mismatch, an absent fingerprint, and a stored `choice`
+  outside the four all re-ask rather than letting a run proceed unasked.
 - **Consent:** unconditional (an explicit operator decision record, not passive
   usage telemetry).
 - **Consumers:** `hooks/stryker_xunit_shim_guard.py`,
