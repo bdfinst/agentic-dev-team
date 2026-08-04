@@ -2895,7 +2895,7 @@
       "anchor": "4-run-each-enabled-agent"
     },
     "5. Aggregate results": {
-      "summary": "If zero actionable issues, skip to step 7.",
+      "summary": "**Fold in dispatch failures first (issue #1752).** Before scoring or suppression, add every step 4 `dispatchFailures` entry (agents that failed dispatch, then failed their single retry) to the aggregation.",
       "anchor": "5-aggregate-results"
     },
     "6. Present findings and ask for direction": {
