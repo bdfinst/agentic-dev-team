@@ -40,11 +40,11 @@ Read the build manifest at the repo root and pick the appropriate command:
 | `pyproject.toml` / `setup.py` | `pytest --cov=. --cov-report=json` |
 | `pom.xml` | `mvn test jacoco:report` |
 | `build.gradle*` | `./gradlew test jacocoTestReport` |
-| `*.csproj` | `dotnet test /p:CollectCoverage=true /p:CoverletOutputFormat=json` |
+| `*.sln` / `*.csproj` | Run `python3 "$CLAUDE_PLUGIN_ROOT/skills/coverage-baseline/scripts/discover_coverage_projects.py" <path-to-.sln>` to deterministically discover every `Microsoft.NET.Test.Sdk`-referenced test project from the solution (marker-only match, re-derived every run — no caller-supplied single command), then `dotnet test <project> /p:CollectCoverage=true /p:CoverletOutputFormat=json` per discovered project. The script self-bootstraps `coverage-config.json` on first run and hard-fails naming any genuinely new, untriaged project — see `scripts/discover_coverage_projects.py`'s own docstring for the full contract (#1759). |
 | `Cargo.toml` | `cargo llvm-cov --json` |
 | `go.mod` | `go test -coverprofile=coverage.out ./...` + `go tool cover -func=coverage.out` |
 
-If the repo has its own coverage script (e.g. `npm run coverage`, `make coverage`), prefer that — detect via `package.json#scripts.coverage`, the `Makefile`, or a documented run target in `README.md`. If detection is ambiguous, ask the operator for the exact command.
+If the repo has its own coverage script (e.g. `npm run coverage`, `make coverage`), prefer that — detect via `package.json#scripts.coverage`, the `Makefile`, or a documented run target in `README.md`. If detection is ambiguous, ask the operator for the exact command. This override does not apply to the `.sln`/`.csproj` row above — that row's discovery script always re-derives the project list itself, per-run, regardless of any repo-level coverage script.
 
 ### 2. Existing-baseline guard
 
