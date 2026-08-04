@@ -274,6 +274,88 @@ def test_an_unsafe_glob_pattern_is_a_discovery_error(
         jsd.discover(tmp_path)
 
 
+def test_a_brace_alternation_pattern_resolves(tmp_path: Path) -> None:
+    # All three managers accept braces; `pathlib.Path.glob` does not, so without
+    # expansion these two real test packages would vanish with no diagnostic.
+    _root_manifest(tmp_path, ["apps/{web,api}"])
+    _jest_package(tmp_path, "apps/web")
+    _jest_package(tmp_path, "apps/api")
+    _jest_package(tmp_path, "apps/admin")
+
+    result = jsd.discover(tmp_path)
+
+    assert [project.path for project in result] == ["apps/api", "apps/web"]
+
+
+@pytest.mark.parametrize(
+    ("pattern", "expected"),
+    [
+        ("apps/*", ["apps/*"]),
+        ("apps/{web,api}", ["apps/web", "apps/api"]),
+        ("{a,b}/{x,y}", ["a/x", "a/y", "b/x", "b/y"]),
+        ("apps/{ web , api }", ["apps/web", "apps/api"]),
+    ],
+)
+def test_brace_expansion_enumerates_every_combination(
+    pattern: str, expected: list[str]
+) -> None:
+    assert sorted(jsd.expand_braces(pattern)) == sorted(expected)
+
+
+def test_an_unbalanced_brace_is_a_discovery_error_not_a_silent_zero_match(
+    tmp_path: Path,
+) -> None:
+    _root_manifest(tmp_path, ["apps/{web"])
+    _jest_package(tmp_path, "apps/web")
+
+    with pytest.raises(cc.DiscoveryError, match="unbalanced brace"):
+        jsd.discover(tmp_path)
+
+
+def test_a_wildcard_never_matches_a_dot_directory(tmp_path: Path) -> None:
+    # minimatch and fast-glob exclude leading-dot names from `*`; Path.glob does not.
+    _root_manifest(tmp_path, ["packages/*"])
+    _jest_package(tmp_path, "packages/alpha")
+    _jest_package(tmp_path, "packages/.cache")
+
+    result = jsd.discover(tmp_path)
+
+    assert [project.path for project in result] == ["packages/alpha"]
+
+
+def test_an_explicitly_declared_dot_path_is_still_discovered(tmp_path: Path) -> None:
+    # Dropping these would be the under-report direction: the operator named it.
+    _root_manifest(tmp_path, [".internal/*"])
+    _jest_package(tmp_path, ".internal/tools")
+
+    result = jsd.discover(tmp_path)
+
+    assert [project.path for project in result] == [".internal/tools"]
+
+
+def test_a_repo_path_that_is_not_a_directory_is_an_error_not_not_applicable(
+    tmp_path: Path,
+) -> None:
+    # A typo'd repo path must not read as "this stack does not apply".
+    with pytest.raises(cc.DiscoveryError, match="not a directory"):
+        jsd.discover(tmp_path / "does-not-exist")
+
+
+def test_a_symlinked_workspace_keeps_its_declared_identity(tmp_path: Path) -> None:
+    # Resolving the candidate would rewrite the identity `coverage_config`
+    # matches as an exact string, collapsing two entries into one.
+    _root_manifest(tmp_path, ["packages/*", "apps/*"])
+    _jest_package(tmp_path, "packages/web")
+    (tmp_path / "apps").mkdir()
+    (tmp_path / "apps" / "web").symlink_to(
+        tmp_path / "packages" / "web", target_is_directory=True
+    )
+
+    result = jsd.discover(tmp_path)
+
+    assert [project.path for project in result] == ["apps/web", "packages/web"]
+
+
 # ---------------------------------------------------------------------------
 # Classification
 # ---------------------------------------------------------------------------
@@ -405,6 +487,118 @@ def test_pnpm_yaml_tolerates_comments_and_blank_lines(tmp_path: Path) -> None:
     result = jsd.discover(tmp_path)
 
     assert [project.path for project in result] == ["packages/alpha"]
+
+
+def test_pnpm_yaml_accepts_a_zero_indented_block_sequence(tmp_path: Path) -> None:
+    # YAML allows a block sequence at the same indentation as its mapping key.
+    _write(
+        tmp_path / "pnpm-workspace.yaml",
+        "packages:\n- 'packages/*'\n- 'apps/*'\n",
+    )
+    _jest_package(tmp_path, "packages/alpha")
+    _jest_package(tmp_path, "apps/web")
+
+    result = jsd.discover(tmp_path)
+
+    assert [project.path for project in result] == ["apps/web", "packages/alpha"]
+
+
+def test_a_zero_indented_sequence_still_terminates_at_the_next_key(
+    tmp_path: Path,
+) -> None:
+    _write(
+        tmp_path / "pnpm-workspace.yaml",
+        "packages:\n- 'packages/*'\ncatalog:\n  react: ^19.0.0\n",
+    )
+    _jest_package(tmp_path, "packages/alpha")
+
+    result = jsd.discover(tmp_path)
+
+    assert [project.path for project in result] == ["packages/alpha"]
+
+
+def test_a_quoted_packages_key_is_recognized(tmp_path: Path) -> None:
+    # Reading it as an absent key would silently yield zero patterns.
+    _write(tmp_path / "pnpm-workspace.yaml", "\"packages\":\n  - 'packages/*'\n")
+    _jest_package(tmp_path, "packages/alpha")
+
+    result = jsd.discover(tmp_path)
+
+    assert [project.path for project in result] == ["packages/alpha"]
+
+
+def test_a_duplicate_packages_key_is_a_discovery_error(tmp_path: Path) -> None:
+    # A tolerant YAML loader is last-wins, so silently taking the first block
+    # would resolve patterns pnpm itself would not use.
+    _write(
+        tmp_path / "pnpm-workspace.yaml",
+        "packages:\n  - 'packages/*'\npackages:\n  - 'apps/*'\n",
+    )
+
+    with pytest.raises(cc.DiscoveryError, match="appears 2 times"):
+        jsd.discover(tmp_path)
+
+
+def test_a_bom_prefixed_manifest_is_not_reported_as_malformed(tmp_path: Path) -> None:
+    # npm strips the BOM; calling such a file "malformed" would mislead.
+    _root_manifest(tmp_path, ["packages/*"])
+    (tmp_path / "packages" / "alpha").mkdir(parents=True)
+    (tmp_path / "packages" / "alpha" / "package.json").write_text(
+        json.dumps({"name": "a", "scripts": {"test": "jest"}, "devDependencies": {"jest": "^29"}}),
+        encoding="utf-8-sig",
+    )
+
+    result = jsd.discover(tmp_path)
+
+    assert _classification_of(result, "packages/alpha") is _TEST
+
+
+def test_an_undecodable_manifest_is_a_discovery_error_naming_it(tmp_path: Path) -> None:
+    # UnicodeDecodeError is a ValueError, not an OSError.
+    _root_manifest(tmp_path, ["packages/*"])
+    (tmp_path / "packages" / "alpha").mkdir(parents=True)
+    (tmp_path / "packages" / "alpha" / "package.json").write_bytes(
+        b"\xff\xfe{\x00\"\x00n\x00\"\x00:\x001\x00}\x00"
+    )
+
+    with pytest.raises(cc.DiscoveryError) as excinfo:
+        jsd.discover(tmp_path)
+
+    assert "packages/alpha" in str(excinfo.value)
+    assert "undecodable" in str(excinfo.value)
+
+
+def test_a_real_test_script_wrapped_around_echo_is_not_a_placeholder(
+    tmp_path: Path,
+) -> None:
+    # An unanchored placeholder regex would drop this genuine test package.
+    _root_manifest(tmp_path, ["packages/*"])
+    _package(
+        tmp_path,
+        "packages/alpha",
+        scripts={"test": "echo linting && jest --coverage || exit 1"},
+        dev_dependencies={"jest": "^29.0.0"},
+    )
+
+    result = jsd.discover(tmp_path)
+
+    assert _classification_of(result, "packages/alpha") is _TEST
+
+
+def test_the_cli_never_emits_a_traceback_for_an_unexpected_failure(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    def _boom(*_args: object, **_kwargs: object):
+        raise RuntimeError("something nobody anticipated")
+
+    monkeypatch.setattr(jsd, "discover", _boom)
+
+    exit_code = jsd.main([str(tmp_path)])
+
+    captured = capsys.readouterr()
+    assert exit_code == 1
+    assert captured.err.startswith("error: unexpected failure:")
+    assert "Traceback" not in captured.err
 
 
 def test_pnpm_yaml_with_no_packages_key_contributes_no_patterns(

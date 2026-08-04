@@ -41,7 +41,9 @@ Discovered project paths are recorded exactly as `dotnet sln list` printed them,
 | a non-placeholder `test` script **and** a coverage-capable runner (`jest`, `vitest`, or `mocha`/`ava` paired with `nyc`/`c8`) | `TEST` |
 | anything less | `NOT_TEST` |
 
-`npm init`'s `echo "Error: no test specified" && exit 1` placeholder is not a test script. `@types/jest` and `eslint-plugin-jest` are not the runner. Both `devDependencies` and `dependencies` are read — a runner misplaced in `dependencies` is never a reason to leave a real test package out of coverage.
+`npm init`'s `echo "Error: no test specified" && exit 1` placeholder is not a test script, but a real one that merely *starts* with an `echo` (`echo linting && jest --coverage || exit 1`) is. `@types/jest` and `eslint-plugin-jest` are not the runner. Both `devDependencies` and `dependencies` are read — a runner misplaced in `dependencies` is never a reason to leave a real test package out of coverage.
+
+Glob resolution matches what npm/yarn/pnpm enumerate, not raw `pathlib` semantics: brace alternations (`apps/{web,api}`) are expanded, `!` negations apply as global ignores regardless of order, `node_modules` matches are dropped, and a `*` wildcard does not match leading-dot directories (though a pattern that explicitly names one, like `.internal/*`, is honoured). A symlinked workspace keeps the identity the glob matched rather than its target's. An unbalanced brace is a hard failure, because it would otherwise match nothing silently.
 
 There is no `AMBIGUOUS` state for JS/TS: unlike MSBuild's conditioned references, a manifest carries no build condition discovery would have to decline to evaluate.
 
@@ -106,7 +108,8 @@ When a `baseline-coverage.json`'s `captured_at` predates the config's `bootstrap
 - **`<Import Project="…" />` inside a `Directory.Build.*` file** is not followed, so a marker declared only in an imported file is not seen.
 - **The `.sln` search is root-only, not recursive.** A repo whose solution lives at `src/App.sln` passes it explicitly via `--solution`; recursing would make the measured set depend on directory layout and would pick up nested sample/fixture solutions.
 - **More than one `.sln`** at the repo root is a hard failure naming them all rather than a sort-order pick; pass the one to measure explicitly.
-- **`pnpm-workspace.yaml`** is read by a minimal, documented-shape-only parser: a `packages:` key followed by a block sequence of quoted or bare scalars. A syntactically-valid-but-unsupported shape (flow-style array, nested mapping, block scalar, anchor/alias) is a discovery error, explicitly **not** a not-applicable signal and **not** a silent empty list.
+- **`pnpm-workspace.yaml`** is read by a minimal, documented-shape-only parser: a `packages:` key (quoted or bare, declared once) followed by a block sequence of quoted or bare scalars, at any indentation including zero. A syntactically-valid-but-unsupported shape (flow-style array, nested mapping, block scalar, anchor/alias, a duplicated `packages:` key) is a discovery error, explicitly **not** a not-applicable signal and **not** a silent empty list.
+- **A `**` workspace pattern still walks `node_modules`** before matches are filtered out; correct, but not free on a repo with dependencies installed.
 - **Exclusion rationale staleness** is not auto-detected — only the exclusion's continued existence is re-surfaced.
 
 ## Superseded
