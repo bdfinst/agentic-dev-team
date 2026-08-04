@@ -55,7 +55,15 @@ for _p in (_HOOKS_DIR, _LIB_DIR, _TESTS_LIB):
 import boundary_events  # type: ignore[import-not-found]
 from hermetic import hermetic_git_env  # type: ignore[import-not-found]
 
-_DECISION_ENUM = {"block", "warn", "bypass", "intervention", "revert", "record"}
+_DECISION_ENUM = {
+    "block",
+    "warn",
+    "bypass",
+    "intervention",
+    "revert",
+    "record",
+    "dispatch-failure",
+}
 _SCHEMA_FIELDS = {"ts", "hook", "tool", "decision", "matched_rule", "plugin_version"}
 _OPTIONAL_FIELDS = {"session_id"}
 
@@ -138,9 +146,10 @@ def test_emit_fails_open_on_arbitrary_exception(tmp_path: Path, monkeypatch) -> 
     assert not (tmp_path / ".claude" / "metrics" / "boundary-events.jsonl").exists()
 
 
-def test_emit_swallows_bad_cwd_type(monkeypatch) -> None:
+def test_emit_swallows_bad_cwd_type(tmp_path: Path, monkeypatch) -> None:
     """An unusable `cwd` (e.g. None with no real cwd fallback failing) must
     still not raise — fail-open covers the whole call, not just I/O."""
+    monkeypatch.setattr(boundary_events.Path, "cwd", lambda: tmp_path)
     boundary_events.emit_boundary_event(None, "h", "Bash", "warn", "r")
 
 
@@ -523,6 +532,206 @@ def test_cli_single_agent_event_emits_the_other_fixed_tuple(tmp_path: Path) -> N
     assert result.returncode == 0
     events = _read_jsonl(tmp_path / ".claude" / "metrics" / "boundary-events.jsonl")
     assert events[0]["matched_rule"] == "single-agent-review-exempt"
+
+
+def test_cli_dispatch_failure_emits_event_with_agent_as_matched_rule(
+    tmp_path: Path,
+) -> None:
+    """#1763: `--event dispatch-failure` writes a well-formed event with the
+    given (registered) agent name as `matched_rule` and the given hash as
+    `subject_hash`."""
+    result = subprocess.run(
+        [
+            sys.executable,
+            str(_LIB_DIR / "boundary_events.py"),
+            "--cwd",
+            str(tmp_path),
+            "--event",
+            "dispatch-failure",
+            "--agent",
+            "security-review",
+            "--subject-hash",
+            "feedface",
+        ],
+        capture_output=True,
+        check=False,
+    )
+    assert result.returncode == 0
+    events = _read_jsonl(tmp_path / ".claude" / "metrics" / "boundary-events.jsonl")
+    assert len(events) == 1
+    event = events[0]
+    assert event["hook"] == "code-review"
+    assert event["tool"] == "Skill"
+    assert event["matched_rule"] == "security-review"
+    assert event["subject_hash"] == "feedface"
+    # The decision value is never "record" and is distinct from every other
+    # existing verdict value.
+    assert event["decision"] == "dispatch-failure"
+    assert event["decision"] != "record"
+    assert event["decision"] not in {"block", "warn", "bypass", "intervention", "revert"}
+
+
+def test_cli_dispatch_failure_unregistered_agent_is_dropped(tmp_path: Path) -> None:
+    """An agent name absent from the registered review-agent set must be
+    silently NOT recorded — no boundary event is appended for that
+    invocation."""
+    result = subprocess.run(
+        [
+            sys.executable,
+            str(_LIB_DIR / "boundary_events.py"),
+            "--cwd",
+            str(tmp_path),
+            "--event",
+            "dispatch-failure",
+            "--agent",
+            "totally-fabricated-not-a-real-review-agent",
+            "--subject-hash",
+            "deadbeef",
+        ],
+        capture_output=True,
+        check=False,
+    )
+    assert result.returncode == 0
+    log = tmp_path / ".claude" / "metrics" / "boundary-events.jsonl"
+    assert not log.exists()
+
+
+def test_cli_dispatch_failure_stamps_subject_hash_normalized_when_given(
+    tmp_path: Path,
+) -> None:
+    """Mirrors agent_dispatch_ledger.py's "record" events, which stamp both
+    hashes — without this, review_gate_corroboration's cosmetic-delta
+    carry-forward lens (which reads only the normalized hash) could never
+    see a genuine dispatch failure."""
+    result = subprocess.run(
+        [
+            sys.executable,
+            str(_LIB_DIR / "boundary_events.py"),
+            "--cwd",
+            str(tmp_path),
+            "--event",
+            "dispatch-failure",
+            "--agent",
+            "security-review",
+            "--subject-hash",
+            "feedface",
+            "--subject-hash-normalized",
+            "normface",
+        ],
+        capture_output=True,
+        check=False,
+    )
+    assert result.returncode == 0
+    events = _read_jsonl(tmp_path / ".claude" / "metrics" / "boundary-events.jsonl")
+    assert len(events) == 1
+    assert events[0]["subject_hash_normalized"] == "normface"
+
+
+def test_cli_dispatch_failure_omits_subject_hash_normalized_when_absent(
+    tmp_path: Path,
+) -> None:
+    """--subject-hash-normalized is optional — an event written without it
+    carries no such key, matching every other optional field's convention
+    in this module."""
+    result = subprocess.run(
+        [
+            sys.executable,
+            str(_LIB_DIR / "boundary_events.py"),
+            "--cwd",
+            str(tmp_path),
+            "--event",
+            "dispatch-failure",
+            "--agent",
+            "security-review",
+            "--subject-hash",
+            "feedface",
+        ],
+        capture_output=True,
+        check=False,
+    )
+    assert result.returncode == 0
+    events = _read_jsonl(tmp_path / ".claude" / "metrics" / "boundary-events.jsonl")
+    assert "subject_hash_normalized" not in events[0]
+
+
+def test_cli_dispatch_failure_normalizes_plugin_qualified_agent_name(
+    tmp_path: Path,
+) -> None:
+    """The plugin's normal, installed invocation form ("dev-team:<agent>")
+    must be recognized identically to the bare stem and recorded under the
+    bare (closed-vocabulary) name — matching agent_dispatch_ledger.py's own
+    strip_plugin_prefix normalization exactly (see that hook's
+    test_a_qualified_name_is_normalized_to_the_bare_stem)."""
+    result = subprocess.run(
+        [
+            sys.executable,
+            str(_LIB_DIR / "boundary_events.py"),
+            "--cwd",
+            str(tmp_path),
+            "--event",
+            "dispatch-failure",
+            "--agent",
+            "dev-team:security-review",
+            "--subject-hash",
+            "feedface",
+        ],
+        capture_output=True,
+        check=False,
+    )
+    assert result.returncode == 0
+    events = _read_jsonl(tmp_path / ".claude" / "metrics" / "boundary-events.jsonl")
+    assert len(events) == 1
+    assert events[0]["matched_rule"] == "security-review"
+
+
+def test_cli_dispatch_failure_other_plugin_qualified_name_is_dropped(
+    tmp_path: Path,
+) -> None:
+    """A DIFFERENT plugin's qualified name must never be recorded — only
+    this plugin's own "dev-team:" prefix is stripped, matching
+    agent_dispatch_ledger.py's own posture."""
+    result = subprocess.run(
+        [
+            sys.executable,
+            str(_LIB_DIR / "boundary_events.py"),
+            "--cwd",
+            str(tmp_path),
+            "--event",
+            "dispatch-failure",
+            "--agent",
+            "other-plugin:security-review",
+            "--subject-hash",
+            "feedface",
+        ],
+        capture_output=True,
+        check=False,
+    )
+    assert result.returncode == 0
+    log = tmp_path / ".claude" / "metrics" / "boundary-events.jsonl"
+    assert not log.exists()
+
+
+def test_cli_dispatch_failure_missing_agent_is_a_silent_noop(tmp_path: Path) -> None:
+    """Fail-open, matching _main()'s own "always exits 0" emit-path contract
+    (module docstring) — a caller that forgot --agent gets a no-op, not a
+    nonzero exit from a telemetry emitter."""
+    result = subprocess.run(
+        [
+            sys.executable,
+            str(_LIB_DIR / "boundary_events.py"),
+            "--cwd",
+            str(tmp_path),
+            "--event",
+            "dispatch-failure",
+            "--subject-hash",
+            "deadbeef",
+        ],
+        capture_output=True,
+        check=False,
+    )
+    assert result.returncode == 0
+    log = tmp_path / ".claude" / "metrics" / "boundary-events.jsonl"
+    assert not log.exists()
 
 
 def test_cli_rejects_arbitrary_hook_decision_matched_rule(tmp_path: Path) -> None:

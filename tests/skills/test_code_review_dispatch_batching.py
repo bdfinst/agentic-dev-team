@@ -76,6 +76,34 @@ def test_step4_never_drops_a_double_failure_silently():
     assert "never inferred from a shorter-than-expected agent table" in collapsed(_STEP4)
 
 
+def test_step4_coverage_check_names_dispatch_reconcile_script_and_flags():
+    # Issue #1761: the dispatched-vs-returned comparison is scripted, not
+    # eyeballed — anchor to the script path and both its flags, not just the
+    # bare filename.
+    assert "skills/code-review/scripts/dispatch_reconcile.py" in _STEP4
+    assert "--dispatched" in _STEP4
+    assert "--returned" in _STEP4
+
+
+def test_step4_unrecovered_failure_emits_dispatch_failure_boundary_event():
+    # Issue #1763's shared primitive: the boundary-event CLI invocation named
+    # explicitly, not just "an event is recorded somewhere".
+    assert "hooks/lib/boundary_events.py" in _STEP4
+    assert "--event dispatch-failure" in _STEP4
+
+
+def test_step4_recovered_dispatch_never_emits_the_event():
+    # Anchored to the specific guarantee sentence, not a bare tool name or
+    # digit — a rewrite that drops this guarantee must fail here even if
+    # "dispatch-failure" still appears elsewhere in the section.
+    assert (
+        "A recovered dispatch — one that fails once but succeeds on its "
+        "single retry — never reaches the dispatch-failure emission point "
+        "in step 3 below: no `dispatch-failure` boundary event is ever "
+        "emitted for it."
+    ) in _STEP4
+
+
 def test_step5_dispatch_failures_never_enter_scoring_or_suppression():
     lowered = collapsed(_STEP5).lower()
     assert "never enter accepted-risks suppression or health scoring" in lowered

@@ -23,12 +23,25 @@ import json
 import sys
 from pathlib import Path
 
-# Severity ranking (extracted — step 5c's ranking lived only in prose before).
-_SEVERITY_RANK = {"suggestion": 1, "warning": 2, "error": 3}
+# Reach the sibling ledger.py regardless of cwd or sys.path mode (matches the
+# house pattern in change_shape.py/codebase_recon.py for reaching a sibling
+# module rather than relying on the implicit sys.path[0] a direct script
+# invocation provides).
+_HERE = Path(__file__).resolve().parent
+if str(_HERE) not in sys.path:
+    sys.path.insert(0, str(_HERE))
 
-# Maps a severity to its totals bucket, derived from the same vocabulary as
-# _SEVERITY_RANK so the severity set has a single source of truth.
-_SEVERITY_BUCKET = {"error": "errors", "warning": "warnings", "suggestion": "suggestions"}
+from ledger import raw_dir
+
+# Single source of truth for the severity vocabulary (step 5c's ranking lived
+# only in prose before): each severity's rank (for highest-wins merge and
+# sorting) and its totals bucket key.
+_SEVERITY = {
+    "suggestion": (1, "suggestions"),
+    "warning": (2, "warnings"),
+    "error": (3, "errors"),
+}
+_DEFAULT_SEVERITY = "suggestion"
 
 # A review dimension recurring across at least this many slices is a theme.
 _THEME_MIN_SLICES = 2
@@ -42,7 +55,11 @@ _FINDINGS_KEYS = ("findings", "issues")
 
 
 def _rank(severity: str) -> int:
-    return _SEVERITY_RANK.get(severity, 0)
+    return _SEVERITY.get(severity, (0, ""))[0]
+
+
+def _bucket(severity: str) -> str:
+    return _SEVERITY.get(severity, _SEVERITY[_DEFAULT_SEVERITY])[1]
 
 
 def _findings_of(container: dict) -> list:
@@ -102,7 +119,7 @@ def _merge_finding(merged: dict, order: list, finding: dict) -> None:
     """
     key = _dedupe_key(finding)
     agent = finding.get("agent")
-    severity = finding.get("severity", "suggestion")
+    severity = finding.get("severity", _DEFAULT_SEVERITY)
     entry = merged.get(key)
     if entry is None:
         order.append(key)
@@ -121,6 +138,18 @@ def _merge_finding(merged: dict, order: list, finding: dict) -> None:
         entry["agents"].append(agent)
 
 
+def _tally_severity(totals: dict, severity: str) -> None:
+    totals[_bucket(severity)] += 1
+
+
+def _tally_theme(theme_slices: dict, theme_counts: dict, agent: str | None, slice_id) -> None:
+    """Record one finding's contribution to the recurring-theme rollup for ``agent``."""
+    if agent is None:
+        return
+    theme_slices.setdefault(agent, set()).add(slice_id)
+    theme_counts[agent] = theme_counts.get(agent, 0) + 1
+
+
 def consolidate(sections: list[dict]) -> dict:
     """Aggregate ``sections`` into the consolidated report object.
 
@@ -135,19 +164,20 @@ def consolidate(sections: list[dict]) -> dict:
     theme_slices: dict = {}    # agent -> set of slice ids
     theme_counts: dict = {}    # agent -> total findings
     reduced_panel_slices: list = []
+    dispatch_failures: list = []
     totals = {"errors": 0, "warnings": 0, "suggestions": 0}
 
     for section in sections:
         slice_id = section.get("id")
         if section.get("is_declarative"):
             reduced_panel_slices.append(slice_id)
+        section_dispatch_failures = section.get("dispatchFailures")
+        if isinstance(section_dispatch_failures, list):
+            dispatch_failures.extend(section_dispatch_failures)
         for finding in _findings_of(section):
-            severity = finding.get("severity", "suggestion")
-            totals[_SEVERITY_BUCKET.get(severity, "suggestions")] += 1
-            agent = finding.get("agent")
-            if agent is not None:
-                theme_slices.setdefault(agent, set()).add(slice_id)
-                theme_counts[agent] = theme_counts.get(agent, 0) + 1
+            severity = finding.get("severity", _DEFAULT_SEVERITY)
+            _tally_severity(totals, severity)
+            _tally_theme(theme_slices, theme_counts, finding.get("agent"), slice_id)
             _merge_finding(merged, order, finding)
 
     top_findings = [merged[k] for k in order]
@@ -161,6 +191,11 @@ def consolidate(sections: list[dict]) -> dict:
     recurring_themes.sort(key=lambda t: (-t["occurrences"], t["agent"]))
 
     overall = "fail" if totals["errors"] else "warn" if totals["warnings"] else "pass"
+    # A non-empty dispatchFailures forces overall: fail, unconditionally — applied
+    # after the totals-based computation above so it always wins, mirroring the
+    # legacy (non-sliced) path's own unconditional-override rule.
+    if dispatch_failures:
+        overall = "fail"
 
     return {
         "sliced": True,
@@ -170,6 +205,7 @@ def consolidate(sections: list[dict]) -> dict:
         "topFindings": top_findings,
         "recurringThemes": recurring_themes,
         "reducedPanelSlices": _sorted_ids(reduced_panel_slices),
+        "dispatchFailures": dispatch_failures,
         "summary": (
             f"{overall.upper()} across {len(sections)} slices — "
             f"{totals['errors']} errors, {totals['warnings']} warnings, "
@@ -185,9 +221,8 @@ def _read_sections(root: str) -> tuple[list, list]:
     Returns ``(sections, malformed_paths)``. A malformed artifact is collected
     into ``malformed_paths`` (reported by the caller), never silently dropped.
     """
-    raw_dir = Path(root) / ".dev-team-reports" / "code-review" / "raw"
     sections, malformed = [], []
-    for path in sorted(glob.glob(str(raw_dir / "section-*.json"))):
+    for path in sorted(glob.glob(str(raw_dir(root) / "section-*.json"))):
         try:
             obj = json.loads(Path(path).read_text())
         except (json.JSONDecodeError, OSError):
@@ -214,6 +249,21 @@ def main(argv: list[str] | None = None) -> int:
     result = consolidate(sections)
     if malformed:
         result["malformedArtifacts"] = malformed
+        # A malformed artifact means that slice's findings were never read —
+        # the identical coverage gap `dispatchFailures` forces `overall`
+        # to "fail" for a few lines up in consolidate(), and for the same
+        # reason: an unexamined slice must never ride out as "pass" just
+        # because the READABLE sections happened to look clean (#1763
+        # security review — /pr --json checks only overall/status). The
+        # `summary` string is rebuilt too (#1763 correctness review) — it
+        # is built from `overall` INSIDE consolidate(), before this
+        # override runs, so leaving it alone would print a "PASS ..."
+        # summary alongside `"overall": "fail"`, contradicting itself.
+        result["overall"] = "fail"
+        result["summary"] = (
+            f"FAIL across {len(sections)} slices — {len(malformed)} malformed "
+            f"artifact(s) unreadable; {result['summary']}"
+        )
     print(json.dumps(result, indent=2, sort_keys=True))
     # Non-zero exit if any artifact was unreadable, so a caller notices.
     return 2 if malformed else 0

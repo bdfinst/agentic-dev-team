@@ -120,11 +120,16 @@ reads these back for the final report.
   "panel": ["correctness-review", "structure-review"],
   "findings": [
     {"severity": "warning", "confidence": "medium", "agent": "structure-review", "file": "src/auth/login.ts", "line": 42, "message": "..."}
-  ]
+  ],
+  "dispatchFailures": []
 }
 ```
 
 - `id` is the slice id; the filename is `section-<id>.json`.
+- `dispatchFailures` (issue #1762, always present, empty array when none): this
+  slice's own unrecovered dispatch failures — same shape as the legacy path's
+  field (below). `scripts/consolidate.py` concatenates every slice's list into
+  the consolidated aggregate's own `dispatchFailures` field (see below).
 - `panel` lists the agents that **actually ran** for this slice — a reduced-panel
   (declarative) slice lists only `correctness-review` and `structure-review`, so
   a reader can tell "fewer findings" from "fewer reviewers ran".
@@ -180,7 +185,7 @@ partial ledger is always valid JSON.
 
 Produced by `scripts/consolidate.py` → `consolidate(sections)` from all
 `section-*.json` artifacts. It extends the aggregated `--json` object above with
-two sliced-only fields, and reuses the same `topFindings` dedup contract
+three sliced-only fields, and reuses the same `topFindings` dedup contract
 (one entry per distinct `file:line`, reporting agents merged into `agents[]`,
 severity = the single highest enum).
 
@@ -197,6 +202,9 @@ severity = the single highest enum).
     {"agent": "structure-review", "slices": ["0003", "0007", "0011"], "occurrences": 9}
   ],
   "reducedPanelSlices": ["0002", "0019"],
+  "dispatchFailures": [
+    {"agentName": "arch-review", "attempts": 2, "error": "Tool result missing due to internal error"}
+  ],
   "summary": "WARN across 24 slices — 0 errors, 5 warnings, 3 suggestions; 1 recurring theme(s)."
 }
 ```
@@ -212,6 +220,19 @@ severity = the single highest enum).
   appearing in only one slice is **not** a theme.
 - `reducedPanelSlices`: the ids of slices that ran the reduced (declarative)
   panel — so a reader can tell "fewer findings" from "fewer reviewers ran".
+- `dispatchFailures` (issue #1762, always present, empty array when none):
+  the concatenation of every slice's own `dispatchFailures` entries (per-slice
+  schema above) — agents whose `Agent` tool dispatch failed and then failed a
+  single individual retry, for that slice's panel. Same shape and same
+  `agentName`/`attempts`/`error` fields as the legacy aggregate's
+  `dispatchFailures` above; consolidation only concatenates, it does not
+  re-shape. A non-empty list is never omitted because the rest of the run
+  returned cleanly.
+- **A non-empty `dispatchFailures` forces `overall: "fail"`**, unconditionally,
+  after the totals-based `overall` computation above — the same
+  unconditional-override rule as the legacy aggregate, so a lens that never
+  ran on even one slice cannot be masked by a `pass`/`warn` computed from the
+  slices that did return.
 
 ## Correction prompt JSON
 

@@ -19,6 +19,7 @@ sys.path.insert(
 )
 
 import consolidate
+import ledger
 
 
 def _section(sid, findings, is_declarative=False, panel=None):
@@ -107,8 +108,36 @@ def test_overall_status_reflects_highest_severity():
     assert consolidate.consolidate([_section("0001", [_f("a", 1, "suggestion", "x")])])["overall"] == "pass"
 
 
+def test_finding_with_no_agent_is_tallied_but_not_a_theme():
+    # Two slices, both with the same agentless finding shape: this is the
+    # case that would actually reach recurringThemes (>= _THEME_MIN_SLICES)
+    # if _tally_theme's `if agent is None: return` guard were ever removed.
+    finding = {"file": "a", "line": 1, "severity": "warning", "message": "msg"}
+    sections = [_section("0001", [finding]), _section("0002", [dict(finding, line=2)])]
+    result = consolidate.consolidate(sections)
+    assert result["totals"]["warnings"] == 2
+    assert all(f["agents"] == [] for f in result["topFindings"])
+    assert result["recurringThemes"] == []
+
+
+def test_unknown_severity_falls_back_to_suggestion_bucket_but_not_rank():
+    # _bucket() falls back to "suggestion"'s bucket; _rank() falls back to 0,
+    # one below "suggestion"'s own rank of 1 — the two fallbacks deliberately
+    # disagree (preserved unchanged from the pre-refactor two-dict version).
+    result = consolidate.consolidate([_section("0001", [_f("a", 1, "critical", "x")])])
+    assert result["totals"]["suggestions"] == 1
+    assert result["overall"] == "pass"
+    assert consolidate._rank("critical") == 0
+
+
+def test_missing_severity_defaults_to_suggestion():
+    finding = {"file": "a", "line": 1, "agent": "x", "message": "msg"}
+    result = consolidate.consolidate([_section("0001", [finding])])
+    assert result["totals"]["suggestions"] == 1
+
+
 def test_main_reports_malformed_artifact_not_silently_dropped(tmp_path, capsys):
-    raw = tmp_path / ".dev-team-reports" / "code-review" / "raw"
+    raw = ledger.raw_dir(str(tmp_path))
     raw.mkdir(parents=True)
     (raw / "section-0001.json").write_text(json.dumps(_section("0001", [_f("a", 1, "warning", "x")])))
     (raw / "section-0002.json").write_text("{ this is not valid json")
@@ -120,10 +149,15 @@ def test_main_reports_malformed_artifact_not_silently_dropped(tmp_path, capsys):
     out = json.loads(captured.out)
     assert out["sliceCount"] == 1
     assert out["malformedArtifacts"]
+    # #1763 security review: an unexamined slice must never ride out as
+    # "pass" — the readable section here has no findings and no
+    # dispatchFailures, so without the malformed-forces-fail override,
+    # overall would silently be "pass".
+    assert out["overall"] == "fail"
 
 
 def test_main_treats_wrong_shape_json_as_malformed(tmp_path, capsys):
-    raw = tmp_path / ".dev-team-reports" / "code-review" / "raw"
+    raw = ledger.raw_dir(str(tmp_path))
     raw.mkdir(parents=True)
     (raw / "section-0001.json").write_text(json.dumps(_section("0001", [])))
     # Valid JSON, wrong shape (a list) — must be reported, not crash consolidate().
@@ -134,6 +168,7 @@ def test_main_treats_wrong_shape_json_as_malformed(tmp_path, capsys):
     assert "section-0002.json" in captured.err
     out = json.loads(captured.out)
     assert out["sliceCount"] == 1
+    assert out["overall"] == "fail"
 
 
 # --- schema-drift tolerance (#1261) -------------------------------------------
@@ -209,6 +244,43 @@ def test_normalize_malformed_inputs_never_raise():
     assert consolidate.normalize_agent_result({"issues": ["bogus", {"file": "a"}]}) == [
         {"file": "a", "agent": None}
     ]
+
+
+def test_no_dispatch_failures_yields_empty_aggregate_list():
+    """No section carries dispatchFailures -> aggregate's list is [], unaffected."""
+    sections = [_section("0001", [_f("src/a.ts", 1, "warning", "x")])]
+    result = consolidate.consolidate(sections)
+    assert result["dispatchFailures"] == []
+    assert result["overall"] == "warn"
+
+
+def test_dispatch_failures_folded_and_force_overall_fail():
+    """One section's dispatchFailures entries are folded into the aggregate's own
+    array, and overall is forced to "fail" even when totals alone say "pass"."""
+    sections = [_section("0001", []), _section("0002", [])]
+    sections[0]["dispatchFailures"] = [{"agentName": "security-review", "subjectHash": "abc"}]
+    result = consolidate.consolidate(sections)
+    assert result["dispatchFailures"] == [{"agentName": "security-review", "subjectHash": "abc"}]
+    assert result["overall"] == "fail"
+
+
+def test_dispatch_failures_concat_across_multiple_sections():
+    """Entries from every section concatenate into one aggregate array."""
+    sections = [_section("0001", []), _section("0002", [])]
+    sections[0]["dispatchFailures"] = [{"agentName": "security-review"}]
+    sections[1]["dispatchFailures"] = [{"agentName": "correctness-review"}]
+    result = consolidate.consolidate(sections)
+    assert result["dispatchFailures"] == [{"agentName": "security-review"}, {"agentName": "correctness-review"}]
+    assert result["overall"] == "fail"
+
+
+def test_malformed_dispatch_failures_key_treated_as_empty_never_raises():
+    """A non-list dispatchFailures value degrades to empty rather than raising."""
+    sections = [_section("0001", [])]
+    sections[0]["dispatchFailures"] = "not-a-list"
+    result = consolidate.consolidate(sections)
+    assert result["dispatchFailures"] == []
+    assert result["overall"] == "pass"
 
 
 def test_normalized_findings_feed_consolidate_end_to_end():
