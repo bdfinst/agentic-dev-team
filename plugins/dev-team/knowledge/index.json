@@ -3662,13 +3662,13 @@
       "summary": "Each property is scored 1-10:",
       "anchor": "the-8-properties"
     },
-    "Scoring": {
-      "summary": "Total weight: 9.0.",
-      "anchor": "scoring"
+    "Scoring anchors — score from evidence, not intuition": {
+      "summary": "Every property score must be justified by a specific line, assertion, or absence you can point to.",
+      "anchor": "scoring-anchors-score-from-evidence-not-intuition"
     },
-    "Per-test score": {
-      "summary": "Total weight: 9.0.",
-      "anchor": "per-test-score"
+    "Weighting": {
+      "summary": "Total weight: 9.0 (or the reduced total when a property is scored `Unknown` per the First rule above — recompute both numerator and denominator without it).",
+      "anchor": "weighting"
     },
     "Score interpretation": {
       "summary": "| Range | Rating | Action |",
@@ -3679,11 +3679,23 @@
       "anchor": "suite-level-score"
     },
     "Output Format": {
-      "summary": "**test-review agent**: Checks coverage and assertion quality; this skill adds quantitative scoring",
+      "summary": "Each row here summarizes one test; the per-property table backing it — every property scored with a citation — is computed the same way as the Worked Example below and must exist even when only this summary row is reported.",
       "anchor": "output-format"
     },
+    "Worked Example": {
+      "summary": "Same test, scored the correct way and an ambiguous way that requires a correction.",
+      "anchor": "worked-example"
+    },
+    "Correct scoring output": {
+      "summary": "This is exactly the shape that forces a correction, for three concrete reasons:",
+      "anchor": "correct-scoring-output"
+    },
+    "Incorrect / ambiguous scoring output (avoid this)": {
+      "summary": "This is exactly the shape that forces a correction, for three concrete reasons:",
+      "anchor": "incorrect-ambiguous-scoring-output-avoid-this"
+    },
     "Integration": {
-      "summary": "**test-review agent**: Checks coverage and assertion quality; this skill adds quantitative scoring",
+      "summary": "**test-review agent**: Farley Score is computed at orchestrator level (`/test-design` for existing tests, `/build` Step 7 for branch tests) — not invoked directly from test-review.",
       "anchor": "integration"
     }
   },
