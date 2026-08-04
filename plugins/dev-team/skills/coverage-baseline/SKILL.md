@@ -36,15 +36,34 @@ Read the build manifest at the repo root and pick the appropriate command:
 
 | Manifest | Default coverage command |
 |---|---|
-| `package.json` (JS/TS) | `npm test -- --coverage` (or `pnpm test --coverage`, `yarn test --coverage`) |
+| `package.json` (JS/TS) | Single package (no `workspaces` field, no `pnpm-workspace.yaml`, no `lerna.json`): `npm test -- --coverage` (or `pnpm test --coverage`, `yarn test --coverage`). **Workspace repo** (any of those signals present): run `python3 "${CLAUDE_PLUGIN_ROOT}/scripts/coverage_discovery_js.py" <repo-path>` to discover and classify every workspace package by structural marker (a real `test` script plus a coverage-capable runner), then follow the multi-project flow below and run the package's own coverage command per included package. |
 | `pyproject.toml` / `setup.py` | `pytest --cov=. --cov-report=json` |
 | `pom.xml` | `mvn test jacoco:report` |
 | `build.gradle*` | `./gradlew test jacocoTestReport` |
-| `*.sln` / `*.csproj` | Run `python3 "$CLAUDE_PLUGIN_ROOT/skills/coverage-baseline/scripts/discover_coverage_projects.py" <path-to-.sln>` to deterministically discover every `Microsoft.NET.Test.Sdk`-referenced test project from the solution (marker-only match, re-derived every run — no caller-supplied single command), then `dotnet test <project> /p:CollectCoverage=true /p:CoverletOutputFormat=json` per discovered project. The script self-bootstraps `coverage-config.json` on first run and hard-fails naming any genuinely new, untriaged project — see `scripts/discover_coverage_projects.py`'s own docstring for the full contract (#1759). |
+| `*.sln` / `*.csproj` | Single `.csproj` with no `.sln`: `dotnet test /p:CollectCoverage=true /p:CoverletOutputFormat=json`. **Solution present**: run `python3 "${CLAUDE_PLUGIN_ROOT}/scripts/coverage_discovery_dotnet.py" <repo-path>` to discover and classify every project in the solution by structural marker (`Microsoft.NET.Test.Sdk`, re-derived every run — no caller-supplied single command, no hand-maintained list), then follow the multi-project flow below and run `dotnet test "<project>" /p:CollectCoverage=true /p:CoverletOutputFormat=json` per included project (quote the interpolated path — `src/My Project/My Project.csproj` is an ordinary .NET layout). This supersedes `scripts/discover_coverage_projects.py`, #1759's .NET-only first fix, whose different config schema `/coverage-delta` still reads until its own slice lands. |
 | `Cargo.toml` | `cargo llvm-cov --json` |
 | `go.mod` | `go test -coverprofile=coverage.out ./...` + `go tool cover -func=coverage.out` |
 
-If the repo has its own coverage script (e.g. `npm run coverage`, `make coverage`), prefer that — detect via `package.json#scripts.coverage`, the `Makefile`, or a documented run target in `README.md`. If detection is ambiguous, ask the operator for the exact command. This override does not apply to the `.sln`/`.csproj` row above — that row's discovery script always re-derives the project list itself, per-run, regardless of any repo-level coverage script.
+If the repo has its own coverage script (e.g. `npm run coverage`, `make coverage`), prefer that — detect via `package.json#scripts.coverage`, the `Makefile`, or a documented run target in `README.md`. If detection is ambiguous, ask the operator for the exact command. This override does not apply to the discovered *project set* in either multi-project row above — that set is always re-derived per run, regardless of any repo-level coverage script. The operator may still override the coverage command each project is measured with.
+
+### 1a. Multi-project discovery, config, and merge
+
+Runs only when Step 1 found a multi-project signal — a `.sln`, or a JS/TS workspace config. A single-manifest repo skips this section entirely: no discovery call, no `coverage-config.json`, and Step 1's command selection is unchanged. Mechanics — markers, schema, drift categories, merge arithmetic, known limitations: [`references/multi-project-discovery.md`](references/multi-project-discovery.md).
+
+1. **Discover.** Run the stack's discovery script. `{"applicable": false}` means no multi-project signal after all — fall back to Step 1's single command and skip the rest of this section.
+2. **Load or bootstrap the config** at `.dev-team-reports/<workflow>/<slug>/data/coverage-config.json` via `coverage_config.load_or_bootstrap`. Absent or unreadable bootstraps from this run's discovery (everything included, zero exclusions); a valid config is never overwritten. Echo the returned operator notice to run output when there is one.
+3. **Drift-check** the fresh discovery against the config via `coverage_config.drift_check`. Echo each warning. On any error, stop — see the hard-failure block below.
+4. **Measure** each `included` project with the stack's coverage command, parse each per Step 4, then **weighted-merge** them via `coverage_config.weighted_merge`. The merge is weighted by statement/branch counts, never a simple average. Zero merged projects is itself a hard failure.
+
+**On a drift hard failure**, print this block *verbatim as its own distinct block* — never folded into Step 3's generic coverage-run-failure banner, and never abbreviated:
+
+```text
+## Coverage discovery drift — no baseline written
+
+<each drift_check error message, one per line>
+```
+
+Then stop. Write no baseline and no `coverage-config.json` change. The drift messages are the actionable part: each names the offending path and the exact edit that resolves it.
 
 ### 2. Existing-baseline guard
 
@@ -60,13 +79,18 @@ Applied here:
 
 ### 3. Run coverage
 
-Run the chosen command from `<repo-path>`. Capture stdout, stderr, and the exit code.
+Run the chosen command from `<repo-path>`. Capture stdout, stderr, and the exit code. In the multi-project case, run it once per `included` project and treat any project's failure as a failed run.
 
-If the run fails:
+If the run fails, print this block and stop:
 
-- Surface the first error.
+```text
+## Coverage run failed — no baseline written
+
+<the first error from the failing command>
+```
+
 - Do NOT write a baseline. The floor must be a true measurement.
-- Stop.
+- This banner covers a *coverage tool* failure only. A Step 1a discovery-drift failure is a different condition with a different fix, so it prints its own `## Coverage discovery drift` block instead — the two are never folded together in either direction.
 
 ### 4. Parse line + branch percentages
 
@@ -104,6 +128,14 @@ cat > "${BASELINE}.tmp" <<'JSON'
 JSON
 mv -f "${BASELINE}.tmp" "$BASELINE"
 ```
+
+In the multi-project case the persisted `line_pct`/`branch_pct` are the **weighted-merged** numbers, `tool` names the per-project tool, and two further fields record the merge: `merged_projects` (the `included` paths that were measured) and `raw_report` naming the per-project report kind. Additionally persist `coverage-config.json` beside the baseline, through the same atomic write:
+
+```bash
+CONFIG=".dev-team-reports/<workflow>/<slug>/data/coverage-config.json"
+```
+
+`coverage_config.load_or_bootstrap` performs that write itself, temp-file-then-rename, when it bootstraps; a valid pre-existing config is left untouched. Single-manifest repos write no `coverage-config.json` at all.
 
 `disabled_test_count` is included **only** when `.claude/memory/<workflow>/<slug>/disabled-tests.json` exists (present when a caller ran `/test-audit-disable` first); omit the field otherwise. `phase` carries the calling workflow's phase number when it has one, and may be omitted for workflows without numbered phases.
 
@@ -144,13 +176,15 @@ acli jira workitem comment add --key <parent-key> --body "$(cat phase-3-block.md
 
 Print:
 
-- Line %, branch %.
+- Line %, branch %. In the multi-project case, say it is a weighted merge and name how many projects it merged.
+- Any bootstrap notice, stale-exclusion warning, or measurement-basis notice from Step 1a — a baseline whose `captured_at` predates the config's `bootstrapped_at` is not comparable to a merged delta, and the notice says so.
 - The path to `baseline-coverage.json`.
 - The destination (parent issue URL or `FEATURE.md`).
 - A reminder that the orchestrator's human gate runs next.
 
 ## Notes
 
-- Coverage tools may legitimately differ by repo; never replace the repo's own script with a generic one unless detection fails. Operator override always wins for the coverage command/flags — but never for the `.sln`/`.csproj` row's discovered project set, which is always re-derived per run regardless of any operator-supplied command.
+- Coverage tools may legitimately differ by repo; never replace the repo's own script with a generic one unless detection fails. Operator override always wins for the coverage command/flags — but never for a multi-project row's discovered project set, which is always re-derived per run regardless of any operator-supplied command.
+- Multi-project discovery is a re-derivation, not a cache. A project list frozen in prose notes is exactly what caused #1759's ~30x underreported delta, so nothing in this worker records one.
 - The "fastest pre-merge wall-clock" target is not captured here — that's recorded by `/quality-targets-converge` once the full suite is in place. Baseline is line + branch only.
 - For Go (and any tool without native branch coverage), `branch_pct` is `null` and `phase-3.md` flags the gap so the operator can decide whether to install an alternate coverage tool or waive the target.

@@ -3104,6 +3104,10 @@
       "summary": "Read the build manifest at the repo root and pick the appropriate command:",
       "anchor": "1-detect-the-coverage-tool"
     },
+    "1a. Multi-project discovery, config, and merge": {
+      "summary": "Runs only when Step 1 found a multi-project signal — a `.sln`, or a JS/TS workspace config.",
+      "anchor": "1a-multi-project-discovery-config-and-merge"
+    },
     "2. Existing-baseline guard": {
       "summary": "Check whether `.dev-team-reports/<workflow>/<slug>/data/baseline-coverage.json` already exists for the resolved slug.",
       "anchor": "2-existing-baseline-guard"
