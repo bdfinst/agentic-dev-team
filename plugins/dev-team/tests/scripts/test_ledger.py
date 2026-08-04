@@ -58,10 +58,73 @@ def test_write_section_creates_artifact_and_flips_status(tmp_path):
     assert artifact["files"] == ["src/a.ts", "src/b.ts"]
     assert artifact["panel"] == ["correctness-review", "structure-review"]
     assert artifact["findings"] == findings
+    # No dispatch_failures passed -> written as an empty list.
+    assert artifact["dispatchFailures"] == []
     # Ledger status for 0001 is now done; 0002 still pending.
     updated = ledger.read_ledger(str(tmp_path))
     statuses = {s["id"]: s["status"] for s in updated["slices"]}
     assert statuses == {"0001": "done", "0002": "pending"}
+
+
+def test_write_section_persists_dispatch_failures(tmp_path):
+    ledger.init_ledger(_slices(), cap=50, root=str(tmp_path))
+    failures = [{"agent": "structure-review", "attempts": 2}]
+    path = ledger.write_section(
+        _slices()[0],
+        [],
+        panel=["correctness-review"],
+        root=str(tmp_path),
+        dispatch_failures=failures,
+    )
+    artifact = json.loads(path.read_text())
+    assert artifact["dispatchFailures"] == failures
+
+
+def test_write_section_cli_persists_dispatch_failures(tmp_path):
+    root = str(tmp_path)
+    ledger.init_ledger(_slices(), cap=50, root=root)
+    slice_arg = json.dumps(_slices()[0])
+    failures_arg = json.dumps([{"agent": "structure-review", "attempts": 2}])
+    rc = ledger.main(
+        [
+            "write-section",
+            "--root",
+            root,
+            "--slice",
+            slice_arg,
+            "--findings",
+            "[]",
+            "--panel",
+            "correctness-review",
+            "--dispatch-failures",
+            failures_arg,
+        ]
+    )
+    assert rc == 0
+    artifact = json.loads(ledger.section_path(root, "0001").read_text())
+    assert artifact["dispatchFailures"] == [{"agent": "structure-review", "attempts": 2}]
+
+
+def test_write_section_cli_without_dispatch_failures_writes_empty_list(tmp_path):
+    root = str(tmp_path)
+    ledger.init_ledger(_slices(), cap=50, root=root)
+    slice_arg = json.dumps(_slices()[0])
+    rc = ledger.main(
+        [
+            "write-section",
+            "--root",
+            root,
+            "--slice",
+            slice_arg,
+            "--findings",
+            "[]",
+            "--panel",
+            "correctness-review",
+        ]
+    )
+    assert rc == 0
+    artifact = json.loads(ledger.section_path(root, "0001").read_text())
+    assert artifact["dispatchFailures"] == []
 
 
 def test_reinit_is_idempotent(tmp_path):
@@ -136,3 +199,35 @@ def test_resume_cap_match_or_absent_ok(tmp_path):
     ledger.check_resume_cap(str(tmp_path), requested_cap=50)  # matches -> no raise
     ledger.check_resume_cap(str(tmp_path), requested_cap=None)  # no explicit cap -> no raise
     ledger.check_resume_cap(str(tmp_path) + "-absent", requested_cap=25)  # no ledger -> no raise
+
+
+# --- Slice 2, Step 2.1: pending on non-empty dispatchFailures -----------------
+
+
+def test_pending_treats_nonempty_dispatch_failures_as_pending(tmp_path):
+    ledger.init_ledger(_slices(), cap=50, root=str(tmp_path))
+    ledger.write_section(
+        _slices()[0],
+        [],
+        panel=["correctness-review"],
+        root=str(tmp_path),
+        dispatch_failures=[{"agent": "structure-review", "attempts": 2}],
+    )
+    ledger.write_section(_slices()[1], [], panel=["correctness-review"], root=str(tmp_path))
+    # 0001 recorded a dispatch failure -> still pending despite its artifact
+    # existing; 0002 has no failures -> done.
+    assert _ids(ledger.pending_slices(_slices(), str(tmp_path))) == ["0001"]
+
+
+def test_pending_treats_empty_dispatch_failures_as_done(tmp_path):
+    ledger.init_ledger(_slices(), cap=50, root=str(tmp_path))
+    ledger.write_section(
+        _slices()[0],
+        [{"severity": "warning", "file": "src/a.ts", "line": 1, "message": "x"}],
+        panel=["correctness-review"],
+        root=str(tmp_path),
+        dispatch_failures=[],
+    )
+    ledger.write_section(_slices()[1], [], panel=["correctness-review"], root=str(tmp_path))
+    # Findings present but no dispatch failures -> both slices done.
+    assert ledger.pending_slices(_slices(), str(tmp_path)) == []
