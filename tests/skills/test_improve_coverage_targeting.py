@@ -35,7 +35,10 @@ def _text() -> str:
 
 
 def _phase(n: int) -> str:
-    return section(_text(), rf"^### Phase {n}")
+    # `\b` matters: without it `^### Phase 1` would also match a future
+    # `### Phase 10` header as a prefix, and every test in this file routes
+    # through here.
+    return section(_text(), rf"^### Phase {n}\b")
 
 
 def _flat(n: int) -> str:
@@ -300,6 +303,22 @@ def test_phase_5_steering_exit_codes_are_both_documented():
     assert grep(r"[Ee]xit 0", s)
     assert grep(r"[Ee]xit 3", s)
     assert grep(r"`insufficient_history`", s)
+
+
+def test_phase_5_does_not_read_a_forming_streak_as_ok():
+    """The script distinguishes `flat_streak_forming` from `ok` so a Story that
+    moved nothing is never reported as coverage movement; the phase must echo
+    that distinction rather than collapsing both into "continue"."""
+    s = _flat(5)
+    assert grep(r"`flat_streak_forming`", s)
+    assert grep(r"rather than silently treating it as `ok`", s)
+
+
+def test_phase_2_passes_repo_root_so_module_buckets_cannot_collapse():
+    s = _flat(2)
+    assert grep(r"--repo-root <repo-path>", s)
+    assert grep(r"`grouping_degenerate: true`", s)
+    assert grep(r"never as a verdict", s, ignore_case=True)
 
 
 def test_phase_5_targeting_recheck_reorders_the_remaining_story_set():

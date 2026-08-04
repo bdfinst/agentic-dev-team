@@ -142,6 +142,12 @@ def test_only_the_trailing_stories_count_toward_the_streak():
     assert result["status"] == "ok"
 
 
+def test_story_counts_are_reported():
+    result = evaluate([_snapshot("S-1", 70.0), _snapshot("S-2", 70.0)])
+    assert result["stories_evaluated"] == 2
+    assert result["stories_measured"] == 2
+
+
 def test_a_negative_delta_counts_as_flat_not_as_progress():
     result = evaluate(
         [
@@ -151,7 +157,7 @@ def test_a_negative_delta_counts_as_flat_not_as_progress():
         ]
     )
     assert result["status"] == "flat_streak"
-    assert result["flat_stories"][1]["line_movement"] < 0
+    assert result["flat_stories"][1]["line_movement"] == -0.5
 
 
 def test_stories_with_unmeasurable_movement_break_the_streak_rather_than_extend_it():
@@ -161,6 +167,70 @@ def test_stories_with_unmeasurable_movement_break_the_streak_rather_than_extend_
     result = evaluate([first, _snapshot("S-2", 74.0), _snapshot("S-3", 74.0)])
     assert result["status"] == "insufficient_history"
     assert result["streak"] == 2
+
+
+def test_a_short_streak_is_not_reported_as_ok():
+    """correctness-review: with enough measured Stories but a below-minimum
+    trailing Story, `ok` would have claimed "targeting is producing coverage
+    movement" about a Story that moved +0.0 — the exact false all-clear #1790
+    exists to prevent."""
+    result = evaluate(
+        [_snapshot("S-1", 80.0), _snapshot("S-2", 90.0), _snapshot("S-3", 90.0)]
+    )
+    assert result["status"] == "flat_streak_forming"
+    assert result["streak"] == 1
+
+
+def test_flat_streak_forming_exits_0_but_names_the_streak(tmp_path):
+    history = _history(
+        tmp_path,
+        [_snapshot("S-1", 80.0), _snapshot("S-2", 90.0), _snapshot("S-3", 90.0)],
+    )
+    code, payload = _json_run("--history", str(history))
+    assert code == 0
+    assert payload["status"] == "flat_streak_forming"
+    assert "1 of 3" in payload["message"]
+
+
+def test_an_unmeasurable_trailing_story_does_not_crash_the_ok_branch():
+    """correctness-review: formatting a None movement raised TypeError, so a
+    trailing snapshot with no line_pct crashed the gate instead of reporting
+    a verdict."""
+    last = _snapshot("S-4", 90.0)
+    last["line_pct"] = None
+    result = evaluate(
+        [
+            _snapshot("S-1", 80.0),
+            _snapshot("S-2", 90.0),
+            _snapshot("S-3", 95.0),
+            last,
+        ]
+    )
+    assert result["status"] == "insufficient_history"
+    assert "could not be measured" in result["message"]
+
+
+def test_movement_exactly_at_the_threshold_is_not_flat():
+    result = evaluate(
+        [_snapshot("S-1", 70.1), _snapshot("S-2", 70.2), _snapshot("S-3", 70.3)],
+        min_line_delta=0.1,
+    )
+    assert result["status"] == "ok"
+    assert result["streak"] == 0
+
+
+def test_movement_is_not_rounded_up_across_the_threshold():
+    """A true movement of 0.096 must stay below a 0.1 minimum — rounding for
+    display must not decide the gate."""
+    result = evaluate(
+        [
+            _snapshot("S-1", 70.096),
+            _snapshot("S-2", 70.192),
+            _snapshot("S-3", 70.288),
+        ],
+        min_line_delta=0.1,
+    )
+    assert result["status"] == "flat_streak"
 
 
 def test_thresholds_are_tunable():
@@ -260,6 +330,33 @@ def test_cli_history_that_is_not_a_list_exits_2(tmp_path):
     path.write_text(json.dumps({"story": "S-1"}), encoding="utf-8")
     proc = _run("--history", str(path), "--json")
     assert proc.returncode == 2
+
+
+def test_cli_history_with_a_non_dict_entry_exits_2(tmp_path):
+    """correctness-review: silently dropping non-dict entries made a corrupt
+    or half-rewritten history indistinguishable from a phase that has not run
+    enough Stories yet — a clean result from unusable evidence."""
+    path = tmp_path / "coverage-history.json"
+    path.write_text(json.dumps([_snapshot("S-1", 71.0), "S-2"]), encoding="utf-8")
+    proc = _run("--history", str(path), "--json")
+    assert proc.returncode == 2
+    assert "index 1" in (proc.stdout + proc.stderr)
+
+
+def test_cli_rejects_a_consecutive_threshold_below_one(tmp_path):
+    """`--consecutive 0` made `len(streak) >= consecutive` trivially true, so
+    any history — including an empty one — reported a flat streak."""
+    history = _history(tmp_path, [])
+    proc = _run("--history", str(history), "--consecutive", "0")
+    assert proc.returncode == 2
+    assert "--consecutive" in (proc.stdout + proc.stderr)
+
+
+def test_cli_rejects_a_negative_min_line_delta(tmp_path):
+    history = _history(tmp_path, [])
+    proc = _run("--history", str(history), "--min-line-delta", "-1")
+    assert proc.returncode == 2
+    assert "--min-line-delta" in (proc.stdout + proc.stderr)
 
 
 def test_cli_text_output_lists_the_flat_stories(tmp_path):

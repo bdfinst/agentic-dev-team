@@ -222,7 +222,7 @@ Run the check; do not judge it in prose:
 
 ```
 python3 "${CLAUDE_PLUGIN_ROOT}/scripts/coverage_gap_ranking.py" \
-  --report <existing coverage report> \
+  --report <existing coverage report> --repo-root <repo-path> \
   --target-line-pct <line target> --target-branch-pct <branch target> --json
 ```
 
@@ -365,11 +365,20 @@ all — and it is computed by script, never estimated in prose:
 
 ```
 python3 "${CLAUDE_PLUGIN_ROOT}/scripts/coverage_gap_ranking.py" \
-  --report <baseline raw_report> \
+  --report <baseline raw_report> --repo-root <repo-path> \
   --target-line-pct <line target> --target-branch-pct <branch target> \
   --top 0 --json \
   --out .dev-team-reports/test-improve/<slug>/data/coverage-gap-ranking.json
 ```
+
+Always pass `--repo-root <repo-path>`: several coverage writers (istanbul/nyc
+`coverage-final.json` among them) emit **absolute** source paths, and without a
+root to strip they would all bucket together — one module makes the seam
+classification a single global comparison, so the check silently stops
+discriminating. The script derives the shared path prefix itself as a fallback,
+and flags `grouping_degenerate: true` whenever many files still land in one
+bucket; treat that flag as "the ranking could not resolve modules", never as a
+verdict.
 
 The script buckets every source file into a package/assembly/module and ranks
 the buckets by **uncovered lines descending**, marking each bucket's `seam`
@@ -696,8 +705,13 @@ assignment alone is not a substitute for worktree isolation here.
      --json
    ```
 
-   - **Exit 0** (`ok`, or `insufficient_history` while fewer Stories have
-     closed than the streak threshold) — continue to the mutation-kill step.
+   - **Exit 0** — continue to the mutation-kill step, but read *which* exit-0
+     status came back: `ok` means the last Story actually moved line coverage;
+     `insufficient_history` means too few Stories have closed (or the latest
+     Story's movement could not be measured) to judge a streak;
+     `flat_streak_forming` means the latest Story did **not** move coverage but
+     the streak is still short of the threshold — echo that one to the operator
+     as a watch signal rather than silently treating it as `ok`.
    - **Exit 3** (`flat_streak`) — three or more consecutive Stories (the
      default; `--consecutive` and `--min-line-delta` tune it) moved line
      coverage by less than the minimum expected per-Story delta.

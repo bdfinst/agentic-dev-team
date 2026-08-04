@@ -26,6 +26,16 @@ It answers two questions:
    production-code seams, and `/test-improve` Phase 0 must say so before work
    starts rather than waiving a gate later.
 
+Module grouping. Records that name their own module (coverlet assemblies,
+jacoco packages) keep it. Everything else is bucketed by the first
+`--group-depth` path segments, relative to `--repo-root` when given — and when
+it is not, relative to the deepest directory prefix every absolute path shares
+(`derive_common_root`), because otherwise a report with absolute paths collapses
+into a single bucket and the seam classification below degenerates into one
+global coverage-vs-threshold comparison. A grouping that still ends up with one
+bucket for many files sets `grouping_degenerate: true` in the output so it can
+never be read as a verdict.
+
 Seam classification is the one tunable judgement: a module whose line coverage
 is below `--seam-threshold-pct` (default 10.0) is treated as having **no
 established test seam** — nothing there is proven reachable by a test-only
@@ -74,6 +84,7 @@ import math
 import re
 import sys
 import xml.etree.ElementTree as ET
+from fractions import Fraction
 from pathlib import Path
 
 DEFAULT_SEAM_THRESHOLD_PCT = 10.0
@@ -86,10 +97,12 @@ VERDICT_UNREACHABLE = "unreachable_without_seams"
 VERDICT_NOT_MEASURED = "not_measured"
 
 # Worst-first precedence used to collapse the per-target verdicts into one.
+# `not_measured` outranks `reachable` deliberately: a positive overall verdict
+# must never rest on a dimension the report could not measure at all.
 _VERDICT_PRECEDENCE = (
     VERDICT_UNREACHABLE,
-    VERDICT_REACHABLE,
     VERDICT_NOT_MEASURED,
+    VERDICT_REACHABLE,
     VERDICT_ALREADY_MET,
 )
 
@@ -134,12 +147,19 @@ def _looks_like_coverlet_assembly(assembly: dict) -> bool:
     return False
 
 
-def detect_format(path: Path) -> str:
-    """Return the format id for `path`, raising ReportError when unrecognized."""
+def _read(path: Path) -> str:
+    """Read a report as text. `utf-8-sig` strips a UTF-8 BOM if present —
+    .NET/Windows coverage writers emit them, and a BOM is not whitespace, so
+    it would otherwise defeat every branch of `detect_format`."""
     try:
-        text = path.read_text(encoding="utf-8", errors="replace")
+        return path.read_text(encoding="utf-8-sig", errors="replace")
     except OSError as exc:  # pragma: no cover - surfaced by main() as exit 2
         raise ReportError(f"{path}: {exc}") from exc
+
+
+def detect_format(path: Path) -> str:
+    """Return the format id for `path`, raising ReportError when unrecognized."""
+    text = _read(path)
 
     stripped = text.lstrip()
     if stripped.startswith("<"):
@@ -252,14 +272,31 @@ def _parse_cobertura(text: str) -> list[dict]:
         filename = cls.get("filename")
         if not filename:
             continue
-        lines_total = lines_covered = branches_total = branches_covered = 0
-        for line in cls.iter("line"):
-            lines_total += 1
-            if _int(line.get("hits") or "0") > 0:
-                lines_covered += 1
+        # A Cobertura writer may list the same source line twice inside one
+        # <class> — once under <methods>/<method>/<lines> and again in the
+        # class-level <lines> block (coverlet's cobertura reporter does). The
+        # descendant walk sees both, so tally per line NUMBER and keep the best
+        # hit/condition figures; a plain running count would inflate
+        # lines_total, uncovered_lines, and every ranking magnitude derived
+        # from them, unevenly across classes.
+        by_line: dict[str, tuple[int, int, int]] = {}
+        for index, line in enumerate(cls.iter("line")):
+            key = line.get("number") or f"#{index}"
+            hits = _int(line.get("hits") or "0")
             covered, total = _condition_counts(line.get("condition-coverage"))
-            branches_total += total
-            branches_covered += covered
+            prior = by_line.get(key)
+            if prior is None:
+                by_line[key] = (hits, covered, total)
+            else:
+                by_line[key] = (
+                    max(prior[0], hits),
+                    max(prior[1], covered),
+                    max(prior[2], total),
+                )
+        lines_total = len(by_line)
+        lines_covered = sum(1 for hits, _c, _t in by_line.values() if hits > 0)
+        branches_covered = sum(covered for _h, covered, _t in by_line.values())
+        branches_total = sum(total for _h, _c, total in by_line.values())
         records.append(
             _record(filename, lines_total, lines_covered, branches_total, branches_covered)
         )
@@ -406,7 +443,7 @@ _JSON_PARSERS = {
 
 def parse_report(path: Path, fmt: str) -> list[dict]:
     """Parse `path` as `fmt`, returning one record per source file."""
-    text = path.read_text(encoding="utf-8", errors="replace")
+    text = _read(path)
     if fmt == "lcov":
         return _parse_lcov(text)
     if fmt == "cobertura":
@@ -440,6 +477,35 @@ def module_key(file_path: str, group_depth: int, repo_root: str | None = None) -
     if len(segments) <= 1:
         return "."
     return "/".join(segments[: max(1, min(group_depth, len(segments) - 1))])
+
+
+def derive_common_root(files: list[dict]) -> str | None:
+    """The longest shared directory prefix of the ABSOLUTE, path-grouped
+    records, or None when there isn't one.
+
+    Why this is not optional politeness: istanbul/nyc `coverage-final.json`
+    keys (and several other writers' output) are absolute, so without stripping
+    the shared prefix every file lands in the same `abs/src`-style bucket. One
+    bucket makes `seam` a single global yes/no and the reachability check
+    degenerates into "is total coverage above the seam threshold" — the seam
+    gate stops discriminating exactly when it matters most. Records that carry
+    an explicit `module` (coverlet assemblies, jacoco packages) are excluded:
+    their grouping never consults the path."""
+    paths = [
+        r["path"].replace("\\", "/")
+        for r in files
+        if not r.get("module") and r["path"].replace("\\", "/").startswith("/")
+    ]
+    if len(paths) < 2:
+        return None
+    segments = [p.split("/")[:-1] for p in paths]
+    shared: list[str] = []
+    for parts in zip(*segments):
+        if len(set(parts)) != 1:
+            break
+        shared.append(parts[0])
+    root = "/".join(shared)
+    return root if root.strip("/") else None
 
 
 def _pct(covered: int, total: int) -> float | None:
@@ -526,11 +592,20 @@ def _target_block(
         }
 
     current_pct = _pct(covered, total)
-    needed = max(0, math.ceil(target_pct / 100.0 * total) - covered)
+    # Exact arithmetic, not `target_pct / 100.0 * total`: a float product a
+    # single ULP above the exact integer makes math.ceil return integer+1
+    # (60.24% of 1250 -> 754 instead of 753), inflating `needed` by one line
+    # and able to flip a reachable target to exit 3. Fraction(str(...)) reads
+    # the target as the decimal it was written as.
+    needed = max(0, math.ceil(Fraction(str(target_pct)) * total / 100) - covered)
     reachable = sum(m[uncovered_field] for m in modules if m["seam"] == "established")
     blocked = sum(m[uncovered_field] for m in modules if m["seam"] == "absent")
 
-    if current_pct is not None and current_pct >= target_pct:
+    # The verdict comes from the integer counts, never from the 2dp-rounded
+    # `current_pct`: a rounded percentage can read as meeting a target the
+    # report is still a line short of, and then disagree with `needed` in this
+    # same block.
+    if needed == 0:
         verdict = VERDICT_ALREADY_MET
     elif needed > reachable:
         verdict = VERDICT_UNREACHABLE
@@ -593,7 +668,8 @@ def build_report(
             + " — refusing to report a ranking from zero evidence"
         )
 
-    modules = rank_modules(files, group_depth, seam_threshold_pct, repo_root)
+    effective_root = repo_root or derive_common_root(files)
+    modules = rank_modules(files, group_depth, seam_threshold_pct, effective_root)
     lines_total = sum(m["lines_total"] for m in modules)
     lines_covered = sum(m["lines_covered"] for m in modules)
     branches_total = sum(m["branches_total"] for m in modules)
@@ -632,6 +708,12 @@ def build_report(
         "formats": formats,
         "group_depth": group_depth,
         "seam_threshold_pct": seam_threshold_pct,
+        "common_root_stripped": effective_root,
+        # One bucket for many files is a collapsed grouping, not a finding: the
+        # seam classification degenerates into a single global
+        # coverage-vs-threshold comparison. Flagged so it can never be read as
+        # a verdict.
+        "grouping_degenerate": len(modules) == 1 and len(files) > 1,
         "totals": {
             "files": len(files),
             "modules": len(modules),

@@ -30,11 +30,16 @@ Statuses (and exit codes):
 - `flat_streak` (3) — `--consecutive` or more trailing Stories each moved less
   than `--min-line-delta`. The caller prompts; this script does not decide
   policy.
+- `flat_streak_forming` (0) — the trailing Story moved less than the minimum
+  but the streak is still shorter than `--consecutive`. A distinct status
+  rather than `ok`, because "not yet a streak" is not "coverage is moving".
 - `insufficient_history` (0) — fewer measurable Stories than `--consecutive`,
-  so no streak verdict is possible yet.
+  or a trailing Story whose movement could not be measured at all, so no
+  streak verdict is possible yet.
 - `ok` (0) — the trailing Story moved coverage by at least the minimum.
-- exit `2` — the history file is missing, unreadable, not JSON, or not a JSON
-  array. Never reported as an all-clear.
+- exit `2` — the history file is missing, unreadable, not JSON, not a JSON
+  array, or carries a non-snapshot element; also an out-of-range
+  `--consecutive`/`--min-line-delta`. Never reported as an all-clear.
 
 Stdlib-only (ADR 0014/0015), Python 3.10+ floor (ADR 0031).
 
@@ -56,8 +61,15 @@ DEFAULT_MIN_LINE_DELTA = 0.1
 DEFAULT_CONSECUTIVE = 3
 
 STATUS_FLAT = "flat_streak"
+STATUS_FORMING = "flat_streak_forming"
 STATUS_OK = "ok"
 STATUS_INSUFFICIENT = "insufficient_history"
+
+# Movements are rounded only to kill binary-float artifacts (72.4 - 72.0 =
+# 0.40000000000000568), NOT to two decimals: rounding to 2dp before the
+# threshold comparison would let a true 0.096-point move clear a 0.1 minimum,
+# making a display concern decide the gate.
+_MOVEMENT_PRECISION = 10
 
 
 class HistoryError(ValueError):
@@ -78,7 +90,17 @@ def load_history(path: Path) -> list[dict]:
             f"{path}: coverage history must be a JSON array of snapshots, "
             f"got {type(payload).__name__}"
         )
-    return [entry for entry in payload if isinstance(entry, dict)]
+    # A non-dict element means the file is corrupt or half-rewritten. Dropping
+    # it silently would leave a corrupt history indistinguishable from a phase
+    # that simply hasn't closed enough Stories yet — a clean verdict from
+    # unusable evidence, which is the one thing this gate must never produce.
+    for index, entry in enumerate(payload):
+        if not isinstance(entry, dict):
+            raise HistoryError(
+                f"{path}: coverage history entry at index {index} is a "
+                f"{type(entry).__name__}, not a snapshot object"
+            )
+    return list(payload)
 
 
 def story_snapshots(history: list[dict]) -> list[dict]:
@@ -89,9 +111,11 @@ def story_snapshots(history: list[dict]) -> list[dict]:
 
 
 def _movement(current: object, previous: object) -> float | None:
+    if isinstance(current, bool) or isinstance(previous, bool):
+        return None
     if not isinstance(current, (int, float)) or not isinstance(previous, (int, float)):
         return None
-    return round(float(current) - float(previous), 2)
+    return round(float(current) - float(previous), _MOVEMENT_PRECISION)
 
 
 def _story_rows(snapshots: list[dict]) -> list[dict]:
@@ -156,6 +180,29 @@ def evaluate(
         message = (
             f"{len(measured)} Story delta(s) measured; {consecutive} are needed "
             "before a flat-coverage streak can be judged."
+        )
+    elif rows[-1]["line_movement"] is None:
+        # The trailing Story has no comparable predecessor (a null/absent
+        # line_pct in the appended snapshot), so its movement could not be
+        # measured. Neither `ok` nor `flat_streak` is honest here.
+        status = STATUS_INSUFFICIENT
+        message = (
+            f"The latest Story ({rows[-1]['story']}) could not be measured — "
+            "its snapshot carries no comparable line_pct, so no coverage "
+            "movement verdict is possible for it."
+        )
+    elif streak:
+        # Below the streak threshold but still not moving: reporting this as
+        # `ok` would claim "targeting is producing coverage movement" about a
+        # Story that moved less than the minimum — the false all-clear this
+        # gate exists to prevent. Exit code stays 0; only the wording and
+        # status carry the warning.
+        status = STATUS_FORMING
+        message = (
+            f"The latest {len(streak)} Story/Stories moved line coverage by less "
+            f"than {min_line_delta} points ({len(streak)} of {consecutive} "
+            "needed for a flat-coverage streak). Watch the next Story's delta "
+            "before spending more of the phase on this layer."
         )
     else:
         status = STATUS_OK
@@ -241,6 +288,16 @@ def main(argv: list[str] | None = None) -> int:
     )
     parser.add_argument("--json", action="store_true", help="machine-readable output")
     args = parser.parse_args(argv)
+
+    # An out-of-range threshold must fail loudly rather than produce a nonsense
+    # verdict: `--consecutive 0` makes `len(streak) >= consecutive` trivially
+    # true for any history (including an empty one), and a negative
+    # `--min-line-delta` makes every movement — regressions included — count
+    # as progress.
+    if args.consecutive < 1:
+        parser.error("--consecutive must be >= 1")
+    if args.min_line_delta < 0:
+        parser.error("--min-line-delta must be >= 0")
 
     try:
         history = load_history(args.history)
