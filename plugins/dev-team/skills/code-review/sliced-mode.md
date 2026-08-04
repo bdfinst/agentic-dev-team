@@ -150,7 +150,9 @@ When `--resume` is given, do **not** re-initialize the ledger. Instead:
    list is also pending**: it is **not** treated as done on `--resume`; its
    panel is re-dispatched, same as a slice with no artifact at all, so the
    previously-failed agent(s) get a real chance to produce a superseding
-   result. Every other slice keeps today's rule unchanged: an artifact
+   result, per the retry-once policy in `SKILL.md`'s "Dispatch failure
+   handling" (Step 4) — see there for the full mechanics, not restated here.
+   Every other slice keeps today's rule unchanged: an artifact
    exists with an empty `dispatchFailures` list is skipped and reused as-is
    — disk is the source of truth (a slice with a clean artifact is done even
    if the ledger still says `pending`).

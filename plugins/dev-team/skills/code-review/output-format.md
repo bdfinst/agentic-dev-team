@@ -120,11 +120,16 @@ reads these back for the final report.
   "panel": ["correctness-review", "structure-review"],
   "findings": [
     {"severity": "warning", "confidence": "medium", "agent": "structure-review", "file": "src/auth/login.ts", "line": 42, "message": "..."}
-  ]
+  ],
+  "dispatchFailures": []
 }
 ```
 
 - `id` is the slice id; the filename is `section-<id>.json`.
+- `dispatchFailures` (issue #1762, always present, empty array when none): this
+  slice's own unrecovered dispatch failures — same shape as the legacy path's
+  field (below). `scripts/consolidate.py` concatenates every slice's list into
+  the consolidated aggregate's own `dispatchFailures` field (see below).
 - `panel` lists the agents that **actually ran** for this slice — a reduced-panel
   (declarative) slice lists only `correctness-review` and `structure-review`, so
   a reader can tell "fewer findings" from "fewer reviewers ran".
