@@ -24,6 +24,9 @@ Per run:
    ``{stack, module, file, line, mutator, change, status}`` per survivor) to
    a timestamped run directory AND mirror both into a stable ``LATEST/`` dir
    so downstream tooling never needs to know the run's folder name.
+   Refreshed after every module completes (#1756), not only at the very
+   end — a mid-run kill or timeout leaves whatever finished so far, never
+   nothing.
 
 ``--detach`` re-execs the script into a new session/process group so the run
 outlives the launching terminal (same pattern as
@@ -260,9 +263,15 @@ def run_nightwatch(
     notes: list[str] = []
     results: list[stacks_lib.StackResult] = []
 
+    # Refreshed after every module completes (#1756), not only at the very
+    # end — a mid-run kill or timeout must leave whatever finished so far,
+    # not nothing. The pre-loop write covers the empty-targets case (and a
+    # kill during the very first stack's run) with at least the
+    # sleep-inhibitor NOTE, if any.
     with SleepInhibitor() if inhibit_sleep else contextlib.nullcontext() as inhibitor:
         if inhibitor is not None and inhibitor.note:
             notes.append(inhibitor.note)
+        write_reports(run_dir, latest_dir, results, started_at, notes)
         for name in targets:
             if name not in stacks_lib.SUPPORTED_STACKS:
                 results.append(
@@ -274,13 +283,14 @@ def run_nightwatch(
                         "its native report shape yet",
                     )
                 )
+                write_reports(run_dir, latest_dir, results, started_at, notes)
                 continue
             repair_note = stacks_lib.mechanical_repair(name, repo_root, run_dir)
             if repair_note:
                 notes.append(repair_note)
             results.append(stacks_lib.MEASURERS[name](repo_root, run_dir, timeout=timeout))
+            write_reports(run_dir, latest_dir, results, started_at, notes)
 
-    write_reports(run_dir, latest_dir, results, started_at, notes)
     return run_dir
 
 

@@ -543,6 +543,56 @@ def test_run_nightwatch_autodetects_when_stacks_not_given(
     assert survivors_json["survivors"] == []
 
 
+def test_run_nightwatch_refreshes_reports_after_each_stack(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A mid-run kill/timeout must preserve whatever finished so far (#1756)
+    — proven here by reading LATEST/ back from inside the SECOND stack's
+    measurer, before it returns, and confirming the FIRST stack's result is
+    already on disk rather than only appearing after the whole run ends."""
+    output_dir = tmp_path / "reports" / "mutation-nightwatch"
+    seen = {}
+
+    def fake_measure_first(repo_root, run_dir, *, timeout=None):
+        return stacks_lib.StackResult("javascript", "stryker", "measured")
+
+    def fake_measure_second(repo_root, run_dir, *, timeout=None):
+        latest_summary = (output_dir / "LATEST" / "MORNING-SUMMARY.md").read_text(
+            encoding="utf-8"
+        )
+        seen["javascript_already_written"] = "javascript" in latest_summary
+        return stacks_lib.StackResult("python", "mutmut", "measured")
+
+    monkeypatch.setitem(stacks_lib.MEASURERS, "javascript", fake_measure_first)
+    monkeypatch.setitem(stacks_lib.MEASURERS, "python", fake_measure_second)
+    monkeypatch.setattr(stacks_lib, "mechanical_repair", lambda *a, **k: None)
+
+    nightwatch.run_nightwatch(
+        tmp_path,
+        output_dir,
+        stacks=["javascript", "python"],
+        inhibit_sleep=False,
+        started_at="2026-08-04T03:00:00Z",
+    )
+
+    assert seen["javascript_already_written"] is True
+
+
+def test_run_nightwatch_writes_reports_even_with_zero_targets(tmp_path: Path) -> None:
+    output_dir = tmp_path / "reports" / "mutation-nightwatch"
+    run_dir = nightwatch.run_nightwatch(
+        tmp_path,
+        output_dir,
+        stacks=[],
+        inhibit_sleep=False,
+        started_at="2026-08-04T03:00:00Z",
+    )
+    assert (run_dir / "MORNING-SUMMARY.md").exists()
+    assert (output_dir / "LATEST" / "MORNING-SUMMARY.md").exists()
+    survivors = json.loads((run_dir / "SURVIVORS.json").read_text(encoding="utf-8"))
+    assert survivors["survivors"] == []
+
+
 # =============================================================================
 # --detach
 # =============================================================================

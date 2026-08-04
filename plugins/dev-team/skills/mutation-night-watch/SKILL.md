@@ -100,7 +100,9 @@ they run unattended, indefinitely, until removed.
 Read `reports/mutation-nightwatch/LATEST/MORNING-SUMMARY.md` first — it
 carries per-stack status, the honest score, and any Notes (sleep inhibition,
 mechanical-repair failures) from the most recent run, regardless of that
-run's timestamped folder name. `SURVIVORS.json` alongside it is the
+run's timestamped folder name. Both files are refreshed after every module
+completes, not only when the run finishes cleanly — a mid-run kill or
+timeout still leaves whatever finished so far, never nothing. `SURVIVORS.json` alongside it is the
 machine-readable list (`{stack, module, file, line, mutator, change,
 status}` per survivor) — hand it to the `mutation-kill` agent (or triage it
 per [`mutation-testing/SKILL.md`](../mutation-testing/SKILL.md) Step 4)
