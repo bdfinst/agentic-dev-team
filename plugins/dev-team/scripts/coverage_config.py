@@ -249,13 +249,17 @@ class ConfigLoad(NamedTuple):
 def atomic_write_json(path: Path, data: dict) -> None:
     """Write JSON via temp-file-then-rename, so a reader never observes a
     partially-written file — the same convention `baseline-coverage.json` uses."""
+    # Serialize before the temp file exists, so an unserializable payload cannot
+    # leave a stray `.tmp` behind — the failure the cleanup branch below cannot
+    # catch, because `json.dumps` raises `TypeError`/`ValueError`, not `OSError`.
+    payload = json.dumps(data, indent=2) + "\n"
     path.parent.mkdir(parents=True, exist_ok=True)
     handle, tmp_name = tempfile.mkstemp(
         dir=str(path.parent), prefix=f".{path.name}.", suffix=".tmp"
     )
     try:
         with os.fdopen(handle, "w", encoding="utf-8") as tmp_file:
-            tmp_file.write(json.dumps(data, indent=2) + "\n")
+            tmp_file.write(payload)
         os.replace(tmp_name, path)
     except OSError:
         Path(tmp_name).unlink(missing_ok=True)
@@ -266,9 +270,24 @@ def config_shape_problem(config: object) -> str | None:
     """Return a human-readable reason the value is not a usable config, or
     `None` when the shape is fine. Shape problems are treated exactly like a
     missing file (bootstrap), never like a drift failure — a config we cannot
-    read is not evidence about the projects."""
+    read is not evidence about the projects.
+
+    The recognized-shape check is deliberately positive rather than permissive:
+    an object must actually carry this feature's keys. Otherwise a *different*
+    tool's file of the same name — notably the legacy
+    `{"known_projects": [...], "exclusions": [...]}` config that
+    `skills/coverage-baseline/scripts/discover_coverage_projects.py` (#1759)
+    writes — would read as an empty-but-valid config, and every discovered
+    project would then hard-fail as unaccounted-for while the operator's real
+    exclusion reasons sat unread in the keys we ignored.
+    """
     if not isinstance(config, dict):
         return "top-level value is not an object"
+    if "included" not in config and "excluded" not in config:
+        return (
+            "object carries neither 'included' nor 'excluded' — not a "
+            "coverage-config.json for multi-project coverage discovery"
+        )
     included = config.get("included", [])
     if not isinstance(included, list):
         return "'included' is not a list"
@@ -284,6 +303,11 @@ def config_shape_problem(config: object) -> str | None:
             return f"'excluded' entry has no 'path': {entry!r}"
         if not isinstance(entry["path"], str):
             return f"'excluded' entry 'path' is not a string: {entry!r}"
+        if "reason" in entry and not isinstance(entry["reason"], str):
+            return f"'excluded' entry 'reason' is not a string: {entry!r}"
+    bootstrapped_at = config.get("bootstrapped_at")
+    if not isinstance(bootstrapped_at, str) or not bootstrapped_at.strip():
+        return "'bootstrapped_at' is absent or not a non-empty string"
     return None
 
 
@@ -308,6 +332,13 @@ def load_or_bootstrap(
     returned notice names why, because re-bootstrapping discards whatever
     exclusion reasons the unreadable file held.
     """
+    if discovered_projects is DISCOVERY_NOT_APPLICABLE:
+        discovery_error(
+            "load_or_bootstrap was handed DISCOVERY_NOT_APPLICABLE. A caller must check "
+            "`result is DISCOVERY_NOT_APPLICABLE` and keep its single-command path "
+            "instead of reconciling a config that should not exist for this repo."
+        )
+
     problem: str | None = None
     if config_path.exists():
         try:
@@ -382,9 +413,8 @@ def drift_check(
     byte-identical output.
     """
     included = set(config.get("included", []))
-    excluded_reasons = {
-        entry["path"]: entry.get("reason") for entry in config.get("excluded", [])
-    }
+    excluded_entries = list(config.get("excluded", []))
+    excluded_reasons = {entry["path"]: entry.get("reason") for entry in excluded_entries}
     accounted = included | set(excluded_reasons)
 
     errors: list[str] = []
@@ -393,9 +423,16 @@ def drift_check(
     for path in sorted(included & set(excluded_reasons)):
         errors.append(CONFLICTING_ENTRY_TEMPLATE.format(path=path))
 
-    for path in sorted(path for path, reason in excluded_reasons.items() if not str(reason or "").strip()):
-        if path in included:
-            continue  # already reported as a conflict; one message per path
+    # Per *entry*, not per collapsed path: two entries for the same path must not
+    # let a later reasoned one mask an earlier reasonless one (or vice versa —
+    # the outcome would otherwise depend on entry order).
+    reasonless = {
+        entry["path"]
+        for entry in excluded_entries
+        if not str(entry.get("reason") or "").strip()
+    }
+    for path in sorted(reasonless - included):
+        # A path already reported as a conflict gets one message, not two.
         errors.append(EXCLUSION_MISSING_REASON_TEMPLATE.format(path=path))
 
     for project in sorted(discovered_projects, key=lambda item: item.path):
@@ -429,8 +466,21 @@ _MERGE_DIMENSIONS = (
 )
 
 
+#: Every key a per-project coverage report must carry. Presence is required
+#: rather than defaulted: a producer that misspells or omits `statements_total`
+#: would otherwise contribute weight 0 and drop silently out of the merged
+#: percentage — the underreporting shape this whole module exists to prevent.
+_REQUIRED_REPORT_KEYS = (
+    "path",
+    "line_pct",
+    "statements_total",
+    "branch_pct",
+    "branches_total",
+)
+
+
 def _validated_count(report: dict, key: str) -> int:
-    value = report.get(key, 0)
+    value = report[key]
     if isinstance(value, bool) or not isinstance(value, int):
         discovery_error(
             f"project coverage report for {report.get('path')!r} has a non-integer "
@@ -469,11 +519,18 @@ def weighted_merge(project_reports: Sequence[dict]) -> dict:
     10-statement project at 100% and a 1000-statement project at 50% merge to
     ~50.5%, not 75%. That gap is the #1759 incident in miniature.
 
-    Each report is `{"path", "line_pct", "statements_total", "branch_pct",
-    "branches_total"}`. A `None` percentage means the project did not measure
-    that dimension, and its weight is excluded from that dimension only — so one
-    branchless project cannot drag the merged branch number toward zero. When no
-    project measured a dimension, that merged percentage is `None`.
+    Each report must carry all of `{"path", "line_pct", "statements_total",
+    "branch_pct", "branches_total"}` — a missing key is a hard failure, never a
+    zero-weighted silent skip. A `None` percentage means the project did not
+    measure that dimension, and its weight is excluded from that dimension only
+    — so one branchless project cannot drag the merged branch number toward
+    zero. When no project measured a dimension, that merged percentage is `None`.
+
+    The returned `statements_total`/`branches_total` are the **denominators of
+    the returned percentages**: they sum only the projects that actually
+    contributed to that dimension. A consumer can therefore reconstruct covered
+    counts as `pct * total / 100` without over-counting a project whose
+    percentage was excluded.
 
     An empty input is a hard failure, not a `None` baseline: "no test projects
     were included" must never be persisted as a measurement.
@@ -487,27 +544,35 @@ def weighted_merge(project_reports: Sequence[dict]) -> dict:
             "project carries a marker."
         )
 
+    for report in project_reports:
+        missing = [key for key in _REQUIRED_REPORT_KEYS if key not in report]
+        if missing:
+            discovery_error(
+                "project coverage report is missing required key(s) "
+                f"{', '.join(missing)}: {report!r}"
+            )
+        if not isinstance(report["path"], str):
+            discovery_error(
+                f"project coverage report 'path' is not a string: {report['path']!r}"
+            )
+
     merged: dict = {}
     for pct_key, total_key in _MERGE_DIMENSIONS:
         weight_sum = 0
         covered_sum = 0.0
         for report in project_reports:
-            if "path" not in report:
-                discovery_error(
-                    f"project coverage report has no 'path': {report!r}"
-                )
             total = _validated_count(report, total_key)
             pct = _validated_pct(report, pct_key)
             if pct is None or total == 0:
                 continue
             weight_sum += total
             covered_sum += total * pct / 100.0
-        merged[pct_key] = round(covered_sum / weight_sum * 100.0, 2) if weight_sum else None
-        merged[total_key] = sum(
-            _validated_count(report, total_key) for report in project_reports
+        merged[pct_key] = (
+            round(covered_sum / weight_sum * 100.0, 2) if weight_sum else None
         )
+        merged[total_key] = weight_sum
 
-    merged["projects"] = sorted(str(report["path"]) for report in project_reports)
+    merged["projects"] = sorted(report["path"] for report in project_reports)
     return merged
 
 
