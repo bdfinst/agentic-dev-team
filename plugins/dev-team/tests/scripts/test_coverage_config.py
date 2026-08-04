@@ -3,12 +3,14 @@
 import json
 import sys
 from pathlib import Path
+from unittest.mock import patch
 
 import pytest
 
 SCRIPTS_DIR = Path(__file__).parent.parent.parent / "scripts"
 sys.path.insert(0, str(SCRIPTS_DIR))
 
+import coverage_config  # noqa: E402
 from coverage_config import (
     DISCOVERY_NOT_APPLICABLE,
     TestClassification,
@@ -177,6 +179,93 @@ def test_bootstrap_then_drift_check_round_trip_zero_unaccounted(tmp_path):
     assert result["unaccounted"] == []
     assert result["conflicts"] == []
     assert result["hard_failure"] is False
+
+
+def test_load_or_bootstrap_toctou_lock_prevents_second_writer_from_overwriting(
+    tmp_path,
+):
+    """Two concurrent calls against the same absent config_path must not let
+    the second silently overwrite the first's bootstrap. The first call
+    here runs for real and writes coverage-config.json. The second call's
+    OWN top-of-function existence check is mocked to report "absent" —
+    simulating the TOCTOU window where a second process's read happened
+    before the first process's write became visible to it — while a
+    pre-existing `.lock` sibling file simulates that a concurrent
+    bootstrapper currently holds the mutual-exclusion lock. The second call
+    must detect that lock (not the plain existence check), re-read the
+    winner's config, and return it — never call atomic_write_json."""
+    config_path = tmp_path / "coverage-config.json"
+    discovered_projects = discovered(("src/ProjectA.csproj", TEST))
+
+    first_config, first_notice = load_or_bootstrap(
+        config_path, discovered_projects, "2026-08-04T12:00:00Z"
+    )
+    assert first_notice is not None
+    assert config_path.is_file()
+
+    lock_path = Path(f"{config_path}.lock")
+    lock_path.write_text("", encoding="utf-8")  # a concurrent bootstrapper holds this
+
+    with (
+        patch.object(
+            coverage_config, "_read_existing_config", side_effect=[None, first_config]
+        ),
+        patch.object(coverage_config, "atomic_write_json") as mock_write,
+    ):
+        second_config, second_notice = load_or_bootstrap(
+            config_path, discovered_projects, "2026-08-04T12:00:01Z"
+        )
+
+    assert second_config == first_config
+    assert second_notice is None
+    mock_write.assert_not_called()
+    # This call never held the lock — it must not remove one it doesn't own.
+    assert lock_path.is_file()
+
+
+def test_load_or_bootstrap_second_caller_wins_the_lock_after_first_releases_it(
+    tmp_path,
+):
+    """The other TOCTOU interleaving: A and B both see config_path absent,
+    A acquires the lock, writes, and releases the lock — all before B ever
+    attempts to acquire it. B's os.open(...) then succeeds (the lock is
+    free), so B must not fall straight through to atomic_write_json; it must
+    re-check config_path from *inside* the lock and return A's config
+    instead of overwriting it. This is the interleaving the plain
+    "lock already held" test above does not cover."""
+    config_path = tmp_path / "coverage-config.json"
+    discovered_projects = discovered(("src/ProjectA.csproj", TEST))
+
+    first_config, _ = load_or_bootstrap(
+        config_path, discovered_projects, "2026-08-04T12:00:00Z"
+    )
+    assert config_path.is_file()
+    lock_path = Path(f"{config_path}.lock")
+    assert not lock_path.is_file()  # A already released it
+
+    real_read = coverage_config._read_existing_config
+    calls = {"n": 0}
+
+    def fake_read(path):
+        calls["n"] += 1
+        # Only B's top-of-function check is stale; every later call
+        # (including the fix's post-lock-acquisition re-check) sees reality.
+        if calls["n"] == 1:
+            return None
+        return real_read(path)
+
+    with (
+        patch.object(coverage_config, "_read_existing_config", side_effect=fake_read),
+        patch.object(coverage_config, "atomic_write_json") as mock_write,
+    ):
+        second_config, second_notice = load_or_bootstrap(
+            config_path, discovered_projects, "2026-08-04T12:00:01Z"
+        )
+
+    assert second_config == first_config
+    assert second_notice is None
+    mock_write.assert_not_called()
+    assert not lock_path.is_file()  # B acquired and released it, wrote nothing
 
 
 # ---------------------------------------------------------------------------

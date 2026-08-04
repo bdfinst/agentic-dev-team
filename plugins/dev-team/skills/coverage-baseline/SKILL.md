@@ -61,16 +61,17 @@ reference file holds the mechanics. `coverage-delta`'s own Step 2 links to
 the same reference file rather than re-deriving this a third time.
 
 **.NET** — when a `.sln` file exists at the repo root, run
-`scripts/coverage_discovery_dotnet.py`'s `discover_dotnet_projects(repo_root)`
-instead of the single `dotnet test` command above. It returns every project
-in the solution, each classified `TEST`, `AMBIGUOUS`, or `NOT_TEST` (
-`coverage_config.TestClassification`).
+`${CLAUDE_PLUGIN_ROOT}/scripts/coverage_discovery_dotnet.py`'s
+`discover_dotnet_projects(repo_root)` instead of the single `dotnet test`
+command above. It returns every project in the solution, each classified
+`TEST`, `AMBIGUOUS`, or `NOT_TEST` (`coverage_config.TestClassification`).
 
 **JS/TS** — when the root `package.json` declares a `workspaces` field, or a
 `pnpm-workspace.yaml`/`lerna.json` is present, run
-`scripts/coverage_discovery_js.py`'s `discover_js_packages(repo_root)`
-instead of the single `npm test -- --coverage` command above. It returns
-every resolved workspace package, each classified `TEST` or `NOT_TEST`.
+`${CLAUDE_PLUGIN_ROOT}/scripts/coverage_discovery_js.py`'s
+`discover_js_packages(repo_root)` instead of the single `npm test --
+--coverage` command above. It returns every resolved workspace package, each
+classified `TEST` or `NOT_TEST`.
 
 Either discovery function can return `coverage_config.DISCOVERY_NOT_APPLICABLE`
 (no `.sln` / no workspace signal — see Step 1b below: the repo is
@@ -81,6 +82,12 @@ a `discovery_error` exactly like an existing Step 3 coverage-run failure
 failure, not the actionable config gap the hard-failure block below
 describes, so it stays on Step 3's existing path rather than growing a
 third failure shape.
+
+**Config path.** `coverage-config.json` is read from and written to the exact
+resolved path `.dev-team-reports/<workflow>/<slug>/data/coverage-config.json`
+— the SAME path Step 5 below persists it to, and the SAME path `coverage-delta`'s
+Step 2a reads it from. There is no ambiguity: both skills operate on the
+identical file.
 
 When discovery returns a real project/package list, call, in this order:
 
@@ -100,21 +107,43 @@ When discovery returns a real project/package list, call, in this order:
    bootstraps it (every accounted-for project `included`, zero `excluded`)
    if absent. On bootstrap, print the returned `notice` verbatim before
    proceeding — this call never touches any existing `baseline-coverage.json`.
-3. `coverage_config.drift_check(config, discovered)` — on `hard_failure`
-   (an unaccounted-for or conflicting project), print `hard_failure_message`
-   **verbatim, as its own distinct, named block** headed `Coverage capture
-   stopped:` — **never** folded into or reusing Step 3's "Run coverage"
-   failure wording (`Surface the first error.` / `Do NOT write a baseline.
-   The floor must be a true measurement.`). This failure class has a
-   concrete fix (edit `coverage-config.json` to add the named project to
-   `included` or `excluded`) that Step 3's generic wording doesn't carry.
-   Stop; write no baseline.
+3. `coverage_config.drift_check(config, discovered)`:
+   - If it raises `ValueError` (a malformed-but-parseable `included`/
+     `excluded` shape — e.g. present but not a list), print the
+     exception's message **verbatim, as its own named block**, and stop
+     without writing a baseline.
+   - On `hard_failure` (an unaccounted-for or conflicting project), print
+     `hard_failure_message` **verbatim, as its own distinct, named block**
+     headed `Coverage capture stopped:` — **never** folded into or reusing
+     Step 3's "Run coverage" failure wording (`Surface the first error.` /
+     `Do NOT write a baseline. The floor must be a true measurement.`).
+     This failure class has a concrete fix (edit `coverage-config.json` to
+     add the named project to `included` or `excluded`) that Step 3's
+     generic wording doesn't carry. Stop; write no baseline.
 4. On success (`hard_failure` is `False`), run the stack's coverage command
    **per included project** (never once per repo), parse each project's raw
-   covered/total statement and branch counts (extending Step 4's per-tool
-   table to raw counts, not only the final percentage), and call
+   covered/total statement and branch counts, and call
    `coverage_config.weighted_merge(project_reports)` to produce the merged
    `line_pct`/`branch_pct` that Step 4/5 record as the baseline.
+
+   **Known, documented limitation (.NET/Coverlet).** Step 4's Coverlet row
+   documents `summary.linecoverage`/`summary.branchcoverage` — final
+   percentages, not the raw `covered_statements`/`total_statements`/
+   `covered_branches`/`total_branches` counts `weighted_merge` requires.
+   Coverlet's raw-count JSON layout (nested per-module/per-class/per-method
+   hit data) needs verification against a real Coverlet run before this
+   skill can document an exact JSON path to sum — asserting one without
+   running the real tool risks documenting a shape that doesn't match
+   Coverlet's actual output. Until that verification happens, multi-project
+   .NET merge requires the operator's own coverage command wrapper to parse
+   and supply the four raw counts per included project. If a per-project
+   report carries only percentages with no raw counts, **stop** with
+   `coverage_config.discovery_error("Project '<path>' produced only a
+   percentage-based coverage report (no raw covered/total statement or
+   branch counts); multi-project .NET weighted-merge requires raw counts —
+   see the coverage-baseline SKILL.md Step 1a known-limitation note.")` —
+   **never** silently degrade to a `null`/`0` baseline by feeding
+   `weighted_merge` an incomplete report.
 
 ### 1b. Single-project and mixed-stack repos are unaffected
 
@@ -176,7 +205,7 @@ BASELINE=".dev-team-reports/<workflow>/<slug>/data/baseline-coverage.json"
 mkdir -p "$(dirname "$BASELINE")"
 cat > "${BASELINE}.tmp" <<'JSON'
 {
-  "phase": 3,
+  "phase": 2,
   "captured_at": "<ISO-8601>",
   "tool": "jest",
   "line_pct": 41.2,

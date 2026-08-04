@@ -37,6 +37,16 @@ from coverage_config import (  # noqa: E402
     weighted_merge,
 )
 
+# coverage-delta/SKILL.md Step 2's own pre-existing, unedited generic
+# run-failure wording — the generic banner text every hard-failure block in
+# Step 2a must stay textually distinct from. Mirrors
+# `coverage_baseline_flow_helpers.GENERIC_COVERAGE_RUN_FAILURE_PHRASES` for
+# coverage-delta's own (textually different) generic wording.
+COVERAGE_DELTA_GENERIC_RUN_FAILURE_PHRASES = (
+    "surface the first error and stop",
+    "Do not post a delta from a broken run.",
+)
+
 
 @dataclass
 class DeltaFlowResult:

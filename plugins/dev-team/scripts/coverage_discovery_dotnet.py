@@ -58,7 +58,7 @@ sys.path.insert(0, str(_HERE))
 import coverage_config  # noqa: E402
 from coverage_config import TestClassification  # noqa: E402
 
-TEST_SDK_PACKAGE = "Microsoft.NET.Test.Sdk"
+_TEST_SDK_PACKAGE = "Microsoft.NET.Test.Sdk"
 
 # `dotnet sln ... list` per-run wall-clock timeout, matching this repo's
 # convention in sibling scripts (e.g. codebase_recon.py).
@@ -68,7 +68,6 @@ _SLN_LIST_TIMEOUT_SECONDS = 120
 # DOCTYPE or ENTITY declaration — presence of either is a zero-false-positive
 # signal of an entity-expansion attempt, not a legitimate MSBuild file.
 _UNSAFE_XML_MARKERS = ("<!DOCTYPE", "<!ENTITY")
-_UNSAFE_XML_SNIFF_BYTES = 1024
 
 
 def discover_dotnet_projects(repo_root):
@@ -165,39 +164,67 @@ def _parse_sln_list_output(stdout: str) -> list:
     return projects
 
 
-def _reject_unsafe_xml(path: Path):
-    """Return a `coverage_config.discovery_error(...)` dict if `path`'s
-    first ~1KB contains a `<!DOCTYPE` or `<!ENTITY` declaration
-    (entity-expansion hardening) — a `.csproj`/`Directory.Build.props` file
-    never legitimately carries either. Returns `None` when the file looks
-    safe to parse."""
-    try:
-        with path.open("r", encoding="utf-8", errors="replace") as handle:
-            head = handle.read(_UNSAFE_XML_SNIFF_BYTES)
-    except OSError as exc:
-        return coverage_config.discovery_error(f"Could not read '{path}': {exc}")
+def _contains_unsafe_xml_marker(data: bytes) -> str | None:
+    """Return the first disallowed marker (`_UNSAFE_XML_MARKERS`) found in
+    `data`'s raw bytes, or in `data` decoded as UTF-16LE/UTF-16BE — the
+    other encodings expat auto-detects and natively parses besides UTF-8.
+    ASCII/Latin-1 are byte-identical to UTF-8 for these ASCII-only tokens,
+    so no separate check is needed for those; decoding the raw bytes as
+    Latin-1 (a total, never-raising 1:1 byte<->codepoint mapping) is
+    sufficient to cover the UTF-8/ASCII/Latin-1 case in one pass. Returns
+    `None` when no marker is found in any of the three views."""
+    raw_text = data.decode("latin-1")
+    utf16le_text = data.decode("utf-16le", errors="ignore")
+    utf16be_text = data.decode("utf-16be", errors="ignore")
     for marker in _UNSAFE_XML_MARKERS:
-        if marker in head:
-            return coverage_config.discovery_error(
-                f"Refusing to parse '{path}': contains a disallowed "
-                f"'{marker}' declaration (XML entity-expansion hardening)."
-            )
+        if marker in raw_text or marker in utf16le_text or marker in utf16be_text:
+            return marker
     return None
+
+
+def _read_and_screen_xml(path: Path):
+    """Read `path` ONCE as bytes and screen the FULL content — never only a
+    fixed-size prefix — for a disallowed `<!DOCTYPE`/`<!ENTITY` declaration
+    (entity-expansion hardening); a `.csproj`/`Directory.Build.props` file
+    never legitimately carries either.
+
+    Returns `(data, None)` when the file looks safe to parse — the caller
+    parses these SAME already-read bytes via `ET.fromstring`, never
+    re-opening `path`, which closes the check-then-use double-open gap a
+    `read`-then-`ET.parse(path)` pair leaves open. Returns
+    `(None, coverage_config.discovery_error(...))` otherwise (unreadable
+    file, or a disallowed marker found)."""
+    try:
+        data = path.read_bytes()
+    except OSError as exc:
+        return None, coverage_config.discovery_error(f"Could not read '{path}': {exc}")
+    marker = _contains_unsafe_xml_marker(data)
+    if marker is not None:
+        return None, coverage_config.discovery_error(
+            f"Refusing to parse '{path}': contains a disallowed "
+            f"'{marker}' declaration (XML entity-expansion hardening)."
+        )
+    return data, None
 
 
 def _classify_project(csproj_path: Path, solution_root: Path):
     """Classify a single project's `.csproj`, walking ancestor
     `Directory.Build.props` files (never climbing above `solution_root`)
-    when no inline marker is found. Returns a `TestClassification` value, or
+    when no inline marker is found. Each `Directory.Build.props` found is
+    resolved and containment-checked against `solution_root` before being
+    read or parsed — mirroring the JS module's symlinked-manifest handling
+    (`coverage_discovery_js._classify_package`) — so a symlinked
+    `Directory.Build.props` pointing outside the solution root is refused
+    rather than read. Returns a `TestClassification` value, or
     `coverage_config.discovery_error(...)` if the `.csproj` (or an ancestor
-    `Directory.Build.props`) is not well-formed XML, is unreadable, or fails
-    the entity-expansion safety check."""
-    unsafe = _reject_unsafe_xml(csproj_path)
+    `Directory.Build.props`) is not well-formed XML, is unreadable, escapes
+    `solution_root`, or fails the entity-expansion safety check."""
+    data, unsafe = _read_and_screen_xml(csproj_path)
     if unsafe is not None:
         return unsafe
     try:
-        csproj_root = ET.parse(csproj_path).getroot()
-    except (ET.ParseError, OSError) as exc:
+        csproj_root = ET.fromstring(data)
+    except ET.ParseError as exc:
         return coverage_config.discovery_error(
             f"Could not parse '{csproj_path}' as XML: {exc}"
         )
@@ -210,12 +237,27 @@ def _classify_project(csproj_path: Path, solution_root: Path):
     while current_dir == solution_root or solution_root in current_dir.parents:
         props_path = current_dir / "Directory.Build.props"
         if props_path.is_file():
-            unsafe = _reject_unsafe_xml(props_path)
+            try:
+                resolved_props_path = props_path.resolve()
+            except OSError as exc:
+                return coverage_config.discovery_error(
+                    f"Could not resolve '{props_path}': {exc}"
+                )
+            if not (
+                resolved_props_path == solution_root
+                or solution_root in resolved_props_path.parents
+            ):
+                return coverage_config.discovery_error(
+                    f"'{props_path}' resolves to '{resolved_props_path}', "
+                    f"which is outside the solution root "
+                    f"('{solution_root}'); refusing to read or parse it."
+                )
+            props_data, unsafe = _read_and_screen_xml(resolved_props_path)
             if unsafe is not None:
                 return unsafe
             try:
-                props_root = ET.parse(props_path).getroot()
-            except (ET.ParseError, OSError) as exc:
+                props_root = ET.fromstring(props_data)
+            except ET.ParseError as exc:
                 return coverage_config.discovery_error(
                     f"Could not parse '{props_path}' as XML: {exc}"
                 )
@@ -249,7 +291,7 @@ def _test_sdk_reference_kind(root) -> str | None:
             if _local_name(child.tag) != "PackageReference":
                 continue
             include = (child.get("Include") or "").strip().casefold()
-            if include != TEST_SDK_PACKAGE.casefold():
+            if include != _TEST_SDK_PACKAGE.casefold():
                 continue
             if group_conditioned or "Condition" in child.attrib:
                 found_conditioned = True

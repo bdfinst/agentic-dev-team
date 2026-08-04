@@ -11,7 +11,7 @@ message templates because that is what reviewers and tests depend on; this
 file holds the mechanics — mirroring the
 `../../coverage-delta/references/mutation-gate.md` precedent (issue #1759).
 
-Every function named below lives in `plugins/dev-team/scripts/`:
+Every function named below lives in `${CLAUDE_PLUGIN_ROOT}/scripts/`:
 `coverage_config.py` (shared: bootstrap, drift-check, weighted merge,
 measurement-basis notice), `coverage_discovery_dotnet.py` (.NET),
 `coverage_discovery_js.py` (JS/TS).
@@ -20,8 +20,8 @@ measurement-basis notice), `coverage_discovery_dotnet.py` (.NET),
 
 | Stack | Trigger | Call |
 | --- | --- | --- |
-| .NET | a `.sln` file exists at the repo root | `coverage_discovery_dotnet.discover_dotnet_projects(repo_root)` |
-| JS/TS | root `package.json#workspaces`, or `pnpm-workspace.yaml`, or `lerna.json` is present | `coverage_discovery_js.discover_js_packages(repo_root)` |
+| .NET | a `.sln` file exists at the repo root | `${CLAUDE_PLUGIN_ROOT}/scripts/coverage_discovery_dotnet.py`'s `discover_dotnet_projects(repo_root)` |
+| JS/TS | root `package.json#workspaces`, or `pnpm-workspace.yaml`, or `lerna.json` is present | `${CLAUDE_PLUGIN_ROOT}/scripts/coverage_discovery_js.py`'s `discover_js_packages(repo_root)` |
 
 Both return one of three shapes:
 
@@ -106,10 +106,27 @@ drift = coverage_config.drift_check(config, discovered)
 For each path in `config["included"]`, run the stack's coverage command
 **per included project/package** (never once for the whole repo), and parse
 its raw `{covered_statements, total_statements, covered_branches,
-total_branches}` — extending Step 4's existing per-tool parsing table
-(Coverlet's `coverage.json`, Istanbul's `coverage-final.json`/`lcov.info`,
-etc.) to the raw counts those reports already carry, not only the derived
-percentage. Feed the collected per-project reports to:
+total_branches}` from that report. For JS/TS, this extends Step 4's existing
+per-tool parsing table (Istanbul's `coverage-final.json`/`lcov.info`, etc.) to
+the raw counts those reports already carry, not only the derived percentage.
+
+**Known, documented limitation (.NET/Coverlet).** Step 4's Coverlet row
+documents only the derived `summary.linecoverage`/`summary.branchcoverage`
+percentages — not the raw counts `weighted_merge` requires. Coverlet's raw
+JSON layout (nested per-module/per-class/per-method hit data) needs
+verification against a real Coverlet run before this repo can document an
+exact JSON path to sum with confidence; asserting one without running the
+real tool risks documenting a shape that doesn't match Coverlet's actual
+output. Until that verification happens, multi-project .NET merge requires
+the operator's own coverage command wrapper to parse and supply the four raw
+counts per included project. If a per-project report carries only
+percentages with no raw counts, **stop** with a
+`coverage_config.discovery_error(...)` naming the project and the missing
+raw counts — never silently degrade to a `null`/`0` baseline by feeding
+`weighted_merge` an incomplete report. See `SKILL.md` Step 1a item 4 for the
+exact stop message.
+
+Feed the collected per-project reports to:
 
 ```python
 merged = coverage_config.weighted_merge(project_reports)

@@ -17,7 +17,10 @@ from __future__ import annotations
 import sys
 
 from coverage_baseline_flow_helpers import stub_dotnet
-from coverage_delta_flow_helpers import run_delta_flow
+from coverage_delta_flow_helpers import (
+    COVERAGE_DELTA_GENERIC_RUN_FAILURE_PHRASES,
+    run_delta_flow,
+)
 from skill_doc_helpers import PLUGIN_ROOT, collapsed, grep, section
 
 SCRIPTS_DIR = PLUGIN_ROOT / "scripts"
@@ -101,6 +104,23 @@ def test_step_2a_hard_failure_block_documented_as_distinct_and_verbatim():
     assert grep(r"own distinct.*block", step_2a, ignore_case=True)
     assert grep(r"verbatim", step_2a, ignore_case=True)
     assert grep(r"Coverage capture stopped:", step_2a)
+    # Negative: coverage-delta's OWN generic run-failure wording (Step 2)
+    # must be absent from the hard-failure block itself.
+    collapsed_step_2a = collapsed(step_2a)
+    for phrase in COVERAGE_DELTA_GENERIC_RUN_FAILURE_PHRASES:
+        assert phrase not in collapsed_step_2a
+
+
+def test_step_2_generic_run_failure_banner_is_unchanged():
+    """Step 2's pre-existing failure wording must still carry both named
+    phrases verbatim — it is the fixture the negative assertion above
+    compares against, and its own distinctness from Step 2a's hard-failure
+    block depends on these two phrases never having been edited. This
+    checks phrase presence, not a full byte-for-byte comparison of Step 2's
+    text."""
+    step_2 = collapsed(_step_2_section())
+    for phrase in COVERAGE_DELTA_GENERIC_RUN_FAILURE_PHRASES:
+        assert phrase in step_2
 
 
 def test_step_5_documents_stale_warning_as_named_nonblocking_line():

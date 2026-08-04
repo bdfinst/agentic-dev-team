@@ -84,6 +84,15 @@ def load_or_bootstrap(
     `now_iso` must use the identical ISO-8601 UTC format (with a literal `Z`
     suffix) as `baseline-coverage.json`'s `captured_at` values — this is what
     makes `measurement_basis_notice`'s later datetime comparison valid.
+
+    **Concurrency.** Two invocations racing against the same absent
+    `config_path` are mutually excluded by a create-exclusive `.lock`
+    sibling file (`os.O_CREAT | os.O_EXCL`) rather than the plain existence
+    check above, which is subject to a TOCTOU gap between the check and the
+    write. The loser of the lock never writes — it re-reads `config_path`
+    (the winner should have just written it) and returns that content
+    instead of overwriting it. The lock file is removed in a `finally` by
+    whichever call created it.
     """
     existing = _read_existing_config(config_path)
     if existing is not None:
@@ -99,7 +108,39 @@ def load_or_bootstrap(
         "excluded": [],
         "bootstrapped_at": now_iso,
     }
-    atomic_write_json(config_path, config)
+
+    config_path.parent.mkdir(parents=True, exist_ok=True)
+    lock_path = Path(f"{config_path}.lock")
+    try:
+        lock_fd = os.open(str(lock_path), os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+    except FileExistsError:
+        # Another call is concurrently bootstrapping the same config path —
+        # it should have just written config_path; return that content
+        # rather than racing it to overwrite. If it hasn't written yet (a
+        # genuinely stuck concurrent bootstrapper), fail loudly rather than
+        # silently proceeding to overwrite.
+        winner = _read_existing_config(config_path)
+        if winner is not None:
+            return winner, None
+        raise RuntimeError(
+            f"'{lock_path}' is held by a concurrent load_or_bootstrap call, "
+            f"but '{config_path}' has not been written yet; refusing to "
+            f"overwrite it. Re-run once the concurrent call completes."
+        )
+
+    try:
+        os.close(lock_fd)
+        # Double-checked locking: another call may have won the race between
+        # our existence check above and acquiring this lock, written
+        # config_path, and already released its own lock before we got here.
+        # Re-check now, inside the lock, so we never overwrite that write.
+        winner = _read_existing_config(config_path)
+        if winner is not None:
+            return winner, None
+        atomic_write_json(config_path, config)
+    finally:
+        lock_path.unlink(missing_ok=True)
+
     notice = (
         f"coverage-config.json did not exist; created it from fresh discovery "
         f"with {len(included)} project(s) included and zero "
@@ -172,6 +213,7 @@ def drift_check(config: dict, discovered_projects: list) -> dict:
     ]
     excluded_by_path = {entry["path"]: entry for entry in normalized_excluded}
     excluded_paths = set(excluded_by_path)
+    included_paths = set(included_list)
 
     conflicts = [path for path in included_list if path in excluded_paths]
 
@@ -182,7 +224,7 @@ def drift_check(config: dict, discovered_projects: list) -> dict:
         classification = entry["classification"]
         if not needs_accounting(classification):
             continue
-        if path in included_list or path in excluded_paths:
+        if path in included_paths or path in excluded_paths:
             continue
         unaccounted.append(path)
         if classification is TestClassification.AMBIGUOUS:

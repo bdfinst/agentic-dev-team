@@ -11,6 +11,8 @@ import sys
 from pathlib import Path
 from unittest.mock import patch
 
+import pytest
+
 SCRIPTS_DIR = Path(__file__).parent.parent.parent / "scripts"
 sys.path.insert(0, str(SCRIPTS_DIR))
 
@@ -256,6 +258,40 @@ def test_malformed_directory_build_props_is_discovery_error_not_crash(tmp_path):
     assert "Directory.Build.props" in result["message"]
 
 
+def test_symlinked_directory_build_props_escaping_solution_root_is_discovery_error(
+    tmp_path,
+):
+    """A `Directory.Build.props` in an ancestor directory that is itself
+    inside the solution root can still be a symlink pointing outside it —
+    the containment check must resolve the file itself, not just confirm
+    its containing directory is inside the solution (mirrors
+    test_coverage_discovery_js.py's
+    test_symlinked_package_json_escaping_repo_root_is_discovery_error)."""
+    repo_root = tmp_path / "repo"
+    csproj_rel = "tests/Foo.Tests/Foo.Tests.csproj"
+    write(
+        repo_root / csproj_rel,
+        """<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup><TargetFramework>net8.0</TargetFramework></PropertyGroup>
+</Project>
+""",
+    )
+    sln(repo_root)
+
+    outside_props = tmp_path / "outside-Directory.Build.props"
+    write(outside_props, "<Project><PropertyGroup></PropertyGroup></Project>")
+    try:
+        (repo_root / "tests" / "Directory.Build.props").symlink_to(outside_props)
+    except OSError as exc:
+        pytest.skip(f"symlinks not supported on this platform: {exc}")
+
+    with stub_dotnet([csproj_rel]):
+        result = cdd.discover_dotnet_projects(repo_root)
+
+    assert result["signal"] == "error"
+    assert "outside the solution root" in result["message"]
+
+
 def test_csproj_with_doctype_is_discovery_error_not_parsed(tmp_path):
     sln(tmp_path)
     csproj_rel = "src/Foo/Foo.csproj"
@@ -265,6 +301,49 @@ def test_csproj_with_doctype_is_discovery_error_not_parsed(tmp_path):
 <!DOCTYPE Project [<!ENTITY xxe SYSTEM "file:///etc/passwd">]>
 <Project Sdk="Microsoft.NET.Sdk"></Project>
 """,
+    )
+    with stub_dotnet([csproj_rel]):
+        result = cdd.discover_dotnet_projects(tmp_path)
+
+    assert result["signal"] == "error"
+    assert "DOCTYPE" in result["message"]
+
+
+def test_utf16le_csproj_with_doctype_is_rejected(tmp_path):
+    """expat auto-detects encoding from the byte stream and would happily
+    parse a UTF-16LE `.csproj` even though the old guard only decoded the
+    file as UTF-8 text — silently missing a DOCTYPE that's really there."""
+    sln(tmp_path)
+    csproj_rel = "src/Foo/Foo.csproj"
+    text = (
+        '<?xml version="1.0" encoding="utf-16"?>\n'
+        '<!DOCTYPE Project [<!ENTITY xxe SYSTEM "file:///etc/passwd">]>\n'
+        '<Project Sdk="Microsoft.NET.Sdk"></Project>\n'
+    )
+    (tmp_path / csproj_rel).parent.mkdir(parents=True, exist_ok=True)
+    (tmp_path / csproj_rel).write_bytes(text.encode("utf-16le"))
+
+    with stub_dotnet([csproj_rel]):
+        result = cdd.discover_dotnet_projects(tmp_path)
+
+    assert result["signal"] == "error"
+    assert "DOCTYPE" in result["message"]
+
+
+def test_doctype_past_1024_byte_window_is_still_rejected(tmp_path):
+    """The old guard only sniffed the first 1024 bytes — a DOCTYPE placed
+    behind a long enough leading comment slipped past it entirely and went
+    straight to `ET.parse`. The full-content screen must catch it regardless
+    of position in the file."""
+    sln(tmp_path)
+    csproj_rel = "src/Foo/Foo.csproj"
+    padding_comment = "<!-- " + ("x" * 2000) + " -->\n"
+    write(
+        tmp_path / csproj_rel,
+        '<?xml version="1.0"?>\n'
+        + padding_comment
+        + '<!DOCTYPE Project [<!ENTITY xxe SYSTEM "file:///etc/passwd">]>\n'
+        + '<Project Sdk="Microsoft.NET.Sdk"></Project>\n',
     )
     with stub_dotnet([csproj_rel]):
         result = cdd.discover_dotnet_projects(tmp_path)
