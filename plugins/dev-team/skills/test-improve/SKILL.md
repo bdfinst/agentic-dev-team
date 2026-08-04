@@ -208,6 +208,56 @@ silent surprise.
      partially fails, record per-tool success/failure in `phase-0.md` and do
      not claim full install success.
 
+**Coverage-target vs refactor-mode conflict check (issue #1787).** A stated
+coverage percentage (**knob 4**) and `refactor-mode: no-refactor` (**knob 3**)
+can be structurally incompatible, and Pass 1 held both at once without ever
+saying so: mutation-kill work cannot raise line or branch coverage on code that
+has no tests at all, and a layer at near-zero coverage generally needs a
+production-code seam before any test can reach it. Resolve this **before** any
+work starts — **never by waiving a gate later**, which is what happened when
+branch-90 was quietly waived at a later gate while coverage-90 stayed a stated
+goal to the end.
+
+Run the check; do not judge it in prose:
+
+```
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/coverage_gap_ranking.py" \
+  --report <existing coverage report> \
+  --target-line-pct <line target> --target-branch-pct <branch target> --json
+```
+
+- **A coverage report is discoverable** — a prior run's
+  `.dev-team-reports/test-improve/<slug>/data/baseline-coverage.json`'s
+  `raw_report`, or a report artifact already on disk (`lcov.info`,
+  `coverage.json`, `cobertura.xml`, `jacoco.csv`, `coverage-summary.json`).
+  The script's `verdict` decides:
+  - **`unreachable_without_seams` (exit 3)** — the target cannot be reached even
+    if every module that already has a test seam went to 100%. Present the
+    explicit three-way choice **`[w] waive the target / [s] switch to
+    refactor-allowed / [c] continue as-is`** (shape `[w/s/c]`), naming the
+    script's own numbers — `lines_needed`, `reachable_uncovered_lines`, and the
+    top seam-blocked modules — so the operator sees the arithmetic, not an
+    opinion. `[w]` records the target as **waived at Phase 0** with this reason
+    (Phase 8 then reports it waived up front instead of discovering it); `[s]`
+    records `refactor-mode: refactor-allowed` (Phase 0 is still resolving its
+    own answers here, so this is not an immutability exception); `[c]` proceeds
+    with `coverage_target_conflict: acknowledged` recorded. A **non-interactive**
+    run **does not silently pick a stance** — it records
+    `coverage_target_conflict: unresolved`, prints the same three options, and
+    the conflict is restated at Phase 8 rather than resolved by default.
+  - **`reachable` / `already_met` (exit 0)** — record
+    `coverage_target_conflict: none` and continue.
+- **No coverage report is discoverable** — do **not** fabricate a verdict from
+  no data. Record `coverage_target_conflict: deferred` and run this identical
+  check at Phase 2 against the freshly captured baseline, **before** Phase 1
+  consumes the ranking (see Phase 2's coverage-gap ranking step). Deferred means
+  *checked one phase later against real numbers* — never dropped, and never
+  first surfaced in the Phase-9 report.
+
+This check is skipped entirely when knob 4 left no coverage percentage target
+active, or when knob 3 selected `refactor-allowed` (there is no mode conflict
+to surface).
+
 **Persistence.** Write the resolved inputs to `.claude/memory/test-improve/<slug>/phase-0.md` before Phase 1 runs — Phase 1 must not start until `phase-0.md` exists. This includes the knob-6 outcome (the operator's install choice, and for each tool whether it was already present, installed, declined, or failed).
 
 **Immutability.** Phase-0 answers are **immutable** for the remainder of the
@@ -338,6 +388,18 @@ exists to prevent: a Pass-1 run spent its entire Phase 5 adding mutation-kill
 assertions to layers already at 88-95% line coverage while the layer holding
 ~93% of the lines needed to reach the coverage target sat at 0-11% and was
 never targeted.
+
+**A deferred Phase-0 conflict check resolves here (issue #1787).** When
+`phase-0.md` recorded `coverage_target_conflict: deferred` (no coverage report
+was discoverable at Phase 0), *this* invocation is that check — now with real
+numbers. A `verdict` of `unreachable_without_seams` (exit 3) surfaces the same
+explicit choice Phase 0 defines, **before Phase 1 runs**, with one letter
+changed: **`[w] waive the target / [s] stop and re-run in refactor-allowed mode
+/ [c] continue as-is`**. Phase-0 answers are **immutable** for the rest of the
+run, so `[s]` here **stops the run** and tells the operator to re-invoke
+`/test-improve <repo-path>` choosing `refactor-allowed` — it must **never
+rewrite `refactor-mode`** in `phase-0.md` mid-run. Record the outcome in
+`phase-2.md`.
 
 **A missing or unparseable report is not a clean ranking.** **Exit 2** means
 the script found nothing to rank (report absent, unrecognized, or parsed to

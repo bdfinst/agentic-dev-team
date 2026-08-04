@@ -111,6 +111,100 @@ def test_phase_2_unparseable_report_is_not_a_clean_ranking():
 
 
 # ---------------------------------------------------------------------------
+# #1787 — the goal conflict surfaces at Phase 0
+# ---------------------------------------------------------------------------
+
+
+def test_phase_0_has_a_coverage_target_vs_refactor_mode_conflict_check():
+    s = _flat(0)
+    assert grep(r"coverage_gap_ranking\.py", s)
+    assert grep(r"#1787", s)
+
+
+def test_phase_0_conflict_check_names_the_two_knobs_that_collide():
+    """The conflict is between a stated coverage percentage (knob 4) and
+    refactor-mode no-refactor (knob 3) — both must be named, or the check
+    reads as a generic warning."""
+    s = _flat(0)
+    assert grep(r"knob 4", s)
+    assert grep(r"knob 3", s)
+    assert grep(r"`no-refactor`", s)
+
+
+def test_phase_0_conflict_check_explains_why_mutation_work_cannot_close_it():
+    assert grep(
+        r"mutation-kill work cannot raise line or branch coverage on code that has no tests",
+        _flat(0),
+        ignore_case=True,
+    )
+
+
+def test_phase_0_conflict_offers_waive_switch_continue_not_a_silent_proceed():
+    s = _flat(0)
+    assert grep(r"\[w/s/c\]", s)
+    assert grep(r"\[w\] waive the target", s)
+    assert grep(r"\[s\] switch to refactor-allowed", s)
+    assert grep(r"\[c\] continue as-is", s)
+
+
+def test_phase_0_conflict_prompt_names_the_scripts_own_numbers():
+    """The choice is presented with the arithmetic behind it, not as a
+    judgement call: lines needed vs. lines reachable without new seams."""
+    s = _flat(0)
+    assert grep(r"`lines_needed`", s)
+    assert grep(r"`reachable_uncovered_lines`", s)
+    assert grep(r"seam-blocked", s)
+
+
+def test_phase_0_conflict_is_resolved_before_work_starts_not_waived_later():
+    s = _flat(0)
+    assert grep(r"before\*\* any work starts", s) or grep(
+        r"before any work starts", s
+    )
+    assert grep(r"never by waiving a gate later", s, ignore_case=True)
+
+
+def test_phase_0_non_interactive_run_does_not_pick_a_stance():
+    s = _flat(0)
+    assert grep(r"coverage_target_conflict: unresolved", s)
+    assert grep(r"does not silently pick a stance", s, ignore_case=True)
+
+
+def test_phase_0_without_a_discoverable_report_defers_rather_than_guessing():
+    s = _flat(0)
+    assert grep(r"coverage_target_conflict: deferred", s)
+    assert grep(r"do \*\*not\*\* fabricate a verdict", s, ignore_case=True)
+
+
+def test_phase_0_deferred_check_is_never_first_surfaced_in_the_final_report():
+    assert grep(
+        r"never first surfaced in the Phase-9\s*report",
+        _flat(0),
+        ignore_case=True,
+    )
+
+
+def test_phase_0_clean_verdict_records_no_conflict():
+    assert grep(r"coverage_target_conflict: none", _flat(0))
+
+
+def test_phase_2_resolves_a_deferred_conflict_before_phase_1_runs():
+    s = _flat(2)
+    assert grep(r"coverage_target_conflict: deferred", s)
+    assert grep(r"before Phase 1\s*runs", s, ignore_case=True)
+
+
+def test_phase_2_deferred_switch_answer_respects_phase_0_immutability():
+    """Phase-0 answers are immutable for the run, so `[s]` at Phase 2 stops
+    and asks for a fresh refactor-allowed invocation — it never rewrites
+    refactor-mode in phase-0.md mid-run."""
+    s = _flat(2)
+    assert grep(r"\[s\] stop and re-run in refactor-allowed mode", s)
+    assert grep(r"immutab", s, ignore_case=True)
+    assert grep(r"never rewrite `refactor-mode`", s, ignore_case=True)
+
+
+# ---------------------------------------------------------------------------
 # #1786 — Phase 1 and Phase 4 consume the ranking
 # ---------------------------------------------------------------------------
 
