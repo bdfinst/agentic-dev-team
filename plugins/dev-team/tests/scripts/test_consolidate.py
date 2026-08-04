@@ -149,6 +149,11 @@ def test_main_reports_malformed_artifact_not_silently_dropped(tmp_path, capsys):
     out = json.loads(captured.out)
     assert out["sliceCount"] == 1
     assert out["malformedArtifacts"]
+    # #1763 security review: an unexamined slice must never ride out as
+    # "pass" — the readable section here has no findings and no
+    # dispatchFailures, so without the malformed-forces-fail override,
+    # overall would silently be "pass".
+    assert out["overall"] == "fail"
 
 
 def test_main_treats_wrong_shape_json_as_malformed(tmp_path, capsys):
@@ -163,6 +168,7 @@ def test_main_treats_wrong_shape_json_as_malformed(tmp_path, capsys):
     assert "section-0002.json" in captured.err
     out = json.loads(captured.out)
     assert out["sliceCount"] == 1
+    assert out["overall"] == "fail"
 
 
 # --- schema-drift tolerance (#1261) -------------------------------------------

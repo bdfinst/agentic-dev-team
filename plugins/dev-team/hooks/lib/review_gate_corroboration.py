@@ -284,11 +284,19 @@ def _agents_with_unsuperseded_failure(
     An entry with no usable `ts` (checked via `metrics_query`'s own
     `_TS_FIELDS` fallback, the same resolution `filter_entries` already
     applies elsewhere in this module — not a bare `entry.get("ts")`, which
-    would silently miss a `timestamp`-keyed entry) is likewise never
-    dropped: it is treated as unsuperseded evidence (ordered last, so it
-    can never itself be superseded within this call) rather than excluded
-    from the timeline, so a malformed line degrades negative evidence
-    toward "more failures visible", never fewer.
+    would silently miss a `timestamp`-keyed entry, and never a raw non-str
+    value, which would otherwise crash the sort below on a mixed-type
+    comparison) is likewise never dropped, and the two entry KINDS are
+    defaulted in OPPOSITE directions on purpose: a ts-less **failure**
+    sorts as `"￿"` (after every real ISO timestamp), so it can never
+    be superseded by anything — the safe default for negative evidence we
+    cannot chronologically place. A ts-less **record** sorts as `""`
+    (before every real timestamp), so it can never supersede a real
+    failure — the safe default for positive evidence we cannot place. Do
+    NOT default both kinds to the same sentinel (an earlier draft used
+    `ts or ""` for both, which let ANY ts-bearing record silently supersede
+    a ts-less failure — the opposite of "ordered last, never superseded"
+    this docstring promises; #1763 correctness review).
 
     Live-registry re-validated (`registered`) exactly like `agents_in_window`
     — an unregistered/fabricated agent name is excluded, so a forged event
@@ -302,19 +310,24 @@ def _agents_with_unsuperseded_failure(
         agent = entry.get("matched_rule")
         if not isinstance(agent, str):
             continue
-        ts = metrics_query._first_present(entry, metrics_query._TS_FIELDS) or ""
+        ts = metrics_query._first_present(entry, metrics_query._TS_FIELDS)
+        # A ts-less (or non-str-ts) RECORD defaults to the minimum sort key
+        # — it can never supersede a real failure, the safe default for
+        # positive evidence we cannot chronologically place.
+        ts = ts if isinstance(ts, str) else ""
         timeline.append((ts, agent, _DECISION))
     for entry in failures:
         agent = entry.get("matched_rule")
         if not isinstance(agent, str):
             continue
-        ts = metrics_query._first_present(entry, metrics_query._TS_FIELDS) or ""
+        ts = metrics_query._first_present(entry, metrics_query._TS_FIELDS)
+        # A ts-less (or non-str-ts) FAILURE defaults to the maximum sort
+        # key ("￿" sorts after every real ISO-8601 timestamp string)
+        # — it can never be superseded, the safe default for negative
+        # evidence we cannot chronologically place. Deliberately the
+        # OPPOSITE default from the record case above.
+        ts = ts if isinstance(ts, str) else "￿"
         timeline.append((ts, agent, _DISPATCH_FAILURE_DECISION))
-    # A missing ts sorts as "" (before every real timestamp), which alone
-    # would make it easy to supersede rather than hard to — but paired with
-    # placing failures after records in the append order above and Python's
-    # stable sort, a ts-less failure still lands after any ts-less record
-    # for the same agent, so it is never silently superseded by one.
     timeline.sort(key=lambda item: item[0])
 
     latest_decision: dict = {}
@@ -455,7 +468,11 @@ def distinct_normalized_dispatches(
     sentinel.
     """
     if not subject_hash_normalized:
-        return frozenset(), frozenset()
+        # An unbindable query cannot prove absence of failure either — the
+        # negative-evidence side must not read as an all-clear here, same
+        # fail-closed posture as the read-failure branch a few lines below
+        # (#1763 security review).
+        return frozenset(), _UNPROVABLE_DISPATCH_FAILURE
     entries, failure = _read_ledger(cwd)
     if failure is not None:
         return frozenset(), _UNPROVABLE_DISPATCH_FAILURE

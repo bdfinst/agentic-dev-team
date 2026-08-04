@@ -249,6 +249,13 @@ def main(argv: list[str] | None = None) -> int:
     result = consolidate(sections)
     if malformed:
         result["malformedArtifacts"] = malformed
+        # A malformed artifact means that slice's findings were never read —
+        # the identical coverage gap `dispatchFailures` forces `overall`
+        # to "fail" for a few lines up in consolidate(), and for the same
+        # reason: an unexamined slice must never ride out as "pass" just
+        # because the READABLE sections happened to look clean (#1763
+        # security review — /pr --json checks only overall/status).
+        result["overall"] = "fail"
     print(json.dumps(result, indent=2, sort_keys=True))
     # Non-zero exit if any artifact was unreadable, so a caller notices.
     return 2 if malformed else 0

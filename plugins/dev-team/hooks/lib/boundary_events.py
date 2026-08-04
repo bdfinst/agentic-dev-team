@@ -237,6 +237,20 @@ def _main() -> int:
     `argparse` itself — e.g. an unrecognized `--event` value — still exit
     nonzero via `parser.error`, as for any CLI; that is a caller-code bug,
     not a runtime condition this fail-open contract covers.)
+
+    KNOWN RESIDUAL GAP (#1763 security review), disclosed rather than
+    silently accepted: this fail-open posture is deliberately safe for
+    `"record"` (a lost POSITIVE-evidence write only over-blocks the gate)
+    but inverts for `"dispatch-failure"` — a lost NEGATIVE-evidence write
+    (a full disk, an unwritable `.claude/metrics/`, a registry read that
+    happens to fail exactly at write time, or an unregistered/mistyped
+    `--agent` value) means a genuine dispatch failure produces no evidence
+    at all, and the gate then evaluates on the other agents' `"record"`s
+    alone as if nothing failed. Not fixed here: giving this one event type
+    a non-fail-open write path would need a `strict` variant threaded
+    through `emit_boundary_event` and a corresponding change to how
+    `SKILL.md`/`sliced-mode.md` treat a nonzero exit from this CLI — a
+    larger change than this bounded exception's own scope.
     """
     import argparse
 

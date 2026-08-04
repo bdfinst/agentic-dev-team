@@ -519,6 +519,51 @@ def test_dispatch_failure_entry_with_timestamp_field_instead_of_ts_is_not_droppe
     assert result.dispatch_failure_agents == frozenset({"security-review"})
 
 
+def test_ts_less_dispatch_failure_is_never_superseded_by_a_ts_bearing_record(
+    tmp_path: Path,
+) -> None:
+    """#1763 correctness review: a ts-less failure must default to the
+    MAXIMUM sort key (never superseded), not the minimum — an earlier draft
+    used `ts or ""` for both entry kinds, which let ANY ts-bearing record
+    silently supersede a ts-less failure, exactly backwards from the
+    "ordered last, never superseded" guarantee this function documents."""
+    entry = _dispatch_failure("2026-01-01T11:55:00Z", "security-review")
+    del entry["ts"]  # no usable ts at all, not even under the "timestamp" alias
+    _write_ledger(
+        tmp_path,
+        [entry, _record("2026-01-01T11:56:00Z", "security-review")],  # later, real ts
+    )
+    result = rgc.evaluate(tmp_path, _ANCHOR, _WINDOW, _HASH)
+    assert result.dispatch_failure_agents == frozenset({"security-review"})
+
+
+def test_ts_less_record_never_supersedes_a_real_dispatch_failure(tmp_path: Path) -> None:
+    """The opposite default direction from the case above: a ts-less RECORD
+    must never supersede a real, ts-bearing failure — the safe default for
+    positive evidence we cannot chronologically place."""
+    record_entry = _record("2026-01-01T11:56:00Z", "security-review")
+    del record_entry["ts"]
+    _write_ledger(
+        tmp_path,
+        [_dispatch_failure("2026-01-01T11:55:00Z", "security-review"), record_entry],
+    )
+    result = rgc.evaluate(tmp_path, _ANCHOR, _WINDOW, _HASH)
+    assert result.dispatch_failure_agents == frozenset({"security-review"})
+
+
+def test_non_string_ts_value_is_skipped_not_a_crash(tmp_path: Path) -> None:
+    """#1763 correctness review: a corrupt line with a non-str ts (e.g. a
+    hand-edited or foreign-stream ledger with a raw int/float timestamp)
+    must degrade to "no usable ts", never raise — mixing an int and a str
+    in the same sort comparison would crash the whole read, making one
+    corrupt line fatal against this module's own "never fatal" promise."""
+    entry = _dispatch_failure("2026-01-01T11:55:00Z", "security-review")
+    entry["ts"] = 1767225600  # raw int, not a string
+    _write_ledger(tmp_path, [entry])
+    result = rgc.evaluate(tmp_path, _ANCHOR, _WINDOW, _HASH)
+    assert result.dispatch_failure_agents == frozenset({"security-review"})
+
+
 # ---------------------------------------------------------------------------
 # distinct_normalized_dispatches() — new (agents_in_window,
 # dispatch_failure_agents) 2-tuple return (#1763).
@@ -599,12 +644,18 @@ def test_distinct_normalized_dispatches_missing_ledger_fails_closed(tmp_path: Pa
     assert result == (frozenset(), rgc._UNPROVABLE_DISPATCH_FAILURE)
 
 
-def test_distinct_normalized_dispatches_empty_hash_matches_nothing(tmp_path: Path) -> None:
+def test_distinct_normalized_dispatches_empty_hash_fails_closed_on_negative_evidence(
+    tmp_path: Path,
+) -> None:
+    """#1763 security review: an unbindable query (empty normalized hash)
+    cannot prove absence of failure — the negative-evidence element must be
+    the fail-closed sentinel, never an all-clear empty set, matching the
+    read-failure branch's own posture."""
     _write_ledger(
         tmp_path, [_record_normalized("2026-01-01T11:55:00Z", "security-review", "norm-hash-1")]
     )
     result = rgc.distinct_normalized_dispatches(tmp_path, _ANCHOR, _WINDOW, "")
-    assert result == (frozenset(), frozenset())
+    assert result == (frozenset(), rgc._UNPROVABLE_DISPATCH_FAILURE)
 
 
 # ---------------------------------------------------------------------------

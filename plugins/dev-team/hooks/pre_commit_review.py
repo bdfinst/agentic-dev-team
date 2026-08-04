@@ -743,9 +743,14 @@ def _cosmetic_carry_forward_verdict(
     path, so every use is visible in the same boundary-events stream the gate
     itself is audited from.
 
-    Returns a passing `GateVerdict` when all four hold; `None` otherwise —
-    "not decisive", meaning `_evaluate_gate` returns the original rejection
-    unchanged. Fails CLOSED on any error.
+    Returns a passing `GateVerdict` when all four hold; a REJECTING
+    `GateVerdict` when the dispatch-failure veto (d) or a read failure
+    fires — those are decisive too, just not a pass (#1763 correctness
+    review: an earlier version of this docstring only mentioned the
+    passing case, understating that this lens can now also short-circuit
+    with a hard block); `None` otherwise — "not decisive", meaning
+    `_evaluate_gate` returns the original rejection unchanged. Fails
+    CLOSED on any error.
     """
     try:
         stored_raw, stored_normalized = _stored_gate_hashes(gate_file)
@@ -793,6 +798,20 @@ def _cosmetic_carry_forward_verdict(
         # carry-forward path. Renders the identical pinned message via
         # `_dispatch_failure_message` (or the distinct registry-read-failure
         # message for the sentinel case), not a generic fallback.
+        #
+        # A LEDGER read failure and a REGISTRY read failure both surface as
+        # the same `_UNPROVABLE_DISPATCH_FAILURE` sentinel from
+        # `_agents_with_unsuperseded_failure`/`evaluate()`, but they are
+        # different infra problems needing different operator remediation
+        # (#1763 correctness/security review — the exact mislabeling this
+        # file's own `_GATE_SETUP_FAILURE_MESSAGE` comment, a few hundred
+        # lines up, argues against). The two raw-hash `LedgerEvidence`
+        # objects carry `read_failure_reason`; a ledger read failure there
+        # is checked FIRST, before assuming the sentinel means the registry.
+        if (stored_raw_evidence is not None and stored_raw_evidence.read_failure_reason) or (
+            current_raw_evidence.read_failure_reason
+        ):
+            return GateVerdict(False, _READ_FAILURE_MESSAGE, "dispatch-ledger-read-failure")
         if _UNPROVABLE_DISPATCH_FAILURE in (dispatch_failure_agents, *raw_failure_sets):
             return GateVerdict(False, _REGISTRY_READ_FAILURE_MESSAGE, "registry-read-failure")
         if combined_dispatch_failures:
@@ -846,12 +865,26 @@ def _dispatch_failure_verdict(evidence) -> GateVerdict | None:
     with `read_failure_reason=None`. Checked explicitly below so the
     sentinel is never rendered as if it were a real agent name.
 
-    KNOWN RESIDUAL GAP (mirrors `LedgerEvidence.dispatch_failure_agents`'s
-    own disclosure): supersession clears this veto on any LATER "record"
-    event for the same agent+hash, and "record" is a dispatch-START signal
-    — a bare re-dispatch of the failed agent clears the veto the instant it
-    starts, not once it actually returns a valid result. Not fixed here;
-    see that field's docstring for why.
+    KNOWN RESIDUAL GAPS, disclosed rather than silently accepted (#1763
+    security review):
+
+    1. Supersession (mirrors `LedgerEvidence.dispatch_failure_agents`'s own
+       disclosure) clears this veto on any LATER "record" event for the
+       same agent+hash, and "record" is a dispatch-START signal — a bare
+       re-dispatch of the failed agent clears the veto the instant it
+       starts, not once it actually returns a valid result. Not fixed
+       here; see that field's docstring for why.
+    2. This lens (and the main pipeline it's called from, per
+       `_evaluate_gate`) queries only the CURRENT staged-content hash. A
+       dispatch failure recorded against an EARLIER hash — most plausibly
+       one orphaned by `/code-review` step 6a's fix loop re-staging to
+       newer content before that step's own prose condition is (mis)
+       evaluated — is never queried by this lens; only
+       `_cosmetic_carry_forward_verdict` unions multiple hash bindings,
+       and only on the narrower raw-hash-mismatch path it covers. Closing
+       this fully would need the emitting side (`SKILL.md`'s fix loop) to
+       re-emit an outstanding failure against each new hash, not a change
+       to this read-side lens alone.
     """
     if evidence.dispatch_failure_agents == _UNPROVABLE_DISPATCH_FAILURE:
         return GateVerdict(False, _REGISTRY_READ_FAILURE_MESSAGE, "registry-read-failure")
