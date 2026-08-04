@@ -491,10 +491,16 @@ def test_hash_match_with_only_one_dispatch_inside_window_is_insufficient(
     h = _current_hash(repo)
     gate_path = repo / ".claude" / "memory" / ".review-passed"
     gate_path.parent.mkdir(parents=True, exist_ok=True)
-    gate_path.write_text(h)
     stale_ts = datetime.now(timezone.utc) - timedelta(seconds=_WINDOW_SECONDS + 600)
     _write_dispatch_events(repo, ["security-review"], h, ts=stale_ts)
+    # Written BEFORE the gate file so its (second-truncated) "now" timestamp
+    # can never land after `before_ts` (the gate's own mtime, also
+    # second-truncated) — writing it after was a real race under parallel
+    # test runs: a second-boundary crossing between the two statements
+    # pushed this "fresh" dispatch's timestamp past `before_ts`, excluding
+    # it from the window and dropping the in-window count from 1 to 0.
     _write_dispatch_events(repo, ["structure-review"], h)
+    gate_path.write_text(h)
     r = _run(
         {"tool_name": "Bash", "tool_input": {"command": "git commit -m x"}}, cwd=repo
     )
