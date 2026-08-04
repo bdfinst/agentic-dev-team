@@ -510,9 +510,7 @@ def is_git_commit_command(cmd: str) -> bool:
 
 def has_bypass_flag(cmd: str) -> bool:
     """Return True iff `cmd` carries `--no-verify` or a bare `-n` flag."""
-    if not cmd:
-        return False
-    return bool(_NO_VERIFY_RE.search(cmd)) or bool(_BARE_N_RE.search(cmd))
+    return bypass_flag_name(cmd) is not None
 
 
 def bypass_flag_name(cmd: str) -> str | None:

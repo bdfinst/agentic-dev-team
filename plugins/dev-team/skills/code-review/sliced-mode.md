@@ -68,6 +68,20 @@ slice's section artifact (see the next section), and the consolidated report
 names the slices that ran the reduced panel so a reader can tell "fewer
 findings" from "fewer reviewers ran."
 
+**Wave-bound the panel dispatch (issue #1762).** Before dispatching either
+panel (reduced or full), compute its wave split via `dispatch_waves.py` —
+the same `maxParallel` resolution the legacy path uses
+(`DEV_TEAM_MAX_PARALLEL_REVIEW_AGENTS`, default 10; see `SKILL.md` Step 4):
+
+```bash
+python3 "$CLAUDE_PLUGIN_ROOT/skills/code-review/scripts/dispatch_waves.py" --agents "<this slice's panel agent names, in order>"
+```
+
+Dispatch one wave at a time, waiting for each wave to fully return before
+dispatching the next — same discipline as the legacy path. A reduced panel
+(2 agents) never exceeds a single wave at the default cap; a full panel can,
+on a slice with many eligible lens/framework agents.
+
 ## Persist-and-drop and the progress ledger
 
 At the start of a sliced run, initialize the ledger from the partitioned slices:
@@ -76,15 +90,54 @@ At the start of a sliced run, initialize the ledger from the partitioned slices:
 partition cap recorded.
 
 Review slices in **bounded parallelism — 2–3 slices at a time** (not the whole
-repo at once). For each slice, once its panel (per the section above) completes:
+repo at once). This slice-level concurrency heuristic is unchanged by the
+panel-level wave cap above — the two bound different things: how many slices
+are in flight at once, versus how many agents one slice's own panel dispatches
+in a single message.
 
-1. **Persist** its findings: `write_section(slice, findings, panel, root)` writes
-   `raw/section-<id>.json` (findings + the panel that ran) and flips the slice's
-   ledger status to `done`.
-2. **Drop** the findings from orchestrator context. **Retain only a one-line tally per slice** — e.g. `section-0001: 3 findings (1 error, 2 warnings)`. This
+For each slice, once its panel's waves (per the section above) return:
+
+1. **Reconcile dispatched vs. returned, per wave**: use `dispatch_reconcile.py`
+   — the same CLI as the legacy path (`SKILL.md` Step 4), scoped to this
+   slice's dispatched agents for that wave:
+   ```bash
+   python3 "$CLAUDE_PLUGIN_ROOT/skills/code-review/scripts/dispatch_reconcile.py" --dispatched "<this wave's dispatched agent names>" --returned "<this wave's contract-valid agent names>"
+   ```
+   Every name in the resulting `"missing"` array is a dispatch failure for
+   this slice's current wave.
+2. **Retry once per agent**: retry each missing agent exactly once,
+   individually — same policy as `SKILL.md` Step 4, see there for rationale.
+   A recovered dispatch (fails once, retry succeeds) writes an empty
+   `dispatchFailures` list and emits no boundary event, mirroring the legacy
+   path's own guarantee. **Accumulate unrecovered failures across every wave
+   of this slice's panel** (a panel can span more than one wave when it's
+   larger than `maxParallel` — see the section above): a wave-1 failure is
+   never dropped just because wave 2 returned cleanly — carry the running
+   list forward and pass the union to step 3, once, after the slice's last
+   wave returns.
+3. **Persist** its findings: `write_section`'s CLI (`ledger.py write-section`)
+   writes `raw/section-<id>.json` (findings + the panel that ran) and flips
+   the slice's ledger status to `done`. Pass `--dispatch-failures` with the
+   slice's still-unrecovered failures, accumulated across all its waves —
+   an empty list (or the flag omitted) when every agent recovered on retry.
+   Each entry has the same shape as the legacy path's `dispatchFailures`
+   entries (`output-format.md`): `{"agentName": "<name>", "attempts": 2,
+   "error": "<message>"}` — never a different key for the agent name.
+4. **Emit the boundary event for each unrecovered failure**: at the same
+   moment step 3 records the failure, emit the `dispatch-failure` boundary
+   event (Slice 1's shared CLI), bound to the `subject_hash` **and**
+   normalized hash in effect for that slice's dispatch — the same values
+   used elsewhere in this run (omitting the normalized hash would leave the
+   gate's cosmetic-delta carry-forward lens unable to ever see it):
+   ```bash
+   HASH=$(python3 "${CLAUDE_PLUGIN_ROOT}/hooks/lib/review_gate_hash.py")
+   NORM=$(python3 "${CLAUDE_PLUGIN_ROOT}/hooks/lib/review_gate_normalized_hash.py" || true)
+   python3 "${CLAUDE_PLUGIN_ROOT}/hooks/lib/boundary_events.py" --event dispatch-failure --agent "<name>" --subject-hash "$HASH" --subject-hash-normalized "$NORM"
+   ```
+5. **Drop** the findings from orchestrator context. **Retain only a one-line tally per slice** — e.g. `section-0001: 3 findings (1 error, 2 warnings)`. This
    is the move that keeps context flat regardless of repo size: never hold more
    than the tallies plus the slices currently in flight.
-3. **Report progress**: emit `slice k of N done` as each slice completes, so a
+6. **Report progress**: emit `slice k of N done` as each slice completes, so a
    long monorepo run is observably advancing.
 
 If the run is interrupted, the ledger and the already-written section artifacts
@@ -100,10 +153,19 @@ When `--resume` is given, do **not** re-initialize the ledger. Instead:
    ledger, **stop with that error** — repartitioning at a different cap would
    desync the new slice ids from the `section-<id>.json` files already on disk.
    Rerun with the recorded cap (or no `--slice`), or start fresh.
-2. **Review only the pending slices**: `pending_slices(slices, root)` returns the
-   slices whose `section-<id>.json` does **not** yet exist. Slices whose artifact
-   already exists are skipped and reused as-is — disk is the source of truth
-   (a slice with an artifact is done even if the ledger still says `pending`).
+2. **Review only the pending slices**: `pending_slices(slices, root)` returns
+   the slices needing (re-)review. A slice whose `section-<id>.json` does not
+   yet exist is pending, same as before — **and, as of issue #1762, a slice
+   whose artifact already exists but carries a non-empty `dispatchFailures`
+   list is also pending**: it is **not** treated as done on `--resume`; its
+   panel is re-dispatched, same as a slice with no artifact at all, so the
+   previously-failed agent(s) get a real chance to produce a superseding
+   result, per the retry-once policy in `SKILL.md`'s "Dispatch failure
+   handling" (Step 4) — see there for the full mechanics, not restated here.
+   Every other slice keeps today's rule unchanged: an artifact
+   exists with an empty `dispatchFailures` list is skipped and reused as-is
+   — disk is the source of truth (a slice with a clean artifact is done even
+   if the ledger still says `pending`).
 3. Consolidation (below) reads **all** section artifacts — the ones reused from
    the prior run and the ones this resume produced.
 
