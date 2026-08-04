@@ -99,8 +99,28 @@ def _reject_option_like(path_str: str, description: str) -> None:
         _fail(f"unsafe {description} (looks like a CLI option, not a path): {path_str}")
 
 
+# Shell metacharacters that would let a discovered path break out of the
+# unquoted `dotnet test <project> ...` interpolation described in
+# coverage-baseline/SKILL.md's `.sln`/`.csproj` manifest row.
+_SHELL_METACHARACTERS = frozenset(";&|$`\n<>()")
+
+
+def _reject_shell_metacharacters(path_str: str, description: str) -> None:
+    """Reject (via `_fail`) a path string containing a shell metacharacter."""
+    found = sorted(ch for ch in _SHELL_METACHARACTERS if ch in path_str)
+    if found:
+        _fail(
+            f"unsafe {description} (contains shell metacharacter {found[0]!r}): {path_str}"
+        )
+
+
+_TEST_PROJECT_EXTENSIONS = (".csproj", ".fsproj", ".vbproj")
+
+
 def parse_sln_list_output(output: str) -> list[str]:
-    """Parse `dotnet sln <sln> list` stdout into normalized project paths."""
+    """Parse `dotnet sln <sln> list` stdout into normalized project paths.
+    Accepts `.csproj`, `.fsproj`, and `.vbproj` — inclusion is still gated
+    solely by the Test.Sdk marker check in `discover_test_projects`."""
     projects = []
     for raw_line in output.splitlines():
         line = raw_line.strip()
@@ -110,7 +130,7 @@ def parse_sln_list_output(output: str) -> list[str]:
             continue
         if set(line) <= {"-"}:
             continue
-        if line.lower().endswith(".csproj"):
+        if line.lower().endswith(_TEST_PROJECT_EXTENSIONS):
             projects.append(normalize_path(line))
     return projects
 
@@ -153,6 +173,8 @@ def discover_test_projects(sln_path: Path) -> list[str]:
     sln_dir = sln_path.parent
     discovered = []
     for rel_path in all_projects:
+        _reject_option_like(rel_path, "discovered project path")
+        _reject_shell_metacharacters(rel_path, "discovered project path")
         abs_path = _resolve_project_path(sln_dir, rel_path)
         if has_test_sdk_marker(abs_path):
             discovered.append(rel_path)

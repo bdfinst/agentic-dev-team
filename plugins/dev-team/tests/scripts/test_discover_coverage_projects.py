@@ -182,6 +182,32 @@ def test_parse_sln_list_output_normalizes_backslashes() -> None:
     assert dcp.parse_sln_list_output(output) == ["src/App/App.csproj"]
 
 
+def test_fsproj_project_with_test_sdk_marker_is_discovered(monkeypatch, tmp_path) -> None:
+    # .fsproj (F#) test projects must never be silently dropped before the
+    # Test.Sdk marker check ever runs (#1759 backstop review, item 3).
+    specs = {"tests/App.Tests/App.Tests.fsproj": True}
+    sln_path = _make_solution(tmp_path, specs)
+    monkeypatch.setattr(dcp.subprocess, "run", _fake_sln_list_run(list(specs.keys())))
+
+    discovered = dcp.discover_test_projects(sln_path)
+
+    assert discovered == ["tests/App.Tests/App.Tests.fsproj"]
+
+
+def test_discovered_project_path_with_shell_metacharacter_is_hard_failure(
+    monkeypatch, tmp_path
+) -> None:
+    # A discovered path is fed unquoted into `dotnet test <project> ...` by
+    # the coverage-baseline manifest row — a shell metacharacter must be
+    # rejected before it can ever reach `discovered` (#1759 backstop review,
+    # item 1).
+    malicious_path = "tests/App;rm -rf /tmp/evil/App.Tests.csproj"
+    monkeypatch.setattr(dcp.subprocess, "run", _fake_sln_list_run([malicious_path]))
+
+    with pytest.raises(dcp.DiscoveryError, match="shell metacharacter"):
+        dcp.discover_test_projects(Path("/nonexistent/MySolution.sln"))
+
+
 # ---------------------------------------------------------------------------
 # Step 1.2 — known_projects baseline + exclusions; hard-fail on new projects
 # ---------------------------------------------------------------------------

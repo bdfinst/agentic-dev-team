@@ -484,7 +484,7 @@ When multiple agents flag the same `file:line`, emit one `topFindings` entry: `s
 
 **Dedup across agents, not just across identical lines — prose only, never the `topFindings` array itself.** The `topFindings` JSON array keeps the existing exact `file:line` dedup key unchanged — one entry per distinct `file:line`, matching `output-format.md`'s contract and `scripts/consolidate.py`'s sliced-mode dedup key. The instruction below governs only how findings are *described in the human-facing prose summary/report*: when writing that prose, collapse any two findings — from different agents, even at slightly different lines — that describe the same underlying defect into a single description; do not restate the same defect twice in prose just because two agents (or two nearby lines) reported it.
 
-**Condensation cap.** Condense each surviving finding to ≤ 3 lines per finding before final synthesis output — the essential defect description and fix, not each agent's full reasoning.
+**Condensation cap.** Condense each surviving finding to ≤ 3 lines per finding before final synthesis output — the essential defect description and fix, not each agent's full reasoning. Applies only to the human-facing summary/report; `topFindings` entries keep their full `message`/`suggestedFix` text unchanged.
 
 ### 6. Present findings and ask for direction
 
