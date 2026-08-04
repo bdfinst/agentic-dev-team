@@ -408,7 +408,10 @@ changed: **`[w] waive the target / [s] stop and re-run in refactor-allowed mode
 run, so `[s]` here **stops the run** and tells the operator to re-invoke
 `/test-improve <repo-path>` choosing `refactor-allowed` — it must **never
 rewrite `refactor-mode`** in `phase-0.md` mid-run. Record the outcome in
-`phase-2.md`.
+`phase-2.md`. A **non-interactive** run at this point follows Phase 0's rule
+unchanged: record `coverage_target_conflict: unresolved` in `phase-2.md`, print
+the same three options, and continue to Phase 1 — it never auto-stops and never
+auto-waives, and Phase 8 restates the unresolved conflict.
 
 **A missing or unparseable report is not a clean ranking.** **Exit 2** means
 the script found nothing to rank (report absent, unrecognized, or parsed to
@@ -540,6 +543,15 @@ own ordering stands only for items the ranking does not speak to (flakiness,
 determinism, suite shape), and for a run where **no coverage percentage is a
 stated goal** (Phase-0 knob 4 overrode the coverage targets away) the ranking
 is **informational** rather than the ordering authority.
+
+**Under `--analyze-only` there is no ranking to read.** That mode runs Phase 0
+then Phase 1 directly and captures no baseline, so Phase 2 never wrote
+`coverage-gap-ranking.json`. Do not fabricate one and do not silently fall back
+to survivor ordering: present `/test-health`'s own ordering and state plainly
+that the coverage-gap ranking was not computed for this run (a full run would
+order the coverage-driven items by it). The same holds for a `--from-phase 1`
+resume whose `data/` directory has no ranking file — say so rather than
+proceeding as if the ordering were coverage-derived.
 
 **Mutation survivors order work *within* an already-seamed module, never
 across modules.** A module whose ranking entry reads `seam: established`

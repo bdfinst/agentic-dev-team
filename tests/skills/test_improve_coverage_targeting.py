@@ -198,6 +198,24 @@ def test_phase_2_resolves_a_deferred_conflict_before_phase_1_runs():
     assert grep(r"before Phase 1\s*runs", s, ignore_case=True)
 
 
+def test_phase_2_deferred_check_defines_its_non_interactive_path():
+    """doc-review: Phase 0 documents the non-interactive branch; Phase 2's
+    deferred resolution must too, or the rare defer-then-run-headless path is
+    undefined at the one gate that matters."""
+    s = _flat(2)
+    assert grep(r"coverage_target_conflict: unresolved", s)
+    assert grep(r"never auto-stops and never auto-waives", s, ignore_case=True)
+
+
+def test_phase_1_states_when_no_ranking_exists_instead_of_assuming_one():
+    """doc-review: `--analyze-only` skips Phase 2 entirely, so Phase 1 can run
+    with no ranking file at all."""
+    s = _flat(1)
+    assert grep(r"`--analyze-only` there is no ranking to read", s)
+    assert grep(r"[Dd]o not fabricate one", s)
+    assert grep(r"do not silently fall back to survivor ordering", s)
+
+
 def test_phase_2_deferred_switch_answer_respects_phase_0_immutability():
     """Phase-0 answers are immutable for the run, so `[s]` at Phase 2 stops
     and asks for a fresh refactor-allowed invocation — it never rewrites
