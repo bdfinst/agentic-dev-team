@@ -8,7 +8,7 @@ description: >-
 argument-hint: "[--cwd <path>] [--transcript <file>] [--out <report>] [--cross-machine]"
 user-invocable: true
 allowed-tools: >-
-  Read, Glob, Bash(python3 *, date *, mkdir *), Write, Agent
+  Read, Glob, Bash(python3 *, date *, mkdir *, test *, echo *, bash *), Write, Agent
 ---
 
 # Session Review (#131)
@@ -46,6 +46,30 @@ You have been invoked with the `/session-review` command.
 - `--cross-machine`: opt into cross-machine telemetry sync + rollup (#1480). **Absent by default** — a plain `/session-review` analyzes only this machine's local digest. See Step 1.
 
 ## Steps
+
+### Pre-flight — dev-checkout guard (#1779)
+
+`/session-review` is maintainer-only tooling that operates on this repo's own
+infrastructure — its extractor (`session_extract.py`, `eval_rawlog.py`) is
+deliberately monorepo-only, never shipped inside the plugin (see
+`tests/repo/test_shipped_script_refs.py`'s `ESCAPE_ALLOWLIST` for the
+rationale). Before Step 0 — this Pre-flight section runs first — check that
+the extractor actually exists at the path every later command references:
+
+```bash
+test -f "${CLAUDE_PLUGIN_ROOT}/../../scripts/session_extract.py" \
+  && test -f "${CLAUDE_PLUGIN_ROOT}/../../scripts/eval_rawlog.py" \
+  && echo present || echo absent
+```
+
+If `absent` (the normal case for every downstream install, and any dev
+checkout missing the repo-root `scripts/` tree — e.g. a shallow or
+sparse clone), stop here and tell the user plainly: "`/session-review`
+requires the `agentic-dev-team` monorepo dev checkout (it mines this repo's
+own session telemetry) — not available from an installed plugin cache." Do
+not proceed to Step 0 or run any command that references
+`session_extract.py`; a raw `FileNotFoundError` traceback is not an
+acceptable substitute for this message.
 
 ### 0. Queued Findings — surface pending-review queue before fresh analysis
 

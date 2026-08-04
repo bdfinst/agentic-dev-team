@@ -5497,8 +5497,12 @@
       "anchor": "argument-arguments"
     },
     "Steps": {
-      "summary": "Before running fresh analysis, check whether background analysis has produced",
+      "summary": "`/session-review` is maintainer-only tooling that operates on this repo's own",
       "anchor": "steps"
+    },
+    "Pre-flight — dev-checkout guard (#1779)": {
+      "summary": "`/session-review` is maintainer-only tooling that operates on this repo's own",
+      "anchor": "pre-flight-dev-checkout-guard-1779"
     },
     "0. Queued Findings — surface pending-review queue before fresh analysis": {
       "summary": "Before running fresh analysis, check whether background analysis has produced",
