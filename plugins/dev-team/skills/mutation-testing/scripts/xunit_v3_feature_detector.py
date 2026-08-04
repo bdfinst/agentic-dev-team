@@ -106,6 +106,46 @@ _CONSTRUCTS: list[Construct] = [
         "rows carrying per-row metadata (Skip/Explicit/Traits/TestDisplayName) "
         "lose it in translation. Coverage-bearing (the test runs and covers code).",
     ),
+    Construct(
+        name="autofixture-auto-data",
+        # AutoFixture.Xunit3's attribute family. The bare-name alternations are
+        # word-bounded so `MemberAutoData`/`InlineAutoData` each count once
+        # instead of also matching a nested `AutoData` — an inflated blocker
+        # count is an operator-visible defect at the gate (#1791). Matching the
+        # attribute NAME rather than requiring a leading `[` is deliberate:
+        # `[Theory, AutoData]` is the common form and has no bracket of its own.
+        pattern=re.compile(
+            r"\bAutoFixture\.Xunit3\b|\bAutoData\b|\bInlineAutoData\b"
+            r"|\bAutoMoqData\b|\bMemberAutoData\b"
+        ),
+        compile_ability=NO_V2_EQUIVALENT,
+        coverage_impact=COVERAGE_BEARING,
+        note="AutoFixture.Xunit3's [AutoData]/[InlineAutoData]/[AutoMoqData]/"
+        "[MemberAutoData] target xunit.v3's attribute surface; the generated shim "
+        "mirrors the package reference verbatim, so the linked sources fail to "
+        "compile under xunit.v2. Porting means a manual `new Fixture()` in the "
+        "body or [Theory]+[InlineData] rows — heavy if pervasive. Coverage-bearing "
+        "(these tests run and cover code). AutoFixture.Xunit2 is NOT flagged: it "
+        "is the v2-compatible package and already compiles in the shim.",
+    ),
+    Construct(
+        name="assert-multiple",
+        pattern=re.compile(r"\bAssert\.Multiple\s*\("),
+        compile_ability=NO_V2_EQUIVALENT,
+        coverage_impact=COVERAGE_BEARING,
+        note="Assert.Multiple (grouped assertion reporting) is v3-only; v2 has no "
+        "equivalent, so the call must become sequential asserts. The test runs and "
+        "covers code.",
+    ),
+    Construct(
+        name="assert-equivalent",
+        pattern=re.compile(r"\bAssert\.Equivalent\s*\("),
+        compile_ability=NO_V2_EQUIVALENT,
+        coverage_impact=COVERAGE_BEARING,
+        note="Assert.Equivalent (structural equivalence) is v3-only; under v2 it "
+        "must become an explicit member-by-member or collection assertion. The "
+        "test runs and covers code.",
+    ),
 ]
 
 

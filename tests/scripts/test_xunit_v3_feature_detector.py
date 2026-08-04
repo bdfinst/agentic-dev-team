@@ -7,6 +7,8 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
+import pytest
+
 SCRIPTS_DIR = (
     Path(__file__).resolve().parents[2]
     / "plugins"
@@ -82,6 +84,68 @@ def test_theory_data_row_detected():
     assert findings[0].construct == "theory-data-row"
     assert findings[0].compile_ability == det.CLEAN_TRANSLATABLE
     assert findings[0].coverage_impact == det.COVERAGE_BEARING
+
+
+# --- AutoFixture / v3-only assertion constructs (#1791) --------------------
+#
+# The operator-facing gate quotes the detector's classification verbatim
+# ("N test files use [AutoData]/AutoFixture.Xunit3, which the v2 shim can't
+# compile" — #1791). That sentence is only true if the detector actually
+# classifies those constructs, so they are pinned here.
+
+
+@pytest.mark.parametrize(
+    "source",
+    [
+        "    [Theory, AutoData]",
+        "    [AutoData]",
+        "    [InlineAutoData(1, 2)]",
+        "    [AutoMoqData]",
+        "    [MemberAutoData(nameof(Cases))]",
+        "using AutoFixture.Xunit3;",
+    ],
+)
+def test_autofixture_constructs_are_classified(source):
+    findings = det.scan_text("A.cs", source)
+    assert len(findings) == 1, f"expected exactly one finding for {source!r}"
+    assert findings[0].construct == "autofixture-auto-data"
+    assert findings[0].compile_ability == det.NO_V2_EQUIVALENT
+    assert findings[0].coverage_impact == det.COVERAGE_BEARING
+
+
+def test_autofixture_xunit2_package_not_flagged():
+    # AutoFixture.Xunit2 is the v2-compatible package — flagging it would tell
+    # the operator to port something that already compiles under the shim.
+    assert det.scan_text("A.cs", "using AutoFixture.Xunit2;") == []
+
+
+def test_member_auto_data_counted_once_not_twice():
+    # `\bAutoData\b` must not also fire inside `MemberAutoData`/`InlineAutoData`,
+    # or the operator sees an inflated blocker count.
+    findings = det.scan_text("A.cs", "[MemberAutoData(nameof(Cases))]")
+    assert len(findings) == 1
+
+
+def test_assert_multiple_is_classified():
+    findings = det.scan_text("A.cs", "Assert.Multiple(() => Assert.True(true));")
+    assert len(findings) == 1
+    assert findings[0].construct == "assert-multiple"
+    assert findings[0].compile_ability == det.NO_V2_EQUIVALENT
+    assert findings[0].coverage_impact == det.COVERAGE_BEARING
+
+
+def test_assert_equivalent_is_classified():
+    findings = det.scan_text("A.cs", "Assert.Equivalent(expected, actual);")
+    assert len(findings) == 1
+    assert findings[0].construct == "assert-equivalent"
+    assert findings[0].compile_ability == det.NO_V2_EQUIVALENT
+
+
+def test_autofixture_summary_names_the_construct_and_file_count():
+    findings = det.scan_text("A.cs", "[AutoData]") + det.scan_text("B.cs", "[AutoData]")
+    s = det.summarize(findings)
+    assert s.files == 2
+    assert s.bearing == 2
 
 
 # --- near-miss negatives: none of these may be flagged ---------------------
