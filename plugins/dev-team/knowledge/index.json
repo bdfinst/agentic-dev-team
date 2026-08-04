@@ -5003,8 +5003,12 @@
       "anchor": "yes-semantics"
     },
     "Workflow": {
-      "summary": "Probe the working directory with cheap, deterministic filesystem signals —",
+      "summary": "`/project-init` is invoked far more often than it has anything new to do —",
       "anchor": "workflow"
+    },
+    "Step 0: Idempotency short-circuit (#1778)": {
+      "summary": "`/project-init` is invoked far more often than it has anything new to do —",
+      "anchor": "step-0-idempotency-short-circuit-1778"
     },
     "Step 1: Detect the stack": {
       "summary": "Probe the working directory with cheap, deterministic filesystem signals —",

@@ -3,7 +3,7 @@ name: project-init
 description: Get a repository ready for the dev-team toolchain in one command — detect the tech stack (JS/TS, Python, C#, Java), inventory the static-analysis tools the project already has, confirm a plan, and install only what's missing, repo-level. This is the canonical source of truth for tech-stack detection and toolchain installation — NOT dev-team-specific config (CLAUDE.md generation, agent template activation, PostToolUse hooks, the generated `/pr` command all live in `/setup`, which invokes this skill first for the stack signal). Also installs the detection-gated capability tools other skills depend on — semgrep, Playwright + Chromium, adr, gh, and the docker scanners (hadolint/trivy/grype). For JavaScript it scaffolds a new project with ES modules, functional style, prettier, oxlint, editorconfig, vitest, and gitignore. Use this skill whenever the user wants to start a new JS project, scaffold a Node.js app, create a new package, bootstrap a JavaScript repo, or says things like "init a new project", "set up a JS project", "create a new node app", "start a new frontend project", or "bootstrap a new package". Also trigger when the user says "set up my project's toolchain", "install the linters for this repo", "get this repo ready for the plugin", or asks to add standard tooling (linting, formatting, testing) to a new or existing project in any supported language.
 role: worker
 user-invocable: true
-argument-hint: "[--yes]"
+argument-hint: "[--yes] [--force]"
 ---
 
 # Project Initializer
@@ -33,6 +33,10 @@ Arguments: $ARGUMENTS
 
 - `--yes`: Run unattended — auto-confirm each gate below with its **safe**
   default and never wait for input. `/setup --yes` passes this through.
+- `--force`: Bypass Step 0's idempotency short-circuit and force the full
+  Step 1-6 sequence even when `.claude/init-state.json` records a matching
+  `last_run` (#1778). Independent of `--yes` — combine them to force a full
+  unattended re-check.
 
 ### `--yes` semantics
 
@@ -84,6 +88,67 @@ surprise):
   directory, so nothing existing is overwritten.
 
 ## Workflow
+
+### Step 0: Idempotency short-circuit (#1778)
+
+`/project-init` is invoked far more often than it has anything new to do —
+most re-invocations find every slot still bound and every capability tool
+still resolved (installed or durably declined), and re-running the full
+Steps 1-6 sequence for that outcome burns tokens presenting a three-column
+plan whose answer never changed. This step does not skip detection — it
+only skips Step 3's plan presentation and any install when detection itself
+proves there is nothing to install.
+
+1. **Always run Step 1's stack detection, Step 2's tool inventory, Step
+   4b's capability-tool detection signals, and Step 4c's "Detect which are
+   already present" probes first** — all cheap, deterministic,
+   filesystem/PATH-only signals with no network and no builds, so running
+   them here is not new work, only reordered. Their live result is
+   authoritative for step 2 below — never substitute a cached value for
+   what they just found, per this file's own stale-state override rule
+   (§ "Detect which are already present").
+2. **Short-circuit** only when `--force` was **not** passed AND the just-run
+   detection shows: the stack list matches `.claude/init-state.json`'s
+   `last_run.stack` (if the key is absent, this condition fails and step 3
+   below never fires — first run always takes the full path), Step 2's
+   fresh inventory has every lane's capability slot bound (Step 3's own
+   "missing and will add" column would be empty), and every Step 4b/4c
+   capability tool is installed or durably declined per its own
+   already-present/decline state (never "signal fired, decision still
+   open"). All three are re-derived from the live probes just run, not read
+   back from `last_run` — `last_run.stack` is the only field compared
+   against a recorded value, because the other two must reflect what the
+   filesystem shows *right now*, exactly as an uninstalled tool or a wiped
+   config file must be caught on this very run, not papered over by a
+   stale cache.
+3. **Before stopping, still run both of this file's standing checks** —
+   the `.mcp.json` machine-specific-path hygiene scan (§ "Standing check —
+   `.mcp.json` machine-specific-path hygiene") and Graphify's settings.json
+   absolute-path scan (§ "Standing check — run even when Graphify install
+   is skipped") — both are explicitly documented elsewhere in this file as
+   running "unconditionally, once per `/project-init` (and therefore
+   `/setup`) run," independent of every other branch, and a short-circuited
+   pass is not an exception to that. Fold their one-line outcomes into the
+   short-circuit's own report.
+4. Print exactly one line reporting both the short-circuit and the standing
+   checks' outcomes — e.g. `Project already initialized for <stack> —
+   nothing changed since the last run (.claude/init-state.json); .mcp.json
+   hygiene: <outcome>; Graphify path check: <outcome or "not applicable">.
+   Re-run with --force to re-check anyway.` — and stop. Do not proceed to
+   Step 3's plan presentation or any install step.
+5. **Otherwise** (first run, no `last_run` key, a changed stack, an unbound
+   slot, an unresolved capability tool, or `--force`), proceed to Step 3 as
+   normal with the detection/inventory results already in hand from step 1
+   above — do not re-run them a second time.
+6. **`--force`** always bypasses this short-circuit and forces the full
+   Step 1-6 sequence, exactly as if `last_run` were absent (already listed
+   in the Arguments section above).
+
+On a normal, successful completion, Step 6 writes the `last_run` snapshot
+into `.claude/init-state.json` — see its final bullet below. A run that
+stops early (Step 1's zero/ambiguous-stack exit, an install failure) does
+not write `last_run`, so the next invocation naturally re-checks from
+scratch rather than caching a failed or incomplete state as "done."
 
 ### Step 1: Detect the stack
 
@@ -934,6 +999,24 @@ After every configured lane probes green, give the user:
   `repowise` entry to local scope (#1747) or, if that wasn't applicable/
   failed, flagged that `.mcp.json` still needs `git rm --cached`.
 - Files created (greenfield only).
+
+**Persist the idempotency snapshot (#1778).** On successful completion of
+this step — never on an early exit (Step 1's zero/ambiguous-stack branch,
+or an install failure) — merge (never overwrite the rest of the file, per
+the merge convention every other `.claude/init-state.json` write in this
+skill already follows) this top-level key:
+
+```json
+{"last_run": {"stack": ["<detected stack list>"], "all_slots_bound": <bool>, "capability_tools_resolved": <bool>, "checked_at": "<ISO-8601 now>"}}
+```
+
+`all_slots_bound` is `true` only when Step 3's "missing and will add"
+column ended up empty; `capability_tools_resolved` is `true` only when
+every Step 4b/4c tool is installed or durably declined, never "signal
+fired, decision still open." Step 0 compares only `last_run.stack` against
+this record; `all_slots_bound` and `capability_tools_resolved` are recorded
+for audit/telemetry and are deliberately re-derived live on each run, never
+read back from here.
 
 ## Greenfield JS/TS scaffold
 
