@@ -530,6 +530,130 @@ def test_sln_list_output_parsing_keeps_windows_separators_verbatim() -> None:
     ]
 
 
+def test_a_windows_separated_path_resolves_yet_keeps_its_identity(
+    tmp_path: Path, stub_sln_list
+) -> None:
+    # A Windows-authored solution must still classify on POSIX. The recorded
+    # identity stays the backslash form; only the filesystem read is normalized.
+    _solution(tmp_path)
+    _write(
+        tmp_path / "tests" / "A.Tests" / "A.Tests.csproj",
+        _csproj('<PackageReference Include="Microsoft.NET.Test.Sdk" />'),
+    )
+    stub_sln_list("tests\\A.Tests\\A.Tests.csproj")
+
+    result = dnd.discover(tmp_path)
+
+    assert [project.path for project in result] == ["tests\\A.Tests\\A.Tests.csproj"]
+    assert result[0].classification is _TEST
+
+
+def test_a_windows_separated_traversal_is_still_rejected(
+    tmp_path: Path, stub_sln_list
+) -> None:
+    # Without separator normalization, `..` is not a path part on POSIX and this
+    # guard would silently stop firing.
+    _solution(tmp_path)
+    stub_sln_list("..\\outside\\Evil.csproj")
+
+    with pytest.raises(cc.DiscoveryError, match="unsafe"):
+        dnd.discover(tmp_path)
+
+
+@pytest.mark.parametrize(
+    "include",
+    [
+        # NuGet package IDs are case-insensitive.
+        "Microsoft.Net.Test.Sdk",
+        "MICROSOFT.NET.TEST.SDK",
+        # MSBuild expands a semicolon item list into separate items.
+        "xunit;Microsoft.NET.Test.Sdk",
+        "Microsoft.NET.Test.Sdk;coverlet.collector",
+    ],
+)
+def test_a_legal_marker_variant_still_classifies_test(
+    tmp_path: Path, stub_sln_list, include: str
+) -> None:
+    _solution(tmp_path)
+    _write(
+        tmp_path / "tests" / "A.Tests" / "A.Tests.csproj",
+        _csproj(f'<PackageReference Include="{include}" Version="17.11.1" />'),
+    )
+    stub_sln_list("tests/A.Tests/A.Tests.csproj")
+
+    result = dnd.discover(tmp_path)
+
+    assert _classification_of(result, "tests/A.Tests/A.Tests.csproj") is _TEST
+
+
+def test_an_unconditioned_directory_build_targets_classifies_test(
+    tmp_path: Path, stub_sln_list
+) -> None:
+    # MSBuild auto-imports .targets by the same ancestor walk as .props.
+    _solution(tmp_path)
+    _write(tmp_path / "Directory.Build.targets", _UNCONDITIONED_PROPS)
+    _write(tmp_path / "tests" / "A.Tests" / "A.Tests.csproj", _csproj())
+    stub_sln_list("tests/A.Tests/A.Tests.csproj")
+
+    result = dnd.discover(tmp_path)
+
+    assert _classification_of(result, "tests/A.Tests/A.Tests.csproj") is _TEST
+
+
+def test_a_solution_extension_is_matched_case_insensitively(
+    tmp_path: Path, stub_sln_list
+) -> None:
+    _write(tmp_path / "App.SLN", "")
+    _write(
+        tmp_path / "tests" / "A.Tests" / "A.Tests.csproj",
+        _csproj('<PackageReference Include="Microsoft.NET.Test.Sdk" />'),
+    )
+    stub_sln_list("tests/A.Tests/A.Tests.csproj")
+
+    result = dnd.discover(tmp_path)
+
+    assert [project.path for project in result] == ["tests/A.Tests/A.Tests.csproj"]
+
+
+def test_a_repo_path_that_is_not_a_directory_is_an_error_not_not_applicable(
+    tmp_path: Path,
+) -> None:
+    # A typo'd repo path must not read as "this stack does not apply".
+    with pytest.raises(cc.DiscoveryError, match="not a directory"):
+        dnd.discover(tmp_path / "does-not-exist")
+
+
+def test_a_non_executable_dotnet_is_a_discovery_error(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # PermissionError is an OSError but not a FileNotFoundError.
+    sln = _solution(tmp_path)
+
+    def _denied(*_args: object, **_kwargs: object):
+        raise PermissionError(13, "Permission denied")
+
+    monkeypatch.setattr(dnd.subprocess, "run", _denied)
+
+    with pytest.raises(cc.DiscoveryError, match="could not invoke 'dotnet'"):
+        dnd.run_dotnet_sln_list(sln)
+
+
+def test_the_cli_never_emits_a_traceback_for_an_unexpected_failure(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    def _boom(*_args: object, **_kwargs: object):
+        raise RuntimeError("something nobody anticipated")
+
+    monkeypatch.setattr(dnd, "discover", _boom)
+
+    exit_code = dnd.main([str(tmp_path)])
+
+    captured = capsys.readouterr()
+    assert exit_code == 1
+    assert captured.err.startswith("error: unexpected failure:")
+    assert "Traceback" not in captured.err
+
+
 # ---------------------------------------------------------------------------
 # CLI
 # ---------------------------------------------------------------------------

@@ -8,27 +8,34 @@ each one by structural marker — a `Microsoft.NET.Test.Sdk` `PackageReference`:
    project XML, so attribute order is irrelevant and a version-less Central
    Package Management form counts.
 2. No inline reference, but an **unconditioned** reference in an ancestor
-   `Directory.Build.props` (up to and including the solution directory) → `TEST`.
-   A **conditioned** one → `AMBIGUOUS`: this discovery never evaluates MSBuild
-   conditions, and a marker it cannot resolve must reach a human rather than
-   become a silent negative. That silent-negative direction is the #1759
-   incident's failure shape.
+   `Directory.Build.props`/`Directory.Build.targets` (up to and including the
+   solution directory) → `TEST`. A **conditioned** one → `AMBIGUOUS`: this
+   discovery never evaluates MSBuild conditions, and a marker it cannot resolve
+   must reach a human rather than become a silent negative. That silent-negative
+   direction is the #1759 incident's failure shape.
 3. No match anywhere → `NOT_TEST`.
 
-No `.sln` at the given path → `DISCOVERY_NOT_APPLICABLE`, and the caller keeps
-its existing single-command path untouched. `dotnet` missing from PATH, a
-malformed project file, or a project the solution lists but that is not on disk
-are all discovery errors naming the offender — never an empty list and never a
-silent `NOT_TEST`.
+No `.sln` directly in the repo root → `DISCOVERY_NOT_APPLICABLE`, and the caller
+keeps its existing single-command path untouched. `dotnet` missing from PATH, a
+malformed project file, a repo path that is not a directory, or a project the
+solution lists but that is not on disk are all discovery errors naming the
+offender — never an empty list and never a silent `NOT_TEST`.
 
 Paths are recorded **exactly as `dotnet sln list` printed them** (surrounding
 whitespace aside). `coverage_config` matches project identity as an exact
-string, so rewriting separators here would be the very normalization bug that
-identity rule exists to prevent.
+string, so rewriting separators in the recorded identity would be the very
+normalization bug that rule exists to prevent. Filesystem reads use a
+separator-normalized copy (`filesystem_relative`) so a Windows-authored
+solution still resolves on POSIX — the identity and the I/O path are two
+different things.
 
-**Known limitation, out of scope** (epic #1766 Risks): `Directory.Packages.props`'s
-`GlobalPackageReference` mechanism is not walked. A solution that supplies the
-test SDK exclusively that way classifies `NOT_TEST`.
+**Known limitations, out of scope** (epic #1766 Risks):
+
+* `Directory.Packages.props`'s `GlobalPackageReference` mechanism is not walked.
+* A reference reached through an `<Import Project="…" />` inside a
+  `Directory.Build.*` file is not followed.
+
+A solution supplying the test SDK exclusively either way classifies `NOT_TEST`.
 
 Usage:
     coverage_discovery_dotnet.py <repo-path> [--solution <path-to-.sln>]
@@ -58,17 +65,34 @@ from coverage_config import (
 )
 
 TEST_SDK_MARKER = "Microsoft.NET.Test.Sdk"
-DIRECTORY_BUILD_PROPS = "Directory.Build.props"
 
-#: Project-file extensions `dotnet sln list` can emit. Inclusion is still gated
-#: solely by the marker check — the extension only identifies a project line.
-PROJECT_EXTENSIONS = (".csproj", ".fsproj", ".vbproj")
+#: MSBuild auto-imports both of these by the same ancestor-directory walk, so a
+#: marker declared in either is inherited. A reference reached through an
+#: `<Import Project="…" />` inside one of them is *not* followed — see the
+#: module docstring's known-limitations note.
+DIRECTORY_BUILD_FILENAMES = ("Directory.Build.props", "Directory.Build.targets")
+
+#: Project-file extensions this discovery classifies. A `dotnet sln list` line
+#: with any other extension is out of scope and skipped; inclusion is still
+#: gated solely by the marker check, so the extension only identifies a project
+#: line. Matched case-insensitively.
+PROJECT_EXTENSIONS = (
+    ".csproj",
+    ".fsproj",
+    ".vbproj",
+    ".vcxproj",
+    ".sqlproj",
+    ".shproj",
+    ".esproj",
+)
 
 _SLN_LIST_TIMEOUT_SECONDS = 60
 
-#: Shell metacharacters that would let a discovered path break out of the
-#: unquoted `dotnet test <project> …` interpolation the calling skill uses.
-_SHELL_METACHARACTERS = frozenset(";&|$`\n<>()")
+#: Shell metacharacters that would let a discovered path break out of a
+#: `dotnet test <project> …` interpolation. A space is deliberately *not* here:
+#: `src/My Project/My Project.csproj` is an ordinary .NET path, so the calling
+#: skill quotes the interpolated path rather than this rejecting valid layouts.
+_SHELL_METACHARACTERS = frozenset(";&|$`\n\r<>()*?'\"")
 
 
 # ---------------------------------------------------------------------------
@@ -92,12 +116,28 @@ def _reject_shell_metacharacters(path_str: str, description: str) -> None:
         )
 
 
+def filesystem_relative(rel_path: str) -> str:
+    """Convert a `dotnet sln list` path into a form this platform can resolve.
+
+    A Windows-authored solution yields backslash-separated paths. On POSIX those
+    are ordinary filename characters, so `Path("tests\\A\\A.csproj")` is a
+    *single* component: the file never resolves, the `..` guard never fires, and
+    discovery hard-fails on every such solution.
+
+    This is used for filesystem reads and the safety checks **only**. The
+    recorded `DiscoveredProject.path` stays exactly what the tool printed,
+    because `coverage_config` matches identity as an exact string.
+    """
+    return rel_path.replace("\\", "/")
+
+
 def resolve_project_path(solution_dir: Path, rel_path: str) -> Path:
     """Validate a solution-relative project path and return its absolute form.
 
     Rejects an absolute path, a `..` segment, or anything resolving outside the
     solution directory — required before any filesystem read of a path that came
-    from a subprocess's stdout.
+    from a subprocess's stdout. Takes the separator-normalized form from
+    `filesystem_relative`, so the guards apply on every platform.
     """
     candidate = Path(rel_path)
     if candidate.is_absolute():
@@ -153,6 +193,8 @@ def run_dotnet_sln_list(solution: Path) -> list[str]:
             "be discovered. Install the .NET SDK, or exclude this repo from .NET "
             "coverage discovery — an empty project list is never assumed."
         )
+    except UnicodeDecodeError as exc:
+        discovery_error(f"'dotnet sln {solution} list' emitted undecodable output: {exc}")
     except subprocess.TimeoutExpired:
         discovery_error(
             f"'dotnet sln {solution} list' timed out after "
@@ -163,6 +205,10 @@ def run_dotnet_sln_list(solution: Path) -> list[str]:
         discovery_error(
             f"'dotnet sln {solution} list' failed (exit {exc.returncode}): {stderr}"
         )
+    except OSError as exc:
+        # e.g. a non-executable `dotnet` on PATH raises PermissionError, which is
+        # an OSError but not a FileNotFoundError.
+        discovery_error(f"could not invoke 'dotnet': {exc}")
     return parse_sln_list_output(result.stdout)
 
 
@@ -186,6 +232,19 @@ def _parse_project_xml(path: Path, description: str) -> ElementTree.Element:
         discovery_error(f"unreadable {description}: {path} ({exc})")
 
 
+def _names_the_marker(attribute_value: str) -> bool:
+    """True when a `PackageReference` `Include`/`Update` names the test SDK.
+
+    NuGet package IDs are case-insensitive, and MSBuild expands a semicolon
+    item list into separate items — so `Include="xunit;Microsoft.Net.Test.Sdk"`
+    carries the marker just as much as the canonical single-ID form. Matching
+    only the exact canonical string would classify both as `NOT_TEST`, the
+    silent-negative direction `classify` exists to avoid.
+    """
+    marker = TEST_SDK_MARKER.casefold()
+    return any(part.strip().casefold() == marker for part in attribute_value.split(";"))
+
+
 def _marker_references(root: ElementTree.Element) -> Iterable[list[ElementTree.Element]]:
     """Yield the ancestor chain (root-first) of every `PackageReference` naming
     the test SDK. Parsing the XML — rather than substring-matching the raw file —
@@ -199,7 +258,7 @@ def _marker_references(root: ElementTree.Element) -> Iterable[list[ElementTree.E
             chain = [*ancestors, element, child]
             if _local_name(child.tag) == "PackageReference":
                 name = child.get("Include") or child.get("Update")
-                if name is not None and name.strip() == TEST_SDK_MARKER:
+                if name is not None and _names_the_marker(name):
                     yield chain
             yield from walk(child, [*ancestors, element])
 
@@ -233,8 +292,8 @@ def classify_project_file(project_path: Path) -> TestClassification | None:
 def classify_from_props_chain(
     project_path: Path, solution_dir: Path
 ) -> TestClassification | None:
-    """Classify from every `Directory.Build.props` between the project directory
-    and the solution directory, inclusive.
+    """Classify from every `Directory.Build.props`/`.targets` between the project
+    directory and the solution directory, inclusive.
 
     Every ancestor is consulted rather than only MSBuild's nearest-wins import,
     because a false negative here is the #1759 failure shape: a real test project
@@ -245,9 +304,11 @@ def classify_from_props_chain(
     found_conditioned = False
     directory = project_path.parent.resolve()
     while True:
-        props = directory / DIRECTORY_BUILD_PROPS
-        if props.is_file():
-            root = _parse_project_xml(props, DIRECTORY_BUILD_PROPS)
+        for filename in DIRECTORY_BUILD_FILENAMES:
+            build_file = directory / filename
+            if not build_file.is_file():
+                continue
+            root = _parse_project_xml(build_file, filename)
             for chain in _marker_references(root):
                 if _is_unconditioned(chain):
                     return TestClassification.TEST
@@ -278,13 +339,23 @@ def classify(project_path: Path, solution_dir: Path) -> TestClassification:
 
 
 def find_solution(repo_path: Path) -> Path | None:
-    """Return the repo's single `.sln`, or `None` when there is none.
+    """Return the single `.sln` directly in the repo root, or `None` when there
+    is none. Matched case-insensitively.
+
+    The search is deliberately root-only, not recursive: a repo whose solution
+    lives at `src/App.sln` passes it explicitly via `--solution`. Recursing would
+    make the measured set depend on directory layout, and would pick up nested
+    sample/fixture solutions.
 
     More than one is a hard failure naming them all: picking one by sort order
     would silently measure part of the repo, and which part would depend on
     filenames rather than on a human's decision.
     """
-    solutions = sorted(repo_path.glob("*.sln"))
+    solutions = sorted(
+        entry
+        for entry in repo_path.iterdir()
+        if entry.is_file() and entry.suffix.lower() == ".sln"
+    )
     if not solutions:
         return None
     if len(solutions) > 1:
@@ -306,6 +377,10 @@ def discover(
     single-command path is left untouched (epic #1766, criterion 10).
     """
     repo_path = Path(repo_path)
+    if not repo_path.is_dir():
+        # Not the same condition as "no .sln here" — a path that is not a repo at
+        # all must not read as "this stack does not apply".
+        discovery_error(f"repo path is not a directory: {repo_path}")
     if solution is None:
         solution = find_solution(repo_path)
         if solution is None:
@@ -318,7 +393,7 @@ def discover(
     for rel_path in run_dotnet_sln_list(solution):
         _reject_option_like(rel_path, "discovered project path")
         _reject_shell_metacharacters(rel_path, "discovered project path")
-        absolute = resolve_project_path(solution_dir, rel_path)
+        absolute = resolve_project_path(solution_dir, filesystem_relative(rel_path))
         if not absolute.is_file():
             discovery_error(
                 f"the solution lists {rel_path}, but no project file exists at "
@@ -354,6 +429,9 @@ def main(argv: Sequence[str] | None = None) -> int:
         )
     except DiscoveryError as exc:
         print(f"error: {exc}", file=sys.stderr)
+        return 1
+    except Exception as exc:  # noqa: BLE001 - the docstring promises no traceback
+        print(f"error: unexpected failure: {exc!r}", file=sys.stderr)
         return 1
 
     if result is DISCOVERY_NOT_APPLICABLE:

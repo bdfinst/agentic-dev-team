@@ -412,6 +412,9 @@ def main(argv: Sequence[str] | None = None) -> int:
     except DiscoveryError as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 1
+    except Exception as exc:  # noqa: BLE001 - the docstring promises no traceback
+        print(f"error: unexpected failure: {exc!r}", file=sys.stderr)
+        return 1
 
     if result is DISCOVERY_NOT_APPLICABLE:
         print(json.dumps({"applicable": False, "projects": []}, indent=2))
