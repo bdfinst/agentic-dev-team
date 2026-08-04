@@ -3104,6 +3104,14 @@
       "summary": "Read the build manifest at the repo root and pick the appropriate command:",
       "anchor": "1-detect-the-coverage-tool"
     },
+    "1a. Multi-project discovery (.NET solutions & JS/TS workspaces)": {
+      "summary": "Replaces the single frozen coverage command above for a multi-project .NET",
+      "anchor": "1a-multi-project-discovery-net-solutions-jsts-workspaces"
+    },
+    "1b. Single-project and mixed-stack repos are unaffected": {
+      "summary": "A `.csproj` repo with no `.sln`, or a `package.json` with no workspace",
+      "anchor": "1b-single-project-and-mixed-stack-repos-are-unaffected"
+    },
     "2. Existing-baseline guard": {
       "summary": "Check whether `.dev-team-reports/<workflow>/<slug>/data/baseline-coverage.json` already exists for the resolved slug.",
       "anchor": "2-existing-baseline-guard"
