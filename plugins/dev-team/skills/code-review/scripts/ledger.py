@@ -130,6 +130,13 @@ def pending_slices(slices: list[dict], root: str) -> list[dict]:
     list is still pending — this is the one exception to "artifact exists ->
     done", so ``--resume`` naturally re-dispatches only the previously-failed
     slice(s) instead of reusing a recorded failure as-is.
+
+    A malformed artifact (unreadable, undecodable, or valid JSON of the wrong
+    shape) is also treated as pending, never as a crash — matching
+    ``consolidate.py``'s ``_read_sections``' own tolerance for exactly this
+    corruption on the same file set; a reader of ``raw/section-*.json`` that
+    raised here would abort the whole ``--resume`` run instead of just
+    re-reviewing the one bad slice.
     """
     pending = []
     for s in slices:
@@ -137,7 +144,14 @@ def pending_slices(slices: list[dict], root: str) -> list[dict]:
         if not path.exists():
             pending.append(s)
             continue
-        artifact = json.loads(path.read_text())
+        try:
+            artifact = json.loads(path.read_text())
+        except (json.JSONDecodeError, OSError):
+            pending.append(s)
+            continue
+        if not isinstance(artifact, dict):
+            pending.append(s)
+            continue
         if artifact.get("dispatchFailures"):
             pending.append(s)
     return pending

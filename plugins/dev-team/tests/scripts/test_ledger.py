@@ -68,7 +68,7 @@ def test_write_section_creates_artifact_and_flips_status(tmp_path):
 
 def test_write_section_persists_dispatch_failures(tmp_path):
     ledger.init_ledger(_slices(), cap=50, root=str(tmp_path))
-    failures = [{"agent": "structure-review", "attempts": 2}]
+    failures = [{"agentName": "structure-review", "attempts": 2}]
     path = ledger.write_section(
         _slices()[0],
         [],
@@ -84,7 +84,7 @@ def test_write_section_cli_persists_dispatch_failures(tmp_path):
     root = str(tmp_path)
     ledger.init_ledger(_slices(), cap=50, root=root)
     slice_arg = json.dumps(_slices()[0])
-    failures_arg = json.dumps([{"agent": "structure-review", "attempts": 2}])
+    failures_arg = json.dumps([{"agentName": "structure-review", "attempts": 2}])
     rc = ledger.main(
         [
             "write-section",
@@ -102,7 +102,7 @@ def test_write_section_cli_persists_dispatch_failures(tmp_path):
     )
     assert rc == 0
     artifact = json.loads(ledger.section_path(root, "0001").read_text())
-    assert artifact["dispatchFailures"] == [{"agent": "structure-review", "attempts": 2}]
+    assert artifact["dispatchFailures"] == [{"agentName": "structure-review", "attempts": 2}]
 
 
 def test_write_section_cli_without_dispatch_failures_writes_empty_list(tmp_path):
@@ -211,7 +211,7 @@ def test_pending_treats_nonempty_dispatch_failures_as_pending(tmp_path):
         [],
         panel=["correctness-review"],
         root=str(tmp_path),
-        dispatch_failures=[{"agent": "structure-review", "attempts": 2}],
+        dispatch_failures=[{"agentName": "structure-review", "attempts": 2}],
     )
     ledger.write_section(_slices()[1], [], panel=["correctness-review"], root=str(tmp_path))
     # 0001 recorded a dispatch failure -> still pending despite its artifact
@@ -231,3 +231,20 @@ def test_pending_treats_empty_dispatch_failures_as_done(tmp_path):
     ledger.write_section(_slices()[1], [], panel=["correctness-review"], root=str(tmp_path))
     # Findings present but no dispatch failures -> both slices done.
     assert ledger.pending_slices(_slices(), str(tmp_path)) == []
+
+
+def test_pending_treats_malformed_artifact_as_pending_not_a_crash(tmp_path):
+    ledger.init_ledger(_slices(), cap=50, root=str(tmp_path))
+    ledger.write_section(_slices()[1], [], panel=["correctness-review"], root=str(tmp_path))
+    ledger.section_path(str(tmp_path), "0001").write_text("not valid json{")
+    # A corrupt artifact must not abort --resume for every slice -- only
+    # the one slice with the bad artifact is re-reviewed, matching
+    # consolidate.py's own tolerance for the same file set.
+    assert _ids(ledger.pending_slices(_slices(), str(tmp_path))) == ["0001"]
+
+
+def test_pending_treats_wrong_shape_artifact_as_pending_not_a_crash(tmp_path):
+    ledger.init_ledger(_slices(), cap=50, root=str(tmp_path))
+    ledger.write_section(_slices()[1], [], panel=["correctness-review"], root=str(tmp_path))
+    ledger.section_path(str(tmp_path), "0001").write_text(json.dumps(["not", "a", "dict"]))
+    assert _ids(ledger.pending_slices(_slices(), str(tmp_path))) == ["0001"]

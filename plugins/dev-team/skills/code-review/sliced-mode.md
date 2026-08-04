@@ -104,17 +104,25 @@ For each slice, once its panel's waves (per the section above) return:
    python3 "$CLAUDE_PLUGIN_ROOT/skills/code-review/scripts/dispatch_reconcile.py" --dispatched "<this wave's dispatched agent names>" --returned "<this wave's contract-valid agent names>"
    ```
    Every name in the resulting `"missing"` array is a dispatch failure for
-   this slice.
+   this slice's current wave.
 2. **Retry once per agent**: retry each missing agent exactly once,
    individually — same policy as `SKILL.md` Step 4, see there for rationale.
    A recovered dispatch (fails once, retry succeeds) writes an empty
    `dispatchFailures` list and emits no boundary event, mirroring the legacy
-   path's own guarantee.
+   path's own guarantee. **Accumulate unrecovered failures across every wave
+   of this slice's panel** (a panel can span more than one wave when it's
+   larger than `maxParallel` — see the section above): a wave-1 failure is
+   never dropped just because wave 2 returned cleanly — carry the running
+   list forward and pass the union to step 3, once, after the slice's last
+   wave returns.
 3. **Persist** its findings: `write_section`'s CLI (`ledger.py write-section`)
    writes `raw/section-<id>.json` (findings + the panel that ran) and flips
    the slice's ledger status to `done`. Pass `--dispatch-failures` with the
-   slice's still-unrecovered failures — an empty list (or the flag omitted)
-   when every agent recovered on retry.
+   slice's still-unrecovered failures, accumulated across all its waves —
+   an empty list (or the flag omitted) when every agent recovered on retry.
+   Each entry has the same shape as the legacy path's `dispatchFailures`
+   entries (`output-format.md`): `{"agentName": "<name>", "attempts": 2,
+   "error": "<message>"}` — never a different key for the agent name.
 4. **Emit the boundary event for each unrecovered failure**: at the same
    moment step 3 records the failure, emit the `dispatch-failure` boundary
    event (Slice 1's shared CLI), bound to the `subject_hash` in effect for

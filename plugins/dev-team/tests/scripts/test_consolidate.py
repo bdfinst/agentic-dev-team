@@ -252,19 +252,19 @@ def test_dispatch_failures_folded_and_force_overall_fail():
     """One section's dispatchFailures entries are folded into the aggregate's own
     array, and overall is forced to "fail" even when totals alone say "pass"."""
     sections = [_section("0001", []), _section("0002", [])]
-    sections[0]["dispatchFailures"] = [{"agent": "security-review", "subjectHash": "abc"}]
+    sections[0]["dispatchFailures"] = [{"agentName": "security-review", "subjectHash": "abc"}]
     result = consolidate.consolidate(sections)
-    assert result["dispatchFailures"] == [{"agent": "security-review", "subjectHash": "abc"}]
+    assert result["dispatchFailures"] == [{"agentName": "security-review", "subjectHash": "abc"}]
     assert result["overall"] == "fail"
 
 
 def test_dispatch_failures_concat_across_multiple_sections():
     """Entries from every section concatenate into one aggregate array."""
     sections = [_section("0001", []), _section("0002", [])]
-    sections[0]["dispatchFailures"] = [{"agent": "security-review"}]
-    sections[1]["dispatchFailures"] = [{"agent": "correctness-review"}]
+    sections[0]["dispatchFailures"] = [{"agentName": "security-review"}]
+    sections[1]["dispatchFailures"] = [{"agentName": "correctness-review"}]
     result = consolidate.consolidate(sections)
-    assert result["dispatchFailures"] == [{"agent": "security-review"}, {"agent": "correctness-review"}]
+    assert result["dispatchFailures"] == [{"agentName": "security-review"}, {"agentName": "correctness-review"}]
     assert result["overall"] == "fail"
 
 
