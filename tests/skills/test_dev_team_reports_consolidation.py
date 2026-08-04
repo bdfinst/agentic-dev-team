@@ -145,8 +145,9 @@ def test_ledger_and_consolidate_scripts_target_consolidated_root():
         "consolidate.py must not reference the legacy bare DEV_TEAM_REPORTS/ "
         "path literal"
     )
-    assert '".dev-team-reports"' in CONSOLIDATE_PY, (
-        "consolidate.py's raw_dir resolution must target .dev-team-reports/"
+    assert "from ledger import raw_dir" in CONSOLIDATE_PY, (
+        "consolidate.py must resolve raw/ via ledger.py's single-home "
+        "raw_dir(), not re-derive the .dev-team-reports/ literal itself"
     )
 
 

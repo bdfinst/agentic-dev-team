@@ -23,12 +23,25 @@ import json
 import sys
 from pathlib import Path
 
-# Severity ranking (extracted — step 5c's ranking lived only in prose before).
-_SEVERITY_RANK = {"suggestion": 1, "warning": 2, "error": 3}
+# Reach the sibling ledger.py regardless of cwd or sys.path mode (matches the
+# house pattern in change_shape.py/codebase_recon.py for reaching a sibling
+# module rather than relying on the implicit sys.path[0] a direct script
+# invocation provides).
+_HERE = Path(__file__).resolve().parent
+if str(_HERE) not in sys.path:
+    sys.path.insert(0, str(_HERE))
 
-# Maps a severity to its totals bucket, derived from the same vocabulary as
-# _SEVERITY_RANK so the severity set has a single source of truth.
-_SEVERITY_BUCKET = {"error": "errors", "warning": "warnings", "suggestion": "suggestions"}
+from ledger import raw_dir
+
+# Single source of truth for the severity vocabulary (step 5c's ranking lived
+# only in prose before): each severity's rank (for highest-wins merge and
+# sorting) and its totals bucket key.
+_SEVERITY = {
+    "suggestion": (1, "suggestions"),
+    "warning": (2, "warnings"),
+    "error": (3, "errors"),
+}
+_DEFAULT_SEVERITY = "suggestion"
 
 # A review dimension recurring across at least this many slices is a theme.
 _THEME_MIN_SLICES = 2
@@ -42,7 +55,11 @@ _FINDINGS_KEYS = ("findings", "issues")
 
 
 def _rank(severity: str) -> int:
-    return _SEVERITY_RANK.get(severity, 0)
+    return _SEVERITY.get(severity, (0, ""))[0]
+
+
+def _bucket(severity: str) -> str:
+    return _SEVERITY.get(severity, _SEVERITY[_DEFAULT_SEVERITY])[1]
 
 
 def _findings_of(container: dict) -> list:
@@ -102,7 +119,7 @@ def _merge_finding(merged: dict, order: list, finding: dict) -> None:
     """
     key = _dedupe_key(finding)
     agent = finding.get("agent")
-    severity = finding.get("severity", "suggestion")
+    severity = finding.get("severity", _DEFAULT_SEVERITY)
     entry = merged.get(key)
     if entry is None:
         order.append(key)
@@ -119,6 +136,18 @@ def _merge_finding(merged: dict, order: list, finding: dict) -> None:
         entry["message"] = finding.get("message")
     if agent and agent not in entry["agents"]:
         entry["agents"].append(agent)
+
+
+def _tally_severity(totals: dict, severity: str) -> None:
+    totals[_bucket(severity)] += 1
+
+
+def _tally_theme(theme_slices: dict, theme_counts: dict, agent: str | None, slice_id) -> None:
+    """Record one finding's contribution to the recurring-theme rollup for ``agent``."""
+    if agent is None:
+        return
+    theme_slices.setdefault(agent, set()).add(slice_id)
+    theme_counts[agent] = theme_counts.get(agent, 0) + 1
 
 
 def consolidate(sections: list[dict]) -> dict:
@@ -142,12 +171,9 @@ def consolidate(sections: list[dict]) -> dict:
         if section.get("is_declarative"):
             reduced_panel_slices.append(slice_id)
         for finding in _findings_of(section):
-            severity = finding.get("severity", "suggestion")
-            totals[_SEVERITY_BUCKET.get(severity, "suggestions")] += 1
-            agent = finding.get("agent")
-            if agent is not None:
-                theme_slices.setdefault(agent, set()).add(slice_id)
-                theme_counts[agent] = theme_counts.get(agent, 0) + 1
+            severity = finding.get("severity", _DEFAULT_SEVERITY)
+            _tally_severity(totals, severity)
+            _tally_theme(theme_slices, theme_counts, finding.get("agent"), slice_id)
             _merge_finding(merged, order, finding)
 
     top_findings = [merged[k] for k in order]
@@ -185,9 +211,8 @@ def _read_sections(root: str) -> tuple[list, list]:
     Returns ``(sections, malformed_paths)``. A malformed artifact is collected
     into ``malformed_paths`` (reported by the caller), never silently dropped.
     """
-    raw_dir = Path(root) / ".dev-team-reports" / "code-review" / "raw"
     sections, malformed = [], []
-    for path in sorted(glob.glob(str(raw_dir / "section-*.json"))):
+    for path in sorted(glob.glob(str(raw_dir(root) / "section-*.json"))):
         try:
             obj = json.loads(Path(path).read_text())
         except (json.JSONDecodeError, OSError):

@@ -40,8 +40,12 @@ def ledger_path(root: str) -> Path:
     return _cr_dir(root) / "ledger.json"
 
 
+def raw_dir(root: str) -> Path:
+    return _cr_dir(root) / "raw"
+
+
 def section_path(root: str, slice_id: str) -> Path:
-    return _cr_dir(root) / "raw" / f"section-{slice_id}.json"
+    return raw_dir(root) / f"section-{slice_id}.json"
 
 
 def _atomic_write_json(path: Path, obj) -> None:
