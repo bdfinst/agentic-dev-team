@@ -17,6 +17,8 @@ This file describes the language-agnostic workflow and the data contract. **Per-
 
 **Unattended, LLM-free overnight measurement.** [`scripts/mutation_nightwatch.py`](scripts/mutation_nightwatch.py) (detection/repair/measurement mechanics split into [`scripts/mutation_nightwatch_stacks.py`](scripts/mutation_nightwatch_stacks.py)) is a third, report-only mode alongside `mutation-kill`'s interactive and `--headless` fixing modes — no generation, no LLM, no commits, so it can run overnight unattended. See the companion [`mutation-night-watch`](../mutation-night-watch/SKILL.md) skill for launch/detach/schedule guidance.
 
+**Committed, human-approved exclude-policy bootstrap.** When no `mutation-exclude-policy.json` exists at the repo root yet, a night-watch run drafts one via [`scripts/mutation_exclude_policy.py`](scripts/mutation_exclude_policy.py) — the same two-signal judgment (score < 15%, NoCoverage > 50%, filename hint promotes to a stronger tier) `mutation-kill`'s own [Infrastructure exclusion detection](../../agents/mutation-kill.md#infrastructure-exclusion-detection-before-the-loop-starts) applies, but persisted as a source-controlled file instead of a build-output-only convergence log. The night-watch run only ever drafts a proposal alongside its other reports; `mutation_exclude_policy.py --approve` is the only code path that writes the committed file, and it is never called unattended.
+
 ## Constraints
 
 - **Always ask the user before running.** Present the time estimate and scope; get explicit approval. Mutation testing can be slow — never surprise the user.

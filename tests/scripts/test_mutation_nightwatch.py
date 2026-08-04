@@ -594,6 +594,131 @@ def test_run_nightwatch_writes_reports_even_with_zero_targets(tmp_path: Path) ->
 
 
 # =============================================================================
+# Exclude-policy drafting (#1757) — never writes the committed file itself
+# =============================================================================
+
+
+def _write_flaggable_report(path: Path) -> None:
+    """A report with one file matching both the score<15%/NoCoverage>50%
+    signals AND a known csharp filename hint (Startup.cs) — always tier."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(
+        json.dumps(
+            {
+                "files": {
+                    "src/Startup.cs": {
+                        "mutants": [{"status": "Killed"}]
+                        + [{"status": "NoCoverage"}] * 9
+                    }
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+
+
+def test_run_nightwatch_drafts_exclude_policy_proposal_when_none_committed(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    report_path = tmp_path / "reports" / "mutation" / "mutation.json"
+    _write_flaggable_report(report_path)
+
+    def fake_measure(repo_root, run_dir, *, timeout=None):
+        return stacks_lib.StackResult(
+            "javascript", "stryker", "measured", report_path=report_path
+        )
+
+    monkeypatch.setitem(stacks_lib.MEASURERS, "javascript", fake_measure)
+    monkeypatch.setattr(stacks_lib, "mechanical_repair", lambda *a, **k: None)
+
+    output_dir = tmp_path / "reports" / "mutation-nightwatch"
+    run_dir = nightwatch.run_nightwatch(
+        tmp_path,
+        output_dir,
+        stacks=["javascript"],
+        inhibit_sleep=False,
+        started_at="2026-08-04T03:00:00Z",
+    )
+
+    draft_run = run_dir / "EXCLUDE-POLICY-PROPOSAL.json"
+    draft_latest = output_dir / "LATEST" / "EXCLUDE-POLICY-PROPOSAL.json"
+    assert draft_run.exists()
+    assert draft_latest.exists()
+    drafted = json.loads(draft_run.read_text(encoding="utf-8"))
+    # Startup.cs has no javascript filename hint (the stack here is
+    # javascript, not csharp) — the two numeric signals still flag it, just
+    # into the weaker propose_and_ask tier. Tier promotion itself is
+    # covered by test_mutation_exclude_policy.py's unit tests.
+    assert len(drafted["propose_and_ask"]) == 1
+    assert drafted["propose_and_ask"][0]["file"] == "src/Startup.cs"
+
+    summary = (run_dir / "MORNING-SUMMARY.md").read_text(encoding="utf-8")
+    assert "drafted a" in summary
+    assert "mutation-exclude-policy.json" in summary
+
+    # The approval-gated committed file must NEVER be written by the
+    # unattended run itself.
+    assert not (tmp_path / "mutation-exclude-policy.json").exists()
+
+
+def test_run_nightwatch_skips_drafting_when_policy_already_committed(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    (tmp_path / "mutation-exclude-policy.json").write_text("{}", encoding="utf-8")
+    report_path = tmp_path / "reports" / "mutation" / "mutation.json"
+    _write_flaggable_report(report_path)
+
+    def fake_measure(repo_root, run_dir, *, timeout=None):
+        return stacks_lib.StackResult(
+            "javascript", "stryker", "measured", report_path=report_path
+        )
+
+    monkeypatch.setitem(stacks_lib.MEASURERS, "javascript", fake_measure)
+    monkeypatch.setattr(stacks_lib, "mechanical_repair", lambda *a, **k: None)
+
+    output_dir = tmp_path / "reports" / "mutation-nightwatch"
+    run_dir = nightwatch.run_nightwatch(
+        tmp_path,
+        output_dir,
+        stacks=["javascript"],
+        inhibit_sleep=False,
+        started_at="2026-08-04T03:00:00Z",
+    )
+
+    assert not (run_dir / "EXCLUDE-POLICY-PROPOSAL.json").exists()
+
+
+def test_run_nightwatch_drafts_nothing_when_no_files_flagged(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    report_path = tmp_path / "reports" / "mutation" / "mutation.json"
+    report_path.parent.mkdir(parents=True)
+    report_path.write_text(
+        json.dumps({"files": {"src/Real.ts": {"mutants": [{"status": "Killed"}] * 10}}}),
+        encoding="utf-8",
+    )
+
+    def fake_measure(repo_root, run_dir, *, timeout=None):
+        return stacks_lib.StackResult(
+            "javascript", "stryker", "measured", report_path=report_path
+        )
+
+    monkeypatch.setitem(stacks_lib.MEASURERS, "javascript", fake_measure)
+    monkeypatch.setattr(stacks_lib, "mechanical_repair", lambda *a, **k: None)
+
+    output_dir = tmp_path / "reports" / "mutation-nightwatch"
+    run_dir = nightwatch.run_nightwatch(
+        tmp_path,
+        output_dir,
+        stacks=["javascript"],
+        inhibit_sleep=False,
+        started_at="2026-08-04T03:00:00Z",
+    )
+
+    assert not (run_dir / "EXCLUDE-POLICY-PROPOSAL.json").exists()
+
+
+# =============================================================================
 # --detach
 # =============================================================================
 

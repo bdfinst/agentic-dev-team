@@ -60,6 +60,7 @@ import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
+import mutation_exclude_policy
 import mutation_nightwatch_stacks as stacks_lib
 from mutation_kill_shared import _timeout_from_env
 
@@ -291,7 +292,45 @@ def run_nightwatch(
             results.append(stacks_lib.MEASURERS[name](repo_root, run_dir, timeout=timeout))
             write_reports(run_dir, latest_dir, results, started_at, notes)
 
+        _draft_exclude_policy_if_missing(repo_root, run_dir, latest_dir, results, notes)
+        write_reports(run_dir, latest_dir, results, started_at, notes)
+
     return run_dir
+
+
+def _draft_exclude_policy_if_missing(
+    repo_root: Path,
+    run_dir: Path,
+    latest_dir: Path,
+    results: list[stacks_lib.StackResult],
+    notes: list[str],
+) -> None:
+    """Draft a mutation-exclude-policy.json proposal when no committed
+    policy file exists yet (#1757) — never writes the committed file
+    itself. Only ``mutation_exclude_policy.py --approve``, run deliberately
+    by a human, writes ``mutation-exclude-policy.json`` at the repo root;
+    this unattended path only ever produces a proposal alongside the run's
+    other reports.
+    """
+    if (repo_root / mutation_exclude_policy.POLICY_FILENAME).exists():
+        return
+    report_paths = {r.stack: r.report_path for r in results if r.report_path is not None}
+    if not report_paths:
+        return
+    policy = mutation_exclude_policy.draft_policy(report_paths)
+    if not policy["always"] and not policy["propose_and_ask"]:
+        return
+
+    draft_name = "EXCLUDE-POLICY-PROPOSAL.json"
+    draft_path = run_dir / draft_name
+    mutation_exclude_policy.write_json(draft_path, policy)
+    mutation_exclude_policy.write_json(latest_dir / draft_name, policy)
+    notes.append(
+        f"NOTE: no committed {mutation_exclude_policy.POLICY_FILENAME} found — drafted a "
+        f"proposal ({len(policy['always'])} always-exclude, "
+        f"{len(policy['propose_and_ask'])} propose-and-ask) at {draft_path}. Review and "
+        f"approve with `mutation_exclude_policy.py --approve <path> --repo-root {repo_root}`."
+    )
 
 
 # =============================================================================
