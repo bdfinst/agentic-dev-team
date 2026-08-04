@@ -15,10 +15,12 @@
 # branch deletion (which we skip).
 BASE=""
 HEAD=""
-while read -r _local_ref local_sha _remote_ref remote_sha; do
+PUSH_REF=""
+while read -r local_ref local_sha _remote_ref remote_sha; do
   [ -z "$local_sha" ] && continue
   case "$local_sha" in *[!0]*) : ;; *) continue ;; esac  # all-zero => deletion
   HEAD="$local_sha"
+  PUSH_REF="$local_ref"
   case "$remote_sha" in
     *[!0]*) BASE="$remote_sha" ;;                          # existing remote branch
     *) BASE="$(git merge-base "$local_sha" origin/main 2>/dev/null || git merge-base "$local_sha" main 2>/dev/null || true)" ;;
@@ -37,8 +39,11 @@ done
 # state. POSIX sh only — no [[, no arrays, no process substitution.
 PRE_REFS_FILE="$(mktemp -t prepush-refs-pre-XXXXXX)"
 POST_REFS_FILE="$(mktemp -t prepush-refs-post-XXXXXX)"
-trap 'rm -f "$PRE_REFS_FILE" "$POST_REFS_FILE"' EXIT
+EXEMPT_REFS_FILE="$(mktemp -t prepush-refs-exempt-XXXXXX)"
+DRIFT_FILE="$(mktemp -t prepush-refs-drift-XXXXXX)"
+trap 'rm -f "$PRE_REFS_FILE" "$POST_REFS_FILE" "$EXEMPT_REFS_FILE" "$DRIFT_FILE"' EXIT
 git for-each-ref --format='%(refname) %(objectname)' refs/heads/ > "$PRE_REFS_FILE"
+SELF_REF="$(git symbolic-ref -q HEAD 2>/dev/null || true)"
 
 echo "pre-push: running local CI mirror (scripts/ci-local.sh)…"
 # `|| true` so a non-zero exit from ci-local doesn't trip husky's `sh -e`
@@ -47,35 +52,65 @@ CI_EXIT=0
 bash scripts/ci-local.sh "$BASE" "$HEAD" || CI_EXIT=$?
 
 git for-each-ref --format='%(refname) %(objectname)' refs/heads/ > "$POST_REFS_FILE"
+
+# Branches checked out in *other* worktrees of this clone are outside this
+# hook's blast radius (issue #1815). All worktrees share one ref store, and
+# ci-local runs for minutes, so a sibling session that commits, rebases, or
+# resets during that window legitimately moves its own branch — concurrency,
+# not corruption. Snapshot the ownership map *after* ci-local so a sibling's
+# `git switch -c` counts too, and match by ref name rather than worktree path
+# (git forbids two worktrees on one branch, so names are unambiguous and no
+# /tmp-vs-/private/tmp normalization is needed). The ref being pushed and this
+# worktree's own HEAD are never exempt.
+git worktree list --porcelain 2>/dev/null | awk '$1 == "branch" { print $2 }' \
+  | grep -v -x -F -e "$PUSH_REF" -e "$SELF_REF" > "$EXEMPT_REFS_FILE" || true
+
 if ! cmp -s "$PRE_REFS_FILE" "$POST_REFS_FILE"; then
-  # Any drift is a corruption signal — refuse regardless of ci-local exit.
-  printf '\npre-push: ABORT — refs/heads/* changed during hook execution.\n' >&2
-  printf 'This usually means a fixture test corrupted your local refs. See issue #546.\n\n' >&2
-  # Emit each changed ref with pre / post SHA. Use awk on the two snapshot
-  # files: build a pre-map, then walk the post-map to detect mutation and
-  # creation; walk the pre-map for deletions.
+  # Emit each changed ref with pre / post SHA, classified as blocking or
+  # sibling-owned. Build the exempt set and a pre-map, then walk the post-map
+  # to detect mutation and creation; walk the pre-map for deletions. awk exits
+  # non-zero when at least one blocking ref drifted.
   awk '
-    NR==FNR { pre[$1]=$2; next }
+    function report(ref, line) {
+      if (ref in exempt) { sibling = sibling line "\n" }
+      else { blocking = blocking line "\n"; blocked = 1 }
+    }
+    FILENAME == ARGV[1] { exempt[$1]=1; next }
+    FILENAME == ARGV[2] { pre[$1]=$2; next }
     {
       post[$1]=$2
       if (!($1 in pre)) {
-        printf "  %s: pre=<absent> post=%s (created)\n", $1, $2
+        report($1, sprintf("  %s: pre=<absent> post=%s (created)", $1, $2))
       } else if (pre[$1] != $2) {
-        printf "  %s: pre=%s post=%s\n", $1, pre[$1], $2
+        report($1, sprintf("  %s: pre=%s post=%s", $1, pre[$1], $2))
       }
     }
     END {
       for (ref in pre) {
         if (!(ref in post)) {
-          printf "  %s: pre=%s post=<absent> (deleted)\n", ref, pre[ref]
+          report(ref, sprintf("  %s: pre=%s post=<absent> (deleted)", ref, pre[ref]))
         }
       }
+      if (blocked) {
+        printf "\npre-push: ABORT — refs/heads/* changed during hook execution.\n"
+        printf "This usually means a fixture test corrupted your local refs. See issue #546.\n\n"
+        printf "%s", blocking
+        printf "\nRecover from your reflog:\n"
+        printf "  git update-ref <refname> <pre-sha>       # for mutated / deleted refs\n"
+        printf "  git update-ref -d <refname>              # for stray created refs\n"
+        printf "\nIf a concurrent worktree operation caused this, no recovery is needed —\n"
+        printf "let it settle and retry the push.\n"
+      }
+      if (sibling != "") {
+        printf "\npre-push: note — branches owned by sibling worktrees moved during the\n"
+        printf "hook. Not corruption, not blocking:\n"
+        printf "%s", sibling
+      }
+      exit (blocked ? 1 : 0)
     }
-  ' "$PRE_REFS_FILE" "$POST_REFS_FILE" >&2
-  printf '\nRecover from your reflog:\n' >&2
-  printf '  git update-ref <refname> <pre-sha>       # for mutated / deleted refs\n' >&2
-  printf '  git update-ref -d <refname>              # for stray created refs\n' >&2
-  exit 1
+  ' "$EXEMPT_REFS_FILE" "$PRE_REFS_FILE" "$POST_REFS_FILE" > "$DRIFT_FILE" || DRIFT_BLOCKED=1
+  cat "$DRIFT_FILE" >&2
+  [ "${DRIFT_BLOCKED:-0}" = 1 ] && exit 1
 fi
 
 # Refs stable — honor ci-local's exit code (existing behavior).
