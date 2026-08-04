@@ -179,10 +179,10 @@ try:
         _UNPROVABLE_DISPATCH_FAILURE,
     )
     from review_gate_corroboration import (  # type: ignore[import-not-found]
-        distinct_normalized_dispatches as _distinct_normalized_dispatches,
+        evaluate as _evaluate_ledger,
     )
     from review_gate_corroboration import (  # type: ignore[import-not-found]
-        evaluate as _evaluate_ledger,
+        evaluate_cosmetic_carry_forward as _evaluate_carry_forward,
     )
     from review_gate_corroboration import (  # type: ignore[import-not-found]
         has_doc_only_exemption as _has_doc_only_exemption,
@@ -264,7 +264,13 @@ except ImportError:  # pragma: no cover
     _UNPROVABLE_DISPATCH_FAILURE = _DEGRADED_DISPATCH_FAILURE_SENTINEL
 
     class _DegradedLedgerEvidence:  # type: ignore[misc]
-        """Degraded-import stand-in for `review_gate_corroboration.LedgerEvidence`.
+        """Degraded-import stand-in for BOTH `review_gate_corroboration.
+        LedgerEvidence` (via `_evaluate_ledger`) and `CosmeticCarryForwardEvidence`
+        (via `_evaluate_carry_forward`, below) — its three attributes used by
+        `_cosmetic_carry_forward_verdict` (`agents_in_window`,
+        `dispatch_failure_agents`, `read_failure_reason`) happen to be a subset
+        of `LedgerEvidence`'s own five, so one attribute-based stand-in serves
+        both NamedTuple shapes without duplicating it.
 
         A failed import means this module can't corroborate anything —
         fails CLOSED the same way the real module does on a read failure,
@@ -274,8 +280,11 @@ except ImportError:  # pragma: no cover
         Field shape (names, order) is asserted to stay in sync with the
         real `LedgerEvidence` NamedTuple by
         `test_degraded_ledger_evidence_field_shape_matches_real_ledger_evidence`
-        (#1477) — a future field added to the real shape without updating
-        this stand-in now fails a test instead of silently drifting.
+        (#1477) and, additionally, against `CosmeticCarryForwardEvidence`'s
+        own field set by that same test (#1836) — a future field added to
+        either real shape without updating this stand-in now fails a test
+        instead of silently leaving the carry-forward lens permanently
+        non-decisive with no signal.
         """
 
         agents_in_window: frozenset = frozenset()
@@ -306,15 +315,15 @@ except ImportError:  # pragma: no cover
         # as it did before #1627. Fails CLOSED like the rest of this block.
         return None
 
-    def _distinct_normalized_dispatches(  # type: ignore[misc]
-        cwd, before_ts, window_seconds, subject_hash_normalized
-    ) -> tuple:
-        # Degraded-import fallback: matches the real function's new 2-tuple
-        # shape (#1763). Empty agents_in_window keeps the carry-forward lens
-        # never decisive on positive evidence (unchanged posture); the
-        # dispatch-failure side fails CLOSED with the same sentinel
-        # `_DegradedLedgerEvidence` uses, rather than an empty/all-clear set.
-        return frozenset(), _DEGRADED_DISPATCH_FAILURE_SENTINEL
+    def _evaluate_carry_forward(  # type: ignore[misc]
+        cwd, before_ts, window_seconds, subject_hash_normalized, raw_hashes
+    ):
+        # Degraded-import fallback: reuses `_DegradedLedgerEvidence` — its
+        # `agents_in_window`/`dispatch_failure_agents`/`read_failure_reason`
+        # fields are exactly what `_cosmetic_carry_forward_verdict` reads
+        # from the real `CosmeticCarryForwardEvidence`, so the same
+        # fail-CLOSED stand-in serves both shapes without duplicating it.
+        return _DegradedLedgerEvidence()
 
 
 def emit_boundary_event(*args, **kwargs) -> None:
@@ -805,6 +814,21 @@ def _cosmetic_carry_forward_verdict(
         stored_raw, stored_normalized = stored_hashes
         if not stored_normalized:
             return None
+        # A malformed gate file (a blank first line paired with a non-blank
+        # second line — SKILL.md's `printf '%s\n%s\n' "$HASH" "$NORM"` could
+        # produce this if `$HASH` came back empty) must not reach
+        # `_evaluate_carry_forward` with a falsy `stored_raw` (#1836 closing-
+        # pass security/correctness review): that function now treats ANY
+        # falsy raw-hash binding as unprovable, which would render through
+        # the SAME `_UNPROVABLE_DISPATCH_FAILURE` sentinel a genuine registry
+        # read failure uses below — misattributing a malformed gate file as
+        # "could not read the registered review-agent set". Same "not
+        # decisive" treatment as the `stored_normalized` check above, not a
+        # new message: the fallback `_BLOCK_MESSAGE` rejection's own remedy
+        # (re-run /code-review, which rewrites `.review-passed` cleanly)
+        # already fixes this cause too.
+        if not stored_raw:
+            return None
 
         target = "HEAD" if unstaged_commit else "--cached"
         current_normalized = normalized_gate_hash(cwd, target)
@@ -812,32 +836,21 @@ def _cosmetic_carry_forward_verdict(
             return None
 
         before_ts = _mtime_to_iso(gate_file.stat().st_mtime)
-        agents, dispatch_failure_agents = _distinct_normalized_dispatches(
-            cwd, before_ts, WINDOW_SECONDS, current_normalized
+        # #1763: negative evidence is checked against the normalized hash
+        # AND both raw hashes — `stored_raw` (the content that was ACTUALLY
+        # reviewed; a review-time failure would be recorded against it, not
+        # `current_hash`, which by construction mismatches it on this path)
+        # and `current_hash` (in case a failure was separately recorded
+        # against today's exact content) — in case a dispatch-failure event
+        # never got a `subject_hash_normalized` stamped (the emission
+        # command computes it with `|| true`, so a normalization failure
+        # silently omits the field) and would otherwise be invisible to a
+        # normalized-only query. One `_read_ledger` call answers all three
+        # bindings (perf finding from the #1761-1763 build: this used to be
+        # three separate reads of the same file).
+        evidence = _evaluate_carry_forward(
+            cwd, before_ts, WINDOW_SECONDS, current_normalized, (stored_raw, current_hash)
         )
-        # #1763: also check RAW-hash negative evidence — a dispatch-failure
-        # event that never got a `subject_hash_normalized` stamped would
-        # otherwise be invisible to the normalized-only query above. Two
-        # raw hashes matter here, not one: `stored_raw` is the hash of the
-        # content that was ACTUALLY reviewed (when the review-time dispatch
-        # failure, if any, would have been recorded against it) — checking
-        # only `current_hash` (today's, post-cosmetic-edit hash, which by
-        # construction mismatches `stored_raw` on this path) would miss
-        # exactly the stale-but-real failure this lens exists to carry
-        # forward correctly. `current_hash` is checked too, independently,
-        # in case a failure was separately recorded against today's exact
-        # content. Union, don't replace: any source finding an unsuperseded
-        # failure vetoes.
-        stored_raw_evidence = (
-            _evaluate_ledger(cwd, before_ts, WINDOW_SECONDS, stored_raw)
-            if stored_raw
-            else None
-        )
-        current_raw_evidence = _evaluate_ledger(cwd, before_ts, WINDOW_SECONDS, current_hash)
-        raw_failure_sets = [current_raw_evidence.dispatch_failure_agents]
-        if stored_raw_evidence is not None:
-            raw_failure_sets.append(stored_raw_evidence.dispatch_failure_agents)
-        combined_dispatch_failures = dispatch_failure_agents.union(*raw_failure_sets)
 
         # #1763: the same mechanical dispatch-failure veto the main pipeline
         # applies (`_dispatch_failure_verdict`), checked here BEFORE the
@@ -854,23 +867,20 @@ def _cosmetic_carry_forward_verdict(
         # different infra problems needing different operator remediation
         # (#1763 correctness/security review — the exact mislabeling this
         # file's own `_GATE_SETUP_FAILURE_MESSAGE` comment, a few hundred
-        # lines up, argues against). The two raw-hash `LedgerEvidence`
-        # objects carry `read_failure_reason`; a ledger read failure there
-        # is checked FIRST, before assuming the sentinel means the registry.
-        if (stored_raw_evidence is not None and stored_raw_evidence.read_failure_reason) or (
-            current_raw_evidence.read_failure_reason
-        ):
+        # lines up, argues against). `evidence.read_failure_reason` is
+        # checked FIRST, before assuming the sentinel means the registry.
+        if evidence.read_failure_reason:
             return GateVerdict(False, _READ_FAILURE_MESSAGE, "dispatch-ledger-read-failure")
-        if _UNPROVABLE_DISPATCH_FAILURE in (dispatch_failure_agents, *raw_failure_sets):
+        if evidence.dispatch_failure_agents == _UNPROVABLE_DISPATCH_FAILURE:
             return GateVerdict(False, _REGISTRY_READ_FAILURE_MESSAGE, "registry-read-failure")
-        if combined_dispatch_failures:
+        if evidence.dispatch_failure_agents:
             return GateVerdict(
                 False,
-                _dispatch_failure_message(combined_dispatch_failures),
+                _dispatch_failure_message(evidence.dispatch_failure_agents),
                 "dispatch-failure-veto",
             )
 
-        if len(agents) < _MIN_DISTINCT_DISPATCHES:
+        if len(evidence.agents_in_window) < _MIN_DISTINCT_DISPATCHES:
             return None
 
         emit_boundary_event(

@@ -26,6 +26,25 @@ Status: pass=no vulnerabilities, warn=concerns, fail=critical vulnerabilities
 Severity: error=exploitable, warning=potential weakness, suggestion=best practice
 Confidence: high=clear vulnerability with known fix (parameterize query, remove hardcoded secret); medium=vulnerability pattern present, exact fix depends on auth architecture; none=requires human judgment (security architecture, threat model tradeoffs)
 
+### Confidence gating
+
+Reuse the enum above — never invent a new "low" tier. When the evidence for a
+finding is inconclusive (you infer a pattern but cannot trace it to a
+concrete impact, or exploitability depends on architecture you haven't
+verified), report it at `confidence: none` rather than asserting a
+low-certainty finding at `high` or `medium`. This is the same
+`high|medium|none` enum defined in
+`${CLAUDE_PLUGIN_ROOT}/knowledge/review-agent-output-contract.md` (Whole-file load: short, canonical schema).
+
+`confidence: none` is for a pattern you can point to in the diff under
+review right now, whose exploitability you could not verify — still worth
+reporting, at reduced confidence, and always capped at `severity: warning`
+(never `error`, which implies a demonstrably exploitable finding). It is not
+a license to report a purely speculative future-vulnerability guess with no
+concrete, present pattern in the diff — that evidence state has no
+disposition here at all; the Non-Goals bar below still excludes it entirely,
+regardless of confidence tier.
+
 ### Category (required)
 
 Every issue MUST carry a `category` identifying the OWASP class the
@@ -178,6 +197,11 @@ After producing findings, run the shared challenger loop in `${CLAUDE_PLUGIN_ROO
 
 Append confidence level (High/Medium/Low) to the `summary` field.
 
-## Ignore
+## Non-Goals
 
-Code style, naming, tests, complexity (handled by other agents)
+This agent explicitly does not:
+
+- Flag pre-existing vulnerabilities outside the diff under review (out-of-diff scope creep)
+- Report style-only nits — code style, naming, tests, and complexity are handled by other agents, not this one
+- Assert speculative future-vulnerability findings with no concrete, present exploit path
+- Perform FP-reduction, reachability analysis, business-logic/fraud-domain review, compliance mapping, or executive-report synthesis — those live in `plugins/security-assessment/` (see Trigger context above)

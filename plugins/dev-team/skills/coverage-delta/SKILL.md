@@ -37,7 +37,7 @@ Read `.dev-team-reports/<workflow>/<slug>/data/baseline-coverage.json`. If missi
 
 ### 2. Re-run coverage
 
-Use the same `tool` and command that `/coverage-baseline` recorded — DO NOT switch tools mid-workflow or the delta is meaningless. Capture exit code + stdout + stderr.
+Use the same `tool` and command that `/coverage-baseline` recorded — DO NOT switch tools mid-workflow or the delta is meaningless. This invariant governs the *tool* (e.g. never swap `dotnet test`/coverlet for a different coverage tool between baseline and delta), not the discovered *project list* on `.sln`/`.csproj` repos — `/coverage-baseline` re-derives that list every run via `discover_coverage_projects.py` (#1759), so a project set that legitimately changed between baseline and delta (a project added/excluded and triaged in `coverage-config.json`) is expected, not a tool switch. For a `.sln`/`.csproj` repo, re-run `python3 "$CLAUDE_PLUGIN_ROOT/skills/coverage-baseline/scripts/discover_coverage_projects.py" <path-to-.sln>` (same as `/coverage-baseline`) and use its returned `projects` list for this delta measurement; a hard failure from that script stops the delta rather than falling back to a solution-wide run. Capture exit code + stdout + stderr.
 
 If the run fails, surface the first error and stop. Do not post a delta from a broken run.
 

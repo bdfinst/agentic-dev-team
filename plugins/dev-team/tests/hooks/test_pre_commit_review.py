@@ -1455,6 +1455,98 @@ def test_cosmetic_carry_forward_lens_vetoes_on_raw_hash_only_dispatch_failure(
     assert "Dispatch failure recorded for security-review" in r.stdout
 
 
+def test_cosmetic_carry_forward_lens_vetoes_on_current_hash_only_dispatch_failure(
+    tmp_path: Path,
+) -> None:
+    """#1836 test-review finding: the dispatch-failure veto's raw-hash union
+    checks BOTH `stored_raw` (the content actually reviewed) AND
+    `current_hash` (today's exact re-staged content) independently — a
+    failure recorded against ONLY `current_hash`, with nothing against
+    `stored_raw` or the normalized hash, must still veto. Every prior test
+    for this lens wrote the failure against `stored_raw`; this is the first
+    to pin the OTHER half of that union — without it, dropping
+    `current_hash` from the raw_hashes tuple would silently let a commit
+    with a genuine, unsuperseded dispatch failure against today's content
+    pass the gate."""
+    lib_dir = _REPO_ROOT / "plugins" / "dev-team" / "hooks" / "lib"
+    if str(lib_dir) not in sys.path:
+        sys.path.insert(0, str(lib_dir))
+    import review_gate_normalized_hash as _ngh  # type: ignore[import-not-found]
+
+    repo = _js_repo_with_history(tmp_path)
+    raw = _current_hash(repo)
+    normalized = _ngh.normalized_gate_hash(repo)
+    assert normalized is not None
+
+    _write_dispatch_events(repo, ["correctness-review", "structure-review"], raw)
+    log = repo / ".claude" / "metrics" / "boundary-events.jsonl"
+    lines = [json.loads(ln) for ln in log.read_text().splitlines() if ln.strip()]
+    for entry in lines:
+        entry["subject_hash_normalized"] = normalized
+    log.write_text("\n".join(json.dumps(e) for e in lines) + "\n")
+
+    gate_path = repo / ".claude" / "memory" / ".review-passed"
+    gate_path.parent.mkdir(parents=True, exist_ok=True)
+    gate_path.write_text(f"{raw}\n{normalized}\n")
+
+    (repo / "a.js").write_text("function f() {\n      return 2\n}\n")
+    subprocess.run(["git", "add", "a.js"], cwd=repo, env=hermetic_git_env(home=repo), check=True)
+
+    # Recorded against today's exact post-re-stage hash — NOT `raw`
+    # (stored_raw) and not the normalized hash.
+    current_hash = _current_hash(repo)
+    _write_dispatch_failure(repo, "security-review", current_hash)
+
+    r = _run(
+        {"tool_name": "Bash", "tool_input": {"command": "git commit -m x"}}, cwd=repo
+    )
+    assert r.returncode == 2, r.stdout + r.stderr
+    assert "Dispatch failure recorded for security-review" in r.stdout
+
+
+def test_cosmetic_carry_forward_lens_treats_blank_stored_raw_as_not_decisive(
+    tmp_path: Path,
+) -> None:
+    """#1836 closing-pass security/correctness review: a malformed
+    `.review-passed` (blank first line, valid second line) must fall
+    through to the generic `_BLOCK_MESSAGE` rejection, NOT reach
+    `_evaluate_carry_forward` with a falsy `stored_raw` — that function now
+    treats any falsy raw-hash binding as unprovable, which would render
+    through the SAME sentinel a genuine registry read failure uses,
+    misattributing a malformed gate file as "could not read the registered
+    review-agent set"."""
+    lib_dir = _REPO_ROOT / "plugins" / "dev-team" / "hooks" / "lib"
+    if str(lib_dir) not in sys.path:
+        sys.path.insert(0, str(lib_dir))
+    import review_gate_normalized_hash as _ngh  # type: ignore[import-not-found]
+
+    repo = _js_repo_with_history(tmp_path)
+    raw = _current_hash(repo)
+    normalized = _ngh.normalized_gate_hash(repo)
+    assert normalized is not None
+
+    _write_dispatch_events(repo, ["correctness-review", "structure-review"], raw)
+    log = repo / ".claude" / "metrics" / "boundary-events.jsonl"
+    lines = [json.loads(ln) for ln in log.read_text().splitlines() if ln.strip()]
+    for entry in lines:
+        entry["subject_hash_normalized"] = normalized
+    log.write_text("\n".join(json.dumps(e) for e in lines) + "\n")
+
+    gate_path = repo / ".claude" / "memory" / ".review-passed"
+    gate_path.parent.mkdir(parents=True, exist_ok=True)
+    gate_path.write_text(f"\n{normalized}\n")  # blank first line, valid second
+
+    (repo / "a.js").write_text("function f() {\n      return 2\n}\n")
+    subprocess.run(["git", "add", "a.js"], cwd=repo, env=hermetic_git_env(home=repo), check=True)
+
+    r = _run(
+        {"tool_name": "Bash", "tool_input": {"command": "git commit -m x"}}, cwd=repo
+    )
+    assert r.returncode == 2, r.stdout + r.stderr
+    assert r.stdout == _pcr._BLOCK_MESSAGE
+    assert "registered review-agent set" not in r.stdout
+
+
 def test_cosmetic_carry_forward_lens_vetoes_before_the_count_check(tmp_path: Path) -> None:
     """#1763 security review: the veto must be checked BEFORE the `>= 2`
     distinct-dispatch count on the cosmetic path too — same priority order
@@ -1643,15 +1735,25 @@ def test_plugin_version_returns_unknown_when_manifest_missing(
 # fallback stand-in for `review_gate_corroboration.LedgerEvidence`) hand-
 # duplicates its field shape with no test asserting parity — a future field
 # addition to the real NamedTuple could silently leave the degraded path
-# stale without this.
+# stale without this. #1836 extends the same guard to
+# `CosmeticCarryForwardEvidence`, the second real shape this same stand-in
+# now serves (via `_evaluate_carry_forward`) — without this, a future field
+# added there but not to `_DegradedLedgerEvidence` would raise
+# `AttributeError` inside `_cosmetic_carry_forward_verdict`'s blanket
+# `except Exception: return None`, silently making the carry-forward lens
+# permanently non-decisive with no test failure and no operator-visible
+# signal.
 # ---------------------------------------------------------------------------
 
 
 def test_degraded_ledger_evidence_field_shape_matches_real_ledger_evidence() -> None:
     """Compares `_DegradedLedgerEvidence`'s field shape (names AND order)
-    against the real `review_gate_corroboration.LedgerEvidence` NamedTuple —
-    a future field added to the real shape without updating this hand-
-    written stand-in now fails a test instead of silently drifting.
+    against the real `review_gate_corroboration.LedgerEvidence` NamedTuple,
+    and additionally against `CosmeticCarryForwardEvidence`'s field set
+    (subset, since the stand-in's fields are a superset covering both real
+    shapes) — a future field added to either real shape without updating
+    this hand-written stand-in now fails a test instead of silently
+    drifting.
 
     Triggers the ImportError-fallback path in a FRESH subprocess, not via
     the in-process `sys.modules["artifact_paths"] = None` + re-exec trick
@@ -1697,6 +1799,7 @@ def test_degraded_ledger_evidence_field_shape_matches_real_ledger_evidence() -> 
     import review_gate_corroboration as _rgc  # type: ignore[import-not-found]
 
     assert degraded_fields == _rgc.LedgerEvidence._fields
+    assert set(_rgc.CosmeticCarryForwardEvidence._fields) <= set(degraded_fields)
 
 
 # ---------------------------------------------------------------------------

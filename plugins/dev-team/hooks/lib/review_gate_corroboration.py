@@ -55,6 +55,7 @@ Stdlib only. See ADR 0014 / ADR 0015.
 from __future__ import annotations
 
 import sys
+from collections.abc import Iterable
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import NamedTuple
@@ -359,6 +360,36 @@ def _agents_with_unsuperseded_failure(
     )
 
 
+def _binding_evidence(
+    dispatches: list,
+    failures: list,
+    since: str,
+    before_ts: str,
+    registered: frozenset | None,
+) -> tuple:
+    """Compute `(agents_in_window, dispatch_failure_agents)` from dispatch/
+    failure entries ALREADY narrowed to one hash binding by the caller.
+
+    Shared by `evaluate()` and `evaluate_cosmetic_carry_forward()` (once per
+    hash binding it evaluates) — each independently re-implemented this exact
+    window-filter + positive-frozenset + `_agents_with_unsuperseded_failure`
+    sequence before this extraction (#1836 perf finding), which risked the
+    fail-closed positive/negative asymmetry — `registered_for_positive`'s
+    `None`-to-empty collapse is safe ONLY for positive evidence, never for
+    negative — silently drifting out of sync across independently
+    maintained copies.
+    """
+    in_window = metrics_query.filter_entries(dispatches, since=since, until=before_ts)
+    registered_for_positive = registered if registered is not None else frozenset()
+    agents = frozenset(
+        e["matched_rule"]
+        for e in in_window
+        if isinstance(e.get("matched_rule"), str) and e["matched_rule"] in registered_for_positive
+    )
+    dispatch_failure_agents = _agents_with_unsuperseded_failure(dispatches, failures, registered)
+    return agents, dispatch_failure_agents
+
+
 def evaluate(cwd, before_ts: str, window_seconds: int, subject_hash: str) -> LedgerEvidence:
     """Single-read-pass corroboration evaluation — the primary entry point.
 
@@ -407,20 +438,7 @@ def evaluate(cwd, before_ts: str, window_seconds: int, subject_hash: str) -> Led
     same_subject_ever = any(isinstance(e.get("matched_rule"), str) for e in dispatches)
 
     since = _since_bound(before_ts, window_seconds)
-    in_window = metrics_query.filter_entries(dispatches, since=since, until=before_ts)
     registered = _registered_agents()
-    # `registered_for_positive`: a registry-read failure (`None`) collapses
-    # to empty here — safe for POSITIVE evidence, since narrowing can only
-    # ever narrow (never widen) what counts as corroboration. `registered`
-    # itself (possibly `None`) is passed through unchanged to
-    # `_agents_with_unsuperseded_failure` below, which needs to distinguish
-    # "read failed" from "genuinely zero agents" for NEGATIVE evidence.
-    registered_for_positive = registered if registered is not None else frozenset()
-    agents = frozenset(
-        e["matched_rule"]
-        for e in in_window
-        if isinstance(e.get("matched_rule"), str) and e["matched_rule"] in registered_for_positive
-    )
 
     # Dispatch-failure negative evidence (#1763) — unbounded by the recency
     # window, per the field's own docstring. `dispatches` above is already
@@ -434,11 +452,163 @@ def evaluate(cwd, before_ts: str, window_seconds: int, subject_hash: str) -> Led
         )
         if e.get("subject_hash") == subject_hash
     ]
-    dispatch_failure_agents = _agents_with_unsuperseded_failure(
-        dispatches, same_subject_failures, registered
+    agents, dispatch_failure_agents = _binding_evidence(
+        dispatches, same_subject_failures, since, before_ts, registered
     )
 
     return LedgerEvidence(agents, any_ever, same_subject_ever, None, dispatch_failure_agents)
+
+
+class CosmeticCarryForwardEvidence(NamedTuple):
+    """Single-read-pass result for the cosmetic-delta carry-forward lens
+    (`pre_commit_review.py`'s `_cosmetic_carry_forward_verdict`, #1627/#1763):
+    the normalized-hash query for POSITIVE evidence plus dispatch-failure
+    NEGATIVE evidence unioned across the normalized hash and every raw hash
+    in `raw_hashes` (typically `(stored_raw, current_hash)`) — everything
+    that lens needs from exactly ONE `_read_ledger`/`_registered_agents()`
+    pair, replacing what used to be one `distinct_normalized_dispatches()`
+    call plus one `evaluate()` call per raw hash, each independently
+    re-reading and re-parsing the same ledger file and re-globbing the
+    registry directory (perf finding from the #1761-1763 build).
+
+    Attributes:
+        agents_in_window: distinct registered review-agent names dispatched
+            in the recency window, bound ONLY to the normalized-hash binding
+            — the raw hashes in `raw_hashes` never contribute to this field,
+            unlike `dispatch_failure_agents` below. Empty when
+            `subject_hash_normalized` is falsy, on any read failure, or when
+            nothing qualifies.
+        read_failure_reason: `None` on a successful ledger read (whether or
+            not it has qualifying entries, whether or not the registry read
+            separately failed); `"missing"`/`"unreadable"` on a ledger read
+            failure — see `_read_ledger`'s own docstring.
+        dispatch_failure_agents: the UNION of unsuperseded dispatch-failure
+            agents across EVERY hash binding checked (the normalized hash
+            AND every entry in `raw_hashes`) — unlike `agents_in_window`,
+            this field is not scoped to a single binding. On a ledger read
+            failure, a registry read failure, or a falsy/unbindable hash
+            binding, this is EXACTLY the `_UNPROVABLE_DISPATCH_FAILURE`
+            sentinel — never mixed with real agent names (see
+            `evaluate_cosmetic_carry_forward`'s own docstring for why a
+            mixed set would be unsafe) — so a caller's `==` sentinel check
+            stays valid even though this field aggregates multiple bindings.
+    """
+
+    agents_in_window: frozenset
+    read_failure_reason: str | None
+    dispatch_failure_agents: frozenset
+
+
+def evaluate_cosmetic_carry_forward(
+    cwd,
+    before_ts: str,
+    window_seconds: int,
+    subject_hash_normalized: str,
+    raw_hashes: Iterable[str],
+) -> CosmeticCarryForwardEvidence:
+    """One `_read_ledger`/`_registered_agents()` pair answers the
+    normalized-hash query (positive `agents_in_window` + its own negative
+    dispatch-failure evidence) AND the negative-only dispatch-failure query
+    for every hash in `raw_hashes`. Each binding's evidence is computed by
+    the shared `_binding_evidence()` helper — the same code `evaluate()`
+    calls — against entries and a registry snapshot already loaded into
+    memory once, not re-read per binding.
+
+    A bare `str` passed as `raw_hashes` is normalized to a 1-tuple: the
+    natural mistake for a caller passing one raw hash directly would
+    otherwise iterate its individual CHARACTERS, silently match nothing,
+    and produce a false all-clear — the opposite of this module's
+    fail-closed posture.
+
+    Fails CLOSED like every other function in this module, and — unlike
+    treating each binding independently — NEVER lets the
+    `_UNPROVABLE_DISPATCH_FAILURE` sentinel mix into a union with real agent
+    names: if the shared ledger read fails, the shared registry read fails,
+    or ANY binding (the normalized hash, or a falsy/unbindable raw hash) is
+    itself unprovable, `dispatch_failure_agents` is EXACTLY the sentinel for
+    the WHOLE result — never `{sentinel, "some-real-agent"}`, which a
+    caller's `==` sentinel check could not detect and which would let
+    `_dispatch_failure_message()` render the sentinel string as if it were
+    a real agent name (#1836 security/correctness review). This is a
+    stricter posture than resolving each binding independently — a
+    transient failure on ANY one binding blocks the whole evaluation, not
+    just that binding — the right direction for a fail-closed gate. A
+    falsy raw hash is treated the same way (unprovable), not silently
+    skipped: it cannot bind any evidence, so it cannot prove the ABSENCE of
+    a dispatch failure either — a stricter posture than the old per-call
+    `evaluate("")` this replaces, which would have matched no ledger entries
+    (an absent-`subject_hash` event stores `None`, never `""`) and returned
+    a vacuous all-clear for that binding. Callers of THIS function must not
+    let a knowingly-falsy hash reach it expecting that same all-clear —
+    `pre_commit_review.py`'s `_cosmetic_carry_forward_verdict` guards its own
+    `stored_raw` binding for exactly this reason, so this sentinel path
+    stays reserved for a genuinely malformed/unbindable input, never a
+    routine one.
+
+    Registry-read behavior note (#1461/#1763 security review): the
+    review-agent registry is sampled exactly ONCE per call, not once per
+    hash binding as the calls this function replaces did independently.
+    The fail-closed GUARANTEE is unchanged — a registry that cannot be read
+    AT THE TIME OF THIS EVALUATION still makes the whole result unprovable
+    — only the number of independent samples taken within one evaluation
+    changed, an intended consequence of the ledger-read consolidation this
+    function exists for, not a separately considered trade-off.
+    """
+    if isinstance(raw_hashes, str):
+        raw_hashes = (raw_hashes,)
+
+    entries, failure = _read_ledger(cwd)
+    if failure is not None:
+        return CosmeticCarryForwardEvidence(frozenset(), failure, _UNPROVABLE_DISPATCH_FAILURE)
+
+    registered = _registered_agents()
+    since = _since_bound(before_ts, window_seconds)
+    all_dispatches = list(
+        metrics_query.filter_entries(entries, event_type=_EVENT_TYPE, gate_outcome=_DECISION)
+    )
+    all_failures = list(
+        metrics_query.filter_entries(
+            entries, event_type=_DISPATCH_FAILURE_HOOK, gate_outcome=_DISPATCH_FAILURE_DECISION
+        )
+    )
+
+    if subject_hash_normalized:
+        normalized_dispatches = [
+            e
+            for e in all_dispatches
+            if e.get("subject_hash_normalized") == subject_hash_normalized
+        ]
+        normalized_failures = [
+            e for e in all_failures if e.get("subject_hash_normalized") == subject_hash_normalized
+        ]
+        agents, normalized_dispatch_failures = _binding_evidence(
+            normalized_dispatches, normalized_failures, since, before_ts, registered
+        )
+        failure_sets = [normalized_dispatch_failures]
+    else:
+        agents = frozenset()
+        failure_sets = [_UNPROVABLE_DISPATCH_FAILURE]
+
+    seen_hashes: set = set()
+    for raw_hash in raw_hashes:
+        if raw_hash in seen_hashes:
+            continue
+        seen_hashes.add(raw_hash)
+        if not raw_hash:
+            failure_sets.append(_UNPROVABLE_DISPATCH_FAILURE)
+            continue
+        raw_dispatches = [e for e in all_dispatches if e.get("subject_hash") == raw_hash]
+        raw_failures = [e for e in all_failures if e.get("subject_hash") == raw_hash]
+        _, raw_dispatch_failures = _binding_evidence(
+            raw_dispatches, raw_failures, since, before_ts, registered
+        )
+        failure_sets.append(raw_dispatch_failures)
+
+    if any(fs == _UNPROVABLE_DISPATCH_FAILURE for fs in failure_sets):
+        return CosmeticCarryForwardEvidence(agents, None, _UNPROVABLE_DISPATCH_FAILURE)
+
+    combined_failures = frozenset().union(*failure_sets)
+    return CosmeticCarryForwardEvidence(agents, None, combined_failures)
 
 
 def distinct_review_agent_dispatches(
@@ -464,71 +634,32 @@ def distinct_normalized_dispatches(
     paired with the unbounded-by-window dispatch-failure agent set for that
     same normalized hash (#1763).
 
-    Returns `(agents_in_window, dispatch_failure_agents)`, both `frozenset` —
-    a PUBLIC, `__all__`-exported interface change from the prior bare `set`
-    return; the sole caller (`pre_commit_review.py`'s
-    `_cosmetic_carry_forward_verdict`) unpacks the tuple.
+    Pinned convenience signature over `evaluate_cosmetic_carry_forward()`
+    (matching `distinct_review_agent_dispatches`'s own precedent as a thin
+    wrapper over `evaluate()`) — called with an empty `raw_hashes`, so its
+    union reduces to exactly the normalized binding's own evidence. Kept as
+    its own named entry point for callers that only ever have one hash to
+    check, and to keep this normalized-hash-only case covered by its own
+    direct unit tests independent of `pre_commit_review.py`'s specific
+    caller shape.
 
+    Returns `(agents_in_window, dispatch_failure_agents)`, both `frozenset`.
     Same fail-CLOSED posture and same live-registry re-validation as
     `evaluate()` — this is the raw-hash query with one field swapped, not a
-    weaker check. An empty or falsy `subject_hash_normalized` matches nothing:
-    events written before that field existed carry no value for it, and
-    treating "both sides absent" as a match would let any pre-#1627 ledger
-    corroborate any changeset. A ledger read failure returns
-    `(frozenset(), _UNPROVABLE_DISPATCH_FAILURE)` — fail CLOSED on the
+    weaker check. An empty or falsy `subject_hash_normalized` matches
+    nothing for POSITIVE evidence (events written before that field existed
+    carry no value for it, and treating "both sides absent" as a match
+    would let any pre-#1627 ledger corroborate any changeset) — negative
+    evidence in that same case is `_UNPROVABLE_DISPATCH_FAILURE`, not an
+    all-clear, since an unbindable query cannot prove absence of failure
+    either. A ledger or registry read failure returns the same
+    `(frozenset(), _UNPROVABLE_DISPATCH_FAILURE)` shape — fail CLOSED on the
     negative-evidence side exactly like `evaluate()`.
-
-    `boundary_events.py`'s `--event dispatch-failure` CLI stamps both
-    `subject_hash` and `subject_hash_normalized` on the events it writes
-    (`SKILL.md` Step 4 and `sliced-mode.md` both compute and pass the
-    normalized hash alongside the raw one), so `dispatch_failure_agents`
-    here reflects genuine data on this path, not only the read-failure
-    sentinel.
     """
-    if not subject_hash_normalized:
-        # An unbindable query cannot prove absence of failure either — the
-        # negative-evidence side must not read as an all-clear here, same
-        # fail-closed posture as the read-failure branch a few lines below
-        # (#1763 security review).
-        return frozenset(), _UNPROVABLE_DISPATCH_FAILURE
-    entries, failure = _read_ledger(cwd)
-    if failure is not None:
-        return frozenset(), _UNPROVABLE_DISPATCH_FAILURE
-    dispatches = [
-        e
-        for e in metrics_query.filter_entries(
-            entries, event_type=_EVENT_TYPE, gate_outcome=_DECISION
-        )
-        if e.get("subject_hash_normalized") == subject_hash_normalized
-    ]
-    since = _since_bound(before_ts, window_seconds)
-    in_window = metrics_query.filter_entries(dispatches, since=since, until=before_ts)
-    registered = _registered_agents()
-    # `registered_for_positive`: a registry-read failure (`None`) collapses
-    # to empty here — safe for POSITIVE evidence, since narrowing can only
-    # ever narrow (never widen) what counts as corroboration. `registered`
-    # itself (possibly `None`) is passed through unchanged to
-    # `_agents_with_unsuperseded_failure` below, which needs to distinguish
-    # "read failed" from "genuinely zero agents" for NEGATIVE evidence.
-    registered_for_positive = registered if registered is not None else frozenset()
-    agents = frozenset(
-        e["matched_rule"]
-        for e in in_window
-        if isinstance(e.get("matched_rule"), str) and e["matched_rule"] in registered_for_positive
+    evidence = evaluate_cosmetic_carry_forward(
+        cwd, before_ts, window_seconds, subject_hash_normalized, ()
     )
-
-    same_subject_failures = [
-        e
-        for e in metrics_query.filter_entries(
-            entries, event_type=_DISPATCH_FAILURE_HOOK, gate_outcome=_DISPATCH_FAILURE_DECISION
-        )
-        if e.get("subject_hash_normalized") == subject_hash_normalized
-    ]
-    dispatch_failure_agents = _agents_with_unsuperseded_failure(
-        dispatches, same_subject_failures, registered
-    )
-
-    return agents, dispatch_failure_agents
+    return evidence.agents_in_window, evidence.dispatch_failure_agents
 
 
 def _has_exemption(cwd, before_ts: str, window_seconds: int, subject_hash: str, rule: str) -> bool:
@@ -573,10 +704,12 @@ def has_single_agent_exemption(cwd, before_ts: str, window_seconds: int, subject
 
 
 __all__ = (
+    "CosmeticCarryForwardEvidence",
     "LedgerEvidence",
     "distinct_normalized_dispatches",
     "distinct_review_agent_dispatches",
     "evaluate",
+    "evaluate_cosmetic_carry_forward",
     "has_doc_only_exemption",
     "has_single_agent_exemption",
     "mtime_to_iso",

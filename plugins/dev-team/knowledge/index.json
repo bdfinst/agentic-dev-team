@@ -5795,8 +5795,12 @@
       "anchor": "when-to-build-it"
     },
     "Workflow": {
-      "summary": "Run against the branch under test to find v3-only usage that would need porting:",
+      "summary": "Before editing an artifact this workflow has already produced, read it first — each of these only exists once the workflow has reached the step that creates it, so don't expect all three on the proactive, before-the-first-run path:",
       "anchor": "workflow"
+    },
+    "Read before editing": {
+      "summary": "Before editing an artifact this workflow has already produced, read it first — each of these only exists once the workflow has reached the step that creates it, so don't expect all three on the proactive, before-the-first-run path:",
+      "anchor": "read-before-editing"
     },
     "Step 1 — Scope probe (decide whether the shim is cheap)": {
       "summary": "Run against the branch under test to find v3-only usage that would need porting:",
