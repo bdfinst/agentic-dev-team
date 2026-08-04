@@ -153,6 +153,7 @@ import subprocess
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
+from typing import NamedTuple
 
 _HOOK_DIR = Path(__file__).resolve().parent
 _LIB_DIR = _HOOK_DIR / "lib"
@@ -641,7 +642,11 @@ class GateVerdict:
 
 
 def _hash_verdict(
-    gate_file: Path, current_hash: str, *, unstaged_commit: bool = False
+    gate_file: Path,
+    current_hash: str,
+    stored_hashes: StoredGateHashes,
+    *,
+    unstaged_commit: bool = False,
 ) -> GateVerdict | None:
     """Lens: the original hash-match check, unchanged, evaluated FIRST
     and independent of dispatch-ledger evidence — a hash mismatch (or a
@@ -661,47 +666,91 @@ def _hash_verdict(
     when it does, meaning "hash OK, continue to the dispatch-ledger
     corroboration lenses".
 
-    Reads the stored hash via `_stored_gate_hashes()` (issue #1646) rather
-    than its own raw `.strip()` of the whole file: `.review-passed` gained
-    an optional second line in #1627 (the normalization-invariant hash), and
-    stripping the WHOLE file compared `"line1\\nline2"` against a single-line
+    Reads the stored hash from the caller-supplied `stored_hashes` tuple
+    (issue #1646, then #1804 to stop re-reading `.review-passed` a second
+    time in `_cosmetic_carry_forward_verdict()`) rather than its own raw
+    `.strip()` of the whole file: `.review-passed` gained an optional second
+    line in #1627 (the normalization-invariant hash), and stripping the
+    WHOLE file compared `"line1\\nline2"` against a single-line
     `current_hash` — never equal, so a 2-line gate file always mismatched
     here regardless of whether the first line's hash was correct. That made
     `_single_agent_exemption_verdict()` (only reached once this lens returns
     `None`) structurally unreachable for any gate file carrying the optional
     second line. `_stored_gate_hashes()` already parses just the first line
-    correctly; reuse it instead of duplicating (and mis-duplicating) that
-    parse here.
+    correctly; the caller (`_evaluate_gate`) calls it once and passes the
+    result here instead of this lens re-deriving it from disk.
     """
     block_message = _UNSTAGED_BLOCK_MESSAGE if unstaged_commit else _BLOCK_MESSAGE
     block_rule = "pre-commit-review-unstaged" if unstaged_commit else "pre-commit-review"
     if not gate_file.is_file():
         return GateVerdict(False, block_message, block_rule)
-    stored, _normalized = _stored_gate_hashes(gate_file)
-    if not stored or stored != current_hash:
+    stored_raw, _normalized = stored_hashes
+    if not stored_raw or stored_raw != current_hash:
         return GateVerdict(False, block_message, block_rule)
     return None
 
 
-def _stored_gate_hashes(gate_file: Path) -> tuple[str, str | None]:
+class StoredGateHashes(NamedTuple):
+    """`.review-passed`'s two hashes, named (#1813 domain review) so
+    `_stored_gate_hashes()`'s own construction can't silently swap
+    `raw`/`normalized` by position — a bare `tuple[str, str | None]` would
+    type-check either way. The value it returns is then threaded from
+    `_evaluate_gate` (the one call site) into two consumers, `_hash_verdict`
+    and `_cosmetic_carry_forward_verdict`, which carries a distinct nominal
+    type rather than an anonymous pair, though each still unpacks it
+    positionally rather than through `.raw`/`.normalized`."""
+
+    raw: str
+    normalized: str | None
+
+
+def _stored_gate_hashes(gate_file: Path) -> StoredGateHashes:
     """Read `.review-passed`'s hashes: `(raw, normalized_or_None)`.
 
     The file gained an optional SECOND line in #1627 (raw hash, then
     normalized hash). A 1-line file stays raw-only and returns `None` for the
     normalized value — fully backward compatible, and such a file can never
     satisfy the carry-forward lens below.
+
+    Fails CLOSED on ANY read/decode error (#1813 security review, widened
+    from `except OSError` after correctness/security re-review both showed
+    that alone was incomplete): a `MemoryError` slurping an oversized file, a
+    `LookupError` from a broken locale codec, or any other exception here
+    would otherwise propagate through `_evaluate_gate` and `main()`
+    (uncaught at its own call site) to the module's top-level `except
+    Exception: sys.exit(0)` — silently ALLOWING the commit, the exact
+    outcome `_evaluate_gate`'s own docstring says a gate-decision failure
+    must never produce. This exposure PRE-DATES #1804's consolidation: even
+    before that refactor, `_hash_verdict` called this function directly and
+    unguarded, and that call ran before `_evaluate_gate`'s own fail-closed
+    `try` — so an undecodable `.review-passed` already silently allowed the
+    commit on every prior release; #1804 didn't introduce or newly expose
+    it, it only moved the one unguarded read to a single point where it can
+    be closed comprehensively, which this widened `except` now does.
+    Reading with `errors="replace"` additionally degrades the common
+    undecodable-bytes case to a line that simply won't match any real hash
+    (so `_hash_verdict`'s `not stored_raw or stored_raw != current_hash`
+    fails closed on its own, without even reaching the `except` below) —
+    kept as the graceful, non-exceptional path; the broadened `except`
+    behind it is the total, catch-everything backstop for whatever
+    `errors="replace"` doesn't cover.
     """
     try:
-        lines = [ln.strip() for ln in gate_file.read_text().splitlines()]
-    except OSError:
-        return "", None
+        lines = [ln.strip() for ln in gate_file.read_text(errors="replace").splitlines()]
+    except Exception:  # noqa: BLE001 - fail CLOSED: an unreadable gate file is not a pass
+        return StoredGateHashes("", None)
     raw = lines[0] if lines else ""
     normalized = lines[1] if len(lines) > 1 and lines[1] else None
-    return raw, normalized
+    return StoredGateHashes(raw, normalized)
 
 
 def _cosmetic_carry_forward_verdict(
-    gate_file: Path, cwd: str, current_hash: str, *, unstaged_commit: bool = False
+    gate_file: Path,
+    cwd: str,
+    current_hash: str,
+    stored_hashes: StoredGateHashes,
+    *,
+    unstaged_commit: bool = False,
 ) -> GateVerdict | None:
     """Lens: cosmetic-delta carry-forward (#1627).
 
@@ -753,7 +802,7 @@ def _cosmetic_carry_forward_verdict(
     CLOSED on any error.
     """
     try:
-        stored_raw, stored_normalized = _stored_gate_hashes(gate_file)
+        stored_raw, stored_normalized = stored_hashes
         if not stored_normalized:
             return None
 
@@ -1007,16 +1056,19 @@ def _evaluate_gate(
     runs afterward) that only matters under concurrent staging in the same
     working tree.
     """
-    verdict = _hash_verdict(gate_file, current_hash, unstaged_commit=unstaged_commit)
+    stored_hashes = _stored_gate_hashes(gate_file)
+    verdict = _hash_verdict(gate_file, current_hash, stored_hashes, unstaged_commit=unstaged_commit)
     if verdict is not None:
         # The raw hash mismatched. Before returning that rejection, give the
         # cosmetic-delta carry-forward lens (#1627) its chance: a re-stage
         # that provably changed no behavior (doc hunks, indentation) should
         # not force fresh dispatches whose only purpose is to feed the
         # ledger. The lens returns None unless it can prove the case, so the
-        # rejection below is the default, not the exception.
+        # rejection below is the default, not the exception. `stored_hashes`
+        # is read once, here, and threaded into both lenses (#1804) — they
+        # used to each re-read and re-parse `.review-passed` independently.
         carry_forward = _cosmetic_carry_forward_verdict(
-            gate_file, cwd, current_hash, unstaged_commit=unstaged_commit
+            gate_file, cwd, current_hash, stored_hashes, unstaged_commit=unstaged_commit
         )
         if carry_forward is not None:
             return carry_forward
