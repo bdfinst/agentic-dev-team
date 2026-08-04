@@ -40,6 +40,11 @@ def test_init_records_all_slices_pending_with_cap(tmp_path):
     assert ledger.ledger_path(str(tmp_path)).exists()
 
 
+def test_raw_dir_resolves_under_consolidated_root(tmp_path):
+    assert ledger.raw_dir(str(tmp_path)) == tmp_path / ".dev-team-reports" / "code-review" / "raw"
+    assert ledger.section_path(str(tmp_path), "0001").parent == ledger.raw_dir(str(tmp_path))
+
+
 def test_write_section_creates_artifact_and_flips_status(tmp_path):
     ledger.init_ledger(_slices(), cap=50, root=str(tmp_path))
     findings = [{"severity": "warning", "file": "src/a.ts", "line": 3, "message": "x"}]
