@@ -118,15 +118,43 @@ def mark_done(root: str, slice_id: str) -> None:
 
 
 def pending_slices(slices: list[dict], root: str) -> list[dict]:
-    """Return the slices still needing review — those with no section artifact.
+    """Return the slices still needing review.
 
     **Disk is the source of truth**, not the ledger's ``status`` field. A slice
     whose ``raw/section-<id>.json`` exists is treated as done (skipped) even if
     the ledger still says ``pending``; a slice whose artifact is missing is
     pending even if the ledger says ``done``. This makes ``--resume`` robust to a
     ledger that was never updated before an interruption.
+
+    A slice whose artifact *exists* but carries a non-empty ``dispatchFailures``
+    list is still pending — this is the one exception to "artifact exists ->
+    done", so ``--resume`` naturally re-dispatches only the previously-failed
+    slice(s) instead of reusing a recorded failure as-is.
+
+    A malformed artifact (unreadable, undecodable, or valid JSON of the wrong
+    shape) is also treated as pending, never as a crash — matching
+    ``consolidate.py``'s ``_read_sections``' own tolerance for exactly this
+    corruption on the same file set; a reader of ``raw/section-*.json`` that
+    raised here would abort the whole ``--resume`` run instead of just
+    re-reviewing the one bad slice.
     """
-    return [s for s in slices if not section_path(root, s["id"]).exists()]
+    pending = []
+    for s in slices:
+        path = section_path(root, s["id"])
+        if not path.exists():
+            pending.append(s)
+            continue
+        try:
+            artifact = json.loads(path.read_text())
+        except (json.JSONDecodeError, OSError):
+            pending.append(s)
+            continue
+        if not isinstance(artifact, dict):
+            pending.append(s)
+            continue
+        if artifact.get("dispatchFailures"):
+            pending.append(s)
+    return pending
 
 
 def check_resume_cap(root: str, requested_cap: int | None) -> None:
@@ -149,12 +177,21 @@ def check_resume_cap(root: str, requested_cap: int | None) -> None:
         )
 
 
-def write_section(slice_record: dict, findings: list, panel: list[str], root: str) -> Path:
+def write_section(
+    slice_record: dict,
+    findings: list,
+    panel: list[str],
+    root: str,
+    dispatch_failures: list | None = None,
+) -> Path:
     """Persist a reviewed slice's findings and mark it done in the ledger.
 
     ``slice_record`` is a partition record (``id``/``files``/``is_declarative``).
     ``panel`` is the list of agent names that ran (so a reader can tell a
-    reduced-panel slice from a full one). Returns the artifact path.
+    reduced-panel slice from a full one). ``dispatch_failures`` is an optional
+    list of unrecovered per-slice dispatch failures (empty when omitted) —
+    ``pending_slices`` treats a non-empty list as still-pending on
+    ``--resume``. Returns the artifact path.
     """
     artifact = {
         "schema": SECTION_SCHEMA,
@@ -163,6 +200,7 @@ def write_section(slice_record: dict, findings: list, panel: list[str], root: st
         "is_declarative": bool(slice_record.get("is_declarative", False)),
         "panel": list(panel),
         "findings": list(findings),
+        "dispatchFailures": list(dispatch_failures or []),
     }
     path = section_path(root, slice_record["id"])
     _atomic_write_json(path, artifact)
@@ -193,6 +231,11 @@ def main(argv: list[str] | None = None) -> int:
     p_ws.add_argument("--slice", required=True, help="slice record JSON (file or inline)")
     p_ws.add_argument("--findings", required=True, help="findings JSON (file or inline)")
     p_ws.add_argument("--panel", required=True, help="comma-separated agent names")
+    p_ws.add_argument(
+        "--dispatch-failures",
+        default=None,
+        help="dispatch failures JSON list (file or inline); omit for none",
+    )
 
     p_pending = sub.add_parser("pending", help="list slices still needing review")
     p_pending.add_argument("--root", default=".")
@@ -212,6 +255,9 @@ def main(argv: list[str] | None = None) -> int:
             _load_json_arg(args.findings),
             [a.strip() for a in args.panel.split(",") if a.strip()],
             args.root,
+            dispatch_failures=(
+                _load_json_arg(args.dispatch_failures) if args.dispatch_failures else None
+            ),
         )
         print(f"Section written: {path}")
         return 0

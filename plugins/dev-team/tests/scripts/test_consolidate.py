@@ -149,6 +149,11 @@ def test_main_reports_malformed_artifact_not_silently_dropped(tmp_path, capsys):
     out = json.loads(captured.out)
     assert out["sliceCount"] == 1
     assert out["malformedArtifacts"]
+    # #1763 security review: an unexamined slice must never ride out as
+    # "pass" — the readable section here has no findings and no
+    # dispatchFailures, so without the malformed-forces-fail override,
+    # overall would silently be "pass".
+    assert out["overall"] == "fail"
 
 
 def test_main_treats_wrong_shape_json_as_malformed(tmp_path, capsys):
@@ -163,6 +168,7 @@ def test_main_treats_wrong_shape_json_as_malformed(tmp_path, capsys):
     assert "section-0002.json" in captured.err
     out = json.loads(captured.out)
     assert out["sliceCount"] == 1
+    assert out["overall"] == "fail"
 
 
 # --- schema-drift tolerance (#1261) -------------------------------------------
@@ -238,6 +244,43 @@ def test_normalize_malformed_inputs_never_raise():
     assert consolidate.normalize_agent_result({"issues": ["bogus", {"file": "a"}]}) == [
         {"file": "a", "agent": None}
     ]
+
+
+def test_no_dispatch_failures_yields_empty_aggregate_list():
+    """No section carries dispatchFailures -> aggregate's list is [], unaffected."""
+    sections = [_section("0001", [_f("src/a.ts", 1, "warning", "x")])]
+    result = consolidate.consolidate(sections)
+    assert result["dispatchFailures"] == []
+    assert result["overall"] == "warn"
+
+
+def test_dispatch_failures_folded_and_force_overall_fail():
+    """One section's dispatchFailures entries are folded into the aggregate's own
+    array, and overall is forced to "fail" even when totals alone say "pass"."""
+    sections = [_section("0001", []), _section("0002", [])]
+    sections[0]["dispatchFailures"] = [{"agentName": "security-review", "subjectHash": "abc"}]
+    result = consolidate.consolidate(sections)
+    assert result["dispatchFailures"] == [{"agentName": "security-review", "subjectHash": "abc"}]
+    assert result["overall"] == "fail"
+
+
+def test_dispatch_failures_concat_across_multiple_sections():
+    """Entries from every section concatenate into one aggregate array."""
+    sections = [_section("0001", []), _section("0002", [])]
+    sections[0]["dispatchFailures"] = [{"agentName": "security-review"}]
+    sections[1]["dispatchFailures"] = [{"agentName": "correctness-review"}]
+    result = consolidate.consolidate(sections)
+    assert result["dispatchFailures"] == [{"agentName": "security-review"}, {"agentName": "correctness-review"}]
+    assert result["overall"] == "fail"
+
+
+def test_malformed_dispatch_failures_key_treated_as_empty_never_raises():
+    """A non-list dispatchFailures value degrades to empty rather than raising."""
+    sections = [_section("0001", [])]
+    sections[0]["dispatchFailures"] = "not-a-list"
+    result = consolidate.consolidate(sections)
+    assert result["dispatchFailures"] == []
+    assert result["overall"] == "pass"
 
 
 def test_normalized_findings_feed_consolidate_end_to_end():
