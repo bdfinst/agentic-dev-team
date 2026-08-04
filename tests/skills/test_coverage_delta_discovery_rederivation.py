@@ -188,6 +188,8 @@ def test_second_call_hard_fails_on_a_newly_unaccounted_project(tmp_path):
     assert result_2.stopped is True
     assert project_c in result_2.hard_failure_message
     assert result_2.hard_failure_message.startswith("Coverage capture stopped:")
+    for phrase in COVERAGE_DELTA_GENERIC_RUN_FAILURE_PHRASES:
+        assert phrase not in result_2.hard_failure_message
     assert result_2.delta_written is False
 
 

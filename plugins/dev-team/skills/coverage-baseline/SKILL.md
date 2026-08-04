@@ -235,7 +235,7 @@ Append a baseline summary to the workflow's baseline memory file (for `/test-imp
 **Tracker mode** — append a markdown block to the parent issue's description (the resolved CLI was recorded in Phase 1):
 
 ```markdown
-## Phase-3 baseline (captured <ISO-8601>)
+## Phase-2 baseline (captured <ISO-8601>)
 - Coverage tool: <tool>
 - Line: <pct>%
 - Branch: <pct>% (or "not native — see notes")
@@ -247,16 +247,16 @@ Use the same CLI pattern Phase 1 resolved. Examples:
 
 ```bash
 # GitHub
-gh issue edit <parent-id> --body-file <(gh issue view <parent-id> --json body -q .body; echo; cat phase-3-block.md)
+gh issue edit <parent-id> --body-file <(gh issue view <parent-id> --json body -q .body; echo; cat phase-2-block.md)
 
 # Azure DevOps
 az boards work-item update --id <parent-id> --description "$(az boards work-item show --id <parent-id> --query 'fields."System.Description"' -o tsv)<append>"
 
 # GitLab
-glab issue note add <parent-iid> --message "$(cat phase-3-block.md)"
+glab issue note add <parent-iid> --message "$(cat phase-2-block.md)"
 
 # Jira
-acli jira workitem comment add --key <parent-key> --body "$(cat phase-3-block.md)"
+acli jira workitem comment add --key <parent-key> --body "$(cat phase-2-block.md)"
 ```
 
 **Local-files mode** — append the block to `.claude/plans/<workflow>/FEATURE.md` under a `## Metrics history` heading (create the heading if missing).
@@ -274,4 +274,4 @@ Print:
 
 - Coverage tools may legitimately differ by repo; never replace the repo's own script with a generic one unless detection fails. Operator override always wins.
 - The "fastest pre-merge wall-clock" target is not captured here — that's recorded by `/quality-targets-converge` once the full suite is in place. Baseline is line + branch only.
-- For Go (and any tool without native branch coverage), `branch_pct` is `null` and `phase-3.md` flags the gap so the operator can decide whether to install an alternate coverage tool or waive the target.
+- For Go (and any tool without native branch coverage), `branch_pct` is `null` and `phase-2.md` flags the gap so the operator can decide whether to install an alternate coverage tool or waive the target.

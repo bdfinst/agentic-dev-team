@@ -416,6 +416,29 @@ def test_non_list_excluded_raises_clear_value_error():
         drift_check(config, discovered(("A", TEST)))
 
 
+def test_non_string_included_entry_raises_clear_value_error():
+    """A non-string entry in `included` (e.g. a dict) must never reach the
+    `path in included_paths` set-building logic — building a set from an
+    unhashable dict raises an unhandled TypeError today; this must instead
+    raise the same style of ValueError the shape guard already uses for a
+    non-list `included`/`excluded`, naming the offending entry."""
+    config = {"included": ["A", {"path": "B"}], "excluded": []}
+
+    with pytest.raises(ValueError, match="included"):
+        drift_check(config, discovered(("A", TEST)))
+
+
+def test_non_string_excluded_entry_missing_path_raises_clear_value_error():
+    """A dict entry in `excluded` missing its `"path"` key must never reach
+    the `entry["path"]` access inside the normalization comprehension — that
+    raises an unhandled KeyError today; this must instead raise the same
+    style of ValueError, naming the offending entry."""
+    config = {"included": [], "excluded": [{"reason": "no path key"}]}
+
+    with pytest.raises(ValueError, match="excluded"):
+        drift_check(config, discovered(("A", TEST)))
+
+
 def test_discovery_error_returns_shared_error_signal_shape():
     assert discovery_error("x") == {"signal": "error", "message": "x"}
 
@@ -532,6 +555,45 @@ def test_weighted_merge_none_branch_totals_degrade_to_zero_total():
     assert result["branch_pct"] is None
 
 
+def test_weighted_merge_missing_count_field_is_a_loud_discovery_error():
+    """An incomplete per-project report (a count field entirely absent, not
+    merely `None`) must never silently degrade to a 0/null baseline — it
+    must produce the same discovery-error signal a genuine discovery/tooling
+    failure produces, naming the missing field(s)."""
+    incomplete_project = {
+        "covered_statements": 10,
+        # "total_statements" entirely absent
+        "covered_branches": 0,
+        "total_branches": 0,
+    }
+
+    result = weighted_merge([incomplete_project])
+
+    assert result == discovery_error(
+        "Coverage report is missing required count field(s): "
+        "['total_statements']"
+    )
+
+
+def test_weighted_merge_explicit_none_count_field_still_degrades_to_zero_total():
+    """Distinct from the missing-field case above: a field PRESENT with an
+    explicit `None` value is the legitimate zero-total-for-this-metric
+    convention (e.g. Go has no native branch coverage) and must keep
+    degrading to the existing zero-total -> None percentage behavior,
+    unchanged by the missing-field validation."""
+    project = {
+        "covered_statements": 10,
+        "total_statements": None,
+        "covered_branches": 0,
+        "total_branches": 0,
+    }
+
+    result = weighted_merge([project])
+
+    assert result["line_pct"] is None
+    assert result["branch_pct"] is None
+
+
 # ---------------------------------------------------------------------------
 # Step 1.4: measurement_basis_notice
 # ---------------------------------------------------------------------------
@@ -572,6 +634,36 @@ def test_measurement_basis_notice_none_for_same_instant_different_iso_suffix():
     )
 
     assert notice is None
+
+
+def test_measurement_basis_notice_never_raises_on_naive_captured_at():
+    """`bootstrapped_at` is always tz-aware (`Z`-suffixed, per
+    `load_or_bootstrap`), but `captured_at` may come from a pre-existing
+    `baseline-coverage.json` written before this feature, with no timezone
+    suffix at all. Comparing a naive and an aware datetime must never raise
+    `TypeError` — the function's documented contract is "never raises,
+    returns None or a string" — so a naive value is treated as UTC."""
+    notice = measurement_basis_notice("2026-08-04T12:00:00Z", "2026-08-01T00:00:00")
+
+    assert notice == (
+        "Note: this baseline predates multi-project discovery (bootstrapped "
+        "2026-08-04T12:00:00Z). This delta may reflect a widened "
+        "measurement scope, not only a real coverage change. Consider "
+        "re-running /coverage-baseline for a directly comparable baseline."
+    )
+
+
+def test_measurement_basis_notice_never_raises_on_naive_bootstrapped_at():
+    """Same tolerance, the other direction: a naive `bootstrapped_at` must
+    not raise either."""
+    notice = measurement_basis_notice("2026-08-04T12:00:00", "2026-08-01T00:00:00Z")
+
+    assert notice == (
+        "Note: this baseline predates multi-project discovery (bootstrapped "
+        "2026-08-04T12:00:00). This delta may reflect a widened "
+        "measurement scope, not only a real coverage change. Consider "
+        "re-running /coverage-baseline for a directly comparable baseline."
+    )
 
 
 # ---------------------------------------------------------------------------

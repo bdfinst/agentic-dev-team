@@ -34,8 +34,9 @@ from coverage_config import (  # noqa: E402
     drift_check,
     format_active_exclusions,
     measurement_basis_notice,
-    weighted_merge,
 )
+
+from coverage_flow_shared import merge_included_reports  # noqa: E402
 
 # coverage-delta/SKILL.md Step 2's own pre-existing, unedited generic
 # run-failure wording — the generic banner text every hard-failure block in
@@ -59,33 +60,6 @@ class DeltaFlowResult:
     merged: dict | None = None
     delta_written: bool = False
     active_exclusions_message: str | None = None
-
-
-def _merge_included_reports(
-    included: list, discovered: list, project_reports_by_path: dict
-) -> dict:
-    """Same tolerance rule as
-    `coverage_baseline_flow_helpers._merge_included_reports`: a
-    legitimately-stale included path (no longer discovered at all) is
-    skipped silently; a path present in both `included` and `discovered`
-    but still missing a report is a test-fixture wiring bug, not a
-    legitimate runtime gap, and raises loudly instead of under-counting it
-    into the merge."""
-    discovered_paths = {entry["path"] for entry in discovered}
-    included_reports = []
-    for path in included:
-        if path in project_reports_by_path:
-            included_reports.append(project_reports_by_path[path])
-        elif path not in discovered_paths:
-            continue  # legitimately stale; not this helper's job to flag
-        else:
-            raise AssertionError(
-                f"{path!r} is in both config['included'] and the discovered "
-                "projects, but has no matching entry in "
-                "project_reports_by_path — the test fixture is wired wrong, "
-                "not exercising a legitimate runtime gap."
-            )
-    return weighted_merge(included_reports)
 
 
 def run_delta_flow(
@@ -149,7 +123,7 @@ def run_delta_flow(
 
     merged = None
     if project_reports_by_path is not None:
-        merged = _merge_included_reports(
+        merged = merge_included_reports(
             config["included"], discovered, project_reports_by_path
         )
 

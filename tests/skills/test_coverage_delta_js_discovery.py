@@ -21,7 +21,10 @@ from pathlib import Path
 
 import pytest
 
-from coverage_delta_flow_helpers import run_delta_flow
+from coverage_delta_flow_helpers import (
+    COVERAGE_DELTA_GENERIC_RUN_FAILURE_PHRASES,
+    run_delta_flow,
+)
 from skill_doc_helpers import PLUGIN_ROOT
 
 SCRIPTS_DIR = PLUGIN_ROOT / "scripts"
@@ -121,7 +124,60 @@ def test_js_unaccounted_package_hard_fails_without_generic_banner_text(tmp_path)
     assert result.stopped is True
     assert "packages/c" in result.hard_failure_message
     assert result.hard_failure_message.startswith("Coverage capture stopped:")
+    for phrase in COVERAGE_DELTA_GENERIC_RUN_FAILURE_PHRASES:
+        assert phrase not in result.hard_failure_message
     assert result.delta_written is False
+
+
+# ---------------------------------------------------------------------------
+# Integration: discovery never reuses a frozen list — a package present only
+# on the second call hard-fails even though the first call succeeded. JS/TS
+# equivalent of
+# test_coverage_delta_discovery_rederivation.py::test_second_call_hard_fails_on_a_newly_unaccounted_project
+# — Slice 5's defining behavior ("never a frozen list") had no JS/TS test.
+# ---------------------------------------------------------------------------
+
+
+def test_js_second_call_hard_fails_on_a_newly_unaccounted_package(tmp_path):
+    pkg(tmp_path, {"name": "root", "private": True, "workspaces": ["packages/*"]})
+    pkg(tmp_path / "packages" / "a", TEST_PKG)
+
+    config_path = tmp_path / "coverage-config.json"
+    config_path.write_text(
+        json.dumps({"included": ["packages/a"], "excluded": []}), encoding="utf-8"
+    )
+    baseline = {"captured_at": "2026-08-04T12:00:00Z", "line_pct": 41.2, "branch_pct": 28.7}
+
+    # First call: only packages/a exists on disk — matches config, succeeds.
+    discovered_1 = cdj.discover_js_packages(tmp_path)
+    result_1 = run_delta_flow(
+        discovered_1,
+        config_path,
+        baseline,
+        {
+            "packages/a": {
+                "covered_statements": 10,
+                "total_statements": 10,
+                "covered_branches": 0,
+                "total_branches": 0,
+            }
+        },
+    )
+    assert result_1.stopped is False
+
+    # Second call: packages/b now exists on disk too — never in config's
+    # included/excluded — hard-fails even though nothing about the config
+    # or the coverage tool changed between calls.
+    pkg(tmp_path / "packages" / "b", TEST_PKG)
+    discovered_2 = cdj.discover_js_packages(tmp_path)
+    result_2 = run_delta_flow(discovered_2, config_path, baseline)
+
+    assert result_2.stopped is True
+    assert "packages/b" in result_2.hard_failure_message
+    assert result_2.hard_failure_message.startswith("Coverage capture stopped:")
+    for phrase in COVERAGE_DELTA_GENERIC_RUN_FAILURE_PHRASES:
+        assert phrase not in result_2.hard_failure_message
+    assert result_2.delta_written is False
 
 
 # ---------------------------------------------------------------------------

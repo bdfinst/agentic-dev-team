@@ -27,7 +27,7 @@ from __future__ import annotations
 import json
 import os
 import tempfile
-from datetime import datetime
+from datetime import datetime, timezone
 from enum import Enum
 from pathlib import Path
 
@@ -160,6 +160,18 @@ def _read_existing_config(config_path: Path) -> dict | None:
         return None
 
 
+def _normalize_excluded(excluded_entries: list) -> list:
+    """Normalize `excluded` entries to `{"path": ..., "reason": ...}` dicts,
+    tolerating a bare path string (normalized to `{"path": s, "reason":
+    ""}`) — the shared normalization `drift_check` and
+    `format_active_exclusions` both need, extracted so they share one
+    implementation rather than two byte-identical copies."""
+    return [
+        {"path": entry, "reason": ""} if isinstance(entry, str) else entry
+        for entry in excluded_entries
+    ]
+
+
 def drift_check(config: dict, discovered_projects: list) -> dict:
     """Compare `config`'s `included`/`excluded` entries against fresh
     `discovered_projects` (a list of `{"path": ..., "classification":
@@ -207,10 +219,23 @@ def drift_check(config: dict, discovered_projects: list) -> dict:
             f"{type(config['excluded']).__name__} instead."
         )
 
-    normalized_excluded = [
-        {"path": entry, "reason": ""} if isinstance(entry, str) else entry
-        for entry in excluded_entries
-    ]
+    for entry in included_list:
+        if not isinstance(entry, str):
+            raise ValueError(
+                "coverage-config.json \"included\" entries must all be "
+                f"path strings; got {entry!r} instead."
+            )
+    for entry in excluded_entries:
+        if not isinstance(entry, str) and (
+            not isinstance(entry, dict) or "path" not in entry
+        ):
+            raise ValueError(
+                "coverage-config.json \"excluded\" entries must all be a "
+                "path string or a {\"path\": ..., \"reason\": ...} entry "
+                f"carrying a \"path\" key; got {entry!r} instead."
+            )
+
+    normalized_excluded = _normalize_excluded(excluded_entries)
     excluded_by_path = {entry["path"]: entry for entry in normalized_excluded}
     excluded_paths = set(excluded_by_path)
     included_paths = set(included_list)
@@ -323,15 +348,20 @@ def format_active_exclusions(config: dict) -> str | None:
     excluded_entries = config.get("excluded", [])
     if not excluded_entries:
         return None
-    normalized = [
-        {"path": entry, "reason": ""} if isinstance(entry, str) else entry
-        for entry in excluded_entries
-    ]
+    normalized = _normalize_excluded(excluded_entries)
     return "\n".join(
         f"Excluded: '{entry['path']}' (reason: "
         f"'{entry.get('reason', '<no reason recorded>')}')"
         for entry in normalized
     )
+
+
+_WEIGHTED_MERGE_REQUIRED_FIELDS = (
+    "covered_statements",
+    "total_statements",
+    "covered_branches",
+    "total_branches",
+)
 
 
 def weighted_merge(project_reports: list) -> dict:
@@ -347,7 +377,25 @@ def weighted_merge(project_reports: list) -> dict:
     own Go-coverage convention for a tool with no native branch coverage)
     coerces to 0 rather than raising `TypeError`, degrading to the same
     zero-total → `None` result.
+
+    A count field **entirely absent** from a report dict is a different,
+    louder case: it means the report is incomplete (a per-project report
+    carrying only percentages with no raw counts), never the legitimate
+    zero-total-for-this-metric convention above. This is validated in an
+    upfront pass, before any summing, and returns the shared
+    `discovery_error(...)` signal naming the missing field(s) rather than
+    silently proceeding to a null/0 baseline — "key entirely absent" and
+    "key present with value `None`" must never be treated identically.
     """
+    for report in project_reports:
+        missing_fields = [
+            field for field in _WEIGHTED_MERGE_REQUIRED_FIELDS if field not in report
+        ]
+        if missing_fields:
+            return discovery_error(
+                f"Coverage report is missing required count field(s): {missing_fields}"
+            )
+
     total_statements = sum(
         (report.get("total_statements") or 0) for report in project_reports
     )
@@ -373,11 +421,23 @@ def _parse_iso8601(value: str) -> datetime | None:
     """Parse an ISO-8601 timestamp, substituting a trailing `Z` with
     `+00:00` first (`datetime.fromisoformat` doesn't accept a bare `Z`).
     Returns `None` on any unparseable input rather than raising — callers
-    treat that as "cannot compare, no notice"."""
+    treat that as "cannot compare, no notice".
+
+    A parsed value with no timezone (naive — no explicit `Z`/offset in the
+    input) is assumed UTC. `bootstrapped_at` is always `Z`-suffixed (per
+    `load_or_bootstrap`), but `captured_at` may come from a pre-existing
+    `baseline-coverage.json` written before this feature, with no timezone
+    guarantee at all — comparing a naive and an aware `datetime` raises
+    `TypeError`, so every value returned here is aware, treating an absent
+    offset as the safe, conservative UTC assumption this codebase already
+    uses elsewhere."""
     try:
-        return datetime.fromisoformat(value.replace("Z", "+00:00"))
+        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
     except (TypeError, ValueError, AttributeError):
         return None
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=timezone.utc)
+    return parsed
 
 
 def measurement_basis_notice(bootstrapped_at, captured_at: str):

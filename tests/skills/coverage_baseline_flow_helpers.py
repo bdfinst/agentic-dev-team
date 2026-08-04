@@ -36,10 +36,11 @@ from coverage_config import (  # noqa: E402
     drift_check,
     load_or_bootstrap,
     needs_accounting,
-    weighted_merge,
 )
 
 import coverage_discovery_dotnet as cdd  # noqa: E402
+
+from coverage_flow_shared import merge_included_reports  # noqa: E402
 
 # The exact zero-real-test-project message template documented in
 # SKILL.md Step 1a / references/multi-project-discovery.md Step 2.
@@ -90,42 +91,6 @@ class BaselineFlowResult:
     config: dict | None = None
     merged: dict | None = None
     baseline_written: bool = False
-
-
-def _merge_included_reports(
-    included: list, discovered: list, project_reports_by_path: dict
-) -> dict:
-    """Merge per-project reports for every path in `included`, distinguishing
-    two reasons a path can be missing from `project_reports_by_path`:
-
-    - **Legitimately stale** — the path is no longer in `discovered` at all
-      (it was removed/renamed since `included` was written). `drift_check`
-      doesn't check `included` entries for staleness (only `excluded`), so
-      this is the one place that class of gap is tolerated — skip silently,
-      matching the existing "stale exclusions are a warning, not a failure"
-      precedent.
-    - **Wired wrong** — the path is in BOTH `included` and `discovered` but
-      still has no matching report. That combination can't be legitimate
-      drift; it means the calling test's fixture forgot to supply a report
-      for a project the flow expects one for. Fail loudly rather than
-      silently under-counting it into the merge — this is test-helper code,
-      not production code, so a loud failure here is correct.
-    """
-    discovered_paths = {entry["path"] for entry in discovered}
-    included_reports = []
-    for path in included:
-        if path in project_reports_by_path:
-            included_reports.append(project_reports_by_path[path])
-        elif path not in discovered_paths:
-            continue  # legitimately stale; not this helper's job to flag
-        else:
-            raise AssertionError(
-                f"{path!r} is in both config['included'] and the discovered "
-                "projects, but has no matching entry in "
-                "project_reports_by_path — the test fixture is wired wrong, "
-                "not exercising a legitimate runtime gap."
-            )
-    return weighted_merge(included_reports)
 
 
 def run_baseline_flow(
@@ -183,7 +148,7 @@ def run_baseline_flow(
 
     merged = None
     if project_reports_by_path is not None:
-        merged = _merge_included_reports(
+        merged = merge_included_reports(
             config["included"], discovered, project_reports_by_path
         )
 
