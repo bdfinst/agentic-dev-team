@@ -138,9 +138,10 @@ def test_emit_fails_open_on_arbitrary_exception(tmp_path: Path, monkeypatch) -> 
     assert not (tmp_path / ".claude" / "metrics" / "boundary-events.jsonl").exists()
 
 
-def test_emit_swallows_bad_cwd_type(monkeypatch) -> None:
+def test_emit_swallows_bad_cwd_type(tmp_path: Path, monkeypatch) -> None:
     """An unusable `cwd` (e.g. None with no real cwd fallback failing) must
     still not raise — fail-open covers the whole call, not just I/O."""
+    monkeypatch.setattr(boundary_events.Path, "cwd", lambda: tmp_path)
     boundary_events.emit_boundary_event(None, "h", "Bash", "warn", "r")
 
 
