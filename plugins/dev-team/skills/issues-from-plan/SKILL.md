@@ -51,7 +51,15 @@ Then locate the plan's **spec** (the linked spec artifact or `docs/specs/<...>.m
 
 For each unit of work, draft an issue with:
 
-- **Title**: Short, action-oriented (e.g., "Add user authentication endpoint")
+- **Title**: a Conventional Commit — `<type>: <short, action-oriented summary>`
+  (e.g., `feat: add user authentication endpoint`), matching
+  `commitlint.config.js`'s ruleset. These titles seed branch names, PR
+  titles, and release versions once the sub-issue's PR merges, and
+  `.github/workflows/issue-title-lint.yml` labels
+  `needs-conventional-title` on anything that doesn't conform — check
+  proactively instead of relying on that backstop:
+  `printf '%s' "<title>" | npx commitlint --verbose`. If it exits non-zero,
+  fix the title before creating the issue.
 - **Body**:
   - What to build (behavior description, not implementation details)
   - Acceptance criteria as checkboxes

@@ -208,14 +208,28 @@ All gap and ambiguity findings from the Ambiguity Resolution Protocol, with thei
 
 #### Persist to GitHub issue
 
-1. **Slugify** the feature name (same rule as above) — used to derive the issue title and search query, not a file path.
-2. **Search** for an existing open issue: `gh issue list --search "Spec: <Feature Name> in:title" --state open`. If this call itself exits non-zero, treat it as a hard failure — **never** as "zero matches" (that would risk silently creating a duplicate issue) — report the failure and its cause to chat, and fall back to **Persist to file** above with the already-composed content so the approved spec is never lost.
+**Issue titles are Conventional Commits, not `Spec: <Feature Name>`.** These
+issues become epics — their titles seed branch names, PR titles, and (once
+their sub-issues land) release versions, so they must pass the same
+commitlint ruleset as a commit message (`.github/workflows/issue-title-lint.yml`
+enforces this after the fact by labeling `needs-conventional-title`; do not
+rely on that backstop — lint proactively, before `gh issue create`, so the
+label is never needed). Compose the title as `<type>(spec): <Feature Name>`
+— `type` is almost always `feat` (a spec describing new behavior) or `docs`
+(a spec that is itself the only deliverable, no code follows); pick
+whichever matches the work the spec actually describes, never default
+blindly to one. Example: `feat(spec): User Login with MFA`. Verify with
+`printf '%s' "<composed title>" | npx commitlint --verbose` before creating
+or renaming — if it exits non-zero, fix the title, don't create anyway.
+
+1. **Slugify** the feature name (same rule as above) — used to derive the search query, not a file path or the title itself.
+2. **Search** for an existing open issue: `gh issue list --search "<Feature Name> in:title" --state open`. If this call itself exits non-zero, treat it as a hard failure — **never** as "zero matches" (that would risk silently creating a duplicate issue) — report the failure and its cause to chat, and fall back to **Persist to file** above with the already-composed content so the approved spec is never lost.
 3. **Branch on the match count**:
    - **Zero matches** → proceed straight to create (step 4).
    - **Exactly one match** → interactive: ask "Found existing issue #N for this spec — update it in place, or create a new one?"; non-interactive (no usable TTY): default to **updating** that single match in place (never create a duplicate) and log the auto-choice.
    - **Two or more matches** → interactive: surface every matching issue and ask which to update, or whether to create a new one instead — never silently pick one; non-interactive: default to **creating** a new issue and explicitly log the ambiguity (which candidate issues it did not act on).
-4. **Compose** the issue body using the same structure as the file template above (Intent Description, Architecture Specification, Acceptance Criteria, Ambiguity Log, Consistency Gate), titled `Spec: <Feature Name>`.
-5. **Create** (`gh issue create --title "Spec: <Feature Name>" --body "<composed body>"`) or **update** (`gh issue edit <N> --body "<composed body>"`) per step 3's decision.
+4. **Compose** the issue body using the same structure as the file template above (Intent Description, Architecture Specification, Acceptance Criteria, Ambiguity Log, Consistency Gate), titled `<type>(spec): <Feature Name>` per the rule above.
+5. **Create** (`gh issue create --title "<type>(spec): <Feature Name>" --body "<composed body>"`) or **update** (`gh issue edit <N> --body "<composed body>"`) per step 3's decision. Updating an existing issue's body never touches its title — if the existing title predates this convention, rename it too (`gh issue edit <N> --title "..."`) rather than leaving a stale non-conventional title behind.
 6. If the create/update call exits non-zero, report the failure and its cause to chat, do **not** claim success, and fall back to **Persist to file** above with the already-composed content.
 7. On success, **print** the resulting issue URL to chat — do not write `docs/specs/<slug>.md` on this path.
 
