@@ -699,6 +699,158 @@ def test_distinct_normalized_dispatches_empty_hash_fails_closed_on_negative_evid
 
 
 # ---------------------------------------------------------------------------
+# evaluate_cosmetic_carry_forward() — single-read-pass evidence for the
+# normalized-hash binding plus every raw-hash binding (#1836 perf fix and
+# the security/correctness findings raised against its first draft: no
+# ledger/registry read-count regression, and the sentinel must never mix
+# into a union with real agent names).
+# ---------------------------------------------------------------------------
+
+
+def test_evaluate_cosmetic_carry_forward_missing_ledger_fails_closed(tmp_path: Path) -> None:
+    result = rgc.evaluate_cosmetic_carry_forward(
+        tmp_path, _ANCHOR, _WINDOW, "norm-hash-1", ("raw-a", "raw-b")
+    )
+    assert result == (frozenset(), "missing", rgc._UNPROVABLE_DISPATCH_FAILURE)
+
+
+def test_evaluate_cosmetic_carry_forward_unreadable_ledger_fails_closed(
+    tmp_path: Path,
+) -> None:
+    log = tmp_path / ".claude" / "metrics" / "boundary-events.jsonl"
+    log.parent.mkdir(parents=True, exist_ok=True)
+    log.write_bytes(b"\xff\xfe\x00not valid utf-8\x80\x81")
+    result = rgc.evaluate_cosmetic_carry_forward(
+        tmp_path, _ANCHOR, _WINDOW, "norm-hash-1", ("raw-a",)
+    )
+    assert result.read_failure_reason == "unreadable"
+    assert result.dispatch_failure_agents == rgc._UNPROVABLE_DISPATCH_FAILURE
+
+
+def test_evaluate_cosmetic_carry_forward_registry_failure_is_pure_sentinel_not_mixed(
+    tmp_path: Path, monkeypatch
+) -> None:
+    """A registry-read failure must make the WHOLE result the sentinel —
+    never mixed with the real agents_in_window a positive normalized-hash
+    dispatch would otherwise contribute."""
+    _write_ledger(
+        tmp_path, [_record_normalized("2026-01-01T11:55:00Z", "security-review", "norm-hash-1")]
+    )
+    monkeypatch.setattr(rgc, "_registered_agents", lambda: None)
+    result = rgc.evaluate_cosmetic_carry_forward(
+        tmp_path, _ANCHOR, _WINDOW, "norm-hash-1", ("raw-a",)
+    )
+    assert result.read_failure_reason is None
+    assert result.dispatch_failure_agents == rgc._UNPROVABLE_DISPATCH_FAILURE
+
+
+def test_evaluate_cosmetic_carry_forward_falsy_normalized_hash_never_mixes_sentinel_with_real_raw_failure(
+    tmp_path: Path,
+) -> None:
+    """#1836 security/correctness review regression test: a falsy
+    `subject_hash_normalized` contributes the unprovable sentinel for its
+    own slot, but a genuine raw-hash dispatch-failure elsewhere must not get
+    unioned WITH that sentinel into a mixed set — the caller's `==` sentinel
+    check in `pre_commit_review.py` cannot detect a mixed set, and
+    `_dispatch_failure_message` would render the sentinel string as if it
+    were a real agent name. The whole result must be EXACTLY the sentinel."""
+    _write_ledger(tmp_path, [_dispatch_failure("2026-01-01T11:55:00Z", "security-review")])
+    result = rgc.evaluate_cosmetic_carry_forward(tmp_path, _ANCHOR, _WINDOW, "", (_HASH,))
+    assert result.agents_in_window == frozenset()
+    assert result.dispatch_failure_agents == rgc._UNPROVABLE_DISPATCH_FAILURE
+    assert "security-review" not in result.dispatch_failure_agents
+
+
+def test_evaluate_cosmetic_carry_forward_falsy_raw_hash_fails_closed_not_silently_skipped(
+    tmp_path: Path,
+) -> None:
+    """#1836 correctness/security review: a falsy raw hash cannot bind any
+    evidence, so it cannot prove the ABSENCE of a dispatch failure either —
+    silently SKIPPING it would read as an all-clear it never earned. Must
+    make the whole result unprovable, not a no-op."""
+    _write_ledger(
+        tmp_path, [_record_normalized("2026-01-01T11:55:00Z", "security-review", "norm-hash-1")]
+    )
+    result = rgc.evaluate_cosmetic_carry_forward(
+        tmp_path, _ANCHOR, _WINDOW, "norm-hash-1", ("", "raw-b")
+    )
+    assert result.dispatch_failure_agents == rgc._UNPROVABLE_DISPATCH_FAILURE
+
+
+def test_evaluate_cosmetic_carry_forward_dispatch_failure_bound_only_to_second_raw_hash(
+    tmp_path: Path,
+) -> None:
+    """Closes the fail-open gap test-review flagged: a dispatch-failure
+    recorded against ONLY the second raw hash (modeling `current_hash` when
+    `stored_raw` carries no evidence) must still surface — not just the
+    first raw hash checked."""
+    _write_ledger(tmp_path, [_dispatch_failure("2026-01-01T11:55:00Z", "security-review")])
+    result = rgc.evaluate_cosmetic_carry_forward(
+        tmp_path, _ANCHOR, _WINDOW, "norm-hash-1", ("unrelated-raw-hash", _HASH)
+    )
+    assert result.dispatch_failure_agents == frozenset({"security-review"})
+
+
+def test_evaluate_cosmetic_carry_forward_duplicate_raw_hashes_counted_once(
+    tmp_path: Path,
+) -> None:
+    _write_ledger(tmp_path, [_dispatch_failure("2026-01-01T11:55:00Z", "security-review")])
+    once = rgc.evaluate_cosmetic_carry_forward(tmp_path, _ANCHOR, _WINDOW, "norm-hash-1", (_HASH,))
+    twice = rgc.evaluate_cosmetic_carry_forward(
+        tmp_path, _ANCHOR, _WINDOW, "norm-hash-1", (_HASH, _HASH)
+    )
+    assert once.dispatch_failure_agents == twice.dispatch_failure_agents == frozenset(
+        {"security-review"}
+    )
+
+
+def test_evaluate_cosmetic_carry_forward_bare_str_raw_hash_is_not_iterated_as_characters(
+    tmp_path: Path,
+) -> None:
+    """A bare `str` passed as `raw_hashes` (the natural mistake for a caller
+    with only one raw hash) must be treated as ONE hash, never iterated
+    character-by-character — the latter would silently match nothing and
+    produce a false all-clear."""
+    _write_ledger(tmp_path, [_dispatch_failure("2026-01-01T11:55:00Z", "security-review", _HASH)])
+    result = rgc.evaluate_cosmetic_carry_forward(tmp_path, _ANCHOR, _WINDOW, "norm-hash-1", _HASH)
+    assert result.dispatch_failure_agents == frozenset({"security-review"})
+
+
+def test_evaluate_cosmetic_carry_forward_positive_evidence_only_from_normalized_binding(
+    tmp_path: Path,
+) -> None:
+    """A dispatch recorded only under a raw hash (never the normalized
+    hash) must never contribute to `agents_in_window` — positive evidence
+    stays scoped to the single normalized-hash binding."""
+    _write_ledger(tmp_path, [_record("2026-01-01T11:55:00Z", "security-review", _HASH)])
+    result = rgc.evaluate_cosmetic_carry_forward(
+        tmp_path, _ANCHOR, _WINDOW, "norm-hash-1", (_HASH,)
+    )
+    assert result.agents_in_window == frozenset()
+
+
+def test_evaluate_cosmetic_carry_forward_reads_ledger_exactly_once(
+    tmp_path: Path, monkeypatch
+) -> None:
+    """#1836 perf fix: one `_read_ledger` call must answer the
+    normalized-hash query AND every raw-hash binding, not one read per
+    binding. State-based assertions on the returned evidence can't observe
+    this by construction — this spy is the only thing that pins the
+    property the rewrite exists for."""
+    _write_ledger(tmp_path, [_record_normalized("2026-01-01T11:55:00Z", "security-review", "n1")])
+    calls = []
+    real_read_ledger = rgc._read_ledger
+
+    def _spy(cwd):
+        calls.append(cwd)
+        return real_read_ledger(cwd)
+
+    monkeypatch.setattr(rgc, "_read_ledger", _spy)
+    rgc.evaluate_cosmetic_carry_forward(tmp_path, _ANCHOR, _WINDOW, "n1", ("raw-a", "raw-b"))
+    assert len(calls) == 1
+
+
+# ---------------------------------------------------------------------------
 # mtime_to_iso()
 # ---------------------------------------------------------------------------
 
