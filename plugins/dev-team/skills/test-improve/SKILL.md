@@ -306,6 +306,46 @@ This is independent of the mutation mode: a coverage baseline is persisted in
 every mode, and the mutation baseline is written **only** in
 `baseline+kill-loop` mode (see below).
 
+**Coverage-gap ranking — the targeting input for Phases 1, 4, and 5 (issue
+#1786).** As soon as `baseline-coverage.json` lands, compute the per-module
+uncovered-line breakdown from the same report the baseline was parsed from
+(its `raw_report` field). This runs in **every mutation mode** — it is the
+coverage targeting input, independent of whether mutation work happens at
+all — and it is computed by script, never estimated in prose:
+
+```
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/coverage_gap_ranking.py" \
+  --report <baseline raw_report> \
+  --target-line-pct <line target> --target-branch-pct <branch target> \
+  --top 0 --json \
+  --out .dev-team-reports/test-improve/<slug>/data/coverage-gap-ranking.json
+```
+
+The script buckets every source file into a package/assembly/module and ranks
+the buckets by **uncovered lines descending**, marking each bucket's `seam`
+as `established` (coverage at or above the seam threshold — a test-only change
+is proven to reach it) or `absent` (near-zero coverage — nothing there is
+proven reachable without a production-code seam). `--out` writes the payload
+atomically (temp-file-then-rename), so `coverage-gap-ranking.json` lands in
+the same git-tracked `data/` sibling as the baselines and is read directly
+from there by Phase 1, Phase 4, and Phase 5.
+
+**Mutation survivors are not an input to this ranking, and must not become
+one.** A surviving mutant can only exist on a line a test already executes, so
+a survivor-ordered priority list structurally *excludes* the 0%-covered layers
+that hold most of the missing coverage. That is the failure this ranking
+exists to prevent: a Pass-1 run spent its entire Phase 5 adding mutation-kill
+assertions to layers already at 88-95% line coverage while the layer holding
+~93% of the lines needed to reach the coverage target sat at 0-11% and was
+never targeted.
+
+**A missing or unparseable report is not a clean ranking.** **Exit 2** means
+the script found nothing to rank (report absent, unrecognized, or parsed to
+zero coverage records) — never an all-clear. Name the report path it tried and
+resolve it (re-run `/coverage-baseline`, or point `--report` at the artifact
+the coverage tool actually emitted) before Phase 1 runs. **Do not proceed with
+mutation survivors as a stand-in ordering.**
+
 **Mutation baseline (`baseline+kill-loop` only).** When `phase-0.md` recorded
 mutation mode **`baseline+kill-loop`**, check for an existing tracked baseline
 before invoking `/mutation-testing --baseline` — this is Phase 2's own
@@ -419,6 +459,28 @@ either **omitted** or marked "not enabled for this run". When it recorded
 `/test-health` is not invoked with a mutation flag — the mode flows through from
 `phase-0.md` and the section is handled at report time.
 
+**Order the plan by the coverage-gap ranking whenever a coverage percentage
+is a stated goal (issue #1786).** Read
+`.dev-team-reports/test-improve/<slug>/data/coverage-gap-ranking.json` — Phase
+2 wrote it — and order the coverage-driven items of `/test-health`'s ordered
+improvement plan by that ranking's `modules` array (`rank` 1 first), not by
+mutation survivor count and not by an ordering re-derived here. `/test-health`'s
+own ordering stands only for items the ranking does not speak to (flakiness,
+determinism, suite shape), and for a run where **no coverage percentage is a
+stated goal** (Phase-0 knob 4 overrode the coverage targets away) the ranking
+is **informational** rather than the ordering authority.
+
+**Mutation survivors order work *within* an already-seamed module, never
+across modules.** A module whose ranking entry reads `seam: established`
+already has baseline coverage, so survivor counts are the right next signal
+*there* — that is the ordering the `mutation-kill` agent applies inside Phase
+5. A module whose entry reads `seam: absent` needs coverage before it needs
+assertion quality, and is ordered by uncovered lines alone. Under
+`refactor-mode: no-refactor` a top-ranked `seam: absent` module whose tests
+need a production seam is still shown in the presented plan — labeled
+**skipped-in-no-refactor** per the human gate below — so the operator sees the
+coverage left on the table instead of a plan that quietly reorders around it.
+
 **Output.** Persist the rolled-up analysis plus the ordered improvement plan to
 `.claude/memory/test-improve/<slug>/phase-1.md`.
 
@@ -516,6 +578,15 @@ one non-actionable class:
 - **`REFACTOR_REQUIRED`** — needs a production-code seam before a test can reach the behavior. REFACTOR_REQUIRED items are **deferred to Phase 7** and are **not written as Phase-5 Stories**; they surface with rationale for the operator, who decides at Phase 6 whether to enter Phase 7. Under `refactor-mode: no-refactor` they are labeled **out-of-scope (skipped-in-no-refactor)** in the plan — informational context, never an actionable Story this run will execute.
 - **`LOW_VALUE`** — tests that are cheap to have but not worth fixing (e.g. duplicate coverage, trivial getters, dead-code assertions). LOW_VALUE findings are **advisory-only**: enumerated in the report, no PR is opened to delete a test flagged this way.
 - **`NOT_IMPLEMENTED`** (`/test-health`'s gherkin-gap classification only) — the scenario's behavior doesn't exist in production code at all. Not a test-improve target in **any** mode: it is **not** written as a Phase-5 Story and **not** deferred to Phase 7 — Phase 7 accepts seam introductions only, and there is no seam to introduce for behavior that hasn't been written yet. It surfaces only as a feature-gap call-out in the report, same as `LOW_VALUE`'s advisory-only treatment.
+
+**Story order follows the coverage-gap ranking (issue #1786).** When a
+coverage percentage is a stated goal, the NO_REFACTOR Story set is written in
+`coverage-gap-ranking.json` **rank order** — highest uncovered-line bucket
+first — so Phase 5 spends its budget on the layer that actually holds the
+missing coverage. Pass that order to `/issues-from-assessment` as the order to
+preserve; it **does not re-derive an order of its own**, and neither a mutation
+survivor count nor a finding's position in `/test-health`'s prose reorders the
+set.
 
 **Persistence.** Persist the classified finding set to
 `.claude/memory/test-improve/<slug>/phase-4.md`.
