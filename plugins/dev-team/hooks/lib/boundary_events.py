@@ -91,12 +91,11 @@ def emit_boundary_event(
             `agent_dispatch_ledger.py`). "dispatch-failure" (#1763) is also
             non-verdict-counted, observational — it notes that a dispatched
             review agent failed to return a contract-valid result even after
-            one retry. Unlike "record" it is designed to be consumed ONLY as
-            NEGATIVE evidence, by a gate veto in
-            `hooks/lib/review_gate_corroboration.py` (a later slice of the
-            same #1763 epic this event's write side landed in — until that
-            read path exists, this event is write-only telemetry with no
-            consumer), so a forged event can only ever narrow corroboration,
+            one retry. Unlike "record" it is consumed ONLY as NEGATIVE
+            evidence, by the gate veto in
+            `hooks/lib/review_gate_corroboration.py`/`hooks/pre_commit_review.py`
+            (`_dispatch_failure_verdict` and `_cosmetic_carry_forward_verdict`,
+            #1763), so a forged event can only ever narrow corroboration,
             never widen it. Exclude both from verdict counts; see
             `knowledge/telemetry-schema.md`.
         matched_rule: A rule ID from a closed vocabulary — never free
@@ -163,18 +162,14 @@ def emit_boundary_event(
 # its own branch in `_main()`, via `_CLI_AGENT_EVENTS`, not this dict) is
 # deliberately NOT a fixed tuple — it carries one piece of caller-supplied,
 # per-invocation data (the failed agent's name) as `matched_rule`, which a
-# static tuple can't express. This is still safe BY DESIGN, independent of
-# whether the read side has landed yet: the decision value it writes
-# ("dispatch-failure") is intended to be consumed ONLY as negative evidence,
-# by a gate veto in `hooks/lib/review_gate_corroboration.py` — never as
-# corroborating evidence for a `.review-passed` write — so a forged/hand-run
-# invocation can only ever narrow corroboration (cause a false block on a
-# gate that would otherwise pass), never widen it (cause a false pass), once
-# that veto exists. Until the veto's read path lands (a later slice of this
-# same epic), this event is inert write-only telemetry — no code path
-# consumes it yet, so it can neither cause a false block nor prevent one;
-# the safety property above describes the design's intended end state, not
-# a claim that enforcement is already wired up. The opposite forgery
+# static tuple can't express. This is still safe: the decision value it
+# writes ("dispatch-failure") is consumed ONLY as negative evidence, by the
+# gate veto in `hooks/lib/review_gate_corroboration.py`/
+# `hooks/pre_commit_review.py` (`_dispatch_failure_verdict` and
+# `_cosmetic_carry_forward_verdict`) — never as corroborating evidence for a
+# `.review-passed` write — so a forged/hand-run invocation can only ever
+# narrow corroboration (cause a false block on a gate that would otherwise
+# pass), never widen it (cause a false pass). The opposite forgery
 # direction from "record" either way. The agent name is still validated at
 # write time against the registered review-agent set
 # (`review_agent_registry.registered_review_agent_names`, with the same
@@ -222,11 +217,10 @@ def _main() -> int:
     [--subject-hash-normalized <hash>]` (#1763): used by `SKILL.md` Step 4
     (and `sliced-mode.md`'s per-slice loop) when a dispatched review agent
     still fails to return a contract-valid result after its single retry,
-    recording that fact as negative evidence intended for
-    `hooks/lib/review_gate_corroboration.py`'s gate veto (landing in the
-    same epic, #1763's later slice — this event is write-only telemetry
-    until that read path exists; do not assume a `.review-passed` write is
-    blocked by it before that lands). The optional
+    recording that fact as negative evidence for
+    `hooks/lib/review_gate_corroboration.py`/`hooks/pre_commit_review.py`'s
+    gate veto (`_dispatch_failure_verdict` and
+    `_cosmetic_carry_forward_verdict`, #1763). The optional
     `--subject-hash-normalized` mirrors `agent_dispatch_ledger.py`'s own
     `"record"` events, which stamp both hashes — without it, the gate's
     cosmetic-delta carry-forward lens (which reads only the normalized

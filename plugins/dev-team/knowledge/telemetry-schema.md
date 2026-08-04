@@ -52,15 +52,14 @@ return a contract-valid result after one retry. Emitted via
 `<name>` is validated against the registered review-agent set at write time
 (with the same plugin-prefix normalization as `record`) — an unregistered
 name is silently not recorded. Unlike `record`, `dispatch-failure` is
-designed to be consumed only as NEGATIVE evidence: a gate veto in
-`hooks/lib/review_gate_corroboration.py` (a later slice of the same #1763
-epic) is intended to treat it as a reason to reject a `.review-passed`
-write, never as corroboration for one — until that read path lands, this
-decision is write-only telemetry with no consumer. Once it does, a
-forged/hand-run `dispatch-failure` event can only ever cause a false
-rejection, never a false pass — the opposite forgery direction from `record`,
-which is why this decision (unlike `record`) is safely reachable from the
-CLI's closed `--event` vocabulary.
+consumed only as NEGATIVE evidence: the gate veto in
+`hooks/lib/review_gate_corroboration.py` / `hooks/pre_commit_review.py`
+(`_dispatch_failure_verdict` and `_cosmetic_carry_forward_verdict`, #1763)
+treats it as a reason to reject a `.review-passed` write, never as
+corroboration for one. A forged/hand-run `dispatch-failure` event can only
+ever cause a false rejection, never a false pass — the opposite forgery
+direction from `record`, which is why this decision (unlike `record`) is
+safely reachable from the CLI's closed `--event` vocabulary.
 
 | Field | Type | Values / source |
 | --- | --- | --- |
