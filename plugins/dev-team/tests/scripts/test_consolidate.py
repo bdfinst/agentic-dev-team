@@ -240,6 +240,43 @@ def test_normalize_malformed_inputs_never_raise():
     ]
 
 
+def test_no_dispatch_failures_yields_empty_aggregate_list():
+    """No section carries dispatchFailures -> aggregate's list is [], unaffected."""
+    sections = [_section("0001", [_f("src/a.ts", 1, "warning", "x")])]
+    result = consolidate.consolidate(sections)
+    assert result["dispatchFailures"] == []
+    assert result["overall"] == "warn"
+
+
+def test_dispatch_failures_folded_and_force_overall_fail():
+    """One section's dispatchFailures entries are folded into the aggregate's own
+    array, and overall is forced to "fail" even when totals alone say "pass"."""
+    sections = [_section("0001", []), _section("0002", [])]
+    sections[0]["dispatchFailures"] = [{"agent": "security-review", "subjectHash": "abc"}]
+    result = consolidate.consolidate(sections)
+    assert result["dispatchFailures"] == [{"agent": "security-review", "subjectHash": "abc"}]
+    assert result["overall"] == "fail"
+
+
+def test_dispatch_failures_concat_across_multiple_sections():
+    """Entries from every section concatenate into one aggregate array."""
+    sections = [_section("0001", []), _section("0002", [])]
+    sections[0]["dispatchFailures"] = [{"agent": "security-review"}]
+    sections[1]["dispatchFailures"] = [{"agent": "correctness-review"}]
+    result = consolidate.consolidate(sections)
+    assert result["dispatchFailures"] == [{"agent": "security-review"}, {"agent": "correctness-review"}]
+    assert result["overall"] == "fail"
+
+
+def test_malformed_dispatch_failures_key_treated_as_empty_never_raises():
+    """A non-list dispatchFailures value degrades to empty rather than raising."""
+    sections = [_section("0001", [])]
+    sections[0]["dispatchFailures"] = "not-a-list"
+    result = consolidate.consolidate(sections)
+    assert result["dispatchFailures"] == []
+    assert result["overall"] == "pass"
+
+
 def test_normalized_findings_feed_consolidate_end_to_end():
     """The normalize→section→consolidate path an orchestrator would follow."""
     agent_a = {"agentName": "structure-review", "status": "warn",

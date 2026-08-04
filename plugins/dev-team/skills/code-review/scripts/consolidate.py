@@ -164,12 +164,16 @@ def consolidate(sections: list[dict]) -> dict:
     theme_slices: dict = {}    # agent -> set of slice ids
     theme_counts: dict = {}    # agent -> total findings
     reduced_panel_slices: list = []
+    dispatch_failures: list = []
     totals = {"errors": 0, "warnings": 0, "suggestions": 0}
 
     for section in sections:
         slice_id = section.get("id")
         if section.get("is_declarative"):
             reduced_panel_slices.append(slice_id)
+        section_dispatch_failures = section.get("dispatchFailures")
+        if isinstance(section_dispatch_failures, list):
+            dispatch_failures.extend(section_dispatch_failures)
         for finding in _findings_of(section):
             severity = finding.get("severity", _DEFAULT_SEVERITY)
             _tally_severity(totals, severity)
@@ -187,6 +191,11 @@ def consolidate(sections: list[dict]) -> dict:
     recurring_themes.sort(key=lambda t: (-t["occurrences"], t["agent"]))
 
     overall = "fail" if totals["errors"] else "warn" if totals["warnings"] else "pass"
+    # A non-empty dispatchFailures forces overall: fail, unconditionally — applied
+    # after the totals-based computation above so it always wins, mirroring the
+    # legacy (non-sliced) path's own unconditional-override rule.
+    if dispatch_failures:
+        overall = "fail"
 
     return {
         "sliced": True,
@@ -196,6 +205,7 @@ def consolidate(sections: list[dict]) -> dict:
         "topFindings": top_findings,
         "recurringThemes": recurring_themes,
         "reducedPanelSlices": _sorted_ids(reduced_panel_slices),
+        "dispatchFailures": dispatch_failures,
         "summary": (
             f"{overall.upper()} across {len(sections)} slices — "
             f"{totals['errors']} errors, {totals['warnings']} warnings, "
