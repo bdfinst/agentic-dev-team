@@ -51,6 +51,19 @@ than forcing it. The Step 1 scope probe quantifies this.
 
 ## Workflow
 
+### Read before editing
+
+Before editing an artifact this workflow has already produced, read it first — each of these only exists once the workflow has reached the step that creates it, so don't expect all three on the proactive, before-the-first-run path:
+
+- the mutant-survivors report (`StrykerOutput/<timestamp>/reports/mutation-report.json`) — once a Stryker run has completed
+- the shim config (`stryker-config.json`) — once Step 2 has created it
+- the step files (the shim's linked test source files) — once they exist on disk
+
+**Converged-state check.** Compare each file's current content against the
+target state described in the step you're about to run before editing it.
+If a file already matches its target state, skip re-editing it — do not
+overwrite a file that has already converged.
+
 ### Step 1 — Scope probe (decide whether the shim is cheap)
 
 Run against the branch under test to find v3-only usage that would need porting:

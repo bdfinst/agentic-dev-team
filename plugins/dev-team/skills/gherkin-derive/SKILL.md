@@ -294,6 +294,23 @@ cause it is):
   script recognizes (`.js`/`.ts`/`.mjs`/`.cjs`/`.java`/`.cs`/`.go`). Fix how
   this skill derived `--ext` from the surface's language before retrying.
 
+**Batch shared context-file edits (issue #1775).** When multiple surfaces
+discovered in this run add to the same shared acceptance-test-context file
+(e.g. a shared step-definition registration/support file, hooks module, or
+world/context setup shared across surfaces), collect every surface's
+addition to that shared file first, then apply them in **one edit pass** for
+that file — never reopen and re-edit the same shared context file once per
+step definition or per surface. Reopening it N times for N step
+registrations produces N redundant read/write round-trips for content that
+could have been composed once. **"One edit pass" still means one merge, never
+one raw `Write`, when the shared file is a step-definition/registration
+file** — collecting every surface's addition first is a batching optimization
+over how many times you invoke `gherkin_stub_merge.py merge`, not a license
+to replace it with a single `Write`; combine all the batched additions into
+one `--candidates` scratch file and make exactly one `gherkin_stub_merge.py
+merge` call against the shared file, per the Merge, never overwrite rule
+above (issue #1421).
+
 ## Step 5 — Output
 
 - `features/<surface>.feature` files (all non-`none` modes) — **merged, not
