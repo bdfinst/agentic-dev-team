@@ -4623,6 +4623,36 @@
       "anchor": "adding-a-diagram-to-an-existing-file"
     }
   },
+  "plugins/dev-team/skills/mutation-night-watch/SKILL.md": {
+    "Why this exists, and how it differs from `mutation-kill`": {
+      "summary": "`mutation-kill` already has two modes: **interactive** (an agent generates",
+      "anchor": "why-this-exists-and-how-it-differs-from-mutation-kill"
+    },
+    "Constraints": {
+      "summary": "**Report-only.",
+      "anchor": "constraints"
+    },
+    "Step 1: Detect and preview scope": {
+      "summary": "Run once without `--detach` on a small scope, or just read the detection",
+      "anchor": "step-1-detect-and-preview-scope"
+    },
+    "Step 2: Launch detached (survives closing the terminal/session)": {
+      "summary": "`--detach` re-execs the script into a new session/process group (POSIX",
+      "anchor": "step-2-launch-detached-survives-closing-the-terminalsession"
+    },
+    "Step 3: Schedule a recurring run (optional)": {
+      "summary": "Per-OS recipes — Task Scheduler, launchd, and cron — live in",
+      "anchor": "step-3-schedule-a-recurring-run-optional"
+    },
+    "Step 4: Morning hand-off": {
+      "summary": "Read `reports/mutation-nightwatch/LATEST/MORNING-SUMMARY.md` first — it",
+      "anchor": "step-4-morning-hand-off"
+    },
+    "When not to apply": {
+      "summary": "No mutation tool is set up yet for any stack → run",
+      "anchor": "when-not-to-apply"
+    }
+  },
   "plugins/dev-team/skills/mutation-testing/SKILL.md": {
     "Constraints": {
       "summary": "**Always ask the user before running.** Present the time estimate and scope; get explicit approval.",

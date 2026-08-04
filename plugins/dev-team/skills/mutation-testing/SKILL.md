@@ -15,6 +15,8 @@ Wraps a real mutation tool (Stryker, pitest, mutmut, Stryker.NET, go-mutesting) 
 
 This file describes the language-agnostic workflow and the data contract. **Per-language detail — install, run commands, timeout flag names, native-report mapping — lives in [`references/languages/`](references/languages/).** Detect the language first via [`references/tool-detection.md`](references/tool-detection.md), then load the matching language file.
 
+**Unattended, LLM-free overnight measurement.** [`scripts/mutation_nightwatch.py`](scripts/mutation_nightwatch.py) (detection/repair/measurement mechanics split into [`scripts/mutation_nightwatch_stacks.py`](scripts/mutation_nightwatch_stacks.py)) is a third, report-only mode alongside `mutation-kill`'s interactive and `--headless` fixing modes — no generation, no LLM, no commits, so it can run overnight unattended. See the companion [`mutation-night-watch`](../mutation-night-watch/SKILL.md) skill for launch/detach/schedule guidance.
+
 ## Constraints
 
 - **Always ask the user before running.** Present the time estimate and scope; get explicit approval. Mutation testing can be slow — never surprise the user.
