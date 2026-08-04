@@ -114,6 +114,181 @@ silently accepted:
    The gate decision itself is still correctly fail-closed; only the
    operator-facing message and the `dispatch-evidence-stale` audit rule are
    imprecise in this one edge case.
+5. `is_git_commit_command`'s widened detection (`hooks/lib/pre_commit_detect.py`
+   — a single quote-aware tokenizing pass over the WHOLE command (with a
+   bare newline masked to `;` before tokenizing, so it acts as a real
+   separator without breaking a multi-line quoted value the way per-line
+   splitting once did, and a POSIX backslash-newline line continuation
+   deleted entirely rather than preserved), split on separator TOKENS
+   rather than raw-string separator characters, token-walked global
+   options basename-matched against path-qualified spellings, bare
+   `NAME=value` prefixes, and a token-level `<shell> -c`/clustered-`-c`
+   recognizer that genuinely recurses into nested wrapping; #1801, now
+   through FIVE rounds of correctness-review/security-review re-review,
+   each of which found and closed real false negatives in the previous
+   round's own attempt — see item 8 for what the fifth round's closing
+   pass found and left disclosed rather than fixed) is
+   still a best-effort heuristic, not a real shell parser, and stays
+   incomplete: a `git` alias (`git.alias.ci = commit`), a genuinely
+   PATH-shadowed non-standard binary NAMED `git`/`bash`/etc (as opposed to
+   the absolute-path spelling of the REAL one, which this module now
+   recognizes via basename matching), `eval`, `xargs` (its semantics
+   don't fit the "leading word directly followed by the real command"
+   shape the enumerated wrappers share), a compound-command keyword this
+   module doesn't enumerate (`for`, `while`, `case`, `until` — only
+   `then`/`do`/`else`/`elif` are), a wrapper OR git global option that
+   both (a) this module has never heard of AND (b) takes its argument as
+   a SEPARATE token (an unrecognized option is safely skipped when it's
+   boolean-only, or when its value is `=`-attached to the same token —
+   only the separate-token-value combination is a gap; concretely, `bash
+   -o pipefail -c '...'` evades the shell-`-c` recognizer because `-o`
+   takes `pipefail` as a separate value this module doesn't know to skip,
+   unlike the bundled `bash -lc '...'` form it DOES recognize), or a
+   quoted string containing an escaped copy of its OWN quote character
+   combined with a bare newline elsewhere in the command (`_mask_bare_
+   newlines`'s quote-tracking scan is not aware of in-quote escaping
+   rules and can lose track of whether it's still "inside" that quote —
+   a narrow, disclosed limitation of a heuristic scan, not a real shell
+   parser) can still reach `commit` undetected. `resolve_commit_targets()`
+   resolves a `-C <dir>` chain
+   against the payload `cwd` using git's own left-to-right chaining
+   semantics, folds a leading `~`, and refuses to resolve (falling back to
+   the payload `cwd` alone) when the value contains `$`, a backtick, or a
+   NUL byte — an unexpanded shell variable or command substitution this
+   hook has no safe way to reconstruct from the raw string alone. It also
+   does not model `cd`/`pushd`: a segment always resolves against
+   `payload_cwd`, never a preceding `cd <dir>` in the same command, so
+   `cd <other-checkout> && git commit -m x` resolves (and gates) against
+   `payload_cwd` even when the real commit lands in `<other-checkout>` —
+   within one repository this is harmless (the index is repo-wide), but
+   across genuinely different checkouts (e.g. sibling worktrees) it is the
+   same class of misresolution `-C` handling exists to fix, just for a
+   mechanism this module doesn't track. `--git-dir=`/`--work-tree=` are
+   detected as a commit (so the gate still fires) but, whether alone OR
+   combined with a `-C` in the SAME matched segment, are gated against the
+   payload `cwd` rather than the directory those flags actually name — git
+   resolves `-C` before applying `--git-dir`/`--work-tree`, so trusting
+   `-C` alone when either is also present would evaluate neither the
+   payload repo nor the commit's real target, and their interaction with
+   the process's real working directory is ambiguous enough on its own
+   that guessing wrong risked being worse than the current (safe-direction)
+   behavior. Every one of these fallback-to-`payload_cwd` cases produces a
+   plain exit 0/2 exactly like "no `-C` was ever present" — there is no
+   separate audit signal distinguishing "this target's resolution was
+   trusted" from "this target's resolution silently fell back", so an
+   operator reading the boundary-event stream cannot tell the two apart.
+   Bypass-flag detection (`has_bypass_flag`/`bypass_flag_name`) also stays
+   whole-command rather than per-segment even though target resolution is
+   now per-segment (#1801 third round): a `-n`/`--no-verify` occurring
+   anywhere in a multi-segment command (including inside an unrelated
+   sibling command's own flags, e.g. `echo -n done && git commit -m real`)
+   routes EVERY target through the bypass branch instead of only the
+   segment that actually carries it — pre-existing since #709 for the
+   single-segment case, but the multi-target loop this fix adds is what
+   turns it into a per-segment attribution inconsistency. No silent allow
+   results (the non-bypassed sibling still needs a passing gate or the
+   audited `GATE_BYPASS_REASON` reason), so this is a correctness/audit-
+   accuracy gap, not a security one, and is left disclosed rather than
+   fixed here.
+6. `resolve_commit_targets()` — the target-resolution machinery item 5
+   describes — lives in `hooks/lib/pre_commit_detect.py` and is consumed
+   only by this module (`pre_commit_review.py`'s `main()`). Neither of
+   `pre_commit_detect`'s other two downstream consumers resolves a `-C`
+   target at all, and they diverge from each other in how they fall back:
+   `hooks/agent_dispatch_ledger.py` (the dispatch-evidence writer this
+   gate's corroboration reads) resolves from the raw payload `cwd` with no
+   `-C` awareness; `hooks/pre_commit_knowledge_index.py` reads NO payload
+   cwd at all — its `_staged_files()` runs a bare `git diff --cached` with
+   no `cwd=` argument, inheriting the hook process's own real OS cwd — so
+   it can diverge from the payload project root for ANY commit, including
+   an unqualified one carrying no `-C`, the same process-cwd-vs-payload-
+   root divergence #1461 fixed for THIS module specifically (see `_staged_names()`'s
+   own docstring above). For a `-C`-qualified commit specifically: (a)
+   `pre_commit_knowledge_index.py` evaluates staleness against whichever
+   repository the hook process happens to be running in, not the commit's
+   real target; and (b) a review dispatched via `/code-review` from the
+   payload's own directory writes its ledger evidence under the payload
+   repo, while this gate (correctly) also evaluates the payload repo as
+   one of its targets — so corroboration still lines up for the payload
+   target specifically, but an ADDITIONAL `-C` target this gate also
+   evaluates has no ledger evidence of its own and will always block or
+   fall to the audited bypass, never a genuine reviewed pass, until a
+   review is separately run from that target's own directory. Not fixed
+   here: extending target-resolution to those two modules is a larger
+   change than this fix's scope, and — since the payload repo's own gate
+   can no longer be skipped by a decoy `-C` (see `resolve_commit_targets`'s
+   docstring) — the security property this fix exists to restore already
+   holds without it.
+7. `resolve_commit_targets()` returns `list[str]`, and an empty list means
+   "no git-commit invocation found" everywhere on the LIVE import path.
+   The degraded-import fallback stub (this module's own `except ImportError:`
+   block, reached only if `hooks/lib/pre_commit_detect.py` itself fails to
+   import — a self-inflicted, catastrophic failure, not an
+   attacker-controlled input) also returns `[]` unconditionally, so
+   `main()`'s `for target_cwd in targets:` loop runs zero times and
+   returns 0 for EVERY commit in that state — the same fail-open posture
+   the pre-`#1801` code already had for this exact scenario (its
+   `is_git_commit_command` stub also unconditionally returned `False`),
+   not a new regression, but it does NOT follow the `None`-means-
+   "couldn't-determine"-vs-`[]`-means-"genuinely-nothing" convention
+   `_staged_names()`/`_working_tree_modified_names()` establish elsewhere
+   in this same file specifically so a precondition failure never gets
+   folded into "nothing to gate". Not changed here: doing so would need
+   `main()` to treat a `None` return as a new fail-closed branch, and the
+   degraded-import block exists precisely to keep this module inert when
+   its own imports are broken — converting it to fail-closed would make a
+   corrupted plugin installation start blocking every commit, which is a
+   different (and arguably worse) failure mode than today's.
+8. A fifth-round closing-pass re-review (after the fourth round's fixes
+   for comment-stripping, punctuation-run gluing, path-qualified
+   interpreters, single-level nesting, and a shared wrapper-option table)
+   found and this fix closed one more error-severity bug (a POSIX line
+   continuation was preserved rather than deleted, hiding the segment
+   that followed it — see `_mask_bare_newlines`'s own docstring) plus
+   left several genuinely new, narrower forms disclosed rather than
+   fixed, each independently confirmed reachable and each a plain
+   undetected-commit false negative (never a false-block or a silent
+   allow via the bypass path — the review gate still evaluates the exact
+   same payload-repo state either way, it just never gets asked to):
+   - I/O redirection before the command word (`>/dev/null git commit`,
+     `2>&1 git commit -m x`) — the leading-noise skip loop in
+     `_match_commit_tokens` doesn't tolerate a redirection operator or a
+     bare file-descriptor digit preceding it.
+   - Command substitution / backticks (`echo $(git commit -m x)`, or
+     bare `` `git commit -m x` `` as the whole command) — unlike
+     `<shell> -c` wrapping, a `$(...)`/backtick body is never extracted
+     as a nested segment to re-scan.
+   - `env -S '<cmd>'` / `env --split-string=<cmd>` (a fourth
+     string-executing form alongside the already-disclosed `eval`/
+     `xargs`) — `-S` is currently listed as one of `env`'s value-taking
+     options, so its argument is skipped as an opaque value rather than
+     extracted and re-scanned the way a `<shell> -c` argument is.
+   - A clustered shell flag with `c` in a non-final position
+     (`bash -cl '...'`, as opposed to the recognized `bash -lc '...'`) —
+     `_extract_shell_dash_c_bodies` only recognizes a cluster ENDING in
+     `c`. Left disclosed rather than fixed pending confirmation of
+     exactly which shells accept a non-final `c` in a bundled short-flag
+     group (the fix, if warranted, is a one-line loosening of that
+     recognizer's condition).
+   - A `-C`/`--namespace`/etc. argument that is itself a quoted string
+     composed ENTIRELY of shell control characters (e.g. `git -C '&&'
+     commit -m x`) can still be misread as a separator token — shlex
+     discards quoting information by the time this module sees a token,
+     so a fully-dequoted value indistinguishable in content from a real
+     operator is treated as one. Low realistic impact (needs a `-C`
+     value made *entirely* of `;&|()<>` characters before the `commit`
+     word), but a concrete violation of `_split_on_separators`'s own
+     "a separator inside a quoted value is never a boundary" contract.
+   - Bypass-flag detection (`has_bypass_flag`/`bypass_flag_name`) stays
+     not just whole-command (item 5's existing disclosure) but also
+     QUOTE-UNAWARE: a bare `-n` or `--no-verify` appearing inside a
+     quoted commit MESSAGE (`git commit -m "fix -n handling"`) still
+     satisfies the substring/word-bounded regex even though no such
+     argument exists, routing the commit through the bypass branch for
+     no real reason. This may be intentional — the regex is explicitly
+     documented elsewhere as owing byte-for-byte parity with the original
+     `.sh`'s plain `grep`, not tokenization — so it is disclosed rather
+     than changed.
 
 Non-commit Bash commands pass through immediately (exit 0).
 `git commit --no-verify` (or bare `-n`) is still allowed through — but
@@ -170,7 +345,7 @@ try:
     from pre_commit_detect import (  # type: ignore[import-not-found]
         bypass_flag_name,
         has_bypass_flag,
-        is_git_commit_command,
+        resolve_commit_targets,
     )
     from pre_commit_doc_classifier import (  # type: ignore[import-not-found]
         is_doc_only_changeset as _is_doc_only_changeset,
@@ -216,14 +391,14 @@ except ImportError:  # pragma: no cover
         repo_root = Path(__file__).resolve().parents[3]
         return repo_root / ".claude" / category / filename
 
-    def is_git_commit_command(_: str) -> bool:  # type: ignore[misc]
-        return False
-
     def has_bypass_flag(_: str) -> bool:  # type: ignore[misc]
         return False
 
     def bypass_flag_name(_: str) -> str | None:  # type: ignore[misc]
         return None
+
+    def resolve_commit_targets(_cmd: str, _cwd: str) -> list[str]:  # type: ignore[misc]
+        return []
 
     def review_gate_hash(cwd=None) -> str:  # type: ignore[misc]
         return ""
@@ -614,12 +789,17 @@ def _record_bypass_audit(flag: str, reason: str, staged_count: int, cwd: str) ->
     metrics/override-audit.jsonl precedent for a bypass a human/agent
     actively chose, not passive usage telemetry.
 
-    Resolves against `cwd` (the payload's project cwd) via the shared
-    artifact_paths helper — not a bare relative path, which previously
-    resolved against the process's real OS cwd and could disagree with the
-    project root when this hook is invoked from a subdirectory. Fail-open:
-    any failure to resolve the path, create the directory, or write the
-    line logs a diagnostic to stderr and never blocks the commit.
+    Resolves against `cwd` — the resolved commit TARGET `_evaluate_target`
+    is currently evaluating, which is the payload's own project cwd only
+    when that target had no usable `-C` to resolve (#1801: a `-C`-folded
+    target writes this line under ITS OWN `.claude/metrics/`, not the
+    payload's — a multi-target command records one audit line per target)
+    — via the shared artifact_paths helper, not a bare relative path,
+    which previously resolved against the process's real OS cwd and could
+    disagree with the project root when this hook is invoked from a
+    subdirectory. Fail-open: any failure to resolve the path, create the
+    directory, or write the line logs a diagnostic to stderr and never
+    blocks the commit.
     """
     entry = {
         "timestamp": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
@@ -1212,6 +1392,132 @@ def _prepare_gate(
         return None
 
 
+def _resolve_staged(
+    target_cwd: str, session_id
+) -> tuple[int | None, list[str], bool]:
+    """`_evaluate_target` lens: resolve the staged (or #1476 unstaged
+    `-a`/pathspec-signature) file list for ONE target. Returns
+    `(exit_code, staged, unstaged_commit)` — `exit_code` is `None` when
+    the caller should continue the pipeline (a real, non-empty file list
+    follows), or `0`/`2` when `_evaluate_target` should return immediately
+    (genuinely nothing to gate, or a fail-CLOSED precondition failure).
+
+    Resolved against `target_cwd` — a bare `git diff --cached` without
+    `cwd=` runs against this process's real OS cwd, which can silently
+    disagree with the resolved target when this hook is invoked from a
+    subdirectory, or when `target_cwd` is a `-C`-resolved directory
+    entirely (#1461 security review; #1801 re-review extended this from
+    "the payload's project root" to "whichever directory `main()`
+    resolved this target to"). Before the #1461 fix, that divergence meant
+    a bare `git diff --cached` could report `[]` (nothing staged in the
+    process's own cwd) even though the real target had a staged commit in
+    flight — silently skipping the entire review gate, corroboration
+    included, with no audit trail at all.
+    """
+    staged = _staged_names(target_cwd)
+    # `None` means git itself could not answer this question (corrupt/locked
+    # index, bad cwd, ...) — that must fail CLOSED, never be folded into
+    # "nothing staged" (#1461 security re-review): a should-block commit
+    # must not slip through just because the precondition check itself
+    # broke.
+    if staged is None:
+        _emit_block(_GATE_SETUP_FAILURE_MESSAGE)
+        emit_boundary_event(
+            target_cwd,
+            "pre_commit_review",
+            "Bash",
+            "block",
+            "gate-setup-failure",
+            session_id,
+        )
+        return 2, [], False
+
+    if staged:
+        return None, staged, False
+
+    # Nothing staged via `git add` — could be genuinely nothing to gate, OR
+    # the `git commit -a`/pathspec-form-commit signature (#1476): tracked
+    # files modified in the working tree without ever being staged that
+    # way. `_staged_names()` alone can't tell the two apart; check the
+    # working tree too before deciding.
+    working_modified = _working_tree_modified_names(target_cwd)
+    # Same fail-CLOSED contract as `_staged_names()` above: "couldn't
+    # determine" must never be folded into "nothing to gate".
+    if working_modified is None:
+        _emit_block(_GATE_SETUP_FAILURE_MESSAGE)
+        emit_boundary_event(
+            target_cwd,
+            "pre_commit_review",
+            "Bash",
+            "block",
+            "gate-setup-failure",
+            session_id,
+        )
+        return 2, [], False
+    if not working_modified:
+        # Genuinely nothing staged AND no tracked-file working-tree
+        # changes at all → nothing to gate.
+        return 0, [], False
+    # The `-a`/pathspec-form signature: route through the gate on the
+    # working-tree file list, exactly as `staged` would normally carry it
+    # (used by the caller for the bypass audit's file count and for the
+    # doc-only exemption's `_is_doc_only_changeset` check).
+    return None, working_modified, True
+
+
+def _evaluate_target(
+    command: str, target_cwd: str, session_id
+) -> tuple[int, Path | None]:
+    """`main()` lens: run the full staged-check → bypass → gate pipeline
+    against ONE resolved target directory. Extracted so `main()` can loop
+    over every target `resolve_commit_targets()` returns (#1801 re-review:
+    a single-target `main()` is what let a decoy `-C` segment redirect the
+    ENTIRE gate elsewhere — see that function's own docstring) rather than
+    duplicating this pipeline per target. Returns `(exit_code, gate_file)`:
+    `exit_code` is 0 (nothing to gate here, or gate passed) or 2 (blocked)
+    — never any other value; `gate_file` is the `.review-passed` path this
+    target's pass should eventually consume, or `None` (nothing to gate,
+    or blocked). Does NOT unlink `gate_file` itself — see `main()` for why.
+
+    `target_cwd` is `payload_cwd` (`main()`'s own name for the payload's
+    project root) ONLY when `resolve_commit_targets()` had no usable `-C`
+    to resolve for this particular target — it can just as easily be a
+    `-C`-folded directory entirely unrelated to the payload's own repo.
+    Every helper this function calls receives `target_cwd` explicitly
+    rather than inheriting the process's own OS cwd (the #1461 lesson).
+    """
+    exit_code, staged, unstaged_commit = _resolve_staged(target_cwd, session_id)
+    if exit_code is not None:
+        return exit_code, None
+
+    bypass_exit_code = _handle_bypass(command, target_cwd, staged, session_id)
+    if bypass_exit_code is not None:
+        return bypass_exit_code, None
+
+    prepared = _prepare_gate(target_cwd, session_id, unstaged_commit=unstaged_commit)
+    if prepared is None:
+        return 2, None
+    current_hash, gate_file = prepared
+
+    verdict = _evaluate_gate(
+        gate_file, current_hash, target_cwd, staged, unstaged_commit=unstaged_commit
+    )
+    if verdict.passed:
+        # Review passed for these exact files, corroborated by genuine
+        # dispatch evidence (or a doc-only exemption) — allow, but leave
+        # consumption to `main()` (see its own comment for why).
+        return 0, gate_file
+
+    # Block. Message goes to stdout (matching the .sh's `printf` — the .sh
+    # writes to stdout, not stderr, so Claude sees it in the tool-call
+    # feedback stream).
+    _emit_block(verdict.message)
+    emit_boundary_event(
+        target_cwd, "pre_commit_review", "Bash", "block", verdict.matched_rule, session_id
+    )
+    return 2, None
+
+
 def main() -> int:
     payload = read_stdin_json()
     if payload is None:
@@ -1222,89 +1528,43 @@ def main() -> int:
         return 0
     command = str(tool_input.get("command") or "")
 
-    cwd = payload.get("cwd") or "."
+    payload_cwd = payload.get("cwd") or "."
     session_id = payload.get("session_id")
 
-    if not is_git_commit_command(command):
-        return 0
+    # `resolve_commit_targets` resolves EACH matching segment's target
+    # independently, falling back to `payload_cwd` for any segment with no
+    # usable `-C` of its own (#1801 re-review) — so a decoy `-C` segment
+    # can add an EXTRA target to check, but can never suppress the
+    # payload's own repo from the set below when another segment in the
+    # same command (with no `-C`) targets it. Empty means `command` has no
+    # git-commit invocation at all.
+    targets = resolve_commit_targets(command, payload_cwd)
 
-    # Resolved with the payload's own `cwd` (#1461 security review) — a bare
-    # `git diff --cached` without `cwd=` runs against this process's real OS
-    # cwd, which can silently disagree with the payload's project root when
-    # this hook is invoked from a subdirectory. Before this fix, that
-    # divergence meant `_staged_names()` could return `[]` (nothing staged
-    # in the process's cwd) even though the payload's project root had a
-    # real staged commit in flight — silently skipping the entire review
-    # gate, corroboration included, with no audit trail at all.
-    staged = _staged_names(cwd)
-    # `None` means git itself could not answer this question (corrupt/locked
-    # index, bad cwd, ...) — that must fail CLOSED, never be folded into
-    # "nothing staged" (#1461 security re-review): a should-block commit
-    # must not slip through just because the precondition check itself
-    # broke.
-    if staged is None:
-        _emit_block(_GATE_SETUP_FAILURE_MESSAGE)
-        emit_boundary_event(
-            cwd, "pre_commit_review", "Bash", "block", "gate-setup-failure", session_id
-        )
-        return 2
+    # Collect passing targets' gate files rather than unlinking each one
+    # as it passes (#1801 third-round re-review, both correctness-review
+    # and security-review independently confirmed): two targets can share
+    # the SAME underlying `.review-passed` (e.g. `-C sub` and the payload
+    # repo both walk up to the same `.git` root), and even when they
+    # don't, consuming a passing target's evidence before a LATER target
+    # blocks would destroy a fully legitimate review's corroboration for
+    # no benefit — the overall command is blocked either way, so nothing
+    # should be consumed until every target has been confirmed passing.
+    gate_files_to_consume: list[Path] = []
+    for target_cwd in targets:
+        exit_code, gate_file = _evaluate_target(command, target_cwd, session_id)
+        if exit_code != 0:
+            return exit_code
+        if gate_file is not None:
+            gate_files_to_consume.append(gate_file)
 
-    # Nothing staged via `git add` — could be genuinely nothing to gate, OR
-    # the `git commit -a`/pathspec-form-commit signature (#1476): tracked
-    # files modified in the working tree without ever being staged that
-    # way. `_staged_names()` alone can't tell the two apart; check the
-    # working tree too before deciding.
-    unstaged_commit = False
-    if not staged:
-        working_modified = _working_tree_modified_names(cwd)
-        # Same fail-CLOSED contract as `_staged_names()` above: "couldn't
-        # determine" must never be folded into "nothing to gate".
-        if working_modified is None:
-            _emit_block(_GATE_SETUP_FAILURE_MESSAGE)
-            emit_boundary_event(
-                cwd, "pre_commit_review", "Bash", "block", "gate-setup-failure", session_id
-            )
-            return 2
-        if not working_modified:
-            # Genuinely nothing staged AND no tracked-file working-tree
-            # changes at all → nothing to gate.
-            return 0
-        # The `-a`/pathspec-form signature: route through the gate on the
-        # working-tree file list, exactly as `staged` would normally carry
-        # it (used below for the bypass audit's file count and for the
-        # doc-only exemption's `_is_doc_only_changeset` check).
-        unstaged_commit = True
-        staged = working_modified
-
-    bypass_exit_code = _handle_bypass(command, cwd, staged, session_id)
-    if bypass_exit_code is not None:
-        return bypass_exit_code
-
-    prepared = _prepare_gate(cwd, session_id, unstaged_commit=unstaged_commit)
-    if prepared is None:
-        return 2
-    current_hash, gate_file = prepared
-
-    verdict = _evaluate_gate(
-        gate_file, current_hash, cwd, staged, unstaged_commit=unstaged_commit
-    )
-    if verdict.passed:
-        # Review passed for these exact files, corroborated by genuine
-        # dispatch evidence (or a doc-only exemption) — consume + allow.
+    for gate_file in gate_files_to_consume:
         try:
             gate_file.unlink()
         except OSError:
+            # Already gone (e.g. a duplicate path from two targets sharing
+            # one repo) or otherwise unremovable — never block on cleanup.
             pass
-        return 0
-
-    # Block. Message goes to stdout (matching the .sh's `printf` — the .sh
-    # writes to stdout, not stderr, so Claude sees it in the tool-call
-    # feedback stream).
-    _emit_block(verdict.message)
-    emit_boundary_event(
-        cwd, "pre_commit_review", "Bash", "block", verdict.matched_rule, session_id
-    )
-    return 2
+    return 0
 
 
 if __name__ == "__main__":
