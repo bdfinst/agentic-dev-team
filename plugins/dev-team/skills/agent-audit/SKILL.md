@@ -406,7 +406,11 @@ Read each file in `.claude/skills/*.md` and `.claude/skills/*/SKILL.md` and chec
 
 ### 4. Audit hooks
 
-Read each file in `.claude/hooks/*.sh` and check:
+Read each file in `.claude/hooks/*.sh` and check (the `*.sh` glob already
+excludes `.claude/hooks/freeze-state.json` and
+`.claude/hooks/careful-state.json` — plugin-written runtime state, not
+operator-authored hook code; see [`docs/python-hook-contract.md`](../../../../docs/python-hook-contract.md)
+§ Environment variables, issue #1904 item 10):
 
 1. **Advisory behavior**: Does the hook exit 0?
    - Hooks MUST be advisory only (exit 0), never blocking

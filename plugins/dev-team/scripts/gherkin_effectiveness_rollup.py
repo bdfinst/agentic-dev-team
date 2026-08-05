@@ -46,6 +46,7 @@ if str(_HOOKS_LIB_DIR) not in sys.path:
     sys.path.insert(0, str(_HOOKS_LIB_DIR))
 
 import artifact_paths
+from atomic_state import append_line_locked
 
 _TABLE_ROW_RE = re.compile(r"^\s*\|(.+)\|\s*$")
 _SEPARATOR_CELL_RE = re.compile(r"^\s*:?-{2,}:?\s*$")
@@ -181,11 +182,18 @@ def build_records(
 
 
 def append_jsonl(records: list[dict], out_path: Path) -> int:
+    """Append each record as one JSON line, serialized via
+    `atomic_state.append_line_locked` (#1901) so two concurrent rollup runs
+    writing to the same stream cannot interleave their bytes into one
+    corrupted line — matching the pattern #1896 applied to the plugin's
+    other `.claude/metrics/*.jsonl` appenders. `fail_open=False` re-raises a
+    write error after the lock releases rather than swallowing it, matching
+    this function's previous behavior (a bare `open()`/`write()` that
+    propagated any OSError to the caller)."""
     out_path.parent.mkdir(parents=True, exist_ok=True)
-    with out_path.open("a", encoding="utf-8") as fh:
-        for record in records:
-            fh.write(json.dumps(record, sort_keys=True))
-            fh.write("\n")
+    for record in records:
+        line = json.dumps(record, sort_keys=True) + "\n"
+        append_line_locked(out_path, line, fail_open=False)
     return len(records)
 
 

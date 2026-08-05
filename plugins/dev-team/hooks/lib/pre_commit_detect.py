@@ -60,8 +60,12 @@ value. This version:
     wrappers — `-n` takes a value for `nice` but is boolean for `sudo`,
     and a shared set would have misparsed `sudo -n git commit` by
     swallowing `git` as `-n`'s value;
-  - resolves EVERY matching segment's `-C` chain independently (not just
-    the first) via `resolve_commit_targets`, each segment falling back to
+  - resolved EVERY matching segment's `-C` chain independently (not just
+    the first) via `resolve_commit_targets` (deleted #1904 — see "Exposes"
+    above — once its sole caller, `pre_commit_review.py`'s per-target
+    commit-gating, was retired to a no-op by #1886; this paragraph
+    documents the #1801 hardening history, not current exposed surface),
+    each segment falling back to
     the caller's own `payload_cwd` when it has no usable `-C` — this is
     what closes the decoy-redirection bypass without over-blocking the
     everyday single-segment case: a prepended `git -C <decoy> commit ...;
@@ -87,18 +91,24 @@ can only make DETECTION more eager, never less — a segment that looks like
 `git ... commit` inside an unrecognized wrapper's argument can
 false-POSITIVE into "this is a commit", which is the safe direction for a
 fail-closed gate; it can't false-negative a real commit a narrower matcher
-would have caught. Target RESOLUTION is different: `resolve_commit_targets`
-can only ADD targets to check per matching segment, never remove a
-segment's own real target from the set that gets evaluated — see that
-function's own docstring, including the one disclosed exception (a `-C`
+would have caught. Target RESOLUTION was different: `resolve_commit_targets`
+(deleted #1904) could only ADD targets to check per matching segment, never
+remove a segment's own real target from the set that gets evaluated, including
+the one disclosed exception (a `-C`
 chain that can't be safely resolved falls back to `payload_cwd`, which can
 under-cover a commit genuinely aimed elsewhere).
 
-Imported by the Python siblings of the two callers:
-  - hooks/pre_commit_review.py
-  - hooks/pre_commit_knowledge_index.py (detection only — this caller does
-    not consume `resolve_commit_targets`; see hooks/pre_commit_review.py's
-    KNOWN RESIDUAL GAPS for why that is a disclosed, not a silent, gap)
+Imported by the Python sibling of its one remaining live caller:
+  - hooks/pre_commit_knowledge_index.py (via `is_git_commit_invocation`)
+
+`resolve_commit_targets()` (the multi-target `-C`/`--git-dir`/`--work-tree`
+resolution this module used to expose) was deleted in #1904: its sole
+caller, `hooks/pre_commit_review.py`'s per-target commit-gating, was
+already retired to a no-op by #1886's PR-time gate migration (`gh pr
+create` has no `-C`-shaped multi-repository ambiguity for
+`hooks/pre_pr_review.py`, the successor hook, to resolve — see that
+module's own docstring). Confirmed orphaned by repo-wide grep before
+deletion, not merely unused by one caller.
 
 Exposes:
 
@@ -120,23 +130,13 @@ Exposes:
     True when `cmd` is a `git commit` we should gate on (no bypass flag).
     Kept for backward compatibility with existing callers/tests.
 
-  resolve_commit_targets(cmd: str, payload_cwd: str) -> list[str]
-    Every directory a `git commit` invocation inside `cmd` could target,
-    de-duplicated and order-preserving in the order matching segments
-    appear — `payload_cwd` is included only for a segment that has no
-    usable `-C` of its own, NOT unconditionally first; empty when `cmd`
-    has no git-commit invocation at all. See the function's own docstring
-    for the decoy-redirection rationale and exactly when it falls back.
-
 Stdlib-only. See docs/python-hook-contract.md.
 """
 
 from __future__ import annotations
 
-import os
 import re
 import shlex
-from pathlib import Path
 
 # Recognized shell interpreters whose own `-c`/clustered-`-c` flag takes a
 # nested command as its argument (`bash -c '...'`, `bash -lc '...'`).
@@ -201,12 +201,6 @@ _ASSIGNMENT_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*=")
 _VALUE_TAKING_OPTS = frozenset(
     {"-c", "--namespace", "--super-prefix", "--exec-path", "--attr-source", "--config-env"}
 )
-
-# Unsafe-to-resolve characters in an extracted `-C` argument — an
-# unexpanded shell variable or command substitution this hook has no safe
-# way to reconstruct (it only ever sees the raw string, never the shell's
-# actual expansion of it).
-_UNSAFE_PATH_CHARS_RE = re.compile(r"[$`\x00]")
 
 # Defensive backstop for `<shell> -c`-wrapping nesting depth
 # (`_all_segments`) — genuinely recursive, not a realistic ceiling on how
@@ -425,12 +419,14 @@ def _advance_past_value(tokens: list[str], i: int, has_attached_value: bool) -> 
 def _match_commit_tokens(tokens: list[str]) -> tuple[bool, list[str], bool]:
     """Return `(is_commit, dash_c_chain, has_repo_override)` for an
     already-tokenized command. `dash_c_chain` is every `-C` argument found,
-    IN ORDER, for folding by `_fold_dash_c_chain` (git's own left-to-right
-    `-C` chaining — NOT "last wins", see that function). `has_repo_override`
-    is True when `--git-dir`/`--work-tree` also appeared, in which case a
-    caller must NOT treat `dash_c_chain` as the real target (see
-    `resolve_commit_targets`) — see also `pre_commit_review.py`'s KNOWN
-    RESIDUAL GAPS for why that combination isn't resolved at all."""
+    IN ORDER (git's own left-to-right `-C` chaining — NOT "last wins").
+    `has_repo_override` is True when `--git-dir`/`--work-tree` also
+    appeared. Both were consumed by the now-deleted `resolve_commit_targets()`
+    (#1904, orphaned once `pre_commit_review.py`'s per-target commit-gating
+    was retired) — `is_git_commit_command()` below only needs the boolean
+    `is_commit` element, but the tuple shape is left unchanged rather than
+    narrowed, since narrowing it is an unrelated refactor with no behavioral
+    payoff for this module's one remaining consumer."""
     i, n = 0, len(tokens)
     while i < n:
         if _ASSIGNMENT_RE.match(tokens[i]) or tokens[i] in _LEADING_NOISE_TOKENS:
@@ -492,7 +488,9 @@ def _all_commit_matches(cmd: str) -> list[tuple[list[str], bool]]:
     """Every matching segment's `(dash_c_chain, has_repo_override)` — ALL
     of them, not just the first (#1801 re-review: returning only the first
     match let a prepended decoy `-C` segment become the sole thing
-    resolved, which `resolve_commit_targets` is what actually closes)."""
+    resolved — a concern for the now-deleted `resolve_commit_targets()`,
+    #1904; `is_git_commit_command()` below only needs the length of this
+    list, not which segment's `-C` chain "won")."""
     if not cmd:
         return []
     matches = []
@@ -531,84 +529,9 @@ def is_git_commit_invocation(cmd: str) -> bool:
     return not has_bypass_flag(cmd)
 
 
-def _fold_dash_c_chain(chain: list[str], base: str) -> str | None:
-    """Fold a `-C` chain onto `base` using git's OWN left-to-right
-    chaining semantics: each subsequent non-absolute `-C <path>` resolves
-    relative to the PRECEDING `-C <path>`, not to `base` itself
-    (`git -C a -C b commit` targets `<base>/a/b`, NOT `<base>/b` — an
-    earlier version of this fix asserted "last wins", which correctness-
-    and domain-review both independently identified as contradicting git's
-    own documented behavior). `os.path.expanduser` resolves a leading `~`;
-    returns None when any link contains `$`, a backtick, or a NUL byte —
-    an unexpanded shell variable or command substitution this hook has no
-    safe way to reconstruct — rather than silently folding a literal,
-    bogus path fragment onto `base`."""
-    current = base
-    for raw in chain:
-        value = os.path.expanduser(raw)
-        if _UNSAFE_PATH_CHARS_RE.search(value):
-            return None
-        p = Path(value)
-        current = str(p) if p.is_absolute() else str(Path(current) / p)
-    return current
-
-
-def resolve_commit_targets(cmd: str, payload_cwd: str) -> list[str]:
-    """Return every directory a `git commit` invocation inside `cmd` could
-    target, de-duplicated and order-preserving in the order matching
-    segments appear — empty when `cmd` has no git-commit invocation at
-    all. EACH matching segment resolves to its OWN target independently:
-    `payload_cwd` for a segment with no usable `-C` chain (no `-C` at all,
-    an unsafe/unresolvable one, or one combined with `--git-dir`/
-    `--work-tree` — see below), or the folded result of its `-C` chain
-    (see `_fold_dash_c_chain`) otherwise.
-
-    This is the fix for the decoy-redirection bypass a FIRST-MATCH-ONLY
-    `-C` resolution introduced (#1801 correctness/security re-review):
-    `git -C <decoy> commit --allow-empty -m x; git commit -m real` has TWO
-    matching segments — the first targets `<decoy>` (an empty repo the
-    caller controls), the second has no `-C` and so targets `payload_cwd`
-    on its own. Resolving per-segment means `payload_cwd` is included here
-    because the SECOND segment's own commit targets it, not from a
-    blanket "always add it" rule — which matters for the single-segment
-    case: `git -C /some/other/repo commit -m x` run from a `payload_cwd`
-    that isn't a git repository at ALL (a normal, legitimate use of `-C`)
-    resolves to `/some/other/repo` alone. An earlier version of this fix
-    force-added `payload_cwd` unconditionally to every result, which
-    closed the decoy case too but at the cost of wrongly blocking this
-    everyday single-segment pattern with a misleading
-    "gate-setup-failure" message, since `payload_cwd` genuinely isn't (and
-    was never meant to be) a git repository in that case.
-
-    A segment's `-C` chain is used only when it resolved cleanly (no
-    unsafe `$`/backtick content — see `_fold_dash_c_chain`) AND the
-    segment carries no `--git-dir`/`--work-tree` override; either
-    condition failing falls back to `payload_cwd` for that segment's
-    target. `--git-dir`/`--work-tree` invalidate `-C`-based resolution
-    because git resolves `-C` before applying them, so gating on `-C`
-    alone while ignoring an explicit `--git-dir`/`--work-tree` would
-    evaluate neither the payload repo nor the commit's real target — left
-    as a disclosed residual gap instead (see `pre_commit_review.py`'s
-    KNOWN RESIDUAL GAPS). Note: `cd`/`pushd` changing a LATER segment's
-    effective target is not modeled either (same list) — a segment always
-    resolves against `payload_cwd`, never a preceding `cd` in the same
-    command."""
-    targets: list[str] = []
-    for dash_c_chain, has_repo_override in _all_commit_matches(cmd):
-        target = payload_cwd
-        if dash_c_chain and not has_repo_override:
-            resolved = _fold_dash_c_chain(dash_c_chain, payload_cwd)
-            if resolved is not None:
-                target = resolved
-        if target not in targets:
-            targets.append(target)
-    return targets
-
-
 __all__ = (
     "bypass_flag_name",
     "has_bypass_flag",
     "is_git_commit_command",
     "is_git_commit_invocation",
-    "resolve_commit_targets",
 )

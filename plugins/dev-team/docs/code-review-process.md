@@ -38,7 +38,7 @@ flowchart TD
     C -->|clean tree| D2[Full repo]
     D1 --> DC{1a. All files docs-only?}
     D2 --> DC
-    DC -->|yes — no --force/--agent/--background| SC[Short-circuit: notice +<br/>write .review-passed if auto-scoped + stop]
+    DC -->|yes — no --force/--agent/--background| SC[Short-circuit: notice +<br/>write .pr-review-passed if auto-scoped + stop]
     DC -->|no| E[1b. REVIEW-CONTEXT.md]
     E --> F[1c. Probe MCP tools]
     F --> G[2. Pre-flight gates]
@@ -58,7 +58,7 @@ flowchart TD
     P -->|no| Q[Escalate remaining to human]
     Q --> R
     R --> S[8. Save correction prompts]
-    S --> T[9. Write .review-passed if applicable]
+    S --> T[9. Write .pr-review-passed if applicable]
 ```
 
 ### 1. Determine target files
@@ -75,7 +75,7 @@ Auto-scope (the default) runs `git diff --name-only` plus `git diff --cached --n
 
 ### 1a. Documentation-only short-circuit
 
-After the target set is known, if **every** file is documentation, `/code-review` short-circuits: it emits `Documentation-only changeset — skipping code review`, writes the `.review-passed` gate file when auto-scoped to uncommitted changes (so the commit isn't blocked), and stops before any gate or agent runs. In `--json` mode it emits `{"status": "skipped", "reason": "documentation-only"}`.
+After the target set is known, if **every** file is documentation, `/code-review` short-circuits: it emits `Documentation-only changeset — skipping code review`, writes the `.pr-review-passed` gate file when auto-scoped to uncommitted changes (so the eventual `gh pr create` isn't blocked, #1886), and stops before any gate or agent runs. In `--json` mode it emits `{"status": "skipped", "reason": "documentation-only"}`.
 
 Documentation = `.md`/`.mdx`/`.rst`/`.txt`/`.adoc`, `docs/**`, and root docs (`README*`, `CHANGELOG*`, `LICENSE*`, …) — **except functional Claude-config markdown** (`.claude/**`, `agents/`, `skills/`, `prompts/`, `knowledge/`, `templates/agents/`, `CLAUDE.md`, `AGENTS.md`), which is always reviewed. `--force --reason`, `--agent`, and `--background` bypass the short-circuit.
 
@@ -210,30 +210,43 @@ For every unfixed actionable issue — plus suggestions worth addressing — a c
 
 The full lifecycle of these files — discovery to applied fix, including who owns a `corrections/*.json` after its branch merges — is documented in [triage-workflow.md](triage-workflow.md).
 
-### 9. Pre-commit gate file
+### 9. Pre-PR gate file
 
-When the review was auto-scoped to uncommitted changes, the final status is `pass` or `warn`, and step 6a's fix loop (if it ran) did not exit with actionable issues still outstanding, the orchestrator writes `.review-passed` to `.claude/memory/` — a SHA-256 hash of the staged **content** (the cached patch, not just the file list — an edit after review changes this hash and re-blocks the commit):
+When the review was auto-scoped to uncommitted changes, the final status is `pass` or `warn`, and step 6a's fix loop (if it ran) did not exit with actionable issues still outstanding, the orchestrator writes `.pr-review-passed` to `.claude/memory/` (#1886) — a SHA-256 hash of the branch's diff against its base (`git diff <base>...HEAD`), not just the staged patch — an edit or commit after review changes this hash and invalidates the gate:
 
 ```bash
-HASH=$(python3 "${CLAUDE_PLUGIN_ROOT}/hooks/lib/review_gate_hash.py")
-mkdir -p .claude/memory && echo "$HASH" > .claude/memory/.review-passed
+HASH=$(python3 "${CLAUDE_PLUGIN_ROOT}/hooks/lib/review_gate_hash.py" --branch-diff)
+mkdir -p .claude/memory && echo "$HASH" > .claude/memory/.pr-review-passed
 ```
 
-Always use this shared helper, not a hand-rolled `git diff | shasum` pipeline — the helper pins several git config overrides (relative-path scoping, external diff drivers, submodule visibility) that a raw pipeline would not, and a hash computed any other way will not match what the pre-commit hook itself computes. The pre-commit hook reads this file to verify the staged content matches what was actually reviewed, corroborated by genuine review-agent dispatch evidence (see [`../hooks/pre_commit_review.py`](../hooks/pre_commit_review.py)'s module docstring). If the review failed, `.review-passed` is **not** written, and commits are blocked until the review is re-run and passes.
+Always use this shared helper, not a hand-rolled `git diff | shasum` pipeline — the helper pins several git config overrides (relative-path scoping, external diff drivers, submodule visibility) that a raw pipeline would not.
 
-### Reasoned bypass (`--no-verify` / `-n`)
+**#1886: the gate moved from `git commit` to `gh pr create`.** `hooks/pre_pr_review.py` reads `.claude/memory/.pr-review-passed` at PR-creation time, bound to the branch's diff vs. its base (`branch_diff_gate_hash()`), not the staged-patch hash (`review_gate_hash()`) the retired `.review-passed` used. `hooks/pre_commit_review.py` (the former reader of `.review-passed`) is now a documented no-op, and `.review-passed` itself is no longer written by this step or read by anything.
 
-`git commit --no-verify` (or its short form `-n`) is git's standard escape
-hatch and still works — but the pre-commit review gate hook
-(`hooks/pre_commit_review.py`) now requires a non-empty `GATE_BYPASS_REASON`
-environment variable before it lets the bypass through. Without one, the
-commit is blocked (exit 2) with a message naming the required variable. With
-one, the hook allows the commit and appends an accountability line —
-timestamp, branch, which flag triggered it, the reason, staged file count,
-and plugin version — to `.claude/metrics/gate-bypass-audit.jsonl`, unconditionally
-(this log is not gated by `DEV_TEAM_TELEMETRY`). This closes the previously
-frictionless, unlogged bypass path that correlated with materially higher
-rework (#709).
+**Known limitation.** `agent_dispatch_ledger.py` still stamps every dispatch's corroborating evidence with the staged-patch hash, never the branch-diff hash. The two are identical only in the common single-commit-then-PR shape (branch cut from base, reviewed once while staged, committed, then a PR opened immediately) — a branch with multiple separate review-and-commit cycles will correctly fail this gate at `gh pr create` time and need a fresh `/code-review` run against its current diff. Closing this for every shape is tracked as a follow-up, not fixed here.
+
+### Reasoned bypass (`PR_GATE_BYPASS_REASON`)
+
+**#1886:** `git commit --no-verify`/`-n` + `GATE_BYPASS_REASON` was the
+historical bypass for the commit-time gate — both still work as ordinary git
+flags/env vars, but `hooks/pre_commit_review.py` no longer reads either, so
+they no longer gate anything at commit time.
+
+The current gate (`hooks/pre_pr_review.py`, triggered by `gh pr create`)
+requires a non-empty `PR_GATE_BYPASS_REASON` environment variable to bypass
+— `gh` has no native `--no-verify`-shaped flag, so the env var alone is both
+the trigger and the reason:
+
+```bash
+PR_GATE_BYPASS_REASON="hotfix, review to follow" gh pr create ...
+```
+
+With it set, the hook allows the PR to open and appends an accountability
+line — timestamp, branch, which mechanism triggered it, the reason,
+branch-diff file count, and plugin version — to
+`.claude/metrics/gate-bypass-audit.jsonl`, unconditionally (this log is not
+gated by `DEV_TEAM_TELEMETRY`). Same accountability posture as the original
+commit-time bypass (#709), relocated to the new trigger point (#1886).
 
 ## Artifacts
 
@@ -241,9 +254,9 @@ rework (#709).
 | ---------- | ------ | --------- |
 | Stdout report (markdown or JSON) | Every run | Human or CI consumption |
 | `corrections/*.json` | When unfixed actionable or suggestion issues remain | Feeds `/apply-fixes` |
-| `.review-passed` | Auto-scoped clean/warn runs | Gates the pre-commit hook |
+| `.pr-review-passed` | Auto-scoped clean/warn runs | Read by `hooks/pre_pr_review.py` at `gh pr create` time (#1886 — see § 9 above) |
 | `.claude/metrics/override-audit.jsonl` | `--force --reason ...` | Audit trail for skipped gates |
-| `.claude/metrics/gate-bypass-audit.jsonl` | `git commit --no-verify`/`-n` with `GATE_BYPASS_REASON` set | Audit trail for reasoned pre-commit-gate bypasses |
+| `.claude/metrics/gate-bypass-audit.jsonl` | `gh pr create` with `PR_GATE_BYPASS_REASON` set (#1886) | Audit trail for reasoned pre-PR-gate bypasses |
 
 ## Customization points
 
@@ -264,7 +277,7 @@ All three are optional and project-local — they are not part of the plugin.
 
 ## Concurrent use
 
-The `.review-passed` gate is a single, gitignored file per working tree, so two
+The `.pr-review-passed` gate is a single, gitignored file per working tree, so two
 agents sharing **one** checkout overwrite each other's gate. Give each
 concurrent agent its own git worktree — the full rationale and setup are in
 [concurrent-use.md](concurrent-use.md).

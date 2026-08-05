@@ -32,6 +32,9 @@ _HOOK_DIR = Path(__file__).resolve().parent
 _LIB_DIR = _HOOK_DIR / "lib"
 
 sys.path.insert(0, str(_LIB_DIR))
+
+import artifact_paths  # type: ignore[import-not-found]
+
 try:
     from stdin_json import read_stdin_json  # type: ignore[import-not-found]
 except ImportError:  # pragma: no cover
@@ -209,13 +212,23 @@ def _detect_present_tools(cwd: Path) -> list:
     return present
 
 
-def _careful_active(hook_dir: Path) -> bool:
-    """Read careful-state.json adjacent to the hook script; True iff `.active`."""
-    state_file = hook_dir / "careful-state.json"
-    if not state_file.is_file():
+def _careful_active(careful_path: Path) -> bool:
+    """Read careful-state.json's `active` field; True iff it is `True`.
+
+    `careful_path` is resolved by the caller via
+    `artifact_paths.resolve_file()`, keyed off the payload's own `cwd`
+    (#1900 follow-up in this file — the identical bug class already fixed
+    in `destructive_guard.py`: `/careful`/`/guard` only ever write the
+    per-repo `<repo-root>/.claude/hooks/careful-state.json`, never a path
+    relative to this hook's own script directory, which in a real
+    installed session is the shared plugin-cache directory — one location
+    shared by every concurrently-running session, worktree, and project on
+    the machine).
+    """
+    if not careful_path.is_file():
         return False
     try:
-        data = json.loads(state_file.read_text(encoding="utf-8"))
+        data = json.loads(careful_path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError):
         return False
     return data.get("active") is True
@@ -262,8 +275,10 @@ def main() -> int:
     if message is None:
         return 0
 
-    hook_dir = Path(__file__).resolve().parent
-    if _careful_active(hook_dir):
+    careful_path = artifact_paths.resolve_file(
+        "hooks", "careful-state.json", root=cwd, migrate=False
+    )
+    if _careful_active(careful_path):
         print(f"{message} [blocked by /careful]", file=sys.stderr)
         return 2
 

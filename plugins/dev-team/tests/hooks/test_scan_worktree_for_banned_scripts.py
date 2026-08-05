@@ -1,9 +1,9 @@
-"""Unit tests for hooks/scan_banned_scripts.py (#1755).
+"""Unit tests for hooks/scan_worktree_for_banned_scripts.py (#1755).
 
-PostToolUse working-tree backstop for scan_bash_for_banned_scripts.py — runs
-after EVERY tool call and inspects `git status --porcelain`, so it catches a
-banned-extension file under plugins/dev-team/ regardless of which tool
-created it (the PreToolUse half only scans Bash command strings).
+PostToolUse working-tree backstop for scan_bash_command_for_banned_scripts.py
+— runs after EVERY tool call and inspects `git status --porcelain`, so it
+catches a banned-extension file under plugins/dev-team/ regardless of which
+tool created it (the PreToolUse half only scans Bash command strings).
 """
 
 from __future__ import annotations
@@ -11,6 +11,7 @@ from __future__ import annotations
 import importlib.util
 import io
 import json
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -25,15 +26,15 @@ if str(_TESTS_LIB) not in sys.path:
 
 from hermetic import hermetic_git_env  # type: ignore[import-not-found]
 
-_HOOK = _REPO_ROOT / "plugins" / "dev-team" / "hooks" / "scan_banned_scripts.py"
+_HOOK = _REPO_ROOT / "plugins" / "dev-team" / "hooks" / "scan_worktree_for_banned_scripts.py"
 
 # Loaded by explicit file path (mirrors test_code_intelligence_nudge.py) so
 # the #1861 guard test can monkeypatch `subprocess.run` and call `main()`
 # in-process, without spawning a subprocess per assertion.
-_spec = importlib.util.spec_from_file_location("scan_banned_scripts_lib", _HOOK)
+_spec = importlib.util.spec_from_file_location("scan_worktree_for_banned_scripts_lib", _HOOK)
 assert _spec is not None and _spec.loader is not None
-scan_banned_scripts = importlib.util.module_from_spec(_spec)
-_spec.loader.exec_module(scan_banned_scripts)
+scan_worktree_for_banned_scripts = importlib.util.module_from_spec(_spec)
+_spec.loader.exec_module(scan_worktree_for_banned_scripts)
 
 
 def _run(cwd: Path, env: dict) -> subprocess.CompletedProcess[str]:
@@ -306,6 +307,83 @@ def test_missing_plugin_scope_dir_never_calls_git(
     def _fail_if_called(root: object) -> None:
         raise AssertionError("find_banned_files must not run when plugins/dev-team/ is absent")
 
-    monkeypatch.setattr(scan_banned_scripts, "find_banned_files", _fail_if_called)
+    monkeypatch.setattr(scan_worktree_for_banned_scripts, "find_banned_files", _fail_if_called)
     monkeypatch.setattr(sys, "stdin", io.StringIO(json.dumps({"cwd": str(tmp_path)})))
-    assert scan_banned_scripts.main() == 0
+    assert scan_worktree_for_banned_scripts.main() == 0
+
+
+# --- (#1904 item 8) untracked-directory scan truncation signal --------------
+
+
+def test_files_in_untracked_dir_reports_truncation(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A directory with more entries than the cap must signal truncation
+    via the returned flag, not silently claim the walk was exhaustive."""
+    monkeypatch.setattr(scan_worktree_for_banned_scripts, "_MAX_UNTRACKED_DIR_ENTRIES", 0)
+    newdir = tmp_path / "newfeature"
+    newdir.mkdir()
+    (newdir / "rogue.sh").write_text("echo hi\n")
+    hits, truncated = scan_worktree_for_banned_scripts._files_in_untracked_dir(
+        tmp_path, "newfeature"
+    )
+    assert truncated is True
+    assert hits == []
+
+
+def test_files_in_untracked_dir_not_truncated_when_under_cap(tmp_path: Path) -> None:
+    newdir = tmp_path / "newfeature"
+    newdir.mkdir()
+    (newdir / "keep.py").write_text("pass\n")
+    hits, truncated = scan_worktree_for_banned_scripts._files_in_untracked_dir(
+        tmp_path, "newfeature"
+    )
+    assert truncated is False
+    assert hits == []
+
+
+def test_truncated_scan_still_blocks_and_notes_incompleteness(
+    repo: tuple[Path, dict], monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """A hit found within the capped portion of the walk still blocks —
+    but the message must also say the scan was truncated, since anything
+    past the cap was never inspected."""
+    cwd, env = repo
+    monkeypatch.setattr(os, "environ", env)
+    monkeypatch.setattr(scan_worktree_for_banned_scripts, "_MAX_UNTRACKED_DIR_ENTRIES", 1)
+    newdir = cwd / "plugins" / "dev-team" / "newfeature"
+    newdir.mkdir()
+    # All banned extensions: whichever one `rglob` visits first, the single
+    # entry the cap allows through is still a hit, so this scenario is
+    # deterministic regardless of filesystem enumeration order.
+    (newdir / "a.sh").write_text("echo hi\n")
+    (newdir / "b.bat").write_text("echo hi\n")
+    monkeypatch.setattr(sys, "stdin", io.StringIO(json.dumps({"cwd": str(cwd)})))
+    exit_code = scan_worktree_for_banned_scripts.main()
+    captured = capsys.readouterr()
+    assert exit_code == 2
+    assert "[BLOCK]" in captured.out
+    assert "stopped after 1 entries" in captured.out
+    assert "result may be incomplete" in captured.out
+    assert "stopped after 1 entries" in captured.err
+
+
+def test_truncated_scan_with_no_hits_still_exits_clean_but_notes_incompleteness(
+    repo: tuple[Path, dict], monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """No banned file was found WITHIN the capped portion of the walk —
+    that must not be silently reported as "no banned scripts exist"; the
+    hook still fails open (exit 0), but the note must say the result may be
+    incomplete."""
+    cwd, env = repo
+    monkeypatch.setattr(os, "environ", env)
+    monkeypatch.setattr(scan_worktree_for_banned_scripts, "_MAX_UNTRACKED_DIR_ENTRIES", 0)
+    newdir = cwd / "plugins" / "dev-team" / "newfeature"
+    newdir.mkdir()
+    (newdir / "rogue.sh").write_text("echo hi\n")
+    monkeypatch.setattr(sys, "stdin", io.StringIO(json.dumps({"cwd": str(cwd)})))
+    exit_code = scan_worktree_for_banned_scripts.main()
+    captured = capsys.readouterr()
+    assert exit_code == 0
+    assert "stopped after 0 entries" in captured.out
+    assert "result may be incomplete" in captured.out

@@ -139,10 +139,19 @@ When discovery returns a real project/package list, call, in this order:
      add the named project to `included` or `excluded`) that Step 3's
      generic wording doesn't carry. Stop; write no baseline.
 4. On success (`hard_failure` is `False`), run the stack's coverage command
-   **per included project** (never once per repo), parse each project's raw
-   covered/total statement and branch counts, and call
-   `coverage_config.weighted_merge(project_reports)` to produce the merged
-   `line_pct`/`branch_pct` that Step 4/5 record as the baseline.
+   **per included project** (never once per repo), parse each project's
+   report with `coverage_report_parse.parse(report_path)` (auto-detects the
+   format — lcov, cobertura, clover, jacoco-csv, istanbul-summary,
+   istanbul-final, coverage-py, or coverlet — and returns one
+   `CoverageRecord` per source file), sum each project's records with
+   `coverage_report_parse.aggregate(records)` into that project's single
+   `CoverageRecord`, and call
+   `coverage_config.weighted_merge(project_reports)` — passing the list of
+   per-project `CoverageRecord`s directly, no dict translation needed — to
+   produce the merged `line_pct`/`branch_pct` that Step 4/5 record as the
+   baseline. This same shared parser is what `coverage_gap_ranking.py` uses
+   for its per-module ranking, so there is one implementation of "what a
+   coverage report means," not a second copy re-derived per run.
 
    **Check the result before using it.** `weighted_merge` returns either the
    merged `{"line_pct": ..., "branch_pct": ...}` dict, or the shared
@@ -153,20 +162,6 @@ When discovery returns a real project/package list, call, in this order:
    with `if "signal" in merged:` — on a hit, print `merged["message"]`
    verbatim and stop without writing a baseline; only proceed to Step 4/5
    when the `"signal"` key is absent.
-
-   **Known, documented limitation (.NET/Coverlet).** Step 4's Coverlet row
-   documents `summary.linecoverage`/`summary.branchcoverage` — final
-   percentages, not the raw `covered_statements`/`total_statements`/
-   `covered_branches`/`total_branches` counts `weighted_merge` requires.
-   Coverlet's raw-count JSON layout (nested per-module/per-class/per-method
-   hit data) needs verification against a real Coverlet run before this
-   skill can document an exact JSON path to sum — asserting one without
-   running the real tool risks documenting a shape that doesn't match
-   Coverlet's actual output. Until that verification happens, multi-project
-   .NET merge requires the operator's own coverage command wrapper to parse
-   and supply the four raw counts per included project — a wrapper that
-   can't produce them surfaces via the `weighted_merge` check above, not a
-   silent `null`/`0` baseline.
 
 ### 1b. Single-project and mixed-stack repos are unaffected
 
@@ -205,17 +200,57 @@ If the run fails:
 
 ### 4. Parse line + branch percentages
 
-For each tool, parse the report into `{ "line": <pct>, "branch": <pct>, "tool": "<name>", "raw_path": "<file>" }`:
+**Only resolve the tool → report-file-path mapping by hand.** That part
+genuinely needs human/agent judgment about where each tool writes its
+output; the parsing itself does not — use the same shared parser Step 1a's
+multi-project merge already calls, never a hand-rolled per-tool reader.
 
-- Istanbul / Jest / Vitest → `coverage/coverage-summary.json` → `total.lines.pct` + `total.branches.pct`.
-  - **If `coverage-summary.json` is absent** (the `json-summary` reporter wasn't enabled — see #1086), do not abort. Fall back, in order, to another emitted report and derive the two percentages from it:
-    - `coverage/coverage-final.json` (Istanbul `json` reporter) → sum each file's statement/branch hit counts (`s`/`b`) into totals, then `line = covered_statements / total_statements * 100`, `branch = covered_branches / total_branches * 100`.
-    - `coverage/lcov.info` → tally `LF`/`LH` for lines and `BRF`/`BRH` for branches across all records; `line = ΣLH/ΣLF * 100`, `branch = ΣBRH/ΣBRF * 100` (branch `null` when `BRF` totals 0).
-    - `coverage/clover.xml` → read the project-level `<metrics>` element: `line = coveredstatements/statements * 100`, `branch = coveredconditionals/conditionals * 100`.
-  - Note in the persisted baseline which report was used (`raw_report`). Recommend the operator run `/setup` (which now checks coverage readiness) or add the `json-summary` reporter so future runs use the canonical summary.
-- pytest-cov → `coverage.json` → `totals.percent_covered` (and branch via `--branch`).
-- JaCoCo → `target/site/jacoco/jacoco.csv` → sum line/branch missed+covered.
-- Coverlet → `coverage.json` → `summary.linecoverage`, `summary.branchcoverage`.
+Resolve the report path for the detected tool:
+
+- Istanbul / Jest / Vitest → `coverage/coverage-summary.json` (preferred).
+  **If absent** (the `json-summary` reporter wasn't enabled — see #1086), do
+  not abort. Fall back, in order, to whichever of these exists first:
+  `coverage/coverage-final.json`, `coverage/lcov.info`,
+  `coverage/clover.xml`. Note which report was used (`raw_report`) in the
+  persisted baseline, and recommend the operator run `/setup` (which now
+  checks coverage readiness) or add the `json-summary` reporter so future
+  runs use the canonical summary.
+- pytest-cov → `coverage.json`.
+- JaCoCo → `target/site/jacoco/jacoco.csv`.
+- Coverlet → `coverage.json` (the assembly → file → class → method JSON reporter).
+
+Then parse it with the shared parser — same call, same vocabulary, as
+Step 1a:
+
+```python
+records = coverage_report_parse.parse(report_path)  # auto-detects lcov,
+                                                      # cobertura, clover,
+                                                      # jacoco-csv,
+                                                      # istanbul-summary,
+                                                      # istanbul-final,
+                                                      # coverage-py, or
+                                                      # coverlet
+total = coverage_report_parse.aggregate(records)     # one CoverageRecord
+line_pct = 100 * total.covered_statements / total.total_statements
+branch_pct = (
+    100 * total.covered_branches / total.total_branches
+    if total.total_branches
+    else None
+)
+```
+
+`coverage_report_parse.parse`/`aggregate` raise `ReportError` on an
+unrecognized or unreadable report, and on a recognized format that parses to
+zero records (a misdetected/malformed report, not a genuine 0% measurement)
+— treat either exactly like an existing Step 3 coverage-run failure: surface
+the error, write no baseline, stop.
+
+**cargo-llvm-cov and Go are not covered by the shared parser** — both use
+tool-specific output shapes (`cargo llvm-cov --json`'s own schema; `go tool
+cover -func`'s plain-text summary) that `coverage_report_parse` does not
+recognize, so these two keep their own hand-parsed rules rather than a
+parser call that doesn't exist yet:
+
 - cargo-llvm-cov → `--json` → `data[0].totals.lines.percent`, `…branches.percent`.
 - Go → `go tool cover -func` → `total:` line; branch coverage isn't native, report `null` and flag.
 

@@ -19,24 +19,17 @@ from _repo_root import REPO_ROOT as _REPO_ROOT
 _LIB = _REPO_ROOT / "plugins" / "dev-team" / "hooks" / "lib"
 sys.path.insert(0, str(_LIB))
 
+import boundary_events
 import xunit_v3_operator_gate as ogate
 
 _MODULE = _LIB / "xunit_v3_operator_gate.py"
 
 
-@pytest.fixture(autouse=True)
-def _pin_decision_store(tmp_path, monkeypatch):
-    """Pin the store to tmp_path via the env seam.
-
-    Without it, `decision_store_path` resolves through `artifact_paths`, which
-    shells out to `git rev-parse --show-toplevel` per call — safe only because
-    pytest's temp root happens to sit outside a repo. Pinning it makes these
-    unit tests hermetic rather than incidentally-hermetic, and drops a real git
-    subprocess per call.
-    """
-    monkeypatch.setenv(
-        "DEV_TEAM_XUNIT3_SHIM_DECISION_FILE", str(tmp_path / "decisions.json")
-    )
+def _events(tmp_path) -> list[dict]:
+    log = tmp_path / ".claude" / "metrics" / boundary_events._LOG_NAME
+    if not log.is_file():
+        return []
+    return [json.loads(ln) for ln in log.read_text(encoding="utf-8").splitlines() if ln]
 
 
 def _finding(file: str, construct: str, **over) -> dict:
@@ -364,11 +357,56 @@ def test_decision_records_a_timestamp_for_the_audit_trail(tmp_path):
     assert entry["recorded_at"].endswith("Z")
 
 
-def test_env_seam_overrides_the_store_location(tmp_path, monkeypatch):
+def test_env_seam_no_longer_relocates_the_store(tmp_path, monkeypatch):
+    # #1870: the env override was dropped entirely (no legitimate caller needs
+    # runtime relocation) — setting it must have no effect on where the store
+    # lands.
     target = tmp_path / "elsewhere" / "decisions.json"
     monkeypatch.setenv("DEV_TEAM_XUNIT3_SHIM_DECISION_FILE", str(target))
     ogate.record_decision("T", "port", cwd=tmp_path, fingerprint="abc")
-    assert target.is_file()
+    assert not target.is_file()
+    assert ogate.decision_store_path(tmp_path) == (
+        tmp_path / ".claude" / "metrics" / "xunit-v3-shim-decisions.json"
+    )
+
+
+# --- boundary-events audit trail (#1870) ------------------------------------
+
+
+def test_record_decision_emits_a_boundary_event(tmp_path):
+    q = ogate.build_question("Acme.Tests", [_finding("A.cs", "assert-skip")])
+    ogate.record_decision(
+        "Acme.Tests", "exclude", cwd=tmp_path, fingerprint=q.fingerprint
+    )
+    events = _events(tmp_path)
+    assert any(
+        e["hook"] == "xunit_v3_operator_gate"
+        and e["matched_rule"] == "xunit-v3-shim-decision-record-exclude"
+        and e["subject_hash"] == q.fingerprint
+        for e in events
+    )
+
+
+def test_decision_for_emits_a_boundary_event_on_the_honor_path(tmp_path):
+    q = ogate.build_question("Acme.Tests", [_finding("A.cs", "assert-skip")])
+    ogate.record_decision(
+        "Acme.Tests", "exclude", cwd=tmp_path, fingerprint=q.fingerprint
+    )
+    events_after_record = len(_events(tmp_path))
+
+    decision = ogate.decision_for(q, cwd=tmp_path)
+    assert decision is not None
+    events = _events(tmp_path)
+    assert len(events) == events_after_record + 1
+    honored = events[-1]
+    assert honored["matched_rule"] == "xunit-v3-shim-decision-honor-exclude"
+    assert honored["subject_hash"] == q.fingerprint
+
+
+def test_decision_for_emits_nothing_when_no_decision_covers_the_question(tmp_path):
+    q = ogate.build_question("Acme.Tests", [_finding("A.cs", "assert-skip")])
+    assert ogate.decision_for(q, cwd=tmp_path) is None
+    assert _events(tmp_path) == []
 
 
 # --- CLI --------------------------------------------------------------------

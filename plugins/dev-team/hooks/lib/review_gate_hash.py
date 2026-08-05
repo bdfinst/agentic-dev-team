@@ -25,6 +25,18 @@ small, public, pure function; any agent (including the one whose own work is
 being gated) can import it, or reimplement the equivalent
 `git diff --cached --no-color | sha256sum` pipeline, and self-write a
 matching `.review-passed` without any independent review ever running.
+
+**`EMPTY_DIGEST` must never be treated as a valid subject-hash match
+(issue #1904 Bug 1).** `sha256(b"")` is what every function here returns on
+git failure OR on a genuinely empty diff — a CONSTANT shared by every such
+case, regardless of the real content involved. A caller that compares a
+computed hash against stored/ledger evidence as proof of subject-binding
+(`hooks/pre_pr_review.py`'s `_hash_verdict`/`_prepare_gate`,
+`hooks/agent_dispatch_ledger.py`'s dispatch-stamping) MUST refuse to treat
+`EMPTY_DIGEST` as a match — otherwise one honest review's dispatch evidence,
+recorded while nothing was staged, would corroborate ANY later PR whose gate
+hash also happens to be empty, defeating subject-binding without forging
+anything.
 Closing that gap with cryptographic hardening (e.g. requiring the file to be
 signed by a token only genuine Agent-tool dispatch can produce) is out of
 scope for this module and for `pre_commit_review.py` — it needs
@@ -56,6 +68,7 @@ module's docstring for the full rationale of each shared flag.
 from __future__ import annotations
 
 import hashlib
+import subprocess
 import sys
 from pathlib import Path
 
@@ -64,6 +77,42 @@ if str(_LIB_DIR) not in sys.path:
     sys.path.insert(0, str(_LIB_DIR))
 
 from git_safe_diff import run_safe_git_diff
+
+#: The digest `sha256(b"")` produces — the fail-closed value every function
+#: in this module returns on git failure OR on a genuinely empty diff. A
+#: CONSTANT: never a valid subject-hash match for a consumer that treats a
+#: hash match as proof of subject-binding (issue #1904 Bug 1). See the
+#: module docstring for the full rationale.
+EMPTY_DIGEST = hashlib.sha256(b"").hexdigest()
+
+
+def _git_diff_hash(extra_flags, cwd: Path | None, target: str) -> str:
+    """Shared computation behind `review_gate_hash()`, `branch_diff_gate_hash()`,
+    and (historically) `working_tree_gate_hash()` — differing ONLY in
+    `target`. Extracted (issue #1904) after the three were ~95%
+    byte-identical copy-paste. Fails closed to `EMPTY_DIGEST` on any git
+    launch failure or non-zero exit — see the module docstring for why a
+    caller must never treat that value as a valid subject-hash match.
+    """
+    try:
+        completed = run_safe_git_diff(extra_flags, cwd=cwd, text=False, target=target)
+    except (FileNotFoundError, OSError):
+        # git not installed; the .sh would have `command not found` on stderr
+        # and an empty stdout piped through shasum → sha256 of empty input.
+        # We return the same empty-input digest to keep byte-parity.
+        return EMPTY_DIGEST
+
+    if completed.returncode != 0:
+        # `git diff` outside a repo (or against an unresolvable ref) prints
+        # to stderr and exits non-0 with empty stdout; the .sh pipes that
+        # empty stdout into shasum, yielding the sha256 of empty input.
+        # Mirror that.
+        return EMPTY_DIGEST
+
+    return hashlib.sha256(completed.stdout).hexdigest()
+
+
+_DIFF_RENDER_FLAGS = ("--no-color", "--no-ext-diff", "--no-textconv")
 
 
 def review_gate_hash(cwd: Path | None = None) -> str:
@@ -83,73 +132,111 @@ def review_gate_hash(cwd: Path | None = None) -> str:
     own diff rendering entirely — including the `diff --git`/`index`
     headers this hash is computed over. `git config diff.external
     /usr/bin/true` would otherwise collapse this function's output to
-    `sha256(b"")` for EVERY changeset, turning `subject_hash` into a
+    `EMPTY_DIGEST` for EVERY changeset, turning `subject_hash` into a
     CONSTANT: one honest `/code-review`'s genuine, unforged ledger
     dispatches would then corroborate every subsequent arbitrary changeset
     within the recency window, defeating the whole subject-binding fix
     without forging anything.
 
-    sha256 hex-encoded; empty-input digest (`sha256(b"")`) on git failure.
+    sha256 hex-encoded; `EMPTY_DIGEST` on git failure OR a genuinely empty
+    staged diff — see the module docstring for why a caller must never
+    treat that value as a valid subject-hash match.
+    """
+    return _git_diff_hash(_DIFF_RENDER_FLAGS, cwd, "--cached")
+
+
+def branch_diff_gate_hash(base_ref: str, cwd: Path | None = None) -> str:
+    """Return the sha256 hex digest of `git diff <base_ref>...HEAD` — the
+    PR-time gate's binding content (#1886): the WHOLE branch diff against
+    its merge-base with `base_ref`, rather than one commit's staged patch
+    (`review_gate_hash()`). `git diff A...B` computes the merge-base
+    automatically (the same triple-dot semantics `git log A...B` uses), so
+    no separate `git merge-base` call is needed.
+
+    Same shared safety flags via `git_safe_diff.run_safe_git_diff`, and the
+    same `EMPTY_DIGEST` fallback on any git failure or empty diff, as
+    `review_gate_hash()` above — kept in lockstep deliberately; see that
+    function's own docstring for the full rationale of each flag and why a
+    forgotten fix on one sibling would reopen the subject-binding bypass
+    both exist to prevent.
+    """
+    return _git_diff_hash(_DIFF_RENDER_FLAGS, cwd, f"{base_ref}...HEAD")
+
+
+def default_base_ref(cwd: Path | None = None) -> str | None:
+    """Best-effort resolution of the branch's base ref for
+    `branch_diff_gate_hash()` (#1886): the remote's default branch, e.g.
+    `"origin/main"`.
+
+    Tries `git symbolic-ref --short refs/remotes/origin/HEAD` first (the
+    canonical answer once `git remote set-head origin -a` or an initial
+    `git clone` has run); falls back through a fixed candidate list —
+    `origin/main`, `origin/master`, `main`, `master` — verified with `git
+    rev-parse --verify` so the returned ref actually resolves to a commit in
+    THIS repo, never a guess passed through unchecked.
+
+    Never raises. On total failure (no git, no candidate resolves) returns
+    `None` (issue #1904 Bug 1) — NOT `"HEAD"`. A caller that fell back to
+    `"HEAD"` here would go on to evaluate `git diff HEAD...HEAD`, which
+    SUCCEEDS with empty output, hashing to `EMPTY_DIGEST` — a routine state
+    (any shallow/single-branch clone with no remote-tracking branch) that
+    would otherwise look like an ordinary, passable "empty diff" rather
+    than the gate-setup failure it actually is. Every caller MUST treat a
+    `None` return as a hard setup failure and refuse to evaluate a diff
+    against a non-existent ref — see `hooks/pre_pr_review.py`'s
+    `_prepare_gate()`.
     """
     try:
-        completed = run_safe_git_diff(
-            ["--no-color", "--no-ext-diff", "--no-textconv"],
-            cwd=cwd,
-            text=False,
+        completed = subprocess.run(
+            ["git", "symbolic-ref", "--short", "refs/remotes/origin/HEAD"],
+            cwd=str(cwd) if cwd is not None else None,
+            capture_output=True,
+            check=False,
+            text=True,
         )
+        if completed.returncode == 0 and completed.stdout.strip():
+            return completed.stdout.strip()
     except (FileNotFoundError, OSError):
-        # git not installed; the .sh would have `command not found` on stderr
-        # and an empty stdout piped through shasum → sha256 of empty input.
-        # We return the same empty-input digest to keep byte-parity.
-        return hashlib.sha256(b"").hexdigest()
+        pass
 
-    if completed.returncode != 0:
-        # `git diff --cached` outside a repo prints to stderr and exits non-0
-        # with empty stdout; the .sh pipes that empty stdout into shasum,
-        # yielding the sha256 of empty input. Mirror that.
-        return hashlib.sha256(b"").hexdigest()
-
-    return hashlib.sha256(completed.stdout).hexdigest()
-
-
-def working_tree_gate_hash(cwd: Path | None = None) -> str:
-    """Return the sha256 hex digest of `git diff HEAD` — the EFFECTIVE
-    content (staged + unstaged, relative to HEAD) a `git commit -a`/`--all`
-    or pathspec-form commit would actually commit (#1476).
-
-    `review_gate_hash()` above hashes `git diff --cached`, which is empty
-    by definition for these commit forms (nothing was ever `git add`-ed) —
-    using it here would let such a commit sail through on an empty-hash
-    match. This sibling function is otherwise identical: same shared safety
-    flags via `git_safe_diff.run_safe_git_diff` (just `target="HEAD"`
-    instead of the default `"--cached"`), same `--no-color --no-ext-diff
-    --no-textconv` extra flags, same empty-input digest on git failure.
-    Kept in lockstep with `review_gate_hash()` deliberately — a future
-    safety-flag fix applied to one and forgotten on the other would reopen
-    exactly the subject-binding bypass both functions exist to prevent.
-    """
-    try:
-        completed = run_safe_git_diff(
-            ["--no-color", "--no-ext-diff", "--no-textconv"],
-            cwd=cwd,
-            text=False,
-            target="HEAD",
-        )
-    except (FileNotFoundError, OSError):
-        return hashlib.sha256(b"").hexdigest()
-
-    if completed.returncode != 0:
-        # Includes the unborn-HEAD case (a repo with no commits yet) —
-        # `git diff HEAD` fails there just like `git diff --cached` fails
-        # outside a repo. Fail-closed to the same empty-input digest.
-        return hashlib.sha256(b"").hexdigest()
-
-    return hashlib.sha256(completed.stdout).hexdigest()
+    for candidate in ("origin/main", "origin/master", "main", "master"):
+        try:
+            completed = subprocess.run(
+                ["git", "rev-parse", "--verify", "--quiet", candidate],
+                cwd=str(cwd) if cwd is not None else None,
+                capture_output=True,
+                check=False,
+                text=True,
+            )
+        except (FileNotFoundError, OSError):
+            break
+        if completed.returncode == 0:
+            return candidate
+    return None
 
 
 def _main() -> int:
-    """When the .sh is executed directly it prints the hash. Same for us."""
-    print(review_gate_hash())
+    """When the .sh is executed directly it prints the hash. Same for us.
+
+    `--branch-diff` (#1886) prints `branch_diff_gate_hash(default_base_ref())`
+    instead — the PR-time gate's hash — so callers (`skills/code-review/SKILL.md`)
+    can compute it with a one-line CLI invocation rather than importing this
+    module directly.
+
+    When `default_base_ref()` returns `None` (issue #1904 Bug 1 — the base
+    ref could not be resolved at all), `--branch-diff` mode prints nothing
+    and exits 1 rather than falling back to hashing `HEAD...HEAD` (which
+    would silently succeed with `EMPTY_DIGEST`) — a caller capturing this
+    via `$(...)` must treat a non-zero exit as a hard failure, not an
+    empty-but-valid hash.
+    """
+    if len(sys.argv) > 1 and sys.argv[1] == "--branch-diff":
+        base_ref = default_base_ref()
+        if base_ref is None:
+            return 1
+        print(branch_diff_gate_hash(base_ref))
+    else:
+        print(review_gate_hash())
     return 0
 
 
@@ -157,4 +244,9 @@ if __name__ == "__main__":
     raise SystemExit(_main())
 
 
-__all__ = ("review_gate_hash", "working_tree_gate_hash")
+__all__ = (
+    "EMPTY_DIGEST",
+    "branch_diff_gate_hash",
+    "default_base_ref",
+    "review_gate_hash",
+)

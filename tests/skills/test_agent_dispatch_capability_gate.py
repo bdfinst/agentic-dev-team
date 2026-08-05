@@ -4,7 +4,7 @@
 — it cannot prove an independent review agent actually ran. That gap was
 observed in production: an orchestrating agent with no Agent/Task dispatch
 tool available silently self-applied review checklists inline instead of
-hard-failing, then wrote a matching `.claude/memory/.review-passed` and
+hard-failing, then wrote a matching `.claude/memory/.pr-review-passed` and
 committed/opened a PR off a self-certified pass that a later genuine
 multi-agent review showed had missed real defects (including one that would
 have broken CI).
@@ -12,7 +12,7 @@ have broken CI).
 Full cryptographic hardening of the gate is out of scope (issue #1461); the
 feasible mitigation is a hard, early instruction in each dispatching skill:
 confirm `Agent`/`Task` tool availability before dispatching any review
-agent, and STOP — no self-applied review, no `.review-passed` write — when
+agent, and STOP — no self-applied review, no `.pr-review-passed` write — when
 it is missing. This test pins that instruction's presence in the four
 skills that dispatch (or, for `/ship`, delegate to skills that dispatch)
 review agents.
@@ -34,7 +34,7 @@ def test_code_review_hard_fails_on_missing_dispatch_capability() -> None:
     assert "issue #1461" in CODE_REVIEW
     assert "`Agent` (or `Task`) tool is actually present" in CODE_REVIEW
     assert "STOP." in CODE_REVIEW
-    assert "Do not write `.review-passed`" in CODE_REVIEW
+    assert "Do not write `.pr-review-passed`" in CODE_REVIEW
 
 
 def test_plan_hard_fails_on_missing_dispatch_capability_before_step_5b() -> None:

@@ -12,11 +12,8 @@ Two layers:
 from __future__ import annotations
 
 import importlib.util as _importlib_util
-import json
-import os
 import subprocess
 import sys
-from datetime import datetime, timezone
 from pathlib import Path
 
 import pytest
@@ -109,6 +106,26 @@ class TestNormalizePatch:
         # Errs closed: a genuine indentation fix on a quoted line costs a
         # re-dispatch rather than weakening the gate.
         assert ngh.normalize_patch(_patch("src/a.js", ['s = "x"'], ['    s = "x"'])) != ""
+
+    def test_embedded_form_feed_does_not_desync_hunk_line_counting(self):
+        """#1904 item 15: git's own `@@ -a,b +c,d @@` hunk-header counts are
+        computed over literal "\\n" bytes only, but `str.splitlines()` also
+        breaks on the wider Unicode line-boundary set (form feed, U+2028,
+        etc.). A changed line with a form feed embedded mid-line used to make
+        `splitlines()` see one extra "line" the hunk header's counts don't
+        account for, closing the hunk one line early and silently dropping
+        everything after the form feed from the digest — so two patches
+        differing only in the content after the form feed hashed identically.
+        """
+        before = _patch("src/a.js", ["orig"], ["line\x0cchanged-A"])
+        after = _patch("src/a.js", ["orig"], ["line\x0cchanged-B"])
+        before_norm = ngh.normalize_patch(before)
+        after_norm = ngh.normalize_patch(after)
+        assert before_norm not in ("", None)
+        assert after_norm not in ("", None)
+        assert before_norm != after_norm, (
+            "content after an embedded form feed must survive into the digest"
+        )
 
     @pytest.mark.parametrize("path", ["src/a.py", "conf/x.yaml", "Main.hs", "deploy.yml"])
     def test_indentation_is_never_collapsed_in_indent_significant_languages(self, path):
@@ -769,291 +786,46 @@ class TestNormalizedGateHashAgainstRealGit:
         assert ngh.normalized_gate_hash(repo) != before_norm
 
 
-# --- layer 2: the gate lens, end to end -----------------------------------
-
-
-def _run_hook(payload: dict, cwd: Path) -> subprocess.CompletedProcess:
-    proc_env = {
-        "PATH": os.environ.get("PATH", "/usr/bin:/bin"),
-        "HOME": os.environ.get("HOME", "/tmp"),
-        "TMPDIR": os.environ.get("TMPDIR", "/tmp"),
-        "PYTHONDONTWRITEBYTECODE": "1",
-        "GIT_CONFIG_GLOBAL": "/dev/null",
-        "GIT_CONFIG_SYSTEM": "/dev/null",
-    }
-    return subprocess.run(
-        ["python3", str(_HOOK)],
-        input=json.dumps(payload),
-        env=proc_env,
-        cwd=str(cwd),
-        capture_output=True,
-        text=True,
-        check=False,
-    )
-
-
-def _commit_payload(cwd: Path) -> dict:
-    return {
-        "tool_name": "Bash",
-        "tool_input": {"command": "git commit -m wip"},
-        "cwd": str(cwd),
-        "session_id": "s1",
-    }
-
-
-def _seed_dispatches(repo: Path, agents: list, raw: str, normalized: str | None) -> None:
-    log = repo / ".claude" / "metrics" / "boundary-events.jsonl"
-    log.parent.mkdir(parents=True, exist_ok=True)
-    now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
-    with log.open("a", encoding="utf-8") as fh:
-        for agent in agents:
-            event = {
-                "ts": now,
-                "hook": "agent_dispatch_ledger",
-                "tool": "Agent",
-                "decision": "record",
-                "matched_rule": agent,
-                "plugin_version": "0.0.0",
-                "subject_hash": raw,
-            }
-            if normalized:
-                event["subject_hash_normalized"] = normalized
-            fh.write(json.dumps(event) + "\n")
-
-
-def _write_gate(repo: Path, raw: str, normalized: str | None) -> None:
-    gate = repo / ".claude" / "memory" / ".review-passed"
-    gate.parent.mkdir(parents=True, exist_ok=True)
-    gate.write_text(f"{raw}\n{normalized}\n" if normalized else f"{raw}\n")
-
-
-@pytest.fixture
-def reviewed_repo(tmp_path: Path) -> Path:
-    """A repo where a genuine 2-agent review just corroborated the staged
-    content, with both hashes recorded."""
-    env = hermetic_git_env(home=tmp_path)
-    subprocess.run(["git", "init", "-q"], cwd=tmp_path, env=env, check=True)
-    subprocess.run(["git", "config", "user.email", "t@t"], cwd=tmp_path, env=env, check=True)
-    subprocess.run(["git", "config", "user.name", "t"], cwd=tmp_path, env=env, check=True)
-    (tmp_path / "a.js").write_text("function f() {\n  return 1\n}\n")
-    subprocess.run(["git", "add", "a.js"], cwd=tmp_path, env=env, check=True)
-    subprocess.run(["git", "commit", "-qm", "init"], cwd=tmp_path, env=env, check=True)
-
-    (tmp_path / "a.js").write_text("function f() {\n  return 2\n}\n")
-    subprocess.run(["git", "add", "a.js"], cwd=tmp_path, env=env, check=True)
-
-    raw = _rgh.review_gate_hash(tmp_path)
-    normalized = ngh.normalized_gate_hash(tmp_path)
-    _seed_dispatches(tmp_path, ["correctness-review", "doc-review"], raw, normalized)
-    _write_gate(tmp_path, raw, normalized)
-    return tmp_path
-
-
-def _boundary_rules(repo: Path) -> list:
-    log = repo / ".claude" / "metrics" / "boundary-events.jsonl"
-    if not log.is_file():
-        return []
-    out = []
-    for line in log.read_text(encoding="utf-8").splitlines():
-        try:
-            out.append(json.loads(line).get("matched_rule"))
-        except ValueError:
-            continue
-    return out
-
-
-class TestCarryForwardLens:
-    def test_baseline_matching_hash_still_passes(self, reviewed_repo):
-        assert _run_hook(_commit_payload(reviewed_repo), reviewed_repo).returncode == 0
-
-    def test_whitespace_only_restage_carries_corroboration_forward(self, reviewed_repo):
-        env = hermetic_git_env(home=reviewed_repo)
-        (reviewed_repo / "a.js").write_text("function f() {\n      return 2\n}\n")
-        subprocess.run(["git", "add", "a.js"], cwd=reviewed_repo, env=env, check=True)
-
-        result = _run_hook(_commit_payload(reviewed_repo), reviewed_repo)
-        assert result.returncode == 0, result.stdout + result.stderr
-        assert "cosmetic-delta-carry-forward" in _boundary_rules(reviewed_repo), (
-            "the pass path must always leave an audit event"
-        )
-
-    def test_doc_file_delta_alongside_corroborated_code_is_allowed(self, reviewed_repo):
-        env = hermetic_git_env(home=reviewed_repo)
-        (reviewed_repo / "NOTES.md").write_text("notes\n")
-        subprocess.run(["git", "add", "NOTES.md"], cwd=reviewed_repo, env=env, check=True)
-
-        result = _run_hook(_commit_payload(reviewed_repo), reviewed_repo)
-        assert result.returncode == 0, result.stdout + result.stderr
-        assert "cosmetic-delta-carry-forward" in _boundary_rules(reviewed_repo)
-
-    def test_a_single_non_whitespace_source_change_is_blocked_exactly_as_today(
-        self, reviewed_repo
-    ):
-        env = hermetic_git_env(home=reviewed_repo)
-        (reviewed_repo / "a.js").write_text("function f() {\n  return 3\n}\n")
-        subprocess.run(["git", "add", "a.js"], cwd=reviewed_repo, env=env, check=True)
-
-        result = _run_hook(_commit_payload(reviewed_repo), reviewed_repo)
-        assert result.returncode == 2
-        assert "Code review required" in result.stdout
-        assert "cosmetic-delta-carry-forward" not in _boundary_rules(reviewed_repo)
-
-    def test_a_string_literal_edit_is_blocked(self, reviewed_repo):
-        env = hermetic_git_env(home=reviewed_repo)
-        (reviewed_repo / "a.js").write_text('function f() {\n  return "x"\n}\n')
-        subprocess.run(["git", "add", "a.js"], cwd=reviewed_repo, env=env, check=True)
-        assert _run_hook(_commit_payload(reviewed_repo), reviewed_repo).returncode == 2
-
-    def test_an_agent_markdown_edit_never_rides_the_carry_forward(self, reviewed_repo):
-        env = hermetic_git_env(home=reviewed_repo)
-        agent_file = reviewed_repo / "agents" / "correctness-review.md"
-        agent_file.parent.mkdir(parents=True, exist_ok=True)
-        agent_file.write_text("---\nname: correctness-review\n---\n")
-        subprocess.run(["git", "add", "agents"], cwd=reviewed_repo, env=env, check=True)
-        assert _run_hook(_commit_payload(reviewed_repo), reviewed_repo).returncode == 2
-
-    def test_a_one_line_gate_file_never_carries_forward(self, tmp_path):
-        """Backward compatibility: a `.review-passed` written by an older
-        plugin version has no normalized line and must behave exactly as
-        before."""
-        env = hermetic_git_env(home=tmp_path)
-        subprocess.run(["git", "init", "-q"], cwd=tmp_path, env=env, check=True)
-        subprocess.run(["git", "config", "user.email", "t@t"], cwd=tmp_path, env=env, check=True)
-        subprocess.run(["git", "config", "user.name", "t"], cwd=tmp_path, env=env, check=True)
-        (tmp_path / "a.js").write_text("const x = 1\n")
-        subprocess.run(["git", "add", "a.js"], cwd=tmp_path, env=env, check=True)
-        subprocess.run(["git", "commit", "-qm", "init"], cwd=tmp_path, env=env, check=True)
-        (tmp_path / "a.js").write_text("const x = 2\n")
-        subprocess.run(["git", "add", "a.js"], cwd=tmp_path, env=env, check=True)
-
-        raw = _rgh.review_gate_hash(tmp_path)
-        normalized = ngh.normalized_gate_hash(tmp_path)
-        _seed_dispatches(tmp_path, ["correctness-review", "doc-review"], raw, normalized)
-        _write_gate(tmp_path, raw, None)  # raw-only, pre-#1627 shape
-
-        (tmp_path / "a.js").write_text("        const x = 2\n")
-        subprocess.run(["git", "add", "a.js"], cwd=tmp_path, env=env, check=True)
-        assert _run_hook(_commit_payload(tmp_path), tmp_path).returncode == 2
-
-    def test_dispatch_events_without_the_normalized_field_never_match(self, tmp_path):
-        """A stale ledger written by an older plugin version carries no
-        `subject_hash_normalized`; it must not corroborate on this path."""
-        env = hermetic_git_env(home=tmp_path)
-        subprocess.run(["git", "init", "-q"], cwd=tmp_path, env=env, check=True)
-        subprocess.run(["git", "config", "user.email", "t@t"], cwd=tmp_path, env=env, check=True)
-        subprocess.run(["git", "config", "user.name", "t"], cwd=tmp_path, env=env, check=True)
-        (tmp_path / "a.js").write_text("const x = 1\n")
-        subprocess.run(["git", "add", "a.js"], cwd=tmp_path, env=env, check=True)
-        subprocess.run(["git", "commit", "-qm", "init"], cwd=tmp_path, env=env, check=True)
-        (tmp_path / "a.js").write_text("const x = 2\n")
-        subprocess.run(["git", "add", "a.js"], cwd=tmp_path, env=env, check=True)
-
-        raw = _rgh.review_gate_hash(tmp_path)
-        normalized = ngh.normalized_gate_hash(tmp_path)
-        _seed_dispatches(tmp_path, ["correctness-review", "doc-review"], raw, None)
-        _write_gate(tmp_path, raw, normalized)
-
-        (tmp_path / "a.js").write_text("        const x = 2\n")
-        subprocess.run(["git", "add", "a.js"], cwd=tmp_path, env=env, check=True)
-        assert _run_hook(_commit_payload(tmp_path), tmp_path).returncode == 2
-
-    def test_carry_forward_still_requires_two_distinct_dispatches(self, tmp_path):
-        """The lens relaxes WHICH hash binds the evidence, never how much
-        evidence is required."""
-        env = hermetic_git_env(home=tmp_path)
-        subprocess.run(["git", "init", "-q"], cwd=tmp_path, env=env, check=True)
-        subprocess.run(["git", "config", "user.email", "t@t"], cwd=tmp_path, env=env, check=True)
-        subprocess.run(["git", "config", "user.name", "t"], cwd=tmp_path, env=env, check=True)
-        (tmp_path / "a.js").write_text("const x = 1\n")
-        subprocess.run(["git", "add", "a.js"], cwd=tmp_path, env=env, check=True)
-        subprocess.run(["git", "commit", "-qm", "init"], cwd=tmp_path, env=env, check=True)
-        (tmp_path / "a.js").write_text("const x = 2\n")
-        subprocess.run(["git", "add", "a.js"], cwd=tmp_path, env=env, check=True)
-
-        raw = _rgh.review_gate_hash(tmp_path)
-        normalized = ngh.normalized_gate_hash(tmp_path)
-        _seed_dispatches(tmp_path, ["correctness-review"], raw, normalized)  # only 1
-        _write_gate(tmp_path, raw, normalized)
-
-        (tmp_path / "a.js").write_text("        const x = 2\n")
-        subprocess.run(["git", "add", "a.js"], cwd=tmp_path, env=env, check=True)
-        assert _run_hook(_commit_payload(tmp_path), tmp_path).returncode == 2
-
-    def test_missing_gate_file_is_still_a_hard_block(self, tmp_path):
-        env = hermetic_git_env(home=tmp_path)
-        subprocess.run(["git", "init", "-q"], cwd=tmp_path, env=env, check=True)
-        subprocess.run(["git", "config", "user.email", "t@t"], cwd=tmp_path, env=env, check=True)
-        subprocess.run(["git", "config", "user.name", "t"], cwd=tmp_path, env=env, check=True)
-        (tmp_path / "a.js").write_text("const x = 1\n")
-        subprocess.run(["git", "add", "a.js"], cwd=tmp_path, env=env, check=True)
-        assert _run_hook(_commit_payload(tmp_path), tmp_path).returncode == 2
-
-    def test_a_binary_swap_on_top_of_reviewed_code_is_blocked(self, reviewed_repo):
-        """#1631. A binary file produces no hunk body, so it was invisible to
-        the digest: staging one on top of already-corroborated code left the
-        normalized hash untouched and rode the carry-forward."""
-        env = hermetic_git_env(home=reviewed_repo)
-        (reviewed_repo / "blob.bin").write_bytes(b"\x00\x01MALICIOUS")
-        subprocess.run(["git", "add", "blob.bin"], cwd=reviewed_repo, env=env, check=True)
-        assert _run_hook(_commit_payload(reviewed_repo), reviewed_repo).returncode == 2
-
-    def test_making_a_file_executable_on_top_of_reviewed_code_is_blocked(self, reviewed_repo):
-        """#1631. Same shape as the binary swap: a mode flip has no hunk."""
-        env = hermetic_git_env(home=reviewed_repo)
-        script = reviewed_repo / "deploy.sh"
-        script.write_text("echo hi\n")
-        subprocess.run(["git", "add", "deploy.sh"], cwd=reviewed_repo, env=env, check=True)
-        subprocess.run(["git", "commit", "-qm", "add script"], cwd=reviewed_repo, env=env, check=True)
-        script.chmod(0o755)
-        subprocess.run(["git", "add", "deploy.sh"], cwd=reviewed_repo, env=env, check=True)
-        assert _run_hook(_commit_payload(reviewed_repo), reviewed_repo).returncode == 2
-
-    def test_dispatches_recorded_against_a_clean_index_corroborate_nothing(self, tmp_path):
-        """#1631, the end-to-end bypass chain, and the reason fix 5 exists.
-
-        Two genuine review dispatches made BEFORE anything was staged used to
-        stamp `sha256("")` — the same constant a later mode-only stage
-        recomputes. That cleared the `>= 2` distinct-dispatch floor with
-        evidence from agents that had reviewed nothing at all, which is
-        exactly the #1461 property this slice must not reopen.
-        """
-        env = hermetic_git_env(home=tmp_path)
-        subprocess.run(["git", "init", "-q"], cwd=tmp_path, env=env, check=True)
-        subprocess.run(["git", "config", "user.email", "t@t"], cwd=tmp_path, env=env, check=True)
-        subprocess.run(["git", "config", "user.name", "t"], cwd=tmp_path, env=env, check=True)
-        (tmp_path / "a.js").write_text("const x = 1\n")
-        (tmp_path / "deploy.sh").write_text("echo hi\n")
-        subprocess.run(["git", "add", "-A"], cwd=tmp_path, env=env, check=True)
-        subprocess.run(["git", "commit", "-qm", "init"], cwd=tmp_path, env=env, check=True)
-
-        # Reviews dispatched against a clean index: whatever they stamp must
-        # never be a value a real changeset can recompute.
-        clean_index_normalized = ngh.normalized_gate_hash(tmp_path)
-        assert clean_index_normalized is None
-        _seed_dispatches(tmp_path, ["correctness-review", "doc-review"], "rawhash", None)
-        _write_gate(tmp_path, "rawhash", None)
-
-        # Now stage a mode-only change and try to ride that "evidence".
-        (tmp_path / "deploy.sh").chmod(0o755)
-        subprocess.run(["git", "add", "-A"], cwd=tmp_path, env=env, check=True)
-        result = _run_hook(_commit_payload(tmp_path), tmp_path)
-        assert result.returncode == 2, result.stdout + result.stderr
-        assert "cosmetic-delta-carry-forward" not in _boundary_rules(tmp_path)
+# --- layer 2: the gate lens, end to end (historical, #1886) --------------
+#
+# The cosmetic-delta carry-forward lens this section exercised lived in
+# `pre_commit_review.py`'s (now-removed) `_cosmetic_carry_forward_verdict`.
+# #1886 moved the review-corroboration gate from `git commit` to
+# `gh pr create` and deliberately did NOT carry this lens forward — see
+# `hooks/pre_pr_review.py`'s own module docstring for why (the friction it
+# relieved — a whitespace-only re-stage forcing a fresh review-agent
+# dispatch before the NEXT commit — was a direct consequence of gating
+# every commit, which no longer happens). `hooks/pre_commit_review.py` is
+# now a documented no-op and emits no `cosmetic-delta-carry-forward` event
+# under any input. The end-to-end integration coverage this section used to
+# provide has no successor: `pre_pr_review.py` never emits this event
+# either, by design.
 
 
 class TestSingleSourceNormalization:
-    def test_ledger_hook_skill_and_gate_all_use_the_one_implementation(self):
-        """Drift guard (the `mtime_to_iso` sharing precedent): the ledger
-        stamp, the skill's write site, and the gate's read must all route
-        through `review_gate_normalized_hash`, never a second copy."""
+    def test_ledger_no_longer_stamps_the_normalized_hash(self):
+        """Reversed by issue #1904 (was: "the ledger keeps stamping it
+        defensively (a future gate could still consume it)"). By the time
+        #1886 retired `pre_commit_review.py` to a no-op, NOTHING consumed
+        `subject_hash_normalized` at all — confirmed by a repo-wide grep
+        before this fix. Stamping it anyway cost a whole-repo diff
+        (`--unified=100000`, per this module's own docstring) on EVERY
+        Agent/Task dispatch for zero benefit; #1904 removed the call.
+        A future gate that wants normalization back should re-add the call
+        deliberately, not inherit a stale "just in case" one."""
         ledger = (_PLUGIN_ROOT / "hooks" / "agent_dispatch_ledger.py").read_text("utf-8")
-        assert "from review_gate_normalized_hash import normalized_gate_hash" in ledger
+        assert "normalized_gate_hash" not in ledger
 
-        gate = (_PLUGIN_ROOT / "hooks" / "pre_commit_review.py").read_text("utf-8")
-        assert "review_gate_normalized_hash" in gate
-
+    def test_skill_no_longer_references_the_retired_normalization_write(self):
+        """`.review-passed` (the two-line, normalization-carrying gate file)
+        is retired — `/code-review` now writes only the single-line
+        `.pr-review-passed` (#1886), which has no normalized-hash leg (see
+        `hooks/pre_pr_review.py`'s module docstring: the cosmetic-delta
+        carry-forward mechanism this normalization existed for was
+        deliberately dropped for the PR-time gate). The skill must not
+        reference the normalization module at all."""
         skill = (_PLUGIN_ROOT / "skills" / "code-review" / "SKILL.md").read_text("utf-8")
-        assert "hooks/lib/review_gate_normalized_hash.py" in skill
+        assert "review_gate_normalized_hash.py" not in skill
 
     def test_no_second_normalization_implementation_exists(self):
         owners = set()

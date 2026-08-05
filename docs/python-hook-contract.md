@@ -90,7 +90,13 @@ Claude Code or by the plugin's own settings.json:
   --show-toplevel`, falling back to the start directory or `os.getcwd()` —
   it does not read `CLAUDE_PROJECT_DIR`) when writing to plugin-owned
   side-effect trees (`.claude/memory/`, `.claude/metrics/`, `.claude/plans/`,
-  `.dev-team-reports/`, `.telemetry/`).
+  `.dev-team-reports/`, `.telemetry/`, `.claude/hooks/`). `.claude/hooks/`
+  (issue #1904 item 10) holds plugin **runtime state** files written by
+  `/freeze`/`/unfreeze`/`/careful`/`/guard` and read back by
+  `pre_tool_guard.py`/`destructive_guard.py` (`freeze-state.json`,
+  `careful-state.json`) — it is NOT operator-authored hook code, despite
+  the name collision with the top-level `hooks/` directory that plugin
+  authors do own.
 - `CLAUDE_TOOL_NAME` — name of the tool being invoked (`Bash`, `Edit`, …).
 - `CLAUDE_SESSION_ID` — current session UUID (also on stdin, but this env
   var is set for hooks that don't parse stdin).

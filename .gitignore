@@ -41,6 +41,12 @@ _mkdocs_src/
 # it's read unvalidated by a guard whose allowed_patterns gate Write/Edit.
 .claude/hooks/freeze-state.json
 
+# Per-repo careful-mode state read by destructive_guard.py (#1900) — same
+# transient-runtime-state class as freeze-state.json above; newly committable
+# now that #1900 fixed its write path, so this rule is what keeps it from
+# landing in git the moment a real `/careful` run writes it.
+.claude/hooks/careful-state.json
+
 # /setup and /project-init's stack-detection cache — pure detection output, the
 # same regeneratable-artifact class as .claude/memory/ and .claude/metrics/
 # above. /setup's Step 11 downstream-only ignore-rule step is explicitly
@@ -103,6 +109,10 @@ evals/code-review-benchmark/.cache/
 
 # Pre-commit review gate file (generated at runtime)
 .review-passed
+# PR-time review gate file (#1886/#1904) — distinct literal name from
+# .review-passed above, so that pattern does not match it; same
+# generated-at-runtime, never-repo-content class.
+.pr-review-passed
 feature-file-validation-workspace/
 
 # Repo-local pinned PMD distribution (installed by

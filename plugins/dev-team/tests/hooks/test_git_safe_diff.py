@@ -84,7 +84,8 @@ def test_cwd_none_passes_none_not_string(monkeypatch: pytest.MonkeyPatch) -> Non
 
 
 def test_target_head_shaped_argv(monkeypatch: pytest.MonkeyPatch) -> None:
-    """#1476: `working_tree_gate_hash()` passes `target="HEAD"`."""
+    """#1476: `target="HEAD"` (the shape `review_gate_hash.py`'s now-deleted
+    `working_tree_gate_hash()` passed before #1904 retired it as orphaned)."""
     captured = {}
 
     def _fake_run(argv, **kwargs):

@@ -363,8 +363,17 @@ def test_budget_ignores_nonpositive_and_garbage():
 # --- CLI --------------------------------------------------------------------
 
 
-def test_cli_enter_loop_json(capsys):
-    rc = gate._cli(["--probe-seconds", "5", "--scope-files", "3"])
+def _empty_findings_file(tmp_path):
+    findings_file = tmp_path / "empty-findings.json"
+    findings_file.write_text(json.dumps({"findings": []}), encoding="utf-8")
+    return findings_file
+
+
+def test_cli_enter_loop_json(capsys, tmp_path):
+    rc = gate._cli(
+        ["--probe-seconds", "5", "--scope-files", "3",
+         "--v3-findings-json", str(_empty_findings_file(tmp_path))]
+    )
     out = capsys.readouterr().out
     assert rc == 0
     payload = json.loads(out)
@@ -373,6 +382,8 @@ def test_cli_enter_loop_json(capsys):
 
 
 def test_cli_capture_failed_json(capsys):
+    # Omits --v3-findings-json on purpose: capture_failed short-circuits to
+    # DEGRADE before the #1870 fail-closed check is ever reached.
     rc = gate._cli(["--capture-failed"])
     out = capsys.readouterr().out
     assert rc == 0
@@ -382,6 +393,8 @@ def test_cli_capture_failed_json(capsys):
 
 
 def test_cli_shim_declined_flag_wiring(capsys):
+    # Omits --v3-findings-json on purpose: shim_declined short-circuits to
+    # DEGRADE before the #1870 fail-closed check is ever reached.
     rc = gate._cli(["--shim-declined"])
     out = capsys.readouterr().out
     assert rc == 0
@@ -390,10 +403,11 @@ def test_cli_shim_declined_flag_wiring(capsys):
     assert "#1160" in payload["reason"]
 
 
-def test_cli_budget_flag_wiring(capsys):
+def test_cli_budget_flag_wiring(capsys, tmp_path):
     # Small budget + slow probe drives the over-budget ask-operator through argparse.
     rc = gate._cli(
-        ["--probe-seconds", "100", "--scope-files", "40", "--budget-seconds", "10"]
+        ["--probe-seconds", "100", "--scope-files", "40", "--budget-seconds", "10",
+         "--v3-findings-json", str(_empty_findings_file(tmp_path))]
     )
     payload = json.loads(capsys.readouterr().out)
     assert rc == 0
@@ -402,19 +416,89 @@ def test_cli_budget_flag_wiring(capsys):
     assert payload["waiver"] is None
 
 
-def test_cli_explicit_nonpositive_budget_is_clamped_not_passed_through(capsys):
+def test_cli_explicit_nonpositive_budget_is_clamped_not_passed_through(capsys, tmp_path):
     # #1549: `--budget-seconds 0` used to reach decide() unclamped (argparse
     # sets 0.0, not None, so the `budget_seconds is None` branch never fired),
     # forcing ASK_OPERATOR regardless of how fast the probe was. A fast probe
     # with an explicit non-positive override must now enter the loop, exactly
     # as it would with no --budget-seconds flag at all.
     rc = gate._cli(
-        ["--probe-seconds", "1", "--scope-files", "1", "--budget-seconds", "0"]
+        ["--probe-seconds", "1", "--scope-files", "1", "--budget-seconds", "0",
+         "--v3-findings-json", str(_empty_findings_file(tmp_path))]
     )
     payload = json.loads(capsys.readouterr().out)
     assert rc == 0
     assert payload["outcome"] == gate.Outcome.ENTER_LOOP.value
     assert payload["budget_seconds"] == gate.DEFAULT_ROUND_BUDGET_SECONDS
+
+
+# --- fail-closed on an omitted --v3-findings-json (#1870) -------------------
+
+
+def test_cli_missing_v3_findings_json_asks_operator_not_enter_loop(capsys):
+    # Every call into this CLI is for an xunit.v3 project by calling
+    # convention (agents/mutation-kill.md: "plain xunit.v2 / other stacks
+    # skip this gate") — omitting the detector output must not silently read
+    # as "detector ran, found nothing".
+    rc = gate._cli(["--probe-seconds", "1", "--scope-files", "1"])
+    payload = json.loads(capsys.readouterr().out)
+    assert rc == 0
+    assert payload["outcome"] == gate.Outcome.ASK_OPERATOR.value
+    assert "--v3-findings-json" in payload["reason"]
+    assert payload["question"] is None
+
+
+def test_decide_v3_findings_unknown_forces_ask_operator():
+    probe = gate.ProbeResult(
+        shim_declined=False,
+        capture_failed=False,
+        probe_seconds=1.0,
+        scope_file_count=1,
+        v3_findings_known=False,
+    )
+    d = gate.decide(probe, budget_seconds=1800.0)
+    assert d.outcome is gate.Outcome.ASK_OPERATOR
+    assert d.waiver is None
+    assert "#1870" in d.reason
+
+
+def test_decide_v3_findings_unknown_combines_with_over_budget_reason():
+    probe = gate.ProbeResult(
+        shim_declined=False,
+        capture_failed=False,
+        probe_seconds=100.0,
+        scope_file_count=40,
+        v3_findings_known=False,
+    )
+    d = gate.decide(probe, budget_seconds=10.0)
+    assert d.outcome is gate.Outcome.ASK_OPERATOR
+    assert "budget" in d.reason
+    assert "#1870" in d.reason
+
+
+def test_decide_v3_findings_unknown_does_not_override_shim_declined():
+    probe = gate.ProbeResult(
+        shim_declined=True,
+        capture_failed=False,
+        probe_seconds=1.0,
+        scope_file_count=1,
+        v3_findings_known=False,
+    )
+    d = gate.decide(probe)
+    assert d.outcome is gate.Outcome.DEGRADE
+    assert "#1160" in d.reason
+
+
+def test_decide_direct_callers_default_to_known_and_are_unaffected():
+    # Direct decide()/ProbeResult(...) callers that already know their own
+    # "detector ran, found nothing" state (the default `v3_blockers=()`) must
+    # be unaffected by the CLI-only #1870 fail-closed check.
+    probe = gate.ProbeResult(
+        shim_declined=False, capture_failed=False, probe_seconds=1.0, scope_file_count=1
+    )
+    assert probe.v3_findings_known is True
+    d = gate.decide(probe, budget_seconds=1800.0)
+    assert d.outcome is gate.Outcome.ENTER_LOOP
 
 
 def test_cli_v3_findings_json_flows_into_the_question(capsys, tmp_path):

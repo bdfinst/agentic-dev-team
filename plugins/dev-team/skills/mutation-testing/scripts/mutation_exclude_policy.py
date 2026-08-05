@@ -41,11 +41,29 @@ import argparse
 import fnmatch
 import json
 import sys
+from enum import Enum
 from pathlib import Path
 
 import mutation_report
 
 POLICY_FILENAME = "mutation-exclude-policy.json"
+
+
+class ExclusionTier(str, Enum):
+    """The two mutation exclude-policy tiers a flagged file can land in
+    (issue #1904 item 4) — a closed vocabulary previously carried as bare
+    string literals (`"always"`/`"propose_and_ask"`) compared with `==`, so
+    a typo silently read as "not the always tier" rather than failing
+    loudly. `str, Enum` — deliberately NOT `coverage_config.TestClassification`'s
+    convention, which is a plain `Enum` chosen so an accidental attempt to
+    JSON-serialize it fails loudly instead of silently succeeding. This
+    enum diverges on purpose: its values ARE meant to serialize to JSON
+    (`write_json`/`draft_policy`'s output) and to keep matching existing
+    bare-string `== "always"`-style call sites, so the `str` mixin is the
+    correct choice here, not a mirrored one."""
+
+    ALWAYS = "always"
+    PROPOSE_AND_ASK = "propose_and_ask"
 
 # Ported verbatim from agents/mutation-kill.md's "Infrastructure exclusion
 # detection" section — the single source of truth for these two numbers.
@@ -139,13 +157,13 @@ def draft_entries(report_path: Path, stack: str) -> list[dict]:
 
         hint = _matching_hint(Path(file_key).name, stack)
         if hint:
-            tier = "always"
+            tier = ExclusionTier.ALWAYS
             reason = (
                 f"named convention: {hint} (score {summary.honest_score:.1f}%, "
                 f"NoCoverage {no_coverage_pct:.1f}%)"
             )
         else:
-            tier = "propose_and_ask"
+            tier = ExclusionTier.PROPOSE_AND_ASK
             reason = (
                 f"signal-only: score {summary.honest_score:.1f}%, NoCoverage "
                 f"{no_coverage_pct:.1f}% (no filename match)"
@@ -166,8 +184,12 @@ def draft_policy(report_paths: dict[str, Path]) -> dict:
     propose_and_ask: list[dict] = []
     for stack, report_path in sorted(report_paths.items()):
         for entry in draft_entries(report_path, stack):
-            (always if entry["tier"] == "always" else propose_and_ask).append(entry)
-    return {"schema_version": 1, "always": always, "propose_and_ask": propose_and_ask}
+            (always if entry["tier"] == ExclusionTier.ALWAYS else propose_and_ask).append(entry)
+    return {
+        "schema_version": 1,
+        ExclusionTier.ALWAYS.value: always,
+        ExclusionTier.PROPOSE_AND_ASK.value: propose_and_ask,
+    }
 
 
 def write_json(path: Path, payload: dict) -> None:

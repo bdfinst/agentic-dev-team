@@ -15,17 +15,12 @@ import subprocess
 import sys
 from pathlib import Path
 
-import pytest
-
 SCRIPTS_DIR = Path(__file__).parent.parent.parent / "scripts"
 SCRIPT = SCRIPTS_DIR / "coverage_gap_ranking.py"
 sys.path.insert(0, str(SCRIPTS_DIR))
 
 from coverage_gap_ranking import (
-    ReportError,
-    _tally_coverlet_classes,
     build_report,
-    detect_format,
     main,
     parse_report,
     rank_modules,
@@ -68,78 +63,6 @@ DA:2,0
 DA:3,0
 end_of_record
 """
-
-# A class whose lines appear twice — once under <methods>/<method>/<lines>
-# and again under the class-level <lines> block, the shape Cobertura's own
-# format and coverlet's cobertura reporter emit. Each source line must be
-# counted once.
-COBERTURA_DUPLICATED_LINES = """\
-<?xml version="1.0"?>
-<coverage line-rate="0.5">
-  <packages>
-    <package name="Pipes">
-      <classes>
-        <class filename="src/Pipes/Transform.cs">
-          <methods>
-            <method name="Run">
-              <lines>
-                <line number="1" hits="1"/>
-                <line number="2" hits="0"/>
-              </lines>
-            </method>
-          </methods>
-          <lines>
-            <line number="1" hits="1"/>
-            <line number="2" hits="0"/>
-          </lines>
-        </class>
-      </classes>
-    </package>
-  </packages>
-</coverage>
-"""
-
-COBERTURA = """\
-<?xml version="1.0"?>
-<coverage line-rate="0.2">
-  <packages>
-    <package name="Pipes">
-      <classes>
-        <class filename="src/Pipes/Transform.cs">
-          <lines>
-            <line number="1" hits="1"/>
-            <line number="2" hits="1"/>
-            <line number="3" hits="0" branch="true" condition-coverage="50% (1/2)"/>
-          </lines>
-        </class>
-      </classes>
-    </package>
-    <package name="Repositories">
-      <classes>
-        <class filename="src/Repositories/OrderRepository.cs">
-          <lines>
-            <line number="1" hits="0"/>
-            <line number="2" hits="0"/>
-            <line number="3" hits="0" branch="true" condition-coverage="0% (0/2)"/>
-          </lines>
-        </class>
-      </classes>
-    </package>
-  </packages>
-</coverage>
-"""
-
-ISTANBUL_SUMMARY = {
-    "total": {"lines": {"total": 300, "covered": 100, "pct": 33.33}},
-    "src/pipes/transform.js": {
-        "lines": {"total": 100, "covered": 95, "pct": 95.0},
-        "branches": {"total": 10, "covered": 9, "pct": 90.0},
-    },
-    "src/repositories/order.js": {
-        "lines": {"total": 200, "covered": 5, "pct": 2.5},
-        "branches": {"total": 20, "covered": 0, "pct": 0.0},
-    },
-}
 
 ISTANBUL_FINAL = {
     "/abs/src/pipes/transform.js": {
@@ -203,14 +126,6 @@ COVERLET = {
     },
 }
 
-JACOCO_CSV = """\
-GROUP,PACKAGE,CLASS,INSTRUCTION_MISSED,INSTRUCTION_COVERED,BRANCH_MISSED,BRANCH_COVERED,LINE_MISSED,LINE_COVERED,COMPLEXITY_MISSED,COMPLEXITY_COVERED,METHOD_MISSED,METHOD_COVERED
-app,com.acme.pipes,Transform,10,900,1,19,10,90,1,9,0,5
-app,com.acme.repositories,OrderRepository,900,10,40,0,400,4,40,0,10,1
-app,com.acme.repositories,CustomerRepository,400,0,10,0,200,0,20,0,5,0
-"""
-
-
 def _write(tmp_path: Path, name: str, content) -> Path:
     path = tmp_path / name
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -236,244 +151,13 @@ def _json_run(*args: str) -> tuple[int, dict]:
 
 
 # ---------------------------------------------------------------------------
-# format detection
-# ---------------------------------------------------------------------------
-
-
-def test_detect_lcov(tmp_path):
-    assert detect_format(_write(tmp_path, "lcov.info", LCOV)) == "lcov"
-
-
-def test_detect_cobertura(tmp_path):
-    assert detect_format(_write(tmp_path, "cobertura.xml", COBERTURA)) == "cobertura"
-
-
-def test_detect_jacoco_csv(tmp_path):
-    assert detect_format(_write(tmp_path, "jacoco.csv", JACOCO_CSV)) == "jacoco-csv"
-
-
-def test_detect_istanbul_summary(tmp_path):
-    path = _write(tmp_path, "coverage-summary.json", ISTANBUL_SUMMARY)
-    assert detect_format(path) == "istanbul-summary"
-
-
-def test_detect_istanbul_final(tmp_path):
-    path = _write(tmp_path, "coverage-final.json", ISTANBUL_FINAL)
-    assert detect_format(path) == "istanbul-final"
-
-
-def test_detect_coverage_py(tmp_path):
-    assert detect_format(_write(tmp_path, "coverage.json", COVERAGE_PY)) == "coverage-py"
-
-
-def test_detect_coverlet(tmp_path):
-    assert detect_format(_write(tmp_path, "coverlet.json", COVERLET)) == "coverlet"
-
-
-def test_detect_unknown_format_raises(tmp_path):
-    path = _write(tmp_path, "nope.txt", "hello world\n")
-    with pytest.raises(ValueError, match="unrecognized"):
-        detect_format(path)
-
-
-def test_detect_unrecognized_json_shape_raises(tmp_path):
-    path = _write(tmp_path, "weird.json", {"foo": 1})
-    with pytest.raises(ValueError, match="unrecognized"):
-        detect_format(path)
-
-
-def test_detect_tolerates_a_utf8_bom(tmp_path):
-    """.NET/Windows coverage writers emit BOM-prefixed files; a BOM must not
-    hide an otherwise supported format."""
-    path = tmp_path / "lcov.info"
-    path.write_text("﻿" + LCOV, encoding="utf-8")
-    assert detect_format(path) == "lcov"
-    assert parse_report(path, "lcov")[0]["path"] == "src/Pipes/Transform.cs"
-
-
-def test_parse_cobertura_malformed_xml_raises(tmp_path):
-    path = _write(tmp_path, "cobertura.xml", "<coverage><packages>")
-    with pytest.raises(ValueError, match="not valid XML"):
-        parse_report(path, "cobertura")
-
-
-def test_parse_cobertura_rejects_a_doctype_entity_declaration(tmp_path):
-    """#1872: the cobertura path parsed with `xml.etree.ElementTree.fromstring`
-    directly, with no DOCTYPE/ENTITY screening — the same XXE/billion-laughs
-    exposure `coverage_config.read_and_screen_xml` exists to close for every
-    other coverage-discovery stack. `parse_report` must raise `ReportError`
-    rather than hand a DOCTYPE-carrying document to `ET.fromstring`."""
-    path = _write(
-        tmp_path,
-        "cobertura.xml",
-        '<?xml version="1.0"?>\n'
-        '<!DOCTYPE coverage [<!ENTITY xxe SYSTEM "file:///etc/passwd">]>\n'
-        '<coverage line-rate="1.0">\n'
-        "  <packages/>\n"
-        "</coverage>\n",
-    )
-    with pytest.raises(ReportError, match="DOCTYPE"):
-        parse_report(path, "cobertura")
-
-
-# ---------------------------------------------------------------------------
-# parsing — per-file line/branch tallies
-# ---------------------------------------------------------------------------
-
-
-def test_parse_lcov_tallies_lines_and_branches(tmp_path):
-    files = parse_report(_write(tmp_path, "lcov.info", LCOV), "lcov")
-    by_path = {f["path"]: f for f in files}
-    assert by_path["src/Pipes/Transform.cs"]["lines_total"] == 100
-    assert by_path["src/Pipes/Transform.cs"]["lines_covered"] == 90
-    assert by_path["src/Pipes/Transform.cs"]["branches_total"] == 20
-    assert by_path["src/Repositories/OrderRepository.cs"]["lines_covered"] == 4
-
-
-def test_parse_lcov_falls_back_to_da_records(tmp_path):
-    files = parse_report(_write(tmp_path, "lcov.info", LCOV_DA_ONLY), "lcov")
-    assert files[0]["lines_total"] == 3
-    assert files[0]["lines_covered"] == 1
-
-
-def test_parse_cobertura_counts_lines_and_conditions(tmp_path):
-    files = parse_report(_write(tmp_path, "cobertura.xml", COBERTURA), "cobertura")
-    by_path = {f["path"]: f for f in files}
-    assert by_path["src/Pipes/Transform.cs"]["lines_total"] == 3
-    assert by_path["src/Pipes/Transform.cs"]["lines_covered"] == 2
-    assert by_path["src/Pipes/Transform.cs"]["branches_total"] == 2
-    assert by_path["src/Pipes/Transform.cs"]["branches_covered"] == 1
-    assert by_path["src/Repositories/OrderRepository.cs"]["lines_covered"] == 0
-
-
-def test_parse_cobertura_counts_each_source_line_once(tmp_path):
-    """correctness-review: the descendant walk over <line> double-counted every
-    line a writer lists under both <methods> and the class-level <lines>."""
-    path = _write(tmp_path, "cobertura.xml", COBERTURA_DUPLICATED_LINES)
-    files = parse_report(path, "cobertura")
-    assert files[0]["lines_total"] == 2
-    assert files[0]["lines_covered"] == 1
-
-
-def test_parse_istanbul_summary_skips_the_total_key(tmp_path):
-    path = _write(tmp_path, "coverage-summary.json", ISTANBUL_SUMMARY)
-    files = parse_report(path, "istanbul-summary")
-    assert {f["path"] for f in files} == {
-        "src/pipes/transform.js",
-        "src/repositories/order.js",
-    }
-
-
-def test_parse_istanbul_final_counts_statement_and_branch_hits(tmp_path):
-    path = _write(tmp_path, "coverage-final.json", ISTANBUL_FINAL)
-    files = parse_report(path, "istanbul-final")
-    by_path = {f["path"]: f for f in files}
-    transform = by_path["/abs/src/pipes/transform.js"]
-    assert transform["lines_total"] == 3
-    assert transform["lines_covered"] == 2
-    assert transform["branches_total"] == 2
-    assert transform["branches_covered"] == 1
-
-
-def test_parse_coverage_py_uses_summary_counts(tmp_path):
-    files = parse_report(_write(tmp_path, "coverage.json", COVERAGE_PY), "coverage-py")
-    by_path = {f["path"]: f for f in files}
-    assert by_path["src/repositories/order.py"]["lines_total"] == 300
-    assert by_path["src/repositories/order.py"]["lines_covered"] == 3
-
-
-def test_parse_coverlet_groups_by_assembly(tmp_path):
-    files = parse_report(_write(tmp_path, "coverlet.json", COVERLET), "coverlet")
-    by_path = {f["path"]: f for f in files}
-    order = by_path["/repo/src/Repositories/OrderRepository.cs"]
-    assert order["lines_total"] == 4
-    assert order["lines_covered"] == 0
-    assert order["module"] == "Acme.Repositories.dll"
-    transform = by_path["/repo/src/Pipes/Transform.cs"]
-    assert transform["branches_total"] == 2
-    assert transform["branches_covered"] == 1
-
-
-def test_tally_coverlet_classes_matches_hand_computed_totals():
-    """#1857: `_parse_coverlet` nested 5 levels of loops (assembly -> file ->
-    classes -> methods -> hits/branches). This pins the extracted
-    `_tally_coverlet_classes` helper against a hand-computed expected tally
-    so the extraction is provably behavior-preserving."""
-    classes = {
-        "Acme.Widgets.WidgetA": {
-            "MethodOne()": {
-                "Lines": {"1": 1, "2": 0, "3": 1},
-                "Branches": [{"Line": 1, "Hits": 2}, {"Line": 2, "Hits": 0}],
-            },
-            "MethodTwo()": {
-                "Lines": {"10": 0},
-                "Branches": [],
-            },
-        },
-        "Acme.Widgets.WidgetB": {
-            "MethodThree()": {
-                "Lines": {"20": 1, "21": 1},
-                "Branches": [{"Line": 20, "Hits": 1}],
-            },
-        },
-    }
-    # Hand-computed: lines_total = 3 + 1 + 2 = 6; lines_covered = 2 + 0 + 2 = 4
-    # (hits > 0 count per method); branches_total = 2 + 0 + 1 = 3;
-    # branches_covered = 1 + 0 + 1 = 2.
-    assert _tally_coverlet_classes(classes) == (6, 4, 3, 2)
-
-
-def test_parse_coverlet_end_to_end_matches_the_same_hand_computed_totals(tmp_path):
-    """Same fixture as the helper-level test above, run through the full
-    `parse_report` -> `_parse_coverlet` -> `_tally_coverlet_classes` path, to
-    prove the extraction changed nothing observable at the parser boundary."""
-    payload = {
-        "Acme.Widgets.dll": {
-            "/repo/src/Widgets/Widget.cs": {
-                "Acme.Widgets.WidgetA": {
-                    "MethodOne()": {
-                        "Lines": {"1": 1, "2": 0, "3": 1},
-                        "Branches": [
-                            {"Line": 1, "Hits": 2},
-                            {"Line": 2, "Hits": 0},
-                        ],
-                    },
-                    "MethodTwo()": {
-                        "Lines": {"10": 0},
-                        "Branches": [],
-                    },
-                },
-                "Acme.Widgets.WidgetB": {
-                    "MethodThree()": {
-                        "Lines": {"20": 1, "21": 1},
-                        "Branches": [{"Line": 20, "Hits": 1}],
-                    },
-                },
-            }
-        }
-    }
-    path = _write(tmp_path, "coverlet.json", payload)
-    files = parse_report(path, "coverlet")
-    assert len(files) == 1
-    record = files[0]
-    assert record["path"] == "/repo/src/Widgets/Widget.cs"
-    assert record["module"] == "Acme.Widgets.dll"
-    assert (
-        record["lines_total"],
-        record["lines_covered"],
-        record["branches_total"],
-        record["branches_covered"],
-    ) == (6, 4, 3, 2)
-
-
-def test_parse_jacoco_csv_groups_by_package(tmp_path):
-    files = parse_report(_write(tmp_path, "jacoco.csv", JACOCO_CSV), "jacoco-csv")
-    modules = {f["module"] for f in files}
-    assert modules == {"com.acme.pipes", "com.acme.repositories"}
-
-
-# ---------------------------------------------------------------------------
 # ranking — the #1786 core behavior
+#
+# Format-detection and per-format parsing tests moved to
+# test_coverage_report_parse.py (issue #1873) — that module now owns the one
+# canonical parser implementation. The tests below exercise `parse_report`'s
+# translation into this script's own `lines_total`/`lines_covered`/... shape,
+# plus ranking/build_report/CLI behavior, which is unchanged.
 # ---------------------------------------------------------------------------
 
 
@@ -701,11 +385,16 @@ def test_cli_unparseable_report_exits_2(tmp_path):
 
 def test_cli_empty_report_exits_2_rather_than_claiming_a_clean_ranking(tmp_path):
     """A report that parses to zero files must not read as an all-clear —
-    same fail-loud posture gherkin_stub_gate.py adopted for an empty scan."""
+    same fail-loud posture gherkin_stub_gate.py adopted for an empty scan.
+
+    The zero-records guard now fires inside `coverage_report_parse.parse_report`
+    itself (issue #1904 item 3 follow-up) rather than only in this script's
+    own post-filter, so the message names "zero records" generically instead
+    of this script's own "no coverage records parsed from ..." wording."""
     path = _write(tmp_path, "lcov.info", "TN:\n")
     proc = _run("--report", str(path), "--json")
     assert proc.returncode == 2
-    assert "no coverage records" in (proc.stdout + proc.stderr).lower()
+    assert "zero records" in (proc.stdout + proc.stderr).lower()
 
 
 def test_cli_out_writes_the_json_atomically(tmp_path):

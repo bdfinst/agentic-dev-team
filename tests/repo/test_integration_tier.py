@@ -363,13 +363,19 @@ def test_runner_missing_claude_errors_naming_component(case: Path) -> None:
 # not actually inside dest.
 #
 # test_prefix_sibling_bypass_is_rejected_by_is_within unit-tests the
-# containment predicate (_is_within) directly rather than only going
+# containment predicate (coverage_config.is_within, consolidated onto the
+# canonical shared implementation in #1903 — run_integration_eval.py no
+# longer carries its own local _is_within) directly rather than only going
 # through a full extract_golden_repo() -> tarfile.extractall() round-trip:
 # Python 3.12+'s own tarfile.extractall() added its own PEP 706 traversal
 # filter, which independently rejects some crafted members and can mask a
 # still-buggy prefix check on newer interpreters, giving a false-negative
 # "the code is already fixed" reading. Testing the predicate in isolation
 # exercises exactly the logic this repo owns and is responsible for.
+#
+# Canonical argument order is `is_within(item, container)` — see
+# coverage_config.is_within's docstring; run_integration_eval.py's own local
+# copy used the inverted `(dest, target)` order before #1903.
 
 
 def test_prefix_sibling_bypass_is_rejected_by_is_within() -> None:
@@ -380,18 +386,19 @@ def test_prefix_sibling_bypass_is_rejected_by_is_within() -> None:
     # "inside dest".
     dest = Path("/tmp/case/out")
     sibling_escape = Path("/tmp/case/out-evil/pwned.txt")
-    assert runner_module._is_within(dest, sibling_escape) is False
+    assert runner_module.coverage_config.is_within(sibling_escape, dest) is False
 
 
 def test_dotdot_traversal_is_rejected_by_is_within() -> None:
     dest = Path("/tmp/case/out")
-    assert runner_module._is_within(dest, Path("/etc/passwd")) is False
+    assert runner_module.coverage_config.is_within(Path("/etc/passwd"), dest) is False
 
 
 def test_legitimate_nested_target_is_accepted_by_is_within() -> None:
     dest = Path("/tmp/case/out")
-    assert runner_module._is_within(dest, dest / "src" / "app" / "main.py") is True
-    assert runner_module._is_within(dest, dest) is True
+    nested = dest / "src" / "app" / "main.py"
+    assert runner_module.coverage_config.is_within(nested, dest) is True
+    assert runner_module.coverage_config.is_within(dest, dest) is True
 
 
 def test_extract_golden_repo_rejects_dotdot_traversal(tmp_path: Path) -> None:

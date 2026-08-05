@@ -18,8 +18,9 @@ source — either directly, or via the nearest same-name assignment anywhere
 else in the file — contains a quoted `"metrics"` string literal or an
 `artifact_paths.metrics_dir(` call. A call reached only through an
 argparse default, a renamed parameter threaded through another function, or
-any other indirection this scan doesn't trace can still slip through — see
-the allowlist below for the one confirmed such gap.
+any other indirection this scan doesn't trace can still slip through
+unnoticed (the one confirmed such gap, `gherkin_effectiveness_rollup.py`,
+was fixed directly in #1901 rather than allowlisted).
 """
 
 from __future__ import annotations
@@ -35,32 +36,19 @@ _METRICS_TARGET_RE = re.compile(r"""(['"])metrics\1|metrics_dir\(""")
 
 # Files with a confirmed, legitimately-exempt bare append-mode open() on a
 # metrics-shaped target. One line each — no silent/bulk exemptions.
-_ALLOWLIST: dict[str, str] = {
-    "plugins/dev-team/hooks/lib/boundary_events.py": (
-        "_append_line_locked already holds atomic_state.locked_state for "
-        "the whole open+write+close critical section (#1874) — it predates "
-        "append_line_locked() and reimplements its exact contract manually, "
-        "it does not bypass it"
-    ),
-    "plugins/dev-team/hooks/pre_commit_review.py": (
-        "the flagged open() is inside this module's own degraded-import "
-        "fallback shim for atomic_state.append_line_locked (used only when "
-        "atomic_state itself fails to import) — it mirrors that helper's "
-        "exact fail-open/fail-closed contract rather than bypassing it"
-    ),
-    "plugins/dev-team/hooks/mutation_testing_smoke_gate.py": (
-        "same degraded-import fallback shim pattern as pre_commit_review.py "
-        "above — mirrors atomic_state.append_line_locked's contract for the "
-        "case where atomic_state itself can't be imported"
-    ),
-    "plugins/dev-team/scripts/gherkin_effectiveness_rollup.py": (
-        "known pre-existing gap, out of scope for #1896's 7-site batch: its "
-        "default output path is under .claude/metrics/ but the actual "
-        "target is threaded through an argparse --out default, which this "
-        "scan's same-name backward-slice does not trace through — surfaced "
-        "here rather than silently excluded, not yet fixed"
-    ),
-}
+#
+# #1904 item 5 removed the three entries this dict used to carry
+# (`boundary_events.py`, `pre_commit_review.py`, `mutation_testing_smoke_gate.py`):
+# `boundary_events._append_line_locked` now delegates directly to
+# `atomic_state.append_line_locked` instead of reimplementing its critical
+# section manually, and both degraded-import fallback shims (in
+# `mutation_testing_smoke_gate.py`, and formerly in `pre_commit_review.py`,
+# now a documented no-op with no bypass-audit logic left at all) no longer
+# fall back to a plain unlocked `open()` — a failed import now just skips the
+# write entirely (already fail-open by design) rather than degrading to an
+# unhardened append. All three are genuinely clean now, not merely
+# allowlisted.
+_ALLOWLIST: dict[str, str] = {}
 
 
 def _is_open_call(func: ast.expr) -> bool:

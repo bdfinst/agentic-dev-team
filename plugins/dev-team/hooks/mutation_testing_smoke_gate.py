@@ -56,13 +56,17 @@ except ImportError:  # pragma: no cover
         path: Path, line: str, *, delay_env_var=None, fail_open: bool = True
     ) -> None:
         # Degraded-import fallback: atomic_state itself couldn't be
-        # imported — fall back to the pre-#1896 unlocked append.
-        try:
-            with open(path, "a", encoding="utf-8") as handle:
-                handle.write(line)
-        except OSError:
-            if not fail_open:
-                raise
+        # imported, so no hardened (locked, O_NOFOLLOW) append is available.
+        # #1904 item 5: this used to fall back to a plain unlocked
+        # `open(path, "a")` — the exact O_NOFOLLOW-hardening gap that
+        # issue disclosed for this and `pre_commit_review.py`'s equivalent
+        # shim. A failed audit write is already fail-open by design (the
+        # bypass this line records proceeds either way), so degrading
+        # further to "don't write at all" costs nothing beyond the audit
+        # trail entry itself, and avoids reintroducing the symlink-redirect
+        # gap the shared helper exists to close.
+        if not fail_open:
+            raise OSError("atomic_state unavailable (degraded import)")
 
 
 def emit_boundary_event(*args, **kwargs) -> None:

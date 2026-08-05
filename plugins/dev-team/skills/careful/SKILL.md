@@ -31,7 +31,11 @@ Arguments: $ARGUMENTS
 
 ### Enable (no arguments or any argument except "off")
 
-1. Write the following JSON to `hooks/careful-state.json`:
+1. Write the following JSON to `.claude/hooks/careful-state.json` (relative
+   to the current repo root — **not** `hooks/careful-state.json`, which
+   would sit inside the plugin's own shared install/cache directory and
+   scope-lock every other concurrently-running session, worktree, and
+   project on the machine; see issue #1900):
 
 ```json
 {
@@ -46,10 +50,10 @@ Arguments: $ARGUMENTS
 
 ### Disable (`off`)
 
-1. Remove `hooks/careful-state.json`:
+1. Remove `.claude/hooks/careful-state.json`:
 
 ```bash
-rm -f hooks/careful-state.json
+rm -f .claude/hooks/careful-state.json
 ```
 
 1. Display:
@@ -58,6 +62,11 @@ rm -f hooks/careful-state.json
 
 ## Notes
 
-- The `hooks/destructive_guard.py` hook reads `hooks/careful-state.json`. When active, matched commands exit with code 2 (block) instead of 0 (warn).
-- Careful mode persists across tool calls within a session.
+- The `hooks/destructive_guard.py` hook resolves this same path per invoking
+  repo via `hooks/lib/artifact_paths.py`'s `resolve_file("hooks",
+  "careful-state.json")` — the same `.claude/`-scoped convention
+  `freeze-state.json` and `.review-passed` already use. When active, matched
+  commands exit with code 2 (block) instead of 0 (warn).
+- Careful mode persists across tool calls within a session, and is scoped to
+  the repo it was activated in.
 - See `hooks/destructive-commands.json` for the full list of detected patterns and the safe allowlist.

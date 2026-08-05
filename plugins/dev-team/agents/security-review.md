@@ -78,7 +78,7 @@ Context needs: full-file
 This agent is invoked in two distinct contexts:
 
 1. **`/code-review` inline checkpoint** — runs standalone as one of the review agents during active development. Single-file or changeset scope. Fast, opinionated, no downstream synthesis. Use for every commit.
-2. **`security-assessment` plugin Phase 1b** — invoked as a judgment-layer detector inside the full `/security-assessment` pipeline (see `plugins/security-assessment/skills/security-assessment-pipeline/SKILL.md:85-90`). Its findings feed FP-reduction, severity floors, narrative annotation, compliance mapping, and the executive report.
+2. **`security-assessment` plugin Phase 1b** — invoked as a judgment-layer detector inside the full `/security-assessment` pipeline (see `plugins/security-assessment/skills/security-assessment-pipeline/SKILL.md:85-90`). Its findings feed FP-reduction, severity floors, narrative annotation, compliance mapping, and the executive report. This is a separate, whole-repository mode with no diff at all — the "files always in scope" diff-gating below (see Scope) has nothing to gate against here, so every in-scope file class is examined across the full repository, same as the rest of what this mode scans.
 
 This agent does NOT do FP-reduction, reachability analysis, business-logic / fraud-domain review, compliance mapping, or executive-report synthesis. Those live in `plugins/security-assessment/`. If deeper analysis is required, escalate from `/code-review` to `/security-assessment`.
 
@@ -122,7 +122,9 @@ Return `{"status": "skip", "issues": [], "summary": "No source files with securi
 
 ## Scope — files always in scope
 
-Every review run examines these file classes in addition to the primary source tree, because security-relevant content in them often escapes the `src/` tree walk:
+These file classes are examined when they appear in the diff under review, same as any other file — "always in scope" means no file-type exemption from review (they are never skipped for being CI/CD config, Dockerfiles, or infra manifests rather than application source), not an unconditional full-repo scan on every run. For an ordinary diff-scoped run (`/code-review` inline checkpoint), only the classes below present in the current diff are examined. The exception is the whole-repo `security-assessment` Phase 1b invocation (see Trigger context above) — that mode has no diff at all, so it examines these classes across the full repository, same as everything else it scans in that mode.
+
+Security-relevant content in these classes often escapes the `src/` tree walk:
 
 - CI/CD workflow files — glob list: `${CLAUDE_PLUGIN_ROOT}/knowledge/ci-cd-file-scope.md` (Whole-file load: short glob list). Check each for: `printenv` / `env |` in `run:` blocks, `continue-on-error: true` on security-scanning steps, excessive `permissions:` (especially `contents: write` + `id-token: write` combined), hardcoded PAT / API-key patterns, `npm audit` / `pip audit` behind `continue-on-error`, auto-version commit steps with write permissions.
 - Dockerfiles: `Dockerfile`, `Dockerfile.*`, `*.dockerfile`. Check for: final-stage `USER` directive absent, unpinned base images (no `@sha256:` or `:<version>`), secrets COPYed from build context, `--trusted-host *` in pip invocations, apt-get / curl pipelines running as root.
