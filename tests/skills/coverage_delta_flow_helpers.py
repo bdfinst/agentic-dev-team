@@ -29,14 +29,13 @@ from skill_doc_helpers import PLUGIN_ROOT
 SCRIPTS_DIR = PLUGIN_ROOT / "scripts"
 sys.path.insert(0, str(SCRIPTS_DIR))
 
-from coverage_config import (  # noqa: E402
+from coverage_config import (
     atomic_write_json,
     drift_check,
     format_active_exclusions,
     measurement_basis_notice,
 )
-
-from coverage_flow_shared import merge_included_reports  # noqa: E402
+from coverage_flow_shared import merge_included_reports
 
 # coverage-delta/SKILL.md Step 2's own pre-existing, unedited generic
 # run-failure wording — the generic banner text every hard-failure block in
@@ -98,7 +97,7 @@ def run_delta_flow(
     via the real discovery function before calling this).
     """
     if isinstance(discovered, dict):
-        raise ValueError(
+        raise ValueError(  # noqa: TRY004 — matches production's documented ValueError contract for this misuse
             "run_delta_flow expects a real discover_*-shaped list; check "
             "the discovery signal before calling this"
         )

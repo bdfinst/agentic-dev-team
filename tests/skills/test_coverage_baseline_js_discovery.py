@@ -20,7 +20,6 @@ import sys
 from pathlib import Path
 
 import pytest
-
 from coverage_baseline_flow_helpers import (
     GENERIC_COVERAGE_RUN_FAILURE_PHRASES,
     run_baseline_flow,
@@ -30,7 +29,7 @@ from skill_doc_helpers import PLUGIN_ROOT, collapsed, grep, section
 SCRIPTS_DIR = PLUGIN_ROOT / "scripts"
 sys.path.insert(0, str(SCRIPTS_DIR))
 
-import coverage_discovery_js as cdj  # noqa: E402
+import coverage_discovery_js as cdj
 
 SKILL = PLUGIN_ROOT / "skills" / "coverage-baseline" / "SKILL.md"
 

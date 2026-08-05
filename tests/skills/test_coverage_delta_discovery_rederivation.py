@@ -26,7 +26,7 @@ from skill_doc_helpers import PLUGIN_ROOT, collapsed, grep, section
 SCRIPTS_DIR = PLUGIN_ROOT / "scripts"
 sys.path.insert(0, str(SCRIPTS_DIR))
 
-import coverage_discovery_dotnet as cdd  # noqa: E402
+import coverage_discovery_dotnet as cdd
 
 SKILL = PLUGIN_ROOT / "skills" / "coverage-delta" / "SKILL.md"
 
@@ -156,7 +156,7 @@ def test_second_call_hard_fails_on_a_newly_unaccounted_project(tmp_path):
 
     config_path = tmp_path / "coverage-config.json"
     config_path.write_text(
-        '{"included": ["%s"], "excluded": []}' % project_a, encoding="utf-8"
+        f'{{"included": ["{project_a}"], "excluded": []}}', encoding="utf-8"
     )
     baseline = {"captured_at": "2026-08-04T12:00:00Z", "line_pct": 41.2, "branch_pct": 28.7}
 
@@ -207,8 +207,8 @@ def test_basis_notice_appears_when_baseline_predates_bootstrap(tmp_path):
 
     config_path = tmp_path / "coverage-config.json"
     config_path.write_text(
-        '{"included": ["%s"], "excluded": [], "bootstrapped_at": "2026-08-04T12:00:00Z"}'
-        % project_a,
+        f'{{"included": ["{project_a}"], "excluded": [], '
+        f'"bootstrapped_at": "2026-08-04T12:00:00Z"}}',
         encoding="utf-8",
     )
     baseline = {"captured_at": "2026-01-01T00:00:00Z", "line_pct": 41.2, "branch_pct": 28.7}
@@ -230,8 +230,8 @@ def test_basis_notice_absent_once_a_fresh_baseline_is_captured(tmp_path):
 
     config_path = tmp_path / "coverage-config.json"
     config_path.write_text(
-        '{"included": ["%s"], "excluded": [], "bootstrapped_at": "2026-01-01T00:00:00Z"}'
-        % project_a,
+        f'{{"included": ["{project_a}"], "excluded": [], '
+        f'"bootstrapped_at": "2026-01-01T00:00:00Z"}}',
         encoding="utf-8",
     )
     baseline = {"captured_at": "2026-08-04T12:00:00Z", "line_pct": 41.2, "branch_pct": 28.7}
@@ -257,9 +257,8 @@ def test_stale_exclusion_is_nonblocking_and_run_still_completes(tmp_path):
 
     config_path = tmp_path / "coverage-config.json"
     config_path.write_text(
-        '{"included": ["%s"], "excluded": '
-        '[{"path": "tests/ProjectB/ProjectB.csproj", "reason": "all pending stubs"}]}'
-        % project_a,
+        f'{{"included": ["{project_a}"], "excluded": '
+        '[{"path": "tests/ProjectB/ProjectB.csproj", "reason": "all pending stubs"}]}',
         encoding="utf-8",
     )
     baseline = {"captured_at": "2026-08-04T12:00:00Z", "line_pct": 41.2, "branch_pct": 28.7}

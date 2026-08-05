@@ -19,9 +19,9 @@ from skill_doc_helpers import PLUGIN_ROOT, collapsed, grep, section
 SCRIPTS_DIR = PLUGIN_ROOT / "scripts"
 sys.path.insert(0, str(SCRIPTS_DIR))
 
-import coverage_discovery_dotnet as cdd  # noqa: E402
-import coverage_discovery_js as cdj  # noqa: E402
-from coverage_config import DISCOVERY_NOT_APPLICABLE, TestClassification  # noqa: E402
+import coverage_discovery_dotnet as cdd
+import coverage_discovery_js as cdj
+from coverage_config import DISCOVERY_NOT_APPLICABLE, TestClassification
 
 SKILL = PLUGIN_ROOT / "skills" / "coverage-baseline" / "SKILL.md"
 

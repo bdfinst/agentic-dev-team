@@ -53,8 +53,8 @@ from pathlib import Path
 _HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(_HERE))
 
-import coverage_config  # noqa: E402
-from coverage_config import TestClassification  # noqa: E402
+import coverage_config
+from coverage_config import TestClassification
 
 # Coverage-capable test-runner devDependencies. jest/vitest are
 # self-contained; mocha/ava need a paired coverage tool.

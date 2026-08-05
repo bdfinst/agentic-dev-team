@@ -16,8 +16,8 @@ import pytest
 SCRIPTS_DIR = Path(__file__).parent.parent.parent / "scripts"
 sys.path.insert(0, str(SCRIPTS_DIR))
 
-import coverage_discovery_dotnet as cdd  # noqa: E402
-from coverage_config import DISCOVERY_NOT_APPLICABLE, TestClassification  # noqa: E402
+import coverage_discovery_dotnet as cdd
+from coverage_config import DISCOVERY_NOT_APPLICABLE, TestClassification
 
 # ---------------------------------------------------------------------------
 # helpers

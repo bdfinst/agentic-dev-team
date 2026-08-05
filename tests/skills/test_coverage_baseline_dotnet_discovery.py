@@ -17,7 +17,6 @@ import sys
 from pathlib import Path
 
 import pytest
-
 from coverage_baseline_flow_helpers import (
     GENERIC_COVERAGE_RUN_FAILURE_PHRASES,
     run_baseline_flow,
@@ -28,7 +27,7 @@ from skill_doc_helpers import PLUGIN_ROOT, collapsed, grep, section
 SCRIPTS_DIR = PLUGIN_ROOT / "scripts"
 sys.path.insert(0, str(SCRIPTS_DIR))
 
-import coverage_discovery_dotnet as cdd  # noqa: E402
+import coverage_discovery_dotnet as cdd
 
 SKILL = PLUGIN_ROOT / "skills" / "coverage-baseline" / "SKILL.md"
 
@@ -183,7 +182,7 @@ def test_dotnet_unaccounted_project_hard_fails_without_generic_banner_text(tmp_p
 
     config_path = tmp_path / "coverage-config.json"
     config_path.write_text(
-        '{"included": ["%s"], "excluded": []}' % project_a, encoding="utf-8"
+        f'{{"included": ["{project_a}"], "excluded": []}}', encoding="utf-8"
     )
 
     baseline_path = tmp_path / "baseline-coverage.json"

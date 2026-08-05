@@ -31,16 +31,14 @@ from skill_doc_helpers import PLUGIN_ROOT
 SCRIPTS_DIR = PLUGIN_ROOT / "scripts"
 sys.path.insert(0, str(SCRIPTS_DIR))
 
-from coverage_config import (  # noqa: E402
+import coverage_discovery_dotnet as cdd
+from coverage_config import (
     atomic_write_json,
     drift_check,
     load_or_bootstrap,
     needs_accounting,
 )
-
-import coverage_discovery_dotnet as cdd  # noqa: E402
-
-from coverage_flow_shared import merge_included_reports  # noqa: E402
+from coverage_flow_shared import merge_included_reports
 
 # The exact zero-real-test-project message template documented in
 # SKILL.md Step 1a / references/multi-project-discovery.md Step 2.
@@ -125,7 +123,7 @@ def run_baseline_flow(
     silently misread as "zero real test projects".
     """
     if isinstance(discovered, dict):
-        raise ValueError(
+        raise ValueError(  # noqa: TRY004 — matches production's documented ValueError contract for this misuse
             "run_baseline_flow expects a real discover_*-shaped list; check "
             "the discovery signal before calling this"
         )

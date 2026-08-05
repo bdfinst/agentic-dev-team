@@ -55,8 +55,8 @@ from pathlib import Path
 _HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(_HERE))
 
-import coverage_config  # noqa: E402
-from coverage_config import TestClassification  # noqa: E402
+import coverage_config
+from coverage_config import TestClassification
 
 _TEST_SDK_PACKAGE = "Microsoft.NET.Test.Sdk"
 
@@ -101,7 +101,7 @@ def discover_dotnet_projects(repo_root):
         )
 
     try:
-        result = subprocess.run(
+        result = subprocess.run(  # noqa: PLW1510 — returncode is checked explicitly below to return a discovery_error rather than raise
             [dotnet_path, "sln", str(sln_path.resolve()), "list"],
             cwd=str(root),
             capture_output=True,

@@ -20,7 +20,6 @@ import sys
 from pathlib import Path
 
 import pytest
-
 from coverage_delta_flow_helpers import (
     COVERAGE_DELTA_GENERIC_RUN_FAILURE_PHRASES,
     run_delta_flow,
@@ -30,7 +29,7 @@ from skill_doc_helpers import PLUGIN_ROOT
 SCRIPTS_DIR = PLUGIN_ROOT / "scripts"
 sys.path.insert(0, str(SCRIPTS_DIR))
 
-import coverage_discovery_js as cdj  # noqa: E402
+import coverage_discovery_js as cdj
 
 # ---------------------------------------------------------------------------
 # package.json fixture helpers (mirroring test_coverage_baseline_js_discovery.py

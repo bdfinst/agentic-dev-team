@@ -221,7 +221,7 @@ def drift_check(config: dict, discovered_projects: list) -> dict:
 
     for entry in included_list:
         if not isinstance(entry, str):
-            raise ValueError(
+            raise ValueError(  # noqa: TRY004 — ValueError is the documented, tested contract for malformed config (see docstring; test_coverage_config.py asserts ValueError)
                 "coverage-config.json \"included\" entries must all be "
                 f"path strings; got {entry!r} instead."
             )

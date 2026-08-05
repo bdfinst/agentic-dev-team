@@ -45,8 +45,8 @@ from skill_doc_helpers import PLUGIN_ROOT, frontmatter
 SCRIPTS_DIR = PLUGIN_ROOT / "scripts"
 sys.path.insert(0, str(SCRIPTS_DIR))
 
-import coverage_discovery_dotnet as cdd  # noqa: E402
-from coverage_config import weighted_merge  # noqa: E402
+import coverage_discovery_dotnet as cdd
+from coverage_config import weighted_merge
 
 SKILL = PLUGIN_ROOT / "skills" / "quality-targets-converge" / "SKILL.md"
 COVERAGE_DELTA_SKILL = PLUGIN_ROOT / "skills" / "coverage-delta" / "SKILL.md"
@@ -201,7 +201,7 @@ def test_coverage_delta_flow_matches_weighted_merge_directly(tmp_path):
 
     config_path = tmp_path / "coverage-config.json"
     config_path.write_text(
-        '{"included": ["%s", "%s"], "excluded": []}' % (project_a, project_b),
+        f'{{"included": ["{project_a}", "{project_b}"], "excluded": []}}',
         encoding="utf-8",
     )
     baseline = {"captured_at": "2026-08-04T12:00:00Z", "line_pct": 41.2, "branch_pct": 28.7}
@@ -253,7 +253,7 @@ def test_extracted_invocation_surfaces_hard_failure_not_zero_percent(tmp_path):
 
     config_path = tmp_path / "coverage-config.json"
     config_path.write_text(
-        '{"included": ["%s"], "excluded": []}' % project_a, encoding="utf-8"
+        f'{{"included": ["{project_a}"], "excluded": []}}', encoding="utf-8"
     )
     baseline = {"captured_at": "2026-08-04T12:00:00Z", "line_pct": 41.2, "branch_pct": 28.7}
 

@@ -10,7 +10,7 @@ import pytest
 SCRIPTS_DIR = Path(__file__).parent.parent.parent / "scripts"
 sys.path.insert(0, str(SCRIPTS_DIR))
 
-import coverage_config  # noqa: E402
+import coverage_config
 from coverage_config import (
     DISCOVERY_NOT_APPLICABLE,
     TestClassification,

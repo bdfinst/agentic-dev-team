@@ -30,7 +30,6 @@ from __future__ import annotations
 import sys
 
 import pytest
-
 from coverage_baseline_flow_helpers import stub_dotnet
 from coverage_delta_flow_helpers import run_delta_flow
 from skill_doc_helpers import PLUGIN_ROOT
@@ -38,8 +37,8 @@ from skill_doc_helpers import PLUGIN_ROOT
 SCRIPTS_DIR = PLUGIN_ROOT / "scripts"
 sys.path.insert(0, str(SCRIPTS_DIR))
 
-import coverage_discovery_dotnet as cdd  # noqa: E402
-from coverage_config import weighted_merge  # noqa: E402
+import coverage_discovery_dotnet as cdd
+from coverage_config import weighted_merge
 
 TEST_CSPROJ = """<Project Sdk="Microsoft.NET.Sdk">
   <ItemGroup>
@@ -70,9 +69,8 @@ def test_incident_shape_exclusion_and_reason_stay_visible_across_both_timepoints
 
     config_path = tmp_path / "coverage-config.json"
     config_path.write_text(
-        '{"included": ["%s"], "excluded": '
-        '[{"path": "%s", "reason": "all pending stubs"}]}'
-        % (project_a, project_stubs),
+        f'{{"included": ["{project_a}"], "excluded": '
+        f'[{{"path": "{project_stubs}", "reason": "all pending stubs"}}]}}',
         encoding="utf-8",
     )
     baseline = {

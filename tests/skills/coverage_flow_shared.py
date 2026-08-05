@@ -16,7 +16,7 @@ from skill_doc_helpers import PLUGIN_ROOT
 SCRIPTS_DIR = PLUGIN_ROOT / "scripts"
 sys.path.insert(0, str(SCRIPTS_DIR))
 
-from coverage_config import weighted_merge  # noqa: E402
+from coverage_config import weighted_merge
 
 
 def merge_included_reports(
