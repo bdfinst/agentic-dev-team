@@ -6277,19 +6277,19 @@
       "anchor": "phase-reference-files"
     },
     "Phase 0 — Approach contract": {
-      "summary": "<!-- include: references/phase-0-approach-contract.md -->",
+      "summary": "Resolve every ambiguous input in **one batch** before any work starts, then",
       "anchor": "phase-0-approach-contract"
     },
     "Phase 2 — Baseline (coverage + mutation)": {
-      "summary": "<!-- include: references/phase-2-baseline.md -->",
+      "summary": "Capture the objective starting point **before any file under the stack's test",
       "anchor": "phase-2-baseline-coverage-mutation"
     },
     "Phase 3 — Derive Gherkin (conditional)": {
-      "summary": "<!-- include: references/phase-3-derive-gherkin.md -->",
+      "summary": "Gherkin derivation is **conditional on the Phase-0 BDD rubric answer**.",
       "anchor": "phase-3-derive-gherkin-conditional"
     },
     "Phase 1 — Analyze via /test-health": {
-      "summary": "<!-- include: references/phase-1-analyze.md -->",
+      "summary": "Delegate the entire analysis pass to **`/test-health`** — it is the **sole",
       "anchor": "phase-1-analyze-via-test-health"
     },
     "Phase 4 — Plan fixes (partition findings by gap class)": {

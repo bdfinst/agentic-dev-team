@@ -9,15 +9,24 @@ Imported (not executed) by the Python siblings of the three .sh callers:
                                                 port will import this module)
 
 The corpus is:
-  - plugins/dev-team/knowledge/*.md         (top-level .md only)
+  - plugins/dev-team/knowledge/*.md                    (top-level .md only)
   - plugins/dev-team/skills/<name>/SKILL.md
+  - plugins/dev-team/skills/<name>/references/*.md
 
 Excluded:
   - plugins/dev-team/knowledge/schemas/**   (json schemas, not docs)
   - everything else (agents/, commands/, docs/, README.md, …)
 
-Anchor: top-level knowledge .md OR <skills-dir>/<one segment>/SKILL.md.
-A leading `(^|/)` allows repo-relative or absolute paths.
+Anchor: top-level knowledge .md, <skills-dir>/<one segment>/SKILL.md, OR
+<skills-dir>/<one segment>/references/<one segment>.md. A leading `(^|/)`
+allows repo-relative or absolute paths.
+
+The references/*.md entry exists because build_knowledge_index.py's
+`<!-- include: references/<name>.md -->` marker resolution (Step 1.1 of
+plans/test-improve-context-loading-strategy.md) now splices a reference
+file's content into the SKILL.md summary it's included from — so editing a
+reference file changes indexed content and must trigger the same
+freshness/rebuild path as editing the SKILL.md itself.
 
 Stdlib-only. See docs/python-hook-contract.md.
 """
@@ -29,10 +38,13 @@ from collections.abc import Iterable
 
 # Regex matching corpus paths (POSIX ERE from the .sh sibling, ported to
 # Python re syntax). Anchor: end-of-string; a leading segment is optional so
-# absolute and repo-relative inputs both match. Alternation covers the two
-# corpus shapes: top-level knowledge markdown, and per-skill SKILL.md.
+# absolute and repo-relative inputs both match. Alternation covers the three
+# corpus shapes: top-level knowledge markdown, per-skill SKILL.md, and
+# per-skill references/*.md (spliced into a SKILL.md summary via include
+# markers — see the module docstring above).
 CORPUS_REGEX: str = (
-    r"(^|/)plugins/dev-team/(knowledge/[^/]+\.md|skills/[^/]+/SKILL\.md)$"
+    r"(^|/)plugins/dev-team/"
+    r"(knowledge/[^/]+\.md|skills/[^/]+/SKILL\.md|skills/[^/]+/references/[^/]+\.md)$"
 )
 
 _CORPUS_RE = re.compile(CORPUS_REGEX)

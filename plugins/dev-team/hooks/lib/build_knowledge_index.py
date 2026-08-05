@@ -140,6 +140,82 @@ _H2_RE = re.compile(r"^## (.+)$")
 _H1_RE = re.compile(r"^# ")
 _BULLET_RE = re.compile(r"^[ \t]*[-*+][ \t]+")
 
+# ---------------------------------------------------------------------------
+# Include-marker resolution — `<!-- include: <path> -->` splices another
+# file's content in place of the marker line (introduced by /test-improve's
+# SKILL.md split, plans/test-improve-context-loading-strategy.md Step 1.1;
+# mirrored for tests in tests/skills/skill_include_resolver.py, which this
+# shipped version cannot import from since that module lives under tests/).
+# A section body that is only the marker line has no real content of its
+# own — resolve it to the first prose line of the referenced file so the
+# summary is a real sentence, not the literal marker text. General-purpose:
+# any file under the corpus may use this convention, not just test-improve.
+#
+# Matches the mirror's contract exactly: every marker — at any recursion
+# depth — must carry a `references/<name>.md` path, and every path resolves
+# against the ORIGINAL including file's own directory (`root`), pinned for
+# every recursive call. A marker inside an already-spliced-in reference
+# file is still relative to the top-level file's directory, never rebased
+# to the nested target's own directory.
+# ---------------------------------------------------------------------------
+
+_INCLUDE_MARKER_RE = re.compile(r"^<!-- include: (references/\S+\.md) -->$")
+_MAX_INCLUDE_DEPTH = 5
+
+
+def _first_prose_line(path: Path) -> str:
+    """First non-blank, non-heading line outside fenced code blocks,
+    bullet-stripped. A line starting with `#` is a markdown heading, never
+    prose — matches extract_sections()'s own treatment of headings as never
+    part of a section body."""
+    in_code = False
+    try:
+        with path.open("r", encoding="utf-8", errors="replace") as fh:
+            for raw_line in fh:
+                line = raw_line.rstrip("\n")
+                if _FENCE_RE.match(line):
+                    in_code = not in_code
+                    continue
+                if in_code:
+                    continue
+                if not line.strip():
+                    continue
+                if line.startswith("#"):
+                    continue
+                return _BULLET_RE.sub("", line, count=1)
+    except OSError:
+        return ""
+    return ""
+
+
+def _resolve_include_marker(body: str, root: Path, depth: int = 0) -> str:
+    """If `body` is exactly an `<!-- include: references/<path>.md -->`
+    marker line, resolve it to the first prose line of the referenced file
+    (resolved against `root` — the ORIGINAL including file's own directory,
+    pinned for every recursive call and never rebased to a nested target's
+    own directory), recursing through nested markers up to
+    `_MAX_INCLUDE_DEPTH`. Returns `body` unchanged when it is not a marker,
+    the target file doesn't exist, the target has no prose line, or the
+    recursion budget is exhausted.
+
+    Design choice, deliberate and different from the mirror: the mirror
+    (tests/skills/skill_include_resolver.py) raises RecursionError on a
+    cycle/over-depth include, which is fine for a test assertion to be
+    strict about. This is a build tool over a whole corpus that must never
+    crash on a cycle — it falls back to the literal unresolved marker text
+    instead, same as the missing-file and no-prose-line fallbacks above.
+    """
+    m = _INCLUDE_MARKER_RE.match(body.strip())
+    if not m or depth > _MAX_INCLUDE_DEPTH:
+        return body
+    target = root / m.group(1)
+    if not target.is_file():
+        return body
+    line = _first_prose_line(target)
+    if not line:
+        return body
+    return _resolve_include_marker(line, root, depth + 1)
+
 
 def extract_sections(path: Path) -> list:
     """Returns [(header, body), ...] in source order, with backfill applied."""
@@ -190,6 +266,10 @@ def extract_sections(path: Path) -> list:
                 stripped = _BULLET_RE.sub("", line, count=1)
                 body = stripped
     flush()
+
+    rows = [
+        (header, _resolve_include_marker(body, path.parent)) for header, body in rows
+    ]
 
     # Backfill empty bodies from the next non-empty body in source order.
     for i in range(len(rows)):
