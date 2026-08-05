@@ -38,6 +38,25 @@ public class V3FeaturesTests : IAsyncLifetime
 
     public static TheoryDataRow<int> RowData() => new(1);
 
+    [Theory, AutoData]
+    public void GeneratedInput(int seed)
+    {
+        Assert.True(seed == seed);
+    }
+
+    [Fact]
+    public void GroupedAndStructuralAsserts()
+    {
+        Assert.Multiple(() => Assert.True(true), () => Assert.False(false));
+        Assert.Equivalent(new { A = 1 }, new { A = 1 });
+    }
+
+    [Fact(DisplayName = "explicit with a leading string property", Explicit = true)]
+    public void ExplicitAfterAStringProperty()
+    {
+        Assert.True(true);
+    }
+
     public ValueTask InitializeAsync() => ValueTask.CompletedTask;
 
     public ValueTask DisposeAsync() => ValueTask.CompletedTask;
