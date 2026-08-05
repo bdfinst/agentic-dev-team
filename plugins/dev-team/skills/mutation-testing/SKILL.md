@@ -96,6 +96,8 @@ Per-language commands (which probe file to pick, how to invoke the tool with a s
 
 Run scoped to user-specified files or changed files. Capture full output and note any HTML report paths. Per-language commands and scoping idioms — including the C# shard-aware execution path for large repos — live in [`references/languages/<lang>.md`](references/languages/).
 
+**Opt-in JS/TS generation-round savings.** For a JS/TS (Stryker) target, `mutation-kill`'s `--skip-static-mutants` flag excludes mutants that force a full-suite re-run from the survivor list handed to its generation step, trading a small, documented survivor over-count for fewer expensive-to-verify generation rounds (it does not change Stryker's own run time). Default OFF; scoring and convergence always read the unfiltered survivor count. See [`mutation-kill.md`'s Invocation section](../../agents/mutation-kill.md#invocation) and [`references/languages/javascript-stryker.md`](references/languages/javascript-stryker.md#static-mutant-skip-skip-static-mutants) for the mechanics.
+
 ### Capturing run output safely
 
 Do **not** wrap the mutation tool in a bare `<tool> 2>&1 | tee run.log` pipeline. Bash pipeline exit status defaults to the last command's — `tee` always exits 0 on a successful write — so any Stryker / mutmut / pitest / go-mutesting startup failure (missing tool manifest, invalid config key, wrong `DOTNET_ROOT`, compile-error abort) is silently masked. Downstream automation (background tasks, CI wrappers, this plugin's own monitor loops) then sees "success" and moves on, and the failure is discovered only when the report JSON is missing.

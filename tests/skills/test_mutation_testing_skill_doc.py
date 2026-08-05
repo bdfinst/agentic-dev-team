@@ -429,3 +429,31 @@ def test_skill_step_4_line_clustering_prefers_one_test_per_cluster():
 
 def test_skill_step_4_line_clustering_cross_references_mutation_kill_md():
     assert "mutation-kill.md" in _line_clustering_window()
+
+
+# --- Issue #1906/#1912 Slice 2 Step 2.3: cross-reference
+# --skip-static-mutants in Step 2 -------------------------------------------
+
+
+def _skip_static_mutants_window() -> str:
+    """Correctness-review finding (build, Slice 2): the prior version of
+    this window scoped to the whole ~39-line Step 2 section (which also
+    contains the Capturing-run-output and Probe-file-selection
+    subsections), so a future edit adding an unrelated mutation-kill.md
+    reference elsewhere in Step 2 could keep these tests green even if the
+    --skip-static-mutants paragraph itself lost its cross-links. Scope to
+    the paragraph specifically, mirroring _emitting_adapters_window()."""
+    s = _step_2_section()
+    idx = s.find("--skip-static-mutants")
+    assert idx != -1
+    return s[idx:].split("\n\n", 1)[0]
+
+
+def test_skill_step_2_cross_references_skip_static_mutants_flag():
+    assert "--skip-static-mutants" in _step_2_section()
+
+
+def test_skill_step_2_skip_static_mutants_cross_reference_links_mutation_kill_and_javascript_stryker():
+    w = _skip_static_mutants_window()
+    assert "mutation-kill.md#invocation" in w
+    assert "javascript-stryker.md" in w

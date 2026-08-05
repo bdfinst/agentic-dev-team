@@ -32,15 +32,15 @@ structurally-unkillable code. Everything else is delegated.
 
 ```
 /mutation-kill [<repo-path>] [--file <path>] [--all] [--max-rounds <n>]
-               [--report <path>] [--concurrency <n>] [--parallel <n>]
+               [--report <path>] [--concurrency <n>] [--parallel <n>] [--skip-static-mutants]
 ```
 
 - `--file <path>` — target a single source file.
 - `--all` — run all files in survivor-count order (highest first).
 - `--report <path>` — load an existing report instead of running the tool (first round only).
 - `--max-rounds <n>` — maximum rounds per file (default: 5).
-- `--concurrency <n>` — parallel files via git worktrees when using `--all` (default: 2; max = physical cores − 2).
-- `--parallel <n>` — Phase 4 sub-agent fan-out via the Agent tool (in-process, no worktrees; see [Parallel execution (Phase 4)](#parallel-execution-phase-4)).
+- `--concurrency <n>` — parallel files via git worktrees when using `--all` (default: 2; max = physical cores − 2); `--parallel <n>` — Phase 4 sub-agent fan-out via the Agent tool (in-process, no worktrees; see [Parallel execution (Phase 4)](#parallel-execution-phase-4)).
+- `--skip-static-mutants` — opt-in, default OFF; JS/TS (Stryker) path only, agent-parsed (no argparse CLI for JS/TS). See [Static-mutant skip](../skills/mutation-testing/references/languages/javascript-stryker.md#static-mutant-skip-skip-static-mutants) for the full contract.
 
 ## Deterministic mechanics are scripted — you own generation and exclusion judgment
 
@@ -457,8 +457,7 @@ Entry shape: `file` (path, matches the mutate-glob entry), `status`
 
 Two write triggers, each tied to an existing point in the loop:
 
-- **Converged** — the loop's `survivors == 0` exit writes or updates the file's
-  entry with `status: "converged"`, `reason: null`, and the current commit SHA.
+- **Converged** — the loop's `survivors == 0` exit writes or updates the file's entry with `status: "converged"`, `reason: null`, and the current commit SHA. On JS/TS with `--skip-static-mutants` active, this reads the unfiltered report count, never the generation-filtered list — see [Static-mutant skip](../skills/mutation-testing/references/languages/javascript-stryker.md#static-mutant-skip-skip-static-mutants).
 - **Excluded** — a confirmed [infrastructure exclusion](#infrastructure-exclusion-detection-before-the-loop-starts)
   or [structurally-unkillable exclusion](#structurally-unkillable-files) writes
   or updates the file's entry with `status: "excluded"`, the same `reason` text
