@@ -3843,6 +3843,48 @@
       "anchor": "constraints"
     }
   },
+  "plugins/dev-team/skills/fix/SKILL.md": {
+    "Orchestrator constraints": {
+      "summary": "1.",
+      "anchor": "orchestrator-constraints"
+    },
+    "Parse Arguments": {
+      "summary": "Arguments: $ARGUMENTS",
+      "anchor": "parse-arguments"
+    },
+    "Process": {
+      "summary": "**Guard: one of bug description or `--triage-record` is required.** If",
+      "anchor": "process"
+    },
+    "Step 1: Obtain a triage record": {
+      "summary": "**Guard: one of bug description or `--triage-record` is required.** If",
+      "anchor": "step-1-obtain-a-triage-record"
+    },
+    "Step 2: Parse the TDD Fix Plan": {
+      "summary": "Read the obtained record's `## TDD Fix Plan` body — the record returned by",
+      "anchor": "step-2-parse-the-tdd-fix-plan"
+    },
+    "Step 3: Prove the defect reproduces, then capture a baseline": {
+      "summary": "Before writing any test, reproduce the defect using the record's",
+      "anchor": "step-3-prove-the-defect-reproduces-then-capture-a-baseline"
+    },
+    "Step 4: RED/GREEN implementation loop with per-cycle regression check and commit": {
+      "summary": "Process the cycles parsed in Step 2 **in order, one at a time** — write and",
+      "anchor": "step-4-redgreen-implementation-loop-with-per-cycle-regression-check-and-commit"
+    },
+    "Step 5: Record closure and commit": {
+      "summary": "Only once every cycle in Step 4 has passed Step 4(b) — or was recorded as",
+      "anchor": "step-5-record-closure-and-commit"
+    },
+    "Step 6: Delegate to /pr for review and merge": {
+      "summary": "Once Step 5 has closed the record and committed the closure, invoke `/pr`",
+      "anchor": "step-6-delegate-to-pr-for-review-and-merge"
+    },
+    "Step 7: Final report": {
+      "summary": "**Early stop (before Step 6).** If the run stopped at any earlier gate —",
+      "anchor": "step-7-final-report"
+    }
+  },
   "plugins/dev-team/skills/freeze/SKILL.md": {
     "Worker constraints": {
       "summary": "1.",
