@@ -11,13 +11,9 @@ behavior, and the explicit-override semantics.
 from __future__ import annotations
 
 from skill_doc_helpers import PLUGIN_ROOT, collapsed, grep
+from skill_include_resolver import resolve_test_improve_text as _text
 
-SKILL = PLUGIN_ROOT / "skills" / "test-improve" / "SKILL.md"
 HELPER = PLUGIN_ROOT / "scripts" / "test_improve_resume.py"
-
-
-def _text() -> str:
-    return SKILL.read_text()
 
 
 def test_helper_script_ships():

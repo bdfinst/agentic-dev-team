@@ -130,335 +130,42 @@ that sequence together, never as alternatives to each other. When the
 Phase-0 BDD binding mode is `none`, Phase 3 is skipped and the executed
 sequence becomes `0 → 2 → 1 → 4 → 5 → 6 → (7) → 8 → 9`.
 
+## Phase Reference Files
+
+| Phase | Name | Reference file |
+| --- | --- | --- |
+| 0 | Approach contract | `references/phase-0-approach-contract.md` |
+| 1 | Analyze via /test-health | `references/phase-1-analyze.md` |
+| 2 | Baseline | `references/phase-2-baseline.md` |
+| 3 | Derive Gherkin | `references/phase-3-derive-gherkin.md` |
+| 4 | Plan fixes | `references/phase-4-plan-fixes.md` |
+| 5 | Improve without refactoring | `references/phase-5-improve.md` |
+| 6 | Refactor decision | `references/phase-6-refactor-decision.md` |
+| 7 | Refactor-for-testability | `references/phase-7-refactor.md` |
+| 8 | Validate | `references/phase-8-validate.md` |
+| 9 | Executive-summary report | `references/phase-9-report.md` |
+
+Before executing a phase, read only that phase's reference file — never a
+phase-specific reference file for a phase already completed in this run or a
+prior resumed session. Shared implementation-detail reference files (e.g.
+`references/review-loop.md`) are not phase-specific and may be read whenever
+the phase you are executing points at them, regardless of whether another
+phase also uses them.
+
+This instruction is prose, not a hook-enforced gate — no mechanism in this
+repo verifies at runtime that only the active phase's reference file was
+read; compliance depends on the executing agent following the rule as
+written.
+
 ### Phase 0 — Approach contract
 
-Resolve every ambiguous input in **one batch** before any work starts, then
-persist the resolved inputs to `.claude/memory/test-improve/<slug>/phase-0.md`. The
-file must exist **before Phase 1** runs.
-
-**Detect language(s) and stack profile.** Inspect manifests for JS/TS
-(`package.json`), Java (`pom.xml` / `build.gradle`), C# (`*.csproj`), and Go
-(`go.mod`). If `--stack` was passed, honor it. Record the resolved stack in
-`phase-0.md`.
-
-**Go advisory (shown before the mutation prompt when Go is detected).**
-
-> Mutation testing on Go uses **go-mutesting**, which is **alpha**-quality.
-> Survivor count is **not a gate** on Go — treat it as advisory. For real
-> confidence in Go tests, prefer `go test -fuzz` on the parts of the code
-> that reward it. In `baseline+kill-loop` mode the orchestrator records
-> baseline and delta numbers; in `kill-loop` it records only the final
-> surviving-mutant count. Either way the Phase-8 mutation target is
-> advisory-only for Go.
-
-**Prompt battery (one batch, six knobs).** Each prompt displays its default in
-`[brackets]`; pressing **Enter accepts every default in one keystroke** — with
-**one deliberate exception**: knob 6 (code-lookup install) is **not** part of the
-Enter-accepts-all gesture, because accepting it mutates the filesystem (and, for
-Graphify, the repo's `CLAUDE.md`). Knob 6 is the **sole** exception; it requires an
-explicit `y`/`n` and a blank response **re-prompts** rather than defaulting either
-way. This is called out in the knob-6 prompt itself so the divergence is never a
-silent surprise.
-
-1. **Mutation mode** — `[kill-loop]`. A three-way choice; the value recorded in
-   `phase-0.md` and shown in the banner is the canonical token (`off` /
-   `kill-loop` / `baseline+kill-loop`), used verbatim in both places:
-   - `off` — no mutation testing (lightweight ceremony).
-   - `kill-loop` (**default**) — run the mutant-kill loop and produce a final
-     report of surviving mutants, **without** a separate baseline run first.
-   - `baseline+kill-loop` — run the mutation baseline first, then the mutant-kill
-     loop (a before/after mutation delta).
-
-   **Default change — mutation now runs by default.** The old knob defaulted to
-   `off` (no mutation work on Enter-through); under `kill-loop` an Enter-through
-   run **now performs the mutant-kill loop**. The prompt flags this so it is
-   never a silent surprise.
-2. **BDD rubric** — five yes/no questions from
-   `knowledge/references/bdd-value-guide.md`. **Default `none`** if the
-   operator declines to answer. Scoring: ≥3 yes → `bdd-runner` recommended;
-   1–2 yes → `xunit-with-annotations` recommended; 0 yes → `none`.
-3. **Refactor mode** — `[no-refactor]`. Default is **`no-refactor`**. Choose
-   `refactor-allowed` to permit production-code changes in Phase 7 (seams
-   only; existing tests may not be modified or removed).
-4. **Quality targets** — defaults: coverage ≥ 90% line + branch; surviving
-   mutants = 0 (only when mutation mode is not `off`); determinism = 100%; wall-clock =
-   fastest achievable. Any target can be overridden here; overrides land in
-   `phase-0.md` and flow into Phase 8.
-5. **Sink** — `--parent <url>` selects a tracker (ADO / GitHub / GitLab /
-   Jira via the host CLI); missing CLI or omitted flag falls back to
-   **local-files** mode (writes under `.dev-team-reports/test-improve/` and
-   `.claude/plans/test-improve/`).
-6. **Code-lookup tools (all-or-none install)** — offer to install the three
-   code-lookup tools (**CodeGraph**, **Repowise**, **Graphify**) so the review
-   and analysis agents read verified skeletons and resolved call graphs instead
-   of re-reading whole files. **Recommended: yes** when any of the three is
-   missing. This knob is an **explicit `y`/`n`** (see the Enter-accepts-all
-   exception above); a blank answer re-prompts. The prompt names the three tools
-   and discloses that Graphify writes a `## graphify` section into this repo's
-   `CLAUDE.md` and installs git hooks.
-   - **Idempotent / missing-subset.** Detect which of the three are already
-     present; offer only the **missing** subset. When all three are present,
-     do not prompt — record `code_lookup_tools: already present`.
-   - **Delegate the install — never reimplement it.** On `y`, delegate to
-     `/project-init`'s Step 4c graph-tools group (the canonical installer); do
-     not duplicate install commands or probes here.
-   - **Decline is visibly confirmed.** On `n`, install nothing and print
-     `Code-lookup tools: skipped — agents fall back to Read/Grep/Glob.`
-   - **Partial failure is recorded, not masked.** If the delegated install
-     partially fails, record per-tool success/failure in `phase-0.md` and do
-     not claim full install success.
-
-**Coverage-target vs refactor-mode conflict check (issue #1787).** A stated
-coverage percentage (**knob 4**) and `refactor-mode: no-refactor` (**knob 3**)
-can be structurally incompatible, and Pass 1 held both at once without ever
-saying so: mutation-kill work cannot raise line or branch coverage on code that
-has no tests at all, and a layer at near-zero coverage generally needs a
-production-code seam before any test can reach it. Resolve this **before** any
-work starts — **never by waiving a gate later**, which is what happened when
-branch-90 was quietly waived at a later gate while coverage-90 stayed a stated
-goal to the end.
-
-Run the check; do not judge it in prose:
-
-```
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/coverage_gap_ranking.py" \
-  --report <existing coverage report> --repo-root <repo-path> \
-  --target-line-pct <line target> --target-branch-pct <branch target> --json
-```
-
-- **A coverage report is discoverable** — a prior run's
-  `.dev-team-reports/test-improve/<slug>/data/baseline-coverage.json`'s
-  `raw_report`, or a report artifact already on disk (`lcov.info`,
-  `coverage.json`, `cobertura.xml`, `jacoco.csv`, `coverage-summary.json`).
-  The script's `verdict` decides:
-  - **`unreachable_without_seams` (exit 3)** — the target cannot be reached even
-    if every module that already has a test seam went to 100%. Present the
-    explicit three-way choice **`[w] waive the target / [s] switch to
-    refactor-allowed / [c] continue as-is`** (shape `[w/s/c]`), naming the
-    script's own numbers — `lines_needed`, `reachable_uncovered_lines`, and the
-    top seam-blocked modules — so the operator sees the arithmetic, not an
-    opinion. `[w]` records the target as **waived at Phase 0** with this reason
-    (Phase 8 then reports it waived up front instead of discovering it); `[s]`
-    records `refactor-mode: refactor-allowed` (Phase 0 is still resolving its
-    own answers here, so this is not an immutability exception); `[c]` proceeds
-    with `coverage_target_conflict: acknowledged` recorded. A **non-interactive**
-    run **does not silently pick a stance** — it records
-    `coverage_target_conflict: unresolved`, prints the same three options, and
-    the conflict is restated at Phase 8 rather than resolved by default.
-  - **`reachable` / `already_met` (exit 0)** — record
-    `coverage_target_conflict: none` and continue.
-- **No coverage report is discoverable** — do **not** fabricate a verdict from
-  no data. Record `coverage_target_conflict: deferred` and run this identical
-  check at Phase 2 against the freshly captured baseline, **before** Phase 1
-  consumes the ranking (see Phase 2's coverage-gap ranking step). Deferred means
-  *checked one phase later against real numbers* — never dropped, and never
-  first surfaced in the Phase-9 report.
-
-This check is skipped entirely when knob 4 left no coverage percentage target
-active, or when knob 3 selected `refactor-allowed` (there is no mode conflict
-to surface).
-
-**Persistence.** Write the resolved inputs to `.claude/memory/test-improve/<slug>/phase-0.md` before Phase 1 runs — Phase 1 must not start until `phase-0.md` exists. This includes the knob-6 outcome (the operator's install choice, and for each tool whether it was already present, installed, declined, or failed).
-
-**Immutability.** Phase-0 answers are **immutable** for the remainder of the
-run. `--from-phase` does not re-prompt Phase-0 inputs. To change them, delete
-`.claude/memory/test-improve/<slug>/phase-0.md` and re-run from Phase 0.
-
-**`--analyze-only` semantics.** With `--analyze-only`, Phase 0 completes as
-normal, Phase 1 (`/test-health`) runs, and the orchestrator **exits after Phase 1**
-with a summary of the improvement plan. This is a deliberate carve-out:
-Phase 1 runs **directly**, bypassing the default Baseline (Phase 2) / Derive
-Gherkin (Phase 3) ordering (`0 → 2 → 3 → 1 → 4 → ...`) — not a contradiction
-of it. No baseline is captured; no code changes.
-
-**`--from-phase` semantics.** `--from-phase <n>` resumes **at** phase `n` and
-skips every phase that precedes `n` in the **execution** sequence
-`0, 2, 3, 1, 4, 5, 6, 7, 8, 9` (not identity order — e.g. `--from-phase 1`
-skips Phases 0, 2, and 3, not just 0). Phase-0 inputs are read from
-`phase-0.md` (never re-prompted). **An explicit `<n>` is not validated
-against this sequence** beyond requiring `phase-0.md` to exist — e.g.
-`--from-phase 1` does not check that Phase 2 (Baseline) has actually run
-first, so an operator passing an out-of-sequence `<n>` by hand can skip a
-phase whose output later phases depend on (Baseline before any test-file
-change, in particular). Prefer `--from-phase` with no number
-(auto-detect, below) unless there's a specific reason to name a phase
-explicitly.
-
-**`--from-phase` with no number — auto-detect the resume point.** When
-`--from-phase` is passed **without** a number, resolve the resume phase by
-calling the helper — do **not** infer it in prose:
-
-```
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/test_improve_resume.py" <repo-path>
-```
-
-The helper resolves the slug from `<repo-path>` (its last path segment), scans
-**only** that slug's `.claude/memory/test-improve/<slug>/` directory for the
-completed-phase progress files (`phase-0.md` … `phase-9.md`, excluding
-`phase-3.md` — Phase 3 is conditional and tracked via `gherkin.md` instead,
-never a numbered progress file), finds the highest completed phase in
-**execution** order (`0, 2, 1, 4, 5, 6, 7, 8, 9` — Phase 3 excluded, matching
-the progress-file scan above), and prints a JSON object whose
-`resolved_phase` is the phase to resume at and whose `message` reads e.g.
-`Resuming at Phase 8 (latest completed: phase-6.md).`. Print that `message`
-so the operator can confirm before work starts, then resume at
-`resolved_phase`. Resolution rules the helper encodes:
-
-- A completed `phase-5.md` with **no** `phase-6.md` resumes at **Phase 6**;
-  a completed `phase-6.md` resumes at **Phase 8** (matching the `[b]`/`[q]`
-  skip-to-8 flow); a completed `phase-7.md` resumes at **Phase 8**.
-- Only `phase-0.md` present resumes at **Phase 2** (Baseline — the phase that
-  now executes immediately after Phase 0).
-- A completed `phase-2.md` with **no** `phase-1.md` resumes at **Phase 1**
-  (Phase 3 has no tracked progress file, so the auto-detect skips over it —
-  see `test_improve_resume.py`'s module docstring). A completed `phase-1.md`
-  resumes at **Phase 4**.
-- **No memory dir / no phase files / `phase-0.md` missing** — the helper exits
-  non-zero; surface its error message (which points to running
-  `/test-improve <repo-path>` from Phase 0) and do **not** silently start at
-  Phase 0.
-- A completed `phase-9.md` means the run is already complete (`complete:
-  true`) — report it; there is nothing to resume.
-
-To resolve an **explicit** `<n>` (including validating that `phase-0.md`
-exists) the skill may pass `--explicit <n>`; an explicit `<n>` **overrides**
-auto-detection. Auto-detect and explicit alike read Phase-0 inputs from
-`phase-0.md` and never re-prompt them.
-
-**Phase-6 prompt letter.** The full Phase-6 refactor-decision prompt —
-shown only in `refactor-allowed` mode — uses `[y/b/q]` (not `[r]`). The
-letter `r` is already claimed by mutation-kill's `[c/r/w/q]` (retry) and the
-review-loop's `[r/w/q]` (revise); reusing `r` a third time at the
-highest-consequence prompt in the flow would produce operator confusion.
-`[y]` advances to Phase 7; `[b]` backlogs the REFACTOR_REQUIRED items and
-skips to Phase 8; `[q]` quits before Phase 8. In `no-refactor` mode (the
-default) Phase 6 is **informational only** — no `[y]` is offered, the
-REFACTOR_REQUIRED items are auto-backlogged, and the run continues to Phase 8
-(see Phase 6).
+<!-- include: references/phase-0-approach-contract.md -->
+See `references/phase-0-approach-contract.md` for the full prompt battery and conflict-check mechanics.
 
 ### Phase 2 — Baseline (coverage + mutation)
 
-Capture the objective starting point **before any file under the stack's test
-directory is modified**. Baselines are the ground truth every downstream delta
-compares against; running any test edit before baseline capture invalidates
-the whole run.
-
-**Coverage baseline.** Invoke `/coverage-baseline --workflow test-improve`
-against the resolved repo path. `/coverage-baseline` owns its own
-existing-baseline guard and persist step — see `../coverage-baseline/SKILL.md`'s
-"Existing-baseline guard" and "Persist the baseline" steps for the full
-mechanics. The result lands directly and atomically at
-`.dev-team-reports/test-improve/<slug>/data/baseline-coverage.json`; there is
-no `.claude/memory/` write and no later copy step for this file — that skill
-has no opt-in awareness of its own, and this write is **unconditional**.
-
-This is independent of the mutation mode: a coverage baseline is persisted in
-every mode, and the mutation baseline is written **only** in
-`baseline+kill-loop` mode (see below).
-
-**Coverage-gap ranking — the targeting input for Phases 1, 4, and 5 (issue
-#1786).** As soon as `baseline-coverage.json` lands, compute the per-module
-uncovered-line breakdown from the same report the baseline was parsed from
-(its `raw_report` field). This runs in **every mutation mode** — it is the
-coverage targeting input, independent of whether mutation work happens at
-all — and it is computed by script, never estimated in prose:
-
-```
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/coverage_gap_ranking.py" \
-  --report <baseline raw_report> --repo-root <repo-path> \
-  --target-line-pct <line target> --target-branch-pct <branch target> \
-  --top 0 --json \
-  --out .dev-team-reports/test-improve/<slug>/data/coverage-gap-ranking.json
-```
-
-Always pass `--repo-root <repo-path>`: several coverage writers (istanbul/nyc
-`coverage-final.json` among them) emit **absolute** source paths, and without a
-root to strip they would all bucket together — one module makes the seam
-classification a single global comparison, so the check silently stops
-discriminating. The script derives the shared path prefix itself as a fallback,
-and flags `grouping_degenerate: true` whenever many files still land in one
-bucket; treat that flag as "the ranking could not resolve modules", never as a
-verdict.
-
-The script buckets every source file into a package/assembly/module and ranks
-the buckets by **uncovered lines descending**, marking each bucket's `seam`
-as `established` (coverage at or above the seam threshold — a test-only change
-is proven to reach it) or `absent` (near-zero coverage — nothing there is
-proven reachable without a production-code seam). `--out` writes the payload
-atomically (temp-file-then-rename), so `coverage-gap-ranking.json` lands in
-the same git-tracked `data/` sibling as the baselines and is read directly
-from there by Phase 1, Phase 4, and Phase 5.
-
-**Mutation survivors are not an input to this ranking, and must not become
-one.** A surviving mutant can only exist on a line a test already executes, so
-a survivor-ordered priority list structurally *excludes* the 0%-covered layers
-that hold most of the missing coverage. That is the failure this ranking
-exists to prevent: a Pass-1 run spent its entire Phase 5 adding mutation-kill
-assertions to layers already at 88-95% line coverage while the layer holding
-~93% of the lines needed to reach the coverage target sat at 0-11% and was
-never targeted.
-
-**A deferred Phase-0 conflict check resolves here (issue #1787).** When
-`phase-0.md` recorded `coverage_target_conflict: deferred` (no coverage report
-was discoverable at Phase 0), *this* invocation is that check — now with real
-numbers. A `verdict` of `unreachable_without_seams` (exit 3) surfaces the same
-explicit choice Phase 0 defines, **before Phase 1 runs**, with one letter
-changed: **`[w] waive the target / [s] stop and re-run in refactor-allowed mode
-/ [c] continue as-is`**. Phase-0 answers are **immutable** for the rest of the
-run, so `[s]` here **stops the run** and tells the operator to re-invoke
-`/test-improve <repo-path>` choosing `refactor-allowed` — it must **never
-rewrite `refactor-mode`** in `phase-0.md` mid-run. Record the outcome in
-`phase-2.md`. A **non-interactive** run at this point follows Phase 0's rule
-unchanged: record `coverage_target_conflict: unresolved` in `phase-2.md`, print
-the same three options, and continue to Phase 1 — it never auto-stops and never
-auto-waives, and Phase 8 restates the unresolved conflict.
-
-**A missing or unparseable report is not a clean ranking.** **Exit 2** means
-the script found nothing to rank (report absent, unrecognized, or parsed to
-zero coverage records) — never an all-clear. Name the report path it tried and
-resolve it (re-run `/coverage-baseline`, or point `--report` at the artifact
-the coverage tool actually emitted) before Phase 1 runs. **Do not proceed with
-mutation survivors as a stand-in ordering.**
-
-**Mutation baseline (`baseline+kill-loop` only).** When `phase-0.md` recorded
-mutation mode **`baseline+kill-loop`**, check for an existing tracked baseline
-before invoking `/mutation-testing --baseline` — this is Phase 2's own
-existing-baseline guard for `baseline-mutation.json`, needed here (unlike the
-coverage case) because `/mutation-testing` owns no persistence of its own: it
-has no `--baseline`-specific write path of its own to guard. This
-existing-baseline guard is this phase's application of the shared
-existing-tracked-artifact re-capture guard — the canonical definition and
-rationale live once in `knowledge/decision-defaults.md`'s "Re-capture: keep
-vs. overwrite an existing tracked artifact" axis; applied here:
-
-- **No existing file, or overwrite chosen** — invoke `/mutation-testing --baseline --workflow test-improve` and persist the result (below).
-- **Existing file, interactive session** — prompt keep/overwrite (default keep). An answer that is neither "keep" nor "overwrite" (case-insensitive) re-prompts with the identical choice — never falls back silently to either option, no retry limit, no timeout.
-- **Existing file, non-interactive** (no usable TTY, or `DEV_TEAM_AUTO_APPROVE=1`) — keep the existing baseline automatically; both log the auto-decision and echo it to Phase 2's own progress output, naming the reused baseline's `captured_at` — reporting parity with the coverage-baseline case, not a silent reuse.
-- **Existing file is malformed or corrupt** (fails to parse as JSON — e.g. left over from a prior interrupted write) — treat it as absent, never as a baseline to keep. Emit a warning naming why a fresh capture is happening, then invoke `/mutation-testing --baseline --workflow test-improve`.
-- **On keep** — do not invoke `/mutation-testing --baseline`; reuse the existing file's fields and report its `captured_at` instead of a freshly captured timestamp.
-
-Persist a freshly captured result directly and atomically (temp-file-then-rename:
-write to `<path>.tmp` then `mv -f <path>.tmp <path>`) to
-`.dev-team-reports/test-improve/<slug>/data/baseline-mutation.json` — never a
-direct, non-atomic write. The file records the **honest score**: hard kills /
-effective total, with the **timeout count reported separately** (timeouts are
-not counted as kills).
-
-**No-baseline modes skip (`off` and `kill-loop`).** When `phase-0.md` recorded
-mutation mode **`off`** or **`kill-loop`**, `/mutation-testing --baseline` is
-**not invoked** and no `baseline-mutation.json` is written — `kill-loop` runs the
-mutant-kill loop in Phase 5 but takes no baseline first. For `off`, the Phase-8
-mutation target is later marked "not enabled", not waived; for `kill-loop`,
-Phase 8 reports the final-survivor count rather than a baseline delta (see
-Phase 8).
-
-**Go advisory marker.** When the resolved stack is Go and mutation mode is
-`baseline+kill-loop`, the
-mutation baseline is **advisory only** — go-mutesting is alpha-quality (see the
-Go advisory in Phase 0). `baseline-mutation.json` is written with the
-`advisory-only: true` marker; survivor counts are not a gate.
-
-**Ordering invariant.** Baselines land **before any test file is modified** — no file under the stack's test directory may change between Phase 0 and the creation of `baseline-coverage.json` (and `baseline-mutation.json` when applicable). Phase 3, Phase 5, and any subsequent test edits depend on this ordering.
+<!-- include: references/phase-2-baseline.md -->
+See `references/phase-2-baseline.md` for the full coverage-and-mutation baseline procedure, the coverage-gap ranking, and the ordering invariant.
 
 ### Phase 3 — Derive Gherkin (conditional)
 
@@ -535,8 +242,9 @@ either **omitted** or marked "not enabled for this run". When it recorded
 
 **Order the plan by the coverage-gap ranking whenever a coverage percentage
 is a stated goal (issue #1786).** Read
-`.dev-team-reports/test-improve/<slug>/data/coverage-gap-ranking.json` — Phase
-2 wrote it — and order the coverage-driven items of `/test-health`'s ordered
+`.dev-team-reports/test-improve/<slug>/data/coverage-gap-ranking.json` —
+written by Phase 2 (see `references/phase-2-baseline.md`) — and order the
+coverage-driven items of `/test-health`'s ordered
 improvement plan by that ranking's `modules` array (`rank` 1 first), not by
 mutation survivor count and not by an ordering re-derived here. `/test-health`'s
 own ordering stands only for items the ranking does not speak to (flakiness,
@@ -948,7 +656,8 @@ omitting it. No extra flag is threaded through the delegation above — the
 worker resolves the branch base itself using the same idiom as `/build`'s
 Farley-Score step. The whole-repo splice relies on the
 `.dev-team-reports/test-improve/<slug>/data/baseline-mutation.json` that
-Phase 2 persisted directly and unconditionally (see Phase 2) — always
+Phase 2 persisted directly and unconditionally (see
+`references/phase-2-baseline.md`) — always
 available for this same run; there is no separate copy to fall back on or
 diverge from.
 

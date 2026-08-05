@@ -6272,12 +6272,16 @@
       "summary": "**Execution order.** Phases below are numbered by stable identity, not by",
       "anchor": "steps"
     },
+    "Phase Reference Files": {
+      "summary": "| Phase | Name | Reference file |",
+      "anchor": "phase-reference-files"
+    },
     "Phase 0 — Approach contract": {
-      "summary": "Resolve every ambiguous input in **one batch** before any work starts, then",
+      "summary": "<!-- include: references/phase-0-approach-contract.md -->",
       "anchor": "phase-0-approach-contract"
     },
     "Phase 2 — Baseline (coverage + mutation)": {
-      "summary": "Capture the objective starting point **before any file under the stack's test",
+      "summary": "<!-- include: references/phase-2-baseline.md -->",
       "anchor": "phase-2-baseline-coverage-mutation"
     },
     "Phase 3 — Derive Gherkin (conditional)": {
