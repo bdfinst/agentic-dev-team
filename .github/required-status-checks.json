@@ -31,6 +31,7 @@
     "Docs link check"
   ],
   "exempt": {
+    "Python ceiling": "ADVISORY BY DELIBERATE CHOICE, not by mechanical necessity — unlike every other exemption here. This job is not path-filtered and not opt-in: it reports a real status on every PR and could be required today. It is exempt only because adding it to the `main` ruleset is a settings change that has not been made. Treat a red run as blocking by convention. To close this properly: add \"Python ceiling\" to the ruleset's required_status_checks, then move this entry into `required` (see #1837).",
     "Eval live regression (opt-in)": "Dispatches the real agents and costs model tokens. Runs only behind a 'run-eval' label plus ANTHROPIC_API_KEY, and skips (not fails) without them — a required check would report success on every PR that didn't opt in.",
     "Eval integration tier (opt-in)": "Same opt-in posture as the live gate: real orchestrator dispatch, real tokens, label-gated.",
     "Stryker.NET POSIX signal tests": "Path-filtered to the mutation wrapper. A path-filtered workflow reports NO status on PRs that don't match, so requiring it would deadlock every unrelated PR at 'Waiting for status to be reported'.",
