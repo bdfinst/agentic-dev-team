@@ -44,12 +44,27 @@ Byte-compiling and importing still has a blind spot of its own, closed in
 only inside a function (`asyncio.to_thread` in `orchestrator.py`, 3.9+) stays
 invisible to both regardless of which version the floor is pinned to.
 `chk_python_floor` now also actually runs, under the resolved floor
-interpreter, the test slice covering the five shipped agent scripts
-(`codebase_recon`, `orchestrator`, `progress_guardian`,
-`token_efficiency_review`, `claude_setup_review`) — not the plugin's entire
+interpreter, the test slice declared as `FLOOR_TEST_SLICE` below (each entry's
+per-module justification lives in `chk_python_floor`'s own comment) — not the
+plugin's entire
 suite, which would double this gate's wall-clock re-running everything under
 a second interpreter, but enough real execution to catch what compiling and
 importing alone cannot.
+
+The slice is a hand-maintained list, so it can go stale the moment a shipped
+module lands without joining it — which is what happened to the
+coverage-discovery modules (#1826). `coverage_config.parse_iso8601` holds an
+explicit 3.10-vs-3.11 shim (`datetime.fromisoformat` rejects a trailing `Z`
+before 3.11); compile and import both passed on 3.10 whether or not that shim
+was correct, and a 3.11-only API injected into its body was measured passing
+all three of byte-compile, import-probe, and the pre-#1826 six-file slice.
+`FLOOR_TEST_SLICE` below is the one declaration of that list, held equal to
+`chk_python_floor`'s actual pytest arguments in both directions — so a slice
+that shrinks and a slice that grows past its declaration both fail a named
+test. What is still convention rather than gate: nothing detects a NEW shipped
+module that never joins the slice at all, which is the shape #1826 itself was
+— tracked as #1829, which proposes accounting for every shipped module with a
+test against the slice, with reasoned exclusions rather than silent absence.
 
 What follows pins those parts to each other. It deliberately contains no
 opinion about which APIs are too new; that question belongs to the
@@ -79,6 +94,32 @@ CI_WORKFLOW = REPO_ROOT / ".github" / "workflows" / "plugin-tests.yml"
 #: The floor every part below must agree on, in each part's own notation.
 FLOOR_RUFF = "py310"
 FLOOR_DOTTED = "3.10"
+
+#: The floor test slice `chk_python_floor` must hand to pytest. One declaration
+#: for every test that pins it — the alternative was this list written out once
+#: per test, the same hand-maintained duplication that let the coverage-discovery
+#: modules go missing in the first place (#1826).
+#:
+#: Add an entry when a shipped `plugins/dev-team/scripts/*.py` module's function
+#: BODIES carry floor-sensitive runtime behavior — a version shim, or a stdlib
+#: API that only resolves above the floor. That is the criterion, and it is here
+#: rather than in `chk_python_floor` because this is the file a maintainer opens
+#: when adding a module. Compile and import cannot see inside a body, which is
+#: the whole reason this slice exists.
+#:
+#: Two roots deliberately: repo-root `tests/scripts/` for the shipped agent
+#: scripts, `plugins/dev-team/tests/scripts/` for the coverage-discovery modules.
+FLOOR_TEST_SLICE = (
+    "tests/scripts/test_codebase_recon.py",
+    "tests/scripts/test_orchestrator.py",
+    "tests/scripts/test_orchestrator_cli.py",
+    "tests/scripts/test_progress_guardian.py",
+    "tests/scripts/test_token_efficiency_review_script.py",
+    "tests/scripts/test_claude_setup_review.py",
+    "plugins/dev-team/tests/scripts/test_coverage_config.py",
+    "plugins/dev-team/tests/scripts/test_coverage_discovery_dotnet.py",
+    "plugins/dev-team/tests/scripts/test_coverage_discovery_js.py",
+)
 
 
 def _ruff_shipped_target_version() -> str | None:
@@ -110,6 +151,21 @@ def ci_workflow() -> str:
     return CI_WORKFLOW.read_text(encoding="utf-8")
 
 
+def _without_comments(text: str) -> str:
+    """`text` with whole-line comments removed.
+
+    Shared by every scan that looks for real shell code, because this function's
+    body is mostly prose: documenting a rule must never break it. Whole-line only
+    — an inline trailing comment stays, which errs strict rather than permissive
+    (a suppressor cannot hide behind it). Note the slice parser deliberately does
+    NOT use this: inside a continued command a `#` line truncates the command
+    rather than commenting itself out, so there its tokens must survive.
+    """
+    return "\n".join(
+        line for line in text.splitlines() if not line.lstrip().startswith("#")
+    )
+
+
 def _only_lists(workflow: str) -> list[list[str]]:
     """Every `--only=<comma-list>` argument actually invoked in the
     workflow, split into its component check names. Comment lines are
@@ -117,10 +173,138 @@ def _only_lists(workflow: str) -> list[list[str]]:
     floor` (a commented-out step, or a comment quoting the rejected
     content-guard-tests wiring this file's own docstrings describe) must
     not satisfy a caller looking for the real invocation."""
-    body = "\n".join(
-        line for line in workflow.splitlines() if not line.lstrip().startswith("#")
-    )
-    return [lst.split(",") for lst in re.findall(r"--only=([\w,-]+)", body)]
+    return [
+        lst.split(",")
+        for lst in re.findall(r"--only=([\w,-]+)", _without_comments(workflow))
+    ]
+
+
+#: A slice entry, anchored to a known test root so a flag that merely embeds a
+#: path (`--ignore=tests/scripts/test_x.py`) is never mistaken for one. Matched
+#: against the literal token: a quoted path or a shell array expansion is
+#: deliberately NOT resolved, because a parser that resolved `"${slice[@]}"`
+#: would equally resolve `"${slice[@]:0:3}"` — the silent-subset bypass. Writing
+#: the paths literally is the price of that, and a refactor that stops doing so
+#: fails loudly rather than quietly running three of nine.
+_SLICE_PATH_RE = re.compile(r"(?:tests|plugins)/[\w./-]*test_\w+\.py")
+
+#: Every token of the invocation BEFORE `-m pytest`, declared rather than
+#: inferred. This half decides which interpreter runs the slice and which
+#: plugins load, so leaving it unasserted let the gate be reduced to nothing
+#: without touching a single path: `export PYTEST_ADDOPTS=--collect-only` above
+#: the call executes zero function bodies and exits 0, and dropping the
+#: pytest-asyncio `--with` silently turns async tests into skips. The cleared
+#: env vars are part of the declaration precisely so that ambient shell state
+#: cannot narrow the run either.
+FLOOR_INVOCATION_PREFIX = (
+    "PYTEST_ADDOPTS=",
+    "PYTEST_DISABLE_PLUGIN_AUTOLOAD=",
+    "uv",
+    "run",
+    "--python",
+    '"$py310"',
+    "--with",
+    "'pytest>=7.0'",
+    "--with",
+    "'pytest-asyncio>=0.23'",
+    "--with",
+    "'jsonschema>=4.0'",
+)
+
+
+def _floor_invocation(ci_local: str) -> tuple[list[str], list[str], list[str]]:
+    """`chk_python_floor`'s pytest command, split at `-m pytest`.
+
+    Returns `(tokens before the marker, pytest's arguments, tokens after `||`)`.
+    All three halves are returned because each can silently gut the gate on its
+    own: the prefix decides which interpreter runs and which plugins load, the
+    arguments decide what is collected, and the `||` tail decides whether a
+    failure is even reported.
+
+    Boundaries are the shell's, not a guess:
+
+    - The command is found from its `-m pytest` line and walked outward while
+      lines continue. Continuation is tested on the RAW line: bash reads `\\`
+      followed by a space as an escaped space that ENDS the command, so a
+      trailing space after a backslash must end the span here too, or this
+      parser would report nine paths for a command the shell had truncated.
+    - `-m pytest` must appear exactly once outside comments. Anchoring on the
+      first of several would let a decoy invocation, or a `printf` mentioning it,
+      supply the paths while the real call passed a subset.
+    - Tokenizing is whitespace-based, so a behaviour-preserving reflow does not
+      fail a test whose subject never changed.
+    - Tokens after `||` are returned separately rather than dropped. Discarding
+      them left the whole region unasserted, so `-q || printf 'failed'` reported
+      a failing slice as success while every test stayed green.
+    - Comments are NOT stripped inside the command. A `#` line carrying a
+      trailing backslash does not comment itself out — it truncates the command
+      there, so pytest receives only the arguments above it. Its tokens are left
+      in, where the argument allowlist rejects them; dropping them would report
+      a full slice for a two-file run, the one outcome this gate must never
+      produce.
+
+    Returns `([], [], [])` when the marker is missing, ambiguous, argument-less,
+    or not followed by `pytest`. An empty parse fails every assertion loudly,
+    which is the safe direction.
+    """
+    lines = _floor_check_body(ci_local).splitlines()
+    marks = [
+        i
+        for i, line in enumerate(lines)
+        if "-m pytest" in line and not line.lstrip().startswith("#")
+    ]
+    if len(marks) != 1:
+        return [], [], []
+    start = end = marks[0]
+    while start > 0 and lines[start - 1].endswith("\\"):
+        start -= 1
+    while end < len(lines) - 1 and lines[end].endswith("\\"):
+        end += 1
+    tokens: list[str] = []
+    tail: list[str] = []
+    seen_or = False
+    for line in lines[start : end + 1]:
+        for token in line.removesuffix("\\").split():
+            if token == "||":
+                seen_or = True
+                continue
+            (tail if seen_or else tokens).append(token)
+    if tokens[-2:] == ["-m", "pytest"] or "-m" not in tokens:
+        return [], [], []
+    marker = tokens.index("-m")
+    if tokens[marker + 1] != "pytest":
+        return [], [], []
+    return tokens[:marker], tokens[marker + 2 :], tail
+
+
+def _floor_invocation_prefix(ci_local: str) -> list[str]:
+    """Everything the command says before `-m pytest`."""
+    return _floor_invocation(ci_local)[0]
+
+
+def _floor_invocation_tail(ci_local: str) -> list[str]:
+    """Everything the command says after `||` — the failure path."""
+    return _floor_invocation(ci_local)[2]
+
+
+def _floor_slice_files(ci_local: str) -> list[str]:
+    """The slice's test-file paths, in the order pytest receives them."""
+    return [t for t in _floor_invocation(ci_local)[1] if _SLICE_PATH_RE.fullmatch(t)]
+
+
+def _floor_slice_extra_args(ci_local: str) -> list[str]:
+    """Every pytest argument that is not a declared slice path.
+
+    An allowlist, not a denylist of known-bad flags: the point is to fail closed
+    on arguments nobody has thought of yet. `--collect-only`, `--ignore=`,
+    `--deselect`, `-k` and a trailing `-m` all leave the path list byte-identical
+    while reducing — or eliminating — what actually executes. Named "extra args"
+    rather than "flags" because it deliberately also catches things that are not
+    flags at all, such as a truncating comment's own tokens.
+    """
+    return [
+        t for t in _floor_invocation(ci_local)[1] if not _SLICE_PATH_RE.fullmatch(t)
+    ]
 
 
 class TestTheFloorIsDeclaredOnce:
@@ -146,10 +330,15 @@ class TestTheFloorIsDeclaredOnce:
         )
 
     def test_the_adr_states_the_same_floor(self):
-        """ADR 0014 carries the rationale. Prose that disagrees with the
-        tooling is how a floor quietly stops meaning anything. Anchored to
-        "Python 3.8" rather than a bare "3.8" substring, which could match an
-        unrelated version reference or section number."""
+        """ADR 0031 carries the current floor's rationale (`ADR` above points at
+        it; ADR 0014 set the original 3.8 floor and its version question is
+        superseded). Prose that disagrees with the tooling is how a floor quietly
+        stops meaning anything — this docstring said "ADR 0014" and "Python 3.8"
+        for a while after the constant moved, which is that same drift.
+
+        Anchored to "Python <FLOOR_DOTTED>", built from the constant at assertion
+        time rather than restated here, so this prose cannot go stale again; a
+        bare version substring could match a section number."""
         assert re.search(r"Python\s+" + re.escape(FLOOR_DOTTED), ADR.read_text(encoding="utf-8"))
 
 
@@ -186,7 +375,17 @@ class TestTheFloorIsProvenByRunningIt:
 
     def test_the_check_uses_a_real_interpreter(self, ci_local):
         body = _floor_check_body(ci_local)
-        assert "_resolve_python310" in body
+        # The value, not just the token. `FLOOR_INVOCATION_PREFIX` pins the literal
+        # `"$py310"`, and a substring check for the resolver's name is satisfied by
+        # a comment — so `py310="$(command -v python3)"` anywhere above the call
+        # would run every stage of this gate on the dev interpreter with all tests
+        # green. Pin the single assignment and its source.
+        assert re.findall(
+            r"\bpy310=\S*", _without_comments(body)
+        ) == ['py310="$(_resolve_python310)"'], (
+            "py310 must be assigned exactly once, from _resolve_python310. "
+            "Reassigning it silently runs the whole gate off-floor."
+        )
         assert "py_compile" in body, "must byte-compile under the floor interpreter"
         assert "import_probe_shipped.py" in body, "must import under it too"
 
@@ -216,25 +415,261 @@ class TestTheFloorIsProvenByRunningIt:
         """#1650: byte-compiling and importing prove a module parses and
         loads, not that its function bodies run clean under the floor
         interpreter. `chk_python_floor` must actually execute pytest against
-        the shipped-agent-script test files, under the resolved floor
+        the shipped tree's test files, under the resolved floor
         interpreter specifically (not whatever `python3` happens to be on
         PATH), or a runtime-only API used only inside a function stays
-        invisible to this gate again."""
-        body = _floor_check_body(ci_local)
-        assert "uv run" in body and "--python" in body and '"$py310"' in body, (
-            "must invoke the resolved floor interpreter via `uv run --python "
-            '"$py310"`, not the default `python3`'
+        invisible to this gate again.
+
+        The slice spans two test roots — repo-root `tests/scripts/` for the
+        agent scripts and `plugins/dev-team/tests/scripts/` for the
+        coverage-discovery modules (#1826). Both in one pytest invocation is
+        safe because `pytest.ini` pins `--import-mode=importlib` (#1120), so
+        the duplicate-basename "import file mismatch" that the default
+        `prepend` mode would raise cannot occur."""
+        assert _floor_invocation_prefix(ci_local) == list(FLOOR_INVOCATION_PREFIX), (
+            "chk_python_floor's pytest command differs, before `-m pytest`, from "
+            "FLOOR_INVOCATION_PREFIX. That half decides which interpreter runs "
+            "the slice and which plugins load, and pytest also honours "
+            "PYTEST_ADDOPTS — so it is declared, not merely present somewhere in "
+            "the function. A substring check here would be satisfied by a comment."
         )
-        assert "-m pytest" in body, "must actually run pytest, not just import"
-        for test_file in (
-            "tests/scripts/test_codebase_recon.py",
-            "tests/scripts/test_orchestrator.py",
-            "tests/scripts/test_orchestrator_cli.py",
-            "tests/scripts/test_progress_guardian.py",
-            "tests/scripts/test_token_efficiency_review_script.py",
-            "tests/scripts/test_claude_setup_review.py",
-        ):
-            assert test_file in body, f"floor check must run {test_file}"
+
+    def test_the_check_passes_pytest_exactly_the_declared_slice(self, ci_local):
+        """Equality against the parsed argument list, not containment in the
+        function text: a path merely *mentioned* in a comment satisfies `in body`
+        just as well as a real argument, and containment says nothing about a
+        path present in the invocation but absent from `FLOOR_TEST_SLICE`. Both
+        directions matter — a slice that quietly shrinks is the "gate that cannot
+        fail" this whole check exists to prevent, and a slice that grows without
+        the declaration following it puts this file back to guessing.
+
+        Compared as multisets. Order is not load-bearing (pytest runs the same
+        tests whichever way the paths are wrapped), so alphabetizing them must
+        not fail this test — but duplicates and membership changes must."""
+        assert sorted(_floor_slice_files(ci_local)) == sorted(FLOOR_TEST_SLICE), (
+            "chk_python_floor's pytest arguments and FLOOR_TEST_SLICE have "
+            "diverged. Whichever one is wrong, they must be changed together."
+        )
+
+    def test_the_check_passes_pytest_no_narrowing_arguments(self, ci_local):
+        """The slice's *paths* being right does not mean the slice *runs*.
+
+        `--collect-only` makes pytest exit 0 having executed zero function
+        bodies — reverting this gate to exactly the compile-and-import blind spot
+        #1650 created it to close. `--ignore=`, `--deselect`, `-k` and a trailing
+        `-m` each drop or filter tests the same way, all while leaving the path
+        list byte-identical and the equality test above green.
+
+        So this is an allowlist, not a denylist of known-bad flags: any argument
+        that is not a declared path must be named here deliberately. That fails
+        closed on flags nobody has thought of yet."""
+        assert _floor_slice_extra_args(ci_local) == ["-q"], (
+            "chk_python_floor passes pytest an argument other than `-q` and the "
+            "declared slice paths. If it is genuinely wanted, add it here — but "
+            "check first that it does not reduce what actually executes "
+            "(--collect-only, --ignore, --deselect, -k, -m all do, silently)."
+        )
+
+    def test_the_check_does_not_suppress_its_own_verdict(self, ci_local):
+        """The pytest invocation's exit status IS this gate's verdict, and this
+        gate is a required status check on `main`. `-q || true`, or an early
+        `return 0` above the invocation, leaves every other test here green while
+        the slice never runs or never fails — a green required check that
+        guarantees nothing, which this repo rates worse than no check at all.
+
+        `_resolve_python310`'s own `return 0` sits above `chk_python_floor()` and
+        is correctly outside `_floor_check_body`'s window."""
+        body = _floor_check_body(ci_local)
+        lines = body.splitlines()
+        end = next(
+            i
+            for i, line in enumerate(lines)
+            if "-m pytest" in line and not line.lstrip().startswith("#")
+        )
+        while end < len(lines) - 1 and lines[end].endswith("\\"):
+            end += 1
+        trailing = [
+            line
+            for line in lines[end + 1 :]
+            if line.strip() and line.strip() != "}" and not line.lstrip().startswith("#")
+        ]
+        assert not trailing, (
+            f"chk_python_floor runs {trailing} after its pytest invocation. A bash "
+            "function returns its LAST command's status and ci-local.sh runs "
+            "without `set -e`, so a trailing line silently becomes the gate's "
+            "verdict. The invocation must be last."
+        )
+        # The failure path is an ALLOWLIST, not a substring check. Everything after
+        # `||` used to be unparsed, guarded only by `"-q || return 1" in body` —
+        # which a comment satisfies, and this function's own comment block quotes
+        # that idiom while explaining it. `-q || printf 'failed'` therefore reported
+        # a failing slice as success with every test green.
+        assert _floor_invocation_tail(ci_local) == ["return", "1"], (
+            "the pytest invocation's failure path must be exactly `|| return 1`. "
+            "Anything else there — `|| printf …`, `|| rc=$?`, a `; fi` closing a "
+            "wrapper — discards or conditions the verdict, and this gate is a "
+            "required status check on `main`."
+        )
+        # No early exit anywhere in the function: the structural check above only
+        # constrains lines AFTER the command, so a `return 0` guard above it (or a
+        # softened uv branch) would leave the gate green on machines that never run
+        # the slice. Every legitimate guard here returns 1.
+        code = _without_comments(body)
+        assert "return 0" not in code, (
+            "chk_python_floor must never return 0 except by reaching the end of "
+            "its pytest invocation; an early `return 0` makes the gate pass "
+            "without running the slice. Comment lines are excluded — documenting "
+            "this rule must not break it, the same reason `_only_lists` strips "
+            "them. An obfuscated `return $((0))` is not caught here; that is "
+            "deliberate evasion rather than the accidental shape, and it is "
+            "recorded in #1829."
+        )
+        found = [x for x in ("|| true", "|| :", "&& true", "set +e") if x in code]
+        assert not found, f"chk_python_floor contains {found}, which discards the verdict"
+
+    def test_the_declared_slice_files_all_exist(self):
+        """A slice entry naming a file that is not in the tree fails the gate
+        loudly (pytest exits 4, "file or directory not found") rather than
+        silently shrinking — confirmed by renaming a slice file away. That is
+        the right failure mode, but it fails the whole gate for a typo, so catch
+        a bad path here, where the message names it. The one assertion in this
+        class with an oracle outside the two artifacts that pin each other."""
+        missing = [rel for rel in FLOOR_TEST_SLICE if not (REPO_ROOT / rel).is_file()]
+        assert not missing, (
+            f"the declared floor test slice names files that do not exist: "
+            f"{missing}. A stale path fails the gate with pytest's exit 4."
+        )
+
+
+def _synthetic_floor_check(invocation: str) -> str:
+    """A minimal `ci-local.sh` shaped so `_floor_check_body` finds its window."""
+    return f"chk_python_floor() {{\n{invocation}\n}}\n\nchk_next() {{ :; }}\n"
+
+
+def test_without_comments_strips_whole_lines_but_keeps_inline_ones():
+    """`_without_comments` now backs three separate guards — the `--only=` scan,
+    the `py310=` single-assignment pin, and the verdict-suppression scan — so a
+    bug in it would defang all three at once. Whole-line stripping is what makes
+    documenting a rule safe; keeping inline comments is what stops a suppressor
+    hiding behind one on a live code line."""
+    text = "# whole line\n  # indented whole line\ncode()  # inline stays\nmore()"
+    assert _without_comments(text) == "code()  # inline stays\nmore()"
+
+
+class TestTheSliceParserItself:
+    """`_floor_invocation` decides whether every test above is asking the right
+    question, so its rules are pinned here against synthetic input rather than
+    only exercised once, indirectly, against whatever `ci-local.sh` happens to
+    say today. Each case is a way a real edit could make the parser agree with a
+    gate that had stopped proving anything — every one was first confirmed by
+    hand against the live script, then written down here so it stays confirmed.
+    """
+
+    def test_it_reads_the_paths_the_invocation_actually_passes(self):
+        body = _synthetic_floor_check(
+            '  uv run --python "$py310" \\\n'
+            "    -m pytest \\\n"
+            "    tests/scripts/test_a.py \\\n"
+            "    plugins/dev-team/tests/scripts/test_b.py \\\n"
+            "    -q"
+        )
+        assert _floor_slice_files(body) == [
+            "tests/scripts/test_a.py",
+            "plugins/dev-team/tests/scripts/test_b.py",
+        ]
+        assert _floor_slice_extra_args(body) == ["-q"]
+
+    def test_a_reflow_onto_one_line_changes_nothing(self):
+        """pytest does not care how the continuation wraps, so neither may this."""
+        body = _synthetic_floor_check(
+            "  uv run -m pytest tests/scripts/test_a.py tests/scripts/test_b.py -q"
+        )
+        assert _floor_slice_files(body) == [
+            "tests/scripts/test_a.py",
+            "tests/scripts/test_b.py",
+        ]
+
+    def test_a_path_before_the_marker_is_not_an_argument(self):
+        """A shell array declared above the call, with a subset expanded into it,
+        must not be readable as the argument list."""
+        body = _synthetic_floor_check(
+            "  slice=( tests/scripts/test_a.py tests/scripts/test_b.py )\n"
+            '  uv run -m pytest "${slice[@]:0:1}" -q'
+        )
+        assert _floor_slice_files(body) == []
+
+    def test_a_second_marker_makes_the_parse_refuse_to_guess(self):
+        """A decoy invocation must not supply the paths for the real one."""
+        body = _synthetic_floor_check(
+            "  printf 'about to run -m pytest\\n'\n"
+            "  uv run -m pytest tests/scripts/test_a.py -q"
+        )
+        assert _floor_invocation(body) == ([], [], [])
+
+    def test_a_flag_embedding_a_path_is_not_a_path(self):
+        body = _synthetic_floor_check(
+            "  uv run -m pytest \\\n"
+            "    tests/scripts/test_a.py \\\n"
+            "    --ignore=tests/scripts/test_b.py \\\n"
+            "    -q"
+        )
+        assert _floor_slice_files(body) == ["tests/scripts/test_a.py"]
+        assert "--ignore=tests/scripts/test_b.py" in _floor_slice_extra_args(body)
+
+    def test_a_truncating_comment_is_surfaced_not_swallowed(self):
+        """A `#` line carrying a trailing backslash does not comment itself out of
+        a continued command — it ends the command there, so pytest receives only
+        the arguments above it. The parser must not report the paths below as if
+        they had been passed; keeping the comment's tokens means the flag
+        allowlist rejects them and the gate's own test fails."""
+        body = _synthetic_floor_check(
+            "  uv run -m pytest \\\n"
+            "    tests/scripts/test_a.py \\\n"
+            "    # note \\\n"
+            "    tests/scripts/test_b.py \\\n"
+            "    -q"
+        )
+        assert _floor_slice_extra_args(body) != ["-q"], (
+            "the truncating comment's tokens must survive into the argument list, "
+            "where the allowlist rejects them. Asserting on the literal `#` would "
+            "pin how the tokenizer spells it rather than the property that guards "
+            "the gate."
+        )
+
+    def test_a_backslash_with_a_trailing_space_ends_the_command(self):
+        """bash reads `\\` + space as an escaped space that ENDS the command, so
+        every path below such a line is never passed to pytest. The parser must
+        agree, or it reports nine paths for a command the shell cut short — the
+        silent-subset outcome this gate exists to prevent. Pins the one
+        `_floor_invocation` rule an `rstrip()` "tidy-up" would quietly undo."""
+        body = _synthetic_floor_check(
+            "  uv run -m pytest \\\n"
+            "    tests/scripts/test_a.py \\ \n"
+            "    tests/scripts/test_b.py \\\n"
+            "    -q"
+        )
+        assert _floor_slice_files(body) == ["tests/scripts/test_a.py"]
+
+    def test_the_failure_path_is_returned_not_discarded(self):
+        """Everything after `||` was dropped, leaving the region unasserted."""
+        body = _synthetic_floor_check(
+            "  uv run -m pytest tests/scripts/test_a.py -q || printf 'failed'"
+        )
+        assert _floor_invocation(body)[2] == ["printf", "'failed'"]
+
+    def test_a_missing_marker_yields_nothing_rather_than_the_whole_body(self):
+        body = _synthetic_floor_check("  uv run tests/scripts/test_a.py")
+        assert _floor_invocation(body) == ([], [], [])
+
+    def test_it_stops_at_the_end_of_the_continued_command(self):
+        """Anything after the invocation — including the closing brace — is not
+        an argument."""
+        body = _synthetic_floor_check(
+            "  uv run -m pytest tests/scripts/test_a.py -q\n"
+            "  echo tests/scripts/test_unrelated.py"
+        )
+        assert _floor_slice_files(body) == ["tests/scripts/test_a.py"]
+        assert "}" not in _floor_slice_extra_args(body)
 
 
 class TestTheFloorIsCheckedInCI:
