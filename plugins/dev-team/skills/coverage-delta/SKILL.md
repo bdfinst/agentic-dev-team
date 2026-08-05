@@ -45,12 +45,13 @@ Capture exit code + stdout + stderr.
 
 If the run fails, surface the first error and stop. Do not post a delta from a broken run.
 
-### 2a. Multi-project re-derivation (.NET solutions & JS/TS workspaces)
+### 2a. Multi-project re-derivation (.NET solutions, JS/TS workspaces & Java multi-module builds)
 
-When a `.sln` file exists at the repo root (.NET), or a workspace signal is present (JS/TS) — the same triggers `coverage-baseline`'s Step 1a uses — re-run the appropriate discovery script **fresh, every call**, never reusing a project/package list recorded by a prior run:
+When a `.sln` file exists at the repo root (.NET), a workspace signal is present (JS/TS), or a multi-module signal is present (Java) — the same triggers `coverage-baseline`'s Step 1a uses — re-run the appropriate discovery script **fresh, every call**, never reusing a project/package/module list recorded by a prior run:
 
 - **.NET**: `${CLAUDE_PLUGIN_ROOT}/scripts/coverage_discovery_dotnet.py`'s `discover_dotnet_projects(repo_root)`
 - **JS/TS**: `${CLAUDE_PLUGIN_ROOT}/scripts/coverage_discovery_js.py`'s `discover_js_packages(repo_root)`
+- **Java**: `${CLAUDE_PLUGIN_ROOT}/scripts/coverage_discovery_java.py`'s `discover_java_modules(repo_root)` — a root `pom.xml` declaring `<modules>` (Maven, which wins when both are present) or a `settings.gradle`/`settings.gradle.kts` declaring `include(...)` (Gradle)
 
 Implementation mechanics (the bootstrap/drift-check contract, weighted-merge, and the exact message templates): [`../coverage-baseline/references/multi-project-discovery.md`](../coverage-baseline/references/multi-project-discovery.md) — this section pins the contract surface only, mirroring how `coverage-baseline`'s own Step 1a links the same file rather than re-deriving the mechanics a second time.
 
@@ -60,12 +61,12 @@ Implementation mechanics (the bootstrap/drift-check contract, weighted-merge, an
 
 **Discovery-signal check.** Before calling `drift_check`, check the fresh discovery call's return value — the same two branches `coverage-baseline`'s Step 1a already carries:
 
-- `coverage_config.DISCOVERY_NOT_APPLICABLE` — should not occur here (this step only runs when the `.sln`/workspace trigger already fired); if it somehow does, treat it like the missing-config branch above: stop, post no delta.
+- `coverage_config.DISCOVERY_NOT_APPLICABLE` — should not occur here (this step only runs when the `.sln`/workspace/multi-module trigger already fired); if it somehow does, treat it like the missing-config branch above: stop, post no delta.
 - `coverage_config.discovery_error(...)` — surface `message`, post no delta, stop — the same treatment as an existing Step 2 run-failure (a genuine tool failure, not the actionable config gap the hard-failure block below describes).
 
 Never let `discovered` reach `drift_check` unchecked.
 
-**Zero-real-test-project guard.** Before calling `drift_check`, apply the same `any(coverage_config.needs_accounting(entry["classification"]) for entry in discovered)` check `coverage-baseline`'s Step 1a already carries. If `False` (every discovered project/package classifies `NOT_TEST`), stop immediately with the exact message `coverage-baseline`'s Step 1a uses, worded for a delta: `"Coverage capture stopped: no real test project was discovered in this <solution|workspace> — cannot establish a coverage floor. If this repo has test projects, verify they reference Microsoft.NET.Test.Sdk (or, for JS/TS, use jest/vitest/mocha+nyc/c8) so discovery can recognize them; otherwise there is no coverage floor to capture."` Post no delta.
+**Zero-real-test-project guard.** Before calling `drift_check`, apply the same `any(coverage_config.needs_accounting(entry["classification"]) for entry in discovered)` check `coverage-baseline`'s Step 1a already carries. If `False` (every discovered project/package classifies `NOT_TEST`), stop immediately with the exact message `coverage-baseline`'s Step 1a uses, worded for a delta: `"Coverage capture stopped: no real test project was discovered in this <solution|workspace|multi-module build> — cannot establish a coverage floor. If this repo has test projects, verify they reference Microsoft.NET.Test.Sdk (for .NET), use jest/vitest/mocha+nyc/c8 (for JS/TS), or declare a JUnit/TestNG dependency alongside a src/test/java|kotlin directory (for Java) so discovery can recognize them; otherwise there is no coverage floor to capture."` Post no delta.
 
 Read the persisted `.dev-team-reports/<workflow>/<slug>/data/coverage-config.json` (written by the prior `/coverage-baseline` run) and call `coverage_config.drift_check(config, discovered)` against it:
 

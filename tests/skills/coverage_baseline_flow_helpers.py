@@ -42,13 +42,16 @@ from coverage_flow_shared import merge_included_reports
 
 # The exact zero-real-test-project message template documented in
 # SKILL.md Step 1a / references/multi-project-discovery.md Step 2.
-# `{kind}` is "solution" for .NET, "workspace" for JS/TS.
+# `{kind}` is "solution" for .NET, "workspace" for JS/TS, "multi-module build"
+# for Java (#1765).
 ZERO_REAL_TEST_MESSAGE_TEMPLATE = (
     "Coverage capture stopped: no real test project was discovered in this "
     "{kind} — cannot establish a coverage floor. If this repo has test "
-    "projects, verify they reference Microsoft.NET.Test.Sdk (or, for JS/TS, "
-    "use jest/vitest/mocha+nyc/c8) so discovery can recognize them; "
-    "otherwise there is no coverage floor to capture."
+    "projects, verify they reference Microsoft.NET.Test.Sdk (for .NET), use "
+    "jest/vitest/mocha+nyc/c8 (for JS/TS), or declare a JUnit/TestNG "
+    "dependency alongside a src/test/java|kotlin directory (for Java) so "
+    "discovery can recognize them; otherwise there is no coverage floor to "
+    "capture."
 )
 
 # Step 3's pre-existing, unedited "Run coverage" failure wording — the

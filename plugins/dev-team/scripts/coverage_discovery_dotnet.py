@@ -68,10 +68,7 @@ _TEST_SDK_PACKAGE = "Microsoft.NET.Test.Sdk"
 # convention in sibling scripts (e.g. codebase_recon.py).
 _SLN_LIST_TIMEOUT_SECONDS = 120
 
-# A .csproj / Directory.Build.props file never legitimately carries a
-# DOCTYPE or ENTITY declaration — presence of either is a zero-false-positive
-# signal of an entity-expansion attempt, not a legitimate MSBuild file.
-_UNSAFE_XML_MARKERS = ("<!DOCTYPE", "<!ENTITY")
+# The disallowed-XML-marker tuple is shared: coverage_config.UNSAFE_XML_MARKERS.
 
 
 def discover_dotnet_projects(repo_root):
@@ -219,47 +216,13 @@ def _parse_sln_list_output(stdout: str) -> list:
     return projects
 
 
-def _contains_unsafe_xml_marker(data: bytes) -> str | None:
-    """Return the first disallowed marker (`_UNSAFE_XML_MARKERS`) found in
-    `data`'s raw bytes, or in `data` decoded as UTF-16LE/UTF-16BE — the
-    other encodings expat auto-detects and natively parses besides UTF-8.
-    ASCII/Latin-1 are byte-identical to UTF-8 for these ASCII-only tokens,
-    so no separate check is needed for those; decoding the raw bytes as
-    Latin-1 (a total, never-raising 1:1 byte<->codepoint mapping) is
-    sufficient to cover the UTF-8/ASCII/Latin-1 case in one pass. Returns
-    `None` when no marker is found in any of the three views."""
-    raw_text = data.decode("latin-1")
-    utf16le_text = data.decode("utf-16le", errors="ignore")
-    utf16be_text = data.decode("utf-16be", errors="ignore")
-    for marker in _UNSAFE_XML_MARKERS:
-        if marker in raw_text or marker in utf16le_text or marker in utf16be_text:
-            return marker
-    return None
-
-
-def _read_and_screen_xml(path: Path):
-    """Read `path` ONCE as bytes and screen the FULL content — never only a
-    fixed-size prefix — for a disallowed `<!DOCTYPE`/`<!ENTITY` declaration
-    (entity-expansion hardening); a `.csproj`/`Directory.Build.props` file
-    never legitimately carries either.
-
-    Returns `(data, None)` when the file looks safe to parse — the caller
-    parses these SAME already-read bytes via `ET.fromstring`, never
-    re-opening `path`, which closes the check-then-use double-open gap a
-    `read`-then-`ET.parse(path)` pair leaves open. Returns
-    `(None, coverage_config.discovery_error(...))` otherwise (unreadable
-    file, or a disallowed marker found)."""
-    try:
-        data = path.read_bytes()
-    except OSError as exc:
-        return None, coverage_config.discovery_error(f"Could not read '{path}': {exc}")
-    marker = _contains_unsafe_xml_marker(data)
-    if marker is not None:
-        return None, coverage_config.discovery_error(
-            f"Refusing to parse '{path}': contains a disallowed "
-            f"'{marker}' declaration (XML entity-expansion hardening)."
-        )
-    return data, None
+# The entity-expansion screen this module introduced now lives in
+# `coverage_config` so every discovery stack that parses repository-supplied
+# XML shares ONE implementation — the Java stack (#1765) originally shipped
+# without a screen at all, which is exactly the drift a shared helper
+# prevents. Call sites below use `coverage_config.read_and_screen_xml`
+# directly: private re-export aliases would give one shared symbol two names
+# depending on which file you are reading.
 
 
 def _classify_project(csproj_path: Path, solution_root: Path):
@@ -274,7 +237,7 @@ def _classify_project(csproj_path: Path, solution_root: Path):
     `coverage_config.discovery_error(...)` if the `.csproj` (or an ancestor
     `Directory.Build.props`) is not well-formed XML, is unreadable, escapes
     `solution_root`, or fails the entity-expansion safety check."""
-    data, unsafe = _read_and_screen_xml(csproj_path)
+    data, unsafe = coverage_config.read_and_screen_xml(csproj_path)
     if unsafe is not None:
         return unsafe
     try:
@@ -307,7 +270,7 @@ def _classify_project(csproj_path: Path, solution_root: Path):
                     f"which is outside the solution root "
                     f"('{solution_root}'); refusing to read or parse it."
                 )
-            props_data, unsafe = _read_and_screen_xml(resolved_props_path)
+            props_data, unsafe = coverage_config.read_and_screen_xml(resolved_props_path)
             if unsafe is not None:
                 return unsafe
             try:
