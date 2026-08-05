@@ -1,5 +1,41 @@
 # Changelog
 
+## [12.4.0](https://github.com/bdfinst/agentic-dev-team/compare/dev-team-v12.3.0...dev-team-v12.4.0) (2026-08-05)
+
+
+### Features
+
+* **hooks:** enforce Python-only shipped scripts in real time ([#1769](https://github.com/bdfinst/agentic-dev-team/issues/1769)) ([830ee68](https://github.com/bdfinst/agentic-dev-team/commit/830ee68fc22865805357c18fbca0f1dca352efc4))
+* **mutation-testing:** committed, human-approved mutation exclude-policy bootstrap ([#1771](https://github.com/bdfinst/agentic-dev-team/issues/1771)) ([09ce224](https://github.com/bdfinst/agentic-dev-team/commit/09ce2246d7e895f6c4aa2ed590f937a725e5d111))
+* **mutation-testing:** stable dual-format mutation report with LATEST mirror ([#1770](https://github.com/bdfinst/agentic-dev-team/issues/1770)) ([ffee0e2](https://github.com/bdfinst/agentic-dev-team/commit/ffee0e2e69bea218732e943259a68fc7ab7e0553))
+* **mutation-testing:** unattended, LLM-free overnight mutation night-watch run ([#1768](https://github.com/bdfinst/agentic-dev-team/issues/1768)) ([e28ccd4](https://github.com/bdfinst/agentic-dev-team/commit/e28ccd4ec4b77598e42c011b4f55426c9828f287))
+* **project-init:** short-circuit re-invocation on already-initialized projects ([#1821](https://github.com/bdfinst/agentic-dev-team/issues/1821)) ([8eb203b](https://github.com/bdfinst/agentic-dev-team/commit/8eb203b4019a12143368fc0a735cba79881447b1)), closes [#1778](https://github.com/bdfinst/agentic-dev-team/issues/1778)
+
+
+### Bug Fixes
+
+* auto-discover test/coverage projects instead of a frozen list ([#1822](https://github.com/bdfinst/agentic-dev-team/issues/1822)) ([4c5baf3](https://github.com/bdfinst/agentic-dev-team/commit/4c5baf3628f96d9799cb30c3432fed651b66ef74))
+* **code-review:** cap parallel dispatch at 10, retry once, never drop failures silently ([#1760](https://github.com/bdfinst/agentic-dev-team/issues/1760)) ([338c1fa](https://github.com/bdfinst/agentic-dev-team/commit/338c1fa276d245c3967dec1828c2d6f7f6d4dff0)), closes [#1752](https://github.com/bdfinst/agentic-dev-team/issues/1752)
+* **code-review:** mechanical backstops for dispatch-batching contract ([#1761](https://github.com/bdfinst/agentic-dev-team/issues/1761), [#1762](https://github.com/bdfinst/agentic-dev-team/issues/1762), [#1763](https://github.com/bdfinst/agentic-dev-team/issues/1763)) ([#1804](https://github.com/bdfinst/agentic-dev-team/issues/1804)) ([93420aa](https://github.com/bdfinst/agentic-dev-team/commit/93420aab1b7e269e328a1139f7d4327d92e0c3a0))
+* **coverage-baseline:** batch grp-1759 — .NET coverage discovery + 4 session-review skill fixes ([#1810](https://github.com/bdfinst/agentic-dev-team/issues/1810)) ([496905b](https://github.com/bdfinst/agentic-dev-team/commit/496905b02acb27bb0093d5045a28eac97943ece1))
+* **coverage-discovery:** expand brace globs, normalize .sln separators, validate ** explicitly ([#1833](https://github.com/bdfinst/agentic-dev-team/issues/1833)) ([4bc67b3](https://github.com/bdfinst/agentic-dev-team/commit/4bc67b3f271b17fad99ab23155a0f8c9e839dcab)), closes [#1827](https://github.com/bdfinst/agentic-dev-team/issues/1827) [#1828](https://github.com/bdfinst/agentic-dev-team/issues/1828) [#1832](https://github.com/bdfinst/agentic-dev-team/issues/1832)
+* **farley-score:** clarify scoring criteria and add worked examples ([#1816](https://github.com/bdfinst/agentic-dev-team/issues/1816)) ([ff4315b](https://github.com/bdfinst/agentic-dev-team/commit/ff4315b4baa5740d00a83bc86790d11be01e69f1)), closes [#1776](https://github.com/bdfinst/agentic-dev-team/issues/1776)
+* **hooks:** dedupe redundant .review-passed read in cosmetic carry-forward lens ([#1818](https://github.com/bdfinst/agentic-dev-team/issues/1818)) ([45b1478](https://github.com/bdfinst/agentic-dev-team/commit/45b1478f8f6e6c0e6a19842aae38c0bf5f3ed08f)), closes [#1813](https://github.com/bdfinst/agentic-dev-team/issues/1813)
+* **hooks:** detect equivalent git commit invocation forms in pre-commit gate ([#1817](https://github.com/bdfinst/agentic-dev-team/issues/1817)) ([a715451](https://github.com/bdfinst/agentic-dev-team/commit/a715451d3f0a011a94351642140ee8d6b8618169)), closes [#1801](https://github.com/bdfinst/agentic-dev-team/issues/1801)
+* **hooks:** isolate test_emit_swallows_bad_cwd_type from real checkout ([#1802](https://github.com/bdfinst/agentic-dev-team/issues/1802)) ([d9188dc](https://github.com/bdfinst/agentic-dev-team/commit/d9188dc50c65d53accb22a5753657308c1925052))
+* **hooks:** remove second-boundary race in dispatch-window flaky test ([#1811](https://github.com/bdfinst/agentic-dev-team/issues/1811)) ([dd4befd](https://github.com/bdfinst/agentic-dev-team/commit/dd4befdb15ebc1b1bf4d30598a46f366cc9b7c1e))
+* **hooks:** single-read-pass ledger query for cosmetic carry-forward veto ([#1814](https://github.com/bdfinst/agentic-dev-team/issues/1814)) ([6e85b9a](https://github.com/bdfinst/agentic-dev-team/commit/6e85b9a277847d1a9a8cc5233d0444a12ceb6274)), closes [#1807](https://github.com/bdfinst/agentic-dev-team/issues/1807)
+* **session-review:** guard the dev-checkout-only extractor dependency ([#1820](https://github.com/bdfinst/agentic-dev-team/issues/1820)) ([a73a0a5](https://github.com/bdfinst/agentic-dev-team/commit/a73a0a53c93992f5737a0357619bcd78cc1ce970)), closes [#1779](https://github.com/bdfinst/agentic-dev-team/issues/1779)
+* **skills:** enforce Conventional Commit titles in every issue-creating skill ([#1792](https://github.com/bdfinst/agentic-dev-team/issues/1792)) ([eee3cf1](https://github.com/bdfinst/agentic-dev-team/commit/eee3cf19cfbef9b56d76cf279391eccc3b56bcda))
+* **stryker-xunit-v2-shim:** gate Stryker on a recorded operator remediation choice ([#1825](https://github.com/bdfinst/agentic-dev-team/issues/1825)) ([d2b0a12](https://github.com/bdfinst/agentic-dev-team/commit/d2b0a12939b028e6f1a3a25b3d188d58c57d666f))
+* **test-improve:** target coverage work from per-module gap ranking ([#1824](https://github.com/bdfinst/agentic-dev-team/issues/1824)) ([c450f55](https://github.com/bdfinst/agentic-dev-team/commit/c450f557a2a2358aa157e24354196567c1c0b5b3))
+
+
+### Code Refactoring
+
+* **hooks:** dedupe bypass-flag scan in pre_commit_detect ([#1812](https://github.com/bdfinst/agentic-dev-team/issues/1812)) ([ec97908](https://github.com/bdfinst/agentic-dev-team/commit/ec9790821ce4bc9b93db7ea23187a527968a1b15))
+* **skills:** dedupe severity vocab and raw-dir path in code-review consolidate ([#1803](https://github.com/bdfinst/agentic-dev-team/issues/1803)) ([3a20652](https://github.com/bdfinst/agentic-dev-team/commit/3a206522dc5806a3b8112b4cb1bb13cf56eafc29))
+
 ## [12.3.0](https://github.com/bdfinst/agentic-dev-team/compare/dev-team-v12.2.0...dev-team-v12.3.0) (2026-08-03)
 
 
