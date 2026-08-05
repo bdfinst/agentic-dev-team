@@ -91,7 +91,7 @@ categories:
       ]
 
   - name: Debugging & Diagnostics
-    skills: [systematic-debugging, ci-debugging, triage]
+    skills: [systematic-debugging, ci-debugging, triage, fix]
 
   - name: Setup, Config & Plugin Management
     skills: [setup, project-init, upgrade, version, help]

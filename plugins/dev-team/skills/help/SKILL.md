@@ -48,6 +48,7 @@ edit to this file.
 | `/pr` | Run pre-PR quality gates and open a pull request |
 | `/test-improve` | Analyze and raise a repo's test coverage and health |
 | `/triage` | Investigate a bug and write a TDD fix plan |
+| `/fix` | Investigate a bug, prove it, fix it RED/GREEN, then delegate to `/pr` |
 | `/setup` | Provision a repo for the dev-team plugin |
 | `/continue` | Resume work from a prior session |
 | `/help` | Show this list — pass `--all` for every command |
