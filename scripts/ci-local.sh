@@ -376,7 +376,16 @@ chk_python_ceiling() {
   # so this gate never touches the system interpreter's site-packages, and are
   # pinned to requirements-dev.txt's specifiers so the gate's verdict cannot
   # drift with a contributor's environment (#1676's lesson).
-  uv run --python "$pyceil" \
+  #
+  # PYTEST_ADDOPTS/PYTEST_DISABLE_PLUGIN_AUTOLOAD are cleared, not inherited —
+  # same rationale as chk_python_floor above: an ambient
+  # `PYTEST_ADDOPTS=--collect-only` in a contributor's shell (or a future CI
+  # `env:` block) would otherwise make this gate execute zero function bodies
+  # and still exit 0. This gate is this repo's designated backstop for the
+  # #1832 class of regression and is `exempt` (advisory-only) in
+  # .github/required-status-checks.json, so nothing else catches a silently
+  # neutralized run of it (#1876).
+  PYTEST_ADDOPTS= PYTEST_DISABLE_PLUGIN_AUTOLOAD= uv run --python "$pyceil" \
     --with 'pytest>=7.0' --with 'pytest-asyncio>=0.23' --with 'pytest-xdist>=3.0' \
     --with 'jsonschema>=4.0' --with 'PyYAML>=6.0' \
     -m pytest \
