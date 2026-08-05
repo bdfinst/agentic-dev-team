@@ -513,3 +513,142 @@ def test_project_path_outside_repo_root_is_discovery_error(tmp_path):
     assert result["signal"] == "error"
     assert "Outside.csproj" in result["message"]
     assert not (tmp_path / "outside").exists()
+
+
+# ---------------------------------------------------------------------------
+# Windows-authored .sln separators (issue #1828)
+#
+# `dotnet sln list` echoes the separators the .sln was authored with. A
+# Windows-authored solution emits backslashes, and on POSIX `pathlib` treats
+# `src\App\App.csproj` as ONE opaque filename — so before #1828 every project
+# in such a solution failed the "does not exist on disk" check even though the
+# file was present.
+# ---------------------------------------------------------------------------
+
+_TEST_CSPROJ = """<Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.8.0" />
+  </ItemGroup>
+</Project>
+"""
+_NOT_TEST_CSPROJ = """<Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup />
+</Project>
+"""
+
+
+def _two_project_repo(tmp_path: Path) -> None:
+    sln(tmp_path)
+    write(tmp_path / "src/App/App.csproj", _NOT_TEST_CSPROJ)
+    write(tmp_path / "tests/App.Tests/App.Tests.csproj", _TEST_CSPROJ)
+
+
+def test_backslash_sln_paths_resolve_and_classify(tmp_path):
+    _two_project_repo(tmp_path)
+    windows_paths = ["src\\App\\App.csproj", "tests\\App.Tests\\App.Tests.csproj"]
+
+    with stub_dotnet(windows_paths):
+        result = cdd.discover_dotnet_projects(tmp_path)
+
+    assert not isinstance(result, dict), f"expected projects, got error: {result}"
+    assert result == [
+        {"path": "src/App/App.csproj", "classification": TestClassification.NOT_TEST},
+        {
+            "path": "tests/App.Tests/App.Tests.csproj",
+            "classification": TestClassification.TEST,
+        },
+    ]
+
+
+def test_backslash_and_forward_slash_output_agree(tmp_path):
+    """The regression guard for #1828: the two separator styles name the same
+    projects, so they must produce byte-identical results."""
+    win_root = tmp_path / "win"
+    posix_root = tmp_path / "posix"
+    _two_project_repo(win_root)
+    _two_project_repo(posix_root)
+
+    with stub_dotnet(["src\\App\\App.csproj", "tests\\App.Tests\\App.Tests.csproj"]):
+        win = cdd.discover_dotnet_projects(win_root)
+    with stub_dotnet(["src/App/App.csproj", "tests/App.Tests/App.Tests.csproj"]):
+        posix = cdd.discover_dotnet_projects(posix_root)
+
+    # An independent literal alongside the comparison: `win == posix` alone is
+    # a circular oracle that would still pass if a regression made BOTH
+    # separator forms identically wrong.
+    expected = [
+        {"path": "src/App/App.csproj", "classification": TestClassification.NOT_TEST},
+        {
+            "path": "tests/App.Tests/App.Tests.csproj",
+            "classification": TestClassification.TEST,
+        },
+    ]
+    assert win == posix == expected
+
+
+def test_mixed_separators_in_one_listing_resolve(tmp_path):
+    _two_project_repo(tmp_path)
+
+    with stub_dotnet(["src\\App\\App.csproj", "tests/App.Tests/App.Tests.csproj"]):
+        result = cdd.discover_dotnet_projects(tmp_path)
+
+    assert not isinstance(result, dict), f"expected projects, got error: {result}"
+    assert [p["path"] for p in result] == [
+        "src/App/App.csproj",
+        "tests/App.Tests/App.Tests.csproj",
+    ]
+
+
+def test_traversal_guard_fires_on_backslash_escape(tmp_path):
+    """Normalization must not open a hole: a backslash-separated `..` escape
+    has to be refused exactly like its forward-slash equivalent."""
+    root = tmp_path / "repo"
+    sln(root)
+    write(tmp_path / "outside/Evil/Evil.csproj", _TEST_CSPROJ)
+
+    with stub_dotnet(["..\\outside\\Evil\\Evil.csproj"]):
+        result = cdd.discover_dotnet_projects(root)
+
+    assert isinstance(result, dict)
+    assert result.get("signal") == "error"
+    assert "outside the repository" in result["message"]
+
+
+def test_parse_sln_list_output_normalizes_separators():
+    stdout = (
+        "Project(s)\n----------\n"
+        "src\\App\\App.csproj\n"
+        "tests/App.Tests/App.Tests.csproj\n"
+    )
+
+    assert cdd._parse_sln_list_output(stdout) == [
+        "src/App/App.csproj",
+        "tests/App.Tests/App.Tests.csproj",
+    ]
+
+
+@pytest.mark.parametrize(
+    ("entry", "expected_reason"),
+    [
+        ("C:\\Projects\\App\\App.csproj", "drive letter"),
+        ("\\\\server\\share\\App.csproj", "UNC"),
+        ("/absolute/App.csproj", "absolute path"),
+    ],
+)
+def test_absolute_sln_entry_is_refused_with_an_accurate_reason(
+    tmp_path, entry, expected_reason
+):
+    """Separator normalization must not turn an absolute Windows path into a
+    silently-wrong relative subpath. `C:/...` is not absolute under
+    `PurePosixPath`, so without an explicit check this failed with a
+    misleading 'does not exist on disk' on POSIX while a Windows runner
+    reported a containment violation for the same input."""
+    sln(tmp_path)
+
+    with stub_dotnet([entry]):
+        result = cdd.discover_dotnet_projects(tmp_path)
+
+    assert isinstance(result, dict)
+    assert result.get("signal") == "error"
+    assert expected_reason in result["message"]
+    assert "does not exist on disk" not in result["message"]
