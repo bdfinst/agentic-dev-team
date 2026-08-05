@@ -1,5 +1,17 @@
 # Changelog
 
+## [12.5.0](https://github.com/bdfinst/agentic-dev-team/compare/dev-team-v12.4.0...dev-team-v12.5.0) (2026-08-05)
+
+
+### Features
+
+* **coverage-discovery:** discover and classify Java multi-module test modules ([#1838](https://github.com/bdfinst/agentic-dev-team/issues/1838)) ([e9bafd1](https://github.com/bdfinst/agentic-dev-team/commit/e9bafd16f18f158b9cf0d1efdbe7093ac1cb998b)), closes [#1765](https://github.com/bdfinst/agentic-dev-team/issues/1765)
+
+
+### Bug Fixes
+
+* **cost-meter:** add claude-opus-5 pricing and surface unpriced models durably ([#1842](https://github.com/bdfinst/agentic-dev-team/issues/1842)) ([3f0c467](https://github.com/bdfinst/agentic-dev-team/commit/3f0c46749167cb12529e68641e1c137a5b608766)), closes [#1830](https://github.com/bdfinst/agentic-dev-team/issues/1830)
+
 ## [12.4.0](https://github.com/bdfinst/agentic-dev-team/compare/dev-team-v12.3.0...dev-team-v12.4.0) (2026-08-05)
 
 
