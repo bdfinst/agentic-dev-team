@@ -201,4 +201,6 @@ highest-consequence prompt in the flow would produce operator confusion.
 skips to Phase 8; `[q]` quits before Phase 8. In `no-refactor` mode (the
 default) Phase 6 is **informational only** — no `[y]` is offered, the
 REFACTOR_REQUIRED items are auto-backlogged, and the run continues to Phase 8
-(see Phase 6 — Refactor decision, `references/phase-6-refactor-decision.md` once that phase is split out of this entry file).
+(see `phase-6-refactor-decision.md` for the full branch mechanics
+and `phase-7-refactor.md` for the hard-mode-gate backstop that
+enforces this same `no-refactor` restriction if Phase 7 is somehow reached).

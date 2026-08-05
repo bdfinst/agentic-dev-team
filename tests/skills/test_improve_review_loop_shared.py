@@ -1,23 +1,27 @@
-"""Structural guard for Step 1.9 of
+"""Structural guard for Step 1.9 and Step 1.10 of
 plans/test-improve-context-loading-strategy.md (Slice 1): the end-of-phase
 review loop and its fixed evidence schema must be extracted exactly once
 into references/review-loop.md and genuinely *shared* via an include marker
-— never duplicated into phase-5-improve.md alongside a decorative marker.
+— never duplicated into phase-5-improve.md or phase-7-refactor.md alongside
+a decorative marker.
 
-Two positive clauses (the shared file exists exactly once; phase-5-improve.md
-names it via an include marker) and one negative clause (with the marker
-line and its paired human-readable pointer sentence stripped out,
-phase-5-improve.md's own remaining raw text contains none of the
-evidence-schema field names or other distinctive review-loop prose) — the
-negative clause is what a decorative-but-unused marker (marker present,
-content duplicated anyway) can't fake a pass on.
+Two positive clauses (the shared file exists exactly once; each of
+phase-5-improve.md and phase-7-refactor.md names it via an include marker)
+and one negative clause per file (with the marker line and its paired
+human-readable pointer sentence stripped out, the file's own remaining raw
+text contains none of the evidence-schema field names or other distinctive
+review-loop prose) — the negative clause is what a decorative-but-unused
+marker (marker present, content duplicated anyway) can't fake a pass on.
 """
 
 from __future__ import annotations
 
+import pytest
 from skill_include_resolver import INCLUDE_RE, SKILL_DIR
 
 PHASE_5_IMPROVE = SKILL_DIR / "references" / "phase-5-improve.md"
+PHASE_7_REFACTOR = SKILL_DIR / "references" / "phase-7-refactor.md"
+REVIEW_LOOP_INCLUDING_FILES = [PHASE_5_IMPROVE, PHASE_7_REFACTOR]
 REVIEW_LOOP_INCLUDE_MARKER = "<!-- include: references/review-loop.md -->"
 
 # The fixed evidence-schema fields (Step 1.9's plan text, verbatim).
@@ -32,9 +36,10 @@ EVIDENCE_SCHEMA_FIELDS = [
 ]
 
 # Distinctive review-loop prose that only genuinely lives in review-loop.md
-# (not in phase-5-improve.md's own pointer sentence — each entry is checked
-# against review-loop.md by test_review_loop_reference_file_has_the_distinctive_prose
-# below, so a phrase that drifts out of review-loop.md fails loudly here too).
+# (not in either including file's own pointer sentence — each entry is
+# checked against review-loop.md by
+# test_review_loop_reference_file_has_the_distinctive_prose below, so a
+# phrase that drifts out of review-loop.md fails loudly here too).
 DISTINCTIVE_REVIEW_LOOP_PROSE = [
     "/test-design",
     "[r/w/q]",
@@ -83,37 +88,42 @@ def test_exactly_one_review_loop_reference_file_exists():
     assert len(matches) == 1, f"expected exactly one review-loop.md, found {matches}"
 
 
-def test_phase_5_improve_names_review_loop_via_include_marker():
-    raw = PHASE_5_IMPROVE.read_text(encoding="utf-8")
+@pytest.mark.parametrize("including_file", REVIEW_LOOP_INCLUDING_FILES, ids=lambda p: p.name)
+def test_review_loop_including_file_names_it_via_include_marker(including_file):
+    raw = including_file.read_text(encoding="utf-8")
     match = INCLUDE_RE.search(raw)
-    assert match, "phase-5-improve.md has no <!-- include: references/*.md --> marker"
+    assert match, f"{including_file.name} has no <!-- include: references/*.md --> marker"
     assert match.group(1) == "references/review-loop.md"
 
 
-def test_phase_5_improve_does_not_duplicate_review_loop_content_outside_the_include():
-    raw = PHASE_5_IMPROVE.read_text(encoding="utf-8")
+@pytest.mark.parametrize("including_file", REVIEW_LOOP_INCLUDING_FILES, ids=lambda p: p.name)
+def test_review_loop_including_file_does_not_duplicate_content_outside_the_include(
+    including_file,
+):
+    raw = including_file.read_text(encoding="utf-8")
     assert REVIEW_LOOP_INCLUDE_MARKER in raw  # positive clause, re-asserted for clarity
 
     stripped = _strip_marker_and_paired_sentence(raw, REVIEW_LOOP_INCLUDE_MARKER)
 
     for field in EVIDENCE_SCHEMA_FIELDS:
         assert field not in stripped, (
-            f"evidence-schema field {field!r} appears in phase-5-improve.md "
+            f"evidence-schema field {field!r} appears in {including_file.name} "
             f"outside the review-loop.md include — it must live only in the "
             f"shared reference file"
         )
     for phrase in DISTINCTIVE_REVIEW_LOOP_PROSE:
         assert phrase not in stripped, (
             f"distinctive review-loop prose {phrase!r} appears in "
-            f"phase-5-improve.md outside the review-loop.md include — it "
+            f"{including_file.name} outside the review-loop.md include — it "
             f"must live only in the shared reference file"
         )
 
 
 def test_review_loop_reference_file_opens_with_plain_prose_not_a_heading():
     """references/review-loop.md is included from inside another already-
-    spliced-in reference file (phase-5-improve.md), not from SKILL.md's own
-    top level — the resolver's `_reject_h3_heading_at_depth` guard raises
+    spliced-in reference file (phase-5-improve.md, and — since Step 1.10 —
+    phase-7-refactor.md too), not from SKILL.md's own top level — the
+    resolver's `_reject_h3_heading_at_depth` guard raises
     NestedHeadingLevelError if it opens with a `### ` heading. Pin the
     stronger, precedent-matching property directly: it opens with plain
     prose, not a heading at all (matching phase-0 through phase-4's

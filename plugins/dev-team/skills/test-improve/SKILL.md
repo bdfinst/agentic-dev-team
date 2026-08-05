@@ -199,98 +199,17 @@ Phase 7).
 
 ### Phase 6 — Refactor decision (mode-gated)
 
-With Phase 5 closed, present the **REFACTOR_REQUIRED** list deferred at
-Phase 4. Each item is shown with three columns:
-
-- **seam-needed** — the production-code seam the test would need (e.g.
-  interface extraction, dependency injection, virtual method).
-- **behavior-gained** — the untested behavior a Phase-7 refactor would
-  unlock coverage for.
-- **estimated-risk** — a qualitative risk marker (low / medium / high) for
-  the specific refactor.
-
-**Phase 6 branches on the Phase-0 `refactor-mode`.** Read `refactor-mode`
-from `.claude/memory/test-improve/<slug>/phase-0.md` **before** rendering any prompt.
-Entering Phase 7 *is* refactoring, so the choice made at Phase 0 governs
-whether Phase 6 is a branch point at all.
-
-**`refactor-mode: no-refactor` (the default) — informational, not a branch
-point.** The operator declined refactoring at Phase 0, so the **`[y] enter
-Phase 7` option does not exist** in this mode. Present the REFACTOR_REQUIRED
-list as *"the following require refactoring and are out of scope in
-no-refactor mode"* — the seam-needed / behavior-gained / estimated-risk
-columns still render, so the operator sees the coverage and behavior left on
-the table. Then **auto-backlog** every item to
-`.dev-team-reports/test-improve/<slug>/refactor-backlog.md` (or update the parent
-tracker when `--parent` was passed) and **continue to Phase 8** with the
-current Phase-5 test suite as the target. The prompt collapses to a single
-**acknowledge/continue** step (equivalent to today's `[b]`); when no operator
-is attached, run it **non-interactively** — no keystroke is required and none
-enters Phase 7. The sanctioned way to actually perform these refactors is the
-Phase-8 coverage-below-90% re-run prompt, which offers a fresh
-`refactor-allowed` invocation the operator explicitly opts into.
-
-**`refactor-mode: refactor-allowed` — full decision prompt.** Prompt the
-operator with **`[y] enter Phase 7 / [b] backlog and skip to Phase 8 /
-[q] quit`** (shape `[y/b/q]`). The letter `y` was chosen deliberately
-over `r` — `[r]` is already claimed by mutation-kill's `[c/r/w/q]` (retry) and
-the review-loop's `[r/w/q]` (revise); a third `[r]` at the
-highest-consequence prompt would confuse operators.
-
-- **`[y]`** — advances to **Phase 7** (refactor-for-testability).
-- **`[b]`** — writes the REFACTOR_REQUIRED items to
-  `.dev-team-reports/test-improve/<slug>/refactor-backlog.md` (or updates the parent
-  tracker when `--parent` was passed); **skips Phase 7** and runs **Phase 8**
-  directly with the current Phase-5 test suite as the target.
-- **`[q]`** — **quits** before Phase 8. No further phase runs; the final
-  report reflects Phase-5 state only.
+<!-- include: references/phase-6-refactor-decision.md -->
+See `references/phase-6-refactor-decision.md` for the full REFACTOR_REQUIRED
+presentation, the `refactor-mode` branch, and the `[y/b/q]` decision prompt.
 
 ### Phase 7 — Refactor-for-testability (conditional)
 
-Phase 7 runs **only when the operator picked `[y]` at Phase 6**. If Phase 6
-returned `[b]` (backlog) or `[q]` (quit), Phase 7 is **skipped**.
-
-**Hard mode gate — Phase 7 refuses to run under `no-refactor`.** Before any
-Phase-7 work begins, `/test-improve` re-reads `refactor-mode` from
-`.claude/memory/test-improve/<slug>/phase-0.md`. When it records
-`refactor-mode: no-refactor`, Phase 7 **refuses to run** and is skipped —
-**even if `[y]` is somehow reached**. Phase 6 offers no `[y]` in this mode,
-so this gate is a defense-in-depth backstop: Phase 7 executes production-code
-refactors the `no-refactor` operator declined at Phase 0, and the mode — not
-the keystroke — is the final authority. Only `refactor-mode: refactor-allowed`
-permits Phase 7 to execute.
-
-**Seam-only production code changes.** `/build` in Phase 7 accepts **seam
-introductions only** — interface extractions, dependency injection points,
-virtual method promotions, factory wrapping. Any change beyond a seam is
-rejected. Behavior modifications, refactors that alter semantics, and
-opportunistic clean-ups are all out of scope.
-
-**Existing tests are immutable.** Phase 7 **may not modify or remove existing tests** — `/build` rejects deletions and edits to any file under the stack's test directory that existed before Phase 7 started. The pre-Phase-7 suite must stay green throughout; a red pre-Phase-7 test halts the phase.
-
-**Phase-5 precondition-check.** Each Phase-7 Story is paired with the
-corresponding Phase-5 baseline Story that could not close under no-refactor.
-Before `/build` runs a Phase-7 Story, `/test-improve` **verifies the paired
-Phase-5 Story is closed and green**. A missing or failing Phase-5 baseline
-halts that Story until the operator resolves it.
-
-**Phase 5's parallel-dispatch warning (issue #1571) applies equally here** —
-Phase 7 runs the same per-Story `/build` loop against the same shared
-working tree; never dispatch multiple Phase-7 Stories' build loops
-concurrently without `isolation: "worktree"` on every dispatch.
-
-**End-of-phase review loop.** After all Phase-7 Stories close, run the
-**same review loop as Phase 5** (see the Phase 5 end-of-phase review loop
-above) — `/test-design --since` and `/code-review --since --internal`
-dispatch in parallel over the Phase-7 diff; `/apply-fixes corrections/` then
-re-run `/code-review --internal`; cap 2 iterations with `[r/w/q]`
-escalation.
-
-**Evidence.** Write `.claude/memory/test-improve/<slug>/phase-7-review.json` using
-the **same fixed schema** as Phase 5 (`base_sha`, `head_sha`, `farley_score`,
-`smells`, `code_review`, `iterations`, `escalated`).
-
-**`/handoff` suggestion** (same rationale as Phase 5). Once the loop above closes, print: `Phase 7 complete. Consider running /handoff to compress context before continuing. To resume: /test-improve <repo-path> --from-phase 8 (or --from-phase with no number to auto-detect the resume point)`
+<!-- include: references/phase-7-refactor.md -->
+See `references/phase-7-refactor.md` for the full hard mode gate, the seam-only and
+existing-tests-immutable constraints, the Phase-5 precondition check, and
+the end-of-phase review loop (which shares `references/review-loop.md` with
+Phase 5).
 
 ### Phase 8 — Validate (converge quality targets)
 
