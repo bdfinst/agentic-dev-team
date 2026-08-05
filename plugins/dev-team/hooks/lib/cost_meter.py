@@ -391,7 +391,18 @@ def _accumulate_lines(
 
         rate = _rate(pricing, model)
         cost = _cost(usage, rate, pricing) if rate else 0.0
-        if not rate and model != "unknown":
+        # Excludes zero-token records from `unpriced_models` (#1830 fix
+        # review), not just the literal "unknown" placeholder: the harness
+        # writes assistant records with `model: "<synthetic>"` and every usage
+        # field zero for interrupt/auth-failure notices (verified: present in
+        # every local session transcript). Those records are not billable —
+        # zero tokens cost zero regardless of whether the model has a pricing
+        # entry — so flagging them as "unpriced" would fire on nearly every
+        # session and bury the real signal (a genuinely billable model with no
+        # rate) under permanent noise. Gating on token presence rather than
+        # naming "<synthetic>" specifically also covers any future
+        # harness-internal pseudo-model without another denylist edit.
+        if not rate and model != "unknown" and any(usage.get(f) for f in _TOKEN_FIELDS):
             unpriced_models.add(model)
 
         for bucket, key in (
@@ -651,6 +662,16 @@ def cmd_record(args, pricing) -> int:
         "by_model": _slim(summary["by_model"]),
         "by_thread": _slim(summary["by_thread"]),
         "by_agent_type": _slim(summary["by_agent_type"]),
+        # Always present, even when empty (#1830). This field was computed and
+        # warned about in `report`, and persisted to the incremental state file,
+        # but omitted from the durable line — which is the ONLY thing every
+        # downstream consumer reads: /autoship's `--max-cost-usd` gate,
+        # `regression`, and `pace`. A model with no pricing entry therefore
+        # contributed $0.00 to a budget ceiling and was indistinguishable from
+        # one that is genuinely free. Emitting `[]` rather than omitting the key
+        # on the clean path matters too: a consumer can then treat absence as
+        # "this record predates the check" instead of "nothing was unpriced".
+        "unpriced_models": summary["unpriced_models"],
     }
     log = Path(args.log)
     log.parent.mkdir(parents=True, exist_ok=True)
@@ -659,11 +680,34 @@ def cmd_record(args, pricing) -> int:
     return 0
 
 
-def cmd_regression(args, pricing) -> int:
-    log = Path(args.log)
-    if not log.is_file():
-        print("no metrics log yet; nothing to compare")
-        return 0
+def _warn_unpriced(entries: list) -> None:
+    """Print a warning naming every model that contributed $0.00 to the records
+    being summarized because it has no pricing entry (#1830).
+
+    Any verdict computed over such records understates real spend, so say so
+    rather than reporting a number that reads as complete. Records written
+    before `unpriced_models` was added to the durable line simply lack the key
+    and contribute nothing here — silence means "no unpriced model was seen in
+    the records that carry the field", not "every record was checked"."""
+    unpriced = sorted(
+        {
+            model
+            for entry in entries
+            for model in (entry.get("unpriced_models") or [])
+            if isinstance(model, str)
+        }
+    )
+    if not unpriced:
+        return
+    print(
+        f"⚠ model(s) that priced at $0.00 in these records: "
+        f"{', '.join(unpriced)} — the figures below UNDERSTATE real cost. If "
+        "they are absent from knowledge/model-pricing.json, add them; if they "
+        "were added recently, re-record the affected sessions."
+    )
+
+
+def _read_log_entries(log: Path) -> list:
     entries = []
     for line in log.read_text().splitlines():
         line = line.strip()
@@ -673,6 +717,16 @@ def cmd_regression(args, pricing) -> int:
             entries.append(json.loads(line))
         except json.JSONDecodeError:
             continue
+    return entries
+
+
+def cmd_regression(args, pricing) -> int:
+    log = Path(args.log)
+    if not log.is_file():
+        print("no metrics log yet; nothing to compare")
+        return 0
+    entries = _read_log_entries(log)
+    _warn_unpriced(entries)
     costs = [e.get("total", {}).get("cost_usd", 0.0) for e in entries]
     if len(costs) < 2:
         print(f"only {len(costs)} session(s) logged; need >=2 to compare")
@@ -718,18 +772,17 @@ def cmd_pace(args, pricing) -> int:
     now = datetime.now(timezone.utc)
     window_start = now - timedelta(days=args.window_days)
     in_window = []
-    for line in log.read_text().splitlines():
-        line = line.strip()
-        if not line:
-            continue
-        try:
-            e = json.loads(line)
-        except json.JSONDecodeError:
-            continue
+    windowed_entries = []
+    for e in _read_log_entries(log):
         ts = _parse_ts(e.get("timestamp", ""))
         cost = e.get("total", {}).get("cost_usd", 0.0)
         if ts is not None and ts >= window_start:
             in_window.append((ts, cost))
+            windowed_entries.append(e)
+
+    # Scoped to the window, not the whole log: a budget projection understates
+    # only when an unpriced model appears in the records it actually sums (#1830).
+    _warn_unpriced(windowed_entries)
 
     spend = round(sum(c for _, c in in_window), 6)
     print(f"# Account pace — last {args.window_days} day(s)")
