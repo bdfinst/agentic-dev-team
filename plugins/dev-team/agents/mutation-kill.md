@@ -153,6 +153,15 @@ or observable state change — not just a status code or a truthiness check.
 
 ## Target mutation types in priority order
 
+**Cluster survivors by source line before applying the priority order
+below.** Group survivors by source line — including adjacent lines that
+share one expression — into clusters, and sort those clusters by
+survivors-per-line descending (not total mutants-per-line). Design one
+test per cluster where feasible, rather than defaulting to one test per
+mutant. Only after clustering, apply the mutation-type priority order
+within and across clusters. A survivor with no resolvable source line
+forms no cluster — handle it one-test-per-mutant.
+
 When you generate, group survivors by mutation type and write tests in this order:
 
 | Priority | Type | How to kill |
@@ -576,9 +585,11 @@ With `--all --parallel <n>`:
    candidates.
 2. Group into `n` batches of up to 4 files each.
 3. Spawn `n` sub-agents in parallel via the Agent tool. Each sub-agent reads
-   its files' survivor lists from the baseline JSON and targets mutation
-   types in the priority order (String → ObjectInit → Equality → Negate →
-   Conditional → Statement).
+   its files' survivor lists from the baseline JSON, clusters them by
+   source line (per [above](#target-mutation-types-in-priority-order)),
+   and targets mutation types in the priority order within and across
+   clusters (String → ObjectInit → Equality → Negate → Conditional →
+   Statement).
 4. Synthesize results at the barrier; if survivors still exceed the round's
    threshold, repeat with the next batch.
 

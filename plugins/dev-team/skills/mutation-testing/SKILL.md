@@ -186,6 +186,8 @@ Equivalent and Accepted are not the same classification, even though both end in
 2. **Survived** next (assertion or coverage fix — see the mutation-type-aware guidance below).
 3. **Equivalent** and **Accepted this pass** last (documentation only; no test to write — each still requires its own `reason` string).
 
+**Cluster survivors by source line before filling in "Recommended Test Additions."** When several survivors land on the same or adjacent source line sharing one expression, group them into one cluster — sorted by survivors-per-line descending (not total mutants-per-line; the ranking targets what still needs killing) — and design one test per cluster where feasible, rather than one per mutant: the same line-clustering approach [`mutation-kill.md`'s generation guidance](../../agents/mutation-kill.md#target-mutation-types-in-priority-order) applies for autonomous test generation, here guiding a human filling the triage table.
+
 ### Mutation-type-aware triage
 
 Different mutation types fail for different reasons. A single strategy does not fit all — asking an LLM to strengthen an assertion cannot kill a Statement-removal survivor. Match the fix to the family:
