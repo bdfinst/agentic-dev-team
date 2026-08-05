@@ -15,12 +15,15 @@ regression guards, not timing-luck tests.
 
 from __future__ import annotations
 
+import errno
 import json
 import os
 import shutil
 import subprocess
 import sys
 import textwrap
+import threading
+import time
 
 import pytest
 
@@ -28,6 +31,10 @@ from _repo_root import REPO_ROOT as _REPO_ROOT
 
 _HOOKS_DIR = _REPO_ROOT / "plugins" / "dev-team" / "hooks"
 _LIB_DIR = _HOOKS_DIR / "lib"
+
+sys.path.insert(0, str(_LIB_DIR))
+import atomic_state
+from atomic_state import atomic_write, locked_state
 
 # N concurrent workers and the delay (ms) each holds the critical section.
 # The delay guarantees overlap: total serialized wall-clock ~= N * DELAY.
@@ -170,4 +177,131 @@ def test_session_learning_trigger_no_lost_increments(tmp_path):
     counter = json.loads(state.read_text())["counter"]
     assert counter == _WORKERS, (
         f"lost-update race: expected counter {_WORKERS}, got {counter}"
+    )
+
+
+# ---------------------------------------------------------------------------
+# locked_state gives up after a bounded budget rather than blocking forever
+# on a stalled holder (#1888 — security review of #1874).
+# ---------------------------------------------------------------------------
+
+
+def test_locked_state_gives_up_after_stalled_holder(tmp_path, monkeypatch):
+    state_file = tmp_path / "counter.json"
+    state_file.write_text("{}")
+
+    # `fcntl.flock` locks are scoped to the open file description, not the
+    # process (POSIX) — two separate `open()` calls from two threads in this
+    # one process genuinely contend, the same as two separate processes
+    # would. That is what makes an in-process holder thread a valid stand-in
+    # for a stalled cross-process holder here.
+    hold_seconds = 0.4
+    budget_ms = 50
+    acquired = threading.Event()
+
+    def _hold_lock():
+        with locked_state(state_file):
+            acquired.set()
+            time.sleep(hold_seconds)
+
+    holder = threading.Thread(target=_hold_lock)
+    holder.start()
+    try:
+        assert acquired.wait(timeout=2), "holder thread never acquired the lock"
+
+        # Small budget so the test runs fast; production uses the 2s default.
+        monkeypatch.setenv("DEV_TEAM_LOCK_ACQUIRE_BUDGET_TEST_MS", str(budget_ms))
+        start = time.monotonic()
+        with locked_state(state_file):
+            elapsed = time.monotonic() - start
+            # The give-up path must still do real work unlocked, not just
+            # return early — prove it via the same primitive callers use.
+            atomic_write(state_file, json.dumps({"gave_up": True}))
+    finally:
+        holder.join(timeout=2)
+    assert not holder.is_alive(), "holder thread never released the lock"
+
+    budget_s = budget_ms / 1000
+    # Lower bound proves genuine contention was hit (the give-up path actually
+    # ran), not just that the second acquire happened to be fast on its own —
+    # `_acquire_bounded` only returns False after `monotonic() >= deadline`.
+    assert elapsed >= budget_s, (
+        f"locked_state returned after only {elapsed:.3f}s against a "
+        f"{budget_ms}ms budget — the second acquire may never have contended "
+        "with the holder, so this test wouldn't catch a regression"
+    )
+    # Generous multiple of the configured budget (not of hold_seconds, which
+    # only exists to guarantee overlap) — bounds the give-up latency against
+    # what was actually configured, with margin for scheduler/CI jitter.
+    max_elapsed = budget_s * 4
+    assert elapsed < max_elapsed, (
+        f"locked_state blocked for {elapsed:.3f}s despite a {budget_ms}ms "
+        "acquire budget — a stalled holder must not block a caller "
+        "indefinitely"
+    )
+    assert json.loads(state_file.read_text()) == {"gave_up": True}
+
+
+def test_lock_acquire_budget_exceeds_worst_case_contention():
+    # Mechanical link (not prose) between the production default and the
+    # regression tests' worst-case legitimate queueing above, so widening
+    # _WORKERS/_DELAY_MS fails loudly here instead of leaving a stale comment.
+    worst_case_contention_seconds = _WORKERS * _DELAY_MS / 1000
+    assert (
+        worst_case_contention_seconds
+        < atomic_state._DEFAULT_LOCK_ACQUIRE_BUDGET_SECONDS
+    )
+
+
+def test_lock_acquire_budget_invalid_value_falls_back_to_default(monkeypatch):
+    monkeypatch.setenv("DEV_TEAM_LOCK_ACQUIRE_BUDGET_TEST_MS", "not-a-number")
+    assert (
+        atomic_state._lock_acquire_budget_seconds()
+        == atomic_state._DEFAULT_LOCK_ACQUIRE_BUDGET_SECONDS
+    )
+
+
+def test_lock_acquire_budget_negative_value_falls_back_to_default(monkeypatch):
+    monkeypatch.setenv("DEV_TEAM_LOCK_ACQUIRE_BUDGET_TEST_MS", "-5")
+    assert (
+        atomic_state._lock_acquire_budget_seconds()
+        == atomic_state._DEFAULT_LOCK_ACQUIRE_BUDGET_SECONDS
+    )
+
+
+def test_lock_acquire_budget_clamped_to_ceiling(monkeypatch):
+    monkeypatch.setenv("DEV_TEAM_LOCK_ACQUIRE_BUDGET_TEST_MS", "999999999")
+    assert (
+        atomic_state._lock_acquire_budget_seconds()
+        == atomic_state._MAX_LOCK_ACQUIRE_BUDGET_SECONDS
+    )
+
+
+def test_try_acquire_returns_false_with_no_lock_backend(tmp_path, monkeypatch):
+    monkeypatch.setattr(atomic_state, "fcntl", None)
+    monkeypatch.setattr(atomic_state, "msvcrt", None)
+    lock_path = tmp_path / "state.lock"
+    with open(lock_path, "a+") as handle:
+        assert atomic_state._try_acquire(handle) is False
+
+
+def test_acquire_bounded_gives_up_immediately_on_non_contention_error(
+    tmp_path, monkeypatch
+):
+    # A non-contention OSError (e.g. ENOLCK/EOPNOTSUPP on a filesystem that
+    # doesn't support flock) must give up right away, not burn the full
+    # budget retrying an operation that can never succeed.
+    def _raise_enolck(_handle):
+        raise OSError(errno.ENOLCK, "no locks available")
+
+    monkeypatch.setattr(atomic_state, "_try_acquire", _raise_enolck)
+    monkeypatch.setenv("DEV_TEAM_LOCK_ACQUIRE_BUDGET_TEST_MS", "2000")
+    lock_path = tmp_path / "state.lock"
+    with open(lock_path, "a+") as handle:
+        start = time.monotonic()
+        assert atomic_state._acquire_bounded(handle) is False
+        elapsed = time.monotonic() - start
+    assert elapsed < 0.1, (
+        f"gave up after {elapsed:.3f}s — a non-contention OSError should "
+        "return immediately, not retry for the full budget"
     )
