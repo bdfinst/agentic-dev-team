@@ -6285,11 +6285,11 @@
       "anchor": "phase-2-baseline-coverage-mutation"
     },
     "Phase 3 — Derive Gherkin (conditional)": {
-      "summary": "Gherkin derivation is **conditional on the Phase-0 BDD rubric answer**.",
+      "summary": "<!-- include: references/phase-3-derive-gherkin.md -->",
       "anchor": "phase-3-derive-gherkin-conditional"
     },
     "Phase 1 — Analyze via /test-health": {
-      "summary": "Delegate the entire analysis pass to **`/test-health`** — it is the **sole",
+      "summary": "<!-- include: references/phase-1-analyze.md -->",
       "anchor": "phase-1-analyze-via-test-health"
     },
     "Phase 4 — Plan fixes (partition findings by gap class)": {
