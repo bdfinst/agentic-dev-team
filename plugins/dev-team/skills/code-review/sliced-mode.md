@@ -74,7 +74,7 @@ the same `maxParallel` resolution the legacy path uses
 (`DEV_TEAM_MAX_PARALLEL_REVIEW_AGENTS`, default 10; see `SKILL.md` Step 4):
 
 ```bash
-python3 "$CLAUDE_PLUGIN_ROOT/skills/code-review/scripts/dispatch_waves.py" --agents "<this slice's panel agent names, in order>"
+sh "$CLAUDE_PLUGIN_ROOT/hooks/py.sh" "$CLAUDE_PLUGIN_ROOT/skills/code-review/scripts/dispatch_waves.py" --agents "<this slice's panel agent names, in order>"
 ```
 
 Dispatch one wave at a time, waiting for each wave to fully return before
@@ -101,7 +101,7 @@ For each slice, once its panel's waves (per the section above) return:
    — the same CLI as the legacy path (`SKILL.md` Step 4), scoped to this
    slice's dispatched agents for that wave:
    ```bash
-   python3 "$CLAUDE_PLUGIN_ROOT/skills/code-review/scripts/dispatch_reconcile.py" --dispatched "<this wave's dispatched agent names>" --returned "<this wave's contract-valid agent names>"
+   sh "$CLAUDE_PLUGIN_ROOT/hooks/py.sh" "$CLAUDE_PLUGIN_ROOT/skills/code-review/scripts/dispatch_reconcile.py" --dispatched "<this wave's dispatched agent names>" --returned "<this wave's contract-valid agent names>"
    ```
    Every name in the resulting `"missing"` array is a dispatch failure for
    this slice's current wave.

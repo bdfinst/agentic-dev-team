@@ -1,15 +1,25 @@
-"""Shared merge helper for the coverage-baseline/coverage-delta flow
-simulation test helpers (issue #1759).
+"""Shared merge helper and `.sln`/`.csproj`/`package.json` fixture writers
+for the coverage-baseline/coverage-delta flow simulation test helpers (issue
+#1759, issue #1852).
 
 `_merge_included_reports` was byte-for-byte duplicated between
 `coverage_baseline_flow_helpers.py` and `coverage_delta_flow_helpers.py` —
 extracted here so both import a single implementation instead of maintaining
 two copies in sync by hand.
+
+`write`/`sln`/`pkg` were redefined verbatim across 12 test files (issue
+#1852). Two behaviorally-equivalent `write` variants existed: a str-only
+form, and a form that also JSON-encodes dict/list content for
+`package.json` fixtures. The JSON-aware form is a strict superset — for str
+content it behaves identically to the str-only form — so it is the one
+kept here; every prior caller only ever passed str content.
 """
 
 from __future__ import annotations
 
+import json
 import sys
+from pathlib import Path
 
 from skill_doc_helpers import PLUGIN_ROOT
 
@@ -17,6 +27,22 @@ SCRIPTS_DIR = PLUGIN_ROOT / "scripts"
 sys.path.insert(0, str(SCRIPTS_DIR))
 
 from coverage_config import weighted_merge
+
+
+def write(path: Path, content) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    if isinstance(content, (dict, list)):
+        path.write_text(json.dumps(content, indent=2), encoding="utf-8")
+    else:
+        path.write_text(content, encoding="utf-8")
+
+
+def sln(repo_root: Path, name: str = "App.sln") -> None:
+    write(repo_root / name, "Microsoft Visual Studio Solution File\n")
+
+
+def pkg(root: Path, data: dict) -> None:
+    write(root / "package.json", data)
 
 
 def merge_included_reports(

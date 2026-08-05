@@ -6,9 +6,7 @@ the same hard-failure path as an unaccounted-for project.
 
 from __future__ import annotations
 
-import json
 import sys
-from pathlib import Path
 
 from coverage_baseline_flow_helpers import (
     ZERO_REAL_TEST_MESSAGE_TEMPLATE,
@@ -16,6 +14,7 @@ from coverage_baseline_flow_helpers import (
     stub_dotnet,
     zero_real_test_message,
 )
+from coverage_flow_shared import write
 from skill_doc_helpers import PLUGIN_ROOT, collapsed, grep, section
 
 SCRIPTS_DIR = PLUGIN_ROOT / "scripts"
@@ -33,14 +32,6 @@ def _text() -> str:
 
 def _step_1a_section() -> str:
     return section(_text(), r"^### 1a\. Multi-project discovery", boundary_pattern=r"^### ")
-
-
-def write(path: Path, content) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    if isinstance(content, (dict, list)):
-        path.write_text(json.dumps(content, indent=2), encoding="utf-8")
-    else:
-        path.write_text(content, encoding="utf-8")
 
 
 NOT_TEST_CSPROJ = """<Project Sdk="Microsoft.NET.Sdk">

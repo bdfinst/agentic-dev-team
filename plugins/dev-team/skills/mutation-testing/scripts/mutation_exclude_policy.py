@@ -56,6 +56,16 @@ NO_COVERAGE_THRESHOLD_PCT = 50.0
 # mutation-kill.md; the javascript list is a parallel, analogous set for a
 # second stack mutation_report.py can already score — see SUPPORTED_STACKS
 # in mutation_nightwatch_stacks.py.
+#
+# Coverage is intentionally partial. ``"csharp"`` and ``"javascript"`` have
+# curated filename hints today; ``"python"``, ``"java"``, and ``"go"`` — all
+# recognized by mutation_nightwatch_stacks.py's STACK_DETECTORS/MEASURERS —
+# do not yet. That is not an oversight: a file flagged for one of those
+# stacks by the two-signal rule alone still lands in the ``propose_and_ask``
+# tier (never dropped), it just never gets promoted to ``always`` until
+# someone writes its filename-hint list. See KNOWN_STACKS_WITHOUT_HINTS
+# below, which makes that gap explicit rather than indistinguishable from a
+# typo'd/unrecognized stack name (#1854).
 FILENAME_HINTS: dict[str, list[str]] = {
     "csharp": [
         "Startup.cs",
@@ -83,9 +93,25 @@ FILENAME_HINTS: dict[str, list[str]] = {
     ],
 }
 
+# Stacks recognized by mutation_nightwatch_stacks.py that deliberately have
+# no curated FILENAME_HINTS entry yet (not written, not a typo). A stack in
+# neither this set nor FILENAME_HINTS is genuinely unknown — see
+# _matching_hint below.
+KNOWN_STACKS_WITHOUT_HINTS: frozenset[str] = frozenset({"python", "java", "go"})
+
 
 def _matching_hint(filename: str, stack: str) -> str | None:
-    """Return the first filename-hint pattern that matches, or ``None``."""
+    """Return the first filename-hint pattern that matches, or ``None``.
+
+    Raises ``ValueError`` when ``stack`` is neither in ``FILENAME_HINTS`` nor
+    ``KNOWN_STACKS_WITHOUT_HINTS`` — a genuinely unrecognized/typo'd stack
+    name must surface loudly rather than silently returning no hints (#1854).
+    """
+    if stack not in FILENAME_HINTS and stack not in KNOWN_STACKS_WITHOUT_HINTS:
+        raise ValueError(
+            f"unknown stack: {stack!r} (known: "
+            f"{sorted(set(FILENAME_HINTS) | KNOWN_STACKS_WITHOUT_HINTS)})"
+        )
     for pattern in FILENAME_HINTS.get(stack, ()):
         if fnmatch.fnmatch(filename, pattern):
             return pattern

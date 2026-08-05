@@ -40,6 +40,7 @@ import sys
 
 from coverage_baseline_flow_helpers import stub_dotnet
 from coverage_delta_flow_helpers import run_delta_flow
+from coverage_flow_shared import sln, write
 from skill_doc_helpers import PLUGIN_ROOT, frontmatter
 
 SCRIPTS_DIR = PLUGIN_ROOT / "scripts"
@@ -105,15 +106,6 @@ def _extract_coverage_delta_argument_hint() -> str:
 def _flags_in(text: str) -> set[str]:
     """Extract every `--flag`-shaped token from `text`."""
     return set(re.findall(r"--[A-Za-z][A-Za-z-]*", text))
-
-
-def write(path, content: str) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(content, encoding="utf-8")
-
-
-def sln(repo_root, name: str = "App.sln") -> None:
-    write(repo_root / name, "Microsoft Visual Studio Solution File\n")
 
 
 # ---------------------------------------------------------------------------

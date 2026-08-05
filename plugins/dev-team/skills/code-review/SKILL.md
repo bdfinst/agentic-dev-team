@@ -395,7 +395,7 @@ which lens probably no-ops. Same evidence-first discipline
 **Dispatch batching — bounded dispatch waves (issue #1752).** A real run that spawned all 16 eligible agents as parallel `Agent` calls in one message lost its last 6 to `[Tool result missing due to internal error]` — see `dispatch_waves.py`'s module docstring for the full incident account; not restated here to avoid two copies drifting apart. Before spawning, compute the wave split deterministically instead of guessing a safe batch size by eye:
 
 ```bash
-python3 "$CLAUDE_PLUGIN_ROOT/skills/code-review/scripts/dispatch_waves.py" --agents "<comma-separated eligible agent names, cheap-first order as select_lenses.py returned them, filtered by the change-shape/change-size/change-impact gates but not re-sorted>"
+sh "$CLAUDE_PLUGIN_ROOT/hooks/py.sh" "$CLAUDE_PLUGIN_ROOT/skills/code-review/scripts/dispatch_waves.py" --agents "<comma-separated eligible agent names, cheap-first order as select_lenses.py returned them, filtered by the change-shape/change-size/change-impact gates but not re-sorted>"
 ```
 
 Prints `{"maxParallel": N, "waves": [[...], [...]]}` — `maxParallel` defaults to **10**, overridable with `DEV_TEAM_MAX_PARALLEL_REVIEW_AGENTS` (see the script's own docstring for the exact fallback rule; don't re-derive it here). Dispatch **exactly the waves the script printed, in that order** as parallel subagents in a single message per wave using the Agent tool — exactly as before, just bounded per message — waiting for each wave to fully return before dispatching the next, and for the last wave before aggregating. A roster no larger than `maxParallel` is always a single wave; nothing changes from today's behavior in that case.
@@ -415,7 +415,7 @@ Prints `{"maxParallel": N, "waves": [[...], [...]]}` — `maxParallel` defaults 
 **Dispatch failure handling — retry once, never drop silently (issue #1752).** After **each wave** returns, check every agent dispatched **in that wave** (not the full eligible roster — a later wave hasn't dispatched yet) for a valid per-agent result matching [`review-agent-output-contract.md`](../../knowledge/review-agent-output-contract.md). Compute this dispatched-vs-returned coverage check deterministically instead of eyeballing the two lists:
 
 ```bash
-python3 "$CLAUDE_PLUGIN_ROOT/skills/code-review/scripts/dispatch_reconcile.py" --dispatched "<this wave's dispatched agent names, in the order dispatch_waves.py listed them>" --returned "<this wave's contract-valid agent names>"
+sh "$CLAUDE_PLUGIN_ROOT/hooks/py.sh" "$CLAUDE_PLUGIN_ROOT/skills/code-review/scripts/dispatch_reconcile.py" --dispatched "<this wave's dispatched agent names, in the order dispatch_waves.py listed them>" --returned "<this wave's contract-valid agent names>"
 ```
 
 Both flags are required — pass an empty string (`--returned ""`) when no agent in the wave returned a contract-valid result (the whole-wave-loss case #1752 exists for). Prints `{"missing": [...]}` — every name it returns is a **dispatch failure**: a call that came back as `[Tool result missing due to internal error]`, with no `agentId`, or with output that doesn't parse against the contract, so it never produced a contract-valid return. Distinct from `skip` (agent had nothing to review this run — [`review-agent-output-contract.md`](../../knowledge/review-agent-output-contract.md#status-values)) and from `fail` (agent ran and found errors); it means the lens never actually ran.
@@ -705,6 +705,20 @@ counts total dispatch rounds including the initial panel, the iteration
 limit counts fix-loop passes only. Both remain — the cap is the churn
 control, the iteration limit the original backstop.
 
+**Record the escalation state for step 7, not only step 9 (issue #1880).**
+Whichever exit condition above was hit — `round-cap`, iteration limit, or
+"same issues persist" — is an **escalation**; `converged` (including the
+zero-actionable-issues and round-ledger-`converged` rows) is not. Carry that
+boolean (escalated vs. converged) forward out of this loop: step 9 already
+consults it for the `.review-passed` gate-write condition, and step 7 now
+also consults it — under `--json`, where step 9 never runs at all — to force
+`overall: "fail"` in the emitted JSON object per the parallel rule in
+[`output-format.md`](output-format.md#aggregated-json-result---json-flag).
+Without carrying this state to step 7, an escalated review with only
+warning-severity issues remaining would emit `overall: "warn"` in `--json`
+mode and a caller like `/pr`'s internal `--json` call would never see the
+escalation.
+
 Track each iteration for the report — template in [`output-format.md`](output-format.md#review-fix-loop-iteration-log-step-6a-iv).
 
 ### 7. Generate report
@@ -714,6 +728,8 @@ Track each iteration for the report — template in [`output-format.md`](output-
 Read `knowledge/review-template.md` for the structure.
 
 **If `--json`: the JSON object is the ONLY output for this run — non-negotiable, not model discretion.** Emit the aggregated JSON object per the schema in [`output-format.md`](output-format.md#aggregated-json-result---json-flag) to **stdout**, write no file, and **stop: do not proceed to step 8 or step 9 in this run, regardless of how many issues were found or whether any are actionable.** There is no fallback to prose, and no `corrections/`/`.review-passed` persistence, in `--json` mode — ever. (`/pr`'s `--json` call already only reads this JSON object's `overall`/`status` field, so this loses nothing a caller depends on.)
+
+**When step 6a ran, consult its escalation state before computing `overall` here (issue #1880).** If step 6a exited via escalation (round-cap, iteration limit, or "same issues persist" — see that step's "Record the escalation state for step 7" note), force `overall: "fail"` in this JSON object, exactly like the `dispatchFailures` override — apply it after the totals-based computation so it always wins. This is the same rule stated in [`output-format.md`](output-format.md#aggregated-json-result---json-flag); it is restated here because step 9, where this escalation previously only mattered for the `.review-passed` gate, never runs under `--json`. A clean `converged` exit (or a run that never entered the fix loop at all — zero actionable issues) does not trigger this override.
 
 **A sentence describing the JSON is not the JSON.** A completed run whose final text reads like "Aggregated JSON emitted to stdout per `--json` contract; run stops here" — with no `{...}` object actually present anywhere in that text — is a contract violation, not compliance, even though it correctly stopped rather than proceeding further. The literal final output of the turn must be the JSON object itself, not a narration of having produced it. If the next action being considered is a summary sentence announcing that the JSON was (or is about to be) emitted, that is the signal to emit the actual object instead — there is no valid end state for a `--json` run that consists of prose alone.
 

@@ -154,6 +154,10 @@ def test_main_reports_malformed_artifact_not_silently_dropped(tmp_path, capsys):
     # dispatchFailures, so without the malformed-forces-fail override,
     # overall would silently be "pass".
     assert out["overall"] == "fail"
+    # #1865: the malformed-override summary must not embed a contradicting
+    # verdict token from the pre-override summary (e.g. "FAIL ... ; WARN ...").
+    assert out["summary"].startswith("FAIL")
+    assert not any(token in out["summary"] for token in ("PASS", "WARN"))
 
 
 def test_main_treats_wrong_shape_json_as_malformed(tmp_path, capsys):

@@ -37,6 +37,9 @@ sys.path.insert(0, str(_LIB_DIR))
 import artifact_paths  # type: ignore[import-not-found]
 
 try:
+    from atomic_state import (  # type: ignore[import-not-found]
+        append_line_locked,
+    )
     from boundary_events import (  # type: ignore[import-not-found]
         emit_boundary_event as _emit_boundary_event,
     )
@@ -48,6 +51,18 @@ except ImportError:  # pragma: no cover
 
     def _emit_boundary_event(*_args, **_kwargs) -> None:  # type: ignore[misc]
         return None
+
+    def append_line_locked(  # type: ignore[misc]
+        path: Path, line: str, *, delay_env_var=None, fail_open: bool = True
+    ) -> None:
+        # Degraded-import fallback: atomic_state itself couldn't be
+        # imported — fall back to the pre-#1896 unlocked append.
+        try:
+            with open(path, "a", encoding="utf-8") as handle:
+                handle.write(line)
+        except OSError:
+            if not fail_open:
+                raise
 
 
 def emit_boundary_event(*args, **kwargs) -> None:
@@ -149,9 +164,10 @@ def log_bypass_audit(raw_command: str, payload_cwd: str) -> None:
         "cwd": payload_cwd,
     }
     try:
-        with audit_file.open("a", encoding="utf-8") as fh:
-            # Match jq -c compact output: no spaces after ',' or ':'.
-            fh.write(json.dumps(record, separators=(",", ":")) + "\n")
+        # Match jq -c compact output: no spaces after ',' or ':'.
+        append_line_locked(
+            audit_file, json.dumps(record, separators=(",", ":")) + "\n", fail_open=False
+        )
     except OSError:
         print(
             f"mutation-testing-smoke-gate: cannot write to {audit_file} "

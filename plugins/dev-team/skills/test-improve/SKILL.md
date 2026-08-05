@@ -12,7 +12,7 @@ description: >-
 argument-hint: "<repo-path> [--parent <url>] [--analyze-only] [--from-phase [<n>]] [--stack <id>]"
 role: orchestrator
 user-invocable: true
-allowed-tools: Read, Grep, Glob, Bash(git diff *), Bash(python3 *), Skill, Agent
+allowed-tools: Read, Grep, Glob, Bash(git diff *), Bash(python3 *), Bash(sh *), Skill, Agent
 ---
 
 # Test Improve
@@ -221,7 +221,7 @@ goal to the end.
 Run the check; do not judge it in prose:
 
 ```
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/coverage_gap_ranking.py" \
+sh "${CLAUDE_PLUGIN_ROOT}/hooks/py.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/coverage_gap_ranking.py" \
   --report <existing coverage report> --repo-root <repo-path> \
   --target-line-pct <line target> --target-branch-pct <branch target> --json
 ```
@@ -364,7 +364,7 @@ coverage targeting input, independent of whether mutation work happens at
 all — and it is computed by script, never estimated in prose:
 
 ```
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/coverage_gap_ranking.py" \
+sh "${CLAUDE_PLUGIN_ROOT}/hooks/py.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/coverage_gap_ranking.py" \
   --report <baseline raw_report> --repo-root <repo-path> \
   --target-line-pct <line target> --target-branch-pct <branch target> \
   --top 0 --json \
@@ -712,7 +712,7 @@ assignment alone is not a substitute for worktree isolation here.
    trailing-streak check. Do not eyeball the history:
 
    ```
-   python3 "${CLAUDE_PLUGIN_ROOT}/scripts/coverage_delta_steering.py" \
+   sh "${CLAUDE_PLUGIN_ROOT}/hooks/py.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/coverage_delta_steering.py" \
      --history .dev-team-reports/test-improve/<slug>/data/coverage-history.json \
      --json
    ```

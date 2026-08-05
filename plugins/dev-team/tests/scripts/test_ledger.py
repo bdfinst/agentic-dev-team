@@ -152,6 +152,38 @@ def test_mark_done_noop_without_ledger(tmp_path):
     assert ledger.read_ledger(str(tmp_path)) is None
 
 
+def test_mark_done_survives_concurrent_calls_for_different_slices(tmp_path):
+    """Regression test for #1859: concurrent mark_done calls must not lose an update.
+
+    Each thread flips a different slice's status. Without locked_state's
+    serialization, a thread's read-modify-write can interleave with another's
+    and silently clobber it (last writer wins). A threading.Barrier forces
+    every thread to start its call at the same instant, maximizing the chance
+    the old, unguarded code would have exhibited the race.
+    """
+    import threading
+
+    n = 8
+    slices = [{"id": f"{i:04d}", "files": [f"src/{i}.ts"], "is_declarative": False} for i in range(n)]
+    ledger.init_ledger(slices, cap=50, root=str(tmp_path))
+
+    barrier = threading.Barrier(n)
+
+    def _mark(slice_id):
+        barrier.wait()
+        ledger.mark_done(str(tmp_path), slice_id)
+
+    threads = [threading.Thread(target=_mark, args=(s["id"],)) for s in slices]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()
+
+    result = ledger.read_ledger(str(tmp_path))
+    statuses = {entry["id"]: entry["status"] for entry in result["slices"]}
+    assert statuses == {s["id"]: ledger.STATUS_DONE for s in slices}
+
+
 # --- Slice 4: resume detection + cap guard ------------------------------------
 
 

@@ -243,10 +243,19 @@ def _registered_agents() -> frozenset | None:
     Without the explicit checks below, a missing/unreadable `agents/`
     directory would produce an empty `frozenset()`, not `None`, defeating
     the very distinction this function's contract promises: a genuine
-    registry read failure would be indistinguishable from "the plugin
-    genuinely ships zero review agents" (which never happens — a plugin
-    tree with no `*-review.md` files at all is a broken install, not a
-    legitimate empty registry).
+    registry read failure would be indistinguishable from a successful read
+    that legitimately finds zero `*-review.md` files.
+
+    Once both explicit checks have passed, whatever
+    `registered_review_agent_names()` returns is trusted as-is — including a
+    genuinely empty `frozenset()` (#1866). Collapsing that empty-but-successful
+    result back to `None` (an earlier version of this function did, via
+    `return names or None`) re-merges the exact two cases the checks above
+    exist to keep apart: this repo's own shipped `agents/` directory is never
+    literally empty in practice, but the function's contract must not rely on
+    that — a caller-supplied `agents_dir` (tests, a stripped-down fork) can
+    legitimately be an existing, readable, zero-match directory, and that is
+    a successful read, not a failure.
     """
     agents_dir = _agents_dir()
     if not agents_dir.is_dir():
@@ -255,7 +264,7 @@ def _registered_agents() -> frozenset | None:
         names = review_agent_registry.registered_review_agent_names(agents_dir)
     except Exception:  # noqa: BLE001 - caller decides how to fail closed for its own evidence direction
         return None
-    return names or None
+    return names
 
 
 def _read_ledger(cwd) -> tuple:
@@ -275,6 +284,31 @@ def _read_ledger(cwd) -> tuple:
     except (OSError, UnicodeDecodeError):
         return [], "unreadable"
     return entries, None
+
+
+def _extract_timeline_entries(entries: list, decision: str, ts_sentinel: str) -> list:
+    """Build `(ts, agent, decision)` tuples for one entry kind — shared by
+    both loops in `_agents_with_unsuperseded_failure` (#1799), which
+    duplicated this exact loop body twice, differing only in the ts-less
+    sentinel default and the `decision` constant.
+
+    `ts_sentinel` is the value substituted when an entry has no usable
+    `ts` (resolved via `metrics_query`'s own `_TS_FIELDS` fallback, never a
+    bare `entry.get("ts")`, and never a raw non-str value). Records and
+    failures pass opposite sentinels on purpose — see
+    `_agents_with_unsuperseded_failure`'s own docstring for the rationale;
+    this helper is deliberately unopinionated about which sentinel is
+    "correct" and just applies whatever the caller passes.
+    """
+    result = []
+    for entry in entries:
+        agent = entry.get("matched_rule")
+        if not isinstance(agent, str):
+            continue
+        ts = metrics_query._first_present(entry, metrics_query._TS_FIELDS)
+        ts = ts if isinstance(ts, str) else ts_sentinel
+        result.append((ts, agent, decision))
+    return result
 
 
 def _agents_with_unsuperseded_failure(
@@ -324,29 +358,15 @@ def _agents_with_unsuperseded_failure(
     if registered is None:
         return _UNPROVABLE_DISPATCH_FAILURE
 
-    timeline = []
-    for entry in records:
-        agent = entry.get("matched_rule")
-        if not isinstance(agent, str):
-            continue
-        ts = metrics_query._first_present(entry, metrics_query._TS_FIELDS)
-        # A ts-less (or non-str-ts) RECORD defaults to the minimum sort key
-        # — it can never supersede a real failure, the safe default for
-        # positive evidence we cannot chronologically place.
-        ts = ts if isinstance(ts, str) else ""
-        timeline.append((ts, agent, _DECISION))
-    for entry in failures:
-        agent = entry.get("matched_rule")
-        if not isinstance(agent, str):
-            continue
-        ts = metrics_query._first_present(entry, metrics_query._TS_FIELDS)
-        # A ts-less (or non-str-ts) FAILURE defaults to the maximum sort
-        # key ("￿" sorts after every real ISO-8601 timestamp string)
-        # — it can never be superseded, the safe default for negative
-        # evidence we cannot chronologically place. Deliberately the
-        # OPPOSITE default from the record case above.
-        ts = ts if isinstance(ts, str) else "￿"
-        timeline.append((ts, agent, _DISPATCH_FAILURE_DECISION))
+    # A ts-less (or non-str-ts) RECORD defaults to the minimum sort key
+    # ("") — it can never supersede a real failure, the safe default for
+    # positive evidence we cannot chronologically place. A ts-less FAILURE
+    # defaults to the maximum sort key ("￿" sorts after every real
+    # ISO-8601 timestamp string) — it can never be superseded, the safe
+    # default for negative evidence we cannot chronologically place.
+    # Deliberately the OPPOSITE default from the record case.
+    timeline = _extract_timeline_entries(records, _DECISION, "")
+    timeline += _extract_timeline_entries(failures, _DISPATCH_FAILURE_DECISION, "￿")
     timeline.sort(key=lambda item: item[0])
 
     latest_decision: dict = {}
@@ -390,6 +410,36 @@ def _binding_evidence(
     return agents, dispatch_failure_agents
 
 
+def _load_ledger_pipeline(cwd, before_ts: str, window_seconds: int) -> tuple:
+    """Shared read-ledger -> since-bound -> registered-agents -> filtered-
+    dispatches/failures pipeline (#1799) — `evaluate()` and
+    `evaluate_cosmetic_carry_forward()` each independently re-implemented
+    this exact sequence before this extraction.
+
+    Returns `(failure, since, registered, all_dispatches, all_failures)`.
+    `failure` is `None` on a successful ledger read; when it is non-`None`
+    (`"missing"`/`"unreadable"` — see `_read_ledger`'s own docstring), every
+    other element is `None` and the caller must build its own fail-closed
+    result immediately, matching each function's own `LedgerEvidence`/
+    `CosmeticCarryForwardEvidence` shape — this helper does not build either
+    result type itself, since the two callers' failure shapes differ.
+    """
+    entries, failure = _read_ledger(cwd)
+    if failure is not None:
+        return failure, None, None, None, None
+    since = _since_bound(before_ts, window_seconds)
+    registered = _registered_agents()
+    all_dispatches = list(
+        metrics_query.filter_entries(entries, event_type=_EVENT_TYPE, gate_outcome=_DECISION)
+    )
+    all_failures = list(
+        metrics_query.filter_entries(
+            entries, event_type=_DISPATCH_FAILURE_HOOK, gate_outcome=_DISPATCH_FAILURE_DECISION
+        )
+    )
+    return None, since, registered, all_dispatches, all_failures
+
+
 def evaluate(cwd, before_ts: str, window_seconds: int, subject_hash: str) -> LedgerEvidence:
     """Single-read-pass corroboration evaluation — the primary entry point.
 
@@ -414,13 +464,12 @@ def evaluate(cwd, before_ts: str, window_seconds: int, subject_hash: str) -> Led
     whatever the ledger says — defense in depth against a stale or
     hand-edited ledger.
     """
-    entries, failure = _read_ledger(cwd)
+    failure, since, registered, all_dispatches, all_failures = _load_ledger_pipeline(
+        cwd, before_ts, window_seconds
+    )
     if failure is not None:
         return LedgerEvidence(frozenset(), False, False, failure, _UNPROVABLE_DISPATCH_FAILURE)
 
-    all_dispatches = list(
-        metrics_query.filter_entries(entries, event_type=_EVENT_TYPE, gate_outcome=_DECISION)
-    )
     # `any_ever` intentionally reads the UNFILTERED dispatch set (#1461
     # security review) — it means "a genuine dispatch exists somewhere in
     # the ledger, for ANY subject", which is what `_STALE_MESSAGE` vs
@@ -437,21 +486,12 @@ def evaluate(cwd, before_ts: str, window_seconds: int, subject_hash: str) -> Led
     # this must be tracked separately from `any_ever`.
     same_subject_ever = any(isinstance(e.get("matched_rule"), str) for e in dispatches)
 
-    since = _since_bound(before_ts, window_seconds)
-    registered = _registered_agents()
-
     # Dispatch-failure negative evidence (#1763) — unbounded by the recency
     # window, per the field's own docstring. `dispatches` above is already
     # narrowed to THIS subject_hash and carries every qualifying "record"
     # regardless of age, so it doubles as the "records" side of the
     # supersession comparison with no extra filtering needed.
-    same_subject_failures = [
-        e
-        for e in metrics_query.filter_entries(
-            entries, event_type=_DISPATCH_FAILURE_HOOK, gate_outcome=_DISPATCH_FAILURE_DECISION
-        )
-        if e.get("subject_hash") == subject_hash
-    ]
+    same_subject_failures = [e for e in all_failures if e.get("subject_hash") == subject_hash]
     agents, dispatch_failure_agents = _binding_evidence(
         dispatches, same_subject_failures, since, before_ts, registered
     )
@@ -557,20 +597,11 @@ def evaluate_cosmetic_carry_forward(
     if isinstance(raw_hashes, str):
         raw_hashes = (raw_hashes,)
 
-    entries, failure = _read_ledger(cwd)
+    failure, since, registered, all_dispatches, all_failures = _load_ledger_pipeline(
+        cwd, before_ts, window_seconds
+    )
     if failure is not None:
         return CosmeticCarryForwardEvidence(frozenset(), failure, _UNPROVABLE_DISPATCH_FAILURE)
-
-    registered = _registered_agents()
-    since = _since_bound(before_ts, window_seconds)
-    all_dispatches = list(
-        metrics_query.filter_entries(entries, event_type=_EVENT_TYPE, gate_outcome=_DECISION)
-    )
-    all_failures = list(
-        metrics_query.filter_entries(
-            entries, event_type=_DISPATCH_FAILURE_HOOK, gate_outcome=_DISPATCH_FAILURE_DECISION
-        )
-    )
 
     if subject_hash_normalized:
         normalized_dispatches = [

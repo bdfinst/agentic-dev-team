@@ -116,6 +116,7 @@ if str(_LIB_DIR) not in sys.path:
     sys.path.insert(0, str(_LIB_DIR))
 
 import artifact_paths
+from atomic_state import append_line_locked
 
 # ---------------------------------------------------------------------------
 # Incremental `record` state — a byte offset + running aggregates, keyed by
@@ -394,8 +395,9 @@ def _accumulate_lines(
         # Excludes zero-token records from `unpriced_models` (#1830 fix
         # review), not just the literal "unknown" placeholder: the harness
         # writes assistant records with `model: "<synthetic>"` and every usage
-        # field zero for interrupt/auth-failure notices (verified: present in
-        # every local session transcript). Those records are not billable —
+        # field zero for interrupt/auth-failure notices (observed in local
+        # session transcripts inspected during #1830's investigation; not
+        # covered by an automated probe). Those records are not billable —
         # zero tokens cost zero regardless of whether the model has a pricing
         # entry — so flagging them as "unpriced" would fire on nearly every
         # session and bury the real signal (a genuinely billable model with no
@@ -675,8 +677,7 @@ def cmd_record(args, pricing) -> int:
     }
     log = Path(args.log)
     log.parent.mkdir(parents=True, exist_ok=True)
-    with log.open("a") as fh:
-        fh.write(json.dumps(line) + "\n")
+    append_line_locked(log, json.dumps(line) + "\n", fail_open=False)
     return 0
 
 
@@ -897,8 +898,7 @@ def cmd_phase_mark(args, pricing) -> int:
     }
     log = Path(args.log)
     log.parent.mkdir(parents=True, exist_ok=True)
-    with log.open("a") as fh:
-        fh.write(json.dumps(line) + "\n")
+    append_line_locked(log, json.dumps(line) + "\n", fail_open=False)
     return 0
 
 

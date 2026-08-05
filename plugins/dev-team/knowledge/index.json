@@ -3895,11 +3895,11 @@
       "anchor": "parse-arguments"
     },
     "Steps": {
-      "summary": "Write the following JSON to `hooks/freeze-state.json`:",
+      "summary": "Write the following JSON to `.claude/hooks/freeze-state.json` (relative to",
       "anchor": "steps"
     },
     "1. Write freeze state": {
-      "summary": "Write the following JSON to `hooks/freeze-state.json`:",
+      "summary": "Write the following JSON to `.claude/hooks/freeze-state.json` (relative to",
       "anchor": "1-write-freeze-state"
     },
     "2. Confirm": {
@@ -3907,7 +3907,7 @@
       "anchor": "2-confirm"
     },
     "Notes": {
-      "summary": "The `hooks/pre_tool_guard.py` hook reads `hooks/freeze-state.json` and blocks Write/Edit to files that do NOT match the allowed patterns.",
+      "summary": "The `hooks/pre_tool_guard.py` hook resolves this same path per invoking",
       "anchor": "notes"
     }
   },
@@ -4113,7 +4113,7 @@
       "anchor": "1-enable-careful-mode"
     },
     "2. Enable freeze mode": {
-      "summary": "Write to `hooks/freeze-state.json`:",
+      "summary": "Write to `.claude/hooks/freeze-state.json` (repo-scoped — see the `/freeze`",
       "anchor": "2-enable-freeze-mode"
     },
     "3. Confirm": {
@@ -6453,11 +6453,11 @@
       "anchor": "worker-constraints"
     },
     "Steps": {
-      "summary": "Delete `hooks/freeze-state.json` if it exists:",
+      "summary": "Delete `.claude/hooks/freeze-state.json` if it exists (the same per-repo",
       "anchor": "steps"
     },
     "1. Remove freeze state": {
-      "summary": "Delete `hooks/freeze-state.json` if it exists:",
+      "summary": "Delete `.claude/hooks/freeze-state.json` if it exists (the same per-repo",
       "anchor": "1-remove-freeze-state"
     },
     "2. Confirm": {

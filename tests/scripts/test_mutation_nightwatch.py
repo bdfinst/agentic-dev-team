@@ -578,6 +578,64 @@ def test_run_nightwatch_refreshes_reports_after_each_stack(
     assert seen["javascript_already_written"] is True
 
 
+def test_run_nightwatch_skip_mechanical_repair_never_invokes_repair(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """#1869 opt-out: when set, mechanical_repair must never be called at
+    all — not called-and-ignored, but never invoked — and the run must note
+    the skip so the summary discloses it."""
+    output_dir = tmp_path / "reports" / "mutation-nightwatch"
+
+    def fake_measure(repo_root, run_dir, *, timeout=None):
+        return stacks_lib.StackResult("javascript", "stryker", "measured")
+
+    monkeypatch.setitem(stacks_lib.MEASURERS, "javascript", fake_measure)
+    monkeypatch.setattr(
+        stacks_lib,
+        "mechanical_repair",
+        lambda *a, **k: pytest.fail("mechanical_repair must not be called when skipped"),
+    )
+
+    run_dir = nightwatch.run_nightwatch(
+        tmp_path,
+        output_dir,
+        stacks=["javascript"],
+        inhibit_sleep=False,
+        started_at="2026-08-04T03:00:00Z",
+        skip_mechanical_repair=True,
+    )
+
+    summary = (run_dir / "MORNING-SUMMARY.md").read_text(encoding="utf-8")
+    assert "mechanical repair skipped" in summary
+    assert "--skip-mechanical-repair" in summary
+
+
+def test_run_nightwatch_default_still_runs_mechanical_repair(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Default behavior (flag unset) must be unchanged: repair still runs."""
+    output_dir = tmp_path / "reports" / "mutation-nightwatch"
+    calls = []
+
+    def fake_measure(repo_root, run_dir, *, timeout=None):
+        return stacks_lib.StackResult("javascript", "stryker", "measured")
+
+    monkeypatch.setitem(stacks_lib.MEASURERS, "javascript", fake_measure)
+    monkeypatch.setattr(
+        stacks_lib, "mechanical_repair", lambda *a, **k: calls.append(a) or None
+    )
+
+    nightwatch.run_nightwatch(
+        tmp_path,
+        output_dir,
+        stacks=["javascript"],
+        inhibit_sleep=False,
+        started_at="2026-08-04T03:00:00Z",
+    )
+
+    assert len(calls) == 1
+
+
 def test_run_nightwatch_writes_reports_even_with_zero_targets(tmp_path: Path) -> None:
     output_dir = tmp_path / "reports" / "mutation-nightwatch"
     run_dir = nightwatch.run_nightwatch(
@@ -760,6 +818,13 @@ def test_parse_args_defaults() -> None:
     assert args.detach is False
     assert args.stacks is None
     assert args.no_sleep_inhibit is False
+    # Default is off — current behavior (repair still runs) is unchanged.
+    assert args.skip_mechanical_repair is False
+
+
+def test_parse_args_skip_mechanical_repair_flag() -> None:
+    args = nightwatch.parse_args(["--skip-mechanical-repair"])
+    assert args.skip_mechanical_repair is True
 
 
 def test_parse_args_stacks_override() -> None:

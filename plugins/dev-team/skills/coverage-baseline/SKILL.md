@@ -144,6 +144,16 @@ When discovery returns a real project/package list, call, in this order:
    `coverage_config.weighted_merge(project_reports)` to produce the merged
    `line_pct`/`branch_pct` that Step 4/5 record as the baseline.
 
+   **Check the result before using it.** `weighted_merge` returns either the
+   merged `{"line_pct": ..., "branch_pct": ...}` dict, or the shared
+   `discovery_error(...)` shape (`{"signal": "error", "message": ...}`) when
+   any per-project report is missing a required raw count field —
+   `weighted_merge` already validates report completeness internally, so
+   there is no separate pre-validation step for the caller. Discriminate
+   with `if "signal" in merged:` — on a hit, print `merged["message"]`
+   verbatim and stop without writing a baseline; only proceed to Step 4/5
+   when the `"signal"` key is absent.
+
    **Known, documented limitation (.NET/Coverlet).** Step 4's Coverlet row
    documents `summary.linecoverage`/`summary.branchcoverage` — final
    percentages, not the raw `covered_statements`/`total_statements`/
@@ -154,14 +164,9 @@ When discovery returns a real project/package list, call, in this order:
    running the real tool risks documenting a shape that doesn't match
    Coverlet's actual output. Until that verification happens, multi-project
    .NET merge requires the operator's own coverage command wrapper to parse
-   and supply the four raw counts per included project. If a per-project
-   report carries only percentages with no raw counts, **stop** with
-   `coverage_config.discovery_error("Project '<path>' produced only a
-   percentage-based coverage report (no raw covered/total statement or
-   branch counts); multi-project .NET weighted-merge requires raw counts —
-   see the coverage-baseline SKILL.md Step 1a known-limitation note.")` —
-   **never** silently degrade to a `null`/`0` baseline by feeding
-   `weighted_merge` an incomplete report.
+   and supply the four raw counts per included project — a wrapper that
+   can't produce them surfaces via the `weighted_merge` check above, not a
+   silent `null`/`0` baseline.
 
 ### 1b. Single-project and mixed-stack repos are unaffected
 

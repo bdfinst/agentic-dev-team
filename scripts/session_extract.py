@@ -576,7 +576,7 @@ def resolve_transcripts(args) -> list[Path]:
     matches: list[Path] = []
     for jsonl in root.glob("*/*.jsonl"):
         try:
-            with jsonl.open() as fh:
+            with jsonl.open(encoding="utf-8") as fh:
                 for _ in range(20):  # cwd appears on the earliest records
                     line = fh.readline()
                     if not line:
@@ -711,7 +711,7 @@ def cmd_sync(
 
     emitted = 0
     out.parent.mkdir(parents=True, exist_ok=True)
-    with out.open("a") as fh:
+    with out.open("a", encoding="utf-8") as fh:
         for path in paths:
             session_id = path.stem
             try:
@@ -1424,7 +1424,7 @@ def slim_record(digest: dict) -> dict:
 
 def _append_trend(log: Path, digest: dict) -> None:
     log.parent.mkdir(parents=True, exist_ok=True)
-    with log.open("a") as fh:
+    with log.open("a", encoding="utf-8") as fh:
         fh.write(json.dumps(slim_record(digest), sort_keys=True) + "\n")
 
 

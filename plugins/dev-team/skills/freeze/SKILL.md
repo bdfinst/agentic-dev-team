@@ -34,7 +34,11 @@ If no pattern is provided, display usage and exit:
 
 ### 1. Write freeze state
 
-Write the following JSON to `hooks/freeze-state.json`:
+Write the following JSON to `.claude/hooks/freeze-state.json` (relative to
+the current repo root — **not** `hooks/freeze-state.json`, which would sit
+inside the plugin's own shared install/cache directory and scope-lock every
+other concurrently-running session, worktree, and project on the machine;
+see issue #1890):
 
 ```json
 {
@@ -52,8 +56,13 @@ Display:
 
 ## Notes
 
-- The `hooks/pre_tool_guard.py` hook reads `hooks/freeze-state.json` and blocks Write/Edit to files that do NOT match the allowed patterns.
-- Freeze state persists across tool calls within a session.
+- The `hooks/pre_tool_guard.py` hook resolves this same path per invoking
+  repo via `hooks/lib/artifact_paths.py`'s `resolve_file("hooks",
+  "freeze-state.json")` — the same `.claude/`-scoped convention `.review-passed`
+  and other per-repo runtime state already use — and blocks Write/Edit to
+  files that do NOT match the allowed patterns.
+- Freeze state persists across tool calls within a session, and is scoped to
+  the repo it was activated in.
 - If a session crashes while frozen, use `/unfreeze` in the next session to clear stale state.
 - Multiple patterns can be provided as comma-separated: `/freeze src/auth/**,src/middleware/**`
-- `/build` can also engage this same `freeze-state.json` contract automatically, per slice, when a plan opts into `**Scope enforcement:** freeze` and declares slice-level `**Files:**` (issue #865) — see `scripts/build_slice_scope.py` and the `build` skill's "Slice dispatch bookkeeping" section. That path is opt-in metadata, not a manual `/freeze` invocation, but writes/clears the identical file this command does.
+- `/build` can also engage this same `.claude/hooks/freeze-state.json` contract automatically, per slice, when a plan opts into `**Scope enforcement:** freeze` and declares slice-level `**Files:**` (issue #865) — see `scripts/build_slice_scope.py` and the `build` skill's "Slice dispatch bookkeeping" section. That path is opt-in metadata, not a manual `/freeze` invocation, but writes/clears the identical file this command does.

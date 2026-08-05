@@ -22,6 +22,8 @@ SCRIPT = SCRIPTS_DIR / "coverage_gap_ranking.py"
 sys.path.insert(0, str(SCRIPTS_DIR))
 
 from coverage_gap_ranking import (
+    ReportError,
+    _tally_coverlet_classes,
     build_report,
     detect_format,
     main,
@@ -295,6 +297,25 @@ def test_parse_cobertura_malformed_xml_raises(tmp_path):
         parse_report(path, "cobertura")
 
 
+def test_parse_cobertura_rejects_a_doctype_entity_declaration(tmp_path):
+    """#1872: the cobertura path parsed with `xml.etree.ElementTree.fromstring`
+    directly, with no DOCTYPE/ENTITY screening — the same XXE/billion-laughs
+    exposure `coverage_config.read_and_screen_xml` exists to close for every
+    other coverage-discovery stack. `parse_report` must raise `ReportError`
+    rather than hand a DOCTYPE-carrying document to `ET.fromstring`."""
+    path = _write(
+        tmp_path,
+        "cobertura.xml",
+        '<?xml version="1.0"?>\n'
+        '<!DOCTYPE coverage [<!ENTITY xxe SYSTEM "file:///etc/passwd">]>\n'
+        '<coverage line-rate="1.0">\n'
+        "  <packages/>\n"
+        "</coverage>\n",
+    )
+    with pytest.raises(ReportError, match="DOCTYPE"):
+        parse_report(path, "cobertura")
+
+
 # ---------------------------------------------------------------------------
 # parsing — per-file line/branch tallies
 # ---------------------------------------------------------------------------
@@ -371,6 +392,78 @@ def test_parse_coverlet_groups_by_assembly(tmp_path):
     transform = by_path["/repo/src/Pipes/Transform.cs"]
     assert transform["branches_total"] == 2
     assert transform["branches_covered"] == 1
+
+
+def test_tally_coverlet_classes_matches_hand_computed_totals():
+    """#1857: `_parse_coverlet` nested 5 levels of loops (assembly -> file ->
+    classes -> methods -> hits/branches). This pins the extracted
+    `_tally_coverlet_classes` helper against a hand-computed expected tally
+    so the extraction is provably behavior-preserving."""
+    classes = {
+        "Acme.Widgets.WidgetA": {
+            "MethodOne()": {
+                "Lines": {"1": 1, "2": 0, "3": 1},
+                "Branches": [{"Line": 1, "Hits": 2}, {"Line": 2, "Hits": 0}],
+            },
+            "MethodTwo()": {
+                "Lines": {"10": 0},
+                "Branches": [],
+            },
+        },
+        "Acme.Widgets.WidgetB": {
+            "MethodThree()": {
+                "Lines": {"20": 1, "21": 1},
+                "Branches": [{"Line": 20, "Hits": 1}],
+            },
+        },
+    }
+    # Hand-computed: lines_total = 3 + 1 + 2 = 6; lines_covered = 2 + 0 + 2 = 4
+    # (hits > 0 count per method); branches_total = 2 + 0 + 1 = 3;
+    # branches_covered = 1 + 0 + 1 = 2.
+    assert _tally_coverlet_classes(classes) == (6, 4, 3, 2)
+
+
+def test_parse_coverlet_end_to_end_matches_the_same_hand_computed_totals(tmp_path):
+    """Same fixture as the helper-level test above, run through the full
+    `parse_report` -> `_parse_coverlet` -> `_tally_coverlet_classes` path, to
+    prove the extraction changed nothing observable at the parser boundary."""
+    payload = {
+        "Acme.Widgets.dll": {
+            "/repo/src/Widgets/Widget.cs": {
+                "Acme.Widgets.WidgetA": {
+                    "MethodOne()": {
+                        "Lines": {"1": 1, "2": 0, "3": 1},
+                        "Branches": [
+                            {"Line": 1, "Hits": 2},
+                            {"Line": 2, "Hits": 0},
+                        ],
+                    },
+                    "MethodTwo()": {
+                        "Lines": {"10": 0},
+                        "Branches": [],
+                    },
+                },
+                "Acme.Widgets.WidgetB": {
+                    "MethodThree()": {
+                        "Lines": {"20": 1, "21": 1},
+                        "Branches": [{"Line": 20, "Hits": 1}],
+                    },
+                },
+            }
+        }
+    }
+    path = _write(tmp_path, "coverlet.json", payload)
+    files = parse_report(path, "coverlet")
+    assert len(files) == 1
+    record = files[0]
+    assert record["path"] == "/repo/src/Widgets/Widget.cs"
+    assert record["module"] == "Acme.Widgets.dll"
+    assert (
+        record["lines_total"],
+        record["lines_covered"],
+        record["branches_total"],
+        record["branches_covered"],
+    ) == (6, 4, 3, 2)
 
 
 def test_parse_jacoco_csv_groups_by_package(tmp_path):

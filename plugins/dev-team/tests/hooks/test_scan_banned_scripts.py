@@ -8,6 +8,8 @@ created it (the PreToolUse half only scans Bash command strings).
 
 from __future__ import annotations
 
+import importlib.util
+import io
 import json
 import subprocess
 import sys
@@ -24,6 +26,14 @@ if str(_TESTS_LIB) not in sys.path:
 from hermetic import hermetic_git_env  # type: ignore[import-not-found]
 
 _HOOK = _REPO_ROOT / "plugins" / "dev-team" / "hooks" / "scan_banned_scripts.py"
+
+# Loaded by explicit file path (mirrors test_code_intelligence_nudge.py) so
+# the #1861 guard test can monkeypatch `subprocess.run` and call `main()`
+# in-process, without spawning a subprocess per assertion.
+_spec = importlib.util.spec_from_file_location("scan_banned_scripts_lib", _HOOK)
+assert _spec is not None and _spec.loader is not None
+scan_banned_scripts = importlib.util.module_from_spec(_spec)
+_spec.loader.exec_module(scan_banned_scripts)
 
 
 def _run(cwd: Path, env: dict) -> subprocess.CompletedProcess[str]:
@@ -139,3 +149,163 @@ def test_blocks_renamed_destination(repo: tuple[Path, dict]) -> None:
     result = _run(cwd, env)
     assert result.returncode == 2
     assert "plugins/dev-team/hooks/new_name.sh" in result.stdout
+
+
+def test_ignores_worktree_deleted_banned_file(repo: tuple[Path, dict]) -> None:
+    """(#1864 sub-claim 1) A tracked banned file removed from the worktree
+    (unstaged delete, porcelain status " D") no longer exists on disk — it
+    must not be flagged."""
+    cwd, env = repo
+    banned = cwd / "plugins" / "dev-team" / "hooks" / "old.sh"
+    banned.write_text("echo hi\n")
+    subprocess.run(
+        ["git", "add", "plugins/dev-team/hooks/old.sh"], cwd=cwd, env=env, check=True
+    )
+    subprocess.run(["git", "commit", "-q", "-m", "seed old.sh"], cwd=cwd, env=env, check=True)
+    banned.unlink()
+    result = _run(cwd, env)
+    assert result.returncode == 0
+
+
+def test_ignores_staged_deleted_banned_file(repo: tuple[Path, dict]) -> None:
+    """(#1864 sub-claim 1) A tracked banned file staged for deletion
+    (`git rm`, porcelain status "D ") is gone from disk too — must not be
+    flagged."""
+    cwd, env = repo
+    banned = cwd / "plugins" / "dev-team" / "hooks" / "old2.sh"
+    banned.write_text("echo hi\n")
+    subprocess.run(
+        ["git", "add", "plugins/dev-team/hooks/old2.sh"], cwd=cwd, env=env, check=True
+    )
+    subprocess.run(["git", "commit", "-q", "-m", "seed old2.sh"], cwd=cwd, env=env, check=True)
+    subprocess.run(
+        ["git", "rm", "-q", "plugins/dev-team/hooks/old2.sh"], cwd=cwd, env=env, check=True
+    )
+    result = _run(cwd, env)
+    assert result.returncode == 0
+
+
+def test_modified_file_with_literal_arrow_in_name_not_mis_split(
+    repo: tuple[Path, dict],
+) -> None:
+    """(#1864 sub-claim 2) A plain modification (status " M", not a rename)
+    of a file whose name happens to contain the literal substring "-> "
+    must not have its path truncated by the rename-arrow split — the split
+    is only valid for an actual R/C status."""
+    cwd, env = repo
+    odd_rel = "plugins/dev-team/hooks/before -> after.sh"
+    odd_path = cwd / odd_rel
+    odd_path.write_text("echo hi\n")
+    subprocess.run(["git", "add", odd_rel], cwd=cwd, env=env, check=True)
+    subprocess.run(["git", "commit", "-q", "-m", "seed odd name"], cwd=cwd, env=env, check=True)
+    odd_path.write_text("echo hi again\n")
+    result = _run(cwd, env)
+    assert result.returncode == 2
+    assert "before -> after.sh" in result.stdout
+
+
+def test_flags_untracked_banned_file_with_non_ascii_name(repo: tuple[Path, dict]) -> None:
+    """Closing-pass regression: git C-quotes a non-ASCII path by default
+    (`?? "plugins/dev-team/hooks/caf\\303\\251.sh"`), and the exists()-based
+    D-status fix must not silently drop it — the path exists, just under an
+    escaped spelling `_porcelain_paths` never decoded."""
+    cwd, env = repo
+    (cwd / "plugins" / "dev-team" / "hooks" / "café.sh").write_text("echo hi\n")
+    result = _run(cwd, env)
+    assert result.returncode == 2
+    assert "café.sh" in result.stdout
+
+
+def test_recurses_into_untracked_directory(repo: tuple[Path, dict]) -> None:
+    """(#1879) A wholly-new untracked directory collapses to one porcelain
+    line — recurse into it on disk to find a banned file inside."""
+    cwd, env = repo
+    newdir = cwd / "plugins" / "dev-team" / "newfeature"
+    newdir.mkdir()
+    (newdir / "rogue.sh").write_text("echo hi\n")
+    (newdir / "keep.py").write_text("pass\n")
+    result = _run(cwd, env)
+    assert result.returncode == 2
+    assert "plugins/dev-team/newfeature/rogue.sh" in result.stdout
+
+
+def test_ignores_untracked_directory_outside_plugin_scope(repo: tuple[Path, dict]) -> None:
+    """(#1879) The directory-recursion fix must stay scoped — an untracked
+    directory outside plugins/dev-team/ is never walked."""
+    cwd, env = repo
+    newdir = cwd / "scripts" / "newstuff"
+    newdir.mkdir(parents=True)
+    (newdir / "rogue.sh").write_text("echo hi\n")
+    result = _run(cwd, env)
+    assert result.returncode == 0
+
+
+def test_flags_unresolved_merge_conflict_deleted_by_us_modified_by_them(
+    repo: tuple[Path, dict],
+) -> None:
+    """Security-review regression: a plain `D`-in-status skip is wrong for
+    an unresolved-merge conflict code (`DU`/`UD`) — the path IS present in
+    the working tree despite the status containing `D`."""
+    cwd, env = repo
+    main_branch = subprocess.run(
+        ["git", "rev-parse", "--abbrev-ref", "HEAD"],
+        cwd=cwd, env=env, capture_output=True, text=True, check=True,
+    ).stdout.strip()
+    evil = cwd / "plugins" / "dev-team" / "hooks" / "evil.sh"
+    evil.write_text("echo A\n")
+    subprocess.run(["git", "add", "plugins/dev-team/hooks/evil.sh"], cwd=cwd, env=env, check=True)
+    subprocess.run(["git", "commit", "-q", "-m", "add evil.sh"], cwd=cwd, env=env, check=True)
+    subprocess.run(["git", "checkout", "-q", "-b", "other"], cwd=cwd, env=env, check=True)
+    evil.write_text("echo B\n")
+    subprocess.run(["git", "add", "plugins/dev-team/hooks/evil.sh"], cwd=cwd, env=env, check=True)
+    subprocess.run(["git", "commit", "-q", "-m", "modify evil.sh"], cwd=cwd, env=env, check=True)
+    subprocess.run(["git", "checkout", "-q", main_branch], cwd=cwd, env=env, check=True)
+    subprocess.run(["git", "rm", "-q", "plugins/dev-team/hooks/evil.sh"], cwd=cwd, env=env, check=True)
+    subprocess.run(["git", "commit", "-q", "-m", "delete evil.sh"], cwd=cwd, env=env, check=True)
+    subprocess.run(["git", "merge", "other"], cwd=cwd, env=env, check=False)
+
+    status = subprocess.run(
+        ["git", "status", "--porcelain"], cwd=cwd, env=env, capture_output=True, text=True, check=True
+    ).stdout
+    assert "DU" in status or "UD" in status, f"expected an unresolved D-conflict, got: {status!r}"
+    assert evil.exists(), "the conflicted file must still be present on disk"
+
+    result = _run(cwd, env)
+    assert result.returncode == 2
+    assert "evil.sh" in result.stdout
+
+
+def test_symlink_in_untracked_directory_is_flagged_not_silently_dropped(
+    repo: tuple[Path, dict], tmp_path_factory: pytest.TempPathFactory
+) -> None:
+    """Security-review regression: resolving a symlink's target to relativize
+    it can land outside `root` and raise ValueError, silently dropping the
+    entry — the sibling non-directory scan path never resolves and would
+    catch this. The untracked-directory walk must not be weaker."""
+    cwd, env = repo
+    outside = tmp_path_factory.mktemp("outside-link-target")
+    newdir = cwd / "plugins" / "dev-team" / "newfeature"
+    newdir.mkdir()
+    link = newdir / "evil.sh"
+    link.symlink_to(outside / "does-not-need-to-exist.sh")
+    result = _run(cwd, env)
+    assert result.returncode == 2
+    assert "evil.sh" in result.stdout
+
+
+def test_missing_plugin_scope_dir_never_calls_git(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """(#1861) The early-exit guard is a plain `Path.is_dir()` check — it
+    must return before `find_banned_files` (which shells out to
+    `git status`) ever runs, so a downstream install with no
+    plugins/dev-team/ tree pays zero git subprocess cost. `project_root()`
+    itself legitimately calls `git rev-parse` to resolve the root, so this
+    mocks the scan function specifically rather than all of `subprocess`."""
+
+    def _fail_if_called(root: object) -> None:
+        raise AssertionError("find_banned_files must not run when plugins/dev-team/ is absent")
+
+    monkeypatch.setattr(scan_banned_scripts, "find_banned_files", _fail_if_called)
+    monkeypatch.setattr(sys, "stdin", io.StringIO(json.dumps({"cwd": str(tmp_path)})))
+    assert scan_banned_scripts.main() == 0

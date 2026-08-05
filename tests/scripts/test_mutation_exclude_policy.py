@@ -116,13 +116,26 @@ def test_javascript_hint_list_applies_too(tmp_path: Path) -> None:
     assert entries[0]["tier"] == "always"
 
 
-def test_unknown_stack_has_no_hints_stays_propose_and_ask(tmp_path: Path) -> None:
+def test_known_stack_without_hints_stays_propose_and_ask(tmp_path: Path) -> None:
     report = _write_report(
         tmp_path / "mutation.json",
         {"src/Startup.cs": {"mutants": _mutants(killed=1, no_coverage=9)}},
     )
     entries = policy.draft_entries(report, "java")
     assert entries[0]["tier"] == "propose_and_ask"
+
+
+def test_genuinely_unknown_stack_raises_value_error(tmp_path: Path) -> None:
+    report = _write_report(
+        tmp_path / "mutation.json",
+        {"src/Startup.cs": {"mutants": _mutants(killed=1, no_coverage=9)}},
+    )
+    try:
+        policy.draft_entries(report, "rust")
+    except ValueError as exc:
+        assert "rust" in str(exc)
+    else:
+        raise AssertionError("expected ValueError for unrecognized stack name")
 
 
 # =============================================================================

@@ -66,3 +66,12 @@ extend-exclude = [
 # together so the three cannot drift apart.
 [per-file-target-version]
 "plugins/dev-team/**" = "py310"
+
+# plugins/security-assessment/harness/**'s own CLAUDE.md declares "Python
+# >= 3.10 available (red-team harness requires it)" (checked by that plugin's
+# install.sh) — a separate, real floor from ADR 0031's plugins/dev-team one,
+# but the same reason: this harness runs on an end user's interpreter, not
+# just a maintainer's/CI's. Without this entry ruff's default py311
+# target-version would keep autofixing `timezone.utc` back into the 3.11-only
+# `datetime.UTC` alias here (issue #1805).
+"plugins/security-assessment/harness/**" = "py310"

@@ -7,8 +7,13 @@ only feeds `plan_waves.py`'s scope-mismatch warnings (see `plan_waves.py`) —
 it never freezes anything by itself.
 
 When engaged, `/build` calls this script at slice dispatch to write
-`hooks/freeze-state.json` (the same contract `/freeze` writes and
-`hooks/pre_tool_guard.py` already enforces) with `allowed_patterns` equal to
+`freeze-state.json` (the same contract `/freeze` writes and
+`hooks/pre_tool_guard.py` already enforces) into the `--hooks-dir` the
+caller passes — `/build` passes `<worktree>/.claude/hooks`, matching
+`hooks/pre_tool_guard.py`'s per-repo `.claude/hooks/freeze-state.json`
+resolution via `hooks/lib/artifact_paths.py` (issue #1890); the writer here
+takes the directory as a plain argument and has no opinion of its own on
+which directory that should be — with `allowed_patterns` equal to
 the slice's declared paths **plus a fixed bookkeeping allowlist** (the plan
 file itself, `.claude/memory/**`, `.claude/metrics/**`, and the AC3-exempt
 `metrics/verify-log.jsonl`) — without which `/build` could not update its
@@ -117,10 +122,10 @@ def main(argv: list[str] | None = None) -> int:
     )
     engage_p.add_argument("plan", type=Path)
     engage_p.add_argument("--slice", required=True)
-    engage_p.add_argument("--hooks-dir", type=Path, default=Path("hooks"))
+    engage_p.add_argument("--hooks-dir", type=Path, required=True)
 
     clear_p = sub.add_parser("clear", help="Clear freeze-state.json.")
-    clear_p.add_argument("--hooks-dir", type=Path, default=Path("hooks"))
+    clear_p.add_argument("--hooks-dir", type=Path, required=True)
 
     args = parser.parse_args(argv)
 

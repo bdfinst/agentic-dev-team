@@ -83,8 +83,8 @@ from _ci_local_invocation import (
     PytestInvocation,
     check_body,
     check_registry,
-    invocation,
     lines_after_invocation,
+    pytest_invocation,
     synthetic_check,
     without_comments,
 )
@@ -209,29 +209,35 @@ FLOOR_INVOCATION_PREFIX = (
 )
 
 
-def _floor_invocation(ci_local: str) -> PytestInvocation:
+def _floor_invocation(ci_local: str) -> PytestInvocation | None:
     """`chk_python_floor`'s pytest command, split at `-m pytest` and at any
     `||`. Thin wrapper over the shared parser in `_ci_local_invocation` —
-    see `invocation()` there for the full boundary rules (backslash
+    see `pytest_invocation()` there for the full boundary rules (backslash
     continuation, the single-marker requirement, why comments are not
-    stripped first, and why the `||` tail is returned rather than dropped).
+    stripped first, and why the `||` tail is returned rather than dropped,
+    and why `None` — not an empty-but-valid-shaped tuple — is the
+    unparseable sentinel).
     """
-    return invocation(ci_local, FLOOR_FN)
+    return pytest_invocation(ci_local, FLOOR_FN)
 
 
 def _floor_invocation_prefix(ci_local: str) -> list[str]:
     """Everything the command says before `-m pytest`."""
-    return _floor_invocation(ci_local).prefix
+    result = _floor_invocation(ci_local)
+    return result.prefix if result is not None else []
 
 
 def _floor_invocation_tail(ci_local: str) -> list[str]:
     """Everything the command says after `||` — the failure path."""
-    return _floor_invocation(ci_local).tail
+    result = _floor_invocation(ci_local)
+    return result.tail if result is not None else []
 
 
 def _floor_slice_files(ci_local: str) -> list[str]:
     """The slice's test-file paths, in the order pytest receives them."""
-    return [t for t in _floor_invocation(ci_local).args if _SLICE_PATH_RE.fullmatch(t)]
+    result = _floor_invocation(ci_local)
+    args = result.args if result is not None else []
+    return [t for t in args if _SLICE_PATH_RE.fullmatch(t)]
 
 
 def _floor_slice_extra_args(ci_local: str) -> list[str]:
@@ -244,9 +250,9 @@ def _floor_slice_extra_args(ci_local: str) -> list[str]:
     rather than "flags" because it deliberately also catches things that are not
     flags at all, such as a truncating comment's own tokens.
     """
-    return [
-        t for t in _floor_invocation(ci_local).args if not _SLICE_PATH_RE.fullmatch(t)
-    ]
+    result = _floor_invocation(ci_local)
+    args = result.args if result is not None else []
+    return [t for t in args if not _SLICE_PATH_RE.fullmatch(t)]
 
 
 class TestTheFloorIsDeclaredOnce:
@@ -537,7 +543,7 @@ class TestTheSliceParserItself:
             "  printf 'about to run -m pytest\\n'\n"
             "  uv run -m pytest tests/scripts/test_a.py -q"
         )
-        assert _floor_invocation(body) == ([], [], [])
+        assert _floor_invocation(body) is None
 
     def test_a_flag_embedding_a_path_is_not_a_path(self):
         body = _synthetic_floor_check(
@@ -592,7 +598,7 @@ class TestTheSliceParserItself:
 
     def test_a_missing_marker_yields_nothing_rather_than_the_whole_body(self):
         body = _synthetic_floor_check("  uv run tests/scripts/test_a.py")
-        assert _floor_invocation(body) == ([], [], [])
+        assert _floor_invocation(body) is None
 
     def test_it_stops_at_the_end_of_the_continued_command(self):
         """Anything after the invocation — including the closing brace — is not

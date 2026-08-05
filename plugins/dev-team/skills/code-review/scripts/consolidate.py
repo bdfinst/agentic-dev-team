@@ -255,14 +255,18 @@ def main(argv: list[str] | None = None) -> int:
         # reason: an unexamined slice must never ride out as "pass" just
         # because the READABLE sections happened to look clean (#1763
         # security review — /pr --json checks only overall/status). The
-        # `summary` string is rebuilt too (#1763 correctness review) — it
-        # is built from `overall` INSIDE consolidate(), before this
-        # override runs, so leaving it alone would print a "PASS ..."
-        # summary alongside `"overall": "fail"`, contradicting itself.
+        # `summary` string is rebuilt too (#1865) — it must not interpolate
+        # the PRE-override `result['summary']` (built from `overall` INSIDE
+        # consolidate(), before this override runs): doing so would print a
+        # "FAIL ... ; WARN ..." self-contradicting summary. Rebuild it
+        # entirely from the already-available totals/recurringThemes instead.
         result["overall"] = "fail"
+        totals = result["totals"]
         result["summary"] = (
             f"FAIL across {len(sections)} slices — {len(malformed)} malformed "
-            f"artifact(s) unreadable; {result['summary']}"
+            f"artifact(s) unreadable; {totals['errors']} errors, {totals['warnings']} warnings, "
+            f"{totals['suggestions']} suggestions from readable slices; "
+            f"{len(result['recurringThemes'])} recurring theme(s)."
         )
     print(json.dumps(result, indent=2, sort_keys=True))
     # Non-zero exit if any artifact was unreadable, so a caller notices.

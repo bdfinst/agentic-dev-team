@@ -18,19 +18,11 @@ sys.path.insert(0, str(SCRIPTS_DIR))
 
 import coverage_discovery_dotnet as cdd
 from coverage_config import DISCOVERY_NOT_APPLICABLE, TestClassification
+from coverage_flow_shared import sln, write
 
 # ---------------------------------------------------------------------------
 # helpers
 # ---------------------------------------------------------------------------
-
-
-def write(path: Path, content: str) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(content, encoding="utf-8")
-
-
-def sln(repo_root: Path, name: str = "App.sln") -> None:
-    write(repo_root / name, "Microsoft Visual Studio Solution File\n")
 
 
 @contextlib.contextmanager
@@ -166,7 +158,8 @@ def test_directory_build_props_at_solution_root_is_test(tmp_path):
 def test_namespaced_package_reference_is_still_classified_test(tmp_path):
     """MSBuild's 2003 XML namespace (present in some hand-authored or
     older-tooling-generated .csproj files) must not defeat classification —
-    locks in that `_local_name`'s namespace-stripping actually matters."""
+    locks in that `coverage_config.local_name`'s namespace-stripping
+    actually matters."""
     sln(tmp_path)
     csproj_rel = "tests/Foo.Tests/Foo.Tests.csproj"
     write(

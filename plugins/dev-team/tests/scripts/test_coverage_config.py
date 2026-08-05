@@ -49,6 +49,7 @@ def test_bootstrap_when_config_absent(tmp_path):
     )
 
     assert config == {
+        "schema_version": 1,
         "included": ["src/ProjectA.csproj", "src/ProjectB.csproj"],
         "excluded": [],
         "bootstrapped_at": "2026-08-04T12:00:00Z",

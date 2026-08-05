@@ -96,6 +96,17 @@ def _current_hash(repo: Path) -> str:
     return _rgh.review_gate_hash(cwd=repo)
 
 
+def _write_gate_file(repo: Path, content: str | None = None) -> str:
+    """Write `.claude/memory/.review-passed` with `content` (or the repo's
+    current staged-content hash when omitted) and return the hash written.
+    Extracted (#1800) from a 4-line block repeated across 15+ tests."""
+    h = content or _current_hash(repo)
+    gate_path = repo / ".claude" / "memory" / ".review-passed"
+    gate_path.parent.mkdir(parents=True, exist_ok=True)
+    gate_path.write_text(h)
+    return h
+
+
 def _iso(dt) -> str:
     return dt.strftime("%Y-%m-%dT%H:%M:%SZ")
 
@@ -208,7 +219,7 @@ def _write_single_agent_exemption(repo: Path, subject_hash: str, ts=None) -> Non
 
 def test_non_commit_silent(repo: Path) -> None:
     r = _run({"tool_name": "Bash", "tool_input": {"command": "ls -la"}}, cwd=repo)
-    assert r.returncode == 0
+    assert r.returncode == 0, r.stdout + r.stderr
     assert r.stdout == ""
     assert r.stderr == ""
 
@@ -219,7 +230,7 @@ def test_no_verify_bypass_without_reason_blocks(repo: Path) -> None:
         {"tool_name": "Bash", "tool_input": {"command": "git commit --no-verify -m x"}},
         cwd=repo,
     )
-    assert r.returncode == 2
+    assert r.returncode == 2, r.stdout + r.stderr
     assert "GATE_BYPASS_REASON" in r.stdout
     assert "GATE_BYPASS_REASON" in r.stderr
     # #1367: stderr mirrors stdout byte-for-byte, not just a similar message.
@@ -233,7 +244,7 @@ def test_no_verify_bypass_with_reason_allows_and_audits(repo: Path) -> None:
         cwd=repo,
         extra_env={"GATE_BYPASS_REASON": "hotfix, review to follow"},
     )
-    assert r.returncode == 0
+    assert r.returncode == 0, r.stdout + r.stderr
     audit = repo / ".claude" / "metrics" / "gate-bypass-audit.jsonl"
     assert audit.exists()
     lines = audit.read_text().splitlines()
@@ -253,7 +264,7 @@ def test_no_verify_bypass_empty_reason_blocks(repo: Path) -> None:
         cwd=repo,
         extra_env={"GATE_BYPASS_REASON": "   "},
     )
-    assert r.returncode == 2
+    assert r.returncode == 2, r.stdout + r.stderr
     assert "GATE_BYPASS_REASON" in r.stdout
     assert "GATE_BYPASS_REASON" in r.stderr
 
@@ -264,7 +275,7 @@ def test_bare_n_bypass_without_reason_blocks(repo: Path) -> None:
         {"tool_name": "Bash", "tool_input": {"command": "git commit -n -m x"}},
         cwd=repo,
     )
-    assert r.returncode == 2
+    assert r.returncode == 2, r.stdout + r.stderr
     assert "GATE_BYPASS_REASON" in r.stderr
     assert "GATE_BYPASS_REASON" in r.stdout
 
@@ -285,7 +296,7 @@ def test_bypass_audit_uses_project_root_not_process_cwd(repo: Path) -> None:
         cwd=sub,
         extra_env={"GATE_BYPASS_REASON": "hotfix from a subdirectory"},
     )
-    assert r.returncode == 0
+    assert r.returncode == 0, r.stdout + r.stderr
     audit = repo / ".claude" / "metrics" / "gate-bypass-audit.jsonl"
     assert audit.exists()
     entry = json.loads(audit.read_text().splitlines()[0])
@@ -301,7 +312,7 @@ def test_bare_n_bypass_with_reason_allows_and_audits(repo: Path) -> None:
         cwd=repo,
         extra_env={"GATE_BYPASS_REASON": "emergency rollback"},
     )
-    assert r.returncode == 0
+    assert r.returncode == 0, r.stdout + r.stderr
     audit = repo / ".claude" / "metrics" / "gate-bypass-audit.jsonl"
     entry = json.loads(audit.read_text().splitlines()[0])
     assert entry["triggeredBy"] == "-n"
@@ -322,7 +333,7 @@ def test_commit_with_nothing_staged_silent(tmp_path: Path) -> None:
         {"tool_name": "Bash", "tool_input": {"command": "git commit -m x"}},
         cwd=tmp_path,
     )
-    assert r.returncode == 0
+    assert r.returncode == 0, r.stdout + r.stderr
 
 
 def test_malformed_stdin_silent() -> None:
@@ -337,9 +348,7 @@ def test_malformed_stdin_silent() -> None:
         text=True,
         check=False,
     )
-    assert r.returncode == 0
-
-
+    assert r.returncode == 0, r.stdout + r.stderr
 # --- gate branches --------------------------------------------------------
 
 
@@ -347,7 +356,7 @@ def test_missing_gate_file_blocks(repo: Path) -> None:
     r = _run(
         {"tool_name": "Bash", "tool_input": {"command": "git commit -m x"}}, cwd=repo
     )
-    assert r.returncode == 2
+    assert r.returncode == 2, r.stdout + r.stderr
     assert "BLOCKED" in r.stdout
     assert "/code-review" in r.stdout
     assert "--no-verify" in r.stdout
@@ -370,7 +379,7 @@ def test_dash_c_commit_gates_against_target_repo_not_payload_cwd(
         {"tool_name": "Bash", "tool_input": {"command": f"git -C {repo} commit -m x"}},
         cwd=outside,
     )
-    assert r.returncode == 2
+    assert r.returncode == 2, r.stdout + r.stderr
     assert "BLOCKED" in r.stdout
     # The gate-setup path (mkdir) must have run against the -C target...
     assert (repo / ".claude" / "memory").exists()
@@ -382,16 +391,14 @@ def test_dash_c_commit_passes_when_target_repo_gate_satisfied(
     repo: Path, tmp_path_factory: pytest.TempPathFactory
 ) -> None:
     outside = tmp_path_factory.mktemp("outside")
-    h = _current_hash(repo)
+    h = _write_gate_file(repo)
     gate_path = repo / ".claude" / "memory" / ".review-passed"
-    gate_path.parent.mkdir(parents=True, exist_ok=True)
-    gate_path.write_text(h)
     _write_dispatch_events(repo, ["security-review", "structure-review"], h)
     r = _run(
         {"tool_name": "Bash", "tool_input": {"command": f"git -C {repo} commit -m x"}},
         cwd=outside,
     )
-    assert r.returncode == 0
+    assert r.returncode == 0, r.stdout + r.stderr
     assert not gate_path.exists()
     assert not (outside / ".claude").exists()
 
@@ -421,7 +428,7 @@ def test_dash_c_relative_path_resolves_against_payload_cwd(
         },
         cwd=outside,
     )
-    assert r.returncode == 2
+    assert r.returncode == 2, r.stdout + r.stderr
     assert "BLOCKED" in r.stdout
     # Gate-setup ran against repo/sub, which walks up to the same repo root
     # (repo) for `.claude/memory` — not a bare, unresolved "sub" relative
@@ -464,7 +471,7 @@ def test_decoy_dash_c_commit_does_not_bypass_payload_repo_gate(
         },
         cwd=repo,
     )
-    assert r.returncode == 2
+    assert r.returncode == 2, r.stdout + r.stderr
     assert "BLOCKED" in r.stdout
 
 
@@ -487,7 +494,7 @@ def test_widened_detection_forms_gate_at_hook_level(command: str, repo: Path) ->
     still reach `_emit_block` through the full stdin -> detection -> gate
     -> exit-code pipeline, not just match at the detection layer."""
     r = _run({"tool_name": "Bash", "tool_input": {"command": command}}, cwd=repo)
-    assert r.returncode == 2
+    assert r.returncode == 2, r.stdout + r.stderr
     assert "BLOCKED" in r.stdout
 
 
@@ -511,7 +518,7 @@ def test_combined_env_prefix_and_relative_dash_c_gate_together(
         },
         cwd=outside,
     )
-    assert r.returncode == 2
+    assert r.returncode == 2, r.stdout + r.stderr
     assert "BLOCKED" in r.stdout
     assert (repo / ".claude" / "memory").exists()
     assert not (outside / ".claude").exists()
@@ -530,10 +537,8 @@ def test_multi_target_same_repo_shared_gate_file_passes_once(repo: Path) -> None
     would-be duplicate unlink)."""
     sub = repo / "sub"
     sub.mkdir()
-    h = _current_hash(repo)
+    h = _write_gate_file(repo)
     gate_path = repo / ".claude" / "memory" / ".review-passed"
-    gate_path.parent.mkdir(parents=True, exist_ok=True)
-    gate_path.write_text(h)
     _write_dispatch_events(repo, ["security-review", "structure-review"], h)
     r = _run(
         {
@@ -556,10 +561,8 @@ def test_gate_file_not_destroyed_when_later_target_blocks(
     never happened, forcing a fresh >=2-agent `/code-review` just to
     retry. `repo`'s gate must still be there after the overall command is
     blocked by an unrelated second target."""
-    h = _current_hash(repo)
+    h = _write_gate_file(repo)
     gate_path = repo / ".claude" / "memory" / ".review-passed"
-    gate_path.parent.mkdir(parents=True, exist_ok=True)
-    gate_path.write_text(h)
     _write_dispatch_events(repo, ["security-review", "structure-review"], h)
 
     other = tmp_path_factory.mktemp("other")
@@ -601,7 +604,7 @@ def test_undecodable_gate_file_blocks_not_fail_open(repo: Path) -> None:
     r = _run(
         {"tool_name": "Bash", "tool_input": {"command": "git commit -m x"}}, cwd=repo
     )
-    assert r.returncode == 2
+    assert r.returncode == 2, r.stdout + r.stderr
     assert "BLOCKED" in r.stdout
     # The block was actually recorded, not just the exit code/message
     # (test-review closing-pass finding): this test's own docstring claims
@@ -619,15 +622,12 @@ def test_matching_gate_file_passes_and_is_consumed(repo: Path) -> None:
     """#1461: a hash match alone is no longer sufficient — this now also
     requires >= 2 distinct genuine review-agent dispatches recorded in the
     recency window before the gate file's own write."""
-    h = _current_hash(repo)
-    gate_path = repo / ".claude" / "memory" / ".review-passed"
-    gate_path.parent.mkdir(parents=True, exist_ok=True)
-    gate_path.write_text(h)
+    h = _write_gate_file(repo)
     _write_dispatch_events(repo, ["security-review", "structure-review"], h)
     r = _run(
         {"tool_name": "Bash", "tool_input": {"command": "git commit -m x"}}, cwd=repo
     )
-    assert r.returncode == 0
+    assert r.returncode == 0, r.stdout + r.stderr
     # Gate file consumed on success.
     assert not (repo / ".claude" / "memory" / ".review-passed").exists()
 
@@ -638,10 +638,7 @@ def test_matching_gate_file_passes_and_is_consumed(repo: Path) -> None:
 
 
 def test_hash_match_with_no_dispatch_evidence_blocks_distinctly(repo: Path) -> None:
-    h = _current_hash(repo)
-    gate_path = repo / ".claude" / "memory" / ".review-passed"
-    gate_path.parent.mkdir(parents=True, exist_ok=True)
-    gate_path.write_text(h)
+    _write_gate_file(repo)
     # Ledger exists and is readable, but genuinely has zero qualifying
     # entries — distinct from a MISSING ledger, which this codebase treats
     # as a read failure (see review_gate_corroboration.py's module
@@ -653,7 +650,7 @@ def test_hash_match_with_no_dispatch_evidence_blocks_distinctly(repo: Path) -> N
     r = _run(
         {"tool_name": "Bash", "tool_input": {"command": "git commit -m x"}}, cwd=repo
     )
-    assert r.returncode == 2
+    assert r.returncode == 2, r.stdout + r.stderr
     assert "No genuine review-agent dispatch found" in r.stdout
     # Distinguishable from the hash-mismatch message.
     assert "Code review required before committing" not in r.stdout
@@ -665,15 +662,12 @@ def test_missing_ledger_file_is_a_read_failure_not_no_dispatch_evidence(
     """The ledger file never having been created at all is bucketed as a
     read failure (many always-on guard hooks write it — its total absence
     is itself an infra signal), distinct from an existing-but-empty file."""
-    h = _current_hash(repo)
-    gate_path = repo / ".claude" / "memory" / ".review-passed"
-    gate_path.parent.mkdir(parents=True, exist_ok=True)
-    gate_path.write_text(h)
+    _write_gate_file(repo)
     # No boundary-events.jsonl written at all.
     r = _run(
         {"tool_name": "Bash", "tool_input": {"command": "git commit -m x"}}, cwd=repo
     )
-    assert r.returncode == 2
+    assert r.returncode == 2, r.stdout + r.stderr
     assert "Could not read the dispatch ledger" in r.stdout
 
 
@@ -702,44 +696,35 @@ def test_evaluate_gate_unexpected_exception_in_ledger_evaluation_fails_closed(
 
 
 def test_hash_match_with_one_distinct_dispatch_blocks_as_insufficient(repo: Path) -> None:
-    h = _current_hash(repo)
-    gate_path = repo / ".claude" / "memory" / ".review-passed"
-    gate_path.parent.mkdir(parents=True, exist_ok=True)
-    gate_path.write_text(h)
+    h = _write_gate_file(repo)
     _write_dispatch_events(repo, ["security-review"], h)
     r = _run(
         {"tool_name": "Bash", "tool_input": {"command": "git commit -m x"}}, cwd=repo
     )
-    assert r.returncode == 2
+    assert r.returncode == 2, r.stdout + r.stderr
     assert "Only 1 distinct review agent(s) dispatched" in r.stdout
 
 
 def test_hash_match_with_same_agent_dispatched_twice_counts_as_one_distinct(
     repo: Path,
 ) -> None:
-    h = _current_hash(repo)
-    gate_path = repo / ".claude" / "memory" / ".review-passed"
-    gate_path.parent.mkdir(parents=True, exist_ok=True)
-    gate_path.write_text(h)
+    h = _write_gate_file(repo)
     _write_dispatch_events(repo, ["security-review", "security-review"], h)
     r = _run(
         {"tool_name": "Bash", "tool_input": {"command": "git commit -m x"}}, cwd=repo
     )
-    assert r.returncode == 2
+    assert r.returncode == 2, r.stdout + r.stderr
     assert "Only 1 distinct review agent(s) dispatched" in r.stdout
 
 
 def test_hash_match_with_stale_dispatch_evidence_blocks_distinctly(repo: Path) -> None:
-    h = _current_hash(repo)
-    gate_path = repo / ".claude" / "memory" / ".review-passed"
-    gate_path.parent.mkdir(parents=True, exist_ok=True)
-    gate_path.write_text(h)
+    h = _write_gate_file(repo)
     stale_ts = datetime.now(timezone.utc) - timedelta(seconds=_WINDOW_SECONDS + 600)
     _write_dispatch_events(repo, ["security-review", "structure-review"], h, ts=stale_ts)
     r = _run(
         {"tool_name": "Bash", "tool_input": {"command": "git commit -m x"}}, cwd=repo
     )
-    assert r.returncode == 2
+    assert r.returncode == 2, r.stdout + r.stderr
     assert "outside the" in r.stdout and "window" in r.stdout
     assert "No genuine review-agent dispatch found" not in r.stdout
 
@@ -763,15 +748,12 @@ def test_hash_match_with_only_one_dispatch_inside_window_is_insufficient(
     r = _run(
         {"tool_name": "Bash", "tool_input": {"command": "git commit -m x"}}, cwd=repo
     )
-    assert r.returncode == 2
+    assert r.returncode == 2, r.stdout + r.stderr
     assert "Only 1 distinct review agent(s) dispatched" in r.stdout
 
 
 def test_hash_mismatch_rejects_even_with_ample_dispatch_evidence(repo: Path) -> None:
-    h = _current_hash(repo)
-    gate_path = repo / ".claude" / "memory" / ".review-passed"
-    gate_path.parent.mkdir(parents=True, exist_ok=True)
-    gate_path.write_text(h)
+    h = _write_gate_file(repo)
     _write_dispatch_events(repo, ["security-review", "structure-review", "arch-review"], h)
     # Edit the staged file's content after the gate write — hash now mismatches.
     (repo / "a.ts").write_text("v2-unreviewed\n")
@@ -780,7 +762,7 @@ def test_hash_mismatch_rejects_even_with_ample_dispatch_evidence(repo: Path) -> 
     r = _run(
         {"tool_name": "Bash", "tool_input": {"command": "git commit -m x"}}, cwd=repo
     )
-    assert r.returncode == 2
+    assert r.returncode == 2, r.stdout + r.stderr
     assert "Code review required before committing" in r.stdout
 
 
@@ -806,15 +788,12 @@ def test_rewritten_gate_file_anchors_on_its_own_new_mtime_not_original_dispatch(
     r = _run(
         {"tool_name": "Bash", "tool_input": {"command": "git commit -m x"}}, cwd=repo
     )
-    assert r.returncode == 2
+    assert r.returncode == 2, r.stdout + r.stderr
     assert "outside the" in r.stdout and "window" in r.stdout
 
 
 def test_ledger_read_failure_is_distinguishable_from_empty_ledger(repo: Path) -> None:
-    h = _current_hash(repo)
-    gate_path = repo / ".claude" / "memory" / ".review-passed"
-    gate_path.parent.mkdir(parents=True, exist_ok=True)
-    gate_path.write_text(h)
+    _write_gate_file(repo)
     # Undecodable bytes make the whole ledger file unreadable, not merely
     # empty of qualifying entries.
     log = repo / ".claude" / "metrics" / "boundary-events.jsonl"
@@ -823,7 +802,7 @@ def test_ledger_read_failure_is_distinguishable_from_empty_ledger(repo: Path) ->
     r = _run(
         {"tool_name": "Bash", "tool_input": {"command": "git commit -m x"}}, cwd=repo
     )
-    assert r.returncode == 2
+    assert r.returncode == 2, r.stdout + r.stderr
     assert "Could not read the dispatch ledger" in r.stdout
     assert "infra problem" in r.stdout
     assert "No genuine review-agent dispatch found" not in r.stdout
@@ -851,15 +830,12 @@ def test_doc_only_exemption_satisfies_the_gate_without_dispatch_evidence(
     tmp_path: Path,
 ) -> None:
     repo = _doc_only_repo(tmp_path)
-    h = _current_hash(repo)
-    gate_path = repo / ".claude" / "memory" / ".review-passed"
-    gate_path.parent.mkdir(parents=True, exist_ok=True)
-    gate_path.write_text(h)
+    h = _write_gate_file(repo)
     _write_doc_only_exemption(repo, h)
     r = _run(
         {"tool_name": "Bash", "tool_input": {"command": "git commit -m x"}}, cwd=repo
     )
-    assert r.returncode == 0
+    assert r.returncode == 0, r.stdout + r.stderr
     assert not (repo / ".claude" / "memory" / ".review-passed").exists()
 
 
@@ -873,15 +849,12 @@ def test_doc_only_exemption_is_rejected_when_staged_content_is_not_documentation
     not documentation, so a claimed doc-only exemption must NOT be honored:
     the gate falls through to requiring real dispatch evidence, exactly as
     if no exemption had been claimed at all."""
-    h = _current_hash(repo)
-    gate_path = repo / ".claude" / "memory" / ".review-passed"
-    gate_path.parent.mkdir(parents=True, exist_ok=True)
-    gate_path.write_text(h)
+    h = _write_gate_file(repo)
     _write_doc_only_exemption(repo, h)
     r = _run(
         {"tool_name": "Bash", "tool_input": {"command": "git commit -m x"}}, cwd=repo
     )
-    assert r.returncode == 2
+    assert r.returncode == 2, r.stdout + r.stderr
     assert "No genuine review-agent dispatch found" in r.stdout
 
 
@@ -916,15 +889,12 @@ def test_doc_only_exemption_is_rejected_for_functional_config_markdown(
     change to `agents/security-review.md` must NOT be honored; the gate
     must fall through to requiring real dispatch evidence."""
     repo = _functional_config_repo(tmp_path)
-    h = _current_hash(repo)
-    gate_path = repo / ".claude" / "memory" / ".review-passed"
-    gate_path.parent.mkdir(parents=True, exist_ok=True)
-    gate_path.write_text(h)
+    h = _write_gate_file(repo)
     _write_doc_only_exemption(repo, h)
     r = _run(
         {"tool_name": "Bash", "tool_input": {"command": "git commit -m x"}}, cwd=repo
     )
-    assert r.returncode == 2
+    assert r.returncode == 2, r.stdout + r.stderr
     assert "No genuine review-agent dispatch found" in r.stdout
 
 
@@ -938,15 +908,12 @@ def test_doc_only_exemption_is_rejected_for_mixed_doc_and_code_changeset(
     (repo / "a.ts").write_text("v1\n")
     env = hermetic_git_env(home=repo)
     subprocess.run(["git", "add", "a.ts"], cwd=repo, env=env, check=True)
-    h = _current_hash(repo)
-    gate_path = repo / ".claude" / "memory" / ".review-passed"
-    gate_path.parent.mkdir(parents=True, exist_ok=True)
-    gate_path.write_text(h)
+    h = _write_gate_file(repo)
     _write_doc_only_exemption(repo, h)
     r = _run(
         {"tool_name": "Bash", "tool_input": {"command": "git commit -m x"}}, cwd=repo
     )
-    assert r.returncode == 2
+    assert r.returncode == 2, r.stdout + r.stderr
     assert "No genuine review-agent dispatch found" in r.stdout
 
 
@@ -960,15 +927,12 @@ def test_single_agent_exemption_without_any_dispatch_evidence_blocks(
     review agent, so requiring `n >= 1` alongside the exemption event
     closes this without regressing the documented workflow (see the next
     test)."""
-    h = _current_hash(repo)
-    gate_path = repo / ".claude" / "memory" / ".review-passed"
-    gate_path.parent.mkdir(parents=True, exist_ok=True)
-    gate_path.write_text(h)
+    h = _write_gate_file(repo)
     _write_single_agent_exemption(repo, h)
     r = _run(
         {"tool_name": "Bash", "tool_input": {"command": "git commit -m x"}}, cwd=repo
     )
-    assert r.returncode == 2
+    assert r.returncode == 2, r.stdout + r.stderr
     assert "No genuine review-agent dispatch found" in r.stdout
 
 
@@ -976,16 +940,13 @@ def test_single_agent_exemption_with_one_real_dispatch_passes(repo: Path) -> Non
     """The sanctioned `--agent <name>` flow: exactly 1 genuine dispatch plus
     its exemption event — must still pass despite never reaching the
     `>= 2` distinct-dispatch floor."""
-    h = _current_hash(repo)
-    gate_path = repo / ".claude" / "memory" / ".review-passed"
-    gate_path.parent.mkdir(parents=True, exist_ok=True)
-    gate_path.write_text(h)
+    h = _write_gate_file(repo)
     _write_dispatch_events(repo, ["security-review"], h)
     _write_single_agent_exemption(repo, h)
     r = _run(
         {"tool_name": "Bash", "tool_input": {"command": "git commit -m x"}}, cwd=repo
     )
-    assert r.returncode == 0
+    assert r.returncode == 0, r.stdout + r.stderr
     assert not (repo / ".claude" / "memory" / ".review-passed").exists()
 
 
@@ -1122,10 +1083,7 @@ def test_staged_names_uses_payload_cwd_not_process_cwd(tmp_path: Path) -> None:
 
 def test_stale_gate_file_blocks(repo: Path) -> None:
     """Reviewed content changed → hash mismatch → block. Gate file NOT removed."""
-    h = _current_hash(repo)
-    gate_path = repo / ".claude" / "memory" / ".review-passed"
-    gate_path.parent.mkdir(parents=True, exist_ok=True)
-    gate_path.write_text(h)
+    _write_gate_file(repo)
     # Edit the staged file's content.
     (repo / "a.ts").write_text("v2-unreviewed\n")
     env = hermetic_git_env(home=repo)
@@ -1133,7 +1091,7 @@ def test_stale_gate_file_blocks(repo: Path) -> None:
     r = _run(
         {"tool_name": "Bash", "tool_input": {"command": "git commit -m x"}}, cwd=repo
     )
-    assert r.returncode == 2
+    assert r.returncode == 2, r.stdout + r.stderr
     assert "BLOCKED" in r.stdout
     assert "BLOCKED" in r.stderr
     # Gate file preserved because it did NOT match.
@@ -1141,17 +1099,14 @@ def test_stale_gate_file_blocks(repo: Path) -> None:
 
 
 def test_extra_staged_file_after_review_blocks(repo: Path) -> None:
-    h = _current_hash(repo)
-    gate_path = repo / ".claude" / "memory" / ".review-passed"
-    gate_path.parent.mkdir(parents=True, exist_ok=True)
-    gate_path.write_text(h)
+    _write_gate_file(repo)
     (repo / "b.ts").write_text("new\n")
     env = hermetic_git_env(home=repo)
     subprocess.run(["git", "add", "b.ts"], cwd=repo, env=env, check=True)
     r = _run(
         {"tool_name": "Bash", "tool_input": {"command": "git commit -m x"}}, cwd=repo
     )
-    assert r.returncode == 2
+    assert r.returncode == 2, r.stdout + r.stderr
     assert "BLOCKED" in r.stdout
     assert "BLOCKED" in r.stderr
 
@@ -1372,7 +1327,7 @@ def test_doc_only_exemption_is_rejected_for_a_doc_named_code_file(
         {"tool_name": "Bash", "tool_input": {"command": "git commit -m x"}},
         cwd=tmp_path,
     )
-    assert r.returncode == 2
+    assert r.returncode == 2, r.stdout + r.stderr
     assert "No genuine review-agent dispatch found" in r.stdout
 
 
@@ -1427,16 +1382,13 @@ def test_gate_still_sees_staged_files_under_diff_relative_config(repo: Path) -> 
 def test_dispatch_for_different_subject_hash_in_window_reports_different_content(
     repo: Path,
 ) -> None:
-    h = _current_hash(repo)
-    gate_path = repo / ".claude" / "memory" / ".review-passed"
-    gate_path.parent.mkdir(parents=True, exist_ok=True)
-    gate_path.write_text(h)
+    _write_gate_file(repo)
     # Genuine, recent dispatches — but for a DIFFERENT changeset's hash.
     _write_dispatch_events(repo, ["security-review", "structure-review"], "a-different-hash")
     r = _run(
         {"tool_name": "Bash", "tool_input": {"command": "git commit -m x"}}, cwd=repo
     )
-    assert r.returncode == 2
+    assert r.returncode == 2, r.stdout + r.stderr
     assert "for different staged content" in r.stdout
     assert "outside the" not in r.stdout
 
@@ -1453,16 +1405,13 @@ def test_dispatch_failure_event_vetoes_gate_despite_two_distinct_dispatches(
     """The veto applies regardless of how many other agents genuinely
     dispatched and returned for this same subject_hash — it takes priority
     over the terminal distinct-dispatch-count lens."""
-    h = _current_hash(repo)
-    gate_path = repo / ".claude" / "memory" / ".review-passed"
-    gate_path.parent.mkdir(parents=True, exist_ok=True)
-    gate_path.write_text(h)
+    h = _write_gate_file(repo)
     _write_dispatch_events(repo, ["security-review", "structure-review"], h)
     _write_dispatch_failure(repo, "correctness-review", h)
     r = _run(
         {"tool_name": "Bash", "tool_input": {"command": "git commit -m x"}}, cwd=repo
     )
-    assert r.returncode == 2
+    assert r.returncode == 2, r.stdout + r.stderr
     assert "Dispatch failure recorded for correctness-review" in r.stdout
     assert "not a code-review finding" in r.stdout
 
@@ -1471,10 +1420,7 @@ def test_superseding_record_event_clears_the_dispatch_failure_veto(repo: Path) -
     """A LATER genuine "record" event for the same agent and hash supersedes
     and clears an earlier dispatch-failure — the recovered-on-a-normal-
     resume path."""
-    h = _current_hash(repo)
-    gate_path = repo / ".claude" / "memory" / ".review-passed"
-    gate_path.parent.mkdir(parents=True, exist_ok=True)
-    gate_path.write_text(h)
+    h = _write_gate_file(repo)
     failure_ts = datetime.now(timezone.utc) - timedelta(seconds=60)
     _write_dispatch_failure(repo, "correctness-review", h, ts=failure_ts)
     # The superseding dispatch, plus one more distinct agent, clears the
@@ -1490,10 +1436,7 @@ def test_superseding_record_event_clears_the_dispatch_failure_veto(repo: Path) -
 def test_dispatch_failure_event_for_a_different_hash_does_not_block(repo: Path) -> None:
     """A dispatch-failure event bound to unrelated staged content must never
     veto a gate whose own subject_hash has no failure of its own."""
-    h = _current_hash(repo)
-    gate_path = repo / ".claude" / "memory" / ".review-passed"
-    gate_path.parent.mkdir(parents=True, exist_ok=True)
-    gate_path.write_text(h)
+    h = _write_gate_file(repo)
     _write_dispatch_failure(repo, "correctness-review", "a-different-hash")
     _write_dispatch_events(repo, ["security-review", "structure-review"], h)
     r = _run(
@@ -1508,17 +1451,14 @@ def test_dispatch_failure_veto_is_not_cleared_by_time_alone(repo: Path) -> None:
     `WINDOW_SECONDS` — a dispatch-failure event far outside the recency
     window, for unchanged content with no later superseding "record" event,
     must still block."""
-    h = _current_hash(repo)
-    gate_path = repo / ".claude" / "memory" / ".review-passed"
-    gate_path.parent.mkdir(parents=True, exist_ok=True)
-    gate_path.write_text(h)
+    h = _write_gate_file(repo)
     stale_ts = datetime.now(timezone.utc) - timedelta(seconds=_WINDOW_SECONDS + 600)
     _write_dispatch_failure(repo, "correctness-review", h, ts=stale_ts)
     _write_dispatch_events(repo, ["security-review", "structure-review"], h)
     r = _run(
         {"tool_name": "Bash", "tool_input": {"command": "git commit -m x"}}, cwd=repo
     )
-    assert r.returncode == 2
+    assert r.returncode == 2, r.stdout + r.stderr
     assert "Dispatch failure recorded for correctness-review" in r.stdout
 
 
@@ -1613,33 +1553,27 @@ def test_doc_only_exemption_does_not_launder_a_dispatch_failure(tmp_path: Path) 
     security review) — this test would fail if a refactor moved
     `_dispatch_failure_verdict` below `_doc_only_exemption_verdict`."""
     repo = _doc_only_repo(tmp_path)
-    h = _current_hash(repo)
-    gate_path = repo / ".claude" / "memory" / ".review-passed"
-    gate_path.parent.mkdir(parents=True, exist_ok=True)
-    gate_path.write_text(h)
+    h = _write_gate_file(repo)
     _write_doc_only_exemption(repo, h)
     _write_dispatch_failure(repo, "correctness-review", h)
     r = _run(
         {"tool_name": "Bash", "tool_input": {"command": "git commit -m x"}}, cwd=repo
     )
-    assert r.returncode == 2
+    assert r.returncode == 2, r.stdout + r.stderr
     assert "Dispatch failure recorded for correctness-review" in r.stdout
 
 
 def test_single_agent_exemption_does_not_launder_a_dispatch_failure(repo: Path) -> None:
     """Same priority-ordering proof as the doc-only case above, for the
     OTHER exemption lens (#1763 security review)."""
-    h = _current_hash(repo)
-    gate_path = repo / ".claude" / "memory" / ".review-passed"
-    gate_path.parent.mkdir(parents=True, exist_ok=True)
-    gate_path.write_text(h)
+    h = _write_gate_file(repo)
     _write_dispatch_events(repo, ["security-review"], h)
     _write_single_agent_exemption(repo, h)
     _write_dispatch_failure(repo, "correctness-review", h)
     r = _run(
         {"tool_name": "Bash", "tool_input": {"command": "git commit -m x"}}, cwd=repo
     )
-    assert r.returncode == 2
+    assert r.returncode == 2, r.stdout + r.stderr
     assert "Dispatch failure recorded for correctness-review" in r.stdout
 
 
@@ -2074,7 +2008,7 @@ def test_unstaged_a_flag_commit_blocks_with_git_add_guidance(committed_repo: Pat
         {"tool_name": "Bash", "tool_input": {"command": "git commit -a -m x"}},
         cwd=committed_repo,
     )
-    assert r.returncode == 2
+    assert r.returncode == 2, r.stdout + r.stderr
     assert "git add" in r.stdout
     assert "BLOCKED" in r.stdout
     assert r.stdout == r.stderr
@@ -2085,7 +2019,7 @@ def test_unstaged_pathspec_commit_blocks_with_git_add_guidance(committed_repo: P
         {"tool_name": "Bash", "tool_input": {"command": "git commit a.ts -m x"}},
         cwd=committed_repo,
     )
-    assert r.returncode == 2
+    assert r.returncode == 2, r.stdout + r.stderr
     assert "git add" in r.stdout
 
 
@@ -2101,7 +2035,7 @@ def test_unstaged_a_flag_commit_with_matching_hash_and_dispatch_evidence_passes(
         {"tool_name": "Bash", "tool_input": {"command": "git commit -a -m x"}},
         cwd=committed_repo,
     )
-    assert r.returncode == 0
+    assert r.returncode == 0, r.stdout + r.stderr
     assert not gate_path.exists()
 
 
@@ -2120,7 +2054,7 @@ def test_unstaged_a_flag_commit_with_matching_hash_but_no_dispatch_evidence_bloc
         {"tool_name": "Bash", "tool_input": {"command": "git commit -a -m x"}},
         cwd=committed_repo,
     )
-    assert r.returncode == 2
+    assert r.returncode == 2, r.stdout + r.stderr
     assert "git add" not in r.stdout
     assert "review-agent dispatch" in r.stdout.lower() or "dispatch" in r.stdout.lower()
 
@@ -2138,7 +2072,7 @@ def test_unstaged_a_flag_commit_stale_gate_hash_blocks_with_git_add_guidance(
         {"tool_name": "Bash", "tool_input": {"command": "git commit -a -m x"}},
         cwd=committed_repo,
     )
-    assert r.returncode == 2
+    assert r.returncode == 2, r.stdout + r.stderr
     assert "git add" in r.stdout
 
 
@@ -2150,7 +2084,7 @@ def test_unstaged_a_flag_no_verify_without_reason_blocks(committed_repo: Path) -
         {"tool_name": "Bash", "tool_input": {"command": "git commit -a --no-verify -m x"}},
         cwd=committed_repo,
     )
-    assert r.returncode == 2
+    assert r.returncode == 2, r.stdout + r.stderr
     assert "GATE_BYPASS_REASON" in r.stdout
     assert not (committed_repo / ".claude" / "metrics" / "gate-bypass-audit.jsonl").exists()
 
@@ -2161,7 +2095,7 @@ def test_unstaged_a_flag_no_verify_with_reason_allows_and_audits(committed_repo:
         cwd=committed_repo,
         extra_env={"GATE_BYPASS_REASON": "hotfix, review to follow"},
     )
-    assert r.returncode == 0
+    assert r.returncode == 0, r.stdout + r.stderr
     audit = committed_repo / ".claude" / "metrics" / "gate-bypass-audit.jsonl"
     assert audit.exists()
     entry = json.loads(audit.read_text().splitlines()[0])
@@ -2183,7 +2117,7 @@ def test_unborn_head_with_nothing_staged_or_modified_stays_silent(tmp_path: Path
         {"tool_name": "Bash", "tool_input": {"command": "git commit -a -m x"}},
         cwd=tmp_path,
     )
-    assert r.returncode == 0
+    assert r.returncode == 0, r.stdout + r.stderr
 
 
 def test_normal_staged_commit_on_repo_with_history_still_gated_normally(
@@ -2208,5 +2142,5 @@ def test_normal_staged_commit_on_repo_with_history_still_gated_normally(
         {"tool_name": "Bash", "tool_input": {"command": "git commit -m x"}},
         cwd=committed_repo,
     )
-    assert r.returncode == 0
+    assert r.returncode == 0, r.stdout + r.stderr
     assert not gate_path.exists()
