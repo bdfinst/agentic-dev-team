@@ -183,19 +183,16 @@ def _run_hook_from(
         target_py.write_bytes((_HOOKS_DIR / "contract_version_guard.py").read_bytes())
     target_lib = target_hooks / "lib"
     target_lib.mkdir(parents=True, exist_ok=True)
-    target_boundary_events = target_lib / "boundary_events.py"
-    if not target_boundary_events.exists():
-        target_boundary_events.write_bytes(
-            (_HOOKS_DIR / "lib" / "boundary_events.py").read_bytes()
-        )
-    # boundary_events.py imports artifact_paths (Slice 5, Step 5.3) — its
-    # sibling module must be copied alongside it or the subprocess's import
-    # fails with ModuleNotFoundError.
-    target_artifact_paths = target_lib / "artifact_paths.py"
-    if not target_artifact_paths.exists():
-        target_artifact_paths.write_bytes(
-            (_HOOKS_DIR / "lib" / "artifact_paths.py").read_bytes()
-        )
+    # boundary_events.py's sibling module imports (artifact_paths,
+    # atomic_state (#1874, append-lock fix)) must be copied alongside it or
+    # the subprocess's import fails with ModuleNotFoundError. One loop over
+    # the dependency list, rather than a copy-pasted block per module, so
+    # the next new import boundary_events.py picks up needs only a new
+    # entry here, not a new block (test-smell review, #1874).
+    for _module_name in ("boundary_events.py", "artifact_paths.py", "atomic_state.py"):
+        target_module = target_lib / _module_name
+        if not target_module.exists():
+            target_module.write_bytes((_HOOKS_DIR / "lib" / _module_name).read_bytes())
     # The plugin manifest path is resolved relative to hooks/lib/, i.e.
     # hooks/../.claude-plugin/plugin.json — create a minimal one so
     # emit_boundary_event's version lookup doesn't hit a missing-file path

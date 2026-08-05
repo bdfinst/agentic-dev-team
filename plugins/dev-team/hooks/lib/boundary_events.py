@@ -22,6 +22,7 @@ Stdlib only. See ADR 0014 / ADR 0015.
 from __future__ import annotations
 
 import json
+import os
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
@@ -31,8 +32,87 @@ if str(_LIB_DIR) not in sys.path:
     sys.path.insert(0, str(_LIB_DIR))
 
 import artifact_paths
+import atomic_state
 
 _LOG_NAME = "boundary-events.jsonl"
+
+# Test-only injection point (see `_write_jsonl_line` below and
+# `atomic_state.race_window_delay`'s own docstring): unset in production, a
+# no-op when absent.
+_TEST_DELAY_ENV = "DEV_TEAM_BOUNDARY_EVENTS_TEST_DELAY_MS"
+
+
+def _append_line_locked(log: Path, line: str) -> None:
+    """Serialize one JSONL append against concurrent writers (#1874).
+
+    Sliced-mode code-review dispatches 2-3 concurrent slices, each able to
+    emit a "dispatch-failure" event independently; a bare
+    `open(log, "a").write(...)` with no locking can interleave those
+    appends into a corrupted JSONL line. `atomic_state.locked_state`
+    (already used for this exact pattern in `bash_retry_guard.py`) holds
+    an exclusive advisory lock for the full open+write+close critical
+    section.
+
+    `locked_state`'s own docstring/contract (atomic_state.py) documents
+    that callers own their OSError handling INSIDE the critical section —
+    its outer `except OSError` is only for the lock file's own `open()`,
+    not the caller's body. Catching it here, rather than letting it
+    propagate out of the `with`, matters: manually removing this
+    `except OSError` and re-running
+    `test_append_line_locked_swallows_oserror_inside_the_critical_section`
+    (plugins/dev-team/tests/hooks/test_boundary_events.py) confirms the
+    uncaught OSError surfaces as `RuntimeError("generator didn't stop
+    after throw()")`, not the original OSError — an uncaught exception
+    thrown into `locked_state`'s generator body re-enters it at a second,
+    unreachable `yield` (`atomic_state.py`'s own fail-open `except OSError:
+    pass` around its lock-acquisition `open()`), which CPython's
+    `contextlib` rejects. This is a latent contract violation this call
+    site must not trip — even though `emit_boundary_event`'s own outer
+    `except Exception` would still swallow whatever surfaced.
+    """
+    with atomic_state.locked_state(log):
+        try:
+            with open(log, "a", encoding="utf-8") as handle:
+                _write_jsonl_line(handle, line)
+        except OSError:
+            pass
+
+
+def _write_jsonl_line(handle, line: str) -> None:
+    """Write one already-newline-terminated JSONL line to an open handle.
+
+    Ordinarily a single `write()`. When `_TEST_DELAY_ENV` names a positive
+    millisecond delay (unset in production — see
+    `atomic_state.race_window_delay`), splits the write in two with a flush
+    and sleep in between, widening the window in which an *unlocked* append
+    from another writer could land between the two halves and interleave
+    with this line. This is a test-only determinism aid (#1874) — it lets a
+    concurrency regression test prove the lock in `emit_boundary_event`
+    actually prevents corruption, rather than relying on the local
+    filesystem happening to make small single-`write()` appends atomic.
+
+    A value of `"0"` (or anything else that parses to <= 0, or fails to
+    parse at all) takes the plain single-`write()` path, matching this
+    repo's `DEV_TEAM_*` numeric-knob convention where a non-positive value
+    means "disabled" (security review, #1874) — checking `os.environ.get()`
+    for bare truthiness would instead treat the *string* `"0"` as "enabled
+    with a zero-length delay" and needlessly split the write.
+    """
+    raw = os.environ.get(_TEST_DELAY_ENV)
+    delay_ms = 0
+    if raw:
+        try:
+            delay_ms = int(raw)
+        except ValueError:
+            delay_ms = 0
+    if delay_ms <= 0:
+        handle.write(line)
+        return
+    midpoint = len(line) // 2
+    handle.write(line[:midpoint])
+    handle.flush()
+    atomic_state.race_window_delay(_TEST_DELAY_ENV)
+    handle.write(line[midpoint:])
 
 
 # The single source of truth for this stream's `ts` format (#1461 structure
@@ -141,8 +221,8 @@ def emit_boundary_event(
         if subject_hash_normalized:
             payload["subject_hash_normalized"] = subject_hash_normalized
 
-        with open(log, "a", encoding="utf-8") as handle:
-            handle.write(json.dumps(payload, separators=(",", ":")) + "\n")
+        line = json.dumps(payload, separators=(",", ":")) + "\n"
+        _append_line_locked(log, line)
     except Exception:  # noqa: BLE001, S110 — fail-open by design, see module docstring
         pass
 
@@ -279,11 +359,12 @@ def _main() -> int:
             # Local import: only this branch needs this sibling module, so
             # callers that merely import `emit_boundary_event` (every guard
             # hook) never pay for it, and copy-into-tmp-dir test harnesses
-            # that stage only boundary_events.py + artifact_paths.py
-            # alongside the hook under test (see
-            # test_contract_version_guard.py::_run_hook_from) keep working
-            # unmodified. Inside the try/except below so an ImportError from
-            # a partial install degrades the same way a broken registry
+            # that stage a minimal subset of hooks/lib/ alongside the hook
+            # under test (see test_contract_version_guard.py::_run_hook_from,
+            # which stages boundary_events.py + artifact_paths.py +
+            # atomic_state.py) keep working unmodified. Inside the
+            # try/except below so an ImportError from a partial install
+            # degrades the same way a broken registry
             # read does, rather than raising.
             import review_agent_registry
 
