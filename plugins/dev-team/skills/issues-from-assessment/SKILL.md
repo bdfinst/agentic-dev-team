@@ -102,11 +102,11 @@ Contents: the assessment summary (components table, target pre-merge gate, link 
 
 Two modes share the same control flow; only the create-call differs. Every tracker label carries `<workflow>` as its leading token so an operator scanning a mixed board can tell which workflow authored an issue.
 
-**Tracker mode.** For each child in dependency order, call the resolved CLI. Lift the GitHub pattern verbatim from `/issues-from-plan`:
+**Tracker mode.** For each child in dependency order, call the resolved CLI. Lift the GitHub pattern verbatim from `/issues-from-plan`, **including its Conventional Commit title rule** — GitHub is the only tracker here bound to `commitlint.config.js`/`issue-title-lint.yml`; ADO/GitLab/Jira titles keep the plain `[<phase-tag>] <component>` form from step 2 unchanged. For GitHub, prefix that same phase-tag title with a type — `test:` fits every phase here (audit/baseline/refactor-for-testability/de-duplicate/re-scope are all test-suite work): `test: [Baseline] <component>`. Verify with `printf '%s' "<title>" | npx commitlint --verbose` before creating.
 
 ```bash
 # GitHub — github.com
-gh issue create --title "<title>" --body "$(cat <<'EOF'
+gh issue create --title "test: [<phase-tag>] <title>" --body "$(cat <<'EOF'
 ## What to Build
 
 <one-paragraph behavior description>

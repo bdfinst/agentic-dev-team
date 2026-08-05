@@ -113,6 +113,10 @@
           {
             "type": "command",
             "command": "sh hooks/py.sh hooks/mutation_testing_smoke_gate.py"
+          },
+          {
+            "type": "command",
+            "command": "sh hooks/py.sh hooks/scan_bash_for_banned_scripts.py"
           }
         ]
       },
@@ -246,6 +250,15 @@
           {
             "type": "command",
             "command": "sh hooks/py.sh hooks/phase_marker.py"
+          }
+        ]
+      },
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "sh hooks/py.sh hooks/scan_banned_scripts.py"
           }
         ]
       }

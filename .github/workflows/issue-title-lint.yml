@@ -6,7 +6,7 @@ name: Issue title lint
 # commits (commitlint.config.js). GitHub has no "required check" for issues, so
 # this is a visible backstop: it labels a non-conforming title and comments the
 # fix once, then clears the label when the title is corrected. The primary,
-# proactive enforcement is in the issue-creating skills (issues-from-plan,
+# proactive enforcement is in the issue-creating skills (specs, issues-from-plan,
 # issues-from-assessment), which lint titles before `gh issue create`.
 
 on:

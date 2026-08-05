@@ -1521,6 +1521,10 @@
     "`iteration-journal.jsonl`": {
       "summary": "**Added by #1168.** Hard per-iteration decision journal for the autonomous",
       "anchor": "iteration-journaljsonl"
+    },
+    "`xunit-v3-shim-decisions.json`": {
+      "summary": "**Added by #1791.** Not JSONL — a single current-value JSON object keyed by test",
+      "anchor": "xunit-v3-shim-decisionsjson"
     }
   },
   "plugins/dev-team/knowledge/test-automation-maturity.md": {
@@ -3674,13 +3678,13 @@
       "summary": "Each property is scored 1-10:",
       "anchor": "the-8-properties"
     },
-    "Scoring": {
-      "summary": "Total weight: 9.0.",
-      "anchor": "scoring"
+    "Scoring anchors — score from evidence, not intuition": {
+      "summary": "Every property score must be justified by a specific line, assertion, or absence you can point to.",
+      "anchor": "scoring-anchors-score-from-evidence-not-intuition"
     },
-    "Per-test score": {
-      "summary": "Total weight: 9.0.",
-      "anchor": "per-test-score"
+    "Weighting": {
+      "summary": "Total weight: 9.0 (or the reduced total when a property is scored `Unknown` per the First rule above — recompute both numerator and denominator without it).",
+      "anchor": "weighting"
     },
     "Score interpretation": {
       "summary": "| Range | Rating | Action |",
@@ -3691,11 +3695,23 @@
       "anchor": "suite-level-score"
     },
     "Output Format": {
-      "summary": "**test-review agent**: Checks coverage and assertion quality; this skill adds quantitative scoring",
+      "summary": "Each row here summarizes one test; the per-property table backing it — every property scored with a citation — is computed the same way as the Worked Example below and must exist even when only this summary row is reported.",
       "anchor": "output-format"
     },
+    "Worked Example": {
+      "summary": "Same test, scored the correct way and an ambiguous way that requires a correction.",
+      "anchor": "worked-example"
+    },
+    "Correct scoring output": {
+      "summary": "This is exactly the shape that forces a correction, for three concrete reasons:",
+      "anchor": "correct-scoring-output"
+    },
+    "Incorrect / ambiguous scoring output (avoid this)": {
+      "summary": "This is exactly the shape that forces a correction, for three concrete reasons:",
+      "anchor": "incorrect-ambiguous-scoring-output-avoid-this"
+    },
     "Integration": {
-      "summary": "**test-review agent**: Checks coverage and assertion quality; this skill adds quantitative scoring",
+      "summary": "**test-review agent**: Farley Score is computed at orchestrator level (`/test-design` for existing tests, `/build` Step 7 for branch tests) — not invoked directly from test-review.",
       "anchor": "integration"
     }
   },
@@ -4635,6 +4651,36 @@
       "anchor": "adding-a-diagram-to-an-existing-file"
     }
   },
+  "plugins/dev-team/skills/mutation-night-watch/SKILL.md": {
+    "Why this exists, and how it differs from `mutation-kill`": {
+      "summary": "`mutation-kill` already has two modes: **interactive** (an agent generates",
+      "anchor": "why-this-exists-and-how-it-differs-from-mutation-kill"
+    },
+    "Constraints": {
+      "summary": "**Report-only.",
+      "anchor": "constraints"
+    },
+    "Step 1: Detect and preview scope": {
+      "summary": "Run once without `--detach` on a small scope, or just read the detection",
+      "anchor": "step-1-detect-and-preview-scope"
+    },
+    "Step 2: Launch detached (survives closing the terminal/session)": {
+      "summary": "`--detach` re-execs the script into a new session/process group (POSIX",
+      "anchor": "step-2-launch-detached-survives-closing-the-terminalsession"
+    },
+    "Step 3: Schedule a recurring run (optional)": {
+      "summary": "Per-OS recipes — Task Scheduler, launchd, and cron — live in",
+      "anchor": "step-3-schedule-a-recurring-run-optional"
+    },
+    "Step 4: Morning hand-off": {
+      "summary": "Read `reports/mutation-nightwatch/LATEST/MORNING-SUMMARY.md` first — it",
+      "anchor": "step-4-morning-hand-off"
+    },
+    "When not to apply": {
+      "summary": "No mutation tool is set up yet for any stack → run",
+      "anchor": "when-not-to-apply"
+    }
+  },
   "plugins/dev-team/skills/mutation-testing/SKILL.md": {
     "Constraints": {
       "summary": "**Always ask the user before running.** Present the time estimate and scope; get explicit approval.",
@@ -4973,8 +5019,12 @@
       "anchor": "yes-semantics"
     },
     "Workflow": {
-      "summary": "Probe the working directory with cheap, deterministic filesystem signals —",
+      "summary": "`/project-init` is invoked far more often than it has anything new to do —",
       "anchor": "workflow"
+    },
+    "Step 0: Idempotency short-circuit (#1778)": {
+      "summary": "`/project-init` is invoked far more often than it has anything new to do —",
+      "anchor": "step-0-idempotency-short-circuit-1778"
     },
     "Step 1: Detect the stack": {
       "summary": "Probe the working directory with cheap, deterministic filesystem signals —",
@@ -5467,8 +5517,12 @@
       "anchor": "argument-arguments"
     },
     "Steps": {
-      "summary": "Before running fresh analysis, check whether background analysis has produced",
+      "summary": "`/session-review` is maintainer-only tooling that operates on this repo's own",
       "anchor": "steps"
+    },
+    "Pre-flight — dev-checkout guard (#1779)": {
+      "summary": "`/session-review` is maintainer-only tooling that operates on this repo's own",
+      "anchor": "pre-flight-dev-checkout-guard-1779"
     },
     "0. Queued Findings — surface pending-review queue before fresh analysis": {
       "summary": "Before running fresh analysis, check whether background analysis has produced",
@@ -5776,13 +5830,25 @@
       "summary": "Detection is one check: a test `.csproj` contains `Include=\"xunit.v3\"`.",
       "anchor": "when-to-build-it"
     },
+    "Canonical invocations — copy these, don't improvise": {
+      "summary": "Every command below is written to run **from the repository root** unless it says",
+      "anchor": "canonical-invocations-copy-these-dont-improvise"
+    },
     "Workflow": {
-      "summary": "Run against the branch under test to find v3-only usage that would need porting:",
+      "summary": "Before editing an artifact this workflow has already produced, read it first — each of these only exists once the workflow has reached the step that creates it, so don't expect all three on the proactive, before-the-first-run path:",
       "anchor": "workflow"
+    },
+    "Read before editing": {
+      "summary": "Before editing an artifact this workflow has already produced, read it first — each of these only exists once the workflow has reached the step that creates it, so don't expect all three on the proactive, before-the-first-run path:",
+      "anchor": "read-before-editing"
     },
     "Step 1 — Scope probe (decide whether the shim is cheap)": {
       "summary": "Run against the branch under test to find v3-only usage that would need porting:",
       "anchor": "step-1-scope-probe-decide-whether-the-shim-is-cheap"
+    },
+    "Step 1a — Operator gate (always-ask; you cannot skip it)": {
+      "summary": "When the probe finds shim-breaking constructs, the operator chooses how to",
+      "anchor": "step-1a-operator-gate-always-ask-you-cannot-skip-it"
     },
     "Step 2 — Scaffold the shim project": {
       "summary": "Use the bundled script — it reads the real test `.csproj` and writes the shim",

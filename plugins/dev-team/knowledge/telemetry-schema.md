@@ -43,14 +43,31 @@ this stream (via `hooks/lib/review_gate_corroboration.py`) to corroborate
 that a hash-matching gate write was backed by real, independent Agent-tool
 dispatch — see that module's own docstring for its fail-**closed** posture,
 the deliberate opposite of this stream's own fail-open write side.
+Extended again by #1763 with a seventh decision, `dispatch-failure` — also
+**non-verdict, observational**, mirroring `record`'s precedent, but the
+opposite polarity: it notes that a dispatched review agent still failed to
+return a contract-valid result after one retry. Emitted via
+`hooks/lib/boundary_events.py`'s CLI (`--event dispatch-failure --agent
+<name> --subject-hash <hash>`) from `skills/code-review/SKILL.md` Step 4;
+`<name>` is validated against the registered review-agent set at write time
+(with the same plugin-prefix normalization as `record`) — an unregistered
+name is silently not recorded. Unlike `record`, `dispatch-failure` is
+consumed only as NEGATIVE evidence: the gate veto in
+`hooks/lib/review_gate_corroboration.py` / `hooks/pre_commit_review.py`
+(`_dispatch_failure_verdict` and `_cosmetic_carry_forward_verdict`, #1763)
+treats it as a reason to reject a `.review-passed` write, never as
+corroboration for one. A forged/hand-run `dispatch-failure` event can only
+ever cause a false rejection, never a false pass — the opposite forgery
+direction from `record`, which is why this decision (unlike `record`) is
+safely reachable from the CLI's closed `--event` vocabulary.
 
 | Field | Type | Values / source |
 | --- | --- | --- |
 | `ts` | string | ISO-8601 UTC `%Y-%m-%dT%H:%M:%SZ` |
-| `hook` | string | Emitting hook's module name, e.g. `destructive_guard`, `verify_guard`, `pre_commit_review`, `telemetry`, `agent_dispatch_ledger` |
+| `hook` | string | Emitting hook's module name, e.g. `destructive_guard`, `verify_guard`, `pre_commit_review`, `telemetry`, `agent_dispatch_ledger` — or `code-review` for the CLI-emitted events (`--event doc-only`/`single-agent`/`dispatch-failure`), which carry the invoking skill's name rather than a hook module name |
 | `tool` | string | Hooked tool/event: `Bash`, `Write`, `Edit`, `Skill`, `Agent`, `UserPromptSubmit` |
-| `decision` | string enum | `block` \| `warn` \| `bypass` \| `intervention` \| `revert` \| `record` |
-| `matched_rule` | string | Rule ID from a closed vocabulary (pattern ID, hook-defined constant, bypass flag name, intervention keyword, or — for `record` — the dispatched review-agent's registered name) — never free text |
+| `decision` | string enum | `block` \| `warn` \| `bypass` \| `intervention` \| `revert` \| `record` \| `dispatch-failure` |
+| `matched_rule` | string | Rule ID from a closed vocabulary (pattern ID, hook-defined constant, bypass flag name, intervention keyword, or — for `record`/`dispatch-failure` — the dispatched review-agent's registered name) — never free text |
 | `plugin_version` | string | From `.claude-plugin/plugin.json` |
 | `session_id` | string, optional | Opaque per-session ID, when present in the hook payload — enables joins with `session-digest.jsonl` |
 | `subject_hash` | string, optional | `review_gate_hash()` value (#1461) binding this event to the staged content it corroborates. A hex digest, not free text |
@@ -67,10 +84,10 @@ the evidence changes. The exemption is a property of content recomputed by
 the hook at gate time, never a claim written by the gated party — see
 `hooks/lib/review_gate_normalized_hash.py` for why this does not reopen #1461.
 
-- **Emitter:** `hooks/lib/boundary_events.py::emit_boundary_event()`, called from `destructive_guard.py`, `verify_guard.py`, `pre_commit_review.py`, `telemetry.py` (intervention keywords), `agent_dispatch_ledger.py` (decision `record`, #1461), and the mechanically-adopted guards (`pre_tool_guard.py`, `context_ceiling_guard.py`, `bash_retry_guard.py`, `refactor_test_freeze_guard.py`, `refactor_test_bash_guard.py`, `refactor_test_revert_guard.py` (decision `revert`, #906), `contract_version_guard.py`, `mutation_testing_smoke_gate.py`, `mutation_gate.py`, `tdd_guard.py`).
+- **Emitter:** `hooks/lib/boundary_events.py::emit_boundary_event()`, called from `destructive_guard.py`, `verify_guard.py`, `pre_commit_review.py`, `telemetry.py` (intervention keywords), `agent_dispatch_ledger.py` (decision `record`, #1461), the mechanically-adopted guards (`pre_tool_guard.py`, `context_ceiling_guard.py`, `bash_retry_guard.py`, `refactor_test_freeze_guard.py`, `refactor_test_bash_guard.py`, `refactor_test_revert_guard.py` (decision `revert`, #906), `contract_version_guard.py`, `mutation_testing_smoke_gate.py`, `mutation_gate.py`, `tdd_guard.py`), and `boundary_events.py`'s own CLI (`--event dispatch-failure`, decision `dispatch-failure`, #1763) invoked from `skills/code-review/SKILL.md` Step 4.
 - **Consent:** ALWAYS-ON — not gated by `DEV_TEAM_TELEMETRY`. Local-only, rule-IDs-only safety/accountability channel; no observability holes by design.
 - **Fail-open:** every exception in the emit helper is swallowed — never changes the calling hook's exit code, stdout, or stderr.
-- **Consumers:** `skills/session-review/SKILL.md`, `skills/harness-audit/SKILL.md`, `agents/session-analysis.md`, `skills/cost-report/`, `skills/run-report/SKILL.md` (#1167), `hooks/lib/review_gate_corroboration.py` (#1461, `record` rows only), future `agent-telemetry` cross-machine aggregation (#178).
+- **Consumers:** `skills/session-review/SKILL.md`, `skills/harness-audit/SKILL.md`, `agents/session-analysis.md`, `skills/cost-report/`, `skills/run-report/SKILL.md` (#1167), `hooks/lib/review_gate_corroboration.py` (#1461 `record` rows; #1763 also reads `dispatch-failure` rows as negative evidence for the gate veto), future `agent-telemetry` cross-machine aggregation (#178).
 
 ---
 
@@ -605,3 +622,40 @@ entry is a durable, once-written decision note.
 - **Gate:** `hooks/lib/iteration_journal_gate.py::check_iteration_journal()` (`check` CLI subcommand) hard-blocks advancement to the next issue/iteration — exit 1 — unless >=1 entry exists for the current `round_id`; a block also emits a `boundary-events.jsonl` event (`hook: iteration_journal_gate`, `decision: block`, `matched_rule: iteration-journal-missing`). This is a skill-level check-before-advance (mirroring `verify-log.jsonl`'s `progress_guardian.py --pre-pr` pattern), not a `settings.json` PreToolUse/PostToolUse registration — `/autoship`'s and `/ship`'s loop advancement is model-authored control flow inside a skill, not a tool call the harness intercepts at a distinct boundary. Complements, does not replace, the advisory plan-step-keyed `progress-guardian` agent.
 - **Consent:** unconditional (a deliberate per-iteration accountability record, not passive usage telemetry).
 - **Consumers:** `skills/autoship/SKILL.md`, `skills/ship/SKILL.md`, joinable with `skills/run-report/SKILL.md` (#1167) via `round_id`/`session_id`.
+
+---
+
+## `xunit-v3-shim-decisions.json`
+
+**Added by #1791.** Not JSONL — a single current-value JSON object keyed by test
+project name, holding the operator's chosen remediation when xunit.v3
+constructs block the Stryker v2 shim. This is the enforcement record, not
+telemetry: `stryker_xunit_shim_guard.py` blocks every `dotnet-stryker` run
+against a blocked project until an entry covering the current blocker set
+exists, which is what makes the always-ask gate a guarantee rather than hook
+stdout an agent may paraphrase or skip.
+
+Each value:
+
+| Field | Type | Values / source |
+| --- | --- | --- |
+| `project` | string | Test project name (the real test `.csproj` stem) |
+| `choice` | string | `port` \| `exclude` \| `skip` \| `degrade` — the four documented remediations; any other value is rejected at write time |
+| `fingerprint` | string, required | 16-hex digest over the blocker set's `file::construct` pairs (line numbers deliberately excluded). Scopes the decision to the blockers the operator actually saw; a mismatch — or an absent value, which would make the entry a blanket answer — re-asks |
+| `files` | array of string | Flagged files the choice covers, project-relative |
+| `note` | string, nullable | Operator rationale, when given |
+| `recorded_at` | string | ISO-8601 UTC `%Y-%m-%dT%H:%M:%SZ` |
+
+- **Emitter:** `hooks/lib/xunit_v3_operator_gate.py::record_decision()`, invoked
+  via its `record` CLI subcommand after the operator answers the gate.
+- **Gate:** `hooks/lib/xunit_v3_operator_gate.py::decision_for()`, read by
+  `hooks/stryker_xunit_shim_guard.py` (PreToolUse on `Bash`). No covering entry
+  → exit 2 with the operator question as the block body. Fails closed on every
+  axis: a fingerprint mismatch, an absent fingerprint, and a stored `choice`
+  outside the four all re-ask rather than letting a run proceed unasked.
+- **Consent:** unconditional (an explicit operator decision record, not passive
+  usage telemetry).
+- **Consumers:** `hooks/stryker_xunit_shim_guard.py`,
+  `skills/mutation-testing/scripts/mutation_feasibility_gate.py` (same question
+  payload), `skills/stryker-xunit-v2-shim/SKILL.md` Step 1a. Path override:
+  `DEV_TEAM_XUNIT3_SHIM_DECISION_FILE`.

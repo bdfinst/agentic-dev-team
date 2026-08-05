@@ -130,6 +130,37 @@ def _write_dispatch_events(repo: Path, agents: list[str], subject_hash: str, ts=
             )
 
 
+def _write_dispatch_failure(
+    repo: Path,
+    agent: str,
+    subject_hash: str,
+    ts=None,
+    subject_hash_normalized: str | None = None,
+) -> None:
+    """Seed .claude/metrics/boundary-events.jsonl with one 'dispatch-failure'
+    event (#1763) — the negative evidence `_dispatch_failure_verdict` (main
+    pipeline) and `_cosmetic_carry_forward_verdict` (normalized-hash path)
+    both read via `review_gate_corroboration.py`'s `dispatch_failure_agents`.
+    Mirrors the exact (hook, tool, decision) tuple `boundary_events.py`'s
+    `--event dispatch-failure` CLI writes (`_CLI_AGENT_EVENTS`)."""
+    when = ts or datetime.now(timezone.utc)
+    log = repo / ".claude" / "metrics" / "boundary-events.jsonl"
+    log.parent.mkdir(parents=True, exist_ok=True)
+    entry = {
+        "ts": _iso(when),
+        "hook": "code-review",
+        "tool": "Skill",
+        "decision": "dispatch-failure",
+        "matched_rule": agent,
+        "plugin_version": "0.0.0",
+        "subject_hash": subject_hash,
+    }
+    if subject_hash_normalized:
+        entry["subject_hash_normalized"] = subject_hash_normalized
+    with log.open("a", encoding="utf-8") as fh:
+        fh.write(json.dumps(entry) + "\n")
+
+
 def _write_doc_only_exemption(repo: Path, subject_hash: str, ts=None) -> None:
     when = ts or datetime.now(timezone.utc)
     log = repo / ".claude" / "metrics" / "boundary-events.jsonl"
@@ -325,6 +356,265 @@ def test_missing_gate_file_blocks(repo: Path) -> None:
     assert "BLOCKED" in r.stderr
 
 
+def test_dash_c_commit_gates_against_target_repo_not_payload_cwd(
+    repo: Path, tmp_path_factory: pytest.TempPathFactory
+) -> None:
+    """Independent security-review finding (#1761/#1762/#1763 Slice 3
+    build): `git -C <dir> commit` genuinely commits into `<dir>` — the gate
+    must be evaluated (and, on failure, its bypass-audit trail written)
+    against THAT repo, not the hook payload's own cwd, or the commit slips
+    through with zero trace just because the hook happened to be invoked
+    from elsewhere."""
+    outside = tmp_path_factory.mktemp("outside")
+    r = _run(
+        {"tool_name": "Bash", "tool_input": {"command": f"git -C {repo} commit -m x"}},
+        cwd=outside,
+    )
+    assert r.returncode == 2
+    assert "BLOCKED" in r.stdout
+    # The gate-setup path (mkdir) must have run against the -C target...
+    assert (repo / ".claude" / "memory").exists()
+    # ...never against the payload cwd it was actually invoked from.
+    assert not (outside / ".claude").exists()
+
+
+def test_dash_c_commit_passes_when_target_repo_gate_satisfied(
+    repo: Path, tmp_path_factory: pytest.TempPathFactory
+) -> None:
+    outside = tmp_path_factory.mktemp("outside")
+    h = _current_hash(repo)
+    gate_path = repo / ".claude" / "memory" / ".review-passed"
+    gate_path.parent.mkdir(parents=True, exist_ok=True)
+    gate_path.write_text(h)
+    _write_dispatch_events(repo, ["security-review", "structure-review"], h)
+    r = _run(
+        {"tool_name": "Bash", "tool_input": {"command": f"git -C {repo} commit -m x"}},
+        cwd=outside,
+    )
+    assert r.returncode == 0
+    assert not gate_path.exists()
+    assert not (outside / ".claude").exists()
+
+
+def test_dash_c_relative_path_resolves_against_payload_cwd(
+    repo: Path, tmp_path_factory: pytest.TempPathFactory
+) -> None:
+    """test-review coverage gap (#1801 second round, tightened in the
+    third round): the relative-`-C` branch had zero test coverage — every
+    prior `-C` test used an absolute path. `-C sub` must resolve against
+    `payload_cwd/sub`, not the literal string `sub` relative to the
+    process's real OS cwd. The FIRST version of this test launched the
+    subprocess with `cwd=repo` and no explicit payload `cwd`, making the
+    payload cwd and the process's real OS cwd identical — a resolution
+    bug that used the wrong one would still have passed (test-review
+    round-2 re-review). Mirrors `test_staged_names_uses_payload_cwd_not_
+    process_cwd`'s pattern: explicit payload `cwd`, process launched from
+    an unrelated directory."""
+    sub = repo / "sub"
+    sub.mkdir()
+    outside = tmp_path_factory.mktemp("outside")
+    r = _run(
+        {
+            "tool_name": "Bash",
+            "tool_input": {"command": "git -C sub commit -m x"},
+            "cwd": str(repo),
+        },
+        cwd=outside,
+    )
+    assert r.returncode == 2
+    assert "BLOCKED" in r.stdout
+    # Gate-setup ran against repo/sub, which walks up to the same repo root
+    # (repo) for `.claude/memory` — not a bare, unresolved "sub" relative
+    # to the process's real OS cwd (`outside`).
+    assert (repo / ".claude" / "memory").exists()
+    assert not (outside / ".claude").exists()
+
+
+def _empty_repo(tmp_path: Path) -> Path:
+    """A hermetic git repo with no commits and nothing staged or
+    modified — genuinely nothing to gate, used as an inert decoy target."""
+    env = hermetic_git_env(home=tmp_path)
+    subprocess.run(["git", "init", "-q"], cwd=tmp_path, env=env, check=True)
+    subprocess.run(
+        ["git", "config", "user.email", "t@t"], cwd=tmp_path, env=env, check=True
+    )
+    subprocess.run(
+        ["git", "config", "user.name", "t"], cwd=tmp_path, env=env, check=True
+    )
+    return tmp_path
+
+
+def test_decoy_dash_c_commit_does_not_bypass_payload_repo_gate(
+    repo: Path, tmp_path_factory: pytest.TempPathFactory
+) -> None:
+    """#1801 second round (security-review FAIL, confirmed by hand-tracing
+    the first version's control flow): a prepended `git -C <decoy> commit`
+    segment used to become the ONLY thing the gate resolved and evaluated
+    — `<decoy>` correctly reported "nothing to gate" and `main()` returned
+    0 for the WHOLE command, without ever separately checking the second,
+    real, fully-staged commit against `repo` in the same command. `repo`
+    (the `payload_cwd`) must still be independently evaluated and block."""
+    decoy = _empty_repo(tmp_path_factory.mktemp("decoy"))
+    r = _run(
+        {
+            "tool_name": "Bash",
+            "tool_input": {
+                "command": f"git -C {decoy} commit --allow-empty -m x; git commit -m real"
+            },
+        },
+        cwd=repo,
+    )
+    assert r.returncode == 2
+    assert "BLOCKED" in r.stdout
+
+
+@pytest.mark.parametrize(
+    "command",
+    [
+        "env X=1 git commit -m x",
+        "git -c user.name=x commit -m x",
+        "git --git-dir=/nonexistent/.git commit -m x",
+        "cd sub && git commit -m x",
+        "bash -c 'git commit -m x'",
+        'git "commit" -m x',
+    ],
+)
+def test_widened_detection_forms_gate_at_hook_level(command: str, repo: Path) -> None:
+    """test-review coverage gap (#1801 second round): only the `-C` form
+    had an end-to-end hook test proving `main()` actually blocks/passes —
+    the other widened-detection forms were verified only at the
+    `is_git_commit_command()` regex/token-unit level. Each of these must
+    still reach `_emit_block` through the full stdin -> detection -> gate
+    -> exit-code pipeline, not just match at the detection layer."""
+    r = _run({"tool_name": "Bash", "tool_input": {"command": command}}, cwd=repo)
+    assert r.returncode == 2
+    assert "BLOCKED" in r.stdout
+
+
+def test_combined_env_prefix_and_relative_dash_c_gate_together(
+    repo: Path, tmp_path_factory: pytest.TempPathFactory
+) -> None:
+    """test-review coverage gap (#1801 second round): no test combined two
+    or more widened-detection mechanisms in one command. `env X=1 git -C
+    sub commit` stacks a bare env-assignment prefix with a relative `-C`
+    onto the same invocation and must still resolve/gate correctly.
+    Explicit payload `cwd` + an unrelated process cwd (test-review round-2
+    re-review), same rationale as the test above."""
+    sub = repo / "sub"
+    sub.mkdir()
+    outside = tmp_path_factory.mktemp("outside")
+    r = _run(
+        {
+            "tool_name": "Bash",
+            "tool_input": {"command": "env X=1 git -C sub commit -m x"},
+            "cwd": str(repo),
+        },
+        cwd=outside,
+    )
+    assert r.returncode == 2
+    assert "BLOCKED" in r.stdout
+    assert (repo / ".claude" / "memory").exists()
+    assert not (outside / ".claude").exists()
+
+
+def test_multi_target_same_repo_shared_gate_file_passes_once(repo: Path) -> None:
+    """#1801 third round (security-review + correctness-review both
+    confirmed): `-C sub` and the plain payload target both walk up to the
+    SAME `.git` root and therefore share one `.review-passed`. The old
+    per-target `gate_file.unlink()` (called as soon as ITS target passed)
+    would have the first target consume the shared file, leaving the
+    second target to find it missing and wrongly block a fully reviewed
+    commit. Consumption is now deferred until every target has passed, so
+    both targets sharing one gate file must still pass together and the
+    file is removed exactly once (no crash on the second target's
+    would-be duplicate unlink)."""
+    sub = repo / "sub"
+    sub.mkdir()
+    h = _current_hash(repo)
+    gate_path = repo / ".claude" / "memory" / ".review-passed"
+    gate_path.parent.mkdir(parents=True, exist_ok=True)
+    gate_path.write_text(h)
+    _write_dispatch_events(repo, ["security-review", "structure-review"], h)
+    r = _run(
+        {
+            "tool_name": "Bash",
+            "tool_input": {"command": "git -C sub commit -m a; git commit -m b"},
+        },
+        cwd=repo,
+    )
+    assert r.returncode == 0, r.stdout + r.stderr
+    assert not gate_path.exists()
+
+
+def test_gate_file_not_destroyed_when_later_target_blocks(
+    repo: Path, tmp_path_factory: pytest.TempPathFactory
+) -> None:
+    """#1801 third round (security-review, high confidence): the old
+    per-target unlink consumed a PASSING target's gate file immediately,
+    even when a LATER target in the same command went on to block the
+    whole command — destroying valid review evidence for a commit that
+    never happened, forcing a fresh >=2-agent `/code-review` just to
+    retry. `repo`'s gate must still be there after the overall command is
+    blocked by an unrelated second target."""
+    h = _current_hash(repo)
+    gate_path = repo / ".claude" / "memory" / ".review-passed"
+    gate_path.parent.mkdir(parents=True, exist_ok=True)
+    gate_path.write_text(h)
+    _write_dispatch_events(repo, ["security-review", "structure-review"], h)
+
+    other = tmp_path_factory.mktemp("other")
+    env = hermetic_git_env(home=other)
+    subprocess.run(["git", "init", "-q"], cwd=other, env=env, check=True)
+    subprocess.run(["git", "config", "user.email", "t@t"], cwd=other, env=env, check=True)
+    subprocess.run(["git", "config", "user.name", "t"], cwd=other, env=env, check=True)
+    (other / "b.ts").write_text("v1\n")
+    subprocess.run(["git", "add", "b.ts"], cwd=other, env=env, check=True)
+    # `other` has staged content and no .review-passed of its own — it blocks.
+
+    r = _run(
+        {
+            "tool_name": "Bash",
+            "tool_input": {"command": f"git commit -m real; git -C {other} commit -m x"},
+        },
+        cwd=repo,
+    )
+    assert r.returncode == 2, r.stdout + r.stderr
+    assert "BLOCKED" in r.stdout
+    # repo's own passing evidence must survive — it was never actually
+    # committed, since the overall compound command was blocked.
+    assert gate_path.exists()
+    assert gate_path.read_text() == h
+
+
+def test_undecodable_gate_file_blocks_not_fail_open(repo: Path) -> None:
+    """#1813 security review: `_stored_gate_hashes()` used to read
+    `.review-passed` with `read_text()` and catch only `OSError` — undecodable
+    bytes raised `UnicodeDecodeError`, which escaped `_evaluate_gate` (called
+    unwrapped by `main()`) to the module's top-level `except Exception:
+    sys.exit(0)`, silently ALLOWING the commit with no block message and no
+    boundary event. `_stored_gate_hashes()` now reads with `errors="replace"`,
+    so undecodable bytes degrade to a line that simply can't match any real
+    hash instead of raising — the gate blocks exactly like a missing file."""
+    gate_path = repo / ".claude" / "memory" / ".review-passed"
+    gate_path.parent.mkdir(parents=True, exist_ok=True)
+    gate_path.write_bytes(b"\xff\xfe\x00not valid utf-8\x80\x81")
+    r = _run(
+        {"tool_name": "Bash", "tool_input": {"command": "git commit -m x"}}, cwd=repo
+    )
+    assert r.returncode == 2
+    assert "BLOCKED" in r.stdout
+    # The block was actually recorded, not just the exit code/message
+    # (test-review closing-pass finding): this test's own docstring claims
+    # "no boundary event" as half of the old bug, so verify that half too.
+    audit_log = repo / ".claude" / "metrics" / "boundary-events.jsonl"
+    assert audit_log.is_file()
+    entries = [json.loads(ln) for ln in audit_log.read_text().splitlines() if ln.strip()]
+    assert any(
+        e.get("decision") == "block" and e.get("matched_rule") == "pre-commit-review"
+        for e in entries
+    )
+
+
 def test_matching_gate_file_passes_and_is_consumed(repo: Path) -> None:
     """#1461: a hash match alone is no longer sufficient — this now also
     requires >= 2 distinct genuine review-agent dispatches recorded in the
@@ -460,10 +750,16 @@ def test_hash_match_with_only_one_dispatch_inside_window_is_insufficient(
     h = _current_hash(repo)
     gate_path = repo / ".claude" / "memory" / ".review-passed"
     gate_path.parent.mkdir(parents=True, exist_ok=True)
-    gate_path.write_text(h)
     stale_ts = datetime.now(timezone.utc) - timedelta(seconds=_WINDOW_SECONDS + 600)
     _write_dispatch_events(repo, ["security-review"], h, ts=stale_ts)
+    # Written BEFORE the gate file so its (second-truncated) "now" timestamp
+    # can never land after `before_ts` (the gate's own mtime, also
+    # second-truncated) — writing it after was a real race under parallel
+    # test runs: a second-boundary crossing between the two statements
+    # pushed this "fresh" dispatch's timestamp past `before_ts`, excluding
+    # it from the window and dropping the in-window count from 1 to 0.
     _write_dispatch_events(repo, ["structure-review"], h)
+    gate_path.write_text(h)
     r = _run(
         {"tool_name": "Bash", "tool_input": {"command": "git commit -m x"}}, cwd=repo
     )
@@ -1146,6 +1442,419 @@ def test_dispatch_for_different_subject_hash_in_window_reports_different_content
 
 
 # ---------------------------------------------------------------------------
+# #1763: mechanical dispatch-failure gate veto, with supersession (plan
+# Slice 3, Step 3.2)
+# ---------------------------------------------------------------------------
+
+
+def test_dispatch_failure_event_vetoes_gate_despite_two_distinct_dispatches(
+    repo: Path,
+) -> None:
+    """The veto applies regardless of how many other agents genuinely
+    dispatched and returned for this same subject_hash — it takes priority
+    over the terminal distinct-dispatch-count lens."""
+    h = _current_hash(repo)
+    gate_path = repo / ".claude" / "memory" / ".review-passed"
+    gate_path.parent.mkdir(parents=True, exist_ok=True)
+    gate_path.write_text(h)
+    _write_dispatch_events(repo, ["security-review", "structure-review"], h)
+    _write_dispatch_failure(repo, "correctness-review", h)
+    r = _run(
+        {"tool_name": "Bash", "tool_input": {"command": "git commit -m x"}}, cwd=repo
+    )
+    assert r.returncode == 2
+    assert "Dispatch failure recorded for correctness-review" in r.stdout
+    assert "not a code-review finding" in r.stdout
+
+
+def test_superseding_record_event_clears_the_dispatch_failure_veto(repo: Path) -> None:
+    """A LATER genuine "record" event for the same agent and hash supersedes
+    and clears an earlier dispatch-failure — the recovered-on-a-normal-
+    resume path."""
+    h = _current_hash(repo)
+    gate_path = repo / ".claude" / "memory" / ".review-passed"
+    gate_path.parent.mkdir(parents=True, exist_ok=True)
+    gate_path.write_text(h)
+    failure_ts = datetime.now(timezone.utc) - timedelta(seconds=60)
+    _write_dispatch_failure(repo, "correctness-review", h, ts=failure_ts)
+    # The superseding dispatch, plus one more distinct agent, clears the
+    # >= 2 distinct-dispatch floor too.
+    _write_dispatch_events(repo, ["correctness-review", "structure-review"], h)
+    r = _run(
+        {"tool_name": "Bash", "tool_input": {"command": "git commit -m x"}}, cwd=repo
+    )
+    assert r.returncode == 0, r.stdout + r.stderr
+    assert not (repo / ".claude" / "memory" / ".review-passed").exists()
+
+
+def test_dispatch_failure_event_for_a_different_hash_does_not_block(repo: Path) -> None:
+    """A dispatch-failure event bound to unrelated staged content must never
+    veto a gate whose own subject_hash has no failure of its own."""
+    h = _current_hash(repo)
+    gate_path = repo / ".claude" / "memory" / ".review-passed"
+    gate_path.parent.mkdir(parents=True, exist_ok=True)
+    gate_path.write_text(h)
+    _write_dispatch_failure(repo, "correctness-review", "a-different-hash")
+    _write_dispatch_events(repo, ["security-review", "structure-review"], h)
+    r = _run(
+        {"tool_name": "Bash", "tool_input": {"command": "git commit -m x"}}, cwd=repo
+    )
+    assert r.returncode == 0, r.stdout + r.stderr
+    assert not (repo / ".claude" / "memory" / ".review-passed").exists()
+
+
+def test_dispatch_failure_veto_is_not_cleared_by_time_alone(repo: Path) -> None:
+    """The veto is scoped only by subject_hash equality, never by
+    `WINDOW_SECONDS` — a dispatch-failure event far outside the recency
+    window, for unchanged content with no later superseding "record" event,
+    must still block."""
+    h = _current_hash(repo)
+    gate_path = repo / ".claude" / "memory" / ".review-passed"
+    gate_path.parent.mkdir(parents=True, exist_ok=True)
+    gate_path.write_text(h)
+    stale_ts = datetime.now(timezone.utc) - timedelta(seconds=_WINDOW_SECONDS + 600)
+    _write_dispatch_failure(repo, "correctness-review", h, ts=stale_ts)
+    _write_dispatch_events(repo, ["security-review", "structure-review"], h)
+    r = _run(
+        {"tool_name": "Bash", "tool_input": {"command": "git commit -m x"}}, cwd=repo
+    )
+    assert r.returncode == 2
+    assert "Dispatch failure recorded for correctness-review" in r.stdout
+
+
+def test_dispatch_failure_message_names_infra_reason_remediation_and_bypass() -> None:
+    """The rendered message covers all four required properties: agent
+    name; dispatch/infra-not-finding framing; rerun-clears-it remediation;
+    the standard --no-verify bypass line."""
+    message = _pcr._dispatch_failure_message(frozenset({"correctness-review"}))
+    assert "correctness-review" in message
+    assert "dispatch/infra failure" in message
+    assert "not a code-review finding" in message
+    assert "clean rerun" in message and "clears this block" in message
+    assert "To bypass: use git commit --no-verify" in message
+
+
+def test_dispatch_failure_message_is_byte_identical_for_the_same_agents() -> None:
+    """Calling `_dispatch_failure_message` with the same agents set from
+    either lens must produce byte-identical output — there is only one
+    rendering, not two independently-worded copies."""
+    agents = frozenset({"correctness-review", "structure-review"})
+    assert _pcr._dispatch_failure_message(agents) == _pcr._dispatch_failure_message(agents)
+
+
+def _js_repo_with_history(tmp_path: Path) -> Path:
+    """A hermetic git repo with one real commit on HEAD, then a further
+    staged code edit — the shape `normalized_gate_hash()` needs to produce a
+    real (non-`None`) normalized hash, matching
+    `test_review_gate_normalized_hash.py`'s own `reviewed_repo` fixture."""
+    env = hermetic_git_env(home=tmp_path)
+    subprocess.run(["git", "init", "-q"], cwd=tmp_path, env=env, check=True)
+    subprocess.run(["git", "config", "user.email", "t@t"], cwd=tmp_path, env=env, check=True)
+    subprocess.run(["git", "config", "user.name", "t"], cwd=tmp_path, env=env, check=True)
+    (tmp_path / "a.js").write_text("function f() {\n  return 1\n}\n")
+    subprocess.run(["git", "add", "a.js"], cwd=tmp_path, env=env, check=True)
+    subprocess.run(["git", "commit", "-qm", "init"], cwd=tmp_path, env=env, check=True)
+    (tmp_path / "a.js").write_text("function f() {\n  return 2\n}\n")
+    subprocess.run(["git", "add", "a.js"], cwd=tmp_path, env=env, check=True)
+    return tmp_path
+
+
+def test_cosmetic_carry_forward_lens_also_honors_the_dispatch_failure_veto(
+    tmp_path: Path,
+) -> None:
+    """The cosmetic-delta carry-forward lens must consult the same veto,
+    scoped to the NORMALIZED hash it would otherwise honor, and must not
+    return a passing verdict when it applies — surfacing the identical
+    `_dispatch_failure_message`, not a generic fallback."""
+    lib_dir = _REPO_ROOT / "plugins" / "dev-team" / "hooks" / "lib"
+    if str(lib_dir) not in sys.path:
+        sys.path.insert(0, str(lib_dir))
+    import review_gate_normalized_hash as _ngh  # type: ignore[import-not-found]
+
+    repo = _js_repo_with_history(tmp_path)
+    raw = _current_hash(repo)
+    normalized = _ngh.normalized_gate_hash(repo)
+    assert normalized is not None
+
+    # Two genuine, distinct dispatches for the normalized hash — enough to
+    # otherwise clear the carry-forward lens's own >= 2 floor.
+    _write_dispatch_events(repo, ["correctness-review", "structure-review"], raw)
+    # Stamp subject_hash_normalized on those same events too, matching what
+    # a real dispatch would carry.
+    log = repo / ".claude" / "metrics" / "boundary-events.jsonl"
+    lines = [json.loads(ln) for ln in log.read_text().splitlines() if ln.strip()]
+    for entry in lines:
+        entry["subject_hash_normalized"] = normalized
+    log.write_text("\n".join(json.dumps(e) for e in lines) + "\n")
+    _write_dispatch_failure(repo, "security-review", raw, subject_hash_normalized=normalized)
+
+    gate_path = repo / ".claude" / "memory" / ".review-passed"
+    gate_path.parent.mkdir(parents=True, exist_ok=True)
+    gate_path.write_text(f"{raw}\n{normalized}\n")
+
+    # Re-stage a whitespace-only delta so the RAW hash mismatches (routing
+    # through the carry-forward lens) while the NORMALIZED hash is unchanged.
+    (repo / "a.js").write_text("function f() {\n      return 2\n}\n")
+    subprocess.run(["git", "add", "a.js"], cwd=repo, env=hermetic_git_env(home=repo), check=True)
+
+    r = _run(
+        {"tool_name": "Bash", "tool_input": {"command": "git commit -m x"}}, cwd=repo
+    )
+    assert r.returncode == 2, r.stdout + r.stderr
+    assert "Dispatch failure recorded for security-review" in r.stdout
+    assert "not a code-review finding" in r.stdout
+    # The exact same rendering the main-pipeline lens would produce.
+    assert r.stdout == _pcr._dispatch_failure_message(frozenset({"security-review"}))
+
+
+def test_doc_only_exemption_does_not_launder_a_dispatch_failure(tmp_path: Path) -> None:
+    """The veto's priority over the exemption lenses is enforced by
+    STATEMENT ORDER in `_evaluate_gate`, not by comment alone (#1763
+    security review) — this test would fail if a refactor moved
+    `_dispatch_failure_verdict` below `_doc_only_exemption_verdict`."""
+    repo = _doc_only_repo(tmp_path)
+    h = _current_hash(repo)
+    gate_path = repo / ".claude" / "memory" / ".review-passed"
+    gate_path.parent.mkdir(parents=True, exist_ok=True)
+    gate_path.write_text(h)
+    _write_doc_only_exemption(repo, h)
+    _write_dispatch_failure(repo, "correctness-review", h)
+    r = _run(
+        {"tool_name": "Bash", "tool_input": {"command": "git commit -m x"}}, cwd=repo
+    )
+    assert r.returncode == 2
+    assert "Dispatch failure recorded for correctness-review" in r.stdout
+
+
+def test_single_agent_exemption_does_not_launder_a_dispatch_failure(repo: Path) -> None:
+    """Same priority-ordering proof as the doc-only case above, for the
+    OTHER exemption lens (#1763 security review)."""
+    h = _current_hash(repo)
+    gate_path = repo / ".claude" / "memory" / ".review-passed"
+    gate_path.parent.mkdir(parents=True, exist_ok=True)
+    gate_path.write_text(h)
+    _write_dispatch_events(repo, ["security-review"], h)
+    _write_single_agent_exemption(repo, h)
+    _write_dispatch_failure(repo, "correctness-review", h)
+    r = _run(
+        {"tool_name": "Bash", "tool_input": {"command": "git commit -m x"}}, cwd=repo
+    )
+    assert r.returncode == 2
+    assert "Dispatch failure recorded for correctness-review" in r.stdout
+
+
+def test_cosmetic_carry_forward_lens_vetoes_on_raw_hash_only_dispatch_failure(
+    tmp_path: Path,
+) -> None:
+    """#1763 correctness review: a dispatch-failure event that never got a
+    `subject_hash_normalized` stamped (e.g. the emission command's NORM
+    computation failed and fell through `|| true`) must still veto the
+    cosmetic carry-forward lens via the RAW hash — checking only the
+    normalized-hash dispatch_failure_agents would be blind to it and could
+    pass a commit with an unsuperseded dispatch failure on record."""
+    lib_dir = _REPO_ROOT / "plugins" / "dev-team" / "hooks" / "lib"
+    if str(lib_dir) not in sys.path:
+        sys.path.insert(0, str(lib_dir))
+    import review_gate_normalized_hash as _ngh  # type: ignore[import-not-found]
+
+    repo = _js_repo_with_history(tmp_path)
+    raw = _current_hash(repo)
+    normalized = _ngh.normalized_gate_hash(repo)
+    assert normalized is not None
+
+    _write_dispatch_events(repo, ["correctness-review", "structure-review"], raw)
+    log = repo / ".claude" / "metrics" / "boundary-events.jsonl"
+    lines = [json.loads(ln) for ln in log.read_text().splitlines() if ln.strip()]
+    for entry in lines:
+        entry["subject_hash_normalized"] = normalized
+    log.write_text("\n".join(json.dumps(e) for e in lines) + "\n")
+    # No subject_hash_normalized on this one — raw hash only.
+    _write_dispatch_failure(repo, "security-review", raw)
+
+    gate_path = repo / ".claude" / "memory" / ".review-passed"
+    gate_path.parent.mkdir(parents=True, exist_ok=True)
+    gate_path.write_text(f"{raw}\n{normalized}\n")
+
+    (repo / "a.js").write_text("function f() {\n      return 2\n}\n")
+    subprocess.run(["git", "add", "a.js"], cwd=repo, env=hermetic_git_env(home=repo), check=True)
+
+    r = _run(
+        {"tool_name": "Bash", "tool_input": {"command": "git commit -m x"}}, cwd=repo
+    )
+    assert r.returncode == 2, r.stdout + r.stderr
+    assert "Dispatch failure recorded for security-review" in r.stdout
+
+
+def test_cosmetic_carry_forward_lens_vetoes_on_current_hash_only_dispatch_failure(
+    tmp_path: Path,
+) -> None:
+    """#1836 test-review finding: the dispatch-failure veto's raw-hash union
+    checks BOTH `stored_raw` (the content actually reviewed) AND
+    `current_hash` (today's exact re-staged content) independently — a
+    failure recorded against ONLY `current_hash`, with nothing against
+    `stored_raw` or the normalized hash, must still veto. Every prior test
+    for this lens wrote the failure against `stored_raw`; this is the first
+    to pin the OTHER half of that union — without it, dropping
+    `current_hash` from the raw_hashes tuple would silently let a commit
+    with a genuine, unsuperseded dispatch failure against today's content
+    pass the gate."""
+    lib_dir = _REPO_ROOT / "plugins" / "dev-team" / "hooks" / "lib"
+    if str(lib_dir) not in sys.path:
+        sys.path.insert(0, str(lib_dir))
+    import review_gate_normalized_hash as _ngh  # type: ignore[import-not-found]
+
+    repo = _js_repo_with_history(tmp_path)
+    raw = _current_hash(repo)
+    normalized = _ngh.normalized_gate_hash(repo)
+    assert normalized is not None
+
+    _write_dispatch_events(repo, ["correctness-review", "structure-review"], raw)
+    log = repo / ".claude" / "metrics" / "boundary-events.jsonl"
+    lines = [json.loads(ln) for ln in log.read_text().splitlines() if ln.strip()]
+    for entry in lines:
+        entry["subject_hash_normalized"] = normalized
+    log.write_text("\n".join(json.dumps(e) for e in lines) + "\n")
+
+    gate_path = repo / ".claude" / "memory" / ".review-passed"
+    gate_path.parent.mkdir(parents=True, exist_ok=True)
+    gate_path.write_text(f"{raw}\n{normalized}\n")
+
+    (repo / "a.js").write_text("function f() {\n      return 2\n}\n")
+    subprocess.run(["git", "add", "a.js"], cwd=repo, env=hermetic_git_env(home=repo), check=True)
+
+    # Recorded against today's exact post-re-stage hash — NOT `raw`
+    # (stored_raw) and not the normalized hash.
+    current_hash = _current_hash(repo)
+    _write_dispatch_failure(repo, "security-review", current_hash)
+
+    r = _run(
+        {"tool_name": "Bash", "tool_input": {"command": "git commit -m x"}}, cwd=repo
+    )
+    assert r.returncode == 2, r.stdout + r.stderr
+    assert "Dispatch failure recorded for security-review" in r.stdout
+
+
+def test_cosmetic_carry_forward_lens_treats_blank_stored_raw_as_not_decisive(
+    tmp_path: Path,
+) -> None:
+    """#1836 closing-pass security/correctness review: a malformed
+    `.review-passed` (blank first line, valid second line) must fall
+    through to the generic `_BLOCK_MESSAGE` rejection, NOT reach
+    `_evaluate_carry_forward` with a falsy `stored_raw` — that function now
+    treats any falsy raw-hash binding as unprovable, which would render
+    through the SAME sentinel a genuine registry read failure uses,
+    misattributing a malformed gate file as "could not read the registered
+    review-agent set"."""
+    lib_dir = _REPO_ROOT / "plugins" / "dev-team" / "hooks" / "lib"
+    if str(lib_dir) not in sys.path:
+        sys.path.insert(0, str(lib_dir))
+    import review_gate_normalized_hash as _ngh  # type: ignore[import-not-found]
+
+    repo = _js_repo_with_history(tmp_path)
+    raw = _current_hash(repo)
+    normalized = _ngh.normalized_gate_hash(repo)
+    assert normalized is not None
+
+    _write_dispatch_events(repo, ["correctness-review", "structure-review"], raw)
+    log = repo / ".claude" / "metrics" / "boundary-events.jsonl"
+    lines = [json.loads(ln) for ln in log.read_text().splitlines() if ln.strip()]
+    for entry in lines:
+        entry["subject_hash_normalized"] = normalized
+    log.write_text("\n".join(json.dumps(e) for e in lines) + "\n")
+
+    gate_path = repo / ".claude" / "memory" / ".review-passed"
+    gate_path.parent.mkdir(parents=True, exist_ok=True)
+    gate_path.write_text(f"\n{normalized}\n")  # blank first line, valid second
+
+    (repo / "a.js").write_text("function f() {\n      return 2\n}\n")
+    subprocess.run(["git", "add", "a.js"], cwd=repo, env=hermetic_git_env(home=repo), check=True)
+
+    r = _run(
+        {"tool_name": "Bash", "tool_input": {"command": "git commit -m x"}}, cwd=repo
+    )
+    assert r.returncode == 2, r.stdout + r.stderr
+    assert r.stdout == _pcr._BLOCK_MESSAGE
+    assert "registered review-agent set" not in r.stdout
+
+
+def test_cosmetic_carry_forward_lens_vetoes_before_the_count_check(tmp_path: Path) -> None:
+    """#1763 security review: the veto must be checked BEFORE the `>= 2`
+    distinct-dispatch count on the cosmetic path too — same priority order
+    as the main pipeline — so a dispatch failure with fewer than 2
+    corroborating dispatches still surfaces the specific
+    dispatch-failure-veto message/rule, not the generic block message."""
+    lib_dir = _REPO_ROOT / "plugins" / "dev-team" / "hooks" / "lib"
+    if str(lib_dir) not in sys.path:
+        sys.path.insert(0, str(lib_dir))
+    import review_gate_normalized_hash as _ngh  # type: ignore[import-not-found]
+
+    repo = _js_repo_with_history(tmp_path)
+    raw = _current_hash(repo)
+    normalized = _ngh.normalized_gate_hash(repo)
+    assert normalized is not None
+
+    # Only ONE normalized dispatch — below the >= 2 floor — plus the
+    # dispatch-failure event, both bound to the normalized hash.
+    _write_dispatch_events(repo, ["correctness-review"], raw)
+    log = repo / ".claude" / "metrics" / "boundary-events.jsonl"
+    lines = [json.loads(ln) for ln in log.read_text().splitlines() if ln.strip()]
+    for entry in lines:
+        entry["subject_hash_normalized"] = normalized
+    log.write_text("\n".join(json.dumps(e) for e in lines) + "\n")
+    _write_dispatch_failure(repo, "security-review", raw, subject_hash_normalized=normalized)
+
+    gate_path = repo / ".claude" / "memory" / ".review-passed"
+    gate_path.parent.mkdir(parents=True, exist_ok=True)
+    gate_path.write_text(f"{raw}\n{normalized}\n")
+
+    (repo / "a.js").write_text("function f() {\n      return 2\n}\n")
+    subprocess.run(["git", "add", "a.js"], cwd=repo, env=hermetic_git_env(home=repo), check=True)
+
+    r = _run(
+        {"tool_name": "Bash", "tool_input": {"command": "git commit -m x"}}, cwd=repo
+    )
+    assert r.returncode == 2, r.stdout + r.stderr
+    assert "Dispatch failure recorded for security-review" in r.stdout
+    assert r.stdout == _pcr._dispatch_failure_message(frozenset({"security-review"}))
+
+
+def test_registry_read_failure_sentinel_is_never_rendered_as_an_agent_name() -> None:
+    """#1763 correctness review: `_UNPROVABLE_DISPATCH_FAILURE` (a registry
+    read failure, distinct from a ledger read failure) must render the
+    dedicated registry-read-failure message, never be treated as if it
+    were a real agent name by `_dispatch_failure_message`."""
+    lib_dir = _REPO_ROOT / "plugins" / "dev-team" / "hooks" / "lib"
+    if str(lib_dir) not in sys.path:
+        sys.path.insert(0, str(lib_dir))
+    import review_gate_corroboration as _rgc  # type: ignore[import-not-found]
+
+    evidence = _rgc.LedgerEvidence(
+        agents_in_window=frozenset(),
+        any_dispatch_ever=False,
+        same_subject_dispatch_ever=False,
+        read_failure_reason=None,
+        dispatch_failure_agents=_rgc._UNPROVABLE_DISPATCH_FAILURE,
+    )
+    verdict = _pcr._dispatch_failure_verdict(evidence)
+    assert verdict is not None
+    assert verdict.passed is False
+    assert verdict.matched_rule == "registry-read-failure"
+    assert verdict.message == _pcr._REGISTRY_READ_FAILURE_MESSAGE
+    assert "<ledger-read-failure" not in verdict.message
+    assert "<degraded-import" not in verdict.message
+
+
+def test_dispatch_failure_message_empty_set_degrades_to_labeled_placeholder() -> None:
+    """Defensive fallback (#1763 correctness review): calling
+    `_dispatch_failure_message` with an empty set — unreachable from either
+    real call site today, since both guard on truthiness first — must still
+    degrade to a labeled placeholder, never a nameless/malformed message."""
+    message = _pcr._dispatch_failure_message(frozenset())
+    assert "an unnamed review agent" in message
+    assert "for  —" not in message
+
+
+# ---------------------------------------------------------------------------
 # #1477 test-completeness gap 1: full `_DOC_EXTENSIONS`/`_DOC_ROOT_NAMES`
 # branch coverage on the ACCEPT path (prior tests only exercised `.md` and
 # rejection-path `.txt`; the other four extensions and two of the seven
@@ -1256,15 +1965,25 @@ def test_plugin_version_returns_unknown_when_manifest_missing(
 # fallback stand-in for `review_gate_corroboration.LedgerEvidence`) hand-
 # duplicates its field shape with no test asserting parity — a future field
 # addition to the real NamedTuple could silently leave the degraded path
-# stale without this.
+# stale without this. #1836 extends the same guard to
+# `CosmeticCarryForwardEvidence`, the second real shape this same stand-in
+# now serves (via `_evaluate_carry_forward`) — without this, a future field
+# added there but not to `_DegradedLedgerEvidence` would raise
+# `AttributeError` inside `_cosmetic_carry_forward_verdict`'s blanket
+# `except Exception: return None`, silently making the carry-forward lens
+# permanently non-decisive with no test failure and no operator-visible
+# signal.
 # ---------------------------------------------------------------------------
 
 
 def test_degraded_ledger_evidence_field_shape_matches_real_ledger_evidence() -> None:
     """Compares `_DegradedLedgerEvidence`'s field shape (names AND order)
-    against the real `review_gate_corroboration.LedgerEvidence` NamedTuple —
-    a future field added to the real shape without updating this hand-
-    written stand-in now fails a test instead of silently drifting.
+    against the real `review_gate_corroboration.LedgerEvidence` NamedTuple,
+    and additionally against `CosmeticCarryForwardEvidence`'s field set
+    (subset, since the stand-in's fields are a superset covering both real
+    shapes) — a future field added to either real shape without updating
+    this hand-written stand-in now fails a test instead of silently
+    drifting.
 
     Triggers the ImportError-fallback path in a FRESH subprocess, not via
     the in-process `sys.modules["artifact_paths"] = None` + re-exec trick
@@ -1310,6 +2029,7 @@ def test_degraded_ledger_evidence_field_shape_matches_real_ledger_evidence() -> 
     import review_gate_corroboration as _rgc  # type: ignore[import-not-found]
 
     assert degraded_fields == _rgc.LedgerEvidence._fields
+    assert set(_rgc.CosmeticCarryForwardEvidence._fields) <= set(degraded_fields)
 
 
 # ---------------------------------------------------------------------------

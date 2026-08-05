@@ -55,9 +55,21 @@ _CONSTRUCTS: list[Construct] = [
     Construct(
         name="fact-explicit",
         # [Fact(Explicit = true)] / [Theory(Explicit=true)] — the property does
-        # not exist on v2's FactAttribute. `[^\]"]*` stops the property match
-        # from crossing into a quoted argument (e.g. DisplayName="Explicit = true").
-        pattern=re.compile(r"\[\s*(?:Fact|Theory)\s*\([^\]\"]*\bExplicit\s*=\s*true"),
+        # not exist on v2's FactAttribute.
+        #
+        # `(?:[^\]"]|"[^"]*")*` consumes either a non-quote character or a WHOLE
+        # quoted span, never a lone `"`. So the property match can never land
+        # inside a string (a DisplayName="Explicit = true" is still not a hit),
+        # but it can step over a completed one — the previous `[^\]"]*` could
+        # only refuse to enter a quote, which silently hid every form where a
+        # string-valued property came first: `[Fact(DisplayName = "x",
+        # Explicit = true)]`. The same construct is allowed to share its bracket
+        # (`[Trait("a","b"), Fact(Explicit = true)]`) rather than having to own
+        # it, matching the autofixture construct's reasoning below.
+        pattern=re.compile(
+            r"\[(?:[^\]\"]|\"[^\"]*\")*?\b(?:Fact|Theory)\s*\("
+            r"(?:[^\]\"]|\"[^\"]*\")*?\bExplicit\s*=\s*true"
+        ),
         compile_ability=NO_V2_EQUIVALENT,
         coverage_impact=COVERAGE_NEUTRAL,
         note="Explicit tests are skipped unless the run opts in (-explicit / "
@@ -106,6 +118,48 @@ _CONSTRUCTS: list[Construct] = [
         "rows carrying per-row metadata (Skip/Explicit/Traits/TestDisplayName) "
         "lose it in translation. Coverage-bearing (the test runs and covers code).",
     ),
+    Construct(
+        name="autofixture-auto-data",
+        # AutoFixture.Xunit3's attribute family. The bare-name alternations are
+        # word-bounded so `MemberAutoData`/`InlineAutoData` each count once
+        # instead of also matching a nested `AutoData` — an inflated blocker
+        # count is an operator-visible defect at the gate (#1791). Matching the
+        # attribute NAME rather than requiring a leading `[` is deliberate:
+        # `[Theory, AutoData]` is the common form and has no bracket of its own.
+        pattern=re.compile(
+            r"\bAutoFixture\.Xunit3\b|\bAutoData\b|\bInlineAutoData\b"
+            r"|\bAutoMoqData\b|\bMemberAutoData\b"
+        ),
+        compile_ability=NO_V2_EQUIVALENT,
+        coverage_impact=COVERAGE_BEARING,
+        note="AutoFixture.Xunit3's [AutoData]/[InlineAutoData]/[AutoMoqData]/"
+        "[MemberAutoData] target xunit.v3's attribute surface; the generated shim "
+        "mirrors the package reference verbatim, so the linked sources fail to "
+        "compile under xunit.v2. Porting means a manual `new Fixture()` in the "
+        "body or [Theory]+[InlineData] rows — heavy if pervasive. Coverage-bearing "
+        "(these tests run and cover code). A file that names AutoFixture.Xunit2 "
+        "and not .Xunit3 is NOT flagged (see _suppressed_constructs): the "
+        "attribute names are identical between the two packages, and the v2 one "
+        "already compiles in the shim.",
+    ),
+    Construct(
+        name="assert-multiple",
+        pattern=re.compile(r"\bAssert\.Multiple\s*\("),
+        compile_ability=NO_V2_EQUIVALENT,
+        coverage_impact=COVERAGE_BEARING,
+        note="Assert.Multiple (grouped assertion reporting) is v3-only; v2 has no "
+        "equivalent, so the call must become sequential asserts. The test runs and "
+        "covers code.",
+    ),
+    Construct(
+        name="assert-equivalent",
+        pattern=re.compile(r"\bAssert\.Equivalent\s*\("),
+        compile_ability=NO_V2_EQUIVALENT,
+        coverage_impact=COVERAGE_BEARING,
+        note="Assert.Equivalent (structural equivalence) is v3-only; under v2 it "
+        "must become an explicit member-by-member or collection assertion. The "
+        "test runs and covers code.",
+    ),
 ]
 
 
@@ -119,6 +173,32 @@ class Finding:
     snippet: str
 
 
+#: Constructs whose pattern alone cannot decide, keyed to the file-level signal
+#: that resolves them. See :func:`_suppressed_constructs`.
+_V2_AUTOFIXTURE = "AutoFixture.Xunit2"
+_V3_AUTOFIXTURE = "AutoFixture.Xunit3"
+
+
+def _suppressed_constructs(text: str) -> frozenset[str]:
+    """Constructs to skip for this file because a file-level signal clears them.
+
+    ``[AutoData]`` and friends are spelled IDENTICALLY by AutoFixture.Xunit2 and
+    AutoFixture.Xunit3, so the attribute name alone cannot tell a shim blocker
+    from code that already compiles under v2. When a file declares the v2
+    package and not the v3 one, it is not a blocker — flagging it would stall
+    the operator gate on nothing and, if they chose ``exclude``, drop
+    v2-compatible tests out of measurement.
+
+    Absence of both signals is NOT treated as v2: the reference may be a global
+    using or live in the ``.csproj``, so the construct is still reported and the
+    operator decides. Blocking and asking is the safe default here; silently
+    proceeding into a shim that cannot compile is not.
+    """
+    if _V2_AUTOFIXTURE in text and _V3_AUTOFIXTURE not in text:
+        return frozenset({"autofixture-auto-data"})
+    return frozenset()
+
+
 def scan_text(path: str, text: str) -> list[Finding]:
     """Return the v3-only constructs found in ``text``, attributed to ``path``.
 
@@ -126,6 +206,7 @@ def scan_text(path: str, text: str) -> list[Finding]:
     snippet the operator will see at the gate.
     """
     findings: list[Finding] = []
+    suppressed = _suppressed_constructs(text)
     for lineno, line in enumerate(text.splitlines(), start=1):
         # Skip fully commented-out lines so a `// [Fact(Explicit = true)]` in
         # dead code isn't flagged as a shim-breaker. A trailing comment on a
@@ -133,6 +214,8 @@ def scan_text(path: str, text: str) -> list[Finding]:
         if line.lstrip().startswith("//"):
             continue
         for construct in _CONSTRUCTS:
+            if construct.name in suppressed:
+                continue
             if construct.pattern.search(line):
                 findings.append(
                     Finding(

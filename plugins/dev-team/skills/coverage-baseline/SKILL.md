@@ -44,7 +44,7 @@ Read the build manifest at the repo root and pick the appropriate command:
 | `Cargo.toml` | `cargo llvm-cov --json` |
 | `go.mod` | `go test -coverprofile=coverage.out ./...` + `go tool cover -func=coverage.out` |
 
-If the repo has its own coverage script (e.g. `npm run coverage`, `make coverage`), prefer that — detect via `package.json#scripts.coverage`, the `Makefile`, or a documented run target in `README.md`. If detection is ambiguous, ask the operator for the exact command.
+If the repo has its own coverage script (e.g. `npm run coverage`, `make coverage`), prefer that — detect via `package.json#scripts.coverage`, the `Makefile`, or a documented run target in `README.md`. If detection is ambiguous, ask the operator for the exact command. This override does not apply to the `.sln`/`.csproj` row above — that row's discovery script always re-derives the project list itself, per-run, regardless of any repo-level coverage script.
 
 ### 1a. Multi-project discovery (.NET solutions & JS/TS workspaces)
 
@@ -272,6 +272,6 @@ Print:
 
 ## Notes
 
-- Coverage tools may legitimately differ by repo; never replace the repo's own script with a generic one unless detection fails. Operator override always wins.
+- Coverage tools may legitimately differ by repo; never replace the repo's own script with a generic one unless detection fails. Operator override always wins for the coverage command/flags — but never for the `.sln`/`.csproj` row's discovered project set, which is always re-derived per run regardless of any operator-supplied command.
 - The "fastest pre-merge wall-clock" target is not captured here — that's recorded by `/quality-targets-converge` once the full suite is in place. Baseline is line + branch only.
 - For Go (and any tool without native branch coverage), `branch_pct` is `null` and `phase-2.md` flags the gap so the operator can decide whether to install an alternate coverage tool or waive the target.

@@ -138,6 +138,7 @@ Skills are reusable knowledge modules in `.claude/skills/` that agents reference
 | Legacy Code | `skills/legacy-code/SKILL.md` | 700 | Software Engineer, QA Engineer, Architect |
 | Long Eval | `skills/long-eval/SKILL.md` | ~1,100 | QA Engineer, `/long-eval` command, standalone |
 | Mermaid Diagramming | `skills/mermaid-diagramming/SKILL.md` | ~400 | Architect, Software Engineer, Tech Writer |
+| Mutation Night-Watch | `skills/mutation-night-watch/SKILL.md` | ~1,300 | `/mutation-night-watch` command, QA Engineer, standalone |
 | Mutation Testing | `skills/mutation-testing/SKILL.md` | 700 | QA Engineer, Software Engineer |
 | Performance Benchmark | `skills/performance-benchmark/SKILL.md` | 800 | QA Engineer, Platform Engineer, `/benchmark` command |
 | Performance Metrics | `skills/performance-metrics/SKILL.md` | 890 | Orchestrator |
