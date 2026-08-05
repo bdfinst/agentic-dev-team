@@ -191,7 +191,8 @@ chk_python_only() {
     python3 scripts/check-python-only.py  # defaults to origin/main, blocking
   fi
 }
-# ADR 0014 puts shipped plugin code on Python 3.10. This check proves it by
+# ADR 0014 puts shipped plugin code on Python, stdlib only; ADR 0031 pins the
+# floor at 3.10. This check proves that floor by
 # asking a real 3.10 interpreter, never by pattern-matching source for
 # "APIs newer than the floor" — the first version of this gate was exactly
 # such a denylist, and it reported the shipped tree clean while
@@ -203,7 +204,7 @@ chk_python_only() {
 # generic in a module-level type alias compiles everywhere and raises below
 # the floor). Neither executes a function BODY, so a runtime-only API used
 # only inside one stays invisible to both — closed by also actually running
-# the shipped-agent-script test slice under the floor interpreter (#1650; see
+# the shipped-tree test slice under the floor interpreter (#1650; see
 # scripts/import_probe_shipped.py's docstring and this function's own
 # comments below for the current three-stage shape: compile, import, run).
 #
@@ -227,7 +228,7 @@ chk_python_floor() {
   if ! py310="$(_resolve_python310)" || [ -z "$py310" ]; then
     printf 'No Python 3.10 interpreter available, and this gate does not skip.\n' >&2
     printf 'Install one:  uv python install 3.10   (or apt/brew a python3.10)\n' >&2
-    printf 'ADR 0014 sets the shipped floor at 3.10; see tests/repo/test_python_floor.py.\n' >&2
+    printf 'ADR 0031 sets the shipped floor at 3.10; see tests/repo/test_python_floor.py.\n' >&2
     return 1
   fi
   printf 'floor interpreter: %s (%s)\n' "$py310" "$("$py310" -V 2>&1)"
@@ -247,12 +248,30 @@ chk_python_floor() {
   # the suite under the floor interpreter to close that gap, per this repo's
   # own "verify a runtime property by exercising it at runtime" rule.
   #
-  # Scoped to the test files that exercise the five currently-shipped
-  # plugins/dev-team/scripts/*.py agent scripts (progress_guardian,
-  # token_efficiency_review, codebase_recon, orchestrator, claude_setup_review)
-  # — six test files below for five scripts, since orchestrator alone has two
-  # (test_orchestrator.py + test_orchestrator_cli.py) — NOT all of
-  # tests/scripts/, which also covers non-shipped repo-root dev
+  # Scoped to the test files that exercise the shipped
+  # plugins/dev-team/scripts/*.py modules whose function bodies carry
+  # floor-sensitive runtime behavior:
+  #   - the five agent scripts (progress_guardian, token_efficiency_review,
+  #     codebase_recon, orchestrator, claude_setup_review) — six test files for
+  #     five scripts, since orchestrator alone has two (test_orchestrator.py +
+  #     test_orchestrator_cli.py);
+  #   - the three coverage-discovery modules (coverage_config,
+  #     coverage_discovery_dotnet, coverage_discovery_js), because
+  #     coverage_config's parse_iso8601 carries an explicit 3.10-vs-3.11
+  #     compatibility shim (`datetime.fromisoformat` rejects a trailing `Z`
+  #     before 3.11) — the #1650 shape exactly, one paragraph up.
+  #
+  # NOTE the two test roots — the agent-script tests live under repo-root
+  # tests/scripts/ while the coverage ones live under
+  # plugins/dev-team/tests/scripts/. One invocation spans both safely for the
+  # reason pytest.ini's own --import-mode=importlib comment gives (#1120); the
+  # args' common ancestor is the repo root, so that pytest.ini is the one in
+  # effect. A path listed here that later disappears fails the gate loudly
+  # (pytest exits 4, "file or directory not found") rather than silently
+  # shrinking the slice — and tests/repo/test_python_floor.py's FLOOR_TEST_SLICE
+  # holds this list to that file's declaration in both directions.
+  #
+  # This is NOT all of tests/scripts/, which also covers non-shipped repo-root dev
   # tooling (mutation-testing harnesses, stryker wrappers, etc.) that isn't
   # bound by the shipped-tree floor and legitimately uses newer stdlib APIs
   # (confirmed live: scripts/experiment_install_harness.py's `from datetime
@@ -270,7 +289,16 @@ chk_python_floor() {
     printf 'Install uv (https://docs.astral.sh/uv/) so this gate can run the floor-interpreter test slice under %s.\n' "$py310" >&2
     return 1
   fi
-  uv run --python "$py310" \
+  # PYTEST_ADDOPTS/PYTEST_DISABLE_PLUGIN_AUTOLOAD are cleared, not inherited: an
+  # ambient `PYTEST_ADDOPTS=--collect-only` in a contributor's shell (or a future
+  # `env:` block in the CI job) would otherwise make this gate execute zero
+  # function bodies and still exit 0 — a green gate proving exactly nothing.
+  # `|| return 1` makes the verdict explicit rather than positional: a bash
+  # function returns its LAST command's status, and ci-local.sh runs without
+  # `set -e`, so any line appended after this one would otherwise silently
+  # become the gate's answer. The compile and import stages above already do
+  # this; the stage that matters most did not.
+  PYTEST_ADDOPTS= PYTEST_DISABLE_PLUGIN_AUTOLOAD= uv run --python "$py310" \
     --with 'pytest>=7.0' --with 'pytest-asyncio>=0.23' --with 'jsonschema>=4.0' \
     -m pytest \
     tests/scripts/test_codebase_recon.py \
@@ -279,7 +307,10 @@ chk_python_floor() {
     tests/scripts/test_progress_guardian.py \
     tests/scripts/test_token_efficiency_review_script.py \
     tests/scripts/test_claude_setup_review.py \
-    -q
+    plugins/dev-team/tests/scripts/test_coverage_config.py \
+    plugins/dev-team/tests/scripts/test_coverage_discovery_dotnet.py \
+    plugins/dev-team/tests/scripts/test_coverage_discovery_js.py \
+    -q || return 1
 }
 
 chk_semgrep_fixtures() { python3 scripts/audit-semgrep-fixtures.py; }
