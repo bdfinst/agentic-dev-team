@@ -11,9 +11,11 @@ drift-checking it against fresh discovery, weighted-merging per-project
 coverage reports, and flagging a changed measurement basis after a
 bootstrap.
 
-**Identity contract.** A project/package "path" is always the exact,
-unmodified string the corresponding `discover_*` function (Slice 2/3)
-returns for that entry. No cross-stack normalization, case-folding, or
+**Identity contract.** An accounting unit's "path" is always the exact,
+unmodified string the corresponding `discover_*` function returns for that
+entry — whatever each stack calls the unit natively (a .NET *project*, a JS/TS
+*package*, a Maven *module*, a Gradle *subproject*). No cross-stack
+normalization, case-folding, or
 separator translation is ever applied when matching a discovered path
 against `included`/`excluded` entries — a POSIX-style path and an arbitrary
 opaque label are both treated as opaque strings and compared for exact
@@ -50,16 +52,72 @@ def needs_accounting(classification: TestClassification) -> bool:
     return classification in (TestClassification.TEST, TestClassification.AMBIGUOUS)
 
 
-# Shared discovery-result signals — one canonical contract, imported by both
-# Slice 2's `coverage_discovery_dotnet.py` and Slice 3's
-# `coverage_discovery_js.py` rather than each independently converging on a
-# matching shape.
+# Shared discovery-result signals — one canonical contract, imported by every
+# `coverage_discovery_<stack>.py` module rather than each independently
+# converging on a matching shape.
 DISCOVERY_NOT_APPLICABLE = {"signal": "not_applicable"}
 
 
 def discovery_error(message: str) -> dict:
     """Return the shared discovery-error signal shape, naming `message`."""
     return {"signal": "error", "message": message}
+
+
+# A build file consumed by discovery never legitimately carries a DOCTYPE or
+# ENTITY declaration — presence of either is a zero-false-positive signal of
+# an entity-expansion attempt, not a legitimate build file.
+UNSAFE_XML_MARKERS = ("<!DOCTYPE", "<!ENTITY")
+
+
+def find_unsafe_xml_marker(data: bytes):
+    """Return the first disallowed marker (`UNSAFE_XML_MARKERS`) found in
+    `data`'s raw bytes, or in `data` decoded as UTF-16LE/UTF-16BE — the other
+    encodings expat auto-detects and natively parses besides UTF-8.
+    ASCII/Latin-1 are byte-identical to UTF-8 for these ASCII-only tokens, so
+    no separate check is needed for those; decoding the raw bytes as Latin-1
+    (a total, never-raising 1:1 byte<->codepoint mapping) covers the
+    UTF-8/ASCII/Latin-1 case in one pass. Returns `None` when no marker is
+    found in any of the three views."""
+    raw_text = data.decode("latin-1")
+    utf16le_text = data.decode("utf-16le", errors="ignore")
+    utf16be_text = data.decode("utf-16be", errors="ignore")
+    for marker in UNSAFE_XML_MARKERS:
+        if marker in raw_text or marker in utf16le_text or marker in utf16be_text:
+            return marker
+    return None
+
+
+def read_and_screen_xml(path: Path):
+    """Read `path` ONCE as bytes and screen the FULL content — never only a
+    fixed-size prefix — for a disallowed `<!DOCTYPE`/`<!ENTITY` declaration
+    (XML entity-expansion hardening). `xml.etree.ElementTree` is explicitly
+    not secure against maliciously constructed data, and discovery parses
+    repository-supplied build files, so every stack's XML read routes through
+    this one screen.
+
+    Returns `(data, None)` when the file looks safe to parse — the caller
+    parses these SAME already-read bytes via `ET.fromstring`, never re-opening
+    `path`, which closes the check-then-use double-open gap a
+    `read`-then-`ET.parse(path)` pair leaves open. Returns
+    `(None, discovery_error(...))` otherwise (unreadable file, or a
+    disallowed marker found).
+
+    Shared by every discovery stack that parses repository-supplied XML — a
+    second copy of this screen is a review finding, not a style choice: one
+    stack once shipped without a screen at all, which is exactly the drift a
+    single shared implementation prevents. Callers are deliberately not
+    enumerated here; a shared helper should not name its consumers."""
+    try:
+        data = path.read_bytes()
+    except OSError as exc:
+        return None, discovery_error(f"Could not read '{path}': {exc}")
+    marker = find_unsafe_xml_marker(data)
+    if marker is not None:
+        return None, discovery_error(
+            f"Refusing to parse '{path}': contains a disallowed "
+            f"'{marker}' declaration (XML entity-expansion hardening)."
+        )
+    return data, None
 
 
 def load_or_bootstrap(

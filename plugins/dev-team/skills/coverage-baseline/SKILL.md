@@ -36,20 +36,21 @@ Read the build manifest at the repo root and pick the appropriate command:
 
 | Manifest | Default coverage command |
 |---|---|
-| `package.json` (JS/TS) | `npm test -- --coverage` (or `pnpm test --coverage`, `yarn test --coverage`) — or, when a workspace signal is present (a root `workspaces` field, `pnpm-workspace.yaml`, or `lerna.json`), multi-project discovery (see [Step 1a](#1a-multi-project-discovery-net-solutions--jsts-workspaces)) |
+| `package.json` (JS/TS) | `npm test -- --coverage` (or `pnpm test --coverage`, `yarn test --coverage`) — or, when a workspace signal is present (a root `workspaces` field, `pnpm-workspace.yaml`, or `lerna.json`), multi-project discovery (see [Step 1a](#1a-multi-project-discovery-net-solutions-jsts-workspaces--java-multi-module-builds)) |
 | `pyproject.toml` / `setup.py` | `pytest --cov=. --cov-report=json` |
-| `pom.xml` | `mvn test jacoco:report` |
-| `build.gradle*` | `./gradlew test jacocoTestReport` |
-| `*.csproj` | `dotnet test /p:CollectCoverage=true /p:CoverletOutputFormat=json` — or, when a `.sln` is present at the repo root, multi-project discovery (see [Step 1a](#1a-multi-project-discovery-net-solutions--jsts-workspaces)) |
+| `pom.xml` | `mvn test jacoco:report` — or, when the root `pom.xml` declares `<modules>`, multi-project discovery (see [Step 1a](#1a-multi-project-discovery-net-solutions-jsts-workspaces--java-multi-module-builds)) |
+| `build.gradle*` | `./gradlew test jacocoTestReport` — or, when `settings.gradle`/`settings.gradle.kts` declares `include(...)`, multi-project discovery (see [Step 1a](#1a-multi-project-discovery-net-solutions-jsts-workspaces--java-multi-module-builds)) |
+| `*.csproj` | `dotnet test /p:CollectCoverage=true /p:CoverletOutputFormat=json` — or, when a `.sln` is present at the repo root, multi-project discovery (see [Step 1a](#1a-multi-project-discovery-net-solutions-jsts-workspaces--java-multi-module-builds)) |
 | `Cargo.toml` | `cargo llvm-cov --json` |
 | `go.mod` | `go test -coverprofile=coverage.out ./...` + `go tool cover -func=coverage.out` |
 
-If the repo has its own coverage script (e.g. `npm run coverage`, `make coverage`), prefer that — detect via `package.json#scripts.coverage`, the `Makefile`, or a documented run target in `README.md`. If detection is ambiguous, ask the operator for the exact command. This override does not apply to the `.sln`/`.csproj` row above — that row's discovery script always re-derives the project list itself, per-run, regardless of any repo-level coverage script.
+If the repo has its own coverage script (e.g. `npm run coverage`, `make coverage`), prefer that — detect via `package.json#scripts.coverage`, the `Makefile`, or a documented run target in `README.md`. If detection is ambiguous, ask the operator for the exact command. This override does not apply to the `.sln`/`.csproj`, `pom.xml`, or `build.gradle*` rows above — each of those rows' discovery scripts always re-derives the project/module list itself, per-run, regardless of any repo-level coverage script.
 
-### 1a. Multi-project discovery (.NET solutions & JS/TS workspaces)
+### 1a. Multi-project discovery (.NET solutions, JS/TS workspaces & Java multi-module builds)
 
 Replaces the single frozen coverage command above for a multi-project .NET
-solution or JS/TS workspace — closing the gap where a hand-picked,
+solution, JS/TS workspace, or Java multi-module build — closing the gap where
+a hand-picked,
 never-revisited inclusion list caused a real coverage delta to be
 underreported (issue #1759). **Implementation detail** — the discovery,
 bootstrap/drift-check, weighted-merge, and persist mechanics below:
@@ -73,8 +74,22 @@ command above. It returns every project in the solution, each classified
 --coverage` command above. It returns every resolved workspace package, each
 classified `TEST` or `NOT_TEST`.
 
-Either discovery function can return `coverage_config.DISCOVERY_NOT_APPLICABLE`
-(no `.sln` / no workspace signal — see Step 1b below: the repo is
+**Java** — when a root `pom.xml` declares `<modules>` (Maven), or a
+`settings.gradle`/`settings.gradle.kts` declares `include(...)` (Gradle), run
+`${CLAUDE_PLUGIN_ROOT}/scripts/coverage_discovery_java.py`'s
+`discover_java_modules(repo_root)` instead of the single `mvn test
+jacoco:report` / `./gradlew test jacocoTestReport` command above. Maven takes
+precedence when both signals are present (no cross-merge). It returns every
+module in the build graph — recursively through Maven aggregator modules —
+each classified `TEST`, `AMBIGUOUS`, or `NOT_TEST`. `TEST` requires BOTH a
+`src/test/java`/`src/test/kotlin` directory AND a JUnit/TestNG dependency
+declared on a test configuration in the module's OWN build file; a test-source
+directory whose framework dependency is only inherited (a parent POM, a Gradle
+`subprojects {}` block, a convention plugin) is `AMBIGUOUS`, never silently
+`NOT_TEST`.
+
+Any of the three discovery functions can return `coverage_config.DISCOVERY_NOT_APPLICABLE`
+(no `.sln` / no workspace signal / no multi-module signal — see Step 1b below: the repo is
 single-project and unaffected by anything in this section) or
 `coverage_config.discovery_error(...)` for a tooling/parsing failure — treat
 a `discovery_error` exactly like an existing Step 3 coverage-run failure
@@ -96,11 +111,14 @@ When discovery returns a real project/package list, call, in this order:
    classifies `NOT_TEST` — stop immediately, before touching
    `coverage-config.json` or `baseline-coverage.json`, with the exact
    message: `"Coverage capture stopped: no real test project was discovered
-   in this <solution|workspace> — cannot establish a coverage floor. If
-   this repo has test projects, verify they reference
-   Microsoft.NET.Test.Sdk (or, for JS/TS, use jest/vitest/mocha+nyc/c8) so
-   discovery can recognize them; otherwise there is no coverage floor to
-   capture."` (`<solution|workspace>` resolved to whichever stack applies).
+   in this <solution|workspace|multi-module build> — cannot establish a
+   coverage floor. If this repo has test projects, verify they reference
+   Microsoft.NET.Test.Sdk (for .NET), use jest/vitest/mocha+nyc/c8 (for
+   JS/TS), or declare a JUnit/TestNG dependency alongside a
+   src/test/java|kotlin directory (for Java) so discovery can recognize
+   them; otherwise there is no coverage floor to capture."`
+   (`<solution|workspace|multi-module build>` resolved to whichever stack
+   applies).
    Write no baseline.
 2. `coverage_config.load_or_bootstrap(config_path, discovered, now_iso)` —
    loads `coverage-config.json` if present (verbatim, unmodified), or

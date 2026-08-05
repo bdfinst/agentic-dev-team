@@ -70,12 +70,14 @@ NOT_TEST_PKG = {"name": "helper-pkg", "scripts": {"build": "tsc"}}
 
 def test_zero_real_test_message_documented_verbatim_for_both_stacks():
     """The SKILL.md carries the template with the literal placeholder
-    `<solution|workspace>`, not a resolved value — check the unresolved
-    template text (shared with the flow-helpers module every integration
-    test below imports) appears verbatim."""
+    `<solution|workspace|multi-module build>`, not a resolved value — check the
+    unresolved template text (shared with the flow-helpers module every
+    integration test below imports) appears verbatim."""
     step_1a = collapsed(_step_1a_section())
     template_text = collapsed(
-        ZERO_REAL_TEST_MESSAGE_TEMPLATE.format(kind="<solution|workspace>")
+        ZERO_REAL_TEST_MESSAGE_TEMPLATE.format(
+            kind="<solution|workspace|multi-module build>"
+        )
     )
     assert template_text in step_1a
 
@@ -84,6 +86,7 @@ def test_step_1a_names_markers_discovery_recognizes():
     step_1a = collapsed(_step_1a_section())
     assert "Microsoft.NET.Test.Sdk" in step_1a
     assert grep(r"jest.*vitest.*mocha.*nyc.*c8", step_1a, ignore_case=True)
+    assert "JUnit/TestNG" in step_1a
 
 
 # ---------------------------------------------------------------------------
