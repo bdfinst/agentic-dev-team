@@ -138,7 +138,7 @@ def discover_dotnet_projects(repo_root):
                 "read or classify it."
             )
         csproj_path = (root / rel_path).resolve()
-        if not (csproj_path == root or root in csproj_path.parents):
+        if not coverage_config.is_within(csproj_path, root):
             return coverage_config.discovery_error(
                 f"Solution '{sln_path.name}' references project "
                 f"'{rel_path}', which resolves outside the repository "
@@ -252,7 +252,7 @@ def _classify_project(csproj_path: Path, solution_root: Path):
 
     found_conditioned = False
     current_dir = csproj_path.parent
-    while current_dir == solution_root or solution_root in current_dir.parents:
+    while coverage_config.is_within(current_dir, solution_root):
         props_path = current_dir / "Directory.Build.props"
         if props_path.is_file():
             try:
@@ -261,10 +261,7 @@ def _classify_project(csproj_path: Path, solution_root: Path):
                 return coverage_config.discovery_error(
                     f"Could not resolve '{props_path}': {exc}"
                 )
-            if not (
-                resolved_props_path == solution_root
-                or solution_root in resolved_props_path.parents
-            ):
+            if not coverage_config.is_within(resolved_props_path, solution_root):
                 return coverage_config.discovery_error(
                     f"'{props_path}' resolves to '{resolved_props_path}', "
                     f"which is outside the solution root "
@@ -302,11 +299,11 @@ def _test_sdk_reference_kind(root) -> str | None:
     presence alone drives the distinction."""
     found_conditioned = False
     for item_group in root.iter():
-        if _local_name(item_group.tag) != "ItemGroup":
+        if coverage_config.local_name(item_group.tag) != "ItemGroup":
             continue
         group_conditioned = "Condition" in item_group.attrib
         for child in item_group:
-            if _local_name(child.tag) != "PackageReference":
+            if coverage_config.local_name(child.tag) != "PackageReference":
                 continue
             include = (child.get("Include") or "").strip().casefold()
             if include != _TEST_SDK_PACKAGE.casefold():
@@ -316,8 +313,3 @@ def _test_sdk_reference_kind(root) -> str | None:
             else:
                 return "unconditioned"
     return "conditioned" if found_conditioned else None
-
-
-def _local_name(tag: str) -> str:
-    """Strip an XML namespace prefix (`{ns}Tag` -> `Tag`) if present."""
-    return tag.split("}", 1)[-1] if "}" in tag else tag

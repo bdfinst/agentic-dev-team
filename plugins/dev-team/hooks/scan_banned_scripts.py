@@ -26,7 +26,6 @@ Stdlib-only. See ADR 0014/0015.
 
 from __future__ import annotations
 
-import json
 import subprocess
 import sys
 from pathlib import Path
@@ -37,35 +36,51 @@ if str(_LIB_DIR) not in sys.path:
     sys.path.insert(0, str(_LIB_DIR))
 
 from artifact_paths import project_root
-
-BANNED_EXTENSIONS = (".sh", ".bash", ".bat", ".cmd", ".ps1")
-SCOPED_PREFIX = "plugins/dev-team/"
-
-# Mirrors scan_bash_for_banned_scripts.py's carve-out — the two documented
-# bootstrap-shim exceptions (repo CLAUDE.md § Script authoring).
-ALLOWED_RELATIVE_PATHS = {
-    "plugins/dev-team/install.sh",
-    "plugins/dev-team/hooks/py.sh",
-}
+from banned_scripts_policy import (
+    ALLOWED_RELATIVE_PATHS,
+    BANNED_EXTENSIONS,
+    SCOPED_PREFIX,
+    looks_like_monorepo_checkout,
+)
+from stdin_json import read_stdin_json
 
 _GIT_TIMEOUT_S = 10
 
-
-def _read_stdin() -> str:
-    try:
-        return sys.stdin.read()
-    except Exception:  # noqa: BLE001 - never crash a hook on stdin read
-        return ""
+# Cap on files walked inside a single untracked directory (#1879). A
+# wholly-new directory collapses to one `?? some/new/dir/` porcelain line —
+# it must be recursed into on disk to see individual files — but an
+# unbounded walk could hang on a pathological huge directory. This mirrors
+# _GIT_TIMEOUT_S's intent (never let this scan hang indefinitely) with a
+# count bound instead of a wall-clock one, since `Path.rglob` has no native
+# timeout.
+_MAX_UNTRACKED_DIR_ENTRIES = 5000
 
 
 def _porcelain_paths(root: Path) -> list[str]:
     """Every path `git status --porcelain` reports under
     `plugins/dev-team/`, tracked or untracked. Fails open (returns `[]`) on
     any git failure — no repo, git missing, timeout — matching every other
-    advisory hook's contract: a scan that can't run must never block."""
+    advisory hook's contract: a scan that can't run must never block.
+
+    An entry whose path no longer exists on disk is skipped — checked by
+    actually stat-ing it, not by inferring "deleted" from a `D` in the
+    status code, which is wrong for an unresolved-merge conflict code
+    (`DU`/`UD`) where the path IS still present in the working tree. The
+    "old -> new" rename/copy arrow is only stripped when the status code
+    actually reports a rename or copy (`R`/`C`), not on every entry that
+    happens to contain the literal substring "-> ".
+    """
     try:
         result = subprocess.run(
-            ["git", "status", "--porcelain", "--", SCOPED_PREFIX.rstrip("/")],
+            [
+                "git",
+                "-c",
+                "core.quotePath=false",
+                "status",
+                "--porcelain",
+                "--",
+                SCOPED_PREFIX.rstrip("/"),
+            ],
             cwd=str(root),
             capture_output=True,
             text=True,
@@ -79,19 +94,71 @@ def _porcelain_paths(root: Path) -> list[str]:
 
     paths = []
     for line in result.stdout.splitlines():
-        entry = line[3:] if len(line) > 3 else ""
-        # Rename lines carry "old -> new" — the new path is what's on disk.
-        if "-> " in entry:
+        if len(line) < 3:
+            continue
+        status = line[:2]
+        entry = line[3:]
+        if status[0] in ("R", "C") and "-> " in entry:
             entry = entry.split("-> ", 1)[1]
         entry = entry.strip().strip('"')
-        if entry:
-            paths.append(entry)
+        if not entry:
+            continue
+        # Test the actual runtime property ("is this path still present on
+        # disk") rather than inferring it from the status code: a plain `D`
+        # skip is wrong for an unresolved-merge conflict code (`DU`/`UD`),
+        # where the path IS present in the working tree despite carrying a
+        # `D` character.
+        if not (root / entry).exists():
+            continue
+        paths.append(entry)
     return paths
+
+
+def _files_in_untracked_dir(root: Path, rel_dir: str) -> list[str]:
+    """Recurse into a wholly-new untracked directory (a porcelain entry
+    ending in `/`), returning banned-extension files found inside, relative
+    to `root` in POSIX form. Bounded by `_MAX_UNTRACKED_DIR_ENTRIES` and
+    fails open (returns whatever was found so far) on any OS error.
+
+    Relativizes via the known `root`/`rel_dir` prefix, not `path.resolve()`
+    — resolving would follow a symlink named e.g. `evil.sh` to its target,
+    which can land outside `root` and raise `ValueError`, silently dropping
+    the entry. That's weaker than the sibling non-directory branch in
+    `_porcelain_paths`, which flags such a link (it never resolves at all);
+    this walk must not be the one gap in an otherwise-consistent scan.
+    """
+    hits: list[str] = []
+    try:
+        for count, path in enumerate((root / rel_dir).rglob("*")):
+            if count >= _MAX_UNTRACKED_DIR_ENTRIES:
+                break
+            if not (path.is_file() or path.is_symlink()):
+                continue
+            if not path.name.lower().endswith(BANNED_EXTENSIONS):
+                continue
+            try:
+                rel = path.relative_to(root).as_posix()
+            except ValueError:
+                continue
+            hits.append(rel)
+    except OSError:
+        return hits
+    return hits
 
 
 def find_banned_files(root: Path) -> list[str]:
     hits = set()
     for rel in _porcelain_paths(root):
+        if rel.endswith("/"):
+            # A brand-new untracked directory — expand it on disk (#1879)
+            # rather than checking the directory path string itself.
+            if not rel.startswith(SCOPED_PREFIX):
+                continue
+            for found in _files_in_untracked_dir(root, rel):
+                if found in ALLOWED_RELATIVE_PATHS:
+                    continue
+                hits.add(found)
+            continue
         if not rel.startswith(SCOPED_PREFIX) or rel in ALLOWED_RELATIVE_PATHS:
             continue
         if rel.lower().endswith(BANNED_EXTENSIONS):
@@ -100,16 +167,20 @@ def find_banned_files(root: Path) -> list[str]:
 
 
 def main() -> int:
-    raw = _read_stdin()
-    try:
-        payload = json.loads(raw) if raw.strip() else {}
-    except json.JSONDecodeError:
-        payload = {}
-    if not isinstance(payload, dict):
-        payload = {}
+    payload = read_stdin_json() or {}
+    cwd = Path(payload.get("cwd") or ".")
 
-    root = project_root(Path(payload.get("cwd") or "."))
+    # (#1861) Cheap, non-git early exit for any checkout where this
+    # monorepo's own plugins/dev-team/ tree doesn't exist — e.g. every
+    # downstream install of the plugin. This hook runs on the PostToolUse
+    # `*` matcher (every tool call, forever), so it must not shell out to
+    # `git rev-parse`/`git status` at all when there is nothing under
+    # plugins/dev-team/ to scan — checked via a plain filesystem walk
+    # BEFORE project_root() (which itself shells out to git), not after.
+    if not looks_like_monorepo_checkout(cwd):
+        return 0
 
+    root = project_root(cwd)
     hits = find_banned_files(root)
     if not hits:
         return 0

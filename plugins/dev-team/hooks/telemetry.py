@@ -48,6 +48,7 @@ if str(_LIB_DIR) not in sys.path:
     sys.path.insert(0, str(_LIB_DIR))
 
 import telemetry_consent
+from atomic_state import append_line_locked
 from boundary_events import emit_boundary_event as _emit_boundary_event
 
 
@@ -106,9 +107,13 @@ def _notice_legacy_signal_once(session_id: object) -> None:
     """
     marker = _legacy_signal_path(session_id)
     try:
+        # os.O_NOFOLLOW is undefined on Windows; getattr(..., 0) makes the
+        # flag a no-op there rather than an AttributeError (which isn't an
+        # OSError and would escape this except — #1896, mirroring the same
+        # guard in atomic_state.py's locked_state).
         fd = os.open(
             str(marker),
-            os.O_CREAT | os.O_EXCL | os.O_WRONLY | os.O_NOFOLLOW,
+            os.O_CREAT | os.O_EXCL | os.O_WRONLY | getattr(os, "O_NOFOLLOW", 0),
             0o600,
         )
     except OSError:
@@ -168,8 +173,9 @@ def _emit(log: Path, event: str, name: str, outcome: str, version: str) -> None:
         "plugin_version": version,
     }
     try:
-        with open(log, "a", encoding="utf-8") as handle:
-            handle.write(json.dumps(payload, separators=(",", ":")) + "\n")
+        append_line_locked(
+            log, json.dumps(payload, separators=(",", ":")) + "\n", fail_open=False
+        )
     except OSError as exc:
         sys.stderr.write(f"WARN: could not write {log}: {exc}\n")
 

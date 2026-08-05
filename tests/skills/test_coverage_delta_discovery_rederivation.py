@@ -21,6 +21,7 @@ from coverage_delta_flow_helpers import (
     COVERAGE_DELTA_GENERIC_RUN_FAILURE_PHRASES,
     run_delta_flow,
 )
+from coverage_flow_shared import sln, write
 from skill_doc_helpers import PLUGIN_ROOT, collapsed, grep, section
 
 SCRIPTS_DIR = PLUGIN_ROOT / "scripts"
@@ -57,13 +58,6 @@ TEST_CSPROJ = """<Project Sdk="Microsoft.NET.Sdk">
 """
 
 
-def write(path, content: str) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(content, encoding="utf-8")
-
-
-def sln(repo_root, name: str = "App.sln") -> None:
-    write(repo_root / name, "Microsoft Visual Studio Solution File\n")
 
 
 # ---------------------------------------------------------------------------

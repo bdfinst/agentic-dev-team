@@ -36,6 +36,11 @@ _mkdocs_src/
 .claude/code-intelligence-turn-state.json
 .claude/code-intelligence-turn-state.json.lock
 
+# Per-repo freeze scope-lock state read by pre_tool_guard.py (#1890) — transient
+# runtime state, never repo content; un-ignored would make it committable, and
+# it's read unvalidated by a guard whose allowed_patterns gate Write/Edit.
+.claude/hooks/freeze-state.json
+
 # /setup and /project-init's stack-detection cache — pure detection output, the
 # same regeneratable-artifact class as .claude/memory/ and .claude/metrics/
 # above. /setup's Step 11 downstream-only ignore-rule step is explicitly

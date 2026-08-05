@@ -38,6 +38,7 @@ _LIB_DIR = Path(__file__).resolve().parent / "lib"
 if str(_LIB_DIR) not in sys.path:
     sys.path.insert(0, str(_LIB_DIR))
 
+from atomic_state import append_line_locked
 from boundary_events import emit_boundary_event as _emit_boundary_event
 
 
@@ -104,17 +105,12 @@ def _log_bypass(reason: str) -> None:
         "github_actor": os.environ.get("GITHUB_ACTOR", ""),
         "git_email": os.environ.get("GIT_AUTHOR_EMAIL", ""),
     }
-    # Match the .sh's printf key order: ts, bypass, reason, github_actor, git_email.
-    line = (
-        f'{{"ts":"{payload["ts"]}","bypass":true,'
-        f'"reason":"{payload["reason"]}","github_actor":"{payload["github_actor"]}",'
-        f'"git_email":"{payload["git_email"]}"}}\n'
-    )
-    try:
-        with _AUDIT_LOG.open("a", encoding="utf-8") as fh:
-            fh.write(line)
-    except OSError:
-        return
+    # json.dumps preserves dict insertion order, matching the .sh's printf
+    # key order: ts, bypass, reason, github_actor, git_email. Hand-building
+    # this line with f-strings (as before) left a `"`/`\` in an env-sourced
+    # value able to emit an invalid JSONL line; serialize it properly instead.
+    line = json.dumps(payload, separators=(",", ":")) + "\n"
+    append_line_locked(_AUDIT_LOG, line)
 
 
 # ---------------------------------------------------------------------------

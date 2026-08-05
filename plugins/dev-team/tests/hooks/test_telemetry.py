@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import builtins
 import io
 import json
 import sys
@@ -135,17 +134,27 @@ def test_emit_logs_diagnostic_on_mkdir_failure(tmp_path, monkeypatch, capsys):
 
 def test_emit_logs_diagnostic_on_write_failure(tmp_path, monkeypatch, capsys):
     """AC5: a failure to write the log line must produce a stderr
-    diagnostic, and must not raise into the caller."""
+    diagnostic, and must not raise into the caller.
+
+    `_emit` now appends via `atomic_state.append_line_locked` (#1896), which
+    opens the data file through `os.open` (not `builtins.open`) — the lock
+    file itself is opened at a different path (`<log>.lock`), so patching
+    `os.open` scoped to `log`'s own path still isolates the injected
+    failure to the data-file open, same as the pre-#1896 `builtins.open`
+    patch did.
+    """
+    import os
+
     log = tmp_path / "metrics" / "telemetry.jsonl"
     log.parent.mkdir(parents=True)
-    real_open = builtins.open
+    real_open = os.open
 
-    def _raise(file, *args, **kwargs):
-        if str(file) == str(log):
+    def _raise(path, *args, **kwargs):
+        if str(path) == str(log):
             raise OSError("disk full")
-        return real_open(file, *args, **kwargs)
+        return real_open(path, *args, **kwargs)
 
-    monkeypatch.setattr("builtins.open", _raise)
+    monkeypatch.setattr("os.open", _raise)
     telemetry._emit(log, "command", "plan", "invoked", "1.0.0")
     err = capsys.readouterr().err
     assert "WARN" in err

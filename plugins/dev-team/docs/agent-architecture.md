@@ -194,7 +194,7 @@ A `PreToolUse` hook (`hooks/context_ceiling_guard.py`) registered on `Agent` and
 
 ### Freeze Mode
 
-The `hooks/pre_tool_guard.py` hook also enforces freeze mode. When `/freeze <glob>` is invoked, it writes a state file (`hooks/freeze-state.json`) that restricts Write/Edit operations to files matching the allowed pattern. This prevents accidental edits outside the scope of a debugging session. `/unfreeze` removes the restriction. `/guard <glob>` activates both careful mode and freeze mode together.
+The `hooks/pre_tool_guard.py` hook also enforces freeze mode. When `/freeze <glob>` is invoked, it writes a state file (`.claude/hooks/freeze-state.json`, resolved per invoking repo via `hooks/lib/artifact_paths.py` — issue #1890) that restricts Write/Edit operations to files matching the allowed pattern. This prevents accidental edits outside the scope of a debugging session, and — because the state file is repo-scoped rather than relative to the hook's own shared install directory — one session's freeze can never scope-lock a different, concurrently-running session's edits. `/unfreeze` removes the restriction. `/guard <glob>` activates both careful mode and freeze mode together.
 
 ### Decision Log
 

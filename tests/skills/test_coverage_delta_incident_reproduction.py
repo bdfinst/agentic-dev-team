@@ -32,6 +32,7 @@ import sys
 import pytest
 from coverage_baseline_flow_helpers import stub_dotnet
 from coverage_delta_flow_helpers import run_delta_flow
+from coverage_flow_shared import sln, write
 from skill_doc_helpers import PLUGIN_ROOT
 
 SCRIPTS_DIR = PLUGIN_ROOT / "scripts"
@@ -46,15 +47,6 @@ TEST_CSPROJ = """<Project Sdk="Microsoft.NET.Sdk">
   </ItemGroup>
 </Project>
 """
-
-
-def write(path, content: str) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(content, encoding="utf-8")
-
-
-def sln(repo_root, name: str = "App.sln") -> None:
-    write(repo_root / name, "Microsoft Visual Studio Solution File\n")
 
 
 def test_incident_shape_exclusion_and_reason_stay_visible_across_both_timepoints(

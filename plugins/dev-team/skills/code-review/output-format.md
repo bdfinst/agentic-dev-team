@@ -97,6 +97,24 @@ gap is enforced by this DTO itself, not by each caller re-deriving it from
 `overall: "pass"` and proceed despite a lens that never ran, exactly the
 silent-gap failure mode #1752 exists to close.
 
+**A step 6a fix-loop exit via escalation also forces `overall: "fail"`**
+(issue #1880), for the same reason and by the same mechanism as the
+`dispatchFailures` rule above: `SKILL.md` step 6a's own exit-conditions table
+already treats a round-cap exit, an iteration-limit exit, and a
+"same issues persist" exit as fail-equivalent — but only for step 9's
+`.review-passed` gate-write condition, and step 9 never runs under `--json`.
+Without this second rule, an escalated review whose only remaining issues are
+`warning`-severity would compute `overall: "warn"` from the per-agent totals
+alone and a `--json` caller (e.g. `/pr`'s internal `/code-review --since
+<base> --json` call) would see a passing-looking `"warn"` and proceed —
+silently missing the escalation, exactly the gap the `dispatchFailures` rule
+above already closed for dispatch coverage. A **clean** `converged` exit
+(zero actionable issues, or the round ledger reporting `converged`) is
+**not** an escalation and does not trigger this rule. Apply both override
+rules — `dispatchFailures` and fix-loop escalation — after the totals-based
+`overall` computation, so either one always wins regardless of the per-agent
+severity mix.
+
 **`--json` output contract.** When `--json` is set, the object above is the
 run's *only* output: printed to stdout, and no `corrections/*.json` files or
 `.review-passed` gate file are written — regardless of scope (`--path`,

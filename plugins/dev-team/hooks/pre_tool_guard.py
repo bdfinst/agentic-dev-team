@@ -3,11 +3,24 @@
 
 Runs before Write and Edit tool calls. Blocks writes to sensitive paths
 (credentials, secrets, keys). Warns on writes to protected config files.
-Enforces freeze-mode's scope lock when `freeze-state.json` sits alongside.
+Enforces freeze-mode's scope lock when a freeze-state file is active.
 
 Input : JSON on stdin with `tool_input.file_path` or `tool_input.path`.
 Output: message on stdout; exit 2 to block, exit 0 to allow.
-Config: `hooks/guards.json` (same directory as the hook itself).
+Config: `hooks/guards.json` (same directory as the hook itself — shared
+across sessions deliberately; sensitive-path patterns are global, not
+per-repo).
+
+Freeze state (issue #1890) is resolved per invoking repo, NOT relative to
+this hook's own `script_dir`. In a real installed session `script_dir` is
+the shared plugin cache (`~/.claude/plugins/cache/bfinster/dev-team/<ver>/
+hooks/`) — one location shared by every concurrently-running session,
+worktree, and project on the machine. Resolving freeze state there let one
+session's `/freeze` scope-lock every other, unrelated session's Write/Edit
+calls. `main()` instead resolves it via `hooks/lib/artifact_paths.py`'s
+`resolve_file()`, keyed off the tool call's own `cwd` — landing at
+`<repo-root>/.claude/hooks/freeze-state.json`, the same per-repo `.claude/`
+convention `.review-passed` and other runtime state already use.
 """
 
 from __future__ import annotations
@@ -22,6 +35,7 @@ _LIB_DIR = Path(__file__).resolve().parent / "lib"
 if str(_LIB_DIR) not in sys.path:
     sys.path.insert(0, str(_LIB_DIR))
 
+import artifact_paths
 from boundary_events import emit_boundary_event as _emit_boundary_event
 
 
@@ -65,7 +79,11 @@ def _extract_file_path(raw: str) -> str:
         payload = json.loads(raw)
     except (TypeError, ValueError):
         return ""
-    tool_input = payload.get("tool_input") or {}
+    if not isinstance(payload, dict):
+        return ""
+    tool_input = payload.get("tool_input")
+    if not isinstance(tool_input, dict):
+        return ""
     file_path = tool_input.get("file_path")
     if isinstance(file_path, str) and file_path:
         return file_path
@@ -100,8 +118,12 @@ def _load_guards(guards_path: Path) -> tuple:
         data = json.loads(guards_path.read_text())
     except (OSError, ValueError):
         return list(_DEFAULT_BLOCKED), list(_DEFAULT_WARN)
-    blocked = [p for p in (data.get("blocked_paths") or []) if isinstance(p, str) and p]
-    warn = [p for p in (data.get("warn_paths") or []) if isinstance(p, str) and p]
+    if not isinstance(data, dict):
+        return list(_DEFAULT_BLOCKED), list(_DEFAULT_WARN)
+    raw_blocked = data.get("blocked_paths")
+    raw_warn = data.get("warn_paths")
+    blocked = [p for p in (raw_blocked if isinstance(raw_blocked, list) else []) if isinstance(p, str) and p]
+    warn = [p for p in (raw_warn if isinstance(raw_warn, list) else []) if isinstance(p, str) and p]
     if not blocked:
         blocked = list(_DEFAULT_BLOCKED)
     if not warn:
@@ -117,10 +139,13 @@ def _load_freeze(freeze_path: Path) -> list[str] | None:
         data = json.loads(freeze_path.read_text())
     except (OSError, ValueError):
         return None
+    if not isinstance(data, dict):
+        return None
     if data.get("active") is not True and data.get("active") != "true":
         return None
+    raw_allowed = data.get("allowed_patterns")
     allowed = [
-        p for p in (data.get("allowed_patterns") or []) if isinstance(p, str) and p
+        p for p in (raw_allowed if isinstance(raw_allowed, list) else []) if isinstance(p, str) and p
     ]
     return allowed
 
@@ -203,13 +228,18 @@ def main() -> int:
         payload = json.loads(raw)
     except (TypeError, ValueError):
         payload = {}
-    cwd = (payload.get("cwd") if isinstance(payload, dict) else None) or "."
-    session_id = payload.get("session_id") if isinstance(payload, dict) else None
+    raw_cwd = payload.get("cwd") if isinstance(payload, dict) else None
+    cwd = raw_cwd if isinstance(raw_cwd, str) and raw_cwd and "\0" not in raw_cwd else "."
+    raw_session_id = payload.get("session_id") if isinstance(payload, dict) else None
+    session_id = raw_session_id if isinstance(raw_session_id, str) else None
     script_dir = Path(__file__).resolve().parent
+    freeze_path = artifact_paths.resolve_file(
+        "hooks", "freeze-state.json", root=cwd, migrate=False
+    )
     exit_code, lines = evaluate(
         file_path,
         script_dir / "guards.json",
-        script_dir / "freeze-state.json",
+        freeze_path,
         cwd,
         session_id,
     )

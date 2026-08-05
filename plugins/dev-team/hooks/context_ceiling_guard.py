@@ -154,7 +154,7 @@ _DEFAULT_WINDOW = 200_000
 
 _HAIKU_RE = re.compile(r"haiku", re.IGNORECASE)
 _LARGE_WINDOW_RE = re.compile(
-    r"fable|mythos|opus-4-6|opus-4-7|opus-4-8|sonnet-5|sonnet-4-6",
+    r"fable|mythos|opus-4-6|opus-4-7|opus-4-8|opus-5|sonnet-5|sonnet-4-6",
     re.IGNORECASE,
 )
 
@@ -163,9 +163,17 @@ def _window_for_model(model: str) -> int:
     """Map a model name to its context window via family/version substring.
 
     Haiku family -> 200K. Current 1M-window models -> 1M: Fable (any
-    version), Mythos (any version), Opus 4.6/4.7/4.8, Sonnet 5, Sonnet 4.6.
-    Anything else (unrecognized model, or a same-family model outside the
-    pinned versions above) -> the 200K conservative default.
+    version), Mythos (any version), Opus 4.6/4.7/4.8, Opus 5, Sonnet 5,
+    Sonnet 4.6. Anything else (unrecognized model, or a same-family model
+    outside the pinned versions above) -> the 200K conservative default.
+
+    Opus 5 (#1843) was added alongside Sonnet 5 and the Opus 4.6/4.7/4.8
+    lineage, which all share the 1M context window; Opus 5 is the flagship
+    model in that same generation and follows the same pattern. This
+    function's own docstring already states that an unknown/unrecognized
+    model fails safe toward the conservative 200K default, so leaving Opus 5
+    out of the pattern was an under-nudging gap for what is currently this
+    repo's default model, not a safe omission.
     """
     if _HAIKU_RE.search(model):
         return _HAIKU_WINDOW

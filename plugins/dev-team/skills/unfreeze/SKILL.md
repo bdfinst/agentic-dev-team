@@ -24,10 +24,11 @@ Arguments: none — operates on the current freeze state.
 
 ### 1. Remove freeze state
 
-Delete `hooks/freeze-state.json` if it exists:
+Delete `.claude/hooks/freeze-state.json` if it exists (the same per-repo
+path `/freeze` writes and `hooks/pre_tool_guard.py` reads — see issue #1890):
 
 ```bash
-rm -f hooks/freeze-state.json
+rm -f .claude/hooks/freeze-state.json
 ```
 
 ### 2. Confirm

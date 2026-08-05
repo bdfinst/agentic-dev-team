@@ -24,6 +24,7 @@ _LIB_DIR = Path(__file__).resolve().parent / "lib"
 sys.path.insert(0, str(_LIB_DIR))
 
 import artifact_paths
+from atomic_state import append_line_locked
 from boundary_events import emit_boundary_event as _emit_boundary_event
 from stdin_json import read_stdin_json
 from test_file_classify import is_test_file, read_build_phase
@@ -67,8 +68,7 @@ def audit(
     try:
         path = artifact_paths.resolve_file("metrics", "refactor-freeze.jsonl", project_dir)
         path.parent.mkdir(parents=True, exist_ok=True)
-        with open(path, "a", encoding="utf-8") as handle:
-            handle.write(json.dumps(entry) + "\n")
+        append_line_locked(path, json.dumps(entry) + "\n", fail_open=False)
     except OSError as exc:
         sys.stderr.write(f"[refactor_test_freeze_guard] failed to write audit line: {exc}\n")
 

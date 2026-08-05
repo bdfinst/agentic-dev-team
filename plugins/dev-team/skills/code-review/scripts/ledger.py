@@ -22,6 +22,13 @@ import sys
 import uuid
 from pathlib import Path
 
+_SCRIPTS_DIR = Path(__file__).resolve().parent
+_LIB_DIR = _SCRIPTS_DIR.parent.parent.parent / "hooks" / "lib"
+if str(_LIB_DIR) not in sys.path:
+    sys.path.insert(0, str(_LIB_DIR))
+
+from atomic_state import locked_state
+
 LEDGER_SCHEMA = "code-review-ledger/v1"
 SECTION_SCHEMA = "code-review-section/v1"
 
@@ -99,22 +106,22 @@ def read_ledger(root: str) -> dict | None:
 def mark_done(root: str, slice_id: str) -> None:
     """Flip ``slice_id``'s ledger status to ``done`` (no-op if no ledger).
 
-    **Single-writer contract:** this is a read-modify-write of the shared
-    ``ledger.json``. It (and ``write_section``, which calls it) must be invoked
-    from a single writer — the orchestrator's sequential persist step, which
-    collects each parallel review agent's result and persists it one at a time.
-    The 2–3-slice parallelism in ``sliced-mode.md`` is in the *review* agents,
-    not the persist calls; concurrent ``mark_done`` invocations would lose
-    updates (last writer wins, silently dropping another slice's ``done`` flag).
+    The orchestrator's sequential persist step is still the intended single
+    writer (the 2-3-slice parallelism in ``sliced-mode.md`` is in the *review*
+    agents, not the persist calls) — but the read-modify-write is now also
+    lock-guarded via ``atomic_state.locked_state``, so a violation of that
+    contract (a second writer, or a future caller that doesn't honor it) loses
+    no update instead of silently dropping another slice's ``done`` flag.
     """
-    ledger = read_ledger(root)
-    if ledger is None:
-        return
-    for entry in ledger.get("slices", []):
-        if entry.get("id") == slice_id:
-            entry["status"] = STATUS_DONE
-            break
-    _atomic_write_json(ledger_path(root), ledger)
+    with locked_state(ledger_path(root)):
+        ledger = read_ledger(root)
+        if ledger is None:
+            return
+        for entry in ledger.get("slices", []):
+            if entry.get("id") == slice_id:
+                entry["status"] = STATUS_DONE
+                break
+        _atomic_write_json(ledger_path(root), ledger)
 
 
 def pending_slices(slices: list[dict], root: str) -> list[dict]:

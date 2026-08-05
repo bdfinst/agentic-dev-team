@@ -27,7 +27,6 @@ Stdlib-only. See ADR 0014/0015.
 
 from __future__ import annotations
 
-import json
 import re
 import shlex
 import sys
@@ -39,42 +38,87 @@ if str(_LIB_DIR) not in sys.path:
     sys.path.insert(0, str(_LIB_DIR))
 
 from artifact_paths import project_root
-
-# The extensions this repo's CLAUDE.md forbids under plugins/dev-team/.
-BANNED_EXTENSIONS = (".sh", ".bash", ".bat", ".cmd", ".ps1")
-
-SCOPED_PREFIX = "plugins/dev-team/"
-
-# The two documented bootstrap-shim exceptions (repo CLAUDE.md § Script
-# authoring — Python only): install.sh can't itself be Python because it
-# must run before an interpreter is guaranteed on PATH, and hooks/py.sh is
-# the trampoline that resolves one. Every other invocation under
-# plugins/dev-team/ routes through py.sh, never a bare interpreter.
-ALLOWED_RELATIVE_PATHS = {
-    "plugins/dev-team/install.sh",
-    "plugins/dev-team/hooks/py.sh",
-}
+from banned_scripts_policy import (
+    ALLOWED_RELATIVE_PATHS,
+    BANNED_EXTENSIONS,
+    SCOPED_PREFIX,
+    looks_like_monorepo_checkout,
+)
+from stdin_json import read_stdin_json
 
 _REDIRECT_RE = re.compile(r">>?\s*([^\s;|&<>]+)")
-
-
-def _read_stdin() -> str:
-    try:
-        return sys.stdin.read()
-    except Exception:  # noqa: BLE001 - never crash a hook on stdin read
-        return ""
 
 
 def _has_banned_extension(path_str: str) -> bool:
     return path_str.lower().endswith(BANNED_EXTENSIONS)
 
 
+def _strip_quotes(token: str) -> str:
+    """Strip one matching pair of leading/trailing quote characters.
+
+    The redirect regex's capture group has no notion of shell quoting, so
+    `> "evil.sh"` captures the target WITH its surrounding quotes — which
+    then fails `.endswith(".sh")` (#1864 sub-claim 3). This normalizes the
+    captured text before the extension check, nothing more.
+    """
+    if len(token) >= 2 and token[0] == token[-1] and token[0] in ("'", '"'):
+        return token[1:-1]
+    return token
+
+
 def _redirect_targets(command: str) -> list[str]:
-    return [
-        match.group(1)
-        for match in _REDIRECT_RE.finditer(command)
-        if _has_banned_extension(match.group(1))
-    ]
+    targets = []
+    for match in _REDIRECT_RE.finditer(command):
+        target = _strip_quotes(match.group(1))
+        if _has_banned_extension(target):
+            targets.append(target)
+    return targets
+
+
+def _parse_destination_args(args: list[str]) -> tuple[str | None, list[str]]:
+    """Tokenize `cp`/`mv` arguments (after the program name) into a GNU
+    target-directory value (`-t DIR` / `--target-directory=DIR` /
+    `--target-directory DIR`) and the remaining positional arguments.
+
+    Returns `(target_dir, positionals)`. `target_dir` is `None` when no
+    target-directory form was used, and the caller falls back to treating
+    the last positional as the destination (#1875).
+    """
+    target_dir: str | None = None
+    positionals: list[str] = []
+    i = 0
+    n = len(args)
+    while i < n:
+        arg = args[i]
+        if arg.startswith("--target-directory="):
+            target_dir = arg.split("=", 1)[1]
+            i += 1
+            continue
+        if arg == "--target-directory" and i + 1 < n:
+            target_dir = args[i + 1]
+            i += 2
+            continue
+        # A single-dash cluster ending in `t` (`-t`, `-rt`, `-at`, `-vt`, ...)
+        # is GNU coreutils' clustered-short-option form of `-t DIR` — the
+        # unclustered `-t` alone was the only form recognized before, so
+        # `cp -rt DIR src.sh` fell through to the (wrong) last-positional
+        # heuristic below and evaded detection.
+        if (
+            arg.startswith("-")
+            and not arg.startswith("--")
+            and len(arg) > 1
+            and arg.endswith("t")
+            and i + 1 < n
+        ):
+            target_dir = args[i + 1]
+            i += 2
+            continue
+        if arg.startswith("-") and arg != "-":
+            i += 1
+            continue
+        positionals.append(arg)
+        i += 1
+    return target_dir, positionals
 
 
 def _copy_move_tee_targets(command: str) -> list[str]:
@@ -82,12 +126,17 @@ def _copy_move_tee_targets(command: str) -> list[str]:
 
     Splits on shell command separators first so each simple command
     tokenizes on its own — a single `shlex.split()` over a compound command
-    (`a && b`) would otherwise misattribute tokens across commands.
+    (`a && b`) would otherwise misattribute tokens across commands. Also
+    splits on a bare newline/`\r` and a single `&` (background job): a
+    multi-line command or `a & b` previously collapsed into one `shlex`
+    call, so `positionals[-1]` in the cp/mv branch below read the LAST
+    command's last token instead of the actual cp/mv destination — a
+    real bypass of the destination heuristic, not just a style gap.
     Malformed quoting is skipped, never crashed on: a scan error must fail
     open, not block a legitimate command it couldn't parse.
     """
     targets: list[str] = []
-    for segment in re.split(r"&&|\|\||[;|]", command):
+    for segment in re.split(r"&&|\|\||[;|&\n\r]", command):
         segment = segment.strip()
         if not segment:
             continue
@@ -98,17 +147,27 @@ def _copy_move_tee_targets(command: str) -> list[str]:
         if not tokens:
             continue
         prog = Path(tokens[0]).name
-        args = [t for t in tokens[1:] if not t.startswith("-")]
         if prog == "tee":
             # tee writes to every named file, not just the last.
+            args = [t for t in tokens[1:] if not t.startswith("-")]
             targets.extend(a for a in args if _has_banned_extension(a))
         elif prog in ("cp", "mv"):
-            # Simple-invocation heuristic: the destination is the last
-            # positional argument. Multi-source `cp a b DEST` still resolves
-            # correctly since DEST is last regardless of source count.
-            candidates = [a for a in args if _has_banned_extension(a)]
-            if candidates:
-                targets.append(candidates[-1])
+            target_dir, positionals = _parse_destination_args(tokens[1:])
+            if target_dir is not None:
+                # GNU target-directory form (#1878): every remaining
+                # positional is a SOURCE being copied/moved INTO
+                # target_dir — the effective write target is
+                # target_dir/basename(source) for each one.
+                for source in positionals:
+                    dest = f"{target_dir.rstrip('/')}/{Path(source).name}"
+                    if _has_banned_extension(dest):
+                        targets.append(dest)
+            elif positionals and _has_banned_extension(positionals[-1]):
+                # Fixed #1875 heuristic: the destination is the actual last
+                # positional argument — never an earlier source, even one
+                # with a banned extension (e.g. `mv evil.sh good.py`, the
+                # correct remediation, must not be flagged).
+                targets.append(positionals[-1])
     return targets
 
 
@@ -140,13 +199,7 @@ def find_banned_write(command: str, cwd: Path, root: Path) -> str | None:
 
 
 def main() -> int:
-    raw = _read_stdin()
-    try:
-        payload = json.loads(raw) if raw.strip() else {}
-    except json.JSONDecodeError:
-        payload = {}
-    if not isinstance(payload, dict):
-        payload = {}
+    payload = read_stdin_json() or {}
 
     tool_input = payload.get("tool_input")
     command = tool_input.get("command") if isinstance(tool_input, dict) else None
@@ -154,8 +207,15 @@ def main() -> int:
         return 0
 
     cwd = Path(payload.get("cwd") or ".")
-    root = project_root(cwd)
 
+    # (#1861) Cheap, non-git early exit for any checkout where this
+    # monorepo's own plugins/dev-team/ tree doesn't exist — e.g. every
+    # downstream install of the plugin. Checked via a plain filesystem walk
+    # BEFORE project_root() (which itself shells out to git), not after.
+    if not looks_like_monorepo_checkout(cwd):
+        return 0
+
+    root = project_root(cwd)
     hit = find_banned_write(command, cwd, root)
     if hit is None:
         return 0

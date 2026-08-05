@@ -243,12 +243,17 @@ def run_nightwatch(
     inhibit_sleep: bool = True,
     timeout: int | None = None,
     started_at: str | None = None,
+    skip_mechanical_repair: bool = False,
 ) -> Path:
     """Run one full night-watch pass. Returns the timestamped run directory.
 
     ``stacks`` overrides autodetection with an explicit stack-name list.
     ``started_at`` is injectable for tests; production callers omit it and
-    get the real current UTC time.
+    get the real current UTC time. ``skip_mechanical_repair`` (default
+    ``False`` — today's behavior, unchanged) opts an operator out of the
+    per-stack ``npm ci``/``dotnet restore`` step entirely (#1869): when set,
+    no repair invocation runs at all and measurement proceeds against
+    whatever ``node_modules``/restored-package state already exists.
     """
     if started_at is None:
         started_at = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
@@ -286,9 +291,16 @@ def run_nightwatch(
                 )
                 write_reports(run_dir, latest_dir, results, started_at, notes)
                 continue
-            repair_note = stacks_lib.mechanical_repair(name, repo_root, run_dir)
-            if repair_note:
-                notes.append(repair_note)
+            if skip_mechanical_repair:
+                notes.append(
+                    f"NOTE: mechanical repair skipped for {name} "
+                    "(--skip-mechanical-repair) — measuring against whatever "
+                    "node_modules/restored-package state already exists"
+                )
+            else:
+                repair_note = stacks_lib.mechanical_repair(name, repo_root, run_dir)
+                if repair_note:
+                    notes.append(repair_note)
             results.append(stacks_lib.MEASURERS[name](repo_root, run_dir, timeout=timeout))
             write_reports(run_dir, latest_dir, results, started_at, notes)
 
@@ -394,6 +406,15 @@ def parse_args(argv) -> argparse.Namespace:
         help="Skip OS sleep inhibition (CI, or a machine that never sleeps).",
     )
     p.add_argument(
+        "--skip-mechanical-repair",
+        action="store_true",
+        help=(
+            "Skip the per-stack npm ci / dotnet restore step entirely "
+            "(default: off — repair still runs). Measures against whatever "
+            "node_modules/restored-package state already exists (#1869)."
+        ),
+    )
+    p.add_argument(
         "--timeout",
         type=int,
         default=DEFAULT_STACK_TIMEOUT_S,
@@ -423,6 +444,7 @@ def main(argv: list[str] | None = None) -> int:
         stacks=stack_names,
         inhibit_sleep=not args.no_sleep_inhibit,
         timeout=args.timeout,
+        skip_mechanical_repair=args.skip_mechanical_repair,
     )
     print(f"mutation-nightwatch run complete: {run_dir}")
     return 0

@@ -72,6 +72,7 @@ if str(_LIB_DIR) not in sys.path:
 
 import artifact_paths
 import telemetry_consent
+from atomic_state import append_line_locked
 
 # Scratch file location: resolved relative to the project root (cwd when hook
 # fires) so it is session-local, not baked into the plugin install tree.
@@ -131,10 +132,13 @@ def _today() -> str:
 
 
 def _append_jsonl(path: Path, entry: dict) -> None:
-    """Append one JSON line to a JSONL file, creating it if needed."""
+    """Append one JSON line to a JSONL file, creating it if needed.
+
+    Serialized against concurrent writers via `atomic_state.append_line_locked`
+    (#1896) — fail-open, matching this hook's outer `main()` try/except.
+    """
     line = json.dumps(entry, separators=(",", ":"), sort_keys=False)
-    with path.open("a", encoding="utf-8") as fh:
-        fh.write(line + "\n")
+    append_line_locked(path, line + "\n")
 
 
 def _write_task_completion(cwd: Path, scratch: dict, payload: dict) -> None:

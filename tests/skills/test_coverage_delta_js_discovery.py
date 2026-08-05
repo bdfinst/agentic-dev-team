@@ -17,37 +17,19 @@ from __future__ import annotations
 
 import json
 import sys
-from pathlib import Path
 
 import pytest
 from coverage_delta_flow_helpers import (
     COVERAGE_DELTA_GENERIC_RUN_FAILURE_PHRASES,
     run_delta_flow,
 )
+from coverage_flow_shared import pkg
 from skill_doc_helpers import PLUGIN_ROOT
 
 SCRIPTS_DIR = PLUGIN_ROOT / "scripts"
 sys.path.insert(0, str(SCRIPTS_DIR))
 
 import coverage_discovery_js as cdj
-
-# ---------------------------------------------------------------------------
-# package.json fixture helpers (mirroring test_coverage_baseline_js_discovery.py
-# and plugins/dev-team/tests/scripts/test_coverage_discovery_js.py)
-# ---------------------------------------------------------------------------
-
-
-def write(path: Path, content) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    if isinstance(content, (dict, list)):
-        path.write_text(json.dumps(content, indent=2), encoding="utf-8")
-    else:
-        path.write_text(content, encoding="utf-8")
-
-
-def pkg(root: Path, data: dict) -> None:
-    write(root / "package.json", data)
-
 
 TEST_PKG = {
     "name": "test-pkg",

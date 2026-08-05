@@ -338,6 +338,9 @@ try:
     from artifact_paths import (
         resolve_file as _resolve_file,  # type: ignore[import-not-found]
     )
+    from atomic_state import (  # type: ignore[import-not-found]
+        append_line_locked as _append_line_locked,
+    )
     from boundary_events import (  # type: ignore[import-not-found]
         emit_boundary_event as _emit_boundary_event,
     )
@@ -411,6 +414,21 @@ except ImportError:  # pragma: no cover
 
     def _emit_boundary_event(*_args, **_kwargs) -> None:  # type: ignore[misc]
         return None
+
+    def _append_line_locked(  # type: ignore[misc]
+        path: Path, line: str, *, delay_env_var=None, fail_open: bool = True
+    ) -> None:
+        # Degraded-import fallback: atomic_state itself couldn't be
+        # imported, so no lock is available — fall back to the pre-#1896
+        # unlocked append. `fail_open=False` re-raises OSError, matching
+        # the real helper's contract, so `_record_bypass_audit`'s own
+        # except clause still reports the failure the same way.
+        try:
+            with open(path, "a", encoding="utf-8") as handle:
+                handle.write(line)
+        except OSError:
+            if not fail_open:
+                raise
 
     def run_safe_git_diff(extra_flags, cwd=None, text=False):  # type: ignore[misc]
         # Degraded-import fallback: behave like a git launch failure so
@@ -812,8 +830,11 @@ def _record_bypass_audit(flag: str, reason: str, staged_count: int, cwd: str) ->
     try:
         audit_log_path = _resolve_file("metrics", "gate-bypass-audit.jsonl", cwd)
         audit_log_path.parent.mkdir(parents=True, exist_ok=True)
-        with open(audit_log_path, "a", encoding="utf-8") as handle:
-            handle.write(json.dumps(entry, separators=(",", ":")) + "\n")
+        _append_line_locked(
+            audit_log_path,
+            json.dumps(entry, separators=(",", ":")) + "\n",
+            fail_open=False,
+        )
     except OSError as exc:
         sys.stderr.write(f"[pre_commit_review] failed to record bypass audit: {exc}\n")
 

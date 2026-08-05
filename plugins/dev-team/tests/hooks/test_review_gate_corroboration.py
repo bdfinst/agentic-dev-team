@@ -505,16 +505,44 @@ def test_registered_agents_returns_none_for_a_real_missing_agents_dir(
     assert rgc._registered_agents() is None
 
 
-def test_registered_agents_returns_none_for_zero_registered_files(
+def test_registered_agents_returns_empty_frozenset_for_zero_registered_files_not_none(
     tmp_path: Path, monkeypatch
 ) -> None:
-    """An `agents/` directory that exists but contains zero `*-review.md`
-    files is a broken install, never a legitimate empty registry — must
-    also report None, not an empty frozenset."""
+    """#1866: an `agents/` directory that exists and reads successfully but
+    legitimately matches zero `*-review.md` files is a SUCCESSFUL read with
+    an empty result, not a read failure — `return names or None` used to
+    collapse this into `None`, indistinguishable from the two explicit
+    failure branches above it (missing dir / exception). The directory here
+    genuinely exists and is readable, so `registered_review_agent_names()`
+    returns `frozenset()` without raising; the fix must return that
+    frozenset as-is."""
     empty_dir = tmp_path / "agents"
     empty_dir.mkdir()
     monkeypatch.setattr(rgc, "_agents_dir", lambda: empty_dir)
-    assert rgc._registered_agents() is None
+    result = rgc._registered_agents()
+    assert result == frozenset()
+    assert result is not None
+
+
+def test_registered_agents_empty_read_is_distinguishable_from_read_failure(
+    tmp_path: Path, monkeypatch
+) -> None:
+    """#1866: the genuinely-empty-but-successful case must be
+    distinguishable from an actual read failure (missing directory) — the
+    two are different objects (`frozenset()` vs `None`), not the same
+    ambiguous falsy value collapsed by the old `names or None` line."""
+    empty_dir = tmp_path / "agents"
+    empty_dir.mkdir()
+    monkeypatch.setattr(rgc, "_agents_dir", lambda: empty_dir)
+    empty_but_successful = rgc._registered_agents()
+
+    missing = tmp_path / "no-such-agents-dir"
+    monkeypatch.setattr(rgc, "_agents_dir", lambda: missing)
+    read_failure = rgc._registered_agents()
+
+    assert empty_but_successful == frozenset()
+    assert read_failure is None
+    assert empty_but_successful is not read_failure
 
 
 def test_missing_real_agents_dir_fails_closed_end_to_end(

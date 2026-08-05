@@ -17,13 +17,13 @@ from __future__ import annotations
 
 import json
 import sys
-from pathlib import Path
 
 import pytest
 from coverage_baseline_flow_helpers import (
     GENERIC_COVERAGE_RUN_FAILURE_PHRASES,
     run_baseline_flow,
 )
+from coverage_flow_shared import pkg
 from skill_doc_helpers import PLUGIN_ROOT, collapsed, grep, section
 
 SCRIPTS_DIR = PLUGIN_ROOT / "scripts"
@@ -40,24 +40,6 @@ def _text() -> str:
 
 def _step_1a_section() -> str:
     return section(_text(), r"^### 1a\. Multi-project discovery", boundary_pattern=r"^### ")
-
-
-# ---------------------------------------------------------------------------
-# package.json fixture helpers (mirroring
-# plugins/dev-team/tests/scripts/test_coverage_discovery_js.py)
-# ---------------------------------------------------------------------------
-
-
-def write(path: Path, content) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    if isinstance(content, (dict, list)):
-        path.write_text(json.dumps(content, indent=2), encoding="utf-8")
-    else:
-        path.write_text(content, encoding="utf-8")
-
-
-def pkg(root: Path, data: dict) -> None:
-    write(root / "package.json", data)
 
 
 TEST_PKG = {

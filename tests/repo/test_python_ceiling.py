@@ -41,8 +41,8 @@ from _ci_local_invocation import (
     PytestInvocation,
     check_body,
     check_registry,
-    invocation,
     lines_after_invocation,
+    pytest_invocation,
     synthetic_check,
     without_comments,
 )
@@ -123,30 +123,35 @@ def _ceiling_check_body(ci_local: str) -> str:
     return check_body(ci_local, CEILING_FN)
 
 
-def _ceiling_invocation(ci_local: str) -> PytestInvocation:
+def _ceiling_invocation(ci_local: str) -> PytestInvocation | None:
     """`chk_python_ceiling`'s pytest command, split at `-m pytest` and at any
     trailing `||`. Thin wrapper over the shared parser in
-    `_ci_local_invocation` — see `invocation()` there for the full boundary
-    rules (backslash continuation, the single-marker requirement, why
-    comments are not stripped first, and why the `||` tail is returned
-    rather than dropped). Mirrors `test_python_floor.py`'s `_floor_invocation`,
-    which wraps the same shared function for `chk_python_floor`."""
-    return invocation(ci_local, CEILING_FN)
+    `_ci_local_invocation` — see `pytest_invocation()` there for the full
+    boundary rules (backslash continuation, the single-marker requirement,
+    why comments are not stripped first, why the `||` tail is returned
+    rather than dropped, and why `None` — not an empty-but-valid-shaped
+    tuple — is the unparseable sentinel). Mirrors `test_python_floor.py`'s
+    `_floor_invocation`, which wraps the same shared function for
+    `chk_python_floor`."""
+    return pytest_invocation(ci_local, CEILING_FN)
 
 
 def _ceiling_invocation_prefix(ci_local: str) -> list[str]:
     """Everything the command says before `-m pytest`."""
-    return _ceiling_invocation(ci_local).prefix
+    result = _ceiling_invocation(ci_local)
+    return result.prefix if result is not None else []
 
 
 def _ceiling_invocation_args(ci_local: str) -> list[str]:
     """Every argument pytest itself receives, after `-m pytest`."""
-    return _ceiling_invocation(ci_local).args
+    result = _ceiling_invocation(ci_local)
+    return result.args if result is not None else []
 
 
 def _ceiling_invocation_tail(ci_local: str) -> list[str]:
     """Everything the command says after a `||` — the failure path, if any."""
-    return _ceiling_invocation(ci_local).tail
+    result = _ceiling_invocation(ci_local)
+    return result.tail if result is not None else []
 
 
 def _ceiling_lines_after_invocation(ci_local: str) -> list[str]:
@@ -349,7 +354,7 @@ class TestTheCeilingParserItself:
             "  printf 'about to run -m pytest\\n'\n"
             "  uv run -m pytest tests/repo -q"
         )
-        assert _ceiling_invocation(body) == ([], [], [])
+        assert _ceiling_invocation(body) is None
 
     def test_a_reflow_onto_one_line_changes_nothing(self):
         body = self._synthetic(
@@ -361,7 +366,7 @@ class TestTheCeilingParserItself:
 
     def test_a_missing_marker_yields_nothing(self):
         body = self._synthetic("  uv run --python \"$pyceil\" tests/repo")
-        assert _ceiling_invocation(body) == ([], [], [])
+        assert _ceiling_invocation(body) is None
 
     def test_a_stray_m_flag_is_visible_in_args(self):
         """A second `-m` after the marker must land in the *args* list, where

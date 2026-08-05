@@ -87,6 +87,8 @@ import xml.etree.ElementTree as ET
 from fractions import Fraction
 from pathlib import Path
 
+import coverage_config
+
 DEFAULT_SEAM_THRESHOLD_PCT = 10.0
 DEFAULT_GROUP_DEPTH = 2
 DEFAULT_TOP = 20
@@ -401,25 +403,38 @@ def _parse_coverage_py(payload: dict) -> list[dict]:
     return records
 
 
+def _tally_coverlet_classes(classes: dict) -> tuple[int, int, int, int]:
+    """Tally one file's `classes` dict (coverlet's class -> method ->
+    {"Lines", "Branches"} nesting) into `(lines_total, lines_covered,
+    branches_total, branches_covered)`. Extracted from `_parse_coverlet`
+    (issue #1857) to keep that function's own nesting depth under this
+    repo's <4-level convention; behavior is unchanged — same isinstance
+    guards, same "hit" threshold logic."""
+    lines_total = lines_covered = branches_total = branches_covered = 0
+    for methods in (classes or {}).values():
+        if not isinstance(methods, dict):
+            continue
+        for method in methods.values():
+            if not isinstance(method, dict):
+                continue
+            for hits in (method.get("Lines") or {}).values():
+                lines_total += 1
+                lines_covered += 1 if _as_int(hits) > 0 else 0
+            for branch in method.get("Branches") or []:
+                branches_total += 1
+                branches_covered += 1 if _as_int(branch.get("Hits", 0)) > 0 else 0
+    return lines_total, lines_covered, branches_total, branches_covered
+
+
 def _parse_coverlet(payload: dict) -> list[dict]:
     records = []
     for assembly, files in payload.items():
         if not isinstance(files, dict):
             continue
         for file_path, classes in files.items():
-            lines_total = lines_covered = branches_total = branches_covered = 0
-            for methods in (classes or {}).values():
-                if not isinstance(methods, dict):
-                    continue
-                for method in methods.values():
-                    if not isinstance(method, dict):
-                        continue
-                    for hits in (method.get("Lines") or {}).values():
-                        lines_total += 1
-                        lines_covered += 1 if _as_int(hits) > 0 else 0
-                    for branch in method.get("Branches") or []:
-                        branches_total += 1
-                        branches_covered += 1 if _as_int(branch.get("Hits", 0)) > 0 else 0
+            lines_total, lines_covered, branches_total, branches_covered = (
+                _tally_coverlet_classes(classes)
+            )
             records.append(
                 _record(
                     file_path,
@@ -443,11 +458,18 @@ _JSON_PARSERS = {
 
 def parse_report(path: Path, fmt: str) -> list[dict]:
     """Parse `path` as `fmt`, returning one record per source file."""
+    if fmt == "cobertura":
+        # Cobertura is the one format here parsed with `ET.fromstring` — route
+        # it through the shared DOCTYPE/ENTITY screen (issue #1872) rather
+        # than `_read`. Other formats are unaffected.
+        data, err = coverage_config.read_and_screen_xml(path)
+        if err is not None:
+            raise ReportError(err["message"])
+        text = data.decode("utf-8-sig", errors="replace")
+        return _parse_cobertura(text)
     text = _read(path)
     if fmt == "lcov":
         return _parse_lcov(text)
-    if fmt == "cobertura":
-        return _parse_cobertura(text)
     if fmt == "jacoco-csv":
         return _parse_jacoco_csv(text)
     parser = _JSON_PARSERS.get(fmt)

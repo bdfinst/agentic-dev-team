@@ -466,23 +466,28 @@ def test_pre_commit_review_bypass_emits_boundary_event(tmp_path: Path) -> None:
     assert audit[0]["reason"] == "hotfix, review to follow"
 
 
-def test_intervention_keyword_emits_event(tmp_path: Path) -> None:
-    for prompt, keyword in (("override", "override"), ("pause", "pause"), ("stop", "stop")):
-        result = _run_hook(
-            "telemetry.py",
-            {
-                "hook_event_name": "UserPromptSubmit",
-                "prompt": prompt,
-                "cwd": str(tmp_path),
-                "session_id": "s-intervention",
-            },
-        )
-        assert result.returncode == 0
-        events = _read_jsonl(tmp_path / ".claude" / "metrics" / "boundary-events.jsonl")
-        assert events[-1]["decision"] == "intervention"
-        assert events[-1]["matched_rule"] == keyword
-        assert events[-1]["hook"] == "telemetry"
-        assert events[-1]["tool"] == "UserPromptSubmit"
+@pytest.mark.parametrize(
+    "prompt,keyword",
+    [("override", "override"), ("pause", "pause"), ("stop", "stop")],
+)
+def test_intervention_keyword_emits_event(
+    tmp_path: Path, prompt: str, keyword: str
+) -> None:
+    result = _run_hook(
+        "telemetry.py",
+        {
+            "hook_event_name": "UserPromptSubmit",
+            "prompt": prompt,
+            "cwd": str(tmp_path),
+            "session_id": "s-intervention",
+        },
+    )
+    assert result.returncode == 0
+    events = _read_jsonl(tmp_path / ".claude" / "metrics" / "boundary-events.jsonl")
+    assert events[-1]["decision"] == "intervention"
+    assert events[-1]["matched_rule"] == keyword
+    assert events[-1]["hook"] == "telemetry"
+    assert events[-1]["tool"] == "UserPromptSubmit"
 
 
 def test_intervention_with_payload_records_only_keyword(tmp_path: Path) -> None:

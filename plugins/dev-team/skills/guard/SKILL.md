@@ -34,7 +34,7 @@ If no pattern is provided, display usage and exit:
 
 If argument is `off`:
 
-1. Remove `hooks/careful-state.json` and `hooks/freeze-state.json`
+1. Remove `hooks/careful-state.json` and `.claude/hooks/freeze-state.json`
 2. Display: "Guard mode OFF. All safety restrictions lifted."
 
 ## Steps
@@ -52,7 +52,8 @@ Write to `hooks/careful-state.json`:
 
 ### 2. Enable freeze mode
 
-Write to `hooks/freeze-state.json`:
+Write to `.claude/hooks/freeze-state.json` (repo-scoped — see the `/freeze`
+skill's Notes for why this is not `hooks/freeze-state.json`; issue #1890):
 
 ```json
 {
