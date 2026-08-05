@@ -3,8 +3,8 @@
 
 Run by the "Python 3.10 floor" job in `.github/workflows/plugin-tests.yml`.
 That job's gate is this probe, plus a byte-compile pass over the shipped
-tree, plus (since issue #1650) actually running the test slice covering the
-five shipped agent scripts under the floor interpreter via `uv run
+tree, plus (since issue #1650) actually running the test slice named in
+`chk_python_floor` under the floor interpreter via `uv run
 --python` — not the plugin's entire suite (that would double this gate's
 wall-clock re-running everything under a second interpreter), but enough to
 catch a runtime-only API used inside a function body, which byte-compiling
@@ -159,7 +159,7 @@ def main() -> int:
             print(f"=== {path.relative_to(REPO_ROOT)} ===", file=sys.stderr)
             print(tb, file=sys.stderr)
         print(
-            "ADR 0014 sets the shipped floor at Python 3.10. See "
+            "ADR 0031 sets the shipped floor at Python 3.10. See "
             "tests/repo/test_python_floor.py.",
             file=sys.stderr,
         )
