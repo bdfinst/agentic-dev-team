@@ -3108,6 +3108,14 @@
       "summary": "Read the build manifest at the repo root and pick the appropriate command:",
       "anchor": "1-detect-the-coverage-tool"
     },
+    "1a. Multi-project discovery (.NET solutions & JS/TS workspaces)": {
+      "summary": "Replaces the single frozen coverage command above for a multi-project .NET",
+      "anchor": "1a-multi-project-discovery-net-solutions-jsts-workspaces"
+    },
+    "1b. Single-project and mixed-stack repos are unaffected": {
+      "summary": "A `.csproj` repo with no `.sln`, or a `package.json` with no workspace",
+      "anchor": "1b-single-project-and-mixed-stack-repos-are-unaffected"
+    },
     "2. Existing-baseline guard": {
       "summary": "Check whether `.dev-team-reports/<workflow>/<slug>/data/baseline-coverage.json` already exists for the resolved slug.",
       "anchor": "2-existing-baseline-guard"
@@ -3151,8 +3159,12 @@
       "anchor": "1-load-the-baseline"
     },
     "2. Re-run coverage": {
-      "summary": "Use the same `tool` and command that `/coverage-baseline` recorded — DO NOT switch tools mid-workflow or the delta is meaningless.",
+      "summary": "Use the same coverage **tool** `/coverage-baseline` recorded — DO NOT switch tools mid-workflow, or the delta is meaningless.",
       "anchor": "2-re-run-coverage"
+    },
+    "2a. Multi-project re-derivation (.NET solutions & JS/TS workspaces)": {
+      "summary": "When a `.sln` file exists at the repo root (.NET), or a workspace signal is present (JS/TS) — the same triggers `coverage-baseline`'s Step 1a uses — re-run the appropriate discovery script **fresh, every call**, never reusing a…",
+      "anchor": "2a-multi-project-re-derivation-net-solutions-jsts-workspaces"
     },
     "2b. Measure scoped mutation (only when both `--story` AND `--story-files` are present)": {
       "summary": "**Worker boundary.** This worker measures and reports; it does NOT halt the workflow on net-new survivors.",
