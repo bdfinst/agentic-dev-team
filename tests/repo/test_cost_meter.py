@@ -24,6 +24,7 @@ import json
 import os
 import subprocess
 import sys
+from datetime import UTC
 from pathlib import Path
 
 import pytest
@@ -400,3 +401,242 @@ def test_settings_json_registers_cost_meter_py_on_stop_and_subagentstop() -> Non
         for h in entry["hooks"]
     ]
     assert any("cost_meter.py" in c for c in subagent_stop_hooks)
+
+
+# ---------------------------------------------------------------------------
+# Unpriced models must be loud in the DURABLE record, not just `report` (#1830)
+#
+# `unpriced_models` was computed, warned about in `report`, and persisted to the
+# incremental state file — but omitted from the jsonl line every downstream
+# consumer actually reads (/autoship's `--max-cost-usd` gate, /cost-report's
+# regression and pace). A model with no pricing entry therefore contributed
+# $0.00 to a budget ceiling with nothing anywhere to say so.
+# ---------------------------------------------------------------------------
+
+UNPRICED_TRANSCRIPT = (
+    json.dumps(
+        {
+            "type": "assistant",
+            "message": {
+                "model": "totally-made-up-model",
+                "usage": {"input_tokens": 900000, "output_tokens": 700000},
+            },
+        }
+    )
+    + "\n"
+)
+
+
+def test_record_line_names_unpriced_models(tmp_path: Path) -> None:
+    """The durable log line is what /autoship's cost cap reads. Without this
+    field an unpriced model is indistinguishable from a genuinely free one."""
+    transcript = tmp_path / "t.jsonl"
+    transcript.write_text(UNPRICED_TRANSCRIPT)
+    log = tmp_path / "log.jsonl"
+
+    res = _run("record", "--transcript", str(transcript), "--log", str(log))
+
+    assert res.returncode == 0, res.stdout + res.stderr
+    line = json.loads(log.read_text().splitlines()[-1])
+    assert line["unpriced_models"] == ["totally-made-up-model"], line
+    # The zero cost is real — the point is that it is now attributable.
+    assert line["by_model"]["totally-made-up-model"]["cost_usd"] == 0.0
+
+
+def test_record_line_reports_no_unpriced_models_when_all_are_priced(
+    case: Path,
+) -> None:
+    """The field is always present, so a consumer can trust its absence to mean
+    'not checked' rather than 'nothing unpriced'."""
+    log = case / "log.jsonl"
+
+    res = _run("record", "--transcript", str(case / "t.jsonl"), "--log", str(log))
+
+    assert res.returncode == 0, res.stdout + res.stderr
+    line = json.loads(log.read_text().splitlines()[-1])
+    assert line["unpriced_models"] == []
+
+
+def test_synthetic_zero_token_records_are_never_flagged_as_unpriced(
+    case: Path,
+) -> None:
+    """Regression guard for the defect correctness-review caught in the first
+    cut of this fix: the harness writes assistant records with
+    `model: "<synthetic>"` and every usage field zero for interrupt/
+    auth-failure notices — present in every real session transcript. Those
+    cost nothing regardless of pricing-table coverage, so flagging them as
+    unpriced would fire on nearly every session and bury the real signal."""
+    synthetic = json.dumps(
+        {
+            "type": "assistant",
+            "message": {
+                "model": "<synthetic>",
+                "usage": {
+                    "input_tokens": 0,
+                    "output_tokens": 0,
+                    "cache_creation_input_tokens": 0,
+                    "cache_read_input_tokens": 0,
+                },
+            },
+        }
+    )
+    transcript = case / "t.jsonl"
+    transcript.write_text(transcript.read_text() + synthetic + "\n")
+    log = case / "log.jsonl"
+
+    res = _run("record", "--transcript", str(transcript), "--log", str(log))
+
+    assert res.returncode == 0, res.stdout + res.stderr
+    line = json.loads(log.read_text().splitlines()[-1])
+    assert "<synthetic>" not in line["unpriced_models"], line
+
+
+def test_regression_surfaces_an_unpriced_model_from_the_log(tmp_path: Path) -> None:
+    """A cost-regression verdict computed over records containing unpriced
+    models is not trustworthy — say so rather than comparing silently."""
+    log = tmp_path / "log.jsonl"
+    entries = [
+        {
+            "timestamp": f"2026-08-01T00:00:0{i}Z",
+            "transcript": "t.jsonl",
+            "total": {"cost_usd": 1.0, "messages": 1},
+            "by_model": {},
+            "by_thread": {},
+            "by_agent_type": {},
+            "unpriced_models": [] if i < 2 else ["totally-made-up-model"],
+        }
+        for i in range(3)
+    ]
+    log.write_text("".join(json.dumps(e) + "\n" for e in entries))
+
+    res = _run("regression", "--log", str(log), "--tolerance", "0.5")
+
+    assert res.returncode == 0, res.stdout + res.stderr
+    combined = res.stdout + res.stderr
+    # Co-occurrence on the SAME line, not two independent substring checks —
+    # a message that named the model on one line and "unpriced" on an
+    # unrelated line (or asserted the opposite) would pass two separate
+    # membership checks without actually conveying the intended warning.
+    assert any(
+        "totally-made-up-model" in line and "UNDERSTATE" in line
+        for line in combined.splitlines()
+    ), combined
+
+
+# ---------------------------------------------------------------------------
+# The pricing table is the named instrument — it must know the models in use
+# ---------------------------------------------------------------------------
+
+PRICING_PATH = (
+    REPO_ROOT / "plugins" / "dev-team" / "knowledge" / "model-pricing.json"
+)
+
+
+def _pricing() -> dict:
+    return json.loads(PRICING_PATH.read_text())
+
+
+def test_pace_warns_only_for_unpriced_models_inside_the_window(tmp_path: Path) -> None:
+    """`cmd_pace` deliberately scopes `_warn_unpriced` to `windowed_entries`,
+    not the whole log (a budget projection only understates when an unpriced
+    model appears in the records it actually sums). Prove the scoping is real:
+    an unpriced model outside --window-days must not be named."""
+    from datetime import datetime, timedelta
+
+    log = tmp_path / "log.jsonl"
+    now = datetime.now(UTC)
+    outside = (now - timedelta(days=30)).strftime("%Y-%m-%dT%H:%M:%SZ")
+    inside = (now - timedelta(days=1)).strftime("%Y-%m-%dT%H:%M:%SZ")
+    entries = [
+        {
+            "timestamp": outside,
+            "transcript": "old.jsonl",
+            "total": {"cost_usd": 1.0, "messages": 1},
+            "unpriced_models": ["stale-model-outside-window"],
+        },
+        {
+            "timestamp": inside,
+            "transcript": "new.jsonl",
+            "total": {"cost_usd": 1.0, "messages": 1},
+            "unpriced_models": ["fresh-model-inside-window"],
+        },
+    ]
+    log.write_text("".join(json.dumps(e) + "\n" for e in entries))
+
+    res = _run("pace", "--log", str(log), "--window-days", "7", "--period-days", "30")
+
+    assert res.returncode == 0, res.stdout + res.stderr
+    combined = res.stdout + res.stderr
+    assert "fresh-model-inside-window" in combined, combined
+    assert "stale-model-outside-window" not in combined, combined
+
+
+@pytest.mark.parametrize(
+    "model_id",
+    [
+        "claude-opus-5",
+        "claude-opus-4-8",
+        "claude-sonnet-5",
+        "claude-haiku-4-5",
+        "claude-fable-5",
+        "claude-mythos-5",
+    ],
+)
+def test_every_current_model_has_a_pricing_entry(model_id: str) -> None:
+    """A missing entry prices that model's spend at $0.00, which makes any cost
+    ceiling built on this file unenforceable for exactly the model doing the
+    work. `claude-opus-5` was absent while it was this repo's default model."""
+    models = _pricing()["models"]
+    assert model_id in models, (
+        f"{model_id!r} has no pricing entry — its spend would price at $0.00. "
+        f"Known: {sorted(models)}"
+    )
+    rate = models[model_id]
+    assert rate["input"] > 0 and rate["output"] > 0, rate
+
+
+def test_every_alias_resolves_to_a_priced_model() -> None:
+    pricing = _pricing()
+    models, aliases = pricing["models"], pricing.get("aliases", {})
+    dangling = {a: t for a, t in aliases.items() if t not in models}
+    assert not dangling, f"aliases pointing at absent models: {dangling}"
+
+
+def test_the_opus_alias_points_at_the_current_default_opus() -> None:
+    """The alias is what a bare `opus` in a transcript resolves to; leaving it
+    on a superseded snapshot silently prices new spend at the old model."""
+    pricing = _pricing()
+    assert pricing["aliases"]["opus"] == "claude-opus-5"
+
+
+def test_regression_and_pace_tolerate_pre_existing_log_lines_with_no_unpriced_key(
+    tmp_path: Path,
+) -> None:
+    """`unpriced_models` was added to the durable line by this fix. Log files
+    written before it exist and never carry the key at all — not `[]`, absent
+    entirely. Neither command may crash on that, and neither may misread the
+    absence as an unpriced model."""
+    from datetime import datetime, timedelta
+
+    now = datetime.now(UTC)
+    recent = (now - timedelta(days=1)).strftime("%Y-%m-%dT%H:%M:%SZ")
+    pre_existing_lines = [
+        # No `unpriced_models` key at all — the pre-fix shape.
+        {"timestamp": recent, "transcript": "old1.jsonl", "total": {"cost_usd": 1.0, "messages": 1}},
+        {"timestamp": recent, "transcript": "old2.jsonl", "total": {"cost_usd": 1.2, "messages": 1}},
+        {"timestamp": recent, "transcript": "old3.jsonl", "total": {"cost_usd": 0.9, "messages": 1}},
+    ]
+
+    log = tmp_path / "log.jsonl"
+    log.write_text("".join(json.dumps(e) + "\n" for e in pre_existing_lines))
+    res = _run("regression", "--log", str(log), "--tolerance", "0.5")
+    assert res.returncode == 0, res.stdout + res.stderr
+    assert "unpriced" not in (res.stdout + res.stderr).lower()
+
+    pace_log = tmp_path / "pace_log.jsonl"
+    pace_log.write_text("".join(json.dumps(e) + "\n" for e in pre_existing_lines))
+    res = _run(
+        "pace", "--log", str(pace_log), "--window-days", "7", "--period-days", "30"
+    )
+    assert res.returncode == 0, res.stdout + res.stderr
+    assert "unpriced" not in (res.stdout + res.stderr).lower()

@@ -1,20 +1,22 @@
 {
-  "_comment": "Per-million-token USD pricing for the cost meter (issue #102). Keyed by model snapshot ID (and tier alias). input/output are $ per 1M tokens; cache_write_multiplier (5-min TTL) and cache_read_multiplier are applied to the input rate per Anthropic's prompt-caching pricing (write 1.25x, read 0.1x). Source: Claude API reference, cached 2026-07-20; 5-family rates from the claude-api skill model catalog (Sonnet 5 $3/$15 standard, Fable 5 $10/$50), cached 2026-07-20. Claude Sonnet 5 carries an introductory rate of $2/$10 per MTok through 2026-08-31; the $3/$15 entered here is the standard post-intro sticker (the named instrument uses the durable rate). Update when pricing changes; this is the named instrument for any cost claim.",
-  "source": "platform.claude.com/docs/en/pricing (via claude-api skill cache 2026-07-20)",
+  "_comment": "Per-million-token USD pricing for the cost meter (issue #102). Keyed by model snapshot ID (and tier alias). input/output are $ per 1M tokens; cache_write_multiplier (5-min TTL) and cache_read_multiplier are applied to the input rate per Anthropic's prompt-caching pricing (write 1.25x, read 0.1x). Source: Claude API reference, cached 2026-08-05; 5-family rates from the claude-api skill model catalog (Opus 5 $5/$25, Fable 5 and Mythos 5 $10/$50, Sonnet 5 $3/$15 standard), cached 2026-08-05. Claude Sonnet 5 carries an introductory rate of $2/$10 per MTok through 2026-08-31; the $3/$15 entered here is the standard post-intro sticker (the named instrument uses the durable rate, and over-reporting is the safe direction for a budget ceiling). A model absent from `models` prices at $0.00, which silently disables any cost cap built on this file for exactly the model doing the work — claude-opus-5 was missing while it was this repo's default, so /autoship's --max-cost-usd read 4.7% of real spend (issue #1830). Anything absent here is now named in each cost-metering record's `unpriced_models` field and by tests/repo/test_cost_meter.py; add new model IDs in the same commit that starts using them. cache_write_multiplier covers the 5-minute TTL only — the 1-hour TTL is 2x, which this file does not model. Update when pricing changes; this is the named instrument for any cost claim.",
+  "source": "platform.claude.com/docs/en/pricing (via claude-api skill cache 2026-08-05)",
   "cache_write_multiplier": 1.25,
   "cache_read_multiplier": 0.1,
   "models": {
+    "claude-opus-5":     { "input": 5.0, "output": 25.0 },
     "claude-opus-4-8":   { "input": 5.0, "output": 25.0 },
     "claude-opus-4-7":   { "input": 5.0, "output": 25.0 },
     "claude-opus-4-6":   { "input": 5.0, "output": 25.0 },
     "claude-fable-5":    { "input": 10.0, "output": 50.0 },
+    "claude-mythos-5":   { "input": 10.0, "output": 50.0 },
     "claude-sonnet-5":   { "input": 3.0, "output": 15.0 },
     "claude-sonnet-4-6": { "input": 3.0, "output": 15.0 },
     "claude-haiku-4-5":  { "input": 1.0, "output": 5.0 },
     "claude-haiku-4-5-20251001": { "input": 1.0, "output": 5.0 }
   },
   "aliases": {
-    "opus": "claude-opus-4-8",
+    "opus": "claude-opus-5",
     "sonnet": "claude-sonnet-5",
     "haiku": "claude-haiku-4-5"
   }
