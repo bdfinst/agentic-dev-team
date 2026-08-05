@@ -33,12 +33,15 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 _LIB_DIR = Path(__file__).resolve().parent
-sys.path.insert(0, str(_LIB_DIR))
+if str(_LIB_DIR) not in sys.path:
+    sys.path.insert(0, str(_LIB_DIR))
 
 import artifact_paths
+from atomic_state import append_line_locked
 from boundary_events import emit_boundary_event
 
 _LOG_NAME = "iteration-journal.jsonl"
+_DELAY_ENV_VAR = "DEV_TEAM_ITERATION_JOURNAL_TEST_DELAY_MS"
 
 
 def _isoformat_utc() -> str:
@@ -104,8 +107,9 @@ def record_iteration_entry(
         if session_id:
             payload["session_id"] = session_id
 
-        with open(log, "a", encoding="utf-8") as handle:
-            handle.write(json.dumps(payload, separators=(",", ":")) + "\n")
+        append_line_locked(
+            log, json.dumps(payload, separators=(",", ":")) + "\n", delay_env_var=_DELAY_ENV_VAR
+        )
     except Exception:  # noqa: BLE001, S110 — fail-open by design, see module docstring
         pass
 

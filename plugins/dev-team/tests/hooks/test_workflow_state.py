@@ -12,6 +12,7 @@ Covers:
 from __future__ import annotations
 
 import json
+import os
 import subprocess
 import sys
 from datetime import datetime, timezone
@@ -23,18 +24,21 @@ _PLUGIN_DIR = _REPO_ROOT / "plugins" / "dev-team"
 _HOOKS_DIR = _PLUGIN_DIR / "hooks"
 _LIB_DIR = _HOOKS_DIR / "lib"
 _LIB_SCRIPT = _LIB_DIR / "workflow_state.py"
+_TESTS_LIB = _PLUGIN_DIR / "tests" / "lib"
 
-for _p in (_HOOKS_DIR, _LIB_DIR):
+for _p in (_HOOKS_DIR, _LIB_DIR, _TESTS_LIB):
     if str(_p) not in sys.path:
         sys.path.insert(0, str(_p))
 
 import workflow_state  # type: ignore[import-not-found]
-
-
-def _read_jsonl(path: Path) -> list:
-    lines = [ln for ln in path.read_text(encoding="utf-8").splitlines() if ln.strip()]
-    return [json.loads(ln) for ln in lines]
-
+from concurrency import (  # type: ignore[import-not-found]
+    DEFAULT_DELAY_MS,
+    DEFAULT_WORKERS,
+)
+from concurrency import (
+    assert_concurrent_appends_produce_one_line_per_marker as _assert_concurrent_appends,
+)
+from jsonl import read_jsonl as _read_jsonl  # type: ignore[import-not-found]
 
 # ---------------------------------------------------------------------------
 # emit_state_transition()
@@ -144,6 +148,40 @@ def test_compute_dwell_times_empty_is_empty_dict() -> None:
 # ---------------------------------------------------------------------------
 # CLI end-to-end
 # ---------------------------------------------------------------------------
+
+
+def test_concurrent_emits_never_interleave_into_a_corrupted_line(tmp_path: Path) -> None:
+    """#1889: N concurrent CLI `record` invocations must each land one intact
+    JSONL line, never a torn/interleaved one.
+    `DEV_TEAM_WORKFLOW_STATE_TEST_DELAY_MS` forces `atomic_state.append_line_locked`
+    to split its write into two calls with a delay between them, simulating a
+    genuinely non-atomic write so this is a deterministic regression guard
+    (mirrors test_hook_state_concurrency.py, #1501). Each worker gets a
+    distinct `--session` marker so a torn/interleaved merge that
+    coincidentally still parses as JSON is still caught."""
+    markers = [f"marker-{i}-end" for i in range(DEFAULT_WORKERS)]
+    env = {**os.environ, "DEV_TEAM_WORKFLOW_STATE_TEST_DELAY_MS": str(DEFAULT_DELAY_MS)}
+    cmds = [
+        (
+            [
+                sys.executable,
+                str(_LIB_SCRIPT),
+                "record",
+                "--cwd",
+                str(tmp_path),
+                "--workflow",
+                "ship",
+                "--new-state",
+                "SPEC",
+                "--session",
+                marker,
+            ],
+            env,
+        )
+        for marker in markers
+    ]
+    log = tmp_path / ".claude" / "metrics" / "workflow-states.jsonl"
+    _assert_concurrent_appends(cmds, log, markers)
 
 
 def test_cli_record_then_report(tmp_path: Path) -> None:

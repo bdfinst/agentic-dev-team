@@ -11,7 +11,20 @@ Constraints).
 
 Substitute:
 
-- `<repo>` — absolute path to the repository root.
+- `<repo>` — absolute path to the repository root (the project being
+  measured, not the plugin's own install location).
+- `<plugin-root>` — absolute path to the installed dev-team plugin on this
+  machine — get it by running `echo "$CLAUDE_PLUGIN_ROOT"` from an active
+  Claude Code session with the dev-team plugin loaded. Without a session,
+  derive it from `/dev-team:version`'s output (`dev-team@<marketplace>
+  v<version> (scope: <scope>)`): the installed copy lives at
+  `~/.claude/plugins/cache/<marketplace>/dev-team/<version>/`, e.g.
+  `~/.claude/plugins/cache/bfinster/dev-team/12.3.0` for `dev-team@bfinster
+  v12.3.0 (scope: user)`. `${CLAUDE_PLUGIN_ROOT}` itself is a
+  Claude-session-time environment variable and does not exist when a
+  scheduler runs the job outside any Claude session, so these recipes need
+  its resolved value substituted in ahead of time rather than the literal
+  token.
 - `<python>` — an absolute path to the Python 3.10+ interpreter that has the
   repo's mutation tooling on `PATH` (a venv's `python`, or the system one).
 
@@ -33,7 +46,7 @@ sleep/wake cycles) via a per-user `LaunchAgent`.
   <key>ProgramArguments</key>
   <array>
     <string><python></string>
-    <string><repo>/plugins/dev-team/skills/mutation-testing/scripts/mutation_nightwatch.py</string>
+    <string><plugin-root>/skills/mutation-testing/scripts/mutation_nightwatch.py</string>
     <string>--repo-root</string>
     <string><repo></string>
   </array>
@@ -73,7 +86,7 @@ line itself.
 `crontab -e`:
 
 ```cron
-0 1 * * * <python> <repo>/plugins/dev-team/skills/mutation-testing/scripts/mutation_nightwatch.py --repo-root <repo> >> <repo>/reports/mutation-nightwatch/cron.log 2>&1
+0 1 * * * <python> <plugin-root>/skills/mutation-testing/scripts/mutation_nightwatch.py --repo-root <repo> >> <repo>/reports/mutation-nightwatch/cron.log 2>&1
 ```
 
 Note the redirect is a direct `>>`, not a `| tee` — see
@@ -90,7 +103,7 @@ process is already running, not a deeper suspend triggered before cron fires).
 ## Windows — Task Scheduler
 
 ```powershell
-schtasks /create /tn "MutationNightWatch" /tr "<python> <repo>\plugins\dev-team\skills\mutation-testing\scripts\mutation_nightwatch.py --repo-root <repo>" /sc daily /st 01:00
+schtasks /create /tn "MutationNightWatch" /tr "<python> <plugin-root>\skills\mutation-testing\scripts\mutation_nightwatch.py --repo-root <repo>" /sc daily /st 01:00
 ```
 
 Task Scheduler's own "Wake the computer to run this task" option (in the

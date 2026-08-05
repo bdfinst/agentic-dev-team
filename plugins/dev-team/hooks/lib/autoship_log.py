@@ -15,11 +15,28 @@ import pathlib
 import sys
 from datetime import datetime, timezone
 
+_LIB_DIR = pathlib.Path(__file__).resolve().parent
+if str(_LIB_DIR) not in sys.path:
+    sys.path.insert(0, str(_LIB_DIR))
+
+from atomic_state import append_line_locked
+
+_DELAY_ENV_VAR = "DEV_TEAM_AUTOSHIP_LOG_TEST_DELAY_MS"
+
 
 def append_round(log_path: str, record: dict) -> None:
     """Append a JSON line to log_path, adding a logged_at ISO timestamp.
 
     Creates the file and any parent directories if they do not exist.
+    Serializes concurrent appends via `atomic_state.append_line_locked`
+    (#1889) so two overlapping `/autoship` rounds writing to the same log
+    are protected from interleaving their bytes into one corrupted line
+    while the lock is held (see `locked_state`'s own fail-open fallback for
+    when it might not be). Unlike the fail-open telemetry streams sharing
+    this pattern (`boundary_events.py`, `workflow_state.py`,
+    `iteration_journal_gate.py`), a write failure here is not swallowed —
+    `append_line_locked(fail_open=False)` re-raises it after the lock
+    releases, so the CLI still surfaces it as a real error.
 
     Args:
         log_path: Path to the JSONL file.
@@ -31,8 +48,8 @@ def append_round(log_path: str, record: dict) -> None:
     path = pathlib.Path(log_path)
     path.parent.mkdir(parents=True, exist_ok=True)
 
-    with path.open("a", encoding="utf-8") as fh:
-        fh.write(json.dumps(entry) + "\n")
+    line = json.dumps(entry) + "\n"
+    append_line_locked(path, line, delay_env_var=_DELAY_ENV_VAR, fail_open=False)
 
 
 def _build_parser() -> argparse.ArgumentParser:

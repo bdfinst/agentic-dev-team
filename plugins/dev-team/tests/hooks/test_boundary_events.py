@@ -15,6 +15,8 @@ Covers:
     `decision` inside the enum.
   - knowledge/telemetry-schema.md documents every `metrics/*.jsonl`/`.json`
     path referenced in shipped code (coverage cross-check).
+  - concurrent writers (#1874): N processes appending simultaneously must
+    never interleave into a corrupted JSONL line.
 """
 
 from __future__ import annotations
@@ -24,6 +26,7 @@ import os
 import re
 import subprocess
 import sys
+import textwrap
 from pathlib import Path
 
 import pytest
@@ -54,6 +57,7 @@ for _p in (_HOOKS_DIR, _LIB_DIR, _TESTS_LIB):
 
 import boundary_events  # type: ignore[import-not-found]
 from hermetic import hermetic_git_env  # type: ignore[import-not-found]
+from jsonl import read_jsonl as _read_jsonl  # type: ignore[import-not-found]
 
 _DECISION_ENUM = {
     "block",
@@ -66,11 +70,6 @@ _DECISION_ENUM = {
 }
 _SCHEMA_FIELDS = {"ts", "hook", "tool", "decision", "matched_rule", "plugin_version"}
 _OPTIONAL_FIELDS = {"session_id"}
-
-
-def _read_jsonl(path: Path) -> list:
-    lines = [ln for ln in path.read_text(encoding="utf-8").splitlines() if ln.strip()]
-    return [json.loads(ln) for ln in lines]
 
 
 # ---------------------------------------------------------------------------
@@ -151,6 +150,163 @@ def test_emit_swallows_bad_cwd_type(tmp_path: Path, monkeypatch) -> None:
     still not raise — fail-open covers the whole call, not just I/O."""
     monkeypatch.setattr(boundary_events.Path, "cwd", lambda: tmp_path)
     boundary_events.emit_boundary_event(None, "h", "Bash", "warn", "r")
+
+
+def test_append_line_locked_swallows_oserror_inside_the_critical_section(
+    tmp_path: Path,
+) -> None:
+    """#1874 (correctness re-review): calls `_append_line_locked` directly,
+    bypassing `emit_boundary_event`'s outer `except Exception` — which
+    would mask the inner handler's removal and make an
+    `emit_boundary_event`-level test unable to fail for the reason it
+    claims to guard. Making `log`'s own path a directory means
+    `open(log, "a")` raises OSError *inside* the lock, the one spot
+    `atomic_state.locked_state`'s documented contract says the caller must
+    handle itself. Must not raise."""
+    log = tmp_path / "metrics" / "boundary-events.jsonl"
+    log.mkdir(parents=True)
+    boundary_events._append_line_locked(log, '{"hook":"h"}\n')
+    assert list(log.iterdir()) == []
+
+
+class _SpyHandle:
+    """Records write()/flush() calls without touching a real file, so a
+    test can assert *how many* writes `_write_jsonl_line` issues — the
+    thing that actually distinguishes its plain-write branch from its
+    split-write branch, since both branches reassemble to the same final
+    bytes (content-only assertions can't tell them apart)."""
+
+    def __init__(self) -> None:
+        self.writes: list[str] = []
+        self.flushes = 0
+
+    def write(self, chunk: str) -> None:
+        self.writes.append(chunk)
+
+    def flush(self) -> None:
+        self.flushes += 1
+
+
+@pytest.mark.parametrize(
+    ("raw", "expect_split"),
+    [
+        (None, False),  # unset
+        ("", False),  # empty string
+        ("0", False),  # non-positive: disabled, per this repo's DEV_TEAM_* convention
+        ("-5", False),  # negative: also disabled
+        ("abc", False),  # unparseable: falls back to disabled
+        ("1", True),  # positive: split-write branch
+    ],
+)
+def test_write_jsonl_line_delay_gate_selects_the_documented_branch(
+    monkeypatch, raw: str | None, expect_split: bool
+) -> None:
+    """#1874 (correctness re-review): discriminates `_write_jsonl_line`'s
+    two branches by write COUNT, not final content — a bare truthiness
+    check on the environment string (the bug this gate guards against)
+    would take the split-write branch for `"0"` too, since it's a
+    non-empty string, but would still reassemble to identical bytes,
+    which is why a content-only assertion can't catch it."""
+    if raw is None:
+        monkeypatch.delenv(boundary_events._TEST_DELAY_ENV, raising=False)
+    else:
+        monkeypatch.setenv(boundary_events._TEST_DELAY_ENV, raw)
+    line = '{"hook":"h"}\n'
+    spy = _SpyHandle()
+    boundary_events._write_jsonl_line(spy, line)
+    assert len(spy.writes) == (2 if expect_split else 1)
+    assert spy.flushes == (1 if expect_split else 0)
+    assert "".join(spy.writes) == line
+
+
+# ---------------------------------------------------------------------------
+# Concurrent writers (#1874): N processes appending simultaneously must
+# never interleave into a corrupted JSONL line.
+# ---------------------------------------------------------------------------
+
+_CONCURRENCY_WORKERS = 8
+_CONCURRENCY_DELAY_MS = 60
+
+
+def _write_concurrent_emit_worker(tmp_path: Path) -> Path:
+    """A tiny standalone script that calls the real `emit_boundary_event`
+    once against `tmp_path`. Run as N separate OS processes (not threads) so
+    each gets its own `open()` file descriptor on the shared log — the same
+    shape as sliced-mode code-review (#1874), where 2-3 concurrent slice
+    dispatches can each independently emit a "dispatch-failure" event."""
+    worker = tmp_path / "_emit_worker.py"
+    worker.write_text(
+        textwrap.dedent(
+            f"""
+            import sys
+            sys.path.insert(0, {str(_LIB_DIR)!r})
+            import boundary_events
+            boundary_events.emit_boundary_event(
+                {str(tmp_path)!r}, "concurrency-test", "Bash", "warn", "worker-emit"
+            )
+            """
+        )
+    )
+    return worker
+
+
+def test_concurrent_emits_never_interleave_into_a_corrupted_line(
+    tmp_path: Path,
+) -> None:
+    """#1874: N processes appending concurrently, each holding the append
+    open across an injected delay (`boundary_events._write_jsonl_line`'s
+    test-only split-write, gated by DEV_TEAM_BOUNDARY_EVENTS_TEST_DELAY_MS),
+    must still produce exactly N well-formed JSONL lines.
+
+    Without the `atomic_state.locked_state` lock `emit_boundary_event` now
+    holds for the full open+write+close, this test reliably goes red: the
+    injected delay widens the window enough that another worker's full line
+    lands between this worker's own two write() halves, corrupting both
+    lines into invalid JSON / merging two events into one line."""
+    worker = _write_concurrent_emit_worker(tmp_path)
+    # Hermetic env (matches this file's own `_run_hook`/`hermetic_git_env`
+    # convention): the worker's `emit_boundary_event` resolves its target
+    # via `artifact_paths.project_root`, which shells out to `git
+    # rev-parse --show-toplevel`. Passing the raw host environment would
+    # let an inherited GIT_DIR/GIT_WORK_TREE (as git itself sets for a
+    # hook-invoked process, e.g. this very suite running under the
+    # `pre-push` hook) redirect that resolution outside `tmp_path` — and
+    # this test's exact `len(events) == _CONCURRENCY_WORKERS` assertion is
+    # the most sensitive test in this file to that misresolution.
+    env = {
+        **hermetic_git_env(home=tmp_path),
+        boundary_events._TEST_DELAY_ENV: str(_CONCURRENCY_DELAY_MS),
+    }
+    procs = [
+        subprocess.Popen(
+            [sys.executable, str(worker)],
+            env=env,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+        )
+        for _ in range(_CONCURRENCY_WORKERS)
+    ]
+    for proc in procs:
+        # 30s, not 10s: 8 sequential subprocess.communicate() calls each pay
+        # interpreter startup + a `git rev-parse` (via project_root) + the
+        # deliberate 60ms injected delay, and a slow/contended CI runner
+        # (test-review, #1874) could otherwise trip the timeout for
+        # unrelated infra reasons rather than the race condition under test.
+        _out, err = proc.communicate(timeout=30)
+        assert proc.returncode == 0, f"worker failed: {err!r}"
+
+    log = tmp_path / ".claude" / "metrics" / "boundary-events.jsonl"
+    raw = log.read_text(encoding="utf-8")
+    lines = [ln for ln in raw.splitlines() if ln.strip()]
+    # json.loads raises on any interleaved/torn line — a corrupted append
+    # surfaces here as a JSONDecodeError, not a silent pass.
+    events = [json.loads(ln) for ln in lines]
+    assert len(events) == _CONCURRENCY_WORKERS, (
+        f"expected {_CONCURRENCY_WORKERS} distinct JSONL lines, got "
+        f"{len(events)} — a merged/lost line indicates interleaved "
+        f"concurrent appends: {lines!r}"
+    )
+    assert all(event["matched_rule"] == "worker-emit" for event in events), events
 
 
 # ---------------------------------------------------------------------------
