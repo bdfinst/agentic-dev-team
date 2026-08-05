@@ -27,7 +27,25 @@ rendering, which is applied once at resolution time, not per comparison).
 **Security hardening.** Every glob-resolved package directory is verified to
 stay within the resolved repository root before it is read or classified — a
 workspace glob containing `..` can never cause this module to read or
-classify a directory outside the repository.
+classify a directory outside the repository. Brace expansion (below) happens
+*before* that containment check, so an escaping path hidden inside a single
+brace alternative (`{apps,../outside}/*`) is refused exactly like a bare
+`../outside/*`.
+
+**Brace expansion (issue #1827).** npm, yarn and pnpm all accept shell-style
+brace alternations in workspace globs (`apps/{web,api}`), but `pathlib` does
+not expand them — it looks for a literal directory named `{web,api}` and
+finds nothing. Each declared glob is therefore expanded into its
+alternatives here before being resolved. Multiple groups expand as a
+cartesian product and nested groups expand recursively, matching the package
+managers. An unbalanced brace is a `discovery_error`, never a silent
+fallthrough to zero matches.
+
+**Explicit `**` validation (issue #1832).** `**` placement is validated by
+inspecting each path component rather than by catching `ValueError` from
+`Path.glob`. CPython 3.13+ accepts a non-component `**` and treats it as
+`*`, so the exception this module previously relied on is no longer raised
+there — which turned a `discovery_error` into a silent empty result.
 
 **Minimal pnpm-workspace.yaml parser.** This module never imports PyYAML
 (stdlib-only, ADR 0014/0015) and does not implement general YAML. It
@@ -228,6 +246,146 @@ def _parse_lerna_json(path: Path):
     return packages if isinstance(packages, list) else []
 
 
+class _UnbalancedBrace(Exception):
+    """Raised internally by `_expand_braces` for a glob whose braces do not
+    pair up. Converted to a `coverage_config.discovery_error` by the caller —
+    never allowed to surface as an empty match set."""
+
+
+class _BraceExpansionTooLarge(Exception):
+    """Raised internally by `_expand_braces` for a glob whose expansion would
+    exceed `_MAX_BRACE_EXPANSIONS` alternatives or `_MAX_BRACE_NESTING` levels
+    of nesting. Converted to a `coverage_config.discovery_error` by the
+    caller. Brace expansion is a cartesian product, so a modest-looking
+    pattern (20 two-way groups) yields 2**20 globs and as many filesystem
+    walks; deep nesting recurses per level and would otherwise surface as an
+    uncaught `RecursionError` traceback rather than a discovery error."""
+
+
+# Generous enough that no legitimate npm/yarn/pnpm workspace declaration comes
+# close, small enough that a pathological `package.json` cannot turn discovery
+# into a filesystem-walk bomb.
+_MAX_BRACE_EXPANSIONS = 256
+_MAX_BRACE_NESTING = 16
+
+
+def _brace_balance_problem(pattern: str) -> str | None:
+    """Return a reason when `pattern`'s braces do not pair up, else `None`.
+
+    Validated across the WHOLE pattern in one pass, deliberately: an earlier
+    version of this module scanned only from the first `{` onward, so a stray
+    `}` to its left (`apps/}x{a,b}`) was copied verbatim into the literal
+    prefix and expanded to globs that match nothing — reintroducing the exact
+    silent-zero-packages outcome #1827 exists to prevent. Both reviewers of
+    that change caught it independently; hence a single global check rather
+    than a per-recursion one."""
+    depth = 0
+    max_depth = 0
+    for index, char in enumerate(pattern):
+        if char == "{":
+            depth += 1
+            max_depth = max(max_depth, depth)
+        elif char == "}":
+            depth -= 1
+            if depth < 0:
+                return (
+                    f"closes a brace group at position {index} that was never "
+                    "opened"
+                )
+    if depth > 0:
+        return f"leaves {depth} brace group(s) unclosed"
+    if max_depth > _MAX_BRACE_NESTING:
+        return (
+            f"nests brace groups {max_depth} deep, beyond the supported "
+            f"maximum of {_MAX_BRACE_NESTING}"
+        )
+    return None
+
+
+def _expand_braces(pattern: str) -> list:
+    """Expand shell-style brace alternations in `pattern` into the list of
+    concrete globs npm/yarn/pnpm would resolve (issue #1827).
+
+    `apps/{web,api}` -> `['apps/web', 'apps/api']`. Multiple groups expand as
+    a cartesian product; nested groups expand recursively. A pattern with no
+    braces returns itself unchanged, so this is safe to apply to every glob.
+
+    Raises `_UnbalancedBrace` when the braces do not pair up anywhere in the
+    pattern — the package managers reject those too, and treating them as a
+    literal path would silently resolve to nothing. Raises
+    `_BraceExpansionTooLarge` when the expansion would exceed
+    `_MAX_BRACE_EXPANSIONS`."""
+    problem = _brace_balance_problem(pattern)
+    if problem is not None:
+        raise _UnbalancedBrace(problem)
+    return _expand_braces_balanced(pattern)
+
+
+def _expand_braces_balanced(pattern: str) -> list:
+    """Recursive worker for `_expand_braces`, assuming `pattern`'s braces are
+    already known to balance (every sub-pattern of a balanced pattern is
+    itself balanced, so the global check runs once at entry, not per level)."""
+    open_idx = pattern.find("{")
+    if open_idx == -1:
+        return [pattern]
+
+    depth = 0
+    close_idx = -1
+    alternatives = []
+    alt_start = open_idx + 1
+    for i in range(open_idx, len(pattern)):
+        char = pattern[i]
+        if char == "{":
+            depth += 1
+        elif char == "}":
+            depth -= 1
+            if depth == 0:
+                alternatives.append(pattern[alt_start:i])
+                close_idx = i
+                break
+        elif char == "," and depth == 1:
+            alternatives.append(pattern[alt_start:i])
+            alt_start = i + 1
+    prefix = pattern[:open_idx]
+    expanded_suffixes = _expand_braces_balanced(pattern[close_idx + 1 :])
+    expanded = []
+    for alternative in alternatives:
+        for expanded_alt in _expand_braces_balanced(alternative):
+            for suffix in expanded_suffixes:
+                expanded.append(prefix + expanded_alt + suffix)
+                if len(expanded) > _MAX_BRACE_EXPANSIONS:
+                    raise _BraceExpansionTooLarge(
+                        f"expands to more than {_MAX_BRACE_EXPANSIONS} "
+                        "alternatives"
+                    )
+    return expanded
+
+
+def _double_star_placement_problem(pattern: str) -> str | None:
+    """Return a human-readable reason when `pattern`'s `**` usage is one this
+    module refuses to resolve, else `None` (issue #1832).
+
+    Checked by inspecting path components rather than by catching `ValueError`
+    from `Path.glob`: CPython 3.13+ accepts a non-component `**` and silently
+    treats it as `*`, so the exception this module used to depend on is not
+    raised on every supported interpreter. A version-dependent guard here
+    meant a malformed glob became an empty result instead of an error."""
+    if pattern.count("**") > 1:
+        return (
+            "contains more than one '**' segment; no legitimate "
+            "npm/yarn/pnpm workspace glob needs more than one, and multiple "
+            "non-adjacent '**' segments can cause pathological "
+            "filesystem-walk cost"
+        )
+    for component in pattern.split("/"):
+        if "**" in component and component != "**":
+            return (
+                f"places '**' inside the path component {component!r}; '**' "
+                "must be an entire path component of its own"
+            )
+    return None
+
+
 def _resolve_globs_to_rel_paths(root: Path, globs: list):
     """Resolve each glob in `globs` against `root`'s filesystem, keeping
     only matches that are directories containing their own `package.json`.
@@ -235,40 +393,100 @@ def _resolve_globs_to_rel_paths(root: Path, globs: list):
     `coverage_config.discovery_error(...)` naming: the first resolved match
     found outside `root` (e.g. a glob containing `..`) — refusing to include
     or silently drop it; a glob pattern this module refuses to resolve at
-    all (an absolute path, a malformed `**` placement, or more than one
-    `**` segment); or a filesystem error encountered while resolving it."""
+    all (an absolute path, an unbalanced brace, a malformed `**` placement,
+    or more than one `**` segment); or a filesystem error encountered while
+    resolving it.
+
+    Brace alternations are expanded first (`_expand_braces`), so every check
+    below — including the containment guard — runs against each concrete
+    alternative rather than the unexpanded pattern."""
     rel_paths = set()
-    for pattern in globs:
-        if not isinstance(pattern, str) or not pattern:
+    for declared_pattern in globs:
+        if not isinstance(declared_pattern, str) or not declared_pattern:
             continue
-        if pattern.count("**") > 1:
+        # The `**` budget is enforced on the DECLARED pattern, not only on each
+        # expanded alternative: brace multiplication would otherwise smuggle
+        # several `**` walks past a per-alternative check ({**/x,**/y,**/z} is
+        # three single-`**` alternatives), defeating the cost guard's purpose.
+        if declared_pattern.count("**") > 1:
             return coverage_config.discovery_error(
-                f"Workspace glob {pattern!r} contains more than one '**' "
-                "segment; no legitimate npm/yarn/pnpm workspace glob needs "
-                "more than one, and multiple non-adjacent '**' segments can "
-                "cause pathological filesystem-walk cost. Refusing to "
+                f"Workspace glob {declared_pattern!r} contains more than one "
+                "'**' segment; no legitimate npm/yarn/pnpm workspace glob "
+                "needs more than one, and multiple non-adjacent '**' segments "
+                "can cause pathological filesystem-walk cost. Refusing to "
                 "resolve it."
             )
         try:
-            matches = list(root.glob(pattern))
-        except (ValueError, NotImplementedError, OSError) as exc:
+            expanded_patterns = _expand_braces(declared_pattern)
+        except _UnbalancedBrace as exc:
             return coverage_config.discovery_error(
-                f"Workspace glob {pattern!r} could not be resolved: {exc}"
+                f"Workspace glob {declared_pattern!r} {exc}; npm/yarn/pnpm "
+                "reject unbalanced braces too, and resolving the pattern as a "
+                "literal path would silently match nothing. Refusing to "
+                "resolve it."
             )
-        for match in matches:
-            resolved = match.resolve()
-            if not (resolved == root or root in resolved.parents):
-                return coverage_config.discovery_error(
-                    f"Workspace glob {pattern!r} resolved to "
-                    f"{str(resolved)!r}, which is outside the repository "
-                    f"root ({str(root)!r}); refusing to include it."
-                )
-            if not resolved.is_dir():
+        except _BraceExpansionTooLarge as exc:
+            return coverage_config.discovery_error(
+                f"Workspace glob {declared_pattern!r} {exc}; each alternative "
+                "costs a separate filesystem walk. Refusing to resolve it."
+            )
+        for pattern in expanded_patterns:
+            # An empty or bare-`/` alternative ({packages/*,} — legal in
+            # npm/minimatch, where it simply contributes nothing) must not
+            # reach `Path.glob`, which rejects '' outright and treats a
+            # trailing separator version-dependently. Dropping it here keeps
+            # one empty alternative from failing the whole workspace.
+            pattern = pattern.rstrip("/")
+            if not pattern:
                 continue
-            if not (resolved / "package.json").is_file():
-                continue
-            rel_paths.add(resolved.relative_to(root).as_posix())
+            result = _resolve_one_glob(root, pattern, declared_pattern, rel_paths)
+            if result is not None:
+                return result
     return sorted(rel_paths)
+
+
+def _resolve_one_glob(root: Path, pattern: str, declared_pattern: str, rel_paths: set):
+    """Resolve a single brace-expanded `pattern`, adding every qualifying
+    match to `rel_paths`. Returns `None` on success, or a
+    `coverage_config.discovery_error(...)` to propagate. `declared_pattern` is
+    the original glob as written in the manifest — named in every error
+    alongside the expanded form so a brace-expanded failure is traceable back
+    to what the operator actually declared."""
+
+    def described(reason: str) -> str:
+        if pattern == declared_pattern:
+            return f"Workspace glob {pattern!r} {reason}."
+        return (
+            f"Workspace glob {pattern!r} (expanded from "
+            f"{declared_pattern!r}) {reason}."
+        )
+
+    placement_problem = _double_star_placement_problem(pattern)
+    if placement_problem is not None:
+        return coverage_config.discovery_error(
+            described(f"{placement_problem}. Refusing to resolve it")
+        )
+    try:
+        matches = list(root.glob(pattern))
+    except (ValueError, NotImplementedError, OSError) as exc:
+        return coverage_config.discovery_error(
+            described(f"could not be resolved: {exc}")
+        )
+    for match in matches:
+        resolved = match.resolve()
+        if not (resolved == root or root in resolved.parents):
+            return coverage_config.discovery_error(
+                described(
+                    f"resolved to {str(resolved)!r}, which is outside the "
+                    f"repository root ({str(root)!r}); refusing to include it"
+                )
+            )
+        if not resolved.is_dir():
+            continue
+        if not (resolved / "package.json").is_file():
+            continue
+        rel_paths.add(resolved.relative_to(root).as_posix())
+    return None
 
 
 # ---------------------------------------------------------------------------

@@ -30,7 +30,11 @@ classifies `NOT_TEST` — see the plan's Risks section.
 **Security hardening.** Every resolved project path is verified to stay
 within the resolved repository root before it is read or classified — a
 `.sln` entry containing `..` or an absolute path can never cause this
-module to read or XML-parse a file outside the repository. Every `.csproj`
+module to read or XML-parse a file outside the repository. Separator
+normalization (see `_parse_sln_list_output`, issue #1828) happens before
+that check, so a backslash-separated `..\\outside\\Evil.csproj` is refused
+like its forward-slash form instead of slipping past as one opaque
+filename. Every `.csproj`
 and `Directory.Build.props` file is also screened for `<!DOCTYPE`/
 `<!ENTITY` declarations before being parsed (entity-expansion hardening) —
 neither file legitimately carries either.
@@ -128,6 +132,14 @@ def discover_dotnet_projects(repo_root):
 
     projects = []
     for rel_path in project_rel_paths:
+        absolute_problem = _absolute_entry_problem(rel_path)
+        if absolute_problem is not None:
+            return coverage_config.discovery_error(
+                f"Solution '{sln_path.name}' references project "
+                f"'{rel_path}', which {absolute_problem}. Only "
+                "solution-relative project paths are supported; refusing to "
+                "read or classify it."
+            )
         csproj_path = (root / rel_path).resolve()
         if not (csproj_path == root or root in csproj_path.parents):
             return coverage_config.discovery_error(
@@ -148,9 +160,52 @@ def discover_dotnet_projects(repo_root):
     return projects
 
 
+def _absolute_entry_problem(rel_path: str) -> str | None:
+    """Return a reason when a (already separator-normalized) `.sln` entry is an
+    absolute path rather than a solution-relative one, else `None`.
+
+    Checked explicitly rather than left to `PurePosixPath.is_absolute()`,
+    which is platform-divergent for exactly the shapes a Windows-authored
+    solution produces: a drive-letter path like `C:/Projects/App.csproj` is
+    NOT absolute on POSIX, so it would silently become a nonsense subpath of
+    the repo root and fail with a misleading "does not exist on disk" instead
+    of naming the real problem. A UNC path normalizes to a leading `//`, which
+    IS absolute on POSIX — so without this check the same input produces two
+    different diagnostics depending on the runner's OS."""
+    if len(rel_path) >= 2 and rel_path[1] == ":" and rel_path[0].isalpha():
+        return "is an absolute Windows path (drive letter)"
+    if rel_path.startswith("//"):
+        return "is an absolute UNC network path"
+    if rel_path.startswith("/"):
+        return "is an absolute path"
+    return None
+
+
 def _parse_sln_list_output(stdout: str) -> list:
-    """Parse `dotnet sln list`'s stdout into a list of project paths exactly
-    as printed, skipping the `Project(s)` header and its underline."""
+    """Parse `dotnet sln list`'s stdout into a list of repo-relative project
+    paths in POSIX form, skipping the `Project(s)` header and its underline.
+
+    **Separator normalization (issue #1828).** `dotnet sln list` echoes the
+    separators the `.sln` was authored with, and a Windows-authored solution
+    emits backslashes. On POSIX `pathlib` treats `src\\App\\App.csproj` as a
+    single opaque filename — `PurePath(...).name` returns the whole string —
+    so the `.csproj` is never found and every project in the solution fails
+    the "does not exist on disk" check even though the file is present. Since
+    most enterprise .NET solutions are Windows-authored and their CI is
+    commonly Linux, that made .NET discovery non-functional for them.
+
+    Backslashes are therefore normalized to `/` here, once, at parse time.
+    This is deliberately unconditional rather than POSIX-only: it keeps the
+    recorded path identity — the string every caller compares against
+    `included`/`excluded` entries — byte-identical across platforms, so a
+    `coverage-config.json` written on Windows still reconciles on Linux.
+    Normalizing before the caller's containment check also keeps the `..`
+    traversal guard effective on backslash-separated escapes, which
+    previously slipped past it as opaque filenames.
+
+    Accepted limitation: a genuine POSIX filename containing a literal
+    backslash would be rewritten. MSBuild solution files always use `\\` as a
+    separator, so such a path does not occur in `.sln` output."""
     projects = []
     for raw_line in stdout.splitlines():
         line = raw_line.strip()
@@ -160,7 +215,7 @@ def _parse_sln_list_output(stdout: str) -> list:
             continue
         if set(line) == {"-"}:
             continue
-        projects.append(line)
+        projects.append(line.replace("\\", "/"))
     return projects
 
 
