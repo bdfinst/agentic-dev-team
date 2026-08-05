@@ -223,6 +223,25 @@ _resolve_python310() {
   return 1
 }
 
+# The NEWEST interpreter the suite is asserted to work on (issue #1837). The
+# floor (3.10) and this ceiling bracket the supported range; nothing else in
+# CI pins a version, so raising support to a new Python is a deliberate
+# one-line edit here rather than a side effect of a runner-image bump.
+PYTHON_CEILING="3.14"
+
+_resolve_python_ceiling() {
+  if command -v "python${PYTHON_CEILING}" >/dev/null 2>&1; then
+    command -v "python${PYTHON_CEILING}"
+    return 0
+  fi
+  if command -v uv >/dev/null 2>&1; then
+    uv python find "$PYTHON_CEILING" 2>/dev/null && return 0
+    uv python install "$PYTHON_CEILING" >/dev/null 2>&1 &&
+      uv python find "$PYTHON_CEILING" 2>/dev/null && return 0
+  fi
+  return 1
+}
+
 chk_python_floor() {
   local py310
   if ! py310="$(_resolve_python310)" || [ -z "$py310" ]; then
@@ -311,6 +330,61 @@ chk_python_floor() {
     plugins/dev-team/tests/scripts/test_coverage_discovery_dotnet.py \
     plugins/dev-team/tests/scripts/test_coverage_discovery_js.py \
     -q || return 1
+}
+
+# Opt-in locally (OPTIONAL_CHECKS), always-run in CI as its own `Python
+# ceiling` job. Two reasons it must not join the default local pool, both
+# observed rather than assumed:
+#   1. It runs the SAME full suite as chk_hook_units. Concurrently, the two
+#      processes race on hooks/careful-state.json — a fixed real path several
+#      test files write by design (see their own docstrings). The xdist_group
+#      mark pins those tests to one worker WITHIN a pytest run; it cannot
+#      protect against two separate pytest processes. Measured: 3 failures
+#      (test_code_intelligence_nudge, test_destructive_guard) that vanish when
+#      either check runs alone.
+#   2. Same wall-clock argument chk_coverage_report already makes above —
+#      duplicating the long-pole suite for every push buys little locally when
+#      CI shards each gate into its own job.
+# CI is where this gate has teeth, and there it is the sole check in its job.
+chk_python_ceiling() {
+  local pyceil
+  if ! pyceil="$(_resolve_python_ceiling)" || [ -z "$pyceil" ]; then
+    printf 'No Python %s interpreter available, and this gate does not skip.\n' "$PYTHON_CEILING" >&2
+    printf 'Install one:  uv python install %s   (or apt/brew a python%s)\n' "$PYTHON_CEILING" "$PYTHON_CEILING" >&2
+    printf 'See issue #1837: the floor gate says nothing about the newest supported interpreter.\n' >&2
+    return 1
+  fi
+  printf 'ceiling interpreter: %s (%s)\n' "$pyceil" "$("$pyceil" -V 2>&1)"
+
+  if ! command -v uv >/dev/null 2>&1; then
+    printf 'uv not found — cannot provision pytest for the ceiling interpreter.\n' >&2
+    printf 'Install uv (https://docs.astral.sh/uv/) so this gate can run the suite under %s.\n' "$pyceil" >&2
+    return 1
+  fi
+
+  # Deliberately the FULL pytest directory list, not chk_python_floor's narrow
+  # slice. The incident that motivated this gate (#1832, fixed in #1833) was a
+  # `Path.glob` contract change in CPython 3.13 that broke
+  # plugins/dev-team/tests/scripts/test_coverage_discovery_js.py — a file the
+  # floor slice does not include. A ceiling gate running only that slice would
+  # have reported green on the exact regression it exists to catch, which is
+  # this repo's own "a gate that cannot fail is worse than no gate" rule.
+  #
+  # Same --ignore pair as chk_hook_units (the csharp stryker wrapper suites are
+  # timing/signal sensitive and live on wrapper-windows.yml), and the same
+  # loadgroup rationale. Deps are provisioned into an ephemeral uv-managed venv
+  # so this gate never touches the system interpreter's site-packages, and are
+  # pinned to requirements-dev.txt's specifiers so the gate's verdict cannot
+  # drift with a contributor's environment (#1676's lesson).
+  uv run --python "$pyceil" \
+    --with 'pytest>=7.0' --with 'pytest-asyncio>=0.23' --with 'pytest-xdist>=3.0' \
+    --with 'jsonschema>=4.0' --with 'PyYAML>=6.0' \
+    -m pytest \
+    plugins/dev-team/tests tests/repo tests/agents tests/commands \
+    tests/docs tests/knowledge tests/stack_aware tests/skills tests/scripts tests/hooks \
+    --ignore=tests/scripts/test_csharp_stryker_net_wrapper.py \
+    --ignore=tests/scripts/test_csharp_stryker_net_status_loop.py \
+    -q -n auto --dist loadgroup
 }
 
 chk_semgrep_fixtures() { python3 scripts/audit-semgrep-fixtures.py; }
@@ -498,6 +572,7 @@ CHECKS=(
 # `bash scripts/ci-local.sh --only=chk_coverage_report`.
 OPTIONAL_CHECKS=(
   "coverage report (informational; pytest --cov)::chk_coverage_report"
+  "Python ceiling (full suite on a real $PYTHON_CEILING)::chk_python_ceiling"
 )
 
 # --only=fn[,fn...] : keep just the named checks (CI invokes per-job subsets;

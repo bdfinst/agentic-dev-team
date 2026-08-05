@@ -156,6 +156,43 @@ jobs:
       - name: Python 3.10 floor check (via ci-local)
         run: bash scripts/ci-local.sh --only=chk_python_floor
 
+  # The other end of the supported range (#1837). The floor job above asks
+  # "does this still run on the OLDEST supported interpreter"; nothing asked
+  # about the newest, and content-guard-tests runs on the runner image's
+  # implicit system python3 (~3.12 on ubuntu-24.04, with no python-version pin
+  # anywhere in this file). So the suite's green read as "works on Python" when
+  # it meant "works on 3.10 and whatever the runner happens to ship."
+  #
+  # That gap was not hypothetical: `main` was red on 3.13+ while every check
+  # here was green. coverage_discovery_js.py detected a malformed `**` glob by
+  # catching ValueError from Path.glob, and CPython 3.13's pathlib rewrite
+  # stopped raising it — so the guard silently returned an empty result instead
+  # of a discovery_error (#1832, fixed in #1833).
+  #
+  # Follows python-floor's `uv` precedent deliberately, and NOT
+  # actions/setup-python inside content-guard-tests: see the comment above that
+  # job for the prior attempt, which put a pinned interpreter ahead of the
+  # system python3 for every other step in the job, broke chk_md_references and
+  # silently degraded chk_hook_units's pytest guard to "skipped".
+  #
+  # The pinned version lives in one place (PYTHON_CEILING in ci-local.sh) so a
+  # runner-image bump cannot move it silently and raising it is a deliberate
+  # edit. This gate runs the FULL pytest directory list rather than the floor
+  # job's narrow slice, because the regression that motivated it was in a test
+  # file that slice does not include — a ceiling gate on the slice alone would
+  # have reported green on the exact bug it exists to catch.
+  python-ceiling:
+    name: Python ceiling
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7
+
+      - name: Python ceiling check (via ci-local)
+        run: bash scripts/ci-local.sh --only=chk_python_ceiling
+
   # Cost-regression gate (#140 mechanism, #171 real baseline). Isolated in its
   # own job so the read-only telemetry deploy key is never in scope for the
   # broader test jobs. The self-test step always runs (blocking); the telemetry
