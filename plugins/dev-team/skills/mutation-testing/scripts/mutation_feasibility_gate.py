@@ -17,6 +17,16 @@ gate defers to the operator rather than degrading on its own. The agent runs
 the probe (reusing the wrapper + #1157's capture detection) and feeds the
 measurements here; applying the shim exclusions is #1159's job.
 
+``ask-operator`` is also the arbiter's answer when the detector found
+shim-breaking xunit.v3 constructs (#1791). That used to be a pure time-budget
+question, which meant the operator's real decision — port, exclude, skip, or
+degrade — was never presented anywhere; the shim was silently built, declined,
+or degraded and they found out from a report, if at all. Feeding the detector's
+findings in through ``ProbeResult.v3_blockers`` makes the same decision point
+carry the per-construct breakdown plus those four options (built and rendered
+by ``hooks/lib/xunit_v3_operator_gate.py``, so the guard hook and this gate
+present one story).
+
 Stdlib-only.
 """
 
@@ -28,7 +38,19 @@ import json
 import os
 import sys
 from collections.abc import Sequence
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, field
+from pathlib import Path
+
+# skills/mutation-testing/scripts -> skills/mutation-testing -> skills
+# -> plugin root -> hooks/lib
+_HOOKS_LIB_DIR = Path(__file__).resolve().parents[3] / "hooks" / "lib"
+if str(_HOOKS_LIB_DIR) not in sys.path:
+    sys.path.insert(0, str(_HOOKS_LIB_DIR))
+
+try:
+    import xunit_v3_operator_gate as _operator_gate  # type: ignore[import-not-found]
+except ImportError:  # pragma: no cover - degraded fallback, hooks/lib unreachable
+    _operator_gate = None
 
 
 class Outcome(enum.Enum):
@@ -91,12 +113,23 @@ def estimate_round_seconds(probe_seconds: float, scope_file_count: int) -> float
 @dataclass(frozen=True)
 class ProbeResult:
     """The shim-first one-file probe's measurements — the four values that
-    always travel together as one probe's result set."""
+    always travel together as one probe's result set, plus the detector's
+    shim-breaking findings (#1791) when there are any.
+
+    ``v3_blockers`` holds ``xunit_v3_feature_detector`` findings (its dataclass
+    or its ``--json`` dict form). ``v3_unclassified_files`` holds files the
+    guard hook's broader token scan flagged but the detector cannot classify —
+    they must still reach the operator rather than being dropped for lacking a
+    classification.
+    """
 
     shim_declined: bool
     capture_failed: bool
     probe_seconds: float
     scope_file_count: int
+    project: str = ""
+    v3_blockers: tuple = field(default_factory=tuple)
+    v3_unclassified_files: tuple = field(default_factory=tuple)
 
 
 @dataclass(frozen=True)
@@ -105,6 +138,9 @@ class Decision:
     reason: str
     estimated_round_seconds: float | None = None
     budget_seconds: float | None = None
+    #: The operator question payload (breakdown + the four remediation
+    #: options) when v3 blockers drove an ``ask-operator``; None otherwise.
+    question: dict | None = None
 
     @property
     def waiver(self) -> str | None:
@@ -120,6 +156,71 @@ class Decision:
         raise ValueError(f"unknown outcome: {self.outcome!r}")
 
 
+def _construct_of(finding) -> str:
+    if isinstance(finding, dict):
+        return str(finding.get("construct") or "")
+    return str(getattr(finding, "construct", "") or "")
+
+
+def _blocking_constructs(probe: ProbeResult) -> str:
+    """The distinct construct names, for the ``ask-operator`` reason line."""
+    names: list[str] = []
+    for finding in probe.v3_blockers:
+        name = _construct_of(finding)
+        if name and name not in names:
+            names.append(name)
+    if probe.v3_unclassified_files:
+        names.append("unclassified")
+    return ", ".join(names) or "unclassified"
+
+
+def build_operator_question(probe: ProbeResult) -> dict | None:
+    """The operator question payload for ``probe``, or None when nothing blocks.
+
+    Delegates to ``hooks/lib/xunit_v3_operator_gate.py`` so this gate and the
+    ``stryker_xunit_shim_guard`` PreToolUse hook cannot drift into telling the
+    operator two different stories. If that library is unreachable the gate
+    still ASKS — with a degraded payload naming the files — rather than
+    proceeding as if nothing blocked.
+    """
+    if not (probe.v3_blockers or probe.v3_unclassified_files):
+        return None
+    project = probe.project or "the test project"
+    if _operator_gate is None:  # pragma: no cover - degraded fallback
+        return {
+            "project": project,
+            "headline": (
+                f"shim-breaking xunit.v3 constructs in '{project}' "
+                f"({_blocking_constructs(probe)})"
+            ),
+            "degraded": True,
+            "unclassified_files": list(probe.v3_unclassified_files),
+        }
+    question = _operator_gate.build_question(
+        project, probe.v3_blockers, probe.v3_unclassified_files
+    )
+    return question.as_dict() if question.blocking else None
+
+
+def render_operator_question(probe: ProbeResult) -> str:
+    """The operator-facing text for ``probe``'s blockers (empty when none).
+
+    Rendered from the probe rather than from :func:`build_operator_question`'s
+    dict so the per-finding line numbers survive into the text the operator
+    actually reads.
+    """
+    if _operator_gate is None:  # pragma: no cover - degraded fallback
+        return ""
+    if not (probe.v3_blockers or probe.v3_unclassified_files):
+        return ""
+    question = _operator_gate.build_question(
+        probe.project or "the test project",
+        probe.v3_blockers,
+        probe.v3_unclassified_files,
+    )
+    return "\n".join(_operator_gate.render_question(question))
+
+
 def decide(probe: ProbeResult, *, budget_seconds: float | None = None) -> Decision:
     """Arbitrate between entering the loop, asking the operator, or degrading
     from the shim-first probe.
@@ -127,7 +228,12 @@ def decide(probe: ProbeResult, *, budget_seconds: float | None = None) -> Decisi
     Order matters: an operator's decline and a hard capture failure both make
     the loop infeasible regardless of timing, so they short-circuit before the
     (timing-based) budget check — which itself only means anything once per-test
-    capture is known to work.
+    capture is known to work. Shim-breaking v3 constructs sit between the two:
+    they are not a hard blocker (the operator has four ways out), so they ask
+    rather than degrade — but they take precedence over the budget question, and
+    when both fire the operator gets ONE decision point stating blockers and
+    timing together rather than a blockers question that hides an unaffordable
+    round.
     """
     if budget_seconds is None:
         budget_seconds = resolve_budget_seconds()
@@ -148,6 +254,28 @@ def decide(probe: ProbeResult, *, budget_seconds: float | None = None) -> Decisi
         )
 
     estimated = estimate_round_seconds(probe.probe_seconds, probe.scope_file_count)
+
+    question = build_operator_question(probe)
+    if question is not None:
+        over_budget = estimated > budget_seconds
+        reason = (
+            f"shim-breaking xunit.v3 constructs found ({_blocking_constructs(probe)}) "
+            "— the operator must choose port / exclude / skip / degrade before the "
+            "shim path proceeds (#1791, gate #1160)"
+        )
+        if over_budget:
+            reason += (
+                f"; the estimated round {estimated:.0f}s also exceeds the "
+                f"{budget_seconds:.0f}s budget"
+            )
+        return Decision(
+            Outcome.ASK_OPERATOR,
+            reason,
+            estimated_round_seconds=estimated,
+            budget_seconds=budget_seconds,
+            question=question,
+        )
+
     if estimated > budget_seconds:
         return Decision(
             Outcome.ASK_OPERATOR,
@@ -163,6 +291,29 @@ def decide(probe: ProbeResult, *, budget_seconds: float | None = None) -> Decisi
         estimated_round_seconds=estimated,
         budget_seconds=budget_seconds,
     )
+
+
+def _load_v3_findings(source: str | None) -> tuple:
+    """Read the detector's ``--json`` output into a findings tuple.
+
+    Accepts the full ``{"findings": [...], "summary": {...}}`` object or a bare
+    list. Raises ``OSError``/``ValueError``/``TypeError`` on anything
+    unreadable — see the caller for why that must not silently become
+    "no blockers".
+    """
+    if not source:
+        return ()
+    raw = sys.stdin.read() if source == "-" else Path(source).read_text(encoding="utf-8")
+    data = json.loads(raw)
+    if isinstance(data, dict):
+        findings = data.get("findings")
+    else:
+        findings = data
+    if findings is None:
+        raise ValueError("no 'findings' key and not a bare findings list")
+    if not isinstance(findings, list):
+        raise TypeError(f"'findings' is {type(findings).__name__}, expected a list")
+    return tuple(findings)
 
 
 def _cli(argv: Sequence[str]) -> int:
@@ -191,18 +342,50 @@ def _cli(argv: Sequence[str]) -> int:
         default=None,
         help="override the per-round wall-clock budget",
     )
+    parser.add_argument(
+        "--project",
+        default="",
+        help="test project name (csproj stem) the v3 findings belong to",
+    )
+    parser.add_argument(
+        "--v3-findings-json",
+        default=None,
+        help="xunit_v3_feature_detector.py --json output ('-' for stdin): either "
+        "the full {findings, summary} object or a bare findings list",
+    )
+    parser.add_argument(
+        "--v3-unclassified",
+        action="append",
+        default=[],
+        help="a file flagged as v3-only that the detector could not classify "
+        "(repeatable)",
+    )
     args = parser.parse_args(list(argv))
+
+    try:
+        blockers = _load_v3_findings(args.v3_findings_json)
+    except (OSError, ValueError, TypeError) as exc:
+        # A detector output we cannot read must NOT be treated as "no blockers":
+        # that would hand back enter-loop and skip the operator gate entirely,
+        # which is the class of silent decision #1791 exists to stop.
+        print(f"error: cannot read --v3-findings-json: {exc}", file=sys.stderr)
+        return 2
 
     probe = ProbeResult(
         shim_declined=args.shim_declined,
         capture_failed=args.capture_failed,
         probe_seconds=args.probe_seconds,
         scope_file_count=args.scope_files,
+        project=args.project,
+        v3_blockers=blockers,
+        v3_unclassified_files=tuple(args.v3_unclassified),
     )
     decision = decide(probe, budget_seconds=args.budget_seconds)
     payload = asdict(decision)
     payload["outcome"] = decision.outcome.value
     payload["waiver"] = decision.waiver
+    if decision.question is not None:
+        payload["question_text"] = render_operator_question(probe)
     print(json.dumps(payload, indent=2))
     # Exit 0 either way — this is an advisory arbiter, not a gate that fails a run.
     return 0
