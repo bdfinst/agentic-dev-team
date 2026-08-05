@@ -57,6 +57,7 @@ for _p in (_HOOKS_DIR, _LIB_DIR, _TESTS_LIB):
 
 import boundary_events  # type: ignore[import-not-found]
 from hermetic import hermetic_git_env  # type: ignore[import-not-found]
+from jsonl import read_jsonl as _read_jsonl  # type: ignore[import-not-found]
 
 _DECISION_ENUM = {
     "block",
@@ -69,11 +70,6 @@ _DECISION_ENUM = {
 }
 _SCHEMA_FIELDS = {"ts", "hook", "tool", "decision", "matched_rule", "plugin_version"}
 _OPTIONAL_FIELDS = {"session_id"}
-
-
-def _read_jsonl(path: Path) -> list:
-    lines = [ln for ln in path.read_text(encoding="utf-8").splitlines() if ln.strip()]
-    return [json.loads(ln) for ln in lines]
 
 
 # ---------------------------------------------------------------------------

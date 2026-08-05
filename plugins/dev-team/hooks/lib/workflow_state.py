@@ -32,8 +32,10 @@ if str(_LIB_DIR) not in sys.path:
     sys.path.insert(0, str(_LIB_DIR))
 
 import artifact_paths
+from atomic_state import append_line_locked
 
 _LOG_NAME = "workflow-states.jsonl"
+_DELAY_ENV_VAR = "DEV_TEAM_WORKFLOW_STATE_TEST_DELAY_MS"
 
 CANONICAL_LIFECYCLE = ["SPEC", "PLAN", "BUILD", "REVIEW", "COMMIT", "PR"]
 
@@ -97,8 +99,9 @@ def emit_state_transition(
         if session_id:
             payload["session_id"] = session_id
 
-        with open(log, "a", encoding="utf-8") as handle:
-            handle.write(json.dumps(payload, separators=(",", ":")) + "\n")
+        append_line_locked(
+            log, json.dumps(payload, separators=(",", ":")) + "\n", delay_env_var=_DELAY_ENV_VAR
+        )
     except Exception:  # noqa: BLE001, S110 — fail-open by design, see module docstring
         pass
 

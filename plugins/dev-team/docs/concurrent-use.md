@@ -3,9 +3,19 @@
 Short version: **the normal team workflow is safe; for two *agents* on one
 machine, give each its own git worktree.**
 
-This resolves the concurrency question (#109): the plugin **documents** a safe
-pattern rather than enforcing locks, because git worktrees already solve the
-problem cleanly.
+This resolves the concurrency question (#109) for the per-checkout state in
+the table below: the plugin **documents** a safe pattern rather than
+enforcing locks there, because git worktrees already solve the problem
+cleanly. Separately, a handful of small on-disk state files that a single
+worktree's own hooks read-modify-write or append to — session/retry counters
+(`bash_retry_guard.py`, `session_learning_trigger.py`), and four of the
+`.claude/metrics/*.jsonl` telemetry streams (`boundary-events.jsonl`,
+`workflow-states.jsonl`, `iteration-journal.jsonl`, and an `/autoship`
+round log) — *are* lock-serialized (`hooks/lib/atomic_state.py`,
+#1501/#1874/#1889). Those races are within one worktree, between concurrent
+tool calls or sliced-mode parallel dispatches, not the cross-worktree case
+this doc is about. Other `.claude/metrics/*.jsonl` streams are not yet
+converted (#1896).
 
 ## Why the normal case is already safe
 

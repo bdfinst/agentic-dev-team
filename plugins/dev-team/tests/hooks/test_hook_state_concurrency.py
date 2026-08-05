@@ -19,7 +19,6 @@ import errno
 import json
 import os
 import shutil
-import subprocess
 import sys
 import textwrap
 import threading
@@ -31,41 +30,17 @@ from _repo_root import REPO_ROOT as _REPO_ROOT
 
 _HOOKS_DIR = _REPO_ROOT / "plugins" / "dev-team" / "hooks"
 _LIB_DIR = _HOOKS_DIR / "lib"
+_TESTS_LIB = _REPO_ROOT / "plugins" / "dev-team" / "tests" / "lib"
 
-sys.path.insert(0, str(_LIB_DIR))
+for _p in (_LIB_DIR, _TESTS_LIB):
+    if str(_p) not in sys.path:
+        sys.path.insert(0, str(_p))
+
 import atomic_state
 from atomic_state import atomic_write, locked_state
-
-# N concurrent workers and the delay (ms) each holds the critical section.
-# The delay guarantees overlap: total serialized wall-clock ~= N * DELAY.
-_WORKERS = 8
-_DELAY_MS = 60
-
-
-def _run_concurrently(cmds):
-    """Launch every (argv, stdin, env) concurrently; wait for all to exit 0-ish."""
-    procs = []
-    for argv, stdin_text, env in cmds:
-        procs.append(
-            (
-                subprocess.Popen(
-                    argv,
-                    stdin=subprocess.PIPE,
-                    stdout=subprocess.PIPE,
-                    stderr=subprocess.PIPE,
-                    env=env,
-                    text=True,
-                ),
-                stdin_text,
-            )
-        )
-    # Feed stdin to all first (non-blocking-ish for tiny payloads), then wait.
-    outputs = []
-    for proc, stdin_text in procs:
-        out, err = proc.communicate(stdin_text)
-        outputs.append((proc.returncode, out, err))
-    return outputs
-
+from concurrency import DEFAULT_DELAY_MS as _DELAY_MS
+from concurrency import DEFAULT_WORKERS as _WORKERS
+from concurrency import run_concurrently as _run_concurrently
 
 # ---------------------------------------------------------------------------
 # Shared primitive: atomic_state.locked_state serializes a RMW across processes

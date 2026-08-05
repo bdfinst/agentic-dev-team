@@ -24,14 +24,33 @@ these are advisory nudges, never gates.
 
 Lock *acquisition* is bounded, not a blocking wait (#1888): a hung sibling
 process holding the lock must never leave a caller blocked indefinitely,
-since some callers (e.g. `boundary_events.py`, once #1874 lands) sit in
-front of a safety-critical guard hook's verdict. `locked_state` polls a
-non-blocking acquisition for a bounded total budget and falls through to
-running the critical section UNLOCKED once that budget elapses — the same
-fail-open posture as every other failure mode here. This bounds contention
-on an already-held lock specifically; it does NOT bound a stall inside
-`open()` on the lock file itself, or inside a caller's own I/O in the
-critical section — a wedged mount can still block there.
+since some callers (e.g. `boundary_events.py`, per #1874) sit in front of a
+safety-critical guard hook's verdict. `locked_state` polls a non-blocking
+acquisition for a bounded total budget and falls through to running the
+critical section UNLOCKED once that budget elapses — the same fail-open
+posture as every other failure mode here. This bounds contention on an
+already-held lock specifically; it does NOT bound a stall inside `open()` on
+the lock file itself, or inside a caller's own I/O in the critical section —
+a wedged mount can still block there.
+
+A second use case (#1889) reuses `locked_state` for pure append-serialization
+rather than read-modify-write: several `.claude/metrics/*.jsonl` telemetry
+streams have concurrent writers of their own — sliced-mode code-review's 2-3
+parallel slices, `/build`'s wave-parallel fan-out
+(`DEV_TEAM_MAX_PARALLEL_BUILDS`), or two sessions/worktrees appending to the
+same shared log. Without the lock, two processes' `write()` calls can
+interleave mid-line and corrupt the stream for every downstream consumer.
+`append_line_locked(path, line)` below is the shared helper for that shape.
+
+The lock file is opened with `O_NOFOLLOW` (where the platform defines it)
+and created at mode `0600` (security review, #1889): a pre-planted symlink
+at `<path>.lock` would otherwise be followed by a plain `open()`, and a
+world/group-writable lock file would let another local user on a shared
+host acquire and hold it (an `flock`/`msvcrt.locking` caller needs no write
+access to the *data* file to do this — only to the lock file). `O_NOFOLLOW`
+makes `open()` fail closed (OSError) on a symlinked lock path, which this
+function's existing fail-open contract already turns into an unlocked
+critical section — the same outcome as any other lock-open failure.
 
 Stdlib-only.
 """
@@ -217,6 +236,17 @@ def locked_state(path: Path) -> Iterator[None]:
     UNLOCKED rather than raising or blocking forever. An unlocked lost-update
     is no worse than the pre-#1501 behavior; a crash — or an undelivered
     guard-hook verdict — would be worse, and these hooks are advisory.
+
+    CONTRACT — catch OSError *inside* the `with` block, not around it: if the
+    critical section raises an uncaught OSError, it propagates out through
+    this generator's `yield` and is swallowed by the same `except OSError`
+    that guards the lock-file open/lock-acquire calls — which then falls
+    through to a second, bare `yield`, and `contextlib` raises
+    `RuntimeError("generator didn't stop after throw()")` instead of the
+    OSError the caller expected. This is a real, confirmed foot-gun (not
+    hypothetical), tracked separately rather than fixed here — every current
+    caller already catches OSError inside the `with` block (see
+    `append_line_locked` below).
     """
     lock_path = path.parent / (path.name + ".lock")
     try:
@@ -225,12 +255,29 @@ def locked_state(path: Path) -> Iterator[None]:
         yield
         return
 
-    # The open() failure case shares this try/except with the whole `with`
-    # body (ruff SIM115 requires open() directly in a `with`). Callers own
-    # their own OSError handling inside the critical section, so this outer
-    # except only ever fires for the open() call itself.
+    # os.O_NOFOLLOW is undefined on Windows; getattr(..., 0) makes the flag
+    # a no-op there rather than an AttributeError (which isn't an OSError
+    # and would escape the except below).
     try:
-        with open(lock_path, "a+") as handle:
+        lock_fd = os.open(
+            str(lock_path), os.O_RDWR | os.O_CREAT | getattr(os, "O_NOFOLLOW", 0), 0o600
+        )
+        # The mode argument to os.open() only applies when O_CREAT actually
+        # creates the file — POSIX ignores it for a path that already
+        # exists. Every checkout that already has a pre-#1889 lock file on
+        # disk (created at the old, wider default permissions) would
+        # otherwise keep it forever. fchmod on the already-open fd (no
+        # TOCTOU) enforces 0600 either way (security review, #1889).
+        with contextlib.suppress(OSError, AttributeError):
+            os.fchmod(lock_fd, 0o600)
+    except OSError:
+        yield
+        return
+
+    # Callers own their own OSError handling inside the critical section, so
+    # this outer except only ever fires for the fdopen()/lock-acquire calls.
+    try:
+        with os.fdopen(lock_fd, "r+") as handle:
             locked = False
             try:
                 try:
@@ -250,18 +297,119 @@ def locked_state(path: Path) -> Iterator[None]:
     yield
 
 
+def _write_maybe_delayed(handle, line: str, delay_env_var: str | None) -> None:
+    """Write `line` in one call, unless `delay_env_var` names a set env var.
+
+    Test-only split path: see `append_line_locked`'s docstring for why a
+    single small `write()` needs splitting, not just delaying, to simulate a
+    genuinely non-atomic write.
+    """
+    if delay_env_var and os.environ.get(delay_env_var):
+        mid = len(line) // 2
+        handle.write(line[:mid])
+        handle.flush()
+        race_window_delay(delay_env_var)
+        handle.write(line[mid:])
+    else:
+        handle.write(line)
+
+
+def append_line_locked(
+    path: Path,
+    line: str,
+    *,
+    delay_env_var: str | None = None,
+    fail_open: bool = True,
+) -> None:
+    """Append `line` (already newline-terminated) to `path` under `locked_state`.
+
+    Serializes concurrent appends to a shared JSONL stream: while the lock is
+    held (see `locked_state`'s own fail-open fallback above for when it might
+    not be), two processes writing at once cannot interleave their bytes
+    into one corrupted line (see module docstring, #1889) — the append-only
+    counterpart to `locked_state`'s original read-modify-write use case. The
+    lock is what provides this, regardless of how many underlying
+    `os.write()` syscalls a single logical `.write()` call happens to
+    decompose into (e.g. a line long enough to cross the `BufferedWriter`'s
+    internal buffer boundary) — a caller does not need to reason about
+    syscall-level atomicity separately.
+
+    `fail_open` (default `True`): OSError from `open()`/`write()` is caught
+    *inside* the lock and discarded, matching this repo's fail-open posture
+    for advisory telemetry. Pass `fail_open=False` for a caller that needs
+    the write failure to propagate instead (e.g. a round-log CLI that must
+    crash rather than silently record nothing) — the OSError is still
+    caught *inside* the lock (avoiding a caller-raised exception crossing
+    the generator's `yield`), just re-raised after the lock releases rather
+    than discarded.
+
+    `delay_env_var`, when set and naming a set env var, splits the write into
+    two separate `write()` calls with `race_window_delay` between them,
+    instead of the usual single call. This is a test-only hook, needed
+    because a single small `write()` to an `O_APPEND`-opened file is
+    typically atomic with respect to other processes on mainstream local
+    filesystems (not independently verified here — no recorded runtime
+    probe), so simply sleeping *before* an unsplit write may not force real
+    interleaving in a test. The split instead simulates a genuinely
+    non-atomic write directly (long enough to cross a write-buffer
+    boundary, or a filesystem, e.g. some NFS configurations, that doesn't
+    honor `O_APPEND`'s atomicity guarantee) — the actual failure mode the
+    lock protects against regardless of whether any given production write
+    happens to be single-syscall-atomic on its own. Unset (the default) in
+    production: exactly one `.write()` call at this Python API level,
+    unchanged from the code this helper replaced.
+    """
+    write_error: OSError | None = None
+    with locked_state(path):
+        try:
+            # O_NOFOLLOW (security review, #1889): the data file sits beside
+            # the now-hardened `<path>.lock` in the same predictable,
+            # repo-relative directory — a pre-planted symlink here would
+            # otherwise redirect every append the same way the pre-fix lock
+            # file did. Mode is the historical default (not 0600): unlike
+            # the lock file, this file's readers are other tooling that
+            # expects normal permissions.
+            fd = os.open(
+                str(path),
+                os.O_WRONLY | os.O_APPEND | os.O_CREAT | getattr(os, "O_NOFOLLOW", 0),
+                0o644,
+            )
+            with os.fdopen(fd, "a", encoding="utf-8") as handle:
+                _write_maybe_delayed(handle, line, delay_env_var)
+        except OSError as exc:
+            if not fail_open:
+                write_error = exc
+    if write_error is not None:
+        raise write_error
+
+
+_MAX_RACE_WINDOW_DELAY_MS = 500
+
+
 def race_window_delay(env_var: str) -> None:
     """Test-only injection point: sleep inside a locked critical section when
     `env_var` names a millisecond delay, widening the race window so a
     concurrency test can deterministically force two invocations to overlap
     rather than relying on timing luck. Unset in production; a bad/missing
-    value is a no-op (fail-open). Mirrors
-    `code_intelligence_turn_mark._test_delay`.
+    value is a no-op (fail-open). NOT the same implementation as
+    `code_intelligence_turn_mark._test_delay` despite the similar shape —
+    that sibling still has an uncapped sleep inside its own blocking lock.
+
+    Capped at `_MAX_RACE_WINDOW_DELAY_MS` (security review, #1889): several
+    callers now invoke this from inside a held exclusive lock on a shared,
+    frequently-hit stream (`append_line_locked`'s `_write_maybe_delayed`), so
+    an unbounded value here would let anything that can influence the process
+    environment hold that lock for an attacker-chosen duration. Every real
+    test uses 60ms; the cap costs them nothing. This bounds one call, not a
+    whole critical section — a caller invoking it more than once, or from
+    inside a loop, multiplies the total; today's callers all call it exactly
+    once per critical section, but that is a property of the call sites,
+    not an invariant this function enforces.
     """
     raw = os.environ.get(env_var)
     if not raw:
         return
     try:
-        time.sleep(int(raw) / 1000)
+        time.sleep(min(int(raw), _MAX_RACE_WINDOW_DELAY_MS) / 1000)
     except (ValueError, OSError):
         pass
