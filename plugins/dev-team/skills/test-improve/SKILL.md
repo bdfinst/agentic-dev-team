@@ -208,6 +208,56 @@ silent surprise.
      partially fails, record per-tool success/failure in `phase-0.md` and do
      not claim full install success.
 
+**Coverage-target vs refactor-mode conflict check (issue #1787).** A stated
+coverage percentage (**knob 4**) and `refactor-mode: no-refactor` (**knob 3**)
+can be structurally incompatible, and Pass 1 held both at once without ever
+saying so: mutation-kill work cannot raise line or branch coverage on code that
+has no tests at all, and a layer at near-zero coverage generally needs a
+production-code seam before any test can reach it. Resolve this **before** any
+work starts — **never by waiving a gate later**, which is what happened when
+branch-90 was quietly waived at a later gate while coverage-90 stayed a stated
+goal to the end.
+
+Run the check; do not judge it in prose:
+
+```
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/coverage_gap_ranking.py" \
+  --report <existing coverage report> --repo-root <repo-path> \
+  --target-line-pct <line target> --target-branch-pct <branch target> --json
+```
+
+- **A coverage report is discoverable** — a prior run's
+  `.dev-team-reports/test-improve/<slug>/data/baseline-coverage.json`'s
+  `raw_report`, or a report artifact already on disk (`lcov.info`,
+  `coverage.json`, `cobertura.xml`, `jacoco.csv`, `coverage-summary.json`).
+  The script's `verdict` decides:
+  - **`unreachable_without_seams` (exit 3)** — the target cannot be reached even
+    if every module that already has a test seam went to 100%. Present the
+    explicit three-way choice **`[w] waive the target / [s] switch to
+    refactor-allowed / [c] continue as-is`** (shape `[w/s/c]`), naming the
+    script's own numbers — `lines_needed`, `reachable_uncovered_lines`, and the
+    top seam-blocked modules — so the operator sees the arithmetic, not an
+    opinion. `[w]` records the target as **waived at Phase 0** with this reason
+    (Phase 8 then reports it waived up front instead of discovering it); `[s]`
+    records `refactor-mode: refactor-allowed` (Phase 0 is still resolving its
+    own answers here, so this is not an immutability exception); `[c]` proceeds
+    with `coverage_target_conflict: acknowledged` recorded. A **non-interactive**
+    run **does not silently pick a stance** — it records
+    `coverage_target_conflict: unresolved`, prints the same three options, and
+    the conflict is restated at Phase 8 rather than resolved by default.
+  - **`reachable` / `already_met` (exit 0)** — record
+    `coverage_target_conflict: none` and continue.
+- **No coverage report is discoverable** — do **not** fabricate a verdict from
+  no data. Record `coverage_target_conflict: deferred` and run this identical
+  check at Phase 2 against the freshly captured baseline, **before** Phase 1
+  consumes the ranking (see Phase 2's coverage-gap ranking step). Deferred means
+  *checked one phase later against real numbers* — never dropped, and never
+  first surfaced in the Phase-9 report.
+
+This check is skipped entirely when knob 4 left no coverage percentage target
+active, or when knob 3 selected `refactor-allowed` (there is no mode conflict
+to surface).
+
 **Persistence.** Write the resolved inputs to `.claude/memory/test-improve/<slug>/phase-0.md` before Phase 1 runs — Phase 1 must not start until `phase-0.md` exists. This includes the knob-6 outcome (the operator's install choice, and for each tool whether it was already present, installed, declined, or failed).
 
 **Immutability.** Phase-0 answers are **immutable** for the remainder of the
@@ -305,6 +355,70 @@ has no opt-in awareness of its own, and this write is **unconditional**.
 This is independent of the mutation mode: a coverage baseline is persisted in
 every mode, and the mutation baseline is written **only** in
 `baseline+kill-loop` mode (see below).
+
+**Coverage-gap ranking — the targeting input for Phases 1, 4, and 5 (issue
+#1786).** As soon as `baseline-coverage.json` lands, compute the per-module
+uncovered-line breakdown from the same report the baseline was parsed from
+(its `raw_report` field). This runs in **every mutation mode** — it is the
+coverage targeting input, independent of whether mutation work happens at
+all — and it is computed by script, never estimated in prose:
+
+```
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/coverage_gap_ranking.py" \
+  --report <baseline raw_report> --repo-root <repo-path> \
+  --target-line-pct <line target> --target-branch-pct <branch target> \
+  --top 0 --json \
+  --out .dev-team-reports/test-improve/<slug>/data/coverage-gap-ranking.json
+```
+
+Always pass `--repo-root <repo-path>`: several coverage writers (istanbul/nyc
+`coverage-final.json` among them) emit **absolute** source paths, and without a
+root to strip they would all bucket together — one module makes the seam
+classification a single global comparison, so the check silently stops
+discriminating. The script derives the shared path prefix itself as a fallback,
+and flags `grouping_degenerate: true` whenever many files still land in one
+bucket; treat that flag as "the ranking could not resolve modules", never as a
+verdict.
+
+The script buckets every source file into a package/assembly/module and ranks
+the buckets by **uncovered lines descending**, marking each bucket's `seam`
+as `established` (coverage at or above the seam threshold — a test-only change
+is proven to reach it) or `absent` (near-zero coverage — nothing there is
+proven reachable without a production-code seam). `--out` writes the payload
+atomically (temp-file-then-rename), so `coverage-gap-ranking.json` lands in
+the same git-tracked `data/` sibling as the baselines and is read directly
+from there by Phase 1, Phase 4, and Phase 5.
+
+**Mutation survivors are not an input to this ranking, and must not become
+one.** A surviving mutant can only exist on a line a test already executes, so
+a survivor-ordered priority list structurally *excludes* the 0%-covered layers
+that hold most of the missing coverage. That is the failure this ranking
+exists to prevent: a Pass-1 run spent its entire Phase 5 adding mutation-kill
+assertions to layers already at 88-95% line coverage while the layer holding
+~93% of the lines needed to reach the coverage target sat at 0-11% and was
+never targeted.
+
+**A deferred Phase-0 conflict check resolves here (issue #1787).** When
+`phase-0.md` recorded `coverage_target_conflict: deferred` (no coverage report
+was discoverable at Phase 0), *this* invocation is that check — now with real
+numbers. A `verdict` of `unreachable_without_seams` (exit 3) surfaces the same
+explicit choice Phase 0 defines, **before Phase 1 runs**, with one letter
+changed: **`[w] waive the target / [s] stop and re-run in refactor-allowed mode
+/ [c] continue as-is`**. Phase-0 answers are **immutable** for the rest of the
+run, so `[s]` here **stops the run** and tells the operator to re-invoke
+`/test-improve <repo-path>` choosing `refactor-allowed` — it must **never
+rewrite `refactor-mode`** in `phase-0.md` mid-run. Record the outcome in
+`phase-2.md`. A **non-interactive** run at this point follows Phase 0's rule
+unchanged: record `coverage_target_conflict: unresolved` in `phase-2.md`, print
+the same three options, and continue to Phase 1 — it never auto-stops and never
+auto-waives, and Phase 8 restates the unresolved conflict.
+
+**A missing or unparseable report is not a clean ranking.** **Exit 2** means
+the script found nothing to rank (report absent, unrecognized, or parsed to
+zero coverage records) — never an all-clear. Name the report path it tried and
+resolve it (re-run `/coverage-baseline`, or point `--report` at the artifact
+the coverage tool actually emitted) before Phase 1 runs. **Do not proceed with
+mutation survivors as a stand-in ordering.**
 
 **Mutation baseline (`baseline+kill-loop` only).** When `phase-0.md` recorded
 mutation mode **`baseline+kill-loop`**, check for an existing tracked baseline
@@ -419,6 +533,37 @@ either **omitted** or marked "not enabled for this run". When it recorded
 `/test-health` is not invoked with a mutation flag — the mode flows through from
 `phase-0.md` and the section is handled at report time.
 
+**Order the plan by the coverage-gap ranking whenever a coverage percentage
+is a stated goal (issue #1786).** Read
+`.dev-team-reports/test-improve/<slug>/data/coverage-gap-ranking.json` — Phase
+2 wrote it — and order the coverage-driven items of `/test-health`'s ordered
+improvement plan by that ranking's `modules` array (`rank` 1 first), not by
+mutation survivor count and not by an ordering re-derived here. `/test-health`'s
+own ordering stands only for items the ranking does not speak to (flakiness,
+determinism, suite shape), and for a run where **no coverage percentage is a
+stated goal** (Phase-0 knob 4 overrode the coverage targets away) the ranking
+is **informational** rather than the ordering authority.
+
+**Under `--analyze-only` there is no ranking to read.** That mode runs Phase 0
+then Phase 1 directly and captures no baseline, so Phase 2 never wrote
+`coverage-gap-ranking.json`. Do not fabricate one and do not silently fall back
+to survivor ordering: present `/test-health`'s own ordering and state plainly
+that the coverage-gap ranking was not computed for this run (a full run would
+order the coverage-driven items by it). The same holds for a `--from-phase 1`
+resume whose `data/` directory has no ranking file — say so rather than
+proceeding as if the ordering were coverage-derived.
+
+**Mutation survivors order work *within* an already-seamed module, never
+across modules.** A module whose ranking entry reads `seam: established`
+already has baseline coverage, so survivor counts are the right next signal
+*there* — that is the ordering the `mutation-kill` agent applies inside Phase
+5. A module whose entry reads `seam: absent` needs coverage before it needs
+assertion quality, and is ordered by uncovered lines alone. Under
+`refactor-mode: no-refactor` a top-ranked `seam: absent` module whose tests
+need a production seam is still shown in the presented plan — labeled
+**skipped-in-no-refactor** per the human gate below — so the operator sees the
+coverage left on the table instead of a plan that quietly reorders around it.
+
 **Output.** Persist the rolled-up analysis plus the ordered improvement plan to
 `.claude/memory/test-improve/<slug>/phase-1.md`.
 
@@ -517,6 +662,15 @@ one non-actionable class:
 - **`LOW_VALUE`** — tests that are cheap to have but not worth fixing (e.g. duplicate coverage, trivial getters, dead-code assertions). LOW_VALUE findings are **advisory-only**: enumerated in the report, no PR is opened to delete a test flagged this way.
 - **`NOT_IMPLEMENTED`** (`/test-health`'s gherkin-gap classification only) — the scenario's behavior doesn't exist in production code at all. Not a test-improve target in **any** mode: it is **not** written as a Phase-5 Story and **not** deferred to Phase 7 — Phase 7 accepts seam introductions only, and there is no seam to introduce for behavior that hasn't been written yet. It surfaces only as a feature-gap call-out in the report, same as `LOW_VALUE`'s advisory-only treatment.
 
+**Story order follows the coverage-gap ranking (issue #1786).** When a
+coverage percentage is a stated goal, the NO_REFACTOR Story set is written in
+`coverage-gap-ranking.json` **rank order** — highest uncovered-line bucket
+first — so Phase 5 spends its budget on the layer that actually holds the
+missing coverage. Pass that order to `/issues-from-assessment` as the order to
+preserve; it **does not re-derive an order of its own**, and neither a mutation
+survivor count nor a finding's position in `/test-health`'s prose reorders the
+set.
+
 **Persistence.** Persist the classified finding set to
 `.claude/memory/test-improve/<slug>/phase-4.md`.
 
@@ -553,14 +707,56 @@ assignment alone is not a substitute for worktree isolation here.
 3. **Coverage delta** — after `/build` closes the Story, invoke
    `/coverage-delta --workflow test-improve --story <id>`. The delta is
    appended to `.dev-team-reports/test-improve/<slug>/data/coverage-history.json`.
-4. **Mutation-kill (`kill-loop` and `baseline+kill-loop`; skipped when `off`).**
+4. **Coverage-delta steering check (issue #1790).** After the delta is
+   appended — **every Story, not only at the end of the phase** — run the
+   trailing-streak check. Do not eyeball the history:
+
+   ```
+   python3 "${CLAUDE_PLUGIN_ROOT}/scripts/coverage_delta_steering.py" \
+     --history .dev-team-reports/test-improve/<slug>/data/coverage-history.json \
+     --json
+   ```
+
+   - **Exit 0** — continue to the mutation-kill step, but read *which* exit-0
+     status came back: `ok` means the last Story actually moved line coverage;
+     `insufficient_history` means too few Stories have closed (or the latest
+     Story's movement could not be measured) to judge a streak;
+     `flat_streak_forming` means the latest Story did **not** move coverage but
+     the streak is still short of the threshold — echo that one to the operator
+     as a watch signal rather than silently treating it as `ok`.
+   - **Exit 3** (`flat_streak`) — three or more consecutive Stories (the
+     default; `--consecutive` and `--min-line-delta` tune it) moved line
+     coverage by less than the minimum expected per-Story delta.
+     **Surface it now, mid-phase** — a run once spent its entire Phase-5
+     budget on an already-covered layer because this signal was only read at
+     the end; **never defer it to the Phase-9 report.** Print the script's
+     flat-Story list and running average, name the top `seam: absent` modules
+     from `coverage-gap-ranking.json`, and prompt **`[t] re-check Phase-1
+     targeting / [c] continue`** (shape `[t/c]` — `t` is unused elsewhere in
+     this flow, and `c` keeps the "accept and move on" meaning it already has
+     in mutation-kill's `[c/r/w/q]`):
+     - **`[t]`** — re-read `coverage-gap-ranking.json` and re-order the
+       remaining Story set into its rank order (Phase 4's rule, applied to
+       what is left) before the next Story's `/build`. A remaining Story whose
+       target module reads `seam: absent` under `refactor-mode: no-refactor` is
+       re-classified **REFACTOR_REQUIRED for Phase 6 rather than retried** —
+       retrying it under no-refactor is what produced the flat streak.
+     - **`[c]`** — continue, recording `coverage_flat_streak: <n> stories` in
+       `.claude/memory/test-improve/<slug>/phase-5.md` so Phase 8 and the
+       report read it from a durable record instead of re-deriving it.
+     - **Non-interactive runs** record the streak and continue — the same
+       **record-and-continue posture, never a silent pass**.
+   - **Exit 2** — the history file is missing or unreadable. Resolve it (the
+     Story's `/coverage-delta` did not append) rather than treating the
+     unknown as `ok`.
+5. **Mutation-kill (`kill-loop` and `baseline+kill-loop`; skipped when `off`).**
    Invoke the **`mutation-kill` agent**
    with `--file <story-file> --max-rounds 3`. Residual survivors trigger the
    **`[c]ontinue / [r]etry / [w]aive / [q]uit`** prompt — the shape is
    `[c/r/w/q]`. `[c]` accepts the residual and moves on; `[r]` re-runs one
    more mutation-kill round; `[w]` waives the residual to `waivers.json`;
    `[q]` quits Phase 5.
-5. **Go mutation-kill is advisory.** On Go stacks, `mutation-kill` logs
+6. **Go mutation-kill is advisory.** On Go stacks, `mutation-kill` logs
    survivors but makes **no commit** — the operator is instructed to apply
    changes manually. Advisory-only handling matches the Phase-0 Go advisory.
 
@@ -812,7 +1008,9 @@ process/audit state still under `.claude/memory/test-improve/<slug>/`
 is outside this interpolation set — and always has been; it is consumed by
 `/coverage-delta` and `/quality-targets-converge`, not by the
 executive-summary report, so its absence from this list is not the bug this
-plan fixes. No placeholder is left literal.
+plan fixes. `coverage-gap-ranking.json` (issue #1786) is outside it for the
+same reason: it is a targeting input read by Phases 1, 4, and 5, not a number
+the report interpolates. No placeholder is left literal.
 
 **Empty-section rule.** Sections with no data render `_Not applicable —
 <reason>._` (e.g. § 6 when Phase 7 was declined reads "*Phase 7 not run —
