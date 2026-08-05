@@ -37,9 +37,21 @@ import re
 
 import pytest
 
+from _ci_local_invocation import (
+    PytestInvocation,
+    check_body,
+    check_registry,
+    invocation,
+    lines_after_invocation,
+    synthetic_check,
+    without_comments,
+)
 from _repo_root import REPO_ROOT
 
 CI_LOCAL = REPO_ROOT / "scripts" / "ci-local.sh"
+
+#: The bash function name every parser call below is scoped to.
+CEILING_FN = "chk_python_ceiling"
 
 #: Mirrors `test_python_floor.py`'s `FLOOR_DOTTED` — the single declaration
 #: of the ceiling version, held equal to `PYTHON_CEILING`'s actual value in
@@ -106,136 +118,44 @@ def ci_local() -> str:
 
 
 def _ceiling_check_body(ci_local: str) -> str:
-    """The text of `chk_python_ceiling`'s function body.
-
-    Bounded the same way `test_python_floor.py`'s `_floor_check_body` bounds
-    `chk_python_floor`'s: from the function header to the next top-level
-    `chk_`-prefixed function definition."""
-    return ci_local.split("chk_python_ceiling()", 1)[-1].split("\nchk_", 1)[0]
+    """The text of `chk_python_ceiling`'s function body. Thin wrapper over
+    the shared `check_body()` in `_ci_local_invocation`."""
+    return check_body(ci_local, CEILING_FN)
 
 
-def _without_comments(text: str) -> str:
-    """`text` with whole-line comments removed. Whole-line only, so an inline
-    trailing comment on a real code line still counts — a suppressor cannot
-    hide a narrowing flag behind one."""
-    return "\n".join(
-        line for line in text.splitlines() if not line.lstrip().startswith("#")
-    )
-
-
-def _ceiling_invocation(ci_local: str) -> tuple[list[str], list[str], list[str]]:
+def _ceiling_invocation(ci_local: str) -> PytestInvocation:
     """`chk_python_ceiling`'s pytest command, split at `-m pytest` and at any
-    trailing `||`.
-
-    Mirrors `test_python_floor.py`'s `_floor_invocation`: returns `(tokens
-    before the marker, pytest's own arguments, tokens after a "||" on the same
-    continued command)`. All three matter independently — the prefix decides
-    which interpreter runs and which ambient env survives, the arguments
-    decide what pytest actually collects and runs, and a non-empty tail means
-    the invocation's exit status is no longer pytest's own.
-
-    Comments are deliberately NOT stripped before walking continuation or
-    tokenizing — same reasoning `test_python_floor.py::_floor_invocation`
-    gives for its identical choice: a `#` line carrying a trailing backslash
-    does not comment itself out of a continued command, it truncates the
-    command there, so pytest would receive only the arguments above it. If
-    this parser stripped that comment line first, it would silently splice
-    the surrounding continuation lines back together and report a full
-    argument list for an invocation the real shell had cut short — the exact
-    outcome this gate must never produce. Comments are excluded only from the
-    marker SCAN below (`not line.lstrip().startswith("#")`), so a comment
-    merely mentioning `-m pytest` cannot supply a decoy match; their tokens
-    still flow into `tokens`/`tail` when they fall inside the continuation
-    span, where the equality checks below reject them.
-
-    Returns `([], [], [])` when the marker is missing, ambiguous, or not
-    followed by `pytest` — an empty parse fails every assertion loudly rather
-    than reporting a false pass.
-    """
-    lines = _ceiling_check_body(ci_local).splitlines()
-    marks = [
-        i
-        for i, line in enumerate(lines)
-        if "-m pytest" in line and not line.lstrip().startswith("#")
-    ]
-    if len(marks) != 1:
-        return [], [], []
-    start = end = marks[0]
-    while start > 0 and lines[start - 1].endswith("\\"):
-        start -= 1
-    while end < len(lines) - 1 and lines[end].endswith("\\"):
-        end += 1
-    tokens: list[str] = []
-    tail: list[str] = []
-    seen_or = False
-    for line in lines[start : end + 1]:
-        for token in line.removesuffix("\\").split():
-            if token == "||":
-                seen_or = True
-                continue
-            (tail if seen_or else tokens).append(token)
-    if "-m" not in tokens:
-        return [], [], []
-    marker = tokens.index("-m")
-    if tokens[marker + 1 : marker + 2] != ["pytest"]:
-        return [], [], []
-    return tokens[:marker], tokens[marker + 2 :], tail
+    trailing `||`. Thin wrapper over the shared parser in
+    `_ci_local_invocation` — see `invocation()` there for the full boundary
+    rules (backslash continuation, the single-marker requirement, why
+    comments are not stripped first, and why the `||` tail is returned
+    rather than dropped). Mirrors `test_python_floor.py`'s `_floor_invocation`,
+    which wraps the same shared function for `chk_python_floor`."""
+    return invocation(ci_local, CEILING_FN)
 
 
 def _ceiling_invocation_prefix(ci_local: str) -> list[str]:
     """Everything the command says before `-m pytest`."""
-    return _ceiling_invocation(ci_local)[0]
+    return _ceiling_invocation(ci_local).prefix
 
 
 def _ceiling_invocation_args(ci_local: str) -> list[str]:
     """Every argument pytest itself receives, after `-m pytest`."""
-    return _ceiling_invocation(ci_local)[1]
+    return _ceiling_invocation(ci_local).args
 
 
 def _ceiling_invocation_tail(ci_local: str) -> list[str]:
     """Everything the command says after a `||` — the failure path, if any."""
-    return _ceiling_invocation(ci_local)[2]
+    return _ceiling_invocation(ci_local).tail
 
 
 def _ceiling_lines_after_invocation(ci_local: str) -> list[str]:
     """Real code lines in the function body strictly after the (possibly
-    multi-line) pytest invocation ends.
-
-    A bash function returns its LAST command's status, and ci-local.sh runs
-    without `set -e`, so any statement appended after the invocation — a
-    stray `printf`, a `true`, an unconditional `return 0` — silently becomes
-    this gate's verdict instead of pytest's own exit code. The function's
-    closing `}` is not a statement. A comment line strictly after the
-    invocation IS excluded here — unlike `_ceiling_invocation`'s tokenizing
-    span, a trailing comment has no bearing on what bash actually executes,
-    so excluding it here cannot hide a narrowing bypass the way stripping it
-    from the invocation's own span would; it only stops this rule's own
-    documentation from tripping the check.
-
-    Marker-scan shares `_ceiling_invocation`'s comment-exclusion rule (a
-    comment merely mentioning `-m pytest` is not a decoy match) but, like
-    that function, does NOT strip comments before walking the continuation —
-    a truncating mid-invocation comment must still end the span here at the
-    same point it ends it there, or the two views of "where the invocation
-    ends" could disagree."""
-    lines = _ceiling_check_body(ci_local).splitlines()
-    marks = [
-        i
-        for i, line in enumerate(lines)
-        if "-m pytest" in line and not line.lstrip().startswith("#")
-    ]
-    if len(marks) != 1:
-        return ["<unparseable: -m pytest marker not found exactly once>"]
-    end = marks[0]
-    while end < len(lines) - 1 and lines[end].endswith("\\"):
-        end += 1
-    return [
-        stripped
-        for line in lines[end + 1 :]
-        if (stripped := line.strip())
-        and stripped != "}"
-        and not stripped.startswith("#")
-    ]
+    multi-line) pytest invocation ends. Thin wrapper over the shared
+    `lines_after_invocation()` in `_ci_local_invocation` — see that
+    function's docstring for why a trailing statement matters and why a
+    trailing comment is excluded from the result."""
+    return lines_after_invocation(ci_local, CEILING_FN)
 
 
 class TestTheCeilingCheckClearsAmbientPytestEnv:
@@ -259,8 +179,8 @@ class TestTheCeilingCheckClearsAmbientPytestEnv:
         this check ever moves into the default CHECKS array, that is a real
         decision to make deliberately, not something that should slip in
         silently."""
-        registry = ci_local.split("CHECKS=(", 1)[-1].split("\n)", 1)[0]
-        optional = ci_local.split("OPTIONAL_CHECKS=(", 1)[-1].split("\n)", 1)[0]
+        registry = check_registry(ci_local, "CHECKS")
+        optional = check_registry(ci_local, "OPTIONAL_CHECKS")
         assert "chk_python_ceiling" not in registry
         assert "chk_python_ceiling" in optional
 
@@ -302,7 +222,7 @@ class TestTheCeilingCheckClearsAmbientPytestEnv:
         what that variable resolves to. Mirrors
         `test_python_floor.py::TestTheFloorIsProvenByRunningIt::
         test_the_check_uses_a_real_interpreter`'s identical pin for `py310`."""
-        body = _without_comments(_ceiling_check_body(ci_local))
+        body = without_comments(_ceiling_check_body(ci_local))
         assert re.findall(r"\bpyceil=\S*", body) == [
             'pyceil="$(_resolve_python_ceiling)"'
         ], (
@@ -391,7 +311,7 @@ class TestTheCeilingCheckClearsAmbientPytestEnv:
         gate green on a path that never runs the suite at all — a stronger
         and more direct failure mode than a discarded verdict below the
         invocation, which the previous test covers."""
-        body = _without_comments(_ceiling_check_body(ci_local))
+        body = without_comments(_ceiling_check_body(ci_local))
         assert "return 0" not in body, (
             "chk_python_ceiling must never return 0 except by reaching the "
             "end of its pytest invocation; an early `return 0` makes the "
@@ -407,8 +327,10 @@ class TestTheCeilingParserItself:
     `test_python_floor.py::TestTheSliceParserItself` pins its own parser."""
 
     @staticmethod
-    def _synthetic(invocation: str) -> str:
-        return f"chk_python_ceiling() {{\n{invocation}\n}}\n\nchk_next() {{ :; }}\n"
+    def _synthetic(body: str) -> str:
+        """Thin wrapper over the shared `synthetic_check()` in
+        `_ci_local_invocation`."""
+        return synthetic_check(CEILING_FN, body)
 
     def test_it_reads_the_prefix_and_args(self):
         body = self._synthetic(

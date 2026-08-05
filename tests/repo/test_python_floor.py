@@ -79,7 +79,19 @@ import re
 
 import pytest
 
+from _ci_local_invocation import (
+    PytestInvocation,
+    check_body,
+    check_registry,
+    invocation,
+    lines_after_invocation,
+    synthetic_check,
+    without_comments,
+)
 from _repo_root import REPO_ROOT
+
+#: The bash function name every parser call below is scoped to.
+FLOOR_FN = "chk_python_floor"
 
 RUFF_CONFIG = REPO_ROOT / "ruff.toml"
 # The current floor version's ADR of record (ADR 0031), not ADR 0014 where the
@@ -151,21 +163,6 @@ def ci_workflow() -> str:
     return CI_WORKFLOW.read_text(encoding="utf-8")
 
 
-def _without_comments(text: str) -> str:
-    """`text` with whole-line comments removed.
-
-    Shared by every scan that looks for real shell code, because this function's
-    body is mostly prose: documenting a rule must never break it. Whole-line only
-    — an inline trailing comment stays, which errs strict rather than permissive
-    (a suppressor cannot hide behind it). Note the slice parser deliberately does
-    NOT use this: inside a continued command a `#` line truncates the command
-    rather than commenting itself out, so there its tokens must survive.
-    """
-    return "\n".join(
-        line for line in text.splitlines() if not line.lstrip().startswith("#")
-    )
-
-
 def _only_lists(workflow: str) -> list[list[str]]:
     """Every `--only=<comma-list>` argument actually invoked in the
     workflow, split into its component check names. Comment lines are
@@ -175,7 +172,7 @@ def _only_lists(workflow: str) -> list[list[str]]:
     not satisfy a caller looking for the real invocation."""
     return [
         lst.split(",")
-        for lst in re.findall(r"--only=([\w,-]+)", _without_comments(workflow))
+        for lst in re.findall(r"--only=([\w,-]+)", without_comments(workflow))
     ]
 
 
@@ -212,84 +209,29 @@ FLOOR_INVOCATION_PREFIX = (
 )
 
 
-def _floor_invocation(ci_local: str) -> tuple[list[str], list[str], list[str]]:
-    """`chk_python_floor`'s pytest command, split at `-m pytest`.
-
-    Returns `(tokens before the marker, pytest's arguments, tokens after `||`)`.
-    All three halves are returned because each can silently gut the gate on its
-    own: the prefix decides which interpreter runs and which plugins load, the
-    arguments decide what is collected, and the `||` tail decides whether a
-    failure is even reported.
-
-    Boundaries are the shell's, not a guess:
-
-    - The command is found from its `-m pytest` line and walked outward while
-      lines continue. Continuation is tested on the RAW line: bash reads `\\`
-      followed by a space as an escaped space that ENDS the command, so a
-      trailing space after a backslash must end the span here too, or this
-      parser would report nine paths for a command the shell had truncated.
-    - `-m pytest` must appear exactly once outside comments. Anchoring on the
-      first of several would let a decoy invocation, or a `printf` mentioning it,
-      supply the paths while the real call passed a subset.
-    - Tokenizing is whitespace-based, so a behaviour-preserving reflow does not
-      fail a test whose subject never changed.
-    - Tokens after `||` are returned separately rather than dropped. Discarding
-      them left the whole region unasserted, so `-q || printf 'failed'` reported
-      a failing slice as success while every test stayed green.
-    - Comments are NOT stripped inside the command. A `#` line carrying a
-      trailing backslash does not comment itself out — it truncates the command
-      there, so pytest receives only the arguments above it. Its tokens are left
-      in, where the argument allowlist rejects them; dropping them would report
-      a full slice for a two-file run, the one outcome this gate must never
-      produce.
-
-    Returns `([], [], [])` when the marker is missing, ambiguous, argument-less,
-    or not followed by `pytest`. An empty parse fails every assertion loudly,
-    which is the safe direction.
+def _floor_invocation(ci_local: str) -> PytestInvocation:
+    """`chk_python_floor`'s pytest command, split at `-m pytest` and at any
+    `||`. Thin wrapper over the shared parser in `_ci_local_invocation` —
+    see `invocation()` there for the full boundary rules (backslash
+    continuation, the single-marker requirement, why comments are not
+    stripped first, and why the `||` tail is returned rather than dropped).
     """
-    lines = _floor_check_body(ci_local).splitlines()
-    marks = [
-        i
-        for i, line in enumerate(lines)
-        if "-m pytest" in line and not line.lstrip().startswith("#")
-    ]
-    if len(marks) != 1:
-        return [], [], []
-    start = end = marks[0]
-    while start > 0 and lines[start - 1].endswith("\\"):
-        start -= 1
-    while end < len(lines) - 1 and lines[end].endswith("\\"):
-        end += 1
-    tokens: list[str] = []
-    tail: list[str] = []
-    seen_or = False
-    for line in lines[start : end + 1]:
-        for token in line.removesuffix("\\").split():
-            if token == "||":
-                seen_or = True
-                continue
-            (tail if seen_or else tokens).append(token)
-    if tokens[-2:] == ["-m", "pytest"] or "-m" not in tokens:
-        return [], [], []
-    marker = tokens.index("-m")
-    if tokens[marker + 1] != "pytest":
-        return [], [], []
-    return tokens[:marker], tokens[marker + 2 :], tail
+    return invocation(ci_local, FLOOR_FN)
 
 
 def _floor_invocation_prefix(ci_local: str) -> list[str]:
     """Everything the command says before `-m pytest`."""
-    return _floor_invocation(ci_local)[0]
+    return _floor_invocation(ci_local).prefix
 
 
 def _floor_invocation_tail(ci_local: str) -> list[str]:
     """Everything the command says after `||` — the failure path."""
-    return _floor_invocation(ci_local)[2]
+    return _floor_invocation(ci_local).tail
 
 
 def _floor_slice_files(ci_local: str) -> list[str]:
     """The slice's test-file paths, in the order pytest receives them."""
-    return [t for t in _floor_invocation(ci_local)[1] if _SLICE_PATH_RE.fullmatch(t)]
+    return [t for t in _floor_invocation(ci_local).args if _SLICE_PATH_RE.fullmatch(t)]
 
 
 def _floor_slice_extra_args(ci_local: str) -> list[str]:
@@ -303,7 +245,7 @@ def _floor_slice_extra_args(ci_local: str) -> list[str]:
     flags at all, such as a truncating comment's own tokens.
     """
     return [
-        t for t in _floor_invocation(ci_local)[1] if not _SLICE_PATH_RE.fullmatch(t)
+        t for t in _floor_invocation(ci_local).args if not _SLICE_PATH_RE.fullmatch(t)
     ]
 
 
@@ -343,7 +285,9 @@ class TestTheFloorIsDeclaredOnce:
 
 
 def _floor_check_body(ci_local: str) -> str:
-    return ci_local.split("chk_python_floor()", 1)[-1].split("\nchk_", 1)[0]
+    """The text of `chk_python_floor`'s function body. Thin wrapper over the
+    shared `check_body()` in `_ci_local_invocation`."""
+    return check_body(ci_local, FLOOR_FN)
 
 
 class TestTheFloorIsProvenByRunningIt:
@@ -366,9 +310,7 @@ class TestTheFloorIsProvenByRunningIt:
     def test_the_check_runs_in_the_default_gate(self, ci_local):
         """Opt-in-only checks live in a separate array and never run unless
         named. The floor must not be one of them."""
-        # Split on a line that is exactly `)`; check labels contain literal
-        # parens ("(run-all.sh)"), so a bare `)` split truncates the array.
-        registry = ci_local.split("CHECKS=(", 1)[-1].split("\n)", 1)[0]
+        registry = check_registry(ci_local, "CHECKS")
         assert "chk_python_floor" in registry, (
             "the floor check must be in the always-run CHECKS array, not opt-in"
         )
@@ -381,7 +323,7 @@ class TestTheFloorIsProvenByRunningIt:
         # would run every stage of this gate on the dev interpreter with all tests
         # green. Pin the single assignment and its source.
         assert re.findall(
-            r"\bpy310=\S*", _without_comments(body)
+            r"\bpy310=\S*", without_comments(body)
         ) == ['py310="$(_resolve_python310)"'], (
             "py310 must be assigned exactly once, from _resolve_python310. "
             "Reassigning it silently runs the whole gate off-floor."
@@ -480,19 +422,7 @@ class TestTheFloorIsProvenByRunningIt:
         `_resolve_python310`'s own `return 0` sits above `chk_python_floor()` and
         is correctly outside `_floor_check_body`'s window."""
         body = _floor_check_body(ci_local)
-        lines = body.splitlines()
-        end = next(
-            i
-            for i, line in enumerate(lines)
-            if "-m pytest" in line and not line.lstrip().startswith("#")
-        )
-        while end < len(lines) - 1 and lines[end].endswith("\\"):
-            end += 1
-        trailing = [
-            line
-            for line in lines[end + 1 :]
-            if line.strip() and line.strip() != "}" and not line.lstrip().startswith("#")
-        ]
+        trailing = lines_after_invocation(ci_local, FLOOR_FN)
         assert not trailing, (
             f"chk_python_floor runs {trailing} after its pytest invocation. A bash "
             "function returns its LAST command's status and ci-local.sh runs "
@@ -514,7 +444,7 @@ class TestTheFloorIsProvenByRunningIt:
         # constrains lines AFTER the command, so a `return 0` guard above it (or a
         # softened uv branch) would leave the gate green on machines that never run
         # the slice. Every legitimate guard here returns 1.
-        code = _without_comments(body)
+        code = without_comments(body)
         assert "return 0" not in code, (
             "chk_python_floor must never return 0 except by reaching the end of "
             "its pytest invocation; an early `return 0` makes the gate pass "
@@ -541,19 +471,22 @@ class TestTheFloorIsProvenByRunningIt:
         )
 
 
-def _synthetic_floor_check(invocation: str) -> str:
-    """A minimal `ci-local.sh` shaped so `_floor_check_body` finds its window."""
-    return f"chk_python_floor() {{\n{invocation}\n}}\n\nchk_next() {{ :; }}\n"
+def _synthetic_floor_check(body: str) -> str:
+    """A minimal `ci-local.sh` shaped so `_floor_check_body` finds its
+    window. Thin wrapper over the shared `synthetic_check()` in
+    `_ci_local_invocation`."""
+    return synthetic_check(FLOOR_FN, body)
 
 
 def test_without_comments_strips_whole_lines_but_keeps_inline_ones():
-    """`_without_comments` now backs three separate guards — the `--only=` scan,
-    the `py310=` single-assignment pin, and the verdict-suppression scan — so a
-    bug in it would defang all three at once. Whole-line stripping is what makes
-    documenting a rule safe; keeping inline comments is what stops a suppressor
-    hiding behind one on a live code line."""
+    """`without_comments` (shared with `test_python_ceiling.py` via
+    `_ci_local_invocation`) backs three separate guards here — the `--only=`
+    scan, the `py310=` single-assignment pin, and the verdict-suppression
+    scan — so a bug in it would defang all three at once. Whole-line
+    stripping is what makes documenting a rule safe; keeping inline comments
+    is what stops a suppressor hiding behind one on a live code line."""
     text = "# whole line\n  # indented whole line\ncode()  # inline stays\nmore()"
-    assert _without_comments(text) == "code()  # inline stays\nmore()"
+    assert without_comments(text) == "code()  # inline stays\nmore()"
 
 
 class TestTheSliceParserItself:
