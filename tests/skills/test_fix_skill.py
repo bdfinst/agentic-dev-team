@@ -61,6 +61,26 @@ def _step7(text: str) -> str:
 
 
 # ---------------------------------------------------------------------------
+# Shared literal anchors — each of these phrases is asserted from more than
+# one test function below. Centralizing them means a deliberate wording
+# change to fix/SKILL.md requires one edit here, not a hunt across every
+# call site that happens to assert the same prose (Farley Score
+# "Maintainable" finding).
+# ---------------------------------------------------------------------------
+
+UNPARSEABLE_PLAN_STOP = (
+    "stop and report that the fix plan could not be parsed into cycles"
+)
+HARD_STOP_LIST_REFERENCE = "Orchestrator constraint 4's hard-stop list"
+SUBSUMED_CYCLE_PHRASE = "or was recorded as subsumed"
+PR_URL_STOP_SENTENCE = "Do not report a PR URL."
+PR_URL_REPORT_PHRASE = "Report the PR URL"
+NOT_DETERMINED_SENTINEL = (
+    "Root cause not determined — manual investigation required"
+)
+
+
+# ---------------------------------------------------------------------------
 # Frontmatter contract
 # ---------------------------------------------------------------------------
 
@@ -159,7 +179,7 @@ def test_validation_stop_cases_write_nothing_and_skip_triage() -> None:
 
 def test_not_determined_sentinel_stop_present_verbatim() -> None:
     step2 = _step2(_text())
-    assert "Root cause not determined — manual investigation required" in step2
+    assert NOT_DETERMINED_SENTINEL in step2
     assert "stop and report that manual investigation is required" in step2
     assert "Write nothing" in step2
 
@@ -171,7 +191,7 @@ def test_not_determined_sentinel_matches_triage_verbatim() -> None:
     together until now. A future wording change in either file must break
     this test immediately, rather than silently degrading /fix's sentinel
     match into a false "could not be parsed" report."""
-    sentinel = "Root cause not determined — manual investigation required"
+    sentinel = NOT_DETERMINED_SENTINEL
     fix_text = _text()
     triage_text = (PLUGIN_ROOT / "skills" / "triage" / "SKILL.md").read_text(encoding="utf-8")
     assert sentinel in fix_text
@@ -277,7 +297,7 @@ def test_zero_cycle_plan_triggers_unparseable_stop() -> None:
     step2 = collapsed(_step2(_text()))
     assert "**Zero cycles is unparseable.**" in step2
     assert "the parse yields zero cycles at all" in step2
-    assert "stop and report that the fix plan could not be parsed into cycles" in step2
+    assert UNPARSEABLE_PLAN_STOP in step2
     assert "\"nothing to parse\" is never a silent success" in step2
 
 
@@ -286,7 +306,7 @@ def test_unparseable_plan_stop_present_including_partial_parse_case() -> None:
     assert "If any entry fails to match that shape" in step2
     assert "some entries are well-formed and at least one is not" in step2
     assert "treat the **whole plan** as unparseable" in step2
-    assert "stop and report that the fix plan could not be parsed into cycles" in step2
+    assert UNPARSEABLE_PLAN_STOP in step2
     assert "never run only the well-formed subset" in step2.lower()
 
 
@@ -344,7 +364,7 @@ def test_step3_gate_has_two_independent_conditions_not_just_the_shared_list() ->
     step3 = collapsed(_step3(_text()))
     assert "must do nothing beyond invoking the project's existing" in step3
     assert "must also clear every item" in step3
-    assert "Orchestrator constraint 4's hard-stop list" in step3
+    assert HARD_STOP_LIST_REFERENCE in step3
     assert "If either condition fails, stop and report" in step3
     assert "npm ci" in step3
     assert "not counted as \"installing a dependency\"" in step3
@@ -392,7 +412,7 @@ def test_step3_gate_references_constraint_4_hard_stop_list_by_name() -> None:
     regression reverting Step 3 to a stale re-spelled list, or dropping
     Constraint 4's backlink, would pass all other tests."""
     step3 = collapsed(_step3(_text()))
-    assert "Orchestrator constraint 4's hard-stop list" in step3
+    assert HARD_STOP_LIST_REFERENCE in step3
     assert "not re-derived here" in step3
 
     text = _text()
@@ -538,7 +558,7 @@ def test_step4_closing_gate_admits_subsumed_cycles() -> None:
     subsumed cycle could never reach Step 5."""
     step4 = collapsed(_step4(_text()))
     assert "Once every cycle in the plan has passed" in step4
-    assert "or was recorded as subsumed" in step4
+    assert SUBSUMED_CYCLE_PHRASE in step4
     assert "with no regression at any point" in step4
     assert "proceed to Step 5" in step4
 
@@ -577,7 +597,7 @@ def test_step5_opening_gate_admits_subsumed_cycles_matching_step4_closing() -> N
     unreachable for any plan containing a subsumed cycle."""
     step5 = collapsed(_step5(_text()))
     assert "Step 4(b)" in step5
-    assert "or was recorded as subsumed" in step5
+    assert SUBSUMED_CYCLE_PHRASE in step5
     assert "Step 4(c)" in step5
 
 
@@ -719,7 +739,7 @@ def test_step6_preflight_stop_language() -> None:
     step6 = collapsed(_step6(_text()))
     assert "**(i) Pre-flight stop.**" in step6
     assert "Report that pre-flight outcome verbatim" in step6
-    assert "Do not report a PR URL." in step6
+    assert PR_URL_STOP_SENTENCE in step6
 
 
 def test_step6_preflight_stop_includes_plan_completion_gate() -> None:
@@ -789,7 +809,7 @@ def test_step6_overall_fail_overridden_language() -> None:
     step6 = collapsed(_step6(_text()))
     assert "**(iv) Code-review `overall: fail`, overridden.**" in step6
     assert "the human tells `/pr` to proceed anyway" in step6
-    assert "Report the PR URL" in step6
+    assert PR_URL_REPORT_PHRASE in step6
     assert "unresolved findings which were overridden" in step6
 
 
@@ -798,7 +818,7 @@ def test_step6_three_stop_cases_never_report_a_pr_url() -> None:
     # Exactly the three stop cases (i)/(ii)/(iii) carry this sentence — the
     # override case (iv) and the clean-run case each state the opposite
     # (PR URL reported), so this count must stay at 3, not 4.
-    assert step6.count("Do not report a PR URL.") == 3
+    assert step6.count(PR_URL_STOP_SENTENCE) == 3
 
 
 def test_step6_clean_run_reports_pr_url_with_no_caveat() -> None:
@@ -817,8 +837,8 @@ def test_step6_stop_language_distinct_from_override_language() -> None:
             "**Clean run.**"
         )
     ]
-    assert "Do not report a PR URL." not in override_sentence
-    assert "Report the PR URL" in override_sentence
+    assert PR_URL_STOP_SENTENCE not in override_sentence
+    assert PR_URL_REPORT_PHRASE in override_sentence
 
 
 def test_never_cites_a_pr_step_2_4_that_does_not_exist() -> None:
