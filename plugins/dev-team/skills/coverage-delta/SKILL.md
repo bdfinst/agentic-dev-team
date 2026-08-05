@@ -37,9 +37,45 @@ Read `.dev-team-reports/<workflow>/<slug>/data/baseline-coverage.json`. If missi
 
 ### 2. Re-run coverage
 
-Use the same `tool` and command that `/coverage-baseline` recorded — DO NOT switch tools mid-workflow or the delta is meaningless. This invariant governs the *tool* (e.g. never swap `dotnet test`/coverlet for a different coverage tool between baseline and delta), not the discovered *project list* on `.sln`/`.csproj` repos — `/coverage-baseline` re-derives that list every run via `discover_coverage_projects.py` (#1759), so a project set that legitimately changed between baseline and delta (a project added/excluded and triaged in `coverage-config.json`) is expected, not a tool switch. For a `.sln`/`.csproj` repo, re-run `python3 "$CLAUDE_PLUGIN_ROOT/skills/coverage-baseline/scripts/discover_coverage_projects.py" <path-to-.sln>` (same as `/coverage-baseline`) and use its returned `projects` list for this delta measurement; a hard failure from that script stops the delta rather than falling back to a solution-wide run. Capture exit code + stdout + stderr.
+Use the same coverage **tool** `/coverage-baseline` recorded — DO NOT switch tools mid-workflow, or the delta is meaningless. This governs the tool only, never the project/package list: for a multi-project repo (Step 2a below), the set of included projects/packages is re-derived from fresh discovery on every call, never reused from a prior run — a frozen, never-revisited list is exactly what caused issue #1759's ~30x underreported delta.
+
+For a multi-project repo, load the persisted `coverage-config.json` first (Step 2a) and print `coverage_config.measurement_basis_notice(config.get("bootstrapped_at"), baseline["captured_at"])`'s result verbatim when non-`None` — a non-blocking notice that the comparison baseline predates multi-project discovery, so a reported delta may reflect a widened measurement scope rather than a real coverage change.
+
+Capture exit code + stdout + stderr.
 
 If the run fails, surface the first error and stop. Do not post a delta from a broken run.
+
+### 2a. Multi-project re-derivation (.NET solutions & JS/TS workspaces)
+
+When a `.sln` file exists at the repo root (.NET), or a workspace signal is present (JS/TS) — the same triggers `coverage-baseline`'s Step 1a uses — re-run the appropriate discovery script **fresh, every call**, never reusing a project/package list recorded by a prior run:
+
+- **.NET**: `${CLAUDE_PLUGIN_ROOT}/scripts/coverage_discovery_dotnet.py`'s `discover_dotnet_projects(repo_root)`
+- **JS/TS**: `${CLAUDE_PLUGIN_ROOT}/scripts/coverage_discovery_js.py`'s `discover_js_packages(repo_root)`
+
+Implementation mechanics (the bootstrap/drift-check contract, weighted-merge, and the exact message templates): [`../coverage-baseline/references/multi-project-discovery.md`](../coverage-baseline/references/multi-project-discovery.md) — this section pins the contract surface only, mirroring how `coverage-baseline`'s own Step 1a links the same file rather than re-deriving the mechanics a second time.
+
+**Config path.** `coverage-config.json` is read from the exact resolved path `.dev-team-reports/<workflow>/<slug>/data/coverage-config.json` — the SAME path `coverage-baseline`'s Step 5 persists to, and the SAME path `load_or_bootstrap` reads/writes in `coverage-baseline`'s Step 1a. There is no ambiguity: both skills operate on the identical file.
+
+**Absent/malformed `coverage-config.json`.** Before calling `drift_check`, check whether that path exists and parses. If missing (the baseline predates this feature, or was captured on the single-project path with no config ever persisted) or malformed, stop with a named message telling the operator to re-run `/coverage-baseline` first — mirroring Step 1's existing missing-baseline branch. Do **not** silently bootstrap a config in-memory here: this worker is read-only on the repo's source (see Notes), and a delta is only ever meaningful against a config `/coverage-baseline` itself persisted.
+
+**Discovery-signal check.** Before calling `drift_check`, check the fresh discovery call's return value — the same two branches `coverage-baseline`'s Step 1a already carries:
+
+- `coverage_config.DISCOVERY_NOT_APPLICABLE` — should not occur here (this step only runs when the `.sln`/workspace trigger already fired); if it somehow does, treat it like the missing-config branch above: stop, post no delta.
+- `coverage_config.discovery_error(...)` — surface `message`, post no delta, stop — the same treatment as an existing Step 2 run-failure (a genuine tool failure, not the actionable config gap the hard-failure block below describes).
+
+Never let `discovered` reach `drift_check` unchecked.
+
+**Zero-real-test-project guard.** Before calling `drift_check`, apply the same `any(coverage_config.needs_accounting(entry["classification"]) for entry in discovered)` check `coverage-baseline`'s Step 1a already carries. If `False` (every discovered project/package classifies `NOT_TEST`), stop immediately with the exact message `coverage-baseline`'s Step 1a uses, worded for a delta: `"Coverage capture stopped: no real test project was discovered in this <solution|workspace> — cannot establish a coverage floor. If this repo has test projects, verify they reference Microsoft.NET.Test.Sdk (or, for JS/TS, use jest/vitest/mocha+nyc/c8) so discovery can recognize them; otherwise there is no coverage floor to capture."` Post no delta.
+
+Read the persisted `.dev-team-reports/<workflow>/<slug>/data/coverage-config.json` (written by the prior `/coverage-baseline` run) and call `coverage_config.drift_check(config, discovered)` against it:
+
+- If `drift_check` raises `ValueError` (a malformed-but-parseable `included`/`excluded` shape — e.g. present but not a list), print the exception's message **verbatim, as its own named block**, and stop without posting a delta.
+- `drift["hard_failure"]` is `True` (an unaccounted-for or conflicting project/package) — print `drift["hard_failure_message"]` **verbatim, as its own distinct, named block** headed `Coverage capture stopped:` — the same hard-failure rule and message `coverage-baseline` applies, never folded into or reusing this skill's own generic run-failure wording above. Stop; post no delta.
+- `drift["hard_failure"]` is `False` — run the coverage command per included project/package (never once for the whole repo) and merge the results with `coverage_config.weighted_merge(project_reports)`, same as `coverage-baseline` Step 1a.
+
+`drift["stale_warning_message"]` is carried forward regardless of `hard_failure` — see Step 5 (Report) for where it surfaces.
+
+Single-project and mixed-stack repos (`coverage-baseline`'s Step 1b unaffected cases) never reach this step — Step 2's single-command path runs unchanged, and no `coverage-config.json` is ever read here for them.
 
 ### 2b. Measure scoped mutation (only when both `--story` AND `--story-files` are present)
 
@@ -100,7 +136,7 @@ Parse line + branch percentages with the same logic `/coverage-baseline` used. C
 }
 ```
 
-`phase` is the calling workflow's phase number when it has one (`/test-improve` supplies `4`); workflows without a phase model supply `null`.
+`phase` is the calling workflow's phase number when it has one (`/test-improve` supplies `5`); workflows without a phase model supply `null`.
 
 Append to `.dev-team-reports/<workflow>/<slug>/data/coverage-history.json` (array of snapshots, newest last).
 
@@ -132,6 +168,8 @@ Print:
 - Line + branch percentages and deltas.
 - The destination (parent issue URL or `FEATURE.md`).
 - The path to `coverage-history.json` for `/continue`.
+- **Multi-project repos only**: when Step 2a's `drift["stale_warning_message"]` is non-`None` (an `excluded` entry that no longer matches any freshly-discovered project/package), print it **verbatim, as a named, non-blocking warning line** — it never blocks the run and never overrides the reported delta.
+- **Multi-project repos only, every run**: print `coverage_config.format_active_exclusions(config)`'s result **verbatim** whenever it is non-`None` — one line per currently-excluded project/package naming its path and reason. This is informational context shown on every run (not a warning, not blocking), distinct from the stale-warning line above: it surfaces what is currently excluded and why, regardless of whether that exclusion has gone stale.
 
 If the delta is **negative** (a Story made coverage worse), surface that as a warning so the operator can decide whether to keep the Story.
 
