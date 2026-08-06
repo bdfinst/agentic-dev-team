@@ -92,7 +92,11 @@ def test_no_hand_rolled_replace_or_bare_section_call_in_doc_test_files() -> None
     fixed) -- this test guards against either class reappearing.
     """
     doc_test_dir = Path(__file__).parent
-    for filename in _doc_test_filenames():
+    filenames = _doc_test_filenames()
+    assert "test_mutation_kill_agent.py" in filenames, (
+        "doc-test discovery matched nothing -- guard would pass vacuously"
+    )
+    for filename in filenames:
         source = (doc_test_dir / filename).read_text(encoding="utf-8")
         assert not _HAND_ROLLED_REPLACE_PATTERN.search(source), (
             f"{filename} hand-rolls .replace('\\n', ' ') instead of skill_doc_helpers.collapsed()"
@@ -103,6 +107,12 @@ def test_no_hand_rolled_replace_or_bare_section_call_in_doc_test_files() -> None
                 f"{filename}:{lineno} calls section() directly instead of "
                 f"required_section(): {line.strip()!r}"
             )
+        assert "_mutation_kill_agent_doc_helpers" in source, (
+            f"{filename} does not import from the shared helper module"
+        )
+        assert not re.search(r"AGENT\s*=\s*REPO_ROOT", source), (
+            f"{filename} re-declares its own AGENT constant instead of importing it"
+        )
 
 
 def test_hand_rolled_replace_pattern_matches_both_quote_styles() -> None:

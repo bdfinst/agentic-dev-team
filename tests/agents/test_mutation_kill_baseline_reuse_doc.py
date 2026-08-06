@@ -160,6 +160,11 @@ def test_no_occurrence_of_from_report_flag_remains(text: str) -> None:
 
 
 def test_invocation_section_names_report_flag(text: str) -> None:
+    # include_start_line=False here normalizes with every other required_section()
+    # call site in this file group (all pass False) -- the original hand-rolled
+    # skill_doc_helpers.section call relied on its own include_start_line=True
+    # default, dropping the "## Invocation" heading line here is confirmed inert
+    # since neither assertion below checks that line.
     invocation = required_section(
         text,
         r"^## Invocation",
