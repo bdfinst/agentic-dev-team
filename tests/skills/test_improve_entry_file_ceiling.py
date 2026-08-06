@@ -10,20 +10,33 @@ the entry file back toward its pre-split size, or drifting the two
 file's own prose depends on — this module closes both gaps, plus the
 fixed token-count ceiling from Step 1.13 assertion 1.
 
-Deliberately self-contained within Slice 1: uses `_approx_tokens()` (a
-plain char-count/4 heuristic, promoted to `skill_doc_helpers.py`) rather
-than importing Slice 2's not-yet-created `scripts/measure_tokens.py`
-(Wave 2, doesn't exist when Slice 1 runs in Wave 1). Slice 2 Step 2.1's
-`tests/scripts/test_measure_tokens.py` separately covers that module's own
-correctness — this file only guards the entry file's size.
+Deliberately self-contained within Slice 1: defines `_approx_tokens()` (a
+plain char-count/4 heuristic) locally rather than importing Slice 2's
+not-yet-created `scripts/measure_tokens.py` (Wave 2, doesn't exist when
+Slice 1 runs in Wave 1). Slice 2 Step 2.1's `tests/scripts/test_measure_tokens.py`
+separately covers that module's own correctness — this file only guards the
+entry file's size. Kept local rather than promoted to `skill_doc_helpers.py`
+(shared infrastructure used by 116 test files across many skills) since
+this is the module's only consumer — the same single-consumer rationale
+that split `skill_include_resolver.py` out of that same shared module.
 """
 
 from __future__ import annotations
 
 import re
 
-from skill_doc_helpers import _approx_tokens
 from skill_include_resolver import INCLUDE_RE, SKILL, SKILL_DIR
+
+
+def _approx_tokens(text: str) -> int:
+    """Char-count / 4 heuristic — mirrors the heuristic tokenizer's fallback
+    formula in `scripts/measure-tokens.sh` (`chars / 4`, used there only
+    when `tiktoken` isn't installed) — though that script counts *bytes*
+    via `wc -c`, while this counts Python `str` characters, so it reads
+    slightly lower than the script on text with non-ASCII characters (this
+    file has some: em dashes, `·`, `→`). Immaterial at current ceiling
+    margins."""
+    return len(text) // 4
 
 # Pre-split baseline was ~16,500 tokens (measured before Step 1.1). The plan's
 # placeholder ceiling — 30% of that baseline, ~4,950 tokens — would pass

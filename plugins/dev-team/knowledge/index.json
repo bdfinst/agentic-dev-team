@@ -6273,7 +6273,7 @@
       "anchor": "steps"
     },
     "Phase Reference Files": {
-      "summary": "| Phase | Name | Reference file |",
+      "summary": "Each phase's procedural detail lives in its own reference file, listed below.",
       "anchor": "phase-reference-files"
     },
     "Phase 0 — Approach contract": {

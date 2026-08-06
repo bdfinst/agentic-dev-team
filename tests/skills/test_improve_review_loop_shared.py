@@ -120,13 +120,12 @@ def test_review_loop_including_file_does_not_duplicate_content_outside_the_inclu
 
 
 def test_review_loop_reference_file_opens_with_plain_prose_not_a_heading():
-    """references/review-loop.md is included from inside another already-
-    spliced-in reference file (phase-5-improve.md, and — since Step 1.10 —
-    phase-7-refactor.md too), not from SKILL.md's own top level — the
-    resolver's `_reject_h3_heading_at_depth` guard raises
-    NestedHeadingLevelError if it opens with a `### ` heading. Pin the
-    stronger, precedent-matching property directly: it opens with plain
-    prose, not a heading at all (matching phase-0 through phase-4's
+    """references/review-loop.md is reached via an include marker (from
+    phase-5-improve.md, and — since Step 1.10 — phase-7-refactor.md too);
+    the resolver's `_reject_h3_heading` guard applies at every depth and
+    raises NestedHeadingLevelError if it opens with a `### ` heading. Pin
+    the stronger, precedent-matching property directly: it opens with
+    plain prose, not a heading at all (matching phase-0 through phase-4's
     reference files)."""
     review_loop = next(SKILL_DIR.glob("**/review-loop.md"))
     first_line = next(

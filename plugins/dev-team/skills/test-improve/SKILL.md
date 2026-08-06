@@ -132,6 +132,8 @@ sequence becomes `0 → 2 → 1 → 4 → 5 → 6 → (7) → 8 → 9`.
 
 ## Phase Reference Files
 
+Each phase's procedural detail lives in its own reference file, listed below.
+
 | Phase | Name | Reference file |
 | --- | --- | --- |
 | 0 | Approach contract | `references/phase-0-approach-contract.md` |
