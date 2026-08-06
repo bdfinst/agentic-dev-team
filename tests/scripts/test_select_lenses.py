@@ -191,6 +191,155 @@ def test_added_only_scope_non_matching_added_file_excluded():
     assert lenses == []
 
 
+def test_non_executable_file_detects_docs_config_assets_and_lockfiles():
+    for f in ("README.md", "package.json", "logo.svg", "yarn.lock", "Cargo.lock",
+              "pnpm-lock.yaml", "LICENSE", ".gitignore", "notes.mdx", "guide.rst",
+              "pyproject.toml", "setup.cfg", "banner.png", "LICENSE.txt", ".editorconfig"):
+        assert SL._is_non_executable_file(f), f"{f} should be non-executable"
+    for f in ("app.py", "handler.ts", "Makefile", "config.yaml", "deploy.yml"):
+        assert not SL._is_non_executable_file(f), f"{f} should NOT be non-executable"
+
+
+def test_non_executable_file_never_true_for_functional_claude_config():
+    # A plain .md/.json suffix is never enough — a path that drives agent/
+    # skill/command behavior stays "executable" regardless of extension
+    # (#1923 review round: an earlier draft misclassified this repo's own
+    # shipped plugins/dev-team/agents/*.md as non-executable documentation).
+    for f in (
+        "plugins/dev-team/agents/correctness-review.md",
+        "plugins/dev-team/skills/build/SKILL.md",
+        ".claude/settings.json",
+        "plugins/dev-team/knowledge/agent-registry.md",
+        "CLAUDE.md",
+        "AGENTS.md",
+    ):
+        assert not SL._is_non_executable_file(f), f"{f} is functional config, must stay executable"
+
+
+def test_is_functional_config_matches_doc_classification_module():
+    # Guards against the shared-logic drift doc_classification.py's own
+    # docstring names as this module family's known failure mode: if
+    # select_lenses.py's import succeeded (the normal case, exercised here
+    # since select_lenses.py's own hooks/lib is reachable in this repo),
+    # its `is_functional_config` must behave identically to the canonical
+    # source's — otherwise select_lenses.py's ImportError-fallback copy
+    # (hardcoded for the case hooks/lib is unreachable) has silently
+    # drifted from it.
+    doc_classification_path = (
+        _REPO_ROOT / "plugins" / "dev-team" / "hooks" / "lib" / "doc_classification.py"
+    )
+    spec = importlib.util.spec_from_file_location("doc_classification", doc_classification_path)
+    real = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(real)
+    for f in (
+        "plugins/dev-team/agents/foo.md", ".claude/settings.json",
+        "plugins/dev-team/templates/agents/python.md", "CLAUDE.md",
+        "docs/x.md", "README.md",
+    ):
+        assert SL.is_functional_config(f) == real.is_functional_config(f), f
+
+
+def test_non_executable_skip_eligible_justification_matches_agent_skip_clause():
+    # Mechanically re-verifies NON_EXECUTABLE_SKIP_ELIGIBLE's own MAINTENANCE
+    # comment ("re-verify against the named agent's own Skip clause before
+    # adding or keeping a name here") instead of trusting prose: reads each
+    # allowlisted agent's real `## Skip` section and asserts it still
+    # contains the phrases the allowlist's justifying comment quotes. Fails
+    # loudly if a future edit narrows the clause or renames the agent file,
+    # rather than leaving the allowlist silently wrong.
+    required_phrases = (
+        "static assets, configuration, markup, or documentation with no executable logic",
+        "generated code, vendored dependencies, or lockfiles",
+    )
+    for name in SL.NON_EXECUTABLE_SKIP_ELIGIBLE:
+        agent_path = _REPO_ROOT / "plugins" / "dev-team" / "agents" / f"{name}.md"
+        text = agent_path.read_text(encoding="utf-8")
+        skip_section = text.split("## Skip", 1)[1].split("## Detect", 1)[0]
+        for phrase in required_phrases:
+            assert phrase in skip_section, (
+                f"{name}.md's Skip clause no longer matches "
+                f"NON_EXECUTABLE_SKIP_ELIGIBLE's justification: missing '{phrase}'"
+            )
+
+
+def test_security_review_never_on_non_executable_skip_allowlist():
+    # Direct membership pin (not just a behavioral one) — security-review's
+    # own Skip clause does not cover config/lockfiles, and its "## Scope —
+    # files always in scope" section mandates scanning some of the file
+    # classes this allowlist would otherwise suppress (#1923 review round).
+    assert "security-review" not in SL.NON_EXECUTABLE_SKIP_ELIGIBLE
+
+
+def test_is_functional_config_matches_change_shape_py_semantics():
+    assert SL.is_functional_config("plugins/dev-team/agents/foo.md") is True
+    assert SL.is_functional_config(".claude/settings.json") is True
+    assert SL.is_functional_config("plugins/dev-team/templates/agents/python.md") is True
+    assert SL.is_functional_config("CLAUDE.md") is True
+    assert SL.is_functional_config("docs/x.md") is False
+    assert SL.is_functional_config("README.md") is False
+
+
+def test_all_non_executable_requires_every_file_to_match():
+    assert SL._is_all_non_executable(["a.md", "b.json"]) is True
+    assert SL._is_all_non_executable(["a.md", "b.py"]) is False
+    assert SL._is_all_non_executable([]) is False
+
+
+def test_allowlisted_always_lens_skipped_on_all_non_executable_diff():
+    roster = [
+        ("correctness-review", "always", True),
+        ("spec-compliance-review", "always", False),
+    ]
+    lenses, warnings = SL.applicable_lenses(["docs/x.md"], roster)
+    assert lenses == ["spec-compliance-review"]
+    assert warnings == ["skipped-non-executable:correctness-review"]
+
+
+def test_allowlisted_always_lens_still_runs_when_any_file_is_executable():
+    roster = [("correctness-review", "always", True)]
+    lenses, warnings = SL.applicable_lenses(["docs/x.md", "app.py"], roster)
+    assert lenses == ["correctness-review"]
+    assert warnings == []
+
+
+def test_non_allowlisted_always_lens_never_filtered_by_non_executable_diff():
+    # The property under test is allowlist membership, not opus tier — an
+    # allowlisted non-opus lens would in fact be filtered (there is no
+    # is_opus check left in `_should_skip_non_executable`), so this pins
+    # security-review specifically: opus-tier, `Scope: always`, but absent
+    # from NON_EXECUTABLE_SKIP_ELIGIBLE (#1923 review round: its own Skip
+    # clause does not cover config/lockfiles the way correctness-review's
+    # does), so it must survive an all-non-executable diff unfiltered.
+    roster = [("security-review", "always", True)]
+    lenses, warnings = SL.applicable_lenses(["docs/x.md"], roster)
+    assert lenses == ["security-review"]
+    assert warnings == []
+
+
+def test_missing_scope_lens_never_non_executable_filtered_even_if_allowlisted():
+    # The non-executable skip is wired only inside the SCOPE_ALWAYS branch —
+    # a lens with scope=None (missing Scope:, include-biased) stays included
+    # even when its name is on NON_EXECUTABLE_SKIP_ELIGIBLE and every changed
+    # file is non-executable, pinning that the filter can't leak into the
+    # missing-scope path.
+    roster = [("correctness-review", None, True)]
+    lenses, warnings = SL.applicable_lenses(["docs/x.md"], roster)
+    assert lenses == ["correctness-review"]
+    assert warnings == ["correctness-review"]  # missing-scope warning, not skipped-non-executable
+
+
+def test_lens_not_on_skip_allowlist_still_runs_on_non_executable_diff():
+    # Only names in NON_EXECUTABLE_SKIP_ELIGIBLE are filtered, regardless of
+    # is_opus (checked both ways here) — a hypothetical future always lens
+    # not yet added to that allowlist must stay included by default (the
+    # coupling this allowlist exists to avoid).
+    for is_opus in (True, False):
+        roster = [("hypothetical-new-lens", "always", is_opus)]
+        lenses, warnings = SL.applicable_lenses(["docs/x.md"], roster)
+        assert lenses == ["hypothetical-new-lens"]
+        assert warnings == []
+
+
 def test_on_demand_scope_never_selected_and_never_warned():
     # Deliberate self-exclusion (claude-setup-review, token-efficiency-review,
     # ai-provenance-review) — unlike a missing Scope:, this is not a defect,
@@ -236,6 +385,29 @@ def test_cli_backend_only_diff():
         assert excluded not in lenses, f"{excluded} should not fire on a .py diff"
     for always in ("security-review", "correctness-review", "spec-compliance-review"):
         assert always in lenses
+
+
+def test_cli_docs_only_diff_skips_only_the_allowlisted_lens():
+    r = _run("docs/README.md")
+    assert r.returncode == 0
+    out = json.loads(r.stdout)
+    for eligible in SL.NON_EXECUTABLE_SKIP_ELIGIBLE:
+        assert eligible not in out["lenses"], f"{eligible} should skip a docs-only diff"
+        assert f"skipped-non-executable:{eligible}" in out["warnings"]
+    # Regression pin (#1923 review round): security-review/arch-review/
+    # domain-review were considered for this allowlist and rejected — their
+    # own Skip clauses don't authorize it — so they must still run.
+    for still_runs in ("security-review", "arch-review", "domain-review", "spec-compliance-review"):
+        assert still_runs in out["lenses"], f"{still_runs} must NOT skip a docs-only diff"
+
+
+def test_cli_agent_markdown_only_diff_keeps_every_always_lens():
+    # Functional Claude-config markdown is never "non-executable" (#1923
+    # review round) — an all-agents/*.md diff must not lose any Scope:
+    # always lens, including the allowlisted correctness-review.
+    out = json.loads(_run("plugins/dev-team/agents/correctness-review.md").stdout)
+    assert "correctness-review" in out["lenses"]
+    assert not any(w.startswith("skipped-non-executable:") for w in out["warnings"])
 
 
 def test_cli_backend_only_diff_emits_no_separator_row_garbage():
@@ -486,8 +658,16 @@ REACTIVITY_LENSES = {
 
 _BASELINE = [
     (["svc/foo.py"], set()),                                                    # backend — A only
-    (["docs/x.md"], set()),                                                     # docs — A only
     (["svc/handler.ts"], {"js-fp-review"}),                                     # .ts→js-fp boundary
+    # docs/x.md alone is all-non-executable, so the allowlisted lens skips
+    # (see test_allowlisted_always_lens_skipped_on_all_non_executable_diff
+    # and test_cli_docs_only_diff_skips_only_the_allowlisted_lens below) —
+    # pairing it with src/App.tsx instead of a second backend file keeps
+    # this row distinct from the plain-backend row above: it proves every
+    # always lens stays included on a mixed diff (not all files
+    # non-executable) AND exercises the file-type-lens union, rather than
+    # duplicating svc/foo.py's expected output with no new signal.
+    (["docs/x.md", "src/App.tsx"], {"js-fp-review", "a11y-review", "component-architecture-review"}),
     (["src/App.tsx"], {"js-fp-review", "a11y-review", "component-architecture-review"}),
     (["src/W.vue"], {"a11y-review", "component-architecture-review"}),          # NOT js-fp
     (["src/W.svelte"], {"a11y-review", "component-architecture-review"}),        # the svelte lens is gone (#1524)

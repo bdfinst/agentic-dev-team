@@ -58,10 +58,9 @@ if str(_HOOKS_LIB_DIR) not in sys.path:
 
 try:
     from doc_classification import (  # type: ignore[import-not-found]
-        CORE_FUNCTIONAL_CONFIG_SEGMENTS,
         DOC_EXTENSIONS,
         DOC_ROOT_WORDS,
-        FUNCTIONAL_CONFIG_NAMES,
+        is_functional_config,
     )
 except ImportError:  # pragma: no cover - degraded fallback, hooks/lib unreachable
     DOC_EXTENSIONS = frozenset({".md", ".mdx", ".markdown", ".rst", ".txt", ".adoc"})
@@ -69,10 +68,16 @@ except ImportError:  # pragma: no cover - degraded fallback, hooks/lib unreachab
         "readme", "changelog", "contributing", "license", "notice",
         "authors", "code_of_conduct",
     )
-    FUNCTIONAL_CONFIG_NAMES = frozenset({"claude.md", "agents.md"})
-    CORE_FUNCTIONAL_CONFIG_SEGMENTS = frozenset(
-        {".claude", "agents", "skills", "prompts", "knowledge"}
+    _FALLBACK_FUNCTIONAL_CONFIG_NAMES = frozenset({"claude.md", "agents.md"})
+    _FALLBACK_FUNCTIONAL_CONFIG_SEGMENTS = frozenset(
+        {".claude", "agents", "skills", "prompts", "knowledge", "templates"}
     )
+
+    def is_functional_config(file_path: str) -> bool:
+        path = PurePosixPath(file_path)
+        if path.name.lower() in _FALLBACK_FUNCTIONAL_CONFIG_NAMES:
+            return True
+        return any(seg in _FALLBACK_FUNCTIONAL_CONFIG_SEGMENTS for seg in path.parts)
 
 # The lenses this gate can skip. Both are code-only lenses that no-op on diffs
 # with no executable logic to reason about.
@@ -101,24 +106,13 @@ _CONFIG_NAMES = {
     ".npmignore", ".prettierignore",
 }
 
-# Path segments marking **functional Claude-config**: markdown/paths here drive
-# agent/skill/command behavior and are never "just docs or config" — they always
-# count as runtime surface (must be reviewed). Same exclusion as SKILL.md.
-# `"templates"` is this gate's OWN addition on top of the shared core set —
-# `pre_commit_review.py`'s doc-only classifier deliberately does not include
-# it (see that module's docstring on staying a strict subset); preserved
-# exactly as it was before this extraction, not resolved.
-_FUNCTIONAL_CONFIG_SEGMENTS = CORE_FUNCTIONAL_CONFIG_SEGMENTS | {"templates"}
-
-# Functional-config filenames anywhere in the tree.
-_FUNCTIONAL_CONFIG_NAMES = FUNCTIONAL_CONFIG_NAMES
-
-
-def _is_functional_config(path: PurePosixPath) -> bool:
-    """True when the path drives agent/skill/command behavior (always reviewed)."""
-    if path.name.lower() in _FUNCTIONAL_CONFIG_NAMES:
-        return True
-    return any(seg in _FUNCTIONAL_CONFIG_SEGMENTS for seg in path.parts)
+# Functional-config classification (markdown/paths that drive agent/skill/
+# command behavior and always count as runtime surface, same exclusion as
+# SKILL.md) now lives in `is_functional_config` above — shared with
+# `select_lenses.py` (#1923), including the "templates" addition this gate
+# has always applied on top of the shared core set (`pre_commit_review.py`'s
+# doc-only classifier deliberately does not include it; see that module's
+# docstring on staying a strict subset — unaffected by this extraction).
 
 
 def _is_documentation(path: PurePosixPath) -> bool:
@@ -142,7 +136,7 @@ def _has_runtime_surface_file(file: str) -> bool:
     path = PurePosixPath(str(file).strip())
     if not path.name:
         return False  # empty entry contributes nothing
-    if _is_functional_config(path):
+    if is_functional_config(path):
         return True
     # Provably non-runtime only when documentation or config; anything else
     # (source, unknown extension) is treated as runtime surface.
