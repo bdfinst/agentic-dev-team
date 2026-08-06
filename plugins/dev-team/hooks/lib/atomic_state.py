@@ -129,6 +129,18 @@ _LOCK_CONTENTION_ERRNOS = frozenset(
 )
 
 
+class LockAcquisitionError(RuntimeError):
+    """Raised by `locked_state(path, strict=True)` when the lock could not be
+    acquired (directory/lock-file creation failure, fdopen failure, or
+    acquire-budget exhaustion) — never for a caller-raised exception from
+    inside the critical section (#1892 still applies unchanged). Subclasses
+    `RuntimeError` so pre-existing `pytest.raises(RuntimeError, ...)`
+    assertions against strict-mode callers keep passing; new callers should
+    narrow to this type specifically so a broad `except (OSError,
+    RuntimeError)` doesn't also swallow an unrelated `RuntimeError` raised by
+    the critical section body itself (#1920 correctness review)."""
+
+
 def atomic_write(path: Path, text: str) -> None:
     """Write `text` to `path` atomically via tempfile-in-same-dir + rename.
 
@@ -258,9 +270,11 @@ def locked_state(path: Path, *, strict: bool = False) -> Iterator[None]:
     these hooks are advisory.
 
     `strict=True`: every one of the same four fail-open points above raises
-    `RuntimeError` (with the identical message it would otherwise print to
-    stderr) instead of printing and running the critical section unlocked —
-    the critical section body never runs when the lock could not be
+    `LockAcquisitionError` (a `RuntimeError` subclass, carrying the same
+    diagnostic detail the fail-open path would otherwise print to stderr,
+    reworded to say the critical section is being refused rather than run
+    unlocked) instead of printing and running the critical section unlocked
+    — the critical section body never runs when the lock could not be
     acquired. For a caller where a lost update is a correctness bug rather
     than an advisory best-effort nudge. Every existing caller passes the
     default `False` and is completely unaffected; this is an additive,
@@ -280,14 +294,16 @@ def locked_state(path: Path, *, strict: bool = False) -> Iterator[None]:
     try:
         lock_path.parent.mkdir(parents=True, exist_ok=True)
     except OSError as exc:
-        message = (
+        reason = (
             f"atomic_state: lock acquisition failed (could not create lock "
-            f"directory {lock_path.parent}: {exc}); proceeding WITHOUT lock "
-            f"for {path}"
+            f"directory {lock_path.parent}: {exc})"
         )
         if strict:
-            raise RuntimeError(message) from exc
-        print(message, file=sys.stderr)
+            raise LockAcquisitionError(
+                f"{reason}; refusing to run the critical section unlocked "
+                f"for {path}"
+            ) from exc
+        print(f"{reason}; proceeding WITHOUT lock for {path}", file=sys.stderr)
         yield
         return
 
@@ -307,13 +323,16 @@ def locked_state(path: Path, *, strict: bool = False) -> Iterator[None]:
         with contextlib.suppress(OSError, AttributeError):
             os.fchmod(lock_fd, 0o600)
     except OSError as exc:
-        message = (
+        reason = (
             f"atomic_state: lock acquisition failed (could not open lock "
-            f"file {lock_path}: {exc}); proceeding WITHOUT lock for {path}"
+            f"file {lock_path}: {exc})"
         )
         if strict:
-            raise RuntimeError(message) from exc
-        print(message, file=sys.stderr)
+            raise LockAcquisitionError(
+                f"{reason}; refusing to run the critical section unlocked "
+                f"for {path}"
+            ) from exc
+        print(f"{reason}; proceeding WITHOUT lock for {path}", file=sys.stderr)
         yield
         return
 
@@ -324,13 +343,21 @@ def locked_state(path: Path, *, strict: bool = False) -> Iterator[None]:
     try:
         handle_cm = os.fdopen(lock_fd, "r+")
     except OSError as exc:
-        message = (
+        # fdopen() failed without ever wrapping lock_fd in a file object, so
+        # nothing else will close it — leaking the fd otherwise (#1920
+        # correctness review).
+        with contextlib.suppress(OSError):
+            os.close(lock_fd)
+        reason = (
             f"atomic_state: lock acquisition failed (fdopen on "
-            f"{lock_path} failed: {exc}); proceeding WITHOUT lock for {path}"
+            f"{lock_path} failed: {exc})"
         )
         if strict:
-            raise RuntimeError(message) from exc
-        print(message, file=sys.stderr)
+            raise LockAcquisitionError(
+                f"{reason}; refusing to run the critical section unlocked "
+                f"for {path}"
+            ) from exc
+        print(f"{reason}; proceeding WITHOUT lock for {path}", file=sys.stderr)
         yield
         return
 
@@ -342,14 +369,16 @@ def locked_state(path: Path, *, strict: bool = False) -> Iterator[None]:
             except OSError:
                 locked = False
             if not locked:
-                message = (
+                reason = (
                     f"atomic_state: lock acquisition failed (budget exhausted "
-                    f"or non-contention error acquiring {lock_path}); "
-                    f"proceeding WITHOUT lock for {path}"
+                    f"or non-contention error acquiring {lock_path})"
                 )
                 if strict:
-                    raise RuntimeError(message)
-                print(message, file=sys.stderr)
+                    raise LockAcquisitionError(
+                        f"{reason}; refusing to run the critical section "
+                        f"unlocked for {path}"
+                    )
+                print(f"{reason}; proceeding WITHOUT lock for {path}", file=sys.stderr)
             yield
         finally:
             if locked:

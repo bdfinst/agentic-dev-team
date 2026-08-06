@@ -200,8 +200,10 @@ def test_locked_state_strict_true_raises_when_acquire_budget_exhausts(
     """(b) `strict=True` against a held competing lock, with the acquire
     budget forced to exhaust (`DEV_TEAM_LOCK_ACQUIRE_BUDGET_TEST_MS`, the
     same test-only override `test_locked_state_gives_up_after_stalled_holder`
-    in `test_hook_state_concurrency.py` uses), must raise `RuntimeError`
-    instead of silently running the critical section unlocked."""
+    in `test_hook_state_concurrency.py` uses), must raise
+    `LockAcquisitionError` instead of silently running the critical section
+    unlocked — with a message that says the critical section is being
+    refused, not (misleadingly) that it is "proceeding WITHOUT lock"."""
     state_file = tmp_path / "counter.json"
     state_file.write_text("{}")
 
@@ -217,14 +219,14 @@ def test_locked_state_strict_true_raises_when_acquire_budget_exhausts(
     holder = threading.Thread(target=_hold_lock)
     holder.start()
     ran_unlocked = False
+    exc_info = None
     try:
         assert acquired.wait(timeout=2), "holder thread never acquired the lock"
 
         monkeypatch.setenv("DEV_TEAM_LOCK_ACQUIRE_BUDGET_TEST_MS", str(budget_ms))
-        with (
-            pytest.raises(RuntimeError, match="budget exhausted"),
-            atomic_state.locked_state(state_file, strict=True),
-        ):
+        with pytest.raises(
+            atomic_state.LockAcquisitionError, match="budget exhausted"
+        ) as exc_info, atomic_state.locked_state(state_file, strict=True):
             ran_unlocked = True
     finally:
         holder.join(timeout=2)
@@ -233,14 +235,18 @@ def test_locked_state_strict_true_raises_when_acquire_budget_exhausts(
         "strict=True must never run the critical section when the lock "
         "could not be acquired"
     )
+    assert "refusing to run the critical section unlocked" in str(exc_info.value)
+    assert "proceeding WITHOUT lock" not in str(exc_info.value)
 
 
 def test_locked_state_strict_true_raises_when_fdopen_fails(
     tmp_path: Path, monkeypatch
 ) -> None:
     """Covers the fdopen()-failure fail-open point specifically: strict=True
-    raises RuntimeError instead of the fail-open fallthrough exercised by
-    `test_locked_state_still_fails_open_when_fdopen_itself_fails` above."""
+    raises `LockAcquisitionError` instead of the fail-open fallthrough
+    exercised by `test_locked_state_still_fails_open_when_fdopen_itself_fails`
+    above, with a message that says the critical section is being refused
+    rather than (misleadingly) that it is "proceeding WITHOUT lock"."""
     log = tmp_path / "log.jsonl"
     ran_unlocked = False
 
@@ -249,15 +255,16 @@ def test_locked_state_strict_true_raises_when_fdopen_fails(
 
     monkeypatch.setattr(atomic_state.os, "fdopen", _boom)
 
-    with (
-        pytest.raises(RuntimeError, match="fdopen"),
-        atomic_state.locked_state(log, strict=True),
-    ):
+    with pytest.raises(
+        atomic_state.LockAcquisitionError, match="fdopen"
+    ) as exc_info, atomic_state.locked_state(log, strict=True):
         ran_unlocked = True
 
     assert not ran_unlocked, (
         "strict=True must never run the critical section when fdopen() fails"
     )
+    assert "refusing to run the critical section unlocked" in str(exc_info.value)
+    assert "proceeding WITHOUT lock" not in str(exc_info.value)
 
 
 def test_locked_state_strict_false_behavior_is_unchanged(

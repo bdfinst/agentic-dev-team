@@ -22,11 +22,22 @@ Eligibility is a two-part test:
 Concurrency (#1920): ``mark_consumed`` is the sole writer of the tracking
 file, and its read-modify-write span is serialized by
 ``atomic_state.locked_state(strict=True)`` so two concurrent callers can
-never lose one another's update. ``resolve``/``read_tracking`` are
-deliberately lock-free — a stale read there can only under-count
-eligibility (miss a consumption recorded moments ago and report a file
-eligible when it is about to be marked consumed elsewhere), never
-double-consume, because the sole writer is serialized.
+never lose one another's update to the tracking FILE. ``resolve``/
+``read_tracking`` are deliberately lock-free — a stale read there can only
+under-count eligibility (miss a consumption recorded moments ago and report
+a file eligible when it is about to be marked consumed elsewhere).
+
+That serialization, on its own, does NOT guarantee a file is never
+double-consumed: two concurrent ``resolve`` calls for the SAME file would
+both observe pre-consumption state and both seed Round 1, regardless of how
+serialized ``mark_consumed``'s writes are — serialization protects the
+tracking file's integrity across *different* files' writes, not the
+ordering between one file's ``resolve`` calls and its own eventual
+``mark_consumed``. The "never double-consume" property this module relies
+on instead comes from an explicit assumption held by its callers: each file
+is resolved and consumed by at most one worker per run (the ``--all``
+fan-out assigns files disjointly across workers, so two workers never race
+on the same file to begin with).
 
 Stdlib-only. (ADR 0014/0015).
 """
@@ -34,10 +45,12 @@ Stdlib-only. (ADR 0014/0015).
 from __future__ import annotations
 
 import argparse
+import contextlib
 import json
 import os
 import subprocess
 import sys
+import tempfile
 from collections.abc import Sequence
 from datetime import datetime, timezone
 from pathlib import Path
@@ -54,6 +67,27 @@ try:
     import atomic_state  # type: ignore[import-not-found]
 except ImportError:  # pragma: no cover - degraded fallback, hooks/lib unreachable
     atomic_state = None
+
+
+class _AtomicStateUnavailableError(RuntimeError):
+    """Raised by ``mark_consumed`` when ``hooks/lib``'s ``atomic_state``
+    module could not be imported — refusing to run the read-modify-write
+    cycle unlocked rather than silently proceeding without it."""
+
+
+# The exception type ``mark_consumed``'s ``except`` clause narrows to
+# (#1920 correctness review): ``atomic_state.LockAcquisitionError`` when the
+# module imported successfully, or the local fallback above when it didn't.
+# Computed once here, at import time, so the ``except`` clause itself never
+# has to attribute-access a possibly-``None`` ``atomic_state`` — evaluating
+# ``atomic_state.LockAcquisitionError`` directly inside the ``except`` tuple
+# would raise ``AttributeError`` instead of matching the real error whenever
+# ``atomic_state is None``.
+_LOCK_FAILURE_ERROR: type[Exception] = (
+    atomic_state.LockAcquisitionError
+    if atomic_state is not None
+    else _AtomicStateUnavailableError
+)
 
 
 # =============================================================================
@@ -98,28 +132,49 @@ def mark_consumed(tracking_path, file_path: str, capture_commit: str) -> dict:
     so a second concurrent caller's read can never observe a state older than
     the first caller's completed write — closing the lost-update race two
     processes racing on the same tracking file could otherwise hit. Within
-    that lock, writes ``<tracking_path>.tmp`` then ``os.replace``s it onto
-    ``tracking_path`` — every other file's existing entry in the tracking
-    dict is preserved. Never raises: a write failure (permission denied,
-    unwritable directory, a monkeypatched ``os.replace`` failure, ...) *or* a
-    failed lock acquisition (``strict=True`` raises ``RuntimeError`` instead
-    of running unlocked — including when ``atomic_state`` itself could not be
-    imported) is caught and reported as ``{"success": False, "error":
-    str(exc)}``, leaving the on-disk file (if any) untouched — the file stays
-    recorded as not-yet-consumed. A stray ``.tmp`` left behind by a failed
-    write is best-effort cleaned up; a failure during that cleanup is
-    swallowed so it never masks the original error being reported.
+    that lock, writes to a temp file obtained via ``tempfile.mkstemp``
+    (mirroring ``atomic_state.atomic_write``'s own idiom in this module
+    family) then ``os.replace``s it onto ``tracking_path`` — every other
+    file's existing entry in the tracking dict is preserved.
+
+    The temp file is unique-per-call (#1920 correctness review), not a
+    fixed, predictable ``<tracking_path>.tmp`` path: a fixed path shared
+    across concurrent callers meant a failed call's cleanup could delete a
+    *different*, still-in-flight caller's temp file, or fire when this call
+    never wrote a temp file at all (e.g. a lock-acquisition failure).
+    ``mkstemp``'s ``O_CREAT | O_EXCL`` semantics also mean it refuses to
+    open an already-existing path at the generated name — including a
+    symlink planted there — so this switch incidentally closes the same
+    symlink-follow concern ``atomic_state.append_line_locked`` hardens
+    against explicitly (#1889 precedent), with no separate ``O_NOFOLLOW``
+    open needed here.
+
+    Never raises: a write failure (permission denied, unwritable directory,
+    a monkeypatched ``os.replace`` failure, ...) *or* a failed lock
+    acquisition (``strict=True`` raises ``atomic_state.LockAcquisitionError``
+    instead of running unlocked — or the local ``_AtomicStateUnavailableError``
+    when ``atomic_state`` itself could not be imported) is caught and
+    reported as ``{"success": False, "error": str(exc)}``, leaving the
+    on-disk file (if any) untouched — the file stays recorded as
+    not-yet-consumed. A stray temp file left behind by a failed write is
+    best-effort cleaned up — but ONLY the temp file this call itself
+    created: ``tmp_name`` is set the moment ``mkstemp`` returns it and stays
+    ``None`` before that, so a lock-acquisition failure (which never reaches
+    ``mkstemp``) or any other failure before that point triggers no cleanup
+    at all, and can never touch a different concurrent caller's in-flight
+    temp file. A failure during that cleanup is swallowed so it never masks
+    the original error being reported.
 
     ``resolve``/``read_tracking`` stay lock-free by design — see the module
-    docstring's ``Concurrency`` note for why a stale read there is safe: this
-    function is the sole writer, now serialized by the lock, so a stale read
-    can only under-count eligibility, never double-consume.
+    docstring's ``Concurrency`` note for why a stale read there is safe, and
+    for the explicit assumption behind "never double-consume" (single
+    worker per file per run, not serialization alone).
     """
     tracking_path = Path(tracking_path)
-    tmp = Path(str(tracking_path) + ".tmp")
+    tmp_name: str | None = None
     try:
         if atomic_state is None:
-            raise RuntimeError(
+            raise _AtomicStateUnavailableError(
                 "atomic_state unavailable (hooks/lib unreachable); refusing "
                 "to run mark_consumed's read-modify-write unlocked"
             )
@@ -131,13 +186,18 @@ def mark_consumed(tracking_path, file_path: str, capture_commit: str) -> dict:
                 .isoformat()
                 .replace("+00:00", "Z"),
             }
-            tmp.write_text(json.dumps(tracking, indent=2), encoding="utf-8")
-            os.replace(tmp, tracking_path)
-    except (OSError, RuntimeError) as exc:
-        try:
-            tmp.unlink(missing_ok=True)
-        except OSError:
-            pass
+            fd, tmp_name = tempfile.mkstemp(
+                prefix=f".{tracking_path.name}-",
+                suffix=".tmp",
+                dir=str(tracking_path.parent),
+            )
+            with os.fdopen(fd, "w", encoding="utf-8") as handle:
+                handle.write(json.dumps(tracking, indent=2))
+            os.replace(tmp_name, tracking_path)
+    except (OSError, _LOCK_FAILURE_ERROR) as exc:
+        if tmp_name is not None:
+            with contextlib.suppress(OSError):
+                Path(tmp_name).unlink(missing_ok=True)
         return {"success": False, "error": str(exc)}
     return {"success": True}
 

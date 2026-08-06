@@ -254,6 +254,37 @@ def test_mark_consumed_lock_acquisition_failure_leaves_no_file_when_none_existed
     assert not (tmp_path / "does-not-exist").exists()
 
 
+def test_mark_consumed_lock_acquisition_failure_never_touches_an_unrelated_tmp_file(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    """A lock-acquisition failure must never delete a tmp file this call did
+    not itself create (#1920 correctness review) — even one sitting at what
+    used to be the shared, predictable ``<tracking_path>.tmp`` name a
+    different, still-in-flight concurrent caller could be writing to.
+    ``mark_consumed`` now names its own tmp file via ``tempfile.mkstemp``
+    inside the lock, and never even reaches that call when lock acquisition
+    itself fails — so the cleanup path (guarded on a local variable that
+    stays ``None`` until ``mkstemp`` actually returns a name) has nothing to
+    clean up and never touches this pre-existing, unrelated file."""
+    path = tmp_path / "tracking.json"
+    other_callers_tmp = Path(str(path) + ".tmp")
+    other_callers_tmp.write_text(
+        "in-flight write from a different caller", encoding="utf-8"
+    )
+
+    def boom(self, *_a, **_k):
+        raise OSError("permission denied creating lock directory")
+
+    monkeypatch.setattr(mbr.atomic_state.Path, "mkdir", boom)
+
+    result = mbr.mark_consumed(path, "src/New.cs", "capture-sha")
+
+    assert result["success"] is False
+    assert other_callers_tmp.read_text(encoding="utf-8") == (
+        "in-flight write from a different caller"
+    )
+
+
 # =============================================================================
 # Concurrency — mark_consumed's lost-update race, now closed (Step 1.3 of
 # #1941/#1920). This test originated in Step 1.2 as an xfail proving TODAY's
@@ -272,7 +303,7 @@ def test_mark_consumed_lock_acquisition_failure_leaves_no_file_when_none_existed
 # widened read-then-write window, no cross-call event dependency) is what
 # actually exercises the guarantee now.
 # =============================================================================
-def test_unlocked_mark_consumed_loses_an_update(
+def test_concurrent_mark_consumed_does_not_lose_an_update(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ):
     """Two concurrent mark-consumed calls for two *different* file_path keys
