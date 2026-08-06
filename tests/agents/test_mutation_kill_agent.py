@@ -17,8 +17,8 @@ from __future__ import annotations
 import re
 
 import pytest
-from _mutation_kill_agent_doc_helpers import AGENT, agent_text
-from skill_doc_helpers import collapsed, section
+from _mutation_kill_agent_doc_helpers import AGENT, agent_text, required_section
+from skill_doc_helpers import collapsed
 
 from _repo_root import REPO_ROOT
 
@@ -169,13 +169,13 @@ def test_parallel_flag_documented_as_invocation_flag_with_agent_tool_fanout(
 
 
 def test_parallel_and_concurrency_interaction_rule_specified(text: str) -> None:
-    parallel_section = section(
+    parallel_section = required_section(
         text,
         r"^## Parallelism",
         boundary_pattern=r"^## ",
         include_start_line=False,
+        name="Parallelism",
     )
-    assert parallel_section, "Parallelism section not found"
     assert re.search(r"concurrency", parallel_section, re.IGNORECASE)
 
 
