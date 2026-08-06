@@ -88,11 +88,11 @@ def test_unclusterable_survivors_have_a_stated_fallback(priority_flat: str) -> N
 def parallel_execution_section(text: str) -> str:
     result = section(
         text,
-        r"^## Parallel execution \(Phase 4\)",
+        r"^## Parallelism",
         boundary_pattern=r"^## ",
         include_start_line=False,
     )
-    assert result, "Parallel execution (Phase 4) section not found"
+    assert result, "Parallelism section not found"
     return result
 
 

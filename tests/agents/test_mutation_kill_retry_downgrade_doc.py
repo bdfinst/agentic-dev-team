@@ -9,14 +9,14 @@ agent prose, no state-mutating filesystem/git operations. Reuses
 rather than a hand-rolled ``.replace("\\n", " ")``.
 
 The actual retry/downgrade mechanism is implemented and behaviorally tested
-in ``tests/scripts/test_mutation_kill_shared.py`` (Steps 3.1/3.2/3.2b) —
+in ``tests/scripts/test_mutation_kill_retry.py`` (Steps 3.1/3.2/3.2b) —
 this file only guards that ``mutation-kill.md``'s "Generation modes" section
 still names the same five facts an operator needs to recognize and configure
 the behavior: the 3-consecutive-failure threshold, the single same-model
 retry, the at-most-once-per-file downgrade rule, that exhaustion at the
 fallback tier surfaces to the operator rather than cascading, and the
 ``DEV_TEAM_MUTATION_FALLBACK_MODEL`` override name. ``mutation-kill.md`` has
-a hard, enforced 620-line ceiling with zero headroom (see
+a hard, enforced 621-line ceiling with zero headroom (see
 ``test_mutation_kill_agent.py::test_agent_body_stays_under_500_line_limit``),
 so the doc text this guards is a single terse bullet, not a full section.
 """

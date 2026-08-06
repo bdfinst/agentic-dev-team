@@ -72,19 +72,21 @@ from pathlib import Path
 import mutation_report
 import mutation_safety_gate
 from mutation_kill_insert_python import apply_generated_tests, count_tests
-from mutation_kill_shared import (
-    CLAUDE_CLI,
+from mutation_kill_retry import (
     EXIT_GENERATION_EXHAUSTED,
-    GIT_TIMEOUT_S,  # noqa: F401 — re-exported for tests (loop.GIT_TIMEOUT_S), matching the C# sibling's export name
     DowngradeEvent,
     GenerationExhausted,
+    make_downgrade_audit_hook,
+    make_retrying_headless_call,
+)
+from mutation_kill_shared import (
+    CLAUDE_CLI,
+    GIT_TIMEOUT_S,  # noqa: F401 — re-exported for tests (loop.GIT_TIMEOUT_S), matching the C# sibling's export name
     _timeout_from_env,
     claude_cli_available,
     git_commit,
     git_reset_and_revert,
     git_revert,
-    make_downgrade_audit_hook,
-    make_retrying_headless_call,
     resolve_model,
     run_claude_headless,  # noqa: F401 — re-exported for tests (loop.run_claude_headless identity check); make_headless_generator now calls it indirectly via make_retrying_headless_call (#1908)
     stop_reason,
@@ -695,7 +697,7 @@ def make_headless_generator(
     """Return a :data:`Generator` that shells to ``claude --print``.
 
     Builds the Python-flavored prompt above, then delegates everything else
-    to :func:`mutation_kill_shared.make_retrying_headless_call` (#1908) —
+    to :func:`mutation_kill_retry.make_retrying_headless_call` (#1908) —
     the 3-consecutive-gateway-class-failures/1-same-model-retry/at-most-
     once-per-file-downgrade wrapper around
     :func:`mutation_kill_shared.run_claude_headless` (#1583, relocated from
@@ -713,9 +715,9 @@ def make_headless_generator(
     number of its own.
 
     ``on_downgrade``, when given, is passed straight through to
-    :func:`mutation_kill_shared.make_retrying_headless_call`. Building the
+    :func:`mutation_kill_retry.make_retrying_headless_call`. Building the
     ``on_downgrade``/``get_label_override`` audit-trail pair
-    (:func:`mutation_kill_shared.make_downgrade_audit_hook`) is this
+    (:func:`mutation_kill_retry.make_downgrade_audit_hook`) is this
     module's own ``main()``'s job now (#1908 review) — this function no
     longer constructs one internally or attaches a
     ``label_override_provider`` attribute to the returned ``generate``;

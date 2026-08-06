@@ -43,7 +43,7 @@ from pathlib import Path
 # have been since 3.9, which the 3.10 floor (ADR 0031) clears.
 import csharp_stryker_net_wrapper as wrapper
 import mutation_report
-from mutation_kill_shared import EXIT_GENERATION_EXHAUSTED
+from mutation_kill_retry import EXIT_GENERATION_EXHAUSTED
 
 # ── Constants ────────────────────────────────────────────────────────────────
 
