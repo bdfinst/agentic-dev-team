@@ -206,6 +206,54 @@ def test_mark_consumed_second_failure_during_cleanup_never_masks_original_error(
     assert result == {"success": False, "error": "disk full"}
 
 
+def test_mark_consumed_lock_acquisition_failure_reports_cleanly(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    """A lock-acquisition failure inside ``atomic_state.locked_state(...,
+    strict=True)`` (here: the lock directory's ``mkdir`` raising ``OSError``,
+    forcing the ``strict=True`` ``RuntimeError`` path) is caught by
+    ``mark_consumed`` and reported as ``{"success": False, "error": ...}``
+    rather than propagating an uncaught exception — and the pre-existing
+    on-disk tracking file is left byte-for-byte unchanged (#1920/#1941 Step
+    1.4)."""
+    path = tmp_path / "tracking.json"
+    mbr.mark_consumed(path, "src/Existing.cs", "older-sha")
+    original_bytes = path.read_bytes()
+
+    def boom(self, *_a, **_k):
+        raise OSError("permission denied creating lock directory")
+
+    monkeypatch.setattr(mbr.atomic_state.Path, "mkdir", boom)
+
+    result = mbr.mark_consumed(path, "src/New.cs", "capture-sha")
+
+    assert result["success"] is False
+    assert "permission denied" in result["error"]
+    # The pre-existing entry survives untouched; no new entry was added and
+    # no partial/corrupt file resulted.
+    assert path.read_bytes() == original_bytes
+
+
+def test_mark_consumed_lock_acquisition_failure_leaves_no_file_when_none_existed(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    """Same lock-acquisition failure as above, but for a tracking file that
+    does not yet exist on disk — no partial/corrupt file must be created."""
+    path = tmp_path / "does-not-exist" / "tracking.json"
+
+    def boom(self, *_a, **_k):
+        raise OSError("permission denied creating lock directory")
+
+    monkeypatch.setattr(mbr.atomic_state.Path, "mkdir", boom)
+
+    result = mbr.mark_consumed(path, "src/New.cs", "capture-sha")
+
+    assert result["success"] is False
+    assert "permission denied" in result["error"]
+    assert not path.exists()
+    assert not (tmp_path / "does-not-exist").exists()
+
+
 # =============================================================================
 # Concurrency — mark_consumed's lost-update race, now closed (Step 1.3 of
 # #1941/#1920). This test originated in Step 1.2 as an xfail proving TODAY's
@@ -739,6 +787,119 @@ def test_cli_mark_consumed_success_false_with_error_on_forced_write_failure(
     payload = json.loads(capsys.readouterr().out)
     assert payload["success"] is False
     assert "disk full" in payload["error"]
+
+
+# =============================================================================
+# Absolute-path invocation from an unrelated cwd (#1920/#1941 Step 1.4) —
+# simulates a --concurrency > 1 worktree: the process's actual cwd (and
+# resolve's --cwd) point somewhere unrelated to the tracking file's own
+# directory, with --tracking passed as an absolute path elsewhere. Neither
+# resolve/_resolve nor mark-consumed/mark_consumed ever resolves --tracking,
+# --file, or --cwd relative to this script's own location — only to the
+# caller-supplied --cwd/CWD (confirmed by reading _cli/_resolve/
+# _mark_consumed/_git_last_commit_sha/_git_is_ancestor: every path value is
+# used as-is, and mutation_report.load_report's Path(report_path) is never
+# joined with Path(__file__)) — so no production code change was needed for
+# this to already work.
+# =============================================================================
+def test_baseline_reuse_absolute_path_from_unrelated_cwd(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys
+):
+    def fake_run(argv, **_k):
+        if argv[:2] == ["git", "log"]:
+            return subprocess.CompletedProcess(argv, 0, stdout="filesha\n", stderr="")
+        return subprocess.CompletedProcess(argv, 0, stdout="", stderr="")
+
+    monkeypatch.setattr(mbr.subprocess, "run", fake_run)
+
+    def run_resolve_then_mark_consumed(
+        *, cwd_for_process: Path, tracking_path: Path, cwd_flag: str
+    ) -> tuple[int, dict, int, dict, dict]:
+        monkeypatch.chdir(cwd_for_process)
+        rc_resolve = mbr._cli(
+            [
+                "resolve",
+                "--file",
+                "src/Foo.cs",
+                "--capture-commit",
+                "capture-sha",
+                "--tracking",
+                str(tracking_path),
+                "--cwd",
+                cwd_flag,
+            ]
+        )
+        resolve_payload = json.loads(capsys.readouterr().out)
+
+        rc_mark = mbr._cli(
+            [
+                "mark-consumed",
+                "--file",
+                "src/Foo.cs",
+                "--capture-commit",
+                "capture-sha",
+                "--tracking",
+                str(tracking_path),
+            ]
+        )
+        mark_payload = json.loads(capsys.readouterr().out)
+        entry = mbr.read_tracking(tracking_path)["src/Foo.cs"]
+        return rc_resolve, resolve_payload, rc_mark, mark_payload, entry
+
+    # Same-directory invocation: process cwd IS the tracking file's own
+    # directory, and --cwd matches it too.
+    same_dir = tmp_path / "same-dir"
+    same_dir.mkdir()
+    same_dir_tracking = same_dir / "tracking.json"
+    (
+        rc_resolve_same,
+        resolve_payload_same,
+        rc_mark_same,
+        mark_payload_same,
+        entry_same,
+    ) = run_resolve_then_mark_consumed(
+        cwd_for_process=same_dir,
+        tracking_path=same_dir_tracking,
+        cwd_flag=str(same_dir),
+    )
+
+    # Unrelated-cwd invocation: absolute --tracking path lives elsewhere,
+    # and both the process's actual cwd and resolve's --cwd point at a
+    # third, unrelated temp directory — exactly the --concurrency > 1
+    # worktree shape (worktree cwd, main-checkout absolute tracking path).
+    unrelated_cwd = tmp_path / "unrelated-worktree"
+    unrelated_cwd.mkdir()
+    elsewhere_tracking = tmp_path / "elsewhere" / "tracking.json"
+    elsewhere_tracking.parent.mkdir(parents=True)
+    (
+        rc_resolve_unrelated,
+        resolve_payload_unrelated,
+        rc_mark_unrelated,
+        mark_payload_unrelated,
+        entry_unrelated,
+    ) = run_resolve_then_mark_consumed(
+        cwd_for_process=unrelated_cwd,
+        tracking_path=elsewhere_tracking,
+        cwd_flag=str(unrelated_cwd),
+    )
+
+    assert rc_resolve_unrelated == rc_resolve_same == 0
+    assert rc_mark_unrelated == rc_mark_same == 0
+    assert (
+        resolve_payload_unrelated
+        == resolve_payload_same
+        == {
+            "eligible": True,
+            "file": "src/Foo.cs",
+            "capture_commit": "capture-sha",
+        }
+    )
+    assert mark_payload_unrelated == mark_payload_same == {"success": True}
+    assert (
+        entry_unrelated["capture_commit"]
+        == entry_same["capture_commit"]
+        == ("capture-sha")
+    )
 
 
 # =============================================================================
