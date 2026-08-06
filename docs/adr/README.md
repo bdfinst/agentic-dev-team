@@ -34,3 +34,4 @@
 * [32. Shipped-script path-resolution taxonomy](0032-shipped-script-path-resolution-taxonomy.md)
 * [33. Quote every `${CLAUDE_PLUGIN_ROOT}` expansion in a shell fence](0033-quote-claude-plugin-root-expansions.md)
 * [34. Do not build a shared-context pre-pass for duplicate full-file reads (#1611)](0034-do-not-build-shared-context-pre-pass-for-duplicate-full-file-reads-1611.md)
+* [35. Defer two-lane generation/validation concurrency in `mutation-kill --all` (#1909)](0035-defer-two-lane-generation-validation-concurrency-in-mutation-kill-all-1909.md)
