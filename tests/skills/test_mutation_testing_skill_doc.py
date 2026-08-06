@@ -13,6 +13,7 @@ Ported from tests/skills/mutation_testing_skill_doc_tests.bats (issue #674).
 
 from __future__ import annotations
 
+import re
 from collections.abc import Iterable
 
 import pytest
@@ -399,10 +400,7 @@ def test_skill_step_4_table_has_an_equivalent_row_and_an_accepted_this_pass_row(
 
 
 def test_skill_step_4_accepted_row_requires_per_mutant_reason_not_file_level_wave_off():
-    s = _step_4_section()
-    idx = s.find("**Accepted this pass**")
-    assert idx != -1
-    window = s[idx : idx + 400]
+    window = _paragraph_window(_step_4_section(), "**Accepted this pass**")
     assert "reason" in window
     assert "file-level" in window
 
@@ -485,17 +483,35 @@ def test_skill_step_2_skip_static_mutants_cross_reference_links_mutation_kill_an
 
 
 def test_paragraph_window_bounded_raises_when_marker_absent():
-    with pytest.raises(AssertionError):
+    with pytest.raises(AssertionError, match=re.escape("does-not-exist")):
         _paragraph_window("no markers here at all", "does-not-exist")
 
 
 def test_paragraph_window_unbounded_multi_candidate_raises_when_none_present():
-    with pytest.raises(AssertionError):
+    with pytest.raises(
+        AssertionError,
+        match=re.escape("does-not-exist") + ".*" + re.escape("also-does-not-exist"),
+    ):
         _paragraph_window(
             "no markers here at all",
             ("does-not-exist", "also-does-not-exist"),
             bounded=False,
         )
+
+
+def test_paragraph_window_bounded_stops_at_first_blank_line():
+    assert _paragraph_window("A\n\nB\n\nC", "A") == "A"
+
+
+def test_paragraph_window_unbounded_runs_to_end_of_section():
+    assert _paragraph_window("A\n\nB", "A", bounded=False) == "A\n\nB"
+
+
+def test_paragraph_window_multi_candidate_falls_back_to_second_candidate():
+    assert (
+        _paragraph_window("B section here", ("A", "B"), bounded=False)
+        == "B section here"
+    )
 
 
 def test_skip_static_mutants_window_docstring_preserved():
