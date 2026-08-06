@@ -15,33 +15,29 @@ from __future__ import annotations
 import re
 
 import pytest
-from skill_doc_helpers import section
-
-from _repo_root import REPO_ROOT
-
-AGENT = REPO_ROOT / "plugins" / "dev-team" / "agents" / "mutation-kill.md"
+from _mutation_kill_agent_doc_helpers import agent_text, required_section
+from skill_doc_helpers import collapsed
 
 
 @pytest.fixture(scope="module")
 def text() -> str:
-    return AGENT.read_text(encoding="utf-8")
+    return agent_text()
 
 
 @pytest.fixture(scope="module")
 def priority_section(text: str) -> str:
-    result = section(
+    return required_section(
         text,
         r"^## Target mutation types in priority order",
         boundary_pattern=r"^## ",
         include_start_line=False,
+        name="Target mutation types in priority order",
     )
-    assert result, "Target mutation types in priority order section not found"
-    return result
 
 
 @pytest.fixture(scope="module")
 def priority_flat(priority_section: str) -> str:
-    return priority_section.replace("\n", " ")
+    return collapsed(priority_section)
 
 
 def test_clustering_happens_before_the_priority_order(priority_flat: str) -> None:
@@ -86,14 +82,13 @@ def test_unclusterable_survivors_have_a_stated_fallback(priority_flat: str) -> N
 
 @pytest.fixture(scope="module")
 def parallel_execution_section(text: str) -> str:
-    result = section(
+    return required_section(
         text,
         r"^## Parallelism",
         boundary_pattern=r"^## ",
         include_start_line=False,
+        name="Parallelism",
     )
-    assert result, "Parallelism section not found"
-    return result
 
 
 def test_parallel_execution_propagates_clustering_before_priority_order(
@@ -107,7 +102,7 @@ def test_parallel_execution_propagates_clustering_before_priority_order(
     unrelated "clusters" mention later in the same step would otherwise
     keep a bare substring check green even if the clustering-first step
     were removed (round-2 review finding)."""
-    flat = parallel_execution_section.replace("\n", " ")
+    flat = collapsed(parallel_execution_section)
     assert re.search(
         r"clusters them by\s+source line.*targets mutation types in the priority order",
         flat,
