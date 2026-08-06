@@ -18,6 +18,20 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 PLUGIN_ROOT = REPO_ROOT / "plugins" / "dev-team"
 
 
+def _approx_tokens(text: str) -> int:
+    """Char-count / 4 heuristic — mirrors the heuristic tokenizer's fallback
+    formula in `scripts/measure-tokens.sh` (`chars / 4`, used there only
+    when `tiktoken` isn't installed) — though that script counts *bytes*
+    via `wc -c`, while this counts Python `str` characters, so it reads
+    slightly lower than the script on text with non-ASCII characters (this
+    file has some: em dashes, `·`, `→`). Immaterial at current ceiling
+    margins. Deliberately self-contained: Slice 1
+    of plans/test-improve-context-loading-strategy.md must not depend on
+    Slice 2's not-yet-created `scripts/measure_tokens.py` (Wave 2 doesn't
+    exist when Slice 1 runs in Wave 1)."""
+    return len(text) // 4
+
+
 def _posix_classes(pattern: str) -> str:
     """POSIX bracket classes (`[[:space:]]`, ...) aren't valid inside
     Python's `re` — the bats originals use them freely (they run through
