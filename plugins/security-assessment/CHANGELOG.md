@@ -1,5 +1,12 @@
 # Changelog
 
+## [3.7.3](https://github.com/bdfinst/agentic-dev-team/compare/security-assessment-v3.7.2...security-assessment-v3.7.3) (2026-08-06)
+
+
+### Bug Fixes
+
+* **batch:** close 37 confirmed issues from issue-triage [#1795](https://github.com/bdfinst/agentic-dev-team/issues/1795)-[#1896](https://github.com/bdfinst/agentic-dev-team/issues/1896) ([#1911](https://github.com/bdfinst/agentic-dev-team/issues/1911)) ([e0e4f36](https://github.com/bdfinst/agentic-dev-team/commit/e0e4f367be4d5edaf6bd0a804ff5afe3afe6204b))
+
 ## [3.7.2](https://github.com/bdfinst/agentic-dev-team/compare/security-assessment-v3.7.1...security-assessment-v3.7.2) (2026-08-01)
 
 
