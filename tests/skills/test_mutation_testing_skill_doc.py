@@ -13,6 +13,7 @@ Ported from tests/skills/mutation_testing_skill_doc_tests.bats (issue #674).
 
 from __future__ import annotations
 
+import pytest
 from skill_doc_helpers import (
     PLUGIN_ROOT,
     grep,
@@ -147,6 +148,20 @@ def test_skill_timeout_warning_names_additional_timeout_as_the_fix():
 
 def test_skill_emitting_adapters_paragraph_exists_in_the_schema_section():
     assert grep(r"[Ee]mitting adapters", _machine_readable_section())
+
+
+def _paragraph_window(section: str, marker: str, *, bounded: bool = True) -> str:
+    """Find `marker` in `section` and return the window from that point.
+
+    `bounded=True`: sliced at the next blank line (paragraph boundary) —
+    the shape `_line_clustering_window`/`_skip_static_mutants_window` use.
+    Raises AssertionError naming `marker` when it isn't found.
+    """
+    idx = section.find(marker)
+    assert idx != -1, f"marker not found in section: {marker!r}"
+    if bounded:
+        return section[idx:].split("\n\n", 1)[0]
+    return section[idx:]
 
 
 def _emitting_adapters_window() -> str:
@@ -401,13 +416,10 @@ def test_skill_output_format_has_an_accepted_survivors_deferred_table():
 
 
 def _line_clustering_window() -> str:
-    s = _step_4_section()
-    idx = s.find("Cluster survivors by source line")
-    assert idx != -1
     # Bound by the paragraph itself (next blank line), not a fixed char
     # count — a fixed count has near-zero slack against future trims of
     # this paragraph and risks silently re-widening into the next section.
-    return s[idx:].split("\n\n", 1)[0]
+    return _paragraph_window(_step_4_section(), "Cluster survivors by source line")
 
 
 def test_skill_step_4_references_line_clustering_approach():
@@ -443,10 +455,7 @@ def _skip_static_mutants_window() -> str:
     reference elsewhere in Step 2 could keep these tests green even if the
     --skip-static-mutants paragraph itself lost its cross-links. Scope to
     the paragraph specifically, mirroring _emitting_adapters_window()."""
-    s = _step_2_section()
-    idx = s.find("--skip-static-mutants")
-    assert idx != -1
-    return s[idx:].split("\n\n", 1)[0]
+    return _paragraph_window(_step_2_section(), "--skip-static-mutants")
 
 
 def test_skill_step_2_cross_references_skip_static_mutants_flag():
@@ -457,6 +466,21 @@ def test_skill_step_2_skip_static_mutants_cross_reference_links_mutation_kill_an
     w = _skip_static_mutants_window()
     assert "mutation-kill.md#invocation" in w
     assert "javascript-stryker.md" in w
+
+
+# --- Issue #1927 Slice 2 Step 2.1: _paragraph_window itself ----------------
+
+
+def test_paragraph_window_bounded_raises_when_marker_absent():
+    with pytest.raises(AssertionError):
+        _paragraph_window("no markers here at all", "does-not-exist")
+
+
+def test_skip_static_mutants_window_docstring_preserved():
+    assert (
+        "the prior version of this window scoped to the whole"
+        in _skip_static_mutants_window.__doc__.replace("\n", " ")
+    )
 
 
 # --- Issue #1910 Slice 5 Step 5.1: named equivalent-mutant taxonomy
