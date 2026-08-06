@@ -1,6 +1,6 @@
 """banned_scripts_policy — shared policy constants and checkout-shape probe
-for the #1755 banned-script hook pair (`scan_bash_for_banned_scripts.py`,
-`scan_banned_scripts.py`).
+for the #1755 banned-script hook pair (`scan_bash_command_for_banned_scripts.py`,
+`scan_worktree_for_banned_scripts.py`).
 
 Both hooks independently defined identical `BANNED_EXTENSIONS`/
 `SCOPED_PREFIX`/`ALLOWED_RELATIVE_PATHS` constants (#1850). This module is

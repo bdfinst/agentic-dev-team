@@ -10,6 +10,7 @@ whole suite green.
 
 from __future__ import annotations
 
+import errno
 import os
 import stat
 import sys
@@ -132,3 +133,39 @@ def test_locked_state_still_fails_open_when_fdopen_itself_fails(
         ran_unlocked = True
 
     assert ran_unlocked, "critical section must still run when fdopen() fails"
+
+
+def test_locked_state_fdopen_failure_prints_a_stderr_diagnostic(
+    tmp_path: Path, monkeypatch, capsys
+) -> None:
+    """#1904 item 6: a fail-open fallthrough must never be silent. This pins
+    the fdopen()-failure path (the easiest of the four fail-open paths to
+    trigger deterministically) — the other three (parent-mkdir failure,
+    lock-file-open failure, budget exhaustion) emit the analogous diagnostic
+    at their own fallthrough point in `locked_state`."""
+    log = tmp_path / "log.jsonl"
+
+    def _boom(*_args, **_kwargs):
+        raise OSError("fdopen failed")
+
+    monkeypatch.setattr(atomic_state.os, "fdopen", _boom)
+
+    with atomic_state.locked_state(log):
+        pass
+
+    captured = capsys.readouterr()
+    assert "atomic_state: lock acquisition failed" in captured.err
+    assert "proceeding WITHOUT lock" in captured.err
+    assert str(log) in captured.err
+
+
+def test_lock_contention_errnos_includes_deadlock_errnos_when_present() -> None:
+    """#1904 item 9: Windows CRT `_locking` may surface a deadlock-shaped
+    errno on contention; treating that as a non-retryable error would give
+    up the lock immediately instead of retrying, indistinguishable from a
+    genuine failure. Defensive on platforms where these attributes exist at
+    all — `getattr(..., None)` already filters an absent platform out."""
+    for name in ("EDEADLOCK", "EDEADLK"):
+        code = getattr(errno, name, None)
+        if code is not None:
+            assert code in atomic_state._LOCK_CONTENTION_ERRNOS

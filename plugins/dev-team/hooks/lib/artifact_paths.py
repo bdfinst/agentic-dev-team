@@ -29,8 +29,15 @@ def project_root(start: Path | str | None = None) -> Path:
     process's OS cwd). On any failure to resolve a git root — not a repo,
     `git` not installed, non-zero exit, empty output — falls back to
     `start` (or cwd) itself. Never raises.
+
+    `start` is normalized defensively (#1904 item 16) rather than passed
+    straight to `Path(...)`: a non-path-like `start` (e.g. an `int`) would
+    otherwise raise `TypeError` before the `try` below even begins, and a
+    `cwd` containing an embedded NUL byte makes `subprocess.run(cwd=...)`
+    raise `ValueError`, not `OSError` — both previously escaped this
+    function's "never raises" contract despite the `except` clause here.
     """
-    begin = Path(start) if start is not None else Path.cwd()
+    begin = Path(start) if isinstance(start, (str, os.PathLike)) else Path.cwd()
     try:
         completed = subprocess.run(
             ["git", "rev-parse", "--show-toplevel"],
@@ -39,7 +46,7 @@ def project_root(start: Path | str | None = None) -> Path:
             check=False,
             text=True,
         )
-    except (FileNotFoundError, OSError):
+    except (FileNotFoundError, OSError, ValueError):
         return begin
     if completed.returncode != 0:
         return begin

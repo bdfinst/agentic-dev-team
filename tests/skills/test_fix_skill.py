@@ -645,21 +645,24 @@ def test_step5_commits_the_closure_update_separately_from_cycle_commits() -> Non
     assert "what `/pr`'s own pre-flight check looks for" in step5
 
 
-def test_step4d_and_step5_commit_via_gate_bypass_reason_no_verify() -> None:
-    """Finding 1 (arch-review, error): /fix has no Agent/Task tool (Constraint
-    1), so it cannot corroborate hooks/pre_commit_review.py's dispatch-ledger
-    gate. Both mandated commits — Step 4(d)'s per-cycle commit and Step 5's
-    record-closure commit — must use the hook's own sanctioned, audited
-    bypass mechanism rather than a bare `git commit` that the hook would
-    block outright."""
+def test_step4d_and_step5_commit_via_bare_git_commit() -> None:
+    """#1886: the review-corroboration gate moved from `git commit` to
+    `gh pr create` — `hooks/pre_commit_review.py` is now a documented no-op,
+    so /fix's intra-run cycle commits no longer need the `GATE_BYPASS_REASON
+    --no-verify` bypass that mechanism used to require. Both mandated
+    commits — Step 4(d)'s per-cycle commit and Step 5's record-closure
+    commit — now use a bare `git commit`; the real review gate is Step 6's
+    `/pr` dispatch (which gates at `gh pr create`), not either of these."""
     step4 = collapsed(_step4(_text()))
     step5 = collapsed(_step5(_text()))
     for step_text in (step4, step5):
-        assert 'GATE_BYPASS_REASON="<reason>" git commit --no-verify' in step_text
-        assert ".claude/metrics/gate-bypass-audit.jsonl" in step_text
-        assert "not silent" in step_text or "audited" in step_text
+        assert 'git commit -m "<message>"' in step_text
+        assert "GATE_BYPASS_REASON" not in step_text
+        assert "--no-verify" not in step_text
     assert "hooks/pre_commit_review.py" in step4
     assert "hooks/pre_commit_review.py" in step5
+    assert "no-op" in step4 and "no-op" in step5
+    assert "#1886" in step4 and "#1886" in step5
 
 
 def test_step5_dirty_tree_phrasing_matches_step6i_corrected_framing() -> None:

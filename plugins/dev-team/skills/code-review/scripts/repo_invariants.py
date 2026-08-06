@@ -63,6 +63,17 @@ from pathlib import Path
 # skills/code-review/scripts -> skills/code-review -> skills -> plugin root
 _PLUGIN_ROOT = Path(__file__).resolve().parents[3]
 
+# The `agents/` directory root and its *-review.md glob are the shared,
+# resolved single source of truth in hooks/lib (#1904 item 3) — scripts/ ->
+# hooks/lib/ is the correct dependency direction (see
+# review_agent_registry.py's own docstring). Import rather than re-deriving
+# `_PLUGIN_ROOT / "agents"` locally.
+sys.path.insert(0, str(_PLUGIN_ROOT / "hooks" / "lib"))
+from review_agent_registry import (
+    default_agents_dir,
+    find_review_agent_files,
+)
+
 
 def _read_text(path: Path) -> str:
     try:
@@ -380,12 +391,12 @@ def check_scope_glob_matches_skip_prose(changed_files=None) -> list[dict]:
     changed = _changed_set(changed_files)
     if changed is None:
         return []
-    agents_dir = _PLUGIN_ROOT / "agents"
+    agents_dir = default_agents_dir()
     if not agents_dir.is_dir():
         return []
 
     findings = []
-    for path in sorted(agents_dir.glob("*-review.md")):
+    for path in find_review_agent_files(agents_dir):
         rel = _repo_relative(path)
         if changed is not None and rel not in changed:
             continue
@@ -439,7 +450,7 @@ def _sweep_all() -> list[dict]:
         _repo_relative(p) for p in sorted((_REPO_ROOT / "evals" / "expected").glob("*.json"))
     ]
     every_agent = [
-        _repo_relative(p) for p in sorted((_PLUGIN_ROOT / "agents").glob("*-review.md"))
+        _repo_relative(p) for p in find_review_agent_files(default_agents_dir())
     ]
     return run_all(every_expected + every_agent)
 

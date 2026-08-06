@@ -1,12 +1,21 @@
 """Unit tests for hooks/lib/review_gate_corroboration.py (#1461).
 
 Covers:
-  - distinct_review_agent_dispatches(): in-window distinct-agent extraction,
+  - evaluate(): in-window distinct-agent extraction (`.agents_in_window`),
     window exclusion, duplicate-dispatch dedup, missing/unreadable-ledger
-    fail-closed behavior.
-  - evaluate(): the fuller result — any_dispatch_ever (stale-vs-never
-    distinction) and read_failure_reason (missing vs unreadable vs None).
+    fail-closed behavior, any_dispatch_ever (stale-vs-never distinction),
+    and read_failure_reason (missing vs unreadable vs None).
   - mtime_to_iso(): epoch-float -> the shared %Y-%m-%dT%H:%M:%SZ format.
+
+`distinct_review_agent_dispatches()`, `distinct_normalized_dispatches()`,
+`evaluate_cosmetic_carry_forward()`, and `CosmeticCarryForwardEvidence` were
+deleted in #1904 (zero remaining production callers, confirmed by repo-wide
+grep — their sole consumer, `pre_commit_review.py`'s cosmetic-delta
+carry-forward veto, was already retired to a no-op by #1886). The tests that
+exercised `distinct_review_agent_dispatches()`'s in-window extraction logic
+were converted to call `evaluate(...).agents_in_window` instead — same
+underlying `_binding_evidence()` code path, so no coverage was lost; the
+tests specific to the other three (now-deleted) functions were removed.
 """
 
 from __future__ import annotations
@@ -67,7 +76,7 @@ def _dispatch_failure(ts: str, agent: str, subject_hash: str = _HASH) -> dict:
 
 
 # ---------------------------------------------------------------------------
-# distinct_review_agent_dispatches() — in-window distinct extraction
+# evaluate().agents_in_window — in-window distinct extraction
 # ---------------------------------------------------------------------------
 
 
@@ -79,7 +88,7 @@ def test_two_distinct_agents_in_window_both_returned(tmp_path: Path) -> None:
             _record("2026-01-01T11:55:00Z", "structure-review"),
         ],
     )
-    result = rgc.distinct_review_agent_dispatches(tmp_path, _ANCHOR, _WINDOW, _HASH)
+    result = rgc.evaluate(tmp_path, _ANCHOR, _WINDOW, _HASH).agents_in_window
     assert result == {"security-review", "structure-review"}
 
 
@@ -91,7 +100,7 @@ def test_entries_outside_window_excluded(tmp_path: Path) -> None:
             _record("2026-01-01T11:55:00Z", "structure-review"),  # inside window
         ],
     )
-    result = rgc.distinct_review_agent_dispatches(tmp_path, _ANCHOR, _WINDOW, _HASH)
+    result = rgc.evaluate(tmp_path, _ANCHOR, _WINDOW, _HASH).agents_in_window
     assert result == {"structure-review"}
 
 
@@ -103,12 +112,12 @@ def test_duplicate_dispatches_of_same_agent_count_once(tmp_path: Path) -> None:
             _record("2026-01-01T11:55:00Z", "security-review"),
         ],
     )
-    result = rgc.distinct_review_agent_dispatches(tmp_path, _ANCHOR, _WINDOW, _HASH)
+    result = rgc.evaluate(tmp_path, _ANCHOR, _WINDOW, _HASH).agents_in_window
     assert result == {"security-review"}
 
 
 def test_missing_ledger_returns_empty_set(tmp_path: Path) -> None:
-    result = rgc.distinct_review_agent_dispatches(tmp_path, _ANCHOR, _WINDOW, _HASH)
+    result = rgc.evaluate(tmp_path, _ANCHOR, _WINDOW, _HASH).agents_in_window
     assert result == set()
 
 
@@ -120,20 +129,20 @@ def test_malformed_individual_lines_are_tolerated_not_fatal(tmp_path: Path) -> N
         "not json at all\n",
         encoding="utf-8",
     )
-    result = rgc.distinct_review_agent_dispatches(tmp_path, _ANCHOR, _WINDOW, _HASH)
+    result = rgc.evaluate(tmp_path, _ANCHOR, _WINDOW, _HASH).agents_in_window
     assert result == {"security-review"}
 
 
 def test_boundary_at_exact_window_edge_is_inclusive(tmp_path: Path) -> None:
     # Exactly window_seconds before the anchor — inclusive per since/until semantics.
     _write_ledger(tmp_path, [_record("2026-01-01T11:30:00Z", "security-review")])
-    result = rgc.distinct_review_agent_dispatches(tmp_path, _ANCHOR, _WINDOW, _HASH)
+    result = rgc.evaluate(tmp_path, _ANCHOR, _WINDOW, _HASH).agents_in_window
     assert result == {"security-review"}
 
 
 def test_entry_at_anchor_timestamp_itself_is_included(tmp_path: Path) -> None:
     _write_ledger(tmp_path, [_record(_ANCHOR, "security-review")])
-    result = rgc.distinct_review_agent_dispatches(tmp_path, _ANCHOR, _WINDOW, _HASH)
+    result = rgc.evaluate(tmp_path, _ANCHOR, _WINDOW, _HASH).agents_in_window
     assert result == {"security-review"}
 
 
@@ -142,7 +151,7 @@ def test_non_record_decision_from_same_hook_is_ignored(tmp_path: Path) -> None:
         tmp_path,
         [{"ts": "2026-01-01T11:55:00Z", "hook": "agent_dispatch_ledger", "decision": "warn", "matched_rule": "x"}],
     )
-    result = rgc.distinct_review_agent_dispatches(tmp_path, _ANCHOR, _WINDOW, _HASH)
+    result = rgc.evaluate(tmp_path, _ANCHOR, _WINDOW, _HASH).agents_in_window
     assert result == set()
 
 
@@ -151,7 +160,7 @@ def test_entries_from_other_hooks_are_ignored(tmp_path: Path) -> None:
         tmp_path,
         [{"ts": "2026-01-01T11:55:00Z", "hook": "destructive_guard", "decision": "warn", "matched_rule": "x"}],
     )
-    result = rgc.distinct_review_agent_dispatches(tmp_path, _ANCHOR, _WINDOW, _HASH)
+    result = rgc.evaluate(tmp_path, _ANCHOR, _WINDOW, _HASH).agents_in_window
     assert result == set()
 
 
@@ -321,7 +330,7 @@ def test_dispatches_for_a_different_subject_hash_do_not_count(tmp_path: Path) ->
             _record("2026-01-01T11:55:00Z", "structure-review", subject_hash="other-changeset"),
         ],
     )
-    result = rgc.distinct_review_agent_dispatches(tmp_path, _ANCHOR, _WINDOW, _HASH)
+    result = rgc.evaluate(tmp_path, _ANCHOR, _WINDOW, _HASH).agents_in_window
     assert result == set()
 
 
@@ -333,7 +342,7 @@ def test_mixed_subject_hashes_only_matching_ones_count(tmp_path: Path) -> None:
             _record("2026-01-01T11:55:00Z", "structure-review", subject_hash="other-changeset"),
         ],
     )
-    result = rgc.distinct_review_agent_dispatches(tmp_path, _ANCHOR, _WINDOW, _HASH)
+    result = rgc.evaluate(tmp_path, _ANCHOR, _WINDOW, _HASH).agents_in_window
     assert result == {"security-review"}
 
 
@@ -355,7 +364,7 @@ def test_event_missing_subject_hash_field_entirely_does_not_count(tmp_path: Path
         "plugin_version": "0.0.0",
     }
     _write_ledger(tmp_path, [stale_shape])
-    result = rgc.distinct_review_agent_dispatches(tmp_path, _ANCHOR, _WINDOW, _HASH)
+    result = rgc.evaluate(tmp_path, _ANCHOR, _WINDOW, _HASH).agents_in_window
     assert result == set()
 
 
@@ -375,7 +384,7 @@ def test_unregistered_agent_name_is_excluded_even_with_correct_hash(tmp_path: Pa
             _record("2026-01-01T11:55:00Z", "totally-fake-review"),
         ],
     )
-    result = rgc.distinct_review_agent_dispatches(tmp_path, _ANCHOR, _WINDOW, _HASH)
+    result = rgc.evaluate(tmp_path, _ANCHOR, _WINDOW, _HASH).agents_in_window
     assert result == {"security-review"}
     assert "totally-fake-review" not in result
 
@@ -456,7 +465,7 @@ def test_missing_ledger_fails_closed_for_dispatch_failure_agents(tmp_path: Path)
     treated the same as "a failure exists" (non-empty), never as an
     empty/all-clear set."""
     result = rgc.evaluate(tmp_path, _ANCHOR, _WINDOW, _HASH)
-    assert result.dispatch_failure_agents == rgc._UNPROVABLE_DISPATCH_FAILURE
+    assert result.dispatch_failure_agents is None
     assert result.dispatch_failure_agents != frozenset()
 
 
@@ -465,7 +474,7 @@ def test_unreadable_ledger_fails_closed_for_dispatch_failure_agents(tmp_path: Pa
     log.parent.mkdir(parents=True, exist_ok=True)
     log.write_bytes(b"\xff\xfe\x00not valid utf-8\x80\x81")
     result = rgc.evaluate(tmp_path, _ANCHOR, _WINDOW, _HASH)
-    assert result.dispatch_failure_agents == rgc._UNPROVABLE_DISPATCH_FAILURE
+    assert result.dispatch_failure_agents is None
     assert result.dispatch_failure_agents != frozenset()
 
 
@@ -483,7 +492,7 @@ def test_registry_read_failure_fails_closed_for_dispatch_failure_agents_not_open
     _write_ledger(tmp_path, [_dispatch_failure("2026-01-01T11:55:00Z", "security-review")])
     monkeypatch.setattr(rgc, "_registered_agents", lambda: None)
     result = rgc.evaluate(tmp_path, _ANCHOR, _WINDOW, _HASH)
-    assert result.dispatch_failure_agents == rgc._UNPROVABLE_DISPATCH_FAILURE
+    assert result.dispatch_failure_agents is None
     assert result.dispatch_failure_agents != frozenset()
     # Positive evidence still fails closed the OLD (safe) way: narrowed to
     # empty, never widened.
@@ -501,7 +510,7 @@ def test_registered_agents_returns_none_for_a_real_missing_agents_dir(
     instead of None. Exercises the actual function, not a monkeypatched
     stand-in for it."""
     missing = tmp_path / "no-such-agents-dir"
-    monkeypatch.setattr(rgc, "_agents_dir", lambda: missing)
+    monkeypatch.setattr(rgc.review_agent_registry, "default_agents_dir", lambda: missing)
     assert rgc._registered_agents() is None
 
 
@@ -518,7 +527,7 @@ def test_registered_agents_returns_empty_frozenset_for_zero_registered_files_not
     frozenset as-is."""
     empty_dir = tmp_path / "agents"
     empty_dir.mkdir()
-    monkeypatch.setattr(rgc, "_agents_dir", lambda: empty_dir)
+    monkeypatch.setattr(rgc.review_agent_registry, "default_agents_dir", lambda: empty_dir)
     result = rgc._registered_agents()
     assert result == frozenset()
     assert result is not None
@@ -533,11 +542,11 @@ def test_registered_agents_empty_read_is_distinguishable_from_read_failure(
     ambiguous falsy value collapsed by the old `names or None` line."""
     empty_dir = tmp_path / "agents"
     empty_dir.mkdir()
-    monkeypatch.setattr(rgc, "_agents_dir", lambda: empty_dir)
+    monkeypatch.setattr(rgc.review_agent_registry, "default_agents_dir", lambda: empty_dir)
     empty_but_successful = rgc._registered_agents()
 
     missing = tmp_path / "no-such-agents-dir"
-    monkeypatch.setattr(rgc, "_agents_dir", lambda: missing)
+    monkeypatch.setattr(rgc.review_agent_registry, "default_agents_dir", lambda: missing)
     read_failure = rgc._registered_agents()
 
     assert empty_but_successful == frozenset()
@@ -552,24 +561,10 @@ def test_missing_real_agents_dir_fails_closed_end_to_end(
     produce the fail-closed sentinel through evaluate(), not just through
     the internal _registered_agents() unit above."""
     missing = tmp_path / "no-such-agents-dir"
-    monkeypatch.setattr(rgc, "_agents_dir", lambda: missing)
+    monkeypatch.setattr(rgc.review_agent_registry, "default_agents_dir", lambda: missing)
     _write_ledger(tmp_path, [_dispatch_failure("2026-01-01T11:55:00Z", "security-review")])
     result = rgc.evaluate(tmp_path, _ANCHOR, _WINDOW, _HASH)
-    assert result.dispatch_failure_agents == rgc._UNPROVABLE_DISPATCH_FAILURE
-
-
-def test_registry_read_failure_fails_closed_for_normalized_dispatch_failure_agents(
-    tmp_path: Path, monkeypatch
-) -> None:
-    _write_ledger(
-        tmp_path,
-        [_dispatch_failure_normalized("2026-01-01T11:55:00Z", "security-review", "norm-hash")],
-    )
-    monkeypatch.setattr(rgc, "_registered_agents", lambda: None)
-    _agents, dispatch_failure_agents = rgc.distinct_normalized_dispatches(
-        tmp_path, _ANCHOR, _WINDOW, "norm-hash"
-    )
-    assert dispatch_failure_agents == rgc._UNPROVABLE_DISPATCH_FAILURE
+    assert result.dispatch_failure_agents is None
 
 
 def test_dispatch_failure_entry_with_timestamp_field_instead_of_ts_is_not_dropped(
@@ -630,252 +625,6 @@ def test_non_string_ts_value_is_skipped_not_a_crash(tmp_path: Path) -> None:
     _write_ledger(tmp_path, [entry])
     result = rgc.evaluate(tmp_path, _ANCHOR, _WINDOW, _HASH)
     assert result.dispatch_failure_agents == frozenset({"security-review"})
-
-
-# ---------------------------------------------------------------------------
-# distinct_normalized_dispatches() — new (agents_in_window,
-# dispatch_failure_agents) 2-tuple return (#1763).
-# ---------------------------------------------------------------------------
-
-
-def _record_normalized(ts: str, agent: str, subject_hash_normalized: str) -> dict:
-    return {
-        "ts": ts,
-        "hook": "agent_dispatch_ledger",
-        "tool": "Agent",
-        "decision": "record",
-        "matched_rule": agent,
-        "plugin_version": "0.0.0",
-        "subject_hash_normalized": subject_hash_normalized,
-    }
-
-
-def _dispatch_failure_normalized(ts: str, agent: str, subject_hash_normalized: str) -> dict:
-    """Matches the shape `boundary_events.py`'s `--event dispatch-failure`
-    CLI writes when given `--subject-hash-normalized` (#1763)."""
-    return {
-        "ts": ts,
-        "hook": "code-review",
-        "tool": "Skill",
-        "decision": "dispatch-failure",
-        "matched_rule": agent,
-        "plugin_version": "0.0.0",
-        "subject_hash_normalized": subject_hash_normalized,
-    }
-
-
-def test_distinct_normalized_dispatches_detects_a_real_dispatch_failure(
-    tmp_path: Path,
-) -> None:
-    """Direct proof the normalized read path surfaces genuine data, not
-    only the read-failure sentinel — closing the stale "Known gap" this
-    function's docstring used to claim (#1763 correctness review)."""
-    _write_ledger(
-        tmp_path,
-        [_dispatch_failure_normalized("2026-01-01T11:55:00Z", "security-review", "norm-hash-1")],
-    )
-    _agents, dispatch_failure_agents = rgc.distinct_normalized_dispatches(
-        tmp_path, _ANCHOR, _WINDOW, "norm-hash-1"
-    )
-    assert dispatch_failure_agents == frozenset({"security-review"})
-
-
-def test_distinct_normalized_dispatches_supersession(tmp_path: Path) -> None:
-    _write_ledger(
-        tmp_path,
-        [
-            _dispatch_failure_normalized("2026-01-01T09:00:00Z", "security-review", "norm-hash-1"),
-            _record_normalized("2026-01-01T09:30:00Z", "security-review", "norm-hash-1"),
-        ],
-    )
-    _agents, dispatch_failure_agents = rgc.distinct_normalized_dispatches(
-        tmp_path, _ANCHOR, _WINDOW, "norm-hash-1"
-    )
-    assert dispatch_failure_agents == frozenset()
-
-
-def test_distinct_normalized_dispatches_returns_two_tuple_of_frozensets(
-    tmp_path: Path,
-) -> None:
-    _write_ledger(
-        tmp_path, [_record_normalized("2026-01-01T11:55:00Z", "security-review", "norm-hash-1")]
-    )
-    result = rgc.distinct_normalized_dispatches(tmp_path, _ANCHOR, _WINDOW, "norm-hash-1")
-    assert result == (frozenset({"security-review"}), frozenset())
-    assert isinstance(result, tuple)
-    assert isinstance(result[0], frozenset)
-    assert isinstance(result[1], frozenset)
-
-
-def test_distinct_normalized_dispatches_missing_ledger_fails_closed(tmp_path: Path) -> None:
-    result = rgc.distinct_normalized_dispatches(tmp_path, _ANCHOR, _WINDOW, "norm-hash-1")
-    assert result == (frozenset(), rgc._UNPROVABLE_DISPATCH_FAILURE)
-
-
-def test_distinct_normalized_dispatches_empty_hash_fails_closed_on_negative_evidence(
-    tmp_path: Path,
-) -> None:
-    """#1763 security review: an unbindable query (empty normalized hash)
-    cannot prove absence of failure — the negative-evidence element must be
-    the fail-closed sentinel, never an all-clear empty set, matching the
-    read-failure branch's own posture."""
-    _write_ledger(
-        tmp_path, [_record_normalized("2026-01-01T11:55:00Z", "security-review", "norm-hash-1")]
-    )
-    result = rgc.distinct_normalized_dispatches(tmp_path, _ANCHOR, _WINDOW, "")
-    assert result == (frozenset(), rgc._UNPROVABLE_DISPATCH_FAILURE)
-
-
-# ---------------------------------------------------------------------------
-# evaluate_cosmetic_carry_forward() — single-read-pass evidence for the
-# normalized-hash binding plus every raw-hash binding (#1836 perf fix and
-# the security/correctness findings raised against its first draft: no
-# ledger/registry read-count regression, and the sentinel must never mix
-# into a union with real agent names).
-# ---------------------------------------------------------------------------
-
-
-def test_evaluate_cosmetic_carry_forward_missing_ledger_fails_closed(tmp_path: Path) -> None:
-    result = rgc.evaluate_cosmetic_carry_forward(
-        tmp_path, _ANCHOR, _WINDOW, "norm-hash-1", ("raw-a", "raw-b")
-    )
-    assert result == (frozenset(), "missing", rgc._UNPROVABLE_DISPATCH_FAILURE)
-
-
-def test_evaluate_cosmetic_carry_forward_unreadable_ledger_fails_closed(
-    tmp_path: Path,
-) -> None:
-    log = tmp_path / ".claude" / "metrics" / "boundary-events.jsonl"
-    log.parent.mkdir(parents=True, exist_ok=True)
-    log.write_bytes(b"\xff\xfe\x00not valid utf-8\x80\x81")
-    result = rgc.evaluate_cosmetic_carry_forward(
-        tmp_path, _ANCHOR, _WINDOW, "norm-hash-1", ("raw-a",)
-    )
-    assert result.read_failure_reason == "unreadable"
-    assert result.dispatch_failure_agents == rgc._UNPROVABLE_DISPATCH_FAILURE
-
-
-def test_evaluate_cosmetic_carry_forward_registry_failure_is_pure_sentinel_not_mixed(
-    tmp_path: Path, monkeypatch
-) -> None:
-    """A registry-read failure must make the WHOLE result the sentinel —
-    never mixed with the real agents_in_window a positive normalized-hash
-    dispatch would otherwise contribute."""
-    _write_ledger(
-        tmp_path, [_record_normalized("2026-01-01T11:55:00Z", "security-review", "norm-hash-1")]
-    )
-    monkeypatch.setattr(rgc, "_registered_agents", lambda: None)
-    result = rgc.evaluate_cosmetic_carry_forward(
-        tmp_path, _ANCHOR, _WINDOW, "norm-hash-1", ("raw-a",)
-    )
-    assert result.read_failure_reason is None
-    assert result.dispatch_failure_agents == rgc._UNPROVABLE_DISPATCH_FAILURE
-
-
-def test_evaluate_cosmetic_carry_forward_falsy_normalized_hash_never_mixes_sentinel_with_real_raw_failure(
-    tmp_path: Path,
-) -> None:
-    """#1836 security/correctness review regression test: a falsy
-    `subject_hash_normalized` contributes the unprovable sentinel for its
-    own slot, but a genuine raw-hash dispatch-failure elsewhere must not get
-    unioned WITH that sentinel into a mixed set — the caller's `==` sentinel
-    check in `pre_commit_review.py` cannot detect a mixed set, and
-    `_dispatch_failure_message` would render the sentinel string as if it
-    were a real agent name. The whole result must be EXACTLY the sentinel."""
-    _write_ledger(tmp_path, [_dispatch_failure("2026-01-01T11:55:00Z", "security-review")])
-    result = rgc.evaluate_cosmetic_carry_forward(tmp_path, _ANCHOR, _WINDOW, "", (_HASH,))
-    assert result.agents_in_window == frozenset()
-    assert result.dispatch_failure_agents == rgc._UNPROVABLE_DISPATCH_FAILURE
-    assert "security-review" not in result.dispatch_failure_agents
-
-
-def test_evaluate_cosmetic_carry_forward_falsy_raw_hash_fails_closed_not_silently_skipped(
-    tmp_path: Path,
-) -> None:
-    """#1836 correctness/security review: a falsy raw hash cannot bind any
-    evidence, so it cannot prove the ABSENCE of a dispatch failure either —
-    silently SKIPPING it would read as an all-clear it never earned. Must
-    make the whole result unprovable, not a no-op."""
-    _write_ledger(
-        tmp_path, [_record_normalized("2026-01-01T11:55:00Z", "security-review", "norm-hash-1")]
-    )
-    result = rgc.evaluate_cosmetic_carry_forward(
-        tmp_path, _ANCHOR, _WINDOW, "norm-hash-1", ("", "raw-b")
-    )
-    assert result.dispatch_failure_agents == rgc._UNPROVABLE_DISPATCH_FAILURE
-
-
-def test_evaluate_cosmetic_carry_forward_dispatch_failure_bound_only_to_second_raw_hash(
-    tmp_path: Path,
-) -> None:
-    """Closes the fail-open gap test-review flagged: a dispatch-failure
-    recorded against ONLY the second raw hash (modeling `current_hash` when
-    `stored_raw` carries no evidence) must still surface — not just the
-    first raw hash checked."""
-    _write_ledger(tmp_path, [_dispatch_failure("2026-01-01T11:55:00Z", "security-review")])
-    result = rgc.evaluate_cosmetic_carry_forward(
-        tmp_path, _ANCHOR, _WINDOW, "norm-hash-1", ("unrelated-raw-hash", _HASH)
-    )
-    assert result.dispatch_failure_agents == frozenset({"security-review"})
-
-
-def test_evaluate_cosmetic_carry_forward_duplicate_raw_hashes_counted_once(
-    tmp_path: Path,
-) -> None:
-    _write_ledger(tmp_path, [_dispatch_failure("2026-01-01T11:55:00Z", "security-review")])
-    once = rgc.evaluate_cosmetic_carry_forward(tmp_path, _ANCHOR, _WINDOW, "norm-hash-1", (_HASH,))
-    twice = rgc.evaluate_cosmetic_carry_forward(
-        tmp_path, _ANCHOR, _WINDOW, "norm-hash-1", (_HASH, _HASH)
-    )
-    assert once.dispatch_failure_agents == twice.dispatch_failure_agents == frozenset(
-        {"security-review"}
-    )
-
-
-def test_evaluate_cosmetic_carry_forward_bare_str_raw_hash_is_not_iterated_as_characters(
-    tmp_path: Path,
-) -> None:
-    """A bare `str` passed as `raw_hashes` (the natural mistake for a caller
-    with only one raw hash) must be treated as ONE hash, never iterated
-    character-by-character — the latter would silently match nothing and
-    produce a false all-clear."""
-    _write_ledger(tmp_path, [_dispatch_failure("2026-01-01T11:55:00Z", "security-review", _HASH)])
-    result = rgc.evaluate_cosmetic_carry_forward(tmp_path, _ANCHOR, _WINDOW, "norm-hash-1", _HASH)
-    assert result.dispatch_failure_agents == frozenset({"security-review"})
-
-
-def test_evaluate_cosmetic_carry_forward_positive_evidence_only_from_normalized_binding(
-    tmp_path: Path,
-) -> None:
-    """A dispatch recorded only under a raw hash (never the normalized
-    hash) must never contribute to `agents_in_window` — positive evidence
-    stays scoped to the single normalized-hash binding."""
-    _write_ledger(tmp_path, [_record("2026-01-01T11:55:00Z", "security-review", _HASH)])
-    result = rgc.evaluate_cosmetic_carry_forward(
-        tmp_path, _ANCHOR, _WINDOW, "norm-hash-1", (_HASH,)
-    )
-    assert result.agents_in_window == frozenset()
-
-
-def test_evaluate_cosmetic_carry_forward_reads_ledger_exactly_once(
-    tmp_path: Path, monkeypatch
-) -> None:
-    """#1836 perf fix: one `_read_ledger` call must answer the
-    normalized-hash query AND every raw-hash binding, not one read per
-    binding. State-based assertions on the returned evidence can't observe
-    this by construction — this spy is the only thing that pins the
-    property the rewrite exists for."""
-    _write_ledger(tmp_path, [_record_normalized("2026-01-01T11:55:00Z", "security-review", "n1")])
-    calls = []
-    real_read_ledger = rgc._read_ledger
-
-    def _spy(cwd):
-        calls.append(cwd)
-        return real_read_ledger(cwd)
-
-    monkeypatch.setattr(rgc, "_read_ledger", _spy)
-    rgc.evaluate_cosmetic_carry_forward(tmp_path, _ANCHOR, _WINDOW, "n1", ("raw-a", "raw-b"))
-    assert len(calls) == 1
 
 
 # ---------------------------------------------------------------------------

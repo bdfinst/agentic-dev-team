@@ -182,73 +182,6 @@ def test_quoted_mentions_outside_a_shell_c_wrapper_are_not_flagged(cmd: str) -> 
     assert detect.is_git_commit_command(cmd) is False
 
 
-@pytest.mark.parametrize(
-    "cmd, payload_cwd, expected",
-    [
-        ("git -C /some/repo commit -m x", "/payload", ["/some/repo"]),
-        ("git commit -m x", "/payload", ["/payload"]),
-        ("git status", "/payload", []),
-        # git's own left-to-right `-C` chaining — NOT "last wins": a
-        # relative second `-C` resolves against the PRECEDING `-C`, not
-        # against payload_cwd directly (domain-review + correctness-review
-        # both independently flagged the first version's "last wins"
-        # claim as contradicting git's documented behavior).
-        ("git -C /a -C b commit -m x", "/payload", ["/a/b"]),
-        ("git -C a -C b commit -m x", "/payload", ["/payload/a/b"]),
-        # A -C-looking token inside the commit message itself must not
-        # leak in — resolution is scoped to the matched invocation's own
-        # tokens, not the raw command string.
-        ("git commit -m 'use -C /nope next time'", "/payload", ["/payload"]),
-        # --git-dir/--work-tree combined with -C invalidates -C-based
-        # resolution (git applies --git-dir/--work-tree AFTER -C) — falls
-        # back to payload_cwd rather than trusting -C alone.
-        (
-            "git --git-dir=/real/.git -C /elsewhere commit -m x",
-            "/payload",
-            ["/payload"],
-        ),
-        # An unexpanded shell variable/command-substitution in -C can't be
-        # safely resolved from the raw string alone — falls back to
-        # payload_cwd rather than folding a literal "$WORKTREE" onto it.
-        ('git -C "$WORKTREE" commit -m x', "/payload", ["/payload"]),
-        # A quoted -C value containing whitespace resolves as ONE value,
-        # not split at the space (the regex-only first version could not
-        # express this at all).
-        ('git -C "/a b" commit -m x', "/payload", ["/a b"]),
-    ],
-)
-def test_resolve_commit_targets(cmd: str, payload_cwd: str, expected: list) -> None:
-    assert detect.resolve_commit_targets(cmd, payload_cwd) == expected
-
-
-def test_resolve_commit_targets_decoy_redirect_still_includes_payload_cwd() -> None:
-    """#1801 second round (security-review FAIL): the first version's
-    `-C` resolution used only the FIRST matching segment, so a prepended
-    decoy commit's `-C` became the ONLY thing checked — a real, ungated
-    commit against the payload's own repo in the SAME command slipped
-    through because the decoy's empty target reported "nothing to gate".
-    Each segment now resolves its own target independently, so the
-    second segment (no `-C` of its own) still targets `payload_cwd`."""
-    targets = detect.resolve_commit_targets(
-        "git -C /tmp/decoy commit --allow-empty -m x; git commit -m real",
-        "/payload",
-    )
-    assert targets == ["/tmp/decoy", "/payload"]
-
-
-def test_resolve_commit_targets_single_dash_c_from_non_repo_cwd_is_not_forced() -> None:
-    """The everyday case this decoy fix must not break: `git -C <dir>
-    commit` run from a `payload_cwd` that isn't a git repository at all
-    (ordinary, legitimate `-C` usage) must resolve to `<dir>` ALONE — an
-    earlier draft of the decoy fix force-added `payload_cwd` to every
-    result unconditionally, which would have wrongly required this
-    unrelated, non-repo directory to also pass the gate."""
-    targets = detect.resolve_commit_targets(
-        "git -C /some/other/repo commit -m x", "/not/a/repo/at/all"
-    )
-    assert targets == ["/some/other/repo"]
-
-
 # --- #1801 third round: correctness-review + security-review both FAILED the
 # second (per-segment shlex-tokenizing) attempt too — splitting on raw-string
 # separator characters BEFORE tokenizing let a quoted separator inside a git
@@ -304,33 +237,36 @@ def test_extract_shell_dash_c_bodies_recurses_into_multiline_nested_command() ->
 
 
 @pytest.mark.parametrize(
-    "cmd, payload_cwd, expected",
+    "cmd",
     [
-        # Backtick and NUL-byte -C values are equally unsafe to resolve as
-        # `$VAR` (only `$` was previously pinned).
-        ("git -C '`whoami`' commit -m x", "/payload", ["/payload"]),
-        ("git -C \"a\x00b\" commit -m x", "/payload", ["/payload"]),
+        # Backtick and NUL-byte -C values used to be exercised via
+        # resolve_commit_targets() (deleted #1904, orphaned once its sole
+        # caller — pre_commit_review.py's per-target commit-gating — was
+        # retired to a no-op by #1886). Detection itself is unaffected by
+        # what -C's value contains.
+        "git -C '`whoami`' commit -m x",
+        "git -C \"a\x00b\" commit -m x",
         # A value-taking global option other than -c, exercised in both its
         # separate-token and `=`-attached forms.
-        ("git --namespace foo commit -m x", "/payload", ["/payload"]),
-        ("git --exec-path=/usr/lib/git-core commit -m x", "/payload", ["/payload"]),
+        "git --namespace foo commit -m x",
+        "git --exec-path=/usr/lib/git-core commit -m x",
     ],
 )
-def test_resolve_commit_targets_third_round_cases(
-    cmd: str, payload_cwd: str, expected: list
-) -> None:
-    assert detect.resolve_commit_targets(cmd, payload_cwd) == expected
+def test_detects_commits_with_value_taking_global_options(cmd: str) -> None:
+    assert detect.is_git_commit_command(cmd) is True
 
 
-def test_decoy_redirect_still_closed_with_third_round_tokenizer() -> None:
-    """Re-pin the second-round decoy-redirect fix against the third-round
-    tokenizer rewrite — a regression here would silently reopen #1801's
-    core finding under a different implementation."""
-    targets = detect.resolve_commit_targets(
-        "git -C /tmp/decoy commit --allow-empty -m x; git commit -m real",
-        "/payload",
+def test_decoy_redirect_segment_still_detected_as_a_commit() -> None:
+    """Re-pin the second/third-round decoy-redirect finding's DETECTION
+    half (target RESOLUTION was `resolve_commit_targets()`, deleted #1904):
+    every matching segment in a multi-segment command must still be found,
+    not just the first."""
+    assert (
+        detect.is_git_commit_command(
+            "git -C /tmp/decoy commit --allow-empty -m x; git commit -m real"
+        )
+        is True
     )
-    assert targets == ["/tmp/decoy", "/payload"]
 
 
 # --- #1801 fourth round: security-review + correctness-review both found

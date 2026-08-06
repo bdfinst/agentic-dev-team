@@ -13,9 +13,9 @@ from check_review_agent_mcp_tools import (
     MCP_TOOL_NAMES,
     REASSIGNED_TOOLS,
     SKILL_REQUIRED_PHRASES,
-    _agents_dir_default,
     _skill_file_default,
     check_skill,
+    default_agents_dir,
     find_forbidden,
     find_review_agents,
     fix_tools_line,
@@ -28,7 +28,7 @@ from check_review_agent_mcp_tools import (
 
 _SKILL_TEXT = " ".join(SKILL_REQUIRED_PHRASES)  # a skill body containing every required phrase
 
-REAL_AGENTS_DIR = _agents_dir_default()
+REAL_AGENTS_DIR = default_agents_dir()
 REAL_SKILL_FILE = _skill_file_default()
 
 # Sample of well-known non-review agents that the *-review invariant must NOT touch.

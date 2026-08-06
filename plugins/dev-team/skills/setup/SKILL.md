@@ -799,10 +799,12 @@ state, progress bookkeeping, and metrics into `.claude/memory/`,
 `.claude/metrics/`, and `.claude/plans/`; reports land in
 `.dev-team-reports/` (the `.claude/`-scoped artifact migration and
 reports-domain consolidation, #1406). `/code-review` additionally writes a
-`.review-passed` gate file at the repo root, consumed and deleted by the
-pre-commit hook on the next matching commit — but left behind whenever that
-commit never happens (files edited after review, or `--no-verify`), cluttering
-`git status` and risking capture by a stray `git add -A` (issue #1377). These
+`.pr-review-passed` gate file to `.claude/memory/` (already covered by the
+`.claude/memory/` line below), consumed and deleted by `hooks/pre_pr_review.py`
+on the next matching `gh pr create` (#1886) — but left behind whenever that
+PR is never opened (branch content changed since review, or
+`PR_GATE_BYPASS_REASON`), cluttering `git status` and risking capture by a
+stray `git add -A` (issue #1377). These
 are regeneratable runtime artifacts, not deliverables — but `/build` commits
 the working tree per completed step, so without an ignore rule they land in
 the project's history (issue #1101).
@@ -843,7 +845,7 @@ memory/
 reports/
 metrics/
 plans/
-.review-passed" >> .gitignore
+.pr-review-passed" >> .gitignore
   echo "gitignore-updated"
 else
   echo "gitignore-already-covered"
@@ -957,7 +959,7 @@ Repowise's own install/decline state for that run.
 - `.claude/project-stack.json` — stack detection results
 - `.claude/CLAUDE.md` — project conventions
 - `.claude/settings.json` — PostToolUse formatting hook (prettier + eslint)
-- `.gitignore` — dev-team runtime artifacts (.claude/memory/, .claude/metrics/, .claude/plans/, .dev-team-reports/, memory/, reports/, metrics/, plans/, .review-passed)   [downstream only; omit if already covered] plus `.mcp.json` machine-specific-path hygiene (#1376, #1416)   [runs in-repo too, via project-init's Repowise standing check; omit if already covered]
+- `.gitignore` — dev-team runtime artifacts (.claude/memory/, .claude/metrics/, .claude/plans/, .dev-team-reports/, memory/, reports/, metrics/, plans/, .pr-review-passed)   [downstream only; omit if already covered] plus `.mcp.json` machine-specific-path hygiene (#1376, #1416)   [runs in-repo too, via project-init's Repowise standing check; omit if already covered]
 - Activated templates: ts-enforcer, esm-enforcer, react-testing
 
 ### Recommendations

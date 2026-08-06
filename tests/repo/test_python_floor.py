@@ -76,6 +76,7 @@ See the "deterministic tools over inference" rule in the repo CLAUDE.md.
 from __future__ import annotations
 
 import re
+from pathlib import Path
 
 import pytest
 
@@ -131,7 +132,136 @@ FLOOR_TEST_SLICE = (
     "plugins/dev-team/tests/scripts/test_coverage_config.py",
     "plugins/dev-team/tests/scripts/test_coverage_discovery_dotnet.py",
     "plugins/dev-team/tests/scripts/test_coverage_discovery_js.py",
+    "plugins/dev-team/tests/scripts/test_autoship_reclaim.py",
 )
+
+#: Issue #1829: `FLOOR_TEST_SLICE` above is hand-maintained, so a new shipped,
+#: tested module can land and never join it — the exact #1826 shape,
+#: recurring. `TestTheFloorSliceAccountsForEveryShippedScript` below enumerates
+#: every `plugins/dev-team/scripts/*.py` module that has a corresponding test
+#: and asserts it is either in `FLOOR_TEST_SLICE` or named here with a real
+#: reason — mirroring `coverage_config.py`'s `needs_accounting` /
+#: `drift_check` convention: accounted for, or excluded WITH a reason, never
+#: silently absent from both.
+#:
+#: Add an entry here when a module's function bodies carry NO floor-sensitive
+#: runtime behavior (the stdlib modules it imports resolve the same way on
+#: 3.10 as on any newer floor-relevant interpreter) — the same criterion
+#: `FLOOR_TEST_SLICE`'s own docstring states for the inverse case. A module
+#: whose body DOES carry such behavior (a version shim, a 3.11+-only stdlib
+#: API) belongs in `FLOOR_TEST_SLICE` instead, not here.
+SLICE_EXCLUSIONS = {
+    "autoship_discover.py": "stdlib argparse/json/pathlib only; no floor-sensitive runtime API",
+    "autoship_group.py": "stdlib argparse/json/pathlib only; no floor-sensitive runtime API",
+    "autoship_queue.py": "stdlib argparse/json/pathlib only; no floor-sensitive runtime API",
+    "build_jobs.py": "stdlib os/sys only; no floor-sensitive runtime API",
+    "build_rollback_point.py": (
+        "stdlib argparse/json/subprocess/pathlib only; its datetime usage is "
+        "timezone-aware construction, not a floor-sensitive parse shim"
+    ),
+    "build_slice_scope.py": (
+        "stdlib argparse/json/re/pathlib only; its datetime usage is "
+        "timezone-aware construction, not a floor-sensitive parse shim"
+    ),
+    "build_wave.py": "stdlib json/os/subprocess/pathlib only; no floor-sensitive runtime API",
+    "build_wave_reconcile.py": (
+        "stdlib argparse/os/re/shlex/subprocess only; no floor-sensitive runtime API"
+    ),
+    "build_worktree_baseref.py": "stdlib json/os/pathlib only; no floor-sensitive runtime API",
+    "check_agent_scope.py": "stdlib argparse/pathlib only; no floor-sensitive runtime API",
+    "check_agent_tool_mapping.py": (
+        "stdlib argparse/json/re/pathlib only; no floor-sensitive runtime API"
+    ),
+    "check_review_agent_mcp_tools.py": (
+        "stdlib argparse/json/pathlib only; no floor-sensitive runtime API"
+    ),
+    "check_security_assessment_mcp_tools.py": (
+        "stdlib argparse/json/pathlib only; no floor-sensitive runtime API"
+    ),
+    "coverage_delta_steering.py": "stdlib argparse/json/pathlib only; no floor-sensitive runtime API",
+    "coverage_discovery_java.py": (
+        "stdlib re/sys/xml.etree/pathlib only; no floor-sensitive body of its "
+        "own — the fromisoformat shim it could exercise lives in "
+        "coverage_config.py, which already has its own slice entry"
+    ),
+    "coverage_gap_ranking.py": (
+        "stdlib argparse/json/math/fractions/pathlib only; arithmetic and "
+        "shared-parser delegation, no floor-sensitive runtime API of its own "
+        "(per-format parsing moved to coverage_report_parse.py, issue #1873, "
+        "itself stdlib-only)"
+    ),
+    "coverage_readiness.py": "stdlib argparse/json/re/pathlib only; no floor-sensitive runtime API",
+    "coverage_report_parse.py": (
+        "stdlib csv/json/re/xml.etree/dataclasses/pathlib only; no "
+        "floor-sensitive runtime API"
+    ),
+    "detect_bdd_convention.py": (
+        "stdlib argparse/fnmatch/json/re/pathlib/typing only; no "
+        "floor-sensitive runtime API"
+    ),
+    "eval_ablation.py": (
+        "stdlib argparse/json/pathlib only; its datetime usage is "
+        "timezone-aware construction, not a floor-sensitive parse shim"
+    ),
+    "gherkin_analysis_coverage_gate.py": (
+        "stdlib argparse/json/re/dataclasses/pathlib only; no "
+        "floor-sensitive runtime API"
+    ),
+    "gherkin_cross_feature_duplicate_titles_gate.py": (
+        "stdlib argparse/json/collections/pathlib only; no floor-sensitive "
+        "runtime API"
+    ),
+    "gherkin_effectiveness_rollup.py": (
+        "stdlib argparse/json/re/pathlib only; no floor-sensitive runtime API"
+    ),
+    "gherkin_failure_path_gate.py": (
+        "stdlib argparse/json/pathlib only; no floor-sensitive runtime API"
+    ),
+    "gherkin_feature_merge.py": (
+        "stdlib argparse/json/os/tempfile/dataclasses/pathlib only; no "
+        "floor-sensitive runtime API"
+    ),
+    "gherkin_stub_gate.py": "stdlib argparse/json/pathlib only; no floor-sensitive runtime API",
+    "gherkin_stub_merge.py": (
+        "stdlib argparse/json/os/tempfile/dataclasses/pathlib only; no "
+        "floor-sensitive runtime API"
+    ),
+    "git_origin_host.py": "stdlib subprocess/sys only; no floor-sensitive runtime API",
+    "install-java-static-analysis.py": (
+        "stdlib hashlib/hmac/os/shutil/subprocess/tempfile/urllib.request/"
+        "zipfile/pathlib only; no floor-sensitive runtime API"
+    ),
+    "issue_deps.py": "stdlib json/os/subprocess/pathlib only; no floor-sensitive runtime API",
+    "mutation_stack_sections.py": (
+        "stdlib argparse/json/pathlib only; no floor-sensitive runtime API"
+    ),
+    "plan_gherkin_export.py": (
+        "stdlib argparse/re/pathlib/typing only; no floor-sensitive runtime API"
+    ),
+    "plan_waves.py": (
+        "stdlib argparse/fnmatch/json/re/pathlib only; no floor-sensitive "
+        "runtime API"
+    ),
+    "pr_close_keyword_lint.py": (
+        "stdlib argparse/json/re/dataclasses only; no floor-sensitive "
+        "runtime API"
+    ),
+    "recon_inventory.py": "stdlib os/re/subprocess/pathlib only; no floor-sensitive runtime API",
+    "run_invariants.py": (
+        "stdlib argparse/subprocess/pathlib/typing only; no floor-sensitive "
+        "runtime API"
+    ),
+    "select_lenses.py": "stdlib argparse/json/re/pathlib only; no floor-sensitive runtime API",
+    "specs_convention_marker.py": "stdlib subprocess/pathlib only; no floor-sensitive runtime API",
+    "test_improve_resume.py": (
+        "stdlib argparse/json/re/pathlib only; no floor-sensitive runtime API"
+    ),
+    "verify_gherkin_quality_critic_isolation.py": (
+        "stdlib argparse/os/secrets/shutil/subprocess/tempfile/textwrap/"
+        "pathlib only; no floor-sensitive runtime API"
+    ),
+    "verify_tier.py": "stdlib argparse/json/re/pathlib only; no floor-sensitive runtime API",
+}
 
 
 def _ruff_shipped_target_version() -> str | None:
@@ -474,6 +604,126 @@ class TestTheFloorIsProvenByRunningIt:
         assert not missing, (
             f"the declared floor test slice names files that do not exist: "
             f"{missing}. A stale path fails the gate with pytest's exit 4."
+        )
+
+
+#: Every top-level shipped script — deliberately NOT recursive: `scripts/lib/`
+#: holds helpers shared BY these scripts, not shipped entry points of their
+#: own (issue #1829 scopes the enumeration to `plugins/dev-team/scripts/*.py`).
+SHIPPED_SCRIPTS_DIR = REPO_ROOT / "plugins" / "dev-team" / "scripts"
+
+#: Both roots a shipped script's test can live under (mirrors FLOOR_TEST_SLICE
+#: spanning both).
+_TEST_ROOTS = (REPO_ROOT / "plugins" / "dev-team" / "tests", REPO_ROOT / "tests")
+
+
+def _shipped_scripts() -> list[str]:
+    return sorted(p.name for p in SHIPPED_SCRIPTS_DIR.glob("*.py"))
+
+
+#: Confirmed-by-hand exceptions where the test file's name does not match
+#: `test_<script_stem>.py` but genuinely exercises the named script — a
+#: hyphenated script name that can only ever be referenced from Python as a
+#: string (never imported), or a test scoped to a broader behavior than one
+#: script. A generic content scan (grep the test bodies for the script name)
+#: was tried and rejected: it also matched test files that merely mention
+#: the script name as a fake/mock filename or import an unrelated helper
+#: for fixture setup, which silently marked scripts as "covered" that were
+#: not — a worse failure mode than the one this file exists to close.
+_NONCANONICAL_TEST_FILES = {
+    "build_worktree_baseref.py": "tests/skills/test_build_worktree_baseref_detect.py",
+    "install-java-static-analysis.py": "tests/scripts/test_install_java_static_analysis.py",
+    "mutation_stack_sections.py": "tests/skills/test_setup_mutation_stack_gate.py",
+    # token_efficiency_review.py's canonical `test_token_efficiency_review.py`
+    # (tests/hooks/) covers its hook-integration behavior; the dedicated
+    # script-level test FLOOR_TEST_SLICE already runs under the floor
+    # interpreter is this differently-named file.
+    "token_efficiency_review.py": "tests/scripts/test_token_efficiency_review_script.py",
+}
+
+
+def _corresponding_test_files(script_name: str) -> list[str]:
+    """Every `test_*.py` under either test root that exercises `script_name`
+    — the canonical `test_<module_name>.py` (hyphens normalized to
+    underscores), plus any confirmed `_NONCANONICAL_TEST_FILES` entry. Paths
+    are returned relative to REPO_ROOT, POSIX-separated, matching
+    FLOOR_TEST_SLICE's own notation."""
+    module_name = Path(script_name).stem.replace("-", "_")
+    canonical_name = f"test_{module_name}.py"
+    found: list[str] = []
+    for root in _TEST_ROOTS:
+        if not root.is_dir():
+            continue
+        for candidate in sorted(root.rglob(canonical_name)):
+            found.append(candidate.relative_to(REPO_ROOT).as_posix())
+    noncanonical = _NONCANONICAL_TEST_FILES.get(script_name)
+    if noncanonical and (REPO_ROOT / noncanonical).is_file():
+        found.append(noncanonical)
+    return found
+
+
+class TestTheFloorSliceAccountsForEveryShippedScript:
+    """#1829: `FLOOR_TEST_SLICE` is hand-maintained, so a tested shipped
+    script can land and never join it — the exact shape #1826 was, recurring
+    unchecked. This enumerates every `plugins/dev-team/scripts/*.py` module
+    that HAS a test and asserts it is either in `FLOOR_TEST_SLICE` (a real
+    test runs it under the floor interpreter) or named in `SLICE_EXCLUSIONS`
+    with a reason — mirroring `coverage_config.py`'s `needs_accounting` /
+    `drift_check` convention: accounted for, or excluded WITH a reason,
+    never silently absent from both.
+
+    A script with NO test at all (`_corresponding_test_files` returns
+    `[]`) is out of scope here — that is a test-coverage gap, a different
+    concern from this file's "is a real test wired to the floor
+    interpreter" question."""
+
+    def test_every_tested_script_is_in_the_slice_or_excluded_with_a_reason(self):
+        unaccounted = []
+        for script in _shipped_scripts():
+            test_files = _corresponding_test_files(script)
+            if not test_files:
+                continue
+            if any(t in FLOOR_TEST_SLICE for t in test_files):
+                continue
+            if script in SLICE_EXCLUSIONS:
+                continue
+            unaccounted.append(script)
+        assert not unaccounted, (
+            "these shipped, tested scripts are neither in FLOOR_TEST_SLICE "
+            f"nor SLICE_EXCLUSIONS (with a reason): {unaccounted}. Add a "
+            "FLOOR_TEST_SLICE entry if the module's function bodies carry "
+            "floor-sensitive runtime behavior, or a SLICE_EXCLUSIONS entry "
+            "with a real reason if they legitimately don't."
+        )
+
+    def test_slice_exclusions_name_real_shipped_scripts(self):
+        """A stale or typo'd key silently stops accounting for anything —
+        the same failure mode a wrong path in FLOOR_TEST_SLICE would be."""
+        shipped = set(_shipped_scripts())
+        stale = sorted(set(SLICE_EXCLUSIONS) - shipped)
+        assert not stale, (
+            f"SLICE_EXCLUSIONS names scripts that are not in "
+            f"plugins/dev-team/scripts/: {stale}"
+        )
+
+    def test_slice_exclusions_all_carry_a_real_reason(self):
+        empty = [name for name, reason in SLICE_EXCLUSIONS.items() if not reason.strip()]
+        assert not empty, f"SLICE_EXCLUSIONS entries with no reason: {empty}"
+
+    def test_no_script_is_both_slice_covered_and_excluded(self):
+        """A script in both is a contradiction — is it exercised under the
+        floor interpreter or not? — that this test would otherwise mask
+        (the accounting test above only checks that at least one of the two
+        holds)."""
+        contradictions = [
+            script
+            for script in _shipped_scripts()
+            if script in SLICE_EXCLUSIONS
+            and any(t in FLOOR_TEST_SLICE for t in _corresponding_test_files(script))
+        ]
+        assert not contradictions, (
+            f"these scripts are both in SLICE_EXCLUSIONS and covered by a "
+            f"FLOOR_TEST_SLICE test: {contradictions}. Pick one."
         )
 
 

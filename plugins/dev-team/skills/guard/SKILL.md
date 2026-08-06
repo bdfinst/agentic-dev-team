@@ -34,14 +34,15 @@ If no pattern is provided, display usage and exit:
 
 If argument is `off`:
 
-1. Remove `hooks/careful-state.json` and `.claude/hooks/freeze-state.json`
+1. Remove `.claude/hooks/careful-state.json` and `.claude/hooks/freeze-state.json`
 2. Display: "Guard mode OFF. All safety restrictions lifted."
 
 ## Steps
 
 ### 1. Enable careful mode
 
-Write to `hooks/careful-state.json`:
+Write to `.claude/hooks/careful-state.json` (repo-scoped — see the `/careful`
+skill's Notes for why this is not `hooks/careful-state.json`; issue #1900):
 
 ```json
 {

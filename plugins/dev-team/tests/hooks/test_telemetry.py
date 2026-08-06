@@ -105,7 +105,7 @@ def test_home_config_governs(monkeypatch, tmp_path):
 def test_emit_appends_jsonl_with_trailing_newline(tmp_path):
     log = tmp_path / "metrics" / "telemetry.jsonl"
     telemetry._emit(log, "command", "plan", "invoked", "1.0.0")
-    telemetry._emit(log, "gate", "pre-commit-review", "fired", "1.0.0")
+    telemetry._emit(log, "gate", "pre-pr-review", "fired", "1.0.0")
     lines = log.read_text().splitlines()
     assert len(lines) == 2
     first = json.loads(lines[0])
@@ -301,7 +301,7 @@ def test_main_non_slash_prompt_records_nothing(monkeypatch, tmp_path):
     assert not (home / ".claude" / "metrics" / "telemetry.jsonl").exists()
 
 
-def test_main_git_commit_fires_gate(monkeypatch, tmp_path):
+def test_main_gh_pr_create_fires_gate(monkeypatch, tmp_path):
     home = _enable_consent(monkeypatch, tmp_path)
     _feed(
         monkeypatch,
@@ -310,21 +310,45 @@ def test_main_git_commit_fires_gate(monkeypatch, tmp_path):
                 "hook_event_name": "PreToolUse",
                 "tool_name": "Bash",
                 "cwd": str(tmp_path),
-                "tool_input": {"command": "git commit -m msg"},
+                "tool_input": {"command": "gh pr create --title t --body b"},
             }
         ),
     )
     assert telemetry.main() == 0
     log = home / ".claude" / "metrics" / "telemetry.jsonl"
     payload = json.loads(log.read_text().strip())
+    assert payload["event"] == "gate"
+    assert payload["name"] == "pre-pr-review"
     assert payload["outcome"] == "fired"
+
+
+def test_main_git_commit_no_longer_fires_the_retired_gate(monkeypatch, tmp_path):
+    """#1886: the review-corroboration gate moved to `gh pr create` —
+    `git commit` (with or without `--no-verify`) must record nothing now."""
+    home = _enable_consent(monkeypatch, tmp_path)
+    _feed(
+        monkeypatch,
+        json.dumps(
+            {
+                "hook_event_name": "PreToolUse",
+                "tool_name": "Bash",
+                "cwd": str(tmp_path),
+                "tool_input": {"command": "git commit --no-verify -m msg"},
+            }
+        ),
+    )
+    assert telemetry.main() == 0
+    assert not (home / ".claude" / "metrics" / "telemetry.jsonl").exists()
 
 
 @pytest.mark.parametrize(
     "cmd",
-    ["git commit --no-verify", "git commit -m msg -n", "git commit -n -m msg"],
+    [
+        'PR_GATE_BYPASS_REASON="hotfix" gh pr create --title t --body b',
+        "PR_GATE_BYPASS_REASON=hotfix gh pr create --title t --body b",
+    ],
 )
-def test_main_git_commit_bypass_variants(monkeypatch, tmp_path, cmd):
+def test_main_gh_pr_create_bypass_variants(monkeypatch, tmp_path, cmd):
     home = _enable_consent(monkeypatch, tmp_path)
     _feed(
         monkeypatch,

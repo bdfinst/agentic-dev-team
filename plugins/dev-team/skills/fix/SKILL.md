@@ -285,19 +285,18 @@ after **every** cycle's test goes green — not only after the last cycle.
 - Only a clean diff (no new failures) advances to (d).
 
 **(d) Commit.** `git add` the files this cycle changed (the test and the
-fix), then commit via `GATE_BYPASS_REASON="<reason>" git commit --no-verify
--m "<message>"` naming the cycle, before moving to the next cycle. Use this
-exact mechanism, not a bare `git commit`: `hooks/pre_commit_review.py` (a
-`PreToolUse` hook on `Bash`) blocks any `git commit` unless a
-`.review-passed` gate file exists, corroborated by >= 2 distinct
-review-agent dispatches — and `/fix` has no `Agent`/`Task` tool (Orchestrator
-constraint 1) to produce that corroboration. `<reason>` states plainly that
-this is an intra-run TDD cycle commit and the real review gate is Step 6's
-`/pr` dispatch before merge; the bypass is logged to
-`.claude/metrics/gate-bypass-audit.jsonl` per the hook's own module
-docstring, so it is audited, not silent. This matches `/build`'s
-per-step-commit convention: the working tree stays clean after every cycle,
-and each cycle is an independent rollback point.
+fix), then commit via `git commit -m "<message>"` naming the cycle, before
+moving to the next cycle. A bare commit is sufficient here:
+`hooks/pre_commit_review.py` (the `PreToolUse` hook that used to block
+`git commit` without a `.review-passed`-corroborated review) is now a
+documented no-op —
+the review-corroboration gate moved to `gh pr create` (#1886,
+`hooks/pre_pr_review.py`). The real review gate is Step 6's `/pr` dispatch
+before merge; `/fix` still has no `Agent`/`Task` tool (Orchestrator
+constraint 1) to produce that corroboration itself, which is exactly why
+Step 6 delegates the gated dispatch to `/pr` rather than attempting it here.
+This matches `/build`'s per-step-commit convention: the working tree stays
+clean after every cycle, and each cycle is an independent rollback point.
 
 Repeat (a)–(d) for the next cycle. Once every cycle in the plan has passed
 (b) — or was recorded as subsumed — and (c), with no regression at any
@@ -327,16 +326,14 @@ summarizing:
   it now that the record is closing
 
 **Commit the closure.** `git add` the record file, then commit via
-`GATE_BYPASS_REASON="<reason>" git commit --no-verify -m "<message>"` naming
-the record closure, as its own commit — separate from each cycle's Step 4
-commit. This is the same sanctioned bypass mechanism as Step 4(d), for the
-same reason: `/fix` has no way to satisfy `hooks/pre_commit_review.py`'s
-dispatch-corroboration gate, and `<reason>` states plainly that this is the
-record-closure commit and the real review gate is Step 6's `/pr` dispatch
-before merge — audited via `.claude/metrics/gate-bypass-audit.jsonl`, not
-silent. This leaves a clean working tree — this is what `/pr`'s own
-pre-flight check looks for; a dirty tree there only triggers `/pr`'s
-commit-or-stash prompt (Step 6(i)), which this commit avoids.
+`git commit -m "<message>"` naming the record closure, as its own commit —
+separate from each cycle's Step 4 commit. Same reasoning as Step 4(d): a
+bare commit is sufficient, since `hooks/pre_commit_review.py`'s
+dispatch-corroboration gate is now a no-op (#1886) — the real review gate is
+Step 6's `/pr` dispatch before merge. This leaves a clean working tree — this
+is what `/pr`'s own pre-flight check looks for; a dirty tree there only
+triggers `/pr`'s commit-or-stash prompt (Step 6(i)), which this commit
+avoids.
 
 **Append a verify-log entry.** Once the closure commit above lands, append
 one entry to `metrics/verify-log.jsonl` matching `../build/SKILL.md`

@@ -55,6 +55,7 @@ for _p in (_HOOKS_DIR, _LIB_DIR, _TESTS_LIB):
     if str(_p) not in sys.path:
         sys.path.insert(0, str(_p))
 
+import atomic_state  # type: ignore[import-not-found]
 import boundary_events  # type: ignore[import-not-found]
 from hermetic import hermetic_git_env  # type: ignore[import-not-found]
 from jsonl import read_jsonl as _read_jsonl  # type: ignore[import-not-found]
@@ -198,22 +199,28 @@ class _SpyHandle:
         ("1", True),  # positive: split-write branch
     ],
 )
-def test_write_jsonl_line_delay_gate_selects_the_documented_branch(
+def test_write_maybe_delayed_gate_selects_the_documented_branch(
     monkeypatch, raw: str | None, expect_split: bool
 ) -> None:
-    """#1874 (correctness re-review): discriminates `_write_jsonl_line`'s
-    two branches by write COUNT, not final content — a bare truthiness
-    check on the environment string (the bug this gate guards against)
-    would take the split-write branch for `"0"` too, since it's a
-    non-empty string, but would still reassemble to identical bytes,
-    which is why a content-only assertion can't catch it."""
+    """#1874 (correctness re-review), #1904 item 5: discriminates
+    `atomic_state._write_maybe_delayed`'s two branches by write COUNT, not
+    final content — a bare truthiness check on the environment string (the
+    bug this gate guards against) would take the split-write branch for
+    `"0"` too, since it's a non-empty string, but would still reassemble to
+    identical bytes, which is why a content-only assertion can't catch it.
+
+    Ported from this module's own now-removed `_write_jsonl_line` (#1904
+    item 5 delegated `boundary_events._append_line_locked` to
+    `atomic_state.append_line_locked` directly, one hardened
+    implementation instead of two) — the same coverage now belongs to the
+    shared implementation it delegates to."""
     if raw is None:
         monkeypatch.delenv(boundary_events._TEST_DELAY_ENV, raising=False)
     else:
         monkeypatch.setenv(boundary_events._TEST_DELAY_ENV, raw)
     line = '{"hook":"h"}\n'
     spy = _SpyHandle()
-    boundary_events._write_jsonl_line(spy, line)
+    atomic_state._write_maybe_delayed(spy, line, boundary_events._TEST_DELAY_ENV)
     assert len(spy.writes) == (2 if expect_split else 1)
     assert spy.flushes == (1 if expect_split else 0)
     assert "".join(spy.writes) == line
@@ -348,31 +355,29 @@ def test_destructive_guard_warn_emits_boundary_event(tmp_path: Path) -> None:
 
 
 def test_destructive_guard_block_emits_boundary_event(tmp_path: Path) -> None:
-    # careful-state.json is destructive_guard.py's real, fixed-path state
-    # file, shared with tests/hooks/test_destructive_guard.py and
-    # plugins/dev-team/tests/hooks/test_code_intelligence_nudge.py (same
-    # xdist_group name there, applied module-wide in both — see this file's
-    # own module-level pytestmark above). --dist loadgroup (scripts/ci-local.sh)
-    # forces everything in this group onto one worker so they never race on
-    # the shared file across pytest-xdist worker processes.
-    careful_state = _HOOKS_DIR / "careful-state.json"
-    original = careful_state.read_text() if careful_state.is_file() else None
-    try:
-        careful_state.write_text(json.dumps({"active": True}), encoding="utf-8")
-        result = _run_hook(
-            "destructive_guard.py",
-            {"tool_input": {"command": "rm -rf /"}, "cwd": str(tmp_path)},
-        )
-        assert result.returncode == 2
-        events = _read_jsonl(tmp_path / ".claude" / "metrics" / "boundary-events.jsonl")
-        assert len(events) == 1
-        assert events[0]["decision"] == "block"
-        assert events[0]["hook"] == "destructive_guard"
-    finally:
-        if original is None:
-            careful_state.unlink(missing_ok=True)
-        else:
-            careful_state.write_text(original, encoding="utf-8")
+    # careful-state.json is resolved per invoking repo, keyed off the
+    # payload's own `cwd` (issue #1900, same fix pattern as #1890's
+    # freeze-state.json) — not a fixed path relative to the hook's own
+    # script directory. `tmp_path` is unique per test, so this needs no
+    # cross-test/cross-file locking (unlike
+    # plugins/dev-team/tests/hooks/test_code_intelligence_nudge.py, which
+    # still shares the fixed-path file for code_intelligence_nudge.py's own,
+    # unrelated careful-mode check — see this file's module-level
+    # xdist_group pytestmark, kept for that reason).
+    careful_dir = tmp_path / ".claude" / "hooks"
+    careful_dir.mkdir(parents=True, exist_ok=True)
+    (careful_dir / "careful-state.json").write_text(
+        json.dumps({"active": True}), encoding="utf-8"
+    )
+    result = _run_hook(
+        "destructive_guard.py",
+        {"tool_input": {"command": "rm -rf /"}, "cwd": str(tmp_path)},
+    )
+    assert result.returncode == 2
+    events = _read_jsonl(tmp_path / ".claude" / "metrics" / "boundary-events.jsonl")
+    assert len(events) == 1
+    assert events[0]["decision"] == "block"
+    assert events[0]["hook"] == "destructive_guard"
 
 
 def test_verify_guard_block_emits_boundary_event(tmp_path: Path) -> None:
@@ -414,7 +419,11 @@ def _init_git_repo(root: Path) -> dict:
     return env
 
 
-def test_pre_commit_review_block_emits_boundary_event(tmp_path: Path) -> None:
+def test_pre_commit_review_no_longer_emits_any_boundary_event(tmp_path: Path) -> None:
+    """#1886: pre_commit_review.py is now a documented no-op — it no longer
+    touches `.claude/` at all. See test_pre_pr_review_block_emits_boundary_event
+    below for the successor hook's equivalent coverage at the new trigger
+    point."""
     env = _init_git_repo(tmp_path)
     result = subprocess.run(
         [sys.executable, str(_HOOKS_DIR / "pre_commit_review.py")],
@@ -429,22 +438,53 @@ def test_pre_commit_review_block_emits_boundary_event(tmp_path: Path) -> None:
         capture_output=True,
         check=False,
     )
+    assert result.returncode == 0
+    assert not (tmp_path / ".claude" / "metrics" / "boundary-events.jsonl").exists()
+
+
+def test_pre_pr_review_block_emits_boundary_event(tmp_path: Path) -> None:
+    """Needs a real `feature` branch ahead of `main` (unlike the shared
+    `_init_git_repo()` helper, which leaves the repo checked out ON `main`
+    itself) — `gh pr create` run directly from the base branch diffs to
+    nothing (`main...main`), which issue #1904 Bug 1 now correctly treats as
+    a gate-SETUP failure (an `EMPTY_DIGEST` is never a valid, comparable
+    hash), not the ordinary hash-mismatch block this test pins."""
+    env = _init_git_repo(tmp_path)
+    subprocess.run(["git", "checkout", "-q", "-b", "feature"], cwd=tmp_path, env=env, check=True)
+    (tmp_path / "feature.txt").write_text("new\n")
+    subprocess.run(["git", "add", "feature.txt"], cwd=tmp_path, env=env, check=True)
+    subprocess.run(
+        ["git", "commit", "--quiet", "-m", "feature work"], cwd=tmp_path, env=env, check=True
+    )
+    result = subprocess.run(
+        [sys.executable, str(_HOOKS_DIR / "pre_pr_review.py")],
+        input=json.dumps(
+            {
+                "tool_input": {"command": "gh pr create"},
+                "cwd": str(tmp_path),
+            }
+        ).encode(),
+        env=env,
+        cwd=str(tmp_path),
+        capture_output=True,
+        check=False,
+    )
     assert result.returncode == 2
     events = _read_jsonl(tmp_path / ".claude" / "metrics" / "boundary-events.jsonl")
     assert len(events) == 1
-    assert events[0]["hook"] == "pre_commit_review"
+    assert events[0]["hook"] == "pre_pr_review"
     assert events[0]["decision"] == "block"
-    assert events[0]["matched_rule"] == "pre-commit-review"
+    assert events[0]["matched_rule"] == "pre-pr-review"
 
 
-def test_pre_commit_review_bypass_emits_boundary_event(tmp_path: Path) -> None:
+def test_pre_pr_review_bypass_emits_boundary_event(tmp_path: Path) -> None:
     env = _init_git_repo(tmp_path)
-    env["GATE_BYPASS_REASON"] = "hotfix, review to follow"
+    env["PR_GATE_BYPASS_REASON"] = "hotfix, review to follow"
     result = subprocess.run(
-        [sys.executable, str(_HOOKS_DIR / "pre_commit_review.py")],
+        [sys.executable, str(_HOOKS_DIR / "pre_pr_review.py")],
         input=json.dumps(
             {
-                "tool_input": {"command": 'git commit --no-verify -m "wip"'},
+                "tool_input": {"command": "gh pr create"},
                 "cwd": str(tmp_path),
             }
         ).encode(),
@@ -456,14 +496,15 @@ def test_pre_commit_review_bypass_emits_boundary_event(tmp_path: Path) -> None:
     assert result.returncode == 0
     events = _read_jsonl(tmp_path / ".claude" / "metrics" / "boundary-events.jsonl")
     assert len(events) == 1
-    assert events[0]["hook"] == "pre_commit_review"
+    assert events[0]["hook"] == "pre_pr_review"
     assert events[0]["decision"] == "bypass"
-    assert events[0]["matched_rule"] == "--no-verify"
+    assert events[0]["matched_rule"] == "PR_GATE_BYPASS_REASON"
     # The existing gate-bypass-audit.jsonl accountability record is untouched
     # (now under .claude/metrics/ per the artifact_paths migration, Slice 4).
     audit = _read_jsonl(tmp_path / ".claude" / "metrics" / "gate-bypass-audit.jsonl")
     assert len(audit) == 1
     assert audit[0]["reason"] == "hotfix, review to follow"
+    assert audit[0]["triggeredBy"] == "PR_GATE_BYPASS_REASON"
 
 
 @pytest.mark.parametrize(

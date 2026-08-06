@@ -22,7 +22,6 @@ Stdlib only. See ADR 0014 / ADR 0015.
 from __future__ import annotations
 
 import json
-import os
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
@@ -43,76 +42,25 @@ _TEST_DELAY_ENV = "DEV_TEAM_BOUNDARY_EVENTS_TEST_DELAY_MS"
 
 
 def _append_line_locked(log: Path, line: str) -> None:
-    """Serialize one JSONL append against concurrent writers (#1874).
+    """Serialize one JSONL append against concurrent writers (#1874),
+    delegating to `atomic_state.append_line_locked` (#1904 item 5) rather
+    than reimplementing the critical section here.
 
-    Sliced-mode code-review dispatches 2-3 concurrent slices, each able to
-    emit a "dispatch-failure" event independently; a bare
-    `open(log, "a").write(...)` with no locking can interleave those
-    appends into a corrupted JSONL line. `atomic_state.locked_state`
-    (already used for this exact pattern in `bash_retry_guard.py`) holds
-    an exclusive advisory lock for the full open+write+close critical
-    section.
+    This module used to hold `atomic_state.locked_state`'s lock itself and
+    write through a plain `open(log, "a")` — that plain `open()` lacked the
+    `O_NOFOLLOW` hardening `atomic_state.append_line_locked` already applies
+    to its own append (a pre-planted symlink at this stream's path would
+    otherwise redirect every append). Delegating gives this stream that same
+    hardening for free, and leaves exactly ONE hardened append
+    implementation in the plugin rather than two that can drift out of sync.
 
-    `locked_state`'s own docstring/contract (atomic_state.py) documents
-    that callers own their OSError handling INSIDE the critical section —
-    its outer `except OSError` is only for the lock file's own `open()`,
-    not the caller's body. Catching it here, rather than letting it
-    propagate out of the `with`, matters: manually removing this
-    `except OSError` and re-running
-    `test_append_line_locked_swallows_oserror_inside_the_critical_section`
-    (plugins/dev-team/tests/hooks/test_boundary_events.py) confirms the
-    uncaught OSError surfaces as `RuntimeError("generator didn't stop
-    after throw()")`, not the original OSError — an uncaught exception
-    thrown into `locked_state`'s generator body re-enters it at a second,
-    unreachable `yield` (`atomic_state.py`'s own fail-open `except OSError:
-    pass` around its lock-acquisition `open()`), which CPython's
-    `contextlib` rejects. This is a latent contract violation this call
-    site must not trip — even though `emit_boundary_event`'s own outer
-    `except Exception` would still swallow whatever surfaced.
+    `fail_open=True` (the default) matches this module's own fail-open
+    write-side contract (OSError swallowed); `delay_env_var=_TEST_DELAY_ENV`
+    preserves the test-only split-write determinism aid #1874 needs — see
+    `atomic_state.append_line_locked`'s own docstring for why a split,
+    not just a delay, is required to force real interleaving in a test.
     """
-    with atomic_state.locked_state(log):
-        try:
-            with open(log, "a", encoding="utf-8") as handle:
-                _write_jsonl_line(handle, line)
-        except OSError:
-            pass
-
-
-def _write_jsonl_line(handle, line: str) -> None:
-    """Write one already-newline-terminated JSONL line to an open handle.
-
-    Ordinarily a single `write()`. When `_TEST_DELAY_ENV` names a positive
-    millisecond delay (unset in production — see
-    `atomic_state.race_window_delay`), splits the write in two with a flush
-    and sleep in between, widening the window in which an *unlocked* append
-    from another writer could land between the two halves and interleave
-    with this line. This is a test-only determinism aid (#1874) — it lets a
-    concurrency regression test prove the lock in `emit_boundary_event`
-    actually prevents corruption, rather than relying on the local
-    filesystem happening to make small single-`write()` appends atomic.
-
-    A value of `"0"` (or anything else that parses to <= 0, or fails to
-    parse at all) takes the plain single-`write()` path, matching this
-    repo's `DEV_TEAM_*` numeric-knob convention where a non-positive value
-    means "disabled" (security review, #1874) — checking `os.environ.get()`
-    for bare truthiness would instead treat the *string* `"0"` as "enabled
-    with a zero-length delay" and needlessly split the write.
-    """
-    raw = os.environ.get(_TEST_DELAY_ENV)
-    delay_ms = 0
-    if raw:
-        try:
-            delay_ms = int(raw)
-        except ValueError:
-            delay_ms = 0
-    if delay_ms <= 0:
-        handle.write(line)
-        return
-    midpoint = len(line) // 2
-    handle.write(line[:midpoint])
-    handle.flush()
-    atomic_state.race_window_delay(_TEST_DELAY_ENV)
-    handle.write(line[midpoint:])
+    atomic_state.append_line_locked(log, line, delay_env_var=_TEST_DELAY_ENV)
 
 
 # The single source of truth for this stream's `ts` format (#1461 structure
@@ -173,9 +121,12 @@ def emit_boundary_event(
             review agent failed to return a contract-valid result even after
             one retry. Unlike "record" it is consumed ONLY as NEGATIVE
             evidence, by the gate veto in
-            `hooks/lib/review_gate_corroboration.py`/`hooks/pre_commit_review.py`
-            (`_dispatch_failure_verdict` and `_cosmetic_carry_forward_verdict`,
-            #1763), so a forged event can only ever narrow corroboration,
+            `hooks/lib/review_gate_corroboration.py`/`hooks/pre_pr_review.py`
+            (`_dispatch_failure_verdict`, #1763 — carried forward to the
+            PR-time gate by #1886; the cosmetic-delta carry-forward veto
+            this originally paired with, `_cosmetic_carry_forward_verdict`,
+            was specific to the retired commit-time gate and was deleted in
+            #1904), so a forged event can only ever narrow corroboration,
             never widen it. Exclude both from verdict counts; see
             `knowledge/telemetry-schema.md`.
         matched_rule: A rule ID from a closed vocabulary — never free
@@ -245,11 +196,14 @@ def emit_boundary_event(
 # static tuple can't express. This is still safe: the decision value it
 # writes ("dispatch-failure") is consumed ONLY as negative evidence, by the
 # gate veto in `hooks/lib/review_gate_corroboration.py`/
-# `hooks/pre_commit_review.py` (`_dispatch_failure_verdict` and
-# `_cosmetic_carry_forward_verdict`) — never as corroborating evidence for a
-# `.review-passed` write — so a forged/hand-run invocation can only ever
+# `hooks/pre_pr_review.py` (`_dispatch_failure_verdict`, carried forward to
+# the PR-time gate by #1886) — never as corroborating evidence for a
+# `.pr-review-passed` write — so a forged/hand-run invocation can only ever
 # narrow corroboration (cause a false block on a gate that would otherwise
-# pass), never widen it (cause a false pass). The opposite forgery
+# pass), never widen it (cause a false pass). (The cosmetic-delta
+# carry-forward veto this originally paired with,
+# `_cosmetic_carry_forward_verdict`, was specific to the retired commit-time
+# gate and was deleted in #1904.) The opposite forgery
 # direction from "record" either way. The agent name is still validated at
 # write time against the registered review-agent set
 # (`review_agent_registry.registered_review_agent_names`, with the same
@@ -295,16 +249,17 @@ def _main() -> int:
 
     `--event dispatch-failure --agent <name> --subject-hash <hash>
     [--subject-hash-normalized <hash>]` (#1763): used by `SKILL.md` Step 4
-    (and `sliced-mode.md`'s per-slice loop) when a dispatched review agent
-    still fails to return a contract-valid result after its single retry,
-    recording that fact as negative evidence for
-    `hooks/lib/review_gate_corroboration.py`/`hooks/pre_commit_review.py`'s
-    gate veto (`_dispatch_failure_verdict` and
-    `_cosmetic_carry_forward_verdict`, #1763). The optional
-    `--subject-hash-normalized` mirrors `agent_dispatch_ledger.py`'s own
-    `"record"` events, which stamp both hashes — without it, the gate's
-    cosmetic-delta carry-forward lens (which reads only the normalized
-    hash) could never see a genuine dispatch-failure. `<name>` must be a
+    when a dispatched review agent still fails to return a contract-valid
+    result after its single retry, recording that fact as negative evidence
+    for `hooks/lib/review_gate_corroboration.py`/`hooks/pre_pr_review.py`'s
+    gate veto (`_dispatch_failure_verdict`, #1763 — carried forward to the
+    PR-time gate by #1886). `--subject-hash-normalized` is accepted here for
+    call-shape symmetry with `agent_dispatch_ledger.py`'s own `"record"`
+    events, but has no current consumer: the cosmetic-delta carry-forward
+    lens it fed was specific to the retired commit-time gate and was
+    deleted in #1904 (along with `sliced-mode.md`'s own now-removed
+    `--subject-hash-normalized` emission — see that file for the #1904
+    cleanup). `<name>` must be a
     registered `agents/*-review.md` stem — an unregistered name is silently
     NOT recorded, matching `agent_dispatch_ledger.py`'s own validation
     posture (including the same plugin-prefix normalization,
@@ -367,20 +322,28 @@ def _main() -> int:
             # degrades the same way a broken registry
             # read does, rather than raising.
             import review_agent_registry
-
-            agents_dir = Path(__file__).resolve().parents[2] / "agents"
-            registered = review_agent_registry.registered_review_agent_names(agents_dir)
-        except Exception:  # noqa: BLE001 - fail-open: a broken registry read never records
+        except Exception:  # noqa: BLE001 - fail-open: an unavailable registry module never records
             return 0
+        # #1904 item 1: `read_registered_review_agent_names()` returns `None`
+        # on a registry read failure, distinct from a genuine `frozenset()`
+        # — but this is the "should this get recorded at all" gate, so
+        # collapsing `None` to "don't record" is the safe direction here too
+        # (matches `agent_dispatch_ledger.py`'s own posture; see module
+        # comment): a lost write only means less evidence is recorded, never
+        # more.
+        registered = review_agent_registry.read_registered_review_agent_names(
+            review_agent_registry.default_agents_dir()
+        )
         # Normalize the plugin-qualified form ("dev-team:security-review")
         # to the bare stem the registry's closed set uses, matching
         # agent_dispatch_ledger.py's own normalization exactly — otherwise
         # the plugin's normal, installed invocation form would be silently
         # dropped as "unregistered".
         agent = review_agent_registry.strip_plugin_prefix(args.agent)
-        if agent not in registered:
-            # Unregistered name -> silently NOT recorded (matches
-            # agent_dispatch_ledger.py's own posture; see module comment).
+        if not registered or agent not in registered:
+            # Unregistered name, or the registry could not be read at all ->
+            # silently NOT recorded (matches agent_dispatch_ledger.py's own
+            # posture; see module comment).
             return 0
         hook, tool, decision = _CLI_AGENT_EVENTS[args.event]
         emit_boundary_event(

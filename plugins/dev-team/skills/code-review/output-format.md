@@ -92,7 +92,7 @@ panel returned cleanly.
 regardless of what the per-agent results alone would compute — the coverage
 gap is enforced by this DTO itself, not by each caller re-deriving it from
 `dispatchFailures` separately. This matters because `SKILL.md` step 9 (the
-`.review-passed` gate) never runs under `--json` — without this rule, a
+`.pr-review-passed` gate) never runs under `--json` — without this rule, a
 `--json` caller (e.g. `/pr`, which reads only `overall`/`status`) could see
 `overall: "pass"` and proceed despite a lens that never ran, exactly the
 silent-gap failure mode #1752 exists to close.
@@ -102,7 +102,7 @@ silent-gap failure mode #1752 exists to close.
 `dispatchFailures` rule above: `SKILL.md` step 6a's own exit-conditions table
 already treats a round-cap exit, an iteration-limit exit, and a
 "same issues persist" exit as fail-equivalent — but only for step 9's
-`.review-passed` gate-write condition, and step 9 never runs under `--json`.
+`.pr-review-passed` gate-write condition, and step 9 never runs under `--json`.
 Without this second rule, an escalated review whose only remaining issues are
 `warning`-severity would compute `overall: "warn"` from the per-agent totals
 alone and a `--json` caller (e.g. `/pr`'s internal `/code-review --since
@@ -117,7 +117,7 @@ severity mix.
 
 **`--json` output contract.** When `--json` is set, the object above is the
 run's *only* output: printed to stdout, and no `corrections/*.json` files or
-`.review-passed` gate file are written — regardless of scope (`--path`,
+`.pr-review-passed` gate file are written — regardless of scope (`--path`,
 `--since`, `--all`, auto-scope) or how many issues were found. This holds
 whether `--json` was reached directly or via `/pr`'s call into `/code-review
 --json` (see SKILL.md steps 7–9).

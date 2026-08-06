@@ -5,9 +5,9 @@
 every review regardless of diff size — a 2-line registry-table-row removal
 (issue #1331's fix: 2 files, ~1 added line) pays the same review cost as a
 25-file structural migration (issue #1334's fix: 537 added lines). The
-pre-commit hook (`hooks/pre_commit_review.py`) has no coupling to which or how
+pre-PR hook (`hooks/pre_pr_review.py`, #1886) has no coupling to which or how
 many agents ran — it only checks that `/code-review` produced a matching
-`.review-passed` hash — so the panel-size decision is entirely Step 3's to
+`.pr-review-passed` hash — so the panel-size decision is entirely Step 3's to
 make, and today it makes no such distinction.
 
 This module is the deterministic gate, sibling to `change_shape.py` (#1254,

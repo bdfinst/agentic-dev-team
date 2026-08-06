@@ -169,6 +169,14 @@ class SleepInhibitor:
 # =============================================================================
 
 
+def _status_text(status: stacks_lib.StackStatus | str) -> str:
+    """The plain string to render for a `StackResult.status` — `.value` for
+    a real `StackStatus` member (Enum `__format__`/`__str__` does not
+    reliably reduce to the plain value across Python versions), or the
+    string itself for a test double built with a bare literal."""
+    return status.value if isinstance(status, stacks_lib.StackStatus) else status
+
+
 def write_reports(
     run_dir: Path,
     latest_dir: Path,
@@ -195,13 +203,13 @@ def write_reports(
         if result.summary is not None:
             s = result.summary
             lines.append(
-                f"| {result.stack} | {result.tool} | {result.status} | "
+                f"| {result.stack} | {result.tool} | {_status_text(result.status)} | "
                 f"{s.honest_score:.1f}% | {s.killed} | {s.survived} | {s.timeout} | "
                 f"{s.no_coverage} | {result.duration_seconds:.0f}s |"
             )
         else:
             lines.append(
-                f"| {result.stack} | {result.tool} | {result.status} | "
+                f"| {result.stack} | {result.tool} | {_status_text(result.status)} | "
                 f"— | — | — | — | — | {result.duration_seconds:.0f}s |"
             )
         if result.detail:
@@ -284,7 +292,7 @@ def run_nightwatch(
                     stacks_lib.StackResult(
                         name,
                         name,
-                        "skipped_no_parser",
+                        stacks_lib.StackStatus.SKIPPED_NO_PARSER,
                         f"{name} detected but mutation_report.py has no parser for "
                         "its native report shape yet",
                     )

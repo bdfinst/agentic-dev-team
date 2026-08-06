@@ -115,22 +115,20 @@ def test_engaged_freeze_blocks_writes_outside_declared_scope(tmp_path):
     allowed = build_slice_scope.build_allowed_patterns(plan_path, text, "1")
     build_slice_scope.write_freeze_state(hooks_dir, allowed)
 
-    exit_code, lines = pre_tool_guard.evaluate(
-        "out-of-scope.ts", hooks_dir / "guards.json", hooks_dir / "freeze-state.json"
+    paths = pre_tool_guard.GuardPaths(
+        hooks_dir / "guards.json", hooks_dir / "freeze-state.json"
     )
+
+    exit_code, lines = pre_tool_guard.evaluate("out-of-scope.ts", paths=paths)
     assert exit_code == 2
     assert any("BLOCKED" in line for line in lines)
 
-    exit_code, lines = pre_tool_guard.evaluate(
-        "a.ts", hooks_dir / "guards.json", hooks_dir / "freeze-state.json"
-    )
+    exit_code, lines = pre_tool_guard.evaluate("a.ts", paths=paths)
     assert exit_code == 0
 
     # Bookkeeping allowlist entries are honored too — the .claude/-nested
     # form; the old bare memory/** pattern no longer matches anything real.
     exit_code, lines = pre_tool_guard.evaluate(
-        ".claude/memory/build-phase.json",
-        hooks_dir / "guards.json",
-        hooks_dir / "freeze-state.json",
+        ".claude/memory/build-phase.json", paths=paths
     )
     assert exit_code == 0

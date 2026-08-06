@@ -1,6 +1,8 @@
 """Tests for the opt-in telemetry beacon (issues #106, #135): default-off
 consent, command capture, distinct skill capture (incl. agent-/auto-invoked),
-gate fired/bypassed capture (incl. trailing -n), privacy (no payloads), and
+gate fired/bypassed capture on `gh pr create` (#1886 moved the gate off
+`git commit`; `PR_GATE_BYPASS_REASON` is the bypass signal now, replacing
+the retired trailing `-n`/`--no-verify` check), privacy (no payloads), and
 the report aggregation.
 
 Ported from tests/repo/telemetry_tests.bats (issue #672).
@@ -121,19 +123,43 @@ def test_telemetry_env_dev_team_telemetry_on_has_no_effect(tmp_path: Path) -> No
     assert not (home / ".claude" / "metrics" / "telemetry.jsonl").exists()
 
 
-def test_telemetry_records_gate_fired_vs_bypassed_for_git_commit(
+def test_telemetry_records_gate_fired_vs_bypassed_for_gh_pr_create(
     tmp_path: Path,
 ) -> None:
+    """#1886: the review-corroboration gate moved from `git commit` to
+    `gh pr create` — telemetry now tracks that trigger, via
+    `PR_GATE_BYPASS_REASON` rather than `--no-verify`."""
     env = _enable(tmp_path)
     _send(
         {
             "hook_event_name": "PreToolUse",
             "tool_name": "Bash",
-            "tool_input": {"command": "git commit -m hello"},
+            "tool_input": {"command": "gh pr create --title t --body b"},
             "cwd": str(tmp_path),
         },
         env=env,
     )
+    _send(
+        {
+            "hook_event_name": "PreToolUse",
+            "tool_name": "Bash",
+            "tool_input": {
+                "command": 'PR_GATE_BYPASS_REASON="skip" gh pr create --title t --body b'
+            },
+            "cwd": str(tmp_path),
+        },
+        env=env,
+    )
+    outcomes = [json.loads(line)["outcome"] for line in _log_lines(env)]
+    assert outcomes == ["fired", "bypassed"]
+
+
+def test_telemetry_git_commit_no_longer_fires_the_retired_gate(
+    tmp_path: Path,
+) -> None:
+    """#1886: `git commit` (with or without `--no-verify`) no longer gates
+    anything, so telemetry must not record a gate event for it."""
+    env = _enable(tmp_path)
     _send(
         {
             "hook_event_name": "PreToolUse",
@@ -143,8 +169,8 @@ def test_telemetry_records_gate_fired_vs_bypassed_for_git_commit(
         },
         env=env,
     )
-    outcomes = [json.loads(line)["outcome"] for line in _log_lines(env)]
-    assert outcomes == ["fired", "bypassed"]
+    home = Path(env["HOME"])
+    assert not (home / ".claude" / "metrics" / "telemetry.jsonl").exists()
 
 
 def test_telemetry_privacy_no_prompt_text_command_string_or_paths_in_the_log(
@@ -220,15 +246,20 @@ def test_telemetry_pretooluse_skill_records_a_distinct_skill_event(
     assert f"{entry['event']} {entry['name']}" == "skill code-review"
 
 
-def test_telemetry_bypass_detection_catches_a_trailing_n_flag_135(
+def test_telemetry_bypass_detection_catches_pr_gate_bypass_reason_135(
     tmp_path: Path,
 ) -> None:
+    """#1886: the historical `-n`-flag bypass check (issue #135) applied to
+    `git commit`, which no longer gates anything — its replacement is
+    `PR_GATE_BYPASS_REASON` on `gh pr create`."""
     env = _enable(tmp_path)
     _send(
         {
             "hook_event_name": "PreToolUse",
             "tool_name": "Bash",
-            "tool_input": {"command": "git commit -m msg -n"},
+            "tool_input": {
+                "command": "PR_GATE_BYPASS_REASON=skip gh pr create --title t --body b"
+            },
             "cwd": str(tmp_path),
         },
         env=env,
@@ -237,7 +268,7 @@ def test_telemetry_bypass_detection_catches_a_trailing_n_flag_135(
     assert entry["outcome"] == "bypassed"
 
 
-def test_telemetry_a_real_filename_containing_n_does_not_false_bypass(
+def test_telemetry_gh_pr_create_without_bypass_reason_fires(
     tmp_path: Path,
 ) -> None:
     env = _enable(tmp_path)
@@ -245,7 +276,7 @@ def test_telemetry_a_real_filename_containing_n_does_not_false_bypass(
         {
             "hook_event_name": "PreToolUse",
             "tool_name": "Bash",
-            "tool_input": {"command": "git commit -m 'add foo-name.js'"},
+            "tool_input": {"command": "gh pr create --title 'add foo-name.js' --body b"},
             "cwd": str(tmp_path),
         },
         env=env,

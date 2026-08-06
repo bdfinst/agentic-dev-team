@@ -168,8 +168,14 @@ def test_v3_only_constructs_refuse_scaffold(tmp_path):
 # the classified breakdown and the four options, and STAYS blocked until the
 # operator's choice is recorded — a rendered question alone is text an agent can
 # paraphrase or skip.
-
-_DECISION_ENV = "DEV_TEAM_XUNIT3_SHIM_DECISION_FILE"
+#
+# #1870 dropped the DEV_TEAM_XUNIT3_SHIM_DECISION_FILE env-var relocation seam
+# entirely. The guard reads/writes the decision store via the payload `cwd`
+# (project_dir); `_record()` below runs the CLI with that same directory as its
+# real OS subprocess cwd so both sides resolve to the identical store path —
+# project_dir sits outside a git checkout (pytest's tmp_path), so
+# `artifact_paths.project_root()` falls back to project_dir itself on both
+# sides rather than walking up to a real repo root.
 
 
 def _blocked_project(root: Path) -> Path:
@@ -180,15 +186,14 @@ def _blocked_project(root: Path) -> Path:
     return d
 
 
-def _run_in(project_dir: Path, decisions: Path, command: str = "dotnet stryker"):
+def _run_in(project_dir: Path, command: str = "dotnet stryker"):
     return _run(
         {"tool_name": "Bash", "cwd": str(project_dir),
          "tool_input": {"command": command}},
-        extra_env={_DECISION_ENV: str(decisions)},
     )
 
 
-def _answer(project_dir: Path, decisions: Path, choice: str) -> str:
+def _answer(project_dir: Path, choice: str) -> str:
     """Walk the real loop: ask, take the printed fingerprint, record the answer.
 
     Recording against the fingerprint the guard actually published — rather
@@ -196,14 +201,14 @@ def _answer(project_dir: Path, decisions: Path, choice: str) -> str:
     fingerprint is mandatory, and it exercises ask -> record -> re-run end to
     end instead of just the recorded state.
     """
-    asked = _run_in(project_dir, decisions)
+    asked = _run_in(project_dir)
     fingerprint = _fingerprint_from(asked.stdout)
     assert fingerprint, f"the gate published no fingerprint:\n{asked.stdout}"
-    _record(decisions, choice, fingerprint)
+    _record(project_dir, choice, fingerprint)
     return fingerprint
 
 
-def _record(decisions: Path, choice: str, fingerprint: str) -> None:
+def _record(project_dir: Path, choice: str, fingerprint: str) -> None:
     module = (
         _REPO_ROOT / "plugins" / "dev-team" / "hooks" / "lib"
         / "xunit_v3_operator_gate.py"
@@ -213,10 +218,10 @@ def _record(decisions: Path, choice: str, fingerprint: str) -> None:
             "--fingerprint", fingerprint]
     done = subprocess.run(
         args,
+        cwd=str(project_dir),
         env={
             "PATH": os.environ.get("PATH", "/usr/bin:/bin"),
             "HOME": os.environ.get("HOME", "/tmp"),
-            _DECISION_ENV: str(decisions),
         },
         capture_output=True, text=True, check=False,
     )
@@ -225,7 +230,7 @@ def _record(decisions: Path, choice: str, fingerprint: str) -> None:
 
 def test_blockers_without_a_decision_ask_the_operator(tmp_path):
     d = _blocked_project(tmp_path)
-    proc = _run_in(d, tmp_path / "decisions.json")
+    proc = _run_in(d)
     assert proc.returncode == 2
     out = proc.stdout
     # What's blocking, in the detector's classified terms.
@@ -246,18 +251,16 @@ def test_blockers_without_a_decision_ask_the_operator(tmp_path):
 
 def test_asking_twice_does_not_scaffold_behind_the_operators_back(tmp_path):
     d = _blocked_project(tmp_path)
-    decisions = tmp_path / "decisions.json"
-    _run_in(d, decisions)
-    proc = _run_in(d, decisions)
+    _run_in(d)
+    proc = _run_in(d)
     assert proc.returncode == 2
     assert not (tmp_path / "tests" / "Acme.Widgets.Tests.Mutation").exists()
 
 
 def test_recorded_exclude_scaffolds_with_the_flagged_file_excluded(tmp_path):
     d = _blocked_project(tmp_path)
-    decisions = tmp_path / "decisions.json"
-    _answer(d, decisions, "exclude")
-    proc = _run_in(d, decisions)
+    _answer(d, "exclude")
+    proc = _run_in(d)
     assert proc.returncode == 2
     shim = tmp_path / "tests" / "Acme.Widgets.Tests.Mutation"
     csproj = shim / "Acme.Widgets.Tests.Mutation.csproj"
@@ -277,9 +280,8 @@ def test_exclusions_keep_the_subdirectory_when_the_flagged_file_is_nested(tmp_pa
     (nested / "AutoTests.cs").write_text(
         "public class T {\n    [Theory, AutoData]\n    public void X(int a) {}\n}\n"
     )
-    decisions = tmp_path / "decisions.json"
-    _answer(d, decisions, "exclude")
-    proc = _run_in(d, decisions)
+    _answer(d, "exclude")
+    proc = _run_in(d)
     csproj = (tmp_path / "tests" / "Acme.Widgets.Tests.Mutation"
               / "Acme.Widgets.Tests.Mutation.csproj")
     assert csproj.exists(), proc.stdout
@@ -288,15 +290,14 @@ def test_exclusions_keep_the_subdirectory_when_the_flagged_file_is_nested(tmp_pa
 
 def test_exclude_scaffold_failure_is_reported_not_swallowed(tmp_path):
     d = _blocked_project(tmp_path)
-    decisions = tmp_path / "decisions.json"
-    _answer(d, decisions, "exclude")
+    _answer(d, "exclude")
     # Make the shim's parent directory unwritable so the generator cannot create
     # it: the guard must say scaffolding failed rather than claim success.
     tests_dir = tmp_path / "tests"
     original = tests_dir.stat().st_mode
     tests_dir.chmod(0o500)
     try:
-        proc = _run_in(d, decisions)
+        proc = _run_in(d)
     finally:
         tests_dir.chmod(original)
     assert proc.returncode == 2
@@ -306,9 +307,8 @@ def test_exclude_scaffold_failure_is_reported_not_swallowed(tmp_path):
 
 def test_recorded_degrade_hands_back_the_no_shim_floor_command(tmp_path):
     d = _blocked_project(tmp_path)
-    decisions = tmp_path / "decisions.json"
-    _answer(d, decisions, "degrade")
-    proc = _run_in(d, decisions)
+    _answer(d, "degrade")
+    proc = _run_in(d)
     assert proc.returncode == 2
     assert "-t mtp" in proc.stdout
     # coverage-analysis is config-file-only in Stryker.NET — telling the
@@ -320,9 +320,8 @@ def test_recorded_degrade_hands_back_the_no_shim_floor_command(tmp_path):
 @pytest.mark.parametrize("choice", ["port", "skip"])
 def test_recorded_port_or_skip_blocks_until_the_sources_are_clean(tmp_path, choice):
     d = _blocked_project(tmp_path)
-    decisions = tmp_path / "decisions.json"
-    _answer(d, decisions, choice)
-    proc = _run_in(d, decisions)
+    _answer(d, choice)
+    proc = _run_in(d)
     assert proc.returncode == 2
     assert choice in proc.stdout
     assert "AutoTests.cs" in proc.stdout
@@ -336,21 +335,19 @@ def test_skip_says_deactivating_alone_will_not_clear_a_body_construct(tmp_path):
     # construct. Without saying so, the operator re-runs into the same block and
     # concludes the gate is broken.
     d = _blocked_project(tmp_path)
-    decisions = tmp_path / "decisions.json"
-    _answer(d, decisions, "skip")
-    proc = _run_in(d, decisions)
+    _answer(d, "skip")
+    proc = _run_in(d)
     assert "not from the" in proc.stdout or "NOTE:" in proc.stdout
     assert "'port'" in proc.stdout and "'exclude'" in proc.stdout
 
 
 def test_port_choice_then_clean_sources_scaffolds_normally(tmp_path):
     d = _blocked_project(tmp_path)
-    decisions = tmp_path / "decisions.json"
-    _answer(d, decisions, "port")
+    _answer(d, "port")
     (d / "AutoTests.cs").write_text(
         "public class T {\n    [Theory]\n    [InlineData(1)]\n    public void X(int a) {}\n}\n"
     )
-    proc = _run_in(d, decisions)
+    proc = _run_in(d)
     assert proc.returncode == 2
     assert "auto-scaffolded" in proc.stdout.lower()
     assert (tmp_path / "tests" / "Acme.Widgets.Tests.Mutation"
@@ -359,15 +356,14 @@ def test_port_choice_then_clean_sources_scaffolds_normally(tmp_path):
 
 def test_a_new_blocker_reasks_instead_of_riding_the_old_decision(tmp_path):
     d = _blocked_project(tmp_path)
-    decisions = tmp_path / "decisions.json"
-    first = _run_in(d, decisions)
+    first = _run_in(d)
     fingerprint = _fingerprint_from(first.stdout)
-    _record(decisions, "exclude", fingerprint)
+    _record(d, "exclude", fingerprint)
     # A second blocking file appears after the operator answered.
     (d / "SkipTests.cs").write_text(
         'public class S {\n    [Fact]\n    public void Y() { Assert.Skip("x"); }\n}\n'
     )
-    proc = _run_in(d, decisions)
+    proc = _run_in(d)
     assert proc.returncode == 2
     assert "SkipTests.cs" in proc.stdout
     assert "Tradeoff" in proc.stdout, (
@@ -388,7 +384,7 @@ def _fingerprint_from(text: str) -> str | None:
 
 def test_the_block_body_publishes_the_fingerprint_to_record_against(tmp_path):
     d = _blocked_project(tmp_path)
-    proc = _run_in(d, tmp_path / "decisions.json")
+    proc = _run_in(d)
     assert _fingerprint_from(proc.stdout), (
         "the question must publish the blocker-set fingerprint, or a recorded "
         "decision cannot be scoped to the blockers the operator saw"
@@ -403,7 +399,7 @@ def test_unclassifiable_v3_usage_still_reaches_the_operator(tmp_path):
     (d / "CtxTests.cs").write_text(
         "public class C { void X() { var t = TestContext; } }\n"
     )
-    proc = _run_in(d, tmp_path / "decisions.json")
+    proc = _run_in(d)
     assert proc.returncode == 2
     assert "CtxTests.cs" in proc.stdout
     assert "unclassified" in proc.stdout.lower()
@@ -433,9 +429,8 @@ def test_paths_in_the_block_body_are_short_and_copy_pasteable(tmp_path):
 
 def test_floor_command_omits_a_no_op_cd_when_already_in_the_project_dir(tmp_path):
     d = _blocked_project(tmp_path)
-    decisions = tmp_path / "decisions.json"
-    _answer(d, decisions, "degrade")
-    proc = _run_in(d, decisions)
+    _answer(d, "degrade")
+    proc = _run_in(d)
     assert "cd .\n" not in proc.stdout
     assert "dotnet-stryker -t mtp" in proc.stdout
 
@@ -447,7 +442,7 @@ def test_clean_v3_project_never_asks(tmp_path):
     (d / "PlainTests.cs").write_text(
         "public class P {\n    [Fact]\n    public void X() {}\n}\n"
     )
-    proc = _run_in(d, tmp_path / "decisions.json")
+    proc = _run_in(d)
     assert proc.returncode == 2
     assert "Tradeoff" not in proc.stdout
     assert (tmp_path / "tests" / "Acme.Widgets.Tests.Mutation"
@@ -501,7 +496,7 @@ def test_solution_mode_with_blockers_asks_the_operator_too(tmp_path):
     # code-sharing rather than exercised.
     _blocked_project(tmp_path)
     (tmp_path / "Acme.sln").write_text("")
-    proc = _run_in(tmp_path, tmp_path / "decisions.json")
+    proc = _run_in(tmp_path)
     assert proc.returncode == 2
     assert "solution mode" in proc.stdout
     assert "autofixture-auto-data" in proc.stdout
@@ -516,12 +511,11 @@ def test_floor_command_cds_into_the_project_when_run_from_elsewhere(tmp_path):
     # project is a genuine relative hop away.
     _blocked_project(tmp_path)
     (tmp_path / "Acme.sln").write_text("")
-    decisions = tmp_path / "decisions.json"
-    asked = _run_in(tmp_path, decisions)
+    asked = _run_in(tmp_path)
     fingerprint = _fingerprint_from(asked.stdout)
     assert fingerprint
-    _record(decisions, "degrade", fingerprint)
-    proc = _run_in(tmp_path, decisions)
+    _record(tmp_path, "degrade", fingerprint)
+    proc = _run_in(tmp_path)
     assert "cd tests/Acme.Widgets.Tests" in proc.stdout, proc.stdout
 
 

@@ -37,16 +37,18 @@ here.
 
 `target` (#1476): defaults to `"--cached"` (HEAD vs. index — every caller
 above needs this and none passed anything else, so the default preserves
-their exact original argv). Two more callers need a different comparison
-to detect and hash `git commit -a`/pathspec-form commits, which bypass the
-index entirely: `_working_tree_modified_names()` passes `target=None`
-(bare `git diff` — index vs. working tree, "did `git add` miss anything
-that's actually changed") and `working_tree_gate_hash()` passes
-`target="HEAD"` (`git diff HEAD` — working tree vs. HEAD, the EFFECTIVE
-content such a commit would actually commit, staged or not). Same shared
-safety flags either way — the vulnerability class (`diff.relative`,
-submodule-ignore config, external diff drivers) doesn't care which two
-trees are being compared.
+their exact original argv). A caller can pass a different comparison —
+`target=None` (bare `git diff` — index vs. working tree) or any other ref
+expression (e.g. `review_gate_hash.py`'s `branch_diff_gate_hash()`, which
+passes `f"{base_ref}...HEAD"`). Same shared safety flags either way — the
+vulnerability class (`diff.relative`, submodule-ignore config, external
+diff drivers) doesn't care which two trees are being compared.
+
+`review_gate_hash.py`'s `working_tree_gate_hash()` (`target="HEAD"`, added
+#1476 for `git commit -a`/pathspec-form-commit detection) was deleted in
+#1904 once `pre_commit_review.py` — its sole caller — was retired to a
+no-op by #1886's PR-time gate migration; `target`'s generality here is
+otherwise unchanged.
 
 Stdlib only.
 """
