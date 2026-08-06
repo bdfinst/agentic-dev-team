@@ -20,27 +20,12 @@ import time
 from pathlib import Path
 
 import pytest
+from _mutation_test_helpers import FORBIDDEN_LITERALS, SCRIPTS_DIR
 
-SCRIPTS_DIR = (
-    Path(__file__).resolve().parents[2]
-    / "plugins"
-    / "dev-team"
-    / "skills"
-    / "mutation-testing"
-    / "scripts"
-)
 sys.path.insert(0, str(SCRIPTS_DIR))
 
 import stryker_shard_pipeline as pipeline
 import stryker_timeout_retry as retry
-
-FORBIDDEN_LITERALS = [
-    "Aci.Speedpay",
-    "Controllers",
-    "AwesomeAssertions",
-    "Moq",
-    "AutoFixture",
-]
 
 TS_RE = re.compile(r"\d{2}:\d{2}:\d{2}")
 
@@ -255,6 +240,44 @@ def test_survivor_fix_stops_launching_further_files_after_a_nonzero_exit(tmp_pat
     # reached once the first exits non-zero.
     assert len(rec.launches) == 1
     assert any("FAILED (headless)" in line and "exit 4" in line for line in rec.logs)
+
+
+# =============================================================================
+# Scenario: A GenerationExhausted exit (code 5) — a clean retry-then-downgrade
+# budget exhaustion, nothing mutated — is logged as unfixed but does NOT stop
+# the shard (the run's exit status is unaffected): the loop continues to the
+# next file (#1908 review). Distinct from exit code 4 above, which does stop
+# it.
+# =============================================================================
+def test_survivor_fix_continues_past_a_generation_exhausted_exit(tmp_path):
+    rec = _Recorder()
+    rec.run_returncode = 5  # GenerationExhausted's dedicated exit code
+    out_dir = tmp_path / "out" / "a"
+    config = _write_shard_config(tmp_path, "a")
+    _write_report(
+        out_dir,
+        {
+            "src/W.a/Foo.cs": {"mutants": [_mutant("Survived")]},
+            "src/W.a/Bar.cs": {"mutants": [_mutant("Survived")]},
+        },
+    )
+
+    ok = pipeline.launch_survivor_fix(
+        "a",
+        repo_root=tmp_path,
+        out_dir=out_dir,
+        config_path=config,
+        model=None,
+        max_rounds=2,
+        run=rec.run,
+        resolve_test_file=lambda source, *a: Path(f"test/W.Tests/{Path(source).stem}Tests.cs"),
+        log=rec.log,
+    )
+
+    assert ok is True
+    # Both files are launched — exit 5 does not stop the loop.
+    assert len(rec.launches) == 2
+    assert any("EXHAUSTED (headless)" in line and "exit 5" in line for line in rec.logs)
 
 
 def test_survivor_fix_all_files_launched_when_every_exit_is_zero(tmp_path):

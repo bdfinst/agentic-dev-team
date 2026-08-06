@@ -29,6 +29,53 @@ npx stryker run --mutate "src/calculator.ts"
 npx stryker run --mutate "$(git diff --name-only HEAD~1 -- '*.ts' | grep -v test | tr '\n' ',')"
 ```
 
+### Static-mutant skip (`--skip-static-mutants`)
+
+[`mutation-kill`](../../../../agents/mutation-kill.md#invocation)'s opt-in,
+default-OFF `--skip-static-mutants` flag excludes mutants Stryker's
+**native** `reports/mutation/mutation.json` report marks `"static": true`
+(a field the normalized `survivors[]` shape under "Native report → schema
+mapping" below does **not** carry — filter the native mutant objects
+before normalization, on `mutant.static !== true`) from the survivor list
+handed to **the generation step only**, for that round. A static mutant
+sits in code that runs once at module-initialization time rather than
+per-test, so `coverageAnalysis: "perTest"` cannot isolate it to the tests
+covering it — Stryker must re-run the entire suite to verify one, which is
+what "forcing a full-suite re-run" means in practice. (This field name and
+execution behavior are Stryker's own; verify against the Stryker docs for
+your installed version before relying on it in an automated pipeline.)
+
+**What the trade-off actually buys.** The filter runs *after* Stryker has
+already produced the report — it cannot make Stryker's own run faster, and
+does not claim to. What it saves is the generation-and-verify **rounds**
+`mutation-kill` would otherwise spend chasing mutants that are expensive to
+confirm killed (each needs a full-suite re-run to verify), at the cost of a
+small, documented survivor over-count: a skipped static mutant that a
+full-suite run would have killed stays counted as an unaddressed survivor
+for this pass.
+
+**Scoring and convergence stay unfiltered.** Only the generation step's
+input narrows. The `survivors == 0` convergence exit, the no-improvement
+stop predicate, and the honest/reported scores all read the report's full,
+unfiltered survivor count — a file whose only remaining survivors are
+static must never be written as `status: "converged"`.
+
+**Fallback when the field is absent.** If no mutant in the report carries
+a `static` key at all (an older Stryker version, or a report already
+normalized before the filter runs), the skip is inapplicable — print a
+one-line notice rather than proceeding as if nothing had been skipped.
+
+**Scope: interactive agent path only.** This is agent-parsed prose, not an
+argparse flag — there is no scripted JS/TS loop to add it to (unlike the
+C#/Python loops' real `--headless`/`--model`/`--report` flags). Passed
+against a non-JS/TS target in the interactive path, it has no effect and
+the agent prints a one-line ignored notice. It is **not** a flag on
+`mutation_kill_loop.py`/`mutation_kill_loop_python.py`'s `--headless` CLI —
+passing it there is an `unrecognized arguments` error, by design, the same
+as any flag those scripts don't declare. Under `--all --parallel <n>`,
+each spawned sub-agent's prompt must carry the flag explicitly; it does not
+propagate automatically to Phase-4 fan-out sub-agents.
+
 ## Per-mutant timeout flag
 
 Configure in `stryker.config.js`:

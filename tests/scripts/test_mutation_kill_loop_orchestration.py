@@ -144,6 +144,31 @@ def test_commit_message_counts_new_methods_via_count_methods():
     assert "targeting 5 surviving mutant(s)" in message
 
 
+# =============================================================================
+# Scenario: label_override — #1908 Step 3.2b. A model-downgrade event's
+# per-round dynamic content can't live in the frozen generator_label, so
+# _commit_message accepts an optional per-call override instead.
+# =============================================================================
+def test_commit_message_no_override_keeps_the_frozen_label_unchanged():
+    message = loop._commit_message(
+        1, "Foo.cs", 2, "public async Task X() {}\n", generator_label="headless (opus)"
+    )
+    assert "Generator: headless (opus)" in message
+
+
+def test_commit_message_override_replaces_the_frozen_label():
+    message = loop._commit_message(
+        1,
+        "Foo.cs",
+        2,
+        "public async Task X() {}\n",
+        generator_label="headless (opus)",
+        label_override="headless (downgraded 'opus' -> 'sonnet' at round 1, gateway-class)",
+    )
+    assert "Generator: headless (downgraded 'opus' -> 'sonnet' at round 1, gateway-class)" in message
+    assert "headless (opus)" not in message
+
+
 def test_headless_commit_records_generator_label_via_run_context(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ):
@@ -165,6 +190,34 @@ def test_headless_commit_records_generator_label_via_run_context(
 
     commit_msg = next(e[1] for e in events if e[0] == "commit")
     assert "Generator: headless (some-model)" in commit_msg
+
+
+def test_headless_commit_uses_label_override_provider_over_the_frozen_label(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    """A model-downgrade event's per-round dynamic content, surfaced through
+    RunContext.label_override_provider, replaces the frozen generator_label
+    in that round's commit trailer (#1908 Step 3.2b)."""
+    source_file, ctx, kwargs, events = _loop_fixture(tmp_path, monkeypatch, [_mutant("Survived")])
+    override_label = "headless (downgraded 'opus' -> 'sonnet' at round 1, gateway-class)"
+    ctx = dataclasses.replace(
+        ctx,
+        generator_label="headless (opus)",
+        label_override_provider=lambda: override_label,
+    )
+    monkeypatch.setattr(loop, "dotnet_build", lambda targets, **k: True)
+    monkeypatch.setattr(loop, "dotnet_test", lambda targets, flt, **k: True)
+    clean = _write_report(
+        tmp_path / "clean", "src/Widget.WebApi/PaymentService.cs", [_mutant("Killed")]
+    )
+    (tmp_path / "clean").mkdir(exist_ok=True)
+    monkeypatch.setattr(loop, "run_scoped_stryker", lambda *a, **k: clean)
+
+    loop.run_for_file(source_file, ctx, **kwargs)
+
+    commit_msg = next(e[1] for e in events if e[0] == "commit")
+    assert f"Generator: {override_label}" in commit_msg
+    assert "headless (opus)" not in commit_msg
 
 
 # =============================================================================

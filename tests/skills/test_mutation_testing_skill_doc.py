@@ -387,3 +387,129 @@ def test_skill_output_format_shows_raw_and_adjusted_score_line():
 
 def test_skill_output_format_has_an_accepted_survivors_deferred_table():
     assert "Accepted Survivors (deferred)" in _output_format_section()
+
+
+# --- Issue #1906/#1912 Slice 1 Step 1.2: mirror mutation-kill.md's
+# line-clustering instruction in the Step 4 triage guidance -----------------
+#
+# These tests must guard the "Cluster survivors by source line" paragraph
+# specifically, NOT anywhere else in the whole (~87-line) Step 4 section —
+# a future edit could add an unrelated `mutation-kill.md` mention elsewhere
+# in Step 4 and still leave this guard green even if the clustering
+# paragraph's own cross-link were deleted. Same hazard, same fix, as the
+# "Emitting adapters" window above.
+
+
+def _line_clustering_window() -> str:
+    s = _step_4_section()
+    idx = s.find("Cluster survivors by source line")
+    assert idx != -1
+    # Bound by the paragraph itself (next blank line), not a fixed char
+    # count — a fixed count has near-zero slack against future trims of
+    # this paragraph and risks silently re-widening into the next section.
+    return s[idx:].split("\n\n", 1)[0]
+
+
+def test_skill_step_4_references_line_clustering_approach():
+    w = _line_clustering_window()
+    assert grep(r"[Cc]luster", w)
+    assert "survivors-per-line descending" in w
+    assert "not total mutants-per-line" in w
+
+
+def test_skill_step_4_line_clustering_covers_same_or_adjacent_line():
+    assert grep(r"same or adjacent source line", _line_clustering_window())
+
+
+def test_skill_step_4_line_clustering_prefers_one_test_per_cluster():
+    w = _line_clustering_window()
+    assert "one test per cluster where feasible" in w
+    assert "rather than one per mutant" in w
+
+
+def test_skill_step_4_line_clustering_cross_references_mutation_kill_md():
+    assert "mutation-kill.md" in _line_clustering_window()
+
+
+# --- Issue #1906/#1912 Slice 2 Step 2.3: cross-reference
+# --skip-static-mutants in Step 2 -------------------------------------------
+
+
+def _skip_static_mutants_window() -> str:
+    """Correctness-review finding (build, Slice 2): the prior version of
+    this window scoped to the whole ~39-line Step 2 section (which also
+    contains the Capturing-run-output and Probe-file-selection
+    subsections), so a future edit adding an unrelated mutation-kill.md
+    reference elsewhere in Step 2 could keep these tests green even if the
+    --skip-static-mutants paragraph itself lost its cross-links. Scope to
+    the paragraph specifically, mirroring _emitting_adapters_window()."""
+    s = _step_2_section()
+    idx = s.find("--skip-static-mutants")
+    assert idx != -1
+    return s[idx:].split("\n\n", 1)[0]
+
+
+def test_skill_step_2_cross_references_skip_static_mutants_flag():
+    assert "--skip-static-mutants" in _step_2_section()
+
+
+def test_skill_step_2_skip_static_mutants_cross_reference_links_mutation_kill_and_javascript_stryker():
+    w = _skip_static_mutants_window()
+    assert "mutation-kill.md#invocation" in w
+    assert "javascript-stryker.md" in w
+
+
+# --- Issue #1910 Slice 5 Step 5.1: named equivalent-mutant taxonomy
+# reference section in Step 4 -----------------------------------------------
+
+NAMED_EQUIVALENT_PATTERNS = (
+    "truthiness-coercion-no-op",
+    "dead-initializer-overwritten-before-read",
+    "short-circuit-makes-downstream-unreachable",
+    "duplicate-case-bodies",
+    "default-value-never-observably-read",
+    "boolean-algebra-domination",
+    "unread-emission-value",
+)
+
+
+def _named_equivalent_patterns_section() -> str:
+    return section(
+        _text(),
+        r"^### .*[Nn]amed equivalent-mutant patterns",
+        boundary_pattern=r"^### ",
+        include_start_line=False,
+    )
+
+
+def test_skill_step_4_has_a_named_equivalent_mutant_patterns_sub_section():
+    assert grep(r"^### .*[Nn]amed equivalent-mutant patterns", _step_4_section())
+
+
+def test_skill_named_equivalent_patterns_section_names_all_seven_patterns():
+    s = _named_equivalent_patterns_section()
+    for pattern in NAMED_EQUIVALENT_PATTERNS:
+        assert pattern in s
+
+
+def test_skill_named_equivalent_patterns_section_precedes_weak_vs_strong_test_patterns():
+    lines = _step_4_section().splitlines()
+    named_idx = next(
+        (
+            i
+            for i, ln in enumerate(lines)
+            if ln.startswith("### ") and "Named equivalent-mutant patterns" in ln
+        ),
+        None,
+    )
+    weak_idx = next(
+        (
+            i
+            for i, ln in enumerate(lines)
+            if ln.startswith("### ") and "Weak vs strong test patterns" in ln
+        ),
+        None,
+    )
+    assert named_idx is not None
+    assert weak_idx is not None
+    assert named_idx < weak_idx

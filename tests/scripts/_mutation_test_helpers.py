@@ -39,6 +39,9 @@ from __future__ import annotations
 import os
 import subprocess
 from pathlib import Path
+from types import ModuleType
+
+import pytest
 
 SCRIPTS_DIR = (
     Path(__file__).resolve().parents[2]
@@ -89,3 +92,35 @@ def git_hermetic(cwd: Path, *args: str) -> subprocess.CompletedProcess:
         env=hermetic_git_env(home=cwd),
         check=True,
     )
+
+
+def sequenced_run_claude_headless(
+    monkeypatch: pytest.MonkeyPatch, shared_module: ModuleType, *outcomes: object
+) -> list[tuple[str, str | None]]:
+    """Patch ``shared_module.run_claude_headless`` with a fake that yields
+    each of ``outcomes`` in order (a ``BaseException`` instance is raised,
+    anything else is returned) and records ``(prompt, model)`` for every
+    call.
+
+    Extracted (#1908 review) out of near-duplicate copies previously defined
+    verbatim in ``test_mutation_kill_shared.py``,
+    ``test_mutation_kill_headless.py``, and
+    ``test_mutation_kill_loop_python_cli.py``. All three pass
+    ``mutation_kill_shared`` as ``shared_module`` regardless of which loop
+    module's own tests are calling through it: ``make_retrying_headless_call``
+    always resolves ``run_claude_headless`` from that module's own globals at
+    call time, so patching any other module's re-exported name would not
+    take effect.
+    """
+    remaining = list(outcomes)
+    calls: list[tuple[str, str | None]] = []
+
+    def fake(prompt, *, model=None, cwd=None):
+        calls.append((prompt, model))
+        outcome = remaining.pop(0)
+        if isinstance(outcome, BaseException):
+            raise outcome
+        return outcome
+
+    monkeypatch.setattr(shared_module, "run_claude_headless", fake)
+    return calls
