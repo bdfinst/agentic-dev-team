@@ -54,7 +54,7 @@ re-describe or re-implement their mechanics:
 | `mutation_kill_loop.py` | The C#/Stryker.NET per-file loop: scoped run → score → survivor check → **your** generation → duplicate-guard → insert-before-class-close → build → test → commit-on-green / revert-on-failure → no-improvement stop. Delegates DOTNET_ROOT + `.sln` hide/restore to the wrapper. Config parsing and `run_for_file` orchestration only — insertion mechanics and headless generation live in the sibling scripts below. |
 | `mutation_kill_insert.py` | C# test-method insertion mechanics: detect-or-refuse — duplicate-name guard, and inserting generated methods before the test class's closing brace (refuses on a file-scoped namespace or non-4-space indentation rather than risk a mis-insertion). |
 | `mutation_kill_insert_python.py` | Python/pytest test-function insertion mechanics — the Python mirror of `mutation_kill_insert.py`: detect-or-refuse duplicate-name guard, and appending generated functions at the end of the file (refuses on a class-based test file rather than risk a mis-insertion). |
-| `mutation_kill_shared.py` | Cross-language loop mechanics shared verbatim between the two loops: env-var timeout parsing, `git_revert`/`git_reset_and_revert`/`git_commit`, the "no improvement across rounds" stop predicate, the `claude --print` headless-generation glue (`resolve_model`, `strip_code_fences`, `claude_cli_available`, `CLAUDE_CLI`, `run_claude_headless`), and the unified `InsertOutcome`/`InsertionRefused` result types both loops' insertion scripts return. |
+| `mutation_kill_shared.py` | Cross-language loop mechanics shared verbatim between the two loops: env-var timeout parsing, `git_revert`/`git_reset_and_revert`/`git_commit`, the "no improvement across rounds" stop predicate, the `claude --print` headless-generation glue (`resolve_model`, `strip_code_fences`, `claude_cli_available`, `CLAUDE_CLI`, `run_claude_headless`), the unified `InsertOutcome`/`InsertionRefused` result types both loops' insertion scripts return, and the retry-then-downgrade policy (`is_gateway_class_error`, `make_retrying_headless_call`, `DowngradeEvent`, `GenerationExhausted`) plus its audit hook (`make_downgrade_audit_hook`). |
 | `mutation_safety_gate.py` | Shared deny-list scan + refuse-on-match guard against prompt-injection payloads in generated test code, plus the commit audit-trailer (`append_generator_trailer`). |
 | `mutation_kill_headless.py` | The C#-specific headless generation + `--headless` CLI/entry point: builds the C#-flavored generation prompt and dispatches `mutation_kill_loop.run_for_file`. Imports its generic (non-C#-specific) helpers (`resolve_model`, `claude_cli_available`, `CLAUDE_CLI`, `run_claude_headless`) from `mutation_kill_shared.py` rather than defining them — `mutation_kill_loop_python.py` imports the same names directly from `mutation_kill_shared.py`, not through this module, so the Python loop carries no dependency on the C#/Stryker.NET stack. |
 | `mutation_kill_loop_python.py` | The Python/mutmut per-file loop — same contract, adapted for pytest: scoped `mutmut run` (clears stale `.mutmut-cache` first) → score via `mutation_report` junitxml support → **your** generation → duplicate-guard → append-at-end-of-file → `py_compile` → scoped `pytest` → commit-on-green / revert-on-failure → no-improvement stop. Insertion mechanics live in `mutation_kill_insert_python.py`; reuses `mutation_kill_shared.py`'s git/timeout/stop-predicate/headless-generation mechanics rather than duplicating them. |
@@ -80,13 +80,14 @@ Generation is a seam the loop calls into; it never decides *what* tests to write
   a **live agent turn** — you read the survivors, source, and existing test file,
   and return the new test methods. No `claude` subprocess is spawned.
 - **`--headless`.** For unattended CI, `mutation_kill_loop.py --headless` shells to
-  `claude --print --model <m>` for generation. `--model` resolves from
-  `DEV_TEAM_MUTATION_MODEL` then a pinned default — never an unstated literal.
-  Invoking the bare CLI with neither an agent generator nor `--headless` fails
-  fast at startup, before any Stryker run or file mutation.
+  `claude --print` for generation, passing `--model <m>` when resolved from
+  `--model` > `DEV_TEAM_MUTATION_MODEL` — else omitted, letting the CLI apply
+  its own default. Invoking the bare CLI with neither an agent generator nor
+  `--headless` fails fast at startup, before any Stryker run or file mutation.
 - **Forced `--headless` in the shard pipeline.** `stryker_shard_pipeline.py`
   **forces `--headless`** on every survivor-fix launch, because a script-spawned
   round is unattended and has no live agent turn to call back into.
+- **Retry-then-downgrade on repeated gateway errors.** Within one `--headless` generation call, the 3rd consecutive 502/gateway-class failure earns exactly 1 same-model retry (a short, capped backoff runs before each pre-threshold retry); a failed retry downgrades one step down `opus`→`sonnet`→`haiku` — **at most once per file, ever**. Exhaustion at the fallback tier surfaces to the operator instead of a second downgrade (`--all` continues). Override via `DEV_TEAM_MUTATION_FALLBACK_MODEL` (an invalid value is rejected and falls back to the ladder default).
 
 ## The honest score — hard kills only
 

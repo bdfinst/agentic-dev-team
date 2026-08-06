@@ -74,14 +74,19 @@ import mutation_safety_gate
 from mutation_kill_insert_python import apply_generated_tests, count_tests
 from mutation_kill_shared import (
     CLAUDE_CLI,
+    EXIT_GENERATION_EXHAUSTED,
     GIT_TIMEOUT_S,  # noqa: F401 — re-exported for tests (loop.GIT_TIMEOUT_S), matching the C# sibling's export name
+    DowngradeEvent,
+    GenerationExhausted,
     _timeout_from_env,
     claude_cli_available,
     git_commit,
     git_reset_and_revert,
     git_revert,
+    make_downgrade_audit_hook,
+    make_retrying_headless_call,
     resolve_model,
-    run_claude_headless,
+    run_claude_headless,  # noqa: F401 — re-exported for tests (loop.run_claude_headless identity check); make_headless_generator now calls it indirectly via make_retrying_headless_call (#1908)
     stop_reason,
 )
 
@@ -364,6 +369,7 @@ def _commit_message(
     new_tests: str,
     *,
     generator_label: str | None = None,
+    label_override: str | None = None,
 ) -> str:
     count = count_tests(new_tests)
     # Whitespace-collapsed the same way append_generator_trailer sanitizes
@@ -375,7 +381,9 @@ def _commit_message(
         f"test(mutation): kill round {round_num} — {safe_source_file}\n\n"
         f"{count} new test(s) targeting {survivors} surviving mutant(s)"
     )
-    return mutation_safety_gate.append_generator_trailer(message, generator_label)
+    return mutation_safety_gate.append_generator_trailer(
+        message, generator_label, label_override=label_override
+    )
 
 
 # =============================================================================
@@ -394,6 +402,19 @@ class RunContext:
     ``generator_label``, when set, is recorded in the commit message as an
     audit trail (e.g. distinguishing an unattended ``--headless`` commit from
     an agent-driven one).
+
+    ``label_override_provider``, when set, is called with no arguments
+    before building each round's commit message; a non-``None`` result
+    replaces ``generator_label`` for that commit AND every subsequent commit
+    in this file (#1908 Step 3.2b) — the seam a model-downgrade event uses to
+    record itself in the audit trail without mutating this frozen,
+    file-level dataclass. The lifetime is sticky, not per-commit: once a
+    downgrade fires at round N, the stored label is never cleared, so every
+    later commit in this file also carries the downgrade label (with the
+    round number frozen at N, not the commit's own round) — intentional,
+    since the downgraded model really does stay in use for the rest of the
+    file. ``None`` (the default) leaves today's ``generator_label``-only
+    behavior unchanged.
     """
 
     test_file: Path
@@ -403,6 +424,7 @@ class RunContext:
     log: Callable[[str], None] = print
     initial_junitxml: str | None = None
     generator_label: str | None = None
+    label_override_provider: Callable[[], str | None] | None = None
 
 
 def _score_round(
@@ -509,6 +531,9 @@ def _verify_and_commit(
         return None
 
     ctx.log("  green — committing")
+    label_override = (
+        ctx.label_override_provider() if ctx.label_override_provider is not None else None
+    )
     committed = git_commit(
         _commit_message(
             round_num,
@@ -516,6 +541,7 @@ def _verify_and_commit(
             survivor_count,
             new_tests,
             generator_label=ctx.generator_label,
+            label_override=label_override,
         ),
         ctx.test_file,
         cwd=ctx.cwd,
@@ -659,16 +685,47 @@ def build_generation_prompt(
 
 
 def make_headless_generator(
-    model: str | None = None, *, cwd: Path | None = None
+    model: str | None = None,
+    *,
+    cwd: Path | None = None,
+    log: Callable[[str], None] = print,
+    on_downgrade: Callable[[DowngradeEvent], None] | None = None,
+    sleep: Callable[[float], None] = time.sleep,
 ) -> Generator:
     """Return a :data:`Generator` that shells to ``claude --print``.
 
     Builds the Python-flavored prompt above, then delegates everything else
-    (the ``--model`` flag, the timeout, error handling, and fence-stripping)
-    to the shared :func:`mutation_kill_shared.run_claude_headless` (#1583,
-    relocated from ``mutation_kill_headless`` in #1601) — previously
-    duplicated byte-for-byte in this function.
+    to :func:`mutation_kill_shared.make_retrying_headless_call` (#1908) —
+    the 3-consecutive-gateway-class-failures/1-same-model-retry/at-most-
+    once-per-file-downgrade wrapper around
+    :func:`mutation_kill_shared.run_claude_headless` (#1583, relocated from
+    ``mutation_kill_headless`` in #1601).
+
+    The retry/downgrade state (consecutive-failure counter, model in use,
+    whether this file already spent its one downgrade) lives in the
+    ``retrying_call`` closure below — constructed once per file, here, never
+    at module scope — so a new file's generator always starts fresh at the
+    top of the ladder regardless of a prior file's downgrade, and concurrent
+    files under ``--all --concurrency`` (each with their own closure) never
+    leak state to one another. ``round_num`` is derived from how many times
+    THIS closure has been invoked (``_run_round`` calls ``generate`` once per
+    round), since the shared :data:`Generator` signature carries no round
+    number of its own.
+
+    ``on_downgrade``, when given, is passed straight through to
+    :func:`mutation_kill_shared.make_retrying_headless_call`. Building the
+    ``on_downgrade``/``get_label_override`` audit-trail pair
+    (:func:`mutation_kill_shared.make_downgrade_audit_hook`) is this
+    module's own ``main()``'s job now (#1908 review) — this function no
+    longer constructs one internally or attaches a
+    ``label_override_provider`` attribute to the returned ``generate``;
+    ``main()`` has ``get_label_override`` directly in scope and wires it
+    into :class:`RunContext` itself, so no attribute-smuggling is needed.
     """
+    retrying_call = make_retrying_headless_call(
+        initial_model=model, cwd=cwd, log=log, on_downgrade=on_downgrade, sleep=sleep
+    )
+    round_counter = {"n": 0}
 
     def generate(
         source_file: str,
@@ -676,8 +733,9 @@ def make_headless_generator(
         source_text: str,
         test_text: str,
     ) -> str:
+        round_counter["n"] += 1
         prompt = build_generation_prompt(source_file, survivors, source_text, test_text)
-        return run_claude_headless(prompt, model=model, cwd=cwd)
+        return retrying_call(prompt, source_file, round_counter["n"])
 
     return generate
 
@@ -741,6 +799,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         )
         return 2
 
+    on_downgrade, get_label_override = make_downgrade_audit_hook()
+    generate = make_headless_generator(model, on_downgrade=on_downgrade)
     try:
         run_for_file(
             args.file,
@@ -749,10 +809,23 @@ def main(argv: Sequence[str] | None = None) -> int:
                 source_path=Path(args.source_path),
                 test_command=args.test_command,
                 generator_label=f"headless ({model or 'default'})",
+                label_override_provider=get_label_override,
             ),
-            generate=make_headless_generator(model),
+            generate=generate,
             max_rounds=args.max_rounds,
         )
+    except GenerationExhausted as exc:
+        # This file's retry-then-downgrade budget is fully spent (3
+        # consecutive gateway-class failures + 1 same-model retry, at the
+        # original model AND at most one fallback tier) — distinct from
+        # exit code 4 below (a failed revert, which leaves the working tree
+        # in an unknown/possibly-mutated state). A clean exhaustion mutates
+        # nothing, so callers (stryker_shard_pipeline.py's shard driver) can
+        # log this file as unfixed and continue to the next file without
+        # affecting the run's exit status, instead of aborting the whole
+        # shard (#1908 review).
+        sys.stderr.write(f"error: {exc}\n")
+        return EXIT_GENERATION_EXHAUSTED
     except RuntimeError as exc:
         # A failed revert or a failed-commit round-abandonment raises
         # RuntimeError (#1598) — mirrors mutation_kill_headless.py's main(),

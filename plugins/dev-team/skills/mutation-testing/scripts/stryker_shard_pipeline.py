@@ -43,6 +43,7 @@ from pathlib import Path
 # have been since 3.9, which the 3.10 floor (ADR 0031) clears.
 import csharp_stryker_net_wrapper as wrapper
 import mutation_report
+from mutation_kill_shared import EXIT_GENERATION_EXHAUSTED
 
 # ── Constants ────────────────────────────────────────────────────────────────
 
@@ -71,6 +72,16 @@ class ShardSetupMissing(Exception):
 
 
 # ── Small helpers ──────────────────────────────────────────────────────────────
+
+
+def _safe(v: str) -> str:
+    """Whitespace-collapse a caller-supplied value before it lands in a log
+    line — same precedent as ``mutation_kill_loop.py``'s and
+    ``mutation_kill_loop_python.py``'s ``_commit_message`` (#1607):
+    ``source``/``shard`` are survivor-report file paths, not
+    operator-supplied, but could theoretically contain a newline that would
+    otherwise forge extra log lines."""
+    return " ".join(str(v).split())
 
 
 def ts() -> str:
@@ -307,29 +318,35 @@ def launch_survivor_fix(
     Runs from ``repo_root`` so fixes commit onto ``HEAD`` — that is what makes
     the *next* shard's worktree compounding.
 
-    Returns True when every launched fix exited zero (or none were launched);
-    False the moment one exits non-zero. A non-zero exit from the headless
-    loop — including the fatal-revert exit code 4 (``mutation_kill_headless``/
-    ``mutation_kill_loop_python`` #1598) — means the working tree was just
-    declared to be in an unknown/possibly-mutated state, so processing stops
-    for the remaining files in this shard rather than silently continuing
-    onto a tree that may already be broken.
+    Returns True when every launched fix exited zero or the dedicated
+    GenerationExhausted exit code 5 (or none were launched); False the
+    moment one exits any OTHER non-zero code. A non-zero exit from the
+    headless loop — specifically the fatal-revert exit code 4
+    (``mutation_kill_headless``/``mutation_kill_loop_python`` #1598) — means
+    the working tree was just declared to be in an unknown/possibly-mutated
+    state, so processing stops for the remaining files in this shard rather
+    than silently continuing onto a tree that may already be broken. Exit
+    code 5 (a clean retry-then-downgrade exhaustion — nothing mutated) is
+    the opposite case: this file is logged as unfixed, but the run's exit
+    status is unaffected and the loop continues to the next file in the
+    shard, matching ``mutation-kill.md``'s documented exhaustion contract
+    that ```--all` continues``` (#1908 review).
     """
     resolve_test_file = resolve_test_file or default_resolve_test_file
     report = report_path(out_dir)
     if not report.exists():
-        log(f"[{ts()}] Agent SKIP: no report for {shard}")
+        log(f"[{ts()}] Agent SKIP: no report for {_safe(shard)}")
         return True
     files = survivor_source_files(report)
     if not files:
-        log(f"[{ts()}] Agent SKIP: no survivors in {shard}")
+        log(f"[{ts()}] Agent SKIP: no survivors in {_safe(shard)}")
         return True
 
     test_projects = shard_test_projects(config_path)
     for source in files:
         test_file = resolve_test_file(source, test_projects, repo_root)
         if test_file is None:
-            log(f"[{ts()}] Agent SKIP: no test file resolved for {source}")
+            log(f"[{ts()}] Agent SKIP: no test file resolved for {_safe(source)}")
             continue
         cmd = build_loop_command(
             config=config_path,
@@ -343,12 +360,21 @@ def launch_survivor_fix(
         log(f"[{ts()}] Agent START (headless): {shard} — {source}")
         result = run(cmd, cwd=str(repo_root))
         rc = result.returncode
+        if rc == EXIT_GENERATION_EXHAUSTED:
+            log(
+                f"[{ts()}] Agent EXHAUSTED (headless): {_safe(shard)} — "
+                f"{_safe(source)} (exit {rc}) — retry-then-downgrade budget "
+                "spent; logging this file as unfixed (the run's exit status "
+                "is unaffected) and continuing to the next file in this "
+                "shard (the tree was not mutated)"
+            )
+            continue
         if rc != 0:
             log(
-                f"[{ts()}] Agent FAILED (headless): {shard} — {source} "
-                f"(exit {rc}) — stopping further files in this shard; the "
-                "working tree may be left in an unknown/possibly-mutated "
-                "state"
+                f"[{ts()}] Agent FAILED (headless): {_safe(shard)} — "
+                f"{_safe(source)} (exit {rc}) — stopping further files in "
+                "this shard; the working tree may be left in an "
+                "unknown/possibly-mutated state"
             )
             return False
     return True

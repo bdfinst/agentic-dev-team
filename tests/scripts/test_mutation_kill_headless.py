@@ -24,21 +24,16 @@ import sys
 from pathlib import Path
 
 import pytest
-
-SCRIPTS_DIR = (
-    Path(__file__).resolve().parents[2]
-    / "plugins"
-    / "dev-team"
-    / "skills"
-    / "mutation-testing"
-    / "scripts"
+from _mutation_test_helpers import (
+    FORBIDDEN_LITERALS,
+    SCRIPTS_DIR,
+    sequenced_run_claude_headless,
 )
+
 sys.path.insert(0, str(SCRIPTS_DIR))
 
 import mutation_kill_headless as headless
 import mutation_kill_shared as shared
-
-FORBIDDEN_LITERALS = ["Aci.Speedpay", "Controllers", "AwesomeAssertions", "Moq", "AutoFixture"]
 
 
 def _write_config(repo_root: Path) -> Path:
@@ -294,5 +289,170 @@ def test_main_exits_non_zero_when_run_for_file_raises(
 
     assert rc != 0
     assert rc not in (1, 2, 3)  # distinct from the existing preflight exit codes
+    assert rc == 4
     err = capsys.readouterr().err
     assert "revert failed" in err
+
+
+# =============================================================================
+# Scenario: GenerationExhausted gets its OWN exit code (5), distinct from the
+# generic RuntimeError exit code 4 above (#1908 review). Exit 4 means "a
+# failed revert — the tree may be left in an unknown/possibly-mutated
+# state"; exit 5 means "a clean retry-then-downgrade exhaustion — nothing
+# was mutated" — stryker_shard_pipeline.py's shard driver treats the two
+# very differently (abort the shard vs. continue to the next file).
+# =============================================================================
+def test_main_returns_exit_code_5_when_generation_exhausted_propagates(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys
+):
+    monkeypatch.setattr(headless, "claude_cli_available", lambda: True)
+
+    def boom(*a, **k):
+        raise shared.GenerationExhausted("foo.cs (round 3) exhausted its retry budget")
+
+    monkeypatch.setattr(headless, "run_for_file", boom)
+    config_path = _write_config(tmp_path)
+
+    rc = headless.main(
+        [
+            "--config", str(config_path),
+            "--headless",
+            "--file", "Foo.cs",
+            "--test-file", str(tmp_path / "FooTests.cs"),
+            "--source-path", str(tmp_path / "Foo.cs"),
+        ]
+    )
+
+    assert rc == 5
+    err = capsys.readouterr().err
+    assert "exhausted its retry budget" in err
+
+
+# =============================================================================
+# Scenario: make_headless_generator wires through
+# mutation_kill_shared.make_retrying_headless_call (#1908, Slice 3 Step 3.2)
+# — round tracking, per-closure isolation, and GenerationExhausted
+# propagation. The retry/downgrade behavior itself is covered exhaustively
+# in test_mutation_kill_shared.py; this file only proves the wiring.
+# =============================================================================
+def test_make_headless_generator_derives_round_number_from_call_count(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    """generate() carries no round parameter of its own (the shared
+    Generator signature doesn't have one) — make_headless_generator derives
+    it from how many times its own closure has been invoked."""
+    logged: list[str] = []
+    gw = lambda: RuntimeError("claude CLI failed (exit 1): 502 Bad Gateway")
+    sequenced_run_claude_headless(
+        monkeypatch,
+        shared,
+        "round-1-result",
+        gw(),
+        gw(),
+        gw(),
+        gw(),
+        "round-2-result",
+    )
+    generate = headless.make_headless_generator(
+        "opus", log=logged.append, sleep=lambda _s: None
+    )
+    survivors = [_mutant("Survived")]
+
+    assert generate("Foo.cs", survivors, "src", "tests") == "round-1-result"
+    assert generate("Foo.cs", survivors, "src", "tests") == "round-2-result"
+
+    assert len(logged) == 1
+    assert "round 2" in logged[0]
+
+
+def test_make_headless_generator_propagates_generation_exhausted(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    monkeypatch.delenv("DEV_TEAM_MUTATION_FALLBACK_MODEL", raising=False)
+    gw = lambda: RuntimeError("claude CLI failed (exit 1): 502 Bad Gateway")
+    sequenced_run_claude_headless(
+        monkeypatch, shared, gw(), gw(), gw(), gw(), gw(), gw(), gw(), gw()
+    )
+    generate = headless.make_headless_generator(
+        "opus", log=lambda _: None, sleep=lambda _s: None
+    )
+
+    with pytest.raises(shared.GenerationExhausted):
+        generate("Foo.cs", [_mutant("Survived")], "src", "tests")
+
+
+def test_make_headless_generator_closures_do_not_share_downgrade_state(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    monkeypatch.delenv("DEV_TEAM_MUTATION_FALLBACK_MODEL", raising=False)
+    gw = lambda: RuntimeError("claude CLI failed (exit 1): 502 Bad Gateway")
+    seen = sequenced_run_claude_headless(
+        monkeypatch, shared, gw(), gw(), gw(), gw(), "ok-on-sonnet"
+    )
+    generate_a = headless.make_headless_generator("opus", sleep=lambda _s: None)
+    generate_a("FileA.cs", [_mutant("Survived")], "src", "tests")  # downgrades A to sonnet
+    assert seen[-1][1] == "sonnet"
+
+    seen = sequenced_run_claude_headless(monkeypatch, shared, "ok-on-opus")
+    generate_b = headless.make_headless_generator("opus", sleep=lambda _s: None)
+    generate_b("FileB.cs", [_mutant("Survived")], "src", "tests")
+
+    # file B's fresh closure is unaffected by A's downgrade
+    assert [model for _, model in seen] == ["opus"]
+
+
+def test_main_wires_label_override_provider_into_runcontext(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    """main() builds the on_downgrade/get_label_override audit-trail pair
+    itself (#1908 review) and threads get_label_override straight into
+    RunContext.label_override_provider — no monkey-patched attribute on
+    generate() involved. Previously untested: the "assembly point" where
+    main() actually wires make_downgrade_audit_hook()'s result into
+    RunContext had zero coverage."""
+    monkeypatch.setattr(headless, "claude_cli_available", lambda: True)
+    sentinel_on_downgrade = lambda event: None
+    sentinel_get_label_override = lambda: "sentinel-label"
+    monkeypatch.setattr(
+        headless,
+        "make_downgrade_audit_hook",
+        lambda: (sentinel_on_downgrade, sentinel_get_label_override),
+    )
+    captured: dict = {}
+    monkeypatch.setattr(headless, "run_for_file", lambda *a, **k: captured.update(a[1].__dict__))
+    config_path = _write_config(tmp_path)
+
+    headless.main(
+        [
+            "--config", str(config_path),
+            "--headless",
+            "--file", "Foo.cs",
+            "--test-file", str(tmp_path / "FooTests.cs"),
+            "--source-path", str(tmp_path / "Foo.cs"),
+        ]
+    )
+
+    assert captured["label_override_provider"] is sentinel_get_label_override
+
+
+def test_make_headless_generator_label_override_reflects_a_downgrade(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    """make_headless_generator no longer builds its own audit-trail pair —
+    the caller (here, the test itself, standing in for main()) constructs
+    make_downgrade_audit_hook() and passes on_downgrade in; get_label_override
+    is read from that same pair, not from a generate() attribute (#1908
+    review)."""
+    monkeypatch.delenv("DEV_TEAM_MUTATION_FALLBACK_MODEL", raising=False)
+    gw = lambda: RuntimeError("claude CLI failed (exit 1): 502 Bad Gateway")
+    sequenced_run_claude_headless(monkeypatch, shared, gw(), gw(), gw(), gw(), "ok-on-sonnet")
+    on_downgrade, get_label_override = shared.make_downgrade_audit_hook()
+    generate = headless.make_headless_generator(
+        "opus", log=lambda _: None, on_downgrade=on_downgrade, sleep=lambda _s: None
+    )
+
+    generate("Foo.cs", [_mutant("Survived")], "src", "tests")
+
+    label = get_label_override()
+    assert label is not None
+    assert "opus" in label and "sonnet" in label and "Foo.cs" in label
