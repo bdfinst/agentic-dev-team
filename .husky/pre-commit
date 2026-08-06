@@ -11,13 +11,33 @@ cd "$ROOT" || exit 1
 #    knowledge/**.md or skills/**/SKILL.md change index.json; staging it here
 #    guarantees the regenerated index is committed and pushed rather than left
 #    as an uncommitted change after a commit or push runs the builder.
-if [ -x plugins/dev-team/hooks/lib/build-knowledge-index.sh ]; then
-  if ! plugins/dev-team/hooks/lib/build-knowledge-index.sh; then
-    echo "pre-commit: knowledge-index rebuild failed" >&2
-    exit 1
-  fi
-  git add plugins/dev-team/knowledge/index.json
+#    The builder reads the working tree, not the index, so an unstaged or
+#    untracked corpus file would let the rebuilt index diverge from what
+#    this commit actually contains — refuse rather than stage a mismatch.
+command -v python3 >/dev/null 2>&1 || { echo "pre-commit: python3 not found on PATH — run bash scripts/dev-setup.sh" >&2; exit 1; }
+UNSTAGED=$(git diff --name-only) || { echo "pre-commit: git diff failed" >&2; exit 1; }
+UNTRACKED=$(git ls-files --others --exclude-standard) || { echo "pre-commit: git ls-files failed" >&2; exit 1; }
+# Filter through the same corpus regex the builder itself trusts
+# (knowledge_index_paths.py) rather than a hand-rolled git pathspec glob —
+# a plain '*' pathspec crosses '/', so it would also flag non-corpus files
+# nested under knowledge/<subdir>/*.md that the builder never scans.
+CORPUS_DIRTY=$(printf '%s\n%s\n' "$UNSTAGED" "$UNTRACKED" | python3 -c '
+import sys
+sys.path.insert(0, "plugins/dev-team/hooks/lib")
+from knowledge_index_paths import filter_corpus_paths
+paths = [line.rstrip("\n") for line in sys.stdin if line.strip()]
+print("\n".join(filter_corpus_paths(paths)))
+') || { echo "pre-commit: corpus-dirty check failed to run" >&2; exit 1; }
+if [ -n "$CORPUS_DIRTY" ]; then
+  echo "pre-commit: unstaged/untracked knowledge-corpus files would make the rebuilt index.json not match this commit — stage or stash them first:" >&2
+  echo "$CORPUS_DIRTY" >&2
+  exit 1
 fi
+if ! python3 plugins/dev-team/hooks/lib/build_knowledge_index.py; then
+  echo "pre-commit: knowledge-index rebuild failed" >&2
+  exit 1
+fi
+git add plugins/dev-team/knowledge/index.json || { echo "pre-commit: staging index.json failed" >&2; exit 1; }
 
 # 2. Run lint-staged: eslint --fix on staged JS/TS files and ruff check --fix
 #    on staged Python files, with the autofixes automatically re-staged (see
