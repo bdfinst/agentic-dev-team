@@ -161,7 +161,11 @@ def test_no_occurrence_of_from_report_flag_remains(text: str) -> None:
 
 def test_invocation_section_names_report_flag(text: str) -> None:
     invocation = required_section(
-        text, r"^## Invocation", boundary_pattern=r"^## ", name="Invocation"
+        text,
+        r"^## Invocation",
+        boundary_pattern=r"^## ",
+        include_start_line=False,
+        name="Invocation",
     )
     assert "--report <path>" in invocation
     assert "--from-report" not in invocation
