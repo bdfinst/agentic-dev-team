@@ -141,6 +141,20 @@ class LockAcquisitionError(RuntimeError):
     the critical section body itself (#1920 correctness review)."""
 
 
+def _reraise_unless_fail_open(exc: OSError, fail_open: bool) -> None:
+    """Re-raise `exc` unless `fail_open` — the shared decision behind each
+    of `atomic_write`'s OSError sites (#1920 structure review: this
+    collapses the same duplication `_refuse_or_warn` above was extracted to
+    eliminate for `locked_state`'s four fail-open sites). Takes the
+    exception explicitly, rather than relying on a bare `raise` re-raising
+    the caller's currently-handled exception, so this helper is an ordinary
+    function call rather than something that only works from inside a
+    lexical `except` block.
+    """
+    if not fail_open:
+        raise exc
+
+
 def atomic_write(path: Path, text: str, *, fail_open: bool = True) -> None:
     """Write `text` to `path` atomically via tempfile-in-same-dir + rename.
 
@@ -158,18 +172,16 @@ def atomic_write(path: Path, text: str, *, fail_open: bool = True) -> None:
     """
     try:
         path.parent.mkdir(parents=True, exist_ok=True)
-    except OSError:
-        if fail_open:
-            return
-        raise
+    except OSError as exc:
+        _reraise_unless_fail_open(exc, fail_open)
+        return
     try:
         fd, tmp_name = tempfile.mkstemp(
             prefix=f".{path.name}-", suffix=".tmp", dir=str(path.parent)
         )
-    except OSError:
-        if fail_open:
-            return
-        raise
+    except OSError as exc:
+        _reraise_unless_fail_open(exc, fail_open)
+        return
     try:
         try:
             handle = os.fdopen(fd, "w", encoding="utf-8")
@@ -184,11 +196,10 @@ def atomic_write(path: Path, text: str, *, fail_open: bool = True) -> None:
         with handle:
             handle.write(text)
         os.replace(tmp_name, path)
-    except OSError:
+    except OSError as exc:
         with contextlib.suppress(OSError):
             os.unlink(tmp_name)
-        if not fail_open:
-            raise
+        _reraise_unless_fail_open(exc, fail_open)
 
 
 def _lock_acquire_budget_seconds() -> float:

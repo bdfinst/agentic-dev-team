@@ -269,11 +269,12 @@ def test_mark_consumed_lock_acquisition_failure_never_touches_an_unrelated_tmp_f
     not itself create (#1920 correctness review) — even one sitting at what
     used to be the shared, predictable ``<tracking_path>.tmp`` name a
     different, still-in-flight concurrent caller could be writing to.
-    ``mark_consumed`` now names its own tmp file via ``tempfile.mkstemp``
-    inside the lock, and never even reaches that call when lock acquisition
-    itself fails — so the cleanup path (guarded on a local variable that
-    stays ``None`` until ``mkstemp`` actually returns a name) has nothing to
-    clean up and never touches this pre-existing, unrelated file."""
+    ``mark_consumed`` delegates its write to ``atomic_state.atomic_write``,
+    and never even reaches that call when lock acquisition itself fails —
+    ``atomic_write``'s own cleanup only ever unlinks the unique
+    ``tempfile.mkstemp`` name it created itself (structurally unreachable
+    before ``mkstemp`` returns one), so it never touches this pre-existing,
+    unrelated file."""
     path = tmp_path / "tracking.json"
     other_callers_tmp = Path(str(path) + ".tmp")
     other_callers_tmp.write_text(
