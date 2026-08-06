@@ -19,6 +19,15 @@ Eligibility is a two-part test:
      baseline capture commit? If so it is not eligible again until a
      different (not-yet-consumed) baseline capture commit comes along.
 
+Concurrency (#1920): ``mark_consumed`` is the sole writer of the tracking
+file, and its read-modify-write span is serialized by
+``atomic_state.locked_state(strict=True)`` so two concurrent callers can
+never lose one another's update. ``resolve``/``read_tracking`` are
+deliberately lock-free — a stale read there can only under-count
+eligibility (miss a consumption recorded moments ago and report a file
+eligible when it is about to be marked consumed elsewhere), never
+double-consume, because the sole writer is serialized.
+
 Stdlib-only. (ADR 0014/0015).
 """
 
@@ -34,6 +43,17 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 import mutation_report
+
+# skills/mutation-testing/scripts -> skills/mutation-testing -> skills
+# -> plugin root -> hooks/lib
+_HOOKS_LIB_DIR = Path(__file__).resolve().parents[3] / "hooks" / "lib"
+if str(_HOOKS_LIB_DIR) not in sys.path:
+    sys.path.insert(0, str(_HOOKS_LIB_DIR))
+
+try:
+    import atomic_state  # type: ignore[import-not-found]
+except ImportError:  # pragma: no cover - degraded fallback, hooks/lib unreachable
+    atomic_state = None
 
 
 # =============================================================================
@@ -73,27 +93,47 @@ def is_eligible_for_reuse(
 def mark_consumed(tracking_path, file_path: str, capture_commit: str) -> dict:
     """Atomically record ``file_path``'s consumption of ``capture_commit``.
 
-    Writes ``<tracking_path>.tmp`` then ``os.replace``s it onto
+    The full read-tracking -> mutate-dict -> atomic-write sequence runs
+    inside ``atomic_state.locked_state(tracking_path, strict=True)`` (#1920),
+    so a second concurrent caller's read can never observe a state older than
+    the first caller's completed write — closing the lost-update race two
+    processes racing on the same tracking file could otherwise hit. Within
+    that lock, writes ``<tracking_path>.tmp`` then ``os.replace``s it onto
     ``tracking_path`` — every other file's existing entry in the tracking
     dict is preserved. Never raises: a write failure (permission denied,
-    unwritable directory, a monkeypatched ``os.replace`` failure, ...) is
-    caught and reported as ``{"success": False, "error": str(exc)}``,
-    leaving the on-disk file (if any) untouched — the file stays recorded as
-    not-yet-consumed. A stray ``.tmp`` left behind by a failed ``os.replace``
-    is best-effort cleaned up; a failure during that cleanup is swallowed so
-    it never masks the original error being reported.
+    unwritable directory, a monkeypatched ``os.replace`` failure, ...) *or* a
+    failed lock acquisition (``strict=True`` raises ``RuntimeError`` instead
+    of running unlocked — including when ``atomic_state`` itself could not be
+    imported) is caught and reported as ``{"success": False, "error":
+    str(exc)}``, leaving the on-disk file (if any) untouched — the file stays
+    recorded as not-yet-consumed. A stray ``.tmp`` left behind by a failed
+    write is best-effort cleaned up; a failure during that cleanup is
+    swallowed so it never masks the original error being reported.
+
+    ``resolve``/``read_tracking`` stay lock-free by design — see the module
+    docstring's ``Concurrency`` note for why a stale read there is safe: this
+    function is the sole writer, now serialized by the lock, so a stale read
+    can only under-count eligibility, never double-consume.
     """
     tracking_path = Path(tracking_path)
-    tracking = read_tracking(tracking_path)
-    tracking[file_path] = {
-        "capture_commit": capture_commit,
-        "recorded_at": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
-    }
     tmp = Path(str(tracking_path) + ".tmp")
     try:
-        tmp.write_text(json.dumps(tracking, indent=2), encoding="utf-8")
-        os.replace(tmp, tracking_path)
-    except OSError as exc:
+        if atomic_state is None:
+            raise RuntimeError(
+                "atomic_state unavailable (hooks/lib unreachable); refusing "
+                "to run mark_consumed's read-modify-write unlocked"
+            )
+        with atomic_state.locked_state(tracking_path, strict=True):
+            tracking = read_tracking(tracking_path)
+            tracking[file_path] = {
+                "capture_commit": capture_commit,
+                "recorded_at": datetime.now(timezone.utc)
+                .isoformat()
+                .replace("+00:00", "Z"),
+            }
+            tmp.write_text(json.dumps(tracking, indent=2), encoding="utf-8")
+            os.replace(tmp, tracking_path)
+    except (OSError, RuntimeError) as exc:
         try:
             tmp.unlink(missing_ok=True)
         except OSError:

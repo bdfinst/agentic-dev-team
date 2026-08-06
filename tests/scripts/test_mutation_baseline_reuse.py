@@ -14,6 +14,7 @@ import json
 import subprocess
 import sys
 import threading
+import time
 from pathlib import Path
 
 import pytest
@@ -206,66 +207,57 @@ def test_mark_consumed_second_failure_during_cleanup_never_masks_original_error(
 
 
 # =============================================================================
-# Concurrency — today's unlocked lost-update race (Step 1.2 of #1941/#1920).
-# No production code change in this step: this proves the defect exists
-# against TODAY's unlocked mark_consumed. Step 1.3 wraps the read-modify-write
-# in hooks/lib/atomic_state.py::locked_state(strict=True) and removes the
-# xfail marker below, keeping this test as a permanent passing regression
-# test from that point on.
+# Concurrency — mark_consumed's lost-update race, now closed (Step 1.3 of
+# #1941/#1920). This test originated in Step 1.2 as an xfail proving TODAY's
+# unlocked mark_consumed loses an update; Step 1.3 wrapped the read-modify-
+# write in hooks/lib/atomic_state.py::locked_state(strict=True) and removed
+# the xfail marker, keeping this test as a permanent passing regression test.
+#
+# Step 1.2's forced-interleave harness (hold call "A" inside its read via a
+# threading.Event pair until call "B" fully completes) assumed unlocked
+# execution: it doesn't survive the fix, because with the lock now held for
+# A's *entire* critical section, B can never even begin its own critical
+# section — let alone finish it — while A holds the lock, so B's own
+# mark_consumed call would time out waiting for A's lock instead of the two
+# ever truly interleaving. The lock supplies the ordering guarantee the old
+# harness manufactured by hand; a plain concurrent-start race (barrier plus a
+# widened read-then-write window, no cross-call event dependency) is what
+# actually exercises the guarantee now.
 # =============================================================================
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "today's mark_consumed has no interprocess lock around its "
-        "read-modify-write; fixed in Step 1.3 (#1920), which will remove "
-        "this xfail marker"
-    ),
-)
 def test_unlocked_mark_consumed_loses_an_update(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ):
     """Two concurrent mark-consumed calls for two *different* file_path keys
-    against a not-yet-existing tracking file lose one entry, because
-    today's ``mark_consumed`` has no lock around its read-modify-write.
+    against a not-yet-existing tracking file both succeed and both entries
+    land — Step 1.3's lock serializes each call's read-modify-write span so
+    the second caller's read can never observe a state older than the first
+    caller's completed write.
 
-    Interleaving is forced deterministically (no sleep-based timing, no
-    real race on the shared ``.tmp`` file): the first call ("A")'s read of
-    the tracking file happens immediately, but is held back from returning
-    to ``mark_consumed`` until the second call ("B") has fully completed
-    its own read-modify-write. This reproduces exactly the scenario in
-    Slice 1's Gherkin — "the second process's read forced to occur before
-    the first process's write completes" — while keeping the outcome
-    deterministic: A's stale (pre-B) snapshot is what A eventually writes,
-    so A's write clobbers B's already-completed write and B's entry is
-    lost.
+    Both threads start via a ``threading.Barrier`` at (as close to) the same
+    instant, and ``read_tracking`` is patched to sleep briefly before
+    returning — widening the window in which an unlocked implementation
+    would race — so whichever call wins the lock still has ample opportunity
+    for the other to attempt (and be forced to wait for) the same lock.
     """
     path = tmp_path / "tracking.json"
     original_read_tracking = mbr.read_tracking
-    a_has_read = threading.Event()
-    b_has_written = threading.Event()
-    thread_a: threading.Thread
+    start_barrier = threading.Barrier(2)
 
     def delayed_read_tracking(tracking_path):
         result = original_read_tracking(tracking_path)
-        if threading.current_thread() is thread_a:
-            a_has_read.set()
-            assert b_has_written.wait(timeout=5), "b never finished writing"
+        time.sleep(0.05)
         return result
 
     monkeypatch.setattr(mbr, "read_tracking", delayed_read_tracking)
 
     results: dict[str, dict] = {}
 
-    def call_a():
-        results["a"] = mbr.mark_consumed(path, "src/A.cs", "capture-sha")
+    def call(key: str, file_path: str) -> None:
+        start_barrier.wait(timeout=5)
+        results[key] = mbr.mark_consumed(path, file_path, "capture-sha")
 
-    def call_b():
-        assert a_has_read.wait(timeout=5), "a never reached its read"
-        results["b"] = mbr.mark_consumed(path, "src/B.cs", "capture-sha")
-        b_has_written.set()
-
-    thread_a = threading.Thread(target=call_a)
-    thread_b = threading.Thread(target=call_b)
+    thread_a = threading.Thread(target=call, args=("a", "src/A.cs"))
+    thread_b = threading.Thread(target=call, args=("b", "src/B.cs"))
     thread_a.start()
     thread_b.start()
     thread_a.join(timeout=5)
@@ -277,6 +269,149 @@ def test_unlocked_mark_consumed_loses_an_update(
     tracking = original_read_tracking(path)
     assert "src/A.cs" in tracking
     assert "src/B.cs" in tracking, "src/B.cs's entry was lost to the race"
+
+
+def _run_concurrent_mark_consumed(
+    monkeypatch: pytest.MonkeyPatch, path: Path, calls: list[tuple[str, str]]
+) -> list[dict]:
+    """Run ``mark_consumed(path, file_path, capture_commit)`` for each
+    ``(file_path, capture_commit)`` pair in ``calls`` concurrently against
+    the same ``path``, starting every thread via a barrier at (as close to)
+    the same instant and widening the post-read window with a short sleep —
+    the same forced-race shape as
+    ``test_unlocked_mark_consumed_loses_an_update`` above. Returns results in
+    the same order as ``calls``.
+    """
+    original_read_tracking = mbr.read_tracking
+    barrier = threading.Barrier(len(calls))
+
+    def delayed_read_tracking(tracking_path):
+        result = original_read_tracking(tracking_path)
+        time.sleep(0.05)
+        return result
+
+    monkeypatch.setattr(mbr, "read_tracking", delayed_read_tracking)
+
+    results: list[dict | None] = [None] * len(calls)
+
+    def run(index: int, file_path: str, capture_commit: str) -> None:
+        barrier.wait(timeout=5)
+        results[index] = mbr.mark_consumed(path, file_path, capture_commit)
+
+    threads = [
+        threading.Thread(target=run, args=(i, file_path, capture_commit))
+        for i, (file_path, capture_commit) in enumerate(calls)
+    ]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join(timeout=5)
+    return results
+
+
+def test_locked_mark_consumed_survives_concurrent_writes(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    """All three concurrent-writer scenarios from Slice 1's Gherkin: with
+    the lock (#1920) in place, none of them loses an update, and the
+    tracking file remains valid, parseable JSON throughout.
+    """
+    # Scenario 1: two different keys race to create the tracking file.
+    path_create = tmp_path / "create" / "tracking.json"
+    results = _run_concurrent_mark_consumed(
+        monkeypatch,
+        path_create,
+        [("src/A.cs", "capture-sha"), ("src/B.cs", "capture-sha")],
+    )
+    assert results == [{"success": True}, {"success": True}]
+    tracking = mbr.read_tracking(path_create)
+    assert set(tracking) == {"src/A.cs", "src/B.cs"}
+
+    # Scenario 2: two different, not-yet-consumed keys race against an
+    # already-existing file that already has one unrelated entry.
+    path_existing = tmp_path / "existing" / "tracking.json"
+    mbr.mark_consumed(path_existing, "src/Existing.cs", "older-sha")
+    results = _run_concurrent_mark_consumed(
+        monkeypatch,
+        path_existing,
+        [("src/C.cs", "capture-sha"), ("src/D.cs", "capture-sha")],
+    )
+    assert results == [{"success": True}, {"success": True}]
+    tracking = mbr.read_tracking(path_existing)
+    assert set(tracking) == {"src/Existing.cs", "src/C.cs", "src/D.cs"}
+
+    # Scenario 3: two calls race on the SAME key/capture-commit — idempotent
+    # single-entry outcome, no corruption.
+    path_same_key = tmp_path / "same-key" / "tracking.json"
+    results = _run_concurrent_mark_consumed(
+        monkeypatch,
+        path_same_key,
+        [("src/E.cs", "capture-sha"), ("src/E.cs", "capture-sha")],
+    )
+    assert results == [{"success": True}, {"success": True}]
+    tracking = mbr.read_tracking(path_same_key)
+    assert list(tracking.keys()) == ["src/E.cs"]
+    assert tracking["src/E.cs"]["capture_commit"] == "capture-sha"
+    # Re-parse the raw bytes directly (not through read_tracking's own
+    # malformed-JSON tolerance) to prove the file itself is not corrupted.
+    raw = json.loads(path_same_key.read_text(encoding="utf-8"))
+    assert raw == tracking
+
+
+def test_resolve_does_not_block_behind_mark_consumed(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys
+):
+    """``resolve`` never blocks behind ``mark_consumed``'s lock — held here
+    for a *different* file for >= 2s — because ``resolve``/``read_tracking``
+    are lock-free by design (#1920): a stale read can only under-count
+    eligibility, never double-consume, since ``mark_consumed`` is the sole,
+    now-serialized writer.
+    """
+    tracking_path = tmp_path / "tracking.json"
+    tracking_path.write_text("{}", encoding="utf-8")
+    lock_held = threading.Event()
+    hold_seconds = 2.0
+
+    def hold_lock():
+        with mbr.atomic_state.locked_state(tracking_path, strict=True):
+            lock_held.set()
+            time.sleep(hold_seconds)
+
+    holder = threading.Thread(target=hold_lock)
+    holder.start()
+    try:
+        assert lock_held.wait(timeout=2), "holder thread never acquired the lock"
+
+        def fake_run(argv, **_k):
+            if argv[:2] == ["git", "log"]:
+                return subprocess.CompletedProcess(
+                    argv, 0, stdout="filesha\n", stderr=""
+                )
+            return subprocess.CompletedProcess(argv, 0, stdout="", stderr="")
+
+        monkeypatch.setattr(mbr.subprocess, "run", fake_run)
+
+        start = time.monotonic()
+        rc = mbr._cli(
+            [
+                "resolve",
+                "--file",
+                "src/Other.cs",
+                "--capture-commit",
+                "capture-sha",
+                "--tracking",
+                str(tracking_path),
+            ]
+        )
+        elapsed = time.monotonic() - start
+    finally:
+        holder.join(timeout=hold_seconds + 3)
+
+    assert not holder.is_alive(), "holder thread never released the lock"
+    assert rc == 0
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["eligible"] is True
+    assert elapsed < 0.2, f"resolve blocked behind mark_consumed's lock: {elapsed}s"
 
 
 def test_git_last_commit_sha_returns_stripped_sha(monkeypatch: pytest.MonkeyPatch):
