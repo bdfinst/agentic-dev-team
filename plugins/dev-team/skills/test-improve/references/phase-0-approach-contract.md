@@ -87,7 +87,7 @@ goal to the end.
 Run the check; do not judge it in prose:
 
 ```
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/coverage_gap_ranking.py" \
+sh "${CLAUDE_PLUGIN_ROOT}/hooks/py.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/coverage_gap_ranking.py" \
   --report <existing coverage report> --repo-root <repo-path> \
   --target-line-pct <line target> --target-branch-pct <branch target> --json
 ```

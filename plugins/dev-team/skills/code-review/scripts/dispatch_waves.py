@@ -56,12 +56,13 @@ MAX_PARALLEL_ENV_VAR = "DEV_TEAM_MAX_PARALLEL_REVIEW_AGENTS"
 DEFAULT_MAX_PARALLEL = 10
 
 # A pathologically long digit string is never a real configuration value, and
-# on 3.11+ it would additionally trip CPython's int-string conversion limit
-# inside `int()` (default 4300 digits, the CVE-2020-10735 fix) — a limit that
-# doesn't exist on this repo's 3.10 floor (ADR 0031), so this guard is a
-# defensive ceiling independent of which interpreter runs it, not a
-# floor-specific workaround. Kept well under either boundary so a malformed
-# override never crashes instead of falling back.
+# is believed to trip CPython's int-string conversion limit inside `int()` on
+# 3.11+ (default 4300 digits, per CVE-2020-10735 — not independently probed
+# in this repo) — a limit that doesn't exist on this repo's 3.10 floor (ADR
+# 0031), so this guard is a defensive ceiling independent of which
+# interpreter runs it, not a floor-specific workaround. Kept well under
+# either boundary so a malformed override never crashes instead of falling
+# back.
 _MAX_ENV_DIGITS = 12
 
 

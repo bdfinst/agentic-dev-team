@@ -44,10 +44,6 @@ def test_module_exposes_review_gate_hash() -> None:
     assert callable(gate.review_gate_hash)
 
 
-def test_module_exposes_working_tree_gate_hash() -> None:
-    assert callable(gate.working_tree_gate_hash)
-
-
 # --- behavioral invariants -------------------------------------------------
 
 
@@ -158,78 +154,158 @@ def test_external_diff_driver_config_does_not_collapse_the_hash(tmp_path: Path) 
     assert h2 != empty_hash
 
 
-# --- working_tree_gate_hash (#1476) -----------------------------------------
+# --- branch_diff_gate_hash / default_base_ref (#1886) ----------------------
 
 
-def test_working_tree_hash_sensitive_to_unstaged_edits(tmp_path: Path) -> None:
-    """The whole point of #1476: an edit that's never `git add`-ed must
-    still change this hash (unlike `review_gate_hash()`'s `git diff
-    --cached`, which stays constant when nothing is staged)."""
-    _init_repo(tmp_path)
+def _init_repo_with_main(tmp_path: Path) -> tuple[Path, dict]:
     env = hermetic_git_env(home=tmp_path)
-    (tmp_path / "a.ts").write_text("v1\n")
-    subprocess.run(["git", "add", "a.ts"], cwd=tmp_path, env=env, check=True)
+    subprocess.run(["git", "init", "-q", "-b", "main"], cwd=tmp_path, env=env, check=True)
+    subprocess.run(["git", "config", "user.email", "t@t.dev"], cwd=tmp_path, env=env, check=True)
+    subprocess.run(["git", "config", "user.name", "tester"], cwd=tmp_path, env=env, check=True)
+    (tmp_path / "base.txt").write_text("base\n")
+    subprocess.run(["git", "add", "base.txt"], cwd=tmp_path, env=env, check=True)
     subprocess.run(["git", "commit", "-q", "-m", "initial"], cwd=tmp_path, env=env, check=True)
-    h1 = gate.working_tree_gate_hash(cwd=tmp_path)
-    (tmp_path / "a.ts").write_text("v2\n")  # edited, NOT staged
-    h2 = gate.working_tree_gate_hash(cwd=tmp_path)
-    assert h1 != h2
+    return tmp_path, env
 
 
-def test_working_tree_hash_agrees_with_cached_hash_when_content_is_staged(
-    tmp_path: Path,
-) -> None:
-    """When content IS staged (the ordinary case), `git diff HEAD` and
-    `git diff --cached` see the same effective content, so the two hash
-    functions must agree."""
-    _init_repo(tmp_path)
-    env = hermetic_git_env(home=tmp_path)
-    (tmp_path / "a.ts").write_text("v1\n")
-    subprocess.run(["git", "add", "a.ts"], cwd=tmp_path, env=env, check=True)
-    subprocess.run(["git", "commit", "-q", "-m", "initial"], cwd=tmp_path, env=env, check=True)
-    (tmp_path / "a.ts").write_text("v2\n")
-    subprocess.run(["git", "add", "a.ts"], cwd=tmp_path, env=env, check=True)
-    assert gate.working_tree_gate_hash(cwd=tmp_path) == gate.review_gate_hash(cwd=tmp_path)
+def test_default_base_ref_falls_back_to_local_main_without_a_remote(tmp_path: Path) -> None:
+    _init_repo_with_main(tmp_path)
+    assert gate.default_base_ref(cwd=tmp_path) == "main"
 
 
-def test_working_tree_hash_unborn_head_returns_empty_input_digest(tmp_path: Path) -> None:
-    """`git diff HEAD` fails on a repo with no commits yet (unborn HEAD) —
-    must fail closed to the same empty-input digest as a non-git directory,
-    never crash."""
-    _init_repo(tmp_path)
-    h = gate.working_tree_gate_hash(cwd=tmp_path)
+def test_default_base_ref_returns_none_when_nothing_resolves(tmp_path: Path) -> None:
+    """Issue #1904 Bug 1: total resolution failure (no git, no candidate
+    resolves — a routine state in a shallow/single-branch clone) must
+    return `None`, NOT `"HEAD"`. The old `"HEAD"` fallback let
+    `branch_diff_gate_hash("HEAD", ...)` succeed with an empty diff
+    (`git diff HEAD...HEAD`), silently passing the gate on a constant hash
+    instead of hard-blocking as a setup failure."""
+    # Not a git repo at all — every candidate fails to verify.
+    assert gate.default_base_ref(cwd=tmp_path) is None
+
+
+def test_branch_diff_gate_hash_empty_on_a_branch_with_no_new_commits(tmp_path: Path) -> None:
+    _init_repo_with_main(tmp_path)
+    h = gate.branch_diff_gate_hash("main", cwd=tmp_path)
     assert h == hashlib.sha256(b"").hexdigest()
 
 
-def test_working_tree_hash_is_64_hex_chars(tmp_path: Path) -> None:
-    _init_repo(tmp_path)
-    env = hermetic_git_env(home=tmp_path)
-    (tmp_path / "a.ts").write_text("x\n")
-    subprocess.run(["git", "add", "a.ts"], cwd=tmp_path, env=env, check=True)
-    subprocess.run(["git", "commit", "-q", "-m", "initial"], cwd=tmp_path, env=env, check=True)
-    (tmp_path / "a.ts").write_text("y\n")
-    h = gate.working_tree_gate_hash(cwd=tmp_path)
+def test_branch_diff_gate_hash_sensitive_to_new_commits_on_the_branch(tmp_path: Path) -> None:
+    tmp_path, env = _init_repo_with_main(tmp_path)
+    subprocess.run(["git", "checkout", "-q", "-b", "feature"], cwd=tmp_path, env=env, check=True)
+    (tmp_path / "feature.txt").write_text("new\n")
+    subprocess.run(["git", "add", "feature.txt"], cwd=tmp_path, env=env, check=True)
+    subprocess.run(["git", "commit", "-q", "-m", "feature commit"], cwd=tmp_path, env=env, check=True)
+    h = gate.branch_diff_gate_hash("main", cwd=tmp_path)
+    assert h != hashlib.sha256(b"").hexdigest()
     assert len(h) == 64
     int(h, 16)
 
 
-def test_working_tree_hash_external_diff_driver_does_not_collapse_the_hash(
+def test_branch_diff_gate_hash_covers_the_whole_branch_not_just_the_last_commit(
+    tmp_path: Path,
+) -> None:
+    """The whole point of #1886: a multi-commit branch's PR-time hash must
+    reflect EVERY commit since the base, not just the most recent one."""
+    tmp_path, env = _init_repo_with_main(tmp_path)
+    subprocess.run(["git", "checkout", "-q", "-b", "feature"], cwd=tmp_path, env=env, check=True)
+    (tmp_path / "a.txt").write_text("a\n")
+    subprocess.run(["git", "add", "a.txt"], cwd=tmp_path, env=env, check=True)
+    subprocess.run(["git", "commit", "-q", "-m", "commit 1"], cwd=tmp_path, env=env, check=True)
+    h_after_first = gate.branch_diff_gate_hash("main", cwd=tmp_path)
+    (tmp_path / "b.txt").write_text("b\n")
+    subprocess.run(["git", "add", "b.txt"], cwd=tmp_path, env=env, check=True)
+    subprocess.run(["git", "commit", "-q", "-m", "commit 2"], cwd=tmp_path, env=env, check=True)
+    h_after_second = gate.branch_diff_gate_hash("main", cwd=tmp_path)
+    assert h_after_first != h_after_second
+
+
+def test_branch_diff_gate_hash_unresolvable_base_ref_fails_closed(tmp_path: Path) -> None:
+    _init_repo_with_main(tmp_path)
+    h = gate.branch_diff_gate_hash("no-such-ref", cwd=tmp_path)
+    assert h == hashlib.sha256(b"").hexdigest()
+
+
+def test_branch_diff_gate_hash_external_diff_driver_does_not_collapse_the_hash(
     tmp_path: Path,
 ) -> None:
     """Same #1461 fourth-security-re-review concern as
     `test_external_diff_driver_config_does_not_collapse_the_hash`, applied
-    to the sibling working-tree hash: `--no-ext-diff`/`--no-textconv` must
+    to the sibling branch-diff hash: `--no-ext-diff`/`--no-textconv` must
     keep it content-sensitive even with an external diff driver
     configured."""
-    _init_repo(tmp_path)
-    env = hermetic_git_env(home=tmp_path)
+    tmp_path, env = _init_repo_with_main(tmp_path)
     subprocess.run(
         ["git", "config", "diff.external", "/bin/true"], cwd=tmp_path, env=env, check=True
     )
-    (tmp_path / "a.ts").write_text("v1\n")
-    subprocess.run(["git", "add", "a.ts"], cwd=tmp_path, env=env, check=True)
-    subprocess.run(["git", "commit", "-q", "-m", "initial"], cwd=tmp_path, env=env, check=True)
-    (tmp_path / "a.ts").write_text("v2-different\n")
-    h = gate.working_tree_gate_hash(cwd=tmp_path)
+    subprocess.run(["git", "checkout", "-q", "-b", "feature"], cwd=tmp_path, env=env, check=True)
+    (tmp_path / "feature.txt").write_text("new\n")
+    subprocess.run(["git", "add", "feature.txt"], cwd=tmp_path, env=env, check=True)
+    subprocess.run(["git", "commit", "-q", "-m", "feature commit"], cwd=tmp_path, env=env, check=True)
+    h = gate.branch_diff_gate_hash("main", cwd=tmp_path)
     empty_hash = hashlib.sha256(b"").hexdigest()
     assert h != empty_hash
+
+
+# --- EMPTY_DIGEST (#1904 Bug 1) ---------------------------------------------
+
+
+def test_empty_digest_constant_matches_sha256_of_empty_bytes() -> None:
+    assert gate.EMPTY_DIGEST == hashlib.sha256(b"").hexdigest()
+
+
+# --- CLI: --branch-diff (#1886, #1904) --------------------------------------
+
+
+def test_cli_branch_diff_matches_branch_diff_gate_hash(tmp_path: Path) -> None:
+    tmp_path, env = _init_repo_with_main(tmp_path)
+    subprocess.run(["git", "checkout", "-q", "-b", "feature"], cwd=tmp_path, env=env, check=True)
+    (tmp_path / "feature.txt").write_text("new\n")
+    subprocess.run(["git", "add", "feature.txt"], cwd=tmp_path, env=env, check=True)
+    subprocess.run(["git", "commit", "-q", "-m", "feature commit"], cwd=tmp_path, env=env, check=True)
+
+    expected = gate.branch_diff_gate_hash(gate.default_base_ref(cwd=tmp_path), cwd=tmp_path)
+    completed = subprocess.run(
+        [sys.executable, str(_HOOKS_LIB / "review_gate_hash.py"), "--branch-diff"],
+        cwd=tmp_path,
+        env=env,
+        capture_output=True,
+        check=True,
+        text=True,
+    )
+    assert completed.stdout.strip() == expected
+    assert expected != hashlib.sha256(b"").hexdigest()
+
+
+def test_cli_without_flag_still_prints_review_gate_hash(tmp_path: Path) -> None:
+    _init_repo_with_main(tmp_path)
+    env = hermetic_git_env(home=tmp_path)
+    completed = subprocess.run(
+        [sys.executable, str(_HOOKS_LIB / "review_gate_hash.py")],
+        cwd=tmp_path,
+        env=env,
+        capture_output=True,
+        check=True,
+        text=True,
+    )
+    assert completed.stdout.strip() == gate.review_gate_hash(cwd=tmp_path)
+
+
+def test_cli_branch_diff_exits_nonzero_and_prints_nothing_when_base_ref_unresolvable(
+    tmp_path: Path,
+) -> None:
+    """Issue #1904 Bug 1: when `default_base_ref()` can't resolve any
+    candidate (not a git repo at all here), `--branch-diff` mode must exit
+    non-zero with empty stdout — never fall back to hashing `HEAD...HEAD`
+    and printing the resulting `EMPTY_DIGEST` as if it were a valid hash."""
+    env = hermetic_git_env(home=tmp_path)
+    completed = subprocess.run(
+        [sys.executable, str(_HOOKS_LIB / "review_gate_hash.py"), "--branch-diff"],
+        cwd=tmp_path,
+        env=env,
+        capture_output=True,
+        check=False,
+        text=True,
+    )
+    assert completed.returncode != 0
+    assert completed.stdout.strip() == ""

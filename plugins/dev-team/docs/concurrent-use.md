@@ -23,7 +23,7 @@ The plugin's local coordination state is per-checkout, not shared:
 
 | State | Where | Shared across checkouts? |
 | --- | --- | --- |
-| Review gate `.review-passed` | `.claude/memory/`, **gitignored** | No — local to each working tree |
+| Review gate `.pr-review-passed` | `.claude/memory/`, **gitignored** | No — local to each working tree |
 | Plan / build progress | `plans/<name>.md` (**tracked**) | Merges through normal git |
 
 So two developers, each with their **own clone**, never collide on these — and
@@ -37,7 +37,7 @@ agent in the same checkout share **one** `.git/index` and **one** set of local
 state files. That is where collisions occur (reproduced in
 [`../../../tests/repo/test_multiplayer_collision.py`](../../../tests/repo/test_multiplayer_collision.py),
 characterized in issue #109):
-the shared `.review-passed` gets overwritten (false blocks) and the staged
+the shared `.pr-review-passed` gets overwritten (false blocks) and the staged
 set interleaves.
 
 ## The rule: one worktree per agent

@@ -13,12 +13,9 @@ import os
 import subprocess
 from pathlib import Path
 
-import pytest
-
 from _repo_root import REPO_ROOT as _REPO_ROOT
 
 _HOOK = _REPO_ROOT / "plugins" / "dev-team" / "hooks" / "code_intelligence_nudge.py"
-_CAREFUL_STATE = _REPO_ROOT / "plugins" / "dev-team" / "hooks" / "careful-state.json"
 
 # Load the hook module by explicit file path so unit tests can exercise its
 # internal helpers (e.g. _detect_present_tools) directly, without spawning a
@@ -35,24 +32,10 @@ _spec.loader.exec_module(code_intelligence_nudge)
 # not about the exact prose, which is covered by test_single_tool_message_per_tool.
 EXPECTED_WARN_MSG = code_intelligence_nudge._compose_message(["codegraph"])
 
-# _CAREFUL_STATE is the real, fixed path the hook itself reads. Every test in
-# this module shares that one physical file with tests/hooks/test_destructive_guard.py
-# and test_boundary_events.py's test_destructive_guard_block_emits_boundary_event.
-# xdist_group forces all tests carrying this group name onto the SAME worker
-# (requires --dist loadgroup, set in scripts/ci-local.sh), so two of them can
-# never run concurrently and race on the shared file across pytest-xdist
-# worker processes -- --dist loadfile alone only serializes within one file.
-pytestmark = pytest.mark.xdist_group(name="careful-state-shared-file")
-
-
-@pytest.fixture(autouse=True)
-def clean_careful_state():
-    """Wipe careful-state.json before AND after every test. A leaked file
-    silently flips the hook into block mode and corrupts every warn-path
-    assertion."""
-    _CAREFUL_STATE.unlink(missing_ok=True)
-    yield
-    _CAREFUL_STATE.unlink(missing_ok=True)
+# careful-state.json is now resolved per invoking repo, keyed off each
+# call's own `cwd` (the #1900-class fix applied to this hook) — no test
+# in this module shares a real, fixed-path file with any other test file
+# anymore, so no cross-file worker-serialization marker is needed here.
 
 
 def _run(payload: dict, extra_env: dict | None = None) -> subprocess.CompletedProcess[str]:
@@ -269,40 +252,67 @@ def test_warns_when_sentinel_missing(tmp_path: Path) -> None:
 # --- Step 5: careful-mode escalation --------------------------------------
 
 
+def _write_careful_state(cwd: Path, active: bool) -> None:
+    """Write careful-state.json at the per-repo path the fixed hook now
+    reads: `<cwd>/.claude/hooks/careful-state.json` (#1900-class fix)."""
+    careful_dir = cwd / ".claude" / "hooks"
+    careful_dir.mkdir(parents=True, exist_ok=True)
+    (careful_dir / "careful-state.json").write_text(json.dumps({"active": active}))
+
+
 def test_careful_mode_blocks(tmp_path: Path) -> None:
     (tmp_path / ".codegraph").mkdir()
     (tmp_path / "src").mkdir()
-    _CAREFUL_STATE.write_text(json.dumps({"active": True}))
-    try:
-        r = _run(
-            {
-                "tool_name": "Grep",
-                "cwd": str(tmp_path),
-                "tool_input": {"pattern": "foo", "path": str(tmp_path / "src")},
-            }
-        )
-        assert r.returncode == 2
-        assert r.stderr.strip() == f"{EXPECTED_WARN_MSG} [blocked by /careful]"
-    finally:
-        _CAREFUL_STATE.unlink(missing_ok=True)
+    _write_careful_state(tmp_path, True)
+    r = _run(
+        {
+            "tool_name": "Grep",
+            "cwd": str(tmp_path),
+            "tool_input": {"pattern": "foo", "path": str(tmp_path / "src")},
+        }
+    )
+    assert r.returncode == 2
+    assert r.stderr.strip() == f"{EXPECTED_WARN_MSG} [blocked by /careful]"
 
 
 def test_warns_when_careful_inactive(tmp_path: Path) -> None:
     (tmp_path / ".codegraph").mkdir()
     (tmp_path / "src").mkdir()
-    _CAREFUL_STATE.write_text(json.dumps({"active": False}))
-    try:
-        r = _run(
-            {
-                "tool_name": "Grep",
-                "cwd": str(tmp_path),
-                "tool_input": {"pattern": "foo", "path": str(tmp_path / "src")},
-            }
-        )
-        assert r.returncode == 0
-        assert r.stderr.strip() == EXPECTED_WARN_MSG
-    finally:
-        _CAREFUL_STATE.unlink(missing_ok=True)
+    _write_careful_state(tmp_path, False)
+    r = _run(
+        {
+            "tool_name": "Grep",
+            "cwd": str(tmp_path),
+            "tool_input": {"pattern": "foo", "path": str(tmp_path / "src")},
+        }
+    )
+    assert r.returncode == 0
+    assert r.stderr.strip() == EXPECTED_WARN_MSG
+
+
+def test_careful_mode_in_one_repo_does_not_gate_a_different_concurrent_repo(
+    tmp_path: Path,
+) -> None:
+    """(#1900-class fix) Two concurrent 'sessions' (two separate cwds):
+    activating careful mode under repo A's resolved path must not affect
+    the hook's behavior for repo B, even though both hash to the identical
+    bare filename — the exact cross-session leak this fix closes."""
+    repo_a = tmp_path / "repo-a"
+    repo_b = tmp_path / "repo-b"
+    for repo in (repo_a, repo_b):
+        (repo / ".codegraph").mkdir(parents=True)
+        (repo / "src").mkdir()
+    _write_careful_state(repo_a, True)
+
+    r_b = _run(
+        {
+            "tool_name": "Grep",
+            "cwd": str(repo_b),
+            "tool_input": {"pattern": "foo", "path": str(repo_b / "src")},
+        }
+    )
+    assert r_b.returncode == 0
+    assert r_b.stderr.strip() == EXPECTED_WARN_MSG
 
 
 # --- Step 6: fail-open guards ---------------------------------------------

@@ -1,5 +1,5 @@
 """Shared `scripts/ci-local.sh` source parsers for the floor/ceiling gate
-tests — a bash-invocation parser (`invocation()`/`lines_after_invocation()`)
+tests — a bash-invocation parser (`pytest_invocation()`/`lines_after_invocation()`)
 and a registry-array parser (`check_registry()`).
 
 `tests/repo/test_python_floor.py` (`chk_python_floor`) and
@@ -34,9 +34,11 @@ from typing import NamedTuple
 
 
 class PytestInvocation(NamedTuple):
-    """`invocation()`'s result. Tuple-compatible (`== ([], [], [])` and
-    `prefix, args, tail = ...` both still work) so this is purely additive
-    over the plain-tuple shape both consumers already pinned."""
+    """`pytest_invocation()`'s successful-parse result (`None` is the
+    unparseable sentinel — see that function). Tuple-compatible (plain-tuple
+    equality and `prefix, args, tail = ...` both still work) so this is
+    purely additive over the plain-tuple shape both consumers already
+    pinned."""
 
     prefix: list[str]
     args: list[str]
@@ -104,7 +106,7 @@ def without_comments(text: str) -> str:
 
     Whole-line only — an inline trailing comment on a real code line still
     counts, so a suppressor cannot hide a narrowing flag behind one. Note
-    `invocation()` and `lines_after_invocation()` deliberately do NOT run
+    `pytest_invocation()` and `lines_after_invocation()` deliberately do NOT run
     their own continuation-walk through this function first: inside a
     continued command a `#` line truncates the command rather than
     commenting itself out, so there its tokens must survive."""
@@ -127,7 +129,7 @@ def _marker_span(lines: list[str]) -> tuple[int, int] | None:
     returned at all — a same-line duplicate (two markers, or a decoy on the
     same line as the real call) is not itself rejected here; it is caught
     downstream instead, by the callers' own prefix/argument equality pins
-    against whichever marker `invocation()` anchors on. Returns `None` when
+    against whichever marker `pytest_invocation()` anchors on. Returns `None` when
     no line qualifies or more than one does, which both callers below turn
     into a loud failure rather than a guessed one.
     """
@@ -150,7 +152,7 @@ def _tokenize_span(lines: list[str]) -> tuple[list[str], list[str]]:
     """Every whitespace-separated token in `lines` (a continuation span),
     split into `(tokens before any "||", tokens after it)`.
 
-    Pulled out of `invocation()` so that function's own loop nesting stays
+    Pulled out of `pytest_invocation()` so that function's own loop nesting stays
     shallow — this is the one place a `\\`-continuation line is stripped of
     its trailing backslash and split, and the one place a `"||"` token
     switches the accumulator from `tokens` to `tail` rather than being kept
@@ -167,7 +169,7 @@ def _tokenize_span(lines: list[str]) -> tuple[list[str], list[str]]:
     return tokens, tail
 
 
-def invocation(ci_local: str, fn_name: str) -> PytestInvocation:
+def pytest_invocation(ci_local: str, fn_name: str) -> PytestInvocation | None:
     """`fn_name`'s pytest command, split at `-m pytest` and at any `||`.
 
     Returns `(tokens before the marker, pytest's own arguments, tokens after
@@ -198,24 +200,26 @@ def invocation(ci_local: str, fn_name: str) -> PytestInvocation:
     'failed'`) is visible to the caller instead of silently passing through
     as an unconditional run.
 
-    Returns `PytestInvocation([], [], [])` when the marker is missing,
-    ambiguous, or not immediately followed by `pytest`. A command truncated
-    exactly at `-m pytest`, with no trailing arguments at all, is NOT
-    specially rejected either — it returns `(prefix, [], tail)` rather than
-    the empty form, relying on a caller's own argument-equality pin (never a
+    Returns `None` when the marker is missing, ambiguous, or not immediately
+    followed by `pytest` — an unambiguous sentinel, distinct in principle
+    from a legitimate empty parse (mirrors `lines_after_invocation()`'s own
+    unparseable sentinel, a string no real code line can produce). A command
+    truncated exactly at `-m pytest`, with no trailing arguments at all, is
+    NOT specially rejected either — it returns `(prefix, [], tail)` rather
+    than `None`, relying on a caller's own argument-equality pin (never a
     denylist) to still fail on the empty `args`.
     """
     lines = check_body(ci_local, fn_name).splitlines()
     span = _marker_span(lines)
     if span is None:
-        return PytestInvocation([], [], [])
+        return None
     start, end = span
     tokens, tail = _tokenize_span(lines[start : end + 1])
     if "-m" not in tokens:
-        return PytestInvocation([], [], [])
+        return None
     marker = tokens.index("-m")
     if tokens[marker + 1 : marker + 2] != ["pytest"]:
-        return PytestInvocation([], [], [])
+        return None
     return PytestInvocation(tokens[:marker], tokens[marker + 2 :], tail)
 
 
@@ -229,13 +233,13 @@ def lines_after_invocation(ci_local: str, fn_name: str) -> list[str]:
     becomes the gate's verdict instead of pytest's own exit code. The
     function's closing `}` is not a statement, and a trailing comment has no
     bearing on what bash actually executes, so both are excluded from the
-    result — unlike `invocation()`'s own continuation span, where excluding
+    result — unlike `pytest_invocation()`'s own continuation span, where excluding
     a comment could hide a narrowing bypass; here it can only stop this
     rule's own documentation from tripping the check.
 
     Returns a one-element sentinel list when the marker is missing or
-    ambiguous (mirroring `invocation()`'s empty-`PytestInvocation` return),
-    since there is no invocation boundary to measure "after" from."""
+    ambiguous (mirroring `pytest_invocation()`'s own `None` sentinel), since
+    there is no invocation boundary to measure "after" from."""
     lines = check_body(ci_local, fn_name).splitlines()
     span = _marker_span(lines)
     if span is None:

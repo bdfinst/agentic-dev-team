@@ -48,10 +48,15 @@ class TestGateFloorByConstruction:
     def test_min_dispatches_matches_the_hook_that_enforces_it(self):
         """Drift guard: the closing pass is only sound because it tops up to
         the gate's own floor. If the hook raises the floor and this constant
-        doesn't move, the pass would silently under-compose."""
-        source = (_PLUGIN_ROOT / "hooks" / "pre_commit_review.py").read_text(encoding="utf-8")
+        doesn't move, the pass would silently under-compose.
+
+        #1886 moved the review-corroboration gate from `git commit`
+        (`hooks/pre_commit_review.py`, now a documented no-op with no such
+        constant) to `gh pr create` (`hooks/pre_pr_review.py`) — this drift
+        guard follows the floor to its new enforcer."""
+        source = (_PLUGIN_ROOT / "hooks" / "pre_pr_review.py").read_text(encoding="utf-8")
         match = re.search(r"^_MIN_DISTINCT_DISPATCHES\s*=\s*(\d+)", source, re.MULTILINE)
-        assert match, "could not locate _MIN_DISTINCT_DISPATCHES in pre_commit_review.py"
+        assert match, "could not locate _MIN_DISTINCT_DISPATCHES in pre_pr_review.py"
         assert int(match.group(1)) == closing_pass.MIN_DISTINCT_DISPATCHES
 
     def test_single_fixer_is_topped_up_to_the_floor(self):

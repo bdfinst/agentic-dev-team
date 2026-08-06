@@ -15,15 +15,11 @@ sys.path.insert(0, str(SCRIPTS_DIR))
 
 import coverage_discovery_java as cdjava
 from coverage_config import DISCOVERY_NOT_APPLICABLE, TestClassification
+from coverage_flow_shared import write
 
 # ---------------------------------------------------------------------------
 # helpers
 # ---------------------------------------------------------------------------
-
-
-def write(path: Path, content: str) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(content, encoding="utf-8")
 
 
 def aggregator_pom(modules) -> str:

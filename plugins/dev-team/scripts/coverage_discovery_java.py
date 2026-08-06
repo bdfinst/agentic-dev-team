@@ -155,10 +155,6 @@ _GRADLE_ARG_SEPARATORS = frozenset(" \t\r\n,()")
 # structured-error contract as an unhandled traceback.
 _GRADLE_SPEC_ALLOWED_RE = re.compile(r"^[A-Za-z0-9._:\-/ ]+$")
 
-# Maven POMs are namespaced; ElementTree keeps the namespace in the tag, so
-# match on the local name instead of hard-coding one namespace URI.
-_MAVEN_NS_RE = re.compile(r"^\{[^}]*\}")
-
 
 def discover_java_modules(repo_root):
     """Discover and classify every module in `repo_root`'s Java multi-module
@@ -293,22 +289,17 @@ def _parse_pom_modules(pom_path: Path, root: Path):
         return root_el  # a discovery_error propagated up
 
     for child in root_el:
-        if _local_name(child.tag) != "modules":
+        if coverage_config.local_name(child.tag) != "modules":
             continue
         specs = []
         for module_el in child:
-            if _local_name(module_el.tag) != "module":
+            if coverage_config.local_name(module_el.tag) != "module":
                 continue
             text = (module_el.text or "").strip()
             if text:
                 specs.append(text)
         return specs
     return None
-
-
-def _local_name(tag) -> str:
-    """The namespace-stripped local name of an ElementTree tag."""
-    return _MAVEN_NS_RE.sub("", tag if isinstance(tag, str) else "")
 
 
 # ---------------------------------------------------------------------------
@@ -487,10 +478,6 @@ def _strip_gradle_comments(text: str) -> str:
 # ---------------------------------------------------------------------------
 
 
-def _is_within(resolved: Path, root: Path) -> bool:
-    return resolved == root or root in resolved.parents
-
-
 def _contained_dir(candidate: Path, root: Path):
     """`candidate` resolved, once, after confirming it stays inside `root`;
     otherwise `coverage_config.discovery_error(...)`.
@@ -509,7 +496,7 @@ def _contained_dir(candidate: Path, root: Path):
         return coverage_config.discovery_error(
             f"Could not resolve module path '{candidate}': {exc}"
         )
-    if not _is_within(resolved, root):
+    if not coverage_config.is_within(resolved, root):
         return coverage_config.discovery_error(
             f"Module path '{candidate}' resolves to '{resolved}', which is "
             f"outside the repository root ('{root}'); refusing to include it."
@@ -531,7 +518,7 @@ def _contained_file(candidate: Path, root: Path):
         return coverage_config.discovery_error(
             f"Could not resolve build file '{candidate}': {exc}"
         )
-    if not _is_within(resolved, root):
+    if not coverage_config.is_within(resolved, root):
         return coverage_config.discovery_error(
             f"Build file '{candidate}' resolves to '{resolved}', which is "
             f"outside the repository root ('{root}'); refusing to read it."
@@ -733,10 +720,10 @@ def _pom_declares_test_framework(pom_path: Path, root: Path):
         return root_el  # a discovery_error propagated up
 
     for child in root_el:
-        if _local_name(child.tag) != "dependencies":
+        if coverage_config.local_name(child.tag) != "dependencies":
             continue
         for dependency in child:
-            if _local_name(dependency.tag) != "dependency":
+            if coverage_config.local_name(dependency.tag) != "dependency":
                 continue
             if _dependency_names_test_framework(dependency):
                 return True
@@ -747,7 +734,7 @@ def _dependency_names_test_framework(dependency) -> bool:
     """True when a single `<dependency>` element's own `<groupId>`/
     `<artifactId>` names a JUnit or TestNG artifact."""
     for field in dependency:
-        if _local_name(field.tag) not in ("groupId", "artifactId"):
+        if coverage_config.local_name(field.tag) not in ("groupId", "artifactId"):
             continue
         value = (field.text or "").lower()
         if any(token in value for token in _TEST_FRAMEWORK_TOKENS):

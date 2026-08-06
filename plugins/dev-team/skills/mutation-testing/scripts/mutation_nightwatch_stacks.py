@@ -26,6 +26,7 @@ import subprocess
 import sys
 import time
 from dataclasses import dataclass, field
+from enum import Enum
 from pathlib import Path
 
 import mutation_report
@@ -194,11 +195,33 @@ def mechanical_repair(stack: str, repo_root: Path, run_dir: Path) -> str | None:
 # =============================================================================
 
 
+class StackStatus(str, Enum):
+    """The four legal `StackResult.status` values (issue #1904 item 4) — a
+    closed vocabulary previously carried as bare string literals compared
+    with `==`, so a typo silently read as some other status rather than
+    failing loudly. `str, Enum` — deliberately NOT `coverage_config.
+    TestClassification`'s convention, which is a plain `Enum` chosen so an
+    accidental attempt to JSON-serialize it fails loudly instead of
+    silently succeeding. This enum diverges on purpose: its values ARE
+    meant to serialize to JSON and to keep matching existing
+    `== "measured"`-style bare-string comparisons, so the `str` mixin is the
+    correct choice here, not a mirrored one. Enum `__format__`/`__str__`
+    does NOT reliably reduce to the plain value across Python versions even
+    for a `str`-mixed-in Enum — verified, not assumed — so every render into
+    a report/CLI string uses `.value` explicitly rather than relying on
+    implicit f-string formatting."""
+
+    MEASURED = "measured"
+    SKIPPED_NO_PARSER = "skipped_no_parser"
+    SKIPPED = "skipped"
+    ERROR = "error"
+
+
 @dataclass
 class StackResult:
     stack: str
     tool: str
-    status: str  # "measured" | "skipped_no_parser" | "skipped" | "error"
+    status: StackStatus
     detail: str = ""
     summary: mutation_report.ScoreSummary | None = None
     survivors: list[dict] = field(default_factory=list)
@@ -265,7 +288,7 @@ def measure_javascript(
         return StackResult(
             "javascript",
             "stryker",
-            "error",
+            StackStatus.ERROR,
             f"stryker did not run — see {log_path.name}",
             duration_seconds=duration,
         )
@@ -276,14 +299,14 @@ def measure_javascript(
         return StackResult(
             "javascript",
             "stryker",
-            "error",
+            StackStatus.ERROR,
             f"no mutation report at {report_path} — see {log_path.name}",
             duration_seconds=duration,
         )
     return StackResult(
         "javascript",
         "stryker",
-        "measured",
+        StackStatus.MEASURED,
         summary=mutation_report.score_report(report_path),
         survivors=_flat_survivors(report_path, "javascript"),
         duration_seconds=duration,
@@ -301,7 +324,7 @@ def measure_python(
         return StackResult(
             "python",
             "mutmut",
-            "error",
+            StackStatus.ERROR,
             f"mutmut run did not execute — see {log_path.name}",
             duration_seconds=time.monotonic() - start,
         )
@@ -318,7 +341,7 @@ def measure_python(
         return StackResult(
             "python",
             "mutmut",
-            "error",
+            StackStatus.ERROR,
             f"mutmut junitxml failed: {exc}",
             duration_seconds=time.monotonic() - start,
         )
@@ -326,7 +349,7 @@ def measure_python(
     return StackResult(
         "python",
         "mutmut",
-        "measured",
+        StackStatus.MEASURED,
         summary=mutation_report.score_mutmut_junitxml(xml_result.stdout),
         survivors=_flat_survivors_mutmut(xml_result.stdout, "python"),
         duration_seconds=duration,
@@ -341,12 +364,14 @@ def measure_csharp(
         return StackResult(
             "csharp",
             "stryker-net",
-            "skipped",
+            StackStatus.SKIPPED,
             f"expected exactly one .sln in repo root, found {len(sln_candidates)} "
             "— cannot auto-select; run mutation-kill manually",
         )
     if not (repo_root / "stryker-config.json").exists():
-        return StackResult("csharp", "stryker-net", "skipped", "no stryker-config.json found")
+        return StackResult(
+            "csharp", "stryker-net", StackStatus.SKIPPED, "no stryker-config.json found"
+        )
 
     wrapper = Path(__file__).resolve().parent / "csharp_stryker_net_wrapper.py"
     output_dir = run_dir / "csharp"
@@ -369,7 +394,7 @@ def measure_csharp(
         return StackResult(
             "csharp",
             "stryker-net",
-            "error",
+            StackStatus.ERROR,
             f"csharp_stryker_net_wrapper.py did not run — see {log_path.name}",
             duration_seconds=duration,
         )
@@ -378,14 +403,14 @@ def measure_csharp(
         return StackResult(
             "csharp",
             "stryker-net",
-            "error",
+            StackStatus.ERROR,
             f"no mutation report at {report_path} — see {log_path.name}",
             duration_seconds=duration,
         )
     return StackResult(
         "csharp",
         "stryker-net",
-        "measured",
+        StackStatus.MEASURED,
         summary=mutation_report.score_report(report_path),
         survivors=_flat_survivors(report_path, "csharp"),
         duration_seconds=duration,

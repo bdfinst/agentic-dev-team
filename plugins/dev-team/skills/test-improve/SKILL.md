@@ -12,7 +12,7 @@ description: >-
 argument-hint: "<repo-path> [--parent <url>] [--analyze-only] [--from-phase [<n>]] [--stack <id>]"
 role: orchestrator
 user-invocable: true
-allowed-tools: Read, Grep, Glob, Bash(git diff *), Bash(python3 *), Skill, Agent
+allowed-tools: Read, Grep, Glob, Bash(git diff *), Bash(python3 *), Bash(sh *), Skill, Agent
 ---
 
 # Test Improve

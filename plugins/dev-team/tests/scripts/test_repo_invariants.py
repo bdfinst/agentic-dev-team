@@ -253,6 +253,10 @@ class TestScopeGlobSkipProseDrift:
         )
         monkeypatch.setattr(repo_invariants, "_PLUGIN_ROOT", tmp_path)
         monkeypatch.setattr(repo_invariants, "_REPO_ROOT", tmp_path)
+        # check_scope_glob_matches_skip_prose resolves its agents dir via the
+        # shared registry helper (#1904 item 3), not `_PLUGIN_ROOT` directly —
+        # patch it too so the fixture agent this helper wrote is what gets globbed.
+        monkeypatch.setattr(repo_invariants, "default_agents_dir", lambda: agents)
         return ["agents/x-review.md"]
 
     def test_the_mjs_cjs_mismatch_class_is_detected(self, tmp_path, monkeypatch):

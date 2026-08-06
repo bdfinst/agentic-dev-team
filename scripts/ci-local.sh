@@ -278,7 +278,13 @@ chk_python_floor() {
   #     coverage_discovery_dotnet, coverage_discovery_js), because
   #     coverage_config's parse_iso8601 carries an explicit 3.10-vs-3.11
   #     compatibility shim (`datetime.fromisoformat` rejects a trailing `Z`
-  #     before 3.11) — the #1650 shape exactly, one paragraph up.
+  #     before 3.11) — the #1650 shape exactly, one paragraph up;
+  #   - autoship_reclaim.py, which strips a trailing `Z` before
+  #     `datetime.fromisoformat` for the identical reason (#1829).
+  #
+  # Every OTHER shipped, tested plugins/dev-team/scripts/*.py module is
+  # accounted for in tests/repo/test_python_floor.py's SLICE_EXCLUSIONS, with
+  # a reason — never silently absent from both (issue #1829).
   #
   # NOTE the two test roots — the agent-script tests live under repo-root
   # tests/scripts/ while the coverage ones live under
@@ -329,6 +335,7 @@ chk_python_floor() {
     plugins/dev-team/tests/scripts/test_coverage_config.py \
     plugins/dev-team/tests/scripts/test_coverage_discovery_dotnet.py \
     plugins/dev-team/tests/scripts/test_coverage_discovery_js.py \
+    plugins/dev-team/tests/scripts/test_autoship_reclaim.py \
     -q || return 1
 }
 

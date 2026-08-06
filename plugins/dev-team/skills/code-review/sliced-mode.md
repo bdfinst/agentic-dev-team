@@ -74,7 +74,7 @@ the same `maxParallel` resolution the legacy path uses
 (`DEV_TEAM_MAX_PARALLEL_REVIEW_AGENTS`, default 10; see `SKILL.md` Step 4):
 
 ```bash
-python3 "$CLAUDE_PLUGIN_ROOT/skills/code-review/scripts/dispatch_waves.py" --agents "<this slice's panel agent names, in order>"
+sh "$CLAUDE_PLUGIN_ROOT/hooks/py.sh" "$CLAUDE_PLUGIN_ROOT/skills/code-review/scripts/dispatch_waves.py" --agents "<this slice's panel agent names, in order>"
 ```
 
 Dispatch one wave at a time, waiting for each wave to fully return before
@@ -101,7 +101,7 @@ For each slice, once its panel's waves (per the section above) return:
    — the same CLI as the legacy path (`SKILL.md` Step 4), scoped to this
    slice's dispatched agents for that wave:
    ```bash
-   python3 "$CLAUDE_PLUGIN_ROOT/skills/code-review/scripts/dispatch_reconcile.py" --dispatched "<this wave's dispatched agent names>" --returned "<this wave's contract-valid agent names>"
+   sh "$CLAUDE_PLUGIN_ROOT/hooks/py.sh" "$CLAUDE_PLUGIN_ROOT/skills/code-review/scripts/dispatch_reconcile.py" --dispatched "<this wave's dispatched agent names>" --returned "<this wave's contract-valid agent names>"
    ```
    Every name in the resulting `"missing"` array is a dispatch failure for
    this slice's current wave.
@@ -125,14 +125,14 @@ For each slice, once its panel's waves (per the section above) return:
    "error": "<message>"}` — never a different key for the agent name.
 4. **Emit the boundary event for each unrecovered failure**: at the same
    moment step 3 records the failure, emit the `dispatch-failure` boundary
-   event (Slice 1's shared CLI), bound to the `subject_hash` **and**
-   normalized hash in effect for that slice's dispatch — the same values
-   used elsewhere in this run (omitting the normalized hash would leave the
-   gate's cosmetic-delta carry-forward lens unable to ever see it):
+   event (Slice 1's shared CLI), bound to the `subject_hash` in effect for
+   that slice's dispatch (the cosmetic-delta carry-forward lens this used to
+   also bind a normalized hash for was specific to the retired commit-time
+   gate and was deleted in #1904 — sliced mode never wrote that gate file to
+   begin with, so the normalized hash never had a consumer on this path):
    ```bash
    HASH=$(python3 "${CLAUDE_PLUGIN_ROOT}/hooks/lib/review_gate_hash.py")
-   NORM=$(python3 "${CLAUDE_PLUGIN_ROOT}/hooks/lib/review_gate_normalized_hash.py" || true)
-   python3 "${CLAUDE_PLUGIN_ROOT}/hooks/lib/boundary_events.py" --event dispatch-failure --agent "<name>" --subject-hash "$HASH" --subject-hash-normalized "$NORM"
+   python3 "${CLAUDE_PLUGIN_ROOT}/hooks/lib/boundary_events.py" --event dispatch-failure --agent "<name>" --subject-hash "$HASH"
    ```
 5. **Drop** the findings from orchestrator context. **Retain only a one-line tally per slice** — e.g. `section-0001: 3 findings (1 error, 2 warnings)`. This
    is the move that keeps context flat regardless of repo size: never hold more

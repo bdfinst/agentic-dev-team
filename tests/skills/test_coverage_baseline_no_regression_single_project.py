@@ -9,11 +9,10 @@ to one tool, with no new cross-stack merge behavior.
 
 from __future__ import annotations
 
-import json
 import sys
-from pathlib import Path
 
 from coverage_baseline_flow_helpers import stub_dotnet
+from coverage_flow_shared import write
 from skill_doc_helpers import PLUGIN_ROOT, collapsed, grep, section
 
 SCRIPTS_DIR = PLUGIN_ROOT / "scripts"
@@ -34,14 +33,6 @@ def _step_1b_section() -> str:
     return section(
         _text(), r"^### 1b\. Single-project and mixed-stack", boundary_pattern=r"^### "
     )
-
-
-def write(path: Path, content) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    if isinstance(content, (dict, list)):
-        path.write_text(json.dumps(content, indent=2), encoding="utf-8")
-    else:
-        path.write_text(content, encoding="utf-8")
 
 
 # ---------------------------------------------------------------------------

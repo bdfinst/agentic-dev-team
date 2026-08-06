@@ -1,5 +1,11 @@
 # Mutation Night-Watch: Scheduling Recipes
 
+> **Naming note.** The skill is named `mutation-night-watch`; its underlying
+> scripts, output directory (`reports/mutation-nightwatch/`), and launchd
+> label use `mutation_nightwatch`/`mutation-nightwatch` — this is an
+> intentional, stable naming split; do not rename the on-disk paths without a
+> migration plan (#1856).
+
 Each recipe runs `mutation_nightwatch.py` **without** `--detach` — the
 scheduler itself already runs the job detached from any interactive session,
 so re-detaching would just orphan a second process. Use `--detach` only for

@@ -14,7 +14,6 @@ from __future__ import annotations
 
 import json
 import sys
-from pathlib import Path
 
 import pytest
 from coverage_baseline_flow_helpers import (
@@ -22,6 +21,7 @@ from coverage_baseline_flow_helpers import (
     run_baseline_flow,
     stub_dotnet,
 )
+from coverage_flow_shared import sln, write
 from skill_doc_helpers import PLUGIN_ROOT, collapsed, grep, section
 
 SCRIPTS_DIR = PLUGIN_ROOT / "scripts"
@@ -42,21 +42,6 @@ def _step_1a_section() -> str:
 
 def _step_5_section() -> str:
     return section(_text(), r"^### 5\. Persist the baseline", boundary_pattern=r"^### ")
-
-
-# ---------------------------------------------------------------------------
-# .csproj/.sln fixture helpers (mirroring
-# plugins/dev-team/tests/scripts/test_coverage_discovery_dotnet.py)
-# ---------------------------------------------------------------------------
-
-
-def write(path: Path, content: str) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(content, encoding="utf-8")
-
-
-def sln(repo_root: Path, name: str = "App.sln") -> None:
-    write(repo_root / name, "Microsoft Visual Studio Solution File\n")
 
 
 TEST_CSPROJ = """<Project Sdk="Microsoft.NET.Sdk">

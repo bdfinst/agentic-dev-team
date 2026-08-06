@@ -37,6 +37,9 @@ sys.path.insert(0, str(_LIB_DIR))
 import artifact_paths  # type: ignore[import-not-found]
 
 try:
+    from atomic_state import (  # type: ignore[import-not-found]
+        append_line_locked,
+    )
     from boundary_events import (  # type: ignore[import-not-found]
         emit_boundary_event as _emit_boundary_event,
     )
@@ -48,6 +51,22 @@ except ImportError:  # pragma: no cover
 
     def _emit_boundary_event(*_args, **_kwargs) -> None:  # type: ignore[misc]
         return None
+
+    def append_line_locked(  # type: ignore[misc]
+        path: Path, line: str, *, delay_env_var=None, fail_open: bool = True
+    ) -> None:
+        # Degraded-import fallback: atomic_state itself couldn't be
+        # imported, so no hardened (locked, O_NOFOLLOW) append is available.
+        # #1904 item 5: this used to fall back to a plain unlocked
+        # `open(path, "a")` — the exact O_NOFOLLOW-hardening gap that
+        # issue disclosed for this and `pre_commit_review.py`'s equivalent
+        # shim. A failed audit write is already fail-open by design (the
+        # bypass this line records proceeds either way), so degrading
+        # further to "don't write at all" costs nothing beyond the audit
+        # trail entry itself, and avoids reintroducing the symlink-redirect
+        # gap the shared helper exists to close.
+        if not fail_open:
+            raise OSError("atomic_state unavailable (degraded import)")
 
 
 def emit_boundary_event(*args, **kwargs) -> None:
@@ -149,9 +168,10 @@ def log_bypass_audit(raw_command: str, payload_cwd: str) -> None:
         "cwd": payload_cwd,
     }
     try:
-        with audit_file.open("a", encoding="utf-8") as fh:
-            # Match jq -c compact output: no spaces after ',' or ':'.
-            fh.write(json.dumps(record, separators=(",", ":")) + "\n")
+        # Match jq -c compact output: no spaces after ',' or ':'.
+        append_line_locked(
+            audit_file, json.dumps(record, separators=(",", ":")) + "\n", fail_open=False
+        )
     except OSError:
         print(
             f"mutation-testing-smoke-gate: cannot write to {audit_file} "

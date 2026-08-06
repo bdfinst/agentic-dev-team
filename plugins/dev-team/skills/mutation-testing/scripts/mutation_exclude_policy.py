@@ -41,11 +41,29 @@ import argparse
 import fnmatch
 import json
 import sys
+from enum import Enum
 from pathlib import Path
 
 import mutation_report
 
 POLICY_FILENAME = "mutation-exclude-policy.json"
+
+
+class ExclusionTier(str, Enum):
+    """The two mutation exclude-policy tiers a flagged file can land in
+    (issue #1904 item 4) — a closed vocabulary previously carried as bare
+    string literals (`"always"`/`"propose_and_ask"`) compared with `==`, so
+    a typo silently read as "not the always tier" rather than failing
+    loudly. `str, Enum` — deliberately NOT `coverage_config.TestClassification`'s
+    convention, which is a plain `Enum` chosen so an accidental attempt to
+    JSON-serialize it fails loudly instead of silently succeeding. This
+    enum diverges on purpose: its values ARE meant to serialize to JSON
+    (`write_json`/`draft_policy`'s output) and to keep matching existing
+    bare-string `== "always"`-style call sites, so the `str` mixin is the
+    correct choice here, not a mirrored one."""
+
+    ALWAYS = "always"
+    PROPOSE_AND_ASK = "propose_and_ask"
 
 # Ported verbatim from agents/mutation-kill.md's "Infrastructure exclusion
 # detection" section — the single source of truth for these two numbers.
@@ -56,6 +74,16 @@ NO_COVERAGE_THRESHOLD_PCT = 50.0
 # mutation-kill.md; the javascript list is a parallel, analogous set for a
 # second stack mutation_report.py can already score — see SUPPORTED_STACKS
 # in mutation_nightwatch_stacks.py.
+#
+# Coverage is intentionally partial. ``"csharp"`` and ``"javascript"`` have
+# curated filename hints today; ``"python"``, ``"java"``, and ``"go"`` — all
+# recognized by mutation_nightwatch_stacks.py's STACK_DETECTORS/MEASURERS —
+# do not yet. That is not an oversight: a file flagged for one of those
+# stacks by the two-signal rule alone still lands in the ``propose_and_ask``
+# tier (never dropped), it just never gets promoted to ``always`` until
+# someone writes its filename-hint list. See KNOWN_STACKS_WITHOUT_HINTS
+# below, which makes that gap explicit rather than indistinguishable from a
+# typo'd/unrecognized stack name (#1854).
 FILENAME_HINTS: dict[str, list[str]] = {
     "csharp": [
         "Startup.cs",
@@ -83,9 +111,25 @@ FILENAME_HINTS: dict[str, list[str]] = {
     ],
 }
 
+# Stacks recognized by mutation_nightwatch_stacks.py that deliberately have
+# no curated FILENAME_HINTS entry yet (not written, not a typo). A stack in
+# neither this set nor FILENAME_HINTS is genuinely unknown — see
+# _matching_hint below.
+KNOWN_STACKS_WITHOUT_HINTS: frozenset[str] = frozenset({"python", "java", "go"})
+
 
 def _matching_hint(filename: str, stack: str) -> str | None:
-    """Return the first filename-hint pattern that matches, or ``None``."""
+    """Return the first filename-hint pattern that matches, or ``None``.
+
+    Raises ``ValueError`` when ``stack`` is neither in ``FILENAME_HINTS`` nor
+    ``KNOWN_STACKS_WITHOUT_HINTS`` — a genuinely unrecognized/typo'd stack
+    name must surface loudly rather than silently returning no hints (#1854).
+    """
+    if stack not in FILENAME_HINTS and stack not in KNOWN_STACKS_WITHOUT_HINTS:
+        raise ValueError(
+            f"unknown stack: {stack!r} (known: "
+            f"{sorted(set(FILENAME_HINTS) | KNOWN_STACKS_WITHOUT_HINTS)})"
+        )
     for pattern in FILENAME_HINTS.get(stack, ()):
         if fnmatch.fnmatch(filename, pattern):
             return pattern
@@ -113,13 +157,13 @@ def draft_entries(report_path: Path, stack: str) -> list[dict]:
 
         hint = _matching_hint(Path(file_key).name, stack)
         if hint:
-            tier = "always"
+            tier = ExclusionTier.ALWAYS
             reason = (
                 f"named convention: {hint} (score {summary.honest_score:.1f}%, "
                 f"NoCoverage {no_coverage_pct:.1f}%)"
             )
         else:
-            tier = "propose_and_ask"
+            tier = ExclusionTier.PROPOSE_AND_ASK
             reason = (
                 f"signal-only: score {summary.honest_score:.1f}%, NoCoverage "
                 f"{no_coverage_pct:.1f}% (no filename match)"
@@ -140,8 +184,12 @@ def draft_policy(report_paths: dict[str, Path]) -> dict:
     propose_and_ask: list[dict] = []
     for stack, report_path in sorted(report_paths.items()):
         for entry in draft_entries(report_path, stack):
-            (always if entry["tier"] == "always" else propose_and_ask).append(entry)
-    return {"schema_version": 1, "always": always, "propose_and_ask": propose_and_ask}
+            (always if entry["tier"] == ExclusionTier.ALWAYS else propose_and_ask).append(entry)
+    return {
+        "schema_version": 1,
+        ExclusionTier.ALWAYS.value: always,
+        ExclusionTier.PROPOSE_AND_ASK.value: propose_and_ask,
+    }
 
 
 def write_json(path: Path, payload: dict) -> None:

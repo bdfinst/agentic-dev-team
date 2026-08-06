@@ -474,7 +474,7 @@ def _resolve_one_glob(root: Path, pattern: str, declared_pattern: str, rel_paths
         )
     for match in matches:
         resolved = match.resolve()
-        if not (resolved == root or root in resolved.parents):
+        if not coverage_config.is_within(resolved, root):
             return coverage_config.discovery_error(
                 described(
                     f"resolved to {str(resolved)!r}, which is outside the "
@@ -515,7 +515,7 @@ def _classify_package(pkg_dir: Path, root: Path):
         return coverage_config.discovery_error(
             f"Could not resolve manifest {str(manifest_path)!r}: {exc}"
         )
-    if not (resolved_manifest == root or root in resolved_manifest.parents):
+    if not coverage_config.is_within(resolved_manifest, root):
         return coverage_config.discovery_error(
             f"Package manifest {str(manifest_path)!r} resolves to "
             f"{str(resolved_manifest)!r}, which is outside the repository "

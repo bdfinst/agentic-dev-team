@@ -60,6 +60,7 @@ from __future__ import annotations
 import contextlib
 import errno
 import os
+import sys
 import tempfile
 import time
 from collections.abc import Iterator
@@ -103,9 +104,21 @@ _MAX_LOCK_ACQUIRE_BUDGET_SECONDS = 10.0
 # failure) it must not regress. Only these errnos — genuine "someone else
 # holds it" signals on POSIX (`flock`) and Windows (`msvcrt.locking`) — are
 # worth retrying; anything else gives up immediately.
+#
+# EDEADLOCK/EDEADLK (#1904 item 9, defensive — no recorded Windows probe):
+# Windows CRT `_locking` (the backend behind `msvcrt.locking`) documents
+# surfacing a deadlock-shaped errno on contention in some circumstances. Both
+# are POSIX-optional attributes (absent on some platforms), hence the same
+# `getattr(..., None)` + filter idiom already used for EWOULDBLOCK above.
 _LOCK_CONTENTION_ERRNOS = frozenset(
     e
-    for e in (errno.EACCES, errno.EAGAIN, getattr(errno, "EWOULDBLOCK", None))
+    for e in (
+        errno.EACCES,
+        errno.EAGAIN,
+        getattr(errno, "EWOULDBLOCK", None),
+        getattr(errno, "EDEADLOCK", None),
+        getattr(errno, "EDEADLK", None),
+    )
     if e is not None
 )
 
@@ -237,21 +250,26 @@ def locked_state(path: Path) -> Iterator[None]:
     is no worse than the pre-#1501 behavior; a crash — or an undelivered
     guard-hook verdict — would be worse, and these hooks are advisory.
 
-    CONTRACT — catch OSError *inside* the `with` block, not around it: if the
-    critical section raises an uncaught OSError, it propagates out through
-    this generator's `yield` and is swallowed by the same `except OSError`
-    that guards the lock-file open/lock-acquire calls — which then falls
-    through to a second, bare `yield`, and `contextlib` raises
+    A caller-raised OSError from inside the critical section propagates
+    normally (through the `finally`/release, out of this generator's
+    `yield`) rather than being swallowed (#1892): the `except OSError` that
+    guards the `os.fdopen()` call is scoped to that call alone, not to the
+    `with` block around the `yield` — a prior version wrapped both, which
+    meant a caller's OSError landed in that same `except`, fell through to a
+    second bare `yield`, and made `contextlib` raise
     `RuntimeError("generator didn't stop after throw()")` instead of the
-    OSError the caller expected. This is a real, confirmed foot-gun (not
-    hypothetical), tracked separately rather than fixed here — every current
-    caller already catches OSError inside the `with` block (see
-    `append_line_locked` below).
+    OSError the caller actually raised.
     """
     lock_path = path.parent / (path.name + ".lock")
     try:
         lock_path.parent.mkdir(parents=True, exist_ok=True)
-    except OSError:
+    except OSError as exc:
+        print(
+            f"atomic_state: lock acquisition failed (could not create lock "
+            f"directory {lock_path.parent}: {exc}); proceeding WITHOUT lock "
+            f"for {path}",
+            file=sys.stderr,
+        )
         yield
         return
 
@@ -270,31 +288,51 @@ def locked_state(path: Path) -> Iterator[None]:
         # TOCTOU) enforces 0600 either way (security review, #1889).
         with contextlib.suppress(OSError, AttributeError):
             os.fchmod(lock_fd, 0o600)
-    except OSError:
+    except OSError as exc:
+        print(
+            f"atomic_state: lock acquisition failed (could not open lock "
+            f"file {lock_path}: {exc}); proceeding WITHOUT lock for {path}",
+            file=sys.stderr,
+        )
         yield
         return
 
-    # Callers own their own OSError handling inside the critical section, so
-    # this outer except only ever fires for the fdopen()/lock-acquire calls.
+    # This except is scoped to the fdopen() call ONLY (#1892) — it must NOT
+    # also wrap the `with` block below, or a caller-raised OSError from
+    # inside the critical section (at the `yield`) would be caught here too
+    # and mishandled (see the CONTRACT note above).
     try:
-        with os.fdopen(lock_fd, "r+") as handle:
-            locked = False
+        handle_cm = os.fdopen(lock_fd, "r+")
+    except OSError as exc:
+        print(
+            f"atomic_state: lock acquisition failed (fdopen on "
+            f"{lock_path} failed: {exc}); proceeding WITHOUT lock for {path}",
+            file=sys.stderr,
+        )
+        yield
+        return
+
+    with handle_cm as handle:
+        locked = False
+        try:
             try:
+                locked = _acquire_bounded(handle)
+            except OSError:
+                locked = False
+            if not locked:
+                print(
+                    f"atomic_state: lock acquisition failed (budget exhausted "
+                    f"or non-contention error acquiring {lock_path}); "
+                    f"proceeding WITHOUT lock for {path}",
+                    file=sys.stderr,
+                )
+            yield
+        finally:
+            if locked:
                 try:
-                    locked = _acquire_bounded(handle)
+                    _release(handle)
                 except OSError:
-                    locked = False
-                yield
-            finally:
-                if locked:
-                    try:
-                        _release(handle)
-                    except OSError:
-                        pass
-            return
-    except OSError:
-        pass
-    yield
+                    pass
 
 
 def _write_maybe_delayed(handle, line: str, delay_env_var: str | None) -> None:
@@ -302,16 +340,29 @@ def _write_maybe_delayed(handle, line: str, delay_env_var: str | None) -> None:
 
     Test-only split path: see `append_line_locked`'s docstring for why a
     single small `write()` needs splitting, not just delaying, to simulate a
-    genuinely non-atomic write.
+    genuinely non-atomic write. A value of ``"0"`` (or anything else that
+    parses to <= 0, or fails to parse at all) takes the plain single-write
+    path — matching this repo's `DEV_TEAM_*` numeric-knob convention where a
+    non-positive value means "disabled" — rather than bare `os.environ.get()`
+    truthiness, which would treat the *string* ``"0"`` as "enabled with a
+    zero-length delay" and needlessly split the write.
     """
-    if delay_env_var and os.environ.get(delay_env_var):
-        mid = len(line) // 2
-        handle.write(line[:mid])
-        handle.flush()
-        race_window_delay(delay_env_var)
-        handle.write(line[mid:])
-    else:
+    delay_ms = 0
+    if delay_env_var:
+        raw = os.environ.get(delay_env_var)
+        if raw:
+            try:
+                delay_ms = int(raw)
+            except ValueError:
+                delay_ms = 0
+    if delay_ms <= 0:
         handle.write(line)
+        return
+    mid = len(line) // 2
+    handle.write(line[:mid])
+    handle.flush()
+    race_window_delay(delay_env_var)
+    handle.write(line[mid:])
 
 
 def append_line_locked(

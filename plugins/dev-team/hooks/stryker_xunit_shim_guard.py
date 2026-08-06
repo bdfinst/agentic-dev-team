@@ -41,7 +41,6 @@ Contract (docs/python-hook-contract.md):
     Output: exit 2 + `[BLOCK]`-prefixed body on stdout to BLOCK
             exit 0 + no stdout for SILENT-PASS
     Env   : DEV_TEAM_STRYKER_XUNIT3_GATE_SKIP=1 -> silent bypass
-            DEV_TEAM_XUNIT3_SHIM_DECISION_FILE  -> decision-store override
 
 Stdlib-only.
 """

@@ -846,6 +846,15 @@ def normalize_patch(patch_text: str) -> str | None:
     out identical was purely formatting and is dropped. Files are emitted in
     sorted order so a re-stage that reorders git's own file output cannot
     change the digest.
+
+    Split on literal `"\n"` only (#1904 item 15) — NOT `str.splitlines()`,
+    which also breaks on the full Unicode line-boundary set (form feed,
+    U+2028 LINE SEPARATOR, U+0085 NEL, etc.). git's own `@@ -a,b +c,d @@`
+    hunk-header line counts are computed over literal `\n` bytes only, so a
+    staged line containing one of those other boundary characters would make
+    `splitlines()` produce more "lines" than the hunk header accounts for,
+    desyncing this parser's line model from git's and corrupting every
+    subsequent line's old/new-side attribution for the rest of the hunk.
     """
     if patch_text is None:
         return None
@@ -868,7 +877,12 @@ def normalize_patch(patch_text: str) -> str | None:
         in_hunk = False
 
     try:
-        for raw in patch_text.splitlines():
+        # `"".split("\n")` is `[""]`, not `[]` (unlike `"".splitlines()`) —
+        # guard the genuinely-empty-input case explicitly so it still yields
+        # zero iterations, matching the pre-existing "parsed fine, nothing
+        # behavior-bearing left" contract (fix 5 in the module docstring)
+        # rather than one spurious iteration over a fake empty line.
+        for raw in (patch_text.split("\n") if patch_text else []):
             if in_hunk and (old_remaining > 0 or new_remaining > 0):
                 # Inside a hunk body: the declared counts, not the line's
                 # prefix, decide where the body ends.
@@ -1025,9 +1039,11 @@ def normalized_gate_hash(cwd=None, target: str = "--cached") -> str | None:
     original hunks it absorbed (see the "costs some invariance, never
     safety" trade already accepted for fixes 2-3 in the module docstring).
 
-    `target` mirrors `review_gate_hash()`/`working_tree_gate_hash()`'s split:
-    `--cached` for an ordinary staged commit, `HEAD` for the `git commit
-    -a`/pathspec form (#1476).
+    `target` mirrors `review_gate_hash()`'s own `target` parameter:
+    `--cached` for an ordinary staged commit. (The `HEAD` shape this
+    mirrored, for the `git commit -a`/pathspec form (#1476), was
+    `review_gate_hash.py`'s `working_tree_gate_hash()` — deleted in #1904
+    once `pre_commit_review.py`, its sole caller, was retired to a no-op.)
 
     Returns `None` — never a digest of empty input — when git fails, AND
     when the changeset normalizes to nothing at all. Both are the same

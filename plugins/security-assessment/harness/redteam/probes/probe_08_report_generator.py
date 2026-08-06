@@ -10,7 +10,7 @@ Produces: results/08_report.json  AND  results/adversarial-report.md
 from __future__ import annotations
 
 import html
-from datetime import UTC, datetime
+from datetime import datetime, timezone
 
 from .. import config
 from ..lib import result_store
@@ -141,7 +141,7 @@ def run() -> None:
     # JSON artifact (machine-friendly; consumed by adversarial-05-report prompt)
     report = {
         "target": config.TARGET_URL,
-        "generated_at": datetime.now(UTC).isoformat(),
+        "generated_at": datetime.now(timezone.utc).isoformat(),
         "probes": {
             "01_recon": recon,
             "02_schema": schema,

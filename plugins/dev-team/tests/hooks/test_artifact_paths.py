@@ -51,6 +51,14 @@ def test_project_root_resolves_from_a_subdirectory(tmp_path: Path) -> None:
     assert artifact_paths.project_root(start=sub) == tmp_path.resolve()
 
 
+def test_project_root_does_not_raise_on_a_non_path_like_start() -> None:
+    """#1904 item 16: the docstring claims `project_root()` never raises, but
+    `Path(start)` raises `TypeError` before the function's own `try` block
+    even begins when `start` is not path-like (e.g. an `int`). Falls back to
+    the current process's cwd, matching the documented "or cwd" fallback."""
+    assert artifact_paths.project_root(start=12345) == Path.cwd()
+
+
 # --- category directory accessors -----------------------------------------
 
 

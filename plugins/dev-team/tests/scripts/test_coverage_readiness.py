@@ -7,6 +7,7 @@ from pathlib import Path
 SCRIPTS_DIR = Path(__file__).parent.parent.parent / "scripts"
 sys.path.insert(0, str(SCRIPTS_DIR))
 
+from coverage_flow_shared import pkg, write
 from coverage_readiness import (
     build_report,
     detect_runner,
@@ -14,22 +15,6 @@ from coverage_readiness import (
     main,
     resolve_config_source,
 )
-
-# ---------------------------------------------------------------------------
-# helpers
-# ---------------------------------------------------------------------------
-
-def write(path: Path, content) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    if isinstance(content, (dict, list)):
-        path.write_text(json.dumps(content, indent=2), encoding="utf-8")
-    else:
-        path.write_text(content, encoding="utf-8")
-
-
-def pkg(root: Path, data: dict) -> None:
-    write(root / "package.json", data)
-
 
 # ---------------------------------------------------------------------------
 # runner detection

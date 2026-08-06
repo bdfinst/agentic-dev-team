@@ -104,7 +104,7 @@ correction prompts are included.
 
 ### `/code-review` — Full review
 
-See [Code Review Process](code-review-process.md) for the full nine-step pipeline: target selection, pre-flight gates, static analysis pre-pass, parallel agent dispatch, ACCEPTED-RISKS suppression, health scoring, the auto-fix loop (up to 5 iterations), correction prompts, and the `.review-passed` gate file.
+See [Code Review Process](code-review-process.md) for the full nine-step pipeline: target selection, pre-flight gates, static analysis pre-pass, parallel agent dispatch, ACCEPTED-RISKS suppression, health scoring, the auto-fix loop (up to 5 iterations), correction prompts, and the `.pr-review-passed` gate file.
 
 ### `/review-agent <name>` — Single agent
 

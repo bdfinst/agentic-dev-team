@@ -26,8 +26,10 @@ Stdlib-only (ADR 0014/0015).
 
 from __future__ import annotations
 
+import dataclasses
 import json
 import os
+import re
 import tempfile
 from datetime import datetime, timezone
 from enum import Enum
@@ -61,6 +63,48 @@ DISCOVERY_NOT_APPLICABLE = {"signal": "not_applicable"}
 def discovery_error(message: str) -> dict:
     """Return the shared discovery-error signal shape, naming `message`."""
     return {"signal": "error", "message": message}
+
+
+def is_within(resolved: Path, root: Path) -> bool:
+    """True when `resolved` (already resolved — this performs no resolution
+    of its own) equals `root` or is nested inside it. The shared containment
+    predicate every `discover_<stack>` module applies before reading or
+    classifying a resolved path — previously factored only in
+    `coverage_discovery_java.py` and open-coded independently in
+    `coverage_discovery_js.py` and `coverage_discovery_dotnet.py` (issues
+    #1839/#1848/#1851).
+
+    Canonical argument order — read this before adding a new call site:
+    `is_within(item, container)`. The FIRST argument is the path whose
+    containment is being checked; the SECOND is the directory it must be
+    inside. Equivalently, `is_within(item, container)` reads as "is `item`
+    within `container`?" — same order as `coverage_discovery_dotnet.py`'s and
+    `stryker_shard_setup.py`'s calls. #1903 found an independent
+    reimplementation in `run_integration_eval.py` with this order inverted
+    (container first); that inversion is exactly what a reader moving
+    between files cannot safely assume is consistent, hence this note.
+    """
+    return resolved == root or root in resolved.parents
+
+
+# Namespace prefix stripped by `local_name` below. Anchored to a leading
+# `{...}` only, rather than searching for the LAST `}` in the tag string —
+# the anchored form is what stays correct for a local name that itself
+# legitimately contains `}` (never happens in practice, but the anchoring
+# costs nothing and is strictly safer).
+_XML_NS_RE = re.compile(r"^\{[^}]*\}")
+
+
+def local_name(tag) -> str:
+    """The namespace-stripped local name of an ElementTree tag (`{ns}Tag` ->
+    `Tag`). Tolerates a non-`str` tag (returns `""`) — ElementTree gives
+    comment/processing-instruction nodes a non-string, callable `tag`, which
+    a `tag.split("}", 1)`-style implementation raises on. The shared,
+    canonical implementation: `coverage_discovery_java.py` originally had
+    this exact regex-anchored, non-str-safe version; `coverage_discovery_dotnet.py`
+    had a second, less-safe `tag.split("}", 1)[-1]` implementation (issues
+    #1839/#1848/#1851)."""
+    return _XML_NS_RE.sub("", tag if isinstance(tag, str) else "")
 
 
 # A build file consumed by discovery never legitimately carries a DOCTYPE or
@@ -120,6 +164,13 @@ def read_and_screen_xml(path: Path):
     return data, None
 
 
+# `coverage-config.json`'s exclusion schema (`excluded: [{"path", "reason"}]`)
+# is intentionally NOT the same schema as the sibling `mutation_exclude_policy.py`
+# module's `mutation-exclude-policy.json` (`{schema_version, always: [...],
+# propose_and_ask: [...]}`, unit key `file` rather than `path`) — issue #1853.
+# The two are different bounded contexts (coverage-accounting ledger vs.
+# mutation-exclude proposals) with no shared consumer today; do not assume
+# they should be interchangeable or unify them.
 def load_or_bootstrap(
     config_path: Path, discovered_projects: list, now_iso: str
 ) -> tuple:
@@ -162,6 +213,7 @@ def load_or_bootstrap(
         if needs_accounting(entry["classification"])
     ]
     config = {
+        "schema_version": 1,
         "included": included,
         "excluded": [],
         "bootstrapped_at": now_iso,
@@ -230,6 +282,46 @@ def _normalize_excluded(excluded_entries: list) -> list:
     ]
 
 
+def _validate_config_shape(config: dict) -> None:
+    """Validate `config`'s `included`/`excluded` shape, raising `ValueError`
+    naming the malformed field or entry. Extracted from `drift_check` so
+    shape validation and drift computation are each independently readable
+    — the same extraction precedent as `_format_hard_failure_message`/
+    `_format_stale_warning` below (issue #1858). Raises before any drift
+    computation runs; callers never see a partially-computed result on a
+    malformed config."""
+    included_list = config.get("included", [])
+    excluded_entries = config.get("excluded", [])
+
+    if "included" in config and not isinstance(config["included"], list):
+        raise ValueError(
+            "coverage-config.json \"included\" must be a list of path "
+            f"strings; got {type(config['included']).__name__} instead."
+        )
+    if "excluded" in config and not isinstance(config["excluded"], list):
+        raise ValueError(
+            "coverage-config.json \"excluded\" must be a list of "
+            "{\"path\": ..., \"reason\": ...} entries; got "
+            f"{type(config['excluded']).__name__} instead."
+        )
+
+    for entry in included_list:
+        if not isinstance(entry, str):
+            raise ValueError(  # noqa: TRY004 — ValueError is the documented, tested contract for malformed config (see docstring; test_coverage_config.py asserts ValueError)
+                "coverage-config.json \"included\" entries must all be "
+                f"path strings; got {entry!r} instead."
+            )
+    for entry in excluded_entries:
+        if not isinstance(entry, str) and (
+            not isinstance(entry, dict) or "path" not in entry
+        ):
+            raise ValueError(
+                "coverage-config.json \"excluded\" entries must all be a "
+                "path string or a {\"path\": ..., \"reason\": ...} entry "
+                f"carrying a \"path\" key; got {entry!r} instead."
+            )
+
+
 def drift_check(config: dict, discovered_projects: list) -> dict:
     """Compare `config`'s `included`/`excluded` entries against fresh
     `discovered_projects` (a list of `{"path": ..., "classification":
@@ -262,36 +354,10 @@ def drift_check(config: dict, discovered_projects: list) -> dict:
     the malformed field, rather than degrading `path in included_list` to a
     substring test.
     """
+    _validate_config_shape(config)
+
     included_list = config.get("included", [])
     excluded_entries = config.get("excluded", [])
-
-    if "included" in config and not isinstance(config["included"], list):
-        raise ValueError(
-            "coverage-config.json \"included\" must be a list of path "
-            f"strings; got {type(config['included']).__name__} instead."
-        )
-    if "excluded" in config and not isinstance(config["excluded"], list):
-        raise ValueError(
-            "coverage-config.json \"excluded\" must be a list of "
-            "{\"path\": ..., \"reason\": ...} entries; got "
-            f"{type(config['excluded']).__name__} instead."
-        )
-
-    for entry in included_list:
-        if not isinstance(entry, str):
-            raise ValueError(  # noqa: TRY004 — ValueError is the documented, tested contract for malformed config (see docstring; test_coverage_config.py asserts ValueError)
-                "coverage-config.json \"included\" entries must all be "
-                f"path strings; got {entry!r} instead."
-            )
-    for entry in excluded_entries:
-        if not isinstance(entry, str) and (
-            not isinstance(entry, dict) or "path" not in entry
-        ):
-            raise ValueError(
-                "coverage-config.json \"excluded\" entries must all be a "
-                "path string or a {\"path\": ..., \"reason\": ...} entry "
-                f"carrying a \"path\" key; got {entry!r} instead."
-            )
 
     normalized_excluded = _normalize_excluded(excluded_entries)
     excluded_by_path = {entry["path"]: entry for entry in normalized_excluded}
@@ -427,14 +493,17 @@ def weighted_merge(project_reports: list) -> dict:
     count — never a per-project average.
 
     Each entry in `project_reports` carries `{covered_statements,
-    total_statements, covered_branches, total_branches}`. Returns
-    `{line_pct, branch_pct}`, summed across all reports before dividing.
-    Either percentage is `None` (JSON `null`) when its total is 0 across
-    all reports, matching `coverage-baseline`'s existing Go-coverage `null`
-    convention. A field valued `None` in a per-project report (this repo's
-    own Go-coverage convention for a tool with no native branch coverage)
-    coerces to 0 rather than raising `TypeError`, degrading to the same
-    zero-total → `None` result.
+    total_statements, covered_branches, total_branches}` — a plain dict, or
+    a `coverage_report_parse.CoverageRecord` (e.g. `aggregate()`'s output)
+    consumed directly, with no translation layer, since both already use
+    this same field-name vocabulary. Returns `{line_pct, branch_pct}`,
+    summed across all reports before dividing. Either percentage is `None`
+    (JSON `null`) when its total is 0 across all reports, matching
+    `coverage-baseline`'s existing Go-coverage `null` convention. A field
+    valued `None` in a per-project report (this repo's own Go-coverage
+    convention for a tool with no native branch coverage) coerces to 0
+    rather than raising `TypeError`, degrading to the same zero-total →
+    `None` result.
 
     A count field **entirely absent** from a report dict is a different,
     louder case: it means the report is incomplete (a per-project report
@@ -445,6 +514,10 @@ def weighted_merge(project_reports: list) -> dict:
     silently proceeding to a null/0 baseline — "key entirely absent" and
     "key present with value `None`" must never be treated identically.
     """
+    project_reports = [
+        dataclasses.asdict(report) if dataclasses.is_dataclass(report) else report
+        for report in project_reports
+    ]
     for report in project_reports:
         missing_fields = [
             field for field in _WEIGHTED_MERGE_REQUIRED_FIELDS if field not in report

@@ -24,7 +24,7 @@ coverage targeting input, independent of whether mutation work happens at
 all — and it is computed by script, never estimated in prose:
 
 ```
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/coverage_gap_ranking.py" \
+sh "${CLAUDE_PLUGIN_ROOT}/hooks/py.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/coverage_gap_ranking.py" \
   --report <baseline raw_report> --repo-root <repo-path> \
   --target-line-pct <line target> --target-branch-pct <branch target> \
   --top 0 --json \

@@ -29,8 +29,8 @@ from _ci_local_invocation import (
     PytestInvocation,
     check_body,
     check_registry,
-    invocation,
     lines_after_invocation,
+    pytest_invocation,
     synthetic_check,
 )
 
@@ -128,7 +128,7 @@ def test_invocation_reads_prefix_args_and_tail():
         NEUTRAL_FN,
         "  FOO= uv run -m pytest \\\n    tests/a \\\n    -q || return 1",
     )
-    result = invocation(body, NEUTRAL_FN)
+    result = pytest_invocation(body, NEUTRAL_FN)
     assert result == PytestInvocation(["FOO=", "uv", "run"], ["tests/a", "-q"], ["return", "1"])
     # PytestInvocation is tuple-compatible: unpacking and plain-tuple equality
     # both still work, which is the whole point of it being a NamedTuple —
@@ -142,18 +142,20 @@ def test_invocation_reads_prefix_args_and_tail():
 
 
 def test_invocation_is_unparseable_without_a_single_marker():
-    assert invocation(synthetic_check(NEUTRAL_FN, "  echo hi"), NEUTRAL_FN) == ([], [], [])
+    assert pytest_invocation(synthetic_check(NEUTRAL_FN, "  echo hi"), NEUTRAL_FN) is None
     two_markers = "  uv run -m pytest a -q\n  uv run -m pytest b -q"
-    assert invocation(synthetic_check(NEUTRAL_FN, two_markers), NEUTRAL_FN) == ([], [], [])
+    assert (
+        pytest_invocation(synthetic_check(NEUTRAL_FN, two_markers), NEUTRAL_FN) is None
+    )
 
 
 def test_invocation_does_not_specially_reject_zero_trailing_args():
     """A command truncated exactly at `-m pytest` is not treated as
-    unparseable — it returns empty `args` rather than the fully-empty form,
-    documented as a deliberate choice in `invocation()`'s own docstring
+    unparseable — it returns empty `args` rather than `None`, documented as
+    a deliberate choice in `pytest_invocation()`'s own docstring
     (correctness-review, #1887)."""
     body = synthetic_check(NEUTRAL_FN, "  uv run -m pytest")
-    assert invocation(body, NEUTRAL_FN) == (["uv", "run"], [], [])
+    assert pytest_invocation(body, NEUTRAL_FN) == (["uv", "run"], [], [])
 
 
 def test_lines_after_invocation_finds_a_trailing_statement():
@@ -180,3 +182,87 @@ def test_lines_after_invocation_returns_the_sentinel_when_unparseable():
         NEUTRAL_FN, "  uv run -m pytest a -q\n  uv run -m pytest b -q"
     )
     assert lines_after_invocation(two_markers, NEUTRAL_FN) == sentinel
+
+
+# ---------------------------------------------------------------------------
+# #1895 item 3: the shared parser edge-case table
+# ---------------------------------------------------------------------------
+#
+# `TestTheSliceParserItself` (test_python_floor.py) and
+# `TestTheCeilingParserItself` (test_python_ceiling.py) each re-test these
+# same boundary rules — marker ambiguity, continuation-reflow invariance,
+# truncating-comment survival, backslash-trailing-space termination, and the
+# `||` tail being returned rather than dropped — nearly identically, just
+# against their own gate-specific paths/dirs (slice test-file paths for the
+# floor, `tests/repo`-style directories for the ceiling).
+#
+# This table is declared here, against the neutral `NEUTRAL_FN` and generic
+# `tests/a`/`tests/b` tokens, so it tests `pytest_invocation()`'s own
+# contract rather than either gate's domain-specific argument shape.
+# Deliberately NOT force-migrated into either frozen class in this pass:
+# both must keep passing byte-for-byte on their EXISTING assertions (the
+# hard constraint the original extraction, #1887, imposed), and pointing
+# them at this table instead is a separate, higher-risk change a later pass
+# could make without editing those assertions at all — this table would
+# already be here, ready to adopt.
+SHARED_PARSER_EDGE_CASES = (
+    pytest.param(
+        (
+            '  uv run --python "$py" \\\n'
+            "    -m pytest \\\n"
+            "    tests/a \\\n"
+            "    tests/b \\\n"
+            "    -q"
+        ),
+        PytestInvocation(["uv", "run", "--python", '"$py"'], ["tests/a", "tests/b", "-q"], []),
+        id="continuation-reflow-is-invariant",
+    ),
+    pytest.param(
+        '  uv run --python "$py" -m pytest tests/a tests/b -q',
+        PytestInvocation(["uv", "run", "--python", '"$py"'], ["tests/a", "tests/b", "-q"], []),
+        id="one-line-form-matches-the-continued-form",
+    ),
+    pytest.param(
+        "  printf 'about to run -m pytest\\n'\n  uv run -m pytest tests/a -q",
+        None,
+        id="a-second-marker-is-ambiguous",
+    ),
+    pytest.param(
+        "  uv run tests/a",
+        None,
+        id="a-missing-marker-is-unparseable",
+    ),
+    pytest.param(
+        (
+            "  uv run -m pytest \\\n"
+            "    tests/a \\\n"
+            "    # note \\\n"
+            "    tests/b \\\n"
+            "    -q"
+        ),
+        PytestInvocation(["uv", "run"], ["tests/a", "#", "note", "tests/b", "-q"], []),
+        id="a-truncating-comment-survives-into-args",
+    ),
+    pytest.param(
+        (
+            "  uv run -m pytest \\\n"
+            "    tests/a \\ \n"
+            "    tests/b \\\n"
+            "    -q"
+        ),
+        PytestInvocation(["uv", "run"], ["tests/a", "\\"], []),
+        id="a-backslash-with-a-trailing-space-ends-the-command",
+    ),
+    pytest.param(
+        "  uv run -m pytest tests/a -q || printf 'failed'",
+        PytestInvocation(["uv", "run"], ["tests/a", "-q"], ["printf", "'failed'"]),
+        id="the-failure-tail-is-returned-not-discarded",
+    ),
+)
+
+
+@pytest.mark.parametrize("body_text,expected", SHARED_PARSER_EDGE_CASES)
+def test_shared_parser_edge_case_table(body_text: str, expected) -> None:
+    """The consolidated table above, run against the neutral `NEUTRAL_FN`."""
+    body = synthetic_check(NEUTRAL_FN, body_text)
+    assert pytest_invocation(body, NEUTRAL_FN) == expected

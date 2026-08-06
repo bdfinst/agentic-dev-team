@@ -108,33 +108,35 @@ drift = coverage_config.drift_check(config, discovered)
 ## 4. Weighted-merge step
 
 For each path in `config["included"]`, run the stack's coverage command
-**per included project/package** (never once for the whole repo), and parse
-its raw `{covered_statements, total_statements, covered_branches,
-total_branches}` from that report. For JS/TS, this extends Step 4's existing
-per-tool parsing table (Istanbul's `coverage-final.json`/`lcov.info`, etc.) to
-the raw counts those reports already carry, not only the derived percentage.
+**per included project/package** (never once for the whole repo), then parse
+its report with `${CLAUDE_PLUGIN_ROOT}/scripts/coverage_report_parse.py`'s
+`parse(report_path)` — it auto-detects the format (lcov, cobertura,
+jacoco-csv, istanbul-summary, istanbul-final, coverage-py, or **coverlet**)
+and returns one `CoverageRecord` per source file, already in `weighted_merge`'s
+`{covered_statements, total_statements, covered_branches, total_branches}`
+vocabulary. Sum a project's records into its single per-project entry with
+`aggregate(records)`. This is the same shared parser
+`coverage_gap_ranking.py` uses for its per-module ranking (issue #1873) —
+including Coverlet's nested assembly -> file -> class -> method JSON layout,
+so multi-project .NET merge needs no operator-supplied wrapper.
 
-**Known, documented limitation (.NET/Coverlet).** Step 4's Coverlet row
-documents only the derived `summary.linecoverage`/`summary.branchcoverage`
-percentages — not the raw counts `weighted_merge` requires. Coverlet's raw
-JSON layout (nested per-module/per-class/per-method hit data) needs
-verification against a real Coverlet run before this repo can document an
-exact JSON path to sum with confidence; asserting one without running the
-real tool risks documenting a shape that doesn't match Coverlet's actual
-output. Until that verification happens, multi-project .NET merge requires
-the operator's own coverage command wrapper to parse and supply the four raw
-counts per included project. If a per-project report carries only
-percentages with no raw counts, **stop** with a
-`coverage_config.discovery_error(...)` naming the project and the missing
-raw counts — never silently degrade to a `null`/`0` baseline by feeding
-`weighted_merge` an incomplete report. See `SKILL.md` Step 1a item 4 for the
-exact stop message.
-
-Feed the collected per-project reports to:
+Feed the collected per-project `CoverageRecord`s to `weighted_merge`
+directly — no dict translation needed, since both already use the same
+field names — then check its
+result before using it — `weighted_merge` already validates report
+completeness internally (a report missing a required raw count field returns
+the shared `discovery_error(...)` shape rather than raising), so there is no
+separate pre-validation step for the caller to duplicate:
 
 ```python
 merged = coverage_config.weighted_merge(project_reports)
-# {"line_pct": <float|None>, "branch_pct": <float|None>}
+if "signal" in merged:
+    # A per-project report was missing a required raw count field. merged is
+    # the shared discovery_error(...) shape: {"signal": "error", "message":
+    # ...}. Print merged["message"] verbatim and stop without writing a
+    # baseline — never proceed with a null/0 baseline.
+    ...
+# Otherwise merged is {"line_pct": <float|None>, "branch_pct": <float|None>}.
 ```
 
 `weighted_merge` sums covered/total across every included project **before**
@@ -173,12 +175,15 @@ is introduced.
 Each stack gets its own `coverage_discovery_<stack>.py` implementing
 `discover_<stack>_<units>(repo_root)` against the three return shapes in §1.
 Deliberately **not** a strategy/registry abstraction: the stacks share only
-leaf helpers (the result signals, `TestClassification`, the XML screen), while
-enumeration, trigger precedence, the classification predicate, and the identity
-string all differ per stack by design. A new stack reuses the shared leaf
-helpers in `coverage_config.py` rather than re-implementing them — the Java
-stack shipped its first revision without the entity-expansion screen the .NET
-stack already had, which is the drift a shared helper exists to prevent.
+leaf helpers (the result signals, `TestClassification`, the XML screen, the
+containment predicate `is_within`, and the XML-namespace stripper
+`local_name`), while enumeration, trigger precedence, the classification
+predicate, and the identity string all differ per stack by design. A new
+stack reuses the shared leaf helpers in `coverage_config.py` rather than
+re-implementing them — the Java stack shipped its first revision without the
+entity-expansion screen the .NET stack already had, and more than one stack
+independently open-coded its own containment check and namespace stripper,
+which is the drift a shared helper exists to prevent (issues #1839/#1848/#1851).
 
 Two rules every stack follows, learned from #1759 and #1765:
 

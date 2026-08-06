@@ -28,7 +28,7 @@ Each agent declares `model:` (an alias, a full model ID, or `inherit`) and `effo
 
 Both inline review checkpoints (Phase 3) and `/code-review` use the same review-fix loop: targeted agents run in parallel, actionable issues (error/warning severity with high/medium confidence) are auto-fixed, and only the agents that reported issues are re-run against the modified files. The loop converges in up to 5 iterations or escalates to a human. `/code-review` is the final gate before commit.
 
-For the full pipeline — targeting, pre-flight gates, static analysis pre-pass, ACCEPTED-RISKS suppression, fix-loop exit conditions, report generation, and the `.review-passed` gate file — see [Code Review Process](code-review-process.md).
+For the full pipeline — targeting, pre-flight gates, static analysis pre-pass, ACCEPTED-RISKS suppression, fix-loop exit conditions, report generation, and the `.pr-review-passed` gate file — see [Code Review Process](code-review-process.md).
 
 ## Test improvement workflow (`/test-improve`)
 
@@ -172,17 +172,17 @@ A second `PreToolUse` hook (`hooks/destructive_guard.py`) monitors Bash tool cal
 
 By default, destructive commands produce a **warning** (exit 0). When `/careful` mode is active, they are **blocked** (exit 2).
 
-### Pre-Commit Review Gate
+### Pre-PR Review Gate
 
-A `PreToolUse` hook on `git commit` (`hooks/pre_commit_review.py`) blocks the commit (exit 2) unless `.claude/memory/.review-passed` carries a hash matching the currently staged content, corroborated by genuine review-agent dispatch evidence — see [Code Review Process → Pre-commit gate file](code-review-process.md#9-pre-commit-gate-file) for the full mechanism.
+A `PreToolUse` hook on `gh pr create` (`hooks/pre_pr_review.py`, #1886) blocks opening the PR (exit 2) unless `.claude/memory/.pr-review-passed` carries a hash matching the branch's current diff vs. its base, corroborated by genuine review-agent dispatch evidence. `git commit` is no longer gated: a branch may accumulate any number of local commits without triggering a review-agent panel; the hard block fires once, against the branch's full diff, at PR-creation time. (`hooks/pre_commit_review.py`, the former commit-time gate, is now a documented no-op.)
 
-**Reasoned bypass.** `git commit --no-verify` (or `-n`) still works, but only when the process environment carries a non-empty `GATE_BYPASS_REASON`; without one the commit is blocked with a message naming the required variable. When present, the bypass is logged — timestamp, branch, reason, staged file count — to `.claude/metrics/gate-bypass-audit.jsonl` (#709), unconditionally:
+`/code-review`'s own gate-file write (step 9, [Code Review Process → Pre-PR gate file](code-review-process.md#9-pre-pr-gate-file)) now writes `.pr-review-passed` bound to the branch-diff hash this gate reads, when the review was auto-scoped to uncommitted changes and passed. **Known residual gap (#1886 follow-up):** `agent_dispatch_ledger.py` still stamps dispatch evidence with the staged-diff hash, not the branch-diff hash, so this only lines up automatically in the common single-commit-then-PR shape — a branch with multiple separate review-and-commit cycles needs a fresh `/code-review` run against its current diff right before `gh pr create`, or falls back to the audited `PR_GATE_BYPASS_REASON` escape hatch below.
+
+**Reasoned bypass.** Setting a non-empty `PR_GATE_BYPASS_REASON` env var allows `gh pr create` through even without a passing gate — `gh` has no `--no-verify`-shaped flag to key a bypass off, so the env var alone is both the trigger and the reason. When present, the bypass is logged — timestamp, branch, reason, branch-diff file count — to `.claude/metrics/gate-bypass-audit.jsonl` (#709/#1886), unconditionally:
 
 ```bash
-GATE_BYPASS_REASON="hotfix, review to follow" git commit --no-verify -m "..."
+PR_GATE_BYPASS_REASON="hotfix, review to follow" gh pr create ...
 ```
-
-Full detail: [Code Review Process → Reasoned bypass](code-review-process.md#reasoned-bypass---no-verify--n).
 
 ### Code-Intelligence Nudge
 
@@ -194,7 +194,7 @@ A `PreToolUse` hook (`hooks/context_ceiling_guard.py`) registered on `Agent` and
 
 ### Freeze Mode
 
-The `hooks/pre_tool_guard.py` hook also enforces freeze mode. When `/freeze <glob>` is invoked, it writes a state file (`hooks/freeze-state.json`) that restricts Write/Edit operations to files matching the allowed pattern. This prevents accidental edits outside the scope of a debugging session. `/unfreeze` removes the restriction. `/guard <glob>` activates both careful mode and freeze mode together.
+The `hooks/pre_tool_guard.py` hook also enforces freeze mode. When `/freeze <glob>` is invoked, it writes a state file (`.claude/hooks/freeze-state.json`, resolved per invoking repo via `hooks/lib/artifact_paths.py` — issue #1890) that restricts Write/Edit operations to files matching the allowed pattern. This prevents accidental edits outside the scope of a debugging session, and — because the state file is repo-scoped rather than relative to the hook's own shared install directory — one session's freeze can never scope-lock a different, concurrently-running session's edits. `/unfreeze` removes the restriction. `/guard <glob>` activates both careful mode and freeze mode together.
 
 ### Decision Log
 

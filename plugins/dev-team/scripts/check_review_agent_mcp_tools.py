@@ -82,6 +82,9 @@ from mcp_tool_grants import (
     missing_tools as _missing_tools,
 )
 from review_agent_registry import (
+    default_agents_dir,
+)
+from review_agent_registry import (
     find_review_agent_files as _find_review_agent_files,
 )
 
@@ -140,11 +143,6 @@ SKILL_REQUIRED_PHRASES = [
     "search_codebase",
     "get_risk",
 ]
-
-
-def _agents_dir_default() -> Path:
-    # scripts/ is one level below plugins/dev-team/
-    return Path(__file__).parent.parent / "agents"
 
 
 def _skill_file_default() -> Path:
@@ -250,7 +248,7 @@ def main() -> int:
     parser.add_argument("--json", action="store_true", help="machine-readable output")
     args = parser.parse_args()
 
-    agents_dir = args.agents_dir or _agents_dir_default()
+    agents_dir = args.agents_dir or default_agents_dir()
     skill_file = args.skill_file or _skill_file_default()
 
     if not agents_dir.is_dir():

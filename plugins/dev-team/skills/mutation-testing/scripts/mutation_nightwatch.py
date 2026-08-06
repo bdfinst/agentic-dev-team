@@ -169,6 +169,14 @@ class SleepInhibitor:
 # =============================================================================
 
 
+def _status_text(status: stacks_lib.StackStatus | str) -> str:
+    """The plain string to render for a `StackResult.status` — `.value` for
+    a real `StackStatus` member (Enum `__format__`/`__str__` does not
+    reliably reduce to the plain value across Python versions), or the
+    string itself for a test double built with a bare literal."""
+    return status.value if isinstance(status, stacks_lib.StackStatus) else status
+
+
 def write_reports(
     run_dir: Path,
     latest_dir: Path,
@@ -195,13 +203,13 @@ def write_reports(
         if result.summary is not None:
             s = result.summary
             lines.append(
-                f"| {result.stack} | {result.tool} | {result.status} | "
+                f"| {result.stack} | {result.tool} | {_status_text(result.status)} | "
                 f"{s.honest_score:.1f}% | {s.killed} | {s.survived} | {s.timeout} | "
                 f"{s.no_coverage} | {result.duration_seconds:.0f}s |"
             )
         else:
             lines.append(
-                f"| {result.stack} | {result.tool} | {result.status} | "
+                f"| {result.stack} | {result.tool} | {_status_text(result.status)} | "
                 f"— | — | — | — | — | {result.duration_seconds:.0f}s |"
             )
         if result.detail:
@@ -243,12 +251,17 @@ def run_nightwatch(
     inhibit_sleep: bool = True,
     timeout: int | None = None,
     started_at: str | None = None,
+    skip_mechanical_repair: bool = False,
 ) -> Path:
     """Run one full night-watch pass. Returns the timestamped run directory.
 
     ``stacks`` overrides autodetection with an explicit stack-name list.
     ``started_at`` is injectable for tests; production callers omit it and
-    get the real current UTC time.
+    get the real current UTC time. ``skip_mechanical_repair`` (default
+    ``False`` — today's behavior, unchanged) opts an operator out of the
+    per-stack ``npm ci``/``dotnet restore`` step entirely (#1869): when set,
+    no repair invocation runs at all and measurement proceeds against
+    whatever ``node_modules``/restored-package state already exists.
     """
     if started_at is None:
         started_at = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
@@ -279,16 +292,23 @@ def run_nightwatch(
                     stacks_lib.StackResult(
                         name,
                         name,
-                        "skipped_no_parser",
+                        stacks_lib.StackStatus.SKIPPED_NO_PARSER,
                         f"{name} detected but mutation_report.py has no parser for "
                         "its native report shape yet",
                     )
                 )
                 write_reports(run_dir, latest_dir, results, started_at, notes)
                 continue
-            repair_note = stacks_lib.mechanical_repair(name, repo_root, run_dir)
-            if repair_note:
-                notes.append(repair_note)
+            if skip_mechanical_repair:
+                notes.append(
+                    f"NOTE: mechanical repair skipped for {name} "
+                    "(--skip-mechanical-repair) — measuring against whatever "
+                    "node_modules/restored-package state already exists"
+                )
+            else:
+                repair_note = stacks_lib.mechanical_repair(name, repo_root, run_dir)
+                if repair_note:
+                    notes.append(repair_note)
             results.append(stacks_lib.MEASURERS[name](repo_root, run_dir, timeout=timeout))
             write_reports(run_dir, latest_dir, results, started_at, notes)
 
@@ -394,6 +414,15 @@ def parse_args(argv) -> argparse.Namespace:
         help="Skip OS sleep inhibition (CI, or a machine that never sleeps).",
     )
     p.add_argument(
+        "--skip-mechanical-repair",
+        action="store_true",
+        help=(
+            "Skip the per-stack npm ci / dotnet restore step entirely "
+            "(default: off — repair still runs). Measures against whatever "
+            "node_modules/restored-package state already exists (#1869)."
+        ),
+    )
+    p.add_argument(
         "--timeout",
         type=int,
         default=DEFAULT_STACK_TIMEOUT_S,
@@ -423,6 +452,7 @@ def main(argv: list[str] | None = None) -> int:
         stacks=stack_names,
         inhibit_sleep=not args.no_sleep_inhibit,
         timeout=args.timeout,
+        skip_mechanical_repair=args.skip_mechanical_repair,
     )
     print(f"mutation-nightwatch run complete: {run_dir}")
     return 0

@@ -10,6 +10,7 @@ whole suite green.
 
 from __future__ import annotations
 
+import errno
 import os
 import stat
 import sys
@@ -98,3 +99,73 @@ def test_race_window_delay_negative_value_is_a_noop(monkeypatch) -> None:
     atomic_state.race_window_delay("TEST_DELAY_MS")
     elapsed = time.monotonic() - start
     assert elapsed < 1.0
+
+
+def test_locked_state_propagates_a_caller_raised_oserror(tmp_path: Path) -> None:
+    """#1892: a caller whose `with locked_state(path):` body raises OSError
+    must see that exact OSError propagate — not
+    `RuntimeError("generator didn't stop after throw()")`. The prior
+    implementation's outer `except OSError` wrapped the whole `with
+    os.fdopen(...)` block, including the `yield` where the caller's code
+    runs, so a caller-raised OSError fell into that same handler and the
+    generator went on to hit a second bare `yield`."""
+    log = tmp_path / "log.jsonl"
+
+    with pytest.raises(OSError, match="boom"), atomic_state.locked_state(log):
+        raise OSError("boom")
+
+
+def test_locked_state_still_fails_open_when_fdopen_itself_fails(
+    tmp_path: Path, monkeypatch
+) -> None:
+    """The fdopen()-failure fail-open path (parent dir or lock file itself
+    can't be opened) must still fall through to running the critical
+    section unlocked, unchanged by the #1892 fix."""
+    log = tmp_path / "log.jsonl"
+    ran_unlocked = False
+
+    def _boom(*_args, **_kwargs):
+        raise OSError("fdopen failed")
+
+    monkeypatch.setattr(atomic_state.os, "fdopen", _boom)
+
+    with atomic_state.locked_state(log):
+        ran_unlocked = True
+
+    assert ran_unlocked, "critical section must still run when fdopen() fails"
+
+
+def test_locked_state_fdopen_failure_prints_a_stderr_diagnostic(
+    tmp_path: Path, monkeypatch, capsys
+) -> None:
+    """#1904 item 6: a fail-open fallthrough must never be silent. This pins
+    the fdopen()-failure path (the easiest of the four fail-open paths to
+    trigger deterministically) — the other three (parent-mkdir failure,
+    lock-file-open failure, budget exhaustion) emit the analogous diagnostic
+    at their own fallthrough point in `locked_state`."""
+    log = tmp_path / "log.jsonl"
+
+    def _boom(*_args, **_kwargs):
+        raise OSError("fdopen failed")
+
+    monkeypatch.setattr(atomic_state.os, "fdopen", _boom)
+
+    with atomic_state.locked_state(log):
+        pass
+
+    captured = capsys.readouterr()
+    assert "atomic_state: lock acquisition failed" in captured.err
+    assert "proceeding WITHOUT lock" in captured.err
+    assert str(log) in captured.err
+
+
+def test_lock_contention_errnos_includes_deadlock_errnos_when_present() -> None:
+    """#1904 item 9: Windows CRT `_locking` may surface a deadlock-shaped
+    errno on contention; treating that as a non-retryable error would give
+    up the lock immediately instead of retrying, indistinguishable from a
+    genuine failure. Defensive on platforms where these attributes exist at
+    all — `getattr(..., None)` already filters an absent platform out."""
+    for name in ("EDEADLOCK", "EDEADLK"):
+        code = getattr(errno, name, None)
+        if code is not None:
+            assert code in atomic_state._LOCK_CONTENTION_ERRNOS

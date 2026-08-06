@@ -31,7 +31,7 @@ assignment alone is not a substitute for worktree isolation here.
    trailing-streak check. Do not eyeball the history:
 
    ```
-   python3 "${CLAUDE_PLUGIN_ROOT}/scripts/coverage_delta_steering.py" \
+   sh "${CLAUDE_PLUGIN_ROOT}/hooks/py.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/coverage_delta_steering.py" \
      --history .dev-team-reports/test-improve/<slug>/data/coverage-history.json \
      --json
    ```

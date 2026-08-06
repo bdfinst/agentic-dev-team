@@ -37,6 +37,14 @@ from collections import Counter
 from collections.abc import Sequence
 from pathlib import Path
 
+# skills/mutation-testing/scripts -> skills/mutation-testing -> skills
+# -> plugin root -> scripts
+_PLUGIN_SCRIPTS_DIR = Path(__file__).resolve().parents[3] / "scripts"
+if str(_PLUGIN_SCRIPTS_DIR) not in sys.path:
+    sys.path.insert(0, str(_PLUGIN_SCRIPTS_DIR))
+
+import coverage_config
+
 # ── Constants ──────────────────────────────────────────────────────────────
 
 DEFAULT_TEST_PATTERNS = [".Tests", ".Test", "Tests", "Specs"]
@@ -75,14 +83,6 @@ def _rel_to_root(path: Path, repo_root: Path) -> str:
     except ValueError:
         rel = path.resolve()
     return rel.as_posix()
-
-
-def _is_within(path: Path, root: Path) -> bool:
-    """Return True iff ``path`` resolves to a location inside ``root``.
-
-    Used to refuse any shard-config write that would escape the repo root.
-    """
-    return path.resolve().is_relative_to(root.resolve())
 
 
 # ── Pipeline config + solution discovery (inlined — no shared _common) ───────
@@ -397,7 +397,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             # Defense in depth against a hostile project name: never write a
             # shard config outside the repo root even if a slug slipped past
             # sanitization.
-            if not _is_within(config_path, repo_root):
+            if not coverage_config.is_within(config_path.resolve(), repo_root.resolve()):
                 print(
                     f"ERROR: refusing to write shard config outside repo root: "
                     f"{config_path.resolve()}",

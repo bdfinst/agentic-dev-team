@@ -3,15 +3,19 @@
 
 The plugin enforces observability on its targets but has none of its own.
 This records MINIMAL local events so the author can see which commands /
-skills get used and how often the pre-commit review gate is bypassed.
+skills get used and how often the pre-PR review gate is bypassed.
 
 One hook registered on multiple events; it branches on `hook_event_name`:
 
   UserPromptSubmit    — user-typed slash command; record its name only.
   PreToolUse (Skill)  — skill invoked by user OR agent/model; record its name.
-  PreToolUse (Bash)   — `git commit`: record the review gate as fired, or
-                        BYPASSED when --no-verify or a bare `-n` argument is
-                        present.
+  PreToolUse (Bash)   — `gh pr create`: record the review gate as fired, or
+                        BYPASSED when `PR_GATE_BYPASS_REASON` is set inline.
+                        (#1886 moved the review-corroboration gate from
+                        `git commit` to `gh pr create`; the commit-time hook
+                        is now a documented no-op, so detecting its old
+                        `--no-verify` bypass would only ever record "fired"
+                        and never reflect a real gate.)
 
 PRIVACY: records only an event type, a grammar-matched name (never free
 text), an outcome, and the plugin version.
@@ -48,7 +52,9 @@ if str(_LIB_DIR) not in sys.path:
     sys.path.insert(0, str(_LIB_DIR))
 
 import telemetry_consent
+from atomic_state import append_line_locked
 from boundary_events import emit_boundary_event as _emit_boundary_event
+from gh_pr_create_detect import is_gh_pr_create_command
 
 
 def emit_boundary_event(*args, **kwargs) -> None:
@@ -62,7 +68,15 @@ def emit_boundary_event(*args, **kwargs) -> None:
 
 _SLASH_CMD_RE = re.compile(r"^/([a-zA-Z][a-zA-Z0-9_-]*)")
 _SKILL_NAME_RE = re.compile(r"^[a-zA-Z][a-zA-Z0-9_:-]*$")
-_NO_VERIFY_RE = re.compile(r"(?:^|\s)-n(?:\s|$)")
+
+# #1886: the review-corroboration gate moved from `git commit` to
+# `gh pr create` — `PR_GATE_BYPASS_REASON` (an env var, not a flag; `gh` has
+# no `--no-verify`-shaped bypass to key off) is the new gate's bypass
+# mechanism. A trailing non-whitespace char after `=` is a shallow,
+# same-spirit heuristic to the retired `_NO_VERIFY_RE` above — approximate,
+# not airtight (e.g. `PR_GATE_BYPASS_REASON=""` false-positives as
+# non-empty); this hook is record-only telemetry, not the gate itself.
+_PR_GATE_BYPASS_RE = re.compile(r"PR_GATE_BYPASS_REASON=\S")
 
 # Human-intervention keyword grammar (#859, Ambiguity Log): anchored
 # whole-prompt match — same grammar-match-only posture as _SLASH_CMD_RE —
@@ -106,9 +120,13 @@ def _notice_legacy_signal_once(session_id: object) -> None:
     """
     marker = _legacy_signal_path(session_id)
     try:
+        # os.O_NOFOLLOW is undefined on Windows; getattr(..., 0) makes the
+        # flag a no-op there rather than an AttributeError (which isn't an
+        # OSError and would escape this except — #1896, mirroring the same
+        # guard in atomic_state.py's locked_state).
         fd = os.open(
             str(marker),
-            os.O_CREAT | os.O_EXCL | os.O_WRONLY | os.O_NOFOLLOW,
+            os.O_CREAT | os.O_EXCL | os.O_WRONLY | getattr(os, "O_NOFOLLOW", 0),
             0o600,
         )
     except OSError:
@@ -168,8 +186,9 @@ def _emit(log: Path, event: str, name: str, outcome: str, version: str) -> None:
         "plugin_version": version,
     }
     try:
-        with open(log, "a", encoding="utf-8") as handle:
-            handle.write(json.dumps(payload, separators=(",", ":")) + "\n")
+        append_line_locked(
+            log, json.dumps(payload, separators=(",", ":")) + "\n", fail_open=False
+        )
     except OSError as exc:
         sys.stderr.write(f"WARN: could not write {log}: {exc}\n")
 
@@ -306,12 +325,12 @@ def main() -> int:
             cmd = tool_input.get("command") or ""
             if not isinstance(cmd, str):
                 return 0
-            if "git commit" not in cmd:
+            if not is_gh_pr_create_command(cmd):
                 return 0
-            if "--no-verify" in cmd or _NO_VERIFY_RE.search(cmd):
-                _emit(log, "gate", "pre-commit-review", "bypassed", version)
+            if _PR_GATE_BYPASS_RE.search(cmd):
+                _emit(log, "gate", "pre-pr-review", "bypassed", version)
             else:
-                _emit(log, "gate", "pre-commit-review", "fired", version)
+                _emit(log, "gate", "pre-pr-review", "fired", version)
             return 0
         return 0
 

@@ -79,7 +79,11 @@ Collect the project's Claude configuration from the target root:
 - `CLAUDE.md` and any nested `**/CLAUDE.md`
 - `.claude/settings.json`, `.claude/settings.local.json`
 - `.claude/agents/*.md`, `.claude/skills/**/SKILL.md`
-- `.claude/hooks/**`
+- `.claude/hooks/**`, **excluding** `.claude/hooks/freeze-state.json` and
+  `.claude/hooks/careful-state.json` — plugin-written runtime state
+  (`/freeze`/`/unfreeze`/`/careful`/`/guard`), not operator-authored hook
+  code; see [`docs/python-hook-contract.md`](../../../../docs/python-hook-contract.md)
+  § Environment variables (issue #1904 item 10)
 - `README.md` only where it documents agent or contributor workflow
 
 Enumerate with `Glob`, never a directory `Read` (it throws `EISDIR`) — see

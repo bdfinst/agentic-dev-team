@@ -4,7 +4,6 @@ Pure filesystem glob resolution and JSON/minimal-YAML parsing — no npm/yarn/
 pnpm/lerna CLI is invoked, so these tests need no package manager installed.
 """
 
-import json
 import sys
 from pathlib import Path
 
@@ -15,23 +14,7 @@ sys.path.insert(0, str(SCRIPTS_DIR))
 
 import coverage_discovery_js as cdj
 from coverage_config import DISCOVERY_NOT_APPLICABLE, TestClassification
-
-# ---------------------------------------------------------------------------
-# helpers
-# ---------------------------------------------------------------------------
-
-
-def write(path: Path, content) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    if isinstance(content, (dict, list)):
-        path.write_text(json.dumps(content, indent=2), encoding="utf-8")
-    else:
-        path.write_text(content, encoding="utf-8")
-
-
-def pkg(root: Path, data: dict) -> None:
-    write(root / "package.json", data)
-
+from coverage_flow_shared import pkg, write
 
 TEST_PKG = {
     "name": "test-pkg",

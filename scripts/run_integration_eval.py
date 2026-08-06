@@ -38,6 +38,12 @@ from pathlib import Path
 
 SCRIPTS = Path(__file__).resolve().parent
 
+_PLUGIN_SCRIPTS_DIR = SCRIPTS.parent / "plugins" / "dev-team" / "scripts"
+if str(_PLUGIN_SCRIPTS_DIR) not in sys.path:
+    sys.path.insert(0, str(_PLUGIN_SCRIPTS_DIR))
+
+import coverage_config
+
 # Hard ceiling per declared testCommand so a hung fixture test (deadlock,
 # server that never exits) can't block the harness indefinitely. Fixture
 # specs are trusted (evals/expected/*.json), but "trusted" isn't "always
@@ -99,24 +105,6 @@ def check_prerequisites(skip_dispatch: bool) -> list[str]:
     return missing
 
 
-def _is_within(dest: Path, target: Path) -> bool:
-    """True iff `target` is dest itself or a real descendant of dest.
-
-    Both paths must already be resolved (absolute, symlinks/`..` collapsed).
-    Deliberately NOT `str(target).startswith(str(dest))`: that naive
-    string-prefix check has no separator boundary, so a sibling directory
-    whose name merely starts with dest's name (e.g. dest=".../out", target
-    ".../out-evil/pwned.txt") would incorrectly pass — the classic
-    zip-slip-guard-bypass pattern. `relative_to` enforces a real path-segment
-    containment check.
-    """
-    try:
-        target.relative_to(dest)
-        return True
-    except ValueError:
-        return False
-
-
 def extract_golden_repo(tarball: Path, dest: Path) -> None:
     """Extract the golden-repo snapshot into dest (created fresh)."""
     dest.mkdir(parents=True, exist_ok=True)
@@ -125,7 +113,7 @@ def extract_golden_repo(tarball: Path, dest: Path) -> None:
         # Guard against path traversal in the archive.
         for member in tf.getmembers():
             target = (dest / member.name).resolve()
-            if not _is_within(resolved_dest, target):
+            if not coverage_config.is_within(target, resolved_dest):
                 raise RuntimeError(f"unsafe path in tarball: {member.name}")
         tf.extractall(dest)
 

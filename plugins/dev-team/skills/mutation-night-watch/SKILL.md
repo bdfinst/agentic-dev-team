@@ -3,7 +3,7 @@ name: mutation-night-watch
 description: Launch, schedule, and hand off an unattended, LLM-free overnight mutation night-watch run. Use when the user wants a mutation-score baseline waiting each morning without paying LLM cost or blocking a session overnight, says "run mutation testing overnight", "schedule a nightly mutation scan", "set up a mutation night watch", or asks how to get an unattended mutation baseline. Wraps mutation_nightwatch.py — report-only measurement, never generation.
 role: worker
 user-invocable: true
-allowed-tools: Read, Bash(python3 *)
+allowed-tools: Read, Write, Bash(python3 *), Bash(launchctl *), Bash(crontab *), Bash(schtasks *)
 ---
 
 # Mutation Night-Watch
@@ -11,6 +11,12 @@ allowed-tools: Read, Bash(python3 *)
 Role: worker. Launches and schedules a report-only measurement run. It never
 generates a test, never invokes an LLM, and never commits — that is the
 `mutation-kill` agent's job, the next morning, reading this skill's output.
+
+> **Naming note.** The skill is named `mutation-night-watch`; its underlying
+> scripts, output directory (`reports/mutation-nightwatch/`), and launchd
+> label use `mutation_nightwatch`/`mutation-nightwatch` — this is an
+> intentional, stable naming split; do not rename the on-disk paths without a
+> migration plan (#1856).
 
 ## Why this exists, and how it differs from `mutation-kill`
 

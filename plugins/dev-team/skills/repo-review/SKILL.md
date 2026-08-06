@@ -29,7 +29,7 @@ skill runs those four agents against the whole repository instead, on a
 cadence the operator controls (manual invocation today — see "Cadence" below),
 and writes a report rather than gating anything.
 
-**Not `/code-review`.** No staging, no gate-hash, no `.review-passed` write,
+**Not `/code-review`.** No staging, no gate-hash, no `.pr-review-passed` write,
 no interactive fix loop, no pre-flight lint/typecheck/secret-scan gates —
 there is no commit to gate. This is a read-only report, structurally closer
 to `/harness-audit`/`/co-evolution-audit` than to `/code-review`.

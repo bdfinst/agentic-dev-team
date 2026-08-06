@@ -38,9 +38,11 @@ This is a **high-frequency** entry (one per genuine review-agent dispatch,
 not a rare guard trip like the other five decisions) — a consumer counting
 "policy decisions" or "guard verdicts" from this stream must explicitly
 exclude `record` rows, or it will badly overcount routine dispatch activity
-as gate verdicts. `hooks/pre_commit_review.py`'s `.review-passed` gate reads
-this stream (via `hooks/lib/review_gate_corroboration.py`) to corroborate
-that a hash-matching gate write was backed by real, independent Agent-tool
+as gate verdicts. `hooks/pre_pr_review.py`'s `.pr-review-passed` gate (#1886;
+formerly `hooks/pre_commit_review.py`'s `.review-passed` gate on `git
+commit` — that hook is now a documented no-op) reads this stream (via
+`hooks/lib/review_gate_corroboration.py`) to corroborate that a
+hash-matching gate write was backed by real, independent Agent-tool
 dispatch — see that module's own docstring for its fail-**closed** posture,
 the deliberate opposite of this stream's own fail-open write side.
 Extended again by #1763 with a seventh decision, `dispatch-failure` — also
@@ -53,10 +55,10 @@ return a contract-valid result after one retry. Emitted via
 (with the same plugin-prefix normalization as `record`) — an unregistered
 name is silently not recorded. Unlike `record`, `dispatch-failure` is
 consumed only as NEGATIVE evidence: the gate veto in
-`hooks/lib/review_gate_corroboration.py` / `hooks/pre_commit_review.py`
-(`_dispatch_failure_verdict` and `_cosmetic_carry_forward_verdict`, #1763)
-treats it as a reason to reject a `.review-passed` write, never as
-corroboration for one. A forged/hand-run `dispatch-failure` event can only
+`hooks/lib/review_gate_corroboration.py` / `hooks/pre_pr_review.py` (#1886;
+`_dispatch_failure_verdict`, #1763) treats it as a reason to reject a
+`.pr-review-passed` write, never as corroboration for one. A forged/hand-run
+`dispatch-failure` event can only
 ever cause a false rejection, never a false pass — the opposite forgery
 direction from `record`, which is why this decision (unlike `record`) is
 safely reachable from the CLI's closed `--event` vocabulary.
@@ -64,7 +66,7 @@ safely reachable from the CLI's closed `--event` vocabulary.
 | Field | Type | Values / source |
 | --- | --- | --- |
 | `ts` | string | ISO-8601 UTC `%Y-%m-%dT%H:%M:%SZ` |
-| `hook` | string | Emitting hook's module name, e.g. `destructive_guard`, `verify_guard`, `pre_commit_review`, `telemetry`, `agent_dispatch_ledger` — or `code-review` for the CLI-emitted events (`--event doc-only`/`single-agent`/`dispatch-failure`), which carry the invoking skill's name rather than a hook module name |
+| `hook` | string | Emitting hook's module name, e.g. `destructive_guard`, `verify_guard`, `pre_pr_review` (the review-corroboration gate, #1886; `pre_commit_review` is now a documented no-op and emits nothing), `telemetry`, `agent_dispatch_ledger` — or `code-review` for the CLI-emitted events (`--event doc-only`/`single-agent`/`dispatch-failure`), which carry the invoking skill's name rather than a hook module name |
 | `tool` | string | Hooked tool/event: `Bash`, `Write`, `Edit`, `Skill`, `Agent`, `UserPromptSubmit` |
 | `decision` | string enum | `block` \| `warn` \| `bypass` \| `intervention` \| `revert` \| `record` \| `dispatch-failure` |
 | `matched_rule` | string | Rule ID from a closed vocabulary (pattern ID, hook-defined constant, bypass flag name, intervention keyword, or — for `record`/`dispatch-failure` — the dispatched review-agent's registered name) — never free text |
@@ -73,18 +75,18 @@ safely reachable from the CLI's closed `--event` vocabulary.
 | `subject_hash` | string, optional | `review_gate_hash()` value (#1461) binding this event to the staged content it corroborates. A hex digest, not free text |
 | `subject_hash_normalized` | string, optional | `normalized_gate_hash()` value (#1627) — the same binding computed after doc-hunk and indentation normalization. Stamped by `agent_dispatch_ledger.py` alongside `subject_hash`, and read by the gate's cosmetic-delta carry-forward lens. Absent on events written before #1627, which therefore never match on the normalized path. **The digest ALGORITHM has changed twice since** — #1638 (heredoc-body marking plus whole-file `--unified=100000` context) and #1660/#1661/#1662/#1663 (further grammars, a hunk-start guard, and a payload cap), each of which changes the computed VALUE for any changeset touching an affected extension. An event recorded by an earlier plugin version therefore never matches after an upgrade. This fails closed — one lost carry-forward, one extra dispatch — and is not a correctness bug, but it is why a version bump can look like a spurious re-review |
 
-**`cosmetic-delta-carry-forward` (#1627).** `pre_commit_review.py` emits this
-`bypass`-decision event **every** time the gate passes a commit whose raw
-staged hash mismatched but whose normalized hash matched, with `>= 2` distinct
-in-window dispatches carrying that same `subject_hash_normalized`. The event
-is mandatory on that path — carry-forward is never silent — so every use is
-auditable from the same stream the gate itself is audited from. It is not a
-weakening of the `>= 2` floor or the recency window: only *which* hash binds
-the evidence changes. The exemption is a property of content recomputed by
-the hook at gate time, never a claim written by the gated party — see
-`hooks/lib/review_gate_normalized_hash.py` for why this does not reopen #1461.
+**`cosmetic-delta-carry-forward` (#1627, historical).** `pre_commit_review.py`
+used to emit this `bypass`-decision event every time the OLD commit-time gate
+passed a commit whose raw staged hash mismatched but whose normalized hash
+matched. #1886 moved the gate to `gh pr create` and deliberately did NOT
+carry this lens forward — the friction it existed to relieve (a whitespace-only
+re-stage forcing a fresh review-agent dispatch before the NEXT commit) was a
+direct consequence of gating every commit; a gate that fires once, at
+PR-creation time, against the branch's cumulative diff, does not have that
+problem. `hooks/pre_pr_review.py` never emits this event. Existing rows in
+`boundary-events.jsonl` from before the migration remain valid history.
 
-- **Emitter:** `hooks/lib/boundary_events.py::emit_boundary_event()`, called from `destructive_guard.py`, `verify_guard.py`, `pre_commit_review.py`, `telemetry.py` (intervention keywords), `agent_dispatch_ledger.py` (decision `record`, #1461), the mechanically-adopted guards (`pre_tool_guard.py`, `context_ceiling_guard.py`, `bash_retry_guard.py`, `refactor_test_freeze_guard.py`, `refactor_test_bash_guard.py`, `refactor_test_revert_guard.py` (decision `revert`, #906), `contract_version_guard.py`, `mutation_testing_smoke_gate.py`, `mutation_gate.py`, `tdd_guard.py`), and `boundary_events.py`'s own CLI (`--event dispatch-failure`, decision `dispatch-failure`, #1763) invoked from `skills/code-review/SKILL.md` Step 4.
+- **Emitter:** `hooks/lib/boundary_events.py::emit_boundary_event()`, called from `destructive_guard.py`, `verify_guard.py`, `pre_pr_review.py` (#1886), `telemetry.py` (intervention keywords), `agent_dispatch_ledger.py` (decision `record`, #1461), the mechanically-adopted guards (`pre_tool_guard.py`, `context_ceiling_guard.py`, `bash_retry_guard.py`, `refactor_test_freeze_guard.py`, `refactor_test_bash_guard.py`, `refactor_test_revert_guard.py` (decision `revert`, #906), `contract_version_guard.py`, `mutation_testing_smoke_gate.py`, `mutation_gate.py`, `tdd_guard.py`), and `boundary_events.py`'s own CLI (`--event dispatch-failure`, decision `dispatch-failure`, #1763) invoked from `skills/code-review/SKILL.md` Step 4.
 - **Consent:** ALWAYS-ON — not gated by `DEV_TEAM_TELEMETRY`. Local-only, rule-IDs-only safety/accountability channel; no observability holes by design.
 - **Fail-open:** every exception in the emit helper is swallowed — never changes the calling hook's exit code, stdout, or stderr.
 - **Consumers:** `skills/session-review/SKILL.md`, `skills/harness-audit/SKILL.md`, `agents/session-analysis.md`, `skills/cost-report/`, `skills/run-report/SKILL.md` (#1167), `hooks/lib/review_gate_corroboration.py` (#1461 `record` rows; #1763 also reads `dispatch-failure` rows as negative evidence for the gate veto), future `agent-telemetry` cross-machine aggregation (#178).
@@ -100,7 +102,7 @@ the pre-commit review gate fired or was bypassed.
 | --- | --- | --- |
 | `ts` | string | ISO-8601 UTC |
 | `event` | string enum | `command` \| `skill` \| `gate` |
-| `name` | string | Grammar-matched slash-command name, skill name, or `pre-commit-review` |
+| `name` | string | Grammar-matched slash-command name, skill name, or `pre-pr-review` (#1886 — the gate moved from `git commit` to `gh pr create`) |
 | `outcome` | string | `invoked` \| `fired` \| `bypassed` |
 | `plugin_version` | string | From `.claude-plugin/plugin.json` |
 
@@ -170,19 +172,24 @@ every invocation.
 
 ## `gate-bypass-audit.jsonl`
 
-Accountability record for `git commit --no-verify`/`-n` bypasses of the
-pre-commit review gate.
+Accountability record for a bypass of the review-corroboration gate. #1886
+moved the gate from `git commit` to `gh pr create`; this stream now carries
+`hooks/pre_pr_review.py`'s `PR_GATE_BYPASS_REASON` bypasses.
+`hooks/pre_commit_review.py` is now a documented no-op and no longer writes
+to this stream — historical rows from before the migration
+(`triggeredBy: "--no-verify"`/`"-n"`) remain valid history but no new ones
+are produced.
 
 | Field | Type | Values / source |
 | --- | --- | --- |
 | `timestamp` | string | ISO-8601 UTC |
 | `branch` | string | Current git branch |
-| `triggeredBy` | string | Bypass flag name (`--no-verify` or `-n`) |
-| `reason` | string | Value of `GATE_BYPASS_REASON` — human/agent-authored, required to be non-empty |
-| `stagedFileCount` | integer | Count of staged files at bypass time |
+| `triggeredBy` | string | `PR_GATE_BYPASS_REASON` (current); `--no-verify`/`-n` (historical, pre-#1886) |
+| `reason` | string | Value of `PR_GATE_BYPASS_REASON` (current) / `GATE_BYPASS_REASON` (historical) — human/agent-authored, required to be non-empty |
+| `stagedFileCount` | integer | Count of files in the branch diff at bypass time (historical rows: staged files at commit time) |
 | `pluginVersion` | string | From `.claude-plugin/plugin.json` |
 
-- **Emitter:** `hooks/pre_commit_review.py::_record_bypass_audit()`.
+- **Emitter:** `hooks/pre_pr_review.py::_record_bypass_audit()` (#1886). `hooks/pre_commit_review.py::_record_bypass_audit()` was the historical emitter, now removed along with the rest of that module's gating logic.
 - **Consent:** unconditional — accountability record for an actively-chosen bypass, not passive usage telemetry.
 - **Consumers:** `skills/code-review/SKILL.md`, `docs/code-review-process.md`.
 
@@ -657,5 +664,13 @@ Each value:
   usage telemetry).
 - **Consumers:** `hooks/stryker_xunit_shim_guard.py`,
   `skills/mutation-testing/scripts/mutation_feasibility_gate.py` (same question
-  payload), `skills/stryker-xunit-v2-shim/SKILL.md` Step 1a. Path override:
-  `DEV_TEAM_XUNIT3_SHIM_DECISION_FILE`.
+  payload), `skills/stryker-xunit-v2-shim/SKILL.md` Step 1a. No path override
+  (#1870 dropped `DEV_TEAM_XUNIT3_SHIM_DECISION_FILE` entirely — no legitimate
+  caller needs runtime relocation of the store).
+- **Audit trail (#1870):** every `record_decision()` write and every
+  `decision_for()` honor (a stored decision covering the current question,
+  about to drive the guard's outcome) also emits a `boundary-events.jsonl`
+  entry — `matched_rule` of `xunit-v3-shim-decision-record-<choice>` or
+  `xunit-v3-shim-decision-honor-<choice>`, `subject_hash` bound to the
+  question's `fingerprint` — so a self-recorded choice is visible in the same
+  stream the review-gate corroboration mechanism is audited from.

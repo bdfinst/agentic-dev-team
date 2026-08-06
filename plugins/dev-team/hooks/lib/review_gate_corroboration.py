@@ -1,14 +1,23 @@
 """hooks/lib/review_gate_corroboration.py — fail-CLOSED dispatch-ledger
-corroboration reader for the `.review-passed` gate (#1461).
+corroboration reader for the review-corroboration gate (#1461).
 
-`hooks/pre_commit_review.py`'s existing hash-match check proves the staged
-content hasn't changed since `.review-passed` was written — it does NOT
-prove an independent review actually produced that write (see
-`hooks/lib/review_gate_hash.py`'s own docstring for the full account of that
-residual gap). This module reads `hooks/agent_dispatch_ledger.py`'s
-`"record"` events from `.claude/metrics/boundary-events.jsonl` to
-corroborate that a hash-matching write was backed by genuine, recent,
-distinct review-agent dispatches.
+Read by `hooks/pre_pr_review.py`'s `.pr-review-passed` gate (#1886) — the
+gate's hash-match check alone proves the branch-diff content hasn't changed
+since that file was written; it does NOT prove an independent review
+actually produced that write (see `hooks/lib/review_gate_hash.py`'s own
+docstring for the full account of that residual gap). This module reads
+`hooks/agent_dispatch_ledger.py`'s `"record"` events from
+`.claude/metrics/boundary-events.jsonl` to corroborate that a hash-matching
+write was backed by genuine, recent, distinct review-agent dispatches.
+(`hooks/pre_commit_review.py`'s own `.review-passed` gate was this module's
+original consumer at #1461; that hook is now a documented no-op — see its
+own module docstring — following #1886's PR-time gate migration. This
+module's own `evaluate()`/`has_doc_only_exemption()`/
+`has_single_agent_exemption()` transferred to the new gate as-is; the
+cosmetic-delta carry-forward machinery specific to the old commit-time gate
+— `evaluate_cosmetic_carry_forward()`, `distinct_normalized_dispatches()`,
+`distinct_review_agent_dispatches()`, `CosmeticCarryForwardEvidence` — was
+deleted in #1904 once confirmed to have zero remaining production callers.)
 
 Kept as a separate sibling module rather than folded into
 `review_gate_hash.py` (design feedback, #1461): `review_gate_hash.py` is
@@ -37,9 +46,9 @@ the contrast.
 
 A missing `boundary-events.jsonl` is bucketed as a **read failure**, not as
 "genuinely no entries": that stream is written by many always-on guard
-hooks (destructive_guard, verify_guard, pre_commit_review, telemetry,
-context_ceiling_guard, ...), so in any real session that reaches a commit
-attempt the file will almost always already exist — its total absence is
+hooks (destructive_guard, verify_guard, pre_pr_review, telemetry,
+context_ceiling_guard, ...), so in any real session that reaches a `gh pr
+create` attempt the file will almost always already exist — its total absence is
 itself a signal that hook registration is broken, which is an infra
 problem the caller should surface distinctly from "the ledger is fine, it
 just has no qualifying dispatches". Malformed *individual* JSON lines are
@@ -55,7 +64,6 @@ Stdlib only. See ADR 0014 / ADR 0015.
 from __future__ import annotations
 
 import sys
-from collections.abc import Iterable
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import NamedTuple
@@ -81,18 +89,18 @@ _DECISION = "record"
 _DISPATCH_FAILURE_HOOK = "code-review"
 _DISPATCH_FAILURE_DECISION = "dispatch-failure"
 
-# Fail-CLOSED sentinel for `dispatch_failure_agents` on a ledger READ
-# FAILURE (missing/unreadable): an empty frozenset there would read as
-# "provably no dispatch failures" — the opposite of what a read failure
-# actually tells us. "Cannot prove no failure exists" is treated the same
-# as "a failure exists", matching this module's own fail-closed contract
-# for positive evidence. Not a real registered agent name — a placeholder
-# that can never equal a genuine `matched_rule` value, so downstream
-# consumers can only ever over-block on it, never mistake it for a
-# legitimate named agent.
-_UNPROVABLE_DISPATCH_FAILURE = frozenset(
-    {"<ledger-read-failure: cannot prove no dispatch failure>"}
-)
+# `dispatch_failure_agents` (#1904 item 2) is modeled as `frozenset | None` —
+# `None` means "cannot prove no dispatch failure exists" (a ledger or
+# registry read failure); a `frozenset()` means "provably no dispatch
+# failures"; a non-empty frozenset names the failing agents. Prior to this,
+# the unprovable case was smuggled into the frozenset value space as a fake
+# sentinel MEMBER (`_UNPROVABLE_DISPATCH_FAILURE`, a string no real agent
+# name could equal) — a control state encoded inside the value type, guarded
+# only by an `==`/`any(...)` check and caller convention rather than the type
+# system. Modeling it as `None` instead mirrors `_registered_agents()`'s own
+# `frozenset | None` pattern (#1461/#1866) and makes "cannot prove this" and
+# "no registered review agents" the same *shape* of unprovable-ness, checked
+# with `is None` rather than an equality comparison against a magic value.
 
 # The doc-only / single-agent short-circuit exemption events (#1461): emitted
 # directly by `skills/code-review/SKILL.md`'s write sites via
@@ -144,10 +152,11 @@ class LedgerEvidence(NamedTuple):
             `agents_in_window`: a genuine, never-fixed dispatch-failure
             coverage gap for this exact staged content must not silently
             expire just because time passed — only a genuine superseding
-            dispatch clears it, never the clock. Empty on a successful read
-            with no qualifying dispatch-failure events. On a ledger READ
-            FAILURE, this is the non-empty `_UNPROVABLE_DISPATCH_FAILURE`
-            sentinel, never an empty/all-clear set — see that constant.
+            dispatch clears it, never the clock. Empty `frozenset()` on a
+            successful read with no qualifying dispatch-failure events.
+            `None` on a ledger OR registry READ FAILURE (#1904 item 2) —
+            "cannot prove no dispatch failure exists" — never collapsed to
+            an empty/all-clear set.
 
             KNOWN RESIDUAL GAP (#1763 security review, same class as
             `agent_dispatch_ledger.py`'s own disclosed gap): the superseding
@@ -173,7 +182,7 @@ class LedgerEvidence(NamedTuple):
     any_dispatch_ever: bool
     same_subject_dispatch_ever: bool
     read_failure_reason: str | None
-    dispatch_failure_agents: frozenset
+    dispatch_failure_agents: frozenset | None
 
 
 def mtime_to_iso(mtime: float) -> str:
@@ -204,58 +213,26 @@ def _ledger_path(cwd) -> Path:
     return artifact_paths.resolve_file("metrics", _LEDGER_STREAM_NAME, base, migrate=False)
 
 
-def _agents_dir() -> Path:
-    # hooks/lib/review_gate_corroboration.py -> hooks/lib -> hooks -> plugin
-    # root -> agents. Matches `agent_dispatch_ledger.py`'s own
-    # `_agents_dir_default()` exactly — the review-agent roster lives in the
-    # plugin's own fixed file set, not in the target project's `cwd`.
-    return _LIB_DIR.parent.parent / "agents"
-
-
 def _registered_agents() -> frozenset | None:
     """Re-validate against the live registry at READ time too (#1461 security
     review), not just at write time in `agent_dispatch_ledger.py` — defense
     in depth against a stale ledger (written by an older plugin version, or
     copied from another checkout) supplying names no longer registered.
 
-    Returns `None` on any read error — deliberately NOT an empty frozenset
-    (#1763 correctness/security review). "Registry read failed" and
-    "registry read fine, genuinely zero agents registered" must stay
-    distinguishable to callers, because the two require OPPOSITE treatment
-    depending on which side of the evidence they narrow: for POSITIVE
-    evidence (`agents_in_window`), a caller may safely collapse `None` to an
-    empty set — narrowing corroboration can only ever narrow, never widen,
-    what counts as a passing gate. For NEGATIVE evidence
-    (`dispatch_failure_agents`), collapsing `None` to empty would WIDEN the
-    gate instead — every genuine dispatch-failure would be filtered out by
-    an empty "registered" set, producing an all-clear indistinguishable from
-    "provably no dispatch failures", exactly the reading
-    `_UNPROVABLE_DISPATCH_FAILURE` exists to prevent. See
-    `_agents_with_unsuperseded_failure`, which checks for `None` explicitly
-    rather than treating it as "no agents registered".
-
-    Two failure modes are checked EXPLICITLY, not left to an exception,
-    because the underlying read cannot be trusted to raise for either
-    (#1763 correctness/security review — both reviewers independently
-    found this): `registered_review_agent_names()` globs
-    `agents/*-review.md`, and `Path.glob()` silently yields nothing for a
-    missing directory and swallows a permission error — it does not raise.
-    Without the explicit checks below, a missing/unreadable `agents/`
-    directory would produce an empty `frozenset()`, not `None`, defeating
-    the very distinction this function's contract promises: a genuine
-    registry read failure would be indistinguishable from "the plugin
-    genuinely ships zero review agents" (which never happens — a plugin
-    tree with no `*-review.md` files at all is a broken install, not a
-    legitimate empty registry).
+    Delegates to `review_agent_registry.read_registered_review_agent_names()`
+    (#1904 item 1), which owns the read-failure-vs-empty distinction this
+    function used to implement locally — see that function's own docstring
+    for the full "why `None` vs `frozenset()`" account. `None` on any read
+    error, never an empty frozenset (#1763 correctness/security review):
+    "registry read failed" and "registry read fine, genuinely zero agents
+    registered" require OPPOSITE treatment depending on which side of the
+    evidence they narrow (see `_agents_with_unsuperseded_failure`, which
+    checks for `None` explicitly rather than treating it as "no agents
+    registered").
     """
-    agents_dir = _agents_dir()
-    if not agents_dir.is_dir():
-        return None
-    try:
-        names = review_agent_registry.registered_review_agent_names(agents_dir)
-    except Exception:  # noqa: BLE001 - caller decides how to fail closed for its own evidence direction
-        return None
-    return names or None
+    return review_agent_registry.read_registered_review_agent_names(
+        review_agent_registry.default_agents_dir()
+    )
 
 
 def _read_ledger(cwd) -> tuple:
@@ -277,9 +254,34 @@ def _read_ledger(cwd) -> tuple:
     return entries, None
 
 
+def _extract_timeline_entries(entries: list, decision: str, ts_sentinel: str) -> list:
+    """Build `(ts, agent, decision)` tuples for one entry kind — shared by
+    both loops in `_agents_with_unsuperseded_failure` (#1799), which
+    duplicated this exact loop body twice, differing only in the ts-less
+    sentinel default and the `decision` constant.
+
+    `ts_sentinel` is the value substituted when an entry has no usable
+    `ts` (resolved via `metrics_query`'s own `_TS_FIELDS` fallback, never a
+    bare `entry.get("ts")`, and never a raw non-str value). Records and
+    failures pass opposite sentinels on purpose — see
+    `_agents_with_unsuperseded_failure`'s own docstring for the rationale;
+    this helper is deliberately unopinionated about which sentinel is
+    "correct" and just applies whatever the caller passes.
+    """
+    result = []
+    for entry in entries:
+        agent = entry.get("matched_rule")
+        if not isinstance(agent, str):
+            continue
+        ts = metrics_query._first_present(entry, metrics_query._TS_FIELDS)
+        ts = ts if isinstance(ts, str) else ts_sentinel
+        result.append((ts, agent, decision))
+    return result
+
+
 def _agents_with_unsuperseded_failure(
     records: list, failures: list, registered: frozenset | None
-) -> frozenset:
+) -> frozenset | None:
     """Per agent, compare the most recent qualifying event — a "record" from
     `records` or a "dispatch-failure" from `failures`, both already narrowed
     to the SAME `subject_hash` by the caller — by each event's own `ts`,
@@ -292,8 +294,9 @@ def _agents_with_unsuperseded_failure(
 
     `registered` being `None` (a registry READ FAILURE, per
     `_registered_agents()` — never "genuinely zero agents registered", which
-    is a real `frozenset()`) fails CLOSED by returning
-    `_UNPROVABLE_DISPATCH_FAILURE` immediately, without inspecting `records`/
+    is a real `frozenset()`) fails CLOSED by returning `None` immediately
+    (#1904 item 2: modeled as `frozenset | None` rather than a fake sentinel
+    MEMBER of the frozenset value space), without inspecting `records`/
     `failures` at all (#1763 security/correctness review). Filtering
     negative evidence through an empty set here — the same collapse that
     safely narrows `agents_in_window` — would instead WIDEN the gate: every
@@ -322,31 +325,17 @@ def _agents_with_unsuperseded_failure(
     can only ever narrow evidence, never widen it.
     """
     if registered is None:
-        return _UNPROVABLE_DISPATCH_FAILURE
+        return None
 
-    timeline = []
-    for entry in records:
-        agent = entry.get("matched_rule")
-        if not isinstance(agent, str):
-            continue
-        ts = metrics_query._first_present(entry, metrics_query._TS_FIELDS)
-        # A ts-less (or non-str-ts) RECORD defaults to the minimum sort key
-        # — it can never supersede a real failure, the safe default for
-        # positive evidence we cannot chronologically place.
-        ts = ts if isinstance(ts, str) else ""
-        timeline.append((ts, agent, _DECISION))
-    for entry in failures:
-        agent = entry.get("matched_rule")
-        if not isinstance(agent, str):
-            continue
-        ts = metrics_query._first_present(entry, metrics_query._TS_FIELDS)
-        # A ts-less (or non-str-ts) FAILURE defaults to the maximum sort
-        # key ("￿" sorts after every real ISO-8601 timestamp string)
-        # — it can never be superseded, the safe default for negative
-        # evidence we cannot chronologically place. Deliberately the
-        # OPPOSITE default from the record case above.
-        ts = ts if isinstance(ts, str) else "￿"
-        timeline.append((ts, agent, _DISPATCH_FAILURE_DECISION))
+    # A ts-less (or non-str-ts) RECORD defaults to the minimum sort key
+    # ("") — it can never supersede a real failure, the safe default for
+    # positive evidence we cannot chronologically place. A ts-less FAILURE
+    # defaults to the maximum sort key ("￿" sorts after every real
+    # ISO-8601 timestamp string) — it can never be superseded, the safe
+    # default for negative evidence we cannot chronologically place.
+    # Deliberately the OPPOSITE default from the record case.
+    timeline = _extract_timeline_entries(records, _DECISION, "")
+    timeline += _extract_timeline_entries(failures, _DISPATCH_FAILURE_DECISION, "￿")
     timeline.sort(key=lambda item: item[0])
 
     latest_decision: dict = {}
@@ -390,6 +379,36 @@ def _binding_evidence(
     return agents, dispatch_failure_agents
 
 
+def _load_ledger_pipeline(cwd, before_ts: str, window_seconds: int) -> tuple:
+    """Shared read-ledger -> since-bound -> registered-agents -> filtered-
+    dispatches/failures pipeline (#1799) — `evaluate()` and
+    `evaluate_cosmetic_carry_forward()` each independently re-implemented
+    this exact sequence before this extraction.
+
+    Returns `(failure, since, registered, all_dispatches, all_failures)`.
+    `failure` is `None` on a successful ledger read; when it is non-`None`
+    (`"missing"`/`"unreadable"` — see `_read_ledger`'s own docstring), every
+    other element is `None` and the caller must build its own fail-closed
+    result immediately, matching each function's own `LedgerEvidence`/
+    `CosmeticCarryForwardEvidence` shape — this helper does not build either
+    result type itself, since the two callers' failure shapes differ.
+    """
+    entries, failure = _read_ledger(cwd)
+    if failure is not None:
+        return failure, None, None, None, None
+    since = _since_bound(before_ts, window_seconds)
+    registered = _registered_agents()
+    all_dispatches = list(
+        metrics_query.filter_entries(entries, event_type=_EVENT_TYPE, gate_outcome=_DECISION)
+    )
+    all_failures = list(
+        metrics_query.filter_entries(
+            entries, event_type=_DISPATCH_FAILURE_HOOK, gate_outcome=_DISPATCH_FAILURE_DECISION
+        )
+    )
+    return None, since, registered, all_dispatches, all_failures
+
+
 def evaluate(cwd, before_ts: str, window_seconds: int, subject_hash: str) -> LedgerEvidence:
     """Single-read-pass corroboration evaluation — the primary entry point.
 
@@ -414,13 +433,12 @@ def evaluate(cwd, before_ts: str, window_seconds: int, subject_hash: str) -> Led
     whatever the ledger says — defense in depth against a stale or
     hand-edited ledger.
     """
-    entries, failure = _read_ledger(cwd)
-    if failure is not None:
-        return LedgerEvidence(frozenset(), False, False, failure, _UNPROVABLE_DISPATCH_FAILURE)
-
-    all_dispatches = list(
-        metrics_query.filter_entries(entries, event_type=_EVENT_TYPE, gate_outcome=_DECISION)
+    failure, since, registered, all_dispatches, all_failures = _load_ledger_pipeline(
+        cwd, before_ts, window_seconds
     )
+    if failure is not None:
+        return LedgerEvidence(frozenset(), False, False, failure, None)
+
     # `any_ever` intentionally reads the UNFILTERED dispatch set (#1461
     # security review) — it means "a genuine dispatch exists somewhere in
     # the ledger, for ANY subject", which is what `_STALE_MESSAGE` vs
@@ -437,229 +455,17 @@ def evaluate(cwd, before_ts: str, window_seconds: int, subject_hash: str) -> Led
     # this must be tracked separately from `any_ever`.
     same_subject_ever = any(isinstance(e.get("matched_rule"), str) for e in dispatches)
 
-    since = _since_bound(before_ts, window_seconds)
-    registered = _registered_agents()
-
     # Dispatch-failure negative evidence (#1763) — unbounded by the recency
     # window, per the field's own docstring. `dispatches` above is already
     # narrowed to THIS subject_hash and carries every qualifying "record"
     # regardless of age, so it doubles as the "records" side of the
     # supersession comparison with no extra filtering needed.
-    same_subject_failures = [
-        e
-        for e in metrics_query.filter_entries(
-            entries, event_type=_DISPATCH_FAILURE_HOOK, gate_outcome=_DISPATCH_FAILURE_DECISION
-        )
-        if e.get("subject_hash") == subject_hash
-    ]
+    same_subject_failures = [e for e in all_failures if e.get("subject_hash") == subject_hash]
     agents, dispatch_failure_agents = _binding_evidence(
         dispatches, same_subject_failures, since, before_ts, registered
     )
 
     return LedgerEvidence(agents, any_ever, same_subject_ever, None, dispatch_failure_agents)
-
-
-class CosmeticCarryForwardEvidence(NamedTuple):
-    """Single-read-pass result for the cosmetic-delta carry-forward lens
-    (`pre_commit_review.py`'s `_cosmetic_carry_forward_verdict`, #1627/#1763):
-    the normalized-hash query for POSITIVE evidence plus dispatch-failure
-    NEGATIVE evidence unioned across the normalized hash and every raw hash
-    in `raw_hashes` (typically `(stored_raw, current_hash)`) — everything
-    that lens needs from exactly ONE `_read_ledger`/`_registered_agents()`
-    pair, replacing what used to be one `distinct_normalized_dispatches()`
-    call plus one `evaluate()` call per raw hash, each independently
-    re-reading and re-parsing the same ledger file and re-globbing the
-    registry directory (perf finding from the #1761-1763 build).
-
-    Attributes:
-        agents_in_window: distinct registered review-agent names dispatched
-            in the recency window, bound ONLY to the normalized-hash binding
-            — the raw hashes in `raw_hashes` never contribute to this field,
-            unlike `dispatch_failure_agents` below. Empty when
-            `subject_hash_normalized` is falsy, on any read failure, or when
-            nothing qualifies.
-        read_failure_reason: `None` on a successful ledger read (whether or
-            not it has qualifying entries, whether or not the registry read
-            separately failed); `"missing"`/`"unreadable"` on a ledger read
-            failure — see `_read_ledger`'s own docstring.
-        dispatch_failure_agents: the UNION of unsuperseded dispatch-failure
-            agents across EVERY hash binding checked (the normalized hash
-            AND every entry in `raw_hashes`) — unlike `agents_in_window`,
-            this field is not scoped to a single binding. On a ledger read
-            failure, a registry read failure, or a falsy/unbindable hash
-            binding, this is EXACTLY the `_UNPROVABLE_DISPATCH_FAILURE`
-            sentinel — never mixed with real agent names (see
-            `evaluate_cosmetic_carry_forward`'s own docstring for why a
-            mixed set would be unsafe) — so a caller's `==` sentinel check
-            stays valid even though this field aggregates multiple bindings.
-    """
-
-    agents_in_window: frozenset
-    read_failure_reason: str | None
-    dispatch_failure_agents: frozenset
-
-
-def evaluate_cosmetic_carry_forward(
-    cwd,
-    before_ts: str,
-    window_seconds: int,
-    subject_hash_normalized: str,
-    raw_hashes: Iterable[str],
-) -> CosmeticCarryForwardEvidence:
-    """One `_read_ledger`/`_registered_agents()` pair answers the
-    normalized-hash query (positive `agents_in_window` + its own negative
-    dispatch-failure evidence) AND the negative-only dispatch-failure query
-    for every hash in `raw_hashes`. Each binding's evidence is computed by
-    the shared `_binding_evidence()` helper — the same code `evaluate()`
-    calls — against entries and a registry snapshot already loaded into
-    memory once, not re-read per binding.
-
-    A bare `str` passed as `raw_hashes` is normalized to a 1-tuple: the
-    natural mistake for a caller passing one raw hash directly would
-    otherwise iterate its individual CHARACTERS, silently match nothing,
-    and produce a false all-clear — the opposite of this module's
-    fail-closed posture.
-
-    Fails CLOSED like every other function in this module, and — unlike
-    treating each binding independently — NEVER lets the
-    `_UNPROVABLE_DISPATCH_FAILURE` sentinel mix into a union with real agent
-    names: if the shared ledger read fails, the shared registry read fails,
-    or ANY binding (the normalized hash, or a falsy/unbindable raw hash) is
-    itself unprovable, `dispatch_failure_agents` is EXACTLY the sentinel for
-    the WHOLE result — never `{sentinel, "some-real-agent"}`, which a
-    caller's `==` sentinel check could not detect and which would let
-    `_dispatch_failure_message()` render the sentinel string as if it were
-    a real agent name (#1836 security/correctness review). This is a
-    stricter posture than resolving each binding independently — a
-    transient failure on ANY one binding blocks the whole evaluation, not
-    just that binding — the right direction for a fail-closed gate. A
-    falsy raw hash is treated the same way (unprovable), not silently
-    skipped: it cannot bind any evidence, so it cannot prove the ABSENCE of
-    a dispatch failure either — a stricter posture than the old per-call
-    `evaluate("")` this replaces, which would have matched no ledger entries
-    (an absent-`subject_hash` event stores `None`, never `""`) and returned
-    a vacuous all-clear for that binding. Callers of THIS function must not
-    let a knowingly-falsy hash reach it expecting that same all-clear —
-    `pre_commit_review.py`'s `_cosmetic_carry_forward_verdict` guards its own
-    `stored_raw` binding for exactly this reason, so this sentinel path
-    stays reserved for a genuinely malformed/unbindable input, never a
-    routine one.
-
-    Registry-read behavior note (#1461/#1763 security review): the
-    review-agent registry is sampled exactly ONCE per call, not once per
-    hash binding as the calls this function replaces did independently.
-    The fail-closed GUARANTEE is unchanged — a registry that cannot be read
-    AT THE TIME OF THIS EVALUATION still makes the whole result unprovable
-    — only the number of independent samples taken within one evaluation
-    changed, an intended consequence of the ledger-read consolidation this
-    function exists for, not a separately considered trade-off.
-    """
-    if isinstance(raw_hashes, str):
-        raw_hashes = (raw_hashes,)
-
-    entries, failure = _read_ledger(cwd)
-    if failure is not None:
-        return CosmeticCarryForwardEvidence(frozenset(), failure, _UNPROVABLE_DISPATCH_FAILURE)
-
-    registered = _registered_agents()
-    since = _since_bound(before_ts, window_seconds)
-    all_dispatches = list(
-        metrics_query.filter_entries(entries, event_type=_EVENT_TYPE, gate_outcome=_DECISION)
-    )
-    all_failures = list(
-        metrics_query.filter_entries(
-            entries, event_type=_DISPATCH_FAILURE_HOOK, gate_outcome=_DISPATCH_FAILURE_DECISION
-        )
-    )
-
-    if subject_hash_normalized:
-        normalized_dispatches = [
-            e
-            for e in all_dispatches
-            if e.get("subject_hash_normalized") == subject_hash_normalized
-        ]
-        normalized_failures = [
-            e for e in all_failures if e.get("subject_hash_normalized") == subject_hash_normalized
-        ]
-        agents, normalized_dispatch_failures = _binding_evidence(
-            normalized_dispatches, normalized_failures, since, before_ts, registered
-        )
-        failure_sets = [normalized_dispatch_failures]
-    else:
-        agents = frozenset()
-        failure_sets = [_UNPROVABLE_DISPATCH_FAILURE]
-
-    seen_hashes: set = set()
-    for raw_hash in raw_hashes:
-        if raw_hash in seen_hashes:
-            continue
-        seen_hashes.add(raw_hash)
-        if not raw_hash:
-            failure_sets.append(_UNPROVABLE_DISPATCH_FAILURE)
-            continue
-        raw_dispatches = [e for e in all_dispatches if e.get("subject_hash") == raw_hash]
-        raw_failures = [e for e in all_failures if e.get("subject_hash") == raw_hash]
-        _, raw_dispatch_failures = _binding_evidence(
-            raw_dispatches, raw_failures, since, before_ts, registered
-        )
-        failure_sets.append(raw_dispatch_failures)
-
-    if any(fs == _UNPROVABLE_DISPATCH_FAILURE for fs in failure_sets):
-        return CosmeticCarryForwardEvidence(agents, None, _UNPROVABLE_DISPATCH_FAILURE)
-
-    combined_failures = frozenset().union(*failure_sets)
-    return CosmeticCarryForwardEvidence(agents, None, combined_failures)
-
-
-def distinct_review_agent_dispatches(
-    cwd, before_ts: str, window_seconds: int, subject_hash: str
-) -> set:
-    """Distinct registered review-agent names dispatched inside the recency
-    window before `before_ts`, bound to `subject_hash`. Pinned convenience
-    signature (#1461 plan) — see `evaluate()` for the fuller result a caller
-    needs to distinguish a "ledger read failure" rejection from a "no
-    dispatch evidence" or "stale evidence" one.
-
-    Fails CLOSED: any read failure returns an empty set — see module
-    docstring.
-    """
-    return set(evaluate(cwd, before_ts, window_seconds, subject_hash).agents_in_window)
-
-
-def distinct_normalized_dispatches(
-    cwd, before_ts: str, window_seconds: int, subject_hash_normalized: str
-) -> tuple:
-    """Distinct registered review-agent names dispatched inside the recency
-    window before `before_ts` whose `subject_hash_normalized` matches (#1627),
-    paired with the unbounded-by-window dispatch-failure agent set for that
-    same normalized hash (#1763).
-
-    Pinned convenience signature over `evaluate_cosmetic_carry_forward()`
-    (matching `distinct_review_agent_dispatches`'s own precedent as a thin
-    wrapper over `evaluate()`) — called with an empty `raw_hashes`, so its
-    union reduces to exactly the normalized binding's own evidence. Kept as
-    its own named entry point for callers that only ever have one hash to
-    check, and to keep this normalized-hash-only case covered by its own
-    direct unit tests independent of `pre_commit_review.py`'s specific
-    caller shape.
-
-    Returns `(agents_in_window, dispatch_failure_agents)`, both `frozenset`.
-    Same fail-CLOSED posture and same live-registry re-validation as
-    `evaluate()` — this is the raw-hash query with one field swapped, not a
-    weaker check. An empty or falsy `subject_hash_normalized` matches
-    nothing for POSITIVE evidence (events written before that field existed
-    carry no value for it, and treating "both sides absent" as a match
-    would let any pre-#1627 ledger corroborate any changeset) — negative
-    evidence in that same case is `_UNPROVABLE_DISPATCH_FAILURE`, not an
-    all-clear, since an unbindable query cannot prove absence of failure
-    either. A ledger or registry read failure returns the same
-    `(frozenset(), _UNPROVABLE_DISPATCH_FAILURE)` shape — fail CLOSED on the
-    negative-evidence side exactly like `evaluate()`.
-    """
-    evidence = evaluate_cosmetic_carry_forward(
-        cwd, before_ts, window_seconds, subject_hash_normalized, ()
-    )
-    return evidence.agents_in_window, evidence.dispatch_failure_agents
 
 
 def _has_exemption(cwd, before_ts: str, window_seconds: int, subject_hash: str, rule: str) -> bool:
@@ -704,12 +510,8 @@ def has_single_agent_exemption(cwd, before_ts: str, window_seconds: int, subject
 
 
 __all__ = (
-    "CosmeticCarryForwardEvidence",
     "LedgerEvidence",
-    "distinct_normalized_dispatches",
-    "distinct_review_agent_dispatches",
     "evaluate",
-    "evaluate_cosmetic_carry_forward",
     "has_doc_only_exemption",
     "has_single_agent_exemption",
     "mtime_to_iso",

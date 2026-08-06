@@ -47,7 +47,7 @@ Gate NOT written: {N} lens(es) never ran and their retry also failed. Re-run
 single retry (issue #1752) — a lens that never ran. Never omit this section
 when it has at least one row, regardless of how the rest of the panel
 scored; omit it entirely on a clean run. A non-empty table here means the
-`.review-passed` gate was not written this run — see SKILL.md step 9.}
+`.pr-review-passed` gate was not written this run — see SKILL.md step 9.}
 
 ## Institutional Context
 
