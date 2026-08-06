@@ -13,6 +13,7 @@ from __future__ import annotations
 import json
 import subprocess
 import sys
+import threading
 from pathlib import Path
 
 import pytest
@@ -202,6 +203,80 @@ def test_mark_consumed_second_failure_during_cleanup_never_masks_original_error(
     result = mbr.mark_consumed(path, "src/Foo.cs", "capture-sha")
 
     assert result == {"success": False, "error": "disk full"}
+
+
+# =============================================================================
+# Concurrency — today's unlocked lost-update race (Step 1.2 of #1941/#1920).
+# No production code change in this step: this proves the defect exists
+# against TODAY's unlocked mark_consumed. Step 1.3 wraps the read-modify-write
+# in hooks/lib/atomic_state.py::locked_state(strict=True) and removes the
+# xfail marker below, keeping this test as a permanent passing regression
+# test from that point on.
+# =============================================================================
+@pytest.mark.xfail(
+    strict=True,
+    reason=(
+        "today's mark_consumed has no interprocess lock around its "
+        "read-modify-write; fixed in Step 1.3 (#1920), which will remove "
+        "this xfail marker"
+    ),
+)
+def test_unlocked_mark_consumed_loses_an_update(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    """Two concurrent mark-consumed calls for two *different* file_path keys
+    against a not-yet-existing tracking file lose one entry, because
+    today's ``mark_consumed`` has no lock around its read-modify-write.
+
+    Interleaving is forced deterministically (no sleep-based timing, no
+    real race on the shared ``.tmp`` file): the first call ("A")'s read of
+    the tracking file happens immediately, but is held back from returning
+    to ``mark_consumed`` until the second call ("B") has fully completed
+    its own read-modify-write. This reproduces exactly the scenario in
+    Slice 1's Gherkin — "the second process's read forced to occur before
+    the first process's write completes" — while keeping the outcome
+    deterministic: A's stale (pre-B) snapshot is what A eventually writes,
+    so A's write clobbers B's already-completed write and B's entry is
+    lost.
+    """
+    path = tmp_path / "tracking.json"
+    original_read_tracking = mbr.read_tracking
+    a_has_read = threading.Event()
+    b_has_written = threading.Event()
+    thread_a: threading.Thread
+
+    def delayed_read_tracking(tracking_path):
+        result = original_read_tracking(tracking_path)
+        if threading.current_thread() is thread_a:
+            a_has_read.set()
+            assert b_has_written.wait(timeout=5), "b never finished writing"
+        return result
+
+    monkeypatch.setattr(mbr, "read_tracking", delayed_read_tracking)
+
+    results: dict[str, dict] = {}
+
+    def call_a():
+        results["a"] = mbr.mark_consumed(path, "src/A.cs", "capture-sha")
+
+    def call_b():
+        assert a_has_read.wait(timeout=5), "a never reached its read"
+        results["b"] = mbr.mark_consumed(path, "src/B.cs", "capture-sha")
+        b_has_written.set()
+
+    thread_a = threading.Thread(target=call_a)
+    thread_b = threading.Thread(target=call_b)
+    thread_a.start()
+    thread_b.start()
+    thread_a.join(timeout=5)
+    thread_b.join(timeout=5)
+
+    assert results["a"] == {"success": True}
+    assert results["b"] == {"success": True}
+
+    tracking = original_read_tracking(path)
+    assert "src/A.cs" in tracking
+    assert "src/B.cs" in tracking, "src/B.cs's entry was lost to the race"
 
 
 def test_git_last_commit_sha_returns_stripped_sha(monkeypatch: pytest.MonkeyPatch):
