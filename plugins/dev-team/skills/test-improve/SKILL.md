@@ -145,6 +145,8 @@ sequence becomes `0 → 2 → 1 → 4 → 5 → 6 → (7) → 8 → 9`.
 | 8 | Validate | `references/phase-8-validate.md` |
 | 9 | Executive-summary report | `references/phase-9-report.md` |
 
+The After-Phase-9 close-out prompt is not one of the ten numbered phases and deliberately has no row above; it is the separate `### After Phase 9` section further down, backed by `references/phase-9-close-out-prompt.md`.
+
 Before executing a phase, read only that phase's reference file — never a
 phase-specific reference file for a phase already completed in this run or a
 prior resumed session. Shared implementation-detail reference files (e.g.

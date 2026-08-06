@@ -193,11 +193,9 @@ auto-detection. Auto-detect and explicit alike read Phase-0 inputs from
 `phase-0.md` and never re-prompt them.
 
 **Phase-6 prompt letter.** The full Phase-6 refactor-decision prompt —
-shown only in `refactor-allowed` mode — uses `[y/b/q]` (not `[r]`). The
-letter `r` is already claimed by mutation-kill's `[c/r/w/q]` (retry) and the
-review-loop's `[r/w/q]` (revise); reusing `r` a third time at the
-highest-consequence prompt in the flow would produce operator confusion.
-`[y]` advances to Phase 7; `[b]` backlogs the REFACTOR_REQUIRED items and
+shown only in `refactor-allowed` mode — uses `[y/b/q]` (not `[r]`; see
+`phase-6-refactor-decision.md` for why `r` was avoided). `[y]` advances to
+Phase 7; `[b]` backlogs the REFACTOR_REQUIRED items and
 skips to Phase 8; `[q]` quits before Phase 8. In `no-refactor` mode (the
 default) Phase 6 is **informational only** — no `[y]` is offered, the
 REFACTOR_REQUIRED items are auto-backlogged, and the run continues to Phase 8

@@ -27,8 +27,9 @@ halts that Story until the operator resolves it.
 
 **Phase 5's parallel-dispatch warning (issue #1571) applies equally here** —
 Phase 7 runs the same per-Story `/build` loop against the same shared
-working tree; never dispatch multiple Phase-7 Stories' build loops
-concurrently without `isolation: "worktree"` on every dispatch.
+working tree, so **never dispatch multiple Phase-7 Stories' build loops
+concurrently without `isolation: "worktree"` on every dispatch**; see
+`phase-5-improve.md` for why the race is unsafe.
 
 **End-of-phase review loop.** After all Phase-7 Stories close, run the
 **same review loop as Phase 5**, writing evidence to
