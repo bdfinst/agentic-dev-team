@@ -15,11 +15,20 @@ hardening rounds (#1461) without anything forcing the `change_shape.py`
 sibling copy to be checked too.
 
 This module carries ONLY the literal data that is actually identical between
-the two call sites today. Matching *logic* (exact-name vs. prefix match,
-which functional-config segments apply) stays local to each caller by
-design — unifying the logic, not just the data, would re-introduce the
-subset/superset coupling the pre-commit gate's docstring explicitly warns
-against.
+the two call sites today, with one exception: `is_functional_config` below
+(#1923's third caller, `scripts/select_lenses.py`) IS shared logic, not just
+data — but only because `change_shape.py` and `select_lenses.py` want the
+exact same predicate over the exact same composed segment set (the
+`"templates"` addition included), with no matching-semantics divergence
+between them the way `pre_commit_doc_classifier.py` has from both (see the
+`CORE_FUNCTIONAL_CONFIG_SEGMENTS` comment below). `pre_commit_doc_classifier.py`
+does NOT call this function — it keeps its own inline check reading the raw
+`CORE_FUNCTIONAL_CONFIG_SEGMENTS`/`FUNCTIONAL_CONFIG_NAMES` constants
+directly, staying the strict subset its own docstring requires. Every other
+matching *logic* here (exact-name vs. prefix match for doc detection) stays
+local to each caller by design — unifying THAT, not just the data, would
+re-introduce the subset/superset coupling the pre-commit gate's docstring
+explicitly warns against.
 
 Location: `hooks/lib/` rather than a new top-level `shared/` directory.
 There is no existing precedent in this repo for a module living outside
@@ -38,6 +47,8 @@ Stdlib only.
 """
 
 from __future__ import annotations
+
+from pathlib import PurePosixPath  # used by is_functional_config below
 
 # Documentation extensions (lower-cased). Byte-identical set between
 # `change_shape.py`'s `_DOC_EXTENSIONS` and
@@ -78,9 +89,28 @@ FUNCTIONAL_CONFIG_NAMES = frozenset({"claude.md", "agents.md"})
 # caller layers its own additions on top of this shared core.
 CORE_FUNCTIONAL_CONFIG_SEGMENTS = frozenset({".claude", "agents", "skills", "prompts", "knowledge"})
 
+# `change_shape.py`'s own "templates" addition, baked in here because
+# `select_lenses.py` wants the identical composed set — see `is_functional_config`.
+_FUNCTIONAL_CONFIG_SEGMENTS_WITH_TEMPLATES = CORE_FUNCTIONAL_CONFIG_SEGMENTS | {"templates"}
+
+
+def is_functional_config(file_path: str) -> bool:
+    """True when ``file_path`` drives agent/skill/command behavior and must
+    never be treated as inert documentation/config regardless of extension.
+    Shared by `change_shape.py` and `select_lenses.py` (#1923) — see this
+    module's docstring for why this one predicate is shared logic, not just
+    data, and why `pre_commit_doc_classifier.py` deliberately does not call
+    it."""
+    path = PurePosixPath(file_path)
+    if path.name.lower() in FUNCTIONAL_CONFIG_NAMES:
+        return True
+    return any(seg in _FUNCTIONAL_CONFIG_SEGMENTS_WITH_TEMPLATES for seg in path.parts)
+
+
 __all__ = (
     "CORE_FUNCTIONAL_CONFIG_SEGMENTS",
     "DOC_EXTENSIONS",
     "DOC_ROOT_WORDS",
     "FUNCTIONAL_CONFIG_NAMES",
+    "is_functional_config",
 )

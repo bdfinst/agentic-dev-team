@@ -5,7 +5,15 @@ Given changed file paths, return the review-agent lenses whose ``Scope:``
 declaration matches, ordered cheap-first (non-opus before opus). ``/build``'s
 inline review checkpoints call this to avoid dispatching lenses with no
 matching surface in the diff (a backend-only diff should not spend tokens on
-frontend/UI lenses). ``/code-review`` adoption is tracked separately (#1523).
+frontend/UI lenses). ``/code-review`` Step 3 also adopted this resolver
+(#1533) — both live call sites now share every rule below, not just the
+ones present at #1523.
+A ``Scope: always`` lens named in ``NON_EXECUTABLE_SKIP_ELIGIBLE`` is
+additionally excluded when every changed file is non-executable
+(docs/config/assets/lockfiles, never functional Claude-config markdown —
+see ``NON_EXECUTABLE_EXTENSIONS`` and ``doc_classification.is_functional_config``), since
+that lens's own Skip clause would otherwise just self-report
+``{"status": "skip"}`` at opus, high-effort cost.
 
 Roster source: the **Review Agents** table in ``knowledge/agent-registry.md``
 (the curated lens list), minus the shared ``NON_REVIEW_AGENTS`` boundary and
@@ -36,6 +44,34 @@ _HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(_HERE / "lib"))
 
 import review_roster
+
+# skills/code-review/scripts/change_shape.py's runtime-surface gate already
+# solves "is this path functional Claude-config, never skippable regardless
+# of extension" — reuse its shared predicate (#1477, extended #1923) rather
+# than adding a fourth, independently-drifting copy of the same
+# classification (a real defect a prior draft of this filter had: `.md`
+# alone made `plugins/dev-team/agents/*.md` — this very repo's shipped
+# agent behavior — read as "non-executable"). Same cross-boundary import
+# pattern that module already uses, same fail-open fallback.
+_HOOKS_LIB_DIR = _HERE.parent / "hooks" / "lib"
+if str(_HOOKS_LIB_DIR) not in sys.path:
+    sys.path.insert(0, str(_HOOKS_LIB_DIR))
+
+try:
+    from doc_classification import (
+        is_functional_config,  # type: ignore[import-not-found]
+    )
+except ImportError:  # pragma: no cover - degraded fallback, hooks/lib unreachable
+    _FALLBACK_FUNCTIONAL_CONFIG_NAMES = frozenset({"claude.md", "agents.md"})
+    _FALLBACK_FUNCTIONAL_CONFIG_SEGMENTS = frozenset(
+        {".claude", "agents", "skills", "prompts", "knowledge", "templates"}
+    )
+
+    def is_functional_config(file_path: str) -> bool:
+        name = Path(file_path).name.lower()
+        if name in _FALLBACK_FUNCTIONAL_CONFIG_NAMES:
+            return True
+        return any(seg in _FALLBACK_FUNCTIONAL_CONFIG_SEGMENTS for seg in Path(file_path).parts)
 
 # Framework-reactivity lenses declare bare ``**/*.ts`` / ``**/*.js`` globs, but
 # their real trigger is a dependency-manifest match (``/code-review`` Step 3's
@@ -81,6 +117,119 @@ SCOPE_ON_DEMAND = "on-demand"
 # Heading substring that marks the Review Agents section of agent-registry.md.
 # Named so a heading rename over there is greppable from here (the coupling).
 _REVIEW_AGENTS_HEADING_MARKER = "review agent"
+
+# Lenses whose own Skip clause covers "static assets, configuration,
+# markup, or documentation with no executable logic" / "generated code,
+# vendored dependencies, or lockfiles" verbatim, checked directly against
+# each candidate's own agent-body text before being added here (#1923
+# review round): each would only ever self-report `{"status": "skip"}` on
+# an all-non-executable diff, so dispatching an opus, high-effort model
+# just to hear "skip" is pure waste.
+#
+# Deliberately ONE member today, not "every opus-tier always lens" —
+# `security-review`, `arch-review`, and `domain-review` were considered and
+# REJECTED: their own Skip clauses do not authorize this. security-review's
+# clause covers only "static assets, images, or documentation", not
+# config/lockfiles (`NON_EXECUTABLE_EXTENSIONS` includes both), and its own
+# "## Scope — files always in scope" section mandates scanning some of the
+# very file classes this filter would suppress (infra manifests, configs)
+# for hardcoded credentials — a real, exploitable coverage gap this filter
+# would otherwise create for A08.review-manipulation/A05 detection.
+# arch-review's clause is about ADR/module-boundary *absence*, not a
+# docs-only diff — a pure-markdown ADR update is exactly the case its own
+# `## Detect` section (ADR compliance) exists to catch, so filtering it on
+# `.md` would drop the one check aimed at that content. domain-review's
+# clause is "infra-only code" / "no business logic present", which is a
+# file-content judgment, not a file-type one this filter can safely proxy.
+#
+# An explicit allowlist (matching this file's own MANIFEST_GOVERNED
+# precedent above) rather than an implicit `is_opus` check: a future opus
+# `Scope: always` lens defaults to NOT being filtered until it is added
+# here deliberately, after the same verification against its own Skip
+# clause — so a Skip-clause change on `correctness-review` (or a new
+# candidate with different semantics) can't silently start/stop being
+# filtered with nothing forcing that decision. MAINTENANCE: re-verify
+# against the named agent's own Skip clause before adding or keeping a name
+# here; remove it the moment that clause no longer matches.
+#
+# Relationship to `skills/code-review/scripts/change_shape.py`'s
+# `LOW_YIELD_LENSES` (`["performance-review", "correctness-review"]`):
+# that gate is `/code-review`-Step-3-specific and already drops
+# correctness-review on a no-runtime-surface changeset (with this same
+# functional-config carve-out). This allowlist is NOT redundant with it —
+# `/build`'s inline review checkpoints call `applicable_lenses` directly
+# and never consult `change_shape.py`, so without this, correctness-review
+# still paid full opus cost on every doc-only `/build` step. The two lists
+# legitimately overlap on `correctness-review` rather than duplicating by
+# accident; `performance-review` is haiku-tier and not this filter's cost
+# concern, so it is intentionally absent here.
+# frozenset (not a plain set), matching `doc_classification.py`'s own
+# convention for these shared-literal-shaped tables: this allowlist governs
+# which review lenses may be dropped, so it must not be mutable by any
+# importer after module load.
+NON_EXECUTABLE_SKIP_ELIGIBLE = frozenset({
+    "correctness-review",
+})
+
+# Extensions/basenames the NON_EXECUTABLE_SKIP_ELIGIBLE lens(es) above would
+# only ever self-report `{"status": "skip"}` against. Deliberately
+# conservative: `.yaml`/`.yml` are excluded because CI workflow files
+# routinely embed real conditionals/shell logic correctness-review
+# legitimately checks (see its category 5); a lockfile written in YAML is
+# instead named explicitly in NON_EXECUTABLE_BASENAMES. Safe to keep `.json`
+# here even though it is a real security/execution surface elsewhere in this
+# repo (`settings.json` hook registrations, `package.json` scripts) —
+# `security-review` is not on the allowlist above, and correctness-review's
+# "does this code do what it evidently intends" lens has no bearing on that
+# concern. Deliberately DIFFERENT from `change_shape.py`'s own runtime-surface
+# classifier, not merely a copy of it: the binary/vector asset extensions
+# below (`.svg`/`.png`/etc.) appear in neither that module's `_DOC_EXTENSIONS`
+# nor its `_CONFIG_EXTENSIONS`, so an asset-only diff is "runtime surface,
+# keep every lens" there but "non-executable, skip correctness-review" here.
+# That asymmetry is safe today (it can only make this module drop a lens
+# `change_shape.py` would have kept, never the reverse, and only for
+# correctness-review — no other lens reads this constant), but re-check it
+# against `change_shape.py` before adding a second name to the allowlist
+# above, per that constant's own MAINTENANCE note.
+NON_EXECUTABLE_EXTENSIONS = frozenset({
+    ".md", ".mdx", ".rst", ".txt",
+    ".json", ".toml", ".ini", ".cfg",
+    ".svg", ".png", ".jpg", ".jpeg", ".gif", ".ico", ".webp", ".pdf",
+    ".lock",
+})
+NON_EXECUTABLE_BASENAMES = frozenset({
+    "LICENSE", "LICENSE.txt", ".gitignore", ".editorconfig", ".gitattributes",
+    "pnpm-lock.yaml",
+})
+
+def _is_non_executable_file(file_path: str) -> bool:
+    """True if ``file_path`` is a static asset, inert config/data,
+    documentation, or a lockfile — see NON_EXECUTABLE_EXTENSIONS above.
+    Never true for functional Claude-config markdown/paths (checked
+    first, via the shared `is_functional_config` — same predicate
+    `change_shape.py` uses), regardless of extension."""
+    if is_functional_config(file_path):
+        return False
+    name = Path(file_path).name
+    if name in NON_EXECUTABLE_BASENAMES:
+        return True
+    return Path(file_path).suffix.lower() in NON_EXECUTABLE_EXTENSIONS
+
+
+def _is_all_non_executable(changed_files) -> bool:
+    """True iff every file in ``changed_files`` is non-executable. Callers
+    already special-case an empty list before reaching this."""
+    return bool(changed_files) and all(
+        _is_non_executable_file(f) for f in changed_files
+    )
+
+
+def _should_skip_non_executable(name: str, changed_files) -> bool:
+    """True if ``name`` is on the skip allowlist and every changed file is
+    non-executable — mirrors ``_added_only_eligible``'s role below for the
+    added-only branch, hoisting a compound condition out of the
+    ``applicable_lenses`` dispatcher's own branch body."""
+    return name in NON_EXECUTABLE_SKIP_ELIGIBLE and _is_all_non_executable(changed_files)
 
 
 def _consume_bullet_block(lines, start_index):
@@ -185,9 +334,16 @@ def applicable_lenses(changed_files, roster, added_files=None):
 
     An empty ``changed_files`` yields ``([], [])`` — nothing to review, so no
     lens (not even ``Scope: always``) is selected. ``scope is None`` ->
-    include-biased + warn; ``"always"`` -> include; glob list -> include iff any
-    changed file matches; ``SCOPE_ON_DEMAND`` -> never include, no warning
-    (a deliberate, self-declared exclusion, not a defect to surface).
+    include-biased + warn (never non-executable-filtered, regardless of
+    ``name`` or ``is_opus`` — that filter applies only inside this
+    ``SCOPE_ALWAYS`` branch); ``"always"`` -> include, UNLESS ``name`` is on
+    the ``NON_EXECUTABLE_SKIP_ELIGIBLE`` allowlist and every changed file is
+    non-executable (see ``_should_skip_non_executable``) — that combination
+    is excluded and warned as ``skipped-non-executable:<name>`` rather than
+    paying an opus round trip for a self-reported skip; glob list -> include
+    iff any changed file matches; ``SCOPE_ON_DEMAND`` -> never include, no
+    warning (a deliberate, self-declared exclusion, not a defect to
+    surface).
 
     ``added_files`` (#1733) narrows a ``(SCOPE_ADDED_ONLY, globs)`` scope to
     only the changed files that are also newly *added* — but **only when the
@@ -212,6 +368,9 @@ def applicable_lenses(changed_files, roster, added_files=None):
             warnings.append(name)
             selected.append((name, is_opus))
         elif scope == SCOPE_ALWAYS:
+            if _should_skip_non_executable(name, changed_files):
+                warnings.append(f"skipped-non-executable:{name}")
+                continue
             selected.append((name, is_opus))
         elif scope == SCOPE_ON_DEMAND:
             continue  # never dispatched by the per-diff resolver, by design

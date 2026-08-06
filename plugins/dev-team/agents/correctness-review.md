@@ -43,6 +43,19 @@ Output JSON: per `${CLAUDE_PLUGIN_ROOT}/knowledge/review-agent-output-contract.m
 
 Context needs: full-file
 
+Before a raw whole-file `Read`, check whether a code-intelligence index is
+available and prefer it for obtaining that full-file context:
+`mcp__codegraph__*` (CodeGraph, when `.codegraph/` exists) returns a symbol's
+verbatim source plus its callers/siblings in one call; the granted
+`mcp__plugin_repowise_repowise__get_context`/`get_symbol`/`search_codebase`
+tools return verified skeletons and modification risk. Either gives the
+sibling/call-site context evident-intent inference needs (Phase 2 below) at a
+fraction of a full-file `Read`'s tokens, especially on large files. See
+`${CLAUDE_PLUGIN_ROOT}/knowledge/codegraph-vs-graphify.md` for the full
+comparison. Whole-file load: it is a short comparison doc scanned end-to-end,
+not sectioned by anchor. **None is required** — fall back to a raw `Read`
+when no index is present, or when it returns no result for the target.
+
 ## What This Agent Checks
 
 This agent answers one question: **does this code do what it evidently intends to do?** It infers intent from the code itself — the function's name, its docstring/comments, its sibling branches, and its call sites — not from an external spec (that is `spec-compliance-review`'s job, comparing code against a written spec). It does not evaluate structure, security-specific bypass patterns, naming style, or test quality. Every other review agent's lens is code *quality*; this agent's lens is: is the code's own evident promise kept?
