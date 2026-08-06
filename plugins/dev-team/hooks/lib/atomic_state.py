@@ -20,7 +20,9 @@ alone (a PostToolUse nudge sentinel, not a safety-critical guard verdict), so
 the two no longer agree on acquire behavior; only the release-path idiom
 still matches. Everything here is fail-open: any I/O or locking failure runs
 the critical section unlocked / skips the persist rather than raising —
-these are advisory nudges, never gates.
+these are advisory nudges, never gates — unless a caller opts into
+`locked_state(path, strict=True)`, in which case the same failure raises
+`RuntimeError` instead of running unlocked.
 
 Lock *acquisition* is bounded, not a blocking wait (#1888): a hung sibling
 process holding the lock must never leave a caller blocked indefinitely,
@@ -31,7 +33,11 @@ critical section UNLOCKED once that budget elapses — the same fail-open
 posture as every other failure mode here. This bounds contention on an
 already-held lock specifically; it does NOT bound a stall inside `open()` on
 the lock file itself, or inside a caller's own I/O in the critical section —
-a wedged mount can still block there.
+a wedged mount can still block there. Every one of these fail-open points is
+skippable per call: pass `strict=True` to `locked_state` and the same failure
+raises `RuntimeError` instead of running unlocked — for a caller (e.g. a
+read-modify-write whose lost update is a correctness bug, not an advisory
+nudge) that must never silently proceed without the lock.
 
 A second use case (#1889) reuses `locked_state` for pure append-serialization
 rather than read-modify-write: several `.claude/metrics/*.jsonl` telemetry
@@ -230,7 +236,7 @@ def _acquire_bounded(handle) -> bool:
 
 
 @contextlib.contextmanager
-def locked_state(path: Path) -> Iterator[None]:
+def locked_state(path: Path, *, strict: bool = False) -> Iterator[None]:
     """Hold an exclusive advisory lock for a full read-modify-write cycle.
 
     Prevents the lost-update race where two concurrent invocations both read
@@ -243,12 +249,22 @@ def locked_state(path: Path) -> Iterator[None]:
     trips a fail-open give-up after `_lock_acquire_budget_seconds()` of
     polling rather than blocking a caller indefinitely.
 
-    Fail-open: a missing `fcntl` *and* `msvcrt`, an OSError creating the lock
-    file's parent directory or opening the lock file, or a lock that can't be
-    acquired within budget, all fall through to running the critical section
-    UNLOCKED rather than raising or blocking forever. An unlocked lost-update
-    is no worse than the pre-#1501 behavior; a crash — or an undelivered
-    guard-hook verdict — would be worse, and these hooks are advisory.
+    Fail-open (default, `strict=False`): a missing `fcntl` *and* `msvcrt`, an
+    OSError creating the lock file's parent directory or opening the lock
+    file, or a lock that can't be acquired within budget, all fall through to
+    running the critical section UNLOCKED rather than raising or blocking
+    forever. An unlocked lost-update is no worse than the pre-#1501 behavior;
+    a crash — or an undelivered guard-hook verdict — would be worse, and
+    these hooks are advisory.
+
+    `strict=True`: every one of the same four fail-open points above raises
+    `RuntimeError` (with the identical message it would otherwise print to
+    stderr) instead of printing and running the critical section unlocked —
+    the critical section body never runs when the lock could not be
+    acquired. For a caller where a lost update is a correctness bug rather
+    than an advisory best-effort nudge. Every existing caller passes the
+    default `False` and is completely unaffected; this is an additive,
+    backward-compatible parameter.
 
     A caller-raised OSError from inside the critical section propagates
     normally (through the `finally`/release, out of this generator's
@@ -264,12 +280,14 @@ def locked_state(path: Path) -> Iterator[None]:
     try:
         lock_path.parent.mkdir(parents=True, exist_ok=True)
     except OSError as exc:
-        print(
+        message = (
             f"atomic_state: lock acquisition failed (could not create lock "
             f"directory {lock_path.parent}: {exc}); proceeding WITHOUT lock "
-            f"for {path}",
-            file=sys.stderr,
+            f"for {path}"
         )
+        if strict:
+            raise RuntimeError(message) from exc
+        print(message, file=sys.stderr)
         yield
         return
 
@@ -289,11 +307,13 @@ def locked_state(path: Path) -> Iterator[None]:
         with contextlib.suppress(OSError, AttributeError):
             os.fchmod(lock_fd, 0o600)
     except OSError as exc:
-        print(
+        message = (
             f"atomic_state: lock acquisition failed (could not open lock "
-            f"file {lock_path}: {exc}); proceeding WITHOUT lock for {path}",
-            file=sys.stderr,
+            f"file {lock_path}: {exc}); proceeding WITHOUT lock for {path}"
         )
+        if strict:
+            raise RuntimeError(message) from exc
+        print(message, file=sys.stderr)
         yield
         return
 
@@ -304,11 +324,13 @@ def locked_state(path: Path) -> Iterator[None]:
     try:
         handle_cm = os.fdopen(lock_fd, "r+")
     except OSError as exc:
-        print(
+        message = (
             f"atomic_state: lock acquisition failed (fdopen on "
-            f"{lock_path} failed: {exc}); proceeding WITHOUT lock for {path}",
-            file=sys.stderr,
+            f"{lock_path} failed: {exc}); proceeding WITHOUT lock for {path}"
         )
+        if strict:
+            raise RuntimeError(message) from exc
+        print(message, file=sys.stderr)
         yield
         return
 
@@ -320,12 +342,14 @@ def locked_state(path: Path) -> Iterator[None]:
             except OSError:
                 locked = False
             if not locked:
-                print(
+                message = (
                     f"atomic_state: lock acquisition failed (budget exhausted "
                     f"or non-contention error acquiring {lock_path}); "
-                    f"proceeding WITHOUT lock for {path}",
-                    file=sys.stderr,
+                    f"proceeding WITHOUT lock for {path}"
                 )
+                if strict:
+                    raise RuntimeError(message)
+                print(message, file=sys.stderr)
             yield
         finally:
             if locked:
