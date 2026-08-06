@@ -121,6 +121,36 @@ def test_nested_include_with_h3_shared_file_raises(tmp_path):
         _resolve(skill_text, depth=0, base=tmp_path)
 
 
+def test_nested_include_with_h3_heading_mid_body_raises(tmp_path):
+    """(d2) Whole-file variant of (d): references/shared.md's *first* line
+    is valid (`#### ` heading), but a `### ` heading appears further down in
+    its body — must still raise NestedHeadingLevelError naming
+    references/shared.md, proving the guard scans the whole file rather
+    than only the first non-blank line."""
+    skill_text = (
+        "### Phase X\n"
+        "<!-- include: references/phase-x.md -->\n"
+        "### Phase Y\n"
+        "Phase Y content.\n"
+    )
+    references = tmp_path / "references"
+    references.mkdir()
+    (references / "phase-x.md").write_text(
+        "Phase X own text before.\n"
+        "<!-- include: references/shared.md -->\n"
+        "Phase X own text after.\n"
+    )
+    (references / "shared.md").write_text(
+        "#### Shared Heading\n"
+        "Shared body text.\n"
+        "### Mid-body offender\n"
+        "More shared body text.\n"
+    )
+
+    with pytest.raises(NestedHeadingLevelError, match="references/shared.md"):
+        _resolve(skill_text, depth=0, base=tmp_path)
+
+
 def test_dangling_include_marker_raises_file_not_found(tmp_path):
     """(e) An include marker naming a references/*.md path that does not
     exist on disk must raise FileNotFoundError naming the missing path and

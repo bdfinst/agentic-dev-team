@@ -56,8 +56,8 @@ You have been invoked with the `/test-improve` command.
 - `--from-phase [<n>]` — skips completed phases and resumes at phase `n` when
   `.claude/memory/test-improve/<slug>/phase-<n-1>.md` exists. **The number is
   optional.** Passed with **no argument**, `/test-improve` **auto-detects** the
-  resume point from `.claude/memory/test-improve/<slug>/` (see the `--from-phase`
-  semantics below): it resumes at the phase after the highest completed
+  resume point from `.claude/memory/test-improve/<slug>/` (see
+  `references/phase-0-approach-contract.md`): it resumes at the phase after the highest completed
   progress file and prints which phase it resolved to and why. An explicit
   `<n>` **overrides** auto-detection. Either form does **not** re-prompt
   Phase-0 inputs; to change them, delete
@@ -221,79 +221,15 @@ suggestion.
 
 ### Phase 9 — Executive-summary report
 
-Produce a stable executive-summary report from the shipped template. Every
-section is present in every run; empty sections **do not disappear** — they
-render `_Not applicable — <reason>._` so the shape of the report never changes
-between runs.
-
-**Template source.** Copy
-`plugins/dev-team/skills/test-improve/templates/executive-summary.md` to the
-output path.
-
-**Output path.** `.dev-team-reports/test-improve/<slug>/report-<date>.md` —
-the file is always relative to the invocation directory, whether the run used
-a tracker sink or local-files mode. Its git-tracked `data/` sibling is
-`.dev-team-reports/test-improve/<slug>/data/`.
-
-**Interpolation.** Every placeholder is **interpolated** from two sources:
-the git-tracked `.dev-team-reports/test-improve/<slug>/data/` directory
-(`test-counts-before.json`, `test-counts-after.json` if Phase 8 ran,
-`baseline-coverage.json`, `baseline-mutation.json` in `baseline+kill-loop`
-mode, and `coverage-history.json` — each already current there, written
-directly at the point of capture by Phase 2 and Phase 5 respectively), and the
-process/audit state still under `.claude/memory/test-improve/<slug>/`
-(`phase-0.md`, `phase-1.md`, `phase-4.md`, `phase-5-review.json`,
-`phase-7-review.json` if Phase 7 ran, `waivers.json`, `phase-8.md`), plus
-`.dev-team-reports/test-improve/<slug>/refactor-backlog.md` if Phase 6 chose
-`[b]` or Phase 8 wrote a no-refactor-mode entry to it. `mutation-history.json`
-is outside this interpolation set — and always has been; it is consumed by
-`/coverage-delta` and `/quality-targets-converge`, not by the
-executive-summary report, so its absence from this list is not the bug this
-plan fixes. `coverage-gap-ranking.json` (issue #1786) is outside it for the
-same reason: it is a targeting input read by Phases 1, 4, and 5, not a number
-the report interpolates. No placeholder is left literal.
-
-**Empty-section rule.** Sections with no data render `_Not applicable —
-<reason>._` (e.g. § 6 when Phase 7 was declined reads "*Phase 7 not run —
-operator chose to backlog REFACTOR_REQUIRED items at Phase 6.*"). Sections
-are never omitted or hidden — this keeps the report shape stable across runs.
-
-**Mutation row shape (per Phase-0 mutation mode).**
-
-- `off`: `_Not applicable — mutation disabled at Phase 0._`
-- `kill-loop`, non-Go: final surviving-mutant count from the Phase-5 kill loop;
-  the baseline and Δ cells read `_Not applicable — no baseline run (kill-loop
-  mode)._` since no Phase-2 baseline was taken.
-- `baseline+kill-loop`, non-Go: honest baseline-to-achieved score (hard kills /
-  effective total; timeouts reported separately) with the Δ column populated.
-- Go stack (`kill-loop` or `baseline+kill-loop`): honest numbers with the
-  "advisory only — go-mutesting is alpha" footnote.
-
-**Parent-issue-or-FEATURE.md link update.** When the run used a **parent
-tracker** (Phase 0 selected `--parent <url>`), the parent issue is updated
-with a link to `.dev-team-reports/test-improve/<slug>/report-<date>.md`. When
-the run was **local-files-only**, `.claude/plans/test-improve/FEATURE.md` is
-updated with the same link.
-
-**Regeneratable-from-tracked-data contract.** The report is a **pure
-function** of the git-tracked `.dev-team-reports/test-improve/<slug>/data/`
-directory (the numbers, already current by construction — each file was
-written directly there at the point of capture) plus the process/audit
-narrative still under `.claude/memory/test-improve/<slug>/`. Deleting the
-report file and re-invoking Phase 9 reproduces the report byte-for-byte —
-there is no copy step to re-run, and always exactly one place to read the
-numbers from; Phase 9 always reads `data/` directly, unconditionally.
+<!-- include: references/phase-9-report.md -->
+See `references/phase-9-report.md` for the full executive-summary report
+generation, the template source, output path, interpolation and
+empty-section rules, the mutation row shape, the parent-issue/FEATURE.md
+link update, and the regeneratable-from-tracked-data contract.
 
 ### After Phase 9 — Re-run-with-refactor close-out prompt
 
-**No prompt** when: `.dev-team-reports/test-improve/<slug>/refactor-backlog.md` does not exist (no `REFACTOR_REQUIRED` items were ever backlogged), the file exists but has zero entries (treated the same as absent), `phase-8.md` records `coverage_reprompt_fired: true` (Phase 8's own coverage-driven `[y/n]` already fired this run — no repeating the same question twice), or `phase-0.md` recorded `refactor-mode: refactor-allowed` (a Phase-6 `[b]` backlog entry under `refactor-allowed` mode is the operator's deliberate deferral, not a no-refactor constraint to lift — re-asking "re-run with refactor-allowed mode now?" would be nonsensical when that's the mode already in use).
-
-**Otherwise** (backlog file has ≥1 entry, Phase 8 never fired its prompt,
-and `phase-0.md` recorded `refactor-mode: no-refactor`), prompt **`[y/n]`**
-— distinct from Phase 8's coverage-driven, mid-run prompt, this one is
-backlog-driven and fires at close-out: *"N REFACTOR_REQUIRED items remain
-backlogged. Re-run with refactor-allowed mode now? `[y/n]`"* (N = entry
-count). `[n]` leaves the backlog as-is. `[y]` — Phase-0 answers are
-immutable per-run, so tell the operator to re-run `/test-improve
-<repo-path>` fresh, choosing `refactor-allowed`; this is a new invocation,
-not `--from-phase`.
+<!-- include: references/phase-9-close-out-prompt.md -->
+See `references/phase-9-close-out-prompt.md` for the full re-run-with-refactor
+close-out prompt: when it is suppressed, its `[y/n]` decision, and how it
+differs from Phase 8's coverage-driven, mid-run prompt.

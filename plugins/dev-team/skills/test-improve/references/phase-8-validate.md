@@ -46,7 +46,7 @@ below 90% in no-refactor mode. Re-run in refactor-allowed mode to close the
 gap? `[y/n]`"*. The prompt names the **backlogged REFACTOR_REQUIRED items**
 that would close the gap (drawn from `.dev-team-reports/test-improve/<slug>/refactor-backlog.md`
 when `[b]` was picked at Phase 6, or from the Phase-4 deferred list when
-Phase 6 was not reached). Whenever shown, `phase-8.md` records `coverage_reprompt_fired: true` plus the answer — the durable source Phase 9's close-out prompt reads to avoid re-asking (see below).
+Phase 6 was not reached). Whenever shown, `phase-8.md` records `coverage_reprompt_fired: true` plus the answer — the durable source Phase 9's close-out prompt reads to avoid re-asking (see `phase-9-close-out-prompt.md`).
 
 **Evidence.** Persist target outcomes to
 `.claude/memory/test-improve/<slug>/phase-8.md`.

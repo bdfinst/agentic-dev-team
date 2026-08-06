@@ -2,16 +2,21 @@
 /test-improve's entry file (plan: test-improve-context-loading-strategy,
 Slice 1, Step 1.3).
 
-Step 1.4 through Step 1.12 have since moved some phases' content out of
-SKILL.md into their own `references/phase-<n>-*.md` files (Phase 0 and
-Phase 2 so far, spliced back in via `<!-- include: ... -->` markers) — this
-test checks the index table and its accompanying instructions exist and are
-worded correctly, and additionally cross-checks that every phase whose body
-already carries an include marker names the exact same path in both the
-marker and the index table's path cell, and that the target file exists on
-disk. Phases not yet split (no include marker in their body) are only
-covered by the row-presence check below — this test cannot verify a path
-for content that hasn't moved yet.
+Step 1.4 onward have progressively moved phases' content out of SKILL.md
+into their own `references/phase-<n>-*.md` files, spliced back in via
+`<!-- include: ... -->` markers — check whether a phase's own body carries
+an include marker (not the index table, which always lists all ten phases
+regardless of split status — see
+`test_every_phase_0_through_9_has_exactly_one_table_row` below) to tell
+which phases have been split as of any given commit, since that count keeps
+growing and this docstring would otherwise need updating every step. This
+test checks the index table and its accompanying
+instructions exist and are worded correctly, and additionally cross-checks
+that every phase whose body already carries an include marker names the
+exact same path in both the marker and the index table's path cell, and
+that the target file exists on disk. Phases not yet split (no include
+marker in their body) are only covered by the row-presence check below —
+this test cannot verify a path for content that hasn't moved yet.
 """
 
 from __future__ import annotations

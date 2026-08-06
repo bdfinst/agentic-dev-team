@@ -27,33 +27,35 @@ _MAX_INCLUDE_DEPTH = 5
 class NestedHeadingLevelError(Exception):
     """Raised by `_resolve_includes()` when a `references/*.md` file spliced
     in at depth >= 1 (i.e. included from inside another already-spliced-in
-    reference file, not directly from SKILL.md's own top level) opens with
-    a `### `-level heading. `section()`'s boundary match is the bare
-    `^### ` pattern, so such a heading would falsely terminate the
-    enclosing phase's extraction — see Step 1.1 of
-    plans/test-improve-context-loading-strategy.md."""
+    reference file, not directly from SKILL.md's own top level) contains a
+    `### `-level heading anywhere in its body. `section()`'s boundary match
+    is the bare `^### ` pattern, so such a heading — first line or not —
+    would falsely terminate the enclosing phase's extraction — see Step 1.1
+    of plans/test-improve-context-loading-strategy.md."""
 
 
 def _reject_h3_heading_at_depth(
     target_text: str, depth: int, rel_path: str, source: str
 ) -> None:
     """Guard used by `_splice()`: a reference file included from inside
-    another already-spliced-in reference file (`depth >= 1`) must not open
-    with a `### `-level heading — that level is reserved for phase
-    boundaries and would falsely terminate `section()`'s extraction of the
-    enclosing phase. No-op at `depth == 0` (a direct include from SKILL.md's
-    own top level)."""
+    another already-spliced-in reference file (`depth >= 1`) must not
+    contain a `### `-level heading anywhere in its body — that level is
+    reserved for phase boundaries and would falsely terminate `section()`'s
+    extraction of the enclosing phase. Scans every line of `target_text`,
+    not just the first — a `### ` heading further down in the body is just
+    as fatal to `section()`'s extraction as one on the first line. No-op at
+    `depth == 0` (a direct include from SKILL.md's own top level)."""
     if depth < 1:
         return
-    first_line = next((line for line in target_text.splitlines() if line.strip()), "")
-    if re.match(r"^### ", first_line):
-        raise NestedHeadingLevelError(
-            f"{rel_path}, included from {source} at depth {depth}, "
-            f"opens with a `### ` heading. Use `#### ` or plain "
-            f"prose instead — `### ` is reserved for phase "
-            f"boundaries and cannot appear inside a file included "
-            f"from another reference file."
-        )
+    for line in target_text.splitlines():
+        if re.match(r"^### ", line):
+            raise NestedHeadingLevelError(
+                f"{rel_path}, included from {source} at depth {depth}, "
+                f"contains a `### ` heading: {line!r}. Use `#### ` or "
+                f"plain prose instead — `### ` is reserved for phase "
+                f"boundaries and cannot appear anywhere in a file "
+                f"included from another reference file."
+            )
 
 
 def _resolve_includes(
