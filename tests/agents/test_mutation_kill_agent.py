@@ -17,22 +17,22 @@ from __future__ import annotations
 import re
 
 import pytest
-from skill_doc_helpers import section
+from _mutation_kill_agent_doc_helpers import AGENT, agent_text
+from skill_doc_helpers import collapsed, section
 
 from _repo_root import REPO_ROOT
 
-AGENT = REPO_ROOT / "plugins" / "dev-team" / "agents" / "mutation-kill.md"
 REGISTRY = REPO_ROOT / "plugins" / "dev-team" / "knowledge" / "agent-registry.md"
 
 
 @pytest.fixture(scope="module")
 def text() -> str:
-    return AGENT.read_text(encoding="utf-8")
+    return agent_text()
 
 
 @pytest.fixture(scope="module")
 def flat(text: str) -> str:
-    return text.replace("\n", " ")
+    return collapsed(text)
 
 
 def test_mutation_kill_md_exists() -> None:
