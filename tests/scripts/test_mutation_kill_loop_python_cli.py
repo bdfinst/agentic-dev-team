@@ -191,10 +191,15 @@ def test_main_exits_non_zero_when_run_for_file_raises(monkeypatch, capsys, tmp_p
 
 # =============================================================================
 # Scenario: GenerationExhausted gets its OWN exit code (5), distinct from the
-# generic RuntimeError exit code 4 above (#1908 review). Exit 4 means "a
-# failed revert — the tree may be left in an unknown/possibly-mutated
-# state"; exit 5 means "a clean retry-then-downgrade exhaustion — nothing
-# was mutated" — stryker_shard_pipeline.py's shard driver treats the two
+# generic RuntimeError exit code 4 above (#1908 review). Exit 4 most
+# commonly means "a failed revert — the tree may be left in an
+# unknown/possibly-mutated state", though it currently also absorbs other,
+# actually-clean RuntimeErrors (#1930); exit 5 means "a clean
+# retry-then-downgrade exhaustion — nothing was mutated by the
+# insertion-revert paths this covers" (run_scoped_mutmut's best-effort
+# post-mutmut-crash revert is deliberately not checked, so a
+# mutmut-crash leftover is the one on-disk mutation exit 5 does not rule
+# out — #1928) — stryker_shard_pipeline.py's shard driver treats the two
 # very differently (abort the shard vs. continue to the next file).
 # =============================================================================
 def test_main_returns_exit_code_5_when_generation_exhausted_propagates(

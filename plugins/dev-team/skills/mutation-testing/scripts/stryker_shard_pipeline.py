@@ -320,17 +320,20 @@ def launch_survivor_fix(
 
     Returns True when every launched fix exited zero or the dedicated
     GenerationExhausted exit code 5 (or none were launched); False the
-    moment one exits any OTHER non-zero code. A non-zero exit from the
-    headless loop — specifically the fatal-revert exit code 4
-    (``mutation_kill_headless``/``mutation_kill_loop_python`` #1598) — means
-    the working tree was just declared to be in an unknown/possibly-mutated
-    state, so processing stops for the remaining files in this shard rather
-    than silently continuing onto a tree that may already be broken. Exit
+    moment one exits any OTHER non-zero code — most commonly the fatal-revert
+    exit code 4 (``mutation_kill_headless``/``mutation_kill_loop_python``
+    #1598), which means the working tree was just declared to be in an
+    unknown/possibly-mutated state, so processing stops for the remaining
+    files in this shard rather than silently continuing onto a tree that may
+    already be broken. That "commonly" is deliberate: any other non-zero
+    exit is treated identically today, even though not every such path
+    actually mutates the tree (e.g. a non-gateway-class generation timeout
+    also currently maps to exit 4 — see #1930 for narrowing this). Exit
     code 5 (a clean retry-then-downgrade exhaustion — nothing mutated) is
-    the opposite case: this file is logged as unfixed, but the run's exit
-    status is unaffected and the loop continues to the next file in the
-    shard, matching ``mutation-kill.md``'s documented exhaustion contract
-    that ```--all` continues``` (#1908 review).
+    the one case carved out from that catch-all: this file is logged as
+    unfixed, but the run's exit status is unaffected and the loop continues
+    to the next file in the shard, matching ``mutation-kill.md``'s documented
+    exhaustion contract that ```--all` continues``` (#1908 review).
     """
     resolve_test_file = resolve_test_file or default_resolve_test_file
     report = report_path(out_dir)
@@ -357,7 +360,7 @@ def launch_survivor_fix(
             model=model,
             max_rounds=max_rounds,
         )
-        log(f"[{ts()}] Agent START (headless): {shard} — {source}")
+        log(f"[{ts()}] Agent START (headless): {_safe(shard)} — {_safe(source)}")
         result = run(cmd, cwd=str(repo_root))
         rc = result.returncode
         if rc == EXIT_GENERATION_EXHAUSTED:
@@ -374,7 +377,8 @@ def launch_survivor_fix(
                 f"[{ts()}] Agent FAILED (headless): {_safe(shard)} — "
                 f"{_safe(source)} (exit {rc}) — stopping further files in "
                 "this shard; the working tree may be left in an "
-                "unknown/possibly-mutated state"
+                "unknown/possibly-mutated state (this treats every "
+                "non-4-non-5 exit the same as a failed revert — see #1930)"
             )
             return False
     return True

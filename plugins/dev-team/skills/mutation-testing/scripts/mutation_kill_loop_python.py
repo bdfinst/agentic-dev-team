@@ -817,10 +817,19 @@ def main(argv: Sequence[str] | None = None) -> int:
     except GenerationExhausted as exc:
         # This file's retry-then-downgrade budget is fully spent (3
         # consecutive gateway-class failures + 1 same-model retry, at the
-        # original model AND at most one fallback tier) — distinct from
-        # exit code 4 below (a failed revert, which leaves the working tree
-        # in an unknown/possibly-mutated state). A clean exhaustion mutates
-        # nothing, so callers (stryker_shard_pipeline.py's shard driver) can
+        # original model AND at most one fallback tier) — distinct from exit
+        # code 4 below, which most commonly means a failed revert (leaving
+        # the working tree in an unknown/possibly-mutated state) but
+        # currently also absorbs other, actually-clean RuntimeErrors, e.g. a
+        # non-gateway-class generation timeout (#1930). A clean exhaustion
+        # mutates nothing in the paths this covers: generation precedes
+        # insertion within a round, and a prior round's own
+        # insertion-revert failure (compile/test/commit paths, via
+        # _revert_or_raise) is itself fatal — raised, never swallowed.
+        # run_scoped_mutmut's best-effort post-mutmut-crash revert (its
+        # own ``finally``) is deliberately NOT checked, so a mutmut-crash
+        # leftover is the one on-disk mutation this exit code does not rule
+        # out (#1928) — so callers (stryker_shard_pipeline.py's shard driver) can
         # log this file as unfixed and continue to the next file without
         # affecting the run's exit status, instead of aborting the whole
         # shard (#1908 review).

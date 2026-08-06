@@ -585,22 +585,34 @@ class _RetryState:
     downgraded: bool = False
 
 
+@dataclass(frozen=True)
+class _RetryCallContext:
+    """Call-invariant collaborators for one file's retry/downgrade closure
+    (#1908 review). Bundles ``cwd``/``log``/``on_downgrade`` — none of which
+    change between calls or rounds — so :func:`_retry_once_then_maybe_downgrade`
+    takes one object instead of three separate keyword parameters."""
+
+    cwd: Path | None
+    log: Callable[[str], None]
+    on_downgrade: Callable[[DowngradeEvent], None] | None
+
+
 def _retry_once_then_maybe_downgrade(
     state: _RetryState,
     prompt: str,
     source_file: str,
     round_num: int | None,
     *,
-    cwd: Path | None,
-    log: Callable[[str], None],
-    on_downgrade: Callable[[DowngradeEvent], None] | None,
+    ctx: _RetryCallContext,
 ) -> str | None:
     """The 3rd-consecutive-failure branch: exactly one same-model retry, then
     decide downgrade-or-exhausted (#1908). Extracted out of
     :func:`make_retrying_headless_call`'s ``call`` closure to keep it under
-    size/nesting/complexity thresholds — closes over the same
-    ``on_downgrade``/``log``/``cwd`` the caller already has, and mutates
-    ``state`` in place exactly as the inline branch it replaces did.
+    size/nesting/complexity thresholds — ``ctx`` carries the same
+    ``on_downgrade``/``log``/``cwd`` the caller already has (passed
+    explicitly, not captured by closure, so this function stays testable in
+    isolation), and mutates ``state`` in place exactly as the inline branch
+    it replaces did.
 
     Returns the retry's result string on a successful retry. Returns
     ``None`` when a downgrade was applied instead — the caller's
@@ -610,7 +622,7 @@ def _retry_once_then_maybe_downgrade(
     """
     already_downgraded = state.downgraded
     try:
-        return run_claude_headless(prompt, model=state.model, cwd=cwd)
+        return run_claude_headless(prompt, model=state.model, cwd=ctx.cwd)
     except RuntimeError as retry_exc:
         error_class = (
             "gateway-class" if is_gateway_class_error(retry_exc) else "non-gateway-class"
@@ -625,9 +637,9 @@ def _retry_once_then_maybe_downgrade(
             error_class=error_class,
             exhausted=to_model is None,
         )
-        log(_format_downgrade_message(event))
-        if on_downgrade is not None:
-            on_downgrade(event)
+        ctx.log(_format_downgrade_message(event))
+        if ctx.on_downgrade is not None:
+            ctx.on_downgrade(event)
         if to_model is None:
             raise GenerationExhausted(_format_downgrade_message(event)) from retry_exc
         state.model = to_model
@@ -706,11 +718,12 @@ def make_retrying_headless_call(
     only once the retry-then-downgrade budget is fully spent).
     """
     state = _RetryState(model=initial_model)
+    ctx = _RetryCallContext(cwd=cwd, log=log, on_downgrade=on_downgrade)
 
     def call(prompt: str, source_file: str, round_num: int | None = None) -> str:
         while True:
             try:
-                result = run_claude_headless(prompt, model=state.model, cwd=cwd)
+                result = run_claude_headless(prompt, model=state.model, cwd=ctx.cwd)
             except RuntimeError as exc:
                 if not is_gateway_class_error(exc):
                     # Never counts toward the threshold, and breaks an
@@ -730,9 +743,7 @@ def make_retrying_headless_call(
                     prompt,
                     source_file,
                     round_num,
-                    cwd=cwd,
-                    log=log,
-                    on_downgrade=on_downgrade,
+                    ctx=ctx,
                 )
                 if retry_result is None:
                     continue  # downgraded — retry the 3-then-1 sequence on the new model
