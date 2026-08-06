@@ -15,13 +15,13 @@ from check_agent_tool_mapping import (
     NARROW,
     RATIONALE,
     TIER_CONFIG,
-    _agents_dir_default,
     apply_fixes,
+    default_agents_dir,
     evaluate,
     main,
 )
 
-REAL_AGENTS_DIR = _agents_dir_default()
+REAL_AGENTS_DIR = default_agents_dir()
 
 _GRAPHIFY_BASH = "Bash(graphify *)"
 NARROW_AGENTS = ["software-engineer", "mutation-kill", "qa-engineer", "data-flow-tracer"]

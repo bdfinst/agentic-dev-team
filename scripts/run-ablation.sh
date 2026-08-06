@@ -24,7 +24,7 @@ for t in claude gh jq python3 git; do command -v "$t" >/dev/null 2>&1 || { echo 
 [ -n "${ANTHROPIC_API_KEY:-}${CLAUDE_CODE_OAUTH_TOKEN:-}" ] || { echo "no API credentials set." >&2; exit 2; }
 
 WORK="$(mktemp -d)"; trap 'rm -rf "$WORK"' EXIT
-INDEX="plugins/dev-team/hooks/lib/build-knowledge-index.sh"
+INDEX="plugins/dev-team/hooks/lib/build_knowledge_index.py"
 
 mkdir -p .claude/evals
 ln -sfn "$PWD/evals/fixtures" .claude/evals/fixtures
@@ -53,15 +53,15 @@ _dispatch "$WORK/with.json" || exit 1
 
 echo "== ablating $KFILE (hiding + rebuilding index) =="
 mv "$KPATH" "$WORK/ablated.md"
-bash "$INDEX" >/dev/null 2>&1 || true
+python3 "$INDEX" >/dev/null 2>&1 || true
 # restore on any exit from here
-trap 'mv "$WORK/ablated.md" "$KPATH" 2>/dev/null; bash "$INDEX" >/dev/null 2>&1; rm -rf "$WORK"' EXIT
+trap 'mv "$WORK/ablated.md" "$KPATH" 2>/dev/null; python3 "$INDEX" >/dev/null 2>&1; rm -rf "$WORK"' EXIT
 
 echo "== ablated run (knowledge removed) =="
 _dispatch "$WORK/without.json" || exit 1
 
 echo "== restoring $KFILE =="
-mv "$WORK/ablated.md" "$KPATH"; bash "$INDEX" >/dev/null 2>&1 || true
+mv "$WORK/ablated.md" "$KPATH"; python3 "$INDEX" >/dev/null 2>&1 || true
 trap 'rm -rf "$WORK"' EXIT
 
 echo "== retrieval value =="

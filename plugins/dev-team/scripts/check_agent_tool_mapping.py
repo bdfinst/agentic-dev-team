@@ -46,6 +46,10 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent / "lib"))
+# The `agents/` directory root is the shared, resolved single source of
+# truth in hooks/lib (#1904 item 3) — scripts/ -> hooks/lib/ is the correct
+# dependency direction (see review_agent_registry.py's own docstring).
+sys.path.insert(0, str(Path(__file__).parent.parent / "hooks" / "lib"))
 
 from mcp_tool_grants import (
     BASE_MCP_TOOLS,
@@ -53,6 +57,7 @@ from mcp_tool_grants import (
     build_json_report,
     run_grants_check,
 )
+from review_agent_registry import default_agents_dir
 
 # Tiers ---------------------------------------------------------------------
 NARROW = list(BASE_MCP_TOOLS)
@@ -88,10 +93,6 @@ EXCLUSIONS = {
 
 _BEHAVIORAL_RE = re.compile(r"^##\s+Behavioral Guidelines\s*$", re.MULTILINE)
 _ENFORCEMENT_RE = re.compile(r"^Enforcement:\s*script\s*$", re.MULTILINE)
-
-
-def _agents_dir_default() -> Path:
-    return Path(__file__).parent.parent / "agents"
 
 
 def is_team_agent(text: str) -> bool:
@@ -160,7 +161,7 @@ def main(argv=None) -> int:
     parser.add_argument("--json", action="store_true", help="machine-readable output")
     args = parser.parse_args(argv)
 
-    agents_dir = args.agents_dir or _agents_dir_default()
+    agents_dir = args.agents_dir or default_agents_dir()
     if not agents_dir.is_dir():
         print(f"ERROR: agents directory not found: {agents_dir}", file=sys.stderr)
         return 1

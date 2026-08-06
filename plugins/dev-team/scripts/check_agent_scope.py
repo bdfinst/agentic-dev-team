@@ -24,12 +24,21 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent / "lib"))
+# The `agents/` directory root is the shared, resolved single source of
+# truth in hooks/lib (#1904 item 3) — scripts/ -> hooks/lib/ is the correct
+# dependency direction (see review_agent_registry.py's own docstring). This
+# script globs all agents/*.md (not just *-review.md), so it uses only
+# default_agents_dir() for the directory path — never
+# registered_review_agent_names()/find_review_agent_files(), which are
+# review-agent-specific.
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "hooks" / "lib"))
 
 # Review agents are the agents named in the Review Agents section of
 # knowledge/agent-registry.md.  Rather than parsing that file we check all
 # agents/*.md files that contain a 'description:' frontmatter field and are
 # not one of the well-known non-review agents.  The exclusion set is shared
 # with select_lenses.py (#1516) — see scripts/lib/review_roster.py.
+from review_agent_registry import default_agents_dir
 from review_roster import NON_REVIEW_AGENTS
 from review_roster import SCOPE_LINE_RE as SCOPE_RE
 
@@ -68,8 +77,7 @@ def main() -> int:
     if args.agents_dir is not None:
         agents_dir = args.agents_dir
     else:
-        # scripts/ is one level below plugins/dev-team/
-        agents_dir = Path(__file__).parent.parent / "agents"
+        agents_dir = default_agents_dir()
 
     if not agents_dir.is_dir():
         print(f"ERROR: agents directory not found: {agents_dir}", file=sys.stderr)

@@ -40,7 +40,7 @@ Output templates and JSON schemas: [`output-format.md`](output-format.md). Examp
 
 ## Orchestrator constraints
 
-**MUST — confirm agent-dispatch capability before anything else in this skill (issue #1461).** Before attempting to dispatch ANY review agent (Step 4), you MUST confirm the `Agent` (or `Task`) tool is actually present and available in your current toolset. If it is not present: **STOP.** Do not proceed with a self-applied, inline, or checklist-based review of any kind as a substitute for independent dispatch — an orchestrator applying the review agents' checklists itself is not a review, it is self-certification, and it defeats the entire purpose of this gate. Do not write `.review-passed` under any circumstance in this state. Instead, report to the user/operator plainly: code review cannot run in this environment because no agent-dispatch capability (`Agent`/`Task` tool) is available; name exactly what's missing; and state that the commit gate cannot be satisfied until `/code-review` is re-run from a session that has that capability. This is a hard requirement, not a preference — "should dispatch agents" is not sufficient; a missing `Agent`/`Task` tool always halts this skill before Step 2.
+**MUST — confirm agent-dispatch capability before anything else in this skill (issue #1461).** Before attempting to dispatch ANY review agent (Step 4), you MUST confirm the `Agent` (or `Task`) tool is actually present and available in your current toolset. If it is not present: **STOP.** Do not proceed with a self-applied, inline, or checklist-based review of any kind as a substitute for independent dispatch — an orchestrator applying the review agents' checklists itself is not a review, it is self-certification, and it defeats the entire purpose of this gate. Do not write `.pr-review-passed` under any circumstance in this state. Instead, report to the user/operator plainly: code review cannot run in this environment because no agent-dispatch capability (`Agent`/`Task` tool) is available; name exactly what's missing; and state that the PR gate cannot be satisfied until `/code-review` is re-run from a session that has that capability. This is a hard requirement, not a preference — "should dispatch agents" is not sufficient; a missing `Agent`/`Task` tool always halts this skill before Step 2.
 
 1. **Do not review code yourself.** Delegate all semantic analysis to review agents.
 2. **Minimize context per agent.** Pass only what each agent's `Context needs` field requires.
@@ -134,10 +134,10 @@ as before this feature. Sliced mode is **report-only** (no interactive fix loop)
 If **every** target file is documentation, short-circuit:
 
 1. Emit: `Documentation-only changeset ({N} files) — skipping code review. Re-run with --force --reason "<text>" to review anyway.`
-2. If the review was auto-scoped to uncommitted changes, write the `.review-passed` gate file (per step 9) so the pre-commit hook allows the commit. **Contemporaneously** (before or immediately after that write), record the doc-only exemption as an explicit, auditable boundary event — the `.review-passed` gate's dispatch-ledger corroboration (#1461) reads this event, bound to the gate's own hash, to let the doc-only path stay exempt from agent-dispatch evidence without being a silent, unaccountable code-path skip:
+2. If the review was auto-scoped to uncommitted changes or scoped via `--since <base>` (issue #1904 Bug 2b — same extension as step 9's own gate condition, and for the same reason: `/pr`'s only path to `gh pr create` reviews via `--since <base>`), write the `.pr-review-passed` gate file (per step 9) so `hooks/pre_pr_review.py` allows the next `gh pr create`. **Contemporaneously** (before or immediately after that write), record the doc-only exemption as an explicit, auditable boundary event — the `.pr-review-passed` gate's dispatch-ledger corroboration (#1461, #1886) reads this event, bound to the gate's own hash, to let the doc-only path stay exempt from agent-dispatch evidence without being a silent, unaccountable code-path skip:
    ```bash
-   HASH=$(python3 "${CLAUDE_PLUGIN_ROOT}/hooks/lib/review_gate_hash.py")
-   mkdir -p .claude/memory && echo "$HASH" > .claude/memory/.review-passed
+   HASH=$(python3 "${CLAUDE_PLUGIN_ROOT}/hooks/lib/review_gate_hash.py" --branch-diff)
+   mkdir -p .claude/memory && echo "$HASH" > .claude/memory/.pr-review-passed
    python3 "${CLAUDE_PLUGIN_ROOT}/hooks/lib/boundary_events.py" --event doc-only --subject-hash "$HASH"
    ```
 3. In `--json` mode, emit `{"status": "skipped", "reason": "documentation-only", "files": [<list>]}` instead.
@@ -302,7 +302,7 @@ explicit single-agent request always runs that agent).
 and the change-shape gate above have both been applied, apply this gate —
 never before, and never in a way that re-adds an agent either already removed.
 It narrows the `Scope: always` roster by diff *size* rather than file *type*:
-the pre-commit hook (`hooks/pre_commit_review.py`) requires a `.review-passed`
+the pre-PR hook (`hooks/pre_pr_review.py`, #1886) requires a `.pr-review-passed`
 hash match **and** (#1461) >= 2 distinct, recent, registered review-agent
 dispatches recorded in the dispatch ledger — so this gate must never narrow
 `keepAgents` below 2, and today's four-agent floor (`security-review`,
@@ -424,13 +424,12 @@ Both flags are required — pass an empty string (`--returned ""`) when no agent
 2. If the retry succeeds, use its result and continue as normal — this never shows up as a failure in the final report. A recovered dispatch — one that fails once but succeeds on its single retry — never reaches the dispatch-failure emission point in step 3 below: no `dispatch-failure` boundary event is ever emitted for it.
 3. If the retry also fails, do **not** proceed as if that lens's coverage were complete:
    - Carry it into step 5's aggregation as a `dispatchFailures` entry (`{agentName, attempts: 2, error}`) — the `dispatchFailures` key itself is always present in `--json` output (an empty array when there are none, per `output-format.md`); the prose report's `## Dispatch Failures` section renders only when the array is non-empty, and is never omitted in that case because "the rest of the panel passed."
-   - At this same moment — the point an unrecovered failure is determined — also emit a `dispatch-failure` boundary event, bound to the `subject_hash` in effect for this dispatch (the same `review_gate_hash()` value this file's doc-only/single-agent exemption calls already compute), **and** the normalized hash — omitting it would leave the gate's cosmetic-delta carry-forward lens (which reads only the normalized hash) unable to ever see a genuine dispatch failure:
+   - At this same moment — the point an unrecovered failure is determined — also emit a `dispatch-failure` boundary event, bound to the `subject_hash` in effect for this dispatch (the same `branch_diff_gate_hash(default_base_ref(cwd), cwd)` value this file's doc-only/single-agent exemption calls already compute, per #1886) — so `hooks/pre_pr_review.py`'s own `_dispatch_failure_verdict` can find it at `gh pr create` time:
      ```bash
-     HASH=$(python3 "${CLAUDE_PLUGIN_ROOT}/hooks/lib/review_gate_hash.py")
-     NORM=$(python3 "${CLAUDE_PLUGIN_ROOT}/hooks/lib/review_gate_normalized_hash.py" || true)
-     python3 "${CLAUDE_PLUGIN_ROOT}/hooks/lib/boundary_events.py" --event dispatch-failure --agent "<name>" --subject-hash "$HASH" --subject-hash-normalized "$NORM"
+     HASH=$(python3 "${CLAUDE_PLUGIN_ROOT}/hooks/lib/review_gate_hash.py" --branch-diff)
+     python3 "${CLAUDE_PLUGIN_ROOT}/hooks/lib/boundary_events.py" --event dispatch-failure --agent "<name>" --subject-hash "$HASH"
      ```
-   - Treat it as fail-equivalent for step 9's gate-write condition — the same treatment step 3's `unreadable-registry`/`unreadable-files-from` handling already gets: a lens that never ran is a coverage gap, not a passing result, so `.review-passed` must not be written while any dispatch failure is outstanding.
+   - Treat it as fail-equivalent for step 9's gate-write condition — the same treatment step 3's `unreadable-registry`/`unreadable-files-from` handling already gets: a lens that never ran is a coverage gap, not a passing result, so `.pr-review-passed` must not be written while any dispatch failure is outstanding.
    - State plainly, in both prose and `--json` output, which agent(s) failed twice and the error text — a missing lens must always be visible, never inferred from a shorter-than-expected agent table.
 
 ### 5. Aggregate results
@@ -523,18 +522,25 @@ while actionable_issues > 0 AND iteration ≤ MAX_ITERATIONS:
     2. After each iteration's fixes, run the project's test suite.
        If tests fail, revert the last fix that broke them and mark the
        issue [auto-fix failed — human review required].
-    3. **When the review was auto-scoped to uncommitted changes** (the only
-       scope that ever writes a gate file — see step 9), stage the fixes
-       just applied (`git add` the modified files) — an Edit/Write only
+    3. **When the review was auto-scoped to uncommitted changes**, stage the
+       fixes just applied (`git add` the modified files) — an Edit/Write only
        touches the working tree, it does not change `git diff --cached`, so
        without this the fixes would never reach the eventual commit (#1461
        security re-review: an earlier draft's step 1 claimed a working-tree
        edit "naturally" changes the staged hash — false for
        `sha256(git diff --cached)`, and it silently dropped every fix-loop
-       iteration's output from the final commit). For `--path`/`--since`/
-       `--all` scopes, leave the index untouched — no gate is ever written
-       for those scopes, so staging here would only mutate the operator's
-       index unasked, for no corroboration benefit.
+       iteration's output from the final commit). For `--path`/`--all`
+       scopes, leave the index untouched — no gate is ever written for those
+       scopes, so staging here would only mutate the operator's index
+       unasked, for no corroboration benefit. **`--since <base>` also writes
+       a gate file (issue #1904 Bug 2b — no longer "the only scope", per step
+       9's own extended condition), but has no staging concept to mirror
+       here at all**: its content is already-committed history
+       (`base...HEAD`), so a fix applied mid-loop would need a fresh COMMIT,
+       not a `git add`, to change what the eventual `--branch-diff` hash
+       covers — a disclosed gap in this loop's mechanics for that scope, not
+       fixed here; the closing pass below stays scoped to the auto-scope
+       staging model for the same reason.
     3b. **Deterministic-first triage (#1610) — language-agnostic, not
        Python-specific.** Before re-dispatching an agent to re-verify a fix,
        check whether the fix already qualifies for a cheaper, deterministic
@@ -710,7 +716,7 @@ Whichever exit condition above was hit — `round-cap`, iteration limit, or
 "same issues persist" — is an **escalation**; `converged` (including the
 zero-actionable-issues and round-ledger-`converged` rows) is not. Carry that
 boolean (escalated vs. converged) forward out of this loop: step 9 already
-consults it for the `.review-passed` gate-write condition, and step 7 now
+consults it for the `.pr-review-passed` gate-write condition, and step 7 now
 also consults it — under `--json`, where step 9 never runs at all — to force
 `overall: "fail"` in the emitted JSON object per the parallel rule in
 [`output-format.md`](output-format.md#aggregated-json-result---json-flag).
@@ -723,13 +729,15 @@ Track each iteration for the report — template in [`output-format.md`](output-
 
 ### 7. Generate report
 
-**Output paths.** All file artifacts (`./corrections/*.json`, `./.review-passed`) are repo-relative to the target repository's working directory (the cwd `/code-review` was invoked in). Never prepend a scratchpad, sandbox, or session root onto an already-absolute path, and never join two absolute paths. `--json` prints to **stdout** and writes no file.
+**Output paths.** All file artifacts (`./corrections/*.json`, `.claude/memory/.pr-review-passed`) are repo-relative to the target repository's working directory (the cwd `/code-review` was invoked in). Never prepend a scratchpad, sandbox, or session root onto an already-absolute path, and never join two absolute paths. `--json` prints to **stdout** and writes no file.
 
 Read `knowledge/review-template.md` for the structure.
 
-**If `--json`: the JSON object is the ONLY output for this run — non-negotiable, not model discretion.** Emit the aggregated JSON object per the schema in [`output-format.md`](output-format.md#aggregated-json-result---json-flag) to **stdout**, write no file, and **stop: do not proceed to step 8 or step 9 in this run, regardless of how many issues were found or whether any are actionable.** There is no fallback to prose, and no `corrections/`/`.review-passed` persistence, in `--json` mode — ever. (`/pr`'s `--json` call already only reads this JSON object's `overall`/`status` field, so this loses nothing a caller depends on.)
+**If `--json`: the JSON object is the ONLY thing printed to stdout for this run — non-negotiable, not model discretion.** Emit the aggregated JSON object per the schema in [`output-format.md`](output-format.md#aggregated-json-result---json-flag) to **stdout**, write no report file, and **skip step 8 in this run, regardless of how many issues were found or whether any are actionable.** There is no fallback to prose, and no `corrections/` persistence, in `--json` mode — ever. (`/pr`'s `--json` call already only reads this JSON object's `overall`/`status` field, so this loses nothing a caller depends on.)
 
-**When step 6a ran, consult its escalation state before computing `overall` here (issue #1880).** If step 6a exited via escalation (round-cap, iteration limit, or "same issues persist" — see that step's "Record the escalation state for step 7" note), force `overall: "fail"` in this JSON object, exactly like the `dispatchFailures` override — apply it after the totals-based computation so it always wins. This is the same rule stated in [`output-format.md`](output-format.md#aggregated-json-result---json-flag); it is restated here because step 9, where this escalation previously only mattered for the `.review-passed` gate, never runs under `--json`. A clean `converged` exit (or a run that never entered the fix loop at all — zero actionable issues) does not trigger this override.
+**Step 9 is NOT skipped by `--json` (issue #1904 Bug 2b) — emitting `--json` output and writing the PR-time gate file are orthogonal concerns.** `/pr`'s only path to `gh pr create` (`skills/pr/SKILL.md` step 2.4) invokes `/code-review --since "$BASE" --json` — so a review that is BOTH `--json` AND scoped via `--since <base>` is exactly the shape that must reach step 9, or `.claude/memory/.pr-review-passed` is never written on the only path that actually opens a PR, leaving `PR_GATE_BYPASS_REASON` as the only way to ever open one (the "gate that cannot fail is worse than no gate" anti-pattern this repo's own root `CLAUDE.md` names explicitly). After emitting the JSON object above, continue to step 9 unconditionally — its own scope condition already narrows correctly (a no-op for `--path`/`--all`/full-repository scope, same as before). Anything step 9 itself produces (boundary events, file writes) goes to disk or stderr, never stdout — stdout must stay pure JSON.
+
+**When step 6a ran, consult its escalation state before computing `overall` here (issue #1880).** If step 6a exited via escalation (round-cap, iteration limit, or "same issues persist" — see that step's "Record the escalation state for step 7" note), force `overall: "fail"` in this JSON object, exactly like the `dispatchFailures` override — apply it after the totals-based computation so it always wins. This is the same rule stated in [`output-format.md`](output-format.md#aggregated-json-result---json-flag); it is restated here because step 9, where this escalation previously only mattered for the `.pr-review-passed` gate, never runs under `--json`. A clean `converged` exit (or a run that never entered the fix loop at all — zero actionable issues) does not trigger this override.
 
 **A sentence describing the JSON is not the JSON.** A completed run whose final text reads like "Aggregated JSON emitted to stdout per `--json` contract; run stops here" — with no `{...}` object actually present anywhere in that text — is a contract violation, not compliance, even though it correctly stopped rather than proceeding further. The literal final output of the turn must be the JSON object itself, not a narration of having produced it. If the next action being considered is a summary sentence announcing that the JSON was (or is about to be) emitted, that is the signal to emit the actual object instead — there is no valid end state for a `--json` run that consists of prose alone.
 
@@ -770,37 +778,61 @@ non-fatal.
 
 ### 8. Save correction prompts for remaining issues
 
-**Skip this entire step if `--json` was set.** Step 7 already stopped the run for `--json` mode; corrections are never written to disk in `--json` mode.
+**Skip this entire step if `--json` was set.** Step 7 already skips this step for `--json` mode; corrections are never written to disk in `--json` mode. (Step 9, unlike this step, is NOT skipped by `--json` — see that step's own condition.)
 
 For issues NOT auto-fixed (confidence: none, auto-fix failed, or suggestions), generate one correction prompt per issue using the Correction prompt schema in [`output-format.md`](output-format.md#correction-prompt-json). Save to `./corrections/` **in the target repository's working directory** (the cwd `/code-review` was invoked in). Write all output artifacts only to these repo-relative paths — never prepend a scratchpad, sandbox, or session root, and never join two absolute paths. These can be addressed manually or via `/apply-fixes`.
 
 ### 9. Write pre-commit gate file
 
-**Skip this entire step if `--json` was set** (same reason as step 8).
+**This step is NOT skipped by `--json` (issue #1904 Bug 2b) — see step 7's own note.** It applies whenever the scope condition below holds, `--json` or not; step 7 only skips step **8** for `--json`.
 
-**Dispatch failures block the gate (issue #1752).** If step 5's `dispatchFailures` list is non-empty — any agent that failed dispatch and then failed its single retry — do not write `.review-passed`, regardless of the overall status computed from the agents that did return. The same rationale as step 3's `unreadable-registry` treatment: a lens that never ran is a coverage gap, not a passing result, so this condition is checked **before** the status check below, not folded into it. This prose rule now has a mechanical backstop (issue #1763), scoped to this legacy staged-content path: `hooks/pre_commit_review.py`'s `_dispatch_failure_verdict` independently vetoes the gate write when a `dispatch-failure` boundary event (emitted at Step 4, above) is on record for the current staged content — so a bug or a future caller that skips this step's condition, or writes `.review-passed` directly, still can't silently bypass it on this path. Two disclosed limits, neither exploitable today but both worth naming rather than silently assuming away (#1763 security review):
+**Dispatch failures block the gate (issue #1752).** If step 5's `dispatchFailures` list is non-empty — any agent that failed dispatch and then failed its single retry — do not write `.pr-review-passed`: `.pr-review-passed` must not be written while any dispatch failure is outstanding, regardless of the overall status computed from the agents that did return. The same rationale as step 3's `unreadable-registry` treatment: a lens that never ran is a coverage gap, not a passing result, so this condition is checked **before** the status check below, not folded into it. This prose rule now has a mechanical backstop (issue #1763, carried forward to the PR-time gate by #1886): `hooks/pre_pr_review.py`'s own `_dispatch_failure_verdict` independently vetoes the gate at `gh pr create` time when a `dispatch-failure` boundary event (emitted at Step 4, above) is on record for the current branch-diff content — so a bug or a future caller that skips this step's condition, or writes `.pr-review-passed` directly, still can't silently bypass it on this path. Two disclosed limits, neither exploitable today but both worth naming rather than silently assuming away (#1763 security review):
 
-- The backstop is inert on [`sliced-mode.md`](sliced-mode.md)'s path: sliced mode auto-engages only on a full-repo scope with nothing staged, so `review_gate_hash()` returns the fixed empty-diff digest for every sliced dispatch-failure emission — a hash `.review-passed` can never carry, since sliced mode never writes that file (it replaces this step entirely, report-only). Harmless only because that replacement holds; it is not a security precondition this backstop enforces on its own.
-- The backstop queries only the CURRENT staged-content hash. A dispatch failure recorded against an earlier hash — e.g. one orphaned by step 6a's fix loop re-staging to newer content before that step's own condition (above) is (mis)evaluated — is not queried here; only the cosmetic-delta carry-forward lens unions multiple hash bindings, and only on the narrower cosmetic-mismatch path it itself covers.
+- The backstop is inert on [`sliced-mode.md`](sliced-mode.md)'s path: sliced mode auto-engages only on a full-repo scope with nothing staged, and never writes `.pr-review-passed` at all — it replaces this step entirely, report-only — so the backstop's inertness there holds unconditionally, regardless of what `branch_diff_gate_hash()` evaluates to for that scope.
+- The backstop queries only the CURRENT branch-diff hash. A dispatch failure recorded against an earlier hash — e.g. one orphaned by a later commit landing on the same branch, or by step 6a's fix loop, before that step's own condition (above) is (mis)evaluated — is not queried here. `hooks/pre_pr_review.py` has no analogue of the retired cosmetic-delta carry-forward mechanism (deliberately dropped, per that module's own docstring) to union multiple hash bindings, so a branch-diff change since a real dispatch failure silently drops that failure's veto power until a fresh review re-emits it against the new hash.
 
-If the review was auto-scoped to uncommitted changes and the overall status is `pass` or `warn` **and step 6a did not exit with actionable issues outstanding** — whether via the iteration limit or the "not converging" exit, both of which are escalations, per that step's Exit conditions table (regardless of whether those outstanding issues are only `warning`-severity — either escalation overrides `warn` for this condition specifically, since escalating and then writing a passing gate anyway would silently defeat the escalation) — write `.review-passed` to `.claude/memory/` so the pre-commit hook allows the next commit. Use the **shared gate-hash helper** so the writer and the pre-commit hook compute the hash identically — it hashes the staged **content** (the cached patch), not just the file paths (#193), so any edit after review invalidates the gate:
+**Scope condition, extended by issue #1904 Bug 2b.** If the review was auto-scoped to uncommitted changes **OR scoped via `--since <base>`** — and the overall status is `pass` or `warn` **and step 6a did not exit with actionable issues outstanding** — whether via the iteration limit or the "not converging" exit, both of which are escalations, per that step's Exit conditions table (regardless of whether those outstanding issues are only `warning`-severity — either escalation overrides `warn` for this condition specifically, since escalating and then writing a passing gate anyway would silently defeat the escalation) — write `.pr-review-passed` to `.claude/memory/` so `hooks/pre_pr_review.py` allows the next `gh pr create` (#1886). Use the **shared gate-hash helper**, in its `--branch-diff` mode, so the writer and the pre-PR hook compute the hash identically — it hashes the branch's diff against its base (`git diff <base>...HEAD`), not the staged patch, so a commit landed on the branch after this write invalidates the gate:
+
+**Why `--since <base>` belongs here (closing the gap Bug 2b's premise names):** `/pr`'s only path to `gh pr create` (`skills/pr/SKILL.md` step 2.4) invokes `/code-review --since "$BASE" --json` — before this fix, this condition fired ONLY for auto-scoped uncommitted changes, so `.claude/memory/.pr-review-passed` was NEVER written on the one real path that opens a PR, making `PR_GATE_BYPASS_REASON` the only way to ever open one (the "gate that cannot fail is worse than no gate" anti-pattern named in this repo's own root `CLAUDE.md`). This also resolves the hash-timing-mismatch the auto-scope path still has (see the "Known limitation" note below): `/pr`'s step 1 requires a CLEAN working tree before invoking `--since`, so the hash computed here — AFTER those commits already landed — is computed against exactly the same content `hooks/pre_pr_review.py` recomputes at `gh pr create` time; there is no "staged while uncommitted" content this write could omit.
 
 ```bash
-HASH=$(python3 "${CLAUDE_PLUGIN_ROOT}/hooks/lib/review_gate_hash.py")
-NORM=$(python3 "${CLAUDE_PLUGIN_ROOT}/hooks/lib/review_gate_normalized_hash.py" || true)
-mkdir -p .claude/memory && printf '%s\n%s\n' "$HASH" "$NORM" > .claude/memory/.review-passed
+HASH=$(python3 "${CLAUDE_PLUGIN_ROOT}/hooks/lib/review_gate_hash.py" --branch-diff)
+mkdir -p .claude/memory && printf '%s\n' "$HASH" > .claude/memory/.pr-review-passed
 ```
 
-The **second line** is the normalization-invariant hash (#1627). It lets the
-pre-commit gate carry this review's corroboration forward across a later
-re-stage that provably changed no behavior — a whitespace fix, or a markdown
-edit alongside the reviewed code — instead of forcing fresh dispatches whose
-only purpose is to re-feed the ledger. Write it with the shared helper, never
-by hand: the hook recomputes the same value from the staged content at gate
-time and compares, so a hand-authored or stale second line simply fails to
-match and the gate behaves exactly as it did before this line existed. If the
-helper fails (`$NORM` empty), the file degrades to raw-only and the gate falls
-back to today's behavior — that is the intended failure mode, not an error.
+Single line, unlike the retired `.review-passed`'s two-line format —
+`hooks/pre_pr_review.py`'s own `_stored_gate_hash()` reads only the first
+line. There is no normalization-invariant second line here: the
+cosmetic-delta carry-forward mechanism that line existed for (#1627) was
+deliberately dropped for this gate (per `pre_pr_review.py`'s own docstring),
+since it fires once, at PR-creation time, rather than at every commit — the
+friction that mechanism relieved does not arise here.
+
+**Known limitation, narrowed by issue #1904 Bug 2b (was #1886 follow-up).**
+`agent_dispatch_ledger.py` stamps a dispatch's `subject_hash` with
+`review_gate_hash()` (the staged `--cached` diff) whenever something IS
+staged, but falls back to `branch_diff_gate_hash(default_base_ref(cwd),
+cwd)` — the SAME content domain this step writes and
+`hooks/pre_pr_review.py` checks — whenever nothing is staged (see that
+hook's own module docstring for the fallback's rationale). For a `--since
+<base>`-scoped review, nothing is EVER staged (`/pr`'s step 1 requires a
+clean working tree first), so every dispatch during that review stamps the
+branch-diff hash directly — the write above and every corroborating
+dispatch now agree on one content domain for this mode, closing the gap for
+the shape #1886 identified it in.
+
+The residual gap that remains is narrower: on an **auto-scoped
+uncommitted-changes** review with multiple separate review-and-commit
+cycles on the same branch, a dispatch's staged-diff `subject_hash` and this
+step's branch-diff hash are mathematically identical only in the common
+single-commit-then-PR shape (a branch cut from its base, reviewed once
+while staged, committed, then a PR opened immediately) — exactly as before.
+On a branch with multiple such cycles, the branch-diff hash written here
+will not match an EARLIER cycle's dispatch `subject_hash`, and
+`hooks/pre_pr_review.py` correctly fails closed at `gh pr create` time,
+requiring a fresh `/code-review` run against the branch's current diff (or
+a `--since <base>`-scoped re-review, which now closes cleanly per the
+paragraph above) before opening the PR.
 
 **If `--agent <name>` was used** (a sanctioned single-agent review — it deliberately dispatches exactly 1 agent, which can never clear the dispatch-ledger gate's `>= 2` distinct-dispatch floor on its own), record that as an explicit, auditable exemption event bound to this same hash **contemporaneously** with the write above — same pattern as the doc-only short-circuit's exemption event (step 1a):
 
@@ -808,6 +840,6 @@ back to today's behavior — that is the intended failure mode, not an error.
 python3 "${CLAUDE_PLUGIN_ROOT}/hooks/lib/boundary_events.py" --event single-agent --subject-hash "$HASH"
 ```
 
-This step only runs when the review was auto-scoped to uncommitted changes (see the gate condition above), and that path already staged these changes in step 1, before any agent was dispatched — that ordering, not a re-stage here, is what makes this hash match the `subject_hash` `agent_dispatch_ledger.py` recorded at dispatch time (#1461), refreshed by step 6a's own re-staging when a fix loop ran. Do not `git add` a different file set at this point: staging something here that wasn't already staged (and therefore wasn't the reviewed, dispatch-hashed content) would write a gate hash with no corroborating dispatch evidence behind it.
+This step only runs when the review was auto-scoped to uncommitted changes or scoped via `--since <base>` (see the gate condition above). Do not `git add` a different file set, and do not recompute `$HASH` against different content, at this point: staging or hashing something other than what this run actually reviewed would write a gate hash unrelated to the review that produced it.
 
-If overall status is `fail`, do **not** write the gate file — the pre-commit hook will keep blocking until issues are resolved and the review re-run.
+If overall status is `fail`, do **not** write the gate file — `hooks/pre_pr_review.py` will keep blocking `gh pr create` until issues are resolved and the review re-run.

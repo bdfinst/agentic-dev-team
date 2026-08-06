@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
-"""scan_banned_scripts.py — PostToolUse backstop for
-scan_bash_for_banned_scripts.py (#1755).
+"""scan_worktree_for_banned_scripts.py — PostToolUse backstop for
+scan_bash_command_for_banned_scripts.py (#1755).
 
 The PreToolUse scan only intercepts a *Bash command string*; a banned
 `.sh`/`.bash`/`.bat`/`.cmd`/`.ps1` file written any other way (the `Write` or
@@ -114,11 +114,17 @@ def _porcelain_paths(root: Path) -> list[str]:
     return paths
 
 
-def _files_in_untracked_dir(root: Path, rel_dir: str) -> list[str]:
+def _files_in_untracked_dir(root: Path, rel_dir: str) -> tuple[list[str], bool]:
     """Recurse into a wholly-new untracked directory (a porcelain entry
     ending in `/`), returning banned-extension files found inside, relative
     to `root` in POSIX form. Bounded by `_MAX_UNTRACKED_DIR_ENTRIES` and
     fails open (returns whatever was found so far) on any OS error.
+
+    Returns `(hits, truncated)` — `truncated` is `True` when the walk hit
+    `_MAX_UNTRACKED_DIR_ENTRIES` before exhausting the directory (#1904 item
+    8): a directory with more entries than the cap can hide a banned script
+    behind it, so the caller must be able to tell an exhaustive scan apart
+    from a capped one instead of treating both as equally complete.
 
     Relativizes via the known `root`/`rel_dir` prefix, not `path.resolve()`
     — resolving would follow a symlink named e.g. `evil.sh` to its target,
@@ -128,9 +134,11 @@ def _files_in_untracked_dir(root: Path, rel_dir: str) -> list[str]:
     this walk must not be the one gap in an otherwise-consistent scan.
     """
     hits: list[str] = []
+    truncated = False
     try:
         for count, path in enumerate((root / rel_dir).rglob("*")):
             if count >= _MAX_UNTRACKED_DIR_ENTRIES:
+                truncated = True
                 break
             if not (path.is_file() or path.is_symlink()):
                 continue
@@ -142,28 +150,37 @@ def _files_in_untracked_dir(root: Path, rel_dir: str) -> list[str]:
                 continue
             hits.append(rel)
     except OSError:
-        return hits
-    return hits
+        return hits, truncated
+    return hits, truncated
 
 
-def find_banned_files(root: Path) -> list[str]:
+def find_banned_files(root: Path) -> tuple[list[str], list[str]]:
+    """Returns `(hits, truncated_dirs)`. `truncated_dirs` lists every
+    untracked directory (relative to `root`, POSIX form) whose recursive
+    walk hit `_MAX_UNTRACKED_DIR_ENTRIES` before finishing — a non-empty
+    list means `hits` may be incomplete for reasons other than "no banned
+    scripts exist" (#1904 item 8)."""
     hits = set()
+    truncated_dirs: list[str] = []
     for rel in _porcelain_paths(root):
         if rel.endswith("/"):
             # A brand-new untracked directory — expand it on disk (#1879)
             # rather than checking the directory path string itself.
             if not rel.startswith(SCOPED_PREFIX):
                 continue
-            for found in _files_in_untracked_dir(root, rel):
-                if found in ALLOWED_RELATIVE_PATHS:
+            found, truncated = _files_in_untracked_dir(root, rel)
+            if truncated:
+                truncated_dirs.append(rel)
+            for f in found:
+                if f in ALLOWED_RELATIVE_PATHS:
                     continue
-                hits.add(found)
+                hits.add(f)
             continue
         if not rel.startswith(SCOPED_PREFIX) or rel in ALLOWED_RELATIVE_PATHS:
             continue
         if rel.lower().endswith(BANNED_EXTENSIONS):
             hits.add(rel)
-    return sorted(hits)
+    return sorted(hits), sorted(truncated_dirs)
 
 
 def main() -> int:
@@ -181,8 +198,25 @@ def main() -> int:
         return 0
 
     root = project_root(cwd)
-    hits = find_banned_files(root)
+    hits, truncated_dirs = find_banned_files(root)
+
+    truncation_note = None
+    if truncated_dirs:
+        truncation_note = (
+            "[NOTE] scan of "
+            + ", ".join(truncated_dirs)
+            + f" stopped after {_MAX_UNTRACKED_DIR_ENTRIES} entries; "
+            "result may be incomplete."
+        )
+
     if not hits:
+        # (#1904 item 8) A truncated scan found nothing WITHIN the entries
+        # it walked, but that is not the same claim as "no banned scripts
+        # exist" — surface the note even though this path still fails open
+        # (exit 0), matching this hook's fail-open contract.
+        if truncation_note:
+            sys.stdout.write(truncation_note + "\n")
+            sys.stderr.write(truncation_note + "\n")
         return 0
 
     message = (
@@ -193,6 +227,8 @@ def main() -> int:
         "two documented bootstrap-shim exceptions "
         "(plugins/dev-team/install.sh, plugins/dev-team/hooks/py.sh)."
     )
+    if truncation_note:
+        message += " " + truncation_note
     sys.stdout.write(message + "\n")
     sys.stderr.write(message + "\n")
     return 2

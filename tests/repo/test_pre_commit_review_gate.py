@@ -1,9 +1,15 @@
-"""#193 - the review gate binds staged CONTENT (via review-gate-hash.sh), so
-editing a reviewed file after the gate is written re-blocks the commit. Both
-the writer (/code-review step 9) and the reader (pre-commit-review.sh) use
-the one shared helper, so they cannot diverge.
+"""#193 - the review gate binds diff CONTENT (via review-gate-hash.sh /
+branch_diff_gate_hash), so editing a reviewed file re-blocks the gate.
 
-Ported from tests/repo/review_gate_hash_tests.bats (#673).
+#1886: the review-corroboration gate moved from `git commit` to
+`gh pr create`. `pre_commit_review.py` (this file's original subject) is now
+a documented no-op — every scenario this file used to pin against it now
+belongs to `pre_pr_review.py`, ported below at the new trigger point. See
+`plugins/dev-team/tests/hooks/test_pre_pr_review.py` for the fuller unit
+coverage; these repo-level tests keep the historical #193/#673 pointer alive
+at the new mechanism.
+
+Originally ported from tests/repo/review_gate_hash_tests.bats (#673).
 """
 
 from __future__ import annotations
@@ -18,15 +24,14 @@ import pytest
 
 from _repo_root import REPO_ROOT
 
-HOOK = REPO_ROOT / "plugins" / "dev-team" / "hooks" / "pre_commit_review.py"
+COMMIT_HOOK = REPO_ROOT / "plugins" / "dev-team" / "hooks" / "pre_commit_review.py"
+PR_HOOK = REPO_ROOT / "plugins" / "dev-team" / "hooks" / "pre_pr_review.py"
 GATEHASH = REPO_ROOT / "plugins" / "dev-team" / "hooks" / "lib" / "review_gate_hash.py"
 
 
 @pytest.fixture
 def work(tmp_path: Path, hermetic_env: dict[str, str]) -> Path:
-    subprocess.run(
-        ["git", "init", "-q"], cwd=str(tmp_path), env=hermetic_env, check=True
-    )
+    subprocess.run(["git", "init", "-q", "-b", "main"], cwd=str(tmp_path), env=hermetic_env, check=True)
     subprocess.run(
         ["git", "config", "user.email", "t@t.dev"],
         cwd=str(tmp_path),
@@ -38,6 +43,14 @@ def work(tmp_path: Path, hermetic_env: dict[str, str]) -> Path:
         cwd=str(tmp_path),
         env=hermetic_env,
         check=True,
+    )
+    (tmp_path / "base.txt").write_text("base\n")
+    subprocess.run(["git", "add", "base.txt"], cwd=str(tmp_path), env=hermetic_env, check=True)
+    subprocess.run(
+        ["git", "commit", "-q", "-m", "initial"], cwd=str(tmp_path), env=hermetic_env, check=True
+    )
+    subprocess.run(
+        ["git", "checkout", "-q", "-b", "feature"], cwd=str(tmp_path), env=hermetic_env, check=True
     )
     return tmp_path
 
@@ -55,12 +68,12 @@ def _git(
     )
 
 
-def _commit_hook(
+def _pr_create_hook(
     work: Path, hermetic_env: dict[str, str]
 ) -> subprocess.CompletedProcess:
-    payload = json.dumps({"tool_input": {"command": "git commit -m x"}})
+    payload = json.dumps({"tool_input": {"command": "gh pr create"}, "cwd": str(work)})
     return subprocess.run(
-        [sys.executable, str(HOOK)],
+        [sys.executable, str(PR_HOOK)],
         cwd=str(work),
         env=hermetic_env,
         input=payload,
@@ -70,58 +83,60 @@ def _commit_hook(
     )
 
 
-def _write_gate(work: Path, hermetic_env: dict[str, str]) -> None:
+def test_commit_hook_is_now_a_no_op(work: Path, hermetic_env: dict[str, str]) -> None:
+    """#1886: the commit-time gate is gone — a bare `git commit` allows
+    unconditionally, with no gate file and no dispatch evidence needed."""
+    (work / "a.ts").write_text("v1\n")
+    _git(work, hermetic_env, "add", "a.ts")
+    payload = json.dumps({"tool_input": {"command": "git commit -m x"}, "cwd": str(work)})
+    result = subprocess.run(
+        [sys.executable, str(COMMIT_HOOK)],
+        cwd=str(work),
+        env=hermetic_env,
+        input=payload,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    assert result.returncode == 0
+
+
+def _branch_diff_hash(work: Path, hermetic_env: dict[str, str]) -> str:
     result = subprocess.run(
         [sys.executable, str(GATEHASH)],
         cwd=str(work),
         env=hermetic_env,
         capture_output=True,
         text=True,
-        check=True,
+        check=False,
     )
-    gate_path = work / ".claude" / "memory" / ".review-passed"
+    # review_gate_hash.py's CLI prints review_gate_hash() (staged patch), not
+    # the branch-diff hash — compute the latter directly via the library.
+    del result
+    sys.path.insert(0, str(GATEHASH.parent))
+    import review_gate_hash as _rgh  # type: ignore[import-not-found]
+
+    return _rgh.branch_diff_gate_hash("main", cwd=work)
+
+
+def _write_gate(work: Path, hermetic_env: dict[str, str]) -> None:
+    h = _branch_diff_hash(work, hermetic_env)
+    gate_path = work / ".claude" / "memory" / ".pr-review-passed"
     gate_path.parent.mkdir(parents=True, exist_ok=True)
-    gate_path.write_text(result.stdout)
+    gate_path.write_text(h)
 
 
-def _write_dispatch_evidence(work: Path) -> None:
+def _write_dispatch_evidence(work: Path, hermetic_env: dict[str, str]) -> None:
     """Seed .claude/metrics/boundary-events.jsonl with 2 distinct genuine
-    review-agent dispatches (#1461) — required, alongside the hash match,
-    for the gate to accept a write since the dispatch-ledger corroboration
-    hardening. See plugins/dev-team/tests/hooks/test_pre_commit_review.py
-    for the full scenario coverage; this helper only seeds the passing case
-    these repo-level gate tests need.
-
-    Stamps `subject_hash` (#1461 security review) to the CURRENT staged
-    content's hash — recomputed the same way `_write_gate` does — so this
-    evidence corroborates THIS test's changeset, not an unrelated one."""
-    result = subprocess.run(
-        [sys.executable, str(GATEHASH)],
-        cwd=str(work),
-        capture_output=True,
-        text=True,
-        check=True,
-    )
-    subject_hash = result.stdout.strip()
+    review-agent dispatches (#1461/#1886), bound to the CURRENT branch-diff
+    hash."""
+    subject_hash = _branch_diff_hash(work, hermetic_env)
     log = work / ".claude" / "metrics" / "boundary-events.jsonl"
     log.parent.mkdir(parents=True, exist_ok=True)
-    # Anchor the seeded dispatch timestamp to the gate file's OWN mtime — which
-    # is exactly what the hook uses as the recency window's upper bound
-    # (`before_ts`; see review_gate_corroboration.mtime_to_iso). The window is
-    # inclusive-upper: `(before_ts - WINDOW_SECONDS, before_ts]`.
-    #
-    # Stamping wall-clock `now()` here was flaky under `pytest -n auto` (#1505):
-    # this evidence is written just AFTER `_write_gate`, and both timestamps are
-    # truncated to whole seconds. Under worker contention the gate-write and
-    # this evidence-write can straddle a 1-second boundary, so `now()` floors to
-    # one second LATER than the gate mtime — landing just past `before_ts` and
-    # falling outside the window ("outside the 1800s window"). Seeding a fixed
-    # margin BEFORE the gate mtime is immune to that boundary and to system
-    # load, while staying far inside the 1800s window.
-    gate_mtime = (work / ".claude" / "memory" / ".review-passed").stat().st_mtime
-    stamp = (
-        datetime.fromtimestamp(gate_mtime, tz=UTC) - timedelta(seconds=60)
-    ).strftime("%Y-%m-%dT%H:%M:%SZ")
+    # Anchored slightly in the past — the PR-time gate anchors its recency
+    # window on `now()` (see pre_pr_review.py's own docstring), not a gate
+    # file's mtime, so this just needs to land inside the window.
+    stamp = (datetime.now(UTC) - timedelta(seconds=60)).strftime("%Y-%m-%dT%H:%M:%SZ")
     with log.open("a", encoding="utf-8") as fh:
         for agent in ("security-review", "structure-review"):
             fh.write(
@@ -140,53 +155,43 @@ def _write_dispatch_evidence(work: Path) -> None:
             )
 
 
-def test_gate_exact_staged_content_that_was_reviewed_commits_cleanly(
+def test_gate_exact_branch_diff_that_was_reviewed_allows_pr_create(
     work: Path, hermetic_env: dict[str, str]
 ) -> None:
     (work / "a.ts").write_text("v1\n")
     _git(work, hermetic_env, "add", "a.ts")
+    _git(work, hermetic_env, "commit", "-q", "-m", "feature work")
+    _write_dispatch_evidence(work, hermetic_env)
     _write_gate(work, hermetic_env)
-    _write_dispatch_evidence(work)
-    result = _commit_hook(work, hermetic_env)
+    result = _pr_create_hook(work, hermetic_env)
     assert result.returncode == 0
     assert not (
-        work / ".claude" / "memory" / ".review-passed"
+        work / ".claude" / "memory" / ".pr-review-passed"
     ).is_file()  # consumed on success
 
 
-def test_gate_editing_a_reviewed_files_content_reblocks_the_commit(
+def test_gate_editing_a_reviewed_files_content_reblocks_pr_create(
     work: Path, hermetic_env: dict[str, str]
 ) -> None:
     (work / "a.ts").write_text("v1\n")
     _git(work, hermetic_env, "add", "a.ts")
-    _write_gate(work, hermetic_env)  # reviewed a.ts @ v1
+    _git(work, hermetic_env, "commit", "-q", "-m", "feature work")
+    _write_gate(work, hermetic_env)  # reviewed the branch diff @ v1
     (work / "a.ts").write_text("v2-unreviewed\n")
-    _git(work, hermetic_env, "add", "a.ts")  # same path, new content
-    result = _commit_hook(work, hermetic_env)
-    assert result.returncode == 2  # FIXED: blocked (was 0 under path-only hash)
+    _git(work, hermetic_env, "add", "a.ts")
+    _git(work, hermetic_env, "commit", "-q", "-m", "unreviewed follow-up")
+    result = _pr_create_hook(work, hermetic_env)
+    assert result.returncode == 2
     assert "BLOCKED" in result.stdout + result.stderr
 
 
-def test_gate_staging_an_extra_unreviewed_file_reblocks_the_commit(
-    work: Path, hermetic_env: dict[str, str]
-) -> None:
-    (work / "a.ts").write_text("v1\n")
-    _git(work, hermetic_env, "add", "a.ts")
-    _write_gate(work, hermetic_env)
-    (work / "b.ts").write_text("new\n")
-    _git(work, hermetic_env, "add", "b.ts")
-    result = _commit_hook(work, hermetic_env)
-    assert result.returncode == 2
-
-
-def test_gate_writer_and_hook_compute_the_same_content_hash(
+def test_gate_writer_and_hook_compute_the_same_branch_diff_hash(
     work: Path, hermetic_env: dict[str, str]
 ) -> None:
     (work / "a.ts").write_text("line1\nline2\n")
     _git(work, hermetic_env, "add", "a.ts")
-    # the helper's output (writer) must equal the hash the hook recomputes
-    # (reader)
+    _git(work, hermetic_env, "commit", "-q", "-m", "feature work")
+    _write_dispatch_evidence(work, hermetic_env)
     _write_gate(work, hermetic_env)
-    _write_dispatch_evidence(work)
-    result = _commit_hook(work, hermetic_env)
+    result = _pr_create_hook(work, hermetic_env)
     assert result.returncode == 0

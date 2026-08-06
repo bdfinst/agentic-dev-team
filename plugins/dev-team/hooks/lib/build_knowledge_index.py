@@ -140,6 +140,165 @@ _H2_RE = re.compile(r"^## (.+)$")
 _H1_RE = re.compile(r"^# ")
 _BULLET_RE = re.compile(r"^[ \t]*[-*+][ \t]+")
 
+# ---------------------------------------------------------------------------
+# Include-marker resolution — `<!-- include: <path> -->` splices another
+# file's content in place of the marker line (introduced by /test-improve's
+# SKILL.md split, plans/test-improve-context-loading-strategy.md Step 1.1).
+# A section body that is only the marker line has no real content of its
+# own — resolve it to the first prose line of the referenced file so the
+# summary is a real sentence, not the literal marker text. General-purpose:
+# any file under the corpus may use this convention, not just test-improve.
+#
+# INCLUDE_MARKER_RE/MAX_INCLUDE_DEPTH are public: tests/skills/
+# skill_include_resolver.py (which cannot be imported *from* here, since
+# that module lives under tests/) imports them from here rather than
+# re-declaring its own copies, so the grammar and recursion budget have one
+# owner instead of two hand-kept-equal ones. Every marker — at any recursion
+# depth — must carry a single-path-segment `references/<name>.md` path (no
+# `/` inside `<name>`, matching knowledge_index_paths.CORPUS_REGEX's own
+# shape and closing off `../` traversal at the regex level), and every path
+# resolves against the ORIGINAL including file's own directory (`root`),
+# pinned for every recursive call. A marker inside an already-spliced-in
+# reference file is still relative to the top-level file's directory, never
+# rebased to the nested target's own directory.
+# ---------------------------------------------------------------------------
+
+# Excludes both `/` and `\` from the captured segment — not just `/` — so
+# the traversal closure holds on Windows too, where `\` is also a path
+# separator (a POSIX-only `[^/\s]+` would let `references/..\..\outside.md`
+# through the regex and rely on the resolve()/containment check below as
+# the only backstop there instead of a second, independent layer).
+INCLUDE_MARKER_RE = re.compile(r"^<!-- include: (references/[^/\\\s]+\.md) -->$")
+MAX_INCLUDE_DEPTH = 5
+
+# Deliberately unbounded (`#+`, not `#{1,6}`) to match _H4_PLUS_RE's own
+# unbounded run — a `####### ` (7+ `#`s) line is a heading to
+# extract_sections and must be one here too, or a body line that IS a
+# heading there would be returned verbatim as a section summary here.
+# One known, accepted residual divergence from extract_sections()'s
+# _H2_RE/_H3_RE (which require content after the `#`s via `(.+)`): a bare
+# `##`/`###` with nothing following is body text to extract_sections but a
+# heading here. Needs degenerate markdown ("## " on a line by itself) that
+# doesn't exist in this corpus today; this pattern's own contract is
+# stated on its own terms — skip an ATX heading (1+ `#`s, space or
+# end-of-line) — never assumed to be full parity with extract_sections's
+# regexes.
+_HEADING_LINE_RE = re.compile(r"^#+( |$)")
+
+
+def resolve_contained_target(target: Path, root: Path) -> Path | None:
+    """Resolve `target` and verify it is a symlink-free descendant of
+    `root`. Returns the resolved `Path` on success, `None` if `target` is a
+    symlink, its resolution escapes `root`, or resolution itself fails (a
+    NUL byte or other unencodable component raises `ValueError`, not
+    `OSError`, from `Path.resolve()` — both are caught here so a malformed
+    marker degrades to the caller's own not-found handling instead of
+    crashing it).
+
+    Existence is deliberately NOT checked here: "target doesn't exist" and
+    "target fails containment" are different event classes, and callers
+    that want to tell them apart check `.is_file()` on the returned path
+    themselves. Shared by `_resolve_include_marker` below and
+    `tests/skills/skill_include_resolver.py`'s `_splice` (imported from
+    here rather than re-implemented) — the two differ only in what they do
+    with a `None` result (fail open to literal text vs. raise), not in the
+    containment logic itself.
+
+    `is_symlink()` is inside the same try as `resolve()`, not before it:
+    this repo's own convention is not to rely on an unverified claim about a
+    library's internal error-swallowing behavior as a safety guarantee (see
+    root CLAUDE.md's "validate the property explicitly in your own code
+    instead") — the explicit `except (OSError, ValueError)` below is what
+    actually closes the must-never-crash gap, not an assumption that
+    `is_symlink()` never raises."""
+    try:
+        if target.is_symlink():
+            return None
+        resolved_root = root.resolve()
+        resolved_target = target.resolve()
+    except (OSError, ValueError):
+        return None
+    if not resolved_target.is_relative_to(resolved_root):
+        return None
+    return resolved_target
+
+
+def _skip_fenced_lines(lines):
+    """Yields only lines outside fenced (```) code blocks — the fence
+    markers themselves and everything between a matched pair are dropped.
+    Shared by extract_sections() and _first_prose_line() so the fence-toggle
+    idiom has one implementation instead of two independently maintained
+    copies."""
+    in_code = False
+    for raw_line in lines:
+        line = raw_line.rstrip("\n")
+        if _FENCE_RE.match(line):
+            in_code = not in_code
+            continue
+        if in_code:
+            continue
+        yield line
+
+
+def _first_prose_line(path: Path) -> str:
+    """First non-blank, non-heading line outside fenced code blocks,
+    bullet-stripped. Heading detection uses `_HEADING_LINE_RE` (an ATX
+    heading: 1 or more `#`s followed by a space or end-of-line) — a
+    narrower, own-terms rule than a bare `line.startswith(\"#\")`, so a body
+    line like `#1787 tracks this` is correctly treated as prose, not a
+    heading."""
+    try:
+        with path.open("r", encoding="utf-8", errors="replace") as fh:
+            for line in _skip_fenced_lines(fh):
+                if not line.strip():
+                    continue
+                if _HEADING_LINE_RE.match(line):
+                    continue
+                return _BULLET_RE.sub("", line, count=1)
+    except OSError:
+        return ""
+    return ""
+
+
+def _resolve_include_marker(body: str, root: Path, depth: int = 0) -> str:
+    """If `body` is exactly an `<!-- include: references/<path>.md -->`
+    marker line, resolve it to the first prose line of the referenced file
+    (resolved against `root` — the ORIGINAL including file's own directory,
+    pinned for every recursive call and never rebased to a nested target's
+    own directory), recursing through nested markers up to
+    `MAX_INCLUDE_DEPTH`. Returns `body` unchanged when it is not a marker,
+    the target fails `resolve_contained_target`'s containment check (a
+    symlink, an escape from `root`, or a resolution failure such as a NUL
+    byte — logged to stderr, since any of these is a different event class
+    from an ordinary authoring mistake), the target file doesn't exist, the
+    target has no prose line, or the recursion budget is exhausted.
+
+    Design choice, deliberate and different from the mirror: the mirror
+    (tests/skills/skill_include_resolver.py) raises RecursionError on a
+    cycle/over-depth include, which is fine for a test assertion to be
+    strict about. This is a build tool over a whole corpus that must never
+    crash on a cycle — it falls back to the literal unresolved marker text
+    instead, same as the missing-file and no-prose-line fallbacks above.
+    """
+    m = INCLUDE_MARKER_RE.match(body.strip())
+    if not m or depth > MAX_INCLUDE_DEPTH:
+        return body
+    target = root / m.group(1)
+    resolved_target = resolve_contained_target(target, root)
+    if resolved_target is None:
+        print(
+            f"warning: refusing include target {target} — symlink, "
+            f"escapes {root}, or could not be resolved",
+            file=sys.stderr,
+        )
+        return body
+    if not resolved_target.is_file():
+        return body
+    line = _first_prose_line(resolved_target)
+    if not line:
+        return body
+    return _resolve_include_marker(line, root, depth + 1)
+
 
 def extract_sections(path: Path) -> list:
     """Returns [(header, body), ...] in source order, with backfill applied."""
@@ -147,7 +306,6 @@ def extract_sections(path: Path) -> list:
     header = None
     body = ""
     collecting = False
-    in_code = False
 
     def flush():
         nonlocal header, body
@@ -157,13 +315,7 @@ def extract_sections(path: Path) -> list:
             body = ""
 
     with path.open("r", encoding="utf-8", errors="replace") as fh:
-        for raw_line in fh:
-            line = raw_line.rstrip("\n")
-            if _FENCE_RE.match(line):
-                in_code = not in_code
-                continue
-            if in_code:
-                continue
+        for line in _skip_fenced_lines(fh):
             if _H4_PLUS_RE.match(line):
                 flush()
                 collecting = False
@@ -190,6 +342,10 @@ def extract_sections(path: Path) -> list:
                 stripped = _BULLET_RE.sub("", line, count=1)
                 body = stripped
     flush()
+
+    rows = [
+        (header, _resolve_include_marker(body, path.parent)) for header, body in rows
+    ]
 
     # Backfill empty bodies from the next non-empty body in source order.
     for i in range(len(rows)):

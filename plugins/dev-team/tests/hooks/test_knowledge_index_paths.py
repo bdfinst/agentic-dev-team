@@ -47,6 +47,10 @@ def test_corpus_regex_is_valid_python_regex() -> None:
         # regex allows an optional leading "(^|/)" segment.
         "/abs/root/plugins/dev-team/knowledge/owasp-detection.md",
         "/abs/root/plugins/dev-team/skills/plan/SKILL.md",
+        # references/*.md — spliced into a SKILL.md summary via include
+        # markers (build_knowledge_index.py), so it must be in-corpus too.
+        "plugins/dev-team/skills/test-improve/references/phase-5-improve.md",
+        "/abs/root/plugins/dev-team/skills/test-improve/references/review-loop.md",
     ],
 )
 def test_is_corpus_path_matches_corpus_files(path: str) -> None:
@@ -73,6 +77,10 @@ def test_is_corpus_path_matches_corpus_files(path: str) -> None:
         "plans/foo.md",
         # a SKILL.md nested one level too deep is not the anchor
         "plugins/dev-team/skills/specs/nested/SKILL.md",
+        # a references/*.md file nested one level too deep is not the anchor
+        "plugins/dev-team/skills/specs/references/nested/detail.md",
+        # non-markdown references/ file
+        "plugins/dev-team/skills/specs/references/detail.json",
         # empty / degenerate
         "",
     ],

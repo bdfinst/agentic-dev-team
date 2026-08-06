@@ -9,16 +9,11 @@ from __future__ import annotations
 
 import re
 
-from skill_doc_helpers import PLUGIN_ROOT, collapsed, grep, section
-
-SKILL = PLUGIN_ROOT / "skills" / "test-improve" / "SKILL.md"
+from skill_doc_helpers import collapsed, grep, section
+from skill_include_resolver import resolve_test_improve_text as _text
 
 SUGGESTION_LINE_1 = r"Consider running /handoff to compress context"
 SUGGESTION_LINE_2 = r"--from-phase"
-
-
-def _text() -> str:
-    return SKILL.read_text()
 
 
 def _phase_1_section() -> str:

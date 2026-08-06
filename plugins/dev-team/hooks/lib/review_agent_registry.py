@@ -55,3 +55,62 @@ def registered_review_agent_names(agents_dir: Path) -> frozenset[str]:
     is never written to the ledger, not even as a rejected/flagged entry.
     """
     return frozenset(path.stem for path in find_review_agent_files(agents_dir))
+
+
+def default_agents_dir() -> Path:
+    """The plugin's own `agents/` directory (#1904 item 3) — the single
+    source of truth every review-agent registry consumer resolves against,
+    never the caller's own project `cwd`.
+
+    Always `.resolve()`d: several call sites that once built this path by
+    hand (`scripts/check_agent_tool_mapping.py`,
+    `scripts/check_review_agent_mcp_tools.py`,
+    `skills/code-review/scripts/repo_invariants.py`,
+    `scripts/check_agent_scope.py`) previously did so without `.resolve()` —
+    a latent behavioral difference under a symlinked checkout — now fixed by
+    construction, since each delegates here instead of re-deriving its own
+    copy. Not yet exhaustive: `scripts/verify_tier.py` still derives its own
+    `_AGENTS_DIR` independently (its `_PLUGIN_ROOT` is already resolved via
+    `Path(__file__).resolve()`, so it does not carry the same symlink bug,
+    but it remains a duplicate resolution path this module has not yet
+    absorbed).
+    """
+    # hooks/lib/review_agent_registry.py -> hooks/lib -> hooks -> plugin root
+    # -> agents
+    return Path(__file__).resolve().parents[2] / "agents"
+
+
+def read_registered_review_agent_names(agents_dir: Path) -> frozenset[str] | None:
+    """Checked variant of `registered_review_agent_names()` that owns the
+    read-failure-vs-empty distinction (#1904 item 1) instead of forcing every
+    consumer to reinvent it.
+
+    Returns `None` on a read failure (a missing or unreadable `agents_dir`);
+    a genuine `frozenset()` on a successful read that legitimately finds zero
+    `*-review.md` files. The two states require OPPOSITE treatment depending
+    on which side of a corroboration check consumes them: for POSITIVE
+    evidence (e.g. "which agents dispatched"), a caller may safely collapse
+    `None` to an empty set — narrowing corroboration can only ever narrow,
+    never widen, what counts as a passing gate. For NEGATIVE evidence (e.g.
+    "which agents have an unsuperseded dispatch failure"), collapsing `None`
+    to empty would WIDEN the result instead — every genuine negative-evidence
+    entry would be filtered out by an empty "registered" set, producing an
+    all-clear indistinguishable from "provably none". See
+    `hooks/lib/review_gate_corroboration.py`'s own docstring for the full
+    account of this asymmetry.
+
+    Two failure modes are checked EXPLICITLY here, not left to an exception:
+    `registered_review_agent_names()` globs `agents_dir.glob("*-review.md")`,
+    and `Path.glob()` does not raise for either — it silently yields nothing
+    for a missing directory and swallows a permission error. Without the
+    explicit `is_dir()` check, a missing/unreadable `agents_dir` would
+    produce an empty `frozenset()`, not `None`, defeating the very
+    distinction this function's contract promises.
+    """
+    path = Path(agents_dir)
+    if not path.is_dir():
+        return None
+    try:
+        return registered_review_agent_names(path)
+    except Exception:  # noqa: BLE001 - caller decides how to fail closed for its own evidence direction
+        return None

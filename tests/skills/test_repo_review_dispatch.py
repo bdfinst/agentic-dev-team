@@ -139,9 +139,10 @@ class TestRepoReviewSkillDispatchesTheFullRoster:
 
     def test_the_skill_is_report_only_no_gate_file(self):
         text = SKILL.read_text(encoding="utf-8")
-        # The skill legitimately *names* .review-passed once, to explain it
-        # never writes one — a bare substring check would flag that sentence.
-        assert "no `.review-passed` write" in text
+        # The skill legitimately *names* .pr-review-passed once, to explain
+        # it never writes one — a bare substring check would flag that
+        # sentence.
+        assert "no `.pr-review-passed` write" in text
         assert "never gates a commit" in text
 
     def test_the_skill_explains_the_separation(self):

@@ -7,18 +7,8 @@ Issue #968, Slice 1 Step 1.1.
 
 from __future__ import annotations
 
-from skill_doc_helpers import (
-    PLUGIN_ROOT,
-    grep,
-    grep_multiline,
-    phase_8_section,
-)
-
-SKILL = PLUGIN_ROOT / "skills" / "test-improve" / "SKILL.md"
-
-
-def _text() -> str:
-    return SKILL.read_text()
+from skill_doc_helpers import grep, grep_multiline, phase_8_section
+from skill_include_resolver import resolve_test_improve_text as _text
 
 
 def _phase_8_section() -> str:

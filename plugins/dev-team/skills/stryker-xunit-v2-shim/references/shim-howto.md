@@ -74,8 +74,11 @@ reuse a stale one and the gate re-asks. Add `--file <path>` per flagged file and
 `--note "<why>"` to leave the rationale in the record. `check --project
 <TestProject>` prints the stored decision and exits non-zero when there is none.
 
-Recorded decisions live in `.claude/metrics/xunit-v3-shim-decisions.json`
-(override with `DEV_TEAM_XUNIT3_SHIM_DECISION_FILE`).
+Recorded decisions live in `.claude/metrics/xunit-v3-shim-decisions.json` —
+no path override (#1870 dropped `DEV_TEAM_XUNIT3_SHIM_DECISION_FILE`
+entirely). Both the write and every later honor of a recorded decision emit a
+`boundary-events.jsonl` entry, so a self-recorded choice stays visible in the
+audit stream.
 
 ---
 

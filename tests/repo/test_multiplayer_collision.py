@@ -1,15 +1,20 @@
-"""#109 Phase 1 — reproduce the multiplayer collision that REMAINS even after the
-gate is content-bound (#193): two agents sharing ONE working tree share a
-single `.review-passed` file and clobber each other's gate. The resolution is
-operational, not a gate change — one git worktree per agent (see
-plugins/dev-team/docs/concurrent-use.md). The content-binding behavior itself
-is covered by test_review_gate_hash.py (plugins/dev-team/tests/hooks/).
+"""#109 Phase 1 — the multiplayer collision that REMAINS even after the gate
+is content-bound (#193): two agents sharing ONE working tree share a single
+gate file and clobber each other's evidence. The resolution is operational,
+not a gate change — one git worktree per agent (see
+plugins/dev-team/docs/concurrent-use.md).
 
-Ported from tests/repo/multiplayer_collision_tests.bats (issue #671). Uses
-pytest's `tmp_path` fixture for hermetic isolation instead of bats'
-tests/lib/hermetic.bash (same intent: a scratch git repo the pre-commit
-review hook can run `git commit` against without touching the parent
-worktree's refs).
+#1886: the review-corroboration gate moved from `git commit` to
+`gh pr create`, so this collision now applies to `.claude/memory/
+.pr-review-passed` at PR-creation time, not `.review-passed` at every
+commit. `pre_commit_review.py` (this file's original subject) is now a
+documented no-op — `git commit` always allows unconditionally, so the
+collision scenario no longer applies there at all. The scenario is ported
+below to `pre_pr_review.py`.
+
+Content-binding behavior itself is covered by test_review_gate_hash.py
+(plugins/dev-team/tests/hooks/). Originally ported from
+tests/repo/multiplayer_collision_tests.bats (issue #671).
 """
 
 from __future__ import annotations
@@ -25,7 +30,8 @@ import pytest
 
 from _repo_root import REPO_ROOT
 
-HOOK = REPO_ROOT / "plugins" / "dev-team" / "hooks" / "pre_commit_review.py"
+COMMIT_HOOK = REPO_ROOT / "plugins" / "dev-team" / "hooks" / "pre_commit_review.py"
+PR_HOOK = REPO_ROOT / "plugins" / "dev-team" / "hooks" / "pre_pr_review.py"
 LIB_DIR = REPO_ROOT / "plugins" / "dev-team" / "hooks" / "lib"
 
 if str(LIB_DIR) not in sys.path:
@@ -44,19 +50,23 @@ def _git_env() -> dict:
 @pytest.fixture
 def work(tmp_path: Path) -> Path:
     env = _git_env()
-    subprocess.run(["git", "init", "-q"], cwd=tmp_path, env=env, check=True)
+    subprocess.run(["git", "init", "-q", "-b", "main"], cwd=tmp_path, env=env, check=True)
     subprocess.run(
         ["git", "config", "user.email", "t@t.dev"], cwd=tmp_path, env=env, check=True
     )
     subprocess.run(
         ["git", "config", "user.name", "tester"], cwd=tmp_path, env=env, check=True
     )
+    (tmp_path / "base.txt").write_text("base\n")
+    subprocess.run(["git", "add", "base.txt"], cwd=tmp_path, env=env, check=True)
+    subprocess.run(["git", "commit", "-q", "-m", "initial"], cwd=tmp_path, env=env, check=True)
+    subprocess.run(["git", "checkout", "-q", "-b", "feature"], cwd=tmp_path, env=env, check=True)
     return tmp_path
 
 
 def _commit_hook(cwd: Path) -> subprocess.CompletedProcess:
     return subprocess.run(
-        [sys.executable, str(HOOK)],
+        [sys.executable, str(COMMIT_HOOK)],
         input='{"tool_input":{"command":"git commit -m x"}}',
         cwd=cwd,
         env=_git_env(),
@@ -66,20 +76,41 @@ def _commit_hook(cwd: Path) -> subprocess.CompletedProcess:
     )
 
 
+def _pr_create_hook(cwd: Path) -> subprocess.CompletedProcess:
+    payload = json.dumps({"tool_input": {"command": "gh pr create"}, "cwd": str(cwd)})
+    return subprocess.run(
+        [sys.executable, str(PR_HOOK)],
+        input=payload,
+        cwd=cwd,
+        env=_git_env(),
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+
+
+def test_commit_hook_no_longer_gates_so_there_is_no_commit_time_collision(
+    work: Path,
+) -> None:
+    """#1886: `git commit` allows unconditionally now — there is no gate
+    file left to collide over at commit time."""
+    (work / "a.ts").write_text("v1\n")
+    subprocess.run(["git", "add", "a.ts"], cwd=work, env=_git_env(), check=True)
+    result = _commit_hook(work)
+    assert result.returncode == 0
+
+
 def _write_gate(cwd: Path) -> None:
-    gate_path = cwd / ".claude" / "memory" / ".review-passed"
+    gate_path = cwd / ".claude" / "memory" / ".pr-review-passed"
     gate_path.parent.mkdir(parents=True, exist_ok=True)
-    gate_path.write_text(_rgh.review_gate_hash(cwd=cwd))
+    gate_path.write_text(_rgh.branch_diff_gate_hash("main", cwd=cwd))
 
 
 def _write_dispatch_evidence(cwd: Path) -> None:
     """Seed .claude/metrics/boundary-events.jsonl with 2 distinct genuine
-    review-agent dispatches (#1461) — required, alongside the hash match,
-    for the gate to accept a write since the dispatch-ledger corroboration
-    hardening. `subject_hash` (#1461 security review) is stamped to the
-    CURRENT staged content's hash so this evidence corroborates THIS test's
-    changeset, not an unrelated one."""
-    subject_hash = _rgh.review_gate_hash(cwd=cwd)
+    review-agent dispatches (#1461/#1886), bound to the CURRENT branch-diff
+    hash."""
+    subject_hash = _rgh.branch_diff_gate_hash("main", cwd=cwd)
     log = cwd / ".claude" / "metrics" / "boundary-events.jsonl"
     log.parent.mkdir(parents=True, exist_ok=True)
     now = datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
@@ -101,43 +132,33 @@ def _write_dispatch_evidence(cwd: Path) -> None:
             )
 
 
-def test_baseline_gate_written_for_current_staged_content_allows_commit(
+def test_baseline_gate_written_for_current_branch_diff_allows_pr_create(
     work: Path,
 ) -> None:
     (work / "a.ts").write_text("v1\n")
     subprocess.run(["git", "add", "a.ts"], cwd=work, env=_git_env(), check=True)
-    # Investigated under #1668: write dispatch evidence BEFORE the gate file,
-    # not after. The corroboration window is anchored on the gate file's own
-    # mtime (`before_ts`) and only accepts dispatch events with
-    # `ts <= before_ts` (whole-second resolution). Writing the gate first (as
-    # this test previously did) leaves the dispatch event's `datetime.now(UTC)`
-    # timestamp free to land in a LATER second under scheduling delay — which
-    # is exactly what a heavily loaded `pytest -n auto` run can introduce
-    # between the two `Path.write_text` calls — silently pushing the evidence
-    # outside the window and producing a false "outside the 1800s window"
-    # block. Writing dispatch evidence first, then the gate, mirrors
-    # `pre_commit_review.py`'s own documented invariant ("gate writes must
-    # happen strictly after every dispatch/exemption event they're meant to
-    # corroborate") and makes `dispatch_ts <= gate_mtime` true by construction
-    # rather than by luck, independent of real elapsed wall-clock time.
+    subprocess.run(
+        ["git", "commit", "-q", "-m", "feature work"], cwd=work, env=_git_env(), check=True
+    )
     _write_dispatch_evidence(work)
     _write_gate(work)
-    res = _commit_hook(work)
+    res = _pr_create_hook(work)
     assert res.returncode == 0, res.stdout + res.stderr
 
 
-def test_collision_a_second_agent_overwriting_review_passed_falsely_blocks_the_first(
+def test_collision_a_second_agent_overwriting_pr_review_passed_falsely_blocks_the_first(
     work: Path,
 ) -> None:
     (work / "a.ts").write_text("v1\n")
     subprocess.run(["git", "add", "a.ts"], cwd=work, env=_git_env(), check=True)
-    _write_gate(work)  # agent A passed review for its staged content
-    gate_path = work / ".claude" / "memory" / ".review-passed"
-    gate_path.write_text(
-        "a-different-agents-hash\n"
-    )  # agent B (same tree) overwrote it
-    res = _commit_hook(work)  # A commits its still-staged change
+    subprocess.run(
+        ["git", "commit", "-q", "-m", "feature work"], cwd=work, env=_git_env(), check=True
+    )
+    _write_gate(work)  # agent A passed review for its branch diff
+    gate_path = work / ".claude" / "memory" / ".pr-review-passed"
+    gate_path.write_text("a-different-agents-hash\n")  # agent B (same tree) overwrote it
+    res = _pr_create_hook(work)  # A opens its PR for its still-current branch
     assert res.returncode == 2  # ...and is blocked despite having passed
     assert "BLOCKED" in res.stdout
-    # NOT fixed by content-hashing — two agents in one tree share one gate file.
-    # Fix is operational: one worktree per agent (concurrent-use.md).
+    # NOT fixed by content-hashing — two agents in one tree share one gate
+    # file. Fix is operational: one worktree per agent (concurrent-use.md).

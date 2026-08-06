@@ -23,6 +23,7 @@ from coverage_config import (
     needs_accounting,
     weighted_merge,
 )
+from coverage_report_parse import CoverageRecord
 
 TEST = TestClassification.TEST
 AMBIGUOUS = TestClassification.AMBIGUOUS
@@ -522,6 +523,23 @@ def test_weighted_merge_single_project_returns_its_own_percentage():
 
     assert result["line_pct"] == pytest.approx(75.0)
     assert result["branch_pct"] == pytest.approx(75.0)
+
+
+def test_weighted_merge_consumes_coverage_records_directly():
+    """#1873: weighted_merge accepts `coverage_report_parse.CoverageRecord`
+    instances (e.g. `aggregate()`'s output) directly, with no translation
+    layer, since both already use the covered_statements/total_statements/
+    covered_branches/total_branches vocabulary."""
+    project_a = CoverageRecord(
+        covered_statements=10, total_statements=10, covered_branches=0, total_branches=0
+    )
+    project_b = CoverageRecord(
+        covered_statements=500, total_statements=1000, covered_branches=0, total_branches=0
+    )
+
+    result = weighted_merge([project_a, project_b])
+
+    assert result["line_pct"] == pytest.approx(50.5, abs=0.01)
 
 
 def test_weighted_merge_zero_total_statements_returns_none():

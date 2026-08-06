@@ -10,16 +10,20 @@ import inspect
 import io
 import json
 import re
+import subprocess
 import sys
 from pathlib import Path
 
 import pytest
 
 _HOOKS_DIR = Path(__file__).resolve().parents[2] / "hooks"
-if str(_HOOKS_DIR) not in sys.path:
-    sys.path.insert(0, str(_HOOKS_DIR))
+_TESTS_LIB = Path(__file__).resolve().parents[1] / "lib"
+for _p in (_HOOKS_DIR, _TESTS_LIB):
+    if str(_p) not in sys.path:
+        sys.path.insert(0, str(_p))
 
 import destructive_guard  # type: ignore[import-not-found]
+from hermetic import hermetic_git_env  # type: ignore[import-not-found]
 
 
 @pytest.fixture(autouse=True)
@@ -43,7 +47,7 @@ def test_main_warns_on_process_destruction(monkeypatch, capsys):
     # path already does this; these two didn't, so a concurrent session
     # flipping real careful-mode state mid-run could flip this test from
     # warn (exit 0) to block (exit 2).
-    monkeypatch.setattr(destructive_guard, "_careful_active", lambda: False)
+    monkeypatch.setattr(destructive_guard, "_careful_active", lambda *a: False)
     _feed(monkeypatch, {"tool_input": {"command": "kill -9 1234"}})
     assert destructive_guard.main() == 0
     out = capsys.readouterr().out
@@ -53,7 +57,7 @@ def test_main_warns_on_process_destruction(monkeypatch, capsys):
 
 
 def test_main_warns_on_permission_escalation(monkeypatch, capsys):
-    monkeypatch.setattr(destructive_guard, "_careful_active", lambda: False)
+    monkeypatch.setattr(destructive_guard, "_careful_active", lambda *a: False)
     _feed(monkeypatch, {"tool_input": {"command": "chmod 777 /etc/passwd"}})
     assert destructive_guard.main() == 0
     out = capsys.readouterr().out
@@ -183,7 +187,7 @@ def test_ci_active_false_when_env_unset(monkeypatch):
 
 def test_force_push_to_default_branch_blocks_without_careful_mode(monkeypatch, capsys):
     _feed(monkeypatch, {"tool_input": {"command": "git push --force origin main"}})
-    monkeypatch.setattr(destructive_guard, "_careful_active", lambda: False)
+    monkeypatch.setattr(destructive_guard, "_careful_active", lambda *a: False)
     monkeypatch.setattr(destructive_guard, "_current_branch", lambda: "main")
     monkeypatch.setattr(destructive_guard, "_default_branch", lambda: "main")
     monkeypatch.setattr(destructive_guard, "_remote_url", lambda: None)
@@ -200,7 +204,7 @@ def test_force_push_to_default_branch_blocks_without_careful_mode(monkeypatch, c
 
 def test_bare_force_push_escalates_when_head_is_default_branch(monkeypatch, capsys):
     _feed(monkeypatch, {"tool_input": {"command": "git push --force"}})
-    monkeypatch.setattr(destructive_guard, "_careful_active", lambda: False)
+    monkeypatch.setattr(destructive_guard, "_careful_active", lambda *a: False)
     monkeypatch.setattr(destructive_guard, "_current_branch", lambda: "main")
     monkeypatch.setattr(destructive_guard, "_default_branch", lambda: "main")
     monkeypatch.setattr(destructive_guard, "_remote_url", lambda: None)
@@ -215,7 +219,7 @@ def test_force_push_on_feature_branch_keeps_warn_behavior(monkeypatch, capsys):
     _feed(
         monkeypatch, {"tool_input": {"command": "git push --force origin feature/x"}}
     )
-    monkeypatch.setattr(destructive_guard, "_careful_active", lambda: False)
+    monkeypatch.setattr(destructive_guard, "_careful_active", lambda *a: False)
     monkeypatch.setattr(destructive_guard, "_current_branch", lambda: "feature/x")
     monkeypatch.setattr(destructive_guard, "_default_branch", lambda: "main")
     monkeypatch.setattr(destructive_guard, "_remote_url", lambda: None)
@@ -233,7 +237,7 @@ def test_branch_delete_of_default_branch_blocks_regardless_of_current_branch(
     monkeypatch, capsys
 ):
     _feed(monkeypatch, {"tool_input": {"command": "git branch -D main"}})
-    monkeypatch.setattr(destructive_guard, "_careful_active", lambda: False)
+    monkeypatch.setattr(destructive_guard, "_careful_active", lambda *a: False)
     monkeypatch.setattr(destructive_guard, "_current_branch", lambda: "feature/other")
     monkeypatch.setattr(destructive_guard, "_default_branch", lambda: "main")
     monkeypatch.setattr(destructive_guard, "_remote_url", lambda: None)
@@ -245,7 +249,7 @@ def test_branch_delete_of_default_branch_blocks_regardless_of_current_branch(
 
 def test_reset_hard_escalates_only_when_head_is_default_branch(monkeypatch, capsys):
     _feed(monkeypatch, {"tool_input": {"command": "git reset --hard"}})
-    monkeypatch.setattr(destructive_guard, "_careful_active", lambda: False)
+    monkeypatch.setattr(destructive_guard, "_careful_active", lambda *a: False)
     monkeypatch.setattr(destructive_guard, "_current_branch", lambda: "main")
     monkeypatch.setattr(destructive_guard, "_default_branch", lambda: "main")
     monkeypatch.setattr(destructive_guard, "_remote_url", lambda: None)
@@ -257,7 +261,7 @@ def test_reset_hard_escalates_only_when_head_is_default_branch(monkeypatch, caps
 
 def test_reset_hard_warns_on_feature_branch(monkeypatch, capsys):
     _feed(monkeypatch, {"tool_input": {"command": "git reset --hard"}})
-    monkeypatch.setattr(destructive_guard, "_careful_active", lambda: False)
+    monkeypatch.setattr(destructive_guard, "_careful_active", lambda *a: False)
     monkeypatch.setattr(destructive_guard, "_current_branch", lambda: "feature/x")
     monkeypatch.setattr(destructive_guard, "_default_branch", lambda: "main")
     monkeypatch.setattr(destructive_guard, "_remote_url", lambda: None)
@@ -273,7 +277,7 @@ def test_reset_hard_warns_on_feature_branch(monkeypatch, capsys):
 
 def test_guard_degrades_outside_git_repo_or_on_git_failure(monkeypatch, capsys):
     _feed(monkeypatch, {"tool_input": {"command": "git push --force origin main"}})
-    monkeypatch.setattr(destructive_guard, "_careful_active", lambda: False)
+    monkeypatch.setattr(destructive_guard, "_careful_active", lambda *a: False)
     _no_probes(monkeypatch)
 
     assert destructive_guard.main() == 0
@@ -293,7 +297,7 @@ def test_json_without_escalations_key_is_byte_compatible(monkeypatch, capsys, tm
     config_path = tmp_path / "destructive-commands.json"
     config_path.write_text(json.dumps(config), encoding="utf-8")
     monkeypatch.setattr(destructive_guard, "_COMMANDS_FILE", config_path)
-    monkeypatch.setattr(destructive_guard, "_careful_active", lambda: False)
+    monkeypatch.setattr(destructive_guard, "_careful_active", lambda *a: False)
     _feed(monkeypatch, {"tool_input": {"command": "git push --force origin main"}})
 
     assert destructive_guard.main() == 0
@@ -309,7 +313,7 @@ def test_careful_mode_block_still_covers_everything_escalation_or_not(
     monkeypatch, capsys
 ):
     _feed(monkeypatch, {"tool_input": {"command": "git push --force origin feature/x"}})
-    monkeypatch.setattr(destructive_guard, "_careful_active", lambda: True)
+    monkeypatch.setattr(destructive_guard, "_careful_active", lambda *a: True)
 
     assert destructive_guard.main() == 2
     out = capsys.readouterr().out
@@ -319,7 +323,7 @@ def test_careful_mode_block_still_covers_everything_escalation_or_not(
 
 def test_one_shot_override_bypasses_escalation(monkeypatch, capsys):
     _feed(monkeypatch, {"tool_input": {"command": "git push --force origin main"}})
-    monkeypatch.setattr(destructive_guard, "_careful_active", lambda: False)
+    monkeypatch.setattr(destructive_guard, "_careful_active", lambda *a: False)
     monkeypatch.setattr(destructive_guard, "_current_branch", lambda: "main")
     monkeypatch.setattr(destructive_guard, "_default_branch", lambda: "main")
     monkeypatch.setattr(destructive_guard, "_remote_url", lambda: None)
@@ -334,7 +338,7 @@ def test_one_shot_override_bypasses_escalation(monkeypatch, capsys):
 
 def test_decision_logged_when_boundary_events_channel_exists(monkeypatch, capsys):
     _feed(monkeypatch, {"tool_input": {"command": "git push --force origin main"}})
-    monkeypatch.setattr(destructive_guard, "_careful_active", lambda: False)
+    monkeypatch.setattr(destructive_guard, "_careful_active", lambda *a: False)
     monkeypatch.setattr(destructive_guard, "_current_branch", lambda: "main")
     monkeypatch.setattr(destructive_guard, "_default_branch", lambda: "main")
     monkeypatch.setattr(destructive_guard, "_remote_url", lambda: None)
@@ -364,7 +368,7 @@ def test_decision_logged_when_boundary_events_channel_exists(monkeypatch, capsys
 
 def test_escalation_override_emits_bypass_decision(monkeypatch, capsys):
     _feed(monkeypatch, {"tool_input": {"command": "git push --force origin main"}})
-    monkeypatch.setattr(destructive_guard, "_careful_active", lambda: False)
+    monkeypatch.setattr(destructive_guard, "_careful_active", lambda *a: False)
     monkeypatch.setattr(destructive_guard, "_current_branch", lambda: "main")
     monkeypatch.setattr(destructive_guard, "_default_branch", lambda: "main")
     monkeypatch.setattr(destructive_guard, "_remote_url", lambda: None)
@@ -389,7 +393,7 @@ def test_non_escalating_match_emits_exactly_one_warn_event(monkeypatch, capsys):
     # (feature branch, not default) must not double-log: one "warn" event,
     # not one from the escalation path and one from the plain warn path.
     _feed(monkeypatch, {"tool_input": {"command": "git push --force origin feature/x"}})
-    monkeypatch.setattr(destructive_guard, "_careful_active", lambda: False)
+    monkeypatch.setattr(destructive_guard, "_careful_active", lambda *a: False)
     monkeypatch.setattr(destructive_guard, "_current_branch", lambda: "feature/x")
     monkeypatch.setattr(destructive_guard, "_default_branch", lambda: "main")
     monkeypatch.setattr(destructive_guard, "_remote_url", lambda: None)
@@ -410,7 +414,7 @@ def test_non_escalating_match_emits_exactly_one_warn_event(monkeypatch, capsys):
 
 def test_boundary_events_channel_absent_does_not_raise_or_print(monkeypatch, capsys):
     _feed(monkeypatch, {"tool_input": {"command": "git push --force origin main"}})
-    monkeypatch.setattr(destructive_guard, "_careful_active", lambda: False)
+    monkeypatch.setattr(destructive_guard, "_careful_active", lambda *a: False)
     monkeypatch.setattr(destructive_guard, "_current_branch", lambda: "main")
     monkeypatch.setattr(destructive_guard, "_default_branch", lambda: "main")
     monkeypatch.setattr(destructive_guard, "_remote_url", lambda: None)
@@ -462,7 +466,6 @@ def test_probe_timeout_seconds_value():
 
 def test_config_file_names():
     assert destructive_guard._COMMANDS_FILE.name == "destructive-commands.json"
-    assert destructive_guard._CAREFUL_FILE.name == "careful-state.json"
 
 
 def test_load_patterns_uses_inline_defaults_when_config_missing(monkeypatch, tmp_path):
@@ -545,26 +548,25 @@ def test_extract_command_variants():
     assert destructive_guard._extract_command({"tool_input": {"command": 123}}) == ""
 
 
-def test_careful_active_variants(monkeypatch, tmp_path):
+def test_careful_active_variants(tmp_path):
+    path = tmp_path / "careful.json"
+
     def _set(content: str) -> None:
-        path = tmp_path / "careful.json"
         path.write_text(content, encoding="utf-8")
-        monkeypatch.setattr(destructive_guard, "_CAREFUL_FILE", path)
 
     _set('{"active": true}')
-    assert destructive_guard._careful_active() is True
+    assert destructive_guard._careful_active(path) is True
     _set('{"active": false}')
-    assert destructive_guard._careful_active() is False
+    assert destructive_guard._careful_active(path) is False
     # A string "true" is treated as active (bash string comparison parity).
     _set('{"active": "true"}')
-    assert destructive_guard._careful_active() is True
+    assert destructive_guard._careful_active(path) is True
     _set('{"active": "nope"}')
-    assert destructive_guard._careful_active() is False
+    assert destructive_guard._careful_active(path) is False
     _set("{}")
-    assert destructive_guard._careful_active() is False
+    assert destructive_guard._careful_active(path) is False
     # Missing config file -> inactive.
-    monkeypatch.setattr(destructive_guard, "_CAREFUL_FILE", tmp_path / "absent.json")
-    assert destructive_guard._careful_active() is False
+    assert destructive_guard._careful_active(tmp_path / "absent.json") is False
 
 
 def test_run_git_passes_expected_subprocess_args(monkeypatch):
@@ -793,14 +795,14 @@ def test_main_empty_command_returns_zero(monkeypatch, capsys):
 
 
 def test_main_non_matching_command_returns_zero(monkeypatch, capsys):
-    monkeypatch.setattr(destructive_guard, "_careful_active", lambda: False)
+    monkeypatch.setattr(destructive_guard, "_careful_active", lambda *a: False)
     _feed(monkeypatch, {"tool_input": {"command": "ls -la"}})
     assert destructive_guard.main() == 0
     assert capsys.readouterr().out == ""
 
 
 def test_main_warns_on_file_destruction(monkeypatch, capsys):
-    monkeypatch.setattr(destructive_guard, "_careful_active", lambda: False)
+    monkeypatch.setattr(destructive_guard, "_careful_active", lambda *a: False)
     monkeypatch.setattr(destructive_guard, "_load_escalations", list)
     _feed(monkeypatch, {"tool_input": {"command": "rm -rf /var/data"}})
     assert destructive_guard.main() == 0
@@ -811,7 +813,7 @@ def test_main_warns_on_file_destruction(monkeypatch, capsys):
 
 
 def test_main_warns_on_database_destruction(monkeypatch, capsys):
-    monkeypatch.setattr(destructive_guard, "_careful_active", lambda: False)
+    monkeypatch.setattr(destructive_guard, "_careful_active", lambda *a: False)
     monkeypatch.setattr(destructive_guard, "_load_escalations", list)
     _feed(monkeypatch, {"tool_input": {"command": "drop table users"}})
     assert destructive_guard.main() == 0
@@ -822,7 +824,7 @@ def test_main_warns_on_database_destruction(monkeypatch, capsys):
 
 
 def test_main_warn_full_output_and_boundary_event(monkeypatch, capsys):
-    monkeypatch.setattr(destructive_guard, "_careful_active", lambda: False)
+    monkeypatch.setattr(destructive_guard, "_careful_active", lambda *a: False)
     monkeypatch.setattr(destructive_guard, "_load_escalations", list)
     events = []
     monkeypatch.setattr(
@@ -846,7 +848,7 @@ def test_main_warn_full_output_and_boundary_event(monkeypatch, capsys):
 def test_main_warn_defaults_cwd_to_dot_and_session_to_none(monkeypatch, capsys):
     # No cwd / session_id in the payload — cwd falls back to ".", session
     # to None, both observable only through the boundary event.
-    monkeypatch.setattr(destructive_guard, "_careful_active", lambda: False)
+    monkeypatch.setattr(destructive_guard, "_careful_active", lambda *a: False)
     monkeypatch.setattr(destructive_guard, "_load_escalations", list)
     events = []
     monkeypatch.setattr(
@@ -859,7 +861,7 @@ def test_main_warn_defaults_cwd_to_dot_and_session_to_none(monkeypatch, capsys):
 
 
 def test_main_careful_full_output_and_boundary_event(monkeypatch, capsys):
-    monkeypatch.setattr(destructive_guard, "_careful_active", lambda: True)
+    monkeypatch.setattr(destructive_guard, "_careful_active", lambda *a: True)
     events = []
     monkeypatch.setattr(
         destructive_guard, "emit_boundary_event", lambda *a, **k: events.append(a)
@@ -881,7 +883,7 @@ def test_main_careful_full_output_and_boundary_event(monkeypatch, capsys):
 
 
 def test_main_escalation_block_emits_full_output(monkeypatch, capsys):
-    monkeypatch.setattr(destructive_guard, "_careful_active", lambda: False)
+    monkeypatch.setattr(destructive_guard, "_careful_active", lambda *a: False)
     monkeypatch.setattr(destructive_guard, "_current_branch", lambda: "main")
     monkeypatch.setattr(destructive_guard, "_default_branch", lambda: "main")
     monkeypatch.delenv(destructive_guard._OVERRIDE_ENV_VAR, raising=False)
@@ -896,3 +898,81 @@ def test_main_escalation_block_emits_full_output(monkeypatch, capsys):
         "Set DEV_TEAM_GUARD_OVERRIDE=1 for this single command to override, or "
         "confirm with the user.\n"
     )
+
+
+# ---------------------------------------------------------------------------
+# Careful-state path is scoped per invoking repo, not the hook's own
+# script_dir (#1900, same bug class as #1890) — main() resolves it via
+# artifact_paths.resolve_file(), keyed off cwd, so two concurrent
+# sessions/worktrees never share one file.
+# ---------------------------------------------------------------------------
+
+
+def _init_repo(path: Path) -> dict:
+    env = hermetic_git_env(home=path)
+    subprocess.run(["git", "init", "-q"], cwd=path, env=env, check=True)
+    return env
+
+
+def test_main_resolves_careful_state_under_the_repo_root(tmp_path):
+    """The path main() computes for a given cwd lands under that repo's own
+    `.claude/hooks/`, not relative to destructive_guard.py's own directory."""
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    _init_repo(repo)
+
+    careful_path = destructive_guard.artifact_paths.resolve_file(
+        "hooks", "careful-state.json", root=repo, migrate=False
+    )
+
+    assert careful_path == repo.resolve() / ".claude" / "hooks" / "careful-state.json"
+    hook_own_dir = Path(destructive_guard.__file__).resolve().parent
+    assert hook_own_dir not in careful_path.parents
+
+
+def test_careful_in_one_repo_does_not_gate_a_different_concurrent_repo(
+    monkeypatch, tmp_path, capsys
+):
+    """Two concurrent 'sessions' (two separate repo roots): activating
+    /careful in repo A's resolved path must not block Bash calls whose
+    `cwd` resolves to repo B, even though both hash to the identical bare
+    filename."""
+    repo_a = tmp_path / "repo-a"
+    repo_b = tmp_path / "repo-b"
+    repo_a.mkdir()
+    repo_b.mkdir()
+    _init_repo(repo_a)
+    _init_repo(repo_b)
+
+    careful_a = destructive_guard.artifact_paths.resolve_file(
+        "hooks", "careful-state.json", root=repo_a, migrate=False
+    )
+    careful_b = destructive_guard.artifact_paths.resolve_file(
+        "hooks", "careful-state.json", root=repo_b, migrate=False
+    )
+    assert careful_a != careful_b
+
+    careful_a.parent.mkdir(parents=True, exist_ok=True)
+    careful_a.write_text(json.dumps({"active": True}), encoding="utf-8")
+    assert not careful_b.exists()
+
+    monkeypatch.setattr(destructive_guard, "emit_boundary_event", lambda *a, **k: None)
+
+    _feed(monkeypatch, {"tool_input": {"command": "kill -9 1234"}, "cwd": str(repo_a)})
+    assert destructive_guard.main() == 2
+    assert "BLOCKED" in capsys.readouterr().out
+
+    _feed(monkeypatch, {"tool_input": {"command": "kill -9 1234"}, "cwd": str(repo_b)})
+    assert destructive_guard.main() == 0
+    assert "CAUTION" in capsys.readouterr().out
+
+
+def test_main_does_not_crash_on_a_non_string_cwd(monkeypatch, capsys):
+    """Closing-pass regression: main() must not let an unvalidated,
+    non-string `cwd` (or one containing a NUL byte) reach
+    artifact_paths.resolve_file()/project_root(), which would raise and let
+    the careful-mode guard fail open silently instead of warning/blocking."""
+    monkeypatch.setattr(destructive_guard, "_careful_active", lambda *a: False)
+    _feed(monkeypatch, {"tool_input": {"command": "kill -9 1234"}, "cwd": 123})
+    assert destructive_guard.main() == 0
+    assert "CAUTION" in capsys.readouterr().out

@@ -5,12 +5,13 @@ covering both the blocked path (careful mode active + a destructive
 command) and the pass-through path (non-destructive command, and the
 always-allowed safe-allowlist entries).
 
-`_careful_active()` reads a fixed path (hooks/careful-state.json) rather
-than an env-overridable location, so the blocked-path test writes that file
-directly — mirroring the precedent already established in
-plugins/dev-team/tests/hooks/test_code_intelligence_nudge.py's `clean_careful_state`
-fixture. A leaked file would silently flip every other test into block
-mode, so the fixture wipes it before AND after every test.
+`_careful_active()` resolves careful-state.json per invoking repo via
+`hooks/lib/artifact_paths.py`'s `resolve_file()`, keyed off the payload's
+own `cwd` (issue #1900, same fix pattern as #1890's freeze-state.json) —
+NOT a fixed path relative to the hook's own script directory. Each test
+below writes that file under its own private `tmp_path`, passed as the
+payload's `cwd`, so tests never share one physical file across the suite
+and need no cross-test/cross-file locking.
 """
 
 from __future__ import annotations
@@ -19,107 +20,87 @@ import json
 import os
 import subprocess
 import sys
-import tempfile
-
-import pytest
+from pathlib import Path
 
 from _repo_root import REPO_ROOT as _REPO_ROOT
 
 _HOOK_PY = _REPO_ROOT / "plugins" / "dev-team" / "hooks" / "destructive_guard.py"
-_CAREFUL_STATE = _REPO_ROOT / "plugins" / "dev-team" / "hooks" / "careful-state.json"
-
-# Boundary events (#859) resolve .claude/metrics/ from payload["cwd"]
-# (falling back to the process's actual OS cwd when absent) — isolate every
-# subprocess run to a scratch dir so tests never write
-# .claude/metrics/boundary-events.jsonl into the real repo checkout.
-# This scratch dir also becomes the subprocess's real OS cwd (see _run()):
-# destructive_guard.py's branch-escalation probes (#862) shell out to `git`
-# from its own cwd with no override, so leaving it at the test runner's real
-# cwd let _current_branch()/_default_branch() both resolve to "main" on a
-# direct push to main, hard-blocking `git push --force` regardless of
-# careful mode and failing this suite's careful-inactive-is-advisory-only
-# assertion — a failure invisible on feature-branch PR runs, where the
-# checked-out branch never equals the default branch.
-_BOUNDARY_EVENTS_SCRATCH_CWD = tempfile.mkdtemp(prefix="dev-team-destructive-guard-test-")
-
-# _CAREFUL_STATE is the real, fixed path destructive_guard.py itself reads
-# (see this module's docstring) — every test here shares that one physical
-# file with plugins/dev-team/tests/hooks/test_code_intelligence_nudge.py and
-# test_boundary_events.py's test_destructive_guard_block_emits_boundary_event.
-# xdist_group forces all tests carrying this group name onto the SAME worker
-# (requires --dist loadgroup, set in scripts/ci-local.sh), so two of them can
-# never run concurrently and race on the shared file across pytest-xdist
-# worker processes -- --dist loadfile alone only serializes within one file.
-pytestmark = pytest.mark.xdist_group(name="careful-state-shared-file")
 
 
-@pytest.fixture(autouse=True)
-def clean_careful_state():
-    _CAREFUL_STATE.unlink(missing_ok=True)
-    yield
-    _CAREFUL_STATE.unlink(missing_ok=True)
-
-
-def _run(payload: dict) -> subprocess.CompletedProcess:
+def _run(payload: dict, cwd: Path) -> subprocess.CompletedProcess:
     env = {
         "PATH": os.environ.get("PATH", "/usr/bin:/bin"),
         "LANG": "C.UTF-8",
     }
-    payload = {"cwd": _BOUNDARY_EVENTS_SCRATCH_CWD, **payload}
+    payload = {"cwd": str(cwd), **payload}
     return subprocess.run(
         [sys.executable, str(_HOOK_PY)],
         input=json.dumps(payload).encode(),
         env=env,
-        cwd=_BOUNDARY_EVENTS_SCRATCH_CWD,
+        cwd=str(cwd),
         capture_output=True,
         timeout=10,
         check=False,
     )
 
 
-def test_destructive_command_blocked_when_careful_active() -> None:
+def _write_careful_state(cwd: Path, active: bool) -> None:
+    careful_dir = cwd / ".claude" / "hooks"
+    careful_dir.mkdir(parents=True, exist_ok=True)
+    (careful_dir / "careful-state.json").write_text(
+        json.dumps({"active": active}), encoding="utf-8"
+    )
+
+
+def test_destructive_command_blocked_when_careful_active(tmp_path: Path) -> None:
     """A destructive command with careful mode active must exit 2 and
     print a BLOCKED decision."""
-    _CAREFUL_STATE.write_text(json.dumps({"active": True}), encoding="utf-8")
+    _write_careful_state(tmp_path, True)
 
-    r = _run({"tool_input": {"command": "rm -rf /"}})
+    r = _run({"tool_input": {"command": "rm -rf /"}}, tmp_path)
 
     assert r.returncode == 2
     assert b"BLOCKED" in r.stdout
     assert b"Destructive command detected" in r.stdout
 
 
-def test_benign_command_passes_through() -> None:
+def test_benign_command_passes_through(tmp_path: Path) -> None:
     """A non-destructive command must exit 0 with no output, careful mode
     or not."""
-    r = _run({"tool_input": {"command": "ls -la"}})
+    r = _run({"tool_input": {"command": "ls -la"}}, tmp_path)
 
     assert r.returncode == 0
     assert r.stdout == b""
 
 
-def test_safe_allowlisted_command_passes_through_even_when_careful() -> None:
+def test_safe_allowlisted_command_passes_through_even_when_careful(
+    tmp_path: Path,
+) -> None:
     """Safe-allowlist entries (e.g. `rm -rf node_modules`) short-circuit
     before the destructive check, even with careful mode active."""
-    _CAREFUL_STATE.write_text(json.dumps({"active": True}), encoding="utf-8")
+    _write_careful_state(tmp_path, True)
 
-    r = _run({"tool_input": {"command": "rm -rf node_modules"}})
+    r = _run({"tool_input": {"command": "rm -rf node_modules"}}, tmp_path)
 
     assert r.returncode == 0
     assert r.stdout == b""
 
 
-def test_destructive_command_warns_without_blocking_when_careful_inactive() -> None:
+def test_destructive_command_warns_without_blocking_when_careful_inactive(
+    tmp_path: Path,
+) -> None:
     """Without careful mode, a destructive command still exits 0 (advisory
-    CAUTION only, not a block)."""
-    r = _run({"tool_input": {"command": "git push --force"}})
+    CAUTION only, not a block). `tmp_path` is outside the real repo checkout
+    so the branch-escalation probes (#862) can't resolve HEAD to the
+    default branch and hard-block this regardless of careful mode."""
+    r = _run({"tool_input": {"command": "git push --force"}}, tmp_path)
 
     assert r.returncode == 0
     assert b"CAUTION" in r.stdout
 
 
-def test_missing_command_silent() -> None:
-    r = _run({"tool_input": {}})
+def test_missing_command_silent(tmp_path: Path) -> None:
+    r = _run({"tool_input": {}}, tmp_path)
     assert r.returncode == 0
     assert r.stdout == b""
 

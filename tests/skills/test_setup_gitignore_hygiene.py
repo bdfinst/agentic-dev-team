@@ -1,10 +1,11 @@
-"""#1376 / #1377 — `/setup` Step 11 must gitignore `.review-passed` and
+"""#1376 / #1377 — `/setup` Step 11 must gitignore `.pr-review-passed` and
 `.mcp.json` by default for downstream projects.
 
-`.review-passed` (the /code-review gate file) is deleted by the pre-commit
-hook on its happy path, but lingers as untracked clutter whenever a commit
-never follows a passed review (files edited after review, or
-`--no-verify`) — issue #1377. `.mcp.json` commonly bakes in the absolute
+`.pr-review-passed` (the /code-review gate file, #1886) is deleted by
+`hooks/pre_pr_review.py` on its happy path, but lingers as untracked clutter
+whenever a `gh pr create` never follows a passed review (branch content
+changed since review, or `PR_GATE_BYPASS_REASON`) — issue #1377. `.mcp.json`
+commonly bakes in the absolute
 filesystem path of the machine that wrote it (Repowise/CodeGraph MCP
 registration) and breaks for every other clone if committed — issue #1376.
 
@@ -26,11 +27,11 @@ SETUP = (PLUGIN_ROOT / "skills" / "setup" / "SKILL.md").read_text(encoding="utf-
 def test_review_passed_is_appended_to_runtime_artifacts_gitignore_block():
     body = collapsed(SETUP)
     # Bound the match to the fenced bash block itself (MARKER= line up to
-    # the closing ```), not the whole document — .review-passed also
+    # the closing ```), not the whole document — .pr-review-passed also
     # appears, unrelated, in the Step 12 sample report further down.
     block = re.search(r'MARKER="# dev-team workflow runtime artifacts.*?```', body)
     assert block
-    assert ".review-passed" in block.group(0)
+    assert ".pr-review-passed" in block.group(0)
 
 
 def test_dev_team_reports_line_is_anchored_not_a_blanket_ignore():
@@ -93,6 +94,6 @@ def test_step_12_report_mentions_both_new_gitignore_entries():
     # (e.g. "### Prerequisites") which would otherwise trip the boundary
     # check and truncate the section before reaching the real content.
     step_12 = section_outside_code(SETUP, r"^### 12\. Report", boundary_pattern=r"^### ")
-    assert ".review-passed" in step_12
+    assert ".pr-review-passed" in step_12
     assert ".mcp.json" in step_12
     assert "#1376" in step_12

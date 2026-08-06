@@ -27,6 +27,20 @@ carry the per-construct breakdown plus those four options (built and rendered
 by ``hooks/lib/xunit_v3_operator_gate.py``, so the guard hook and this gate
 present one story).
 
+Fail-closed on an omitted ``--v3-findings-json`` (#1870): every caller of this
+CLI is, by the calling convention, already on an xunit.v3 project — "plain
+xunit.v2 / other stacks skip this gate" per ``agents/mutation-kill.md``. Before
+this fix, omitting the flag silently meant "no blockers" (``_load_v3_findings``
+returned an empty tuple indistinguishable from "the detector ran and found
+none"), so a caller that forgot to run the detector — or wired it up wrong —
+got ``enter-loop`` with no operator question ever asked, the exact silent
+decision #1791 exists to stop. ``ProbeResult.v3_findings_known`` (default
+``True``, so direct ``decide()`` callers that already know their own
+"no blockers" state are unaffected) is ``False`` only when the CLI itself
+observed the flag was never supplied; :func:`decide` then forces
+``ask-operator`` with a reason naming the missing detector run, combined with
+the budget signal exactly like a real blocker set would be.
+
 Stdlib-only.
 """
 
@@ -71,6 +85,16 @@ _BUDGET_ENV = "DEV_TEAM_MUTATION_ROUND_BUDGET_SECONDS"
 WAIVER_MESSAGE = (
     "mutant-kill loop not feasible on this suite (xunit.v3); ran single-pass "
     "advisory instead"
+)
+
+# #1870: the reason surfaced when `ProbeResult.v3_findings_known` is False —
+# the CLI never consulted the shim-breaking-construct detector for this
+# xunit.v3 project, so entering the loop would be a guess, not a decision.
+_V3_FINDINGS_UNKNOWN_REASON = (
+    "the xunit.v3 shim-breaking-construct detector output (--v3-findings-json) "
+    "was not supplied for this xunit.v3 project (#1870) — cannot rule out "
+    "shim-breaking constructs without it; run xunit_v3_feature_detector.py or "
+    "confirm none apply"
 )
 
 
@@ -130,6 +154,12 @@ class ProbeResult:
     project: str = ""
     v3_blockers: tuple = field(default_factory=tuple)
     v3_unclassified_files: tuple = field(default_factory=tuple)
+    #: False only when the caller has NOT actually consulted the detector for
+    #: this xunit.v3 project (#1870) — e.g. the CLI's `--v3-findings-json` was
+    #: omitted. Defaults True so a direct `decide(ProbeResult(...))` caller
+    #: that already knows its own "detector ran, found nothing" state
+    #: (`v3_blockers=()`) is unaffected; only the CLI sets this False.
+    v3_findings_known: bool = True
 
 
 @dataclass(frozen=True)
@@ -256,6 +286,29 @@ def decide(probe: ProbeResult, *, budget_seconds: float | None = None) -> Decisi
     estimated = estimate_round_seconds(probe.probe_seconds, probe.scope_file_count)
 
     question = build_operator_question(probe)
+
+    if question is None and not probe.v3_findings_known:
+        # #1870: the detector was never consulted for this xunit.v3 project —
+        # unlike a real, already-classified blocker/unclassified set (handled
+        # by `question is not None` below), there is nothing to build a
+        # question FROM here, only the fact that nobody asked the detector.
+        # Fail closed rather than silently proceeding as if it had found
+        # nothing. Same over-budget combination as a real blocker set below,
+        # so the operator gets one decision point, not two.
+        over_budget = estimated > budget_seconds
+        reason = _V3_FINDINGS_UNKNOWN_REASON
+        if over_budget:
+            reason += (
+                f"; the estimated round {estimated:.0f}s also exceeds the "
+                f"{budget_seconds:.0f}s budget"
+            )
+        return Decision(
+            Outcome.ASK_OPERATOR,
+            reason,
+            estimated_round_seconds=estimated,
+            budget_seconds=budget_seconds,
+        )
+
     if question is not None:
         over_budget = estimated > budget_seconds
         reason = (
@@ -379,6 +432,11 @@ def _cli(argv: Sequence[str]) -> int:
         project=args.project,
         v3_blockers=blockers,
         v3_unclassified_files=tuple(args.v3_unclassified),
+        # #1870: only the CLI can tell "omitted" apart from "provided, found
+        # nothing" — every invocation of this CLI is for an xunit.v3 project
+        # by calling convention, so omission must not silently read as
+        # "known-empty".
+        v3_findings_known=args.v3_findings_json is not None,
     )
     decision = decide(probe, budget_seconds=args.budget_seconds)
     payload = asdict(decision)

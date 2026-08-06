@@ -8,6 +8,8 @@ Accepted
 
 > **Bash-removal note (2026-07-20):** the bash-removal effort (ADR 0014, completed by ADR 0015) rewrote `build-knowledge-index.sh` as Python, and retired `tests/repo/knowledge_index_current.bats` and `tests/agents/agent_knowledge_anchor_tests.bats` in favor of pytest `test_*.py` files. Separately, `/init-dev-team` was split into `/setup` and `/project-init`, and `/model-routing-check` is now a skill, not a command. (See the separate 2026-06-02 path note further below for the plugin rename.) This ADR is preserved verbatim as a historical record.
 
+> **Include-marker note (2026-08-05):** Decision 1's consumer flow — read the `summary`, then `Read` the source file with `offset`/`limit` for the matching section — gained a documented exception when `/test-improve`'s SKILL.md split (Step 1.1 of `plans/test-improve-context-loading-strategy.md`) introduced `<!-- include: references/<name>.md -->` markers. A section whose body is only a marker line resolves its `summary` to the *included* file's first prose line (`build_knowledge_index.py`'s `_resolve_include_marker`), so the summary is a real sentence — but the section's own `anchor` still lands on the marker-plus-pointer-sentence stub, not on that prose. This is intentional (that stub names exactly where the real content lives, one more `Read` away) rather than a broken contract, but it means `summary` and `anchor` no longer describe identical bytes for a marker-only section — worth knowing before assuming the two always agree.
+
 ## Context
 
 Agents in this plugin reference markdown files under `knowledge/` and skill

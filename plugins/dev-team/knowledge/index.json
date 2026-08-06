@@ -1443,7 +1443,7 @@
       "anchor": "artifact-usagejson"
     },
     "`gate-bypass-audit.jsonl`": {
-      "summary": "Accountability record for `git commit --no-verify`/`-n` bypasses of the",
+      "summary": "Accountability record for a bypass of the review-corroboration gate.",
       "anchor": "gate-bypass-auditjsonl"
     },
     "`gate-bypass.jsonl`": {
@@ -2015,7 +2015,7 @@
       "anchor": "3-audit-skills"
     },
     "4. Audit hooks": {
-      "summary": "Read each file in `.claude/hooks/*.sh` and check:",
+      "summary": "Read each file in `.claude/hooks/*.sh` and check (the `*.sh` glob already",
       "anchor": "4-audit-hooks"
     },
     "5. Generate report": {
@@ -2605,7 +2605,7 @@
       "anchor": "disable-off"
     },
     "Notes": {
-      "summary": "The `hooks/destructive_guard.py` hook reads `hooks/careful-state.json`.",
+      "summary": "The `hooks/destructive_guard.py` hook resolves this same path per invoking",
       "anchor": "notes"
     }
   },
@@ -2911,15 +2911,15 @@
       "anchor": "6a-review-fix-loop"
     },
     "7. Generate report": {
-      "summary": "**Output paths.** All file artifacts (`./corrections/*.json`, `./.review-passed`) are repo-relative to the target repository's working directory (the cwd `/code-review` was invoked in).",
+      "summary": "**Output paths.** All file artifacts (`./corrections/*.json`, `.claude/memory/.pr-review-passed`) are repo-relative to the target repository's working directory (the cwd `/code-review` was invoked in).",
       "anchor": "7-generate-report"
     },
     "8. Save correction prompts for remaining issues": {
-      "summary": "**Skip this entire step if `--json` was set.** Step 7 already stopped the run for `--json` mode; corrections are never written to disk in `--json` mode.",
+      "summary": "**Skip this entire step if `--json` was set.** Step 7 already skips this step for `--json` mode; corrections are never written to disk in `--json` mode.",
       "anchor": "8-save-correction-prompts-for-remaining-issues"
     },
     "9. Write pre-commit gate file": {
-      "summary": "**Skip this entire step if `--json` was set** (same reason as step 8).",
+      "summary": "**This step is NOT skipped by `--json` (issue #1904 Bug 2b) — see step 7's own note.** It applies whenever the scope condition below holds, `--json` or not; step 7 only skips step **8** for `--json`.",
       "anchor": "9-write-pre-commit-gate-file"
     }
   },
@@ -3125,7 +3125,7 @@
       "anchor": "3-run-coverage"
     },
     "4. Parse line + branch percentages": {
-      "summary": "For each tool, parse the report into `{ \"line\": <pct>, \"branch\": <pct>, \"tool\": \"<name>\", \"raw_path\": \"<file>\" }`:",
+      "summary": "**Only resolve the tool → report-file-path mapping by hand.** That part",
       "anchor": "4-parse-line-branch-percentages"
     },
     "5. Persist the baseline": {
@@ -4105,11 +4105,11 @@
       "anchor": "parse-arguments"
     },
     "Steps": {
-      "summary": "Write to `hooks/careful-state.json`:",
+      "summary": "Write to `.claude/hooks/careful-state.json` (repo-scoped — see the `/careful`",
       "anchor": "steps"
     },
     "1. Enable careful mode": {
-      "summary": "Write to `hooks/careful-state.json`:",
+      "summary": "Write to `.claude/hooks/careful-state.json` (repo-scoped — see the `/careful`",
       "anchor": "1-enable-careful-mode"
     },
     "2. Enable freeze mode": {
@@ -6275,6 +6275,10 @@
     "Steps": {
       "summary": "**Execution order.** Phases below are numbered by stable identity, not by",
       "anchor": "steps"
+    },
+    "Phase Reference Files": {
+      "summary": "Each phase's procedural detail lives in its own reference file, listed below.",
+      "anchor": "phase-reference-files"
     },
     "Phase 0 — Approach contract": {
       "summary": "Resolve every ambiguous input in **one batch** before any work starts, then",

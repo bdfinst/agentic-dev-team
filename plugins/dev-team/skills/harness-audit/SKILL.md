@@ -245,15 +245,20 @@ log=".claude/metrics/review-value.jsonl"; [ -f "$log" ] || log="metrics/review-v
   "$log"
 ```
 
-**Gate recidivism** — how often the pre-commit gate blocked a commit because
-a fix invalidated the prior round's corroboration. This needs no new stream;
-`boundary-events.jsonl` already records it. A session with repeated blocks is
-the operator-visible symptom of the same churn:
+**Gate recidivism** — how often the review-corroboration gate blocked
+because a fix invalidated the prior round's corroboration. This needs no new
+stream; `boundary-events.jsonl` already records it. A session with repeated
+blocks is the operator-visible symptom of the same churn.
+
+#1886 moved this gate from `git commit` (`hook == "pre_commit_review"`) to
+`gh pr create` (`hook == "pre_pr_review"`) — query BOTH hook names so a
+session that spans the migration (or a fork still running the older cached
+plugin version) is not silently undercounted:
 
 ```bash
 log=".claude/metrics/boundary-events.jsonl"
 [ -f "$log" ] && jq -rs '
-  map(select(.hook == "pre_commit_review" and (.matched_rule | startswith("dispatch-evidence-"))))
+  map(select((.hook == "pre_commit_review" or .hook == "pre_pr_review") and (.matched_rule | startswith("dispatch-evidence-"))))
   | group_by(.session_id)
   | map({session: (.[0].session_id // "unknown"), blocks: length, rules: (map(.matched_rule) | unique)})
   | sort_by(-.blocks)' \

@@ -5,8 +5,8 @@ Claude Code PreToolUse hook. Runs before Bash tool calls, detects
 destructive commands, and either warns (default, exit 0) or blocks (when
 careful mode is active, exit 2). Patterns are loaded from
 `hooks/destructive-commands.json`; careful state from
-`hooks/careful-state.json`. Falls back to inline defaults if either config
-is absent.
+`<repo-root>/.claude/hooks/careful-state.json` (see below). Falls back to
+inline defaults when the commands config is absent.
 
 Contract (docs/python-hook-contract.md):
     Input : PreToolUse JSON on stdin with tool_input.command
@@ -14,6 +14,18 @@ Contract (docs/python-hook-contract.md):
             exit 2 = block; stdout contains the block message
 
 Stdlib-only (json/pathlib/sys). See ADR 0014.
+
+Careful state (issue #1900, same bug class as #1890's freeze-state.json
+fix) is resolved per invoking repo, NOT relative to this hook's own
+`script_dir`. In a real installed session `script_dir` is the shared
+plugin cache (`~/.claude/plugins/cache/bfinster/dev-team/<ver>/hooks/`) —
+one location shared by every concurrently-running session, worktree, and
+project on the machine. Resolving careful state there let one session's
+`/careful` activation scope-lock every other, unrelated session's Bash
+calls. `main()` instead resolves it via `hooks/lib/artifact_paths.py`'s
+`resolve_file()`, keyed off the tool call's own `cwd` — landing at
+`<repo-root>/.claude/hooks/careful-state.json`, the same per-repo
+`.claude/` convention `freeze-state.json` and `.review-passed` already use.
 
 Refs: #572 (bash → Python migration epic).
 """
@@ -33,6 +45,7 @@ _LIB_DIR = _SCRIPT_DIR / "lib"
 if str(_LIB_DIR) not in sys.path:
     sys.path.insert(0, str(_LIB_DIR))
 
+import artifact_paths
 from boundary_events import emit_boundary_event as _emit_boundary_event
 
 
@@ -44,7 +57,6 @@ def emit_boundary_event(*args, **kwargs) -> None:
     except Exception:  # noqa: BLE001, S110 - fail-open by design
         pass
 _COMMANDS_FILE = _SCRIPT_DIR / "destructive-commands.json"
-_CAREFUL_FILE = _SCRIPT_DIR / "careful-state.json"
 
 _PROBE_TIMEOUT_SECONDS = 1.0
 _OVERRIDE_ENV_VAR = "DEV_TEAM_GUARD_OVERRIDE"
@@ -111,9 +123,9 @@ def _extract_command(payload: dict) -> str:
     return cmd if isinstance(cmd, str) else ""
 
 
-def _careful_active() -> bool:
+def _careful_active(careful_path: Path) -> bool:
     """Read careful-state.json's `active` boolean. False on any error."""
-    data = _load_json(_CAREFUL_FILE)
+    data = _load_json(careful_path)
     if data is None:
         return False
     value = data.get("active")
@@ -376,10 +388,15 @@ def main() -> int:
     if not command:
         return 0
 
-    cwd = payload.get("cwd") or "."
+    raw_cwd = payload.get("cwd")
+    cwd = raw_cwd if isinstance(raw_cwd, str) and raw_cwd and "\0" not in raw_cwd else "."
     session_id = payload.get("session_id")
 
     lower_command = command.lower()
+
+    careful_path = artifact_paths.resolve_file(
+        "hooks", "careful-state.json", root=cwd, migrate=False
+    )
 
     (
         file_patterns,
@@ -407,7 +424,7 @@ def main() -> int:
     if match is None:
         return 0
 
-    careful = _careful_active()
+    careful = _careful_active(careful_path)
     if careful:
         _emit(f"BLOCKED: Destructive command detected ({match}).")
         _emit(f"Command: {command}")

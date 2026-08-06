@@ -206,6 +206,94 @@ def test_a_different_plugins_qualified_name_is_never_recorded(tmp_path: Path) ->
     assert not (tmp_path / ".claude" / "metrics" / "boundary-events.jsonl").exists()
 
 
+def test_dispatch_with_clean_index_falls_back_to_branch_diff_hash(tmp_path: Path) -> None:
+    """Issue #1904 Bug 1/2b: a `--since <base>`-scoped review (the only real
+    path to `gh pr create`, per `skills/pr/SKILL.md` step 1) always runs
+    with a CLEAN working tree, so `review_gate_hash()` (the staged diff) is
+    empty by definition. Stamping the constant `EMPTY_DIGEST` in that case
+    would defeat subject-binding (Bug 1) AND could never corroborate
+    `hooks/pre_pr_review.py`'s gate, which always compares against
+    `branch_diff_gate_hash()` (Bug 2b) — this pins the fix: the ledger falls
+    back to that same branch-diff hash when nothing is staged."""
+    _tests_lib = Path(__file__).resolve().parents[2] / "tests" / "lib"
+    if str(_tests_lib) not in sys.path:
+        sys.path.insert(0, str(_tests_lib))
+    from hermetic import hermetic_git_env  # type: ignore[import-not-found]
+
+    lib_dir = _PLUGIN_DIR / "hooks" / "lib"
+    if str(lib_dir) not in sys.path:
+        sys.path.insert(0, str(lib_dir))
+    import review_gate_hash as _rgh  # type: ignore[import-not-found]
+
+    env = hermetic_git_env(home=tmp_path)
+    subprocess.run(["git", "init", "-q", "-b", "main"], cwd=tmp_path, env=env, check=True)
+    subprocess.run(["git", "config", "user.email", "t@t"], cwd=tmp_path, env=env, check=True)
+    subprocess.run(["git", "config", "user.name", "t"], cwd=tmp_path, env=env, check=True)
+    (tmp_path / "base.txt").write_text("base\n")
+    subprocess.run(["git", "add", "base.txt"], cwd=tmp_path, env=env, check=True)
+    subprocess.run(["git", "commit", "-q", "-m", "initial"], cwd=tmp_path, env=env, check=True)
+    subprocess.run(["git", "checkout", "-q", "-b", "feature"], cwd=tmp_path, env=env, check=True)
+    (tmp_path / "feature.txt").write_text("new\n")
+    subprocess.run(["git", "add", "feature.txt"], cwd=tmp_path, env=env, check=True)
+    subprocess.run(["git", "commit", "-q", "-m", "feature work"], cwd=tmp_path, env=env, check=True)
+    # Working tree is clean here — nothing staged, matching /pr's step 1
+    # precondition for a --since-scoped /code-review run.
+
+    assert _rgh.review_gate_hash(cwd=tmp_path) == _rgh.EMPTY_DIGEST  # sanity
+    expected_branch_hash = _rgh.branch_diff_gate_hash("main", cwd=tmp_path)
+    assert expected_branch_hash != _rgh.EMPTY_DIGEST  # sanity
+
+    result = _run_hook(
+        {
+            "tool_name": "Agent",
+            "tool_input": {"subagent_type": _REAL_REVIEW_AGENT},
+            "cwd": str(tmp_path),
+        }
+    )
+    assert result.returncode == 0
+    events = _read_jsonl(tmp_path / ".claude" / "metrics" / "boundary-events.jsonl")
+    assert len(events) == 1
+    assert events[0]["subject_hash"] == expected_branch_hash
+    assert events[0]["subject_hash"] != _rgh.EMPTY_DIGEST
+
+
+def test_dispatch_with_clean_index_and_no_branch_diff_stamps_nothing(tmp_path: Path) -> None:
+    """When BOTH the staged diff AND the branch diff are empty (a freshly
+    checked-out branch with no commits of its own yet), the ledger must
+    refuse to stamp `subject_hash` at all — never fall back to
+    `EMPTY_DIGEST` a second time. The dispatch is still recorded (it just
+    carries no `subject_hash`, so it can never satisfy an exact-hash gate
+    check)."""
+    _tests_lib = Path(__file__).resolve().parents[2] / "tests" / "lib"
+    if str(_tests_lib) not in sys.path:
+        sys.path.insert(0, str(_tests_lib))
+    from hermetic import hermetic_git_env  # type: ignore[import-not-found]
+
+    env = hermetic_git_env(home=tmp_path)
+    subprocess.run(["git", "init", "-q", "-b", "main"], cwd=tmp_path, env=env, check=True)
+    subprocess.run(["git", "config", "user.email", "t@t"], cwd=tmp_path, env=env, check=True)
+    subprocess.run(["git", "config", "user.name", "t"], cwd=tmp_path, env=env, check=True)
+    (tmp_path / "base.txt").write_text("base\n")
+    subprocess.run(["git", "add", "base.txt"], cwd=tmp_path, env=env, check=True)
+    subprocess.run(["git", "commit", "-q", "-m", "initial"], cwd=tmp_path, env=env, check=True)
+    subprocess.run(["git", "checkout", "-q", "-b", "feature"], cwd=tmp_path, env=env, check=True)
+    # No further commits on `feature` — both the staged diff and the
+    # branch diff against `main` are empty.
+
+    result = _run_hook(
+        {
+            "tool_name": "Agent",
+            "tool_input": {"subagent_type": _REAL_REVIEW_AGENT},
+            "cwd": str(tmp_path),
+        }
+    )
+    assert result.returncode == 0
+    events = _read_jsonl(tmp_path / ".claude" / "metrics" / "boundary-events.jsonl")
+    assert len(events) == 1
+    assert "subject_hash" not in events[0]
+    assert events[0]["matched_rule"] == _REAL_REVIEW_AGENT
+
+
 def test_two_distinct_registered_dispatches_recorded_as_two_events(tmp_path: Path) -> None:
     _run_hook(
         {

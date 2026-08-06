@@ -32,8 +32,27 @@ The four options mirror the issue verbatim: ``port`` the flagged files,
 ``exclude`` them from the shim's compile set, ``skip`` (temporarily
 deactivate) just the offending tests, or ``degrade`` to the no-shim floor.
 
-Env seams:
-    DEV_TEAM_XUNIT3_SHIM_DECISION_FILE  overrides the decision-store path.
+Audit trail (#1870): the decision store on its own is silent — the same
+agent the gate constrains can record its own choice (most plausibly
+``exclude``, narrowing mutation coverage) with nothing else in the harness
+ever seeing it happen. :func:`record_decision` and :func:`decision_for`
+each emit a `boundary_events` entry (a "record"-decision `matched_rule` of
+`xunit-v3-shim-decision-record-<choice>` on write, `-honor-<choice>` when a
+stored decision is read back and used to drive the guard's outcome), bound
+to the question's `fingerprint` as `subject_hash` — the same audit stream
+`hooks/pre_commit_review.py`'s dispatch-ledger corroboration is reviewed
+from. This does not stop a self-recorded `exclude` from taking effect (the
+operator's call is still trusted, per this module's whole design) — it
+makes the choice visible to anyone auditing the stream, closing the
+"nothing else in the harness ever seeing it happen" gap #1870 raised.
+
+Formerly, ``DEV_TEAM_XUNIT3_SHIM_DECISION_FILE`` let any caller relocate the
+decision store at runtime with no audit trail on either the record or honor
+path — dropped entirely (#1870): no legitimate caller needs to relocate the
+store, so removing the seam closes the unaudited-relocation vector outright
+rather than trying to retrofit an audit onto it. The store's location is
+always ``artifact_paths.resolve_file(DECISION_CATEGORY, DECISION_FILENAME,
+cwd)``.
 
 Stdlib-only. See docs/python-hook-contract.md.
 """
@@ -43,7 +62,6 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
-import os
 import sys
 from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
@@ -56,10 +74,17 @@ if str(_LIB_DIR) not in sys.path:  # pragma: no cover - import bootstrap
 
 import artifact_paths
 
+try:
+    from boundary_events import emit_boundary_event as _emit_boundary_event
+except ImportError:  # pragma: no cover - degraded fallback, hooks/lib unreachable
+
+    def _emit_boundary_event(*_args, **_kwargs) -> None:  # type: ignore[misc]
+        return None
+
+
 #: Where a recorded choice lives, relative to `.claude/`.
 DECISION_CATEGORY = "metrics"
 DECISION_FILENAME = "xunit-v3-shim-decisions.json"
-_DECISION_FILE_ENV = "DEV_TEAM_XUNIT3_SHIM_DECISION_FILE"
 
 
 @dataclass(frozen=True)
@@ -363,11 +388,48 @@ def render_question(
 
 
 def decision_store_path(cwd: Path | str | None = None) -> Path:
-    """Where recorded choices live. The env seam wins when set."""
-    override = os.environ.get(_DECISION_FILE_ENV)
-    if override:
-        return Path(override)
+    """Where recorded choices live — always
+    `artifact_paths.resolve_file(DECISION_CATEGORY, DECISION_FILENAME, cwd)`.
+
+    No env-var override (#1870): a prior `DEV_TEAM_XUNIT3_SHIM_DECISION_FILE`
+    seam let any caller relocate the store at runtime with no audit trail on
+    either side — removed rather than audited, since no legitimate caller
+    needs it.
+    """
     return artifact_paths.resolve_file(DECISION_CATEGORY, DECISION_FILENAME, cwd)
+
+
+def _emit_decision_event(kind: str, entry: dict, cwd: Path | str | None) -> None:
+    """Shared boundary-event emission for the record and honor paths (#1870).
+
+    `kind` is `"record"` (a fresh write in `record_decision`) or `"honor"` (a
+    stored decision read back and used to drive the guard's outcome in
+    `decision_for`) — folded into `matched_rule` as
+    `xunit-v3-shim-decision-<kind>-<choice>`, a closed vocabulary derived
+    from `VALID_CHOICES` (never free text). Bound to the entry's own
+    `fingerprint` as `subject_hash`, mirroring how the dispatch-ledger
+    corroboration binds its own evidence to a content hash — so an audit of
+    the stream can tell which blocker set a given decision covered.
+
+    Fail-open, matching `boundary_events.emit_boundary_event`'s own
+    contract: a malformed `choice` (should be unreachable given both
+    callers' own validation) or any emission failure is swallowed, never
+    raised — this is telemetry, not a gate.
+    """
+    choice = entry.get("choice")
+    if choice not in VALID_CHOICES:
+        return
+    try:
+        _emit_boundary_event(
+            cwd,
+            "xunit_v3_operator_gate",
+            "Bash",
+            "record",
+            f"xunit-v3-shim-decision-{kind}-{choice}",
+            subject_hash=entry.get("fingerprint"),
+        )
+    except Exception:  # noqa: BLE001, S110 - fail-open by design
+        pass
 
 
 def _read_store(cwd: Path | str | None = None) -> dict:
@@ -423,6 +485,7 @@ def record_decision(
     path = decision_store_path(cwd)
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(store, indent=2) + "\n", encoding="utf-8")
+    _emit_decision_event("record", entry, cwd)
     return entry
 
 
@@ -451,6 +514,12 @@ def decision_for(
       last. ``record_decision`` rejects those on the write side, so reaching
       here means a hand-edited or externally-produced store — precisely why the
       read side is where the guarantee has to hold.
+
+    Emits a `boundary_events` "honor" entry (#1870) whenever a decision
+    actually covers ``question`` and is about to drive the guard's outcome —
+    every caller that reaches a non-None return here is *using* the decision,
+    so this is the single choke point for "on every honor path" without each
+    call site (today: `stryker_xunit_shim_guard.py`) needing its own emission.
     """
     entry = read_decision(question.project, cwd)
     if entry is None:
@@ -459,6 +528,7 @@ def decision_for(
         return None
     if entry.get("fingerprint") != question.fingerprint:
         return None
+    _emit_decision_event("honor", entry, cwd)
     return entry
 
 

@@ -3,11 +3,14 @@
 
 Python port of hooks/knowledge-index.sh (#580 / #572 Cluster A dependent).
 
-When an Edit or Write touches a file in the indexed corpus
-(knowledge/*.md or skills/*/SKILL.md, excluding knowledge/schemas/),
-regenerate plugins/dev-team/knowledge/index.json by shelling out to the
-builder (default: hooks/lib/build-knowledge-index.sh, itself a thin
-wrapper over build_knowledge_index.py).
+When an Edit or Write touches a path `knowledge_index_paths.is_corpus_path()`
+recognizes as a rebuild trigger (knowledge/*.md, skills/*/SKILL.md, or
+skills/*/references/*.md — see that module's docstring for why references/
+files trigger a rebuild without being index entries themselves),
+regenerate plugins/dev-team/knowledge/index.json by invoking
+hooks/lib/build_knowledge_index.py directly (overridable via
+KNOWLEDGE_INDEX_BUILDER; a non-`.py` override runs under `bash`, used only
+as a test seam — there is no shipped `.sh` builder to fall back to).
 
 Contract (docs/python-hook-contract.md):
     Input : PostToolUse JSON on stdin
@@ -89,6 +92,16 @@ def main() -> int:
 
     if completed.returncode == 0:
         print("[knowledge-index] rebuilt", file=sys.stderr)
+        # Forward the builder's own warnings (e.g. a refused symlink or
+        # escaping include target — see build_knowledge_index.py's
+        # resolve_contained_target) even on a successful build. A refused
+        # include target is a different event class from an ordinary
+        # authoring mistake and must stay visible to a real operator, not
+        # only to a test that captures the subprocess's stderr directly.
+        stderr_text = (completed.stderr or b"").decode("utf-8", errors="replace")
+        for line in stderr_text.splitlines():
+            if line.startswith("warning:"):
+                print(f"[knowledge-index] {line}", file=sys.stderr)
     else:
         stderr_text = (completed.stderr or b"").decode("utf-8", errors="replace")
         first_line = stderr_text.splitlines()[0] if stderr_text.strip() else "unknown"

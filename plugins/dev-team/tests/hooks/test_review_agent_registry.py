@@ -85,6 +85,59 @@ def test_registered_review_agent_names_excludes_non_review_agents(tmp_path: Path
 
 
 # ---------------------------------------------------------------------------
+# default_agents_dir() (#1904 item 3)
+# ---------------------------------------------------------------------------
+
+
+def test_default_agents_dir_matches_the_real_plugin_agents_dir() -> None:
+    assert review_agent_registry.default_agents_dir() == _REAL_AGENTS_DIR.resolve()
+
+
+def test_default_agents_dir_is_always_resolved() -> None:
+    # Two of the five consolidated call sites previously omitted `.resolve()`
+    # — the shared helper must resolve unconditionally so that gap can't
+    # reappear under a symlinked checkout.
+    result = review_agent_registry.default_agents_dir()
+    assert result == result.resolve()
+
+
+# ---------------------------------------------------------------------------
+# read_registered_review_agent_names() (#1904 item 1)
+# ---------------------------------------------------------------------------
+
+
+def test_read_registered_review_agent_names_returns_none_for_a_missing_dir(
+    tmp_path: Path,
+) -> None:
+    missing = tmp_path / "no-such-agents-dir"
+    assert review_agent_registry.read_registered_review_agent_names(missing) is None
+
+
+def test_read_registered_review_agent_names_returns_frozenset_for_a_successful_read(
+    tmp_path: Path,
+) -> None:
+    agents_dir = tmp_path / "agents"
+    agents_dir.mkdir()
+    _agent(agents_dir, "security-review")
+    result = review_agent_registry.read_registered_review_agent_names(agents_dir)
+    assert result == frozenset({"security-review"})
+
+
+def test_read_registered_review_agent_names_distinguishes_empty_from_missing(
+    tmp_path: Path,
+) -> None:
+    empty_dir = tmp_path / "agents"
+    empty_dir.mkdir()
+    empty_but_successful = review_agent_registry.read_registered_review_agent_names(empty_dir)
+    missing = tmp_path / "no-such-agents-dir"
+    read_failure = review_agent_registry.read_registered_review_agent_names(missing)
+
+    assert empty_but_successful == frozenset()
+    assert read_failure is None
+    assert empty_but_successful is not read_failure
+
+
+# ---------------------------------------------------------------------------
 # Integration against the real repo (regression protection)
 # ---------------------------------------------------------------------------
 
