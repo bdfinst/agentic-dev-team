@@ -254,17 +254,21 @@ generated code that this test surface cannot reach?
 This is the same `EXCLUDED` log format used for the [structurally unkillable
 files](#structurally-unkillable-files) section — a single audit trail either way.
 
-## Baseline reuse for Round 1 (`--concurrency 1` only)
+## Baseline reuse for Round 1 (all `--concurrency` values)
 
 The pre-loop baseline scan that [Infrastructure exclusion
 detection](#infrastructure-exclusion-detection-before-the-loop-starts) above
 already reads can also seed a file's Round 1 — skipping a redundant fresh
 scoped run — when the baseline is still fresh for that file.
 
-**Scope: `--concurrency 1` only (or omitted).** Each `--concurrency >1` git
-worktree does not share the main checkout's `StrykerOutput/`, so under
-`--concurrency >1` every file's Round 1 falls back to today's fresh-per-file
-behavior, stated here explicitly, never silently.
+**Scope: all `--concurrency` values.** Every `--concurrency` worktree
+resolves the baseline report and the tracking file at the main checkout's
+absolute path — resolved once via `git rev-parse --show-toplevel` before any
+worktree is created — rather than a path relative to the worktree's own cwd.
+No code change was needed for this: `resolve`/`mark-consumed` never join
+`--tracking`/`--report` relative to the script's own location, only to the
+caller-supplied `--cwd` or CWD, so an absolute path from any worktree behaves
+identically to a same-directory invocation.
 
 **Canonical paths** — the baseline report:
 `StrykerOutput/baseline/reports/mutation-report.json` (per-tool equivalent per
@@ -301,6 +305,16 @@ python3 mutation_baseline_reuse.py mark-consumed --file <path> \
   --tracking StrykerOutput/mutation-kill-baseline-consumption.json
 ```
 
+**The `--tracking` value above must be the main checkout's absolute path** —
+not `StrykerOutput/mutation-kill-baseline-consumption.json` relative to the
+current `--concurrency` worktree's own cwd. The same applies to the
+`--report <baseline-path>` value fed to Round 1's seed when `eligible: true`:
+it must be the main checkout's absolute path to
+`StrykerOutput/baseline/reports/mutation-report.json`, not a worktree-relative
+one. `mark-consumed` calls from concurrent worktrees are now
+interprocess-locked (via `atomic_state.locked_state(strict=True)`) and safe
+to run without agent-side serialization.
+
 **Check its `success` field.** On `success: false`, print an operator-visible
 warning naming the file and the `error` reason before continuing to the next
 file — a `mark-consumed` failure is never silently absorbed into a
@@ -313,8 +327,8 @@ baseline: seeded N, ran-fresh M, mark-failed K
 ```
 
 `seeded` counts baseline-seeded files, `ran-fresh` counts every file whose
-Round 1 ran fresh (no baseline present, ineligible, or `--concurrency >1`),
-and `mark-failed` tallies the `mark-consumed` warnings above.
+Round 1 ran fresh (no baseline present, or ineligible), and `mark-failed`
+tallies the `mark-consumed` warnings above.
 
 ## Pre-loop feasibility gate (xunit.v3 shim-first)
 
