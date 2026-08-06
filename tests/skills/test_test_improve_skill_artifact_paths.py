@@ -17,10 +17,9 @@ from __future__ import annotations
 import re
 
 from skill_doc_helpers import PLUGIN_ROOT
+from skill_include_resolver import resolve_test_improve_text
 
-SKILL = (PLUGIN_ROOT / "skills" / "test-improve" / "SKILL.md").read_text(
-    encoding="utf-8"
-)
+SKILL = resolve_test_improve_text()
 
 CONVERGE_SKILL = (
     PLUGIN_ROOT / "skills" / "quality-targets-converge" / "SKILL.md"

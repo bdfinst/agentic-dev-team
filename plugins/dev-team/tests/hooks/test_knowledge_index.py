@@ -158,6 +158,34 @@ def test_non_edit_write_tools_silent(sentinel_builder) -> None:
         assert not sentinel.exists()
 
 
+def test_builder_warning_on_success_is_forwarded(sentinel_builder) -> None:
+    # A refused include target (symlink/escaping/unresolvable — see
+    # build_knowledge_index.py's resolve_contained_target) is a *successful*
+    # build that still prints a "warning: ..." line to stderr. That line
+    # must reach a real operator, not just a test that captures the
+    # subprocess directly (issue found by the code-review backstop on
+    # plans/test-improve-context-loading-strategy.md).
+    builder, sentinel = sentinel_builder
+    builder.write_text(
+        "#!/usr/bin/env bash\n"
+        f'touch "{sentinel}"\n'
+        'echo "warning: refusing include target foo — symlink" >&2\n'
+        "exit 0\n"
+    )
+    r = _run(
+        {
+            "tool_name": "Edit",
+            "tool_input": {
+                "file_path": "plugins/dev-team/knowledge/owasp-detection.md"
+            },
+        },
+        builder,
+    )
+    assert r.returncode == 0
+    assert "[knowledge-index] rebuilt" in r.stderr
+    assert "[knowledge-index] warning: refusing include target foo — symlink" in r.stderr
+
+
 def test_builder_failure_still_exits_zero(sentinel_builder) -> None:
     builder, sentinel = sentinel_builder
     r = _run(

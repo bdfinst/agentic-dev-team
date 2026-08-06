@@ -15,9 +15,9 @@ Ported from tests/skills/coverage_delta_decouple_tests.bats (issue #674).
 from __future__ import annotations
 
 from skill_doc_helpers import PLUGIN_ROOT, grep, section
+from skill_include_resolver import resolve_test_improve_text
 
 SKILL = PLUGIN_ROOT / "skills" / "coverage-delta" / "SKILL.md"
-TEST_IMPROVE = PLUGIN_ROOT / "skills" / "test-improve" / "SKILL.md"
 
 
 def _text() -> str:
@@ -92,5 +92,5 @@ def test_coverage_delta_no_hardcoded_memory_test_modernize_path_remains():
 
 def test_test_improve_invokes_coverage_delta_with_workflow_test_improve():
     assert grep(
-        r"/coverage-delta[^`]*--workflow test-improve", TEST_IMPROVE.read_text()
+        r"/coverage-delta[^`]*--workflow test-improve", resolve_test_improve_text()
     )

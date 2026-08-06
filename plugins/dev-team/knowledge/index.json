@@ -6272,6 +6272,10 @@
       "summary": "**Execution order.** Phases below are numbered by stable identity, not by",
       "anchor": "steps"
     },
+    "Phase Reference Files": {
+      "summary": "Each phase's procedural detail lives in its own reference file, listed below.",
+      "anchor": "phase-reference-files"
+    },
     "Phase 0 — Approach contract": {
       "summary": "Resolve every ambiguous input in **one batch** before any work starts, then",
       "anchor": "phase-0-approach-contract"
