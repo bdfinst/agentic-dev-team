@@ -160,9 +160,10 @@ serialization of index operations, not from an observed failure.
 - ADR 0020 — folding the mutation pipeline into the plugin as scripted mechanics
 - ADR 0030 — mutation baseline reuse (ancestor check)
 - Issue #1515 — fan-out is opt-in; it trades tokens for wall-clock
-- `plugins/dev-team/agents/mutation-kill.md` — "Parallelism", "Parallel
-  execution (Phase 4)", "Interaction with `--concurrency`", "Concurrency
-  cross-reference", "Baseline reuse for Round 1 (`--concurrency 1` only)"
+- `plugins/dev-team/agents/mutation-kill.md` — "Parallelism" (with its
+  "Sub-agent fan-out within a file (`--parallel`)" and "Interaction with
+  `--concurrency`" subsections), "Concurrency cross-reference", "Baseline
+  reuse for Round 1 (`--concurrency 1` only)"
 - `plugins/dev-team/skills/mutation-testing/scripts/stryker_shard_pipeline.py`
   — `run_all` (sequential), `process_shard` (worktree released before
   `launch_survivor_fix`)

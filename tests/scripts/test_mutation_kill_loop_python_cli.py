@@ -19,6 +19,7 @@ from pathlib import Path
 
 import _mutation_kill_loop_python_test_helpers  # noqa: F401 (sys.path side effect)
 import mutation_kill_loop_python as loop
+import mutation_kill_retry as retry
 import mutation_kill_shared as shared
 import pytest
 from _mutation_test_helpers import (
@@ -208,7 +209,7 @@ def test_main_returns_exit_code_5_when_generation_exhausted_propagates(
     monkeypatch.setattr(loop, "claude_cli_available", lambda: True)
 
     def boom(*a, **k):
-        raise shared.GenerationExhausted("a.py (round 3) exhausted its retry budget")
+        raise retry.GenerationExhausted("a.py (round 3) exhausted its retry budget")
 
     monkeypatch.setattr(loop, "run_for_file", boom)
 
@@ -228,7 +229,7 @@ def test_main_returns_exit_code_5_when_generation_exhausted_propagates(
 
 # =============================================================================
 # Scenario: make_headless_generator wires through
-# mutation_kill_shared.make_retrying_headless_call (#1908, Slice 3 Step 3.2)
+# mutation_kill_retry.make_retrying_headless_call (#1908, Slice 3 Step 3.2)
 # — round tracking, per-closure isolation, and GenerationExhausted
 # propagation. The retry/downgrade behavior itself is covered exhaustively
 # in test_mutation_kill_shared.py; this file only proves the wiring.
@@ -267,7 +268,7 @@ def test_make_headless_generator_propagates_generation_exhausted(
         "opus", log=lambda _: None, sleep=lambda _s: None
     )
 
-    with pytest.raises(shared.GenerationExhausted):
+    with pytest.raises(retry.GenerationExhausted):
         generate("a.py", [], "x = 1\n", "def test_existing(): pass\n")
 
 
@@ -335,7 +336,7 @@ def test_make_headless_generator_label_override_reflects_a_downgrade(
     monkeypatch.delenv("DEV_TEAM_MUTATION_FALLBACK_MODEL", raising=False)
     gw = lambda: RuntimeError("claude CLI failed (exit 1): 502 Bad Gateway")
     sequenced_run_claude_headless(monkeypatch, shared, gw(), gw(), gw(), gw(), "ok-on-sonnet")
-    on_downgrade, get_label_override = shared.make_downgrade_audit_hook()
+    on_downgrade, get_label_override = retry.make_downgrade_audit_hook()
     generate = loop.make_headless_generator(
         "opus", log=lambda _: None, on_downgrade=on_downgrade, sleep=lambda _s: None
     )

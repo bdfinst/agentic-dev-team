@@ -30,14 +30,16 @@ from collections.abc import Callable, Sequence
 from pathlib import Path
 
 from mutation_kill_loop import Generator, RunContext, load_loop_config, run_for_file
-from mutation_kill_shared import (
-    CLAUDE_CLI,
+from mutation_kill_retry import (
     EXIT_GENERATION_EXHAUSTED,
     DowngradeEvent,
     GenerationExhausted,
-    claude_cli_available,
     make_downgrade_audit_hook,
     make_retrying_headless_call,
+)
+from mutation_kill_shared import (
+    CLAUDE_CLI,
+    claude_cli_available,
     resolve_model,
     run_claude_headless,  # noqa: F401 — re-exported for tests (headless.run_claude_headless identity check); make_headless_generator now calls it indirectly via make_retrying_headless_call (#1908)
 )
@@ -123,7 +125,7 @@ def make_headless_generator(
 
     The returned callable builds the prompt from the existing test file (the
     pattern) plus the survivor summary, then delegates everything else to
-    :func:`mutation_kill_shared.make_retrying_headless_call` (#1908) — the
+    :func:`mutation_kill_retry.make_retrying_headless_call` (#1908) — the
     3-consecutive-gateway-class-failures/1-same-model-retry/at-most-once-
     per-file-downgrade wrapper around :func:`run_claude_headless`.
 
@@ -139,9 +141,9 @@ def make_headless_generator(
     number of its own.
 
     ``on_downgrade``, when given, is passed straight through to
-    :func:`mutation_kill_shared.make_retrying_headless_call`. Building the
+    :func:`mutation_kill_retry.make_retrying_headless_call`. Building the
     ``on_downgrade``/``get_label_override`` audit-trail pair
-    (:func:`mutation_kill_shared.make_downgrade_audit_hook`) is this
+    (:func:`mutation_kill_retry.make_downgrade_audit_hook`) is this
     module's own ``main()``'s job now (#1908 review) — this function no
     longer constructs one internally or attaches a
     ``label_override_provider`` attribute to the returned ``generate``;

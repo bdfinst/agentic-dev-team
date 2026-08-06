@@ -88,7 +88,10 @@ def test_agent_body_stays_under_500_line_limit(text: str) -> None:
     # Bumped by 5 more (#1580/#1583 review): added mutation_kill_shared.py
     # and mutation_kill_insert_python.py rows to the scripted-mechanics
     # table, and added run_claude_headless to the reused-helpers list.
-    assert len(text.splitlines()) < 621
+    # Bumped by 1 more (#1925/#1926): added a mutation_kill_retry.py row to
+    # the scripted-mechanics table (net of merging the two Parallelism
+    # sections into one).
+    assert len(text.splitlines()) < 622
 
 
 def test_defines_honest_score_formula(text: str) -> None:
@@ -155,7 +158,7 @@ def test_parallel_flag_documented_as_invocation_flag_with_agent_tool_fanout(
 ) -> None:
     assert re.search(r"--parallel", text)
     assert re.search(
-        r"^## Parallel execution|^### Parallel execution",
+        r"^## Parallelism|^### Sub-agent fan-out",
         text,
         re.MULTILINE | re.IGNORECASE,
     )
@@ -168,11 +171,11 @@ def test_parallel_flag_documented_as_invocation_flag_with_agent_tool_fanout(
 def test_parallel_and_concurrency_interaction_rule_specified(text: str) -> None:
     parallel_section = section(
         text,
-        r"^## Parallel execution",
+        r"^## Parallelism",
         boundary_pattern=r"^## ",
         include_start_line=False,
     )
-    assert parallel_section, "Parallel execution section not found"
+    assert parallel_section, "Parallelism section not found"
     assert re.search(r"concurrency", parallel_section, re.IGNORECASE)
 
 
