@@ -144,7 +144,7 @@ class LockAcquisitionError(RuntimeError):
 def _reraise_unless_fail_open(exc: OSError, fail_open: bool) -> None:
     """Re-raise `exc` unless `fail_open` — the shared decision behind each
     of `atomic_write`'s OSError sites (#1920 structure review: this
-    collapses the same duplication `_refuse_or_warn` above was extracted to
+    collapses the same duplication `_refuse_or_warn` below was extracted to
     eliminate for `locked_state`'s four fail-open sites). Takes the
     exception explicitly, rather than relying on a bare `raise` re-raising
     the caller's currently-handled exception, so this helper is an ordinary
