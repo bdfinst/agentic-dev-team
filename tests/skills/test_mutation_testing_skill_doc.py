@@ -457,3 +457,59 @@ def test_skill_step_2_skip_static_mutants_cross_reference_links_mutation_kill_an
     w = _skip_static_mutants_window()
     assert "mutation-kill.md#invocation" in w
     assert "javascript-stryker.md" in w
+
+
+# --- Issue #1910 Slice 5 Step 5.1: named equivalent-mutant taxonomy
+# reference section in Step 4 -----------------------------------------------
+
+NAMED_EQUIVALENT_PATTERNS = (
+    "truthiness-coercion-no-op",
+    "dead-initializer-overwritten-before-read",
+    "short-circuit-makes-downstream-unreachable",
+    "duplicate-case-bodies",
+    "default-value-never-observably-read",
+    "boolean-algebra-domination",
+    "unread-emission-value",
+)
+
+
+def _named_equivalent_patterns_section() -> str:
+    return section(
+        _text(),
+        r"^### .*[Nn]amed equivalent-mutant patterns",
+        boundary_pattern=r"^### ",
+        include_start_line=False,
+    )
+
+
+def test_skill_step_4_has_a_named_equivalent_mutant_patterns_sub_section():
+    assert grep(r"^### .*[Nn]amed equivalent-mutant patterns", _step_4_section())
+
+
+def test_skill_named_equivalent_patterns_section_names_all_seven_patterns():
+    s = _named_equivalent_patterns_section()
+    for pattern in NAMED_EQUIVALENT_PATTERNS:
+        assert pattern in s
+
+
+def test_skill_named_equivalent_patterns_section_precedes_weak_vs_strong_test_patterns():
+    lines = _step_4_section().splitlines()
+    named_idx = next(
+        (
+            i
+            for i, ln in enumerate(lines)
+            if ln.startswith("### ") and "Named equivalent-mutant patterns" in ln
+        ),
+        None,
+    )
+    weak_idx = next(
+        (
+            i
+            for i, ln in enumerate(lines)
+            if ln.startswith("### ") and "Weak vs strong test patterns" in ln
+        ),
+        None,
+    )
+    assert named_idx is not None
+    assert weak_idx is not None
+    assert named_idx < weak_idx
