@@ -13,6 +13,8 @@ Ported from tests/skills/mutation_testing_skill_doc_tests.bats (issue #674).
 
 from __future__ import annotations
 
+from collections.abc import Iterable
+
 import pytest
 from skill_doc_helpers import (
     PLUGIN_ROOT,
@@ -150,30 +152,41 @@ def test_skill_emitting_adapters_paragraph_exists_in_the_schema_section():
     assert grep(r"[Ee]mitting adapters", _machine_readable_section())
 
 
-def _paragraph_window(section: str, marker: str, *, bounded: bool = True) -> str:
+def _paragraph_window(
+    section: str, marker: str | Iterable[str], *, bounded: bool = True
+) -> str:
     """Find `marker` in `section` and return the window from that point.
+
+    `marker` accepts either a single string or an iterable of candidate
+    strings; candidates are tried in order and the first match wins.
 
     `bounded=True`: sliced at the next blank line (paragraph boundary) —
     the shape `_line_clustering_window`/`_skip_static_mutants_window` use.
-    Raises AssertionError naming `marker` when it isn't found.
+    `bounded=False`: returned from the found marker to the end of
+    `section`, with no blank-line truncation — the shape
+    `_emitting_adapters_window` uses.
+
+    Raises AssertionError naming the marker(s) when none is found.
     """
-    idx = section.find(marker)
-    assert idx != -1, f"marker not found in section: {marker!r}"
+    candidates = (marker,) if isinstance(marker, str) else tuple(marker)
+    idx = None
+    for candidate in candidates:
+        found = section.find(candidate)
+        if found != -1:
+            idx = found
+            break
+    assert idx is not None, f"no candidate marker found in section: {candidates!r}"
     if bounded:
         return section[idx:].split("\n\n", 1)[0]
     return section[idx:]
 
 
 def _emitting_adapters_window() -> str:
-    s = _machine_readable_section()
-    idx = None
-    for pat in ("Emitting adapters", "emitting adapters"):
-        found = s.find(pat)
-        if found != -1:
-            idx = found
-            break
-    assert idx is not None
-    return s[idx:]
+    return _paragraph_window(
+        _machine_readable_section(),
+        ("Emitting adapters", "emitting adapters"),
+        bounded=False,
+    )
 
 
 def test_skill_emitting_adapters_paragraph_names_stryker_net_as_an_emitter():
@@ -474,6 +487,15 @@ def test_skill_step_2_skip_static_mutants_cross_reference_links_mutation_kill_an
 def test_paragraph_window_bounded_raises_when_marker_absent():
     with pytest.raises(AssertionError):
         _paragraph_window("no markers here at all", "does-not-exist")
+
+
+def test_paragraph_window_unbounded_multi_candidate_raises_when_none_present():
+    with pytest.raises(AssertionError):
+        _paragraph_window(
+            "no markers here at all",
+            ("does-not-exist", "also-does-not-exist"),
+            bounded=False,
+        )
 
 
 def test_skip_static_mutants_window_docstring_preserved():
