@@ -4784,6 +4784,10 @@
       "summary": "1.",
       "anchor": "triage-procedure"
     },
+    "Named equivalent-mutant patterns": {
+      "summary": "A vague \"doesn't matter\" reason doesn't hold up under review — naming the shape of the equivalence claim makes it checkable.",
+      "anchor": "named-equivalent-mutant-patterns"
+    },
     "Weak vs strong test patterns": {
       "summary": "Most survivors come from tests that execute code without meaningfully asserting on behavior.",
       "anchor": "weak-vs-strong-test-patterns"
@@ -6271,6 +6275,10 @@
     "Steps": {
       "summary": "**Execution order.** Phases below are numbered by stable identity, not by",
       "anchor": "steps"
+    },
+    "Phase Reference Files": {
+      "summary": "Each phase's procedural detail lives in its own reference file, listed below.",
+      "anchor": "phase-reference-files"
     },
     "Phase 0 — Approach contract": {
       "summary": "Resolve every ambiguous input in **one batch** before any work starts, then",

@@ -41,15 +41,29 @@ def scan_for_unsafe_patterns(text: str, patterns: dict[str, re.Pattern[str]]) ->
     return [name for name, pattern in patterns.items() if pattern.search(text)]
 
 
-def append_generator_trailer(message: str, generator_label: str | None) -> str:
+def append_generator_trailer(
+    message: str,
+    generator_label: str | None,
+    *,
+    label_override: str | None = None,
+) -> str:
     """Append a ``Generator: <label>`` audit-trail trailer to a commit message.
 
     Distinguishes an unattended, unreviewed commit (``--headless``) from an
     agent-driven one (a live turn with an operator present) without
-    re-deriving it from CI logs. Whitespace in ``generator_label`` is
+    re-deriving it from CI logs. Whitespace in the chosen label is
     collapsed so a pipeline-supplied value containing newlines can't forge
-    an extra trailer line. A no-op when ``generator_label`` is ``None``.
+    an extra trailer line. A no-op when the chosen label is ``None``.
+
+    ``label_override``, when supplied (not ``None``), is used for this call
+    INSTEAD of ``generator_label`` — the frozen, file-level
+    ``RunContext.generator_label`` default is used whenever no override is
+    given. This is the seam #1908 Step 3.2b adds so a model-downgrade
+    event's per-round dynamic content (from-model, to-model, round) can
+    reach the commit trailer without breaking ``RunContext.generator_label``'s
+    ``frozen=True`` file-level invariant.
     """
-    if generator_label is None:
+    label = generator_label if label_override is None else label_override
+    if label is None:
         return message
-    return message + f"\n\nGenerator: {' '.join(generator_label.split())}"
+    return message + f"\n\nGenerator: {' '.join(label.split())}"

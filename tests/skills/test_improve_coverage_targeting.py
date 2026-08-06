@@ -20,18 +20,14 @@ gate scripts the prose invokes — no git or state-mutating operations.
 from __future__ import annotations
 
 from skill_doc_helpers import PLUGIN_ROOT, collapsed, grep, section
+from skill_include_resolver import resolve_test_improve_text as _text
 
-SKILL = PLUGIN_ROOT / "skills" / "test-improve" / "SKILL.md"
 RANKING_SCRIPT = PLUGIN_ROOT / "scripts" / "coverage_gap_ranking.py"
 STEERING_SCRIPT = PLUGIN_ROOT / "scripts" / "coverage_delta_steering.py"
 
 RANKING_ARTIFACT = (
     r"\.dev-team-reports/test-improve/<slug>/data/coverage-gap-ranking\.json"
 )
-
-
-def _text() -> str:
-    return SKILL.read_text()
 
 
 def _phase(n: int) -> str:

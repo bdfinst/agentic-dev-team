@@ -25,15 +25,21 @@ from __future__ import annotations
 
 import argparse
 import sys
-from collections.abc import Sequence
+import time
+from collections.abc import Callable, Sequence
 from pathlib import Path
 
 from mutation_kill_loop import Generator, RunContext, load_loop_config, run_for_file
 from mutation_kill_shared import (
     CLAUDE_CLI,
+    EXIT_GENERATION_EXHAUSTED,
+    DowngradeEvent,
+    GenerationExhausted,
     claude_cli_available,
+    make_downgrade_audit_hook,
+    make_retrying_headless_call,
     resolve_model,
-    run_claude_headless,
+    run_claude_headless,  # noqa: F401 — re-exported for tests (headless.run_claude_headless identity check); make_headless_generator now calls it indirectly via make_retrying_headless_call (#1908)
 )
 
 # The exact message the bare-CLI startup preflight prints. Pinned so the
@@ -105,15 +111,47 @@ def build_generation_prompt(
 
 
 def make_headless_generator(
-    model: str | None = None, *, cwd: Path | None = None
+    model: str | None = None,
+    *,
+    cwd: Path | None = None,
+    log: Callable[[str], None] = print,
+    on_downgrade: Callable[[DowngradeEvent], None] | None = None,
+    sleep: Callable[[float], None] = time.sleep,
 ) -> Generator:
     """Return a :data:`mutation_kill_loop.Generator` that shells to
     ``claude --print``.
 
     The returned callable builds the prompt from the existing test file (the
     pattern) plus the survivor summary, then delegates everything else to
-    :func:`run_claude_headless`.
+    :func:`mutation_kill_shared.make_retrying_headless_call` (#1908) — the
+    3-consecutive-gateway-class-failures/1-same-model-retry/at-most-once-
+    per-file-downgrade wrapper around :func:`run_claude_headless`.
+
+    The retry/downgrade state (consecutive-failure counter, model in use,
+    whether this file already spent its one downgrade) lives in the
+    ``retrying_call`` closure below — constructed once per file, here, never
+    at module scope — so a new file's generator always starts fresh at the
+    top of the ladder regardless of a prior file's downgrade, and concurrent
+    files under ``--all --concurrency`` (each with their own closure) never
+    leak state to one another. ``round_num`` is derived from how many times
+    THIS closure has been invoked (the loop calls its ``generate`` once per
+    round), since the shared :data:`Generator` signature carries no round
+    number of its own.
+
+    ``on_downgrade``, when given, is passed straight through to
+    :func:`mutation_kill_shared.make_retrying_headless_call`. Building the
+    ``on_downgrade``/``get_label_override`` audit-trail pair
+    (:func:`mutation_kill_shared.make_downgrade_audit_hook`) is this
+    module's own ``main()``'s job now (#1908 review) — this function no
+    longer constructs one internally or attaches a
+    ``label_override_provider`` attribute to the returned ``generate``;
+    ``main()`` has ``get_label_override`` directly in scope and wires it
+    into :class:`RunContext` itself, so no attribute-smuggling is needed.
     """
+    retrying_call = make_retrying_headless_call(
+        initial_model=model, cwd=cwd, log=log, on_downgrade=on_downgrade, sleep=sleep
+    )
+    round_counter = {"n": 0}
 
     def generate(
         source_file: str,
@@ -121,8 +159,9 @@ def make_headless_generator(
         source_text: str,
         test_text: str,
     ) -> str:
+        round_counter["n"] += 1
         prompt = build_generation_prompt(source_file, survivors, source_text, test_text)
-        return run_claude_headless(prompt, model=model, cwd=cwd)
+        return retrying_call(prompt, source_file, round_counter["n"])
 
     return generate
 
@@ -192,6 +231,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         )
         return 2
 
+    on_downgrade, get_label_override = make_downgrade_audit_hook()
+    generate = make_headless_generator(model, on_downgrade=on_downgrade)
     try:
         run_for_file(
             args.file,
@@ -203,10 +244,29 @@ def main(argv: Sequence[str] | None = None) -> int:
                 stryker_bin=args.stryker_bin,
                 initial_report_path=Path(args.report) if args.report else None,
                 generator_label=f"headless ({model or 'default'})",
+                label_override_provider=get_label_override,
             ),
-            generate=make_headless_generator(model),
+            generate=generate,
             max_rounds=args.max_rounds,
         )
+    except GenerationExhausted as exc:
+        # This file's retry-then-downgrade budget is fully spent (3
+        # consecutive gateway-class failures + 1 same-model retry, at the
+        # original model AND at most one fallback tier) — distinct from exit
+        # code 4 below, which most commonly means a failed revert (leaving
+        # the working tree in an unknown/possibly-mutated state) but
+        # currently also absorbs other, actually-clean RuntimeErrors, e.g. a
+        # non-gateway-class generation timeout (#1930). A clean exhaustion
+        # mutates nothing: generation precedes insertion within a round, and
+        # a prior round's own revert failure is itself fatal (raised, never
+        # swallowed). What isn't independently re-verified here is that a
+        # revert git reports as successful actually left the tree clean
+        # (#1928) — so callers (stryker_shard_pipeline.py's shard driver) can
+        # log this file as unfixed and continue to the next file without
+        # affecting the run's exit status, instead of aborting the whole
+        # shard (#1908 review).
+        sys.stderr.write(f"error: {exc}\n")
+        return EXIT_GENERATION_EXHAUSTED
     except RuntimeError as exc:
         # A failed revert or a failed-commit round-abandonment raises
         # RuntimeError (#1598) — without this, that either propagated as a

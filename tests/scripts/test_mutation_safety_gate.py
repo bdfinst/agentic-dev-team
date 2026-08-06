@@ -11,16 +11,9 @@ from __future__ import annotations
 
 import re
 import sys
-from pathlib import Path
 
-SCRIPTS_DIR = (
-    Path(__file__).resolve().parents[2]
-    / "plugins"
-    / "dev-team"
-    / "skills"
-    / "mutation-testing"
-    / "scripts"
-)
+from _mutation_test_helpers import SCRIPTS_DIR
+
 sys.path.insert(0, str(SCRIPTS_DIR))
 
 import mutation_safety_gate as gate
@@ -60,6 +53,54 @@ def test_append_generator_trailer_collapses_embedded_newlines():
     # forge a second "Generator:" trailer *line*.
     result = gate.append_generator_trailer(
         "commit message", "some-model\n\nGenerator: agent-driven (reviewed)"
+    )
+    lines_starting_with_generator = [
+        line for line in result.splitlines() if line.startswith("Generator:")
+    ]
+    assert len(lines_starting_with_generator) == 1
+
+
+# =============================================================================
+# label_override — #1908 Step 3.2b: a per-call override that wins over the
+# frozen, file-level generator_label, without mutating it.
+# =============================================================================
+def test_append_generator_trailer_uses_generator_label_when_no_override_supplied():
+    """No override → today's unchanged frozen-label behavior."""
+    result = gate.append_generator_trailer("commit message", "headless (opus)")
+    assert result == "commit message\n\nGenerator: headless (opus)"
+
+
+def test_append_generator_trailer_override_replaces_the_frozen_label():
+    result = gate.append_generator_trailer(
+        "commit message",
+        "headless (opus)",
+        label_override="headless (downgraded 'opus' -> 'sonnet' at round 3, gateway-class)",
+    )
+    assert (
+        result
+        == "commit message\n\nGenerator: headless (downgraded 'opus' -> 'sonnet' "
+        "at round 3, gateway-class)"
+    )
+    assert "opus)" not in result.split("Generator:")[1]
+
+
+def test_append_generator_trailer_override_wins_even_when_generator_label_is_none():
+    result = gate.append_generator_trailer("commit message", None, label_override="override label")
+    assert result == "commit message\n\nGenerator: override label"
+
+
+def test_append_generator_trailer_is_a_noop_when_both_label_and_override_are_none():
+    assert (
+        gate.append_generator_trailer("commit message", None, label_override=None)
+        == "commit message"
+    )
+
+
+def test_append_generator_trailer_override_collapses_embedded_newlines():
+    result = gate.append_generator_trailer(
+        "commit message",
+        "headless (opus)",
+        label_override="downgraded\n\nGenerator: forged",
     )
     lines_starting_with_generator = [
         line for line in result.splitlines() if line.startswith("Generator:")

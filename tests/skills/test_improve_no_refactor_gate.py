@@ -11,13 +11,9 @@ These are structural sensors over the shipped SKILL.md prose.
 from __future__ import annotations
 
 from skill_doc_helpers import PLUGIN_ROOT, collapsed, grep, section
+from skill_include_resolver import resolve_test_improve_text as _text
 
-SKILL = PLUGIN_ROOT / "skills" / "test-improve" / "SKILL.md"
 IFA_SKILL = PLUGIN_ROOT / "skills" / "issues-from-assessment" / "SKILL.md"
-
-
-def _text() -> str:
-    return SKILL.read_text()
 
 
 def _phase_6_section() -> str:

@@ -457,6 +457,7 @@ def _commit_message(
     new_methods: str,
     *,
     generator_label: str | None = None,
+    label_override: str | None = None,
 ) -> str:
     count = count_methods(new_methods)
     # Whitespace-collapsed the same way append_generator_trailer sanitizes
@@ -468,7 +469,9 @@ def _commit_message(
         f"test(mutation): kill round {round_num} — {safe_source_file}\n\n"
         f"{count} new test method(s) targeting {survivors} surviving mutant(s)"
     )
-    return mutation_safety_gate.append_generator_trailer(message, generator_label)
+    return mutation_safety_gate.append_generator_trailer(
+        message, generator_label, label_override=label_override
+    )
 
 
 # =============================================================================
@@ -485,6 +488,19 @@ class RunContext:
     controls (#1561). ``generator_label``, when set, is recorded in the
     commit message as an audit trail (e.g. distinguishing an unattended
     ``--headless`` commit from an agent-driven one).
+
+    ``label_override_provider``, when set, is called with no arguments
+    before building each round's commit message; a non-``None`` result
+    replaces ``generator_label`` for that commit AND every subsequent commit
+    in this file (#1908 Step 3.2b) — the seam a model-downgrade event uses to
+    record itself in the audit trail without mutating this frozen,
+    file-level dataclass. The lifetime is sticky, not per-commit: once a
+    downgrade fires at round N, the stored label is never cleared, so every
+    later commit in this file also carries the downgrade label (with the
+    round number frozen at N, not the commit's own round) — intentional,
+    since the downgraded model really does stay in use for the rest of the
+    file. ``None`` (the default) leaves today's ``generator_label``-only
+    behavior unchanged.
     """
 
     config: LoopConfig
@@ -496,6 +512,7 @@ class RunContext:
     log: Callable[[str], None] = print
     initial_report_path: Path | None = None
     generator_label: str | None = None
+    label_override_provider: Callable[[], str | None] | None = None
 
 
 def _score_round(
@@ -607,6 +624,9 @@ def _verify_and_commit(
         return None
 
     ctx.log("  green — committing")
+    label_override = (
+        ctx.label_override_provider() if ctx.label_override_provider is not None else None
+    )
     committed = git_commit(
         _commit_message(
             round_num,
@@ -614,6 +634,7 @@ def _verify_and_commit(
             survivor_count,
             new_methods,
             generator_label=ctx.generator_label,
+            label_override=label_override,
         ),
         ctx.test_file,
         cwd=ctx.cwd,

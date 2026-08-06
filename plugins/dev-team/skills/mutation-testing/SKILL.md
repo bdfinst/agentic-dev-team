@@ -96,6 +96,8 @@ Per-language commands (which probe file to pick, how to invoke the tool with a s
 
 Run scoped to user-specified files or changed files. Capture full output and note any HTML report paths. Per-language commands and scoping idioms — including the C# shard-aware execution path for large repos — live in [`references/languages/<lang>.md`](references/languages/).
 
+**Opt-in JS/TS generation-round savings.** For a JS/TS (Stryker) target, `mutation-kill`'s `--skip-static-mutants` flag excludes mutants that force a full-suite re-run from the survivor list handed to its generation step, trading a small, documented survivor over-count for fewer expensive-to-verify generation rounds (it does not change Stryker's own run time). Default OFF; scoring and convergence always read the unfiltered survivor count. See [`mutation-kill.md`'s Invocation section](../../agents/mutation-kill.md#invocation) and [`references/languages/javascript-stryker.md`](references/languages/javascript-stryker.md#static-mutant-skip-skip-static-mutants) for the mechanics.
+
 ### Capturing run output safely
 
 Do **not** wrap the mutation tool in a bare `<tool> 2>&1 | tee run.log` pipeline. Bash pipeline exit status defaults to the last command's — `tee` always exits 0 on a successful write — so any Stryker / mutmut / pitest / go-mutesting startup failure (missing tool manifest, invalid config key, wrong `DOTNET_ROOT`, compile-error abort) is silently masked. Downstream automation (background tasks, CI wrappers, this plugin's own monitor loops) then sees "success" and moves on, and the failure is discovered only when the report JSON is missing.
@@ -186,6 +188,8 @@ Equivalent and Accepted are not the same classification, even though both end in
 2. **Survived** next (assertion or coverage fix — see the mutation-type-aware guidance below).
 3. **Equivalent** and **Accepted this pass** last (documentation only; no test to write — each still requires its own `reason` string).
 
+**Cluster survivors by source line before filling in "Recommended Test Additions."** When several survivors land on the same or adjacent source line sharing one expression, group them into one cluster — sorted by survivors-per-line descending (not total mutants-per-line; the ranking targets what still needs killing) — and design one test per cluster where feasible, rather than one per mutant: the same line-clustering approach [`mutation-kill.md`'s generation guidance](../../agents/mutation-kill.md#target-mutation-types-in-priority-order) applies for autonomous test generation, here guiding a human filling the triage table.
+
 ### Mutation-type-aware triage
 
 Different mutation types fail for different reasons. A single strategy does not fit all — asking an LLM to strengthen an assertion cannot kill a Statement-removal survivor. Match the fix to the family:
@@ -206,12 +210,26 @@ Assert.AreEqual("expected-value", response.Data.FieldName);
 ### Triage procedure
 
 1. **Read the source context** — what does the code do and why.
-2. **Check for equivalence** — does the mutation actually change observable behavior? Common equivalent patterns: dead code or unreachable branches; commutative-operation reorderings; conditions redundant with other guards; logging/debug-only code.
+2. **Check for equivalence** — does the mutation actually change observable behavior? See "Named equivalent-mutant patterns" below for the canonical taxonomy.
 3. **Find related tests** — which tests cover this code; what do they assert.
 4. **Classify** — missing assertion, missing test, boundary gap, equivalent, or accepted (real, killable, deliberately deferred this pass — record the `reason`).
 5. **Write the fix test** with RED-GREEN discipline: must fail against the mutant and pass against the original.
 
 **Graph-assisted triage.** For steps 1 and 3, prefer CodeGraph/Repowise over raw `Grep` — they surface a mutated line's callers and its covering tests directly, which is faster and more complete than grepping for the symbol name. See [`knowledge/codegraph-vs-graphify.md`](../../knowledge/codegraph-vs-graphify.md) for tool selection and the fallback contract.
+
+### Named equivalent-mutant patterns
+
+A vague "doesn't matter" reason doesn't hold up under review — naming the shape of the equivalence claim makes it checkable. When marking a survivor `status: "equivalent"`, cite one of these seven named patterns where applicable; they supersede the informal "dead code / commutative reorderings / redundant conditions / logging-only" list from earlier drafts of this guidance.
+
+| Pattern | One-line description |
+| --- | --- |
+| **truthiness-coercion-no-op** | The mutation changes how a value is coerced to a boolean, not the boolean it produces — the surviving mutant is behaviorally identical for every input. |
+| **dead-initializer-overwritten-before-read** | The mutated initializer is unconditionally overwritten before any code reads it, so its original value is never observable. |
+| **short-circuit-makes-downstream-unreachable** | An earlier `&&` / `\|\|` / early-return already guarantees the mutated branch never executes, regardless of the mutation. |
+| **duplicate-case-bodies** | The mutation swaps one branch/case body for another that is textually or behaviorally identical, so no test can distinguish "wrong" from "right". |
+| **default-value-never-observably-read** | The mutated default/fallback value sits on a path no real caller exercises — every caller supplies an explicit value instead. |
+| **boolean-algebra-domination** | The mutated boolean expression is dominated by a constant operand (e.g. `x \|\| true` is always `true` regardless of `x` — the domination/annihilator law, `A ∨ 1 = 1`), producing the same truth table for every input. |
+| **unread-emission-value** | The mutated value is emitted (logged, returned, published) but no caller or test ever consumes or asserts on it. |
 
 ### Weak vs strong test patterns
 

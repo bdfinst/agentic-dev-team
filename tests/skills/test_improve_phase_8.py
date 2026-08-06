@@ -7,13 +7,8 @@ Ported from tests/skills/test_improve_phase_6_tests.bats (issue #674).
 
 from __future__ import annotations
 
-from skill_doc_helpers import PLUGIN_ROOT, grep, grep_multiline, section
-
-SKILL = PLUGIN_ROOT / "skills" / "test-improve" / "SKILL.md"
-
-
-def _text() -> str:
-    return SKILL.read_text()
+from skill_doc_helpers import grep, grep_multiline, section
+from skill_include_resolver import resolve_test_improve_text as _text
 
 
 def _phase_8_section() -> str:

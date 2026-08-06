@@ -11,13 +11,9 @@ from __future__ import annotations
 
 import re
 
-from skill_doc_helpers import PLUGIN_ROOT, frontmatter, grep, grep_multiline, section
-
-SKILL = PLUGIN_ROOT / "skills" / "test-improve" / "SKILL.md"
-
-
-def _text() -> str:
-    return SKILL.read_text(encoding="utf-8")
+from skill_doc_helpers import frontmatter, grep, grep_multiline, section
+from skill_include_resolver import SKILL
+from skill_include_resolver import resolve_test_improve_text as _text
 
 
 def _phase_start_banner_fence() -> str:

@@ -17,9 +17,9 @@ Ported from tests/skills/coverage_baseline_decouple_tests.bats (issue #674).
 from __future__ import annotations
 
 from skill_doc_helpers import PLUGIN_ROOT, grep
+from skill_include_resolver import resolve_test_improve_text
 
 SKILL = PLUGIN_ROOT / "skills" / "coverage-baseline" / "SKILL.md"
-TEST_IMPROVE = PLUGIN_ROOT / "skills" / "test-improve" / "SKILL.md"
 
 
 def _text() -> str:
@@ -79,5 +79,6 @@ def test_coverage_baseline_no_hardcoded_memory_test_modernize_path_remains():
 
 def test_test_improve_invokes_coverage_baseline_with_workflow_test_improve():
     assert grep(
-        r"/coverage-baseline[^`]*--workflow test-improve", TEST_IMPROVE.read_text()
+        r"/coverage-baseline[^`]*--workflow test-improve",
+        resolve_test_improve_text(),
     )

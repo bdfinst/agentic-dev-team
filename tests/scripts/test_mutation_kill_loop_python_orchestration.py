@@ -61,6 +61,31 @@ def test_commit_message_counts_new_tests_via_count_tests():
 
 
 # =============================================================================
+# Scenario: label_override — #1908 Step 3.2b. A model-downgrade event's
+# per-round dynamic content can't live in the frozen generator_label, so
+# _commit_message accepts an optional per-call override instead.
+# =============================================================================
+def test_commit_message_no_override_keeps_the_frozen_label_unchanged():
+    message = loop._commit_message(
+        1, "calc.py", 2, "def test_new(): pass\n", generator_label="headless (opus)"
+    )
+    assert "Generator: headless (opus)" in message
+
+
+def test_commit_message_override_replaces_the_frozen_label():
+    message = loop._commit_message(
+        1,
+        "calc.py",
+        2,
+        "def test_new(): pass\n",
+        generator_label="headless (opus)",
+        label_override="headless (downgraded 'opus' -> 'sonnet' at round 1, gateway-class)",
+    )
+    assert "Generator: headless (downgraded 'opus' -> 'sonnet' at round 1, gateway-class)" in message
+    assert "headless (opus)" not in message
+
+
+# =============================================================================
 # Scenario: _commit_message's source_file is whitespace-collapsed the same
 # way append_generator_trailer already sanitizes generator_label (#1607) — a
 # source_file value containing a newline (legal on POSIX) must not be able
@@ -172,6 +197,81 @@ def test_run_for_file_generates_inserts_and_commits_on_green(tmp_path: Path, mon
     assert "def test_new():" in test_file.read_text(encoding="utf-8")
     assert len(committed) == 1
     assert "kill round 1" in committed[0]
+
+
+def test_run_for_file_with_no_label_override_provider_uses_the_frozen_generator_label(
+    tmp_path: Path, monkeypatch
+):
+    """Today's unchanged behavior: RunContext.label_override_provider
+    defaults to None, so the commit trailer carries the frozen
+    generator_label exactly as before #1908 Step 3.2b."""
+    monkeypatch.setattr(
+        loop, "run_scoped_mutmut", lambda *a, **k: _junit(_survived("Mutant #1", "src/a.py", 3), failures=1)
+    )
+    monkeypatch.setattr(loop, "python_compiles", lambda *a, **k: True)
+    monkeypatch.setattr(loop, "run_scoped_pytest", lambda *a, **k: True)
+
+    committed = []
+    monkeypatch.setattr(
+        loop, "git_commit", lambda message, test_file, **k: committed.append(message) or True
+    )
+
+    test_file = tmp_path / "test_a.py"
+    test_file.write_text("def test_existing():\n    assert True\n", encoding="utf-8")
+    source_file = tmp_path / "a.py"
+    source_file.write_text("x = 1\n", encoding="utf-8")
+
+    loop.run_for_file(
+        "src/a.py",
+        _ctx(test_file, source_file, generator_label="headless (opus)"),
+        generate=lambda *_a: "def test_new():\n    assert 1 == 1\n",
+        max_rounds=1,
+    )
+
+    assert len(committed) == 1
+    assert "Generator: headless (opus)" in committed[0]
+
+
+def test_run_for_file_uses_the_label_override_provider_for_the_commit_trailer(
+    tmp_path: Path, monkeypatch
+):
+    """A model-downgrade event's per-round dynamic content, surfaced through
+    RunContext.label_override_provider, replaces the frozen generator_label
+    in that round's commit trailer (#1908 Step 3.2b) — the mechanism
+    make_downgrade_audit_hook's on_downgrade/get_label_override pair exists
+    to drive from each loop's make_headless_generator."""
+    monkeypatch.setattr(
+        loop, "run_scoped_mutmut", lambda *a, **k: _junit(_survived("Mutant #1", "src/a.py", 3), failures=1)
+    )
+    monkeypatch.setattr(loop, "python_compiles", lambda *a, **k: True)
+    monkeypatch.setattr(loop, "run_scoped_pytest", lambda *a, **k: True)
+
+    committed = []
+    monkeypatch.setattr(
+        loop, "git_commit", lambda message, test_file, **k: committed.append(message) or True
+    )
+
+    test_file = tmp_path / "test_a.py"
+    test_file.write_text("def test_existing():\n    assert True\n", encoding="utf-8")
+    source_file = tmp_path / "a.py"
+    source_file.write_text("x = 1\n", encoding="utf-8")
+
+    override_label = "headless (downgraded 'opus' -> 'sonnet' at round 1, gateway-class)"
+    loop.run_for_file(
+        "src/a.py",
+        _ctx(
+            test_file,
+            source_file,
+            generator_label="headless (opus)",
+            label_override_provider=lambda: override_label,
+        ),
+        generate=lambda *_a: "def test_new():\n    assert 1 == 1\n",
+        max_rounds=1,
+    )
+
+    assert len(committed) == 1
+    assert f"Generator: {override_label}" in committed[0]
+    assert "headless (opus)" not in committed[0]
 
 
 def test_run_for_file_reverts_on_failing_scoped_test(tmp_path: Path, monkeypatch):
