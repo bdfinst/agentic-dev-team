@@ -1,5 +1,36 @@
 # Changelog
 
+## [12.5.0](https://github.com/bdfinst/agentic-dev-team/compare/dev-team-v12.4.0...dev-team-v12.5.0) (2026-08-06)
+
+
+### Features
+
+* **coverage-discovery:** discover and classify Java multi-module test modules ([#1838](https://github.com/bdfinst/agentic-dev-team/issues/1838)) ([e9bafd1](https://github.com/bdfinst/agentic-dev-team/commit/e9bafd16f18f158b9cf0d1efdbe7093ac1cb998b)), closes [#1765](https://github.com/bdfinst/agentic-dev-team/issues/1765)
+* **fix:** add /fix workflow — triage-driven RED/GREEN defect fix, then PR ([#1902](https://github.com/bdfinst/agentic-dev-team/issues/1902)) ([40d64c2](https://github.com/bdfinst/agentic-dev-team/commit/40d64c215852867eb75133a88ed924512a58454d))
+* **mutation-kill:** batch hardening from mutation-score-improvement analysis ([#1931](https://github.com/bdfinst/agentic-dev-team/issues/1931)) ([36f3ccd](https://github.com/bdfinst/agentic-dev-team/commit/36f3ccd41a724a4b70fa76c3c43ee9f78c85691f))
+
+
+### Bug Fixes
+
+* **batch:** close 10 issues from issue-triage [#1809](https://github.com/bdfinst/agentic-dev-team/issues/1809)-[#1904](https://github.com/bdfinst/agentic-dev-team/issues/1904) ([#1916](https://github.com/bdfinst/agentic-dev-team/issues/1916)) ([3b2fd10](https://github.com/bdfinst/agentic-dev-team/commit/3b2fd10af78501ae055550172d4f23059d064a89))
+* **batch:** close 37 confirmed issues from issue-triage [#1795](https://github.com/bdfinst/agentic-dev-team/issues/1795)-[#1896](https://github.com/bdfinst/agentic-dev-team/issues/1896) ([#1911](https://github.com/bdfinst/agentic-dev-team/issues/1911)) ([e0e4f36](https://github.com/bdfinst/agentic-dev-team/commit/e0e4f367be4d5edaf6bd0a804ff5afe3afe6204b))
+* **cost-meter:** add claude-opus-5 pricing and surface unpriced models durably ([#1842](https://github.com/bdfinst/agentic-dev-team/issues/1842)) ([3f0c467](https://github.com/bdfinst/agentic-dev-team/commit/3f0c46749167cb12529e68641e1c137a5b608766)), closes [#1830](https://github.com/bdfinst/agentic-dev-team/issues/1830)
+* **hooks:** add bounded fail-open lock-acquisition budget to atomic_state.locked_state ([#1894](https://github.com/bdfinst/agentic-dev-team/issues/1894)) ([28ffb47](https://github.com/bdfinst/agentic-dev-team/commit/28ffb472c867b4ed0ca8913a8d23e69e05c83e0c)), closes [#1888](https://github.com/bdfinst/agentic-dev-team/issues/1888)
+* **hooks:** lock boundary_events.py's log append against concurrent writers ([#1891](https://github.com/bdfinst/agentic-dev-team/issues/1891)) ([418c0c9](https://github.com/bdfinst/agentic-dev-team/commit/418c0c94713af7b60e8ed46750ac128a70ed3a40)), closes [#1874](https://github.com/bdfinst/agentic-dev-team/issues/1874)
+* **hooks:** lock JSONL appends against concurrent writers ([#1898](https://github.com/bdfinst/agentic-dev-team/issues/1898)) ([f73bf38](https://github.com/bdfinst/agentic-dev-team/commit/f73bf38cb82c6b64c1e6ffc17824ad6bb9a99c54)), closes [#1889](https://github.com/bdfinst/agentic-dev-team/issues/1889)
+* **scripts:** skip opus-tier always-lenses on non-executable-only diffs ([#1932](https://github.com/bdfinst/agentic-dev-team/issues/1932)) ([0431e22](https://github.com/bdfinst/agentic-dev-team/commit/0431e2280b3a165b5d7d234053b3bfaca3dd03e8)), closes [#1923](https://github.com/bdfinst/agentic-dev-team/issues/1923)
+* **skills:** mutation-night-watch scheduling.md points at plugin root, not operator's repo ([#1884](https://github.com/bdfinst/agentic-dev-team/issues/1884)) ([b58d090](https://github.com/bdfinst/agentic-dev-team/commit/b58d09070fdd9285c1d29beac80e962faaf78526)), closes [#1877](https://github.com/bdfinst/agentic-dev-team/issues/1877)
+
+
+### Code Refactoring
+
+* **test-improve:** split SKILL.md into lean entry + per-phase references ([#1921](https://github.com/bdfinst/agentic-dev-team/issues/1921)) ([e865355](https://github.com/bdfinst/agentic-dev-team/commit/e8653556312f9926e26596390f1ad8845059bd19))
+
+
+### Documentation
+
+* **orchestrator:** document that parallel fix subagents must not dispatch their own review ([#1882](https://github.com/bdfinst/agentic-dev-team/issues/1882)) ([186cd5b](https://github.com/bdfinst/agentic-dev-team/commit/186cd5b32b7868d4dae794e26c8670727d61eb26))
+
 ## [12.4.0](https://github.com/bdfinst/agentic-dev-team/compare/dev-team-v12.3.0...dev-team-v12.4.0) (2026-08-05)
 
 
