@@ -11,6 +11,7 @@ pattern (``monkeypatch.setattr(loop.subprocess, "run", ...)``).
 from __future__ import annotations
 
 import json
+import os
 import subprocess
 import sys
 import threading
@@ -142,7 +143,7 @@ def test_mark_consumed_creates_tracking_file_atomically(tmp_path: Path):
     result = mbr.mark_consumed(path, "src/Foo.cs", "capture-sha")
 
     assert result == {"success": True}
-    assert not (tmp_path / "tracking.json.tmp").exists()
+    assert list(tmp_path.glob(".tracking.json-*.tmp")) == []
     reread = mbr.read_tracking(path)
     assert reread["src/Foo.cs"]["capture_commit"] == "capture-sha"
     assert "recorded_at" in reread["src/Foo.cs"]
@@ -168,7 +169,10 @@ def test_mark_consumed_write_failure_returns_error_and_never_raises(
     def boom(_src, _dst):
         raise OSError("disk full")
 
-    monkeypatch.setattr(mbr.os, "replace", boom)
+    # mark_consumed now delegates the actual write to
+    # ``atomic_state.atomic_write``, which calls the same global ``os``
+    # module — patching it here still intercepts that call.
+    monkeypatch.setattr(os, "replace", boom)
 
     result = mbr.mark_consumed(path, "src/Foo.cs", "capture-sha")
 
@@ -177,7 +181,7 @@ def test_mark_consumed_write_failure_returns_error_and_never_raises(
     # Left as not-yet-consumed — the target file was never created.
     assert mbr.read_tracking(path) == {}
     # The .tmp written just before the failed os.replace does not survive.
-    assert not (tmp_path / "tracking.json.tmp").exists()
+    assert list(tmp_path.glob(".tracking.json-*.tmp")) == []
 
 
 # =============================================================================
@@ -186,20 +190,24 @@ def test_mark_consumed_write_failure_returns_error_and_never_raises(
 def test_mark_consumed_second_failure_during_cleanup_never_masks_original_error(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ):
-    """``os.replace`` fails, and the best-effort ``tmp.unlink()`` cleanup that
-    follows it *also* raises ``OSError``. The inner failure must be swallowed
-    — never overwriting or masking the original ``os.replace`` error, and
-    never propagating to the caller."""
+    """``os.replace`` fails, and the best-effort ``os.unlink()`` cleanup that
+    ``atomic_state.atomic_write`` runs afterward *also* raises ``OSError``.
+    The inner failure must be swallowed — never overwriting or masking the
+    original ``os.replace`` error, and never propagating to the caller."""
     path = tmp_path / "tracking.json"
 
     def replace_boom(_src, _dst):
         raise OSError("disk full")
 
-    def unlink_boom(self, missing_ok=False):
+    def unlink_boom(_path):
         raise OSError("permission denied")
 
-    monkeypatch.setattr(mbr.os, "replace", replace_boom)
-    monkeypatch.setattr(mbr.Path, "unlink", unlink_boom)
+    # mark_consumed now delegates to ``atomic_state.atomic_write``, whose
+    # cleanup path is ``os.unlink(tmp_name)`` (a string path), not
+    # ``Path(tmp_name).unlink()`` — patch the global ``os`` module both
+    # calls actually go through.
+    monkeypatch.setattr(os, "replace", replace_boom)
+    monkeypatch.setattr(os, "unlink", unlink_boom)
 
     result = mbr.mark_consumed(path, "src/Foo.cs", "capture-sha")
 
@@ -800,7 +808,7 @@ def test_cli_mark_consumed_success_false_with_error_on_forced_write_failure(
     def boom(_src, _dst):
         raise OSError("disk full")
 
-    monkeypatch.setattr(mbr.os, "replace", boom)
+    monkeypatch.setattr(os, "replace", boom)
 
     rc = mbr._cli(
         [

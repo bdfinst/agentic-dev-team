@@ -290,11 +290,12 @@ rest of this invocation — it is not persisted to a separate file.
 ```
 python3 mutation_baseline_reuse.py resolve --file <path> \
   --capture-commit <capture-sha> \
-  --tracking StrykerOutput/mutation-kill-baseline-consumption.json
+  --tracking <abs-tracking-path>
 ```
 
-`eligible: true` → seed Round 1 via `--report <baseline-path>` instead of a
-fresh scoped run. `eligible: false` → Round 1 runs fresh, unchanged from today.
+`eligible: true` → seed Round 1 via `--report <abs-baseline-report-path>`
+instead of a fresh scoped run. `eligible: false` → Round 1 runs fresh,
+unchanged from today.
 
 **Immediately after that file's round concludes** (per file, not batched at
 the end of the invocation), when the file was baseline-seeded:
@@ -302,18 +303,21 @@ the end of the invocation), when the file was baseline-seeded:
 ```
 python3 mutation_baseline_reuse.py mark-consumed --file <path> \
   --capture-commit <capture-sha> \
-  --tracking StrykerOutput/mutation-kill-baseline-consumption.json
+  --tracking <abs-tracking-path>
 ```
 
-**The `--tracking` value above must be the main checkout's absolute path** —
+**`<abs-tracking-path>` above must be the main checkout's absolute path** —
 not `StrykerOutput/mutation-kill-baseline-consumption.json` relative to the
-current `--concurrency` worktree's own cwd. The same applies to the
-`--report <baseline-path>` value fed to Round 1's seed when `eligible: true`:
-it must be the main checkout's absolute path to
+current `--concurrency` worktree's own cwd. The same applies to
+`<abs-baseline-report-path>`, the `--report` value fed to Round 1's seed when
+`eligible: true`: it must be the main checkout's absolute path to
 `StrykerOutput/baseline/reports/mutation-report.json`, not a worktree-relative
 one. `mark-consumed` calls from concurrent worktrees are now
 interprocess-locked (via `atomic_state.locked_state(strict=True)`) and safe
-to run without agent-side serialization.
+to run without agent-side serialization — but only across *different* files:
+the lock protects the tracking file's write integrity, not double-resolve of
+the same file from two workers concurrently, so each file must still be
+assigned to exactly one worker per run.
 
 **Check its `success` field.** On `success: false`, print an operator-visible
 warning naming the file and the `error` reason before continuing to the next
@@ -384,7 +388,7 @@ owns everything mechanical:
 Commits carry a structured message citing round number, method count, and survivor
 count. `--report` seeds round 1 from an existing report instead of a fresh
 scoped run — manually via the flag, or automatically via [baseline
-reuse](#baseline-reuse-for-round-1---concurrency-1-only) below.
+reuse](#baseline-reuse-for-round-1-all---concurrency-values) above.
 
 ## Per-language translation
 

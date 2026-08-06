@@ -141,30 +141,54 @@ class LockAcquisitionError(RuntimeError):
     the critical section body itself (#1920 correctness review)."""
 
 
-def atomic_write(path: Path, text: str) -> None:
+def atomic_write(path: Path, text: str, *, fail_open: bool = True) -> None:
     """Write `text` to `path` atomically via tempfile-in-same-dir + rename.
 
     A concurrent reader sees either the old file or the fully-written new one,
-    never a partial write. Fail-open: any OSError short-circuits to a silent
-    no-op — persistence is best-effort for these advisory hooks.
+    never a partial write.
+
+    `fail_open` (default `True`, matching every pre-existing caller's call
+    shape): any OSError — creating the parent directory, obtaining the temp
+    file, opening/writing it, or the final `os.replace` — short-circuits to a
+    silent no-op; persistence is best-effort for these advisory hooks. Pass
+    `fail_open=False` for a caller that must never silently proceed without
+    having actually written the file (mirrors `append_line_locked`'s own
+    `fail_open` parameter, #1920): the same OSError re-raises instead, after
+    the same best-effort tmp-file cleanup runs either way.
     """
     try:
         path.parent.mkdir(parents=True, exist_ok=True)
     except OSError:
-        return
+        if fail_open:
+            return
+        raise
     try:
         fd, tmp_name = tempfile.mkstemp(
             prefix=f".{path.name}-", suffix=".tmp", dir=str(path.parent)
         )
     except OSError:
-        return
+        if fail_open:
+            return
+        raise
     try:
-        with os.fdopen(fd, "w", encoding="utf-8") as handle:
+        try:
+            handle = os.fdopen(fd, "w", encoding="utf-8")
+        except OSError:
+            # fdopen() failed without ever wrapping fd in a file object, so
+            # nothing else will close it — leaking the fd otherwise (#1920
+            # correctness review; mirrors locked_state's own fdopen-failure
+            # fd-leak fix).
+            with contextlib.suppress(OSError):
+                os.close(fd)
+            raise
+        with handle:
             handle.write(text)
         os.replace(tmp_name, path)
     except OSError:
         with contextlib.suppress(OSError):
             os.unlink(tmp_name)
+        if not fail_open:
+            raise
 
 
 def _lock_acquire_budget_seconds() -> float:
@@ -247,6 +271,29 @@ def _acquire_bounded(handle) -> bool:
             time.sleep(_LOCK_POLL_INTERVAL_SECONDS)
 
 
+def _refuse_or_warn(
+    reason: str, path: Path, strict: bool, exc: BaseException | None = None
+) -> None:
+    """Shared decision behind each of `locked_state`'s four fail-open
+    points (#1892's scoping invariant is unaffected — every call site below
+    still runs its own `yield`/`return` immediately after this returns; this
+    helper never yields itself). `strict=True` raises
+    `LockAcquisitionError`, chaining `exc` as its cause when one is given
+    (the budget-exhaustion site has no underlying exception to chain, so it
+    omits `exc`). `strict=False` prints the fail-open diagnostic to stderr
+    and returns, leaving the caller to fall through to running the critical
+    section unlocked.
+    """
+    if strict:
+        message = (
+            f"{reason}; refusing to run the critical section unlocked for {path}"
+        )
+        if exc is not None:
+            raise LockAcquisitionError(message) from exc
+        raise LockAcquisitionError(message)
+    print(f"{reason}; proceeding WITHOUT lock for {path}", file=sys.stderr)
+
+
 @contextlib.contextmanager
 def locked_state(path: Path, *, strict: bool = False) -> Iterator[None]:
     """Hold an exclusive advisory lock for a full read-modify-write cycle.
@@ -298,12 +345,7 @@ def locked_state(path: Path, *, strict: bool = False) -> Iterator[None]:
             f"atomic_state: lock acquisition failed (could not create lock "
             f"directory {lock_path.parent}: {exc})"
         )
-        if strict:
-            raise LockAcquisitionError(
-                f"{reason}; refusing to run the critical section unlocked "
-                f"for {path}"
-            ) from exc
-        print(f"{reason}; proceeding WITHOUT lock for {path}", file=sys.stderr)
+        _refuse_or_warn(reason, path, strict, exc)
         yield
         return
 
@@ -327,12 +369,7 @@ def locked_state(path: Path, *, strict: bool = False) -> Iterator[None]:
             f"atomic_state: lock acquisition failed (could not open lock "
             f"file {lock_path}: {exc})"
         )
-        if strict:
-            raise LockAcquisitionError(
-                f"{reason}; refusing to run the critical section unlocked "
-                f"for {path}"
-            ) from exc
-        print(f"{reason}; proceeding WITHOUT lock for {path}", file=sys.stderr)
+        _refuse_or_warn(reason, path, strict, exc)
         yield
         return
 
@@ -352,12 +389,7 @@ def locked_state(path: Path, *, strict: bool = False) -> Iterator[None]:
             f"atomic_state: lock acquisition failed (fdopen on "
             f"{lock_path} failed: {exc})"
         )
-        if strict:
-            raise LockAcquisitionError(
-                f"{reason}; refusing to run the critical section unlocked "
-                f"for {path}"
-            ) from exc
-        print(f"{reason}; proceeding WITHOUT lock for {path}", file=sys.stderr)
+        _refuse_or_warn(reason, path, strict, exc)
         yield
         return
 
@@ -373,12 +405,7 @@ def locked_state(path: Path, *, strict: bool = False) -> Iterator[None]:
                     f"atomic_state: lock acquisition failed (budget exhausted "
                     f"or non-contention error acquiring {lock_path})"
                 )
-                if strict:
-                    raise LockAcquisitionError(
-                        f"{reason}; refusing to run the critical section "
-                        f"unlocked for {path}"
-                    )
-                print(f"{reason}; proceeding WITHOUT lock for {path}", file=sys.stderr)
+                _refuse_or_warn(reason, path, strict)
             yield
         finally:
             if locked:

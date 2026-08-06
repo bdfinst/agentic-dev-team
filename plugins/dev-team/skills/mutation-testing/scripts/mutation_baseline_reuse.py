@@ -45,12 +45,9 @@ Stdlib-only. (ADR 0014/0015).
 from __future__ import annotations
 
 import argparse
-import contextlib
 import json
-import os
 import subprocess
 import sys
-import tempfile
 from collections.abc import Sequence
 from datetime import datetime, timezone
 from pathlib import Path
@@ -132,22 +129,15 @@ def mark_consumed(tracking_path, file_path: str, capture_commit: str) -> dict:
     so a second concurrent caller's read can never observe a state older than
     the first caller's completed write — closing the lost-update race two
     processes racing on the same tracking file could otherwise hit. Within
-    that lock, writes to a temp file obtained via ``tempfile.mkstemp``
-    (mirroring ``atomic_state.atomic_write``'s own idiom in this module
-    family) then ``os.replace``s it onto ``tracking_path`` — every other
-    file's existing entry in the tracking dict is preserved.
-
-    The temp file is unique-per-call (#1920 correctness review), not a
-    fixed, predictable ``<tracking_path>.tmp`` path: a fixed path shared
-    across concurrent callers meant a failed call's cleanup could delete a
-    *different*, still-in-flight caller's temp file, or fire when this call
-    never wrote a temp file at all (e.g. a lock-acquisition failure).
-    ``mkstemp``'s ``O_CREAT | O_EXCL`` semantics also mean it refuses to
-    open an already-existing path at the generated name — including a
-    symlink planted there — so this switch incidentally closes the same
-    symlink-follow concern ``atomic_state.append_line_locked`` hardens
-    against explicitly (#1889 precedent), with no separate ``O_NOFOLLOW``
-    open needed here.
+    that lock, the write itself delegates to ``atomic_state.atomic_write(...,
+    fail_open=False)`` (#1920 review) rather than hand-rolling a second
+    ``tempfile.mkstemp``/``os.fdopen``/``os.replace`` sequence here — one
+    shared, unique-per-call-tmp-file implementation instead of two forks that
+    could drift apart, and it closes an fd-leak-on-fdopen-failure gap this
+    module's own former hand-rolled version had (``atomic_write`` guards that
+    internally now). ``fail_open=False`` makes a write failure raise instead
+    of silently no-op'ing, so it still reaches this function's own ``except``
+    below and is reported exactly as it always was.
 
     Never raises: a write failure (permission denied, unwritable directory,
     a monkeypatched ``os.replace`` failure, ...) *or* a failed lock
@@ -156,14 +146,10 @@ def mark_consumed(tracking_path, file_path: str, capture_commit: str) -> dict:
     when ``atomic_state`` itself could not be imported) is caught and
     reported as ``{"success": False, "error": str(exc)}``, leaving the
     on-disk file (if any) untouched — the file stays recorded as
-    not-yet-consumed. A stray temp file left behind by a failed write is
-    best-effort cleaned up — but ONLY the temp file this call itself
-    created: ``tmp_name`` is set the moment ``mkstemp`` returns it and stays
-    ``None`` before that, so a lock-acquisition failure (which never reaches
-    ``mkstemp``) or any other failure before that point triggers no cleanup
-    at all, and can never touch a different concurrent caller's in-flight
-    temp file. A failure during that cleanup is swallowed so it never masks
-    the original error being reported.
+    not-yet-consumed. ``atomic_write``'s own best-effort tmp-file cleanup
+    (unique-per-call via ``tempfile.mkstemp``, so a failed call can never
+    delete a different, still-in-flight caller's temp file) runs before the
+    OSError re-raises, so no cleanup logic is duplicated here.
 
     ``resolve``/``read_tracking`` stay lock-free by design — see the module
     docstring's ``Concurrency`` note for why a stale read there is safe, and
@@ -171,7 +157,6 @@ def mark_consumed(tracking_path, file_path: str, capture_commit: str) -> dict:
     worker per file per run, not serialization alone).
     """
     tracking_path = Path(tracking_path)
-    tmp_name: str | None = None
     try:
         if atomic_state is None:
             raise _AtomicStateUnavailableError(
@@ -186,18 +171,10 @@ def mark_consumed(tracking_path, file_path: str, capture_commit: str) -> dict:
                 .isoformat()
                 .replace("+00:00", "Z"),
             }
-            fd, tmp_name = tempfile.mkstemp(
-                prefix=f".{tracking_path.name}-",
-                suffix=".tmp",
-                dir=str(tracking_path.parent),
+            atomic_state.atomic_write(
+                tracking_path, json.dumps(tracking, indent=2), fail_open=False
             )
-            with os.fdopen(fd, "w", encoding="utf-8") as handle:
-                handle.write(json.dumps(tracking, indent=2))
-            os.replace(tmp_name, tracking_path)
     except (OSError, _LOCK_FAILURE_ERROR) as exc:
-        if tmp_name is not None:
-            with contextlib.suppress(OSError):
-                Path(tmp_name).unlink(missing_ok=True)
         return {"success": False, "error": str(exc)}
     return {"success": True}
 

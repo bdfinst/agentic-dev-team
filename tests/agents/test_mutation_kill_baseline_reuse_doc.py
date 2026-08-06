@@ -71,7 +71,7 @@ def test_eligible_true_seeds_round_1_via_report_flag(
     reuse_section: str, reuse_flat: str
 ) -> None:
     assert "eligible: true" in reuse_section
-    assert re.search(r"--report <baseline-path>", reuse_flat)
+    assert re.search(r"--report <abs-baseline-report-path>", reuse_flat)
     assert re.search(r"instead of a\s+fresh scoped run", reuse_flat)
 
 
@@ -194,7 +194,7 @@ def test_invocation_guidance_requires_absolute_tracking_and_report_paths(
         reuse_flat,
     )
     assert re.search(
-        r"--report <baseline-path>.{0,400}must be the main checkout's absolute path",
+        r"<abs-baseline-report-path>.{0,400}must be the main checkout's absolute path",
         reuse_flat,
         re.DOTALL,
     )
@@ -209,6 +209,26 @@ def test_concurrent_mark_consumed_calls_documented_as_safe(reuse_flat: str) -> N
     assert re.search(r"atomic_state\.locked_state\(strict=True\)", reuse_flat)
     assert re.search(
         r"safe to run without\s+agent-side serialization", reuse_flat
+    )
+
+
+def test_lock_residual_risk_does_not_cover_same_file_double_resolve(
+    reuse_flat: str,
+) -> None:
+    """The lock protects the tracking file's write integrity across
+    *different* files, not double-resolve of the SAME file from two workers
+    concurrently — that residual risk must be stated explicitly, not left
+    implicit (#1920)."""
+    assert re.search(
+        r"protects the tracking file's write integrity", reuse_flat
+    )
+    assert re.search(
+        r"not double-resolve of\s+the same file from two workers concurrently",
+        reuse_flat,
+    )
+    assert re.search(
+        r"each file must still be\s+assigned to exactly one worker per run",
+        reuse_flat,
     )
 
 

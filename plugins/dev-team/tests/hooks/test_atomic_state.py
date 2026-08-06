@@ -286,3 +286,108 @@ def test_locked_state_strict_false_behavior_is_unchanged(
         ran_unlocked = True
 
     assert ran_unlocked, "strict=False (default) must keep failing open"
+
+
+# ---------------------------------------------------------------------------
+# atomic_write's `fail_open` parameter (issue #1920) — mirrors
+# `append_line_locked`'s own `fail_open` contract (see
+# test_autoship_log.py::test_append_round_propagates_oserror_from_a_failed_write
+# for the sibling pattern this borrows: a real OSError, not a monkeypatch, is
+# preferred where practical; a monkeypatch is used here for the fd-leak case
+# since there is no filesystem-level way to force `os.fdopen` itself to fail).
+# ---------------------------------------------------------------------------
+
+
+def test_atomic_write_writes_text_and_leaves_no_tmp_file(tmp_path: Path) -> None:
+    path = tmp_path / "state.json"
+
+    atomic_state.atomic_write(path, "hello")
+
+    assert path.read_text(encoding="utf-8") == "hello"
+    assert list(tmp_path.glob(".state.json-*.tmp")) == []
+
+
+def test_atomic_write_default_fail_open_swallows_oserror(
+    tmp_path: Path, monkeypatch
+) -> None:
+    path = tmp_path / "state.json"
+
+    def boom(_src, _dst):
+        raise OSError("disk full")
+
+    monkeypatch.setattr(atomic_state.os, "replace", boom)
+
+    atomic_state.atomic_write(path, "hello")  # must not raise
+
+    assert not path.exists()
+
+
+def test_atomic_write_fail_open_false_reraises_oserror(
+    tmp_path: Path, monkeypatch
+) -> None:
+    """Unlike the default fail-open behavior, `fail_open=False` must
+    propagate the underlying OSError instead of silently no-op'ing — the
+    same contract `append_line_locked`'s own `fail_open=False` provides
+    (#1920: `mutation_baseline_reuse.mark_consumed` relies on this to report
+    a write failure rather than reporting fabricated success)."""
+    path = tmp_path / "state.json"
+
+    def boom(_src, _dst):
+        raise OSError("disk full")
+
+    monkeypatch.setattr(atomic_state.os, "replace", boom)
+
+    with pytest.raises(OSError, match="disk full"):
+        atomic_state.atomic_write(path, "hello", fail_open=False)
+
+    assert not path.exists()
+
+
+def test_atomic_write_fdopen_failure_closes_the_fd_before_reraising(
+    tmp_path: Path, monkeypatch
+) -> None:
+    """A failure inside `os.fdopen` must close the raw fd `mkstemp` handed
+    back rather than leaking it — mirroring `locked_state`'s own
+    fdopen-failure fd-leak fix (#1920 correctness review)."""
+    path = tmp_path / "state.json"
+    closed_fds: list[int] = []
+    real_close = atomic_state.os.close
+
+    def spying_close(fd):
+        closed_fds.append(fd)
+        real_close(fd)
+
+    def boom(*_args, **_kwargs):
+        raise OSError("fdopen failed")
+
+    monkeypatch.setattr(atomic_state.os, "fdopen", boom)
+    monkeypatch.setattr(atomic_state.os, "close", spying_close)
+
+    atomic_state.atomic_write(path, "hello")  # default fail_open=True
+
+    assert closed_fds, "fdopen failure must close the raw fd via os.close"
+    assert not path.exists()
+
+
+def test_atomic_write_fdopen_failure_fail_open_false_still_closes_and_raises(
+    tmp_path: Path, monkeypatch
+) -> None:
+    path = tmp_path / "state.json"
+    closed_fds: list[int] = []
+    real_close = atomic_state.os.close
+
+    def spying_close(fd):
+        closed_fds.append(fd)
+        real_close(fd)
+
+    def boom(*_args, **_kwargs):
+        raise OSError("fdopen failed")
+
+    monkeypatch.setattr(atomic_state.os, "fdopen", boom)
+    monkeypatch.setattr(atomic_state.os, "close", spying_close)
+
+    with pytest.raises(OSError, match="fdopen failed"):
+        atomic_state.atomic_write(path, "hello", fail_open=False)
+
+    assert closed_fds, "fdopen failure must close the raw fd via os.close"
+    assert not path.exists()
