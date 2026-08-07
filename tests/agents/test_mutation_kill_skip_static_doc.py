@@ -32,28 +32,24 @@ from __future__ import annotations
 import re
 
 import pytest
-from skill_doc_helpers import collapsed, section
-
-from _repo_root import REPO_ROOT
-
-AGENT = REPO_ROOT / "plugins" / "dev-team" / "agents" / "mutation-kill.md"
+from _mutation_kill_agent_doc_helpers import agent_text, required_section
+from skill_doc_helpers import collapsed
 
 
 @pytest.fixture(scope="module")
 def text() -> str:
-    return AGENT.read_text(encoding="utf-8")
+    return agent_text()
 
 
 @pytest.fixture(scope="module")
 def invocation_section(text: str) -> str:
-    result = section(
+    return required_section(
         text,
         r"^## Invocation",
         boundary_pattern=r"^## ",
         include_start_line=False,
+        name="Invocation",
     )
-    assert result, "Invocation section not found"
-    return result
 
 
 @pytest.fixture(scope="module")
@@ -95,14 +91,13 @@ def test_flag_bullet_links_to_javascript_stryker_mechanics(invocation_flat: str)
 
 @pytest.fixture(scope="module")
 def convergence_section(text: str) -> str:
-    result = section(
+    return required_section(
         text,
         r"^## Convergence history across --all invocations",
         boundary_pattern=r"^## ",
         include_start_line=False,
+        name="Convergence history across --all invocations",
     )
-    assert result, "Convergence history section not found"
-    return result
 
 
 def test_converged_write_trigger_caveats_static_mutant_skip(

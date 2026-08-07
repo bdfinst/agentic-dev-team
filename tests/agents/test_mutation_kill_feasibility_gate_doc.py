@@ -19,33 +19,29 @@ from __future__ import annotations
 import re
 
 import pytest
-from skill_doc_helpers import section
-
-from _repo_root import REPO_ROOT
-
-AGENT = REPO_ROOT / "plugins" / "dev-team" / "agents" / "mutation-kill.md"
+from _mutation_kill_agent_doc_helpers import agent_text, required_section
+from skill_doc_helpers import collapsed
 
 
 @pytest.fixture(scope="module")
 def text() -> str:
-    return AGENT.read_text(encoding="utf-8")
+    return agent_text()
 
 
 @pytest.fixture(scope="module")
 def feasibility_section(text: str) -> str:
-    result = section(
+    return required_section(
         text,
         r"^## Pre-loop feasibility gate",
         boundary_pattern=r"^## ",
         include_start_line=False,
+        name="Pre-loop feasibility gate",
     )
-    assert result, "Pre-loop feasibility gate section not found"
-    return result
 
 
 @pytest.fixture(scope="module")
 def feasibility_flat(feasibility_section: str) -> str:
-    return feasibility_section.replace("\n", " ")
+    return collapsed(feasibility_section)
 
 
 def test_ask_operator_is_an_outcome_distinct_from_degrade(

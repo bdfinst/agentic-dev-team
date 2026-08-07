@@ -17,22 +17,22 @@ from __future__ import annotations
 import re
 
 import pytest
-from skill_doc_helpers import section
+from _mutation_kill_agent_doc_helpers import AGENT, agent_text, required_section
+from skill_doc_helpers import collapsed
 
 from _repo_root import REPO_ROOT
 
-AGENT = REPO_ROOT / "plugins" / "dev-team" / "agents" / "mutation-kill.md"
 REGISTRY = REPO_ROOT / "plugins" / "dev-team" / "knowledge" / "agent-registry.md"
 
 
 @pytest.fixture(scope="module")
 def text() -> str:
-    return AGENT.read_text(encoding="utf-8")
+    return agent_text()
 
 
 @pytest.fixture(scope="module")
 def flat(text: str) -> str:
-    return text.replace("\n", " ")
+    return collapsed(text)
 
 
 def test_mutation_kill_md_exists() -> None:
@@ -176,13 +176,13 @@ def test_parallel_flag_documented_as_invocation_flag_with_agent_tool_fanout(
 
 
 def test_parallel_and_concurrency_interaction_rule_specified(text: str) -> None:
-    parallel_section = section(
+    parallel_section = required_section(
         text,
         r"^## Parallelism",
         boundary_pattern=r"^## ",
         include_start_line=False,
+        name="Parallelism",
     )
-    assert parallel_section, "Parallelism section not found"
     assert re.search(r"concurrency", parallel_section, re.IGNORECASE)
 
 

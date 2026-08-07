@@ -14,38 +14,34 @@ from __future__ import annotations
 import re
 
 import pytest
-from skill_doc_helpers import section
-
-from _repo_root import REPO_ROOT
-
-AGENT = REPO_ROOT / "plugins" / "dev-team" / "agents" / "mutation-kill.md"
+from _mutation_kill_agent_doc_helpers import agent_text, required_section
+from skill_doc_helpers import collapsed
 
 
 @pytest.fixture(scope="module")
 def text() -> str:
-    return AGENT.read_text(encoding="utf-8")
+    return agent_text()
 
 
 @pytest.fixture(scope="module")
 def flat(text: str) -> str:
-    return text.replace("\n", " ")
+    return collapsed(text)
 
 
 @pytest.fixture(scope="module")
 def reuse_section(text: str) -> str:
-    result = section(
+    return required_section(
         text,
         r"^## Baseline reuse for Round 1",
         boundary_pattern=r"^## ",
         include_start_line=False,
+        name="Baseline reuse for Round 1",
     )
-    assert result, "Baseline reuse for Round 1 section not found"
-    return result
 
 
 @pytest.fixture(scope="module")
 def reuse_flat(reuse_section: str) -> str:
-    return reuse_section.replace("\n", " ")
+    return collapsed(reuse_section)
 
 
 # --- (a) + (b): canonical baseline and tracking-file paths ------------------
@@ -251,6 +247,17 @@ def test_no_occurrence_of_from_report_flag_remains(text: str) -> None:
 
 
 def test_invocation_section_names_report_flag(text: str) -> None:
-    invocation = section(text, r"^## Invocation", boundary_pattern=r"^## ")
+    # include_start_line=False here normalizes with every other required_section()
+    # call site in this file group (all pass False) -- the original hand-rolled
+    # skill_doc_helpers.section call relied on its own include_start_line=True
+    # default, dropping the "## Invocation" heading line here is confirmed inert
+    # since neither assertion below checks that line.
+    invocation = required_section(
+        text,
+        r"^## Invocation",
+        boundary_pattern=r"^## ",
+        include_start_line=False,
+        name="Invocation",
+    )
     assert "--report <path>" in invocation
     assert "--from-report" not in invocation

@@ -13,6 +13,10 @@ Ported from tests/skills/mutation_testing_skill_doc_tests.bats (issue #674).
 
 from __future__ import annotations
 
+import re
+from collections.abc import Iterable
+
+import pytest
 from skill_doc_helpers import (
     PLUGIN_ROOT,
     grep,
@@ -149,16 +153,41 @@ def test_skill_emitting_adapters_paragraph_exists_in_the_schema_section():
     assert grep(r"[Ee]mitting adapters", _machine_readable_section())
 
 
-def _emitting_adapters_window() -> str:
-    s = _machine_readable_section()
+def _paragraph_window(
+    section: str, marker: str | Iterable[str], *, bounded: bool = True
+) -> str:
+    """Find `marker` in `section` and return the window from that point.
+
+    `marker` accepts either a single string or an iterable of candidate
+    strings; candidates are tried in order and the first match wins.
+
+    `bounded=True`: sliced at the next blank line (paragraph boundary) —
+    the shape `_line_clustering_window`/`_skip_static_mutants_window` use.
+    `bounded=False`: returned from the found marker to the end of
+    `section`, with no blank-line truncation — the shape
+    `_emitting_adapters_window` uses.
+
+    Raises AssertionError naming the marker(s) when none is found.
+    """
+    candidates = (marker,) if isinstance(marker, str) else tuple(marker)
     idx = None
-    for pat in ("Emitting adapters", "emitting adapters"):
-        found = s.find(pat)
+    for candidate in candidates:
+        found = section.find(candidate)
         if found != -1:
             idx = found
             break
-    assert idx is not None
-    return s[idx:]
+    assert idx is not None, f"no candidate marker found in section: {candidates!r}"
+    if bounded:
+        return section[idx:].split("\n\n", 1)[0]
+    return section[idx:]
+
+
+def _emitting_adapters_window() -> str:
+    return _paragraph_window(
+        _machine_readable_section(),
+        ("Emitting adapters", "emitting adapters"),
+        bounded=False,
+    )
 
 
 def test_skill_emitting_adapters_paragraph_names_stryker_net_as_an_emitter():
@@ -371,10 +400,7 @@ def test_skill_step_4_table_has_an_equivalent_row_and_an_accepted_this_pass_row(
 
 
 def test_skill_step_4_accepted_row_requires_per_mutant_reason_not_file_level_wave_off():
-    s = _step_4_section()
-    idx = s.find("**Accepted this pass**")
-    assert idx != -1
-    window = s[idx : idx + 400]
+    window = _paragraph_window(_step_4_section(), "**Accepted this pass**")
     assert "reason" in window
     assert "file-level" in window
 
@@ -401,13 +427,10 @@ def test_skill_output_format_has_an_accepted_survivors_deferred_table():
 
 
 def _line_clustering_window() -> str:
-    s = _step_4_section()
-    idx = s.find("Cluster survivors by source line")
-    assert idx != -1
     # Bound by the paragraph itself (next blank line), not a fixed char
     # count — a fixed count has near-zero slack against future trims of
     # this paragraph and risks silently re-widening into the next section.
-    return s[idx:].split("\n\n", 1)[0]
+    return _paragraph_window(_step_4_section(), "Cluster survivors by source line")
 
 
 def test_skill_step_4_references_line_clustering_approach():
@@ -443,10 +466,7 @@ def _skip_static_mutants_window() -> str:
     reference elsewhere in Step 2 could keep these tests green even if the
     --skip-static-mutants paragraph itself lost its cross-links. Scope to
     the paragraph specifically, mirroring _emitting_adapters_window()."""
-    s = _step_2_section()
-    idx = s.find("--skip-static-mutants")
-    assert idx != -1
-    return s[idx:].split("\n\n", 1)[0]
+    return _paragraph_window(_step_2_section(), "--skip-static-mutants")
 
 
 def test_skill_step_2_cross_references_skip_static_mutants_flag():
@@ -457,6 +477,46 @@ def test_skill_step_2_skip_static_mutants_cross_reference_links_mutation_kill_an
     w = _skip_static_mutants_window()
     assert "mutation-kill.md#invocation" in w
     assert "javascript-stryker.md" in w
+
+
+# --- Issue #1927 Slice 2 Step 2.1: _paragraph_window itself ----------------
+
+
+def test_paragraph_window_bounded_raises_when_marker_absent():
+    with pytest.raises(AssertionError, match=re.escape("does-not-exist")):
+        _paragraph_window("no markers here at all", "does-not-exist")
+
+
+def test_paragraph_window_unbounded_multi_candidate_raises_when_none_present():
+    with pytest.raises(
+        AssertionError,
+        match=re.escape("does-not-exist") + ".*" + re.escape("also-does-not-exist"),
+    ):
+        _paragraph_window(
+            "no markers here at all",
+            ("does-not-exist", "also-does-not-exist"),
+            bounded=False,
+        )
+
+
+def test_paragraph_window_bounded_stops_at_first_blank_line():
+    assert _paragraph_window("A\n\nB\n\nC", "A") == "A"
+
+
+def test_paragraph_window_unbounded_runs_to_end_of_section():
+    assert _paragraph_window("A\n\nB", "A", bounded=False) == "A\n\nB"
+
+
+def test_paragraph_window_multi_candidate_falls_back_to_second_candidate():
+    assert (
+        _paragraph_window("B section here", ("A", "B"), bounded=False)
+        == "B section here"
+    )
+
+
+def test_skip_static_mutants_window_docstring_preserved():
+    normalized_doc = re.sub(r"\s+", " ", _skip_static_mutants_window.__doc__)
+    assert "the prior version of this window scoped to the whole" in normalized_doc
 
 
 # --- Issue #1910 Slice 5 Step 5.1: named equivalent-mutant taxonomy

@@ -26,28 +26,26 @@ from __future__ import annotations
 import re
 
 import pytest
-from skill_doc_helpers import collapsed, section
-
-from _repo_root import REPO_ROOT
-
-AGENT = REPO_ROOT / "plugins" / "dev-team" / "agents" / "mutation-kill.md"
+from _mutation_kill_agent_doc_helpers import agent_text, required_section
+from skill_doc_helpers import collapsed
 
 
 @pytest.fixture(scope="module")
 def text() -> str:
-    return AGENT.read_text(encoding="utf-8")
+    return agent_text()
 
 
 @pytest.fixture(scope="module")
 def generation_modes_flat(text: str) -> str:
-    result = section(
-        text,
-        r"^## Generation modes",
-        boundary_pattern=r"^## ",
-        include_start_line=False,
+    return collapsed(
+        required_section(
+            text,
+            r"^## Generation modes",
+            boundary_pattern=r"^## ",
+            include_start_line=False,
+            name="Generation modes",
+        )
     )
-    assert result, "Generation modes section not found"
-    return collapsed(result)
 
 
 def test_documents_three_consecutive_failure_threshold(generation_modes_flat: str) -> None:
