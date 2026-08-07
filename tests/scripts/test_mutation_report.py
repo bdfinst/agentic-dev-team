@@ -492,6 +492,62 @@ def test_survivors_by_line_non_int_line_goes_to_unclustered_without_raising(
     assert result["unclustered"][0]["location"]["start"]["line"] == "not-a-number"
 
 
+def test_survivors_by_line_truthy_non_dict_location_goes_to_unclustered_without_raising(
+    tmp_path: Path,
+):
+    mutant = _mutant_at_line("Survived", 42)
+    mutant["location"] = "src/Widget.cs:42"
+    report = _write_report(
+        tmp_path / "mutation-report.json",
+        {"src/Widget.cs": {"mutants": [mutant]}},
+    )
+
+    result = mutation_report.survivors_by_line(report, "src/Widget.cs")
+
+    assert result["clusters"] == []
+    assert len(result["unclustered"]) == 1
+
+
+def test_survivors_by_line_truthy_non_dict_start_goes_to_unclustered_without_raising(
+    tmp_path: Path,
+):
+    mutant = _mutant_at_line("Survived", 42)
+    mutant["location"]["start"] = "42"
+    report = _write_report(
+        tmp_path / "mutation-report.json",
+        {"src/Widget.cs": {"mutants": [mutant]}},
+    )
+
+    result = mutation_report.survivors_by_line(report, "src/Widget.cs")
+
+    assert result["clusters"] == []
+    assert len(result["unclustered"]) == 1
+
+
+def test_survivors_by_line_bool_line_goes_to_unclustered_not_merged_into_line_1(
+    tmp_path: Path,
+):
+    report = _write_report(
+        tmp_path / "mutation-report.json",
+        {
+            "src/Widget.cs": {
+                "mutants": [
+                    _mutant_at_line("Survived", True),
+                    _mutant_at_line("Survived", 1),
+                ]
+            }
+        },
+    )
+
+    result = mutation_report.survivors_by_line(report, "src/Widget.cs")
+
+    assert len(result["unclustered"]) == 1
+    assert result["unclustered"][0]["location"]["start"]["line"] is True
+    assert len(result["clusters"]) == 1
+    assert result["clusters"][0]["line"] == 1
+    assert len(result["clusters"][0]["survivors"]) == 1
+
+
 def test_survivors_by_line_no_survivors_returns_empty_result(tmp_path: Path):
     report = _write_report(
         tmp_path / "mutation-report.json",

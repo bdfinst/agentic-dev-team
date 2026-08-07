@@ -147,6 +147,8 @@ def test_skip_static_notice_when_field_absent_on_matched_file(
     out = capsys.readouterr()
     assert "skip-static" in out.err
     assert "src/calc.ts" in out.err
+    assert "carries a 'static' field" in out.err
+    assert "is not present in the report" not in out.err
     assert "inapplicable" in out.err
     # JSON unaffected: every Survived mutant still present, unfiltered.
     printed = json.loads(out.out)

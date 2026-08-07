@@ -253,11 +253,14 @@ def has_static_field(data: dict, file_path: str) -> bool:
     the two cases are not distinguished by this function's return value; use
     ``file_in_report`` alongside it to tell them apart.
 
-    Deliberately data-based (takes an already-parsed ``data`` dict) rather
-    than ``Path``-based like this module's other public entry points — it
-    exists specifically to serve the CLI's pre-dispatch diagnostic logic,
-    which already holds the parsed report and would otherwise pay a
-    pointless second parse for no reason.
+    Data-based (takes an already-parsed ``data`` dict) rather than
+    ``Path``-based. This module's public API is not uniformly ``Path``-based
+    — ``parse_mutmut_junitxml``/``score_mutmut_junitxml``/
+    ``survivors_from_mutmut_junitxml`` already take raw input — so this is
+    an established shape, not a new one. It exists to serve the CLI's
+    pre-dispatch diagnostic, which already holds the parsed report; a
+    ``Path``-based signature would force the ``--skip-static`` path to
+    parse the report a third time instead of a second.
     """
     info = _find_file_info(data, file_path)
     if info is None:
@@ -294,14 +297,15 @@ def _survivors_by_line_from_data(data: dict, file_path: str) -> dict:
       and is sorted by ``len(survivors)`` descending; ties are broken by
       ``line`` ascending.
     - ``unclustered`` holds every survivor whose line isn't a resolvable
-      ``int`` — ``None`` (e.g. mutmut's no-resolvable-line case), a non-int
-      value, or a missing/``None`` ``location``/``start`` dict — such a
-      survivor never forms or joins a cluster. This matches the module's
-      never-raise-on-bad-input posture (see the module docstring,
-      ``load_report``'s "never raises" note, and ``parse_mutmut_junitxml``'s
-      "malformed input returns empty rather than raising"): a ``None``
-      ``location``/``start`` value or a non-int ``line`` is routed to
-      ``unclustered`` rather than raising ``AttributeError``/``TypeError``.
+      plain ``int`` — ``None`` (e.g. mutmut's no-resolvable-line case), a
+      non-int value, a ``bool`` (``bool`` is an ``int`` subclass in Python
+      but is never a real line number), or a missing/non-dict ``location``/
+      ``start`` value of any shape — such a survivor never forms or joins a
+      cluster. This matches the module's never-raise-on-bad-input posture
+      (see the module docstring, ``load_report``'s "never raises" note, and
+      ``parse_mutmut_junitxml``'s "malformed input returns empty rather
+      than raising"): no ``location``/``start``/``line`` shape, however
+      malformed, raises ``AttributeError``/``TypeError`` here.
     - Returns ``{"clusters": [], "unclustered": []}`` when the file is not in
       the report or has no survivors.
     """
@@ -314,10 +318,12 @@ def _survivors_by_line_from_data(data: dict, file_path: str) -> dict:
     for mutant in info.get("mutants", []):
         if mutant.get("status") != STATUS_SURVIVED:
             continue
-        loc = mutant.get("location") or {}
-        start = loc.get("start") or {}
+        loc = mutant.get("location")
+        loc = loc if isinstance(loc, dict) else {}
+        start = loc.get("start")
+        start = start if isinstance(start, dict) else {}
         line = start.get("line")
-        if not isinstance(line, int):
+        if not isinstance(line, int) or isinstance(line, bool):
             unclustered.append(mutant)
             continue
         by_line.setdefault(line, []).append(mutant)
