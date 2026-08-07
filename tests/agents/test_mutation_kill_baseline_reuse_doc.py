@@ -71,7 +71,7 @@ def test_eligible_true_seeds_round_1_via_report_flag(
     reuse_section: str, reuse_flat: str
 ) -> None:
     assert "eligible: true" in reuse_section
-    assert re.search(r"--report <baseline-path>", reuse_flat)
+    assert re.search(r"--report <abs-baseline-report-path>", reuse_flat)
     assert re.search(r"instead of a\s+fresh scoped run", reuse_flat)
 
 
@@ -142,18 +142,105 @@ def test_run_summary_reports_seeded_ran_fresh_mark_failed(reuse_section: str) ->
     assert "baseline: seeded N, ran-fresh M, mark-failed K" in reuse_section
 
 
-# --- (g): explicit --concurrency 1-only scope --------------------------------
+# --- (g): widened scope, all --concurrency values ----------------------------
 
 
-def test_feature_scoped_to_concurrency_1_only(reuse_flat: str) -> None:
+def test_heading_states_all_concurrency_values(text: str) -> None:
+    assert "## Baseline reuse for Round 1 (all `--concurrency` values)" in text
+
+
+def test_feature_scoped_to_all_concurrency_values(reuse_flat: str) -> None:
+    assert re.search(r"Scope: all\s+`--concurrency` values", reuse_flat)
     assert re.search(
-        r"Scope: `--concurrency 1`\s+only \(or omitted\)", reuse_flat
-    )
-    assert re.search(
-        r"under\s+`--concurrency >1` every file's Round 1 falls back to today's "
-        r"fresh-per-file\s+behavior, stated here explicitly, never silently",
+        r"resolves\s+the baseline report and the tracking file at the main "
+        r"checkout's\s+absolute path",
         reuse_flat,
     )
+    assert re.search(r"git rev-parse --show-toplevel", reuse_flat)
+    assert re.search(
+        r"`resolve`/`mark-consumed`.{0,5}never join\s+`--tracking`/`--report` "
+        r"relative to the script'?s own location",
+        reuse_flat,
+    )
+
+
+# --- (h): the ran-fresh tally no longer lists --concurrency as a standalone -
+# --- reason -------------------------------------------------------------------
+
+
+def test_ran_fresh_tally_no_longer_lists_concurrency_as_a_reason(
+    reuse_flat: str,
+) -> None:
+    assert re.search(
+        r"`ran-fresh`\s+counts every file whose\s+Round 1 ran fresh \(no "
+        r"baseline present, or\s+ineligible\), and `mark-failed`",
+        reuse_flat,
+    )
+    assert "--concurrency >1" not in reuse_flat
+
+
+# --- (i): absolute-path invocation guidance + concurrent-write safety -------
+
+
+def test_invocation_guidance_requires_absolute_tracking_and_report_paths(
+    reuse_flat: str,
+) -> None:
+    assert re.search(
+        r"must be\s+the main checkout's absolute path", reuse_flat
+    )
+    assert re.search(
+        r"not\s+`StrykerOutput/mutation-kill-baseline-consumption\.json`\s+relative "
+        r"to the current",
+        reuse_flat,
+    )
+    assert re.search(
+        r"<abs-baseline-report-path>.{0,400}must be the main checkout's absolute path",
+        reuse_flat,
+        re.DOTALL,
+    )
+
+
+def test_concurrent_mark_consumed_calls_documented_as_safe(reuse_flat: str) -> None:
+    assert re.search(
+        r"mark-consumed.{0,40}calls from concurrent worktrees are\s+now\s+"
+        r"interprocess-locked",
+        reuse_flat,
+    )
+    assert re.search(r"atomic_state\.locked_state\(strict=True\)", reuse_flat)
+    assert re.search(
+        r"safe to run without\s+agent-side serialization", reuse_flat
+    )
+
+
+def test_lock_residual_risk_does_not_cover_same_file_double_resolve(
+    reuse_flat: str,
+) -> None:
+    """The lock protects the tracking file's write integrity across
+    *different* files, not double-resolve of the SAME file from two workers
+    concurrently — that residual risk must be stated explicitly, not left
+    implicit (#1920)."""
+    assert re.search(
+        r"protects the tracking file's write integrity", reuse_flat
+    )
+    assert re.search(
+        r"not double-resolve of\s+the same file from two workers concurrently",
+        reuse_flat,
+    )
+    assert re.search(
+        r"each file must still be\s+assigned to exactly one worker per run",
+        reuse_flat,
+    )
+
+
+# --- Whole-file sweep: no stale --concurrency 1-only restriction remains ----
+
+
+def test_no_concurrency_1_only_restriction_remains_anywhere(text: str) -> None:
+    """No baseline-reuse `--concurrency 1`-only restriction phrasing survives
+    anywhere in the full document — not just the Baseline reuse section."""
+    assert "--concurrency 1" not in text
+    assert "--concurrency >1" not in text
+    assert "--concurrency > 1" not in text
 
 
 # --- Whole-file sweep: no stale --from-report flag name remains -------------

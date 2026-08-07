@@ -20,7 +20,9 @@ alone (a PostToolUse nudge sentinel, not a safety-critical guard verdict), so
 the two no longer agree on acquire behavior; only the release-path idiom
 still matches. Everything here is fail-open: any I/O or locking failure runs
 the critical section unlocked / skips the persist rather than raising —
-these are advisory nudges, never gates.
+these are advisory nudges, never gates — unless a caller opts into
+`locked_state(path, strict=True)`, in which case the same failure raises
+`RuntimeError` instead of running unlocked.
 
 Lock *acquisition* is bounded, not a blocking wait (#1888): a hung sibling
 process holding the lock must never leave a caller blocked indefinitely,
@@ -31,7 +33,11 @@ critical section UNLOCKED once that budget elapses — the same fail-open
 posture as every other failure mode here. This bounds contention on an
 already-held lock specifically; it does NOT bound a stall inside `open()` on
 the lock file itself, or inside a caller's own I/O in the critical section —
-a wedged mount can still block there.
+a wedged mount can still block there. Every one of these fail-open points is
+skippable per call: pass `strict=True` to `locked_state` and the same failure
+raises `RuntimeError` instead of running unlocked — for a caller (e.g. a
+read-modify-write whose lost update is a correctness bug, not an advisory
+nudge) that must never silently proceed without the lock.
 
 A second use case (#1889) reuses `locked_state` for pure append-serialization
 rather than read-modify-write: several `.claude/metrics/*.jsonl` telemetry
@@ -123,30 +129,77 @@ _LOCK_CONTENTION_ERRNOS = frozenset(
 )
 
 
-def atomic_write(path: Path, text: str) -> None:
+class LockAcquisitionError(RuntimeError):
+    """Raised by `locked_state(path, strict=True)` when the lock could not be
+    acquired (directory/lock-file creation failure, fdopen failure, or
+    acquire-budget exhaustion) — never for a caller-raised exception from
+    inside the critical section (#1892 still applies unchanged). Subclasses
+    `RuntimeError` so pre-existing `pytest.raises(RuntimeError, ...)`
+    assertions against strict-mode callers keep passing; new callers should
+    narrow to this type specifically so a broad `except (OSError,
+    RuntimeError)` doesn't also swallow an unrelated `RuntimeError` raised by
+    the critical section body itself (#1920 correctness review)."""
+
+
+def _reraise_unless_fail_open(exc: OSError, fail_open: bool) -> None:
+    """Re-raise `exc` unless `fail_open` — the shared decision behind each
+    of `atomic_write`'s OSError sites (#1920 structure review: this
+    collapses the same duplication `_refuse_or_warn` below was extracted to
+    eliminate for `locked_state`'s four fail-open sites). Takes the
+    exception explicitly, rather than relying on a bare `raise` re-raising
+    the caller's currently-handled exception, so this helper is an ordinary
+    function call rather than something that only works from inside a
+    lexical `except` block.
+    """
+    if not fail_open:
+        raise exc
+
+
+def atomic_write(path: Path, text: str, *, fail_open: bool = True) -> None:
     """Write `text` to `path` atomically via tempfile-in-same-dir + rename.
 
     A concurrent reader sees either the old file or the fully-written new one,
-    never a partial write. Fail-open: any OSError short-circuits to a silent
-    no-op — persistence is best-effort for these advisory hooks.
+    never a partial write.
+
+    `fail_open` (default `True`, matching every pre-existing caller's call
+    shape): any OSError — creating the parent directory, obtaining the temp
+    file, opening/writing it, or the final `os.replace` — short-circuits to a
+    silent no-op; persistence is best-effort for these advisory hooks. Pass
+    `fail_open=False` for a caller that must never silently proceed without
+    having actually written the file (mirrors `append_line_locked`'s own
+    `fail_open` parameter, #1920): the same OSError re-raises instead, after
+    the same best-effort tmp-file cleanup runs either way.
     """
     try:
         path.parent.mkdir(parents=True, exist_ok=True)
-    except OSError:
+    except OSError as exc:
+        _reraise_unless_fail_open(exc, fail_open)
         return
     try:
         fd, tmp_name = tempfile.mkstemp(
             prefix=f".{path.name}-", suffix=".tmp", dir=str(path.parent)
         )
-    except OSError:
+    except OSError as exc:
+        _reraise_unless_fail_open(exc, fail_open)
         return
     try:
-        with os.fdopen(fd, "w", encoding="utf-8") as handle:
+        try:
+            handle = os.fdopen(fd, "w", encoding="utf-8")
+        except OSError:
+            # fdopen() failed without ever wrapping fd in a file object, so
+            # nothing else will close it — leaking the fd otherwise (#1920
+            # correctness review; mirrors locked_state's own fdopen-failure
+            # fd-leak fix).
+            with contextlib.suppress(OSError):
+                os.close(fd)
+            raise
+        with handle:
             handle.write(text)
         os.replace(tmp_name, path)
-    except OSError:
+    except OSError as exc:
         with contextlib.suppress(OSError):
             os.unlink(tmp_name)
+        _reraise_unless_fail_open(exc, fail_open)
 
 
 def _lock_acquire_budget_seconds() -> float:
@@ -229,8 +282,31 @@ def _acquire_bounded(handle) -> bool:
             time.sleep(_LOCK_POLL_INTERVAL_SECONDS)
 
 
+def _refuse_or_warn(
+    reason: str, path: Path, strict: bool, exc: BaseException | None = None
+) -> None:
+    """Shared decision behind each of `locked_state`'s four fail-open
+    points (#1892's scoping invariant is unaffected — every call site below
+    still runs its own `yield`/`return` immediately after this returns; this
+    helper never yields itself). `strict=True` raises
+    `LockAcquisitionError`, chaining `exc` as its cause when one is given
+    (the budget-exhaustion site has no underlying exception to chain, so it
+    omits `exc`). `strict=False` prints the fail-open diagnostic to stderr
+    and returns, leaving the caller to fall through to running the critical
+    section unlocked.
+    """
+    if strict:
+        message = (
+            f"{reason}; refusing to run the critical section unlocked for {path}"
+        )
+        if exc is not None:
+            raise LockAcquisitionError(message) from exc
+        raise LockAcquisitionError(message)
+    print(f"{reason}; proceeding WITHOUT lock for {path}", file=sys.stderr)
+
+
 @contextlib.contextmanager
-def locked_state(path: Path) -> Iterator[None]:
+def locked_state(path: Path, *, strict: bool = False) -> Iterator[None]:
     """Hold an exclusive advisory lock for a full read-modify-write cycle.
 
     Prevents the lost-update race where two concurrent invocations both read
@@ -243,12 +319,24 @@ def locked_state(path: Path) -> Iterator[None]:
     trips a fail-open give-up after `_lock_acquire_budget_seconds()` of
     polling rather than blocking a caller indefinitely.
 
-    Fail-open: a missing `fcntl` *and* `msvcrt`, an OSError creating the lock
-    file's parent directory or opening the lock file, or a lock that can't be
-    acquired within budget, all fall through to running the critical section
-    UNLOCKED rather than raising or blocking forever. An unlocked lost-update
-    is no worse than the pre-#1501 behavior; a crash — or an undelivered
-    guard-hook verdict — would be worse, and these hooks are advisory.
+    Fail-open (default, `strict=False`): a missing `fcntl` *and* `msvcrt`, an
+    OSError creating the lock file's parent directory or opening the lock
+    file, or a lock that can't be acquired within budget, all fall through to
+    running the critical section UNLOCKED rather than raising or blocking
+    forever. An unlocked lost-update is no worse than the pre-#1501 behavior;
+    a crash — or an undelivered guard-hook verdict — would be worse, and
+    these hooks are advisory.
+
+    `strict=True`: every one of the same four fail-open points above raises
+    `LockAcquisitionError` (a `RuntimeError` subclass, carrying the same
+    diagnostic detail the fail-open path would otherwise print to stderr,
+    reworded to say the critical section is being refused rather than run
+    unlocked) instead of printing and running the critical section unlocked
+    — the critical section body never runs when the lock could not be
+    acquired. For a caller where a lost update is a correctness bug rather
+    than an advisory best-effort nudge. Every existing caller passes the
+    default `False` and is completely unaffected; this is an additive,
+    backward-compatible parameter.
 
     A caller-raised OSError from inside the critical section propagates
     normally (through the `finally`/release, out of this generator's
@@ -264,12 +352,11 @@ def locked_state(path: Path) -> Iterator[None]:
     try:
         lock_path.parent.mkdir(parents=True, exist_ok=True)
     except OSError as exc:
-        print(
+        reason = (
             f"atomic_state: lock acquisition failed (could not create lock "
-            f"directory {lock_path.parent}: {exc}); proceeding WITHOUT lock "
-            f"for {path}",
-            file=sys.stderr,
+            f"directory {lock_path.parent}: {exc})"
         )
+        _refuse_or_warn(reason, path, strict, exc)
         yield
         return
 
@@ -289,11 +376,11 @@ def locked_state(path: Path) -> Iterator[None]:
         with contextlib.suppress(OSError, AttributeError):
             os.fchmod(lock_fd, 0o600)
     except OSError as exc:
-        print(
+        reason = (
             f"atomic_state: lock acquisition failed (could not open lock "
-            f"file {lock_path}: {exc}); proceeding WITHOUT lock for {path}",
-            file=sys.stderr,
+            f"file {lock_path}: {exc})"
         )
+        _refuse_or_warn(reason, path, strict, exc)
         yield
         return
 
@@ -304,11 +391,16 @@ def locked_state(path: Path) -> Iterator[None]:
     try:
         handle_cm = os.fdopen(lock_fd, "r+")
     except OSError as exc:
-        print(
+        # fdopen() failed without ever wrapping lock_fd in a file object, so
+        # nothing else will close it — leaking the fd otherwise (#1920
+        # correctness review).
+        with contextlib.suppress(OSError):
+            os.close(lock_fd)
+        reason = (
             f"atomic_state: lock acquisition failed (fdopen on "
-            f"{lock_path} failed: {exc}); proceeding WITHOUT lock for {path}",
-            file=sys.stderr,
+            f"{lock_path} failed: {exc})"
         )
+        _refuse_or_warn(reason, path, strict, exc)
         yield
         return
 
@@ -320,12 +412,11 @@ def locked_state(path: Path) -> Iterator[None]:
             except OSError:
                 locked = False
             if not locked:
-                print(
+                reason = (
                     f"atomic_state: lock acquisition failed (budget exhausted "
-                    f"or non-contention error acquiring {lock_path}); "
-                    f"proceeding WITHOUT lock for {path}",
-                    file=sys.stderr,
+                    f"or non-contention error acquiring {lock_path})"
                 )
+                _refuse_or_warn(reason, path, strict)
             yield
         finally:
             if locked:

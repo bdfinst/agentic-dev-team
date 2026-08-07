@@ -14,6 +14,7 @@ import errno
 import os
 import stat
 import sys
+import threading
 import time
 from pathlib import Path
 
@@ -169,3 +170,224 @@ def test_lock_contention_errnos_includes_deadlock_errnos_when_present() -> None:
         code = getattr(errno, name, None)
         if code is not None:
             assert code in atomic_state._LOCK_CONTENTION_ERRNOS
+
+
+# ---------------------------------------------------------------------------
+# strict mode (issue #1920 Step 1.1): a caller that must never silently run
+# unlocked opts in with `strict=True` — the same four fail-open fallback
+# points raise RuntimeError instead of printing + running unlocked.
+# ---------------------------------------------------------------------------
+
+
+def test_locked_state_strict_true_runs_critical_section_when_lock_acquired(
+    tmp_path: Path,
+) -> None:
+    """(a) `strict=True` with a lock successfully acquired behaves exactly
+    like `strict=False`: the critical section runs, under the lock, with no
+    exception raised."""
+    log = tmp_path / "log.jsonl"
+    ran = False
+
+    with atomic_state.locked_state(log, strict=True):
+        ran = True
+
+    assert ran, "critical section must run when the lock is acquired, strict or not"
+
+
+def test_locked_state_strict_true_raises_when_acquire_budget_exhausts(
+    tmp_path: Path, monkeypatch
+) -> None:
+    """(b) `strict=True` against a held competing lock, with the acquire
+    budget forced to exhaust (`DEV_TEAM_LOCK_ACQUIRE_BUDGET_TEST_MS`, the
+    same test-only override `test_locked_state_gives_up_after_stalled_holder`
+    in `test_hook_state_concurrency.py` uses), must raise
+    `LockAcquisitionError` instead of silently running the critical section
+    unlocked — with a message that says the critical section is being
+    refused, not (misleadingly) that it is "proceeding WITHOUT lock"."""
+    state_file = tmp_path / "counter.json"
+    state_file.write_text("{}")
+
+    hold_seconds = 0.4
+    budget_ms = 50
+    acquired = threading.Event()
+
+    def _hold_lock():
+        with atomic_state.locked_state(state_file):
+            acquired.set()
+            time.sleep(hold_seconds)
+
+    holder = threading.Thread(target=_hold_lock)
+    holder.start()
+    ran_unlocked = False
+    exc_info = None
+    try:
+        assert acquired.wait(timeout=2), "holder thread never acquired the lock"
+
+        monkeypatch.setenv("DEV_TEAM_LOCK_ACQUIRE_BUDGET_TEST_MS", str(budget_ms))
+        with pytest.raises(
+            atomic_state.LockAcquisitionError, match="budget exhausted"
+        ) as exc_info, atomic_state.locked_state(state_file, strict=True):
+            ran_unlocked = True
+    finally:
+        holder.join(timeout=2)
+    assert not holder.is_alive(), "holder thread never released the lock"
+    assert not ran_unlocked, (
+        "strict=True must never run the critical section when the lock "
+        "could not be acquired"
+    )
+    assert "refusing to run the critical section unlocked" in str(exc_info.value)
+    assert "proceeding WITHOUT lock" not in str(exc_info.value)
+
+
+def test_locked_state_strict_true_raises_when_fdopen_fails(
+    tmp_path: Path, monkeypatch
+) -> None:
+    """Covers the fdopen()-failure fail-open point specifically: strict=True
+    raises `LockAcquisitionError` instead of the fail-open fallthrough
+    exercised by `test_locked_state_still_fails_open_when_fdopen_itself_fails`
+    above, with a message that says the critical section is being refused
+    rather than (misleadingly) that it is "proceeding WITHOUT lock"."""
+    log = tmp_path / "log.jsonl"
+    ran_unlocked = False
+
+    def _boom(*_args, **_kwargs):
+        raise OSError("fdopen failed")
+
+    monkeypatch.setattr(atomic_state.os, "fdopen", _boom)
+
+    with pytest.raises(
+        atomic_state.LockAcquisitionError, match="fdopen"
+    ) as exc_info, atomic_state.locked_state(log, strict=True):
+        ran_unlocked = True
+
+    assert not ran_unlocked, (
+        "strict=True must never run the critical section when fdopen() fails"
+    )
+    assert "refusing to run the critical section unlocked" in str(exc_info.value)
+    assert "proceeding WITHOUT lock" not in str(exc_info.value)
+
+
+def test_locked_state_strict_false_behavior_is_unchanged(
+    tmp_path: Path, monkeypatch
+) -> None:
+    """(c) `strict=False` (the default, omitted entirely here — matching
+    every pre-existing caller's call shape) still fails open on the same
+    fdopen() failure rather than raising, proving the default path is
+    untouched by the strict-mode addition."""
+    log = tmp_path / "log.jsonl"
+    ran_unlocked = False
+
+    def _boom(*_args, **_kwargs):
+        raise OSError("fdopen failed")
+
+    monkeypatch.setattr(atomic_state.os, "fdopen", _boom)
+
+    with atomic_state.locked_state(log):
+        ran_unlocked = True
+
+    assert ran_unlocked, "strict=False (default) must keep failing open"
+
+
+# ---------------------------------------------------------------------------
+# atomic_write's `fail_open` parameter (issue #1920) — mirrors
+# `append_line_locked`'s own `fail_open` contract (see
+# test_autoship_log.py::test_append_round_propagates_oserror_from_a_failed_write
+# for the sibling pattern this borrows: a real OSError, not a monkeypatch, is
+# preferred where practical; a monkeypatch is used here for the fd-leak case
+# since there is no filesystem-level way to force `os.fdopen` itself to fail).
+# ---------------------------------------------------------------------------
+
+
+def test_atomic_write_writes_text_and_leaves_no_tmp_file(tmp_path: Path) -> None:
+    path = tmp_path / "state.json"
+
+    atomic_state.atomic_write(path, "hello")
+
+    assert path.read_text(encoding="utf-8") == "hello"
+    assert list(tmp_path.glob(".state.json-*.tmp")) == []
+
+
+def test_atomic_write_default_fail_open_swallows_oserror(
+    tmp_path: Path, monkeypatch
+) -> None:
+    path = tmp_path / "state.json"
+
+    def boom(_src, _dst):
+        raise OSError("disk full")
+
+    monkeypatch.setattr(atomic_state.os, "replace", boom)
+
+    atomic_state.atomic_write(path, "hello")  # must not raise
+
+    assert not path.exists()
+
+
+def test_atomic_write_fail_open_false_reraises_oserror(
+    tmp_path: Path, monkeypatch
+) -> None:
+    """Unlike the default fail-open behavior, `fail_open=False` must
+    propagate the underlying OSError instead of silently no-op'ing — the
+    same contract `append_line_locked`'s own `fail_open=False` provides
+    (#1920: `mutation_baseline_reuse.mark_consumed` relies on this to report
+    a write failure rather than reporting fabricated success)."""
+    path = tmp_path / "state.json"
+
+    def boom(_src, _dst):
+        raise OSError("disk full")
+
+    monkeypatch.setattr(atomic_state.os, "replace", boom)
+
+    with pytest.raises(OSError, match="disk full"):
+        atomic_state.atomic_write(path, "hello", fail_open=False)
+
+    assert not path.exists()
+
+
+def test_atomic_write_fdopen_failure_closes_the_fd_before_reraising(
+    tmp_path: Path, monkeypatch
+) -> None:
+    """A failure inside `os.fdopen` must close the raw fd `mkstemp` handed
+    back rather than leaking it — mirroring `locked_state`'s own
+    fdopen-failure fd-leak fix (#1920 correctness review)."""
+    path = tmp_path / "state.json"
+    closed_fds: list[int] = []
+    real_close = atomic_state.os.close
+
+    def spying_close(fd):
+        closed_fds.append(fd)
+        real_close(fd)
+
+    def boom(*_args, **_kwargs):
+        raise OSError("fdopen failed")
+
+    monkeypatch.setattr(atomic_state.os, "fdopen", boom)
+    monkeypatch.setattr(atomic_state.os, "close", spying_close)
+
+    atomic_state.atomic_write(path, "hello")  # default fail_open=True
+
+    assert closed_fds, "fdopen failure must close the raw fd via os.close"
+    assert not path.exists()
+
+
+def test_atomic_write_fdopen_failure_fail_open_false_still_closes_and_raises(
+    tmp_path: Path, monkeypatch
+) -> None:
+    path = tmp_path / "state.json"
+    closed_fds: list[int] = []
+    real_close = atomic_state.os.close
+
+    def spying_close(fd):
+        closed_fds.append(fd)
+        real_close(fd)
+
+    def boom(*_args, **_kwargs):
+        raise OSError("fdopen failed")
+
+    monkeypatch.setattr(atomic_state.os, "fdopen", boom)
+    monkeypatch.setattr(atomic_state.os, "close", spying_close)
+
+    with pytest.raises(OSError, match="fdopen failed"):
+        atomic_state.atomic_write(path, "hello", fail_open=False)
+
+    assert closed_fds, "fdopen failure must close the raw fd via os.close"
+    assert not path.exists()
