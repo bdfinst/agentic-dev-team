@@ -45,12 +45,12 @@ Four commands drive feature development from idea to pull request:
 /specs  →  /plan  →  /build  →  /pr
 ```
 
-| Step | Command | What it does |
-| --- | --- | --- |
-| **1. Specify** | `/specs` | Describe the change and its goals — Intent, Architecture notes, Acceptance Criteria. A consistency gate must pass before moving on. Skip for bug fixes, refactors, or trivial changes. |
-| **2. Plan** | `/plan` | Decompose the feature into vertical slices, author each slice's Gherkin scenarios, and lay out the TDD steps that satisfy them. Four plan-review personas (Acceptance Test, Design, UX, Strategic critics) challenge the plan before the human sees it. Human approves before any code is written. |
-| **3. Build** | `/build` | Execute the approved plan slice by slice. Each step follows RED-GREEN-REFACTOR with inline review checkpoints (spec-compliance first, then quality agents). Produces verification evidence. |
-| **4. Ship** | `/pr` | Run quality gates (tests, typecheck, lint, code review) and open a pull request. |
+| Step           | Command  | What it does                                                                                                                                                                                                                                                                                       |
+|----------------|----------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| **1. Specify** | `/specs` | Describe the change and its goals — Intent, Architecture notes, Acceptance Criteria. A consistency gate must pass before moving on. Skip for bug fixes, refactors, or trivial changes.                                                                                                             |
+| **2. Plan**    | `/plan`  | Decompose the feature into vertical slices, author each slice's Gherkin scenarios, and lay out the TDD steps that satisfy them. Four plan-review personas (Acceptance Test, Design, UX, Strategic critics) challenge the plan before the human sees it. Human approves before any code is written. |
+| **3. Build**   | `/build` | Execute the approved plan slice by slice. Each step follows RED-GREEN-REFACTOR with inline review checkpoints (spec-compliance first, then quality agents). Produces verification evidence.                                                                                                        |
+| **4. Ship**    | `/pr`    | Run quality gates (tests, typecheck, lint, code review) and open a pull request.                                                                                                                                                                                                                   |
 
 Each step produces artifacts the next step consumes. The spec describes *what* and *why*; the plan turns that into per-slice behavioral contracts (Gherkin) and *how*. Human review gates sit between transitions.
 

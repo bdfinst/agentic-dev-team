@@ -91,7 +91,14 @@ def test_agent_body_stays_under_500_line_limit(text: str) -> None:
     # Bumped by 1 more (#1925/#1926): added a mutation_kill_retry.py row to
     # the scripted-mechanics table (net of merging the two Parallelism
     # sections into one).
-    assert len(text.splitlines()) < 622
+    # Bumped by 14 more (#1920): widened the "Baseline reuse for Round 1"
+    # section's scope statement to all --concurrency values and added
+    # absolute-path/concurrent-write-safety invocation guidance.
+    # Bumped by 3 more (#1920 review): parameterized the resolve/mark-consumed
+    # `--tracking`/`--report` snippets with absolute-path placeholders and
+    # named the residual same-file-double-resolve risk the lock does not
+    # cover.
+    assert len(text.splitlines()) < 640
 
 
 def test_defines_honest_score_formula(text: str) -> None:
