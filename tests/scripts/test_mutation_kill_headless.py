@@ -61,6 +61,10 @@ def _mutant(status: str, mutator: str = "ArithmeticOperator", line: int = 1) -> 
     }
 
 
+def _gateway_error() -> shared.HeadlessCallFailed:
+    return shared.HeadlessCallFailed(1, "502 Bad Gateway")
+
+
 # =============================================================================
 # Reused headless glue actually comes from mutation_kill_shared (#1601) —
 # identity check, mirroring the Python loop's equivalent test.
@@ -345,15 +349,14 @@ def test_make_headless_generator_derives_round_number_from_call_count(
     Generator signature doesn't have one) — make_headless_generator derives
     it from how many times its own closure has been invoked."""
     logged: list[str] = []
-    gw = lambda: RuntimeError("claude CLI failed (exit 1): 502 Bad Gateway")
     sequenced_run_claude_headless(
         monkeypatch,
         shared,
         "round-1-result",
-        gw(),
-        gw(),
-        gw(),
-        gw(),
+        _gateway_error(),
+        _gateway_error(),
+        _gateway_error(),
+        _gateway_error(),
         "round-2-result",
     )
     generate = headless.make_headless_generator(
@@ -372,9 +375,9 @@ def test_make_headless_generator_propagates_generation_exhausted(
     monkeypatch: pytest.MonkeyPatch,
 ):
     monkeypatch.delenv("DEV_TEAM_MUTATION_FALLBACK_MODEL", raising=False)
-    gw = lambda: RuntimeError("claude CLI failed (exit 1): 502 Bad Gateway")
     sequenced_run_claude_headless(
-        monkeypatch, shared, gw(), gw(), gw(), gw(), gw(), gw(), gw(), gw()
+        monkeypatch, shared,
+        *([_gateway_error()] * 8),
     )
     generate = headless.make_headless_generator(
         "opus", log=lambda _: None, sleep=lambda _s: None
@@ -388,9 +391,10 @@ def test_make_headless_generator_closures_do_not_share_downgrade_state(
     monkeypatch: pytest.MonkeyPatch,
 ):
     monkeypatch.delenv("DEV_TEAM_MUTATION_FALLBACK_MODEL", raising=False)
-    gw = lambda: RuntimeError("claude CLI failed (exit 1): 502 Bad Gateway")
     seen = sequenced_run_claude_headless(
-        monkeypatch, shared, gw(), gw(), gw(), gw(), "ok-on-sonnet"
+        monkeypatch, shared,
+        _gateway_error(), _gateway_error(), _gateway_error(), _gateway_error(),
+        "ok-on-sonnet",
     )
     generate_a = headless.make_headless_generator("opus", sleep=lambda _s: None)
     generate_a("FileA.cs", [_mutant("Survived")], "src", "tests")  # downgrades A to sonnet
@@ -414,8 +418,11 @@ def test_main_wires_label_override_provider_into_runcontext(
     main() actually wires make_downgrade_audit_hook()'s result into
     RunContext had zero coverage."""
     monkeypatch.setattr(headless, "claude_cli_available", lambda: True)
-    sentinel_on_downgrade = lambda event: None
-    sentinel_get_label_override = lambda: "sentinel-label"
+    def sentinel_on_downgrade(event):
+        return None
+
+    def sentinel_get_label_override():
+        return "sentinel-label"
     monkeypatch.setattr(
         headless,
         "make_downgrade_audit_hook",
@@ -447,8 +454,11 @@ def test_make_headless_generator_label_override_reflects_a_downgrade(
     is read from that same pair, not from a generate() attribute (#1908
     review)."""
     monkeypatch.delenv("DEV_TEAM_MUTATION_FALLBACK_MODEL", raising=False)
-    gw = lambda: RuntimeError("claude CLI failed (exit 1): 502 Bad Gateway")
-    sequenced_run_claude_headless(monkeypatch, shared, gw(), gw(), gw(), gw(), "ok-on-sonnet")
+    sequenced_run_claude_headless(
+        monkeypatch, shared,
+        _gateway_error(), _gateway_error(), _gateway_error(), _gateway_error(),
+        "ok-on-sonnet",
+    )
     on_downgrade, get_label_override = retry.make_downgrade_audit_hook()
     generate = headless.make_headless_generator(
         "opus", log=lambda _: None, on_downgrade=on_downgrade, sleep=lambda _s: None
