@@ -156,13 +156,24 @@ or observable state change — not just a status code or a truthiness check.
 ## Target mutation types in priority order
 
 **Cluster survivors by source line before applying the priority order
-below.** Group survivors by source line — including adjacent lines that
-share one expression — into clusters, and sort those clusters by
-survivors-per-line descending (not total mutants-per-line). Design one
-test per cluster where feasible, rather than defaulting to one test per
-mutant. Only after clustering, apply the mutation-type priority order
-within and across clusters. A survivor with no resolvable source line
-forms no cluster — handle it one-test-per-mutant.
+below.** Group survivors by calling `survivors_by_line()` in
+`mutation_report.py` — or its CLI wrapper,
+`mutation_report_cli.py --survivors-by-line --report <path> --file
+<path>` — rather than re-deriving the grouping and sort yourself. Its
+`clusters` key holds one entry per source line, each with that line's
+`survivors` list, sorted by survivor count descending, ties broken by
+line number ascending. Design one test per cluster where feasible,
+rather than defaulting to one test per mutant. Only after clustering,
+apply the mutation-type priority order within and across clusters.
+
+Clustering is strictly per source line — no adjacent-line merging is
+performed, even when two clusters sit on visually adjacent lines that
+share one expression. Noticing that case and choosing to write one test
+covering both clusters is your own judgment call, not something the tool
+computes for you.
+
+A survivor with no resolvable source line forms no cluster — it lands in
+the `unclustered` list instead, and you handle it one-test-per-mutant.
 
 When you generate, group survivors by mutation type and write tests in this order:
 

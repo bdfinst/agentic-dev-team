@@ -47,21 +47,31 @@ def test_clustering_happens_before_the_priority_order(priority_flat: str) -> Non
     )
 
 
-def test_clustering_groups_by_source_line_and_adjacent_expression_lines(
+def test_clustering_groups_by_source_line_and_cites_the_script(
     priority_flat: str,
 ) -> None:
-    assert re.search(r"[Gg]roup survivors by source line", priority_flat)
+    """#1937 Step 1.2: the retired "adjacent lines that share one
+    expression" grouping behavior is gone — grouping is now delegated to
+    survivors_by_line() (cited by name), with mutation_report_cli.py's
+    --survivors-by-line invocation cited as the tool call an agent
+    actually runs, matching javascript-stryker.md's dual-citation
+    pattern. The prose also states outright that no adjacent-line merging
+    is performed."""
+    assert re.search(r"[Gg]roup survivors by", priority_flat)
+    assert re.search(r"survivors_by_line\(\)", priority_flat)
     assert re.search(
-        r"adjacent lines that\s+share one expression", priority_flat
+        r"mutation_report_cli\.py --survivors-by-line", priority_flat
     )
+    assert re.search(r"no adjacent-line merging is\s+performed", priority_flat)
 
 
 def test_clusters_sorted_by_survivors_per_line_descending(priority_flat: str) -> None:
-    assert re.search(r"survivors-per-line descending", priority_flat)
-    # Not total mutants-per-line — see the fix commit for the ranking-signal
-    # rationale (a heavily-mutated-but-mostly-killed line must not outrank a
-    # smaller line whose mutants all survived).
-    assert re.search(r"not total mutants-per-line", priority_flat)
+    # Restates survivors_by_line()'s ordering guarantee by name: sorted by
+    # survivor count descending, ties broken by line ascending (#1937).
+    assert re.search(r"sorted by survivor count descending", priority_flat)
+    assert re.search(
+        r"ties broken by\s+line number ascending", priority_flat
+    )
 
 
 def test_one_test_per_cluster_preferred_over_one_test_per_mutant(
@@ -78,6 +88,9 @@ def test_one_test_per_cluster_preferred_over_one_test_per_mutant(
 def test_unclusterable_survivors_have_a_stated_fallback(priority_flat: str) -> None:
     assert re.search(r"no resolvable source line", priority_flat)
     assert re.search(r"forms? no cluster", priority_flat)
+    # Names the unclustered key explicitly (#1937), matching
+    # survivors_by_line()'s pinned return shape.
+    assert re.search(r"`unclustered`\s+list", priority_flat)
 
 
 @pytest.fixture(scope="module")
