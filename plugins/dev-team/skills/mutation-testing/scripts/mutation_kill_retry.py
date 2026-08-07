@@ -36,7 +36,10 @@ module object (``mutation_kill_shared.run_claude_headless(...)``), not a
 same-module-globals contract ``_mutation_test_helpers.sequenced_run_claude_headless``
 already documents) — plus ``HeadlessCallFailed``, referenced only as a type
 (``isinstance(exc, mutation_kill_shared.HeadlessCallFailed)``), which carries
-no monkeypatch sensitivity of its own since nothing here calls it. (This
+no monkeypatch sensitivity of its own since nothing here calls it.
+``run_claude_headless`` is not unconditionally reached, though, unless the
+caller injects ``call_headless`` (#1918), in which case ``run_claude_headless``
+is never reached — see :meth:`_RetryCallContext.resolve_call_headless`. (This
 mirrors the dependency inventory documented from the other direction in
 ``mutation_kill_shared.py``'s own module docstring — keep the two in sync.)
 
@@ -254,6 +257,14 @@ class _RetryCallContext:
             else mutation_kill_shared.run_claude_headless
         )
 
+    def invoke(self, prompt: str, model: str | None) -> str:
+        """Call the resolved transport with this context's ``cwd`` — the one
+        call expression both :func:`_retry_once_then_maybe_downgrade` and
+        :func:`make_retrying_headless_call`'s ``call`` closure need, so it's
+        defined once instead of duplicated verbatim at both sites (#1938
+        review)."""
+        return self.resolve_call_headless()(prompt, model=model, cwd=self.cwd)
+
 
 def _retry_once_then_maybe_downgrade(
     state: _RetryState,
@@ -280,7 +291,7 @@ def _retry_once_then_maybe_downgrade(
     """
     already_downgraded = state.downgraded
     try:
-        return ctx.resolve_call_headless()(prompt, model=state.model, cwd=ctx.cwd)
+        return ctx.invoke(prompt, state.model)
     except RuntimeError as retry_exc:
         error_class = (
             "gateway-class" if is_gateway_class_error(retry_exc) else "non-gateway-class"
@@ -408,7 +419,7 @@ def make_retrying_headless_call(
     def call(prompt: str, source_file: str, round_num: int | None = None) -> str:
         while True:
             try:
-                result = ctx.resolve_call_headless()(prompt, model=state.model, cwd=ctx.cwd)
+                result = ctx.invoke(prompt, state.model)
             except RuntimeError as exc:
                 if not is_gateway_class_error(exc):
                     # Never counts toward the threshold, and breaks an

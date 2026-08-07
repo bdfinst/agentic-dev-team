@@ -41,8 +41,11 @@ module (#1925) once it grew into a five-concern grab-bag; that module's
 dependencies on this one are ``run_claude_headless``/``resolve_fallback_model``,
 plus ``HeadlessCallFailed`` referenced only as a type
 (``isinstance(exc, mutation_kill_shared.HeadlessCallFailed)``), not a
-monkeypatch-sensitive callable. (Keep this in sync with the mirrored
-dependency inventory in ``mutation_kill_retry.py``'s own module docstring.)
+monkeypatch-sensitive callable. ``run_claude_headless`` is not unconditionally
+reached, though, unless the caller injects ``call_headless`` (#1918), in which
+case ``run_claude_headless`` is never reached. (Keep this in sync with the
+mirrored dependency inventory in ``mutation_kill_retry.py``'s own module
+docstring.)
 
 Centralizing the pieces below here means a future hardening fix lands once instead of
 drifting between two copies (the exact drift risk #1598/#1599 already
