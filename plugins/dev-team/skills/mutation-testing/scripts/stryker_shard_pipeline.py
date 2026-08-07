@@ -342,9 +342,12 @@ def launch_survivor_fix(
     also currently maps to exit 4 — see #1930 for narrowing this). Exit
     code 5 (a clean retry-then-downgrade exhaustion — nothing mutated) is
     the one case carved out from that catch-all: this file is logged as
-    unfixed, but the run's exit status is unaffected and the loop continues
-    to the next file in the shard, matching ``mutation-kill.md``'s documented
-    exhaustion contract that ```--all` continues``` (#1908 review).
+    unfixed and the loop continues to the next file in the shard (the tree
+    was not mutated), matching ``mutation-kill.md``'s documented exhaustion
+    contract that ```--all` continues``` (#1908 review) — but the pipeline's
+    overall exit code becomes ``EXIT_GENERATION_EXHAUSTED`` (5) at the end if
+    any file across any shard exhausted, unless a hard failure elsewhere
+    makes it 1 (``main()``'s 3-branch priority: failed > exhausted > clean).
     """
     resolve_test_file = resolve_test_file or default_resolve_test_file
     report = report_path(out_dir)
@@ -378,12 +381,13 @@ def launch_survivor_fix(
             log(
                 f"[{ts()}] Agent EXHAUSTED (headless): {_safe(shard)} — "
                 f"{_safe(source)} (exit {rc}) — retry-then-downgrade budget "
-                "spent; logging this file as unfixed (the run's exit status "
-                "is unaffected) and continuing to the next file in this "
-                "shard (the tree was not mutated)"
+                "spent; logging this file as unfixed and continuing to the "
+                "next file in this shard (the tree was not mutated) — the "
+                "pipeline's overall exit code becomes EXIT_GENERATION_EXHAUSTED "
+                "(5) at the end unless a hard failure elsewhere makes it 1"
             )
             if exhausted is not None:
-                exhausted.append(f"{shard}/{source}")
+                exhausted.append(f"{_safe(shard)}/{_safe(source)}")
             continue
         if rc != 0:
             log(
@@ -445,7 +449,11 @@ def print_summary(
     exhausted: Sequence[str] = (),
 ) -> None:
     """Print the per-shard honest score with Timeout and NoCoverage broken out
-    separately — never the timeout-inflated reported score (AC3)."""
+    separately — never the timeout-inflated reported score (AC3).
+
+    When ``exhausted`` is non-empty, an additional "EXHAUSTED files (N)" line
+    is appended listing the ``shard/source`` entries for files whose
+    retry-then-downgrade budget was spent (see ``launch_survivor_fix``)."""
     log("=== Pipeline summary ===")
     for shard in shards:
         rp = report_path(Path(shard_out_base) / shard)
@@ -625,6 +633,15 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def main(argv: Sequence[str] | None = None) -> int:
+    """CLI entry point. Exit code follows a 3-branch priority, failure first:
+
+    - ``1`` — one or more shards failed (``run_all``'s ``failed`` list is
+      non-empty). Takes priority over exhaustion.
+    - ``EXIT_GENERATION_EXHAUSTED`` (``5``) — no shard failed, but at least
+      one file exhausted its retry-then-downgrade budget (``exhausted`` is
+      non-empty).
+    - ``0`` — fully clean: no failures, no exhaustions.
+    """
     args = build_parser().parse_args(list(sys.argv[1:] if argv is None else argv))
     repo_root = Path(args.repo_root).resolve() if args.repo_root else Path.cwd()
 

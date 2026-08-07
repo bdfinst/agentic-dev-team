@@ -204,6 +204,7 @@ def test_worktrees_are_created_from_head_and_shards_compound(tmp_path):
     )
 
     assert result.failed == []
+    assert result.exhausted == []
     # Every worktree is created from HEAD.
     adds = [c for c in rec.git if c[:3] == ["git", "worktree", "add"]]
     assert len(adds) == 2
@@ -287,9 +288,11 @@ def test_survivor_fix_stops_launching_further_files_after_a_nonzero_exit(tmp_pat
 # =============================================================================
 # Scenario: A GenerationExhausted exit (code 5) — a clean retry-then-downgrade
 # budget exhaustion, nothing mutated — is logged as unfixed but does NOT stop
-# the shard (the run's exit status is unaffected): the loop continues to the
-# next file (#1908 review). Distinct from exit code 4 above, which does stop
-# it.
+# the shard: the loop continues to the next file (#1908 review), and the tree
+# is not mutated. The pipeline's overall exit code becomes
+# EXIT_GENERATION_EXHAUSTED (5) at the end if any file exhausted (unless a
+# hard failure elsewhere makes it 1) — see main()'s 3-branch priority.
+# Distinct from exit code 4 above, which does stop it.
 # =============================================================================
 def test_survivor_fix_continues_past_a_generation_exhausted_exit(tmp_path):
     rec = _Recorder()
@@ -348,6 +351,51 @@ def test_survivor_fix_records_exhausted_file_in_accumulator(tmp_path):
 
     assert ok is True
     assert exhausted == ["a/src/W.a/Foo.cs"]
+
+
+# =============================================================================
+# Scenario: A mixed return-code sequence within one shard — the first
+# survivor file exhausts (recorded, loop continues), the second file exits
+# the fatal-revert code (loop stops). Exercises _Recorder.run_returncodes,
+# the per-call sequence field, which nothing previously set.
+# =============================================================================
+def test_survivor_fix_exhausted_then_fatal_failure_stops_after_second_file(tmp_path):
+    rec = _Recorder()
+    rec.run_returncodes = [5, 4]  # file 1: GenerationExhausted, file 2: fatal-revert
+    out_dir = tmp_path / "out" / "a"
+    config = _write_shard_config(tmp_path, "a")
+    # survivor_source_files (mutation_report.files_with_survivors) returns
+    # files sorted by key — "Bar.cs" precedes "Foo.cs" — so Bar.cs is file 1
+    # (exhausted, continues) and Foo.cs is file 2 (fatal-revert, stops).
+    _write_report(
+        out_dir,
+        {
+            "src/W.a/Foo.cs": {"mutants": [_mutant("Survived")]},
+            "src/W.a/Bar.cs": {"mutants": [_mutant("Survived")]},
+        },
+    )
+
+    exhausted: list[str] = []
+    ok = pipeline.launch_survivor_fix(
+        "a",
+        repo_root=tmp_path,
+        out_dir=out_dir,
+        config_path=config,
+        model=None,
+        max_rounds=2,
+        run=rec.run,
+        resolve_test_file=lambda source, *a: Path(f"test/W.Tests/{Path(source).stem}Tests.cs"),
+        log=rec.log,
+        exhausted=exhausted,
+    )
+
+    assert ok is False
+    # Only the first file's (Bar.cs) exhaustion is recorded before the second
+    # file (Foo.cs) hits the fatal-revert exit and stops the loop.
+    assert exhausted == ["a/src/W.a/Bar.cs"]
+    # Exactly 2 launches: file 1 (exhausted, continues) then file 2 (fatal,
+    # stops) — never a third attempt.
+    assert len(rec.launches) == 2
 
 
 def test_survivor_fix_exhausted_none_default_does_not_raise(tmp_path):
