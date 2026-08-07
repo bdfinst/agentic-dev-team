@@ -52,6 +52,7 @@ def _run_cli(args: list[str], cwd: Path | None = None) -> subprocess.CompletedPr
         cwd=str(cwd) if cwd else None,
         capture_output=True,
         text=True,
+        check=False,
     )
 
 
@@ -284,16 +285,14 @@ def test_verify_exceptions_module_constant_defaults_empty():
 
 
 def test_extract_table_block_stops_at_next_heading():
-    text = "\n".join(
-        [
-            "## Team Agents",
-            "",
-            "row1",
-            "row2",
-            "## Review Agents",
-            "",
-            "should not be included",
-        ]
+    text = (
+        "## Team Agents\n"
+        "\n"
+        "row1\n"
+        "row2\n"
+        "## Review Agents\n"
+        "\n"
+        "should not be included"
     )
 
     block = mt.extract_table_block(text, "Team Agents")
@@ -365,11 +364,9 @@ def test_verify_multiple_drifted_rows_all_reported_single_exit(tmp_path):
     registry = tmp_path / "agent-registry.md"
     registry.write_text(
         _build_registry_md(
-            team_rows="\n".join(
-                [
-                    "| Foo | `agents/foo.md` | ~50 | desc |",
-                    "| Baz | `agents/baz.md` | ~10 | desc |",
-                ]
+            team_rows=(
+                "| Foo | `agents/foo.md` | ~50 | desc |\n"
+                "| Baz | `agents/baz.md` | ~10 | desc |"
             ),
             skills_rows="",
         ),
@@ -419,11 +416,9 @@ def test_verify_skips_empty_file_cell_summary_row(tmp_path):
     registry = tmp_path / "agent-registry.md"
     registry.write_text(
         _build_registry_md(
-            team_rows="\n".join(
-                [
-                    "| Foo | `agents/foo.md` | ~100 | desc |",
-                    "| **All team agents** | | **~100** | |",
-                ]
+            team_rows=(
+                "| Foo | `agents/foo.md` | ~100 | desc |\n"
+                "| **All team agents** | | **~100** | |"
             ),
             skills_rows="",
         ),
@@ -474,7 +469,7 @@ def test_verify_comma_formatted_declared_value_used_in_comparison(tmp_path):
         encoding="utf-8",
     )
 
-    rows, section_errors = mt.verify_registry(tmp_path, registry, "heuristic")
+    rows, _section_errors = mt.verify_registry(tmp_path, registry, "heuristic")
 
     assert rows[0].declared_n == 1050
     assert rows[0].status == "ok"

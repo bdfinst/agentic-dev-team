@@ -45,7 +45,7 @@ from __future__ import annotations
 import argparse
 import sys
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
@@ -77,9 +77,11 @@ def detect_tokenizer() -> tuple[str, str]:
     except ImportError:
         return (
             "heuristic",
-            "character-count heuristic (UTF-8 bytes / "
-            f"{HEURISTIC_BYTES_PER_TOKEN}) — APPROXIMATE. "
-            "Install tiktoken for better accuracy: pip install tiktoken",
+            (
+                "character-count heuristic (UTF-8 bytes / "
+                f"{HEURISTIC_BYTES_PER_TOKEN}) — APPROXIMATE. "
+                "Install tiktoken for better accuracy: pip install tiktoken"
+            ),
         )
     return "tiktoken", "tiktoken cl100k_base (approximation of Claude tokenizer)"
 
@@ -157,7 +159,7 @@ def print_report(
     print("# measure_tokens.py output")
     print(f"# tokenizer: {tokenizer_note}")
     print(f"# repo root: {repo_root}")
-    print(f"# date: {datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ')}")
+    print(f"# date: {datetime.now(UTC).strftime('%Y-%m-%dT%H:%M:%SZ')}")
     print()
     print(f"{'FILE':<70} {'TOKENS':>10}")
     print(f"{'-' * 70} {'-' * 10}")
@@ -210,8 +212,7 @@ def parse_declared_value(raw: str) -> int | None:
     ``None`` if the cleaned text still isn't an integer.
     """
     cleaned = raw.strip().strip("*").strip()
-    if cleaned.startswith("~"):
-        cleaned = cleaned[1:]
+    cleaned = cleaned.removeprefix("~")
     cleaned = cleaned.replace(",", "")
     try:
         return int(cleaned)
