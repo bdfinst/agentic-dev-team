@@ -653,6 +653,48 @@ def test_generation_exhausted_never_aborts_the_whole_process_uncaught(
 
 
 # =============================================================================
+# DowngradeEvent.exhausted — derived from to_model, not stored (#1918 Step
+# 2.3). Proven by construction, not convention: the removed field must raise
+# TypeError if passed explicitly, the same standard #1937's
+# inspect.signature() tests applied.
+# =============================================================================
+def test_downgrade_event_exhausted_is_true_when_to_model_is_none():
+    event = retry.DowngradeEvent(
+        source_file="foo.py",
+        round_num=5,
+        from_model="haiku",
+        to_model=None,
+        error_class="gateway-class",
+    )
+
+    assert event.exhausted is True
+
+
+def test_downgrade_event_exhausted_is_false_when_to_model_names_a_fallback():
+    event = retry.DowngradeEvent(
+        source_file="foo.py",
+        round_num=3,
+        from_model="opus",
+        to_model="haiku",
+        error_class="gateway-class",
+    )
+
+    assert event.exhausted is False
+
+
+def test_downgrade_event_no_longer_accepts_an_explicit_exhausted_keyword():
+    with pytest.raises(TypeError):
+        retry.DowngradeEvent(
+            source_file="foo.py",
+            round_num=5,
+            from_model="haiku",
+            to_model=None,
+            error_class="gateway-class",
+            exhausted=True,
+        )
+
+
+# =============================================================================
 # make_downgrade_audit_hook — the on_downgrade/get_label_override pair that
 # carries a downgrade event into the commit-message audit trail (#1908 Step
 # 3.2b). The live-output print (log()) already happens unconditionally
@@ -673,7 +715,6 @@ def test_on_downgrade_sets_a_label_naming_file_round_models_and_error_class():
         from_model="opus",
         to_model="sonnet",
         error_class="gateway-class",
-        exhausted=False,
     )
 
     on_downgrade(event)
@@ -698,7 +739,6 @@ def test_on_downgrade_leaves_get_label_override_none_for_an_exhausted_event():
         from_model="haiku",
         to_model=None,
         error_class="gateway-class",
-        exhausted=True,
     )
 
     on_downgrade(event)

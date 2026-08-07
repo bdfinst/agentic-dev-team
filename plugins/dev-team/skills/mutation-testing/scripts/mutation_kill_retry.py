@@ -139,7 +139,13 @@ class DowngradeEvent:
     from_model: str | None
     to_model: str | None
     error_class: str
-    exhausted: bool = False
+
+    @property
+    def exhausted(self) -> bool:
+        """True iff no fallback tier was available — derived from
+        ``to_model`` rather than stored separately, so the two can never
+        disagree (#1918 Step 2.3)."""
+        return self.to_model is None
 
 
 # Models with a defined ladder position — a downgrade that exhausts starting
@@ -291,7 +297,6 @@ def _retry_once_then_maybe_downgrade(
             from_model=from_model,
             to_model=to_model,
             error_class=error_class,
-            exhausted=to_model is None,
         )
         ctx.log(_format_downgrade_message(event))
         if ctx.on_downgrade is not None:
