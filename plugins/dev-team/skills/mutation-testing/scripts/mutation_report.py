@@ -217,6 +217,61 @@ def survivors_by_mutator(report_path: Path, file_path: str) -> dict[str, list[di
     return _survivors_from_data(load_report(report_path), file_path)
 
 
+def _survivors_by_line_from_data(data: dict, file_path: str) -> dict:
+    """Return the Survived mutants for one source file, clustered by source
+    line, from an already-parsed report dict.
+
+    Matches ``file_path`` against report keys the same way
+    ``_survivors_from_data`` does (via ``_find_file_info`` — exact key, then
+    basename). Only ``Survived`` mutants participate; a mutant of any other
+    status (Killed, Timeout, NoCoverage, ...) sharing a line with survivors
+    never appears in the result.
+
+    Return shape: ``{"clusters": [{"line": int, "survivors": [dict, ...]}, ...],
+    "unclustered": [dict, ...]}``.
+
+    - ``clusters`` groups survivors by ``mutant["location"]["start"]["line"]``
+      and is sorted by ``len(survivors)`` descending; ties are broken by
+      ``line`` ascending.
+    - ``unclustered`` holds every survivor whose line is ``None`` (e.g.
+      mutmut's no-resolvable-line case) — such a survivor never forms or
+      joins a cluster.
+    - Returns ``{"clusters": [], "unclustered": []}`` when the file is not in
+      the report or has no survivors.
+    """
+    info = _find_file_info(data, file_path)
+    if info is None:
+        return {"clusters": [], "unclustered": []}
+
+    by_line: dict[int, list[dict]] = {}
+    unclustered: list[dict] = []
+    for mutant in info.get("mutants", []):
+        if mutant.get("status") != STATUS_SURVIVED:
+            continue
+        line = mutant.get("location", {}).get("start", {}).get("line")
+        if line is None:
+            unclustered.append(mutant)
+        else:
+            by_line.setdefault(line, []).append(mutant)
+
+    clusters = [
+        {"line": line, "survivors": survivors} for line, survivors in by_line.items()
+    ]
+    clusters.sort(key=lambda cluster: (-len(cluster["survivors"]), cluster["line"]))
+
+    return {"clusters": clusters, "unclustered": unclustered}
+
+
+def survivors_by_line(report_path: Path, file_path: str) -> dict:
+    """Return the Survived mutants for one source file, clustered by source
+    line, from a Stryker-shaped mutation report on disk.
+
+    See ``_survivors_by_line_from_data`` for the return shape and ordering
+    rule.
+    """
+    return _survivors_by_line_from_data(load_report(report_path), file_path)
+
+
 def _files_with_status_from_data(data: dict, status: str) -> list[str]:
     """Return the sorted report file keys having >= 1 mutant of ``status``,
     from an already-parsed report dict.

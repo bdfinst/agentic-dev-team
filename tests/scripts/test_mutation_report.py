@@ -329,6 +329,158 @@ def test_file_discovery_helpers_are_empty_for_absent_report(tmp_path: Path):
 
 
 # =============================================================================
+# Scenario: survivors_by_line() clusters Survived mutants by source line
+# (Slice 1 of plans/mutation-report-prose-extraction.md, #1937/#1913)
+# =============================================================================
+def _mutant_at_line(status: str, line, mutator: str = "ArithmeticOperator") -> dict:
+    return {
+        "id": f"{mutator}-{status}-{line}",
+        "mutatorName": mutator,
+        "status": status,
+        "location": {"start": {"line": line}},
+    }
+
+
+def test_survivors_by_line_clusters_same_line_survivors_and_excludes_killed(
+    tmp_path: Path,
+):
+    report = _write_report(
+        tmp_path / "mutation-report.json",
+        {
+            "src/Widget.cs": {
+                "mutants": [
+                    _mutant_at_line("Survived", 42),
+                    _mutant_at_line("Survived", 42),
+                    _mutant_at_line("Survived", 42),
+                    _mutant_at_line("Killed", 42),
+                ]
+            }
+        },
+    )
+
+    result = mutation_report.survivors_by_line(report, "src/Widget.cs")
+
+    assert result["unclustered"] == []
+    assert len(result["clusters"]) == 1
+    cluster = result["clusters"][0]
+    assert cluster["line"] == 42
+    assert len(cluster["survivors"]) == 3
+    assert all(m["status"] == "Survived" for m in cluster["survivors"])
+    # The Killed mutant is not present anywhere in the result.
+    all_returned = [m for c in result["clusters"] for m in c["survivors"]] + result[
+        "unclustered"
+    ]
+    assert all(m["status"] != "Killed" for m in all_returned)
+
+
+@pytest.mark.parametrize("status", ["Timeout", "NoCoverage"])
+def test_survivors_by_line_excludes_non_survived_statuses(tmp_path: Path, status: str):
+    report = _write_report(
+        tmp_path / "mutation-report.json",
+        {
+            "src/Widget.cs": {
+                "mutants": [
+                    _mutant_at_line("Survived", 42),
+                    _mutant_at_line("Survived", 42),
+                    _mutant_at_line(status, 42),
+                ]
+            }
+        },
+    )
+
+    result = mutation_report.survivors_by_line(report, "src/Widget.cs")
+
+    assert len(result["clusters"]) == 1
+    cluster = result["clusters"][0]
+    assert cluster["line"] == 42
+    assert len(cluster["survivors"]) == 2
+    assert all(m["status"] == "Survived" for m in cluster["survivors"])
+    all_returned = [m for c in result["clusters"] for m in c["survivors"]] + result[
+        "unclustered"
+    ]
+    assert all(m["status"] != status for m in all_returned)
+
+
+def test_survivors_by_line_sorted_by_count_descending(tmp_path: Path):
+    report = _write_report(
+        tmp_path / "mutation-report.json",
+        {
+            "src/Widget.cs": {
+                "mutants": [_mutant_at_line("Survived", 10) for _ in range(2)]
+                + [_mutant_at_line("Survived", 20) for _ in range(5)]
+            }
+        },
+    )
+
+    result = mutation_report.survivors_by_line(report, "src/Widget.cs")
+
+    lines_in_order = [c["line"] for c in result["clusters"]]
+    assert lines_in_order == [20, 10]
+
+
+def test_survivors_by_line_equal_counts_tie_broken_by_line_ascending(
+    tmp_path: Path,
+):
+    report = _write_report(
+        tmp_path / "mutation-report.json",
+        {
+            "src/Widget.cs": {
+                "mutants": [_mutant_at_line("Survived", 30) for _ in range(2)]
+                + [_mutant_at_line("Survived", 10) for _ in range(2)]
+            }
+        },
+    )
+
+    result = mutation_report.survivors_by_line(report, "src/Widget.cs")
+
+    lines_in_order = [c["line"] for c in result["clusters"]]
+    assert lines_in_order == [10, 30]
+
+
+def test_survivors_by_line_none_line_goes_to_unclustered(tmp_path: Path):
+    report = _write_report(
+        tmp_path / "mutation-report.json",
+        {
+            "src/Widget.cs": {
+                "mutants": [
+                    _mutant_at_line("Survived", None),
+                    _mutant_at_line("Survived", 42),
+                ]
+            }
+        },
+    )
+
+    result = mutation_report.survivors_by_line(report, "src/Widget.cs")
+
+    assert len(result["unclustered"]) == 1
+    assert result["unclustered"][0]["location"]["start"]["line"] is None
+    assert len(result["clusters"]) == 1
+    assert result["clusters"][0]["line"] == 42
+
+
+def test_survivors_by_line_no_survivors_returns_empty_result(tmp_path: Path):
+    report = _write_report(
+        tmp_path / "mutation-report.json",
+        {"src/Widget.cs": {"mutants": [_mutant_at_line("Killed", 42)]}},
+    )
+
+    result = mutation_report.survivors_by_line(report, "src/Widget.cs")
+
+    assert result == {"clusters": [], "unclustered": []}
+
+
+def test_survivors_by_line_unmatched_file_returns_empty_result(tmp_path: Path):
+    report = _write_report(
+        tmp_path / "mutation-report.json",
+        {"src/Widget.cs": {"mutants": [_mutant_at_line("Survived", 42)]}},
+    )
+
+    result = mutation_report.survivors_by_line(report, "src/Nope.cs")
+
+    assert result == {"clusters": [], "unclustered": []}
+
+
+# =============================================================================
 # Scenario: The module carries no repo-specific literal
 # =============================================================================
 def test_module_source_carries_no_repo_specific_literal():
