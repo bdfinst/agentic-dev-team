@@ -901,6 +901,85 @@ def test_print_verify_report_includes_every_row_and_section_errors(tmp_path, cap
     assert "section not found: ## Skills Registry" in out
 
 
+def test_verify_bold_and_coded_file_cell_measures_normally_not_glob(tmp_path):
+    """Round-3 fix #1: a File cell wrapped in bold markdown (e.g.
+    ``**`agents/foo.md`**``) must have its `*` markers stripped the same
+    way the Name cell already is — before this fix, the leftover `*` was
+    misread by the glob-detection check (`"*" in file_path`) as a genuine
+    glob wildcard, silently exempting a perfectly normal single-file row
+    as "unsupported_glob" instead of measuring it."""
+    (tmp_path / "agents").mkdir()
+    (tmp_path / "agents" / "foo.md").write_text("x" * 400, encoding="utf-8")  # 100 tokens
+
+    registry = tmp_path / "agent-registry.md"
+    registry.write_text(
+        _build_registry_md(
+            team_rows="| Foo | **`agents/foo.md`** | ~100 | desc |",
+            skills_rows="",
+        ),
+        encoding="utf-8",
+    )
+
+    rows, section_errors = mt.verify_registry(tmp_path, registry, "heuristic")
+
+    assert section_errors == []
+    foo_row = next(row for row in rows if row.name == "Foo")
+    assert foo_row.status in ("ok", "deviated")
+    assert foo_row.status != "unsupported_glob"
+    assert foo_row.measured_n == 100
+
+
+def test_compute_verify_exit_code_fails_safe_on_unknown_status(tmp_path):
+    """Round-3 fix #2: compute_verify_exit_code's docstring states an
+    allowlist rule ("0 when every row is ok/exempt/unsupported_glob") — a
+    hypothetical 6th status not in that allowlist must fail the exit code,
+    proving the implementation is the stated allowlist and not a denylist
+    that would default a future unrecognized status to passing."""
+    hypothetical_row = mt.VerifyRow(
+        "Team Agents", "Mystery", "agents/mystery.md", 100, 100, 0.0, "some_future_status"  # type: ignore[arg-type]
+    )
+
+    assert mt.compute_verify_exit_code([hypothetical_row], []) == 1
+
+
+def test_verify_unparseable_declared_value_reported_as_section_error(tmp_path):
+    """Round-3 fix #3: a row whose declared-value cell doesn't parse (e.g.
+    "TBD") must not silently vanish from the report the way it did before —
+    it is surfaced as a section error, distinct from the legitimate,
+    silent empty-File-cell summary-row skip which must NOT trigger this
+    error."""
+    (tmp_path / "agents").mkdir()
+    (tmp_path / "agents" / "foo.md").write_text("x" * 400, encoding="utf-8")  # 100 tokens
+
+    registry = tmp_path / "agent-registry.md"
+    registry.write_text(
+        _build_registry_md(
+            team_rows=(
+                "| Foo | `agents/foo.md` | ~100 | desc |\n"
+                "| Bad | `agents/bad.md` | TBD | desc |\n"
+                "| **All team agents** | | **~100** | |"
+            ),
+            skills_rows="",
+        ),
+        encoding="utf-8",
+    )
+
+    rows, section_errors = mt.verify_registry(tmp_path, registry, "heuristic")
+
+    # The unparseable "TBD" row is reported...
+    assert any(
+        "Team Agents" in err and "1 row(s) skipped" in err and "unparseable declared value" in err
+        for err in section_errors
+    ), section_errors
+    # ...but the legitimate empty-File-cell summary row is never counted
+    # toward that message, and never appears as a parsed row either.
+    assert not any("2 row(s) skipped" in err for err in section_errors)
+    assert all(row.name != "All team agents" for row in rows)
+    # The one genuinely valid row still parses and measures normally.
+    foo_row = next(row for row in rows if row.name == "Foo")
+    assert foo_row.measured_n == 100
+
+
 def test_verify_cli_flag_dispatches_to_verify_mode(tmp_path, monkeypatch, capsys):
     """Wiring test: `--verify` dispatches main() to the verify path instead
     of the bare-mode path, against a fixture repo root (never the live

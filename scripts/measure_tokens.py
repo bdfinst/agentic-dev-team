@@ -242,34 +242,51 @@ def parse_declared_value(raw: str) -> int | None:
         return None
 
 
-def parse_registry_rows(section_text: str) -> list[tuple[str, str, int]]:
+def parse_registry_rows(section_text: str) -> tuple[list[tuple[str, str, int]], int]:
     """Parse a registry markdown table block into ``(name, file_path,
     declared_n)`` tuples.
 
     Skips the header row and the separator row (the first two
     ``|``-prefixed lines in the block), and skips any data row whose File
-    cell (2nd column) is empty after stripping backticks/whitespace — a
-    non-file summary row such as ``| **All team agents** | | **~7,910** |
-    |``. A row whose declared-value cell doesn't parse to an integer is
-    skipped too, rather than raising.
+    cell (2nd column) is empty after stripping backticks/asterisks/
+    whitespace — a non-file summary row such as ``| **All team agents** | |
+    **~7,910** | |``. That skip is deliberate and silent: it is never
+    reported as an error.
+
+    A row whose declared-value cell doesn't parse to an integer (e.g. a
+    cell containing ``TBD`` or ``N/A``) is also skipped, but — unlike the
+    empty-File-cell skip above — this is a degraded row, not a legitimate
+    summary row, so it is *counted*: returns ``(rows, skipped_unparseable)``
+    where ``skipped_unparseable`` is the number of rows dropped for this
+    reason. The caller (``verify_registry``) surfaces a non-zero count as a
+    section error so a degraded row never vanishes from the report with no
+    trace.
     """
     table_lines = [line for line in section_text.splitlines() if line.strip().startswith("|")]
     data_lines = table_lines[2:]  # skip header row + separator row
 
     rows: list[tuple[str, str, int]] = []
+    skipped_unparseable = 0
     for line in data_lines:
         cells = [c.strip() for c in line.strip().strip("|").split("|")]
         if len(cells) < 3:
             continue
         name = cells[0].strip("*").strip()
-        file_path = cells[1].strip("`").strip()
+        # strip("`*") strips backtick and asterisk as a character set, not a
+        # fixed sequence, so it handles both nesting orders a bold+coded File
+        # cell can appear in (`**`agents/foo.md`**` or `` `**agents/foo.md**` ``)
+        # in one call — without this, a bold File cell's leftover `*` markers
+        # would be misread as a glob wildcard by the later `"*" in file_path`
+        # check in `_build_verify_row`.
+        file_path = cells[1].strip("`*").strip()
         if not file_path:
             continue
         declared_n = parse_declared_value(cells[2])
         if declared_n is None:
+            skipped_unparseable += 1
             continue
         rows.append((name, file_path, declared_n))
-    return rows
+    return rows, skipped_unparseable
 
 
 # The closed set of statuses a VerifyRow can carry. A Literal (rather than a
@@ -372,10 +389,14 @@ def verify_registry(
             section_errors.append(f"section not found: ## {heading}")
             continue
 
-        section_rows = parse_registry_rows(block)
+        section_rows, skipped_unparseable = parse_registry_rows(block)
         if not section_rows:
             section_errors.append(f"'## {heading}' found but zero rows parsed — check table format")
             continue
+        if skipped_unparseable:
+            section_errors.append(
+                f"'## {heading}': {skipped_unparseable} row(s) skipped — unparseable declared value"
+            )
 
         for name, file_path, declared_n in section_rows:
             rows.append(_build_verify_row(heading, name, file_path, declared_n, base_dir, tokenizer, exceptions))
@@ -391,7 +412,13 @@ def compute_verify_exit_code(rows: list[VerifyRow], section_errors: list[str]) -
     limitation, not a failure, so it never contributes to a non-zero exit."""
     if section_errors:
         return 1
-    if any(row.status in ("deviated", "missing_file") for row in rows):
+    # Allowlist, not a denylist: fails safe if a 6th status is ever added
+    # without this function being updated to know about it. Equivalent
+    # today to `row.status in ("deviated", "missing_file")`, since those
+    # are the only two statuses outside the passing set — but a denylist
+    # silently treats any *future* unrecognized status as passing, while
+    # this allowlist treats it as failing.
+    if any(row.status not in ("ok", "exempt", "unsupported_glob") for row in rows):
         return 1
     return 0
 
