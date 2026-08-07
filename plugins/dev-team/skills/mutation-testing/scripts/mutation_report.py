@@ -188,7 +188,9 @@ def score_report_for_file(report_path: Path, file_path: str) -> ScoreSummary:
     return _score_data_for_file(load_report(report_path), file_path)
 
 
-def _survivors_from_data(data: dict, file_path: str) -> dict[str, list[dict]]:
+def _survivors_from_data(
+    data: dict, file_path: str, skip_static: bool = False
+) -> dict[str, list[dict]]:
     """Return the Survived mutants for one source file, grouped by mutator
     name, from an already-parsed report dict.
 
@@ -197,13 +199,24 @@ def _survivors_from_data(data: dict, file_path: str) -> dict[str, list[dict]]:
     filename. Only ``Survived`` mutants are returned — killed, timed-out, and
     uncovered mutants are not survivors. Returns ``{}`` when the file is not
     in the report or has no survivors.
+
+    When ``skip_static`` is ``True``, mutants with ``static: true`` are
+    excluded before the Survived-filter/group-by-mutator step below — but
+    only when at least one mutant in the matched file's list carries a
+    ``"static"`` key at all. When none do, the parameter has no effect
+    (silently): this function stays a pure data transform, and the CLI
+    wrapper owns any user-facing "skip is inapplicable" notice.
     """
     info = _find_file_info(data, file_path)
     if info is None:
         return {}
 
+    mutants = info.get("mutants", [])
+    if skip_static and any("static" in mutant for mutant in mutants):
+        mutants = [mutant for mutant in mutants if mutant.get("static") is not True]
+
     grouped: dict[str, list[dict]] = {}
-    for mutant in info.get("mutants", []):
+    for mutant in mutants:
         if mutant.get("status") != STATUS_SURVIVED:
             continue
         mutator = mutant.get("mutatorName", "")
@@ -211,10 +224,33 @@ def _survivors_from_data(data: dict, file_path: str) -> dict[str, list[dict]]:
     return grouped
 
 
-def survivors_by_mutator(report_path: Path, file_path: str) -> dict[str, list[dict]]:
+def survivors_by_mutator(
+    report_path: Path, file_path: str, skip_static: bool = False
+) -> dict[str, list[dict]]:
     """Return the Survived mutants for one source file, grouped by mutator
-    name, from a Stryker-shaped mutation report on disk."""
-    return _survivors_from_data(load_report(report_path), file_path)
+    name, from a Stryker-shaped mutation report on disk.
+
+    See ``_survivors_from_data`` for the ``skip_static`` behavior.
+    """
+    return _survivors_from_data(
+        load_report(report_path), file_path, skip_static=skip_static
+    )
+
+
+def static_field_present(data: dict, file_path: str) -> bool:
+    """Return whether any mutant in the matched file's list carries a
+    ``"static"`` key, from an already-parsed report dict.
+
+    Matches ``file_path`` the same way ``_find_file_info`` does (exact key,
+    then basename). Returns ``False`` uniformly both when the matched file
+    has no mutant carrying a ``"static"`` key and when ``file_path`` isn't
+    present in the report at all (``_find_file_info`` returns ``None``) —
+    the two cases are not distinguished by this function's return value.
+    """
+    info = _find_file_info(data, file_path)
+    if info is None:
+        return False
+    return any("static" in mutant for mutant in info.get("mutants", []))
 
 
 def _survivors_by_line_from_data(data: dict, file_path: str) -> dict:

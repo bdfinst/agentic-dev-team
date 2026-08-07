@@ -13,6 +13,7 @@ shapes written to a temp file; the exact scenario counts (10 Killed,
 
 from __future__ import annotations
 
+import inspect
 import json
 import sys
 from pathlib import Path
@@ -478,6 +479,199 @@ def test_survivors_by_line_unmatched_file_returns_empty_result(tmp_path: Path):
     result = mutation_report.survivors_by_line(report, "src/Nope.cs")
 
     assert result == {"clusters": [], "unclustered": []}
+
+
+# =============================================================================
+# Scenario: skip_static filters static-flagged survivors out of
+# survivors_by_mutator() (Slice 1 of plans/mutation-report-prose-extraction.md,
+# #1937/#1915)
+# =============================================================================
+def _mutant_static(status: str, static: bool, mutator: str = "StringLiteral") -> dict:
+    return {
+        "id": f"{mutator}-{status}-{static}",
+        "mutatorName": mutator,
+        "status": status,
+        "static": static,
+    }
+
+
+def test_skip_static_excludes_static_survivor_keeps_non_static(tmp_path: Path):
+    report = _write_report(
+        tmp_path / "mutation-report.json",
+        {
+            "src/Widget.cs": {
+                "mutants": [
+                    _mutant_static("Survived", True),
+                    _mutant_static("Survived", False, mutator="ArithmeticOperator"),
+                ]
+            }
+        },
+    )
+
+    grouped = mutation_report.survivors_by_mutator(
+        report, "src/Widget.cs", skip_static=True
+    )
+
+    assert set(grouped) == {"ArithmeticOperator"}
+    assert len(grouped["ArithmeticOperator"]) == 1
+
+
+def test_skip_static_has_no_effect_when_field_absent_everywhere(tmp_path: Path):
+    report = _write_report(
+        tmp_path / "mutation-report.json",
+        {
+            "src/Widget.cs": {
+                "mutants": [
+                    _mutant("Survived", "ArithmeticOperator"),
+                    _mutant("Survived", "EqualityOperator"),
+                ]
+            }
+        },
+    )
+
+    grouped = mutation_report.survivors_by_mutator(
+        report, "src/Widget.cs", skip_static=True
+    )
+
+    assert set(grouped) == {"ArithmeticOperator", "EqualityOperator"}
+
+
+def test_skip_static_default_false_keeps_static_survivor(tmp_path: Path):
+    report = _write_report(
+        tmp_path / "mutation-report.json",
+        {"src/Widget.cs": {"mutants": [_mutant_static("Survived", True)]}},
+    )
+
+    grouped = mutation_report.survivors_by_mutator(report, "src/Widget.cs")
+
+    assert set(grouped) == {"StringLiteral"}
+
+
+def test_static_field_present_true_when_a_mutant_carries_the_key(tmp_path: Path):
+    report = _write_report(
+        tmp_path / "mutation-report.json",
+        {"src/Widget.cs": {"mutants": [_mutant_static("Survived", False)]}},
+    )
+
+    assert (
+        mutation_report.static_field_present(
+            mutation_report.load_report(report), "src/Widget.cs"
+        )
+        is True
+    )
+
+
+def test_static_field_present_false_when_no_mutant_carries_the_key(tmp_path: Path):
+    report = _write_report(
+        tmp_path / "mutation-report.json",
+        {"src/Widget.cs": {"mutants": [_mutant("Survived")]}},
+    )
+
+    assert (
+        mutation_report.static_field_present(
+            mutation_report.load_report(report), "src/Widget.cs"
+        )
+        is False
+    )
+
+
+def test_static_field_present_false_when_file_absent_from_report(tmp_path: Path):
+    report = _write_report(
+        tmp_path / "mutation-report.json",
+        {"src/Widget.cs": {"mutants": [_mutant_static("Survived", True)]}},
+    )
+
+    assert (
+        mutation_report.static_field_present(
+            mutation_report.load_report(report), "src/Nope.cs"
+        )
+        is False
+    )
+
+
+# =============================================================================
+# Scenario: skip_static never becomes a parameter of the scoring or
+# mutmut-parsing functions (structural proof, not just behavioral)
+# =============================================================================
+def test_score_report_has_no_skip_static_parameter():
+    assert "skip_static" not in inspect.signature(
+        mutation_report.score_report
+    ).parameters
+
+
+def test_score_report_for_file_has_no_skip_static_parameter():
+    assert "skip_static" not in inspect.signature(
+        mutation_report.score_report_for_file
+    ).parameters
+
+
+def test_survivors_from_mutmut_junitxml_has_no_skip_static_parameter():
+    assert "skip_static" not in inspect.signature(
+        mutation_report.survivors_from_mutmut_junitxml
+    ).parameters
+
+
+# =============================================================================
+# Scenario: skip_static leaves the scoring functions' behavior unchanged
+# (behavioral companion to the structural proof above)
+# =============================================================================
+def test_score_report_for_file_still_counts_static_survivor_unfiltered(
+    tmp_path: Path,
+):
+    report = _write_report(
+        tmp_path / "mutation-report.json",
+        {
+            "src/Widget.cs": {
+                "mutants": [
+                    _mutant("Killed"),
+                    _mutant_static("Survived", True),
+                    _mutant_static("Survived", False, mutator="ArithmeticOperator"),
+                ]
+            }
+        },
+    )
+
+    # Prove skip_static=True would have excluded the static survivor here...
+    grouped = mutation_report.survivors_by_mutator(
+        report, "src/Widget.cs", skip_static=True
+    )
+    assert "StringLiteral" not in grouped
+
+    # ...yet score_report_for_file() still counts it.
+    summary = mutation_report.score_report_for_file(report, "src/Widget.cs")
+
+    assert summary.survived == 2
+    # honest = 1 / (1 + 2 + 0); reported = (1 + 0) / (1 + 2 + 0 + 0)
+    assert summary.honest_score == pytest.approx(1 / 3 * 100)
+    assert summary.reported_score == pytest.approx(1 / 3 * 100)
+
+
+def test_score_report_still_counts_static_survivor_unfiltered(tmp_path: Path):
+    report = _write_report(
+        tmp_path / "mutation-report.json",
+        {
+            "src/Widget.cs": {
+                "mutants": [
+                    _mutant("Killed"),
+                    _mutant_static("Survived", True),
+                    _mutant_static("Survived", False, mutator="ArithmeticOperator"),
+                ]
+            }
+        },
+    )
+
+    # Prove skip_static=True would have excluded the static survivor here...
+    grouped = mutation_report.survivors_by_mutator(
+        report, "src/Widget.cs", skip_static=True
+    )
+    assert "StringLiteral" not in grouped
+
+    # ...yet score_report() (whole-report) still counts it.
+    summary = mutation_report.score_report(report)
+
+    assert summary.survived == 2
+    assert summary.honest_score == pytest.approx(1 / 3 * 100)
+    assert summary.reported_score == pytest.approx(1 / 3 * 100)
 
 
 # =============================================================================
