@@ -37,9 +37,9 @@ same-module-globals contract ``_mutation_test_helpers.sequenced_run_claude_headl
 already documents) — plus ``HeadlessCallFailed``, referenced only as a type
 (``isinstance(exc, mutation_kill_shared.HeadlessCallFailed)``), which carries
 no monkeypatch sensitivity of its own since nothing here calls it.
-``run_claude_headless`` is not unconditionally reached, though, unless the
-caller injects ``call_headless`` (#1918), in which case ``run_claude_headless``
-is never reached — see :meth:`_RetryCallContext.resolve_call_headless`. (This
+``run_claude_headless`` is reached on every generation attempt unless the
+caller injects ``call_headless`` (#1918), in which case it is never reached —
+see :meth:`_RetryCallContext.resolve_call_headless`. (This
 mirrors the dependency inventory documented from the other direction in
 ``mutation_kill_shared.py``'s own module docstring — keep the two in sync.)
 

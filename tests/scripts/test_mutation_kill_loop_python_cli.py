@@ -17,11 +17,11 @@ from __future__ import annotations
 
 from pathlib import Path
 
-import _mutation_kill_loop_python_test_helpers  # noqa: F401 (sys.path side effect)
 import mutation_kill_loop_python as loop
 import mutation_kill_retry as retry
 import mutation_kill_shared as shared
 import pytest
+from _mutation_kill_loop_python_test_helpers import _junit, _survived
 from _mutation_test_helpers import (
     FORBIDDEN_LITERALS,
     SCRIPTS_DIR,
@@ -233,7 +233,7 @@ def test_main_returns_exit_code_5_when_generation_exhausted_propagates(
 # mutation_kill_retry.make_retrying_headless_call (#1908, Slice 3 Step 3.2)
 # — round tracking, per-closure isolation, and GenerationExhausted
 # propagation. The retry/downgrade behavior itself is covered exhaustively
-# in test_mutation_kill_shared.py; this file only proves the wiring.
+# in test_mutation_kill_retry.py; this file only proves the wiring.
 # =============================================================================
 def test_make_headless_generator_derives_round_number_from_call_count(
     monkeypatch: pytest.MonkeyPatch,
@@ -330,6 +330,63 @@ def test_main_wires_label_override_provider_into_runcontext(
     )
 
     assert captured["label_override_provider"] is sentinel_get_label_override
+
+
+# =============================================================================
+# Scenario: the full #1917 -> #1918 -> #1919 chain, unmocked at the
+# generation-classification layer (#1938 review gap). Every other test in
+# this file either injects GenerationExhausted directly via a mocked
+# run_for_file (bypassing #1917's HeadlessCallFailed classification and
+# #1918's _RetryState machine entirely) or, at stryker_shard_pipeline.py's
+# layer, a raw subprocess rc=5 with no connection to a real gateway-class
+# failure. Here neither run_for_file nor generate is monkeypatched: a real
+# HeadlessCallFailed (raised by mutation_kill_shared.run_claude_headless's
+# non-zero-exit shape via sequenced_run_claude_headless/gateway_error) drives
+# make_retrying_headless_call's real _RetryState through the same
+# 3-failure-threshold -> 1 retry -> downgrade -> repeat-until-ladder-floor
+# sequence exercised elsewhere in this file
+# (test_make_headless_generator_propagates_generation_exhausted), but through
+# main() end-to-end so GenerationExhausted must actually propagate out of the
+# real mutation_kill_loop_python.run_for_file and be caught by main() itself.
+# run_scoped_mutmut (the real mutmut subprocess boundary run_for_file also
+# calls) is mocked — that's the build/test-adjacent side effect this loop
+# performs beyond generation, not the generation-classification layer under
+# test here.
+# =============================================================================
+def test_main_returns_exit_code_5_via_real_retry_downgrade_chain_unmocked(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys
+):
+    monkeypatch.setattr(loop, "claude_cli_available", lambda: True)
+    monkeypatch.delenv("DEV_TEAM_MUTATION_FALLBACK_MODEL", raising=False)
+    monkeypatch.setattr(
+        loop,
+        "run_scoped_mutmut",
+        lambda *a, **k: _junit(_survived("Mutant #1", "a.py", 3), failures=1),
+    )
+    # 8 gateway-class failures: 3 + 1 retry exhausts opus and spends the
+    # file's one downgrade to sonnet; 3 + 1 retry then exhausts sonnet with
+    # no further downgrade available.
+    sequenced_run_claude_headless(monkeypatch, shared, *([gateway_error()] * 8))
+
+    test_file = tmp_path / "test_a.py"
+    test_file.write_text("def test_existing():\n    assert True\n", encoding="utf-8")
+    source_file = tmp_path / "a.py"
+    source_file.write_text("x = 1\n", encoding="utf-8")
+
+    rc = loop.main(
+        [
+            "--headless",
+            "--model", "opus",
+            "--file", "a.py",
+            "--test-file", str(test_file),
+            "--source-path", str(source_file),
+            "--test-command", "pytest",
+        ]
+    )
+
+    assert rc == 5
+    err = capsys.readouterr().err
+    assert "exhausted its retry budget" in err
 
 
 def test_make_headless_generator_label_override_reflects_a_downgrade(
