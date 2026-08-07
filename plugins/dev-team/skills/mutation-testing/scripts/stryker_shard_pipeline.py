@@ -310,6 +310,7 @@ def launch_survivor_fix(
     run: Callable[..., subprocess.CompletedProcess] = subprocess.run,
     resolve_test_file: TestFileResolver | None = None,
     log: Callable[[str], None] = print,
+    exhausted: list[str] | None = None,
 ) -> bool:
     """Launch the forced-headless survivor-fix loop for a shard's survivors.
 
@@ -371,6 +372,8 @@ def launch_survivor_fix(
                 "is unaffected) and continuing to the next file in this "
                 "shard (the tree was not mutated)"
             )
+            if exhausted is not None:
+                exhausted.append(f"{shard}/{source}")
             continue
         if rc != 0:
             log(
@@ -464,6 +467,7 @@ def process_shard(
     resolve_test_file: TestFileResolver | None = None,
     git_run: GitRunner | None = None,
     events: list[tuple] | None = None,
+    exhausted: list[str] | None = None,
 ) -> str:
     """Process one shard end to end. Returns ``"ok"`` / ``"failed"`` /
     ``"skipped"``. ``events`` (when supplied) records the worktree-creation and
@@ -511,6 +515,7 @@ def process_shard(
             run=run,
             resolve_test_file=resolve_test_file,
             log=log,
+            exhausted=exhausted,
         )
         if events is not None:
             events.append(("fix", shard))

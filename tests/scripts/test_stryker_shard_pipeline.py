@@ -280,6 +280,57 @@ def test_survivor_fix_continues_past_a_generation_exhausted_exit(tmp_path):
     assert any("EXHAUSTED (headless)" in line and "exit 5" in line for line in rec.logs)
 
 
+# =============================================================================
+# Scenario: A single exhausted file in an otherwise-clean shard is recorded
+# =============================================================================
+def test_survivor_fix_records_exhausted_file_in_accumulator(tmp_path):
+    rec = _Recorder()
+    rec.run_returncode = 5  # GenerationExhausted's dedicated exit code
+    out_dir = tmp_path / "out" / "a"
+    config = _write_shard_config(tmp_path, "a")
+    _write_report(out_dir, {"src/W.a/Foo.cs": {"mutants": [_mutant("Survived")]}})
+
+    exhausted: list[str] = []
+    ok = pipeline.launch_survivor_fix(
+        "a",
+        repo_root=tmp_path,
+        out_dir=out_dir,
+        config_path=config,
+        model=None,
+        max_rounds=2,
+        run=rec.run,
+        resolve_test_file=lambda source, *a: Path(f"test/W.Tests/{Path(source).stem}Tests.cs"),
+        log=rec.log,
+        exhausted=exhausted,
+    )
+
+    assert ok is True
+    assert exhausted == ["a/src/W.a/Foo.cs"]
+
+
+def test_survivor_fix_exhausted_none_default_does_not_raise(tmp_path):
+    rec = _Recorder()
+    rec.run_returncode = 5  # GenerationExhausted's dedicated exit code
+    out_dir = tmp_path / "out" / "a"
+    config = _write_shard_config(tmp_path, "a")
+    _write_report(out_dir, {"src/W.a/Foo.cs": {"mutants": [_mutant("Survived")]}})
+
+    # exhausted is not passed — defaults to None — the append must be guarded.
+    ok = pipeline.launch_survivor_fix(
+        "a",
+        repo_root=tmp_path,
+        out_dir=out_dir,
+        config_path=config,
+        model=None,
+        max_rounds=2,
+        run=rec.run,
+        resolve_test_file=lambda source, *a: Path(f"test/W.Tests/{Path(source).stem}Tests.cs"),
+        log=rec.log,
+    )
+
+    assert ok is True
+
+
 def test_survivor_fix_all_files_launched_when_every_exit_is_zero(tmp_path):
     rec = _Recorder()
     out_dir = tmp_path / "out" / "a"
@@ -333,6 +384,40 @@ def test_process_shard_marks_failed_when_a_survivor_fix_exits_nonzero(tmp_path):
     )
 
     assert result == "failed"
+
+
+# =============================================================================
+# Scenario: A shard with only exhausted files still reports "ok" from
+# process_shard, and the exhausted accumulator is populated.
+# =============================================================================
+def test_process_shard_populates_exhausted_and_still_reports_ok(tmp_path):
+    rec = _Recorder()
+    rec.run_returncode = 5  # GenerationExhausted's dedicated exit code
+    _write_shard_config(tmp_path, "a")
+    _write_report(tmp_path / "out" / "a", {"src/W.a/Foo.cs": {"mutants": [_mutant("Survived")]}})
+
+    exhausted: list[str] = []
+    result = pipeline.process_shard(
+        "a",
+        repo_root=tmp_path,
+        worktree_base=tmp_path / ".wt",
+        shard_out_base=tmp_path / "out",
+        stryker_bin="fake-stryker",
+        model=None,
+        max_rounds=3,
+        skip_agent=False,
+        skip_existing=False,
+        max_age_hours=0,
+        log=rec.log,
+        run_stryker=lambda **kw: 0,
+        run=rec.run,
+        resolve_test_file=lambda *a: Path("test/W.Tests/FooTests.cs"),
+        git_run=rec.git_run,
+        exhausted=exhausted,
+    )
+
+    assert result == "ok"
+    assert exhausted == ["a/src/W.a/Foo.cs"]
 
 
 def test_build_loop_command_always_includes_headless():
