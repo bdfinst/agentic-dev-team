@@ -515,10 +515,8 @@ def test_paragraph_window_multi_candidate_falls_back_to_second_candidate():
 
 
 def test_skip_static_mutants_window_docstring_preserved():
-    assert (
-        "the prior version of this window scoped to the whole"
-        in _skip_static_mutants_window.__doc__.replace("\n", " ")
-    )
+    normalized_doc = re.sub(r"\s+", " ", _skip_static_mutants_window.__doc__)
+    assert "the prior version of this window scoped to the whole" in normalized_doc
 
 
 # --- Issue #1910 Slice 5 Step 5.1: named equivalent-mutant taxonomy
