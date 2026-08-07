@@ -30,12 +30,12 @@ from skill_include_resolver import INCLUDE_RE, SKILL, SKILL_DIR
 
 def _approx_tokens(text: str) -> int:
     """Char-count / 4 heuristic — mirrors the heuristic tokenizer's fallback
-    formula in `scripts/measure-tokens.sh` (`chars / 4`, used there only
-    when `tiktoken` isn't installed) — though that script counts *bytes*
-    via `wc -c`, while this counts Python `str` characters, so it reads
-    slightly lower than the script on text with non-ASCII characters (this
-    file has some: em dashes, `·`, `→`). Immaterial at current ceiling
-    margins."""
+    formula in `scripts/measure_tokens.py` (its `HEURISTIC_BYTES_PER_TOKEN`
+    divisor, used there only when `tiktoken` isn't installed) — though that
+    script counts *bytes* via `len(text.encode("utf-8"))`, while this counts
+    Python `str` characters, so it reads slightly lower than the script on
+    text with non-ASCII characters (this file has some: em dashes, `·`,
+    `→`). Immaterial at current ceiling margins."""
     return len(text) // 4
 
 # Pre-split baseline was ~16,500 tokens (measured before Step 1.1). The plan's

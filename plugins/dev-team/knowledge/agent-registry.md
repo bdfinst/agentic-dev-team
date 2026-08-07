@@ -6,24 +6,24 @@ This file contains the complete registry tables. CLAUDE.md references this file 
 
 | Agent | File | ~Tokens | Primary Focus |
 | ------- | ------ | --------- | --------------- |
-| ADR Author | `agents/adr-author.md` | 320 | Creates and manages Architecture Decision Records |
-| Architect | `agents/architect.md` | 360 | System design, architecture |
-| Codebase Recon | `agents/codebase-recon.md` | ~900 | Repo reconnaissance — surfaces entry points, dependencies, security surface, git history. Produces RECON artifact per security-primitives-contract. Dispatched on demand by architect and domain-analysis, and at the start of Phase 1: Research when no fresh artifact exists (see `agents/orchestrator.md` § Codebase Recon dispatch). |
-| Gherkin Quality Critic | `agents/gherkin-quality-critic.md` | ~115 | Adversarial review of freshly-derived/authored Gherkin — coverage gaps and positive/negative balance. Dispatched by `/gherkin-derive` and `/gherkin-public`, never directly. |
-| Orchestrator | `agents/orchestrator.md` | 500 | Task routing, model selection, review coordination |
-| Plan Review Acceptance Critic | `agents/plan-review-acceptance.md` | ~880 | Adversarial plan review — acceptance criteria, Gherkin scenario, and TDD step traceability quality. Dispatched by `/plan` step 5b, never directly. |
-| Plan Review Design Critic | `agents/plan-review-design.md` | ~920 | Adversarial plan review — coupling, abstraction, structural risk, and pattern-adherence quality. Dispatched by `/plan` step 5b, never directly. |
-| Plan Review Parallelization Critic | `agents/plan-review-parallelization.md` | ~870 | Adversarial plan review — same-wave file-collision and behavioral-coupling verification. Dispatched by `/plan` step 5b, never directly. |
-| Plan Review Strategic Critic | `agents/plan-review-strategic.md` | ~1,050 | Adversarial plan review — problem-solution fit, scope, risk, opportunity cost. Dispatched by `/plan` step 5b, never directly. |
-| Plan Review UX Critic | `agents/plan-review-ux.md` | ~1,130 | Adversarial plan review — usability, accessibility, error experience; self-skips for non-UI plans. Dispatched by `/plan` step 5b, never directly. |
-| Platform Engineer | `agents/platform-engineer.md` | 320 | Pipeline, deployment, reliability |
-| Product Manager | `agents/product-manager.md` | 300 | Requirements, prioritization |
-| QA/SQA Engineer | `agents/qa-engineer.md` | 320 | Testing, quality assurance |
-| Security Engineer | `agents/security-engineer.md` | 320 | Security analysis, threat modeling |
-| Software Engineer | `agents/software-engineer.md` | 320 | Code generation, implementation |
-| Technical Writer | `agents/tech-writer.md` | 560 | Documentation, style consistency |
-| UI/UX Designer | `agents/ui-ux-designer.md` | 300 | Interface design, UX |
-| **All team agents** | | **~7,910** | |
+| ADR Author | `agents/adr-author.md` | 1,143 | Creates and manages Architecture Decision Records |
+| Architect | `agents/architect.md` | 1,482 | System design, architecture |
+| Codebase Recon | `agents/codebase-recon.md` | ~2,858 | Repo reconnaissance — surfaces entry points, dependencies, security surface, git history. Produces RECON artifact per security-primitives-contract. Dispatched on demand by architect and domain-analysis, and at the start of Phase 1: Research when no fresh artifact exists (see `agents/orchestrator.md` § Codebase Recon dispatch). |
+| Gherkin Quality Critic | `agents/gherkin-quality-critic.md` | ~1,176 | Adversarial review of freshly-derived/authored Gherkin — coverage gaps and positive/negative balance. Dispatched by `/gherkin-derive` and `/gherkin-public`, never directly. |
+| Orchestrator | `agents/orchestrator.md` | 11,612 | Task routing, model selection, review coordination |
+| Plan Review Acceptance Critic | `agents/plan-review-acceptance.md` | ~1,386 | Adversarial plan review — acceptance criteria, Gherkin scenario, and TDD step traceability quality. Dispatched by `/plan` step 5b, never directly. |
+| Plan Review Design Critic | `agents/plan-review-design.md` | ~1,227 | Adversarial plan review — coupling, abstraction, structural risk, and pattern-adherence quality. Dispatched by `/plan` step 5b, never directly. |
+| Plan Review Parallelization Critic | `agents/plan-review-parallelization.md` | ~1,182 | Adversarial plan review — same-wave file-collision and behavioral-coupling verification. Dispatched by `/plan` step 5b, never directly. |
+| Plan Review Strategic Critic | `agents/plan-review-strategic.md` | ~1,379 | Adversarial plan review — problem-solution fit, scope, risk, opportunity cost. Dispatched by `/plan` step 5b, never directly. |
+| Plan Review UX Critic | `agents/plan-review-ux.md` | ~1,470 | Adversarial plan review — usability, accessibility, error experience; self-skips for non-UI plans. Dispatched by `/plan` step 5b, never directly. |
+| Platform Engineer | `agents/platform-engineer.md` | 1,252 | Pipeline, deployment, reliability |
+| Product Manager | `agents/product-manager.md` | 1,221 | Requirements, prioritization |
+| QA/SQA Engineer | `agents/qa-engineer.md` | 4,188 | Testing, quality assurance |
+| Security Engineer | `agents/security-engineer.md` | 1,115 | Security analysis, threat modeling |
+| Software Engineer | `agents/software-engineer.md` | 2,122 | Code generation, implementation |
+| Technical Writer | `agents/tech-writer.md` | 939 | Documentation, style consistency |
+| UI/UX Designer | `agents/ui-ux-designer.md` | 583 | Interface design, UX |
+| **All team agents** | | **~36,335** | |
 
 ## Review Agents
 
@@ -103,60 +103,60 @@ Skills are reusable knowledge modules in `.claude/skills/` that agents reference
 
 | Skill | File | ~Tokens | Used By |
 | ------- | ------ | --------- | --------- |
-| ADR Tools | `skills/adr-tools/SKILL.md` | ~1,350 | Orchestrator, adr-author, Software Engineer, Architect |
-| Artifact Lifecycle | `skills/artifact-lifecycle/SKILL.md` | ~600 | Orchestrator, `/artifact-lifecycle` command |
-| Autoship | `skills/autoship/SKILL.md` | ~800 | Orchestrator, `/autoship` command |
-| API Design | `skills/api-design/SKILL.md` | 600 | Architect, Software Engineer |
-| Apply Test Doubles | `skills/apply-test-doubles/SKILL.md` | ~750 | `/apply-test-doubles` command |
-| Branch Workflow | `skills/branch-workflow/SKILL.md` | 450 | Orchestrator, Software Engineer |
-| Browser Testing | `skills/browser-testing/SKILL.md` | 700 | QA Engineer |
-| CD Test Architecture | `skills/cd-test-architecture/SKILL.md` | ~900 | QA Engineer, Architect, Platform Engineer, Software Engineer |
-| CI Debugging | `skills/ci-debugging/SKILL.md` | 550 | Platform Engineer, Software Engineer, QA Engineer |
-| Claude Setup Review | `skills/claude-setup-review/SKILL.md` | ~700 | `/claude-setup-review` command, claude-setup-review |
-| Competitive Analysis | `skills/competitive-analysis/SKILL.md` | 600 | Orchestrator, Product Manager |
-| Context Loading Protocol | `skills/context-loading-protocol/SKILL.md` | 600 | Orchestrator |
-| Coverage Baseline | `skills/coverage-baseline/SKILL.md` | ~600 | `/test-improve` (Phase 2), QA Engineer, Platform Engineer |
-| Coverage Delta | `skills/coverage-delta/SKILL.md` | ~450 | `/test-improve` (Phase 5), QA Engineer |
-| Design Doc | `skills/design-doc/SKILL.md` | 500 | Architect, Product Manager, Orchestrator |
-| Design Interrogation | `skills/design-interrogation/SKILL.md` | 500 | Architect, Product Manager, Orchestrator |
-| Design It Twice | `skills/design-it-twice/SKILL.md` | 550 | Architect, Software Engineer |
-| Docker Image Audit | `skills/docker-image-audit/SKILL.md` | 750 | Orchestrator (inline review), Platform Engineer, Security Engineer |
-| Docker Image Create | `skills/docker-image-create/SKILL.md` | 800 | Platform Engineer, Software Engineer |
-| Domain Analysis | `skills/domain-analysis/SKILL.md` | 650 | Architect, Product Manager, Orchestrator |
-| Domain-Driven Design | `skills/domain-driven-design/SKILL.md` | 710 | Architect, Software Engineer, Product Manager |
-| Exploratory Testing | `skills/exploratory-testing/SKILL.md` | ~900 | QA Engineer, `/explore` command |
-| Farley Score | `skills/farley-score/SKILL.md` | 600 | QA Engineer, `/build` (final branch score), `/test-design` (all existing tests; reached by `/test-health` via `/test-design`) |
-| Feature File Validation | `skills/feature-file-validation/SKILL.md` | 700 | test-review, QA Engineer, spec-compliance-review |
-| Feedback & Learning | `skills/feedback-learning/SKILL.md` | 1,400 | Orchestrator |
-| Gherkin Derive | `skills/gherkin-derive/SKILL.md` | ~700 | `/test-improve` (Phase 3, conditional), QA Engineer, standalone |
-| Gherkin Public | `skills/gherkin-public/SKILL.md` | ~700 | Standalone worker; QA Engineer, Product Manager |
-| Governance & Compliance | `skills/governance-compliance/SKILL.md` | 990 | QA Engineer, Technical Writer |
-| Handoff | `skills/handoff/SKILL.md` | 500 | Orchestrator |
-| Hexagonal Architecture | `skills/hexagonal-architecture/SKILL.md` | 420 | Architect, Software Engineer |
-| Human Oversight Protocol | `skills/human-oversight-protocol/SKILL.md` | 1,020 | Orchestrator, Product Manager |
-| Issues from Assessment | `skills/issues-from-assessment/SKILL.md` | ~750 | `/test-improve` (Phase 4), QA Engineer |
-| Legacy Code | `skills/legacy-code/SKILL.md` | 700 | Software Engineer, QA Engineer, Architect |
-| Long Eval | `skills/long-eval/SKILL.md` | ~1,100 | QA Engineer, `/long-eval` command, standalone |
-| Mermaid Diagramming | `skills/mermaid-diagramming/SKILL.md` | ~400 | Architect, Software Engineer, Tech Writer |
-| Mutation Night-Watch | `skills/mutation-night-watch/SKILL.md` | ~1,300 | `/mutation-night-watch` command, QA Engineer, standalone |
-| Mutation Testing | `skills/mutation-testing/SKILL.md` | 700 | QA Engineer, Software Engineer |
-| Performance Benchmark | `skills/performance-benchmark/SKILL.md` | 800 | QA Engineer, Platform Engineer, `/benchmark` command |
-| Performance Metrics | `skills/performance-metrics/SKILL.md` | 890 | Orchestrator |
-| Proxy Resilience | `skills/proxy-resilience/SKILL.md` | ~800 | All agents (any session running against a corporate Anthropic proxy) |
-| Quality Gate Pipeline | `skills/quality-gate-pipeline/SKILL.md` | 900 | All agents |
-| Quality Targets Converge | `skills/quality-targets-converge/SKILL.md` | ~750 | `/test-improve` (Phase 8), QA Engineer, Software Engineer |
-| Semantic Duplication Scan | `skills/semantic-duplication-scan/SKILL.md` | ~4,500 | Orchestrator, Software Engineer, Architect |
-| Specs | `skills/specs/SKILL.md` | ~3,300 | Product Manager, Architect, QA Engineer, Orchestrator |
-| Static Analysis Integration | `skills/static-analysis-integration/SKILL.md` | 650 | Orchestrator, `/code-review` |
-| Stryker xunit.v2 Shim | `skills/stryker-xunit-v2-shim/SKILL.md` | ~1,400 | `/mutation-testing`, `/test-improve` (mutation on .NET/xunit.v3), QA Engineer, standalone |
-| Systematic Debugging | `skills/systematic-debugging/SKILL.md` | 600 | Software Engineer, QA Engineer |
-| Test Audit + Disable | `skills/test-audit-disable/SKILL.md` | ~650 | Standalone worker; QA Engineer |
-| Test Design Advisor | `skills/test-design-advisor/SKILL.md` | ~700 | QA Engineer, Software Engineer, `/test-design` command |
-| Test Health | `skills/test-health/SKILL.md` | ~900 | QA Engineer, `/test-health` command |
-| Test Improve | `skills/test-improve/SKILL.md` | ~1200 | Orchestrator, QA Engineer, `/test-improve` command |
-| Test-Driven Development | `skills/test-driven-development/SKILL.md` | 600 | Software Engineer, QA Engineer, Orchestrator |
-| Threat Modeling | `skills/threat-modeling/SKILL.md` | 600 | Security Engineer, Architect |
-| Ubiquitous Language | `skills/ubiquitous-language/SKILL.md` | ~800 | Architect, domain-review, Product Manager |
+| ADR Tools | `skills/adr-tools/SKILL.md` | ~1,499 | Orchestrator, adr-author, Software Engineer, Architect |
+| Artifact Lifecycle | `skills/artifact-lifecycle/SKILL.md` | ~1,044 | Orchestrator, `/artifact-lifecycle` command |
+| Autoship | `skills/autoship/SKILL.md` | ~12,757 | Orchestrator, `/autoship` command |
+| API Design | `skills/api-design/SKILL.md` | 1,437 | Architect, Software Engineer |
+| Apply Test Doubles | `skills/apply-test-doubles/SKILL.md` | ~4,706 | `/apply-test-doubles` command |
+| Branch Workflow | `skills/branch-workflow/SKILL.md` | 1,482 | Orchestrator, Software Engineer |
+| Browser Testing | `skills/browser-testing/SKILL.md` | 901 | QA Engineer |
+| CD Test Architecture | `skills/cd-test-architecture/SKILL.md` | ~9,622 | QA Engineer, Architect, Platform Engineer, Software Engineer |
+| CI Debugging | `skills/ci-debugging/SKILL.md` | 1,368 | Platform Engineer, Software Engineer, QA Engineer |
+| Claude Setup Review | `skills/claude-setup-review/SKILL.md` | ~1,296 | `/claude-setup-review` command, claude-setup-review |
+| Competitive Analysis | `skills/competitive-analysis/SKILL.md` | 2,034 | Orchestrator, Product Manager |
+| Context Loading Protocol | `skills/context-loading-protocol/SKILL.md` | 2,331 | Orchestrator |
+| Coverage Baseline | `skills/coverage-baseline/SKILL.md` | ~5,115 | `/test-improve` (Phase 2), QA Engineer, Platform Engineer |
+| Coverage Delta | `skills/coverage-delta/SKILL.md` | ~3,852 | `/test-improve` (Phase 5), QA Engineer |
+| Design Doc | `skills/design-doc/SKILL.md` | 1,118 | Architect, Product Manager, Orchestrator |
+| Design Interrogation | `skills/design-interrogation/SKILL.md` | 1,027 | Architect, Product Manager, Orchestrator |
+| Design It Twice | `skills/design-it-twice/SKILL.md` | 1,025 | Architect, Software Engineer |
+| Docker Image Audit | `skills/docker-image-audit/SKILL.md` | 2,298 | Orchestrator (inline review), Platform Engineer, Security Engineer |
+| Docker Image Create | `skills/docker-image-create/SKILL.md` | 2,011 | Platform Engineer, Software Engineer |
+| Domain Analysis | `skills/domain-analysis/SKILL.md` | 2,782 | Architect, Product Manager, Orchestrator |
+| Domain-Driven Design | `skills/domain-driven-design/SKILL.md` | 2,681 | Architect, Software Engineer, Product Manager |
+| Exploratory Testing | `skills/exploratory-testing/SKILL.md` | ~1,851 | QA Engineer, `/explore` command |
+| Farley Score | `skills/farley-score/SKILL.md` | 2,643 | QA Engineer, `/build` (final branch score), `/test-design` (all existing tests; reached by `/test-health` via `/test-design`) |
+| Feature File Validation | `skills/feature-file-validation/SKILL.md` | 933 | test-review, QA Engineer, spec-compliance-review |
+| Feedback & Learning | `skills/feedback-learning/SKILL.md` | 4,780 | Orchestrator |
+| Gherkin Derive | `skills/gherkin-derive/SKILL.md` | ~9,085 | `/test-improve` (Phase 3, conditional), QA Engineer, standalone |
+| Gherkin Public | `skills/gherkin-public/SKILL.md` | ~3,749 | Standalone worker; QA Engineer, Product Manager |
+| Governance & Compliance | `skills/governance-compliance/SKILL.md` | 1,770 | QA Engineer, Technical Writer |
+| Handoff | `skills/handoff/SKILL.md` | 1,921 | Orchestrator |
+| Hexagonal Architecture | `skills/hexagonal-architecture/SKILL.md` | 1,035 | Architect, Software Engineer |
+| Human Oversight Protocol | `skills/human-oversight-protocol/SKILL.md` | 2,900 | Orchestrator, Product Manager |
+| Issues from Assessment | `skills/issues-from-assessment/SKILL.md` | ~3,243 | `/test-improve` (Phase 4), QA Engineer |
+| Legacy Code | `skills/legacy-code/SKILL.md` | 2,326 | Software Engineer, QA Engineer, Architect |
+| Long Eval | `skills/long-eval/SKILL.md` | ~1,543 | QA Engineer, `/long-eval` command, standalone |
+| Mermaid Diagramming | `skills/mermaid-diagramming/SKILL.md` | ~1,557 | Architect, Software Engineer, Tech Writer |
+| Mutation Night-Watch | `skills/mutation-night-watch/SKILL.md` | ~2,000 | `/mutation-night-watch` command, QA Engineer, standalone |
+| Mutation Testing | `skills/mutation-testing/SKILL.md` | 9,466 | QA Engineer, Software Engineer |
+| Performance Benchmark | `skills/performance-benchmark/SKILL.md` | 1,406 | QA Engineer, Platform Engineer, `/benchmark` command |
+| Performance Metrics | `skills/performance-metrics/SKILL.md` | 3,109 | Orchestrator |
+| Proxy Resilience | `skills/proxy-resilience/SKILL.md` | ~1,024 | All agents (any session running against a corporate Anthropic proxy) |
+| Quality Gate Pipeline | `skills/quality-gate-pipeline/SKILL.md` | 2,557 | All agents |
+| Quality Targets Converge | `skills/quality-targets-converge/SKILL.md` | ~5,540 | `/test-improve` (Phase 8), QA Engineer, Software Engineer |
+| Semantic Duplication Scan | `skills/semantic-duplication-scan/SKILL.md` | ~3,163 | Orchestrator, Software Engineer, Architect |
+| Specs | `skills/specs/SKILL.md` | ~4,553 | Product Manager, Architect, QA Engineer, Orchestrator |
+| Static Analysis Integration | `skills/static-analysis-integration/SKILL.md` | 3,056 | Orchestrator, `/code-review` |
+| Stryker xunit.v2 Shim | `skills/stryker-xunit-v2-shim/SKILL.md` | ~3,945 | `/mutation-testing`, `/test-improve` (mutation on .NET/xunit.v3), QA Engineer, standalone |
+| Systematic Debugging | `skills/systematic-debugging/SKILL.md` | 2,129 | Software Engineer, QA Engineer |
+| Test Audit + Disable | `skills/test-audit-disable/SKILL.md` | ~1,619 | Standalone worker; QA Engineer |
+| Test Design Advisor | `skills/test-design-advisor/SKILL.md` | ~4,235 | QA Engineer, Software Engineer, `/test-design` command |
+| Test Health | `skills/test-health/SKILL.md` | ~3,709 | QA Engineer, `/test-health` command |
+| Test Improve | `skills/test-improve/SKILL.md` | ~3078 | Orchestrator, QA Engineer, `/test-improve` command |
+| Test-Driven Development | `skills/test-driven-development/SKILL.md` | 2,590 | Software Engineer, QA Engineer, Orchestrator |
+| Threat Modeling | `skills/threat-modeling/SKILL.md` | 1,420 | Security Engineer, Architect |
+| Ubiquitous Language | `skills/ubiquitous-language/SKILL.md` | ~2,199 | Architect, domain-review, Product Manager |
 
 ## Knowledge Files
 
@@ -164,45 +164,45 @@ Knowledge files in `knowledge/` provide progressive disclosure — agents read t
 
 | Name | File | ~Tokens | Used By |
 | ------ | ------ | --------- | --------- |
-| Adversarial Review Protocol | `knowledge/adversarial-review-protocol.md` | ~600 | all 25 review agents (a11y-review, angular-reactivity-review, arch-review, claude-setup-review, complexity-review, component-architecture-review, concurrency-review, correctness-review, data-flow-tracer, doc-review, domain-review, js-fp-review, naming-review, performance-review, progress-guardian, react-reactivity-review, refactor-opportunity-review, security-review, session-analysis, spec-compliance-review, structure-review, test-review, test-smell-review, token-efficiency-review, vue-reactivity-review) |
-| Agent Registry | `knowledge/agent-registry.md` | 1,200 | Orchestrator (routing decisions) |
-| Shared Review Methodology | `knowledge/agent-review-methodology.md` | ~880 | correctness-review, naming-review |
-| Architecture Assessment | `knowledge/architecture-assessment.md` | 450 | arch-review |
-| CD Maturity Model | `knowledge/cd-maturity-model.md` | ~870 | Platform Engineer, QA Engineer |
-| CD Test Architecture | `knowledge/cd-test-architecture.md` | ~1,100 | cd-test-architecture, test-design-advisor |
-| Component Test Patterns | `knowledge/component-test-patterns.md` | ~1,600 | cd-test-architecture |
-| Database Change Management | `knowledge/database-change-management.md` | ~1,000 | Software Engineer, Architect, arch-review, `/plan` |
-| Decision Defaults | `knowledge/decision-defaults.md` | ~350 | Orchestrator, Product Manager, `/plan` (approach contract) |
-| Deployment Pipeline | `knowledge/deployment-pipeline.md` | ~1,000 | Platform Engineer |
-| Task Size Classifier | `knowledge/task-size-classifier.md` | ~400 | Orchestrator (Task Size Gate, no-plan fast path routing) |
-| Design Smells | `knowledge/design-smells.md` | ~600 | structure-review, complexity-review, naming-review |
-| Domain Modeling | `knowledge/domain-modeling.md` | 500 | domain-review |
-| Exploratory Testing Field Guide | `knowledge/exploratory-testing-field-guide.md` | ~900 | QA Engineer, `skills/exploratory-testing/SKILL.md` |
+| Adversarial Review Protocol | `knowledge/adversarial-review-protocol.md` | ~2,589 | all 26 review agents (a11y-review, ai-provenance-review, angular-reactivity-review, arch-review, claude-setup-review, complexity-review, component-architecture-review, concurrency-review, correctness-review, data-flow-tracer, doc-review, domain-review, js-fp-review, naming-review, performance-review, progress-guardian, react-reactivity-review, refactor-opportunity-review, security-review, session-analysis, spec-compliance-review, structure-review, test-review, test-smell-review, token-efficiency-review, vue-reactivity-review) |
+| Agent Registry | `knowledge/agent-registry.md` | 5,543 | Orchestrator (routing decisions) |
+| Shared Review Methodology | `knowledge/agent-review-methodology.md` | ~1,052 | correctness-review, naming-review |
+| Architecture Assessment | `knowledge/architecture-assessment.md` | 1,187 | arch-review |
+| CD Maturity Model | `knowledge/cd-maturity-model.md` | ~1,104 | Platform Engineer, QA Engineer |
+| CD Test Architecture | `knowledge/cd-test-architecture.md` | ~4,338 | cd-test-architecture, test-design-advisor |
+| Component Test Patterns | `knowledge/component-test-patterns.md` | ~4,444 | cd-test-architecture |
+| Database Change Management | `knowledge/database-change-management.md` | ~1,246 | Software Engineer, Architect, arch-review, `/plan` |
+| Decision Defaults | `knowledge/decision-defaults.md` | ~1,287 | Orchestrator, Product Manager, `/plan` (approach contract) |
+| Deployment Pipeline | `knowledge/deployment-pipeline.md` | ~1,308 | Platform Engineer |
+| Task Size Classifier | `knowledge/task-size-classifier.md` | ~1,067 | Orchestrator (Task Size Gate, no-plan fast path routing) |
+| Design Smells | `knowledge/design-smells.md` | ~2,115 | structure-review, complexity-review, naming-review |
+| Domain Modeling | `knowledge/domain-modeling.md` | 1,547 | domain-review |
+| Exploratory Testing Field Guide | `knowledge/exploratory-testing-field-guide.md` | ~1,364 | QA Engineer, `skills/exploratory-testing/SKILL.md` |
 | Failure Routing | `knowledge/failure-routing.md` | ~600 | `/build` (step 4 repair iterations), `/apply-fixes` (step 4 annotation) |
-| Fixture Construction | `knowledge/fixture-construction.md` | ~750 | test-design-advisor, test-smell-review, test-review |
-| Frontend Component Architecture | `knowledge/frontend-component-architecture.md` | ~900 | component-architecture-review, `/frontend-architecture` |
-| Microservice Testing | `knowledge/microservice-testing.md` | ~700 | test-smell-review, test-design-advisor |
-| Object Calisthenics | `knowledge/object-calisthenics.md` | ~400 | structure-review, complexity-review |
-| OWASP Detection | `knowledge/owasp-detection.md` | 600 | security-review |
-| Release Strategies | `knowledge/release-strategies.md` | ~910 | Platform Engineer, Architect, `/plan` |
-| Result Verification | `knowledge/result-verification.md` | ~700 | test-design-advisor, test-review, test-smell-review |
-| Review Rubric | `knowledge/review-rubric.md` | 300 | `/code-review` (health scoring) |
-| Review Template | `knowledge/review-template.md` | 400 | `/code-review` (report assembly) |
-| Test Automation Maturity | `knowledge/test-automation-maturity.md` | ~450 | test-review, test-health |
+| Fixture Construction | `knowledge/fixture-construction.md` | ~1,260 | test-design-advisor, test-smell-review, test-review |
+| Frontend Component Architecture | `knowledge/frontend-component-architecture.md` | ~1,883 | component-architecture-review, `/frontend-architecture` |
+| Microservice Testing | `knowledge/microservice-testing.md` | ~1,837 | test-smell-review, test-design-advisor |
+| Object Calisthenics | `knowledge/object-calisthenics.md` | ~1,006 | structure-review, complexity-review |
+| OWASP Detection | `knowledge/owasp-detection.md` | 2,176 | security-review |
+| Release Strategies | `knowledge/release-strategies.md` | ~1,155 | Platform Engineer, Architect, `/plan` |
+| Result Verification | `knowledge/result-verification.md` | ~1,120 | test-design-advisor, test-review, test-smell-review |
+| Review Rubric | `knowledge/review-rubric.md` | 752 | `/code-review` (health scoring) |
+| Review Template | `knowledge/review-template.md` | 757 | `/code-review` (report assembly) |
+| Test Automation Maturity | `knowledge/test-automation-maturity.md` | ~881 | test-review, test-health |
 | Test Cadence Tradeoffs | `knowledge/test-cadence-tradeoffs.md` | ~1000 | Orchestrator (Phase 2, `agents/orchestrator.md`) |
-| Test Doubles | `knowledge/test-doubles.md` | ~700 | test-smell-review, test-design-advisor |
-| Test File Indicators | `knowledge/test-file-indicators.md` | ~200 | test-review, test-smell-review, `/test-design`, `/build` |
-| Test Layer Gates | `knowledge/test-layer-gates.md` | ~480 | test-design-advisor |
+| Test Doubles | `knowledge/test-doubles.md` | ~2,155 | test-smell-review, test-design-advisor |
+| Test File Indicators | `knowledge/test-file-indicators.md` | ~284 | test-review, test-smell-review, `/test-design`, `/build` |
+| Test Layer Gates | `knowledge/test-layer-gates.md` | ~622 | test-design-advisor |
 | Test Matrix Examples | `knowledge/test-matrix-examples/*.md` | ~950 | test-design-advisor (few-shot templates) |
-| Test Organization | `knowledge/test-organization.md` | ~750 | test-design-advisor, test-smell-review |
-| Test Pyramid | `knowledge/test-pyramid.md` | ~800 | test-smell-review, test-review, test-design-advisor, test-health |
-| Test Refactoring | `knowledge/test-refactoring.md` | ~750 | test-design-advisor, test-smell-review |
-| Test Review Division of Labor | `knowledge/test-review-division-of-labor.md` | ~300 | test-review, test-smell-review, `/test-design` |
-| Test Smells | `knowledge/test-smells.md` | ~900 | test-smell-review, test-review, test-design-advisor |
+| Test Organization | `knowledge/test-organization.md` | ~1,017 | test-design-advisor, test-smell-review |
+| Test Pyramid | `knowledge/test-pyramid.md` | ~1,624 | test-smell-review, test-review, test-design-advisor, test-health |
+| Test Refactoring | `knowledge/test-refactoring.md` | ~1,086 | test-design-advisor, test-smell-review |
+| Test Review Division of Labor | `knowledge/test-review-division-of-labor.md` | ~1,230 | test-review, test-smell-review, `/test-design` |
+| Test Smells | `knowledge/test-smells.md` | ~2,261 | test-smell-review, test-review, test-design-advisor |
 | Test Stack Profiles | `knowledge/test-stack-profiles/*.md` | ~1,400 | test-design-advisor (tool resolution by detected stack) |
-| Test Strategy | `knowledge/test-strategy.md` | ~900 | test-design-advisor, test-smell-review, test-review |
-| Testability Patterns | `knowledge/testability-patterns.md` | ~500 | test-review, test-smell-review, test-design-advisor, legacy-code |
-| Testing Quadrants | `knowledge/testing-quadrants.md` | ~400 | test-health, test-design-advisor |
+| Test Strategy | `knowledge/test-strategy.md` | ~1,617 | test-design-advisor, test-smell-review, test-review |
+| Testability Patterns | `knowledge/testability-patterns.md` | ~3,326 | test-review, test-smell-review, test-design-advisor, legacy-code |
+| Testing Quadrants | `knowledge/testing-quadrants.md` | ~723 | test-health, test-design-advisor |
 | Testing Techniques | `knowledge/testing-techniques/*.md` | ~1,300 | test-design-advisor (overlay, on trigger), security-review |
 
 ## Agent Templates
