@@ -34,10 +34,11 @@ npx stryker run --mutate "$(git diff --name-only HEAD~1 -- '*.ts' | grep -v test
 [`mutation-kill`](../../../../agents/mutation-kill.md#invocation)'s opt-in,
 default-OFF `--skip-static-mutants` flag excludes mutants Stryker's
 **native** `reports/mutation/mutation.json` report marks `"static": true`
-(a field the normalized `survivors[]` shape under "Native report → schema
-mapping" below does **not** carry — filter the native mutant objects
-before normalization, on `mutant.static !== true`) from the survivor list
-handed to **the generation step only**, for that round. A static mutant
+from the survivor list handed to **the generation step only**, for that
+round. The filter itself is computed by calling `survivors_by_mutator(...,
+skip_static=True)` in `mutation_report.py` — or its CLI wrapper,
+`mutation_report_cli.py --survivors-by-mutator --skip-static --report
+<path> --file <path>` — rather than re-deriving it here. A static mutant
 sits in code that runs once at module-initialization time rather than
 per-test, so `coverageAnalysis: "perTest"` cannot isolate it to the tests
 covering it — Stryker must re-run the entire suite to verify one, which is

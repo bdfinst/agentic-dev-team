@@ -66,13 +66,16 @@ def test_subsection_links_back_to_mutation_kill_invocation(static_skip_flat: str
     assert "agents/mutation-kill.md#invocation" in static_skip_flat
 
 
-def test_mechanism_filters_the_native_report_not_the_normalized_shape(
+def test_mechanism_cites_the_survivor_extraction_functions(
     static_skip_flat: str,
 ) -> None:
-    assert re.search(r'`?"static"?:\s*true`?', static_skip_flat)
-    assert re.search(r"native.{0,60}mutation\.json", static_skip_flat)
-    assert "survivors[]" in static_skip_flat
-    assert re.search(r"does.{0,15}not.{0,10}carry", static_skip_flat)
+    """Step 1.5 (#1937): the inline "filter native mutant objects before
+    normalization" mechanics description is retired — the filtering is a
+    deterministic computation owned by mutation_report.py, cited here by
+    name instead of re-derived in prose."""
+    assert "mutation_report.py" in static_skip_flat
+    assert "survivors_by_mutator" in static_skip_flat
+    assert "mutation_report_cli.py" in static_skip_flat
 
 
 def test_mechanism_explains_why_a_static_mutant_forces_a_full_suite_rerun(
