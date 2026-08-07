@@ -291,18 +291,20 @@ def test_exclusions_keep_the_subdirectory_when_the_flagged_file_is_nested(tmp_pa
 def test_exclude_scaffold_failure_is_reported_not_swallowed(tmp_path):
     d = _blocked_project(tmp_path)
     _answer(d, "exclude")
-    # Make the shim's parent directory unwritable so the generator cannot create
-    # it: the guard must say scaffolding failed rather than claim success.
-    tests_dir = tmp_path / "tests"
-    original = tests_dir.stat().st_mode
-    tests_dir.chmod(0o500)
-    try:
-        proc = _run_in(d)
-    finally:
-        tests_dir.chmod(original)
+    # Force generate_shim.py's `os.makedirs(shim_dir, exist_ok=True)` to fail by
+    # pre-placing a regular FILE at the exact path the shim directory needs to
+    # occupy: makedirs raises FileExistsError for a non-directory collision
+    # regardless of who runs it. A chmod-based unwritable-parent-dir block was
+    # used previously, but root silently ignores POSIX permission bits, so that
+    # approach passed only for a non-root test runner (#1946) — this one is
+    # privilege-independent, so the guard must say scaffolding failed rather
+    # than claim success under any user.
+    shim_dir = tmp_path / "tests" / "Acme.Widgets.Tests.Mutation"
+    shim_dir.write_text("blocking file, not a directory")
+    proc = _run_in(d)
     assert proc.returncode == 2
     assert "exclusions failed" in proc.stdout, proc.stdout
-    assert not (tmp_path / "tests" / "Acme.Widgets.Tests.Mutation").exists()
+    assert shim_dir.is_file(), "scaffold failure must not replace the blocking path with a directory"
 
 
 def test_recorded_degrade_hands_back_the_no_shim_floor_command(tmp_path):
