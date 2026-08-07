@@ -20,13 +20,17 @@ selection and its two no-``--verify`` call shapes —
    by it.
 
 Step 2.2 adds ``--verify`` mode: parse ``knowledge/agent-registry.md``'s
-"## Team Agents" and "## Skills Registry" markdown tables, measure each
-row's real file, and fail if any row's declared ``~Tokens`` estimate has
-drifted from the measured value by more than ``DEVIATION_THRESHOLD_PCT``.
+"## Team Agents", "## Skills Registry", and "## Knowledge Files" markdown
+tables, measure each single-file row's real file, and fail if any row's
+declared ``~Tokens`` estimate has drifted from the measured value by more
+than ``DEVIATION_THRESHOLD_PCT``. A "## Knowledge Files" row whose File
+cell is a glob (multiple files summed into one declared value) is reported
+as ``"unsupported_glob"`` rather than measured — see ``_build_verify_row``.
 This mode never reads ``CLAUDE.md`` — it sources data from the registry
 table alone, which is the whole point: the old bash script's ``--verify``
 (retired along with it) parsed a "### Baseline Budget" section of
-``CLAUDE.md`` that no longer exists.
+``CLAUDE.md`` that no longer exists. ``--verify`` always measures with the
+heuristic tokenizer regardless of environment — see ``run_verify``.
 
 Tokenizer selection (first available wins), matching the bash script exactly:
 
@@ -38,6 +42,10 @@ Tokenizer selection (first available wins), matching the bash script exactly:
    same unit — using ``len(text) // 4`` instead would measure non-ASCII-heavy
    files (em dashes, ``·``, ``→``) slightly low relative to the bash
    script's numbers.
+
+Future work: a ``--write``/``--fix`` mode that rewrites drifted registry
+values in place, and ``--root``/``--registry`` CLI flags for portability,
+are both out of scope for this pass.
 """
 
 from __future__ import annotations
@@ -47,9 +55,9 @@ import sys
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
+from typing import Literal
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
-PLUGIN_ROOT = REPO_ROOT / "plugins" / "dev-team"
 
 # UTF-8 byte length divided by this is the heuristic-fallback token estimate.
 HEURISTIC_BYTES_PER_TOKEN = 4
@@ -66,6 +74,14 @@ DEVIATION_THRESHOLD_PCT = 10
 VERIFY_EXCEPTIONS: dict[str, str] = {}
 
 
+def plugin_root(repo_root: Path) -> Path:
+    """Single source of truth for the plugin root path, resolved from a
+    given repo root. Replaces three independent inline reconstructions of
+    ``repo_root / "plugins" / "dev-team"`` (a former module constant and two
+    duplicated local variables)."""
+    return repo_root / "plugins" / "dev-team"
+
+
 def detect_tokenizer() -> tuple[str, str]:
     """Pure tokenizer-selection function: given the current environment,
     always returns the same ``(name, note)`` pair — no globals read or set.
@@ -78,7 +94,7 @@ def detect_tokenizer() -> tuple[str, str]:
         return (
             "heuristic",
             (
-                "character-count heuristic (UTF-8 bytes / "
+                "byte-count heuristic (UTF-8 bytes / "
                 f"{HEURISTIC_BYTES_PER_TOKEN}) — APPROXIMATE. "
                 "Install tiktoken for better accuracy: pip install tiktoken"
             ),
@@ -104,15 +120,15 @@ def discover_budget_targets(repo_root: Path) -> list[str]:
     filesystem glob, returning repo-root-relative path strings, sorted and
     deduplicated (matching the bash version's ``sort -u``).
     """
-    plugin_root = repo_root / "plugins" / "dev-team"
+    root = plugin_root(repo_root)
     targets: list[Path] = [
-        plugin_root / "CLAUDE.md",
-        plugin_root / "knowledge" / "agent-registry.md",
+        root / "CLAUDE.md",
+        root / "knowledge" / "agent-registry.md",
     ]
-    targets.extend(sorted((plugin_root / "agents").glob("*.md")))
-    targets.extend(sorted((plugin_root / "skills").glob("*/SKILL.md")))
-    targets.extend(sorted((plugin_root / "knowledge").glob("*.md")))
-    prompts_dir = plugin_root / "prompts"
+    targets.extend(sorted((root / "agents").glob("*.md")))
+    targets.extend(sorted((root / "skills").glob("*/SKILL.md")))
+    targets.extend(sorted((root / "knowledge").glob("*.md")))
+    prompts_dir = root / "prompts"
     if prompts_dir.is_dir():
         targets.extend(sorted(prompts_dir.glob("*.md")))
 
@@ -186,6 +202,12 @@ def extract_table_block(text: str, heading: str) -> str | None:
     by every caller of this function; there is exactly one block-extraction
     implementation, called once per heading (see ``verify_registry``) rather
     than duplicated per table name.
+
+    Known follow-up: ``scripts/check_registry_sync.py`` has its own,
+    similar ``section_text()`` helper doing the same kind of heading-block
+    extraction. Consolidating the two into a shared ``scripts/lib/`` module
+    is a real improvement but out of scope for this pass — deliberately not
+    done here to avoid touching that sibling script's own behavior/tests.
     """
     lines = text.splitlines()
     target = f"## {heading}"
@@ -250,6 +272,13 @@ def parse_registry_rows(section_text: str) -> list[tuple[str, str, int]]:
     return rows
 
 
+# The closed set of statuses a VerifyRow can carry. A Literal (rather than a
+# bare `str`) makes this the single canonical definition of the valid set,
+# instead of re-typing the same four-going-on-five string literals at each
+# assignment site and in compute_verify_exit_code's membership check.
+VerifyStatus = Literal["ok", "deviated", "exempt", "missing_file", "unsupported_glob"]
+
+
 @dataclass
 class VerifyRow:
     """One --verify comparison row: a registry table entry plus its
@@ -261,8 +290,54 @@ class VerifyRow:
     declared_n: int
     measured_n: int | None
     deviation_pct: float | None
-    status: str  # "ok", "deviated", "exempt", "missing_file"
+    status: VerifyStatus
     reason: str | None = None
+
+
+def _build_verify_row(
+    heading: str,
+    name: str,
+    file_path: str,
+    declared_n: int,
+    base_dir: Path,
+    tokenizer: str,
+    exceptions: dict[str, str],
+) -> VerifyRow:
+    """Measure and classify a single registry row. Extracted from
+    ``verify_registry`` so that function stays a thin per-section loop."""
+    if "*" in file_path:
+        # Glob rows (e.g. `knowledge/test-matrix-examples/*.md`) sum tokens
+        # across multiple files — that summation logic is not built in this
+        # pass (a known, documented limitation, not a defect). Reported
+        # visibly as "unsupported_glob" rather than silently dropped, and
+        # excluded from the --verify exit code by compute_verify_exit_code.
+        return VerifyRow(heading, name, file_path, declared_n, None, None, "unsupported_glob")
+
+    target = base_dir / file_path
+    if not target.is_file():
+        return VerifyRow(heading, name, file_path, declared_n, None, None, "missing_file")
+
+    measured_n = count_tokens(target, tokenizer)
+    # Normalized against measured_n, not declared_n: the module treats the
+    # measured value as ground truth (see DEVIATION_THRESHOLD_PCT's own
+    # comment), so the deviation percentage must be relative to it — a fixed
+    # 100-token gap must fail or pass the same way regardless of which side
+    # (declared or measured) happens to be larger.
+    if measured_n:
+        deviation_pct = abs(measured_n - declared_n) / measured_n * 100
+    else:
+        deviation_pct = 0.0 if declared_n == 0 else float("inf")
+
+    reason = exceptions.get(file_path)
+    status: VerifyStatus
+    if reason:
+        status = "exempt"
+    elif deviation_pct > DEVIATION_THRESHOLD_PCT:
+        status = "deviated"
+    else:
+        status = "ok"
+
+    return VerifyRow(heading, name, file_path, declared_n, measured_n, deviation_pct, status, reason)
 
 
 def verify_registry(
@@ -271,14 +346,15 @@ def verify_registry(
     tokenizer: str,
     exceptions: dict[str, str] | None = None,
 ) -> tuple[list[VerifyRow], list[str]]:
-    """Parse ``registry_path``'s "## Team Agents" and "## Skills Registry"
-    tables, measure each row's real file (resolved against ``base_dir``),
-    and compare against the declared value using ``DEVIATION_THRESHOLD_PCT``.
+    """Parse ``registry_path``'s "## Team Agents", "## Skills Registry", and
+    "## Knowledge Files" tables, measure each row's real file (resolved
+    against ``base_dir``), and compare against the declared value using
+    ``DEVIATION_THRESHOLD_PCT``.
 
-    Returns ``(rows, section_errors)``. Never raises for a missing heading
-    or a missing file — both are reported in the return value instead of
-    crashing. This function never reads ``CLAUDE.md``; ``registry_path`` is
-    its only input file.
+    Returns ``(rows, section_errors)``. Never raises for a missing heading,
+    a heading with zero parsed rows, or a missing file — all three are
+    reported in the return value instead of crashing. This function never
+    reads ``CLAUDE.md``; ``registry_path`` is its only input file.
     """
     exceptions = exceptions or {}
 
@@ -290,54 +366,29 @@ def verify_registry(
     rows: list[VerifyRow] = []
     section_errors: list[str] = []
 
-    for heading in ("Team Agents", "Skills Registry"):
+    for heading in ("Team Agents", "Skills Registry", "Knowledge Files"):
         block = extract_table_block(text, heading)
         if block is None:
             section_errors.append(f"section not found: ## {heading}")
             continue
 
-        for name, file_path, declared_n in parse_registry_rows(block):
-            target = base_dir / file_path
-            if not target.is_file():
-                rows.append(
-                    VerifyRow(heading, name, file_path, declared_n, None, None, "missing_file")
-                )
-                continue
+        section_rows = parse_registry_rows(block)
+        if not section_rows:
+            section_errors.append(f"'## {heading}' found but zero rows parsed — check table format")
+            continue
 
-            measured_n = count_tokens(target, tokenizer)
-            if declared_n:
-                deviation_pct = abs(measured_n - declared_n) / declared_n * 100
-            else:
-                deviation_pct = 0.0 if measured_n == 0 else float("inf")
-
-            reason = exceptions.get(file_path)
-            if reason:
-                status = "exempt"
-            elif deviation_pct > DEVIATION_THRESHOLD_PCT:
-                status = "deviated"
-            else:
-                status = "ok"
-
-            rows.append(
-                VerifyRow(
-                    heading,
-                    name,
-                    file_path,
-                    declared_n,
-                    measured_n,
-                    deviation_pct,
-                    status,
-                    reason,
-                )
-            )
+        for name, file_path, declared_n in section_rows:
+            rows.append(_build_verify_row(heading, name, file_path, declared_n, base_dir, tokenizer, exceptions))
 
     return rows, section_errors
 
 
 def compute_verify_exit_code(rows: list[VerifyRow], section_errors: list[str]) -> int:
-    """0 when every row is ok/exempt and no expected section is missing;
-    1 when any row deviated past threshold, any row's file is missing, or
-    any expected heading wasn't found."""
+    """0 when every row is ok/exempt/unsupported_glob and no expected
+    section is missing or empty; 1 when any row deviated past threshold, any
+    row's file is missing, or any expected heading wasn't found or parsed
+    zero rows. A glob row (status "unsupported_glob") is a known, documented
+    limitation, not a failure, so it never contributes to a non-zero exit."""
     if section_errors:
         return 1
     if any(row.status in ("deviated", "missing_file") for row in rows):
@@ -379,15 +430,31 @@ def print_verify_report(
             print(f"  ERROR: {err}")
 
 
-def run_verify(repo_root: Path, tokenizer: str, tokenizer_note: str) -> int:
+def run_verify(repo_root: Path) -> int:
     """CLI entry point for --verify. Sources data from
     ``knowledge/agent-registry.md`` only — it never reads ``CLAUDE.md``,
     which is the actual regression this mode exists to catch (the retired
     bash script's ``--verify`` parsed a CLAUDE.md section that no longer
     exists).
+
+    Always measures with the heuristic tokenizer, ignoring whatever
+    ``detect_tokenizer()`` would select in this environment: ``tiktoken`` is
+    not in requirements-dev.txt and not installed in CI, so a contributor
+    who happens to have it pip-installed locally (for unrelated reasons)
+    would otherwise get a different tokenizer — and potentially a different
+    pass/fail verdict on borderline rows — from the exact same tree. A
+    gate's verdict must not depend on what happens to be installed locally
+    (same rationale as this repo's own requirements-dev.txt ruff pin).
     """
     registry_path = repo_root / "plugins" / "dev-team" / "knowledge" / "agent-registry.md"
     base_dir = repo_root / "plugins" / "dev-team"
+
+    tokenizer = "heuristic"
+    tokenizer_note = (
+        "byte-count heuristic (UTF-8 bytes / "
+        f"{HEURISTIC_BYTES_PER_TOKEN}) — forced for --verify regardless of "
+        "environment (see run_verify docstring)"
+    )
 
     rows, section_errors = verify_registry(base_dir, registry_path, tokenizer, VERIFY_EXCEPTIONS)
     print_verify_report(registry_path, tokenizer_note, rows, section_errors)
@@ -413,11 +480,10 @@ def main(argv: list[str] | None = None) -> int:
     )
     args = parser.parse_args(argv)
 
-    tokenizer, tokenizer_note = detect_tokenizer()
-
     if args.verify:
-        return run_verify(REPO_ROOT, tokenizer, tokenizer_note)
+        return run_verify(REPO_ROOT)
 
+    tokenizer, tokenizer_note = detect_tokenizer()
     raw_paths = args.paths if args.paths else discover_budget_targets(REPO_ROOT)
 
     rows, total, errors = measure_paths(REPO_ROOT, raw_paths, tokenizer)

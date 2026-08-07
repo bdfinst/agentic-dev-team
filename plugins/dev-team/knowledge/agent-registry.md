@@ -23,7 +23,7 @@ This file contains the complete registry tables. CLAUDE.md references this file 
 | Software Engineer | `agents/software-engineer.md` | 2,122 | Code generation, implementation |
 | Technical Writer | `agents/tech-writer.md` | 939 | Documentation, style consistency |
 | UI/UX Designer | `agents/ui-ux-designer.md` | 583 | Interface design, UX |
-| **All team agents** | | **~7,910** | |
+| **All team agents** | | **~36,335** | |
 
 ## Review Agents
 
@@ -164,45 +164,45 @@ Knowledge files in `knowledge/` provide progressive disclosure — agents read t
 
 | Name | File | ~Tokens | Used By |
 | ------ | ------ | --------- | --------- |
-| Adversarial Review Protocol | `knowledge/adversarial-review-protocol.md` | ~600 | all 25 review agents (a11y-review, angular-reactivity-review, arch-review, claude-setup-review, complexity-review, component-architecture-review, concurrency-review, correctness-review, data-flow-tracer, doc-review, domain-review, js-fp-review, naming-review, performance-review, progress-guardian, react-reactivity-review, refactor-opportunity-review, security-review, session-analysis, spec-compliance-review, structure-review, test-review, test-smell-review, token-efficiency-review, vue-reactivity-review) |
-| Agent Registry | `knowledge/agent-registry.md` | 1,200 | Orchestrator (routing decisions) |
-| Shared Review Methodology | `knowledge/agent-review-methodology.md` | ~880 | correctness-review, naming-review |
-| Architecture Assessment | `knowledge/architecture-assessment.md` | 450 | arch-review |
-| CD Maturity Model | `knowledge/cd-maturity-model.md` | ~870 | Platform Engineer, QA Engineer |
-| CD Test Architecture | `knowledge/cd-test-architecture.md` | ~1,100 | cd-test-architecture, test-design-advisor |
-| Component Test Patterns | `knowledge/component-test-patterns.md` | ~1,600 | cd-test-architecture |
-| Database Change Management | `knowledge/database-change-management.md` | ~1,000 | Software Engineer, Architect, arch-review, `/plan` |
-| Decision Defaults | `knowledge/decision-defaults.md` | ~350 | Orchestrator, Product Manager, `/plan` (approach contract) |
-| Deployment Pipeline | `knowledge/deployment-pipeline.md` | ~1,000 | Platform Engineer |
-| Task Size Classifier | `knowledge/task-size-classifier.md` | ~400 | Orchestrator (Task Size Gate, no-plan fast path routing) |
-| Design Smells | `knowledge/design-smells.md` | ~600 | structure-review, complexity-review, naming-review |
-| Domain Modeling | `knowledge/domain-modeling.md` | 500 | domain-review |
-| Exploratory Testing Field Guide | `knowledge/exploratory-testing-field-guide.md` | ~900 | QA Engineer, `skills/exploratory-testing/SKILL.md` |
+| Adversarial Review Protocol | `knowledge/adversarial-review-protocol.md` | ~2,589 | all 25 review agents (a11y-review, angular-reactivity-review, arch-review, claude-setup-review, complexity-review, component-architecture-review, concurrency-review, correctness-review, data-flow-tracer, doc-review, domain-review, js-fp-review, naming-review, performance-review, progress-guardian, react-reactivity-review, refactor-opportunity-review, security-review, session-analysis, spec-compliance-review, structure-review, test-review, test-smell-review, token-efficiency-review, vue-reactivity-review) |
+| Agent Registry | `knowledge/agent-registry.md` | 5,543 | Orchestrator (routing decisions) |
+| Shared Review Methodology | `knowledge/agent-review-methodology.md` | ~1,052 | correctness-review, naming-review |
+| Architecture Assessment | `knowledge/architecture-assessment.md` | 1,187 | arch-review |
+| CD Maturity Model | `knowledge/cd-maturity-model.md` | ~1,104 | Platform Engineer, QA Engineer |
+| CD Test Architecture | `knowledge/cd-test-architecture.md` | ~4,338 | cd-test-architecture, test-design-advisor |
+| Component Test Patterns | `knowledge/component-test-patterns.md` | ~4,444 | cd-test-architecture |
+| Database Change Management | `knowledge/database-change-management.md` | ~1,246 | Software Engineer, Architect, arch-review, `/plan` |
+| Decision Defaults | `knowledge/decision-defaults.md` | ~1,287 | Orchestrator, Product Manager, `/plan` (approach contract) |
+| Deployment Pipeline | `knowledge/deployment-pipeline.md` | ~1,308 | Platform Engineer |
+| Task Size Classifier | `knowledge/task-size-classifier.md` | ~1,067 | Orchestrator (Task Size Gate, no-plan fast path routing) |
+| Design Smells | `knowledge/design-smells.md` | ~2,115 | structure-review, complexity-review, naming-review |
+| Domain Modeling | `knowledge/domain-modeling.md` | 1,547 | domain-review |
+| Exploratory Testing Field Guide | `knowledge/exploratory-testing-field-guide.md` | ~1,364 | QA Engineer, `skills/exploratory-testing/SKILL.md` |
 | Failure Routing | `knowledge/failure-routing.md` | ~600 | `/build` (step 4 repair iterations), `/apply-fixes` (step 4 annotation) |
-| Fixture Construction | `knowledge/fixture-construction.md` | ~750 | test-design-advisor, test-smell-review, test-review |
-| Frontend Component Architecture | `knowledge/frontend-component-architecture.md` | ~900 | component-architecture-review, `/frontend-architecture` |
-| Microservice Testing | `knowledge/microservice-testing.md` | ~700 | test-smell-review, test-design-advisor |
-| Object Calisthenics | `knowledge/object-calisthenics.md` | ~400 | structure-review, complexity-review |
-| OWASP Detection | `knowledge/owasp-detection.md` | 600 | security-review |
-| Release Strategies | `knowledge/release-strategies.md` | ~910 | Platform Engineer, Architect, `/plan` |
-| Result Verification | `knowledge/result-verification.md` | ~700 | test-design-advisor, test-review, test-smell-review |
-| Review Rubric | `knowledge/review-rubric.md` | 300 | `/code-review` (health scoring) |
-| Review Template | `knowledge/review-template.md` | 400 | `/code-review` (report assembly) |
-| Test Automation Maturity | `knowledge/test-automation-maturity.md` | ~450 | test-review, test-health |
+| Fixture Construction | `knowledge/fixture-construction.md` | ~1,260 | test-design-advisor, test-smell-review, test-review |
+| Frontend Component Architecture | `knowledge/frontend-component-architecture.md` | ~1,883 | component-architecture-review, `/frontend-architecture` |
+| Microservice Testing | `knowledge/microservice-testing.md` | ~1,837 | test-smell-review, test-design-advisor |
+| Object Calisthenics | `knowledge/object-calisthenics.md` | ~1,006 | structure-review, complexity-review |
+| OWASP Detection | `knowledge/owasp-detection.md` | 2,176 | security-review |
+| Release Strategies | `knowledge/release-strategies.md` | ~1,155 | Platform Engineer, Architect, `/plan` |
+| Result Verification | `knowledge/result-verification.md` | ~1,120 | test-design-advisor, test-review, test-smell-review |
+| Review Rubric | `knowledge/review-rubric.md` | 752 | `/code-review` (health scoring) |
+| Review Template | `knowledge/review-template.md` | 757 | `/code-review` (report assembly) |
+| Test Automation Maturity | `knowledge/test-automation-maturity.md` | ~881 | test-review, test-health |
 | Test Cadence Tradeoffs | `knowledge/test-cadence-tradeoffs.md` | ~1000 | Orchestrator (Phase 2, `agents/orchestrator.md`) |
-| Test Doubles | `knowledge/test-doubles.md` | ~700 | test-smell-review, test-design-advisor |
-| Test File Indicators | `knowledge/test-file-indicators.md` | ~200 | test-review, test-smell-review, `/test-design`, `/build` |
-| Test Layer Gates | `knowledge/test-layer-gates.md` | ~480 | test-design-advisor |
+| Test Doubles | `knowledge/test-doubles.md` | ~2,155 | test-smell-review, test-design-advisor |
+| Test File Indicators | `knowledge/test-file-indicators.md` | ~284 | test-review, test-smell-review, `/test-design`, `/build` |
+| Test Layer Gates | `knowledge/test-layer-gates.md` | ~622 | test-design-advisor |
 | Test Matrix Examples | `knowledge/test-matrix-examples/*.md` | ~950 | test-design-advisor (few-shot templates) |
-| Test Organization | `knowledge/test-organization.md` | ~750 | test-design-advisor, test-smell-review |
-| Test Pyramid | `knowledge/test-pyramid.md` | ~800 | test-smell-review, test-review, test-design-advisor, test-health |
-| Test Refactoring | `knowledge/test-refactoring.md` | ~750 | test-design-advisor, test-smell-review |
-| Test Review Division of Labor | `knowledge/test-review-division-of-labor.md` | ~300 | test-review, test-smell-review, `/test-design` |
-| Test Smells | `knowledge/test-smells.md` | ~900 | test-smell-review, test-review, test-design-advisor |
+| Test Organization | `knowledge/test-organization.md` | ~1,017 | test-design-advisor, test-smell-review |
+| Test Pyramid | `knowledge/test-pyramid.md` | ~1,624 | test-smell-review, test-review, test-design-advisor, test-health |
+| Test Refactoring | `knowledge/test-refactoring.md` | ~1,086 | test-design-advisor, test-smell-review |
+| Test Review Division of Labor | `knowledge/test-review-division-of-labor.md` | ~1,230 | test-review, test-smell-review, `/test-design` |
+| Test Smells | `knowledge/test-smells.md` | ~2,261 | test-smell-review, test-review, test-design-advisor |
 | Test Stack Profiles | `knowledge/test-stack-profiles/*.md` | ~1,400 | test-design-advisor (tool resolution by detected stack) |
-| Test Strategy | `knowledge/test-strategy.md` | ~900 | test-design-advisor, test-smell-review, test-review |
-| Testability Patterns | `knowledge/testability-patterns.md` | ~500 | test-review, test-smell-review, test-design-advisor, legacy-code |
-| Testing Quadrants | `knowledge/testing-quadrants.md` | ~400 | test-health, test-design-advisor |
+| Test Strategy | `knowledge/test-strategy.md` | ~1,617 | test-design-advisor, test-smell-review, test-review |
+| Testability Patterns | `knowledge/testability-patterns.md` | ~3,326 | test-review, test-smell-review, test-design-advisor, legacy-code |
+| Testing Quadrants | `knowledge/testing-quadrants.md` | ~723 | test-health, test-design-advisor |
 | Testing Techniques | `knowledge/testing-techniques/*.md` | ~1,300 | test-design-advisor (overlay, on trigger), security-review |
 
 ## Agent Templates

@@ -115,6 +115,31 @@ def test_count_tokens_heuristic_known_byte_count(tmp_path):
     assert mt.count_tokens(f, "heuristic") == 100  # 400 / 4
 
 
+def test_count_tokens_tiktoken_path_uses_fake_encoder(tmp_path, monkeypatch):
+    """The tokenizer == "tiktoken" branch had zero test coverage — inject a
+    fake tiktoken module (mirroring test_detect_tokenizer_uses_tiktoken_when_
+    importable's pattern above) with a stub get_encoding().encode() returning
+    a list of known length, and assert count_tokens returns that length."""
+    import types
+
+    fake_tiktoken = types.ModuleType("tiktoken")
+
+    class _FakeEncoding:
+        def encode(self, text: str) -> list[int]:
+            # Known, fixed-length encoding independent of input content —
+            # proves count_tokens returns len(enc.encode(text)), not some
+            # heuristic-derived value.
+            return list(range(7))
+
+    fake_tiktoken.get_encoding = lambda name: _FakeEncoding()
+    monkeypatch.setitem(sys.modules, "tiktoken", fake_tiktoken)
+
+    f = tmp_path / "any.md"
+    f.write_text("irrelevant content", encoding="utf-8")
+
+    assert mt.count_tokens(f, "tiktoken") == 7
+
+
 # ---------------------------------------------------------------------------
 # Explicit-path CLI invocation
 # ---------------------------------------------------------------------------
@@ -139,7 +164,7 @@ def test_bare_mode_explicit_nonexistent_path_reports_error_not_crash(tmp_path):
 
     result = _run_cli([str(missing)])
 
-    assert result.returncode != 0
+    assert result.returncode == 1  # main() explicitly returns 1 on this path
     assert "Traceback" not in result.stderr
     assert str(missing) in result.stdout or str(missing) in result.stderr
 
@@ -241,20 +266,40 @@ def test_zero_args_cli_measures_repo_default_file_set():
 # ---------------------------------------------------------------------------
 
 
+_DEFAULT_KNOWLEDGE_ROW = "| Placeholder | `knowledge/placeholder-fixture/*.md` | ~1 | desc |"
+_DEFAULT_SKILLS_ROW = "| Placeholder | `skills/placeholder-fixture/*.md` | ~1 | desc |"
+
+
 def _build_registry_md(
     *,
     team_rows: str,
     skills_rows: str,
     include_team: bool = True,
     include_skills: bool = True,
+    knowledge_rows: str = _DEFAULT_KNOWLEDGE_ROW,
+    include_knowledge: bool = True,
 ) -> str:
     """Build a fixture registry markdown document with the same table shape
     as the real ``knowledge/agent-registry.md``: a "## Team Agents" table,
     an unrelated "## Review Agents" heading in between (to prove block
     extraction stops at the next ``##`` heading rather than running to EOF),
-    a "## Skills Registry" table, and a trailing "## Knowledge Files"
-    heading. ``team_rows``/``skills_rows`` are pre-formatted pipe-delimited
-    data-row lines (no header/separator — those are added here).
+    a "## Skills Registry" table, and a "## Knowledge Files" table.
+    ``team_rows``/``skills_rows``/``knowledge_rows`` are pre-formatted
+    pipe-delimited data-row lines (no header/separator — those are added
+    here). ``knowledge_rows`` defaults to a single glob-path row (measured
+    as ``"unsupported_glob"``, touching no file on disk) purely so tests
+    that don't care about Knowledge Files coverage still produce a
+    non-empty, present section — since Step 2.3 made "## Knowledge Files"
+    one of the headings ``verify_registry()`` always expects, an absent or
+    empty table there would now fail every such test via the zero-parsed-
+    rows guard rather than being silently unconsulted the way it used to be.
+    An empty ``skills_rows=""`` (a test that only cares about Team Agents
+    coverage) falls back to the same kind of placeholder glob row for the
+    same reason — Step 2.3's zero-parsed-rows guard now treats a present-
+    but-empty "## Skills Registry" table as a section error too. A test
+    that deliberately wants to exercise the zero-parsed-rows guard itself
+    builds its own minimal registry text rather than going through this
+    helper's row-substitution convenience.
     """
     lines = ["# Fixture Agent & Skill Registry", ""]
     if include_team:
@@ -274,9 +319,17 @@ def _build_registry_md(
             "| Skill | File | ~Tokens | Used By |",
             "| ------- | ------ | --------- | --------- |",
         ]
-        lines += [line for line in skills_rows.splitlines() if line]
+        lines += [line for line in skills_rows.splitlines() if line] or [_DEFAULT_SKILLS_ROW]
         lines += [""]
-    lines += ["## Knowledge Files", "", "(not consulted by --verify)"]
+    if include_knowledge:
+        lines += [
+            "## Knowledge Files",
+            "",
+            "| Knowledge | File | ~Tokens | Used By |",
+            "| ------- | ------ | --------- | --------- |",
+        ]
+        lines += [line for line in knowledge_rows.splitlines() if line]
+        lines += [""]
     return "\n".join(lines)
 
 
@@ -327,8 +380,13 @@ def test_verify_clean_pass_exits_zero(tmp_path):
     rows, section_errors = mt.verify_registry(tmp_path, registry, "heuristic")
 
     assert section_errors == []
-    assert len(rows) == 2
-    assert all(row.status == "ok" for row in rows)
+    # 2 real rows (Foo, Bar) + the Skills/Knowledge Files fixture builder's
+    # default placeholder glob row for the Knowledge Files table (Step 2.3
+    # made that table mandatory too — see _build_registry_md's docstring).
+    assert len(rows) == 3
+    real_rows = [row for row in rows if row.name != "Placeholder"]
+    assert len(real_rows) == 2
+    assert all(row.status == "ok" for row in real_rows)
     assert mt.compute_verify_exit_code(rows, section_errors) == 0
 
 
@@ -349,7 +407,9 @@ def test_verify_single_drifted_row_fails(tmp_path):
     rows, section_errors = mt.verify_registry(tmp_path, registry, "heuristic")
 
     assert section_errors == []
-    assert len(rows) == 1
+    # 1 real row (Foo) + the fixture builder's default placeholder glob rows
+    # for the now-mandatory Skills Registry and Knowledge Files tables.
+    assert len(rows) == 3
     assert rows[0].status == "deviated"
     assert mt.compute_verify_exit_code(rows, section_errors) == 1
 
@@ -428,7 +488,9 @@ def test_verify_skips_empty_file_cell_summary_row(tmp_path):
     rows, section_errors = mt.verify_registry(tmp_path, registry, "heuristic")
 
     assert section_errors == []
-    assert len(rows) == 1
+    # 1 real row (Foo) + the fixture builder's default placeholder glob rows
+    # for the now-mandatory Skills Registry and Knowledge Files tables.
+    assert len(rows) == 3
     assert rows[0].name == "Foo"
 
 
@@ -448,6 +510,83 @@ def test_verify_missing_file_reported_as_error_not_crash(tmp_path):
 
     assert rows[0].status == "missing_file"
     assert rows[0].measured_n is None
+    assert mt.compute_verify_exit_code(rows, section_errors) == 1
+
+
+@pytest.mark.parametrize(
+    "declared_n, expected_status",
+    [
+        (90, "ok"),  # exactly 10% deviation relative to measured_n (100) — inclusive boundary
+        (89, "deviated"),  # just over 10% deviation relative to measured_n (100)
+    ],
+    ids=["exactly-10pct-ok", "just-over-10pct-deviated"],
+)
+def test_verify_deviation_threshold_boundary_relative_to_measured_n(tmp_path, declared_n, expected_status):
+    """Fix #6: deviation is normalized against measured_n (the ground
+    truth, per DEVIATION_THRESHOLD_PCT's own comment), not declared_n — pin
+    the exact 10% boundary: exactly 10% stays "ok", just over becomes
+    "deviated"."""
+    (tmp_path / "agents").mkdir()
+    (tmp_path / "agents" / "foo.md").write_text("x" * 400, encoding="utf-8")  # 100 measured tokens
+
+    registry = tmp_path / "agent-registry.md"
+    registry.write_text(
+        _build_registry_md(
+            team_rows=f"| Foo | `agents/foo.md` | {declared_n} | desc |",
+            skills_rows="",
+        ),
+        encoding="utf-8",
+    )
+
+    rows, _section_errors = mt.verify_registry(tmp_path, registry, "heuristic")
+
+    assert rows[0].measured_n == 100
+    assert rows[0].status == expected_status
+
+
+def test_verify_measured_n_zero_both_zero_is_ok(tmp_path):
+    """Fix #6's zero-guard base moved from declared_n == 0 to
+    measured_n == 0. When both are zero, deviation is 0.0 (not a crash)."""
+    (tmp_path / "agents").mkdir()
+    (tmp_path / "agents" / "empty.md").write_text("", encoding="utf-8")  # 0 measured tokens
+
+    registry = tmp_path / "agent-registry.md"
+    registry.write_text(
+        _build_registry_md(
+            team_rows="| Empty | `agents/empty.md` | 0 | desc |",
+            skills_rows="",
+        ),
+        encoding="utf-8",
+    )
+
+    rows, section_errors = mt.verify_registry(tmp_path, registry, "heuristic")
+
+    assert rows[0].measured_n == 0
+    assert rows[0].deviation_pct == 0.0
+    assert rows[0].status == "ok"
+    assert mt.compute_verify_exit_code(rows, section_errors) == 0
+
+
+def test_verify_measured_n_zero_nonzero_declared_is_infinite_deviation(tmp_path):
+    """Fix #6's zero-guard: measured_n == 0 but declared_n != 0 is an
+    infinite deviation — always "deviated", never a ZeroDivisionError."""
+    (tmp_path / "agents").mkdir()
+    (tmp_path / "agents" / "empty.md").write_text("", encoding="utf-8")  # 0 measured tokens
+
+    registry = tmp_path / "agent-registry.md"
+    registry.write_text(
+        _build_registry_md(
+            team_rows="| Empty | `agents/empty.md` | ~10 | desc |",
+            skills_rows="",
+        ),
+        encoding="utf-8",
+    )
+
+    rows, section_errors = mt.verify_registry(tmp_path, registry, "heuristic")
+
+    assert rows[0].measured_n == 0
+    assert rows[0].deviation_pct == float("inf")
+    assert rows[0].status == "deviated"
     assert mt.compute_verify_exit_code(rows, section_errors) == 1
 
 
@@ -559,6 +698,188 @@ def test_verify_missing_heading_reported_as_clear_error_not_crash(
         assert any(heading in err for err in section_errors), section_errors
     assert "Traceback" not in "".join(section_errors)
     assert mt.compute_verify_exit_code(rows, section_errors) == 1
+
+
+def test_verify_zero_parsed_rows_guard_reports_section_error(tmp_path):
+    """Fix #7: a heading present in the registry but with zero rows parsed
+    beneath it (every row under it fails to parse, or the table body is
+    genuinely empty) is treated as a section error — a table heading that
+    silently stops matching any row must not report as "nothing to check"
+    (a gate that can't fail is worse than no gate)."""
+    registry = tmp_path / "agent-registry.md"
+    registry.write_text(
+        "# Fixture Agent & Skill Registry\n"
+        "\n"
+        "## Team Agents\n"
+        "\n"
+        "| Agent | File | ~Tokens | Primary Focus |\n"
+        "| ------- | ------ | --------- | --------------- |\n"
+        "\n"  # no data rows at all under this heading
+        "## Skills Registry\n"
+        "\n"
+        "| Skill | File | ~Tokens | Used By |\n"
+        "| ------- | ------ | --------- | --------- |\n"
+        "| Bar | `skills/bar/SKILL.md` | 50 | desc |\n"
+        "\n"
+        "## Knowledge Files\n"
+        "\n"
+        "| Knowledge | File | ~Tokens | Used By |\n"
+        "| ------- | ------ | --------- | --------- |\n"
+        "| Placeholder | `knowledge/placeholder-fixture/*.md` | ~1 | desc |\n",
+        encoding="utf-8",
+    )
+    (tmp_path / "skills" / "bar").mkdir(parents=True)
+    (tmp_path / "skills" / "bar" / "SKILL.md").write_text("y" * 200, encoding="utf-8")  # 50 tokens
+
+    rows, section_errors = mt.verify_registry(tmp_path, registry, "heuristic")
+
+    assert any(
+        "Team Agents" in err and "zero rows parsed" in err for err in section_errors
+    ), section_errors
+    assert mt.compute_verify_exit_code(rows, section_errors) == 1
+
+
+def test_verify_knowledge_files_clean_pass_row(tmp_path):
+    """Fix #8: a "## Knowledge Files" single-file row within threshold is
+    measured and reported "ok", same as Team Agents/Skills Registry rows."""
+    (tmp_path / "agents").mkdir()
+    (tmp_path / "agents" / "foo.md").write_text("x" * 400, encoding="utf-8")  # 100 tokens
+    (tmp_path / "knowledge").mkdir()
+    (tmp_path / "knowledge" / "review-rubric.md").write_text("y" * 200, encoding="utf-8")  # 50 tokens
+
+    registry = tmp_path / "agent-registry.md"
+    registry.write_text(
+        _build_registry_md(
+            team_rows="| Foo | `agents/foo.md` | ~100 | desc |",
+            skills_rows="",
+            knowledge_rows="| Review Rubric | `knowledge/review-rubric.md` | 50 | desc |",
+        ),
+        encoding="utf-8",
+    )
+
+    rows, section_errors = mt.verify_registry(tmp_path, registry, "heuristic")
+
+    assert section_errors == []
+    knowledge_row = next(row for row in rows if row.section == "Knowledge Files")
+    assert knowledge_row.status == "ok"
+    assert mt.compute_verify_exit_code(rows, section_errors) == 0
+
+
+def test_verify_knowledge_files_drifted_row_fails(tmp_path):
+    """Fix #8: a drifted "## Knowledge Files" single-file row fails the
+    same way a drifted Team Agents/Skills Registry row does."""
+    (tmp_path / "agents").mkdir()
+    (tmp_path / "agents" / "foo.md").write_text("x" * 400, encoding="utf-8")  # 100 tokens
+    (tmp_path / "knowledge").mkdir()
+    (tmp_path / "knowledge" / "review-rubric.md").write_text("y" * 1200, encoding="utf-8")  # 300 tokens
+
+    registry = tmp_path / "agent-registry.md"
+    registry.write_text(
+        _build_registry_md(
+            team_rows="| Foo | `agents/foo.md` | ~100 | desc |",
+            skills_rows="",
+            # declared 50 vs measured 300 — well past the 10% threshold.
+            knowledge_rows="| Review Rubric | `knowledge/review-rubric.md` | ~50 | desc |",
+        ),
+        encoding="utf-8",
+    )
+
+    rows, section_errors = mt.verify_registry(tmp_path, registry, "heuristic")
+
+    assert section_errors == []
+    knowledge_row = next(row for row in rows if row.section == "Knowledge Files")
+    assert knowledge_row.status == "deviated"
+    assert mt.compute_verify_exit_code(rows, section_errors) == 1
+
+
+def test_verify_knowledge_files_glob_row_reported_but_not_counted_as_failure(tmp_path):
+    """Fix #8: a "## Knowledge Files" row whose File cell is a glob (a
+    multi-file summed declaration — summation logic isn't built in this
+    pass) is reported as "unsupported_glob", never measured against disk,
+    and never contributes to a non-zero --verify exit code."""
+    (tmp_path / "agents").mkdir()
+    (tmp_path / "agents" / "foo.md").write_text("x" * 400, encoding="utf-8")  # 100 tokens
+
+    registry = tmp_path / "agent-registry.md"
+    registry.write_text(
+        _build_registry_md(
+            team_rows="| Foo | `agents/foo.md` | ~100 | desc |",
+            skills_rows="",
+            knowledge_rows=(
+                "| Test Matrix Examples | `knowledge/test-matrix-examples/*.md` | ~500 | desc |"
+            ),
+        ),
+        encoding="utf-8",
+    )
+
+    rows, section_errors = mt.verify_registry(tmp_path, registry, "heuristic")
+
+    assert section_errors == []
+    knowledge_row = next(row for row in rows if row.section == "Knowledge Files")
+    assert knowledge_row.status == "unsupported_glob"
+    assert knowledge_row.measured_n is None
+    assert mt.compute_verify_exit_code(rows, section_errors) == 0
+
+
+def test_run_verify_uses_heuristic_tokenizer_even_when_detect_tokenizer_selects_tiktoken(
+    tmp_path, monkeypatch
+):
+    """Fix #9: --verify's tokenizer choice must be deterministic regardless
+    of what's locally pip-installed. Monkeypatch detect_tokenizer() to
+    report tiktoken as available, and inject a fake tiktoken module whose
+    encode() returns a token count no heuristic file would ever produce —
+    if run_verify used it, the measured row would betray that. Capture
+    print_verify_report's arguments (rather than parsing stdout) to assert
+    directly on the measured value and tokenizer note.
+    """
+    import types
+
+    fixture_plugin_root = tmp_path / "plugins" / "dev-team"
+    (fixture_plugin_root / "agents").mkdir(parents=True)
+    (fixture_plugin_root / "agents" / "foo.md").write_text("x" * 400, encoding="utf-8")  # 100 heuristic tokens
+
+    registry_dir = fixture_plugin_root / "knowledge"
+    registry_dir.mkdir(parents=True)
+    (registry_dir / "agent-registry.md").write_text(
+        _build_registry_md(
+            team_rows="| Foo | `agents/foo.md` | ~100 | desc |",
+            skills_rows="",
+        ),
+        encoding="utf-8",
+    )
+
+    monkeypatch.setattr(
+        mt,
+        "detect_tokenizer",
+        lambda: ("tiktoken", "tiktoken cl100k_base (approximation of Claude tokenizer)"),
+    )
+
+    fake_tiktoken = types.ModuleType("tiktoken")
+
+    class _FakeEncoding:
+        def encode(self, text: str) -> list[int]:
+            # A token count wildly different from the heuristic's 100, so
+            # this test would catch run_verify silently using tiktoken.
+            return list(range(999))
+
+    fake_tiktoken.get_encoding = lambda name: _FakeEncoding()
+    monkeypatch.setitem(sys.modules, "tiktoken", fake_tiktoken)
+
+    captured: dict = {}
+
+    def _capture(registry_path, tokenizer_note, rows, section_errors):
+        captured["tokenizer_note"] = tokenizer_note
+        captured["rows"] = rows
+        captured["section_errors"] = section_errors
+
+    monkeypatch.setattr(mt, "print_verify_report", _capture)
+
+    exit_code = mt.run_verify(tmp_path)
+
+    assert exit_code == 0
+    assert "heuristic" in captured["tokenizer_note"].lower()
+    foo_row = next(row for row in captured["rows"] if row.name == "Foo")
+    assert foo_row.measured_n == 100  # the heuristic value, not the fake tiktoken's 999
 
 
 def test_print_verify_report_includes_every_row_and_section_errors(tmp_path, capsys):
