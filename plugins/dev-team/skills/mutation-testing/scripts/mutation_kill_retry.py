@@ -14,11 +14,15 @@ concern; ``mutation_kill_shared.py`` keeps git mechanics, ``_timeout_from_env``,
 ``claude --print`` invocation glue, and the ``InsertOutcome``/``InsertionRefused``
 shapes.
 
-The 502/gateway-class error definition is EXACT: a ``RuntimeError`` raised by
+The 502/gateway-class error definition is EXACT: a
+:class:`mutation_kill_shared.HeadlessCallFailed` raised by
 ``run_claude_headless``'s non-zero-exit shape (never its
-``TimeoutExpired``-derived shape — that's a local generation timeout, not an
-upstream provider signal) whose message, case-insensitively, contains one of
-the markers below.
+``TimeoutExpired``-derived shape, which raises a plain ``RuntimeError`` — a
+local generation timeout, not an upstream provider signal) whose full,
+untruncated ``stderr``, case-insensitively, either contains one of the
+non-numeric markers below or matches the anchored numeral pattern
+(``_GATEWAY_STATUS_RE``) — a bare ``"502"``/``"503"``/``"504"`` substring is
+not enough on its own (#1938).
 
 This module's only dependency on ``mutation_kill_shared`` is
 ``run_claude_headless``/``resolve_fallback_model`` — both accessed via the
@@ -33,6 +37,7 @@ Stdlib-only. See ADR 0014.
 
 from __future__ import annotations
 
+import re
 import time
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -40,12 +45,7 @@ from pathlib import Path
 
 import mutation_kill_shared
 
-_NONZERO_EXIT_PREFIX = "claude CLI failed (exit"
-
 _GATEWAY_CLASS_MARKERS = (
-    "502",
-    "503",
-    "504",
     "bad gateway",
     "service unavailable",
     "gateway timeout",
@@ -53,6 +53,14 @@ _GATEWAY_CLASS_MARKERS = (
     "upstream connect error",
     "connection reset",
 )
+
+# Anchored numeral markers (#1938): a bare "502"/"503"/"504" substring
+# false-positives on unrelated numbers (a request id, a byte count). Requires
+# a status-context word (status/http/code) within 12 non-digit characters
+# before the digits, so "HTTP 502", "status: 503", and "error code 504" all
+# match but "request id 502391" does not. Case-insensitive to match the six
+# non-numeric markers above.
+_GATEWAY_STATUS_RE = re.compile(r"\b(?:status|http|code)[^0-9]{0,12}50[234]\b", re.IGNORECASE)
 
 # 3 consecutive gateway-class failures on the same model earn exactly one
 # same-model retry before a downgrade is considered (#1908).
@@ -65,21 +73,24 @@ _BACKOFF_CAP_S = 10
 
 
 def is_gateway_class_error(exc: BaseException) -> bool:
-    """True iff ``exc`` is a :class:`RuntimeError` raised by
-    :func:`mutation_kill_shared.run_claude_headless`'s non-zero-exit shape
-    whose message, case-insensitively, contains a 502/gateway-class marker
-    (#1908).
+    """True iff ``exc`` is a :class:`mutation_kill_shared.HeadlessCallFailed`
+    raised by :func:`mutation_kill_shared.run_claude_headless`'s non-zero-exit
+    shape whose full, untruncated ``stderr``, case-insensitively, contains a
+    non-numeric gateway-class marker or matches the anchored numeral pattern
+    (#1938).
 
-    Everything else — the ``subprocess.TimeoutExpired``-derived shape (a
-    local generation timeout, not an upstream provider signal) and a
-    non-zero exit whose stderr matches none of the markers — is
-    non-gateway-class.
+    Everything else — a plain ``RuntimeError`` (the
+    ``subprocess.TimeoutExpired``-derived shape is a local generation
+    timeout, not an upstream provider signal, and never raises
+    ``HeadlessCallFailed``) and a ``HeadlessCallFailed`` whose stderr matches
+    none of the markers — is non-gateway-class.
     """
-    message = str(exc)
-    if not message.startswith(_NONZERO_EXIT_PREFIX):
+    if not isinstance(exc, mutation_kill_shared.HeadlessCallFailed):
         return False
-    lowered = message.lower()
-    return any(marker in lowered for marker in _GATEWAY_CLASS_MARKERS)
+    lowered = exc.stderr.lower()
+    return any(marker in lowered for marker in _GATEWAY_CLASS_MARKERS) or bool(
+        _GATEWAY_STATUS_RE.search(exc.stderr)
+    )
 
 
 # Shared exit code for a clean retry-then-downgrade exhaustion (#1908

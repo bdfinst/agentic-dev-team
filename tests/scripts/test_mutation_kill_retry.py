@@ -31,8 +31,8 @@ import mutation_kill_shared as shared
 # is_gateway_class_error — the exact 502/gateway-class error definition
 # (#1908, Slice 3 Step 3.2).
 # =============================================================================
-def _exit_error(stderr: str) -> RuntimeError:
-    return RuntimeError(f"claude CLI failed (exit 1): {stderr}")
+def _exit_error(stderr: str) -> shared.HeadlessCallFailed:
+    return shared.HeadlessCallFailed(1, stderr)
 
 
 def _timeout_error() -> RuntimeError:
@@ -45,9 +45,9 @@ def _timeout_error() -> RuntimeError:
 @pytest.mark.parametrize(
     "marker",
     [
-        "502",
-        "503",
-        "504",
+        "HTTP 502",
+        "status: 503",
+        "error code 504",
         "Bad Gateway",
         "SERVICE UNAVAILABLE",
         "Gateway Timeout",
@@ -70,6 +70,47 @@ def test_is_gateway_class_error_is_false_for_the_timeout_shape():
 
 def test_is_gateway_class_error_is_false_for_an_unmatched_nonzero_exit():
     assert retry.is_gateway_class_error(_exit_error("permission denied")) is False
+
+
+def test_is_gateway_class_error_is_false_for_a_bare_numeral_with_no_status_context():
+    """A bare digit run with no status-context word (status/http/code) does
+    not anchor — "request id 502391" must not false-positive on the "502"
+    substring it happens to contain (#1938)."""
+    assert retry.is_gateway_class_error(_exit_error("request id 502391 failed")) is False
+
+
+def test_is_gateway_class_error_detects_a_marker_past_byte_500_of_stderr():
+    """A gateway marker past byte 500 of stderr is no longer invisible: the
+    classifier reads the full, untruncated HeadlessCallFailed.stderr, not
+    __str__'s 500-byte-truncated message (#1938)."""
+    padding = "x" * 550
+    stderr = f"{padding} HTTP 502 {'y' * 50}"
+    assert len(stderr) > 600
+    assert retry.is_gateway_class_error(_exit_error(stderr)) is True
+
+
+def test_is_gateway_class_error_returns_false_for_a_plain_runtime_error_with_marker_text():
+    """The type gate — not just content — excludes a plain RuntimeError, even
+    when its message contains a marker string verbatim (#1938)."""
+    assert retry.is_gateway_class_error(RuntimeError("HTTP 502 Bad Gateway")) is False
+
+
+def test_is_gateway_class_error_matches_a_lowercase_anchored_numeral_marker():
+    assert retry.is_gateway_class_error(_exit_error("boom: http 502 boom")) is True
+
+
+def test_is_gateway_class_error_status_gap_boundary_matches_at_exactly_12_chars():
+    """Exactly 12 non-digit characters between the status word and the digits
+    still matches the `[^0-9]{0,12}` gap bound (#1938)."""
+    stderr = "status" + ("x" * 12) + "502"
+    assert retry.is_gateway_class_error(_exit_error(stderr)) is True
+
+
+def test_is_gateway_class_error_status_gap_boundary_does_not_match_at_13_chars():
+    """One more non-digit character than the `[^0-9]{0,12}` gap bound no
+    longer matches (#1938)."""
+    stderr = "status" + ("x" * 13) + "502"
+    assert retry.is_gateway_class_error(_exit_error(stderr)) is False
 
 
 def test_generation_exhausted_is_a_runtime_error():
