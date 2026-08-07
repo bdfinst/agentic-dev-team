@@ -52,11 +52,11 @@ SCRIPTS_DIR = (
     / "scripts"
 )
 
-import sys  # noqa: E402 (must follow SCRIPTS_DIR's definition)
+import sys
 
 sys.path.insert(0, str(SCRIPTS_DIR))
 
-import mutation_kill_shared  # noqa: E402 (see sys.path.insert above)
+import mutation_kill_shared
 
 FORBIDDEN_LITERALS = ["Aci.Speedpay", "Controllers", "AwesomeAssertions", "Moq", "AutoFixture"]
 

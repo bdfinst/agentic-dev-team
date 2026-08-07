@@ -19,7 +19,11 @@ from __future__ import annotations
 import sys
 
 import pytest
-from _mutation_test_helpers import SCRIPTS_DIR, gateway_error, sequenced_run_claude_headless
+from _mutation_test_helpers import (
+    SCRIPTS_DIR,
+    gateway_error,
+    sequenced_run_claude_headless,
+)
 
 sys.path.insert(0, str(SCRIPTS_DIR))
 
