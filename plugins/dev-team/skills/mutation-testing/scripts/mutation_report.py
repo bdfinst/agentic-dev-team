@@ -51,6 +51,11 @@ STATUS_SURVIVED = "Survived"
 STATUS_TIMEOUT = "Timeout"
 STATUS_NO_COVERAGE = "NoCoverage"
 
+# Mutant dict key carrying Stryker's "this mutant sits in module-init code,
+# not per-test code" flag. Centralized here alongside the status vocabulary
+# above so the literal isn't repeated across the functions that read it.
+MUTANT_STATIC_KEY = "static"
+
 
 @dataclass(frozen=True)
 class ScoreSummary:
@@ -200,11 +205,9 @@ def _survivors_from_data(
     uncovered mutants are not survivors. Returns ``{}`` when the file is not
     in the report or has no survivors.
 
-    When ``skip_static`` is ``True``, mutants with ``static: true`` are
-    excluded before the Survived-filter/group-by-mutator step below — but
-    only when at least one mutant in the matched file's list carries a
-    ``"static"`` key at all. When none do, the parameter has no effect
-    (silently): this function stays a pure data transform, and the CLI
+    When ``skip_static`` is ``True``, a mutant is excluded only when it
+    carries ``static: true``; absence of the key (or ``static: false``)
+    never excludes it. This function stays a pure data transform — the CLI
     wrapper owns any user-facing "skip is inapplicable" notice.
     """
     info = _find_file_info(data, file_path)
@@ -212,8 +215,10 @@ def _survivors_from_data(
         return {}
 
     mutants = info.get("mutants", [])
-    if skip_static and any("static" in mutant for mutant in mutants):
-        mutants = [mutant for mutant in mutants if mutant.get("static") is not True]
+    if skip_static:
+        mutants = [
+            mutant for mutant in mutants if mutant.get(MUTANT_STATIC_KEY) is not True
+        ]
 
     grouped: dict[str, list[dict]] = {}
     for mutant in mutants:
@@ -237,7 +242,7 @@ def survivors_by_mutator(
     )
 
 
-def static_field_present(data: dict, file_path: str) -> bool:
+def has_static_field(data: dict, file_path: str) -> bool:
     """Return whether any mutant in the matched file's list carries a
     ``"static"`` key, from an already-parsed report dict.
 
@@ -245,12 +250,31 @@ def static_field_present(data: dict, file_path: str) -> bool:
     then basename). Returns ``False`` uniformly both when the matched file
     has no mutant carrying a ``"static"`` key and when ``file_path`` isn't
     present in the report at all (``_find_file_info`` returns ``None``) —
-    the two cases are not distinguished by this function's return value.
+    the two cases are not distinguished by this function's return value; use
+    ``file_in_report`` alongside it to tell them apart.
+
+    Deliberately data-based (takes an already-parsed ``data`` dict) rather
+    than ``Path``-based like this module's other public entry points — it
+    exists specifically to serve the CLI's pre-dispatch diagnostic logic,
+    which already holds the parsed report and would otherwise pay a
+    pointless second parse for no reason.
     """
     info = _find_file_info(data, file_path)
     if info is None:
         return False
-    return any("static" in mutant for mutant in info.get("mutants", []))
+    return any(MUTANT_STATIC_KEY in mutant for mutant in info.get("mutants", []))
+
+
+def file_in_report(data: dict, file_path: str) -> bool:
+    """Return whether ``file_path`` matches any report key, from an
+    already-parsed report dict.
+
+    Matches the same way ``_find_file_info`` does (exact key, then
+    basename). Lets a caller distinguish "file matched but has no static
+    field" from "file never matched any report key" — the two causes
+    ``has_static_field`` collapses into a single ``False`` return value.
+    """
+    return _find_file_info(data, file_path) is not None
 
 
 def _survivors_by_line_from_data(data: dict, file_path: str) -> dict:
@@ -269,9 +293,15 @@ def _survivors_by_line_from_data(data: dict, file_path: str) -> dict:
     - ``clusters`` groups survivors by ``mutant["location"]["start"]["line"]``
       and is sorted by ``len(survivors)`` descending; ties are broken by
       ``line`` ascending.
-    - ``unclustered`` holds every survivor whose line is ``None`` (e.g.
-      mutmut's no-resolvable-line case) — such a survivor never forms or
-      joins a cluster.
+    - ``unclustered`` holds every survivor whose line isn't a resolvable
+      ``int`` — ``None`` (e.g. mutmut's no-resolvable-line case), a non-int
+      value, or a missing/``None`` ``location``/``start`` dict — such a
+      survivor never forms or joins a cluster. This matches the module's
+      never-raise-on-bad-input posture (see the module docstring,
+      ``load_report``'s "never raises" note, and ``parse_mutmut_junitxml``'s
+      "malformed input returns empty rather than raising"): a ``None``
+      ``location``/``start`` value or a non-int ``line`` is routed to
+      ``unclustered`` rather than raising ``AttributeError``/``TypeError``.
     - Returns ``{"clusters": [], "unclustered": []}`` when the file is not in
       the report or has no survivors.
     """
@@ -284,11 +314,13 @@ def _survivors_by_line_from_data(data: dict, file_path: str) -> dict:
     for mutant in info.get("mutants", []):
         if mutant.get("status") != STATUS_SURVIVED:
             continue
-        line = mutant.get("location", {}).get("start", {}).get("line")
-        if line is None:
+        loc = mutant.get("location") or {}
+        start = loc.get("start") or {}
+        line = start.get("line")
+        if not isinstance(line, int):
             unclustered.append(mutant)
-        else:
-            by_line.setdefault(line, []).append(mutant)
+            continue
+        by_line.setdefault(line, []).append(mutant)
 
     clusters = [
         {"line": line, "survivors": survivors} for line, survivors in by_line.items()

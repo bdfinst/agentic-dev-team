@@ -37,7 +37,7 @@ default-OFF `--skip-static-mutants` flag excludes mutants Stryker's
 from the survivor list handed to **the generation step only**, for that
 round. The filter itself is computed by calling `survivors_by_mutator(...,
 skip_static=True)` in `mutation_report.py` — or its CLI wrapper,
-`mutation_report_cli.py --survivors-by-mutator --skip-static --report
+`python3 mutation_report_cli.py --survivors-by-mutator --skip-static --report
 <path> --file <path>` — rather than re-deriving it here. A static mutant
 sits in code that runs once at module-initialization time rather than
 per-test, so `coverageAnalysis: "perTest"` cannot isolate it to the tests

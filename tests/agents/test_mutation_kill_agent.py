@@ -98,7 +98,11 @@ def test_agent_body_stays_under_500_line_limit(text: str) -> None:
     # `--tracking`/`--report` snippets with absolute-path placeholders and
     # named the residual same-file-double-resolve risk the lock does not
     # cover.
-    assert len(text.splitlines()) < 640
+    # Bumped by 1 more (#1937 review): added a mutation_report_cli.py row to
+    # the scripted-mechanics table (arch-review finding — the table had no
+    # row for the CLI wrapper despite the doc now instructing the agent to
+    # call it).
+    assert len(text.splitlines()) < 641
 
 
 def test_defines_honest_score_formula(text: str) -> None:

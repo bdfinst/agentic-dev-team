@@ -72,10 +72,25 @@ def test_mechanism_cites_the_survivor_extraction_functions(
     """Step 1.5 (#1937): the inline "filter native mutant objects before
     normalization" mechanics description is retired — the filtering is a
     deterministic computation owned by mutation_report.py, cited here by
-    name instead of re-derived in prose."""
-    assert "mutation_report.py" in static_skip_flat
-    assert "survivors_by_mutator" in static_skip_flat
-    assert "mutation_report_cli.py" in static_skip_flat
+    name instead of re-derived in prose.
+
+    Tightened (round-1 review, test-review finding): the three unanchored
+    substring checks this test used to run independently could all stay
+    green while the actual mechanism sentence was rewritten or removed, as
+    long as the three names appeared anywhere else in the subsection. Now
+    the first assertion requires `survivors_by_mutator`, `skip_static=True`,
+    and `mutation_report.py` to co-occur in the actual mechanism clause; the
+    second anchors the CLI invocation as one literal string, mirroring
+    tests/agents/test_mutation_kill_line_clustering_doc.py's
+    `mutation_report_cli.py --survivors-by-line` anchor."""
+    assert re.search(
+        r"survivors_by_mutator\(\.\.\.,\s*skip_static=True\).*?mutation_report\.py",
+        static_skip_flat,
+    )
+    assert (
+        "mutation_report_cli.py --survivors-by-mutator --skip-static"
+        in static_skip_flat
+    )
 
 
 def test_mechanism_explains_why_a_static_mutant_forces_a_full_suite_rerun(

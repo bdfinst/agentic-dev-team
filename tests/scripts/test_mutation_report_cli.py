@@ -175,6 +175,8 @@ def test_skip_static_notice_when_file_absent_from_report(
     out = capsys.readouterr()
     assert "skip-static" in out.err
     assert "inapplicable" in out.err
+    assert "is not present in the report" in out.err
+    assert "src/calc.ts" in out.err
     assert json.loads(out.out) == {}
 
 
@@ -196,14 +198,20 @@ def test_both_mode_flags_is_argument_error(tmp_path: Path, capsys) -> None:
         ]
     )
     assert rc == 2
-    assert capsys.readouterr().err != ""
+    err = capsys.readouterr().err
+    assert (
+        "exactly one of --survivors-by-line or --survivors-by-mutator" in err
+    )
 
 
 def test_neither_mode_flag_is_argument_error(tmp_path: Path, capsys) -> None:
     report = _write_report(tmp_path / "mutation.json", {})
     rc = cli.main(["--report", str(report), "--file", "src/calc.ts"])
     assert rc == 2
-    assert capsys.readouterr().err != ""
+    err = capsys.readouterr().err
+    assert (
+        "exactly one of --survivors-by-line or --survivors-by-mutator" in err
+    )
 
 
 def test_skip_static_with_survivors_by_line_is_argument_error(
@@ -221,4 +229,5 @@ def test_skip_static_with_survivors_by_line_is_argument_error(
         ]
     )
     assert rc == 2
-    assert capsys.readouterr().err != ""
+    err = capsys.readouterr().err
+    assert "--skip-static is only valid with --survivors-by-mutator" in err

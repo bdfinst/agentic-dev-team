@@ -49,7 +49,8 @@ re-describe or re-implement their mechanics:
 
 | Script | Deterministic responsibility it owns |
 | --- | --- |
-| `mutation_report.py` | Parse the report; compute the **honest** and **reported** scores; extract survivors per file grouped by mutator. Stryker/Stryker.NET's JSON report is read directly; mutmut's `junitxml` output is normalized into the same internal shape first (`parse_mutmut_junitxml` / `score_mutmut_junitxml` / `survivors_from_mutmut_junitxml`). |
+| `mutation_report.py` | Parse the report; compute the **honest** and **reported** scores; extract survivors per file grouped by mutator, clustered by source line (`survivors_by_line`), or filtered to exclude static-flagged mutants (`skip_static`). Stryker/Stryker.NET's JSON report is read directly; mutmut's `junitxml` output is normalized into the same internal shape first (`parse_mutmut_junitxml` / `score_mutmut_junitxml` / `survivors_from_mutmut_junitxml`). |
+| `mutation_report_cli.py` | JSON-on-stdout CLI wrapper over `mutation_report.py`'s `survivors_by_line()`/`survivors_by_mutator()` — for you to invoke as a tool call (`python3 mutation_report_cli.py --survivors-by-line ...` / `--survivors-by-mutator ...`) instead of importing the library directly. |
 | `mutation_baseline_reuse.py` | Round-1 baseline-reuse eligibility (git-ancestor + per-commit consumption check) and consumption bookkeeping via resolve/mark-consumed subcommands. |
 | `mutation_kill_loop.py` | The C#/Stryker.NET per-file loop: scoped run → score → survivor check → **your** generation → duplicate-guard → insert-before-class-close → build → test → commit-on-green / revert-on-failure → no-improvement stop. Delegates DOTNET_ROOT + `.sln` hide/restore to the wrapper. Config parsing and `run_for_file` orchestration only — insertion mechanics and headless generation live in the sibling scripts below. |
 | `mutation_kill_insert.py` | C# test-method insertion mechanics: detect-or-refuse — duplicate-name guard, and inserting generated methods before the test class's closing brace (refuses on a file-scoped namespace or non-4-space indentation rather than risk a mis-insertion). |
@@ -156,7 +157,7 @@ or observable state change — not just a status code or a truthiness check.
 ## Target mutation types in priority order
 
 **Cluster survivors by source line before applying the priority order below.** Group survivors by calling
-`survivors_by_line()` in `mutation_report.py` (or `mutation_report_cli.py --survivors-by-line`) rather than
+`survivors_by_line()` in `mutation_report.py` (or `python3 mutation_report_cli.py --survivors-by-line`) rather than
 re-deriving the grouping and sort yourself — its `clusters` key holds one entry per source line, sorted by
 survivor count descending, ties broken by line number ascending; no adjacent-line merging is performed,
 even for clusters on adjacent lines sharing one expression (your own judgment call, not the tool's).

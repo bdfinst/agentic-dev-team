@@ -440,8 +440,17 @@ def test_skill_step_4_references_line_clustering_approach():
     assert "not total mutants-per-line" in w
 
 
-def test_skill_step_4_line_clustering_covers_same_or_adjacent_line():
-    assert grep(r"same or adjacent source line", _line_clustering_window())
+def test_skill_step_4_line_clustering_matches_mutation_kill_no_merge_rule():
+    # #1937 round-1 review (domain-review finding): the old "same or
+    # adjacent source line" grouping rule contradicted mutation-kill.md's
+    # actual survivors_by_line() behavior (exact line only). Pin the
+    # corrected statement instead — clustering is by exact line, and
+    # adjacent-line merging is explicitly the reader's own judgment call,
+    # not something the tool performs.
+    w = _line_clustering_window()
+    assert grep(r"survivors_by_line\(\)", w)
+    assert grep(r"no adjacent-line merging is performed", w)
+    assert grep(r"ties broken by line ascending", w)
 
 
 def test_skill_step_4_line_clustering_prefers_one_test_per_cluster():
