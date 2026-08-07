@@ -36,6 +36,7 @@ import time
 from collections.abc import Callable, Sequence
 from datetime import datetime, timezone
 from pathlib import Path
+from typing import NamedTuple
 
 # typing, not collections.abc: the module-level type aliases below are real
 # runtime expressions, so `from __future__ import annotations` cannot defer
@@ -69,6 +70,15 @@ _TEST_FILE_SUFFIXES = ("Tests.cs", "Test.cs", "Specs.cs", "Spec.cs")
 class ShardSetupMissing(Exception):
     """No ``stryker-config.shard-*.json`` files were discovered — the operator
     must run shard setup first. Carries an actionable message."""
+
+
+class ShardRunResult(NamedTuple):
+    """``run_all``'s return value. A NamedTuple (not a bare 2-tuple) so a
+    future call site can't silently transpose the two fields — positional
+    unpack (``failed, exhausted = run_all(...)``) still works unchanged."""
+
+    failed: list[str]
+    exhausted: list[str]
 
 
 # ── Small helpers ──────────────────────────────────────────────────────────────
@@ -428,7 +438,11 @@ def should_skip(
 
 
 def print_summary(
-    shards: Sequence[str], shard_out_base: Path, *, log: Callable[[str], None] = print
+    shards: Sequence[str],
+    shard_out_base: Path,
+    *,
+    log: Callable[[str], None] = print,
+    exhausted: Sequence[str] = (),
 ) -> None:
     """Print the per-shard honest score with Timeout and NoCoverage broken out
     separately — never the timeout-inflated reported score (AC3)."""
@@ -444,6 +458,8 @@ def print_summary(
             f"killed={s.killed} survived={s.survived} "
             f"timeout={s.timeout} nocoverage={s.no_coverage}"
         )
+    if exhausted:
+        log(f"\nEXHAUSTED files ({len(exhausted)}): " + ", ".join(exhausted))
 
 
 # ── Orchestration ───────────────────────────────────────────────────────────────
@@ -542,10 +558,12 @@ def run_all(
     resolve_test_file: TestFileResolver | None = None,
     git_run: GitRunner | None = None,
     events: list[tuple] | None = None,
-) -> list[str]:
+) -> ShardRunResult:
     """Process every shard **sequentially** (compounding depends on ordering).
-    Returns the list of failed shards."""
+    Returns a :class:`ShardRunResult` of the failed shards and the exhausted
+    (retry-then-downgrade-exhausted) source files across all shards."""
     failed: list[str] = []
+    exhausted: list[str] = []
     for shard in shards:
         result = process_shard(
             shard,
@@ -564,10 +582,11 @@ def run_all(
             resolve_test_file=resolve_test_file,
             git_run=git_run,
             events=events,
+            exhausted=exhausted,
         )
         if result == "failed":
             failed.append(shard)
-    return failed
+    return ShardRunResult(failed, exhausted)
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -634,7 +653,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     os.environ["DOTNET_ROOT"] = dotnet_root
 
     print(f"Pipeline: {' '.join(shards)}")
-    failed = run_all(
+    failed, exhausted = run_all(
         shards,
         repo_root=repo_root,
         worktree_base=worktree_base,
@@ -647,10 +666,12 @@ def main(argv: Sequence[str] | None = None) -> int:
         max_age_hours=args.max_age_hours,
     )
 
-    print_summary(shards, shard_out_base)
+    print_summary(shards, shard_out_base, exhausted=exhausted)
     if failed:
         print(f"\nFAILED shards: {' '.join(failed)}")
         return 1
+    if exhausted:
+        return EXIT_GENERATION_EXHAUSTED
     return 0
 
 
