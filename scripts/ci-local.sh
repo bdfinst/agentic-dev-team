@@ -175,6 +175,7 @@ chk_eval_corpus()     { python3 scripts/eval_grade.py --check-corpus; }
 chk_oe_staleness()    { python3 scripts/oe_scoring_staleness.py --warn-only; }
 chk_citation_lint()   { python3 scripts/citation_lint.py --all; }  # advisory (#312)
 chk_md_references()   { python3 scripts/check_md_references.py; }
+chk_registry_drift()  { python3 scripts/measure_tokens.py --verify; }
 chk_sa_mcp_tools()    { python3 plugins/dev-team/scripts/check_security_assessment_mcp_tools.py; }
 chk_skills_index() {
   local script=plugins/dev-team/hooks/lib/build_skills_index.py
@@ -557,6 +558,7 @@ CHECKS=(
   "OE scoring staleness (advisory; oe_scoring_staleness.py)::chk_oe_staleness"
   "citation drift lint (citation_lint.py, advisory)::chk_citation_lint"
   "markdown reference integrity (check_md_references.py)::chk_md_references"
+  "agent-registry token-drift check (measure_tokens.py --verify)::chk_registry_drift"
   "security-assessment MCP tool grant drift (check_security_assessment_mcp_tools.py)::chk_sa_mcp_tools"
   "skills catalog freshness (docs/skills.md)::chk_skills_index"
   "nav integrity (mkdocs nav → assembled file)::chk_nav_integrity"

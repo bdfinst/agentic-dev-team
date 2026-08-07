@@ -121,7 +121,7 @@ jobs:
       - name: Content + hook-conformance checks (via ci-local)
         run:
           bash scripts/ci-local.sh
-          --only=chk_md_references,chk_skills_index,chk_rules_vs_prompts,chk_hook_units,chk_sa_mcp_tools
+          --only=chk_md_references,chk_skills_index,chk_rules_vs_prompts,chk_hook_units,chk_sa_mcp_tools,chk_registry_drift
 
   # ADR 0031's Python 3.10 floor (raised from ADR 0014's original 3.8 once that
   # floor's OS-availability rationale expired — see issue #1679), proven by
