@@ -166,7 +166,8 @@ def test_bare_mode_explicit_nonexistent_path_reports_error_not_crash(tmp_path):
 
     assert result.returncode == 1  # main() explicitly returns 1 on this path
     assert "Traceback" not in result.stderr
-    assert str(missing) in result.stdout or str(missing) in result.stderr
+    assert str(missing) in result.stdout
+    assert str(missing) in result.stderr
 
 
 # ---------------------------------------------------------------------------
@@ -270,6 +271,18 @@ _DEFAULT_KNOWLEDGE_ROW = "| Placeholder | `knowledge/placeholder-fixture/*.md` |
 _DEFAULT_SKILLS_ROW = "| Placeholder | `skills/placeholder-fixture/*.md` | ~1 | desc |"
 
 
+def _write_measured_file(root: Path, rel_path: str, n_tokens: int) -> Path:
+    """Creation Method for the arrange step repeated across nearly every
+    --verify test below: create (with parents) a file under ``root`` whose
+    heuristic token count is exactly ``n_tokens``, using the module under
+    test's own byte-per-token divisor so the intended count never drifts
+    from what ``count_tokens`` actually measures."""
+    p = root / rel_path
+    p.parent.mkdir(parents=True, exist_ok=True)
+    p.write_text("x" * (n_tokens * mt.HEURISTIC_BYTES_PER_TOKEN), encoding="utf-8")
+    return p
+
+
 def _build_registry_md(
     *,
     team_rows: str,
@@ -361,12 +374,29 @@ def test_extract_table_block_returns_none_when_heading_absent():
     assert mt.extract_table_block(text, "Team Agents") is None
 
 
+def test_parse_registry_rows_silently_skips_malformed_row_with_too_few_cells():
+    """Round-1 fix #8: a markdown table row with fewer than 3 pipe-delimited
+    cells (not a valid Name/File/~Tokens row shape) is silently skipped —
+    it must not appear in the parsed rows, and must not be counted toward
+    skipped_unparseable (that count is reserved for a row that DOES parse
+    to 3+ cells but whose declared-value cell fails to parse)."""
+    section_text = (
+        "| Agent | File | ~Tokens | Primary Focus |\n"
+        "| ------- | ------ | --------- | --------------- |\n"
+        "| Malformed | agents/malformed.md |\n"  # only 2 cells — no ~Tokens
+        "| Foo | `agents/foo.md` | ~100 | desc |\n"
+    )
+
+    rows, skipped_unparseable = mt.parse_registry_rows(section_text)
+
+    assert [name for name, _, _ in rows] == ["Foo"]
+    assert skipped_unparseable == 0
+
+
 def test_verify_clean_pass_exits_zero(tmp_path):
     """Scenario 1: every row within 10% — exits 0."""
-    (tmp_path / "agents").mkdir()
-    (tmp_path / "agents" / "foo.md").write_text("x" * 400, encoding="utf-8")  # 100 tokens
-    (tmp_path / "skills" / "bar").mkdir(parents=True)
-    (tmp_path / "skills" / "bar" / "SKILL.md").write_text("y" * 200, encoding="utf-8")  # 50 tokens
+    _write_measured_file(tmp_path, "agents/foo.md", 100)
+    _write_measured_file(tmp_path, "skills/bar/SKILL.md", 50)
 
     registry = tmp_path / "agent-registry.md"
     registry.write_text(
@@ -392,8 +422,7 @@ def test_verify_clean_pass_exits_zero(tmp_path):
 
 def test_verify_single_drifted_row_fails(tmp_path):
     """Scenario 2: a single drifted row fails."""
-    (tmp_path / "agents").mkdir()
-    (tmp_path / "agents" / "foo.md").write_text("x" * 400, encoding="utf-8")  # 100 tokens
+    _write_measured_file(tmp_path, "agents/foo.md", 100)
 
     registry = tmp_path / "agent-registry.md"
     registry.write_text(
@@ -417,9 +446,8 @@ def test_verify_single_drifted_row_fails(tmp_path):
 def test_verify_multiple_drifted_rows_all_reported_single_exit(tmp_path):
     """Scenario 3: multiple drifted rows all appear in the report, and the
     run exits non-zero exactly once (a single int, not a per-row exit)."""
-    (tmp_path / "agents").mkdir()
-    (tmp_path / "agents" / "foo.md").write_text("x" * 400, encoding="utf-8")  # 100 tokens
-    (tmp_path / "agents" / "baz.md").write_text("z" * 800, encoding="utf-8")  # 200 tokens
+    _write_measured_file(tmp_path, "agents/foo.md", 100)
+    _write_measured_file(tmp_path, "agents/baz.md", 200)
 
     registry = tmp_path / "agent-registry.md"
     registry.write_text(
@@ -447,8 +475,7 @@ def test_verify_exempted_row_via_exceptions_param_does_not_fail(tmp_path):
     verify_registry accepts an exceptions dict as a parameter rather than
     always reading the module global, so this test injects one directly.
     """
-    (tmp_path / "agents").mkdir()
-    (tmp_path / "agents" / "foo.md").write_text("x" * 400, encoding="utf-8")  # 100 tokens
+    _write_measured_file(tmp_path, "agents/foo.md", 100)
 
     registry = tmp_path / "agent-registry.md"
     registry.write_text(
@@ -470,8 +497,7 @@ def test_verify_exempted_row_via_exceptions_param_does_not_fail(tmp_path):
 def test_verify_skips_empty_file_cell_summary_row(tmp_path):
     """Scenario 5: the '**All team agents**'-style empty-File-cell summary
     row is skipped, not misparsed."""
-    (tmp_path / "agents").mkdir()
-    (tmp_path / "agents" / "foo.md").write_text("x" * 400, encoding="utf-8")
+    _write_measured_file(tmp_path, "agents/foo.md", 100)
 
     registry = tmp_path / "agent-registry.md"
     registry.write_text(
@@ -513,6 +539,38 @@ def test_verify_missing_file_reported_as_error_not_crash(tmp_path):
     assert mt.compute_verify_exit_code(rows, section_errors) == 1
 
 
+def test_verify_row_escaping_base_dir_rejected_before_read(tmp_path, monkeypatch):
+    """Round-1 fix #4: a File cell containing `..` that would resolve
+    outside base_dir is rejected with status "escapes_base" and a non-zero
+    exit — before any filesystem read is attempted. The read guard proves
+    the containment check fires first: this test never actually reads a
+    real system file, it only proves count_tokens is never reached for this
+    row."""
+    registry = tmp_path / "agent-registry.md"
+    registry.write_text(
+        _build_registry_md(
+            team_rows="| Escape | `../../etc/passwd` | ~100 | desc |",
+            skills_rows="",
+        ),
+        encoding="utf-8",
+    )
+
+    real_read_text = Path.read_text
+
+    def _guarded_read_text(self, *args, **kwargs):
+        if self.name != "agent-registry.md":
+            raise AssertionError(f"must never read {self}")
+        return real_read_text(self, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "read_text", _guarded_read_text)
+
+    rows, section_errors = mt.verify_registry(tmp_path, registry, "heuristic")
+
+    assert rows[0].status == "escapes_base"
+    assert rows[0].measured_n is None
+    assert mt.compute_verify_exit_code(rows, section_errors) == 1
+
+
 @pytest.mark.parametrize(
     "declared_n, expected_status",
     [
@@ -526,8 +584,7 @@ def test_verify_deviation_threshold_boundary_relative_to_measured_n(tmp_path, de
     truth, per DEVIATION_THRESHOLD_PCT's own comment), not declared_n — pin
     the exact 10% boundary: exactly 10% stays "ok", just over becomes
     "deviated"."""
-    (tmp_path / "agents").mkdir()
-    (tmp_path / "agents" / "foo.md").write_text("x" * 400, encoding="utf-8")  # 100 measured tokens
+    _write_measured_file(tmp_path, "agents/foo.md", 100)
 
     registry = tmp_path / "agent-registry.md"
     registry.write_text(
@@ -547,8 +604,7 @@ def test_verify_deviation_threshold_boundary_relative_to_measured_n(tmp_path, de
 def test_verify_measured_n_zero_both_zero_is_ok(tmp_path):
     """Fix #6's zero-guard base moved from declared_n == 0 to
     measured_n == 0. When both are zero, deviation is 0.0 (not a crash)."""
-    (tmp_path / "agents").mkdir()
-    (tmp_path / "agents" / "empty.md").write_text("", encoding="utf-8")  # 0 measured tokens
+    _write_measured_file(tmp_path, "agents/empty.md", 0)
 
     registry = tmp_path / "agent-registry.md"
     registry.write_text(
@@ -570,8 +626,7 @@ def test_verify_measured_n_zero_both_zero_is_ok(tmp_path):
 def test_verify_measured_n_zero_nonzero_declared_is_infinite_deviation(tmp_path):
     """Fix #6's zero-guard: measured_n == 0 but declared_n != 0 is an
     infinite deviation — always "deviated", never a ZeroDivisionError."""
-    (tmp_path / "agents").mkdir()
-    (tmp_path / "agents" / "empty.md").write_text("", encoding="utf-8")  # 0 measured tokens
+    _write_measured_file(tmp_path, "agents/empty.md", 0)
 
     registry = tmp_path / "agent-registry.md"
     registry.write_text(
@@ -596,8 +651,7 @@ def test_verify_parses_comma_formatted_declared_value():
 
 
 def test_verify_comma_formatted_declared_value_used_in_comparison(tmp_path):
-    (tmp_path / "agents").mkdir()
-    (tmp_path / "agents" / "foo.md").write_text("x" * 4200, encoding="utf-8")  # 1050 tokens
+    _write_measured_file(tmp_path, "agents/foo.md", 1050)
 
     registry = tmp_path / "agent-registry.md"
     registry.write_text(
@@ -631,8 +685,7 @@ def test_verify_never_reads_claude_md_sources_from_registry_alone(tmp_path, monk
         encoding="utf-8",
     )
 
-    (tmp_path / "agents").mkdir()
-    (tmp_path / "agents" / "foo.md").write_text("x" * 400, encoding="utf-8")  # 100 tokens
+    _write_measured_file(tmp_path, "agents/foo.md", 100)
 
     registry = tmp_path / "agent-registry.md"
     registry.write_text(
@@ -676,10 +729,8 @@ def test_verify_missing_heading_reported_as_clear_error_not_crash(
     missing both — each reported as a clear "section not found" error, not
     a stack trace, with a non-zero exit.
     """
-    (tmp_path / "agents").mkdir()
-    (tmp_path / "agents" / "foo.md").write_text("x" * 400, encoding="utf-8")
-    (tmp_path / "skills" / "bar").mkdir(parents=True)
-    (tmp_path / "skills" / "bar" / "SKILL.md").write_text("y" * 200, encoding="utf-8")
+    _write_measured_file(tmp_path, "agents/foo.md", 100)
+    _write_measured_file(tmp_path, "skills/bar/SKILL.md", 50)
 
     registry = tmp_path / "agent-registry.md"
     registry.write_text(
@@ -728,8 +779,7 @@ def test_verify_zero_parsed_rows_guard_reports_section_error(tmp_path):
         "| Placeholder | `knowledge/placeholder-fixture/*.md` | ~1 | desc |\n",
         encoding="utf-8",
     )
-    (tmp_path / "skills" / "bar").mkdir(parents=True)
-    (tmp_path / "skills" / "bar" / "SKILL.md").write_text("y" * 200, encoding="utf-8")  # 50 tokens
+    _write_measured_file(tmp_path, "skills/bar/SKILL.md", 50)
 
     rows, section_errors = mt.verify_registry(tmp_path, registry, "heuristic")
 
@@ -742,10 +792,8 @@ def test_verify_zero_parsed_rows_guard_reports_section_error(tmp_path):
 def test_verify_knowledge_files_clean_pass_row(tmp_path):
     """Fix #8: a "## Knowledge Files" single-file row within threshold is
     measured and reported "ok", same as Team Agents/Skills Registry rows."""
-    (tmp_path / "agents").mkdir()
-    (tmp_path / "agents" / "foo.md").write_text("x" * 400, encoding="utf-8")  # 100 tokens
-    (tmp_path / "knowledge").mkdir()
-    (tmp_path / "knowledge" / "review-rubric.md").write_text("y" * 200, encoding="utf-8")  # 50 tokens
+    _write_measured_file(tmp_path, "agents/foo.md", 100)
+    _write_measured_file(tmp_path, "knowledge/review-rubric.md", 50)
 
     registry = tmp_path / "agent-registry.md"
     registry.write_text(
@@ -768,10 +816,8 @@ def test_verify_knowledge_files_clean_pass_row(tmp_path):
 def test_verify_knowledge_files_drifted_row_fails(tmp_path):
     """Fix #8: a drifted "## Knowledge Files" single-file row fails the
     same way a drifted Team Agents/Skills Registry row does."""
-    (tmp_path / "agents").mkdir()
-    (tmp_path / "agents" / "foo.md").write_text("x" * 400, encoding="utf-8")  # 100 tokens
-    (tmp_path / "knowledge").mkdir()
-    (tmp_path / "knowledge" / "review-rubric.md").write_text("y" * 1200, encoding="utf-8")  # 300 tokens
+    _write_measured_file(tmp_path, "agents/foo.md", 100)
+    _write_measured_file(tmp_path, "knowledge/review-rubric.md", 300)
 
     registry = tmp_path / "agent-registry.md"
     registry.write_text(
@@ -797,8 +843,7 @@ def test_verify_knowledge_files_glob_row_reported_but_not_counted_as_failure(tmp
     multi-file summed declaration — summation logic isn't built in this
     pass) is reported as "unsupported_glob", never measured against disk,
     and never contributes to a non-zero --verify exit code."""
-    (tmp_path / "agents").mkdir()
-    (tmp_path / "agents" / "foo.md").write_text("x" * 400, encoding="utf-8")  # 100 tokens
+    _write_measured_file(tmp_path, "agents/foo.md", 100)
 
     registry = tmp_path / "agent-registry.md"
     registry.write_text(
@@ -835,8 +880,7 @@ def test_run_verify_uses_heuristic_tokenizer_even_when_detect_tokenizer_selects_
     import types
 
     fixture_plugin_root = tmp_path / "plugins" / "dev-team"
-    (fixture_plugin_root / "agents").mkdir(parents=True)
-    (fixture_plugin_root / "agents" / "foo.md").write_text("x" * 400, encoding="utf-8")  # 100 heuristic tokens
+    _write_measured_file(fixture_plugin_root, "agents/foo.md", 100)
 
     registry_dir = fixture_plugin_root / "knowledge"
     registry_dir.mkdir(parents=True)
@@ -908,8 +952,7 @@ def test_verify_bold_and_coded_file_cell_measures_normally_not_glob(tmp_path):
     misread by the glob-detection check (`"*" in file_path`) as a genuine
     glob wildcard, silently exempting a perfectly normal single-file row
     as "unsupported_glob" instead of measuring it."""
-    (tmp_path / "agents").mkdir()
-    (tmp_path / "agents" / "foo.md").write_text("x" * 400, encoding="utf-8")  # 100 tokens
+    _write_measured_file(tmp_path, "agents/foo.md", 100)
 
     registry = tmp_path / "agent-registry.md"
     registry.write_text(
@@ -924,9 +967,36 @@ def test_verify_bold_and_coded_file_cell_measures_normally_not_glob(tmp_path):
 
     assert section_errors == []
     foo_row = next(row for row in rows if row.name == "Foo")
-    assert foo_row.status in ("ok", "deviated")
+    assert foo_row.status == "ok"
     assert foo_row.status != "unsupported_glob"
     assert foo_row.measured_n == 100
+
+
+def test_verify_bold_wrapped_glob_file_cell_still_detected_as_glob(tmp_path):
+    """Round-1 fix #3: a File cell that is genuinely a glob (e.g.
+    `knowledge/foo/*`) must still be detected as one even when the whole
+    cell is also bold-wrapped (e.g. ``**`knowledge/foo/*`**``). Before this
+    fix, stripping the bold/backtick markup with a blanket
+    ``.strip("`*")`` also ate the glob's own trailing `*`, so a row like
+    this silently reported "missing_file" against a non-existent directory
+    path instead of "unsupported_glob"."""
+    registry = tmp_path / "agent-registry.md"
+    registry.write_text(
+        _build_registry_md(
+            team_rows="| Foo | agents/foo.md | ~100 | desc |",
+            skills_rows="",
+            knowledge_rows="| Foo Glob | **`knowledge/foo/*`** | ~500 | desc |",
+        ),
+        encoding="utf-8",
+    )
+    _write_measured_file(tmp_path, "agents/foo.md", 100)
+
+    rows, section_errors = mt.verify_registry(tmp_path, registry, "heuristic")
+
+    assert section_errors == []
+    glob_row = next(row for row in rows if row.name == "Foo Glob")
+    assert glob_row.status == "unsupported_glob"
+    assert glob_row.measured_n is None
 
 
 def test_compute_verify_exit_code_fails_safe_on_unknown_status(tmp_path):
@@ -948,8 +1018,7 @@ def test_verify_unparseable_declared_value_reported_as_section_error(tmp_path):
     it is surfaced as a section error, distinct from the legitimate,
     silent empty-File-cell summary-row skip which must NOT trigger this
     error."""
-    (tmp_path / "agents").mkdir()
-    (tmp_path / "agents" / "foo.md").write_text("x" * 400, encoding="utf-8")  # 100 tokens
+    _write_measured_file(tmp_path, "agents/foo.md", 100)
 
     registry = tmp_path / "agent-registry.md"
     registry.write_text(
@@ -985,8 +1054,7 @@ def test_verify_cli_flag_dispatches_to_verify_mode(tmp_path, monkeypatch, capsys
     of the bare-mode path, against a fixture repo root (never the live
     plugin tree)."""
     fixture_plugin_root = tmp_path / "plugins" / "dev-team"
-    (fixture_plugin_root / "agents").mkdir(parents=True)
-    (fixture_plugin_root / "agents" / "foo.md").write_text("x" * 400, encoding="utf-8")
+    _write_measured_file(fixture_plugin_root, "agents/foo.md", 100)
 
     registry_dir = fixture_plugin_root / "knowledge"
     registry_dir.mkdir(parents=True)

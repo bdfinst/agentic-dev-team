@@ -82,7 +82,15 @@ def plugin_root(repo_root: Path) -> Path:
     return repo_root / "plugins" / "dev-team"
 
 
-def detect_tokenizer() -> tuple[str, str]:
+def _heuristic_note(suffix: str) -> str:
+    """Shared prefix for the heuristic tokenizer's note text — kept in one
+    place so ``detect_tokenizer`` and ``run_verify`` can't drift apart on the
+    "byte-count heuristic (UTF-8 bytes / N) — ..." wording; each supplies
+    only its own differing tail."""
+    return f"byte-count heuristic (UTF-8 bytes / {HEURISTIC_BYTES_PER_TOKEN}) — {suffix}"
+
+
+def detect_tokenizer() -> tuple[TokenizerName, str]:
     """Pure tokenizer-selection function: given the current environment,
     always returns the same ``(name, note)`` pair — no globals read or set.
     Factored out so later steps (e.g. Step 2.2's ``--verify`` mode) can reuse
@@ -93,16 +101,12 @@ def detect_tokenizer() -> tuple[str, str]:
     except ImportError:
         return (
             "heuristic",
-            (
-                "byte-count heuristic (UTF-8 bytes / "
-                f"{HEURISTIC_BYTES_PER_TOKEN}) — APPROXIMATE. "
-                "Install tiktoken for better accuracy: pip install tiktoken"
-            ),
+            _heuristic_note("APPROXIMATE. Install tiktoken for better accuracy: pip install tiktoken"),
         )
     return "tiktoken", "tiktoken cl100k_base (approximation of Claude tokenizer)"
 
 
-def count_tokens(path: Path, tokenizer: str) -> int:
+def count_tokens(path: Path, tokenizer: TokenizerName) -> int:
     """Count tokens in ``path`` using the given tokenizer name. Caller is
     responsible for confirming ``path`` exists and is a file.
     """
@@ -145,7 +149,7 @@ def resolve_target(repo_root: Path, raw: str) -> Path:
 
 
 def measure_paths(
-    repo_root: Path, raw_paths: list[str], tokenizer: str
+    repo_root: Path, raw_paths: list[str], tokenizer: TokenizerName
 ) -> tuple[list[tuple[str, int | None]], int, int]:
     """Measure each raw path. Returns ``(rows, total, error_count)`` where
     each row is ``(label, tokens)`` with ``tokens`` as ``None`` for a path
@@ -242,6 +246,41 @@ def parse_declared_value(raw: str) -> int | None:
         return None
 
 
+def _strip_file_cell_markup(cell: str) -> str:
+    """Strip markdown code (backtick) and bold (``**``) markers from a
+    registry table's File cell, in either nesting order
+    (``**`agents/foo.md`**`` or `` `**agents/foo.md**` ``), without
+    disturbing a genuine trailing glob ``*`` the cell may legitimately end
+    with (e.g. `` `knowledge/foo/*` ``).
+
+    Unlike a blanket ``.strip("`*")`` character-set strip, this removes only
+    matched markup tokens — a single backtick, or a full ``**`` pair — one
+    token at a time from each end, so a lone trailing ``*`` that is part of
+    the path itself (not a bold marker) is never mistaken for markup and
+    stripped away. Repeats until neither end has a markup token left, so
+    both nesting orders above reduce to the bare path in either order the
+    two layers were stripped.
+    """
+    cell = cell.strip()
+    changed = True
+    while changed:
+        changed = False
+        if cell.startswith("**"):
+            cell = cell[2:]
+            changed = True
+        elif cell.startswith("`"):
+            cell = cell[1:]
+            changed = True
+        if cell.endswith("**"):
+            cell = cell[:-2]
+            changed = True
+        elif cell.endswith("`"):
+            cell = cell[:-1]
+            changed = True
+        cell = cell.strip()
+    return cell
+
+
 def parse_registry_rows(section_text: str) -> tuple[list[tuple[str, str, int]], int]:
     """Parse a registry markdown table block into ``(name, file_path,
     declared_n)`` tuples.
@@ -270,15 +309,21 @@ def parse_registry_rows(section_text: str) -> tuple[list[tuple[str, str, int]], 
     for line in data_lines:
         cells = [c.strip() for c in line.strip().strip("|").split("|")]
         if len(cells) < 3:
+            # A markdown table row this malformed (fewer than the 3
+            # pipe-delimited cells a Name/File/~Tokens row requires) isn't a
+            # normal registry shape, so it's silently skipped and not
+            # counted as a diagnosable "unparseable" row the way the
+            # declared-value-parse-failure branch below is.
             continue
         name = cells[0].strip("*").strip()
-        # strip("`*") strips backtick and asterisk as a character set, not a
-        # fixed sequence, so it handles both nesting orders a bold+coded File
-        # cell can appear in (`**`agents/foo.md`**` or `` `**agents/foo.md**` ``)
-        # in one call — without this, a bold File cell's leftover `*` markers
-        # would be misread as a glob wildcard by the later `"*" in file_path`
-        # check in `_build_verify_row`.
-        file_path = cells[1].strip("`*").strip()
+        # _strip_file_cell_markup handles both nesting orders a bold+coded
+        # File cell can appear in (`**`agents/foo.md`**` or
+        # `` `**agents/foo.md**` ``) without also stripping a genuine
+        # trailing glob `*` the cell may legitimately end with — a blanket
+        # `.strip("`*")` character-set strip would eat that glob character
+        # too, causing the later `"*" in file_path` check in
+        # `_build_verify_row` to miss it.
+        file_path = _strip_file_cell_markup(cells[1])
         if not file_path:
             continue
         declared_n = parse_declared_value(cells[2])
@@ -289,11 +334,17 @@ def parse_registry_rows(section_text: str) -> tuple[list[tuple[str, str, int]], 
     return rows, skipped_unparseable
 
 
+# The two tokenizer names detect_tokenizer's fallback chain can select. A
+# Literal (rather than a bare `str`) makes this the single canonical
+# definition of the valid set, matching VerifyStatus's rationale below,
+# instead of re-typing "heuristic"/"tiktoken" at each parameter site.
+TokenizerName = Literal["tiktoken", "heuristic"]
+
 # The closed set of statuses a VerifyRow can carry. A Literal (rather than a
 # bare `str`) makes this the single canonical definition of the valid set,
 # instead of re-typing the same four-going-on-five string literals at each
 # assignment site and in compute_verify_exit_code's membership check.
-VerifyStatus = Literal["ok", "deviated", "exempt", "missing_file", "unsupported_glob"]
+VerifyStatus = Literal["ok", "deviated", "exempt", "missing_file", "unsupported_glob", "escapes_base"]
 
 
 @dataclass
@@ -312,7 +363,7 @@ class VerifyRow:
 
 
 def _build_verify_row(
-    heading: str,
+    section: str,
     name: str,
     file_path: str,
     declared_n: int,
@@ -328,11 +379,18 @@ def _build_verify_row(
         # pass (a known, documented limitation, not a defect). Reported
         # visibly as "unsupported_glob" rather than silently dropped, and
         # excluded from the --verify exit code by compute_verify_exit_code.
-        return VerifyRow(heading, name, file_path, declared_n, None, None, "unsupported_glob")
+        return VerifyRow(section, name, file_path, declared_n, None, None, "unsupported_glob")
+
+    resolved = (base_dir / file_path).resolve()
+    if not resolved.is_relative_to(base_dir.resolve()):
+        # A registry row whose File cell contains ".." or an absolute path
+        # could otherwise resolve outside base_dir — reject before ever
+        # probing the filesystem at that path.
+        return VerifyRow(section, name, file_path, declared_n, None, None, "escapes_base")
 
     target = base_dir / file_path
     if not target.is_file():
-        return VerifyRow(heading, name, file_path, declared_n, None, None, "missing_file")
+        return VerifyRow(section, name, file_path, declared_n, None, None, "missing_file")
 
     measured_n = count_tokens(target, tokenizer)
     # Normalized against measured_n, not declared_n: the module treats the
@@ -354,7 +412,7 @@ def _build_verify_row(
     else:
         status = "ok"
 
-    return VerifyRow(heading, name, file_path, declared_n, measured_n, deviation_pct, status, reason)
+    return VerifyRow(section, name, file_path, declared_n, measured_n, deviation_pct, status, reason)
 
 
 def verify_registry(
@@ -383,23 +441,23 @@ def verify_registry(
     rows: list[VerifyRow] = []
     section_errors: list[str] = []
 
-    for heading in ("Team Agents", "Skills Registry", "Knowledge Files"):
-        block = extract_table_block(text, heading)
+    for section in ("Team Agents", "Skills Registry", "Knowledge Files"):
+        block = extract_table_block(text, section)
         if block is None:
-            section_errors.append(f"section not found: ## {heading}")
+            section_errors.append(f"section not found: ## {section}")
             continue
 
         section_rows, skipped_unparseable = parse_registry_rows(block)
         if not section_rows:
-            section_errors.append(f"'## {heading}' found but zero rows parsed — check table format")
+            section_errors.append(f"'## {section}' found but zero rows parsed — check table format")
             continue
         if skipped_unparseable:
             section_errors.append(
-                f"'## {heading}': {skipped_unparseable} row(s) skipped — unparseable declared value"
+                f"'## {section}': {skipped_unparseable} row(s) skipped — unparseable declared value"
             )
 
         for name, file_path, declared_n in section_rows:
-            rows.append(_build_verify_row(heading, name, file_path, declared_n, base_dir, tokenizer, exceptions))
+            rows.append(_build_verify_row(section, name, file_path, declared_n, base_dir, tokenizer, exceptions))
 
     return rows, section_errors
 
@@ -407,17 +465,18 @@ def verify_registry(
 def compute_verify_exit_code(rows: list[VerifyRow], section_errors: list[str]) -> int:
     """0 when every row is ok/exempt/unsupported_glob and no expected
     section is missing or empty; 1 when any row deviated past threshold, any
-    row's file is missing, or any expected heading wasn't found or parsed
-    zero rows. A glob row (status "unsupported_glob") is a known, documented
-    limitation, not a failure, so it never contributes to a non-zero exit."""
+    row's file is missing, any row's file path escapes base_dir, or any
+    expected heading wasn't found or parsed zero rows. A glob row (status
+    "unsupported_glob") is a known, documented limitation, not a failure, so
+    it never contributes to a non-zero exit."""
     if section_errors:
         return 1
-    # Allowlist, not a denylist: fails safe if a 6th status is ever added
+    # Allowlist, not a denylist: fails safe if a 7th status is ever added
     # without this function being updated to know about it. Equivalent
-    # today to `row.status in ("deviated", "missing_file")`, since those
-    # are the only two statuses outside the passing set — but a denylist
-    # silently treats any *future* unrecognized status as passing, while
-    # this allowlist treats it as failing.
+    # today to `row.status in ("deviated", "missing_file", "escapes_base")`,
+    # since those are the only three statuses outside the passing set — but
+    # a denylist silently treats any *future* unrecognized status as
+    # passing, while this allowlist treats it as failing.
     if any(row.status not in ("ok", "exempt", "unsupported_glob") for row in rows):
         return 1
     return 0
@@ -473,15 +532,11 @@ def run_verify(repo_root: Path) -> int:
     gate's verdict must not depend on what happens to be installed locally
     (same rationale as this repo's own requirements-dev.txt ruff pin).
     """
-    registry_path = repo_root / "plugins" / "dev-team" / "knowledge" / "agent-registry.md"
-    base_dir = repo_root / "plugins" / "dev-team"
+    base_dir = plugin_root(repo_root)
+    registry_path = base_dir / "knowledge" / "agent-registry.md"
 
-    tokenizer = "heuristic"
-    tokenizer_note = (
-        "byte-count heuristic (UTF-8 bytes / "
-        f"{HEURISTIC_BYTES_PER_TOKEN}) — forced for --verify regardless of "
-        "environment (see run_verify docstring)"
-    )
+    tokenizer: TokenizerName = "heuristic"
+    tokenizer_note = _heuristic_note("forced for --verify regardless of environment (see run_verify docstring)")
 
     rows, section_errors = verify_registry(base_dir, registry_path, tokenizer, VERIFY_EXCEPTIONS)
     print_verify_report(registry_path, tokenizer_note, rows, section_errors)
