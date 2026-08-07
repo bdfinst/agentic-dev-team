@@ -193,6 +193,29 @@ class _RetryState:
     streak: int = 0
     downgraded: bool = False
 
+    def record_gateway_failure(self) -> int:
+        """Increment the consecutive-gateway-failure streak and return the
+        new count."""
+        self.streak += 1
+        return self.streak
+
+    def reset_streak(self) -> None:
+        """Zero the consecutive-gateway-failure streak."""
+        self.streak = 0
+
+    def spend_downgrade(self, to_model: str) -> None:
+        """Spend this file's one-and-only downgrade, moving to ``to_model``.
+
+        Raises :class:`RuntimeError` if this state has already spent its one
+        downgrade — a file gets exactly one downgrade, ever (#1908).
+        """
+        if self.downgraded:
+            raise RuntimeError(
+                f"file already spent its one downgrade (current model {self.model!r})"
+            )
+        self.model = to_model
+        self.downgraded = True
+
 
 @dataclass(frozen=True)
 class _RetryCallContext:
@@ -255,8 +278,7 @@ def _retry_once_then_maybe_downgrade(
             ctx.on_downgrade(event)
         if to_model is None:
             raise GenerationExhausted(_format_downgrade_message(event)) from retry_exc
-        state.model = to_model
-        state.downgraded = True
+        state.spend_downgrade(to_model)
         return None
 
 
@@ -347,15 +369,15 @@ def make_retrying_headless_call(
                     # Never counts toward the threshold, and breaks an
                     # in-progress gateway-class streak rather than being
                     # skipped over.
-                    state.streak = 0
+                    state.reset_streak()
                     raise
-                state.streak += 1
-                if state.streak < _GATEWAY_FAILURE_THRESHOLD:
-                    sleep(min(_BACKOFF_BASE ** (state.streak - 1), _BACKOFF_CAP_S))
+                current_streak = state.record_gateway_failure()
+                if current_streak < _GATEWAY_FAILURE_THRESHOLD:
+                    sleep(min(_BACKOFF_BASE ** (current_streak - 1), _BACKOFF_CAP_S))
                     continue  # transparently retry, same model
                 # 3rd consecutive gateway-class failure: exactly one
                 # same-model retry before considering downgrade.
-                state.streak = 0
+                state.reset_streak()
                 retry_result = _retry_once_then_maybe_downgrade(
                     state,
                     prompt,
@@ -367,7 +389,7 @@ def make_retrying_headless_call(
                     continue  # downgraded — retry the 3-then-1 sequence on the new model
                 return retry_result
             else:
-                state.streak = 0
+                state.reset_streak()
                 return result
 
     return call

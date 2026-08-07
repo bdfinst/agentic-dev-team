@@ -128,6 +128,42 @@ def test_generation_exhausted_is_a_runtime_error():
 
 
 # =============================================================================
+# _RetryState — named, guarded transition methods (#1918, Slice 2 Step 2.1).
+# =============================================================================
+def test_spend_downgrade_sets_model_and_downgraded_on_a_fresh_state():
+    state = retry._RetryState(model="opus")
+
+    state.spend_downgrade("haiku")
+
+    assert state.model == "haiku"
+    assert state.downgraded is True
+
+
+def test_spend_downgrade_raises_when_already_spent():
+    state = retry._RetryState(model="sonnet", downgraded=True)
+
+    with pytest.raises(RuntimeError):
+        state.spend_downgrade("haiku")
+
+    assert state.model == "sonnet"  # unchanged by the rejected call
+
+
+def test_record_gateway_failure_returns_the_new_streak_count():
+    state = retry._RetryState(model="opus")
+
+    assert state.record_gateway_failure() == 1
+    assert state.record_gateway_failure() == 2
+
+
+def test_reset_streak_zeroes_the_counter_regardless_of_its_prior_value():
+    state = retry._RetryState(model="opus", streak=2)
+
+    state.reset_streak()
+
+    assert state.streak == 0
+
+
+# =============================================================================
 # make_retrying_headless_call — the 3-consecutive-gateway-class-failures ->
 # 1-same-model-retry -> at-most-once-per-file-downgrade mechanism (#1908,
 # Slice 3 Step 3.2). Every scenario in the plan's Slice 3 Behavior block is
