@@ -82,7 +82,22 @@ def test_flag_bullet_states_default_off_and_scope(invocation_flat: str) -> None:
 
 
 def test_flag_bullet_states_agent_parsed_not_argparse(invocation_flat: str) -> None:
-    assert re.search(r"agent-parsed.{0,40}no argparse CLI for JS/TS", invocation_flat)
+    """Corrected wording (round-3 pre-merge review, #1937): the OLD claim
+    ("agent-parsed ... no argparse CLI for JS/TS") was stale — this branch's
+    own mutation_report_cli.py IS a real, shipped argparse-flag CLI for
+    JS/TS. Pin the narrower, corrected claim instead: the *invocation* flag
+    has no argparse CLI on the JS/TS loop scripts; the underlying filter
+    *computation* it drives does have one, on mutation_report_cli.py."""
+    assert re.search(
+        r"invocation flag itself remains agent-parsed prose.{0,10}no argparse "
+        r"CLI on the JS/TS loop scripts",
+        invocation_flat,
+    )
+    assert re.search(
+        r"filter computation it drives is a real,? shipped argparse flag on"
+        r".{0,5}mutation_report_cli\.py",
+        invocation_flat,
+    )
 
 
 def test_flag_bullet_links_to_javascript_stryker_mechanics(invocation_flat: str) -> None:

@@ -68,7 +68,7 @@ def _maybe_warn_skip_static_inapplicable(data: dict, file_path: str) -> None:
     """
     if mutation_report.has_static_field(data, file_path):
         return
-    if mutation_report.file_in_report(data, file_path):
+    if mutation_report.is_file_in_report(data, file_path):
         sys.stderr.write(
             f"skip-static: no mutant in {file_path} carries a "
             "'static' field — skip is inapplicable\n"
@@ -100,13 +100,17 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.survivors_by_line:
         result = mutation_report.survivors_by_line(report_path, args.file)
-    else:
-        if args.skip_static:
-            data = mutation_report.load_report(report_path)
-            _maybe_warn_skip_static_inapplicable(data, args.file)
-        result = mutation_report.survivors_by_mutator(
-            report_path, args.file, skip_static=args.skip_static
+    elif args.skip_static:
+        # Single load: reuse the same parsed dict for the inapplicable-skip
+        # diagnostic and the survivor computation, instead of the diagnostic
+        # loading once and survivors_by_mutator() loading a second time.
+        data = mutation_report.load_report(report_path)
+        _maybe_warn_skip_static_inapplicable(data, args.file)
+        result = mutation_report.survivors_by_mutator_from_data(
+            data, args.file, skip_static=True
         )
+    else:
+        result = mutation_report.survivors_by_mutator(report_path, args.file)
 
     print(json.dumps(result, indent=2))
     return 0

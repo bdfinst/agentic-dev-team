@@ -59,8 +59,10 @@ def test_clustering_groups_by_source_line_and_cites_the_script(
     is performed."""
     assert re.search(r"[Gg]roup survivors by", priority_flat)
     assert re.search(r"survivors_by_line\(\)", priority_flat)
+    # ADR 0032/0033 (round-3 pre-merge review, #1937): the CLI invocation is
+    # cited ${CLAUDE_PLUGIN_ROOT}-qualified and quoted, not bare.
     assert re.search(
-        r"mutation_report_cli\.py --survivors-by-line", priority_flat
+        r'mutation_report_cli\.py"\s+--survivors-by-line', priority_flat
     )
     assert re.search(r"no adjacent-line merging is\s+performed", priority_flat)
 

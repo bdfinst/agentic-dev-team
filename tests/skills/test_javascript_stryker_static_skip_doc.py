@@ -87,10 +87,13 @@ def test_mechanism_cites_the_survivor_extraction_functions(
         r"survivors_by_mutator\(\.\.\.,\s*skip_static=True\).*?mutation_report\.py",
         static_skip_flat,
     )
+    # ADR 0032/0033 (round-3 pre-merge review, #1937): the CLI invocation is
+    # cited ${CLAUDE_PLUGIN_ROOT}-qualified and quoted, not bare.
     assert (
-        "mutation_report_cli.py --survivors-by-mutator --skip-static"
+        '"${CLAUDE_PLUGIN_ROOT}/skills/mutation-testing/scripts/mutation_report_cli.py"'
         in static_skip_flat
     )
+    assert "--survivors-by-mutator --skip-static" in static_skip_flat
 
 
 def test_mechanism_explains_why_a_static_mutant_forces_a_full_suite_rerun(

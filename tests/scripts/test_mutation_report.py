@@ -636,6 +636,38 @@ def test_skip_static_default_false_keeps_static_survivor(tmp_path: Path):
     assert set(grouped) == {"StringLiteral"}
 
 
+# =============================================================================
+# Scenario: survivors_by_mutator_from_data() is a thin data-based wrapper
+# around _survivors_from_data(), mirroring survivors_by_mutator()'s own
+# behavior without re-parsing the report from disk (performance-review
+# finding, #1937 pre-merge round: the CLI's --skip-static path used to load
+# the report twice)
+# =============================================================================
+def test_survivors_by_mutator_from_data_matches_survivors_by_mutator(tmp_path: Path):
+    report = _write_report(
+        tmp_path / "mutation-report.json",
+        {
+            "src/Widget.cs": {
+                "mutants": [
+                    _mutant_static("Survived", True),
+                    _mutant_static("Survived", False, mutator="ArithmeticOperator"),
+                ]
+            }
+        },
+    )
+    data = mutation_report.load_report(report)
+
+    from_data = mutation_report.survivors_by_mutator_from_data(
+        data, "src/Widget.cs", skip_static=True
+    )
+    from_path = mutation_report.survivors_by_mutator(
+        report, "src/Widget.cs", skip_static=True
+    )
+
+    assert from_data == from_path
+    assert set(from_data) == {"ArithmeticOperator"}
+
+
 def test_has_static_field_true_when_a_mutant_carries_the_key(tmp_path: Path):
     report = _write_report(
         tmp_path / "mutation-report.json",
@@ -678,28 +710,28 @@ def test_has_static_field_false_when_file_absent_from_report(tmp_path: Path):
     )
 
 
-def test_file_in_report_true_when_file_matches(tmp_path: Path):
+def test_is_file_in_report_true_when_file_matches(tmp_path: Path):
     report = _write_report(
         tmp_path / "mutation-report.json",
         {"src/Widget.cs": {"mutants": [_mutant("Survived")]}},
     )
 
     assert (
-        mutation_report.file_in_report(
+        mutation_report.is_file_in_report(
             mutation_report.load_report(report), "src/Widget.cs"
         )
         is True
     )
 
 
-def test_file_in_report_false_when_file_does_not_match(tmp_path: Path):
+def test_is_file_in_report_false_when_file_does_not_match(tmp_path: Path):
     report = _write_report(
         tmp_path / "mutation-report.json",
         {"src/Widget.cs": {"mutants": [_mutant("Survived")]}},
     )
 
     assert (
-        mutation_report.file_in_report(
+        mutation_report.is_file_in_report(
             mutation_report.load_report(report), "src/Nope.cs"
         )
         is False

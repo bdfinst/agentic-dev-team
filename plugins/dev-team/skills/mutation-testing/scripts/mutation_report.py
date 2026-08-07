@@ -242,6 +242,22 @@ def survivors_by_mutator(
     )
 
 
+def survivors_by_mutator_from_data(
+    data: dict, file_path: str, skip_static: bool = False
+) -> dict[str, list[dict]]:
+    """Return the Survived mutants for one source file, grouped by mutator
+    name, from an already-parsed report dict.
+
+    Thin public wrapper around ``_survivors_from_data`` — lets a caller that
+    already holds a parsed report (e.g. the CLI's ``--skip-static`` path,
+    which loads the report once to run ``has_static_field``/
+    ``is_file_in_report`` diagnostics before computing survivors) reuse that
+    dict instead of triggering a second, redundant ``load_report`` call. See
+    ``_survivors_from_data`` for the ``skip_static`` behavior.
+    """
+    return _survivors_from_data(data, file_path, skip_static=skip_static)
+
+
 def has_static_field(data: dict, file_path: str) -> bool:
     """Return whether any mutant in the matched file's list carries a
     ``"static"`` key, from an already-parsed report dict.
@@ -251,7 +267,7 @@ def has_static_field(data: dict, file_path: str) -> bool:
     has no mutant carrying a ``"static"`` key and when ``file_path`` isn't
     present in the report at all (``_find_file_info`` returns ``None``) —
     the two cases are not distinguished by this function's return value; use
-    ``file_in_report`` alongside it to tell them apart.
+    ``is_file_in_report`` alongside it to tell them apart.
 
     Data-based (takes an already-parsed ``data`` dict) rather than
     ``Path``-based. This module's public API is not uniformly ``Path``-based
@@ -260,7 +276,9 @@ def has_static_field(data: dict, file_path: str) -> bool:
     an established shape, not a new one. It exists to serve the CLI's
     pre-dispatch diagnostic, which already holds the parsed report; a
     ``Path``-based signature would force the ``--skip-static`` path to
-    parse the report a third time instead of a second.
+    parse the report an extra, redundant time instead of reusing the dict
+    it already loaded once (see ``survivors_by_mutator_from_data``, which
+    the same CLI path reuses this dict with, for the same reason).
     """
     info = _find_file_info(data, file_path)
     if info is None:
@@ -268,7 +286,7 @@ def has_static_field(data: dict, file_path: str) -> bool:
     return any(MUTANT_STATIC_KEY in mutant for mutant in info.get("mutants", []))
 
 
-def file_in_report(data: dict, file_path: str) -> bool:
+def is_file_in_report(data: dict, file_path: str) -> bool:
     """Return whether ``file_path`` matches any report key, from an
     already-parsed report dict.
 
