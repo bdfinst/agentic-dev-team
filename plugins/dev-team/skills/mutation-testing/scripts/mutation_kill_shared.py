@@ -375,6 +375,27 @@ def strip_code_fences(text: str) -> str:
     return text.strip()
 
 
+class HeadlessCallFailed(RuntimeError):
+    """Raised by :func:`run_claude_headless` when ``claude --print`` exits
+    non-zero.
+
+    Carries the full, untruncated ``returncode``/``stderr`` as public
+    attributes for callers that need to inspect them directly; ``__str__``
+    truncates ``stderr`` to 500 bytes to stay byte-for-byte identical to the
+    plain ``RuntimeError`` message this type replaces, so any existing
+    ``str(exc)``-only consumer (e.g. ``is_gateway_class_error`` in
+    ``mutation_kill_retry.py``) is unaffected.
+    """
+
+    def __init__(self, returncode: int, stderr: str) -> None:
+        self.returncode = returncode
+        self.stderr = stderr
+        super().__init__(str(self))
+
+    def __str__(self) -> str:
+        return f"claude CLI failed (exit {self.returncode}): {self.stderr[:500]}"
+
+
 def claude_cli_available() -> bool:
     """True if the Claude CLI responds to ``--version``."""
     try:
@@ -426,9 +447,7 @@ def run_claude_headless(prompt: str, *, model: str | None, cwd: Path | None = No
             "DEV_TEAM_MUTATION_GENERATION_TIMEOUT_S to raise it)"
         ) from exc
     if result.returncode != 0:
-        raise RuntimeError(
-            f"claude CLI failed (exit {result.returncode}): {result.stderr[:500]}"
-        )
+        raise HeadlessCallFailed(result.returncode, result.stderr)
     return strip_code_fences(result.stdout)
 
 

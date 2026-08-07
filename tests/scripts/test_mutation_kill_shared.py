@@ -668,6 +668,75 @@ def test_run_claude_headless_raises_on_a_nonzero_claude_exit(
         shared.run_claude_headless("prompt", model=None)
 
 
+# =============================================================================
+# HeadlessCallFailed — typed gateway-class error, replacing the plain
+# RuntimeError raised on a non-zero claude CLI exit (#1938 Slice 1 Step 1.1).
+# =============================================================================
+def test_headless_call_failed_is_a_runtime_error():
+    assert issubclass(shared.HeadlessCallFailed, RuntimeError)
+
+
+def test_headless_call_failed_str_matches_todays_exact_message():
+    exc = shared.HeadlessCallFailed(1, "some error text")
+    assert str(exc) == "claude CLI failed (exit 1): some error text"
+
+
+def test_run_claude_headless_raises_headless_call_failed_on_nonzero_exit(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    class _R:
+        returncode = 1
+        stdout = ""
+        stderr = "some error text"
+
+    monkeypatch.setattr(shared.subprocess, "run", lambda argv, **kwargs: _R())
+
+    with pytest.raises(shared.HeadlessCallFailed) as exc_info:
+        shared.run_claude_headless("prompt", model=None)
+
+    assert exc_info.value.returncode == 1
+    assert exc_info.value.stderr == "some error text"
+
+
+def test_run_claude_headless_headless_call_failed_stderr_is_not_truncated(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    long_stderr = "x" * 600
+
+    class _R:
+        returncode = 1
+        stdout = ""
+        stderr = long_stderr
+
+    monkeypatch.setattr(shared.subprocess, "run", lambda argv, **kwargs: _R())
+
+    with pytest.raises(shared.HeadlessCallFailed) as exc_info:
+        shared.run_claude_headless("prompt", model=None)
+
+    assert exc_info.value.stderr == long_stderr
+    assert len(exc_info.value.stderr) == 600
+    # __str__ still truncates to 500 bytes — only the constructor arg/attr
+    # carries the full, untruncated stderr.
+    assert len(str(exc_info.value)) < 600
+
+
+def test_run_claude_headless_timeout_path_still_raises_plain_runtime_error(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    """The TimeoutExpired branch is untouched — it must never raise
+    HeadlessCallFailed, only a plain RuntimeError."""
+
+    def fake_run(argv, **kwargs):
+        raise shared.subprocess.TimeoutExpired(argv, kwargs.get("timeout"))
+
+    monkeypatch.setattr(shared.subprocess, "run", fake_run)
+
+    with pytest.raises(RuntimeError) as exc_info:
+        shared.run_claude_headless("prompt", model=None)
+
+    assert type(exc_info.value) is RuntimeError
+
+
 def test_run_claude_headless_strips_fences_from_the_result(
     monkeypatch: pytest.MonkeyPatch,
 ):
