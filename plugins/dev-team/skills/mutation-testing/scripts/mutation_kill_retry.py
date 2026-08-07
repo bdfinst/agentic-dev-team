@@ -14,23 +14,31 @@ concern; ``mutation_kill_shared.py`` keeps git mechanics, ``_timeout_from_env``,
 ``claude --print`` invocation glue, and the ``InsertOutcome``/``InsertionRefused``
 shapes.
 
-The 502/gateway-class error definition is EXACT: a
+The type precondition for the 502/gateway-class error definition is EXACT: a
 :class:`mutation_kill_shared.HeadlessCallFailed` raised by
 ``run_claude_headless``'s non-zero-exit shape (never its
 ``TimeoutExpired``-derived shape, which raises a plain ``RuntimeError`` — a
-local generation timeout, not an upstream provider signal) whose full,
-untruncated ``stderr``, case-insensitively, either contains one of the
-non-numeric markers below or matches the anchored numeral pattern
-(``_GATEWAY_STATUS_RE``) — a bare ``"502"``/``"503"``/``"504"`` substring is
-not enough on its own (#1938).
+local generation timeout, not an upstream provider signal). Within that type,
+the classifier reads the full, untruncated ``stderr``, case-insensitively,
+for either one of the non-numeric markers below or the anchored numeral
+pattern (``_GATEWAY_STATUS_RE``) — a bare ``"502"``/``"503"``/``"504"``
+substring is not enough on its own (#1938). That marker/regex match is a
+best-effort heuristic, not an exhaustive one: it does not yet recognize
+``error_code: 503``-style underscore-joined tokens, status 529, or errors
+that only appear on stdout — filed and deliberately deferred rather than
+fixed in this slice, see #1950.
 
-This module's only dependency on ``mutation_kill_shared`` is
+This module's dependencies on ``mutation_kill_shared`` are
 ``run_claude_headless``/``resolve_fallback_model`` — both accessed via the
 module object (``mutation_kill_shared.run_claude_headless(...)``), not a
 ``from ... import`` binding, so a test's ``monkeypatch.setattr(mutation_kill_shared,
 "run_claude_headless", fake)`` takes effect here too (mirrors the existing
 same-module-globals contract ``_mutation_test_helpers.sequenced_run_claude_headless``
-already documents).
+already documents) — plus ``HeadlessCallFailed``, referenced only as a type
+(``isinstance(exc, mutation_kill_shared.HeadlessCallFailed)``), which carries
+no monkeypatch sensitivity of its own since nothing here calls it. (This
+mirrors the dependency inventory documented from the other direction in
+``mutation_kill_shared.py``'s own module docstring — keep the two in sync.)
 
 Stdlib-only. See ADR 0014.
 """

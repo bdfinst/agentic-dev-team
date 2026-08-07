@@ -19,7 +19,7 @@ from __future__ import annotations
 import sys
 
 import pytest
-from _mutation_test_helpers import SCRIPTS_DIR, sequenced_run_claude_headless
+from _mutation_test_helpers import SCRIPTS_DIR, gateway_error, sequenced_run_claude_headless
 
 sys.path.insert(0, str(SCRIPTS_DIR))
 
@@ -32,7 +32,7 @@ import mutation_kill_shared as shared
 # (#1908, Slice 3 Step 3.2).
 # =============================================================================
 def _exit_error(stderr: str) -> shared.HeadlessCallFailed:
-    return shared.HeadlessCallFailed(1, stderr)
+    return gateway_error(stderr)
 
 
 def _timeout_error() -> RuntimeError:

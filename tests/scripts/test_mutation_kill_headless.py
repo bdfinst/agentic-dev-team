@@ -27,6 +27,7 @@ import pytest
 from _mutation_test_helpers import (
     FORBIDDEN_LITERALS,
     SCRIPTS_DIR,
+    gateway_error,
     sequenced_run_claude_headless,
 )
 
@@ -59,10 +60,6 @@ def _mutant(status: str, mutator: str = "ArithmeticOperator", line: int = 1) -> 
         "location": {"start": {"line": line}},
         "replacement": "<replacement>",
     }
-
-
-def _gateway_error() -> shared.HeadlessCallFailed:
-    return shared.HeadlessCallFailed(1, "502 Bad Gateway")
 
 
 # =============================================================================
@@ -353,10 +350,10 @@ def test_make_headless_generator_derives_round_number_from_call_count(
         monkeypatch,
         shared,
         "round-1-result",
-        _gateway_error(),
-        _gateway_error(),
-        _gateway_error(),
-        _gateway_error(),
+        gateway_error(),
+        gateway_error(),
+        gateway_error(),
+        gateway_error(),
         "round-2-result",
     )
     generate = headless.make_headless_generator(
@@ -377,7 +374,7 @@ def test_make_headless_generator_propagates_generation_exhausted(
     monkeypatch.delenv("DEV_TEAM_MUTATION_FALLBACK_MODEL", raising=False)
     sequenced_run_claude_headless(
         monkeypatch, shared,
-        *([_gateway_error()] * 8),
+        *([gateway_error()] * 8),
     )
     generate = headless.make_headless_generator(
         "opus", log=lambda _: None, sleep=lambda _s: None
@@ -393,7 +390,7 @@ def test_make_headless_generator_closures_do_not_share_downgrade_state(
     monkeypatch.delenv("DEV_TEAM_MUTATION_FALLBACK_MODEL", raising=False)
     seen = sequenced_run_claude_headless(
         monkeypatch, shared,
-        _gateway_error(), _gateway_error(), _gateway_error(), _gateway_error(),
+        gateway_error(), gateway_error(), gateway_error(), gateway_error(),
         "ok-on-sonnet",
     )
     generate_a = headless.make_headless_generator("opus", sleep=lambda _s: None)
@@ -456,7 +453,7 @@ def test_make_headless_generator_label_override_reflects_a_downgrade(
     monkeypatch.delenv("DEV_TEAM_MUTATION_FALLBACK_MODEL", raising=False)
     sequenced_run_claude_headless(
         monkeypatch, shared,
-        _gateway_error(), _gateway_error(), _gateway_error(), _gateway_error(),
+        gateway_error(), gateway_error(), gateway_error(), gateway_error(),
         "ok-on-sonnet",
     )
     on_downgrade, get_label_override = retry.make_downgrade_audit_hook()

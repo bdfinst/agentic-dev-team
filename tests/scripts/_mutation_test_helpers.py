@@ -52,6 +52,12 @@ SCRIPTS_DIR = (
     / "scripts"
 )
 
+import sys  # noqa: E402 (must follow SCRIPTS_DIR's definition)
+
+sys.path.insert(0, str(SCRIPTS_DIR))
+
+import mutation_kill_shared  # noqa: E402 (see sys.path.insert above)
+
 FORBIDDEN_LITERALS = ["Aci.Speedpay", "Controllers", "AwesomeAssertions", "Moq", "AutoFixture"]
 
 _GIT_SCRUB_ENV_VARS = (
@@ -92,6 +98,18 @@ def git_hermetic(cwd: Path, *args: str) -> subprocess.CompletedProcess:
         env=hermetic_git_env(home=cwd),
         check=True,
     )
+
+
+def gateway_error(
+    stderr: str = "502 Bad Gateway", returncode: int = 1
+) -> mutation_kill_shared.HeadlessCallFailed:
+    """A ``HeadlessCallFailed`` shaped like a gateway-class upstream failure.
+
+    Extracted (#1938 review) out of near-identical ``_gateway_error()``
+    copies previously defined verbatim in ``test_mutation_kill_headless.py``
+    and ``test_mutation_kill_loop_python_cli.py``.
+    """
+    return mutation_kill_shared.HeadlessCallFailed(returncode, stderr)
 
 
 def sequenced_run_claude_headless(
