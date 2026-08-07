@@ -40,7 +40,7 @@ structurally-unkillable code. Everything else is delegated.
 - `--report <path>` — load an existing report instead of running the tool (first round only).
 - `--max-rounds <n>` — maximum rounds per file (default: 5).
 - `--concurrency <n>` — parallel files via git worktrees when using `--all` (default: 2; max = physical cores − 2); `--parallel <n>` — Phase 4 sub-agent fan-out via the Agent tool (in-process, no worktrees; see [Sub-agent fan-out within a file](#sub-agent-fan-out-within-a-file---parallel)).
-- `--skip-static-mutants` — opt-in, default OFF; JS/TS (Stryker) path only, agent-parsed (no argparse CLI for JS/TS). See [Static-mutant skip](../skills/mutation-testing/references/languages/javascript-stryker.md#static-mutant-skip-skip-static-mutants) for the full contract.
+- `--skip-static-mutants` — opt-in, default OFF; JS/TS (Stryker) path only. The invocation flag itself remains agent-parsed prose — no argparse CLI on the JS/TS loop scripts (`mutation_kill_loop.py`/`mutation_kill_loop_python.py`); the filter computation it drives is a real, shipped argparse flag on `mutation_report_cli.py` (`--survivors-by-mutator --skip-static`). See [Static-mutant skip](../skills/mutation-testing/references/languages/javascript-stryker.md#static-mutant-skip-skip-static-mutants) for the full contract.
 
 ## Deterministic mechanics are scripted — you own generation and exclusion judgment
 
@@ -49,7 +49,8 @@ re-describe or re-implement their mechanics:
 
 | Script | Deterministic responsibility it owns |
 | --- | --- |
-| `mutation_report.py` | Parse the report; compute the **honest** and **reported** scores; extract survivors per file grouped by mutator. Stryker/Stryker.NET's JSON report is read directly; mutmut's `junitxml` output is normalized into the same internal shape first (`parse_mutmut_junitxml` / `score_mutmut_junitxml` / `survivors_from_mutmut_junitxml`). |
+| `mutation_report.py` | Parse the report; compute the **honest** and **reported** scores; extract survivors per file grouped by mutator, clustered by source line (`survivors_by_line`), or filtered to exclude static-flagged mutants (`skip_static`). Stryker/Stryker.NET's JSON report is read directly; mutmut's `junitxml` output is normalized into the same internal shape first (`parse_mutmut_junitxml` / `score_mutmut_junitxml` / `survivors_from_mutmut_junitxml`). |
+| `mutation_report_cli.py` | JSON-on-stdout CLI wrapper over `mutation_report.py`'s `survivors_by_line()`/`survivors_by_mutator()` — for you to invoke as a tool call (`python3 "${CLAUDE_PLUGIN_ROOT}/skills/mutation-testing/scripts/mutation_report_cli.py" --survivors-by-line ...` / `--survivors-by-mutator ...`) instead of importing the library directly. |
 | `mutation_baseline_reuse.py` | Round-1 baseline-reuse eligibility (git-ancestor + per-commit consumption check) and consumption bookkeeping via resolve/mark-consumed subcommands. |
 | `mutation_kill_loop.py` | The C#/Stryker.NET per-file loop: scoped run → score → survivor check → **your** generation → duplicate-guard → insert-before-class-close → build → test → commit-on-green / revert-on-failure → no-improvement stop. Delegates DOTNET_ROOT + `.sln` hide/restore to the wrapper. Config parsing and `run_for_file` orchestration only — insertion mechanics and headless generation live in the sibling scripts below. |
 | `mutation_kill_insert.py` | C# test-method insertion mechanics: detect-or-refuse — duplicate-name guard, and inserting generated methods before the test class's closing brace (refuses on a file-scoped namespace or non-4-space indentation rather than risk a mis-insertion). |
@@ -155,14 +156,14 @@ or observable state change — not just a status code or a truthiness check.
 
 ## Target mutation types in priority order
 
-**Cluster survivors by source line before applying the priority order
-below.** Group survivors by source line — including adjacent lines that
-share one expression — into clusters, and sort those clusters by
-survivors-per-line descending (not total mutants-per-line). Design one
-test per cluster where feasible, rather than defaulting to one test per
-mutant. Only after clustering, apply the mutation-type priority order
-within and across clusters. A survivor with no resolvable source line
-forms no cluster — handle it one-test-per-mutant.
+**Cluster survivors by source line before applying the priority order below.** Group survivors by calling
+`survivors_by_line()` in `mutation_report.py` (or `python3 "${CLAUDE_PLUGIN_ROOT}/skills/mutation-testing/scripts/mutation_report_cli.py" --survivors-by-line`) rather than
+re-deriving the grouping and sort yourself — its `clusters` key holds one entry per source line, sorted by
+survivor count descending, ties broken by line number ascending; no adjacent-line merging is performed,
+even for clusters on adjacent lines sharing one expression (your own judgment call, not the tool's).
+Design one test per cluster where feasible, rather than defaulting to one test per mutant. Only after
+clustering, apply the mutation-type priority order within and across clusters. A survivor with no
+resolvable source line forms no cluster — it lands in the `unclustered` list instead, handled one-test-per-mutant. `survivors_by_line()`/its CLI wrapper reads Stryker/Stryker.NET's native JSON report shape only — for mutmut/pitest/go-mutesting reports this function is not yet wired up.
 
 When you generate, group survivors by mutation type and write tests in this order:
 

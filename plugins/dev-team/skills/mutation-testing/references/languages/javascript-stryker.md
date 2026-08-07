@@ -34,10 +34,15 @@ npx stryker run --mutate "$(git diff --name-only HEAD~1 -- '*.ts' | grep -v test
 [`mutation-kill`](../../../../agents/mutation-kill.md#invocation)'s opt-in,
 default-OFF `--skip-static-mutants` flag excludes mutants Stryker's
 **native** `reports/mutation/mutation.json` report marks `"static": true`
-(a field the normalized `survivors[]` shape under "Native report → schema
-mapping" below does **not** carry — filter the native mutant objects
-before normalization, on `mutant.static !== true`) from the survivor list
-handed to **the generation step only**, for that round. A static mutant
+from the survivor list handed to **the generation step only**, for that
+round. The filter itself is computed by calling `survivors_by_mutator(...,
+skip_static=True)` in `mutation_report.py` — invoke it through its CLI
+wrapper,
+`python3 "${CLAUDE_PLUGIN_ROOT}/skills/mutation-testing/scripts/mutation_report_cli.py"
+--survivors-by-mutator --skip-static --report <path> --file <path>`, rather
+than re-deriving it here or importing the library directly: the CLI is
+where the inapplicable-skip notice below lives — a bare library call
+computes the same filtered result but emits no diagnostic. A static mutant
 sits in code that runs once at module-initialization time rather than
 per-test, so `coverageAnalysis: "perTest"` cannot isolate it to the tests
 covering it — Stryker must re-run the entire suite to verify one, which is
@@ -55,21 +60,34 @@ full-suite run would have killed stays counted as an unaddressed survivor
 for this pass.
 
 **Scoring and convergence stay unfiltered.** Only the generation step's
-input narrows. The `survivors == 0` convergence exit, the no-improvement
-stop predicate, and the honest/reported scores all read the report's full,
-unfiltered survivor count — a file whose only remaining survivors are
-static must never be written as `status: "converged"`.
+input narrows — and specifically only the mutator-grouped generation input
+(`survivors_by_mutator(..., skip_static=True)`); line-clustering
+(`survivors_by_line()`, which has no `skip_static` parameter and is itself
+the first step of generation per [`mutation-kill.md`'s priority-order
+guidance](../../../../agents/mutation-kill.md#target-mutation-types-in-priority-order))
+stays unfiltered too — a known, accepted design gap tracked in
+[#1948](https://github.com/bdfinst/agentic-dev-team/issues/1948), not
+resolved here. The `survivors == 0` convergence exit, the
+no-improvement stop predicate, and the honest/reported scores all read the
+report's full, unfiltered survivor count — a file whose only remaining
+survivors are static must never be written as `status: "converged"`.
 
-**Fallback when the field is absent.** If no mutant in the report carries
-a `static` key at all (an older Stryker version, or a report already
-normalized before the filter runs), the skip is inapplicable — print a
-one-line notice rather than proceeding as if nothing had been skipped.
+**Fallback when the field is absent.** `mutation_report_cli.py --skip-static`
+detects this itself and prints a one-line notice to stderr, distinguishing
+two causes: no mutant in the matched file carries a `static` key at all (an
+older Stryker version, or a report already normalized before the filter
+runs), or the target file isn't present in the report at all. Either way,
+skip is inapplicable; the agent's job is only to surface/relay that notice,
+not re-detect the inapplicable case itself.
 
-**Scope: interactive agent path only.** This is agent-parsed prose, not an
-argparse flag — there is no scripted JS/TS loop to add it to (unlike the
-C#/Python loops' real `--headless`/`--model`/`--report` flags). Passed
-against a non-JS/TS target in the interactive path, it has no effect and
-the agent prints a one-line ignored notice. It is **not** a flag on
+**Scope: interactive agent path only.** The `--skip-static-mutants`
+*invocation* flag on `/mutation-kill` itself is agent-parsed prose, not an
+argparse flag — there is no scripted JS/TS mutation-kill loop to add it to
+(unlike the C#/Python loops' real `--headless`/`--model`/`--report` flags).
+The underlying filter *computation* it drives is scripted, though: a real
+argparse flag on `mutation_report_cli.py` (see above). Passed against a
+non-JS/TS target in the interactive path, the invocation flag has no effect
+and the agent prints a one-line ignored notice. It is **not** a flag on
 `mutation_kill_loop.py`/`mutation_kill_loop_python.py`'s `--headless` CLI —
 passing it there is an `unrecognized arguments` error, by design, the same
 as any flag those scripts don't declare. Under `--all --parallel <n>`,
