@@ -19,8 +19,14 @@ selection and its two no-``--verify`` call shapes —
    change for the "### Baseline Budget" section's removal and is unaffected
    by it.
 
-``--verify`` mode (registry-table parsing against ``knowledge/agent-registry.md``)
-is a later step (2.2) and is intentionally not implemented here.
+Step 2.2 adds ``--verify`` mode: parse ``knowledge/agent-registry.md``'s
+"## Team Agents" and "## Skills Registry" markdown tables, measure each
+row's real file, and fail if any row's declared ``~Tokens`` estimate has
+drifted from the measured value by more than ``DEVIATION_THRESHOLD_PCT``.
+This mode never reads ``CLAUDE.md`` — it sources data from the registry
+table alone, which is the whole point: the old bash script's ``--verify``
+(retired along with it) parsed a "### Baseline Budget" section of
+``CLAUDE.md`` that no longer exists.
 
 Tokenizer selection (first available wins), matching the bash script exactly:
 
@@ -38,6 +44,7 @@ from __future__ import annotations
 
 import argparse
 import sys
+from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -46,6 +53,17 @@ PLUGIN_ROOT = REPO_ROOT / "plugins" / "dev-team"
 
 # UTF-8 byte length divided by this is the heuristic-fallback token estimate.
 HEURISTIC_BYTES_PER_TOKEN = 4
+
+# --verify fails a row whose declared value deviates from the measured value
+# by more than this percentage.
+DEVIATION_THRESHOLD_PCT = 10
+
+# Populated in Step 2.4, after running --verify for real against the live
+# registry. Maps a row's File cell exactly as it appears in the registry
+# table (e.g. "agents/adr-author.md") to a one-line reason the row is
+# exempted from failing the --verify exit code. An exempted row still
+# appears in the report, tagged "exempt" — it is never silently dropped.
+VERIFY_EXCEPTIONS: dict[str, str] = {}
 
 
 def detect_tokenizer() -> tuple[str, str]:
@@ -152,6 +170,229 @@ def print_report(
     print(f"{'TOTAL':<70} {total:>10}")
 
 
+# ---------------------------------------------------------------------------
+# --verify mode (Step 2.2): registry-table-sourced comparison
+# ---------------------------------------------------------------------------
+
+
+def extract_table_block(text: str, heading: str) -> str | None:
+    """Return the text between the line ``## {heading}`` and the next ``##``
+    heading (or end of file), exclusive of both heading lines.
+
+    ``None`` when ``## {heading}`` isn't found at all — the caller reports
+    this as a clear "section not found" error rather than crashing. Shared
+    by every caller of this function; there is exactly one block-extraction
+    implementation, called once per heading (see ``verify_registry``) rather
+    than duplicated per table name.
+    """
+    lines = text.splitlines()
+    target = f"## {heading}"
+    start = None
+    for i, line in enumerate(lines):
+        if line.strip() == target:
+            start = i + 1
+            break
+    if start is None:
+        return None
+
+    end = len(lines)
+    for i in range(start, len(lines)):
+        if lines[i].startswith("## "):
+            end = i
+            break
+    return "\n".join(lines[start:end])
+
+
+def parse_declared_value(raw: str) -> int | None:
+    """Permissive parse of a registry table's ``~Tokens`` cell: strips bold
+    markers and surrounding whitespace, strips a leading ``~`` if present,
+    strips thousands-separator commas, and accepts a bare integer.
+    ``None`` if the cleaned text still isn't an integer.
+    """
+    cleaned = raw.strip().strip("*").strip()
+    if cleaned.startswith("~"):
+        cleaned = cleaned[1:]
+    cleaned = cleaned.replace(",", "")
+    try:
+        return int(cleaned)
+    except ValueError:
+        return None
+
+
+def parse_registry_rows(section_text: str) -> list[tuple[str, str, int]]:
+    """Parse a registry markdown table block into ``(name, file_path,
+    declared_n)`` tuples.
+
+    Skips the header row and the separator row (the first two
+    ``|``-prefixed lines in the block), and skips any data row whose File
+    cell (2nd column) is empty after stripping backticks/whitespace — a
+    non-file summary row such as ``| **All team agents** | | **~7,910** |
+    |``. A row whose declared-value cell doesn't parse to an integer is
+    skipped too, rather than raising.
+    """
+    table_lines = [line for line in section_text.splitlines() if line.strip().startswith("|")]
+    data_lines = table_lines[2:]  # skip header row + separator row
+
+    rows: list[tuple[str, str, int]] = []
+    for line in data_lines:
+        cells = [c.strip() for c in line.strip().strip("|").split("|")]
+        if len(cells) < 3:
+            continue
+        name = cells[0].strip("*").strip()
+        file_path = cells[1].strip("`").strip()
+        if not file_path:
+            continue
+        declared_n = parse_declared_value(cells[2])
+        if declared_n is None:
+            continue
+        rows.append((name, file_path, declared_n))
+    return rows
+
+
+@dataclass
+class VerifyRow:
+    """One --verify comparison row: a registry table entry plus its
+    measured token count."""
+
+    section: str
+    name: str
+    file_path: str
+    declared_n: int
+    measured_n: int | None
+    deviation_pct: float | None
+    status: str  # "ok", "deviated", "exempt", "missing_file"
+    reason: str | None = None
+
+
+def verify_registry(
+    base_dir: Path,
+    registry_path: Path,
+    tokenizer: str,
+    exceptions: dict[str, str] | None = None,
+) -> tuple[list[VerifyRow], list[str]]:
+    """Parse ``registry_path``'s "## Team Agents" and "## Skills Registry"
+    tables, measure each row's real file (resolved against ``base_dir``),
+    and compare against the declared value using ``DEVIATION_THRESHOLD_PCT``.
+
+    Returns ``(rows, section_errors)``. Never raises for a missing heading
+    or a missing file — both are reported in the return value instead of
+    crashing. This function never reads ``CLAUDE.md``; ``registry_path`` is
+    its only input file.
+    """
+    exceptions = exceptions or {}
+
+    if not registry_path.is_file():
+        return [], [f"registry file not found: {registry_path}"]
+
+    text = registry_path.read_text(encoding="utf-8", errors="replace")
+
+    rows: list[VerifyRow] = []
+    section_errors: list[str] = []
+
+    for heading in ("Team Agents", "Skills Registry"):
+        block = extract_table_block(text, heading)
+        if block is None:
+            section_errors.append(f"section not found: ## {heading}")
+            continue
+
+        for name, file_path, declared_n in parse_registry_rows(block):
+            target = base_dir / file_path
+            if not target.is_file():
+                rows.append(
+                    VerifyRow(heading, name, file_path, declared_n, None, None, "missing_file")
+                )
+                continue
+
+            measured_n = count_tokens(target, tokenizer)
+            if declared_n:
+                deviation_pct = abs(measured_n - declared_n) / declared_n * 100
+            else:
+                deviation_pct = 0.0 if measured_n == 0 else float("inf")
+
+            reason = exceptions.get(file_path)
+            if reason:
+                status = "exempt"
+            elif deviation_pct > DEVIATION_THRESHOLD_PCT:
+                status = "deviated"
+            else:
+                status = "ok"
+
+            rows.append(
+                VerifyRow(
+                    heading,
+                    name,
+                    file_path,
+                    declared_n,
+                    measured_n,
+                    deviation_pct,
+                    status,
+                    reason,
+                )
+            )
+
+    return rows, section_errors
+
+
+def compute_verify_exit_code(rows: list[VerifyRow], section_errors: list[str]) -> int:
+    """0 when every row is ok/exempt and no expected section is missing;
+    1 when any row deviated past threshold, any row's file is missing, or
+    any expected heading wasn't found."""
+    if section_errors:
+        return 1
+    if any(row.status in ("deviated", "missing_file") for row in rows):
+        return 1
+    return 0
+
+
+def print_verify_report(
+    registry_path: Path,
+    tokenizer_note: str,
+    rows: list[VerifyRow],
+    section_errors: list[str],
+) -> None:
+    print("# measure_tokens.py --verify output")
+    print(f"# tokenizer: {tokenizer_note}")
+    print(f"# registry: {registry_path}")
+    print()
+    header = (
+        f"{'SECTION':<16} {'NAME':<38} {'FILE':<42} "
+        f"{'DECLARED':>9} {'MEASURED':>9} {'DEV%':>7}  STATUS"
+    )
+    print(header)
+    print("-" * len(header))
+    for row in rows:
+        measured_str = "ERROR" if row.measured_n is None else str(row.measured_n)
+        dev_str = "n/a" if row.deviation_pct is None else f"{row.deviation_pct:.1f}"
+        status = row.status.upper()
+        if row.reason:
+            status += f" ({row.reason})"
+        print(
+            f"{row.section:<16} {row.name:<38} {row.file_path:<42} "
+            f"{row.declared_n:>9} {measured_str:>9} {dev_str:>7}  {status}"
+        )
+    print("-" * len(header))
+    if section_errors:
+        print()
+        print("Section errors:")
+        for err in section_errors:
+            print(f"  ERROR: {err}")
+
+
+def run_verify(repo_root: Path, tokenizer: str, tokenizer_note: str) -> int:
+    """CLI entry point for --verify. Sources data from
+    ``knowledge/agent-registry.md`` only — it never reads ``CLAUDE.md``,
+    which is the actual regression this mode exists to catch (the retired
+    bash script's ``--verify`` parsed a CLAUDE.md section that no longer
+    exists).
+    """
+    registry_path = repo_root / "plugins" / "dev-team" / "knowledge" / "agent-registry.md"
+    base_dir = repo_root / "plugins" / "dev-team"
+
+    rows, section_errors = verify_registry(base_dir, registry_path, tokenizer, VERIFY_EXCEPTIONS)
+    print_verify_report(registry_path, tokenizer_note, rows, section_errors)
+    return compute_verify_exit_code(rows, section_errors)
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         description=(
@@ -161,9 +402,21 @@ def main(argv: list[str] | None = None) -> int:
         )
     )
     parser.add_argument("paths", nargs="*", help="Explicit paths to measure")
+    parser.add_argument(
+        "--verify",
+        action="store_true",
+        help=(
+            "Verify knowledge/agent-registry.md's declared ~Tokens values "
+            "against measured file sizes instead of printing a bare report."
+        ),
+    )
     args = parser.parse_args(argv)
 
     tokenizer, tokenizer_note = detect_tokenizer()
+
+    if args.verify:
+        return run_verify(REPO_ROOT, tokenizer, tokenizer_note)
+
     raw_paths = args.paths if args.paths else discover_budget_targets(REPO_ROOT)
 
     rows, total, errors = measure_paths(REPO_ROOT, raw_paths, tokenizer)
