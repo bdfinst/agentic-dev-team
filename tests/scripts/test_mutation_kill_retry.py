@@ -706,6 +706,71 @@ def test_on_downgrade_leaves_get_label_override_none_for_an_exhausted_event():
     assert get_label_override() is None
 
 
+def test_make_retrying_headless_call_uses_the_injected_call_headless_transport(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    """#1918 Step 2.2: when constructed with ``call_headless=<a fake>``, every
+    generation attempt — the initial attempt AND the 3rd-failure retry
+    attempt — goes through the fake, never
+    ``mutation_kill_shared.run_claude_headless``. The full retry-then-downgrade
+    policy (3-failure threshold, one retry, one downgrade) behaves
+    identically to the default-transport case in
+    ``test_failed_retry_downgrades_one_step_down_the_ladder`` above, driven
+    through the injection point instead of monkeypatching the shared module."""
+    monkeypatch.delenv("DEV_TEAM_MUTATION_FALLBACK_MODEL", raising=False)
+
+    def poison(*args, **kwargs):
+        raise AssertionError(
+            "mutation_kill_shared.run_claude_headless must not be called "
+            "when call_headless is injected"
+        )
+
+    monkeypatch.setattr(shared, "run_claude_headless", poison)
+
+    logged: list[str] = []
+    downgrades: list = []
+    outcomes = [
+        _exit_error("502 Bad Gateway"),
+        _exit_error("502 Bad Gateway"),
+        _exit_error("502 Bad Gateway"),
+        _exit_error("502 Bad Gateway"),  # the retry — also fails -> downgrade
+        "ok-on-sonnet",
+    ]
+    fake_calls: list[tuple[str, str | None]] = []
+
+    def fake_call_headless(prompt, *, model=None, cwd=None):
+        fake_calls.append((prompt, model))
+        outcome = outcomes.pop(0)
+        if isinstance(outcome, BaseException):
+            raise outcome
+        return outcome
+
+    call = retry.make_retrying_headless_call(
+        sleep=lambda _s: None,
+        initial_model="opus",
+        log=logged.append,
+        on_downgrade=downgrades.append,
+        call_headless=fake_call_headless,
+    )
+
+    result = call("prompt", "foo.py", 3)
+
+    assert result == "ok-on-sonnet"
+    assert len(fake_calls) == 5
+    assert fake_calls[-1][1] == "sonnet"
+    assert len(downgrades) == 1
+    event = downgrades[0]
+    assert event.source_file == "foo.py"
+    assert event.round_num == 3
+    assert event.from_model == "opus"
+    assert event.to_model == "sonnet"
+    assert event.error_class == "gateway-class"
+    assert event.exhausted is False
+    assert len(logged) == 1
+    assert "foo.py" in logged[0]
+    assert "opus" in logged[0] and "sonnet" in logged[0]
+
+
 def test_make_downgrade_audit_hook_wired_end_to_end_with_make_retrying_headless_call(
     monkeypatch: pytest.MonkeyPatch,
 ):
