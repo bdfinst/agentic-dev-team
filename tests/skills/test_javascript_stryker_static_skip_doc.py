@@ -131,11 +131,29 @@ def test_scoring_and_convergence_stay_unfiltered(static_skip_flat: str) -> None:
 def test_absent_static_field_has_a_stated_fallback(static_skip_flat: str) -> None:
     assert re.search(r"[Ff]allback when the field is absent", static_skip_flat)
     assert re.search(r"skip is inapplicable", static_skip_flat)
+    # #1937 closing-pass finding: the CLI (not the agent) owns detecting the
+    # inapplicable case — pin the corrected ownership claim, not just the
+    # surrounding phrases that were already true pre-fix.
+    assert re.search(r"mutation_report_cli\.py --skip-static", static_skip_flat)
+    assert re.search(
+        r"not re-detect the inapplicable case itself", static_skip_flat
+    )
 
 
 def test_scope_is_interactive_agent_path_only(static_skip_flat: str) -> None:
-    assert re.search(r"agent-parsed prose, not an argparse flag", static_skip_flat)
+    assert re.search(
+        r"invocation.{0,20}flag on.{0,20}/mutation-kill.{0,20}itself is"
+        r" agent-parsed prose, not an argparse flag",
+        static_skip_flat,
+    )
     assert re.search(r"unrecognized arguments", static_skip_flat)
+    # #1937 closing-pass finding: pin the narrowing that makes the claim
+    # above correct — the invocation flag is prose, but the filter
+    # computation it drives is a real, shipped argparse flag.
+    assert re.search(
+        r"filter.{0,12}computation.{0,12}it drives is scripted",
+        static_skip_flat,
+    )
 
 
 def test_parallel_fan_out_does_not_auto_propagate_the_flag(static_skip_flat: str) -> None:

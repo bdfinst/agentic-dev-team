@@ -36,10 +36,13 @@ default-OFF `--skip-static-mutants` flag excludes mutants Stryker's
 **native** `reports/mutation/mutation.json` report marks `"static": true`
 from the survivor list handed to **the generation step only**, for that
 round. The filter itself is computed by calling `survivors_by_mutator(...,
-skip_static=True)` in `mutation_report.py` — or its CLI wrapper,
+skip_static=True)` in `mutation_report.py` — invoke it through its CLI
+wrapper,
 `python3 "${CLAUDE_PLUGIN_ROOT}/skills/mutation-testing/scripts/mutation_report_cli.py"
---survivors-by-mutator --skip-static --report <path> --file <path>` —
-rather than re-deriving it here. A static mutant
+--survivors-by-mutator --skip-static --report <path> --file <path>`, rather
+than re-deriving it here or importing the library directly: the CLI is
+where the inapplicable-skip notice below lives — a bare library call
+computes the same filtered result but emits no diagnostic. A static mutant
 sits in code that runs once at module-initialization time rather than
 per-test, so `coverageAnalysis: "perTest"` cannot isolate it to the tests
 covering it — Stryker must re-run the entire suite to verify one, which is
@@ -62,8 +65,9 @@ input narrows — and specifically only the mutator-grouped generation input
 (`survivors_by_line()`, which has no `skip_static` parameter and is itself
 the first step of generation per [`mutation-kill.md`'s priority-order
 guidance](../../../../agents/mutation-kill.md#target-mutation-types-in-priority-order))
-stays unfiltered too — a known, accepted design gap tracked for a follow-up
-issue, not resolved here. The `survivors == 0` convergence exit, the
+stays unfiltered too — a known, accepted design gap tracked in
+[#1948](https://github.com/bdfinst/agentic-dev-team/issues/1948), not
+resolved here. The `survivors == 0` convergence exit, the
 no-improvement stop predicate, and the honest/reported scores all read the
 report's full, unfiltered survivor count — a file whose only remaining
 survivors are static must never be written as `status: "converged"`.
