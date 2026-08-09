@@ -331,12 +331,14 @@ def launch_survivor_fix(
 
     Returns True when every launched fix exited zero or the dedicated
     GenerationExhausted exit code 5 (or none were launched); False the
-    moment one exits the fatal-revert exit code 4 (``mutation_kill_headless``
-    /``mutation_kill_loop_python`` #1598), which means the working tree was
-    just declared to be in an unknown/possibly-mutated state, so processing
-    stops for the remaining files in this shard rather than silently
-    continuing onto a tree that may already be broken. Exit code 4 is
-    ``RevertFailed`` specifically — a failed revert. Exit code 5 covers two
+    moment one exits any other non-zero code. The implementation does not
+    distinguish the fatal-revert exit code 4 (``mutation_kill_headless``
+    /``mutation_kill_loop_python`` #1598) from any other non-zero, non-5
+    code — every such exit is treated identically as a failed revert, which
+    means the working tree may be in an unknown/possibly-mutated state, so
+    processing stops for the remaining files in this shard rather than
+    silently continuing onto a tree that may already be broken. Exit code 4
+    is ``RevertFailed`` specifically — a failed revert. Exit code 5 covers two
     distinct outcomes that both map to the same code: true
     GenerationExhausted (a fully spent retry-then-downgrade budget) and any
     other clean RuntimeError (e.g. a generation timeout, or a mutmut/Stryker
@@ -636,10 +638,16 @@ def main(argv: Sequence[str] | None = None) -> int:
     """CLI entry point. Exit code follows a 3-branch priority, failure first:
 
     - ``1`` — one or more shards failed (``run_all``'s ``failed`` list is
-      non-empty). Takes priority over exhaustion.
+      non-empty). Takes priority over exhaustion. A shard is marked failed
+      when ``launch_survivor_fix`` returns False for it — which happens on
+      any non-zero, non-5 per-file exit code (most commonly
+      ``EXIT_REVERT_FAILED``, ``4``); this branch is where that per-file
+      signal ends up, since ``main()`` never returns ``4`` itself.
     - ``EXIT_GENERATION_EXHAUSTED`` (``5``) — no shard failed, but at least
-      one file exhausted its retry-then-downgrade budget (``exhausted`` is
-      non-empty).
+      one file hit the clean-continuable outcome class (``exhausted`` is
+      non-empty): either a true ``GenerationExhausted`` (a fully spent
+      retry-then-downgrade budget) or any other clean ``RuntimeError`` (e.g.
+      a generation timeout) — not exhaustion specifically.
     - ``0`` — fully clean: no failures, no exhaustions.
     """
     args = build_parser().parse_args(list(sys.argv[1:] if argv is None else argv))

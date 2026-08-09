@@ -291,7 +291,7 @@ def test_main_exits_non_zero_when_run_for_file_raises(
 
     assert rc != 0
     assert rc not in (1, 2, 3)  # distinct from the existing preflight exit codes
-    assert rc == 4
+    assert rc == headless.EXIT_REVERT_FAILED
     err = capsys.readouterr().err
     assert "revert failed" in err
 
@@ -309,7 +309,7 @@ def test_main_maps_non_revert_runtime_error_to_exit_5_with_honest_wording(
     monkeypatch.setattr(headless, "claude_cli_available", lambda: True)
 
     def boom(*a, **k):
-        raise RuntimeError("mutmut run timed out after 3600s for Foo.cs")
+        raise RuntimeError("Stryker run timed out after 3600s for Foo.cs")
 
     monkeypatch.setattr(headless, "run_for_file", boom)
     config_path = _write_config(tmp_path)

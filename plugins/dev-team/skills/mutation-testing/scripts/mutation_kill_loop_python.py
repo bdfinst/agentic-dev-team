@@ -75,6 +75,7 @@ import mutation_safety_gate
 from mutation_kill_insert_python import apply_generated_tests, count_tests
 from mutation_kill_retry import (
     EXIT_GENERATION_EXHAUSTED,
+    EXIT_REVERT_FAILED,
     DowngradeEvent,
     GenerationExhausted,
     make_downgrade_audit_hook,
@@ -185,6 +186,21 @@ def _release_mutmut_cache_lock(lock_dir: Path) -> None:
         lock_dir.rmdir()
 
 
+def _cleanup_revert_file(path: Path, *, cwd: Path | None) -> bool:
+    """Revert ``path`` for :func:`run_scoped_mutmut`'s cleanup ``finally``.
+
+    ``git_revert`` only converts ``subprocess.TimeoutExpired`` to False; any
+    other unexpected exception (e.g. ``FileNotFoundError`` if git isn't on
+    PATH) would otherwise propagate straight out of the caller's ``finally``
+    block, skipping the second revert attempt entirely. Treat it the same as
+    a False return so both reverts are genuinely attempted unconditionally.
+    """
+    try:
+        return git_revert(path, cwd=cwd)
+    except OSError:
+        return False
+
+
 def run_scoped_mutmut(
     source_file: str,
     *,
@@ -285,24 +301,10 @@ def run_scoped_mutmut(
                 ) from exc
             return junit.stdout or ""
         finally:
-
-            def _cleanup_revert(path: Path) -> bool:
-                # git_revert only converts subprocess.TimeoutExpired to
-                # False; any other unexpected exception (e.g.
-                # FileNotFoundError if git isn't on PATH) would otherwise
-                # propagate straight out of this finally block, skipping
-                # the second revert attempt entirely. Treat it the same as
-                # a False return so both reverts are genuinely attempted
-                # unconditionally.
-                try:
-                    return git_revert(path, cwd=cwd)
-                except OSError:
-                    return False
-
-            source_reverted = _cleanup_revert(Path(source_file))
+            source_reverted = _cleanup_revert_file(Path(source_file), cwd=cwd)
             test_reverted = True
             if test_file is not None:
-                test_reverted = _cleanup_revert(test_file)
+                test_reverted = _cleanup_revert_file(test_file, cwd=cwd)
             failed = [
                 str(p)
                 for p, ok in (
@@ -881,7 +883,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         # RuntimeError case below: this is the only case that can't be
         # trusted as clean.
         sys.stderr.write(f"error: {exc}\n")
-        return 4
+        return EXIT_REVERT_FAILED
     except RuntimeError as exc:
         # Every other RuntimeError this loop raises (a mutmut-run timeout,
         # a mutmut-start/junitxml-extraction failure, etc.) is clean:

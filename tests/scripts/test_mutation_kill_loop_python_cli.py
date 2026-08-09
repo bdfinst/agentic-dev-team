@@ -187,7 +187,7 @@ def test_main_exits_non_zero_when_run_for_file_raises(monkeypatch, capsys, tmp_p
 
     assert rc != 0
     assert rc not in (1, 2, 3)
-    assert rc == 4
+    assert rc == loop.EXIT_REVERT_FAILED
     assert "revert failed" in capsys.readouterr().err
 
 
@@ -474,7 +474,7 @@ def test_main_returns_exit_4_when_mutmut_cleanup_revert_fails_end_to_end(
         ]
     )
 
-    assert rc == 4
+    assert rc == loop.EXIT_REVERT_FAILED
     err = capsys.readouterr().err
     # "a.py" is a substring of "test_a.py", so also assert "test_a.py" is
     # absent — otherwise this would pass even if the error wrongly named

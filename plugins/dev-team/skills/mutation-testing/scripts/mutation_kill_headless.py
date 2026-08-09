@@ -32,6 +32,7 @@ from pathlib import Path
 from mutation_kill_loop import Generator, RunContext, load_loop_config, run_for_file
 from mutation_kill_retry import (
     EXIT_GENERATION_EXHAUSTED,
+    EXIT_REVERT_FAILED,
     DowngradeEvent,
     GenerationExhausted,
     make_downgrade_audit_hook,
@@ -263,7 +264,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         # within a round, and a prior round's own revert failure is itself
         # fatal (raised as RevertFailed, never swallowed). What isn't
         # independently re-verified here is that a revert git reports as
-        # successful actually left the tree clean (#1928) — so callers
+        # successful actually left the tree clean (#1955) — so callers
         # (stryker_shard_pipeline.py's shard driver) can log this file as
         # unfixed and continue to the next file without affecting the run's
         # exit status, instead of aborting the whole shard (#1908 review).
@@ -276,7 +277,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         # RuntimeError case below: this is the only case that can't be
         # trusted as clean.
         sys.stderr.write(f"error: {exc}\n")
-        return 4
+        return EXIT_REVERT_FAILED
     except RuntimeError as exc:
         # Every other RuntimeError this loop raises (a generation timeout,
         # a mutmut/Stryker infrastructure failure, etc.) is clean with
