@@ -820,32 +820,41 @@ def main(argv: Sequence[str] | None = None) -> int:
     except GenerationExhausted as exc:
         # This file's retry-then-downgrade budget is fully spent (3
         # consecutive gateway-class failures + 1 same-model retry, at the
-        # original model AND at most one fallback tier) — distinct from exit
-        # code 4 below, which most commonly means a failed revert (leaving
-        # the working tree in an unknown/possibly-mutated state) but
-        # currently also absorbs other, actually-clean RuntimeErrors, e.g. a
-        # non-gateway-class generation timeout (#1930). A clean exhaustion
-        # mutates nothing in the paths this covers: generation precedes
-        # insertion within a round, and a prior round's own
-        # insertion-revert failure (compile/test/commit paths, via
-        # _revert_or_raise) is itself fatal — raised, never swallowed.
-        # run_scoped_mutmut's best-effort post-mutmut-crash revert (its
-        # own ``finally``) is deliberately NOT checked, so a mutmut-crash
-        # leftover is the one on-disk mutation this exit code does not rule
-        # out (#1928) — so callers (stryker_shard_pipeline.py's shard driver) can
-        # log this file as unfixed and continue to the next file without
-        # affecting the run's exit status, instead of aborting the whole
-        # shard (#1908 review).
+        # original model AND at most one fallback tier) — distinct from
+        # RevertFailed below (exit 4, working tree possibly mutated) and
+        # from the generic RuntimeError case below it (exit 5, clean but
+        # not exhausted — e.g. a non-gateway-class generation timeout). A
+        # clean exhaustion mutates nothing in the paths this covers:
+        # generation precedes insertion within a round, and a prior round's
+        # own insertion-revert failure (compile/test/commit paths, via
+        # _revert_or_raise) is itself fatal — raised as RevertFailed, never
+        # swallowed. run_scoped_mutmut's best-effort post-mutmut-crash
+        # revert (its own ``finally``) is deliberately NOT checked, so a
+        # mutmut-crash leftover is the one on-disk mutation this exit code
+        # does not rule out (#1928) — so callers
+        # (stryker_shard_pipeline.py's shard driver) can log this file as
+        # unfixed and continue to the next file without affecting the run's
+        # exit status, instead of aborting the whole shard (#1908 review).
         sys.stderr.write(f"error: {exc}\n")
         return EXIT_GENERATION_EXHAUSTED
-    except RuntimeError as exc:
-        # A failed revert or a failed-commit round-abandonment raises
-        # RuntimeError (#1598) — mirrors mutation_kill_headless.py's main(),
-        # fitting the same 1/2/3 exit-code taxonomy with the next unused
-        # code rather than letting this either succeed silently (exit 0)
-        # or crash with a raw traceback.
+    except mutation_kill_shared.RevertFailed as exc:
+        # A failed revert (or a failed-commit round-abandonment's own
+        # revert) leaves the working tree in an unknown, possibly-mutated
+        # state (#1930) — narrower and more urgent than the generic
+        # RuntimeError case below: this is the only case that can't be
+        # trusted as clean.
         sys.stderr.write(f"error: {exc}\n")
         return 4
+    except RuntimeError as exc:
+        # Every other RuntimeError this loop raises (a mutmut-run timeout,
+        # a mutmut-start/junitxml-extraction failure, etc.) is provably
+        # clean — mirrors mutation_kill_headless.py's main(): the one case
+        # that isn't clean is a failed revert, which is RevertFailed,
+        # caught above (#1930). Not a retry-budget exhaustion — reuses exit
+        # 5 because the shard driver only distinguishes "fatal, stop" (4)
+        # from "clean, continue" (5), not why a file wasn't fixed.
+        sys.stderr.write(f"error: {exc} — generation failed cleanly, continuing\n")
+        return EXIT_GENERATION_EXHAUSTED
     return 0
 
 

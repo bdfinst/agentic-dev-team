@@ -264,8 +264,8 @@ def test_headless_main_uses_default_label_when_model_unresolved(
 
 
 # =============================================================================
-# Scenario: A round-abandoning RuntimeError (failed revert, failed commit —
-# #1598) propagates to a non-zero exit code instead of a silent 0 return or
+# Scenario: A round-abandoning RevertFailed (failed revert, failed commit —
+# #1598/#1930) propagates to exit code 4 instead of a silent 0 return or
 # a raw traceback (#1598/#1584 review, item 6).
 # =============================================================================
 def test_main_exits_non_zero_when_run_for_file_raises(
@@ -274,7 +274,7 @@ def test_main_exits_non_zero_when_run_for_file_raises(
     monkeypatch.setattr(headless, "claude_cli_available", lambda: True)
 
     def boom(*a, **k):
-        raise RuntimeError("revert failed for FooTests.cs after a failed commit")
+        raise shared.RevertFailed("revert failed for FooTests.cs after a failed commit")
 
     monkeypatch.setattr(headless, "run_for_file", boom)
     config_path = _write_config(tmp_path)
@@ -294,6 +294,40 @@ def test_main_exits_non_zero_when_run_for_file_raises(
     assert rc == 4
     err = capsys.readouterr().err
     assert "revert failed" in err
+
+
+# =============================================================================
+# Scenario: A non-revert RuntimeError (e.g. a generation timeout) is clean —
+# it must NOT be conflated with RevertFailed's exit 4 ("possibly mutated").
+# It reuses exit code 5, with honest wording that neither claims retry-budget
+# exhaustion (that phrase is GenerationExhausted-only) nor merely omits it —
+# it must positively say this is a clean, continuable outcome (#1930/#1939).
+# =============================================================================
+def test_main_maps_non_revert_runtime_error_to_exit_5_with_honest_wording(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys
+):
+    monkeypatch.setattr(headless, "claude_cli_available", lambda: True)
+
+    def boom(*a, **k):
+        raise RuntimeError("mutmut run timed out after 3600s for Foo.cs")
+
+    monkeypatch.setattr(headless, "run_for_file", boom)
+    config_path = _write_config(tmp_path)
+
+    rc = headless.main(
+        [
+            "--config", str(config_path),
+            "--headless",
+            "--file", "Foo.cs",
+            "--test-file", str(tmp_path / "FooTests.cs"),
+            "--source-path", str(tmp_path / "Foo.cs"),
+        ]
+    )
+
+    assert rc == headless.EXIT_GENERATION_EXHAUSTED
+    err = capsys.readouterr().err
+    assert "exhausted its retry budget" not in err
+    assert "generation failed cleanly, continuing" in err
 
 
 # =============================================================================
