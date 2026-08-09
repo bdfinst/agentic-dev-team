@@ -454,8 +454,11 @@ def print_summary(
     separately — never the timeout-inflated reported score (AC3).
 
     When ``exhausted`` is non-empty, an additional "EXHAUSTED files (N)" line
-    is appended listing the ``shard/source`` entries for files whose
-    retry-then-downgrade budget was spent (see ``launch_survivor_fix``)."""
+    is appended listing the ``shard/source`` entries for files that hit
+    ``EXIT_GENERATION_EXHAUSTED`` (5) — either true GenerationExhausted (a
+    fully spent retry-then-downgrade budget) or any other clean
+    ``RuntimeError`` (e.g. a generation timeout, or a mutmut/Stryker
+    infrastructure failure — not exhaustion); see ``launch_survivor_fix``."""
     log("=== Pipeline summary ===")
     for shard in shards:
         rp = report_path(Path(shard_out_base) / shard)

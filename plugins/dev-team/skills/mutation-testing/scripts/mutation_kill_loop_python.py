@@ -869,8 +869,9 @@ def main(argv: Sequence[str] | None = None) -> int:
         # _revert_or_raise) is itself fatal — raised as RevertFailed, never
         # swallowed. run_scoped_mutmut's post-mutmut-crash cleanup revert
         # (its own ``finally``) is also checked (#1928/#1939) and raises
-        # RevertFailed on its own failure, so this exit code's "clean tree"
-        # claim is fully verified — so callers
+        # RevertFailed on its own failure. What isn't independently
+        # re-verified here is that a revert git reports as successful
+        # actually left the tree clean (#1955) — so callers
         # (stryker_shard_pipeline.py's shard driver) can log this file as
         # unfixed and continue to the next file without affecting the run's
         # exit status, instead of aborting the whole shard (#1908 review).

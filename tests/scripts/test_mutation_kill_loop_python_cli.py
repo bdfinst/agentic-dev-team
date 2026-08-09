@@ -232,11 +232,13 @@ def test_main_maps_non_revert_runtime_error_to_exit_5_with_honest_wording(
 # true GenerationExhausted (a fully spent retry-then-downgrade budget) and
 # any other clean RuntimeError (a mutmut-run timeout,
 # mutmut-start/junitxml-extraction failure, etc. — nothing mutated by the
-# insertion-revert paths this covers; run_scoped_mutmut's best-effort
-# post-mutmut-crash revert is deliberately not checked, so a mutmut-crash
-# leftover is the one on-disk mutation exit 5 does not rule out — #1928) —
-# stryker_shard_pipeline.py's shard driver treats exit 4 and exit 5 very
-# differently (abort the shard vs. continue to the next file).
+# insertion-revert paths this covers; run_scoped_mutmut's post-mutmut-crash
+# cleanup revert is now checked (#1928/#1939) and raises RevertFailed (exit
+# 4) on its own failure, so reaching exit 5 means that revert succeeded —
+# see test_main_returns_exit_4_when_mutmut_cleanup_revert_fails_end_to_end
+# below for the checked-revert path) — stryker_shard_pipeline.py's shard
+# driver treats exit 4 and exit 5 very differently (abort the shard vs.
+# continue to the next file).
 # =============================================================================
 def test_main_returns_exit_code_5_when_generation_exhausted_propagates(
     monkeypatch, capsys, tmp_path: Path
