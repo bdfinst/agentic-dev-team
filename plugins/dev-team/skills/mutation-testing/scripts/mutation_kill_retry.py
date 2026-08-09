@@ -14,25 +14,41 @@ concern; ``mutation_kill_shared.py`` keeps git mechanics, ``_timeout_from_env``,
 ``claude --print`` invocation glue, and the ``InsertOutcome``/``InsertionRefused``
 shapes.
 
-The 502/gateway-class error definition is EXACT: a ``RuntimeError`` raised by
+The type precondition for the 502/gateway-class error definition is EXACT: a
+:class:`mutation_kill_shared.HeadlessCallFailed` raised by
 ``run_claude_headless``'s non-zero-exit shape (never its
-``TimeoutExpired``-derived shape — that's a local generation timeout, not an
-upstream provider signal) whose message, case-insensitively, contains one of
-the markers below.
+``TimeoutExpired``-derived shape, which raises a plain ``RuntimeError`` — a
+local generation timeout, not an upstream provider signal). Within that type,
+the classifier reads the full, untruncated ``stderr``, case-insensitively,
+for either one of the non-numeric markers below or the anchored numeral
+pattern (``_GATEWAY_STATUS_RE``) — a bare ``"502"``/``"503"``/``"504"``
+substring is not enough on its own (#1938). That marker/regex match is a
+best-effort heuristic, not an exhaustive one: it does not yet recognize
+``error_code: 503``-style underscore-joined tokens, status 529, or errors
+that only appear on stdout — filed and deliberately deferred rather than
+fixed in this slice, see #1950.
 
-This module's only dependency on ``mutation_kill_shared`` is
+This module's dependencies on ``mutation_kill_shared`` are
 ``run_claude_headless``/``resolve_fallback_model`` — both accessed via the
 module object (``mutation_kill_shared.run_claude_headless(...)``), not a
 ``from ... import`` binding, so a test's ``monkeypatch.setattr(mutation_kill_shared,
 "run_claude_headless", fake)`` takes effect here too (mirrors the existing
 same-module-globals contract ``_mutation_test_helpers.sequenced_run_claude_headless``
-already documents).
+already documents) — plus ``HeadlessCallFailed``, referenced only as a type
+(``isinstance(exc, mutation_kill_shared.HeadlessCallFailed)``), which carries
+no monkeypatch sensitivity of its own since nothing here calls it.
+``run_claude_headless`` is reached on every generation attempt unless the
+caller injects ``call_headless`` (#1918), in which case it is never reached —
+see :meth:`_RetryCallContext.resolve_call_headless`. (This
+mirrors the dependency inventory documented from the other direction in
+``mutation_kill_shared.py``'s own module docstring — keep the two in sync.)
 
 Stdlib-only. See ADR 0014.
 """
 
 from __future__ import annotations
 
+import re
 import time
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -40,12 +56,7 @@ from pathlib import Path
 
 import mutation_kill_shared
 
-_NONZERO_EXIT_PREFIX = "claude CLI failed (exit"
-
 _GATEWAY_CLASS_MARKERS = (
-    "502",
-    "503",
-    "504",
     "bad gateway",
     "service unavailable",
     "gateway timeout",
@@ -53,6 +64,14 @@ _GATEWAY_CLASS_MARKERS = (
     "upstream connect error",
     "connection reset",
 )
+
+# Anchored numeral markers (#1938): a bare "502"/"503"/"504" substring
+# false-positives on unrelated numbers (a request id, a byte count). Requires
+# a status-context word (status/http/code) within 12 non-digit characters
+# before the digits, so "HTTP 502", "status: 503", and "error code 504" all
+# match but "request id 502391" does not. Case-insensitive to match the six
+# non-numeric markers above.
+_GATEWAY_STATUS_RE = re.compile(r"\b(?:status|http|code)[^0-9]{0,12}50[234]\b", re.IGNORECASE)
 
 # 3 consecutive gateway-class failures on the same model earn exactly one
 # same-model retry before a downgrade is considered (#1908).
@@ -65,21 +84,24 @@ _BACKOFF_CAP_S = 10
 
 
 def is_gateway_class_error(exc: BaseException) -> bool:
-    """True iff ``exc`` is a :class:`RuntimeError` raised by
-    :func:`mutation_kill_shared.run_claude_headless`'s non-zero-exit shape
-    whose message, case-insensitively, contains a 502/gateway-class marker
-    (#1908).
+    """True iff ``exc`` is a :class:`mutation_kill_shared.HeadlessCallFailed`
+    raised by :func:`mutation_kill_shared.run_claude_headless`'s non-zero-exit
+    shape whose full, untruncated ``stderr``, case-insensitively, contains a
+    non-numeric gateway-class marker or matches the anchored numeral pattern
+    (#1938).
 
-    Everything else — the ``subprocess.TimeoutExpired``-derived shape (a
-    local generation timeout, not an upstream provider signal) and a
-    non-zero exit whose stderr matches none of the markers — is
-    non-gateway-class.
+    Everything else — a plain ``RuntimeError`` (the
+    ``subprocess.TimeoutExpired``-derived shape is a local generation
+    timeout, not an upstream provider signal, and never raises
+    ``HeadlessCallFailed``) and a ``HeadlessCallFailed`` whose stderr matches
+    none of the markers — is non-gateway-class.
     """
-    message = str(exc)
-    if not message.startswith(_NONZERO_EXIT_PREFIX):
+    if not isinstance(exc, mutation_kill_shared.HeadlessCallFailed):
         return False
-    lowered = message.lower()
-    return any(marker in lowered for marker in _GATEWAY_CLASS_MARKERS)
+    lowered = exc.stderr.lower()
+    return any(marker in lowered for marker in _GATEWAY_CLASS_MARKERS) or bool(
+        _GATEWAY_STATUS_RE.search(exc.stderr)
+    )
 
 
 # Shared exit code for a clean retry-then-downgrade exhaustion (#1908
@@ -120,7 +142,13 @@ class DowngradeEvent:
     from_model: str | None
     to_model: str | None
     error_class: str
-    exhausted: bool = False
+
+    @property
+    def exhausted(self) -> bool:
+        """True iff no fallback tier was available — derived from
+        ``to_model`` rather than stored separately, so the two can never
+        disagree (#1918 Step 2.3)."""
+        return self.to_model is None
 
 
 # Models with a defined ladder position — a downgrade that exhausts starting
@@ -135,24 +163,25 @@ _KNOWN_LADDER_MODELS = frozenset({"opus", "sonnet", "haiku"})
 
 
 def _format_downgrade_message(event: DowngradeEvent) -> str:
+    source_file = " ".join(str(event.source_file).split())
     if event.exhausted:
         normalized_from = event.from_model.strip().lower() if event.from_model else None
         model_label = event.from_model if event.from_model is not None else "unspecified"
         if normalized_from in _KNOWN_LADDER_MODELS:
             return (
-                f"generation for {event.source_file} (round {event.round_num}) "
+                f"generation for {source_file} (round {event.round_num}) "
                 f"exhausted its retry budget on model {model_label!r} after "
                 f"a {event.error_class} retry failure — no further downgrade "
                 "will be attempted"
             )
         return (
-            f"generation for {event.source_file} (round {event.round_num}) "
+            f"generation for {source_file} (round {event.round_num}) "
             f"exhausted its retry budget on model {model_label!r} after a "
             f"{event.error_class} retry failure — no downgrade ladder "
             "position available for this model, surfacing to operator"
         )
     return (
-        f"downgrading generation for {event.source_file} (round "
+        f"downgrading generation for {source_file} (round "
         f"{event.round_num}) from {event.from_model!r} to {event.to_model!r} "
         f"after a {event.error_class} retry failure"
     )
@@ -174,17 +203,68 @@ class _RetryState:
     streak: int = 0
     downgraded: bool = False
 
+    def record_gateway_failure(self) -> int:
+        """Increment the consecutive-gateway-failure streak and return the
+        new count."""
+        self.streak += 1
+        return self.streak
+
+    def reset_streak(self) -> None:
+        """Zero the consecutive-gateway-failure streak."""
+        self.streak = 0
+
+    def spend_downgrade(self, to_model: str) -> None:
+        """Spend this file's one-and-only downgrade, moving to ``to_model``.
+
+        Raises :class:`RuntimeError` if this state has already spent its one
+        downgrade — a file gets exactly one downgrade, ever (#1908).
+        """
+        if self.downgraded:
+            raise RuntimeError(
+                f"file already spent its one downgrade (current model {self.model!r})"
+            )
+        self.model = to_model
+        self.downgraded = True
+
 
 @dataclass(frozen=True)
 class _RetryCallContext:
     """Call-invariant collaborators for one file's retry/downgrade closure
     (#1908 review). Bundles ``cwd``/``log``/``on_downgrade`` — none of which
     change between calls or rounds — so :func:`_retry_once_then_maybe_downgrade`
-    takes one object instead of three separate keyword parameters."""
+    takes one object instead of three separate keyword parameters.
+
+    ``call_headless`` is ``None`` when the caller didn't inject a transport
+    (#1918 Step 2.2) — :meth:`resolve_call_headless` looks up
+    ``mutation_kill_shared.run_claude_headless`` fresh on every actual call,
+    not once here at construction time, so a test that monkeypatches the
+    module attribute *after* constructing the closure (but before invoking
+    it) still observes the patch — exactly the dynamic-lookup contract the
+    pre-injection code had via its direct
+    ``mutation_kill_shared.run_claude_headless(...)`` call sites."""
 
     cwd: Path | None
     log: Callable[[str], None]
     on_downgrade: Callable[[DowngradeEvent], None] | None
+    call_headless: Callable[..., str] | None
+
+    def resolve_call_headless(self) -> Callable[..., str]:
+        """Return the injected transport, or
+        ``mutation_kill_shared.run_claude_headless`` looked up dynamically
+        via the module object when none was injected."""
+        return (
+            self.call_headless
+            if self.call_headless is not None
+            else mutation_kill_shared.run_claude_headless
+        )
+
+    def invoke(self, prompt: str, model: str | None) -> str:
+        """Call the resolved transport with this context's ``cwd`` — the one
+        call expression both :func:`_retry_once_then_maybe_downgrade` and
+        :func:`make_retrying_headless_call`'s ``call`` closure need, so it's
+        defined once instead of duplicated verbatim at both sites (#1938
+        review)."""
+        return self.resolve_call_headless()(prompt, model=model, cwd=self.cwd)
 
 
 def _retry_once_then_maybe_downgrade(
@@ -212,7 +292,7 @@ def _retry_once_then_maybe_downgrade(
     """
     already_downgraded = state.downgraded
     try:
-        return mutation_kill_shared.run_claude_headless(prompt, model=state.model, cwd=ctx.cwd)
+        return ctx.invoke(prompt, state.model)
     except RuntimeError as retry_exc:
         error_class = (
             "gateway-class" if is_gateway_class_error(retry_exc) else "non-gateway-class"
@@ -229,15 +309,13 @@ def _retry_once_then_maybe_downgrade(
             from_model=from_model,
             to_model=to_model,
             error_class=error_class,
-            exhausted=to_model is None,
         )
         ctx.log(_format_downgrade_message(event))
         if ctx.on_downgrade is not None:
             ctx.on_downgrade(event)
         if to_model is None:
             raise GenerationExhausted(_format_downgrade_message(event)) from retry_exc
-        state.model = to_model
-        state.downgraded = True
+        state.spend_downgrade(to_model)
         return None
 
 
@@ -248,6 +326,7 @@ def make_retrying_headless_call(
     log: Callable[[str], None] = print,
     on_downgrade: Callable[[DowngradeEvent], None] | None = None,
     sleep: Callable[[float], None] = time.sleep,
+    call_headless: Callable[..., str] | None = None,
 ) -> Callable[[str, str, int | None], str]:
     """Return a per-file, stateful wrapper around
     :func:`mutation_kill_shared.run_claude_headless` implementing the
@@ -313,30 +392,49 @@ def make_retrying_headless_call(
     ``RuntimeError`` for a non-gateway-class failure, unchanged from today;
     :class:`GenerationExhausted` only once the retry-then-downgrade budget
     is fully spent).
+
+    **Injectable transport (#1918 Step 2.2).** ``call_headless`` defaults to
+    ``None``, resolved by :meth:`_RetryCallContext.resolve_call_headless` to
+    :func:`mutation_kill_shared.run_claude_headless` fresh on every actual
+    generation attempt rather than once here at construction time — a
+    signature-level default (``call_headless: Callable[..., str] =
+    mutation_kill_shared.run_claude_headless``) would bind that reference
+    once, at module-import time, and a construction-time resolution would
+    still be a single stale snapshot; either way, a test's
+    ``monkeypatch.setattr(mutation_kill_shared, "run_claude_headless", fake)``
+    made after this factory returns its closure (but before the closure is
+    invoked) would silently miss the patch (this module's own docstring
+    dependency-inventory note above depends on the module-attribute lookup
+    staying dynamic on every call, matching the pre-injection code's direct
+    ``mutation_kill_shared.run_claude_headless(...)`` call sites). Every
+    generation attempt this closure makes — the initial attempt and the
+    3rd-failure same-model retry — goes through ``call_headless``, so a test
+    can also substitute a fake transport directly via this parameter without
+    monkeypatching the shared module at all. ``resolve_fallback_model`` is
+    unaffected — it stays a direct
+    :func:`mutation_kill_shared.resolve_fallback_model` reference.
     """
     state = _RetryState(model=initial_model)
-    ctx = _RetryCallContext(cwd=cwd, log=log, on_downgrade=on_downgrade)
+    ctx = _RetryCallContext(cwd=cwd, log=log, on_downgrade=on_downgrade, call_headless=call_headless)
 
     def call(prompt: str, source_file: str, round_num: int | None = None) -> str:
         while True:
             try:
-                result = mutation_kill_shared.run_claude_headless(
-                    prompt, model=state.model, cwd=ctx.cwd
-                )
+                result = ctx.invoke(prompt, state.model)
             except RuntimeError as exc:
                 if not is_gateway_class_error(exc):
                     # Never counts toward the threshold, and breaks an
                     # in-progress gateway-class streak rather than being
                     # skipped over.
-                    state.streak = 0
+                    state.reset_streak()
                     raise
-                state.streak += 1
-                if state.streak < _GATEWAY_FAILURE_THRESHOLD:
-                    sleep(min(_BACKOFF_BASE ** (state.streak - 1), _BACKOFF_CAP_S))
+                current_streak = state.record_gateway_failure()
+                if current_streak < _GATEWAY_FAILURE_THRESHOLD:
+                    sleep(min(_BACKOFF_BASE ** (current_streak - 1), _BACKOFF_CAP_S))
                     continue  # transparently retry, same model
                 # 3rd consecutive gateway-class failure: exactly one
                 # same-model retry before considering downgrade.
-                state.streak = 0
+                state.reset_streak()
                 retry_result = _retry_once_then_maybe_downgrade(
                     state,
                     prompt,
@@ -348,7 +446,7 @@ def make_retrying_headless_call(
                     continue  # downgraded — retry the 3-then-1 sequence on the new model
                 return retry_result
             else:
-                state.streak = 0
+                state.reset_streak()
                 return result
 
     return call

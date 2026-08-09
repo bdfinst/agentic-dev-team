@@ -16,8 +16,8 @@ timeout semantics — before this module existed:
 - ``stop_reason`` — the "zero survivors, or no improvement over the previous
   round" predicate that ends a file's kill loop.
 - ``resolve_model`` / ``strip_code_fences`` / ``claude_cli_available`` /
-  ``CLAUDE_CLI`` / ``run_claude_headless`` (moved here from
-  ``mutation_kill_headless.py`` in #1601) — the ``claude --print`` invocation
+  ``CLAUDE_CLI`` / ``run_claude_headless`` / ``HeadlessCallFailed`` (moved
+  here from ``mutation_kill_headless.py`` in #1601) — the ``claude --print`` invocation
   glue neither loop's scoring/insertion/orchestration logic actually needs,
   but that ``mutation_kill_loop_python.py`` previously reused by importing
   ``mutation_kill_headless.py`` at module scope. That module is NOT a neutral
@@ -37,8 +37,15 @@ The retry-then-downgrade policy on repeated headless-generation failures
 (``is_gateway_class_error``, ``make_retrying_headless_call``,
 ``GenerationExhausted``, ``DowngradeEvent``, ``make_downgrade_audit_hook``,
 #1908) lives in ``mutation_kill_retry.py`` instead — extracted out of this
-module (#1925) once it grew into a five-concern grab-bag; that module's only
-dependency on this one is ``run_claude_headless``/``resolve_fallback_model``.
+module (#1925) once it grew into a five-concern grab-bag; that module's
+dependencies on this one are ``run_claude_headless``/``resolve_fallback_model``,
+plus ``HeadlessCallFailed`` referenced only as a type
+(``isinstance(exc, mutation_kill_shared.HeadlessCallFailed)``), not a
+monkeypatch-sensitive callable. ``run_claude_headless`` is reached on every
+generation attempt unless the caller injects ``call_headless`` (#1918), in
+which case it is never reached. (Keep this in sync with the
+mirrored dependency inventory in ``mutation_kill_retry.py``'s own module
+docstring.)
 
 Centralizing the pieces below here means a future hardening fix lands once instead of
 drifting between two copies (the exact drift risk #1598/#1599 already
@@ -375,6 +382,27 @@ def strip_code_fences(text: str) -> str:
     return text.strip()
 
 
+class HeadlessCallFailed(RuntimeError):
+    """Raised by :func:`run_claude_headless` when ``claude --print`` exits
+    non-zero.
+
+    Carries the full, untruncated ``returncode``/``stderr`` as public
+    attributes for callers that need to inspect them directly; ``__str__``
+    truncates ``stderr`` to 500 bytes to stay byte-for-byte identical to the
+    plain ``RuntimeError`` message this type replaces, so any consumer that
+    only formats/prints the exception (``str(exc)``) sees the same message as
+    before.
+    """
+
+    def __init__(self, returncode: int, stderr: str) -> None:
+        self.returncode = returncode
+        self.stderr = stderr
+        super().__init__(str(self))
+
+    def __str__(self) -> str:
+        return f"claude CLI failed (exit {self.returncode}): {self.stderr[:500]}"
+
+
 def claude_cli_available() -> bool:
     """True if the Claude CLI responds to ``--version``."""
     try:
@@ -426,9 +454,7 @@ def run_claude_headless(prompt: str, *, model: str | None, cwd: Path | None = No
             "DEV_TEAM_MUTATION_GENERATION_TIMEOUT_S to raise it)"
         ) from exc
     if result.returncode != 0:
-        raise RuntimeError(
-            f"claude CLI failed (exit {result.returncode}): {result.stderr[:500]}"
-        )
+        raise HeadlessCallFailed(result.returncode, result.stderr)
     return strip_code_fences(result.stdout)
 
 

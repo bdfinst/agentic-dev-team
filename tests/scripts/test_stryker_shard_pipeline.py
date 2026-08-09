@@ -131,6 +131,48 @@ def test_main_missing_configs_exits_nonzero_naming_setup(tmp_path, capsys):
 
 
 # =============================================================================
+# Scenario: main()'s exit code reflects run_all's failed/exhausted results.
+# Drives main() end to end through a fake run_all — real git worktree
+# creation and Stryker/.NET invocation are not exercised here (covered by
+# the run_all/process_shard tests above); this harness isolates main()'s own
+# exit-code decision logic.
+# =============================================================================
+def _run_main_with_fake_run_all(tmp_path, monkeypatch, *, failed, exhausted):
+    _write_shard_config(tmp_path, "a")
+    monkeypatch.setattr(
+        pipeline.wrapper, "resolve_dotnet_root", lambda **kw: ("/fake/dotnet", None)
+    )
+    monkeypatch.setattr(
+        pipeline, "run_all", lambda *a, **kw: pipeline.ShardRunResult(failed, exhausted)
+    )
+    return pipeline.main(["--repo-root", str(tmp_path)])
+
+
+def test_main_returns_zero_for_clean_run(tmp_path, monkeypatch):
+    rc = _run_main_with_fake_run_all(tmp_path, monkeypatch, failed=[], exhausted=[])
+    assert rc == 0
+
+
+def test_main_returns_one_on_shard_failure(tmp_path, monkeypatch):
+    rc = _run_main_with_fake_run_all(tmp_path, monkeypatch, failed=["a"], exhausted=[])
+    assert rc == 1
+
+
+def test_main_returns_exit_generation_exhausted_for_exhaustion_only_run(tmp_path, monkeypatch):
+    rc = _run_main_with_fake_run_all(
+        tmp_path, monkeypatch, failed=[], exhausted=["a/src/W.a/Foo.cs"]
+    )
+    assert rc == pipeline.EXIT_GENERATION_EXHAUSTED
+
+
+def test_main_prioritizes_failure_over_exhaustion(tmp_path, monkeypatch):
+    rc = _run_main_with_fake_run_all(
+        tmp_path, monkeypatch, failed=["a"], exhausted=["a/src/W.a/Foo.cs"]
+    )
+    assert rc == 1
+
+
+# =============================================================================
 # Scenario: Each shard runs in its own worktree created from HEAD, and the
 # second shard's worktree includes the first shard's committed fixes.
 # =============================================================================
@@ -142,7 +184,7 @@ def test_worktrees_are_created_from_head_and_shards_compound(tmp_path):
         _write_report(out_base / shard, {"src/W.a/Foo.cs": {"mutants": [_mutant("Survived")]}})
 
     events = []
-    failed = pipeline.run_all(
+    result = pipeline.run_all(
         ["a", "b"],
         repo_root=tmp_path,
         worktree_base=tmp_path / ".wt",
@@ -161,7 +203,8 @@ def test_worktrees_are_created_from_head_and_shards_compound(tmp_path):
         events=events,
     )
 
-    assert failed == []
+    assert result.failed == []
+    assert result.exhausted == []
     # Every worktree is created from HEAD.
     adds = [c for c in rec.git if c[:3] == ["git", "worktree", "add"]]
     assert len(adds) == 2
@@ -245,9 +288,11 @@ def test_survivor_fix_stops_launching_further_files_after_a_nonzero_exit(tmp_pat
 # =============================================================================
 # Scenario: A GenerationExhausted exit (code 5) — a clean retry-then-downgrade
 # budget exhaustion, nothing mutated — is logged as unfixed but does NOT stop
-# the shard (the run's exit status is unaffected): the loop continues to the
-# next file (#1908 review). Distinct from exit code 4 above, which does stop
-# it.
+# the shard: the loop continues to the next file (#1908 review), and the tree
+# is not mutated. The pipeline's overall exit code becomes
+# EXIT_GENERATION_EXHAUSTED (5) at the end if any file exhausted (unless a
+# hard failure elsewhere makes it 1) — see main()'s 3-branch priority.
+# Distinct from exit code 4 above, which does stop it.
 # =============================================================================
 def test_survivor_fix_continues_past_a_generation_exhausted_exit(tmp_path):
     rec = _Recorder()
@@ -278,6 +323,102 @@ def test_survivor_fix_continues_past_a_generation_exhausted_exit(tmp_path):
     # Both files are launched — exit 5 does not stop the loop.
     assert len(rec.launches) == 2
     assert any("EXHAUSTED (headless)" in line and "exit 5" in line for line in rec.logs)
+
+
+# =============================================================================
+# Scenario: A single exhausted file in an otherwise-clean shard is recorded
+# =============================================================================
+def test_survivor_fix_records_exhausted_file_in_accumulator(tmp_path):
+    rec = _Recorder()
+    rec.run_returncode = 5  # GenerationExhausted's dedicated exit code
+    out_dir = tmp_path / "out" / "a"
+    config = _write_shard_config(tmp_path, "a")
+    _write_report(out_dir, {"src/W.a/Foo.cs": {"mutants": [_mutant("Survived")]}})
+
+    exhausted: list[str] = []
+    ok = pipeline.launch_survivor_fix(
+        "a",
+        repo_root=tmp_path,
+        out_dir=out_dir,
+        config_path=config,
+        model=None,
+        max_rounds=2,
+        run=rec.run,
+        resolve_test_file=lambda source, *a: Path(f"test/W.Tests/{Path(source).stem}Tests.cs"),
+        log=rec.log,
+        exhausted=exhausted,
+    )
+
+    assert ok is True
+    assert exhausted == ["a/src/W.a/Foo.cs"]
+
+
+# =============================================================================
+# Scenario: A mixed return-code sequence within one shard — the first
+# survivor file exhausts (recorded, loop continues), the second file exits
+# the fatal-revert code (loop stops). Exercises _Recorder.run_returncodes,
+# the per-call sequence field, which nothing previously set.
+# =============================================================================
+def test_survivor_fix_exhausted_then_fatal_failure_stops_after_second_file(tmp_path):
+    rec = _Recorder()
+    rec.run_returncodes = [5, 4]  # file 1: GenerationExhausted, file 2: fatal-revert
+    out_dir = tmp_path / "out" / "a"
+    config = _write_shard_config(tmp_path, "a")
+    # survivor_source_files (mutation_report.files_with_survivors) returns
+    # files sorted by key — "Bar.cs" precedes "Foo.cs" — so Bar.cs is file 1
+    # (exhausted, continues) and Foo.cs is file 2 (fatal-revert, stops).
+    _write_report(
+        out_dir,
+        {
+            "src/W.a/Foo.cs": {"mutants": [_mutant("Survived")]},
+            "src/W.a/Bar.cs": {"mutants": [_mutant("Survived")]},
+        },
+    )
+
+    exhausted: list[str] = []
+    ok = pipeline.launch_survivor_fix(
+        "a",
+        repo_root=tmp_path,
+        out_dir=out_dir,
+        config_path=config,
+        model=None,
+        max_rounds=2,
+        run=rec.run,
+        resolve_test_file=lambda source, *a: Path(f"test/W.Tests/{Path(source).stem}Tests.cs"),
+        log=rec.log,
+        exhausted=exhausted,
+    )
+
+    assert ok is False
+    # Only the first file's (Bar.cs) exhaustion is recorded before the second
+    # file (Foo.cs) hits the fatal-revert exit and stops the loop.
+    assert exhausted == ["a/src/W.a/Bar.cs"]
+    # Exactly 2 launches: file 1 (exhausted, continues) then file 2 (fatal,
+    # stops) — never a third attempt.
+    assert len(rec.launches) == 2
+
+
+def test_survivor_fix_exhausted_none_default_does_not_raise(tmp_path):
+    rec = _Recorder()
+    rec.run_returncode = 5  # GenerationExhausted's dedicated exit code
+    out_dir = tmp_path / "out" / "a"
+    config = _write_shard_config(tmp_path, "a")
+    _write_report(out_dir, {"src/W.a/Foo.cs": {"mutants": [_mutant("Survived")]}})
+
+    # exhausted is not passed — defaults to None — the append must be guarded.
+    ok = pipeline.launch_survivor_fix(
+        "a",
+        repo_root=tmp_path,
+        out_dir=out_dir,
+        config_path=config,
+        model=None,
+        max_rounds=2,
+        run=rec.run,
+        resolve_test_file=lambda source, *a: Path(f"test/W.Tests/{Path(source).stem}Tests.cs"),
+        log=rec.log,
+    )
+
+    assert ok is True
 
 
 def test_survivor_fix_all_files_launched_when_every_exit_is_zero(tmp_path):
@@ -333,6 +474,40 @@ def test_process_shard_marks_failed_when_a_survivor_fix_exits_nonzero(tmp_path):
     )
 
     assert result == "failed"
+
+
+# =============================================================================
+# Scenario: A shard with only exhausted files still reports "ok" from
+# process_shard, and the exhausted accumulator is populated.
+# =============================================================================
+def test_process_shard_populates_exhausted_and_still_reports_ok(tmp_path):
+    rec = _Recorder()
+    rec.run_returncode = 5  # GenerationExhausted's dedicated exit code
+    _write_shard_config(tmp_path, "a")
+    _write_report(tmp_path / "out" / "a", {"src/W.a/Foo.cs": {"mutants": [_mutant("Survived")]}})
+
+    exhausted: list[str] = []
+    result = pipeline.process_shard(
+        "a",
+        repo_root=tmp_path,
+        worktree_base=tmp_path / ".wt",
+        shard_out_base=tmp_path / "out",
+        stryker_bin="fake-stryker",
+        model=None,
+        max_rounds=3,
+        skip_agent=False,
+        skip_existing=False,
+        max_age_hours=0,
+        log=rec.log,
+        run_stryker=lambda **kw: 0,
+        run=rec.run,
+        resolve_test_file=lambda *a: Path("test/W.Tests/FooTests.cs"),
+        git_run=rec.git_run,
+        exhausted=exhausted,
+    )
+
+    assert result == "ok"
+    assert exhausted == ["a/src/W.a/Foo.cs"]
 
 
 def test_build_loop_command_always_includes_headless():
@@ -394,7 +569,7 @@ def test_run_all_marks_timed_out_shard_failed(tmp_path):
         kw["line_callback"]("7 mutants got status Timeout\n")
         return -15
 
-    failed = pipeline.run_all(
+    result = pipeline.run_all(
         ["a"],
         repo_root=tmp_path,
         worktree_base=tmp_path / ".wt",
@@ -410,7 +585,51 @@ def test_run_all_marks_timed_out_shard_failed(tmp_path):
         run=rec.run,
         git_run=rec.git_run,
     )
-    assert failed == ["a"]
+    assert result.failed == ["a"]
+    assert result.exhausted == []
+
+
+# =============================================================================
+# Scenario: run_all returns both the failed list and the exhausted list
+# =============================================================================
+def test_run_all_returns_shard_run_result_with_failed_and_exhausted(tmp_path):
+    rec = _Recorder()
+    out_base = tmp_path / "out"
+    for shard in ("a", "b"):
+        _write_shard_config(tmp_path, shard)
+
+    # Shard "a" exhausts one file (headless loop exits 5); shard "b" fails
+    # outright (Stryker itself reports non-zero).
+    _write_report(out_base / "a", {"src/W.a/Foo.cs": {"mutants": [_mutant("Survived")]}})
+
+    def fake_run_stryker(**kw):
+        # "a" succeeds (its report was pre-seeded above); "b" fails.
+        return 0 if kw["cwd"] == tmp_path / ".wt" / "shard-a" else 1
+
+    rec.run_returncode = 5  # GenerationExhausted, for shard "a"'s one file
+
+    result = pipeline.run_all(
+        ["a", "b"],
+        repo_root=tmp_path,
+        worktree_base=tmp_path / ".wt",
+        shard_out_base=out_base,
+        stryker_bin="fake-stryker",
+        model=None,
+        max_rounds=3,
+        skip_agent=False,
+        skip_existing=False,
+        max_age_hours=0,
+        log=rec.log,
+        run_stryker=fake_run_stryker,
+        run=rec.run,
+        resolve_test_file=lambda *a: Path("test/W.Tests/FooTests.cs"),
+        git_run=rec.git_run,
+    )
+
+    # Both a 2-tuple (positional unpack) and field access work.
+    failed, exhausted = result
+    assert failed == result.failed == ["b"]
+    assert exhausted == result.exhausted == ["a/src/W.a/Foo.cs"]
 
 
 # =============================================================================
@@ -511,6 +730,39 @@ def test_summary_uses_honest_score_with_timeout_and_nocoverage_separate(tmp_path
 def test_summary_reports_missing_report(tmp_path, capsys):
     pipeline.print_summary(["ghost"], tmp_path / "out")
     assert "ghost: no report" in capsys.readouterr().out
+
+
+# =============================================================================
+# Scenario: print_summary prints an EXHAUSTED line when the list is non-empty
+# =============================================================================
+def test_summary_prints_exhausted_line_when_non_empty(tmp_path):
+    logs = []
+    pipeline.print_summary(
+        ["ghost"],
+        tmp_path / "out",
+        log=logs.append,
+        exhausted=["a/src/W.a/Foo.cs", "b/src/W.b/Bar.cs"],
+    )
+    exhausted_lines = [ln for ln in logs if "EXHAUSTED" in ln]
+    assert len(exhausted_lines) == 1
+    assert "EXHAUSTED files (2)" in exhausted_lines[0]
+    assert "a/src/W.a/Foo.cs" in exhausted_lines[0]
+    assert "b/src/W.b/Bar.cs" in exhausted_lines[0]
+
+
+def test_summary_omits_exhausted_line_when_empty(tmp_path):
+    logs_default = []
+    pipeline.print_summary(["ghost"], tmp_path / "out", log=logs_default.append)
+
+    logs_explicit_empty = []
+    pipeline.print_summary(
+        ["ghost"], tmp_path / "out", log=logs_explicit_empty.append, exhausted=[]
+    )
+
+    # Byte-identical output to today: no EXHAUSTED line, and the default
+    # (unspecified) call matches the explicit-empty-list call.
+    assert logs_default == logs_explicit_empty
+    assert not any("EXHAUSTED" in ln for ln in logs_default)
 
 
 # =============================================================================

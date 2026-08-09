@@ -36,6 +36,7 @@ import time
 from collections.abc import Callable, Sequence
 from datetime import datetime, timezone
 from pathlib import Path
+from typing import NamedTuple
 
 # typing, not collections.abc: the module-level type aliases below are real
 # runtime expressions, so `from __future__ import annotations` cannot defer
@@ -69,6 +70,15 @@ _TEST_FILE_SUFFIXES = ("Tests.cs", "Test.cs", "Specs.cs", "Spec.cs")
 class ShardSetupMissing(Exception):
     """No ``stryker-config.shard-*.json`` files were discovered — the operator
     must run shard setup first. Carries an actionable message."""
+
+
+class ShardRunResult(NamedTuple):
+    """``run_all``'s return value. A NamedTuple (not a bare 2-tuple) so a
+    future call site can't silently transpose the two fields — positional
+    unpack (``failed, exhausted = run_all(...)``) still works unchanged."""
+
+    failed: list[str]
+    exhausted: list[str]
 
 
 # ── Small helpers ──────────────────────────────────────────────────────────────
@@ -310,6 +320,7 @@ def launch_survivor_fix(
     run: Callable[..., subprocess.CompletedProcess] = subprocess.run,
     resolve_test_file: TestFileResolver | None = None,
     log: Callable[[str], None] = print,
+    exhausted: list[str] | None = None,
 ) -> bool:
     """Launch the forced-headless survivor-fix loop for a shard's survivors.
 
@@ -331,9 +342,12 @@ def launch_survivor_fix(
     also currently maps to exit 4 — see #1930 for narrowing this). Exit
     code 5 (a clean retry-then-downgrade exhaustion — nothing mutated) is
     the one case carved out from that catch-all: this file is logged as
-    unfixed, but the run's exit status is unaffected and the loop continues
-    to the next file in the shard, matching ``mutation-kill.md``'s documented
-    exhaustion contract that ```--all` continues``` (#1908 review).
+    unfixed and the loop continues to the next file in the shard (the tree
+    was not mutated), matching ``mutation-kill.md``'s documented exhaustion
+    contract that ```--all` continues``` (#1908 review) — but the pipeline's
+    overall exit code becomes ``EXIT_GENERATION_EXHAUSTED`` (5) at the end if
+    any file across any shard exhausted, unless a hard failure elsewhere
+    makes it 1 (``main()``'s 3-branch priority: failed > exhausted > clean).
     """
     resolve_test_file = resolve_test_file or default_resolve_test_file
     report = report_path(out_dir)
@@ -367,10 +381,13 @@ def launch_survivor_fix(
             log(
                 f"[{ts()}] Agent EXHAUSTED (headless): {_safe(shard)} — "
                 f"{_safe(source)} (exit {rc}) — retry-then-downgrade budget "
-                "spent; logging this file as unfixed (the run's exit status "
-                "is unaffected) and continuing to the next file in this "
-                "shard (the tree was not mutated)"
+                "spent; logging this file as unfixed and continuing to the "
+                "next file in this shard (the tree was not mutated) — the "
+                "pipeline's overall exit code becomes EXIT_GENERATION_EXHAUSTED "
+                "(5) at the end unless a hard failure elsewhere makes it 1"
             )
+            if exhausted is not None:
+                exhausted.append(f"{_safe(shard)}/{_safe(source)}")
             continue
         if rc != 0:
             log(
@@ -425,10 +442,18 @@ def should_skip(
 
 
 def print_summary(
-    shards: Sequence[str], shard_out_base: Path, *, log: Callable[[str], None] = print
+    shards: Sequence[str],
+    shard_out_base: Path,
+    *,
+    log: Callable[[str], None] = print,
+    exhausted: Sequence[str] = (),
 ) -> None:
     """Print the per-shard honest score with Timeout and NoCoverage broken out
-    separately — never the timeout-inflated reported score (AC3)."""
+    separately — never the timeout-inflated reported score (AC3).
+
+    When ``exhausted`` is non-empty, an additional "EXHAUSTED files (N)" line
+    is appended listing the ``shard/source`` entries for files whose
+    retry-then-downgrade budget was spent (see ``launch_survivor_fix``)."""
     log("=== Pipeline summary ===")
     for shard in shards:
         rp = report_path(Path(shard_out_base) / shard)
@@ -441,6 +466,8 @@ def print_summary(
             f"killed={s.killed} survived={s.survived} "
             f"timeout={s.timeout} nocoverage={s.no_coverage}"
         )
+    if exhausted:
+        log(f"\nEXHAUSTED files ({len(exhausted)}): " + ", ".join(exhausted))
 
 
 # ── Orchestration ───────────────────────────────────────────────────────────────
@@ -464,6 +491,7 @@ def process_shard(
     resolve_test_file: TestFileResolver | None = None,
     git_run: GitRunner | None = None,
     events: list[tuple] | None = None,
+    exhausted: list[str] | None = None,
 ) -> str:
     """Process one shard end to end. Returns ``"ok"`` / ``"failed"`` /
     ``"skipped"``. ``events`` (when supplied) records the worktree-creation and
@@ -511,6 +539,7 @@ def process_shard(
             run=run,
             resolve_test_file=resolve_test_file,
             log=log,
+            exhausted=exhausted,
         )
         if events is not None:
             events.append(("fix", shard))
@@ -537,10 +566,12 @@ def run_all(
     resolve_test_file: TestFileResolver | None = None,
     git_run: GitRunner | None = None,
     events: list[tuple] | None = None,
-) -> list[str]:
+) -> ShardRunResult:
     """Process every shard **sequentially** (compounding depends on ordering).
-    Returns the list of failed shards."""
+    Returns a :class:`ShardRunResult` of the failed shards and the exhausted
+    (retry-then-downgrade-exhausted) source files across all shards."""
     failed: list[str] = []
+    exhausted: list[str] = []
     for shard in shards:
         result = process_shard(
             shard,
@@ -559,10 +590,11 @@ def run_all(
             resolve_test_file=resolve_test_file,
             git_run=git_run,
             events=events,
+            exhausted=exhausted,
         )
         if result == "failed":
             failed.append(shard)
-    return failed
+    return ShardRunResult(failed, exhausted)
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -601,6 +633,15 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def main(argv: Sequence[str] | None = None) -> int:
+    """CLI entry point. Exit code follows a 3-branch priority, failure first:
+
+    - ``1`` — one or more shards failed (``run_all``'s ``failed`` list is
+      non-empty). Takes priority over exhaustion.
+    - ``EXIT_GENERATION_EXHAUSTED`` (``5``) — no shard failed, but at least
+      one file exhausted its retry-then-downgrade budget (``exhausted`` is
+      non-empty).
+    - ``0`` — fully clean: no failures, no exhaustions.
+    """
     args = build_parser().parse_args(list(sys.argv[1:] if argv is None else argv))
     repo_root = Path(args.repo_root).resolve() if args.repo_root else Path.cwd()
 
@@ -629,7 +670,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     os.environ["DOTNET_ROOT"] = dotnet_root
 
     print(f"Pipeline: {' '.join(shards)}")
-    failed = run_all(
+    failed, exhausted = run_all(
         shards,
         repo_root=repo_root,
         worktree_base=worktree_base,
@@ -642,10 +683,12 @@ def main(argv: Sequence[str] | None = None) -> int:
         max_age_hours=args.max_age_hours,
     )
 
-    print_summary(shards, shard_out_base)
+    print_summary(shards, shard_out_base, exhausted=exhausted)
     if failed:
         print(f"\nFAILED shards: {' '.join(failed)}")
         return 1
+    if exhausted:
+        return EXIT_GENERATION_EXHAUSTED
     return 0
 
 
