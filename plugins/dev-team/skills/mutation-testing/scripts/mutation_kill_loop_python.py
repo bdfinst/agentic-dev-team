@@ -228,6 +228,11 @@ def run_scoped_mutmut(
     just the delete — because mutmut's cache is shared, fixed-path state for
     the whole repo; a second concurrent invocation reading/writing it
     mid-run is exactly as corrupting as racing the delete alone.
+
+    Raises :class:`mutation_kill_shared.RevertFailed` when either cleanup
+    revert fails. Both cleanup reverts are attempted first regardless of
+    which one fails; the raised message names every file that failed to
+    revert.
     """
     root = cwd or Path(".")
     lock_dir = _acquire_mutmut_cache_lock(root)
@@ -280,10 +285,24 @@ def run_scoped_mutmut(
                 ) from exc
             return junit.stdout or ""
         finally:
-            source_reverted = git_revert(Path(source_file), cwd=cwd)
+
+            def _cleanup_revert(path: Path) -> bool:
+                # git_revert only converts subprocess.TimeoutExpired to
+                # False; any other unexpected exception (e.g.
+                # FileNotFoundError if git isn't on PATH) would otherwise
+                # propagate straight out of this finally block, skipping
+                # the second revert attempt entirely. Treat it the same as
+                # a False return so both reverts are genuinely attempted
+                # unconditionally.
+                try:
+                    return git_revert(path, cwd=cwd)
+                except OSError:
+                    return False
+
+            source_reverted = _cleanup_revert(Path(source_file))
             test_reverted = True
             if test_file is not None:
-                test_reverted = git_revert(test_file, cwd=cwd)
+                test_reverted = _cleanup_revert(test_file)
             failed = [
                 str(p)
                 for p, ok in (
@@ -633,11 +652,13 @@ def run_for_file(
     mechanical, driven one round at a time by :func:`_run_round` — mirroring
     :func:`mutation_kill_loop.run_for_file`'s contract exactly.
 
-    A failed revert (after a compile failure, a test failure, or a failed
-    commit) is fatal: it raises :class:`mutation_kill_shared.RevertFailed`
-    rather than returning silently, because a revert that can't be verified
-    as having succeeded means the working tree is left in an unknown,
-    possibly-mutated state (#1598). A failed commit itself is also a round failure, not a silent
+    A failed revert (after a compile failure, a test failure, a failed
+    commit, or a failed mutmut cleanup revert inside
+    :func:`run_scoped_mutmut`) is fatal: it raises
+    :class:`mutation_kill_shared.RevertFailed` rather than returning
+    silently, because a revert that can't be verified as having succeeded
+    means the working tree is left in an unknown, possibly-mutated state
+    (#1598). A failed commit itself is also a round failure, not a silent
     success: it is reverted (unstage + restore, via
     :func:`git_reset_and_revert`) and the round stops without advancing.
     """

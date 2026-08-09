@@ -268,6 +268,43 @@ def test_run_scoped_mutmut_raises_nothing_when_both_reverts_succeed(
     assert result == "<testsuites></testsuites>"
 
 
+def test_run_scoped_mutmut_treats_an_unexpected_git_revert_exception_as_a_failed_revert(
+    tmp_path: Path, monkeypatch
+):
+    """git_revert only converts subprocess.TimeoutExpired to False — any
+    other unexpected exception (e.g. FileNotFoundError if git isn't on
+    PATH) must not propagate straight out of the finally block and skip
+    attempting the test file's revert. run_scoped_mutmut must treat it the
+    same as a False return: both reverts are genuinely attempted
+    unconditionally, and the resulting RevertFailed names the source file."""
+    monkeypatch.setattr(loop, "_mutmut_argv", lambda: ["mutmut"])
+
+    class _FakeCompleted:
+        stdout = "<testsuites></testsuites>"
+
+    monkeypatch.setattr(loop.subprocess, "run", lambda *a, **k: _FakeCompleted())
+
+    calls = []
+
+    def fake_revert(path, **k):
+        calls.append(path)
+        if path == Path("src/a.py"):
+            raise FileNotFoundError("git: command not found")
+        return True
+
+    monkeypatch.setattr(loop, "git_revert", fake_revert)
+
+    with pytest.raises(shared.RevertFailed, match="src/a.py"):
+        loop.run_scoped_mutmut(
+            "src/a.py",
+            test_command="pytest",
+            test_file=Path("tests/test_a.py"),
+            cwd=tmp_path,
+        )
+
+    assert calls == [Path("src/a.py"), Path("tests/test_a.py")]
+
+
 def test_run_scoped_mutmut_still_releases_the_lock_when_revert_fails(
     tmp_path: Path, monkeypatch
 ):

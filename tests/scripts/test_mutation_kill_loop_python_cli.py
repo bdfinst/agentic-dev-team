@@ -476,7 +476,11 @@ def test_main_returns_exit_4_when_mutmut_cleanup_revert_fails_end_to_end(
 
     assert rc == 4
     err = capsys.readouterr().err
+    # "a.py" is a substring of "test_a.py", so also assert "test_a.py" is
+    # absent — otherwise this would pass even if the error wrongly named
+    # the test file instead of the source file.
     assert "a.py" in err
+    assert "test_a.py" not in err
 
 
 def test_make_headless_generator_label_override_reflects_a_downgrade(
