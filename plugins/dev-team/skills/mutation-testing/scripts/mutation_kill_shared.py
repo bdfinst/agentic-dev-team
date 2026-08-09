@@ -13,6 +13,8 @@ timeout semantics — before this module existed:
   unstage-then-discard, and stage-then-commit exactly one test file, under a
   bounded timeout with the ``--literal-pathspecs``/``--`` pathspec guards
   hardened in #1598/#1599.
+- ``RevertFailed`` — raised when a cleanup or insertion revert itself fails,
+  leaving the working tree in an unknown, possibly-mutated state (#1930).
 - ``stop_reason`` — the "zero survivors, or no improvement over the previous
   round" predicate that ends a file's kill loop.
 - ``resolve_model`` / ``strip_code_fences`` / ``claude_cli_available`` /
@@ -116,13 +118,8 @@ def git_revert(
     ``list.append(...)``/``dict.update(...)`` call returns ``None``, not a
     ``CompletedProcess``).
 
-    ``mutation_kill_loop_python.py``'s ``run_scoped_mutmut`` always-revert
-    ``finally`` cleanup calls this too, and (since #1928/#1939) inspects the
-    return value: both the source-file and test-file reverts are attempted
-    unconditionally, and if either failed, ``run_scoped_mutmut`` raises
-    :class:`RevertFailed` naming every file that failed to revert — matching
-    ``run_for_file``'s build/test/commit-failure paths below, which also
-    treat a failed revert as fatal.
+    Callers must inspect the return value; a failed revert is typically
+    treated as fatal (see :class:`RevertFailed`).
     """
     try:
         result = subprocess.run(

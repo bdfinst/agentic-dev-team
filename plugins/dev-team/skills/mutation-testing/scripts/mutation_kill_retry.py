@@ -115,8 +115,11 @@ EXIT_GENERATION_EXHAUSTED = 5
 # Shared exit code for the fatal, working-tree-possibly-mutated outcome class
 # (#1930): a failed revert (or a failed-commit round-abandonment's own
 # revert) leaves the tree in an unknown state. Used by both headless CLIs'
-# main() and stryker_shard_pipeline.py's shard driver so the meaning of "4"
-# lives in one place instead of three duplicated literals.
+# main() functions so the meaning of "4" lives in one place instead of two
+# duplicated literals. stryker_shard_pipeline.py's shard driver never
+# imports this constant — it decodes exit 4 by exclusion (any non-zero,
+# non-EXIT_GENERATION_EXHAUSTED exit is treated as fatal) and only names "4"
+# in prose/log wording.
 EXIT_REVERT_FAILED = 4
 
 

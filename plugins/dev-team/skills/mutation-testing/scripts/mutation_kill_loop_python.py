@@ -186,7 +186,7 @@ def _release_mutmut_cache_lock(lock_dir: Path) -> None:
         lock_dir.rmdir()
 
 
-def _cleanup_revert_file(path: Path, *, cwd: Path | None) -> bool:
+def _revert_file_for_cleanup(path: Path, *, cwd: Path | None) -> bool:
     """Revert ``path`` for :func:`run_scoped_mutmut`'s cleanup ``finally``.
 
     ``git_revert`` only converts ``subprocess.TimeoutExpired`` to False; any
@@ -301,10 +301,10 @@ def run_scoped_mutmut(
                 ) from exc
             return junit.stdout or ""
         finally:
-            source_reverted = _cleanup_revert_file(Path(source_file), cwd=cwd)
+            source_reverted = _revert_file_for_cleanup(Path(source_file), cwd=cwd)
             test_reverted = True
             if test_file is not None:
-                test_reverted = _cleanup_revert_file(test_file, cwd=cwd)
+                test_reverted = _revert_file_for_cleanup(test_file, cwd=cwd)
             failed = [
                 str(p)
                 for p, ok in (

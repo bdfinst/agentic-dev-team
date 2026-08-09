@@ -260,7 +260,7 @@ def test_main_returns_exit_code_5_when_generation_exhausted_propagates(
         ]
     )
 
-    assert rc == 5
+    assert rc == loop.EXIT_GENERATION_EXHAUSTED
     err = capsys.readouterr().err
     assert "exhausted its retry budget" in err
     assert "generation failed cleanly, continuing" not in err
@@ -423,7 +423,7 @@ def test_main_returns_exit_code_5_via_real_retry_downgrade_chain_unmocked(
         ]
     )
 
-    assert rc == 5
+    assert rc == loop.EXIT_GENERATION_EXHAUSTED
     err = capsys.readouterr().err
     assert "exhausted its retry budget" in err
 
