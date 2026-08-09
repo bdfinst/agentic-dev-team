@@ -331,23 +331,23 @@ def launch_survivor_fix(
 
     Returns True when every launched fix exited zero or the dedicated
     GenerationExhausted exit code 5 (or none were launched); False the
-    moment one exits any OTHER non-zero code — most commonly the fatal-revert
-    exit code 4 (``mutation_kill_headless``/``mutation_kill_loop_python``
-    #1598), which means the working tree was just declared to be in an
-    unknown/possibly-mutated state, so processing stops for the remaining
-    files in this shard rather than silently continuing onto a tree that may
-    already be broken. That "commonly" is deliberate: any other non-zero
-    exit is treated identically today, even though not every such path
-    actually mutates the tree (e.g. a non-gateway-class generation timeout
-    also currently maps to exit 4 — see #1930 for narrowing this). Exit
-    code 5 (a clean retry-then-downgrade exhaustion — nothing mutated) is
-    the one case carved out from that catch-all: this file is logged as
-    unfixed and the loop continues to the next file in the shard (the tree
-    was not mutated), matching ``mutation-kill.md``'s documented exhaustion
-    contract that ```--all` continues``` (#1908 review) — but the pipeline's
-    overall exit code becomes ``EXIT_GENERATION_EXHAUSTED`` (5) at the end if
-    any file across any shard exhausted, unless a hard failure elsewhere
-    makes it 1 (``main()``'s 3-branch priority: failed > exhausted > clean).
+    moment one exits the fatal-revert exit code 4 (``mutation_kill_headless``
+    /``mutation_kill_loop_python`` #1598), which means the working tree was
+    just declared to be in an unknown/possibly-mutated state, so processing
+    stops for the remaining files in this shard rather than silently
+    continuing onto a tree that may already be broken. Exit code 4 is
+    ``RevertFailed`` specifically — a failed revert. Exit code 5 covers two
+    distinct outcomes that both map to the same code: true
+    GenerationExhausted (a fully spent retry-then-downgrade budget) and any
+    other clean RuntimeError (e.g. a generation timeout, or a mutmut/Stryker
+    infrastructure failure — not exhaustion). Both are carved out from the
+    fatal case: this file is logged as unfixed and the loop continues to the
+    next file in the shard (the tree was not mutated), matching
+    ``mutation-kill.md``'s documented exhaustion contract that ```--all`
+    continues``` (#1908 review) — but the pipeline's overall exit code
+    becomes ``EXIT_GENERATION_EXHAUSTED`` (5) at the end if any file across
+    any shard hit either outcome, unless a hard failure elsewhere makes it 1
+    (``main()``'s 3-branch priority: failed > exhausted > clean).
     """
     resolve_test_file = resolve_test_file or default_resolve_test_file
     report = report_path(out_dir)

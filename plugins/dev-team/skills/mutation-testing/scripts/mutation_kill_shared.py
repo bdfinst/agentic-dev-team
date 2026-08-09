@@ -187,6 +187,17 @@ def git_reset_and_revert(
     return git_revert(test_file, cwd=cwd, env=env)
 
 
+class RevertFailed(RuntimeError):
+    """Raised when a git revert itself fails: the working tree may be left in
+    an unknown/possibly-mutated state, distinct from every other
+    ``RuntimeError`` this codebase raises, which are clean with respect to
+    inserted test content — generation precedes insertion, and a failed
+    insertion-revert is this class, not a plain ``RuntimeError``. The C#
+    solution-file restore (``wrapper.restore_sln``) reports no outcome, so a
+    stray hidden ``.sln`` is not independently ruled out here — see #1955.
+    """
+
+
 def git_commit(
     message: str,
     test_file: Path,
@@ -380,14 +391,6 @@ def strip_code_fences(text: str) -> str:
     text = _FENCE_OPEN_RE.sub("", text.strip())
     text = _FENCE_CLOSE_RE.sub("", text.strip())
     return text.strip()
-
-
-class RevertFailed(RuntimeError):
-    """Raised when a git revert itself fails: the working tree may be left in
-    an unknown/possibly-mutated state, distinct from every other
-    ``RuntimeError`` this codebase raises (which are all provably clean,
-    since generation precedes insertion).
-    """
 
 
 class HeadlessCallFailed(RuntimeError):

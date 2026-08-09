@@ -279,12 +279,14 @@ def main(argv: Sequence[str] | None = None) -> int:
         return 4
     except RuntimeError as exc:
         # Every other RuntimeError this loop raises (a generation timeout,
-        # a mutmut/Stryker infrastructure failure, etc.) is provably clean —
-        # generation always precedes insertion, and the one case that isn't
-        # clean (a failed revert) is RevertFailed, caught above (#1930). Not
-        # a retry-budget exhaustion — reuses exit 5 because the shard driver
-        # only distinguishes "fatal, stop" (4) from "clean, continue" (5),
-        # not why a file wasn't fixed.
+        # a mutmut/Stryker infrastructure failure, etc.) is clean with
+        # respect to inserted test content — generation precedes insertion,
+        # and a failed insertion-revert is RevertFailed, caught above. The
+        # C# solution-file restore (wrapper.restore_sln) reports no outcome,
+        # so a stray hidden .sln is not independently ruled out here — see
+        # #1955. Not a retry-budget exhaustion — reuses exit 5 because the
+        # shard driver only distinguishes "fatal, stop" (4) from "clean,
+        # continue" (5), not why a file wasn't fixed.
         sys.stderr.write(f"error: {exc} — generation failed cleanly, continuing\n")
         return EXIT_GENERATION_EXHAUSTED
     return 0

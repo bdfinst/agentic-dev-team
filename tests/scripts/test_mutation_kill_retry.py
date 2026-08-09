@@ -114,12 +114,15 @@ def test_is_gateway_class_error_status_gap_boundary_does_not_match_at_13_chars()
 
 
 def test_generation_exhausted_is_a_runtime_error():
-    """So the existing `except RuntimeError` handling in both --headless
-    CLIs' main() (and any --all driver relying on the same taxonomy) catches
-    it exactly like today's failed-revert/failed-commit RuntimeErrors — this
-    file's exhaustion is reported and the process exits non-zero; it never
-    surfaces as an uncaught traceback that would abort an outer --all run
-    differently from any other per-file failure."""
+    """Structural fallback guarantee: both --headless CLIs' main() now catch
+    GenerationExhausted via its own dedicated except-clause ahead of
+    RevertFailed and the generic `except RuntimeError` (#1939), but this
+    subclass relationship means that even if a caller only has a plain
+    `except RuntimeError` (e.g. an --all driver relying on the older,
+    coarser taxonomy), this file's exhaustion is still reported and the
+    process still exits non-zero; it never surfaces as an uncaught traceback
+    that would abort an outer run differently from any other per-file
+    failure."""
     assert issubclass(retry.GenerationExhausted, RuntimeError)
 
 

@@ -364,6 +364,7 @@ def test_main_returns_exit_code_5_when_generation_exhausted_propagates(
     assert rc == 5
     err = capsys.readouterr().err
     assert "exhausted its retry budget" in err
+    assert "generation failed cleanly, continuing" not in err
 
 
 # =============================================================================

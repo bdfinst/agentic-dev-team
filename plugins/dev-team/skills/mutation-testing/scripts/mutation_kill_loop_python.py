@@ -618,10 +618,10 @@ def run_for_file(
     :func:`mutation_kill_loop.run_for_file`'s contract exactly.
 
     A failed revert (after a compile failure, a test failure, or a failed
-    commit) is fatal: it raises :class:`RuntimeError` rather than returning
-    silently, because a revert that can't be verified as having succeeded
-    means the working tree is left in an unknown, possibly-mutated state
-    (#1598). A failed commit itself is also a round failure, not a silent
+    commit) is fatal: it raises :class:`mutation_kill_shared.RevertFailed`
+    rather than returning silently, because a revert that can't be verified
+    as having succeeded means the working tree is left in an unknown,
+    possibly-mutated state (#1598). A failed commit itself is also a round failure, not a silent
     success: it is reverted (unstage + restore, via
     :func:`git_reset_and_revert`) and the round stops without advancing.
     """
@@ -847,12 +847,13 @@ def main(argv: Sequence[str] | None = None) -> int:
         return 4
     except RuntimeError as exc:
         # Every other RuntimeError this loop raises (a mutmut-run timeout,
-        # a mutmut-start/junitxml-extraction failure, etc.) is provably
-        # clean — mirrors mutation_kill_headless.py's main(): the one case
-        # that isn't clean is a failed revert, which is RevertFailed,
-        # caught above (#1930). Not a retry-budget exhaustion — reuses exit
-        # 5 because the shard driver only distinguishes "fatal, stop" (4)
-        # from "clean, continue" (5), not why a file wasn't fixed.
+        # a mutmut-start/junitxml-extraction failure, etc.) is clean once
+        # Slice 2 (#1928) closes run_scoped_mutmut's unchecked
+        # cleanup-revert gap — until then this branch relies on that
+        # cleanup succeeding, same as the GenerationExhausted case above.
+        # Not a retry-budget exhaustion — reuses exit 5 because the shard
+        # driver only distinguishes "fatal, stop" (4) from "clean,
+        # continue" (5), not why a file wasn't fixed.
         sys.stderr.write(f"error: {exc} — generation failed cleanly, continuing\n")
         return EXIT_GENERATION_EXHAUSTED
     return 0

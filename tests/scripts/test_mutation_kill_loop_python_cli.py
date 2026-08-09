@@ -226,17 +226,17 @@ def test_main_maps_non_revert_runtime_error_to_exit_5_with_honest_wording(
 
 
 # =============================================================================
-# Scenario: GenerationExhausted gets its OWN exit code (5), distinct from the
-# generic RuntimeError exit code 4 above (#1908 review). Exit 4 most
-# commonly means "a failed revert — the tree may be left in an
-# unknown/possibly-mutated state", though it currently also absorbs other,
-# actually-clean RuntimeErrors (#1930); exit 5 means "a clean
-# retry-then-downgrade exhaustion — nothing was mutated by the
-# insertion-revert paths this covers" (run_scoped_mutmut's best-effort
-# post-mutmut-crash revert is deliberately not checked, so a
-# mutmut-crash leftover is the one on-disk mutation exit 5 does not rule
-# out — #1928) — stryker_shard_pipeline.py's shard driver treats the two
-# very differently (abort the shard vs. continue to the next file).
+# Scenario: GenerationExhausted gets its OWN exit code (5), distinct from
+# RevertFailed's exit code 4 (#1939). Exit 4 means "a failed revert — the
+# tree may be left in an unknown/possibly-mutated state"; exit 5 covers both
+# true GenerationExhausted (a fully spent retry-then-downgrade budget) and
+# any other clean RuntimeError (a mutmut-run timeout,
+# mutmut-start/junitxml-extraction failure, etc. — nothing mutated by the
+# insertion-revert paths this covers; run_scoped_mutmut's best-effort
+# post-mutmut-crash revert is deliberately not checked, so a mutmut-crash
+# leftover is the one on-disk mutation exit 5 does not rule out — #1928) —
+# stryker_shard_pipeline.py's shard driver treats exit 4 and exit 5 very
+# differently (abort the shard vs. continue to the next file).
 # =============================================================================
 def test_main_returns_exit_code_5_when_generation_exhausted_propagates(
     monkeypatch, capsys, tmp_path: Path
@@ -259,7 +259,9 @@ def test_main_returns_exit_code_5_when_generation_exhausted_propagates(
     )
 
     assert rc == 5
-    assert "exhausted its retry budget" in capsys.readouterr().err
+    err = capsys.readouterr().err
+    assert "exhausted its retry budget" in err
+    assert "generation failed cleanly, continuing" not in err
 
 
 # =============================================================================
