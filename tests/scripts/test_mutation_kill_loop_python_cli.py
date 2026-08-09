@@ -426,6 +426,59 @@ def test_main_returns_exit_code_5_via_real_retry_downgrade_chain_unmocked(
     assert "exhausted its retry budget" in err
 
 
+# =============================================================================
+# Scenario: a mutmut cleanup-revert failure (Slice 2, Step 2.1) surfaces as
+# exit code 4 end-to-end through main()'s own call path (Slice 1, Step 1.3)
+# — the combined point of consolidating #1928+#1930 into #1939, verified
+# together rather than each half's own isolated boundary. Unlike every other
+# test in this file, run_for_file is NOT mocked here: only the mutmut
+# subprocess call (loop.subprocess.run, per this file's own
+# run_scoped_mutmut-mechanics convention) and git_revert are faked, so
+# RevertFailed genuinely propagates unmodified in type from
+# run_scoped_mutmut's raise site, through _score_round/_run_round/
+# run_for_file, to main()'s own except RevertFailed clause.
+# =============================================================================
+def test_main_returns_exit_4_when_mutmut_cleanup_revert_fails_end_to_end(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys
+):
+    monkeypatch.setattr(loop, "claude_cli_available", lambda: True)
+    monkeypatch.setattr(loop, "_mutmut_argv", lambda: ["mutmut"])
+    # cwd matters here (unlike this file's other tests) because
+    # run_scoped_mutmut runs for real and acquires the .mutmut-cache.lock
+    # directory under ctx.cwd (None -> Path(".")) — chdir into tmp_path so
+    # that lock never touches the actual repo working directory.
+    monkeypatch.chdir(tmp_path)
+
+    class _FakeCompleted:
+        stdout = "<testsuites></testsuites>"
+
+    monkeypatch.setattr(loop.subprocess, "run", lambda *a, **k: _FakeCompleted())
+
+    def fake_revert(path, **k):
+        # Only the source file's revert fails; the test file's succeeds —
+        # both are still attempted (run_scoped_mutmut's own contract).
+        return Path(path).name != "a.py"
+
+    monkeypatch.setattr(loop, "git_revert", fake_revert)
+
+    Path("a.py").write_text("x = 1\n", encoding="utf-8")
+    Path("test_a.py").write_text("def test_existing():\n    assert True\n", encoding="utf-8")
+
+    rc = loop.main(
+        [
+            "--headless",
+            "--file", "a.py",
+            "--test-file", "test_a.py",
+            "--source-path", "a.py",
+            "--test-command", "pytest",
+        ]
+    )
+
+    assert rc == 4
+    err = capsys.readouterr().err
+    assert "a.py" in err
+
+
 def test_make_headless_generator_label_override_reflects_a_downgrade(
     monkeypatch: pytest.MonkeyPatch,
 ):
