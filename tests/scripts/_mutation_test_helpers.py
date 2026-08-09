@@ -123,7 +123,11 @@ def sequenced_run_claude_headless(
     Extracted (#1908 review) out of near-duplicate copies previously defined
     verbatim in ``test_mutation_kill_shared.py``,
     ``test_mutation_kill_headless.py``, and
-    ``test_mutation_kill_loop_python_cli.py``. All three pass
+    ``test_mutation_kill_loop_python_cli.py`` (#1908). After the #1925 split,
+    the CURRENT callers are ``test_mutation_kill_headless.py``,
+    ``test_mutation_kill_loop_python_cli.py``, and
+    ``test_mutation_kill_retry.py`` — ``test_mutation_kill_shared.py`` no
+    longer calls this helper at all. All three current callers pass
     ``mutation_kill_shared`` as ``shared_module`` regardless of which loop
     module's own tests are calling through it: ``make_retrying_headless_call``
     always resolves ``run_claude_headless`` from that module's own globals at

@@ -353,6 +353,7 @@ def test_main_wires_label_override_provider_into_runcontext(
 # performs beyond generation, not the generation-classification layer under
 # test here.
 # =============================================================================
+@pytest.mark.slow
 def test_main_returns_exit_code_5_via_real_retry_downgrade_chain_unmocked(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys
 ):

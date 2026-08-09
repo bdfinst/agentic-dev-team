@@ -459,6 +459,7 @@ def test_main_wires_label_override_provider_into_runcontext(
 # main() end-to-end so GenerationExhausted must actually propagate out of the
 # real mutation_kill_loop.run_for_file and be caught by main() itself.
 # =============================================================================
+@pytest.mark.slow
 def test_main_returns_exit_code_5_via_real_retry_downgrade_chain_unmocked(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys
 ):

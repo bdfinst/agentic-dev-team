@@ -35,10 +35,6 @@ import mutation_kill_shared as shared
 # is_gateway_class_error — the exact 502/gateway-class error definition
 # (#1908, Slice 3 Step 3.2).
 # =============================================================================
-def _exit_error(stderr: str) -> shared.HeadlessCallFailed:
-    return gateway_error(stderr)
-
-
 def _timeout_error() -> RuntimeError:
     return RuntimeError(
         "claude --print generation timed out after 300s (set "
@@ -63,7 +59,7 @@ def _timeout_error() -> RuntimeError:
 def test_is_gateway_class_error_matches_every_documented_marker_case_insensitively(
     marker: str,
 ):
-    assert retry.is_gateway_class_error(_exit_error(f"boom: {marker} boom")) is True
+    assert retry.is_gateway_class_error(gateway_error(f"boom: {marker} boom")) is True
 
 
 def test_is_gateway_class_error_is_false_for_the_timeout_shape():
@@ -73,14 +69,14 @@ def test_is_gateway_class_error_is_false_for_the_timeout_shape():
 
 
 def test_is_gateway_class_error_is_false_for_an_unmatched_nonzero_exit():
-    assert retry.is_gateway_class_error(_exit_error("permission denied")) is False
+    assert retry.is_gateway_class_error(gateway_error("permission denied")) is False
 
 
 def test_is_gateway_class_error_is_false_for_a_bare_numeral_with_no_status_context():
     """A bare digit run with no status-context word (status/http/code) does
     not anchor — "request id 502391" must not false-positive on the "502"
     substring it happens to contain (#1938)."""
-    assert retry.is_gateway_class_error(_exit_error("request id 502391 failed")) is False
+    assert retry.is_gateway_class_error(gateway_error("request id 502391 failed")) is False
 
 
 def test_is_gateway_class_error_detects_a_marker_past_byte_500_of_stderr():
@@ -90,7 +86,7 @@ def test_is_gateway_class_error_detects_a_marker_past_byte_500_of_stderr():
     padding = "x" * 550
     stderr = f"{padding} HTTP 502 {'y' * 50}"
     assert len(stderr) > 600
-    assert retry.is_gateway_class_error(_exit_error(stderr)) is True
+    assert retry.is_gateway_class_error(gateway_error(stderr)) is True
 
 
 def test_is_gateway_class_error_returns_false_for_a_plain_runtime_error_with_marker_text():
@@ -100,21 +96,21 @@ def test_is_gateway_class_error_returns_false_for_a_plain_runtime_error_with_mar
 
 
 def test_is_gateway_class_error_matches_a_lowercase_anchored_numeral_marker():
-    assert retry.is_gateway_class_error(_exit_error("boom: http 502 boom")) is True
+    assert retry.is_gateway_class_error(gateway_error("boom: http 502 boom")) is True
 
 
 def test_is_gateway_class_error_status_gap_boundary_matches_at_exactly_12_chars():
     """Exactly 12 non-digit characters between the status word and the digits
     still matches the `[^0-9]{0,12}` gap bound (#1938)."""
     stderr = "status" + ("x" * 12) + "502"
-    assert retry.is_gateway_class_error(_exit_error(stderr)) is True
+    assert retry.is_gateway_class_error(gateway_error(stderr)) is True
 
 
 def test_is_gateway_class_error_status_gap_boundary_does_not_match_at_13_chars():
     """One more non-digit character than the `[^0-9]{0,12}` gap bound no
     longer matches (#1938)."""
     stderr = "status" + ("x" * 13) + "502"
-    assert retry.is_gateway_class_error(_exit_error(stderr)) is False
+    assert retry.is_gateway_class_error(gateway_error(stderr)) is False
 
 
 def test_generation_exhausted_is_a_runtime_error():
@@ -185,9 +181,9 @@ def test_backoff_sleeps_with_increasing_duration_between_pre_threshold_retries(
     sequenced_run_claude_headless(
         monkeypatch,
         shared,
-        _exit_error("502 Bad Gateway"),
-        _exit_error("502 Bad Gateway"),
-        _exit_error("502 Bad Gateway"),
+        gateway_error("502 Bad Gateway"),
+        gateway_error("502 Bad Gateway"),
+        gateway_error("502 Bad Gateway"),
         "generated-test",
     )
     call = retry.make_retrying_headless_call(initial_model="opus", sleep=sleeps.append)
@@ -215,9 +211,9 @@ def test_third_consecutive_gateway_failure_triggers_exactly_one_same_model_retry
     downgrades: list = []
     calls = sequenced_run_claude_headless(
         monkeypatch, shared,
-        _exit_error("502 Bad Gateway"),
-        _exit_error("503 Service Unavailable"),
-        _exit_error("504 Gateway Timeout"),
+        gateway_error("502 Bad Gateway"),
+        gateway_error("503 Service Unavailable"),
+        gateway_error("504 Gateway Timeout"),
         "generated-test",
     )
     call = retry.make_retrying_headless_call(sleep=lambda _s: None, initial_model="opus", on_downgrade=downgrades.append)
@@ -234,9 +230,9 @@ def test_successful_retry_avoids_downgrade_entirely(monkeypatch: pytest.MonkeyPa
     downgrades: list = []
     calls = sequenced_run_claude_headless(
         monkeypatch, shared,
-        _exit_error("502 Bad Gateway"),
-        _exit_error("502 Bad Gateway"),
-        _exit_error("502 Bad Gateway"),
+        gateway_error("502 Bad Gateway"),
+        gateway_error("502 Bad Gateway"),
+        gateway_error("502 Bad Gateway"),
         "ok",  # the 3rd-failure retry succeeds
     )
     call = retry.make_retrying_headless_call(sleep=lambda _s: None, initial_model="opus", on_downgrade=downgrades.append)
@@ -255,12 +251,12 @@ def test_gateway_failure_after_a_success_counts_as_the_first_not_the_third(
     downgrades: list = []
     calls = sequenced_run_claude_headless(
         monkeypatch, shared,
-        _exit_error("502 Bad Gateway"),
-        _exit_error("502 Bad Gateway"),
+        gateway_error("502 Bad Gateway"),
+        gateway_error("502 Bad Gateway"),
         "ok-1",  # success resets the streak to 0
-        _exit_error("502 Bad Gateway"),  # 1st post-reset failure
-        _exit_error("502 Bad Gateway"),  # 2nd
-        _exit_error("502 Bad Gateway"),  # 3rd — now the retry fires
+        gateway_error("502 Bad Gateway"),  # 1st post-reset failure
+        gateway_error("502 Bad Gateway"),  # 2nd
+        gateway_error("502 Bad Gateway"),  # 3rd — now the retry fires
         "ok-after-retry",
     )
     call = retry.make_retrying_headless_call(sleep=lambda _s: None, initial_model="opus", on_downgrade=downgrades.append)
@@ -280,9 +276,9 @@ def test_non_gateway_failures_never_count_toward_the_threshold(
     downgrades: list = []
     calls = sequenced_run_claude_headless(
         monkeypatch, shared,
-        _exit_error("validation error"),
-        _exit_error("validation error"),
-        _exit_error("validation error"),
+        gateway_error("validation error"),
+        gateway_error("validation error"),
+        gateway_error("validation error"),
     )
     call = retry.make_retrying_headless_call(sleep=lambda _s: None, initial_model="opus", on_downgrade=downgrades.append)
 
@@ -300,12 +296,12 @@ def test_non_gateway_failure_resets_an_in_progress_gateway_streak(
     downgrades: list = []
     calls = sequenced_run_claude_headless(
         monkeypatch, shared,
-        _exit_error("502 Bad Gateway"),
-        _exit_error("503 Service Unavailable"),
-        _exit_error("validation error"),  # non-gateway — resets the streak, raises
-        _exit_error("502 Bad Gateway"),  # 1st post-reset gateway failure
-        _exit_error("502 Bad Gateway"),  # 2nd
-        _exit_error("502 Bad Gateway"),  # 3rd — now the retry fires
+        gateway_error("502 Bad Gateway"),
+        gateway_error("503 Service Unavailable"),
+        gateway_error("validation error"),  # non-gateway — resets the streak, raises
+        gateway_error("502 Bad Gateway"),  # 1st post-reset gateway failure
+        gateway_error("502 Bad Gateway"),  # 2nd
+        gateway_error("502 Bad Gateway"),  # 3rd — now the retry fires
         "ok-after-retry",
     )
     call = retry.make_retrying_headless_call(sleep=lambda _s: None, initial_model="opus", on_downgrade=downgrades.append)
@@ -324,10 +320,10 @@ def test_failed_retry_downgrades_one_step_down_the_ladder(monkeypatch: pytest.Mo
     downgrades: list = []
     calls = sequenced_run_claude_headless(
         monkeypatch, shared,
-        _exit_error("502 Bad Gateway"),
-        _exit_error("502 Bad Gateway"),
-        _exit_error("502 Bad Gateway"),
-        _exit_error("502 Bad Gateway"),  # the retry — also fails -> downgrade
+        gateway_error("502 Bad Gateway"),
+        gateway_error("502 Bad Gateway"),
+        gateway_error("502 Bad Gateway"),
+        gateway_error("502 Bad Gateway"),  # the retry — also fails -> downgrade
         "ok-on-sonnet",
     )
     call = retry.make_retrying_headless_call(
@@ -364,10 +360,10 @@ def test_downgrade_is_printed_before_the_next_generation_attempt(
     monkeypatch.delenv("DEV_TEAM_MUTATION_FALLBACK_MODEL", raising=False)
     events: list[str] = []
     outcomes = [
-        _exit_error("502 Bad Gateway"),
-        _exit_error("502 Bad Gateway"),
-        _exit_error("502 Bad Gateway"),
-        _exit_error("502 Bad Gateway"),
+        gateway_error("502 Bad Gateway"),
+        gateway_error("502 Bad Gateway"),
+        gateway_error("502 Bad Gateway"),
+        gateway_error("502 Bad Gateway"),
         "ok-on-sonnet",
     ]
 
@@ -402,10 +398,10 @@ def test_retry_failure_triggers_downgrade_even_when_non_gateway_class(
     downgrades: list = []
     sequenced_run_claude_headless(
         monkeypatch, shared,
-        _exit_error("502 Bad Gateway"),
-        _exit_error("502 Bad Gateway"),
-        _exit_error("502 Bad Gateway"),
-        _exit_error("validation error"),  # the retry — non-gateway-class failure
+        gateway_error("502 Bad Gateway"),
+        gateway_error("502 Bad Gateway"),
+        gateway_error("502 Bad Gateway"),
+        gateway_error("validation error"),  # the retry — non-gateway-class failure
         "ok-on-sonnet",
     )
     call = retry.make_retrying_headless_call(sleep=lambda _s: None, initial_model="opus", on_downgrade=downgrades.append)
@@ -422,10 +418,10 @@ def test_downgrade_does_not_persist_to_the_next_file(monkeypatch: pytest.MonkeyP
     monkeypatch.delenv("DEV_TEAM_MUTATION_FALLBACK_MODEL", raising=False)
     sequenced_run_claude_headless(
         monkeypatch, shared,
-        _exit_error("502 Bad Gateway"),
-        _exit_error("502 Bad Gateway"),
-        _exit_error("502 Bad Gateway"),
-        _exit_error("502 Bad Gateway"),
+        gateway_error("502 Bad Gateway"),
+        gateway_error("502 Bad Gateway"),
+        gateway_error("502 Bad Gateway"),
+        gateway_error("502 Bad Gateway"),
         "ok-on-sonnet",
     )
     call_a = retry.make_retrying_headless_call(sleep=lambda _s: None, initial_model="opus")
@@ -446,10 +442,10 @@ def test_concurrent_closures_for_different_files_do_not_leak_downgrade_state(
     monkeypatch.delenv("DEV_TEAM_MUTATION_FALLBACK_MODEL", raising=False)
     responses = {
         "file-a.py": [
-            _exit_error("502 Bad Gateway"),
-            _exit_error("502 Bad Gateway"),
-            _exit_error("502 Bad Gateway"),
-            _exit_error("502 Bad Gateway"),
+            gateway_error("502 Bad Gateway"),
+            gateway_error("502 Bad Gateway"),
+            gateway_error("502 Bad Gateway"),
+            gateway_error("502 Bad Gateway"),
             "ok-a-on-sonnet",
         ],
         "file-b.py": ["ok-b-on-opus"],
@@ -488,10 +484,10 @@ def test_downgrade_uses_the_fallback_model_env_override_unordered(
     downgrades: list = []
     sequenced_run_claude_headless(
         monkeypatch, shared,
-        _exit_error("502 Bad Gateway"),
-        _exit_error("502 Bad Gateway"),
-        _exit_error("502 Bad Gateway"),
-        _exit_error("502 Bad Gateway"),
+        gateway_error("502 Bad Gateway"),
+        gateway_error("502 Bad Gateway"),
+        gateway_error("502 Bad Gateway"),
+        gateway_error("502 Bad Gateway"),
         "ok",
     )
     call = retry.make_retrying_headless_call(sleep=lambda _s: None, initial_model="haiku", on_downgrade=downgrades.append)
@@ -508,10 +504,10 @@ def test_invalid_fallback_override_falls_back_to_the_ladder_default_and_is_repor
     downgrades: list = []
     sequenced_run_claude_headless(
         monkeypatch, shared,
-        _exit_error("502 Bad Gateway"),
-        _exit_error("502 Bad Gateway"),
-        _exit_error("502 Bad Gateway"),
-        _exit_error("502 Bad Gateway"),
+        gateway_error("502 Bad Gateway"),
+        gateway_error("502 Bad Gateway"),
+        gateway_error("502 Bad Gateway"),
+        gateway_error("502 Bad Gateway"),
         "ok",
     )
     call = retry.make_retrying_headless_call(sleep=lambda _s: None, initial_model="opus", on_downgrade=downgrades.append)
@@ -533,8 +529,8 @@ def test_fallback_tier_exhaustion_surfaces_no_second_downgrade_mid_ladder(
     downgrades: list = []
     calls = sequenced_run_claude_headless(
         monkeypatch, shared,
-        *([_exit_error("502 Bad Gateway")] * 4),  # opus: 3 fail + failed retry -> downgrade
-        *([_exit_error("502 Bad Gateway")] * 4),  # sonnet: 3 fail + failed retry -> exhaustion
+        *([gateway_error("502 Bad Gateway")] * 4),  # opus: 3 fail + failed retry -> downgrade
+        *([gateway_error("502 Bad Gateway")] * 4),  # sonnet: 3 fail + failed retry -> exhaustion
     )
     call = retry.make_retrying_headless_call(sleep=lambda _s: None, initial_model="opus", on_downgrade=downgrades.append)
 
@@ -564,7 +560,7 @@ def test_exhaustion_when_already_at_the_floor_with_no_fallback_tier(
     attempting a "downgrade" to nowhere."""
     monkeypatch.delenv("DEV_TEAM_MUTATION_FALLBACK_MODEL", raising=False)
     downgrades: list = []
-    sequenced_run_claude_headless(monkeypatch, shared, *([_exit_error("502 Bad Gateway")] * 4))
+    sequenced_run_claude_headless(monkeypatch, shared, *([gateway_error("502 Bad Gateway")] * 4))
     call = retry.make_retrying_headless_call(sleep=lambda _s: None, initial_model="haiku", on_downgrade=downgrades.append)
 
     with pytest.raises(retry.GenerationExhausted):
@@ -587,7 +583,7 @@ def test_exhaustion_when_initial_model_is_unresolved_none(
     (no downgrade was ever attempted in the first place)."""
     monkeypatch.delenv("DEV_TEAM_MUTATION_FALLBACK_MODEL", raising=False)
     downgrades: list = []
-    sequenced_run_claude_headless(monkeypatch, shared, *([_exit_error("502 Bad Gateway")] * 4))
+    sequenced_run_claude_headless(monkeypatch, shared, *([gateway_error("502 Bad Gateway")] * 4))
     call = retry.make_retrying_headless_call(
         sleep=lambda _s: None, initial_model=None, on_downgrade=downgrades.append
     )
@@ -613,7 +609,7 @@ def test_exhaustion_when_initial_model_is_unrecognized(
     case above, not the floor-specific wording (#1908 review)."""
     monkeypatch.delenv("DEV_TEAM_MUTATION_FALLBACK_MODEL", raising=False)
     downgrades: list = []
-    sequenced_run_claude_headless(monkeypatch, shared, *([_exit_error("502 Bad Gateway")] * 4))
+    sequenced_run_claude_headless(monkeypatch, shared, *([gateway_error("502 Bad Gateway")] * 4))
     call = retry.make_retrying_headless_call(
         sleep=lambda _s: None,
         initial_model="claude-sonnet-4-5",
@@ -640,7 +636,7 @@ def test_generation_exhausted_never_aborts_the_whole_process_uncaught(
     main()) sees a normal, catchable RuntimeError — never an uncaught
     traceback — and can continue on to the next file."""
     monkeypatch.delenv("DEV_TEAM_MUTATION_FALLBACK_MODEL", raising=False)
-    sequenced_run_claude_headless(monkeypatch, shared, *([_exit_error("502 Bad Gateway")] * 8))
+    sequenced_run_claude_headless(monkeypatch, shared, *([gateway_error("502 Bad Gateway")] * 8))
     call = retry.make_retrying_headless_call(sleep=lambda _s: None, initial_model="opus")
 
     outer_loop_continued = False
@@ -770,10 +766,10 @@ def test_make_retrying_headless_call_uses_the_injected_call_headless_transport(
     logged: list[str] = []
     downgrades: list = []
     outcomes = [
-        _exit_error("502 Bad Gateway"),
-        _exit_error("502 Bad Gateway"),
-        _exit_error("502 Bad Gateway"),
-        _exit_error("502 Bad Gateway"),  # the retry — also fails -> downgrade
+        gateway_error("502 Bad Gateway"),
+        gateway_error("502 Bad Gateway"),
+        gateway_error("502 Bad Gateway"),
+        gateway_error("502 Bad Gateway"),  # the retry — also fails -> downgrade
         "ok-on-sonnet",
     ]
     fake_calls: list[tuple[str, str | None]] = []
@@ -821,7 +817,7 @@ def test_make_downgrade_audit_hook_wired_end_to_end_with_make_retrying_headless_
     on_downgrade, get_label_override = retry.make_downgrade_audit_hook()
     sequenced_run_claude_headless(
         monkeypatch, shared,
-        *([_exit_error("502 Bad Gateway")] * 4),  # 3 fail + failed retry -> downgrade
+        *([gateway_error("502 Bad Gateway")] * 4),  # 3 fail + failed retry -> downgrade
         "ok-on-sonnet",
     )
     call = retry.make_retrying_headless_call(sleep=lambda _s: None, initial_model="opus", on_downgrade=on_downgrade)

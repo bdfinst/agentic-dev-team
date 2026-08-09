@@ -163,24 +163,25 @@ _KNOWN_LADDER_MODELS = frozenset({"opus", "sonnet", "haiku"})
 
 
 def _format_downgrade_message(event: DowngradeEvent) -> str:
+    source_file = " ".join(str(event.source_file).split())
     if event.exhausted:
         normalized_from = event.from_model.strip().lower() if event.from_model else None
         model_label = event.from_model if event.from_model is not None else "unspecified"
         if normalized_from in _KNOWN_LADDER_MODELS:
             return (
-                f"generation for {event.source_file} (round {event.round_num}) "
+                f"generation for {source_file} (round {event.round_num}) "
                 f"exhausted its retry budget on model {model_label!r} after "
                 f"a {event.error_class} retry failure — no further downgrade "
                 "will be attempted"
             )
         return (
-            f"generation for {event.source_file} (round {event.round_num}) "
+            f"generation for {source_file} (round {event.round_num}) "
             f"exhausted its retry budget on model {model_label!r} after a "
             f"{event.error_class} retry failure — no downgrade ladder "
             "position available for this model, surfacing to operator"
         )
     return (
-        f"downgrading generation for {event.source_file} (round "
+        f"downgrading generation for {source_file} (round "
         f"{event.round_num}) from {event.from_model!r} to {event.to_model!r} "
         f"after a {event.error_class} retry failure"
     )
