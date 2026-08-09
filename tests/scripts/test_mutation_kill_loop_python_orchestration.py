@@ -15,6 +15,7 @@ from __future__ import annotations
 from pathlib import Path
 
 import mutation_kill_loop_python as loop
+import mutation_kill_shared
 import pytest
 from _mutation_kill_loop_python_test_helpers import _ctx, _junit, _killed, _survived
 from _mutation_test_helpers import git_hermetic, hermetic_git_env
@@ -449,12 +450,13 @@ def test_revert_failure_after_failed_commit_is_fatal(tmp_path: Path, monkeypatch
     source_file = tmp_path / "a.py"
     source_file.write_text("x = 1\n", encoding="utf-8")
 
-    with pytest.raises(RuntimeError, match="revert failed"):
+    with pytest.raises(RuntimeError, match="revert failed") as exc_info:
         loop.run_for_file(
             "src/a.py",
             _ctx(test_file, source_file),
             generate=lambda *_a: "def test_new():\n    assert True\n",
         )
+    assert type(exc_info.value) is mutation_kill_shared.RevertFailed
 
 
 def test_revert_failure_after_build_failure_is_fatal(tmp_path: Path, monkeypatch):
@@ -469,12 +471,13 @@ def test_revert_failure_after_build_failure_is_fatal(tmp_path: Path, monkeypatch
     source_file = tmp_path / "a.py"
     source_file.write_text("x = 1\n", encoding="utf-8")
 
-    with pytest.raises(RuntimeError, match="revert failed"):
+    with pytest.raises(RuntimeError, match="revert failed") as exc_info:
         loop.run_for_file(
             "src/a.py",
             _ctx(test_file, source_file),
             generate=lambda *_a: "def test_new():\n    assert True\n",
         )
+    assert type(exc_info.value) is mutation_kill_shared.RevertFailed
 
 
 def test_revert_failure_after_test_failure_is_fatal(tmp_path: Path, monkeypatch):
@@ -490,12 +493,40 @@ def test_revert_failure_after_test_failure_is_fatal(tmp_path: Path, monkeypatch)
     source_file = tmp_path / "a.py"
     source_file.write_text("x = 1\n", encoding="utf-8")
 
-    with pytest.raises(RuntimeError, match="revert failed"):
+    with pytest.raises(RuntimeError, match="revert failed") as exc_info:
         loop.run_for_file(
             "src/a.py",
             _ctx(test_file, source_file),
             generate=lambda *_a: "def test_new():\n    assert True\n",
         )
+    assert type(exc_info.value) is mutation_kill_shared.RevertFailed
+
+
+def test_revert_failure_is_still_caught_by_a_bare_except_runtime_error(
+    tmp_path: Path, monkeypatch
+):
+    """RevertFailed subclasses RuntimeError, so any *other*, unrelated
+    ``except RuntimeError`` catch site elsewhere in the codebase continues to
+    intercept it unchanged (#1939 Slice 1 Step 1.2) — a structural isinstance
+    proof, distinct from the exact-type assertions above."""
+    monkeypatch.setattr(
+        loop, "run_scoped_mutmut", lambda *a, **k: _junit(_survived("Mutant #1", "src/a.py", 3), failures=1)
+    )
+    monkeypatch.setattr(loop, "python_compiles", lambda *a, **k: False)
+    monkeypatch.setattr(loop, "git_revert", lambda tf, **k: False)
+
+    test_file = tmp_path / "test_a.py"
+    test_file.write_text("def test_existing():\n    assert True\n", encoding="utf-8")
+    source_file = tmp_path / "a.py"
+    source_file.write_text("x = 1\n", encoding="utf-8")
+
+    with pytest.raises(RuntimeError) as exc_info:
+        loop.run_for_file(
+            "src/a.py",
+            _ctx(test_file, source_file),
+            generate=lambda *_a: "def test_new():\n    assert True\n",
+        )
+    assert isinstance(exc_info.value, RuntimeError)
 
 
 # =============================================================================

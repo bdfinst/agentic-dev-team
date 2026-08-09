@@ -15,6 +15,7 @@ from pathlib import Path
 
 import mutation_kill_insert
 import mutation_kill_loop as loop
+import mutation_kill_shared
 import pytest
 from _mutation_kill_loop_test_helpers import _loop_fixture, _mutant, _write_report
 from _mutation_test_helpers import git_hermetic, hermetic_git_env
@@ -519,8 +520,9 @@ def test_revert_failure_after_failed_commit_is_fatal(
     # here for this scenario.
     monkeypatch.setattr(loop, "git_reset_and_revert", lambda tf, **k: False)
 
-    with pytest.raises(RuntimeError, match="revert failed"):
+    with pytest.raises(RuntimeError, match="revert failed") as exc_info:
         loop.run_for_file(source_file, ctx, **kwargs)
+    assert type(exc_info.value) is mutation_kill_shared.RevertFailed
 
 
 def test_revert_failure_after_build_failure_is_fatal(
@@ -532,8 +534,9 @@ def test_revert_failure_after_build_failure_is_fatal(
     monkeypatch.setattr(loop, "dotnet_build", lambda targets, **k: False)
     monkeypatch.setattr(loop, "git_revert", lambda tf, **k: False)
 
-    with pytest.raises(RuntimeError, match="revert failed"):
+    with pytest.raises(RuntimeError, match="revert failed") as exc_info:
         loop.run_for_file(source_file, ctx, **kwargs)
+    assert type(exc_info.value) is mutation_kill_shared.RevertFailed
 
 
 def test_revert_failure_after_test_failure_is_fatal(
@@ -546,8 +549,27 @@ def test_revert_failure_after_test_failure_is_fatal(
     monkeypatch.setattr(loop, "dotnet_test", lambda targets, flt, **k: False)
     monkeypatch.setattr(loop, "git_revert", lambda tf, **k: False)
 
-    with pytest.raises(RuntimeError, match="revert failed"):
+    with pytest.raises(RuntimeError, match="revert failed") as exc_info:
         loop.run_for_file(source_file, ctx, **kwargs)
+    assert type(exc_info.value) is mutation_kill_shared.RevertFailed
+
+
+def test_revert_failure_is_still_caught_by_a_bare_except_runtime_error(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    """RevertFailed subclasses RuntimeError, so any *other*, unrelated
+    ``except RuntimeError`` catch site elsewhere in the codebase continues to
+    intercept it unchanged (#1939 Slice 1 Step 1.2) — a structural isinstance
+    proof, distinct from the exact-type assertions above."""
+    source_file, ctx, kwargs, _events = _loop_fixture(
+        tmp_path, monkeypatch, [_mutant("Survived")]
+    )
+    monkeypatch.setattr(loop, "dotnet_build", lambda targets, **k: False)
+    monkeypatch.setattr(loop, "git_revert", lambda tf, **k: False)
+
+    with pytest.raises(RuntimeError) as exc_info:
+        loop.run_for_file(source_file, ctx, **kwargs)
+    assert isinstance(exc_info.value, RuntimeError)
 
 
 # =============================================================================

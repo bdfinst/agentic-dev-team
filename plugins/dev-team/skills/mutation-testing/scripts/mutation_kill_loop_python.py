@@ -69,6 +69,7 @@ from pathlib import Path
 # expression, so `from __future__ import annotations` cannot defer it — it
 # must be subscriptable at import time. collections.abc generics have been
 # since 3.9, which the 3.10 floor (ADR 0031) clears.
+import mutation_kill_shared
 import mutation_report
 import mutation_safety_gate
 from mutation_kill_insert_python import apply_generated_tests, count_tests
@@ -502,7 +503,7 @@ def _revert_or_raise(ctx: RunContext, reason: str, *, after_commit: bool = False
         else git_revert(ctx.test_file, cwd=ctx.cwd)
     )
     if not revert_ok:
-        raise RuntimeError(
+        raise mutation_kill_shared.RevertFailed(
             f"revert failed for {ctx.test_file} after {reason} — the "
             "working tree is left in an unknown state (mutated test "
             "content may still be on disk, uncommitted)"
