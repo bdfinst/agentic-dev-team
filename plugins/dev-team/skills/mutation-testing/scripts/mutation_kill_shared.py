@@ -117,10 +117,11 @@ def git_revert(
     ``CompletedProcess``).
 
     ``mutation_kill_loop_python.py``'s ``run_scoped_mutmut`` always-revert
-    ``finally`` cleanup calls this too but, matching its pre-existing
-    best-effort contract, deliberately does not inspect the return value —
-    that path reverts opportunistically on the way out regardless of outcome,
-    unlike ``run_for_file``'s build/test/commit-failure paths below, which
+    ``finally`` cleanup calls this too, and (since #1928/#1939) inspects the
+    return value: both the source-file and test-file reverts are attempted
+    unconditionally, and if either failed, ``run_scoped_mutmut`` raises
+    :class:`RevertFailed` naming every file that failed to revert — matching
+    ``run_for_file``'s build/test/commit-failure paths below, which also
     treat a failed revert as fatal.
     """
     try:

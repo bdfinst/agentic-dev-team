@@ -280,9 +280,25 @@ def run_scoped_mutmut(
                 ) from exc
             return junit.stdout or ""
         finally:
-            git_revert(Path(source_file), cwd=cwd)
+            source_reverted = git_revert(Path(source_file), cwd=cwd)
+            test_reverted = True
             if test_file is not None:
-                git_revert(test_file, cwd=cwd)
+                test_reverted = git_revert(test_file, cwd=cwd)
+            failed = [
+                str(p)
+                for p, ok in (
+                    (source_file, source_reverted),
+                    (test_file, test_reverted),
+                )
+                if p is not None and not ok
+            ]
+            if failed:
+                raise mutation_kill_shared.RevertFailed(
+                    "cleanup revert failed for "
+                    f"{', '.join(failed)} after run_scoped_mutmut — the "
+                    "working tree is left in an unknown state (mutated "
+                    "content may still be on disk, uncommitted)"
+                )
     finally:
         _release_mutmut_cache_lock(lock_dir)
 
@@ -828,10 +844,10 @@ def main(argv: Sequence[str] | None = None) -> int:
         # generation precedes insertion within a round, and a prior round's
         # own insertion-revert failure (compile/test/commit paths, via
         # _revert_or_raise) is itself fatal — raised as RevertFailed, never
-        # swallowed. run_scoped_mutmut's best-effort post-mutmut-crash
-        # revert (its own ``finally``) is deliberately NOT checked, so a
-        # mutmut-crash leftover is the one on-disk mutation this exit code
-        # does not rule out (#1928) — so callers
+        # swallowed. run_scoped_mutmut's post-mutmut-crash cleanup revert
+        # (its own ``finally``) is also checked (#1928/#1939) and raises
+        # RevertFailed on its own failure, so this exit code's "clean tree"
+        # claim is fully verified — so callers
         # (stryker_shard_pipeline.py's shard driver) can log this file as
         # unfixed and continue to the next file without affecting the run's
         # exit status, instead of aborting the whole shard (#1908 review).
@@ -847,12 +863,13 @@ def main(argv: Sequence[str] | None = None) -> int:
         return 4
     except RuntimeError as exc:
         # Every other RuntimeError this loop raises (a mutmut-run timeout,
-        # a mutmut-start/junitxml-extraction failure, etc.) is clean once
-        # Slice 2 (#1928) closes run_scoped_mutmut's unchecked
-        # cleanup-revert gap — until then this branch relies on that
-        # cleanup succeeding, same as the GenerationExhausted case above.
-        # Not a retry-budget exhaustion — reuses exit 5 because the shard
-        # driver only distinguishes "fatal, stop" (4) from "clean,
+        # a mutmut-start/junitxml-extraction failure, etc.) is clean:
+        # run_scoped_mutmut's cleanup-revert gap is closed (#1928/#1939) —
+        # a failed cleanup revert now raises RevertFailed instead of being
+        # silently discarded, so reaching this branch means the cleanup
+        # revert itself succeeded, same as the GenerationExhausted case
+        # above. Not a retry-budget exhaustion — reuses exit 5 because the
+        # shard driver only distinguishes "fatal, stop" (4) from "clean,
         # continue" (5), not why a file wasn't fixed.
         sys.stderr.write(f"error: {exc} — generation failed cleanly, continuing\n")
         return EXIT_GENERATION_EXHAUSTED
