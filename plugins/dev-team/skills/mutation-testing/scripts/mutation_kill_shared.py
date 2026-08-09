@@ -382,6 +382,14 @@ def strip_code_fences(text: str) -> str:
     return text.strip()
 
 
+class RevertFailed(RuntimeError):
+    """Raised when a git revert itself fails: the working tree may be left in
+    an unknown/possibly-mutated state, distinct from every other
+    ``RuntimeError`` this codebase raises (which are all provably clean,
+    since generation precedes insertion).
+    """
+
+
 class HeadlessCallFailed(RuntimeError):
     """Raised by :func:`run_claude_headless` when ``claude --print`` exits
     non-zero.
