@@ -73,7 +73,6 @@ from __future__ import annotations
 
 import argparse
 import json
-import re
 import sys
 from collections.abc import Iterable
 from pathlib import Path, PurePosixPath
@@ -84,70 +83,55 @@ _HOOKS_LIB_DIR = Path(__file__).resolve().parents[3] / "hooks" / "lib"
 if str(_HOOKS_LIB_DIR) not in sys.path:
     sys.path.insert(0, str(_HOOKS_LIB_DIR))
 
+# Both shared modules are imported, never re-implemented. There is deliberately
+# no `except ImportError` fallback (#1968): a hand-written stand-in for a shared
+# classifier is a second copy of the logic that can drift from its source
+# silently, and one already did — the `is_test_file` fallback added in #1964
+# shipped folding all four indicator families into one `re.IGNORECASE` pattern
+# while `test_file_classify` compiles its step-definition regex
+# case-sensitively, so `backsteps.py` read as a step definition and an ordinary
+# source file could pass as a test. The whole suite stayed green, because every
+# other test exercised the import path that succeeds.
+#
+# `hooks/lib/` ships inside this same plugin, so an unreachable one is a broken
+# install or a moved file, not a supported degraded mode. Failing here — loudly,
+# naming the path that was searched — surfaces that immediately instead of
+# silently answering classification questions from a divergent copy.
+def _require_shared(module: str) -> ImportError:
+    """Build the diagnostic for a shared-module import that could not resolve.
+
+    The parent-count in `_HOOKS_LIB_DIR` is the fragile part (a moved file
+    changes it), so the message names the resolved path rather than leaving a
+    bare `No module named ...` to be reverse-engineered.
+    """
+    return ImportError(
+        f"{__name__} requires the shared classifier {module!r} from the "
+        f"dev-team plugin's hooks/lib, which could not be imported.\n"
+        f"  searched: {_HOOKS_LIB_DIR}\n"
+        f"  exists:   {_HOOKS_LIB_DIR.is_dir()}\n"
+        "This module deliberately has no fallback copy of the classifier "
+        "(#1968) — a divergent stand-in silently mis-classifies files. Fix the "
+        "install or the path rather than re-adding a local implementation."
+    )
+
+
 try:
     from doc_classification import (  # type: ignore[import-not-found]
         DOC_EXTENSIONS,
         DOC_ROOT_WORDS,
         is_functional_config,
     )
-except ImportError:  # pragma: no cover - degraded fallback, hooks/lib unreachable
-    DOC_EXTENSIONS = frozenset({".md", ".mdx", ".markdown", ".rst", ".txt", ".adoc"})
-    DOC_ROOT_WORDS = (
-        "readme", "changelog", "contributing", "license", "notice",
-        "authors", "code_of_conduct",
-    )
-    _FALLBACK_FUNCTIONAL_CONFIG_NAMES = frozenset({"claude.md", "agents.md"})
-    _FALLBACK_FUNCTIONAL_CONFIG_SEGMENTS = frozenset(
-        {".claude", "agents", "skills", "prompts", "knowledge", "templates"}
-    )
-
-    def is_functional_config(file_path: str) -> bool:
-        path = PurePosixPath(file_path)
-        if path.name.lower() in _FALLBACK_FUNCTIONAL_CONFIG_NAMES:
-            return True
-        return any(seg in _FALLBACK_FUNCTIONAL_CONFIG_SEGMENTS for seg in path.parts)
+except ImportError as exc:  # pragma: no cover - broken install, not a supported mode
+    raise _require_shared("doc_classification") from exc
 
 # `knowledge/test-file-indicators.md`'s single encoding, shared with the
-# refactor test-freeze guards (#1964) — same cross-boundary import pattern as
-# `doc_classification` above. Never re-implement the indicator list here: a
-# second copy is exactly what the #1477 extraction removed for the doc tables.
+# refactor test-freeze guards (#1964).
 try:
     from test_file_classify import is_test_file  # type: ignore[import-not-found]
-except ImportError:  # pragma: no cover - degraded fallback, hooks/lib unreachable
-    # Case-sensitivity is load-bearing and mirrors test_file_classify's own
-    # compilation flags exactly. The JS/TS, Python, and .feature indicators are
-    # case-INsensitive there; the step-definition indicator is case-SENSITIVE.
-    # Folding all four into one IGNORECASE pattern reads `backsteps.py` and
-    # `mysteps.js` as step definitions, which would let an ordinary source file
-    # pass as a test and over-claim `test-only` — the one direction this
-    # module's include-bias must never fail in.
-    _FALLBACK_TEST_NAME_RE = re.compile(
-        r"(\.(test|spec)\.[^./]+$"          # JS/TS  foo.test.ts
-        r"|^(test_.+|.+_test)\.py$"          # Python test_foo.py / foo_test.py
-        r"|\.feature$)",                     # Gherkin
-        re.IGNORECASE,
-    )
-    _FALLBACK_STEP_DEF_RE = re.compile(  # deliberately NOT IGNORECASE
-        r"(\.steps\.[^./]+$|StepDefinitions\.[^./]+$|Steps\.[^./]+$)"
-    )
+except ImportError as exc:  # pragma: no cover - broken install, not a supported mode
+    raise _require_shared("test_file_classify") from exc
 
-    def is_test_file(path: str, content: str | None = None) -> bool:
-        p = PurePosixPath(str(path))
-        if not p.name:
-            return False
-        if _FALLBACK_TEST_NAME_RE.search(p.name):
-            return True
-        if _FALLBACK_STEP_DEF_RE.search(p.name):
-            return True
-        if "__tests__" in p.parts:
-            return True
-        # Java class-name convention; C# needs contents we deliberately don't read.
-        return p.suffix.lower() == ".java" and p.stem.endswith(
-            ("Test", "Tests", "TestCase", "Spec")
-        )
 
-# The lenses this gate can skip. Both are code-only lenses that no-op on diffs
-# with no executable logic to reason about.
 LOW_YIELD_LENSES = ["performance-review", "correctness-review"]
 
 # Lenses to skip when EVERY changed file is provably a test file (#1964).

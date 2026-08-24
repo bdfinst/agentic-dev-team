@@ -10,7 +10,6 @@ from __future__ import annotations
 
 import json
 import sys
-from typing import ClassVar
 
 import pytest
 
@@ -203,78 +202,3 @@ class TestTestOnlyCli:
         rc = change_shape.main(["--files", "README.md"])
         assert rc == 0
         assert "isTestOnly" in json.loads(capsys.readouterr().out)
-
-
-class TestDegradedFallbackParity:
-    """The `hooks/lib`-unreachable fallback must agree with the shared
-    classifier it stands in for (#1964).
-
-    This is not theoretical tidiness. The fallback originally folded all four
-    indicator families into one `re.IGNORECASE` pattern, but
-    `test_file_classify` compiles its step-definition regex case-SENSITIVELY —
-    so `backsteps.py` and `mysteps.js` classified as step definitions. That is
-    an ordinary source file passing as a test, which over-claims `test-only`:
-    the one direction this module's include-bias must never fail in. Every
-    other test in this file exercises the primary path and passed throughout,
-    so only a differential test catches it.
-    """
-
-    @staticmethod
-    def _fallback_module():
-        """Load change_shape with `hooks/lib` unimportable, forcing the
-        `except ImportError` branch."""
-        import importlib.util
-
-        hooks_lib = str((_PLUGIN_ROOT / "hooks" / "lib").resolve())
-        saved_path, saved_mods = list(sys.path), {}
-        sys.path = [p for p in sys.path if p != hooks_lib]
-        for name in ("test_file_classify", "doc_classification"):
-            saved_mods[name] = sys.modules.get(name, "__absent__")
-            sys.modules[name] = None  # force ImportError on import
-        try:
-            spec = importlib.util.spec_from_file_location(
-                "change_shape_degraded",
-                _PLUGIN_ROOT / "skills" / "code-review" / "scripts" / "change_shape.py",
-            )
-            module = importlib.util.module_from_spec(spec)
-            spec.loader.exec_module(module)
-            return module
-        finally:
-            sys.path = saved_path
-            for name, prev in saved_mods.items():
-                if prev == "__absent__":
-                    sys.modules.pop(name, None)
-                else:
-                    sys.modules[name] = prev
-
-    #: Names chosen to straddle every indicator family AND its case variants —
-    #: the axis the original defect hid behind.
-    _CORPUS: ClassVar[list[str]] = [
-        "tests/a.test.js", "tests/A.TEST.JS", "src/b.spec.ts",
-        "tests/test_a.py", "tests/b_test.py", "tests/TEST_A.PY",
-        "features/x.feature", "features/X.FEATURE",
-        "steps/x.steps.js", "steps/x.STEPS.js",
-        "a/FooSteps.js", "a/foosteps.js", "a/mysteps.js", "a/backsteps.py",
-        "a/FooStepDefinitions.cs", "a/foostepdefinitions.cs",
-        "pkg/__tests__/a.js", "pkg/__TESTS__/a.js",
-        "src/FooTest.java", "src/FooTests.java", "src/FooSpec.java", "src/Foo.java",
-        "tests/FooTests.cs", "tests/conftest.py", "src/prod.js",
-        "README.md", "weird.xyz", "no_extension", "",
-    ]
-
-    @pytest.mark.parametrize("path", _CORPUS, ids=lambda p: p or "<empty>")
-    def test_fallback_matches_shared_classifier(self, path):
-        from test_file_classify import is_test_file as shared
-
-        degraded = self._fallback_module()
-        expected = bool(shared(path, content="")) if path else False
-        assert degraded._is_provably_test_file(path) is expected, (
-            f"degraded fallback disagrees with test_file_classify on {path!r}"
-        )
-
-    def test_fallback_never_over_claims_a_plain_source_file(self):
-        """Direction matters more than agreement: a false positive here turns
-        a mixed diff into a `test-only` one."""
-        degraded = self._fallback_module()
-        for source in ("a/backsteps.py", "a/mysteps.js", "src/prod.js", "a/foosteps.js"):
-            assert degraded._is_provably_test_file(source) is False, source
