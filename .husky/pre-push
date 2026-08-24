@@ -66,13 +66,48 @@ git for-each-ref --format='%(refname) %(objectname)' refs/heads/ > "$POST_REFS_F
 # hook's blast radius (issue #1815). All worktrees share one ref store, and
 # ci-local runs for minutes, so a sibling session that commits, rebases, or
 # resets during that window legitimately moves its own branch — concurrency,
-# not corruption. Snapshot the ownership map *after* ci-local so a sibling's
-# `git switch -c` counts too, and match by ref name rather than worktree path
-# (git forbids two worktrees on one branch, so names are unambiguous and no
-# /tmp-vs-/private/tmp normalization is needed). The ref being pushed and this
-# worktree's own HEAD are never exempt.
-git worktree list --porcelain 2>/dev/null | awk '$1 == "branch" { print $2 }' \
-  | grep -v -x -F -e "$PUSH_REF" -e "$SELF_REF" > "$EXEMPT_REFS_FILE" || true
+# not corruption.
+#
+# Path-intersection model (issue #1871, step 2 of 2) — supersedes the
+# earlier ref-name-only match this comment used to describe: a worktree's
+# branch is exempt only if that worktree's *path* was already present in the
+# pre-run snapshot ($PRE_WORKTREE_PATHS_FILE, captured before ci-local ran —
+# see step 1 above). Ref-name matching alone let a worktree *created* during
+# the hook's multi-minute run window self-enroll and exempt any ref it
+# grabbed. Path-string equality between the pre-run and post-run snapshots is
+# safe here despite this hook's earlier reasoning against path-based ref
+# matching in a different context: both snapshots come from the same-shape
+# `git worktree list --porcelain` invocation within one hook execution, so no
+# cross-process/cross-tool path-normalization boundary (e.g. /tmp vs.
+# /private/tmp) is crossed the way a user-supplied or externally-sourced path
+# might cross one.
+#
+# Known, accepted limitation: the join key is worktree *path*, not a stable
+# per-worktree identity (porcelain output exposes none) — a worktree removed
+# and recreated at an *identical* pre-existing path during the hook window
+# inherits exemption even though it is a different worktree
+# (see test_guard_worktree_recreated_at_same_path_is_exempt_known_limitation).
+# Conversely, a pre-existing worktree *relocated* via `git worktree move`
+# mid-hook is conservatively treated as blocking, since its new path was
+# never in the pre-run snapshot
+# (see test_guard_worktree_moved_mid_hook_is_conservatively_blocking) — the
+# safe direction for a guard whose failure mode to avoid is a false
+# negative, not a false positive.
+#
+# The ref being pushed and this worktree's own HEAD are never exempt.
+git worktree list --porcelain 2>/dev/null | awk -v prefile="$PRE_WORKTREE_PATHS_FILE" '
+    BEGIN {
+      while ((getline line < prefile) > 0) { pre_paths[line] = 1 }
+      close(prefile)
+    }
+    /^worktree / {
+      path = $0
+      sub(/^worktree /, "", path)
+      path_pre_existing = (path in pre_paths)
+      next
+    }
+    $1 == "branch" && path_pre_existing { print $2 }
+  ' | grep -v -x -F -e "$PUSH_REF" -e "$SELF_REF" > "$EXEMPT_REFS_FILE" || true
 
 if ! cmp -s "$PRE_REFS_FILE" "$POST_REFS_FILE"; then
   # Emit each changed ref with pre / post SHA, classified as blocking or

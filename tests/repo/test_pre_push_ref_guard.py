@@ -307,6 +307,131 @@ def test_guard_worktree_paths_snapshot_captured_before_ci_local_runs(
     assert check_result.read_text().strip() == "present"
 
 
+def test_guard_worktree_created_during_hook_cannot_self_enroll(
+    scratch: dict[str, object],
+) -> None:
+    """A worktree created *during* the hook window cannot exempt its branch — #1871.
+
+    Mirrors test_guard_sibling_worktree_branch_drift_is_noted_not_blocking, but
+    the stubbed ci-local.sh body itself creates the worktree (not a pre-existing
+    one), so its path is absent from the pre-run snapshot. The new worktree's
+    branch must be reported as blocking, not as a non-blocking sibling note.
+    """
+    root: Path = scratch["root"]  # type: ignore[assignment]
+    newbie = root.parent / f"{root.name}-newbie"
+    _stub_ci_local(
+        root,
+        f'git -C "{root}" worktree add -q -b newbie "{newbie}" main && '
+        f'cd "{newbie}" && git commit -q --allow-empty -m concurrent',
+    )
+
+    result = _run_hook(scratch)
+    output = result.stdout + result.stderr
+    assert result.returncode != 0, output
+    assert "ABORT" in output
+    assert "refs/heads/newbie" in output
+
+
+def test_guard_mixed_pre_existing_and_mid_hook_worktrees_judged_independently(
+    scratch: dict[str, object],
+) -> None:
+    """Pre-existing and mid-hook-created worktrees are judged independently — #1871.
+
+    One sibling worktree pre-exists (branch mutated mid-hook, stays exempt) and
+    one worktree is created mid-hook (commits, must block), in the same run.
+    """
+    root: Path = scratch["root"]  # type: ignore[assignment]
+    env: dict[str, str] = scratch["env"]  # type: ignore[assignment]
+    sibling = _add_sibling_worktree(root, env, "sibling")
+    sibling_orig = _git(root, env, "rev-parse", "refs/heads/sibling").stdout.strip()
+    newbie = root.parent / f"{root.name}-newbie"
+    _stub_ci_local(
+        root,
+        f'cd "{sibling}" && git commit -q --allow-empty -m concurrent && '
+        f'git -C "{root}" worktree add -q -b newbie "{newbie}" main && '
+        f'cd "{newbie}" && git commit -q --allow-empty -m concurrent',
+    )
+
+    result = _run_hook(scratch)
+    output = result.stdout + result.stderr
+    assert result.returncode != 0, output
+    assert "ABORT" in output
+    assert "refs/heads/newbie" in output
+    assert "refs/heads/sibling" in output
+    assert sibling_orig in output
+    assert "not blocking" in output
+
+
+def test_guard_worktree_recreated_at_same_path_is_exempt_known_limitation(
+    scratch: dict[str, object],
+) -> None:
+    """Characterization test — pins today's accepted, documented limitation.
+
+    A worktree removed and recreated at an *identical, pre-existing* path
+    during the hook window inherits exemption, because the join key is
+    worktree path and `git worktree list --porcelain` exposes no stable
+    per-worktree identity beyond path (no inode/creation-time/generation
+    field to key on instead). This is a deliberate, documented trade-off
+    (see .husky/pre-push's rationale comment and plan issue #1871), not a
+    silent gap — a future tightening of this logic would need this test to
+    change on purpose.
+    """
+    root: Path = scratch["root"]  # type: ignore[assignment]
+    env: dict[str, str] = scratch["env"]  # type: ignore[assignment]
+    sibling_path = root.parent / f"{root.name}-reuse-path"
+    # The worktree must exist at P when the hook *starts* so the pre-run
+    # snapshot (captured before ci-local.sh runs) includes P. The
+    # remove-and-recreate-at-P happens inside the stubbed ci-local.sh body,
+    # simulating it occurring mid-hook.
+    _git(root, env, "worktree", "add", "-q", "-b", "original", str(sibling_path), "main")
+
+    _stub_ci_local(
+        root,
+        f'git -C "{root}" worktree remove -f "{sibling_path}" && '
+        f'git -C "{root}" worktree add -q -b reincarnated "{sibling_path}" main && '
+        f'cd "{sibling_path}" && git commit -q --allow-empty -m concurrent',
+    )
+
+    result = _run_hook(scratch)
+    output = result.stdout + result.stderr
+    assert result.returncode == 0, output
+    assert "ABORT" not in output
+    assert "refs/heads/reincarnated" in output
+    assert "not blocking" in output
+
+
+def test_guard_worktree_moved_mid_hook_is_conservatively_blocking(
+    scratch: dict[str, object],
+) -> None:
+    """Second documented trade-off — a mid-hook `git worktree move` blocks.
+
+    A pre-existing sibling worktree relocated (not recreated) mid-hook keeps
+    its branch/identity but changes its path; the new path was never in the
+    pre-run snapshot, so it is conservatively treated as blocking rather than
+    silently exempted. This is the safe direction for a guard whose failure
+    mode to avoid is a false negative, not a false positive — see
+    .husky/pre-push's rationale comment and plan issue #1871.
+    """
+    root: Path = scratch["root"]  # type: ignore[assignment]
+    env: dict[str, str] = scratch["env"]  # type: ignore[assignment]
+    sibling = _add_sibling_worktree(root, env, "relocatable")
+    orig = _git(root, env, "rev-parse", "refs/heads/relocatable").stdout.strip()
+    relocated = root.parent / f"{root.name}-relocated"
+
+    _stub_ci_local(
+        root,
+        f'git -C "{root}" worktree move "{sibling}" "{relocated}" && '
+        f'cd "{relocated}" && git commit -q --allow-empty -m concurrent',
+    )
+
+    result = _run_hook(scratch)
+    output = result.stdout + result.stderr
+    assert result.returncode != 0, output
+    assert "ABORT" in output
+    assert "refs/heads/relocatable" in output
+    assert orig in output
+
+
 def test_guard_worktree_path_with_space_captured_intact_in_snapshot(
     scratch: dict[str, object],
 ) -> None:
