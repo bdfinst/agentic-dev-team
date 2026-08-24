@@ -7,7 +7,7 @@ description: >-
   inline review checkpoints, and produces verification evidence. Use when
   the user says "build this", "implement the plan", "start building", or
   after /plan has been approved.
-argument-hint: "[--plan <path>] [--yes]"
+argument-hint: "[--plan <path>] [--yes] [--backstop-review=skip]"
 user-invocable: true
 allowed-tools: Read, Write, Edit, Glob, Grep, Bash, Agent, AskUserQuestion
 ---
@@ -36,6 +36,7 @@ Arguments: $ARGUMENTS
 
 - `--plan <path>`: Path to the plan file. If omitted, search `plans/` for the most recently modified plan with status `approved`.
 - `--yes`: Auto-approve the build's approval gates (steps 2 and 3) without prompting (non-interactive opt-in).
+- `--backstop-review=skip`: Suppress **only** Step 6's backstop `/code-review` (#1962). Legal **only** when the caller has its own review pass over a diff that strictly contains this build's — an enclosing orchestrator's end-of-phase review loop, not a human running `/build` directly. Default **off**: an unflagged `/build` runs Step 6 exactly as before. Everything else is untouched — the inline checkpoints (sub-steps 4/6), the full-suite run (Step 5), runtime verification (4.9), invariants (4.10), and the Farley Score (Step 7) all still run, so this narrows one duplicated layer rather than trading review for speed. When set, print an audit line into the build output naming the enclosing reviewer: `Step-6 backstop review skipped (--backstop-review=skip) — enclosing reviewer: <name>.` Never set it on a `/build` whose diff nothing else reviews.
 
 **Interactivity.** The run is **non-interactive** when any of these hold: `--yes` was passed, `DEV_TEAM_AUTO_APPROVE=1` is set, or stdin is not a usable TTY (`test -t 0` is false — the headless/CI/automation case). The approval gates in steps 2 and 3 use this: interactive runs prompt exactly as before; non-interactive runs auto-proceed and **record the bypass in the build output** rather than hanging.
 
@@ -233,8 +234,27 @@ Work each step **one behavior at a time** — never all the code then all the te
 7. **Record review value (#348).** For **each** checkpoint that runs (per-step `complex` in sub-step 4, and per-slice in sub-step 6), check `~/.claude/telemetry.json` consent first — if consent is not enabled, skip this step entirely (no file is written). When consent is enabled, append one JSON line to `.claude/metrics/review-value.jsonl` capturing whether review actually changed anything — counts and outcomes only, never code or file content (consistent with the cost meter's privacy boundary). Schema in `performance-metrics`:
 
    ```json
-   {"timestamp":"<ISO8601>","plan":"<plan-file>","slice":"<N>","step":"<N.M or all>","checkpoint":"step|slice","complexity":"standard|complex","source":"build-checkpoint","agents_run":["spec-compliance-review","..."],"issues_found":0,"severity_breakdown":{"errors":0,"warnings":0,"suggestions":0},"issues_fixed":0,"fix_iterations":0,"outcome":"no-op|fixed|escalated"}
+   {"timestamp":"<ISO8601>","plan":"<plan-file>","slice":"<N>","step":"<N.M or all>","checkpoint":"step|slice|backstop","complexity":"standard|complex","source":"build-checkpoint|build-backstop","diff_shape":"test-only|mixed","agents_run":["spec-compliance-review","..."],"issues_found":0,"severity_breakdown":{"errors":0,"warnings":0,"suggestions":0},"issues_fixed":0,"fix_iterations":0,"outcome":"no-op|fixed|escalated|skipped"}
    ```
+
+   Step 6's backstop row (#1962) uses this same schema with
+   `source: "build-backstop"` and `checkpoint: "backstop"`; `outcome:
+   "skipped"` is reserved for a backstop suppressed by
+   `--backstop-review=skip` and never appears on a checkpoint row.
+
+   **`diff_shape` (#1964)** records the *shape* of the diff this checkpoint
+   reviewed, so per-lens outcomes can be split by it. Do not eyeball the file
+   list — read it from the same deterministic helper the gates use:
+
+   ```bash
+   python3 "$CLAUDE_PLUGIN_ROOT/skills/code-review/scripts/change_shape.py" --files <this checkpoint's changed files>
+   ```
+
+   Its `isTestOnly` field decides the value: `true` → `"test-only"`, `false`
+   → `"mixed"`. The helper is include-biased (any file not *provably* a test
+   makes the answer `false`), so `test-only` is never over-claimed. This is
+   the measurement that decides whether any lens may eventually be gated out
+   of a test-only diff — it gates nothing today.
 
    `outcome` is `no-op` when the checkpoint passed clean (found nothing), `fixed` when it found and auto-fixed actionable issues, `escalated` when the loop didn't converge. `severity_breakdown` splits `issues_found` by severity (`errors`/`warnings`/`suggestions`, the same enum as `/code-review`), so `/harness-audit` Step 3 can flag a lens producing mostly minor findings — the three counts must sum to `issues_found` (#1256). This is the sensor that tells a build where review caught a real defect from one where every loop passed no-op — it turns the pipeline's "value untested" into "value measured" and feeds the plan/step tiering decisions. Disable with `DEV_TEAM_REVIEW_VALUE=off`.
 
@@ -275,6 +295,28 @@ After all steps are complete, run the full test suite. Paste the output as final
 Run `/code-review --internal` against all files modified during the build —
 deliberately not `--json`, to keep the review-fix loop running per
 `/code-review`'s own step-6 exception (b).
+
+**Record the backstop's value (#1962).** This pass is the build's most
+duplicated review layer — every file it reviews was already seen by an inline
+checkpoint (sub-steps 4/6) — but until now nothing measured whether it earned
+its cost, because `review-value.jsonl` recorded only checkpoint rows. Subject
+to the same `~/.claude/telemetry.json` consent check and `DEV_TEAM_REVIEW_VALUE`
+kill switch as sub-step 7, append one row for this pass using the identical
+schema, with `source: "build-backstop"`, `checkpoint: "backstop"`, and
+`step: "all"`. That row is what turns "is the backstop redundant?" from an
+argument into a measurement.
+
+**`--backstop-review=skip` suppresses this step (#1962).** When the flag is
+set: do not dispatch the panel, print the audit line from Parse Arguments
+naming the enclosing reviewer, and append a row with `outcome: "skipped"` so
+the suppression is visible in the same stream as the runs it replaces — never
+a silent absence. Proceed to Step 7. The flag reaches only this step; a build
+that skips the backstop still cannot reach `/pr` on red (Step 5) or on an
+unresolved escalation.
+
+**The flag is a caller's assertion, not a shortcut this skill may take on its
+own initiative.** `/build` never infers it — an orchestrator passes it, and
+only when its own review pass covers a superset of this build's diff.
 
 ### 7. Final test quality score (branch)
 

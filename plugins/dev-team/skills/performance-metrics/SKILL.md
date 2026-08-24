@@ -180,8 +180,10 @@ right-sized with evidence rather than guessed.
 
 | Field | Type | Description |
 | --- | --- | --- |
-| `checkpoint` | string | `step` (per-step `complex` review) or `slice` (batched slice-boundary review) |
-| `source` | string | Row provenance — `build-checkpoint` (fix-applying `/build` checkpoint, the default when absent) or `code-review` (read-only standalone review). `/harness-audit` Step 4 excludes `code-review` rows from fix-rate drop-candidate logic (#1257) |
+| `checkpoint` | string | `step` (per-step `complex` review), `slice` (batched slice-boundary review), or `backstop` (the Step-6 backstop pass, #1962) |
+| `source` | string | Row provenance — `build-checkpoint` (fix-applying `/build` inline checkpoint, the default when absent), `build-backstop` (fix-applying `/build` Step-6 backstop, #1962), or `code-review` (read-only standalone review). `/harness-audit` Step 4 excludes `code-review` rows from fix-rate drop-candidate logic (#1257); `build-backstop` rows are fix-applying and stay in it, and additionally drive the backstop-redundancy readout that gates `--backstop-review=skip` |
+| `outcome` | string | `no-op`, `fixed`, `escalated`, or — backstop rows only — `skipped` when `--backstop-review=skip` suppressed the pass. A `skipped` row records the suppression and is excluded from every rate (#1962) |
+| `diff_shape` | string | `test-only` or `mixed`, from `change_shape.py`'s `isTestOnly` (never eyeballed). Splits per-lens outcomes by diff shape so a test-only lens gate can be justified by measurement rather than intuition (#1964) |
 | `step` | string | `N.M` for a per-step checkpoint; `all` for a batched slice checkpoint |
 | `agents_run` | string[] | Review agents and static-analysis lane tools run at this checkpoint |
 | `issues_found` | number | Actionable issues the checkpoint surfaced (semantic review + static lanes) |

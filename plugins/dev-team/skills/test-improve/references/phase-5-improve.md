@@ -68,16 +68,50 @@ assignment alone is not a substitute for worktree isolation here.
    - **Exit 2** — the history file is missing or unreadable. Resolve it (the
      Story's `/coverage-delta` did not append) rather than treating the
      unknown as `ok`.
-5. **Mutation-kill (`kill-loop` and `baseline+kill-loop`; skipped when `off`).**
-   Invoke the **`mutation-kill` agent**
-   with `--file <story-file> --max-rounds 3`. Residual survivors trigger the
-   **`[c]ontinue / [r]etry / [w]aive / [q]uit`** prompt — the shape is
-   `[c/r/w/q]`. `[c]` accepts the residual and moves on; `[r]` re-runs one
-   more mutation-kill round; `[w]` waives the residual to `waivers.json`;
-   `[q]` quits Phase 5.
+5. **Mutation-kill, once per module batch (`kill-loop` and
+   `baseline+kill-loop`; skipped when `off`).** The `mutation-kill` agent is
+   opus-tier at `effort: high`, and every dispatch re-pays its fixed priming
+   plus the mutation tool's build/instrumentation warm-up. Phase 4 writes the
+   Story set in `coverage-gap-ranking.json` rank order (#1786), so Stories
+   targeting the same module are **adjacent** — dispatching per Story paid
+   that fixed cost again for a scope that was warm one Story ago (#1963).
+
+   **Group contiguous Stories by target module, then dispatch per batch.**
+   Take the grouping from the ranking's own `modules` buckets — the artifact
+   Phase 2 already computed — never by re-deriving a module map here. A batch
+   is a maximal run of consecutive Stories in the approved order whose target
+   files fall in one bucket; a module with a single Story is a batch of one,
+   which behaves **exactly** as the per-Story dispatch did.
+
+   Steps 1-4 above still run **per Story**, unchanged — the build, the binding
+   mode, the coverage delta, and the steering check are per-Story signals and
+   batching them would blunt exactly the mid-phase steering #1790 added. Only
+   this step batches.
+
+   After the batch's **last** Story closes, invoke the **`mutation-kill`
+   agent** once with `--file <every story file in the batch> --max-rounds 3`.
+   Residual survivors trigger the **`[c]ontinue / [r]etry / [w]aive /
+   [q]uit`** prompt — the shape is `[c/r/w/q]` — applied to the batch.
+   `[c]` accepts the residual and moves on; `[r]` re-runs one more
+   mutation-kill round; `[w]` waives the residual to `waivers.json`; `[q]`
+   quits Phase 5.
+
+   **The gate is unchanged in coverage, only in timing.** Every Story's files
+   are still mutation-processed before Phase 5 can close, at the same rounds
+   cap, behind the same prompt: **Phase 5 may not be reported closed with an
+   unprocessed batch**, exactly as it could not close with an unprocessed
+   Story. What moves is *when within the phase* a weak assertion surfaces —
+   at the batch boundary rather than immediately — which is bounded by batch
+   size and by the fact that `mutation-kill` only ever *adds* tests, so a
+   later Story in a batch cannot be invalidated by an earlier one's residual.
+
+   **Name the batches when the phase starts**, so the operator sees the
+   grouping rather than inferring it from dispatch counts: print one line per
+   batch — `Mutation-kill batch <n>: module <module>, Stories <ids>.`
 6. **Go mutation-kill is advisory.** On Go stacks, `mutation-kill` logs
    survivors but makes **no commit** — the operator is instructed to apply
-   changes manually. Advisory-only handling matches the Phase-0 Go advisory.
+   changes manually. Advisory-only handling matches the Phase-0 Go advisory,
+   and applies per batch exactly as it applied per Story.
 
 #### Pending-stub gate (`bdd-runner` mode only, issue #1391)
 
@@ -110,8 +144,8 @@ Phase-5 diff, writing evidence to
 `.claude/memory/test-improve/<slug>/phase-5-review.json`:
 
 <!-- include: references/review-loop.md -->
-See `review-loop.md` for the parallel `/test-design` +
-`/code-review` dispatch, the `/apply-fixes` step, the 2-iteration
-`[r/w/q]` escalation cap, and the fixed evidence-schema fields.
+See `review-loop.md` for the single-panel dispatch, the test-lens
+guarantee, the narrowed fix-confirmation, the escalation cap, and the
+fixed evidence-schema fields.
 
 **`/handoff` suggestion** (context-heavy review). Once the loop above closes, print: `Phase 5 complete. Consider running /handoff to compress context before continuing. To resume: /test-improve <repo-path> --from-phase 6 (or --from-phase with no number to auto-detect the resume point)`

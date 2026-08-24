@@ -26,6 +26,33 @@ weaker sibling: the short-circuit skips *everything* when every file is
 documentation; this skips only the two low-yield lenses when every file is
 documentation *or* config, which the doc-only short-circuit does not cover).
 
+Test-only classification (#1964)
+--------------------------------
+This module answers a second, independent question: is *every* changed file
+provably a test file (per `knowledge/test-file-indicators.md`)? A diff of that
+shape is structurally incapable of exhibiting what several expensive lenses
+look for — and under `/test-improve`'s default `refactor-mode: no-refactor`,
+Phase 5's diff is *guaranteed* to have it, because `/build` rejects
+production-code changes in that mode.
+
+`testOnly` is reported but currently skips **nothing**: `TEST_ONLY_SKIP_LENSES`
+ships empty on purpose. Which lens is safe to drop on a test-only diff is an
+empirical question, and the evidence (per-lens outcomes split by `diff_shape`
+in `review-value.jsonl`) is still being collected. This mirrors the
+architectural-impact gate's own rule — "widen `GATED_LENSES` from #1624's
+measured per-agent data, not from intuition about which lens probably no-ops."
+Two lenses in particular must NOT be added without data: `security-review`
+(tests embed credentials and injection payloads) and `correctness-review`
+(an inverted assertion is precisely its subject).
+
+Test-only classification is **include-biased in the same direction** as the
+runtime-surface check: a changeset is test-only only when every file is
+*provably* a test. Anything unproven — a fixture, a `conftest.py`, a helper, a
+`.cs` file whose test-ness needs its contents — makes the answer `False`, so
+the full panel runs. Because this module is filesystem-free by contract, the
+content-probing branches of the shared classifier are deliberately starved
+(`content=""`), which can only ever move the answer toward "not test-only".
+
 Scope note: this is a filename-shape gate. Annotation-only edits *inside* a
 source file (e.g. adding a C# attribute) still count as runtime surface — that
 would require diff parsing and is deliberately out of scope for v1.
@@ -46,6 +73,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 import sys
 from collections.abc import Iterable
 from pathlib import Path, PurePosixPath
@@ -79,9 +107,55 @@ except ImportError:  # pragma: no cover - degraded fallback, hooks/lib unreachab
             return True
         return any(seg in _FALLBACK_FUNCTIONAL_CONFIG_SEGMENTS for seg in path.parts)
 
+# `knowledge/test-file-indicators.md`'s single encoding, shared with the
+# refactor test-freeze guards (#1964) — same cross-boundary import pattern as
+# `doc_classification` above. Never re-implement the indicator list here: a
+# second copy is exactly what the #1477 extraction removed for the doc tables.
+try:
+    from test_file_classify import is_test_file  # type: ignore[import-not-found]
+except ImportError:  # pragma: no cover - degraded fallback, hooks/lib unreachable
+    # Case-sensitivity is load-bearing and mirrors test_file_classify's own
+    # compilation flags exactly. The JS/TS, Python, and .feature indicators are
+    # case-INsensitive there; the step-definition indicator is case-SENSITIVE.
+    # Folding all four into one IGNORECASE pattern reads `backsteps.py` and
+    # `mysteps.js` as step definitions, which would let an ordinary source file
+    # pass as a test and over-claim `test-only` — the one direction this
+    # module's include-bias must never fail in.
+    _FALLBACK_TEST_NAME_RE = re.compile(
+        r"(\.(test|spec)\.[^./]+$"          # JS/TS  foo.test.ts
+        r"|^(test_.+|.+_test)\.py$"          # Python test_foo.py / foo_test.py
+        r"|\.feature$)",                     # Gherkin
+        re.IGNORECASE,
+    )
+    _FALLBACK_STEP_DEF_RE = re.compile(  # deliberately NOT IGNORECASE
+        r"(\.steps\.[^./]+$|StepDefinitions\.[^./]+$|Steps\.[^./]+$)"
+    )
+
+    def is_test_file(path: str, content: str | None = None) -> bool:
+        p = PurePosixPath(str(path))
+        if not p.name:
+            return False
+        if _FALLBACK_TEST_NAME_RE.search(p.name):
+            return True
+        if _FALLBACK_STEP_DEF_RE.search(p.name):
+            return True
+        if "__tests__" in p.parts:
+            return True
+        # Java class-name convention; C# needs contents we deliberately don't read.
+        return p.suffix.lower() == ".java" and p.stem.endswith(
+            ("Test", "Tests", "TestCase", "Spec")
+        )
+
 # The lenses this gate can skip. Both are code-only lenses that no-op on diffs
 # with no executable logic to reason about.
 LOW_YIELD_LENSES = ["performance-review", "correctness-review"]
+
+# Lenses to skip when EVERY changed file is provably a test file (#1964).
+# Deliberately EMPTY until per-lens `diff_shape` outcome data justifies each
+# entry — see this module's docstring. Adding a name here without citing that
+# measurement is the mistake the docstring names; `security-review` and
+# `correctness-review` are explicitly not candidates on intuition.
+TEST_ONLY_SKIP_LENSES: list[str] = []
 
 # Documentation extensions (lower-cased). Mirrors SKILL.md's doc-only rule.
 _DOC_EXTENSIONS = DOC_EXTENSIONS
@@ -151,6 +225,34 @@ def has_runtime_surface(files: Iterable[str]) -> bool:
     return any(_has_runtime_surface_file(f) for f in files if str(f).strip())
 
 
+def _is_provably_test_file(file: str) -> bool:
+    """True when a single file is provably a test (fail-safe default: False).
+
+    `content=""` starves the shared classifier's content-probing branches (C#
+    attributes, Java annotations) rather than touching the filesystem, keeping
+    this module's no-I/O contract. That can only ever answer "not a test",
+    which biases the changeset toward "not test-only" — i.e. toward running
+    every lens. Java's class-name convention (`FooTest.java`) still resolves
+    by name and is unaffected.
+    """
+    name = str(file).strip()
+    if not name:
+        return False
+    return bool(is_test_file(name, content=""))
+
+
+def is_test_only(files: Iterable[str]) -> bool:
+    """True when *every* changed file is provably a test file.
+
+    An empty changeset is not test-only (there is nothing to prove), matching
+    `has_runtime_surface`'s treatment of the empty case.
+    """
+    file_list = [f for f in files if str(f).strip()]
+    if not file_list:
+        return False
+    return all(_is_provably_test_file(f) for f in file_list)
+
+
 def lenses_to_skip(files: Iterable[str]) -> list[str]:
     """Return the low-yield lenses to skip for this changeset.
 
@@ -161,7 +263,14 @@ def lenses_to_skip(files: Iterable[str]) -> list[str]:
     file_list = [f for f in files if str(f).strip()]
     if not file_list:
         return []  # nothing to review — the caller handles empty scope
-    return [] if has_runtime_surface(file_list) else list(LOW_YIELD_LENSES)
+    if not has_runtime_surface(file_list):
+        return list(LOW_YIELD_LENSES)
+    # Runtime surface present. A test-only changeset may still narrow the
+    # roster once TEST_ONLY_SKIP_LENSES is populated from measured data; it is
+    # empty today, so this returns [] and the full panel runs (#1964).
+    if is_test_only(file_list):
+        return list(TEST_ONLY_SKIP_LENSES)
+    return []
 
 
 def main(argv=None) -> int:
@@ -188,6 +297,7 @@ def main(argv=None) -> int:
     skip = lenses_to_skip(files)
     result = {
         "hasRuntimeSurface": has_runtime_surface(files),
+        "isTestOnly": is_test_only(files),
         "skipLenses": skip,
     }
     print(json.dumps(result, sort_keys=True))
