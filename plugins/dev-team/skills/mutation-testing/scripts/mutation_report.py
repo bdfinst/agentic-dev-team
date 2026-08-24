@@ -56,6 +56,12 @@ STATUS_NO_COVERAGE = "NoCoverage"
 # above so the literal isn't repeated across the functions that read it.
 MUTANT_STATIC_KEY = "static"
 
+# Fixed reason string attached to every accepted-static-survivor entry
+# (see ``accepted_static_survivors``) — a static-flagged Survived mutant is
+# not equivalent and not fixed; it is deliberately deferred because killing
+# it would require a full-suite re-run rather than a single-mutant one.
+ACCEPTED_STATIC_REASON = "static — verification requires a full-suite re-run"
+
 
 @dataclass(frozen=True)
 class ScoreSummary:
@@ -298,6 +304,31 @@ def is_file_in_report(data: dict, file_path: str) -> bool:
     return _find_file_info(data, file_path) is not None
 
 
+def _resolve_survivor_line(mutant: dict) -> int | None:
+    """Resolve one mutant's source line from its ``location.start.line``
+    field, or ``None`` when that shape is missing or malformed.
+
+    Never raises: a missing/non-dict ``location``, a missing/non-dict
+    ``start``, or a ``line`` that isn't a plain ``int`` (``None``, a
+    non-int value, or a ``bool`` — ``bool`` is an ``int`` subclass in
+    Python but is never a real line number) all resolve to ``None``. This
+    matches the module's never-raise-on-bad-input posture (see the module
+    docstring, ``load_report``'s "never raises" note, and
+    ``parse_mutmut_junitxml``'s "malformed input returns empty rather than
+    raising"). Extracted from ``_survivors_by_line_from_data``'s original
+    inline unwrap so ``_accepted_static_survivors_from_data`` can reuse the
+    same hardened logic instead of duplicating it.
+    """
+    loc = mutant.get("location")
+    loc = loc if isinstance(loc, dict) else {}
+    start = loc.get("start")
+    start = start if isinstance(start, dict) else {}
+    line = start.get("line")
+    if not isinstance(line, int) or isinstance(line, bool):
+        return None
+    return line
+
+
 def _survivors_by_line_from_data(data: dict, file_path: str) -> dict:
     """Return the Survived mutants for one source file, clustered by source
     line, from an already-parsed report dict.
@@ -336,12 +367,8 @@ def _survivors_by_line_from_data(data: dict, file_path: str) -> dict:
     for mutant in info.get("mutants", []):
         if mutant.get("status") != STATUS_SURVIVED:
             continue
-        loc = mutant.get("location")
-        loc = loc if isinstance(loc, dict) else {}
-        start = loc.get("start")
-        start = start if isinstance(start, dict) else {}
-        line = start.get("line")
-        if not isinstance(line, int) or isinstance(line, bool):
+        line = _resolve_survivor_line(mutant)
+        if line is None:
             unclustered.append(mutant)
             continue
         by_line.setdefault(line, []).append(mutant)
@@ -362,6 +389,72 @@ def survivors_by_line(report_path: Path, file_path: str) -> dict:
     rule.
     """
     return _survivors_by_line_from_data(load_report(report_path), file_path)
+
+
+def _accepted_static_survivors_from_data(data: dict, file_path: str) -> list[dict]:
+    """Return each Survived mutant carrying ``static: true`` for one source
+    file as an accepted-survivor entry, from an already-parsed report dict.
+
+    Matches ``file_path`` against report keys the same way
+    ``_survivors_from_data`` does (via ``_find_file_info`` — exact key, then
+    basename). Only a mutant with ``status == STATUS_SURVIVED`` *and*
+    ``mutant.get(MUTANT_STATIC_KEY) is True`` qualifies — a
+    Killed/Timeout/NoCoverage/CompileError mutant carrying ``static: true``
+    is never returned, and a Survived mutant without the static flag is
+    never returned either.
+
+    Each entry has the shape ``{"file": file_path, "line": int | None,
+    "operator": str, "status": "accepted", "reason": ACCEPTED_STATIC_REASON}``
+    — the same shape SKILL.md's machine-readable ``survivors[]`` schema
+    already defines for accepted survivors. ``line`` is resolved via
+    ``_resolve_survivor_line`` (``None`` for any missing/malformed
+    location/start/line shape — never raises).
+
+    Returns ``[]`` when the file is not in the report or has no matching
+    survivors.
+    """
+    info = _find_file_info(data, file_path)
+    if info is None:
+        return []
+
+    return [
+        {
+            "file": file_path,
+            "line": _resolve_survivor_line(mutant),
+            "operator": mutant.get("mutatorName", ""),
+            "status": "accepted",
+            "reason": ACCEPTED_STATIC_REASON,
+        }
+        for mutant in info.get("mutants", [])
+        if mutant.get("status") == STATUS_SURVIVED
+        and mutant.get(MUTANT_STATIC_KEY) is True
+    ]
+
+
+def accepted_static_survivors(report_path: Path, file_path: str) -> list[dict]:
+    """Return each Survived mutant carrying ``static: true`` for one source
+    file, as accepted-survivor entries, from a Stryker-shaped mutation
+    report on disk.
+
+    See ``_accepted_static_survivors_from_data`` for the return shape and
+    matching rule.
+    """
+    return _accepted_static_survivors_from_data(load_report(report_path), file_path)
+
+
+def accepted_static_survivors_from_data(data: dict, file_path: str) -> list[dict]:
+    """Return each Survived mutant carrying ``static: true`` for one source
+    file, as accepted-survivor entries, from an already-parsed report dict.
+
+    Thin public wrapper around ``_accepted_static_survivors_from_data``,
+    mirroring the established pair-per-function convention set by
+    ``survivors_by_mutator``/``survivors_by_mutator_from_data``. Unlike that
+    pair, this data-based variant has no caller within the current plan (the
+    CLI always calls the ``Path``-based ``accepted_static_survivors``) — it
+    is added anyway for interface symmetry with the rest of this module's
+    public surface, not because a caller needs it yet.
+    """
+    return _accepted_static_survivors_from_data(data, file_path)
 
 
 def _files_with_status_from_data(data: dict, status: str) -> list[str]:
