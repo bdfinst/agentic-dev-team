@@ -76,6 +76,14 @@ _mkdocs_src/
 # …but keep the deliberately-tracked audit trails.
 !**/metrics/config-changelog.jsonl
 !**/metrics/eval-variance.jsonl
+# gate-bypass-audit.jsonl (#1831 follow-up, #1945 Slice 1): pre_pr_review.py's
+# existing dispatch-ledger corroboration (review_gate_corroboration.py,
+# >=2-distinct-agent evaluation) already satisfies "a delegated subagent can
+# be PR-gated without a bypass, without self-writing the gate file" — this
+# rule only makes the resulting audit record durable past worktree removal;
+# it does not reintroduce commit-time gating (pre_commit_review.py stays a
+# documented no-op per #1886).
+!**/metrics/gate-bypass-audit.jsonl
 # verify-log.jsonl is deliberately exempt from the .claude/-nested migration
 # (AC3) and stays permanently at the bare top-level metrics/verify-log.jsonl —
 # already denied by the **/metrics/* catch-all above; this explicit line
