@@ -270,7 +270,6 @@ def test_guard_ci_local_fails_but_refs_stable_hook_exits_nonzero_from_ci_local(
     assert result.returncode != 0
     output = (result.stdout + result.stderr).lower()
     # No drift diagnostic since no refs changed.
-    assert "ref.*drift" not in output
     assert "changed during hook" not in output
     assert "refs/heads/feature" not in output
 
@@ -463,3 +462,32 @@ def test_guard_worktree_path_with_space_captured_intact_in_snapshot(
     result = _run_hook(scratch)
     assert result.returncode == 0, result.stdout + result.stderr
     assert check_result.read_text().strip() == "intact"
+
+
+def test_guard_self_worktree_branch_switch_mid_hook_still_blocks(
+    scratch: dict[str, object],
+) -> None:
+    """Self-worktree branch-switch exemption gap — issue #1945.
+
+    $SELF_REF is captured *before* ci-local.sh runs, while the worktree-
+    exemption computation scans `git worktree list --porcelain` *after*.
+    If ci-local's execution leaves the *current* worktree checked out on a
+    different branch than it started on (without switching back), that
+    worktree's path was still in the pre-run snapshot, so its post-run
+    branch must not be classified exempt — the stale, pre-run $SELF_REF
+    string can no longer name it. The current worktree's own path must be
+    excluded from the exemption computation structurally (by path), not
+    just via the post-hoc $SELF_REF filter.
+    """
+    root: Path = scratch["root"]  # type: ignore[assignment]
+    _stub_ci_local(
+        root,
+        f'cd "{root}" && git checkout -q -b corrupted main && '
+        "git commit -q --allow-empty -m evil-branch-switch",
+    )
+    result = _run_hook(scratch)
+    output = result.stdout + result.stderr
+    assert result.returncode != 0, output
+    assert "ABORT" in output
+    assert "refs/heads/corrupted" in output
+    assert "created" in output

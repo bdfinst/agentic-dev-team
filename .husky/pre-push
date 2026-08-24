@@ -45,6 +45,16 @@ PRE_WORKTREE_PATHS_FILE="$(mktemp -t prepush-worktree-paths-pre-XXXXXX)"
 trap 'rm -f "$PRE_REFS_FILE" "$POST_REFS_FILE" "$EXEMPT_REFS_FILE" "$DRIFT_FILE" "$PRE_WORKTREE_PATHS_FILE"' EXIT
 git for-each-ref --format='%(refname) %(objectname)' refs/heads/ > "$PRE_REFS_FILE"
 SELF_REF="$(git symbolic-ref -q HEAD 2>/dev/null || true)"
+# This worktree's own path, captured before ci-local runs (issue #1945): the
+# structural counterpart to $SELF_REF below. $SELF_REF is a *branch name*
+# snapshotted pre-run, so if ci-local's execution leaves this worktree
+# checked out on a *different* branch than it started on, $SELF_REF no
+# longer names that branch and can't filter it out downstream. $selfwt is a
+# *path*, and this worktree's path doesn't change just because its checked-
+# out branch does — passing it into the exemption-computation awk lets that
+# awk exclude this worktree structurally (by path), not just via the
+# post-hoc $SELF_REF string filter.
+SELF_WORKTREE_PATH="$(git rev-parse --show-toplevel 2>/dev/null || true)"
 # Snapshot worktree paths before ci-local runs (issue #1871 fix, step 1 of 2):
 # a worktree created *during* the hook's multi-minute run window must not be
 # able to self-enroll in the exemption below. Use sub() to strip only the
@@ -94,8 +104,22 @@ git for-each-ref --format='%(refname) %(objectname)' refs/heads/ > "$POST_REFS_F
 # safe direction for a guard whose failure mode to avoid is a false
 # negative, not a false positive.
 #
-# The ref being pushed and this worktree's own HEAD are never exempt.
-git worktree list --porcelain 2>/dev/null | awk -v prefile="$PRE_WORKTREE_PATHS_FILE" '
+# Third known, accepted limitation: this join key (path) also can't detect a
+# *sibling* worktree that switches to an arbitrary different branch mid-hook
+# — the sibling's path stays in the pre-run snapshot, so whatever branch it
+# ends up on still reads as a legitimate, non-blocking "sibling worktree
+# moved during the hook" note rather than being independently judged.
+# Closing that fully would need snapshotting (path, branch) pairs instead of
+# paths alone — a bigger redesign, out of scope here. This worktree's own
+# path is excluded structurally below (via $selfwt), so this limitation is
+# scoped to sibling worktrees only, not this one.
+#
+# The ref being pushed and this worktree's own HEAD are never exempt. This
+# worktree's own path is excluded from ever contributing an exemption
+# (path_pre_existing forced to 0 when path == selfwt) regardless of which
+# branch it ends up checked out on post-run — the downstream `-e "$SELF_REF"`
+# grep filter below is a second layer of defense, not the only guard.
+git worktree list --porcelain 2>/dev/null | awk -v prefile="$PRE_WORKTREE_PATHS_FILE" -v selfwt="$SELF_WORKTREE_PATH" '
     BEGIN {
       while ((getline line < prefile) > 0) { pre_paths[line] = 1 }
       close(prefile)
@@ -103,7 +127,7 @@ git worktree list --porcelain 2>/dev/null | awk -v prefile="$PRE_WORKTREE_PATHS_
     /^worktree / {
       path = $0
       sub(/^worktree /, "", path)
-      path_pre_existing = (path in pre_paths)
+      path_pre_existing = (path in pre_paths) && (selfwt == "" || path != selfwt)
       next
     }
     $1 == "branch" && path_pre_existing { print $2 }

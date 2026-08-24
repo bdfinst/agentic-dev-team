@@ -3,11 +3,12 @@ must survive worktree removal like its siblings `config-changelog.jsonl` /
 `eval-variance.jsonl` already do, instead of falling under the
 `**/metrics/*` catch-all with no exception line.
 
-Scenario (a) runs `git check-ignore` against an isolated tmp_path git repo
-seeded with a copy of the shipped `.gitignore` — mirroring the scratch-repo
-pattern in tests/repo/test_pre_push_ref_guard.py — rather than the real repo
-directly, so the assertion is about the *rule shape* and is unaffected by
-anything else present in this checkout.
+Scenario (a) runs `git check-ignore` directly against the real repo checkout
+(`REPO_ROOT`) with no scratch repo — matching the established, lighter-weight
+pattern in tests/repo/test_gitignore_overrides.py and
+tests/repo/test_dev_team_reports_gitignore_consolidation.py. `git check-ignore
+-q -- <path>` evaluates a literal path string against ignore rules and does
+not require the file to exist on disk, so it needs no isolated tmp_path repo.
 
 Scenario (b) reads the real `.gitignore` and pins the rationale comment
 required by AC2 (an otherwise-untestable prose requirement): the comment
@@ -21,9 +22,6 @@ rationale without touching the ignore rule itself still fails this test.
 from __future__ import annotations
 
 import subprocess
-from pathlib import Path
-
-import pytest
 
 from _repo_root import REPO_ROOT
 
@@ -31,24 +29,11 @@ GITIGNORE = REPO_ROOT / ".gitignore"
 EXCEPTION_LINE = "!**/metrics/gate-bypass-audit.jsonl"
 
 
-@pytest.fixture
-def scratch_repo(tmp_path: Path, hermetic_env: dict[str, str]) -> Path:
-    """An isolated git repo seeded with a copy of the shipped .gitignore."""
-    subprocess.run(
-        ["git", "init", "-q", "-b", "main"],
-        cwd=str(tmp_path),
-        env=hermetic_env,
-        check=True,
-    )
-    (tmp_path / ".gitignore").write_text(GITIGNORE.read_text())
-    return tmp_path
-
-
-def _is_ignored(root: Path, env: dict[str, str], relpath: str) -> bool:
-    """True when git would ignore `relpath` relative to `root`."""
+def _is_ignored(env: dict[str, str], relpath: str) -> bool:
+    """True when git would ignore `relpath` relative to REPO_ROOT."""
     result = subprocess.run(
         ["git", "check-ignore", "-q", "--", relpath],
-        cwd=str(root),
+        cwd=str(REPO_ROOT),
         env=env,
         check=False,
     )
@@ -59,20 +44,14 @@ def _is_ignored(root: Path, env: dict[str, str], relpath: str) -> bool:
     return result.returncode == 0
 
 
-def test_gate_bypass_audit_file_is_not_ignored(
-    scratch_repo: Path, hermetic_env: dict[str, str]
-) -> None:
-    assert not _is_ignored(
-        scratch_repo, hermetic_env, ".claude/metrics/gate-bypass-audit.jsonl"
-    )
+def test_gate_bypass_audit_file_is_not_ignored(hermetic_env: dict[str, str]) -> None:
+    assert not _is_ignored(hermetic_env, ".claude/metrics/gate-bypass-audit.jsonl")
 
 
 def test_catch_all_still_denies_other_runtime_metrics(
-    scratch_repo: Path, hermetic_env: dict[str, str]
+    hermetic_env: dict[str, str],
 ) -> None:
-    assert _is_ignored(
-        scratch_repo, hermetic_env, ".claude/metrics/some-other-runtime-metric.jsonl"
-    )
+    assert _is_ignored(hermetic_env, ".claude/metrics/some-other-runtime-metric.jsonl")
 
 
 def _rationale_comment_block() -> str:
