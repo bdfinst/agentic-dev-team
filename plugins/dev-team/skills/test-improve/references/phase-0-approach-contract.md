@@ -39,10 +39,34 @@ silent surprise.
    `off` (no mutation work on Enter-through); under `kill-loop` an Enter-through
    run **now performs the mutant-kill loop**. The prompt flags this so it is
    never a silent surprise.
+
+   **Show the relative cost with the choice (#1965).** This knob is the
+   largest single cost multiplier in the workflow, and an operator pressing
+   Enter through the battery was accepting it without the price ever being
+   named. State it in the prompt — qualitatively, never as a fabricated dollar
+   figure (`/cost-report` is the instrument for actuals):
+
+   > Relative cost: `off` adds none. `kill-loop` adds roughly one
+   > opus-tier `mutation-kill` dispatch per module batch in Phase 5 (up to 3
+   > rounds each), plus the mutation tool's own runtime.
+   > `baseline+kill-loop` adds a full mutation baseline run on top of that.
+
+   This is disclosure, not a recommendation and not a default change: the
+   risk-mitigation trade each mode buys is the operator's call, and mutation
+   work is how assertion quality gets measured at all. Naming the price just
+   makes it an informed one.
 2. **BDD rubric** — five yes/no questions from
    `knowledge/references/bdd-value-guide.md`. **Default `none`** if the
    operator declines to answer. Scoring: ≥3 yes → `bdd-runner` recommended;
    1–2 yes → `xunit-with-annotations` recommended; 0 yes → `none`.
+
+   **Relative cost (#1965)**, stated with the choice for the same reason as
+   knob 1:
+
+   > `none` skips Phase 3 entirely. `xunit-with-annotations` adds scenario
+   > derivation and `.feature` authoring. `bdd-runner` adds those plus parser
+   > wiring, step-definition stub generation, and the Phase-5 pending-stub
+   > gate every stub must clear before the phase can close.
 3. **Refactor mode** — `[no-refactor]`. Default is **`no-refactor`**. Choose
    `refactor-allowed` to permit production-code changes in Phase 7 (seams
    only; existing tests may not be modified or removed).

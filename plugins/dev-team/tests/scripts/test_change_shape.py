@@ -10,8 +10,13 @@ from __future__ import annotations
 
 import json
 import sys
+from typing import ClassVar
+
+import pytest
 
 from _repo_root import REPO_ROOT as _REPO_ROOT
+
+_PLUGIN_ROOT = _REPO_ROOT / "plugins" / "dev-team"
 
 sys.path.insert(
     0,
@@ -96,3 +101,180 @@ class TestCli:
         assert rc == 0
         out = json.loads(capsys.readouterr().out)
         assert out["skipLenses"] == ["performance-review", "correctness-review"]
+
+
+class TestTestOnlyClassification:
+    """#1964: a second, independent question — is EVERY changed file provably
+    a test file? Include-biased in the same direction as the runtime-surface
+    check: anything unproven answers False, so the full panel runs."""
+
+    @pytest.mark.parametrize(
+        "files",
+        [
+            pytest.param(["tests/a.test.js", "src/b.spec.ts"], id="js-test-and-spec"),
+            pytest.param(["tests/test_a.py", "tests/b_test.py"], id="python-both-conventions"),
+            pytest.param(["features/login.feature"], id="gherkin-feature"),
+            pytest.param(["steps/login.steps.js"], id="step-definitions"),
+            pytest.param(["pkg/__tests__/a.js"], id="tests-directory"),
+            pytest.param(["src/FooTest.java"], id="java-class-name-convention"),
+            pytest.param(
+                ["features/x.feature", "tests/test_a.py", "pkg/__tests__/b.js"],
+                id="mixed-languages-all-tests",
+            ),
+        ],
+    )
+    def test_provably_test_only_changesets(self, files):
+        assert change_shape.is_test_only(files) is True
+
+    @pytest.mark.parametrize(
+        "files,why",
+        [
+            pytest.param(["tests/a.test.js", "src/prod.js"], "production file present", id="mixed"),
+            pytest.param(["tests/conftest.py"], "fixture module, not a test by name", id="conftest"),
+            pytest.param(["tests/helpers.py"], "test helper, not a test by name", id="helper"),
+            pytest.param(["tests/FooTests.cs"], "C# test-ness needs file contents", id="csharp"),
+            pytest.param(["src/Foo.java"], "no test class-name suffix", id="plain-java"),
+            pytest.param(["tests/fixtures/data.json"], "fixture data", id="fixture-data"),
+            pytest.param(["weird.xyz"], "unknown extension", id="unknown-ext"),
+            pytest.param(["README.md"], "documentation", id="docs"),
+            pytest.param([], "nothing to prove", id="empty"),
+        ],
+    )
+    def test_not_test_only_is_the_fail_safe_answer(self, files, why):
+        assert change_shape.is_test_only(files) is False, why
+
+    def test_csharp_classification_does_not_touch_the_filesystem(self, tmp_path, monkeypatch):
+        """The module's no-I/O contract: a real C# test file on disk still
+        classifies as unproven, because the content probe is starved rather
+        than allowed to read it."""
+        cs = tmp_path / "RealTests.cs"
+        cs.write_text("public class RealTests { [Fact] public void T() {} }")
+        monkeypatch.chdir(tmp_path)
+        assert change_shape.is_test_only(["RealTests.cs"]) is False
+
+    def test_whitespace_entries_are_ignored_not_counted_as_unproven(self):
+        assert change_shape.is_test_only(["tests/test_a.py", "   ", ""]) is True
+
+
+class TestTestOnlySkipsNothingYet:
+    """The measure-then-flip contract. `TEST_ONLY_SKIP_LENSES` ships empty:
+    which lens is safe to drop on a test-only diff is an empirical question,
+    and the `diff_shape` outcome data is still being collected. A PR that
+    populates it must cite that measurement — and update these tests."""
+
+    def test_skip_list_is_empty_pending_measurement(self):
+        assert change_shape.TEST_ONLY_SKIP_LENSES == []
+
+    def test_test_only_changeset_currently_skips_no_lens(self):
+        assert change_shape.lenses_to_skip(["tests/a.test.js"]) == []
+
+    @pytest.mark.parametrize("lens", ["security-review", "correctness-review"])
+    def test_the_two_never_on_intuition_lenses_are_absent(self, lens):
+        """Tests embed credentials and injection payloads (`security-review`),
+        and an inverted assertion is exactly `correctness-review`'s subject."""
+        assert lens not in change_shape.TEST_ONLY_SKIP_LENSES
+
+    def test_doc_only_precedence_is_unchanged_by_the_new_branch(self):
+        """A doc/config-only changeset still yields the low-yield pair — the
+        test-only branch is reached only when runtime surface is present."""
+        assert change_shape.lenses_to_skip(["README.md"]) == [
+            "performance-review",
+            "correctness-review",
+        ]
+
+
+class TestTestOnlyCli:
+    def test_cli_reports_is_test_only(self, capsys):
+        rc = change_shape.main(["--files", "tests/a.test.js"])
+        assert rc == 0
+        out = json.loads(capsys.readouterr().out)
+        assert out["isTestOnly"] is True
+        assert out["hasRuntimeSurface"] is True
+        assert out["skipLenses"] == []
+
+    def test_cli_reports_not_test_only_for_mixed(self, capsys):
+        rc = change_shape.main(["--files", "tests/a.test.js", "src/prod.js"])
+        assert rc == 0
+        out = json.loads(capsys.readouterr().out)
+        assert out["isTestOnly"] is False
+
+    def test_cli_always_emits_the_key(self, capsys):
+        """Consumers read it unconditionally; it must never be absent."""
+        rc = change_shape.main(["--files", "README.md"])
+        assert rc == 0
+        assert "isTestOnly" in json.loads(capsys.readouterr().out)
+
+
+class TestDegradedFallbackParity:
+    """The `hooks/lib`-unreachable fallback must agree with the shared
+    classifier it stands in for (#1964).
+
+    This is not theoretical tidiness. The fallback originally folded all four
+    indicator families into one `re.IGNORECASE` pattern, but
+    `test_file_classify` compiles its step-definition regex case-SENSITIVELY —
+    so `backsteps.py` and `mysteps.js` classified as step definitions. That is
+    an ordinary source file passing as a test, which over-claims `test-only`:
+    the one direction this module's include-bias must never fail in. Every
+    other test in this file exercises the primary path and passed throughout,
+    so only a differential test catches it.
+    """
+
+    @staticmethod
+    def _fallback_module():
+        """Load change_shape with `hooks/lib` unimportable, forcing the
+        `except ImportError` branch."""
+        import importlib.util
+
+        hooks_lib = str((_PLUGIN_ROOT / "hooks" / "lib").resolve())
+        saved_path, saved_mods = list(sys.path), {}
+        sys.path = [p for p in sys.path if p != hooks_lib]
+        for name in ("test_file_classify", "doc_classification"):
+            saved_mods[name] = sys.modules.get(name, "__absent__")
+            sys.modules[name] = None  # force ImportError on import
+        try:
+            spec = importlib.util.spec_from_file_location(
+                "change_shape_degraded",
+                _PLUGIN_ROOT / "skills" / "code-review" / "scripts" / "change_shape.py",
+            )
+            module = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(module)
+            return module
+        finally:
+            sys.path = saved_path
+            for name, prev in saved_mods.items():
+                if prev == "__absent__":
+                    sys.modules.pop(name, None)
+                else:
+                    sys.modules[name] = prev
+
+    #: Names chosen to straddle every indicator family AND its case variants —
+    #: the axis the original defect hid behind.
+    _CORPUS: ClassVar[list[str]] = [
+        "tests/a.test.js", "tests/A.TEST.JS", "src/b.spec.ts",
+        "tests/test_a.py", "tests/b_test.py", "tests/TEST_A.PY",
+        "features/x.feature", "features/X.FEATURE",
+        "steps/x.steps.js", "steps/x.STEPS.js",
+        "a/FooSteps.js", "a/foosteps.js", "a/mysteps.js", "a/backsteps.py",
+        "a/FooStepDefinitions.cs", "a/foostepdefinitions.cs",
+        "pkg/__tests__/a.js", "pkg/__TESTS__/a.js",
+        "src/FooTest.java", "src/FooTests.java", "src/FooSpec.java", "src/Foo.java",
+        "tests/FooTests.cs", "tests/conftest.py", "src/prod.js",
+        "README.md", "weird.xyz", "no_extension", "",
+    ]
+
+    @pytest.mark.parametrize("path", _CORPUS, ids=lambda p: p or "<empty>")
+    def test_fallback_matches_shared_classifier(self, path):
+        from test_file_classify import is_test_file as shared
+
+        degraded = self._fallback_module()
+        expected = bool(shared(path, content="")) if path else False
+        assert degraded._is_provably_test_file(path) is expected, (
+            f"degraded fallback disagrees with test_file_classify on {path!r}"
+        )
+
+    def test_fallback_never_over_claims_a_plain_source_file(self):
+        """Direction matters more than agreement: a false positive here turns
+        a mixed diff into a `test-only` one."""
+        degraded = self._fallback_module()
+        for source in ("a/backsteps.py", "a/mysteps.js", "src/prod.js", "a/foosteps.js"):
+            assert degraded._is_provably_test_file(source) is False, source

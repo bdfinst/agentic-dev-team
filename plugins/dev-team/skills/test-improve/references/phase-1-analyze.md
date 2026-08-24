@@ -6,12 +6,21 @@ orchestrator must **not** invoke `/cd-test-architecture`, `/test-design`, or
 `/mutation-testing` separately here. Any prior workflow that reached those
 skills directly is superseded by the single `/test-health` call.
 
-**Mutation section respects the Phase-0 mutation mode.** When `phase-0.md`
-recorded mutation mode **`off`**, the rolled-up report's mutation section is
-either **omitted** or marked "not enabled for this run". When it recorded
-**`kill-loop`** or **`baseline+kill-loop`**, the mutation section is **present**.
-`/test-health` is not invoked with a mutation flag — the mode flows through from
-`phase-0.md` and the section is handled at report time.
+**Mutation mode gates the mutation sub-run itself, not just the report
+(#1961).** Read the mutation mode from `phase-0.md` and thread it into the
+invocation:
+
+- **Mutation mode `off` — the mutation section is omitted / "not enabled",
+  and the sub-run is skipped too.** Invoke `/test-health --no-mutation`, which
+  skips its Step-5 `mutation-testing` invocation outright rather than running
+  it and discarding the result. This used to be a report-time filter only: the
+  mutation tool ran, the roll-up was produced, and the output was then
+  suppressed — a measurement with no consumer, since `off` also means no
+  Phase-5 kill loop will consume survivor ordering. A skip is not a waiver and
+  not a coverage gap; the target was never in scope for this run.
+- **Mutation mode `kill-loop` or `baseline+kill-loop`** — invoke
+  `/test-health` with no mutation flag. The mutation section is **present**,
+  and its ROI framing feeds the ordered plan as before.
 
 **Order the plan by the coverage-gap ranking whenever a coverage percentage
 is a stated goal (issue #1786).** Read

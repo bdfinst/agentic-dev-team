@@ -37,8 +37,8 @@ concurrently without `isolation: "worktree"` on every dispatch**; see
 fixed schema:
 
 <!-- include: references/review-loop.md -->
-See `review-loop.md` for the parallel `/test-design` + `/code-review`
-dispatch, the `/apply-fixes` step, the 2-iteration `[r/w/q]` escalation
-cap, and the fixed evidence-schema fields.
+See `review-loop.md` for the single-panel dispatch, the test-lens
+guarantee, the narrowed fix-confirmation, the escalation cap, and the
+fixed evidence-schema fields.
 
 **`/handoff` suggestion** (same rationale as Phase 5). Once the loop above closes, print: `Phase 7 complete. Consider running /handoff to compress context before continuing. To resume: /test-improve <repo-path> --from-phase 8 (or --from-phase with no number to auto-detect the resume point)`

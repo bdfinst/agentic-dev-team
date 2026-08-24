@@ -287,9 +287,18 @@ deterministically with the shared helper (not by eyeballing the file list):
 python3 "$CLAUDE_PLUGIN_ROOT/skills/code-review/scripts/change_shape.py" --files <target files>
 ```
 
-It prints `{"hasRuntimeSurface": <bool>, "skipLenses": [...]}`. When `skipLenses`
-is non-empty, exclude those agents from this run and note the skip in the report
-(they were gated by change shape, not by `Scope:`). The gate is **fail-safe**: any
+It prints `{"hasRuntimeSurface": <bool>, "isTestOnly": <bool>, "skipLenses":
+[...]}`. When `skipLenses` is non-empty, exclude those agents from this run and
+note the skip in the report (they were gated by change shape, not by `Scope:`).
+
+`isTestOnly` (#1964) reports a second, independent property: every changed file
+is *provably* a test file (`knowledge/test-file-indicators.md`). It currently
+**gates nothing** — `change_shape.py`'s `TEST_ONLY_SKIP_LENSES` ships empty —
+and exists so `/build` can stamp `diff_shape` on its `review-value.jsonl` rows
+and `/harness-audit` can split per-lens outcomes by it. Populating that list is
+a separate, per-lens decision that must cite the measured split, exactly as the
+architectural-impact gate requires for widening `GATED_LENSES`. Read the field
+for telemetry; do not narrow a roster on it until it does gate something. The gate is **fail-safe**: any
 file it cannot prove is doc/config (source, an unknown extension, or functional
 Claude-config markdown under `agents/`, `skills/`, `knowledge/`, `.claude/`, …)
 counts as runtime surface and keeps every lens. This never fires on a pure-docs

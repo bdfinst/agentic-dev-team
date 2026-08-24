@@ -145,13 +145,18 @@ fix-applying `/build` checkpoints. A read-only review (`source: "code-review"`)
 never applies fixes, so **every** row it produces has `issues_fixed: 0` and a 0%
 fix rate — feeding those to the drop-candidate logic falsely flags a whole panel
 that may be surfacing real defects (the 2026-07-20 run mislabeled all 7 agents
-this way). The `jq` filters to `source == "build-checkpoint"` (treating an absent
-`source` as `build-checkpoint`, back-compat) **before** grouping:
+this way). The `jq` filters to the **fix-applying** sources — `build-checkpoint`
+and, since #1962, `build-backstop` (both run the review-fix loop and can move
+`issues_fixed`), treating an absent `source` as `build-checkpoint` for
+back-compat — and drops `outcome: "skipped"` rows (a backstop suppressed by
+`--backstop-review=skip` never ran, so counting it would dilute every rate with
+a non-event), **before** grouping:
 
 ```bash
 log=".claude/metrics/review-value.jsonl"; [ -f "$log" ] || log="metrics/review-value.jsonl"
 [ -f "$log" ] && jq -s '
-  map(select((.source // "build-checkpoint") == "build-checkpoint"))
+  map(select((.source // "build-checkpoint") | . == "build-checkpoint" or . == "build-backstop"))
+  | map(select(.outcome != "skipped"))
   | group_by(.checkpoint + "|" + (.agents_run | sort | join(",")))
   | map({
       checkpoint:    .[0].checkpoint,
@@ -167,6 +172,84 @@ log=".claude/metrics/review-value.jsonl"; [ -f "$log" ] || log="metrics/review-v
     })' \
   "$log"
 ```
+
+#### Per-lens outcomes split by diff shape — the measurement a test-only gate waits on (#1964)
+
+`/code-review`'s existing cost gates narrow by file *type* (change-shape),
+diff *size* (change-size), and architectural *signal* (change-impact). None of
+them exploits a fourth, structurally-guaranteed shape: under `/test-improve`'s
+default `refactor-mode: no-refactor`, Phase 5's diff **cannot** contain
+production code, because `/build` rejects it — yet the four opus-tier
+`Scope: always` lenses run on it anyway, per Story and again at phase end.
+
+Whether any of them can be dropped there is an empirical question, so answer
+it before touching a gate. Group `diff_shape: "test-only"` rows by lens and
+report the outcome split against the same lens's `mixed` rows:
+
+```bash
+log=".claude/metrics/review-value.jsonl"; [ -f "$log" ] || log="metrics/review-value.jsonl"
+[ -f "$log" ] && jq -s '
+  map(select((.source // "build-checkpoint") | . == "build-checkpoint" or . == "build-backstop"))
+  | map(select(.outcome != "skipped" and .diff_shape != null))
+  | map({shape: .diff_shape, outcome, lens: .agents_run[]})
+  | group_by(.lens)
+  | map({lens: .[0].lens,
+         test_only:  (map(select(.shape=="test-only")) | length),
+         test_only_no_op: (map(select(.shape=="test-only" and .outcome=="no-op")) | length),
+         mixed:      (map(select(.shape=="mixed")) | length),
+         mixed_no_op:(map(select(.shape=="mixed" and .outcome=="no-op")) | length)})
+  | sort_by(-.test_only)' \
+  "$log"
+```
+
+Report `test_only_no_op / test_only` per lens, alongside that lens's `mixed`
+rate as the control — a lens that no-ops at the same rate on *both* shapes is
+simply a quiet lens, not one this diff shape defeats, and gating it on shape
+would be reading noise as signal. Only a lens that no-ops on test-only diffs
+**and** earns its keep on mixed ones is a candidate for
+`change_shape.py`'s `TEST_ONLY_SKIP_LENSES`, and each entry lands in its own
+PR citing these numbers. State the row count: with few rows, the honest
+finding is "not enough data yet", not a recommendation.
+
+Two lenses are **not** candidates regardless of what the split shows, and the
+report should say so rather than proposing them: `security-review` (tests
+routinely embed credentials and injection payloads) and `correctness-review`
+(an inverted assertion is exactly its subject).
+
+#### Backstop redundancy — the measurement that gates `--backstop-review=skip` (#1962)
+
+`/build`'s Step-6 backstop reviews files an inline checkpoint (sub-steps 4/6)
+already reviewed in the same run, and under an enclosing orchestrator (e.g.
+`/test-improve` Phase 5, which runs its own end-of-phase panel over the
+cumulative diff) it is the third review layer over the same test code. Whether
+that layer earns its cost is an empirical question, and `source:
+"build-backstop"` rows are the answer. Report the backstop's own outcome split
+next to the checkpoint split, restricted to builds where a checkpoint actually
+ran first — a backstop on a `trivial`-only slice reviewed something nothing else
+did, and including it would understate redundancy:
+
+```bash
+log=".claude/metrics/review-value.jsonl"; [ -f "$log" ] || log="metrics/review-value.jsonl"
+[ -f "$log" ] && jq -s '
+  (map(select((.source // "build-checkpoint") == "build-checkpoint"))
+     | map(.plan + "|" + (.slice // "")) | unique) as $reviewed
+  | map(select(.source == "build-backstop" and .outcome != "skipped"))
+  | map(select(((.plan + "|" + (.slice // "")) | IN($reviewed[]))))
+  | {backstop_runs_after_a_checkpoint: length,
+     no_op:     (map(select(.outcome=="no-op"))     | length),
+     fixed:     (map(select(.outcome=="fixed"))     | length),
+     escalated: (map(select(.outcome=="escalated")) | length),
+     issues_found: (map(.issues_found) | add // 0)}' \
+  "$log"
+```
+
+Read it honestly, and state the sample size in the report: a backstop that is
+**~all `no-op` after a checkpoint already ran** is the evidence that lets a
+caller pass `--backstop-review=skip`; any non-trivial `fixed` count is evidence
+it is catching what the checkpoints miss, and the flag should stay unused. A
+handful of rows is not a finding — say so rather than recommending a flip off
+noise. This is the same evidence-first discipline the architectural-impact gate
+applies to widening `GATED_LENSES`: measure the lens, then narrow it.
 
 For **read-only `code-review` rows**, report **finding-rate** (how often the
 panel surfaced any issue) instead of fix-rate, and state plainly in the report
