@@ -52,26 +52,33 @@ import review_roster
 # classification (a real defect a prior draft of this filter had: `.md`
 # alone made `plugins/dev-team/agents/*.md` — this very repo's shipped
 # agent behavior — read as "non-executable"). Same cross-boundary import
-# pattern that module already uses, same fail-open fallback.
+# pattern that module already uses.
 _HOOKS_LIB_DIR = _HERE.parent / "hooks" / "lib"
 if str(_HOOKS_LIB_DIR) not in sys.path:
     sys.path.insert(0, str(_HOOKS_LIB_DIR))
 
+# No `except ImportError` fallback (#1968). The fallback this replaced was a
+# hand-written second copy of `is_functional_config`, and nothing could catch
+# it drifting: the guard that claimed to (`test_select_lenses.py`'s
+# `test_is_functional_config_matches_doc_classification_module`) compared the
+# canonical implementation against itself whenever the import succeeded — which
+# is always, here — so sabotaging the fallback to `return False` left the whole
+# suite green. `hooks/lib/` ships inside this same plugin; an unreachable one is
+# a broken install, not a supported degraded mode.
 try:
     from doc_classification import (
         is_functional_config,  # type: ignore[import-not-found]
     )
-except ImportError:  # pragma: no cover - degraded fallback, hooks/lib unreachable
-    _FALLBACK_FUNCTIONAL_CONFIG_NAMES = frozenset({"claude.md", "agents.md"})
-    _FALLBACK_FUNCTIONAL_CONFIG_SEGMENTS = frozenset(
-        {".claude", "agents", "skills", "prompts", "knowledge", "templates"}
-    )
-
-    def is_functional_config(file_path: str) -> bool:
-        name = Path(file_path).name.lower()
-        if name in _FALLBACK_FUNCTIONAL_CONFIG_NAMES:
-            return True
-        return any(seg in _FALLBACK_FUNCTIONAL_CONFIG_SEGMENTS for seg in Path(file_path).parts)
+except ImportError as exc:  # pragma: no cover - broken install, not a supported mode
+    raise ImportError(
+        f"{__name__} requires the shared classifier 'doc_classification' from "
+        f"the dev-team plugin's hooks/lib, which could not be imported.\n"
+        f"  searched: {_HOOKS_LIB_DIR}\n"
+        f"  exists:   {_HOOKS_LIB_DIR.is_dir()}\n"
+        "This module deliberately has no fallback copy of the classifier "
+        "(#1968) — a divergent stand-in silently mis-classifies files. Fix the "
+        "install or the path rather than re-adding a local implementation."
+    ) from exc
 
 # Framework-reactivity lenses declare bare ``**/*.ts`` / ``**/*.js`` globs, but
 # their real trigger is a dependency-manifest match (``/code-review`` Step 3's

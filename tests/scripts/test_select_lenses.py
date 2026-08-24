@@ -216,29 +216,6 @@ def test_non_executable_file_never_true_for_functional_claude_config():
         assert not SL._is_non_executable_file(f), f"{f} is functional config, must stay executable"
 
 
-def test_is_functional_config_matches_doc_classification_module():
-    # Guards against the shared-logic drift doc_classification.py's own
-    # docstring names as this module family's known failure mode: if
-    # select_lenses.py's import succeeded (the normal case, exercised here
-    # since select_lenses.py's own hooks/lib is reachable in this repo),
-    # its `is_functional_config` must behave identically to the canonical
-    # source's — otherwise select_lenses.py's ImportError-fallback copy
-    # (hardcoded for the case hooks/lib is unreachable) has silently
-    # drifted from it.
-    doc_classification_path = (
-        _REPO_ROOT / "plugins" / "dev-team" / "hooks" / "lib" / "doc_classification.py"
-    )
-    spec = importlib.util.spec_from_file_location("doc_classification", doc_classification_path)
-    real = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(real)
-    for f in (
-        "plugins/dev-team/agents/foo.md", ".claude/settings.json",
-        "plugins/dev-team/templates/agents/python.md", "CLAUDE.md",
-        "docs/x.md", "README.md",
-    ):
-        assert SL.is_functional_config(f) == real.is_functional_config(f), f
-
-
 def test_non_executable_skip_eligible_justification_matches_agent_skip_clause():
     # Mechanically re-verifies NON_EXECUTABLE_SKIP_ELIGIBLE's own MAINTENANCE
     # comment ("re-verify against the named agent's own Skip clause before
