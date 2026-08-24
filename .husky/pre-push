@@ -41,9 +41,18 @@ PRE_REFS_FILE="$(mktemp -t prepush-refs-pre-XXXXXX)"
 POST_REFS_FILE="$(mktemp -t prepush-refs-post-XXXXXX)"
 EXEMPT_REFS_FILE="$(mktemp -t prepush-refs-exempt-XXXXXX)"
 DRIFT_FILE="$(mktemp -t prepush-refs-drift-XXXXXX)"
-trap 'rm -f "$PRE_REFS_FILE" "$POST_REFS_FILE" "$EXEMPT_REFS_FILE" "$DRIFT_FILE"' EXIT
+PRE_WORKTREE_PATHS_FILE="$(mktemp -t prepush-worktree-paths-pre-XXXXXX)"
+trap 'rm -f "$PRE_REFS_FILE" "$POST_REFS_FILE" "$EXEMPT_REFS_FILE" "$DRIFT_FILE" "$PRE_WORKTREE_PATHS_FILE"' EXIT
 git for-each-ref --format='%(refname) %(objectname)' refs/heads/ > "$PRE_REFS_FILE"
 SELF_REF="$(git symbolic-ref -q HEAD 2>/dev/null || true)"
+# Snapshot worktree paths before ci-local runs (issue #1871 fix, step 1 of 2):
+# a worktree created *during* the hook's multi-minute run window must not be
+# able to self-enroll in the exemption below. Use sub() to strip only the
+# fixed "worktree " prefix rather than default $1/$2 field-splitting — a
+# worktree path may legitimately contain a space (unlike a branch refname,
+# which git forbids from containing one), and default field-splitting would
+# truncate such a path at the first space.
+git worktree list --porcelain 2>/dev/null | awk '/^worktree /{sub(/^worktree /, ""); print}' > "$PRE_WORKTREE_PATHS_FILE"
 
 echo "pre-push: running local CI mirror (scripts/ci-local.sh)…"
 # `|| true` so a non-zero exit from ci-local doesn't trip husky's `sh -e`

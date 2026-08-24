@@ -273,3 +273,68 @@ def test_guard_ci_local_fails_but_refs_stable_hook_exits_nonzero_from_ci_local(
     assert "ref.*drift" not in output
     assert "changed during hook" not in output
     assert "refs/heads/feature" not in output
+
+
+def test_guard_worktree_paths_snapshot_captured_before_ci_local_runs(
+    scratch: dict[str, object],
+) -> None:
+    """PRE_WORKTREE_PATHS_FILE exists and is non-empty before ci-local.sh starts.
+
+    Step 2.1 of #1871: the pre-run worktree-path snapshot is the input the
+    later exemption-computation fix will gate on, so it must be captured
+    strictly before ci-local.sh's body runs, not after. Point TMPDIR at a
+    test-controlled directory so the stub (a separate process with no
+    visibility into the hook's own shell variables) can locate the
+    mktemp-generated snapshot file by its fixed filename prefix and read it.
+    """
+    root: Path = scratch["root"]  # type: ignore[assignment]
+    env: dict[str, str] = scratch["env"]  # type: ignore[assignment]
+    tmpdir = root.parent / f"{root.name}-tmpdir"
+    tmpdir.mkdir()
+    env["TMPDIR"] = str(tmpdir)
+
+    check_result = root / "snapshot-check.txt"
+    _stub_ci_local(
+        root,
+        (
+            f'snap="$(ls "{tmpdir}"/prepush-worktree-paths-pre-* 2>/dev/null | head -n1)"\n'
+            f'if [ -n "$snap" ] && [ -s "$snap" ]; then echo present > "{check_result}"; '
+            f'else echo missing > "{check_result}"; fi'
+        ),
+    )
+    result = _run_hook(scratch)
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert check_result.read_text().strip() == "present"
+
+
+def test_guard_worktree_path_with_space_captured_intact_in_snapshot(
+    scratch: dict[str, object],
+) -> None:
+    """A worktree path containing a space is snapshotted whole, not truncated.
+
+    Step 2.1 of #1871: the snapshot awk must use sub() to strip only the
+    fixed "worktree " prefix, not default $1/$2 field-splitting — a
+    worktree path may legitimately contain a space (unlike a branch
+    refname, which git forbids from containing one).
+    """
+    root: Path = scratch["root"]  # type: ignore[assignment]
+    env: dict[str, str] = scratch["env"]  # type: ignore[assignment]
+    tmpdir = root.parent / f"{root.name}-tmpdir2"
+    tmpdir.mkdir()
+    env["TMPDIR"] = str(tmpdir)
+
+    spaced_path = root.parent / f"{root.name} spaced sibling"
+    _git(root, env, "worktree", "add", "-q", "-b", "spaced-branch", str(spaced_path), "main")
+
+    check_result = root / "space-check.txt"
+    _stub_ci_local(
+        root,
+        (
+            f'snap="$(ls "{tmpdir}"/prepush-worktree-paths-pre-* 2>/dev/null | head -n1)"\n'
+            f'if grep -qxF "{spaced_path}" "$snap"; then echo intact > "{check_result}"; '
+            f'else echo missing > "{check_result}"; fi'
+        ),
+    )
+    result = _run_hook(scratch)
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert check_result.read_text().strip() == "intact"
