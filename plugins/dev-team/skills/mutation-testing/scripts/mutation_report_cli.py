@@ -63,7 +63,8 @@ def parse_args(argv) -> argparse.Namespace:
         action="store_true",
         help=(
             "Exclude static:true mutants — requires --survivors-by-mutator "
-            "(rejected with --survivors-by-line)."
+            "or --accepted-static-survivors (rejected with "
+            "--survivors-by-line)."
         ),
     )
     return p.parse_args(list(argv))
@@ -110,9 +111,10 @@ def main(argv: list[str] | None = None) -> int:
         )
         return 2
 
-    if args.skip_static and not args.survivors_by_mutator:
+    if args.skip_static and args.survivors_by_line:
         sys.stderr.write(
-            "error: --skip-static is only valid with --survivors-by-mutator\n"
+            "error: --skip-static is only valid with --survivors-by-mutator "
+            "or --accepted-static-survivors\n"
         )
         return 2
 
@@ -121,7 +123,18 @@ def main(argv: list[str] | None = None) -> int:
     if args.survivors_by_line:
         result = mutation_report.survivors_by_line(report_path, args.file)
     elif args.accepted_static_survivors:
-        result = mutation_report.accepted_static_survivors(report_path, args.file)
+        # Single load: reuse the same parsed dict for the inapplicable-skip
+        # diagnostic (only emitted when --skip-static was actually
+        # requested — no point warning about static-field absence when the
+        # caller didn't even claim the skip was active) and the
+        # accepted-survivor computation, instead of two separate
+        # load_report() calls.
+        data = mutation_report.load_report(report_path)
+        if args.skip_static:
+            _maybe_warn_skip_static_inapplicable(data, args.file)
+        result = mutation_report.accepted_static_survivors_from_data(
+            data, args.file, skip_static_active=args.skip_static
+        )
     elif args.skip_static:
         # Single load: reuse the same parsed dict for the inapplicable-skip
         # diagnostic and the survivor computation, instead of the diagnostic
