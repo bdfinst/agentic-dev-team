@@ -139,7 +139,7 @@ adjusted_score = Killed / (Killed + (Survived - Accepted) + NoCoverage)
 
 **JS/TS cross-reference.** On a JS/TS (Stryker) run with
 `--skip-static-mutants` active, accepted survivors also include the
-`--accepted-static-survivors` output — fold those entries into this same
+`--accepted-static-survivors --skip-static` output — fold those entries into this
 table and computation; see [Static-mutant
 skip](../skills/mutation-testing/references/languages/javascript-stryker.md#static-mutant-skip-skip-static-mutants)
 in `javascript-stryker.md`.

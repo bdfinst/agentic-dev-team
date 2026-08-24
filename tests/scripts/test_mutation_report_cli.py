@@ -292,6 +292,8 @@ def test_accepted_static_survivors_without_skip_static_succeeds_and_is_empty(
 ) -> None:
     # --accepted-static-survivors alone (without --skip-static) is valid,
     # not an error — it returns [] because skip_static_active is False.
+    # It's a guaranteed no-op though, so a stderr diagnostic must explain
+    # why, rather than staying silent (round-2 fix, #1940).
     report = _write_report(
         tmp_path / "mutation.json",
         {
@@ -313,7 +315,7 @@ def test_accepted_static_survivors_without_skip_static_succeeds_and_is_empty(
     )
     assert rc == 0
     out = capsys.readouterr()
-    assert out.err == ""
+    assert "no accepted entries reported" in out.err
     assert json.loads(out.out) == []
 
 

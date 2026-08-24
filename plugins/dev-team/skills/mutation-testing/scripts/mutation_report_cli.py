@@ -123,15 +123,23 @@ def main(argv: list[str] | None = None) -> int:
     if args.survivors_by_line:
         result = mutation_report.survivors_by_line(report_path, args.file)
     elif args.accepted_static_survivors:
-        # Single load: reuse the same parsed dict for the inapplicable-skip
-        # diagnostic (only emitted when --skip-static was actually
-        # requested — no point warning about static-field absence when the
-        # caller didn't even claim the skip was active) and the
-        # accepted-survivor computation, instead of two separate
-        # load_report() calls.
+        # Single load: reuse the same parsed dict for the diagnostic below
+        # and the accepted-survivor computation, instead of two separate
+        # load_report() calls. When --skip-static IS set, warn if it turns
+        # out to be inapplicable; when it is NOT set,
+        # accepted_static_survivors_from_data() unconditionally returns []
+        # (skip_static_active gates it), so warn instead that the result is
+        # a guaranteed no-op — silent success here is indistinguishable
+        # from "no static survivors exist".
         data = mutation_report.load_report(report_path)
         if args.skip_static:
             _maybe_warn_skip_static_inapplicable(data, args.file)
+        else:
+            sys.stderr.write(
+                "accepted-static-survivors: --skip-static was not set — "
+                "no accepted entries reported; pass --skip-static when "
+                "the generation run actually narrowed by it\n"
+            )
         result = mutation_report.accepted_static_survivors_from_data(
             data, args.file, skip_static_active=args.skip_static
         )
