@@ -193,6 +193,133 @@ def test_skip_static_notice_when_file_absent_from_report(
 
 
 # =============================================================================
+# --accepted-static-survivors
+# =============================================================================
+
+
+def test_accepted_static_survivors_matches_library_call(
+    tmp_path: Path, capsys
+) -> None:
+    # Scope: JSON-passthrough fidelity only — see the comment on
+    # test_survivors_by_line_matches_library_call above.
+    report = _write_report(
+        tmp_path / "mutation.json",
+        {
+            "src/calc.ts": {
+                "mutants": [
+                    _mutant("Survived", mutator="StringLiteral", static=True),
+                    _mutant("Survived", mutator="ArithmeticOperator", static=False),
+                ]
+            }
+        },
+    )
+    rc = cli.main(
+        [
+            "--accepted-static-survivors",
+            "--report",
+            str(report),
+            "--file",
+            "src/calc.ts",
+            "--skip-static",
+        ]
+    )
+    assert rc == 0
+    out = capsys.readouterr()
+    assert out.err == ""
+    printed = json.loads(out.out)
+    expected = mutation_report.accepted_static_survivors(
+        report, "src/calc.ts", skip_static_active=True
+    )
+    assert printed == expected
+
+
+def test_accepted_static_survivors_missing_report_file_is_empty_json(
+    tmp_path: Path, capsys
+) -> None:
+    missing = tmp_path / "does-not-exist.json"
+    rc = cli.main(
+        [
+            "--accepted-static-survivors",
+            "--report",
+            str(missing),
+            "--file",
+            "src/calc.ts",
+            "--skip-static",
+        ]
+    )
+    assert rc == 0
+    out = capsys.readouterr()
+    assert json.loads(out.out) == []
+
+
+def test_accepted_static_survivors_with_skip_static_returns_real_results(
+    tmp_path: Path, capsys
+) -> None:
+    # --accepted-static-survivors and --skip-static together are now valid
+    # (Finding 1): skip_static_active gates the result, so a run where the
+    # skip really was active returns real, non-empty accepted-survivor
+    # entries when static survivors exist.
+    report = _write_report(
+        tmp_path / "mutation.json",
+        {
+            "src/calc.ts": {
+                "mutants": [
+                    _mutant("Survived", mutator="StringLiteral", static=True),
+                ]
+            }
+        },
+    )
+    rc = cli.main(
+        [
+            "--accepted-static-survivors",
+            "--skip-static",
+            "--report",
+            str(report),
+            "--file",
+            "src/calc.ts",
+        ]
+    )
+    assert rc == 0
+    out = capsys.readouterr()
+    printed = json.loads(out.out)
+    assert len(printed) == 1
+    assert printed[0]["status"] == "accepted"
+    assert printed[0]["operator"] == "StringLiteral"
+
+
+def test_accepted_static_survivors_without_skip_static_succeeds_and_is_empty(
+    tmp_path: Path, capsys
+) -> None:
+    # --accepted-static-survivors alone (without --skip-static) is valid,
+    # not an error — it returns [] because skip_static_active is False.
+    # It's a guaranteed no-op though, so a stderr diagnostic must explain
+    # why, rather than staying silent (round-2 fix, #1940).
+    report = _write_report(
+        tmp_path / "mutation.json",
+        {
+            "src/calc.ts": {
+                "mutants": [
+                    _mutant("Survived", mutator="StringLiteral", static=True),
+                ]
+            }
+        },
+    )
+    rc = cli.main(
+        [
+            "--accepted-static-survivors",
+            "--report",
+            str(report),
+            "--file",
+            "src/calc.ts",
+        ]
+    )
+    assert rc == 0
+    out = capsys.readouterr()
+    assert "no accepted entries reported" in out.err
+    assert json.loads(out.out) == []
+
+
+# =============================================================================
 # Argument errors
 # =============================================================================
 
@@ -212,7 +339,8 @@ def test_both_mode_flags_is_argument_error(tmp_path: Path, capsys) -> None:
     assert rc == 2
     err = capsys.readouterr().err
     assert (
-        "exactly one of --survivors-by-line or --survivors-by-mutator" in err
+        "exactly one of --survivors-by-line, --survivors-by-mutator, "
+        "or --accepted-static-survivors" in err
     )
 
 
@@ -222,7 +350,73 @@ def test_neither_mode_flag_is_argument_error(tmp_path: Path, capsys) -> None:
     assert rc == 2
     err = capsys.readouterr().err
     assert (
-        "exactly one of --survivors-by-line or --survivors-by-mutator" in err
+        "exactly one of --survivors-by-line, --survivors-by-mutator, "
+        "or --accepted-static-survivors" in err
+    )
+
+
+def test_all_three_mode_flags_is_argument_error(tmp_path: Path, capsys) -> None:
+    report = _write_report(tmp_path / "mutation.json", {})
+    rc = cli.main(
+        [
+            "--survivors-by-line",
+            "--survivors-by-mutator",
+            "--accepted-static-survivors",
+            "--report",
+            str(report),
+            "--file",
+            "src/calc.ts",
+        ]
+    )
+    assert rc == 2
+    err = capsys.readouterr().err
+    assert (
+        "exactly one of --survivors-by-line, --survivors-by-mutator, "
+        "or --accepted-static-survivors" in err
+    )
+
+
+def test_accepted_static_survivors_with_survivors_by_line_is_argument_error(
+    tmp_path: Path, capsys
+) -> None:
+    report = _write_report(tmp_path / "mutation.json", {})
+    rc = cli.main(
+        [
+            "--survivors-by-line",
+            "--accepted-static-survivors",
+            "--report",
+            str(report),
+            "--file",
+            "src/calc.ts",
+        ]
+    )
+    assert rc == 2
+    err = capsys.readouterr().err
+    assert (
+        "exactly one of --survivors-by-line, --survivors-by-mutator, "
+        "or --accepted-static-survivors" in err
+    )
+
+
+def test_accepted_static_survivors_with_survivors_by_mutator_is_argument_error(
+    tmp_path: Path, capsys
+) -> None:
+    report = _write_report(tmp_path / "mutation.json", {})
+    rc = cli.main(
+        [
+            "--survivors-by-mutator",
+            "--accepted-static-survivors",
+            "--report",
+            str(report),
+            "--file",
+            "src/calc.ts",
+        ]
+    )
+    assert rc == 2
+    err = capsys.readouterr().err
+    assert (
+        "exactly one of --survivors-by-line, --survivors-by-mutator, "
+        "or --accepted-static-survivors" in err
     )
 
 
@@ -243,6 +437,46 @@ def test_skip_static_with_survivors_by_line_is_argument_error(
     assert rc == 2
     err = capsys.readouterr().err
     assert "--skip-static is only valid with --survivors-by-mutator" in err
+
+
+def test_skip_static_with_accepted_static_survivors_is_valid_not_an_error(
+    tmp_path: Path, capsys
+) -> None:
+    # Finding 1 reverses the old rule: --skip-static + --accepted-static-
+    # survivors is now a valid, supported combination (it's the only way to
+    # get a non-empty result from --accepted-static-survivors), not an
+    # argument error.
+    report = _write_report(
+        tmp_path / "mutation.json",
+        {
+            "src/calc.ts": {
+                "mutants": [
+                    {
+                        "id": "StringLiteral-1",
+                        "mutatorName": "StringLiteral",
+                        "status": "Survived",
+                        "static": True,
+                    }
+                ]
+            }
+        },
+    )
+    rc = cli.main(
+        [
+            "--accepted-static-survivors",
+            "--skip-static",
+            "--report",
+            str(report),
+            "--file",
+            "src/calc.ts",
+        ]
+    )
+    assert rc == 0
+    out = capsys.readouterr()
+    assert out.err == ""
+    printed = json.loads(out.out)
+    assert len(printed) == 1
+    assert printed[0]["status"] == "accepted"
 
 
 # =============================================================================

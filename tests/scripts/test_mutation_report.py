@@ -811,6 +811,262 @@ def test_score_report_still_counts_static_survivor_unfiltered(tmp_path: Path):
 
 
 # =============================================================================
+# Scenario: accepted_static_survivors() models static-skipped mutants as
+# accepted survivors (Slice 2, Step 2.1 of
+# plans/mutation-testing-docs-domain-consistency-1940.md, #1929/#1940)
+# =============================================================================
+def test_accepted_static_survivors_one_static_survivor_amid_others(tmp_path: Path):
+    report = _write_report(
+        tmp_path / "mutation-report.json",
+        {
+            "src/Widget.cs": {
+                "mutants": [
+                    _mutant_static("Survived", True, mutator="StringLiteral"),
+                    _mutant_static(
+                        "Survived", False, mutator="ArithmeticOperator"
+                    ),
+                    _mutant_static("Killed", True, mutator="EqualityOperator"),
+                ]
+            }
+        },
+    )
+
+    result = mutation_report.accepted_static_survivors(
+        report, "src/Widget.cs", skip_static_active=True
+    )
+
+    assert result == [
+        {
+            "id": "StringLiteral-Survived-True",
+            "file": "src/Widget.cs",
+            "line": None,
+            "operator": "StringLiteral",
+            "status": "accepted",
+            "reason": mutation_report.ACCEPTED_STATIC_REASON,
+        }
+    ]
+
+
+def test_accepted_static_survivors_multiple_static_survivors(tmp_path: Path):
+    report = _write_report(
+        tmp_path / "mutation-report.json",
+        {
+            "src/Widget.cs": {
+                "mutants": [
+                    _mutant_static("Survived", True, mutator="StringLiteral"),
+                    _mutant_static("Survived", True, mutator="EqualityOperator"),
+                ]
+            }
+        },
+    )
+
+    result = mutation_report.accepted_static_survivors(
+        report, "src/Widget.cs", skip_static_active=True
+    )
+
+    assert len(result) == 2
+    assert all(entry["status"] == "accepted" for entry in result)
+    assert all(
+        entry["reason"] == mutation_report.ACCEPTED_STATIC_REASON for entry in result
+    )
+    assert {entry["operator"] for entry in result} == {
+        "StringLiteral",
+        "EqualityOperator",
+    }
+    assert {entry["id"] for entry in result} == {
+        "StringLiteral-Survived-True",
+        "EqualityOperator-Survived-True",
+    }
+
+
+def test_accepted_static_survivors_no_static_mutants_returns_empty(tmp_path: Path):
+    report = _write_report(
+        tmp_path / "mutation-report.json",
+        {"src/Widget.cs": {"mutants": [_mutant("Survived"), _mutant("Killed")]}},
+    )
+
+    assert (
+        mutation_report.accepted_static_survivors(
+            report, "src/Widget.cs", skip_static_active=True
+        )
+        == []
+    )
+
+
+def test_accepted_static_survivors_file_absent_from_report_returns_empty(
+    tmp_path: Path,
+):
+    report = _write_report(
+        tmp_path / "mutation-report.json",
+        {"src/Widget.cs": {"mutants": [_mutant_static("Survived", True)]}},
+    )
+
+    assert (
+        mutation_report.accepted_static_survivors(
+            report, "src/Nope.cs", skip_static_active=True
+        )
+        == []
+    )
+
+
+@pytest.mark.parametrize(
+    "status", ["Killed", "Timeout", "NoCoverage", "CompileError"]
+)
+def test_accepted_static_survivors_excludes_non_survived_statuses(
+    tmp_path: Path, status: str
+):
+    report = _write_report(
+        tmp_path / "mutation-report.json",
+        {"src/Widget.cs": {"mutants": [_mutant_static(status, True)]}},
+    )
+
+    assert (
+        mutation_report.accepted_static_survivors(
+            report, "src/Widget.cs", skip_static_active=True
+        )
+        == []
+    )
+
+
+@pytest.mark.parametrize(
+    "mutate_mutant",
+    [
+        lambda m: m,  # no location key at all
+        lambda m: {**m, "location": "src/Widget.cs:42"},  # non-dict location
+        lambda m: {**m, "location": {"start": "42"}},  # non-dict start
+        lambda m: {**m, "location": {"start": {"line": "not-a-number"}}},
+        lambda m: {**m, "location": {"start": {"line": True}}},
+    ],
+)
+def test_accepted_static_survivors_malformed_location_yields_line_none_without_raising(
+    tmp_path: Path, mutate_mutant
+):
+    mutant = _mutant_static("Survived", True)
+    mutant = mutate_mutant(mutant)
+    report = _write_report(
+        tmp_path / "mutation-report.json",
+        {"src/Widget.cs": {"mutants": [mutant]}},
+    )
+
+    result = mutation_report.accepted_static_survivors(
+        report, "src/Widget.cs", skip_static_active=True
+    )
+
+    assert len(result) == 1
+    assert result[0]["line"] is None
+
+
+def test_accepted_static_survivors_from_data_matches_accepted_static_survivors(
+    tmp_path: Path,
+):
+    report = _write_report(
+        tmp_path / "mutation-report.json",
+        {
+            "src/Widget.cs": {
+                "mutants": [
+                    _mutant_static("Survived", True, mutator="StringLiteral"),
+                    _mutant_static(
+                        "Survived", False, mutator="ArithmeticOperator"
+                    ),
+                ]
+            }
+        },
+    )
+    data = mutation_report.load_report(report)
+
+    from_data = mutation_report.accepted_static_survivors_from_data(
+        data, "src/Widget.cs", skip_static_active=True
+    )
+    from_path = mutation_report.accepted_static_survivors(
+        report, "src/Widget.cs", skip_static_active=True
+    )
+
+    assert from_data == from_path
+    assert len(from_data) == 1
+
+
+# =============================================================================
+# Scenario: accepted_static_survivors() is gated on skip_static_active — a
+# real, non-basis-having "static: true" flag is not by itself evidence that
+# the operator's --skip-static was active for this run (domain-review
+# finding, fix pass for #1940 whole-branch backstop review)
+# =============================================================================
+def test_accepted_static_survivors_skip_static_active_false_returns_empty(
+    tmp_path: Path,
+):
+    report = _write_report(
+        tmp_path / "mutation-report.json",
+        {
+            "src/Widget.cs": {
+                "mutants": [
+                    _mutant_static("Survived", True, mutator="StringLiteral"),
+                    _mutant_static("Survived", True, mutator="EqualityOperator"),
+                ]
+            }
+        },
+    )
+
+    assert (
+        mutation_report.accepted_static_survivors(
+            report, "src/Widget.cs", skip_static_active=False
+        )
+        == []
+    )
+    assert (
+        mutation_report.accepted_static_survivors_from_data(
+            mutation_report.load_report(report),
+            "src/Widget.cs",
+            skip_static_active=False,
+        )
+        == []
+    )
+
+
+# =============================================================================
+# Scenario: the emitted "file" is the matched report key, not an echo of the
+# caller-supplied file_path (domain-review finding: entity identity)
+# =============================================================================
+def test_accepted_static_survivors_file_is_matched_report_key_not_caller_input(
+    tmp_path: Path,
+):
+    report = _write_report(
+        tmp_path / "mutation-report.json",
+        {
+            "src/calculator.ts": {
+                "mutants": [_mutant_static("Survived", True, mutator="StringLiteral")]
+            }
+        },
+    )
+
+    result = mutation_report.accepted_static_survivors(
+        report, "calculator.ts", skip_static_active=True
+    )
+
+    assert len(result) == 1
+    assert result[0]["file"] == "src/calculator.ts"
+
+
+# =============================================================================
+# Scenario: introducing accepted_static_survivors() changes nothing about the
+# existing, unfiltered functions computed over the same fixture (regression
+# for the plan's safety-critical AC: raw/honest score and skip_static=False
+# stay fully unfiltered)
+# =============================================================================
+def test_survivors_by_mutator_default_still_returns_static_survivor_unaffected(
+    tmp_path: Path,
+):
+    report = _mixed_static_report(tmp_path)
+
+    grouped = mutation_report.survivors_by_mutator(
+        report, "src/Widget.cs", skip_static=False
+    )
+
+    assert set(grouped) == {"StringLiteral", "ArithmeticOperator"}
+    assert len(grouped["StringLiteral"]) == 1
+    assert grouped["StringLiteral"][0]["status"] == "Survived"
+
+
+# =============================================================================
 # Scenario: The module carries no repo-specific literal
 # =============================================================================
 def test_module_source_carries_no_repo_specific_literal():

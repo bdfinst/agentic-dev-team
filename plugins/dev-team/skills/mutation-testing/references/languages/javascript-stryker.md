@@ -54,10 +54,11 @@ your installed version before relying on it in an automated pipeline.)
 already produced the report — it cannot make Stryker's own run faster, and
 does not claim to. What it saves is the generation-and-verify **rounds**
 `mutation-kill` would otherwise spend chasing mutants that are expensive to
-confirm killed (each needs a full-suite re-run to verify), at the cost of a
-small, documented survivor over-count: a skipped static mutant that a
-full-suite run would have killed stays counted as an unaddressed survivor
-for this pass.
+confirm killed (each needs a full-suite re-run to verify), at the cost of
+deferring each skipped static mutant rather than eliminating it: a skipped
+static mutant that a full-suite run would have killed stays counted as an
+unaddressed survivor for this pass, folded into the accepted-survivors
+accounting below rather than dropped silently.
 
 **Scoring and convergence stay unfiltered.** Only the generation step's
 input narrows — and specifically only the mutator-grouped generation input
@@ -71,6 +72,30 @@ resolved here. The `survivors == 0` convergence exit, the
 no-improvement stop predicate, and the honest/reported scores all read the
 report's full, unfiltered survivor count — a file whose only remaining
 survivors are static must never be written as `status: "converged"`.
+
+**`adjusted_score` does account for static-skipped mutants.** After the
+existing `--skip-static --survivors-by-mutator` generation call, also call
+`mutation_report_cli.py --accepted-static-survivors --skip-static --report
+<path> --file <path>` and fold each returned entry into the file's own
+"Accepted Survivors (deferred)" table and `adjusted_score` computation,
+exactly like any other `status: "accepted"` entry (see [mutation-kill.md's
+Accepted survivors: raw vs adjusted
+score](../../../../agents/mutation-kill.md#accepted-survivors-raw-vs-adjusted-score)).
+`--skip-static` is required on this call: `accepted_static_survivors()`
+returns `[]` unless its `skip_static_active` evidence is `True`, so calling
+`--accepted-static-survivors` without `--skip-static` yields no accepted
+entries at all, even when static survivors exist in the report. This is now
+documented via the same accepted/reason mechanism used elsewhere in
+`mutation-kill` — not the undocumented, adjusted-score-invisible over-count
+the prior wording described. Clustering (`survivors_by_line()`) is untouched
+by this and stays out of scope: it has no `skip_static` parameter and
+remains unfiltered, per the #1948 gap noted above. **Known overlap:** because
+clustering stays unfiltered, a static survivor folded into the accepted
+table this round may simultaneously still be targeted by the
+clustering-driven generation step in that same round — this is a known,
+accepted overlap tied to #1948, not resolved here, so the adjusted score
+should not be read as a claim that every accepted survivor is untouched by
+this pass's generation.
 
 **Fallback when the field is absent.** `mutation_report_cli.py --skip-static`
 detects this itself and prints a one-line notice to stderr, distinguishing

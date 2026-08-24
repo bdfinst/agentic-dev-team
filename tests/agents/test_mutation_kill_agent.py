@@ -102,7 +102,12 @@ def test_agent_body_stays_under_500_line_limit(text: str) -> None:
     # the scripted-mechanics table (arch-review finding — the table had no
     # row for the CLI wrapper despite the doc now instructing the agent to
     # call it).
-    assert len(text.splitlines()) < 641
+    # Bumped by 7 more (#1940): added a "JS/TS cross-reference" paragraph to
+    # the "Accepted survivors: raw vs adjusted score" section, pointing at
+    # javascript-stryker.md's --accepted-static-survivors mode so a
+    # --skip-static-mutants run's accepted survivors are folded into the
+    # same raw/adjusted accounting.
+    assert len(text.splitlines()) < 648
 
 
 def test_defines_honest_score_formula(text: str) -> None:

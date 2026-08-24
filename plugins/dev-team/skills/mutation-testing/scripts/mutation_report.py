@@ -56,6 +56,18 @@ STATUS_NO_COVERAGE = "NoCoverage"
 # above so the literal isn't repeated across the functions that read it.
 MUTANT_STATIC_KEY = "static"
 
+# Fixed reason string attached to every accepted-static-survivor entry
+# (see ``accepted_static_survivors``) — a static-flagged Survived mutant is
+# not equivalent and not fixed; it is deliberately deferred because killing
+# it would require a full-suite re-run rather than a single-mutant one.
+ACCEPTED_STATIC_REASON = "static — verification requires a full-suite re-run"
+
+# ``status`` value for every accepted-static-survivor entry — a sibling
+# constant to ``ACCEPTED_STATIC_REASON`` so the entry's ``"status"`` field is
+# never a bare string literal, matching every other status value in this
+# module (``STATUS_KILLED`` etc. above).
+ACCEPTED_STATIC_ENTRY_STATUS = "accepted"
+
 
 @dataclass(frozen=True)
 class ScoreSummary:
@@ -97,25 +109,43 @@ def _iter_mutants(data: dict):
         yield from info.get("mutants", [])
 
 
+def _find_file_entry(data: dict, file_path: str) -> tuple[str, dict] | None:
+    """Return the matched ``(report_key, info)`` pair for one file from an
+    already-parsed report dict.
+
+    Matches ``file_path`` against report keys by exact match first, then by
+    basename, so a caller can pass either the full report key or just the
+    filename. Returns ``None`` when no file matches. ``report_key`` is the
+    key exactly as the report emits it — a caller that only passed a
+    basename (or an absolute path) gets back the matched report key, not an
+    echo of its own input.
+    """
+    files = data.get("files", {})
+
+    info = files.get(file_path)
+    if info is not None:
+        return file_path, info
+
+    target = Path(file_path).name
+    for key, value in files.items():
+        if Path(key).name == target:
+            return key, value
+    return None
+
+
 def _find_file_info(data: dict, file_path: str) -> dict | None:
     """Return one file's report entry (the ``{"mutants": [...]}`` dict) from
     an already-parsed report dict.
 
     Matches ``file_path`` against report keys by exact match first, then by
     basename, so a caller can pass either the full report key or just the
-    filename. Returns ``None`` when no file matches.
+    filename. Returns ``None`` when no file matches. Thin wrapper around
+    ``_find_file_entry`` that discards the matched key — callers that need
+    the matched key too (e.g. ``_accepted_static_survivors_from_data``) call
+    ``_find_file_entry`` directly instead.
     """
-    files = data.get("files", {})
-
-    info = files.get(file_path)
-    if info is not None:
-        return info
-
-    target = Path(file_path).name
-    for key, value in files.items():
-        if Path(key).name == target:
-            return value
-    return None
+    entry = _find_file_entry(data, file_path)
+    return entry[1] if entry is not None else None
 
 
 def _tally(mutants: list[dict]) -> ScoreSummary:
@@ -298,6 +328,31 @@ def is_file_in_report(data: dict, file_path: str) -> bool:
     return _find_file_info(data, file_path) is not None
 
 
+def _resolve_survivor_line(mutant: dict) -> int | None:
+    """Resolve one mutant's source line from its ``location.start.line``
+    field, or ``None`` when that shape is missing or malformed.
+
+    Never raises: a missing/non-dict ``location``, a missing/non-dict
+    ``start``, or a ``line`` that isn't a plain ``int`` (``None``, a
+    non-int value, or a ``bool`` — ``bool`` is an ``int`` subclass in
+    Python but is never a real line number) all resolve to ``None``. This
+    matches the module's never-raise-on-bad-input posture (see the module
+    docstring, ``load_report``'s "never raises" note, and
+    ``parse_mutmut_junitxml``'s "malformed input returns empty rather than
+    raising"). Extracted from ``_survivors_by_line_from_data``'s original
+    inline unwrap so ``_accepted_static_survivors_from_data`` can reuse the
+    same hardened logic instead of duplicating it.
+    """
+    loc = mutant.get("location")
+    loc = loc if isinstance(loc, dict) else {}
+    start = loc.get("start")
+    start = start if isinstance(start, dict) else {}
+    line = start.get("line")
+    if not isinstance(line, int) or isinstance(line, bool):
+        return None
+    return line
+
+
 def _survivors_by_line_from_data(data: dict, file_path: str) -> dict:
     """Return the Survived mutants for one source file, clustered by source
     line, from an already-parsed report dict.
@@ -336,12 +391,8 @@ def _survivors_by_line_from_data(data: dict, file_path: str) -> dict:
     for mutant in info.get("mutants", []):
         if mutant.get("status") != STATUS_SURVIVED:
             continue
-        loc = mutant.get("location")
-        loc = loc if isinstance(loc, dict) else {}
-        start = loc.get("start")
-        start = start if isinstance(start, dict) else {}
-        line = start.get("line")
-        if not isinstance(line, int) or isinstance(line, bool):
+        line = _resolve_survivor_line(mutant)
+        if line is None:
             unclustered.append(mutant)
             continue
         by_line.setdefault(line, []).append(mutant)
@@ -362,6 +413,101 @@ def survivors_by_line(report_path: Path, file_path: str) -> dict:
     rule.
     """
     return _survivors_by_line_from_data(load_report(report_path), file_path)
+
+
+def _accepted_static_survivors_from_data(
+    data: dict, file_path: str, *, skip_static_active: bool
+) -> list[dict]:
+    """Return each Survived mutant carrying ``static: true`` for one source
+    file as an accepted-survivor entry, from an already-parsed report dict.
+
+    ``skip_static_active`` is the required evidence that a static-flagged
+    survivor was *deliberately* deferred, not merely present. Stryker's
+    ``static: true`` flag alone proves nothing about operator intent — the
+    deliberateness lives one layer up, in whether the CLI's own
+    ``--skip-static`` flag was active for this run. When
+    ``skip_static_active`` is ``False``, this function returns ``[]``
+    immediately, before any other computation: a run where the skip was
+    never active has no accepted survivors to report, regardless of how many
+    mutants carry ``static: true``. When ``True``, behavior matches the
+    unconditional version this function used to be.
+
+    Matches ``file_path`` against report keys the same way
+    ``_survivors_from_data`` does (via ``_find_file_entry`` — exact key, then
+    basename). Only a mutant with ``status == STATUS_SURVIVED`` *and*
+    ``mutant.get(MUTANT_STATIC_KEY) is True`` qualifies — a
+    Killed/Timeout/NoCoverage/CompileError mutant carrying ``static: true``
+    is never returned, and a Survived mutant without the static flag is
+    never returned either.
+
+    Each entry has the shape ``{"id": ..., "file": str, "line": int | None,
+    "operator": str, "status": ACCEPTED_STATIC_ENTRY_STATUS, "reason":
+    ACCEPTED_STATIC_REASON}``. ``id`` is the mutant's own ``"id"`` field
+    (``None`` when absent) — stable mutant identity, not just a file/line
+    pair. ``file`` is the *matched report key* (from ``_find_file_entry``),
+    not an echo of the caller's ``file_path`` argument — a caller that
+    passed a basename gets back the full report key. ``line`` is resolved
+    via ``_resolve_survivor_line`` (``None`` for any missing/malformed
+    location/start/line shape — never raises).
+
+    Returns ``[]`` when the file is not in the report or has no matching
+    survivors.
+    """
+    if not skip_static_active:
+        return []
+
+    entry = _find_file_entry(data, file_path)
+    if entry is None:
+        return []
+    matched_key, info = entry
+
+    return [
+        {
+            "id": mutant.get("id"),
+            "file": matched_key,
+            "line": _resolve_survivor_line(mutant),
+            "operator": mutant.get("mutatorName", ""),
+            "status": ACCEPTED_STATIC_ENTRY_STATUS,
+            "reason": ACCEPTED_STATIC_REASON,
+        }
+        for mutant in info.get("mutants", [])
+        if mutant.get("status") == STATUS_SURVIVED
+        and mutant.get(MUTANT_STATIC_KEY) is True
+    ]
+
+
+def accepted_static_survivors(
+    report_path: Path, file_path: str, *, skip_static_active: bool
+) -> list[dict]:
+    """Return each Survived mutant carrying ``static: true`` for one source
+    file, as accepted-survivor entries, from a Stryker-shaped mutation
+    report on disk.
+
+    See ``_accepted_static_survivors_from_data`` for the return shape,
+    matching rule, and the required ``skip_static_active`` gating.
+    """
+    return _accepted_static_survivors_from_data(
+        load_report(report_path), file_path, skip_static_active=skip_static_active
+    )
+
+
+def accepted_static_survivors_from_data(
+    data: dict, file_path: str, *, skip_static_active: bool
+) -> list[dict]:
+    """Return each Survived mutant carrying ``static: true`` for one source
+    file, as accepted-survivor entries, from an already-parsed report dict.
+
+    Thin public wrapper around ``_accepted_static_survivors_from_data``,
+    mirroring the established pair-per-function convention set by
+    ``survivors_by_mutator``/``survivors_by_mutator_from_data``. Called by
+    the CLI's ``--accepted-static-survivors`` branch, which already holds a
+    parsed report (loaded once to run
+    ``_maybe_warn_skip_static_inapplicable`` first) and reuses that dict
+    here instead of triggering a second, redundant ``load_report`` call.
+    """
+    return _accepted_static_survivors_from_data(
+        data, file_path, skip_static_active=skip_static_active
+    )
 
 
 def _files_with_status_from_data(data: dict, status: str) -> list[str]:
