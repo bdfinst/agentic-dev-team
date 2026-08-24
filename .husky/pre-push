@@ -55,6 +55,7 @@ SELF_REF="$(git symbolic-ref -q HEAD 2>/dev/null || true)"
 # awk exclude this worktree structurally (by path), not just via the
 # post-hoc $SELF_REF string filter.
 SELF_WORKTREE_PATH="$(git rev-parse --show-toplevel 2>/dev/null || true)"
+export SELF_WORKTREE_PATH
 # Snapshot worktree paths before ci-local runs (issue #1871 fix, step 1 of 2):
 # a worktree created *during* the hook's multi-minute run window must not be
 # able to self-enroll in the exemption below. Use sub() to strip only the
@@ -119,8 +120,16 @@ git for-each-ref --format='%(refname) %(objectname)' refs/heads/ > "$POST_REFS_F
 # (path_pre_existing forced to 0 when path == selfwt) regardless of which
 # branch it ends up checked out on post-run — the downstream `-e "$SELF_REF"`
 # grep filter below is a second layer of defense, not the only guard.
-git worktree list --porcelain 2>/dev/null | awk -v prefile="$PRE_WORKTREE_PATHS_FILE" -v selfwt="$SELF_WORKTREE_PATH" '
+git worktree list --porcelain 2>/dev/null | awk -v prefile="$PRE_WORKTREE_PATHS_FILE" '
     BEGIN {
+      # Read via ENVIRON, not -v (issue #1945 follow-up): -v assignment runs
+      # value through the same escape-sequence processing as an awk string
+      # constant (e.g. a literal backslash in the path would be mangled),
+      # while the pre_paths values below are read via getline from a file —
+      # raw, unprocessed. A path containing a backslash would silently fail
+      # the path == selfwt comparison under -v. ENVIRON is verbatim, matching
+      # getline semantics exactly.
+      selfwt = ENVIRON["SELF_WORKTREE_PATH"]
       while ((getline line < prefile) > 0) { pre_paths[line] = 1 }
       close(prefile)
     }
