@@ -331,23 +331,25 @@ def launch_survivor_fix(
 
     Returns True when every launched fix exited zero or the dedicated
     GenerationExhausted exit code 5 (or none were launched); False the
-    moment one exits any OTHER non-zero code — most commonly the fatal-revert
-    exit code 4 (``mutation_kill_headless``/``mutation_kill_loop_python``
-    #1598), which means the working tree was just declared to be in an
-    unknown/possibly-mutated state, so processing stops for the remaining
-    files in this shard rather than silently continuing onto a tree that may
-    already be broken. That "commonly" is deliberate: any other non-zero
-    exit is treated identically today, even though not every such path
-    actually mutates the tree (e.g. a non-gateway-class generation timeout
-    also currently maps to exit 4 — see #1930 for narrowing this). Exit
-    code 5 (a clean retry-then-downgrade exhaustion — nothing mutated) is
-    the one case carved out from that catch-all: this file is logged as
-    unfixed and the loop continues to the next file in the shard (the tree
-    was not mutated), matching ``mutation-kill.md``'s documented exhaustion
-    contract that ```--all` continues``` (#1908 review) — but the pipeline's
-    overall exit code becomes ``EXIT_GENERATION_EXHAUSTED`` (5) at the end if
-    any file across any shard exhausted, unless a hard failure elsewhere
-    makes it 1 (``main()``'s 3-branch priority: failed > exhausted > clean).
+    moment one exits any other non-zero code. The implementation does not
+    distinguish the fatal-revert exit code 4 (``mutation_kill_headless``
+    /``mutation_kill_loop_python`` #1598) from any other non-zero, non-5
+    code — every such exit is treated identically as a failed revert, which
+    means the working tree may be in an unknown/possibly-mutated state, so
+    processing stops for the remaining files in this shard rather than
+    silently continuing onto a tree that may already be broken. Exit code 4
+    is ``RevertFailed`` specifically — a failed revert. Exit code 5 covers two
+    distinct outcomes that both map to the same code: true
+    GenerationExhausted (a fully spent retry-then-downgrade budget) and any
+    other clean RuntimeError (e.g. a generation timeout, or a mutmut/Stryker
+    infrastructure failure — not exhaustion). Both are carved out from the
+    fatal case: this file is logged as unfixed and the loop continues to the
+    next file in the shard (the tree was not mutated), matching
+    ``mutation-kill.md``'s documented exhaustion contract that ```--all`
+    continues``` (#1908 review) — but the pipeline's overall exit code
+    becomes ``EXIT_GENERATION_EXHAUSTED`` (5) at the end if any file across
+    any shard hit either outcome, unless a hard failure elsewhere makes it 1
+    (``main()``'s 3-branch priority: failed > exhausted > clean).
     """
     resolve_test_file = resolve_test_file or default_resolve_test_file
     report = report_path(out_dir)
@@ -452,8 +454,11 @@ def print_summary(
     separately — never the timeout-inflated reported score (AC3).
 
     When ``exhausted`` is non-empty, an additional "EXHAUSTED files (N)" line
-    is appended listing the ``shard/source`` entries for files whose
-    retry-then-downgrade budget was spent (see ``launch_survivor_fix``)."""
+    is appended listing the ``shard/source`` entries for files that hit
+    ``EXIT_GENERATION_EXHAUSTED`` (5) — either true GenerationExhausted (a
+    fully spent retry-then-downgrade budget) or any other clean
+    ``RuntimeError`` (e.g. a generation timeout, or a mutmut/Stryker
+    infrastructure failure — not exhaustion); see ``launch_survivor_fix``."""
     log("=== Pipeline summary ===")
     for shard in shards:
         rp = report_path(Path(shard_out_base) / shard)
@@ -636,10 +641,16 @@ def main(argv: Sequence[str] | None = None) -> int:
     """CLI entry point. Exit code follows a 3-branch priority, failure first:
 
     - ``1`` — one or more shards failed (``run_all``'s ``failed`` list is
-      non-empty). Takes priority over exhaustion.
+      non-empty). Takes priority over exhaustion. A shard is marked failed
+      when ``launch_survivor_fix`` returns False for it — which happens on
+      any non-zero, non-5 per-file exit code (most commonly
+      ``EXIT_REVERT_FAILED``, ``4``); this branch is where that per-file
+      signal ends up, since ``main()`` never returns ``4`` itself.
     - ``EXIT_GENERATION_EXHAUSTED`` (``5``) — no shard failed, but at least
-      one file exhausted its retry-then-downgrade budget (``exhausted`` is
-      non-empty).
+      one file hit the clean-continuable outcome class (``exhausted`` is
+      non-empty): either a true ``GenerationExhausted`` (a fully spent
+      retry-then-downgrade budget) or any other clean ``RuntimeError`` (e.g.
+      a generation timeout) — not exhaustion specifically.
     - ``0`` — fully clean: no failures, no exhaustions.
     """
     args = build_parser().parse_args(list(sys.argv[1:] if argv is None else argv))

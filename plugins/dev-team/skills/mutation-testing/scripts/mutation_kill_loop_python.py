@@ -69,11 +69,13 @@ from pathlib import Path
 # expression, so `from __future__ import annotations` cannot defer it — it
 # must be subscriptable at import time. collections.abc generics have been
 # since 3.9, which the 3.10 floor (ADR 0031) clears.
+import mutation_kill_shared
 import mutation_report
 import mutation_safety_gate
 from mutation_kill_insert_python import apply_generated_tests, count_tests
 from mutation_kill_retry import (
     EXIT_GENERATION_EXHAUSTED,
+    EXIT_REVERT_FAILED,
     DowngradeEvent,
     GenerationExhausted,
     make_downgrade_audit_hook,
@@ -184,6 +186,21 @@ def _release_mutmut_cache_lock(lock_dir: Path) -> None:
         lock_dir.rmdir()
 
 
+def _revert_file_for_cleanup(path: Path, *, cwd: Path | None) -> bool:
+    """Revert ``path`` for :func:`run_scoped_mutmut`'s cleanup ``finally``.
+
+    ``git_revert`` only converts ``subprocess.TimeoutExpired`` to False; any
+    other unexpected exception (e.g. ``FileNotFoundError`` if git isn't on
+    PATH) would otherwise propagate straight out of the caller's ``finally``
+    block, skipping the second revert attempt entirely. Treat it the same as
+    a False return so both reverts are genuinely attempted unconditionally.
+    """
+    try:
+        return git_revert(path, cwd=cwd)
+    except OSError:
+        return False
+
+
 def run_scoped_mutmut(
     source_file: str,
     *,
@@ -227,6 +244,11 @@ def run_scoped_mutmut(
     just the delete — because mutmut's cache is shared, fixed-path state for
     the whole repo; a second concurrent invocation reading/writing it
     mid-run is exactly as corrupting as racing the delete alone.
+
+    Raises :class:`mutation_kill_shared.RevertFailed` when either cleanup
+    revert fails. Both cleanup reverts are attempted first regardless of
+    which one fails; the raised message names every file that failed to
+    revert.
     """
     root = cwd or Path(".")
     lock_dir = _acquire_mutmut_cache_lock(root)
@@ -279,9 +301,25 @@ def run_scoped_mutmut(
                 ) from exc
             return junit.stdout or ""
         finally:
-            git_revert(Path(source_file), cwd=cwd)
+            source_reverted = _revert_file_for_cleanup(Path(source_file), cwd=cwd)
+            test_reverted = True
             if test_file is not None:
-                git_revert(test_file, cwd=cwd)
+                test_reverted = _revert_file_for_cleanup(test_file, cwd=cwd)
+            failed = [
+                str(p)
+                for p, ok in (
+                    (source_file, source_reverted),
+                    (test_file, test_reverted),
+                )
+                if p is not None and not ok
+            ]
+            if failed:
+                raise mutation_kill_shared.RevertFailed(
+                    "cleanup revert failed for "
+                    f"{', '.join(failed)} after run_scoped_mutmut — the "
+                    "working tree is left in an unknown state (mutated "
+                    "content may still be on disk, uncommitted)"
+                )
     finally:
         _release_mutmut_cache_lock(lock_dir)
 
@@ -502,7 +540,7 @@ def _revert_or_raise(ctx: RunContext, reason: str, *, after_commit: bool = False
         else git_revert(ctx.test_file, cwd=ctx.cwd)
     )
     if not revert_ok:
-        raise RuntimeError(
+        raise mutation_kill_shared.RevertFailed(
             f"revert failed for {ctx.test_file} after {reason} — the "
             "working tree is left in an unknown state (mutated test "
             "content may still be on disk, uncommitted)"
@@ -616,8 +654,10 @@ def run_for_file(
     mechanical, driven one round at a time by :func:`_run_round` — mirroring
     :func:`mutation_kill_loop.run_for_file`'s contract exactly.
 
-    A failed revert (after a compile failure, a test failure, or a failed
-    commit) is fatal: it raises :class:`RuntimeError` rather than returning
+    A failed revert (after a compile failure, a test failure, a failed
+    commit, or a failed mutmut cleanup revert inside
+    :func:`run_scoped_mutmut`) is fatal: it raises
+    :class:`mutation_kill_shared.RevertFailed` rather than returning
     silently, because a revert that can't be verified as having succeeded
     means the working tree is left in an unknown, possibly-mutated state
     (#1598). A failed commit itself is also a round failure, not a silent
@@ -819,32 +859,44 @@ def main(argv: Sequence[str] | None = None) -> int:
     except GenerationExhausted as exc:
         # This file's retry-then-downgrade budget is fully spent (3
         # consecutive gateway-class failures + 1 same-model retry, at the
-        # original model AND at most one fallback tier) — distinct from exit
-        # code 4 below, which most commonly means a failed revert (leaving
-        # the working tree in an unknown/possibly-mutated state) but
-        # currently also absorbs other, actually-clean RuntimeErrors, e.g. a
-        # non-gateway-class generation timeout (#1930). A clean exhaustion
-        # mutates nothing in the paths this covers: generation precedes
-        # insertion within a round, and a prior round's own
-        # insertion-revert failure (compile/test/commit paths, via
-        # _revert_or_raise) is itself fatal — raised, never swallowed.
-        # run_scoped_mutmut's best-effort post-mutmut-crash revert (its
-        # own ``finally``) is deliberately NOT checked, so a mutmut-crash
-        # leftover is the one on-disk mutation this exit code does not rule
-        # out (#1928) — so callers (stryker_shard_pipeline.py's shard driver) can
-        # log this file as unfixed and continue to the next file without
-        # affecting the run's exit status, instead of aborting the whole
-        # shard (#1908 review).
+        # original model AND at most one fallback tier) — distinct from
+        # RevertFailed below (exit 4, working tree possibly mutated) and
+        # from the generic RuntimeError case below it (exit 5, clean but
+        # not exhausted — e.g. a non-gateway-class generation timeout). A
+        # clean exhaustion mutates nothing in the paths this covers:
+        # generation precedes insertion within a round, and a prior round's
+        # own insertion-revert failure (compile/test/commit paths, via
+        # _revert_or_raise) is itself fatal — raised as RevertFailed, never
+        # swallowed. run_scoped_mutmut's post-mutmut-crash cleanup revert
+        # (its own ``finally``) is also checked (#1928/#1939) and raises
+        # RevertFailed on its own failure. What isn't independently
+        # re-verified here is that a revert git reports as successful
+        # actually left the tree clean (#1955) — so callers
+        # (stryker_shard_pipeline.py's shard driver) can log this file as
+        # unfixed and continue to the next file without affecting the run's
+        # exit status, instead of aborting the whole shard (#1908 review).
         sys.stderr.write(f"error: {exc}\n")
         return EXIT_GENERATION_EXHAUSTED
-    except RuntimeError as exc:
-        # A failed revert or a failed-commit round-abandonment raises
-        # RuntimeError (#1598) — mirrors mutation_kill_headless.py's main(),
-        # fitting the same 1/2/3 exit-code taxonomy with the next unused
-        # code rather than letting this either succeed silently (exit 0)
-        # or crash with a raw traceback.
+    except mutation_kill_shared.RevertFailed as exc:
+        # A failed revert (or a failed-commit round-abandonment's own
+        # revert) leaves the working tree in an unknown, possibly-mutated
+        # state (#1930) — narrower and more urgent than the generic
+        # RuntimeError case below: this is the only case that can't be
+        # trusted as clean.
         sys.stderr.write(f"error: {exc}\n")
-        return 4
+        return EXIT_REVERT_FAILED
+    except RuntimeError as exc:
+        # Every other RuntimeError this loop raises (a mutmut-run timeout,
+        # a mutmut-start/junitxml-extraction failure, etc.) is clean:
+        # run_scoped_mutmut's cleanup-revert gap is closed (#1928/#1939) —
+        # a failed cleanup revert now raises RevertFailed instead of being
+        # silently discarded, so reaching this branch means the cleanup
+        # revert itself succeeded, same as the GenerationExhausted case
+        # above. Not a retry-budget exhaustion — reuses exit 5 because the
+        # shard driver only distinguishes "fatal, stop" (4) from "clean,
+        # continue" (5), not why a file wasn't fixed.
+        sys.stderr.write(f"error: {exc} — generation failed cleanly, continuing\n")
+        return EXIT_GENERATION_EXHAUSTED
     return 0
 
 

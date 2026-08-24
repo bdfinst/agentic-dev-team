@@ -264,8 +264,8 @@ def test_headless_main_uses_default_label_when_model_unresolved(
 
 
 # =============================================================================
-# Scenario: A round-abandoning RuntimeError (failed revert, failed commit —
-# #1598) propagates to a non-zero exit code instead of a silent 0 return or
+# Scenario: A round-abandoning RevertFailed (failed revert, failed commit —
+# #1598/#1930) propagates to exit code 4 instead of a silent 0 return or
 # a raw traceback (#1598/#1584 review, item 6).
 # =============================================================================
 def test_main_exits_non_zero_when_run_for_file_raises(
@@ -274,7 +274,7 @@ def test_main_exits_non_zero_when_run_for_file_raises(
     monkeypatch.setattr(headless, "claude_cli_available", lambda: True)
 
     def boom(*a, **k):
-        raise RuntimeError("revert failed for FooTests.cs after a failed commit")
+        raise shared.RevertFailed("revert failed for FooTests.cs after a failed commit")
 
     monkeypatch.setattr(headless, "run_for_file", boom)
     config_path = _write_config(tmp_path)
@@ -291,20 +291,54 @@ def test_main_exits_non_zero_when_run_for_file_raises(
 
     assert rc != 0
     assert rc not in (1, 2, 3)  # distinct from the existing preflight exit codes
-    assert rc == 4
+    assert rc == headless.EXIT_REVERT_FAILED
     err = capsys.readouterr().err
     assert "revert failed" in err
 
 
 # =============================================================================
-# Scenario: GenerationExhausted gets its OWN exit code (5), distinct from the
-# generic RuntimeError exit code 4 above (#1908 review). Exit 4 most
-# commonly means "a failed revert — the tree may be left in an
-# unknown/possibly-mutated state", though it currently also absorbs other,
-# actually-clean RuntimeErrors (#1930); exit 5 means "a clean
-# retry-then-downgrade exhaustion — nothing was mutated" — stryker_shard_
-# pipeline.py's shard driver treats the two very differently (abort the
-# shard vs. continue to the next file).
+# Scenario: A non-revert RuntimeError (e.g. a generation timeout) is clean —
+# it must NOT be conflated with RevertFailed's exit 4 ("possibly mutated").
+# It reuses exit code 5, with honest wording that neither claims retry-budget
+# exhaustion (that phrase is GenerationExhausted-only) nor merely omits it —
+# it must positively say this is a clean, continuable outcome (#1930/#1939).
+# =============================================================================
+def test_main_maps_non_revert_runtime_error_to_exit_5_with_honest_wording(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys
+):
+    monkeypatch.setattr(headless, "claude_cli_available", lambda: True)
+
+    def boom(*a, **k):
+        raise RuntimeError("Stryker run timed out after 3600s for Foo.cs")
+
+    monkeypatch.setattr(headless, "run_for_file", boom)
+    config_path = _write_config(tmp_path)
+
+    rc = headless.main(
+        [
+            "--config", str(config_path),
+            "--headless",
+            "--file", "Foo.cs",
+            "--test-file", str(tmp_path / "FooTests.cs"),
+            "--source-path", str(tmp_path / "Foo.cs"),
+        ]
+    )
+
+    assert rc == headless.EXIT_GENERATION_EXHAUSTED
+    err = capsys.readouterr().err
+    assert "exhausted its retry budget" not in err
+    assert "generation failed cleanly, continuing" in err
+
+
+# =============================================================================
+# Scenario: GenerationExhausted gets its OWN exit code (5), distinct from
+# RevertFailed's exit code 4 (#1939). Exit 4 means "a failed revert — the
+# tree may be left in an unknown/possibly-mutated state"; exit 5 covers both
+# true GenerationExhausted (a fully spent retry-then-downgrade budget) and
+# any other clean RuntimeError (a Stryker-run timeout, etc. — nothing
+# mutated by the insertion-revert paths this covers) — stryker_shard_
+# pipeline.py's shard driver treats exit 4 and exit 5 very differently
+# (abort the shard vs. continue to the next file).
 # =============================================================================
 def test_main_returns_exit_code_5_when_generation_exhausted_propagates(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys
@@ -327,9 +361,10 @@ def test_main_returns_exit_code_5_when_generation_exhausted_propagates(
         ]
     )
 
-    assert rc == 5
+    assert rc == headless.EXIT_GENERATION_EXHAUSTED
     err = capsys.readouterr().err
     assert "exhausted its retry budget" in err
+    assert "generation failed cleanly, continuing" not in err
 
 
 # =============================================================================
@@ -499,7 +534,7 @@ def test_main_returns_exit_code_5_via_real_retry_downgrade_chain_unmocked(
         ]
     )
 
-    assert rc == 5
+    assert rc == headless.EXIT_GENERATION_EXHAUSTED
     err = capsys.readouterr().err
     assert "exhausted its retry budget" in err
 

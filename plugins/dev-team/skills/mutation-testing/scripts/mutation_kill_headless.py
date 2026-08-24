@@ -32,6 +32,7 @@ from pathlib import Path
 from mutation_kill_loop import Generator, RunContext, load_loop_config, run_for_file
 from mutation_kill_retry import (
     EXIT_GENERATION_EXHAUSTED,
+    EXIT_REVERT_FAILED,
     DowngradeEvent,
     GenerationExhausted,
     make_downgrade_audit_hook,
@@ -39,6 +40,7 @@ from mutation_kill_retry import (
 )
 from mutation_kill_shared import (
     CLAUDE_CLI,
+    RevertFailed,
     claude_cli_available,
     resolve_model,
     run_claude_headless,  # noqa: F401 — re-exported for tests (headless.run_claude_headless identity check); make_headless_generator now calls it indirectly via make_retrying_headless_call (#1908)
@@ -254,29 +256,40 @@ def main(argv: Sequence[str] | None = None) -> int:
     except GenerationExhausted as exc:
         # This file's retry-then-downgrade budget is fully spent (3
         # consecutive gateway-class failures + 1 same-model retry, at the
-        # original model AND at most one fallback tier) — distinct from exit
-        # code 4 below, which most commonly means a failed revert (leaving
-        # the working tree in an unknown/possibly-mutated state) but
-        # currently also absorbs other, actually-clean RuntimeErrors, e.g. a
-        # non-gateway-class generation timeout (#1930). A clean exhaustion
-        # mutates nothing: generation precedes insertion within a round, and
-        # a prior round's own revert failure is itself fatal (raised, never
-        # swallowed). What isn't independently re-verified here is that a
-        # revert git reports as successful actually left the tree clean
-        # (#1928) — so callers (stryker_shard_pipeline.py's shard driver) can
-        # log this file as unfixed and continue to the next file without
-        # affecting the run's exit status, instead of aborting the whole
-        # shard (#1908 review).
+        # original model AND at most one fallback tier) — distinct from
+        # RevertFailed below (exit 4, working tree possibly mutated) and
+        # from the generic RuntimeError case below it (exit 5, clean but
+        # not exhausted — e.g. a non-gateway-class generation timeout). A
+        # clean exhaustion mutates nothing: generation precedes insertion
+        # within a round, and a prior round's own revert failure is itself
+        # fatal (raised as RevertFailed, never swallowed). What isn't
+        # independently re-verified here is that a revert git reports as
+        # successful actually left the tree clean (#1955) — so callers
+        # (stryker_shard_pipeline.py's shard driver) can log this file as
+        # unfixed and continue to the next file without affecting the run's
+        # exit status, instead of aborting the whole shard (#1908 review).
         sys.stderr.write(f"error: {exc}\n")
         return EXIT_GENERATION_EXHAUSTED
-    except RuntimeError as exc:
-        # A failed revert or a failed-commit round-abandonment raises
-        # RuntimeError (#1598) — without this, that either propagated as a
-        # raw traceback or (before the fix) was silently absorbed and this
-        # CLI still exited 0. Fits the existing 1/2/3 exit-code taxonomy
-        # above with the next unused code.
+    except RevertFailed as exc:
+        # A failed revert (or a failed-commit round-abandonment's own
+        # revert) leaves the working tree in an unknown, possibly-mutated
+        # state (#1930) — narrower and more urgent than the generic
+        # RuntimeError case below: this is the only case that can't be
+        # trusted as clean.
         sys.stderr.write(f"error: {exc}\n")
-        return 4
+        return EXIT_REVERT_FAILED
+    except RuntimeError as exc:
+        # Every other RuntimeError this loop raises (a generation timeout,
+        # a mutmut/Stryker infrastructure failure, etc.) is clean with
+        # respect to inserted test content — generation precedes insertion,
+        # and a failed insertion-revert is RevertFailed, caught above. The
+        # C# solution-file restore (wrapper.restore_sln) reports no outcome,
+        # so a stray hidden .sln is not independently ruled out here — see
+        # #1955. Not a retry-budget exhaustion — reuses exit 5 because the
+        # shard driver only distinguishes "fatal, stop" (4) from "clean,
+        # continue" (5), not why a file wasn't fixed.
+        sys.stderr.write(f"error: {exc} — generation failed cleanly, continuing\n")
+        return EXIT_GENERATION_EXHAUSTED
     return 0
 
 

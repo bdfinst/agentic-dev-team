@@ -163,15 +163,15 @@ def test_main_headless_missing_claude_cli_fails_before_touching_files(monkeypatc
 
 
 # =============================================================================
-# Scenario: A round-abandoning RuntimeError (failed revert, failed commit —
-# #1598) propagates to a non-zero exit code instead of a silent 0 return or
+# Scenario: A round-abandoning RevertFailed (failed revert, failed commit —
+# #1598/#1930) propagates to exit code 4 instead of a silent 0 return or
 # a raw traceback (#1598/#1584 review, item 6).
 # =============================================================================
 def test_main_exits_non_zero_when_run_for_file_raises(monkeypatch, capsys, tmp_path: Path):
     monkeypatch.setattr(loop, "claude_cli_available", lambda: True)
 
     def boom(*a, **k):
-        raise RuntimeError("revert failed for test_a.py after a failed commit")
+        raise shared.RevertFailed("revert failed for test_a.py after a failed commit")
 
     monkeypatch.setattr(loop, "run_for_file", boom)
 
@@ -187,22 +187,58 @@ def test_main_exits_non_zero_when_run_for_file_raises(monkeypatch, capsys, tmp_p
 
     assert rc != 0
     assert rc not in (1, 2, 3)
-    assert rc == 4
+    assert rc == loop.EXIT_REVERT_FAILED
     assert "revert failed" in capsys.readouterr().err
 
 
 # =============================================================================
-# Scenario: GenerationExhausted gets its OWN exit code (5), distinct from the
-# generic RuntimeError exit code 4 above (#1908 review). Exit 4 most
-# commonly means "a failed revert — the tree may be left in an
-# unknown/possibly-mutated state", though it currently also absorbs other,
-# actually-clean RuntimeErrors (#1930); exit 5 means "a clean
-# retry-then-downgrade exhaustion — nothing was mutated by the
-# insertion-revert paths this covers" (run_scoped_mutmut's best-effort
-# post-mutmut-crash revert is deliberately not checked, so a
-# mutmut-crash leftover is the one on-disk mutation exit 5 does not rule
-# out — #1928) — stryker_shard_pipeline.py's shard driver treats the two
-# very differently (abort the shard vs. continue to the next file).
+# Scenario: A non-revert RuntimeError (e.g. a mutmut infrastructure failure)
+# is clean — it must NOT be conflated with RevertFailed's exit 4 ("possibly
+# mutated"). It reuses exit code 5, with honest wording that neither claims
+# retry-budget exhaustion (that phrase is GenerationExhausted-only) nor
+# merely omits it — it must positively say this is a clean, continuable
+# outcome (#1930/#1939).
+# =============================================================================
+def test_main_maps_non_revert_runtime_error_to_exit_5_with_honest_wording(
+    monkeypatch, capsys, tmp_path: Path
+):
+    monkeypatch.setattr(loop, "claude_cli_available", lambda: True)
+
+    def boom(*a, **k):
+        raise RuntimeError("mutmut run timed out after 3600s for a.py")
+
+    monkeypatch.setattr(loop, "run_for_file", boom)
+
+    rc = loop.main(
+        [
+            "--headless",
+            "--file", "a.py",
+            "--test-file", str(tmp_path / "test_a.py"),
+            "--source-path", str(tmp_path / "a.py"),
+            "--test-command", "pytest",
+        ]
+    )
+
+    assert rc == loop.EXIT_GENERATION_EXHAUSTED
+    err = capsys.readouterr().err
+    assert "exhausted its retry budget" not in err
+    assert "generation failed cleanly, continuing" in err
+
+
+# =============================================================================
+# Scenario: GenerationExhausted gets its OWN exit code (5), distinct from
+# RevertFailed's exit code 4 (#1939). Exit 4 means "a failed revert — the
+# tree may be left in an unknown/possibly-mutated state"; exit 5 covers both
+# true GenerationExhausted (a fully spent retry-then-downgrade budget) and
+# any other clean RuntimeError (a mutmut-run timeout,
+# mutmut-start/junitxml-extraction failure, etc. — nothing mutated by the
+# insertion-revert paths this covers; run_scoped_mutmut's post-mutmut-crash
+# cleanup revert is now checked (#1928/#1939) and raises RevertFailed (exit
+# 4) on its own failure, so reaching exit 5 means that revert succeeded —
+# see test_main_returns_exit_4_when_mutmut_cleanup_revert_fails_end_to_end
+# below for the checked-revert path) — stryker_shard_pipeline.py's shard
+# driver treats exit 4 and exit 5 very differently (abort the shard vs.
+# continue to the next file).
 # =============================================================================
 def test_main_returns_exit_code_5_when_generation_exhausted_propagates(
     monkeypatch, capsys, tmp_path: Path
@@ -224,8 +260,10 @@ def test_main_returns_exit_code_5_when_generation_exhausted_propagates(
         ]
     )
 
-    assert rc == 5
-    assert "exhausted its retry budget" in capsys.readouterr().err
+    assert rc == loop.EXIT_GENERATION_EXHAUSTED
+    err = capsys.readouterr().err
+    assert "exhausted its retry budget" in err
+    assert "generation failed cleanly, continuing" not in err
 
 
 # =============================================================================
@@ -385,9 +423,66 @@ def test_main_returns_exit_code_5_via_real_retry_downgrade_chain_unmocked(
         ]
     )
 
-    assert rc == 5
+    assert rc == loop.EXIT_GENERATION_EXHAUSTED
     err = capsys.readouterr().err
     assert "exhausted its retry budget" in err
+
+
+# =============================================================================
+# Scenario: a mutmut cleanup-revert failure (Slice 2, Step 2.1) surfaces as
+# exit code 4 end-to-end through main()'s own call path (Slice 1, Step 1.3)
+# — the combined point of consolidating #1928+#1930 into #1939, verified
+# together rather than each half's own isolated boundary. Unlike every other
+# test in this file, run_for_file is NOT mocked here: only the mutmut
+# subprocess call (loop.subprocess.run, per this file's own
+# run_scoped_mutmut-mechanics convention) and git_revert are faked, so
+# RevertFailed genuinely propagates unmodified in type from
+# run_scoped_mutmut's raise site, through _score_round/_run_round/
+# run_for_file, to main()'s own except RevertFailed clause.
+# =============================================================================
+def test_main_returns_exit_4_when_mutmut_cleanup_revert_fails_end_to_end(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys
+):
+    monkeypatch.setattr(loop, "claude_cli_available", lambda: True)
+    monkeypatch.setattr(loop, "_mutmut_argv", lambda: ["mutmut"])
+    # cwd matters here (unlike this file's other tests) because
+    # run_scoped_mutmut runs for real and acquires the .mutmut-cache.lock
+    # directory under ctx.cwd (None -> Path(".")) — chdir into tmp_path so
+    # that lock never touches the actual repo working directory.
+    monkeypatch.chdir(tmp_path)
+
+    class _FakeCompleted:
+        stdout = "<testsuites></testsuites>"
+
+    monkeypatch.setattr(loop.subprocess, "run", lambda *a, **k: _FakeCompleted())
+
+    def fake_revert(path, **k):
+        # Only the source file's revert fails; the test file's succeeds —
+        # both are still attempted (run_scoped_mutmut's own contract).
+        return Path(path).name != "a.py"
+
+    monkeypatch.setattr(loop, "git_revert", fake_revert)
+
+    Path("a.py").write_text("x = 1\n", encoding="utf-8")
+    Path("test_a.py").write_text("def test_existing():\n    assert True\n", encoding="utf-8")
+
+    rc = loop.main(
+        [
+            "--headless",
+            "--file", "a.py",
+            "--test-file", "test_a.py",
+            "--source-path", "a.py",
+            "--test-command", "pytest",
+        ]
+    )
+
+    assert rc == loop.EXIT_REVERT_FAILED
+    err = capsys.readouterr().err
+    # "a.py" is a substring of "test_a.py", so also assert "test_a.py" is
+    # absent — otherwise this would pass even if the error wrongly named
+    # the test file instead of the source file.
+    assert "a.py" in err
+    assert "test_a.py" not in err
 
 
 def test_make_headless_generator_label_override_reflects_a_downgrade(

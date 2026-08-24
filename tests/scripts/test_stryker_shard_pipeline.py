@@ -286,6 +286,44 @@ def test_survivor_fix_stops_launching_further_files_after_a_nonzero_exit(tmp_pat
 
 
 # =============================================================================
+# Scenario: launch_survivor_fix stops the shard on ANY non-zero, non-4,
+# non-5 exit code — not just the fatal-revert exit code 4 (#1930's "this
+# treats every non-4-non-5 exit the same as a failed revert" claim was
+# previously only verified with rc=4).
+# =============================================================================
+def test_survivor_fix_stops_on_an_arbitrary_nonzero_exit_not_just_4(tmp_path):
+    rec = _Recorder()
+    rec.run_returncode = 99  # arbitrary non-zero, non-4, non-5 exit code
+    out_dir = tmp_path / "out" / "a"
+    config = _write_shard_config(tmp_path, "a")
+    _write_report(
+        out_dir,
+        {
+            "src/W.a/Foo.cs": {"mutants": [_mutant("Survived")]},
+            "src/W.a/Bar.cs": {"mutants": [_mutant("Survived")]},
+        },
+    )
+
+    ok = pipeline.launch_survivor_fix(
+        "a",
+        repo_root=tmp_path,
+        out_dir=out_dir,
+        config_path=config,
+        model=None,
+        max_rounds=2,
+        run=rec.run,
+        resolve_test_file=lambda source, *a: Path(f"test/W.Tests/{Path(source).stem}Tests.cs"),
+        log=rec.log,
+    )
+
+    assert ok is False
+    # Only the first file's fix is launched — the second file is never
+    # reached once the first exits non-zero.
+    assert len(rec.launches) == 1
+    assert any("FAILED (headless)" in line and "exit 99" in line for line in rec.logs)
+
+
+# =============================================================================
 # Scenario: A GenerationExhausted exit (code 5) — a clean retry-then-downgrade
 # budget exhaustion, nothing mutated — is logged as unfixed but does NOT stop
 # the shard: the loop continues to the next file (#1908 review), and the tree

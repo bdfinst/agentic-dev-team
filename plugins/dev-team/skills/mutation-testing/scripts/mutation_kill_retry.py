@@ -104,11 +104,23 @@ def is_gateway_class_error(exc: BaseException) -> bool:
     )
 
 
-# Shared exit code for a clean retry-then-downgrade exhaustion (#1908
-# review) — "generation exhausted, not a fatal revert". Used by both
-# headless CLIs' main() and stryker_shard_pipeline.py's shard driver so the
-# meaning of "5" lives in one place instead of three duplicated literals.
+# Shared exit code for the clean-continuable outcome class (#1908 review):
+# either a fully spent retry-then-downgrade budget (GenerationExhausted) or
+# any other provably-clean-of-inserted-content generation/infrastructure
+# failure that isn't a failed revert. Used by both headless CLIs' main() and
+# stryker_shard_pipeline.py's shard driver so the meaning of "5" lives in one
+# place instead of three duplicated literals.
 EXIT_GENERATION_EXHAUSTED = 5
+
+# Shared exit code for the fatal, working-tree-possibly-mutated outcome class
+# (#1930): a failed revert (or a failed-commit round-abandonment's own
+# revert) leaves the tree in an unknown state. Used by both headless CLIs'
+# main() functions so the meaning of "4" lives in one place instead of two
+# duplicated literals. stryker_shard_pipeline.py's shard driver never
+# imports this constant — it decodes exit 4 by exclusion (any non-zero,
+# non-EXIT_GENERATION_EXHAUSTED exit is treated as fatal) and only names "4"
+# in prose/log wording.
+EXIT_REVERT_FAILED = 4
 
 
 class GenerationExhausted(RuntimeError):
@@ -119,10 +131,10 @@ class GenerationExhausted(RuntimeError):
     means no second downgrade will be attempted, regardless of whether the
     exhausted tier is the true ladder floor (``haiku``), a mid-ladder tier
     (e.g. ``sonnet``), or an operator override. Callers (the ``--headless``
-    CLIs' ``main()``) already catch plain ``RuntimeError`` and report it via
-    the existing exit-code taxonomy — this subclass needs no new handling,
-    only a message that names the file, round, model, and error class, plus
-    an explicit "no further downgrade will be attempted" statement.
+    CLIs' ``main()``) catch this subclass ahead of ``RevertFailed`` and the
+    generic ``RuntimeError`` and report it via the existing exit-code
+    taxonomy — the message names the file, round, model, and error class,
+    plus an explicit "no further downgrade will be attempted" statement.
     """
 
 

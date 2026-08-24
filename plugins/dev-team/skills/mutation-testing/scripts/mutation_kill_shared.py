@@ -13,6 +13,8 @@ timeout semantics — before this module existed:
   unstage-then-discard, and stage-then-commit exactly one test file, under a
   bounded timeout with the ``--literal-pathspecs``/``--`` pathspec guards
   hardened in #1598/#1599.
+- ``RevertFailed`` — raised when a cleanup or insertion revert itself fails,
+  leaving the working tree in an unknown, possibly-mutated state (#1930).
 - ``stop_reason`` — the "zero survivors, or no improvement over the previous
   round" predicate that ends a file's kill loop.
 - ``resolve_model`` / ``strip_code_fences`` / ``claude_cli_available`` /
@@ -116,12 +118,8 @@ def git_revert(
     ``list.append(...)``/``dict.update(...)`` call returns ``None``, not a
     ``CompletedProcess``).
 
-    ``mutation_kill_loop_python.py``'s ``run_scoped_mutmut`` always-revert
-    ``finally`` cleanup calls this too but, matching its pre-existing
-    best-effort contract, deliberately does not inspect the return value —
-    that path reverts opportunistically on the way out regardless of outcome,
-    unlike ``run_for_file``'s build/test/commit-failure paths below, which
-    treat a failed revert as fatal.
+    Callers must inspect the return value; a failed revert is typically
+    treated as fatal (see :class:`RevertFailed`).
     """
     try:
         result = subprocess.run(
@@ -185,6 +183,17 @@ def git_reset_and_revert(
     if reset_result is None or reset_result.returncode != 0:
         return False
     return git_revert(test_file, cwd=cwd, env=env)
+
+
+class RevertFailed(RuntimeError):
+    """Raised when a git revert itself fails: the working tree may be left in
+    an unknown/possibly-mutated state, distinct from every other
+    ``RuntimeError`` this codebase raises, which are clean with respect to
+    inserted test content — generation precedes insertion, and a failed
+    insertion-revert is this class, not a plain ``RuntimeError``. The C#
+    solution-file restore (``wrapper.restore_sln``) reports no outcome, so a
+    stray hidden ``.sln`` is not independently ruled out here — see #1955.
+    """
 
 
 def git_commit(

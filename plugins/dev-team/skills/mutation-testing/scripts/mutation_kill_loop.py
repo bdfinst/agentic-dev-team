@@ -62,6 +62,7 @@ from pathlib import Path
 from typing import NamedTuple
 
 import csharp_stryker_net_wrapper as wrapper
+import mutation_kill_shared
 import mutation_report
 import mutation_safety_gate
 from mutation_kill_insert import apply_generated_methods, count_methods
@@ -593,7 +594,7 @@ def _revert_or_raise(ctx: RunContext, reason: str, *, after_commit: bool = False
         else git_revert(ctx.test_file, cwd=ctx.cwd)
     )
     if not revert_ok:
-        raise RuntimeError(
+        raise mutation_kill_shared.RevertFailed(
             f"revert failed for {ctx.test_file} after {reason} — the "
             "working tree is left in an unknown state (mutated test "
             "content may still be on disk, uncommitted)"
@@ -710,9 +711,10 @@ def run_for_file(
     round at a time by :func:`_run_round`.
 
     A failed revert (after a build failure, a test failure, or a failed
-    commit) is fatal: it raises :class:`RuntimeError` rather than returning
-    silently, because a revert that can't be verified as having succeeded
-    means the working tree is left in an unknown, possibly-mutated state —
+    commit) is fatal: it raises :class:`mutation_kill_shared.RevertFailed`
+    rather than returning silently, because a revert that can't be verified
+    as having succeeded means the working tree is left in an unknown,
+    possibly-mutated state —
     silently continuing to the next round or file would risk committing
     mutated content later under a false assumption of a clean tree (#1598).
     A failed commit itself is also a round failure, not a silent success: it

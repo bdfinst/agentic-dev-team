@@ -669,6 +669,23 @@ def test_run_claude_headless_raises_on_a_nonzero_claude_exit(
 
 
 # =============================================================================
+# RevertFailed — typed revert-failure error, marking a possibly-mutated
+# working tree (#1939 Slice 1 Step 1.1).
+# =============================================================================
+def test_revert_failed_is_a_runtime_error():
+    assert isinstance(shared.RevertFailed("x"), RuntimeError)
+    assert issubclass(shared.RevertFailed, RuntimeError)
+
+
+def test_revert_failed_str_is_a_plain_passthrough_of_the_message():
+    """Unlike HeadlessCallFailed (which reformats its constructor args
+    through a custom __str__), RevertFailed takes no custom __init__/__str__
+    — the call site already builds a complete message string, so str(exc)
+    must equal that message unchanged."""
+    assert str(shared.RevertFailed("some message")) == "some message"
+
+
+# =============================================================================
 # HeadlessCallFailed — typed gateway-class error, replacing the plain
 # RuntimeError raised on a non-zero claude CLI exit (#1938 Slice 1 Step 1.1).
 # =============================================================================

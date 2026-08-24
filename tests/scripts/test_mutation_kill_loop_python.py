@@ -24,6 +24,7 @@ from __future__ import annotations
 from pathlib import Path
 
 import mutation_kill_loop_python as loop
+import mutation_kill_shared as shared
 import pytest
 from _mutation_kill_loop_python_test_helpers import _junit, _killed, _survived
 from _mutation_test_helpers import FORBIDDEN_LITERALS, SCRIPTS_DIR
@@ -50,7 +51,9 @@ def test_run_scoped_mutmut_reverts_source_file_even_when_mutmut_crashes(
     monkeypatch.setattr(loop.subprocess, "run", boom)
 
     reverted = []
-    monkeypatch.setattr(loop, "git_revert", lambda path, **k: reverted.append(path))
+    monkeypatch.setattr(
+        loop, "git_revert", lambda path, **k: reverted.append(path) or True
+    )
 
     with pytest.raises(RuntimeError):
         loop.run_scoped_mutmut("src/a.py", test_command="pytest", cwd=tmp_path)
@@ -69,7 +72,9 @@ def test_run_scoped_mutmut_reverts_source_file_on_the_success_path_too(
     monkeypatch.setattr(loop.subprocess, "run", lambda *a, **k: _FakeCompleted())
 
     reverted = []
-    monkeypatch.setattr(loop, "git_revert", lambda path, **k: reverted.append(path))
+    monkeypatch.setattr(
+        loop, "git_revert", lambda path, **k: reverted.append(path) or True
+    )
 
     loop.run_scoped_mutmut("src/a.py", test_command="pytest", cwd=tmp_path)
 
@@ -91,7 +96,9 @@ def test_run_scoped_mutmut_reverts_test_file_too_when_mutmut_crashes(
     monkeypatch.setattr(loop.subprocess, "run", boom)
 
     reverted = []
-    monkeypatch.setattr(loop, "git_revert", lambda path, **k: reverted.append(path))
+    monkeypatch.setattr(
+        loop, "git_revert", lambda path, **k: reverted.append(path) or True
+    )
 
     with pytest.raises(RuntimeError):
         loop.run_scoped_mutmut(
@@ -115,7 +122,9 @@ def test_run_scoped_mutmut_reverts_test_file_on_the_success_path_too(
     monkeypatch.setattr(loop.subprocess, "run", lambda *a, **k: _FakeCompleted())
 
     reverted = []
-    monkeypatch.setattr(loop, "git_revert", lambda path, **k: reverted.append(path))
+    monkeypatch.setattr(
+        loop, "git_revert", lambda path, **k: reverted.append(path) or True
+    )
 
     loop.run_scoped_mutmut(
         "src/a.py",
@@ -140,11 +149,202 @@ def test_run_scoped_mutmut_does_not_revert_test_file_when_not_supplied(
     monkeypatch.setattr(loop.subprocess, "run", lambda *a, **k: _FakeCompleted())
 
     reverted = []
-    monkeypatch.setattr(loop, "git_revert", lambda path, **k: reverted.append(path))
+    monkeypatch.setattr(
+        loop, "git_revert", lambda path, **k: reverted.append(path) or True
+    )
 
     loop.run_scoped_mutmut("src/a.py", test_command="pytest", cwd=tmp_path)
 
     assert reverted == [Path("src/a.py")]
+
+
+# =============================================================================
+# Scenario: run_scoped_mutmut's cleanup-revert failure raises RevertFailed
+# instead of silently discarding git_revert's return value — the exit-5
+# "clean tree" guarantee is independently verified, not assumed (#1928/#1939).
+# =============================================================================
+def test_run_scoped_mutmut_raises_revert_failed_when_source_file_revert_fails(
+    tmp_path: Path, monkeypatch
+):
+    monkeypatch.setattr(loop, "_mutmut_argv", lambda: ["mutmut"])
+
+    class _FakeCompleted:
+        stdout = "<testsuites></testsuites>"
+
+    monkeypatch.setattr(loop.subprocess, "run", lambda *a, **k: _FakeCompleted())
+
+    def fake_revert(path, **k):
+        return path != Path("src/a.py")
+
+    monkeypatch.setattr(loop, "git_revert", fake_revert)
+
+    with pytest.raises(shared.RevertFailed, match="src/a.py"):
+        loop.run_scoped_mutmut(
+            "src/a.py",
+            test_command="pytest",
+            test_file=Path("tests/test_a.py"),
+            cwd=tmp_path,
+        )
+
+
+def test_run_scoped_mutmut_raises_revert_failed_when_test_file_revert_fails(
+    tmp_path: Path, monkeypatch
+):
+    monkeypatch.setattr(loop, "_mutmut_argv", lambda: ["mutmut"])
+
+    class _FakeCompleted:
+        stdout = "<testsuites></testsuites>"
+
+    monkeypatch.setattr(loop.subprocess, "run", lambda *a, **k: _FakeCompleted())
+
+    def fake_revert(path, **k):
+        return path != Path("tests/test_a.py")
+
+    monkeypatch.setattr(loop, "git_revert", fake_revert)
+
+    with pytest.raises(shared.RevertFailed, match="tests/test_a.py"):
+        loop.run_scoped_mutmut(
+            "src/a.py",
+            test_command="pytest",
+            test_file=Path("tests/test_a.py"),
+            cwd=tmp_path,
+        )
+
+
+def test_run_scoped_mutmut_names_both_files_when_both_reverts_fail(
+    tmp_path: Path, monkeypatch
+):
+    """Both reverts are attempted unconditionally — the source file's revert
+    failing must not skip attempting the test file's — and the single
+    RevertFailed raised names both files, not just the first one checked."""
+    monkeypatch.setattr(loop, "_mutmut_argv", lambda: ["mutmut"])
+
+    class _FakeCompleted:
+        stdout = "<testsuites></testsuites>"
+
+    monkeypatch.setattr(loop.subprocess, "run", lambda *a, **k: _FakeCompleted())
+
+    calls = []
+
+    def fake_revert(path, **k):
+        calls.append(path)
+        return False
+
+    monkeypatch.setattr(loop, "git_revert", fake_revert)
+
+    with pytest.raises(shared.RevertFailed) as exc_info:
+        loop.run_scoped_mutmut(
+            "src/a.py",
+            test_command="pytest",
+            test_file=Path("tests/test_a.py"),
+            cwd=tmp_path,
+        )
+
+    assert "src/a.py" in str(exc_info.value)
+    assert "tests/test_a.py" in str(exc_info.value)
+    assert calls == [Path("src/a.py"), Path("tests/test_a.py")]
+
+
+def test_run_scoped_mutmut_raises_nothing_when_both_reverts_succeed(
+    tmp_path: Path, monkeypatch
+):
+    """Regression guard: the existing default success-path fixture (both
+    git_revert calls returning True) must not raise RevertFailed."""
+    monkeypatch.setattr(loop, "_mutmut_argv", lambda: ["mutmut"])
+
+    class _FakeCompleted:
+        stdout = "<testsuites></testsuites>"
+
+    monkeypatch.setattr(loop.subprocess, "run", lambda *a, **k: _FakeCompleted())
+    monkeypatch.setattr(loop, "git_revert", lambda path, **k: True)
+
+    result = loop.run_scoped_mutmut(
+        "src/a.py",
+        test_command="pytest",
+        test_file=Path("tests/test_a.py"),
+        cwd=tmp_path,
+    )
+
+    assert result == "<testsuites></testsuites>"
+
+
+def test_run_scoped_mutmut_treats_an_unexpected_git_revert_exception_as_a_failed_revert(
+    tmp_path: Path, monkeypatch
+):
+    """git_revert only converts subprocess.TimeoutExpired to False — any
+    other unexpected exception (e.g. FileNotFoundError if git isn't on
+    PATH) must not propagate straight out of the finally block and skip
+    attempting the test file's revert. run_scoped_mutmut must treat it the
+    same as a False return: both reverts are genuinely attempted
+    unconditionally, and the resulting RevertFailed names the source file."""
+    monkeypatch.setattr(loop, "_mutmut_argv", lambda: ["mutmut"])
+
+    class _FakeCompleted:
+        stdout = "<testsuites></testsuites>"
+
+    monkeypatch.setattr(loop.subprocess, "run", lambda *a, **k: _FakeCompleted())
+
+    calls = []
+
+    def fake_revert(path, **k):
+        calls.append(path)
+        if path == Path("src/a.py"):
+            raise FileNotFoundError("git: command not found")
+        return True
+
+    monkeypatch.setattr(loop, "git_revert", fake_revert)
+
+    with pytest.raises(shared.RevertFailed, match="src/a.py"):
+        loop.run_scoped_mutmut(
+            "src/a.py",
+            test_command="pytest",
+            test_file=Path("tests/test_a.py"),
+            cwd=tmp_path,
+        )
+
+    assert calls == [Path("src/a.py"), Path("tests/test_a.py")]
+
+
+def test_run_scoped_mutmut_still_releases_the_lock_when_revert_fails(
+    tmp_path: Path, monkeypatch
+):
+    """The outer finally (_release_mutmut_cache_lock) must still run when
+    the inner finally raises RevertFailed — Python's own finally-inside-
+    finally semantics, pinned here rather than left implicit (#1928/#1939)."""
+    monkeypatch.setattr(loop, "_mutmut_argv", lambda: ["mutmut"])
+
+    class _FakeCompleted:
+        stdout = "<testsuites></testsuites>"
+
+    monkeypatch.setattr(loop.subprocess, "run", lambda *a, **k: _FakeCompleted())
+    monkeypatch.setattr(loop, "git_revert", lambda path, **k: False)
+
+    with pytest.raises(shared.RevertFailed):
+        loop.run_scoped_mutmut("src/a.py", test_command="pytest", cwd=tmp_path)
+
+    assert not (tmp_path / ".mutmut-cache.lock").exists()
+
+
+def test_run_scoped_mutmut_revert_failure_supersedes_a_propagating_runtimeerror(
+    tmp_path: Path, monkeypatch
+):
+    """A revert failure discovered while a different RuntimeError (e.g. a
+    mutmut-run timeout) is already unwinding supersedes that original
+    exception — the accepted, deliberate tradeoff from the plan's "Decided
+    now, not deferred" section, pinned here as verified behavior rather than
+    an unexamined side effect of adding the raise."""
+    monkeypatch.setattr(loop, "_mutmut_argv", lambda: ["mutmut"])
+
+    def fake_run(argv, **kwargs):
+        raise loop.subprocess.TimeoutExpired(argv, kwargs.get("timeout"))
+
+    monkeypatch.setattr(loop.subprocess, "run", fake_run)
+    monkeypatch.setattr(loop, "git_revert", lambda path, **k: False)
+
+    with pytest.raises(shared.RevertFailed) as exc_info:
+        loop.run_scoped_mutmut("src/a.py", test_command="pytest", cwd=tmp_path)
+
+    assert "mutmut run timed out" not in str(exc_info.value)
 
 
 # =============================================================================
@@ -161,7 +361,7 @@ def test_run_scoped_mutmut_releases_the_lock_after_a_successful_run(
         stdout = "<testsuites></testsuites>"
 
     monkeypatch.setattr(loop.subprocess, "run", lambda *a, **k: _FakeCompleted())
-    monkeypatch.setattr(loop, "git_revert", lambda path, **k: None)
+    monkeypatch.setattr(loop, "git_revert", lambda path, **k: True)
 
     loop.run_scoped_mutmut("src/a.py", test_command="pytest", cwd=tmp_path)
 
@@ -177,7 +377,7 @@ def test_run_scoped_mutmut_releases_the_lock_even_when_mutmut_crashes(
         raise RuntimeError("simulated mutmut internal crash")
 
     monkeypatch.setattr(loop.subprocess, "run", boom)
-    monkeypatch.setattr(loop, "git_revert", lambda path, **k: None)
+    monkeypatch.setattr(loop, "git_revert", lambda path, **k: True)
 
     with pytest.raises(RuntimeError):
         loop.run_scoped_mutmut("src/a.py", test_command="pytest", cwd=tmp_path)
@@ -225,7 +425,7 @@ def test_run_scoped_mutmut_passes_a_timeout_to_the_mutmut_run_call(
         return _FakeCompleted()
 
     monkeypatch.setattr(loop.subprocess, "run", fake_run)
-    monkeypatch.setattr(loop, "git_revert", lambda *a, **k: None)
+    monkeypatch.setattr(loop, "git_revert", lambda *a, **k: True)
 
     loop.run_scoped_mutmut("src/a.py", test_command="pytest", cwd=tmp_path)
 
@@ -242,7 +442,7 @@ def test_run_scoped_mutmut_run_timeout_raises_a_named_error(tmp_path: Path, monk
         raise loop.subprocess.TimeoutExpired(argv, kwargs.get("timeout"))
 
     monkeypatch.setattr(loop.subprocess, "run", fake_run)
-    monkeypatch.setattr(loop, "git_revert", lambda *a, **k: None)
+    monkeypatch.setattr(loop, "git_revert", lambda *a, **k: True)
 
     with pytest.raises(RuntimeError, match="mutmut run timed out") as exc_info:
         loop.run_scoped_mutmut("src/a.py", test_command="pytest", cwd=tmp_path)
@@ -262,7 +462,7 @@ def test_run_scoped_mutmut_junitxml_timeout_raises_a_named_error(tmp_path: Path,
         raise loop.subprocess.TimeoutExpired(argv, kwargs.get("timeout"))
 
     monkeypatch.setattr(loop.subprocess, "run", fake_run)
-    monkeypatch.setattr(loop, "git_revert", lambda *a, **k: None)
+    monkeypatch.setattr(loop, "git_revert", lambda *a, **k: True)
 
     with pytest.raises(RuntimeError, match="junitxml extraction timed out") as exc_info:
         loop.run_scoped_mutmut("src/a.py", test_command="pytest", cwd=tmp_path)
@@ -278,7 +478,9 @@ def test_run_scoped_mutmut_still_reverts_on_a_timeout(tmp_path: Path, monkeypatc
 
     monkeypatch.setattr(loop.subprocess, "run", fake_run)
     reverted = []
-    monkeypatch.setattr(loop, "git_revert", lambda path, **k: reverted.append(path))
+    monkeypatch.setattr(
+        loop, "git_revert", lambda path, **k: reverted.append(path) or True
+    )
 
     with pytest.raises(RuntimeError):
         loop.run_scoped_mutmut("src/a.py", test_command="pytest", cwd=tmp_path)

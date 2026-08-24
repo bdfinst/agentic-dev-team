@@ -15,6 +15,7 @@ from __future__ import annotations
 from pathlib import Path
 
 import mutation_kill_loop_python as loop
+import mutation_kill_shared
 import pytest
 from _mutation_kill_loop_python_test_helpers import _ctx, _junit, _killed, _survived
 from _mutation_test_helpers import git_hermetic, hermetic_git_env
@@ -449,12 +450,13 @@ def test_revert_failure_after_failed_commit_is_fatal(tmp_path: Path, monkeypatch
     source_file = tmp_path / "a.py"
     source_file.write_text("x = 1\n", encoding="utf-8")
 
-    with pytest.raises(RuntimeError, match="revert failed"):
+    with pytest.raises(RuntimeError, match="revert failed") as exc_info:
         loop.run_for_file(
             "src/a.py",
             _ctx(test_file, source_file),
             generate=lambda *_a: "def test_new():\n    assert True\n",
         )
+    assert type(exc_info.value) is mutation_kill_shared.RevertFailed
 
 
 def test_revert_failure_after_build_failure_is_fatal(tmp_path: Path, monkeypatch):
@@ -469,12 +471,13 @@ def test_revert_failure_after_build_failure_is_fatal(tmp_path: Path, monkeypatch
     source_file = tmp_path / "a.py"
     source_file.write_text("x = 1\n", encoding="utf-8")
 
-    with pytest.raises(RuntimeError, match="revert failed"):
+    with pytest.raises(RuntimeError, match="revert failed") as exc_info:
         loop.run_for_file(
             "src/a.py",
             _ctx(test_file, source_file),
             generate=lambda *_a: "def test_new():\n    assert True\n",
         )
+    assert type(exc_info.value) is mutation_kill_shared.RevertFailed
 
 
 def test_revert_failure_after_test_failure_is_fatal(tmp_path: Path, monkeypatch):
@@ -490,12 +493,13 @@ def test_revert_failure_after_test_failure_is_fatal(tmp_path: Path, monkeypatch)
     source_file = tmp_path / "a.py"
     source_file.write_text("x = 1\n", encoding="utf-8")
 
-    with pytest.raises(RuntimeError, match="revert failed"):
+    with pytest.raises(RuntimeError, match="revert failed") as exc_info:
         loop.run_for_file(
             "src/a.py",
             _ctx(test_file, source_file),
             generate=lambda *_a: "def test_new():\n    assert True\n",
         )
+    assert type(exc_info.value) is mutation_kill_shared.RevertFailed
 
 
 # =============================================================================
