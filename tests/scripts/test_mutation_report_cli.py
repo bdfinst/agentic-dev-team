@@ -193,6 +193,62 @@ def test_skip_static_notice_when_file_absent_from_report(
 
 
 # =============================================================================
+# --accepted-static-survivors
+# =============================================================================
+
+
+def test_accepted_static_survivors_matches_library_call(
+    tmp_path: Path, capsys
+) -> None:
+    # Scope: JSON-passthrough fidelity only — see the comment on
+    # test_survivors_by_line_matches_library_call above.
+    report = _write_report(
+        tmp_path / "mutation.json",
+        {
+            "src/calc.ts": {
+                "mutants": [
+                    _mutant("Survived", mutator="StringLiteral", static=True),
+                    _mutant("Survived", mutator="ArithmeticOperator", static=False),
+                ]
+            }
+        },
+    )
+    rc = cli.main(
+        [
+            "--accepted-static-survivors",
+            "--report",
+            str(report),
+            "--file",
+            "src/calc.ts",
+        ]
+    )
+    assert rc == 0
+    out = capsys.readouterr()
+    assert out.err == ""
+    printed = json.loads(out.out)
+    expected = mutation_report.accepted_static_survivors(report, "src/calc.ts")
+    assert printed == expected
+
+
+def test_accepted_static_survivors_missing_report_file_is_empty_json(
+    tmp_path: Path, capsys
+) -> None:
+    missing = tmp_path / "does-not-exist.json"
+    rc = cli.main(
+        [
+            "--accepted-static-survivors",
+            "--report",
+            str(missing),
+            "--file",
+            "src/calc.ts",
+        ]
+    )
+    assert rc == 0
+    out = capsys.readouterr()
+    assert json.loads(out.out) == []
+
+
+# =============================================================================
 # Argument errors
 # =============================================================================
 
@@ -212,7 +268,8 @@ def test_both_mode_flags_is_argument_error(tmp_path: Path, capsys) -> None:
     assert rc == 2
     err = capsys.readouterr().err
     assert (
-        "exactly one of --survivors-by-line or --survivors-by-mutator" in err
+        "exactly one of --survivors-by-line, --survivors-by-mutator, "
+        "or --accepted-static-survivors" in err
     )
 
 
@@ -222,7 +279,73 @@ def test_neither_mode_flag_is_argument_error(tmp_path: Path, capsys) -> None:
     assert rc == 2
     err = capsys.readouterr().err
     assert (
-        "exactly one of --survivors-by-line or --survivors-by-mutator" in err
+        "exactly one of --survivors-by-line, --survivors-by-mutator, "
+        "or --accepted-static-survivors" in err
+    )
+
+
+def test_all_three_mode_flags_is_argument_error(tmp_path: Path, capsys) -> None:
+    report = _write_report(tmp_path / "mutation.json", {})
+    rc = cli.main(
+        [
+            "--survivors-by-line",
+            "--survivors-by-mutator",
+            "--accepted-static-survivors",
+            "--report",
+            str(report),
+            "--file",
+            "src/calc.ts",
+        ]
+    )
+    assert rc == 2
+    err = capsys.readouterr().err
+    assert (
+        "exactly one of --survivors-by-line, --survivors-by-mutator, "
+        "or --accepted-static-survivors" in err
+    )
+
+
+def test_accepted_static_survivors_with_survivors_by_line_is_argument_error(
+    tmp_path: Path, capsys
+) -> None:
+    report = _write_report(tmp_path / "mutation.json", {})
+    rc = cli.main(
+        [
+            "--survivors-by-line",
+            "--accepted-static-survivors",
+            "--report",
+            str(report),
+            "--file",
+            "src/calc.ts",
+        ]
+    )
+    assert rc == 2
+    err = capsys.readouterr().err
+    assert (
+        "exactly one of --survivors-by-line, --survivors-by-mutator, "
+        "or --accepted-static-survivors" in err
+    )
+
+
+def test_accepted_static_survivors_with_survivors_by_mutator_is_argument_error(
+    tmp_path: Path, capsys
+) -> None:
+    report = _write_report(tmp_path / "mutation.json", {})
+    rc = cli.main(
+        [
+            "--survivors-by-mutator",
+            "--accepted-static-survivors",
+            "--report",
+            str(report),
+            "--file",
+            "src/calc.ts",
+        ]
+    )
+    assert rc == 2
+    err = capsys.readouterr().err
+    assert (
+        "exactly one of --survivors-by-line, --survivors-by-mutator, "
+        "or --accepted-static-survivors" in err
     )
 
 
@@ -233,6 +356,25 @@ def test_skip_static_with_survivors_by_line_is_argument_error(
     rc = cli.main(
         [
             "--survivors-by-line",
+            "--skip-static",
+            "--report",
+            str(report),
+            "--file",
+            "src/calc.ts",
+        ]
+    )
+    assert rc == 2
+    err = capsys.readouterr().err
+    assert "--skip-static is only valid with --survivors-by-mutator" in err
+
+
+def test_skip_static_with_accepted_static_survivors_is_argument_error(
+    tmp_path: Path, capsys
+) -> None:
+    report = _write_report(tmp_path / "mutation.json", {})
+    rc = cli.main(
+        [
+            "--accepted-static-survivors",
             "--skip-static",
             "--report",
             str(report),
