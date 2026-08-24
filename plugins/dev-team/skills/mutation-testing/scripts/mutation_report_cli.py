@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """mutation_report_cli.py — CLI wrapper exposing mutation_report.py's
-``survivors_by_line()`` and ``survivors_by_mutator()`` as JSON on stdout
-(#1937, Step 1.4).
+``survivors_by_line()``, ``survivors_by_mutator()``, and
+``accepted_static_survivors()`` as JSON on stdout (#1937, Step 1.4; #1940
+Step 2.2).
 
 `mutation_report.py` is a pure computation library with no argparse/
 `__main__` and no stdout output, imported by 7 sibling scripts — it gains
@@ -32,8 +33,9 @@ def parse_args(argv) -> argparse.Namespace:
     p = argparse.ArgumentParser(
         prog="mutation_report_cli.py",
         description=(
-            "Print mutation_report.py's survivors_by_line() or "
-            "survivors_by_mutator() result as JSON on stdout."
+            "Print mutation_report.py's survivors_by_line(), "
+            "survivors_by_mutator(), or accepted_static_survivors() "
+            "result as JSON on stdout."
         ),
     )
     p.add_argument(
@@ -46,6 +48,14 @@ def parse_args(argv) -> argparse.Namespace:
         action="store_true",
         help="Report Survived mutants for --file, grouped by mutator name.",
     )
+    p.add_argument(
+        "--accepted-static-survivors",
+        action="store_true",
+        help=(
+            "Report Survived+static:true mutants for --file as "
+            "accepted-survivor entries."
+        ),
+    )
     p.add_argument("--report", required=True, metavar="PATH", help="Native mutation report path.")
     p.add_argument("--file", required=True, metavar="PATH", help="Source file to look up in the report.")
     p.add_argument(
@@ -53,7 +63,8 @@ def parse_args(argv) -> argparse.Namespace:
         action="store_true",
         help=(
             "Exclude static:true mutants — requires --survivors-by-mutator "
-            "(rejected with --survivors-by-line)."
+            "or --accepted-static-survivors (rejected with "
+            "--survivors-by-line)."
         ),
     )
     return p.parse_args(list(argv))
@@ -84,15 +95,26 @@ def main(argv: list[str] | None = None) -> int:
     argv = list(sys.argv[1:] if argv is None else argv)
     args = parse_args(argv)
 
-    if args.survivors_by_line == args.survivors_by_mutator:
+    if (
+        sum(
+            [
+                args.survivors_by_line,
+                args.survivors_by_mutator,
+                args.accepted_static_survivors,
+            ]
+        )
+        != 1
+    ):
         sys.stderr.write(
-            "error: exactly one of --survivors-by-line or --survivors-by-mutator is required\n"
+            "error: exactly one of --survivors-by-line, --survivors-by-mutator, "
+            "or --accepted-static-survivors is required\n"
         )
         return 2
 
     if args.skip_static and args.survivors_by_line:
         sys.stderr.write(
-            "error: --skip-static is only valid with --survivors-by-mutator\n"
+            "error: --skip-static is only valid with --survivors-by-mutator "
+            "or --accepted-static-survivors\n"
         )
         return 2
 
@@ -100,6 +122,27 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.survivors_by_line:
         result = mutation_report.survivors_by_line(report_path, args.file)
+    elif args.accepted_static_survivors:
+        # Single load: reuse the same parsed dict for the diagnostic below
+        # and the accepted-survivor computation, instead of two separate
+        # load_report() calls. When --skip-static IS set, warn if it turns
+        # out to be inapplicable; when it is NOT set,
+        # accepted_static_survivors_from_data() unconditionally returns []
+        # (skip_static_active gates it), so warn instead that the result is
+        # a guaranteed no-op — silent success here is indistinguishable
+        # from "no static survivors exist".
+        data = mutation_report.load_report(report_path)
+        if args.skip_static:
+            _maybe_warn_skip_static_inapplicable(data, args.file)
+        else:
+            sys.stderr.write(
+                "accepted-static-survivors: --skip-static was not set — "
+                "no accepted entries reported; pass --skip-static when "
+                "the generation run actually narrowed by it\n"
+            )
+        result = mutation_report.accepted_static_survivors_from_data(
+            data, args.file, skip_static_active=args.skip_static
+        )
     elif args.skip_static:
         # Single load: reuse the same parsed dict for the inapplicable-skip
         # diagnostic and the survivor computation, instead of the diagnostic

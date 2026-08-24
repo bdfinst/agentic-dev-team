@@ -108,12 +108,19 @@ def test_trade_off_does_not_claim_stryker_runs_faster(static_skip_flat: str) -> 
     """correctness-review finding, build round 1: the prior wording claimed
     'trades a smaller wall-clock (no full-suite re-run per static mutant)',
     which the post-run filter cannot deliver — Stryker has already paid
-    that cost by the time the report exists. Pin the corrected framing."""
+    that cost by the time the report exists. Pin the corrected framing.
+
+    Re-pinned (plan #1940, Step 2.3): the trade-off used to be framed as a
+    "small, documented survivor over-count" — but the over-count was never
+    actually reflected in adjusted_score, so "documented" was misleading.
+    That framing is retired in favor of "deferring ... rather than
+    eliminating", now genuinely documented via accepted_static_survivors()
+    (see test_adjusted_score_folds_in_accepted_static_survivors below)."""
     assert re.search(
         r"cannot make Stryker'?s own run faster", static_skip_flat
     )
     assert re.search(r"saves is the generation-and-verify.{0,10}rounds", static_skip_flat)
-    assert re.search(r"small, documented survivor over-count", static_skip_flat)
+    assert re.search(r"deferring each skipped static mutant", static_skip_flat)
 
 
 def test_scoring_and_convergence_stay_unfiltered(static_skip_flat: str) -> None:
@@ -126,6 +133,23 @@ def test_scoring_and_convergence_stay_unfiltered(static_skip_flat: str) -> None:
     assert re.search(r"convergence.{0,20}stay unfiltered", static_skip_flat)
     assert re.search(r"survivors == 0", static_skip_flat)
     assert re.search(r'never be written as `?status: "converged"`?', static_skip_flat)
+
+
+def test_adjusted_score_folds_in_accepted_static_survivors(static_skip_flat: str) -> None:
+    """Plan #1940, Slice 2, Step 2.3: adjusted_score now accounts for
+    static-skipped mutants via mutation_report_cli.py's
+    --accepted-static-survivors mode (added in Steps 2.1/2.2). This is a
+    real-structure check, not a bag-of-words match — it anchors the CLI
+    invocation, "fold", and adjusted_score inside one sentence/bullet so a
+    doc edit that scatters the three words across unrelated sentences still
+    fails."""
+    assert re.search(
+        r"--accepted-static-survivors[^.]*\bfold[^.]*adjusted_score",
+        static_skip_flat,
+    )
+    # Clustering stays explicitly out of scope for this fold (#1948).
+    assert re.search(r"[Cc]lustering.{0,40}untouched", static_skip_flat)
+    assert "#1948" in static_skip_flat
 
 
 def test_absent_static_field_has_a_stated_fallback(static_skip_flat: str) -> None:
