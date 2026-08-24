@@ -1,5 +1,29 @@
 # Changelog
 
+## [12.6.0](https://github.com/bdfinst/agentic-dev-team/compare/dev-team-v12.5.0...dev-team-v12.6.0) (2026-08-24)
+
+
+### Features
+
+* **mutation-testing:** extract mutation-report clustering and static-mutant filtering into Python ([#1949](https://github.com/bdfinst/agentic-dev-team/issues/1949)) ([ce09f52](https://github.com/bdfinst/agentic-dev-team/commit/ce09f52f4182b556794d4b395714c9f3c28f658d))
+* **test-improve:** cut workflow token cost without weakening risk gates ([#1966](https://github.com/bdfinst/agentic-dev-team/issues/1966)) ([2bd0f1d](https://github.com/bdfinst/agentic-dev-team/commit/2bd0f1d1faf7a953117f039e73f908bb5684a439))
+
+
+### Bug Fixes
+
+* **code-review:** delete shared-classifier fallbacks, fail the import loudly ([#1969](https://github.com/bdfinst/agentic-dev-team/issues/1969)) ([8cc2d23](https://github.com/bdfinst/agentic-dev-team/commit/8cc2d23d0a8a41dc2c62690dcb45b431d157de36)), closes [#1968](https://github.com/bdfinst/agentic-dev-team/issues/1968)
+* **mutation-kill:** clean up exit-code and exception semantics ([#1957](https://github.com/bdfinst/agentic-dev-team/issues/1957)) ([1556958](https://github.com/bdfinst/agentic-dev-team/commit/15569588ea62ddc4cf5e6e69776e02441cc94723))
+* **mutation-kill:** extend round-1 baseline-report reuse to --concurrency &gt; 1 ([#1942](https://github.com/bdfinst/agentic-dev-team/issues/1942)) ([9f3da7a](https://github.com/bdfinst/agentic-dev-team/commit/9f3da7a0949eeccbcd5f237c5a3f1be775623853))
+* **mutation-kill:** harden retry/downgrade mechanism ([#1938](https://github.com/bdfinst/agentic-dev-team/issues/1938)) ([#1954](https://github.com/bdfinst/agentic-dev-team/issues/1954)) ([153c389](https://github.com/bdfinst/agentic-dev-team/commit/153c38934be185b334ad640d709730b626f60766))
+* **mutation-testing:** fold static-skip survivors into the accepted/reason model ([#1970](https://github.com/bdfinst/agentic-dev-team/issues/1970)) ([b85247c](https://github.com/bdfinst/agentic-dev-team/commit/b85247c2693b60413c47567a348637b1e8538f7c))
+* **scripts:** repair and extend the token-estimate drift gate (measure_tokens.py) ([#1947](https://github.com/bdfinst/agentic-dev-team/issues/1947)) ([60cd884](https://github.com/bdfinst/agentic-dev-team/commit/60cd884de4ce7b3dd218a27af57a023241992b81))
+* **tests:** make stryker shim scaffold-failure test privilege-independent ([#1946](https://github.com/bdfinst/agentic-dev-team/issues/1946)) ([6788ffd](https://github.com/bdfinst/agentic-dev-team/commit/6788ffd7df8a32ce71afa9efa19f9c71f3d04c16))
+
+
+### Code Refactoring
+
+* **mutation-kill:** extract retry/downgrade module, merge Parallelism docs ([#1934](https://github.com/bdfinst/agentic-dev-team/issues/1934)) ([9bed5da](https://github.com/bdfinst/agentic-dev-team/commit/9bed5da8172406d77530c0bb4e39a06d940347e7))
+
 ## [12.5.0](https://github.com/bdfinst/agentic-dev-team/compare/dev-team-v12.4.0...dev-team-v12.5.0) (2026-08-06)
 
 
