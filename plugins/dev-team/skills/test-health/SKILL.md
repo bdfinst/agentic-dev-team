@@ -3,7 +3,7 @@ name: test-health
 description: Project-wide test-strategy audit — derive the suite's shape and shape-vs-architecture fit, map coverage to the Agile Testing Quadrants, roll up coverage + mutation health, flag flaky tests and automation maturity, and produce an ordered improvement plan. Delegates CD-determinism + pipeline assessment to cd-test-architecture. Use when the user says "audit our tests", "how healthy is our test suite", "test strategy review", or runs /test-health. Advisory — writes a report, does not edit.
 role: worker
 user-invocable: true
-argument-hint: "[--path <dir>] [--pdf]"
+argument-hint: "[--path <dir>] [--pdf] [--no-mutation]"
 ---
 
 # Test Health
@@ -29,6 +29,21 @@ Grounded in: `knowledge/testing-quadrants.md`, `knowledge/test-pyramid.md` (shap
 ## Parse Arguments
 
 Target repo/subtree path (default: cwd). Detect the test runner, coverage tool, and CI config from manifests and `.github/`/`.gitlab-ci.yml`/etc.
+
+Optional:
+
+- `--path <dir>`: audit only this subtree (default: cwd).
+- `--pdf`: also render the report to a sibling PDF (Step 9).
+- `--no-mutation`: **skip the `mutation-testing` invocation in Step 5** and
+  render the report's mutation column as `not enabled for this run`. Everything
+  else in Step 5 (the `/test-design` dispatch and its roll-up) is unchanged.
+  Default **off** — an unflagged `/test-health` runs mutation ROI exactly as
+  before, because mutation health is a real part of the standalone strategic
+  audit. The flag exists for a caller that has already decided mutation work is
+  out of scope for its run and would otherwise pay for a measurement it then
+  discards: `/test-improve` Phase 1 passes it when `phase-0.md` recorded
+  mutation mode `off` (#1961). A skip is **not** a waiver and not a failure —
+  the target was never in scope for this run.
 
 ## Steps
 
@@ -79,7 +94,17 @@ unscoped, `(under <dir>)` when passing `--path`, or the empty-scope note
 non-determinism, fixture/structure smells, testability blockers), and the
 advisor's testability verdicts. Then invoke `mutation-testing` on the
 **critical-logic** modules only (not the whole repo — that's the ROI
-framing). Roll both up: where is coverage high but mutation-weak
+framing).
+
+**`--no-mutation` skips that invocation entirely (#1961).** When the flag is
+set, do not run `mutation-testing`, do not estimate a mutation figure to stand
+in for it, and render the report's mutation content as `not enabled for this
+run`. The rest of this step is unaffected — `/test-design` still runs and its
+themes still feed the ordered plan (Step 8), which simply carries no
+mutation-hotspot input for this run. Without the flag (the default), invoke
+`mutation-testing` as above.
+
+Roll both up: where is coverage high but mutation-weak
 (assertions that don't catch bugs)? Where do test-design smells
 concentrate? Where is critical logic under-covered? Prioritize by risk,
 not by raw %. Both feed the ordered plan (Step 7) — summarize the themes
@@ -198,6 +223,8 @@ body.
 <one-paragraph summary + link to its report>
 
 ### Test-design & mutation health (via /test-design + mutation-testing)
+<When `--no-mutation` was passed, this section's mutation content reads
+`not enabled for this run` — never a number, never a waiver.>
 <Farley Score — render the scope-labelled value from `/test-design`
 verbatim (`(all tests)` when this run is unscoped, `(under <dir>)` when
 `--path` is set), or the literal `no in-scope test files` when the in-scope

@@ -271,15 +271,16 @@ counts and outcomes only, never code or file content.
 | `plan` | string | Plan file path |
 | `slice` | string | Slice number |
 | `step` | string | Step number (`N.M`) or `all` |
-| `checkpoint` | string enum | `step` \| `slice` |
+| `checkpoint` | string enum | `step` \| `slice` \| `backstop` (the Step-6 backstop pass, #1962) |
 | `complexity` | string enum | `standard` \| `complex` |
 | `agents_run` | array of string | Review agents dispatched |
 | `issues_found`, `issues_fixed`, `fix_iterations` | integer | Counts |
 | `severity_breakdown` | object | `{errors, warnings, suggestions}` counts (same enum as `/code-review`); the three sum to `issues_found`. Lets `/harness-audit` Step 3 flag mostly-minor lenses (#1256). Absent on pre-#1256 rows |
-| `source` | string enum | Row provenance: `build-checkpoint` (fix-applying `/build` checkpoint) \| `code-review` (read-only standalone review). **Absent = `build-checkpoint`** (back-compat). `/harness-audit` Step 4 excludes `code-review` rows from fix-rate drop-candidate logic (#1257) |
-| `outcome` | string enum | `no-op` \| `fixed` \| `escalated` |
+| `source` | string enum | Row provenance: `build-checkpoint` (fix-applying `/build` inline checkpoint) \| `build-backstop` (fix-applying `/build` Step-6 backstop pass, #1962) \| `code-review` (read-only standalone review). **Absent = `build-checkpoint`** (back-compat). `/harness-audit` Step 4 excludes `code-review` rows from fix-rate drop-candidate logic (#1257); `build-backstop` rows are fix-applying and stay in it |
+| `diff_shape` | string enum | Shape of the reviewed diff: `test-only` (every changed file provably a test per `knowledge/test-file-indicators.md`) \| `mixed` (anything else). Classified by `skills/code-review/scripts/change_shape.py`'s `isTestOnly`, never by eye; include-biased, so `test-only` is never over-claimed. Lets `/harness-audit` split per-lens outcomes by diff shape — the evidence a test-only lens gate waits on (#1964). Absent on pre-#1964 rows |
+| `outcome` | string enum | `no-op` \| `fixed` \| `escalated` \| `skipped` (backstop only — suppressed by `--backstop-review=skip`; never counted in a rate, #1962) |
 
-- **Emitter:** `/build` skill (model-authored append, sub-step 7) writes `source: "build-checkpoint"`. Disable with `DEV_TEAM_REVIEW_VALUE=off`.
+- **Emitter:** `/build` skill (model-authored append, sub-step 7) writes `source: "build-checkpoint"` for inline checkpoints and, from Step 6, `source: "build-backstop"` for the backstop pass (#1962). Disable with `DEV_TEAM_REVIEW_VALUE=off`.
 - **Consent:** unconditional when enabled (no code/file content recorded).
 - **Consumers:** `skills/cost-report/SKILL.md`, `skills/harness-audit/SKILL.md`.
 - **Provenance (#1257):** fix-rate ROI is only meaningful for fix-applying rows. A read-only review that never applies fixes (`source: "code-review"`) always has `issues_fixed: 0`; Step 4 must not read that as a zero-value drop candidate — it reports finding-rate for those instead.
@@ -309,7 +310,8 @@ answerable. Written by `skills/code-review/scripts/review_round_log.py`.
 - **Emitter:** `/code-review` (steps 5b-i and 6a) via `review_round_log.py`.
 - **Consent:** **unconditional** — written to `.claude/metrics/` like `boundary-events.jsonl`, *not* gated behind `~/.claude/telemetry.json` the way `/build`'s rows are. Rationale (#1624 design item 2): this is the same class of local, counts-only operational stream the commit gate itself already depends on, and consent-gating it would make #1623's success criteria depend on consent being enabled per dev machine. Rows carry counts, agent names, and enum values only — no file paths, code, or finding text.
 - **Consumers:** `skills/harness-audit/SKILL.md` Step 4a (churn ratio, per-agent discovery-vs-verification split, gate recidivism).
-- **Reconciling the two `source` values.** `build-checkpoint` rows are fix-applying and carry `plan`/`slice`/`step`/`checkpoint`/`complexity`/`issues_found`/`issues_fixed`/`fix_iterations`. `code-review` rows are read-only; those with a `round` field use the round schema above. A consumer wanting "how many issues did this row surface" should read `(.issues_found // .findings_new)`, which covers all three shapes.
+- **Backstop rows (#1962).** `source: "build-backstop"` marks `/build`'s Step-6 pass — the one review layer whose files an inline checkpoint already reviewed in the same run. It is fix-applying (the `--internal` panel runs the review-fix loop), so it belongs in fix-rate analysis alongside `build-checkpoint`; what it exists to answer is whether that duplicated layer is ~all `no-op`, which is the evidence `/build`'s `--backstop-review=skip` flag waits on. `outcome: "skipped"` marks a backstop suppressed by that flag: recorded so the suppression is visible in the same stream, and excluded from every rate because it never ran.
+- **Reconciling the `source` values.** `build-checkpoint` and `build-backstop` rows are fix-applying and carry `plan`/`slice`/`step`/`checkpoint`/`complexity`/`issues_found`/`issues_fixed`/`fix_iterations`. `code-review` rows are read-only; those with a `round` field use the round schema above. A consumer wanting "how many issues did this row surface" should read `(.issues_found // .findings_new)`, which covers all three shapes.
 
 ---
 

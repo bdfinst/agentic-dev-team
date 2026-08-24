@@ -35,8 +35,11 @@ def _bash_blocks() -> list[str]:
 #: metrics file. Pinned so a dual-read block cannot be silently *dropped*
 #: (the idiom test below already catches a newly-added block that forgets the
 #: idiom, but it cannot notice one going missing). Moved 4 -> 6 in #1624,
-#: which added the churn-ratio and per-agent-purpose-split queries to Step 4a.
-_EXPECTED_AFFECTED_BLOCKS = 6
+#: which added the churn-ratio and per-agent-purpose-split queries to Step 4a;
+#: 6 -> 7 in #1962, which added Step 4's backstop-redundancy query (the
+#: measurement that gates /build's --backstop-review=skip); 7 -> 8 in #1964,
+#: which added the per-lens outcome split by diff_shape.
+_EXPECTED_AFFECTED_BLOCKS = 8
 
 
 def test_expected_number_of_bash_commands_reference_the_migrated_metrics_files():

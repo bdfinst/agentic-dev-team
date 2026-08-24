@@ -41,7 +41,10 @@ EVIDENCE_SCHEMA_FIELDS = [
 # test_review_loop_reference_file_has_the_distinctive_prose below, so a
 # phrase that drifts out of review-loop.md fails loudly here too).
 DISTINCTIVE_REVIEW_LOOP_PROSE = [
-    "/test-design",
+    # #1959 replaced the `/test-design` dispatch with a direct `farley-score`
+    # call, so the loop's distinctive marker is the worker it now invokes.
+    "farley-score",
+    "/review-agent",
     "[r/w/q]",
     "at most 2 rounds",
 ]

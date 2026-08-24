@@ -91,11 +91,35 @@ def test_phase_5_applies_binding_mode_annotations_per_phase_0():
 # Step 6.2 assertions — end-of-phase review loop
 
 
-def test_phase_5_review_loop_dispatches_test_design_since_and_code_review_since_in_parallel():
+def test_phase_5_review_loop_dispatches_one_code_review_panel_not_also_test_design():
+    """#1959: the loop dispatches the `/code-review` panel once against the
+    phase diff. `/test-design` is no longer dispatched alongside it — its two
+    agents (`test-review`, `test-smell-review`) are `Scope: always` and
+    already in the panel's own roster, so the pair was reviewing the same
+    diff twice per round."""
     s = _phase_5_section()
-    assert grep(r"/test-design[[:space:]]+--since", s)
     assert grep(r"/code-review[[:space:]]+--since", s)
-    assert grep(r"parallel|concurrent|dispatch", s, ignore_case=True)
+    assert grep(r"dispatch", s, ignore_case=True)
+    # The duplicate dispatch is gone: no `/test-design --since` invocation.
+    assert not grep(r"/test-design[[:space:]]+--since", s)
+
+
+def test_phase_5_review_loop_guarantees_the_two_test_lenses_survive_the_gates():
+    """#1959: dropping the duplicate dispatch must not drop the lenses. The
+    change-size gate (#1339) can gate `Scope: always` agents out of a small
+    diff's roster, so the loop names both test lenses and the direct
+    `/review-agent` fallback that re-runs one the panel dropped."""
+    s = _phase_5_section()
+    assert grep(r"test-review", s)
+    assert grep(r"test-smell-review", s)
+    assert grep(r"/review-agent", s)
+
+
+def test_phase_5_review_loop_scores_tests_via_farley_score_directly():
+    """#1959: `farley_score` is the one evidence-schema field the panel does
+    not produce, so the loop calls the `farley-score` worker directly instead
+    of reaching it through `/test-design`'s orchestration layer."""
+    assert grep(r"farley-score", _phase_5_section())
 
 
 def test_phase_5_review_loop_runs_apply_fixes_corrections_then_re_runs_code_review():
