@@ -136,6 +136,27 @@ For each review agent in the registry (`knowledge/agent-registry.md`):
 
 ### 4. Analyze review-value fix rates
 
+**Check the sample's validity first (#2019).** Run this before reading a single rate, and report its verdict at the top of every section that cites per-lens value:
+
+```bash
+python3 "$CLAUDE_PLUGIN_ROOT/skills/code-review/scripts/review_value_coverage.py" --json
+```
+
+Both writers of `review-value.jsonl` are triggered by agent instruction, not by mechanism, so the rows collected skew toward rounds that found something — an agent that found nothing is markedly less likely to run a "record the review value" step. #1512 measured this directly: ~100% "found something" across a 10-record sample, which nearly justified pruning lenses that were working fine.
+
+The script reconciles the value rows against `agent_dispatch_ledger`'s `boundary-events.jsonl` records, which a hook writes whether or not a round found anything. A verdict other than `usable` means the numbers below describe the *collection*, not the lenses:
+
+| verdict | what it means for this section |
+|---|---|
+| `no-data` | no rows; report the analysis as dark |
+| `unverifiable` | no dispatch records, so completeness cannot be checked |
+| `undercollected` | rows are a non-random subset; rates are not attributable to lenses |
+| `insufficient` | below the 100-row floor #1512 set |
+| `biased` | quiet rounds are not reaching the log; no-op rates are unreadable |
+| `usable` | rates may be cited |
+
+**Never emit a drop candidate, tier-down, or gating recommendation from a non-`usable` sample.** Report the verdict and what would make the sample usable instead. This is the check that would have stopped #1512's ten biased records from being read as evidence.
+
 Read `metrics/review-value.jsonl` (written by `/build` per #348, schema in `performance-metrics`). If the file is absent, note it and continue — this section is skippable.
 
 For each **checkpoint type** (the `checkpoint` field: `step` or `slice`) and each **agent combination** (`agents_run` list, treated as a set-key), compute:
