@@ -80,6 +80,30 @@ except ImportError as exc:  # pragma: no cover - broken install, not a supported
         "install or the path rather than re-adding a local implementation."
     ) from exc
 
+# `knowledge/test-file-indicators.md`'s single encoding, shared with the
+# refactor test-freeze guards and `change_shape.py` (#1978). Same no-fallback
+# rule as above: a hand-written second copy of "is this a test file?" is
+# exactly the drift #1968 removed.
+try:
+    # `_read_probe` is imported rather than re-implemented for the same reason
+    # `is_test_file` is: it owns the read cap and the decode-error policy the
+    # classifier's content branches expect, and a local copy is a second
+    # implementation free to drift (#1968).
+    from test_file_classify import (  # type: ignore[import-not-found]
+        _read_probe,
+        is_test_file,
+    )
+except ImportError as exc:  # pragma: no cover - broken install, not a supported mode
+    raise ImportError(
+        f"{__name__} requires the shared classifier 'test_file_classify' from "
+        f"the dev-team plugin's hooks/lib, which could not be imported.\n"
+        f"  searched: {_HOOKS_LIB_DIR}\n"
+        f"  exists:   {_HOOKS_LIB_DIR.is_dir()}\n"
+        "This module deliberately has no fallback copy of the classifier "
+        "(#1968) — a divergent stand-in silently mis-classifies files. Fix the "
+        "install or the path rather than re-adding a local implementation."
+    ) from exc
+
 # Framework-reactivity lenses declare bare ``**/*.ts`` / ``**/*.js`` globs, but
 # their real trigger is a dependency-manifest match (``/code-review`` Step 3's
 # separate rule), not a file-path match. Keep them OUT of this resolver's remit
@@ -121,6 +145,18 @@ SCOPE_ADDED_ONLY = "added-only"
 # also incorrectly exempted it from the `Scope:` declaration requirement it
 # actually satisfies — see `scripts/lib/review_roster.py`'s docstring.
 SCOPE_ON_DEMAND = "on-demand"
+# The sentinel an agent uses to declare it applies only when the changeset
+# touches a test file (#1978). A bare declaration with no bullet block, like
+# `on-demand` — deliberately NOT a glob list, because the glob vocabulary
+# `_matches` supports (a literal suffix) cannot express three of the five
+# families in `knowledge/test-file-indicators.md`: Python's `test_*.py`
+# prefix, JS/TS's `__tests__/` directory, and C#/Java's annotation-based
+# indicators. A hand-maintained glob list would therefore be both incomplete
+# and a second copy of that knowledge file, free to drift from it. This
+# sentinel instead delegates to `test_file_classify.is_test_file` — the same
+# single encoding the refactor test-freeze guards and `change_shape.py` use —
+# so the answer cannot diverge from the canonical one.
+SCOPE_TEST_FILES = "test-files"
 # Heading substring that marks the Review Agents section of agent-registry.md.
 # Named so a heading rename over there is greppable from here (the coupling).
 _REVIEW_AGENTS_HEADING_MARKER = "review agent"
@@ -252,8 +288,8 @@ def _consume_bullet_block(lines, start_index):
 
 
 def parse_scope(text: str):
-    """Return ``"always"`` | ``"on-demand"`` | ``list[str]`` |
-    ``(SCOPE_ADDED_ONLY, list[str])`` | ``None`` from agent markdown.
+    """Return ``"always"`` | ``"on-demand"`` | ``"test-files"`` | ``list[str]``
+    | ``(SCOPE_ADDED_ONLY, list[str])`` | ``None`` from agent markdown.
 
     The **first** ``Scope:`` line is authoritative. An empty inline value
     followed by a ``- **/*.ext`` bullet block yields that structured,
@@ -276,6 +312,8 @@ def parse_scope(text: str):
             return SCOPE_ALWAYS
         if value.lower() == SCOPE_ON_DEMAND:
             return SCOPE_ON_DEMAND
+        if value.lower() == SCOPE_TEST_FILES:
+            return SCOPE_TEST_FILES
         if value.lower() == SCOPE_ADDED_ONLY:
             globs = _consume_bullet_block(lines, i)
             return (SCOPE_ADDED_ONLY, globs) if globs else None
@@ -335,7 +373,52 @@ def _added_only_eligible(globs, changed_files, added_files) -> bool:
     return bool(eligible) and _scope_matches(globs, eligible)
 
 
-def applicable_lenses(changed_files, roster, added_files=None):
+#: Extensions whose test-ness `test_file_classify` decides from file CONTENT
+#: (C# `[Fact]`, Java `@Test`) rather than from the name, by reading the file.
+#: When such a file is not on disk — a deleted path, or a caller running
+#: outside the checkout — that read yields "" and the classifier answers "not
+#: a test", which would silently drop a lens. `test_file_subset` treats those
+#: as possible tests instead: the same include-biased direction every other
+#: ambiguity in this module already resolves toward.
+_CONTENT_PROBED_SUFFIXES = (".cs", ".java")
+
+
+def test_file_subset(changed_files, root=None):
+    """I/O boundary: which of ``changed_files`` are test files.
+
+    Reads from disk (via the shared classifier) for the content-probed
+    languages; every other family resolves by name alone. Returns a set
+    suitable for ``applicable_lenses(..., test_files=...)``. Never raises —
+    an unreadable content-probed file counts as a possible test, per
+    ``_CONTENT_PROBED_SUFFIXES``.
+    """
+    base = Path(root) if root else Path.cwd()
+    found = set()
+    for path in changed_files:
+        # ALWAYS classify the repo-relative path, never the absolute one: the
+        # classifier's `__tests__/` rule matches any path segment, so a
+        # checkout living under a directory named `__tests__` (a CI workspace
+        # at /build/__tests__/repo, say) would otherwise classify every file
+        # in the repo as a test. Content is supplied separately below so the
+        # on-disk read still happens against the real file.
+        if not path.lower().endswith(_CONTENT_PROBED_SUFFIXES):
+            if is_test_file(path):
+                found.add(path)
+            continue
+        full = base / path
+        # An empty probe means "could not read it", not "read it and found no
+        # test marker": `_read_probe` returns "" both for a file that is not
+        # there and for one that exists but raises (permissions, or a file
+        # replaced between this check and the open). Both are unprovable, so
+        # both include-bias — anything else silently drops the lens, which is
+        # the failure mode `_CONTENT_PROBED_SUFFIXES` exists to prevent.
+        probe = _read_probe(full) if full.is_file() else ""
+        if not probe or is_test_file(path, content=probe):
+            found.add(path)
+    return found
+
+
+def applicable_lenses(changed_files, roster, added_files=None, test_files=None):
     """Pure resolver. ``roster`` = ``[(name, scope, is_opus)]``. Returns
     ``(lenses, warnings)`` with lenses ordered cheap-first (non-opus, then opus).
 
@@ -350,7 +433,16 @@ def applicable_lenses(changed_files, roster, added_files=None):
     paying an opus round trip for a self-reported skip; glob list -> include
     iff any changed file matches; ``SCOPE_ON_DEMAND`` -> never include, no
     warning (a deliberate, self-declared exclusion, not a defect to
-    surface).
+    surface); ``SCOPE_TEST_FILES`` -> include iff a changed file is in
+    ``test_files``.
+
+    ``test_files`` (#1978) is the ``SCOPE_TEST_FILES`` counterpart of
+    ``added_files`` below, and follows the same fail-safe rule: ``None`` (a
+    caller with no test-file classification to offer) includes the lens and
+    records ``unnarrowed-test-files:<name>`` in ``warnings`` rather than
+    silently dropping a lens the caller never asked to narrow. A supplied
+    set — even an empty one — narrows. Callers that can reach the
+    filesystem get the set from ``test_file_subset``.
 
     ``added_files`` (#1733) narrows a ``(SCOPE_ADDED_ONLY, globs)`` scope to
     only the changed files that are also newly *added* — but **only when the
@@ -381,6 +473,12 @@ def applicable_lenses(changed_files, roster, added_files=None):
             selected.append((name, is_opus))
         elif scope == SCOPE_ON_DEMAND:
             continue  # never dispatched by the per-diff resolver, by design
+        elif scope == SCOPE_TEST_FILES:
+            if test_files is None:
+                selected.append((name, is_opus))
+                warnings.append(f"unnarrowed-test-files:{name}")
+            elif any(f in test_files for f in changed_files):
+                selected.append((name, is_opus))
         elif _is_added_only_scope(scope):
             if not _added_only_eligible(scope[1], changed_files, added_files):
                 continue
@@ -526,7 +624,13 @@ def main(argv=None) -> int:
             if error:
                 resolver_warnings.append(f"unreadable-added-from:{args.added_from}")
 
-    lenses, warnings = applicable_lenses(files, roster, added_files=added_files)
+    # Computed here, never asked of the caller: unlike `added_files` (a git
+    # change-type only the caller's diff knows), test-ness is derivable from
+    # the checkout this process can already see, so requiring a flag for it
+    # would add a way for a caller to get it wrong for no information gain.
+    lenses, warnings = applicable_lenses(
+        files, roster, added_files=added_files, test_files=test_file_subset(files)
+    )
     all_warnings = roster_warnings + resolver_warnings + warnings
     print(json.dumps({"lenses": lenses, "warnings": all_warnings}))
     return 0

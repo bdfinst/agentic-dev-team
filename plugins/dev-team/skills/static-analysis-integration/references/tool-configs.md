@@ -278,6 +278,65 @@ mypy $(python3 adapters/mypy-src-layout.py .) --output json . 2>&1 | python3 ada
 | `message` | `message` | truncated to 500 chars |
 | `severity` | `severity` | `error`→`error`, `note`→`suggestion`, unknown→`info` |
 
+### lizard
+
+```bash
+lizard --csv <target paths> | python3 adapters/lizard-adapter.py
+```
+
+- **Capability tier**: complexity metrics
+- **Install**: `python3 -m pip install lizard` (project venv / dev requirements)
+- **Install hint**: `lizard — complexity metrics. install: python3 -m pip install lizard (project venv / dev requirements)`
+- **Detection**: `command -v lizard`
+- **Presence**: not language-conditional — lizard covers ~15 languages (C/C++, C#, Java, JS/TS, Python, Go, Ruby, PHP, Swift, Kotlin, Rust, Scala, Lua, Objective-C, TTCN-3), so it is probed on every target set.
+- **Never pass `--warnings_only`**: it overrides `--csv` and emits clang-style text the adapter cannot parse (verified against lizard 1.24.0). Thresholds are applied by the adapter, not by lizard.
+- **Exit codes**: plain `--csv` exits 0 even when functions are over threshold; a non-zero exit means lizard itself failed. (`--warnings_only`, which this lane does not use, exits 1 on any warning.)
+- **Adapter**: `../adapters/lizard-adapter.py` (≤ 40 LOC) emits one finding per **threshold breach** (strictly greater than), so a clean tree produces none:
+
+| lizard CSV column (0-indexed) | Threshold | `rule_id` | Notes |
+|---|---|---|---|
+| 1 — CCN | > 10 | `lizard.complexity.cyclomatic` | fires on 10.3% of this repo's functions |
+| 4 — length | > 60 | `lizard.complexity.function-length` | function length in lines; 6.1% |
+| 3 — PARAM | > 5 | `lizard.complexity.parameter-count` | 1.4% |
+| 6 — file | — | `file` | absolute paths are relativized to cwd; run from the repo root |
+| 9 / 10 — start / end | — | `line` / `end_line` | clamped to ≥ 1 |
+| 7 — name | — | `message` prefix | the function name |
+
+  All findings carry `severity: warning` and `metadata.confidence: high` (a measurement, not a judgment), plus `metadata.metric`/`value`/`threshold` so a consumer can re-derive the comparison. Thresholds live in the adapter's `_CHECKS` table.
+
+- **Thresholds are calibrated, not guessed.** Measured over this repo's own `hooks/` + `scripts/` tree (1,247 functions): CCN p50=3 / p90=11, length p50=14 / p95=67, param p50=1 / p99=6. Each threshold sits near that tail, so the lane flags outliers instead of describing the median. Re-measure before moving one.
+
+- **Nesting depth is deliberately NOT covered here.** lizard's only nesting-ish metric is `-Ens`'s *nested-structure complexity*, and it is not max nesting depth: verified on lizard 1.24.0, a function with three sequential one-level `if`s scores **5** while a two-level nested one scores **2**. It is cumulative, so it scales with function size — over the same 1,247-function tree its median is **9**, and a threshold of 6 fired on **57%** of all functions. There is no fixed threshold that means "deeply nested", so the lane omits the metric rather than shipping a noisy one under a misleading name. **Max nesting depth is not a metric lizard exposes** — for JS/TS it is covered by ESLint's `max-depth` rule; elsewhere it remains a judgment call for `complexity-review`, which is part of why that lens keeps a charter after this lane lands.
+
+### jscpd
+
+```bash
+jscpd --reporters json --output <report-dir> --silent <target paths> \
+  && python3 adapters/jscpd-adapter.py < <report-dir>/jscpd-report.json
+```
+
+- **Capability tier**: copy-paste duplication detection
+- **Install**: `npm install -g jscpd`
+- **Install hint**: `jscpd — copy-paste duplication detection. install: npm install -g jscpd`
+- **Detection**: `command -v jscpd`
+- **Presence**: not language-conditional — jscpd tokenizes ~150 formats.
+- **The JSON reporter writes a FILE, never stdout** (`<output>/jscpd-report.json`, verified against jscpd 5.0.16), which is why the lane redirects the file into the adapter rather than piping the command. `--silent` suppresses the console reporter's own summary; it does not redirect the report.
+- **Exit code** is 0 for a normal run regardless of clones found; it is non-zero only when a `--threshold` is configured and exceeded. Do not read a clone count from the exit status.
+- **Adapter**: `../adapters/jscpd-adapter.py` (≤ 40 LOC) emits **one** finding per clone, anchored at `firstFile`, with `secondFile` named in the message — not two findings, so a clone pair is not double-counted:
+
+| jscpd report field | Unified finding field | Notes |
+|---|---|---|
+| `duplicates[].firstFile.name` | `file` | relativized to cwd |
+| `duplicates[].firstFile.start` / `.end` | `line` / `end_line` | clamped to ≥ 1 |
+| `duplicates[].secondFile.*` | `message`, `metadata.duplicate_of` | the other location |
+| `duplicates[].lines` / `.tokens` | `message` | clone size |
+| `duplicates[].format` | `metadata.format` | |
+| `duplicates[].fragment` | **dropped** | see below |
+
+- **Shared helper**: both this adapter and lizard's normalize paths through `../adapters/_envelope.py`'s `rel()`. Adapters run as standalone scripts, so `sys.path[0]` is the adapters directory and a plain `import _envelope` resolves with no path manipulation. It exists because two byte-identical copies of that function were exactly the finding this duplication lane reports.
+- **`fragment` is deliberately never copied into the finding.** It holds the duplicated source verbatim, and these findings are injected into every review agent's prompt — echoing both copies of every clone into that context is precisely the token cost this lane exists to remove.
+- **Malformed input degrades to a skip**: a report that is not valid JSON produces a `WARN` on stderr, zero findings, and exit 0 — never a pipeline failure, per the skill's graceful-degradation constraint.
+
 ## Tier 4 — legacy (pre-SARIF)
 
 ### ESLint

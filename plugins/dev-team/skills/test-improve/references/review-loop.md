@@ -16,9 +16,13 @@ write their own phase-numbered evidence file using the fixed schema below.
 
    **This loop no longer dispatches `/test-design` alongside the panel.**
    `/test-design`'s two review agents — `test-review` and
-   `test-smell-review` — both declare `Scope: always`, so
-   `scripts/select_lenses.py` already returns them in `/code-review`'s own
-   roster for any non-empty changeset. Dispatching both skills against one
+   `test-smell-review` — are both already in `/code-review`'s own roster for
+   this loop's changesets: `test-review` declares `Scope: always`, and
+   `test-smell-review` declares `Scope: test-files` (#1978), which
+   `scripts/select_lenses.py` resolves against
+   `knowledge/test-file-indicators.md`. A phase diff that adds or edits
+   tests — which is what this loop reviews, and what `refactor-mode:
+   no-refactor` guarantees — matches that scope by construction. Dispatching both skills against one
    diff paid for the same two agents, over the same files, twice per round.
    The panel still runs them; only the duplicate dispatch (and
    `/test-design`'s own orchestration/aggregation layer) is gone.
