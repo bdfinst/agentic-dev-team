@@ -5,13 +5,21 @@ N,PLR2004` and oxlint with its jsx-a11y/react-perf plugins — hand review
 agents deterministic findings where `naming-review`, `a11y-review`, and
 `performance-review` would otherwise re-derive them by inference.
 
-Where the tool is guaranteed present in CI (ruff is a declared dev
-dependency) these are **behavioral** tests that run it: a documented claim
+These are **behavioral** tests that run the real binaries: a documented claim
 about a tool's behavior is worth only as much as the run that confirms it,
 and the calibration claims here — that `PLR2004` ignores `0`/`1`, that
 `--select` does not duplicate the main lane — are exactly the kind that rot
-silently. oxlint is not installed in CI, so its probes are skip-guarded and
-the documentation contract is asserted instead.
+silently.
+
+Both tools are skip-guarded, and the ruff guard is NOT redundant caution.
+`requirements-dev.txt` governs developer machines and the `scripts/ci-local.sh`
+pre-push gate (which hard-requires ruff), **not** GitHub CI: each CI job
+installs its own narrow dependency set, and no job that runs pytest installs
+ruff — the `Lint (ruff + eslint)` job has it but runs no tests, while
+`Python ceiling` runs the suite under a uv-managed interpreter where
+`python3 -m ruff` does not resolve at all. An earlier version of this file
+assumed otherwise and turned that job red. So the real coverage guarantee
+here is the pre-push gate every contributor runs, not a CI job.
 """
 
 from __future__ import annotations
@@ -19,6 +27,7 @@ from __future__ import annotations
 import json
 import shutil
 import subprocess
+import sys
 
 import pytest
 
@@ -37,6 +46,30 @@ OXLINT_PROBE = (
 )
 
 
+def _resolve_ruff() -> list[str] | None:
+    """A runnable ruff invocation, or None. Probed rather than assumed: a
+    bare `python3 -m ruff` resolves on a dev machine and not under the
+    uv-managed interpreter the `Python ceiling` job builds."""
+    for candidate in (["ruff"], [sys.executable, "-m", "ruff"], ["python3", "-m", "ruff"]):
+        try:
+            probe = subprocess.run(
+                [*candidate, "--version"], capture_output=True, text=True,
+                timeout=60, check=False,
+            )
+        except (OSError, subprocess.SubprocessError):
+            continue
+        if probe.returncode == 0:
+            return candidate
+    return None
+
+
+RUFF_CMD = _resolve_ruff()
+ruff_required = pytest.mark.skipif(
+    RUFF_CMD is None,
+    reason="ruff not runnable here; the pre-push gate (ci-local.sh) requires it",
+)
+
+
 def _ruff_sarif(target_dir) -> list[dict]:
     """Run the documented convention probe and return its SARIF results.
 
@@ -47,9 +80,14 @@ def _ruff_sarif(target_dir) -> list[dict]:
     driver name in by hand.
     """
     proc = subprocess.run(
-        ["python3", "-m", "ruff", "check", "--select", "N,PLR2004",
-         "--output-format", "sarif", "."],
+        [*RUFF_CMD, "check", "--select", "N,PLR2004", "--output-format", "sarif", "."],
         cwd=str(target_dir), capture_output=True, text=True, timeout=120, check=False,
+    )
+    # Fail with the tool's own error rather than an opaque JSONDecodeError —
+    # empty stdout means ruff never ran, which is a different problem from
+    # ruff running and reporting nothing.
+    assert proc.stdout.strip(), (
+        f"ruff produced no stdout (exit {proc.returncode}). stderr:\n{proc.stderr}"
     )
     doc = json.loads(proc.stdout)
     assert doc["runs"][0]["tool"]["driver"]["name"] == "ruff"
@@ -61,8 +99,10 @@ def _rule_ids(results) -> set:
 
 
 # --------------------------------------------------------------------------
-# ruff convention probe — behavioral (ruff is a declared dev dependency)
+# ruff convention probe — behavioral, skip-guarded (see the module docstring
+# on why a CI job running pytest is not a job that has ruff)
 # --------------------------------------------------------------------------
+@ruff_required
 def test_convention_probe_reports_naming_and_magic_values(tmp_path):
     (tmp_path / "pyproject.toml").write_text('[tool.ruff.lint]\nselect = ["E", "F"]\n')
     (tmp_path / "svc.py").write_text(
@@ -77,6 +117,7 @@ def test_convention_probe_reports_naming_and_magic_values(tmp_path):
     assert "PLR2004" in rules, "magic value in comparison not reported"
 
 
+@ruff_required
 def test_convention_probe_finds_rules_the_project_has_not_enabled(tmp_path):
     """The whole point: a project whose own config selects only E/F still
     yields naming and magic-value context for the agents. If this stopped
@@ -84,13 +125,14 @@ def test_convention_probe_finds_rules_the_project_has_not_enabled(tmp_path):
     (tmp_path / "pyproject.toml").write_text('[tool.ruff.lint]\nselect = ["E", "F"]\n')
     (tmp_path / "svc.py").write_text("def BadName(x):\n    return x > 1000\n")
     project_run = subprocess.run(
-        ["python3", "-m", "ruff", "check", "--output-format", "sarif", "."],
+        [*RUFF_CMD, "check", "--output-format", "sarif", "."],
         cwd=str(tmp_path), capture_output=True, text=True, timeout=120, check=False,
     )
     assert _rule_ids(json.loads(project_run.stdout)["runs"][0]["results"]) == set()
     assert _rule_ids(_ruff_sarif(tmp_path))
 
 
+@ruff_required
 def test_magic_value_rule_ignores_trivial_literals(tmp_path):
     """The calibration claim in tool-configs: PLR2004's defaults exclude 0, 1
     and -1, which is why this probe runs unconditionally while the JS/TS
@@ -111,6 +153,7 @@ def test_magic_value_rule_ignores_trivial_literals(tmp_path):
         assert not any(trivial in m for m in messages), f"{trivial} should be ignored"
 
 
+@ruff_required
 def test_select_does_not_re_report_what_the_main_lane_already_covers(tmp_path):
     """`--select` (not `--extend-select`) is what keeps the probe's output
     disjoint from the main lane's, so the two invocations do not each pay to
@@ -122,6 +165,7 @@ def test_select_does_not_re_report_what_the_main_lane_already_covers(tmp_path):
     assert rules <= {"N801", "N802", "N803", "N806", "N815", "PLR2004"}
 
 
+@ruff_required
 def test_project_scoping_survives_the_probe(tmp_path):
     """A project's excludes and per-file-ignores must still apply — the probe
     adds rules, it does not take over config resolution."""
@@ -144,6 +188,7 @@ def test_project_scoping_survives_the_probe(tmp_path):
     assert not any("legacy.py" in f for f in files), "per-file-ignores was overridden"
 
 
+@ruff_required
 def test_inline_noqa_still_suppresses_a_probe_finding(tmp_path):
     """The per-site escape hatch a developer reaches for first."""
     (tmp_path / "svc.py").write_text("def ExemptedName(x):  # noqa: N802\n    return x\n")
