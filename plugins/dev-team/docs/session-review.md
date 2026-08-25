@@ -44,7 +44,7 @@ consume ground-truth data alongside the task logs. This is the canonical
 description of both the record schema and the harness-audit join;
 [`eval-system.md`](eval-system.md) links here.
 
-### Record schema (`session-digest/v1`)
+### Record schema (`session-digest/v2`)
 
 Each line is a JSON object with **aggregate counts only** — no file names,
 prompts, command strings, or code (privacy by construction):
@@ -52,12 +52,24 @@ prompts, command strings, or code (privacy by construction):
 | Field | Meaning |
 |---|---|
 | `recorded_at` | UTC ISO-8601 of the run (the only wall-clock field) |
-| `sessions`, `transcripts` | how many sessions/transcripts the digest covered |
+| `sessions` | distinct sessions covered (subagents share their parent's session, so they do not inflate it) |
+| `transcripts` / `subagent_transcripts` | main-thread sessions vs dispatched agent runs |
 | `tokens` | input/output/cache token totals |
 | `cost_usd`, `cache_hit_ratio` | session cost and cache-read efficiency |
+| `token.by_agent_type` | message counts keyed by agent name — `main`, `unattributed` where none resolves, `sidechain` for an older harness's inlined turns |
 | `rework` | counts: `failed_edits`, `repeated_file_edits`, `retried_bash_commands`, `repeated_verify_runs`, `permission_denials`, `compaction_events` |
 | `accuracy` | `tool_calls`, `tool_error_rate`, `user_correction_turns` |
-| `utilization` | counts of `skills_invoked`, `agents_invoked`, `never_observed_skills`, `never_observed_agents` |
+| `utilization` | `skills_invoked`, `agents_invoked` (RUNS), `agent_dispatches` (Agent/Task calls), `never_observed_skills`, `never_observed_agents` |
+
+**v1 records are not comparable to v2** (#1994). Before v2 the extractor
+globbed only `<project>/<sessionId>.jsonl`, so every dispatched agent's own
+transcript was unread and its tokens, tool calls and rework were missing
+entirely — on the machine that motivated this, about a third of the tokens and
+nearly half the cost. `retried_bash_commands` and `repeated_verify_runs` also
+changed basis: they are counted within one thread of execution now rather than
+per session, because subagents share their parent's `sessionId` and a
+session-keyed tally scored a review panel's siblings running one command each
+as retries. A trend stream holding both eras must split them on `schema`.
 
 ### harness-audit consumption (the join)
 

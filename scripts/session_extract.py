@@ -78,6 +78,87 @@ _COMMIT_RE = re.compile(r"\bgit\s+commit\b")
 _BYPASS_RE = re.compile(r"--no-verify|(^|\s)-n(\s|$)")
 
 
+# Agent transcripts are `agent-<id>.jsonl` (see _is_transcript_path).
+_AGENT_TRANSCRIPT_RE = re.compile(r"^agent-[0-9A-Za-z_-]{1,64}\.jsonl$")
+# Every string that becomes a digest KEY passes _safe_name: these arrive from
+# transcript files this script does not author, and the digest's own privacy
+# contract is names-only.
+_SAFE_NAME_RE = re.compile(r"^[A-Za-z0-9._:-]{1,64}$")
+_UNSAFE_NAME = "other"
+# `attributionAgent` values naming a harness ROLE rather than an agent. Every
+# real Workflow-dispatched transcript carries "workflow-subagent"; unfiltered
+# they become phantom agents while the agent that actually ran stays in
+# never_observed_agents — the #1990 symptom itself.
+_HARNESS_ATTRIBUTIONS = frozenset({"workflow-subagent", "claude"})
+_MAIN_LABEL = "main"
+_UNATTRIBUTED_LABEL = "unattributed"
+
+
+def _safe_name(value: str) -> str:
+    """Reduce an input-derived string to something safe to emit as a key."""
+    return value if _SAFE_NAME_RE.match(value) else _UNSAFE_NAME
+
+
+def _is_transcript_path(root: Path, path: Path) -> bool:
+    """Whether a `.jsonl` under `root` is a transcript this extractor reads.
+
+    Decided by DEPTH, not by filename shape. A `.jsonl` sitting directly in a
+    project directory is a main-thread session whatever it is called — the
+    harness uses `<sessionId>.jsonl`, but nothing guarantees that and a
+    name-shape filter silently drops any session that differs, which is a
+    worse failure than the one it prevents.
+
+    Below `subagents/` the rule tightens, because that is the only place the
+    harness writes NON-transcript bookkeeping next to transcripts:
+    `subagents/workflows/<runId>/journal.jsonl` holds `{"type", "key",
+    "agentId"}` records with no `cwd`. Counting it as an agent run inflated the
+    run tally and, having no `cwd`, sent project labelling down a fallback that
+    leaked a path-derived slug (#1991). Agent transcripts are `agent-<id>.jsonl`.
+    """
+    try:
+        parts = path.relative_to(root).parts
+    except ValueError:
+        return False
+    if len(parts) < 2:
+        return False
+    if "subagents" in parts:
+        return bool(_AGENT_TRANSCRIPT_RE.match(path.name))
+    return len(parts) == 2
+
+
+def _is_subagent_transcript(root: Path, path: Path) -> bool:
+    """A dispatched agent's own run, at any nesting depth below `root`.
+
+    A plain Agent dispatch writes `<project>/<sessionId>/subagents/agent-*.jsonl`;
+    a Workflow's agents nest one level further under `subagents/workflows/<runId>/`.
+    Ask the path BELOW the root: `projects_root` defaults to `~/.claude/projects`
+    and carries the user's home directory, so a matching segment in that prefix
+    would answer for the whole tree.
+    """
+    try:
+        parts = path.relative_to(root).parts
+    except ValueError:
+        parts = path.parts
+    return "subagents" in parts
+
+
+def _all_transcripts_under(root: Path) -> list[Path]:
+    """Every transcript under `root`, main-thread and subagent alike.
+
+    Globbing only `*/*.jsonl` made every dispatched agent invisible (#1990) —
+    silently, since subagent records ARE marked `isSidechain: true`; they simply
+    live in files nothing opened. Recurse rather than enumerate known depths.
+    """
+    return sorted(
+        (
+            p
+            for p in root.glob("*/**/*.jsonl")
+            if p.is_file() and not p.is_symlink() and _is_transcript_path(root, p)
+        ),
+        key=lambda p: str(p),
+    )
+
+
 def _strip_ns(name: str) -> str:
     """Drop known plugin namespace prefixes so invoked names match the registry
     (registry entries are bare dir/file stems). `dev-team:plan` -> `plan`;
@@ -196,12 +277,11 @@ def _accumulate_token_signals(
     tokens_total: Counter,
     by_model: dict[str, Counter],
     by_skill: dict[str, Counter],
-    by_subagent: Counter,
+    thread_msgs_inc: None = None,
 ) -> float:
     """Token-accounting concern: usage/cost totals split by model, skill, and
     main-thread vs sidechain. Returns this record's cost (added to the running
     cost_total by the caller)."""
-    by_subagent["sidechain" if is_sidechain else "main"] += 1
     fields = (
         "input_tokens",
         "output_tokens",
@@ -227,7 +307,7 @@ def _accumulate_skill_agent_signals(
     skill,
     content,
     skills_invoked: Counter,
-    agents_invoked: Counter,
+    agent_dispatches: Counter,
     active: dict[str, str | None],
 ) -> None:
     """Skill/agent-detection concern. `skill` is the legacy attributionSkill
@@ -235,7 +315,12 @@ def _accumulate_skill_agent_signals(
     `content`'s tool_use blocks are the primary signal: the Skill tool and the
     Agent/Task tool that actually invoke them (#182). `active` tracks the
     most-recently-invoked skill/agent (#711), sticky until superseded, for the
-    correction-turn concern to attribute against."""
+    correction-turn concern to attribute against.
+
+    Counts DISPATCHES, not runs: a dispatch made from inside a subagent is
+    only visible in that subagent's own transcript, and a dispatch whose
+    transcript is absent never ran. Run counts come from `attributionAgent`
+    (#1994)."""
     if skill:
         skills_invoked[skill] += 1
     if not isinstance(content, list):
@@ -253,7 +338,7 @@ def _accumulate_skill_agent_signals(
         elif name in ("Agent", "Task"):
             a = inp.get("subagent_type")
             if isinstance(a, str) and a:
-                agents_invoked[_strip_ns(a)] += 1
+                agent_dispatches[_safe_name(_strip_ns(a))] += 1
                 active["agent"] = _strip_ns(a)
 
 
@@ -364,18 +449,33 @@ def _slim(d: dict) -> dict:
 
 
 def extract(
-    paths: list[Path], pricing: dict, registry: dict, plugin_version: str = "unknown"
+    paths: list[Path],
+    pricing: dict,
+    registry: dict,
+    plugin_version: str = "unknown",
+    projects_root: Path | None = None,
 ) -> dict:
     tokens_total = Counter()
     cost_total = 0.0
     by_model: dict[str, Counter] = defaultdict(Counter)
     by_skill: dict[str, Counter] = defaultdict(Counter)
-    by_subagent = Counter()  # main-thread vs sidechain message counts
+    # Message counts keyed by AGENT NAME — `main` for the main thread,
+    # `unattributed` where no agent is resolvable. Renamed from `by_subagent`
+    # (#1994): that name meant "sidechain vs main" here while the shipped
+    # report used the same path for agent-name attribution, and `by_agent_type`
+    # is the plugin's settled vocabulary for this map
+    # (knowledge/telemetry-schema.md, cost-metering).
+    by_agent_type = Counter()
+    agent_runs = Counter()  # one subagent transcript is one run
+    agent_dispatches = Counter()  # Agent/Task tool_use calls
+    subagent_transcripts = 0
+    main_transcripts = 0
+    subagent_layout_present = False
     sessions: set[str] = set()
 
     # rework / accuracy
     edits_per_file = Counter()
-    bash_commands = Counter()
+    retried_bash_total = 0
     # repeated_verify_runs (#708): mirrors verify_guard.py's own stuck-loop
     # detection — a "repeat" is the same normalized verify command run again
     # with NO Edit/Write/NotebookEdit/MultiEdit call since the previous verify
@@ -397,7 +497,7 @@ def extract(
 
     # utilization
     skills_invoked = Counter()
-    agents_invoked = Counter()
+    agent_dispatches = Counter()
 
     # map tool_use id -> tool name, to attribute tool_result errors back
     pending_tool: dict[str, str] = {}
@@ -407,82 +507,148 @@ def extract(
     # format, so "most recent invocation" is the only signal available.
     active: dict[str, str | None] = {"skill": None, "agent": None}
 
-    for rec in _iter_records(paths):
-        sid = rec.get("sessionId") or rec.get("session_id")
-        if sid:
-            sessions.add(str(sid))
-        rtype = rec.get("type")
-        is_sidechain = bool(rec.get("isSidechain"))
-        # attributionSkill is a legacy/secondary tag — the harness does not emit
-        # it on real transcripts (#182), so utilization is driven by the Skill /
-        # Agent tool_use below. Kept here only as a fallback for records that do
-        # carry it (and per-skill token attribution via by_skill).
-        skill = rec.get("attributionSkill") or rec.get("attribution_skill")
+    # One transcript file is one thread of execution: a main-thread session, or
+    # a single dispatched agent's run. Bash history, verify state, pending
+    # tool_use ids and the sticky skill/agent attribution are scoped per FILE
+    # rather than per sessionId — subagents share their parent's session, so a
+    # session-keyed tally scores a review panel's fifteen siblings each running
+    # `git diff --cached` once as fourteen retries (#1994, porting #1991).
+    root = projects_root or Path.home() / ".claude" / "projects"
+    for path in paths:
+        is_subagent = _is_subagent_transcript(root, path)
+        if is_subagent:
+            subagent_layout_present = True
+        agent_name: str | None = None
+        thread_msgs = 0
+        records_seen = 0
+        bash_commands = Counter()
+        last_verify_norm = {}
+        verify_edited_since = {}
+        pending_tool = {}
+        active = {"skill": None, "agent": None}
 
-        # compaction markers
-        if (
-            rtype in ("compaction", "summary")
-            or rec.get("isCompactSummary")
-            or rec.get("compactMetadata")
-        ):
-            compaction_events += 1
+        for rec in _iter_records([path]):
+            records_seen += 1
+            sid = rec.get("sessionId") or rec.get("session_id")
+            if sid:
+                sessions.add(str(sid))
+            if is_subagent and agent_name is None:
+                attributed = rec.get("attributionAgent")
+                if isinstance(attributed, str) and attributed:
+                    stripped = _strip_ns(attributed)
+                    # A harness ROLE is not an agent name. Emitting it would
+                    # invent an agent while leaving the one that really ran in
+                    # never_observed_agents.
+                    if stripped not in _HARNESS_ATTRIBUTIONS:
+                        agent_name = _safe_name(stripped)
+            rtype = rec.get("type")
+            is_sidechain = bool(rec.get("isSidechain")) or is_subagent
+            # attributionSkill is a legacy/secondary tag — the harness does not emit
+            # it on real transcripts (#182), so utilization is driven by the Skill /
+            # Agent tool_use below. Kept here only as a fallback for records that do
+            # carry it (and per-skill token attribution via by_skill).
+            skill = rec.get("attributionSkill") or rec.get("attribution_skill")
 
-        msg = rec.get("message") if isinstance(rec.get("message"), dict) else {}
-        usage = (
-            msg.get("usage")
-            if isinstance(msg.get("usage"), dict)
-            else (rec.get("usage") if isinstance(rec.get("usage"), dict) else None)
-        )
-        model = msg.get("model") or rec.get("model")
+            # compaction markers
+            if (
+                rtype in ("compaction", "summary")
+                or rec.get("isCompactSummary")
+                or rec.get("compactMetadata")
+            ):
+                compaction_events += 1
 
-        if usage:
-            cost_total += _accumulate_token_signals(
-                usage,
-                model,
-                skill,
-                is_sidechain,
-                pricing,
-                tokens_total,
-                by_model,
-                by_skill,
-                by_subagent,
+            msg = rec.get("message") if isinstance(rec.get("message"), dict) else {}
+            usage = (
+                msg.get("usage")
+                if isinstance(msg.get("usage"), dict)
+                else (rec.get("usage") if isinstance(rec.get("usage"), dict) else None)
+            )
+            model = msg.get("model") or rec.get("model")
+
+            if usage:
+                if is_subagent:
+                    # The whole file is one agent's run; its label is resolved
+                    # once, at end of file, from `attributionAgent`.
+                    thread_msgs += 1
+                else:
+                    # A MAIN transcript. An older harness inlined sidechain
+                    # turns here rather than in their own file, and
+                    # `isSidechain` is the only attribution those carry — so
+                    # bucket per record. Labelling the whole file from one
+                    # inlined record would retitle the main thread (#1991).
+                    rec_agent = rec.get("attributionAgent")
+                    if isinstance(rec_agent, str) and rec_agent:
+                        stripped_rec = _strip_ns(rec_agent)
+                        inline_label = (
+                            _UNATTRIBUTED_LABEL
+                            if stripped_rec in _HARNESS_ATTRIBUTIONS
+                            else _safe_name(stripped_rec)
+                        )
+                    elif is_sidechain:
+                        inline_label = "sidechain"
+                    else:
+                        inline_label = _MAIN_LABEL
+                    by_agent_type[inline_label] += 1
+                cost_total += _accumulate_token_signals(
+                    usage,
+                    model,
+                    skill,
+                    is_sidechain,
+                    pricing,
+                    tokens_total,
+                    by_model,
+                    by_skill,
+                )
+
+            content = msg.get("content")
+            _accumulate_skill_agent_signals(
+                skill, content, skills_invoked, agent_dispatches, active
             )
 
-        content = msg.get("content")
-        _accumulate_skill_agent_signals(
-            skill, content, skills_invoked, agents_invoked, active
-        )
+            # walk content blocks for tool_use / tool_result
+            if isinstance(content, list):
+                for block in content:
+                    if not isinstance(block, dict):
+                        continue
+                    btype = block.get("type")
+                    if btype == "tool_use":
+                        _track_tool_call(block, pending_tool, tool_calls)
+                        _track_edit(block, sid, edits_per_file, verify_edited_since)
+                        _track_bash(
+                            block,
+                            sid,
+                            bash_commands,
+                            bash_signal_counts,
+                            last_verify_norm,
+                            verify_edited_since,
+                        )
+                    elif btype == "tool_result":
+                        _classify_tool_result(
+                            block, pending_tool, tool_errors, error_counts
+                        )
 
-        # walk content blocks for tool_use / tool_result
-        if isinstance(content, list):
-            for block in content:
-                if not isinstance(block, dict):
-                    continue
-                btype = block.get("type")
-                if btype == "tool_use":
-                    _track_tool_call(block, pending_tool, tool_calls)
-                    _track_edit(block, sid, edits_per_file, verify_edited_since)
-                    _track_bash(
-                        block,
-                        sid,
-                        bash_commands,
-                        bash_signal_counts,
-                        last_verify_norm,
-                        verify_edited_since,
-                    )
-                elif btype == "tool_result":
-                    _classify_tool_result(
-                        block, pending_tool, tool_errors, error_counts
-                    )
+            if _detect_correction_turn(rec, content):
+                correction_turns += 1
+                correction_by_skill[active["skill"] or "unattributed"] += 1
+                correction_by_agent[active["agent"] or "unattributed"] += 1
 
-        if _detect_correction_turn(rec, content):
-            correction_turns += 1
-            correction_by_skill[active["skill"] or "unattributed"] += 1
-            correction_by_agent[active["agent"] or "unattributed"] += 1
+        # A file's agent name is only known once a record carrying
+        # `attributionAgent` has been seen, so thread-level attribution is
+        # resolved here rather than per record.
+        label = agent_name or (_UNATTRIBUTED_LABEL if is_subagent else _MAIN_LABEL)
+        if thread_msgs:  # `+= 0` would materialize a zero-valued key
+            by_agent_type[label] += thread_msgs
+        if records_seen and is_subagent:
+            subagent_transcripts += 1
+            agent_runs[label] += 1
+        elif records_seen:
+            main_transcripts += 1
+        retried_bash_total += sum(n - 1 for n in bash_commands.values() if n > 1)
 
-    # repeated edits / retried bash (>1 occurrence)
+    # repeated edits (project-wide: a file is shared state) / retried bash
+    # (per thread: a retry is a property of one agent's own loop).
     repeated_file_edits = {f: n for f, n in edits_per_file.items() if n > 1}
-    retried_bash = sum(n - 1 for n in bash_commands.values() if n > 1)
+    retried_bash = retried_bash_total
     failed_edits = error_counts["failed_edits"]
     permission_denials = error_counts["permission_denials"]
     repeated_verify_runs = bash_signal_counts["repeated_verify_runs"]
@@ -490,10 +656,16 @@ def extract(
     commit_bypasses = bash_signal_counts["commit_bypasses"]
 
     # never-observed registry items
+    # Run counts are ground truth where subagent transcripts exist (one file
+    # per run, named by `attributionAgent`). A tree written by an older harness
+    # has none, so fall back to dispatch counts rather than reporting zero.
+    agents_invoked = agent_runs if subagent_layout_present else agent_dispatches
     reg_skills = set(registry.get("skills", []))
     reg_agents = set(registry.get("agents", []))
     never_skills = sorted(reg_skills - set(skills_invoked))
-    never_agents = sorted(reg_agents - set(agents_invoked))
+    # Observed by EITHER signal counts as observed — an agent that ran but
+    # whose dispatch came from inside another agent, and vice versa.
+    never_agents = sorted(reg_agents - set(agents_invoked) - set(agent_dispatches))
 
     cr = tokens_total["cache_read_input_tokens"]
     cc = tokens_total["cache_creation_input_tokens"]
@@ -503,16 +675,23 @@ def extract(
     total_calls = sum(tool_calls.values())
 
     return {
-        "schema": "session-digest/v1",
+        # v2 (#1994): subagent transcripts are counted for the first time, so
+        # token/tool-call/rework totals all jump, and retried_bash_commands /
+        # repeated_verify_runs changed basis from session-keyed to per-thread.
+        # Correct, but NOT comparable with any v1 record already in a trend
+        # stream — a consumer has to be able to tell the two eras apart.
+        "schema": "session-digest/v2",
         "plugin_version": plugin_version,
         "sessions": len(sessions),
+        "transcripts": main_transcripts,
+        "subagent_transcripts": subagent_transcripts,
         "token": {
             "totals": dict(sorted(tokens_total.items())),
             "cost_usd": round(cost_total, 4),
             "cache_hit_ratio": cache_hit_ratio,
             "by_model": _slim(by_model),
             "by_skill": _slim(by_skill),
-            "by_subagent": dict(sorted(by_subagent.items())),
+            "by_agent_type": dict(sorted(by_agent_type.items())),
         },
         "rework": {
             "failed_edits": failed_edits,
@@ -542,6 +721,7 @@ def extract(
         "utilization": {
             "skills_invoked": dict(sorted(skills_invoked.items())),
             "agents_invoked": dict(sorted(agents_invoked.items())),
+            "agent_dispatches": dict(sorted(agent_dispatches.items())),
             "never_observed_skills": never_skills,
             "never_observed_agents": never_agents,
         },
@@ -574,7 +754,7 @@ def resolve_transcripts(args) -> list[Path]:
     if not root.is_dir():
         return []
     matches: list[Path] = []
-    for jsonl in root.glob("*/*.jsonl"):
+    for jsonl in _all_transcripts_under(root):
         try:
             with jsonl.open(encoding="utf-8") as fh:
                 for _ in range(20):  # cwd appears on the earliest records
@@ -591,7 +771,7 @@ def resolve_transcripts(args) -> list[Path]:
                         break
         except OSError:
             continue
-    return sorted(matches, key=lambda x: x.name)
+    return sorted(matches, key=lambda x: str(x))
 
 
 def resolve_all_transcripts(args) -> list[Path]:
@@ -604,7 +784,7 @@ def resolve_all_transcripts(args) -> list[Path]:
     root = Path(args.projects_root or (Path.home() / ".claude" / "projects"))
     if not root.is_dir():
         return []
-    return sorted(root.glob("*/*.jsonl"), key=lambda x: x.name)
+    return _all_transcripts_under(root)
 
 
 def _project_and_ts(path: Path) -> tuple[str, str]:
@@ -640,7 +820,7 @@ def sync_record(
         m: dict(sorted(v.items())) for m, v in sorted(tok.get("by_model", {}).items())
     }
     return {
-        "schema": "session-sync/v1",
+        "schema": "session-sync/v2",
         "plugin_version": digest.get("plugin_version", "unknown"),
         "host": host,
         "project": project,
@@ -652,7 +832,11 @@ def sync_record(
         "cost_usd": base["cost_usd"],
         "cache_hit_ratio": base["cache_hit_ratio"],
         "by_model": by_model,
-        "by_thread": tok.get("by_subagent", {}),
+        # `by_thread` on the sync record has always meant "message counts per
+        # thread"; extract() now supplies them keyed by AGENT NAME rather than
+        # by "sidechain"/"main" (#1994), which is strictly more information at
+        # the same field. The v1 fallback keeps a pre-#1994 digest readable.
+        "by_thread": tok.get("by_agent_type", tok.get("by_subagent", {})),
         "rework": base["rework"],
         # #711: by_skill/by_agent correction attribution comes from the FULL
         # digest (not slim_record, which deliberately drops per-name maps) —
@@ -709,6 +893,7 @@ def cmd_sync(
     else:
         paths = resolve_all_transcripts(args)
 
+    root = Path(args.projects_root or (Path.home() / ".claude" / "projects"))
     emitted = 0
     out.parent.mkdir(parents=True, exist_ok=True)
     with out.open("a", encoding="utf-8") as fh:
@@ -722,7 +907,9 @@ def cmd_sync(
             if isinstance(prev, int) and prev >= size:
                 continue  # already synced and unchanged
             project, ts = _project_and_ts(path)
-            digest = extract([path], pricing, registry, plugin_version)
+            digest = extract(
+                [path], pricing, registry, plugin_version, projects_root=root
+            )
             rec = sync_record(digest, host, project, session_id, ts)
             fh.write(json.dumps(rec, sort_keys=True) + "\n")
             synced[session_id] = size
@@ -759,7 +946,7 @@ def _read_synced_records(digests_root: Path) -> list[dict]:
     by_id: dict[str, dict] = {}
     for f in sorted(digests_root.glob("*/session-digest.jsonl")):
         for rec in _iter_records([f]):
-            if rec.get("schema") != "session-sync/v1":
+            if rec.get("schema") not in ("session-sync/v1", "session-sync/v2"):
                 continue
             sid = rec.get("session_id")
             if sid:
@@ -843,6 +1030,7 @@ def rollup(
     correction_by_agent = Counter()
     skills_invoked = Counter()
     agents_invoked = Counter()
+    agent_dispatches = Counter()
     by_host: dict[str, Counter] = defaultdict(Counter)
     by_project: dict[str, Counter] = defaultdict(Counter)
 
@@ -893,6 +1081,8 @@ def rollup(
             skills_invoked[_strip_ns(name)] += k
         for name, k in (u.get("agents_invoked", {}) or {}).items():
             agents_invoked[_strip_ns(name)] += k
+        for name, k in (u.get("agent_dispatches", {}) or {}).items():
+            agent_dispatches[_strip_ns(name)] += k
 
     never_skills = sorted(set(registry.get("skills", [])) - set(skills_invoked))
     never_agents = sorted(set(registry.get("agents", [])) - set(agents_invoked))
@@ -924,6 +1114,7 @@ def rollup(
         "utilization": {
             "skills_invoked": dict(sorted(skills_invoked.items())),
             "agents_invoked": dict(sorted(agents_invoked.items())),
+            "agent_dispatches": dict(sorted(agent_dispatches.items())),
             "never_observed_skills": never_skills,
             "never_observed_agents": never_agents,
         },
@@ -1350,8 +1541,11 @@ def main(argv=None) -> int:
         else resolve_transcripts(args)
     )
 
-    digest = extract(paths, pricing, registry, version)
-    digest["transcripts"] = len(paths)
+    root = Path(args.projects_root or (Path.home() / ".claude" / "projects"))
+    digest = extract(paths, pricing, registry, version, projects_root=root)
+    # `transcripts` is set by extract() and counts MAIN-thread sessions only;
+    # `subagent_transcripts` counts dispatched agent runs. Overwriting it with
+    # len(paths) here would report every file as a session (#1994).
     out = json.dumps(digest, indent=2, sort_keys=True)
     if args.out:
         Path(args.out).write_text(out + "\n")

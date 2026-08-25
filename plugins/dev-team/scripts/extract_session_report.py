@@ -65,8 +65,7 @@ _EDIT_TOOLS = {"Edit", "Write", "NotebookEdit", "MultiEdit"}
 _COMMIT_RE = re.compile(r"\bgit\s+commit\b")
 _BYPASS_RE = re.compile(r"--no-verify|(^|\s)-n(\s|$)")
 _VERSION_RE = re.compile(r"^[0-9A-Za-z._+-]{1,32}$")
-# Transcript filename shapes this extractor understands (see _is_transcript_name).
-_MAIN_TRANSCRIPT_RE = re.compile(r"^[0-9a-fA-F-]{8,64}\.jsonl$")
+# Agent transcripts are `agent-<id>.jsonl` (see _is_transcript_path).
 _AGENT_TRANSCRIPT_RE = re.compile(r"^agent-[0-9A-Za-z_-]{1,64}\.jsonl$")
 # Every string that becomes a REPORT KEY passes _safe_name. The privacy
 # guarantee in the module docstring ("names, never full paths"; no prompt text)
@@ -182,17 +181,31 @@ def _is_subagent_transcript(projects_root: Path, path: Path) -> bool:
     return "subagents" in _relative_parts(projects_root, path)
 
 
-def _is_transcript_name(name: str) -> bool:
-    """Whether a `.jsonl` filename is a shape this extractor understands.
+def _is_transcript_path(root: Path, path: Path) -> bool:
+    """Whether a `.jsonl` under `root` is a transcript this extractor reads.
 
-    Not every `.jsonl` under a project directory is a transcript: the harness
-    also writes bookkeeping alongside them (`subagents/workflows/<runId>/
-    journal.jsonl`, whose records carry only `{"type", "key", "agentId"}`).
-    Recursing without this check swept those in as agent runs and — because
-    they carry no `cwd` — sent project labelling down the fallback that
-    emitted a raw path-derived slug. Match the two real shapes instead, so an
-    unrecognized future sibling is ignored rather than miscounted."""
-    return bool(_MAIN_TRANSCRIPT_RE.match(name) or _AGENT_TRANSCRIPT_RE.match(name))
+    Decided by DEPTH, not by filename shape. A `.jsonl` sitting directly in a
+    project directory is a main-thread session whatever it is called — the
+    harness uses `<sessionId>.jsonl`, but nothing guarantees that and a
+    name-shape filter silently drops any session that differs, which is a
+    worse failure than the one it prevents.
+
+    Below `subagents/` the rule tightens, because that is the only place the
+    harness writes NON-transcript bookkeeping next to transcripts:
+    `subagents/workflows/<runId>/journal.jsonl` holds `{"type", "key",
+    "agentId"}` records with no `cwd`. Counting it as an agent run inflated the
+    run tally and, having no `cwd`, sent project labelling down a fallback that
+    leaked a path-derived slug (#1991). Agent transcripts are `agent-<id>.jsonl`.
+    """
+    try:
+        parts = path.relative_to(root).parts
+    except ValueError:
+        return False
+    if len(parts) < 2:
+        return False
+    if "subagents" in parts:
+        return bool(_AGENT_TRANSCRIPT_RE.match(path.name))
+    return len(parts) == 2
 
 
 def _load_plugin_version(plugin_root: Path) -> str:
@@ -655,7 +668,7 @@ def _all_transcripts(projects_root: Path) -> list[Path]:
         [
             p
             for p in projects_root.glob("*/**/*.jsonl")
-            if p.is_file() and not p.is_symlink() and _is_transcript_name(p.name)
+            if p.is_file() and not p.is_symlink() and _is_transcript_path(projects_root, p)
         ]
     )
 

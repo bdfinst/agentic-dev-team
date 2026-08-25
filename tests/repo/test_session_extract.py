@@ -44,11 +44,11 @@ def _digest() -> dict:
 
 def test_extract_token_signals() -> None:
     digest = _digest()
-    assert digest["schema"] == "session-digest/v1"
+    assert digest["schema"] == "session-digest/v2"
     assert digest["sessions"] == 1
     assert digest["token"]["totals"]["input_tokens"] == 4100
     assert digest["token"]["cache_hit_ratio"] == 0.8
-    assert digest["token"]["by_subagent"]["sidechain"] == 1
+    assert digest["token"]["by_agent_type"]["sidechain"] == 1
     assert digest["token"]["by_skill"]["code-review"]["input_tokens"] == 1500
 
 

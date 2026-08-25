@@ -250,7 +250,13 @@ aggregate counts only, no file names, prompts, command strings, or code.
 | `cost_usd`, `cache_hit_ratio` | number | Session cost and cache-read efficiency |
 | `rework` | object | `failed_edits`, `repeated_file_edits`, `retried_bash_commands`, `repeated_verify_runs`, `permission_denials`, `compaction_events` |
 | `accuracy` | object | `tool_calls`, `tool_error_rate`, `user_correction_turns` |
-| `utilization` | object | `skills_invoked`, `agents_invoked`, `never_observed_skills`, `never_observed_agents` |
+| `utilization` | object | `skills_invoked`, `agents_invoked` (agent RUNS), `agent_dispatches` (Agent/Task tool calls), `never_observed_skills`, `never_observed_agents` |
+
+`session-digest/v2` (#1994) counts dispatched agents' own transcripts for the
+first time, so token/tool-call/rework totals jump against v1, and
+`retried_bash_commands` / `repeated_verify_runs` moved from a session-keyed to
+a per-thread basis. Records from the two eras are not comparable; split on
+`schema` before trending.
 
 - **Emitter:** `/session-review` skill via `scripts/session_extract.py`.
 - **Consent:** unconditional (aggregate counts only, no file/prompt/command content).
