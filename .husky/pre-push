@@ -37,11 +37,19 @@ done
 # during ci-local's execution (because of a fixture bats bug or any other
 # reason), refuse the push loudly instead of proceeding on corrupted local
 # state. POSIX sh only — no [[, no arrays, no process substitution.
-PRE_REFS_FILE="$(mktemp -t prepush-refs-pre-XXXXXX)"
-POST_REFS_FILE="$(mktemp -t prepush-refs-post-XXXXXX)"
-EXEMPT_REFS_FILE="$(mktemp -t prepush-refs-exempt-XXXXXX)"
-DRIFT_FILE="$(mktemp -t prepush-refs-drift-XXXXXX)"
-PRE_WORKTREE_PATHS_FILE="$(mktemp -t prepush-worktree-paths-pre-XXXXXX)"
+# `mktemp -t PREFIX` is NOT portable and the difference is silent (issue #1993).
+# GNU coreutils treats PREFIX as a template and honors $TMPDIR; BSD/macOS treats
+# it as a literal prefix, ignores $TMPDIR entirely, and resolves the per-user
+# temp dir via confstr(_CS_DARWIN_USER_TEMP_DIR) instead — so the file lands in
+# /var/folders/... no matter what $TMPDIR says. Passing a full template path
+# behaves identically on both. POSIX sh, same as the rest of this hook.
+_prepush_mktemp() { mktemp "${TMPDIR:-/tmp}/$1-XXXXXX"; }
+
+PRE_REFS_FILE="$(_prepush_mktemp prepush-refs-pre)"
+POST_REFS_FILE="$(_prepush_mktemp prepush-refs-post)"
+EXEMPT_REFS_FILE="$(_prepush_mktemp prepush-refs-exempt)"
+DRIFT_FILE="$(_prepush_mktemp prepush-refs-drift)"
+PRE_WORKTREE_PATHS_FILE="$(_prepush_mktemp prepush-worktree-paths-pre)"
 trap 'rm -f "$PRE_REFS_FILE" "$POST_REFS_FILE" "$EXEMPT_REFS_FILE" "$DRIFT_FILE" "$PRE_WORKTREE_PATHS_FILE"' EXIT
 git for-each-ref --format='%(refname) %(objectname)' refs/heads/ > "$PRE_REFS_FILE"
 SELF_REF="$(git symbolic-ref -q HEAD 2>/dev/null || true)"

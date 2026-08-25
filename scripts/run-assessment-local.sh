@@ -149,7 +149,8 @@ for bin in python3 jq; do
 done
 
 # Scratch directory for intermediate SARIF
-SARIF_DIR="$(mktemp -d -t run-assess-XXXXXX)"
+# Full template path, not `-t` — see .husky/pre-push (issue #1993).
+SARIF_DIR="$(mktemp -d "${TMPDIR:-/tmp}/run-assess-XXXXXX")"
 trap 'rm -rf "$SARIF_DIR"' EXIT
 
 # Tool availability bookkeeping
