@@ -94,6 +94,34 @@ prompt text, code, or command strings. The user sends the resulting file to
 the maintainer themselves (e.g. over MS Teams); the script has no network
 code and never transmits anything on its own.
 
+### Report schema (`downstream-session-report/v2`)
+
+Alongside the main-thread session at `<project>/<sessionId>.jsonl`, every
+dispatched agent writes its own transcript under
+`<project>/<sessionId>/subagents/` (a Workflow's agents nest one level deeper
+still). Both are read. Two fields distinguish the two signals a reader will
+otherwise conflate:
+
+| Field | Meaning |
+|---|---|
+| `transcripts` / `subagent_transcripts` | main-thread sessions vs dispatched agent runs |
+| `token.by_subagent` | message counts keyed by agent name, `main` for the main thread |
+| `utilization.agents_invoked` | agent RUNS, from each subagent transcript's `attributionAgent` — ground truth |
+| `utilization.agent_dispatches` | `Agent`/`Task` tool calls, i.e. dispatches requested |
+
+Runs and dispatches legitimately differ: a dispatch made from inside another
+agent appears only in that agent's own transcript, and a dispatch whose
+transcript is absent never ran. `agents_invoked` falls back to dispatch counts
+for a tree written by an older harness that produced no subagent transcripts.
+
+**v1 reports are not comparable to v2.** Before v2 (issue #1990) the extractor
+globbed only the main-thread layout, so subagent tokens, tool calls and runs
+were missing entirely — on the report that surfaced the bug, 41% of total spend.
+`retried_bash_commands` and `repeated_verify_runs` also changed basis in v2:
+they are now counted within one thread of execution rather than across a whole
+project, because subagents share their parent's `sessionId` and a session-keyed
+tally scores a review panel's siblings running one command each as retries.
+
 ## OSS complements (#130)
 
 For continuous *quantitative* monitoring, reach for `ccusage`, native
@@ -108,3 +136,4 @@ cannot, since they don't know this plugin's agents and skills. See
 - #128 — `/session-review` skill + `session-analysis` agent + report
 - #129 — trend digest persistence + harness-audit consumption
 - #130 — document OSS complements
+- #1990 — count subagent transcripts (`downstream-session-report/v2`)

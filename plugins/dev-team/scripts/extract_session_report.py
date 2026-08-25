@@ -90,20 +90,41 @@ def _text_of(content) -> str:
     return ""
 
 
-def _iter_records(paths: list[Path]):
-    for p in sorted(paths, key=lambda x: x.name):
-        try:
-            lines = p.read_text(encoding="utf-8", errors="replace").splitlines()
-        except OSError:
+def _iter_file_records(path: Path):
+    """Yield every decodable JSON record in one transcript file, in order."""
+    try:
+        lines = path.read_text(encoding="utf-8", errors="replace").splitlines()
+    except OSError:
+        return
+    for line in lines:
+        line = line.strip()
+        if not line:
             continue
-        for line in lines:
-            line = line.strip()
-            if not line:
-                continue
-            try:
-                yield json.loads(line)
-            except json.JSONDecodeError:
-                continue
+        try:
+            yield json.loads(line)
+        except json.JSONDecodeError:
+            continue
+
+
+def _sorted_paths(paths: list[Path]) -> list[Path]:
+    """Total order over transcript paths. Sorting on `Path.name` alone stopped
+    being a total order once subagent transcripts (a second directory level)
+    joined the scan, which would break the determinism guarantee in the module
+    docstring; sort on the full path string instead."""
+    return sorted(paths, key=lambda p: str(p))
+
+
+def _is_subagent_transcript(path: Path) -> bool:
+    """A dispatched agent's own run, as opposed to a main-thread session.
+
+    Depth varies by dispatch route — a plain Agent dispatch writes
+    `<project>/<sessionId>/subagents/agent-<id>.jsonl`, while a Workflow's
+    agents nest one level further under
+    `<project>/<sessionId>/subagents/workflows/<runId>/agent-<id>.jsonl`.
+    Match on the `subagents` path segment rather than on a fixed depth, so a
+    future layout with another level does not silently go uncounted the way
+    the workflow layout did."""
+    return "subagents" in path.parts
 
 
 def _load_plugin_version(plugin_root: Path) -> str:
@@ -136,8 +157,7 @@ def load_registry(plugin_root: Path) -> dict:
 # --- per-record signal accumulation (adapted from session_extract.py) -------
 
 
-def _accumulate_token_signals(usage, model, is_sidechain, tokens_total, by_model, by_subagent):
-    by_subagent["sidechain" if is_sidechain else "main"] += 1
+def _accumulate_token_signals(usage, model, tokens_total, by_model):
     for f in (
         "input_tokens",
         "output_tokens",
@@ -150,7 +170,12 @@ def _accumulate_token_signals(usage, model, is_sidechain, tokens_total, by_model
             by_model[model][f] += v
 
 
-def _accumulate_skill_agent_signals(content, skills_invoked, agents_invoked):
+def _accumulate_skill_agent_signals(content, skills_invoked, agent_dispatches):
+    """Count `Skill` invocations and `Agent`/`Task` DISPATCHES from tool_use
+    blocks. A dispatch is not the same thing as a run: dispatches made from
+    inside a subagent are only visible in that subagent's own transcript, and
+    a dispatch whose subagent transcript is absent never ran to completion.
+    Run counts come from `attributionAgent` instead — see `extract()`."""
     if not isinstance(content, list):
         return
     for block in content:
@@ -165,7 +190,7 @@ def _accumulate_skill_agent_signals(content, skills_invoked, agents_invoked):
         elif name in ("Agent", "Task"):
             a = inp.get("subagent_type")
             if isinstance(a, str) and a:
-                agents_invoked[_strip_ns(a)] += 1
+                agent_dispatches[_strip_ns(a)] += 1
 
 
 def _track_tool_call(block, pending_tool, tool_calls):
@@ -189,33 +214,41 @@ def _classify_tool_result(block, pending_tool, tool_errors, error_counts):
         error_counts["permission_denials"] += 1
 
 
-def _track_edit(block, sid, edits_per_file, verify_edited_since):
+def _track_edit(block, edits_per_file, thread):
     name = block.get("name", "?")
     inp = block.get("input", {}) if isinstance(block.get("input"), dict) else {}
     if name in _EDIT_TOOLS and inp.get("file_path"):
         edits_per_file[os.path.basename(str(inp["file_path"]))] += 1
     if name in _EDIT_TOOLS:
-        verify_edited_since[str(sid or "")] = True
+        thread["edited_since_verify"] = True
 
 
-def _track_bash(block, sid, bash_commands, bash_signal_counts, last_verify_norm, verify_edited_since):
+def _track_bash(block, bash_signal_counts, thread):
+    """Bash signals are scoped to ONE thread of execution (`thread`, a
+    per-transcript dict). Retries and repeated verify runs are only meaningful
+    within a thread: a review panel's sibling agents share their parent's
+    sessionId, so a session-keyed tally would score fifteen agents each running
+    `git diff --cached` once as fourteen retries."""
     name = block.get("name", "?")
     inp = block.get("input", {}) if isinstance(block.get("input"), dict) else {}
     if name != "Bash" or not isinstance(inp.get("command"), str):
         return
     cmd = inp["command"].strip()
     norm = re.sub(r"\s+", " ", cmd)
-    bash_commands[norm] += 1
+    thread["bash_commands"][norm] += 1
     if _VERIFY_RE.search(cmd):
-        skey = str(sid or "")
-        if last_verify_norm.get(skey) == norm and not verify_edited_since.get(skey, False):
+        if thread["last_verify_norm"] == norm and not thread["edited_since_verify"]:
             bash_signal_counts["repeated_verify_runs"] += 1
-        last_verify_norm[skey] = norm
-        verify_edited_since[skey] = False
+        thread["last_verify_norm"] = norm
+        thread["edited_since_verify"] = False
     if _COMMIT_RE.search(cmd):
         bash_signal_counts["commit_attempts"] += 1
         if _BYPASS_RE.search(cmd):
             bash_signal_counts["commit_bypasses"] += 1
+
+
+def _new_thread() -> dict:
+    return {"bash_commands": Counter(), "last_verify_norm": None, "edited_since_verify": False}
 
 
 def _detect_correction_turn(rec: dict, content) -> bool:
@@ -256,81 +289,113 @@ def extract(
     sessions: set[str] = set()
 
     edits_per_file = Counter()
-    bash_commands = Counter()
-    last_verify_norm: dict[str, str] = {}
-    verify_edited_since: dict[str, bool] = {}
     bash_signal_counts = Counter()
     error_counts = Counter()
     compaction_events = 0
     tool_errors = Counter()
     tool_calls = Counter()
     correction_turns = 0
+    retried_bash = 0
 
     skills_invoked = Counter()
-    agents_invoked = Counter()
+    agent_dispatches = Counter()
+    agent_runs = Counter()
+    subagent_transcripts = 0
 
-    pending_tool: dict[str, str] = {}
+    # One transcript file is one thread of execution: a main-thread session, or
+    # a single dispatched agent's run. Per-thread state (pending tool_use ids,
+    # bash history) is scoped here rather than to sessionId, which subagents
+    # share with their parent.
+    for path in _sorted_paths(paths):
+        is_subagent = _is_subagent_transcript(path)
+        if is_subagent:
+            subagent_transcripts += 1
+        agent_name: str | None = None
+        thread = _new_thread()
+        pending_tool: dict[str, str] = {}
+        thread_msgs = 0
+        records_in_window = 0
 
-    for rec in _iter_records(paths):
-        sid = rec.get("sessionId") or rec.get("session_id")
+        for rec in _iter_file_records(path):
+            sid = rec.get("sessionId") or rec.get("session_id")
 
-        if allowed_sessions is not None and str(sid or "") not in allowed_sessions:
-            continue
-        if since is not None or until is not None:
-            ts = rec.get("timestamp")
-            if not isinstance(ts, str):
+            if allowed_sessions is not None and str(sid or "") not in allowed_sessions:
                 continue
-            if since is not None and ts < since:
-                continue
-            if until is not None and ts > until:
-                continue
-
-        if sid:
-            sessions.add(str(sid))
-        rtype = rec.get("type")
-        is_sidechain = bool(rec.get("isSidechain"))
-
-        if rtype in ("compaction", "summary") or rec.get("isCompactSummary") or rec.get("compactMetadata"):
-            compaction_events += 1
-
-        msg = rec.get("message") if isinstance(rec.get("message"), dict) else {}
-        usage = (
-            msg.get("usage")
-            if isinstance(msg.get("usage"), dict)
-            else (rec.get("usage") if isinstance(rec.get("usage"), dict) else None)
-        )
-        model = msg.get("model") or rec.get("model")
-        if usage:
-            _accumulate_token_signals(usage, model, is_sidechain, tokens_total, by_model, by_subagent)
-
-        content = msg.get("content")
-        _accumulate_skill_agent_signals(content, skills_invoked, agents_invoked)
-
-        if isinstance(content, list):
-            for block in content:
-                if not isinstance(block, dict):
+            if since is not None or until is not None:
+                ts = rec.get("timestamp")
+                if not isinstance(ts, str):
                     continue
-                btype = block.get("type")
-                if btype == "tool_use":
-                    _track_tool_call(block, pending_tool, tool_calls)
-                    _track_edit(block, sid, edits_per_file, verify_edited_since)
-                    _track_bash(
-                        block, sid, bash_commands, bash_signal_counts,
-                        last_verify_norm, verify_edited_since,
-                    )
-                elif btype == "tool_result":
-                    _classify_tool_result(block, pending_tool, tool_errors, error_counts)
+                if since is not None and ts < since:
+                    continue
+                if until is not None and ts > until:
+                    continue
 
-        if _detect_correction_turn(rec, content):
-            correction_turns += 1
+            records_in_window += 1
+            if sid:
+                sessions.add(str(sid))
+            if agent_name is None:
+                attributed = rec.get("attributionAgent")
+                if isinstance(attributed, str) and attributed:
+                    agent_name = _strip_ns(attributed)
+            rtype = rec.get("type")
+
+            if rtype in ("compaction", "summary") or rec.get("isCompactSummary") or rec.get("compactMetadata"):
+                compaction_events += 1
+
+            msg = rec.get("message") if isinstance(rec.get("message"), dict) else {}
+            usage = (
+                msg.get("usage")
+                if isinstance(msg.get("usage"), dict)
+                else (rec.get("usage") if isinstance(rec.get("usage"), dict) else None)
+            )
+            model = msg.get("model") or rec.get("model")
+            if usage:
+                thread_msgs += 1
+                _accumulate_token_signals(usage, model, tokens_total, by_model)
+
+            content = msg.get("content")
+            _accumulate_skill_agent_signals(content, skills_invoked, agent_dispatches)
+
+            if isinstance(content, list):
+                for block in content:
+                    if not isinstance(block, dict):
+                        continue
+                    btype = block.get("type")
+                    if btype == "tool_use":
+                        _track_tool_call(block, pending_tool, tool_calls)
+                        _track_edit(block, edits_per_file, thread)
+                        _track_bash(block, bash_signal_counts, thread)
+                    elif btype == "tool_result":
+                        _classify_tool_result(block, pending_tool, tool_errors, error_counts)
+
+            if _detect_correction_turn(rec, content):
+                correction_turns += 1
+
+        # A file's agent name is only known once a record carrying
+        # `attributionAgent` has been seen, so thread-level attribution is
+        # resolved here rather than per record.
+        label = agent_name or ("unattributed-agent" if is_subagent else "main")
+        if thread_msgs:  # `+= 0` would materialize a zero-valued key
+            by_subagent[label] += thread_msgs
+        # A transcript whose every record fell outside --since/--until did not
+        # happen in the reported window, so it is not a run in that window.
+        if is_subagent and records_in_window:
+            agent_runs[label] += 1
+        retried_bash += sum(n - 1 for n in thread["bash_commands"].values() if n > 1)
 
     repeated_file_edits = {f: n for f, n in edits_per_file.items() if n > 1}
-    retried_bash = sum(n - 1 for n in bash_commands.values() if n > 1)
+
+    # Run counts are ground truth where subagent transcripts exist (one file per
+    # run, named by `attributionAgent`). A tree written by an older harness has
+    # none, so fall back to dispatch counts rather than reporting zero.
+    agents_invoked = agent_runs if subagent_transcripts else agent_dispatches
 
     reg_skills = set(registry.get("skills", []))
     reg_agents = set(registry.get("agents", []))
     never_skills = sorted(reg_skills - set(skills_invoked))
-    never_agents = sorted(reg_agents - set(agents_invoked))
+    # Observed by EITHER signal counts as observed — an agent that ran but whose
+    # dispatch was made from inside another agent, and vice versa.
+    never_agents = sorted(reg_agents - set(agents_invoked) - set(agent_dispatches))
 
     cr = tokens_total["cache_read_input_tokens"]
     cc = tokens_total["cache_creation_input_tokens"]
@@ -341,7 +406,8 @@ def extract(
 
     return {
         "sessions": len(sessions),
-        "transcripts": len(paths),
+        "transcripts": len(paths) - subagent_transcripts,
+        "subagent_transcripts": subagent_transcripts,
         "token": {
             "totals": dict(sorted(tokens_total.items())),
             "cache_hit_ratio": cache_hit_ratio,
@@ -374,6 +440,7 @@ def extract(
         "utilization": {
             "skills_invoked": dict(sorted(skills_invoked.items())),
             "agents_invoked": dict(sorted(agents_invoked.items())),
+            "agent_dispatches": dict(sorted(agent_dispatches.items())),
             "never_observed_skills": never_skills,
             "never_observed_agents": never_agents,
         },
@@ -390,6 +457,7 @@ def combine(digests: dict[str, dict], registry: dict) -> dict:
     """Sum every project's digest into one cross-project total."""
     sessions = 0
     transcripts = 0
+    subagent_transcripts = 0
     tokens_total = Counter()
     by_subagent = Counter()
     cr = cc = 0
@@ -402,10 +470,12 @@ def combine(digests: dict[str, dict], registry: dict) -> dict:
     commit_attempts = commit_bypasses = 0
     skills_invoked = Counter()
     agents_invoked = Counter()
+    agent_dispatches = Counter()
 
     for d in digests.values():
         sessions += d["sessions"]
         transcripts += d["transcripts"]
+        subagent_transcripts += d.get("subagent_transcripts", 0)
         _merge_counters(tokens_total, d["token"]["totals"])
         _merge_counters(by_subagent, d["token"]["by_subagent"])
         cr += d["token"]["totals"].get("cache_read_input_tokens", 0)
@@ -434,6 +504,7 @@ def combine(digests: dict[str, dict], registry: dict) -> dict:
         util = d["utilization"]
         _merge_counters(skills_invoked, util["skills_invoked"])
         _merge_counters(agents_invoked, util["agents_invoked"])
+        _merge_counters(agent_dispatches, util.get("agent_dispatches", {}))
 
     reg_skills = set(registry.get("skills", []))
     reg_agents = set(registry.get("agents", []))
@@ -441,6 +512,7 @@ def combine(digests: dict[str, dict], registry: dict) -> dict:
     return {
         "sessions": sessions,
         "transcripts": transcripts,
+        "subagent_transcripts": subagent_transcripts,
         "token": {
             "totals": dict(sorted(tokens_total.items())),
             "cache_hit_ratio": round(cr / (cr + cc), 4) if (cr + cc) else 0.0,
@@ -468,8 +540,11 @@ def combine(digests: dict[str, dict], registry: dict) -> dict:
         "utilization": {
             "skills_invoked": dict(sorted(skills_invoked.items())),
             "agents_invoked": dict(sorted(agents_invoked.items())),
+            "agent_dispatches": dict(sorted(agent_dispatches.items())),
             "never_observed_skills": sorted(reg_skills - set(skills_invoked)),
-            "never_observed_agents": sorted(reg_agents - set(agents_invoked)),
+            "never_observed_agents": sorted(
+                reg_agents - set(agents_invoked) - set(agent_dispatches)
+            ),
         },
     }
 
@@ -477,6 +552,28 @@ def combine(digests: dict[str, dict], registry: dict) -> dict:
 # --------------------------------------------------------------------------
 # Project discovery.
 # --------------------------------------------------------------------------
+
+
+def _all_transcripts(projects_root: Path) -> list[Path]:
+    """Every transcript under `projects_root`, main-thread and subagent alike.
+
+    Several layouts coexist: main-thread sessions at
+    `<project>/<sessionId>.jsonl`, a dispatched agent's own run at
+    `<project>/<sessionId>/subagents/agent-<id>.jsonl`, and a Workflow's agents
+    one level deeper still. Globbing only the first made every subagent
+    invisible to the report (issue #1990) — and silently, because subagent
+    records ARE marked `isSidechain: true`, they simply live in files nothing
+    opened. Recurse rather than enumerate known depths, so the next layout does
+    not reintroduce the same silence."""
+    return _sorted_paths([p for p in projects_root.glob("*/**/*.jsonl") if p.is_file()])
+
+
+def _project_dir_name(projects_root: Path, jsonl: Path) -> str:
+    """The project directory a transcript belongs to, at any nesting depth."""
+    try:
+        return jsonl.relative_to(projects_root).parts[0]
+    except ValueError:
+        return jsonl.parent.name
 
 
 def _project_label(cwd: str) -> str:
@@ -513,9 +610,9 @@ def discover_projects(projects_root: Path) -> dict[str, dict]:
     by_project: dict[str, dict] = defaultdict(lambda: {"cwd": None, "paths": []})
     if not projects_root.is_dir():
         return {}
-    for jsonl in projects_root.glob("*/*.jsonl"):
+    for jsonl in _all_transcripts(projects_root):
         cwd = _first_cwd(jsonl)
-        label = _project_label(cwd) if cwd else jsonl.parent.name
+        label = _project_label(cwd) if cwd else _project_dir_name(projects_root, jsonl)
         entry = by_project[label]
         if cwd and not entry["cwd"]:
             entry["cwd"] = os.path.abspath(cwd)
@@ -535,11 +632,11 @@ def resolve_single_project(
     # different projects share a basename
     matches: list[Path] = []
     if projects_root.is_dir():
-        for jsonl in projects_root.glob("*/*.jsonl"):
+        for jsonl in _all_transcripts(projects_root):
             cwd = _first_cwd(jsonl)
             if cwd and os.path.abspath(cwd) == target_cwd:
                 matches.append(jsonl)
-    return label, (target_cwd if matches else None), sorted(matches, key=lambda x: x.name)
+    return label, (target_cwd if matches else None), _sorted_paths(matches)
 
 
 def sessions_matching_plugin_version(cwd: str | None, target_version: str) -> set[str]:
@@ -555,7 +652,7 @@ def sessions_matching_plugin_version(cwd: str | None, target_version: str) -> se
     if not cwd:
         return matches
     path = Path(cwd) / ".claude" / "metrics" / "boundary-events.jsonl"
-    for rec in _iter_records([path]):
+    for rec in _iter_file_records(path):
         if rec.get("plugin_version") != target_version:
             continue
         sid = rec.get("session_id")
@@ -670,7 +767,7 @@ def main(argv=None) -> int:
         scope = label
 
     report = {
-        "schema": "downstream-session-report/v1",
+        "schema": "downstream-session-report/v2",
         "generated_at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
         "host": host,
         "plugin_version": plugin_version,

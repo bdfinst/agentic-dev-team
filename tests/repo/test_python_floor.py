@@ -129,6 +129,7 @@ FLOOR_TEST_SLICE = (
     "tests/scripts/test_progress_guardian.py",
     "tests/scripts/test_token_efficiency_review_script.py",
     "tests/scripts/test_claude_setup_review.py",
+    "tests/scripts/test_extract_session_report.py",
     "plugins/dev-team/tests/scripts/test_coverage_config.py",
     "plugins/dev-team/tests/scripts/test_coverage_discovery_dotnet.py",
     "plugins/dev-team/tests/scripts/test_coverage_discovery_js.py",
