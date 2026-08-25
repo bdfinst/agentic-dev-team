@@ -41,6 +41,9 @@ extend-exclude = [
 "plugins/dev-team/hooks/**" = ["E402"]
 "plugins/dev-team/scripts/**" = ["E402"]
 "plugins/dev-team/skills/agent-readiness/scanner.py" = ["E402"]
+# Same idiom, same reason: these modules import siblings out of
+# hooks/lib after a sys.path.insert, so the import cannot precede it.
+"plugins/dev-team/skills/code-review/scripts/**" = ["E402"]
 "scripts/**" = ["E402"]
 "evals/custom-tools/validate.py" = ["E402"]
 

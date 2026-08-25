@@ -21,12 +21,39 @@ sys.path.insert(
 import repo_invariants
 
 
+class TestSkillScriptsDocumented:
+    """#1981: the check that created this module covered one skill. A second
+    report of the same class — `review_value_coverage.py` landing in
+    `skills/code-review/scripts/` undocumented — made it a registry rather
+    than a copied function."""
+
+    def test_every_registered_skill_is_clean_in_the_real_repo(self):
+        """Corpus-wide, not changeset-scoped: an undocumented script is a
+        standing gap whether or not this changeset touched it."""
+        assert repo_invariants.check_skill_scripts_documented() == []
+
+    def test_code_review_scripts_are_covered_not_just_mutation_testing(self):
+        """The regression this slice exists for. If the registry silently
+        loses the code-review entry, the class it was added for goes
+        undetected again and this test is the only thing that notices."""
+        skills = [entry[0] for entry in repo_invariants._DOCUMENTED_SCRIPT_SKILLS]
+        assert "code-review" in skills
+        assert "mutation-testing" in skills
+
+    def test_each_skill_keeps_its_own_invariant_id(self):
+        """Findings are keyed by invariant id downstream. Collapsing two
+        skills onto one id would make a code-review gap indistinguishable
+        from a mutation-testing one in any report that groups by it."""
+        ids = {entry[2] for entry in repo_invariants._DOCUMENTED_SCRIPT_SKILLS}
+        assert ids == {"mutation-kill-scripts-documented", "code-review-scripts-documented"}
+
+
 class TestMutationKillScriptsDocumented:
     def test_real_repo_has_no_undocumented_mutation_kill_scripts(self):
         # Every script currently shipped under skills/mutation-testing/scripts/
         # is named somewhere in that skill's own docs. A finding here means a
         # newly-added script module was never documented.
-        findings = repo_invariants.check_mutation_kill_scripts_documented()
+        findings = repo_invariants.check_skill_scripts_documented()
         assert findings == []
 
     def test_flags_a_script_absent_from_the_doc_set(self, tmp_path, monkeypatch):
@@ -47,7 +74,7 @@ class TestMutationKillScriptsDocumented:
 
         monkeypatch.setattr(repo_invariants, "_PLUGIN_ROOT", plugin_root)
 
-        findings = repo_invariants.check_mutation_kill_scripts_documented()
+        findings = repo_invariants.check_skill_scripts_documented()
 
         assert len(findings) == 1
         finding = findings[0]
@@ -57,7 +84,7 @@ class TestMutationKillScriptsDocumented:
 
     def test_no_scripts_dir_yields_no_findings(self, tmp_path, monkeypatch):
         monkeypatch.setattr(repo_invariants, "_PLUGIN_ROOT", tmp_path / "empty")
-        assert repo_invariants.check_mutation_kill_scripts_documented() == []
+        assert repo_invariants.check_skill_scripts_documented() == []
 
     def test_flags_a_non_python_script_absent_from_the_doc_set(self, tmp_path, monkeypatch):
         # The check is not Python-specific: it must catch an undocumented
@@ -79,7 +106,7 @@ class TestMutationKillScriptsDocumented:
 
         monkeypatch.setattr(repo_invariants, "_PLUGIN_ROOT", plugin_root)
 
-        findings = repo_invariants.check_mutation_kill_scripts_documented()
+        findings = repo_invariants.check_skill_scripts_documented()
 
         assert len(findings) == 1
         assert findings[0]["file"].endswith("undocumented_wrapper.ts")
@@ -98,7 +125,7 @@ class TestMutationKillScriptsDocumented:
 
         monkeypatch.setattr(repo_invariants, "_PLUGIN_ROOT", plugin_root)
 
-        assert repo_invariants.check_mutation_kill_scripts_documented() == []
+        assert repo_invariants.check_skill_scripts_documented() == []
 
 
 class TestRunAll:

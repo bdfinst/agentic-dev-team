@@ -85,50 +85,80 @@ def _read_text(path: Path) -> str:
 _IGNORED_SCRIPT_NAMES = frozenset({"__init__.py", "__pycache__"})
 
 
-def check_mutation_kill_scripts_documented(changed_files=None) -> list[dict]:
-    """Every module under the mutation-testing skill's scripts/ dir must be
-    named at least once across that skill's own documentation set — the
-    mutation-kill agent, its SKILL.md, and its references/ tree — so a
-    reviewer can find a script's purpose without re-deriving it from source.
+#: Skills whose `scripts/` modules must each be named in that skill's own
+#: documentation. A registry rather than one function per skill: the second
+#: skill needing this check arrived (#1981) and copying the first would have
+#: reproduced the duplication the review lenses exist to flag.
+#:
+#: Each entry: (skill name, extra doc paths relative to the plugin root). The
+#: skill's own `SKILL.md` and every `references/**/*.md` under it are always
+#: part of the doc set; `extra` is for docs that live outside the skill dir.
+_DOCUMENTED_SCRIPT_SKILLS = (
+    ("mutation-testing", ("agents/mutation-kill.md",), "mutation-kill-scripts-documented"),
+    ("code-review", (), "code-review-scripts-documented"),
+)
 
-    Matches every file regardless of extension (not just `.py`) — this
-    directory happens to be all-Python today (ADR 0014/0015), but the
-    invariant itself ("every module is documented") is language-agnostic and
-    must keep holding if a differently-extensioned file ever lands here.
+
+def _skill_doc_text(skill: str, extra: tuple) -> str:
+    skill_dir = _PLUGIN_ROOT / "skills" / skill
+    doc_files = [skill_dir / "SKILL.md"]
+    doc_files.extend(_PLUGIN_ROOT / rel for rel in extra)
+    for sub in ("references", ""):
+        target = skill_dir / sub if sub else skill_dir
+        if target.is_dir():
+            doc_files.extend(sorted(target.rglob("*.md")))
+    return "\n".join(_read_text(p) for p in doc_files)
+
+
+def check_skill_scripts_documented(changed_files=None) -> list[dict]:
+    """Every module under a registered skill's scripts/ dir must be named at
+    least once in that skill's own documentation, so a reviewer can find a
+    script's purpose without re-deriving it from source.
+
+    This is the invariant that created this module: on PR #1600 four separate
+    agents (`doc-review`, `structure-review`, `ai-provenance-review`,
+    `test-review`) independently rediscovered that a newly-added script had no
+    documentation row. It shipped covering `mutation-testing` alone.
+
+    #1981 is the second report of the same class, in a different directory:
+    `skills/code-review/scripts/` had gained `review_value_coverage.py` (from
+    #2020) with no mention in its own skill's docs. Under this repo's ratchet
+    rule a twice-reported mechanical class becomes a check, so the hardcoded
+    single-skill form became this registry.
+
+    Matches every file regardless of extension — these directories happen to
+    be all-Python today (ADR 0014/0015), but "every module is documented" is
+    language-agnostic and must keep holding if a differently-extensioned file
+    lands.
+
+    Corpus-wide by design: `changed_files` is ignored. An undocumented script
+    is a standing gap whether or not this changeset touched it, and the whole
+    point is that the panel is told about it once instead of N agents each
+    finding it.
     """
-    scripts_dir = _PLUGIN_ROOT / "skills" / "mutation-testing" / "scripts"
-    if not scripts_dir.is_dir():
-        return []
-
-    doc_files = [
-        _PLUGIN_ROOT / "agents" / "mutation-kill.md",
-        _PLUGIN_ROOT / "skills" / "mutation-testing" / "SKILL.md",
-    ]
-    refs_dir = _PLUGIN_ROOT / "skills" / "mutation-testing" / "references"
-    if refs_dir.is_dir():
-        doc_files.extend(sorted(refs_dir.rglob("*.md")))
-
-    combined = "\n".join(_read_text(p) for p in doc_files)
-
     findings = []
-    for script in sorted(scripts_dir.iterdir()):
-        if not script.is_file() or script.name in _IGNORED_SCRIPT_NAMES:
+    for skill, extra, invariant in _DOCUMENTED_SCRIPT_SKILLS:
+        scripts_dir = _PLUGIN_ROOT / "skills" / skill / "scripts"
+        if not scripts_dir.is_dir():
             continue
-        if script.name in combined:
-            continue
-        findings.append(
-            {
-                "invariant": "mutation-kill-scripts-documented",
-                "file": str(script.relative_to(_PLUGIN_ROOT)),
-                "message": (
-                    f"{script.name} is not named anywhere in the mutation-testing "
-                    "skill's documentation set (agents/mutation-kill.md, "
-                    "skills/mutation-testing/SKILL.md, or "
-                    "skills/mutation-testing/references/**/*.md). Add a mention "
-                    "so reviewers don't have to re-derive its purpose from source."
-                ),
-            }
-        )
+        combined = _skill_doc_text(skill, extra)
+        for script in sorted(scripts_dir.iterdir()):
+            if not script.is_file() or script.name in _IGNORED_SCRIPT_NAMES:
+                continue
+            if script.name in combined:
+                continue
+            findings.append(
+                {
+                    "invariant": invariant,
+                    "file": str(script.relative_to(_PLUGIN_ROOT)),
+                    "message": (
+                        f"{script.name} is not named anywhere in the {skill} "
+                        "skill's own documentation set (its SKILL.md or "
+                        "references/**/*.md). Add a mention so reviewers "
+                        "don't have to re-derive its purpose from source."
+                    ),
+                }
+            )
     return findings
 
 
@@ -427,7 +457,7 @@ def check_scope_glob_matches_skip_prose(changed_files=None) -> list[dict]:
 # Registered checks. Each entry takes an optional `changed_files` list and
 # returns findings. See the module docstring for why that argument exists.
 CHECKS = [
-    check_mutation_kill_scripts_documented,
+    check_skill_scripts_documented,
     check_eval_calibration_blocks,
     check_must_not_mention_terms_appear_in_fixture,
     check_scope_glob_matches_skip_prose,
