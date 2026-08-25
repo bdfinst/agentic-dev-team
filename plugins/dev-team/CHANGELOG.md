@@ -1,5 +1,31 @@
 # Changelog
 
+## [12.7.0](https://github.com/bdfinst/agentic-dev-team/compare/dev-team-v12.6.0...dev-team-v12.7.0) (2026-08-25)
+
+
+### Features
+
+* **code-review:** economize the review panel (p1 slices) ([#1987](https://github.com/bdfinst/agentic-dev-team/issues/1987)) ([b722ede](https://github.com/bdfinst/agentic-dev-team/commit/b722ede9a408a5b33c311fac1d2d3d01e00cba6f))
+* **scripts:** add shippable session-report extractor for downstream users ([#1984](https://github.com/bdfinst/agentic-dev-team/issues/1984)) ([277311e](https://github.com/bdfinst/agentic-dev-team/commit/277311eccb7edab21b9177db66500c74ad82beeb))
+* **scripts:** scope extract_session_report.py's output name, time range, and plugin version ([#1986](https://github.com/bdfinst/agentic-dev-team/issues/1986)) ([5b3a0c7](https://github.com/bdfinst/agentic-dev-team/commit/5b3a0c7e825ee3f8354bf6effeb6bc73573971ad))
+* **static-analysis:** naming, accessibility, and performance probes ([#1989](https://github.com/bdfinst/agentic-dev-team/issues/1989)) ([4e87c19](https://github.com/bdfinst/agentic-dev-team/commit/4e87c19be1fe91a8c71caca82d882737ff032786))
+
+
+### Bug Fixes
+
+* **code-review:** make the shared context pack opt-in ([#2025](https://github.com/bdfinst/agentic-dev-team/issues/2025)) ([32204be](https://github.com/bdfinst/agentic-dev-team/commit/32204beb204f8e9060edf959823adb7a07a8b845))
+* **hooks:** block by default at the context ceiling ([#2022](https://github.com/bdfinst/agentic-dev-team/issues/2022)) ([c51ebf7](https://github.com/bdfinst/agentic-dev-team/commit/c51ebf7059d3024890fb592e930cb659faa27999))
+* **hooks:** use portable mktemp so the pre-push gate works on macOS ([#1996](https://github.com/bdfinst/agentic-dev-team/issues/1996)) ([25d68f2](https://github.com/bdfinst/agentic-dev-team/commit/25d68f2f11babce2d429bd045a00033eadf3b1f7))
+* **metrics:** add review-value sample validity check ([#2020](https://github.com/bdfinst/agentic-dev-team/issues/2020)) ([49b064c](https://github.com/bdfinst/agentic-dev-team/commit/49b064c6019611fa6dd3fe61972d6c8ef077edbe))
+* **scripts:** count subagent transcripts in extract_session_report.py ([#1995](https://github.com/bdfinst/agentic-dev-team/issues/1995)) ([a3e4608](https://github.com/bdfinst/agentic-dev-team/commit/a3e4608fdb33558f532a0af53bcfcf600c7d7048))
+* **scripts:** count subagent transcripts in session_extract.py ([#2017](https://github.com/bdfinst/agentic-dev-team/issues/2017)) ([ab786d3](https://github.com/bdfinst/agentic-dev-team/commit/ab786d32bf5fc628688af2892b05b8868979fe3b))
+* **scripts:** simplify extract_session_report.py's --since to a day count ([#1988](https://github.com/bdfinst/agentic-dev-team/issues/1988)) ([cbf449a](https://github.com/bdfinst/agentic-dev-team/commit/cbf449a3062f46ff825f6b8fa1e9c1d08cf6f5ae))
+
+
+### Performance Improvements
+
+* **code-review:** build one shared context pack per review panel ([#2021](https://github.com/bdfinst/agentic-dev-team/issues/2021)) ([1895146](https://github.com/bdfinst/agentic-dev-team/commit/18951465f8077a727a98affac97630f0cb5e8065))
+
 ## [12.6.0](https://github.com/bdfinst/agentic-dev-team/compare/dev-team-v12.5.0...dev-team-v12.6.0) (2026-08-24)
 
 
