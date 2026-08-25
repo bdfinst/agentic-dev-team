@@ -190,6 +190,8 @@ Skip if `--no-static-analysis` or `--background`.
 
 Follow the detection, execution, and deduplication procedure in [`skills/static-analysis-integration/SKILL.md`](../static-analysis-integration/SKILL.md). Output is structured findings injected into agent context in step 4. **This step does not gate execution** — it collects context only.
 
+**Growing this registry is a rule, not a discretion (#1981).** When any review agent reports the same mechanically-checkable finding class for the **second** time, and the check is expressible as a deterministic script, it becomes a `CHECKS` entry in `scripts/repo_invariants.py` **in the same PR that fixes the finding**. Two occurrences make it a class; converting there turns an unbounded stream of re-derivations into one bounded conversion. The root `CLAUDE.md` Working Rules state the same rule — it applies to this repo's own development, and the mechanism ships for downstream projects to use the same way.
+
 **Repo-specific invariant pre-pass (#1608).** Also run:
 
 ```bash
@@ -518,6 +520,15 @@ The initial panel is **round 1**. Append its row to
 `.claude/metrics/review-value.jsonl` now, before any fix is applied — this
 stream is what makes #1623's "is this churn or value?" question answerable at
 all, and a row written only on the happy path would bias every derived metric:
+
+> **Reading this stream later.** `scripts/review_value_coverage.py` reconciles
+> these rows against `agent_dispatch_ledger`'s deterministic dispatch records
+> and rules on whether the sample can support a per-lens pruning decision
+> (`no-data` / `unverifiable` / `undercollected` / `insufficient` / `biased` /
+> `usable`). Both writers of this stream are triggered by agent instruction
+> rather than by mechanism, so rows skew toward rounds that found something
+> (#2019). `/harness-audit` step 4 consults it before citing any per-lens
+> value; nothing in this skill needs to run it.
 
 ```bash
 python3 "$CLAUDE_PLUGIN_ROOT/skills/code-review/scripts/review_round_log.py" \
