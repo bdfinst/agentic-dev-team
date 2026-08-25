@@ -1,5 +1,12 @@
 # Changelog
 
+## [3.7.4](https://github.com/bdfinst/agentic-dev-team/compare/security-assessment-v3.7.3...security-assessment-v3.7.4) (2026-08-25)
+
+
+### Bug Fixes
+
+* **hooks:** use portable mktemp so the pre-push gate works on macOS ([#1996](https://github.com/bdfinst/agentic-dev-team/issues/1996)) ([25d68f2](https://github.com/bdfinst/agentic-dev-team/commit/25d68f2f11babce2d429bd045a00033eadf3b1f7))
+
 ## [3.7.3](https://github.com/bdfinst/agentic-dev-team/compare/security-assessment-v3.7.2...security-assessment-v3.7.3) (2026-08-06)
 
 
