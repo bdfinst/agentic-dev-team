@@ -77,6 +77,23 @@ different roots — `metrics/session-digest.jsonl` is deliberately bare,
 session-digest stream is ground-truth; the task-log stream is self-reported —
 where they disagree, prefer the session digest.
 
+## Downstream extraction (no monorepo checkout)
+
+`/session-review` is maintainer-only tooling for this monorepo — it refuses
+to run outside an `agentic-dev-team` dev checkout (see the Pre-flight guard
+in `skills/session-review/SKILL.md`). For a downstream user of the plugin who
+has no access to this repo but wants to hand the maintainer their own
+session data for analysis, use the shippable counterpart instead:
+`scripts/extract_session_report.py`. It ships inside the plugin package (so
+it's present after a normal `claude plugin install`), runs from a bare
+`python3` with no dependencies, and writes ONE metrics-only JSON file — for
+the current project, an explicit `--project <path>`, or `--all-projects` for
+every project the plugin has been used in on that machine. Same privacy
+stance as everything else in this doc: counts/ratios/names only, never
+prompt text, code, or command strings. The user sends the resulting file to
+the maintainer themselves (e.g. over MS Teams); the script has no network
+code and never transmits anything on its own.
+
 ## OSS complements (#130)
 
 For continuous *quantitative* monitoring, reach for `ccusage`, native
