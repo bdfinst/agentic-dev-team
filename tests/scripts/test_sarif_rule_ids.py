@@ -16,7 +16,9 @@ from __future__ import annotations
 import importlib.util
 import json
 import re
+import subprocess
 import sys
+import textwrap
 
 import pytest
 
@@ -151,6 +153,32 @@ def test_a_driver_name_that_kebabs_to_nothing_is_named_too():
         rule_id = validate.build_rule_id(driver, "N802")
         assert rule_id.startswith("unknown-tool."), rule_id
         assert RULE_ID_PATTERN.match(rule_id)
+
+
+def test_the_module_imports_without_the_jsonschema_dependency():
+    """Regression: `validate.py` imported `jsonschema`/`referencing` at module
+    scope, so importing it purely for `build_rule_id` required a dependency
+    the validation path alone needs. That broke this very file's collection in
+    the `Plugin content & hooks` CI job, which installs pytest and nothing
+    else — a green local run (where the dep is present) could not catch it.
+    Run in a subprocess with the modules forced unimportable."""
+    probe = textwrap.dedent(
+        """
+        import sys
+        for mod in ("jsonschema", "referencing", "referencing.jsonschema"):
+            sys.modules[mod] = None
+        sys.path.insert(0, %r)
+        import validate
+        assert validate.build_rule_id("ruff", "N802") == "ruff.python.n802"
+        print("OK")
+        """
+    ) % str(REPO_ROOT / "evals" / "static-analysis-tools")
+    result = subprocess.run(
+        [sys.executable, "-c", probe], capture_output=True, text=True, timeout=60,
+        check=False,
+    )
+    assert result.returncode == 0, f"{result.stdout}{result.stderr}"
+    assert "OK" in result.stdout
 
 
 def test_normalize_findings_shares_this_parser_rather_than_copying_it():

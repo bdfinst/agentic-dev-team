@@ -21,9 +21,13 @@ import sys
 from pathlib import Path
 from typing import Any
 
-from jsonschema import Draft202012Validator
-from referencing import Registry, Resource
-from referencing.jsonschema import DRAFT202012
+# `jsonschema`/`referencing` are imported lazily, inside the two functions that
+# actually validate, rather than at module scope. Only the validation path
+# needs them; the rule-id and parsing helpers are pure. Importing them here
+# made the whole module unimportable without the dependency, which broke two
+# consumers that never validate: `scripts/lib/normalize_findings.py`, and the
+# CI job running `tests/scripts/` — that job installs pytest alone, so a test
+# importing this module for `build_rule_id` failed at collection.
 
 REPO = Path(__file__).resolve().parents[2]
 SCHEMA_PATH = REPO / "plugins/dev-team/knowledge/schemas/unified-finding-v1.json"
@@ -209,7 +213,10 @@ def parse_sarif(sarif_doc: dict[str, Any]) -> list[dict[str, Any]]:
     return findings
 
 
-def load_schema_registry() -> tuple[dict[str, Any], Registry]:
+def load_schema_registry() -> tuple[dict[str, Any], Any]:
+    from referencing import Registry, Resource
+    from referencing.jsonschema import DRAFT202012
+
     with SCHEMA_PATH.open() as f:
         schema = json.load(f)
     resource = Resource(contents=schema, specification=DRAFT202012)
@@ -259,6 +266,8 @@ def check_install_hints() -> int:
 
 
 def run() -> int:
+    from jsonschema import Draft202012Validator
+
     schema, registry = load_schema_registry()
     validator = Draft202012Validator(schema, registry=registry)
 
