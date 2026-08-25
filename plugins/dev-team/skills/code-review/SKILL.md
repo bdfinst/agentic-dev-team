@@ -427,7 +427,13 @@ sh "$CLAUDE_PLUGIN_ROOT/hooks/py.sh" "$CLAUDE_PLUGIN_ROOT/skills/code-review/scr
 
 Prints `{"maxParallel": N, "waves": [[...], [...]]}` — `maxParallel` defaults to **10**, overridable with `DEV_TEAM_MAX_PARALLEL_REVIEW_AGENTS` (see the script's own docstring for the exact fallback rule; don't re-derive it here). Dispatch **exactly the waves the script printed, in that order** as parallel subagents in a single message per wave using the Agent tool — exactly as before, just bounded per message — waiting for each wave to fully return before dispatching the next, and for the last wave before aggregating. A roster no larger than `maxParallel` is always a single wave; nothing changes from today's behavior in that case.
 
-**Build the shared context pack first (#2006).** Before dispatching wave 1, prepare the panel's file context **once** rather than letting every lens read the same files itself:
+**Optional: shared context pack (#2006, opt-in — off by default).** `scripts/review_context_pack.py` can prepare the panel's file context **once** — changed-file list, diff, and complete line-numbered file bodies — so each lens reads one prepared artifact instead of opening the same changed files itself.
+
+**Do not use it unless the caller explicitly opts in** (`DEV_TEAM_REVIEW_CONTEXT_PACK=on`). The default dispatch path is the per-agent context payload described below, unchanged.
+
+Why it is off by default: [ADR 0034](../../../../docs/adr/0034-do-not-build-shared-context-pre-pass-for-duplicate-full-file-reads-1611.md) declined exactly this pre-pass after measuring duplicate full-file reads at **0.38%–4.86% of a round's total input spend, median 0.8%** (#1618). A later re-measurement with the same tool (`scripts/measure_full_file_duplication.py`) put it at **0.22%**. The 4.31x figure sometimes quoted for this is a *read-volume ratio*, not a share of spend — a different denominator, and not the one this decision turns on. The pack ships full file bodies rather than the structural skeleton ADR 0034 warned would degrade line-level lenses, so it carries no known quality risk; it simply has not been shown to pay for itself. #2024 tracks measuring panels of >= 8 agents, which is the shape that could change the answer.
+
+When opted in:
 
 ```bash
 git -c core.quotePath=false diff --name-status <base> \
@@ -435,17 +441,13 @@ git -c core.quotePath=false diff --name-status <base> \
       --name-status-from - --base <base>
 ```
 
-Prints a manifest naming the pack path, its byte size, and `files_omitted`. Pass the **pack path** to every dispatched agent and tell it to read that file instead of opening the changed files individually.
-
-Why this exists: across 148 panels of >= 8 agents, 180 MB of Read volume covered 41.8 MB of unique content — a **4.31x re-read multiplier**, one file opened by 38 agents at worst, and those panels are 73% of all review spend. Of the 18 review lenses that declare a `Context needs` value, **17 need the full bodies of the changed files**, so one pack serves nearly the whole roster: `full-file` lenses read its **File bodies** section, `project-structure` lenses read that plus **Changed files**, `diff-only` lenses read **Diff**.
-
-Two rules when passing it:
+Prints a manifest naming the pack path, its byte size, and `files_omitted`. Pass the pack path to each dispatched agent, and observe both rules:
 
 - **The pack narrows repeated reads, not the review.** A lens may still open anything not in the pack — a caller in an unchanged file, a sibling module. Never instruct an agent to treat the pack as the complete world.
 - **`files_omitted` is not optional to relay.** When the manifest reports omissions (a file over the per-file cap, a binary, a body that would exhaust the budget), name those paths in each agent's prompt and tell it to open them directly. The pack body says so too, but a silently skipped file is a coverage hole that reads as a clean review.
 
 - **File scope**: pass only files matching each agent's declared scope. Skip the agent if no files match.
-- **Context payload** (controlled by the agent's `Context needs`) — served from the pack's sections above; fall back to inlining the content directly if the pack could not be built:
+- **Context payload** (controlled by the agent's `Context needs`):
   - `diff-only` → diff output only (for auto-scope or `--since` only)
   - `full-file` → complete files
   - `project-structure` → full files + directory tree + the changed-file list (path + change type — `A`/`M`/`D`/`R`/`C`) computed in step 3 via `changed_file_list.py`, for diff-scoped runs (auto-scope or `--since`). Omit the changed-file list for `--path`/`--all`/full-repository scope — there is no diff to describe. Every `project-structure` agent (`arch-review`, `doc-review`, `domain-review`) has no Bash grant and must never invoke `git` itself to "see what changed" — that call is denied and surfaces as a spurious error (#1734); this payload is what makes that unnecessary.

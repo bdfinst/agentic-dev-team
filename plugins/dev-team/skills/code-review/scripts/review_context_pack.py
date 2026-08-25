@@ -1,5 +1,18 @@
 #!/usr/bin/env python3
-"""One shared context pack for a review panel (#2006).
+"""One shared context pack for a review panel (#2006). OPT-IN, off by default.
+
+**This is not the default dispatch path.** `code-review/SKILL.md` step 4 uses
+the per-agent context payload unless the caller sets
+`DEV_TEAM_REVIEW_CONTEXT_PACK=on`. ADR 0034 declined a shared-context pre-pass
+after measuring duplicate full-file reads at 0.38%-4.86% of a round's total
+input spend (median 0.8%); a later re-measurement with the same tool put it at
+0.22%. The 4.31x multiplier quoted for this problem is a read-volume ratio, a
+different denominator from the one that decision turns on. #2024 tracks
+measuring panels of >= 8 agents, the shape that could change the answer.
+
+The pack ships complete file bodies, not the structural skeleton ADR 0034
+warned would starve line-level lenses, so it carries no known quality risk —
+it simply has not been shown to pay for its complexity.
 
 Every lens in a `/code-review` panel is handed the same changed files and then
 reads them itself. Measured across 148 panels of >= 8 agents: **180 MB of Read
