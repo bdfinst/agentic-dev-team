@@ -104,10 +104,28 @@ otherwise conflate:
 
 | Field | Meaning |
 |---|---|
-| `transcripts` / `subagent_transcripts` | main-thread sessions vs dispatched agent runs |
-| `token.by_subagent` | message counts keyed by agent name, `main` for the main thread |
+| `transcripts` / `subagent_transcripts` | main-thread sessions vs dispatched agent runs, both scoped to the reported window |
+| `token.by_agent_type` | message counts keyed by agent name — `main` for the main thread, `unattributed` where no agent is resolvable. Same vocabulary as cost-metering's `by_agent_type` (`knowledge/telemetry-schema.md`); deliberately NOT `by_subagent`, which means main-vs-sidechain in `session_extract.py` |
 | `utilization.agents_invoked` | agent RUNS, from each subagent transcript's `attributionAgent` — ground truth |
 | `utilization.agent_dispatches` | `Agent`/`Task` tool calls, i.e. dispatches requested |
+
+Only transcript-shaped filenames are read (`<sessionId>.jsonl`, `agent-<id>.jsonl`).
+The harness writes bookkeeping alongside them — `subagents/workflows/<runId>/journal.jsonl`
+— which is not a transcript and is skipped. A Workflow's agents carry
+`attributionAgent: "workflow-subagent"`, a harness role rather than an agent name;
+their tokens count, but they land in `unattributed` rather than inventing an agent.
+
+Every string that becomes a report key passes a strict name filter, and anything
+failing it is aggregated under `other`. Report keys come from transcripts this
+script does not author — a cloned repo's own `.claude/agents/*.md` chooses
+`attributionAgent` — so the "names, never full paths" guarantee is enforced at the
+output boundary rather than trusted at each input site.
+
+`rework` answers at two scopes, deliberately: `retried_bash_commands` and
+`repeated_verify_runs` are per thread of execution (one transcript), while
+`repeated_file_edits`, `failed_edits`, `permission_denials` and `compaction_events`
+remain project-wide. A bash retry is a property of one agent's loop; a file is
+shared state.
 
 Runs and dispatches legitimately differ: a dispatch made from inside another
 agent appears only in that agent's own transcript, and a dispatch whose
@@ -117,7 +135,10 @@ for a tree written by an older harness that produced no subagent transcripts.
 **v1 reports are not comparable to v2.** Before v2 (issue #1990) the extractor
 globbed only the main-thread layout, so subagent tokens, tool calls and runs
 were missing entirely — on the report that surfaced the bug, 41% of total spend.
-`retried_bash_commands` and `repeated_verify_runs` also changed basis in v2:
+`retried_bash_commands` and `repeated_verify_runs` also changed basis in v2 —
+and still carry the v1 (project-wide, session-keyed) basis in `session-digest/v1`
+above, so the same names are not comparable across the two artifacts until #1994
+lands:
 they are now counted within one thread of execution rather than across a whole
 project, because subagents share their parent's `sessionId` and a session-keyed
 tally scores a review panel's siblings running one command each as retries.
