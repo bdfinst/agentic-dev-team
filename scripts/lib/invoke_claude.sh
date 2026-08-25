@@ -52,7 +52,11 @@ printf '  [llm]  %s: dispatching...\n' "$PHASE" >&2
 # Claude writes to stdout; we capture but only surface on error.
 # Use --allowedTools to ensure Claude has the tools it needs
 # without prompting interactively.
-LOG=$(mktemp -t invoke-claude-XXXXXX.log)
+# Full template path, not `-t` — see .husky/pre-push (issue #1993). The Xs
+# must be TRAILING: BSD mktemp substitutes only a trailing run, so
+# `...-XXXXXX.log` yields that name verbatim and the next call fails with
+# "File exists". Hence no `.log` suffix.
+LOG=$(mktemp -- "${TMPDIR:-/tmp}/invoke-claude-XXXXXX")
 if ! claude -p "$PROMPT" \
     --allowedTools "Read Glob Grep Bash Edit Write Agent" \
     --allow-dangerously-skip-permissions \

@@ -65,7 +65,14 @@ mkdir -p "$MEMORY"
 # embedded Python below (score_to_sev).
 
 # Scratch files
-TMP_DIR="$(mktemp -d 2>/dev/null || mktemp -d -t 'sevcons')"
+# Bare `mktemp -d` is portable on its own; the `-t` fallback it used to carry
+# was the non-portable form this repo bans (issue #1993), and never needed —
+# GNU and BSD both accept `mktemp -d` with no arguments.
+TMP_DIR="$(mktemp -d)" || { printf 'error: mktemp -d failed\n' >&2; exit 3; }
+if [ -z "$TMP_DIR" ] || [ ! -d "$TMP_DIR" ]; then
+  printf 'error: mktemp -d produced no directory\n' >&2
+  exit 3
+fi
 trap 'rm -rf "$TMP_DIR"' EXIT
 
 PAIRS="$TMP_DIR/pairs.tsv"  # rule_id<TAB>sev<TAB>slug
