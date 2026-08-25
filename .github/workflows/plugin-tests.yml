@@ -45,8 +45,14 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-apt-
 
-      - name: Install shellcheck + jq
-        run: sudo apt-get update && sudo apt-get install -y shellcheck jq
+      # jq only. shellcheck is NOT apt-installed: Ubuntu ships 0.9.0 while
+      # developers run whatever their package manager gives (0.11.0 via
+      # Homebrew), and the two disagree on real findings — a change passed the
+      # local gate and failed here on SC2015. ci-local.sh now resolves the one
+      # pinned SHELLCHECK_VERSION itself, so this job and the pre-push gate run
+      # the same binary rather than two versions that merely share a name.
+      - name: Install jq
+        run: sudo apt-get update && sudo apt-get install -y jq
 
       # Shellcheck (helpers, test scripts, the repo audit script) + the
       # security-assessment shell suite + the prefer-Python-over-bash gate
