@@ -117,10 +117,19 @@ def _run(stdin: str, env: dict) -> subprocess.CompletedProcess:
 
 
 def _base_env(tmp_path: Path) -> dict:
-    """Env with the per-session marker isolated inside `tmp_path`."""
+    """Env with the per-session marker isolated inside `tmp_path`.
+
+    `DEV_TEAM_CONTEXT_STRICT=off` is set here deliberately. Blocking became
+    the default in #2000, but the tests below are about *other* properties —
+    window detection, the absolute cap, band dedupe, exact message text — and
+    reached the warn path only incidentally. Pinning them to warn keeps each
+    one testing what it was written to test; the default posture itself is
+    owned by `TestBlockingIsTheDefault`, which sets no posture env at all.
+    """
     return {
         "TMPDIR": str(tmp_path),
         "PATH": "/usr/bin:/bin",
+        "DEV_TEAM_CONTEXT_STRICT": "off",
     }
 
 
@@ -827,7 +836,6 @@ _FULL_SUMMARY_ACTION = (
 _KNOB_FOOTER = (
     "Tune with DEV_TEAM_CONTEXT_WINDOW (overrides auto-detection) / "
     "DEV_TEAM_CONTEXT_CEILING_PCT / DEV_TEAM_CONTEXT_ABS_CEILING;\n"
-    "DEV_TEAM_CONTEXT_STRICT=on hard-blocks; "
     "DEV_TEAM_CONTEXT_CEILING=off disables."
 )
 
@@ -1154,3 +1162,170 @@ def test_warn_stderr_has_no_leaked_mutation_marker(tmp_path: Path) -> None:
     assert result.returncode == 0
     assert b"XX" not in result.stderr
     assert result.stderr.endswith(b"\n")
+
+
+# ---------------------------------------------------------------------------
+# #2000 — blocking is the default posture
+# ---------------------------------------------------------------------------
+
+
+def _posture_env(tmp_path: Path) -> dict:
+    """Base env with **no** posture variable set, so the default is what runs.
+
+    Deliberately not `_base_env`, which pins warn. Nothing here may set
+    `DEV_TEAM_CONTEXT_STRICT` — the whole point is what happens when an
+    operator has configured nothing.
+    """
+    return {"TMPDIR": str(tmp_path), "PATH": "/usr/bin:/bin"}
+
+
+class TestBlockingIsTheDefault:
+    """The reason #2000 exists is not the flip — it is that the previous
+    default could not fail. Over 2,393 sessions the guard warned and was
+    ignored: 76 sessions ran past 500K, 18 past 900K, recovery was invoked 3
+    times. So the load-bearing assertion here is the very first one, and this
+    repo's own rule is why it is written as its own test rather than folded
+    into an existing case: *when you add a gate, make it fail on purpose once
+    before you trust it.*
+    """
+
+    def test_over_the_ceiling_blocks_with_no_configuration_at_all(
+        self, tmp_path: Path
+    ) -> None:
+        tr = tmp_path / "t.jsonl"
+        _write_transcript(tr, 100_000)  # 50% of a 200K window
+        env = _posture_env(tmp_path)
+        env["DEV_TEAM_CONTEXT_WINDOW"] = "200000"
+        result = _run(_mkinput("Skill", {"skill": "plan"}, tr), env)
+        assert result.returncode == 2, (
+            "the ceiling must block by default; a warn here is the exact "
+            "failure #2000 was filed for"
+        )
+        assert b"blocked" in result.stderr
+
+    def test_the_block_names_handoff_so_the_way_out_is_never_implicit(
+        self, tmp_path: Path
+    ) -> None:
+        """A block that does not state the recovery path gets the guard
+        switched off wholesale instead of obeyed. The top action band drops
+        the knob footer, so the recovery path cannot live only there."""
+        tr = tmp_path / "t.jsonl"
+        _write_transcript(tr, 190_000)  # 95% — top band, footer dropped
+        env = _posture_env(tmp_path)
+        env["DEV_TEAM_CONTEXT_WINDOW"] = "200000"
+        result = _run(_mkinput("Skill", {"skill": "plan"}, tr), env)
+        assert result.returncode == 2
+        assert b"/handoff" in result.stderr
+
+    def test_explicit_off_still_warns(self, tmp_path: Path) -> None:
+        tr = tmp_path / "t.jsonl"
+        _write_transcript(tr, 100_000)
+        env = _posture_env(tmp_path)
+        env["DEV_TEAM_CONTEXT_WINDOW"] = "200000"
+        env["DEV_TEAM_CONTEXT_STRICT"] = "off"
+        result = _run(_mkinput("Skill", {"skill": "plan"}, tr), env)
+        assert result.returncode == 0
+        assert result.stderr != b""
+
+    @pytest.mark.parametrize("value", ["OFF", "Off", " off ", "off\n"])
+    def test_off_is_matched_case_and_whitespace_insensitively(
+        self, tmp_path: Path, value: str
+    ) -> None:
+        """An operator who typed `OFF` meant `off`. Blocking them because of
+        capitalization is the kind of surprise that gets a guard disabled."""
+        tr = tmp_path / "t.jsonl"
+        _write_transcript(tr, 100_000)
+        env = _posture_env(tmp_path)
+        env["DEV_TEAM_CONTEXT_WINDOW"] = "200000"
+        env["DEV_TEAM_CONTEXT_STRICT"] = value
+        result = _run(_mkinput("Skill", {"skill": "plan"}, tr), env)
+        assert result.returncode == 0
+
+    @pytest.mark.parametrize("value", ["on", "ON", "1", "true", "", "yes", "0"])
+    def test_every_non_off_value_blocks_including_the_historical_on(
+        self, tmp_path: Path, value: str
+    ) -> None:
+        """`on` was the opt-IN spelling before #2000 and is already set in
+        real environments; it must keep blocking. And an unrecognized value
+        must resolve toward the safe side — a typo'd `DEV_TEAM_CONTEXT_STRICT`
+        silently turning enforcement off is how the old default failed.
+        Note `0` and `""` block too: this variable is not a boolean, it is an
+        opt-out switch whose only meaningful value is `off`.
+        """
+        tr = tmp_path / "t.jsonl"
+        _write_transcript(tr, 100_000)
+        env = _posture_env(tmp_path)
+        env["DEV_TEAM_CONTEXT_WINDOW"] = "200000"
+        env["DEV_TEAM_CONTEXT_STRICT"] = value
+        result = _run(_mkinput("Skill", {"skill": "plan"}, tr), env)
+        assert result.returncode == 2
+
+    @pytest.mark.parametrize(
+        "skill",
+        ["handoff", "context-loading-protocol", "continue",
+         "review-summary", "session-review"],
+    )
+    def test_no_recovery_skill_is_ever_blocked_by_the_new_default(
+        self, tmp_path: Path, skill: str
+    ) -> None:
+        """This exemption was cosmetic while the default was warn — nothing
+        was being blocked, so nothing could deadlock. Under a blocking default
+        it is the only thing standing between an over-budget session and a
+        session that cannot do anything at all, including recover."""
+        tr = tmp_path / "t.jsonl"
+        _write_transcript(tr, 190_000)  # 95%, far past the ceiling
+        env = _posture_env(tmp_path)
+        env["DEV_TEAM_CONTEXT_WINDOW"] = "200000"
+        result = _run(_mkinput("Skill", {"skill": skill}, tr), env)
+        assert result.returncode == 0, f"/{skill} must never be gated"
+        assert result.stderr == b""
+
+    def test_plugin_qualified_recovery_skill_is_also_exempt(
+        self, tmp_path: Path
+    ) -> None:
+        tr = tmp_path / "t.jsonl"
+        _write_transcript(tr, 190_000)
+        env = _posture_env(tmp_path)
+        env["DEV_TEAM_CONTEXT_WINDOW"] = "200000"
+        result = _run(_mkinput("Skill", {"skill": "dev-team:handoff"}, tr), env)
+        assert result.returncode == 0
+
+    def test_below_the_ceiling_is_still_silent(self, tmp_path: Path) -> None:
+        """The flip changes the consequence of crossing the ceiling, not where
+        the ceiling is. A default that started firing earlier would be a
+        different change wearing this one's name."""
+        tr = tmp_path / "t.jsonl"
+        _write_transcript(tr, 50_000)  # 25%
+        env = _posture_env(tmp_path)
+        env["DEV_TEAM_CONTEXT_WINDOW"] = "200000"
+        result = _run(_mkinput("Agent", {"subagent_type": "x"}, tr), env)
+        assert result.returncode == 0
+        assert result.stderr == b""
+
+    def test_ceiling_off_still_disables_entirely(self, tmp_path: Path) -> None:
+        tr = tmp_path / "t.jsonl"
+        _write_transcript(tr, 190_000)
+        env = _posture_env(tmp_path)
+        env["DEV_TEAM_CONTEXT_WINDOW"] = "200000"
+        env["DEV_TEAM_CONTEXT_CEILING"] = "off"
+        result = _run(_mkinput("Skill", {"skill": "plan"}, tr), env)
+        assert result.returncode == 0
+
+    def test_unmeasurable_context_still_fails_open(self, tmp_path: Path) -> None:
+        """Fail-open is what makes a blocking default tolerable: a missing or
+        unreadable transcript is a measurement failure, and blocking on one
+        would strand sessions the guard knows nothing about."""
+        missing = tmp_path / "absent.jsonl"
+        env = _posture_env(tmp_path)
+        env["DEV_TEAM_CONTEXT_WINDOW"] = "200000"
+        result = _run(_mkinput("Skill", {"skill": "plan"}, missing), env)
+        assert result.returncode == 0
+        assert result.stderr == b""
+
+    def test_ungated_tools_are_untouched_by_the_default(self, tmp_path: Path) -> None:
+        tr = tmp_path / "t.jsonl"
+        _write_transcript(tr, 190_000)
+        env = _posture_env(tmp_path)
+        env["DEV_TEAM_CONTEXT_WINDOW"] = "200000"
+        result = _run(_mkinput("Bash", {"command": "ls"}, tr), env)
+        assert result.returncode == 0

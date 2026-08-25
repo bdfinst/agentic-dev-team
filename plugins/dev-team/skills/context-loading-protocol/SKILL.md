@@ -44,8 +44,9 @@ Handoff action bands keyed to multiples of the effective
 ceiling — 1x nudge, 1.25x run `/handoff` now, 1.5x full
 summary + fresh conversation (see [Handoff → When to
 Summarize](../handoff/SKILL.md#when-to-summarize)) — before
-nudging (warn, default) or, at/above the ceiling under
-`DEV_TEAM_CONTEXT_STRICT=on`, blocking the load. Recovery skills
+**blocking the load** at/above the ceiling (the default since
+#2000; `DEV_TEAM_CONTEXT_STRICT=off` downgrades it to a warning).
+Recovery skills
 (`/handoff`, `/context-loading-protocol`, `/continue`,
 `/review-summary`, `/session-review`) are never gated — blocking the path
 back under budget would deadlock the session.

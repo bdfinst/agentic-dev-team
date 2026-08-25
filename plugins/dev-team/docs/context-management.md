@@ -79,12 +79,20 @@ Concrete fire-points at default settings (`DEV_TEAM_CONTEXT_CEILING_PCT=40`,
 
 ## Expectations
 
-- **stderr-only by default.** Warn mode (the default) writes the message to
-  stderr and exits 0 — the tool call proceeds. Nothing is written to
-  stdout.
-- **Strict mode blocks.** `DEV_TEAM_CONTEXT_STRICT=on` escalates an
-  at-or-above-ceiling warning to `exit 2` (the tool call is blocked), with
-  `[blocked: DEV_TEAM_CONTEXT_STRICT=on]` appended to the message.
+- **Blocking is the default (#2000).** At or above the ceiling the hook
+  writes to stderr and exits 2 — the tool call is blocked — with a
+  `[blocked: context ceiling]` footer naming `/handoff` as the way out.
+  Nothing is written to stdout.
+- **Warn mode is opt-out.** `DEV_TEAM_CONTEXT_STRICT=off` downgrades the
+  block to a stderr warning with `exit 0`, the pre-#2000 behavior. Only the
+  literal value `off` (case- and whitespace-insensitive) does this; every
+  other value — including the historical opt-in spelling `on` — blocks, so a
+  typo resolves toward enforcement rather than away from it.
+- **Why it changed.** Warn-by-default was measured and did not hold: across
+  2,393 sessions, 76 ran past 500K occupancy and 18 past 900K, with those 18
+  alone accounting for 29% of main-thread spend at roughly 3x the per-turn
+  cost of a sub-100K session. Recovery was invoked 3 times. An advisory
+  ceiling reads as a guarantee and delivers none.
 - **Fail-open guarantees.** The hook never blocks a session because of its
   own failure: missing or unreadable transcript, malformed or empty stdin,
   unmeasurable usage, a malformed env var, or any internal parse error all
@@ -103,7 +111,7 @@ Concrete fire-points at default settings (`DEV_TEAM_CONTEXT_CEILING_PCT=40`,
 | Env var | Default | Effect |
 | --- | --- | --- |
 | `DEV_TEAM_CONTEXT_CEILING` | (unset = on) | `off` disables the guard entirely. |
-| `DEV_TEAM_CONTEXT_STRICT` | (unset = warn) | `on` blocks (`exit 2`) at or above the ceiling instead of warning. |
+| `DEV_TEAM_CONTEXT_STRICT` | (unset = block) | `off` warns (`exit 0`) at or above the ceiling instead of blocking. Any other value blocks. |
 | `DEV_TEAM_CONTEXT_CEILING_PCT` | `40` | Percentage-of-window threshold before the absolute cap is applied. |
 | `DEV_TEAM_CONTEXT_WINDOW` | (unset = auto-detect) | Overrides window auto-detection explicitly; always wins over detection. |
 | `DEV_TEAM_CONTEXT_ABS_CEILING` | `150000` | Absolute token cap on the effective threshold — `min(ceiling_pct% of window, this)`. |

@@ -36,3 +36,4 @@
 * [34. Do not build a shared-context pre-pass for duplicate full-file reads (#1611)](0034-do-not-build-shared-context-pre-pass-for-duplicate-full-file-reads-1611.md)
 * [35. Defer two-lane generation/validation concurrency in `mutation-kill --all` (#1909)](0035-defer-two-lane-generation-validation-concurrency-in-mutation-kill-all-1909.md)
 * [36. The two session extractors stay forked, for now (#1994)](0036-the-two-session-extractors-stay-forked-1994.md)
+* [37. Block by default at the context ceiling (#2000)](0037-block-by-default-at-the-context-ceiling-2000.md)
