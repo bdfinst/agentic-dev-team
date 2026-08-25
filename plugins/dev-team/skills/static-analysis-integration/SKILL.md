@@ -49,6 +49,19 @@ Shipped in P2 Step 3b for tools without upstream SARIF. Each adapter ≤ 40 LOC.
 
 mypy (≥ 1.11, `mypy --output json`) normalizes via `adapters/mypy-adapter.py` — rule ids `mypy.python.<error-code>`; on older mypy (no `--output json`) the adapter degrades to a skip-with-warning. Language-conditional like ruff (see step 1). Invocation and field mapping in `references/tool-configs.md`.
 
+### Convention, accessibility, and performance probes (#1979)
+
+Two **additional invocations of tools already in the tiers above** — no new binaries, no new adapters, no network. Each exists to hand review agents a deterministic finding where a lens would otherwise re-derive one by inference, and each is separate from its tool's main lane so the main lane keeps reflecting the project's own gating configuration:
+
+| Probe | Invocation | Displaces |
+|---|---|---|
+| ruff convention | `ruff check --select N,PLR2004 --output-format sarif .` | the mechanical half of `naming-review` (PEP 8 naming, magic values in comparisons) |
+| oxlint frontend | `npx oxlint --jsx-a11y-plugin --react-plugin --react-perf-plugin -D perf --format sarif .` | the mechanical half of `a11y-review`; feeds `performance-review` on the JS/TS side (`no-await-in-loop` is the N+1 shape) |
+
+Both are language-conditional, never `[REQUIRED]`, and never gate — they are context, exactly like the rest of the pre-pass. Invocation details, the measured calibration behind them, and the JS/TS magic-number opt-in are in `references/tool-configs.md`.
+
+**Cross-language performance context.** When the Repowise MCP tools are available, the caller injects `get_health`'s static I/O-in-loop / N+1 findings into the pre-pass context alongside these, rather than having `performance-review` fetch them per dispatch. **Semgrep's registry performance rulesets (`p/performance`) are deliberately NOT used**: resolving a registry pack requires an outbound call to `semgrep.dev`, which would break the offline posture § 1b establishes for this pre-pass — and the pack the spike named does not resolve at all (`--config p/performance` returns HTTP 404, verified on semgrep 1.174.0). Shipping our own performance rules is possible but is a separate piece of work: every rule this repo ships needs passing/failing fixtures under the `semgrep rule fixtures` CI gate. The oxlint `perf` lane covers the JS/TS side offline; anything beyond it stays with the agent.
+
 **lizard** (complexity metrics) normalizes via `adapters/lizard-adapter.py` — rule ids `lizard.complexity.<metric>`; **jscpd** (copy-paste duplication) via `adapters/jscpd-adapter.py` — rule id `jscpd.duplication.clone`. Both are Tier 3 by this file's own taxonomy (bespoke adapter, not SARIF-native), but both are *baseline* capabilities rather than optional extras: they are the deterministic source for the two metric families the review panel would otherwise re-derive by inference on every run — function complexity/size/parameter count, and duplicated blocks (#1974). Neither is language-conditional; lizard covers ~15 languages and jscpd ~150, so both are probed on every target set. Invocation, thresholds, and field mapping in `references/tool-configs.md`.
 
 ### Tier 4 — legacy (pre-SARIF)

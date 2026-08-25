@@ -116,3 +116,18 @@ Append confidence level (High/Medium/Low) to the `summary` field.
 ## Ignore
 
 Structure, tests, domain modeling (handled by other agents)
+
+**Anything the static-analysis pre-pass already reported (#1979).** When the
+run supplies pre-pass findings, they arrive with "do not re-report" framing —
+honor it here specifically, because two of this agent's own checks now have a
+deterministic source on the Python side: `ruff.python.plr2004` (magic values
+in comparisons) and `ruff.python.n8xx` (PEP 8 naming conventions). A literal
+or a snake_case violation already named in that table is settled; re-reporting
+it spends a dispatch to restate a measurement. What remains yours is the part
+no linter can compute — whether a *well-formed* name actually reveals intent,
+whether a boolean reads as a predicate, whether two names in the same module
+mean the same thing, and whether a flagged constant has a meaningful name
+available at all. On stacks with no such lane (or where the project has not
+opted into the JS/TS equivalents — see
+[`../skills/static-analysis-integration/references/tool-configs.md`](../skills/static-analysis-integration/references/tool-configs.md)),
+these checks are still entirely yours.
