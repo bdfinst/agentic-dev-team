@@ -90,7 +90,12 @@ section() { printf '\n%s== %s ==%s\n' "$bold" "$1" "$reset"; }
 # tools per job, so a full-toolchain gate here would false-fail those jobs.
 if [ -z "$ONLY" ]; then
   missing=()
-  for t in shellcheck jq python3 semgrep uv; do
+  # shellcheck is deliberately absent: it is version-PINNED, not merely
+  # required, so `command -v shellcheck` would pass on a machine whose only
+  # shellcheck disagrees with CI's. _resolve_shellcheck resolves the pinned
+  # one (downloading it if needed) — same reasoning as the ruff module probe
+  # immediately below.
+  for t in jq python3 semgrep uv; do
     command -v "$t" >/dev/null 2>&1 || missing+=("$t")
   done
   # ruff is probed as a MODULE, matching how chk_ruff invokes it (#1676). A
@@ -163,8 +168,122 @@ fi
 # tests/repo (the long pole) + the rest so the pole overlaps the other gates
 # instead of running after them.
 
-chk_shellcheck_helpers() { shellcheck -x plugins/security-assessment/scripts/*.sh; }
-chk_shellcheck_tests()   { shellcheck tests/security-assessment/scripts/*.sh scripts/audit-rules-vs-prompts.sh; }
+# The ONE shellcheck version this repo is checked against (issue #1993
+# follow-up). Same rationale as PYTHON_CEILING above: declared in one place, so
+# neither a runner-image bump nor a developer's `brew upgrade` can move it
+# silently.
+#
+# It moved here because this file's whole promise — "CI and the local pre-push
+# gate run identical checks" — was not true for shellcheck. The workflow
+# apt-installed whatever Ubuntu shipped (0.9.0) while developers ran whatever
+# Homebrew shipped (0.11.0), two majors apart, and the two disagree on real
+# findings: 0.9.0 reports SC2015 on `A && B || C` where 0.11.0 stays silent. A
+# change passed the local gate and failed CI on exactly that, which is the
+# "gate bounds only the case it can observe" pattern CLAUDE.md records for
+# Python versions and macOS, arriving a third time through the linter.
+# Why 0.10.0 and not the newest: 0.11.0 RETIRED SC2015 ("A && B || C is not
+# if-then-else"), and cannot emit it at any severity — verified by running all
+# three of `shellcheck`, `-S style`, and `--enable=all` against a known
+# offender. That check is not academic here: CI's 0.9.0 caught a real SC2015 in
+# the #1993 fix that a developer's 0.11.0 had passed. Pinning forward would
+# have made the local gate agree with CI by making BOTH blind to it.
+# 0.9.0 (what Ubuntu ships) is not an option either — it publishes no
+# darwin/aarch64 build, and every maintainer here is on Apple Silicon.
+# 0.10.0 is the newest release that both keeps SC2015 and runs natively
+# everywhere, and it passes the repo's existing shell clean.
+SHELLCHECK_VERSION="0.10.0"
+
+# Resolve the pinned shellcheck, downloading it if the local one differs.
+# Mirrors _resolve_python310's posture: use the version the gate declares
+# rather than whatever happens to be on PATH, and do not silently downgrade to
+# "close enough" — a linter that disagrees with CI is worse than no local
+# linter, because it manufactures false confidence.
+_resolve_shellcheck() {
+  # Explicit override, checked first. Two real needs: an offline or
+  # distro-packaged machine that cannot fetch the release binary, and tests
+  # that must stub the exact binary the gate runs (a PATH stub no longer
+  # works, by design — that is the whole point of the pin).
+  if [ -n "${SHELLCHECK_BIN:-}" ]; then
+    if [ -x "${SHELLCHECK_BIN}" ]; then
+      printf '%s\n' "${SHELLCHECK_BIN}"
+      return 0
+    fi
+    printf 'SHELLCHECK_BIN is set but not executable: %s\n' "${SHELLCHECK_BIN}" >&2
+    return 1
+  fi
+
+  if command -v shellcheck >/dev/null 2>&1 &&
+     shellcheck --version 2>/dev/null | grep -q "^version: ${SHELLCHECK_VERSION}$"; then
+    command -v shellcheck
+    return 0
+  fi
+
+  local cache="${XDG_CACHE_HOME:-$HOME/.cache}/agentic-dev-team/shellcheck-v${SHELLCHECK_VERSION}"
+  if [ -x "$cache/shellcheck" ]; then
+    printf '%s\n' "$cache/shellcheck"
+    return 0
+  fi
+
+  local os arch url tmp staged
+  case "$(uname -s)" in
+    Darwin) os=darwin ;;
+    Linux)  os=linux ;;
+    *) return 1 ;;
+  esac
+  case "$(uname -m)" in
+    arm64|aarch64) arch=aarch64 ;;
+    x86_64|amd64)  arch=x86_64 ;;
+    *) return 1 ;;
+  esac
+  url="https://github.com/koalaman/shellcheck/releases/download/v${SHELLCHECK_VERSION}/shellcheck-v${SHELLCHECK_VERSION}.${os}.${arch}.tar.xz"
+
+  # The gates that need this run CONCURRENTLY in the pool below, so two
+  # processes can reach here at once. Stage into a unique name and rename into
+  # place: rename(2) within one directory is atomic, where a plain copy would
+  # overwrite the very binary the other process is executing — which is
+  # ETXTBSY ("Text file busy") on Linux, and is exactly how this failed in CI
+  # while passing locally, where the cache was already warm.
+  tmp="$(mktemp -d -- "${TMPDIR:-/tmp}/shellcheck-dl-XXXXXX")" || return 1
+  if curl -fsSL --retry 3 -o "$tmp/sc.tar.xz" "$url" &&
+     tar -xJf "$tmp/sc.tar.xz" -C "$tmp" &&
+     mkdir -p "$cache" &&
+     staged="$(mktemp -- "$cache/.shellcheck-XXXXXX")" &&
+     cp "$tmp/shellcheck-v${SHELLCHECK_VERSION}/shellcheck" "$staged" &&
+     chmod +x "$staged" &&
+     mv -f "$staged" "$cache/shellcheck" 2>/dev/null; then
+    rm -rf "$tmp"
+    printf '%s\n' "$cache/shellcheck"
+    return 0
+  fi
+  [ -n "${staged:-}" ] && rm -f "$staged"
+  rm -rf "$tmp"
+  # A concurrent resolver may have won the race and finished the install while
+  # this one was failing; prefer its result over reporting an error.
+  if [ -x "$cache/shellcheck" ]; then
+    printf '%s\n' "$cache/shellcheck"
+    return 0
+  fi
+  return 1
+}
+
+_shellcheck_or_fail() {
+  local sc
+  if ! sc="$(_resolve_shellcheck)" || [ -z "$sc" ]; then
+    printf 'Could not resolve shellcheck %s.\n' "$SHELLCHECK_VERSION" >&2
+    printf 'Install it, or allow the download:  bash scripts/dev-setup.sh\n' >&2
+    return 1
+  fi
+  printf '%s\n' "$sc"
+}
+
+chk_shellcheck_helpers() {
+  local sc; sc="$(_shellcheck_or_fail)" || return 1
+  "$sc" -x plugins/security-assessment/scripts/*.sh
+}
+chk_shellcheck_tests() {
+  local sc; sc="$(_shellcheck_or_fail)" || return 1
+  "$sc" tests/security-assessment/scripts/*.sh scripts/audit-rules-vs-prompts.sh
+}
 chk_sa_shell_suite()     { bash tests/security-assessment/scripts/run-all.sh; }
 # chk_model_routing (formerly ran 4 bats files) — retired in #618. The bash
 # hooks under test have been ported to Python (#585 / #577 / #609), and their
@@ -333,6 +452,7 @@ chk_python_floor() {
     tests/scripts/test_progress_guardian.py \
     tests/scripts/test_token_efficiency_review_script.py \
     tests/scripts/test_claude_setup_review.py \
+    tests/scripts/test_extract_session_report.py \
     plugins/dev-team/tests/scripts/test_coverage_config.py \
     plugins/dev-team/tests/scripts/test_coverage_discovery_dotnet.py \
     plugins/dev-team/tests/scripts/test_coverage_discovery_js.py \

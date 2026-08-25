@@ -84,7 +84,7 @@ def test_sync_emits_one_record_per_session_labeled_by_basename(
     assert len(records) == 2
 
     by_id = {r["session_id"]: r for r in records}
-    assert by_id["sess-a"]["schema"] == "session-sync/v1"
+    assert by_id["sess-a"]["schema"] == "session-sync/v2"
     assert by_id["sess-a"]["project"] == "alpha"
     assert by_id["sess-b"]["project"] == "beta"
     assert by_id["sess-a"]["host"] == "testhost"

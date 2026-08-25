@@ -44,11 +44,11 @@ def _digest() -> dict:
 
 def test_extract_token_signals() -> None:
     digest = _digest()
-    assert digest["schema"] == "session-digest/v1"
+    assert digest["schema"] == "session-digest/v2"
     assert digest["sessions"] == 1
     assert digest["token"]["totals"]["input_tokens"] == 4100
     assert digest["token"]["cache_hit_ratio"] == 0.8
-    assert digest["token"]["by_subagent"]["sidechain"] == 1
+    assert digest["token"]["by_agent_type"]["sidechain"] == 1
     assert digest["token"]["by_skill"]["code-review"]["input_tokens"] == 1500
 
 
@@ -252,7 +252,10 @@ def test_extract_append_writes_one_metrics_only_trend_record_per_run(
     # appended once per run -> two lines
     assert len(lines) == 2
     first = json.loads(lines[0])
-    assert first["schema"] == "session-digest/v1"
+    # The trend record must carry the SAME era marker as the digest it slims:
+    # stamping v1 on v2-basis numbers is worse than not versioning at all,
+    # because "split the stream on schema" then silently cannot work (#1994).
+    assert first["schema"] == "session-digest/v2"
     # aggregate counts only: rework.repeated_file_edits is a COUNT, not a map
     assert first["rework"]["repeated_file_edits"] == 1
     assert first["accuracy"]["user_correction_turns"] == 1

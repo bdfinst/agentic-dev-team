@@ -133,9 +133,16 @@ if [ -z "$PM" ]; then
       ;;
   esac
 fi
-for tool in jq shellcheck python3; do
+for tool in jq python3; do
   ensure_tool "$tool" required
 done
+# shellcheck is NOT installed here on purpose. It is version-PINNED
+# (SHELLCHECK_VERSION in scripts/ci-local.sh), and a package manager gives
+# whatever it happens to ship — Homebrew's 0.11.0 and Ubuntu's 0.9.0 disagree
+# on real findings, which is the drift the pin exists to remove.
+# ci-local.sh's _resolve_shellcheck fetches the pinned release binary into
+# ~/.cache/agentic-dev-team/ on first use, so nothing to do here.
+ensure_tool shellcheck optional
 # gh is used for PR operations in CI/cloud, not by the local gates — best effort.
 ensure_tool gh optional
 
@@ -318,7 +325,7 @@ fi
 # Re-check everything from scratch so the summary reflects the real end state,
 # not what we believe we installed.
 section "Verifying"
-for tool in jq shellcheck python3 uv; do
+for tool in jq python3 uv; do
   if command -v "$tool" >/dev/null 2>&1; then
     ok "$tool"
   else

@@ -274,6 +274,11 @@ def test_failing_check_preserves_nonzero_exit_and_shows_timing(tmp_path: Path) -
 
     env = _base_env()
     env["PATH"] = f"{stub}{os.pathsep}{env['PATH']}"
+    # shellcheck is version-pinned, so ci-local.sh deliberately ignores a PATH
+    # stub (SHELLCHECK_VERSION / _resolve_shellcheck). Point the gate at the
+    # stub explicitly — this now stubs exactly the binary the check runs,
+    # rather than one it might happen to pick up.
+    env["SHELLCHECK_BIN"] = str(stub / "shellcheck")
     env["CI_LOCAL_TIMING"] = "1"
     proc = subprocess.run(
         ["bash", str(CI_LOCAL), "--only=chk_shellcheck_helpers"],

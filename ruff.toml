@@ -75,3 +75,10 @@ extend-exclude = [
 # target-version would keep autofixing `timezone.utc` back into the 3.11-only
 # `datetime.UTC` alias here (issue #1805).
 "plugins/security-assessment/harness/**" = "py310"
+
+# tests/scripts/** holds most of FLOOR_TEST_SLICE (tests/repo/test_python_floor.py):
+# chk_python_floor actually RUNS these files on the resolved 3.10 interpreter, so
+# linting them at py311 lets ruff autofix `timezone.utc` into the 3.11-only
+# `datetime.UTC` alias and hand the floor job a file it cannot execute — the same
+# trap #1805 fixed for the security-assessment harness, one directory over.
+"tests/scripts/**" = "py310"

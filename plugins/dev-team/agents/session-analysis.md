@@ -40,7 +40,7 @@ Return `{"status": "skip", "issues": [], "summary": "No session digest provided 
 ## Input
 
 A JSON digest with four signal classes: `token`, `rework`, `accuracy`,
-`utilization` (see `session-digest/v1`). Treat all three problem classes
+`utilization` (see `session-digest/v2`). Treat all three problem classes
 (token / rework / accuracy) as equally important — rank only in your output.
 
 ## Analysis heuristics (pattern → probable plugin cause)
