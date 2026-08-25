@@ -31,6 +31,7 @@ _mkdocs_src/
 
 # EnterWorktree tool scratch dirs (per-agent git worktrees, not repo content)
 .claude/worktrees/
+.claude/review-context/
 
 # Per-session turn-state tracked by the code-intelligence nudge hooks — never repo content
 .claude/code-intelligence-turn-state.json
