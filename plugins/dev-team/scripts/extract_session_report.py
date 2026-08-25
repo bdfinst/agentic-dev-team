@@ -535,7 +535,8 @@ def main(argv=None) -> int:
     )
     ap.add_argument(
         "-o", "--out",
-        help="output file path (default: session-report-<host>-<timestamp>.json in the current directory)",
+        help="output file path (default: session-report-<scope>-<timestamp>.json in the "
+        "current directory, where <scope> is the project name or 'all')",
     )
     args = ap.parse_args(argv)
 
@@ -555,6 +556,7 @@ def main(argv=None) -> int:
         for label, paths in sorted(by_project.items()):
             digests[label] = extract(paths, registry)
         mode = "all-projects"
+        scope = "all"
     else:
         target = args.project or os.getcwd()
         label, paths = resolve_single_project(projects_root, target)
@@ -563,6 +565,7 @@ def main(argv=None) -> int:
             return 1
         digests[label] = extract(paths, registry)
         mode = "single-project"
+        scope = label
 
     report = {
         "schema": "downstream-session-report/v1",
@@ -576,7 +579,7 @@ def main(argv=None) -> int:
 
     out_path = Path(
         args.out
-        or f"session-report-{host}-{datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%SZ')}.json"
+        or f"session-report-{scope}-{datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%SZ')}.json"
     )
     out_path.write_text(json.dumps(report, indent=2, sort_keys=True) + "\n", encoding="utf-8")
     print(f"wrote {out_path} ({len(digests)} project(s), {report['combined']['sessions']} session(s))")
