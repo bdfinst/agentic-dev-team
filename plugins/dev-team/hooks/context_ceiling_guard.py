@@ -18,17 +18,27 @@ Why occupancy from the transcript and not a self-estimate: the model has no
 reliable readout of its own context fill; the usage the harness recorded in
 the transcript is the ground truth.
 
-Posture: warn-by-default, fail-open. Writes the message to stderr and exits
-0 to allow/warn, exit 2 to block. Any error, unmatched tool, or
-unmeasurable context → exit 0 — a measurement failure never blocks a
-session.
+Posture: block-by-default (#2000), fail-open. Writes the message to stderr
+and exits 2 to block over the ceiling, 0 to allow (or to warn under
+`DEV_TEAM_CONTEXT_STRICT=off`). Any error, unmatched tool, or unmeasurable
+context → exit 0 — a measurement failure never blocks a session.
+
+Why blocking is the default: warn-by-default was measured and did not hold.
+Over 2,393 sessions the guard warned and was ignored — 76 sessions ran past
+500K occupancy, 18 past 900K, and those 18 alone were 29% of main-thread
+spend at roughly 3x the per-turn cost of a session under 100K. Recovery was
+invoked 3 times. An advisory ceiling reads as a guarantee and delivers
+none, so it now blocks and the operator opts out explicitly.
 
 Recovery skills are never gated: blocking /handoff (the way
 back under budget) would deadlock the session.
 
 Env:
     DEV_TEAM_CONTEXT_CEILING=off     disable entirely (default on)
-    DEV_TEAM_CONTEXT_STRICT=on       block over the ceiling (default: warn)
+    DEV_TEAM_CONTEXT_STRICT=off      warn instead of blocking over the
+                                     ceiling (default: block, #2000).
+                                     Any other value, including the
+                                     historical `on`, blocks.
     DEV_TEAM_CONTEXT_CEILING_PCT=N   ceiling percent (default 40)
     DEV_TEAM_CONTEXT_WINDOW=N        context window in tokens; an explicit
                                      override that always wins over
@@ -60,7 +70,7 @@ Env:
 Contract (docs/python-hook-contract.md):
     Input : PreToolUse JSON on stdin
     Output: exit 0 = allow (optionally with stderr warning)
-            exit 2 = block (strict mode over ceiling)
+            exit 2 = block (over ceiling; the default posture)
     Posture: fail-open on any parse or IO error.
 
 Stdlib-only (json/os/pathlib/re/sys). See ADR 0014.
@@ -401,6 +411,16 @@ _BAND_NUDGE, _BAND_RUN_NOW, _BAND_FULL_SUMMARY = 0, 1, 2
 # wins the `max()` and forces a re-fire regardless of the coarser bucket.
 _BAND_SCALE = 100
 
+#: Appended to every blocked message. The action bands already name /handoff
+#: at the two lower bands, but the top band does not — and a block that does
+#: not state the way out is how a guard gets switched off wholesale rather
+#: than obeyed. This guarantees the recovery path is present in every block.
+_BLOCK_FOOTER = (
+    "[blocked: context ceiling] Run /handoff to summarize and continue in a "
+    "fresh context — recovery skills are never gated, so it will run. "
+    "Set DEV_TEAM_CONTEXT_STRICT=off to warn instead of blocking."
+)
+
 _BAND_ACTIONS = {
     _BAND_NUDGE: (
         "nudge",
@@ -471,7 +491,6 @@ def _format_message(
     knob_footer = (
         "Tune with DEV_TEAM_CONTEXT_WINDOW (overrides auto-detection) / "
         "DEV_TEAM_CONTEXT_CEILING_PCT / DEV_TEAM_CONTEXT_ABS_CEILING;\n"
-        "DEV_TEAM_CONTEXT_STRICT=on hard-blocks; "
         "DEV_TEAM_CONTEXT_CEILING=off disables."
     )
     return f"{diagnostic}\n[{band_name}] {action}\n{knob_footer}"
@@ -550,8 +569,12 @@ def _resolve_verdict(payload: dict) -> tuple[int, str | None, bool]:
     label = _build_label(tool_name, tool_input)
     msg = _format_message(occ, window, threshold_tokens, bound, provenance, label)
 
-    if os.environ.get("DEV_TEAM_CONTEXT_STRICT") == "on":
-        return 2, f"{msg} [blocked: DEV_TEAM_CONTEXT_STRICT=on]", False
+    # #2000: blocking is the DEFAULT. Only an explicit `off` downgrades to a
+    # warning. Every other value — including the historical `on`, which many
+    # environments already set — blocks, so opting IN never silently becomes
+    # opting out.
+    if os.environ.get("DEV_TEAM_CONTEXT_STRICT", "").strip().lower() != "off":
+        return 2, f"{msg}\n{_BLOCK_FOOTER}", False
 
     # Warn mode dedupe, re-keyed on band identity (#781): the dedupe key is
     # max(band_index_scaled, pct_bucket). _BAND_SCALE (100) makes any band
