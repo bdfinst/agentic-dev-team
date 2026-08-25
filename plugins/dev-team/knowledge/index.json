@@ -4217,7 +4217,7 @@
       "anchor": "3-analyze-review-agent-effectiveness"
     },
     "4. Analyze review-value fix rates": {
-      "summary": "Read `metrics/review-value.jsonl` (written by `/build` per #348, schema in `performance-metrics`).",
+      "summary": "**Check the sample's validity first (#2019).** Run this before reading a single rate, and report its verdict at the top of every section that cites per-lens value:",
       "anchor": "4-analyze-review-value-fix-rates"
     },
     "4a. Analyze re-review churn (#1624)": {
