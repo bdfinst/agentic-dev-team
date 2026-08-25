@@ -160,10 +160,10 @@ SARIF_DIR="$(mktemp -d -- "${TMPDIR:-/tmp}/run-assess-XXXXXX")" || {
   printf 'error: could not create a scratch dir under %s\n' "${TMPDIR:-/tmp}" >&2
   exit 2
 }
-[ -n "$SARIF_DIR" ] && [ -d "$SARIF_DIR" ] || {
+if [ -z "$SARIF_DIR" ] || [ ! -d "$SARIF_DIR" ]; then
   printf 'error: scratch dir was not created\n' >&2
   exit 2
-}
+fi
 trap 'rm -rf "$SARIF_DIR"' EXIT
 
 # Tool availability bookkeeping

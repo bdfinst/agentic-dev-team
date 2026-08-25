@@ -69,10 +69,10 @@ mkdir -p "$MEMORY"
 # was the non-portable form this repo bans (issue #1993), and never needed —
 # GNU and BSD both accept `mktemp -d` with no arguments.
 TMP_DIR="$(mktemp -d)" || { printf 'error: mktemp -d failed\n' >&2; exit 3; }
-[ -n "$TMP_DIR" ] && [ -d "$TMP_DIR" ] || {
+if [ -z "$TMP_DIR" ] || [ ! -d "$TMP_DIR" ]; then
   printf 'error: mktemp -d produced no directory\n' >&2
   exit 3
-}
+fi
 trap 'rm -rf "$TMP_DIR"' EXIT
 
 PAIRS="$TMP_DIR/pairs.tsv"  # rule_id<TAB>sev<TAB>slug
