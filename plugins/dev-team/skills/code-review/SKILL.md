@@ -17,6 +17,7 @@ allowed-tools: >-
   Bash(git diff *), Bash(npx *), Bash(npm run *),
   Bash(pnpm *), Bash(yarn *), Bash(tsc *), Bash(eslint *),
   Bash(git log *), Bash(gh run *), Bash(semgrep *),
+  Bash(gitleaks *), Bash(lizard *), Bash(jscpd *),
   Bash(ruff *), Bash(mypy *), Skill(review-agent *)
 ---
 
@@ -175,7 +176,9 @@ Otherwise run these in sequence (stop on first failure):
 
 1. **Lint**: `npx eslint` (or project lint command) on target files.
 2. **Type check**: `npx tsc --noEmit` if `tsconfig.json` exists.
-3. **Secret scan**: grep target files for the runnable pattern in [`knowledge/owasp-detection.md`](../../knowledge/owasp-detection.md) § Hardcoded-key pattern (the fenced code block, not the table row — table cells escape `|` as `\|`, a literal pipe rather than alternation).
+3. **Secret scan** (#1977). Prefer the purpose-built scanner when it is installed, and keep the grep as the zero-dependency fallback — this gate is the one place a committed credential must hard-stop the review, and it was checking a single regex while a real secrets scanner already ran one step later in the pre-pass:
+   - If `command -v gitleaks` succeeds, run it with the **canonical invocation** in [`skills/static-analysis-integration/references/tool-configs.md`](../static-analysis-integration/references/tool-configs.md) § gitleaks — one documented command, not a variant of it (`--no-verify` is what keeps it fully offline). Any finding on a target file → **fail the gate**. Report the rule id and `file:line` only; **never echo the matched secret value** into the report or transcript. Record that gitleaks ran, and **do not run it again in step 2b** — same "do not run Semgrep twice" rule.
+   - Otherwise (gitleaks absent): grep target files for the runnable pattern in [`knowledge/owasp-detection.md`](../../knowledge/owasp-detection.md) § Hardcoded-key pattern (the fenced code block, not the table row — table cells escape `|` as `\|`, a literal pipe rather than alternation). Note in the report that the fallback ran, so a reader can tell "no secrets found by gitleaks" apart from "no secrets found by one regex".
 4. **Semgrep SAST**: `semgrep scan --config auto --quiet --json` on target files if installed. ERROR-severity → fail. WARNING-severity → continue, include in report. Save findings for security-review context.
 5. **Pipeline-red check**: `gh run list --branch $(git branch --show-current) --limit 1 --json conclusion -q '.[0].conclusion'` if `gh` is available. If the last CI run failed, warn: "Pipeline is red. Fix CI before adding new code. Use `--force` to override."
 
@@ -267,7 +270,7 @@ Deriving both from the same quoted `$CHANGED_JSON` variable — rather than re-i
 
 Always pass `--added-from` for a diff-scoped run, **even when `added` is `[]`** — an empty process substitution still supplies an explicit empty set (narrows away any added-only lens), whereas omitting the flag entirely reverts to the fail-safe fallback (matches an added-only `Scope:` like a plain glob list). Omit both `--files-from` and `--added-from` only for `--path`/`--all`/the full-repository fallback.
 
-Take its `lenses` array as the Scope-eligible roster, and **surface its `warnings`** in the review output — a bare agent name means that agent is missing its `Scope:` declaration and was included include-biased; `unnarrowed-added-only:<name>` (#1733) means an added-only lens was kept un-narrowed (matched like a plain glob list) because this run supplied no `--added`/`--added-from`; `skipped-non-executable:<name>` (#1923) means a `Scope: always` lens on the resolver's own `NON_EXECUTABLE_SKIP_ELIGIBLE` allowlist (`correctness-review` today) was dropped from `lenses` because every changed file matched a docs/config/asset/lockfile pattern that lens's own `## Skip` clause already covers — this is a deliberate cost optimization, not a coverage gap, so treat it as informational rather than `fail`-equivalent, distinct from the two shapes below; `unreadable-registry:<file>` means the roster could not be read at all; `unreadable-files-from:<path>`/`unreadable-added-from:<path>` mean the named `--files-from`/`--added-from` source could not be read — **treat either as equivalent to a `fail` status** for this run (an unreadable source is not "nothing changed") rather than proceeding as if the (now-truncated) file list were complete. Never silently drop any of these shapes from the report. The resolver reads each review agent's body-level `Scope:` declaration — `Scope: always` (eligible for any non-empty changeset), a glob list (eligible only when at least one target file matches a declared glob), `Scope: added-only` + globs (eligible only when a target file matching a declared glob was newly *added* — `component-architecture-review`'s dual-placement rule, #1733: unconditional in `/repo-review`, added-only here), or `Scope: on-demand` (never eligible for this per-diff roster at all — `token-efficiency-review`, `ai-provenance-review`, and `claude-setup-review` declare this; they are repo-wide drift/trend metrics dispatched instead by the whole-tree `/repo-review` command, #1735). `Scope:` is a body declaration, not frontmatter (`agent-contract.json`). This is the single source of truth shared with `/build`'s inline checkpoints: adding or changing an agent's trigger scope needs only an edit to that agent's own body — zero edits to this skill. (The framework-reactivity agents react/vue/angular are **not** in the resolver's roster; they are governed by the manifest rule below.)
+Take its `lenses` array as the Scope-eligible roster, and **surface its `warnings`** in the review output — a bare agent name means that agent is missing its `Scope:` declaration and was included include-biased; `unnarrowed-added-only:<name>` (#1733) means an added-only lens was kept un-narrowed (matched like a plain glob list) because this run supplied no `--added`/`--added-from`; `skipped-non-executable:<name>` (#1923) means a `Scope: always` lens on the resolver's own `NON_EXECUTABLE_SKIP_ELIGIBLE` allowlist (`correctness-review` today) was dropped from `lenses` because every changed file matched a docs/config/asset/lockfile pattern that lens's own `## Skip` clause already covers — this is a deliberate cost optimization, not a coverage gap, so treat it as informational rather than `fail`-equivalent, distinct from the two shapes below; `unreadable-registry:<file>` means the roster could not be read at all; `unreadable-files-from:<path>`/`unreadable-added-from:<path>` mean the named `--files-from`/`--added-from` source could not be read — **treat either as equivalent to a `fail` status** for this run (an unreadable source is not "nothing changed") rather than proceeding as if the (now-truncated) file list were complete. Never silently drop any of these shapes from the report. The resolver reads each review agent's body-level `Scope:` declaration — `Scope: always` (eligible for any non-empty changeset), a glob list (eligible only when at least one target file matches a declared glob), `Scope: added-only` + globs (eligible only when a target file matching a declared glob was newly *added* — `component-architecture-review`'s dual-placement rule, #1733: unconditional in `/repo-review`, added-only here), `Scope: test-files` (eligible only when a changed file is a test file, resolved against `knowledge/test-file-indicators.md`'s single shared encoding rather than a glob list, which could not express `test_*.py`, `__tests__/`, or the C#/Java annotation indicators — `test-smell-review` declares this, #1978; note `test-review` deliberately stays `Scope: always`, because its coverage-gap check must see production diffs that add code *without* a matching test), or `Scope: on-demand` (never eligible for this per-diff roster at all — `token-efficiency-review`, `ai-provenance-review`, and `claude-setup-review` declare this; they are repo-wide drift/trend metrics dispatched instead by the whole-tree `/repo-review` command, #1735, and `refactor-opportunity-review` declares it too, #1976, dispatched by name at `/build`'s slice review checkpoint where its post-GREEN charter actually applies). `Scope:` is a body declaration, not frontmatter (`agent-contract.json`). This is the single source of truth shared with `/build`'s inline checkpoints: adding or changing an agent's trigger scope needs only an edit to that agent's own body — zero edits to this skill. (The framework-reactivity agents react/vue/angular are **not** in the resolver's roster; they are governed by the manifest rule below.)
 
 **Framework-specific reactivity review** — dispatch based on the project's dependency manifest (`package.json` etc.):
 
@@ -353,10 +356,13 @@ case where a cheap, self-certifying review is a problem, so it never qualifies
 for the shortcut it defines, regardless of size. Bypassed by `--force` and by
 `--agent <name>`, matching the change-shape gate's bypass list.
 
-**Architectural-impact gate for structural lenses.** Apply this **third**,
-after `Scope:` eligibility, the change-shape gate, and the change-size gate —
-never before, and never to re-add an agent an earlier gate already removed.
-It narrows by *architectural signal* rather than by file type or diff size.
+**Diff-signal gate for structural and concurrency lenses.** Apply this
+**third**, after `Scope:` eligibility, the change-shape gate, and the
+change-size gate — never before, and never to re-add an agent an earlier gate
+already removed. It narrows by *what the diff's content proves is absent*
+rather than by file type or diff size, and it gates two lenses:
+`arch-review` (structural signals) and `concurrency-review` (concurrency
+primitives, #1975).
 
 `arch-review` is `Scope: always` and opus-tier, so it runs on every non-empty
 changeset — including diffs that cannot exhibit what it looks for. Its scope
@@ -378,17 +384,27 @@ git -c diff.relative=false diff --no-color <ref>...HEAD \
 
 It prints `{"signals": [...], "hasArchitecturalImpact": <bool>, "skipLenses":
 [...], "reason": <str|null>}`. Exclude any agent in `skipLenses` and note the
-skip in the report (gated by architectural impact, not by `Scope:`). The six
-signals are `structure` (file added/deleted/renamed), `dependency` (an
-import/require line added or removed), `manifest`, `infra`, `interface` (a
-public/exported symbol declaration added or removed), and `adr`.
+skip in the report (gated by diff signal, not by `Scope:`). The seven signals
+are `structure` (file added/deleted/renamed), `dependency` (an import/require
+line added or removed), `manifest`, `infra`, `interface` (a public/exported
+symbol declaration added or removed), `adr`, and `concurrency` (a concurrency
+primitive added **or removed** — async/await, threads, locks, channels,
+atomics; removing synchronization is a concurrency change exactly as much as
+adding it). `hasArchitecturalImpact` reports only the first six: a diff whose
+sole signal is `concurrency` has moved no boundary, so it keeps
+`concurrency-review` while `arch-review` still drops.
 
 The gate is **fail-safe and include-biased**: an unparseable diff, an empty
 diff, or any file it cannot classify all count as impact and keep every lens.
 It can only remove a lens it can prove has nothing to look at. Bypassed by
 `--force` and `--agent <name>`, matching the other two gates' bypass list.
 
-**Only `arch-review` is gated in this pass, deliberately.** `domain-review`
+**Only these two lenses are gated, deliberately.** Both pass the same test —
+the lens's subject must be *provably absent* from the diff, not merely
+unlikely to appear in it: `arch-review` reviews structure, and
+`concurrency-review` reviews races, async ordering, idempotency, and
+shared-state safety, none of which can exist where no concurrency primitive
+does. `domain-review`
 is the obvious next candidate and is excluded on purpose: its scope covers
 "business logic placement", and putting business logic into a controller
 method body is a real violation introduced by a *body-only* edit with no

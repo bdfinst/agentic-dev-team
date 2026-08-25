@@ -49,6 +49,8 @@ Shipped in P2 Step 3b for tools without upstream SARIF. Each adapter ≤ 40 LOC.
 
 mypy (≥ 1.11, `mypy --output json`) normalizes via `adapters/mypy-adapter.py` — rule ids `mypy.python.<error-code>`; on older mypy (no `--output json`) the adapter degrades to a skip-with-warning. Language-conditional like ruff (see step 1). Invocation and field mapping in `references/tool-configs.md`.
 
+**lizard** (complexity metrics) normalizes via `adapters/lizard-adapter.py` — rule ids `lizard.complexity.<metric>`; **jscpd** (copy-paste duplication) via `adapters/jscpd-adapter.py` — rule id `jscpd.duplication.clone`. Both are Tier 3 by this file's own taxonomy (bespoke adapter, not SARIF-native), but both are *baseline* capabilities rather than optional extras: they are the deterministic source for the two metric families the review panel would otherwise re-derive by inference on every run — function complexity/size/parameter count, and duplicated blocks (#1974). Neither is language-conditional; lizard covers ~15 languages and jscpd ~150, so both are probed on every target set. Invocation, thresholds, and field mapping in `references/tool-configs.md`.
+
 ### Tier 4 — legacy (pre-SARIF)
 
 ESLint / tsc remain callable via native JSON for older flows. Not part of the Step 3a baseline; migrate to SARIF when upstream lands. (The legacy Python entry is retired — ruff replaces it outright as the Tier 1 Python source.)
@@ -122,8 +124,10 @@ The parser MUST validate each emitted finding against unified-finding-v1 before 
 Two findings are duplicates if they share `file`, `line`, and either (a) identical `rule_id`, or (b) `message` cosine similarity > 0.85 on normalized text. When duplicates exist, keep the higher-priority tool:
 
 ```
-semgrep > gitleaks > trivy > hadolint > actionlint > ruff > mypy > oxlint > (legacy ESLint > tsc)
+semgrep > gitleaks > trivy > hadolint > actionlint > ruff > mypy > oxlint > (legacy ESLint > tsc) > lizard > jscpd
 ```
+
+lizard and jscpd rank last deliberately. They report *metric* classes no other tool reports (complexity numbers, clone locations), so a genuine collision is rare; when one does occur, a correctness or security finding at that line should always outrank a metric reading of it.
 
 ### 5. Consult ACCEPTED-RISKS.md
 
@@ -161,6 +165,8 @@ hadolint — Dockerfile linting. install: brew install hadolint
 actionlint — GitHub Actions linting. install: brew install actionlint
 ruff — Python lint + autofix. install: python3 -m pip install ruff (project venv / dev requirements)
 mypy — Python type checking. install: python3 -m pip install mypy (project venv / dev requirements)
+lizard — complexity metrics. install: python3 -m pip install lizard (project venv / dev requirements)
+jscpd — copy-paste duplication detection. install: npm install -g jscpd
 ```
 
 Print install-hints grouped by capability tier (secrets / IaC / CI-CD / supply-chain / SAST / data-flow). Required tools carry a `[REQUIRED]` prefix; absence of a required tool is a hard failure at install time, absence of an optional tool is a warning. Tier-implementation labels ("SARIF adapter", "bespoke-JSON adapter", "legacy") are internal vocabulary and never surface in user-facing text.

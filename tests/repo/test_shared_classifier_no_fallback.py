@@ -42,7 +42,12 @@ CONSUMERS = {
         "doc_classification",
         "test_file_classify",
     ),
-    _PLUGIN / "scripts" / "select_lenses.py": ("doc_classification",),
+    # select_lenses.py gained `test_file_classify` with the `test-files`
+    # scope sentinel (#1978) — the same no-fallback rule applies to it.
+    _PLUGIN / "scripts" / "select_lenses.py": (
+        "doc_classification",
+        "test_file_classify",
+    ),
 }
 
 #: Names the deleted fallbacks defined. Any of these reappearing in a consumer

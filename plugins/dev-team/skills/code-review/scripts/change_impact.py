@@ -22,7 +22,16 @@ input all count as architectural impact and keep every lens. The gate can only
 ever remove a lens it can prove has nothing to look at. Mirrors
 `change_shape.py`'s own fail-safe posture — see that module.
 
-## Why only `arch-review` in this pass
+## Which lenses are gated, and why
+
+Two, on the same test: the lens's subject must be *provably absent* from the
+diff, not merely unlikely to appear in it.
+
+- `arch-review` — its subject is structure, so a diff with no structural
+  signal (below) has moved no boundary for it to evaluate.
+- `concurrency-review` (#1975) — its subject is races, async ordering,
+  idempotency, and shared-state safety, none of which can exist in a diff
+  that introduces or removes no concurrency primitive.
 
 `domain-review` is the obvious next candidate and is deliberately NOT gated
 here. Its scope includes "business logic placement", and putting business
@@ -54,7 +63,26 @@ GATED_LENSES = {
     "arch-review": frozenset(
         {"structure", "dependency", "manifest", "infra", "interface", "adr"}
     ),
+    # #1975. Admitted on the same footing as arch-review, NOT on the "this
+    # lens probably no-ops" intuition the module docstring rejects: every
+    # category in concurrency-review's own charter (race conditions, async
+    # pitfalls, idempotency, shared-state safety) requires a concurrency
+    # primitive to exist in the diff. A changeset that introduces or removes
+    # none has no shared state to race and no async ordering to get wrong —
+    # the lens's subject is *provably absent*, which is a stronger claim than
+    # a measured low yield, and the same claim that authorized gating
+    # arch-review on structural signals.
+    "concurrency-review": frozenset({"concurrency"}),
 }
+
+#: The subset of signals that are *architectural*. Kept distinct from the full
+#: signal set so `hasArchitecturalImpact` keeps meaning what its name says
+#: after #1975 added a non-architectural signal: a diff whose only signal is
+#: `concurrency` has moved no boundary, and must not start reporting
+#: architectural impact (which would also silently un-gate arch-review).
+_ARCHITECTURAL_SIGNALS = frozenset(
+    {"structure", "dependency", "manifest", "infra", "interface", "adr"}
+)
 
 #: Dependency-manifest basenames. A change here can move dependency direction
 #: without touching a single source line.
@@ -117,6 +145,43 @@ _INTERFACE_RE = re.compile(
 )
 
 _ADR_RE = re.compile(r"(^|/)(docs/)?adr/|(^|/)adr-\d|(^|/)\d{4}-.*\.md$", re.IGNORECASE)
+
+#: Concurrency primitives across the languages this plugin supports (#1975).
+#: Matched against ADDED and REMOVED lines alike: *removing* a lock is a
+#: concurrency change precisely as much as adding one, and it is the shape
+#: most likely to introduce a race.
+#:
+#: Deliberately broad, including the very common `async`/`await`. Breadth is
+#: the safe direction here — a false positive only *keeps* a lens (costing one
+#: dispatch), while a miss silently drops the one lens that reviews races. In
+#: an async-heavy codebase this will match most diffs, which is the correct
+#: outcome, not a tuning failure: async ordering is squarely this lens's
+#: subject. The savings come from the synchronous diffs, which are the
+#: majority in this repo's own hook/script tree.
+#: Case-insensitive on purpose, for the same reason the token list is long:
+#: a miss is the only expensive error. The one deliberate non-`\b` construct
+#: is `[._]lock\b`, which catches the single most common Python form —
+#: `with self._lock:` — that a leading `\b` cannot match (the char before
+#: `lock` is `_`, itself a word character). It is written that way rather than
+#: as a bare `lock\b` so it does not fire on every occurrence of "block".
+_CONCURRENCY_RE = re.compile(
+    r"""(?:
+        \basync\b | \bawait\b
+      | \bPromise\s*\.\s*(?:all|race|any|allSettled)\b
+      | \basyncio\b | \bthreading\b | \bmultiprocessing\b
+      | \bconcurrent\.futures\b | \b(?:Thread|Process)PoolExecutor\b
+      | \bnew\s+Thread\b | \bThread\s*\( | \bthread\.(?:start|join)\b
+      | \bsynchronized\b | \bvolatile\b | \bInterlocked\b | \bMonitor\s*\.
+      | \b(?:un|dead)?lock\b | [._]lock\b
+      | \b(?:R?Lock|RwLock|RWMutex|Mutex|Semaphore|Condition|Barrier)\b
+      | \bQueue\b | \bqueue\s*\. | \bdeque\b
+      | \bWaitGroup\b | \bsync\.\w | \bgo\s+\w+\s*\( | \bchan\s+\w | <-\s*\w
+      | \bCompletableFuture\b | \bExecutorService\b | \bTask\s*\.\s*Run\b
+      | \bConcurrent\w* | \bAtomic\w* | \bSharedArrayBuffer\b
+      | \btokio\b | \bArc\b | \bspawn\s*\( | \bnew\s+Worker\b
+    )""",
+    re.VERBOSE | re.IGNORECASE,
+)
 
 
 def _normalize(path: str) -> str:
@@ -192,6 +257,8 @@ def analyze_diff(diff_text: str) -> dict:
             signals.add("dependency")
         if _INTERFACE_RE.match(content):
             signals.add("interface")
+        if _CONCURRENCY_RE.search(content):
+            signals.add("concurrency")
 
     _ = saw_structure_marker
     return {"signals": sorted(signals), "files": sorted(set(files)), "parsed": parsed}
@@ -225,9 +292,9 @@ def evaluate(diff_text: str, extra_files=()) -> dict:
     )
     return {
         "signals": sorted(signals),
-        "hasArchitecturalImpact": bool(signals),
+        "hasArchitecturalImpact": bool(signals & _ARCHITECTURAL_SIGNALS),
         "skipLenses": skip,
-        "reason": None if skip else "architectural-signal-present",
+        "reason": None if skip else "gating-signal-present",
     }
 
 

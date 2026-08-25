@@ -56,6 +56,89 @@ def test_parse_scope_on_demand():
     assert SL.parse_scope("Scope: on-demand\nCites: foo\n") == SL.SCOPE_ON_DEMAND
 
 
+def test_parse_scope_test_files():
+    assert SL.parse_scope("Scope: test-files\nCites: foo\n") == SL.SCOPE_TEST_FILES
+
+
+def test_test_files_scope_included_only_when_a_test_file_changed():
+    roster = [("test-smell-review", SL.SCOPE_TEST_FILES, False)]
+    changed = ["svc/foo.py", "tests/test_foo.py"]
+    lenses, warnings = SL.applicable_lenses(
+        changed, roster, test_files={"tests/test_foo.py"}
+    )
+    assert lenses == ["test-smell-review"]
+    assert warnings == []
+    lenses, _ = SL.applicable_lenses(["svc/foo.py"], roster, test_files=set())
+    assert lenses == []
+
+
+def test_test_files_scope_without_classification_is_include_biased_and_warns():
+    """`test_files=None` means the caller offered no classification. Mirrors
+    the added-only fallback: never silently drop a lens nobody asked to
+    narrow, and say so in warnings rather than widening in silence."""
+    roster = [("test-smell-review", SL.SCOPE_TEST_FILES, False)]
+    lenses, warnings = SL.applicable_lenses(["svc/foo.py"], roster)
+    assert lenses == ["test-smell-review"]
+    assert warnings == ["unnarrowed-test-files:test-smell-review"]
+
+
+@pytest.mark.parametrize(
+    "path",
+    [
+        "tests/test_pricing.py",       # Python prefix
+        "svc/pricing_test.py",         # Python suffix
+        "src/__tests__/cart.js",       # JS/TS directory
+        "src/cart.test.ts",            # JS/TS suffix
+        "src/cart.spec.tsx",           # JS/TS spec suffix
+        "features/checkout.feature",   # Gherkin
+        "e2e/checkout.steps.ts",       # step definitions
+        "src/OrderTest.java",          # Java class-name convention
+    ],
+)
+def test_test_file_subset_covers_every_name_based_indicator(path, tmp_path):
+    """Each family from knowledge/test-file-indicators.md that resolves by
+    name. Three of these (the `test_*.py` prefix, the `__tests__/` directory,
+    the Java class-name rule) cannot be written as a `**/*.suffix` glob at
+    all — which is why this scope is a sentinel over the shared classifier
+    rather than a glob list that would have silently missed them."""
+    assert SL.test_file_subset([path], root=tmp_path) == {path}
+
+
+def test_test_file_subset_classifies_the_relative_path_not_the_checkout_path(tmp_path):
+    """Regression: the classifier's `__tests__/` rule matches ANY path
+    segment, so classifying `root / path` made every file in a checkout
+    living under a directory named `__tests__` (a CI workspace at
+    /build/__tests__/repo) read as a test."""
+    workspace = tmp_path / "__tests__" / "repo"
+    (workspace / "src").mkdir(parents=True)
+    (workspace / "src" / "app.py").write_text("x = 1\n")
+    assert SL.test_file_subset(["src/app.py"], root=workspace) == set()
+
+
+def test_test_file_subset_excludes_ordinary_source(tmp_path):
+    assert SL.test_file_subset(["svc/pricing.py", "src/cart.ts"], root=tmp_path) == set()
+
+
+def test_test_file_subset_reads_content_for_csharp_on_disk(tmp_path):
+    """C# test-ness is an attribute in the file body, so the classifier reads
+    it. Both answers must come from the real file, not from its name."""
+    (tmp_path / "OrderTests.cs").write_text("[Fact]\npublic void Works() {}\n")
+    (tmp_path / "Order.cs").write_text("public class Order {}\n")
+    assert SL.test_file_subset(["OrderTests.cs", "Order.cs"], root=tmp_path) == {
+        "OrderTests.cs"
+    }
+
+
+def test_test_file_subset_is_include_biased_for_unreadable_content_probed_files(tmp_path):
+    """A `.cs`/`.java` path not on disk (a deleted file, or a caller outside
+    the checkout) cannot be classified by content. Counting it as a possible
+    test keeps the lens — the same direction every other ambiguity in this
+    module resolves toward — instead of silently dropping coverage."""
+    assert SL.test_file_subset(["gone/Deleted.cs"], root=tmp_path) == {"gone/Deleted.cs"}
+    # A name-classified language is unaffected: absence proves nothing is needed.
+    assert SL.test_file_subset(["gone/deleted.py"], root=tmp_path) == set()
+
+
 def test_parse_scope_missing_is_none():
     assert SL.parse_scope("---\nname: x\n---\nNo scope here.\n") is None
 
@@ -346,6 +429,29 @@ def _run(*files, agents_dir=None, registry=None, added=None):
     return r
 
 
+def test_cli_test_files_scope_resolves_against_the_real_working_directory(tmp_path):
+    """End-to-end through `main()`, which is where `test_file_subset` is
+    actually wired: the pure resolver tests above cannot catch a bug in the
+    cwd-relative path resolution or the real on-disk classification. Uses a
+    C# pair specifically — the one family whose answer comes from file
+    CONTENT, so a broken read would show up here and nowhere else."""
+    (tmp_path / "src").mkdir()
+    (tmp_path / "src" / "OrderTests.cs").write_text("[Fact]\npublic void Works() {}\n")
+    (tmp_path / "src" / "Order.cs").write_text("public class Order {}\n")
+    env = {"PATH": os.environ.get("PATH", "/usr/bin:/bin"), "LANG": "C.UTF-8"}
+
+    def lenses_for(*files):
+        r = subprocess.run(
+            [sys.executable, str(_SCRIPT), "--files", *files],
+            capture_output=True, text=True, check=False, env=env, cwd=str(tmp_path),
+        )
+        assert r.returncode == 0, r.stderr
+        return set(json.loads(r.stdout)["lenses"])
+
+    assert "test-smell-review" in lenses_for("src/OrderTests.cs")
+    assert "test-smell-review" not in lenses_for("src/Order.cs")
+
+
 def test_cli_backend_only_diff():
     r = _run("plugins/dev-team/scripts/foo.py")
     assert r.returncode == 0
@@ -610,16 +716,31 @@ def test_cli_rejects_both_flags_reading_stdin():
 # gates, so they now run only in the whole-tree `/repo-review` skill (#1735).
 # All three declare `Scope: on-demand` directly (SL.SCOPE_ON_DEMAND) rather
 # than being listed in `review_roster.NON_REVIEW_AGENTS`.
+# `refactor-opportunity-review` left the same way (#1976), for a reason
+# specific to its charter rather than to per-diff cost: it assesses
+# refactoring opportunities *after tests pass*, which is `/build`'s post-GREEN
+# REFACTOR checkpoint, and in the review panel it re-covered ground
+# `structure-review` (SRP, DRY, coupling) and `complexity-review` (size,
+# nesting) already hold as `Scope: always`.
+# `test-smell-review` is not here either, but it is NOT on-demand (#1978) —
+# it declares the `test-files` sentinel below, so it still runs per-diff,
+# just only when the diff touches a test file. `test-review` deliberately
+# stays `Scope: always`: its coverage-gap check must see production diffs
+# that add code *without* a matching test.
 ALWAYS_LENSES = {
     "arch-review", "complexity-review",
     "concurrency-review", "correctness-review", "doc-review", "domain-review",
-    "naming-review", "performance-review", "refactor-opportunity-review",
+    "naming-review", "performance-review",
     "security-review", "spec-compliance-review", "structure-review", "test-review",
-    "test-smell-review",
 }
 FILE_TYPE_LENSES = {
     "a11y-review", "js-fp-review", "component-architecture-review",
 }
+# Lenses gated on "the changeset touches a test file" (#1978). Resolved
+# against the shared encoding of knowledge/test-file-indicators.md, not a
+# glob list — the glob vocabulary cannot express `test_*.py`, `__tests__/`,
+# or the C#/Java annotation indicators.
+TEST_FILE_LENSES = {"test-smell-review"}
 # `component-architecture-review`'s Scope is now `(SCOPE_ADDED_ONLY, globs)`,
 # not a plain glob list (#1733) — it still belongs in FILE_TYPE_LENSES
 # conceptually (file-type-gated, not `Scope: always`), so this helper picks
@@ -655,6 +776,14 @@ _BASELINE = [
     # multi-file union pulls file-type lenses from both members (.ts→js-fp; .svelte→a11y+comp-arch).
     (["svc/handler.ts", "src/W.svelte"],
      {"js-fp-review", "a11y-review", "component-architecture-review"}),
+    # `test-files` scope (#1978), one row per indicator family the glob
+    # vocabulary could NOT have expressed — the reason it is a sentinel.
+    (["tests/test_pricing.py"], {"test-smell-review"}),            # test_*.py prefix
+    (["src/__tests__/cart.js"],                                    # __tests__/ directory
+     {"test-smell-review", "js-fp-review"}),
+    (["src/cart.test.ts"], {"test-smell-review", "js-fp-review"}),  # *.test.* suffix
+    # A production file next to a test file still triggers it (any-match, not all-match).
+    (["svc/foo.py", "tests/test_foo.py"], {"test-smell-review"}),
 ]
 
 
@@ -690,6 +819,10 @@ def test_file_type_lens_set_is_pinned_to_the_known_three():
     assert file_type == FILE_TYPE_LENSES
     always = {name for name, scope, _ in roster if scope == "always"}
     assert always == ALWAYS_LENSES
+    test_scoped = {
+        name for name, scope, _ in roster if scope == SL.SCOPE_TEST_FILES
+    }
+    assert test_scoped == TEST_FILE_LENSES
 
 
 # review-config.json "enabled: false" honoring is orchestrator-executed prose

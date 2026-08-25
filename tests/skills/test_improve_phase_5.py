@@ -94,9 +94,10 @@ def test_phase_5_applies_binding_mode_annotations_per_phase_0():
 def test_phase_5_review_loop_dispatches_one_code_review_panel_not_also_test_design():
     """#1959: the loop dispatches the `/code-review` panel once against the
     phase diff. `/test-design` is no longer dispatched alongside it — its two
-    agents (`test-review`, `test-smell-review`) are `Scope: always` and
-    already in the panel's own roster, so the pair was reviewing the same
-    diff twice per round."""
+    agents (`test-review` at `Scope: always`, `test-smell-review` at
+    `Scope: test-files` since #1978 — which a test-editing phase diff
+    matches by construction) are already in the panel's own roster, so the
+    pair was reviewing the same diff twice per round."""
     s = _phase_5_section()
     assert grep(r"/code-review[[:space:]]+--since", s)
     assert grep(r"dispatch", s, ignore_case=True)

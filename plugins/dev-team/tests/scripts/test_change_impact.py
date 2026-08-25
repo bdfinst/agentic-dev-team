@@ -40,18 +40,18 @@ BODY_ONLY = _diff(
 class TestNoArchitecturalImpact:
     def test_a_guard_clause_added_inside_a_function_skips_arch_review(self):
         result = change_impact.evaluate(BODY_ONLY)
-        assert result["skipLenses"] == ["arch-review"]
+        assert set(result["skipLenses"]) == {"arch-review", "concurrency-review"}
         assert result["hasArchitecturalImpact"] is False
 
     def test_a_pure_value_change_skips_arch_review(self):
         result = change_impact.evaluate(
             _diff("src/config.js", removed=["  const RETRIES = 3"], added=["  const RETRIES = 5"])
         )
-        assert result["skipLenses"] == ["arch-review"]
+        assert set(result["skipLenses"]) == {"arch-review", "concurrency-review"}
 
     def test_a_comment_only_change_skips_arch_review(self):
         result = change_impact.evaluate(_diff("src/a.js", added=["  // clarify intent"]))
-        assert result["skipLenses"] == ["arch-review"]
+        assert set(result["skipLenses"]) == {"arch-review", "concurrency-review"}
 
 
 class TestArchitecturalSignals:
@@ -70,7 +70,7 @@ class TestArchitecturalSignals:
     def test_an_added_import_is_a_dependency_signal(self, line):
         result = change_impact.evaluate(_diff("src/domain/order.ts", added=[line]))
         assert "dependency" in result["signals"]
-        assert result["skipLenses"] == []
+        assert set(result["skipLenses"]) == {"concurrency-review"}
 
     def test_a_removed_import_also_counts(self):
         result = change_impact.evaluate(_diff("src/a.ts", removed=["import { X } from './x'"]))
@@ -81,7 +81,7 @@ class TestArchitecturalSignals:
             _diff("src/new_module.ts", added=["const a = 1"], header_extra=["new file mode 100644"])
         )
         assert "structure" in result["signals"]
-        assert result["skipLenses"] == []
+        assert set(result["skipLenses"]) == {"concurrency-review"}
 
     def test_a_deleted_file_is_a_structure_signal(self):
         result = change_impact.evaluate(
@@ -109,7 +109,7 @@ class TestArchitecturalSignals:
     def test_a_public_surface_change_is_an_interface_signal(self, line):
         result = change_impact.evaluate(_diff("src/domain/order.ts", added=[line]))
         assert "interface" in result["signals"]
-        assert result["skipLenses"] == []
+        assert set(result["skipLenses"]) == {"concurrency-review"}
 
     @pytest.mark.parametrize(
         "path",
@@ -118,7 +118,7 @@ class TestArchitecturalSignals:
     def test_a_dependency_manifest_change_is_a_manifest_signal(self, path):
         result = change_impact.evaluate(_diff(path, added=['  "left-pad": "1.0.0"']))
         assert "manifest" in result["signals"]
-        assert result["skipLenses"] == []
+        assert set(result["skipLenses"]) == {"concurrency-review"}
 
     @pytest.mark.parametrize(
         "path",
@@ -134,14 +134,14 @@ class TestArchitecturalSignals:
     def test_an_infra_change_is_an_infra_signal(self, path):
         result = change_impact.evaluate(_diff(path, added=["  replicas: 3"]))
         assert "infra" in result["signals"]
-        assert result["skipLenses"] == []
+        assert set(result["skipLenses"]) == {"concurrency-review"}
 
     def test_an_adr_change_is_an_adr_signal(self):
         result = change_impact.evaluate(
             _diff("docs/adr/0031-use-outbox.md", added=["We will use the outbox pattern."])
         )
         assert "adr" in result["signals"]
-        assert result["skipLenses"] == []
+        assert set(result["skipLenses"]) == {"concurrency-review"}
 
 
 class TestFailSafe:
@@ -159,18 +159,131 @@ class TestFailSafe:
     def test_extra_files_can_supply_a_signal_the_diff_body_lacks(self):
         result = change_impact.evaluate(BODY_ONLY, extra_files=["Dockerfile"])
         assert "infra" in result["signals"]
-        assert result["skipLenses"] == []
+        assert set(result["skipLenses"]) == {"concurrency-review"}
 
     def test_a_mixed_diff_keeps_the_lens_when_any_file_carries_signal(self):
         combined = BODY_ONLY + _diff("package.json", added=['  "x": "1"'])
-        assert change_impact.evaluate(combined)["skipLenses"] == []
+        assert set(change_impact.evaluate(combined)["skipLenses"]) == {"concurrency-review"}
+
+
+class TestConcurrencyGate:
+    """`concurrency-review` runs only when the diff touches a concurrency
+    primitive (#1975). Breadth is the safe direction: a miss silently drops
+    the only lens that reviews races, so these tests pin the *keep* cases
+    across every language family the pattern claims to cover."""
+
+    @pytest.mark.parametrize(
+        "line",
+        [
+            "        async with self._lock:",          # Python
+            "    await self.flush()",                   # Python / JS
+            "    const [a, b] = await Promise.all([x, y])",  # JS
+            "    executor = ThreadPoolExecutor(max_workers=4)",  # Python
+            "    private volatile boolean ready;",      # Java
+            "    ExecutorService pool = newFixedThreadPool(2);",  # Java
+            "    lock (_gate) { _count++; }",           # C#
+            "    Interlocked.Increment(ref _count);",   # C#
+            "    results := make(chan int, 8)",         # Go
+            "    go func() { work() }()",               # Go
+            "    var wg sync.WaitGroup",                # Go
+            "    let guard = Arc<Mutex<State>>::new();",  # Rust
+        ],
+    )
+    def test_a_concurrency_primitive_keeps_the_lens(self, line):
+        result = change_impact.evaluate(_diff("src/worker.py", added=[line]))
+        assert "concurrency" in result["signals"]
+        assert "concurrency-review" not in result["skipLenses"]
+
+    @pytest.mark.parametrize(
+        "line",
+        [
+            "    with self._lock:",                 # the most common Python form
+            "    self.lock.acquire()",
+            "    mutex.unlock()",
+            "    q = queue.Queue()",
+            "    go worker()",                      # Go statement on a named func
+            "    let a = Arc::new(state);",         # Rust, non-generic form
+            "    # ordering matters here to avoid a deadlock",
+        ],
+    )
+    def test_forms_an_earlier_pattern_missed(self, line):
+        """Regression: each of these is a real concurrency primitive the
+        first draft of the pattern did not match. A false negative silently
+        drops the only lens that reviews races, so they are pinned."""
+        result = change_impact.evaluate(_diff("src/worker.py", added=[line]))
+        assert "concurrency" in result["signals"], f"missed: {line!r}"
+
+    @pytest.mark.parametrize(
+        "line",
+        [
+            "    parse_block(data)",   # 'lock' inside 'block'
+            "    self.blocked = True",
+            "    clock = time.time()",
+            "    total = price * qty",
+        ],
+    )
+    def test_lookalike_words_do_not_trip_the_pattern(self, line):
+        """Breadth is the safe direction, but not at the cost of firing on
+        every occurrence of 'block' — which would keep the lens on nearly
+        every diff and erase the saving."""
+        result = change_impact.evaluate(_diff("src/pricing.py", added=[line]))
+        assert "concurrency" not in result["signals"], f"false positive: {line!r}"
+
+    def test_removing_a_lock_also_counts(self):
+        """Deleting synchronization is the change most likely to introduce a
+        race — it must never read as 'no concurrency in this diff'."""
+        result = change_impact.evaluate(
+            _diff("src/Counter.java", removed=["    synchronized (this) {"])
+        )
+        assert "concurrency" in result["signals"]
+        assert "concurrency-review" not in result["skipLenses"]
+
+    def test_a_diff_with_no_concurrency_primitive_drops_the_lens(self):
+        assert "concurrency-review" in change_impact.evaluate(BODY_ONLY)["skipLenses"]
+
+    def test_a_concurrency_only_diff_reports_no_architectural_impact(self):
+        """The signal sets are independent: adding a lock inside an existing
+        function moves no boundary, so arch-review still drops and
+        `hasArchitecturalImpact` must keep meaning what its name says."""
+        result = change_impact.evaluate(
+            _diff("src/worker.py", added=["        async with self._lock:"])
+        )
+        assert result["signals"] == ["concurrency"]
+        assert result["hasArchitecturalImpact"] is False
+        assert result["skipLenses"] == ["arch-review"]
+
+    def test_an_architectural_only_diff_drops_the_concurrency_lens(self):
+        result = change_impact.evaluate(_diff("src/a.ts", added=["import { X } from './x'"]))
+        assert result["skipLenses"] == ["concurrency-review"]
+
+    def test_both_signals_present_keeps_every_lens_and_names_the_reason(self):
+        """The `reason` string is the only report of *why* nothing was
+        gated, and it was renamed when the map grew past one lens — pin it
+        together with the empty skip list it describes."""
+        result = change_impact.evaluate(
+            _diff("src/worker.py",
+                  added=["import asyncio", "        async with self._lock:"])
+        )
+        assert result["skipLenses"] == []
+        assert result["reason"] == "gating-signal-present"
+
+    def test_unparseable_input_keeps_the_concurrency_lens_too(self):
+        """The fail-safe covers every gated lens, not just the original one."""
+        assert change_impact.evaluate("this is not a diff")["skipLenses"] == []
 
 
 class TestGateComposition:
-    def test_only_arch_review_is_gated_in_this_pass(self):
-        """domain-review is deliberately NOT gated: business logic placed in a
+    def test_the_gated_set_is_pinned_to_the_two_proven_absent_lenses(self):
+        """Both entries pass the same test: the lens's subject must be
+        *provably absent* from the diff (arch-review's structure,
+        concurrency-review's primitives), not merely unlikely to appear.
+        domain-review is deliberately NOT gated: business logic placed in a
         controller body is a real violation introduced by a body-only edit."""
-        assert set(change_impact.GATED_LENSES) == {"arch-review"}
+        assert set(change_impact.GATED_LENSES) == {"arch-review", "concurrency-review"}
+
+    def test_domain_review_is_never_gated_on_a_body_only_diff(self):
+        """The named counter-example, asserted rather than only described."""
+        assert "domain-review" not in change_impact.evaluate(BODY_ONLY)["skipLenses"]
 
     def test_the_gate_never_drops_a_change_size_floor_agent(self):
         """change_size.py keeps 4 agents on its narrowest fast path to clear
@@ -203,7 +316,7 @@ class TestCli:
             text=True,
             check=True,
         )
-        assert json.loads(result.stdout)["skipLenses"] == ["arch-review"]
+        assert set(json.loads(result.stdout)["skipLenses"]) == {"arch-review", "concurrency-review"}
 
     def test_cli_accepts_extra_files(self):
         result = subprocess.run(
@@ -215,7 +328,7 @@ class TestCli:
         )
         payload = json.loads(result.stdout)
         assert "manifest" in payload["signals"]
-        assert payload["skipLenses"] == []
+        assert set(payload["skipLenses"]) == {"concurrency-review"}
 
 
 def _git(repo, *args):
@@ -274,7 +387,7 @@ class TestAgainstRealGitDiffs:
             "export function applyDiscount(total, pct) {\n  return total * pct\n}\n",
         )
         result = change_impact.evaluate(diff)
-        assert result["skipLenses"] == []
+        assert set(result["skipLenses"]) == {"concurrency-review"}
         assert result["hasArchitecturalImpact"] is True
 
     def test_a_docs_only_change_skips_arch_review(self, tmp_path):
@@ -287,7 +400,7 @@ class TestAgainstRealGitDiffs:
             "# Notes\n\nOne line.\n\nAnother line.\n",
         )
         result = change_impact.evaluate(diff)
-        assert result["skipLenses"] == ["arch-review"]
+        assert set(result["skipLenses"]) == {"arch-review", "concurrency-review"}
         assert result["hasArchitecturalImpact"] is False
 
     def test_a_body_only_edit_skips_arch_review(self, tmp_path):
@@ -299,4 +412,4 @@ class TestAgainstRealGitDiffs:
             "export function total(items) {\n  return items.filter(Boolean).length\n}\n",
         )
         result = change_impact.evaluate(diff)
-        assert result["skipLenses"] == ["arch-review"]
+        assert set(result["skipLenses"]) == {"arch-review", "concurrency-review"}

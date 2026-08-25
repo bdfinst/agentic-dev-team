@@ -10,10 +10,26 @@ color: green
 
 # Refactor Opportunity Review
 
-Scope: always
+Scope: on-demand
 Cites:
 - design-smells
 - adversarial-review-protocol
+
+Dispatched **by name** at `/build`'s slice review checkpoint
+([`../skills/build/SKILL.md`](../skills/build/SKILL.md) sub-step 6) — once
+per slice, after its steps are green, which is the moment this agent's
+charter names ("assesses refactoring opportunities after tests pass") — by
+[`../skills/test-driven-development/SKILL.md`](../skills/test-driven-development/SKILL.md)
+§ REFACTOR 3a, and on demand via `--agent refactor-opportunity-review`.
+Never by `/code-review`'s per-diff panel (#1976). Because those dispatches
+name it directly, `Scope: on-demand` removes it from the resolver's roster
+without removing it from the pipeline. A refactoring opportunity is a
+property of code that is *already green*, evaluated while the author still
+has the option to restructure; by the time a full review panel runs, the
+same ground is covered by `structure-review` (SRP, DRY, coupling) and
+`complexity-review` (size, nesting, complexity), which are `Scope: always`
+and overlap this lens's findings on the same diffs. Running it in both
+places bought a third opinion on those two axes, not a new axis.
 
 Output JSON: per `${CLAUDE_PLUGIN_ROOT}/knowledge/review-agent-output-contract.md` (Whole-file load: short, canonical schema).
 
