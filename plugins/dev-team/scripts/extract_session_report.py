@@ -26,9 +26,14 @@ Usage:
   extract_session_report.py --all-projects         every project on this machine
   extract_session_report.py --project /path/to/dir a specific project's cwd
   extract_session_report.py --out my-report.json   choose the output path
+  extract_session_report.py --since 2026-01-01 --until 2026-01-31
+                                                    scope to a time range
+  extract_session_report.py --plugin-version 1.4.0 scope to a plugin version
+                                                    (best-effort, see --help)
 
 Stdlib only (Python 3.10+) — no third-party dependencies, so it runs from a
-bare `python3` with nothing else installed.
+bare `python3` with nothing else installed. Run with --help for the full
+flag reference.
 """
 
 from __future__ import annotations
@@ -224,12 +229,25 @@ def _detect_correction_turn(rec: dict, content) -> bool:
     return bool(_CORRECTION_RE.search(utext.lower()))
 
 
-def extract(paths: list[Path], registry: dict) -> dict:
+def extract(
+    paths: list[Path],
+    registry: dict,
+    since: str | None = None,
+    until: str | None = None,
+    allowed_sessions: set[str] | None = None,
+) -> dict:
     """Metrics-only digest for one project's transcript files. Same signal
     classes as session_extract.py's extract(), minus per-model cost (no
     pricing table shipped downstream) and per-skill token attribution (kept
     lean for a report meant to be read by a human, not joined back into the
-    monorepo's trend streams)."""
+    monorepo's trend streams).
+
+    `since`/`until` (ISO-8601 strings, compared lexicographically against
+    each record's own UTC `timestamp`) scope by time; a record with no
+    timestamp is excluded whenever either bound is set, rather than assumed
+    in-range. `allowed_sessions`, when not None, restricts to records whose
+    session_id is in the set (the --plugin-version filter); a record with
+    no session_id is excluded, same fail-closed convention."""
     tokens_total = Counter()
     by_model: dict[str, Counter] = defaultdict(Counter)
     by_subagent = Counter()
@@ -253,6 +271,18 @@ def extract(paths: list[Path], registry: dict) -> dict:
 
     for rec in _iter_records(paths):
         sid = rec.get("sessionId") or rec.get("session_id")
+
+        if allowed_sessions is not None and str(sid or "") not in allowed_sessions:
+            continue
+        if since is not None or until is not None:
+            ts = rec.get("timestamp")
+            if not isinstance(ts, str):
+                continue
+            if since is not None and ts < since:
+                continue
+            if until is not None and ts > until:
+                continue
+
         if sid:
             sessions.add(str(sid))
         rtype = rec.get("type")
@@ -451,65 +481,85 @@ def _project_label(cwd: str) -> str:
     return os.path.basename(os.path.normpath(cwd)) or cwd
 
 
-def discover_projects(projects_root: Path) -> dict[str, list[Path]]:
+def _first_cwd(jsonl: Path) -> str | None:
+    try:
+        with jsonl.open(encoding="utf-8") as fh:
+            for _ in range(20):  # cwd appears on the earliest records
+                line = fh.readline()
+                if not line:
+                    break
+                try:
+                    rec = json.loads(line)
+                except json.JSONDecodeError:
+                    continue
+                rec_cwd = rec.get("cwd")
+                if isinstance(rec_cwd, str) and rec_cwd:
+                    return rec_cwd
+    except OSError:
+        pass
+    return None
+
+
+def discover_projects(projects_root: Path) -> dict[str, dict]:
     """Group every transcript under `projects_root` by the project cwd
     recorded inside it (matching session_extract.py's own resolution
     strategy — more robust than reconstructing a slug from the directory
-    name, which has varied across Claude Code versions)."""
-    by_project: dict[str, list[Path]] = defaultdict(list)
+    name, which has varied across Claude Code versions). Each value is
+    {"cwd": the resolved absolute cwd (or None), "paths": [Path, ...]} —
+    the cwd is kept so a plugin-version filter can locate that project's
+    local .claude/metrics/boundary-events.jsonl."""
+    by_project: dict[str, dict] = defaultdict(lambda: {"cwd": None, "paths": []})
     if not projects_root.is_dir():
         return {}
     for jsonl in projects_root.glob("*/*.jsonl"):
-        cwd = None
-        try:
-            with jsonl.open(encoding="utf-8") as fh:
-                for _ in range(20):  # cwd appears on the earliest records
-                    line = fh.readline()
-                    if not line:
-                        break
-                    try:
-                        rec = json.loads(line)
-                    except json.JSONDecodeError:
-                        continue
-                    rec_cwd = rec.get("cwd")
-                    if isinstance(rec_cwd, str) and rec_cwd:
-                        cwd = rec_cwd
-                        break
-        except OSError:
-            continue
+        cwd = _first_cwd(jsonl)
         label = _project_label(cwd) if cwd else jsonl.parent.name
-        by_project[label].append(jsonl)
+        entry = by_project[label]
+        if cwd and not entry["cwd"]:
+            entry["cwd"] = os.path.abspath(cwd)
+        entry["paths"].append(jsonl)
     return dict(by_project)
 
 
-def resolve_single_project(projects_root: Path, target_cwd: str) -> tuple[str, list[Path]]:
+def resolve_single_project(
+    projects_root: Path, target_cwd: str
+) -> tuple[str, str | None, list[Path]]:
     target_cwd = os.path.abspath(target_cwd)
     by_project = discover_projects(projects_root)
     label = _project_label(target_cwd)
     if label in by_project:
-        return label, by_project[label]
+        return label, by_project[label]["cwd"], by_project[label]["paths"]
     # fall back to an exact cwd match inside the transcripts, in case two
     # different projects share a basename
     matches: list[Path] = []
     if projects_root.is_dir():
         for jsonl in projects_root.glob("*/*.jsonl"):
-            try:
-                with jsonl.open(encoding="utf-8") as fh:
-                    for _ in range(20):
-                        line = fh.readline()
-                        if not line:
-                            break
-                        try:
-                            rec = json.loads(line)
-                        except json.JSONDecodeError:
-                            continue
-                        rec_cwd = rec.get("cwd")
-                        if rec_cwd and os.path.abspath(rec_cwd) == target_cwd:
-                            matches.append(jsonl)
-                            break
-            except OSError:
-                continue
-    return label, sorted(matches, key=lambda x: x.name)
+            cwd = _first_cwd(jsonl)
+            if cwd and os.path.abspath(cwd) == target_cwd:
+                matches.append(jsonl)
+    return label, (target_cwd if matches else None), sorted(matches, key=lambda x: x.name)
+
+
+def sessions_matching_plugin_version(cwd: str | None, target_version: str) -> set[str]:
+    """Best-effort session_id set for a --plugin-version filter (transcripts
+    themselves carry no version tag to correlate against). Cross-references
+    the project's own local, always-on `.claude/metrics/boundary-events.jsonl`
+    (see knowledge/telemetry-schema.md), which DOES stamp `plugin_version`
+    per event alongside an optional `session_id`. Fails closed: a session
+    with no boundary-events row (e.g. no review-agent dispatch happened) can't
+    be attributed to any version and is excluded, same as a missing/unreadable
+    file or a project with no known cwd — never silently included."""
+    matches: set[str] = set()
+    if not cwd:
+        return matches
+    path = Path(cwd) / ".claude" / "metrics" / "boundary-events.jsonl"
+    for rec in _iter_records([path]):
+        if rec.get("plugin_version") != target_version:
+            continue
+        sid = rec.get("session_id")
+        if sid:
+            matches.add(str(sid))
+    return matches
 
 
 # --------------------------------------------------------------------------
@@ -538,13 +588,46 @@ def main(argv=None) -> int:
         help="output file path (default: session-report-<scope>-<timestamp>.json in the "
         "current directory, where <scope> is the project name or 'all')",
     )
+    ap.add_argument(
+        "--since",
+        metavar="ISO8601",
+        help="only include activity at/after this UTC timestamp or date, "
+        "e.g. 2026-01-15 or 2026-01-15T00:00:00Z",
+    )
+    ap.add_argument(
+        "--until",
+        metavar="ISO8601",
+        help="only include activity at/before this UTC timestamp or date "
+        "(a bare date includes the whole day)",
+    )
+    ap.add_argument(
+        "--plugin-version",
+        metavar="VERSION",
+        help="best-effort: only include sessions this project's local "
+        ".claude/metrics/boundary-events.jsonl recorded under VERSION. "
+        "Sessions with no boundary-events row (no review-agent dispatch "
+        "happened) can't be attributed to any version and are excluded — "
+        "this can undercount sessions that never triggered one",
+    )
     args = ap.parse_args(argv)
+
+    since = args.since
+    until = args.until
+    if until and re.fullmatch(r"\d{4}-\d{2}-\d{2}", until):
+        until = f"{until}T23:59:59Z"  # bare date as --until means "through end of day"
 
     projects_root = Path(args.projects_root or (Path.home() / ".claude" / "projects"))
     plugin_root = Path(__file__).resolve().parent.parent
     registry = load_registry(plugin_root)
     plugin_version = _load_plugin_version(plugin_root)
     host = socket.gethostname()
+
+    def _allowed_sessions(cwd: str | None) -> set[str] | None:
+        return (
+            sessions_matching_plugin_version(cwd, args.plugin_version)
+            if args.plugin_version
+            else None
+        )
 
     digests: dict[str, dict] = {}
 
@@ -553,17 +636,19 @@ def main(argv=None) -> int:
         if not by_project:
             print(f"no session transcripts found under {projects_root}")
             return 1
-        for label, paths in sorted(by_project.items()):
-            digests[label] = extract(paths, registry)
+        for label, entry in sorted(by_project.items()):
+            digests[label] = extract(
+                entry["paths"], registry, since, until, _allowed_sessions(entry["cwd"])
+            )
         mode = "all-projects"
         scope = "all"
     else:
         target = args.project or os.getcwd()
-        label, paths = resolve_single_project(projects_root, target)
+        label, cwd, paths = resolve_single_project(projects_root, target)
         if not paths:
             print(f"no session transcripts found for project matching {target!r} under {projects_root}")
             return 1
-        digests[label] = extract(paths, registry)
+        digests[label] = extract(paths, registry, since, until, _allowed_sessions(cwd))
         mode = "single-project"
         scope = label
 
@@ -573,6 +658,11 @@ def main(argv=None) -> int:
         "host": host,
         "plugin_version": plugin_version,
         "mode": mode,
+        "filters": {
+            "since": since,
+            "until": until,
+            "plugin_version": args.plugin_version,
+        },
         "projects": digests,
         "combined": combine(digests, registry),
     }
