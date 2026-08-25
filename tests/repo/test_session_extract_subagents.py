@@ -113,6 +113,9 @@ def test_transcripts_counts_sessions_not_files(tree):
     """`digest["transcripts"] = len(paths)` in the CLI used to overwrite the
     count with every discovered file, so each agent run read as a session."""
     d = _digest(tree)
+    # Guard: `transcripts == 1` is also true if subagent files are never read,
+    # which is the regression this suite exists to catch.
+    assert d["subagent_transcripts"] == 2
     assert d["transcripts"] == 1, "main-thread sessions only"
     assert d["sessions"] == 1
 
@@ -162,9 +165,15 @@ def test_a_workflow_journal_is_not_a_transcript(tmp_path):
         root / PROJECT_SLUG / SESSION_ID / "subagents" / "workflows" / "wf_x" / "journal.jsonl",
         [{"type": "started", "key": "v2:abc", "agentId": "a1"}],
     )
+    # A REAL agent transcript beside it, so the assertion proves the journal is
+    # filtered out rather than the whole subagents/ tree being skipped.
+    _subagent(root, "real1", [
+        _assistant([{"type": "text", "text": "real"}],
+                   agent="dev-team:doc-review", sidechain=True),
+    ], workflow="wf_x")
     d = _digest(root)
-    assert d["subagent_transcripts"] == 0
-    assert d["utilization"]["agents_invoked"] == {}
+    assert d["subagent_transcripts"] == 1
+    assert d["utilization"]["agents_invoked"] == {"doc-review": 1}
 
 
 def test_a_session_transcript_keeps_any_filename(tmp_path):
@@ -248,3 +257,123 @@ def test_the_digest_emits_no_absolute_paths(tree, tmp_path):
     )
     assert PROJECT_CWD not in proc.stdout
     assert str(tree) not in proc.stdout
+
+
+# --- findings from the #1994 review panel ----------------------------------
+
+
+def _sync(root: Path, out_dir: Path, host="testhost"):
+    proc = subprocess.run(
+        [sys.executable, str(EXTRACT), "--sync-out", str(out_dir / "session-digest.jsonl"),
+         "--watermark", str(out_dir / "wm.json"), "--projects-root", str(root),
+         "--host", host],
+        capture_output=True, text=True, timeout=120, check=False,
+    )
+    assert proc.returncode == 0, proc.stdout + proc.stderr
+    f = out_dir / "session-digest.jsonl"
+    return [json.loads(x) for x in f.read_text().splitlines()] if f.exists() else []
+
+
+def test_sync_emits_one_record_per_session_not_per_transcript(tree, tmp_path):
+    """A session's dispatched agents are part of that session, not sessions of
+    their own. Emitting per file labelled each `session_id = path.stem`, so an
+    agent transcript became a fabricated session `agent-<id>` — and rollup()
+    counts len(records) as sessions, inflating the denominator escalate()
+    divides friction by and the --cost-log series the CI gate baselines on.
+    """
+    out = tmp_path / "digests" / "testhost"
+    out.mkdir(parents=True)
+    records = _sync(tree, out)
+    assert len(records) == 1, [r["session_id"] for r in records]
+    assert records[0]["session_id"] == SESSION_ID
+    # The agents' tokens are folded into their session's record.
+    assert sum(records[0]["tokens"].values()) == 3 * USAGE_SUM
+
+
+def test_sync_carries_agent_dispatches_through_to_rollup(tree, tmp_path):
+    """rollup() reads utilization.agent_dispatches, so sync_record must emit
+    it — otherwise the cross-machine view is permanently empty and an agent
+    dispatched from inside another agent reads as never observed."""
+    out = tmp_path / "digests" / "testhost"
+    out.mkdir(parents=True)
+    records = _sync(tree, out)
+    assert records[0]["utilization"]["agent_dispatches"] == {"correctness-review": 1}
+
+    proc = subprocess.run(
+        [sys.executable, str(EXTRACT), "--rollup", str(out.parent)],
+        capture_output=True, text=True, timeout=120, check=False,
+    )
+    assert proc.returncode == 0, proc.stderr
+    rolled = json.loads(proc.stdout)
+    assert rolled["sessions"] == 1, "one session, whatever its agent count"
+    assert rolled["utilization"]["agent_dispatches"] == {"correctness-review": 1}
+
+
+def test_the_trend_record_carries_the_same_era_as_its_digest(tmp_path):
+    """slim_record() stamped v1 onto v2-basis numbers, so "split the trend
+    stream on schema" — the documented mechanism — silently could not work."""
+    root = tmp_path / "projects"
+    _main_transcript(root, [_assistant([{"type": "text", "text": "hi"}])])
+    log = tmp_path / "trend.jsonl"
+    proc = subprocess.run(
+        [sys.executable, str(EXTRACT), "--all-projects", "--projects-root", str(root),
+         "--append", str(log)],
+        capture_output=True, text=True, timeout=120, check=False,
+    )
+    assert proc.returncode == 0, proc.stderr
+    trend = json.loads(log.read_text().splitlines()[0])
+    assert trend["schema"] == json.loads(proc.stdout)["schema"] == "session-digest/v2"
+
+
+def test_a_windows_file_path_is_reduced_to_its_basename(tmp_path):
+    """os.path.basename splits on '/' only, so a Windows-form path came back
+    whole — an absolute path with a username, in a cross-machine stream."""
+    root = tmp_path / "projects"
+    _main_transcript(root, [
+        _assistant([{"type": "tool_use", "id": "t1", "name": "Edit",
+                     "input": {"file_path": r"C:\Users\alice\proj\secrets.env"}}]),
+        _assistant([{"type": "tool_use", "id": "t2", "name": "Edit",
+                     "input": {"file_path": r"C:\Users\alice\proj\secrets.env"}}]),
+    ])
+    proc = subprocess.run(
+        [sys.executable, str(EXTRACT), "--all-projects", "--projects-root", str(root)],
+        capture_output=True, text=True, timeout=120, check=False,
+    )
+    assert "alice" not in proc.stdout
+    assert json.loads(proc.stdout)["rework"]["repeated_file_edits"] == {"secrets.env": 2}
+
+
+def test_a_hostile_skill_name_cannot_become_a_digest_key(tmp_path):
+    """`skills_invoked` and the correction-attribution maps reach the synced
+    stream. They were ungated one line from a gated sibling."""
+    root = tmp_path / "projects"
+    _main_transcript(root, [
+        _assistant([{"type": "tool_use", "id": "t1", "name": "Skill",
+                     "input": {"skill": "/Users/alice/secret skill"}}]),
+    ])
+    proc = subprocess.run(
+        [sys.executable, str(EXTRACT), "--all-projects", "--projects-root", str(root)],
+        capture_output=True, text=True, timeout=120, check=False,
+    )
+    assert "/Users/alice" not in proc.stdout
+    assert json.loads(proc.stdout)["utilization"]["skills_invoked"] == {"other": 1}
+
+
+def test_a_malformed_model_value_does_not_abort_the_run(tmp_path):
+    """`model` was the one unguarded field among careful neighbours; a dict
+    made it an unhashable key and aborted the whole extraction."""
+    root = tmp_path / "projects"
+    rec = _assistant([{"type": "text", "text": "hi"}])
+    rec["message"]["model"] = {"not": "a string"}
+    _write(root / PROJECT_SLUG / f"{SESSION_ID}.jsonl", [rec])
+    assert sum(_digest(root)["token"]["totals"].values()) == USAGE_SUM
+
+
+def test_an_undecodable_transcript_is_skipped_not_fatal(tmp_path):
+    """UnicodeDecodeError is a ValueError, not an OSError — a transcript
+    truncated mid-character by a crashed session aborted the whole run, and in
+    --sync-out that loses the watermark and re-emits every session on retry."""
+    root = tmp_path / "projects"
+    _main_transcript(root, [_assistant([{"type": "text", "text": "ok"}])])
+    (root / PROJECT_SLUG / "broken.jsonl").write_bytes(b'{"type":"assistant"}\n\xff\xfe bad\n')
+    assert sum(_digest(root)["token"]["totals"].values()) == USAGE_SUM

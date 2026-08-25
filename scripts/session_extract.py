@@ -90,8 +90,27 @@ _UNSAFE_NAME = "other"
 # they become phantom agents while the agent that actually ran stays in
 # never_observed_agents — the #1990 symptom itself.
 _HARNESS_ATTRIBUTIONS = frozenset({"workflow-subagent", "claude"})
+_DIGEST_SCHEMA = "session-digest/v2"
+_SYNC_SCHEMA = "session-sync/v2"
+#: Sync-record schemas a reader accepts. Declared once and imported by
+#: scripts/eval_rawlog.py — the v1->v2 bump broke that consumer silently
+#: because it exact-matched the old string on its own (#1994 review).
+SYNC_SCHEMAS = ("session-sync/v1", "session-sync/v2")
 _MAIN_LABEL = "main"
 _UNATTRIBUTED_LABEL = "unattributed"
+
+
+def _basename(path_str: str) -> str:
+    """Last component of a path recorded on ANY platform.
+
+    `os.path.basename` splits on `/` only, so a Windows-form path comes back
+    whole — an absolute path, username included, in a field this module's
+    docstring promises is a basename. Reachable whenever Windows-written
+    transcripts are read under WSL, a devcontainer, or a bind-mounted
+    `~/.claude`. The shipped twin already had this; the #1994 port left it
+    behind, which is the same defect class crossing the fork twice.
+    """
+    return re.split(r"[\\/]", path_str)[-1] or path_str
 
 
 def _safe_name(value: str) -> str:
@@ -253,35 +272,42 @@ def _cost(usage: dict, rate: dict, pricing: dict) -> float:
 
 
 def _iter_records(paths: list[Path]):
-    for p in sorted(paths, key=lambda x: x.name):
+    """Yield every decodable JSON record across `paths`, in order.
+
+    Streams line by line: transcripts run to tens of MB and the recursive scan
+    now visits thousands of them, where `read_text().splitlines()` cost ~3x the
+    file's size in peak RSS before yielding anything. `ValueError` is caught
+    alongside `OSError` because `UnicodeDecodeError` is a ValueError — a
+    transcript truncated mid-character by a crashed session used to abort the
+    whole run (#1994 review).
+    """
+    for path in sorted(paths, key=lambda x: str(x)):
         try:
-            lines = p.read_text().splitlines()
-        except OSError:
+            with path.open(encoding="utf-8", errors="replace") as fh:
+                for line in fh:
+                    line = line.strip()
+                    if not line:
+                        continue
+                    try:
+                        yield json.loads(line)
+                    except json.JSONDecodeError:
+                        continue
+        except (OSError, ValueError):
             continue
-        for line in lines:
-            line = line.strip()
-            if not line:
-                continue
-            try:
-                yield json.loads(line)
-            except json.JSONDecodeError:
-                continue
 
 
 def _accumulate_token_signals(
     usage: dict,
     model,
     skill,
-    is_sidechain: bool,
     pricing: dict,
     tokens_total: Counter,
     by_model: dict[str, Counter],
     by_skill: dict[str, Counter],
-    thread_msgs_inc: None = None,
 ) -> float:
-    """Token-accounting concern: usage/cost totals split by model, skill, and
-    main-thread vs sidechain. Returns this record's cost (added to the running
-    cost_total by the caller)."""
+    """Token-accounting concern: usage/cost totals split by model and skill.
+    Returns this record's cost (added to the running cost_total by the caller).
+    Thread attribution moved to the caller's `by_agent_type` bucketing (#1994)."""
     fields = (
         "input_tokens",
         "output_tokens",
@@ -322,7 +348,7 @@ def _accumulate_skill_agent_signals(
     transcript is absent never ran. Run counts come from `attributionAgent`
     (#1994)."""
     if skill:
-        skills_invoked[skill] += 1
+        skills_invoked[_safe_name(skill)] += 1
     if not isinstance(content, list):
         return
     for block in content:
@@ -333,13 +359,13 @@ def _accumulate_skill_agent_signals(
         if name == "Skill":
             s = inp.get("skill") or inp.get("name")
             if isinstance(s, str) and s:
-                skills_invoked[_strip_ns(s)] += 1
-                active["skill"] = _strip_ns(s)
+                skills_invoked[_safe_name(_strip_ns(s))] += 1
+                active["skill"] = _safe_name(_strip_ns(s))
         elif name in ("Agent", "Task"):
             a = inp.get("subagent_type")
             if isinstance(a, str) and a:
                 agent_dispatches[_safe_name(_strip_ns(a))] += 1
-                active["agent"] = _strip_ns(a)
+                active["agent"] = _safe_name(_strip_ns(a))
 
 
 def _track_tool_call(
@@ -348,7 +374,7 @@ def _track_tool_call(
     """Error-classification bookkeeping: count every tool invocation (the
     error-rate denominator) and remember its id -> name so a later
     tool_result can be attributed back to the tool that produced it."""
-    name = block.get("name", "?")
+    name = _safe_name(str(block.get("name", "?")))
     tool_calls[name] += 1
     bid = block.get("id")
     if bid:
@@ -386,7 +412,7 @@ def _track_edit(
     name = block.get("name", "?")
     inp = block.get("input", {}) if isinstance(block.get("input"), dict) else {}
     if name in _EDIT_TOOLS and inp.get("file_path"):
-        edits_per_file[os.path.basename(str(inp["file_path"]))] += 1
+        edits_per_file[_safe_name(_basename(str(inp["file_path"])))] += 1
     if name in _EDIT_TOOLS:
         verify_edited_since[str(sid or "")] = True
 
@@ -547,7 +573,12 @@ def extract(
             # it on real transcripts (#182), so utilization is driven by the Skill /
             # Agent tool_use below. Kept here only as a fallback for records that do
             # carry it (and per-skill token attribution via by_skill).
-            skill = rec.get("attributionSkill") or rec.get("attribution_skill")
+            raw_skill = rec.get("attributionSkill") or rec.get("attribution_skill")
+            skill = (
+                _safe_name(_strip_ns(raw_skill))
+                if isinstance(raw_skill, str) and raw_skill
+                else None
+            )
 
             # compaction markers
             if (
@@ -564,6 +595,9 @@ def extract(
                 else (rec.get("usage") if isinstance(rec.get("usage"), dict) else None)
             )
             model = msg.get("model") or rec.get("model")
+            # A non-str `model` would be an unhashable dict key and abort the
+            # whole run — the one unguarded field among careful neighbours.
+            model = _safe_name(model) if isinstance(model, str) and model else None
 
             if usage:
                 if is_subagent:
@@ -593,7 +627,6 @@ def extract(
                     usage,
                     model,
                     skill,
-                    is_sidechain,
                     pricing,
                     tokens_total,
                     by_model,
@@ -680,7 +713,7 @@ def extract(
         # repeated_verify_runs changed basis from session-keyed to per-thread.
         # Correct, but NOT comparable with any v1 record already in a trend
         # stream — a consumer has to be able to tell the two eras apart.
-        "schema": "session-digest/v2",
+        "schema": _DIGEST_SCHEMA,
         "plugin_version": plugin_version,
         "sessions": len(sessions),
         "transcripts": main_transcripts,
@@ -787,6 +820,30 @@ def resolve_all_transcripts(args) -> list[Path]:
     return _all_transcripts_under(root)
 
 
+def _owning_session_dir(root: Path, path: Path) -> str:
+    """The session a transcript belongs to, as a stable id.
+
+    A main transcript IS its session (`<project>/<sessionId>.jsonl` -> stem).
+    A dispatched agent's transcript belongs to the session whose directory
+    contains its `subagents/` — `<project>/<sessionId>/subagents/agent-*.jsonl`,
+    and one level deeper for Workflow agents.
+
+    Without this, `cmd_sync` emitted one record per FILE and labelled each
+    `session_id = path.stem`, so an agent transcript became a fabricated
+    session called `agent-<id>`. `rollup()` counts `len(records)` as sessions,
+    so a review panel of fifteen scored sixteen sessions — inflating the
+    denominator `escalate()` divides friction by and the `--cost-log` series
+    the CI cost-regression gate baselines against (#1994 review).
+    """
+    try:
+        parts = path.relative_to(root).parts
+    except ValueError:
+        parts = path.parts
+    if "subagents" in parts:
+        return parts[parts.index("subagents") - 1]
+    return path.stem
+
+
 def _project_and_ts(path: Path) -> tuple[str, str]:
     """Project label (basename of the recorded cwd) and the latest record
     timestamp, both from transcript DATA — never wall-clock, never a full path.
@@ -797,7 +854,7 @@ def _project_and_ts(path: Path) -> tuple[str, str]:
         if not project:
             cwd = rec.get("cwd")
             if isinstance(cwd, str) and cwd:
-                project = os.path.basename(os.path.normpath(cwd))
+                project = _safe_name(_basename(str(cwd).rstrip("/\\")))
         ts = rec.get("timestamp")
         if isinstance(ts, str) and ts > last_ts:
             last_ts = ts
@@ -820,7 +877,7 @@ def sync_record(
         m: dict(sorted(v.items())) for m, v in sorted(tok.get("by_model", {}).items())
     }
     return {
-        "schema": "session-sync/v2",
+        "schema": _SYNC_SCHEMA,
         "plugin_version": digest.get("plugin_version", "unknown"),
         "host": host,
         "project": project,
@@ -853,6 +910,9 @@ def sync_record(
         "utilization": {
             "skills_invoked": dict(sorted(util.get("skills_invoked", {}).items())),
             "agents_invoked": dict(sorted(util.get("agents_invoked", {}).items())),
+            "agent_dispatches": dict(
+                sorted(util.get("agent_dispatches", {}).items())
+            ),
         },
     }
 
@@ -894,23 +954,40 @@ def cmd_sync(
         paths = resolve_all_transcripts(args)
 
     root = Path(args.projects_root or (Path.home() / ".claude" / "projects"))
+
+    # One record per SESSION, not per file: a session's dispatched agents are
+    # part of that session's cost and rework, not sessions of their own.
+    by_session: dict[str, list[Path]] = {}
+    for path in paths:
+        by_session.setdefault(_owning_session_dir(root, path), []).append(path)
+
     emitted = 0
     out.parent.mkdir(parents=True, exist_ok=True)
     with out.open("a", encoding="utf-8") as fh:
-        for path in paths:
-            session_id = path.stem
-            try:
-                size = path.stat().st_size
-            except OSError:
+        for session_id, session_paths in sorted(by_session.items()):
+            session_paths = sorted(session_paths, key=lambda p: str(p))
+            size = 0
+            for p in session_paths:
+                try:
+                    size += p.stat().st_size
+                except OSError:
+                    continue
+            if not size:
                 continue
             prev = synced.get(session_id)
+            # Watermark on the session's TOTAL bytes, so a session re-syncs
+            # when any of its agent transcripts grows, not only its main one.
             if isinstance(prev, int) and prev >= size:
                 continue  # already synced and unchanged
-            project, ts = _project_and_ts(path)
-            digest = extract(
-                [path], pricing, registry, plugin_version, projects_root=root
+            main = next(
+                (p for p in session_paths if not _is_subagent_transcript(root, p)),
+                session_paths[0],
             )
-            rec = sync_record(digest, host, project, session_id, ts)
+            project, ts = _project_and_ts(main)
+            digest = extract(
+                session_paths, pricing, registry, plugin_version, projects_root=root
+            )
+            rec = sync_record(digest, host, project, _safe_name(session_id), ts)
             fh.write(json.dumps(rec, sort_keys=True) + "\n")
             synced[session_id] = size
             emitted += 1
@@ -946,7 +1023,7 @@ def _read_synced_records(digests_root: Path) -> list[dict]:
     by_id: dict[str, dict] = {}
     for f in sorted(digests_root.glob("*/session-digest.jsonl")):
         for rec in _iter_records([f]):
-            if rec.get("schema") not in ("session-sync/v1", "session-sync/v2"):
+            if rec.get("schema") not in SYNC_SCHEMAS:
                 continue
             sid = rec.get("session_id")
             if sid:
@@ -1085,7 +1162,9 @@ def rollup(
             agent_dispatches[_strip_ns(name)] += k
 
     never_skills = sorted(set(registry.get("skills", [])) - set(skills_invoked))
-    never_agents = sorted(set(registry.get("agents", [])) - set(agents_invoked))
+    never_agents = sorted(
+        set(registry.get("agents", [])) - set(agents_invoked) - set(agent_dispatches)
+    )
 
     def _hostmap(d: dict) -> dict:
         return {k: dict(sorted(v.items())) for k, v in sorted(d.items())}
@@ -1574,7 +1653,7 @@ def slim_record(digest: dict) -> dict:
     totals = tok.get("totals", {})
     return {
         "recorded_at": datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ"),
-        "schema": "session-digest/v1",
+        "schema": _DIGEST_SCHEMA,
         "plugin_version": digest.get("plugin_version", "unknown"),
         "sessions": digest.get("sessions", 0),
         "transcripts": digest.get("transcripts", 0),

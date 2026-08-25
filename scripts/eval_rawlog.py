@@ -29,7 +29,7 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from session_extract import _REWORK_KEYS, _iter_records
+from session_extract import _REWORK_KEYS, SYNC_SCHEMAS, _iter_records
 
 # A tier finding may carry ONLY these keys — all metrics/ids/enums.
 _ALLOWED_FINDING_KEYS = {
@@ -56,7 +56,7 @@ def worst_sessions(digests_root: Path, top: int = 5) -> list[dict]:
     by_id: dict[str, dict] = {}
     for f in sorted(digests_root.glob("*/session-digest.jsonl")):
         for rec in _iter_records([f]):
-            if rec.get("schema") == "session-sync/v1" and rec.get("session_id"):
+            if rec.get("schema") in SYNC_SCHEMAS and rec.get("session_id"):
                 by_id[str(rec["session_id"])] = rec
     ranked = sorted(
         ({"session_id": sid, "project": r.get("project", "?"),

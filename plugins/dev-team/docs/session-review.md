@@ -121,7 +121,9 @@ otherwise conflate:
 | `utilization.agents_invoked` | agent RUNS, from each subagent transcript's `attributionAgent` — ground truth |
 | `utilization.agent_dispatches` | `Agent`/`Task` tool calls, i.e. dispatches requested |
 
-Only transcript-shaped filenames are read (`<sessionId>.jsonl`, `agent-<id>.jsonl`).
+Transcripts are recognised by DEPTH: any `.jsonl` directly in a project
+directory is a main-thread session whatever it is named, while below
+`subagents/` only `agent-<id>.jsonl` counts.
 The harness writes bookkeeping alongside them — `subagents/workflows/<runId>/journal.jsonl`
 — which is not a transcript and is skipped. A Workflow's agents carry
 `attributionAgent: "workflow-subagent"`, a harness role rather than an agent name;
