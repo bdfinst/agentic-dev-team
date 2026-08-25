@@ -253,7 +253,7 @@ grade_pair() {
 
   local prompt_file
   # Full template path, not `-t` — see .husky/pre-push (issue #1993).
-  prompt_file="$(mktemp "${TMPDIR:-/tmp}/oe-prompt.XXXXXX")"
+  prompt_file="$(mktemp -- "${TMPDIR:-/tmp}/oe-prompt.XXXXXX")"
   build_judge_prompt "$subject" "$fixture_file" > "$prompt_file" || {
     rm -f "$prompt_file"
     return 1

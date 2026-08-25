@@ -150,7 +150,20 @@ done
 
 # Scratch directory for intermediate SARIF
 # Full template path, not `-t` — see .husky/pre-push (issue #1993).
-SARIF_DIR="$(mktemp -d "${TMPDIR:-/tmp}/run-assess-XXXXXX")"
+# Checked, not assumed: this script runs `set -uo pipefail` WITHOUT `-e`, and
+# `set -u` does not fire on a set-but-EMPTY variable — so an unchecked failure
+# here would point every scanner's output at a filesystem-root path, where the
+# surrounding `2>/dev/null || true` swallows it and the assessment reports zero
+# findings because it never scanned. A security gate that cannot fail is worse
+# than no gate.
+SARIF_DIR="$(mktemp -d -- "${TMPDIR:-/tmp}/run-assess-XXXXXX")" || {
+  printf 'error: could not create a scratch dir under %s\n' "${TMPDIR:-/tmp}" >&2
+  exit 2
+}
+[ -n "$SARIF_DIR" ] && [ -d "$SARIF_DIR" ] || {
+  printf 'error: scratch dir was not created\n' >&2
+  exit 2
+}
 trap 'rm -rf "$SARIF_DIR"' EXIT
 
 # Tool availability bookkeeping

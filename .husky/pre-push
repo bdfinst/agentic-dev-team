@@ -43,7 +43,7 @@ done
 # temp dir via confstr(_CS_DARWIN_USER_TEMP_DIR) instead — so the file lands in
 # /var/folders/... no matter what $TMPDIR says. Passing a full template path
 # behaves identically on both. POSIX sh, same as the rest of this hook.
-_prepush_mktemp() { mktemp "${TMPDIR:-/tmp}/$1-XXXXXX"; }
+_prepush_mktemp() { mktemp -- "${TMPDIR:-/tmp}/$1-XXXXXX"; }
 
 PRE_REFS_FILE="$(_prepush_mktemp prepush-refs-pre)"
 POST_REFS_FILE="$(_prepush_mktemp prepush-refs-post)"

@@ -154,7 +154,12 @@ def _dispatch_background_analysis(
     shell_body = (
         f"python3 {shell_quote(str(session_extract))} --since last "
         f">/dev/null 2>>{shell_quote(str(extract_log))} || true; "
-        f"tmp_out=$(mktemp {shell_quote(str(metrics_dir / '.pending-XXXXXX.jsonl'))} "
+        # Template must END in the Xs (no `.jsonl` suffix): BSD mktemp
+        # substitutes only a trailing run, so `.pending-XXXXXX.jsonl` yields
+        # that name verbatim and the SECOND dispatch dies with "File exists" —
+        # which `2>/dev/null || exit 0` below swallows, silently disabling
+        # session-learning extraction on macOS from then on (issue #1993).
+        f"tmp_out=$(mktemp {shell_quote(str(metrics_dir / '.pending-XXXXXX'))} "
         "2>/dev/null) || exit 0; "
         f"if claude {' '.join(shell_quote(a) for a in session_id_args)} "
         f"--dangerously-skip-permissions --print {shell_quote(prompt)} "
