@@ -10,7 +10,7 @@ color: green
 
 # Test Smell Review
 
-Scope: always
+Scope: test-files
 Cites:
 - test-smells
 - test-automation-principles
@@ -27,6 +27,20 @@ Cites:
 - cd-test-architecture
 - microservice-testing
 - adversarial-review-protocol
+
+Dispatched only when the changeset touches a test file (#1978). Every smell
+this agent detects — assertion roulette, eager tests, mystery guests, test
+doubles, pyramid placement — is a property of test code, so a diff that
+changes no test file gives it nothing to read and it would self-report
+`{"status": "skip"}`. `test-files` is resolved by
+`scripts/select_lenses.py` against the single shared encoding of
+[`../knowledge/test-file-indicators.md`](../knowledge/test-file-indicators.md)
+(`hooks/lib/test_file_classify.py`), so this scope covers every family that
+file names — including `test_*.py`, `__tests__/`, and the C#/Java
+annotation indicators that a glob list could not express. Note the
+deliberate contrast with `test-review`, which stays `Scope: always`: its
+coverage-gap check must see production diffs that add code *without* a
+matching test, which is precisely a diff this scope excludes.
 
 Output JSON (extends the shared contract in `${CLAUDE_PLUGIN_ROOT}/knowledge/review-agent-output-contract.md` with `smell` and `remedyFamily` fields. Whole-file load: short, canonical schema):
 
