@@ -388,9 +388,11 @@ skip in the report (gated by diff signal, not by `Scope:`). The seven signals
 are `structure` (file added/deleted/renamed), `dependency` (an import/require
 line added or removed), `manifest`, `infra`, `interface` (a public/exported
 symbol declaration added or removed), `adr`, and `concurrency` (a concurrency
-primitive added **or removed** — async/await, threads, locks, channels,
-atomics; removing synchronization is a concurrency change exactly as much as
-adding it). `hasArchitecturalImpact` reports only the first six: a diff whose
+primitive added, removed, **or visible in a hunk's context lines** —
+async/await, threads, locks, channels, atomics; removing synchronization is a
+concurrency change exactly as much as adding it, and the context lines are
+what keep the lens on a body-only edit inside an already-locked block, which
+carries no primitive on its own changed line). `hasArchitecturalImpact` reports only the first six: a diff whose
 sole signal is `concurrency` has moved no boundary, so it keeps
 `concurrency-review` while `arch-review` still drops.
 

@@ -31,8 +31,9 @@ from __future__ import annotations
 
 import csv
 import json
-import os
 import sys
+
+from _envelope import rel as _rel
 
 #: (column index, threshold, rule suffix, human label). A finding is emitted
 #: when the measured value is STRICTLY greater than the threshold. Each
@@ -45,12 +46,6 @@ _CHECKS = (
     (3, 5, "parameter-count", "parameter count"))
 
 
-def _rel(path: str) -> str:
-    """Repo-relative POSIX path — the envelope forbids absolute paths."""
-    text = (path or "").replace("\\", "/")
-    if os.path.isabs(text):
-        text = os.path.relpath(text, os.getcwd()).replace("\\", "/")
-    return text.removeprefix("./")
 
 
 def main(stdin=sys.stdin, stdout=sys.stdout) -> int:
@@ -58,11 +53,12 @@ def main(stdin=sys.stdin, stdout=sys.stdout) -> int:
         if len(row) < 11:
             continue
         for index, limit, rule, label in _CHECKS:
-            # One guard for every way a row can fail to yield this metric:
-            # the `-Ens` column absent (IndexError) or a non-numeric cell.
+            # The `len(row) < 11` guard above already proves every index this
+            # loop reads (1, 3, 4, 9, 10) exists, so the only way a row can
+            # fail here is a non-numeric or empty cell in a malformed row.
             try:
                 value, start, end = int(row[index]), int(row[9]), int(row[10])
-            except (IndexError, ValueError):
+            except ValueError:
                 continue
             if value <= limit:
                 continue
@@ -72,7 +68,9 @@ def main(stdin=sys.stdin, stdout=sys.stdout) -> int:
                 "line": max(start, 1),
                 "end_line": max(end, start, 1),
                 "severity": "warning",
-                "message": f"{row[7]}: {label} is {value} (threshold {limit})",
+                # Truncated like every sibling adapter: `row[7]` is
+                # tool-supplied text and the envelope caps `message` at 500.
+                "message": f"{row[7]}: {label} is {value} (threshold {limit})"[:500],
                 "metadata": {"source": "lizard", "confidence": "high",
                              "metric": rule, "value": value, "threshold": limit},
             }, ensure_ascii=False) + "\n")

@@ -16,16 +16,9 @@ that context is exactly the token cost this lane exists to remove.
 from __future__ import annotations
 
 import json
-import os
 import sys
 
-
-def _rel(path: str) -> str:
-    """Repo-relative POSIX path — the envelope forbids absolute paths."""
-    text = (path or "").replace("\\", "/")
-    if os.path.isabs(text):
-        text = os.path.relpath(text, os.getcwd()).replace("\\", "/")
-    return text.removeprefix("./")
+from _envelope import rel as _rel
 
 
 def main(stdin=sys.stdin, stdout=sys.stdout, stderr=sys.stderr) -> int:
@@ -34,16 +27,26 @@ def main(stdin=sys.stdin, stdout=sys.stdout, stderr=sys.stderr) -> int:
     except ValueError:
         print("WARN: jscpd report is not valid JSON — skipping", file=stderr)
         return 0
-    for dup in report.get("duplicates") or [] if isinstance(report, dict) else []:
+    for dup in (report.get("duplicates") if isinstance(report, dict) else None) or []:
+        # `duplicates` needs no list check of its own: iterating a dict yields
+        # its KEYS, and this per-item guard rejects those the same way it
+        # rejects any other wrong-shape entry. A wrong shape must degrade to
+        # a skip, never crash — the lane runs `jscpd ... && adapter < report`.
+        if not isinstance(dup, dict):
+            continue
         first, second = dup.get("firstFile") or {}, dup.get("secondFile") or {}
         try:
             line = max(int(first["start"]), 1)
             end_line = max(int(first.get("end", line)), line)
-            name = first["name"]
-        except (KeyError, TypeError, ValueError):
+            # `.strip()` raises on a null/non-string name, which would
+            # otherwise anchor a schema-VALID finding at the empty path — a
+            # fabricated location, worse than emitting nothing.
+            name = first["name"].strip()
+        except (AttributeError, KeyError, TypeError, ValueError):
+            continue
+        if not name:
             continue
         other = _rel(second.get("name") or "unknown")
-        where = f"{other}:{second.get('start', '?')}-{second.get('end', '?')}"
         stdout.write(json.dumps({
             "rule_id": "jscpd.duplication.clone",
             "file": _rel(name),
@@ -51,7 +54,8 @@ def main(stdin=sys.stdin, stdout=sys.stdout, stderr=sys.stderr) -> int:
             "end_line": end_line,
             "severity": "warning",
             "message": (f"Duplicated block of {dup.get('lines', '?')} lines "
-                        f"({dup.get('tokens', '?')} tokens) — also at {where}")[:500],
+                        f"({dup.get('tokens', '?')} tokens) — also at {other}:"
+                        f"{second.get('start', '?')}-{second.get('end', '?')}")[:500],
             "metadata": {"source": "jscpd", "confidence": "high",
                          "duplicate_of": other, "format": dup.get("format")},
         }, ensure_ascii=False) + "\n")

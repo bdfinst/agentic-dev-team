@@ -164,6 +164,16 @@ def test_non_numeric_metric_is_skipped_but_siblings_survive():
     assert rules(result) == {"lizard.complexity.parameter-count"}
 
 
+def test_an_overlong_function_name_is_truncated_to_the_envelope_limit():
+    """`name` is tool-supplied text (template-qualified C++ symbols, minified
+    JS identifiers), and the envelope caps `message` at 500. Without this the
+    finding fails schema validation on exactly the pathological function the
+    complexity check exists to flag."""
+    result = run_adapter(row(name="f" * 900, param=9))
+    (finding,) = findings_from(result)
+    assert len(finding["message"]) == 500
+
+
 def test_empty_input_yields_no_findings_and_success():
     result = run_adapter("")
     assert result.returncode == 0

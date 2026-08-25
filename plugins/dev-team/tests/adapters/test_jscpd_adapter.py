@@ -135,9 +135,28 @@ def test_a_nonnumeric_range_is_skipped_without_failing():
     assert findings_from(result) == []
 
 
+def test_a_null_anchor_name_is_skipped_rather_than_anchored_at_the_empty_path():
+    """A null `firstFile.name` produced a schema-VALID finding with
+    `"file": ""` — a fabricated location, which is worse than no finding
+    because it reads as a real one."""
+    payload = report(firstFile={"name": None, "start": 1, "end": 7})
+    result = run_adapter(payload)
+    assert result.returncode == 0
+    assert findings_from(result) == []
+
+
 @pytest.mark.parametrize(
     "payload",
-    ['[]', '"a string"', 'null', '123', '{"duplicates": null}', '{"duplicates": [{}]}'],
+    [
+        '[]', '"a string"', 'null', '123',
+        '{"duplicates": null}', '{"duplicates": [{}]}',
+        # `duplicates` present but not a list: iterating a dict yields its
+        # KEYS, so `dup.get(...)` hit AttributeError and crashed the lane —
+        # the pipeline failure the graceful-degradation contract forbids.
+        '{"duplicates": {"javascript": []}}',
+        '{"duplicates": ["a-string"]}',
+        '{"duplicates": [null]}',
+    ],
 )
 def test_valid_json_of_the_wrong_shape_degrades_to_no_findings(payload):
     """Well-formed JSON that is not a jscpd report must not crash the lane —

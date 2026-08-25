@@ -406,9 +406,14 @@ def test_file_subset(changed_files, root=None):
                 found.add(path)
             continue
         full = base / path
-        if not full.is_file():
-            found.add(path)  # unprovable by content — include-biased
-        elif is_test_file(path, content=_read_probe(full)):
+        # An empty probe means "could not read it", not "read it and found no
+        # test marker": `_read_probe` returns "" both for a file that is not
+        # there and for one that exists but raises (permissions, or a file
+        # replaced between this check and the open). Both are unprovable, so
+        # both include-bias — anything else silently drops the lens, which is
+        # the failure mode `_CONTENT_PROBED_SUFFIXES` exists to prevent.
+        probe = _read_probe(full) if full.is_file() else ""
+        if not probe or is_test_file(path, content=probe):
             found.add(path)
     return found
 

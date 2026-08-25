@@ -30,8 +30,16 @@ diff, not merely unlikely to appear in it.
 - `arch-review` — its subject is structure, so a diff with no structural
   signal (below) has moved no boundary for it to evaluate.
 - `concurrency-review` (#1975) — its subject is races, async ordering,
-  idempotency, and shared-state safety, none of which can exist in a diff
-  that introduces or removes no concurrency primitive.
+  idempotency, and shared-state safety, none of which can arise where no
+  concurrency primitive appears in the diff's added, removed, **or context**
+  lines. The context lines are load-bearing in that sentence: a body-only
+  edit adding `self._counter += 1` inside an existing locked block carries no
+  primitive of its own, and an earlier draft of this gate dropped the lens on
+  exactly that diff — the shape most likely to introduce a race. Scanning the
+  hunk's context closes it for any primitive within the diff's context
+  window; a shared-state mutation whose only synchronization lives further
+  away than that window is the residual limit, recorded here rather than
+  claimed away.
 
 `domain-review` is the obvious next candidate and is deliberately NOT gated
 here. Its scope includes "business logic placement", and putting business
@@ -67,11 +75,12 @@ GATED_LENSES = {
     # lens probably no-ops" intuition the module docstring rejects: every
     # category in concurrency-review's own charter (race conditions, async
     # pitfalls, idempotency, shared-state safety) requires a concurrency
-    # primitive to exist in the diff. A changeset that introduces or removes
-    # none has no shared state to race and no async ordering to get wrong —
-    # the lens's subject is *provably absent*, which is a stronger claim than
-    # a measured low yield, and the same claim that authorized gating
-    # arch-review on structural signals.
+    # primitive to be present. A changeset with none anywhere in its hunks —
+    # changed lines or surrounding context — has no shared state to race and
+    # no async ordering to get wrong; the lens's subject is *absent from
+    # everything the diff shows*, a stronger claim than a measured low yield
+    # and the same one that authorized gating arch-review on structural
+    # signals. See the module docstring for the residual limit.
     "concurrency-review": frozenset({"concurrency"}),
 }
 
@@ -158,12 +167,19 @@ _ADR_RE = re.compile(r"(^|/)(docs/)?adr/|(^|/)adr-\d|(^|/)\d{4}-.*\.md$", re.IGN
 #: outcome, not a tuning failure: async ordering is squarely this lens's
 #: subject. The savings come from the synchronous diffs, which are the
 #: majority in this repo's own hook/script tree.
-#: Case-insensitive on purpose, for the same reason the token list is long:
-#: a miss is the only expensive error. The one deliberate non-`\b` construct
-#: is `[._]lock\b`, which catches the single most common Python form —
-#: `with self._lock:` — that a leading `\b` cannot match (the char before
-#: `lock` is `_`, itself a word character). It is written that way rather than
-#: as a bare `lock\b` so it does not fire on every occurrence of "block".
+#: Case-SENSITIVE on purpose. The type-name tokens (`Condition`, `Queue`,
+#: `Arc`, `Atomic*`, `Concurrent*`, `Mutex`, …) are identifiers, and folding
+#: case makes them match ordinary English instead: `if condition:`,
+#: `queue = []`, `arc = math.atan2(y, x)`, `# applied atomically` all matched
+#: under `re.IGNORECASE`, which would have kept the lens on a large share of
+#: the synchronous diffs this gate exists to skip. The lowercase forms that
+#: genuinely occur in code are spelled out instead (`lock`, `unlock`,
+#: `deadlock`, `queue.`, `go func`, `sync.`, `chan`, `tokio`, `async`,
+#: `await`). The one deliberate non-`\b` construct is `[._]lock\b`, which
+#: catches the single most common Python form — `with self._lock:` — that a
+#: leading `\b` cannot match (the char before `lock` is `_`, itself a word
+#: character). It is written that way rather than as a bare `lock\b` so it
+#: does not fire on every occurrence of "block".
 _CONCURRENCY_RE = re.compile(
     r"""(?:
         \basync\b | \bawait\b
@@ -180,7 +196,7 @@ _CONCURRENCY_RE = re.compile(
       | \bConcurrent\w* | \bAtomic\w* | \bSharedArrayBuffer\b
       | \btokio\b | \bArc\b | \bspawn\s*\( | \bnew\s+Worker\b
     )""",
-    re.VERBOSE | re.IGNORECASE,
+    re.VERBOSE,
 )
 
 
@@ -249,6 +265,17 @@ def analyze_diff(diff_text: str) -> dict:
             parsed = True
             continue
         if not raw or raw[0] not in "+-":
+            # Context lines are evidence for the CONCURRENCY probe only.
+            # A body-only edit inside an already-concurrent function (adding
+            # `self._counter += 1` inside a locked block) carries no primitive
+            # on its own changed line, but the enclosing `async def` / `with
+            # self._lock:` is right there in the hunk. Ignoring it dropped the
+            # one lens that reviews races on exactly the diff shape most likely
+            # to introduce one. Deliberately not extended to the architectural
+            # signals: an import that merely *sits near* a change is not a
+            # changed dependency edge, which is what those signals must mean.
+            if _CONCURRENCY_RE.search(raw):
+                signals.add("concurrency")
             continue
         if raw.startswith(("+++", "---")):
             continue

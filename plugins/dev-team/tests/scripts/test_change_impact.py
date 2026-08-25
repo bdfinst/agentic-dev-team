@@ -220,6 +220,15 @@ class TestConcurrencyGate:
             "    self.blocked = True",
             "    clock = time.time()",
             "    total = price * qty",
+            # Ordinary English and lowercase identifiers that a case-folded
+            # pattern matched against the type-name tokens. Each one kept the
+            # lens on a synchronous diff, eroding the saving the gate exists
+            # for, so the pattern is case-sensitive.
+            "    if condition:",              # vs. `Condition`
+            "    queue = []",                 # vs. `Queue`
+            "    arc = math.atan2(y, x)",     # vs. `Arc`
+            "    # applied atomically",       # vs. `Atomic*`
+            "    # run concurrently",         # vs. `Concurrent*`
         ],
     )
     def test_lookalike_words_do_not_trip_the_pattern(self, line):
@@ -228,6 +237,39 @@ class TestConcurrencyGate:
         every diff and erase the saving."""
         result = change_impact.evaluate(_diff("src/pricing.py", added=[line]))
         assert "concurrency" not in result["signals"], f"false positive: {line!r}"
+
+    def test_a_body_only_edit_inside_a_locked_block_keeps_the_lens(self):
+        """The shape the gate got wrong at first: the changed line carries no
+        primitive, but the enclosing lock is right there in the hunk context.
+        Dropping the lens here would remove race review from exactly the diff
+        most likely to introduce one — a new unsynchronized read-modify-write
+        on shared state."""
+        diff = (
+            "diff --git a/w.py b/w.py\n--- a/w.py\n+++ b/w.py\n"
+            "@@ -1,6 +1,7 @@\n"
+            "     async def run(self):\n"
+            "         with self._lock:\n"
+            "+            self._counter += 1\n"
+            "             return self._counter\n"
+        )
+        result = change_impact.evaluate(diff)
+        assert "concurrency" in result["signals"]
+        assert "concurrency-review" not in result["skipLenses"]
+
+    def test_context_lines_do_not_manufacture_architectural_signals(self):
+        """Context scanning is deliberately concurrency-only: an import that
+        merely sits near a change is not a changed dependency edge."""
+        diff = (
+            "diff --git a/p.py b/p.py\n--- a/p.py\n+++ b/p.py\n"
+            "@@ -1,4 +1,5 @@\n"
+            " import os\n"
+            " def total(items):\n"
+            "+    if not items: return 0\n"
+            "     return sum(items)\n"
+        )
+        result = change_impact.evaluate(diff)
+        assert "dependency" not in result["signals"]
+        assert "arch-review" in result["skipLenses"]
 
     def test_removing_a_lock_also_counts(self):
         """Deleting synchronization is the change most likely to introduce a

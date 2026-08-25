@@ -129,6 +129,19 @@ def test_test_file_subset_reads_content_for_csharp_on_disk(tmp_path):
     }
 
 
+def test_test_file_subset_include_biases_a_present_but_unreadable_file(tmp_path):
+    """The include-bias must cover "exists but could not be read" too, not
+    just "not on disk": the shared probe returns "" for both, and treating
+    that as "read it, found no test marker" silently drops the lens."""
+    unreadable = tmp_path / "Order.cs"
+    unreadable.write_text("[Fact]\npublic void Works() {}\n")
+    unreadable.chmod(0o000)
+    try:
+        assert SL.test_file_subset(["Order.cs"], root=tmp_path) == {"Order.cs"}
+    finally:
+        unreadable.chmod(0o644)
+
+
 def test_test_file_subset_is_include_biased_for_unreadable_content_probed_files(tmp_path):
     """A `.cs`/`.java` path not on disk (a deleted file, or a caller outside
     the checkout) cannot be classified by content. Counting it as a possible

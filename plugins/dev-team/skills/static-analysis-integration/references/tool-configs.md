@@ -333,6 +333,7 @@ jscpd --reporters json --output <report-dir> --silent <target paths> \
 | `duplicates[].format` | `metadata.format` | |
 | `duplicates[].fragment` | **dropped** | see below |
 
+- **Shared helper**: both this adapter and lizard's normalize paths through `../adapters/_envelope.py`'s `rel()`. Adapters run as standalone scripts, so `sys.path[0]` is the adapters directory and a plain `import _envelope` resolves with no path manipulation. It exists because two byte-identical copies of that function were exactly the finding this duplication lane reports.
 - **`fragment` is deliberately never copied into the finding.** It holds the duplicated source verbatim, and these findings are injected into every review agent's prompt — echoing both copies of every clone into that context is precisely the token cost this lane exists to remove.
 - **Malformed input degrades to a skip**: a report that is not valid JSON produces a `WARN` on stderr, zero findings, and exit 0 — never a pipeline failure, per the skill's graceful-degradation constraint.
 
