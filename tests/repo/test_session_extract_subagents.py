@@ -377,3 +377,159 @@ def test_an_undecodable_transcript_is_skipped_not_fatal(tmp_path):
     _main_transcript(root, [_assistant([{"type": "text", "text": "ok"}])])
     (root / PROJECT_SLUG / "broken.jsonl").write_bytes(b'{"type":"assistant"}\n\xff\xfe bad\n')
     assert sum(_digest(root)["token"]["totals"].values()) == USAGE_SUM
+
+
+def test_a_dispatch_prompt_is_not_a_human_correction(tmp_path):
+    """A dispatched agent's transcript opens with the parent's task prompt as
+    a `type: "user"` record, and `_CORRECTION_RE` matches its ordinary phrasing
+    ("do not", "no", "wrong"). 287 of 400 sampled REAL dispatch prompts scored
+    as corrections — which would rank `user_correction_turns` first in
+    escalate()'s recommendations off the harness talking to itself.
+    """
+    root = tmp_path / "projects"
+    _main_transcript(root, [_assistant([{"type": "text", "text": "go"}])])
+    prompt = {
+        "type": "user", "sessionId": SESSION_ID, "cwd": PROJECT_CWD,
+        "isSidechain": True, "attributionAgent": "dev-team:doc-review",
+        "timestamp": "2026-08-20T12:00:00Z",
+        "message": {"role": "user",
+                    "content": "Review this diff. Do not re-report what static analysis found."},
+    }
+    _subagent(root, "aaa1", [prompt, _assistant(
+        [{"type": "text", "text": "ok"}], agent="dev-team:doc-review", sidechain=True)])
+    d = _digest(root)
+    assert d["subagent_transcripts"] == 1, "guard: the file was read"
+    assert d["accuracy"]["user_correction_turns"] == 0
+    assert "unattributed" not in d["accuracy"]["by_agent"]
+
+
+def test_a_real_user_correction_in_the_main_thread_still_counts(tmp_path):
+    """The guard above must not silence the signal it protects."""
+    root = tmp_path / "projects"
+    _write(root / PROJECT_SLUG / f"{SESSION_ID}.jsonl", [
+        _assistant([{"type": "text", "text": "done"}]),
+        {"type": "user", "sessionId": SESSION_ID, "cwd": PROJECT_CWD,
+         "timestamp": "2026-08-20T12:00:00Z",
+         "message": {"role": "user", "content": "no, that's wrong — revert it"}},
+    ])
+    assert _digest(root)["accuracy"]["user_correction_turns"] == 1
+
+
+def test_sync_groups_workflow_nested_agents_under_their_session(tmp_path):
+    """The grouping is index-relative, so the deeper Workflow layout must land
+    on the same session — untested until the closing pass asked."""
+    root = tmp_path / "projects"
+    _main_transcript(root, [_assistant([{"type": "text", "text": "hi"}])])
+    _subagent(root, "wf1", [
+        _assistant([{"type": "text", "text": "wf"}],
+                   agent="dev-team:doc-review", sidechain=True),
+    ], workflow="wf_deadbeef")
+    out = tmp_path / "digests" / "testhost"
+    out.mkdir(parents=True)
+    records = _sync(root, out)
+    assert len(records) == 1
+    assert records[0]["session_id"] == SESSION_ID
+    assert sum(records[0]["tokens"].values()) == 2 * USAGE_SUM
+
+
+def test_sync_re_emits_a_session_when_only_an_agent_transcript_grows(tmp_path):
+    """The watermark sums the session's TOTAL bytes — the point of the fix.
+    Watermarking the main file alone would miss an agent that kept working."""
+    root = tmp_path / "projects"
+    _main_transcript(root, [_assistant([{"type": "text", "text": "hi"}])])
+    _subagent(root, "aaa1", [
+        _assistant([{"type": "text", "text": "x"}],
+                   agent="dev-team:doc-review", sidechain=True),
+    ])
+    out = tmp_path / "digests" / "testhost"
+    out.mkdir(parents=True)
+    assert len(_sync(root, out)) == 1
+    assert len(_sync(root, out)) == 1, "unchanged: no new record"
+
+    # Only the AGENT transcript grows; the main transcript is untouched.
+    _subagent(root, "aaa1", [
+        _assistant([{"type": "text", "text": "x"}],
+                   agent="dev-team:doc-review", sidechain=True),
+        _assistant([{"type": "text", "text": "more"}],
+                   agent="dev-team:doc-review", sidechain=True),
+    ])
+    records = _sync(root, out)
+    assert len(records) == 2, "the session re-syncs when any of its files grows"
+
+
+def test_safe_name_rejects_a_trailing_newline():
+    """`$` also matches immediately BEFORE a single trailing newline, so
+    `.match()` admitted "name\\n" and split the key space — two visually
+    identical keys that never merge in rollup()."""
+    sys.path.insert(0, str(REPO_ROOT / "scripts"))
+    import session_extract
+
+    assert session_extract._safe_name("review" + chr(10)) == "other"
+    assert session_extract._safe_name("review") == "review"
+
+
+def test_the_raw_model_id_still_reaches_the_pricing_table(tmp_path):
+    """Sanitizing `model` before the rate lookup would collapse a Vertex-style
+    id to "other", miss pricing, and silently bill the session $0.00 — an
+    under-report, the failure direction that matters for the cost baseline."""
+    root = tmp_path / "projects"
+    rec = _assistant([{"type": "text", "text": "hi"}])
+    rec["message"]["model"] = "claude-3-5-sonnet-v2@20241022"
+    _write(root / PROJECT_SLUG / f"{SESSION_ID}.jsonl", [rec])
+    pricing = tmp_path / "pricing.json"
+    pricing.write_text(json.dumps({
+        "models": {"claude-3-5-sonnet-v2@20241022": {
+            "input": 3.0, "output": 15.0,
+            "cache_write": 3.75, "cache_read": 0.3}},
+        "units": "per_million_tokens",
+    }))
+    proc = subprocess.run(
+        [sys.executable, str(EXTRACT), "--all-projects", "--projects-root", str(root),
+         "--pricing", str(pricing)],
+        capture_output=True, text=True, timeout=120, check=False,
+    )
+    assert proc.returncode == 0, proc.stderr
+    d = json.loads(proc.stdout)
+    assert d["token"]["cost_usd"] > 0, "a priced model must not cost $0.00"
+    # ...while the KEY is still sanitized.
+    assert list(d["token"]["by_model"]) == ["other"]
+
+
+def test_two_unsafe_session_ids_do_not_collide(tmp_path):
+    """Collapsing every unsafe id to one literal makes two sessions collide in
+    the sync stream's last-write-wins dedup, so one silently vanishes from
+    rollup()'s session count."""
+    root = tmp_path / "projects"
+    for name in ("bad name one", "bad name two"):
+        _write(root / PROJECT_SLUG / f"{name}.jsonl",
+               [_assistant([{"type": "text", "text": "x"}])])
+    out = tmp_path / "digests" / "testhost"
+    out.mkdir(parents=True)
+    records = _sync(root, out)
+    ids = {r["session_id"] for r in records}
+    assert len(ids) == 2, ids
+    assert all(i.startswith("other-") for i in ids), ids
+
+
+def test_an_unhashable_tool_use_id_does_not_abort_the_run(tmp_path):
+    """`pending_tool[bid]` with a dict id raises TypeError: unhashable type."""
+    root = tmp_path / "projects"
+    _write(root / PROJECT_SLUG / f"{SESSION_ID}.jsonl", [
+        _assistant([{"type": "tool_use", "id": {"not": "a string"},
+                     "name": "Bash", "input": {"command": "ls"}}]),
+    ])
+    assert sum(_digest(root)["token"]["totals"].values()) == USAGE_SUM
+
+
+def test_the_default_resolution_path_survives_an_undecodable_transcript(tmp_path):
+    """Every other hostile-input test passes --all-projects, so none of them
+    reach `resolve_transcripts` — the path most invocations actually take."""
+    root = tmp_path / "projects"
+    _main_transcript(root, [_assistant([{"type": "text", "text": "ok"}])])
+    (root / PROJECT_SLUG / "broken.jsonl").write_bytes(b'{"type":"assistant"}\n\xff\xfe bad\n')
+    proc = subprocess.run(
+        [sys.executable, str(EXTRACT), "--projects-root", str(root), "--cwd", PROJECT_CWD],
+        capture_output=True, text=True, timeout=120, check=False,
+    )
+    assert proc.returncode == 0, proc.stdout + proc.stderr
+    assert sum(json.loads(proc.stdout)["token"]["totals"].values()) == USAGE_SUM

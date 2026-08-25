@@ -52,6 +52,7 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
 import re
@@ -115,7 +116,10 @@ def _basename(path_str: str) -> str:
 
 def _safe_name(value: str) -> str:
     """Reduce an input-derived string to something safe to emit as a key."""
-    return value if _SAFE_NAME_RE.match(value) else _UNSAFE_NAME
+    # fullmatch, not match: `$` also matches immediately BEFORE a single
+    # trailing newline, so `.match()` admitted "name\n" through the allowlist
+    # and split the key space (#1994 review).
+    return value if _SAFE_NAME_RE.fullmatch(value) else _UNSAFE_NAME
 
 
 def _is_transcript_path(root: Path, path: Path) -> bool:
@@ -298,6 +302,7 @@ def _iter_records(paths: list[Path]):
 
 def _accumulate_token_signals(
     usage: dict,
+    raw_model,
     model,
     skill,
     pricing: dict,
@@ -314,7 +319,7 @@ def _accumulate_token_signals(
         "cache_creation_input_tokens",
         "cache_read_input_tokens",
     )
-    cost = _cost(usage, _rate(pricing, model or ""), pricing)
+    cost = _cost(usage, _rate(pricing, raw_model or ""), pricing)
     for f in fields:
         v = usage.get(f, 0) or 0
         tokens_total[f] += v
@@ -377,7 +382,7 @@ def _track_tool_call(
     name = _safe_name(str(block.get("name", "?")))
     tool_calls[name] += 1
     bid = block.get("id")
-    if bid:
+    if isinstance(bid, str) and bid:
         pending_tool[bid] = name
 
 
@@ -393,7 +398,7 @@ def _classify_tool_result(
     if not block.get("is_error"):
         return
     bid = block.get("tool_use_id")
-    tool_name = pending_tool.get(bid, "?")
+    tool_name = pending_tool.get(bid, "?") if isinstance(bid, str) else "?"
     tool_errors[tool_name] += 1
     rcontent = _text_of(block.get("content"))
     if tool_name in _EDIT_TOOLS and _OLDSTRING_RE.search(rcontent):
@@ -523,7 +528,6 @@ def extract(
 
     # utilization
     skills_invoked = Counter()
-    agent_dispatches = Counter()
 
     # map tool_use id -> tool name, to attribute tool_result errors back
     pending_tool: dict[str, str] = {}
@@ -594,10 +598,16 @@ def extract(
                 if isinstance(msg.get("usage"), dict)
                 else (rec.get("usage") if isinstance(rec.get("usage"), dict) else None)
             )
-            model = msg.get("model") or rec.get("model")
+            raw_model = msg.get("model") or rec.get("model")
             # A non-str `model` would be an unhashable dict key and abort the
-            # whole run — the one unguarded field among careful neighbours.
-            model = _safe_name(model) if isinstance(model, str) and model else None
+            # whole run. Keep the RAW id for the pricing lookup and sanitize
+            # only where it becomes a key: `_safe_name` would collapse a
+            # Vertex-style id (`...-v2@20241022`) to "other", miss
+            # `pricing["models"]`, and silently bill the session $0.00 — an
+            # under-report, which is the failure direction that matters for the
+            # cost-regression baseline (#1994 review).
+            raw_model = raw_model if isinstance(raw_model, str) and raw_model else None
+            model = _safe_name(raw_model) if raw_model else None
 
             if usage:
                 if is_subagent:
@@ -625,6 +635,7 @@ def extract(
                     by_agent_type[inline_label] += 1
                 cost_total += _accumulate_token_signals(
                     usage,
+                    raw_model,
                     model,
                     skill,
                     pricing,
@@ -660,7 +671,14 @@ def extract(
                             block, pending_tool, tool_errors, error_counts
                         )
 
-            if _detect_correction_turn(rec, content):
+            # Only a MAIN transcript carries human turns. A dispatched
+            # agent's transcript opens with the parent's task prompt as a
+            # `type: "user"` record, and `_CORRECTION_RE` matches the ordinary
+            # phrasing of one ("do not", "no", "wrong") — 287 of 400 sampled
+            # real dispatch prompts scored as corrections, which would rank
+            # this signal first in escalate() off the harness talking to
+            # itself (#1994 review).
+            if not is_subagent and _detect_correction_turn(rec, content):
                 correction_turns += 1
                 correction_by_skill[active["skill"] or "unattributed"] += 1
                 correction_by_agent[active["agent"] or "unattributed"] += 1
@@ -789,7 +807,7 @@ def resolve_transcripts(args) -> list[Path]:
     matches: list[Path] = []
     for jsonl in _all_transcripts_under(root):
         try:
-            with jsonl.open(encoding="utf-8") as fh:
+            with jsonl.open(encoding="utf-8", errors="replace") as fh:
                 for _ in range(20):  # cwd appears on the earliest records
                     line = fh.readline()
                     if not line:
@@ -802,7 +820,9 @@ def resolve_transcripts(args) -> list[Path]:
                     if rec_cwd and os.path.abspath(rec_cwd) == target_cwd:
                         matches.append(jsonl)
                         break
-        except OSError:
+        # UnicodeDecodeError is a ValueError: a transcript truncated
+        # mid-character aborted the DEFAULT resolution path (#1994 review).
+        except (OSError, ValueError):
             continue
     return sorted(matches, key=lambda x: str(x))
 
@@ -818,6 +838,22 @@ def resolve_all_transcripts(args) -> list[Path]:
     if not root.is_dir():
         return []
     return _all_transcripts_under(root)
+
+
+def _opaque_session_id(session_id: str) -> str:
+    """A safe session id that stays UNIQUE.
+
+    Collapsing every unsafe id to the single literal `other` would make two
+    such sessions collide in `_read_synced_records`' last-write-wins dedup, so
+    one silently vanishes from `rollup()`'s session count — the denominator
+    `escalate()` divides friction by. Same construction the shipped twin uses
+    for project labels (#1994 review).
+    """
+    safe = _safe_name(session_id)
+    if safe != _UNSAFE_NAME:
+        return safe
+    digest = hashlib.sha256(session_id.encode("utf-8")).hexdigest()[:8]
+    return f"other-{digest}"
 
 
 def _owning_session_dir(root: Path, path: Path) -> str:
@@ -840,7 +876,10 @@ def _owning_session_dir(root: Path, path: Path) -> str:
     except ValueError:
         parts = path.parts
     if "subagents" in parts:
-        return parts[parts.index("subagents") - 1]
+        i = parts.index("subagents")
+        # i == 0 would wrap to parts[-1] — the filename — recreating the
+        # fabricated-session shape this function exists to prevent.
+        return parts[i - 1] if i > 0 else path.stem
     return path.stem
 
 
@@ -987,7 +1026,7 @@ def cmd_sync(
             digest = extract(
                 session_paths, pricing, registry, plugin_version, projects_root=root
             )
-            rec = sync_record(digest, host, project, _safe_name(session_id), ts)
+            rec = sync_record(digest, host, project, _opaque_session_id(session_id), ts)
             fh.write(json.dumps(rec, sort_keys=True) + "\n")
             synced[session_id] = size
             emitted += 1
@@ -995,7 +1034,7 @@ def cmd_sync(
     wm_path.parent.mkdir(parents=True, exist_ok=True)
     wm_path.write_text(json.dumps(wm, indent=2, sort_keys=True) + "\n")
     print(
-        f"synced {emitted} new/changed session(s) of {len(paths)} considered -> {out}"
+        f"synced {emitted} new/changed session(s) of {len(by_session)} considered -> {out}"
     )
     return 0
 

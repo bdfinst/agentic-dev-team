@@ -99,7 +99,10 @@ def _basename(path_str: str) -> str:
 
 def _safe_name(value: str) -> str:
     """Reduce an input-derived string to something safe to emit as a key."""
-    return value if _SAFE_NAME_RE.match(value) else _UNSAFE_NAME
+    # fullmatch, not match: `$` also matches immediately BEFORE a single
+    # trailing newline, so `.match()` admitted "name\n" through the allowlist
+    # and split the key space (#1994 review).
+    return value if _SAFE_NAME_RE.fullmatch(value) else _UNSAFE_NAME
 
 
 def _strip_ns(name: str) -> str:
@@ -461,7 +464,10 @@ def extract(
                     elif btype == "tool_result":
                         _classify_tool_result(block, pending_tool, tool_errors, error_counts)
 
-            if _detect_correction_turn(rec, content):
+            # Main transcripts only: a dispatched agent's transcript opens
+            # with the parent's task prompt as a `type: "user"` record, and
+            # `_CORRECTION_RE` matches its ordinary phrasing (#1994 review).
+            if not is_subagent and _detect_correction_turn(rec, content):
                 correction_turns += 1
 
         # A file's agent name is only known once a record carrying
