@@ -19,15 +19,17 @@ file to anyone is a deliberate, separate action the user takes themselves.
 
 DETERMINISM: given the same transcript inputs, every field except
 ``generated_at`` is byte-identical across runs — no absolute paths, sorted
-keys throughout.
+keys throughout. The one exception is ``--since``, which is resolved
+relative to the run's own current time (see below), so its resolved bound
+— and therefore the report — legitimately differs between runs.
 
 Usage:
   extract_session_report.py                       current project only
   extract_session_report.py --all-projects         every project on this machine
   extract_session_report.py --project /path/to/dir a specific project's cwd
   extract_session_report.py --out my-report.json   choose the output path
-  extract_session_report.py --since 2026-01-01 --until 2026-01-31
-                                                    scope to a time range
+  extract_session_report.py --since 14             scope to the last 14 days
+  extract_session_report.py --until 2026-01-31      scope to activity through a date
   extract_session_report.py --plugin-version 1.4.0 scope to a plugin version
                                                     (best-effort, see --help)
 
@@ -44,7 +46,7 @@ import os
 import re
 import socket
 from collections import Counter, defaultdict
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 # --- classification vocabularies (counted, never emitted) -------------------
@@ -565,6 +567,16 @@ def sessions_matching_plugin_version(cwd: str | None, target_version: str) -> se
 # --------------------------------------------------------------------------
 
 
+def _non_negative_int(value: str) -> int:
+    try:
+        n = int(value)
+    except ValueError:
+        raise argparse.ArgumentTypeError(f"{value!r} is not an integer") from None
+    if n < 0:
+        raise argparse.ArgumentTypeError(f"{value!r} must not be negative")
+    return n
+
+
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(
         description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
@@ -590,9 +602,10 @@ def main(argv=None) -> int:
     )
     ap.add_argument(
         "--since",
-        metavar="ISO8601",
-        help="only include activity at/after this UTC timestamp or date, "
-        "e.g. 2026-01-15 or 2026-01-15T00:00:00Z",
+        metavar="DAYS",
+        type=_non_negative_int,
+        help="only include activity from the last DAYS days (relative to "
+        "now, e.g. --since 14 for the last two weeks)",
     )
     ap.add_argument(
         "--until",
@@ -611,7 +624,11 @@ def main(argv=None) -> int:
     )
     args = ap.parse_args(argv)
 
-    since = args.since
+    since = None
+    if args.since is not None:
+        since = (datetime.now(timezone.utc) - timedelta(days=args.since)).strftime(
+            "%Y-%m-%dT%H:%M:%SZ"
+        )
     until = args.until
     if until and re.fullmatch(r"\d{4}-\d{2}-\d{2}", until):
         until = f"{until}T23:59:59Z"  # bare date as --until means "through end of day"
