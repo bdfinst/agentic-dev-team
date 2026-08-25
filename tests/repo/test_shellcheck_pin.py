@@ -120,3 +120,36 @@ def test_the_prerequisite_check_does_not_merely_require_shellcheck_on_path():
         "probe passes on a machine whose shellcheck disagrees with CI's. "
         "_resolve_shellcheck handles it instead."
     )
+
+
+def test_the_resolver_installs_atomically():
+    """Both shellcheck gates run CONCURRENTLY in ci-local's pool, so two
+    resolvers can install at once against a cold cache.
+
+    Copying straight onto the cached path overwrites the binary the other
+    process is executing — `ETXTBSY` on Linux. That is how this failed in CI
+    while passing locally, where the cache happened to be warm. And the
+    staging name must be unique per PROCESS: `$$` is the *parent* shell's PID,
+    identical across the pool's subshells, so both racers picked the same
+    staging file and one rename found nothing there.
+    """
+    text = CI_LOCAL.read_text(encoding="utf-8")
+    resolver = text[text.index("_resolve_shellcheck()"):text.index("_shellcheck_or_fail()")]
+
+    assert 'mv -f "$staged" "$cache/shellcheck"' in resolver, (
+        "install must be an atomic rename within the cache directory, not a "
+        "copy onto the live path"
+    )
+    assert 'mktemp -- "$cache/.shellcheck-XXXXXX"' in resolver, (
+        "the staging name must come from mktemp — `$$` is the parent shell's "
+        "PID and collides across concurrent subshells"
+    )
+    assert 'cp "$tmp/shellcheck-v${SHELLCHECK_VERSION}/shellcheck" "$cache/shellcheck"' not in resolver
+    assert ".shellcheck.$$" not in resolver
+
+    # The loser of the race must use the winner's install rather than error.
+    tail = resolver[resolver.index("rm -rf \"$tmp\"", resolver.index("mv -f")):]
+    assert '[ -x "$cache/shellcheck" ]' in tail, (
+        "a resolver that loses the race must fall back to the cached binary a "
+        "concurrent one just finished installing"
+    )

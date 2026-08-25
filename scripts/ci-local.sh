@@ -224,7 +224,7 @@ _resolve_shellcheck() {
     return 0
   fi
 
-  local os arch url tmp
+  local os arch url tmp staged
   case "$(uname -s)" in
     Darwin) os=darwin ;;
     Linux)  os=linux ;;
@@ -237,17 +237,32 @@ _resolve_shellcheck() {
   esac
   url="https://github.com/koalaman/shellcheck/releases/download/v${SHELLCHECK_VERSION}/shellcheck-v${SHELLCHECK_VERSION}.${os}.${arch}.tar.xz"
 
+  # The gates that need this run CONCURRENTLY in the pool below, so two
+  # processes can reach here at once. Stage into a unique name and rename into
+  # place: rename(2) within one directory is atomic, where a plain copy would
+  # overwrite the very binary the other process is executing — which is
+  # ETXTBSY ("Text file busy") on Linux, and is exactly how this failed in CI
+  # while passing locally, where the cache was already warm.
   tmp="$(mktemp -d -- "${TMPDIR:-/tmp}/shellcheck-dl-XXXXXX")" || return 1
   if curl -fsSL --retry 3 -o "$tmp/sc.tar.xz" "$url" &&
      tar -xJf "$tmp/sc.tar.xz" -C "$tmp" &&
      mkdir -p "$cache" &&
-     cp "$tmp/shellcheck-v${SHELLCHECK_VERSION}/shellcheck" "$cache/shellcheck"; then
-    chmod +x "$cache/shellcheck"
+     staged="$(mktemp -- "$cache/.shellcheck-XXXXXX")" &&
+     cp "$tmp/shellcheck-v${SHELLCHECK_VERSION}/shellcheck" "$staged" &&
+     chmod +x "$staged" &&
+     mv -f "$staged" "$cache/shellcheck" 2>/dev/null; then
     rm -rf "$tmp"
     printf '%s\n' "$cache/shellcheck"
     return 0
   fi
+  [ -n "${staged:-}" ] && rm -f "$staged"
   rm -rf "$tmp"
+  # A concurrent resolver may have won the race and finished the install while
+  # this one was failing; prefer its result over reporting an error.
+  if [ -x "$cache/shellcheck" ]; then
+    printf '%s\n' "$cache/shellcheck"
+    return 0
+  fi
   return 1
 }
 
