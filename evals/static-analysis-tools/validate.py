@@ -21,9 +21,13 @@ import sys
 from pathlib import Path
 from typing import Any
 
-from jsonschema import Draft202012Validator
-from referencing import Registry, Resource
-from referencing.jsonschema import DRAFT202012
+# `jsonschema`/`referencing` are imported lazily, inside the two functions that
+# actually validate, rather than at module scope. Only the validation path
+# needs them; the rule-id and parsing helpers are pure. Importing them here
+# made the whole module unimportable without the dependency, which broke two
+# consumers that never validate: `scripts/lib/normalize_findings.py`, and the
+# CI job running `tests/scripts/` — that job installs pytest alone, so a test
+# importing this module for `build_rule_id` failed at collection.
 
 REPO = Path(__file__).resolve().parents[2]
 SCHEMA_PATH = REPO / "plugins/dev-team/knowledge/schemas/unified-finding-v1.json"
@@ -40,7 +44,26 @@ TOOL_TIER_MAP: dict[str, str] = {
     # Custom scripts shipped by dev-team (P2 Step 3b partial)
     "entropy-check": "secrets",
     "model-hash-verify": "ml",
+    # Language linters (#1979). Both were absent, so every ruff and oxlint
+    # finding fell through to the "generic" tier — contradicting the ids their
+    # own entries in references/tool-configs.md advertise (`oxlint.js.<rule>`,
+    # and the `<tool>.python.<rule>` shape mypy's entry documents).
+    "ruff": "python",
+    "oxlint": "js",
 }
+
+#: Rule ids shaped `plugin(rule)` — oxlint's format, e.g. `jsx-a11y(alt-text)`
+#: or `eslint(no-magic-numbers)`. Without this case `kebab()` flattens the
+#: parentheses into hyphens (`oxlint.js.jsx-a11y-alt-text`), which is
+#: schema-valid but loses the plugin/rule boundary. Keeping the plugin as the
+#: tier segment is what lets a consumer select oxlint's plugin-scoped findings
+#: by prefix — `oxlint.jsx-a11y.*` is #1979's accessibility lane, and
+#: `oxlint.react-perf.*` part of its performance one. Note the limit: rules
+#: oxlint reports under the `eslint` plugin share one segment regardless of
+#: concern, so `oxlint.eslint.no-await-in-loop` (performance) and
+#: `oxlint.eslint.no-unused-vars` (correctness) are told apart by leaf name,
+#: not by prefix.
+_PLUGIN_RULE_RE = re.compile(r"^([A-Za-z0-9_-]+)\(([^()]+)\)$")
 
 SEVERITY_MAP: dict[str, str] = {
     "error": "error",
@@ -57,14 +80,34 @@ def kebab(s: str) -> str:
 
 def build_rule_id(driver_name: str, raw_rule_id: str, tier_override: str | None = None) -> str:
     """Apply the rule-id prefix rules from references/sarif-parser.md."""
-    driver_l = driver_name.lower().strip()
+    # The driver name is kebab-cased, not merely lower-cased: it becomes the
+    # first schema segment, and a driver reporting itself as "ox lint" or
+    # "Semgrep OSS" would otherwise emit a rule id with a space in it, which
+    # fails the envelope pattern. A no-op for every tool actually wired up
+    # (all are already single lowercase words).
+    # `or "unknown-tool"`: the driver is the one segment that is never empty-
+    # guarded elsewhere, and `parse_sarif` rejects only a *falsy* driver name —
+    # a whitespace-only or non-Latin one reaches here and would emit a leading
+    # dot (`.generic.n802`). Symmetric with the two guards below.
+    driver_l = kebab(driver_name) or "unknown-tool"
+    plugin_rule = _PLUGIN_RULE_RE.match(raw_rule_id.strip())
+    if plugin_rule:
+        # `plugin(rule)` (oxlint). The plugin becomes the tier segment, so the
+        # namespace survives instead of being hyphen-flattened.
+        plugin, rule = (kebab(g) for g in plugin_rule.groups())
+        if plugin and rule:
+            return f"{driver_l}.{plugin}.{rule}"
     if "." in raw_rule_id:
         # Structured rule id (e.g. semgrep's python.django.audit.sql-injection).
         # Preserve dot structure; kebab-case each segment independently.
         parts = [kebab(p) for p in raw_rule_id.split(".") if p]
         return f"{driver_l}." + ".".join(parts)
     tier = tier_override or TOOL_TIER_MAP.get(driver_l, "generic")
-    return f"{driver_l}.{tier}.{kebab(raw_rule_id)}"
+    # A rule id that kebabs to nothing (empty string, punctuation-only, a
+    # non-Latin script) would leave a trailing dot and an empty final segment,
+    # which the envelope pattern rejects. Name it rather than emit an invalid
+    # finding: the location and message still carry the useful information.
+    return f"{driver_l}.{tier}.{kebab(raw_rule_id) or 'unknown'}"
 
 
 def trivy_tier_for_rule(raw_rule_id: str) -> str:
@@ -170,7 +213,10 @@ def parse_sarif(sarif_doc: dict[str, Any]) -> list[dict[str, Any]]:
     return findings
 
 
-def load_schema_registry() -> tuple[dict[str, Any], Registry]:
+def load_schema_registry() -> tuple[dict[str, Any], Any]:
+    from referencing import Registry, Resource
+    from referencing.jsonschema import DRAFT202012
+
     with SCHEMA_PATH.open() as f:
         schema = json.load(f)
     resource = Resource(contents=schema, specification=DRAFT202012)
@@ -220,6 +266,8 @@ def check_install_hints() -> int:
 
 
 def run() -> int:
+    from jsonschema import Draft202012Validator
+
     schema, registry = load_schema_registry()
     validator = Draft202012Validator(schema, registry=registry)
 

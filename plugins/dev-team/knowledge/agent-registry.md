@@ -147,7 +147,7 @@ Skills are reusable knowledge modules in `.claude/skills/` that agents reference
 | Quality Targets Converge | `skills/quality-targets-converge/SKILL.md` | ~5,540 | `/test-improve` (Phase 8), QA Engineer, Software Engineer |
 | Semantic Duplication Scan | `skills/semantic-duplication-scan/SKILL.md` | ~3,163 | Orchestrator, Software Engineer, Architect |
 | Specs | `skills/specs/SKILL.md` | ~4,553 | Product Manager, Architect, QA Engineer, Orchestrator |
-| Static Analysis Integration | `skills/static-analysis-integration/SKILL.md` | 3,056 | Orchestrator, `/code-review` |
+| Static Analysis Integration | `skills/static-analysis-integration/SKILL.md` | 3,792 | Orchestrator, `/code-review` |
 | Stryker xunit.v2 Shim | `skills/stryker-xunit-v2-shim/SKILL.md` | ~3,945 | `/mutation-testing`, `/test-improve` (mutation on .NET/xunit.v3), QA Engineer, standalone |
 | Systematic Debugging | `skills/systematic-debugging/SKILL.md` | 2,129 | Software Engineer, QA Engineer |
 | Test Audit + Disable | `skills/test-audit-disable/SKILL.md` | ~1,619 | Standalone worker; QA Engineer |

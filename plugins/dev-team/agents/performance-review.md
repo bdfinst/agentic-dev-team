@@ -81,3 +81,17 @@ Append confidence level (High/Medium/Low) to the `summary` field.
 ## Ignore
 
 Code structure, naming, tests, domain modeling, security, concurrency (handled by other agents)
+
+**Anything the static-analysis pre-pass already reported (#1979).** When the
+run supplies pre-pass findings, honor their "do not re-report" framing. Two
+sources now feed this lens deterministically: `oxlint.eslint.no-await-in-loop`
+and `oxlint.react-perf.*` on the JS/TS side, and — when the Repowise MCP tools
+are available — `get_health`'s static I/O-in-loop / N+1 findings, injected as
+context rather than fetched per dispatch. **Do not go looking for those
+findings yourself when they are already in the table**; in particular, the
+Self-Challenge item asking whether you checked every loop and I/O site is
+satisfied for the sites the pre-pass already named. What remains yours is
+everything the static view cannot settle: whether a flagged loop is actually
+hot, algorithmic complexity across call boundaries, unbounded growth and
+lifetime questions, missing timeouts and retry amplification, and resource
+leaks. Absent those lanes, the whole list is yours as before.

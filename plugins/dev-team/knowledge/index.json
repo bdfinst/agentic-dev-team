@@ -5810,6 +5810,10 @@
       "summary": "Shipped in P2 Step 3b for tools without upstream SARIF.",
       "anchor": "tier-3-bespoke-json-adapters"
     },
+    "Convention, accessibility, and performance probes (#1979)": {
+      "summary": "Two **additional invocations of tools already in the tiers above** — no new binaries, no new adapters, no network.",
+      "anchor": "convention-accessibility-and-performance-probes-1979"
+    },
     "Tier 4 — legacy (pre-SARIF)": {
       "summary": "ESLint / tsc remain callable via native JSON for older flows.",
       "anchor": "tier-4-legacy-pre-sarif"

@@ -217,8 +217,26 @@ ruff check --output-format sarif .
 - **Detection**: `command -v ruff`
 - **Capability tier**: Python lint + autofix
 - **Presence**: language-conditional, never `[REQUIRED]` — dispatch ruff, and surface its missing-tool install hint, only when `.py` files are in the target set. A non-Python repo never sees a "ruff missing" warning, consistent with the skill's "absence is never a pipeline failure" constraint.
-- **Config resolution**: the project's own `ruff.toml`/`pyproject.toml` wins when present (Ruff's default config discovery — no override flags); Ruff's defaults otherwise. The plugin pins no curated rule set — the project owns its quality bar.
+- **Config resolution**: the project's own `ruff.toml`/`pyproject.toml` wins when present (Ruff's default config discovery — no override flags); Ruff's defaults otherwise. The plugin pins no curated rule set — the project owns its **gating** bar. The convention probe below is a separate, non-gating invocation and does not change that.
 - **Adapter**: none; consumed raw by the shared SARIF parser.
+
+#### Convention probe (naming + magic values)
+
+A **second, separate** ruff invocation whose only job is to give review agents
+deterministic naming and magic-value findings (#1979). Kept apart from the
+lane above on purpose: that one reflects the project's own quality bar, this
+one adds review context and never gates.
+
+```bash
+ruff check --select N,PLR2004 --output-format sarif .
+```
+
+- **Displaces**: the mechanical half of `naming-review` — PEP 8 naming conventions (`N801`/`N802`/`N803`…) and magic values in comparisons (`PLR2004`), which that agent lists among its own checks and would otherwise re-derive by inference on every run. Intent-revealing-name judgment stays with the agent.
+- **`--select`, not `--extend-select`** (verified on ruff 0.16.4): `--select` *replaces* the rule set for this invocation, so the probe emits only `N`/`PLR2004` findings and does not duplicate the main lane's output. `--extend-select` would re-report every rule the project already enables.
+- **Project scoping is preserved.** Verified: the project's `exclude` (vendored directories stay unscanned), its `per-file-ignores`, and inline `# noqa: N802` comments are all still honored under `--select`. Only a blanket `ignore = ["N802"]` in project config is overridden — a deliberate trade, since suppressing a convention in CI is not the same as declining to hear about it in review. A project that disagrees suppresses these through the pre-pass's own mechanism, `ACCEPTED-RISKS.md` (SKILL.md step 5).
+- **Thresholds need no tuning**: `PLR2004`'s defaults already ignore `0`, `1`, and `-1` (verified), so it flags unexplained domain constants — `if amount > 1000` — rather than every literal.
+- **Rule ids**: `ruff.python.n802`, `ruff.python.plr2004`, … (see the `ruff` row of the tier map in `sarif-parser.md`).
+- **Presence**: language-conditional and non-gating, exactly like the main ruff lane. No extra install — same binary.
 
 ## Tier 2 — optional SARIF adapters (shipped in P2 Step 3b)
 
@@ -237,8 +255,54 @@ npx oxlint --format sarif .
 - **Install hint**: `oxlint — JS/TS linting. install: npm install --save-dev oxlint`
 - **Detection**: `npx --no-install oxlint --version` (or `node_modules/.bin/oxlint`) — oxlint is a project-local npm devDependency, not a global binary, so PATH probes (`command -v`) would miss it.
 - **Capability tier**: JS/TS linting
-- **Adapter**: none; consumed raw by the shared SARIF parser (`sarif-parser.md`), which prefixes rule ids as `oxlint.js.<rule-id>` (`runs[*].tool.driver.name` is `oxlint`; SARIF `ruleId` values look like `eslint(no-unused-vars)`).
+- **Adapter**: none; consumed raw by the shared SARIF parser (`sarif-parser.md`). `runs[*].tool.driver.name` is `oxlint` — the string `TOOL_TIER_MAP` is keyed by, observed on oxlint 1.80.0 — and its SARIF `ruleId` values are `plugin(rule)`-shaped (`eslint(no-unused-vars)`, `jsx-a11y(alt-text)`, observed on the same version). The parser maps that shape to `oxlint.<plugin>.<rule>` — e.g. `oxlint.eslint.no-unused-vars`, `oxlint.jsx-a11y.alt-text`. A rule id with no parentheses falls back to the tool's tier segment, `oxlint.js.<rule-id>`. (Before #1979 the parser had neither branch: `oxlint` was missing from the tier map and the parentheses were hyphen-flattened, so findings were emitted as `oxlint.generic.jsx-a11y-alt-text`.)
 - **Coexistence with legacy ESLint (Tier 4)**: this entry sits alongside the ESLint entry, not replacing it. When a project runs both, the same finding can arrive twice — the dedup chain (SKILL.md step 4) ranks oxlint ahead of the legacy JS tools. While both run, add [`eslint-plugin-oxlint`](https://github.com/oxc-project/eslint-plugin-oxlint) to the ESLint config to turn off ESLint rules oxlint already covers, so the ESLint pass only pays for the plugin-only remainder.
+
+#### Frontend probe (accessibility + performance)
+
+A **second, separate** oxlint invocation that turns on the plugins the main
+lane leaves off, giving review agents deterministic accessibility and
+performance findings (#1979). One invocation covers both concerns because
+oxlint ships them natively — no `eslint-plugin-jsx-a11y` install, no config
+file, no network.
+
+```bash
+npx oxlint --jsx-a11y-plugin --react-plugin --react-perf-plugin -D perf --format sarif .
+```
+
+- **Displaces**: the mechanical half of `a11y-review` (missing `alt`, invalid `href`, click handlers with no keyboard equivalent, static elements with handlers and no role) and feeds `performance-review` on the JS/TS side. Verified on oxlint 1.80.0 against a fixture component: 4 `jsx-a11y` findings and 2 `react-perf` findings, including `alt-text` and `jsx-no-new-function-as-prop`.
+- **`-D perf` is the performance half**: it promotes oxlint's `perf` category, whose most valuable member for this panel is `no-await-in-loop` — the classic **N+1 / I/O-in-loop shape** the spike names. `--react-perf-plugin` adds the render-path rules (`jsx-no-new-object-as-prop`, `jsx-no-new-function-as-prop`).
+- **Correctness overlap is expected and harmless**: this invocation also re-emits the default `correctness` category the main lane already reports. Those arrive with identical `rule_id`/`file`/`line` and are removed by the dedup step (SKILL.md step 4), so the net contribution is the a11y and perf findings.
+- **`-D jsx-a11y` does NOT isolate the a11y rules** — `jsx-a11y` is a plugin, not a category, so `-A all -D jsx-a11y` yields zero findings (verified). That is why the two concerns share one invocation rather than running as two narrower ones.
+- **Rule ids**: `oxlint.jsx-a11y.*` and `oxlint.react-perf.*` / `oxlint.eslint.no-await-in-loop`. The plugin segment is what lets a consumer separate the accessibility findings from the performance ones — see the `plugin(rule)` case in `sarif-parser.md`.
+- **Presence**: dispatched only when the target set contains JS/TS/JSX files, and never `[REQUIRED]` — same posture as the main oxlint lane.
+
+##### Naming and magic numbers on the JS/TS side: project-configured, not forced
+
+oxlint implements `eslint(no-magic-numbers)`, but it takes **no rule options
+on the command line**, and the rule's unconfigured default flags `0` and `1`.
+Measured over this repo's own 40 TS/JS eval files: 152 findings, **35% of them
+the values `0`, `1`, `-1`, or `2`** — noise that would swamp the injection and
+tell `naming-review` nothing it should act on. Python's `PLR2004` needs no
+such care because its defaults already exclude those values, which is why the
+ruff convention probe above runs unconditionally and this does not.
+
+So the JS/TS naming and magic-value rules are an **opt-in the project owns**,
+configured where the options actually live:
+
+```jsonc
+// .oxlintrc.json
+{
+  "rules": {
+    "no-magic-numbers": ["warn", { "ignore": [0, 1, -1], "ignoreArrayIndexes": true }],
+    "@typescript-eslint/naming-convention": "warn"
+  }
+}
+```
+
+With that in place the **main** oxlint lane reports them and they reach agents
+through the normal path — no extra invocation, and the project keeps control
+of the thresholds it has to live with.
 
 #### When a project may drop ESLint entirely
 

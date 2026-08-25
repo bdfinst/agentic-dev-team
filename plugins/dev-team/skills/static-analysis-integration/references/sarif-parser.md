@@ -8,7 +8,7 @@ Shared normalization layer for every SARIF-emitting tool in the static-analysis 
 
 | Unified finding field | SARIF source | Transform |
 |---|---|---|
-| `rule_id` | `runs[r].tool.driver.name` + `results[i].ruleId` | Format: `<driver_name_lower>.<ruleId_kebab>`; if `results[i].properties.language` is set, insert it as the middle segment |
+| `rule_id` | `runs[r].tool.driver.name` + `results[i].ruleId` | Format: `<driver_name_kebab>.<middle>.<ruleId_kebab>` — see **Rule id prefix conventions** below for what fills the middle segment |
 | `file` | `results[i].locations[0].physicalLocation.artifactLocation.uri` | Strip `file://` prefix; resolve `uriBaseId` if present; ensure repo-relative POSIX path |
 | `line` | `results[i].locations[0].physicalLocation.region.startLine` | Integer, 1-indexed |
 | `severity` | `results[i].level` | Map: `error`→`error`, `warning`→`warning`, `note`→`suggestion`, `none` or absent→`info` |
@@ -31,7 +31,9 @@ Shared normalization layer for every SARIF-emitting tool in the static-analysis 
 
 ## Rule id prefix conventions
 
-Every unified rule_id follows the schema pattern `^[a-z0-9_-]+(\.[a-z0-9_-]+)+$` — at least two dot-separated segments. The parser applies two rules depending on whether the raw SARIF ruleId is already structured (contains dots).
+Every unified rule_id follows the schema pattern `^[a-z0-9_-]+(\.[a-z0-9_-]+)+$` — at least two dot-separated segments. The parser applies the rules below depending on the shape of the raw SARIF ruleId.
+
+The middle segment comes from the raw ruleId's own structure, its plugin, or the tool → tier map — **never** from `results[i].properties.language`. An earlier version of the field table above named that property as the source; no implementation ever read it, and the tier map is what every fixture and both consumers actually exercise.
 
 **Raw ruleId contains dots (semgrep-style):** preserve the structure. Each segment is kebab-cased independently.
 
@@ -39,6 +41,23 @@ Every unified rule_id follows the schema pattern `^[a-z0-9_-]+(\.[a-z0-9_-]+)+$`
 raw: python.django.audit.sql-injection
 out: semgrep.python.django.audit.sql-injection
 ```
+
+**Raw ruleId is `plugin(rule)`-shaped (oxlint):** the plugin becomes the tier segment, so the namespace survives.
+
+```
+raw: jsx-a11y(alt-text)        out: oxlint.jsx-a11y.alt-text
+raw: eslint(no-magic-numbers)  out: oxlint.eslint.no-magic-numbers
+raw: react-perf(jsx-no-new-object-as-prop)
+                               out: oxlint.react-perf.jsx-no-new-object-as-prop
+```
+
+This branch is checked **before** the dotted and flat cases. Without it the
+parentheses are hyphen-flattened by `kebab()` into a single segment
+(`oxlint.js.jsx-a11y-alt-text`) — schema-valid, but it erases the boundary
+that lets a consumer tell an accessibility finding from a performance one,
+which is exactly what #1979's two oxlint concerns need. A malformed shape
+(empty half, nested parentheses) falls through to the rules below rather than
+producing a partial id.
 
 **Raw ruleId is flat:** the parser inserts a capability-tier segment from its tool → tier map.
 
@@ -49,8 +68,26 @@ out: semgrep.python.django.audit.sql-injection
 | trivy | `iac` for config findings; `cve` for CVE findings; `supply-chain` for vuln findings |
 | hadolint | `dockerfile` |
 | actionlint | `workflows` |
+| ruff | `python` |
+| oxlint | `js` (fallback only — a `plugin(rule)` id uses its plugin instead) |
 | entropy-check | `secrets` (custom script — passphrase entropy + cross-env reuse) |
 | model-hash-verify | `ml` (custom script — ML model integrity + provenance) |
+
+`ruff` and `oxlint` were absent from this map until #1979, so every finding
+from the two language linters was emitted under the `generic` fallback,
+contradicting the ids their own entries in `tool-configs.md` advertise.
+
+**Degenerate inputs still produce a valid id.** Two rules keep the output
+inside the schema pattern no matter what a driver reports, because a rule id
+that fails validation costs the whole finding — file, line, and message
+included — even when those are perfectly usable:
+
+- The **driver name is kebab-cased** into the first segment, so a tool
+  identifying itself as `Semgrep OSS` yields `semgrep-oss.…` rather than
+  embedding a space. A no-op for every tool wired up today.
+- A **rule id that kebabs to nothing** (empty string, punctuation only, a
+  non-Latin script) becomes the literal segment `unknown` rather than an
+  empty trailing segment: `oxlint.js.unknown`, never `oxlint.js.`.
 
 ```
 raw: aws-access-key        out: gitleaks.secrets.aws-access-key

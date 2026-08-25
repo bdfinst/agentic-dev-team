@@ -104,3 +104,15 @@ Append confidence level (High/Medium/Low) to the `summary` field.
 ## Ignore
 
 Code style, naming, test coverage, performance (handled by other agents)
+
+**Anything the static-analysis pre-pass already reported (#1979).** When the
+run supplies pre-pass findings, honor their "do not re-report" framing — the
+`oxlint.jsx-a11y.*` rules cover a real slice of the `## Detect` list above
+mechanically: missing `alt` attributes, invalid anchor `href`s, click handlers
+with no keyboard equivalent, and static elements carrying handlers without a
+role. A violation already named in that table is settled. What remains yours
+is what a per-element linter cannot see: focus order and focus management
+across a flow, whether an accessible name is *meaningful* rather than merely
+present, live-region and announcement behavior, color and contrast decisions,
+and whether the whole interaction is operable by keyboard end to end. On a
+target with no oxlint lane, the mechanical checks are still yours too.
