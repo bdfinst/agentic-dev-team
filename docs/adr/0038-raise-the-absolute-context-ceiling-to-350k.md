@@ -132,3 +132,34 @@ defects fixed separately — sidechain rows counted as main-thread occupancy,
 and an unverified fallback window producing a full blocking verdict. Those
 are correctness bugs in what the guard measures; this is a judgement call
 about where the line goes, which is why it is a separate decision.
+
+## Amendment (2026-08-26)
+
+The revisit trigger above asked for per-session peak occupancy to be
+instrumented directly, so the threshold could be re-derived from a recorded
+distribution instead of a token-ratio inference. That instrument now exists:
+`scripts/context_ceiling_report.py`, with
+`tests/scripts/test_context_ceiling_report.py` pinning its measurement to the
+guard's own.
+
+Building it surfaced a flaw in the reasoning this ADR used, which does not
+change the decision but does change how the next one should be argued. The
+occupancy figures in the Context section are **per-turn averages**, and the
+ceiling does not fire per turn — it fires only at a capability load. A session
+can sit at 600K indefinitely without ever tripping the guard, if it never
+dispatches an agent or invokes a skill while up there. So an
+occupancy-derived threshold is derived from the wrong distribution: it
+overstates how often any given ceiling actually binds. The tool therefore
+conditions on gated calls rather than on occupancy, and its peak-occupancy
+table carries an explicit warning against reading it as a block rate.
+
+The direction of that error favors the decision this ADR made — the real
+block rate at 150K is *lower* than the per-turn average implied, so the
+over-correction argument is weaker than stated, while the evidence that 150K
+was a borrowed rather than measured number is untouched. Treat the 350K value
+as still resting mainly on the second argument until the report has been run
+over a corpus large enough to return a verdict other than "inconclusive".
+
+Re-deriving the threshold is now a command, not a project. Run it, read the
+`near-done` and `tokens over` columns together, and amend this ADR with what
+the corpus says.
