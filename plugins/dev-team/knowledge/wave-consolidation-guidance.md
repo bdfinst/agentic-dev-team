@@ -4,7 +4,7 @@ Soft guidance for keeping a single review wave's agent count within a coordinati
 
 ## When it applies
 
-When a single wave's agent-selection would dispatch **5 or more** review agents in one wave — whether the Inline Review Checkpoint dispatch table in `agents/orchestrator.md` or Step 2 of `agents/quality-reviewer.md` selected them — note it in the phase/review output as a coordination-cost signal, not a hard block. Each agent already returns a small structured result, so the context-pollution risk is mitigated; what remains unmeasured is the coordination cost of aggregating many independent verdicts and driving one fix loop across potentially-overlapping finding sets.
+When a single wave's agent-selection would dispatch **5 or more** review agents in one wave — whether the Inline Review Checkpoint dispatch table in `${CLAUDE_PLUGIN_ROOT}/knowledge/three-phase-workflow.md#inline-review-checkpoint` or Step 2 of `agents/quality-reviewer.md` selected them — note it in the phase/review output as a coordination-cost signal, not a hard block. Each agent already returns a small structured result, so the context-pollution risk is mitigated; what remains unmeasured is the coordination cost of aggregating many independent verdicts and driving one fix loop across potentially-overlapping finding sets.
 
 ## Why five
 

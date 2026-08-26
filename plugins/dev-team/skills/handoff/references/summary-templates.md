@@ -137,7 +137,7 @@ Be concise in summaries -- preserve decisions and artifacts, discard process nar
 ```
 
 Fill in the **Plan Quality Signal** section above from the plan's own
-`## Plan Review Summary` — see `agents/orchestrator.md` Phase 2 for why this
+`## Plan Review Summary` — see `${CLAUDE_PLUGIN_ROOT}/knowledge/three-phase-workflow.md#phase-2-plan` for why this
 signal matters (stated there in full; not restated here). Carrying it
 forward means Implement inherits how much scrutiny the plan already
 received, rather than starting Phase 3 blind to it.
