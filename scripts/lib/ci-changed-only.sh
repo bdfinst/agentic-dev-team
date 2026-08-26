@@ -112,7 +112,13 @@ ci_inert_paths() {
     # test_gitignore_gate_bypass_audit.py, tests/skills/
     # test_setup_gitignore_hygiene.py). The guard test caught that seed being
     # wrong, which is the lever working as designed.
-    chk_hook_units) printf '%s' "LICENSE .gitattributes" ;;
+    #
+    # `.gitattributes` was also here briefly and is NOT: this repo does not
+    # track one. A machine-local, gitignored `.gitattributes` that graphify's
+    # hook install writes made a "does it exist" probe answer yes locally and
+    # no in CI. An inert entry for a file the repo does not have is dead
+    # weight anyway -- the lever can never fire on it.
+    chk_hook_units) printf '%s' "LICENSE" ;;
     *)              printf '%s' "" ;;
   esac
 }

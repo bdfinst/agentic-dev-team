@@ -222,8 +222,6 @@ def _is_all_inert(fn: str, changed: str) -> bool:
 def test_a_purely_inert_diff_skips_the_long_pole_suite():
     """#2003 AC: LICENSE / .gitignore-only diffs skip chk_hook_units."""
     assert _is_all_inert("chk_hook_units", "LICENSE")
-    assert _is_all_inert("chk_hook_units", ".gitattributes")
-    assert _is_all_inert("chk_hook_units", "LICENSE .gitattributes")
 
 
 def test_a_docs_adr_diff_still_runs_the_suite():
@@ -327,13 +325,35 @@ def test_every_inert_path_is_genuinely_unread_by_the_suite():
     )
 
 
-def test_every_inert_path_actually_exists_in_the_repo():
-    """An inert entry for a file this repo does not have is dead weight — the
+def test_every_inert_path_is_actually_TRACKED_by_the_repo():
+    """An inert entry for a file this repo does not track is dead weight — the
     lever can never fire on it, so it only makes the set look broader than it
-    is. (#2003's seed named .editorconfig and CODEOWNERS, neither present.)"""
+    is. (#2003's seed named .editorconfig and CODEOWNERS, neither present.)
+
+    Asks **git**, not the filesystem, and that distinction is load-bearing: a
+    first version of this test used `(REPO_ROOT / p).exists()` and passed
+    locally while failing in CI on `.gitattributes`. This repo tracks no
+    `.gitattributes`; graphify's hook install writes a gitignored,
+    machine-local one, so "exists on disk" answered yes on a developer machine
+    and no on a runner. A gate whose verdict depends on an untracked local
+    artifact means something different in the two places it runs.
+    """
     inert = _run_fn("ci_inert_paths", "chk_hook_units").stdout.split()
-    missing = [p for p in inert if not (REPO_ROOT / p).exists()]
-    assert not missing, f"inert paths that do not exist in this repo: {missing}"
+    assert inert, "chk_hook_units lost its inert set entirely"
+    tracked = subprocess.run(
+        ["git", "ls-files", "--", *inert],
+        capture_output=True,
+        text=True,
+        check=False,
+        cwd=str(REPO_ROOT),
+    ).stdout.split()
+    missing = [p for p in inert if p not in tracked]
+    assert not missing, (
+        f"inert paths this repo does not TRACK: {missing}. An untracked path "
+        "cannot be a real inert entry — and if it merely exists locally "
+        "(a gitignored tool artifact), the check would disagree between a "
+        "developer machine and CI."
+    )
 
 
 def test_gitignore_is_not_inert_because_the_suite_reads_it():
