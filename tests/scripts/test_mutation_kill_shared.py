@@ -48,19 +48,139 @@ def test_stop_reason_is_none_when_survivor_count_improved():
 
 
 def test_stop_reason_flags_zero_survivors_as_done():
-    assert shared.stop_reason(0, None) == "no survivors — done"
+    assert str(shared.stop_reason(0, None)) == "no survivors — done"
 
 
 def test_stop_reason_flags_zero_survivors_as_done_even_with_a_prior_round():
-    assert shared.stop_reason(0, 4) == "no survivors — done"
+    assert str(shared.stop_reason(0, 4)) == "no survivors — done"
 
 
 def test_stop_reason_flags_no_improvement_when_count_is_unchanged():
-    assert shared.stop_reason(3, 3) == "no improvement this round — stopping"
+    assert str(shared.stop_reason(3, 3)) == "no improvement this round — stopping"
 
 
 def test_stop_reason_flags_no_improvement_when_count_got_worse():
-    assert shared.stop_reason(4, 3) == "no improvement this round — stopping"
+    assert str(shared.stop_reason(4, 3)) == "no improvement this round — stopping"
+
+
+# --- #2030: the four stop paths, and default-off equivalence ----------------
+
+
+def test_all_pre_2030_stop_paths_are_terminal():
+    """The three original stops are the loop's own call — no operator needed."""
+    assert shared.stop_reason(0, None).terminal is True
+    assert shared.stop_reason(0, 4).terminal is True
+    assert shared.stop_reason(3, 3).terminal is True
+
+
+def test_omitting_both_2030_flags_reproduces_pre_2030_verdicts_exactly():
+    """#2030 AC: unflagged behavior is byte-identical to today's.
+
+    Swept over the full (survivor, prev) grid the old two-clause predicate
+    could see, compared against a local re-implementation of it, so this
+    cannot pass by agreeing with the new code's own bugs.
+    """
+
+    def pre_2030(survivor_count, prev_survivor_count):
+        if survivor_count == 0:
+            return "no survivors — done"
+        if prev_survivor_count is not None and survivor_count >= prev_survivor_count:
+            return "no improvement this round — stopping"
+        return None
+
+    for survivors in range(12):
+        for prev in [None, *range(12)]:
+            expected = pre_2030(survivors, prev)
+            actual = shared.stop_reason(survivors, prev)
+            assert (actual is None) == (expected is None), (survivors, prev)
+            if expected is not None:
+                assert str(actual) == expected, (survivors, prev)
+
+
+def test_target_met_stops_the_file_and_is_terminal():
+    decision = shared.stop_reason(5, 20, honest_score=82.0, target_honest_score=80.0)
+    assert decision is not None and decision.terminal is True
+    assert "82.0%" in str(decision) and "80.0%" in str(decision)
+
+
+def test_target_met_exactly_at_the_threshold_stops():
+    """Phase 8 gates on >= target, so the loop must stop AT it, not past it."""
+    assert (
+        shared.stop_reason(5, 20, honest_score=80.0, target_honest_score=80.0)
+        is not None
+    )
+
+
+def test_below_target_does_not_stop_on_the_target_clause():
+    assert shared.stop_reason(5, 20, honest_score=79.9, target_honest_score=80.0) is None
+
+
+def test_target_clause_inert_when_score_is_unavailable():
+    """A missing score must not read as 'target met' — that would stop a file
+    the gate has not cleared."""
+    assert shared.stop_reason(5, 20, honest_score=None, target_honest_score=80.0) is None
+
+
+def test_yield_floor_stop_is_advisory_not_terminal():
+    """#2030 AC: a below-floor round reaches the operator, never a silent stop."""
+    decision = shared.stop_reason(19, 20, min_kills_per_round=3)
+    assert decision is not None
+    assert decision.terminal is False
+    assert "[c]ontinue" in str(decision) and "[q]uit" in str(decision)
+
+
+def test_yield_floor_does_not_fire_when_the_round_met_the_floor():
+    assert shared.stop_reason(17, 20, min_kills_per_round=3) is None
+
+
+def test_yield_floor_is_skipped_once_the_target_is_met():
+    """Target-met is the better reason and is terminal; the floor must not
+    downgrade it to an advisory stop."""
+    decision = shared.stop_reason(
+        19, 20, honest_score=90.0, target_honest_score=80.0, min_kills_per_round=3
+    )
+    assert decision is not None and decision.terminal is True
+    assert "mutation target" in str(decision)
+
+
+def test_no_improvement_outranks_the_yield_floor():
+    """A round that killed nothing is a real convergence stop, not an operator
+    judgement call."""
+    decision = shared.stop_reason(20, 20, min_kills_per_round=3)
+    assert decision is not None and decision.terminal is True
+
+
+def test_yield_floor_inert_on_the_first_round():
+    """No previous count means no yield to compare against."""
+    assert shared.stop_reason(20, None, min_kills_per_round=3) is None
+
+
+# --- #2030: resolve_kill_floor ----------------------------------------------
+
+
+def test_kill_floor_absolute_values_are_used_verbatim():
+    assert shared.resolve_kill_floor(3, 40) == 3
+    assert shared.resolve_kill_floor(1, 40) == 1
+
+
+def test_kill_floor_fraction_is_a_share_of_starting_survivors():
+    assert shared.resolve_kill_floor(0.25, 40) == 10
+
+
+def test_kill_floor_fraction_rounds_up_so_it_never_silently_disables():
+    """0.1 * 5 == 0.5; truncating would yield a floor of 0, which reads as
+    configured but checks nothing."""
+    assert shared.resolve_kill_floor(0.1, 5) == 1
+
+
+def test_kill_floor_disabled_for_none_zero_and_negative():
+    assert shared.resolve_kill_floor(None, 40) is None
+    assert shared.resolve_kill_floor(0, 40) is None
+    assert shared.resolve_kill_floor(-1, 40) is None
+
+
+def test_kill_floor_fraction_with_no_starting_survivors_is_disabled():
+    assert shared.resolve_kill_floor(0.25, 0) is None
 
 
 # =============================================================================

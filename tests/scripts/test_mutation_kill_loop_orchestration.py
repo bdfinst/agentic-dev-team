@@ -17,7 +17,12 @@ import mutation_kill_insert
 import mutation_kill_loop as loop
 import mutation_kill_shared
 import pytest
-from _mutation_kill_loop_test_helpers import _loop_fixture, _mutant, _write_report
+from _mutation_kill_loop_test_helpers import (
+    _ctx_for_2030,
+    _loop_fixture,
+    _mutant,
+    _write_report,
+)
 from _mutation_test_helpers import git_hermetic, hermetic_git_env
 
 
@@ -631,3 +636,97 @@ def test_refused_insertion_stops_the_round_without_verify_or_commit(
 
     kinds = [e[0] for e in events]
     assert kinds == ["generate"]
+
+
+# =============================================================================
+# #2030 — _score_round threads the RunContext stop controls into stop_reason,
+# and distinguishes an advisory (yield-floor) stop from a terminal one in the
+# run log. Pins the WIRING: the predicate's own four-path behavior is covered
+# in test_mutation_kill_shared.py, but a ctx field that never reaches it would
+# pass every one of those tests while doing nothing.
+# =============================================================================
+def _stub_scoring(monkeypatch, *, survivors, honest_score):
+    """Mock the three I/O steps _score_round performs before its stop check."""
+    import mutation_report
+
+    monkeypatch.setattr(loop, "run_scoped_stryker", lambda *a, **k: Path("report.json"))
+    monkeypatch.setattr(loop, "extract_survivors", lambda *a, **k: survivors)
+    monkeypatch.setattr(
+        loop.mutation_report,
+        "score_report_for_file",
+        lambda *a, **k: mutation_report.ScoreSummary(
+            killed=90,
+            survived=len(survivors),
+            timeout=0,
+            no_coverage=0,
+            honest_score=honest_score,
+            reported_score=honest_score,
+        ),
+    )
+
+
+def test_score_round_passes_the_ctx_stop_controls_into_stop_reason(
+    monkeypatch, tmp_path
+):
+    seen = {}
+
+    def _spy(survivor_count, prev, **kwargs):
+        seen.update(kwargs)
+
+    _stub_scoring(monkeypatch, survivors=[{"id": "m1"}], honest_score=72.0)
+    monkeypatch.setattr(loop, "stop_reason", _spy)
+    ctx = _ctx_for_2030(tmp_path, target_honest_score=80.0, min_kills_per_round=4)
+
+    loop._score_round(2, "calc.cs", ctx, prev_survivor_count=9)
+
+    assert seen["target_honest_score"] == pytest.approx(80.0)
+    assert seen["min_kills_per_round"] == 4
+    assert seen["honest_score"] == pytest.approx(72.0)
+
+
+def test_score_round_stops_the_file_once_the_target_is_reached(monkeypatch, tmp_path):
+    """A below-exhaustion file with a met target must stop — the whole point of
+    #2030, and not observable from the predicate alone."""
+    lines: list[str] = []
+    _stub_scoring(monkeypatch, survivors=[{"id": "m1"}] * 3, honest_score=81.0)
+    ctx = _ctx_for_2030(tmp_path, target_honest_score=80.0, log=lines.append)
+
+    assert loop._score_round(2, "calc.cs", ctx, prev_survivor_count=9) is None
+    assert any("mutation target" in line for line in lines)
+
+
+def test_score_round_without_a_target_keeps_going_at_the_same_score(
+    monkeypatch, tmp_path
+):
+    """Default-off equivalence at the loop layer, not just the predicate."""
+    _stub_scoring(monkeypatch, survivors=[{"id": "m1"}] * 3, honest_score=81.0)
+    ctx = _ctx_for_2030(tmp_path)
+
+    result = loop._score_round(2, "calc.cs", ctx, prev_survivor_count=9)
+    assert result is not None and result[1] == 3
+
+
+def test_score_round_marks_an_advisory_yield_floor_stop_distinctly(
+    monkeypatch, tmp_path
+):
+    """#2030 AC: a below-floor, below-target round must not read as convergence
+    in the log — the agent layer routes YIELD FLOOR to [c/r/w/q]."""
+    lines: list[str] = []
+    _stub_scoring(monkeypatch, survivors=[{"id": "m1"}] * 8, honest_score=40.0)
+    ctx = _ctx_for_2030(tmp_path, min_kills_per_round=4, log=lines.append)
+
+    assert loop._score_round(2, "calc.cs", ctx, prev_survivor_count=9) is None
+    assert any("YIELD FLOOR" in line for line in lines)
+    assert any("[c]ontinue" in line for line in lines)
+
+
+def test_score_round_terminal_stop_is_not_marked_as_a_yield_floor(
+    monkeypatch, tmp_path
+):
+    lines: list[str] = []
+    _stub_scoring(monkeypatch, survivors=[], honest_score=100.0)
+    ctx = _ctx_for_2030(tmp_path, min_kills_per_round=4, log=lines.append)
+
+    assert loop._score_round(2, "calc.cs", ctx, prev_survivor_count=9) is None
+    assert not any("YIELD FLOOR" in line for line in lines)
+    assert any("no survivors" in line for line in lines)

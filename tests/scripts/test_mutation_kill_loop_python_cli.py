@@ -509,3 +509,51 @@ def test_make_headless_generator_label_override_reflects_a_downgrade(
     label = get_label_override()
     assert label is not None
     assert "opus" in label and "sonnet" in label and "a.py" in label
+
+
+# =============================================================================
+# #2030 — --target-honest-score / --min-kills-per-round CLI surface.
+# =============================================================================
+def test_2030_stop_control_flags_default_to_none():
+    """Both #2030 flags are default-off, so an unflagged invocation threads
+    ``None`` into ``RunContext`` and the loop's stop behavior is unchanged."""
+    args = loop.parse_args(["--file", "x.py", "--test-command", "pytest -q"])
+    assert args.target_honest_score is None
+    assert args.min_kills_per_round is None
+
+
+def test_2030_stop_control_flags_parse_as_floats():
+    args = loop.parse_args(
+        [
+            "--file",
+            "x.py",
+            "--test-command",
+            "pytest -q",
+            "--target-honest-score",
+            "82.5",
+            "--min-kills-per-round",
+            "0.25",
+        ]
+    )
+    assert args.target_honest_score == pytest.approx(82.5)
+    assert args.min_kills_per_round == pytest.approx(0.25)
+
+
+def test_2030_run_context_carries_the_stop_controls():
+    """The fields must exist on RunContext with None defaults — the loop reads
+    ``ctx.target_honest_score``/``ctx.min_kills_per_round`` every round, so a
+    missing field is an AttributeError on the hot path, not a silent no-op."""
+    ctx = loop.RunContext(
+        test_file=Path("t.py"), source_path=Path("s.py"), test_command="pytest -q"
+    )
+    assert ctx.target_honest_score is None
+    assert ctx.min_kills_per_round is None
+    scored = loop.RunContext(
+        test_file=Path("t.py"),
+        source_path=Path("s.py"),
+        test_command="pytest -q",
+        target_honest_score=80.0,
+        min_kills_per_round=3,
+    )
+    assert scored.target_honest_score == pytest.approx(80.0)
+    assert scored.min_kills_per_round == 3

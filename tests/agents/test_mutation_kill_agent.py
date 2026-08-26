@@ -107,7 +107,20 @@ def test_agent_body_stays_under_500_line_limit(text: str) -> None:
     # javascript-stryker.md's --accepted-static-survivors mode so a
     # --skip-static-mutants run's accepted survivors are folded into the
     # same raw/adjusted accounting.
-    assert len(text.splitlines()) < 648
+    # Bumped by 10 more (#2001): flipped --concurrency's default to sequential
+    # and reframed the fan-out docs around the cost axis they actually sit on
+    # — four changes, each adding prose the old text did not carry: the
+    # opt-in default itself, --parallel's 3-4/1-2 range restated as a ceiling
+    # rather than a recommendation, the combined concurrency x parallel
+    # product rebound to the token budget with cores as a capacity ceiling
+    # only, and the cross-reference naming --stryker-concurrency as genuine
+    # PROCESS concurrency (priced in CPU, keeps cores-2) versus this flag's
+    # agent-level actor count (priced in tokens).
+    # Bumped by 1 more (#2030): documented --target-honest-score and
+    # --min-kills-per-round on the flag list, including that a YIELD FLOOR
+    # stop is an operator decision routed to [c/r/w/q] rather than a
+    # convergence stop.
+    assert len(text.splitlines()) < 659
 
 
 def test_defines_honest_score_formula(text: str) -> None:
@@ -300,9 +313,32 @@ def test_documents_no_improvement_exit_condition(text: str) -> None:
     )
 
 
-def test_concurrency_flag_defaults_to_2(text: str) -> None:
+def test_concurrency_flag_defaults_to_sequential(text: str) -> None:
+    # #2001: --concurrency is an AGENT-level actor count (each worktree runs an
+    # independent mutation-kill loop), so it is a token-cost decision, not a CPU
+    # one. It defaults to 1 for the same reason /build's fan-out does (#1515):
+    # fan-out never saves tokens, it trades them for wall-clock.
     assert re.search(r"--concurrency", text)
-    assert re.search(r"default.*2|2 per", text, re.IGNORECASE)
+    assert re.search(r"default.{0,6}1\b|default.{0,20}sequential", text, re.IGNORECASE)
+    assert not re.search(r"--concurrency`? \(default:? \*?\*?2", text)
+
+
+def test_concurrency_fanout_is_opt_in_and_budget_bounded(text: str) -> None:
+    # #2001: cores bound machine capacity, never the actor count. The doc must
+    # say fan-out is opt-in AND that the bound is the token budget, so a future
+    # edit cannot quietly restore "configurable up to physical cores - 2" as
+    # the thing that picks n.
+    assert re.search(r"opt.in", text, re.IGNORECASE)
+    assert re.search(r"token budget", text, re.IGNORECASE)
+    assert re.search(r"trades them for wall-clock", text)
+
+
+def test_stryker_concurrency_crossref_names_the_cost_axis(text: str) -> None:
+    # #2001: the audit must stay explicit about which knob is which --
+    # --stryker-concurrency is genuine PROCESS concurrency priced in CPU and
+    # keeps its cores-2 heuristic; mutation-kill's --concurrency does not.
+    assert re.search(r"--stryker-concurrency", text)
+    assert re.search(r"process.{0,30}concurrency|priced in\s+CPU", text, re.IGNORECASE)
 
 
 def test_documents_structurally_unkillable_file_exclusion_with_reason(

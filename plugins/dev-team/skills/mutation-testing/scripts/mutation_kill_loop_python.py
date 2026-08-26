@@ -465,6 +465,13 @@ class RunContext:
     initial_junitxml: str | None = None
     generator_label: str | None = None
     label_override_provider: Callable[[], str | None] | None = None
+    # #2030 stop controls, both default-off: with these None the loop's stop
+    # behavior is byte-identical to pre-#2030. target_honest_score is the
+    # Phase-0 mutation target Phase 8 gates on; min_kills_per_round is the
+    # marginal-yield floor (>=1 absolute kills, 0<v<1 a fraction of the
+    # round's starting survivors).
+    target_honest_score: float | None = None
+    min_kills_per_round: float | None = None
 
 
 def _score_round(
@@ -511,9 +518,21 @@ def _score_round(
         )
         return None
 
-    reason = stop_reason(survivor_count, prev_survivor_count)
-    if reason is not None:
-        ctx.log(f"  {reason}")
+    decision = stop_reason(
+        survivor_count,
+        prev_survivor_count,
+        honest_score=summary.honest_score,
+        target_honest_score=ctx.target_honest_score,
+        min_kills_per_round=ctx.min_kills_per_round,
+    )
+    if decision is not None:
+        # A non-terminal decision is the #2030 marginal-yield floor: the round
+        # DID make progress, the file may still be below target, and whether
+        # another round is worth its price is the operator's call. Prefixing it
+        # distinctly is what keeps it from reading as a convergence stop in the
+        # run log — the agent layer routes a YIELD FLOOR line to Phase 5's
+        # existing [c]ontinue / [r]etry / [w]aive / [q]uit prompt.
+        ctx.log(f"  {decision}" if decision.terminal else f"  YIELD FLOOR — {decision}")
         return None
 
     return survivors, survivor_count
@@ -815,6 +834,29 @@ def parse_args(argv: Sequence[str]) -> argparse.Namespace:
     )
     p.add_argument("--test-file", help="Test file to extend (required with --headless)")
     p.add_argument("--source-path", help="Source file under test (required with --headless)")
+    p.add_argument(
+        "--target-honest-score",
+        type=float,
+        default=None,
+        help=(
+            "Phase-0 mutation target (percent). Stop a file once its honest "
+            "score reaches this, since work past the threshold cannot change "
+            "the Phase-8 verdict. Default off — unset reproduces pre-#2030 "
+            "behavior exactly."
+        ),
+    )
+    p.add_argument(
+        "--min-kills-per-round",
+        type=float,
+        default=None,
+        help=(
+            "Marginal-yield floor. >=1 is an absolute kill count; 0<v<1 is a "
+            "fraction of the round's starting survivors. A round below the "
+            "floor while still under target is surfaced to the operator "
+            "([c]ontinue / [r]etry / [w]aive / [q]uit), never stopped "
+            "silently. Default off."
+        ),
+    )
     return p.parse_args(list(argv))
 
 
@@ -852,6 +894,8 @@ def main(argv: Sequence[str] | None = None) -> int:
                 test_command=args.test_command,
                 generator_label=f"headless ({model or 'default'})",
                 label_override_provider=get_label_override,
+                target_honest_score=args.target_honest_score,
+                min_kills_per_round=args.min_kills_per_round,
             ),
             generate=generate,
             max_rounds=args.max_rounds,
