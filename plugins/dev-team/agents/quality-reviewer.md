@@ -31,7 +31,7 @@ If `Complexity: trivial`, return `status: skip` immediately. The final `/code-re
 
 ### 2. Select review agents by what changed
 
-Apply the **Inline Review Checkpoint** dispatch table from `agents/orchestrator.md` § Inline Review Checkpoint, Step 1 — that table is the single source of truth for which agents run on which changed-file classes; do not re-duplicate it here, it drifts.
+Apply the **Inline Review Checkpoint** dispatch table from `${CLAUDE_PLUGIN_ROOT}/knowledge/three-phase-workflow.md#inline-review-checkpoint`, Step 1 — that table is the single source of truth for which agents run on which changed-file classes; do not re-duplicate it here, it drifts.
 
 If `Complexity: complex`, also add the opus-tier agents: `security-review`, `domain-review`, `arch-review` (regardless of file type).
 
@@ -53,7 +53,7 @@ When all agents return, classify each finding:
 
 ### 5. Review-fix loop
 
-If actionable findings exist, run the **Review Loop** in `agents/orchestrator.md`
+If actionable findings exist, run the **Review Loop** in `${CLAUDE_PLUGIN_ROOT}/knowledge/three-phase-workflow.md#review-loop`
 § Review Loop — that section is the single source of truth for the fix-loop
 mechanics (file-by-file fix order, test-revert handling, 5-iteration cap,
 re-run/converge/escalate exits; step 4 above already covers this agent's own

@@ -987,6 +987,40 @@
       "anchor": "relationship-to-farley-score"
     }
   },
+  "plugins/dev-team/knowledge/orchestrator-script-implementation.md": {
+    "Phase 1: Research": {
+      "summary": "**Implementation status.** `orchestrator.py`'s `run_pipeline` dispatches the",
+      "anchor": "phase-1-research"
+    },
+    "Research persona roster (`RESEARCH_PERSONAS`)": {
+      "summary": "`orchestrator.py`'s `_default_phase_research` — the `Enforcement: script`",
+      "anchor": "research-persona-roster-researchpersonas"
+    },
+    "Codebase Recon dispatch — script gap": {
+      "summary": "**Script gap.** `orchestrator.py`'s `_default_phase_research` does not yet",
+      "anchor": "codebase-recon-dispatch-script-gap"
+    },
+    "Security Engineer dispatch — script approximation": {
+      "summary": "**Script approximation.** `orchestrator.py`'s `_touches_security` implements",
+      "anchor": "security-engineer-dispatch-script-approximation"
+    },
+    "Phase 2: Plan": {
+      "summary": "`orchestrator.py`'s `_default_phase_plan` — the `Enforcement: script`",
+      "anchor": "phase-2-plan"
+    },
+    "Plan persona roster (`PLAN_CORE_PERSONAS`)": {
+      "summary": "`orchestrator.py`'s `_default_phase_plan` — the `Enforcement: script`",
+      "anchor": "plan-persona-roster-plancorepersonas"
+    },
+    "Phase 3: Implement": {
+      "summary": "**Implementation status.** `orchestrator.py`'s `run_pipeline` dispatches",
+      "anchor": "phase-3-implement"
+    },
+    "Implement persona roster (`SOFTWARE_ENGINEER_PERSONA` / `TECH_WRITER_PERSONA`)": {
+      "summary": "`orchestrator.py`'s `_default_phase_implement` — the `Enforcement: script`",
+      "anchor": "implement-persona-roster-softwareengineerpersona-techwriterpersona"
+    }
+  },
   "plugins/dev-team/knowledge/owasp-detection.md": {
     "A01: Broken Access Control": {
       "summary": "| Pattern | Language | Grep Signal | Category |",
@@ -1839,6 +1873,48 @@
       "anchor": "boundaries"
     }
   },
+  "plugins/dev-team/knowledge/three-phase-workflow.md": {
+    "Phase 1: Research": {
+      "summary": "**Goal**: Understand how the system works, identify all relevant files, locate the problem or feature surface area",
+      "anchor": "phase-1-research"
+    },
+    "Codebase Recon dispatch": {
+      "summary": "Dispatch `codebase-recon` as a sub-agent **before any other exploration**,",
+      "anchor": "codebase-recon-dispatch"
+    },
+    "Security Engineer dispatch": {
+      "summary": "Dispatch `security-engineer` during Research when any of these signals is",
+      "anchor": "security-engineer-dispatch"
+    },
+    "Phase 2: Plan": {
+      "summary": "**Goal**: Specify every change to be made — files, snippets, test strategy, verification steps",
+      "anchor": "phase-2-plan"
+    },
+    "Phase 3: Implement": {
+      "summary": "**Goal**: Execute the plan.",
+      "anchor": "phase-3-implement"
+    },
+    "Wave-aware build dispatch": {
+      "summary": "During `/build`, the orchestrator executes the plan **wave by wave** (the plan's `## Parallelization` schedule from `scripts/plan_waves.py`):",
+      "anchor": "wave-aware-build-dispatch"
+    },
+    "Review depth by complexity": {
+      "summary": "Each plan step includes a **Complexity** classification that controls review depth:",
+      "anchor": "review-depth-by-complexity"
+    },
+    "Inline review checkpoint": {
+      "summary": "After each discrete unit of work classified as **standard** or **complex** (a function, a module, a feature slice — as defined in the Phase 2 plan):",
+      "anchor": "inline-review-checkpoint"
+    },
+    "Review loop": {
+      "summary": "When any checkpoint agent returns `fail`:",
+      "anchor": "review-loop"
+    },
+    "Phase transitions": {
+      "summary": "1.",
+      "anchor": "phase-transitions"
+    }
+  },
   "plugins/dev-team/knowledge/value-patterns.md": {
     "The four value sources": {
       "summary": "| Pattern | What it is | Use when | Risk if misused |",
@@ -1907,7 +1983,7 @@
   },
   "plugins/dev-team/knowledge/wave-consolidation-guidance.md": {
     "When it applies": {
-      "summary": "When a single wave's agent-selection would dispatch **5 or more** review agents in one wave — whether the Inline Review Checkpoint dispatch table in `agents/orchestrator.md` or Step 2 of `agents/quality-reviewer.md` selected them — note it in the phase/review output as a coordination-cost signal, not a hard block.",
+      "summary": "When a single wave's agent-selection would dispatch **5 or more** review agents in one wave — whether the Inline Review Checkpoint dispatch table in `${CLAUDE_PLUGIN_ROOT}/knowledge/three-phase-workflow.md#inline-review-checkpoint` or Step 2 of `agents/quality-reviewer.md` selected them — note it in the phase/review output as a coordination-cost signal, not a hard block.",
       "anchor": "when-it-applies"
     },
     "Why five": {
