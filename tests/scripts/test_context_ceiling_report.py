@@ -436,3 +436,91 @@ def test_the_verdict_says_inconclusive_rather_than_endorsing_the_default(
     result = _run_cli("--transcripts", str(tmp_path))
     assert result.returncode == 0
     assert "inconclusive" in result.stdout
+
+
+# ---------------------------------------------------------------------------
+# ADR 0039 — the sweep counts blocks, and only Skill blocks
+# ---------------------------------------------------------------------------
+
+
+def test_an_agent_dispatch_over_the_ceiling_is_not_counted_as_a_block(
+    tmp_path: Path,
+) -> None:
+    """The deliberate-failure case for the report side. Counting agent
+    dispatches as blocks would overstate every candidate's block rate and
+    argue for a higher ceiling than the evidence supports."""
+    replays = _one_session(
+        tmp_path, _assistant(400_000, tool_uses=[_agent("test-review")])
+    )
+    result = report.evaluate_ceiling(replays, 350_000, 40, 5)
+    assert result["sessions_blocked"] == 0
+    assert result["blocks_total"] == 0
+    assert result["advisory_fires"] == 1, (
+        "the dispatch still fired the guard — it warned, and the report must "
+        "say so rather than dropping it silently"
+    )
+
+
+def test_a_skill_invocation_over_the_ceiling_is_counted_as_a_block(
+    tmp_path: Path,
+) -> None:
+    replays = _one_session(tmp_path, _assistant(400_000, tool_uses=[_skill("build")]))
+    result = report.evaluate_ceiling(replays, 350_000, 40, 5)
+    assert result["sessions_blocked"] == 1
+    assert result["blocks_total"] == 1
+    assert result["advisory_fires"] == 0
+
+
+def test_the_blocking_split_is_read_from_the_guard_not_restated(
+    tmp_path: Path,
+) -> None:
+    """Anti-drift for the split itself: if the guard ever changes which
+    tools block, the report must follow without being edited."""
+    replays = _one_session(
+        tmp_path,
+        _assistant(400_000, tool_uses=[_skill("build"), _agent("x")]),
+    )
+    by_tool = {g.tool: g.blocks for g in replays[0].gates}
+    assert by_tool == {
+        tool: tool in guard._BLOCKING_TOOLS for tool in ("Skill", "Agent")
+    }
+
+
+def test_a_session_with_only_agent_dispatches_is_not_in_the_denominator(
+    tmp_path: Path,
+) -> None:
+    """It can never be blocked at any ceiling, so including it would dilute
+    every block rate toward zero and make a too-low ceiling look fine."""
+    replays = _one_session(tmp_path, _assistant(900_000, tool_uses=[_agent("x")]))
+    result = report.evaluate_ceiling(replays, 150_000, 40, 5)
+    assert result["sessions_blocked"] == 0
+    assert result["sessions_blocked_pct"] is None, (
+        "no blockable session means there is nothing to take a percentage of"
+    )
+
+
+def test_tokens_after_first_block_ignores_a_preceding_agent_dispatch(
+    tmp_path: Path,
+) -> None:
+    """"First block" means the first BLOCKING gate. An earlier agent
+    dispatch over the ceiling is not where enforcement would have cut in."""
+    replays = _one_session(
+        tmp_path,
+        _assistant(400_000, tool_uses=[_agent("x")]),  # warns, does not block
+        _assistant(500_000, tool_uses=[_skill("build")]),  # this is the block
+        _assistant(600_000),
+    )
+    result = report.evaluate_ceiling(replays, 350_000, 40, 0)
+    assert result["median_occupancy_at_first_block"] == 500_000
+    assert result["prompt_tokens_after_first_block"] == 600_000
+
+
+def test_the_report_names_the_blockable_subset(tmp_path: Path) -> None:
+    _write(
+        tmp_path / "t.jsonl",
+        _assistant(400_000, tool_uses=[_skill("build"), _agent("x")]),
+    )
+    result = _run_cli("--transcripts", str(tmp_path), "--ceilings", "350000")
+    assert result.returncode == 0
+    assert b"of which blockable" in result.stdout.encode()
+    assert b"Agent/Task warns, never blocks" in result.stdout.encode()

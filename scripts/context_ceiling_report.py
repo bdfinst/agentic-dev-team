@@ -23,6 +23,14 @@ session" systematically OVERSTATES how often the ceiling bites, and any
 threshold derived from occupancy alone is derived from the wrong distribution.
 This tool conditions on gated calls, which is where the guard actually lives.
 
+Narrower still since ADR 0039: of the gated tools, only `Skill` BLOCKS. An
+`Agent`/`Task` dispatch warns but proceeds, because it runs in its own context
+and blocking it would push the work inline and grow occupancy further. So the
+sweep's block columns count Skill invocations only; agent dispatches are
+reported separately as advisory fires. Counting them as blocks would overstate
+every candidate's block rate and argue for a higher ceiling than the evidence
+supports.
+
 The two failure directions, and the metric for each
 ---------------------------------------------------
 A ceiling can be wrong in two directions, and a single "block rate" number
@@ -116,7 +124,7 @@ def _occupancy_of(usage: dict) -> int | None:
 
 
 def _gated_calls_in(record: dict) -> list[tuple[str, str]]:
-    """Every gated capability load in one record, as (tool_name, label).
+    """Every gated capability load in one record, as (tool, label, blocks).
 
     Recovery skills are dropped here rather than counted and filtered later:
     they are never gated at any occupancy, so counting them would inflate
@@ -128,7 +136,7 @@ def _gated_calls_in(record: dict) -> list[tuple[str, str]]:
     content = message.get("content")
     if not isinstance(content, list):
         return []
-    calls: list[tuple[str, str]] = []
+    calls: list[tuple[str, str, bool]] = []
     for block in content:
         if not isinstance(block, dict) or block.get("type") != "tool_use":
             continue
@@ -142,10 +150,16 @@ def _gated_calls_in(record: dict) -> list[tuple[str, str]]:
             skill = guard._extract_skill_name(tool_input)
             if skill in guard._RECOVERY_SKILLS:
                 continue
-            calls.append((name, skill or "?"))
+            calls.append((name, skill or "?", name in guard._BLOCKING_TOOLS))
         else:
             agent = tool_input.get("subagent_type")
-            calls.append((name, agent if isinstance(agent, str) and agent else "?"))
+            calls.append(
+                (
+                    name,
+                    agent if isinstance(agent, str) and agent else "?",
+                    name in guard._BLOCKING_TOOLS,
+                )
+            )
     return calls
 
 
@@ -157,6 +171,10 @@ class GateEvent:
     tool: str
     label: str
     turn_index: int
+    #: Whether the guard would BLOCK this call over the ceiling, as opposed
+    #: to warning and proceeding. Derived from `guard._BLOCKING_TOOLS` rather
+    #: than restated, so the split cannot drift from the shipped policy.
+    blocks: bool
 
 
 @dataclass
@@ -238,13 +256,14 @@ def replay_transcript(path: Path) -> SessionReplay | None:
             replay.turn_prompt_tokens.append(usage_occ)
             replay.peak_occupancy = max(replay.peak_occupancy, usage_occ)
             replay.final_occupancy = usage_occ
-        for tool, label in _gated_calls_in(record):
+        for tool, label, blocks in _gated_calls_in(record):
             replay.gates.append(
                 GateEvent(
                     occupancy=occupancy,
                     tool=tool,
                     label=label,
                     turn_index=max(0, replay.assistant_turns - 1),
+                    blocks=blocks,
                 )
             )
     return replay
@@ -268,6 +287,7 @@ def evaluate_ceiling(
     tokens_after_first_block = 0
     total_blocks = 0
     clamped_sessions = 0
+    advisory_fires = 0
 
     for replay in replays:
         threshold = effective_threshold(replay.window, ceiling_pct, abs_ceiling)
@@ -279,6 +299,12 @@ def evaluate_ceiling(
         if threshold < abs_ceiling:
             clamped_sessions += 1
         over = [g for g in replay.gates if g.occupancy >= threshold]
+        # ADR 0039: an Agent/Task dispatch over the ceiling warns and
+        # proceeds. Counting it as a block would overstate every candidate's
+        # block rate and argue for a higher ceiling than the evidence
+        # supports.
+        advisory_fires += sum(1 for g in over if not g.blocks)
+        over = [g for g in over if g.blocks]
         total_blocks += len(over)
         if not over:
             continue
@@ -290,10 +316,14 @@ def evaluate_ceiling(
             near_done_blocked += 1
         tokens_after_first_block += sum(replay.turn_prompt_tokens[first.turn_index + 1 :])
 
-    sessions_with_gates = sum(1 for r in replays if r.gates)
+    # Denominator is sessions that could have been blocked at all — one with
+    # only agent dispatches never can be, and including it would dilute every
+    # block rate toward zero.
+    sessions_with_gates = sum(1 for r in replays if any(g.blocks for g in r.gates))
     corpus_prompt_tokens = sum(r.prompt_tokens_total for r in replays)
     return {
         "abs_ceiling": abs_ceiling,
+        "advisory_fires": advisory_fires,
         "clamped_sessions": clamped_sessions,
         "clamped_pct": _pct(clamped_sessions, len(replays)),
         "sessions_blocked": blocked_sessions,
@@ -345,15 +375,22 @@ def _fmt(value) -> str:
 
 def render_report(replays: list[SessionReplay], sweep: list[dict], args) -> str:
     lines: list[str] = []
-    sessions_with_gates = sum(1 for r in replays if r.gates)
+    sessions_with_gates = sum(
+        1 for r in replays if any(g.blocks for g in r.gates)
+    )
     total_gates = sum(len(r.gates) for r in replays)
+    blocking_gates = sum(1 for r in replays for g in r.gates if g.blocks)
     peaks = sorted(r.peak_occupancy for r in replays)
 
     lines.append("Context ceiling validation")
     lines.append("=" * 74)
     lines.append(f"transcripts replayed      : {len(replays):,}")
-    lines.append(f"  with >=1 gated call     : {sessions_with_gates:,}")
+    lines.append(f"  with >=1 blockable call : {sessions_with_gates:,}")
     lines.append(f"  gated calls total       : {total_gates:,}")
+    lines.append(
+        f"    of which blockable    : {blocking_gates:,} "
+        f"(Skill; ADR 0039 — Agent/Task warns, never blocks)"
+    )
     lines.append(f"  unrecognized model      : {sum(1 for r in replays if not r.window_matched):,}")
     if peaks:
         lines.append("")
@@ -410,7 +447,8 @@ def render_report(replays: list[SessionReplay], sweep: list[dict], args) -> str:
             "      changes nothing there. To test a higher ceiling on those sessions,"
         )
         lines.append("      raise --ceiling-pct as well.")
-    lines.append("  blocked     : share of gated sessions the ceiling would stop")
+    lines.append("  blocked     : share of blockable sessions the ceiling would stop")
+    lines.append("                (Skill invocations only — agent dispatches warn)")
     lines.append("  near-done   : share of BLOCKED sessions that were nearly finished")
     lines.append("                — the over-blocking signal; drive toward 0")
     lines.append("  tokens over : share of corpus prompt tokens spent past the first")

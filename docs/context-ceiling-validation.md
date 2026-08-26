@@ -69,7 +69,16 @@ Sample output, against a synthetic corpus:
   450,000 |         6 |      50% |      72 |     467,499 |      33.3% |        66.6%†
 ```
 
-## Three properties worth knowing before acting on its output
+## Four properties worth knowing before acting on its output
+
+**It counts blocks, and only `Skill` blocks.** Per [ADR
+0039](adr/0039-only-skill-loads-are-worth-blocking-at-the-context-ceiling.md),
+an `Agent`/`Task` dispatch over the ceiling warns and proceeds, so the sweep's
+block columns count skill invocations only; dispatches appear as
+`advisory_fires`, and a session whose only gated calls are dispatches is left
+out of the block-rate denominator entirely, since no ceiling could ever block
+it. The split is read from the guard's `_BLOCKING_TOOLS` rather than restated,
+so it cannot drift.
 
 **It conditions on gated calls, not on occupancy.** The ceiling only binds at
 an `Agent`/`Skill` call, so a session can sit far above any candidate and

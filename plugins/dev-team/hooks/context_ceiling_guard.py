@@ -33,6 +33,13 @@ none, so it now blocks and the operator opts out explicitly.
 Recovery skills are never gated: blocking /handoff (the way
 back under budget) would deadlock the session.
 
+What blocks vs what warns (ADR 0039): a `Skill` invocation loads SKILL.md
+into THIS context, so it grows the measured quantity and a block helps. An
+`Agent`/`Task` dispatch runs in a separate context and returns only a
+result, so blocking it does not stop the work — it pushes the work inline
+and grows occupancy by more than the delegation would have. Agent dispatches
+therefore warn (bands and all) but do not block. See `_BLOCKING_TOOLS`.
+
 Two properties keep the blocking default honest, and both are pinned by
 tests rather than left as prose:
 
@@ -48,6 +55,14 @@ Env:
                                      ceiling (default: block, #2000).
                                      Any other value, including the
                                      historical `on`, blocks.
+    DEV_TEAM_CONTEXT_GATE_AGENT=block
+                                     also BLOCK Agent/Task dispatches over
+                                     the ceiling (default: warn only, ADR
+                                     0039 — delegation reduces main-thread
+                                     growth, so blocking it costs more than
+                                     it saves). Skill invocations block
+                                     regardless. Only the literal `block`
+                                     opts in.
     DEV_TEAM_CONTEXT_CEILING_PCT=N   ceiling percent (default 40)
     DEV_TEAM_CONTEXT_WINDOW=N        context window in tokens; an explicit
                                      override that always wins over
@@ -133,6 +148,32 @@ _RECOVERY_SKILLS = frozenset(
 # (renamed Task → Agent in Claude Code 2.1.63; both live on as payload
 # tool_names, #1178).
 _GATED_TOOLS = frozenset({"Agent", "Task", "Skill"})
+
+#: Of the gated tools, the ones a block actually helps. Only `Skill` — see
+#: ADR 0039.
+#:
+#: The two gated tools do OPPOSITE things to the quantity this guard
+#: measures. A `Skill` invocation loads SKILL.md into the main thread, so it
+#: grows main-thread occupancy directly. An `Agent`/`Task` dispatch runs the
+#: work in a SEPARATE context and returns only its result, so it is the
+#: cheapest available way to do work without growing this context — and
+#: blocking it does not stop the work, it pushes the orchestrator to do that
+#: work inline, which grows occupancy by more than the delegation would have.
+#: A guard on main-thread occupancy that blocks the action which *reduces*
+#: main-thread growth is working against its own measurement.
+#:
+#: #2054 settled the same question on the measurement side: subagent turns
+#: are excluded from occupancy because a subagent's context is not this
+#: thread's (see `_is_sidechain`). This is that finding applied to the
+#: gating side — if a subagent's tokens are not main-thread occupancy, then
+#: blocking a subagent dispatch to protect main-thread occupancy is
+#: incoherent.
+#:
+#: Agent dispatches still WARN at the ceiling: the diagnostic and the
+#: escalating action bands are the point, and they survive. Only the block
+#: is dropped. `DEV_TEAM_CONTEXT_GATE_AGENT=block` restores the pre-#2062
+#: behavior for operators who want it.
+_BLOCKING_TOOLS = frozenset({"Skill"})
 
 
 # ---------------------------------------------------------------------------
@@ -492,6 +533,19 @@ _UNVERIFIED_WINDOW_FOOTER = (
     "to restore blocking."
 )
 
+#: Appended when an Agent/Task dispatch is over the ceiling and therefore
+#: warned rather than blocked (ADR 0039). Without this the operator sees a
+#: full ceiling diagnostic with no block and reasonably reads it as the guard
+#: failing to fire, rather than as the guard deliberately declining to make
+#: the session more expensive.
+_DELEGATION_NOT_BLOCKED_FOOTER = (
+    "[not blocked: delegation] A subagent runs in its own context and returns "
+    "only its result, so dispatching one is the cheapest way to do this work "
+    "without growing THIS context — blocking it would push the work inline "
+    "and cost more. Run /handoff to actually get back under the ceiling. "
+    "Set DEV_TEAM_CONTEXT_GATE_AGENT=block to block these too."
+)
+
 _BAND_ACTIONS = {
     _BAND_NUDGE: (
         "nudge",
@@ -653,11 +707,25 @@ def _resolve_verdict(payload: dict) -> tuple[int, str | None, bool]:
     # blocks on what it *knows*, and an unrecognized model id means it does
     # not know the window. An explicit `DEV_TEAM_CONTEXT_WINDOW` override
     # ("override") or a recognized model ("detected") both block as before.
-    if strict and provenance != "default":
+    # Which tools a block helps is a separate question from whether the
+    # posture is blocking at all — see `_BLOCKING_TOOLS` and ADR 0039.
+    # `DEV_TEAM_CONTEXT_GATE_AGENT=block` opts Agent/Task back in.
+    blocks_this_tool = tool_name in _BLOCKING_TOOLS or (
+        os.environ.get("DEV_TEAM_CONTEXT_GATE_AGENT", "").strip().lower() == "block"
+    )
+
+    if strict and provenance != "default" and blocks_this_tool:
         return 2, f"{msg}\n{_BLOCK_FOOTER}", False
 
-    if strict:
+    # Exactly one "why this did not block" footer is ever appended. An
+    # unverified window is reported ahead of delegation because it is the
+    # more surprising of the two: it says the threshold above may be wrong,
+    # whereas the delegation footer says the threshold was right and the
+    # block was declined on purpose.
+    if strict and provenance == "default":
         msg = f"{msg}\n{_UNVERIFIED_WINDOW_FOOTER}"
+    elif strict and not blocks_this_tool:
+        msg = f"{msg}\n{_DELEGATION_NOT_BLOCKED_FOOTER}"
 
     # Warn mode dedupe, re-keyed on band identity (#781): the dedupe key is
     # max(band_index_scaled, pct_bucket). _BAND_SCALE (100) makes any band

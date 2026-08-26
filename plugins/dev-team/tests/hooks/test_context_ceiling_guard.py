@@ -1578,3 +1578,164 @@ class TestUnverifiedWindowWarnsButDoesNotBlock:
         second = _run(_mkinput("Skill", {"skill": "plan"}, tr), env)
         assert first.stderr != b""
         assert second.stderr == b""
+
+
+# ---------------------------------------------------------------------------
+# #2062 / ADR 0039 — a block helps for Skill, not for Agent
+# ---------------------------------------------------------------------------
+
+
+class TestOnlySkillLoadsAreWorthBlocking:
+    """The two gated tools do opposite things to the measured quantity.
+
+    A `Skill` invocation loads SKILL.md into this context, so it grows
+    main-thread occupancy and a block helps. An `Agent`/`Task` dispatch runs
+    in a separate context and returns only its result, so blocking it does
+    not stop the work — it pushes that work inline, growing occupancy by
+    more than the delegation would have. #2054 already settled the same
+    question on the measurement side by excluding sidechain turns from
+    occupancy; this is that finding applied to gating.
+    """
+
+    def test_an_agent_dispatch_over_the_ceiling_warns_instead_of_blocking(
+        self, tmp_path: Path
+    ) -> None:
+        """The deliberate-failure case: this returned 2 before the change."""
+        tr = tmp_path / "t.jsonl"
+        _write_transcript(tr, 190_000)
+        env = _posture_env(tmp_path)
+        env["DEV_TEAM_CONTEXT_WINDOW"] = "200000"
+        result = _run(_mkinput("Agent", {"subagent_type": "test-review"}, tr), env)
+        assert result.returncode == 0, (
+            "blocking a subagent dispatch pushes the work inline and grows "
+            "the very number this guard measures"
+        )
+        assert b"not blocked: delegation" in result.stderr
+        assert b"blocked: context ceiling" not in result.stderr
+
+    def test_the_task_alias_is_treated_exactly_like_agent(
+        self, tmp_path: Path
+    ) -> None:
+        """`Task` and `Agent` are the same subagent-dispatch tool (#1178); a
+        split that covered only one spelling would block half of them."""
+        tr = tmp_path / "t.jsonl"
+        _write_transcript(tr, 190_000)
+        env = _posture_env(tmp_path)
+        env["DEV_TEAM_CONTEXT_WINDOW"] = "200000"
+        result = _run(_mkinput("Task", {"subagent_type": "test-review"}, tr), env)
+        assert result.returncode == 0
+        assert b"not blocked: delegation" in result.stderr
+
+    def test_a_skill_invocation_over_the_ceiling_still_blocks(
+        self, tmp_path: Path
+    ) -> None:
+        """The scope guard. Skill loads text into THIS context, so #2000's
+        blocking default is unchanged there — without this assertion the
+        change could quietly become "nothing blocks any more"."""
+        tr = tmp_path / "t.jsonl"
+        _write_transcript(tr, 190_000)
+        env = _posture_env(tmp_path)
+        env["DEV_TEAM_CONTEXT_WINDOW"] = "200000"
+        result = _run(_mkinput("Skill", {"skill": "plan"}, tr), env)
+        assert result.returncode == 2
+        assert b"blocked: context ceiling" in result.stderr
+        assert b"not blocked: delegation" not in result.stderr
+
+    def test_the_agent_warning_still_carries_the_diagnostic_and_band(
+        self, tmp_path: Path
+    ) -> None:
+        """Only the block is dropped. The occupancy diagnostic and the
+        escalating action band are the part that was doing useful work, and
+        they survive — otherwise this would be a silent un-gating."""
+        tr = tmp_path / "t.jsonl"
+        _write_transcript(tr, 190_000)  # 95% — top band
+        env = _posture_env(tmp_path)
+        env["DEV_TEAM_CONTEXT_WINDOW"] = "200000"
+        result = _run(_mkinput("Agent", {"subagent_type": "x"}, tr), env)
+        assert b"190000 of 200000 tokens" in result.stderr
+        assert b"[full-summary]" in result.stderr
+        assert b"/handoff" in result.stderr
+
+    def test_gate_agent_block_restores_the_previous_behavior(
+        self, tmp_path: Path
+    ) -> None:
+        tr = tmp_path / "t.jsonl"
+        _write_transcript(tr, 190_000)
+        env = _posture_env(tmp_path)
+        env["DEV_TEAM_CONTEXT_WINDOW"] = "200000"
+        env["DEV_TEAM_CONTEXT_GATE_AGENT"] = "block"
+        result = _run(_mkinput("Agent", {"subagent_type": "x"}, tr), env)
+        assert result.returncode == 2
+        assert b"blocked: context ceiling" in result.stderr
+
+    @pytest.mark.parametrize("value", ["BLOCK", "Block", " block ", "block\n"])
+    def test_gate_agent_block_is_matched_case_and_whitespace_insensitively(
+        self, tmp_path: Path, value: str
+    ) -> None:
+        tr = tmp_path / "t.jsonl"
+        _write_transcript(tr, 190_000)
+        env = _posture_env(tmp_path)
+        env["DEV_TEAM_CONTEXT_WINDOW"] = "200000"
+        env["DEV_TEAM_CONTEXT_GATE_AGENT"] = value
+        result = _run(_mkinput("Agent", {"subagent_type": "x"}, tr), env)
+        assert result.returncode == 2
+
+    @pytest.mark.parametrize("value", ["", "on", "1", "true", "yes", "warn"])
+    def test_only_the_literal_block_opts_in(self, tmp_path: Path, value: str) -> None:
+        """Unlike DEV_TEAM_CONTEXT_STRICT, this variable resolves toward the
+        NEW default when it is not understood. That asymmetry is deliberate:
+        the expensive direction of failure for STRICT is silently not
+        enforcing, but here it is blocking a dispatch that should not be
+        blocked, so an unrecognized value must not opt in."""
+        tr = tmp_path / "t.jsonl"
+        _write_transcript(tr, 190_000)
+        env = _posture_env(tmp_path)
+        env["DEV_TEAM_CONTEXT_WINDOW"] = "200000"
+        env["DEV_TEAM_CONTEXT_GATE_AGENT"] = value
+        result = _run(_mkinput("Agent", {"subagent_type": "x"}, tr), env)
+        assert result.returncode == 0
+
+    def test_below_the_ceiling_an_agent_dispatch_is_still_silent(
+        self, tmp_path: Path
+    ) -> None:
+        tr = tmp_path / "t.jsonl"
+        _write_transcript(tr, 50_000)
+        env = _posture_env(tmp_path)
+        env["DEV_TEAM_CONTEXT_WINDOW"] = "200000"
+        result = _run(_mkinput("Agent", {"subagent_type": "x"}, tr), env)
+        assert result.returncode == 0
+        assert result.stderr == b""
+
+    def test_an_unverified_window_reports_that_reason_not_delegation(
+        self, tmp_path: Path
+    ) -> None:
+        """Both non-blocking reasons can apply to one Agent dispatch. Exactly
+        one footer is emitted, and it is the unverified-window one: that
+        footer says the threshold above may be wrong, which is strictly more
+        surprising than "the threshold was right and the block was declined
+        on purpose"."""
+        tr = tmp_path / "t.jsonl"
+        _write_transcript(tr, 100_000, model="claude-opus-6")  # unrecognized
+        result = _run(
+            _mkinput("Agent", {"subagent_type": "x"}, tr), _posture_env(tmp_path)
+        )
+        assert result.returncode == 0
+        assert b"not blocked: window unverified" in result.stderr
+        assert b"not blocked: delegation" not in result.stderr
+
+    def test_warn_mode_gains_no_delegation_footer(self, tmp_path: Path) -> None:
+        """Under STRICT=off nothing was going to block anyway, so the footer
+        would be explaining a restriction that does not exist."""
+        tr = tmp_path / "t.jsonl"
+        _write_transcript(tr, 190_000)
+        env = _posture_env(tmp_path)
+        env["DEV_TEAM_CONTEXT_WINDOW"] = "200000"
+        env["DEV_TEAM_CONTEXT_STRICT"] = "off"
+        result = _run(_mkinput("Agent", {"subagent_type": "x"}, tr), env)
+        assert result.returncode == 0
+        assert b"not blocked: delegation" not in result.stderr
+
+    def test_blocking_tools_is_a_strict_subset_of_gated_tools(self) -> None:
+        """A tool that blocks but is never evaluated would be dead policy."""
+        assert hook._BLOCKING_TOOLS < hook._GATED_TOOLS
+        assert hook._BLOCKING_TOOLS == {"Skill"}
