@@ -574,6 +574,25 @@ chk_hook_units() {
     printf '%s∼ skipped (pytest not installed — see requirements-dev.txt)%s\n' "$yellow" "$reset"
     return 0
   fi
+  # Tree-hash cache (#2002). This suite ran 1,029 times in 30 days (27% of all
+  # pytest invocations), including 35 sessions that re-ran the identical
+  # command >= 8 times and one that ran it 34 times. The waste is re-running an
+  # UNCHANGED tree, which a content hash detects exactly.
+  #
+  # The key covers the whole working tree, not a per-check subset: hashing
+  # everything costs ~0.1s against a ~90s suite, so a subset buys nothing and
+  # would reintroduce the superset problem #2003 documents (a path the suite
+  # reads but the hash forgot = a silent false skip). ci_tree_cache.py answers
+  # "not fresh" on every failure path, so an unreadable cache or a git error
+  # runs the suite rather than skipping it.
+  #
+  # Opt out with CI_LOCAL_NO_TREE_CACHE=1.
+  if [ "${CI_LOCAL_NO_TREE_CACHE:-0}" != "1" ] \
+    && python3 scripts/ci_tree_cache.py is-fresh chk_hook_units >/dev/null 2>&1; then
+    printf '%s∼ skipped (tree unchanged since this suite last passed; CI_LOCAL_NO_TREE_CACHE=1 to force)%s\n' \
+      "$yellow" "$reset"
+    return 0
+  fi
   # tests/agents/, tests/commands/, tests/docs/, tests/knowledge/, and
   # tests/stack_aware/ (formerly tests/bats/) were ported from bats to pytest under issue #675 (epic
   # #668). tests/repo/'s eval/cost/telemetry/workflow-audit suites were
@@ -639,6 +658,13 @@ chk_hook_units() {
     --ignore=tests/scripts/test_csharp_stryker_net_wrapper.py \
     --ignore=tests/scripts/test_csharp_stryker_net_status_loop.py \
     ${parallel[@]+"${parallel[@]}"}
+  local rc=$?
+  # Record ONLY on green (#2002): a red run must never poison the cache into
+  # skipping the very failure it just found.
+  if [ "$rc" -eq 0 ] && [ "${CI_LOCAL_NO_TREE_CACHE:-0}" != "1" ]; then
+    python3 scripts/ci_tree_cache.py record chk_hook_units >/dev/null 2>&1 || true
+  fi
+  return "$rc"
 }
 # Informational coverage report over the plugin's own source (.coveragerc) —
 # a SEPARATE, SERIAL run, deliberately not folded into chk_hook_units above.
@@ -761,6 +787,17 @@ for entry in "${CHECKS[@]}"; do
   # skip as a passing result so the aggregation below logs it in declared order.
   if [ "$CHANGED_ONLY" = "1" ] && ! ci_suite_has_changes "$fn" "$CHANGED_LIST"; then
     printf '%s∼ skipped (no relevant changes)%s\n' "$yellow" "$reset" >"$RUNDIR/$idx.out"
+    echo 0 >"$RUNDIR/$idx.rc"
+    idx=$((idx + 1))
+    continue
+  fi
+  # Second, independent skip lever (#2003): every changed file is provably
+  # inert for this check. Universal quantifier, unlike the existential test
+  # above — see the rationale in scripts/lib/ci-changed-only.sh. Reported with
+  # its own wording so a reader can tell the two levers apart in the summary.
+  if [ "$CHANGED_ONLY" = "1" ] && ci_suite_is_all_inert "$fn" "$CHANGED_LIST"; then
+    printf '%s∼ skipped (every changed file is inert for this check)%s\n' \
+      "$yellow" "$reset" >"$RUNDIR/$idx.out"
     echo 0 >"$RUNDIR/$idx.rc"
     idx=$((idx + 1))
     continue

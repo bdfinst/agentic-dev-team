@@ -193,3 +193,194 @@ def test_multi_file_changeset_no_matching_file_skips() -> None:
 def test_empty_changeset_skips_a_mapped_suite() -> None:
     r = _run_fn("ci_suite_has_changes", "chk_shellcheck_helpers", "")
     assert r.returncode == 1
+
+
+# ===========================================================================
+# #2003 — the inert-path lever. A SECOND, independent skip mechanism with the
+# opposite quantifier to ci_suite_has_changes: skip only when EVERY changed
+# file is provably inert, so a forgotten path costs a wasted run rather than
+# a silent false skip.
+# ===========================================================================
+CHK_HOOK_UNITS_DIRS = (
+    "plugins/dev-team/tests",
+    "tests/repo",
+    "tests/agents",
+    "tests/commands",
+    "tests/docs",
+    "tests/knowledge",
+    "tests/stack_aware",
+    "tests/skills",
+    "tests/scripts",
+    "tests/hooks",
+)
+
+
+def _is_all_inert(fn: str, changed: str) -> bool:
+    return _run_fn("ci_suite_is_all_inert", fn, changed).returncode == 0
+
+
+def test_a_purely_inert_diff_skips_the_long_pole_suite():
+    """#2003 AC: LICENSE / .gitignore-only diffs skip chk_hook_units."""
+    assert _is_all_inert("chk_hook_units", "LICENSE")
+
+
+def test_a_docs_adr_diff_still_runs_the_suite():
+    """#2003 AC, and the correction the issue makes to its own original
+    framing: tests/repo/test_adr_readme_toc_complete.py exists because ADRs
+    0013/0014/0015 landed without README entries (#732). Making docs/adr/
+    inert would let exactly that recur, silently and CI-only."""
+    assert not _is_all_inert("chk_hook_units", "docs/adr/0039-something.md")
+    assert not _is_all_inert("chk_hook_units", "docs/adr/README.md")
+
+
+def test_markdown_and_docs_are_not_inert():
+    """Blanket docs/** and *.md are out for the same reason as docs/adr/**."""
+    assert not _is_all_inert("chk_hook_units", "README.md")
+    assert not _is_all_inert("chk_hook_units", "docs/cloud-setup.md")
+
+
+def test_a_mixed_diff_runs_the_suite():
+    """#2003 AC: the universal quantifier pinned in both directions — one
+    live file among inert ones is enough to run."""
+    assert not _is_all_inert("chk_hook_units", "LICENSE plugins/dev-team/hooks/x.py")
+    assert not _is_all_inert("chk_hook_units", "plugins/dev-team/hooks/x.py LICENSE")
+
+
+def test_an_unmapped_check_is_never_skipped_by_this_lever():
+    """#2003 AC: mirrors the existing safe default — unmapped means run."""
+    assert not _is_all_inert("chk_ruff", "LICENSE")
+    assert not _is_all_inert("chk_some_future_check", "LICENSE")
+    assert _run_fn("ci_inert_paths", "chk_ruff").stdout == ""
+
+
+def test_an_empty_changed_set_is_never_skipped_by_this_lever():
+    """Preserves today's behavior: ci-local.sh already disables --changed-only
+    on an empty diff, and this lever must not invent a skip there either."""
+    assert not _is_all_inert("chk_hook_units", "")
+
+
+def test_the_two_levers_are_independent():
+    """#2003 item 4: ci_watched_paths / ci_suite_has_changes are untouched.
+    chk_hook_units still has no watched-path mapping, so the existential lever
+    still always runs it — the inert lever is additive, not a replacement."""
+    assert _run_fn("ci_watched_paths", "chk_hook_units").stdout == ""
+    assert _run_fn("ci_suite_has_changes", "chk_hook_units", "LICENSE").returncode == 0
+
+
+#: A mention of a filename is not an observation of it — `"LICENSE"` sitting in
+#: a list of example filenames (tests/scripts/test_select_lenses.py) cannot
+#: change its verdict when the real LICENSE is edited. What makes a path
+#: observable is the suite READING it, so the discriminator is the path
+#: appearing on a line that also performs filesystem access.
+_FILESYSTEM_READ_IDIOMS = r"REPO_ROOT|read_text|open\(|Path\(|\.exists\(|is_file"
+
+
+def _lines_reading(path: str, dirs: list[str]) -> list[str]:
+    """Lines under `dirs` that name `path` AND touch the filesystem."""
+    grep = subprocess.run(
+        ["grep", "-rn", "--include=*.py", "-F", path, *dirs],
+        capture_output=True,
+        text=True,
+        check=False,
+        cwd=str(REPO_ROOT),
+    )
+    if grep.returncode != 0:
+        return []
+    filtered = subprocess.run(
+        ["grep", "-E", _FILESYSTEM_READ_IDIOMS],
+        input=grep.stdout,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    return [line for line in filtered.stdout.splitlines() if line.strip()]
+
+
+def test_every_inert_path_is_genuinely_unread_by_the_suite():
+    """#2003 AC: the inert set cannot loosen unnoticed.
+
+    Sweeps the ENTIRE chk_hook_units directory list for each inert path used
+    as a filesystem target. If a test ever starts reading one, this fails and
+    the path must leave the set.
+
+    This guard already earned its keep: #2003 proposed seeding the set with
+    `.gitignore`, and this test caught that the suite reads the root
+    .gitignore in three places. A false skip there would have been silent and
+    CI-only — exactly the failure mode the inert lever exists to avoid.
+    """
+    inert = _run_fn("ci_inert_paths", "chk_hook_units").stdout.split()
+    assert inert, "chk_hook_units lost its inert set entirely"
+
+    existing_dirs = [d for d in CHK_HOOK_UNITS_DIRS if (REPO_ROOT / d).is_dir()]
+    assert existing_dirs, "none of the chk_hook_units directories exist"
+
+    offenders = {
+        path: lines
+        for path in inert
+        if (lines := _lines_reading(path, existing_dirs))
+    }
+    assert not offenders, (
+        "these paths are in chk_hook_units's inert set but ARE read by tests "
+        f"the suite runs, so the suite can observe them: {offenders}"
+    )
+
+
+def test_every_inert_path_is_actually_TRACKED_by_the_repo():
+    """An inert entry for a file this repo does not track is dead weight — the
+    lever can never fire on it, so it only makes the set look broader than it
+    is. (#2003's seed named .editorconfig and CODEOWNERS, neither present.)
+
+    Asks **git**, not the filesystem, and that distinction is load-bearing: a
+    first version of this test used `(REPO_ROOT / p).exists()` and passed
+    locally while failing in CI on `.gitattributes`. This repo tracks no
+    `.gitattributes`; graphify's hook install writes a gitignored,
+    machine-local one, so "exists on disk" answered yes on a developer machine
+    and no on a runner. A gate whose verdict depends on an untracked local
+    artifact means something different in the two places it runs.
+    """
+    inert = _run_fn("ci_inert_paths", "chk_hook_units").stdout.split()
+    assert inert, "chk_hook_units lost its inert set entirely"
+    tracked = subprocess.run(
+        ["git", "ls-files", "--", *inert],
+        capture_output=True,
+        text=True,
+        check=False,
+        cwd=str(REPO_ROOT),
+    ).stdout.split()
+    missing = [p for p in inert if p not in tracked]
+    assert not missing, (
+        f"inert paths this repo does not TRACK: {missing}. An untracked path "
+        "cannot be a real inert entry — and if it merely exists locally "
+        "(a gitignored tool artifact), the check would disagree between a "
+        "developer machine and CI."
+    )
+
+
+def test_gitignore_is_not_inert_because_the_suite_reads_it():
+    """Pinned as its own named case, not just an absence: #2003 proposed
+    `.gitignore` and it is genuinely observed."""
+    inert = _run_fn("ci_inert_paths", "chk_hook_units").stdout.split()
+    assert ".gitignore" not in inert
+    assert not _is_all_inert("chk_hook_units", ".gitignore")
+
+    existing_dirs = [d for d in CHK_HOOK_UNITS_DIRS if (REPO_ROOT / d).is_dir()]
+    assert _lines_reading(".gitignore", existing_dirs), (
+        "the suite no longer reads .gitignore — if that is real, this test and "
+        "the inert set can both be revisited"
+    )
+
+
+def test_inert_matcher_honours_the_directory_prefix_shape():
+    """Entry shapes must not drift from ci_suite_has_changes's."""
+    assert _run_fn("ci_path_is_inert", "vendor/x/y.py", "vendor/").returncode == 0
+    assert _run_fn("ci_path_is_inert", "src/x.py", "vendor/").returncode != 0
+
+
+def test_inert_matcher_honours_the_glob_shape():
+    assert _run_fn("ci_path_is_inert", "a.lock", "*.lock").returncode == 0
+    assert _run_fn("ci_path_is_inert", "a.py", "*.lock").returncode != 0
+
+
+def test_inert_matcher_honours_the_exact_file_shape():
+    assert _run_fn("ci_path_is_inert", "LICENSE", "LICENSE").returncode == 0
+    assert _run_fn("ci_path_is_inert", "LICENSE.md", "LICENSE").returncode != 0

@@ -180,6 +180,11 @@ SLICE_EXCLUSIONS = {
         "stdlib argparse/json/pathlib only; no floor-sensitive runtime API"
     ),
     "coverage_delta_steering.py": "stdlib argparse/json/pathlib only; no floor-sensitive runtime API",
+    "mutation_yield_steering.py": (
+        "stdlib argparse/json/sys/pathlib only; no floor-sensitive runtime API "
+        "— same import set and same classification as its coverage sibling "
+        "coverage_delta_steering.py, which #2033 ports"
+    ),
     "coverage_discovery_java.py": (
         "stdlib re/sys/xml.etree/pathlib only; no floor-sensitive body of its "
         "own — the fromisoformat shim it could exercise lives in "

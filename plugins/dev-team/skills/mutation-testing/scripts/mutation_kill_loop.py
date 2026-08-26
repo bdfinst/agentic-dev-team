@@ -220,6 +220,53 @@ def make_scoped_config(config: LoopConfig, source_file: str) -> dict:
     return {"stryker-config": scoped}
 
 
+def make_confirm_scoped_config(
+    config: LoopConfig, source_file: str, lines: Sequence[int]
+) -> dict:
+    """Build a Stryker config scoped to specific SOURCE LINES of one file.
+
+    #2031: every file that converges pays one full scoped mutation run to
+    learn it has converged, and that run generates nothing. The terminal
+    round only needs to re-test the handful of mutants that survived the
+    previous round, whose lines ``mutation_report.survivor_lines`` already
+    computes.
+
+    **The line-span syntax below is NOT yet verified against a real Stryker.**
+    Today ``mutate`` is only ever set at file-glob granularity here
+    (``make_scoped_config``), and every reference example in
+    ``csharp-stryker-net.md`` is a glob; narrowing below that is the new part.
+    This function is therefore **not wired into the default loop path** — see
+    #2031. Until someone exercises it against a real Stryker.NET and records
+    the result, treat the emitted span form as a proposal, not a contract.
+
+    The specific hazard, and why it must not be defaulted on blind: if Stryker
+    does not recognize the span suffix and matches nothing, the confirm run
+    reports **zero mutants**, and ``_score_round``'s existing ``total_mutants
+    == 0`` guard reads that as "NOT convergence" and stops the file (#1606).
+    A wrong guess here would silently truncate every file's loop while looking
+    like a saving. Any caller must therefore treat a zero-mutant confirm
+    result as "confirm scope produced nothing — fall back to a full scoped
+    run", never as a verdict.
+
+    Empty ``lines`` returns the ordinary whole-file scoped config, so a caller
+    that finds no clustered survivors degrades to today's behavior rather than
+    emitting a config that matches nothing.
+    """
+    if not lines:
+        return make_scoped_config(config, source_file)
+    spans = [f"**/{source_file}{{{line}..{line}}}" for line in sorted(set(lines))]
+    scoped = {
+        "solution": config.solution,
+        "project": config.project,
+        "test-projects": config.test_projects,
+        "mutate": spans,
+        "coverage-analysis": "perTest",
+        "reporters": ["json"],
+    }
+    scoped = {k: v for k, v in scoped.items() if v is not None}
+    return {"stryker-config": scoped}
+
+
 def _write_scoped_config(config: LoopConfig, source_file: str) -> Path:
     with tempfile.NamedTemporaryFile(
         suffix=".json", delete=False, mode="w", prefix="stryker-scoped-"

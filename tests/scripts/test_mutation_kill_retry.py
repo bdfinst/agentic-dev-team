@@ -834,3 +834,184 @@ def test_make_downgrade_audit_hook_wired_end_to_end_with_make_retrying_headless_
     assert label is not None
     assert "opus" in label and "sonnet" in label and "foo.py" in label
 
+
+
+# =============================================================================
+# #1950 — three real-world 5xx shapes the anchored pattern evaded. Each was
+# independently identified by domain-review and correctness-review during
+# #1938 Slice 1's checkpoint; none were bugs against #1938's own acceptance
+# criteria, which is why they were deferred rather than folded in.
+# =============================================================================
+@pytest.mark.parametrize(
+    "stderr",
+    [
+        # 1. `\b` rejected underscore- and camel-joined status keys: `_` is a
+        #    `\w` char, so the `_c`/`rC` transitions are word-to-word.
+        "error_code: 503",
+        "errorCode=504",
+        "provider returned error_code=502",
+        # 2. `HTTP/1.1 502` — the version token puts digits in the gap, which
+        #    the `[^0-9]{0,12}` anchor forbade.
+        "HTTP/1.1 502 Bad Gateway",
+        "HTTP/2 503",
+        # 3. Status 529 — Anthropic's own overload code, absent from the
+        #    numeral alternation. Covered before only via the
+        #    `overloaded_error` marker, which a rendered message omits.
+        "API Error: 529 Overloaded",
+        "status: 529",
+    ],
+)
+def test_gateway_classifier_matches_the_1950_shapes(stderr):
+    assert retry.is_gateway_class_error(gateway_error(stderr)) is True
+
+
+@pytest.mark.parametrize(
+    "stderr",
+    [
+        # #1938's anchoring must survive #1950's widening — these are the
+        # false positives the pattern exists to exclude.
+        "request id 502391",
+        "barcode 502391",
+        "error after 5024 ms",
+        "processed 5029 records",
+        "wrote 5030 bytes",
+        "generation succeeded",
+    ],
+)
+def test_gateway_classifier_still_rejects_unrelated_numbers(stderr):
+    assert retry.is_gateway_class_error(gateway_error(stderr)) is False
+
+
+def test_gateway_classifier_reads_stdout_not_only_stderr():
+    """#1950: the claude CLI renders some upstream failures to stdout while
+    stderr carries only a generic non-zero-exit line. A stderr-only classifier
+    calls a genuinely retryable overload non-gateway-class and burns the
+    file's whole budget on it."""
+    exc = shared.HeadlessCallFailed(
+        1, "claude CLI failed", "API Error: 529 Overloaded"
+    )
+    assert retry.is_gateway_class_error(exc) is True
+
+
+def test_gateway_classifier_tolerates_a_two_argument_construction():
+    """`stdout` is defaulted, so every pre-#1950 call site and test fake keeps
+    classifying rather than raising AttributeError."""
+    exc = shared.HeadlessCallFailed(1, "status 503")
+    assert retry.is_gateway_class_error(exc) is True
+
+
+def test_headless_call_failed_carries_stdout_from_the_raise_site():
+    exc = shared.HeadlessCallFailed(1, "err", "out")
+    assert exc.stdout == "out"
+    assert exc.stderr == "err"
+
+
+def test_headless_call_failed_str_is_unchanged_by_the_stdout_field():
+    """`__str__` is byte-for-byte the plain RuntimeError message this type
+    replaced; adding stdout must not leak into it."""
+    exc = shared.HeadlessCallFailed(1, "err", "SECRET-STDOUT")
+    assert "SECRET-STDOUT" not in str(exc)
+    assert str(exc) == "claude CLI failed (exit 1): err"
+
+
+def test_camel_split_is_a_pure_normalization():
+    assert retry._anchorable("errorCode=504") == "error_Code=504"
+    assert retry._anchorable("error_code=504") == "error_code=504"
+    assert retry._anchorable("plain text") == "plain text"
+
+
+# =============================================================================
+# #1952 — the exhaustion reason is the one the caller computed, not one
+# re-inferred from whether from_model looks like a ladder name.
+# =============================================================================
+def test_exhaustion_after_a_spent_downgrade_reports_the_spent_downgrade():
+    """The #1952 failure scenario: a file starts on opus, downgrades once to
+    `fable` (a VALID DEV_TEAM_MUTATION_FALLBACK_MODEL override that
+    deliberately has no ladder entry), then exhausts. The old proxy —
+    `from_model in {opus, sonnet, haiku}` — reported "no downgrade ladder
+    position available for this model" when the true cause was "this file
+    already spent its one downgrade"."""
+    event = retry.DowngradeEvent(
+        source_file="calc.py",
+        round_num=3,
+        from_model="fable",
+        to_model=None,
+        error_class="gateway-class",
+        already_downgraded=True,
+    )
+    message = retry._format_downgrade_message(event)
+    assert "no further downgrade will be attempted" in message
+    assert "no downgrade ladder position available" not in message
+
+
+def test_exhaustion_without_a_prior_downgrade_reports_the_absent_ladder_slot():
+    event = retry.DowngradeEvent(
+        source_file="calc.py",
+        round_num=1,
+        from_model="some-unrecognized-model",
+        to_model=None,
+        error_class="gateway-class",
+        already_downgraded=False,
+    )
+    message = retry._format_downgrade_message(event)
+    assert "no downgrade ladder position available" in message
+
+
+def test_exhaustion_reason_no_longer_depends_on_the_model_name():
+    """Same model, opposite reasons — the two messages must differ. Under the
+    old proxy both took the same branch, since the branch read only the name."""
+    def _event(already):
+        return retry.DowngradeEvent(
+            source_file="calc.py",
+            round_num=2,
+            from_model="fable",
+            to_model=None,
+            error_class="gateway-class",
+            already_downgraded=already,
+        )
+
+    assert retry._format_downgrade_message(
+        _event(True)
+    ) != retry._format_downgrade_message(_event(False))
+
+
+def test_a_ladder_model_that_never_downgraded_reports_the_absent_slot():
+    """The inverse of the #1952 case, and the one the old proxy also got
+    wrong in the other direction: haiku IS a ladder name, but a haiku file
+    that exhausted without ever downgrading ran out of ladder — it did not
+    spend a downgrade."""
+    event = retry.DowngradeEvent(
+        source_file="calc.py",
+        round_num=1,
+        from_model="haiku",
+        to_model=None,
+        error_class="gateway-class",
+        already_downgraded=False,
+    )
+    assert "no downgrade ladder position available" in retry._format_downgrade_message(
+        event
+    )
+
+
+def test_already_downgraded_defaults_false_for_existing_constructions():
+    event = retry.DowngradeEvent(
+        source_file="calc.py",
+        round_num=1,
+        from_model="opus",
+        to_model="sonnet",
+        error_class="gateway-class",
+    )
+    assert event.already_downgraded is False
+
+
+def test_non_exhausted_event_message_is_unchanged():
+    event = retry.DowngradeEvent(
+        source_file="calc.py",
+        round_num=1,
+        from_model="opus",
+        to_model="sonnet",
+        error_class="gateway-class",
+    )
+    message = retry._format_downgrade_message(event)
+    assert message.startswith("downgrading generation for calc.py")
+    assert "exhausted" not in message

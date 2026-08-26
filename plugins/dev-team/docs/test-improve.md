@@ -84,9 +84,14 @@ is `none`, +1 once Phase 6 enters Phase 7) rather than a hardcoded 9 or 10.
   (no-refactor) → `/coverage-delta --workflow test-improve --story <id>` →
   `scripts/coverage_delta_steering.py` (three consecutive near-zero-delta
   Stories exit 3 and prompt `[t] re-check Phase-1 targeting / [c] continue`
-  mid-phase, #1790) → `mutation-kill` agent (`--file <story-file>
-  --max-rounds 3`, `[c/r/w/q]` on
-  residuals). End-of-phase review loop runs `/test-design --since` and
+  mid-phase, #1790) → `mutation-kill` agent, dispatched once per module batch
+  (`--file <every story file in the batch> --max-rounds 3
+  --target-honest-score <Phase-0 mutation target>`, #2030; `[c/r/w/q]` on
+  residuals) → `scripts/mutation_yield_steering.py` at the batch boundary
+  (two consecutive batches killing fewer than the minimum net survivors exit
+  3 and prompt the same `[t] re-check Phase-1 targeting / [c] continue`,
+  #2033 — the #1790 mechanism ported to the more expensive lane, sharing its
+  status vocabulary and exit-code contract). End-of-phase review loop runs `/test-design --since` and
   `/code-review --since` in parallel, `/apply-fixes` then re-run, cap 2
   iterations, `[r/w/q]` escalation. Evidence in `phase-5-review.json`.
 - **Phase 6 — Refactor decision prompt.** `[y] enter Phase 7 / [b] backlog
