@@ -765,6 +765,17 @@ for entry in "${CHECKS[@]}"; do
     idx=$((idx + 1))
     continue
   fi
+  # Second, independent skip lever (#2003): every changed file is provably
+  # inert for this check. Universal quantifier, unlike the existential test
+  # above — see the rationale in scripts/lib/ci-changed-only.sh. Reported with
+  # its own wording so a reader can tell the two levers apart in the summary.
+  if [ "$CHANGED_ONLY" = "1" ] && ci_suite_is_all_inert "$fn" "$CHANGED_LIST"; then
+    printf '%s∼ skipped (every changed file is inert for this check)%s\n' \
+      "$yellow" "$reset" >"$RUNDIR/$idx.out"
+    echo 0 >"$RUNDIR/$idx.rc"
+    idx=$((idx + 1))
+    continue
+  fi
   # Time each check with the `time` keyword (TIMEFORMAT='%R' -> bare real
   # seconds) inside its own subshell, writing the real time to a per-index file
   # alongside .out/.rc. One subshell owns each index, so concurrent checks cannot
