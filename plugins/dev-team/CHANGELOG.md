@@ -1,5 +1,17 @@
 # Changelog
 
+## [12.9.0](https://github.com/bdfinst/agentic-dev-team/compare/dev-team-v12.8.1...dev-team-v12.9.0) (2026-08-26)
+
+
+### Features
+
+* **context-ceiling:** stop blocking agent dispatches, add the session-economy playbook ([#2063](https://github.com/bdfinst/agentic-dev-team/issues/2063)) ([5d0d58a](https://github.com/bdfinst/agentic-dev-team/commit/5d0d58a9d4aed993376b167b3d33240fd9013022))
+
+
+### Bug Fixes
+
+* **code-review:** instrument review-agent JSON-contract parse failures ([#2061](https://github.com/bdfinst/agentic-dev-team/issues/2061)) ([c8f5f4d](https://github.com/bdfinst/agentic-dev-team/commit/c8f5f4dcf653f3e1e943fc66aebe85675ece9d3e))
+
 ## [12.8.1](https://github.com/bdfinst/agentic-dev-team/compare/dev-team-v12.8.0...dev-team-v12.8.1) (2026-08-26)
 
 
