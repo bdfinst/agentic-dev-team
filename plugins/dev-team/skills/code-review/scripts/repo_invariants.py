@@ -454,6 +454,54 @@ def check_scope_glob_matches_skip_prose(changed_files=None) -> list[dict]:
     return findings
 
 
+def check_contract_failure_shapes_documented(changed_files=None) -> list[dict]:
+    """`telemetry-schema.md`'s `contract-failures.jsonl` `shape` table row
+    must enumerate exactly `validate_review_output.FAILURE_SHAPES` (#1998).
+
+    Two independent review agents (doc-review in wave 1, domain-review in
+    wave 2 — same PR) rediscovered the same drift: prose enumerating the
+    loggable failure shapes disagreeing with the module's actual behavior.
+    `SKILL.md` no longer re-enumerates the set itself (it now points at
+    `telemetry-schema.md` instead), so only one doc can drift from the code
+    now — this check pins that one doc to the module's exported set rather
+    than trusting prose to stay in sync by hand.
+    """
+    telemetry_schema = _PLUGIN_ROOT / "knowledge" / "telemetry-schema.md"
+    text = _read_text(telemetry_schema)
+    match = re.search(r"\|\s*`shape`\s*\|\s*string enum\s*\|([^\n]*)", text)
+    if not match:
+        return [
+            {
+                "invariant": "contract-failure-shapes-documented",
+                "file": "knowledge/telemetry-schema.md",
+                "message": (
+                    "Could not find the contract-failures.jsonl `shape` table row to "
+                    "check against validate_review_output.FAILURE_SHAPES — has the "
+                    "table row been reworded or removed?"
+                ),
+            }
+        ]
+    cell = match.group(1).split(" — ", 1)[0]
+    documented = frozenset(re.findall(r"`([a-z-]+)`", cell))
+
+    from validate_review_output import FAILURE_SHAPES
+
+    if documented == FAILURE_SHAPES:
+        return []
+    return [
+        {
+            "invariant": "contract-failure-shapes-documented",
+            "file": "knowledge/telemetry-schema.md",
+            "message": (
+                f"telemetry-schema.md's contract-failures.jsonl `shape` row documents "
+                f"{sorted(documented)}, but validate_review_output.FAILURE_SHAPES is "
+                f"{sorted(FAILURE_SHAPES)} — keep the table row and the module's "
+                "exported set in sync."
+            ),
+        }
+    ]
+
+
 # Registered checks. Each entry takes an optional `changed_files` list and
 # returns findings. See the module docstring for why that argument exists.
 CHECKS = [
@@ -461,6 +509,7 @@ CHECKS = [
     check_eval_calibration_blocks,
     check_must_not_mention_terms_appear_in_fixture,
     check_scope_glob_matches_skip_prose,
+    check_contract_failure_shapes_documented,
 ]
 
 

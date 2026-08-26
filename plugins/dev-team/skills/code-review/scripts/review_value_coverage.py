@@ -53,18 +53,22 @@ if str(_HOOKS_LIB_DIR) not in sys.path:
 
 try:
     import artifact_paths  # type: ignore[import-not-found]
+    import review_dispatch_ledger  # type: ignore[import-not-found]
 except ImportError:  # pragma: no cover - degraded fallback, hooks/lib unreachable
-    # Same guarded-import shape as `review_round_log.py`: this directory is not
-    # in `ruff.toml`'s E402 per-file-ignore list and the import cannot precede
-    # the `sys.path` setup above.
+    # Same guarded-import shape as `review_round_log.py`: the `sys.path`
+    # setup above must run before this import, which is why it isn't at the
+    # top of the file (`ruff.toml` suppresses E402 for this whole directory
+    # for exactly that reason).
     artifact_paths = None
+    review_dispatch_ledger = None
 
 VALUE_STREAM = "review-value.jsonl"
-LEDGER_STREAM = "boundary-events.jsonl"
-
-#: The ledger rows that denote a review dispatch.
-_LEDGER_HOOK = "agent_dispatch_ledger"
-_LEDGER_DECISION = "record"
+#: Re-exported from `hooks/lib/review_dispatch_ledger.py` (#1998) — the
+#: single home for the ledger-reading predicate this module and
+#: `contract_failure_report.py` both need. Kept as a module attribute here
+#: (not just imported for internal use) because this module's own test suite
+#: references `rvc.LEDGER_STREAM`/`rvc.dispatch_counts` directly.
+LEDGER_STREAM = review_dispatch_ledger.LEDGER_STREAM if review_dispatch_ledger else "boundary-events.jsonl"
 
 #: Minimum rows before per-lens rates mean anything. #1512 set this figure
 #: explicitly ("revisit at N >= ~100 records") after finding 10 records
@@ -100,51 +104,33 @@ VERDICTS = (
 
 
 def _resolve(stream: str, cwd: Path) -> Path:
+    # Preserves this module's pre-existing behavior (the writer default,
+    # migrate=True) unchanged — this extraction's scope is de-duplicating the
+    # ledger-reading predicate, not auditing this module's own migrate
+    # posture. Tracked separately: #2059.
     if artifact_paths is not None:
         return artifact_paths.resolve_file("metrics", stream, cwd)
     return cwd / ".claude" / "metrics" / stream
 
 
 def read_jsonl(path: Path) -> tuple[list[dict], int]:
-    """Return (rows, malformed_count).
-
-    Malformed lines are skipped but **counted**. Silently dropping unreadable
-    telemetry is the same class of defect this module exists to surface, so the
-    count is reported rather than swallowed.
-    """
-    rows: list[dict] = []
-    malformed = 0
-    try:
-        text = path.read_text(encoding="utf-8")
-    except (OSError, UnicodeDecodeError):
-        return rows, malformed
-    for line in text.splitlines():
-        if not line.strip():
-            continue
-        try:
-            parsed = json.loads(line)
-        except ValueError:
-            malformed += 1
-            continue
-        if isinstance(parsed, dict):
-            rows.append(parsed)
-        else:
-            malformed += 1
-    return rows, malformed
+    """Return (rows, malformed_count). Delegates to
+    `hooks/lib/review_dispatch_ledger.py` (#1998) — see that module's
+    docstring for why this predicate now has one home. Degrades to an empty
+    result (fail-open) rather than re-implementing the predicate a third
+    time if `hooks/lib` is unreachable."""
+    if review_dispatch_ledger is None:  # pragma: no cover - degraded fallback
+        return [], 0
+    return review_dispatch_ledger.read_jsonl(path)
 
 
 def dispatch_counts(ledger_rows) -> Counter:
-    """Per-agent dispatch counts from the deterministic ledger."""
-    counts: Counter = Counter()
-    for row in ledger_rows:
-        if row.get("hook") != _LEDGER_HOOK:
-            continue
-        if row.get("decision") != _LEDGER_DECISION:
-            continue
-        agent = row.get("matched_rule")
-        if isinstance(agent, str) and agent.strip():
-            counts[agent.strip()] += 1
-    return counts
+    """Per-agent dispatch counts from the deterministic ledger. Delegates to
+    `hooks/lib/review_dispatch_ledger.py` (#1998); see `read_jsonl` above for
+    why the fallback degrades rather than re-implements."""
+    if review_dispatch_ledger is None:  # pragma: no cover - degraded fallback
+        return Counter()
+    return review_dispatch_ledger.dispatch_counts(ledger_rows)
 
 
 def logged_counts(value_rows) -> Counter:

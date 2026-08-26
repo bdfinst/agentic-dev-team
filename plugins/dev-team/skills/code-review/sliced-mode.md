@@ -97,8 +97,11 @@ in a single message.
 
 For each slice, once its panel's waves (per the section above) return:
 
-1. **Reconcile dispatched vs. returned, per wave**: use `dispatch_reconcile.py`
-   — the same CLI as the legacy path (`SKILL.md` Step 4), scoped to this
+1. **Reconcile dispatched vs. returned, per wave**: determine each agent's
+   contract-valid status the same deterministic way as the legacy path
+   (`SKILL.md` Step 4's `validate_review_output.py` call, #1998) — never by
+   eyeballing the raw output — then feed the resulting `--returned` set to
+   `dispatch_reconcile.py`, the same CLI as the legacy path, scoped to this
    slice's dispatched agents for that wave:
    ```bash
    sh "$CLAUDE_PLUGIN_ROOT/hooks/py.sh" "$CLAUDE_PLUGIN_ROOT/skills/code-review/scripts/dispatch_reconcile.py" --dispatched "<this wave's dispatched agent names>" --returned "<this wave's contract-valid agent names>"
@@ -122,7 +125,8 @@ For each slice, once its panel's waves (per the section above) return:
    an empty list (or the flag omitted) when every agent recovered on retry.
    Each entry has the same shape as the legacy path's `dispatchFailures`
    entries (`output-format.md`): `{"agentName": "<name>", "attempts": 2,
-   "error": "<message>"}` — never a different key for the agent name.
+   "error": "<message>", "shape": "<shape or null>", "extraction": "<extraction
+   or null>"}` — never a different key for the agent name.
 4. **Emit the boundary event for each unrecovered failure**: at the same
    moment step 3 records the failure, emit the `dispatch-failure` boundary
    event (Slice 1's shared CLI), bound to the `subject_hash` in effect for
