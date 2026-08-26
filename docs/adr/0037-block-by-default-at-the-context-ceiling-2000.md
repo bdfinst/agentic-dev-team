@@ -112,3 +112,53 @@ Issue #2000. The change is small — one conditional and a footer — but the
 deliberate-failure test is the substance of it: this repo's rule is *when you
 add a gate, make it fail on purpose once before you trust it*, and a flip that
 left the guard still warning would report as fixed while changing nothing.
+
+## Amendment (2026-08-26)
+
+Two of this ADR's safety properties were asserted rather than implemented.
+Both are now closed in code with deliberate-failure tests; the decision
+itself — blocking by default — is unchanged.
+
+**"A window it cannot resolve does not produce a verdict at all" was not
+true.** The Context section above justified the flip partly on that claim.
+`_resolve_window` does not decline to produce a verdict for an unresolvable
+window: it returns the conservative 200K fallback tagged `default`, and the
+guard went on to a full blocking verdict against it. Provenance reached the
+message text and nothing else. So an unrecognized model id — on a model
+whose real window may be 1M — hard-blocked every capability load from 80,000
+tokens onward, at 8% of the real window. `_LARGE_WINDOW_RE` is version-pinned
+by deliberate design ([ADR 0011](0011-enforce-context-ceiling-with-transcript-measured-pretooluse-hook.md)'s
+amendment), which means *every model released after it was last edited* lands
+in that case until someone edits the pattern.
+
+The fallback's original rationale is explicit that it was written for a
+different posture: "over-nudging a 1M session is a minor false alarm." Under
+warn-by-default it was. Under this ADR it is a session that cannot dispatch
+an agent or invoke a skill. The asymmetry argument survives — an unknown
+model is still never assumed large, so the guard still *reports* — but its
+consequence is now downgraded: a `default`-provenance verdict warns with a
+`[not blocked: window unverified]` footer naming `DEV_TEAM_CONTEXT_WINDOW`.
+`override` and `detected` provenance block exactly as this ADR specifies.
+This is the same principle as consequence 2 above, applied one layer out: the
+guard blocks on what it knows, and it does not know an unrecognized model's
+window.
+
+**Occupancy could be measured from the wrong context.** `_measure_occupancy`
+took the most recent usage-bearing transcript row unconditionally, including
+rows marked `isSidechain` — subagent turns, whose usage describes the
+subagent's context rather than the main thread's. Under the harness layout
+that records sidechain turns inline, a 5K subagent turn recorded after a 190K
+main turn made the guard measure 5K and allow the load: silent
+non-enforcement, the exact failure this ADR exists to remove, arriving
+through the measurement instead of the posture. The reverse also held — a
+large subagent turn blocked a main thread at 10% of its window.
+`scripts/session_extract.py` and `scripts/measure_full_file_duplication.py`
+both already filtered on `isSidechain`; this hook was the transcript consumer
+that did not. Both scans now skip sidechain rows.
+
+Neither gap was caught by the #2000 test suite because every window-detection
+test runs under `_base_env`, which pins `DEV_TEAM_CONTEXT_STRICT=off`. The
+existing `test_unrecognized_model_falls_back_to_200000` asserts
+`returncode == 0` — correct for warn mode, and silent about the shipped
+default. The new cases run under `_posture_env`, which sets no posture
+variable at all, and each was confirmed to fail with its fix reverted.
