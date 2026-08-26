@@ -57,11 +57,14 @@ affect that binding.
 This is not a novel or unusual pattern; it's the standard "patch where a
 name is *used*, not where it's *defined*" hazard, applied to two functions
 against 58 existing call sites in a single file. The practical severity of a
-missed site is narrower than it might first appear, though, and is stated
-precisely rather than worst-cased: `dispatch_persona` returns a stub result
-immediately when `skip_llm=True` (`orchestrator.py:546-547`), before any
-subprocess call — 72 of the 58+ call sites in the test file pass
-`skip_llm=True`. For the remaining `skip_llm=False` sites, the real
+missed site is narrower than it might first appear, though: `dispatch_persona`
+returns a stub result immediately when `skip_llm=True`, before any subprocess
+call. Separately (this is not a claim that the two counts overlap — they are
+two independent facts about the test file, not a subset relationship):
+`tests/scripts/test_orchestrator.py` passes the literal `skip_llm=True` 72
+times and `skip_llm=False` 63 times across all of its calls, so the test
+suite's default posture already favors the short-circuited path. For a
+`skip_llm=False` call whose patch is bypassed, the real
 subprocess call is bounded by `PERSONA_DISPATCH_TIMEOUT_S` (60s), and
 `FileNotFoundError`/`TimeoutExpired`/`OSError` are caught and converted to
 `_failed_result(persona, error="llm_unavailable")` rather than propagating —
@@ -80,8 +83,10 @@ with no behavioral surface.
 
 ## Decision
 
-**No-go, for now.** The 820-line size and the file's history of deferred
-splits are real signals of God-object growth, but they do not by themselves
+**No-go, for now.** The file's size (820 lines when this evaluation started,
+and growing — see Notes on why an ADR should not pin an exact present-tense
+line count) and its history of deferred splits are real signals of
+God-object growth, but they do not by themselves
 outweigh the concrete, verified risk in the 58-site test-patch coupling: a
 split done today either (a) requires touching and correctly re-verifying 58
 patch targets against a mocking pitfall with a real, non-silent-but-still
@@ -108,14 +113,17 @@ evaluation found — and should consider one of two mitigations:
    name, so test doubles can patch the primitives module directly instead of
    depending on re-export forwarding.
 2. Extend `orchestrator.py`'s own existing dependency-injection pattern —
-   `run_pipeline` already takes `classify_fn`/`phase_research_fn`/
-   `phase_plan_fn`/`phase_implement_fn`, resolved at call time via
-   `_resolve_default` (`orchestrator.py:637`, under the "Resolve
-   inject-able dependencies" comment at line 685) — to the dispatch
-   primitives, e.g. a `dispatch_fn=None` parameter on each phase function
-   resolved the same way. This would make a split test-transparent by
-   construction rather than by patch-target bookkeeping, and is consistent
-   with a pattern this module already uses for the same class of problem.
+   `run_pipeline` already takes `phase_research_fn`/`phase_plan_fn`/
+   `phase_implement_fn` parameters, each resolved at call time via the
+   `_resolve_default` helper under its "Resolve inject-able dependencies"
+   comment (`classify_fn` is a separate case, resolved by its own
+   hand-written branch rather than `_resolve_default` — the ad-hoc
+   alternative `_resolve_default` was introduced to replace for the other
+   three) — to the dispatch primitives, e.g. a `dispatch_fn=None` parameter
+   on each phase function resolved the same way. This would make a split
+   test-transparent by construction rather than by patch-target bookkeeping,
+   and is consistent with a pattern this module already uses for the same
+   class of problem.
 
 ## Consequences
 
@@ -124,8 +132,10 @@ existing 58 test-patch sites, and the passing test suite they protect,
 are untouched. The deferred-three-times decision finally has a durable,
 findable record instead of evaporating with another transient plan file.
 
-**What gets worse.** `orchestrator.py` remains an 820-line file, past this
-project's own 400-line watch line by a wide margin, and will keep growing as
+**What gets worse.** `orchestrator.py` remains a large single file, past this
+project's own 400-line watch line by a wide margin (already true at the
+820-line count this ADR was evaluated against, and only more so as it grows),
+and will keep growing as
 future phases or dispatch behavior are added to it. Every future plan that
 touches this file will re-trigger `plan-review-design`'s "God object growing
 beyond 400 lines with mixed responsibilities" blocker
@@ -144,3 +154,12 @@ test-patch coupling risk above is specifically addressed.
 
 Issue #1723, part of epic #1648 / spec #1707. Evaluated as a go/no-go per
 the issue's own framing ("a lightweight go/no-go, not a mandate to split").
+
+This ADR deliberately cites `orchestrator.py` symbols by name rather than by
+line number wherever practical, and avoids restating an exact present-tense
+line count for the file — an earlier draft of this ADR cited specific line
+numbers for `dispatch_persona`'s `skip_llm` check and for `_resolve_default`,
+and its own comment-block edit (adding the pointer this ADR describes)
+immediately shifted every one of them by 3, which review caught before merge.
+A durable record should not cite line numbers that the record's own existence
+can invalidate.
