@@ -27,9 +27,16 @@ window, which the hook auto-detects from the session's most recent
 1M-window models -> 1M (Fable, Mythos, Opus 4.6/4.7/4.8, Sonnet 5, Sonnet 4.6);
 unrecognized model, or a same-family model outside those pinned versions ->
 200K conservative fallback (window is a fixed per-model property, so an
-unrecognized model is never assumed large — over-nudging is a minor false
-alarm, under-nudging risks running well past the real ceiling). Set
-`DEV_TEAM_CONTEXT_WINDOW` to override detection explicitly.
+unrecognized model is never assumed large). A ceiling computed against that
+fallback **warns but never blocks** — the guard blocks on windows it knows,
+and an unrecognized model id means it does not know this one. Set
+`DEV_TEAM_CONTEXT_WINDOW` to override detection explicitly, which also
+restores blocking.
+
+Occupancy is measured from main-thread turns only: transcript rows marked
+`isSidechain` are subagent turns whose usage describes the subagent's
+context, not this one's, and are skipped by both the occupancy scan and
+window detection.
 
 The effective ceiling is `min(ceiling_pct% of window, 150K tokens)` — an
 absolute-token cap (`DEV_TEAM_CONTEXT_ABS_CEILING`, default 150000, matching

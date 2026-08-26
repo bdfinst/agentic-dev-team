@@ -1329,3 +1329,217 @@ class TestBlockingIsTheDefault:
         env["DEV_TEAM_CONTEXT_WINDOW"] = "200000"
         result = _run(_mkinput("Bash", {"command": "ls"}, tr), env)
         assert result.returncode == 0
+
+
+# ---------------------------------------------------------------------------
+# Sidechain (subagent) rows must not be measured as main-thread occupancy
+# ---------------------------------------------------------------------------
+
+
+def _usage_row(total: int, *, model: str = "claude-haiku-4-5",
+               sidechain: bool = False) -> str:
+    return json.dumps(
+        {
+            "isSidechain": sidechain,
+            "message": {
+                "model": model,
+                "usage": {
+                    "input_tokens": 2,
+                    "cache_read_input_tokens": total - 2,
+                    "cache_creation_input_tokens": 0,
+                },
+            },
+        }
+    )
+
+
+def _write_rows(path: Path, *rows: str) -> None:
+    path.write_text("\n".join(rows) + "\n")
+
+
+class TestSidechainRowsAreNotMainThreadOccupancy:
+    """A subagent turn's usage describes the subagent's context, not the main
+    thread's. The hook took the last usage-bearing row unconditionally, so
+    under the harness layout that records sidechain turns inline the measured
+    number could belong to a different context entirely — in either
+    direction. `scripts/session_extract.py` and
+    `scripts/measure_full_file_duplication.py` both already filter on
+    `isSidechain`; this hook was the transcript consumer that did not.
+    """
+
+    def test_a_trailing_sidechain_row_does_not_hide_a_full_main_thread(
+        self, tmp_path: Path
+    ) -> None:
+        """The deliberate-failure case. Main thread at 190K on a 200K window
+        is far past the ceiling; a 5K subagent turn recorded after it made the
+        guard measure 5K and allow the load. That is silent non-enforcement —
+        precisely the failure ADR 0037 exists to remove, arriving through the
+        measurement rather than the posture.
+        """
+        tr = tmp_path / "t.jsonl"
+        _write_rows(tr, _usage_row(190_000), _usage_row(5_000, sidechain=True))
+        env = _posture_env(tmp_path)
+        env["DEV_TEAM_CONTEXT_WINDOW"] = "200000"
+        result = _run(_mkinput("Skill", {"skill": "plan"}, tr), env)
+        assert result.returncode == 2, (
+            "a subagent turn recorded after the main turn must not mask "
+            "main-thread occupancy"
+        )
+        assert b"190000 of 200000" in result.stderr
+
+    def test_a_trailing_sidechain_row_does_not_invent_occupancy(
+        self, tmp_path: Path
+    ) -> None:
+        """The other direction: a 300K subagent turn after a 20K main turn
+        blocked a main thread at 10% of its window."""
+        tr = tmp_path / "t.jsonl"
+        _write_rows(tr, _usage_row(20_000), _usage_row(300_000, sidechain=True))
+        env = _posture_env(tmp_path)
+        env["DEV_TEAM_CONTEXT_WINDOW"] = "200000"
+        result = _run(_mkinput("Skill", {"skill": "plan"}, tr), env)
+        assert result.returncode == 0
+        assert result.stderr == b""
+
+    def test_measure_occupancy_skips_sidechain_rows(self, tmp_path: Path) -> None:
+        tr = tmp_path / "t.jsonl"
+        _write_rows(tr, _usage_row(1_000), _usage_row(9_000, sidechain=True))
+        assert hook._measure_occupancy(tr) == 1_000
+
+    def test_measure_occupancy_is_none_when_every_row_is_sidechain(
+        self, tmp_path: Path
+    ) -> None:
+        """All-sidechain means nothing is known about the main thread, which
+        is a measurement failure — and measurement failures fail open."""
+        tr = tmp_path / "t.jsonl"
+        _write_rows(tr, _usage_row(9_000, sidechain=True))
+        assert hook._measure_occupancy(tr) is None
+
+    def test_detect_window_skips_sidechain_rows(self, tmp_path: Path) -> None:
+        """Window detection reads the same rows, so it needs the same filter:
+        a subagent running on a different model must not resize the main
+        thread's ceiling."""
+        tr = tmp_path / "t.jsonl"
+        _write_rows(
+            tr,
+            _usage_row(1_000, model="claude-opus-5"),
+            _usage_row(9_000, model="claude-haiku-4-5", sidechain=True),
+        )
+        assert hook._detect_window(tr) == (1_000_000, True)
+
+    @pytest.mark.parametrize("flag", [False, None, 0, ""])
+    def test_falsy_sidechain_flags_are_main_thread(self, flag) -> None:
+        assert hook._is_sidechain({"isSidechain": flag}) is False
+
+    def test_a_row_with_no_sidechain_key_is_main_thread(self) -> None:
+        """The overwhelmingly common shape — the key is absent on main-loop
+        records. Treating absence as sidechain would filter the whole
+        transcript and silently disable the guard."""
+        assert hook._is_sidechain({"message": {}}) is False
+
+
+# ---------------------------------------------------------------------------
+# A ceiling computed against the unverified fallback window must not block
+# ---------------------------------------------------------------------------
+
+
+class TestUnverifiedWindowWarnsButDoesNotBlock:
+    """ADR 0037 justified the blocking default partly on the claim that "a
+    wrong window can no longer brick a session, because a window it cannot
+    resolve does not produce a verdict at all." That was not what the code
+    did: an unrecognized model id resolved to the 200K fallback and went on
+    to a full blocking verdict against it. On a model whose real window is
+    1M that blocks every capability load from 80K — 8% of the real window —
+    and every model released after `_LARGE_WINDOW_RE` was last edited lands
+    there. These tests make the ADR's claim true.
+    """
+
+    def test_an_unrecognized_model_over_the_fallback_ceiling_warns(
+        self, tmp_path: Path
+    ) -> None:
+        """The deliberate-failure case: this returned 2 before the fix."""
+        tr = tmp_path / "t.jsonl"
+        _write_transcript(tr, 100_000, model="claude-opus-6")
+        result = _run(
+            _mkinput("Skill", {"skill": "plan"}, tr), _posture_env(tmp_path)
+        )
+        assert result.returncode == 0, (
+            "a threshold computed against a window the guard could not "
+            "verify must not block"
+        )
+        assert b"window default" in result.stderr
+        assert b"not blocked: window unverified" in result.stderr
+        assert b"blocked: context ceiling" not in result.stderr
+
+    def test_the_warning_names_the_knob_that_restores_blocking(
+        self, tmp_path: Path
+    ) -> None:
+        tr = tmp_path / "t.jsonl"
+        _write_transcript(tr, 100_000, model="claude-opus-6")
+        result = _run(
+            _mkinput("Agent", {"subagent_type": "x"}, tr), _posture_env(tmp_path)
+        )
+        assert b"DEV_TEAM_CONTEXT_WINDOW" in result.stderr
+
+    def test_a_detected_window_still_blocks(self, tmp_path: Path) -> None:
+        """The downgrade is scoped to `default` provenance only. A recognized
+        model is a window the guard knows, so #2000's default is unchanged
+        there — this is the assertion that keeps the fix from quietly
+        becoming a return to warn-by-default."""
+        tr = tmp_path / "t.jsonl"
+        _write_transcript(tr, 200_000, model="claude-opus-5")  # 1M window
+        result = _run(
+            _mkinput("Skill", {"skill": "plan"}, tr), _posture_env(tmp_path)
+        )
+        assert result.returncode == 2
+        assert b"window detected" in result.stderr
+
+    def test_an_explicit_override_still_blocks_even_on_an_unknown_model(
+        self, tmp_path: Path
+    ) -> None:
+        """`DEV_TEAM_CONTEXT_WINDOW` is the operator stating the window, so
+        the guard is no longer guessing and blocking resumes."""
+        tr = tmp_path / "t.jsonl"
+        _write_transcript(tr, 100_000, model="claude-opus-6")
+        env = _posture_env(tmp_path)
+        env["DEV_TEAM_CONTEXT_WINDOW"] = "200000"
+        result = _run(_mkinput("Skill", {"skill": "plan"}, tr), env)
+        assert result.returncode == 2
+        assert b"window override" in result.stderr
+
+    def test_below_the_fallback_ceiling_is_still_silent(
+        self, tmp_path: Path
+    ) -> None:
+        tr = tmp_path / "t.jsonl"
+        _write_transcript(tr, 50_000, model="claude-opus-6")
+        result = _run(
+            _mkinput("Skill", {"skill": "plan"}, tr), _posture_env(tmp_path)
+        )
+        assert result.returncode == 0
+        assert result.stderr == b""
+
+    def test_explicit_warn_mode_does_not_gain_the_unverified_footer(
+        self, tmp_path: Path
+    ) -> None:
+        """Under `STRICT=off` nothing was going to block anyway, so the
+        footer would be explaining a restriction that does not exist."""
+        tr = tmp_path / "t.jsonl"
+        _write_transcript(tr, 100_000, model="claude-opus-6")
+        env = _posture_env(tmp_path)
+        env["DEV_TEAM_CONTEXT_STRICT"] = "off"
+        result = _run(_mkinput("Skill", {"skill": "plan"}, tr), env)
+        assert result.returncode == 0
+        assert b"not blocked: window unverified" not in result.stderr
+
+    def test_unverified_warnings_are_deduped_like_any_other_warning(
+        self, tmp_path: Path
+    ) -> None:
+        """Downgrading to a warning routes through the existing per-session
+        dedupe; without that, an unrecognized model would print the footer on
+        every single capability load."""
+        tr = tmp_path / "t.jsonl"
+        _write_transcript(tr, 100_000, model="claude-opus-6")
+        env = _posture_env(tmp_path)
+        first = _run(_mkinput("Skill", {"skill": "plan"}, tr), env)
+        second = _run(_mkinput("Skill", {"skill": "plan"}, tr), env)
+        assert first.stderr != b""
+        assert second.stderr == b""

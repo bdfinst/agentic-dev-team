@@ -50,7 +50,7 @@ The warning follows one pinned template, field by field:
 | `{window}` | The resolved context window in tokens. |
 | `{eff}` | The effective ceiling: `min(ceiling_pct% of window, abs_ceiling)`. |
 | `{bound}` | Which threshold is binding — `percentage` or `absolute`. The two framings never co-occur; exactly one is reported. |
-| `{provenance}` | Where `{window}` came from — `override` (`DEV_TEAM_CONTEXT_WINDOW` set), `detected` (matched a pinned model family/version), or `default` (unrecognized model, or no model info — falls back to 200K). |
+| `{provenance}` | Where `{window}` came from — `override` (`DEV_TEAM_CONTEXT_WINDOW` set), `detected` (matched a pinned model family/version), or `default` (unrecognized model, or no model info — falls back to 200K). **`default` warns but never blocks** — see Expectations. |
 | `{label}` | What triggered the check — `loading agent '<name>'` or `invoking skill '<name>'`. |
 
 A second line follows, naming the Handoff action band for
@@ -93,6 +93,21 @@ Concrete fire-points at default settings (`DEV_TEAM_CONTEXT_CEILING_PCT=40`,
   alone accounting for 29% of main-thread spend at roughly 3x the per-turn
   cost of a sub-100K session. Recovery was invoked 3 times. An advisory
   ceiling reads as a guarantee and delivers none.
+- **An unverified window warns, it does not block.** When the window's
+  provenance is `default` — the model id is one the guard does not
+  recognize — the threshold above it is a guess, so the verdict is
+  downgraded to a warning carrying a `[not blocked: window unverified]`
+  footer. Blocking there would stop every capability load from 80,000
+  tokens onward on a model whose real window may be 1M, and every model
+  released after the detection pattern was last edited lands in this case.
+  Set `DEV_TEAM_CONTEXT_WINDOW` to the model's real window to restore
+  blocking; `override` and `detected` provenance block as normal.
+- **Subagent turns are not main-thread occupancy.** Transcript rows marked
+  `isSidechain` are excluded from both the occupancy scan and window
+  detection. Their usage describes the subagent's own context, so counting
+  them measures the wrong window in both directions — a small subagent turn
+  recorded after a large main turn would hide a full context, and a large
+  one would block a main thread nowhere near the ceiling.
 - **Fail-open guarantees.** The hook never blocks a session because of its
   own failure: missing or unreadable transcript, malformed or empty stdin,
   unmeasurable usage, a malformed env var, or any internal parse error all
