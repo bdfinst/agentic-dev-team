@@ -24,6 +24,7 @@ import argparse
 import asyncio
 import functools
 import json
+import re
 import subprocess
 import sys
 from pathlib import Path
@@ -56,7 +57,7 @@ JSON_CONTRACT_PERSONAS = DEFAULT_PERSONAS + CODE_REVIEW_PANEL
 # restates the same seven keywords in prose for its own (agent-facing,
 # standalone) audience; that restatement is not mechanically bound to this
 # tuple today — keep the two in sync by hand until a content-guard test
-# exists (see follow-up #1716).
+# exists (see follow-up #2067).
 SECURITY_KEYWORDS = (
     "auth",
     "secret",
@@ -85,7 +86,7 @@ RESEARCH_PERSONAS = ("codebase-recon", "architect", "data-flow-tracer")
 # agents/orchestrator.md's "Plan persona roster" section restates this same
 # trio (and CRITICS_SKIPPED_ALL_CORE_FAILED's value) in prose; that
 # restatement is not mechanically bound to this tuple today — keep the two
-# in sync by hand until a content-guard test exists (see follow-up #1716).
+# in sync by hand until a content-guard test exists (see follow-up #2067).
 PLAN_CORE_PERSONAS = ("product-manager", "architect", "qa-engineer")
 
 # Persisted-state vocabulary for _default_phase_plan's all-core-failed guard
@@ -123,8 +124,10 @@ TECH_WRITER_PERSONA = "tech-writer"
 IMPLEMENT_WAVE_SLICES = ("implement-1",)
 
 # Timeouts (seconds) for the two `claude -p` subprocess dispatch sites below.
-# Unverified placeholders, not measured against a real dispatch — see
-# follow-up #1716.
+# Unverified placeholders, not measured against a real dispatch — pinned by
+# a direct test (test_orchestrator.py) per follow-up #1716 so an accidental
+# edit fails fast instead of surfacing only as a flaky/slow-CLI symptom;
+# the underlying values themselves remain unverified against real latency.
 CLASSIFY_TIMEOUT_S = 30
 PERSONA_DISPATCH_TIMEOUT_S = 60
 
@@ -236,6 +239,36 @@ async def classify(request: str, skip_llm: bool = False) -> dict:
 # ---------------------------------------------------------------------------
 
 
+def _derive_recon_slug(root: Path) -> str:
+    """Kebab-safe, lowercase repo-root directory name.
+
+    Mirrors codebase_recon.py's own `_derive_slug` (same algorithm,
+    duplicated rather than imported — that module's function is
+    underscore-private to its own CLI). Keep the two in sync by hand until
+    a content-guard test exists, matching this file's existing convention
+    for SECURITY_KEYWORDS/PLAN_CORE_PERSONAS's prose-duplication notes.
+    """
+    name = root.resolve().name.lower()
+    name = re.sub(r"[^a-z0-9._-]", "-", name)
+    name = re.sub(r"-{2,}", "-", name)
+    return name.strip("-") or "repo"
+
+
+def _recon_artifact_path(root: Path) -> Path:
+    """Path to codebase-recon's JSON artifact for the repo at `root`.
+
+    Per agents/codebase-recon.md's Contract section: always
+    `.claude/memory/recon-<slug>.json`, independent of orchestrator.py's
+    own (configurable) --memory-dir — the recon agent's prompt hardcodes
+    this path relative to its own CWD, which is orchestrator.py's CWD
+    since dispatch_persona's subprocess.run inherits it. If --memory-dir
+    points elsewhere, this path and the phase-state directory diverge; that
+    divergence is inherent to the recon agent's contract, not something
+    this function can paper over.
+    """
+    return root / ".claude" / "memory" / f"recon-{_derive_recon_slug(root)}.json"
+
+
 async def _default_phase_research(request: str, task: dict, skip_llm: bool) -> dict:
     """Dispatch the Research-phase personas and aggregate their results.
 
@@ -263,7 +296,25 @@ async def _default_phase_research(request: str, task: dict, skip_llm: bool) -> d
     # on the console, to one that succeeded fully. Mirrors classify()'s own
     # degraded-but-non-fatal WARNING.
     _warn_on_failed_personas("Research", results)
-    return {"personas": personas, "results": results, "skip_llm": skip_llm}
+    # Bridge codebase-recon's own artifact (agents/codebase-recon.md's
+    # Contract — .claude/memory/recon-<slug>.json) into this state, so a
+    # Plan-phase consumer doesn't need to independently know that naming
+    # convention (follow-up #1716). Always present, `None` when
+    # codebase-recon wasn't dispatched, didn't succeed, or its artifact
+    # file isn't on disk (e.g. --skip-llm, where no real agent ran).
+    recon_artifact = None
+    if "codebase-recon" in personas:
+        recon_result = next((r for r in results if r.get("persona") == "codebase-recon"), None)
+        if recon_result is not None and recon_result.get("status") == "success":
+            candidate = _recon_artifact_path(Path.cwd())
+            if candidate.is_file():
+                recon_artifact = str(candidate)
+    return {
+        "personas": personas,
+        "results": results,
+        "skip_llm": skip_llm,
+        "recon_artifact": recon_artifact,
+    }
 
 
 # ---------------------------------------------------------------------------
