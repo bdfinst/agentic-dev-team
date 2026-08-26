@@ -17,14 +17,17 @@ Exit codes:
   0 = success
   1 = error (no prior state with --resume, wave barrier failure, etc.)
 
-Module split: evaluated and declined for now — see ADR 0040
-(docs/adr/0040-evaluate-splitting-orchestrator-py-no-go.md, issue #1723).
-The blocker is 46 `patch.object(orch, "dispatch_persona"/"dispatch_personas",
-...)` sites in tests/scripts/test_orchestrator.py that would silently stop
-intercepting dispatch calls if the phase functions imported those names from
-a separate module. Revisit if dispatch-primitives or phase-functions grows
-independently.
+Module split: see ADR 0040.
 """
+
+# Module split (dispatch_primitives / phase_functions): evaluated and
+# declined for now — see ADR 0040
+# (docs/adr/0040-evaluate-splitting-orchestrator-py-no-go.md, issue #1723).
+# The blocker is 58 `patch.object(orch, "dispatch_persona"/"dispatch_personas",
+# ...)` sites in tests/scripts/test_orchestrator.py (multiline-aware count —
+# a single-line grep undercounts to 45) that would stop intercepting dispatch
+# calls if the phase functions imported those names from a separate module.
+# Revisit if dispatch_primitives or phase_functions grows independently.
 
 from __future__ import annotations
 
