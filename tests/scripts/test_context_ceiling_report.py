@@ -1,0 +1,438 @@
+"""Tests for scripts/context_ceiling_report.py — the context-ceiling validator.
+
+The load-bearing test in this file is `test_final_occupancy_equals_the_guards_
+own_measurement`: a validator that measured occupancy even slightly differently
+from `hooks/context_ceiling_guard.py` would be validating a threshold nobody
+ships. That test pins the two together on shared fixtures, in the same spirit
+as the hook suite's utilization-formula equality test.
+"""
+
+from __future__ import annotations
+
+import json
+import subprocess
+import sys
+from pathlib import Path
+
+import pytest
+
+from _repo_root import REPO_ROOT
+
+_SCRIPTS = REPO_ROOT / "scripts"
+_HOOKS = REPO_ROOT / "plugins" / "dev-team" / "hooks"
+for _p in (_SCRIPTS, _HOOKS):
+    if str(_p) not in sys.path:
+        sys.path.insert(0, str(_p))
+
+import context_ceiling_guard as guard  # type: ignore[import-not-found]
+import context_ceiling_report as report  # type: ignore[import-not-found]
+
+_SCRIPT = _SCRIPTS / "context_ceiling_report.py"
+
+
+# ---------------------------------------------------------------------------
+# fixture builders
+# ---------------------------------------------------------------------------
+
+
+def _assistant(
+    occupancy: int,
+    *,
+    model: str = "claude-opus-5",
+    sidechain: bool = False,
+    tool_uses: list[dict] | None = None,
+) -> dict:
+    content: list[dict] = [{"type": "text", "text": "..."}]
+    for tu in tool_uses or []:
+        content.append({"type": "tool_use", **tu})
+    return {
+        "isSidechain": sidechain,
+        "message": {
+            "model": model,
+            "content": content,
+            "usage": {
+                "input_tokens": 2,
+                "cache_read_input_tokens": occupancy - 2,
+                "cache_creation_input_tokens": 0,
+            },
+        },
+    }
+
+
+def _skill(name: str) -> dict:
+    return {"name": "Skill", "input": {"skill": name}}
+
+
+def _agent(name: str) -> dict:
+    return {"name": "Agent", "input": {"subagent_type": name}}
+
+
+def _write(path: Path, *records: dict) -> Path:
+    path.write_text("\n".join(json.dumps(r) for r in records) + "\n", encoding="utf-8")
+    return path
+
+
+# ---------------------------------------------------------------------------
+# anti-drift: the validator must measure what the guard measures
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "records",
+    [
+        pytest.param([_assistant(120_000)], id="single-turn"),
+        pytest.param([_assistant(50_000), _assistant(400_000)], id="rising"),
+        pytest.param([_assistant(400_000), _assistant(50_000)], id="falling-after-compact"),
+        pytest.param(
+            [_assistant(400_000), _assistant(9_000, sidechain=True)],
+            id="trailing-sidechain",
+        ),
+        pytest.param(
+            [_assistant(80_000), {"message": {"model": "claude-opus-5"}}],
+            id="trailing-row-without-usage",
+        ),
+    ],
+)
+def test_final_occupancy_equals_the_guards_own_measurement(
+    tmp_path: Path, records: list[dict]
+) -> None:
+    """The validator and the guard must agree on occupancy, byte for byte.
+
+    If these ever diverge, the sweep is measuring a quantity the shipped guard
+    does not enforce on, and every threshold recommendation drawn from it is
+    unsound. Fixtures stay under the guard's 400-line tail window so the two
+    read the same rows.
+    """
+    tr = _write(tmp_path / "t.jsonl", *records)
+    replay = report.replay_transcript(tr)
+    assert replay is not None
+    assert replay.final_occupancy == guard._measure_occupancy(tr)
+
+
+def test_effective_threshold_matches_the_guards_min_formula() -> None:
+    """`min(pct% of window, abs)` — restated here only to be pinned."""
+    assert report.effective_threshold(1_000_000, 40, 350_000) == 350_000
+    assert report.effective_threshold(200_000, 40, 350_000) == 80_000
+    assert report.effective_threshold(1_000_000, 40, 500_000) == 400_000
+
+
+def test_window_resolution_defers_to_the_guards_model_map(tmp_path: Path) -> None:
+    known = report.replay_transcript(
+        _write(tmp_path / "a.jsonl", _assistant(10_000, model="claude-opus-5"))
+    )
+    unknown = report.replay_transcript(
+        _write(tmp_path / "b.jsonl", _assistant(10_000, model="totally-unknown"))
+    )
+    assert known is not None and unknown is not None
+    assert (known.window, known.window_matched) == (1_000_000, True)
+    assert (unknown.window, unknown.window_matched) == (200_000, False)
+
+
+# ---------------------------------------------------------------------------
+# gate detection
+# ---------------------------------------------------------------------------
+
+
+def test_sidechain_turns_are_excluded_from_occupancy_and_gates(tmp_path: Path) -> None:
+    tr = _write(
+        tmp_path / "t.jsonl",
+        _assistant(100_000, tool_uses=[_skill("build")]),
+        _assistant(900_000, sidechain=True, tool_uses=[_agent("test-review")]),
+    )
+    replay = report.replay_transcript(tr)
+    assert replay is not None
+    assert replay.peak_occupancy == 100_000
+    assert len(replay.gates) == 1, "a subagent's own gated call is not a main-thread gate"
+
+
+def test_recovery_skills_are_not_counted_as_gates(tmp_path: Path) -> None:
+    """They are never gated at any occupancy, so counting them would inflate
+    every block rate in the sweep."""
+    tr = _write(
+        tmp_path / "t.jsonl",
+        _assistant(900_000, tool_uses=[_skill(s) for s in sorted(guard._RECOVERY_SKILLS)]),
+    )
+    replay = report.replay_transcript(tr)
+    assert replay is not None
+    assert replay.gates == []
+
+
+def test_plugin_qualified_recovery_skill_is_also_excluded(tmp_path: Path) -> None:
+    tr = _write(tmp_path / "t.jsonl", _assistant(900_000, tool_uses=[_skill("dev-team:handoff")]))
+    replay = report.replay_transcript(tr)
+    assert replay is not None
+    assert replay.gates == []
+
+
+@pytest.mark.parametrize("tool", ["Agent", "Task", "Skill"])
+def test_every_gated_tool_the_guard_knows_is_detected(tmp_path: Path, tool: str) -> None:
+    tu = {"name": tool, "input": {"skill": "build"} if tool == "Skill" else {"subagent_type": "x"}}
+    replay = report.replay_transcript(
+        _write(tmp_path / "t.jsonl", _assistant(500_000, tool_uses=[tu]))
+    )
+    assert replay is not None
+    assert [g.tool for g in replay.gates] == [tool]
+
+
+def test_ungated_tools_are_ignored(tmp_path: Path) -> None:
+    tr = _write(
+        tmp_path / "t.jsonl",
+        _assistant(900_000, tool_uses=[{"name": "Bash", "input": {"command": "ls"}}]),
+    )
+    replay = report.replay_transcript(tr)
+    assert replay is not None
+    assert replay.gates == []
+
+
+def test_gate_sees_the_occupancy_of_its_own_turn(tmp_path: Path) -> None:
+    """The assistant record carrying the tool_use also carries the usage the
+    guard reads at PreToolUse time — not the previous turn's."""
+    tr = _write(
+        tmp_path / "t.jsonl",
+        _assistant(100_000),
+        _assistant(400_000, tool_uses=[_skill("build")]),
+    )
+    replay = report.replay_transcript(tr)
+    assert replay is not None
+    assert [g.occupancy for g in replay.gates] == [400_000]
+
+
+def test_parallel_dispatch_records_one_gate_per_call(tmp_path: Path) -> None:
+    tr = _write(
+        tmp_path / "t.jsonl",
+        _assistant(400_000, tool_uses=[_agent("a"), _agent("b"), _agent("c")]),
+    )
+    replay = report.replay_transcript(tr)
+    assert replay is not None
+    assert len(replay.gates) == 3
+    assert {g.occupancy for g in replay.gates} == {400_000}
+
+
+# ---------------------------------------------------------------------------
+# the sweep
+# ---------------------------------------------------------------------------
+
+
+def _one_session(tmp_path: Path, *records: dict) -> list:
+    replay = report.replay_transcript(_write(tmp_path / "t.jsonl", *records))
+    assert replay is not None
+    return [replay]
+
+
+def test_a_ceiling_below_the_gate_blocks_and_one_above_does_not(tmp_path: Path) -> None:
+    """The central counterfactual: the same session, two candidate ceilings."""
+    replays = _one_session(tmp_path, _assistant(250_000, tool_uses=[_skill("build")]))
+    low = report.evaluate_ceiling(replays, 150_000, 40, 5)
+    high = report.evaluate_ceiling(replays, 350_000, 40, 5)
+    assert low["sessions_blocked"] == 1
+    assert low["median_occupancy_at_first_block"] == 250_000
+    assert high["sessions_blocked"] == 0
+
+
+def test_near_done_flags_a_session_blocked_at_the_finish_line(tmp_path: Path) -> None:
+    """ADR 0037's revisit trigger in a metric: blocked with almost no work
+    left is the signature of a ceiling set too low."""
+    replays = _one_session(
+        tmp_path,
+        _assistant(400_000, tool_uses=[_skill("build")]),
+        _assistant(410_000),
+    )
+    result = report.evaluate_ceiling(replays, 350_000, 40, near_done_turns=5)
+    assert result["near_done_blocked"] == 1
+    assert result["near_done_blocked_pct"] == 100.0
+
+
+def test_a_session_with_a_long_tail_after_the_block_is_not_near_done(
+    tmp_path: Path,
+) -> None:
+    records = [_assistant(400_000, tool_uses=[_skill("build")])]
+    records += [_assistant(410_000) for _ in range(20)]
+    replays = _one_session(tmp_path, *records)
+    result = report.evaluate_ceiling(replays, 350_000, 40, near_done_turns=5)
+    assert result["sessions_blocked"] == 1
+    assert result["near_done_blocked"] == 0
+
+
+def test_tokens_after_the_first_block_are_what_enforcement_reclaims(
+    tmp_path: Path,
+) -> None:
+    replays = _one_session(
+        tmp_path,
+        _assistant(300_000, tool_uses=[_skill("build")]),
+        _assistant(500_000),
+        _assistant(600_000),
+    )
+    # Blocked at the first gate; everything spent afterwards is what a ceiling
+    # here would have reclaimed.
+    result = report.evaluate_ceiling(replays, 250_000, 40, 0)
+    assert result["sessions_blocked"] == 1
+    assert result["prompt_tokens_after_first_block"] == 1_100_000
+
+    # Nothing is over a ceiling nothing reaches, so nothing is reclaimed.
+    none_blocked = report.evaluate_ceiling(replays, 350_000, 40, 0)
+    assert none_blocked["sessions_blocked"] == 0
+    assert none_blocked["prompt_tokens_after_first_block"] == 0
+
+
+def test_a_candidate_above_the_percentage_bound_is_reported_as_clamped(
+    tmp_path: Path,
+) -> None:
+    """Raising the absolute cap past `ceiling_pct` of the window does nothing:
+    `min()` picks the percentage. A sweep row that silently equals its
+    neighbour reads as "the ceiling made no difference" when the truth is
+    "this candidate was never applied" — so the clamp is reported."""
+    replays = _one_session(
+        tmp_path, _assistant(400_000, tool_uses=[_skill("build")])
+    )
+    # 40% of a 1M window is 400K, so a 900K candidate is clamped to 400K and
+    # the gate at exactly 400K still blocks.
+    clamped = report.evaluate_ceiling(replays, 900_000, 40, 0)
+    assert clamped["clamped_sessions"] == 1
+    assert clamped["clamped_pct"] == 100.0
+    assert clamped["sessions_blocked"] == 1, (
+        "the percentage bound still applies; the candidate never took effect"
+    )
+
+    # Lifting ceiling_pct too is what actually raises the ceiling here.
+    unclamped = report.evaluate_ceiling(replays, 900_000, 90, 0)
+    assert unclamped["clamped_sessions"] == 0
+    assert unclamped["sessions_blocked"] == 0
+
+
+def test_a_candidate_under_the_percentage_bound_is_not_clamped(
+    tmp_path: Path,
+) -> None:
+    replays = _one_session(tmp_path, _assistant(400_000, tool_uses=[_skill("build")]))
+    assert report.evaluate_ceiling(replays, 350_000, 40, 0)["clamped_sessions"] == 0
+
+
+def test_a_200k_window_session_is_bound_by_the_percentage_not_the_cap(
+    tmp_path: Path,
+) -> None:
+    """On a small window the absolute cap is a no-op — the sweep must reflect
+    that, or it would report 200K-window sessions as never blocked."""
+    replays = _one_session(
+        tmp_path,
+        _assistant(90_000, model="claude-haiku-4-5", tool_uses=[_skill("build")]),
+    )
+    for candidate in (150_000, 350_000, 600_000):
+        result = report.evaluate_ceiling(replays, candidate, 40, 5)
+        assert result["sessions_blocked"] == 1, (
+            f"90K on a 200K window is over the 80K percentage bound "
+            f"regardless of a {candidate} absolute cap"
+        )
+
+
+def test_occupancy_without_a_gated_call_never_blocks(tmp_path: Path) -> None:
+    """The finding that motivates conditioning on gated calls: a session can
+    sit far over any candidate ceiling and never trip it."""
+    replays = _one_session(tmp_path, _assistant(900_000), _assistant(950_000))
+    result = report.evaluate_ceiling(replays, 150_000, 40, 5)
+    assert replays[0].peak_occupancy == 950_000
+    assert result["sessions_blocked"] == 0
+    assert result["sessions_blocked_pct"] is None
+
+
+def test_percentages_are_none_not_zero_when_there_is_nothing_to_divide_by() -> None:
+    """"No sessions to divide by" and "0% of sessions" are different findings;
+    rendering the first as the second would read as evidence the ceiling is
+    fine."""
+    assert report._pct(0, 0) is None
+    assert report._pct(0, 10) == 0.0
+
+
+# ---------------------------------------------------------------------------
+# robustness + CLI
+# ---------------------------------------------------------------------------
+
+
+def test_malformed_and_empty_lines_are_skipped_not_fatal(tmp_path: Path) -> None:
+    tr = tmp_path / "t.jsonl"
+    tr.write_text(
+        "\n".join(
+            [
+                "",
+                "not json at all",
+                "[1, 2, 3]",
+                json.dumps({"message": "not-a-dict"}),
+                json.dumps(_assistant(120_000)),
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    replay = report.replay_transcript(tr)
+    assert replay is not None
+    assert replay.final_occupancy == 120_000
+
+
+def test_a_transcript_with_no_usage_is_dropped(tmp_path: Path) -> None:
+    tr = _write(tmp_path / "t.jsonl", {"message": {"model": "claude-opus-5"}})
+    assert report.replay_transcript(tr) is None
+
+
+def test_an_unreadable_transcript_is_dropped_not_raised(tmp_path: Path) -> None:
+    assert report.replay_transcript(tmp_path / "absent.jsonl") is None
+
+
+def test_discover_transcripts_accepts_files_and_directories(tmp_path: Path) -> None:
+    nested = tmp_path / "proj" / "sub"
+    nested.mkdir(parents=True)
+    a = _write(nested / "a.jsonl", _assistant(1_000))
+    b = _write(tmp_path / "b.jsonl", _assistant(1_000))
+    (tmp_path / "ignored.txt").write_text("x", encoding="utf-8")
+    assert set(report.discover_transcripts([tmp_path])) == {a, b}
+    assert report.discover_transcripts([a]) == [a]
+
+
+def _run_cli(*args: str) -> subprocess.CompletedProcess:
+    return subprocess.run(
+        [sys.executable, str(_SCRIPT), *args], capture_output=True, text=True, check=False
+    )
+
+
+def test_cli_exits_2_when_no_transcripts_are_found(tmp_path: Path) -> None:
+    result = _run_cli("--transcripts", str(tmp_path / "nope"))
+    assert result.returncode == 2
+    assert "no .jsonl transcripts found" in result.stderr
+
+
+def test_cli_exits_2_on_a_malformed_ceiling_list(tmp_path: Path) -> None:
+    _write(tmp_path / "t.jsonl", _assistant(120_000))
+    result = _run_cli("--transcripts", str(tmp_path), "--ceilings", "abc")
+    assert result.returncode == 2
+    assert "comma-separated integers" in result.stderr
+
+
+def test_cli_reports_and_writes_json(tmp_path: Path) -> None:
+    _write(
+        tmp_path / "t.jsonl",
+        _assistant(250_000, tool_uses=[_skill("build")]),
+        _assistant(260_000),
+    )
+    out = tmp_path / "report.json"
+    result = _run_cli(
+        "--transcripts", str(tmp_path), "--ceilings", "150000,350000", "--json", str(out)
+    )
+    assert result.returncode == 0, result.stderr
+    assert "Context ceiling validation" in result.stdout
+
+    payload = json.loads(out.read_text(encoding="utf-8"))
+    assert payload["schema"] == "context-ceiling-report/v1"
+    assert len(payload["sessions"]) == 1
+    assert payload["sessions"][0]["peak_occupancy"] == 260_000
+    by_ceiling = {row["abs_ceiling"]: row for row in payload["sweep"]}
+    assert by_ceiling[150_000]["sessions_blocked"] == 1
+    assert by_ceiling[350_000]["sessions_blocked"] == 0
+
+
+def test_the_verdict_says_inconclusive_rather_than_endorsing_the_default(
+    tmp_path: Path,
+) -> None:
+    """An empty corpus must never read as confirmation. A validator that
+    reported "0 blocked, looks fine" on data containing no evidence would be
+    exactly the gate-that-cannot-fail this repo warns about."""
+    _write(tmp_path / "t.jsonl", _assistant(120_000))
+    result = _run_cli("--transcripts", str(tmp_path))
+    assert result.returncode == 0
+    assert "inconclusive" in result.stdout

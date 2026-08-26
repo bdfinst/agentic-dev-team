@@ -622,27 +622,58 @@ def test_env_window_override_returns_explicit_value(monkeypatch) -> None:
 # ---------------------------------------------------------------------------
 
 
-def test_absolute_cap_fires_at_150k_on_a_1m_window(tmp_path: Path) -> None:
-    """On a 1M window, 40% would be 400K — but the 150K absolute cap binds
-    first, so occupancy at 150K (well under the 40% pct threshold) must
-    still trigger the warning."""
+def test_absolute_cap_fires_at_350k_on_a_1m_window(tmp_path: Path) -> None:
+    """On a 1M window, 40% would be 400K — but the 350K absolute cap binds
+    first, so occupancy at 350K (still under the 40% pct threshold) must
+    trigger. The cap's *value* moved in ADR 0038; that it binds ahead of the
+    percentage on a large window is the #786 property and is unchanged."""
     tr = tmp_path / "t.jsonl"
-    _write_transcript(tr, 150_000)  # 15% of 1M — far below the 40% pct ceiling
+    _write_transcript(tr, 350_000)  # 35% of 1M — below the 40% pct ceiling
     env = _base_env(tmp_path)
     env["DEV_TEAM_CONTEXT_WINDOW"] = "1000000"
     result = _run(_mkinput("Agent", {"subagent_type": "x"}, tr), env)
     assert result.returncode == 0
-    assert b"150000 of 1000000 tokens" in result.stderr
-    assert b"ceiling of 150000 tokens" in result.stderr
+    assert b"350000 of 1000000 tokens" in result.stderr
+    assert b"ceiling of 350000 tokens" in result.stderr
     assert b"absolute bound" in result.stderr
     assert b"percentage bound" not in result.stderr
 
 
-def test_absolute_cap_does_not_fire_just_under_150k_on_a_1m_window(
+def test_the_old_150k_fire_point_is_now_silent_on_a_1m_window(
+    tmp_path: Path,
+) -> None:
+    """The substance of ADR 0038: a 1M-window session at 150K used to be
+    over the ceiling and, under the #2000 default, blocked outright. This is
+    the range the measured corpus says ordinary multi-agent work occupies."""
+    tr = tmp_path / "t.jsonl"
+    _write_transcript(tr, 150_000)
+    env = _posture_env(tmp_path)  # shipped posture, not the warn pin
+    env["DEV_TEAM_CONTEXT_WINDOW"] = "1000000"
+    result = _run(_mkinput("Skill", {"skill": "plan"}, tr), env)
+    assert result.returncode == 0
+    assert result.stderr == b""
+
+
+def test_the_expensive_tail_is_still_caught_on_a_1m_window(
+    tmp_path: Path,
+) -> None:
+    """ADR 0038 raises the ceiling; it does not surrender the cost case that
+    justified #2000. The 76 sessions past 500K and the 18 past 900K — 29% of
+    main-thread spend — are all still blocked, now at 350K."""
+    for occ in (500_000, 900_000):
+        tr = tmp_path / f"t{occ}.jsonl"
+        _write_transcript(tr, occ)
+        env = _posture_env(tmp_path)
+        env["DEV_TEAM_CONTEXT_WINDOW"] = "1000000"
+        result = _run(_mkinput("Skill", {"skill": "plan"}, tr), env)
+        assert result.returncode == 2, f"{occ} must still block"
+
+
+def test_absolute_cap_does_not_fire_just_under_350k_on_a_1m_window(
     tmp_path: Path,
 ) -> None:
     tr = tmp_path / "t.jsonl"
-    _write_transcript(tr, 149_999)
+    _write_transcript(tr, 349_999)
     env = _base_env(tmp_path)
     env["DEV_TEAM_CONTEXT_WINDOW"] = "1000000"
     result = _run(_mkinput("Agent", {"subagent_type": "x"}, tr), env)
@@ -651,7 +682,7 @@ def test_absolute_cap_does_not_fire_just_under_150k_on_a_1m_window(
 
 
 def test_absolute_cap_is_a_noop_on_a_200k_window(tmp_path: Path) -> None:
-    """40% of 200K = 80K, well under the 150K default cap — behavior must be
+    """40% of 200K = 80K, well under the 350K default cap — behavior must be
     identical to before the cap was introduced: unaffected right up to 80K,
     and firing at 80K exactly as it always did."""
     tr = tmp_path / "t.jsonl"
@@ -675,10 +706,10 @@ def test_absolute_cap_is_a_noop_on_a_200k_window(tmp_path: Path) -> None:
 def test_dev_team_context_abs_ceiling_override_wins_over_default(
     tmp_path: Path,
 ) -> None:
-    """A custom DEV_TEAM_CONTEXT_ABS_CEILING replaces the 150K default cap."""
+    """A custom DEV_TEAM_CONTEXT_ABS_CEILING replaces the 350K default cap."""
     tr = tmp_path / "t.jsonl"
     _write_transcript(tr, 50_000)  # 5% of 1M — under both the pct ceiling
-    # and the default 150K abs cap, but over a custom 40K abs cap.
+    # and the default 350K abs cap, but over a custom 40K abs cap.
     env = _base_env(tmp_path)
     env["DEV_TEAM_CONTEXT_WINDOW"] = "1000000"
     env["DEV_TEAM_CONTEXT_ABS_CEILING"] = "40000"
@@ -702,9 +733,9 @@ def test_dev_team_context_abs_ceiling_override_can_raise_the_cap(
     assert result.stderr == b""
 
 
-def test_malformed_abs_ceiling_falls_back_to_150000(tmp_path: Path) -> None:
+def test_malformed_abs_ceiling_falls_back_to_350000(tmp_path: Path) -> None:
     tr = tmp_path / "t.jsonl"
-    _write_transcript(tr, 150_000)  # over the 150K default cap on a 1M window
+    _write_transcript(tr, 350_000)  # over the 350K default cap on a 1M window
     env = _base_env(tmp_path)
     env["DEV_TEAM_CONTEXT_WINDOW"] = "1000000"
     env["DEV_TEAM_CONTEXT_ABS_CEILING"] = "not-a-number"
@@ -782,31 +813,34 @@ def test_format_message_full_summary_band_leads_with_directive_no_footer():
 
 
 def test_dedupe_rekeyed_on_band_identity_worked_1m_case(tmp_path: Path) -> None:
-    """Worked case from #781: on a 1M window with the 150K absolute cap
-    binding, band escalations always break through the coarser
-    5%-of-window pct_bucket — fires at 150000 (band 0), re-fires at 190000
-    (band 1, even though pct_bucket is unchanged), and again at 226000
-    (band 2)."""
+    """Worked case from #781, re-derived at ADR 0038's 350K cap: on a 1M
+    window with the absolute cap binding, band escalations always break
+    through the coarser 5%-of-window pct_bucket — fires at 350000 (band 0,
+    pct_bucket 7), re-fires at 440000 (band 1 starts at 437500; pct_bucket
+    moves to 8, but the band term dominates), and again at 530000 (band 2
+    starts at 525000). The property under test is that the band term wins,
+    not the specific token values, which move with the cap."""
     tr = tmp_path / "t.jsonl"
     env = _base_env(tmp_path)
     env["DEV_TEAM_CONTEXT_WINDOW"] = "1000000"
 
-    _write_transcript(tr, 150_000)  # band 0 (nudge)
+    _write_transcript(tr, 350_000)  # band 0 (nudge)
     result = _run(_mkinput("Agent", {"subagent_type": "x"}, tr), env)
     assert result.returncode == 0
     assert b"[nudge]" in result.stderr
 
-    # Same band, pct_bucket unchanged (15% -> still bucket 3) -> suppressed.
+    # Same band, pct_bucket unchanged (35% -> still bucket 7) -> suppressed.
+    _write_transcript(tr, 360_000)
     result = _run(_mkinput("Agent", {"subagent_type": "x"}, tr), env)
     assert result.returncode == 0
     assert result.stderr == b""
 
-    _write_transcript(tr, 190_000)  # band 1 (run-now) — pct_bucket still 3
+    _write_transcript(tr, 440_000)  # band 1 (run-now)
     result = _run(_mkinput("Agent", {"subagent_type": "x"}, tr), env)
     assert result.returncode == 0
     assert b"[run-now]" in result.stderr
 
-    _write_transcript(tr, 226_000)  # band 2 (full-summary)
+    _write_transcript(tr, 530_000)  # band 2 (full-summary)
     result = _run(_mkinput("Agent", {"subagent_type": "x"}, tr), env)
     assert result.returncode == 0
     assert b"[full-summary]" in result.stderr
@@ -1329,3 +1363,218 @@ class TestBlockingIsTheDefault:
         env["DEV_TEAM_CONTEXT_WINDOW"] = "200000"
         result = _run(_mkinput("Bash", {"command": "ls"}, tr), env)
         assert result.returncode == 0
+
+
+# ---------------------------------------------------------------------------
+# Sidechain (subagent) rows must not be measured as main-thread occupancy
+# ---------------------------------------------------------------------------
+
+
+def _usage_row(total: int, *, model: str = "claude-haiku-4-5",
+               sidechain: bool = False) -> str:
+    return json.dumps(
+        {
+            "isSidechain": sidechain,
+            "message": {
+                "model": model,
+                "usage": {
+                    "input_tokens": 2,
+                    "cache_read_input_tokens": total - 2,
+                    "cache_creation_input_tokens": 0,
+                },
+            },
+        }
+    )
+
+
+def _write_rows(path: Path, *rows: str) -> None:
+    path.write_text("\n".join(rows) + "\n")
+
+
+class TestSidechainRowsAreNotMainThreadOccupancy:
+    """A subagent turn's usage describes the subagent's context, not the main
+    thread's. The hook took the last usage-bearing row unconditionally, so
+    under the harness layout that records sidechain turns inline the measured
+    number could belong to a different context entirely — in either
+    direction. `scripts/session_extract.py` and
+    `scripts/measure_full_file_duplication.py` both already filter on
+    `isSidechain`; this hook was the transcript consumer that did not.
+    """
+
+    def test_a_trailing_sidechain_row_does_not_hide_a_full_main_thread(
+        self, tmp_path: Path
+    ) -> None:
+        """The deliberate-failure case. Main thread at 190K on a 200K window
+        is far past the ceiling; a 5K subagent turn recorded after it made the
+        guard measure 5K and allow the load. That is silent non-enforcement —
+        precisely the failure ADR 0037 exists to remove, arriving through the
+        measurement rather than the posture.
+        """
+        tr = tmp_path / "t.jsonl"
+        _write_rows(tr, _usage_row(190_000), _usage_row(5_000, sidechain=True))
+        env = _posture_env(tmp_path)
+        env["DEV_TEAM_CONTEXT_WINDOW"] = "200000"
+        result = _run(_mkinput("Skill", {"skill": "plan"}, tr), env)
+        assert result.returncode == 2, (
+            "a subagent turn recorded after the main turn must not mask "
+            "main-thread occupancy"
+        )
+        assert b"190000 of 200000" in result.stderr
+
+    def test_a_trailing_sidechain_row_does_not_invent_occupancy(
+        self, tmp_path: Path
+    ) -> None:
+        """The other direction: a 300K subagent turn after a 20K main turn
+        blocked a main thread at 10% of its window."""
+        tr = tmp_path / "t.jsonl"
+        _write_rows(tr, _usage_row(20_000), _usage_row(300_000, sidechain=True))
+        env = _posture_env(tmp_path)
+        env["DEV_TEAM_CONTEXT_WINDOW"] = "200000"
+        result = _run(_mkinput("Skill", {"skill": "plan"}, tr), env)
+        assert result.returncode == 0
+        assert result.stderr == b""
+
+    def test_measure_occupancy_skips_sidechain_rows(self, tmp_path: Path) -> None:
+        tr = tmp_path / "t.jsonl"
+        _write_rows(tr, _usage_row(1_000), _usage_row(9_000, sidechain=True))
+        assert hook._measure_occupancy(tr) == 1_000
+
+    def test_measure_occupancy_is_none_when_every_row_is_sidechain(
+        self, tmp_path: Path
+    ) -> None:
+        """All-sidechain means nothing is known about the main thread, which
+        is a measurement failure — and measurement failures fail open."""
+        tr = tmp_path / "t.jsonl"
+        _write_rows(tr, _usage_row(9_000, sidechain=True))
+        assert hook._measure_occupancy(tr) is None
+
+    def test_detect_window_skips_sidechain_rows(self, tmp_path: Path) -> None:
+        """Window detection reads the same rows, so it needs the same filter:
+        a subagent running on a different model must not resize the main
+        thread's ceiling."""
+        tr = tmp_path / "t.jsonl"
+        _write_rows(
+            tr,
+            _usage_row(1_000, model="claude-opus-5"),
+            _usage_row(9_000, model="claude-haiku-4-5", sidechain=True),
+        )
+        assert hook._detect_window(tr) == (1_000_000, True)
+
+    @pytest.mark.parametrize("flag", [False, None, 0, ""])
+    def test_falsy_sidechain_flags_are_main_thread(self, flag) -> None:
+        assert hook._is_sidechain({"isSidechain": flag}) is False
+
+    def test_a_row_with_no_sidechain_key_is_main_thread(self) -> None:
+        """The overwhelmingly common shape — the key is absent on main-loop
+        records. Treating absence as sidechain would filter the whole
+        transcript and silently disable the guard."""
+        assert hook._is_sidechain({"message": {}}) is False
+
+
+# ---------------------------------------------------------------------------
+# A ceiling computed against the unverified fallback window must not block
+# ---------------------------------------------------------------------------
+
+
+class TestUnverifiedWindowWarnsButDoesNotBlock:
+    """ADR 0037 justified the blocking default partly on the claim that "a
+    wrong window can no longer brick a session, because a window it cannot
+    resolve does not produce a verdict at all." That was not what the code
+    did: an unrecognized model id resolved to the 200K fallback and went on
+    to a full blocking verdict against it. On a model whose real window is
+    1M that blocks every capability load from 80K — 8% of the real window —
+    and every model released after `_LARGE_WINDOW_RE` was last edited lands
+    there. These tests make the ADR's claim true.
+    """
+
+    def test_an_unrecognized_model_over_the_fallback_ceiling_warns(
+        self, tmp_path: Path
+    ) -> None:
+        """The deliberate-failure case: this returned 2 before the fix."""
+        tr = tmp_path / "t.jsonl"
+        _write_transcript(tr, 100_000, model="claude-opus-6")
+        result = _run(
+            _mkinput("Skill", {"skill": "plan"}, tr), _posture_env(tmp_path)
+        )
+        assert result.returncode == 0, (
+            "a threshold computed against a window the guard could not "
+            "verify must not block"
+        )
+        assert b"window default" in result.stderr
+        assert b"not blocked: window unverified" in result.stderr
+        assert b"blocked: context ceiling" not in result.stderr
+
+    def test_the_warning_names_the_knob_that_restores_blocking(
+        self, tmp_path: Path
+    ) -> None:
+        tr = tmp_path / "t.jsonl"
+        _write_transcript(tr, 100_000, model="claude-opus-6")
+        result = _run(
+            _mkinput("Agent", {"subagent_type": "x"}, tr), _posture_env(tmp_path)
+        )
+        assert b"DEV_TEAM_CONTEXT_WINDOW" in result.stderr
+
+    def test_a_detected_window_still_blocks(self, tmp_path: Path) -> None:
+        """The downgrade is scoped to `default` provenance only. A recognized
+        model is a window the guard knows, so #2000's default is unchanged
+        there — this is the assertion that keeps the fix from quietly
+        becoming a return to warn-by-default."""
+        tr = tmp_path / "t.jsonl"
+        # Over the 350K effective ceiling on the detected 1M window.
+        _write_transcript(tr, 400_000, model="claude-opus-5")
+        result = _run(
+            _mkinput("Skill", {"skill": "plan"}, tr), _posture_env(tmp_path)
+        )
+        assert result.returncode == 2
+        assert b"window detected" in result.stderr
+
+    def test_an_explicit_override_still_blocks_even_on_an_unknown_model(
+        self, tmp_path: Path
+    ) -> None:
+        """`DEV_TEAM_CONTEXT_WINDOW` is the operator stating the window, so
+        the guard is no longer guessing and blocking resumes."""
+        tr = tmp_path / "t.jsonl"
+        _write_transcript(tr, 100_000, model="claude-opus-6")
+        env = _posture_env(tmp_path)
+        env["DEV_TEAM_CONTEXT_WINDOW"] = "200000"
+        result = _run(_mkinput("Skill", {"skill": "plan"}, tr), env)
+        assert result.returncode == 2
+        assert b"window override" in result.stderr
+
+    def test_below_the_fallback_ceiling_is_still_silent(
+        self, tmp_path: Path
+    ) -> None:
+        tr = tmp_path / "t.jsonl"
+        _write_transcript(tr, 50_000, model="claude-opus-6")
+        result = _run(
+            _mkinput("Skill", {"skill": "plan"}, tr), _posture_env(tmp_path)
+        )
+        assert result.returncode == 0
+        assert result.stderr == b""
+
+    def test_explicit_warn_mode_does_not_gain_the_unverified_footer(
+        self, tmp_path: Path
+    ) -> None:
+        """Under `STRICT=off` nothing was going to block anyway, so the
+        footer would be explaining a restriction that does not exist."""
+        tr = tmp_path / "t.jsonl"
+        _write_transcript(tr, 100_000, model="claude-opus-6")
+        env = _posture_env(tmp_path)
+        env["DEV_TEAM_CONTEXT_STRICT"] = "off"
+        result = _run(_mkinput("Skill", {"skill": "plan"}, tr), env)
+        assert result.returncode == 0
+        assert b"not blocked: window unverified" not in result.stderr
+
+    def test_unverified_warnings_are_deduped_like_any_other_warning(
+        self, tmp_path: Path
+    ) -> None:
+        """Downgrading to a warning routes through the existing per-session
+        dedupe; without that, an unrecognized model would print the footer on
+        every single capability load."""
+        tr = tmp_path / "t.jsonl"
+        _write_transcript(tr, 100_000, model="claude-opus-6")
+        env = _posture_env(tmp_path)
+        first = _run(_mkinput("Skill", {"skill": "plan"}, tr), env)
+        second = _run(_mkinput("Skill", {"skill": "plan"}, tr), env)
+        assert first.stderr != b""
+        assert second.stderr == b""

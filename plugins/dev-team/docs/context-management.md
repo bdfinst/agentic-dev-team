@@ -29,12 +29,22 @@ accuracy cliff:
   sharp accuracy drops on non-lexical retrieval well before the window limit.
 - Anthropic's [effective context engineering
   guidance](https://www.anthropic.com/engineering/effective-context-engineering-for-ai-agents)
-  recommends proactive compaction well ahead of the limit — the Claude API's
-  own compaction default is 150K absolute tokens even on 1M-window models.
+  recommends proactive compaction well ahead of the limit.
 
-Given that evidence, budgeting to 40% of the window (capped at 150K
+Given that evidence, budgeting to 40% of the window (capped at 350K
 absolute) leaves headroom before quality degrades, rather than chasing a
 precise threshold that doesn't exist.
+
+The absolute cap sat at 150K until [ADR
+0038](../../../docs/adr/0038-raise-the-absolute-context-ceiling-to-350k.md).
+That number was the Claude *API's* managed-compaction default — a different
+system's constant, borrowed for its authority rather than derived from this
+plugin's own measurements — and on this repo's recorded corpus it landed
+*below* the average per-turn occupancy of an ordinary multi-agent session,
+so under the #2000 blocking default it would have stopped the median session
+rather than the expensive tail. 350K keeps the entire measured cost case
+(every session past 500K, and the 18 past 900K that were 29% of main-thread
+spend) while sitting above normal working occupancy.
 
 ## Reading the warning line
 
@@ -50,7 +60,7 @@ The warning follows one pinned template, field by field:
 | `{window}` | The resolved context window in tokens. |
 | `{eff}` | The effective ceiling: `min(ceiling_pct% of window, abs_ceiling)`. |
 | `{bound}` | Which threshold is binding — `percentage` or `absolute`. The two framings never co-occur; exactly one is reported. |
-| `{provenance}` | Where `{window}` came from — `override` (`DEV_TEAM_CONTEXT_WINDOW` set), `detected` (matched a pinned model family/version), or `default` (unrecognized model, or no model info — falls back to 200K). |
+| `{provenance}` | Where `{window}` came from — `override` (`DEV_TEAM_CONTEXT_WINDOW` set), `detected` (matched a pinned model family/version), or `default` (unrecognized model, or no model info — falls back to 200K). **`default` warns but never blocks** — see Expectations. |
 | `{label}` | What triggered the check — `loading agent '<name>'` or `invoking skill '<name>'`. |
 
 A second line follows, naming the Handoff action band for
@@ -70,12 +80,18 @@ on the percentage bound or the absolute bound:
 | full-summary (top band) | 1.5x+ | Write a full summary to `.claude/memory/` and start a new conversation. Leads with the directive; no knob footer. |
 
 Concrete fire-points at default settings (`DEV_TEAM_CONTEXT_CEILING_PCT=40`,
-`DEV_TEAM_CONTEXT_ABS_CEILING=150000`):
+`DEV_TEAM_CONTEXT_ABS_CEILING=350000`):
 
 | Window | Effective ceiling (`{eff}`) | Bound | nudge fires at | run-now fires at | full-summary fires at |
 | --- | --- | --- | --- | --- | --- |
 | 200K (e.g. Haiku) | 80,000 tokens | percentage (40% of 200K) | 80,000 | 100,000 | 120,000 |
-| 1M (e.g. current Opus/Sonnet/Fable) | 150,000 tokens | absolute (150K cap < 400K) | 150,000 | 187,500 | 225,000 |
+| 1M (e.g. current Opus/Sonnet/Fable) | 350,000 tokens | absolute (350K cap < 400K) | 350,000 | 437,500 | 525,000 |
+
+Note that the two regimes are the whole picture: the percentage bound governs
+200K windows and the absolute cap governs 1M ones, so on any model this
+plugin currently runs against, the effective ceiling is a flat 350,000 tokens
+— 35% of the window, not 40%. `DEV_TEAM_CONTEXT_CEILING_PCT` only becomes
+load-bearing on a 200K window or if the cap is raised past 400K.
 
 ## Expectations
 
@@ -93,6 +109,22 @@ Concrete fire-points at default settings (`DEV_TEAM_CONTEXT_CEILING_PCT=40`,
   alone accounting for 29% of main-thread spend at roughly 3x the per-turn
   cost of a sub-100K session. Recovery was invoked 3 times. An advisory
   ceiling reads as a guarantee and delivers none.
+- **An unverified window warns, it does not block.** When the window's
+  provenance is `default` — the model id is one the guard does not
+  recognize — the threshold above it is a guess, so the verdict is
+  downgraded to a warning carrying a `[not blocked: window unverified]`
+  footer. Blocking there would stop every capability load from 80,000
+  tokens onward on a 200K-fallback threshold even where the real window may
+  be 1M, and every model
+  released after the detection pattern was last edited lands in this case.
+  Set `DEV_TEAM_CONTEXT_WINDOW` to the model's real window to restore
+  blocking; `override` and `detected` provenance block as normal.
+- **Subagent turns are not main-thread occupancy.** Transcript rows marked
+  `isSidechain` are excluded from both the occupancy scan and window
+  detection. Their usage describes the subagent's own context, so counting
+  them measures the wrong window in both directions — a small subagent turn
+  recorded after a large main turn would hide a full context, and a large
+  one would block a main thread nowhere near the ceiling.
 - **Fail-open guarantees.** The hook never blocks a session because of its
   own failure: missing or unreadable transcript, malformed or empty stdin,
   unmeasurable usage, a malformed env var, or any internal parse error all
@@ -114,7 +146,7 @@ Concrete fire-points at default settings (`DEV_TEAM_CONTEXT_CEILING_PCT=40`,
 | `DEV_TEAM_CONTEXT_STRICT` | (unset = block) | `off` warns (`exit 0`) at or above the ceiling instead of blocking. Any other value blocks. |
 | `DEV_TEAM_CONTEXT_CEILING_PCT` | `40` | Percentage-of-window threshold before the absolute cap is applied. |
 | `DEV_TEAM_CONTEXT_WINDOW` | (unset = auto-detect) | Overrides window auto-detection explicitly; always wins over detection. |
-| `DEV_TEAM_CONTEXT_ABS_CEILING` | `150000` | Absolute token cap on the effective threshold — `min(ceiling_pct% of window, this)`. |
+| `DEV_TEAM_CONTEXT_ABS_CEILING` | `350000` | Absolute token cap on the effective threshold — `min(ceiling_pct% of window, this)`. Binding on every 1M-window model; a no-op on a 200K one. |
 
 ## Troubleshooting
 

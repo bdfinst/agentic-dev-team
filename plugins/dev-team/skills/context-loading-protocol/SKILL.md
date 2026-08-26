@@ -27,21 +27,31 @@ window, which the hook auto-detects from the session's most recent
 1M-window models -> 1M (Fable, Mythos, Opus 4.6/4.7/4.8, Sonnet 5, Sonnet 4.6);
 unrecognized model, or a same-family model outside those pinned versions ->
 200K conservative fallback (window is a fixed per-model property, so an
-unrecognized model is never assumed large — over-nudging is a minor false
-alarm, under-nudging risks running well past the real ceiling). Set
-`DEV_TEAM_CONTEXT_WINDOW` to override detection explicitly.
+unrecognized model is never assumed large). A ceiling computed against that
+fallback **warns but never blocks** — the guard blocks on windows it knows,
+and an unrecognized model id means it does not know this one. Set
+`DEV_TEAM_CONTEXT_WINDOW` to override detection explicitly, which also
+restores blocking.
 
-The effective ceiling is `min(ceiling_pct% of window, 150K tokens)` — an
-absolute-token cap (`DEV_TEAM_CONTEXT_ABS_CEILING`, default 150000, matching
-Anthropic's server-side compaction default) that keeps large windows from
-pushing the trigger point far past where compaction already kicks in; it's a
-no-op on the 200K base window (40% = 80K, already under the cap). The warning
+Occupancy is measured from main-thread turns only: transcript rows marked
+`isSidechain` are subagent turns whose usage describes the subagent's
+context, not this one's, and are skipped by both the occupancy scan and
+window detection.
+
+The effective ceiling is `min(ceiling_pct% of window, 350K tokens)` — an
+absolute-token cap (`DEV_TEAM_CONTEXT_ABS_CEILING`, default 350000, ADR 0038)
+that keeps large windows from pushing the trigger point past where context
+quality and per-turn cost degrade; it's a no-op on the 200K base window
+(40% = 80K, already under the cap) and binding on every 1M one, so in
+practice the shipped ceiling is a flat 350K, or 35% of a 1M window. The
+warning
 names which bound is binding — percentage or absolute, never both — and the
 window's provenance (override, detected, or default).
 
 As occupancy climbs past the ceiling, the hook escalates through three
 Handoff action bands keyed to multiples of the effective
-ceiling — 1x nudge, 1.25x run `/handoff` now, 1.5x full
+ceiling (350K / 437.5K / 525K on a 1M window) — 1x nudge, 1.25x run
+`/handoff` now, 1.5x full
 summary + fresh conversation (see [Handoff → When to
 Summarize](../handoff/SKILL.md#when-to-summarize)) — before
 **blocking the load** at/above the ceiling (the default since
@@ -52,7 +62,7 @@ Recovery skills
 back under budget would deadlock the session.
 
 Knobs: `DEV_TEAM_CONTEXT_CEILING_PCT` (default 40), `DEV_TEAM_CONTEXT_ABS_CEILING`
-(default 150000), `DEV_TEAM_CONTEXT_WINDOW` (overrides auto-detection),
+(default 350000), `DEV_TEAM_CONTEXT_WINDOW` (overrides auto-detection),
 `DEV_TEAM_CONTEXT_CEILING=off` (disables entirely).
 The hook is a backstop measured from real usage; the budget estimate below is still
 the planning tool you apply *before* loading.
@@ -66,10 +76,15 @@ any single percentage. Needle-in-a-haystack benchmarks like RULER and NoLiMa sho
 model's *effective* context is often only about half its advertised window, with
 sharp accuracy drops on non-lexical retrieval well before the window limit. Anthropic's
 [effective context engineering guidance](https://www.anthropic.com/engineering/effective-context-engineering-for-ai-agents)
-recommends proactive compaction well ahead of the limit — the Claude API's own
-compaction default is 150K absolute tokens even on 1M-window models. Given that
-evidence, budgeting to 40% of the window (capped at 150K absolute) leaves headroom
-before quality degrades, rather than chasing a precise threshold that doesn't exist.
+recommends proactive compaction well ahead of the limit. Given that evidence,
+budgeting to 40% of the window (capped at 350K absolute) leaves headroom before
+quality degrades, rather than chasing a precise threshold that doesn't exist.
+
+The cap was 150K until [ADR 0038](../../../../docs/adr/0038-raise-the-absolute-context-ceiling-to-350k.md),
+which is also where the "40%" in this section's title stops being the number
+that binds: on every 1M-window model the cap governs, making the shipped
+ceiling a flat 350K (35%). The percentage is still the rule for 200K windows
+and still the right planning target for Step 4's estimate.
 
 Full guide — warning-line field reference, concrete band fire-points per
 window size, knob table, troubleshooting: [Context
@@ -117,7 +132,7 @@ Total = CLAUDE.md baseline
       + expected output (estimate)
 ```
 
-**Target: total < 40% of the model's context window, capped at 150K absolute tokens.** For Claude with a 200K window, that's < 80K tokens; on a 1M-window model the cap (150K) binds before the percentage would. See [Why 40%](#why-40) for the rationale. The config files are a small fraction; the real budget concern is conversation history + output accumulation over multi-turn tasks.
+**Target: total < 40% of the model's context window, capped at 350K absolute tokens.** For Claude with a 200K window, that's < 80K tokens; on a 1M-window model the cap (350K) binds before the percentage would. See [Why 40%](#why-40) for the rationale. The config files are a small fraction; the real budget concern is conversation history + output accumulation over multi-turn tasks.
 
 ### Step 5: Load via tool-based file reads
 

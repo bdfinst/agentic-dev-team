@@ -3079,7 +3079,7 @@
       "anchor": "step-3-select-skills"
     },
     "Step 4: Calculate token budget": {
-      "summary": "**Target: total < 40% of the model's context window, capped at 150K absolute tokens.** For Claude with a 200K window, that's < 80K tokens; on a 1M-window model the cap (150K) binds before the percentage would.",
+      "summary": "**Target: total < 40% of the model's context window, capped at 350K absolute tokens.** For Claude with a 200K window, that's < 80K tokens; on a 1M-window model the cap (350K) binds before the percentage would.",
       "anchor": "step-4-calculate-token-budget"
     },
     "Step 5: Load via tool-based file reads": {
