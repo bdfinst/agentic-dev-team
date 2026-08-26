@@ -67,7 +67,7 @@ Compress conversation history to keep context utilization below 40% while contin
 ### When to Summarize
 
 The `hooks/context_ceiling_guard.py` hook's graduated bands are keyed to
-multiples of the *effective ceiling* — `min(ceiling_pct% of window, 150K
+multiples of the *effective ceiling* — `min(ceiling_pct% of window, 350K
 tokens)` — not raw window percentage, so the same table applies whether the
 threshold is percentage-bound (small windows) or absolute-bound (large
 windows):
@@ -79,7 +79,7 @@ windows):
 | 1.25x – 1.5x | Run `/handoff` now |
 | 1.5x+ | Full summary to `.claude/memory/`, start a new conversation |
 
-**Measuring utilization**: `utilization = (input + cache_read + cache_creation) / model_context_window` — the same formula `hooks/context_ceiling_guard.py` reads from the transcript's most recent assistant-message usage. The window is auto-detected from the session; the guard's effective ceiling is `min(ceiling_pct% of window, 150K tokens)`, so the trigger point stays conservative even on very large windows. Fallback signals: turn count > 40, many file reads accumulated, degraded output quality.
+**Measuring utilization**: `utilization = (input + cache_read + cache_creation) / model_context_window` — the same formula `hooks/context_ceiling_guard.py` reads from the transcript's most recent assistant-message usage. The window is auto-detected from the session; the guard's effective ceiling is `min(ceiling_pct% of window, 350K tokens)` (ADR 0038), so the trigger point stays conservative even on very large windows. Fallback signals: turn count > 40, many file reads accumulated, degraded output quality.
 
 **Why 40%, not a higher number**: see [Context Loading Protocol → Why 40%](../context-loading-protocol/SKILL.md#why-40).
 

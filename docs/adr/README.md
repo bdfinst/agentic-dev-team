@@ -37,3 +37,4 @@
 * [35. Defer two-lane generation/validation concurrency in `mutation-kill --all` (#1909)](0035-defer-two-lane-generation-validation-concurrency-in-mutation-kill-all-1909.md)
 * [36. The two session extractors stay forked, for now (#1994)](0036-the-two-session-extractors-stay-forked-1994.md)
 * [37. Block by default at the context ceiling (#2000)](0037-block-by-default-at-the-context-ceiling-2000.md)
+* [38. Raise the absolute context ceiling from 150K to 350K](0038-raise-the-absolute-context-ceiling-to-350k.md)
