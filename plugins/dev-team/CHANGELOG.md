@@ -1,5 +1,28 @@
 # Changelog
 
+## [12.8.0](https://github.com/bdfinst/agentic-dev-team/compare/dev-team-v12.7.0...dev-team-v12.8.0) (2026-08-26)
+
+
+### Features
+
+* **metrics:** report real per-agent context volume, not a message count ([#2029](https://github.com/bdfinst/agentic-dev-team/issues/2029)) ([2c79dc4](https://github.com/bdfinst/agentic-dev-team/commit/2c79dc4f72393b19aecc07a79825dd161d935c5d))
+
+
+### Bug Fixes
+
+* **mutation-kill:** four shard-pipeline and retry defects, plus yield steering ([#2053](https://github.com/bdfinst/agentic-dev-team/issues/2053)) ([b3958f2](https://github.com/bdfinst/agentic-dev-team/commit/b3958f2264639a0bdde0213c17c436ea7c6e98d5))
+
+
+### Performance Improvements
+
+* **agents:** move orchestrator per-phase detail behind the knowledge index ([#2034](https://github.com/bdfinst/agentic-dev-team/issues/2034)) ([2456827](https://github.com/bdfinst/agentic-dev-team/commit/24568273f31065820e7023a2142b97ca8e423744)), closes [#2011](https://github.com/bdfinst/agentic-dev-team/issues/2011)
+* **mutation-kill:** sequential concurrency default and target-aware stop policy ([#2052](https://github.com/bdfinst/agentic-dev-team/issues/2052)) ([4c266ce](https://github.com/bdfinst/agentic-dev-team/commit/4c266ce18ff48097016d0de081e709c691d0de7b))
+
+
+### Documentation
+
+* **workflow:** ratchet twice-reported mechanical findings into repo_invariants ([#2026](https://github.com/bdfinst/agentic-dev-team/issues/2026)) ([56e38af](https://github.com/bdfinst/agentic-dev-team/commit/56e38af1a61762868990691ef33b541d01e15f95))
+
 ## [12.7.0](https://github.com/bdfinst/agentic-dev-team/compare/dev-team-v12.6.0...dev-team-v12.7.0) (2026-08-25)
 
 
