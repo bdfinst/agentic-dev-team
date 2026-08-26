@@ -1037,12 +1037,27 @@ def test_derive_recon_slug_matches_codebase_recon_algorithm(tmp_path):
     """orchestrator.py's slug derivation must stay byte-identical to
     codebase_recon.py's own _derive_slug (the recon agent's Contract section
     names the slug convention once; a drifted copy here would silently
-    compute the wrong artifact path)."""
+    compute the wrong artifact path). No mkdir needed: both functions only
+    call Path.resolve(strict=False) and do pure string transforms on
+    `.name` — the directory need not exist on disk for this comparison."""
     from codebase_recon import _derive_slug
 
     messy = tmp_path / "My Repo__Name!!"
-    messy.mkdir()
     assert orch._derive_recon_slug(messy) == _derive_slug(messy)
+
+
+def _seed_recon_artifact(tmp_path):
+    """Create a fake .claude/memory/recon-<slug>.json under tmp_path and
+    return its Path. Shared by the recon-artifact tests below that need an
+    existing-on-disk artifact, avoiding re-typing the same four-line setup
+    (test-smell finding, matching this file's existing
+    _capturing_dispatch_personas_stub extraction rationale)."""
+    recon_dir = tmp_path / ".claude" / "memory"
+    recon_dir.mkdir(parents=True)
+    slug = orch._derive_recon_slug(tmp_path)
+    artifact = recon_dir / f"recon-{slug}.json"
+    artifact.write_text("{}")
+    return artifact
 
 
 @pytest.mark.asyncio
@@ -1050,11 +1065,7 @@ async def test_default_phase_research_links_recon_artifact_when_present(tmp_path
     """When codebase-recon succeeds and its artifact file exists on disk,
     the Research state links to it (follow-up #1716)."""
     monkeypatch.chdir(tmp_path)
-    recon_dir = tmp_path / ".claude" / "memory"
-    recon_dir.mkdir(parents=True)
-    slug = orch._derive_recon_slug(tmp_path)
-    artifact = recon_dir / f"recon-{slug}.json"
-    artifact.write_text("{}")
+    artifact = _seed_recon_artifact(tmp_path)
 
     with patch.object(
         orch, "dispatch_personas", side_effect=_capturing_dispatch_personas_stub({})
@@ -1088,10 +1099,7 @@ async def test_default_phase_research_recon_artifact_none_when_recon_failed(tmp_
     """A failed codebase-recon dispatch never links its artifact, even if a
     stale file from a prior run happens to exist at that path."""
     monkeypatch.chdir(tmp_path)
-    recon_dir = tmp_path / ".claude" / "memory"
-    recon_dir.mkdir(parents=True)
-    slug = orch._derive_recon_slug(tmp_path)
-    (recon_dir / f"recon-{slug}.json").write_text("{}")
+    _seed_recon_artifact(tmp_path)
 
     async def fake_dispatch_personas(personas, plan, skip_llm=False):
         return [
@@ -1126,11 +1134,20 @@ async def test_default_phase_research_calls_dispatch_personas_with_task_and_requ
 
 
 @pytest.mark.asyncio
-async def test_run_pipeline_with_real_research_fn_writes_expected_json_shape():
+async def test_run_pipeline_with_real_research_fn_writes_expected_json_shape(tmp_path, monkeypatch):
     """orchestrator-research.json's contents after a full run_pipeline run
     with the real (non-stub) research function and skip_llm=True match the
     {personas, results, skip_llm, recon_artifact} shape, using set-equality
-    on personas."""
+    on personas.
+
+    Chdir's to an isolated tmp_path (rather than leaving CWD as whatever the
+    test runner's real invocation directory happens to be): recon_artifact
+    is resolved off Path.cwd(), so without this isolation the assertion
+    below would depend on whether a real .claude/memory/recon-<slug>.json
+    happens to exist wherever the suite is run from — a prior real
+    orchestrator run against this repo would silently flip this red with no
+    related code change (test-smell finding)."""
+    monkeypatch.chdir(tmp_path)
     with tempfile.TemporaryDirectory() as tmp:
         memory_dir = Path(tmp)
         exit_code = await orch.run_pipeline(
