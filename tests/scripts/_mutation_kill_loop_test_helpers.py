@@ -165,3 +165,22 @@ def _loop_fixture(
         "max_rounds": 3,
     }
     return "PaymentService.cs", ctx, kwargs, events
+
+
+def _ctx_for_2030(tmp_path, *, log=print, **overrides) -> loop.RunContext:
+    """RunContext for the #2030 stop-control wiring tests.
+
+    Kept beside the other loop helpers rather than inline so the C# loop's
+    LoopConfig shape lives in exactly one place.
+    """
+    fields = {
+        "config": loop.LoopConfig(
+            project=None, test_projects=["Tests.csproj"], mutate=[], solution=None
+        ),
+        "test_file": tmp_path / "CalcTests.cs",
+        "source_path": tmp_path / "Calc.cs",
+        "output_dir": tmp_path / "out",
+        "log": log,
+    }
+    fields.update(overrides)
+    return loop.RunContext(**fields)

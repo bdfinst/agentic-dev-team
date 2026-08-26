@@ -197,6 +197,29 @@ def parse_args(argv: Sequence[str]) -> argparse.Namespace:
     )
     p.add_argument("--test-file", help="Test file to extend (required with --headless)")
     p.add_argument("--source-path", help="Source file under test (required with --headless)")
+    p.add_argument(
+        "--target-honest-score",
+        type=float,
+        default=None,
+        help=(
+            "Phase-0 mutation target (percent). Stop a file once its honest "
+            "score reaches this, since work past the threshold cannot change "
+            "the Phase-8 verdict. Default off — unset reproduces pre-#2030 "
+            "behavior exactly."
+        ),
+    )
+    p.add_argument(
+        "--min-kills-per-round",
+        type=float,
+        default=None,
+        help=(
+            "Marginal-yield floor. >=1 is an absolute kill count; 0<v<1 is a "
+            "fraction of the round's starting survivors. A round below the "
+            "floor while still under target is surfaced to the operator "
+            "([c]ontinue / [r]etry / [w]aive / [q]uit), never stopped "
+            "silently. Default off."
+        ),
+    )
     p.add_argument("--report", help="Initial mutation report to seed round 1 (--headless)")
     return p.parse_args(list(argv))
 
@@ -249,6 +272,8 @@ def main(argv: Sequence[str] | None = None) -> int:
                 initial_report_path=Path(args.report) if args.report else None,
                 generator_label=f"headless ({model or 'default'})",
                 label_override_provider=get_label_override,
+                target_honest_score=args.target_honest_score,
+                min_kills_per_round=args.min_kills_per_round,
             ),
             generate=generate,
             max_rounds=args.max_rounds,

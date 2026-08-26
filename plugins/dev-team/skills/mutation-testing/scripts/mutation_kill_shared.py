@@ -59,6 +59,7 @@ Stdlib-only. See ADR 0014.
 
 from __future__ import annotations
 
+import math
 import os
 import re
 import subprocess
@@ -259,20 +260,125 @@ def git_commit(
     return commit_result.returncode == 0
 
 
-def stop_reason(survivor_count: int, prev_survivor_count: int | None) -> str | None:
-    """Return the human-readable reason a round should stop, or ``None`` to
-    continue to generation.
+@dataclass(frozen=True)
+class StopDecision:
+    """Why a round stopped, and whether that stop is the loop's own call.
 
-    Shared, byte-for-byte-identical predicate between the two loops (#1583):
-    a file is done when zero survivors remain; a round that didn't improve on
-    the previous round's survivor count also stops the loop (the "no
-    improvement across rounds" guard that prevents chasing the same
-    survivors forever).
+    ``terminal`` is the distinction #2030 turns on. Three of the four stop
+    paths are **terminal**: the loop has established the file is done and
+    stopping needs no operator involvement. The fourth — the marginal-yield
+    floor — is **advisory**: the round did make progress, just less than the
+    floor, and the file may still be below its mutation target. Stopping
+    there is a judgement about whether another round is worth its price, and
+    per #2030 that judgement stays with the operator, routed through the
+    ``[c]ontinue / [r]etry / [w]aive / [q]uit`` prompt Phase 5 already
+    defines for residual survivors.
+
+    Collapsing the two into a bare string is exactly the conflation #1951 and
+    #1956 document elsewhere in this pipeline: a caller that cannot tell
+    "done" from "stopped early, your call" reports the wrong thing to the
+    operator, and an advisory stop silently becomes a terminal one.
+    """
+
+    reason: str
+    terminal: bool = True
+
+    def __str__(self) -> str:  # so `f"  {decision}"` logs the reason alone
+        return self.reason
+
+
+def resolve_kill_floor(
+    min_kills_per_round: float | None, starting_survivors: int
+) -> int | None:
+    """Resolve the marginal-yield floor to an absolute kill count.
+
+    A value **>= 1** is an absolute kill count, used verbatim. A value
+    **strictly between 0 and 1** is a fraction of the round's starting
+    survivor count, rounded up so a non-zero fraction of a non-zero survivor
+    set never resolves to a floor of 0 (which would disable the check while
+    looking configured). ``None``, 0, or a negative value disables the floor.
+
+    Rounding up is the safe direction here: it can only surface a round to
+    the operator earlier, never suppress one that should have surfaced.
+    """
+    if min_kills_per_round is None or min_kills_per_round <= 0:
+        return None
+    if min_kills_per_round >= 1:
+        return int(min_kills_per_round)
+    if starting_survivors <= 0:
+        return None
+    return math.ceil(min_kills_per_round * starting_survivors)
+
+
+def stop_reason(
+    survivor_count: int,
+    prev_survivor_count: int | None,
+    *,
+    honest_score: float | None = None,
+    target_honest_score: float | None = None,
+    min_kills_per_round: float | None = None,
+) -> StopDecision | None:
+    """Return the reason a round should stop, or ``None`` to continue to
+    generation.
+
+    Shared, byte-for-byte-identical predicate between the two loops (#1583).
+    The two original clauses are unchanged: a file is done when zero
+    survivors remain, and a round that didn't improve on the previous round's
+    survivor count also stops the loop (the "no improvement across rounds"
+    guard that prevents chasing the same survivors forever).
+
+    #2030 adds two opt-in clauses, both **default-off** — with
+    ``target_honest_score`` and ``min_kills_per_round`` both ``None`` this
+    function's verdicts are identical to the pre-#2030 behavior for every
+    input, which is what lets a bare ``mutation-kill`` invocation stay
+    unchanged while ``/test-improve`` Phase 5 threads the target through:
+
+    ``target_honest_score`` — stop once the file's honest score reaches the
+    number Phase 8 (``/quality-targets-converge``) actually gates on. Work
+    done past that threshold cannot change the gate's verdict, so this is
+    risk-neutral by construction: the honest score remains the only gate,
+    Phase 8 still measures it independently, and stopping *at* the threshold
+    cannot turn a pass into a fail. The score is already computed every round
+    by ``mutation_report.score_report_for_file`` — this reads a number that
+    is on hand rather than adding a measurement.
+
+    ``min_kills_per_round`` — a marginal-yield floor. A round that kills 1 of
+    40 survivors costs the same as the first, most productive round (scoped
+    mutation run + generation + build + scoped test + commit), so without a
+    floor the loop chases the long tail at full price. Unlike the other
+    three, this returns a **non-terminal** decision: it is surfaced to the
+    operator, never acted on unilaterally. It is also skipped entirely once
+    the target is met, since the target clause has already stopped the loop
+    for a better reason.
     """
     if survivor_count == 0:
-        return "no survivors — done"
+        return StopDecision("no survivors — done")
+    if (
+        target_honest_score is not None
+        and honest_score is not None
+        and honest_score >= target_honest_score
+    ):
+        return StopDecision(
+            f"honest score {honest_score:.1f}% has reached the "
+            f"{target_honest_score:.1f}% mutation target — done "
+            f"({survivor_count} survivor(s) left deliberately unaddressed; "
+            "further rounds cannot change the Phase-8 verdict)"
+        )
     if prev_survivor_count is not None and survivor_count >= prev_survivor_count:
-        return "no improvement this round — stopping"
+        return StopDecision("no improvement this round — stopping")
+    if prev_survivor_count is not None:
+        floor = resolve_kill_floor(min_kills_per_round, prev_survivor_count)
+        if floor is not None:
+            killed_this_round = prev_survivor_count - survivor_count
+            if killed_this_round < floor:
+                return StopDecision(
+                    f"marginal yield: killed {killed_this_round} of "
+                    f"{prev_survivor_count} survivor(s) this round, below the "
+                    f"floor of {floor} — another round costs the same as the "
+                    "first. Operator decides: [c]ontinue / [r]etry / [w]aive / "
+                    "[q]uit",
+                    terminal=False,
+                )
     return None
 
 

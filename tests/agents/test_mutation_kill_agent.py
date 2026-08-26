@@ -116,7 +116,11 @@ def test_agent_body_stays_under_500_line_limit(text: str) -> None:
     # only, and the cross-reference naming --stryker-concurrency as genuine
     # PROCESS concurrency (priced in CPU, keeps cores-2) versus this flag's
     # agent-level actor count (priced in tokens).
-    assert len(text.splitlines()) < 658
+    # Bumped by 1 more (#2030): documented --target-honest-score and
+    # --min-kills-per-round on the flag list, including that a YIELD FLOOR
+    # stop is an operator decision routed to [c/r/w/q] rather than a
+    # convergence stop.
+    assert len(text.splitlines()) < 659
 
 
 def test_defines_honest_score_formula(text: str) -> None:

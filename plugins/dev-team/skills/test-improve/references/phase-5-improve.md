@@ -89,12 +89,33 @@ assignment alone is not a substitute for worktree isolation here.
    this step batches.
 
    After the batch's **last** Story closes, invoke the **`mutation-kill`
-   agent** once with `--file <every story file in the batch> --max-rounds 3`.
+   agent** once with `--file <every story file in the batch> --max-rounds 3
+   --target-honest-score <the Phase-0 mutation target>`.
    Residual survivors trigger the **`[c]ontinue / [r]etry / [w]aive /
    [q]uit`** prompt — the shape is `[c/r/w/q]` — applied to the batch.
    `[c]` accepts the residual and moves on; `[r]` re-runs one more
    mutation-kill round; `[w]` waives the residual to `waivers.json`; `[q]`
    quits Phase 5.
+
+   **Pass the Phase-0 mutation target (#2030).** Phase 8
+   (`/quality-targets-converge`) gates on that number; without
+   `--target-honest-score` the loop runs toward survivor exhaustion instead
+   and buys full-price rounds whose work cannot change the gate's verdict.
+   Threading it is risk-neutral by construction — the honest score stays the
+   only gate, Phase 8 still measures it independently against
+   `baseline-mutation.json`, and stopping *at* the threshold cannot turn a
+   pass into a fail. Omit the flag when Phase 0 recorded no mutation target;
+   the loop then behaves exactly as it did before #2030.
+
+   **A `YIELD FLOOR` line is an operator decision, not a convergence stop.**
+   When the run is invoked with `--min-kills-per-round` and a round kills
+   fewer survivors than the floor while the file is *still below target*,
+   `mutation-kill` stops that file and logs a line prefixed
+   `YIELD FLOOR —`. That is **not** a terminal stop: route it to the same
+   `[c/r/w/q]` prompt above, carrying the line's kill count and floor into
+   the prompt so the operator can price one more round. Treating it as
+   convergence would stop a below-target file on the loop's own initiative,
+   which is precisely what #2030 declined to do.
 
    **The gate is unchanged in coverage, only in timing.** Every Story's files
    are still mutation-processed before Phase 5 can close, at the same rounds

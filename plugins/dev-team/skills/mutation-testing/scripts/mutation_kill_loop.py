@@ -514,6 +514,13 @@ class RunContext:
     initial_report_path: Path | None = None
     generator_label: str | None = None
     label_override_provider: Callable[[], str | None] | None = None
+    # #2030 stop controls, both default-off: with these None the loop's stop
+    # behavior is byte-identical to pre-#2030. target_honest_score is the
+    # Phase-0 mutation target Phase 8 gates on; min_kills_per_round is the
+    # marginal-yield floor (>=1 absolute kills, 0<v<1 a fraction of the
+    # round's starting survivors).
+    target_honest_score: float | None = None
+    min_kills_per_round: float | None = None
 
 
 def _score_round(
@@ -570,9 +577,21 @@ def _score_round(
         )
         return None
 
-    reason = stop_reason(survivor_count, prev_survivor_count)
-    if reason is not None:
-        ctx.log(f"  {reason}")
+    decision = stop_reason(
+        survivor_count,
+        prev_survivor_count,
+        honest_score=summary.honest_score,
+        target_honest_score=ctx.target_honest_score,
+        min_kills_per_round=ctx.min_kills_per_round,
+    )
+    if decision is not None:
+        # A non-terminal decision is the #2030 marginal-yield floor: the round
+        # DID make progress, the file may still be below target, and whether
+        # another round is worth its price is the operator's call. Prefixing it
+        # distinctly is what keeps it from reading as a convergence stop in the
+        # run log — the agent layer routes a YIELD FLOOR line to Phase 5's
+        # existing [c]ontinue / [r]etry / [w]aive / [q]uit prompt.
+        ctx.log(f"  {decision}" if decision.terminal else f"  YIELD FLOOR — {decision}")
         return None
     return survivors, survivor_count
 
