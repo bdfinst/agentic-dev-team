@@ -415,6 +415,94 @@ def survivors_by_line(report_path: Path, file_path: str) -> dict:
     return _survivors_by_line_from_data(load_report(report_path), file_path)
 
 
+def survivor_lines(report_path: Path, file_path: str) -> list[int]:
+    """Return the sorted, de-duplicated source lines carrying a Survived
+    mutant for one file — the set a #2031 confirm run needs to re-test.
+
+    Built on :func:`survivors_by_line` rather than re-deriving the clustering,
+    so the confirm scope and the generation targets can never disagree about
+    which lines had survivors. ``unclustered`` survivors (no resolvable line)
+    are deliberately excluded: they cannot be expressed as a line-scoped
+    mutate span, and a caller that cannot scope them must fall back to a full
+    scoped run rather than silently dropping them — see
+    :func:`confirm_scope_is_complete`.
+    """
+    clustered = survivors_by_line(report_path, file_path)
+    return sorted({c["line"] for c in clustered.get("clusters", [])})
+
+
+def confirm_scope_is_complete(report_path: Path, file_path: str) -> bool:
+    """Whether every Survived mutant for ``file_path`` has a resolvable line.
+
+    A confirm run narrowed to line spans can only re-test mutants whose line
+    is known. If any survivor is ``unclustered``, narrowing would silently
+    stop re-testing it, and its absence from the confirm result would read as
+    "killed" once spliced. Callers must run the ordinary full scoped round in
+    that case: correctness first, saving second.
+    """
+    clustered = survivors_by_line(report_path, file_path)
+    return not clustered.get("unclustered")
+
+
+def splice_confirm_over_prior(prior: dict, confirm: dict, file_path: str) -> dict:
+    """Overlay a survivor-scoped confirm result onto the prior round's report.
+
+    A confirm run mutates only the lines that had survivors last round, so its
+    report is a strict subset of the file's mutant set. Reporting it alone
+    would understate the file (every mutant outside the confirm scope would
+    vanish, inflating or deflating the score depending on their status). This
+    splices instead — the same pattern Phase 8 (``/quality-targets-converge``,
+    #1208) uses to report a whole-repo score from freshly-measured changed
+    files over a persisted baseline.
+
+    Mutants are matched by ``id`` where both sides carry one, falling back to
+    ``(line, mutatorName, replacement)`` — Stryker ids are stable within a run
+    but not guaranteed across runs. A confirm mutant replaces its prior
+    counterpart; a prior mutant the confirm run did not cover is carried
+    forward unchanged; a confirm mutant with no prior counterpart is added.
+
+    Never raises on malformed input, matching this module's standing posture:
+    an unusable side is treated as absent rather than fatal.
+    """
+
+    def _key(mutant: dict) -> tuple:
+        if not isinstance(mutant, dict):
+            return ("", "", "", "")
+        mid = mutant.get("id")
+        if isinstance(mid, (str, int)) and not isinstance(mid, bool):
+            return ("id", str(mid))
+        return (
+            "shape",
+            str(_resolve_survivor_line(mutant)),
+            str(mutant.get("mutatorName")),
+            str(mutant.get("replacement")),
+        )
+
+    prior_info = _find_file_info(prior if isinstance(prior, dict) else {}, file_path)
+    confirm_info = _find_file_info(
+        confirm if isinstance(confirm, dict) else {}, file_path
+    )
+    if not isinstance(prior_info, dict):
+        return confirm if isinstance(confirm, dict) else {}
+    prior_mutants = prior_info.get("mutants")
+    prior_mutants = prior_mutants if isinstance(prior_mutants, list) else []
+    confirm_mutants = (
+        confirm_info.get("mutants") if isinstance(confirm_info, dict) else None
+    )
+    confirm_mutants = confirm_mutants if isinstance(confirm_mutants, list) else []
+
+    merged = {_key(m): m for m in prior_mutants if isinstance(m, dict)}
+    for mutant in confirm_mutants:
+        if isinstance(mutant, dict):
+            merged[_key(mutant)] = mutant
+
+    spliced = json.loads(json.dumps(prior))
+    spliced_info = _find_file_info(spliced, file_path)
+    if isinstance(spliced_info, dict):
+        spliced_info["mutants"] = list(merged.values())
+    return spliced
+
+
 def _accepted_static_survivors_from_data(
     data: dict, file_path: str, *, skip_static_active: bool
 ) -> list[dict]:

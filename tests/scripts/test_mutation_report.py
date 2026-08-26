@@ -1074,3 +1074,167 @@ def test_module_source_carries_no_repo_specific_literal():
 
     present = [literal for literal in FORBIDDEN_LITERALS if literal in source]
     assert present == [], f"repo-specific literals leaked into module: {present}"
+
+
+# =============================================================================
+# #2031 — survivor-scoped confirm run: line extraction, scope completeness,
+# and the splice over the prior round's report.
+# =============================================================================
+def _cm(mid, line, status, mutator="Arithmetic", replacement="-"):
+    return {
+        "id": mid,
+        "status": status,
+        "mutatorName": mutator,
+        "replacement": replacement,
+        "location": {"start": {"line": line}},
+    }
+
+
+def _write(tmp_path, data):
+    path = tmp_path / "report.json"
+    path.write_text(json.dumps(data), encoding="utf-8")
+    return path
+
+
+def test_survivor_lines_are_sorted_and_deduplicated(tmp_path):
+    report = _write(
+        tmp_path,
+        {
+            "files": {
+                "Calc.cs": {
+                    "mutants": [
+                        _cm("1", 99, "Survived"),
+                        _cm("2", 10, "Survived"),
+                        _cm("3", 10, "Survived"),
+                        _cm("4", 50, "Killed"),
+                    ]
+                }
+            }
+        },
+    )
+    assert mutation_report.survivor_lines(report, "Calc.cs") == [10, 99]
+
+
+def test_survivor_lines_excludes_killed_lines(tmp_path):
+    """A Killed mutant's line must not enter the confirm scope — re-testing it
+    buys nothing, which is the whole point of narrowing."""
+    report = _write(
+        tmp_path, {"files": {"Calc.cs": {"mutants": [_cm("1", 7, "Killed")]}}}
+    )
+    assert mutation_report.survivor_lines(report, "Calc.cs") == []
+
+
+def test_confirm_scope_is_incomplete_when_a_survivor_has_no_resolvable_line(tmp_path):
+    """An unclustered survivor cannot be expressed as a line span. Narrowing
+    anyway would stop re-testing it, and its absence from the confirm result
+    would read as 'killed' once spliced — a silent false improvement."""
+    report = _write(
+        tmp_path,
+        {
+            "files": {
+                "Calc.cs": {
+                    "mutants": [
+                        _cm("1", 10, "Survived"),
+                        {"id": "2", "status": "Survived", "location": {}},
+                    ]
+                }
+            }
+        },
+    )
+    assert mutation_report.confirm_scope_is_complete(report, "Calc.cs") is False
+
+
+def test_confirm_scope_is_complete_when_every_survivor_has_a_line(tmp_path):
+    report = _write(
+        tmp_path, {"files": {"Calc.cs": {"mutants": [_cm("1", 10, "Survived")]}}}
+    )
+    assert mutation_report.confirm_scope_is_complete(report, "Calc.cs") is True
+
+
+def test_splice_carries_forward_mutants_outside_the_confirm_scope():
+    """The confirm report is a strict subset of the file's mutant set;
+    reporting it alone would drop every out-of-scope mutant."""
+    prior = {
+        "files": {
+            "Calc.cs": {
+                "mutants": [
+                    _cm("1", 10, "Survived"),
+                    _cm("2", 50, "Killed"),
+                    _cm("3", 99, "Survived"),
+                ]
+            }
+        }
+    }
+    confirm = {"files": {"Calc.cs": {"mutants": [_cm("1", 10, "Killed")]}}}
+
+    spliced = mutation_report.splice_confirm_over_prior(prior, confirm, "Calc.cs")
+    by_id = {m["id"]: m["status"] for m in spliced["files"]["Calc.cs"]["mutants"]}
+    assert by_id == {"1": "Killed", "2": "Killed", "3": "Survived"}
+
+
+def test_splice_does_not_mutate_the_prior_report():
+    prior = {"files": {"Calc.cs": {"mutants": [_cm("1", 10, "Survived")]}}}
+    confirm = {"files": {"Calc.cs": {"mutants": [_cm("1", 10, "Killed")]}}}
+
+    mutation_report.splice_confirm_over_prior(prior, confirm, "Calc.cs")
+    assert prior["files"]["Calc.cs"]["mutants"][0]["status"] == "Survived"
+
+
+def test_splice_matches_on_shape_when_ids_are_absent():
+    """Stryker ids are stable within a run but not guaranteed across runs, so
+    the fallback key must still overlay rather than duplicate."""
+    prior_mutant = _cm(None, 10, "Survived")
+    confirm_mutant = _cm(None, 10, "Killed")
+    del prior_mutant["id"]
+    del confirm_mutant["id"]
+    prior = {"files": {"Calc.cs": {"mutants": [prior_mutant]}}}
+    confirm = {"files": {"Calc.cs": {"mutants": [confirm_mutant]}}}
+
+    spliced = mutation_report.splice_confirm_over_prior(prior, confirm, "Calc.cs")
+    mutants = spliced["files"]["Calc.cs"]["mutants"]
+    assert len(mutants) == 1
+    assert mutants[0]["status"] == "Killed"
+
+
+def test_splice_survives_a_malformed_confirm_report():
+    """Never-raise posture: an unusable side is absent, not fatal."""
+    prior = {"files": {"Calc.cs": {"mutants": [_cm("1", 10, "Survived")]}}}
+    spliced = mutation_report.splice_confirm_over_prior(prior, {}, "Calc.cs")
+    assert spliced["files"]["Calc.cs"]["mutants"][0]["status"] == "Survived"
+
+
+def test_spliced_score_matches_a_full_run_that_saw_the_same_outcomes():
+    """The splice is only worth anything if the score it yields is the score a
+    full round would have produced — pinned here rather than assumed."""
+    full = {
+        "files": {
+            "Calc.cs": {
+                "mutants": [
+                    _cm("1", 10, "Killed"),
+                    _cm("2", 50, "Killed"),
+                    _cm("3", 99, "Survived"),
+                ]
+            }
+        }
+    }
+    prior = {
+        "files": {
+            "Calc.cs": {
+                "mutants": [
+                    _cm("1", 10, "Survived"),
+                    _cm("2", 50, "Killed"),
+                    _cm("3", 99, "Survived"),
+                ]
+            }
+        }
+    }
+    confirm = {
+        "files": {
+            "Calc.cs": {"mutants": [_cm("1", 10, "Killed"), _cm("3", 99, "Survived")]}
+        }
+    }
+
+    spliced = mutation_report.splice_confirm_over_prior(prior, confirm, "Calc.cs")
+    assert mutation_report._score_data_for_file(
+        spliced, "Calc.cs"
+    ) == mutation_report._score_data_for_file(full, "Calc.cs")

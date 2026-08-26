@@ -489,3 +489,59 @@ def test_make_scoped_config_carries_a_set_solution_through(tmp_path: Path):
 
     inner = scoped["stryker-config"]
     assert inner["solution"] == "App.sln"
+
+
+# =============================================================================
+# #2031 — make_confirm_scoped_config. NOT wired into the default loop path:
+# the line-span syntax is unverified against a real Stryker (no dotnet in the
+# gate), so these tests pin the emitted SHAPE only, never that Stryker honors
+# it. Wiring it live is gated on that verification — see #2031.
+# =============================================================================
+def _cfg():
+    return loop.LoopConfig(
+        project="Calc.csproj",
+        test_projects=["Calc.Tests.csproj"],
+        mutate=[],
+        solution="Calc.sln",
+    )
+
+
+def test_confirm_scoped_config_emits_one_span_per_survivor_line():
+    cfg = loop.make_confirm_scoped_config(_cfg(), "Calc.cs", [10, 99])
+    assert cfg["stryker-config"]["mutate"] == [
+        "**/Calc.cs{10..10}",
+        "**/Calc.cs{99..99}",
+    ]
+
+
+def test_confirm_scoped_config_sorts_and_deduplicates_lines():
+    cfg = loop.make_confirm_scoped_config(_cfg(), "Calc.cs", [99, 10, 10])
+    assert cfg["stryker-config"]["mutate"] == [
+        "**/Calc.cs{10..10}",
+        "**/Calc.cs{99..99}",
+    ]
+
+
+def test_confirm_scoped_config_degrades_to_the_whole_file_when_no_lines():
+    """No clustered survivors must yield today's behavior, never a config that
+    matches nothing — a zero-mutant result is read as 'not convergence' by
+    _score_round and would stop the file (#1606)."""
+    assert loop.make_confirm_scoped_config(
+        _cfg(), "Calc.cs", []
+    ) == loop.make_scoped_config(_cfg(), "Calc.cs")
+
+
+def test_confirm_scoped_config_inherits_solution_project_and_test_projects():
+    scoped = loop.make_confirm_scoped_config(_cfg(), "Calc.cs", [10])["stryker-config"]
+    assert scoped["solution"] == "Calc.sln"
+    assert scoped["project"] == "Calc.csproj"
+    assert scoped["test-projects"] == ["Calc.Tests.csproj"]
+
+
+def test_confirm_scoped_config_is_not_wired_into_the_default_loop_path():
+    """#2031 guard: the span syntax is unverified, and a wrong guess silently
+    truncates every file's loop. This fails the moment someone wires it in
+    without recording the verification."""
+    import inspect
+
+    assert "make_confirm_scoped_config" not in inspect.getsource(loop._score_round)
