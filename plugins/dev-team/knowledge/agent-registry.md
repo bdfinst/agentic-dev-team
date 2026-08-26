@@ -8,9 +8,9 @@ This file contains the complete registry tables. CLAUDE.md references this file 
 | ------- | ------ | --------- | --------------- |
 | ADR Author | `agents/adr-author.md` | 1,143 | Creates and manages Architecture Decision Records |
 | Architect | `agents/architect.md` | 1,482 | System design, architecture |
-| Codebase Recon | `agents/codebase-recon.md` | ~2,858 | Repo reconnaissance — surfaces entry points, dependencies, security surface, git history. Produces RECON artifact per security-primitives-contract. Dispatched on demand by architect and domain-analysis, and at the start of Phase 1: Research when no fresh artifact exists (see `agents/orchestrator.md` § Codebase Recon dispatch). |
+| Codebase Recon | `agents/codebase-recon.md` | ~2,858 | Repo reconnaissance — surfaces entry points, dependencies, security surface, git history. Produces RECON artifact per security-primitives-contract. Dispatched on demand by architect and domain-analysis, and at the start of Phase 1: Research when no fresh artifact exists (see `${CLAUDE_PLUGIN_ROOT}/knowledge/three-phase-workflow.md#codebase-recon-dispatch`). |
 | Gherkin Quality Critic | `agents/gherkin-quality-critic.md` | ~1,176 | Adversarial review of freshly-derived/authored Gherkin — coverage gaps and positive/negative balance. Dispatched by `/gherkin-derive` and `/gherkin-public`, never directly. |
-| Orchestrator | `agents/orchestrator.md` | 11,612 | Task routing, model selection, review coordination |
+| Orchestrator | `agents/orchestrator.md` | 5,510 | Task routing, model selection, review coordination |
 | Plan Review Acceptance Critic | `agents/plan-review-acceptance.md` | ~1,386 | Adversarial plan review — acceptance criteria, Gherkin scenario, and TDD step traceability quality. Dispatched by `/plan` step 5b, never directly. |
 | Plan Review Design Critic | `agents/plan-review-design.md` | ~1,227 | Adversarial plan review — coupling, abstraction, structural risk, and pattern-adherence quality. Dispatched by `/plan` step 5b, never directly. |
 | Plan Review Parallelization Critic | `agents/plan-review-parallelization.md` | ~1,182 | Adversarial plan review — same-wave file-collision and behavioral-coupling verification. Dispatched by `/plan` step 5b, never directly. |
@@ -23,7 +23,7 @@ This file contains the complete registry tables. CLAUDE.md references this file 
 | Software Engineer | `agents/software-engineer.md` | 2,122 | Code generation, implementation |
 | Technical Writer | `agents/tech-writer.md` | 939 | Documentation, style consistency |
 | UI/UX Designer | `agents/ui-ux-designer.md` | 583 | Interface design, UX |
-| **All team agents** | | **~36,335** | |
+| **All team agents** | | **~30,233** | |
 
 ## Review Agents
 
@@ -184,6 +184,8 @@ Knowledge files in `knowledge/` provide progressive disclosure — agents read t
 | Microservice Testing | `knowledge/microservice-testing.md` | ~1,837 | test-smell-review, test-design-advisor |
 | Object Calisthenics | `knowledge/object-calisthenics.md` | ~1,006 | structure-review, complexity-review |
 | OWASP Detection | `knowledge/owasp-detection.md` | 2,176 | security-review |
+| Orchestrator Script Implementation | `knowledge/orchestrator-script-implementation.md` | 2,873 | Orchestrator (running or working on `scripts/orchestrator.py`) |
+| Three-Phase Workflow | `knowledge/three-phase-workflow.md` | 4,735 | Orchestrator (per-phase detail: persona rosters, conditional dispatch, inline review, wave mechanics) |
 | Release Strategies | `knowledge/release-strategies.md` | ~1,155 | Platform Engineer, Architect, `/plan` |
 | Result Verification | `knowledge/result-verification.md` | ~1,120 | test-design-advisor, test-review, test-smell-review |
 | Review Rubric | `knowledge/review-rubric.md` | 752 | `/code-review` (health scoring) |

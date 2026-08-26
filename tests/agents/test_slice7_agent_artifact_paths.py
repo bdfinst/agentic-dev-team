@@ -29,6 +29,14 @@ ORCHESTRATOR = (PLUGIN / "agents" / "orchestrator.md").read_text(encoding="utf-8
 PROGRESS_GUARDIAN = (PLUGIN / "agents" / "progress-guardian.md").read_text(
     encoding="utf-8"
 )
+# #2011 moved the orchestrator's per-phase detail — including the Codebase Recon
+# artifact paths — out of the always-on agent body and behind the knowledge
+# index. The sweep follows the prose: these two files are now part of what a
+# dispatched session actually reads, so they carry the same convention.
+PHASES = (PLUGIN / "knowledge" / "three-phase-workflow.md").read_text(encoding="utf-8")
+SCRIPT_NOTES = (
+    PLUGIN / "knowledge" / "orchestrator-script-implementation.md"
+).read_text(encoding="utf-8")
 
 _BARE_MEMORY_RE = re.compile(r"(?<!\.claude/)memory/")
 
@@ -44,7 +52,15 @@ def test_orchestrator_has_no_bare_memory_reference() -> None:
     # the one benign hit is the "performance-metrics/SKILL.md" link, which
     # contains "metrics/" not "memory/" — assert memory/ specifically.
     assert not _BARE_MEMORY_RE.search(ORCHESTRATOR)
-    assert ".claude/memory/recon-<slug>.md" in ORCHESTRATOR
+
+
+def test_orchestrator_phase_reference_has_no_bare_memory_reference() -> None:
+    assert not _BARE_MEMORY_RE.search(PHASES)
+    assert ".claude/memory/recon-<slug>.md" in PHASES
+
+
+def test_orchestrator_script_notes_have_no_bare_memory_reference() -> None:
+    assert not _BARE_MEMORY_RE.search(SCRIPT_NOTES)
 
 
 def test_progress_guardian_memory_reference_relocated_plans_stays_bare() -> None:
