@@ -39,7 +39,7 @@ structurally-unkillable code. Everything else is delegated.
 - `--all` — run all files in survivor-count order (highest first).
 - `--report <path>` — load an existing report instead of running the tool (first round only).
 - `--max-rounds <n>` — maximum rounds per file (default: 5).
-- `--concurrency <n>` — parallel files via git worktrees when using `--all` (default: 2; max = physical cores − 2); `--parallel <n>` — Phase 4 sub-agent fan-out via the Agent tool (in-process, no worktrees; see [Sub-agent fan-out within a file](#sub-agent-fan-out-within-a-file---parallel)).
+- `--concurrency <n>` — parallel files via git worktrees when using `--all` (**default 1 — sequential**; fan-out is opt-in, bounded by token budget); `--parallel <n>` — Phase 4 sub-agent fan-out via the Agent tool (in-process, no worktrees; see [Sub-agent fan-out within a file](#sub-agent-fan-out-within-a-file---parallel)).
 - `--skip-static-mutants` — opt-in, default OFF; JS/TS (Stryker) path only. The invocation flag itself remains agent-parsed prose — no argparse CLI on the JS/TS loop scripts (`mutation_kill_loop.py`/`mutation_kill_loop_python.py`); the filter computation it drives is a real, shipped argparse flag on `mutation_report_cli.py` (`--survivors-by-mutator --skip-static`). See [Static-mutant skip](../skills/mutation-testing/references/languages/javascript-stryker.md#static-mutant-skip-skip-static-mutants) for the full contract.
 
 ## Deterministic mechanics are scripted — you own generation and exclusion judgment
@@ -583,20 +583,24 @@ The Stryker.NET wrapper's `--stryker-concurrency` flag (env:
 count to `cores − 2` (`max(1, cpu_count - 2)`) — see
 [`csharp-stryker-net.md`](../skills/mutation-testing/references/languages/csharp-stryker-net.md#concurrency-default).
 This is a **different dial** from mutation-kill's own `--concurrency` flag
-(worktree fan-out, default 2, documented above): despite the shared "cores − 2"
-heuristic, tuning one has no effect on the other — `--stryker-concurrency`
-sets how many mutants Stryker itself tests in parallel per invocation;
-mutation-kill's `--concurrency` sets how many files run concurrently, each in
-its own git worktree. `--stryker-concurrency` is unrelated and unchanged by
-this document's `--concurrency` default.
+(worktree fan-out, default 1, above), and the difference is what each one
+*costs*. `--stryker-concurrency` is genuine **process** concurrency priced in
+CPU — which is why `cores − 2` is the right bound for it. `--concurrency` is an
+**agent-level actor count** priced in tokens, where cores do not govern.
+`--stryker-concurrency` is unrelated to and unchanged by this default.
 
 ## Parallelism
 
-With `--all`, run files in parallel via git worktrees (each shard gets its own
-build-artifacts directory). Concurrent runs saturate CPU/RAM fast — honor
-`--concurrency` (default **2** per developer machine; configurable up to physical
-cores − 2). For unattended CI, `stryker_shard_pipeline.py` provides the
-compounding-worktree, forced-`--headless` alternative described above.
+With `--all`, files run **sequentially by default** — `--concurrency` defaults
+to **1**. Each worktree runs an independent mutation-kill loop, so raising it
+raises the concurrent *agent* count, not just CPU load: fan-out never *saves*
+tokens, it trades them for wall-clock (#1515) — the same default
+`skills/build/SKILL.md` applies to the same class of decision. Opt in when
+wall-clock matters more than spend, bounding `n` by the **token budget** for
+the run, not by core count; physical cores − 2 is a machine-capacity ceiling on
+top of that budget decision, never the thing that picks `n`. For unattended CI,
+`stryker_shard_pipeline.py` provides the compounding-worktree,
+forced-`--headless` alternative described above.
 
 ### Sub-agent fan-out within a file (`--parallel`)
 
@@ -620,8 +624,11 @@ With `--all --parallel <n>`:
 4. Synthesize results at the barrier; if survivors still exceed the round's
    threshold, repeat with the next batch.
 
-Agent count per batch — **3–4** for easy mutation types (String / Equality /
-ObjectInit), **1–2** for hard types (Statement / Block removal). Easy types
+`--parallel` has **no default** — off unless the operator asks, and turning it
+on is a wall-clock-for-tokens trade, not a free speedup. Once opted in, the
+*ceiling* per batch is **3–4** agents for easy mutation types (String /
+Equality / ObjectInit) and **1–2** for hard types (Statement / Block removal) —
+an upper bound on what the work tolerates, not a target to run at. Easy types
 tolerate more concurrent test edits because each survivor is fixed by an
 independent assertion; hard types require code-path additions where two
 concurrent edits to the same test class collide.
@@ -629,10 +636,13 @@ concurrent edits to the same test class collide.
 ### Interaction with `--concurrency`
 
 `--concurrency` governs the **outer** worktree fan-out (files × worktrees) and
-`--parallel` governs the **inner** Agent-tool fan-out (sub-agents per Phase-4
-batch). When both are set the effective concurrent-actor count is the product
-(`concurrency × parallel`), bounded by physical cores − 2. Fail fast when the
-product exceeds that ceiling rather than oversubscribing the machine.
+`--parallel` the **inner** Agent-tool fan-out (sub-agents per Phase-4 batch).
+Both default to sequential, so the effective actor count is **1 unless the
+operator opts into both**. When both are set it is the product (`concurrency ×
+parallel`), every actor an independent agent burning tokens — so the product is
+a **token-budget** decision first. Physical cores − 2 remains a machine-capacity
+ceiling: fail fast when the product exceeds it rather than oversubscribing.
+Passing that check does not make a large product correct, only hostable.
 
 ## Go is advisory
 
