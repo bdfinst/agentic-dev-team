@@ -321,6 +321,29 @@ answerable. Written by `skills/code-review/scripts/review_round_log.py`.
 
 ---
 
+## `contract-failures.jsonl`
+
+Diagnostic record for a review-agent output that fails the shared JSON
+contract (`knowledge/review-agent-output-contract.md`) — the gap #1998
+closes. Session-report analysis found 18.2% of review-agent outputs
+discarded silently, with no record of which agent, what it returned, or
+why it didn't parse; today's alternative to this stream is nothing.
+
+| Field | Type | Values / source |
+| --- | --- | --- |
+| `timestamp` | string | ISO-8601 UTC |
+| `agent` | string | Name of the review agent whose output failed validation |
+| `shape` | string enum | `empty` \| `truncated` \| `malformed-json` \| `schema-drift` \| `not-json` — the closed set `validate_review_output.FAILURE_SHAPES` exports. `validate_review_output.py` also recognizes `clean`/`fenced`/`prose-preamble` (`SUCCESS_SHAPES`), but those three name *successful* extraction (the JSON was found and matched the contract) and so never appear as `shape` in a failure row — a successfully-extracted object that then fails schema validation is logged as `schema-drift`, not the extraction shape that found it. `malformed-json` is distinct from `truncated`: a balanced `{...}` object (unquoted keys, a trailing comma, a Python-repr dict) that still fails to parse is `malformed-json`; a `{` that never balances back to depth zero before EOF is `truncated` |
+| `extraction` | string enum, nullable | Set whenever a JSON-shaped candidate was actually recovered before failing — i.e. `shape` is `schema-drift` or `malformed-json` — naming which of `clean`/`fenced`/`prose-preamble` recovered it, so that information survives the downgrade instead of being discarded. `null` for `empty`/`truncated`/`not-json` — no candidate was ever recovered for those |
+| `error` | string | The specific validation/parse error (e.g. a `JSONDecodeError` message, or `status='ok' not one of [...]`), after the same secret-redaction pass as `raw_prefix` and capped at 256 characters — `_validate_schema` interpolates agent-controlled values into this string, so it needs the same two controls |
+| `raw_prefix` | string | First 200 characters of the agent's raw output, **after** a secret-redaction pass (`validate_review_output._redact()`: this repo's canonical hardcoded-key pattern from `knowledge/owasp-detection.md`, plus common vendor token prefixes). Deliberate, capped exception to this file's "never incidental free text" default (mirroring `gate-bypass-audit.jsonl`'s `reason` field) — without seeing what was actually returned, the failure shapes #1998 exists to classify cannot be told apart. AI-authored review-agent output, which may quote repository source verbatim — including any secret present in the reviewed diff, since a lens's own job is to find and quote such things — so this is a transitive channel for repo content, not a claim that the text is free of it; the redaction pass is the actual control, the 200-char cap only bounds volume |
+
+- **Emitter:** `skills/code-review/scripts/validate_review_output.py::log_failure()`, called once per non-contract-valid agent result during `/code-review` step 4's dispatch-failure handling.
+- **Consent:** unconditional, matching `boundary-events.jsonl` — this is the same class of local, counts-and-diagnostics operational stream the commit gate itself already depends on.
+- **Consumers:** `skills/code-review/scripts/contract_failure_report.py`, which joins this stream against `boundary-events.jsonl`'s dispatch counts to report a real per-agent failure *rate* (not just a count) for #1980/#1982 to read before citing any `$/finding` figure.
+
+---
+
 ## `verify-log.jsonl`
 
 Evidence that the project's own test/verification tooling actually exercised

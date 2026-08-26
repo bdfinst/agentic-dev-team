@@ -1500,6 +1500,10 @@
       "summary": "`/code-review` appends one row **per dispatch round** (round 1 = the initial",
       "anchor": "round-rows-source-code-review-with-a-round-field-1624"
     },
+    "`contract-failures.jsonl`": {
+      "summary": "Diagnostic record for a review-agent output that fails the shared JSON",
+      "anchor": "contract-failuresjsonl"
+    },
     "`verify-log.jsonl`": {
       "summary": "Evidence that the project's own test/verification tooling actually exercised",
       "anchor": "verify-logjsonl"

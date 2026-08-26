@@ -350,3 +350,42 @@ class TestBacklogSweep:
         findings, `--all` surfaces them. If these ever agreed, the scoping
         would be doing nothing."""
         assert len(repo_invariants._sweep_all()) > len(repo_invariants.run_all(None))
+
+
+class TestContractFailureShapesDocumented:
+    """#1998: two independent review agents (doc-review, domain-review)
+    rediscovered the same drift — SKILL.md's prose enumeration of loggable
+    `contract-failures.jsonl` shapes disagreeing with the module's actual
+    behavior. This check pins `telemetry-schema.md`'s table row to
+    `validate_review_output.FAILURE_SHAPES` instead."""
+
+    def test_clean_against_the_real_repo(self):
+        assert repo_invariants.check_contract_failure_shapes_documented(None) == []
+
+    def test_flags_a_mismatched_table_row(self, tmp_path, monkeypatch):
+        plugin_root = tmp_path / "plugin"
+        knowledge = plugin_root / "knowledge"
+        knowledge.mkdir(parents=True)
+        (knowledge / "telemetry-schema.md").write_text(
+            "| `shape` | string enum | `empty` \\| `truncated` \\| `not-json` — stale text |\n",
+            encoding="utf-8",
+        )
+        monkeypatch.setattr(repo_invariants, "_PLUGIN_ROOT", plugin_root)
+
+        findings = repo_invariants.check_contract_failure_shapes_documented(None)
+
+        assert len(findings) == 1
+        assert findings[0]["invariant"] == "contract-failure-shapes-documented"
+        assert "malformed-json" in findings[0]["message"]
+
+    def test_flags_a_missing_table_row(self, tmp_path, monkeypatch):
+        plugin_root = tmp_path / "plugin"
+        knowledge = plugin_root / "knowledge"
+        knowledge.mkdir(parents=True)
+        (knowledge / "telemetry-schema.md").write_text("no such row here\n", encoding="utf-8")
+        monkeypatch.setattr(repo_invariants, "_PLUGIN_ROOT", plugin_root)
+
+        findings = repo_invariants.check_contract_failure_shapes_documented(None)
+
+        assert len(findings) == 1
+        assert findings[0]["invariant"] == "contract-failure-shapes-documented"

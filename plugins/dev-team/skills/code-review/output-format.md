@@ -56,7 +56,7 @@
     }
   ],
   "dispatchFailures": [
-    {"agentName": "arch-review", "attempts": 2, "error": "Tool result missing due to internal error"}
+    {"agentName": "arch-review", "attempts": 2, "error": "Tool result missing due to internal error", "shape": null, "extraction": null}
   ],
   "summary": "FAIL (N agents passed, N warned, N failed). N total issues. 1 lens never ran (dispatch failure)."
 }
@@ -87,6 +87,19 @@ retry — the lens never actually ran. Distinct from an `agents[]` entry with
 and from `status: "fail"` (agent ran and found error-severity issues). A
 non-empty `dispatchFailures` list is never omitted because the rest of the
 panel returned cleanly.
+
+`shape`/`extraction` (issue #1998, both `null` when the dispatch never
+returned at all — a transport failure, not a contract failure): when the
+retry DID return but failed `validate_review_output.py`'s contract check,
+these carry that check's classification — `shape` is one of its five failure
+shapes (`empty`/`truncated`/`malformed-json`/`schema-drift`/`not-json`),
+`extraction` is set alongside `shape: "schema-drift"` or `shape:
+"malformed-json"` and names which extraction path (`clean`/`fenced`/
+`prose-preamble`) recovered the object before it failed. `error` always
+carries the human-readable reason either way (the transport error text, or
+`validate_review_output.py`'s parse/schema error, redacted and capped at 256
+characters the same way `raw_prefix` is) — `shape`/`extraction` add the
+machine-readable classification alongside it rather than replacing it.
 
 **A non-empty `dispatchFailures` forces `overall: "fail"`**, unconditionally,
 regardless of what the per-agent results alone would compute — the coverage
@@ -221,7 +234,7 @@ severity = the single highest enum).
   ],
   "reducedPanelSlices": ["0002", "0019"],
   "dispatchFailures": [
-    {"agentName": "arch-review", "attempts": 2, "error": "Tool result missing due to internal error"}
+    {"agentName": "arch-review", "attempts": 2, "error": "Tool result missing due to internal error", "shape": null, "extraction": null}
   ],
   "summary": "WARN across 24 slices — 0 errors, 5 warnings, 3 suggestions; 1 recurring theme(s)."
 }
@@ -242,10 +255,10 @@ severity = the single highest enum).
   the concatenation of every slice's own `dispatchFailures` entries (per-slice
   schema above) — agents whose `Agent` tool dispatch failed and then failed a
   single individual retry, for that slice's panel. Same shape and same
-  `agentName`/`attempts`/`error` fields as the legacy aggregate's
-  `dispatchFailures` above; consolidation only concatenates, it does not
-  re-shape. A non-empty list is never omitted because the rest of the run
-  returned cleanly.
+  `agentName`/`attempts`/`error`/`shape`/`extraction` fields as the legacy
+  aggregate's `dispatchFailures` above; consolidation only concatenates, it
+  does not re-shape. A non-empty list is never omitted because the rest of
+  the run returned cleanly.
 - **A non-empty `dispatchFailures` forces `overall: "fail"`**, unconditionally,
   after the totals-based `overall` computation above — the same
   unconditional-override rule as the legacy aggregate, so a lens that never
