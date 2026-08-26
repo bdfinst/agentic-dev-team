@@ -67,13 +67,12 @@ Env:
                                      and an unrecognized model id means it does
                                      not know the window.
     DEV_TEAM_CONTEXT_ABS_CEILING=N   absolute token cap on the threshold;
-                                     defaults to 150000 (Anthropic's
-                                     server-side compaction default). The
+                                     defaults to 350000 (ADR 0038). The
                                      effective threshold is
                                      min(ceiling_pct * window // 100, abs_ceiling)
                                      — a no-op on a 200K window (40% = 80K
-                                     < 150K) but caps a 1M window's 400K
-                                     percentage threshold down to 150K. The
+                                     < 350K) but caps a 1M window's 400K
+                                     percentage threshold down to 350K. The
                                      warning names which bound is binding
                                      (percentage or absolute) and the window's
                                      provenance (override, detected, or
@@ -622,11 +621,12 @@ def _resolve_verdict(payload: dict) -> tuple[int, str | None, bool]:
 
     window, provenance = _resolve_window(transcript_path)
     ceiling = _positive_int_env("DEV_TEAM_CONTEXT_CEILING_PCT", 40)
-    abs_ceiling = _positive_int_env("DEV_TEAM_CONTEXT_ABS_CEILING", 150_000)
+    abs_ceiling = _positive_int_env("DEV_TEAM_CONTEXT_ABS_CEILING", 350_000)
 
     # Effective threshold = min(ceiling_pct * window, absolute cap). On a
-    # 200K window this is a no-op (40% = 80K < 150K); on a 1M window it caps
-    # the 400K percentage threshold down to 150K (#786/#780).
+    # 200K window this is a no-op (40% = 80K < 350K); on a 1M window it caps
+    # the 400K percentage threshold down to 350K (#786/#780; the cap's value
+    # moved from 150K to 350K in ADR 0038).
     pct_threshold_tokens = (ceiling * window) // 100
     threshold_tokens = min(pct_threshold_tokens, abs_ceiling)
     bound = _resolve_bound(pct_threshold_tokens, abs_ceiling)
@@ -663,10 +663,10 @@ def _resolve_verdict(payload: dict) -> tuple[int, str | None, bool]:
     # max(band_index_scaled, pct_bucket). _BAND_SCALE (100) makes any band
     # transition dominate the coarser 5%-of-window pct_bucket (whose max
     # value is 20, well under 100), so an escalation always breaks through
-    # even when the pct_bucket hasn't moved — worked 1M-window case: fires
-    # at occ=150000 (band 0, pct_bucket 3, key 3), re-fires at occ=190000
-    # (band 1 starts at 187500, key 100 > 3), and again at occ=226000 (band
-    # 2 starts at 225000, key 200 > 100).
+    # even when the pct_bucket hasn't moved — worked 1M-window case at the
+    # 350K default cap: fires at occ=350000 (band 0, pct_bucket 7, key 7),
+    # re-fires at occ=440000 (band 1 starts at 437500, key 100 > 7), and
+    # again at occ=530000 (band 2 starts at 525000, key 200 > 100).
     band = _band_for_threshold_multiple(occ, threshold_tokens)
     session = _sanitize_session(payload.get("session_id") or "")
     marker = _marker_path(session)

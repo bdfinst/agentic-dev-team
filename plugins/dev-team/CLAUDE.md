@@ -25,7 +25,7 @@ Every change must reduce friction: **fewer missteps, less rework, lower token co
 ## Core Principles
 
 1. **Selective Agent Loading**: Load only necessary agents. Target < 10,000 tokens simple tasks.
-2. **40% Context Ceiling**: Conservative target, not an accuracy cliff — see [Context Management](docs/context-management.md). Enforced by `hooks/context_ceiling_guard.py`.
+2. **Context Ceiling**: `min(40% of window, 350K)` — see [Context Management](docs/context-management.md). Enforced by `hooks/context_ceiling_guard.py`.
 3. **Persona-Driven Behavior**: Specs in `.claude/agents/`. Build concurrency `DEV_TEAM_MAX_PARALLEL_BUILDS`: unset → `1` (sequential); set `--jobs`/env to opt into fan-out, capped by wave width.
 4. **Human-in-the-Loop**: Autonomous agents, human oversight.
 5. **Dynamic Configuration**: Config changes → `.claude/metrics/config-changelog.jsonl`.
