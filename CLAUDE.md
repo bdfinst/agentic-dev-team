@@ -66,6 +66,47 @@ The local gates (`scripts/ci-local.sh`, run by the `pre-push` hook) need these t
 
 **The pre-push pytest gate spans more than `plugins/dev-team/tests`.** `ci-local.sh`'s unit-test step runs pytest over `plugins/dev-team/tests tests/repo tests/agents tests/commands tests/docs tests/knowledge tests/stack_aware tests/skills tests/scripts tests/hooks` (with `-n auto --dist loadgroup`; two csharp-stryker files `--ignore`d). Editing agent/skill markdown can break repo-level content-guards that live **outside** `plugins/dev-team/tests` — e.g. `tests/skills/test_code_review_frontend_dispatch.py` asserts specific agent names appear verbatim in `code-review/SKILL.md`, and `tests/repo` runs `check_md_references.py` (a backticked cross-skill path must be file-relative, e.g. `../code-review/SKILL.md`). `tests/hooks/` (repo-root, distinct from `plugins/dev-team/tests/hooks/`) joined this list in #1475 after two of its tests — pinning `hooks.json`'s dispatch-matcher registration — went silently red for a full ADR migration (ADR 0026) because this directory wasn't in the gate; the stryker/pitest/mutmut *adapter* tests that actually shell out to those tools live in `plugins/dev-team/tests/hooks/` (already covered by `plugins/dev-team/tests` above) — this directory only hosts the static fixture files those adapter tests read (`tests/hooks/fixtures/`, `tests/hooks/fake-bin/`), so `tests/hooks/` itself is fast and portable. Before pushing plugin-content changes, run that **full dir list** — not just the plugin subdir — plus `python3 scripts/check_md_references.py` and `python3 plugins/dev-team/hooks/lib/build_knowledge_index.py`, or the `pre-push` hook / CI will catch what a plugin-only run missed.
 
+### The inner loop — three speeds, not two
+
+Before #2002/#2005 the loop had two speeds: run one file, or run the whole
+9,469-test directory list. "What does this change affect?" was answered by a
+guess, and per the deterministic-tools rule that is a mechanical question a
+program should compute.
+
+1. **`--lf` / `--ff`** — free, built into pytest, no map and no dependency.
+   `--lf` re-runs only last run's failures; `--ff` runs them first, then the
+   rest. This is the right tool for the tight red→green loop and costs nothing
+   to adopt.
+2. **Impact selection** — `scripts/impact_tests.py` answers "given that
+   something changed, which tests reach it" from a per-test coverage map:
+
+   ```bash
+   python3 scripts/impact_tests.py build --out .cache/impact-map.json -- \
+     plugins/dev-team/tests tests/repo tests/agents tests/commands tests/docs \
+     tests/knowledge tests/stack_aware tests/skills tests/scripts tests/hooks
+   python3 scripts/impact_tests.py select --map .cache/impact-map.json \
+     --changed-from-git | xargs python3 -m pytest -q
+   ```
+
+   Built on `pytest-cov`'s `--cov-context=test` — already a dev dependency —
+   rather than adding `pytest-testmon`. Measured on this checkout: a
+   `hooks/telemetry.py` edit selects **28 tests in 0.6s** against 9,493 in
+   ~80s. Building the map costs one full instrumented run (~4 min).
+
+   **It never narrows on a guess.** `select` exits **2** — meaning *run the
+   full suite* — when the map is missing or malformed, when a changed file is
+   absent from the map (a new or uncovered file has unknown reach), or when a
+   changed file is itself a test. Treat any non-zero exit as the full suite,
+   never as an empty selection. The map is a snapshot: rebuild it after adding
+   tests or source files.
+3. **The full directory list** — still what `pre-push` and CI run, and still
+   the answer whenever selection refuses.
+
+`scripts/ci_tree_cache.py` (#2002) sits underneath all three and answers a
+different question — "has anything changed at all" — skipping `chk_hook_units`
+outright when the working tree is byte-identical to the one it last passed on.
+`CI_LOCAL_NO_TREE_CACHE=1` forces a run.
+
 ### Worktrees — run `npm ci` first
 
 Run `npm ci` as the first step in any new worktree, before committing. An unprovisioned worktree has no `.husky/_`/`node_modules`, so git hooks silently don't run; `scripts/ci-local.sh` and CI backstop what the hooks would have caught.
