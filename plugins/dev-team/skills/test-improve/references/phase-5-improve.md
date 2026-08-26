@@ -129,6 +129,49 @@ assignment alone is not a substitute for worktree isolation here.
    **Name the batches when the phase starts**, so the operator sees the
    grouping rather than inferring it from dispatch counts: print one line per
    batch — `Mutation-kill batch <n>: module <module>, Stories <ids>.`
+
+   **Mutation-yield steering check at the batch boundary (issue #2033).**
+   After each batch's `mutation-kill` dispatch returns, append one record to
+   `.dev-team-reports/test-improve/<slug>/data/mutation-history.json` — the
+   git-tracked `data/` sibling of `coverage-history.json`, written atomically
+   the way the baselines are — carrying `batch`, `module`, `captured_at`,
+   `starting_survivors`, `ending_survivors`, `honest_score_before`,
+   `honest_score_after`, and `rounds_spent`. Then run the trailing-streak
+   check. Do not eyeball the history:
+
+   ```
+   sh "${CLAUDE_PLUGIN_ROOT}/hooks/py.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/mutation_yield_steering.py" \
+     --history .dev-team-reports/test-improve/<slug>/data/mutation-history.json \
+     --json
+   ```
+
+   This is the #1790 mechanism ported to the more expensive lane, and it
+   shares that script's status vocabulary and exit-code contract exactly, so
+   read the exit codes the same way:
+
+   - **Exit 0** — continue to the next batch, but read *which* exit-0 status
+     came back: `ok` means the last batch actually killed survivors;
+     `insufficient_history` means too few batches have closed (or the latest
+     batch's yield could not be measured) to judge a streak;
+     `flat_streak_forming` means the latest batch did **not** clear the
+     minimum but the streak is still short of the threshold — echo that one
+     to the operator as a watch signal rather than silently treating it as
+     `ok`.
+   - **Exit 2** — the history is missing, unreadable, or corrupt. **Never
+     read this as `ok`** — it is the same trap #1790 calls out. Fix the
+     history before continuing.
+   - **Exit 3** (`flat_streak`) — two or more consecutive batches (the
+     default; `--consecutive` and `--min-kills` tune it) killed fewer than
+     the minimum net survivors. **Surface it now, at the batch boundary** —
+     per-Story would be meaningless because `mutation-kill` runs per batch.
+     Print the script's flat-batch list and running average, then prompt
+     **`[t] re-check Phase-1 targeting / [c] continue`** — the same `[t/c]`
+     shape the coverage check uses:
+     - **`[t]`** — re-read `coverage-gap-ranking.json` and re-order the
+       remaining batches into its rank order before the next dispatch.
+     - **`[c]`** — continue, recording
+       `mutation_flat_streak: <n> batches` in the phase's progress file so
+       the Phase-9 report carries the accepted signal rather than losing it.
 6. **Go mutation-kill is advisory.** On Go stacks, `mutation-kill` logs
    survivors but makes **no commit** — the operator is instructed to apply
    changes manually. Advisory-only handling matches the Phase-0 Go advisory,
