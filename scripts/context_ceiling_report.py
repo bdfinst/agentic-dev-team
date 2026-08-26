@@ -91,6 +91,8 @@ if str(_HOOKS_DIR) not in sys.path:
 
 # The guard is the source of truth for every policy constant below. See the
 # "Anti-drift" note in the module docstring.
+from datetime import UTC
+
 import context_ceiling_guard as guard  # type: ignore[import-not-found]
 
 #: Candidate ceilings swept when `--ceilings` is not given. Brackets the
@@ -355,6 +357,74 @@ def _pct(numerator: int, denominator: int) -> float | None:
     return round(numerator / denominator * 100, 1)
 
 
+def trend_record(replays: list[SessionReplay], sweep: list[dict], args) -> dict:
+    """A compact, AGGREGATE-COUNTS-ONLY record for the ceiling trend stream.
+
+    Mirrors `scripts/session_extract.py`'s `slim_record` convention (#129):
+    the trend stream carries metrics only — no transcript paths, no session
+    ids, no prompt or code content — because it is the artifact that
+    accumulates across rounds and outlives any single review. `recorded_at`
+    is the only wall-clock field and lives on the trend log, never in the
+    deterministic report output, so two runs over the same corpus produce
+    identical reports.
+    """
+    from datetime import datetime
+
+    peaks = sorted(r.peak_occupancy for r in replays)
+
+    def _pctile(fraction: float) -> int | None:
+        if not peaks:
+            return None
+        return peaks[min(len(peaks) - 1, int(len(peaks) * fraction))]
+
+    return {
+        "schema": "context-ceiling-trend/v1",
+        # `%Y-%m-%dT%H:%M:%SZ`, matching `session_extract.py` and the rest of
+        # the repo's metrics streams — the playbook reads both streams'
+        # timestamps side by side, so two spellings of UTC would be a
+        # gratuitous difference at exactly the point of comparison.
+        "recorded_at": datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "ceiling_pct": args.ceiling_pct,
+        "shipped_ceiling": args.shipped,
+        "near_done_turns": args.near_done_turns,
+        "sessions": len(replays),
+        "sessions_with_blockable_calls": sum(
+            1 for r in replays if any(g.blocks for g in r.gates)
+        ),
+        "gated_calls": sum(len(r.gates) for r in replays),
+        "blocking_calls": sum(1 for r in replays for g in r.gates if g.blocks),
+        "unrecognized_model_sessions": sum(1 for r in replays if not r.window_matched),
+        "peak_occupancy": {
+            "p50": _pctile(0.5),
+            "p90": _pctile(0.9),
+            "max": peaks[-1] if peaks else None,
+        },
+        "sweep": [
+            {
+                k: row[k]
+                for k in (
+                    "abs_ceiling",
+                    "sessions_blocked",
+                    "sessions_blocked_pct",
+                    "blocks_total",
+                    "advisory_fires",
+                    "median_occupancy_at_first_block",
+                    "near_done_blocked_pct",
+                    "prompt_tokens_after_first_block_pct",
+                )
+            }
+            for row in sweep
+        ],
+    }
+
+
+def append_trend(path: Path, record: dict) -> None:
+    """Append one record to the append-only trend stream, creating it if new."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("a", encoding="utf-8") as fh:
+        fh.write(json.dumps(record) + "\n")
+
+
 def discover_transcripts(roots: list[Path]) -> list[Path]:
     found: list[Path] = []
     for root in roots:
@@ -537,6 +607,13 @@ def main(argv: list[str] | None = None) -> int:
         help="the shipped default, marked and summarized in the report",
     )
     parser.add_argument("--json", type=Path, help="also write the full result as JSON")
+    parser.add_argument(
+        "--append",
+        type=Path,
+        metavar="LOG",
+        help="append one metrics-only summary record to a trend stream "
+        "(append-only JSONL), so successive rounds are comparable",
+    )
     args = parser.parse_args(argv)
 
     try:
@@ -593,6 +670,10 @@ def main(argv: list[str] | None = None) -> int:
         }
         args.json.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
         print(f"\nwrote {args.json}")
+
+    if args.append:
+        append_trend(args.append, trend_record(replays, sweep, args))
+        print(f"appended a trend record to {args.append}")
     return 0
 
 
