@@ -1,5 +1,12 @@
 # Changelog
 
+## [12.8.1](https://github.com/bdfinst/agentic-dev-team/compare/dev-team-v12.8.0...dev-team-v12.8.1) (2026-08-26)
+
+
+### Bug Fixes
+
+* **hooks:** raise the absolute context ceiling from 150K to 350K ([#2056](https://github.com/bdfinst/agentic-dev-team/issues/2056)) ([a98bdab](https://github.com/bdfinst/agentic-dev-team/commit/a98bdab9b946b2b6405e6bcee36d464675b7e315))
+
 ## [12.8.0](https://github.com/bdfinst/agentic-dev-team/compare/dev-team-v12.7.0...dev-team-v12.8.0) (2026-08-26)
 
 
