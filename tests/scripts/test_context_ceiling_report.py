@@ -633,3 +633,85 @@ def test_recorded_at_matches_the_repos_metrics_timestamp_format(
         tzinfo=_dt.timezone.utc
     )
     assert parsed.tzinfo is _dt.timezone.utc
+
+
+# ---------------------------------------------------------------------------
+# what the first real corpus (306 sessions) exposed about the instrument
+# ---------------------------------------------------------------------------
+
+
+def test_turns_left_distinguishes_two_blocks_near_done_cannot(
+    tmp_path: Path,
+) -> None:
+    """The gap the first real corpus exposed. `near_done_blocked_pct` sat at
+    0-6% across every candidate from 150K to 600K, which reads as "nothing
+    over-blocks anywhere" and would argue for lowering the ceiling without
+    limit. It only ever saw one shape — blocked AT the finish line. These two
+    sessions are identical to that metric and completely different in fact.
+    """
+    a, b = tmp_path / "a", tmp_path / "b"
+    a.mkdir()
+    b.mkdir()
+    early = _one_session(
+        a,
+        _assistant(400_000, tool_uses=[_skill("build")]),
+        *[_assistant(410_000) for _ in range(40)],
+    )
+    late = _one_session(
+        b,
+        *[_assistant(100_000) for _ in range(40)],
+        _assistant(400_000, tool_uses=[_skill("build")]),
+        *[_assistant(410_000) for _ in range(8)],
+    )
+    early_r = report.evaluate_ceiling(early, 350_000, 40, 5)
+    late_r = report.evaluate_ceiling(late, 350_000, 40, 5)
+
+    # Both sit above the near-done threshold, so it reports them identically —
+    # "0% over-blocking", the reading the real corpus produced at every
+    # candidate.
+    assert early_r["near_done_blocked_pct"] == late_r["near_done_blocked_pct"] == 0.0
+    # They are not remotely the same block: one interrupts 40 turns of work,
+    # the other 8.
+    assert early_r["median_remaining_turns_at_first_block"] == 40
+    assert late_r["median_remaining_turns_at_first_block"] == 8
+
+
+def test_turns_left_is_none_when_nothing_was_blocked(tmp_path: Path) -> None:
+    replays = _one_session(tmp_path, _assistant(100_000, tool_uses=[_skill("x")]))
+    result = report.evaluate_ceiling(replays, 350_000, 40, 5)
+    assert result["sessions_blocked"] == 0
+    assert result["median_remaining_turns_at_first_block"] is None
+
+
+def test_the_trend_record_carries_the_clamp(tmp_path: Path) -> None:
+    """The first real corpus produced a 450K row and a 600K row with every
+    persisted field equal, because both clamp to 40% of a 1M window. Without
+    `clamped_sessions` the stream cannot say why, and a later reader compares
+    two rows that were never two candidates."""
+    replays = _one_session(tmp_path, _assistant(400_000, tool_uses=[_skill("x")]))
+    sweep = [
+        report.evaluate_ceiling(replays, c, 40, 5) for c in (350_000, 450_000, 600_000)
+    ]
+    rec = report.trend_record(replays, sweep, _trend_args())
+    by_ceiling = {row["abs_ceiling"]: row for row in rec["sweep"]}
+
+    assert by_ceiling[350_000]["clamped_sessions"] == 0
+    assert by_ceiling[450_000]["clamped_sessions"] == 1
+    assert by_ceiling[600_000]["clamped_sessions"] == 1
+    # The two clamped rows are otherwise identical — which is exactly why the
+    # clamp field has to be present to explain them.
+    assert {k: v for k, v in by_ceiling[450_000].items() if k != "abs_ceiling"} == {
+        k: v for k, v in by_ceiling[600_000].items() if k != "abs_ceiling"
+    }
+
+
+def test_the_trend_record_carries_turns_left(tmp_path: Path) -> None:
+    replays = _one_session(
+        tmp_path,
+        _assistant(400_000, tool_uses=[_skill("build")]),
+        _assistant(410_000),
+        _assistant(420_000),
+    )
+    sweep = [report.evaluate_ceiling(replays, 350_000, 40, 5)]
+    rec = report.trend_record(replays, sweep, _trend_args())
+    assert rec["sweep"][0]["median_remaining_turns_at_first_block"] == 2
