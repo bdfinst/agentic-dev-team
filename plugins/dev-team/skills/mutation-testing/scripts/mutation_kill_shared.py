@@ -509,9 +509,17 @@ class HeadlessCallFailed(RuntimeError):
     before.
     """
 
-    def __init__(self, returncode: int, stderr: str) -> None:
+    def __init__(self, returncode: int, stderr: str, stdout: str = "") -> None:
         self.returncode = returncode
         self.stderr = stderr
+        # #1950: the classifier was structurally blind to stdout. The claude
+        # CLI renders some upstream failures to stdout (a rendered
+        # "API Error: 529 Overloaded" body) while stderr carries only a
+        # generic non-zero-exit line, so a stderr-only classifier calls a
+        # genuinely retryable overload non-gateway-class and burns the file's
+        # whole budget on it. Defaulted so every existing two-argument
+        # construction — including test fakes — keeps working unchanged.
+        self.stdout = stdout
         super().__init__(str(self))
 
     def __str__(self) -> str:
@@ -569,7 +577,7 @@ def run_claude_headless(prompt: str, *, model: str | None, cwd: Path | None = No
             "DEV_TEAM_MUTATION_GENERATION_TIMEOUT_S to raise it)"
         ) from exc
     if result.returncode != 0:
-        raise HeadlessCallFailed(result.returncode, result.stderr)
+        raise HeadlessCallFailed(result.returncode, result.stderr, result.stdout or "")
     return strip_code_fences(result.stdout)
 
 

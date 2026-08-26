@@ -150,7 +150,22 @@ def make_timeout_callback(
 # ── git worktree management ─────────────────────────────────────────────────────
 
 
-def _git(cmd: Sequence[str], repo_root: Path, *, check: bool) -> subprocess.CompletedProcess:
+def _git(cmd: Sequence[str], repo_root: Path, check: bool) -> subprocess.CompletedProcess:
+    """Run a git command in ``repo_root``.
+
+    ``check`` is deliberately POSITIONAL, not keyword-only. This is the default
+    ``GitRunner``, and that alias — ``Callable[[Sequence[str], Path, bool],
+    object]`` — is the contract every call site and every test fake already
+    implements positionally. Declaring it ``*, check`` here made the production
+    default the only implementation that did not satisfy its own alias, so
+    every real invocation (any path that does not inject a fake, which is all
+    of them: ``main()`` calls ``run_all(...)`` with no ``git_run``) raised
+    ``TypeError: _git() takes 2 positional arguments but 3 were given`` (#1953).
+
+    The bug was invisible to the suite precisely because every test injects a
+    fake, so the default was never exercised — which is why the regression
+    test below calls the real default rather than a fake.
+    """
     return subprocess.run(
         list(cmd), cwd=str(repo_root), capture_output=True, check=check
     )

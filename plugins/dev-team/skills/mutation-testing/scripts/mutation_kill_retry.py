@@ -65,13 +65,61 @@ _GATEWAY_CLASS_MARKERS = (
     "connection reset",
 )
 
-# Anchored numeral markers (#1938): a bare "502"/"503"/"504" substring
-# false-positives on unrelated numbers (a request id, a byte count). Requires
-# a status-context word (status/http/code) within 12 non-digit characters
-# before the digits, so "HTTP 502", "status: 503", and "error code 504" all
-# match but "request id 502391" does not. Case-insensitive to match the six
-# non-numeric markers above.
-_GATEWAY_STATUS_RE = re.compile(r"\b(?:status|http|code)[^0-9]{0,12}50[234]\b", re.IGNORECASE)
+# Anchored numeral markers (#1938, widened by #1950): a bare "502"/"503"/"504"
+# substring false-positives on unrelated numbers (a request id, a byte count).
+# Requires a status-context word (status/http/code) close before the digits, so
+# "HTTP 502", "status: 503", and "error code 504" all match but
+# "request id 502391" does not.
+#
+# Three #1950 corrections to the original `\b(?:status|http|code)[^0-9]{0,12}50[234]\b`:
+#
+# 1. `\b` REJECTED UNDERSCORE-JOINED KEYS. `_` is a `\w` character, so `\b`
+#    requires a NON-word character immediately before status/http/code — and
+#    the `_c` in `error_code: 503` and the `rC` in `errorCode=504` are both
+#    word-to-word transitions. Underscore- and camel-joined status keys are
+#    routine in real provider payloads. The lookbehind is now
+#    `(?<![A-Za-z0-9])`, which treats `_` (and a camel boundary) as a
+#    separator while still refusing to match inside a longer alphanumeric run.
+# 2. `HTTP/1.1 502` FAILED because the version token puts digits in the gap,
+#    which `[^0-9]{0,12}` forbids. An optional `/<major>[.<minor>]` is now
+#    consumed explicitly rather than by widening the gap to allow digits —
+#    widening would have re-admitted exactly the "request id 502391" class
+#    #1938 anchored the pattern to exclude.
+# 3. STATUS 529 (Anthropic's own overload code) was absent from the numeral
+#    alternation. The downgrade ladder this policy drives is Anthropic-specific,
+#    so 529 is plausibly the most common real "retry me" signal this classifier
+#    will ever see. It was covered only via the `overloaded_error` marker
+#    string, which a rendered `API Error: 529 Overloaded` does not contain
+#    verbatim.
+#
+# The trailing `(?![0-9])` replaces `\b` for the same reason as the lookbehind,
+# and still rejects "502391" (the `2` is followed by `3`).
+#
+# 4. A CAMEL-JOINED key (`errorCode=504`) still fails a plain lookbehind: the
+#    `rC` transition is letter-to-letter, and the pattern is IGNORECASE so the
+#    lookbehind cannot itself distinguish case. Rather than relaxing the
+#    lookbehind to allow any preceding letter — which would admit "barcode 502"
+#    and "decode 503" — camel humps are split to `_` first, reducing the camel
+#    case to the underscore case already handled.
+# 5. `error` joins the context words so a rendered `API Error: 529 Overloaded`
+#    anchors at all; it carries none of status/http/code. The trailing
+#    `(?![0-9])` keeps this from admitting "error after 5024 ms".
+_CAMEL_SPLIT_RE = re.compile(r"(?<=[a-z0-9])(?=[A-Z])")
+
+_GATEWAY_STATUS_RE = re.compile(
+    r"(?<![A-Za-z0-9])(?:status|http|code|error)(?:/\d+(?:\.\d+)?)?"
+    r"[^0-9]{0,12}(?:50[234]|529)(?![0-9])",
+    re.IGNORECASE,
+)
+
+
+def _anchorable(text: str) -> str:
+    """Normalize camel humps to `_` so a camel-joined status key anchors.
+
+    Pure and deterministic: `errorCode=504` -> `error_Code=504`, which the
+    pattern's `(?<![A-Za-z0-9])` lookbehind then accepts.
+    """
+    return _CAMEL_SPLIT_RE.sub("_", text)
 
 # 3 consecutive gateway-class failures on the same model earn exactly one
 # same-model retry before a downgrade is considered (#1908).
@@ -98,9 +146,16 @@ def is_gateway_class_error(exc: BaseException) -> bool:
     """
     if not isinstance(exc, mutation_kill_shared.HeadlessCallFailed):
         return False
-    lowered = exc.stderr.lower()
+    # #1950: classify over stderr AND stdout. The claude CLI renders some
+    # upstream failures to stdout while stderr carries only a generic
+    # non-zero-exit line; a stderr-only classifier calls those non-gateway-class
+    # and spends the file's whole budget on a genuinely retryable overload.
+    # `getattr` rather than attribute access so a HeadlessCallFailed built by
+    # an older two-argument call site (or a test fake) still classifies.
+    combined = f"{exc.stderr}\n{getattr(exc, 'stdout', '') or ''}"
+    lowered = combined.lower()
     return any(marker in lowered for marker in _GATEWAY_CLASS_MARKERS) or bool(
-        _GATEWAY_STATUS_RE.search(exc.stderr)
+        _GATEWAY_STATUS_RE.search(_anchorable(combined))
     )
 
 
@@ -154,6 +209,15 @@ class DowngradeEvent:
     from_model: str | None
     to_model: str | None
     error_class: str
+    #: Whether this file had ALREADY spent its one downgrade before this
+    #: failure. #1952: on an exhausted event this is the actual reason the
+    #: caller computed and then discarded, forcing
+    #: :func:`_format_downgrade_message` to re-infer it from a proxy (is
+    #: ``from_model`` a known ladder model?) that a valid non-ladder
+    #: ``--model``/``DEV_TEAM_MUTATION_FALLBACK_MODEL`` override defeats.
+    #: Defaulted so every existing construction keeps working; the one
+    #: internal call site sets it explicitly.
+    already_downgraded: bool = False
 
     @property
     def exhausted(self) -> bool:
@@ -163,23 +227,18 @@ class DowngradeEvent:
         return self.to_model is None
 
 
-# Models with a defined ladder position — a downgrade that exhausts starting
-# from one of these (haiku, the floor; or opus/sonnet, only reachable here
-# after this file already spent its one downgrade) genuinely considered a
-# downgrade and ran out of ladder, so the "no further downgrade" wording is
-# accurate. ``None`` (unresolved) or any other model string (an operator
-# override outside the ladder, e.g. an unrecognized --model value) never had
-# a ladder position to begin with — a distinct, more honest message (#1908
-# review).
-_KNOWN_LADDER_MODELS = frozenset({"opus", "sonnet", "haiku"})
-
-
 def _format_downgrade_message(event: DowngradeEvent) -> str:
     source_file = " ".join(str(event.source_file).split())
     if event.exhausted:
-        normalized_from = event.from_model.strip().lower() if event.from_model else None
         model_label = event.from_model if event.from_model is not None else "unspecified"
-        if normalized_from in _KNOWN_LADDER_MODELS:
+        # #1952: branch on the reason the caller actually computed, not on
+        # whether from_model happens to be a ladder name. `fable` is a VALID
+        # --model / DEV_TEAM_MUTATION_FALLBACK_MODEL override that deliberately
+        # has no _MODEL_DOWNGRADE_LADDER entry, so a file that started on opus,
+        # downgraded once to fable, and then exhausted was reported as "no
+        # downgrade ladder position available for this model" when the true
+        # cause was "this file already spent its one downgrade".
+        if event.already_downgraded:
             return (
                 f"generation for {source_file} (round {event.round_num}) "
                 f"exhausted its retry budget on model {model_label!r} after "
@@ -321,6 +380,7 @@ def _retry_once_then_maybe_downgrade(
             from_model=from_model,
             to_model=to_model,
             error_class=error_class,
+            already_downgraded=already_downgraded,
         )
         ctx.log(_format_downgrade_message(event))
         if ctx.on_downgrade is not None:

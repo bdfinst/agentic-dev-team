@@ -13,7 +13,7 @@
   },
   "lint-staged": {
     "*.{js,jsx,mjs,cjs,ts,tsx}": "eslint --fix",
-    "*.py": "ruff check --fix"
+    "*.py": "python3 -m ruff check --fix"
   },
   "devDependencies": {
     "@commitlint/cli": "^21.0.2",

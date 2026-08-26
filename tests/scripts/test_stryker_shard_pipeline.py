@@ -880,3 +880,42 @@ def test_no_repo_specific_literal(module_name):
     source = (SCRIPTS_DIR / module_name).read_text(encoding="utf-8")
     for literal in FORBIDDEN_LITERALS:
         assert literal not in source, f"{literal} leaked into {module_name}"
+
+
+# =============================================================================
+# #1953 — the DEFAULT git_run path. Every other test in this file injects a
+# fake git_run, which is exactly why a broken default survived: the production
+# path (main() -> run_all(...) with no git_run) was never exercised. These
+# tests deliberately use the real default.
+# =============================================================================
+def test_default_git_runner_satisfies_the_GitRunner_alias_positionally(tmp_path):
+    """`GitRunner` is `Callable[[Sequence[str], Path, bool], object]` and every
+    call site passes `check` positionally. `_git` declaring it keyword-only
+    made the shipped default the one implementation that did not satisfy its
+    own alias — TypeError on every real invocation."""
+    import inspect
+
+    param = inspect.signature(pipeline._git).parameters["check"]
+    assert param.kind is inspect.Parameter.POSITIONAL_OR_KEYWORD
+
+
+def test_worktree_remove_runs_with_the_default_git_runner(tmp_path):
+    subprocess.run(["git", "init", "-q", str(tmp_path)], check=True)
+    # Must not raise TypeError. check=False, so a missing worktree is fine.
+    pipeline.worktree_remove(tmp_path, tmp_path / "absent-worktree")
+
+
+def test_worktree_add_runs_with_the_default_git_runner(tmp_path, monkeypatch):
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    subprocess.run(["git", "init", "-q", str(repo)], check=True)
+    subprocess.run(["git", "-C", str(repo), "config", "user.email", "t@e.st"], check=True)
+    subprocess.run(["git", "-C", str(repo), "config", "user.name", "t"], check=True)
+    (repo / "f.txt").write_text("x", encoding="utf-8")
+    subprocess.run(["git", "-C", str(repo), "add", "-A"], check=True)
+    subprocess.run(["git", "-C", str(repo), "commit", "-qm", "init"], check=True)
+
+    worktree = tmp_path / "wt"
+    pipeline.worktree_add(repo, worktree)
+    assert worktree.is_dir()
+    pipeline.worktree_remove(repo, worktree)
