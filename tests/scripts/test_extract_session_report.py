@@ -133,11 +133,16 @@ def test_subagent_usage_counts_toward_token_totals(tree, tmp_path):
 def test_by_agent_type_is_keyed_by_agent_name(tree, tmp_path):
     report = _run(tree, tmp_path / "r.json")
     by_agent_type = report["combined"]["token"]["by_agent_type"]
-    assert by_agent_type == {
-        "main": 1,
-        "correctness-review": 1,
-        "angular-reactivity-review": 1,
+    assert set(by_agent_type) == {
+        "main",
+        "correctness-review",
+        "angular-reactivity-review",
     }
+    # Each bucket is a real token breakdown (#2010), not the message count this
+    # key used to carry under `token` — where an int read as a token figure and
+    # was off by orders of magnitude from `token.totals`.
+    assert by_agent_type["correctness-review"]["messages"] == 1
+    assert by_agent_type["correctness-review"]["context_tokens"] > 0
 
 
 def test_regression_1990_signature_cannot_return(tree, tmp_path):
@@ -508,7 +513,8 @@ def test_a_projects_root_containing_a_subagents_segment_is_not_misread(tmp_path)
     combined = _run(root, tmp_path / "r.json")["combined"]
     assert combined["transcripts"] == 1
     assert combined["subagent_transcripts"] == 0
-    assert combined["token"]["by_agent_type"] == {"main": 1}
+    assert set(combined["token"]["by_agent_type"]) == {"main"}
+    assert combined["token"]["by_agent_type"]["main"]["messages"] == 1
 
 
 def test_a_malformed_model_value_does_not_abort_the_run(tmp_path):
@@ -531,7 +537,8 @@ def test_main_thread_records_are_never_relabelled_by_attribution(tmp_path):
         _assistant([{"type": "text", "text": "inlined"}], agent="dev-team:doc-review"),
     ])
     combined = _run(root, tmp_path / "r.json")["combined"]
-    assert combined["token"]["by_agent_type"] == {"main": 2}
+    assert set(combined["token"]["by_agent_type"]) == {"main"}
+    assert combined["token"]["by_agent_type"]["main"]["messages"] == 2
 
 
 def test_agent_runs_fall_back_to_dispatches_only_when_the_layout_is_absent(tmp_path):
@@ -552,3 +559,89 @@ def test_agent_runs_fall_back_to_dispatches_only_when_the_layout_is_absent(tmp_p
     assert combined["subagent_transcripts"] == 0
     assert combined["utilization"]["agents_invoked"] == {}
     assert combined["utilization"]["agent_dispatches"] == {"security-review": 1}
+
+
+# --- #2010: per-dispatch context volume ------------------------------------
+
+
+def test_per_agent_context_sums_to_the_report_totals(tree, tmp_path):
+    """The load-bearing correctness property. Per-agent context is derived from
+    the same usage records as `token.totals`, so the two must reconcile exactly.
+    A mismatch means a dispatch was double-counted or dropped — and a per-lens
+    cost decision made on either shape would be wrong in a way no other
+    assertion here would catch."""
+    combined = _run(tree, tmp_path / "r.json")["combined"]
+    totals = combined["token"]["totals"]
+    expected = (
+        totals["input_tokens"]
+        + totals["cache_read_input_tokens"]
+        + totals["cache_creation_input_tokens"]
+    )
+    actual = sum(b["context_tokens"] for b in combined["token"]["by_agent_type"].values())
+    assert actual == expected
+
+
+def test_context_excludes_output_tokens(tree, tmp_path):
+    """Context is what a dispatch CARRIED IN. Folding generation into it would
+    make an agent that writes long findings look expensive to dispatch, which
+    is the opposite of what this figure is for."""
+    combined = _run(tree, tmp_path / "r.json")["combined"]
+    for label, bucket in combined["token"]["by_agent_type"].items():
+        carried = (
+            bucket["input_tokens"]
+            + bucket["cache_read_input_tokens"]
+            + bucket["cache_creation_input_tokens"]
+        )
+        assert bucket["context_tokens"] == carried, label
+        assert "output_tokens" in bucket, "output stays tracked, just separately"
+
+
+def test_context_per_dispatch_is_none_rather_than_zero_without_dispatches(
+    tree, tmp_path
+):
+    """`main` is not dispatched, so its per-dispatch figure is undefined. Zero
+    would sort it as the cheapest row in any ranking built on this field —
+    exactly backwards, since main carries the most context of anything."""
+    combined = _run(tree, tmp_path / "r.json")["combined"]
+    main = combined["token"]["by_agent_type"]["main"]
+    assert main["dispatches"] == 0
+    assert main["context_per_dispatch"] is None
+    assert main["context_tokens"] > 0
+
+
+def test_dispatches_are_counted_from_subagent_transcripts_not_messages(
+    tree, tmp_path
+):
+    """One subagent transcript is one dispatch. Inferring dispatch count from
+    message volume would divide by a number that grows with how chatty a lens
+    is, making a verbose agent look cheap per dispatch."""
+    combined = _run(tree, tmp_path / "r.json")["combined"]
+    by_agent = combined["token"]["by_agent_type"]
+    dispatched = sum(b["dispatches"] for b in by_agent.values())
+    assert dispatched == combined["subagent_transcripts"]
+
+
+def test_a_pre_2010_digest_does_not_corrupt_merged_totals():
+    """Older digests carry an int (a message count) under this key. Summing it
+    as tokens would silently inflate a cross-project total by a meaningless
+    number, so the label is kept at zero instead of guessed at.
+
+    Imported directly rather than driven through the CLI: the merge path only
+    runs across multiple project digests, and the mixed-vintage case cannot be
+    staged from transcripts alone."""
+    import importlib.util
+
+    path = REPO_ROOT / "plugins/dev-team/scripts/extract_session_report.py"
+    spec = importlib.util.spec_from_file_location("_esr_probe", path)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+
+    dest = {}
+    module._merge_agent_buckets(dest, {"doc-review": 7})
+    assert dest["doc-review"]["input_tokens"] == 0
+    assert dest["doc-review"]["messages"] == 0
+
+    # A current-vintage bucket still merges normally alongside it.
+    module._merge_agent_buckets(dest, {"doc-review": {"input_tokens": 5, "messages": 1}})
+    assert dest["doc-review"]["input_tokens"] == 5
+    assert dest["doc-review"]["messages"] == 1
