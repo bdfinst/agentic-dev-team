@@ -163,3 +163,93 @@ over a corpus large enough to return a verdict other than "inconclusive".
 Re-deriving the threshold is now a command, not a project. Run it, read the
 `near-done` and `tokens over` columns together, and amend this ADR with what
 the corpus says.
+
+## Amendment (2026-08-26, second) — the first measured corpus
+
+`scripts/context_ceiling_report.py` has now been run over a real corpus: 306
+sessions, 79 of them making at least one blockable call, 3,055 gated calls.
+This is the measurement the revisit trigger above asked for, and it does not
+confirm this ADR's reasoning. It retires part of it.
+
+| candidate | sessions blocked | near-done (abs) | tokens past first block |
+|---|---|---|---|
+| 150,000 | 68.4% | 1 session | 71.3% |
+| 200,000 | 53.2% | 1 | 58.4% |
+| 250,000 | 41.8% | 2 | 51.0% |
+| 300,000 | 34.2% | 1 | 47.5% |
+| **350,000 (shipped)** | **26.6%** | **0** | **35.8%** |
+| 450,000 / 600,000 | 21.5% | 0 | 31.3% |
+
+(The last two rows are one candidate, not two: both clamp to 40% of a 1M
+window. The trend record was dropping the field that says so; fixed alongside
+this amendment.)
+
+**The occupancy estimate this ADR rests on was wrong by 3-5x.** It reasoned
+from a 316:1 prompt:output ratio to "200-370K average per-turn occupancy" and
+concluded 150K sat below the median working point. Measured, the median
+session's *peak* occupancy is **74,950** — half of all sessions never reach
+half of the old ceiling, let alone the new one. The distribution is not
+centered anywhere near either value; it is sharply skewed, p90 at 618K against
+that 75K median, and only 26% of sessions make a blockable call at all. The
+ceiling is simply irrelevant to three quarters of sessions.
+
+**The over-blocking case for raising to 350K is not in the data.** This ADR
+argued 150K would stop ordinary work. At 150K exactly **one** blocked session
+was near done. At every candidate the near-done count is 0-2 sessions. Whatever
+150K was doing wrong, it was not blocking sessions at the finish line.
+
+**But the data cannot justify lowering it either, and that is a defect in the
+instrument, not a finding.** `near_done_blocked_pct` is a *threshold* — it
+detects one failure shape, "blocked at the finish line", and collapses
+everything else into "fine". Read naively, a metric that sits at 0-6% across
+every candidate from 150K to 600K argues for lowering the ceiling without
+limit, which is plainly wrong: a session blocked at 20% done is not near-done,
+yet blocking it still costs a handoff and the re-establishment of everything
+it had loaded. The report now also emits
+`median_remaining_turns_at_first_block`, which measures how much work a block
+actually interrupts, precisely because the threshold alone could not adjudicate
+this question.
+
+**Decision: 350K stands, and the next move waits for the better metric.** Not
+because the data endorses it — it does not — but because the two arguments that
+could move it are both currently unsound. The argument that raised it is
+retired. The argument for lowering it rests on a metric now known to be
+insufficient for the purpose. Moving a threshold on a measure known to be the
+wrong shape is exactly how 150K was arrived at, and repeating that with a
+different number would not be progress.
+
+What survives of this ADR unchanged is the narrower claim: 150K was borrowed
+from the Claude API's managed-compaction default rather than derived from this
+plugin's behavior, and a threshold nobody measured should not be treated as
+one somebody chose. That remains true and remains the reason not to go back.
+
+**Next round.** Re-run after the corpus has accumulated
+`median_remaining_turns_at_first_block` at each candidate, per
+[the session economy playbook](../context-and-session-economy-playbook.md). A
+ceiling whose blocks land with few turns remaining is doing its job; one whose
+blocks land mid-flight, however low its near-done rate, is not.
+
+## Amendment (2026-08-26, third) — ADR 0039's revisit trigger has already fired
+
+The same corpus fires the trigger
+[ADR 0039](0039-only-skill-loads-are-worth-blocking-at-the-context-ceiling.md)
+set for itself — "a high `advisory_fires` count against a low block rate". At
+the shipped 350K the ratio is **24:1**: 1,562 agent dispatches over the ceiling
+against 65 blocks. Corpus-wide, **93% of all gated calls are delegations**
+(2,841 of 3,055), not skill loads.
+
+Read carefully, that number cuts both ways and only one reading is supported.
+
+It is decisive validation of ADR 0039 itself: under the previous behavior every
+one of those 1,562 dispatches would have been a hard block, on sessions that in
+most cases had already passed the ceiling. The change did not soften a rare
+edge case; it removed the guard's most frequent action by a factor of 24.
+
+Whether it is *also* evasion — delegation used to keep working past a ceiling
+rather than to economize — this corpus cannot say, because nothing here
+distinguishes a dispatch that saved main-thread tokens from one that merely
+deferred a handoff. ADR 0039 already names the answer if it turns out to be
+evasion, and that answer is unchanged by this measurement: a session-total cost
+control, measured by `hooks/lib/cost_meter.py`, not re-blocking dispatches.
+Re-blocking would restore 1,562 blocks to buy a signal the occupancy guard was
+never measuring.

@@ -286,6 +286,7 @@ def evaluate_ceiling(
     blocked_sessions = 0
     near_done_blocked = 0
     first_block_occupancies: list[int] = []
+    remaining_turns_at_block: list[int] = []
     tokens_after_first_block = 0
     total_blocks = 0
     clamped_sessions = 0
@@ -314,6 +315,7 @@ def evaluate_ceiling(
         first = over[0]
         first_block_occupancies.append(first.occupancy)
         remaining_turns = replay.assistant_turns - 1 - first.turn_index
+        remaining_turns_at_block.append(remaining_turns)
         if remaining_turns <= near_done_turns:
             near_done_blocked += 1
         tokens_after_first_block += sum(replay.turn_prompt_tokens[first.turn_index + 1 :])
@@ -338,6 +340,21 @@ def evaluate_ceiling(
         ),
         "near_done_blocked": near_done_blocked,
         "near_done_blocked_pct": _pct(near_done_blocked, blocked_sessions),
+        # `near_done_blocked_pct` is a THRESHOLD on this distribution, and the
+        # first real corpus showed the threshold alone cannot adjudicate a
+        # ceiling: it sat at 0-6% across every candidate from 150K to 600K,
+        # which reads as "no candidate over-blocks" and would argue for
+        # lowering the ceiling without limit. It only ever detected one
+        # failure shape — blocked AT the finish line. A session blocked at 20%
+        # done is not near-done, yet blocking it still costs a handoff and the
+        # re-establishment of everything it had loaded. The median says how
+        # much work was actually left, which is the quantity the threshold was
+        # standing in for.
+        "median_remaining_turns_at_first_block": (
+            int(statistics.median(remaining_turns_at_block))
+            if remaining_turns_at_block
+            else None
+        ),
         "prompt_tokens_after_first_block": tokens_after_first_block,
         "prompt_tokens_after_first_block_pct": _pct(
             tokens_after_first_block, corpus_prompt_tokens
@@ -404,12 +421,20 @@ def trend_record(replays: list[SessionReplay], sweep: list[dict], args) -> dict:
                 k: row[k]
                 for k in (
                     "abs_ceiling",
+                    # Without the clamp the persisted stream cannot explain why
+                    # two rows are identical — the first real corpus produced a
+                    # 450K row and a 600K row with every field equal, because
+                    # both clamp to 40% of a 1M window. The terminal report
+                    # marks that with a dagger; the trend record was dropping
+                    # the only field that carries it.
+                    "clamped_sessions",
                     "sessions_blocked",
                     "sessions_blocked_pct",
                     "blocks_total",
                     "advisory_fires",
                     "median_occupancy_at_first_block",
                     "near_done_blocked_pct",
+                    "median_remaining_turns_at_first_block",
                     "prompt_tokens_after_first_block_pct",
                 )
             }
@@ -484,7 +509,8 @@ def render_report(replays: list[SessionReplay], sweep: list[dict], args) -> str:
     )
     header = (
         f"{'ceiling':>9} | {'sessions':>9} | {'blocked':>8} | {'blocks':>7} | "
-        f"{'median@1st':>11} | {'near-done':>10} | {'tokens over':>12}"
+        f"{'median@1st':>11} | {'near-done':>10} | {'turns left':>10} | "
+        f"{'tokens over':>12}"
     )
     lines.append(header)
     lines.append("-" * len(header))
@@ -501,6 +527,7 @@ def render_report(replays: list[SessionReplay], sweep: list[dict], args) -> str:
             f"{_fmt(row['blocks_total']):>7} | "
             f"{_fmt(row['median_occupancy_at_first_block']):>11} | "
             f"{_fmt(row['near_done_blocked_pct']):>10} | "
+            f"{_fmt(row['median_remaining_turns_at_first_block']):>10} | "
             f"{_fmt(row['prompt_tokens_after_first_block_pct']):>12}{marker}"
         )
     lines.append("")
@@ -520,7 +547,11 @@ def render_report(replays: list[SessionReplay], sweep: list[dict], args) -> str:
     lines.append("  blocked     : share of blockable sessions the ceiling would stop")
     lines.append("                (Skill invocations only — agent dispatches warn)")
     lines.append("  near-done   : share of BLOCKED sessions that were nearly finished")
-    lines.append("                — the over-blocking signal; drive toward 0")
+    lines.append("                — one over-blocking shape, not the only one")
+    lines.append("  turns left  : median assistant turns still to come when the block")
+    lines.append("                landed — how much work a block actually interrupts.")
+    lines.append("                Read WITH near-done: a near-done of 0 next to a large")
+    lines.append("                turns-left means blocks land mid-flight, not at the end")
     lines.append("  tokens over : share of corpus prompt tokens spent past the first")
     lines.append("                block — the under-blocking signal; what enforcement")
     lines.append("                would have cut into")

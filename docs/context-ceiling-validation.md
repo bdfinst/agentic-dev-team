@@ -39,6 +39,7 @@ python3 scripts/context_ceiling_report.py \
 | `--ceilings` | `150000,…,600000` | Comma-separated candidate absolute ceilings to sweep. |
 | `--ceiling-pct` | `40` | The percentage-of-window bound, matching `DEV_TEAM_CONTEXT_CEILING_PCT`. |
 | `--near-done-turns` | `5` | Assistant turns remaining at or below which a blocked session counts as "near done". |
+| `--append` | — | Append one metrics-only record to a trend stream, so rounds are comparable. |
 | `--shipped` | `350000` | Which row to mark and summarize in the verdict. |
 | `--json` | — | Also write the full per-session result for scripting. |
 
@@ -50,7 +51,19 @@ directions apart, so the report prints a column for each:
 | Column | Direction it detects | What a bad number looks like |
 | --- | --- | --- |
 | `near-done` | ceiling too **low** | a high share of blocked sessions were within a few turns of finishing — [ADR 0037](adr/0037-block-by-default-at-the-context-ceiling-2000.md)'s revisit trigger, verbatim |
+| `turns left` | ceiling too **low** | blocks landing with a lot of work still to come, i.e. mid-flight rather than at the end |
 | `tokens over` | ceiling too **high** | a large share of corpus prompt tokens was spent past the first block, i.e. the expensive tail ran anyway |
+
+**Read `near-done` and `turns left` together — the first is a threshold and
+cannot stand alone.** The first real corpus (306 sessions) made this concrete:
+`near-done` sat at 0-6% across *every* candidate from 150K to 600K. Taken by
+itself that reads as "no ceiling over-blocks anywhere", which would argue for
+lowering the ceiling without limit. It only ever detected one shape — blocked
+*at* the finish line. A session blocked at 20% done is not near-done, and
+blocking it still costs a handoff and the re-establishment of everything it had
+loaded. `turns left` is the median work remaining when the block landed, which
+is the quantity `near-done` was standing in for. A near-done of 0 beside a
+large turns-left means blocks are landing mid-flight.
 
 A better ceiling lowers `near-done` without letting `tokens over` climb. The
 report deliberately does not collapse these into a score or pick a number for
@@ -60,14 +73,24 @@ adopted without that trade-off being visible.
 
 Sample output, against a synthetic corpus:
 
+The first real corpus — 306 sessions, 79 with a blockable call:
+
 ```text
   ceiling |  sessions |  blocked |  blocks |  median@1st |  near-done |  tokens over
 ------------------------------------------------------------------------------------
-  150,000 |        12 |     100% |     100 |     181,249 |      16.7% |        89.7%
-  250,000 |        10 |    83.3% |      85 |     291,246 |        50% |        78.8%
-  350,000 |         7 |    58.3% |      75 |     420,000 |      42.9% |        69.8% *
-  450,000 |         6 |      50% |      72 |     467,499 |      33.3% |        66.6%†
+  150,000 |        79 |    68.4% |     145 |     188,662 |       1.9% |        71.3%
+  250,000 |        79 |    41.8% |      92 |     333,142 |       6.1% |        51.0%
+  350,000 |        79 |    26.6% |      65 |     399,708 |       0.0% |        35.8% *
+  450,000 |        79 |    21.5% |      51 |     444,816 |       0.0% |        31.3%†
+  600,000 |        79 |    21.5% |      51 |     444,816 |       0.0% |        31.3%†
 ```
+
+Two things to notice, both of which drove changes to this tool. The last two
+rows are identical because they are **one** candidate — 40% of a 1M window
+clamps both to 400K, which is what `†` says. And `near-done` never rises above
+6%, which is the reading that showed a threshold alone cannot adjudicate a
+ceiling. See [ADR 0038's second
+amendment](adr/0038-raise-the-absolute-context-ceiling-to-350k.md).
 
 ## Four properties worth knowing before acting on its output
 
