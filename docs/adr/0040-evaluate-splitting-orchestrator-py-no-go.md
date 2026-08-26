@@ -61,9 +61,13 @@ missed site is narrower than it might first appear, though: `dispatch_persona`
 returns a stub result immediately when `skip_llm=True`, before any subprocess
 call. Separately (this is not a claim that the two counts overlap — they are
 two independent facts about the test file, not a subset relationship):
-`tests/scripts/test_orchestrator.py` passes the literal `skip_llm=True` 72
-times and `skip_llm=False` 63 times across all of its calls, so the test
-suite's default posture already favors the short-circuited path. For a
+`tests/scripts/test_orchestrator.py` calls into the dispatch path with the
+literal `skip_llm=True` argument 72 times, versus 23 real
+`skip_llm=False` call sites (the literal string `skip_llm=False` appears 63
+times total, but 40 of those are default parameter values on locally-defined
+dispatch stubs, e.g. `async def counting_dispatch(persona, plan,
+skip_llm=False):`, not call arguments) — so the test suite's default posture
+already favors the short-circuited path by a wide margin. For a
 `skip_llm=False` call whose patch is bypassed, the real
 subprocess call is bounded by `PERSONA_DISPATCH_TIMEOUT_S` (60s), and
 `FileNotFoundError`/`TimeoutExpired`/`OSError` are caught and converted to
