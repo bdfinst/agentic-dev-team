@@ -241,6 +241,70 @@ def load_registry(plugin_root: Path) -> dict:
 # --- per-record signal accumulation (adapted from session_extract.py) -------
 
 
+#: The usage fields that make up a dispatch's CONTEXT — what it carried in,
+#: as opposed to what it generated. Session telemetry puts ~90% of spend here
+#: (cache read + cache write), which is why per-agent context is the figure a
+#: panel-cost decision needs and `output_tokens` is tracked separately.
+_CONTEXT_TOKEN_FIELDS = (
+    "input_tokens",
+    "cache_creation_input_tokens",
+    "cache_read_input_tokens",
+)
+
+#: Mirrors `hooks/lib/cost_meter.py`'s `_new_bucket()` shape (#1094) so the two
+#: per-agent breakdowns in this plugin agree on field names. They stay separate
+#: implementations — cost_meter runs live per turn, this runs over a whole tree.
+_AGENT_BUCKET_FIELDS = (*_CONTEXT_TOKEN_FIELDS, "output_tokens")
+
+
+def _new_agent_bucket() -> dict:
+    bucket = {f: 0 for f in _AGENT_BUCKET_FIELDS}
+    bucket["messages"] = 0
+    bucket["dispatches"] = 0
+    return bucket
+
+
+def _merge_agent_buckets(dest: dict, src: dict) -> None:
+    """Fold one project's per-agent buckets into the cross-project totals.
+
+    Re-sums the raw fields rather than the derived ones: adding two projects'
+    `context_per_dispatch` values would produce a number that is not a mean of
+    anything. The derived figures are recomputed once, after the merge.
+    """
+    for label, bucket in (src or {}).items():
+        if not isinstance(bucket, dict):
+            # A digest written before #2010 carries an int (a message count).
+            # Merging it as tokens would silently corrupt the total, so the
+            # label is preserved at zero rather than guessed at.
+            dest.setdefault(label, _new_agent_bucket())
+            continue
+        into = dest.setdefault(label, _new_agent_bucket())
+        for field in (*_AGENT_BUCKET_FIELDS, "messages", "dispatches"):
+            into[field] += bucket.get(field, 0) or 0
+
+
+def _finalize_agent_buckets(by_agent_type: dict) -> dict:
+    """Add the derived per-dispatch figure each bucket exists to answer.
+
+    `context_tokens` is the sum a dispatch is charged for carrying;
+    `context_per_dispatch` divides it by real dispatch count, which is why
+    dispatches are counted from subagent transcripts rather than messages. It
+    is `None` for `main` and for any agent with no counted dispatch — a
+    division that has no meaning must read as absent, not as 0, which would
+    rank a never-dispatched agent as the cheapest in the table.
+    """
+    out = {}
+    for label, b in sorted(by_agent_type.items()):
+        context = sum(b[f] for f in _CONTEXT_TOKEN_FIELDS)
+        entry = dict(b)
+        entry["context_tokens"] = context
+        entry["context_per_dispatch"] = (
+            round(context / b["dispatches"]) if b["dispatches"] else None
+        )
+        out[label] = entry
+    return out
+
+
 def _accumulate_token_signals(usage, model, tokens_total, by_model):
     for f in (
         "input_tokens",
@@ -370,7 +434,7 @@ def extract(
     no session_id is excluded, same fail-closed convention."""
     tokens_total = Counter()
     by_model: dict[str, Counter] = defaultdict(Counter)
-    by_agent_type = Counter()
+    by_agent_type = {}
     sessions: set[str] = set()
 
     edits_per_file = Counter()
@@ -404,6 +468,7 @@ def extract(
         thread = _new_thread()
         pending_tool: dict[str, str] = {}
         thread_msgs = 0
+        thread_usage = _new_agent_bucket()
         records_in_window = 0
 
         for rec in _iter_file_records(path):
@@ -448,6 +513,13 @@ def extract(
             if usage:
                 thread_msgs += 1
                 _accumulate_token_signals(usage, model, tokens_total, by_model)
+                # Real per-dispatch context (#2010). The usage record is already
+                # in hand here; before this it was folded into the totals and
+                # then discarded for a message count, which is why "what does
+                # each dispatch carry" was unanswerable from this report.
+                thread_usage["messages"] += 1
+                for field in _CONTEXT_TOKEN_FIELDS:
+                    thread_usage[field] += usage.get(field, 0) or 0
 
             content = msg.get("content")
             _accumulate_skill_agent_signals(content, skills_invoked, agent_dispatches)
@@ -475,7 +547,14 @@ def extract(
         # resolved here rather than per record.
         label = agent_name or (_UNATTRIBUTED_LABEL if is_subagent else _MAIN_LABEL)
         if thread_msgs:  # `+= 0` would materialize a zero-valued key
-            by_agent_type[label] += thread_msgs
+            bucket = by_agent_type.setdefault(label, _new_agent_bucket())
+            bucket["messages"] += thread_usage["messages"]
+            for field in _CONTEXT_TOKEN_FIELDS:
+                bucket[field] += thread_usage[field]
+            # One subagent transcript is one dispatch, so dispatches are
+            # counted here rather than inferred from message volume.
+            if is_subagent:
+                bucket["dispatches"] += 1
         # A transcript whose every record fell outside --since/--until did not
         # happen in the reported window, so it is neither a run nor a counted
         # transcript there. Counting files on a different basis from every
@@ -517,7 +596,7 @@ def extract(
             "totals": dict(sorted(tokens_total.items())),
             "cache_hit_ratio": cache_hit_ratio,
             "by_model": {m: dict(sorted(v.items())) for m, v in sorted(by_model.items())},
-            "by_agent_type": dict(sorted(by_agent_type.items())),
+            "by_agent_type": _finalize_agent_buckets(by_agent_type),
         },
         "rework": {
             "failed_edits": error_counts["failed_edits"],
@@ -564,7 +643,7 @@ def combine(digests: dict[str, dict], registry: dict) -> dict:
     transcripts = 0
     subagent_transcripts = 0
     tokens_total = Counter()
-    by_agent_type = Counter()
+    by_agent_type = {}
     cr = cc = 0
     rework = Counter()
     repeated_file_edits: Counter = Counter()
@@ -582,7 +661,7 @@ def combine(digests: dict[str, dict], registry: dict) -> dict:
         transcripts += d["transcripts"]
         subagent_transcripts += d.get("subagent_transcripts", 0)
         _merge_counters(tokens_total, d["token"]["totals"])
-        _merge_counters(by_agent_type, d["token"]["by_agent_type"])
+        _merge_agent_buckets(by_agent_type, d["token"]["by_agent_type"])
         cr += d["token"]["totals"].get("cache_read_input_tokens", 0)
         cc += d["token"]["totals"].get("cache_creation_input_tokens", 0)
 
@@ -621,7 +700,7 @@ def combine(digests: dict[str, dict], registry: dict) -> dict:
         "token": {
             "totals": dict(sorted(tokens_total.items())),
             "cache_hit_ratio": round(cr / (cr + cc), 4) if (cr + cc) else 0.0,
-            "by_agent_type": dict(sorted(by_agent_type.items())),
+            "by_agent_type": _finalize_agent_buckets(by_agent_type),
         },
         "rework": {
             "failed_edits": rework["failed_edits"],

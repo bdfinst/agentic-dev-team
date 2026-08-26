@@ -56,7 +56,7 @@ prompts, command strings, or code (privacy by construction):
 | `transcripts` / `subagent_transcripts` | main-thread sessions vs dispatched agent runs |
 | `tokens` | input/output/cache token totals |
 | `cost_usd`, `cache_hit_ratio` | session cost and cache-read efficiency |
-| `token.by_agent_type` | message counts keyed by agent name — `main`, `unattributed` where none resolves, `sidechain` for an older harness's inlined turns |
+| `token.by_agent_type` | per-agent token buckets keyed by agent name — `main`, `unattributed` where none resolves, `sidechain` for an older harness's inlined turns. **Was a bare message count before #2010**, which read as a token figure under this key and was off from `token.totals` by orders of magnitude |
 | `rework` | counts: `failed_edits`, `repeated_file_edits`, `retried_bash_commands`, `repeated_verify_runs`, `permission_denials`, `compaction_events` |
 | `accuracy` | `tool_calls`, `tool_error_rate`, `user_correction_turns` |
 | `utilization` | `skills_invoked`, `agents_invoked` (RUNS), `agent_dispatches` (Agent/Task calls), `never_observed_skills`, `never_observed_agents` |
@@ -117,7 +117,22 @@ otherwise conflate:
 | Field | Meaning |
 |---|---|
 | `transcripts` / `subagent_transcripts` | main-thread sessions vs dispatched agent runs, both scoped to the reported window |
-| `token.by_agent_type` | message counts keyed by agent name — `main` for the main thread, `unattributed` where no agent is resolvable. Same vocabulary as cost-metering's `by_agent_type` (`knowledge/telemetry-schema.md`); deliberately NOT `by_subagent`, which means main-vs-sidechain in `session_extract.py` |
+| `token.by_agent_type` | **per-agent token buckets** (#2010), keyed by agent name — `main` for the main thread, `unattributed` where no agent is resolvable. Same vocabulary as cost-metering's `by_agent_type` (`knowledge/telemetry-schema.md`) and now the same field names as its buckets; deliberately NOT `by_subagent`, which means main-vs-sidechain in `session_extract.py` |
+
+Each `token.by_agent_type` bucket carries:
+
+| Key | Meaning |
+|---|---|
+| `input_tokens`, `cache_read_input_tokens`, `cache_creation_input_tokens` | the usage fields that make up what a dispatch **carried in** |
+| `output_tokens` | what it generated — tracked, but deliberately outside `context_tokens` |
+| `context_tokens` | the sum of the three context fields. Session telemetry puts ~90% of spend here, which is why this is the figure a panel-cost decision reads |
+| `messages` | assistant messages carrying usage — the value this key held on its own before #2010 |
+| `dispatches` | runs, counted one per subagent transcript. Never inferred from message volume, which would make a verbose agent look cheap per dispatch |
+| `context_per_dispatch` | `context_tokens / dispatches`, or **`null`** when `dispatches` is 0 (`main`, and any agent that never ran). Null rather than 0 so a never-dispatched agent cannot sort as the cheapest row |
+
+**Reconciliation invariant.** The per-agent `context_tokens` sum exactly to `token.totals`' three context fields. Both are derived from the same usage records, so a mismatch means a dispatch was double-counted or dropped; `tests/scripts/test_extract_session_report.py` pins it.
+
+**Not comparable across the #2010 boundary.** A pre-#2010 digest carries an int here. The cross-project merge preserves such a label at zero rather than summing a message count into a token total.
 | `utilization.agents_invoked` | agent RUNS, from each subagent transcript's `attributionAgent` — ground truth |
 | `utilization.agent_dispatches` | `Agent`/`Task` tool calls, i.e. dispatches requested |
 
