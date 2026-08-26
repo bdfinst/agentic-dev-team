@@ -12,7 +12,8 @@ compression procedure it nudges toward, see
 
 A `PreToolUse` hook registered on `Agent` and `Skill` — every capability
 load (dispatching a sub-agent, invoking a skill) is a choke point where the
-hook can measure real context occupancy before the call proceeds. It reads
+hook can measure real context occupancy before the call proceeds. Both are
+measured and reported; only `Skill` is blocked (ADR 0039 — see Expectations). It reads
 `utilization = (input + cache_read + cache_creation) / model_context_window`
 from the session transcript's most recent assistant-message usage — ground
 truth from the harness, not a model self-estimate (a model has no reliable
@@ -95,10 +96,18 @@ load-bearing on a 200K window or if the cap is raised past 400K.
 
 ## Expectations
 
-- **Blocking is the default (#2000).** At or above the ceiling the hook
-  writes to stderr and exits 2 — the tool call is blocked — with a
-  `[blocked: context ceiling]` footer naming `/handoff` as the way out.
-  Nothing is written to stdout.
+- **Blocking is the default (#2000) — for `Skill`.** At or above the ceiling
+  a skill invocation writes to stderr and exits 2 — the call is blocked —
+  with a `[blocked: context ceiling]` footer naming `/handoff` as the way
+  out. Nothing is written to stdout.
+- **Agent/Task dispatches warn but proceed (ADR 0039).** The two gated tools
+  do opposite things to the measured quantity: a skill loads `SKILL.md` into
+  *this* context, while a subagent runs in its own and returns only a result.
+  Blocking a dispatch does not stop the work — it pushes the work inline,
+  growing occupancy by more than delegating would have, so the guard would be
+  making the number it protects worse. Dispatches still fire the full
+  diagnostic and action bands, carrying a `[not blocked: delegation]` footer.
+  `DEV_TEAM_CONTEXT_GATE_AGENT=block` restores blocking for them.
 - **Warn mode is opt-out.** `DEV_TEAM_CONTEXT_STRICT=off` downgrades the
   block to a stderr warning with `exit 0`, the pre-#2000 behavior. Only the
   literal value `off` (case- and whitespace-insensitive) does this; every
@@ -144,6 +153,7 @@ load-bearing on a 200K window or if the cap is raised past 400K.
 | --- | --- | --- |
 | `DEV_TEAM_CONTEXT_CEILING` | (unset = on) | `off` disables the guard entirely. |
 | `DEV_TEAM_CONTEXT_STRICT` | (unset = block) | `off` warns (`exit 0`) at or above the ceiling instead of blocking. Any other value blocks. |
+| `DEV_TEAM_CONTEXT_GATE_AGENT` | (unset = warn) | `block` also blocks `Agent`/`Task` dispatches over the ceiling. Only the literal `block` opts in — the opposite convention to `STRICT`, because here the expensive direction of failure is blocking a dispatch that should not be blocked. |
 | `DEV_TEAM_CONTEXT_CEILING_PCT` | `40` | Percentage-of-window threshold before the absolute cap is applied. |
 | `DEV_TEAM_CONTEXT_WINDOW` | (unset = auto-detect) | Overrides window auto-detection explicitly; always wins over detection. |
 | `DEV_TEAM_CONTEXT_ABS_CEILING` | `350000` | Absolute token cap on the effective threshold — `min(ceiling_pct% of window, this)`. Binding on every 1M-window model; a no-op on a 200K one. |

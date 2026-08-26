@@ -56,6 +56,12 @@ summary + fresh conversation (see [Handoff → When to
 Summarize](../handoff/SKILL.md#when-to-summarize)) — before
 **blocking the load** at/above the ceiling (the default since
 #2000; `DEV_TEAM_CONTEXT_STRICT=off` downgrades it to a warning).
+
+Only **skill** invocations block; an `Agent`/`Task` dispatch warns and proceeds
+(ADR 0039). A skill loads `SKILL.md` into this context; a subagent runs in its
+own and returns only a result, so blocking a dispatch would push the work
+inline and grow occupancy by more than delegating would.
+`DEV_TEAM_CONTEXT_GATE_AGENT=block` restores blocking.
 Recovery skills
 (`/handoff`, `/context-loading-protocol`, `/continue`,
 `/review-summary`, `/session-review`) are never gated — blocking the path
@@ -63,6 +69,7 @@ back under budget would deadlock the session.
 
 Knobs: `DEV_TEAM_CONTEXT_CEILING_PCT` (default 40), `DEV_TEAM_CONTEXT_ABS_CEILING`
 (default 350000), `DEV_TEAM_CONTEXT_WINDOW` (overrides auto-detection),
+`DEV_TEAM_CONTEXT_GATE_AGENT=block` (also block agent dispatches),
 `DEV_TEAM_CONTEXT_CEILING=off` (disables entirely).
 The hook is a backstop measured from real usage; the budget estimate below is still
 the planning tool you apply *before* loading.

@@ -436,3 +436,200 @@ def test_the_verdict_says_inconclusive_rather_than_endorsing_the_default(
     result = _run_cli("--transcripts", str(tmp_path))
     assert result.returncode == 0
     assert "inconclusive" in result.stdout
+
+
+# ---------------------------------------------------------------------------
+# ADR 0039 — the sweep counts blocks, and only Skill blocks
+# ---------------------------------------------------------------------------
+
+
+def test_an_agent_dispatch_over_the_ceiling_is_not_counted_as_a_block(
+    tmp_path: Path,
+) -> None:
+    """The deliberate-failure case for the report side. Counting agent
+    dispatches as blocks would overstate every candidate's block rate and
+    argue for a higher ceiling than the evidence supports."""
+    replays = _one_session(
+        tmp_path, _assistant(400_000, tool_uses=[_agent("test-review")])
+    )
+    result = report.evaluate_ceiling(replays, 350_000, 40, 5)
+    assert result["sessions_blocked"] == 0
+    assert result["blocks_total"] == 0
+    assert result["advisory_fires"] == 1, (
+        "the dispatch still fired the guard — it warned, and the report must "
+        "say so rather than dropping it silently"
+    )
+
+
+def test_a_skill_invocation_over_the_ceiling_is_counted_as_a_block(
+    tmp_path: Path,
+) -> None:
+    replays = _one_session(tmp_path, _assistant(400_000, tool_uses=[_skill("build")]))
+    result = report.evaluate_ceiling(replays, 350_000, 40, 5)
+    assert result["sessions_blocked"] == 1
+    assert result["blocks_total"] == 1
+    assert result["advisory_fires"] == 0
+
+
+def test_the_blocking_split_is_read_from_the_guard_not_restated(
+    tmp_path: Path,
+) -> None:
+    """Anti-drift for the split itself: if the guard ever changes which
+    tools block, the report must follow without being edited."""
+    replays = _one_session(
+        tmp_path,
+        _assistant(400_000, tool_uses=[_skill("build"), _agent("x")]),
+    )
+    by_tool = {g.tool: g.blocks for g in replays[0].gates}
+    assert by_tool == {
+        tool: tool in guard._BLOCKING_TOOLS for tool in ("Skill", "Agent")
+    }
+
+
+def test_a_session_with_only_agent_dispatches_is_not_in_the_denominator(
+    tmp_path: Path,
+) -> None:
+    """It can never be blocked at any ceiling, so including it would dilute
+    every block rate toward zero and make a too-low ceiling look fine."""
+    replays = _one_session(tmp_path, _assistant(900_000, tool_uses=[_agent("x")]))
+    result = report.evaluate_ceiling(replays, 150_000, 40, 5)
+    assert result["sessions_blocked"] == 0
+    assert result["sessions_blocked_pct"] is None, (
+        "no blockable session means there is nothing to take a percentage of"
+    )
+
+
+def test_tokens_after_first_block_ignores_a_preceding_agent_dispatch(
+    tmp_path: Path,
+) -> None:
+    """"First block" means the first BLOCKING gate. An earlier agent
+    dispatch over the ceiling is not where enforcement would have cut in."""
+    replays = _one_session(
+        tmp_path,
+        _assistant(400_000, tool_uses=[_agent("x")]),  # warns, does not block
+        _assistant(500_000, tool_uses=[_skill("build")]),  # this is the block
+        _assistant(600_000),
+    )
+    result = report.evaluate_ceiling(replays, 350_000, 40, 0)
+    assert result["median_occupancy_at_first_block"] == 500_000
+    assert result["prompt_tokens_after_first_block"] == 600_000
+
+
+def test_the_report_names_the_blockable_subset(tmp_path: Path) -> None:
+    _write(
+        tmp_path / "t.jsonl",
+        _assistant(400_000, tool_uses=[_skill("build"), _agent("x")]),
+    )
+    result = _run_cli("--transcripts", str(tmp_path), "--ceilings", "350000")
+    assert result.returncode == 0
+    assert b"of which blockable" in result.stdout.encode()
+    assert b"Agent/Task warns, never blocks" in result.stdout.encode()
+
+
+# ---------------------------------------------------------------------------
+# the trend stream — what makes "over time" possible
+# ---------------------------------------------------------------------------
+
+
+def _trend_args(**over):
+    class _A:
+        ceiling_pct = 40
+        shipped = 350_000
+        near_done_turns = 5
+
+    a = _A()
+    for k, v in over.items():
+        setattr(a, k, v)
+    return a
+
+
+def test_the_trend_record_carries_metrics_only(tmp_path: Path) -> None:
+    """The trend stream accumulates across rounds and outlives any single
+    review, so it must carry no transcript paths, session ids, prompts or
+    code — the same constraint `session_extract.py`'s `slim_record` accepts
+    (#129). A leak here is permanent in a way a one-off report is not.
+    """
+    replays = _one_session(
+        tmp_path, _assistant(400_000, tool_uses=[_skill("build")])
+    )
+    sweep = [report.evaluate_ceiling(replays, 350_000, 40, 5)]
+    blob = json.dumps(report.trend_record(replays, sweep, _trend_args()))
+
+    assert str(tmp_path) not in blob
+    assert ".jsonl" not in blob
+    for key in ("path", "session_id", "label"):
+        assert f'"{key}"' not in blob
+
+
+def test_the_trend_record_pins_the_settings_it_was_measured_under(
+    tmp_path: Path,
+) -> None:
+    """A row that does not say which ceiling_pct and near-done window
+    produced it cannot be compared against the next round — the whole point
+    of persisting it."""
+    replays = _one_session(tmp_path, _assistant(400_000, tool_uses=[_skill("x")]))
+    sweep = [report.evaluate_ceiling(replays, 350_000, 40, 5)]
+    rec = report.trend_record(replays, sweep, _trend_args())
+    assert rec["schema"] == "context-ceiling-trend/v1"
+    assert (rec["ceiling_pct"], rec["shipped_ceiling"], rec["near_done_turns"]) == (
+        40,
+        350_000,
+        5,
+    )
+
+
+def test_recorded_at_is_the_only_wall_clock_field(tmp_path: Path) -> None:
+    """Two runs over the same corpus must produce identical reports; the
+    timestamp lives on the trend log, never in the deterministic output."""
+    replays = _one_session(tmp_path, _assistant(400_000, tool_uses=[_skill("x")]))
+    sweep = [report.evaluate_ceiling(replays, 350_000, 40, 5)]
+    rec = report.trend_record(replays, sweep, _trend_args())
+    assert "recorded_at" in rec
+    assert "recorded_at" not in json.dumps(sweep)
+
+
+def test_append_creates_the_stream_and_never_rewrites_it(tmp_path: Path) -> None:
+    """Append-only: an earlier round is evidence, and a round that could
+    overwrite its predecessors would destroy the comparison it exists for."""
+    replays = _one_session(tmp_path, _assistant(400_000, tool_uses=[_skill("x")]))
+    sweep = [report.evaluate_ceiling(replays, 350_000, 40, 5)]
+    log = tmp_path / "nested" / "trend.jsonl"
+
+    report.append_trend(log, report.trend_record(replays, sweep, _trend_args()))
+    report.append_trend(log, report.trend_record(replays, sweep, _trend_args()))
+
+    lines = [ln for ln in log.read_text(encoding="utf-8").splitlines() if ln.strip()]
+    assert len(lines) == 2
+    assert all(json.loads(ln)["schema"] == "context-ceiling-trend/v1" for ln in lines)
+
+
+def test_cli_append_writes_one_record_per_run(tmp_path: Path) -> None:
+    _write(tmp_path / "t.jsonl", _assistant(400_000, tool_uses=[_skill("build")]))
+    log = tmp_path / "trend.jsonl"
+    for _ in range(2):
+        result = _run_cli(
+            "--transcripts", str(tmp_path), "--ceilings", "350000",
+            "--append", str(log),
+        )
+        assert result.returncode == 0, result.stderr
+    assert len(log.read_text(encoding="utf-8").strip().splitlines()) == 2
+
+
+def test_recorded_at_matches_the_repos_metrics_timestamp_format(
+    tmp_path: Path,
+) -> None:
+    """`session_extract.py` and the other metrics writers all emit
+    `%Y-%m-%dT%H:%M:%SZ`. The playbook reads both streams' timestamps side by
+    side, so a second spelling of UTC would be a gratuitous difference at
+    exactly the point of comparison."""
+    import datetime as _dt
+
+    replays = _one_session(tmp_path, _assistant(400_000, tool_uses=[_skill("x")]))
+    sweep = [report.evaluate_ceiling(replays, 350_000, 40, 5)]
+    stamp = report.trend_record(replays, sweep, _trend_args())["recorded_at"]
+
+    assert stamp.endswith("Z") and "+00:00" not in stamp
+    parsed = _dt.datetime.strptime(stamp, "%Y-%m-%dT%H:%M:%SZ").replace(
+        tzinfo=_dt.timezone.utc
+    )
+    assert parsed.tzinfo is _dt.timezone.utc

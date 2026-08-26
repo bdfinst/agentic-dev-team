@@ -38,3 +38,4 @@
 * [36. The two session extractors stay forked, for now (#1994)](0036-the-two-session-extractors-stay-forked-1994.md)
 * [37. Block by default at the context ceiling (#2000)](0037-block-by-default-at-the-context-ceiling-2000.md)
 * [38. Raise the absolute context ceiling from 150K to 350K](0038-raise-the-absolute-context-ceiling-to-350k.md)
+* [39. Only Skill loads are worth blocking at the context ceiling](0039-only-skill-loads-are-worth-blocking-at-the-context-ceiling.md)
