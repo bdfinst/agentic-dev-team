@@ -57,12 +57,11 @@ Summarize](../handoff/SKILL.md#when-to-summarize)) — before
 **blocking the load** at/above the ceiling (the default since
 #2000; `DEV_TEAM_CONTEXT_STRICT=off` downgrades it to a warning).
 
-Only **skill** invocations are blocked. An `Agent`/`Task` dispatch warns and
-proceeds (ADR 0039): a skill loads `SKILL.md` into this context, while a
-subagent runs in its own and returns only a result, so blocking a dispatch
-would push the work inline and grow occupancy by more than delegating would.
-Delegating is the right move for an over-budget orchestrator, and the guard no
-longer penalizes it. `DEV_TEAM_CONTEXT_GATE_AGENT=block` restores blocking.
+Only **skill** invocations block; an `Agent`/`Task` dispatch warns and proceeds
+(ADR 0039). A skill loads `SKILL.md` into this context; a subagent runs in its
+own and returns only a result, so blocking a dispatch would push the work
+inline and grow occupancy by more than delegating would.
+`DEV_TEAM_CONTEXT_GATE_AGENT=block` restores blocking.
 Recovery skills
 (`/handoff`, `/context-loading-protocol`, `/continue`,
 `/review-summary`, `/session-review`) are never gated — blocking the path

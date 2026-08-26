@@ -114,7 +114,7 @@ Skills are reusable knowledge modules in `.claude/skills/` that agents reference
 | CI Debugging | `skills/ci-debugging/SKILL.md` | 1,368 | Platform Engineer, Software Engineer, QA Engineer |
 | Claude Setup Review | `skills/claude-setup-review/SKILL.md` | ~1,296 | `/claude-setup-review` command, claude-setup-review |
 | Competitive Analysis | `skills/competitive-analysis/SKILL.md` | 2,034 | Orchestrator, Product Manager |
-| Context Loading Protocol | `skills/context-loading-protocol/SKILL.md` | 2,331 | Orchestrator |
+| Context Loading Protocol | `skills/context-loading-protocol/SKILL.md` | 2,628 | Orchestrator |
 | Coverage Baseline | `skills/coverage-baseline/SKILL.md` | ~5,115 | `/test-improve` (Phase 2), QA Engineer, Platform Engineer |
 | Coverage Delta | `skills/coverage-delta/SKILL.md` | ~3,852 | `/test-improve` (Phase 5), QA Engineer |
 | Design Doc | `skills/design-doc/SKILL.md` | 1,118 | Architect, Product Manager, Orchestrator |
