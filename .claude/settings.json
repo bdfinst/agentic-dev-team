@@ -14,6 +14,10 @@
           {
             "type": "command",
             "command": "python3 \"$CLAUDE_PROJECT_DIR/.claude/ensure_code_graph_tools.py\""
+          },
+          {
+            "type": "command",
+            "command": "python3 \"$CLAUDE_PROJECT_DIR/.claude/ensure_session_archive.py\""
           }
         ]
       }
