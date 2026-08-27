@@ -31,6 +31,22 @@ module's own CLI parser (`build_arg_parser`) defines matching attribute
 names -- a silent-`AttributeError` risk if either script's flag names
 drift; see `tests/scripts/test_bash_failure_taxonomy.py` for the contract
 test guarding this.
+
+## The addressable denominator excludes `timeout` and `genuine-command-error`
+
+`timeout` and `genuine-command-error` are counted in the distribution like
+any other class, but are EXCLUDED from `addressable_percentage`'s
+denominator: a Bash call that timed out, or one that ran as invoked and
+failed with a genuine, well-formed error from the tool itself, is not a
+taxonomy problem this classifier's remediation work can fix -- so the
+addressable percentage measures the share of classified errors that
+remain once both excluded classes are subtracted out, matching
+`churn_coupling_report.py`'s own "why this exists" convention of stating a
+scoping decision's rationale directly in the docstring rather than leaving
+it implicit in the code. A corpus with zero classified errors yields
+`addressable_percentage: None` (the one true 0/0 case, never a
+`ZeroDivisionError`); a non-empty corpus where every error happens to fall
+into the two excluded classes yields a well-defined `0.0`.
 """
 
 from __future__ import annotations
@@ -377,6 +393,86 @@ def classify(command: str, error_text: str) -> str:
     if _is_genuine_command_error(text):
         return "genuine-command-error"
     return "unclassified"
+
+
+# ---------------------------------------------------------------------------
+# Step 1.3: corpus distribution + excluded-denominator reporting
+#
+# See the module docstring's "The addressable denominator excludes
+# `timeout` and `genuine-command-error`" section for why those two classes
+# are counted but never contribute to `addressable_percentage`'s
+# denominator.
+# ---------------------------------------------------------------------------
+
+ADDRESSABLE_EXCLUDED_CLASSES: frozenset[str] = frozenset({"timeout", "genuine-command-error"})
+
+ALL_CLASSES: tuple[str, ...] = (
+    "quoting",
+    "tool-not-present",
+    "working-directory",
+    "timeout",
+    "genuine-command-error",
+    "unclassified",
+)
+
+
+@dataclass(frozen=True)
+class Distribution:
+    """Per-class failure counts over a corpus, plus the addressable
+    percentage.
+
+    `addressable_percentage` is `None` only when `total` is zero (an empty
+    corpus -- the one true 0/0 case). When `total` is non-zero but every
+    error falls into the two excluded classes, `addressable_denominator` is
+    zero and `addressable_percentage` is a well-defined `0.0`.
+    """
+
+    counts: dict[str, int]
+    total: int
+    addressable_denominator: int
+    addressable_percentage: float | None
+
+    def to_dict(self) -> dict[str, object]:
+        """Class names, counts, and percentages only -- never raw
+        command/error text, matching this module's committed-baseline
+        privacy contract."""
+        return {
+            "counts": dict(self.counts),
+            "total": self.total,
+            "addressable_denominator": self.addressable_denominator,
+            "addressable_percentage": self.addressable_percentage,
+        }
+
+
+def build_distribution(pairs: Iterable[BashErrorPair]) -> Distribution:
+    """Classify every pair in `pairs` (Step 1.2's `classify`) and tally the
+    six-class distribution, with the addressable denominator
+    (`total - timeout - genuine-command-error`) computed alongside it."""
+    counts: dict[str, int] = dict.fromkeys(ALL_CLASSES, 0)
+    total = 0
+    for pair in pairs:
+        counts[classify(pair.command, pair.error_text)] += 1
+        total += 1
+
+    excluded = sum(counts[cls] for cls in ADDRESSABLE_EXCLUDED_CLASSES)
+    addressable_denominator = total - excluded
+    addressable_percentage = (
+        None if total == 0 else round((addressable_denominator / total) * 100, 2)
+    )
+
+    return Distribution(
+        counts=counts,
+        total=total,
+        addressable_denominator=addressable_denominator,
+        addressable_percentage=addressable_percentage,
+    )
+
+
+def build_distribution_from_corpus(paths: Iterable[Path | str]) -> Distribution:
+    """Walk a corpus of transcript paths through `pair_bash_errors` (Step
+    1.1's pairing) and `build_distribution` (Step 1.2's classifier) to emit
+    one `Distribution` for the whole corpus window."""
+    return build_distribution(pair_bash_errors(paths).pairs)
 
 
 def build_arg_parser() -> argparse.ArgumentParser:

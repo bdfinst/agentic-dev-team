@@ -1,6 +1,6 @@
-"""Unit tests for scripts/bash_failure_taxonomy.py Steps 1.1-1.2 (issue #2038):
-self-contained Bash tool_use/tool_result pairing, and the six-bucket
-failure classifier.
+"""Unit tests for scripts/bash_failure_taxonomy.py Steps 1.1-1.3 (issue #2038):
+self-contained Bash tool_use/tool_result pairing, the six-bucket failure
+classifier, and corpus distribution + excluded-denominator reporting.
 
 Step 1.1 TEST list (self-contained pairing):
 (a) a synthetic Bash tool_use + failing tool_result pair yields both texts
@@ -24,6 +24,17 @@ directory" string; a bare-exit-code-only string asserting `unclassified`
 (not `genuine-command-error`); a truly unclassifiable string; and a
 boundary case pinning exactly which side of the ">10 character" stderr
 threshold a 10-character and an 11-character message fall on.
+
+Step 1.3 TEST list (`build_distribution`/`build_distribution_from_corpus`):
+a fixture corpus with a known mix of all 6 buckets asserting counts and
+that the excluded classes (`timeout`, `genuine-command-error`) are absent
+from the addressable-percentage denominator; a second fixture where the
+denominator is zero (every error in an excluded class, and separately an
+empty corpus) asserting no exception and a well-defined percentage; a
+negative privacy test asserting a distinctive marker string never appears
+in the serialized JSON distribution; and a docstring-content test asserting
+the module docstring names both excluded classes alongside
+"excluded"/"denominator" language.
 
 No import from `session_extract.py` beyond the two path-discovery
 functions the plan names as reusable -- see the module docstring under
@@ -392,3 +403,104 @@ def test_tool_result_block_missing_required_fields_skipped_without_raising(tmp_p
     assert len(result.pairs) == 1
     assert result.pairs[0].command == "false"
     assert result.unpaired == []
+
+
+# ---------------------------------------------------------------------------
+# Step 1.3: corpus distribution + excluded-denominator reporting
+# ---------------------------------------------------------------------------
+
+
+def _append_bash_pair(records: list[dict], tool_id: str, command: str, error_text: str) -> None:
+    records.append(_assistant([_tool_use(tool_id, "Bash", command)]))
+    records.append(_user([_tool_result(tool_id, error_text, is_error=True)]))
+
+
+def test_build_distribution_from_corpus_counts_all_six_buckets(tmp_path):
+    path = tmp_path / "session.jsonl"
+    records: list[dict] = []
+    _append_bash_pair(
+        records,
+        "t1",
+        "echo 'unterminated",
+        "bash: -c: line 1: unexpected EOF while looking for matching quote",
+    )
+    _append_bash_pair(records, "t2", "foobarbaz --version", "bash: foobarbaz: command not found")
+    _append_bash_pair(records, "t3", "cat bar.txt", "cat: bar.txt: No such file or directory")
+    _append_bash_pair(records, "t4", "sleep 300", "Command timed out after 120000ms")
+    _append_bash_pair(
+        records,
+        "t5",
+        "git status",
+        "fatal: not a git repository (or any of the parent directories): .git",
+    )
+    _append_bash_pair(records, "t6", "mytool --flag", "???")
+    _write_transcript(path, records)
+
+    distribution = bft.build_distribution_from_corpus([path])
+
+    assert distribution.counts == {
+        "quoting": 1,
+        "tool-not-present": 1,
+        "working-directory": 1,
+        "timeout": 1,
+        "genuine-command-error": 1,
+        "unclassified": 1,
+    }
+    assert distribution.total == 6
+    # timeout + genuine-command-error are excluded from the denominator.
+    assert distribution.addressable_denominator == 4
+    assert distribution.addressable_percentage == pytest.approx(4 / 6 * 100, abs=0.01)
+
+
+def test_build_distribution_zero_denominator_all_errors_excluded_class(tmp_path):
+    # Every classified error falls into an excluded class -- the addressable
+    # denominator is zero, but the corpus itself is non-empty, so the
+    # percentage is a well-defined 0.0, not None and not a
+    # ZeroDivisionError.
+    path = tmp_path / "session.jsonl"
+    records: list[dict] = []
+    _append_bash_pair(records, "t1", "sleep 300", "Command timed out after 120000ms")
+    _write_transcript(path, records)
+
+    distribution = bft.build_distribution_from_corpus([path])
+
+    assert distribution.total == 1
+    assert distribution.addressable_denominator == 0
+    assert distribution.addressable_percentage == 0.0
+
+
+def test_build_distribution_empty_corpus_percentage_is_none(tmp_path):
+    # An empty corpus is the one true 0/0 case -- total is also zero, so the
+    # percentage is reported as None rather than 0.0.
+    path = tmp_path / "session.jsonl"
+    _write_transcript(path, [])
+
+    distribution = bft.build_distribution_from_corpus([path])
+
+    assert distribution.total == 0
+    assert distribution.addressable_denominator == 0
+    assert distribution.addressable_percentage is None
+
+
+def test_distribution_serialized_json_never_contains_raw_marker_text(tmp_path):
+    marker = "DISTINCTIVE-MARKER-XYZ123"
+    path = tmp_path / "session.jsonl"
+    records: list[dict] = []
+    _append_bash_pair(records, "t1", f"echo {marker}", f"{marker}: command not found")
+    _write_transcript(path, records)
+
+    distribution = bft.build_distribution_from_corpus([path])
+    serialized = json.dumps(distribution.to_dict())
+
+    assert marker not in serialized
+    # Sanity check the fixture actually produced a countable error --
+    # otherwise the marker's absence would prove nothing.
+    assert distribution.total == 1
+
+
+def test_module_docstring_documents_addressable_denominator_exclusion():
+    doc = bft.__doc__ or ""
+    assert "timeout" in doc
+    assert "genuine-command-error" in doc
+    assert "excluded" in doc.lower()
+    assert "denominator" in doc.lower()
