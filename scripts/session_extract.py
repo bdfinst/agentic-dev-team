@@ -54,8 +54,10 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import math
 import os
 import re
+import sys
 from collections import Counter, defaultdict
 from datetime import UTC
 from pathlib import Path
@@ -1067,16 +1069,44 @@ def _normalize_plugin_version(value) -> str | None:
     return value if isinstance(value, str) and _VERSION_RE.match(value) else None
 
 
+def _safe_number(v) -> int | float:
+    """Bound a peer-supplied numeric field read back from a synced digest —
+    the same trust boundary as `_normalize_plugin_version` above, applied to
+    `int(...)`/`+=` sites instead of a semver parse. Returns `0` for anything
+    that isn't a plain `int`/`float` (a `bool` included: it's an `int`
+    subclass in Python, so `True` would otherwise silently become `1`) and
+    for a non-finite `float` (`NaN`/`Infinity`, which would poison a running
+    `+=` aggregate for every OTHER host's data in the same run). An `int` is
+    never cast to `float` to check finiteness — `math.isfinite(float(v))`
+    raises `OverflowError` once `v`'s magnitude exceeds `sys.float_info.max`,
+    a legal JSON integer with no wire-size limit, so a hostile peer can
+    trivially send one and abort the run for every host. Comparing magnitude
+    directly instead is safe for arbitrary precision: Python's int/float rich
+    comparison never converts `v` through `float()`."""
+    if isinstance(v, bool) or not isinstance(v, (int, float)):
+        return 0
+    if isinstance(v, float):
+        return v if math.isfinite(v) else 0
+    return 0 if abs(v) > sys.float_info.max else v
+
+
 def _read_synced_records(digests_root: Path) -> list[dict]:
     """Union read + dedup (#178): every host's per-session `session-sync/v1`
     record under `digests_root/<host>/session-digest.jsonl`, keeping the LAST
     record for a session_id seen on multiple host files (or re-emitted after
     growth). Shared by `rollup()`, `correlate_gate_rework()`, and `cost_log()`
     so the dedup logic lives in one place. Each record's `plugin_version`,
-    `host`, `project`, and the name-bearing dicts under `utilization`/
-    `accuracy` are normalized on the way in (`_normalize_plugin_version`,
-    `_safe_name`, `_rewrite_name_keys`) since a record originates on a peer
-    machine, not this one."""
+    `host`, `project`, the name-bearing dicts under `utilization`/`accuracy`,
+    every peer-supplied numeric field a downstream consumer reads with
+    `int(...)`/`+=` (`cost_usd`; `tokens.{input_tokens,output_tokens,
+    cache_creation_input_tokens,cache_read_input_tokens}`; `rework.*` via
+    `_REWORK_KEYS`; `accuracy.{tool_calls,tool_error_rate,
+    user_correction_turns}`; `gate.{commit_attempts,commit_bypasses}`), and
+    the shape of the `tokens`/`rework`/`accuracy`/`utilization`/`gate`
+    containers themselves are normalized on the way in
+    (`_normalize_plugin_version`, `_safe_name`, `_rewrite_name_keys`,
+    `_safe_number`) since a record originates on a peer machine, not this
+    one."""
     by_id: dict[str, dict] = {}
     for f in sorted(digests_root.glob("*/session-digest.jsonl")):
         for rec in _iter_records([f]):
@@ -1089,6 +1119,7 @@ def _read_synced_records(digests_root: Path) -> list[dict]:
                 )
                 rec["host"] = _safe_name(str(rec.get("host") or "unknown"))
                 rec["project"] = _safe_name(str(rec.get("project") or "unknown"))
+                rec["cost_usd"] = _safe_number(rec.get("cost_usd", 0))
                 utilization = (
                     rec.get("utilization")
                     if isinstance(rec.get("utilization"), dict)
@@ -1099,6 +1130,13 @@ def _read_synced_records(digests_root: Path) -> list[dict]:
                     if isinstance(rec.get("accuracy"), dict)
                     else {}
                 )
+                tokens = (
+                    rec.get("tokens") if isinstance(rec.get("tokens"), dict) else {}
+                )
+                rework = (
+                    rec.get("rework") if isinstance(rec.get("rework"), dict) else {}
+                )
+                gate = rec.get("gate") if isinstance(rec.get("gate"), dict) else {}
                 for field in ("skills_invoked", "agents_invoked", "agent_dispatches"):
                     value = utilization.get(field)
                     if isinstance(value, dict):
@@ -1107,8 +1145,32 @@ def _read_synced_records(digests_root: Path) -> list[dict]:
                     value = accuracy.get(field)
                     if isinstance(value, dict):
                         accuracy[field] = _rewrite_name_keys(value)
+                for field in (
+                    "input_tokens",
+                    "output_tokens",
+                    "cache_creation_input_tokens",
+                    "cache_read_input_tokens",
+                ):
+                    if field in tokens:
+                        tokens[field] = _safe_number(tokens[field])
+                for field in _REWORK_KEYS:
+                    if field in rework:
+                        rework[field] = _safe_number(rework[field])
+                for field in (
+                    "tool_calls",
+                    "tool_error_rate",
+                    "user_correction_turns",
+                ):
+                    if field in accuracy:
+                        accuracy[field] = _safe_number(accuracy[field])
+                for field in ("commit_attempts", "commit_bypasses"):
+                    if field in gate:
+                        gate[field] = _safe_number(gate[field])
                 rec["utilization"] = utilization
                 rec["accuracy"] = accuracy
+                rec["tokens"] = tokens
+                rec["rework"] = rework
+                rec["gate"] = gate
                 by_id[str(sid)] = rec  # last write wins -> dedup on session_id
     return list(by_id.values())
 

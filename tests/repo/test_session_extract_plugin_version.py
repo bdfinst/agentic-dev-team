@@ -689,3 +689,105 @@ def test_rewrite_name_keys_buckets_non_string_keys_and_merges_values() -> None:
     # into the _UNSAFE_NAME bucket ("other") and their values must sum.
     result = session_extract._rewrite_name_keys({123: 2, "plan": 3, "!!!": 4})
     assert result == {"plan": 3, "other": 6}
+
+
+# ---------------------------------------------------------------------------
+# #2016 (Step 1.2): peer-supplied numeric fields and container shapes are
+# guarded at ingestion
+# ---------------------------------------------------------------------------
+
+
+def test_rollup_boolean_cost_usd_treated_as_zero_not_one(tmp_path: Path) -> None:
+    """`bool` is an `int` subclass in Python -- a hostile `cost_usd: true`
+    must coerce to 0, never silently promote to 1.0."""
+    plugin_root = _fake_plugin_root(tmp_path, "10.23.0")
+    digests = tmp_path / "digests"
+    hostile = _base_sync_record("hostile-host", "p", "s-hostile")
+    hostile["cost_usd"] = True
+    _write_digest(digests, "hostile-host", [hostile])
+    well_formed = _base_sync_record("good-host", "p", "s-good")
+    well_formed["cost_usd"] = 2.0
+    _write_digest(digests, "good-host", [well_formed])
+    result = _run("--rollup", str(digests), "--plugin-root", str(plugin_root))
+    assert result.returncode == 0, result.stdout + result.stderr
+    data = json.loads(result.stdout)
+    assert data["cost_usd"] == 2.0
+
+
+@pytest.mark.parametrize("bad_value", [float("nan"), float("inf")])
+def test_rollup_non_finite_cost_usd_treated_as_zero_and_does_not_poison_siblings(
+    tmp_path: Path, bad_value: float
+) -> None:
+    """A non-finite `cost_usd` (NaN/Infinity) must not just avoid crashing --
+    if it leaked through unguarded, `cost += nan` (or `+= inf`) would poison
+    the running total for EVERY other host's aggregate cost in the same run,
+    not just the hostile record's own contribution."""
+    plugin_root = _fake_plugin_root(tmp_path, "10.23.0")
+    digests = tmp_path / "digests"
+    hostile = _base_sync_record("hostile-host", "p", "s-hostile")
+    hostile["cost_usd"] = bad_value
+    _write_digest(digests, "hostile-host", [hostile])
+    well_formed = _base_sync_record("good-host", "p", "s-good")
+    well_formed["cost_usd"] = 3.0
+    _write_digest(digests, "good-host", [well_formed])
+    result = _run("--rollup", str(digests), "--plugin-root", str(plugin_root))
+    assert result.returncode == 0, result.stdout + result.stderr
+    data = json.loads(result.stdout)
+    assert data["cost_usd"] == 3.0
+    assert "good-host" in data["hosts"]
+
+
+def test_rollup_oversized_integer_cost_usd_treated_as_zero_without_overflow(
+    tmp_path: Path,
+) -> None:
+    """A 350+ digit integer `cost_usd` is legal JSON (no wire-size limit) but
+    exceeds `sys.float_info.max` -- casting it through `float()` to check
+    finiteness raises `OverflowError` and aborts the run for every host.
+    Must coerce to 0 without raising, and the well-formed sibling's cost
+    must survive unpoisoned."""
+    plugin_root = _fake_plugin_root(tmp_path, "10.23.0")
+    digests = tmp_path / "digests"
+    hostile = _base_sync_record("hostile-host", "p", "s-hostile")
+    hostile["cost_usd"] = int("1" * 350)
+    _write_digest(digests, "hostile-host", [hostile])
+    well_formed = _base_sync_record("good-host", "p", "s-good")
+    well_formed["cost_usd"] = 4.0
+    _write_digest(digests, "good-host", [well_formed])
+    result = _run("--rollup", str(digests), "--plugin-root", str(plugin_root))
+    assert result.returncode == 0, result.stdout + result.stderr
+    data = json.loads(result.stdout)
+    assert data["cost_usd"] == 4.0
+    assert "good-host" in data["hosts"]
+
+
+def test_rollup_survives_a_non_numeric_string_inside_rework(tmp_path: Path) -> None:
+    plugin_root = _fake_plugin_root(tmp_path, "10.23.0")
+    digests = tmp_path / "digests"
+    hostile = _base_sync_record("hostile-host", "p", "s-hostile")
+    hostile["rework"] = {"failed_edits": "not-a-number"}
+    _write_digest(digests, "hostile-host", [hostile])
+    well_formed = _base_sync_record("good-host", "p", "s-good")
+    well_formed["rework"] = {"failed_edits": 2}
+    _write_digest(digests, "good-host", [well_formed])
+    result = _run("--rollup", str(digests), "--plugin-root", str(plugin_root))
+    assert result.returncode == 0, result.stdout + result.stderr
+    data = json.loads(result.stdout)
+    assert data["rework"]["failed_edits"] == 2
+
+
+def test_rollup_non_dict_utilization_does_not_crash_and_contributes_nothing(
+    tmp_path: Path,
+) -> None:
+    plugin_root = _fake_plugin_root(tmp_path, "10.23.0")
+    digests = tmp_path / "digests"
+    hostile = _base_sync_record("hostile-host", "p", "s-hostile")
+    hostile["utilization"] = "not-a-dict"
+    _write_digest(digests, "hostile-host", [hostile])
+    well_formed = _base_sync_record("good-host", "p", "s-good")
+    well_formed["utilization"]["skills_invoked"] = {"plan": 1}
+    _write_digest(digests, "good-host", [well_formed])
+    result = _run("--rollup", str(digests), "--plugin-root", str(plugin_root))
+    assert result.returncode == 0, result.stdout + result.stderr
+    data = json.loads(result.stdout)
+    assert data["sessions"] == 2
+    assert data["utilization"]["skills_invoked"] == {"plan": 1}

@@ -271,3 +271,31 @@ def test_cost_log_empty_missing_dir_yields_no_records_clean_exit(
     result = _run("--cost-log", str(tmp_path / "nope"))
     assert result.returncode == 0, result.stdout + result.stderr
     assert result.stdout == ""
+
+
+# ---------------------------------------------------------------------------
+# #2016 (Step 1.2): --correlate survives a non-numeric gate.commit_attempts
+# ---------------------------------------------------------------------------
+
+
+def test_correlate_survives_a_non_numeric_gate_commit_attempts(tmp_path: Path) -> None:
+    """`correlate_gate_rework()` reads `gate.commit_attempts` with
+    `int(gate.get("commit_attempts", 0) or 0)` -- a peer record whose value
+    is a non-numeric string must not raise `ValueError` there. Guarded at
+    ingestion instead, so it coerces to 0 (not a committing session) and the
+    well-formed sibling's session is still counted."""
+    digests = tmp_path / "digests" / "box"
+    digests.mkdir(parents=True)
+    (digests / "session-digest.jsonl").write_text(
+        '{"schema":"session-sync/v1","host":"box","session_id":"s-hostile",'
+        '"rework":{},"gate":{"commit_attempts":"not-a-number","commit_bypasses":0}}\n'
+        '{"schema":"session-sync/v1","host":"box","session_id":"s-good",'
+        '"rework":{"failed_edits":1},"gate":{"commit_attempts":1,"commit_bypasses":0}}\n'
+    )
+    result = _run("--correlate", str(tmp_path / "digests"))
+    assert result.returncode == 0, result.stdout + result.stderr
+    data = json.loads(result.stdout)
+    # s-hostile's coerced-to-0 commit_attempts excludes it as non-committing;
+    # only s-good is comparable.
+    assert data["committing_sessions"] == 1
+    assert data["clean_sessions"] == 1
