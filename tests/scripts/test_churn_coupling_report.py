@@ -636,6 +636,42 @@ def _run_cli(argv, capsys):
     return code, captured.out, captured.err
 
 
+class TestCommitTimestampIsAdditive:
+    """Step 2.2a (#2039): `Commit` gains a `timestamp` field, and
+    `git_log_commits`'s pretty-format gains `%aI`, purely additively -- the
+    existing (non---all-files) mode's rendered output must be unaffected.
+    """
+
+    def test_git_log_commits_captures_a_timestamp_per_commit(self, golden_repo):
+        commits = ccr.git_log_commits(golden_repo, since_days=3650)
+        assert commits
+        assert all(commit.timestamp for commit in commits)
+
+    def test_timestamps_match_the_pinned_commit_dates_newest_first(self, golden_repo):
+        commits = ccr.git_log_commits(golden_repo, since_days=3650)
+        timestamps = [datetime.fromisoformat(c.timestamp) for c in commits]
+        assert timestamps == sorted(timestamps, reverse=True)
+        assert timestamps[-1] == _GOLDEN_REPO_BASE_DATE
+
+    def test_existing_mode_output_is_unaffected_by_the_added_field(self, golden_repo, capsys):
+        """The Step 2.1 golden fixture is an independent baseline: this diffs
+        the existing mode's live output against the checked-in file, not
+        against the pre-Step-2.2a code's own output.
+        """
+        code, out, _ = _run_cli(
+            ["--repo", str(golden_repo), "--since", "3650", "--min-edits", "1"], capsys
+        )
+        assert code == 0
+        assert out.rstrip("\n") == _GOLDEN_FIXTURE.read_text(encoding="utf-8").rstrip("\n")
+
+    def test_commit_dataclass_still_constructs_without_a_timestamp(self):
+        """Existing call sites (e.g. this test file's `_commits` helper) that
+        only ever supplied sha/paths must keep working unchanged.
+        """
+        commit = ccr.Commit(sha="abc123", paths=frozenset({"a.py"}))
+        assert commit.timestamp == ""
+
+
 class TestFullCloneEndToEnd:
     def test_report_matches_the_seeded_history(self, full_clone, capsys):
         code, out, _ = _run_cli(

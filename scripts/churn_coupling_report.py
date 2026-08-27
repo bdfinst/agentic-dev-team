@@ -177,6 +177,10 @@ class Refusal(Exception):
 class Commit:
     sha: str
     paths: frozenset
+    #: Author date, ISO 8601 (`%aI`). Defaults to "" so existing call sites
+    #: that only ever supplied sha/paths (tests, mainly) keep working
+    #: unchanged -- this field is purely additive.
+    timestamp: str = ""
 
 
 @dataclass
@@ -414,25 +418,35 @@ def git_log_commits(repo, since_days=None, max_commits=None) -> list:
     Merge commits are excluded: their `--name-only` output either is empty or
     re-reports every path on the merged side, which would inflate both edit
     counts and co-change counts in a merge-heavy history.
+
+    The pretty-format emits two NUL bytes per record (`%x00%H%x00%aI`): one
+    leading separator before the sha, and a second between the sha and the
+    author-date timestamp. Splitting the whole output on `\\0` therefore
+    yields the pieces in `("", sha_1, "timestamp_1\\npaths...", sha_2,
+    "timestamp_2\\npaths...", ...)` shape -- the leading empty piece, then a
+    (sha, rest) pair per commit -- rather than one piece per commit as when
+    the format carried a single NUL.
     """
     if not _has_commits(repo):
         return []
 
-    args = ["log", "--no-merges", "--name-only", "--pretty=format:%x00%H"]
+    args = ["log", "--no-merges", "--name-only", "--pretty=format:%x00%H%x00%aI"]
     if since_days is not None:
         args.append(f"--since={since_days} days ago")
     if max_commits:
         args.append(f"--max-count={max_commits}")
     out = run_git(repo, args)
 
+    pieces = out.split("\0")
     commits = []
-    for chunk in out.split("\0"):
-        if not chunk.strip():
+    for sha_piece, rest in zip(pieces[1::2], pieces[2::2]):
+        sha = sha_piece.strip()
+        if not sha:
             continue
-        lines = chunk.splitlines()
-        sha = lines[0].strip()
+        lines = rest.splitlines()
+        timestamp = lines[0].strip() if lines else ""
         paths = frozenset(line for line in lines[1:] if line.strip())
-        commits.append(Commit(sha=sha, paths=paths))
+        commits.append(Commit(sha=sha, paths=paths, timestamp=timestamp))
     return commits
 
 
