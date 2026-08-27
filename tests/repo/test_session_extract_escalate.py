@@ -114,3 +114,60 @@ def test_escalate_zero_count_signals_are_omitted(digests: Path) -> None:
     assert not [
         r for r in data["recommendations"] if r["signal"] == "user_correction_turns"
     ]
+
+
+# ---------------------------------------------------------------------------
+# #2016 (Step 1.2): --escalate inherits the ingestion-time guard via rollup()
+# ---------------------------------------------------------------------------
+
+
+def test_escalate_survives_a_hostile_peer_record_alongside_a_well_formed_sibling(
+    tmp_path: Path,
+) -> None:
+    """--escalate reads through `rollup()`, which reads through
+    `_read_synced_records()` -- so a hostile peer record (an unhashable
+    `host`) must not abort the run, and the well-formed sibling's friction
+    signal must still surface in the recommendations."""
+    box = tmp_path / "digests" / "box"
+    box.mkdir(parents=True)
+    (box / "session-digest.jsonl").write_text(
+        json.dumps(
+            {
+                "schema": "session-sync/v1",
+                "host": ["not", "a", "string"],
+                "project": "p",
+                "session_id": "s-hostile",
+                "tokens": {"input_tokens": 1},
+                "cost_usd": 0,
+                "rework": {},
+                "accuracy": {
+                    "tool_calls": 1,
+                    "tool_error_rate": 0,
+                    "user_correction_turns": 0,
+                },
+                "utilization": {"skills_invoked": {}, "agents_invoked": {}},
+            }
+        )
+        + "\n"
+        + json.dumps(
+            {
+                "schema": "session-sync/v1",
+                "host": "good-host",
+                "project": "p",
+                "session_id": "s-good",
+                "tokens": {"input_tokens": 1},
+                "cost_usd": 0,
+                "rework": {"permission_denials": 4},
+                "accuracy": {
+                    "tool_calls": 1,
+                    "tool_error_rate": 0,
+                    "user_correction_turns": 0,
+                },
+                "utilization": {"skills_invoked": {}, "agents_invoked": {}},
+            }
+        )
+        + "\n"
+    )
+    data = _esc(tmp_path / "digests")
+    assert data["sessions"] == 2
+    assert _rec(data, "permission_denials")["count"] == 4

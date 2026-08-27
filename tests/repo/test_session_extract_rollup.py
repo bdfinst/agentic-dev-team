@@ -209,6 +209,30 @@ def test_rollup_empty_missing_dir_yields_a_well_formed_empty_rollup(
     assert data["sessions"] == 0
 
 
+def test_rollup_never_observed_skills_still_flags_a_coerced_to_zero_count(
+    tmp_path: Path,
+) -> None:
+    """#2016 closing-pass finding 2: after the `_safe_number` guard in
+    `_rewrite_name_keys`, a malformed peer value now materializes a real
+    skill NAME at count 0 instead of aborting (e.g.
+    `skills_invoked["plan"] = "nope"` coerces to `skills_invoked["plan"] =
+    0`). `never_observed_skills` computed SET MEMBERSHIP against
+    `skills_invoked`'s keys, not count, so a 0-count name was incorrectly
+    excluded from `never_observed_skills` -- falsely reporting a skill as
+    exercised. Must count only positive-count entries as observed."""
+    digests = tmp_path / "digests" / "box"
+    digests.mkdir(parents=True)
+    (digests / "session-digest.jsonl").write_text(
+        '{"schema":"session-sync/v1","host":"box","project":"p","session_id":"s1",'
+        '"tokens":{"input_tokens":1},"cost_usd":0,"rework":{},'
+        '"accuracy":{"tool_calls":1,"tool_error_rate":0,"user_correction_turns":0},'
+        '"utilization":{"skills_invoked":{"plan":"nope"},"agents_invoked":{}}}\n'
+    )
+    data = _rollup(tmp_path / "digests")
+    assert data["utilization"]["skills_invoked"].get("plan", 0) == 0
+    assert "plan" in data["utilization"]["never_observed_skills"]
+
+
 # ---------------------------------------------------------------------------
 # #171: --cost-log per-session cost series for the regression gate
 # ---------------------------------------------------------------------------
@@ -271,3 +295,90 @@ def test_cost_log_empty_missing_dir_yields_no_records_clean_exit(
     result = _run("--cost-log", str(tmp_path / "nope"))
     assert result.returncode == 0, result.stdout + result.stderr
     assert result.stdout == ""
+
+
+def test_cost_log_survives_a_non_string_ts_alongside_a_well_formed_sibling(
+    tmp_path: Path,
+) -> None:
+    """#2016 finding 4: `ts` is peer-supplied and unnormalized at ingestion --
+    `cost_log()` sorts on `key=lambda r: (r.get("ts") or "", ...)`, so a
+    non-string `ts` (e.g. an int) previously raised an uncaught TypeError
+    comparing int to str, aborting --cost-log for every host. Must coerce to
+    "" without crashing, and the well-formed sibling's record must still
+    appear in the series."""
+    digests = tmp_path / "digests" / "box"
+    digests.mkdir(parents=True)
+    (digests / "session-digest.jsonl").write_text(
+        '{"schema":"session-sync/v1","host":"box","session_id":"s-hostile",'
+        '"ts":12345,"cost_usd":1.0}\n'
+        '{"schema":"session-sync/v1","host":"box","session_id":"s-good",'
+        '"ts":"2026-06-01T00:00:00Z","cost_usd":2.0}\n'
+    )
+    result = _run("--cost-log", str(tmp_path / "digests"))
+    assert result.returncode == 0, result.stdout + result.stderr
+    lines = result.stdout.splitlines()
+    assert len(lines) == 2
+    records = [json.loads(line) for line in lines]
+    assert {r["total"]["cost_usd"] for r in records} == {1.0, 2.0}
+    good = next(r for r in records if r["total"]["cost_usd"] == 2.0)
+    assert good["ts"] == "2026-06-01T00:00:00Z"
+    hostile = next(r for r in records if r["total"]["cost_usd"] == 1.0)
+    assert hostile["ts"] == ""
+
+
+def test_cost_log_sanitizes_a_path_bearing_ts_to_safe_name_sentinel(
+    tmp_path: Path,
+) -> None:
+    """#2016 closing-pass finding 4: `ts` was type-normalized (guaranteed
+    str) but not content-validated, unlike `host`/`project` on the adjacent
+    lines which both go through `_safe_name`. A peer-controlled absolute
+    path or arbitrary string in `ts` previously reached the shared cost-log
+    artifact verbatim. A well-formed ISO-8601 timestamp already satisfies
+    `_SAFE_NAME_RE`, so routing `ts` through `_safe_name` too is a drop-in
+    replacement for the prior type-only check."""
+    digests = tmp_path / "digests" / "box"
+    digests.mkdir(parents=True)
+    (digests / "session-digest.jsonl").write_text(
+        '{"schema":"session-sync/v1","host":"box","session_id":"s-hostile",'
+        '"ts":"/etc/passwd","cost_usd":1.0}\n'
+        '{"schema":"session-sync/v1","host":"box","session_id":"s-good",'
+        '"ts":"2026-06-01T00:00:00Z","cost_usd":2.0}\n'
+    )
+    result = _run("--cost-log", str(tmp_path / "digests"))
+    assert result.returncode == 0, result.stdout + result.stderr
+    lines = result.stdout.splitlines()
+    assert len(lines) == 2
+    assert "/etc/passwd" not in result.stdout
+    records = [json.loads(line) for line in lines]
+    good = next(r for r in records if r["total"]["cost_usd"] == 2.0)
+    assert good["ts"] == "2026-06-01T00:00:00Z"
+    hostile = next(r for r in records if r["total"]["cost_usd"] == 1.0)
+    assert hostile["ts"] == "other"
+
+
+# ---------------------------------------------------------------------------
+# #2016 (Step 1.2): --correlate survives a non-numeric gate.commit_attempts
+# ---------------------------------------------------------------------------
+
+
+def test_correlate_survives_a_non_numeric_gate_commit_attempts(tmp_path: Path) -> None:
+    """`correlate_gate_rework()` reads `gate.commit_attempts` with
+    `int(gate.get("commit_attempts", 0) or 0)` -- a peer record whose value
+    is a non-numeric string must not raise `ValueError` there. Guarded at
+    ingestion instead, so it coerces to 0 (not a committing session) and the
+    well-formed sibling's session is still counted."""
+    digests = tmp_path / "digests" / "box"
+    digests.mkdir(parents=True)
+    (digests / "session-digest.jsonl").write_text(
+        '{"schema":"session-sync/v1","host":"box","session_id":"s-hostile",'
+        '"rework":{},"gate":{"commit_attempts":"not-a-number","commit_bypasses":0}}\n'
+        '{"schema":"session-sync/v1","host":"box","session_id":"s-good",'
+        '"rework":{"failed_edits":1},"gate":{"commit_attempts":1,"commit_bypasses":0}}\n'
+    )
+    result = _run("--correlate", str(tmp_path / "digests"))
+    assert result.returncode == 0, result.stdout + result.stderr
+    data = json.loads(result.stdout)
+    # s-hostile's coerced-to-0 commit_attempts excludes it as non-committing;
+    # only s-good is comparable.
+    assert data["committing_sessions"] == 1
+    assert data["clean_sessions"] == 1

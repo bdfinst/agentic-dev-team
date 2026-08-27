@@ -54,6 +54,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import math
 import os
 import re
 from collections import Counter, defaultdict
@@ -190,6 +191,26 @@ def _strip_ns(name: str) -> str:
         if name.startswith(prefix):
             return name[len(prefix) :]
     return name
+
+
+def _rewrite_name_keys(mapping: dict) -> dict:
+    """Rewrite a peer-supplied name-bearing dict's keys to something safe to
+    aggregate — a peer record's dict KEYS are as untrusted as any other field
+    it carries. Each key is normalized through `_safe_name(_strip_ns(str(k)))`
+    when it's a string; a non-string key (which would otherwise raise
+    `AttributeError` the moment a consumer calls `.startswith()` on it) is
+    bucketed under `_UNSAFE_NAME` instead of dropped. Values collide-merge by
+    summing, matching `_safe_name`'s own collapse-and-merge convention — a
+    normalization collision never silently drops a peer-attributed count. A
+    peer-supplied VALUE is as untrusted as the key: it passes through
+    `_safe_number` before summing, so a non-numeric value (string/null/list/
+    dict) can't raise an uncaught TypeError and abort the caller, and a bool
+    or non-finite float can't poison the aggregate."""
+    out: dict = {}
+    for k, v in mapping.items():
+        key = _safe_name(_strip_ns(str(k))) if isinstance(k, str) else _UNSAFE_NAME
+        out[key] = out.get(key, 0) + _safe_number(v)
+    return out
 
 
 def _text_of(content) -> str:
@@ -1051,25 +1072,141 @@ def _normalize_plugin_version(value) -> str | None:
     return value if isinstance(value, str) and _VERSION_RE.match(value) else None
 
 
+# The magnitude bound `_safe_number` enforces. Deliberately `2**53` (the
+# largest integer a double can represent exactly), not `sys.float_info.max`:
+# downstream callers multiply or accumulate this value — `rollup()` does
+# `round(c * 1e6)` for `cost_micro` and `(tool_error_rate or 0.0) * n` for
+# `err_weighted` — and a value near `sys.float_info.max` overflows to `inf`
+# under either operation, raising an uncaught `OverflowError` from
+# `round(inf)` or silently poisoning the aggregate with `inf`. `2**53` is
+# small enough that no realistic downstream multiply-by-a-few-million or
+# cross-record accumulation can reach `inf`, and large enough for any
+# legitimate token count or cost figure.
+_NUM_MAX = 2**53
+
+
+def _safe_number(value) -> int | float:
+    """Bound a peer-supplied numeric field read back from a synced digest —
+    the same trust boundary as `_normalize_plugin_version` above, applied to
+    `int(...)`/`+=` sites instead of a semver parse. Returns `0` for anything
+    that isn't a plain `int`/`float` (a `bool` included: it's an `int`
+    subclass in Python, so `True` would otherwise silently become `1`), for a
+    non-finite `float` (`NaN`/`Infinity`, which would poison a running `+=`
+    aggregate for every OTHER host's data in the same run), and for anything
+    whose magnitude exceeds `_NUM_MAX` (see above). An `int` is never cast to
+    `float` to check finiteness or magnitude — `math.isfinite(float(v))`
+    raises `OverflowError` once `v`'s magnitude exceeds `sys.float_info.max`,
+    a legal JSON integer with no wire-size limit, so a hostile peer can
+    trivially send one and abort the run for every host. Comparing magnitude
+    directly instead is safe for arbitrary precision: Python's int/float rich
+    comparison never converts `value` through `float()`."""
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        return 0
+    if isinstance(value, float) and not math.isfinite(value):
+        return 0
+    return 0 if abs(value) > _NUM_MAX else value
+
+
+def _normalize_name_dicts(container: dict, fields: tuple) -> None:
+    """Rewrite each named dict-valued field of `container` through
+    `_rewrite_name_keys`, in place. A field that's absent or not a dict is
+    coerced to an empty dict — a peer-supplied non-dict value (e.g. a string
+    or list) is as untrusted as any other field it carries, and left
+    unrewritten it reaches `rollup()`'s unguarded `.items()` calls
+    (`(acc.get("by_skill", {}) or {}).items()` and friends) and raises an
+    uncaught AttributeError, aborting the caller for every host."""
+    for field in fields:
+        value = container.get(field)
+        container[field] = _rewrite_name_keys(value) if isinstance(value, dict) else {}
+
+
+def _normalize_numeric_fields(container: dict, fields: tuple) -> None:
+    """Coerce each named field of `container` that's present through
+    `_safe_number`, in place. A field that's absent is left untouched, same
+    as the inline `if field in container:` guard this was extracted from."""
+    for field in fields:
+        if field in container:
+            container[field] = _safe_number(container[field])
+
+
 def _read_synced_records(digests_root: Path) -> list[dict]:
-    """Union read + dedup (#178): every host's per-session `session-sync/v1`
-    record under `digests_root/<host>/session-digest.jsonl`, keeping the LAST
-    record for a session_id seen on multiple host files (or re-emitted after
-    growth). Shared by `rollup()`, `correlate_gate_rework()`, and `cost_log()`
-    so the dedup logic lives in one place. Each record's `plugin_version` is
-    normalized on the way in (`_normalize_plugin_version`) since it
-    originates on a peer machine, not this one."""
+    """Union read + dedup (#178): every host's per-session record (schema-
+    versioned, see `SYNC_SCHEMAS`) under `digests_root/<host>/session-digest.jsonl`,
+    keeping the LAST record for a session_id seen on multiple host files (or
+    re-emitted after growth). Shared by `rollup()`, `correlate_gate_rework()`,
+    and `cost_log()`
+    so the dedup logic lives in one place. Each record's `plugin_version`,
+    `host`, `project`, `ts`, the name-bearing dicts under
+    `utilization`/`accuracy`, every peer-supplied numeric field a downstream
+    consumer reads with `int(...)`/`+=` (`cost_usd`; `tokens.{input_tokens,
+    output_tokens,cache_creation_input_tokens,cache_read_input_tokens}`;
+    `rework.*` restricted to `_REWORK_KEYS`; `accuracy.{tool_calls,
+    tool_error_rate,user_correction_turns}`;
+    `gate.{commit_attempts,commit_bypasses}`), and the shape of the
+    `tokens`/`rework`/`accuracy`/`utilization`/`gate` containers themselves
+    are normalized on the way in (`_normalize_plugin_version`, `_safe_name`,
+    `_rewrite_name_keys`, `_safe_number`, `_normalize_name_dicts`,
+    `_normalize_numeric_fields`) since a record originates on a peer
+    machine, not this one."""
     by_id: dict[str, dict] = {}
     for f in sorted(digests_root.glob("*/session-digest.jsonl")):
         for rec in _iter_records([f]):
+            if not isinstance(rec, dict):
+                # A peer's digest line can decode to any JSON value (a bare
+                # array/string/number/null) — `_iter_records` only excludes
+                # undecodable lines. `.get()` below would raise on anything
+                # else, aborting the run for every host over one line.
+                continue
             if rec.get("schema") not in SYNC_SCHEMAS:
                 continue
             sid = rec.get("session_id")
-            if sid:
-                rec["plugin_version"] = _normalize_plugin_version(
-                    rec.get("plugin_version")
-                )
-                by_id[str(sid)] = rec  # last write wins -> dedup on session_id
+            if not sid:
+                continue
+            rec["plugin_version"] = _normalize_plugin_version(
+                rec.get("plugin_version")
+            )
+            rec["host"] = _safe_name(str(rec.get("host") or "unknown"))
+            rec["project"] = _safe_name(str(rec.get("project") or "unknown"))
+            rec["ts"] = _safe_name(rec["ts"]) if isinstance(rec.get("ts"), str) else ""
+            rec["cost_usd"] = _safe_number(rec.get("cost_usd", 0))
+            utilization = (
+                rec.get("utilization") if isinstance(rec.get("utilization"), dict) else {}
+            )
+            accuracy = rec.get("accuracy") if isinstance(rec.get("accuracy"), dict) else {}
+            tokens = rec.get("tokens") if isinstance(rec.get("tokens"), dict) else {}
+            rework = rec.get("rework") if isinstance(rec.get("rework"), dict) else {}
+            gate = rec.get("gate") if isinstance(rec.get("gate"), dict) else {}
+
+            _normalize_name_dicts(
+                utilization, ("skills_invoked", "agents_invoked", "agent_dispatches")
+            )
+            _normalize_name_dicts(accuracy, ("by_skill", "by_agent"))
+            _normalize_numeric_fields(
+                tokens,
+                (
+                    "input_tokens",
+                    "output_tokens",
+                    "cache_creation_input_tokens",
+                    "cache_read_input_tokens",
+                ),
+            )
+            # rework is restricted to the known `_REWORK_KEYS` schema, not
+            # just value-coerced — an unknown/hostile key is the same
+            # key-leak class `host`/`project` sanitization closes above, and
+            # `_session_rework()` already reads only `_REWORK_KEYS`, so
+            # nothing legitimate is dropped by excluding the rest.
+            rework = {k: _safe_number(v) for k, v in rework.items() if k in _REWORK_KEYS}
+            _normalize_numeric_fields(
+                accuracy, ("tool_calls", "tool_error_rate", "user_correction_turns")
+            )
+            _normalize_numeric_fields(gate, ("commit_attempts", "commit_bypasses"))
+
+            rec["utilization"] = utilization
+            rec["accuracy"] = accuracy
+            rec["tokens"] = tokens
+            rec["rework"] = rework
+            rec["gate"] = gate
+            by_id[str(sid)] = rec  # last write wins -> dedup on session_id
     return list(by_id.values())
 
 
@@ -1126,7 +1263,8 @@ def compute_version_window(records: list[dict], current: str) -> set[str]:
 def rollup(
     records: list[dict], registry: dict, version_window: set[str] | None = None
 ) -> dict:
-    """Aggregate cross-machine `session-sync/v1` records (#178) — callers pass
+    """Aggregate cross-machine `session-sync` records (schema-versioned, see
+    `SYNC_SCHEMAS`; #178) — callers pass
     the already union-read + deduped list from `_read_synced_records()` (so a
     caller that also needs `compute_version_window()` reads the digests
     directory only once, #1480). Metrics only — sums, ratios, and
@@ -1151,8 +1289,8 @@ def rollup(
     by_project: dict[str, Counter] = defaultdict(Counter)
 
     for r in records:
-        host = r.get("host", "unknown")
-        project = r.get("project", "unknown")
+        host = r.get("host")
+        project = r.get("project")
         hosts.add(host)
         projects.add(project)
         t = r.get("tokens", {}) if isinstance(r.get("tokens"), dict) else {}
@@ -1200,9 +1338,16 @@ def rollup(
         for name, k in (u.get("agent_dispatches", {}) or {}).items():
             agent_dispatches[_strip_ns(name)] += k
 
-    never_skills = sorted(set(registry.get("skills", [])) - set(skills_invoked))
+    # Membership, not count: a name coerced to a real key at count 0 (e.g. a
+    # malformed peer value that `_safe_number` reduced to 0 rather than
+    # aborting the run) must not read as "invoked" here -- only a positive
+    # count counts as observed (#2016 closing-pass finding 2).
+    invoked_skills = {n for n, c in skills_invoked.items() if c > 0}
+    invoked_agents = {n for n, c in agents_invoked.items() if c > 0}
+    dispatched_agents = {n for n, c in agent_dispatches.items() if c > 0}
+    never_skills = sorted(set(registry.get("skills", [])) - invoked_skills)
     never_agents = sorted(
-        set(registry.get("agents", [])) - set(agents_invoked) - set(agent_dispatches)
+        set(registry.get("agents", [])) - invoked_agents - dispatched_agents
     )
 
     def _hostmap(d: dict) -> dict:

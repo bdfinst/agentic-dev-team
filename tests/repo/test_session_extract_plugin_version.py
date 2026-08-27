@@ -12,6 +12,8 @@ import subprocess
 import sys
 from pathlib import Path
 
+import pytest
+
 from _repo_root import REPO_ROOT
 
 EXTRACT = REPO_ROOT / "scripts" / "session_extract.py"
@@ -543,3 +545,388 @@ def test_rollup_survives_a_peer_record_with_a_hostile_plugin_version(
     # the two hostile records are normalized to "no version" and excluded;
     # only the legitimately-tagged session survives the scope.
     assert data["sessions"] == 1
+
+
+# ---------------------------------------------------------------------------
+# #2016: peer-written host/project/name keys are normalized at ingestion
+# ---------------------------------------------------------------------------
+
+
+def _base_sync_record(host: str, project: str, session_id: str) -> dict:
+    return {
+        "schema": "session-sync/v1",
+        "host": host,
+        "project": project,
+        "session_id": session_id,
+        "tokens": {"input_tokens": 1},
+        "cost_usd": 0,
+        "rework": {},
+        "accuracy": {
+            "tool_calls": 1,
+            "tool_error_rate": 0,
+            "user_correction_turns": 0,
+            "by_skill": {},
+            "by_agent": {},
+        },
+        "utilization": {
+            "skills_invoked": {},
+            "agents_invoked": {},
+            "agent_dispatches": {},
+        },
+    }
+
+
+def _write_digest(digests_root: Path, host: str, records: list[dict]) -> None:
+    box = digests_root / host
+    box.mkdir(parents=True)
+    (box / "session-digest.jsonl").write_text(
+        "\n".join(json.dumps(rec) for rec in records) + "\n"
+    )
+
+
+def test_rollup_sanitizes_hostile_project_path_to_safe_name_sentinel(
+    tmp_path: Path,
+) -> None:
+    plugin_root = _fake_plugin_root(tmp_path, "10.23.0")
+    digests = tmp_path / "digests"
+    hostile = _base_sync_record(
+        "hostile-host", "/Users/alice/secret-client-work", "s-hostile"
+    )
+    _write_digest(digests, "hostile-host", [hostile])
+    result = _run("--rollup", str(digests), "--plugin-root", str(plugin_root))
+    assert result.returncode == 0, result.stdout + result.stderr
+    data = json.loads(result.stdout)
+    assert data["projects"] == ["other"]
+    assert "/Users/alice/secret-client-work" not in data["projects"]
+
+
+@pytest.mark.parametrize(
+    "field",
+    [
+        "utilization.skills_invoked",
+        "utilization.agents_invoked",
+        "utilization.agent_dispatches",
+        "accuracy.by_skill",
+        "accuracy.by_agent",
+    ],
+)
+def test_rollup_sanitizes_unsafe_keys_in_each_name_bearing_dict(
+    tmp_path: Path, field: str
+) -> None:
+    """An unsafe key (one `_safe_name` would reject) in any of the five
+    name-bearing dicts `rollup()` reads must not crash ingestion, and a
+    well-formed sibling record from a different host must still survive in
+    the output — proving the normalization is wired at each of the five
+    field paths independently, not inferred from one exemplar."""
+    plugin_root = _fake_plugin_root(tmp_path, "10.23.0")
+    digests = tmp_path / "digests"
+
+    hostile = _base_sync_record("hostile-host", "p", "s-hostile")
+    top, sub = field.split(".")
+    hostile[top][sub] = {"../../etc/passwd": 5}
+    _write_digest(digests, "hostile-host", [hostile])
+
+    well_formed = _base_sync_record("good-host", "p", "s-good")
+    well_formed["utilization"]["skills_invoked"] = {"plan": 1}
+    _write_digest(digests, "good-host", [well_formed])
+
+    result = _run("--rollup", str(digests), "--plugin-root", str(plugin_root))
+    assert result.returncode == 0, result.stdout + result.stderr
+    data = json.loads(result.stdout)
+    assert data["sessions"] == 2
+    assert "good-host" in data["hosts"]
+    assert data["utilization"]["skills_invoked"]["plan"] == 1
+    # the hostile key sanitizes to the _UNSAFE_NAME sentinel ("other") in
+    # the SAME field it was written to, proving the normalization is wired
+    # at this specific field path rather than inferred from one exemplar.
+    assert data[top][sub].get("other") == 5
+
+
+def test_rollup_survives_a_peer_record_with_an_unhashable_host(
+    tmp_path: Path,
+) -> None:
+    plugin_root = _fake_plugin_root(tmp_path, "10.23.0")
+    digests = tmp_path / "digests"
+
+    hostile = _base_sync_record("hostile-host", "p", "s-hostile")
+    hostile["host"] = ["not", "a", "string"]
+    _write_digest(digests, "hostile-host", [hostile])
+
+    well_formed = _base_sync_record("good-host", "p", "s-good")
+    _write_digest(digests, "good-host", [well_formed])
+
+    result = _run("--rollup", str(digests), "--plugin-root", str(plugin_root))
+    assert result.returncode == 0, result.stdout + result.stderr
+    data = json.loads(result.stdout)
+    assert data["sessions"] == 2
+    assert "good-host" in data["hosts"]
+    # the unhashable host actually normalized to the sentinel, not just
+    # "didn't crash" — it must be present as its own bucket, not silently
+    # dropped or merged into the well-formed host.
+    assert "other" in data["hosts"]
+
+
+def test_rollup_well_formed_record_round_trips_host_project_cost_unchanged(
+    tmp_path: Path,
+) -> None:
+    plugin_root = _fake_plugin_root(tmp_path, "10.23.0")
+    digests = tmp_path / "digests"
+    record = _base_sync_record("testhost", "myproject", "s1")
+    record["cost_usd"] = 1.5
+    _write_digest(digests, "testhost", [record])
+    result = _run("--rollup", str(digests), "--plugin-root", str(plugin_root))
+    assert result.returncode == 0, result.stdout + result.stderr
+    data = json.loads(result.stdout)
+    assert data["hosts"] == ["testhost"]
+    assert data["projects"] == ["myproject"]
+    assert data["cost_usd"] == 1.5
+
+
+def test_rewrite_name_keys_buckets_non_string_keys_and_merges_values(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """`json.loads` always yields string dict keys (JSON object keys are
+    syntactically strings), so a truly non-string key can never arrive via a
+    peer's session-digest.jsonl file — but `_rewrite_name_keys` is a general
+    helper, so it must not raise `AttributeError` if one ever reaches it
+    (e.g. via a future non-JSON caller), and a normalization collision (two
+    keys landing in the same bucket) must MERGE by summing, never drop a
+    peer-attributed count."""
+    monkeypatch.syspath_prepend(str(REPO_ROOT / "scripts"))
+    import session_extract
+
+    # 123 (non-string) and "!!!" (fails _safe_name's charset) both collapse
+    # into the _UNSAFE_NAME bucket ("other") and their values must sum.
+    result = session_extract._rewrite_name_keys({123: 2, "plan": 3, "!!!": 4})
+    assert result == {"plan": 3, "other": 6}
+
+
+def test_rewrite_name_keys_guards_non_numeric_peer_values(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """#2016 finding 1: a peer-supplied VALUE in a name-bearing dict is as
+    untrusted as its key — summing it unguarded (`out[key] = out.get(key, 0)
+    + v`) raises an uncaught TypeError the moment it's a string/None/list/
+    dict, aborting the caller for every host. Each non-numeric value must
+    coerce through `_safe_number` to 0 instead, and a legitimate numeric
+    value must still pass through unaffected."""
+    monkeypatch.syspath_prepend(str(REPO_ROOT / "scripts"))
+    import session_extract
+
+    result = session_extract._rewrite_name_keys(
+        {
+            "plan": 3,
+            "bad-str": "nope",
+            "bad-null": None,
+            "bad-list": [1, 2],
+            "bad-dict": {},
+        }
+    )
+    assert result == {
+        "plan": 3,
+        "bad-str": 0,
+        "bad-null": 0,
+        "bad-list": 0,
+        "bad-dict": 0,
+    }
+
+
+# ---------------------------------------------------------------------------
+# #2016 (Step 1.2): peer-supplied numeric fields and container shapes are
+# guarded at ingestion
+# ---------------------------------------------------------------------------
+
+
+def test_rollup_boolean_cost_usd_treated_as_zero_not_one(tmp_path: Path) -> None:
+    """`bool` is an `int` subclass in Python -- a hostile `cost_usd: true`
+    must coerce to 0, never silently promote to 1.0."""
+    plugin_root = _fake_plugin_root(tmp_path, "10.23.0")
+    digests = tmp_path / "digests"
+    hostile = _base_sync_record("hostile-host", "p", "s-hostile")
+    hostile["cost_usd"] = True
+    _write_digest(digests, "hostile-host", [hostile])
+    well_formed = _base_sync_record("good-host", "p", "s-good")
+    well_formed["cost_usd"] = 2.0
+    _write_digest(digests, "good-host", [well_formed])
+    result = _run("--rollup", str(digests), "--plugin-root", str(plugin_root))
+    assert result.returncode == 0, result.stdout + result.stderr
+    data = json.loads(result.stdout)
+    assert data["cost_usd"] == 2.0
+
+
+@pytest.mark.parametrize("bad_value", [float("nan"), float("inf")])
+def test_rollup_non_finite_cost_usd_treated_as_zero_and_does_not_poison_siblings(
+    tmp_path: Path, bad_value: float
+) -> None:
+    """A non-finite `cost_usd` (NaN/Infinity) must not just avoid crashing --
+    if it leaked through unguarded, `cost += nan` (or `+= inf`) would poison
+    the running total for EVERY other host's aggregate cost in the same run,
+    not just the hostile record's own contribution."""
+    plugin_root = _fake_plugin_root(tmp_path, "10.23.0")
+    digests = tmp_path / "digests"
+    hostile = _base_sync_record("hostile-host", "p", "s-hostile")
+    hostile["cost_usd"] = bad_value
+    _write_digest(digests, "hostile-host", [hostile])
+    well_formed = _base_sync_record("good-host", "p", "s-good")
+    well_formed["cost_usd"] = 3.0
+    _write_digest(digests, "good-host", [well_formed])
+    result = _run("--rollup", str(digests), "--plugin-root", str(plugin_root))
+    assert result.returncode == 0, result.stdout + result.stderr
+    data = json.loads(result.stdout)
+    assert data["cost_usd"] == 3.0
+    assert "good-host" in data["hosts"]
+
+
+def test_rollup_oversized_integer_cost_usd_treated_as_zero_without_overflow(
+    tmp_path: Path,
+) -> None:
+    """A 350+ digit integer `cost_usd` is legal JSON (no wire-size limit) but
+    exceeds `sys.float_info.max` -- casting it through `float()` to check
+    finiteness raises `OverflowError` and aborts the run for every host.
+    Must coerce to 0 without raising, and the well-formed sibling's cost
+    must survive unpoisoned."""
+    plugin_root = _fake_plugin_root(tmp_path, "10.23.0")
+    digests = tmp_path / "digests"
+    hostile = _base_sync_record("hostile-host", "p", "s-hostile")
+    hostile["cost_usd"] = int("1" * 350)
+    _write_digest(digests, "hostile-host", [hostile])
+    well_formed = _base_sync_record("good-host", "p", "s-good")
+    well_formed["cost_usd"] = 4.0
+    _write_digest(digests, "good-host", [well_formed])
+    result = _run("--rollup", str(digests), "--plugin-root", str(plugin_root))
+    assert result.returncode == 0, result.stdout + result.stderr
+    data = json.loads(result.stdout)
+    assert data["cost_usd"] == 4.0
+    assert "good-host" in data["hosts"]
+
+
+def test_rollup_cost_usd_above_2_53_treated_as_zero(tmp_path: Path) -> None:
+    """#2016 finding 3: `_safe_number`'s magnitude bound tightened from
+    `sys.float_info.max` to `2**53` (the exact-integer double-precision
+    range) -- a value in the NEWLY-rejected band (well above `2**53` ~=
+    9.007e15, but far below the old `sys.float_info.max` bound) previously
+    passed `_safe_number` unchanged and overflowed a downstream multiply
+    (`round(c * 1e6)` for `cost_micro`) to `inf`, raising an uncaught
+    OverflowError from `round(inf)`. Must coerce to 0 without raising, and
+    the well-formed sibling's cost must survive unpoisoned."""
+    plugin_root = _fake_plugin_root(tmp_path, "10.23.0")
+    digests = tmp_path / "digests"
+    hostile = _base_sync_record("hostile-host", "p", "s-hostile")
+    hostile["cost_usd"] = 10**16  # > 2**53, far under sys.float_info.max
+    _write_digest(digests, "hostile-host", [hostile])
+    well_formed = _base_sync_record("good-host", "p", "s-good")
+    well_formed["cost_usd"] = 5.0
+    _write_digest(digests, "good-host", [well_formed])
+    result = _run("--rollup", str(digests), "--plugin-root", str(plugin_root))
+    assert result.returncode == 0, result.stdout + result.stderr
+    data = json.loads(result.stdout)
+    assert data["cost_usd"] == 5.0
+    assert "good-host" in data["hosts"]
+
+
+def test_rollup_survives_a_non_numeric_string_inside_rework(tmp_path: Path) -> None:
+    plugin_root = _fake_plugin_root(tmp_path, "10.23.0")
+    digests = tmp_path / "digests"
+    hostile = _base_sync_record("hostile-host", "p", "s-hostile")
+    hostile["rework"] = {"failed_edits": "not-a-number"}
+    _write_digest(digests, "hostile-host", [hostile])
+    well_formed = _base_sync_record("good-host", "p", "s-good")
+    well_formed["rework"] = {"failed_edits": 2}
+    _write_digest(digests, "good-host", [well_formed])
+    result = _run("--rollup", str(digests), "--plugin-root", str(plugin_root))
+    assert result.returncode == 0, result.stdout + result.stderr
+    data = json.loads(result.stdout)
+    assert data["rework"]["failed_edits"] == 2
+
+
+def test_rollup_excludes_unknown_rework_keys_from_output(tmp_path: Path) -> None:
+    """#2016 finding 2: `rework` must be restricted to the known
+    `_REWORK_KEYS` schema, not merely value-coerced -- an unknown/hostile
+    key is the same key-leak class the `project`/`host` sanitization closes,
+    and it was previously emitted verbatim into the shared rollup output.
+    `_session_rework()` reads only `_REWORK_KEYS`, so excluding the rest
+    drops nothing legitimate."""
+    plugin_root = _fake_plugin_root(tmp_path, "10.23.0")
+    digests = tmp_path / "digests"
+    hostile = _base_sync_record("hostile-host", "p", "s-hostile")
+    hostile["rework"] = {"failed_edits": 1, "/etc/passwd": 99}
+    _write_digest(digests, "hostile-host", [hostile])
+    result = _run("--rollup", str(digests), "--plugin-root", str(plugin_root))
+    assert result.returncode == 0, result.stdout + result.stderr
+    data = json.loads(result.stdout)
+    assert data["rework"]["failed_edits"] == 1
+    assert "/etc/passwd" not in data["rework"]
+
+
+def test_rollup_non_dict_utilization_does_not_crash_and_contributes_nothing(
+    tmp_path: Path,
+) -> None:
+    plugin_root = _fake_plugin_root(tmp_path, "10.23.0")
+    digests = tmp_path / "digests"
+    hostile = _base_sync_record("hostile-host", "p", "s-hostile")
+    hostile["utilization"] = "not-a-dict"
+    _write_digest(digests, "hostile-host", [hostile])
+    well_formed = _base_sync_record("good-host", "p", "s-good")
+    well_formed["utilization"]["skills_invoked"] = {"plan": 1}
+    _write_digest(digests, "good-host", [well_formed])
+    result = _run("--rollup", str(digests), "--plugin-root", str(plugin_root))
+    assert result.returncode == 0, result.stdout + result.stderr
+    data = json.loads(result.stdout)
+    assert data["sessions"] == 2
+    assert data["utilization"]["skills_invoked"] == {"plan": 1}
+
+
+def test_rollup_survives_a_digest_line_that_decodes_to_a_non_dict(
+    tmp_path: Path,
+) -> None:
+    """#2016 round-4 closing-pass finding: `_iter_records` only excludes
+    UNDECODABLE lines -- a line that decodes to a bare JSON array, string,
+    number, or null is yielded as-is, and `_read_synced_records()`'s
+    `rec.get("schema")` raised an uncaught AttributeError on it, aborting
+    --rollup for every host over one malformed line in any peer's digest
+    file. Must skip non-dict decoded values instead, and the well-formed
+    sibling record (written after the bad lines in the same file) must
+    still be counted."""
+    plugin_root = _fake_plugin_root(tmp_path, "10.23.0")
+    digests = tmp_path / "digests"
+    well_formed = _base_sync_record("good-host", "p", "s-good")
+    box = digests / "good-host"
+    box.mkdir(parents=True)
+    (box / "session-digest.jsonl").write_text(
+        "\n".join(["[]", '"x"', "5", "null", "true", json.dumps(well_formed)]) + "\n"
+    )
+    result = _run("--rollup", str(digests), "--plugin-root", str(plugin_root))
+    assert result.returncode == 0, result.stdout + result.stderr
+    data = json.loads(result.stdout)
+    assert data["sessions"] == 1
+    assert data["hosts"] == ["good-host"]
+
+
+@pytest.mark.parametrize("bad_value", ["not-a-dict", [1, 2]])
+def test_rollup_survives_a_non_dict_inner_utilization_field(
+    tmp_path: Path, bad_value: object
+) -> None:
+    """#2016 closing-pass finding 1: `_normalize_name_dicts` only rewrote a
+    field `if isinstance(value, dict)`, leaving a non-dict INNER field (e.g.
+    `utilization.skills_invoked` set to a string or list by a hostile peer)
+    untouched -- distinct from `test_rollup_non_dict_utilization_does_not_
+    crash_and_contributes_nothing` above, which only covers the OUTER
+    `utilization` container being non-dict. `rollup()` then calls `.items()`
+    on the untouched inner field unguarded (`(u.get("skills_invoked", {}) or
+    {}).items()`) -- a truthy non-dict value isn't rescued by `or {}`, so
+    `.items()` raised an uncaught AttributeError and aborted --rollup for
+    every host. Must coerce to {} instead, and the well-formed sibling's
+    data must still appear."""
+    plugin_root = _fake_plugin_root(tmp_path, "10.23.0")
+    digests = tmp_path / "digests"
+    hostile = _base_sync_record("hostile-host", "p", "s-hostile")
+    hostile["utilization"]["skills_invoked"] = bad_value
+    _write_digest(digests, "hostile-host", [hostile])
+    well_formed = _base_sync_record("good-host", "p", "s-good")
+    well_formed["utilization"]["skills_invoked"] = {"plan": 1}
+    _write_digest(digests, "good-host", [well_formed])
+    result = _run("--rollup", str(digests), "--plugin-root", str(plugin_root))
+    assert result.returncode == 0, result.stdout + result.stderr
+    data = json.loads(result.stdout)
+    assert data["sessions"] == 2
+    assert data["utilization"]["skills_invoked"] == {"plan": 1}
