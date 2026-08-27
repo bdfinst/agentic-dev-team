@@ -653,17 +653,6 @@ class TestCommitTimestampIsAdditive:
         assert timestamps == sorted(timestamps, reverse=True)
         assert timestamps[-1] == _GOLDEN_REPO_BASE_DATE
 
-    def test_existing_mode_output_is_unaffected_by_the_added_field(self, golden_repo, capsys):
-        """The Step 2.1 golden fixture is an independent baseline: this diffs
-        the existing mode's live output against the checked-in file, not
-        against the pre-Step-2.2a code's own output.
-        """
-        code, out, _ = _run_cli(
-            ["--repo", str(golden_repo), "--since", "3650", "--min-edits", "1"], capsys
-        )
-        assert code == 0
-        assert out.rstrip("\n") == _GOLDEN_FIXTURE.read_text(encoding="utf-8").rstrip("\n")
-
     def test_commit_dataclass_still_constructs_without_a_timestamp(self):
         """Existing call sites (e.g. this test file's `_commits` helper) that
         only ever supplied sha/paths must keep working unchanged.
@@ -722,6 +711,72 @@ class TestFullCloneEndToEnd:
         code, _, err = _run_cli(["--repo", str(empty), "--since", "3650"], capsys)
         assert code == 2
         assert "empty-window" in err
+
+    def test_max_commits_below_history_size_marks_the_json_report_truncated(
+        self, full_clone, capsys
+    ):
+        """End-to-end CLI coverage for `report["truncated"]`: prior tests only
+        checked `git_log_commits`'s own capping in isolation, or hand-set
+        `truncated=True` on a report dict never produced by a real run.
+        """
+        code, out, _ = _run_cli(
+            ["--repo", str(full_clone), "--since", "3650", "--min-edits", "1", "--json",
+             "--max-commits", "2"],
+            capsys,
+        )
+        assert code == 0
+        payload = json.loads(out)
+        assert payload["truncated"] is True
+
+    def test_max_commits_below_history_size_marks_the_text_report_truncated(
+        self, full_clone, capsys
+    ):
+        code, out, _ = _run_cli(
+            ["--repo", str(full_clone), "--since", "3650", "--min-edits", "1",
+             "--max-commits", "2"],
+            capsys,
+        )
+        assert code == 0
+        assert "--max-commits truncated the window" in out
+
+    def test_exclude_flag_extends_the_default_excludes(self, full_clone, capsys):
+        code, out, _ = _run_cli(
+            ["--repo", str(full_clone), "--since", "3650", "--min-edits", "1", "--json",
+             "--exclude", "tests/test_beta.py"],
+            capsys,
+        )
+        assert code == 0
+        payload = json.loads(out)
+        assert not any(row["test_file"] == "tests/test_beta.py" for row in payload["rows"])
+        assert not any(u["test_file"] == "tests/test_beta.py" for u in payload["unmapped"])
+
+
+class TestDefaultExcludes:
+    """Finding 9 (test review): only `node_modules/*` was pinned before.
+    Covers a spread of the other default globs so a regression in one
+    pattern's glob syntax doesn't slip through unnoticed.
+    """
+
+    @pytest.mark.parametrize(
+        "path",
+        [
+            "node_modules/pkg/foo.js",
+            "vendor/lib/foo.py",
+            "dist/bundle.js",
+            "web/dist/bundle.js",
+            "build/output.js",
+            "coverage/report.html",
+            "graphify-out/graph.json",
+            "app.min.js",
+            "yarn.lock",
+            "src/schema.snap",
+        ],
+    )
+    def test_default_exclude_globs_match_their_target_paths(self, path):
+        assert ccr.is_excluded(path, ccr.DEFAULT_EXCLUDES) is True
+
+    def test_a_normal_source_path_is_not_excluded(self):
+        assert ccr.is_excluded("src/alpha.py", ccr.DEFAULT_EXCLUDES) is False
 
 
 @pytest.fixture(scope="module")
@@ -812,6 +867,92 @@ class TestTrackedPaths:
         code, out, _ = _run_cli(["--repo", ".", "--since", "3650", "--min-edits", "1"], capsys)
         assert code == 0
         assert "tests/test_alpha.py -> src/alpha.py" in out
+
+    def test_repo_pointed_at_a_subdirectory_still_sees_the_whole_tree(self, tmp_path):
+        """`--repo <subdirectory>` must not shrink the tracked-path universe.
+
+        `git ls-files --full-name` only reformats paths to be root-relative --
+        it does NOT expand the command's scope past the current directory. So
+        `tracked_paths` must resolve the repo's top level first, or a `--repo`
+        pointed at a subdirectory would silently miss every tracked path
+        outside it.
+        """
+        root = _seed_repo(tmp_path / "repo-pointed-at-subdir")
+        paths = ccr.tracked_paths(str(root / "src"))
+        assert "src/alpha.py" in paths
+        assert "tests/test_alpha.py" in paths
+
+    def test_all_files_mode_with_repo_pointed_at_a_subdirectory_does_not_misclassify_outside_files(
+        self, tmp_path, capsys
+    ):
+        """Reproduces the correctness-review finding: before the fix, `git -C
+        <subdir> ls-files --full-name` was scoped to `<subdir>` and below, so
+        a historically-edited path OUTSIDE it -- which `git log` still
+        reports, root-relative, regardless of `--repo` -- fell into the hard
+        `tracked` filter as "not tracked" and was wrongly reported as
+        `unattributed` even though it is a tracked, live file.
+        """
+        root = _seed_repo(tmp_path / "subdir-all-files-repo")
+        code, out, _ = _run_cli(
+            ["--repo", str(root / "src"), "--since", "3650", "--all-files", "--json"], capsys
+        )
+        assert code == 0
+        payload = json.loads(out)
+        ranked_paths = {row["path"] for row in payload["rows"]}
+        unattributed_paths = {item["path"] for item in payload["unattributed"]}
+        assert "tests/test_alpha.py" in ranked_paths
+        assert "tests/test_alpha.py" not in unattributed_paths
+
+    def test_excluded_commits_are_dropped_from_commits_scanned(self, all_files_repo, capsys):
+        """Finding 4 (correctness review): a commit whose every path is
+        excluded (here, the "vendor churn" commit, which touches only
+        node_modules/pkg/foo.js) must not count toward `commits_scanned` --
+        the scenario's own docstring says an excluded file leaves no trace in
+        `any count`, not just the ranked/unattributed output. `_seed_all_files_repo`
+        has 3 commits total; the third touches only the excluded path.
+        """
+        code, out, _ = _run_cli(
+            ["--repo", str(all_files_repo), "--since", "3650", "--all-files", "--json"], capsys
+        )
+        assert code == 0
+        payload = json.loads(out)
+        assert payload["commits_scanned"] == 2
+
+
+class TestMissingCommitTimestampRefusal:
+    """Finding 2 (correctness review/warning): `--all-files` must surface a
+    missing/unparseable commit timestamp as a named `Refusal`, not let
+    `datetime.fromisoformat` raise a bare, uncaught `ValueError`.
+    """
+
+    def test_all_files_mode_surfaces_a_missing_timestamp_as_a_refusal(
+        self, all_files_repo, capsys, monkeypatch
+    ):
+        def _boom(*args, **kwargs):
+            raise ccr.churn_recurrence.TimestampError(
+                "deadbeef", "", "commit 'deadbeef' has no timestamp"
+            )
+
+        monkeypatch.setattr(ccr.churn_recurrence, "rank_all_files", _boom)
+        code, out, err = _run_cli(
+            ["--repo", str(all_files_repo), "--since", "3650", "--all-files"], capsys
+        )
+        assert code == 2
+        assert out == ""
+        assert "missing-commit-timestamp" in err
+        assert "deadbeef" in err
+
+
+class TestGitCommandFailedRefusal:
+    """Finding 11 (test review): the `git-command-failed` Refusal path in
+    `run_git()` had no dedicated test, unlike the other three Refusal
+    reasons.
+    """
+
+    def test_run_git_raises_refusal_on_a_failing_git_command(self, full_clone):
+        with pytest.raises(ccr.Refusal) as exc_info:
+            ccr.run_git(full_clone, ["not-a-real-git-subcommand"])
+        assert exc_info.value.reason == "git-command-failed"
 
 
 class TestGitLogParsing:

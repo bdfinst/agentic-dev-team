@@ -16,6 +16,8 @@ import json
 import sys
 from datetime import datetime, timedelta, timezone
 
+import pytest
+
 from _repo_root import REPO_ROOT
 
 sys.path.insert(0, str(REPO_ROOT / "scripts" / "lib"))
@@ -116,6 +118,38 @@ def test_default_commit_gap_hours_is_four():
 
 
 # ---------------------------------------------------------------------------
+# TimestampError (correctness-review finding 2, issue #2038/#2039)
+# ---------------------------------------------------------------------------
+
+
+def test_empty_timestamp_raises_timestamp_error_not_a_bare_value_error():
+    """`Commit.timestamp` defaults to `""` for call sites that never
+    supplied one; an unguarded `datetime.fromisoformat("")` would otherwise
+    raise an unnamed `ValueError`.
+    """
+    with pytest.raises(cr.TimestampError) as exc_info:
+        cr.partition_commit_sessions([("deadbeef", "")], commit_gap_hours=4)
+    assert exc_info.value.sha == "deadbeef"
+    assert exc_info.value.timestamp == ""
+
+
+def test_dict_shaped_commit_missing_the_timestamp_key_raises_timestamp_error():
+    with pytest.raises(cr.TimestampError) as exc_info:
+        cr.partition_commit_sessions([{"sha": "deadbeef"}], commit_gap_hours=4)
+    assert exc_info.value.sha == "deadbeef"
+
+
+def test_malformed_timestamp_raises_timestamp_error():
+    with pytest.raises(cr.TimestampError):
+        cr.partition_commit_sessions([("deadbeef", "not-a-timestamp")], commit_gap_hours=4)
+
+
+def test_timestamp_error_is_a_value_error():
+    """Callers that only guard against `ValueError` still catch it."""
+    assert issubclass(cr.TimestampError, ValueError)
+
+
+# ---------------------------------------------------------------------------
 # rank_all_files (Step 2.3, #2039)
 # ---------------------------------------------------------------------------
 
@@ -174,7 +208,7 @@ class TestRankAllFiles:
         row = _row_by_path(report, "src/alpha.py")
         assert row.cross_session == 1
 
-    def test_ties_are_broken_by_edits_then_path(self):
+    def test_ties_on_cross_session_and_edits_are_broken_by_path(self):
         commits = _all_files_commits(
             ("a", ["b/beta.py"], 0),
             ("b", ["b/beta.py"], 10),
@@ -186,6 +220,30 @@ class TestRankAllFiles:
         )
 
         assert [row.path for row in report["rows"]] == ["a/alpha.py", "b/beta.py"]
+
+    def test_ties_on_cross_session_are_broken_by_edits_before_path(self):
+        """Both files recur exactly once (cross_session=1), but b/beta.py has
+        one extra same-session edit -- edits=3 vs alpha.py's edits=2. The
+        `-edits` sort-key term must rank beta.py first despite `a/alpha.py`
+        sorting before `b/beta.py` alphabetically, which the path-only tie
+        above cannot distinguish (both rows there have identical edits too).
+        """
+        commits = _all_files_commits(
+            ("a1", ["b/beta.py"], 0),
+            ("a2", ["b/beta.py"], 1),  # same commit-session as a1
+            ("b", ["b/beta.py"], 10),  # cross-session revisit
+            ("c", ["a/alpha.py"], 0),
+            ("d", ["a/alpha.py"], 10),  # cross-session revisit
+        )
+        report = cr.rank_all_files(
+            commits, {"a/alpha.py", "b/beta.py"}, commit_gap_hours=4
+        )
+
+        beta = _row_by_path(report, "b/beta.py")
+        alpha = _row_by_path(report, "a/alpha.py")
+        assert beta.cross_session == alpha.cross_session == 1
+        assert (beta.edits, alpha.edits) == (3, 2)
+        assert [row.path for row in report["rows"]] == ["b/beta.py", "a/alpha.py"]
 
     def test_unattributable_file_is_reported_as_unattributed_not_unmapped_or_ranked(self):
         """A file with no clean path back to a current working-tree file (here:
@@ -275,3 +333,38 @@ class TestRenderAllFiles:
             "cross_session": 1,
         }
         assert payload["unattributed"] == [{"path": "src/gone.py", "edits": 1}]
+
+    def _multi_row_report(self):
+        """Two ranked rows and two unattributed paths -- enough to exercise
+        `--top` capping and the "hidden more" overflow note (finding 13, test
+        review): only the sibling `churn_coupling_report.py` renderer had this
+        coverage before.
+        """
+        commits = _all_files_commits(
+            ("a", ["src/alpha.py"], 0),
+            ("b", ["src/alpha.py"], 10),
+            ("c", ["src/beta.py"], 0),
+            ("d", ["src/beta.py"], 10),
+            ("e", ["src/gone1.py"], 0),
+            ("f", ["src/gone2.py"], 0),
+        )
+        report = cr.rank_all_files(commits, {"src/alpha.py", "src/beta.py"}, commit_gap_hours=4)
+        report.setdefault("window", "90 days")
+        report.setdefault("truncated", False)
+        return report
+
+    def test_top_caps_the_rows_shown_not_the_rows_counted(self):
+        report = self._multi_row_report()
+        payload = json.loads(cr.render_json(report, top=1))
+        assert len(payload["rows"]) == 1
+        assert payload["files_seen"] == 4
+
+    def test_unattributed_overflow_is_named_not_dropped_in_text(self):
+        report = self._multi_row_report()
+        text = cr.render_text(report, top=1)
+        assert "... and 1 more" in text
+
+    def test_json_carries_every_unattributed_entry_regardless_of_top(self):
+        report = self._multi_row_report()
+        payload = json.loads(cr.render_json(report, top=1))
+        assert len(payload["unattributed"]) == 2

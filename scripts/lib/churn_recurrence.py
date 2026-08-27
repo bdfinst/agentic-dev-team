@@ -74,6 +74,39 @@ def _normalize(commit) -> tuple[str, str]:
     return str(sha), str(timestamp)
 
 
+class TimestampError(ValueError):
+    """A commit's timestamp is missing or unparseable for session partitioning.
+
+    `churn_coupling_report.Commit.timestamp` defaults to `""` for call sites
+    that never supplied one, and `datetime.fromisoformat` on that default (or
+    on any malformed value) would otherwise raise a bare, unnamed
+    `ValueError`. This repo's own convention (see
+    `churn_coupling_report.Refusal`) is to name why a run cannot produce a
+    trustworthy number rather than crash -- this is that name for this
+    module's own boundary. `churn_coupling_report.py` converts it into a
+    `Refusal` at its own call boundary rather than importing this class into
+    a bare `except ValueError`.
+    """
+
+    def __init__(self, sha: str, timestamp: str, detail: str) -> None:
+        super().__init__(detail)
+        self.sha = sha
+        self.timestamp = timestamp
+
+
+def _parse_timestamp(sha: str, timestamp: str) -> datetime:
+    if not timestamp:
+        raise TimestampError(
+            sha, timestamp, f"commit {sha!r} has no timestamp; cannot partition it into a commit-session"
+        )
+    try:
+        return datetime.fromisoformat(timestamp)
+    except ValueError as exc:
+        raise TimestampError(
+            sha, timestamp, f"commit {sha!r} has an unparseable timestamp {timestamp!r}: {exc}"
+        ) from exc
+
+
 def partition_commit_sessions(
     commits, commit_gap_hours: float = DEFAULT_COMMIT_GAP_HOURS
 ) -> list[list[dict[str, str]]]:
@@ -87,6 +120,10 @@ def partition_commit_sessions(
     timestamp regardless, so partitioning is correct even if the caller's
     ordering discipline is wrong -- a sorted input simply sorts to itself.
 
+    Raises `TimestampError` when any commit's timestamp is empty or
+    unparseable, rather than letting `datetime.fromisoformat` raise a bare
+    `ValueError`.
+
     Returns a list of commit-session groups, each a list of `{"sha",
     "timestamp"}` dicts in ascending-time order. Two chronologically
     adjacent commits start a new commit-session when the gap between them
@@ -99,19 +136,18 @@ def partition_commit_sessions(
     if not commits:
         return []
 
-    normalized = sorted(
-        (_normalize(commit) for commit in commits),
-        key=lambda pair: datetime.fromisoformat(pair[1]),
+    parsed = sorted(
+        ((sha, ts, _parse_timestamp(sha, ts)) for sha, ts in (_normalize(c) for c in commits)),
+        key=lambda item: item[2],
     )
 
     threshold = timedelta(hours=commit_gap_hours)
     sessions: list[list[dict[str, str]]] = [
-        [{"sha": normalized[0][0], "timestamp": normalized[0][1]}]
+        [{"sha": parsed[0][0], "timestamp": parsed[0][1]}]
     ]
-    previous_ts = datetime.fromisoformat(normalized[0][1])
+    previous_ts = parsed[0][2]
 
-    for sha, ts_str in normalized[1:]:
-        ts = datetime.fromisoformat(ts_str)
+    for sha, ts_str, ts in parsed[1:]:
         if ts - previous_ts >= threshold:
             sessions.append([{"sha": sha, "timestamp": ts_str}])
         else:
@@ -193,6 +229,21 @@ def rank_all_files(
     }
 
 
+def append_hidden_note(lines: list, total: int, top: int) -> None:
+    """Append a "... and N more" note when `total` exceeds `top`.
+
+    Named, not dropped: `--top` caps the display, and `--json` still carries
+    every entry. Shared by this module's `render_text` and
+    `churn_coupling_report.render_text` -- both had the identical inline
+    block before it was extracted here (the one-way import direction is
+    `churn_coupling_report.py` -> `churn_recurrence.py`, so the shared
+    helper lives on this side).
+    """
+    hidden = total - top
+    if hidden > 0:
+        lines.append(f"  ... and {hidden} more (raise --top, or use --json)")
+
+
 def render_json(report, top) -> str:
     payload = dict(report)
     payload["rows"] = [
@@ -248,9 +299,7 @@ def render_text(report, top) -> str:
         )
         for item in report["unattributed"][:top]:
             lines.append(f"  {item['edits']:>5} edits  {item['path']}")
-        hidden = len(report["unattributed"]) - top
-        if hidden > 0:
-            lines.append(f"  ... and {hidden} more (raise --top, or use --json)")
+        append_hidden_note(lines, len(report["unattributed"]), top)
 
     lines.append("")
     lines.append(
