@@ -52,14 +52,12 @@ if str(_HOOKS_LIB_DIR) not in sys.path:
     sys.path.insert(0, str(_HOOKS_LIB_DIR))
 
 try:
-    import artifact_paths  # type: ignore[import-not-found]
     import review_dispatch_ledger  # type: ignore[import-not-found]
 except ImportError:  # pragma: no cover - degraded fallback, hooks/lib unreachable
     # Same guarded-import shape as `review_round_log.py`: the `sys.path`
     # setup above must run before this import, which is why it isn't at the
     # top of the file (`ruff.toml` suppresses E402 for this whole directory
     # for exactly that reason).
-    artifact_paths = None
     review_dispatch_ledger = None
 
 VALUE_STREAM = "review-value.jsonl"
@@ -104,12 +102,12 @@ VERDICTS = (
 
 
 def _resolve(stream: str, cwd: Path) -> Path:
-    # Preserves this module's pre-existing behavior (the writer default,
-    # migrate=True) unchanged — this extraction's scope is de-duplicating the
-    # ledger-reading predicate, not auditing this module's own migrate
-    # posture. Tracked separately: #2059.
-    if artifact_paths is not None:
-        return artifact_paths.resolve_file("metrics", stream, cwd)
+    # Read-only report: migrate=False so running it never migrates a legacy
+    # top-level metrics/ file or creates .claude/metrics/ as a side effect
+    # (mirrors hooks/lib/metrics_query.py::_stream_path's same reasoning, and
+    # matches contract_failure_report.py's own _resolve() — #2059).
+    if review_dispatch_ledger is not None:
+        return review_dispatch_ledger.resolve_stream("metrics", stream, cwd, migrate=False)
     return cwd / ".claude" / "metrics" / stream
 
 
