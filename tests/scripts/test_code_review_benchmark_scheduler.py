@@ -236,3 +236,88 @@ def test_scheduler_tops_up_queue_as_futures_complete_when_under_budget(
     )
     assert sorted(called) == ["1", "2", "3", "4"]
     assert total == 4.0
+
+
+def test_run_pending_uses_injected_append_fn_not_results_jsonl(tmp_path: Path) -> None:
+    """#2051: `append_fn` lets a caller (the recorded-diff dataset) route
+    records somewhere other than results.jsonl/skipped.jsonl — proving the
+    generalization didn't just add a parameter that's ignored."""
+    appended: list[dict[str, Any]] = []
+
+    def fake_append_fn(record: dict[str, Any], results_dir: Any) -> None:
+        appended.append(record)
+
+    def fake_run_case_fn(case_dict, **kwargs) -> dict[str, Any]:
+        return {**case_dict, "dispatched": True, "reason": None, "cost_usd": 0.0}
+
+    scheduler.run_pending(
+        _pending(["1"]),
+        make_kwargs=_noop_kwargs,
+        dispatch_fn=lambda prompt, cwd: {},
+        results_dir=tmp_path,
+        workers=1,
+        run_case_fn=fake_run_case_fn,
+        append_fn=fake_append_fn,
+    )
+
+    assert len(appended) == 1
+    assert appended[0]["bug_id"] == "1"
+    # Never touched the default recall-scoring files.
+    assert not (tmp_path / "results.jsonl").is_file()
+    assert not (tmp_path / "skipped.jsonl").is_file()
+
+
+def test_run_pending_default_append_fn_is_monkeypatchable(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The default `append_fn=None` -> `runner.append_result` resolution must
+    stay a live lookup at call time, not a value captured once at import —
+    otherwise monkeypatching `runner.append_result` (as existing tests in
+    this file do) would silently stop working."""
+    seen: list[dict[str, Any]] = []
+    original = runner.append_result
+
+    def wrapped(record: dict[str, Any], results_dir: Any) -> None:
+        seen.append(record)
+        original(record, results_dir)
+
+    monkeypatch.setattr(scheduler.runner, "append_result", wrapped)
+
+    def fake_run_case_fn(case_dict, **kwargs) -> dict[str, Any]:
+        return {**case_dict, "skipped": False, "hit": True, "cost_usd": 0.0}
+
+    scheduler.run_pending(
+        _pending(["1"]),
+        make_kwargs=_noop_kwargs,
+        dispatch_fn=lambda prompt, cwd: {},
+        results_dir=tmp_path,
+        workers=1,
+        run_case_fn=fake_run_case_fn,
+    )
+    assert len(seen) == 1
+
+
+def test_run_pending_prints_done_for_recorded_diff_record_shape(
+    tmp_path: Path, capsys: pytest.CaptureFixture
+) -> None:
+    """A recorded-diff record (`"dispatched"` key, no `hit`/`skipped`) must
+    print DONE/FAIL, never HIT/SKIP/MISS — those imply recall scoring that
+    never happened for this case type."""
+
+    def fake_run_case_fn(case_dict, **kwargs) -> dict[str, Any]:
+        return {**case_dict, "dispatched": True, "reason": None, "cost_usd": 0.0}
+
+    scheduler.run_pending(
+        _pending(["1"]),
+        make_kwargs=_noop_kwargs,
+        dispatch_fn=lambda prompt, cwd: {},
+        results_dir=tmp_path,
+        workers=1,
+        run_case_fn=fake_run_case_fn,
+        append_fn=lambda record, results_dir: None,
+    )
+    out = capsys.readouterr().out
+    assert "DONE" in out
+    assert "HIT" not in out
+    assert "MISS" not in out
+    assert "SKIP" not in out

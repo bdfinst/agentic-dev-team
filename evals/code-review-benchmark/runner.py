@@ -25,12 +25,21 @@ import subprocess
 import sys
 import tempfile
 from collections.abc import Callable
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
 import scorer
 
 _FENCE_RE = re.compile(r"```(?:json)?\s*\n(.*?)\n```", re.DOTALL)
+
+# `/code-review --json`'s `issues[].severity` enum, mapped onto
+# `review-value.jsonl`'s `severity_breakdown` counts (#1256).
+_SEVERITY_TO_BREAKDOWN_KEY = {
+    "error": "errors",
+    "warning": "warnings",
+    "suggestion": "suggestions",
+}
 
 # Recognized source-file extensions per dataset language (#965). A language
 # absent from this mapping is treated as "unknown" — see
@@ -122,6 +131,66 @@ def _flatten_findings(review_json: dict[str, Any]) -> list[dict[str, Any]]:
     return findings
 
 
+def emit_review_value_rows(
+    case: dict[str, Any],
+    review_json: dict[str, Any],
+    results_dir: Any,
+    diff_shape: str = "mixed",
+) -> None:
+    """Append one `review-value.jsonl` row per dispatched lens (#2051).
+
+    Written BY MECHANISM straight from the parsed `/code-review --json`
+    payload's `agents[]` list -- which names every agent the panel actually
+    dispatched, whether or not it found anything -- rather than by agent
+    instruction, the collection bias #2019/#1512 documented in the live
+    `/build`/`/code-review` writers of this same file (a round that found
+    nothing is markedly less likely to be told to log itself). Every
+    dispatched lens gets a row here, including a lens whose `issues` list is
+    empty -- the "no-op" case #2019 could not previously observe.
+
+    `source: "harness"` is a value distinct from the live writers'
+    `build-checkpoint` / `build-backstop` / `code-review` (see
+    `knowledge/telemetry-schema.md`) so harness rows are never silently
+    pooled with live ones. Rows land in `results_dir/review-value.jsonl` --
+    the harness's own results directory, never `.claude/metrics/` -- which
+    is itself a second, structural guarantee against pooling: nothing about
+    a harness run writes into the live metrics tree.
+
+    Never called for an unparseable dispatch (`review_json is None`): there
+    is no way to attribute a row to a lens without knowing which lenses ran,
+    and that failure is already captured by `skipped.jsonl`'s "unparseable
+    --json output" reason -- duplicating it here would be a second, weaker
+    record of the same fact.
+    """
+    results_dir = Path(results_dir)
+    results_dir.mkdir(parents=True, exist_ok=True)
+    timestamp = datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
+    with open(results_dir / "review-value.jsonl", "a", encoding="utf-8") as fh:
+        for agent in review_json.get("agents", []) or []:
+            agent_name = agent.get("agentName")
+            if not agent_name:
+                continue
+            issues = agent.get("issues", []) or []
+            breakdown = {"errors": 0, "warnings": 0, "suggestions": 0}
+            for issue in issues:
+                key = _SEVERITY_TO_BREAKDOWN_KEY.get(issue.get("severity"))
+                if key:
+                    breakdown[key] += 1
+            row = {
+                "timestamp": timestamp,
+                "source": "harness",
+                "dataset": case["dataset"],
+                "project": case["project"],
+                "bug_id": case["bug_id"],
+                "agents_run": [agent_name],
+                "issues_found": len(issues),
+                "severity_breakdown": breakdown,
+                "outcome": "no-op",  # the harness never applies fixes
+                "diff_shape": diff_shape,
+            }
+            fh.write(json.dumps(row) + "\n")
+
+
 def _build_scoped_dir(checkout_dir: str, files: list[str]) -> str:
     """Copy only `files` (relative paths) out of `checkout_dir`, preserving structure."""
     scoped = tempfile.mkdtemp(prefix="crb-scope-")
@@ -169,6 +238,7 @@ def run_case(
     scope: str = "fix-only",
     tolerance: int = scorer.DEFAULT_TOLERANCE,
     workdir_root: str | None = None,
+    diff_shape: str = "mixed",
 ) -> dict[str, Any]:
     """Run one BenchmarkCase (as a dict, matching `BenchmarkCase.to_dict()`) end to end.
 
@@ -181,6 +251,11 @@ def run_case(
     `fix-only` scoping copies files out) as a diagnostic sanity check that
     the buggy revision reproduces a failing test; it never gates or skips
     the case, and its result lands in the record as `test_verification`.
+
+    `diff_shape` (#2051) is passed straight through to
+    `emit_review_value_rows()` -- Defects4J/BugsJS cases are real production
+    bug fixes, never test-only, so callers leave it at the default `"mixed"`;
+    the recorded-diff adapter's cases pass their own precomputed shape.
     """
     results_dir = Path(results_dir)
     raw_dir = results_dir / "raw"
@@ -234,6 +309,8 @@ def run_case(
                 reason += " (after retry)"
             return skip_record(case, reason, str(raw_path), cost_usd=cost_usd)
 
+        emit_review_value_rows(case, review_json, results_dir, diff_shape=diff_shape)
+
         findings = _flatten_findings(review_json)
         scored = scorer.score(ground_truth_hunks, findings, tolerance=tolerance)
 
@@ -254,6 +331,95 @@ def run_case(
         shutil.rmtree(checkout_dir, ignore_errors=True)
         if review_dir is not None and review_dir != checkout_dir:
             shutil.rmtree(review_dir, ignore_errors=True)
+
+
+def run_recorded_diff_case(
+    case: dict[str, Any],
+    *,
+    checkout_fn: Callable[[str], bool],
+    dispatch_fn: Callable[[str, str], dict[str, Any]],
+    results_dir: Any,
+    diff_shape: str = "test-only",
+    workdir_root: str | None = None,
+) -> dict[str, Any]:
+    """Run one recorded-diff case (#2051 item 2) end to end.
+
+    Unlike `run_case()`, a recorded-diff case has no ground truth to score
+    against — its purpose is purely to give #1964 real `diff_shape:
+    "test-only"` `review-value.jsonl` rows, seeded from real `/test-improve`
+    Phase-5 diffs. `checkout_fn(workdir) -> bool` materializes the recorded
+    diff's file tree into `workdir`; the whole materialized tree is the
+    review scope (there is no "ground-truth files" subset to narrow to,
+    unlike `run_case()`'s fix-only scoping).
+
+    Returns a lightweight record — never written to `results.jsonl` or
+    `skipped.jsonl`. Recall/hit has no meaning for a recorded-diff case;
+    mixing a `hit: None` row into those files would corrupt `report.py`'s
+    recall math (`_recall()` counts anything but `hit: True` as a miss).
+    Append the returned record via `append_recorded_diff_result()` instead.
+    """
+    results_dir = Path(results_dir)
+    raw_dir = results_dir / "raw"
+    raw_dir.mkdir(parents=True, exist_ok=True)
+
+    checkout_dir = tempfile.mkdtemp(prefix="crb-recorded-diff-", dir=workdir_root)
+    try:
+        if not checkout_fn(checkout_dir):
+            return {
+                "dataset": case["dataset"],
+                "project": case["project"],
+                "bug_id": case["bug_id"],
+                "dispatched": False,
+                "reason": "checkout failed",
+                "cost_usd": None,
+            }
+
+        prompt = f"/code-review --path {checkout_dir} --json"
+        dispatch_result = dispatch_fn(prompt, checkout_dir) or {}
+        cost_usd = dispatch_result.get("cost_usd")
+
+        raw_path = raw_dir / f"{case['dataset']}-{case['project']}-{case['bug_id']}.txt"
+        raw_path.write_text(dispatch_result.get("raw_stdout") or "", encoding="utf-8")
+
+        review_json = _extract_review_json(dispatch_result.get("result_text"))
+        if review_json is None:
+            reason = "unparseable --json output"
+            if dispatch_result.get("retry_attempted"):
+                reason += " (after retry)"
+            return {
+                "dataset": case["dataset"],
+                "project": case["project"],
+                "bug_id": case["bug_id"],
+                "dispatched": True,
+                "reason": reason,
+                "raw_output_path": str(raw_path),
+                "cost_usd": cost_usd,
+            }
+
+        emit_review_value_rows(case, review_json, results_dir, diff_shape=diff_shape)
+
+        return {
+            "dataset": case["dataset"],
+            "project": case["project"],
+            "bug_id": case["bug_id"],
+            "dispatched": True,
+            "reason": None,
+            "review_value_rows": len(review_json.get("agents", []) or []),
+            "raw_output_path": str(raw_path),
+            "cost_usd": cost_usd,
+        }
+    finally:
+        shutil.rmtree(checkout_dir, ignore_errors=True)
+
+
+def append_recorded_diff_result(record: dict[str, Any], results_dir: Any) -> None:
+    """Append `record` to `recorded-diff-log.jsonl`, kept out of
+    `results.jsonl`/`skipped.jsonl` deliberately (#2051) — see
+    `run_recorded_diff_case()`'s docstring for why."""
+    results_dir = Path(results_dir)
+    results_dir.mkdir(parents=True, exist_ok=True)
+    with open(results_dir / "recorded-diff-log.jsonl", "a", encoding="utf-8") as fh:
+        fh.write(json.dumps(record) + "\n")
 
 
 def case_key(record_or_case: dict[str, Any]) -> str:

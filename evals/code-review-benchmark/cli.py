@@ -30,7 +30,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import report
 import runner
 import scheduler
-from adapters import bootstrap, bugsjs_adapter, defects4j_adapter
+from adapters import bootstrap, bugsjs_adapter, defects4j_adapter, recorded_diff_adapter
 
 DEFAULT_RESULTS_DIR = Path(__file__).resolve().parent / "results"
 
@@ -152,6 +152,100 @@ def _make_test_fn(
     return lambda checkout_dir: bugsjs_adapter.run_tests(case, checkout_dir)
 
 
+def _run_recorded_diff(args: argparse.Namespace, results_dir: Path) -> int:
+    """`--dataset recorded-diff` (#2051 item 2): dispatch `/code-review`
+    against a directory of saved diffs (most usefully real `/test-improve`
+    Phase-5 diffs) instead of a real-defect dataset. No recall scoring —
+    see `runner.run_recorded_diff_case()`. Split out of `run()` because this
+    dataset has no auto-provisioning, no `defects4j`/`bugsjs` detect step,
+    and writes to `review-value.jsonl`/`recorded-diff-log.jsonl` instead of
+    `results.jsonl`/`skipped.jsonl`.
+    """
+    if not args.diffs_dir:
+        print(
+            "code-review-benchmark: --diffs-dir is required for "
+            "--dataset recorded-diff.",
+            file=sys.stderr,
+        )
+        return 1
+    if not recorded_diff_adapter.detect(args.diffs_dir):
+        print(
+            f"code-review-benchmark: no recorded-diff cases found under "
+            f"{args.diffs_dir!r} (expected <diffs_dir>/<case-id>/files/).",
+            file=sys.stderr,
+        )
+        return 1
+
+    cases = recorded_diff_adapter.list_cases(args.diffs_dir)
+    if args.project:
+        cases = [c for c in cases if c.project == args.project]
+    bug_ids = _parse_bug_ids(args.bug_ids)
+    if bug_ids is not None:
+        cases = [c for c in cases if c.bug_id in bug_ids]
+    elif args.sample is not None and len(cases) > args.sample:
+        cases = random.sample(cases, args.sample)
+    if not cases:
+        print(
+            "code-review-benchmark: no recorded-diff cases found for the "
+            "given filters.",
+            file=sys.stderr,
+        )
+        return 1
+
+    dev_team_plugin_path = args.dev_team_plugin_path or os.environ.get(
+        "DEV_TEAM_PLUGIN_PATH"
+    )
+    if dev_team_plugin_path and not Path(dev_team_plugin_path).is_dir():
+        print(
+            f"code-review-benchmark: --dev-team-plugin-path "
+            f"{dev_team_plugin_path!r} does not exist.",
+            file=sys.stderr,
+        )
+        return 1
+
+    dispatch_fn = runner.make_isolated_dispatch_fn(
+        model=args.model,
+        timeout=args.timeout,
+        retry_on_unparseable=not args.no_json_retry,
+        retry_timeout=args.json_retry_timeout,
+        plugin_path=dev_team_plugin_path,
+    )
+
+    pending = [(case, case.to_dict()) for case in cases]
+    estimate = len(pending) * DEFAULT_COST_PER_CASE_ESTIMATE_USD
+    print(
+        f"code-review-benchmark: about to dispatch {len(pending)} "
+        f"recorded-diff case(s); conservative estimate ${estimate:.2f} "
+        "total. Use --max-cost-usd to cap spend.",
+        file=sys.stderr,
+    )
+
+    def _make_kwargs(case: Any) -> dict[str, Any]:
+        return {
+            "checkout_fn": lambda workdir, c=case: recorded_diff_adapter.checkout(
+                c, workdir
+            ),
+            "diff_shape": recorded_diff_adapter.diff_shape_for(case),
+        }
+
+    total_cost = scheduler.run_pending(
+        pending,
+        make_kwargs=_make_kwargs,
+        dispatch_fn=dispatch_fn,
+        results_dir=results_dir,
+        workers=args.workers,
+        max_cost_usd=args.max_cost_usd,
+        run_case_fn=runner.run_recorded_diff_case,
+        append_fn=runner.append_recorded_diff_result,
+    )
+    print(
+        f"code-review-benchmark: recorded-diff sweep complete (total cost: "
+        f"${total_cost:.2f}); review-value.jsonl rows written to "
+        f"{results_dir / 'review-value.jsonl'}."
+    )
+    return 0
+
+
 def run(args: argparse.Namespace) -> int:
     results_dir = Path(args.results_dir)
 
@@ -166,6 +260,9 @@ def run(args: argparse.Namespace) -> int:
         path = report.write_report(results_dir)
         print(f"Wrote {path}")
         return 0
+
+    if args.dataset == "recorded-diff":
+        return _run_recorded_diff(args, results_dir)
 
     defects4j_bin = "defects4j"
     defects4j_env: dict[str, str] | None = None
@@ -302,7 +399,9 @@ def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
     )
-    parser.add_argument("--dataset", choices=["defects4j", "bugsjs"])
+    parser.add_argument(
+        "--dataset", choices=["defects4j", "bugsjs", "recorded-diff"]
+    )
     parser.add_argument("--project", help="Filter to a single project.")
     parser.add_argument(
         "--sample", type=int, help="Random sample of N bugs per project."
@@ -423,6 +522,15 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--bugsjs-home", help="BugsJS/bug-dataset checkout (or set BUGSJS_HOME)."
+    )
+    parser.add_argument(
+        "--diffs-dir",
+        help=(
+            "Directory of recorded-diff cases for --dataset recorded-diff "
+            "(#2051): <diffs-dir>/<case-id>/files/ plus an optional "
+            "meta.json per case. See "
+            "adapters/recorded_diff_adapter.py's module docstring."
+        ),
     )
     parser.add_argument(
         "--results-dir",

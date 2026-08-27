@@ -416,6 +416,49 @@ agent a record might apply to).
 
 Do not modify any skill or agent file. The report is the only artifact.
 
+### 4b. Harness-sourced rows — a separate, labelled population (#2051)
+
+`evals/code-review-benchmark/` (#821) is a **replay harness**, not a live
+session — it dispatches `/code-review --json` against real Defects4J/BugsJS
+defects and recorded diffs, entirely outside any `/build`/`/code-review`
+session an operator ran. Its runner (`runner.emit_review_value_rows()`)
+writes rows in the same `review-value.jsonl` shape as the live writers
+above, but with `source: "harness"` — a value distinct from
+`build-checkpoint` / `build-backstop` / `code-review`, and written to the
+harness's **own** results directory (`evals/code-review-benchmark/results/
+review-value.jsonl` by default, `--results-dir` elsewhere), never
+`.claude/metrics/`. Both are structural, not just a labelling convention:
+even a caller that pointed this step at the wrong file could not
+accidentally pool harness rows into the live population, because they
+don't live in the same file.
+
+**Read the harness stream separately, and never merge it into Step 3/4's
+live-population computations above.** It answers a different question —
+per-lens yield replayed against a fixed, real-defect corpus — not "how did
+this operator's own sessions go":
+
+```bash
+harness_log="evals/code-review-benchmark/results/review-value.jsonl"
+[ -f "$harness_log" ] && jq -s '
+  map(select(.source == "harness"))
+  | group_by(.agents_run | sort | join(","))
+  | map({
+      lens:          (.[0].agents_run | sort | join(", ")),
+      dispatches:    length,
+      no_op:         (map(select(.issues_found == 0)) | length),
+      found_issues:  (map(select(.issues_found > 0)) | length),
+      issues_found:  (map(.issues_found) | add // 0)
+    })' \
+  "$harness_log"
+```
+
+Report this as its own labelled table (`### Harness-Sourced Rows
+(source: "harness")`), separate from Step 4's live tables, and state the
+corpus it came from (Defects4J / BugsJS / recorded-diff, per the row's
+`dataset` field) and the row count. Absent = no harness sweep has run yet;
+report that plainly rather than treating a missing file as zero evidence
+either way.
+
 ### 5. Lesson Validation — validated-outcome weighting (#866)
 
 Close the loop on `/feedback-learning` lessons: does an adopted lesson
@@ -572,6 +615,15 @@ Write the report to the output path using this structure:
 | Checkpoint | Agents | Runs | Fix rate | Issues fixed |
 |------------|--------|------|----------|--------------|
 
+## Harness-Sourced Rows (source: "harness", #2051)
+
+> Source: `evals/code-review-benchmark/results/review-value.jsonl` — a
+> **separate, labelled population**, never pooled with the live rows above.
+> Absent = no harness sweep has run yet.
+
+| Lens | Dataset(s) | Dispatches | No-op | Found issues |
+|------|------------|------------|-------|---------------|
+
 ## Lesson Validation (validated-outcome weighting, #866)
 
 > Source: `metrics/config-changelog.jsonl` × `metrics/session-digest.jsonl`.
@@ -610,6 +662,7 @@ Write the report to the output path using this structure:
 - Orchestration simplifications: <count>
 - Review-value drop candidates: <count>
 - Review-value high-value checkpoints: <count>
+- Harness-sourced rows analyzed (source: "harness"): <count>
 - Re-baseline required: <yes/no>
 - Lessons validated / neutral / harmful / insufficient data: <count> / <count> / <count> / <count>
 - Rollback proposals (harmful verdicts): <count>

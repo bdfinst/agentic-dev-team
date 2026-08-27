@@ -292,7 +292,7 @@ counts and outcomes only, never code or file content.
 | `agents_run` | array of string | Review agents dispatched |
 | `issues_found`, `issues_fixed`, `fix_iterations` | integer | Counts |
 | `severity_breakdown` | object | `{errors, warnings, suggestions}` counts (same enum as `/code-review`); the three sum to `issues_found`. Lets `/harness-audit` Step 3 flag mostly-minor lenses (#1256). Absent on pre-#1256 rows |
-| `source` | string enum | Row provenance: `build-checkpoint` (fix-applying `/build` inline checkpoint) \| `build-backstop` (fix-applying `/build` Step-6 backstop pass, #1962) \| `code-review` (read-only standalone review). **Absent = `build-checkpoint`** (back-compat). `/harness-audit` Step 4 excludes `code-review` rows from fix-rate drop-candidate logic (#1257); `build-backstop` rows are fix-applying and stay in it |
+| `source` | string enum | Row provenance: `build-checkpoint` (fix-applying `/build` inline checkpoint) \| `build-backstop` (fix-applying `/build` Step-6 backstop pass, #1962) \| `code-review` (read-only standalone review) \| `harness` (the `evals/code-review-benchmark/` replay harness — #2051, see below). **Absent = `build-checkpoint`** (back-compat). `/harness-audit` Step 4 excludes `code-review` rows from fix-rate drop-candidate logic (#1257); `build-backstop` rows are fix-applying and stay in it |
 | `diff_shape` | string enum | Shape of the reviewed diff: `test-only` (every changed file provably a test per `knowledge/test-file-indicators.md`) \| `mixed` (anything else). Classified by `skills/code-review/scripts/change_shape.py`'s `isTestOnly`, never by eye; include-biased, so `test-only` is never over-claimed. Lets `/harness-audit` split per-lens outcomes by diff shape — the evidence a test-only lens gate waits on (#1964). Absent on pre-#1964 rows |
 | `outcome` | string enum | `no-op` \| `fixed` \| `escalated` \| `skipped` (backstop only — suppressed by `--backstop-review=skip`; never counted in a rate, #1962) |
 
@@ -328,6 +328,31 @@ answerable. Written by `skills/code-review/scripts/review_round_log.py`.
 - **Consumers:** `skills/harness-audit/SKILL.md` Step 4a (churn ratio, per-agent discovery-vs-verification split, gate recidivism).
 - **Backstop rows (#1962).** `source: "build-backstop"` marks `/build`'s Step-6 pass — the one review layer whose files an inline checkpoint already reviewed in the same run. It is fix-applying (the `--internal` panel runs the review-fix loop), so it belongs in fix-rate analysis alongside `build-checkpoint`; what it exists to answer is whether that duplicated layer is ~all `no-op`, which is the evidence `/build`'s `--backstop-review=skip` flag waits on. `outcome: "skipped"` marks a backstop suppressed by that flag: recorded so the suppression is visible in the same stream, and excluded from every rate because it never ran.
 - **Reconciling the `source` values.** `build-checkpoint` and `build-backstop` rows are fix-applying and carry `plan`/`slice`/`step`/`checkpoint`/`complexity`/`issues_found`/`issues_fixed`/`fix_iterations`. `code-review` rows are read-only; those with a `round` field use the round schema above. A consumer wanting "how many issues did this row surface" should read `(.issues_found // .findings_new)`, which covers all three shapes.
+
+### Harness rows — `source: "harness"` (#2051)
+
+Written by `evals/code-review-benchmark/runner.emit_review_value_rows()` —
+the `/code-review` **replay harness** (#821), not a live session. One row
+per lens per dispatch, written straight from the parsed `/code-review
+--json` payload's `agents[]` list — by mechanism, not by agent instruction
+— so every dispatched lens gets a row regardless of outcome, including a
+lens that found nothing. This is the fix for the collection bias #2019/
+#1512 documented in the live writers above.
+
+| Field | Type | Values / source |
+| --- | --- | --- |
+| `agents_run` | array of string | Always exactly one lens name — one row per lens, not per dispatch batch |
+| `issues_found` | integer | Count of that lens's issues this dispatch |
+| `severity_breakdown` | object | `{errors, warnings, suggestions}`, same enum as the live rows |
+| `outcome` | string | Always `"no-op"` — the harness is read-only and never applies a fix |
+| `diff_shape` | string enum | `test-only` \| `mixed`, same classifier as the live rows; the recorded-diff adapter (below) is what actually supplies real `test-only` cases |
+| `dataset` | string | `defects4j` \| `bugsjs` \| `recorded-diff` |
+| `project`, `bug_id` | string | The benchmark case's identifiers (not a `/build` plan/slice/step — a structurally different key space) |
+
+- **Emitter:** `runner.emit_review_value_rows()`, called from `runner.run_case()` and `runner.run_recorded_diff_case()` after a dispatch's `--json` payload parses successfully. Never called for an unparseable dispatch — that failure is already captured by the harness's own `skipped.jsonl`.
+- **File location, deliberately not `.claude/metrics/`.** Rows land in the harness's own results directory (`evals/code-review-benchmark/results/review-value.jsonl` by default, `--results-dir` elsewhere) — never the live metrics tree. This is a structural guarantee against pooling, on top of the `source: "harness"` label itself: even a caller reading the wrong file could not accidentally merge harness rows into the live population, because they are not in the same file.
+- **Consumers:** `skills/harness-audit/SKILL.md` §4b, which reads this stream as a separate, explicitly-labelled population and must never merge it into Step 3/4's live-row computations.
+- **Recorded-diff adapter (#2051).** `adapters/recorded_diff_adapter.py` supplies `dataset: "recorded-diff"` cases from saved diffs (most usefully real `/test-improve` Phase-5 diffs) — the only source that can give this stream a genuine `diff_shape: "test-only"` row, since Defects4J/BugsJS are real production bug fixes and structurally cannot be test-only.
 
 ---
 

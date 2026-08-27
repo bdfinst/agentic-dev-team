@@ -337,3 +337,82 @@ def test_pre_sweep_estimate_skipped_when_resume_leaves_zero_pending(
     assert called == [0]  # every case was already processed
     err = capsys.readouterr().err
     assert "about to dispatch" not in err
+
+
+# --- #2051: --dataset recorded-diff wiring ---
+
+_REAL_FIXTURES_DIR = (
+    Path(__file__).resolve().parents[2]
+    / "evals"
+    / "code-review-benchmark"
+    / "fixtures"
+    / "recorded-diffs"
+)
+
+
+def test_dataset_accepts_recorded_diff_choice() -> None:
+    args = cli._build_parser().parse_args(
+        ["--dataset", "recorded-diff", "--diffs-dir", "/some/dir"]
+    )
+    assert args.dataset == "recorded-diff"
+    assert args.diffs_dir == "/some/dir"
+
+
+def test_recorded_diff_requires_diffs_dir(tmp_path: Path) -> None:
+    args = cli._build_parser().parse_args(
+        ["--dataset", "recorded-diff", "--results-dir", str(tmp_path)]
+    )
+    assert cli.run(args) == 1
+
+
+def test_recorded_diff_missing_dir_fails_loudly(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    args = cli._build_parser().parse_args(
+        [
+            "--dataset",
+            "recorded-diff",
+            "--diffs-dir",
+            str(tmp_path / "does-not-exist"),
+            "--results-dir",
+            str(tmp_path),
+        ]
+    )
+    exit_code = cli.run(args)
+    assert exit_code == 1
+    assert "no recorded-diff cases found" in capsys.readouterr().err
+
+
+def test_recorded_diff_dispatches_via_run_recorded_diff_case(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """End-to-end (fake dispatch/scheduler) check that `--dataset
+    recorded-diff` routes through `runner.run_recorded_diff_case` /
+    `runner.append_recorded_diff_result`, not the recall-scoring pair."""
+    seen_run_case_fn = []
+    seen_append_fn = []
+
+    def fake_run_pending(pending, **kwargs):
+        seen_run_case_fn.append(kwargs["run_case_fn"])
+        seen_append_fn.append(kwargs["append_fn"])
+        return 1.23
+
+    monkeypatch.setattr(cli.scheduler, "run_pending", fake_run_pending)
+    monkeypatch.setattr(
+        cli.runner, "make_isolated_dispatch_fn", lambda **k: (lambda p, c: {})
+    )
+
+    args = cli._build_parser().parse_args(
+        [
+            "--dataset",
+            "recorded-diff",
+            "--diffs-dir",
+            str(_REAL_FIXTURES_DIR),
+            "--results-dir",
+            str(tmp_path),
+        ]
+    )
+    exit_code = cli.run(args)
+    assert exit_code == 0
+    assert seen_run_case_fn == [cli.runner.run_recorded_diff_case]
+    assert seen_append_fn == [cli.runner.append_recorded_diff_result]

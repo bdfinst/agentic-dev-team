@@ -1500,6 +1500,10 @@
       "summary": "`/code-review` appends one row **per dispatch round** (round 1 = the initial",
       "anchor": "round-rows-source-code-review-with-a-round-field-1624"
     },
+    "Harness rows — `source: \"harness\"` (#2051)": {
+      "summary": "Written by `evals/code-review-benchmark/runner.emit_review_value_rows()` —",
+      "anchor": "harness-rows-source-harness-2051"
+    },
     "`contract-failures.jsonl`": {
       "summary": "Diagnostic record for a review-agent output that fails the shared JSON",
       "anchor": "contract-failuresjsonl"
@@ -4303,6 +4307,10 @@
     "4a. Analyze re-review churn (#1624)": {
       "summary": "Rows carrying a `round` field are `/code-review`'s per-round instrumentation",
       "anchor": "4a-analyze-re-review-churn-1624"
+    },
+    "4b. Harness-sourced rows — a separate, labelled population (#2051)": {
+      "summary": "`evals/code-review-benchmark/` (#821) is a **replay harness**, not a live",
+      "anchor": "4b-harness-sourced-rows-a-separate-labelled-population-2051"
     },
     "5. Lesson Validation — validated-outcome weighting (#866)": {
       "summary": "Close the loop on `/feedback-learning` lessons: does an adopted lesson",
