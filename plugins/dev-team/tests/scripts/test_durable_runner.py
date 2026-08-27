@@ -2,6 +2,7 @@
 import argparse
 import importlib.util
 import json
+import os
 import sys
 from pathlib import Path
 
@@ -161,3 +162,37 @@ def test_ensure_alive_noops_when_done(tmp_path, capsys):
 def test_live_pid_none_when_no_driver(tmp_path):
     run_eval = _load("run_eval")
     assert run_eval._live_pid(tmp_path) is None
+
+
+def test_live_pid_survives_non_utf8_bytes_in_ps_output(tmp_path, monkeypatch):
+    """#2065 — a real process's `args` column can carry arbitrary bytes.
+
+    `subprocess.run(..., text=True)` decodes with strict UTF-8 by default, so
+    one non-UTF8 byte anywhere in the live process table raised
+    UnicodeDecodeError and crashed `_live_pid` outright — not on a code path
+    that failed, but on unrelated processes it never needed to interpret. This
+    installs a fake `ps` on PATH that emits an invalid UTF-8 byte, so the test
+    exercises the real subprocess decode rather than mocking it away.
+    """
+    run_eval = _load("run_eval")
+
+    fakebin = tmp_path / "fakebin"
+    fakebin.mkdir()
+    fake_ps = fakebin / "ps"
+    # A shell heredoc's \xHH is not portably interpreted by /bin/sh's printf
+    # (dash emits the four literal characters, not the byte) — write the raw
+    # invalid byte directly so this test cannot silently stop exercising the
+    # decode path it exists to cover.
+    fake_ps.write_bytes(
+        b"#!/usr/bin/env python3\n"
+        b"import sys\n"
+        b"sys.stdout.buffer.write(b'  PID ARGS\\n')\n"
+        b"sys.stdout.buffer.write(b'  1234 some-proc \\xac garbled\\n')\n"
+    )
+    fake_ps.chmod(0o755)
+
+    monkeypatch.setenv("PATH", f"{fakebin}{os.pathsep}{os.environ.get('PATH', '')}")
+
+    out_dir = tmp_path / "out"
+    out_dir.mkdir()
+    assert run_eval._live_pid(out_dir) is None

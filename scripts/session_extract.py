@@ -57,6 +57,7 @@ import json
 import math
 import os
 import re
+import shlex
 from collections import Counter, defaultdict
 from datetime import UTC
 from pathlib import Path
@@ -74,10 +75,95 @@ _PERMISSION_RE = re.compile(r"permission|denied|not allowed|blocked by", re.IGNO
 _OLDSTRING_RE = re.compile(r"old_string|not found|no match|string to replace", re.IGNORECASE)
 _EDIT_TOOLS = {"Edit", "Write", "NotebookEdit", "MultiEdit"}
 # Gate signal (#111): a `git commit`, and whether it bypassed the pre-commit
-# review gate (--no-verify, or a bare -n in any position) — mirrors the rule in
-# hooks/telemetry.sh so the two agree.
-_COMMIT_RE = re.compile(r"\bgit\s+commit\b")
-_BYPASS_RE = re.compile(r"--no-verify|(^|\s)-n(\s|$)")
+# review gate (--no-verify, or a bare -n). #2036: the review-corroboration
+# gate itself moved from `git commit` time to `gh pr create` time in #1886 —
+# `hooks/telemetry.py` now keys its bypass signal off `PR_GATE_BYPASS_REASON`
+# on a `gh pr create` invocation, an unrelated mechanism this no longer
+# mirrors. This signal stays commit-time on purpose: it measures how often a
+# commit itself skips local review, which is a real and different question
+# from whether a PR was opened without one.
+#
+# Detection is argv-shaped, not a substring search over the whole command —
+# see _bash_segments()/_is_git_commit_argv() below. A prior version searched
+# `\bgit\s+commit\b` and `--no-verify|(^|\s)-n(\s|$)` against the raw string,
+# which matched inside unrelated flags in a compound command (`grep -n`,
+# `ls -n`) and even inside an unrelated string (`echo "git commit"`).
+_GIT_GLOBAL_OPTS_WITH_ARG = {"-C", "-c", "--git-dir", "--work-tree", "--namespace"}
+_COMMIT_BYPASS_TOKENS = {"--no-verify", "-n"}
+
+
+def _statement_break_newlines(cmd: str) -> str:
+    """Replace a bare (unquoted) newline with ';' so a tokenizer sees a
+    statement boundary there — a newline embedded inside a quoted argument
+    (e.g. a multi-line commit message) is left untouched."""
+    out = []
+    in_single = in_double = False
+    i, n = 0, len(cmd)
+    while i < n:
+        ch = cmd[i]
+        if ch == "'" and not in_double:
+            in_single = not in_single
+            out.append(ch)
+        elif ch == '"' and not in_single:
+            in_double = not in_double
+            out.append(ch)
+        elif ch == "\\" and in_double and i + 1 < n:
+            out.append(ch)
+            out.append(cmd[i + 1])
+            i += 1
+        elif ch == "\n" and not in_single and not in_double:
+            out.append(";")
+        else:
+            out.append(ch)
+        i += 1
+    return "".join(out)
+
+
+def _bash_segments(cmd: str) -> list[list[str]]:
+    """Split `cmd` into argv-shaped segments at top-level shell operators
+    (&&, ||, ;, |, and bare newlines), respecting quoting throughout — a
+    quoted operator or newline inside a commit message never splits the
+    command, and a quoted flag never crosses a segment boundary."""
+    lex = shlex.shlex(_statement_break_newlines(cmd), posix=True, punctuation_chars="&|;")
+    lex.whitespace_split = True
+    try:
+        tokens = list(lex)
+    except ValueError:
+        # Malformed shell syntax (e.g. an unbalanced quote) — cannot be
+        # segmented reliably. Fall back to a single opaque whitespace-split
+        # segment rather than losing the signal outright.
+        return [cmd.split()]
+    segments: list[list[str]] = []
+    current: list[str] = []
+    for tok in tokens:
+        if tok in ("&&", "||", ";", "|", "&"):
+            if current:
+                segments.append(current)
+            current = []
+        else:
+            current.append(tok)
+    if current:
+        segments.append(current)
+    return segments
+
+
+def _is_git_commit_argv(tokens: list[str]) -> bool:
+    """True if `tokens` invokes `git ... commit ...` — walks past git's
+    global options (including ones taking a separate argument, e.g. `-C`)
+    to find the subcommand, so `git -C path commit` is recognized."""
+    if not tokens or tokens[0] != "git":
+        return False
+    i = 1
+    while i < len(tokens):
+        tok = tokens[i]
+        if tok in _GIT_GLOBAL_OPTS_WITH_ARG:
+            i += 2
+            continue
+        if tok.startswith("-"):
+            i += 1
+            continue
+        return tok == "commit"
+    return False
 
 
 # Agent transcripts are `agent-<id>.jsonl` (see _is_transcript_path).
@@ -333,16 +419,27 @@ def _accumulate_token_signals(
 ) -> float:
     """Token-accounting concern: usage/cost totals split by model and skill.
     Returns this record's cost (added to the running cost_total by the caller).
-    Thread attribution moved to the caller's `by_agent_type` bucketing (#1994)."""
+    Thread attribution moved to the caller's `by_agent_type` bucketing (#1994).
+
+    #2080: `usage` is read from a LOCAL transcript file — a different trust
+    domain from the peer-digest path `_safe_number` was written to guard, but
+    still "a transcript this script does not author" (per `_iter_records`'s
+    own comment): a corrupted or hand-edited file can carry an out-of-range
+    or negative token count. Read every field through `_safe_number` once,
+    here, so `_cost`'s `inp / 1e6 * ir` never sees a value whose magnitude
+    overflows the int-to-float conversion (raising OverflowError and
+    aborting the whole run before `round(cost * 1e6)` below is even reached)
+    and the running totals can never go negative from one bad record."""
     fields = (
         "input_tokens",
         "output_tokens",
         "cache_creation_input_tokens",
         "cache_read_input_tokens",
     )
-    cost = _cost(usage, _rate(pricing, raw_model or ""), pricing)
+    safe_usage = {f: _safe_number(usage.get(f, 0) or 0) for f in fields}
+    cost = _cost(safe_usage, _rate(pricing, raw_model or ""), pricing)
     for f in fields:
-        v = usage.get(f, 0) or 0
+        v = safe_usage[f]
         tokens_total[f] += v
         if model:
             by_model[model][f] += v
@@ -472,11 +569,13 @@ def _track_bash(
             bash_signal_counts["repeated_verify_runs"] += 1
         last_verify_norm[skey] = norm
         verify_edited_since[skey] = False
-    # gate signal (#111): commit + review-gate bypass
-    if _COMMIT_RE.search(cmd):
-        bash_signal_counts["commit_attempts"] += 1
-        if _BYPASS_RE.search(cmd):
-            bash_signal_counts["commit_bypasses"] += 1
+    # gate signal (#111): commit + review-gate bypass, scoped to the git-commit
+    # argv (#2036) — see _bash_segments()/_is_git_commit_argv() above.
+    for segment in _bash_segments(cmd):
+        if _is_git_commit_argv(segment):
+            bash_signal_counts["commit_attempts"] += 1
+            if any(tok in _COMMIT_BYPASS_TOKENS for tok in segment[1:]):
+                bash_signal_counts["commit_bypasses"] += 1
 
 
 def _detect_correction_turn(rec: dict, content) -> bool:
@@ -1082,6 +1181,14 @@ def _normalize_plugin_version(value) -> str | None:
 # small enough that no realistic downstream multiply-by-a-few-million or
 # cross-record accumulation can reach `inf`, and large enough for any
 # legitimate token count or cost figure.
+#
+# #2080: `_accumulate_token_signals` also routes the LOCAL-transcript token
+# fields through `_safe_number` before `_cost`'s `inp / 1e6 * ir` runs, for
+# the same reason in a different trust domain — an out-of-range int raises
+# `OverflowError` on the int-to-float conversion `/` performs, which aborts
+# `extract` before `round(cost * 1e6)` (below, at the peer-digest path) is
+# ever reached. Both `round(cost * 1e6)` call sites are protected by the
+# same bound now, not just the peer-ingestion one.
 _NUM_MAX = 2**53
 
 
@@ -1092,19 +1199,30 @@ def _safe_number(value) -> int | float:
     that isn't a plain `int`/`float` (a `bool` included: it's an `int`
     subclass in Python, so `True` would otherwise silently become `1`), for a
     non-finite `float` (`NaN`/`Infinity`, which would poison a running `+=`
-    aggregate for every OTHER host's data in the same run), and for anything
-    whose magnitude exceeds `_NUM_MAX` (see above). An `int` is never cast to
-    `float` to check finiteness or magnitude — `math.isfinite(float(v))`
-    raises `OverflowError` once `v`'s magnitude exceeds `sys.float_info.max`,
-    a legal JSON integer with no wire-size limit, so a hostile peer can
-    trivially send one and abort the run for every host. Comparing magnitude
-    directly instead is safe for arbitrary precision: Python's int/float rich
-    comparison never converts `value` through `float()`."""
+    aggregate for every OTHER host's data in the same run), for anything
+    whose magnitude exceeds `_NUM_MAX` (see above), and for anything
+    **negative** (#2079). Every field that ever reaches this function is a
+    count or a cost — skill/agent invocation counts, `cost_usd`, rework
+    counts — none of which is ever legitimately negative, so a negative
+    value is exactly as untrusted as a non-numeric one. Left unclamped, a
+    single hostile peer's `{"code-review": -999}` could drive a CROSS-HOST
+    Counter negative: combined with the `c > 0` gate `rollup()` uses for
+    `never_observed_skills`/`never_observed_agents`, that silently rewrites
+    another host's genuine invocation out of `invoked_skills`. An `int` is
+    never cast to `float` to check finiteness or magnitude —
+    `math.isfinite(float(v))` raises `OverflowError` once `v`'s magnitude
+    exceeds `sys.float_info.max`, a legal JSON integer with no wire-size
+    limit, so a hostile peer can trivially send one and abort the run for
+    every host. Comparing magnitude directly instead is safe for arbitrary
+    precision: Python's int/float rich comparison never converts `value`
+    through `float()`."""
     if isinstance(value, bool) or not isinstance(value, (int, float)):
         return 0
     if isinstance(value, float) and not math.isfinite(value):
         return 0
-    return 0 if abs(value) > _NUM_MAX else value
+    if value < 0 or abs(value) > _NUM_MAX:
+        return 0
+    return value
 
 
 def _normalize_name_dicts(container: dict, fields: tuple) -> None:
