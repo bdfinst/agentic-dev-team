@@ -226,6 +226,39 @@ _CLI_AGENT_EVENTS = {
     "dispatch-failure": ("code-review", "Skill", "dispatch-failure"),
 }
 
+# Verdict values a real, external (non-Claude-Code) gate can report about
+# its own run (#2037): "allow" (ran, allowed the commit), "block" (ran,
+# rejected the commit for a legitimate reason), "errored" (ran, but hit an
+# internal/infra failure rather than evaluating the commit's own content —
+# distinguishable from an ordinary "block" so a hook that fails silently and
+# a hook that correctly rejects bad content don't collapse into one bucket).
+# A closed, small vocabulary — not free text — so the `matched_rule` this
+# produces (`gate-ran-<verdict>`) stays within this module's "rule IDs only"
+# contract.
+_GATE_RAN_VERDICTS = frozenset({"allow", "block", "errored"})
+
+# (hook, tool, decision) for the `gate-ran` event — a third small registry
+# alongside `_CLI_EVENTS`/`_CLI_AGENT_EVENTS` (see the comment above
+# `_CLI_EVENTS` for why a per-invocation `matched_rule` is still a bounded,
+# safe exception to the closed-tuple design): `--verdict` is constrained to
+# `_GATE_RAN_VERDICTS` below, so the resulting `matched_rule` is still one of
+# exactly three known strings, never free text. `decision` is `"record"` —
+# the same non-verdict, observational shape `agent_dispatch_ledger.py`'s own
+# "record" events use (see `emit_boundary_event`'s docstring): this event
+# notes that the gate ran at all; its OWN internal outcome lives in
+# `matched_rule`, not in `decision`. Unlike every other CLI event here, this
+# one has no `session_id` to attach in the ordinary case — `.husky/pre-commit`
+# is a REAL git hook invoked by git itself, outside Claude Code's own
+# PreToolUse machinery entirely, so it never receives a Claude Code
+# session_id to pass through. `--session-id`/`--subject-hash` remain accepted
+# (a future caller that DOES have one can still supply it); the shipped
+# caller simply omits both — see `scripts/session_extract.py`'s "gate-run
+# correlation (#2037)" section for why correlation is by TIME PROXIMITY
+# instead.
+_CLI_VERDICT_EVENTS = {
+    "gate-ran": ("pre-commit-gate", "Bash", "record"),
+}
+
 
 def _main() -> int:
     """CLI entry point (#1461): lets a *skill's* bash-block prose emit one of
@@ -294,15 +327,41 @@ def _main() -> int:
     parser.add_argument(
         "--event",
         required=True,
-        choices=sorted({*_CLI_EVENTS, *_CLI_AGENT_EVENTS}),
+        choices=sorted({*_CLI_EVENTS, *_CLI_AGENT_EVENTS, *_CLI_VERDICT_EVENTS}),
     )
-    parser.add_argument("--subject-hash", required=True, dest="subject_hash")
+    # Required for every event EXCEPT `gate-ran` (#2037), which has no diff
+    # content to bind to — a real git hook has no staged/branch diff to hash
+    # at the point it runs. Enforced per-event below rather than via
+    # argparse's own `required=True`, since that constraint no longer holds
+    # for every event this parser accepts.
+    parser.add_argument("--subject-hash", default=None, dest="subject_hash")
     parser.add_argument(
         "--subject-hash-normalized", default=None, dest="subject_hash_normalized"
     )
     parser.add_argument("--session-id", default=None, dest="session_id")
     parser.add_argument("--agent", default=None, dest="agent")
+    parser.add_argument(
+        "--verdict", choices=sorted(_GATE_RAN_VERDICTS), default=None, dest="verdict"
+    )
     args = parser.parse_args()
+
+    if args.event in _CLI_VERDICT_EVENTS:
+        if not args.verdict:
+            parser.error(f"--event {args.event} requires --verdict")
+        hook, tool, decision = _CLI_VERDICT_EVENTS[args.event]
+        emit_boundary_event(
+            args.cwd,
+            hook,
+            tool,
+            decision,
+            f"gate-ran-{args.verdict}",
+            args.session_id,
+            subject_hash=args.subject_hash,
+        )
+        return 0
+
+    if not args.subject_hash:
+        parser.error(f"--event {args.event} requires --subject-hash")
 
     if args.event in _CLI_AGENT_EVENTS:
         if not args.agent:

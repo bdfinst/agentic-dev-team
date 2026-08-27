@@ -121,7 +121,12 @@ def test_transcripts_counts_sessions_not_files(tree):
 
 
 def test_by_agent_type_is_keyed_by_agent_name(tree):
-    assert _digest(tree)["token"]["by_agent_type"] == {
+    # #2044: by_agent_type entries are now signals.new_agent_bucket() dicts
+    # (real per-agent context_tokens, ported from extract_session_report.py's
+    # #2029), not bare message-count ints — "messages" is the old int's
+    # direct equivalent.
+    by_agent_type = _digest(tree)["token"]["by_agent_type"]
+    assert {k: v["messages"] for k, v in by_agent_type.items()} == {
         "main": 1, "correctness-review": 1, "angular-reactivity-review": 1,
     }
 
@@ -224,7 +229,13 @@ def test_an_inlined_sidechain_record_does_not_retitle_the_main_thread(tmp_path):
         _assistant([{"type": "text", "text": "inlined"}], sidechain=True),
     ])
     d = _digest(root)
-    assert d["token"]["by_agent_type"] == {"main": 1, "sidechain": 1}
+    # #2044: by_agent_type entries are now signals.new_agent_bucket() dicts,
+    # not bare message-count ints — "messages" is the old int's direct
+    # equivalent.
+    by_agent_type = d["token"]["by_agent_type"]
+    assert {k: v["messages"] for k, v in by_agent_type.items()} == {
+        "main": 1, "sidechain": 1,
+    }
     assert d["transcripts"] == 1
 
 
@@ -464,8 +475,8 @@ def test_safe_name_rejects_a_trailing_newline():
     sys.path.insert(0, str(REPO_ROOT / "scripts"))
     import session_extract
 
-    assert session_extract._safe_name("review" + chr(10)) == "other"
-    assert session_extract._safe_name("review") == "review"
+    assert session_extract._redact("review" + chr(10)) == "other"
+    assert session_extract._redact("review") == "review"
 
 
 def test_the_raw_model_id_still_reaches_the_pricing_table(tmp_path):

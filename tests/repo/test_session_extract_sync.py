@@ -90,8 +90,10 @@ def test_sync_emits_one_record_per_session_labeled_by_basename(
     assert by_id["sess-a"]["host"] == "testhost"
     # ts comes from transcript data, not wall-clock
     assert by_id["sess-a"]["ts"] == "2026-06-07T10:00:00Z"
-    # main/subagent thread split is preserved
-    assert by_id["sess-b"]["by_thread"]["sidechain"] == 1
+    # main/subagent thread split is preserved. #2044: by_thread entries are
+    # now signals.new_agent_bucket() dicts, not bare message-count ints —
+    # "messages" is the old int's direct equivalent.
+    assert by_id["sess-b"]["by_thread"]["sidechain"]["messages"] == 1
 
 
 def test_sync_incremental_second_run_with_no_changes_emits_nothing_new(

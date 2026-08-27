@@ -137,13 +137,26 @@ def test_main_missing_configs_exits_nonzero_naming_setup(tmp_path, capsys):
 # the run_all/process_shard tests above); this harness isolates main()'s own
 # exit-code decision logic.
 # =============================================================================
-def _run_main_with_fake_run_all(tmp_path, monkeypatch, *, failed, exhausted):
+def _run_main_with_fake_run_all(
+    tmp_path,
+    monkeypatch,
+    *,
+    failed,
+    exhausted,
+    unresolved=(),
+    no_report=(),
+    skipped=(),
+):
     _write_shard_config(tmp_path, "a")
     monkeypatch.setattr(
         pipeline.wrapper, "resolve_dotnet_root", lambda **kw: ("/fake/dotnet", None)
     )
     monkeypatch.setattr(
-        pipeline, "run_all", lambda *a, **kw: pipeline.ShardRunResult(failed, exhausted)
+        pipeline,
+        "run_all",
+        lambda *a, **kw: pipeline.ShardRunResult(
+            list(failed), list(exhausted), list(unresolved), list(no_report), list(skipped)
+        ),
     )
     return pipeline.main(["--repo-root", str(tmp_path)])
 
@@ -170,6 +183,34 @@ def test_main_prioritizes_failure_over_exhaustion(tmp_path, monkeypatch):
         tmp_path, monkeypatch, failed=["a"], exhausted=["a/src/W.a/Foo.cs"]
     )
     assert rc == 1
+
+
+# =============================================================================
+# Scenario (#1951): main()'s exit code also reflects the two sibling
+# outcomes that previously read identically to a fully clean run —
+# unresolved test files and shards with no Stryker report.
+# =============================================================================
+def test_main_returns_exit_generation_exhausted_for_unresolved_only_run(tmp_path, monkeypatch):
+    rc = _run_main_with_fake_run_all(
+        tmp_path, monkeypatch, failed=[], exhausted=[], unresolved=["a/src/W.a/Foo.cs"]
+    )
+    assert rc == pipeline.EXIT_GENERATION_EXHAUSTED
+
+
+def test_main_returns_exit_generation_exhausted_for_no_report_only_run(tmp_path, monkeypatch):
+    rc = _run_main_with_fake_run_all(
+        tmp_path, monkeypatch, failed=[], exhausted=[], no_report=["a"]
+    )
+    assert rc == pipeline.EXIT_GENERATION_EXHAUSTED
+
+
+def test_main_returns_zero_when_only_skipped_is_populated(tmp_path, monkeypatch):
+    # --skip-existing-skipped shards get summary visibility (AC3) but never
+    # affect the exit code.
+    rc = _run_main_with_fake_run_all(
+        tmp_path, monkeypatch, failed=[], exhausted=[], skipped=["a"]
+    )
+    assert rc == 0
 
 
 # =============================================================================
@@ -249,6 +290,73 @@ def test_survivor_fix_launch_forces_headless(tmp_path):
 
 
 # =============================================================================
+# Scenario (#1951 AC1): A shard where zero survivors resolve a test file is
+# distinguishable from a clean run — previously this returned True/no signal,
+# indistinguishable from zero fix attempts made.
+# =============================================================================
+def test_survivor_fix_records_unresolved_when_no_survivor_resolves_a_test_file(tmp_path):
+    rec = _Recorder()
+    out_dir = tmp_path / "out" / "a"
+    config = _write_shard_config(tmp_path, "a")
+    _write_report(
+        out_dir,
+        {
+            "src/W.a/Foo.cs": {"mutants": [_mutant("Survived")]},
+            "src/W.a/Bar.cs": {"mutants": [_mutant("Survived")]},
+        },
+    )
+
+    outcome = pipeline.launch_survivor_fix(
+        "a",
+        repo_root=tmp_path,
+        out_dir=out_dir,
+        config_path=config,
+        model=None,
+        max_rounds=2,
+        run=rec.run,
+        resolve_test_file=lambda *a: None,  # nothing ever resolves
+        log=rec.log,
+    )
+
+    assert outcome.ok is True
+    # No fix attempts were launched at all — but this is not a clean run.
+    assert len(rec.launches) == 0
+    assert outcome.unresolved == ["a/src/W.a/Bar.cs", "a/src/W.a/Foo.cs"]
+    assert outcome.exhausted == []
+    assert outcome.no_report is False
+    assert any("no test file resolved" in line for line in rec.logs)
+
+
+# =============================================================================
+# Scenario (#1951 AC2): A shard with no Stryker report is distinguishable
+# from a clean run — previously this returned True/no signal, treated as
+# clean success even though Stryker produced nothing to act on.
+# =============================================================================
+def test_survivor_fix_returns_no_report_true_when_report_missing(tmp_path):
+    rec = _Recorder()
+    out_dir = tmp_path / "out" / "a"  # no report ever written under out_dir
+    config = _write_shard_config(tmp_path, "a")
+
+    outcome = pipeline.launch_survivor_fix(
+        "a",
+        repo_root=tmp_path,
+        out_dir=out_dir,
+        config_path=config,
+        model=None,
+        max_rounds=2,
+        run=rec.run,
+        log=rec.log,
+    )
+
+    assert outcome.ok is True
+    assert outcome.no_report is True
+    assert outcome.exhausted == []
+    assert outcome.unresolved == []
+    assert len(rec.launches) == 0
+    assert any("no report for" in line for line in rec.logs)
+
+
+# =============================================================================
 # Scenario: A non-zero exit from the headless loop (e.g. the #1598
 # fatal-revert exit code) stops the per-file loop instead of silently
 # continuing onto a working tree that may already be in an unknown state.
@@ -266,7 +374,7 @@ def test_survivor_fix_stops_launching_further_files_after_a_nonzero_exit(tmp_pat
         },
     )
 
-    ok = pipeline.launch_survivor_fix(
+    outcome = pipeline.launch_survivor_fix(
         "a",
         repo_root=tmp_path,
         out_dir=out_dir,
@@ -278,7 +386,7 @@ def test_survivor_fix_stops_launching_further_files_after_a_nonzero_exit(tmp_pat
         log=rec.log,
     )
 
-    assert ok is False
+    assert outcome.ok is False
     # Only the first file's fix is launched — the second file is never
     # reached once the first exits non-zero.
     assert len(rec.launches) == 1
@@ -304,7 +412,7 @@ def test_survivor_fix_stops_on_an_arbitrary_nonzero_exit_not_just_4(tmp_path):
         },
     )
 
-    ok = pipeline.launch_survivor_fix(
+    outcome = pipeline.launch_survivor_fix(
         "a",
         repo_root=tmp_path,
         out_dir=out_dir,
@@ -316,7 +424,7 @@ def test_survivor_fix_stops_on_an_arbitrary_nonzero_exit_not_just_4(tmp_path):
         log=rec.log,
     )
 
-    assert ok is False
+    assert outcome.ok is False
     # Only the first file's fix is launched — the second file is never
     # reached once the first exits non-zero.
     assert len(rec.launches) == 1
@@ -345,7 +453,7 @@ def test_survivor_fix_continues_past_a_generation_exhausted_exit(tmp_path):
         },
     )
 
-    ok = pipeline.launch_survivor_fix(
+    outcome = pipeline.launch_survivor_fix(
         "a",
         repo_root=tmp_path,
         out_dir=out_dir,
@@ -357,10 +465,15 @@ def test_survivor_fix_continues_past_a_generation_exhausted_exit(tmp_path):
         log=rec.log,
     )
 
-    assert ok is True
+    assert outcome.ok is True
     # Both files are launched — exit 5 does not stop the loop.
     assert len(rec.launches) == 2
-    assert any("EXHAUSTED (headless)" in line and "exit 5" in line for line in rec.logs)
+    # #1956: the log line names the OUTCOME (unfixed, clean, continuable),
+    # not a specific cause — exit 5 covers both true exhaustion and any
+    # other clean generation/infrastructure failure since #1939, so a line
+    # that only said "retry-then-downgrade budget spent" would misreport
+    # the cause for the latter case.
+    assert any("UNFIXED (headless, clean)" in line and "exit 5" in line for line in rec.logs)
 
 
 # =============================================================================
@@ -373,8 +486,7 @@ def test_survivor_fix_records_exhausted_file_in_accumulator(tmp_path):
     config = _write_shard_config(tmp_path, "a")
     _write_report(out_dir, {"src/W.a/Foo.cs": {"mutants": [_mutant("Survived")]}})
 
-    exhausted: list[str] = []
-    ok = pipeline.launch_survivor_fix(
+    outcome = pipeline.launch_survivor_fix(
         "a",
         repo_root=tmp_path,
         out_dir=out_dir,
@@ -384,11 +496,10 @@ def test_survivor_fix_records_exhausted_file_in_accumulator(tmp_path):
         run=rec.run,
         resolve_test_file=lambda source, *a: Path(f"test/W.Tests/{Path(source).stem}Tests.cs"),
         log=rec.log,
-        exhausted=exhausted,
     )
 
-    assert ok is True
-    assert exhausted == ["a/src/W.a/Foo.cs"]
+    assert outcome.ok is True
+    assert outcome.exhausted == ["a/src/W.a/Foo.cs"]
 
 
 # =============================================================================
@@ -413,8 +524,7 @@ def test_survivor_fix_exhausted_then_fatal_failure_stops_after_second_file(tmp_p
         },
     )
 
-    exhausted: list[str] = []
-    ok = pipeline.launch_survivor_fix(
+    outcome = pipeline.launch_survivor_fix(
         "a",
         repo_root=tmp_path,
         out_dir=out_dir,
@@ -424,27 +534,28 @@ def test_survivor_fix_exhausted_then_fatal_failure_stops_after_second_file(tmp_p
         run=rec.run,
         resolve_test_file=lambda source, *a: Path(f"test/W.Tests/{Path(source).stem}Tests.cs"),
         log=rec.log,
-        exhausted=exhausted,
     )
 
-    assert ok is False
+    assert outcome.ok is False
     # Only the first file's (Bar.cs) exhaustion is recorded before the second
     # file (Foo.cs) hits the fatal-revert exit and stops the loop.
-    assert exhausted == ["a/src/W.a/Bar.cs"]
+    assert outcome.exhausted == ["a/src/W.a/Bar.cs"]
     # Exactly 2 launches: file 1 (exhausted, continues) then file 2 (fatal,
     # stops) — never a third attempt.
     assert len(rec.launches) == 2
 
 
-def test_survivor_fix_exhausted_none_default_does_not_raise(tmp_path):
+def test_survivor_fix_returns_fix_outcome_with_populated_exhausted_list(tmp_path):
+    # #1951: launch_survivor_fix returns a FixOutcome — no caller-supplied
+    # mutable accumulator to guard against a None default anymore; the
+    # exhausted list is always built and returned internally.
     rec = _Recorder()
     rec.run_returncode = 5  # GenerationExhausted's dedicated exit code
     out_dir = tmp_path / "out" / "a"
     config = _write_shard_config(tmp_path, "a")
     _write_report(out_dir, {"src/W.a/Foo.cs": {"mutants": [_mutant("Survived")]}})
 
-    # exhausted is not passed — defaults to None — the append must be guarded.
-    ok = pipeline.launch_survivor_fix(
+    outcome = pipeline.launch_survivor_fix(
         "a",
         repo_root=tmp_path,
         out_dir=out_dir,
@@ -456,7 +567,10 @@ def test_survivor_fix_exhausted_none_default_does_not_raise(tmp_path):
         log=rec.log,
     )
 
-    assert ok is True
+    assert outcome.ok is True
+    assert outcome.exhausted == ["a/src/W.a/Foo.cs"]
+    assert outcome.unresolved == []
+    assert outcome.no_report is False
 
 
 def test_survivor_fix_all_files_launched_when_every_exit_is_zero(tmp_path):
@@ -471,7 +585,7 @@ def test_survivor_fix_all_files_launched_when_every_exit_is_zero(tmp_path):
         },
     )
 
-    ok = pipeline.launch_survivor_fix(
+    outcome = pipeline.launch_survivor_fix(
         "a",
         repo_root=tmp_path,
         out_dir=out_dir,
@@ -483,7 +597,7 @@ def test_survivor_fix_all_files_launched_when_every_exit_is_zero(tmp_path):
         log=rec.log,
     )
 
-    assert ok is True
+    assert outcome.ok is True
     assert len(rec.launches) == 2
 
 
@@ -511,7 +625,7 @@ def test_process_shard_marks_failed_when_a_survivor_fix_exits_nonzero(tmp_path):
         git_run=rec.git_run,
     )
 
-    assert result == "failed"
+    assert result.status == "failed"
 
 
 # =============================================================================
@@ -524,7 +638,6 @@ def test_process_shard_populates_exhausted_and_still_reports_ok(tmp_path):
     _write_shard_config(tmp_path, "a")
     _write_report(tmp_path / "out" / "a", {"src/W.a/Foo.cs": {"mutants": [_mutant("Survived")]}})
 
-    exhausted: list[str] = []
     result = pipeline.process_shard(
         "a",
         repo_root=tmp_path,
@@ -541,11 +654,69 @@ def test_process_shard_populates_exhausted_and_still_reports_ok(tmp_path):
         run=rec.run,
         resolve_test_file=lambda *a: Path("test/W.Tests/FooTests.cs"),
         git_run=rec.git_run,
-        exhausted=exhausted,
     )
 
-    assert result == "ok"
-    assert exhausted == ["a/src/W.a/Foo.cs"]
+    assert result.status == "ok"
+    assert result.exhausted == ["a/src/W.a/Foo.cs"]
+
+
+# =============================================================================
+# Scenario (#1951): process_shard propagates FixOutcome.unresolved and
+# FixOutcome.no_report up unchanged, still reporting "ok" for a shard that
+# ran cleanly but produced neither outcome above.
+# =============================================================================
+def test_process_shard_propagates_unresolved_from_fix_outcome(tmp_path):
+    rec = _Recorder()
+    _write_shard_config(tmp_path, "a")
+    _write_report(tmp_path / "out" / "a", {"src/W.a/Foo.cs": {"mutants": [_mutant("Survived")]}})
+
+    result = pipeline.process_shard(
+        "a",
+        repo_root=tmp_path,
+        worktree_base=tmp_path / ".wt",
+        shard_out_base=tmp_path / "out",
+        stryker_bin="fake-stryker",
+        model=None,
+        max_rounds=3,
+        skip_agent=False,
+        skip_existing=False,
+        max_age_hours=0,
+        log=rec.log,
+        run_stryker=lambda **kw: 0,
+        run=rec.run,
+        resolve_test_file=lambda *a: None,
+        git_run=rec.git_run,
+    )
+
+    assert result.status == "ok"
+    assert result.unresolved == ["a/src/W.a/Foo.cs"]
+    assert result.no_report is False
+
+
+def test_process_shard_propagates_no_report_from_fix_outcome(tmp_path):
+    rec = _Recorder()
+    _write_shard_config(tmp_path, "a")
+    # No report written under out_dir at all.
+
+    result = pipeline.process_shard(
+        "a",
+        repo_root=tmp_path,
+        worktree_base=tmp_path / ".wt",
+        shard_out_base=tmp_path / "out",
+        stryker_bin="fake-stryker",
+        model=None,
+        max_rounds=3,
+        skip_agent=False,
+        skip_existing=False,
+        max_age_hours=0,
+        log=rec.log,
+        run_stryker=lambda **kw: 0,
+        run=rec.run,
+        git_run=rec.git_run,
+    )
+
+    assert result.status == "ok"
+    assert result.no_report is True
 
 
 def test_build_loop_command_always_includes_headless():
@@ -664,10 +835,53 @@ def test_run_all_returns_shard_run_result_with_failed_and_exhausted(tmp_path):
         git_run=rec.git_run,
     )
 
-    # Both a 2-tuple (positional unpack) and field access work.
-    failed, exhausted = result
+    # #1951 widened ShardRunResult from 2 fields to 5 (failed, exhausted,
+    # unresolved, no_report, skipped) — a 2-tuple positional unpack no longer
+    # matches its arity, so field access is now the only supported form.
+    failed, exhausted, unresolved, no_report, skipped = result
     assert failed == result.failed == ["b"]
     assert exhausted == result.exhausted == ["a/src/W.a/Foo.cs"]
+    assert unresolved == result.unresolved == []
+    assert no_report == result.no_report == []
+    assert skipped == result.skipped == []
+
+
+# =============================================================================
+# Scenario (#1951 AC3): run_all collects skipped shard names (a shard resumed
+# past via --skip-existing) across all shards, distinct from failed/exhausted.
+# =============================================================================
+def test_run_all_collects_skipped_shards(tmp_path):
+    rec = _Recorder()
+    out_base = tmp_path / "out"
+    for shard in ("a", "b"):
+        _write_shard_config(tmp_path, shard)
+    # Shard "a" already has a report — --skip-existing resumes past it.
+    _write_report(out_base / "a", {"src/W.a/Foo.cs": {"mutants": [_mutant("Killed")]}})
+
+    result = pipeline.run_all(
+        ["a", "b"],
+        repo_root=tmp_path,
+        worktree_base=tmp_path / ".wt",
+        shard_out_base=out_base,
+        stryker_bin="fake-stryker",
+        model=None,
+        max_rounds=3,
+        skip_agent=True,
+        skip_existing=True,
+        max_age_hours=0,
+        log=rec.log,
+        run_stryker=lambda **kw: 0,
+        run=rec.run,
+        git_run=rec.git_run,
+    )
+
+    assert result.failed == []
+    assert result.skipped == ["a"]
+    # Shard "b" ran normally under --skip-agent — the survivor-fix stage
+    # never runs, so no_report/exhausted/unresolved stay empty for it too.
+    assert result.no_report == []
+    assert result.exhausted == []
+    assert result.unresolved == []
 
 
 # =============================================================================
@@ -801,6 +1015,43 @@ def test_summary_omits_exhausted_line_when_empty(tmp_path):
     # (unspecified) call matches the explicit-empty-list call.
     assert logs_default == logs_explicit_empty
     assert not any("EXHAUSTED" in ln for ln in logs_default)
+
+
+# =============================================================================
+# Scenario (#1951): print_summary prints UNRESOLVED / NO REPORT / SKIPPED
+# lines when those lists are non-empty, and omits them when empty — mirrors
+# the existing EXHAUSTED-line coverage above for the two sibling outcomes
+# that previously read identically to a fully clean run, plus the
+# --skip-existing skip count (AC3).
+# =============================================================================
+def test_summary_prints_unresolved_no_report_and_skipped_lines_when_non_empty(tmp_path):
+    logs = []
+    pipeline.print_summary(
+        ["ghost"],
+        tmp_path / "out",
+        log=logs.append,
+        unresolved=["a/src/W.a/Foo.cs"],
+        no_report=["b"],
+        skipped=["c"],
+    )
+    unresolved_lines = [ln for ln in logs if "UNRESOLVED" in ln]
+    no_report_lines = [ln for ln in logs if "NO REPORT" in ln]
+    skipped_lines = [ln for ln in logs if "SKIPPED" in ln]
+    assert len(unresolved_lines) == 1
+    assert "UNRESOLVED test file (1)" in unresolved_lines[0]
+    assert "a/src/W.a/Foo.cs" in unresolved_lines[0]
+    assert len(no_report_lines) == 1
+    assert "NO REPORT shards (1): b" in no_report_lines[0]
+    assert len(skipped_lines) == 1
+    assert "SKIPPED shards (1): c" in skipped_lines[0]
+
+
+def test_summary_omits_unresolved_no_report_and_skipped_lines_when_empty(tmp_path):
+    logs = []
+    pipeline.print_summary(["ghost"], tmp_path / "out", log=logs.append)
+    assert not any("UNRESOLVED" in ln for ln in logs)
+    assert not any("NO REPORT" in ln for ln in logs)
+    assert not any("SKIPPED" in ln for ln in logs)
 
 
 # =============================================================================

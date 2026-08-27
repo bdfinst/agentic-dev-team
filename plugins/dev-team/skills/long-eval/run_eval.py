@@ -82,7 +82,11 @@ def _live_pid(out_dir):
     marker = str(Path(out_dir).resolve())
     try:
         ps = subprocess.run(
-            ["ps", "-eo", "pid,args"], capture_output=True, text=True, check=True
+            ["ps", "-eo", "pid,args"],
+            capture_output=True,
+            text=True,
+            errors="replace",
+            check=True,
         ).stdout
     except (OSError, subprocess.SubprocessError):
         return None

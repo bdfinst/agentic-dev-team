@@ -273,29 +273,23 @@ def test_5_3e_schema_version_in_emitted_artifact_is_1_0(repo: Path) -> None:
 
 
 # ---------------------------------------------------------------------------
-# 5.4 — main()'s default-output-dir slug must reuse _derive_slug, not
-# duplicate its regex logic inline.
+# 5.4 — codebase_recon.py must not duplicate lib.slug.derive_slug's regex
+# inline anywhere (main() no longer needs the slug itself as of #2069 — its
+# default output dir is .claude/memory/, un-slugged; step7_emit() is the
+# sole caller of derive_slug() for the "recon-<slug>.json" filename).
 # ---------------------------------------------------------------------------
 
 
-def _main_function_source() -> str:
-    text = SCRIPT.read_text(encoding="utf-8")
-    start = text.index("\ndef main(")
-    # main() is the last top-level def in the file; slice to the __main__ guard.
-    end = text.index('\nif __name__ == "__main__":', start)
-    return text[start:end]
-
-
-def test_main_reuses_derive_slug_helper_instead_of_duplicating_the_regex() -> None:
-    main_src = _main_function_source()
-    assert "_derive_slug(" in main_src, (
-        "main() should call _derive_slug(root) for its default output-dir "
-        "slug instead of re-deriving it inline"
+def test_module_reuses_derive_slug_helper_instead_of_duplicating_the_regex() -> None:
+    full_src = SCRIPT.read_text(encoding="utf-8")
+    assert "from lib.slug import derive_slug" in full_src, (
+        "codebase_recon.py should import derive_slug from lib.slug (#2068) "
+        "rather than defining its own slug-derivation function"
     )
-    # The duplicated regex substitution (the tell-tale sign of the inline
-    # copy) must not appear a second time inside main().
-    assert "[^a-z0-9._-]" not in main_src, (
-        "main() still duplicates _derive_slug's regex inline"
+    # The duplicated regex substitution (the tell-tale sign of an inline
+    # copy of derive_slug's algorithm) must not appear anywhere in the file.
+    assert "[^a-z0-9._-]" not in full_src, (
+        "codebase_recon.py still duplicates lib.slug.derive_slug's regex inline"
     )
 
 
@@ -323,11 +317,44 @@ def test_default_output_dir_uses_derived_slug_for_a_name_needing_slugification(
     )
     assert result.returncode == 0, result.stderr
 
-    expected_out_dir = workdir / "memory" / "recon-my-weird-repo"
-    assert expected_out_dir.is_dir(), sorted(
-        p.name for p in (workdir / "memory").glob("*")
+    # Default output dir is .claude/memory/ (agents/codebase-recon.md's
+    # Contract section), with no extra per-slug directory level — #2069.
+    expected_out_dir = workdir / ".claude" / "memory"
+    expected_artifact = expected_out_dir / "recon-my-weird-repo.json"
+    assert expected_artifact.is_file(), sorted(
+        p.name for p in expected_out_dir.glob("*")
     )
-    assert len(list(expected_out_dir.glob("*.json"))) == 1
+
+
+def test_default_output_dir_matches_orchestrators_recon_artifact_path(
+    repo: Path,
+) -> None:
+    """The artifact codebase_recon.py writes with no --output-dir override
+    must land exactly where orchestrator.py's _recon_artifact_path() (its
+    Research-phase recon-artifact-bridging lookup, #1716) looks for it —
+    otherwise the CLI path and the dispatched-agent path silently disagree
+    on where the recon artifact lives (#2069).
+
+    Invoked with CWD == repo_root, matching the recon *agent*'s own
+    convention (its `claude -p` dispatch inherits orchestrator.py's CWD,
+    which is the repo it was invoked in) — both codebase_recon.py's slug
+    (derived from the `repo_root` argument) and orchestrator.py's slug
+    (derived from its own CWD, per _recon_artifact_path's docstring) then
+    agree, as they do in real usage.
+    """
+    result = subprocess.run(
+        [sys.executable, str(SCRIPT), str(repo), "--skip-llm"],
+        cwd=repo,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert result.returncode == 0, result.stderr
+
+    sys.path.insert(0, str(SCRIPT.parent))
+    import orchestrator as orch
+
+    assert orch._recon_artifact_path(repo).is_file()
 
 
 # --- #1651: the git-history probe must not degrade silently -----------------

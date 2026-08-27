@@ -508,6 +508,32 @@ class TestMainSingleSlice:
         run_slice_runner(hermetic, "--slice", "validators")
         assert hermetic.sln_present_during_stryker == [False]
 
+    # =========================================================================
+    # Scenario (#1955): a failed fleet-level .sln restore is surfaced as a
+    # distinct exit code, rather than reporting the same 0 as a clean run.
+    # =========================================================================
+    def test_failed_restore_after_clean_run_surfaces_exit_code(
+        self, hermetic, monkeypatch, capsys
+    ):
+        _install_fakes(monkeypatch, hermetic)
+        monkeypatch.setattr(wrapper, "restore_sln", lambda sln, sln_hidden: False)
+
+        rc = run_slice_runner(hermetic, "--slice", "validators")
+
+        assert rc == wrapper.EXIT_RESTORE_SLN_FAILED
+        assert "failed to restore" in capsys.readouterr().err
+
+    def test_failed_restore_does_not_override_a_real_slice_failure(
+        self, hermetic, monkeypatch, capsys
+    ):
+        _install_fakes(monkeypatch, hermetic, exit_code=42)
+        monkeypatch.setattr(wrapper, "restore_sln", lambda sln, sln_hidden: False)
+
+        rc = run_slice_runner(hermetic, "--slice", "validators")
+
+        assert rc == 42
+        assert "failed to restore" in capsys.readouterr().err
+
     def test_unknown_slice_name_errors(self, hermetic, monkeypatch, capsys):
         _install_fakes(monkeypatch, hermetic)
         rc = run_slice_runner(hermetic, "--slice", "nope")

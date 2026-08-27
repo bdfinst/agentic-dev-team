@@ -40,3 +40,4 @@
 * [38. Raise the absolute context ceiling from 150K to 350K](0038-raise-the-absolute-context-ceiling-to-350k.md)
 * [39. Only Skill loads are worth blocking at the context ceiling](0039-only-skill-loads-are-worth-blocking-at-the-context-ceiling.md)
 * [40. Evaluate splitting orchestrator.py: no-go](0040-evaluate-splitting-orchestrator-py-no-go.md)
+* [41. Autoship's per-round agent dispatch is not ADR 0022's rejected sweep](0041-autoship-step-2b-dispatch-is-not-the-rejected-sweep.md)

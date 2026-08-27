@@ -62,7 +62,7 @@ re-describe or re-implement their mechanics:
 | `mutation_kill_headless.py` | The C#-specific headless generation + `--headless` CLI/entry point: builds the C#-flavored generation prompt and dispatches `mutation_kill_loop.run_for_file`. Imports its generic (non-C#-specific) helpers (`resolve_model`, `claude_cli_available`, `CLAUDE_CLI`, `run_claude_headless`) from `mutation_kill_shared.py` rather than defining them — `mutation_kill_loop_python.py` imports the same names directly from `mutation_kill_shared.py`, not through this module, so the Python loop carries no dependency on the C#/Stryker.NET stack. |
 | `mutation_kill_loop_python.py` | The Python/mutmut per-file loop — same contract, adapted for pytest: scoped `mutmut run` (clears stale `.mutmut-cache` first) → score via `mutation_report` junitxml support → **your** generation → duplicate-guard → append-at-end-of-file → `py_compile` → scoped `pytest` → commit-on-green / revert-on-failure → no-improvement stop. Insertion mechanics live in `mutation_kill_insert_python.py`; reuses `mutation_kill_shared.py`'s git/timeout/stop-predicate/headless-generation mechanics rather than duplicating them. |
 | `stryker_shard_setup.py` | Generate one `stryker-config.shard-<slug>.json` per source project, `Stryker.sln`, and `stryker-pipeline.json` from a `.sln`. |
-| `stryker_shard_pipeline.py` | The unattended sharded pipeline: discover shards, one compounding git worktree per shard from `HEAD`, run Stryker through the wrapper's line-callback, timeout-abort, launch the survivor-fix loop **forced into `--headless`**, honest-score summary. `main()`'s exit code follows a 3-branch priority, failure first: `1` if any shard failed; else `EXIT_GENERATION_EXHAUSTED` (`5`) if at least one file hit the clean-continuable outcome class — either a true `GenerationExhausted` (a fully spent retry-then-downgrade budget) or any other clean `RuntimeError` (e.g. a generation timeout) — not exhaustion specifically; else `0` for a fully clean run. Per-file, `launch_survivor_fix` also distinguishes `EXIT_REVERT_FAILED` (`4`, `mutation_kill_headless`/`mutation_kill_loop_python`'s `RevertFailed`) from any other non-zero-non-5 exit only in its log wording — both stop that shard's remaining files immediately and fold into the shard-level `failed` list, so `main()` itself never surfaces `4` directly; it always reports as the shard-level `1`. |
+| `stryker_shard_pipeline.py` | The unattended sharded pipeline: discover shards, one compounding git worktree per shard from `HEAD`, run Stryker through the wrapper's line-callback, timeout-abort, launch the survivor-fix loop **forced into `--headless`**, honest-score summary. `main()`'s exit code follows a 3-branch priority, failure first: `1` if any shard failed; else `EXIT_GENERATION_EXHAUSTED` (`5`) if any of three "a survivor was not addressed this run" outcomes fired (#1951) — `exhausted` non-empty (a true `GenerationExhausted` or any other clean `RuntimeError`), `unresolved` non-empty (a survivor whose test file never resolved), or `no_report` non-empty (a shard with no Stryker report); else `0` for a fully clean run. Full vocabulary and the `FixOutcome`/`ShardOutcome`/`ShardRunResult` return types that carry these outcomes up from `launch_survivor_fix` through `process_shard` to `run_all`: [Shard pipeline exit codes](#shard-pipeline-exit-codes-unattended-ci-callers-read-this). Per-file, `launch_survivor_fix` also distinguishes `EXIT_REVERT_FAILED` (`4`, `mutation_kill_headless`/`mutation_kill_loop_python`'s `RevertFailed`) from any other non-zero-non-5 exit only in its log wording — both stop that shard's remaining files immediately and fold into the shard-level `failed` list, so `main()` itself never surfaces `4` directly; it always reports as the shard-level `1`. |
 | `stryker_timeout_retry.py` | Emit a retry config scoped to only the timed-out files with an increased `additional-timeout`. |
 | `csharp_stryker_net_wrapper.py` | DOTNET_ROOT probe, `.sln` hide/restore, and `run_stryker` (with the optional line-callback). Reused by the loop and the pipeline — never re-implemented. |
 
@@ -144,6 +144,32 @@ adjusted_score = Killed / (Killed + (Survived - Accepted) + NoCoverage)
 table and computation; see [Static-mutant
 skip](../skills/mutation-testing/references/languages/javascript-stryker.md#static-mutant-skip-skip-static-mutants)
 in `javascript-stryker.md`.
+
+## Shard pipeline exit codes (unattended-CI callers read this)
+
+`stryker_shard_pipeline.py main()`'s exit code is the CI contract for the
+unattended sharded pipeline — a caller that only checks "zero or non-zero"
+misses the difference between "fix it" and "re-run, nothing to fix." Full
+vocabulary, in priority order:
+
+| Exit code | Meaning | Triggered by |
+| --- | --- | --- |
+| `0` | Fully clean. No shard failed, and none of the three outcomes below fired. | — |
+| `1` | One or more shards failed outright. Highest priority — takes precedence over every outcome below. | Stryker itself failed/timed out on a shard, or `launch_survivor_fix` returned `FixOutcome(ok=False, ...)` for a file (any non-zero, non-5 per-file exit — most commonly `EXIT_REVERT_FAILED`, `4`). |
+| `5` (`EXIT_GENERATION_EXHAUSTED`) | No shard failed, but at least one "a survivor was not addressed this run" outcome fired (#1951). | Any of: `exhausted` non-empty (a true `GenerationExhausted` — a fully spent retry-then-downgrade budget — or any other clean `RuntimeError` such as a generation timeout); `unresolved` non-empty (a survivor whose test file never resolved via the naming convention); `no_report` non-empty (a shard Stryker produced no report for at all). |
+
+`--skip-existing`/`--max-age-hours`-skipped shards are a **fourth**,
+non-exit-code-affecting outcome: they always get a `SKIPPED shards (N)` line
+in `print_summary`'s output, but never change the exit code — resuming past
+an existing report is expected operator behavior, not a signal to act on.
+
+Before #1951, only the `exhausted` case got run-level visibility; a shard
+where zero survivors resolved a test file, or a shard with no Stryker report
+at all, both returned exit `0` — identical to a fully clean run with zero
+fix attempts made. `print_summary`'s output now also carries
+`UNRESOLVED test file (N)` and `NO REPORT shards (N)` lines alongside the
+existing `EXHAUSTED files (N)` line, each naming the affected
+`shard/source` (or bare `shard`, for `no_report`/`skipped`) entries.
 
 ## Shard vs full-run scores are not comparable
 

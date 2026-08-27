@@ -86,6 +86,31 @@ def test_end_to_end_fixture_derives_paths_and_extracts_survivors(tmp_path: Path)
 
 
 # =============================================================================
+# Scenario (#1948, "also found alongside"): extract_survivors -> its
+# convergence-consuming call site — never filters by skip_static, so a
+# static-flagged survivor still contributes to the reported survivor_count.
+# Pins the actual call site (mutation_kill_loop.py:extract_survivors ->
+# mutation_report.survivors_by_mutator), not just a structural signature
+# check, so a future one-word edit that starts passing skip_static here
+# would be caught by a behavioral regression, not just a signature diff.
+# =============================================================================
+def test_extract_survivors_includes_static_flagged_survivors(tmp_path: Path):
+    static_mutant = {
+        "id": "StringLiteral-Survived-static",
+        "mutatorName": "StringLiteral",
+        "status": "Survived",
+        "static": True,
+        "location": {"start": {"line": 5}},
+    }
+    report = _write_report(tmp_path, "src/Widget.WebApi/PaymentService.cs", [static_mutant])
+
+    survivors = loop.extract_survivors(report, "PaymentService.cs")
+
+    assert len(survivors) == 1
+    assert survivors[0]["static"] is True
+
+
+# =============================================================================
 # Scenario: The loop delegates DOTNET_ROOT and .sln handling to the wrapper (AC4)
 # =============================================================================
 def test_scoped_run_delegates_dotnet_root_and_sln_to_wrapper(
@@ -99,6 +124,7 @@ def test_scoped_run_delegates_dotnet_root_and_sln_to_wrapper(
 
     def spy_restore(sln, sln_hidden):
         calls.append(("restore_sln", str(sln)))
+        return True
 
     def fake_subprocess_run(argv, **kwargs):
         calls.append(("subprocess.run", argv, kwargs))
@@ -233,7 +259,9 @@ def test_scoped_stryker_run_restores_sln_even_on_timeout(
         loop.wrapper, "hide_sln", lambda sln, sln_hidden: calls.append("hide_sln")
     )
     monkeypatch.setattr(
-        loop.wrapper, "restore_sln", lambda sln, sln_hidden: calls.append("restore_sln")
+        loop.wrapper,
+        "restore_sln",
+        lambda sln, sln_hidden: calls.append("restore_sln") or True,
     )
 
     def fake_run(argv, **kwargs):
@@ -241,10 +269,61 @@ def test_scoped_stryker_run_restores_sln_even_on_timeout(
 
     monkeypatch.setattr(loop.subprocess, "run", fake_run)
 
-    with pytest.raises(RuntimeError):
+    with pytest.raises(RuntimeError, match="timed out"):
         loop.run_scoped_stryker(config, "Foo.cs", output_dir=tmp_path / "out")
 
     assert calls == ["hide_sln", "restore_sln"]
+
+
+# =============================================================================
+# Scenario (#1955): a failed/skipped .sln restore during scoring, followed by
+# exhaustion, must not produce a clean exit code — run_scoped_stryker raises
+# RevertFailed (mirroring #1939's git_revert handling) rather than silently
+# returning as if the restore had succeeded.
+# =============================================================================
+def test_run_scoped_stryker_raises_revert_failed_when_restore_sln_fails(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    config = loop.load_loop_config(_write_config(tmp_path, solution="App.sln"))
+    monkeypatch.setattr(
+        loop.wrapper, "resolve_dotnet_root", lambda preset, candidates: ("/fake", None)
+    )
+    monkeypatch.setattr(loop.wrapper, "default_probe_candidates", list)
+    monkeypatch.setattr(loop.wrapper, "hide_sln", lambda sln, sln_hidden: None)
+    monkeypatch.setattr(loop.wrapper, "restore_sln", lambda sln, sln_hidden: False)
+
+    class _R:
+        returncode = 0
+
+    monkeypatch.setattr(loop.subprocess, "run", lambda *a, **k: _R())
+
+    with pytest.raises(loop.mutation_kill_shared.RevertFailed, match="restore"):
+        loop.run_scoped_stryker(config, "Foo.cs", output_dir=tmp_path / "out")
+
+
+def test_run_scoped_stryker_does_not_raise_when_no_solution_is_configured(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    # No .sln to hide/restore at all (config.solution is None) — restore_sln
+    # is never called, so a False-returning fake (if one somehow were wired
+    # in) can't spuriously fail a solution-less run.
+    config = loop.load_loop_config(_write_config(tmp_path, solution=None))
+    monkeypatch.setattr(
+        loop.wrapper, "resolve_dotnet_root", lambda preset, candidates: ("/fake", None)
+    )
+    monkeypatch.setattr(loop.wrapper, "default_probe_candidates", list)
+    monkeypatch.setattr(
+        loop.wrapper,
+        "restore_sln",
+        lambda *a, **k: pytest.fail("restore_sln must not be called with no solution"),
+    )
+
+    class _R:
+        returncode = 0
+
+    monkeypatch.setattr(loop.subprocess, "run", lambda *a, **k: _R())
+
+    loop.run_scoped_stryker(config, "Foo.cs", output_dir=tmp_path / "out")
 
 
 # =============================================================================
@@ -355,7 +434,7 @@ def test_run_scoped_stryker_accepts_a_normal_relative_solution_path(
     monkeypatch.setattr(
         loop.wrapper,
         "restore_sln",
-        lambda sln, sln_hidden: restore_calls.append((sln, sln_hidden)),
+        lambda sln, sln_hidden: restore_calls.append((sln, sln_hidden)) or True,
     )
 
     class _R:
@@ -392,7 +471,7 @@ def test_run_scoped_stryker_calls_check_stale_hidden_sln_before_hiding(
     )
     monkeypatch.setattr(loop.wrapper, "hide_sln", lambda *a, **k: calls.append("hide_sln"))
     monkeypatch.setattr(
-        loop.wrapper, "restore_sln", lambda *a, **k: calls.append("restore_sln")
+        loop.wrapper, "restore_sln", lambda *a, **k: calls.append("restore_sln") or True
     )
 
     class _R:
@@ -446,7 +525,7 @@ def test_scoped_stryker_hidden_sln_name_has_no_pid_suffix(
     monkeypatch.setattr(
         loop.wrapper, "hide_sln", lambda sln, sln_hidden: hidden_names.append(str(sln_hidden))
     )
-    monkeypatch.setattr(loop.wrapper, "restore_sln", lambda *a, **k: None)
+    monkeypatch.setattr(loop.wrapper, "restore_sln", lambda *a, **k: True)
 
     class _R:
         returncode = 0
@@ -545,3 +624,52 @@ def test_confirm_scoped_config_is_not_wired_into_the_default_loop_path():
     import inspect
 
     assert "make_confirm_scoped_config" not in inspect.getsource(loop._score_round)
+
+
+# =============================================================================
+# #2031 AC4 — degenerate-narrowing fallback: when the survivor-line set covers
+# too much of the file to be worth narrowing, degrade to the ordinary
+# whole-file scoped config instead of a huge one-span-per-line `mutate` array.
+# =============================================================================
+def test_confirm_scoped_config_falls_back_to_full_glob_when_narrowing_saves_nothing():
+    """5 of 10 lines (50%) hits the default degenerate_ratio — no cheaper than
+    re-scoping the whole file, so this must equal make_scoped_config's output,
+    not a 5-entry span array."""
+    cfg = loop.make_confirm_scoped_config(
+        _cfg(), "Calc.cs", [1, 2, 3, 4, 5], total_file_lines=10
+    )
+    assert cfg == loop.make_scoped_config(_cfg(), "Calc.cs")
+
+
+def test_confirm_scoped_config_keeps_narrowing_when_savings_are_meaningful():
+    """2 of 1000 lines is a real saving — must still emit the per-line spans,
+    not degrade, even though total_file_lines is supplied."""
+    cfg = loop.make_confirm_scoped_config(
+        _cfg(), "Calc.cs", [10, 99], total_file_lines=1000
+    )
+    assert cfg["stryker-config"]["mutate"] == [
+        "**/Calc.cs{10..10}",
+        "**/Calc.cs{99..99}",
+    ]
+
+
+def test_confirm_scoped_config_degenerate_ratio_is_configurable():
+    """A caller wanting a stricter (lower) threshold can override the 50%
+    default — 2 of 10 lines (20%) degrades under a 0.1 threshold."""
+    cfg = loop.make_confirm_scoped_config(
+        _cfg(), "Calc.cs", [1, 2], total_file_lines=10, degenerate_ratio=0.1
+    )
+    assert cfg == loop.make_scoped_config(_cfg(), "Calc.cs")
+
+
+def test_confirm_scoped_config_skips_degenerate_check_when_total_file_lines_unset():
+    """total_file_lines=None (the default) preserves today's unconditional
+    per-line-span behavior — no degenerate comparison is made at all."""
+    cfg = loop.make_confirm_scoped_config(_cfg(), "Calc.cs", [1, 2, 3, 4, 5])
+    assert cfg["stryker-config"]["mutate"] == [
+        "**/Calc.cs{1..1}",
+        "**/Calc.cs{2..2}",
+        "**/Calc.cs{3..3}",
+        "**/Calc.cs{4..4}",
+        "**/Calc.cs{5..5}",
+    ]

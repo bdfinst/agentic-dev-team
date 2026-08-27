@@ -179,3 +179,25 @@ def test_sliced_mode_states_report_only_and_json():
     # --json emits the consolidated object to stdout and writes no file.
     assert "--json" in sec and "stdout" in sec
     assert "no" in sec.lower() and "file" in sec.lower()
+
+
+# --- sliced-mode.md: dispatch-failure hash matches SKILL.md's (#2058) ---------
+
+
+def test_sliced_mode_dispatch_failure_hash_uses_branch_diff():
+    # #2058: sliced-mode.md's dispatch-failure boundary event bound its
+    # subject_hash to review_gate_hash.py's DEFAULT mode, not --branch-diff —
+    # desyncing it from SKILL.md's hash for the same content and breaking
+    # pre_pr_review.py's dispatch-failure lookup for sliced-mode runs.
+    assert (
+        'review_gate_hash.py" --branch-diff)' in _SLICED_MD
+    ), "sliced-mode.md's dispatch-failure hash must pass --branch-diff, matching SKILL.md"
+
+
+def test_sliced_mode_and_skill_dispatch_failure_hash_invocations_match():
+    # Both docs must compute the subject_hash identically, or a dispatch
+    # failure recorded by one path won't be found by a lookup keyed off the
+    # other's hash.
+    sliced_invocation = 'review_gate_hash.py" --branch-diff)'
+    assert sliced_invocation in _SLICED_MD
+    assert sliced_invocation in _SKILL_MD

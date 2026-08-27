@@ -165,15 +165,79 @@ def is_eligible(issue: dict[str, Any], label: str) -> bool:
     return not _has_open_linked_pr(issue)
 
 
+def _validate_shape(issue: dict[str, Any], identifier: str) -> None:
+    """Validate the structural shape of `labels`, `subIssuesSummary`, and
+    `closedByPullRequestsReferences` when present on `issue`.
+
+    `is_eligible` reads these three fields structurally, not just by key
+    presence: `_label_names` indexes every `labels` entry with `label["name"]`,
+    `_is_epic` calls `.get("total", 0)` on `subIssuesSummary`, and
+    `_has_open_linked_pr` calls `.get("state")` on every
+    `closedByPullRequestsReferences` entry. A malformed `--input-file` (e.g.
+    `labels` as bare strings instead of `{"name": ...}` objects) reached an
+    uncaught `TypeError`/`AttributeError` deep inside `is_eligible` instead of
+    a clean `FetchError` here.
+
+    Raises `FetchError` naming `identifier` and the offending field.
+    """
+    if "labels" in issue:
+        labels = issue["labels"]
+        if not isinstance(labels, list):
+            raise FetchError(
+                f"malformed --input-file entry ({identifier}): field "
+                f'"labels" must be a JSON array, got {type(labels).__name__}'
+            )
+        for label_idx, label in enumerate(labels):
+            if not isinstance(label, dict) or not isinstance(label.get("name"), str):
+                raise FetchError(
+                    f"malformed --input-file entry ({identifier}): "
+                    f'"labels[{label_idx}]" must be a JSON object with a '
+                    'string "name" field'
+                )
+
+    if "subIssuesSummary" in issue:
+        summary = issue["subIssuesSummary"]
+        if not isinstance(summary, dict):
+            raise FetchError(
+                f"malformed --input-file entry ({identifier}): field "
+                f'"subIssuesSummary" must be a JSON object, got '
+                f"{type(summary).__name__}"
+            )
+        if "total" in summary and not isinstance(summary["total"], int):
+            raise FetchError(
+                f"malformed --input-file entry ({identifier}): field "
+                f'"subIssuesSummary.total" must be a number, got '
+                f"{type(summary['total']).__name__}"
+            )
+
+    if "closedByPullRequestsReferences" in issue:
+        refs = issue["closedByPullRequestsReferences"]
+        if not isinstance(refs, list):
+            raise FetchError(
+                f"malformed --input-file entry ({identifier}): field "
+                '"closedByPullRequestsReferences" must be a JSON array, got '
+                f"{type(refs).__name__}"
+            )
+        for ref_idx, ref in enumerate(refs):
+            if not isinstance(ref, dict):
+                raise FetchError(
+                    f"malformed --input-file entry ({identifier}): "
+                    f'"closedByPullRequestsReferences[{ref_idx}]" must be a '
+                    "JSON object"
+                )
+
+
 def validate_issues(
     issues: Any, required_fields: tuple[str, ...] = BASE_REQUIRED_FIELDS
 ) -> None:
     """Validate `issues` is a JSON array of objects each carrying every
-    `required_fields` entry.
+    `required_fields` entry, and that `labels`/`subIssuesSummary`/
+    `closedByPullRequestsReferences` (when present) have the structural shape
+    `is_eligible` expects (see `_validate_shape`).
 
     Raises `FetchError` naming the malformed entry (by issue number if
-    present, by index otherwise) rather than letting a `KeyError` propagate
-    uncaught.
+    present, by index otherwise) rather than letting a `KeyError`/`TypeError`/
+    `AttributeError` propagate uncaught.
     """
     if not isinstance(issues, list):
         raise FetchError(
@@ -185,13 +249,14 @@ def validate_issues(
             raise FetchError(
                 f"malformed --input-file entry at index {idx}: not a JSON object"
             )
+        identifier = f"#{issue['number']}" if "number" in issue else f"index {idx}"
         missing = [field for field in required_fields if field not in issue]
         if missing:
-            identifier = f"#{issue['number']}" if "number" in issue else f"index {idx}"
             raise FetchError(
                 f"malformed --input-file entry ({identifier}): missing required "
                 f"field(s) {', '.join(missing)}"
             )
+        _validate_shape(issue, identifier)
 
 
 def load_issues_from_file(

@@ -485,6 +485,40 @@ def test_scoped_run_zero_total_mutants_is_not_treated_as_convergence(
     assert any("zero mutants generated" in msg for msg in logs)
 
 
+def test_narrowed_confirm_config_resolving_to_nothing_still_trips_the_zero_mutants_guard(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    """#2031 AC3: make_confirm_scoped_config isn't wired into _score_round
+    today (see test_confirm_scoped_config_is_not_wired_into_the_default_loop_path
+    in test_mutation_kill_loop.py), but the #1606 zero-mutants guard is a
+    pure function of the report _score_round receives — it does not care
+    whether the report came from a whole-file or a survivor-line-narrowed
+    Stryker invocation. Simulates exactly the failure #2031's Risk section
+    warns about (a narrowed confirm scope that matched nothing, e.g. because
+    the span pointed at the wrong region of the file) and confirms the guard
+    still refuses to read it as convergence."""
+    logs: list[str] = []
+    source_file, ctx, kwargs, _events = _loop_fixture(
+        tmp_path, monkeypatch, [_mutant("Survived")], log=logs.append
+    )
+    monkeypatch.setattr(loop, "dotnet_build", lambda targets, **k: True)
+    monkeypatch.setattr(loop, "dotnet_test", lambda targets, flt, **k: True)
+
+    # Build the narrowed config a future wired-in confirm run would use, to
+    # tie this test to the real emitted shape rather than a hand-written one.
+    confirm_cfg = loop.make_confirm_scoped_config(ctx.config, source_file, [42])
+    assert confirm_cfg["stryker-config"]["mutate"] == [f"**/{source_file}{{42..42}}"]
+
+    empty = _write_report(tmp_path / "confirm-empty", source_file, [])
+    monkeypatch.setattr(loop, "run_scoped_stryker", lambda *a, **k: empty)
+
+    loop.run_for_file(source_file, ctx, **kwargs)
+
+    assert not any("no survivors" in msg for msg in logs)
+    assert any("zero mutants generated" in msg for msg in logs)
+    assert any("NOT convergence" in msg for msg in logs)
+
+
 # =============================================================================
 # Scenario: A failed commit is a round failure, not a silent success (#1598)
 # =============================================================================

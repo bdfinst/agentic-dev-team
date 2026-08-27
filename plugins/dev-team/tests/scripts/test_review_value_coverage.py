@@ -273,3 +273,28 @@ class TestCli:
         )
         result = self._run(tmp_path, "--strict")
         assert result.returncode == 0, result.stdout + result.stderr
+
+
+class TestReadOnlyMigration:
+    def test_legacy_metrics_file_is_not_migrated_by_a_read_only_report(self, tmp_path):
+        """#2059: `_resolve()` must pass `migrate=False`, matching
+        `contract_failure_report.py`'s own `_resolve()` — a mere report run
+        must never relocate a legacy top-level `metrics/` file into
+        `.claude/metrics/`, which `resolve_stream`'s writer default
+        (`migrate=True`) would otherwise do as a read path's side effect."""
+        legacy_dir = tmp_path / "metrics"
+        legacy_dir.mkdir()
+        legacy_file = legacy_dir / rvc.VALUE_STREAM
+        legacy_file.write_text(
+            json.dumps({"agents_run": ["x"], "outcome": "no-op", "source": "code-review"}) + "\n",
+            encoding="utf-8",
+        )
+
+        subprocess.run(
+            [sys.executable, str(_SCRIPTS_DIR / "review_value_coverage.py"),
+             "--cwd", str(tmp_path), "--json"],
+            capture_output=True, text=True, timeout=60, check=True,
+        )
+
+        assert legacy_file.exists(), "a read-only report must never migrate a legacy metrics file"
+        assert not (tmp_path / ".claude" / "metrics" / rvc.VALUE_STREAM).exists()

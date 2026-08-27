@@ -96,6 +96,72 @@ def test_positive_int_validator_rejects_negative() -> None:
 
 
 # ---------------------------------------------------------------------------
+# is_eligible — direct unit tests (ported from autoship_discover.py's
+# select_eligible tests when select_eligible was deleted as dead code
+# (#2075): is_eligible's exclusion rules had no coverage of their own before
+# this — select_eligible's tests exercised them only indirectly)
+# ---------------------------------------------------------------------------
+
+
+def test_is_eligible_true_for_well_formed_issue() -> None:
+    assert autoship_state.is_eligible(_issue(), "autoship:ready") is True
+
+
+def test_is_eligible_excludes_epic() -> None:
+    epic = _issue(subIssuesSummary={"total": 2})
+    assert autoship_state.is_eligible(epic, "autoship:ready") is False
+
+
+def test_is_eligible_excludes_in_progress() -> None:
+    issue = _issue(
+        labels=[{"name": "autoship:ready"}, {"name": "autoship:in-progress"}]
+    )
+    assert autoship_state.is_eligible(issue, "autoship:ready") is False
+
+
+def test_is_eligible_excludes_blocked() -> None:
+    issue = _issue(labels=[{"name": "autoship:ready"}, {"name": "autoship:blocked"}])
+    assert autoship_state.is_eligible(issue, "autoship:ready") is False
+
+
+def test_is_eligible_excludes_open_linked_pr() -> None:
+    issue = _issue(closedByPullRequestsReferences=[{"number": 99, "state": "OPEN"}])
+    assert autoship_state.is_eligible(issue, "autoship:ready") is False
+
+
+def test_is_eligible_includes_merged_only_pr() -> None:
+    issue = _issue(closedByPullRequestsReferences=[{"number": 99, "state": "MERGED"}])
+    assert autoship_state.is_eligible(issue, "autoship:ready") is True
+
+
+def test_is_eligible_includes_closed_not_merged_pr() -> None:
+    issue = _issue(closedByPullRequestsReferences=[{"number": 99, "state": "CLOSED"}])
+    assert autoship_state.is_eligible(issue, "autoship:ready") is True
+
+
+def test_is_eligible_excludes_mixed_open_and_closed_pr() -> None:
+    issue = _issue(
+        closedByPullRequestsReferences=[
+            {"number": 98, "state": "MERGED"},
+            {"number": 99, "state": "OPEN"},
+        ]
+    )
+    assert autoship_state.is_eligible(issue, "autoship:ready") is False
+
+
+def test_is_eligible_excludes_closed_issue() -> None:
+    issue = _issue(state="CLOSED")
+    assert autoship_state.is_eligible(issue, "autoship:ready") is False
+
+
+def test_is_eligible_custom_label_overrides_default() -> None:
+    ready_only = _issue(number=20, labels=[{"name": "autoship:ready"}])
+    custom_labeled = _issue(number=21, labels=[{"name": "custom-label"}])
+    assert autoship_state.is_eligible(ready_only, "custom-label") is False
+    assert autoship_state.is_eligible(custom_labeled, "custom-label") is True
+
+
+# ---------------------------------------------------------------------------
 # fetch_eligible_issues / FetchError
 # ---------------------------------------------------------------------------
 
@@ -152,6 +218,82 @@ def test_fetch_eligible_issues_malformed_input_file_raises_fetch_error(
 ) -> None:
     bad_issue = _issue()
     del bad_issue["state"]
+    fixture = tmp_path / "issues.json"
+    fixture.write_text(json.dumps([bad_issue]), encoding="utf-8")
+
+    with pytest.raises(autoship_state.FetchError):
+        autoship_state.fetch_eligible_issues("autoship:ready", input_file=str(fixture))
+
+
+# ---------------------------------------------------------------------------
+# validate_issues — shape validation (#2074)
+# ---------------------------------------------------------------------------
+
+
+def test_validate_issues_accepts_well_shaped_issue() -> None:
+    autoship_state.validate_issues([_issue()])  # no raise
+
+
+def test_validate_issues_rejects_labels_as_bare_strings() -> None:
+    issue = _issue(labels=["autoship:ready"])
+    with pytest.raises(autoship_state.FetchError, match="labels"):
+        autoship_state.validate_issues([issue])
+
+
+def test_validate_issues_rejects_labels_not_a_list() -> None:
+    issue = _issue(labels={"name": "autoship:ready"})
+    with pytest.raises(autoship_state.FetchError, match="labels"):
+        autoship_state.validate_issues([issue])
+
+
+def test_validate_issues_rejects_label_entry_missing_name() -> None:
+    issue = _issue(labels=[{"color": "green"}])
+    with pytest.raises(autoship_state.FetchError, match="labels"):
+        autoship_state.validate_issues([issue])
+
+
+def test_validate_issues_rejects_sub_issues_summary_not_an_object() -> None:
+    issue = _issue(subIssuesSummary=2)
+    with pytest.raises(autoship_state.FetchError, match="subIssuesSummary"):
+        autoship_state.validate_issues([issue])
+
+
+def test_validate_issues_rejects_sub_issues_summary_total_not_numeric() -> None:
+    issue = _issue(subIssuesSummary={"total": "zero"})
+    with pytest.raises(autoship_state.FetchError, match="subIssuesSummary"):
+        autoship_state.validate_issues([issue])
+
+
+def test_validate_issues_rejects_closed_by_pull_requests_references_not_a_list() -> (
+    None
+):
+    issue = _issue(closedByPullRequestsReferences={"state": "OPEN"})
+    with pytest.raises(
+        autoship_state.FetchError, match="closedByPullRequestsReferences"
+    ):
+        autoship_state.validate_issues([issue])
+
+
+def test_validate_issues_rejects_closed_by_pull_requests_references_entry_not_object() -> (
+    None
+):
+    issue = _issue(closedByPullRequestsReferences=["OPEN"])
+    with pytest.raises(
+        autoship_state.FetchError, match="closedByPullRequestsReferences"
+    ):
+        autoship_state.validate_issues([issue])
+
+
+def test_validate_issues_shape_error_names_the_issue_number() -> None:
+    issue = _issue(number=77, labels=["autoship:ready"])
+    with pytest.raises(autoship_state.FetchError, match="#77"):
+        autoship_state.validate_issues([issue])
+
+
+def test_fetch_eligible_issues_malformed_label_shape_raises_fetch_error(
+    tmp_path,
+) -> None:
+    bad_issue = _issue(labels=["autoship:ready"])
     fixture = tmp_path / "issues.json"
     fixture.write_text(json.dumps([bad_issue]), encoding="utf-8")
 

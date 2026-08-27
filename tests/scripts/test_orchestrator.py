@@ -1033,19 +1033,6 @@ async def test_default_phase_research_omits_security_engineer_when_no_signal():
     assert len(captured["personas"]) == len(RESEARCH_ALWAYS_ON)
 
 
-def test_derive_recon_slug_matches_codebase_recon_algorithm(tmp_path):
-    """orchestrator.py's slug derivation must stay byte-identical to
-    codebase_recon.py's own _derive_slug (the recon agent's Contract section
-    names the slug convention once; a drifted copy here would silently
-    compute the wrong artifact path). No mkdir needed: both functions only
-    call Path.resolve(strict=False) and do pure string transforms on
-    `.name` — the directory need not exist on disk for this comparison."""
-    from codebase_recon import _derive_slug
-
-    messy = tmp_path / "My Repo__Name!!"
-    assert orch._derive_recon_slug(messy) == _derive_slug(messy)
-
-
 def _seed_recon_artifact(tmp_path):
     """Create a fake .claude/memory/recon-<slug>.json under tmp_path and
     return its Path. Shared by the recon-artifact tests below that need an
@@ -1054,7 +1041,7 @@ def _seed_recon_artifact(tmp_path):
     _capturing_dispatch_personas_stub extraction rationale)."""
     recon_dir = tmp_path / ".claude" / "memory"
     recon_dir.mkdir(parents=True)
-    slug = orch._derive_recon_slug(tmp_path)
+    slug = orch.derive_slug(tmp_path)
     artifact = recon_dir / f"recon-{slug}.json"
     artifact.write_text("{}")
     return artifact

@@ -308,11 +308,14 @@ def main(argv: Sequence[str] | None = None) -> int:
         # a mutmut/Stryker infrastructure failure, etc.) is clean with
         # respect to inserted test content — generation precedes insertion,
         # and a failed insertion-revert is RevertFailed, caught above. The
-        # C# solution-file restore (wrapper.restore_sln) reports no outcome,
-        # so a stray hidden .sln is not independently ruled out here — see
-        # #1955. Not a retry-budget exhaustion — reuses exit 5 because the
-        # shard driver only distinguishes "fatal, stop" (4) from "clean,
-        # continue" (5), not why a file wasn't fixed.
+        # C# solution-file restore (wrapper.restore_sln) now also reports a
+        # bool outcome (#1955) and run_scoped_stryker raises RevertFailed on
+        # a False return, so a stray hidden .sln is caught by the
+        # RevertFailed branch above, not silently reaching here. Not a
+        # retry-budget exhaustion — reuses exit 5 (#1956: this is the
+        # OUTCOME class, not a specific cause) because the shard driver only
+        # distinguishes "fatal, stop" (4) from "clean, continue" (5), not
+        # why a file wasn't fixed.
         sys.stderr.write(f"error: {exc} — generation failed cleanly, continuing\n")
         return EXIT_GENERATION_EXHAUSTED
     return 0
