@@ -35,12 +35,13 @@ import argparse
 import asyncio
 import functools
 import json
-import re
 import subprocess
 import sys
 from pathlib import Path
 
 SCRIPTS = Path(__file__).resolve().parent
+sys.path.insert(0, str(SCRIPTS))
+from lib.slug import derive_slug
 
 # Default personas for plan review — the five plan-review-* critics.
 DEFAULT_PERSONAS = [
@@ -250,23 +251,6 @@ async def classify(request: str, skip_llm: bool = False) -> dict:
 # ---------------------------------------------------------------------------
 
 
-def _derive_recon_slug(root: Path) -> str:
-    """Kebab-safe, lowercase repo-root directory name.
-
-    Duplicates codebase_recon.py's own `_derive_slug` (same algorithm)
-    rather than importing it. Both are hand-kept in sync by
-    `test_derive_recon_slug_matches_codebase_recon_algorithm`, which already
-    exists (this is not a "keep in sync until a guard test exists" gap —
-    tracked instead as a cleanup: promote both to a shared `scripts/lib/`
-    module, matching codebase_recon.py's own existing `from lib import ...`
-    convention, and delete this copy — see follow-up #2068).
-    """
-    name = root.resolve().name.lower()
-    name = re.sub(r"[^a-z0-9._-]", "-", name)
-    name = re.sub(r"-{2,}", "-", name)
-    return name.strip("-") or "repo"
-
-
 def _recon_artifact_path(root: Path) -> Path:
     """Path to codebase-recon's JSON artifact for the repo at `root`.
 
@@ -285,7 +269,7 @@ def _recon_artifact_path(root: Path) -> Path:
     diverge — inherent to the recon agent's contract, not something this
     function can paper over.
     """
-    return root / ".claude" / "memory" / f"recon-{_derive_recon_slug(root)}.json"
+    return root / ".claude" / "memory" / f"recon-{derive_slug(root)}.json"
 
 
 async def _resolve_recon_artifact(personas: list, results: list, cwd: Path) -> str | None:

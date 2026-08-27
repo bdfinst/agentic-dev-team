@@ -31,6 +31,7 @@ from typing import Any
 sys.path.insert(0, str(Path(__file__).parent))
 from lib import deterministic_recon
 from lib.review_result import build_result, main_exit
+from lib.slug import derive_slug
 
 # jsonschema is a dev-only dependency (requirements-dev.txt) — not guaranteed on
 # a plugin user's interpreter. Degrade to a skipped-validation warning rather
@@ -285,17 +286,6 @@ def step6_git_history(root: Path, meta: dict) -> dict:
 # ---------------------------------------------------------------------------
 
 
-def _derive_slug(root: Path) -> str:
-    """Derive slug from repo root dir name: lowercase, kebab-safe."""
-    import re
-
-    name = root.resolve().name.lower()
-    name = re.sub(r"[^a-z0-9._-]", "-", name)
-    name = re.sub(r"-{2,}", "-", name)
-    name = name.strip("-")
-    return name or "repo"
-
-
 def validate_schema(artifact: dict) -> None:
     """Validate artifact against the recon-envelope-v1 schema.
 
@@ -345,7 +335,7 @@ def step7_emit(
         # Default: recon_inventory.py is a sibling in this same scripts/ dir
         inventory_script = Path(__file__).parent / "recon_inventory.py"
 
-    slug = _derive_slug(root)
+    slug = derive_slug(root)
     output_dir.mkdir(parents=True, exist_ok=True)
     artifact_path = output_dir / f"recon-{slug}.json"
 
@@ -540,7 +530,7 @@ def main(argv: list[str] | None = None) -> int:
 
     # Derive default output dir from CWD + slug
     if args.output_dir is None:
-        output_dir = Path.cwd() / "memory" / f"recon-{_derive_slug(root)}"
+        output_dir = Path.cwd() / "memory" / f"recon-{derive_slug(root)}"
     else:
         output_dir = Path(args.output_dir)
 

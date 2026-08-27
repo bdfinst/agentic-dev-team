@@ -273,8 +273,8 @@ def test_5_3e_schema_version_in_emitted_artifact_is_1_0(repo: Path) -> None:
 
 
 # ---------------------------------------------------------------------------
-# 5.4 — main()'s default-output-dir slug must reuse _derive_slug, not
-# duplicate its regex logic inline.
+# 5.4 — main()'s default-output-dir slug must reuse the shared
+# lib.slug.derive_slug helper, not duplicate its regex logic inline.
 # ---------------------------------------------------------------------------
 
 
@@ -288,14 +288,14 @@ def _main_function_source() -> str:
 
 def test_main_reuses_derive_slug_helper_instead_of_duplicating_the_regex() -> None:
     main_src = _main_function_source()
-    assert "_derive_slug(" in main_src, (
-        "main() should call _derive_slug(root) for its default output-dir "
-        "slug instead of re-deriving it inline"
+    assert "derive_slug(" in main_src, (
+        "main() should call derive_slug(root) (from lib.slug, #2068) for "
+        "its default output-dir slug instead of re-deriving it inline"
     )
     # The duplicated regex substitution (the tell-tale sign of the inline
     # copy) must not appear a second time inside main().
     assert "[^a-z0-9._-]" not in main_src, (
-        "main() still duplicates _derive_slug's regex inline"
+        "main() still duplicates lib.slug.derive_slug's regex inline"
     )
 
 
