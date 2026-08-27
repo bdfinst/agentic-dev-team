@@ -765,6 +765,25 @@ class TestShallowCloneRefusal:
         assert code == 2
         assert "tests/test_alpha.py" not in out
 
+    def test_all_files_mode_inherits_the_identical_refusal(self, shallow_clone, capsys):
+        """Step 2.4 (#2039): `--all-files` must hit `run()`'s shallow-clone
+        refusal via the exact same code path as the existing mode -- there is
+        no second refusal implementation for it to diverge from. Asserting
+        byte-identical output (not just "also exit code 2 / also mentions
+        shallow-clone") is what distinguishes "same code path" from "a
+        similarly-worded refusal of its own".
+        """
+        base_argv = ["--repo", str(shallow_clone), "--since", "3650", "--min-edits", "1"]
+        code, out, err = _run_cli(base_argv, capsys)
+        all_files_code, all_files_out, all_files_err = _run_cli(
+            [*base_argv, "--all-files"], capsys
+        )
+        assert (all_files_code, all_files_out, all_files_err) == (code, out, err)
+        assert all_files_code == 2
+        assert all_files_out == ""
+        assert "shallow-clone" in all_files_err
+        assert "git fetch --unshallow" in all_files_err
+
 
 class TestNonRepoRefusal:
     def test_a_directory_outside_a_repo_is_refused(self, tmp_path, capsys):
