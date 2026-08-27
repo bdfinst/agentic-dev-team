@@ -36,6 +36,7 @@ from __future__ import annotations
 import json
 from dataclasses import dataclass
 from datetime import datetime, timedelta
+from functools import cache
 
 #: Default gap, in hours, above which two chronologically-adjacent commits
 #: touching the same file are treated as separate commit-sessions rather
@@ -94,7 +95,18 @@ class TimestampError(ValueError):
         self.timestamp = timestamp
 
 
+@cache
 def _parse_timestamp(sha: str, timestamp: str) -> datetime:
+    """Parse one commit's timestamp, memoized.
+
+    `rank_all_files` calls `partition_commit_sessions` once per distinct
+    path, and a commit touching N files has its identical timestamp string
+    handed to this function N times (once per path's own partitioning
+    call) -- caching turns that into one real `fromisoformat` parse per
+    distinct commit. A raised `TimestampError` is never cached (`lru_cache`
+    only caches successful returns), so a malformed timestamp is still
+    re-diagnosed on every call rather than silently swallowed after its
+    first appearance."""
     if not timestamp:
         raise TimestampError(
             sha, timestamp, f"commit {sha!r} has no timestamp; cannot partition it into a commit-session"
@@ -105,6 +117,31 @@ def _parse_timestamp(sha: str, timestamp: str) -> datetime:
         raise TimestampError(
             sha, timestamp, f"commit {sha!r} has an unparseable timestamp {timestamp!r}: {exc}"
         ) from exc
+
+
+def _ensure_uniform_timezone_awareness(parsed: list[tuple[str, str, datetime]]) -> None:
+    """Raise `TimestampError` when `parsed` mixes timezone-aware and
+    timezone-naive datetimes.
+
+    `datetime.fromisoformat` happily parses either shape, but sorting or
+    subtracting an aware value against a naive one raises a bare, unnamed
+    `TypeError` -- not this module's own `TimestampError` -- the moment
+    `partition_commit_sessions` tries to order or diff them. Git's `%aI`
+    author-date format is always offset-aware, so a mix only arises from
+    corrupted or hand-built commit input; this names that failure the same
+    way `_parse_timestamp` names a missing/unparseable one, rather than
+    letting the ambiguous stdlib `TypeError` surface to a caller that only
+    catches this module's own exception type."""
+    naive = [(sha, ts) for sha, ts, dt in parsed if dt.tzinfo is None]
+    if naive and any(dt.tzinfo is not None for _, _, dt in parsed):
+        sha, ts = naive[0]
+        raise TimestampError(
+            sha,
+            ts,
+            f"commit {sha!r} has a timezone-naive timestamp {ts!r} mixed "
+            "with timezone-aware timestamps in the same file's history; "
+            "cannot compare or sort them",
+        )
 
 
 def partition_commit_sessions(
@@ -136,10 +173,11 @@ def partition_commit_sessions(
     if not commits:
         return []
 
-    parsed = sorted(
-        ((sha, ts, _parse_timestamp(sha, ts)) for sha, ts in (_normalize(c) for c in commits)),
-        key=lambda item: item[2],
-    )
+    parsed_unsorted = [
+        (sha, ts, _parse_timestamp(sha, ts)) for sha, ts in (_normalize(c) for c in commits)
+    ]
+    _ensure_uniform_timezone_awareness(parsed_unsorted)
+    parsed = sorted(parsed_unsorted, key=lambda item: item[2])
 
     threshold = timedelta(hours=commit_gap_hours)
     sessions: list[list[dict[str, str]]] = [
@@ -208,7 +246,11 @@ def rank_all_files(
             unattributed.append({"path": path, "edits": edits})
             continue
         sessions = partition_commit_sessions(path_commits, commit_gap_hours=commit_gap_hours)
-        cross_session = max(len(sessions) - 1, 0)
+        # partition_commit_sessions always returns >= 1 group for a
+        # non-empty commit list (path_commits is non-empty here -- it is
+        # only ever created by appending to it), so this can never go
+        # negative; no max(..., 0) clamp needed.
+        cross_session = len(sessions) - 1
         rows.append(
             AllFilesRow(
                 path=path,

@@ -149,6 +149,28 @@ def test_timestamp_error_is_a_value_error():
     assert issubclass(cr.TimestampError, ValueError)
 
 
+def test_mixed_timezone_awareness_raises_timestamp_error_not_a_bare_type_error():
+    """Backstop review finding (#2038/#2039 checkpoint): sorting/subtracting a
+    timezone-aware datetime against a timezone-naive one raises a bare,
+    unnamed `TypeError` from the stdlib -- not this module's own
+    `TimestampError` -- so `churn_coupling_report.py`'s `except
+    churn_recurrence.TimestampError` boundary (which converts it into a clean
+    `Refusal`) never catches it, and `--all-files` crashes with an unhandled
+    traceback instead. Git's `%aI` format is always offset-aware in practice,
+    so this only arises from corrupted or hand-built commit input -- exactly
+    the scenario the `Refusal`'s own remedy text anticipates.
+    """
+    with pytest.raises(cr.TimestampError) as exc_info:
+        cr.partition_commit_sessions(
+            [
+                ("aaaa", "2026-08-01T10:00:00"),
+                ("bbbb", "2026-08-01T10:00:00-05:00"),
+            ],
+            commit_gap_hours=4,
+        )
+    assert exc_info.value.sha == "aaaa"
+
+
 # ---------------------------------------------------------------------------
 # rank_all_files (Step 2.3, #2039)
 # ---------------------------------------------------------------------------

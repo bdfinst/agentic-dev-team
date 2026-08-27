@@ -295,7 +295,12 @@ _SH_STYLE_NOT_FOUND_RE = re.compile(
     r"^[^:\n]+:\s*\d+:\s*[^\s:]+:\s*not found", re.IGNORECASE | re.MULTILINE
 )
 _NO_SUCH_FILE_RE = re.compile(
-    r"(?P<prefix>[^\n]*):\s*No such file or directory", re.IGNORECASE
+    # `{1,500}` bounds the prefix capture so a long non-matching line costs
+    # at most O(500) backtracking steps per scan start rather than the
+    # unbounded, quadratic-shaped cost an unanchored `[^\n]*` has against
+    # arbitrarily long untrusted transcript text; real prefixes (a command
+    # name plus a path) are always far shorter than 500 characters.
+    r"(?P<prefix>[^\n]{1,500}):\s*No such file or directory", re.IGNORECASE
 )
 _CD_FAILURE_RE = re.compile(r"\bcd:\s*.+?:\s*No such file or directory", re.IGNORECASE)
 
@@ -316,24 +321,77 @@ _BARE_EXIT_CODE_LINE_RE = re.compile(
 _GENUINE_ERROR_MIN_LEN = 10
 
 
-def _invoked_binary(command: str) -> str:
-    """Best-effort first token (the invoked binary) of a shell command
-    line, skipping leading `VAR=value` environment assignments.
+_SHELL_OPERATORS: frozenset[str] = frozenset({"&&", "||", ";", "|", "&"})
 
-    Tokenizes with `shlex.split` so a quoted assignment containing
-    whitespace (`VAR="a b" ./mytool arg`) isn't split on the space inside
-    the quotes -- a plain `str.split()` would mis-tokenize it and hand back
-    a fragment instead of the real invoked binary. Falls back to a naive
-    whitespace split if the command itself has unbalanced quoting (that
-    shape is `quoting`'s own signature, already resolved before this
-    function is ever called)."""
+
+def _split_shell_segments(command: str) -> list[list[str]]:
+    """Split `command` into shell sub-command segments on top-level control
+    operators (`&&`, `||`, `;`, `|`, `&`), respecting quoting so an operator
+    embedded inside a quoted string is not treated as a delimiter.
+
+    Uses `shlex.shlex` with `punctuation_chars=True` so multi-character
+    operators (`&&`, `||`) tokenize as single tokens rather than two
+    adjacent single-character ones. A command with unbalanced quoting (that
+    shape is `quoting`'s own signature, already resolved before this is
+    ever reached in `classify()`) falls back to a single, naively
+    whitespace-split segment -- mirroring `_invoked_binary`/
+    `_command_arguments`'s prior standalone `ValueError` fallback."""
     try:
-        tokens = shlex.split(command)
+        lexer = shlex.shlex(command, posix=True, punctuation_chars=True)
+        lexer.whitespace_split = True
+        tokens = list(lexer)
     except ValueError:
-        tokens = command.strip().split()
+        stripped = command.strip()
+        return [stripped.split()] if stripped else []
+
+    segments: list[list[str]] = []
+    current: list[str] = []
+    for token in tokens:
+        if token in _SHELL_OPERATORS:
+            if current:
+                segments.append(current)
+                current = []
+        else:
+            current.append(token)
+    if current:
+        segments.append(current)
+    return segments
+
+
+def _last_segment_tokens(command: str) -> list[str]:
+    """The tokens of the LAST shell segment of `command` -- the sub-command
+    a compound chain (`a && b`, `a; b`, `a | b`) most recently attempted.
+
+    `_invoked_binary`/`_command_arguments` build on this rather than
+    tokenizing the whole command line, so a compound command's error is
+    attributed to the segment that actually produced it. Tokenizing the
+    whole line (the prior approach) always named the FIRST sub-command as
+    "the invoked binary" and every later token -- including later
+    sub-commands' own binaries -- as "its argument", so e.g.
+    `cd /tmp && ./missing_binary --flag` misclassified a genuine
+    tool-not-present failure of `./missing_binary` as a `cd`-attributable
+    `working-directory` error purely because the command STARTED with
+    `cd` (see `tests/scripts/test_bash_failure_taxonomy.py`'s compound-
+    command regression coverage)."""
+    segments = _split_shell_segments(command)
+    return segments[-1] if segments else []
+
+
+def _skip_env_assignment_prefix(tokens: list[str]) -> int:
+    """Index of the first token in `tokens` that is not a leading
+    `VAR=value` environment assignment."""
     idx = 0
     while idx < len(tokens) and re.match(r"^[A-Za-z_][A-Za-z0-9_]*=", tokens[idx]):
         idx += 1
+    return idx
+
+
+def _invoked_binary(command: str) -> str:
+    """Best-effort invoked binary of the LAST shell segment of `command`
+    (see `_last_segment_tokens`), skipping leading `VAR=value` environment
+    assignments."""
+    tokens = _last_segment_tokens(command)
+    idx = _skip_env_assignment_prefix(tokens)
     return tokens[idx] if idx < len(tokens) else ""
 
 
@@ -387,16 +445,11 @@ def _is_tool_not_present(command: str, error_text: str, no_such_file_token: str 
 
 
 def _command_arguments(command: str) -> list[str]:
-    """Tokenize `command` (same `shlex.split` approach as `_invoked_binary`)
-    and return every token after the invoked binary, skipping leading
-    `VAR=value` environment assignments."""
-    try:
-        tokens = shlex.split(command)
-    except ValueError:
-        tokens = command.strip().split()
-    idx = 0
-    while idx < len(tokens) and re.match(r"^[A-Za-z_][A-Za-z0-9_]*=", tokens[idx]):
-        idx += 1
+    """Every token after the invoked binary of the LAST shell segment of
+    `command` (see `_last_segment_tokens`), skipping leading `VAR=value`
+    environment assignments."""
+    tokens = _last_segment_tokens(command)
+    idx = _skip_env_assignment_prefix(tokens)
     return tokens[idx + 1 :]
 
 
@@ -446,16 +499,19 @@ def classify(command: str, error_text: str) -> str:
     `error_text` is truncated to `_MAX_ERROR_TEXT_LEN` characters before any
     regex runs: classification signals are near the start of stderr, so
     this costs no accuracy while bounding the cost of `_NO_SUCH_FILE_RE`
-    (O(L^2) on a long non-matching single line) against arbitrarily long,
-    untrusted transcript text. The `_no_such_file_token` scan itself runs
-    once here and is shared by `_is_tool_not_present` and
-    `_is_working_directory_error` rather than each re-scanning."""
+    (backtracking-shaped on a long non-matching single line) against
+    arbitrarily long, untrusted transcript text. The `_no_such_file_token`
+    scan itself runs at most once here -- skipped entirely for a `quoting`
+    match, since that bucket never consults it -- and is shared by
+    `_is_tool_not_present` and `_is_working_directory_error` rather than
+    each re-scanning."""
     text = (error_text or "").strip()[:_MAX_ERROR_TEXT_LEN]
     cmd = command or ""
-    no_such_file_token = _no_such_file_token(text)
 
     if _is_quoting_error(text):
         return "quoting"
+
+    no_such_file_token = _no_such_file_token(text)
     if _is_tool_not_present(cmd, text, no_such_file_token):
         return "tool-not-present"
     if _is_working_directory_error(cmd, text, no_such_file_token):

@@ -524,6 +524,32 @@ def test_classify_disambiguates_tool_not_present_from_working_directory():
     assert bft.classify(command, error_text) == "tool-not-present"
 
 
+def test_classify_compound_command_attributes_to_the_last_sub_command():
+    """Backstop review finding (#2038/#2039 checkpoint): `classify()` used to
+    tokenize the WHOLE command line, so a `&&`-chain's first sub-command was
+    always treated as "the invoked binary" and every later token -- including
+    a later sub-command's own binary name -- as "its argument". Here `cd`
+    (the first sub-command) succeeds; `./missing-tool` (the second, and the
+    one that actually produced the error) genuinely does not exist. Before
+    the fix this misclassified as `working-directory` purely because the
+    command happened to start with `cd`; it must be `tool-not-present`."""
+    command = "cd /tmp && ./missing-tool --flag"
+    error_text = "bash: ./missing-tool: No such file or directory"
+
+    assert bft.classify(command, error_text) == "tool-not-present"
+
+
+def test_classify_compound_command_working_directory_argument_still_works():
+    """The other half of the same fix: a missing-argument error for a
+    resolvable LAST sub-command in a chain must still land in
+    `working-directory`, matching the single-command case -- the fix must
+    not simply flip every compound command to `tool-not-present`."""
+    command = "cd /tmp && cat missing.txt"
+    error_text = "cat: missing.txt: No such file or directory"
+
+    assert bft.classify(command, error_text) == "working-directory"
+
+
 def test_classify_bare_exit_code_only_is_unclassified_not_genuine_error():
     assert bft.classify("false", "1") == "unclassified"
 

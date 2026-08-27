@@ -739,10 +739,14 @@ def _to_plain_commits(commits, excludes) -> list:
     re-implements `is_excluded`'s glob matching, and never imports `Commit`.
 
     A commit whose every path is excluded (e.g. touched only
-    `node_modules/*`) is dropped entirely rather than passed through with an
-    empty `paths` list -- it must not count toward `commits_scanned`, mirroring
-    the rest of this module's rule that an excluded file leaves no trace in
-    any count, not just the ranked output.
+    `node_modules/*`), or a genuinely path-less `--allow-empty` commit, is
+    dropped entirely rather than passed through with an empty `paths`
+    list -- it must not be counted or ranked as a per-file edit anywhere in
+    `churn_recurrence.py`'s output. `run()` overrides `commits_scanned`
+    after calling `rank_all_files` with this function's output, restoring
+    the count to the full pre-filter window so the field means the same
+    thing (the scanned window size, matching `build_report`'s own
+    unconditional `len(commits)`) in both `--all-files` and default mode.
     """
     plain = []
     for commit in commits:
@@ -788,6 +792,11 @@ def run(args) -> str:
                 "This should not happen from git_log_commits's own output; "
                 "check for corrupted or hand-built commit input.",
             ) from timestamp_error
+        # rank_all_files's own commits_scanned reflects the excludes-filtered
+        # plain-commit list _to_plain_commits built (see its docstring) --
+        # override with the full pre-filter window so this field means the
+        # same thing here as it does in build_report's default-mode report.
+        report["commits_scanned"] = len(commits)
         report["window"] = f"{args.since} days"
         report["truncated"] = bool(args.max_commits and len(commits) >= args.max_commits)
         return (

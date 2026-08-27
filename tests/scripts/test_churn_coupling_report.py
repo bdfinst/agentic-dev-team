@@ -32,6 +32,13 @@ from _repo_root import REPO_ROOT
 _SCRIPT = REPO_ROOT / "scripts" / "churn_coupling_report.py"
 _GOLDEN_FIXTURE = REPO_ROOT / "tests" / "fixtures" / "churn_coupling_existing_mode_golden.txt"
 
+#: Hermetic git env for the golden-fixture repo (see `_seed_golden_repo`
+#: below): strips the host's global/system git config so a developer's
+#: `~/.gitconfig` (custom `init.defaultBranch`, `core.autocrlf`, hooks,
+#: etc.) cannot alter this repo's byte-identical commit history -- matching
+#: `tests/repo/test_bash_failure_taxonomy_baseline.py`'s own `_ENV` convention.
+_HERMETIC_GIT_ENV = {**os.environ, "GIT_CONFIG_GLOBAL": os.devnull, "GIT_CONFIG_SYSTEM": os.devnull}
+
 #: Pinned base date for the golden-fixture repo's commit history (see
 #: `_seed_golden_repo` below) -- arbitrary but fixed, so the history is
 #: byte-identical across machines and runs rather than merely deterministic
@@ -486,6 +493,7 @@ def _git(repo, *args):
         check=True,
         capture_output=True,
         text=True,
+        env=_HERMETIC_GIT_ENV,
     )
 
 
@@ -536,7 +544,7 @@ def _commit_at(repo, when, message):
     and runs, not merely deterministic in commit order -- load-bearing for
     Slice 2's later commit-gap reasoning (#2039) over this same repo.
     """
-    env = dict(os.environ)
+    env = dict(_HERMETIC_GIT_ENV)
     env["GIT_AUTHOR_DATE"] = when.isoformat()
     env["GIT_COMMITTER_DATE"] = when.isoformat()
     subprocess.run(
@@ -576,7 +584,10 @@ def _seed_golden_repo(root):
     """
     root.mkdir(parents=True, exist_ok=True)
     subprocess.run(
-        ["git", "init", "-q", "-b", "main", str(root)], check=True, capture_output=True
+        ["git", "init", "-q", "-b", "main", str(root)],
+        check=True,
+        capture_output=True,
+        env=_HERMETIC_GIT_ENV,
     )
     steps = [
         (0, {"src/alpha.py": "a1", "tests/test_alpha.py": "t1", "src/beta.py": "b1",
@@ -903,20 +914,31 @@ class TestTrackedPaths:
         assert "tests/test_alpha.py" in ranked_paths
         assert "tests/test_alpha.py" not in unattributed_paths
 
-    def test_excluded_commits_are_dropped_from_commits_scanned(self, all_files_repo, capsys):
-        """Finding 4 (correctness review): a commit whose every path is
-        excluded (here, the "vendor churn" commit, which touches only
-        node_modules/pkg/foo.js) must not count toward `commits_scanned` --
-        the scenario's own docstring says an excluded file leaves no trace in
-        `any count`, not just the ranked/unattributed output. `_seed_all_files_repo`
-        has 3 commits total; the third touches only the excluded path.
+    def test_excluded_only_commits_still_count_toward_commits_scanned(
+        self, all_files_repo, capsys
+    ):
+        """Backstop review finding (#2038/#2039 checkpoint): `commits_scanned`
+        must mean the same thing in `--all-files` mode as it does in default
+        mode -- `build_report`'s own `commits_scanned` is unconditionally
+        `len(commits)` over the FULL scanned window, regardless of whether a
+        commit's paths are excluded from ranking. `_seed_all_files_repo` has 3
+        commits total; the third ("vendor churn") touches only the excluded
+        `node_modules/pkg/foo.js` path, so it must contribute NOTHING to any
+        file's ranking or edit count, but must still be counted as one of the
+        3 scanned commits -- not silently dropped from the window size, which
+        would make the same field mean two different things depending on
+        which mode produced the report.
         """
         code, out, _ = _run_cli(
             ["--repo", str(all_files_repo), "--since", "3650", "--all-files", "--json"], capsys
         )
         assert code == 0
         payload = json.loads(out)
-        assert payload["commits_scanned"] == 2
+        assert payload["commits_scanned"] == 3
+        ranked_and_unattributed_paths = {row["path"] for row in payload["rows"]} | {
+            item["path"] for item in payload["unattributed"]
+        }
+        assert "node_modules/pkg/foo.js" not in ranked_and_unattributed_paths
 
 
 class TestMissingCommitTimestampRefusal:
