@@ -45,6 +45,13 @@ err()     { printf '  %s✗%s %s\n' "$red" "$reset" "$1" >&2; }
 FAILURES=0
 note_failure() { FAILURES=$((FAILURES + 1)); }
 
+# --- verification helpers --------------------------------------------------
+# Sourced so the probe logic is unit-testable on its own
+# (tests/scripts/test_tool_probe.py). See that file's header for why every
+# verification below runs its tool instead of resolving it on PATH.
+# shellcheck source=scripts/lib/tool-probe.sh
+. "$REPO_ROOT/scripts/lib/tool-probe.sh"
+
 # --- package-manager detection ---------------------------------------------
 PM=""
 if command -v brew >/dev/null 2>&1; then
@@ -325,56 +332,51 @@ fi
 # Re-check everything from scratch so the summary reflects the real end state,
 # not what we believe we installed.
 section "Verifying"
-for tool in jq python3 uv; do
-  if command -v "$tool" >/dev/null 2>&1; then
-    ok "$tool"
-  else
-    err "$tool still missing"
-    note_failure
-  fi
+# Every check below RUNS its tool — see scripts/lib/tool-probe.sh for why
+# `command -v` is not sufficient.
+require_tool "jq"      "" jq --version
+require_tool "python3" "" python3 --version
+require_tool "uv"      "" uv --version
+
+# Python imports several dev gates rely on. `python3 -c "import X"` was already
+# a real runtime probe (it executes the import), so these keep their shape.
+for mod in yaml httpx; do
+  require_tool "python module: $mod" "declared in requirements-dev.txt" \
+    python3 -c "import $mod"
 done
 
-# Python imports several dev gates rely on (yaml + httpx) and the semgrep CLI.
-for mod in yaml httpx; do
-  if python3 -c "import $mod" >/dev/null 2>&1; then
-    ok "python module: $mod"
-  else
-    err "python module '$mod' not importable (declared in requirements-dev.txt)"
-    note_failure
-  fi
-done
-if command -v semgrep >/dev/null 2>&1 || python3 -c "import semgrep" >/dev/null 2>&1; then
-  ok "semgrep"
+# semgrep ships a console script; a module-only install still works via
+# `python3 -m semgrep`. Pick whichever exists, then VERIFY IT BY RUNNING IT —
+# resolving the name is what let a crashing semgrep report ✓ here.
+if command -v semgrep >/dev/null 2>&1; then
+  optional_tool "semgrep" "only needed if you run/modify the security-assessment plugin" \
+    semgrep --version
+elif python3 -c "import semgrep" >/dev/null 2>&1; then
+  optional_tool "semgrep (module)" "only needed if you run/modify the security-assessment plugin" \
+    python3 -m semgrep --version
 else
   warn "semgrep not found — only needed if you run/modify the security-assessment plugin"
 fi
 
 # graphify (optional). Native integration; build the repo graph on demand with
 # `graphify extract .` — the committed CLAUDE.md section + hooks then take over.
-if command -v graphify >/dev/null 2>&1; then
-  ok "graphify"
-else
-  warn "graphify not found (optional) — a code knowledge graph for this repo; see CLAUDE.md Prerequisites"
-fi
+optional_tool "graphify" "optional — a code knowledge graph for this repo; see CLAUDE.md Prerequisites" \
+  graphify --version
 
 # --- Java static-analysis lane (warn-only) ---------------------------------
 # PMD backs /build's Java lane in downstream Java projects; this repo has no
 # Java code, so absence never fails setup.
-if command -v pmd >/dev/null 2>&1; then
-  ok "pmd"
-else
-  warn "pmd not found — only needed for Java projects; install repo-locally with: python3 plugins/dev-team/scripts/install-java-static-analysis.py"
-fi
+# PMD spells its version flag `--version` (7.x) and `-version` (6.x). Probe
+# both rather than guessing: with the wrong flag a perfectly good PMD would
+# exit non-zero and be reported as broken — the mirror image of the bug this
+# section fixes. An absent pmd still exits 127 from either spelling.
+optional_tool "pmd" "only needed for Java projects; install repo-locally with: python3 plugins/dev-team/scripts/install-java-static-analysis.py" \
+  sh -c 'pmd --version 2>/dev/null || pmd -version'
 
 # ruff + mypy arrive via requirements-dev.txt (pip), like semgrep — verify the
 # CLIs the Python static-analysis lane probes for.
 for pytool in ruff mypy; do
-  if command -v "$pytool" >/dev/null 2>&1; then
-    ok "$pytool"
-  else
-    err "$pytool not found (declared in requirements-dev.txt)"
-    note_failure
-  fi
+  require_tool "$pytool" "declared in requirements-dev.txt" "$pytool" --version
 done
 
 # --- summary ---------------------------------------------------------------
