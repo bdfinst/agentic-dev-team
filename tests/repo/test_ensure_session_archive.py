@@ -37,6 +37,22 @@ def _scaffold_repo(root: Path, *, in_repo: bool = True) -> None:
             REPO_ROOT / "scripts" / "session_extract.py",
             root / "scripts" / "session_extract.py",
         )
+        # session_extract.py imports from plugins/dev-team/scripts/lib/
+        # session_log/ (#2042-#2044, epic #2040) -- the fake checkout needs
+        # that real dependency too, not just the script itself.
+        session_log_dir = (
+            root / "plugins" / "dev-team" / "scripts" / "lib" / "session_log"
+        )
+        shutil.copytree(
+            REPO_ROOT
+            / "plugins"
+            / "dev-team"
+            / "scripts"
+            / "lib"
+            / "session_log",
+            session_log_dir,
+            ignore=shutil.ignore_patterns("__pycache__"),
+        )
     claude_lib = root / ".claude" / "lib"
     claude_lib.mkdir(parents=True, exist_ok=True)
     shutil.copy(
