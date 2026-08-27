@@ -506,7 +506,10 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument(
         "--output-dir",
         default=None,
-        help="Directory to write artifacts (default: memory/recon-<slug>/ relative to CWD).",
+        help=(
+            "Directory to write artifacts (default: .claude/memory/ relative "
+            "to CWD, matching agents/codebase-recon.md's Contract section)."
+        ),
     )
     parser.add_argument(
         "--skip-llm",
@@ -528,9 +531,14 @@ def main(argv: list[str] | None = None) -> int:
         print(f"error: repo-root is not a directory: {root}", file=sys.stderr)
         return 2
 
-    # Derive default output dir from CWD + slug
+    # Default output dir matches the documented artifact contract
+    # (agents/codebase-recon.md's Contract section: always
+    # .claude/memory/recon-<slug>.json) — the same path orchestrator.py's
+    # _recon_artifact_path() reads. Prior default (memory/recon-<slug>/,
+    # relative to CWD) was the pre-.claude/ legacy location plus an extra
+    # per-slug directory level nothing reads (#2069).
     if args.output_dir is None:
-        output_dir = Path.cwd() / "memory" / f"recon-{derive_slug(root)}"
+        output_dir = Path.cwd() / ".claude" / "memory"
     else:
         output_dir = Path(args.output_dir)
 
