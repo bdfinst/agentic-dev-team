@@ -4,7 +4,7 @@ name: vue-reactivity-review
 description: Vue ref/reactive unwrapping pitfalls, watchEffect dependency tracking, reactive proxy escapes, composition API subscription leaks
 tools: Read, Grep, Glob, mcp__codegraph__*, mcp__plugin_repowise_repowise__get_context, mcp__plugin_repowise_repowise__get_symbol, mcp__plugin_repowise_repowise__search_codebase, mcp__plugin_repowise_repowise__get_risk
 model: haiku
-effort: high
+effort: medium
 color: green
 ---
 
