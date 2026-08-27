@@ -1,9 +1,45 @@
 {
   "accuracy": {
-    "tool_calls": 5,
+    "by_agent": {
+      "correctness-review": 2,
+      "unattributed": 3
+    },
+    "by_skill": {
+      "plan": 3,
+      "unattributed": 2
+    },
+    "correction_causes": {
+      "ambiguous_share": 0.2,
+      "by_component": {
+        "correctness-review": 2,
+        "main-loop": 2,
+        "plan": 1
+      },
+      "by_shape": {
+        "ambiguous": 1,
+        "flagged-wrong": 1,
+        "not-what-asked": 1,
+        "redirected": 1,
+        "reverted": 1
+      },
+      "by_what": {
+        "code-edit": 1,
+        "factual-claim": 1,
+        "plan": 1,
+        "review-finding": 1,
+        "tool-choice": 1
+      }
+    },
+    "correction_rate_by_agent": {
+      "correctness-review": 2.0
+    },
+    "correction_rate_by_skill": {
+      "plan": 3.0
+    },
+    "tool_calls": 8,
     "tool_error_rate": 0.0,
     "tool_errors_by_tool": {},
-    "user_correction_turns": 0
+    "user_correction_turns": 5
   },
   "gate": {
     "bypass_rate": 0.0,
@@ -48,10 +84,10 @@
         "cache_creation_input_tokens": 20,
         "cache_read_input_tokens": 10,
         "context_per_dispatch": null,
-        "context_tokens": 155,
+        "context_tokens": 170,
         "dispatches": 0,
-        "input_tokens": 125,
-        "messages": 6,
+        "input_tokens": 140,
+        "messages": 9,
         "output_tokens": 0
       },
       "unattributed": {
@@ -69,21 +105,23 @@
       "claude-sonnet-5": {
         "cache_creation_input_tokens": 35,
         "cache_read_input_tokens": 25,
-        "input_tokens": 305,
-        "output_tokens": 165
+        "input_tokens": 320,
+        "output_tokens": 180
       }
     },
     "cache_hit_ratio": 0.4167,
     "totals": {
       "cache_creation_input_tokens": 35,
       "cache_read_input_tokens": 25,
-      "input_tokens": 305,
-      "output_tokens": 165
+      "input_tokens": 320,
+      "output_tokens": 180
     }
   },
   "transcripts": 1,
   "utilization": {
-    "agent_dispatches": {},
+    "agent_dispatches": {
+      "correctness-review": 1
+    },
     "agents_invoked": {
       "correctness-review": 1,
       "doc-review": 1,
@@ -95,6 +133,8 @@
     "never_observed_skills": [
       "never-invoked-skill"
     ],
-    "skills_invoked": {}
+    "skills_invoked": {
+      "plan": 1
+    }
   }
 }

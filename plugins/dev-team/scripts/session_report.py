@@ -67,7 +67,7 @@ from pathlib import Path
 # is needed (unlike scripts/session_extract.py, which reaches across from
 # the repo root).
 sys.path.insert(0, str(Path(__file__).resolve().parent / "lib"))
-from session_log import classify, discovery, records, redact, signals
+from session_log import classify, corrections, discovery, records, redact, signals
 
 _redact = redact.redact
 
@@ -131,6 +131,13 @@ _accumulate_skill_agent_signals = signals.accumulate_skill_agent_signals
 _slim = records.slim_by_name
 _iter_file_records = records.iter_file_records
 
+# --------------------------------------------------------------------------
+# Correction cause-data classification (session_log.corrections, #2013).
+# --------------------------------------------------------------------------
+_new_correction_context = corrections.new_context
+_observe_assistant_turn = corrections.observe_assistant_turn
+_classify_correction = corrections.classify_correction
+
 _VERSION_RE = re.compile(r"^[0-9A-Za-z._+-]{1,32}$")
 
 # --------------------------------------------------------------------------
@@ -167,6 +174,52 @@ def _load_plugin_version(plugin_root: Path | None = None) -> str:
     except (OSError, ValueError):
         pass
     return "unknown"
+
+
+def _new_correction_causes_state() -> dict:
+    """Fresh accumulator for correction cause-data (#2013): three label
+    Counters plus the ambiguous-shape tally, scoped to one `extract_*()`
+    call (across every transcript file it processes) -- NOT reset per
+    file, unlike `turn_context`/`active`/`thread` below."""
+    return {"by_what": Counter(), "by_component": Counter(), "by_shape": Counter(), "ambiguous": 0}
+
+
+def _record_correction_cause(state: dict, turn_context: dict, dispatch, text: str) -> None:
+    """Classify one detected correction turn and fold it into `state`."""
+    cause = _classify_correction(turn_context, dispatch, text)
+    state["by_what"][cause["what"]] += 1
+    state["by_component"][cause["component"]] += 1
+    state["by_shape"][cause["shape"]] += 1
+    if cause["confidence"] == "low":
+        state["ambiguous"] += 1
+
+
+def _finalize_correction_causes(state: dict, correction_turns: int) -> dict:
+    """The `accuracy.correction_causes` object: three sorted label
+    breakdowns plus the honest inference-share statistic (issue #2013
+    acceptance: "the inference share reported rather than hidden")."""
+    return {
+        "by_what": dict(sorted(state["by_what"].items())),
+        "by_component": dict(sorted(state["by_component"].items())),
+        "by_shape": dict(sorted(state["by_shape"].items())),
+        "ambiguous_share": round(state["ambiguous"] / correction_turns, 4)
+        if correction_turns
+        else 0.0,
+    }
+
+
+def _correction_rate_map(numerator: Counter, denominator: Counter) -> dict:
+    """Correction RATE per dispatch/invocation (issue #2013 acceptance:
+    "correction rate per dispatch is queryable by agent and by skill"),
+    mirroring `signals.finalize_agent_buckets`'s `context_per_dispatch`
+    pattern: a name with zero dispatches contributes no entry at all
+    (never a 0.0 that would misrank an uninvoked skill/agent as
+    "corrected 0% of the time")."""
+    return {
+        name: round(numerator.get(name, 0) / n, 4)
+        for name, n in sorted(denominator.items())
+        if n
+    }
 
 
 def load_registry(plugin_root: Path | None = None) -> dict:
@@ -323,6 +376,7 @@ def extract_maintainer(
     correction_turns = 0
     correction_by_skill = Counter()
     correction_by_agent = Counter()
+    correction_causes = _new_correction_causes_state()
 
     skills_invoked = Counter()
 
@@ -341,6 +395,7 @@ def extract_maintainer(
         thread = signals.new_thread()
         pending_tool = {}
         active = {"skill": None, "agent": None}
+        turn_context = _new_correction_context()
 
         for rec in _iter_records([path]):
             records_seen += 1
@@ -413,6 +468,9 @@ def extract_maintainer(
                     bucket["output_tokens"] += safe_usage["output_tokens"]
 
             content = msg.get("content")
+            observed_turn = _observe_assistant_turn(rec, content)
+            if observed_turn is not None:
+                turn_context = observed_turn
             _accumulate_skill_agent_signals(
                 skill, content, skills_invoked, agent_dispatches, active
             )
@@ -451,6 +509,9 @@ def extract_maintainer(
                 correction_turns += 1
                 correction_by_skill[active["skill"] or "unattributed"] += 1
                 correction_by_agent[active["agent"] or "unattributed"] += 1
+                _record_correction_cause(
+                    correction_causes, turn_context, active.get("last"), _text_of(content)
+                )
 
         label = agent_name or (_UNATTRIBUTED_LABEL if is_subagent else _MAIN_LABEL)
         if thread_msgs:
@@ -533,6 +594,11 @@ def extract_maintainer(
             "user_correction_turns": correction_turns,
             "by_skill": dict(sorted(correction_by_skill.items())),
             "by_agent": dict(sorted(correction_by_agent.items())),
+            "correction_rate_by_skill": _correction_rate_map(correction_by_skill, skills_invoked),
+            "correction_rate_by_agent": _correction_rate_map(
+                correction_by_agent, agent_dispatches
+            ),
+            "correction_causes": _finalize_correction_causes(correction_causes, correction_turns),
         },
         "gate": {
             "commit_attempts": commit_attempts,
@@ -1291,13 +1357,15 @@ def _append_trend(log: Path, digest: dict) -> None:
 # ==========================================================================
 
 
-def _accumulate_skill_agent_signals_downstream(content, skills_invoked, agent_dispatches):
+def _accumulate_skill_agent_signals_downstream(content, skills_invoked, agent_dispatches, active):
     """Thin wrapper over the shared signals.accumulate_skill_agent_signals:
-    this profile has no `attributionSkill` legacy-fallback concept and no
-    by_skill/by_agent correction-turn breakdown, so `skill` is always None
-    and `active` is a throwaway dict this profile never reads back."""
+    this profile has no `attributionSkill` legacy-fallback concept, so
+    `skill` is always None. `active` (#2013) IS read back here, unlike
+    before #2013 -- the correction cause-data classifier's `component`
+    field needs the same sticky skill/agent pointer the maintainer profile
+    already tracked for its `by_skill`/`by_agent` correction breakdown."""
     signals.accumulate_skill_agent_signals(
-        None, content, skills_invoked, agent_dispatches, {}
+        None, content, skills_invoked, agent_dispatches, active
     )
 
 
@@ -1324,6 +1392,9 @@ def extract_downstream(
     tool_errors = Counter()
     tool_calls = Counter()
     correction_turns = 0
+    correction_by_skill = Counter()
+    correction_by_agent = Counter()
+    correction_causes = _new_correction_causes_state()
     retried_bash = 0
 
     skills_invoked = Counter()
@@ -1343,6 +1414,8 @@ def extract_downstream(
         thread_msgs = 0
         thread_usage = _new_agent_bucket()
         records_in_window = 0
+        active: dict[str, str | None] = {"skill": None, "agent": None}
+        turn_context = _new_correction_context()
 
         for rec in _iter_file_records(path):
             sid = rec.get("sessionId") or rec.get("session_id")
@@ -1384,7 +1457,12 @@ def extract_downstream(
                     thread_usage[field] += usage.get(field, 0) or 0
 
             content = msg.get("content")
-            _accumulate_skill_agent_signals_downstream(content, skills_invoked, agent_dispatches)
+            observed_turn = _observe_assistant_turn(rec, content)
+            if observed_turn is not None:
+                turn_context = observed_turn
+            _accumulate_skill_agent_signals_downstream(
+                content, skills_invoked, agent_dispatches, active
+            )
 
             if isinstance(content, list):
                 for block in content:
@@ -1400,6 +1478,11 @@ def extract_downstream(
 
             if not is_subagent and _detect_correction_turn(rec, content):
                 correction_turns += 1
+                correction_by_skill[active["skill"] or "unattributed"] += 1
+                correction_by_agent[active["agent"] or "unattributed"] += 1
+                _record_correction_cause(
+                    correction_causes, turn_context, active.get("last"), _text_of(content)
+                )
 
         label = agent_name or (_UNATTRIBUTED_LABEL if is_subagent else _MAIN_LABEL)
         if thread_msgs:
@@ -1455,6 +1538,13 @@ def extract_downstream(
             "tool_calls": total_calls,
             "tool_error_rate": round(total_errors / total_calls, 4) if total_calls else 0.0,
             "user_correction_turns": correction_turns,
+            "by_skill": dict(sorted(correction_by_skill.items())),
+            "by_agent": dict(sorted(correction_by_agent.items())),
+            "correction_rate_by_skill": _correction_rate_map(correction_by_skill, skills_invoked),
+            "correction_rate_by_agent": _correction_rate_map(
+                correction_by_agent, agent_dispatches
+            ),
+            "correction_causes": _finalize_correction_causes(correction_causes, correction_turns),
         },
         "gate": {
             "commit_attempts": bash_signal_counts["commit_attempts"],
@@ -1495,6 +1585,11 @@ def combine(digests: dict[str, dict], registry: dict) -> dict:
     tool_calls = 0
     err_weighted = 0.0
     corrections = 0
+    correction_by_skill = Counter()
+    correction_by_agent = Counter()
+    correction_by_what = Counter()
+    correction_by_component = Counter()
+    correction_by_shape = Counter()
     commit_attempts = commit_bypasses = 0
     skills_invoked = Counter()
     agents_invoked = Counter()
@@ -1524,6 +1619,12 @@ def combine(digests: dict[str, dict], registry: dict) -> dict:
         tool_calls += n
         err_weighted += acc["tool_error_rate"] * n
         corrections += acc["user_correction_turns"]
+        _merge_counters(correction_by_skill, acc.get("by_skill", {}))
+        _merge_counters(correction_by_agent, acc.get("by_agent", {}))
+        causes = acc.get("correction_causes", {})
+        _merge_counters(correction_by_what, causes.get("by_what", {}))
+        _merge_counters(correction_by_component, causes.get("by_component", {}))
+        _merge_counters(correction_by_shape, causes.get("by_shape", {}))
 
         gate = d["gate"]
         commit_attempts += gate["commit_attempts"]
@@ -1559,6 +1660,20 @@ def combine(digests: dict[str, dict], registry: dict) -> dict:
             "tool_calls": tool_calls,
             "tool_error_rate": round(err_weighted / tool_calls, 4) if tool_calls else 0.0,
             "user_correction_turns": corrections,
+            "by_skill": dict(sorted(correction_by_skill.items())),
+            "by_agent": dict(sorted(correction_by_agent.items())),
+            "correction_rate_by_skill": _correction_rate_map(correction_by_skill, skills_invoked),
+            "correction_rate_by_agent": _correction_rate_map(
+                correction_by_agent, agent_dispatches
+            ),
+            "correction_causes": {
+                "by_what": dict(sorted(correction_by_what.items())),
+                "by_component": dict(sorted(correction_by_component.items())),
+                "by_shape": dict(sorted(correction_by_shape.items())),
+                "ambiguous_share": round(correction_by_shape.get("ambiguous", 0) / corrections, 4)
+                if corrections
+                else 0.0,
+            },
         },
         "gate": {
             "commit_attempts": commit_attempts,

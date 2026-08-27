@@ -137,7 +137,9 @@ def test_iter_file_records_missing_file_yields_nothing(tmp_path):
 
 def test_iter_file_records_against_corpus():
     recs = list(records.iter_file_records(CORPUS_MAIN_TRANSCRIPT))
-    assert len(recs) == 9
+    # 9 original records + 9 correction-turn cause-data fixture records
+    # (issue #2013) appended to the main-thread transcript.
+    assert len(recs) == 18
 
 
 # ---------------------------------------------------------------------------
