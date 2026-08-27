@@ -297,6 +297,31 @@ def test_frontmatter_argument_hint_includes_max_batch_size():
     assert grep(r"\[--max-batch-size N\]", fm)
 
 
+# --- Issue #2073: --max-batch-size cross-validated against --max-issues ----
+
+
+def test_parse_arguments_documents_max_batch_size_cap_cross_validation():
+    section_text = collapsed(parse_arguments_section(_text()))
+    assert grep(
+        r"Cross-validate `--max-batch-size` against `--max-issues` \(#2073\)",
+        section_text,
+    )
+    assert grep(
+        r"greater\s*than `--max-issues`, print this message and stop, without "
+        r"proceeding to\s*Step 1",
+        section_text,
+    )
+
+
+def test_parse_arguments_max_batch_size_cap_stop_message_matches_usage_style():
+    section_text = parse_arguments_section(_text())
+    assert (
+        "autoship: --max-batch-size <B> cannot exceed --max-issues <N>."
+        in section_text
+    )
+    assert grep(r"Usage: /autoship.*--max-batch-size N", section_text)
+
+
 def test_step_2_threads_max_batch_size_into_both_fences():
     section_text = _step_2_section()
     assert section_text.count('--max-batch-size "<max_batch_size>"') >= 2

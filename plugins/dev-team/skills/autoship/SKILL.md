@@ -66,6 +66,21 @@ autoship: --max-issues and --max-cost-usd are both required.
 Usage: /autoship --max-issues N --max-cost-usd N [--dry-run] [--label LABEL] [--max-batch-size N]
 ```
 
+**Cross-validate `--max-batch-size` against `--max-issues` (#2073).** A batch
+larger than `--max-issues` can never be admitted into the queue — `Step 2`'s
+`autoship_queue.py --max-issues <N>` defers a whole unit rather than
+splitting it, so a batch sized above the round's own cap is permanently
+undispatchable and every round that produces one repeats the same
+`no_unit_fits_cap` early exit until an operator notices and reruns with
+compatible caps. If `--max-batch-size` is given and its value is greater
+than `--max-issues`, print this message and stop, without proceeding to
+Step 1:
+
+```
+autoship: --max-batch-size <B> cannot exceed --max-issues <N>.
+Usage: /autoship --max-issues N --max-cost-usd N [--dry-run] [--label LABEL] [--max-batch-size N]
+```
+
 ## gh CLI availability (#1700)
 
 Check once, before Step 1: `command -v gh`.
