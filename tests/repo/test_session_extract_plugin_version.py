@@ -930,3 +930,68 @@ def test_rollup_survives_a_non_dict_inner_utilization_field(
     data = json.loads(result.stdout)
     assert data["sessions"] == 2
     assert data["utilization"]["skills_invoked"] == {"plan": 1}
+
+
+# ---------------------------------------------------------------------------
+# #2079: _safe_number bounded magnitude but not sign
+# ---------------------------------------------------------------------------
+
+
+def test_safe_number_clamps_negative_values_directly(monkeypatch) -> None:
+    """Unit-level pin on `_safe_number` itself, alongside the existing
+    magnitude/finiteness cases the end-to-end tests below cover: a negative
+    value is exactly as untrusted as a non-numeric one and must clamp to 0,
+    the same way NaN/Infinity/oversized-magnitude already do."""
+    monkeypatch.syspath_prepend(str(REPO_ROOT / "scripts"))
+    import session_extract
+
+    assert session_extract._safe_number(-999) == 0
+    assert session_extract._safe_number(-0.5) == 0
+    assert session_extract._safe_number(-(2**53) - 1) == 0  # negative AND oversized
+    assert session_extract._safe_number(0) == 0
+    assert session_extract._safe_number(5) == 5
+    assert session_extract._safe_number(3.5) == 3.5
+
+
+def test_rollup_negative_cost_usd_clamped_to_zero_not_subtracted(
+    tmp_path: Path,
+) -> None:
+    """#2079 finding 2/3: an unclamped negative `cost_usd` would subtract
+    from the cross-host total (and could drag cost_meter.py's CI regression
+    baseline mean to <= 0, silently disabling that gate). Must clamp to 0,
+    leaving the well-formed sibling's cost the whole rolled-up total."""
+    plugin_root = _fake_plugin_root(tmp_path, "10.23.0")
+    digests = tmp_path / "digests"
+    hostile = _base_sync_record("hostile-host", "p", "s-hostile")
+    hostile["cost_usd"] = -500.0
+    _write_digest(digests, "hostile-host", [hostile])
+    well_formed = _base_sync_record("good-host", "p", "s-good")
+    well_formed["cost_usd"] = 6.0
+    _write_digest(digests, "good-host", [well_formed])
+    result = _run("--rollup", str(digests), "--plugin-root", str(plugin_root))
+    assert result.returncode == 0, result.stdout + result.stderr
+    data = json.loads(result.stdout)
+    assert data["cost_usd"] == 6.0
+    assert "good-host" in data["hosts"]
+
+
+def test_rollup_negative_skill_count_does_not_corrupt_cross_host_sum(
+    tmp_path: Path,
+) -> None:
+    """#2079 finding 1: an unclamped hostile `{"code-review": -999}` would
+    drive the CROSS-HOST Counter negative -- combined with the `c > 0` gate
+    `rollup()` uses for never_observed_skills/never_observed_agents, that
+    silently evicts a skill OTHER hosts genuinely invoked from
+    `invoked_skills`. The genuinely-invoked count must survive intact."""
+    plugin_root = _fake_plugin_root(tmp_path, "10.23.0")
+    digests = tmp_path / "digests"
+    hostile = _base_sync_record("hostile-host", "p", "s-hostile")
+    hostile["utilization"]["skills_invoked"] = {"code-review": -999}
+    _write_digest(digests, "hostile-host", [hostile])
+    well_formed = _base_sync_record("good-host", "p", "s-good")
+    well_formed["utilization"]["skills_invoked"] = {"code-review": 3}
+    _write_digest(digests, "good-host", [well_formed])
+    result = _run("--rollup", str(digests), "--plugin-root", str(plugin_root))
+    assert result.returncode == 0, result.stdout + result.stderr
+    data = json.loads(result.stdout)
+    assert data["utilization"]["skills_invoked"] == {"code-review": 3}
