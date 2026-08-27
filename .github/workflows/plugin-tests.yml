@@ -243,7 +243,8 @@ jobs:
           github.event.pull_request.head.repo.fork == false }}
         run: |
           git clone --depth 1 git@github.com:bdfinst/agent-telemetry.git /tmp/telemetry
-          python3 scripts/session_extract.py --cost-log /tmp/telemetry/digests \
+          python3 plugins/dev-team/scripts/session_report.py --profile maintainer \
+            --cost-log /tmp/telemetry/digests \
             -o /tmp/telemetry-cost-log.jsonl
           echo "COST_BASELINE_LOG=/tmp/telemetry-cost-log.jsonl" >> "$GITHUB_ENV"
 
