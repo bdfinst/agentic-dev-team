@@ -135,6 +135,20 @@ def test_tech_writer_persona_is_exactly_tech_writer():
     assert orch.TECH_WRITER_PERSONA == "tech-writer"
 
 
+def test_classify_timeout_is_exactly_30_seconds():
+    """CLASSIFY_TIMEOUT_S must equal exactly 30 (follow-up #1716) — an
+    accidental edit to this constant should fail this test directly instead
+    of only surfacing as a flaky/slow-CLI symptom in classify()'s own
+    subprocess.run call."""
+    assert orch.CLASSIFY_TIMEOUT_S == 30
+
+
+def test_persona_dispatch_timeout_is_exactly_60_seconds():
+    """PERSONA_DISPATCH_TIMEOUT_S must equal exactly 60 (follow-up #1716),
+    matching CLASSIFY_TIMEOUT_S's own pinning test above."""
+    assert orch.PERSONA_DISPATCH_TIMEOUT_S == 60
+
+
 def test_implement_wave_slices_is_exactly_the_single_synthetic_slice():
     """IMPLEMENT_WAVE_SLICES must equal exactly ("implement-1",) — the one
     normative definition of this persisted, operator-facing slice name,
@@ -943,6 +957,9 @@ async def test_default_phase_research_standard_dispatches_three_always_on_person
         )
 
     assert set(captured["personas"]) == RESEARCH_ALWAYS_ON
+    # Cardinality check (follow-up #1716): set-equality alone wouldn't
+    # catch a future accidental double-append to the persona list.
+    assert len(captured["personas"]) == len(RESEARCH_ALWAYS_ON)
     # Independent expected literal, not a self-comparison against `captured`
     # (result["personas"] is literally the same list _default_phase_research
     # built and dispatch_personas echoed back — comparing it to `captured`
@@ -950,6 +967,9 @@ async def test_default_phase_research_standard_dispatches_three_always_on_person
     # equality, not list equality: the approved plan's Step 1.2 explicitly
     # states dispatch order is not a contract.
     assert set(result["personas"]) == RESEARCH_ALWAYS_ON
+    # Cardinality check (follow-up #1716): set-equality alone wouldn't
+    # catch a future accidental double-append to the persona list.
+    assert len(result["personas"]) == len(RESEARCH_ALWAYS_ON)
     # Negative case for the failed-persona WARNING: an all-success dispatch
     # must print nothing about failures.
     assert "WARNING: Research persona dispatch failed" not in capsys.readouterr().err
@@ -971,6 +991,9 @@ async def test_default_phase_research_complex_dispatches_same_always_on_personas
         )
 
     assert set(captured["personas"]) == RESEARCH_ALWAYS_ON
+    # Cardinality check (follow-up #1716): set-equality alone wouldn't
+    # catch a future accidental double-append to the persona list.
+    assert len(captured["personas"]) == len(RESEARCH_ALWAYS_ON)
 
 
 @pytest.mark.asyncio
@@ -985,6 +1008,9 @@ async def test_default_phase_research_adds_security_engineer_when_request_touche
         )
 
     assert set(captured["personas"]) == RESEARCH_ALWAYS_ON | {orch.SECURITY_ENGINEER_PERSONA}
+    # Cardinality check (follow-up #1716): set-equality alone wouldn't
+    # catch a future accidental double-append to the persona list.
+    assert len(captured["personas"]) == len(RESEARCH_ALWAYS_ON) + 1
 
 
 @pytest.mark.asyncio
@@ -1002,6 +1028,91 @@ async def test_default_phase_research_omits_security_engineer_when_no_signal():
     # a regression that also dropped e.g. "architect" from the always-on
     # trio would still pass a bare `not in` check.
     assert set(captured["personas"]) == RESEARCH_ALWAYS_ON
+    # Cardinality check (follow-up #1716): set-equality alone wouldn't
+    # catch a future accidental double-append to the persona list.
+    assert len(captured["personas"]) == len(RESEARCH_ALWAYS_ON)
+
+
+def test_derive_recon_slug_matches_codebase_recon_algorithm(tmp_path):
+    """orchestrator.py's slug derivation must stay byte-identical to
+    codebase_recon.py's own _derive_slug (the recon agent's Contract section
+    names the slug convention once; a drifted copy here would silently
+    compute the wrong artifact path). No mkdir needed: both functions only
+    call Path.resolve(strict=False) and do pure string transforms on
+    `.name` — the directory need not exist on disk for this comparison."""
+    from codebase_recon import _derive_slug
+
+    messy = tmp_path / "My Repo__Name!!"
+    assert orch._derive_recon_slug(messy) == _derive_slug(messy)
+
+
+def _seed_recon_artifact(tmp_path):
+    """Create a fake .claude/memory/recon-<slug>.json under tmp_path and
+    return its Path. Shared by the recon-artifact tests below that need an
+    existing-on-disk artifact, avoiding re-typing the same four-line setup
+    (test-smell finding, matching this file's existing
+    _capturing_dispatch_personas_stub extraction rationale)."""
+    recon_dir = tmp_path / ".claude" / "memory"
+    recon_dir.mkdir(parents=True)
+    slug = orch._derive_recon_slug(tmp_path)
+    artifact = recon_dir / f"recon-{slug}.json"
+    artifact.write_text("{}")
+    return artifact
+
+
+@pytest.mark.asyncio
+async def test_default_phase_research_links_recon_artifact_when_present(tmp_path, monkeypatch):
+    """When codebase-recon succeeds and its artifact file exists on disk,
+    the Research state links to it (follow-up #1716)."""
+    monkeypatch.chdir(tmp_path)
+    artifact = _seed_recon_artifact(tmp_path)
+
+    with patch.object(
+        orch, "dispatch_personas", side_effect=_capturing_dispatch_personas_stub({})
+    ):
+        result = await orch._default_phase_research(
+            "add a login form", {"size": "standard"}, skip_llm=False
+        )
+
+    assert result["recon_artifact"] == str(artifact)
+
+
+@pytest.mark.asyncio
+async def test_default_phase_research_recon_artifact_none_when_file_missing(tmp_path, monkeypatch):
+    """codebase-recon reporting success doesn't guarantee its artifact
+    exists on disk (e.g. --skip-llm never runs the real agent) — the link
+    is None rather than a dangling path in that case."""
+    monkeypatch.chdir(tmp_path)
+
+    with patch.object(
+        orch, "dispatch_personas", side_effect=_capturing_dispatch_personas_stub({})
+    ):
+        result = await orch._default_phase_research(
+            "add a login form", {"size": "standard"}, skip_llm=True
+        )
+
+    assert result["recon_artifact"] is None
+
+
+@pytest.mark.asyncio
+async def test_default_phase_research_recon_artifact_none_when_recon_failed(tmp_path, monkeypatch):
+    """A failed codebase-recon dispatch never links its artifact, even if a
+    stale file from a prior run happens to exist at that path."""
+    monkeypatch.chdir(tmp_path)
+    _seed_recon_artifact(tmp_path)
+
+    async def fake_dispatch_personas(personas, plan, skip_llm=False):
+        return [
+            {"persona": p, "status": "failed" if p == "codebase-recon" else "success"}
+            for p in personas
+        ]
+
+    with patch.object(orch, "dispatch_personas", side_effect=fake_dispatch_personas):
+        result = await orch._default_phase_research(
+            "add a login form", {"size": "standard"}, skip_llm=False
+        )
+
+    assert result["recon_artifact"] is None
 
 
 @pytest.mark.asyncio
@@ -1023,10 +1134,20 @@ async def test_default_phase_research_calls_dispatch_personas_with_task_and_requ
 
 
 @pytest.mark.asyncio
-async def test_run_pipeline_with_real_research_fn_writes_expected_json_shape():
+async def test_run_pipeline_with_real_research_fn_writes_expected_json_shape(tmp_path, monkeypatch):
     """orchestrator-research.json's contents after a full run_pipeline run
     with the real (non-stub) research function and skip_llm=True match the
-    {personas, results, skip_llm} shape, using set-equality on personas."""
+    {personas, results, skip_llm, recon_artifact} shape, using set-equality
+    on personas.
+
+    Chdir's to an isolated tmp_path (rather than leaving CWD as whatever the
+    test runner's real invocation directory happens to be): recon_artifact
+    is resolved off Path.cwd(), so without this isolation the assertion
+    below would depend on whether a real .claude/memory/recon-<slug>.json
+    happens to exist wherever the suite is run from — a prior real
+    orchestrator run against this repo would silently flip this red with no
+    related code change (test-smell finding)."""
+    monkeypatch.chdir(tmp_path)
     with tempfile.TemporaryDirectory() as tmp:
         memory_dir = Path(tmp)
         exit_code = await orch.run_pipeline(
@@ -1038,11 +1159,17 @@ async def test_run_pipeline_with_real_research_fn_writes_expected_json_shape():
         state = orch.read_progress("research", memory_dir)
 
     assert exit_code == 0
-    assert set(state.keys()) == {"personas", "results", "skip_llm"}
+    assert set(state.keys()) == {"personas", "results", "skip_llm", "recon_artifact"}
     assert set(state["personas"]) == RESEARCH_ALWAYS_ON
+    # Cardinality check (follow-up #1716): set-equality alone wouldn't
+    # catch a future accidental double-append to the persona list.
+    assert len(state["personas"]) == len(RESEARCH_ALWAYS_ON)
     assert state["skip_llm"] is True
     assert {r["persona"] for r in state["results"]} == set(state["personas"])
     assert all(r["status"] == "success" for r in state["results"])
+    # skip_llm=True never runs the real codebase-recon agent, so no artifact
+    # file exists on disk regardless of dispatch success.
+    assert state["recon_artifact"] is None
     # skip_llm's stub contract (dispatch_persona) returns bare
     # {persona, status} — no "output"/"review_status" field. Asserting their
     # absence, not just status == "success", is what distinguishes a genuine
@@ -1070,6 +1197,9 @@ async def test_run_pipeline_with_real_research_fn_includes_security_engineer_in_
 
     assert exit_code == 0
     assert set(state["personas"]) == RESEARCH_ALWAYS_ON | {orch.SECURITY_ENGINEER_PERSONA}
+    # Cardinality check (follow-up #1716): set-equality alone wouldn't
+    # catch a future accidental double-append to the persona list.
+    assert len(state["personas"]) == len(RESEARCH_ALWAYS_ON) + 1
 
 
 @pytest.mark.asyncio
@@ -1089,6 +1219,9 @@ async def test_run_pipeline_with_real_research_fn_omits_security_engineer_in_wri
 
     assert exit_code == 0
     assert set(state["personas"]) == RESEARCH_ALWAYS_ON
+    # Cardinality check (follow-up #1716): set-equality alone wouldn't
+    # catch a future accidental double-append to the persona list.
+    assert len(state["personas"]) == len(RESEARCH_ALWAYS_ON)
     assert orch.SECURITY_ENGINEER_PERSONA not in state["personas"]
 
 
@@ -1112,6 +1245,9 @@ async def test_run_pipeline_with_real_research_fn_complex_classification_writes_
 
     assert exit_code == 0
     assert set(state["personas"]) == RESEARCH_ALWAYS_ON
+    # Cardinality check (follow-up #1716): set-equality alone wouldn't
+    # catch a future accidental double-append to the persona list.
+    assert len(state["personas"]) == len(RESEARCH_ALWAYS_ON)
 
 
 @pytest.mark.asyncio
