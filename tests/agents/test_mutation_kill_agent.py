@@ -120,7 +120,12 @@ def test_agent_body_stays_under_500_line_limit(text: str) -> None:
     # --min-kills-per-round on the flag list, including that a YIELD FLOOR
     # stop is an operator decision routed to [c/r/w/q] rather than a
     # convergence stop.
-    assert len(text.splitlines()) < 659
+    # Bumped by 26 more (#1951): added the "Shard pipeline exit codes"
+    # section documenting the full exit-code vocabulary (0/1/5, plus the
+    # three "a survivor was not addressed this run" outcomes that now share
+    # exit 5) and widened the stryker_shard_pipeline.py registry row to
+    # cross-reference it.
+    assert len(text.splitlines()) < 690
 
 
 def test_defines_honest_score_formula(text: str) -> None:
