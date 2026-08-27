@@ -325,19 +325,68 @@ def test_java_guide_points_to_project_init():
 # --- dev-setup.sh presence check
 
 
+TOOL_PROBE_LIB = REPO_ROOT / "scripts" / "lib" / "tool-probe.sh"
+
+
 def _dev_setup_pmd_block() -> str:
+    """The pmd verification block in dev-setup.sh.
+
+    Located by its `optional_tool "pmd"` call, not by the old
+    `if command -v pmd ... fi` shape. dev-setup.sh no longer verifies ANY tool
+    with `command -v`: that answers "does a file with this name exist" rather
+    than "does this tool work", and it let a fatally-broken semgrep report a
+    green check. Verification now runs the tool via scripts/lib/tool-probe.sh.
+
+    The two properties this guard exists for are unchanged: pmd's absence is
+    warn-only, and the message names the installer.
+    """
     text = DEV_SETUP.read_text()
-    match = re.search(r"^if command -v pmd .*?^fi$", text, re.MULTILINE | re.DOTALL)
-    assert match, "dev-setup.sh has no pmd presence check"
+    match = re.search(
+        r'^optional_tool "pmd" .*?(?=\n\n)', text, re.MULTILINE | re.DOTALL
+    )
+    assert match, "dev-setup.sh has no pmd verification"
     return match.group(0)
 
 
 def test_dev_setup_pmd_check_is_warn_only():
+    """Behavioral, not textual: an absent pmd must not fail the run.
+
+    The previous version of this test read the script and asserted the block
+    contained no `note_failure`. That worked while the check was inline, but
+    the severity now lives in the shared probe helper, so reading dev-setup.sh
+    can no longer see it. Running it can.
+    """
+    script = (
+        f'. "{TOOL_PROBE_LIB}"; '
+        'optional_tool "pmd" "install it if you need Java" '
+        "dev-team-absent-pmd --version; "
+        'printf "FAILURES=%s\\n" "$FAILURES"'
+    )
+    result = subprocess.run(
+        ["bash", "-c", script], capture_output=True, text=True, check=False
+    )
+    assert "FAILURES=0" in result.stdout, result.stdout + result.stderr
+    assert "not found" in result.stdout
+
+
+def test_dev_setup_pmd_probe_accepts_both_version_flag_spellings():
+    """PMD 7 spells it `--version`; PMD 6 spells it `-version`.
+
+    Now that the check RUNS pmd, probing only one spelling would report a
+    working PMD 6 as broken — the mirror image of the bug that motivated the
+    runtime probe. Both spellings must appear in the probe command.
+    """
     block = _dev_setup_pmd_block()
-    assert "warn" in block
-    assert "note_failure" not in block, "pmd absence must not affect the exit code"
-    assert "err " not in block
+    assert "--version" in block
+    # `"-version" in block` would be VACUOUS — it is a substring of
+    # "--version", so that assertion passes even when only the 7.x spelling is
+    # probed, and could never fail. Require a `-version` NOT preceded by
+    # another dash.
+    assert re.search(r"(?<!-)-version", block), block
 
 
 def test_dev_setup_pmd_check_names_the_installer():
-    assert "plugins/dev-team/scripts/install-java-static-analysis.py" in _dev_setup_pmd_block()
+    assert (
+        "plugins/dev-team/scripts/install-java-static-analysis.py"
+        in _dev_setup_pmd_block()
+    )

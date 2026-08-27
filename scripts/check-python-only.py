@@ -59,6 +59,16 @@ ALLOWLIST_EXACT_PATHS = {
     # so ci-local.sh can source it without a subprocess — #1118 / ADR 0014-0015
     # scope the Python rule to plugins/dev-team/.
     "scripts/lib/ci-timing.sh",
+    # Sibling of the above: the tool-verification helpers sourced by
+    # scripts/dev-setup.sh (itself a sanctioned repo-root shell entry point,
+    # kept as bash because it must run before Claude Code, the plugin, or a
+    # Python interpreter is installed). Bash is strictly required here rather
+    # than merely convenient: dev-setup.sh INSTALLS python3, and its Verifying
+    # section has to be able to report "python3 still missing" — a Python
+    # verifier could not run in the one case it most needs to report. Sourcing
+    # also lets the helpers share the caller's ok/warn/err output helpers and
+    # its FAILURES counter without a subprocess round-trip per tool.
+    "scripts/lib/tool-probe.sh",
 }
 
 # Directory prefixes the allowlist exempts wholesale (trailing "/").
