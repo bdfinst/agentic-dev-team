@@ -453,6 +453,7 @@ chk_python_floor() {
     tests/scripts/test_token_efficiency_review_script.py \
     tests/scripts/test_claude_setup_review.py \
     tests/scripts/test_extract_session_report.py \
+    tests/scripts/test_session_report_profiles_golden.py \
     plugins/dev-team/tests/scripts/test_coverage_config.py \
     plugins/dev-team/tests/scripts/test_coverage_discovery_dotnet.py \
     plugins/dev-team/tests/scripts/test_coverage_discovery_js.py \

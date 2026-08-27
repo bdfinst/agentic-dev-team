@@ -54,77 +54,41 @@ REGENERATING GOLDENS: an intended behavior change must be a reviewable
     python3 tests/scripts/test_session_report_golden.py
 
 then re-run this file under pytest and review the resulting `git diff`.
+
+SESSION_REPORT.PY (#2046): the new unified `--profile` CLI's own golden
+coverage — asserting its two profiles match these same goldens (modulo the
+documented schema-version bump) — lives in the SIBLING file
+`test_session_report_profiles_golden.py`, not here. That split matters for
+one mechanical reason, not just organization: `session_report.py` ships
+under `plugins/dev-team/scripts/` and must run on the 3.10 floor interpreter
+(ADR 0031), so its test file is in `tests/repo/test_python_floor.py`'s
+`FLOOR_TEST_SLICE`. This file's own `test_session_extract_matches_golden`
+imports `scripts/session_extract.py`, a monorepo-only script that legitimately
+uses `datetime.UTC` (3.11+) because it is NOT subject to that floor — mixing
+the two in one file would have made the floor gate fail on an unrelated,
+by-design exemption the instant this file joined its test slice.
 """
 
 from __future__ import annotations
 
-import importlib.util
 import json
-import sys
-import types
-from pathlib import Path
 
-# Under pytest, pytest.ini's `pythonpath = .` already makes `_repo_root`
-# importable. The regeneration entry point at the bottom of this file runs as
-# `python3 tests/scripts/test_session_report_golden.py` instead, with no such
-# pythonpath — so make the repo root importable here too, before relying on it.
-sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
-
-from _repo_root import REPO_ROOT
-
-FIXTURE_ROOT = REPO_ROOT / "tests" / "fixtures" / "session_log"
-CORPUS_ROOT = FIXTURE_ROOT / "projects"
-
-SESSION_EXTRACT_SCRIPT = REPO_ROOT / "scripts" / "session_extract.py"
-EXTRACT_SESSION_REPORT_SCRIPT = REPO_ROOT / "plugins" / "dev-team" / "scripts" / "extract_session_report.py"
-
-SESSION_EXTRACT_GOLDEN = FIXTURE_ROOT / "session_extract.golden.json"
-EXTRACT_SESSION_REPORT_GOLDEN = FIXTURE_ROOT / "extract_session_report.golden.json"
-
-# Fixed, literal registry — deliberately NOT the live plugin's agents/skills
-# dirs (see module docstring). Names match the corpus's `attributionAgent`
-# values (stripped of their `dev-team:` namespace) plus one never-invoked
-# agent/skill each, so `never_observed_*` has non-trivial content.
-REGISTRY = {
-    "skills": ["never-invoked-skill"],
-    "agents": ["correctness-review", "doc-review", "never-invoked-agent"],
-}
-
-# session_extract.py-only: a fixed pricing table so `token.cost_usd` is a
-# deterministic function of the corpus, independent of the shipped
-# knowledge/model-pricing.json (which changes for reasons unrelated to this
-# harness).
-PRICING = {
-    "models": {"claude-sonnet-5": {"input": 3.0, "output": 15.0}},
-    "cache_write_multiplier": 1.25,
-    "cache_read_multiplier": 0.1,
-}
-PLUGIN_VERSION = "0.0.0-golden"
-
-# Sentinel markers embedded in the corpus (see fixture files under
-# tests/fixtures/session_log/projects/) that must never surface in either
-# script's output.
-SENTINELS = (
-    "SENTINEL_PROMPT_DO_NOT_LEAK",
-    "SENTINEL_CODE_DO_NOT_LEAK",
-    "SENTINEL_CMD_do_not_leak",
-    "SENTINEL_USER",
-    # Absolute POSIX path sentinel (issue #2045) — pairs with SENTINEL_USER's
-    # Windows-style path above, so the corpus exercises redact()'s
-    # from_path=True branch against both path shapes, not Windows only.
-    "SENTINEL_POSIX_USER",
+from _session_report_golden_fixtures import (
+    CORPUS_ROOT,
+    EXTRACT_SESSION_REPORT_GOLDEN,
+    EXTRACT_SESSION_REPORT_SCRIPT,
+    PLUGIN_VERSION,
+    PRICING,
+    REGISTRY,
+    SENTINELS,
+    SESSION_EXTRACT_GOLDEN,
+    SESSION_EXTRACT_SCRIPT,
+    load_module,
 )
 
 
-def _load_module(path: Path, name: str) -> types.ModuleType:
-    spec = importlib.util.spec_from_file_location(name, path)
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    return module
-
-
 def _session_extract_digest() -> dict:
-    module = _load_module(SESSION_EXTRACT_SCRIPT, "_golden_session_extract")
+    module = load_module(SESSION_EXTRACT_SCRIPT, "_golden_session_extract")
     paths = module._all_transcripts_under(CORPUS_ROOT)
     return module.extract(
         paths,
@@ -136,7 +100,7 @@ def _session_extract_digest() -> dict:
 
 
 def _extract_session_report_digest() -> dict:
-    module = _load_module(EXTRACT_SESSION_REPORT_SCRIPT, "_golden_extract_session_report")
+    module = load_module(EXTRACT_SESSION_REPORT_SCRIPT, "_golden_extract_session_report")
     paths = module._all_transcripts(CORPUS_ROOT)
     return module.extract(paths, REGISTRY, CORPUS_ROOT)
 
