@@ -1289,6 +1289,20 @@
       "anchor": "aggregation"
     }
   },
+  "plugins/dev-team/knowledge/review-lens-classification.md": {
+    "Classification": {
+      "summary": "| Agent | Class | Rationale |",
+      "anchor": "classification"
+    },
+    "Applying the two metrics": {
+      "summary": "**Discovery lenses**: `$/finding` from `metrics/review-value.jsonl` (per",
+      "anchor": "applying-the-two-metrics"
+    },
+    "`$/finding` recomputation attempt (#2007, post-#1998)": {
+      "summary": "#1998 (the 18.2% silent-drop fix) has merged, so recomputation is no longer",
+      "anchor": "finding-recomputation-attempt-2007-post-1998"
+    }
+  },
   "plugins/dev-team/knowledge/review-rubric.md": {
     "The review-agent panel is the primary quality gate": {
       "summary": "The review-agent panel is the primary quality gate for structural quality",
