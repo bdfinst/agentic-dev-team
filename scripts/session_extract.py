@@ -71,7 +71,9 @@ sys.path.insert(
     0,
     str(Path(__file__).resolve().parent.parent / "plugins" / "dev-team" / "scripts" / "lib"),
 )
-from session_log import classify, discovery, records, signals
+from session_log import classify, discovery, records, redact, signals
+
+_redact = redact.redact
 
 # The pricing loader/rate-lookup/cost-computation logic lives in hooks/lib
 # (#2045) — hooks/lib/cost_meter.py (a real Stop hook) needs the same
@@ -115,9 +117,6 @@ _SYNC_SCHEMA = "session-sync/v2"
 SYNC_SCHEMAS = ("session-sync/v1", "session-sync/v2")
 _MAIN_LABEL = "main"
 _UNATTRIBUTED_LABEL = "unattributed"
-_basename = classify.basename
-_safe_name = classify.safe_name
-
 # session_log.discovery (#2042): path classification and enumeration used to
 # be defined here; they are now shared with extract_session_report.py.
 # Aliased under the original private names so every internal call site below
@@ -132,11 +131,11 @@ _strip_ns = classify.strip_ns
 def _rewrite_name_keys(mapping: dict) -> dict:
     """Rewrite a peer-supplied name-bearing dict's keys to something safe to
     aggregate — a peer record's dict KEYS are as untrusted as any other field
-    it carries. Each key is normalized through `_safe_name(_strip_ns(str(k)))`
+    it carries. Each key is normalized through `_redact(_strip_ns(str(k)))`
     when it's a string; a non-string key (which would otherwise raise
     `AttributeError` the moment a consumer calls `.startswith()` on it) is
     bucketed under `_UNSAFE_NAME` instead of dropped. Values collide-merge by
-    summing, matching `_safe_name`'s own collapse-and-merge convention — a
+    summing, matching `_redact`'s own collapse-and-merge convention — a
     normalization collision never silently drops a peer-attributed count. A
     peer-supplied VALUE is as untrusted as the key: it passes through
     `_safe_number` before summing, so a non-numeric value (string/null/list/
@@ -144,7 +143,7 @@ def _rewrite_name_keys(mapping: dict) -> dict:
     or non-finite float can't poison the aggregate."""
     out: dict = {}
     for k, v in mapping.items():
-        key = _safe_name(_strip_ns(str(k))) if isinstance(k, str) else _UNSAFE_NAME
+        key = _redact(_strip_ns(str(k))) if isinstance(k, str) else _UNSAFE_NAME
         out[key] = out.get(key, 0) + _safe_number(v)
     return out
 
@@ -352,7 +351,7 @@ def extract(
                     # invent an agent while leaving the one that really ran in
                     # never_observed_agents.
                     if stripped not in _HARNESS_ATTRIBUTIONS:
-                        agent_name = _safe_name(stripped)
+                        agent_name = _redact(stripped)
             rtype = rec.get("type")
             is_sidechain = bool(rec.get("isSidechain")) or is_subagent
             # attributionSkill is a legacy/secondary tag — the harness does not emit
@@ -361,7 +360,7 @@ def extract(
             # carry it (and per-skill token attribution via by_skill).
             raw_skill = rec.get("attributionSkill") or rec.get("attribution_skill")
             skill = (
-                _safe_name(_strip_ns(raw_skill))
+                _redact(_strip_ns(raw_skill))
                 if isinstance(raw_skill, str) and raw_skill
                 else None
             )
@@ -379,13 +378,13 @@ def extract(
             raw_model = msg.get("model") or rec.get("model")
             # A non-str `model` would be an unhashable dict key and abort the
             # whole run. Keep the RAW id for the pricing lookup and sanitize
-            # only where it becomes a key: `_safe_name` would collapse a
+            # only where it becomes a key: `_redact` would collapse a
             # Vertex-style id (`...-v2@20241022`) to "other", miss
             # `pricing["models"]`, and silently bill the session $0.00 — an
             # under-report, which is the failure direction that matters for the
             # cost-regression baseline (#1994 review).
             raw_model = raw_model if isinstance(raw_model, str) and raw_model else None
-            model = _safe_name(raw_model) if raw_model else None
+            model = _redact(raw_model) if raw_model else None
 
             if usage:
                 cost, safe_usage = _accumulate_token_signals(
@@ -421,7 +420,7 @@ def extract(
                         inline_label = (
                             _UNATTRIBUTED_LABEL
                             if stripped_rec in _HARNESS_ATTRIBUTIONS
-                            else _safe_name(stripped_rec)
+                            else _redact(stripped_rec)
                         )
                     elif is_sidechain:
                         inline_label = "sidechain"
@@ -639,7 +638,7 @@ def _opaque_session_id(session_id: str) -> str:
     `escalate()` divides friction by. Same construction the shipped twin uses
     for project labels (#1994 review).
     """
-    safe = _safe_name(session_id)
+    safe = _redact(session_id)
     if safe != _UNSAFE_NAME:
         return safe
     digest = hashlib.sha256(session_id.encode("utf-8")).hexdigest()[:8]
@@ -683,7 +682,7 @@ def _project_and_ts(path: Path) -> tuple[str, str]:
         if not project:
             cwd = rec.get("cwd")
             if isinstance(cwd, str) and cwd:
-                project = _safe_name(_basename(str(cwd).rstrip("/\\")))
+                project = _redact(str(cwd).rstrip("/\\"), from_path=True)
         ts = rec.get("timestamp")
         if isinstance(ts, str) and ts > last_ts:
             last_ts = ts
@@ -932,7 +931,7 @@ def _read_synced_records(digests_root: Path) -> list[dict]:
     tool_error_rate,user_correction_turns}`;
     `gate.{commit_attempts,commit_bypasses}`), and the shape of the
     `tokens`/`rework`/`accuracy`/`utilization`/`gate` containers themselves
-    are normalized on the way in (`_normalize_plugin_version`, `_safe_name`,
+    are normalized on the way in (`_normalize_plugin_version`, `_redact`,
     `_rewrite_name_keys`, `_safe_number`, `_normalize_name_dicts`,
     `_normalize_numeric_fields`) since a record originates on a peer
     machine, not this one."""
@@ -953,9 +952,9 @@ def _read_synced_records(digests_root: Path) -> list[dict]:
             rec["plugin_version"] = _normalize_plugin_version(
                 rec.get("plugin_version")
             )
-            rec["host"] = _safe_name(str(rec.get("host") or "unknown"))
-            rec["project"] = _safe_name(str(rec.get("project") or "unknown"))
-            rec["ts"] = _safe_name(rec["ts"]) if isinstance(rec.get("ts"), str) else ""
+            rec["host"] = _redact(str(rec.get("host") or "unknown"))
+            rec["project"] = _redact(str(rec.get("project") or "unknown"))
+            rec["ts"] = _redact(rec["ts"]) if isinstance(rec.get("ts"), str) else ""
             rec["cost_usd"] = _safe_number(rec.get("cost_usd", 0))
             utilization = (
                 rec.get("utilization") if isinstance(rec.get("utilization"), dict) else {}

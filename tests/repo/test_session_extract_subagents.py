@@ -475,8 +475,8 @@ def test_safe_name_rejects_a_trailing_newline():
     sys.path.insert(0, str(REPO_ROOT / "scripts"))
     import session_extract
 
-    assert session_extract._safe_name("review" + chr(10)) == "other"
-    assert session_extract._safe_name("review") == "review"
+    assert session_extract._redact("review" + chr(10)) == "other"
+    assert session_extract._redact("review") == "review"
 
 
 def test_the_raw_model_id_still_reaches_the_pricing_table(tmp_path):

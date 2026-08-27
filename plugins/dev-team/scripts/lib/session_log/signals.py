@@ -113,7 +113,7 @@ from __future__ import annotations
 import re
 from collections import Counter
 
-from session_log import classify
+from session_log import classify, redact
 
 #: Tools whose `tool_use` counts as an "edit" for rework tracking. Not one
 #: of ADR 0036's 14 classify.py symbols, but tightly coupled to the edit/
@@ -217,7 +217,7 @@ def accumulate_skill_agent_signals(
     transcript is absent never ran. Run counts come from `attributionAgent`
     (#1994)."""
     if skill:
-        skills_invoked[classify.safe_name(skill)] += 1
+        skills_invoked[redact.redact(skill)] += 1
     if not isinstance(content, list):
         return
     for block in content:
@@ -228,20 +228,20 @@ def accumulate_skill_agent_signals(
         if name == "Skill":
             s = inp.get("skill") or inp.get("name")
             if isinstance(s, str) and s:
-                skills_invoked[classify.safe_name(classify.strip_ns(s))] += 1
-                active["skill"] = classify.safe_name(classify.strip_ns(s))
+                skills_invoked[redact.redact(classify.strip_ns(s))] += 1
+                active["skill"] = redact.redact(classify.strip_ns(s))
         elif name in ("Agent", "Task"):
             a = inp.get("subagent_type")
             if isinstance(a, str) and a:
-                agent_dispatches[classify.safe_name(classify.strip_ns(a))] += 1
-                active["agent"] = classify.safe_name(classify.strip_ns(a))
+                agent_dispatches[redact.redact(classify.strip_ns(a))] += 1
+                active["agent"] = redact.redact(classify.strip_ns(a))
 
 
 def track_tool_call(block: dict, pending_tool: dict[str, str], tool_calls: Counter) -> None:
     """Error-classification bookkeeping: count every tool invocation (the
     error-rate denominator) and remember its id -> name so a later
     tool_result can be attributed back to the tool that produced it."""
-    name = classify.safe_name(str(block.get("name", "?")))
+    name = redact.redact(str(block.get("name", "?")))
     tool_calls[name] += 1
     bid = block.get("id")
     if isinstance(bid, str) and bid:
@@ -285,7 +285,7 @@ def track_edit(block: dict, edits_per_file: Counter, thread: dict) -> None:
     name = block.get("name", "?")
     inp = block.get("input", {}) if isinstance(block.get("input"), dict) else {}
     if name in EDIT_TOOLS and inp.get("file_path"):
-        edits_per_file[classify.safe_name(classify.basename(str(inp["file_path"])))] += 1
+        edits_per_file[redact.redact(str(inp["file_path"]), from_path=True)] += 1
     if name in EDIT_TOOLS:
         thread["edited_since_verify"] = True
 

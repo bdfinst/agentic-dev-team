@@ -54,7 +54,9 @@ from pathlib import Path
 # scripts/ -> plugins/dev-team -> scripts/lib (established pattern; see
 # gherkin_stub_merge.py's identical `sys.path.insert(0, str(_HERE / "lib"))`).
 sys.path.insert(0, str(Path(__file__).resolve().parent / "lib"))
-from session_log import classify, discovery, records, signals
+from session_log import classify, discovery, records, redact, signals
+
+_redact = redact.redact
 
 # session_log.classify (issue #2043, epic #2040): the classification
 # vocabulary and text/name-handling helpers used to be defined here; they
@@ -81,8 +83,6 @@ _HARNESS_ATTRIBUTIONS = classify.HARNESS_ATTRIBUTIONS
 # (knowledge/telemetry-schema.md -> cost-metering `by_agent_type`).
 _MAIN_LABEL = "main"
 _UNATTRIBUTED_LABEL = "unattributed"
-_basename = classify.basename
-_safe_name = classify.safe_name
 _strip_ns = classify.strip_ns
 _text_of = classify.text_of
 
@@ -242,7 +242,7 @@ def extract(
                     # Emitting it would invent an agent while leaving the one
                     # that really ran in never_observed_agents.
                     if stripped not in _HARNESS_ATTRIBUTIONS:
-                        agent_name = _safe_name(stripped)
+                        agent_name = _redact(stripped)
             rtype = rec.get("type")
 
             if rtype in ("compaction", "summary") or rec.get("isCompactSummary") or rec.get("compactMetadata"):
@@ -251,7 +251,7 @@ def extract(
             msg = rec.get("message") if isinstance(rec.get("message"), dict) else {}
             usage = records.usage_of(rec)
             model = msg.get("model") or rec.get("model")
-            model = _safe_name(model) if isinstance(model, str) and model else None
+            model = _redact(model) if isinstance(model, str) and model else None
             if usage:
                 thread_msgs += 1
                 _accumulate_token_signals(usage, model, tokens_total, by_model)
@@ -503,7 +503,14 @@ def _opaque_label(dir_name: str) -> str:
 
 
 def _project_label(cwd: str) -> str:
-    return _safe_name(os.path.basename(os.path.normpath(cwd)) or cwd)
+    # NOT os.path.basename(os.path.normpath(cwd)): on a POSIX host (where
+    # this script runs) os.path.basename splits on `/` only, so a Windows-
+    # authored transcript's backslash-separated cwd comes back WHOLE rather
+    # than trimmed to its last component — the exact defect class #1991/
+    # #1994 already fixed once for file-path basenames (issue #2045 found a
+    # third instance of it here). `_redact(..., from_path=True)` routes
+    # through the shared, Windows-path-aware `classify.basename` instead.
+    return _redact(cwd, from_path=True)
 
 
 def _first_cwd(jsonl: Path) -> str | None:
