@@ -390,6 +390,24 @@ def _rendered_report(commits, tracked, **kwargs):
 
 
 class TestRendering:
+    def test_render_text_tolerates_build_report_output_with_no_window_key(self):
+        """/pr gate finding: `render_text` still bare-indexed `report["window"]`
+        while its sibling `churn_recurrence.render_text` was hardened to
+        `.get(..., "unknown")` for the identical failure mode in this same
+        diff -- a caller rendering `build_report`'s raw output directly
+        (skipping `run()`'s post-hoc `report["window"] = ...` injection)
+        must not get a raw `KeyError: 'window'` here either."""
+        report = ccr.build_report(
+            _commits(("c1", ["src/alpha.py", "tests/test_alpha.py"])),
+            {"src/alpha.py"},
+            min_edits=1,
+            excludes=(),
+        )
+
+        text = ccr.render_text(report, top=10)
+
+        assert "window: unknown" in text
+
     def test_text_report_shows_counts_and_the_mapping(self):
         report = _rendered_report(
             _commits(

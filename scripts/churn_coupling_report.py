@@ -602,8 +602,15 @@ def render_json(report, top) -> str:
 
 
 def render_text(report, top) -> str:
+    """Render `report` (from `build_report`) as a text table.
+
+    `window`/`truncated` are query-level concerns `run()` injects into the
+    dict after `build_report` returns (matching `churn_recurrence.render_text`'s
+    identical `.get()` fix in this same diff) -- read with `.get()` so a
+    caller that renders `build_report`'s own output directly gets "unknown"
+    instead of a `KeyError`."""
     lines = []
-    window = report["window"]
+    window = report.get("window", "unknown")
     lines.append(
         f"Churn vs coupling  window: {window}  commits scanned: "
         f"{report['commits_scanned']}"

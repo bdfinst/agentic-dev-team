@@ -550,6 +550,22 @@ def test_classify_compound_command_working_directory_argument_still_works():
     assert bft.classify(command, error_text) == "working-directory"
 
 
+def test_classify_subshell_boundary_is_a_known_uncovered_limitation():
+    """/pr gate finding: `_split_shell_segments` splits only on top-level
+    control operators (`&&`/`||`/`;`/`|`/`&`) -- it does not descend into a
+    subshell or command-substitution boundary (`(...)`, `$(...)`), so a
+    failing binary named only inside one of those is invisible to the
+    per-segment token matching. This pins the CURRENT, documented
+    limitation (see `_invoked_binaries`'s docstring) rather than leaving it
+    silently uncovered -- a future fix that changes this result should
+    update this test deliberately, not discover the behavior changed by
+    accident."""
+    command = "echo $(./missing-tool)"
+    error_text = "bash: ./missing-tool: No such file or directory"
+
+    assert bft.classify(command, error_text) == "working-directory"
+
+
 def test_classify_compound_command_attributes_to_an_earlier_sub_command_too():
     """/pr gate finding: a first fix attempt keyed off only the LAST shell
     segment, which just moved the same bug to the mirror case -- `&&` means

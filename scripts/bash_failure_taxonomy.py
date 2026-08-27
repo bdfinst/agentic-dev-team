@@ -367,8 +367,18 @@ def _skip_env_assignment_prefix(tokens: list[str]) -> int:
     return idx
 
 
-def _invoked_binaries(command: str) -> list[str]:
-    """The invoked binary of EVERY shell segment of `command` (see
+def _segment_binary_and_args(tokens: list[str]) -> tuple[str, list[str]]:
+    """One shell segment's `(invoked binary, arguments)`, past its own
+    leading `VAR=value` assignments. `""` binary / `[]` args for an empty
+    segment."""
+    idx = _skip_env_assignment_prefix(tokens)
+    if idx >= len(tokens):
+        return "", []
+    return tokens[idx], tokens[idx + 1 :]
+
+
+def _invoked_binaries(segments: list[list[str]]) -> list[str]:
+    """The invoked binary of EVERY shell segment (see
     `_split_shell_segments`), skipping each segment's own leading
     `VAR=value` assignments.
 
@@ -388,13 +398,24 @@ def _invoked_binaries(command: str) -> list[str]:
     failure entirely. Checking every segment's tokens for a match handles
     both directions without needing to guess which segment actually ran
     (see `tests/scripts/test_bash_failure_taxonomy.py`'s compound-command
-    regression coverage for both cases)."""
-    binaries = []
-    for tokens in _split_shell_segments(command):
-        idx = _skip_env_assignment_prefix(tokens)
-        if idx < len(tokens):
-            binaries.append(tokens[idx])
-    return binaries
+    regression coverage for both cases).
+
+    Known limitation, not fixed here: `_split_shell_segments` splits only
+    on top-level control operators (`&&`/`||`/`;`/`|`/`&`) -- it does not
+    descend into a subshell or command-substitution boundary (`(...)`,
+    `$(...)`), so a failing binary named only inside one of those is
+    invisible to this list. Closing that gap needs a materially more
+    capable (recursive, parenthesis-aware) tokenizer than a heuristic
+    classifier over transcript text warrants; tracked as a follow-up
+    rather than rushed into this fix."""
+    return [b for b, _ in (_segment_binary_and_args(s) for s in segments) if b]
+
+
+def _all_arguments(segments: list[list[str]]) -> list[str]:
+    """Every argument token across EVERY shell segment -- see
+    `_invoked_binaries`'s docstring for why this spans the whole chain
+    rather than one segment, and its known-limitation note."""
+    return [a for _, args in (_segment_binary_and_args(s) for s in segments) for a in args]
 
 
 def _tokens_match(a: str, b: str) -> bool:
@@ -429,38 +450,28 @@ def _is_quoting_error(error_text: str) -> bool:
     return any(p.search(error_text) for p in _QUOTING_ERROR_PATTERNS)
 
 
-def _is_tool_not_present(command: str, error_text: str, no_such_file_token: str | None) -> bool:
+def _is_tool_not_present(
+    segments: list[list[str]], error_text: str, no_such_file_token: str | None
+) -> bool:
     """PATH lookup failure: `command not found` (bash-style or sh-style),
     or a `No such file or directory` message where the failing token IS
     the invoked command itself (a relative/absolute path exec failure).
 
-    `no_such_file_token` is computed once by `classify()` and shared with
-    `_is_working_directory_error` rather than each predicate re-scanning
-    `error_text` with `_NO_SUCH_FILE_RE` independently."""
+    `segments` (`command`, pre-split by `classify()`) and
+    `no_such_file_token` are both computed once by `classify()` and shared
+    with `_is_working_directory_error` rather than each predicate
+    re-tokenizing `command` / re-scanning `error_text` independently."""
     if _COMMAND_NOT_FOUND_RE.search(error_text) or _SH_STYLE_NOT_FOUND_RE.search(
         error_text
     ):
         return True
     if no_such_file_token is None:
         return False
-    return any(_tokens_match(no_such_file_token, b) for b in _invoked_binaries(command))
-
-
-def _all_arguments(command: str) -> list[str]:
-    """Every argument token (i.e. every token after each segment's own
-    invoked binary, past its own leading `VAR=value` assignments) across
-    EVERY shell segment of `command` -- see `_invoked_binaries`'s
-    docstring for why this spans the whole chain rather than one
-    segment."""
-    arguments: list[str] = []
-    for tokens in _split_shell_segments(command):
-        idx = _skip_env_assignment_prefix(tokens)
-        arguments.extend(tokens[idx + 1 :])
-    return arguments
+    return any(_tokens_match(no_such_file_token, b) for b in _invoked_binaries(segments))
 
 
 def _is_working_directory_error(
-    command: str, error_text: str, no_such_file_token: str | None
+    segments: list[list[str]], error_text: str, no_such_file_token: str | None
 ) -> bool:
     """A `cd` failure, or a `No such file or directory` message where the
     failing token is an ARGUMENT of the invoked command, not the command
@@ -472,8 +483,9 @@ def _is_working_directory_error(
     file) -- not a cd/relative-path failure of the invocation itself -- and
     must fall through to `genuine-command-error` instead.
 
-    `no_such_file_token` is computed once by `classify()` and shared with
-    `_is_tool_not_present` -- see that function's docstring."""
+    `segments` and `no_such_file_token` are computed once by `classify()`
+    and shared with `_is_tool_not_present` -- see that function's
+    docstring."""
     if _CD_FAILURE_RE.search(error_text):
         return True
     # The bare "invoked binary is cd, so any 'no such file' phrase in the
@@ -483,15 +495,13 @@ def _is_working_directory_error(
     # exists to avoid (`cd /tmp && ./missing-tool` would match on `cd`
     # again). Restricted to the one-segment case, this is just the
     # ordinary single-command `cd badpath` scenario.
-    segments = _split_shell_segments(command)
     if len(segments) == 1:
-        idx = _skip_env_assignment_prefix(segments[0])
-        binary = segments[0][idx] if idx < len(segments[0]) else ""
+        binary, _ = _segment_binary_and_args(segments[0])
         if binary.lower() == "cd":
             return "no such file or directory" in error_text.lower()
     if no_such_file_token is None:
         return False
-    return any(_tokens_match(no_such_file_token, arg) for arg in _all_arguments(command))
+    return any(_tokens_match(no_such_file_token, arg) for arg in _all_arguments(segments))
 
 
 def _is_timeout(error_text: str) -> bool:
@@ -517,19 +527,23 @@ def classify(command: str, error_text: str) -> str:
     (backtracking-shaped on a long non-matching single line) against
     arbitrarily long, untrusted transcript text. The `_no_such_file_token`
     scan itself runs at most once here -- skipped entirely for a `quoting`
-    match, since that bucket never consults it -- and is shared by
+    match, since that bucket never consults it -- and `command` is
+    tokenized into shell segments at most once here too (previously
+    `_is_tool_not_present`/`_is_working_directory_error` each re-split it
+    independently, up to 3 shlex passes per call) -- both are shared by
     `_is_tool_not_present` and `_is_working_directory_error` rather than
-    each re-scanning."""
+    each re-scanning/re-tokenizing."""
     text = (error_text or "").strip()[:_MAX_ERROR_TEXT_LEN]
     cmd = command or ""
 
     if _is_quoting_error(text):
         return "quoting"
 
+    segments = _split_shell_segments(cmd)
     no_such_file_token = _no_such_file_token(text)
-    if _is_tool_not_present(cmd, text, no_such_file_token):
+    if _is_tool_not_present(segments, text, no_such_file_token):
         return "tool-not-present"
-    if _is_working_directory_error(cmd, text, no_such_file_token):
+    if _is_working_directory_error(segments, text, no_such_file_token):
         return "working-directory"
     if _is_timeout(text):
         return "timeout"
