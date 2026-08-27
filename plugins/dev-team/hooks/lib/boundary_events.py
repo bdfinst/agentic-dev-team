@@ -252,7 +252,7 @@ _GATE_RAN_VERDICTS = frozenset({"allow", "block", "errored"})
 # PreToolUse machinery entirely, so it never receives a Claude Code
 # session_id to pass through. `--session-id`/`--subject-hash` remain accepted
 # (a future caller that DOES have one can still supply it); the shipped
-# caller simply omits both — see `scripts/session_extract.py`'s "gate-run
+# caller simply omits both — see `session_report.py`'s "gate-run
 # correlation (#2037)" section for why correlation is by TIME PROXIMITY
 # instead.
 _CLI_VERDICT_EVENTS = {

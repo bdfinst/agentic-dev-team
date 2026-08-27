@@ -377,7 +377,7 @@ def _pct(numerator: int, denominator: int) -> float | None:
 def trend_record(replays: list[SessionReplay], sweep: list[dict], args) -> dict:
     """A compact, AGGREGATE-COUNTS-ONLY record for the ceiling trend stream.
 
-    Mirrors `scripts/session_extract.py`'s `slim_record` convention (#129):
+    Mirrors `scripts/session_report.py`'s `slim_record` convention (#129):
     the trend stream carries metrics only — no transcript paths, no session
     ids, no prompt or code content — because it is the artifact that
     accumulates across rounds and outlives any single review. `recorded_at`
@@ -396,7 +396,7 @@ def trend_record(replays: list[SessionReplay], sweep: list[dict], args) -> dict:
 
     return {
         "schema": "context-ceiling-trend/v1",
-        # `%Y-%m-%dT%H:%M:%SZ`, matching `session_extract.py` and the rest of
+        # `%Y-%m-%dT%H:%M:%SZ`, matching `session_report.py` and the rest of
         # the repo's metrics streams — the playbook reads both streams'
         # timestamps side by side, so two spellings of UTC would be a
         # gratuitous difference at exactly the point of comparison.

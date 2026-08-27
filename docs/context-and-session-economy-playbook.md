@@ -55,7 +55,8 @@ Run in this order. Each step's output is input to the next.
 ### 1. Refresh the session stream
 
 ```bash
-python3 scripts/session_extract.py --plugin-root plugins/dev-team \
+python3 plugins/dev-team/scripts/session_report.py --profile maintainer \
+  --plugin-root plugins/dev-team \
   --append .claude/metrics/session-digest.jsonl
 ```
 

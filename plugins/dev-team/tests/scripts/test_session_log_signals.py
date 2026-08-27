@@ -165,7 +165,7 @@ def test_track_tool_call_records_pending_tool():
 
 
 def test_track_tool_call_ignores_non_string_id():
-    # The guarded form (session_extract.py's, kept as canonical): a
+    # The guarded form (the maintainer extractor's, kept as canonical): a
     # non-string id is never used as a dict key, unlike a bare `if bid:`.
     pending_tool: dict = {}
     tool_calls = Counter()

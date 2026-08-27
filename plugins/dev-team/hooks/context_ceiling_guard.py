@@ -272,7 +272,7 @@ def _is_sidechain(row: dict) -> bool:
     * a large subagent turn recorded after a small main turn OVER-reports
       it, and the guard blocks a main thread nowhere near the ceiling.
 
-    `isSidechain` is the same signal `scripts/session_extract.py` and
+    `isSidechain` is the same signal `session_report.py` and
     `scripts/measure_full_file_duplication.py` already key off for the
     inline layout; this hook was the one transcript consumer that did not.
     """

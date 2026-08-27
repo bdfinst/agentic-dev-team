@@ -2,14 +2,15 @@
 epic #2040).
 
 Shared by `hooks/lib/cost_meter.py` (the Stop-hook cost meter) and
-`scripts/session_extract.py` (the monorepo-only session digest extractor).
-Before this module existed each carried its own near-identical copy of
-`_load_pricing`/`_rate`/`_cost`, and the two had quietly drifted:
-cost_meter's loader raised on a missing/unreadable pricing file where
-session_extract's degraded to an empty table, and cost_meter's `_cost`
-required its caller to guard `if rate else 0.0` (it indexed `rate["input"]`
-directly) where session_extract's guarded internally and read
-`rate.get(...)`. Unified here on the more defensive shape throughout: an
+`session_report.py --profile maintainer` (originally a separate monorepo-only
+session digest extractor, retired in #2048; #2045 unified the two). Before
+this module existed each carried its
+own near-identical copy of `_load_pricing`/`_rate`/`_cost`, and the two had
+quietly drifted: cost_meter's loader raised on a missing/unreadable
+pricing file where the extractor's degraded to an empty table, and
+cost_meter's `_cost` required its caller to guard `if rate else 0.0` (it
+indexed `rate["input"]` directly) where the extractor's guarded internally
+and read `rate.get(...)`. Unified here on the more defensive shape throughout: an
 absent/corrupt/`None` pricing path yields `{}` rather than raising, and
 `cost()` itself returns `0.0` for an unpriced model rather than requiring
 every caller to remember the ternary — consistent with this file's own
@@ -32,10 +33,11 @@ already imports `review_agent_registry` from `hooks/lib/`. Putting pricing
 here instead of `session_log/` keeps that boundary intact rather than
 inverting it for this one module.
 
-Downstream-cost decision (#2045): `plugins/dev-team/scripts/extract_session_report.py`
-(the shipped report a downstream user hands to the plugin maintainer) does
-NOT gain a cost figure as part of this issue, and does not import this
-module. ADR 0036 already decided this narrower question — "The extractors'
+Downstream-cost decision (#2045): `session_report.py --profile downstream`
+(originally a separate shipped script, retired in #2048; the shipped
+report a downstream user hands to the plugin
+maintainer) does NOT gain a cost figure as part of this issue, and does not
+import this module. ADR 0036 already decided this narrower question — "The extractors'
 divergent layers stay forked: discovery/CLI surface, **pricing and cost**,
 rollup, escalation, and the report shapes... cost/pricing/rollup/escalation
 exist only in the monorepo one. Divergence is not drift." — for exactly the

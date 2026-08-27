@@ -21,7 +21,7 @@ ci_watched_paths() {
     chk_shellcheck_tests)   printf '%s' "tests/security-assessment/scripts/" ;;
     chk_sa_shell_suite)     printf '%s' "plugins/security-assessment/ tests/security-assessment/" ;;
     chk_model_routing)      printf '%s' "tests/hooks/ plugins/dev-team/hooks/" ;;
-    chk_cost_regression)    printf '%s' "scripts/cost-regression-check.sh scripts/session_extract.py" ;;
+    chk_cost_regression)    printf '%s' "scripts/cost-regression-check.sh plugins/dev-team/scripts/session_report.py" ;;
     chk_eval_corpus)        printf '%s' "evals/ scripts/eval_grade.py scripts/eval_graders/" ;;
     chk_citation_lint)      printf '%s' "plugins/dev-team/ evals/ scripts/citation_lint.py" ;;
     chk_eval_semver)        printf '%s' "evals/" ;;

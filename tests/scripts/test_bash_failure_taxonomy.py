@@ -13,7 +13,7 @@ Step 1.1 TEST list (self-contained pairing):
     `resolve_transcripts`/`resolve_all_transcripts` require, (g) a
     transcript line that decodes as valid JSON but is a non-dict value, or
     a dict missing `type`/`content`/`tool_use_id`, is skipped without
-    raising -- mirroring `session_extract.py::_read_synced_records`'s
+    raising -- mirroring `session_report.py::_read_synced_records`'s
     `isinstance(rec, dict)` guard.
 
 Step 1.2 TEST list (`classify(command, error_text) -> str`): table-driven
@@ -36,7 +36,7 @@ in the serialized JSON distribution; and a docstring-content test asserting
 the module docstring names both excluded classes alongside
 "excluded"/"denominator" language.
 
-No import from `session_extract.py` beyond the two path-discovery
+No import from `session_report.py` beyond the two path-discovery
 functions the plan names as reusable -- see the module docstring under
 test for the privacy-contract rationale.
 """
@@ -397,7 +397,7 @@ def test_module_import_appends_not_prepends_scripts_dir_and_does_not_duplicate()
     # directly, both already have scripts/ on sys.path *before* the module
     # body runs, which would make the guard a no-op either way).
     here = str((REPO_ROOT / "scripts" / "bash_failure_taxonomy.py").resolve())
-    scripts_dir = str((REPO_ROOT / "scripts").resolve())
+    scripts_dir = str((REPO_ROOT / "plugins" / "dev-team" / "scripts").resolve())
     script = f"""
 import sys, importlib.util
 assert {scripts_dir!r} not in sys.path

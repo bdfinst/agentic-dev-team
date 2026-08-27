@@ -49,6 +49,28 @@ def _run(*args: str) -> subprocess.CompletedProcess:
     )
 
 
+def test_v3_digest_records_are_ranked_not_silently_dropped_2047(tmp_path: Path) -> None:
+    """ADR 0036's failure mode, guarded directly: eval_rawlog.py must not
+    exact-match an old schema string and silently rank zero sessions against
+    a v3 digest (session_report.py's own output schema, #2046/#2047)."""
+    digests = tmp_path / "digests" / "box"
+    digests.mkdir(parents=True)
+    (digests / "session-digest.jsonl").write_text(
+        '{"schema":"session-sync/v3","host":"box","project":"p","session_id":"messy",'
+        '"rework":{"failed_edits":8,"retried_bash_commands":4},'
+        '"accuracy":{"tool_calls":10,"tool_error_rate":0.3,"user_correction_turns":2},'
+        '"gate":{"commit_bypasses":1}}\n'
+    )
+    res = _run("--flag", str(tmp_path / "digests"), "--top", "5")
+    assert res.returncode == 0, res.stdout + res.stderr
+    data = json.loads(res.stdout)
+    assert data["worst_sessions"], (
+        "a v3-schema digest was ranked as an EMPTY result -- the exact "
+        "ADR 0036 silent-empty-ranking failure mode"
+    )
+    assert data["worst_sessions"][0]["session_id"] == "messy"
+
+
 def test_flag_the_worst_session_ranks_first_the_gate_bounds_to_top_n_180(
     case: Path,
 ) -> None:

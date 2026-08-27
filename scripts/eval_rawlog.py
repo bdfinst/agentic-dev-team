@@ -28,8 +28,17 @@ import re
 import sys
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parent))
-from session_extract import _REWORK_KEYS, SYNC_SCHEMAS, _iter_records
+# session_report.py (#2047) replaces session_extract.py as the source of
+# _REWORK_KEYS/SYNC_SCHEMAS/_iter_records -- it ships under
+# plugins/dev-team/scripts/, not repo-root scripts/. Importing SYNC_SCHEMAS
+# from here rather than from session_extract.py is the actual fix for the
+# ADR 0036 failure mode: session_extract.py's own SYNC_SCHEMAS only ever
+# lists v1/v2, so a v3 digest (session_report.py's own output) would have
+# exact-matched nothing and silently ranked zero sessions.
+sys.path.insert(
+    0, str(Path(__file__).resolve().parent.parent / "plugins" / "dev-team" / "scripts")
+)
+from session_report import _REWORK_KEYS, SYNC_SCHEMAS, _iter_records
 
 # A tier finding may carry ONLY these keys — all metrics/ids/enums.
 _ALLOWED_FINDING_KEYS = {

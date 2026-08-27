@@ -208,11 +208,12 @@ INTENTIONAL_WIDE_SCAN_INVOCATIONS = {
         "python3 scripts/eval_variance.py --trials-dir <dir-of-trial-actuals> \\",
         _MONOREPO_ONLY,
     ),
-    (
-        "docs/telemetry-ci-access.md",
-        "python3 scripts/session_extract.py --cost-log /tmp/telemetry/digests \\",
-        _MONOREPO_ONLY,
-    ),
+    # The session_extract.py entry that used to live here was removed in
+    # #2047: the replacement invocation (`plugins/dev-team/scripts/
+    # session_report.py`) no longer matches `_SAME_LINE_INVOCATION_RE`'s
+    # bare-`scripts/...` shape at all, because the path is now qualified
+    # with `plugins/dev-team/` -- ADR 0032's reclassification, discharged by
+    # this cutover rather than left as a live exemption.
     (
         "docs/telemetry-ci-access.md",
         "run: bash scripts/ci-local.sh --only=chk_cost_regression",

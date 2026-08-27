@@ -1503,7 +1503,7 @@
       "anchor": "config-changelogjsonl"
     },
     "`session-digest.jsonl`": {
-      "summary": "Trend digest from `/session-review` (backed by `scripts/session_extract.py`):",
+      "summary": "Trend digest from `/session-review` (backed by `${CLAUDE_PLUGIN_ROOT}/scripts/session_report.py --profile maintainer`):",
       "anchor": "session-digestjsonl"
     },
     "`review-value.jsonl`": {
@@ -5669,12 +5669,12 @@
       "anchor": "argument-arguments"
     },
     "Steps": {
-      "summary": "`/session-review` is maintainer-only tooling that operates on this repo's own",
+      "summary": "Core extraction (Steps 0, 2, 3, 4, 5, 6 below) runs entirely from",
       "anchor": "steps"
     },
-    "Pre-flight — dev-checkout guard (#1779)": {
-      "summary": "`/session-review` is maintainer-only tooling that operates on this repo's own",
-      "anchor": "pre-flight-dev-checkout-guard-1779"
+    "Pre-flight — session_report.py ships; only cross-machine mode does not (#1779, closed by #2046/#2047)": {
+      "summary": "Core extraction (Steps 0, 2, 3, 4, 5, 6 below) runs entirely from",
+      "anchor": "pre-flight-sessionreportpy-ships-only-cross-machine-mode-does-not-1779-closed-by-20462047"
     },
     "0. Queued Findings — surface pending-review queue before fresh analysis": {
       "summary": "Before running fresh analysis, check whether background analysis has produced",

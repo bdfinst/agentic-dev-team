@@ -206,26 +206,29 @@ class TestTelemetryConsent:
 
 
 # ---------------------------------------------------------------------------
-# _resolve_session_extract / _dispatch_background_analysis (#1649)
+# _resolve_session_report / _dispatch_background_analysis (#1649, #2047)
 # ---------------------------------------------------------------------------
 
 
-def test_resolve_session_extract_targets_repo_root_scripts_dir():
-    """hook_dir is plugins/dev-team/hooks; scripts/ sits three levels up
-    (hooks -> dev-team -> plugins -> repo root), not two. The original
-    `../..` landed on `plugins/scripts/session_extract.py`, which has never
-    existed anywhere in this repo."""
+def test_resolve_session_report_targets_shipped_plugin_scripts_dir():
+    """hook_dir is plugins/dev-team/hooks; scripts/session_report.py is a
+    sibling one level up (hooks -> dev-team -> scripts), unlike the
+    pre-#2047 repo-root scripts/session_extract.py target, which needed
+    three levels (hooks -> dev-team -> plugins -> repo root)."""
     hook_dir = _REPO_ROOT / "plugins" / "dev-team" / "hooks"
-    resolved = slt._resolve_session_extract(hook_dir)
-    assert resolved == (_REPO_ROOT / "scripts" / "session_extract.py").resolve()
+    resolved = slt._resolve_session_report(hook_dir)
+    assert resolved == (
+        _REPO_ROOT / "plugins" / "dev-team" / "scripts" / "session_report.py"
+    ).resolve()
 
 
-def test_resolve_session_extract_finds_the_real_file_in_this_checkout():
-    """This repo's own dev checkout is exactly the case #1649 says should
-    work: session_extract.py genuinely exists three levels up from the
-    shipped hook's location here."""
+def test_resolve_session_report_finds_the_real_file_in_this_checkout():
+    """Unlike the pre-#2047 session_extract.py target (monorepo-only,
+    absent on every downstream install), session_report.py SHIPS -- so this
+    must resolve to a real file both in this dev checkout and, per #2047,
+    on any install."""
     hook_dir = _REPO_ROOT / "plugins" / "dev-team" / "hooks"
-    assert slt._resolve_session_extract(hook_dir).is_file()
+    assert slt._resolve_session_report(hook_dir).is_file()
 
 
 def _patch_dispatch_popen(monkeypatch, popen_calls):
@@ -253,12 +256,11 @@ def _patch_dispatch_popen(monkeypatch, popen_calls):
     monkeypatch.setattr(slt.subprocess, "Popen", fake_popen)
 
 
-def test_dispatch_skips_entirely_when_session_extract_is_absent(monkeypatch, tmp_path):
-    """The normal case for every downstream plugin install: session_extract.py
-    is deliberately not shipped, so there is nothing this dispatch could ever
-    do. It must skip cleanly rather than compose a shell command guaranteed
-    to fail — and, before #1649's fix, it composed and ran one anyway on
-    every single install, forever, for no possible benefit."""
+def test_dispatch_skips_entirely_when_session_report_is_absent(monkeypatch, tmp_path):
+    """A broken/partial install (session_report.py missing) must skip
+    cleanly rather than compose a shell command guaranteed to fail -- the
+    defensive check kept from #1649, even though #2047 means the normal
+    case is now for the target to be present on every install."""
     fake_hook_dir = tmp_path / "plugins" / "dev-team" / "hooks"
     fake_hook_dir.mkdir(parents=True)
     popen_calls = []
@@ -269,14 +271,15 @@ def test_dispatch_skips_entirely_when_session_extract_is_absent(monkeypatch, tmp
     assert popen_calls == [], "no subprocess should be spawned when the target script is absent"
 
 
-def test_dispatch_spawns_when_session_extract_is_present(monkeypatch, tmp_path):
-    """The one case where dispatch should actually happen: a dev checkout
-    (real or faked here) where session_extract.py genuinely resolves."""
+def test_dispatch_spawns_when_session_report_is_present(monkeypatch, tmp_path):
+    """The normal case per #2047: session_report.py ships alongside the
+    hook, so dispatch happens on every install, not just a monorepo dev
+    checkout."""
     fake_hook_dir = tmp_path / "plugins" / "dev-team" / "hooks"
     fake_hook_dir.mkdir(parents=True)
-    fake_scripts = tmp_path / "scripts"
-    fake_scripts.mkdir()
-    (fake_scripts / "session_extract.py").write_text("# fake\n")
+    fake_scripts = tmp_path / "plugins" / "dev-team" / "scripts"
+    fake_scripts.mkdir(parents=True)
+    (fake_scripts / "session_report.py").write_text("# fake\n")
 
     popen_calls = []
     _patch_dispatch_popen(monkeypatch, popen_calls)
@@ -284,9 +287,10 @@ def test_dispatch_spawns_when_session_extract_is_present(monkeypatch, tmp_path):
     assert len(popen_calls) == 1
     argv = popen_calls[0][0]
     assert argv[:2] == ["sh", "-c"]
+    assert "--profile maintainer" in argv[2]
 
 
-def test_dispatch_logs_session_extract_stderr_instead_of_discarding_it(
+def test_dispatch_logs_session_report_stderr_instead_of_discarding_it(
     monkeypatch, tmp_path
 ):
     """#1649: a genuine failure inside this checkout must leave evidence
@@ -294,9 +298,9 @@ def test_dispatch_logs_session_extract_stderr_instead_of_discarding_it(
     `|| true`."""
     fake_hook_dir = tmp_path / "plugins" / "dev-team" / "hooks"
     fake_hook_dir.mkdir(parents=True)
-    fake_scripts = tmp_path / "scripts"
-    fake_scripts.mkdir()
-    (fake_scripts / "session_extract.py").write_text("# fake\n")
+    fake_scripts = tmp_path / "plugins" / "dev-team" / "scripts"
+    fake_scripts.mkdir(parents=True)
+    (fake_scripts / "session_report.py").write_text("# fake\n")
 
     popen_calls = []
     _patch_dispatch_popen(monkeypatch, popen_calls)
@@ -304,7 +308,7 @@ def test_dispatch_logs_session_extract_stderr_instead_of_discarding_it(
 
     shell_body = popen_calls[0][0][2]
     assert "/dev/null 2>&1 || true" not in shell_body.split(";")[0], (
-        "session_extract's stderr must not be discarded to /dev/null"
+        "session_report's stderr must not be discarded to /dev/null"
     )
     assert "session-learning-errors.log" in shell_body
     assert "2>>" in shell_body, "must append, not truncate, across repeated dispatches"

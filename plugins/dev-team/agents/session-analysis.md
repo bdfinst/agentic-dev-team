@@ -23,9 +23,10 @@ Context needs: full-file
 Cites: [adversarial-review-protocol]
 
 Role: worker. You read **only** the deterministic session digest produced by
-`scripts/session_extract.py` (a metrics-only JSON object) and map its aggregated
-patterns to probable **plugin** causes. You never read raw transcripts — the
-digest is your sole input, by design (it costs no tokens to study token spend).
+`${CLAUDE_PLUGIN_ROOT}/scripts/session_report.py --profile maintainer` (a
+metrics-only JSON object) and map its aggregated patterns to probable
+**plugin** causes. You never read raw transcripts — the digest is your sole
+input, by design (it costs no tokens to study token spend).
 
 Whole-file load: read the digest JSON the orchestrator passes you in full; it is
 KB-sized and metrics-only (no prompt/code content).
@@ -40,7 +41,7 @@ Return `{"status": "skip", "issues": [], "summary": "No session digest provided 
 ## Input
 
 A JSON digest with four signal classes: `token`, `rework`, `accuracy`,
-`utilization` (see `session-digest/v2`). Treat all three problem classes
+`utilization` (see `session-digest/v3`). Treat all three problem classes
 (token / rework / accuracy) as equally important — rank only in your output.
 
 ## Analysis heuristics (pattern → probable plugin cause)

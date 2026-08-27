@@ -10,11 +10,11 @@ Those expire in 30 days. A prior durable archive
 (`digests/<host>/session-digest.jsonl` in a separate telemetry repo) existed
 and stopped being written on 2026-07-27 -- no workflow, hook, or job called
 it. This is the "small and urgent" half of #2018's fix: it stops today's
-bleeding by writing `session_extract.py --sync-out`'s incremental,
-metrics-only stream to a LOCAL file under `.claude/metrics/` (gitignored,
-`**/metrics/*` -- never committed), independent of whether/how a session's
-`plugin_version` gets fixed (#2018's second, larger half, tracked
-separately). It never pushes anywhere and never touches git.
+bleeding by writing `session_report.py --profile maintainer --sync-out`'s
+incremental, metrics-only stream to a LOCAL file under `.claude/metrics/`
+(gitignored, `**/metrics/*` -- never committed), independent of whether/how
+a session's `plugin_version` gets fixed (#2018's second, larger half,
+tracked separately). It never pushes anywhere and never touches git.
 
 The cross-machine telemetry-sync mechanism (`scripts/telemetry-sync.sh`,
 which clones/commits/pushes to a *separate*, explicitly-configured
@@ -74,7 +74,7 @@ def main() -> int:
         ).is_file():
             return 0
 
-        script = root / "scripts" / "session_extract.py"
+        script = root / "plugins" / "dev-team" / "scripts" / "session_report.py"
         if not script.is_file():
             return 0
 
@@ -89,6 +89,8 @@ def main() -> int:
             [
                 sys.executable,
                 str(script),
+                "--profile",
+                "maintainer",
                 "--sync-out",
                 str(digest_out),
                 "--watermark",
@@ -105,9 +107,9 @@ def main() -> int:
 
         if not ok:
             _emit(
-                "Session archival (session_extract.py --sync-out, #2018) failed "
-                f"or timed out this run -- transcripts still age out at 30 days "
-                f"until it succeeds. See {log_path}."
+                "Session archival (session_report.py --profile maintainer "
+                f"--sync-out, #2018) failed or timed out this run -- transcripts "
+                f"still age out at 30 days until it succeeds. See {log_path}."
             )
         # Silent on success -- this runs every session start, and a
         # steady-state "archived N sessions" line on every launch is exactly

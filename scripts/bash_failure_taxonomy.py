@@ -6,13 +6,13 @@ so future remediation work has a real distribution to work against, not a
 guess.
 
 **Self-contained by design (post plan-review-design).**
-`session_extract.py`'s module docstring states an explicit, enforced
+`session_report.py`'s module docstring states an explicit, enforced
 contract -- "the digest holds METRICS ONLY ... no prompt text, code, file
 contents, or command strings are ever emitted" -- reinforced by dedicated
 sanitizers throughout that file. Threading raw Bash command/error text out
 through a new map inside its `extract()` walker would violate that
 contract. This module never imports from or threads data through
-`extract()`; it reuses ONLY `session_extract.py`'s already-hardened,
+`extract()`; it reuses ONLY `session_report.py`'s already-hardened,
 public `resolve_transcripts`/`resolve_all_transcripts` functions for
 transcript-PATH discovery (they resolve file paths, never command/error
 text, so importing them does not touch the privacy contract). Everything
@@ -60,10 +60,15 @@ from collections.abc import Iterable, Iterator
 from dataclasses import dataclass, field
 from pathlib import Path
 
-_HERE = str(Path(__file__).resolve().parent)
-if _HERE not in sys.path:
-    sys.path.append(_HERE)
-from session_extract import resolve_all_transcripts, resolve_transcripts
+# session_report.py (#2047) replaces session_extract.py as the source of
+# resolve_transcripts/resolve_all_transcripts -- it ships under
+# plugins/dev-team/scripts/, not repo-root scripts/.
+_PLUGIN_SCRIPTS = str(
+    Path(__file__).resolve().parent.parent / "plugins" / "dev-team" / "scripts"
+)
+if _PLUGIN_SCRIPTS not in sys.path:
+    sys.path.append(_PLUGIN_SCRIPTS)
+from session_report import resolve_all_transcripts, resolve_transcripts
 
 
 @dataclass(frozen=True)
@@ -105,7 +110,7 @@ def _iter_json_records(path: Path) -> Iterator[object]:
     abort classification of the rest of the corpus. An unreadable file
     (missing, permission-denied, or a decode error mid-character --
     `UnicodeDecodeError` is a `ValueError`) yields nothing rather than
-    raising, matching `session_extract.py::_iter_records`'s own contract.
+    raising, matching `session_report.py::_iter_records`'s own contract.
     """
     try:
         with path.open(encoding="utf-8", errors="replace") as fh:
@@ -204,7 +209,7 @@ def _pair_transcript_records(
     A `tool_result`/`tool_use` block that decodes as valid JSON but is not
     a dict, or is a dict missing the fields this function reads
     (`type`/`content`/`tool_use_id` for a `tool_result`), is skipped without
-    raising -- mirroring `session_extract.py::_read_synced_records`'s
+    raising -- mirroring `session_report.py::_read_synced_records`'s
     existing `isinstance(rec, dict)` guard.
     """
     pairs: list[BashErrorPair] = []
@@ -637,7 +642,7 @@ def build_arg_parser() -> argparse.ArgumentParser:
     """CLI surface for transcript-path discovery.
 
     `--transcript`/`--project-dir`/`--cwd`/`--projects-root` deliberately
-    match `session_extract.py`'s own flag names and `dest`s -- required for
+    match `session_report.py`'s own flag names and `dest`s -- required for
     `resolve_transcripts`/`resolve_all_transcripts` to duck-type correctly
     against the parsed `Namespace` (see module docstring).
     """

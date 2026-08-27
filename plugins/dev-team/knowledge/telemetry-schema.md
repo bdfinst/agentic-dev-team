@@ -86,7 +86,7 @@ PR-creation time, against the branch's cumulative diff, does not have that
 problem. `hooks/pre_pr_review.py` never emits this event. Existing rows in
 `boundary-events.jsonl` from before the migration remain valid history.
 
-- **Emitter:** `hooks/lib/boundary_events.py::emit_boundary_event()`, called from `destructive_guard.py`, `verify_guard.py`, `pre_pr_review.py` (#1886), `telemetry.py` (intervention keywords), `agent_dispatch_ledger.py` (decision `record`, #1461), the mechanically-adopted guards (`pre_tool_guard.py`, `context_ceiling_guard.py`, `bash_retry_guard.py`, `refactor_test_freeze_guard.py`, `refactor_test_bash_guard.py`, `refactor_test_revert_guard.py` (decision `revert`, #906), `contract_version_guard.py`, `mutation_testing_smoke_gate.py`, `mutation_gate.py`, `tdd_guard.py`), and `boundary_events.py`'s own CLI (`--event dispatch-failure`, decision `dispatch-failure`, #1763) invoked from `skills/code-review/SKILL.md` Step 4. `--event gate-ran --verdict {allow,block,errored}` (decision `record`, `matched_rule` of `gate-ran-<verdict>`, #2037) is invoked from the repo-root `.husky/pre-commit` git hook — the real, git-native pre-commit gate (distinct from `pre_pr_review.py`, a Claude-Code-level PreToolUse hook gating `gh pr create`) — at every exit point, success or failure alike, so `scripts/session_extract.py` can correlate a commit-attempt Bash record against a nearby `gate_ran` event and classify the previously-unmeasured "the gate silently never ran" population (`gate_ran_absent`) apart from a genuine internal failure (`gate_ran_errored`). This event carries no `session_id` in practice — a real git hook has no Claude Code session_id to attach — so correlation is by time proximity, not session join; see `scripts/session_extract.py`'s "gate-run correlation (#2037)" section.
+- **Emitter:** `hooks/lib/boundary_events.py::emit_boundary_event()`, called from `destructive_guard.py`, `verify_guard.py`, `pre_pr_review.py` (#1886), `telemetry.py` (intervention keywords), `agent_dispatch_ledger.py` (decision `record`, #1461), the mechanically-adopted guards (`pre_tool_guard.py`, `context_ceiling_guard.py`, `bash_retry_guard.py`, `refactor_test_freeze_guard.py`, `refactor_test_bash_guard.py`, `refactor_test_revert_guard.py` (decision `revert`, #906), `contract_version_guard.py`, `mutation_testing_smoke_gate.py`, `mutation_gate.py`, `tdd_guard.py`), and `boundary_events.py`'s own CLI (`--event dispatch-failure`, decision `dispatch-failure`, #1763) invoked from `skills/code-review/SKILL.md` Step 4. `--event gate-ran --verdict {allow,block,errored}` (decision `record`, `matched_rule` of `gate-ran-<verdict>`, #2037) is invoked from the repo-root `.husky/pre-commit` git hook — the real, git-native pre-commit gate (distinct from `pre_pr_review.py`, a Claude-Code-level PreToolUse hook gating `gh pr create`) — at every exit point, success or failure alike, so `${CLAUDE_PLUGIN_ROOT}/scripts/session_report.py --profile maintainer` can correlate a commit-attempt Bash record against a nearby `gate_ran` event and classify the previously-unmeasured "the gate silently never ran" population (`gate_ran_absent`) apart from a genuine internal failure (`gate_ran_errored`). This event carries no `session_id` in practice — a real git hook has no Claude Code session_id to attach — so correlation is by time proximity, not session join; see `session_report.py`'s "gate-run correlation (#2037)" section.
 - **Consent:** ALWAYS-ON — not gated by `DEV_TEAM_TELEMETRY`. Local-only, rule-IDs-only safety/accountability channel; no observability holes by design.
 - **Fail-open:** every exception in the emit helper is swallowed — never changes the calling hook's exit code, stdout, or stderr.
 - **Consumers:** `skills/session-review/SKILL.md`, `skills/harness-audit/SKILL.md`, `agents/session-analysis.md`, `skills/cost-report/`, `skills/run-report/SKILL.md` (#1167), `hooks/lib/review_gate_corroboration.py` (#1461 `record` rows; #1763 also reads `dispatch-failure` rows as negative evidence for the gate veto), future `agent-telemetry` cross-machine aggregation (#178).
@@ -108,7 +108,7 @@ the pre-commit review gate fired or was bypassed.
 
 - **Emitter:** `hooks/telemetry.py::_emit()`. Written to `~/.claude/metrics/telemetry.jsonl` — home-scoped, out of the project entirely (#1405/#1406), never a project's own `metrics/`.
 - **Consent:** opt-in — `~/.claude/telemetry.json` `{"enabled": true}`, home-scoped only. `DEV_TEAM_TELEMETRY` and a project-scoped `<cwd>/.claude/telemetry.json` are now inert (one-time-per-session stderr notice only, no effect on consent). Off by default; nothing recorded, nothing leaves the machine.
-- **Consumers:** `skills/telemetry/SKILL.md`, `scripts/session_extract.py`.
+- **Consumers:** `skills/telemetry/SKILL.md`, `plugins/dev-team/scripts/session_report.py`.
 
 ---
 
@@ -238,7 +238,7 @@ protocol events (approval / override / pause / stop).
 
 ## `session-digest.jsonl`
 
-Trend digest from `/session-review` (backed by `scripts/session_extract.py`):
+Trend digest from `/session-review` (backed by `${CLAUDE_PLUGIN_ROOT}/scripts/session_report.py --profile maintainer`):
 aggregate counts only, no file names, prompts, command strings, or code.
 
 | Field | Type | Values / source |
@@ -256,12 +256,16 @@ aggregate counts only, no file names, prompts, command strings, or code.
 first time, so token/tool-call/rework totals jump against v1, and
 `retried_bash_commands` / `repeated_verify_runs` moved from a session-keyed to
 a per-thread basis. Records from the two eras are not comparable; split on
-`schema` before trending.
+`schema` before trending. `session-digest/v3` (#2046) is a schema-label-only
+bump: it is emitted by the new unified `session_report.py --profile
+maintainer` entry point, which every real consumer now runs (#2047) instead
+of the earlier monorepo-only extractor (retired in #2048). No data-shape
+change from v2 — a v2 and a v3 record trend together.
 
-- **Emitter:** `/session-review` skill via `scripts/session_extract.py`.
+- **Emitter:** `/session-review` skill via `${CLAUDE_PLUGIN_ROOT}/scripts/session_report.py --profile maintainer`.
 - **Consent:** unconditional (aggregate counts only, no file/prompt/command content).
 - **Enforcement (#2045):** every name/label-shaped field this stream (and the
-  shipped `extract_session_report.py` downstream report) emits passes
+  shipped `session_report.py --profile downstream` report) emits passes
   through `plugins/dev-team/scripts/lib/session_log/redact.redact()` — the
   one function both extractors route file basenames, project labels, skill
   names, agent names, and model ids through before writing them out.
@@ -272,7 +276,7 @@ a per-thread basis. Records from the two eras are not comparable; split on
   command string, and absolute POSIX/Windows paths.
 - **Consumers:** `skills/harness-audit/SKILL.md` (joins with self-reported task logs), `agents/session-analysis.md`.
 - **Version tagging (#1471):** `plugin_version` is also carried on the per-session `session-sync/v1`/`session-sync/v2` records synced by `--sync-out` (used by `--rollup`/`--escalate`/`--correlate`) and on the single-shot digest itself — every one of these tags reflects the plugin version active on the machine *at extraction time*, not the version that was necessarily active during the original raw session (transcripts carry no version tag of their own to correlate against).
-- **Version scoping (#1480):** `session_extract.py --rollup`/`--escalate`/`--correlate` accept `--version-scope {all,current-and-previous}` (default `all`, unbounded history). `current-and-previous` drops any record whose `plugin_version` isn't the currently-installed version or the version immediately before it *as observed in the digests being read* (there is no release-history lookup) — records with no `plugin_version` at all (pre-#1471 data) are dropped too, since they can't be proven current. The result gains a `version_window` field (the concrete versions included; `[]` when unscoped). `/session-review` defaults to local-only; its `--cross-machine` opt-in always applies `current-and-previous` scoping (see its SKILL.md) — the skill itself never exposes an unscoped cross-machine mode. Unbounded history across every version remains available only via a direct `session_extract.py --rollup ... --version-scope all` invocation (the CLI default), outside the skill.
+- **Version scoping (#1480):** `session_report.py --profile maintainer --rollup`/`--escalate`/`--correlate` accept `--version-scope {all,current-and-previous}` (default `all`, unbounded history). `current-and-previous` drops any record whose `plugin_version` isn't the currently-installed version or the version immediately before it *as observed in the digests being read* (there is no release-history lookup) — records with no `plugin_version` at all (pre-#1471 data) are dropped too, since they can't be proven current. The result gains a `version_window` field (the concrete versions included; `[]` when unscoped). `/session-review` defaults to local-only; its `--cross-machine` opt-in always applies `current-and-previous` scoping (see its SKILL.md) — the skill itself never exposes an unscoped cross-machine mode. Unbounded history across every version remains available only via a direct `session_report.py --profile maintainer --rollup ... --version-scope all` invocation (the CLI default), outside the skill.
 
 ---
 

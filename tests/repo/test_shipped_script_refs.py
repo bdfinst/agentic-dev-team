@@ -17,13 +17,16 @@ Three invariants, each model-free and deterministic:
   3. every hook command registered in settings.json resolves to a shipped
      file.
 
-Allowlist (invariant 2): /session-review is a maintainer tool that operates
-on THIS repo's own infrastructure (session transcripts). It only ever runs
-from the dev checkout, where ../../scripts/ resolves, and its helpers
-(session_extract.py et al.) are coupled repo-root tooling that is
-intentionally not shipped. A NEW ../../ reference in ANY OTHER skill is a
-shipping bug - add the helper under plugins/dev-team/scripts/ and reference
-it as ${CLAUDE_PLUGIN_ROOT}/scripts/<name> instead of exempting it.
+Allowlist (invariant 2): /session-review's CORE steps run entirely from the
+shipped session_report.py (#2046/#2047 -- closing #1779 for that part), so
+most of this skill no longer needs the escape. What remains genuinely
+repo-root-only, by design (ADR 0032 Category 2, self-referential to this
+marketplace repo's own cross-machine telemetry database): telemetry-sync.sh
+(--cross-machine sync) and eval_rawlog.py (the raw-log semantic tier it
+gates) -- both already opt-in and off by default. A NEW ../../ reference in
+ANY OTHER skill is a shipping bug - add the helper under
+plugins/dev-team/scripts/ and reference it as
+${CLAUDE_PLUGIN_ROOT}/scripts/<name> instead of exempting it.
 
 /agent-eval was in this allowlist until #1637: it's the same kind of
 maintainer-only, repo-self-referential tool, but its `allowed-tools`

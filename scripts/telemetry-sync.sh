@@ -71,7 +71,8 @@ DIGEST_DIR="$CLONE/digests/$HOST"
 mkdir -p "$DIGEST_DIR"
 WM="$HOME/.claude/.dev-team/telemetry-sync.json"
 mkdir -p "$(dirname "$WM")"
-python3 "$SCRIPT_DIR/session_extract.py" \
+python3 "$SCRIPT_DIR/../plugins/dev-team/scripts/session_report.py" \
+  --profile maintainer \
   --sync-out "$DIGEST_DIR/session-digest.jsonl" \
   --watermark "$WM" --host "$HOST" \
   --plugin-root "$SCRIPT_DIR/../plugins/dev-team" \
