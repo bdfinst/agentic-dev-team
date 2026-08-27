@@ -57,7 +57,6 @@ import json
 import math
 import os
 import re
-import shlex
 import sys
 from collections import Counter, defaultdict
 from datetime import UTC
@@ -72,125 +71,27 @@ sys.path.insert(
     0,
     str(Path(__file__).resolve().parent.parent / "plugins" / "dev-team" / "scripts" / "lib"),
 )
-from session_log import discovery, records
+from session_log import classify, discovery, records
 
-# --- verification / classification vocabularies (counted, never emitted) -----
-_VERIFY_RE = re.compile(
-    r"\b(npm (run )?(test|lint|build)|pytest|bats|eslint|tsc|go test|cargo "
-    r"(test|build)|mvn|gradle|make( |$)|vitest|jest|ruff|mypy|shellcheck)\b"
-)
-_CORRECTION_RE = re.compile(
-    r"\b(no|actually|revert|undo|not what i (asked|wanted)|that's wrong|"
-    r"that is wrong|wrong|stop|don't|do not)\b"
-)
-_PERMISSION_RE = re.compile(r"permission|denied|not allowed|blocked by", re.IGNORECASE)
-_OLDSTRING_RE = re.compile(r"old_string|not found|no match|string to replace", re.IGNORECASE)
+# session_log.classify (issue #2043, epic #2040): the classification
+# vocabulary and text/name-handling helpers used to be defined here; they
+# are now shared with extract_session_report.py. See
+# plugins/dev-team/scripts/lib/session_log/classify.py's module docstring
+# for the per-symbol reconciliation table. Aliased under the original
+# private names so every internal call site below is unchanged.
+_VERIFY_RE = classify.VERIFY_RE
+_CORRECTION_RE = classify.CORRECTION_RE
+_PERMISSION_RE = classify.PERMISSION_RE
+_OLDSTRING_RE = classify.OLDSTRING_RE
 _EDIT_TOOLS = {"Edit", "Write", "NotebookEdit", "MultiEdit"}
-# Gate signal (#111): a `git commit`, and whether it bypassed the pre-commit
-# review gate (--no-verify, or a bare -n). #2036: the review-corroboration
-# gate itself moved from `git commit` time to `gh pr create` time in #1886 —
-# `hooks/telemetry.py` now keys its bypass signal off `PR_GATE_BYPASS_REASON`
-# on a `gh pr create` invocation, an unrelated mechanism this no longer
-# mirrors. This signal stays commit-time on purpose: it measures how often a
-# commit itself skips local review, which is a real and different question
-# from whether a PR was opened without one.
-#
-# Detection is argv-shaped, not a substring search over the whole command —
-# see _bash_segments()/_is_git_commit_argv() below. A prior version searched
-# `\bgit\s+commit\b` and `--no-verify|(^|\s)-n(\s|$)` against the raw string,
-# which matched inside unrelated flags in a compound command (`grep -n`,
-# `ls -n`) and even inside an unrelated string (`echo "git commit"`).
-_GIT_GLOBAL_OPTS_WITH_ARG = {"-C", "-c", "--git-dir", "--work-tree", "--namespace"}
-_COMMIT_BYPASS_TOKENS = {"--no-verify", "-n"}
-
-
-def _statement_break_newlines(cmd: str) -> str:
-    """Replace a bare (unquoted) newline with ';' so a tokenizer sees a
-    statement boundary there — a newline embedded inside a quoted argument
-    (e.g. a multi-line commit message) is left untouched."""
-    out = []
-    in_single = in_double = False
-    i, n = 0, len(cmd)
-    while i < n:
-        ch = cmd[i]
-        if ch == "'" and not in_double:
-            in_single = not in_single
-            out.append(ch)
-        elif ch == '"' and not in_single:
-            in_double = not in_double
-            out.append(ch)
-        elif ch == "\\" and in_double and i + 1 < n:
-            out.append(ch)
-            out.append(cmd[i + 1])
-            i += 1
-        elif ch == "\n" and not in_single and not in_double:
-            out.append(";")
-        else:
-            out.append(ch)
-        i += 1
-    return "".join(out)
-
-
-def _bash_segments(cmd: str) -> list[list[str]]:
-    """Split `cmd` into argv-shaped segments at top-level shell operators
-    (&&, ||, ;, |, and bare newlines), respecting quoting throughout — a
-    quoted operator or newline inside a commit message never splits the
-    command, and a quoted flag never crosses a segment boundary."""
-    lex = shlex.shlex(_statement_break_newlines(cmd), posix=True, punctuation_chars="&|;")
-    lex.whitespace_split = True
-    try:
-        tokens = list(lex)
-    except ValueError:
-        # Malformed shell syntax (e.g. an unbalanced quote) — cannot be
-        # segmented reliably. Fall back to a single opaque whitespace-split
-        # segment rather than losing the signal outright.
-        return [cmd.split()]
-    segments: list[list[str]] = []
-    current: list[str] = []
-    for tok in tokens:
-        if tok in ("&&", "||", ";", "|", "&"):
-            if current:
-                segments.append(current)
-            current = []
-        else:
-            current.append(tok)
-    if current:
-        segments.append(current)
-    return segments
-
-
-def _is_git_commit_argv(tokens: list[str]) -> bool:
-    """True if `tokens` invokes `git ... commit ...` — walks past git's
-    global options (including ones taking a separate argument, e.g. `-C`)
-    to find the subcommand, so `git -C path commit` is recognized."""
-    if not tokens or tokens[0] != "git":
-        return False
-    i = 1
-    while i < len(tokens):
-        tok = tokens[i]
-        if tok in _GIT_GLOBAL_OPTS_WITH_ARG:
-            i += 2
-            continue
-        if tok.startswith("-"):
-            i += 1
-            continue
-        return tok == "commit"
-    return False
-
-
-# Agent transcripts are `agent-<id>.jsonl` — the pattern lives in
-# session_log.discovery now (AGENT_TRANSCRIPT_RE), since it's used only
-# inside is_transcript_path, which moved there in #2042.
-# Every string that becomes a digest KEY passes _safe_name: these arrive from
-# transcript files this script does not author, and the digest's own privacy
-# contract is names-only.
-_SAFE_NAME_RE = re.compile(r"^[A-Za-z0-9._:-]{1,64}$")
-_UNSAFE_NAME = "other"
-# `attributionAgent` values naming a harness ROLE rather than an agent. Every
-# real Workflow-dispatched transcript carries "workflow-subagent"; unfiltered
-# they become phantom agents while the agent that actually ran stays in
-# never_observed_agents — the #1990 symptom itself.
-_HARNESS_ATTRIBUTIONS = frozenset({"workflow-subagent", "claude"})
+_GIT_GLOBAL_OPTS_WITH_ARG = classify.GIT_GLOBAL_OPTS_WITH_ARG
+_COMMIT_BYPASS_TOKENS = classify.COMMIT_BYPASS_TOKENS
+_statement_break_newlines = classify.statement_break_newlines
+_bash_segments = classify.bash_segments
+_is_git_commit_argv = classify.is_git_commit_argv
+_SAFE_NAME_RE = classify.SAFE_NAME_RE
+_UNSAFE_NAME = classify.UNSAFE_NAME
+_HARNESS_ATTRIBUTIONS = classify.HARNESS_ATTRIBUTIONS
 _DIGEST_SCHEMA = "session-digest/v2"
 _SYNC_SCHEMA = "session-sync/v2"
 #: Sync-record schemas a reader accepts. Declared once and imported by
@@ -199,28 +100,8 @@ _SYNC_SCHEMA = "session-sync/v2"
 SYNC_SCHEMAS = ("session-sync/v1", "session-sync/v2")
 _MAIN_LABEL = "main"
 _UNATTRIBUTED_LABEL = "unattributed"
-
-
-def _basename(path_str: str) -> str:
-    """Last component of a path recorded on ANY platform.
-
-    `os.path.basename` splits on `/` only, so a Windows-form path comes back
-    whole — an absolute path, username included, in a field this module's
-    docstring promises is a basename. Reachable whenever Windows-written
-    transcripts are read under WSL, a devcontainer, or a bind-mounted
-    `~/.claude`. The shipped twin already had this; the #1994 port left it
-    behind, which is the same defect class crossing the fork twice.
-    """
-    return re.split(r"[\\/]", path_str)[-1] or path_str
-
-
-def _safe_name(value: str) -> str:
-    """Reduce an input-derived string to something safe to emit as a key."""
-    # fullmatch, not match: `$` also matches immediately BEFORE a single
-    # trailing newline, so `.match()` admitted "name\n" through the allowlist
-    # and split the key space (#1994 review).
-    return value if _SAFE_NAME_RE.fullmatch(value) else _UNSAFE_NAME
-
+_basename = classify.basename
+_safe_name = classify.safe_name
 
 # session_log.discovery (#2042): path classification and enumeration used to
 # be defined here; they are now shared with extract_session_report.py.
@@ -230,15 +111,7 @@ _is_transcript_path = discovery.is_transcript_path
 _is_subagent_transcript = discovery.is_subagent_transcript
 _all_transcripts_under = discovery.all_transcripts
 
-
-def _strip_ns(name: str) -> str:
-    """Drop known plugin namespace prefixes so invoked names match the registry
-    (registry entries are bare dir/file stems). `dev-team:plan` -> `plan`;
-    `agentic-dev-team:plan` -> `plan`; other names pass through."""
-    for prefix in ("agentic-dev-team:", "dev-team:"):
-        if name.startswith(prefix):
-            return name[len(prefix) :]
-    return name
+_strip_ns = classify.strip_ns
 
 
 def _rewrite_name_keys(mapping: dict) -> dict:
@@ -261,21 +134,7 @@ def _rewrite_name_keys(mapping: dict) -> dict:
     return out
 
 
-def _text_of(content) -> str:
-    """Flatten a message ``content`` (str or list of blocks) to plain text.
-    Used only for keyword CLASSIFICATION; never emitted into the digest."""
-    if isinstance(content, str):
-        return content
-    if isinstance(content, list):
-        parts = []
-        for block in content:
-            if isinstance(block, dict):
-                if isinstance(block.get("text"), str):
-                    parts.append(block["text"])
-                elif isinstance(block.get("content"), str):
-                    parts.append(block["content"])
-        return " ".join(parts)
-    return ""
+_text_of = classify.text_of
 
 
 def _load_pricing(path: Path | None) -> dict:
