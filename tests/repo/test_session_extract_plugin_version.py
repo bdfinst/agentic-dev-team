@@ -874,3 +874,33 @@ def test_rollup_non_dict_utilization_does_not_crash_and_contributes_nothing(
     data = json.loads(result.stdout)
     assert data["sessions"] == 2
     assert data["utilization"]["skills_invoked"] == {"plan": 1}
+
+
+@pytest.mark.parametrize("bad_value", ["not-a-dict", [1, 2]])
+def test_rollup_survives_a_non_dict_inner_utilization_field(
+    tmp_path: Path, bad_value: object
+) -> None:
+    """#2016 closing-pass finding 1: `_normalize_name_dicts` only rewrote a
+    field `if isinstance(value, dict)`, leaving a non-dict INNER field (e.g.
+    `utilization.skills_invoked` set to a string or list by a hostile peer)
+    untouched -- distinct from `test_rollup_non_dict_utilization_does_not_
+    crash_and_contributes_nothing` above, which only covers the OUTER
+    `utilization` container being non-dict. `rollup()` then calls `.items()`
+    on the untouched inner field unguarded (`(u.get("skills_invoked", {}) or
+    {}).items()`) -- a truthy non-dict value isn't rescued by `or {}`, so
+    `.items()` raised an uncaught AttributeError and aborted --rollup for
+    every host. Must coerce to {} instead, and the well-formed sibling's
+    data must still appear."""
+    plugin_root = _fake_plugin_root(tmp_path, "10.23.0")
+    digests = tmp_path / "digests"
+    hostile = _base_sync_record("hostile-host", "p", "s-hostile")
+    hostile["utilization"]["skills_invoked"] = bad_value
+    _write_digest(digests, "hostile-host", [hostile])
+    well_formed = _base_sync_record("good-host", "p", "s-good")
+    well_formed["utilization"]["skills_invoked"] = {"plan": 1}
+    _write_digest(digests, "good-host", [well_formed])
+    result = _run("--rollup", str(digests), "--plugin-root", str(plugin_root))
+    assert result.returncode == 0, result.stdout + result.stderr
+    data = json.loads(result.stdout)
+    assert data["sessions"] == 2
+    assert data["utilization"]["skills_invoked"] == {"plan": 1}

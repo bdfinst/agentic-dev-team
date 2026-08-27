@@ -1110,12 +1110,14 @@ def _safe_number(value) -> int | float:
 def _normalize_name_dicts(container: dict, fields: tuple) -> None:
     """Rewrite each named dict-valued field of `container` through
     `_rewrite_name_keys`, in place. A field that's absent or not a dict is
-    left untouched — the same permissive default `_read_synced_records`
-    applied inline before this was extracted."""
+    coerced to an empty dict — a peer-supplied non-dict value (e.g. a string
+    or list) is as untrusted as any other field it carries, and left
+    unrewritten it reaches `rollup()`'s unguarded `.items()` calls
+    (`(acc.get("by_skill", {}) or {}).items()` and friends) and raises an
+    uncaught AttributeError, aborting the caller for every host."""
     for field in fields:
         value = container.get(field)
-        if isinstance(value, dict):
-            container[field] = _rewrite_name_keys(value)
+        container[field] = _rewrite_name_keys(value) if isinstance(value, dict) else {}
 
 
 def _normalize_numeric_fields(container: dict, fields: tuple) -> None:
@@ -1128,10 +1130,11 @@ def _normalize_numeric_fields(container: dict, fields: tuple) -> None:
 
 
 def _read_synced_records(digests_root: Path) -> list[dict]:
-    """Union read + dedup (#178): every host's per-session `session-sync/v1`
-    record under `digests_root/<host>/session-digest.jsonl`, keeping the LAST
-    record for a session_id seen on multiple host files (or re-emitted after
-    growth). Shared by `rollup()`, `correlate_gate_rework()`, and `cost_log()`
+    """Union read + dedup (#178): every host's per-session record (schema-
+    versioned, see `SYNC_SCHEMAS`) under `digests_root/<host>/session-digest.jsonl`,
+    keeping the LAST record for a session_id seen on multiple host files (or
+    re-emitted after growth). Shared by `rollup()`, `correlate_gate_rework()`,
+    and `cost_log()`
     so the dedup logic lives in one place. Each record's `plugin_version`,
     `host`, `project`, `ts`, the name-bearing dicts under
     `utilization`/`accuracy`, every peer-supplied numeric field a downstream
@@ -1158,7 +1161,7 @@ def _read_synced_records(digests_root: Path) -> list[dict]:
             )
             rec["host"] = _safe_name(str(rec.get("host") or "unknown"))
             rec["project"] = _safe_name(str(rec.get("project") or "unknown"))
-            rec["ts"] = rec.get("ts") if isinstance(rec.get("ts"), str) else ""
+            rec["ts"] = _safe_name(rec["ts"]) if isinstance(rec.get("ts"), str) else ""
             rec["cost_usd"] = _safe_number(rec.get("cost_usd", 0))
             utilization = (
                 rec.get("utilization") if isinstance(rec.get("utilization"), dict) else {}
@@ -1329,9 +1332,16 @@ def rollup(
         for name, k in (u.get("agent_dispatches", {}) or {}).items():
             agent_dispatches[_strip_ns(name)] += k
 
-    never_skills = sorted(set(registry.get("skills", [])) - set(skills_invoked))
+    # Membership, not count: a name coerced to a real key at count 0 (e.g. a
+    # malformed peer value that `_safe_number` reduced to 0 rather than
+    # aborting the run) must not read as "invoked" here -- only a positive
+    # count counts as observed (#2016 closing-pass finding 2).
+    invoked_skills = {n for n, c in skills_invoked.items() if c > 0}
+    invoked_agents = {n for n, c in agents_invoked.items() if c > 0}
+    dispatched_agents = {n for n, c in agent_dispatches.items() if c > 0}
+    never_skills = sorted(set(registry.get("skills", [])) - invoked_skills)
     never_agents = sorted(
-        set(registry.get("agents", [])) - set(agents_invoked) - set(agent_dispatches)
+        set(registry.get("agents", [])) - invoked_agents - dispatched_agents
     )
 
     def _hostmap(d: dict) -> dict:
