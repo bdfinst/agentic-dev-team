@@ -45,6 +45,7 @@ import hashlib
 import json
 import os
 import re
+import shlex
 import socket
 from collections import Counter, defaultdict
 from datetime import datetime, timedelta, timezone
@@ -62,8 +63,92 @@ _CORRECTION_RE = re.compile(
 _PERMISSION_RE = re.compile(r"permission|denied|not allowed|blocked by", re.IGNORECASE)
 _OLDSTRING_RE = re.compile(r"old_string|not found|no match|string to replace", re.IGNORECASE)
 _EDIT_TOOLS = {"Edit", "Write", "NotebookEdit", "MultiEdit"}
-_COMMIT_RE = re.compile(r"\bgit\s+commit\b")
-_BYPASS_RE = re.compile(r"--no-verify|(^|\s)-n(\s|$)")
+# Gate signal (#111): a `git commit`, and whether it bypassed the pre-commit
+# review gate (--no-verify, or a bare -n). Detection is argv-shaped, not a
+# substring search over the whole command (#2036) — see
+# _bash_segments()/_is_git_commit_argv() below. A prior version searched
+# `\bgit\s+commit\b` and `--no-verify|(^|\s)-n(\s|$)` against the raw string,
+# which matched inside unrelated flags in a compound command (`grep -n`,
+# `ls -n`) and even inside an unrelated string (`echo "git commit"`). Kept in
+# agreement with the identical fix in scripts/session_extract.py — the two
+# extractors' sharing of this logic is scoped to happen properly in #2040,
+# not duplicated-by-hand again here.
+_GIT_GLOBAL_OPTS_WITH_ARG = {"-C", "-c", "--git-dir", "--work-tree", "--namespace"}
+_COMMIT_BYPASS_TOKENS = {"--no-verify", "-n"}
+
+
+def _statement_break_newlines(cmd: str) -> str:
+    """Replace a bare (unquoted) newline with ';' so a tokenizer sees a
+    statement boundary there — a newline embedded inside a quoted argument
+    (e.g. a multi-line commit message) is left untouched."""
+    out = []
+    in_single = in_double = False
+    i, n = 0, len(cmd)
+    while i < n:
+        ch = cmd[i]
+        if ch == "'" and not in_double:
+            in_single = not in_single
+            out.append(ch)
+        elif ch == '"' and not in_single:
+            in_double = not in_double
+            out.append(ch)
+        elif ch == "\\" and in_double and i + 1 < n:
+            out.append(ch)
+            out.append(cmd[i + 1])
+            i += 1
+        elif ch == "\n" and not in_single and not in_double:
+            out.append(";")
+        else:
+            out.append(ch)
+        i += 1
+    return "".join(out)
+
+
+def _bash_segments(cmd: str) -> list[list[str]]:
+    """Split `cmd` into argv-shaped segments at top-level shell operators
+    (&&, ||, ;, |, and bare newlines), respecting quoting throughout — a
+    quoted operator or newline inside a commit message never splits the
+    command, and a quoted flag never crosses a segment boundary."""
+    lex = shlex.shlex(_statement_break_newlines(cmd), posix=True, punctuation_chars="&|;")
+    lex.whitespace_split = True
+    try:
+        tokens = list(lex)
+    except ValueError:
+        # Malformed shell syntax (e.g. an unbalanced quote) — cannot be
+        # segmented reliably. Fall back to a single opaque whitespace-split
+        # segment rather than losing the signal outright.
+        return [cmd.split()]
+    segments: list[list[str]] = []
+    current: list[str] = []
+    for tok in tokens:
+        if tok in ("&&", "||", ";", "|", "&"):
+            if current:
+                segments.append(current)
+            current = []
+        else:
+            current.append(tok)
+    if current:
+        segments.append(current)
+    return segments
+
+
+def _is_git_commit_argv(tokens: list[str]) -> bool:
+    """True if `tokens` invokes `git ... commit ...` — walks past git's
+    global options (including ones taking a separate argument, e.g. `-C`)
+    to find the subcommand, so `git -C path commit` is recognized."""
+    if not tokens or tokens[0] != "git":
+        return False
+    i = 1
+    while i < len(tokens):
+        tok = tokens[i]
+        if tok in _GIT_GLOBAL_OPTS_WITH_ARG:
+            i += 2
+            continue
+        if tok.startswith("-"):
+            i += 1
+            continue
+        return tok == "commit"
+    return False
 _VERSION_RE = re.compile(r"^[0-9A-Za-z._+-]{1,32}$")
 # Agent transcripts are `agent-<id>.jsonl` (see _is_transcript_path).
 _AGENT_TRANSCRIPT_RE = re.compile(r"^agent-[0-9A-Za-z_-]{1,64}\.jsonl$")
@@ -389,10 +474,11 @@ def _track_bash(block, bash_signal_counts, thread):
             bash_signal_counts["repeated_verify_runs"] += 1
         thread["last_verify_norm"] = norm
         thread["edited_since_verify"] = False
-    if _COMMIT_RE.search(cmd):
-        bash_signal_counts["commit_attempts"] += 1
-        if _BYPASS_RE.search(cmd):
-            bash_signal_counts["commit_bypasses"] += 1
+    for segment in _bash_segments(cmd):
+        if _is_git_commit_argv(segment):
+            bash_signal_counts["commit_attempts"] += 1
+            if any(tok in _COMMIT_BYPASS_TOKENS for tok in segment[1:]):
+                bash_signal_counts["commit_bypasses"] += 1
 
 
 def _new_thread() -> dict:
