@@ -40,11 +40,14 @@ from collections.abc import Callable, Sequence
 from pathlib import Path
 
 # =============================================================================
-# Exit codes — same as the bash version, byte-compatible.
+# Exit codes — same as the bash version, byte-compatible. EXIT_RESTORE_SLN_FAILED
+# is new (#1955) — no bash-version precedent, since restore_sln() previously
+# reported no outcome for main() to surface.
 # =============================================================================
 EXIT_OK = 0
 EXIT_STALE_HIDDEN_SLN = 2
 EXIT_NO_DOTNET_SDK = 3
+EXIT_RESTORE_SLN_FAILED = 4
 
 
 # =============================================================================
@@ -161,12 +164,36 @@ def hide_sln(sln: Path, sln_hidden: Path) -> None:
         sln.rename(sln_hidden)
 
 
-def restore_sln(sln: Path, sln_hidden: Path) -> None:
+def restore_sln(sln: Path, sln_hidden: Path) -> bool:
     """Restore .sln from .sln.stryker-hidden. Guarded so we never clobber a
     fresh .sln written mid-run (rare but real — some IDEs rewrite the file).
+
+    Returns True only when the hidden file existed and was renamed back to
+    ``sln`` successfully. Returns False (#1955) — never raises — in every
+    case where restoration didn't happen: the guard's precondition wasn't
+    met (``sln_hidden`` doesn't exist at all — the hide never happened, or
+    something else already removed it — or a fresh ``sln`` already exists
+    alongside the hidden one, the same stale-coexistence condition
+    ``check_stale_hidden_sln`` refuses at the START of a run, observed here
+    at the END instead), or ``.rename()`` itself raises (``OSError`` /
+    ``PermissionError``, e.g. a locked file on Windows).
+
+    Mirrors ``mutation_kill_shared.git_revert``'s bool-return contract so
+    callers can react uniformly. This module stays dependency-free by
+    design (the module docstring: "copy this file... into your repo's
+    scripts/ directory") — a caller that needs a hard failure signal rather
+    than a bool it must check should raise its own exception on a False
+    return; see ``mutation_kill_loop.py``'s ``run_scoped_stryker``, which
+    raises ``mutation_kill_shared.RevertFailed``, mirroring #1939's
+    ``git_revert`` handling.
     """
-    if sln_hidden.exists() and not sln.exists():
+    if not sln_hidden.exists() or sln.exists():
+        return False
+    try:
         sln_hidden.rename(sln)
+    except OSError:
+        return False
+    return True
 
 
 # =============================================================================
@@ -592,7 +619,19 @@ def main(argv: Sequence[str] | None = None) -> int:
         exit_code = 130  # conventional SIGINT exit code
     finally:
         # ALWAYS restore .sln — no matter which exit path.
-        restore_sln(sln, sln_hidden)
+        restored = restore_sln(sln, sln_hidden)
+        if not restored:
+            sys.stderr.write(
+                f"error: failed to restore {sln} from {sln_hidden} — the "
+                "solution file is left hidden/renamed, which will break the "
+                "next build (#1955)\n"
+            )
+            # Don't clobber a real Stryker failure — a restore failure on
+            # top of an already-non-zero exit adds no new information the
+            # operator needs; surface it only when Stryker itself looked
+            # clean.
+            if exit_code == EXIT_OK:
+                exit_code = EXIT_RESTORE_SLN_FAILED
         # Restore previous signal handlers — critical for library-style use.
         _restore_signal_handlers(previous_signal_handlers)
 

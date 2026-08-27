@@ -191,9 +191,12 @@ class RevertFailed(RuntimeError):
     an unknown/possibly-mutated state, distinct from every other
     ``RuntimeError`` this codebase raises, which are clean with respect to
     inserted test content — generation precedes insertion, and a failed
-    insertion-revert is this class, not a plain ``RuntimeError``. The C#
-    solution-file restore (``wrapper.restore_sln``) reports no outcome, so a
-    stray hidden ``.sln`` is not independently ruled out here — see #1955.
+    insertion-revert is this class, not a plain ``RuntimeError``. Also raised
+    by ``mutation_kill_loop.py``'s ``run_scoped_stryker`` when the C#
+    solution-file restore (``wrapper.restore_sln``, which now returns a bool
+    outcome rather than reporting nothing — #1955) fails: a stray hidden
+    ``.sln`` is the same "working tree left in an unknown state" shape as a
+    failed git revert, just for a different file.
     """
 
 

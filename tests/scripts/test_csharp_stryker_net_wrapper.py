@@ -350,7 +350,7 @@ class TestHideRestore:
         sln = tmp_path / "Foo.sln"
         hidden = Path(str(sln) + ".stryker-hidden")
         hidden.write_text("stub")
-        wrapper.restore_sln(sln, hidden)
+        assert wrapper.restore_sln(sln, hidden) is True
         assert sln.exists()
         assert sln.read_text() == "stub"
 
@@ -359,9 +359,41 @@ class TestHideRestore:
         sln.write_text("fresh")
         hidden = Path(str(sln) + ".stryker-hidden")
         hidden.write_text("stale")
-        wrapper.restore_sln(sln, hidden)
+        # #1955: the guard's precondition wasn't met (a fresh .sln already
+        # exists alongside the hidden one) — restoration was skipped, and
+        # the caller can now tell.
+        assert wrapper.restore_sln(sln, hidden) is False
         # Fresh .sln untouched.
         assert sln.read_text() == "fresh"
+
+
+# =============================================================================
+# restore_sln failure signal (#1955) — the guard's precondition not being met,
+# or the rename itself raising, must be reported to the caller as False
+# rather than silently returning None.
+# =============================================================================
+class TestRestoreSlnFailureSignal:
+    def test_returns_false_when_neither_file_exists(self, tmp_path):
+        sln = tmp_path / "Foo.sln"
+        hidden = Path(str(sln) + ".stryker-hidden")
+        # The hide never happened (or something else removed the hidden
+        # file) — nothing to restore, and the caller should know it.
+        assert wrapper.restore_sln(sln, hidden) is False
+
+    def test_returns_false_when_rename_raises_oserror(self, tmp_path, monkeypatch):
+        sln = tmp_path / "Foo.sln"
+        hidden = Path(str(sln) + ".stryker-hidden")
+        hidden.write_text("stub")
+
+        def _explode(self, target):
+            raise OSError("simulated locked file")
+
+        monkeypatch.setattr(Path, "rename", _explode)
+
+        assert wrapper.restore_sln(sln, hidden) is False
+        # The rename failed — the hidden file is still there, untouched.
+        assert hidden.exists()
+        assert not sln.exists()
 
 
 # =============================================================================
@@ -401,6 +433,37 @@ class TestMainContract:
         assert rc == 42
         assert hermetic.sln.exists()
         assert not hermetic.sln_hidden.exists()
+
+    # =========================================================================
+    # Scenario (#1955): a failed .sln restore is surfaced as a distinct exit
+    # code rather than silently reporting success.
+    # =========================================================================
+    def test_failed_restore_after_clean_stryker_run_surfaces_exit_code(
+        self, hermetic, monkeypatch, capsys
+    ):
+        _install_fakes(monkeypatch, hermetic)
+        monkeypatch.setattr(wrapper, "restore_sln", lambda sln, sln_hidden: False)
+
+        rc = run_wrapper(hermetic)
+
+        assert rc == wrapper.EXIT_RESTORE_SLN_FAILED
+        captured = capsys.readouterr()
+        assert str(hermetic.sln) in captured.err
+        assert str(hermetic.sln_hidden) in captured.err
+
+    def test_failed_restore_does_not_override_a_real_stryker_failure(
+        self, hermetic, monkeypatch, capsys
+    ):
+        # A real Stryker failure (42) takes priority — the restore failure
+        # is still logged, but doesn't clobber the more informative exit
+        # code the operator needs to act on.
+        _install_fakes(monkeypatch, hermetic, stryker_exit_code=42)
+        monkeypatch.setattr(wrapper, "restore_sln", lambda sln, sln_hidden: False)
+
+        rc = run_wrapper(hermetic)
+
+        assert rc == 42
+        assert "failed to restore" in capsys.readouterr().err
 
     def test_refuses_when_stale_hidden_sln_coexists_with_fresh_sln(
         self, hermetic, monkeypatch, capsys

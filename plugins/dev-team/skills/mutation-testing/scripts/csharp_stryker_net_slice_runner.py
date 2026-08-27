@@ -530,7 +530,13 @@ def main(argv: Sequence[str] | None = None) -> int:
         interrupted = True
         sys.stderr.write("mutation slice run interrupted; restoring .sln\n")
     finally:
-        wrapper.restore_sln(sln, sln_hidden)
+        restored = wrapper.restore_sln(sln, sln_hidden)
+        if not restored:
+            sys.stderr.write(
+                f"error: failed to restore {sln} from {sln_hidden} — the "
+                "solution file is left hidden/renamed, which will break the "
+                "next build (#1955)\n"
+            )
         wrapper._restore_signal_handlers(previous_signal_handlers)
 
     if interrupted:
@@ -551,7 +557,12 @@ def main(argv: Sequence[str] | None = None) -> int:
         aggregate = aggregate_slice_summaries(summaries)
         write_aggregate_report(output_root, aggregate)
 
-    return max(exit_codes.values(), default=0)
+    fleet_rc = max(exit_codes.values(), default=0)
+    # Don't clobber a real per-slice failure — surface the restore failure
+    # only when every slice otherwise looked clean (#1955).
+    if not restored and fleet_rc == 0:
+        fleet_rc = wrapper.EXIT_RESTORE_SLN_FAILED
+    return fleet_rc
 
 
 if __name__ == "__main__":
