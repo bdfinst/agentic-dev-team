@@ -1,0 +1,13 @@
+Churn vs coupling  window: 3650 days  commits scanned: 6
+  test files touched: 3  at/above --min-edits 1: 3  mapped: 2  unmapped: 1
+
+  #  edits  with  solo  solo%  test file -> subject(s)
+------------------------------------------------------
+  1      4     2     2    50%  tests/test_alpha.py -> src/alpha.py
+  2      2     2     0     0%  tests/test_beta.py -> src/beta.py
+
+Unmapped (1) -- no subject located, so NOT scored. A miss here is a gap in the mapping conventions, not a finding:
+      2 edits  tests/test_ghost.py
+            tried: tests/ghost.py, ghost.py, src/ghost.py
+
+Reading it: a high solo% means the test changed without its subject changing -- the implementation-coupling smell. A low solo% means the test moved when behavior moved. This script ranks; it does not decide what to do about a row.

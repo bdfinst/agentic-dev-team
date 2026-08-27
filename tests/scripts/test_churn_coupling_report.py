@@ -20,14 +20,23 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import os
 import subprocess
 import sys
+from datetime import datetime, timedelta, timezone
 
 import pytest
 
 from _repo_root import REPO_ROOT
 
 _SCRIPT = REPO_ROOT / "scripts" / "churn_coupling_report.py"
+_GOLDEN_FIXTURE = REPO_ROOT / "tests" / "fixtures" / "churn_coupling_existing_mode_golden.txt"
+
+#: Pinned base date for the golden-fixture repo's commit history (see
+#: `_seed_golden_repo` below) -- arbitrary but fixed, so the history is
+#: byte-identical across machines and runs rather than merely deterministic
+#: in commit order.
+_GOLDEN_REPO_BASE_DATE = datetime(2026, 1, 5, 9, 0, 0, tzinfo=timezone.utc)
 
 
 def _load():
@@ -512,6 +521,108 @@ def _seed_repo(root):
         _git(root, "add", "-A")
         _git(root, "commit", "-q", "-m", message)
     return root
+
+
+# ---------------------------------------------------------------------------
+# Golden fixture (Step 2.1, #2039): a deterministic repo, pinned author dates
+# ---------------------------------------------------------------------------
+
+
+def _commit_at(repo, when, message):
+    """Commit staged changes with a pinned author/committer date.
+
+    Both env vars are set (not just `--date`, which only pins the author
+    date) so the golden fixture's history is byte-identical across machines
+    and runs, not merely deterministic in commit order -- load-bearing for
+    Slice 2's later commit-gap reasoning (#2039) over this same repo.
+    """
+    env = dict(os.environ)
+    env["GIT_AUTHOR_DATE"] = when.isoformat()
+    env["GIT_COMMITTER_DATE"] = when.isoformat()
+    subprocess.run(
+        [
+            "git",
+            "-C",
+            str(repo),
+            "-c",
+            "user.name=Test",
+            "-c",
+            "user.email=test@example.invalid",
+            "-c",
+            "commit.gpgsign=false",
+            "commit",
+            "-q",
+            "-m",
+            message,
+        ],
+        check=True,
+        capture_output=True,
+        text=True,
+        env=env,
+    )
+
+
+def _seed_golden_repo(root):
+    """A deterministic repo for the existing-mode golden fixture.
+
+    Same churn/co-change shape as `_seed_repo` above (test_alpha: 4 edits, 2
+    solo; test_beta: 2 edits, 0 solo; test_ghost: 2 edits, unmapped) so the
+    arithmetic is already characterized by TestFullCloneEndToEnd -- but every
+    commit here carries a pinned author/committer date instead of the
+    ambient system clock, per the plan's clarified fixture mechanics (a
+    fixed commit sequence with pinned dates, not a checked-in `.git`
+    bundle). Reused verbatim by Step 2.3's regression test so both runs
+    exercise an identical repo.
+    """
+    root.mkdir(parents=True, exist_ok=True)
+    subprocess.run(
+        ["git", "init", "-q", "-b", "main", str(root)], check=True, capture_output=True
+    )
+    steps = [
+        (0, {"src/alpha.py": "a1", "tests/test_alpha.py": "t1", "src/beta.py": "b1",
+             "tests/test_beta.py": "tb1", "tests/test_ghost.py": "g1"}, "seed"),
+        (2, {"tests/test_alpha.py": "t2"}, "test-only change 1"),
+        (30, {"tests/test_alpha.py": "t3"}, "test-only change 2"),
+        (31, {"src/alpha.py": "a2", "tests/test_alpha.py": "t4"}, "behavior change"),
+        (72, {"src/beta.py": "b2", "tests/test_beta.py": "tb2"}, "beta behavior change"),
+        (73, {"tests/test_ghost.py": "g2"}, "ghost churn"),
+    ]
+    for offset_hours, files, message in steps:
+        for rel, text in files.items():
+            _write(root, rel, text + "\n")
+        _git(root, "add", "-A")
+        _commit_at(root, _GOLDEN_REPO_BASE_DATE + timedelta(hours=offset_hours), message)
+    return root
+
+
+@pytest.fixture(scope="module")
+def golden_repo(tmp_path_factory):
+    """The fixed-history repo behind `churn_coupling_existing_mode_golden.txt`.
+
+    Reused verbatim by Step 2.3's regression test (#2039) so both runs
+    exercise an identical repo.
+    """
+    return _seed_golden_repo(tmp_path_factory.mktemp("golden") / "repo")
+
+
+class TestGoldenFixture:
+    """Step 2.1 (#2039): sanity-check the checked-in golden fixture itself.
+
+    This is deliberately NOT a diff-against-current-CLI-output test -- that
+    regression check is Step 2.3's job, once `--all-files` exists and the
+    fixture's independence from any refactor actually matters. Here we only
+    pin that the checked-in file is non-empty and structurally shaped like a
+    real report, so a corrupted or truncated capture would be caught.
+    """
+
+    def test_golden_fixture_is_non_empty(self):
+        text = _GOLDEN_FIXTURE.read_text(encoding="utf-8")
+        assert text.strip()
+
+    def test_golden_fixture_has_known_section_headers(self):
+        text = _GOLDEN_FIXTURE.read_text(encoding="utf-8")
+        assert "Churn vs coupling" in text
+        assert "test file -> subject(s)" in text  # ranked-row table header
 
 
 @pytest.fixture(scope="module")
