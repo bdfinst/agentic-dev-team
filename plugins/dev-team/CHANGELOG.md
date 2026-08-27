@@ -1,5 +1,28 @@
 # Changelog
 
+## [12.10.0](https://github.com/bdfinst/agentic-dev-team/compare/dev-team-v12.9.0...dev-team-v12.10.0) (2026-08-27)
+
+
+### Features
+
+* **scripts:** bridge recon artifact, cardinality tests, timeout pinning ([#2070](https://github.com/bdfinst/agentic-dev-team/issues/2070)) ([bd51330](https://github.com/bdfinst/agentic-dev-team/commit/bd513306d109fd551db9b691416b4423a723643e))
+
+
+### Bug Fixes
+
+* **scripts:** Wave 1 of the open-issue consolidation plan ([#2083](https://github.com/bdfinst/agentic-dev-team/issues/2083)) ([efeda13](https://github.com/bdfinst/agentic-dev-team/commit/efeda13281e62e8579c5df9c0a4f687db86f4a54))
+* **scripts:** Wave 2 of the open-issue consolidation plan ([#2084](https://github.com/bdfinst/agentic-dev-team/issues/2084)) ([4428b5f](https://github.com/bdfinst/agentic-dev-team/commit/4428b5f5f729db2cf1c594bc85311d40ab4934c0))
+
+
+### Code Refactoring
+
+* **scripts:** wave 4 of the open-issue consolidation plan ([#2088](https://github.com/bdfinst/agentic-dev-team/issues/2088)) ([4ff84e4](https://github.com/bdfinst/agentic-dev-team/commit/4ff84e4b2cbd93434cffe4902c890542a717a0d2))
+
+
+### Documentation
+
+* **adr:** record no-go decision on splitting orchestrator.py ([#2066](https://github.com/bdfinst/agentic-dev-team/issues/2066)) ([885051a](https://github.com/bdfinst/agentic-dev-team/commit/885051a2a29d9d70fc345fd1820884ea218c8d33))
+
 ## [12.9.0](https://github.com/bdfinst/agentic-dev-team/compare/dev-team-v12.8.1...dev-team-v12.9.0) (2026-08-26)
 
 
