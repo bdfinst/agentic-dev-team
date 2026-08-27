@@ -12,6 +12,8 @@ import subprocess
 import sys
 from pathlib import Path
 
+import pytest
+
 from _repo_root import REPO_ROOT
 
 EXTRACT = REPO_ROOT / "scripts" / "session_extract.py"
@@ -543,3 +545,147 @@ def test_rollup_survives_a_peer_record_with_a_hostile_plugin_version(
     # the two hostile records are normalized to "no version" and excluded;
     # only the legitimately-tagged session survives the scope.
     assert data["sessions"] == 1
+
+
+# ---------------------------------------------------------------------------
+# #2016: peer-written host/project/name keys are normalized at ingestion
+# ---------------------------------------------------------------------------
+
+
+def _base_sync_record(host: str, project: str, session_id: str) -> dict:
+    return {
+        "schema": "session-sync/v1",
+        "host": host,
+        "project": project,
+        "session_id": session_id,
+        "tokens": {"input_tokens": 1},
+        "cost_usd": 0,
+        "rework": {},
+        "accuracy": {
+            "tool_calls": 1,
+            "tool_error_rate": 0,
+            "user_correction_turns": 0,
+            "by_skill": {},
+            "by_agent": {},
+        },
+        "utilization": {
+            "skills_invoked": {},
+            "agents_invoked": {},
+            "agent_dispatches": {},
+        },
+    }
+
+
+def _write_digest(digests_root: Path, host: str, records: list[dict]) -> None:
+    box = digests_root / host
+    box.mkdir(parents=True)
+    (box / "session-digest.jsonl").write_text(
+        "\n".join(json.dumps(rec) for rec in records) + "\n"
+    )
+
+
+def test_rollup_sanitizes_hostile_project_path_to_safe_name_sentinel(
+    tmp_path: Path,
+) -> None:
+    plugin_root = _fake_plugin_root(tmp_path, "10.23.0")
+    digests = tmp_path / "digests"
+    hostile = _base_sync_record(
+        "hostile-host", "/Users/alice/secret-client-work", "s-hostile"
+    )
+    _write_digest(digests, "hostile-host", [hostile])
+    result = _run("--rollup", str(digests), "--plugin-root", str(plugin_root))
+    assert result.returncode == 0, result.stdout + result.stderr
+    data = json.loads(result.stdout)
+    assert data["projects"] == ["other"]
+    assert "/Users/alice/secret-client-work" not in data["projects"]
+
+
+@pytest.mark.parametrize(
+    "field",
+    [
+        "utilization.skills_invoked",
+        "utilization.agents_invoked",
+        "utilization.agent_dispatches",
+        "accuracy.by_skill",
+        "accuracy.by_agent",
+    ],
+)
+def test_rollup_sanitizes_unsafe_keys_in_each_name_bearing_dict(
+    tmp_path: Path, field: str
+) -> None:
+    """An unsafe key (one `_safe_name` would reject) in any of the five
+    name-bearing dicts `rollup()` reads must not crash ingestion, and a
+    well-formed sibling record from a different host must still survive in
+    the output — proving the normalization is wired at each of the five
+    field paths independently, not inferred from one exemplar."""
+    plugin_root = _fake_plugin_root(tmp_path, "10.23.0")
+    digests = tmp_path / "digests"
+
+    hostile = _base_sync_record("hostile-host", "p", "s-hostile")
+    top, sub = field.split(".")
+    hostile[top][sub] = {"../../etc/passwd": 5}
+    _write_digest(digests, "hostile-host", [hostile])
+
+    well_formed = _base_sync_record("good-host", "p", "s-good")
+    well_formed["utilization"]["skills_invoked"] = {"plan": 1}
+    _write_digest(digests, "good-host", [well_formed])
+
+    result = _run("--rollup", str(digests), "--plugin-root", str(plugin_root))
+    assert result.returncode == 0, result.stdout + result.stderr
+    data = json.loads(result.stdout)
+    assert data["sessions"] == 2
+    assert "good-host" in data["hosts"]
+    assert data["utilization"]["skills_invoked"]["plan"] == 1
+
+
+def test_rollup_survives_a_peer_record_with_an_unhashable_host(
+    tmp_path: Path,
+) -> None:
+    plugin_root = _fake_plugin_root(tmp_path, "10.23.0")
+    digests = tmp_path / "digests"
+
+    hostile = _base_sync_record("hostile-host", "p", "s-hostile")
+    hostile["host"] = ["not", "a", "string"]
+    _write_digest(digests, "hostile-host", [hostile])
+
+    well_formed = _base_sync_record("good-host", "p", "s-good")
+    _write_digest(digests, "good-host", [well_formed])
+
+    result = _run("--rollup", str(digests), "--plugin-root", str(plugin_root))
+    assert result.returncode == 0, result.stdout + result.stderr
+    data = json.loads(result.stdout)
+    assert data["sessions"] == 2
+    assert "good-host" in data["hosts"]
+
+
+def test_rollup_well_formed_record_round_trips_host_project_cost_unchanged(
+    tmp_path: Path,
+) -> None:
+    plugin_root = _fake_plugin_root(tmp_path, "10.23.0")
+    digests = tmp_path / "digests"
+    record = _base_sync_record("testhost", "myproject", "s1")
+    record["cost_usd"] = 1.5
+    _write_digest(digests, "testhost", [record])
+    result = _run("--rollup", str(digests), "--plugin-root", str(plugin_root))
+    assert result.returncode == 0, result.stdout + result.stderr
+    data = json.loads(result.stdout)
+    assert data["hosts"] == ["testhost"]
+    assert data["projects"] == ["myproject"]
+    assert data["cost_usd"] == 1.5
+
+
+def test_rewrite_name_keys_buckets_non_string_keys_and_merges_values() -> None:
+    """`json.loads` always yields string dict keys (JSON object keys are
+    syntactically strings), so a truly non-string key can never arrive via a
+    peer's session-digest.jsonl file — but `_rewrite_name_keys` is a general
+    helper, so it must not raise `AttributeError` if one ever reaches it
+    (e.g. via a future non-JSON caller), and a normalization collision (two
+    keys landing in the same bucket) must MERGE by summing, never drop a
+    peer-attributed count."""
+    sys.path.insert(0, str(REPO_ROOT / "scripts"))
+    import session_extract
+
+    # 123 (non-string) and "!!!" (fails _safe_name's charset) both collapse
+    # into the _UNSAFE_NAME bucket ("other") and their values must sum.
+    result = session_extract._rewrite_name_keys({123: 2, "plan": 3, "!!!": 4})
+    assert result == {"plan": 3, "other": 6}

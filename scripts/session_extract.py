@@ -192,6 +192,22 @@ def _strip_ns(name: str) -> str:
     return name
 
 
+def _rewrite_name_keys(mapping: dict) -> dict:
+    """Rewrite a peer-supplied name-bearing dict's keys to something safe to
+    aggregate — a peer record's dict KEYS are as untrusted as any other field
+    it carries. Each key is normalized through `_safe_name(_strip_ns(str(k)))`
+    when it's a string; a non-string key (which would otherwise raise
+    `AttributeError` the moment a consumer calls `.startswith()` on it) is
+    bucketed under `_UNSAFE_NAME` instead of dropped. Values collide-merge by
+    summing, matching `_safe_name`'s own collapse-and-merge convention — a
+    normalization collision never silently drops a peer-attributed count."""
+    out: dict = {}
+    for k, v in mapping.items():
+        key = _safe_name(_strip_ns(str(k))) if isinstance(k, str) else _UNSAFE_NAME
+        out[key] = out.get(key, 0) + v
+    return out
+
+
 def _text_of(content) -> str:
     """Flatten a message ``content`` (str or list of blocks) to plain text.
     Used only for keyword CLASSIFICATION; never emitted into the digest."""
@@ -1056,9 +1072,11 @@ def _read_synced_records(digests_root: Path) -> list[dict]:
     record under `digests_root/<host>/session-digest.jsonl`, keeping the LAST
     record for a session_id seen on multiple host files (or re-emitted after
     growth). Shared by `rollup()`, `correlate_gate_rework()`, and `cost_log()`
-    so the dedup logic lives in one place. Each record's `plugin_version` is
-    normalized on the way in (`_normalize_plugin_version`) since it
-    originates on a peer machine, not this one."""
+    so the dedup logic lives in one place. Each record's `plugin_version`,
+    `host`, `project`, and the name-bearing dicts under `utilization`/
+    `accuracy` are normalized on the way in (`_normalize_plugin_version`,
+    `_safe_name`, `_rewrite_name_keys`) since a record originates on a peer
+    machine, not this one."""
     by_id: dict[str, dict] = {}
     for f in sorted(digests_root.glob("*/session-digest.jsonl")):
         for rec in _iter_records([f]):
@@ -1069,6 +1087,28 @@ def _read_synced_records(digests_root: Path) -> list[dict]:
                 rec["plugin_version"] = _normalize_plugin_version(
                     rec.get("plugin_version")
                 )
+                rec["host"] = _safe_name(str(rec.get("host") or "unknown"))
+                rec["project"] = _safe_name(str(rec.get("project") or "unknown"))
+                utilization = (
+                    rec.get("utilization")
+                    if isinstance(rec.get("utilization"), dict)
+                    else {}
+                )
+                accuracy = (
+                    rec.get("accuracy")
+                    if isinstance(rec.get("accuracy"), dict)
+                    else {}
+                )
+                for field in ("skills_invoked", "agents_invoked", "agent_dispatches"):
+                    value = utilization.get(field)
+                    if isinstance(value, dict):
+                        utilization[field] = _rewrite_name_keys(value)
+                for field in ("by_skill", "by_agent"):
+                    value = accuracy.get(field)
+                    if isinstance(value, dict):
+                        accuracy[field] = _rewrite_name_keys(value)
+                rec["utilization"] = utilization
+                rec["accuracy"] = accuracy
                 by_id[str(sid)] = rec  # last write wins -> dedup on session_id
     return list(by_id.values())
 
@@ -1151,8 +1191,8 @@ def rollup(
     by_project: dict[str, Counter] = defaultdict(Counter)
 
     for r in records:
-        host = r.get("host", "unknown")
-        project = r.get("project", "unknown")
+        host = r.get("host")
+        project = r.get("project")
         hosts.add(host)
         projects.add(project)
         t = r.get("tokens", {}) if isinstance(r.get("tokens"), dict) else {}
