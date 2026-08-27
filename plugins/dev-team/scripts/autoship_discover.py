@@ -13,6 +13,23 @@ shared with `autoship_group.py` via `autoship_state.fetch_eligible_issues` —
 this script's own concern is only the `--max-issues` cap on top of that
 shared, full eligible pool.
 
+`main()` applies that cap by slicing the shared pool directly
+(`eligible[: args.max_issues]`) rather than through a dedicated
+`select_eligible` helper — an earlier version of this module had both, but
+`select_eligible` duplicated `is_eligible`/sort logic `fetch_eligible_issues`
+already provides and had drifted to zero production callers (superseded by
+`autoship_state.fetch_eligible_issues`, and no longer even called by this
+file's own `main()`); it and its dedicated test suite were deleted rather
+than kept as unreferenced surface area (#2075). `autoship_discover.py` itself
+is NOT dead — `/dev-team:autoship`'s pipeline moved on to
+`autoship_group.py`/`autoship_queue.py` (see `skills/autoship/SKILL.md`'s
+Step 2, which states "`autoship_discover.py` is not part of this pipeline
+anymore"), but this script's own CLI remains available unchanged as a
+standalone operator tool: a single deterministic command to preview the
+oldest-first, `--max-issues`-capped eligible pool without running the
+grouping/queueing/dispatch machinery, useful for debugging eligibility
+outside a live round.
+
 Usage:
     autoship_discover.py --max-issues 3 --max-cost-usd 25
     autoship_discover.py --max-issues 3 --max-cost-usd 25 --label autoship:ready
@@ -73,23 +90,6 @@ def build_parser() -> argparse.ArgumentParser:
     )
     autoship_state.add_input_seam_args(parser)
     return parser
-
-
-def select_eligible(
-    issues: list[dict[str, Any]], label: str, max_issues: int
-) -> list[dict[str, Any]]:
-    """Filter `issues` to those eligible for autoship dispatch, sorted
-    oldest-first by `createdAt` and truncated to `max_issues` (a cap of `0`
-    truncates to an empty list, not an error).
-
-    A pure post-processing step over an already-loaded issue list — kept
-    independent of `autoship_state.fetch_eligible_issues`'s own fetch/filter/
-    sort (which `main()` uses to source the full pool) so this stays testable
-    against arbitrary in-memory issue data.
-    """
-    eligible = [issue for issue in issues if autoship_state.is_eligible(issue, label)]
-    eligible.sort(key=lambda issue: issue["createdAt"])
-    return eligible[:max_issues]
 
 
 def render_selection(issues: list[dict[str, Any]]) -> str:

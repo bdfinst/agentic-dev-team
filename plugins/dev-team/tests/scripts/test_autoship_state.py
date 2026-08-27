@@ -96,6 +96,72 @@ def test_positive_int_validator_rejects_negative() -> None:
 
 
 # ---------------------------------------------------------------------------
+# is_eligible — direct unit tests (ported from autoship_discover.py's
+# select_eligible tests when select_eligible was deleted as dead code
+# (#2075): is_eligible's exclusion rules had no coverage of their own before
+# this — select_eligible's tests exercised them only indirectly)
+# ---------------------------------------------------------------------------
+
+
+def test_is_eligible_true_for_well_formed_issue() -> None:
+    assert autoship_state.is_eligible(_issue(), "autoship:ready") is True
+
+
+def test_is_eligible_excludes_epic() -> None:
+    epic = _issue(subIssuesSummary={"total": 2})
+    assert autoship_state.is_eligible(epic, "autoship:ready") is False
+
+
+def test_is_eligible_excludes_in_progress() -> None:
+    issue = _issue(
+        labels=[{"name": "autoship:ready"}, {"name": "autoship:in-progress"}]
+    )
+    assert autoship_state.is_eligible(issue, "autoship:ready") is False
+
+
+def test_is_eligible_excludes_blocked() -> None:
+    issue = _issue(labels=[{"name": "autoship:ready"}, {"name": "autoship:blocked"}])
+    assert autoship_state.is_eligible(issue, "autoship:ready") is False
+
+
+def test_is_eligible_excludes_open_linked_pr() -> None:
+    issue = _issue(closedByPullRequestsReferences=[{"number": 99, "state": "OPEN"}])
+    assert autoship_state.is_eligible(issue, "autoship:ready") is False
+
+
+def test_is_eligible_includes_merged_only_pr() -> None:
+    issue = _issue(closedByPullRequestsReferences=[{"number": 99, "state": "MERGED"}])
+    assert autoship_state.is_eligible(issue, "autoship:ready") is True
+
+
+def test_is_eligible_includes_closed_not_merged_pr() -> None:
+    issue = _issue(closedByPullRequestsReferences=[{"number": 99, "state": "CLOSED"}])
+    assert autoship_state.is_eligible(issue, "autoship:ready") is True
+
+
+def test_is_eligible_excludes_mixed_open_and_closed_pr() -> None:
+    issue = _issue(
+        closedByPullRequestsReferences=[
+            {"number": 98, "state": "MERGED"},
+            {"number": 99, "state": "OPEN"},
+        ]
+    )
+    assert autoship_state.is_eligible(issue, "autoship:ready") is False
+
+
+def test_is_eligible_excludes_closed_issue() -> None:
+    issue = _issue(state="CLOSED")
+    assert autoship_state.is_eligible(issue, "autoship:ready") is False
+
+
+def test_is_eligible_custom_label_overrides_default() -> None:
+    ready_only = _issue(number=20, labels=[{"name": "autoship:ready"}])
+    custom_labeled = _issue(number=21, labels=[{"name": "custom-label"}])
+    assert autoship_state.is_eligible(ready_only, "custom-label") is False
+    assert autoship_state.is_eligible(custom_labeled, "custom-label") is True
+
+
+# ---------------------------------------------------------------------------
 # fetch_eligible_issues / FetchError
 # ---------------------------------------------------------------------------
 
