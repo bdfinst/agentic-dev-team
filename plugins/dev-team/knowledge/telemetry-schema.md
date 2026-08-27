@@ -249,8 +249,30 @@ aggregate counts only, no file names, prompts, command strings, or code.
 | `tokens` | object | Input/output/cache token totals |
 | `cost_usd`, `cache_hit_ratio` | number | Session cost and cache-read efficiency |
 | `rework` | object | `failed_edits`, `repeated_file_edits`, `retried_bash_commands`, `repeated_verify_runs`, `permission_denials`, `compaction_events` |
-| `accuracy` | object | `tool_calls`, `tool_error_rate`, `user_correction_turns` |
+| `accuracy` | object | `tool_calls`, `tool_error_rate`, `user_correction_turns`, `by_skill`/`by_agent` (correction counts, double-bucketed against whichever skill/agent is sticky-active), `correction_rate_by_skill`/`correction_rate_by_agent` (corrections per skill invocation / agent dispatch — absent for a never-invoked name, never a misleading `0.0`), `correction_causes` (#2013, below) |
 | `utilization` | object | `skills_invoked`, `agents_invoked` (agent RUNS), `agent_dispatches` (Agent/Task tool calls), `never_observed_skills`, `never_observed_agents` |
+
+**`accuracy.correction_causes` (#2013).** Deterministic cause data for every
+detected correction turn — no model call, see
+`plugins/dev-team/scripts/lib/session_log/corrections.py`'s module
+docstring for the classifier. Present in BOTH `session-digest/v3` and
+`downstream-session-report/v3` (a correction's producing component is
+exactly the "which components generate the most corrections per dispatch"
+question the issue exists to answer, and that question is as live for a
+downstream user's own report as for this repo's own trend stream). Shape:
+
+| Field | Type | Values |
+| --- | --- | --- |
+| `by_what` | object | Counts by `code-edit` \| `plan` \| `review-finding` \| `tool-choice` \| `factual-claim` \| `other` |
+| `by_component` | object | Counts by `main-loop` or the single most-recently-dispatched skill/agent name (never double-bucketed, unlike `accuracy.by_skill`/`by_agent`) |
+| `by_shape` | object | Counts by `reverted` \| `redirected` \| `narrowed-scope` \| `flagged-wrong` \| `not-what-asked` \| `ambiguous` |
+| `ambiguous_share` | number | `by_shape["ambiguous"] / user_correction_turns` — the classifier's honest inference-share statistic, never hidden |
+
+Never the correction text itself — only these four closed-vocabulary labels.
+`test_session_log_corrections.py::test_classify_correction_never_leaks_correction_text`
+pins this the same way
+`test_session_report_golden.py::test_no_sentinel_leaks_in_either_golden`
+pins the rest of this stream.
 
 `session-digest/v2` (#1994) counts dispatched agents' own transcripts for the
 first time, so token/tool-call/rework totals jump against v1, and
