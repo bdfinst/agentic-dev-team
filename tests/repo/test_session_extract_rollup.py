@@ -273,6 +273,35 @@ def test_cost_log_empty_missing_dir_yields_no_records_clean_exit(
     assert result.stdout == ""
 
 
+def test_cost_log_survives_a_non_string_ts_alongside_a_well_formed_sibling(
+    tmp_path: Path,
+) -> None:
+    """#2016 finding 4: `ts` is peer-supplied and unnormalized at ingestion --
+    `cost_log()` sorts on `key=lambda r: (r.get("ts") or "", ...)`, so a
+    non-string `ts` (e.g. an int) previously raised an uncaught TypeError
+    comparing int to str, aborting --cost-log for every host. Must coerce to
+    "" without crashing, and the well-formed sibling's record must still
+    appear in the series."""
+    digests = tmp_path / "digests" / "box"
+    digests.mkdir(parents=True)
+    (digests / "session-digest.jsonl").write_text(
+        '{"schema":"session-sync/v1","host":"box","session_id":"s-hostile",'
+        '"ts":12345,"cost_usd":1.0}\n'
+        '{"schema":"session-sync/v1","host":"box","session_id":"s-good",'
+        '"ts":"2026-06-01T00:00:00Z","cost_usd":2.0}\n'
+    )
+    result = _run("--cost-log", str(tmp_path / "digests"))
+    assert result.returncode == 0, result.stdout + result.stderr
+    lines = result.stdout.splitlines()
+    assert len(lines) == 2
+    records = [json.loads(line) for line in lines]
+    assert {r["total"]["cost_usd"] for r in records} == {1.0, 2.0}
+    good = next(r for r in records if r["total"]["cost_usd"] == 2.0)
+    assert good["ts"] == "2026-06-01T00:00:00Z"
+    hostile = next(r for r in records if r["total"]["cost_usd"] == 1.0)
+    assert hostile["ts"] == ""
+
+
 # ---------------------------------------------------------------------------
 # #2016 (Step 1.2): --correlate survives a non-numeric gate.commit_attempts
 # ---------------------------------------------------------------------------

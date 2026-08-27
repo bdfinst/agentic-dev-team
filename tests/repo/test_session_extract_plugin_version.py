@@ -636,6 +636,10 @@ def test_rollup_sanitizes_unsafe_keys_in_each_name_bearing_dict(
     assert data["sessions"] == 2
     assert "good-host" in data["hosts"]
     assert data["utilization"]["skills_invoked"]["plan"] == 1
+    # the hostile key sanitizes to the _UNSAFE_NAME sentinel ("other") in
+    # the SAME field it was written to, proving the normalization is wired
+    # at this specific field path rather than inferred from one exemplar.
+    assert data[top][sub].get("other") == 5
 
 
 def test_rollup_survives_a_peer_record_with_an_unhashable_host(
@@ -656,6 +660,10 @@ def test_rollup_survives_a_peer_record_with_an_unhashable_host(
     data = json.loads(result.stdout)
     assert data["sessions"] == 2
     assert "good-host" in data["hosts"]
+    # the unhashable host actually normalized to the sentinel, not just
+    # "didn't crash" — it must be present as its own bucket, not silently
+    # dropped or merged into the well-formed host.
+    assert "other" in data["hosts"]
 
 
 def test_rollup_well_formed_record_round_trips_host_project_cost_unchanged(
@@ -674,7 +682,9 @@ def test_rollup_well_formed_record_round_trips_host_project_cost_unchanged(
     assert data["cost_usd"] == 1.5
 
 
-def test_rewrite_name_keys_buckets_non_string_keys_and_merges_values() -> None:
+def test_rewrite_name_keys_buckets_non_string_keys_and_merges_values(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     """`json.loads` always yields string dict keys (JSON object keys are
     syntactically strings), so a truly non-string key can never arrive via a
     peer's session-digest.jsonl file — but `_rewrite_name_keys` is a general
@@ -682,13 +692,43 @@ def test_rewrite_name_keys_buckets_non_string_keys_and_merges_values() -> None:
     (e.g. via a future non-JSON caller), and a normalization collision (two
     keys landing in the same bucket) must MERGE by summing, never drop a
     peer-attributed count."""
-    sys.path.insert(0, str(REPO_ROOT / "scripts"))
+    monkeypatch.syspath_prepend(str(REPO_ROOT / "scripts"))
     import session_extract
 
     # 123 (non-string) and "!!!" (fails _safe_name's charset) both collapse
     # into the _UNSAFE_NAME bucket ("other") and their values must sum.
     result = session_extract._rewrite_name_keys({123: 2, "plan": 3, "!!!": 4})
     assert result == {"plan": 3, "other": 6}
+
+
+def test_rewrite_name_keys_guards_non_numeric_peer_values(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """#2016 finding 1: a peer-supplied VALUE in a name-bearing dict is as
+    untrusted as its key — summing it unguarded (`out[key] = out.get(key, 0)
+    + v`) raises an uncaught TypeError the moment it's a string/None/list/
+    dict, aborting the caller for every host. Each non-numeric value must
+    coerce through `_safe_number` to 0 instead, and a legitimate numeric
+    value must still pass through unaffected."""
+    monkeypatch.syspath_prepend(str(REPO_ROOT / "scripts"))
+    import session_extract
+
+    result = session_extract._rewrite_name_keys(
+        {
+            "plan": 3,
+            "bad-str": "nope",
+            "bad-null": None,
+            "bad-list": [1, 2],
+            "bad-dict": {},
+        }
+    )
+    assert result == {
+        "plan": 3,
+        "bad-str": 0,
+        "bad-null": 0,
+        "bad-list": 0,
+        "bad-dict": 0,
+    }
 
 
 # ---------------------------------------------------------------------------
@@ -760,6 +800,30 @@ def test_rollup_oversized_integer_cost_usd_treated_as_zero_without_overflow(
     assert "good-host" in data["hosts"]
 
 
+def test_rollup_cost_usd_above_2_53_treated_as_zero(tmp_path: Path) -> None:
+    """#2016 finding 3: `_safe_number`'s magnitude bound tightened from
+    `sys.float_info.max` to `2**53` (the exact-integer double-precision
+    range) -- a value in the NEWLY-rejected band (well above `2**53` ~=
+    9.007e15, but far below the old `sys.float_info.max` bound) previously
+    passed `_safe_number` unchanged and overflowed a downstream multiply
+    (`round(c * 1e6)` for `cost_micro`) to `inf`, raising an uncaught
+    OverflowError from `round(inf)`. Must coerce to 0 without raising, and
+    the well-formed sibling's cost must survive unpoisoned."""
+    plugin_root = _fake_plugin_root(tmp_path, "10.23.0")
+    digests = tmp_path / "digests"
+    hostile = _base_sync_record("hostile-host", "p", "s-hostile")
+    hostile["cost_usd"] = 10**16  # > 2**53, far under sys.float_info.max
+    _write_digest(digests, "hostile-host", [hostile])
+    well_formed = _base_sync_record("good-host", "p", "s-good")
+    well_formed["cost_usd"] = 5.0
+    _write_digest(digests, "good-host", [well_formed])
+    result = _run("--rollup", str(digests), "--plugin-root", str(plugin_root))
+    assert result.returncode == 0, result.stdout + result.stderr
+    data = json.loads(result.stdout)
+    assert data["cost_usd"] == 5.0
+    assert "good-host" in data["hosts"]
+
+
 def test_rollup_survives_a_non_numeric_string_inside_rework(tmp_path: Path) -> None:
     plugin_root = _fake_plugin_root(tmp_path, "10.23.0")
     digests = tmp_path / "digests"
@@ -773,6 +837,25 @@ def test_rollup_survives_a_non_numeric_string_inside_rework(tmp_path: Path) -> N
     assert result.returncode == 0, result.stdout + result.stderr
     data = json.loads(result.stdout)
     assert data["rework"]["failed_edits"] == 2
+
+
+def test_rollup_excludes_unknown_rework_keys_from_output(tmp_path: Path) -> None:
+    """#2016 finding 2: `rework` must be restricted to the known
+    `_REWORK_KEYS` schema, not merely value-coerced -- an unknown/hostile
+    key is the same key-leak class the `project`/`host` sanitization closes,
+    and it was previously emitted verbatim into the shared rollup output.
+    `_session_rework()` reads only `_REWORK_KEYS`, so excluding the rest
+    drops nothing legitimate."""
+    plugin_root = _fake_plugin_root(tmp_path, "10.23.0")
+    digests = tmp_path / "digests"
+    hostile = _base_sync_record("hostile-host", "p", "s-hostile")
+    hostile["rework"] = {"failed_edits": 1, "/etc/passwd": 99}
+    _write_digest(digests, "hostile-host", [hostile])
+    result = _run("--rollup", str(digests), "--plugin-root", str(plugin_root))
+    assert result.returncode == 0, result.stdout + result.stderr
+    data = json.loads(result.stdout)
+    assert data["rework"]["failed_edits"] == 1
+    assert "/etc/passwd" not in data["rework"]
 
 
 def test_rollup_non_dict_utilization_does_not_crash_and_contributes_nothing(
