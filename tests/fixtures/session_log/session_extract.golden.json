@@ -1,0 +1,71 @@
+{
+  "accuracy": {
+    "by_agent": {},
+    "by_skill": {},
+    "tool_calls": 4,
+    "tool_error_rate": 0.0,
+    "tool_errors_by_tool": {},
+    "user_correction_turns": 0
+  },
+  "gate": {
+    "bypass_rate": 0.0,
+    "commit_attempts": 0,
+    "commit_bypasses": 0
+  },
+  "plugin_version": "0.0.0-golden",
+  "rework": {
+    "compaction_events": 0,
+    "failed_edits": 0,
+    "permission_denials": 0,
+    "repeated_file_edits": {
+      "file.py": 2
+    },
+    "repeated_verify_runs": 0,
+    "retried_bash_commands": 0
+  },
+  "schema": "session-digest/v2",
+  "sessions": 1,
+  "subagent_transcripts": 3,
+  "token": {
+    "by_agent_type": {
+      "correctness-review": 1,
+      "doc-review": 1,
+      "main": 5,
+      "unattributed": 1
+    },
+    "by_model": {
+      "claude-sonnet-5": {
+        "cache_creation_input_tokens": 35,
+        "cache_read_input_tokens": 25,
+        "cost_micro": 3438,
+        "input_tokens": 300,
+        "output_tokens": 160
+      }
+    },
+    "by_skill": {},
+    "cache_hit_ratio": 0.4167,
+    "cost_usd": 0.0034,
+    "totals": {
+      "cache_creation_input_tokens": 35,
+      "cache_read_input_tokens": 25,
+      "input_tokens": 300,
+      "output_tokens": 160
+    }
+  },
+  "transcripts": 1,
+  "utilization": {
+    "agent_dispatches": {},
+    "agents_invoked": {
+      "correctness-review": 1,
+      "doc-review": 1,
+      "unattributed": 1
+    },
+    "never_observed_agents": [
+      "never-invoked-agent"
+    ],
+    "never_observed_skills": [
+      "never-invoked-skill"
+    ],
+    "skills_invoked": {}
+  }
+}

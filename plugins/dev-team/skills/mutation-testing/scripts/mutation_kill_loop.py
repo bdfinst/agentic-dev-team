@@ -408,9 +408,20 @@ def run_scoped_stryker(
                 f"{source_file} (set {_STRYKER_TIMEOUT.env_var_name} to raise it)"
             ) from exc
     finally:
+        restored = True
         if sln is not None and sln_hidden is not None:
-            wrapper.restore_sln(sln, sln_hidden)
+            restored = wrapper.restore_sln(sln, sln_hidden)
         config_path.unlink(missing_ok=True)
+        if not restored:
+            # Mirrors #1939's git_revert handling: a failed restore leaves
+            # the .sln hidden/renamed, which will break the next build — a
+            # fatal, working-tree-possibly-broken outcome, not a silent
+            # no-op (#1955).
+            raise mutation_kill_shared.RevertFailed(
+                f"failed to restore {sln} from {sln_hidden} after the "
+                "Stryker run — the solution file is left hidden/renamed, "
+                "which will break the next build"
+            )
 
     return Path(output_dir) / "reports" / "mutation-report.json"
 

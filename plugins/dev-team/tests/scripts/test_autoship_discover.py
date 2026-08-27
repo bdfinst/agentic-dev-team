@@ -172,94 +172,57 @@ def test_malformed_input_file_invalid_json_exits_nonzero(tmp_path) -> None:
 
 
 # ---------------------------------------------------------------------------
-# Step 2.2 — pure eligibility filter, oldest-first cap, stdout contract
+# Step 2.2 — oldest-first cap, stdout contract (main()'s own inline slicing,
+# `eligible[: args.max_issues]` — the `select_eligible` helper these tests
+# once exercised was deleted as dead code (#2075): it had drifted to zero
+# production callers, not even `main()` itself, which already applied the
+# cap inline. Eligibility-rule coverage (epic/in-progress/blocked/PR/custom
+# label exclusion) moved to test_autoship_state.py's direct
+# `autoship_state.is_eligible` unit tests — it was never `select_eligible`'s
+# own behavior, just re-tested through it.
 # ---------------------------------------------------------------------------
 
 
-def test_select_eligible_oldest_first_capped_at_max_issues() -> None:
+def test_max_issues_caps_oldest_first(tmp_path, capsys) -> None:
     issue_10 = _issue(number=10, createdAt="2026-07-01T00:00:00Z")
     issue_11 = _issue(number=11, createdAt="2026-07-02T00:00:00Z")
-    selected = autoship_discover.select_eligible(
-        [issue_11, issue_10], "autoship:ready", 1
+    fixture = tmp_path / "issues.json"
+    fixture.write_text(json.dumps([issue_11, issue_10]), encoding="utf-8")
+
+    exit_code = autoship_discover.main(
+        ["--max-issues", "1", "--max-cost-usd", "10", "--input-file", str(fixture)]
     )
-    assert [i["number"] for i in selected] == [10]
+    assert exit_code == 0
+    captured = capsys.readouterr()
+    assert [i["number"] for i in json.loads(captured.out)] == [10]
 
 
-def test_select_eligible_count_exactly_matches_cap() -> None:
+def test_max_issues_count_exactly_matches_cap(tmp_path, capsys) -> None:
     issues = [_issue(number=n, createdAt=f"2026-07-0{n}T00:00:00Z") for n in (1, 2, 3)]
-    selected = autoship_discover.select_eligible(issues, "autoship:ready", 3)
-    assert [i["number"] for i in selected] == [1, 2, 3]
+    fixture = tmp_path / "issues.json"
+    fixture.write_text(json.dumps(issues), encoding="utf-8")
 
-
-def test_select_eligible_max_issues_zero_selects_nothing() -> None:
-    issues = [_issue(number=n, createdAt=f"2026-07-0{n}T00:00:00Z") for n in (1, 2, 3)]
-    selected = autoship_discover.select_eligible(issues, "autoship:ready", 0)
-    assert selected == []
-
-
-def test_select_eligible_excludes_epic() -> None:
-    epic = _issue(subIssuesSummary={"total": 2})
-    assert autoship_discover.select_eligible([epic], "autoship:ready", 5) == []
-
-
-def test_select_eligible_excludes_in_progress() -> None:
-    issue = _issue(
-        labels=[{"name": "autoship:ready"}, {"name": "autoship:in-progress"}]
+    exit_code = autoship_discover.main(
+        ["--max-issues", "3", "--max-cost-usd", "10", "--input-file", str(fixture)]
     )
-    assert autoship_discover.select_eligible([issue], "autoship:ready", 5) == []
+    assert exit_code == 0
+    captured = capsys.readouterr()
+    assert [i["number"] for i in json.loads(captured.out)] == [1, 2, 3]
 
 
-def test_select_eligible_excludes_blocked() -> None:
-    issue = _issue(labels=[{"name": "autoship:ready"}, {"name": "autoship:blocked"}])
-    assert autoship_discover.select_eligible([issue], "autoship:ready", 5) == []
+def test_empty_eligible_pool_prints_empty_array(tmp_path, capsys) -> None:
+    fixture = tmp_path / "issues.json"
+    fixture.write_text(json.dumps([]), encoding="utf-8")
 
-
-def test_select_eligible_excludes_open_linked_pr() -> None:
-    issue = _issue(closedByPullRequestsReferences=[{"number": 99, "state": "OPEN"}])
-    assert autoship_discover.select_eligible([issue], "autoship:ready", 5) == []
-
-
-def test_select_eligible_includes_merged_only_pr() -> None:
-    issue = _issue(closedByPullRequestsReferences=[{"number": 99, "state": "MERGED"}])
-    selected = autoship_discover.select_eligible([issue], "autoship:ready", 5)
-    assert [i["number"] for i in selected] == [1]
-
-
-def test_select_eligible_includes_closed_not_merged_pr() -> None:
-    issue = _issue(closedByPullRequestsReferences=[{"number": 99, "state": "CLOSED"}])
-    selected = autoship_discover.select_eligible([issue], "autoship:ready", 5)
-    assert [i["number"] for i in selected] == [1]
-
-
-def test_select_eligible_excludes_mixed_open_and_closed_pr() -> None:
-    issue = _issue(
-        closedByPullRequestsReferences=[
-            {"number": 98, "state": "MERGED"},
-            {"number": 99, "state": "OPEN"},
-        ]
+    exit_code = autoship_discover.main(
+        ["--max-issues", "5", "--max-cost-usd", "10", "--input-file", str(fixture)]
     )
-    assert autoship_discover.select_eligible([issue], "autoship:ready", 5) == []
+    assert exit_code == 0
+    captured = capsys.readouterr()
+    assert json.loads(captured.out) == []
 
 
-def test_select_eligible_excludes_closed_issue() -> None:
-    issue = _issue(state="CLOSED")
-    assert autoship_discover.select_eligible([issue], "autoship:ready", 5) == []
-
-
-def test_select_eligible_custom_label_overrides_default() -> None:
-    issue_20 = _issue(number=20, labels=[{"name": "autoship:ready"}])
-    issue_21 = _issue(number=21, labels=[{"name": "custom-label"}])
-    selected = autoship_discover.select_eligible(
-        [issue_20, issue_21], "custom-label", 5
-    )
-    assert [i["number"] for i in selected] == [21]
-
-
-def test_select_eligible_empty_result_when_none_qualify() -> None:
-    assert autoship_discover.select_eligible([], "autoship:ready", 5) == []
-
-
-def test_select_eligible_stdout_shape_on_successful_run(tmp_path, capsys) -> None:
+def test_stdout_shape_on_successful_run(tmp_path, capsys) -> None:
     fixture = tmp_path / "issues.json"
     fixture.write_text(
         json.dumps([_issue(number=42, title="Fix the thing")]), encoding="utf-8"

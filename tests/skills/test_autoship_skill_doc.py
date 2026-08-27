@@ -297,6 +297,31 @@ def test_frontmatter_argument_hint_includes_max_batch_size():
     assert grep(r"\[--max-batch-size N\]", fm)
 
 
+# --- Issue #2073: --max-batch-size cross-validated against --max-issues ----
+
+
+def test_parse_arguments_documents_max_batch_size_cap_cross_validation():
+    section_text = collapsed(parse_arguments_section(_text()))
+    assert grep(
+        r"Cross-validate `--max-batch-size` against `--max-issues` \(#2073\)",
+        section_text,
+    )
+    assert grep(
+        r"greater\s*than `--max-issues`, print this message and stop, without "
+        r"proceeding to\s*Step 1",
+        section_text,
+    )
+
+
+def test_parse_arguments_max_batch_size_cap_stop_message_matches_usage_style():
+    section_text = parse_arguments_section(_text())
+    assert (
+        "autoship: --max-batch-size <B> cannot exceed --max-issues <N>."
+        in section_text
+    )
+    assert grep(r"Usage: /autoship.*--max-batch-size N", section_text)
+
+
 def test_step_2_threads_max_batch_size_into_both_fences():
     section_text = _step_2_section()
     assert section_text.count('--max-batch-size "<max_batch_size>"') >= 2
@@ -528,9 +553,17 @@ def test_step_2c_documents_dry_run_guard():
 # --- Fix 5: named agent, Task tool, schema, response validation -------------
 
 
-def test_step_2b_names_general_purpose_agent_dispatched_via_task_tool():
+def test_step_2b_names_autoship_batch_proposer_agent_dispatched_via_task_tool():
+    # #2072: Step 2b now dispatches the dedicated, registered
+    # autoship-batch-proposer agent instead of the generic general-purpose
+    # subagent type, so its cost is separately attributable and it is
+    # visible to /agent-audit and /agent-eval.
     section_text = collapsed(_step_2b_section())
-    assert grep(r"via the `Task`\s*tool, subagent type `general-purpose`", section_text)
+    assert grep(
+        r"via the `Task`\s*tool, subagent type `autoship-batch-proposer`",
+        section_text,
+    )
+    assert not grep(r"subagent type `general-purpose`", section_text)
 
 
 def test_frontmatter_allowed_tools_includes_task():

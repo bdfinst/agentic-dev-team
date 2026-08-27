@@ -571,6 +571,84 @@ def test_survivors_by_line_unmatched_file_returns_empty_result(tmp_path: Path):
 
 
 # =============================================================================
+# Scenario (#1948, Option A): survivors_by_line()'s skip_static parameter is
+# a no-op on the returned clusters — a static-flagged survivor still counts
+# toward its line's cluster weight/ranking exactly as it would without the
+# flag, since it's still evidence of that line's mutation density. Only
+# generation (a decision made downstream) narrows by the flag.
+# =============================================================================
+def _mutant_at_line_static(status: str, line, static: bool, mutator: str = "StringLiteral") -> dict:
+    return {
+        "id": f"{mutator}-{status}-{line}-{static}",
+        "mutatorName": mutator,
+        "status": status,
+        "static": static,
+        "location": {"start": {"line": line}},
+    }
+
+
+def test_survivors_by_line_skip_static_true_keeps_static_survivor_in_cluster(
+    tmp_path: Path,
+):
+    report = _write_report(
+        tmp_path / "mutation-report.json",
+        {
+            "src/Widget.cs": {
+                "mutants": [
+                    _mutant_at_line_static("Survived", 42, True),
+                    _mutant_at_line_static(
+                        "Survived", 42, False, mutator="ArithmeticOperator"
+                    ),
+                ]
+            }
+        },
+    )
+
+    result = mutation_report.survivors_by_line(
+        report, "src/Widget.cs", skip_static=True
+    )
+
+    # Both survivors — static and non-static — form ONE cluster of weight 2.
+    # skip_static never removes the static one from clustering.
+    assert len(result["clusters"]) == 1
+    assert result["clusters"][0]["line"] == 42
+    assert len(result["clusters"][0]["survivors"]) == 2
+
+
+def test_survivors_by_line_skip_static_does_not_change_cluster_weight_or_ranking(
+    tmp_path: Path,
+):
+    # Two lines: line 10 has 1 static survivor only; line 20 has 1 static +
+    # 1 non-static. With skip_static having any filtering effect, line 20
+    # would rank first (2 > 1) only when unfiltered — verifying the ranking
+    # is identical with skip_static True or False proves no filtering
+    # happened at all.
+    report = _write_report(
+        tmp_path / "mutation-report.json",
+        {
+            "src/Widget.cs": {
+                "mutants": [
+                    _mutant_at_line_static("Survived", 10, True),
+                    _mutant_at_line_static("Survived", 20, True),
+                    _mutant_at_line_static(
+                        "Survived", 20, False, mutator="ArithmeticOperator"
+                    ),
+                ]
+            }
+        },
+    )
+
+    unfiltered = mutation_report.survivors_by_line(report, "src/Widget.cs")
+    skip_static_true = mutation_report.survivors_by_line(
+        report, "src/Widget.cs", skip_static=True
+    )
+
+    assert unfiltered == skip_static_true
+    # Line 20 (weight 2) ranks ahead of line 10 (weight 1) in both cases.
+    assert [c["line"] for c in unfiltered["clusters"]] == [20, 10]
+
+
+# =============================================================================
 # Scenario: skip_static filters static-flagged survivors out of
 # survivors_by_mutator() (Slice 1 of plans/mutation-report-prose-extraction.md,
 # #1937/#1915)

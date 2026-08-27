@@ -936,9 +936,10 @@ def main(argv: Sequence[str] | None = None) -> int:
         # a failed cleanup revert now raises RevertFailed instead of being
         # silently discarded, so reaching this branch means the cleanup
         # revert itself succeeded, same as the GenerationExhausted case
-        # above. Not a retry-budget exhaustion — reuses exit 5 because the
-        # shard driver only distinguishes "fatal, stop" (4) from "clean,
-        # continue" (5), not why a file wasn't fixed.
+        # above. Not a retry-budget exhaustion — reuses exit 5 (#1956: this
+        # is the OUTCOME class, not a specific cause) because the shard
+        # driver only distinguishes "fatal, stop" (4) from "clean, continue"
+        # (5), not why a file wasn't fixed.
         sys.stderr.write(f"error: {exc} — generation failed cleanly, continuing\n")
         return EXIT_GENERATION_EXHAUSTED
     return 0

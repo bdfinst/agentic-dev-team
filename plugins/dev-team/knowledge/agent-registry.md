@@ -8,6 +8,7 @@ This file contains the complete registry tables. CLAUDE.md references this file 
 | ------- | ------ | --------- | --------------- |
 | ADR Author | `agents/adr-author.md` | 1,143 | Creates and manages Architecture Decision Records |
 | Architect | `agents/architect.md` | 1,482 | System design, architecture |
+| Autoship Batch Proposer | `agents/autoship-batch-proposer.md` | ~748 | Proposes issue-number groupings among currently-ungrouped autoship candidates from title/body text supplied in-prompt. Dispatched by `/autoship` Step 2b, never directly. |
 | Codebase Recon | `agents/codebase-recon.md` | ~2,858 | Repo reconnaissance — surfaces entry points, dependencies, security surface, git history. Produces RECON artifact per security-primitives-contract. Dispatched on demand by architect and domain-analysis, and at the start of Phase 1: Research when no fresh artifact exists (see `${CLAUDE_PLUGIN_ROOT}/knowledge/three-phase-workflow.md#codebase-recon-dispatch`). |
 | Gherkin Quality Critic | `agents/gherkin-quality-critic.md` | ~1,176 | Adversarial review of freshly-derived/authored Gherkin — coverage gaps and positive/negative balance. Dispatched by `/gherkin-derive` and `/gherkin-public`, never directly. |
 | Orchestrator | `agents/orchestrator.md` | 5,510 | Task routing, model selection, review coordination |

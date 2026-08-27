@@ -62,9 +62,10 @@ def parse_args(argv) -> argparse.Namespace:
         "--skip-static",
         action="store_true",
         help=(
-            "Exclude static:true mutants — requires --survivors-by-mutator "
-            "or --accepted-static-survivors (rejected with "
-            "--survivors-by-line)."
+            "Exclude static:true mutants from --survivors-by-mutator/"
+            "--accepted-static-survivors. With --survivors-by-line, has no "
+            "filtering effect on the returned clusters by design (#1948) — "
+            "see survivors_by_line()'s docstring."
         ),
     )
     return p.parse_args(list(argv))
@@ -111,17 +112,28 @@ def main(argv: list[str] | None = None) -> int:
         )
         return 2
 
-    if args.skip_static and args.survivors_by_line:
-        sys.stderr.write(
-            "error: --skip-static is only valid with --survivors-by-mutator "
-            "or --accepted-static-survivors\n"
-        )
-        return 2
-
     report_path = Path(args.report)
 
     if args.survivors_by_line:
-        result = mutation_report.survivors_by_line(report_path, args.file)
+        # #1948: --skip-static is now ACCEPTED with --survivors-by-line
+        # (previously rejected with exit 2) — but it has no filtering effect
+        # on the returned clusters, by design (Option A: a static survivor
+        # still counts toward its line's cluster weight/ranking, since it's
+        # still evidence of that line's mutation density). Print a diagnostic
+        # every time the combination is used, distinct from
+        # _maybe_warn_skip_static_inapplicable's "no static mutant exists"
+        # case below — this fires even when static mutants ARE present,
+        # because the no-op is unconditional, not contingent on the report.
+        if args.skip_static:
+            sys.stderr.write(
+                "skip-static: --survivors-by-line clustering ignores this "
+                "flag by design (#1948) — every survivor, static or not, "
+                "still counts toward cluster weight; check each survivor's "
+                "own 'static' field before writing a test for it\n"
+            )
+        result = mutation_report.survivors_by_line(
+            report_path, args.file, skip_static=args.skip_static
+        )
     elif args.accepted_static_survivors:
         # Single load: reuse the same parsed dict for the diagnostic below
         # and the accepted-survivor computation, instead of two separate

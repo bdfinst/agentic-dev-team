@@ -165,7 +165,20 @@ def is_gateway_class_error(exc: BaseException) -> bool:
 # failure that isn't a failed revert. Used by both headless CLIs' main() and
 # stryker_shard_pipeline.py's shard driver so the meaning of "5" lives in one
 # place instead of three duplicated literals.
-EXIT_GENERATION_EXHAUSTED = 5
+#
+# EXIT_CLEAN_UNFIXED is the primary, outcome-shaped name (#1956): the value
+# has named two distinct causes since #1939 (true GenerationExhausted, or any
+# other clean RuntimeError such as a generation timeout), and the original
+# name only describes one of them. EXIT_GENERATION_EXHAUSTED is kept as an
+# alias — same value, zero behavior change — because every existing call
+# site (stryker_shard_pipeline.py, mutation_kill_headless.py,
+# mutation_kill_loop_python.py) and their tests already import it by that
+# name; renaming those call sites too was judged not worth the diff for a
+# purely cosmetic rename with no behavior change (#1956 explicitly frames
+# this as "consider," not a mandate). New code should prefer
+# EXIT_CLEAN_UNFIXED.
+EXIT_CLEAN_UNFIXED = 5
+EXIT_GENERATION_EXHAUSTED = EXIT_CLEAN_UNFIXED
 
 # Shared exit code for the fatal, working-tree-possibly-mutated outcome class
 # (#1930): a failed revert (or a failed-commit round-abandonment's own
