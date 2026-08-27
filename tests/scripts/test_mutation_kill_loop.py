@@ -86,6 +86,31 @@ def test_end_to_end_fixture_derives_paths_and_extracts_survivors(tmp_path: Path)
 
 
 # =============================================================================
+# Scenario (#1948, "also found alongside"): extract_survivors -> its
+# convergence-consuming call site — never filters by skip_static, so a
+# static-flagged survivor still contributes to the reported survivor_count.
+# Pins the actual call site (mutation_kill_loop.py:extract_survivors ->
+# mutation_report.survivors_by_mutator), not just a structural signature
+# check, so a future one-word edit that starts passing skip_static here
+# would be caught by a behavioral regression, not just a signature diff.
+# =============================================================================
+def test_extract_survivors_includes_static_flagged_survivors(tmp_path: Path):
+    static_mutant = {
+        "id": "StringLiteral-Survived-static",
+        "mutatorName": "StringLiteral",
+        "status": "Survived",
+        "static": True,
+        "location": {"start": {"line": 5}},
+    }
+    report = _write_report(tmp_path, "src/Widget.WebApi/PaymentService.cs", [static_mutant])
+
+    survivors = loop.extract_survivors(report, "PaymentService.cs")
+
+    assert len(survivors) == 1
+    assert survivors[0]["static"] is True
+
+
+# =============================================================================
 # Scenario: The loop delegates DOTNET_ROOT and .sln handling to the wrapper (AC4)
 # =============================================================================
 def test_scoped_run_delegates_dotnet_root_and_sln_to_wrapper(

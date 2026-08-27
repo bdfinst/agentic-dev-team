@@ -353,7 +353,9 @@ def _resolve_survivor_line(mutant: dict) -> int | None:
     return line
 
 
-def _survivors_by_line_from_data(data: dict, file_path: str) -> dict:
+def _survivors_by_line_from_data(
+    data: dict, file_path: str, skip_static: bool = False
+) -> dict:
     """Return the Survived mutants for one source file, clustered by source
     line, from an already-parsed report dict.
 
@@ -362,6 +364,19 @@ def _survivors_by_line_from_data(data: dict, file_path: str) -> dict:
     basename). Only ``Survived`` mutants participate; a mutant of any other
     status (Killed, Timeout, NoCoverage, ...) sharing a line with survivors
     never appears in the result.
+
+    ``skip_static`` is accepted for API symmetry with ``_survivors_from_data``
+    and so a caller (the CLI wrapper) can pass ``--skip-static
+    --survivors-by-line`` without being rejected — but it is a **no-op** on
+    the returned clusters (#1948, Option A): a static-flagged survivor still
+    counts toward its line's cluster weight and ranking exactly as it would
+    without the flag. A static mutant is still real evidence about that
+    line's mutation density, even when generation (a decision made
+    downstream, not here) skips writing a test for it — the two are
+    deliberately decoupled. A caller that needs to know whether a specific
+    survivor within a cluster should be skipped for generation checks that
+    survivor's own ``static`` field directly (already present on the raw
+    mutant dict); this function does not filter or annotate it further.
 
     Return shape: ``{"clusters": [{"line": int, "survivors": [dict, ...]}, ...],
     "unclustered": [dict, ...]}``.
@@ -382,6 +397,9 @@ def _survivors_by_line_from_data(data: dict, file_path: str) -> dict:
     - Returns ``{"clusters": [], "unclustered": []}`` when the file is not in
       the report or has no survivors.
     """
+    # skip_static is deliberately never read below — see the docstring's
+    # "no-op on the returned clusters" note. It is accepted purely so the
+    # CLI can pass it through instead of rejecting the combination.
     info = _find_file_info(data, file_path)
     if info is None:
         return {"clusters": [], "unclustered": []}
@@ -405,14 +423,18 @@ def _survivors_by_line_from_data(data: dict, file_path: str) -> dict:
     return {"clusters": clusters, "unclustered": unclustered}
 
 
-def survivors_by_line(report_path: Path, file_path: str) -> dict:
+def survivors_by_line(
+    report_path: Path, file_path: str, skip_static: bool = False
+) -> dict:
     """Return the Survived mutants for one source file, clustered by source
     line, from a Stryker-shaped mutation report on disk.
 
-    See ``_survivors_by_line_from_data`` for the return shape and ordering
-    rule.
+    See ``_survivors_by_line_from_data`` for the return shape, ordering rule,
+    and the ``skip_static`` no-op-on-clustering behavior (#1948).
     """
-    return _survivors_by_line_from_data(load_report(report_path), file_path)
+    return _survivors_by_line_from_data(
+        load_report(report_path), file_path, skip_static=skip_static
+    )
 
 
 def survivor_lines(report_path: Path, file_path: str) -> list[int]:

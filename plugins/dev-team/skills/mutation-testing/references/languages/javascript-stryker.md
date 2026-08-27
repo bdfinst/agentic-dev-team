@@ -60,18 +60,45 @@ static mutant that a full-suite run would have killed stays counted as an
 unaddressed survivor for this pass, folded into the accepted-survivors
 accounting below rather than dropped silently.
 
-**Scoring and convergence stay unfiltered.** Only the generation step's
-input narrows — and specifically only the mutator-grouped generation input
-(`survivors_by_mutator(..., skip_static=True)`); line-clustering
-(`survivors_by_line()`, which has no `skip_static` parameter and is itself
-the first step of generation per [`mutation-kill.md`'s priority-order
+**Scoring and convergence stay unfiltered.** The `survivors == 0`
+convergence exit, the no-improvement stop predicate, and the honest/reported
+scores all read the report's full, unfiltered survivor count — a file whose
+only remaining survivors are static must never be written as `status:
+"converged"`.
+
+**Line-clustering counts every survivor; only the mutator-grouped generation
+list narrows (#1948, resolved as Option A).** `survivors_by_line()` DOES
+accept a `skip_static` parameter now, but it is a deliberate **no-op** on
+the returned clusters: a static-flagged survivor still counts toward its
+line's cluster weight/ranking exactly as it would without the flag, because
+it's still real evidence of that line's mutation density — only the
+mutator-grouped generation input (`survivors_by_mutator(...,
+skip_static=True)`) actually narrows which mutants get a test written. This
+is a permanent design decision, not an open gap: clustering (the first step
+of generation per [`mutation-kill.md`'s priority-order
 guidance](../../../../agents/mutation-kill.md#target-mutation-types-in-priority-order))
-stays unfiltered too — a known, accepted design gap tracked in
-[#1948](https://github.com/bdfinst/agentic-dev-team/issues/1948), not
-resolved here. The `survivors == 0` convergence exit, the
-no-improvement stop predicate, and the honest/reported scores all read the
-report's full, unfiltered survivor count — a file whose only remaining
-survivors are static must never be written as `status: "converged"`.
+and the mutator-grouped narrowing that follows it are intentionally
+decoupled.
+
+**Reconciling a clustered-but-unfiltered ranking with a filtered generation
+list in practice.** When you pick a cluster to attack (highest
+survivors-per-line first, per the priority-order guidance) and
+`--skip-static-mutants` is active, don't assume every survivor in that
+cluster is a generation candidate — check each survivor's own `static`
+field (present on the raw mutant dict `survivors_by_line()` returns) before
+writing a test for it:
+
+- If the cluster has a **mix** of static and non-static survivors, write
+  the test(s) targeting the non-static ones as usual; the static ones stay
+  present in the cluster (contributing to its weight) but are not
+  individually targeted this round.
+- If **every** survivor in the top cluster is static, that line has no
+  generation candidate this round even though it ranked first — move to the
+  next cluster with a non-static survivor rather than generating nothing
+  for the "top" line and stopping. The all-static cluster's survivors still
+  count toward the file's raw survivor total and (once folded via
+  `--accepted-static-survivors --skip-static`, below) the accepted-survivors
+  accounting — they are deferred, not lost.
 
 **`adjusted_score` does account for static-skipped mutants.** After the
 existing `--skip-static --survivors-by-mutator` generation call, also call
@@ -87,15 +114,15 @@ returns `[]` unless its `skip_static_active` evidence is `True`, so calling
 entries at all, even when static survivors exist in the report. This is now
 documented via the same accepted/reason mechanism used elsewhere in
 `mutation-kill` — not the undocumented, adjusted-score-invisible over-count
-the prior wording described. Clustering (`survivors_by_line()`) is untouched
-by this and stays out of scope: it has no `skip_static` parameter and
-remains unfiltered, per the #1948 gap noted above. **Known overlap:** because
-clustering stays unfiltered, a static survivor folded into the accepted
-table this round may simultaneously still be targeted by the
-clustering-driven generation step in that same round — this is a known,
-accepted overlap tied to #1948, not resolved here, so the adjusted score
-should not be read as a claim that every accepted survivor is untouched by
-this pass's generation.
+the prior wording described. Clustering (`survivors_by_line()`) still counts
+every survivor including static ones (see above) — it does not filter, so
+there is nothing here for `--skip-static` to have "touched" in the first
+place. **The prior "known overlap" caveat (#1948) is resolved**, not merely
+narrowed: follow the reconciliation guidance above (check each survivor's
+own `static` field before writing a test for it) and a static survivor
+folded into this accepted table is never also independently targeted by
+this same round's generation step — the two paths agree by construction, not
+by coincidence.
 
 **Fallback when the field is absent.** `mutation_report_cli.py --skip-static`
 detects this itself and prints a one-line notice to stderr, distinguishing

@@ -147,9 +147,39 @@ def test_adjusted_score_folds_in_accepted_static_survivors(static_skip_flat: str
         r"--accepted-static-survivors[^.]*\bfold[^.]*adjusted_score",
         static_skip_flat,
     )
-    # Clustering stays explicitly out of scope for this fold (#1948).
-    assert re.search(r"[Cc]lustering.{0,40}untouched", static_skip_flat)
+    # #1948 (resolved): clustering counts every survivor including static
+    # ones — it never filtered, so there was nothing for --skip-static to
+    # "touch." The doc now says so explicitly rather than describing an open
+    # gap.
+    assert re.search(r"[Cc]lustering.{0,60}counts every survivor", static_skip_flat)
     assert "#1948" in static_skip_flat
+
+
+def test_skip_static_is_a_no_op_on_survivors_by_line_clustering(
+    static_skip_flat: str,
+) -> None:
+    """#1948, Option A: survivors_by_line() now accepts skip_static, but the
+    doc must say plainly that it does not filter the returned clusters — a
+    static survivor still counts toward its line's cluster weight/ranking,
+    since it's still evidence of that line's mutation density. Pins the
+    resolution, not just the flag's bare existence."""
+    assert re.search(
+        r"survivors_by_line\(\).{0,40}accept.{0,10}skip_static", static_skip_flat
+    )
+    assert re.search(r"no-op", static_skip_flat)
+    assert re.search(r"still counts toward its line'?s cluster weight", static_skip_flat)
+
+
+def test_reconciliation_guidance_names_the_static_field_check(
+    static_skip_flat: str,
+) -> None:
+    """#1948: the doc must tell the agent HOW to reconcile a
+    clustered-but-unfiltered ranking with the filtered mutator-grouped
+    generation list — checking each survivor's own `static` field before
+    writing a test for it, and moving to the next cluster when every
+    survivor in the top one is static."""
+    assert re.search(r"check.{0,20}each survivor'?s own `?static`? field", static_skip_flat)
+    assert re.search(r"move to the next cluster", static_skip_flat)
 
 
 def test_absent_static_field_has_a_stated_fallback(static_skip_flat: str) -> None:

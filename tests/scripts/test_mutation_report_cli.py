@@ -420,10 +420,38 @@ def test_accepted_static_survivors_with_survivors_by_mutator_is_argument_error(
     )
 
 
-def test_skip_static_with_survivors_by_line_is_argument_error(
+# =============================================================================
+# Scenario (#1948): --skip-static + --survivors-by-line is now a valid,
+# accepted combination — previously an exit-2 argument error. The flag has
+# no filtering effect on the returned clusters (Option A: a static survivor
+# still counts toward its line's cluster weight/ranking).
+# =============================================================================
+def test_skip_static_with_survivors_by_line_is_valid_not_an_error(
     tmp_path: Path, capsys
 ) -> None:
-    report = _write_report(tmp_path / "mutation.json", {})
+    report = _write_report(
+        tmp_path / "mutation.json",
+        {
+            "src/calc.ts": {
+                "mutants": [
+                    {
+                        "id": "StringLiteral-1",
+                        "mutatorName": "StringLiteral",
+                        "status": "Survived",
+                        "static": True,
+                        "location": {"start": {"line": 42}},
+                    },
+                    {
+                        "id": "ArithmeticOperator-1",
+                        "mutatorName": "ArithmeticOperator",
+                        "status": "Survived",
+                        "static": False,
+                        "location": {"start": {"line": 42}},
+                    },
+                ]
+            }
+        },
+    )
     rc = cli.main(
         [
             "--survivors-by-line",
@@ -434,9 +462,28 @@ def test_skip_static_with_survivors_by_line_is_argument_error(
             "src/calc.ts",
         ]
     )
-    assert rc == 2
-    err = capsys.readouterr().err
-    assert "--skip-static is only valid with --survivors-by-mutator" in err
+    assert rc == 0
+    out = capsys.readouterr()
+    printed = json.loads(out.out)
+    # Both the static AND non-static survivor count toward the same line's
+    # cluster — --skip-static narrows generation input elsewhere, never
+    # clustering/ranking here.
+    assert len(printed["clusters"]) == 1
+    assert printed["clusters"][0]["line"] == 42
+    assert len(printed["clusters"][0]["survivors"]) == 2
+    # The unconditional "clustering ignores this flag" diagnostic fires.
+    assert "clustering ignores this flag by design" in out.err
+
+
+def test_skip_static_with_survivors_by_line_diagnostic_omitted_when_flag_unset(
+    tmp_path: Path, capsys
+) -> None:
+    report = _write_report(tmp_path / "mutation.json", {})
+    rc = cli.main(
+        ["--survivors-by-line", "--report", str(report), "--file", "src/calc.ts"]
+    )
+    assert rc == 0
+    assert capsys.readouterr().err == ""
 
 
 def test_skip_static_with_accepted_static_survivors_is_valid_not_an_error(
