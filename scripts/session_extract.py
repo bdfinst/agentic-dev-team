@@ -1151,6 +1151,12 @@ def _read_synced_records(digests_root: Path) -> list[dict]:
     by_id: dict[str, dict] = {}
     for f in sorted(digests_root.glob("*/session-digest.jsonl")):
         for rec in _iter_records([f]):
+            if not isinstance(rec, dict):
+                # A peer's digest line can decode to any JSON value (a bare
+                # array/string/number/null) — `_iter_records` only excludes
+                # undecodable lines. `.get()` below would raise on anything
+                # else, aborting the run for every host over one line.
+                continue
             if rec.get("schema") not in SYNC_SCHEMAS:
                 continue
             sid = rec.get("session_id")

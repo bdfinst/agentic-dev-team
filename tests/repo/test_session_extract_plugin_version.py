@@ -876,6 +876,32 @@ def test_rollup_non_dict_utilization_does_not_crash_and_contributes_nothing(
     assert data["utilization"]["skills_invoked"] == {"plan": 1}
 
 
+def test_rollup_survives_a_digest_line_that_decodes_to_a_non_dict(
+    tmp_path: Path,
+) -> None:
+    """#2016 round-4 closing-pass finding: `_iter_records` only excludes
+    UNDECODABLE lines -- a line that decodes to a bare JSON array, string,
+    number, or null is yielded as-is, and `_read_synced_records()`'s
+    `rec.get("schema")` raised an uncaught AttributeError on it, aborting
+    --rollup for every host over one malformed line in any peer's digest
+    file. Must skip non-dict decoded values instead, and the well-formed
+    sibling record (written after the bad lines in the same file) must
+    still be counted."""
+    plugin_root = _fake_plugin_root(tmp_path, "10.23.0")
+    digests = tmp_path / "digests"
+    well_formed = _base_sync_record("good-host", "p", "s-good")
+    box = digests / "good-host"
+    box.mkdir(parents=True)
+    (box / "session-digest.jsonl").write_text(
+        "\n".join(["[]", '"x"', "5", "null", "true", json.dumps(well_formed)]) + "\n"
+    )
+    result = _run("--rollup", str(digests), "--plugin-root", str(plugin_root))
+    assert result.returncode == 0, result.stdout + result.stderr
+    data = json.loads(result.stdout)
+    assert data["sessions"] == 1
+    assert data["hosts"] == ["good-host"]
+
+
 @pytest.mark.parametrize("bad_value", ["not-a-dict", [1, 2]])
 def test_rollup_survives_a_non_dict_inner_utilization_field(
     tmp_path: Path, bad_value: object
