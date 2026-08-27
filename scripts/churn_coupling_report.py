@@ -85,10 +85,23 @@ integer solo-edit count -- same ordering, no float noise in ties. The ratio is
 still reported per row and is the first tie-breaker, so a file that is 100%
 solo ranks above an equally-solo-count file that is only 50% solo.
 
+## All-files mode delegates to a sibling module (Step 2.3, #2039)
+
+`--all-files` ranks every historically-edited, non-excluded path (not just
+mapped test/subject pairs) by cross-session recurrence. That responsibility
+lives in the sibling module `scripts/lib/churn_recurrence.py`, not here --
+adding it in place would grow this already-735-line script's second,
+unrelated responsibility past this repo's god-object threshold. `run()`
+converts this script's own `Commit` objects (and its own `is_excluded`
+filtering) into plain `(sha, paths, timestamp)` dicts at the call boundary
+and delegates; `churn_recurrence.py` never imports the `Commit` type, so the
+import direction stays one-way (this module -> `churn_recurrence.py`).
+
 ## Usage
 
     scripts/churn_coupling_report.py [--repo PATH] [--since DAYS]
-        [--max-commits N] [--min-edits N] [--top N] [--exclude GLOB] [--json]
+        [--max-commits N] [--min-edits N] [--top N] [--exclude GLOB]
+        [--all-files] [--json]
 
 Exit codes: 0 on a completed report (including an empty one), 2 on a refusal
 (not a git repository, shallow clone, no commits in the window).
@@ -104,6 +117,9 @@ import subprocess
 import sys
 from dataclasses import dataclass, field
 from pathlib import Path, PurePosixPath
+
+sys.path.insert(0, str(Path(__file__).resolve().parent / "lib"))
+import churn_recurrence
 
 # --------------------------------------------------------------------------
 # Configuration
@@ -698,8 +714,33 @@ def build_parser():
         default=[],
         help="extra path glob to exclude (repeatable; adds to the defaults)",
     )
+    parser.add_argument(
+        "--all-files",
+        action="store_true",
+        help=(
+            "rank every historically-edited, non-excluded file by cross-session "
+            "recurrence instead of test/subject coupling (delegates to "
+            "scripts/lib/churn_recurrence.py)"
+        ),
+    )
     parser.add_argument("--json", action="store_true", help="emit JSON instead of a table")
     return parser
+
+
+def _to_plain_commits(commits, excludes) -> list:
+    """Convert this script's `Commit` objects to `churn_recurrence.py`'s
+    plain-dict input shape at the call boundary, applying this script's own
+    exclusion filtering along the way -- `churn_recurrence.py` never
+    re-implements `is_excluded`'s glob matching, and never imports `Commit`.
+    """
+    return [
+        {
+            "sha": commit.sha,
+            "paths": [path for path in commit.paths if not is_excluded(path, excludes)],
+            "timestamp": commit.timestamp,
+        }
+        for commit in commits
+    ]
 
 
 def run(args) -> str:
@@ -722,6 +763,19 @@ def run(args) -> str:
         )
 
     excludes = tuple(DEFAULT_EXCLUDES) + tuple(args.exclude)
+
+    if args.all_files:
+        report = churn_recurrence.rank_all_files(
+            _to_plain_commits(commits, excludes), tracked_paths(args.repo)
+        )
+        report["window"] = f"{args.since} days"
+        report["truncated"] = bool(args.max_commits and len(commits) >= args.max_commits)
+        return (
+            churn_recurrence.render_json(report, args.top)
+            if args.json
+            else churn_recurrence.render_text(report, args.top)
+        )
+
     report = build_report(commits, tracked_paths(args.repo), args.min_edits, excludes)
     report["window"] = f"{args.since} days"
     report["truncated"] = bool(args.max_commits and len(commits) >= args.max_commits)

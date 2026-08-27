@@ -824,3 +824,124 @@ class TestGitLogParsing:
         _git(root, "commit", "-q", "-m", "spaced path")
         commits = ccr.git_log_commits(root, since_days=3650)
         assert "src/two words.py" in commits[0].paths
+
+
+# ---------------------------------------------------------------------------
+# --all-files mode (Step 2.3, #2039): CLI delegation to churn_recurrence.py
+# ---------------------------------------------------------------------------
+
+
+def _seed_all_files_repo(root):
+    """A repo with a non-test file, a test file, and an excluded (vendored)
+    file -- for Step 2.3's `--all-files` CLI-level coverage. Not the golden
+    fixture repo: that one stays untouched so the Step 2.1 regression check
+    below is a genuine independent baseline, not a comparison against a repo
+    Step 2.3 also shaped.
+    """
+    root.mkdir(parents=True, exist_ok=True)
+    subprocess.run(
+        ["git", "init", "-q", "-b", "main", str(root)], check=True, capture_output=True
+    )
+    steps = [
+        (
+            {
+                "src/alpha.py": "a1",
+                "tests/test_alpha.py": "t1",
+                "node_modules/pkg/foo.js": "n1",
+            },
+            "seed",
+        ),
+        ({"src/alpha.py": "a2"}, "alpha change"),
+        ({"node_modules/pkg/foo.js": "n2"}, "vendor churn"),
+    ]
+    for files, message in steps:
+        for rel, text in files.items():
+            _write(root, rel, text + "\n")
+        _git(root, "add", "-A")
+        _git(root, "commit", "-q", "-m", message)
+    return root
+
+
+@pytest.fixture(scope="module")
+def all_files_repo(tmp_path_factory):
+    return _seed_all_files_repo(tmp_path_factory.mktemp("all-files") / "repo")
+
+
+class TestAllFilesMode:
+    """Step 2.3 (#2039):
+
+        Scenario: all-files mode ranks every file, not just test/subject pairs
+          Given a full-clone git history with edits spread across test and
+            non-test files
+          When the report is run with the all-files mode flag
+          Then every edited file (not only mapped test files) appears in the
+            ranked output
+
+        Scenario: excluded files are omitted from all-files mode too
+          Given a file matching the existing mode's exclusion globs (e.g.
+            node_modules/*, dist/*)
+          When the report is run with --all-files
+          Then the excluded file does not appear in the ranked output, the
+            unattributed section, or any count
+    """
+
+    def test_surfaces_both_test_and_non_test_files(self, all_files_repo, capsys):
+        code, out, _ = _run_cli(
+            ["--repo", str(all_files_repo), "--since", "3650", "--all-files", "--json"], capsys
+        )
+        assert code == 0
+        payload = json.loads(out)
+        paths = {row["path"] for row in payload["rows"]}
+        assert "src/alpha.py" in paths
+        assert "tests/test_alpha.py" in paths
+
+    def test_excluded_file_is_absent_from_ranked_output_unattributed_and_any_count(
+        self, all_files_repo, capsys
+    ):
+        code, out, _ = _run_cli(
+            ["--repo", str(all_files_repo), "--since", "3650", "--all-files", "--json"], capsys
+        )
+        assert code == 0
+        payload = json.loads(out)
+        assert not any(row["path"] == "node_modules/pkg/foo.js" for row in payload["rows"])
+        assert not any(
+            item["path"] == "node_modules/pkg/foo.js" for item in payload["unattributed"]
+        )
+        assert "node_modules" not in out
+        # files_seen counts only the non-excluded paths (2), not the 3rd,
+        # excluded one.
+        assert payload["files_seen"] == 2
+
+    def test_text_report_renders_for_all_files_mode(self, all_files_repo, capsys):
+        code, out, _ = _run_cli(
+            ["--repo", str(all_files_repo), "--since", "3650", "--all-files"], capsys
+        )
+        assert code == 0
+        assert "Cross-session churn recurrence" in out
+        assert "src/alpha.py" in out
+        assert "node_modules" not in out
+
+
+class TestAllFilesModeExistingModeRegression:
+    """Step 2.3 (#2039): a SEPARATE, independent regression check from Step
+    2.2a's own test above -- it re-verifies that Step 2.3's changes (the
+    sys.path/import wiring for `churn_recurrence.py`, the new `--all-files`
+    branch in `run()`, the module docstring addendum) leave the existing
+    (non---all-files) mode's output byte-identical to the Step 2.1 golden
+    fixture. This diffs live output against the checked-in
+    `churn_coupling_existing_mode_golden.txt`, never against the refactored
+    code's own output, so it cannot become tautological.
+
+        Scenario: existing test/subject-pair mode is unchanged
+          Given a fixture repo previously exercised in test/subject-pair mode
+          When the report is run without --all-files
+          Then the ranked test/subject-pair output is identical to its
+            pre-change baseline
+    """
+
+    def test_existing_mode_output_still_matches_the_golden_fixture(self, golden_repo, capsys):
+        code, out, _ = _run_cli(
+            ["--repo", str(golden_repo), "--since", "3650", "--min-edits", "1"], capsys
+        )
+        assert code == 0
+        assert out.rstrip("\n") == _GOLDEN_FIXTURE.read_text(encoding="utf-8").rstrip("\n")
