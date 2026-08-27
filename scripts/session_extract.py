@@ -71,7 +71,7 @@ sys.path.insert(
     0,
     str(Path(__file__).resolve().parent.parent / "plugins" / "dev-team" / "scripts" / "lib"),
 )
-from session_log import classify, discovery, records
+from session_log import classify, discovery, records, signals
 
 # session_log.classify (issue #2043, epic #2040): the classification
 # vocabulary and text/name-handling helpers used to be defined here; they
@@ -83,7 +83,9 @@ _VERIFY_RE = classify.VERIFY_RE
 _CORRECTION_RE = classify.CORRECTION_RE
 _PERMISSION_RE = classify.PERMISSION_RE
 _OLDSTRING_RE = classify.OLDSTRING_RE
-_EDIT_TOOLS = {"Edit", "Write", "NotebookEdit", "MultiEdit"}
+# session_log.signals.EDIT_TOOLS (#2044) is this exact set; aliased so no
+# call site in this file needs to change.
+_EDIT_TOOLS = signals.EDIT_TOOLS
 _GIT_GLOBAL_OPTS_WITH_ARG = classify.GIT_GLOBAL_OPTS_WITH_ARG
 _COMMIT_BYPASS_TOKENS = classify.COMMIT_BYPASS_TOKENS
 _statement_break_newlines = classify.statement_break_newlines
@@ -211,6 +213,20 @@ def _iter_records(paths: list[Path]):
         yield from records.iter_file_records(path)
 
 
+# session_log.signals (issue #2044, epic #2040): per-record signal
+# accumulation used to be defined here; unified with
+# extract_session_report.py — see signals.py's module docstring for the
+# full per-function reconciliation. THIS SLICE CHANGES OUTPUT on purpose:
+# by_agent_type gains the same context_tokens/context_per_dispatch bucket
+# shape extract_session_report.py already had (#2029) — see the "Historical
+# session-digest.jsonl comparability" note in signals.py's docstring, and
+# this slice's own commit body for the enumerated golden diff.
+_accumulate_skill_agent_signals = signals.accumulate_skill_agent_signals
+_track_tool_call = signals.track_tool_call
+_classify_tool_result = signals.classify_tool_result
+_detect_correction_turn = signals.detect_correction_turn
+
+
 def _accumulate_token_signals(
     usage: dict,
     raw_model,
@@ -220,10 +236,15 @@ def _accumulate_token_signals(
     tokens_total: Counter,
     by_model: dict[str, Counter],
     by_skill: dict[str, Counter],
-) -> float:
-    """Token-accounting concern: usage/cost totals split by model and skill.
-    Returns this record's cost (added to the running cost_total by the caller).
-    Thread attribution moved to the caller's `by_agent_type` bucketing (#1994).
+) -> tuple[float, dict]:
+    """Token-accounting concern: usage/cost totals split by model and skill,
+    on top of `signals.accumulate_token_signals`'s shared core (tokens_total
+    + by_model — no cost, no skill, matching extract_session_report.py's
+    exact shape; pricing/cost stays a session_extract.py-only extension per
+    ADR 0036). Returns `(cost, safe_usage)` — the caller's `by_agent_type`
+    bucket (#2044's context_tokens port) needs the same already-safety-
+    clamped usage fields this function computes, so it's returned rather
+    than recomputed.
 
     #2080: `usage` is read from a LOCAL transcript file — a different trust
     domain from the peer-digest path `_safe_number` was written to guard, but
@@ -236,162 +257,24 @@ def _accumulate_token_signals(
     and the running totals can never go negative from one bad record."""
     safe_usage = {f: _safe_number(v) for f, v in records.usage_fields(usage).items()}
     cost = _cost(safe_usage, _rate(pricing, raw_model or ""), pricing)
-    for f in records.USAGE_FIELDS:
-        v = safe_usage[f]
-        tokens_total[f] += v
-        if model:
-            by_model[model][f] += v
-        if skill:
-            by_skill[skill][f] += v
+    signals.accumulate_token_signals(safe_usage, model, tokens_total, by_model)
+    if skill:
+        for f in records.USAGE_FIELDS:
+            by_skill[skill][f] += safe_usage[f]
     if model:
         by_model[model]["cost_micro"] += round(cost * 1e6)
     if skill:
         by_skill[skill]["cost_micro"] += round(cost * 1e6)
-    return cost
+    return cost, safe_usage
 
 
-def _accumulate_skill_agent_signals(
-    skill,
-    content,
-    skills_invoked: Counter,
-    agent_dispatches: Counter,
-    active: dict[str, str | None],
-) -> None:
-    """Skill/agent-detection concern. `skill` is the legacy attributionSkill
-    tag (kept as a fallback — real transcripts don't emit it, #182);
-    `content`'s tool_use blocks are the primary signal: the Skill tool and the
-    Agent/Task tool that actually invoke them (#182). `active` tracks the
-    most-recently-invoked skill/agent (#711), sticky until superseded, for the
-    correction-turn concern to attribute against.
-
-    Counts DISPATCHES, not runs: a dispatch made from inside a subagent is
-    only visible in that subagent's own transcript, and a dispatch whose
-    transcript is absent never ran. Run counts come from `attributionAgent`
-    (#1994)."""
-    if skill:
-        skills_invoked[_safe_name(skill)] += 1
-    if not isinstance(content, list):
-        return
-    for block in content:
-        if not isinstance(block, dict) or block.get("type") != "tool_use":
-            continue
-        name = block.get("name", "?")
-        inp = block.get("input", {}) if isinstance(block.get("input"), dict) else {}
-        if name == "Skill":
-            s = inp.get("skill") or inp.get("name")
-            if isinstance(s, str) and s:
-                skills_invoked[_safe_name(_strip_ns(s))] += 1
-                active["skill"] = _safe_name(_strip_ns(s))
-        elif name in ("Agent", "Task"):
-            a = inp.get("subagent_type")
-            if isinstance(a, str) and a:
-                agent_dispatches[_safe_name(_strip_ns(a))] += 1
-                active["agent"] = _safe_name(_strip_ns(a))
-
-
-def _track_tool_call(
-    block: dict, pending_tool: dict[str, str], tool_calls: Counter
-) -> None:
-    """Error-classification bookkeeping: count every tool invocation (the
-    error-rate denominator) and remember its id -> name so a later
-    tool_result can be attributed back to the tool that produced it."""
-    name = _safe_name(str(block.get("name", "?")))
-    tool_calls[name] += 1
-    bid = block.get("id")
-    if isinstance(bid, str) and bid:
-        pending_tool[bid] = name
-
-
-def _classify_tool_result(
-    block: dict,
-    pending_tool: dict[str, str],
-    tool_errors: Counter,
-    error_counts: Counter,
-) -> None:
-    """Error-classification concern: tally errors by tool, and detect the two
-    rework sub-signals (failed edits via old_string mismatches, and
-    permission denials) from a tool_result block."""
-    if not block.get("is_error"):
-        return
-    bid = block.get("tool_use_id")
-    tool_name = pending_tool.get(bid, "?") if isinstance(bid, str) else "?"
-    tool_errors[tool_name] += 1
-    rcontent = _text_of(block.get("content"))
-    if tool_name in _EDIT_TOOLS and _OLDSTRING_RE.search(rcontent):
-        error_counts["failed_edits"] += 1
-    if _PERMISSION_RE.search(rcontent):
-        error_counts["permission_denials"] += 1
-
-
-def _track_edit(
-    block: dict, sid, edits_per_file: Counter, verify_edited_since: dict[str, bool]
-) -> None:
-    """Edit-tracking concern: count Edit/Write/... calls per file basename,
-    so repeated edits to the same file (a rework signal) can be derived. Also
-    marks this session's pending stuck-verify-loop streak (#708) as
-    consumed — an edit resets it, same as verify_guard.py's own reset."""
-    name = block.get("name", "?")
-    inp = block.get("input", {}) if isinstance(block.get("input"), dict) else {}
-    if name in _EDIT_TOOLS and inp.get("file_path"):
-        edits_per_file[_safe_name(_basename(str(inp["file_path"])))] += 1
-    if name in _EDIT_TOOLS:
-        verify_edited_since[str(sid or "")] = True
-
-
-def _track_bash(
-    block: dict,
-    sid,
-    bash_commands: Counter,
-    bash_signal_counts: Counter,
-    last_verify_norm: dict[str, str],
-    verify_edited_since: dict[str, bool],
-) -> None:
-    """Bash-retry / commit-bypass / stuck-verify-loop concern (#111, #708):
-    normalize the command for near-identical retry detection, detect a
-    stuck-verify-loop repeat (the same normalized verify command run again
-    with no Edit/Write/... call since the previous run in this session), and
-    detect the review-gate bypass signal on `git commit` invocations."""
-    name = block.get("name", "?")
-    inp = block.get("input", {}) if isinstance(block.get("input"), dict) else {}
-    if name != "Bash" or not isinstance(inp.get("command"), str):
-        return
-    cmd = inp["command"].strip()
-    # near-identical retry detection: normalize whitespace
-    norm = re.sub(r"\s+", " ", cmd)
-    bash_commands[norm] += 1
-    if _VERIFY_RE.search(cmd):
-        skey = str(sid or "")
-        if last_verify_norm.get(skey) == norm and not verify_edited_since.get(
-            skey, False
-        ):
-            bash_signal_counts["repeated_verify_runs"] += 1
-        last_verify_norm[skey] = norm
-        verify_edited_since[skey] = False
-    # gate signal (#111): commit + review-gate bypass, scoped to the git-commit
-    # argv (#2036) — see _bash_segments()/_is_git_commit_argv() above.
-    for segment in _bash_segments(cmd):
-        if _is_git_commit_argv(segment):
-            bash_signal_counts["commit_attempts"] += 1
-            if any(tok in _COMMIT_BYPASS_TOKENS for tok in segment[1:]):
-                bash_signal_counts["commit_bypasses"] += 1
-
-
-def _detect_correction_turn(rec: dict, content) -> bool:
-    """Correction-turn concern: a real user message (not a tool_result
-    envelope) containing a correction keyword ("no", "actually", "revert",
-    ...)."""
-    if rec.get("type") != "user" or rec.get("isMeta"):
-        return False
-    utext = _text_of(content)
-    if not utext:
-        return False
-    # skip pure tool_result envelopes (no free-text user prompt)
-    if isinstance(content, list) and all(
-        isinstance(b, dict) and b.get("type") == "tool_result" for b in content
-    ):
-        return False
-    return bool(_CORRECTION_RE.search(utext.lower()))
-
+# signals.track_edit/track_bash operate on a flat per-thread dict
+# (signals.new_thread()) rather than this script's former sid-keyed dicts —
+# see signals.py's module docstring for why dropping the sid-keying is a
+# behavior-preserving simplification, not a regression of the #1991 fix it
+# originally existed to prevent.
+_track_edit = signals.track_edit
+_track_bash = signals.track_bash
 
 # session_log.records.slim_by_name (#2042) is this exact function; aliased
 # so the two call sites below are unchanged.
@@ -409,13 +292,17 @@ def extract(
     cost_total = 0.0
     by_model: dict[str, Counter] = defaultdict(Counter)
     by_skill: dict[str, Counter] = defaultdict(Counter)
-    # Message counts keyed by AGENT NAME — `main` for the main thread,
+    # Per-agent buckets keyed by AGENT NAME — `main` for the main thread,
     # `unattributed` where no agent is resolvable. Renamed from `by_subagent`
     # (#1994): that name meant "sidechain vs main" here while the shipped
     # report used the same path for agent-name attribution, and `by_agent_type`
     # is the plugin's settled vocabulary for this map
-    # (knowledge/telemetry-schema.md, cost-metering).
-    by_agent_type = Counter()
+    # (knowledge/telemetry-schema.md, cost-metering). #2044: switched from a
+    # bare message-count Counter to signals.new_agent_bucket()'s dict shape —
+    # extract_session_report.py's real per-agent context_tokens (#2029),
+    # ported here for the first time. See signals.py's module docstring,
+    # "Historical session-digest.jsonl comparability".
+    by_agent_type: dict[str, dict] = {}
     agent_runs = Counter()  # one subagent transcript is one run
     agent_dispatches = Counter()  # Agent/Task tool_use calls
     subagent_transcripts = 0
@@ -429,13 +316,12 @@ def extract(
     # repeated_verify_runs (#708): mirrors verify_guard.py's own stuck-loop
     # detection — a "repeat" is the same normalized verify command run again
     # with NO Edit/Write/NotebookEdit/MultiEdit call since the previous verify
-    # run in the same session (NOT a raw tally of every verify-class command,
+    # run in the same thread (NOT a raw tally of every verify-class command,
     # despite the metric's pre-#708 name — that raw tally double-counted the
     # ordinary RED/GREEN/REFACTOR re-run of the same command after a real
-    # edit). Tracked per-session so interleaved transcripts (--all-projects)
-    # don't cross-contaminate each other's state.
-    last_verify_norm: dict[str, str] = {}
-    verify_edited_since: dict[str, bool] = {}
+    # edit). #2044: tracked via a flat per-thread dict (signals.new_thread()),
+    # reset every file — see signals.py's module docstring for why the prior
+    # sid-keying inside an already-per-file-reset dict was redundant.
     bash_signal_counts = Counter()  # repeated_verify_runs, commit_attempts/bypasses
     error_counts = Counter()  # failed_edits, permission_denials
     compaction_events = 0
@@ -469,10 +355,9 @@ def extract(
             subagent_layout_present = True
         agent_name: str | None = None
         thread_msgs = 0
+        thread_usage = signals.new_agent_bucket()
         records_seen = 0
-        bash_commands = Counter()
-        last_verify_norm = {}
-        verify_edited_since = {}
+        thread = signals.new_thread()
         pending_tool = {}
         active = {"skill": None, "agent": None}
 
@@ -525,10 +410,27 @@ def extract(
             model = _safe_name(raw_model) if raw_model else None
 
             if usage:
+                cost, safe_usage = _accumulate_token_signals(
+                    usage,
+                    raw_model,
+                    model,
+                    skill,
+                    pricing,
+                    tokens_total,
+                    by_model,
+                    by_skill,
+                )
+                cost_total += cost
                 if is_subagent:
                     # The whole file is one agent's run; its label is resolved
-                    # once, at end of file, from `attributionAgent`.
+                    # once, at end of file, from `attributionAgent` — so the
+                    # per-record usage accumulates into `thread_usage` and is
+                    # folded into the file's bucket at file-end (#2044).
                     thread_msgs += 1
+                    thread_usage["messages"] += 1
+                    for f in signals.CONTEXT_TOKEN_FIELDS:
+                        thread_usage[f] += safe_usage[f]
+                    thread_usage["output_tokens"] += safe_usage["output_tokens"]
                 else:
                     # A MAIN transcript. An older harness inlined sidechain
                     # turns here rather than in their own file, and
@@ -547,17 +449,11 @@ def extract(
                         inline_label = "sidechain"
                     else:
                         inline_label = _MAIN_LABEL
-                    by_agent_type[inline_label] += 1
-                cost_total += _accumulate_token_signals(
-                    usage,
-                    raw_model,
-                    model,
-                    skill,
-                    pricing,
-                    tokens_total,
-                    by_model,
-                    by_skill,
-                )
+                    bucket = by_agent_type.setdefault(inline_label, signals.new_agent_bucket())
+                    bucket["messages"] += 1
+                    for f in signals.CONTEXT_TOKEN_FIELDS:
+                        bucket[f] += safe_usage[f]
+                    bucket["output_tokens"] += safe_usage["output_tokens"]
 
             content = msg.get("content")
             _accumulate_skill_agent_signals(
@@ -572,15 +468,8 @@ def extract(
                     btype = block.get("type")
                     if btype == "tool_use":
                         _track_tool_call(block, pending_tool, tool_calls)
-                        _track_edit(block, sid, edits_per_file, verify_edited_since)
-                        _track_bash(
-                            block,
-                            sid,
-                            bash_commands,
-                            bash_signal_counts,
-                            last_verify_norm,
-                            verify_edited_since,
-                        )
+                        _track_edit(block, edits_per_file, thread)
+                        _track_bash(block, bash_signal_counts, thread)
                     elif btype == "tool_result":
                         _classify_tool_result(
                             block, pending_tool, tool_errors, error_counts
@@ -602,14 +491,22 @@ def extract(
         # `attributionAgent` has been seen, so thread-level attribution is
         # resolved here rather than per record.
         label = agent_name or (_UNATTRIBUTED_LABEL if is_subagent else _MAIN_LABEL)
-        if thread_msgs:  # `+= 0` would materialize a zero-valued key
-            by_agent_type[label] += thread_msgs
+        if thread_msgs:  # a zero-message file must not materialize a bucket
+            bucket = by_agent_type.setdefault(label, signals.new_agent_bucket())
+            bucket["messages"] += thread_usage["messages"]
+            for f in signals.CONTEXT_TOKEN_FIELDS:
+                bucket[f] += thread_usage[f]
+            bucket["output_tokens"] += thread_usage["output_tokens"]
+            # One subagent transcript is one dispatch, so dispatches are
+            # counted here rather than inferred from message volume.
+            if is_subagent:
+                bucket["dispatches"] += 1
         if records_seen and is_subagent:
             subagent_transcripts += 1
             agent_runs[label] += 1
         elif records_seen:
             main_transcripts += 1
-        retried_bash_total += sum(n - 1 for n in bash_commands.values() if n > 1)
+        retried_bash_total += sum(n - 1 for n in thread["bash_commands"].values() if n > 1)
 
     # repeated edits (project-wide: a file is shared state) / retried bash
     # (per thread: a retry is a property of one agent's own loop).
@@ -657,7 +554,7 @@ def extract(
             "cache_hit_ratio": cache_hit_ratio,
             "by_model": _slim(by_model),
             "by_skill": _slim(by_skill),
-            "by_agent_type": dict(sorted(by_agent_type.items())),
+            "by_agent_type": signals.finalize_agent_buckets(by_agent_type),
         },
         "rework": {
             "failed_edits": failed_edits,

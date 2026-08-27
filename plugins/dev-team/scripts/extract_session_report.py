@@ -54,7 +54,7 @@ from pathlib import Path
 # scripts/ -> plugins/dev-team -> scripts/lib (established pattern; see
 # gherkin_stub_merge.py's identical `sys.path.insert(0, str(_HERE / "lib"))`).
 sys.path.insert(0, str(Path(__file__).resolve().parent / "lib"))
-from session_log import classify, discovery, records
+from session_log import classify, discovery, records, signals
 
 # session_log.classify (issue #2043, epic #2040): the classification
 # vocabulary and text/name-handling helpers used to be defined here; they
@@ -65,7 +65,9 @@ _VERIFY_RE = classify.VERIFY_RE
 _CORRECTION_RE = classify.CORRECTION_RE
 _PERMISSION_RE = classify.PERMISSION_RE
 _OLDSTRING_RE = classify.OLDSTRING_RE
-_EDIT_TOOLS = {"Edit", "Write", "NotebookEdit", "MultiEdit"}
+# session_log.signals.EDIT_TOOLS (#2044) is this exact set; aliased so no
+# call site in this file needs to change.
+_EDIT_TOOLS = signals.EDIT_TOOLS
 _GIT_GLOBAL_OPTS_WITH_ARG = classify.GIT_GLOBAL_OPTS_WITH_ARG
 _COMMIT_BYPASS_TOKENS = classify.COMMIT_BYPASS_TOKENS
 _statement_break_newlines = classify.statement_break_newlines
@@ -123,173 +125,37 @@ def load_registry(plugin_root: Path) -> dict:
     return {"skills": skills, "agents": agents}
 
 
-# --- per-record signal accumulation (adapted from session_extract.py) -------
-
-
-#: The usage fields that make up a dispatch's CONTEXT — what it carried in,
-#: as opposed to what it generated. Session telemetry puts ~90% of spend here
-#: (cache read + cache write), which is why per-agent context is the figure a
-#: panel-cost decision needs and `output_tokens` is tracked separately.
-_CONTEXT_TOKEN_FIELDS = (
-    "input_tokens",
-    "cache_creation_input_tokens",
-    "cache_read_input_tokens",
-)
-
-#: Mirrors `hooks/lib/cost_meter.py`'s `_new_bucket()` shape (#1094) so the two
-#: per-agent breakdowns in this plugin agree on field names. They stay separate
-#: implementations — cost_meter runs live per turn, this runs over a whole tree.
-_AGENT_BUCKET_FIELDS = (*_CONTEXT_TOKEN_FIELDS, "output_tokens")
-
-
-def _new_agent_bucket() -> dict:
-    bucket = {f: 0 for f in _AGENT_BUCKET_FIELDS}
-    bucket["messages"] = 0
-    bucket["dispatches"] = 0
-    return bucket
-
-
-def _merge_agent_buckets(dest: dict, src: dict) -> None:
-    """Fold one project's per-agent buckets into the cross-project totals.
-
-    Re-sums the raw fields rather than the derived ones: adding two projects'
-    `context_per_dispatch` values would produce a number that is not a mean of
-    anything. The derived figures are recomputed once, after the merge.
-    """
-    for label, bucket in (src or {}).items():
-        if not isinstance(bucket, dict):
-            # A digest written before #2010 carries an int (a message count).
-            # Merging it as tokens would silently corrupt the total, so the
-            # label is preserved at zero rather than guessed at.
-            dest.setdefault(label, _new_agent_bucket())
-            continue
-        into = dest.setdefault(label, _new_agent_bucket())
-        for field in (*_AGENT_BUCKET_FIELDS, "messages", "dispatches"):
-            into[field] += bucket.get(field, 0) or 0
-
-
-def _finalize_agent_buckets(by_agent_type: dict) -> dict:
-    """Add the derived per-dispatch figure each bucket exists to answer.
-
-    `context_tokens` is the sum a dispatch is charged for carrying;
-    `context_per_dispatch` divides it by real dispatch count, which is why
-    dispatches are counted from subagent transcripts rather than messages. It
-    is `None` for `main` and for any agent with no counted dispatch — a
-    division that has no meaning must read as absent, not as 0, which would
-    rank a never-dispatched agent as the cheapest in the table.
-    """
-    out = {}
-    for label, b in sorted(by_agent_type.items()):
-        context = sum(b[f] for f in _CONTEXT_TOKEN_FIELDS)
-        entry = dict(b)
-        entry["context_tokens"] = context
-        entry["context_per_dispatch"] = (
-            round(context / b["dispatches"]) if b["dispatches"] else None
-        )
-        out[label] = entry
-    return out
-
-
-def _accumulate_token_signals(usage, model, tokens_total, by_model):
-    for f, v in records.usage_fields(usage).items():
-        tokens_total[f] += v
-        if model:
-            by_model[model][f] += v
+# session_log.signals (issue #2044, epic #2040): per-record signal
+# accumulation used to be defined here; unified with scripts/session_extract.py
+# — see signals.py's module docstring for the full per-function
+# reconciliation (this slice DOES change output; see that docstring's
+# "Historical session-digest.jsonl comparability" section). Aliased under
+# the original private names so every internal call site below is
+# unchanged, except _accumulate_skill_agent_signals, whose shared signature
+# grew two parameters this script doesn't use (see the wrapper below).
+_CONTEXT_TOKEN_FIELDS = signals.CONTEXT_TOKEN_FIELDS
+_AGENT_BUCKET_FIELDS = signals.AGENT_BUCKET_FIELDS
+_new_agent_bucket = signals.new_agent_bucket
+_merge_agent_buckets = signals.merge_agent_buckets
+_finalize_agent_buckets = signals.finalize_agent_buckets
+_accumulate_token_signals = signals.accumulate_token_signals
+_track_tool_call = signals.track_tool_call
+_classify_tool_result = signals.classify_tool_result
+_track_edit = signals.track_edit
+_track_bash = signals.track_bash
+_new_thread = signals.new_thread
+_detect_correction_turn = signals.detect_correction_turn
 
 
 def _accumulate_skill_agent_signals(content, skills_invoked, agent_dispatches):
-    """Count `Skill` invocations and `Agent`/`Task` DISPATCHES from tool_use
-    blocks. A dispatch is not the same thing as a run: dispatches made from
-    inside a subagent are only visible in that subagent's own transcript, and
-    a dispatch whose subagent transcript is absent never ran to completion.
-    Run counts come from `attributionAgent` instead — see `extract()`."""
-    if not isinstance(content, list):
-        return
-    for block in content:
-        if not isinstance(block, dict) or block.get("type") != "tool_use":
-            continue
-        name = block.get("name", "?")
-        inp = block.get("input", {}) if isinstance(block.get("input"), dict) else {}
-        if name == "Skill":
-            s = inp.get("skill") or inp.get("name")
-            if isinstance(s, str) and s:
-                skills_invoked[_safe_name(_strip_ns(s))] += 1
-        elif name in ("Agent", "Task"):
-            a = inp.get("subagent_type")
-            if isinstance(a, str) and a:
-                agent_dispatches[_safe_name(_strip_ns(a))] += 1
-
-
-def _track_tool_call(block, pending_tool, tool_calls):
-    name = _safe_name(str(block.get("name", "?")))
-    tool_calls[name] += 1
-    bid = block.get("id")
-    if bid:
-        pending_tool[bid] = name
-
-
-def _classify_tool_result(block, pending_tool, tool_errors, error_counts):
-    if not block.get("is_error"):
-        return
-    bid = block.get("tool_use_id")
-    tool_name = pending_tool.get(bid, "?")
-    tool_errors[tool_name] += 1
-    rcontent = _text_of(block.get("content"))
-    if tool_name in _EDIT_TOOLS and _OLDSTRING_RE.search(rcontent):
-        error_counts["failed_edits"] += 1
-    if _PERMISSION_RE.search(rcontent):
-        error_counts["permission_denials"] += 1
-
-
-def _track_edit(block, edits_per_file, thread):
-    name = block.get("name", "?")
-    inp = block.get("input", {}) if isinstance(block.get("input"), dict) else {}
-    if name in _EDIT_TOOLS and inp.get("file_path"):
-        edits_per_file[_safe_name(_basename(str(inp["file_path"])))] += 1
-    if name in _EDIT_TOOLS:
-        thread["edited_since_verify"] = True
-
-
-def _track_bash(block, bash_signal_counts, thread):
-    """Bash signals are scoped to ONE thread of execution (`thread`, a
-    per-transcript dict). Retries and repeated verify runs are only meaningful
-    within a thread: a review panel's sibling agents share their parent's
-    sessionId, so a session-keyed tally would score fifteen agents each running
-    `git diff --cached` once as fourteen retries."""
-    name = block.get("name", "?")
-    inp = block.get("input", {}) if isinstance(block.get("input"), dict) else {}
-    if name != "Bash" or not isinstance(inp.get("command"), str):
-        return
-    cmd = inp["command"].strip()
-    norm = re.sub(r"\s+", " ", cmd)
-    thread["bash_commands"][norm] += 1
-    if _VERIFY_RE.search(cmd):
-        if thread["last_verify_norm"] == norm and not thread["edited_since_verify"]:
-            bash_signal_counts["repeated_verify_runs"] += 1
-        thread["last_verify_norm"] = norm
-        thread["edited_since_verify"] = False
-    for segment in _bash_segments(cmd):
-        if _is_git_commit_argv(segment):
-            bash_signal_counts["commit_attempts"] += 1
-            if any(tok in _COMMIT_BYPASS_TOKENS for tok in segment[1:]):
-                bash_signal_counts["commit_bypasses"] += 1
-
-
-def _new_thread() -> dict:
-    return {"bash_commands": Counter(), "last_verify_norm": None, "edited_since_verify": False}
-
-
-def _detect_correction_turn(rec: dict, content) -> bool:
-    if rec.get("type") != "user" or rec.get("isMeta"):
-        return False
-    utext = _text_of(content)
-    if not utext:
-        return False
-    if isinstance(content, list) and all(
-        isinstance(b, dict) and b.get("type") == "tool_result" for b in content
-    ):
-        return False
-    return bool(_CORRECTION_RE.search(utext.lower()))
+    """Thin wrapper over the shared signals.accumulate_skill_agent_signals:
+    this script has no `attributionSkill` legacy-fallback concept and no
+    by_skill/by_agent correction-turn breakdown, so `skill` is always None
+    (the legacy-fallback branch never fires) and `active` is a throwaway
+    dict this script never reads back."""
+    signals.accumulate_skill_agent_signals(
+        None, content, skills_invoked, agent_dispatches, {}
+    )
 
 
 def extract(

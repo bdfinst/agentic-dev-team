@@ -48,7 +48,11 @@ def test_extract_token_signals() -> None:
     assert digest["sessions"] == 1
     assert digest["token"]["totals"]["input_tokens"] == 4100
     assert digest["token"]["cache_hit_ratio"] == 0.8
-    assert digest["token"]["by_agent_type"]["sidechain"] == 1
+    # #2044: by_agent_type entries are now signals.new_agent_bucket() dicts
+    # (real per-agent context_tokens, ported from extract_session_report.py's
+    # #2029), not bare message-count ints — "messages" is the old int's
+    # direct equivalent.
+    assert digest["token"]["by_agent_type"]["sidechain"]["messages"] == 1
     assert digest["token"]["by_skill"]["code-review"]["input_tokens"] == 1500
 
 

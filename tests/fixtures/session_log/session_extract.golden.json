@@ -28,10 +28,46 @@
   "subagent_transcripts": 3,
   "token": {
     "by_agent_type": {
-      "correctness-review": 1,
-      "doc-review": 1,
-      "main": 5,
-      "unattributed": 1
+      "correctness-review": {
+        "cache_creation_input_tokens": 5,
+        "cache_read_input_tokens": 5,
+        "context_per_dispatch": 70,
+        "context_tokens": 70,
+        "dispatches": 1,
+        "input_tokens": 60,
+        "messages": 1,
+        "output_tokens": 30
+      },
+      "doc-review": {
+        "cache_creation_input_tokens": 5,
+        "cache_read_input_tokens": 5,
+        "context_per_dispatch": 70,
+        "context_tokens": 70,
+        "dispatches": 1,
+        "input_tokens": 60,
+        "messages": 1,
+        "output_tokens": 30
+      },
+      "main": {
+        "cache_creation_input_tokens": 20,
+        "cache_read_input_tokens": 10,
+        "context_per_dispatch": null,
+        "context_tokens": 150,
+        "dispatches": 0,
+        "input_tokens": 120,
+        "messages": 5,
+        "output_tokens": 70
+      },
+      "unattributed": {
+        "cache_creation_input_tokens": 5,
+        "cache_read_input_tokens": 5,
+        "context_per_dispatch": 70,
+        "context_tokens": 70,
+        "dispatches": 1,
+        "input_tokens": 60,
+        "messages": 1,
+        "output_tokens": 30
+      }
     },
     "by_model": {
       "claude-sonnet-5": {
