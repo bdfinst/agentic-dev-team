@@ -1,7 +1,8 @@
-"""Unit tests for scripts/bash_failure_taxonomy.py Step 1.1 (issue #2038):
-self-contained Bash tool_use/tool_result pairing.
+"""Unit tests for scripts/bash_failure_taxonomy.py Steps 1.1-1.2 (issue #2038):
+self-contained Bash tool_use/tool_result pairing, and the six-bucket
+failure classifier.
 
-Covers exactly the Step 1.1 TEST list from the approved plan:
+Step 1.1 TEST list (self-contained pairing):
 (a) a synthetic Bash tool_use + failing tool_result pair yields both texts
     together, (b) a successful Bash call is excluded, (c) a non-Bash tool's
     error is excluded, (d) an orphaned tool_result is reported unpaired
@@ -15,6 +16,15 @@ Covers exactly the Step 1.1 TEST list from the approved plan:
     raising -- mirroring `session_extract.py::_read_synced_records`'s
     `isinstance(rec, dict)` guard.
 
+Step 1.2 TEST list (`classify(command, error_text) -> str`): table-driven
+coverage with at least 2 real-shaped examples per class (all six),
+including timeout and genuine-command-error; the tool-not-present vs.
+working-directory disambiguation on an overlapping "No such file or
+directory" string; a bare-exit-code-only string asserting `unclassified`
+(not `genuine-command-error`); a truly unclassifiable string; and a
+boundary case pinning exactly which side of the ">10 character" stderr
+threshold a 10-character and an 11-character message fall on.
+
 No import from `session_extract.py` beyond the two path-discovery
 functions the plan names as reusable -- see the module docstring under
 test for the privacy-contract rationale.
@@ -25,6 +35,8 @@ from __future__ import annotations
 import json
 import sys
 from pathlib import Path
+
+import pytest
 
 from _repo_root import REPO_ROOT
 
@@ -232,6 +244,135 @@ def test_non_dict_top_level_record_skipped_without_raising(tmp_path):
     assert len(result.pairs) == 1
     assert result.pairs[0].command == "false"
     assert result.unpaired == []
+
+
+# ---------------------------------------------------------------------------
+# Step 1.2: six-bucket classifier core
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    ("command", "error_text", "expected"),
+    [
+        # -- quoting: unbalanced quotes / shell syntax error -----------------
+        (
+            "echo 'unterminated",
+            "bash: -c: line 1: unexpected EOF while looking for matching quote",
+            "quoting",
+        ),
+        (
+            "grep 'foo bar.txt",
+            "sh: 1: Syntax error: Unterminated quoted string",
+            "quoting",
+        ),
+        # -- tool-not-present: PATH lookup failure on the command itself -----
+        (
+            "foobarbaz --version",
+            "bash: foobarbaz: command not found",
+            "tool-not-present",
+        ),
+        (
+            "widget --help",
+            "sh: 1: widget: not found",
+            "tool-not-present",
+        ),
+        # -- working-directory: cd failure, or a missing-file argument -------
+        (
+            "cat bar.txt",
+            "cat: bar.txt: No such file or directory",
+            "working-directory",
+        ),
+        (
+            "cd ./nonexistent-dir",
+            "bash: cd: ./nonexistent-dir: No such file or directory",
+            "working-directory",
+        ),
+        # -- timeout -----------------------------------------------------------
+        (
+            "sleep 300",
+            "Command timed out after 120000ms",
+            "timeout",
+        ),
+        (
+            "curl https://example.com",
+            "curl: (28) Operation timed out after 30000 milliseconds",
+            "timeout",
+        ),
+        # -- genuine-command-error: well-formed, descriptive stderr ----------
+        (
+            "git status",
+            "fatal: not a git repository (or any of the parent directories): .git",
+            "genuine-command-error",
+        ),
+        (
+            "npm run build",
+            "npm ERR! missing script: build",
+            "genuine-command-error",
+        ),
+    ],
+)
+def test_classify_two_real_shaped_examples_per_class(command, error_text, expected):
+    assert bft.classify(command, error_text) == expected
+
+
+def test_classify_disambiguates_tool_not_present_from_working_directory():
+    # "No such file or directory" for a relative-path invocation of a
+    # binary that also does not exist on PATH -- the missing token IS the
+    # invoked command itself, so tool-not-present takes precedence over
+    # working-directory even though the phrasing overlaps with an
+    # argument-path failure.
+    command = "./missing-tool arg.txt"
+    error_text = "bash: ./missing-tool: No such file or directory"
+
+    assert bft.classify(command, error_text) == "tool-not-present"
+
+
+def test_classify_bare_exit_code_only_is_unclassified_not_genuine_error():
+    assert bft.classify("false", "1") == "unclassified"
+
+
+def test_classify_truly_unclassifiable_string_is_unclassified():
+    assert bft.classify("mytool --flag", "???") == "unclassified"
+
+
+@pytest.mark.parametrize(
+    ("stderr_text", "expected"),
+    [
+        ("z" * 10, "unclassified"),
+        ("z" * 11, "genuine-command-error"),
+    ],
+)
+def test_classify_genuine_command_error_threshold_boundary(stderr_text, expected):
+    assert bft.classify("some-tool --flag", stderr_text) == expected
+
+
+# ---------------------------------------------------------------------------
+# Review-correction regressions (code-review pass on Step 1.2)
+# ---------------------------------------------------------------------------
+
+
+def test_classify_generic_parser_syntax_error_is_not_quoting():
+    # A bare "unexpected token" is a generic parser-error phrase used by
+    # Node/V8, TypeScript, and many other non-shell tools -- it must not be
+    # treated as a bash quoting signature just because the two phrasings
+    # overlap. Bash's own quoting errors use the more specific
+    # "syntax error near unexpected token" phrasing, which stays covered.
+    command = "node build.js"
+    error_text = "SyntaxError: Unexpected token '}'"
+
+    assert bft.classify(command, error_text) == "genuine-command-error"
+
+
+def test_classify_tool_not_present_with_quoted_env_assignment_prefix():
+    # A quoted env-var assignment containing a space (`VAR="a b"`) must not
+    # corrupt invoked-binary tokenization -- naive whitespace splitting
+    # mis-tokenizes it into fragments ('VAR="a', 'b"'), picking the wrong
+    # "invoked binary" and corrupting the tool-not-present vs.
+    # working-directory disambiguation.
+    command = 'VAR="a b" ./mytool arg.txt'
+    error_text = "bash: ./mytool: No such file or directory"
+
+    assert bft.classify(command, error_text) == "tool-not-present"
 
 
 def test_tool_result_block_missing_required_fields_skipped_without_raising(tmp_path):

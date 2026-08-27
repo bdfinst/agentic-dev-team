@@ -37,6 +37,8 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
+import shlex
 import sys
 from collections.abc import Iterable, Iterator
 from dataclasses import dataclass, field
@@ -207,6 +209,174 @@ def pair_bash_errors(paths: Iterable[Path | str]) -> PairingResult:
         result.pairs.extend(pairs)
         result.unpaired.extend(unpaired)
     return result
+
+
+# ---------------------------------------------------------------------------
+# Step 1.2: six-bucket classifier core
+#
+# `classify()` checks in a fixed precedence order so each bucket has a
+# positive, disambiguating signal rather than being "whatever isn't the
+# other four" -- see the plan's Step 1.2 IMPLEMENT note:
+#   1. quoting              -- unbalanced quotes / shell syntax error
+#   2. tool-not-present      -- PATH lookup failure on the invoked command
+#                                itself (`command not found`, or a
+#                                `No such file or directory` message whose
+#                                failing token IS the invoked command)
+#   3. working-directory     -- a `cd` failure, or a `No such file or
+#                                directory` message whose failing token is
+#                                an ARGUMENT of a (by elimination, already
+#                                ruled-in) resolvable invoked command --
+#                                never real PATH resolution, which would be
+#                                environment-dependent and non-deterministic
+#   4. timeout                -- a shell/process timeout marker
+#   5. genuine-command-error  -- none of 1-4 matched and the error text's
+#                                stderr portion (after stripping any bare
+#                                exit-code line) is longer than a short
+#                                fixed threshold
+#   6. unclassified            -- the true fallback
+# ---------------------------------------------------------------------------
+
+_QUOTING_ERROR_PATTERNS: tuple[re.Pattern[str], ...] = (
+    re.compile(r"unexpected eof while looking for matching", re.IGNORECASE),
+    re.compile(r"unterminated quoted string", re.IGNORECASE),
+    # Bash's own quoting-syntax-error phrasing, not the bare "unexpected
+    # token" fragment -- that phrase alone is generic parser-error language
+    # shared by Node/V8, TypeScript, and other non-shell tools, and would
+    # misclassify their syntax errors as shell quoting failures.
+    re.compile(r"syntax error near unexpected token", re.IGNORECASE),
+    re.compile(r"bad substitution", re.IGNORECASE),
+    re.compile(r"parse error near", re.IGNORECASE),
+)
+
+_COMMAND_NOT_FOUND_RE = re.compile(
+    r"(?:^|\s)[^\s:]+:\s*command not found", re.IGNORECASE
+)
+_SH_STYLE_NOT_FOUND_RE = re.compile(
+    r"^[^:\n]+:\s*\d+:\s*[^\s:]+:\s*not found", re.IGNORECASE | re.MULTILINE
+)
+_NO_SUCH_FILE_RE = re.compile(
+    r"(?P<prefix>[^\n]*):\s*No such file or directory", re.IGNORECASE
+)
+_CD_FAILURE_RE = re.compile(r"\bcd:\s*.+?:\s*No such file or directory", re.IGNORECASE)
+
+_TIMEOUT_PATTERNS: tuple[re.Pattern[str], ...] = (
+    re.compile(r"\btimed out\b", re.IGNORECASE),
+    re.compile(r"\btimeout\b", re.IGNORECASE),
+    re.compile(r"deadline exceeded", re.IGNORECASE),
+    re.compile(r"\betimedout\b", re.IGNORECASE),
+)
+
+_BARE_EXIT_CODE_LINE_RE = re.compile(
+    r"^\s*(?:exit\s*(?:code|status)\s*[:=]?\s*)?-?\d+\.?\s*$", re.IGNORECASE
+)
+_GENUINE_ERROR_MIN_LEN = 10
+
+
+def _invoked_binary(command: str) -> str:
+    """Best-effort first token (the invoked binary) of a shell command
+    line, skipping leading `VAR=value` environment assignments.
+
+    Tokenizes with `shlex.split` so a quoted assignment containing
+    whitespace (`VAR="a b" ./mytool arg`) isn't split on the space inside
+    the quotes -- a plain `str.split()` would mis-tokenize it and hand back
+    a fragment instead of the real invoked binary. Falls back to a naive
+    whitespace split if the command itself has unbalanced quoting (that
+    shape is `quoting`'s own signature, already resolved before this
+    function is ever called)."""
+    try:
+        tokens = shlex.split(command)
+    except ValueError:
+        tokens = command.strip().split()
+    idx = 0
+    while idx < len(tokens) and re.match(r"^[A-Za-z_][A-Za-z0-9_]*=", tokens[idx]):
+        idx += 1
+    return tokens[idx] if idx < len(tokens) else ""
+
+
+def _tokens_match(a: str, b: str) -> bool:
+    """Compare two command/path tokens for the tool-not-present /
+    working-directory disambiguation: exact match, or matching basenames
+    (`./foo` vs `foo`, `/usr/bin/foo` vs `foo`)."""
+    return bool(a) and bool(b) and (a == b or Path(a).name == Path(b).name)
+
+
+def _no_such_file_token(error_text: str) -> str | None:
+    """Extract the failing path/token from a `<prog>: <token>: No such
+    file or directory` style message (any number of colon-delimited
+    prefixes) -- the LAST colon-delimited segment before the phrase."""
+    match = _NO_SUCH_FILE_RE.search(error_text)
+    if match is None:
+        return None
+    segments = [seg.strip() for seg in match.group("prefix").split(":") if seg.strip()]
+    return segments[-1] if segments else None
+
+
+def _strip_bare_exit_code_lines(error_text: str) -> str:
+    """Drop lines that are nothing but a bare exit code (`1`, `exit code:
+    127`) so `genuine-command-error` measures actual descriptive message
+    text, not the exit-code echo alone."""
+    kept = [
+        ln for ln in error_text.splitlines() if not _BARE_EXIT_CODE_LINE_RE.match(ln)
+    ]
+    return "\n".join(kept).strip()
+
+
+def _is_quoting_error(error_text: str) -> bool:
+    return any(p.search(error_text) for p in _QUOTING_ERROR_PATTERNS)
+
+
+def _is_tool_not_present(command: str, error_text: str) -> bool:
+    """PATH lookup failure: `command not found` (bash-style or sh-style),
+    or a `No such file or directory` message where the failing token IS
+    the invoked command itself (a relative/absolute path exec failure)."""
+    if _COMMAND_NOT_FOUND_RE.search(error_text) or _SH_STYLE_NOT_FOUND_RE.search(
+        error_text
+    ):
+        return True
+    token = _no_such_file_token(error_text)
+    if token is None:
+        return False
+    return _tokens_match(token, _invoked_binary(command))
+
+
+def _is_working_directory_error(command: str, error_text: str) -> bool:
+    """A `cd` failure, or a `No such file or directory` message where the
+    failing token is an ARGUMENT of the invoked command, not the command
+    itself (already ruled out by `_is_tool_not_present`)."""
+    if _CD_FAILURE_RE.search(error_text):
+        return True
+    if _invoked_binary(command).lower() == "cd":
+        return "no such file or directory" in error_text.lower()
+    return _no_such_file_token(error_text) is not None
+
+
+def _is_timeout(error_text: str) -> bool:
+    return any(p.search(error_text) for p in _TIMEOUT_PATTERNS)
+
+
+def _is_genuine_command_error(error_text: str) -> bool:
+    return len(_strip_bare_exit_code_lines(error_text)) > _GENUINE_ERROR_MIN_LEN
+
+
+def classify(command: str, error_text: str) -> str:
+    """Classify one failed Bash call into one of six buckets: `quoting`,
+    `tool-not-present`, `working-directory`, `timeout`,
+    `genuine-command-error`, or `unclassified` -- see the precedence-order
+    comment above this section."""
+    text = (error_text or "").strip()
+    cmd = command or ""
+
+    if _is_quoting_error(text):
+        return "quoting"
+    if _is_tool_not_present(cmd, text):
+        return "tool-not-present"
+    if _is_working_directory_error(cmd, text):
+        return "working-directory"
+    if _is_timeout(text):
+        return "timeout"
+    if _is_genuine_command_error(text):
+        return "genuine-command-error"
+    return "unclassified"
 
 
 def build_arg_parser() -> argparse.ArgumentParser:
