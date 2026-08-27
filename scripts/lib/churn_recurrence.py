@@ -36,7 +36,7 @@ from __future__ import annotations
 import json
 from dataclasses import dataclass
 from datetime import datetime, timedelta
-from functools import cache
+from functools import lru_cache
 
 #: Default gap, in hours, above which two chronologically-adjacent commits
 #: touching the same file are treated as separate commit-sessions rather
@@ -95,7 +95,7 @@ class TimestampError(ValueError):
         self.timestamp = timestamp
 
 
-@cache
+@lru_cache(maxsize=65536)
 def _parse_timestamp(sha: str, timestamp: str) -> datetime:
     """Parse one commit's timestamp, memoized.
 
@@ -106,7 +106,13 @@ def _parse_timestamp(sha: str, timestamp: str) -> datetime:
     distinct commit. A raised `TimestampError` is never cached (`lru_cache`
     only caches successful returns), so a malformed timestamp is still
     re-diagnosed on every call rather than silently swallowed after its
-    first appearance."""
+    first appearance. Bounded (not `functools.cache`'s unbounded growth):
+    this module is a one-shot CLI's library today, but it is written to be
+    reusable (see the module docstring), and a future long-lived caller
+    (a batch driver, a persistent server) calling `rank_all_files` many
+    times over a process's lifetime should not accumulate one entry per
+    distinct `(sha, timestamp)` pair forever. 65536 comfortably covers any
+    single realistic `--since`/`--max-commits` window with room to spare."""
     if not timestamp:
         raise TimestampError(
             sha, timestamp, f"commit {sha!r} has no timestamp; cannot partition it into a commit-session"
@@ -302,8 +308,15 @@ def render_json(report, top) -> str:
 
 
 def render_text(report, top) -> str:
+    """Render `report` (from `rank_all_files`) as a text table.
+
+    `window`/`truncated` are query-level concerns the CLI caller injects
+    into the dict after `rank_all_files` returns (it only knows about
+    commit data, not `--since`/`--max-commits`) -- read with `.get()` so
+    a caller that renders `rank_all_files`'s own output directly, without
+    replicating that injection, gets "unknown" instead of a `KeyError`."""
     lines = []
-    window = report["window"]
+    window = report.get("window", "unknown")
     lines.append(
         f"Cross-session churn recurrence  window: {window}  commits scanned: "
         f"{report['commits_scanned']}"

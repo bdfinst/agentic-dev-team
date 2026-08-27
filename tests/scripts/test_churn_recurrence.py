@@ -341,6 +341,19 @@ class TestRenderAllFiles:
         assert "Unattributed" in text
         assert "src/gone.py" in text
 
+    def test_render_text_tolerates_rank_all_files_output_with_no_window_key(self):
+        """/pr gate finding: `rank_all_files`'s own return contract never
+        includes `window`/`truncated` -- only `run()`'s CLI caller injects
+        them after the fact. A caller that renders `rank_all_files`'s raw
+        output directly (skipping that injection) must not get a raw
+        `KeyError: 'window'`."""
+        commits = _all_files_commits(("a", ["src/alpha.py"], 0))
+        report = cr.rank_all_files(commits, {"src/alpha.py"}, commit_gap_hours=4)
+
+        text = cr.render_text(report, top=10)
+
+        assert "window: unknown" in text
+
     def test_render_text_unattributed_header_is_distinct_from_unmapped(self):
         text = cr.render_text(self._report(), top=10)
         assert "Unmapped" not in text

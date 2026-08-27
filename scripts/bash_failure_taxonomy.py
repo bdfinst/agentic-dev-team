@@ -358,25 +358,6 @@ def _split_shell_segments(command: str) -> list[list[str]]:
     return segments
 
 
-def _last_segment_tokens(command: str) -> list[str]:
-    """The tokens of the LAST shell segment of `command` -- the sub-command
-    a compound chain (`a && b`, `a; b`, `a | b`) most recently attempted.
-
-    `_invoked_binary`/`_command_arguments` build on this rather than
-    tokenizing the whole command line, so a compound command's error is
-    attributed to the segment that actually produced it. Tokenizing the
-    whole line (the prior approach) always named the FIRST sub-command as
-    "the invoked binary" and every later token -- including later
-    sub-commands' own binaries -- as "its argument", so e.g.
-    `cd /tmp && ./missing_binary --flag` misclassified a genuine
-    tool-not-present failure of `./missing_binary` as a `cd`-attributable
-    `working-directory` error purely because the command STARTED with
-    `cd` (see `tests/scripts/test_bash_failure_taxonomy.py`'s compound-
-    command regression coverage)."""
-    segments = _split_shell_segments(command)
-    return segments[-1] if segments else []
-
-
 def _skip_env_assignment_prefix(tokens: list[str]) -> int:
     """Index of the first token in `tokens` that is not a leading
     `VAR=value` environment assignment."""
@@ -386,13 +367,34 @@ def _skip_env_assignment_prefix(tokens: list[str]) -> int:
     return idx
 
 
-def _invoked_binary(command: str) -> str:
-    """Best-effort invoked binary of the LAST shell segment of `command`
-    (see `_last_segment_tokens`), skipping leading `VAR=value` environment
-    assignments."""
-    tokens = _last_segment_tokens(command)
-    idx = _skip_env_assignment_prefix(tokens)
-    return tokens[idx] if idx < len(tokens) else ""
+def _invoked_binaries(command: str) -> list[str]:
+    """The invoked binary of EVERY shell segment of `command` (see
+    `_split_shell_segments`), skipping each segment's own leading
+    `VAR=value` assignments.
+
+    Checks span the WHOLE chain rather than picking one segment as "the"
+    invoked command, because a compound command's error can originate
+    from ANY segment -- not only the last one. Tokenizing the whole line
+    as a single command (the original approach) always named the FIRST
+    sub-command as "the invoked binary" and every later token -- including
+    a later sub-command's own binary -- as "its argument", so
+    `cd /tmp && ./missing_binary --flag` misclassified a genuine
+    tool-not-present failure of `./missing_binary` as a `cd`-attributable
+    `working-directory` error purely because the command STARTED with
+    `cd`. Picking only the LAST segment instead (a first fix attempt) just
+    moved the same bug: `cat missing.txt && rm -rf /tmp/foo` (where `cat`
+    fails and `rm` never runs, per `&&` semantics) would then have named
+    `rm` as "the invoked binary", missing `cat`'s own missing-argument
+    failure entirely. Checking every segment's tokens for a match handles
+    both directions without needing to guess which segment actually ran
+    (see `tests/scripts/test_bash_failure_taxonomy.py`'s compound-command
+    regression coverage for both cases)."""
+    binaries = []
+    for tokens in _split_shell_segments(command):
+        idx = _skip_env_assignment_prefix(tokens)
+        if idx < len(tokens):
+            binaries.append(tokens[idx])
+    return binaries
 
 
 def _tokens_match(a: str, b: str) -> bool:
@@ -441,16 +443,20 @@ def _is_tool_not_present(command: str, error_text: str, no_such_file_token: str 
         return True
     if no_such_file_token is None:
         return False
-    return _tokens_match(no_such_file_token, _invoked_binary(command))
+    return any(_tokens_match(no_such_file_token, b) for b in _invoked_binaries(command))
 
 
-def _command_arguments(command: str) -> list[str]:
-    """Every token after the invoked binary of the LAST shell segment of
-    `command` (see `_last_segment_tokens`), skipping leading `VAR=value`
-    environment assignments."""
-    tokens = _last_segment_tokens(command)
-    idx = _skip_env_assignment_prefix(tokens)
-    return tokens[idx + 1 :]
+def _all_arguments(command: str) -> list[str]:
+    """Every argument token (i.e. every token after each segment's own
+    invoked binary, past its own leading `VAR=value` assignments) across
+    EVERY shell segment of `command` -- see `_invoked_binaries`'s
+    docstring for why this spans the whole chain rather than one
+    segment."""
+    arguments: list[str] = []
+    for tokens in _split_shell_segments(command):
+        idx = _skip_env_assignment_prefix(tokens)
+        arguments.extend(tokens[idx + 1 :])
+    return arguments
 
 
 def _is_working_directory_error(
@@ -470,13 +476,22 @@ def _is_working_directory_error(
     `_is_tool_not_present` -- see that function's docstring."""
     if _CD_FAILURE_RE.search(error_text):
         return True
-    if _invoked_binary(command).lower() == "cd":
-        return "no such file or directory" in error_text.lower()
+    # The bare "invoked binary is cd, so any 'no such file' phrase in the
+    # error must be cd's own failure" shortcut only holds for a SINGLE,
+    # non-compound command: extending it to "cd is ANY segment of the
+    # chain" reintroduces the original compound-command bug this module
+    # exists to avoid (`cd /tmp && ./missing-tool` would match on `cd`
+    # again). Restricted to the one-segment case, this is just the
+    # ordinary single-command `cd badpath` scenario.
+    segments = _split_shell_segments(command)
+    if len(segments) == 1:
+        idx = _skip_env_assignment_prefix(segments[0])
+        binary = segments[0][idx] if idx < len(segments[0]) else ""
+        if binary.lower() == "cd":
+            return "no such file or directory" in error_text.lower()
     if no_such_file_token is None:
         return False
-    return any(
-        _tokens_match(no_such_file_token, arg) for arg in _command_arguments(command)
-    )
+    return any(_tokens_match(no_such_file_token, arg) for arg in _all_arguments(command))
 
 
 def _is_timeout(error_text: str) -> bool:

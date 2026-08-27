@@ -550,6 +550,18 @@ def test_classify_compound_command_working_directory_argument_still_works():
     assert bft.classify(command, error_text) == "working-directory"
 
 
+def test_classify_compound_command_attributes_to_an_earlier_sub_command_too():
+    """/pr gate finding: a first fix attempt keyed off only the LAST shell
+    segment, which just moved the same bug to the mirror case -- `&&` means
+    `rm` never runs when `cat` fails first, so the FAILING sub-command here
+    is the FIRST one, not the last. `_invoked_binaries`/`_all_arguments`
+    must check every segment in the chain, not pick one end of it."""
+    command = "cat missing.txt && rm -rf /tmp/foo"
+    error_text = "cat: missing.txt: No such file or directory"
+
+    assert bft.classify(command, error_text) == "working-directory"
+
+
 def test_classify_bare_exit_code_only_is_unclassified_not_genuine_error():
     assert bft.classify("false", "1") == "unclassified"
 
