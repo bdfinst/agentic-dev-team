@@ -88,7 +88,7 @@ $DRY_RUN && echo -e "${YELLOW}DRY RUN mode — no files will be written${RESET}"
 
 require_file "$PLUGIN_DIR/hooks/pre-tool-guard.sh"
 require_file "$SETTINGS"
-require_file "$SCRIPTS_DIR/session_extract.py"
+require_file "$PLUGIN_DIR/scripts/session_report.py"
 command -v jq >/dev/null 2>&1 || { echo "ERROR: jq required"; exit 1; }
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -128,7 +128,7 @@ command -v jq >/dev/null 2>&1 || exit 0
 CMD=$(echo "$INPUT" | jq -r '.tool_input.command // empty' 2>/dev/null || true)
 [ -z "$CMD" ] && exit 0
 
-# Only fire on verify-class commands (mirrors session_extract.py _VERIFY_RE)
+# Only fire on verify-class commands (mirrors session_report.py/session_log.classify _VERIFY_RE)
 if ! echo "$CMD" | grep -qE \
   '\b(npm (run )?(test|lint|build)|pytest|bats|eslint|tsc|go test|cargo (test|build)|mvn|gradle|make( |$)|vitest|jest|ruff|mypy|shellcheck)\b'; then
   exit 0
@@ -311,15 +311,15 @@ PY
 fi
 
 # ─────────────────────────────────────────────────────────────────────────────
-header "Fix namespace stripping in session_extract.py"
+header "Fix namespace stripping in session_report.py"
 # _strip_ns() only strips 'dev-team:' prefix. Invocations using
 # 'agentic-dev-team:' are not normalized, inflating never_observed lists
 # and double-counting agents across plugin namespaces.
 # ─────────────────────────────────────────────────────────────────────────────
 if should_run; then
-  EXTRACT="$SCRIPTS_DIR/session_extract.py"
+  EXTRACT="$PLUGIN_DIR/scripts/session_report.py"
   if grep -q "agentic-dev-team:" "$EXTRACT"; then
-    skip_step "agentic-dev-team namespace already handled in session_extract.py"
+    skip_step "agentic-dev-team namespace already handled in session_report.py"
   else
     if $DRY_RUN; then
       echo -e "  ${YELLOW}[DRY RUN]${RESET} would update _strip_ns() in $EXTRACT to strip 'agentic-dev-team:' prefix"

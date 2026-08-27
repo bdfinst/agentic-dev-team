@@ -416,6 +416,103 @@ agent a record might apply to).
 
 Do not modify any skill or agent file. The report is the only artifact.
 
+### 4b. Harness-sourced rows — a separate, labelled population (#2051)
+
+`evals/code-review-benchmark/` (#821) is a **replay harness**, not a live
+session — it dispatches `/code-review --json` against real Defects4J/BugsJS
+defects and recorded diffs, entirely outside any `/build`/`/code-review`
+session an operator ran. Its runner (`runner.emit_review_value_rows()`)
+writes rows in the same `review-value.jsonl` shape as the live writers
+above, but with `source: "harness"` — a value distinct from
+`build-checkpoint` / `build-backstop` / `code-review`, and written to the
+harness's **own** results directory (`evals/code-review-benchmark/results/
+review-value.jsonl` by default, `--results-dir` elsewhere), never
+`.claude/metrics/`. Both are structural, not just a labelling convention:
+even a caller that pointed this step at the wrong file could not
+accidentally pool harness rows into the live population, because they
+don't live in the same file.
+
+**Read the harness stream separately, and never merge it into Step 3/4's
+live-population computations above.** It answers a different question —
+per-lens yield replayed against a fixed, real-defect corpus — not "how did
+this operator's own sessions go":
+
+```bash
+harness_log="evals/code-review-benchmark/results/review-value.jsonl"
+[ -f "$harness_log" ] && jq -s '
+  map(select(.source == "harness"))
+  | group_by(.agents_run | sort | join(","))
+  | map({
+      lens:          (.[0].agents_run | sort | join(", ")),
+      dispatches:    length,
+      no_op:         (map(select(.issues_found == 0)) | length),
+      found_issues:  (map(select(.issues_found > 0)) | length),
+      issues_found:  (map(.issues_found) | add // 0)
+    })' \
+  "$harness_log"
+```
+
+Report this as its own labelled table (`### Harness-Sourced Rows
+(source: "harness")`), separate from Step 4's live tables, and state the
+corpus it came from (Defects4J / BugsJS / recorded-diff, per the row's
+`dataset` field) and the row count. Absent = no harness sweep has run yet;
+report that plainly rather than treating a missing file as zero evidence
+either way.
+
+### 4c. Agent-vs-tool redundancy criterion (#1983 Part 2)
+
+A seam distinct from Step 4's fix-rate/finding-rate analysis: those measure
+agents against *usage*, but nothing before this caught "this lens's
+findings are a subset of what an already-running deterministic tool
+reported for the same rounds" — the gap the #1974 pre-pass spike
+identified. `skills/harness-audit/scripts/redundancy_criterion.py`
+implements this as a real, computable comparison (not prose): for one
+lens's findings in a round, `is_round_redundant()` checks whether every
+`{file, line}` finding it applied is within a line-tolerance of some
+finding the deterministic static-analysis pre-pass
+(`skills/static-analysis-integration/SKILL.md`, including the
+`lizard`/`jscpd` metric adapters — #1974) already reported for the same
+file that round. `classify_lens_redundancy()` aggregates that verdict
+across a lens's rounds into `redundant-candidate` / `not-redundant` /
+`insufficient-data` (same `N >= 5` small-N-honesty floor as Step 4's own
+drop-candidate rule), excluding no-op rounds (a lens that found nothing
+proves nothing about redundancy either way).
+
+**Data sources, named precisely — read this before running it.**
+`review-value.jsonl` rows alone cannot drive this criterion: the schema is
+explicit that rows carry "counts and outcomes only, never code or file
+content" (`knowledge/telemetry-schema.md`), so there is no `file`/`line` on
+a row to compare. This criterion instead needs, for the SAME round:
+
+1. **A lens's applied findings** (`{file, line}` pairs) — `/code-review
+   --json`'s aggregated payload, `agents[].issues[]`
+   (`skills/code-review/output-format.md`). Available today from a saved
+   raw `--json` dispatch artifact — e.g. the code-review-benchmark
+   harness's `results/raw/*.txt` (§4b above; the harness's own dispatches
+   are real `/code-review --json` rounds), or an operator's own saved
+   `--json` capture.
+2. **The deterministic pre-pass envelope for that same round** — the
+   unified finding envelope `static-analysis-integration`'s Step 6 returns
+   (`findings[]`, each `{file, line, rule_id, metadata: {source}}` —
+   `knowledge/security-primitives-contract.md`).
+
+Neither is persisted as a committed metrics stream today, so running this
+step means collecting a handful of real rounds' raw `/code-review --json`
+output plus their pre-pass envelope by hand (or from the harness's `raw/`
+directory), building the `[{"applied_findings": [...], "pretool_findings":
+[...]}, ...]` shape `classify_lens_redundancy()` expects, and running:
+
+```bash
+python3 "${CLAUDE_PLUGIN_ROOT}/skills/harness-audit/scripts/redundancy_criterion.py" \
+  --rounds <path-to-rounds.json>
+```
+
+Report a **Agent-vs-Tool Redundancy** section: one row per lens with its
+verdict, `rounds_with_findings`, and `rounds_fully_subsumed`. A
+`redundant-candidate` verdict is evidence for a human tier-down/removal
+decision, never an automatic one — same "report only, human acts" rule as
+every other section in this skill.
+
 ### 5. Lesson Validation — validated-outcome weighting (#866)
 
 Close the loop on `/feedback-learning` lessons: does an adopted lesson
@@ -572,6 +669,28 @@ Write the report to the output path using this structure:
 | Checkpoint | Agents | Runs | Fix rate | Issues fixed |
 |------------|--------|------|----------|--------------|
 
+## Harness-Sourced Rows (source: "harness", #2051)
+
+> Source: `evals/code-review-benchmark/results/review-value.jsonl` — a
+> **separate, labelled population**, never pooled with the live rows above.
+> Absent = no harness sweep has run yet.
+
+| Lens | Dataset(s) | Dispatches | No-op | Found issues |
+|------|------------|------------|-------|---------------|
+
+## Agent-vs-Tool Redundancy (#1983 Part 2)
+
+> Source: per-round applied findings (`/code-review --json` `agents[].issues[]`)
+> paired with the static-analysis pre-pass envelope for the same round — see
+> §4c for why `review-value.jsonl` alone cannot drive this. Absent = no
+> rounds' data collected yet for this criterion.
+
+| Lens | Verdict | Rounds w/ findings | Rounds fully subsumed |
+|------|---------|---------------------|-------------------------|
+
+> A `redundant-candidate` verdict is evidence for a human tier-down/removal
+> decision — never acted on automatically.
+
 ## Lesson Validation (validated-outcome weighting, #866)
 
 > Source: `metrics/config-changelog.jsonl` × `metrics/session-digest.jsonl`.
@@ -610,6 +729,8 @@ Write the report to the output path using this structure:
 - Orchestration simplifications: <count>
 - Review-value drop candidates: <count>
 - Review-value high-value checkpoints: <count>
+- Harness-sourced rows analyzed (source: "harness"): <count>
+- Agent-vs-tool redundancy candidates: <count>
 - Re-baseline required: <yes/no>
 - Lessons validated / neutral / harmful / insufficient data: <count> / <count> / <count> / <count>
 - Rollback proposals (harmful verdicts): <count>

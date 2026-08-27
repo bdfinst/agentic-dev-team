@@ -7,6 +7,8 @@ Date: 2026-08-25
 Accepted (narrow) — the shared-core question is deliberately left open; see
 **Revisit trigger**.
 
+Superseded by [42. Unify the session extractors](0042-unify-the-session-extractors.md)
+
 ## Context
 
 Two scripts read Claude Code session transcripts and emit a metrics-only

@@ -1396,7 +1396,7 @@ class TestSidechainRowsAreNotMainThreadOccupancy:
     thread's. The hook took the last usage-bearing row unconditionally, so
     under the harness layout that records sidechain turns inline the measured
     number could belong to a different context entirely — in either
-    direction. `scripts/session_extract.py` and
+    direction. `session_report.py` and
     `scripts/measure_full_file_duplication.py` both already filter on
     `isSidechain`; this hook was the transcript consumer that did not.
     """

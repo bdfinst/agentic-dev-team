@@ -137,7 +137,9 @@ def test_iter_file_records_missing_file_yields_nothing(tmp_path):
 
 def test_iter_file_records_against_corpus():
     recs = list(records.iter_file_records(CORPUS_MAIN_TRANSCRIPT))
-    assert len(recs) == 9
+    # 9 original records + 9 correction-turn cause-data fixture records
+    # (issue #2013) appended to the main-thread transcript.
+    assert len(recs) == 18
 
 
 # ---------------------------------------------------------------------------
@@ -151,3 +153,90 @@ def test_slim_by_name_sorts_outer_and_inner_keys():
     assert list(result.keys()) == ["a-model", "z-model"]
     assert list(result["a-model"].keys()) == ["x", "y"]
     assert list(result["z-model"].keys()) == ["a", "b"]
+
+
+# ---------------------------------------------------------------------------
+# is_sidechain / attribution_agent_of / join_dispatch_agent_ids /
+# agent_type_for (#2050)
+# ---------------------------------------------------------------------------
+
+
+def test_is_sidechain_true_only_when_flag_is_truthy():
+    assert records.is_sidechain({"isSidechain": True}) is True
+    assert records.is_sidechain({"isSidechain": False}) is False
+    assert records.is_sidechain({}) is False
+
+
+def test_attribution_agent_of_accepts_even_an_empty_string():
+    assert records.attribution_agent_of({"attributionAgent": "security-review"}) == "security-review"
+    assert records.attribution_agent_of({"attributionAgent": ""}) == ""
+    assert records.attribution_agent_of({}) is None
+    assert records.attribution_agent_of({"attributionAgent": 123}) is None
+
+
+def _dispatch_block(block_id: str, subagent_type: str) -> dict:
+    return {
+        "message": {
+            "content": [
+                {
+                    "type": "tool_use",
+                    "name": "Task",
+                    "id": block_id,
+                    "input": {"subagent_type": subagent_type},
+                }
+            ]
+        }
+    }
+
+
+def _result_block(tool_use_id: str, agent_id: str) -> dict:
+    return {
+        "message": {"content": [{"type": "tool_result", "tool_use_id": tool_use_id}]},
+        "toolUseResult": {"agentId": agent_id},
+    }
+
+
+def test_join_dispatch_agent_ids_joins_dispatch_then_result():
+    dispatch_types: dict = {}
+    agent_types: dict = {}
+    records.join_dispatch_agent_ids(
+        _dispatch_block("call-1", "security-review"), dispatch_types, agent_types
+    )
+    records.join_dispatch_agent_ids(_result_block("call-1", "agent-a"), dispatch_types, agent_types)
+    assert agent_types == {"agent-a": "security-review"}
+
+
+def test_join_dispatch_agent_ids_ignores_empty_subagent_type():
+    dispatch_types: dict = {}
+    agent_types: dict = {}
+    records.join_dispatch_agent_ids(
+        _dispatch_block("call-1", ""), dispatch_types, agent_types
+    )
+    assert dispatch_types == {}
+
+
+def test_join_dispatch_agent_ids_ignores_non_content_records():
+    dispatch_types: dict = {}
+    agent_types: dict = {}
+    records.join_dispatch_agent_ids({"message": {}}, dispatch_types, agent_types)
+    records.join_dispatch_agent_ids({}, dispatch_types, agent_types)
+    assert dispatch_types == {} and agent_types == {}
+
+
+def test_agent_type_for_main_loop_is_main():
+    assert records.agent_type_for({"isSidechain": False}, {}) == "main"
+    assert records.agent_type_for({}, {}) == "main"
+
+
+def test_agent_type_for_prefers_native_attribution_agent():
+    rec = {"isSidechain": True, "attributionAgent": "security-review", "agentId": "x"}
+    assert records.agent_type_for(rec, {"x": "other-type"}) == "security-review"
+
+
+def test_agent_type_for_falls_back_to_dispatch_join():
+    rec = {"isSidechain": True, "agentId": "agent-a"}
+    assert records.agent_type_for(rec, {"agent-a": "security-review"}) == "security-review"
+
+
+def test_agent_type_for_unattributed_when_neither_signal_present():
+    assert records.agent_type_for({"isSidechain": True}, {}) == "unattributed"

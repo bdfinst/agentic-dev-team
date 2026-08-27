@@ -1,4 +1,4 @@
-"""#1471: session_extract.py tags digest/sync/trend records with
+"""#1471: session_report.py tags digest/sync/trend records with
 plugin_version (read from .claude-plugin/plugin.json), so stale
 recommendations from an older plugin version can be told apart from current
 ones. #1480: --rollup/--escalate/--correlate can be scoped to the current +
@@ -16,7 +16,7 @@ import pytest
 
 from _repo_root import REPO_ROOT
 
-EXTRACT = REPO_ROOT / "scripts" / "session_extract.py"
+EXTRACT = REPO_ROOT / "plugins" / "dev-team" / "scripts" / "session_report.py"
 FIX = REPO_ROOT / "tests" / "fixtures" / "session-review" / "sample-transcript.jsonl"
 
 
@@ -30,7 +30,7 @@ def _fake_plugin_root(tmp_path: Path, version: str) -> Path:
 
 def _run(*extra: str) -> subprocess.CompletedProcess:
     return subprocess.run(
-        [sys.executable, str(EXTRACT), *extra],
+        [sys.executable, str(EXTRACT), "--profile", "maintainer", *extra],
         capture_output=True,
         text=True,
         check=False,
@@ -692,12 +692,12 @@ def test_rewrite_name_keys_buckets_non_string_keys_and_merges_values(
     (e.g. via a future non-JSON caller), and a normalization collision (two
     keys landing in the same bucket) must MERGE by summing, never drop a
     peer-attributed count."""
-    monkeypatch.syspath_prepend(str(REPO_ROOT / "scripts"))
-    import session_extract
+    monkeypatch.syspath_prepend(str(REPO_ROOT / "plugins" / "dev-team" / "scripts"))
+    import session_report
 
     # 123 (non-string) and "!!!" (fails _safe_name's charset) both collapse
     # into the _UNSAFE_NAME bucket ("other") and their values must sum.
-    result = session_extract._rewrite_name_keys({123: 2, "plan": 3, "!!!": 4})
+    result = session_report._rewrite_name_keys({123: 2, "plan": 3, "!!!": 4})
     assert result == {"plan": 3, "other": 6}
 
 
@@ -710,10 +710,10 @@ def test_rewrite_name_keys_guards_non_numeric_peer_values(
     dict, aborting the caller for every host. Each non-numeric value must
     coerce through `_safe_number` to 0 instead, and a legitimate numeric
     value must still pass through unaffected."""
-    monkeypatch.syspath_prepend(str(REPO_ROOT / "scripts"))
-    import session_extract
+    monkeypatch.syspath_prepend(str(REPO_ROOT / "plugins" / "dev-team" / "scripts"))
+    import session_report
 
-    result = session_extract._rewrite_name_keys(
+    result = session_report._rewrite_name_keys(
         {
             "plan": 3,
             "bad-str": "nope",
@@ -942,15 +942,15 @@ def test_safe_number_clamps_negative_values_directly(monkeypatch) -> None:
     magnitude/finiteness cases the end-to-end tests below cover: a negative
     value is exactly as untrusted as a non-numeric one and must clamp to 0,
     the same way NaN/Infinity/oversized-magnitude already do."""
-    monkeypatch.syspath_prepend(str(REPO_ROOT / "scripts"))
-    import session_extract
+    monkeypatch.syspath_prepend(str(REPO_ROOT / "plugins" / "dev-team" / "scripts"))
+    import session_report
 
-    assert session_extract._safe_number(-999) == 0
-    assert session_extract._safe_number(-0.5) == 0
-    assert session_extract._safe_number(-(2**53) - 1) == 0  # negative AND oversized
-    assert session_extract._safe_number(0) == 0
-    assert session_extract._safe_number(5) == 5
-    assert session_extract._safe_number(3.5) == 3.5
+    assert session_report._safe_number(-999) == 0
+    assert session_report._safe_number(-0.5) == 0
+    assert session_report._safe_number(-(2**53) - 1) == 0  # negative AND oversized
+    assert session_report._safe_number(0) == 0
+    assert session_report._safe_number(5) == 5
+    assert session_report._safe_number(3.5) == 3.5
 
 
 def test_rollup_negative_cost_usd_clamped_to_zero_not_subtracted(

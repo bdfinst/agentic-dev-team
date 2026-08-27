@@ -1,6 +1,6 @@
 """#2080 — a huge local-transcript token count must not abort extraction.
 
-`_NUM_MAX`/`_safe_number` (scripts/session_extract.py) were written to guard
+`_NUM_MAX`/`_safe_number` (session_report.py) were written to guard
 the PEER-digest ingestion path (`_read_synced_records` -> `rollup()`). A
 second, structurally identical `round(cost * 1e6)` sits on the LOCAL-transcript
 extraction path (`_accumulate_token_signals` -> `_cost`), reading
@@ -26,7 +26,7 @@ from pathlib import Path
 
 from _repo_root import REPO_ROOT
 
-EXTRACT = REPO_ROOT / "scripts" / "session_extract.py"
+EXTRACT = REPO_ROOT / "plugins" / "dev-team" / "scripts" / "session_report.py"
 PLUGIN = REPO_ROOT / "plugins" / "dev-team"
 SESSION_ID = "22222222-3333-4444-5555-666666666666"
 
@@ -55,7 +55,7 @@ def _run(transcript: Path) -> subprocess.CompletedProcess:
     return subprocess.run(
         [
             sys.executable,
-            str(EXTRACT),
+            str(EXTRACT), "--profile", "maintainer",
             "--transcript",
             str(transcript),
             "--plugin-root",

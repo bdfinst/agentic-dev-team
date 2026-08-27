@@ -5,7 +5,7 @@
 # dangling in the working tree.
 #
 # #2037: this is the real, git-native "pre-commit gate" the plugin's own
-# session-log instrumentation (scripts/session_extract.py's `_BYPASS_RE`/
+# session-log instrumentation (session_report.py's `_BYPASS_RE`/
 # `is_git_commit_argv`-based bypass detection) can only see the DELIBERATE
 # `--no-verify`/`-n` bypass of — it is blind to this script simply never
 # running (an unprovisioned worktree with no `node_modules/.bin/husky`, or
@@ -13,7 +13,7 @@
 # POSITIVE `gate_ran` boundary event, carrying its own verdict, via
 # `_gate_ran_emit` — so a commit with NO correlated `gate_ran` event at all
 # is now observably `gate_absent` rather than indistinguishable from "no
-# gate needed to run". See scripts/session_extract.py's "gate-run
+# gate needed to run". See session_report.py's "gate-run
 # correlation (#2037)" section for how these events get correlated back to
 # a commit attempt (by TIME PROXIMITY — this script has no Claude Code
 # session_id to attach).

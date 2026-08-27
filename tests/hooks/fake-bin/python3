@@ -1,9 +1,9 @@
 #!/bin/sh
 # Fake python3 shim for session-learning-trigger tests.
-# Intercepts session_extract.py calls (records args); passes everything else
+# Intercepts session_report.py calls (records args); passes everything else
 # through to the real python3 by removing this directory from PATH.
 case "$*" in
-  *session_extract.py*)
+  *session_report.py*)
     ARGS_FILE="${FAKE_PYTHON3_ARGS_FILE:-/tmp/fake-python3-args.txt}"
     echo "$0 $*" >> "$ARGS_FILE"
     exit "${FAKE_PYTHON3_EXIT:-0}"

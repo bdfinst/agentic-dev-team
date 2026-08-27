@@ -13,7 +13,7 @@ dict/list input rather than a caller-defined dataclass (see
 
 No transcript data is available to this script, so "session" here is a
 **commit-timestamp-gap proxy**, never the transcript-derived `session_id`
-concept `session_extract.py` owns. To keep that distinction visible at every
+concept `session_report.py` owns. To keep that distinction visible at every
 call site, this module deliberately never uses the bare word "session" for
 its own concept -- it is always `commit_session`.
 

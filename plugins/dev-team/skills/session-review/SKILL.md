@@ -47,29 +47,28 @@ You have been invoked with the `/session-review` command.
 
 ## Steps
 
-### Pre-flight — dev-checkout guard (#1779)
+### Pre-flight — session_report.py ships; only cross-machine mode does not (#1779, closed by #2046/#2047)
 
-`/session-review` is maintainer-only tooling that operates on this repo's own
-infrastructure — its extractor (`session_extract.py`, `eval_rawlog.py`) is
-deliberately monorepo-only, never shipped inside the plugin (see
-`tests/repo/test_shipped_script_refs.py`'s `ESCAPE_ALLOWLIST` for the
-rationale). Before Step 0 — this Pre-flight section runs first — check that
-the extractor actually exists at the path every later command references:
+Core extraction (Steps 0, 2, 3, 4, 5, 6 below) runs entirely from
+`${CLAUDE_PLUGIN_ROOT}/scripts/session_report.py --profile maintainer` — a
+**shipped** script, present on every install, not only this monorepo's own
+dev checkout (until #2046/#2047, this ran the old repo-root extractor
+[ADR 0036 supersedes], deliberately monorepo-only tooling never shipped
+inside the plugin — see ADR 0032's Category 2 — which is why this section
+used to guard the whole skill on a dev-checkout check).
 
-```bash
-test -f "${CLAUDE_PLUGIN_ROOT}/../../scripts/session_extract.py" \
-  && test -f "${CLAUDE_PLUGIN_ROOT}/../../scripts/eval_rawlog.py" \
-  && echo present || echo absent
-```
-
-If `absent` (the normal case for every downstream install, and any dev
-checkout missing the repo-root `scripts/` tree — e.g. a shallow or
-sparse clone), stop here and tell the user plainly: "`/session-review`
-requires the `agentic-dev-team` monorepo dev checkout (it mines this repo's
-own session telemetry) — not available from an installed plugin cache." Do
-not proceed to Step 0 or run any command that references
-`session_extract.py`; a raw `FileNotFoundError` traceback is not an
-acceptable substitute for this message.
+Only two paths remain genuinely monorepo-only, both already opt-in and
+off by default: `--cross-machine` (Step 1, `telemetry-sync.sh`) and the
+raw-log semantic tier it gates (Step 3b, `eval_rawlog.py`) — both are
+repo-root `scripts/` tooling by design (ADR 0032 Category 2:
+self-referential to this marketplace repo's own cross-machine telemetry
+database, not something a downstream install has a database FOR). If
+`--cross-machine` is present in `$ARGUMENTS` and the repo-root `scripts/`
+tree is absent (an installed plugin cache with no source checkout), tell
+the user plainly: "cross-machine sync and the raw-log semantic tier require
+the `agentic-dev-team` monorepo dev checkout — continuing local-only." Then
+proceed with the local-only steps exactly as if `--cross-machine` had been
+omitted.
 
 ### 0. Queued Findings — surface pending-review queue before fresh analysis
 
@@ -164,7 +163,7 @@ Never invent a URL or enable anything without the user's explicit location.
 Run the extractor to produce the local digest:
 
 ```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/../../scripts/session_extract.py" \
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/session_report.py" --profile maintainer \
   --plugin-root "${CLAUDE_PLUGIN_ROOT}" -o memory/session-digest.json
 ```
 
@@ -184,7 +183,7 @@ doesn't weigh into current-version suggestions:
 
 ```bash
 CLONE="${DEV_TEAM_TELEMETRY_CLONE:-$HOME/.claude/.dev-team/agent-telemetry}"
-python3 "${CLAUDE_PLUGIN_ROOT}/../../scripts/session_extract.py" \
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/session_report.py" --profile maintainer \
   --plugin-root "${CLAUDE_PLUGIN_ROOT}" --rollup "$CLONE/digests" \
   --version-scope current-and-previous \
   -o memory/telemetry-rollup.json
@@ -199,7 +198,7 @@ Then compute the **frequency → lever escalation** (Delta C, #179) — recurren
 decides how strong a response each friction earns — with the same version scope:
 
 ```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/../../scripts/session_extract.py" \
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/session_report.py" --profile maintainer \
   --plugin-root "${CLAUDE_PLUGIN_ROOT}" --escalate "$CLONE/digests" \
   --version-scope current-and-previous \
   -o memory/telemetry-escalation.json
@@ -216,7 +215,7 @@ the pre-commit review gate correlate with more rework across sessions? — again
 version-scoped:
 
 ```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/../../scripts/session_extract.py" \
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/session_report.py" --profile maintainer \
   --plugin-root "${CLAUDE_PLUGIN_ROOT}" --correlate "$CLONE/digests" \
   --version-scope current-and-previous \
   -o memory/gate-correlation.json
@@ -300,7 +299,7 @@ Append one metrics-only summary record to the trend stream so `/harness-audit`
 can consume real-session data over time:
 
 ```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/../../scripts/session_extract.py" \
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/session_report.py" --profile maintainer \
   --plugin-root "${CLAUDE_PLUGIN_ROOT}" --append metrics/session-digest.jsonl >/dev/null
 ```
 

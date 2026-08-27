@@ -22,6 +22,47 @@ but running that first live sweep in an environment with real network
 access and reporting the real recall number back on #821 is still the
 natural next step.
 
+**#2051 extended the harness with per-lens attribution, a recorded-diff
+adapter, and harness/live population separation — all three are code-only
+and shipped; the live sweep itself still has not run, and here is exactly
+what's missing.** Checked directly in the environment this extension was
+built in (not assumed):
+
+- **Available, confirmed by direct probe:** `git`, `wget`, `perl`, and a
+  JDK (OpenJDK 21) are all on `PATH`; `subversion` installed cleanly via
+  `apt-get install subversion` (not preinstalled, but a live sweep
+  environment with package-manager access gets it in one command); and a
+  real `git clone` of a GitHub repo over HTTPS succeeded, confirming
+  network egress to GitHub — this environment is closer to sweep-ready
+  than "no network access" would suggest.
+- **Missing: Java 11 specifically.** Defects4J's `init.sh` needs Java 11 to
+  compile the era of projects it ships (Lang, Chart, etc.), and
+  `adapters/bootstrap.build_defects4j_env()`'s Java-11 resolution is
+  macOS-only today (`/usr/libexec/java_home -v 11`, then `brew --prefix
+  openjdk@11`) — neither resolves on Linux, so a `defects4j` subprocess
+  call here would silently inherit the ambient Java 21 instead (see that
+  function's fallback comment). Whether Java 21 can actually compile the
+  older Defects4J-era checkouts is untested — running `init.sh` and a real
+  checkout to find out is itself a multi-minute, network-heavy operation,
+  and guessing the answer without running it would be exactly the
+  "guess that looks like a result" this repo's own CLAUDE.md warns
+  against. Extending `bootstrap.py` to also probe common Linux JDK
+  locations (e.g. `update-alternatives --list java`,
+  `/usr/lib/jvm/java-11-openjdk*`) is a plausible fix, but is execution
+  environment work, not something a code-only extension should guess at.
+- **Missing: real, uncapped-by-default spend authorization.** Every case
+  is a real, metered `claude -p` dispatch — $1.29-$4.48 each, per #974's
+  measurements below — and this harness has no default cost ceiling
+  (`--max-cost-usd` is opt-in). Running even a small `--sample` sweep from
+  an unattended session, without a human present to see and approve the
+  real subscription spend first, is the same category of judgment call
+  this plugin's own `mutation-testing` skill hard-gates behind an explicit
+  confirmation prompt ("always ask the user before running... never
+  surprise the user"). That confirmation has not been sought here.
+
+Net: this extension is a Java 11 install plus a human's spend approval away
+from running for real, not a rebuild.
+
 ## Prerequisites
 
 Both dataset homes are **auto-provisioned** (#949) into a gitignored,
@@ -192,13 +233,19 @@ python3 cli.py --dataset defects4j --project Lang --bug-ids 36,44,7,23,56
 # once the running total meets/exceeds $50 (already in-flight cases still
 # finish; nothing is silently dropped, see Cost tracking below)
 python3 cli.py --dataset defects4j --max-cost-usd 50
+
+# Recorded-diff dataset (#2051): dispatch against saved diffs instead of a
+# real-defect dataset — no recall scoring, only review-value.jsonl rows
+# (see "Per-lens review-value.jsonl rows" and "Recorded-diff adapter" below)
+python3 cli.py --dataset recorded-diff --diffs-dir fixtures/recorded-diffs
 ```
 
 ### Flags
 
 | Flag | Meaning |
 | --- | --- |
-| `--dataset {defects4j,bugsjs}` | Required (unless `--report-only`) |
+| `--dataset {defects4j,bugsjs,recorded-diff}` | Required (unless `--report-only`); `recorded-diff` needs `--diffs-dir` too, see below |
+| `--diffs-dir <dir>` | Directory of recorded-diff cases (`--dataset recorded-diff` only) — see "Recorded-diff adapter" below |
 | `--project <name>` | Filter to a single project |
 | `--sample N` | Random sample of N bugs per project |
 | `--bug-ids <id,id,...>` | Explicit, comma-separated bug IDs — deterministic, takes precedence over `--sample` |
@@ -247,6 +294,57 @@ boundable instead of a surprise at the end of a long sweep:
 
 The scheduling itself lives in `scheduler.py`, not `cli.py` — see Layout
 below.
+
+## Per-lens `review-value.jsonl` rows (#2051)
+
+Every case that successfully dispatches `/code-review --json` also appends
+one `review-value.jsonl` row **per lens the panel actually ran** — written
+straight from the parsed `agents[]` list (`runner.emit_review_value_rows()`),
+not by agent instruction. This is the fix for the collection bias #2019/
+#1512 documented in the live `/build`/`/code-review` writers of the same
+schema: those are triggered by *agent instruction* ("record if you found
+something"), so a round that finds nothing is markedly less likely to be
+logged at all. Here, every dispatched lens gets a row regardless of outcome
+— including a lens whose `issues` list is empty, the exact no-op case the
+live writers under-record.
+
+Same field names as the live schema (`agents_run`, `issues_found`,
+`severity_breakdown`, `outcome`, `diff_shape`, `source` —
+`knowledge/telemetry-schema.md`), with `source: "harness"` — a value
+distinct from the live writers' `build-checkpoint` / `build-backstop` /
+`code-review` — so harness rows are never pooled with live-session rows
+unlabelled. They land in `results_dir/review-value.jsonl` (this harness's
+own results directory, never `.claude/metrics/`), which is itself a second,
+structural guarantee against pooling. `/harness-audit` reads this stream as
+a separate, explicitly-labelled population — see its SKILL.md §4b.
+
+## Recorded-diff adapter (#2051)
+
+Defects4J/BugsJS are real production bug fixes — they structurally cannot
+produce a `diff_shape: "test-only"` case (#1964's blocker: its
+`TEST_ONLY_SKIP_LENSES` gate needs measured per-lens outcomes on test-only
+diffs, and neither dataset can ever supply one). `adapters/
+recorded_diff_adapter.py` instead loads a directory of **saved diffs** —
+most usefully real `/test-improve` Phase-5 diffs, which are test-only by
+construction under the default `refactor-mode: no-refactor` — and dispatches
+`/code-review --json` against them purely to emit real `diff_shape:
+"test-only"` `review-value.jsonl` rows. It has no ground-truth defect
+location, so it never scores recall (`runner.run_recorded_diff_case()`, not
+`runner.run_case()` — never written to `results.jsonl`/`skipped.jsonl`).
+
+Each case is `<diffs-dir>/<case-id>/files/` (the post-diff file tree to
+review) plus an optional `meta.json`. `diff_shape` is never taken from
+`meta.json` on faith — it's always (re)computed from the `files/` tree via
+`skills/code-review/scripts/change_shape.py`'s `is_test_only()`, the same
+classifier `/code-review` itself uses.
+
+**Seed data status, stated plainly:** `fixtures/recorded-diffs/
+phase5-example/` is a **synthetic** fixture (test-only + `.feature`-only
+files, matching `refactor-mode: no-refactor`'s real shape) — this repo's own
+history and `.claude/memory/` were checked for a real `/test-improve`
+Phase-5 diff to seed with and none was found. Real seed data from an actual
+`/test-improve` run is still needed; the fixture's own `meta.json` says so
+too, so this status can't silently go stale.
 
 ## Output artifacts (`results/`, gitignored)
 
@@ -344,10 +442,12 @@ adapters/
   bootstrap.py            # auto-clone/init both dataset homes into .cache/ (#949); resolves Java 11 + Perl CPAN env for defects4j subprocess calls (#951)
   defects4j_adapter.py    # active-bugs.csv + .src.patch -> BenchmarkCase; run_tests() = compile+test
   bugsjs_adapter.py       # Projects.csv + <Project>_bugs.csv + git tags -> BenchmarkCase; run_tests() = npm install+test
-runner.py                 # checkout -> scope -> dispatch -> parse -> score -> JSONL
+  recorded_diff_adapter.py # #2051: <diffs-dir>/<case-id>/files/ -> BenchmarkCase; diff_shape via change_shape.py
+runner.py                 # checkout -> scope -> dispatch -> parse -> score -> JSONL; emit_review_value_rows() (#2051)
 scorer.py                 # hit/miss/tolerance/unmatched-findings
 report.py                 # results.jsonl + skipped.jsonl -> report.md
 scheduler.py              # #1000: budget-aware, submit-as-you-go case scheduling (--max-cost-usd)
 cli.py                    # argparse entry point
 fixtures/                 # real (trimmed) sample data used by the unit tests
+  recorded-diffs/          # #2051: synthetic seed case for the recorded-diff adapter (see meta.json)
 ```

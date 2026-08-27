@@ -14,13 +14,13 @@ from pathlib import Path
 
 from _repo_root import REPO_ROOT
 
-EXTRACT = REPO_ROOT / "scripts" / "session_extract.py"
+EXTRACT = REPO_ROOT / "plugins" / "dev-team" / "scripts" / "session_report.py"
 PLUGIN = REPO_ROOT / "plugins" / "dev-team"
 
 
 def _run(*args: str) -> subprocess.CompletedProcess:
     return subprocess.run(
-        [sys.executable, str(EXTRACT), *args, "--plugin-root", str(PLUGIN)],
+        [sys.executable, str(EXTRACT), "--profile", "maintainer", *args, "--plugin-root", str(PLUGIN)],
         capture_output=True,
         text=True,
         check=False,

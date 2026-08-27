@@ -1,9 +1,9 @@
 """Unit tests for scripts/lib/session_log/discovery.py (#2042, epic #2040).
 
-Transcript path classification and enumeration, unified from the two
-independently-drifted copies in `scripts/session_extract.py` and
-`plugins/dev-team/scripts/extract_session_report.py`. See the module
-docstring for the reconciliation notes this test locks down.
+Transcript path classification and enumeration, unified from two
+independently-drifted copies in the pair of extractors `session_report.py`
+(#2046) now replaces. See the module docstring for the reconciliation notes
+this test locks down.
 """
 
 from __future__ import annotations
@@ -86,7 +86,7 @@ def test_is_subagent_transcript_outside_root_falls_back_to_full_parts():
     # relative_parts() falls back to path.parts (not an empty tuple) when the
     # path isn't under root — a "subagents" segment anywhere in an
     # unrelated absolute path still answers True, matching the pre-#2042
-    # session_extract.py behavior this module preserves verbatim.
+    # per-extractor behavior this module preserves verbatim.
     assert discovery.is_subagent_transcript(
         ROOT, Path("/other/tree/subagents/agent-x.jsonl")
     )

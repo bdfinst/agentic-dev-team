@@ -30,6 +30,8 @@ This file contains the complete registry tables. CLAUDE.md references this file 
 
 Spawned by the orchestrator during Phase 3 inline checkpoints and full `/code-review` runs. Each agent declares its own `model:`/`effort:` frontmatter — the native Claude Code sub-agent contract the harness resolves directly (see **Model/Effort Resolution** in `agents/orchestrator.md`). The frontmatter is the single source of truth; it is not mirrored here.
 
+Each row below is also classified as a **discovery lens** or **verification gate** — the two need different value metrics (`$/finding` vs. escape rate). See [`review-lens-classification.md`](review-lens-classification.md) (#2007) for the classification and rationale.
+
 | Agent | File | What It Checks |
 | ------- | ------ | ---------------- |
 | a11y-review | `agents/a11y-review.md` | WCAG 2.1 AA, ARIA, keyboard nav, focus management |

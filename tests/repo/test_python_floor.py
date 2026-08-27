@@ -130,6 +130,7 @@ FLOOR_TEST_SLICE = (
     "tests/scripts/test_token_efficiency_review_script.py",
     "tests/scripts/test_claude_setup_review.py",
     "tests/scripts/test_extract_session_report.py",
+    "tests/scripts/test_session_report_golden.py",
     "plugins/dev-team/tests/scripts/test_coverage_config.py",
     "plugins/dev-team/tests/scripts/test_coverage_discovery_dotnet.py",
     "plugins/dev-team/tests/scripts/test_coverage_discovery_js.py",
@@ -646,6 +647,14 @@ _NONCANONICAL_TEST_FILES = {
     # script-level test FLOOR_TEST_SLICE already runs under the floor
     # interpreter is this differently-named file.
     "token_efficiency_review.py": "tests/scripts/test_token_efficiency_review_script.py",
+    # session_report.py's canonical name would be test_session_report.py;
+    # its actual dedicated golden/schema test file (test_session_report_golden.py,
+    # #2041/#2046) predates it by name. Through #2047 that file also imported
+    # the now-retired scripts/session_extract.py (a monorepo-only script
+    # using 3.11+-only datetime.UTC, legitimately outside the floor's
+    # scope), which required a sibling split -- #2048 deleted that
+    # predecessor and merged the split back into this one file.
+    "session_report.py": "tests/scripts/test_session_report_golden.py",
 }
 
 

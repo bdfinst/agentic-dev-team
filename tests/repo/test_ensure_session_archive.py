@@ -7,9 +7,9 @@ separately and this hook does not touch it).
 Every test runs the real script as a subprocess against a throwaway
 ``tmp_path`` standing in for both the project root and ``$HOME`` (so
 ``~/.claude/projects`` and ``~/.cache/...`` never touch the real machine),
-using the REAL ``scripts/session_extract.py`` from this checkout — it is
-deterministic and stdlib-only, so running it for real against a tiny
-synthetic transcript is both faithful and safe.
+using the REAL ``plugins/dev-team/scripts/session_report.py`` from this
+checkout (#2047) — it is deterministic and stdlib-only, so running it for
+real against a tiny synthetic transcript is both faithful and safe.
 """
 
 from __future__ import annotations
@@ -32,17 +32,16 @@ def _scaffold_repo(root: Path, *, in_repo: bool = True) -> None:
         plugin_dir = root / "plugins" / "dev-team" / ".claude-plugin"
         plugin_dir.mkdir(parents=True)
         (plugin_dir / "plugin.json").write_text(json.dumps({"version": "9.9.9"}))
-        (root / "scripts").mkdir(parents=True, exist_ok=True)
+        scripts_dir = root / "plugins" / "dev-team" / "scripts"
+        scripts_dir.mkdir(parents=True, exist_ok=True)
         shutil.copy(
-            REPO_ROOT / "scripts" / "session_extract.py",
-            root / "scripts" / "session_extract.py",
+            REPO_ROOT / "plugins" / "dev-team" / "scripts" / "session_report.py",
+            scripts_dir / "session_report.py",
         )
-        # session_extract.py imports from plugins/dev-team/scripts/lib/
+        # session_report.py imports from its own sibling scripts/lib/
         # session_log/ (#2042-#2044, epic #2040) -- the fake checkout needs
         # that real dependency too, not just the script itself.
-        session_log_dir = (
-            root / "plugins" / "dev-team" / "scripts" / "lib" / "session_log"
-        )
+        session_log_dir = scripts_dir / "lib" / "session_log"
         shutil.copytree(
             REPO_ROOT
             / "plugins"
@@ -53,7 +52,7 @@ def _scaffold_repo(root: Path, *, in_repo: bool = True) -> None:
             session_log_dir,
             ignore=shutil.ignore_patterns("__pycache__"),
         )
-        # session_extract.py also imports the pricing loader/rate-lookup/
+        # session_report.py also imports the pricing loader/rate-lookup/
         # cost-computation module from hooks/lib/ (#2045) -- it lives there,
         # not under session_log/, because hooks/lib/cost_meter.py (a real
         # Stop hook) is its other consumer and a hook must never depend on
@@ -112,8 +111,10 @@ def test_syntax_is_valid() -> None:
 
 def test_noop_outside_this_repos_own_checkout(tmp_path: Path) -> None:
     """A downstream project that merely has the plugin installed must never
-    have this hook try to run scripts/session_extract.py, which only ships
-    in THIS repo's own checkout."""
+    have this hook try to run plugins/dev-team/scripts/session_report.py
+    when it hasn't been scaffolded (this test's `in_repo=False` fixture
+    stands in for a checkout missing this repo's own dev-only files, e.g.
+    `requirements-dev.txt`)."""
     root = tmp_path / "downstream"
     root.mkdir()
     home = tmp_path / "home"

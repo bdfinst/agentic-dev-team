@@ -31,6 +31,24 @@ def _bash_blocks() -> list[str]:
     return _BASH_BLOCK_RE.findall(SKILL)
 
 
+def _references_migrated_metrics_file(block: str) -> bool:
+    """True only when `block` references one of `_TARGET_FILES` in the
+    migrated-metrics context this guard cares about (`metrics/<file>` or
+    `.claude/metrics/<file>`) — not a bare-filename substring match.
+
+    #2051 added a harness-audit query over
+    `evals/code-review-benchmark/results/review-value.jsonl` — a
+    *structurally separate* file the #2051 harness-rows section deliberately
+    keeps out of `.claude/metrics/` (see SKILL.md's own text: "written to
+    the harness's own results directory ... never .claude/metrics/"). A bare
+    `f in block` substring check flagged that block as if it were the
+    migrated live stream, which it is not — same filename, unrelated
+    directory. Requiring the `metrics/` prefix immediately before the
+    filename is what the dual-read idiom itself actually needs to see.
+    """
+    return any(f"metrics/{f}" in block for f in _TARGET_FILES)
+
+
 #: Exact count of bash blocks in harness-audit/SKILL.md that touch a migrated
 #: metrics file. Pinned so a dual-read block cannot be silently *dropped*
 #: (the idiom test below already catches a newly-added block that forgets the
@@ -43,7 +61,7 @@ _EXPECTED_AFFECTED_BLOCKS = 8
 
 
 def test_expected_number_of_bash_commands_reference_the_migrated_metrics_files():
-    blocks = [b for b in _bash_blocks() if any(f in b for f in _TARGET_FILES)]
+    blocks = [b for b in _bash_blocks() if _references_migrated_metrics_file(b)]
     assert len(blocks) == _EXPECTED_AFFECTED_BLOCKS, (
         f"expected {_EXPECTED_AFFECTED_BLOCKS} affected bash commands, found {len(blocks)}"
     )
@@ -51,7 +69,7 @@ def test_expected_number_of_bash_commands_reference_the_migrated_metrics_files()
 
 def test_every_affected_block_uses_the_dual_read_idiom():
     for block in _bash_blocks():
-        if not any(f in block for f in _TARGET_FILES):
+        if not _references_migrated_metrics_file(block):
             continue
         assert _DUAL_READ_RE.search(block), (
             "bash block references a migrated metrics file without the "

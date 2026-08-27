@@ -1,4 +1,4 @@
-"""`scripts/session_extract.py` counts dispatched agents (#1994).
+"""`session_report.py --profile maintainer` counts dispatched agents (#1994).
 
 It carried the same defect the shipped extractor had (#1990/#1991): discovery
 globbed only `<project>/<sessionId>.jsonl`, so every dispatched agent's own
@@ -24,7 +24,7 @@ import pytest
 
 from _repo_root import REPO_ROOT
 
-EXTRACT = REPO_ROOT / "scripts" / "session_extract.py"
+EXTRACT = REPO_ROOT / "plugins" / "dev-team" / "scripts" / "session_report.py"
 
 PROJECT_SLUG = "-tmp-fixture-project"
 PROJECT_CWD = "/tmp/fixture/project"
@@ -76,7 +76,7 @@ def _subagent(root: Path, agent_id: str, records, *, workflow=None) -> None:
 
 def _digest(root: Path) -> dict:
     proc = subprocess.run(
-        [sys.executable, str(EXTRACT), "--all-projects", "--projects-root", str(root)],
+        [sys.executable, str(EXTRACT), "--profile", "maintainer", "--all-projects", "--projects-root", str(root)],
         capture_output=True, text=True, timeout=120, check=False,
     )
     assert proc.returncode == 0, proc.stdout + proc.stderr
@@ -247,7 +247,7 @@ def test_a_hostile_attribution_name_cannot_become_a_digest_key(tmp_path):
                    agent="/Users/alice/secret leaked", sidechain=True),
     ])
     proc = subprocess.run(
-        [sys.executable, str(EXTRACT), "--all-projects", "--projects-root", str(root)],
+        [sys.executable, str(EXTRACT), "--profile", "maintainer", "--all-projects", "--projects-root", str(root)],
         capture_output=True, text=True, timeout=120, check=False,
     )
     assert "/Users/alice" not in proc.stdout
@@ -258,12 +258,12 @@ def test_the_schema_marks_the_post_1994_era(tree):
     """Token, tool-call and rework totals all jump once subagents are counted,
     and the two bash-rework metrics change basis. A trend stream holding both
     eras has to be able to tell them apart."""
-    assert _digest(tree)["schema"] == "session-digest/v2"
+    assert _digest(tree)["schema"] == "session-digest/v3"
 
 
 def test_the_digest_emits_no_absolute_paths(tree, tmp_path):
     proc = subprocess.run(
-        [sys.executable, str(EXTRACT), "--all-projects", "--projects-root", str(tree)],
+        [sys.executable, str(EXTRACT), "--profile", "maintainer", "--all-projects", "--projects-root", str(tree)],
         capture_output=True, text=True, timeout=120, check=False,
     )
     assert PROJECT_CWD not in proc.stdout
@@ -275,7 +275,7 @@ def test_the_digest_emits_no_absolute_paths(tree, tmp_path):
 
 def _sync(root: Path, out_dir: Path, host="testhost"):
     proc = subprocess.run(
-        [sys.executable, str(EXTRACT), "--sync-out", str(out_dir / "session-digest.jsonl"),
+        [sys.executable, str(EXTRACT), "--profile", "maintainer", "--sync-out", str(out_dir / "session-digest.jsonl"),
          "--watermark", str(out_dir / "wm.json"), "--projects-root", str(root),
          "--host", host],
         capture_output=True, text=True, timeout=120, check=False,
@@ -311,7 +311,7 @@ def test_sync_carries_agent_dispatches_through_to_rollup(tree, tmp_path):
     assert records[0]["utilization"]["agent_dispatches"] == {"correctness-review": 1}
 
     proc = subprocess.run(
-        [sys.executable, str(EXTRACT), "--rollup", str(out.parent)],
+        [sys.executable, str(EXTRACT), "--profile", "maintainer", "--rollup", str(out.parent)],
         capture_output=True, text=True, timeout=120, check=False,
     )
     assert proc.returncode == 0, proc.stderr
@@ -327,13 +327,13 @@ def test_the_trend_record_carries_the_same_era_as_its_digest(tmp_path):
     _main_transcript(root, [_assistant([{"type": "text", "text": "hi"}])])
     log = tmp_path / "trend.jsonl"
     proc = subprocess.run(
-        [sys.executable, str(EXTRACT), "--all-projects", "--projects-root", str(root),
+        [sys.executable, str(EXTRACT), "--profile", "maintainer", "--all-projects", "--projects-root", str(root),
          "--append", str(log)],
         capture_output=True, text=True, timeout=120, check=False,
     )
     assert proc.returncode == 0, proc.stderr
     trend = json.loads(log.read_text().splitlines()[0])
-    assert trend["schema"] == json.loads(proc.stdout)["schema"] == "session-digest/v2"
+    assert trend["schema"] == json.loads(proc.stdout)["schema"] == "session-digest/v3"
 
 
 def test_a_windows_file_path_is_reduced_to_its_basename(tmp_path):
@@ -347,7 +347,7 @@ def test_a_windows_file_path_is_reduced_to_its_basename(tmp_path):
                      "input": {"file_path": r"C:\Users\alice\proj\secrets.env"}}]),
     ])
     proc = subprocess.run(
-        [sys.executable, str(EXTRACT), "--all-projects", "--projects-root", str(root)],
+        [sys.executable, str(EXTRACT), "--profile", "maintainer", "--all-projects", "--projects-root", str(root)],
         capture_output=True, text=True, timeout=120, check=False,
     )
     assert "alice" not in proc.stdout
@@ -363,7 +363,7 @@ def test_a_hostile_skill_name_cannot_become_a_digest_key(tmp_path):
                      "input": {"skill": "/Users/alice/secret skill"}}]),
     ])
     proc = subprocess.run(
-        [sys.executable, str(EXTRACT), "--all-projects", "--projects-root", str(root)],
+        [sys.executable, str(EXTRACT), "--profile", "maintainer", "--all-projects", "--projects-root", str(root)],
         capture_output=True, text=True, timeout=120, check=False,
     )
     assert "/Users/alice" not in proc.stdout
@@ -472,11 +472,11 @@ def test_safe_name_rejects_a_trailing_newline():
     """`$` also matches immediately BEFORE a single trailing newline, so
     `.match()` admitted "name\\n" and split the key space — two visually
     identical keys that never merge in rollup()."""
-    sys.path.insert(0, str(REPO_ROOT / "scripts"))
-    import session_extract
+    sys.path.insert(0, str(REPO_ROOT / "plugins" / "dev-team" / "scripts"))
+    import session_report
 
-    assert session_extract._redact("review" + chr(10)) == "other"
-    assert session_extract._redact("review") == "review"
+    assert session_report._redact("review" + chr(10)) == "other"
+    assert session_report._redact("review") == "review"
 
 
 def test_the_raw_model_id_still_reaches_the_pricing_table(tmp_path):
@@ -495,7 +495,7 @@ def test_the_raw_model_id_still_reaches_the_pricing_table(tmp_path):
         "units": "per_million_tokens",
     }))
     proc = subprocess.run(
-        [sys.executable, str(EXTRACT), "--all-projects", "--projects-root", str(root),
+        [sys.executable, str(EXTRACT), "--profile", "maintainer", "--all-projects", "--projects-root", str(root),
          "--pricing", str(pricing)],
         capture_output=True, text=True, timeout=120, check=False,
     )
@@ -539,7 +539,7 @@ def test_the_default_resolution_path_survives_an_undecodable_transcript(tmp_path
     _main_transcript(root, [_assistant([{"type": "text", "text": "ok"}])])
     (root / PROJECT_SLUG / "broken.jsonl").write_bytes(b'{"type":"assistant"}\n\xff\xfe bad\n')
     proc = subprocess.run(
-        [sys.executable, str(EXTRACT), "--projects-root", str(root), "--cwd", PROJECT_CWD],
+        [sys.executable, str(EXTRACT), "--profile", "maintainer", "--projects-root", str(root), "--cwd", PROJECT_CWD],
         capture_output=True, text=True, timeout=120, check=False,
     )
     assert proc.returncode == 0, proc.stdout + proc.stderr

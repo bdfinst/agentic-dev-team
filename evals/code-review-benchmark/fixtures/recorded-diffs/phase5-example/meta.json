@@ -1,0 +1,3 @@
+{
+  "description": "SYNTHETIC fixture standing in for a real /test-improve Phase-5 diff (refactor-mode: no-refactor). No real Phase-5 diff was found in this repo's own history or .claude/memory/ to seed with (checked as part of #2051) -- real seed data is still needed from an actual /test-improve run. This fixture exists to prove the recorded-diff adapter's interface/tests against the real shape: test-only + .feature-only files."
+}

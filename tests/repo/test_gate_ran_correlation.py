@@ -6,7 +6,7 @@ unregistered path — all leave a command line that looks entirely ordinary).
 
 See `tests/repo/test_gate_ran_husky.py` for where the `gate_ran` event
 itself gets emitted (`.husky/pre-commit`); this file covers the OTHER half
-— `scripts/session_extract.py`'s correlation of that event stream against
+— `session_report.py`'s correlation of that event stream against
 commit-attempt Bash records.
 """
 
@@ -19,7 +19,7 @@ from pathlib import Path
 
 from _repo_root import REPO_ROOT
 
-EXTRACT = REPO_ROOT / "scripts" / "session_extract.py"
+EXTRACT = REPO_ROOT / "plugins" / "dev-team" / "scripts" / "session_report.py"
 PLUGIN = REPO_ROOT / "plugins" / "dev-team"
 
 
@@ -42,7 +42,7 @@ def _gate_ran_line(ts: str, verdict: str) -> str:
 def _run(transcript: Path, boundary_events: Path | None) -> dict:
     args = [
         sys.executable,
-        str(EXTRACT),
+        str(EXTRACT), "--profile", "maintainer",
         "--transcript",
         str(transcript),
         "--plugin-root",
@@ -196,7 +196,7 @@ def test_default_boundary_events_path_resolves_under_cwd(tmp_path: Path) -> None
     res = subprocess.run(
         [
             sys.executable,
-            str(EXTRACT),
+            str(EXTRACT), "--profile", "maintainer",
             "--transcript",
             str(transcript),
             "--plugin-root",

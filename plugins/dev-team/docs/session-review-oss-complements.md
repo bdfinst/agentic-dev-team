@@ -36,7 +36,7 @@ proposes *which plugin artifact* to change so the next one isn't.
 # One-off report for the current and recent days, per model:
 npx ccusage@latest daily
 
-# Session-level breakdown (the same transcripts session_extract.py reads):
+# Session-level breakdown (the same transcripts session_report.py reads):
 npx ccusage@latest session
 ```
 

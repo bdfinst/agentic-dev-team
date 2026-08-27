@@ -15,7 +15,7 @@ from pathlib import Path
 
 from _repo_root import REPO_ROOT
 
-EXTRACT = REPO_ROOT / "scripts" / "session_extract.py"
+EXTRACT = REPO_ROOT / "plugins" / "dev-team" / "scripts" / "session_report.py"
 PLUGIN = REPO_ROOT / "plugins" / "dev-team"
 
 
@@ -23,7 +23,7 @@ def _run_transcript(transcript: Path, *extra: str) -> dict:
     res = subprocess.run(
         [
             sys.executable,
-            str(EXTRACT),
+            str(EXTRACT), "--profile", "maintainer",
             "--transcript",
             str(transcript),
             "--plugin-root",
@@ -89,7 +89,7 @@ def test_correlate_bypass_sessions_with_more_rework_are_surfaced_111(
     res = subprocess.run(
         [
             sys.executable,
-            str(EXTRACT),
+            str(EXTRACT), "--profile", "maintainer",
             "--correlate",
             str(tmp_path / "digests"),
             "--plugin-root",
@@ -122,7 +122,7 @@ def test_correlate_sessions_that_never_committed_are_excluded_111(
     res = subprocess.run(
         [
             sys.executable,
-            str(EXTRACT),
+            str(EXTRACT), "--profile", "maintainer",
             "--correlate",
             str(tmp_path / "digests"),
             "--plugin-root",
@@ -148,7 +148,7 @@ def test_slim_trend_and_sync_records_carry_the_gate_block_111(tmp_path: Path) ->
     res = subprocess.run(
         [
             sys.executable,
-            str(EXTRACT),
+            str(EXTRACT), "--profile", "maintainer",
             "--transcript",
             str(transcript),
             "--plugin-root",

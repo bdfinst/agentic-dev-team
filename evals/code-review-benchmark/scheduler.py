@@ -46,6 +46,7 @@ def run_pending(
     workers: int,
     max_cost_usd: float | None = None,
     run_case_fn: Callable[..., dict[str, Any]] = runner.run_case,
+    append_fn: Callable[[dict[str, Any], Any], None] | None = None,
 ) -> float:
     """Run every `(case, case_dict)` pair in `pending` to completion.
 
@@ -56,16 +57,30 @@ def run_pending(
     the plan's Decisions & Assumptions). Once the running total meets or
     exceeds `max_cost_usd`, no further case is submitted; already
     in-flight futures are never cancelled and always finish normally.
-    Cases still queued when the cutoff engages are recorded to
-    `results_dir` as skip records (never silently dropped) and a single,
-    clear message is printed to stderr explaining why.
+    Cases still queued when the cutoff engages are recorded via `append_fn`
+    as skip records (never silently dropped) and a single, clear message is
+    printed to stderr explaining why.
 
     `make_kwargs(case) -> dict` supplies the per-case `run_case_fn` keyword
     arguments (checkout_fn/ground_truth_fn/test_fn/scope/tolerance) — this
     function itself has no adapter/dataset knowledge.
 
+    `run_case_fn`/`append_fn` (#2051) default to the Defects4J/BugsJS recall
+    pair (`runner.run_case`/`runner.append_result`, writing
+    `results.jsonl`/`skipped.jsonl`). The recorded-diff adapter passes
+    `runner.run_recorded_diff_case`/`runner.append_recorded_diff_result`
+    instead — that case type has no `hit`/`skipped` recall semantics, and
+    `report.py`'s recall math must never see one of its records.
+
     Returns the final running cost total (USD).
     """
+    # Resolved here, not as a parameter default — a parameter default binds
+    # `runner.append_result` once at import time, which would make it
+    # immune to test/runtime monkeypatching of `runner.append_result`
+    # itself (existing tests patch the module attribute, not this
+    # function's signature).
+    if append_fn is None:
+        append_fn = runner.append_result
     results_dir = Path(results_dir)
     queue: list[CaseAndDict] = list(pending)
     total = len(queue)
@@ -77,11 +92,17 @@ def run_pending(
     def _print_progress(record: dict[str, Any], key: str) -> None:
         nonlocal processed
         processed += 1
-        status = (
-            "HIT"
-            if record.get("hit")
-            else ("SKIP" if record.get("skipped") else "MISS")
-        )
+        if "dispatched" in record:
+            # Recorded-diff record shape — no hit/skipped recall semantics.
+            status = "DONE" if record.get("dispatched") and not record.get(
+                "reason"
+            ) else "FAIL"
+        else:
+            status = (
+                "HIT"
+                if record.get("hit")
+                else ("SKIP" if record.get("skipped") else "MISS")
+            )
         print(f"[{processed}/{total}] {key}: {status} (${running_total:.2f} total)")
 
     with ThreadPoolExecutor(max_workers=workers) as executor:
@@ -111,7 +132,7 @@ def run_pending(
                 except Exception as exc:  # noqa: BLE001 - one case's crash must not abort the batch
                     record = runner.skip_record(case_dict, f"internal error: {exc}")
 
-                runner.append_result(record, results_dir)
+                append_fn(record, results_dir)
                 running_total += record.get("cost_usd") or 0.0
                 _print_progress(record, key)
 
@@ -145,7 +166,7 @@ def run_pending(
                 f"(running total ${running_total:.2f})",
                 cost_usd=None,
             )
-            runner.append_result(record, results_dir)
+            append_fn(record, results_dir)
             _print_progress(record, runner.case_key(case_dict))
 
     return running_total

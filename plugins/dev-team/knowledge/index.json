@@ -1289,6 +1289,20 @@
       "anchor": "aggregation"
     }
   },
+  "plugins/dev-team/knowledge/review-lens-classification.md": {
+    "Classification": {
+      "summary": "| Agent | Class | Rationale |",
+      "anchor": "classification"
+    },
+    "Applying the two metrics": {
+      "summary": "**Discovery lenses**: `$/finding` from `metrics/review-value.jsonl` (per",
+      "anchor": "applying-the-two-metrics"
+    },
+    "`$/finding` recomputation attempt (#2007, post-#1998)": {
+      "summary": "#1998 (the 18.2% silent-drop fix) has merged, so recomputation is no longer",
+      "anchor": "finding-recomputation-attempt-2007-post-1998"
+    }
+  },
   "plugins/dev-team/knowledge/review-rubric.md": {
     "The review-agent panel is the primary quality gate": {
       "summary": "The review-agent panel is the primary quality gate for structural quality",
@@ -1489,7 +1503,7 @@
       "anchor": "config-changelogjsonl"
     },
     "`session-digest.jsonl`": {
-      "summary": "Trend digest from `/session-review` (backed by `scripts/session_extract.py`):",
+      "summary": "Trend digest from `/session-review` (backed by `${CLAUDE_PLUGIN_ROOT}/scripts/session_report.py --profile maintainer`):",
       "anchor": "session-digestjsonl"
     },
     "`review-value.jsonl`": {
@@ -1499,6 +1513,10 @@
     "Round rows — `source: \"code-review\"` with a `round` field (#1624)": {
       "summary": "`/code-review` appends one row **per dispatch round** (round 1 = the initial",
       "anchor": "round-rows-source-code-review-with-a-round-field-1624"
+    },
+    "Harness rows — `source: \"harness\"` (#2051)": {
+      "summary": "Written by `evals/code-review-benchmark/runner.emit_review_value_rows()` —",
+      "anchor": "harness-rows-source-harness-2051"
     },
     "`contract-failures.jsonl`": {
       "summary": "Diagnostic record for a review-agent output that fails the shared JSON",
@@ -4304,6 +4322,14 @@
       "summary": "Rows carrying a `round` field are `/code-review`'s per-round instrumentation",
       "anchor": "4a-analyze-re-review-churn-1624"
     },
+    "4b. Harness-sourced rows — a separate, labelled population (#2051)": {
+      "summary": "`evals/code-review-benchmark/` (#821) is a **replay harness**, not a live",
+      "anchor": "4b-harness-sourced-rows-a-separate-labelled-population-2051"
+    },
+    "4c. Agent-vs-tool redundancy criterion (#1983 Part 2)": {
+      "summary": "A seam distinct from Step 4's fix-rate/finding-rate analysis: those measure",
+      "anchor": "4c-agent-vs-tool-redundancy-criterion-1983-part-2"
+    },
     "5. Lesson Validation — validated-outcome weighting (#866)": {
       "summary": "Close the loop on `/feedback-learning` lessons: does an adopted lesson",
       "anchor": "5-lesson-validation-validated-outcome-weighting-866"
@@ -5643,12 +5669,12 @@
       "anchor": "argument-arguments"
     },
     "Steps": {
-      "summary": "`/session-review` is maintainer-only tooling that operates on this repo's own",
+      "summary": "Core extraction (Steps 0, 2, 3, 4, 5, 6 below) runs entirely from",
       "anchor": "steps"
     },
-    "Pre-flight — dev-checkout guard (#1779)": {
-      "summary": "`/session-review` is maintainer-only tooling that operates on this repo's own",
-      "anchor": "pre-flight-dev-checkout-guard-1779"
+    "Pre-flight — session_report.py ships; only cross-machine mode does not (#1779, closed by #2046/#2047)": {
+      "summary": "Core extraction (Steps 0, 2, 3, 4, 5, 6 below) runs entirely from",
+      "anchor": "pre-flight-sessionreportpy-ships-only-cross-machine-mode-does-not-1779-closed-by-20462047"
     },
     "0. Queued Findings — surface pending-review queue before fresh analysis": {
       "summary": "Before running fresh analysis, check whether background analysis has produced",

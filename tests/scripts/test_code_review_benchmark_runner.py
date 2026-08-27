@@ -1085,3 +1085,250 @@ def test_append_and_resume_roundtrip(tmp_path: Path) -> None:
 
     seen = runner.already_processed(tmp_path)
     assert seen == {"defects4j:Lang:1", "bugsjs:Bower:2"}
+
+
+# --- #2051: review-value.jsonl row emission (by mechanism, not instruction) ---
+
+_REVIEW_JSON_TWO_LENSES = {
+    "overall": "warn",
+    "agents": [
+        {
+            "agentName": "correctness-review",
+            "status": "warn",
+            "issues": [
+                {
+                    "severity": "error",
+                    "confidence": "high",
+                    "file": "src/Foo.java",
+                    "line": 11,
+                    "message": "missing assignment",
+                },
+                {
+                    "severity": "warning",
+                    "confidence": "medium",
+                    "file": "src/Foo.java",
+                    "line": 15,
+                    "message": "unused variable",
+                },
+            ],
+            "summary": "2 issues",
+        },
+        {
+            # A lens that ran and found nothing — the exact "no-op" case
+            # #2019/#1512 documented as under-recorded by the live,
+            # instruction-triggered writers.
+            "agentName": "performance-review",
+            "status": "pass",
+            "issues": [],
+            "summary": "no issues",
+        },
+    ],
+}
+
+
+def _read_jsonl(path: Path) -> list[dict[str, Any]]:
+    if not path.is_file():
+        return []
+    return [
+        json.loads(line)
+        for line in path.read_text(encoding="utf-8").splitlines()
+        if line.strip()
+    ]
+
+
+def test_run_case_emits_one_review_value_row_per_lens(tmp_path: Path) -> None:
+    def checkout_fn(workdir: str) -> bool:
+        _seed_checkout(workdir, ["src/Foo.java"])
+        return True
+
+    def dispatch_fn(prompt: str, cwd: str) -> dict[str, Any]:
+        return _dispatch_result(review_json=_REVIEW_JSON_TWO_LENSES)
+
+    runner.run_case(
+        _CASE,
+        checkout_fn=checkout_fn,
+        dispatch_fn=dispatch_fn,
+        results_dir=tmp_path,
+    )
+
+    rows = _read_jsonl(tmp_path / "review-value.jsonl")
+    assert len(rows) == 2
+    by_agent = {row["agents_run"][0]: row for row in rows}
+
+    correctness = by_agent["correctness-review"]
+    assert correctness["source"] == "harness"
+    assert correctness["issues_found"] == 2
+    assert correctness["severity_breakdown"] == {
+        "errors": 1,
+        "warnings": 1,
+        "suggestions": 0,
+    }
+    assert correctness["outcome"] == "no-op"
+    assert correctness["diff_shape"] == "mixed"
+    assert correctness["dataset"] == "defects4j"
+    assert correctness["project"] == "Lang"
+    assert correctness["bug_id"] == "1"
+
+    # The no-op lens gets its own row too — this is the whole point: a lens
+    # that found nothing is recorded BY MECHANISM, not by agent instruction.
+    performance = by_agent["performance-review"]
+    assert performance["issues_found"] == 0
+    assert performance["severity_breakdown"] == {
+        "errors": 0,
+        "warnings": 0,
+        "suggestions": 0,
+    }
+
+
+def test_run_case_review_value_rows_carry_the_diff_shape_param(tmp_path: Path) -> None:
+    def checkout_fn(workdir: str) -> bool:
+        _seed_checkout(workdir, ["src/Foo.java"])
+        return True
+
+    def dispatch_fn(prompt: str, cwd: str) -> dict[str, Any]:
+        return _dispatch_result(review_json=_REVIEW_JSON_TWO_LENSES)
+
+    runner.run_case(
+        _CASE,
+        checkout_fn=checkout_fn,
+        dispatch_fn=dispatch_fn,
+        results_dir=tmp_path,
+        diff_shape="test-only",
+    )
+
+    rows = _read_jsonl(tmp_path / "review-value.jsonl")
+    assert rows and all(row["diff_shape"] == "test-only" for row in rows)
+
+
+def test_run_case_unparseable_json_emits_no_review_value_rows(tmp_path: Path) -> None:
+    """An unparseable dispatch can't be attributed to any lens — no rows,
+    relying instead on skipped.jsonl's existing "unparseable --json output"
+    reason (see `emit_review_value_rows()`'s docstring)."""
+
+    def checkout_fn(workdir: str) -> bool:
+        _seed_checkout(workdir, ["src/Foo.java"])
+        return True
+
+    def dispatch_fn(prompt: str, cwd: str) -> dict[str, Any]:
+        return {
+            "raw_stdout": json.dumps({"result": "not json at all"}),
+            "result_text": "not json at all",
+            "cost_usd": 1.29,
+        }
+
+    runner.run_case(
+        _CASE,
+        checkout_fn=checkout_fn,
+        dispatch_fn=dispatch_fn,
+        results_dir=tmp_path,
+    )
+
+    assert not (tmp_path / "review-value.jsonl").is_file()
+
+
+def test_run_case_checkout_failure_emits_no_review_value_rows(tmp_path: Path) -> None:
+    runner.run_case(
+        _CASE,
+        checkout_fn=lambda workdir: False,
+        dispatch_fn=lambda prompt, cwd: {},
+        results_dir=tmp_path,
+    )
+    assert not (tmp_path / "review-value.jsonl").is_file()
+
+
+def test_emit_review_value_rows_source_is_never_pooled_with_live_values(
+    tmp_path: Path,
+) -> None:
+    """Direct check on the row shape: `source` must be the harness-distinct
+    value, never one of the live writers' enum values (#2051 acceptance:
+    "Harness rows carry a distinct source ... never pooled with live rows
+    unlabelled")."""
+    runner.emit_review_value_rows(_CASE, _REVIEW_JSON_TWO_LENSES, tmp_path)
+    rows = _read_jsonl(tmp_path / "review-value.jsonl")
+    assert {row["source"] for row in rows} == {"harness"}
+    assert "harness" not in {"build-checkpoint", "build-backstop", "code-review"}
+
+
+# --- #2051: recorded-diff case dispatch (no recall scoring) ---
+
+
+def test_run_recorded_diff_case_emits_review_value_rows_and_no_recall_fields(
+    tmp_path: Path,
+) -> None:
+    recorded_case = {
+        "dataset": "recorded-diff",
+        "project": "test-improve-phase-5",
+        "bug_id": "phase5-example",
+    }
+
+    def checkout_fn(workdir: str) -> bool:
+        _seed_checkout(workdir, ["tests/test_widget.py"])
+        return True
+
+    def dispatch_fn(prompt: str, cwd: str) -> dict[str, Any]:
+        assert "--json" in prompt
+        return _dispatch_result(review_json=_REVIEW_JSON_TWO_LENSES)
+
+    record = runner.run_recorded_diff_case(
+        recorded_case,
+        checkout_fn=checkout_fn,
+        dispatch_fn=dispatch_fn,
+        results_dir=tmp_path,
+        diff_shape="test-only",
+    )
+
+    assert record["dispatched"] is True
+    assert record["reason"] is None
+    assert record["review_value_rows"] == 2
+    assert "hit" not in record
+    assert "skipped" not in record
+
+    rows = _read_jsonl(tmp_path / "review-value.jsonl")
+    assert len(rows) == 2
+    assert all(row["diff_shape"] == "test-only" for row in rows)
+    assert all(row["source"] == "harness" for row in rows)
+
+    # Never pollutes the recall-scoring files.
+    assert not (tmp_path / "results.jsonl").is_file()
+    assert not (tmp_path / "skipped.jsonl").is_file()
+
+
+def test_run_recorded_diff_case_checkout_failure(tmp_path: Path) -> None:
+    record = runner.run_recorded_diff_case(
+        {"dataset": "recorded-diff", "project": "p", "bug_id": "b"},
+        checkout_fn=lambda workdir: False,
+        dispatch_fn=lambda prompt, cwd: {},
+        results_dir=tmp_path,
+    )
+    assert record["dispatched"] is False
+    assert record["reason"] == "checkout failed"
+    assert not (tmp_path / "review-value.jsonl").is_file()
+
+
+def test_run_recorded_diff_case_unparseable_json(tmp_path: Path) -> None:
+    def dispatch_fn(prompt: str, cwd: str) -> dict[str, Any]:
+        return {
+            "raw_stdout": json.dumps({"result": "not json"}),
+            "result_text": "not json",
+            "cost_usd": 0.5,
+        }
+
+    record = runner.run_recorded_diff_case(
+        {"dataset": "recorded-diff", "project": "p", "bug_id": "b"},
+        checkout_fn=lambda workdir: True,
+        dispatch_fn=dispatch_fn,
+        results_dir=tmp_path,
+    )
+    assert record["dispatched"] is True
+    assert record["reason"] == "unparseable --json output"
+    assert record["cost_usd"] == 0.5
+    assert not (tmp_path / "review-value.jsonl").is_file()
+
+
+def test_append_recorded_diff_result_writes_dedicated_log(tmp_path: Path) -> None:
+    record = {"dataset": "recorded-diff", "project": "p", "bug_id": "b", "dispatched": True}
+    runner.append_recorded_diff_result(record, tmp_path)
+    assert not (tmp_path / "results.jsonl").is_file()
+    assert not (tmp_path / "skipped.jsonl").is_file()
+    rows = _read_jsonl(tmp_path / "recorded-diff-log.jsonl")
+    assert rows == [record]

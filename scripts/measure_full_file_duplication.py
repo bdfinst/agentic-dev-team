@@ -47,13 +47,15 @@ rounds). Measured `avoidable_pct_of_round_total_estimate` across all 9:
 min 0.38%, median 0.8%, max 4.86%. Full per-round output posted as a
 comment to #1611 alongside the PR that adds this script.
 
-Provenance note: only the join-map algorithm for the older inline layout is
-reused from `cost_meter.py` (reimplemented locally here rather than imported,
-since that algorithm's own module keeps it private — see
-`_join_dispatch_agent_ids`'s docstring); the newer sibling-file layout is
-independently derived, not reused, because it needs per-INSTANCE granularity
-`cost_meter.parse_transcript`'s aggregated `by_agent_type` breakdown does not
-expose.
+Provenance note: the join-map algorithm for the older inline layout is now
+imported from `session_log.records.join_dispatch_agent_ids` (#2050) — it
+used to be reimplemented locally here because that algorithm's home,
+`cost_meter.py`, kept it private; #2050 made it public in `session_log`
+specifically so this script (and `cost_meter.py` itself) share one
+implementation instead of two independently-drifting copies. The newer
+sibling-file layout stays independently derived, not shared, because it
+needs per-INSTANCE granularity `cost_meter.parse_transcript`'s aggregated
+`by_agent_type` breakdown does not expose.
 
 Deliberately out of scope (tracked as follow-ups, not fixed here): this
 script counts an agent as a potential duplicate reader once it is DISPATCHED
@@ -87,16 +89,19 @@ marketplace repo's own `/code-review` cost question, not `/code-review`-
 invoked skill machinery, so it lives here under repo-root `scripts/` rather
 than a shipped skill's `scripts/` directory.
 
-Import boundary: this repo-root script adds `plugins/dev-team/scripts/` to
-`sys.path` to import `select_lenses` rather than duplicating its
-Scope-resolution logic — the estimate is only meaningful if it uses the
-SAME gate `/code-review` itself applies. The dependency runs non-shipped
+Import boundary: this repo-root script adds `plugins/dev-team/scripts/` (and,
+since #2050, its `lib/` sibling) to `sys.path` to import `select_lenses` and
+`session_log.records` rather than duplicating their logic — the estimate is
+only meaningful if it uses the SAME gate `/code-review` itself applies, and
+the transcript parsing is only trustworthy if it uses the SAME primitives
+`session_report.py` and `cost_meter.py` do. Both dependencies run non-shipped
 tooling -> shipped module (never the reverse, which would make plugin code
-depend on unshipped repo-root files), and touches only `select_lenses`'
-public `applicable_lenses`/`build_review_roster` — it does not repeat the
-private-surface reach `_join_dispatch_agent_ids` documents above.
-`tests/scripts/test_measure_full_file_duplication.py` exercises the import
-directly, so a `select_lenses` signature change fails the pytest gate
+depend on unshipped repo-root files); `select_lenses` touches only its public
+`applicable_lenses`/`build_review_roster`, and `session_log.records` touches
+only its public `usage_of`/`attribution_agent_of`/`is_sidechain`/
+`join_dispatch_agent_ids`/`USAGE_FIELDS` — no private-surface reach into
+either.  `tests/scripts/test_measure_full_file_duplication.py` exercises both
+imports directly, so a signature change in either fails the pytest gate
 rather than silently breaking this tool.
 
 Stdlib-only.
@@ -120,6 +125,16 @@ if str(_PLUGIN_SCRIPTS_DIR) not in sys.path:
 
 import select_lenses
 
+# session_log/ (#2050) -- same shipped-tooling -> shipped-tooling direction
+# as the select_lenses import above, not the "non-shipped repo-root tooling
+# reaching into a shipped module" case that import's own docstring
+# describes: this repo-root script already depends on plugins/dev-team/'s
+# own tree for select_lenses, and session_log/ is the SAME shipped tree.
+_PLUGIN_SCRIPTS_LIB_DIR = _PLUGIN_SCRIPTS_DIR / "lib"
+if str(_PLUGIN_SCRIPTS_LIB_DIR) not in sys.path:
+    sys.path.insert(0, str(_PLUGIN_SCRIPTS_LIB_DIR))
+from session_log import records as session_log_records
+
 FULL_FILE_TOKEN = "full-file"
 
 # Rough, documented order-of-magnitude heuristic (English/code prose is
@@ -141,10 +156,12 @@ DEFAULT_ROUND_GAP_SECONDS = 90.0
 
 DEFAULT_MIN_AGENTS = 2
 
-_INPUT_SIDE_FIELDS = (
-    "input_tokens",
-    "cache_creation_input_tokens",
-    "cache_read_input_tokens",
+# The three input-side usage fields (everything but output_tokens) --
+# session_log.records.USAGE_FIELDS (#2050) minus output_tokens, so the two
+# cache-token field names live in exactly one place (session_log.records)
+# rather than being re-typed here.
+_INPUT_SIDE_FIELDS = tuple(
+    f for f in session_log_records.USAGE_FIELDS if f != "output_tokens"
 )
 
 # Matches the same repo-wide convention `tests/agents/test_agent_effort_
@@ -250,17 +267,6 @@ def _iter_jsonl(path: Path):
                 continue
 
 
-def _usage_from_record(rec: dict) -> dict | None:
-    """Usage dict from a record, checking both top-level and `message.usage`
-    (matching `cost_meter._first_present_field`'s own two-site check — an
-    earlier version of this script checked only `message.usage`)."""
-    message = rec.get("message")
-    if isinstance(message, dict) and isinstance(message.get("usage"), dict):
-        return message["usage"]
-    usage = rec.get("usage")
-    return usage if isinstance(usage, dict) else None
-
-
 def _input_side_spend(usage: dict) -> int:
     return sum(usage.get(f, 0) or 0 for f in _INPUT_SIDE_FIELDS)
 
@@ -277,9 +283,11 @@ def _agent_input_spend(agent_jsonl: Path) -> tuple[int, str | None, str | None]:
         ts = rec.get("timestamp")
         if first_ts is None and isinstance(ts, str):
             first_ts = ts
-        if attribution_agent is None and isinstance(rec.get("attributionAgent"), str):
-            attribution_agent = rec["attributionAgent"]
-        usage = _usage_from_record(rec)
+        if attribution_agent is None:
+            candidate = session_log_records.attribution_agent_of(rec)
+            if candidate is not None:
+                attribution_agent = candidate
+        usage = session_log_records.usage_of(rec)
         if usage is not None:
             total += _input_side_spend(usage)
     return total, first_ts, attribution_agent
@@ -316,77 +324,36 @@ def _dispatches_from_sibling_files(subagents_dir: Path) -> list[dict]:
     return dispatches
 
 
-def _join_dispatch_agent_ids(rec: dict, dispatch_types: dict, agent_types: dict) -> None:
-    """Join a main-thread `Task`/`Agent` dispatch block's `subagent_type` to
-    its paired `tool_result`'s `agentId`, mutating the two maps in place.
-
-    Reimplements (rather than imports) `cost_meter._harvest_agent_dispatch`'s
-    algorithm: that function is underscore-prefixed — internal to its own
-    module — and a review round on this script found it to be the only
-    production (non-test) cross-module reach into a private helper anywhere
-    in this plugin. The join is ~15 lines and stable (it reads only the
-    harness-recorded `tool_use`/`tool_result` block shape `cost_meter.py`'s
-    own module docstring documents), so reimplementing it locally avoids an
-    undeclared dependency on another module's private surface without
-    requiring a change to `cost_meter.py` itself (out of scope for this
-    measurement-only issue).
-    """
-    message = rec.get("message")
-    content = message.get("content") if isinstance(message, dict) else None
-    if not isinstance(content, list):
-        return
-    for block in content:
-        if not isinstance(block, dict):
-            continue
-        if block.get("type") == "tool_use" and block.get("name") in ("Task", "Agent"):
-            block_id = block.get("id")
-            block_input = block.get("input")
-            subagent_type = (
-                block_input.get("subagent_type")
-                if isinstance(block_input, dict)
-                else None
-            )
-            if isinstance(block_id, str) and isinstance(subagent_type, str):
-                dispatch_types[block_id] = subagent_type
-        elif block.get("type") == "tool_result":
-            tool_use_id = block.get("tool_use_id")
-            tool_use_result = rec.get("toolUseResult")
-            agent_id = (
-                tool_use_result.get("agentId")
-                if isinstance(tool_use_result, dict)
-                else None
-            )
-            if (
-                isinstance(tool_use_id, str)
-                and isinstance(agent_id, str)
-                and tool_use_id in dispatch_types
-            ):
-                agent_types[agent_id] = dispatch_types[tool_use_id]
-
-
 def _dispatches_from_inline_sidechain(transcript_path: Path) -> list[dict]:
     """Older harness layout: sidechain turns recorded inline in the main
     transcript with `isSidechain: true`. Prefers a record's own
     `attributionAgent` (cost_meter's documented primary signal); falls back
     to the Task/Agent dispatch join otherwise — an earlier version of this
     function used the join exclusively, silently dropping any agent
-    attributed only via `attributionAgent`."""
+    attributed only via `attributionAgent`.
+
+    The join itself is `session_log.records.join_dispatch_agent_ids` (#2050)
+    -- previously reimplemented locally here because that algorithm's own
+    module (`cost_meter.py`) kept it private; now public, so both consumers
+    share one implementation."""
     dispatch_types: dict[str, str] = {}
     agent_types: dict[str, str] = {}
     per_agent_spend: dict[str, int] = {}
     per_agent_first_ts: dict[str, str] = {}
     per_agent_attribution: dict[str, str] = {}
     for rec in _iter_jsonl(transcript_path):
-        _join_dispatch_agent_ids(rec, dispatch_types, agent_types)
-        if not rec.get("isSidechain"):
+        session_log_records.join_dispatch_agent_ids(rec, dispatch_types, agent_types)
+        if not session_log_records.is_sidechain(rec):
             continue
         agent_id = rec.get("agentId")
         ts = rec.get("timestamp")
         if isinstance(agent_id, str) and isinstance(ts, str):
             per_agent_first_ts.setdefault(agent_id, ts)
-        if isinstance(agent_id, str) and isinstance(rec.get("attributionAgent"), str):
-            per_agent_attribution.setdefault(agent_id, rec["attributionAgent"])
-        usage = _usage_from_record(rec)
+        if isinstance(agent_id, str):
+            candidate = session_log_records.attribution_agent_of(rec)
+            if candidate is not None:
+                per_agent_attribution.setdefault(agent_id, candidate)
+        usage = session_log_records.usage_of(rec)
         if isinstance(agent_id, str) and usage is not None:
             per_agent_spend[agent_id] = per_agent_spend.get(agent_id, 0) + _input_side_spend(
                 usage

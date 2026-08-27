@@ -203,14 +203,19 @@ def accumulate_skill_agent_signals(
     content,
     skills_invoked: Counter,
     agent_dispatches: Counter,
-    active: dict[str, str | None],
+    active: dict[str, str | tuple[str, str] | None],
 ) -> None:
     """Skill/agent-detection concern. `skill` is the legacy attributionSkill
     tag (kept as a fallback — real transcripts don't emit it, #182);
     `content`'s tool_use blocks are the primary signal: the Skill tool and
     the Agent/Task tool that actually invoke them (#182). `active` tracks
     the most-recently-invoked skill/agent (#711), sticky until superseded,
-    for the correction-turn concern to attribute against.
+    for the correction-turn concern to attribute against. `active["last"]`
+    (#2013) is the same pointer collapsed to a single `(kind, name)` tuple
+    (or absent, before any dispatch) -- the ONE most-recently-dispatched
+    entity between the two, for `session_log.corrections`' `component`
+    field, which needs a single answer rather than two independently-sticky
+    ones.
 
     Counts DISPATCHES, not runs: a dispatch made from inside a subagent is
     only visible in that subagent's own transcript, and a dispatch whose
@@ -228,13 +233,15 @@ def accumulate_skill_agent_signals(
         if name == "Skill":
             s = inp.get("skill") or inp.get("name")
             if isinstance(s, str) and s:
-                skills_invoked[redact.redact(classify.strip_ns(s))] += 1
                 active["skill"] = redact.redact(classify.strip_ns(s))
+                skills_invoked[active["skill"]] += 1
+                active["last"] = ("skill", active["skill"])
         elif name in ("Agent", "Task"):
             a = inp.get("subagent_type")
             if isinstance(a, str) and a:
-                agent_dispatches[redact.redact(classify.strip_ns(a))] += 1
                 active["agent"] = redact.redact(classify.strip_ns(a))
+                agent_dispatches[active["agent"]] += 1
+                active["last"] = ("agent", active["agent"])
 
 
 def track_tool_call(block: dict, pending_tool: dict[str, str], tool_calls: Counter) -> None:

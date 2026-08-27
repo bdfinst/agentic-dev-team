@@ -121,6 +121,17 @@ if str(_LIB_DIR) not in sys.path:
 from boundary_events import emit_boundary_event as _emit_boundary_event
 from stdin_json import read_stdin_json  # type: ignore[import-not-found]
 
+# session_log/ (#2050) -- see hooks/lib/cost_meter.py's identical import for
+# why hooks/ -> scripts/lib/session_log/ is safe to invert relative to
+# #1461's scripts/ -> hooks/lib/ rule: session_log/ ships inside this same
+# plugin package, always present wherever this hook runs, and imports
+# nothing from hooks/ itself (no cycle). Reading changes here; deciding
+# does not -- ADR 0037 still governs what this hook decides.
+sys.path.insert(
+    0, str(Path(__file__).resolve().parent.parent / "scripts" / "lib")
+)
+from session_log import records as _records
+
 
 def emit_boundary_event(*args, **kwargs) -> None:
     """Local safety net (#859): even a misbehaving helper must never affect
@@ -272,11 +283,12 @@ def _is_sidechain(row: dict) -> bool:
     * a large subagent turn recorded after a small main turn OVER-reports
       it, and the guard blocks a main thread nowhere near the ceiling.
 
-    `isSidechain` is the same signal `scripts/session_extract.py` and
+    `isSidechain` is the same signal `session_report.py` and
     `scripts/measure_full_file_duplication.py` already key off for the
-    inline layout; this hook was the one transcript consumer that did not.
+    inline layout, now shared via `session_log.records.is_sidechain` (#2050)
+    -- deciding does not change, only where the field read happens.
     """
-    return bool(row.get("isSidechain"))
+    return _records.is_sidechain(row)
 
 
 def _detect_window(transcript_path: Path) -> tuple[int, bool]:
@@ -401,9 +413,9 @@ def _measure_occupancy(transcript_path: Path) -> int | None:
         usage = message.get("usage")
         if not isinstance(usage, dict):
             continue
-        input_t = usage.get("input_tokens") or 0
-        cache_read = usage.get("cache_read_input_tokens") or 0
-        cache_creation = usage.get("cache_creation_input_tokens") or 0
+        input_t = _records.usage_field(usage, "input_tokens")
+        cache_read = _records.usage_field(usage, "cache_read_input_tokens")
+        cache_creation = _records.usage_field(usage, "cache_creation_input_tokens")
         if not all(isinstance(x, int) for x in (input_t, cache_read, cache_creation)):
             # Non-integer usage → skip this row (fail-open).
             continue

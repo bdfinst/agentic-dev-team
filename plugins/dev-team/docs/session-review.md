@@ -20,7 +20,7 @@ does.
 
 | Stage | Component | What it does |
 |---|---|---|
-| 1. Extract | `scripts/session_extract.py` (#127) | Deterministic, **zero model tokens**. Distills MBs of JSONL into a KB digest capturing all four signal classes equally (token / rework / accuracy / utilization). Privacy: metrics only — never prompt or code content. |
+| 1. Extract | `${CLAUDE_PLUGIN_ROOT}/scripts/session_report.py --profile maintainer` (#127, #2046) | Deterministic, **zero model tokens**. Distills MBs of JSONL into a KB digest capturing all four signal classes equally (token / rework / accuracy / utilization). Privacy: metrics only — never prompt or code content. |
 | 2. Analyze | `agents/session-analysis.md` + `skills/session-review/SKILL.md` (#128) | A focused agent reads **only the digest** and maps aggregated patterns to probable *plugin* causes. |
 | 3. Suggest | `.dev-team-reports/session-review-<date>.md` (#128) | Ranked recommendations, each tagged `{token \| rework \| accuracy}`, naming the target artifact and handing off — never auto-applying. |
 
@@ -91,22 +91,30 @@ where they disagree, prefer the session digest.
 
 ## Downstream extraction (no monorepo checkout)
 
-`/session-review` is maintainer-only tooling for this monorepo — it refuses
-to run outside an `agentic-dev-team` dev checkout (see the Pre-flight guard
-in `skills/session-review/SKILL.md`). For a downstream user of the plugin who
-has no access to this repo but wants to hand the maintainer their own
-session data for analysis, use the shippable counterpart instead:
-`scripts/extract_session_report.py`. It ships inside the plugin package (so
-it's present after a normal `claude plugin install`), runs from a bare
-`python3` with no dependencies, and writes ONE metrics-only JSON file — for
-the current project, an explicit `--project <path>`, or `--all-projects` for
-every project the plugin has been used in on that machine. Same privacy
-stance as everything else in this doc: counts/ratios/names only, never
-prompt text, code, or command strings. The user sends the resulting file to
-the maintainer themselves (e.g. over MS Teams); the script has no network
-code and never transmits anything on its own.
+`/session-review`'s core steps (Extract/Analyze/Suggest above) now run from
+any installed plugin — `session_report.py --profile maintainer` ships
+inside the plugin package, closing #1779 at the root (#2046/#2047). Only
+two OPT-IN paths still require this monorepo's own dev checkout:
+`--cross-machine` sync/rollup and the raw-log semantic tier it gates — both
+deliberately self-referential to this marketplace repo's own cross-machine
+telemetry database (ADR 0032 Category 2), not something a downstream
+install has a database for.
 
-### Report schema (`downstream-session-report/v2`)
+For a downstream user of the plugin who has no access to this repo but
+wants to hand the maintainer their own session data for analysis without
+running `/session-review`'s own orchestrated flow, use the sibling
+`--profile downstream`: `${CLAUDE_PLUGIN_ROOT}/scripts/session_report.py
+--profile downstream`. It ships inside the plugin package (so it's present
+after a normal `claude plugin install`), runs from a bare `python3` with no
+dependencies, and writes ONE metrics-only JSON file — for the current
+project, an explicit `--project <path>`, or `--all-projects` for every
+project the plugin has been used in on that machine. Same privacy stance as
+everything else in this doc: counts/ratios/names only, never prompt text,
+code, or command strings. The user sends the resulting file to the
+maintainer themselves (e.g. over MS Teams); the script has no network code
+and never transmits anything on its own.
+
+### Report schema (`downstream-session-report/v3`)
 
 Alongside the main-thread session at `<project>/<sessionId>.jsonl`, every
 dispatched agent writes its own transcript under
@@ -117,7 +125,7 @@ otherwise conflate:
 | Field | Meaning |
 |---|---|
 | `transcripts` / `subagent_transcripts` | main-thread sessions vs dispatched agent runs, both scoped to the reported window |
-| `token.by_agent_type` | **per-agent token buckets** (#2010), keyed by agent name — `main` for the main thread, `unattributed` where no agent is resolvable. Same vocabulary as cost-metering's `by_agent_type` (`knowledge/telemetry-schema.md`) and now the same field names as its buckets; deliberately NOT `by_subagent`, which means main-vs-sidechain in `session_extract.py` |
+| `token.by_agent_type` | **per-agent token buckets** (#2010), keyed by agent name — `main` for the main thread, `unattributed` where no agent is resolvable. Same vocabulary as cost-metering's `by_agent_type` (`knowledge/telemetry-schema.md`) and now the same field names as its buckets; deliberately NOT `by_subagent`, which means main-vs-sidechain in the maintainer profile |
 
 Each `token.by_agent_type` bucket carries:
 
@@ -182,7 +190,7 @@ cannot, since they don't know this plugin's agents and skills. See
 
 ## Child issues
 
-- #127 — deterministic session-log extractor (`scripts/session_extract.py`)
+- #127 — deterministic session-log extractor (now `session_report.py --profile maintainer`, #2046)
 - #128 — `/session-review` skill + `session-analysis` agent + report
 - #129 — trend digest persistence + harness-audit consumption
 - #130 — document OSS complements

@@ -78,8 +78,8 @@ secret access) skip them and fall back to the blocking self-test:
         if: ${{ github.event_name != 'pull_request' || (github.event.pull_request.head.repo.fork == false && github.actor != 'dependabot[bot]') }}
         run: |
           git clone --depth 1 git@github.com:bdfinst/agent-telemetry.git /tmp/telemetry
-          python3 scripts/session_extract.py --cost-log /tmp/telemetry/digests \
-            -o /tmp/telemetry-cost-log.jsonl
+          python3 plugins/dev-team/scripts/session_report.py --profile maintainer \
+            --cost-log /tmp/telemetry/digests -o /tmp/telemetry-cost-log.jsonl
           echo "COST_BASELINE_LOG=/tmp/telemetry-cost-log.jsonl" >> "$GITHUB_ENV"
       - name: Run cost-regression check (via ci-local)
         run: bash scripts/ci-local.sh --only=chk_cost_regression
@@ -88,7 +88,7 @@ secret access) skip them and fall back to the blocking self-test:
 > Why `--cost-log` and not `--rollup`? The regression meter
 > (`cost_meter.py regression`) compares the **latest** session against the
 > rolling mean of priors, so it needs a *time-ordered per-session series*, not a
-> single aggregate. `session_extract.py --cost-log <digests>` emits exactly that
+> single aggregate. `session_report.py --profile maintainer --cost-log <digests>` emits exactly that
 > (`{"total":{"cost_usd":..}}` records, oldest→newest, deduped on `session_id`).
 > The real cross-machine check is **warn-only** — a non-deterministic meter must
 > not hard-fail an unrelated code PR.

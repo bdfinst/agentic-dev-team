@@ -86,7 +86,7 @@ PR-creation time, against the branch's cumulative diff, does not have that
 problem. `hooks/pre_pr_review.py` never emits this event. Existing rows in
 `boundary-events.jsonl` from before the migration remain valid history.
 
-- **Emitter:** `hooks/lib/boundary_events.py::emit_boundary_event()`, called from `destructive_guard.py`, `verify_guard.py`, `pre_pr_review.py` (#1886), `telemetry.py` (intervention keywords), `agent_dispatch_ledger.py` (decision `record`, #1461), the mechanically-adopted guards (`pre_tool_guard.py`, `context_ceiling_guard.py`, `bash_retry_guard.py`, `refactor_test_freeze_guard.py`, `refactor_test_bash_guard.py`, `refactor_test_revert_guard.py` (decision `revert`, #906), `contract_version_guard.py`, `mutation_testing_smoke_gate.py`, `mutation_gate.py`, `tdd_guard.py`), and `boundary_events.py`'s own CLI (`--event dispatch-failure`, decision `dispatch-failure`, #1763) invoked from `skills/code-review/SKILL.md` Step 4. `--event gate-ran --verdict {allow,block,errored}` (decision `record`, `matched_rule` of `gate-ran-<verdict>`, #2037) is invoked from the repo-root `.husky/pre-commit` git hook — the real, git-native pre-commit gate (distinct from `pre_pr_review.py`, a Claude-Code-level PreToolUse hook gating `gh pr create`) — at every exit point, success or failure alike, so `scripts/session_extract.py` can correlate a commit-attempt Bash record against a nearby `gate_ran` event and classify the previously-unmeasured "the gate silently never ran" population (`gate_ran_absent`) apart from a genuine internal failure (`gate_ran_errored`). This event carries no `session_id` in practice — a real git hook has no Claude Code session_id to attach — so correlation is by time proximity, not session join; see `scripts/session_extract.py`'s "gate-run correlation (#2037)" section.
+- **Emitter:** `hooks/lib/boundary_events.py::emit_boundary_event()`, called from `destructive_guard.py`, `verify_guard.py`, `pre_pr_review.py` (#1886), `telemetry.py` (intervention keywords), `agent_dispatch_ledger.py` (decision `record`, #1461), the mechanically-adopted guards (`pre_tool_guard.py`, `context_ceiling_guard.py`, `bash_retry_guard.py`, `refactor_test_freeze_guard.py`, `refactor_test_bash_guard.py`, `refactor_test_revert_guard.py` (decision `revert`, #906), `contract_version_guard.py`, `mutation_testing_smoke_gate.py`, `mutation_gate.py`, `tdd_guard.py`), and `boundary_events.py`'s own CLI (`--event dispatch-failure`, decision `dispatch-failure`, #1763) invoked from `skills/code-review/SKILL.md` Step 4. `--event gate-ran --verdict {allow,block,errored}` (decision `record`, `matched_rule` of `gate-ran-<verdict>`, #2037) is invoked from the repo-root `.husky/pre-commit` git hook — the real, git-native pre-commit gate (distinct from `pre_pr_review.py`, a Claude-Code-level PreToolUse hook gating `gh pr create`) — at every exit point, success or failure alike, so `${CLAUDE_PLUGIN_ROOT}/scripts/session_report.py --profile maintainer` can correlate a commit-attempt Bash record against a nearby `gate_ran` event and classify the previously-unmeasured "the gate silently never ran" population (`gate_ran_absent`) apart from a genuine internal failure (`gate_ran_errored`). This event carries no `session_id` in practice — a real git hook has no Claude Code session_id to attach — so correlation is by time proximity, not session join; see `session_report.py`'s "gate-run correlation (#2037)" section.
 - **Consent:** ALWAYS-ON — not gated by `DEV_TEAM_TELEMETRY`. Local-only, rule-IDs-only safety/accountability channel; no observability holes by design.
 - **Fail-open:** every exception in the emit helper is swallowed — never changes the calling hook's exit code, stdout, or stderr.
 - **Consumers:** `skills/session-review/SKILL.md`, `skills/harness-audit/SKILL.md`, `agents/session-analysis.md`, `skills/cost-report/`, `skills/run-report/SKILL.md` (#1167), `hooks/lib/review_gate_corroboration.py` (#1461 `record` rows; #1763 also reads `dispatch-failure` rows as negative evidence for the gate veto), future `agent-telemetry` cross-machine aggregation (#178).
@@ -108,7 +108,7 @@ the pre-commit review gate fired or was bypassed.
 
 - **Emitter:** `hooks/telemetry.py::_emit()`. Written to `~/.claude/metrics/telemetry.jsonl` — home-scoped, out of the project entirely (#1405/#1406), never a project's own `metrics/`.
 - **Consent:** opt-in — `~/.claude/telemetry.json` `{"enabled": true}`, home-scoped only. `DEV_TEAM_TELEMETRY` and a project-scoped `<cwd>/.claude/telemetry.json` are now inert (one-time-per-session stderr notice only, no effect on consent). Off by default; nothing recorded, nothing leaves the machine.
-- **Consumers:** `skills/telemetry/SKILL.md`, `scripts/session_extract.py`.
+- **Consumers:** `skills/telemetry/SKILL.md`, `plugins/dev-team/scripts/session_report.py`.
 
 ---
 
@@ -238,7 +238,7 @@ protocol events (approval / override / pause / stop).
 
 ## `session-digest.jsonl`
 
-Trend digest from `/session-review` (backed by `scripts/session_extract.py`):
+Trend digest from `/session-review` (backed by `${CLAUDE_PLUGIN_ROOT}/scripts/session_report.py --profile maintainer`):
 aggregate counts only, no file names, prompts, command strings, or code.
 
 | Field | Type | Values / source |
@@ -249,19 +249,45 @@ aggregate counts only, no file names, prompts, command strings, or code.
 | `tokens` | object | Input/output/cache token totals |
 | `cost_usd`, `cache_hit_ratio` | number | Session cost and cache-read efficiency |
 | `rework` | object | `failed_edits`, `repeated_file_edits`, `retried_bash_commands`, `repeated_verify_runs`, `permission_denials`, `compaction_events` |
-| `accuracy` | object | `tool_calls`, `tool_error_rate`, `user_correction_turns` |
+| `accuracy` | object | `tool_calls`, `tool_error_rate`, `user_correction_turns`, `by_skill`/`by_agent` (correction counts, double-bucketed against whichever skill/agent is sticky-active), `correction_rate_by_skill`/`correction_rate_by_agent` (corrections per skill invocation / agent dispatch — absent for a never-invoked name, never a misleading `0.0`), `correction_causes` (#2013, below) |
 | `utilization` | object | `skills_invoked`, `agents_invoked` (agent RUNS), `agent_dispatches` (Agent/Task tool calls), `never_observed_skills`, `never_observed_agents` |
+
+**`accuracy.correction_causes` (#2013).** Deterministic cause data for every
+detected correction turn — no model call, see
+`plugins/dev-team/scripts/lib/session_log/corrections.py`'s module
+docstring for the classifier. Present in BOTH `session-digest/v3` and
+`downstream-session-report/v3` (a correction's producing component is
+exactly the "which components generate the most corrections per dispatch"
+question the issue exists to answer, and that question is as live for a
+downstream user's own report as for this repo's own trend stream). Shape:
+
+| Field | Type | Values |
+| --- | --- | --- |
+| `by_what` | object | Counts by `code-edit` \| `plan` \| `review-finding` \| `tool-choice` \| `factual-claim` \| `other` |
+| `by_component` | object | Counts by `main-loop` or the single most-recently-dispatched skill/agent name (never double-bucketed, unlike `accuracy.by_skill`/`by_agent`) |
+| `by_shape` | object | Counts by `reverted` \| `redirected` \| `narrowed-scope` \| `flagged-wrong` \| `not-what-asked` \| `ambiguous` |
+| `ambiguous_share` | number | `by_shape["ambiguous"] / user_correction_turns` — the classifier's honest inference-share statistic, never hidden |
+
+Never the correction text itself — only these four closed-vocabulary labels.
+`test_session_log_corrections.py::test_classify_correction_never_leaks_correction_text`
+pins this the same way
+`test_session_report_golden.py::test_no_sentinel_leaks_in_either_golden`
+pins the rest of this stream.
 
 `session-digest/v2` (#1994) counts dispatched agents' own transcripts for the
 first time, so token/tool-call/rework totals jump against v1, and
 `retried_bash_commands` / `repeated_verify_runs` moved from a session-keyed to
 a per-thread basis. Records from the two eras are not comparable; split on
-`schema` before trending.
+`schema` before trending. `session-digest/v3` (#2046) is a schema-label-only
+bump: it is emitted by the new unified `session_report.py --profile
+maintainer` entry point, which every real consumer now runs (#2047) instead
+of the earlier monorepo-only extractor (retired in #2048). No data-shape
+change from v2 — a v2 and a v3 record trend together.
 
-- **Emitter:** `/session-review` skill via `scripts/session_extract.py`.
+- **Emitter:** `/session-review` skill via `${CLAUDE_PLUGIN_ROOT}/scripts/session_report.py --profile maintainer`.
 - **Consent:** unconditional (aggregate counts only, no file/prompt/command content).
 - **Enforcement (#2045):** every name/label-shaped field this stream (and the
-  shipped `extract_session_report.py` downstream report) emits passes
+  shipped `session_report.py --profile downstream` report) emits passes
   through `plugins/dev-team/scripts/lib/session_log/redact.redact()` — the
   one function both extractors route file basenames, project labels, skill
   names, agent names, and model ids through before writing them out.
@@ -272,7 +298,7 @@ a per-thread basis. Records from the two eras are not comparable; split on
   command string, and absolute POSIX/Windows paths.
 - **Consumers:** `skills/harness-audit/SKILL.md` (joins with self-reported task logs), `agents/session-analysis.md`.
 - **Version tagging (#1471):** `plugin_version` is also carried on the per-session `session-sync/v1`/`session-sync/v2` records synced by `--sync-out` (used by `--rollup`/`--escalate`/`--correlate`) and on the single-shot digest itself — every one of these tags reflects the plugin version active on the machine *at extraction time*, not the version that was necessarily active during the original raw session (transcripts carry no version tag of their own to correlate against).
-- **Version scoping (#1480):** `session_extract.py --rollup`/`--escalate`/`--correlate` accept `--version-scope {all,current-and-previous}` (default `all`, unbounded history). `current-and-previous` drops any record whose `plugin_version` isn't the currently-installed version or the version immediately before it *as observed in the digests being read* (there is no release-history lookup) — records with no `plugin_version` at all (pre-#1471 data) are dropped too, since they can't be proven current. The result gains a `version_window` field (the concrete versions included; `[]` when unscoped). `/session-review` defaults to local-only; its `--cross-machine` opt-in always applies `current-and-previous` scoping (see its SKILL.md) — the skill itself never exposes an unscoped cross-machine mode. Unbounded history across every version remains available only via a direct `session_extract.py --rollup ... --version-scope all` invocation (the CLI default), outside the skill.
+- **Version scoping (#1480):** `session_report.py --profile maintainer --rollup`/`--escalate`/`--correlate` accept `--version-scope {all,current-and-previous}` (default `all`, unbounded history). `current-and-previous` drops any record whose `plugin_version` isn't the currently-installed version or the version immediately before it *as observed in the digests being read* (there is no release-history lookup) — records with no `plugin_version` at all (pre-#1471 data) are dropped too, since they can't be proven current. The result gains a `version_window` field (the concrete versions included; `[]` when unscoped). `/session-review` defaults to local-only; its `--cross-machine` opt-in always applies `current-and-previous` scoping (see its SKILL.md) — the skill itself never exposes an unscoped cross-machine mode. Unbounded history across every version remains available only via a direct `session_report.py --profile maintainer --rollup ... --version-scope all` invocation (the CLI default), outside the skill.
 
 ---
 
@@ -292,7 +318,7 @@ counts and outcomes only, never code or file content.
 | `agents_run` | array of string | Review agents dispatched |
 | `issues_found`, `issues_fixed`, `fix_iterations` | integer | Counts |
 | `severity_breakdown` | object | `{errors, warnings, suggestions}` counts (same enum as `/code-review`); the three sum to `issues_found`. Lets `/harness-audit` Step 3 flag mostly-minor lenses (#1256). Absent on pre-#1256 rows |
-| `source` | string enum | Row provenance: `build-checkpoint` (fix-applying `/build` inline checkpoint) \| `build-backstop` (fix-applying `/build` Step-6 backstop pass, #1962) \| `code-review` (read-only standalone review). **Absent = `build-checkpoint`** (back-compat). `/harness-audit` Step 4 excludes `code-review` rows from fix-rate drop-candidate logic (#1257); `build-backstop` rows are fix-applying and stay in it |
+| `source` | string enum | Row provenance: `build-checkpoint` (fix-applying `/build` inline checkpoint) \| `build-backstop` (fix-applying `/build` Step-6 backstop pass, #1962) \| `code-review` (read-only standalone review) \| `harness` (the `evals/code-review-benchmark/` replay harness — #2051, see below). **Absent = `build-checkpoint`** (back-compat). `/harness-audit` Step 4 excludes `code-review` rows from fix-rate drop-candidate logic (#1257); `build-backstop` rows are fix-applying and stay in it |
 | `diff_shape` | string enum | Shape of the reviewed diff: `test-only` (every changed file provably a test per `knowledge/test-file-indicators.md`) \| `mixed` (anything else). Classified by `skills/code-review/scripts/change_shape.py`'s `isTestOnly`, never by eye; include-biased, so `test-only` is never over-claimed. Lets `/harness-audit` split per-lens outcomes by diff shape — the evidence a test-only lens gate waits on (#1964). Absent on pre-#1964 rows |
 | `outcome` | string enum | `no-op` \| `fixed` \| `escalated` \| `skipped` (backstop only — suppressed by `--backstop-review=skip`; never counted in a rate, #1962) |
 
@@ -328,6 +354,31 @@ answerable. Written by `skills/code-review/scripts/review_round_log.py`.
 - **Consumers:** `skills/harness-audit/SKILL.md` Step 4a (churn ratio, per-agent discovery-vs-verification split, gate recidivism).
 - **Backstop rows (#1962).** `source: "build-backstop"` marks `/build`'s Step-6 pass — the one review layer whose files an inline checkpoint already reviewed in the same run. It is fix-applying (the `--internal` panel runs the review-fix loop), so it belongs in fix-rate analysis alongside `build-checkpoint`; what it exists to answer is whether that duplicated layer is ~all `no-op`, which is the evidence `/build`'s `--backstop-review=skip` flag waits on. `outcome: "skipped"` marks a backstop suppressed by that flag: recorded so the suppression is visible in the same stream, and excluded from every rate because it never ran.
 - **Reconciling the `source` values.** `build-checkpoint` and `build-backstop` rows are fix-applying and carry `plan`/`slice`/`step`/`checkpoint`/`complexity`/`issues_found`/`issues_fixed`/`fix_iterations`. `code-review` rows are read-only; those with a `round` field use the round schema above. A consumer wanting "how many issues did this row surface" should read `(.issues_found // .findings_new)`, which covers all three shapes.
+
+### Harness rows — `source: "harness"` (#2051)
+
+Written by `evals/code-review-benchmark/runner.emit_review_value_rows()` —
+the `/code-review` **replay harness** (#821), not a live session. One row
+per lens per dispatch, written straight from the parsed `/code-review
+--json` payload's `agents[]` list — by mechanism, not by agent instruction
+— so every dispatched lens gets a row regardless of outcome, including a
+lens that found nothing. This is the fix for the collection bias #2019/
+#1512 documented in the live writers above.
+
+| Field | Type | Values / source |
+| --- | --- | --- |
+| `agents_run` | array of string | Always exactly one lens name — one row per lens, not per dispatch batch |
+| `issues_found` | integer | Count of that lens's issues this dispatch |
+| `severity_breakdown` | object | `{errors, warnings, suggestions}`, same enum as the live rows |
+| `outcome` | string | Always `"no-op"` — the harness is read-only and never applies a fix |
+| `diff_shape` | string enum | `test-only` \| `mixed`, same classifier as the live rows; the recorded-diff adapter (below) is what actually supplies real `test-only` cases |
+| `dataset` | string | `defects4j` \| `bugsjs` \| `recorded-diff` |
+| `project`, `bug_id` | string | The benchmark case's identifiers (not a `/build` plan/slice/step — a structurally different key space) |
+
+- **Emitter:** `runner.emit_review_value_rows()`, called from `runner.run_case()` and `runner.run_recorded_diff_case()` after a dispatch's `--json` payload parses successfully. Never called for an unparseable dispatch — that failure is already captured by the harness's own `skipped.jsonl`.
+- **File location, deliberately not `.claude/metrics/`.** Rows land in the harness's own results directory (`evals/code-review-benchmark/results/review-value.jsonl` by default, `--results-dir` elsewhere) — never the live metrics tree. This is a structural guarantee against pooling, on top of the `source: "harness"` label itself: even a caller reading the wrong file could not accidentally merge harness rows into the live population, because they are not in the same file.
+- **Consumers:** `skills/harness-audit/SKILL.md` §4b, which reads this stream as a separate, explicitly-labelled population and must never merge it into Step 3/4's live-row computations.
+- **Recorded-diff adapter (#2051).** `evals/code-review-benchmark/adapters/recorded_diff_adapter.py` supplies `dataset: "recorded-diff"` cases from saved diffs (most usefully real `/test-improve` Phase-5 diffs) — the only source that can give this stream a genuine `diff_shape: "test-only"` row, since Defects4J/BugsJS are real production bug fixes and structurally cannot be test-only.
 
 ---
 

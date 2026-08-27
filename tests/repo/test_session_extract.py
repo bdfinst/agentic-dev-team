@@ -1,4 +1,4 @@
-"""Tests for scripts/session_extract.py - the deterministic, zero-token
+"""Tests for session_report.py --profile maintainer - the deterministic, zero-token
 session-log extractor (#127). Exercised against a committed fixture
 transcript that plants one signal of each class.
 
@@ -14,7 +14,7 @@ from pathlib import Path
 
 from _repo_root import REPO_ROOT
 
-EXTRACT = REPO_ROOT / "scripts" / "session_extract.py"
+EXTRACT = REPO_ROOT / "plugins" / "dev-team" / "scripts" / "session_report.py"
 FIX = REPO_ROOT / "tests" / "fixtures" / "session-review" / "sample-transcript.jsonl"
 PLUGIN = REPO_ROOT / "plugins" / "dev-team"
 
@@ -23,7 +23,7 @@ def _run(*extra: str) -> subprocess.CompletedProcess:
     return subprocess.run(
         [
             sys.executable,
-            str(EXTRACT),
+            str(EXTRACT), "--profile", "maintainer",
             "--transcript",
             str(FIX),
             "--plugin-root",
@@ -44,7 +44,7 @@ def _digest() -> dict:
 
 def test_extract_token_signals() -> None:
     digest = _digest()
-    assert digest["schema"] == "session-digest/v2"
+    assert digest["schema"] == "session-digest/v3"
     assert digest["sessions"] == 1
     assert digest["token"]["totals"]["input_tokens"] == 4100
     assert digest["token"]["cache_hit_ratio"] == 0.8
@@ -141,7 +141,7 @@ def test_extract_repeated_verify_runs_resets_on_intervening_edit(
     result = subprocess.run(
         [
             sys.executable,
-            str(EXTRACT),
+            str(EXTRACT), "--profile", "maintainer",
             "--transcript",
             str(transcript),
             "--plugin-root",
@@ -203,7 +203,7 @@ def test_extract_accuracy_correction_attributed_to_most_recent_skill_and_agent(
     result = subprocess.run(
         [
             sys.executable,
-            str(EXTRACT),
+            str(EXTRACT), "--profile", "maintainer",
             "--transcript",
             str(transcript),
             "--plugin-root",
@@ -259,7 +259,7 @@ def test_extract_append_writes_one_metrics_only_trend_record_per_run(
     # The trend record must carry the SAME era marker as the digest it slims:
     # stamping v1 on v2-basis numbers is worse than not versioning at all,
     # because "split the stream on schema" then silently cannot work (#1994).
-    assert first["schema"] == "session-digest/v2"
+    assert first["schema"] == "session-digest/v3"
     # aggregate counts only: rework.repeated_file_edits is a COUNT, not a map
     assert first["rework"]["repeated_file_edits"] == 1
     assert first["accuracy"]["user_correction_turns"] == 1
@@ -275,7 +275,7 @@ def test_extract_empty_input_yields_a_well_formed_empty_digest(tmp_path: Path) -
     result = subprocess.run(
         [
             sys.executable,
-            str(EXTRACT),
+            str(EXTRACT), "--profile", "maintainer",
             "--transcript",
             str(empty),
             "--plugin-root",

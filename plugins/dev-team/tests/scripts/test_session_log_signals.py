@@ -143,6 +143,40 @@ def test_accumulate_skill_agent_signals_counts_agent_dispatch():
     assert active["agent"] == "correctness-review"
 
 
+def test_accumulate_skill_agent_signals_last_tracks_the_single_most_recent_dispatch():
+    # #2013: active["last"] collapses the two independently-sticky
+    # skill/agent pointers into ONE (kind, name) answer -- whichever was
+    # dispatched most recently -- for session_log.corrections' single
+    # "component" field.
+    skills_invoked = Counter()
+    agent_dispatches = Counter()
+    active = {"skill": None, "agent": None}
+    skill_content = [{"type": "tool_use", "name": "Skill", "input": {"skill": "dev-team:plan"}}]
+    signals.accumulate_skill_agent_signals(
+        None, skill_content, skills_invoked, agent_dispatches, active
+    )
+    assert active["last"] == ("skill", "plan")
+
+    agent_content = [
+        {"type": "tool_use", "name": "Agent", "input": {"subagent_type": "dev-team:doc-review"}}
+    ]
+    signals.accumulate_skill_agent_signals(
+        None, agent_content, skills_invoked, agent_dispatches, active
+    )
+    # Both skill/agent pointers stay sticky independently (unchanged
+    # behavior), but "last" moved to the MORE RECENT agent dispatch.
+    assert active["skill"] == "plan"
+    assert active["last"] == ("agent", "doc-review")
+
+
+def test_accumulate_skill_agent_signals_last_absent_before_any_dispatch():
+    skills_invoked = Counter()
+    agent_dispatches = Counter()
+    active = {"skill": None, "agent": None}
+    signals.accumulate_skill_agent_signals(None, None, skills_invoked, agent_dispatches, active)
+    assert "last" not in active
+
+
 def test_accumulate_skill_agent_signals_legacy_skill_fallback():
     skills_invoked = Counter()
     agent_dispatches = Counter()
@@ -165,7 +199,7 @@ def test_track_tool_call_records_pending_tool():
 
 
 def test_track_tool_call_ignores_non_string_id():
-    # The guarded form (session_extract.py's, kept as canonical): a
+    # The guarded form (the maintainer extractor's, kept as canonical): a
     # non-string id is never used as a dict key, unlike a bare `if bid:`.
     pending_tool: dict = {}
     tool_calls = Counter()

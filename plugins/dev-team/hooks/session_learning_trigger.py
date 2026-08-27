@@ -84,25 +84,26 @@ def _write_state(state_file: Path, counter: int) -> None:
             pass
 
 
-def _resolve_session_extract(hook_dir: Path) -> Path:
-    """The repo-root `scripts/session_extract.py` this monorepo's own dev
-    checkout carries, resolved from a shipped hook's install location.
+def _resolve_session_report(hook_dir: Path) -> Path:
+    """`plugins/dev-team/scripts/session_report.py`, resolved from a shipped
+    hook's install location.
 
-    `session_extract.py` is deliberately monorepo-only tooling, never shipped
-    inside the plugin (see `tests/repo/test_shipped_script_refs.py`'s
-    allowlist comment for `/session-review` — the sibling maintainer tool
-    this same script backs) — so for every downstream plugin install this
-    path resolves to a location that simply does not exist, and
-    `_dispatch_background_analysis` must treat that as the normal case, not
-    a failure to hide.
+    Until #2047, this resolved to the repo-root `scripts/session_extract.py`
+    that only a monorepo dev checkout carries — deliberately never shipped
+    inside the plugin, so `_dispatch_background_analysis` had to treat a
+    missing target as the normal case for every downstream install (#1649
+    already fixed a dangling-path defect against that exact coupling, but
+    could only ever make the monorepo-checkout case work, never the shipped
+    one). `session_report.py --profile maintainer` (#2046) IS shipped, so
+    this now resolves to a file that genuinely exists on every install —
+    closing #1779 for this consumer specifically.
 
-    `hook_dir` is `plugins/dev-team/hooks`; `scripts/` sits three levels up
-    from there (`hooks` -> `dev-team` -> `plugins` -> repo root), not two
-    (#1649 — the original `../..` landed on `plugins/scripts/`, which has
-    never existed anywhere in this repo, so this call has been a silent
-    no-op since it shipped).
+    `hook_dir` is `plugins/dev-team/hooks`; `scripts/` is a sibling one
+    level up (`hooks` -> `dev-team` -> `scripts`), not three — the extra
+    `../..` this function needed while targeting the repo root is gone now
+    that the target lives inside the same plugin tree as the hook itself.
     """
-    return (hook_dir / ".." / ".." / ".." / "scripts" / "session_extract.py").resolve()
+    return (hook_dir / ".." / "scripts" / "session_report.py").resolve()
 
 
 def _dispatch_background_analysis(
@@ -111,15 +112,15 @@ def _dispatch_background_analysis(
     """Fire-and-forget background analysis run.
 
     Skips entirely, rather than composing a shell command guaranteed to fail,
-    when `session_extract.py` isn't present (every downstream install, and
-    any dev checkout missing the repo-root `scripts/` tree) — see
-    `_resolve_session_extract`. When it IS present but the dispatch itself
+    when `session_report.py` isn't present — a defensive check kept for a
+    broken/partial install, since a normal one (every downstream install,
+    per #2047) now ships it. When it IS present but the dispatch itself
     fails, the failure is logged to `metrics_dir/session-learning-errors.log`
     rather than swallowed by a bare `|| true`, so a future regression here
     is visible instead of permanently silent (#1649).
     """
-    session_extract = _resolve_session_extract(hook_dir)
-    if not session_extract.is_file():
+    session_report = _resolve_session_report(hook_dir)
+    if not session_report.is_file():
         return
     pending = artifact_paths.resolve_file("metrics", "pending-review.jsonl", cwd)
 
@@ -144,7 +145,7 @@ def _dispatch_background_analysis(
     # Compose a shell script that runs asynchronously — same fire-and-forget
     # semantics as bash's `( ... ) &`.
     #
-    # session_extract.py's stderr is appended to a log file, not discarded
+    # session_report.py's stderr is appended to a log file, not discarded
     # (#1649): the `|| true` still keeps this line from aborting the rest of
     # the chain on failure (though it never would — these are `;`-joined,
     # not `&&`), but a failure here previously left zero evidence anywhere.
@@ -152,7 +153,7 @@ def _dispatch_background_analysis(
     # history instead of each one erasing the last.
     extract_log = metrics_dir / "session-learning-errors.log"
     shell_body = (
-        f"python3 {shell_quote(str(session_extract))} --since last "
+        f"python3 {shell_quote(str(session_report))} --profile maintainer --since last "
         f">/dev/null 2>>{shell_quote(str(extract_log))} || true; "
         # Template must END in the Xs (no `.jsonl` suffix): BSD mktemp
         # substitutes only a trailing run, so `.pending-XXXXXX.jsonl` yields

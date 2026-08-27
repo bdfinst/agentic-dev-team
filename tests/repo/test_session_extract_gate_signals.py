@@ -1,6 +1,6 @@
 """Pins extract()'s Skill/Agent tool_use detection and gate (commit-bypass,
 #111) signals — output shapes not covered by the primary fixture in
-test_session_extract.py. Added ahead of the extract() concern-splitting
+test_session_extract.py (now session_report.py). Added ahead of the extract() concern-splitting
 refactor (Medium complexity finding) so the refactor stays behavior-preserving.
 """
 
@@ -12,7 +12,7 @@ import sys
 
 from _repo_root import REPO_ROOT
 
-EXTRACT = REPO_ROOT / "scripts" / "session_extract.py"
+EXTRACT = REPO_ROOT / "plugins" / "dev-team" / "scripts" / "session_report.py"
 FIX = (
     REPO_ROOT / "tests" / "fixtures" / "session-review" / "sample-transcript-gate.jsonl"
 )
@@ -23,7 +23,7 @@ def _digest() -> dict:
     result = subprocess.run(
         [
             sys.executable,
-            str(EXTRACT),
+            str(EXTRACT), "--profile", "maintainer",
             "--transcript",
             str(FIX),
             "--plugin-root",
