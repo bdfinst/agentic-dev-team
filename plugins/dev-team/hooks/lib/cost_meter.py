@@ -117,6 +117,9 @@ if str(_LIB_DIR) not in sys.path:
 
 import artifact_paths
 from atomic_state import append_line_locked
+from pricing import cost as _cost
+from pricing import load_pricing as _load_pricing
+from pricing import rate as _rate
 
 # ---------------------------------------------------------------------------
 # Incremental `record` state — a byte offset + running aggregates, keyed by
@@ -195,21 +198,6 @@ def _save_state(state_file: Path, payload: dict) -> None:
         pass
 
 
-def _load_pricing(path: Path) -> dict:
-    data = json.loads(path.read_text())
-    return data
-
-
-def _rate(pricing: dict, model: str) -> dict | None:
-    models = pricing.get("models", {})
-    if model in models:
-        return models[model]
-    alias = pricing.get("aliases", {}).get(model)
-    if alias and alias in models:
-        return models[alias]
-    return None
-
-
 def _first_present_field(rec: dict, *keys: str):
     """Return the first present key on rec or rec['message']."""
     for src in (
@@ -220,23 +208,6 @@ def _first_present_field(rec: dict, *keys: str):
             if k in src and src[k] is not None:
                 return src[k]
     return None
-
-
-def _cost(usage: dict, rate: dict, pricing: dict) -> float:
-    input_tokens = usage.get("input_tokens", 0) or 0
-    output_tokens = usage.get("output_tokens", 0) or 0
-    cache_write_tokens = usage.get("cache_creation_input_tokens", 0) or 0
-    cache_read_tokens = usage.get("cache_read_input_tokens", 0) or 0
-    in_rate = rate["input"]
-    return (
-        input_tokens / 1e6 * in_rate
-        + output_tokens / 1e6 * rate["output"]
-        + cache_write_tokens
-        / 1e6
-        * in_rate
-        * pricing.get("cache_write_multiplier", 1.25)
-        + cache_read_tokens / 1e6 * in_rate * pricing.get("cache_read_multiplier", 0.1)
-    )
 
 
 _TOKEN_FIELDS = (
@@ -391,7 +362,7 @@ def _accumulate_lines(
         agent_type = _agent_type_key(rec, agent_types)
 
         rate = _rate(pricing, model)
-        cost = _cost(usage, rate, pricing) if rate else 0.0
+        cost = _cost(usage, rate, pricing)
         # Excludes zero-token records from `unpriced_models` (#1830 fix
         # review), not just the literal "unknown" placeholder: the harness
         # writes assistant records with `model: "<synthetic>"` and every usage

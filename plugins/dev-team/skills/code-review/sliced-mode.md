@@ -135,7 +135,7 @@ For each slice, once its panel's waves (per the section above) return:
    gate and was deleted in #1904 — sliced mode never wrote that gate file to
    begin with, so the normalized hash never had a consumer on this path):
    ```bash
-   HASH=$(python3 "${CLAUDE_PLUGIN_ROOT}/hooks/lib/review_gate_hash.py")
+   HASH=$(python3 "${CLAUDE_PLUGIN_ROOT}/hooks/lib/review_gate_hash.py" --branch-diff)
    python3 "${CLAUDE_PLUGIN_ROOT}/hooks/lib/boundary_events.py" --event dispatch-failure --agent "<name>" --subject-hash "$HASH"
    ```
 5. **Drop** the findings from orchestrator context. **Retain only a one-line tally per slice** — e.g. `section-0001: 3 findings (1 error, 2 warnings)`. This

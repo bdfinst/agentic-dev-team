@@ -57,127 +57,58 @@ import json
 import math
 import os
 import re
-import shlex
+import sys
 from collections import Counter, defaultdict
-from datetime import UTC
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
-# --- verification / classification vocabularies (counted, never emitted) -----
-_VERIFY_RE = re.compile(
-    r"\b(npm (run )?(test|lint|build)|pytest|bats|eslint|tsc|go test|cargo "
-    r"(test|build)|mvn|gradle|make( |$)|vitest|jest|ruff|mypy|shellcheck)\b"
+# scripts/ (repo root) -> repo root -> plugins/dev-team/scripts/lib. This
+# repo-root script already depends on the plugin tree in three other places
+# (see ADR 0036); this is the first genuine Python IMPORT of it, mirroring
+# the established `sys.path.insert` + `from <pkg> import ...` pattern in
+# scripts/test_modernization_review.py.
+sys.path.insert(
+    0,
+    str(Path(__file__).resolve().parent.parent / "plugins" / "dev-team" / "scripts" / "lib"),
 )
-_CORRECTION_RE = re.compile(
-    r"\b(no|actually|revert|undo|not what i (asked|wanted)|that's wrong|"
-    r"that is wrong|wrong|stop|don't|do not)\b"
+from session_log import classify, discovery, records, redact, signals
+
+_redact = redact.redact
+
+# The pricing loader/rate-lookup/cost-computation logic lives in hooks/lib
+# (#2045) — hooks/lib/cost_meter.py (a real Stop hook) needs the same
+# module and must never reach into scripts/, so the dependency direction is
+# scripts/ -> hooks/lib/, not the reverse (same rule hooks/lib/
+# review_agent_registry.py established for #1461; mirrors
+# scripts/check_review_agent_mcp_tools.py's identical import below).
+sys.path.insert(
+    0, str(Path(__file__).resolve().parent.parent / "plugins" / "dev-team" / "hooks" / "lib")
 )
-_PERMISSION_RE = re.compile(r"permission|denied|not allowed|blocked by", re.IGNORECASE)
-_OLDSTRING_RE = re.compile(r"old_string|not found|no match|string to replace", re.IGNORECASE)
-_EDIT_TOOLS = {"Edit", "Write", "NotebookEdit", "MultiEdit"}
-# Gate signal (#111): a `git commit`, and whether it bypassed the pre-commit
-# review gate (--no-verify, or a bare -n). #2036: the review-corroboration
-# gate itself moved from `git commit` time to `gh pr create` time in #1886 —
-# `hooks/telemetry.py` now keys its bypass signal off `PR_GATE_BYPASS_REASON`
-# on a `gh pr create` invocation, an unrelated mechanism this no longer
-# mirrors. This signal stays commit-time on purpose: it measures how often a
-# commit itself skips local review, which is a real and different question
-# from whether a PR was opened without one.
-#
-# Detection is argv-shaped, not a substring search over the whole command —
-# see _bash_segments()/_is_git_commit_argv() below. A prior version searched
-# `\bgit\s+commit\b` and `--no-verify|(^|\s)-n(\s|$)` against the raw string,
-# which matched inside unrelated flags in a compound command (`grep -n`,
-# `ls -n`) and even inside an unrelated string (`echo "git commit"`).
-_GIT_GLOBAL_OPTS_WITH_ARG = {"-C", "-c", "--git-dir", "--work-tree", "--namespace"}
-_COMMIT_BYPASS_TOKENS = {"--no-verify", "-n"}
+from pricing import cost as _cost
+from pricing import load_pricing as _load_pricing
+from pricing import rate as _rate
 
-
-def _statement_break_newlines(cmd: str) -> str:
-    """Replace a bare (unquoted) newline with ';' so a tokenizer sees a
-    statement boundary there — a newline embedded inside a quoted argument
-    (e.g. a multi-line commit message) is left untouched."""
-    out = []
-    in_single = in_double = False
-    i, n = 0, len(cmd)
-    while i < n:
-        ch = cmd[i]
-        if ch == "'" and not in_double:
-            in_single = not in_single
-            out.append(ch)
-        elif ch == '"' and not in_single:
-            in_double = not in_double
-            out.append(ch)
-        elif ch == "\\" and in_double and i + 1 < n:
-            out.append(ch)
-            out.append(cmd[i + 1])
-            i += 1
-        elif ch == "\n" and not in_single and not in_double:
-            out.append(";")
-        else:
-            out.append(ch)
-        i += 1
-    return "".join(out)
-
-
-def _bash_segments(cmd: str) -> list[list[str]]:
-    """Split `cmd` into argv-shaped segments at top-level shell operators
-    (&&, ||, ;, |, and bare newlines), respecting quoting throughout — a
-    quoted operator or newline inside a commit message never splits the
-    command, and a quoted flag never crosses a segment boundary."""
-    lex = shlex.shlex(_statement_break_newlines(cmd), posix=True, punctuation_chars="&|;")
-    lex.whitespace_split = True
-    try:
-        tokens = list(lex)
-    except ValueError:
-        # Malformed shell syntax (e.g. an unbalanced quote) — cannot be
-        # segmented reliably. Fall back to a single opaque whitespace-split
-        # segment rather than losing the signal outright.
-        return [cmd.split()]
-    segments: list[list[str]] = []
-    current: list[str] = []
-    for tok in tokens:
-        if tok in ("&&", "||", ";", "|", "&"):
-            if current:
-                segments.append(current)
-            current = []
-        else:
-            current.append(tok)
-    if current:
-        segments.append(current)
-    return segments
-
-
-def _is_git_commit_argv(tokens: list[str]) -> bool:
-    """True if `tokens` invokes `git ... commit ...` — walks past git's
-    global options (including ones taking a separate argument, e.g. `-C`)
-    to find the subcommand, so `git -C path commit` is recognized."""
-    if not tokens or tokens[0] != "git":
-        return False
-    i = 1
-    while i < len(tokens):
-        tok = tokens[i]
-        if tok in _GIT_GLOBAL_OPTS_WITH_ARG:
-            i += 2
-            continue
-        if tok.startswith("-"):
-            i += 1
-            continue
-        return tok == "commit"
-    return False
-
-
-# Agent transcripts are `agent-<id>.jsonl` (see _is_transcript_path).
-_AGENT_TRANSCRIPT_RE = re.compile(r"^agent-[0-9A-Za-z_-]{1,64}\.jsonl$")
-# Every string that becomes a digest KEY passes _safe_name: these arrive from
-# transcript files this script does not author, and the digest's own privacy
-# contract is names-only.
-_SAFE_NAME_RE = re.compile(r"^[A-Za-z0-9._:-]{1,64}$")
-_UNSAFE_NAME = "other"
-# `attributionAgent` values naming a harness ROLE rather than an agent. Every
-# real Workflow-dispatched transcript carries "workflow-subagent"; unfiltered
-# they become phantom agents while the agent that actually ran stays in
-# never_observed_agents — the #1990 symptom itself.
-_HARNESS_ATTRIBUTIONS = frozenset({"workflow-subagent", "claude"})
+# session_log.classify (issue #2043, epic #2040): the classification
+# vocabulary and text/name-handling helpers used to be defined here; they
+# are now shared with extract_session_report.py. See
+# plugins/dev-team/scripts/lib/session_log/classify.py's module docstring
+# for the per-symbol reconciliation table. Aliased under the original
+# private names so every internal call site below is unchanged.
+_VERIFY_RE = classify.VERIFY_RE
+_CORRECTION_RE = classify.CORRECTION_RE
+_PERMISSION_RE = classify.PERMISSION_RE
+_OLDSTRING_RE = classify.OLDSTRING_RE
+# session_log.signals.EDIT_TOOLS (#2044) is this exact set; aliased so no
+# call site in this file needs to change.
+_EDIT_TOOLS = signals.EDIT_TOOLS
+_GIT_GLOBAL_OPTS_WITH_ARG = classify.GIT_GLOBAL_OPTS_WITH_ARG
+_COMMIT_BYPASS_TOKENS = classify.COMMIT_BYPASS_TOKENS
+_statement_break_newlines = classify.statement_break_newlines
+_bash_segments = classify.bash_segments
+_is_git_commit_argv = classify.is_git_commit_argv
+_SAFE_NAME_RE = classify.SAFE_NAME_RE
+_UNSAFE_NAME = classify.UNSAFE_NAME
+_HARNESS_ATTRIBUTIONS = classify.HARNESS_ATTRIBUTIONS
 _DIGEST_SCHEMA = "session-digest/v2"
 _SYNC_SCHEMA = "session-sync/v2"
 #: Sync-record schemas a reader accepts. Declared once and imported by
@@ -186,107 +117,114 @@ _SYNC_SCHEMA = "session-sync/v2"
 SYNC_SCHEMAS = ("session-sync/v1", "session-sync/v2")
 _MAIN_LABEL = "main"
 _UNATTRIBUTED_LABEL = "unattributed"
+# session_log.discovery (#2042): path classification and enumeration used to
+# be defined here; they are now shared with extract_session_report.py.
+# Aliased under the original private names so every internal call site below
+# is unchanged.
+_is_transcript_path = discovery.is_transcript_path
+_is_subagent_transcript = discovery.is_subagent_transcript
+_all_transcripts_under = discovery.all_transcripts
+
+_strip_ns = classify.strip_ns
+
+# --- gate-run correlation (#2037) -------------------------------------------
+# `_BYPASS_RE`/`COMMIT_BYPASS_TOKENS` (see classify.py's module docstring)
+# only observes DELIBERATE bypass (`--no-verify`/`-n` on the command line) —
+# by construction it is blind to causes 2-4 from #2009's original framing
+# (an inert hook, a hook that errors but exits 0, or a commit made through an
+# unregistered path), because all three leave a command line that looks
+# entirely ordinary. This section inverts the sensor: `.husky/pre-commit`
+# (the real git pre-commit gate — see .husky/pre-commit's own comments; NOT
+# `pre_commit_review.py`, which #1886 retired to a documented no-op, and NOT
+# `pre_pr_review.py`, which gates `gh pr create`, a different question) now
+# emits a POSITIVE `gate_ran` boundary event carrying its own verdict every
+# time it runs, success or failure alike. A commit attempt with no correlated
+# `gate_ran` event is the previously unmeasured "gate_absent" population.
+#
+# Correlation is by TIME PROXIMITY, not session_id: `.husky/pre-commit` is a
+# real git hook invoked by git itself, outside Claude Code's own hook
+# machinery entirely, so it has no Claude Code session_id to attach (unlike
+# every other `boundary_events.py` emitter, which runs INSIDE a Claude Code
+# PreToolUse hook with a stdin JSON payload carrying one). KNOWN RESIDUAL
+# GAP, disclosed rather than silently accepted: two commits within the same
+# window (or a human's terminal commit alongside a running session) can
+# cross-match — acceptable for a first-cut distribution, not a precise
+# per-commit audit trail.
+_GATE_RAN_HOOK = "pre-commit-gate"
+_GATE_RAN_PREFIX = "gate-ran-"
+GATE_RAN_WINDOW_SECONDS = 120
 
 
-def _basename(path_str: str) -> str:
-    """Last component of a path recorded on ANY platform.
-
-    `os.path.basename` splits on `/` only, so a Windows-form path comes back
-    whole — an absolute path, username included, in a field this module's
-    docstring promises is a basename. Reachable whenever Windows-written
-    transcripts are read under WSL, a devcontainer, or a bind-mounted
-    `~/.claude`. The shipped twin already had this; the #1994 port left it
-    behind, which is the same defect class crossing the fork twice.
-    """
-    return re.split(r"[\\/]", path_str)[-1] or path_str
-
-
-def _safe_name(value: str) -> str:
-    """Reduce an input-derived string to something safe to emit as a key."""
-    # fullmatch, not match: `$` also matches immediately BEFORE a single
-    # trailing newline, so `.match()` admitted "name\n" through the allowlist
-    # and split the key space (#1994 review).
-    return value if _SAFE_NAME_RE.fullmatch(value) else _UNSAFE_NAME
-
-
-def _is_transcript_path(root: Path, path: Path) -> bool:
-    """Whether a `.jsonl` under `root` is a transcript this extractor reads.
-
-    Decided by DEPTH, not by filename shape. A `.jsonl` sitting directly in a
-    project directory is a main-thread session whatever it is called — the
-    harness uses `<sessionId>.jsonl`, but nothing guarantees that and a
-    name-shape filter silently drops any session that differs, which is a
-    worse failure than the one it prevents.
-
-    Below `subagents/` the rule tightens, because that is the only place the
-    harness writes NON-transcript bookkeeping next to transcripts:
-    `subagents/workflows/<runId>/journal.jsonl` holds `{"type", "key",
-    "agentId"}` records with no `cwd`. Counting it as an agent run inflated the
-    run tally and, having no `cwd`, sent project labelling down a fallback that
-    leaked a path-derived slug (#1991). Agent transcripts are `agent-<id>.jsonl`.
-    """
+def _parse_event_ts(value) -> datetime | None:
+    """Parse a `boundary-events.jsonl`/transcript timestamp
+    (`boundary_events.TS_FORMAT`, `%Y-%m-%dT%H:%M:%SZ`) into an aware UTC
+    `datetime`, or `None` when `value` isn't a string in that exact shape —
+    the same "can't determine, don't guess" posture the rest of this
+    extractor takes on malformed input."""
+    if not isinstance(value, str):
+        return None
     try:
-        parts = path.relative_to(root).parts
+        return datetime.strptime(value, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=UTC)
     except ValueError:
-        return False
-    if len(parts) < 2:
-        return False
-    if "subagents" in parts:
-        return bool(_AGENT_TRANSCRIPT_RE.match(path.name))
-    return len(parts) == 2
+        return None
 
 
-def _is_subagent_transcript(root: Path, path: Path) -> bool:
-    """A dispatched agent's own run, at any nesting depth below `root`.
-
-    A plain Agent dispatch writes `<project>/<sessionId>/subagents/agent-*.jsonl`;
-    a Workflow's agents nest one level further under `subagents/workflows/<runId>/`.
-    Ask the path BELOW the root: `projects_root` defaults to `~/.claude/projects`
-    and carries the user's home directory, so a matching segment in that prefix
-    would answer for the whole tree.
-    """
-    try:
-        parts = path.relative_to(root).parts
-    except ValueError:
-        parts = path.parts
-    return "subagents" in parts
-
-
-def _all_transcripts_under(root: Path) -> list[Path]:
-    """Every transcript under `root`, main-thread and subagent alike.
-
-    Globbing only `*/*.jsonl` made every dispatched agent invisible (#1990) —
-    silently, since subagent records ARE marked `isSidechain: true`; they simply
-    live in files nothing opened. Recurse rather than enumerate known depths.
-    """
-    return sorted(
-        (
-            p
-            for p in root.glob("*/**/*.jsonl")
-            if p.is_file() and not p.is_symlink() and _is_transcript_path(root, p)
-        ),
-        key=lambda p: str(p),
-    )
+def _read_gate_ran_events(path: Path | None) -> list[tuple[datetime, str]]:
+    """Every `gate_ran` boundary event's `(ts, verdict)` pair from
+    `boundary-events.jsonl`, oldest first. `path` may be `None` (no
+    gate-run instrumentation configured) or point at a file that doesn't
+    exist yet (the gate has never run) — both simply yield nothing, the
+    same as any other optional signal in this extractor."""
+    if path is None or not path.is_file():
+        return []
+    out: list[tuple[datetime, str]] = []
+    for rec in _iter_records([path]):
+        if not isinstance(rec, dict) or rec.get("hook") != _GATE_RAN_HOOK:
+            continue
+        if rec.get("decision") != "record":
+            continue
+        rule = rec.get("matched_rule")
+        if not isinstance(rule, str) or not rule.startswith(_GATE_RAN_PREFIX):
+            continue
+        ts = _parse_event_ts(rec.get("ts"))
+        if ts is None:
+            continue
+        out.append((ts, rule[len(_GATE_RAN_PREFIX) :]))
+    out.sort(key=lambda pair: pair[0])
+    return out
 
 
-def _strip_ns(name: str) -> str:
-    """Drop known plugin namespace prefixes so invoked names match the registry
-    (registry entries are bare dir/file stems). `dev-team:plan` -> `plan`;
-    `agentic-dev-team:plan` -> `plan`; other names pass through."""
-    for prefix in ("agentic-dev-team:", "dev-team:"):
-        if name.startswith(prefix):
-            return name[len(prefix) :]
-    return name
+def _classify_gate_run(
+    commit_ts: datetime | None, gate_events: list[tuple[datetime, str]]
+) -> str:
+    """Classify one non-bypassed commit attempt against the gate-run event
+    timeline: `"absent"` (no correlated `gate_ran` event within
+    `GATE_RAN_WINDOW_SECONDS` — the cause-2/3/4 population, previously
+    unmeasured), `"errored"` (the nearest correlated event recorded an
+    internal failure), or `"clean"` (the gate ran normally, whether it
+    allowed or blocked the commit — both are evidence the gate executed)."""
+    if commit_ts is None:
+        return "absent"
+    window = timedelta(seconds=GATE_RAN_WINDOW_SECONDS)
+    best_verdict: str | None = None
+    best_delta: timedelta | None = None
+    for ts, verdict in gate_events:
+        delta = abs(ts - commit_ts)
+        if delta <= window and (best_delta is None or delta < best_delta):
+            best_verdict, best_delta = verdict, delta
+    if best_verdict is None:
+        return "absent"
+    return "errored" if best_verdict == "errored" else "clean"
 
 
 def _rewrite_name_keys(mapping: dict) -> dict:
     """Rewrite a peer-supplied name-bearing dict's keys to something safe to
     aggregate — a peer record's dict KEYS are as untrusted as any other field
-    it carries. Each key is normalized through `_safe_name(_strip_ns(str(k)))`
+    it carries. Each key is normalized through `_redact(_strip_ns(str(k)))`
     when it's a string; a non-string key (which would otherwise raise
     `AttributeError` the moment a consumer calls `.startswith()` on it) is
     bucketed under `_UNSAFE_NAME` instead of dropped. Values collide-merge by
-    summing, matching `_safe_name`'s own collapse-and-merge convention — a
+    summing, matching `_redact`'s own collapse-and-merge convention — a
     normalization collision never silently drops a peer-attributed count. A
     peer-supplied VALUE is as untrusted as the key: it passes through
     `_safe_number` before summing, so a non-numeric value (string/null/list/
@@ -294,35 +232,12 @@ def _rewrite_name_keys(mapping: dict) -> dict:
     or non-finite float can't poison the aggregate."""
     out: dict = {}
     for k, v in mapping.items():
-        key = _safe_name(_strip_ns(str(k))) if isinstance(k, str) else _UNSAFE_NAME
+        key = _redact(_strip_ns(str(k))) if isinstance(k, str) else _UNSAFE_NAME
         out[key] = out.get(key, 0) + _safe_number(v)
     return out
 
 
-def _text_of(content) -> str:
-    """Flatten a message ``content`` (str or list of blocks) to plain text.
-    Used only for keyword CLASSIFICATION; never emitted into the digest."""
-    if isinstance(content, str):
-        return content
-    if isinstance(content, list):
-        parts = []
-        for block in content:
-            if isinstance(block, dict):
-                if isinstance(block.get("text"), str):
-                    parts.append(block["text"])
-                elif isinstance(block.get("content"), str):
-                    parts.append(block["content"])
-        return " ".join(parts)
-    return ""
-
-
-def _load_pricing(path: Path | None) -> dict:
-    if path and path.is_file():
-        try:
-            return json.loads(path.read_text())
-        except (OSError, json.JSONDecodeError):
-            return {}
-    return {}
+_text_of = classify.text_of
 
 
 # A version string is trusted input only when it's OUR OWN plugin.json (this
@@ -356,55 +271,26 @@ def _load_plugin_version(plugin_root: Path | None) -> str:
     return "unknown"
 
 
-def _rate(pricing: dict, model: str):
-    models = pricing.get("models", {})
-    if model in models:
-        return models[model]
-    alias = pricing.get("aliases", {}).get(model)
-    if alias and alias in models:
-        return models[alias]
-    return None
-
-
-def _cost(usage: dict, rate: dict, pricing: dict) -> float:
-    if not rate:
-        return 0.0
-    inp = usage.get("input_tokens", 0) or 0
-    out = usage.get("output_tokens", 0) or 0
-    cw = usage.get("cache_creation_input_tokens", 0) or 0
-    cr = usage.get("cache_read_input_tokens", 0) or 0
-    ir = rate.get("input", 0)
-    return (
-        inp / 1e6 * ir
-        + out / 1e6 * rate.get("output", 0)
-        + cw / 1e6 * ir * pricing.get("cache_write_multiplier", 1.25)
-        + cr / 1e6 * ir * pricing.get("cache_read_multiplier", 0.1)
-    )
-
-
 def _iter_records(paths: list[Path]):
-    """Yield every decodable JSON record across `paths`, in order.
-
-    Streams line by line: transcripts run to tens of MB and the recursive scan
-    now visits thousands of them, where `read_text().splitlines()` cost ~3x the
-    file's size in peak RSS before yielding anything. `ValueError` is caught
-    alongside `OSError` because `UnicodeDecodeError` is a ValueError — a
-    transcript truncated mid-character by a crashed session used to abort the
-    whole run (#1994 review).
-    """
+    """Yield every decodable JSON record across `paths`, in order — a thin
+    multi-path wrapper over session_log.records.iter_file_records (#2042);
+    every call site in this module passes a single-element list."""
     for path in sorted(paths, key=lambda x: str(x)):
-        try:
-            with path.open(encoding="utf-8", errors="replace") as fh:
-                for line in fh:
-                    line = line.strip()
-                    if not line:
-                        continue
-                    try:
-                        yield json.loads(line)
-                    except json.JSONDecodeError:
-                        continue
-        except (OSError, ValueError):
-            continue
+        yield from records.iter_file_records(path)
+
+
+# session_log.signals (issue #2044, epic #2040): per-record signal
+# accumulation used to be defined here; unified with
+# extract_session_report.py — see signals.py's module docstring for the
+# full per-function reconciliation. THIS SLICE CHANGES OUTPUT on purpose:
+# by_agent_type gains the same context_tokens/context_per_dispatch bucket
+# shape extract_session_report.py already had (#2029) — see the "Historical
+# session-digest.jsonl comparability" note in signals.py's docstring, and
+# this slice's own commit body for the enumerated golden diff.
+_accumulate_skill_agent_signals = signals.accumulate_skill_agent_signals
+_track_tool_call = signals.track_tool_call
+_classify_tool_result = signals.classify_tool_result
+_detect_correction_turn = signals.detect_correction_turn
 
 
 def _accumulate_token_signals(
@@ -416,10 +302,15 @@ def _accumulate_token_signals(
     tokens_total: Counter,
     by_model: dict[str, Counter],
     by_skill: dict[str, Counter],
-) -> float:
-    """Token-accounting concern: usage/cost totals split by model and skill.
-    Returns this record's cost (added to the running cost_total by the caller).
-    Thread attribution moved to the caller's `by_agent_type` bucketing (#1994).
+) -> tuple[float, dict]:
+    """Token-accounting concern: usage/cost totals split by model and skill,
+    on top of `signals.accumulate_token_signals`'s shared core (tokens_total
+    + by_model — no cost, no skill, matching extract_session_report.py's
+    exact shape; pricing/cost stays a session_extract.py-only extension per
+    ADR 0036). Returns `(cost, safe_usage)` — the caller's `by_agent_type`
+    bucket (#2044's context_tokens port) needs the same already-safety-
+    clamped usage fields this function computes, so it's returned rather
+    than recomputed.
 
     #2080: `usage` is read from a LOCAL transcript file — a different trust
     domain from the peer-digest path `_safe_number` was written to guard, but
@@ -430,173 +321,30 @@ def _accumulate_token_signals(
     overflows the int-to-float conversion (raising OverflowError and
     aborting the whole run before `round(cost * 1e6)` below is even reached)
     and the running totals can never go negative from one bad record."""
-    fields = (
-        "input_tokens",
-        "output_tokens",
-        "cache_creation_input_tokens",
-        "cache_read_input_tokens",
-    )
-    safe_usage = {f: _safe_number(usage.get(f, 0) or 0) for f in fields}
+    safe_usage = {f: _safe_number(v) for f, v in records.usage_fields(usage).items()}
     cost = _cost(safe_usage, _rate(pricing, raw_model or ""), pricing)
-    for f in fields:
-        v = safe_usage[f]
-        tokens_total[f] += v
-        if model:
-            by_model[model][f] += v
-        if skill:
-            by_skill[skill][f] += v
+    signals.accumulate_token_signals(safe_usage, model, tokens_total, by_model)
+    if skill:
+        for f in records.USAGE_FIELDS:
+            by_skill[skill][f] += safe_usage[f]
     if model:
         by_model[model]["cost_micro"] += round(cost * 1e6)
     if skill:
         by_skill[skill]["cost_micro"] += round(cost * 1e6)
-    return cost
+    return cost, safe_usage
 
 
-def _accumulate_skill_agent_signals(
-    skill,
-    content,
-    skills_invoked: Counter,
-    agent_dispatches: Counter,
-    active: dict[str, str | None],
-) -> None:
-    """Skill/agent-detection concern. `skill` is the legacy attributionSkill
-    tag (kept as a fallback — real transcripts don't emit it, #182);
-    `content`'s tool_use blocks are the primary signal: the Skill tool and the
-    Agent/Task tool that actually invoke them (#182). `active` tracks the
-    most-recently-invoked skill/agent (#711), sticky until superseded, for the
-    correction-turn concern to attribute against.
+# signals.track_edit/track_bash operate on a flat per-thread dict
+# (signals.new_thread()) rather than this script's former sid-keyed dicts —
+# see signals.py's module docstring for why dropping the sid-keying is a
+# behavior-preserving simplification, not a regression of the #1991 fix it
+# originally existed to prevent.
+_track_edit = signals.track_edit
+_track_bash = signals.track_bash
 
-    Counts DISPATCHES, not runs: a dispatch made from inside a subagent is
-    only visible in that subagent's own transcript, and a dispatch whose
-    transcript is absent never ran. Run counts come from `attributionAgent`
-    (#1994)."""
-    if skill:
-        skills_invoked[_safe_name(skill)] += 1
-    if not isinstance(content, list):
-        return
-    for block in content:
-        if not isinstance(block, dict) or block.get("type") != "tool_use":
-            continue
-        name = block.get("name", "?")
-        inp = block.get("input", {}) if isinstance(block.get("input"), dict) else {}
-        if name == "Skill":
-            s = inp.get("skill") or inp.get("name")
-            if isinstance(s, str) and s:
-                skills_invoked[_safe_name(_strip_ns(s))] += 1
-                active["skill"] = _safe_name(_strip_ns(s))
-        elif name in ("Agent", "Task"):
-            a = inp.get("subagent_type")
-            if isinstance(a, str) and a:
-                agent_dispatches[_safe_name(_strip_ns(a))] += 1
-                active["agent"] = _safe_name(_strip_ns(a))
-
-
-def _track_tool_call(
-    block: dict, pending_tool: dict[str, str], tool_calls: Counter
-) -> None:
-    """Error-classification bookkeeping: count every tool invocation (the
-    error-rate denominator) and remember its id -> name so a later
-    tool_result can be attributed back to the tool that produced it."""
-    name = _safe_name(str(block.get("name", "?")))
-    tool_calls[name] += 1
-    bid = block.get("id")
-    if isinstance(bid, str) and bid:
-        pending_tool[bid] = name
-
-
-def _classify_tool_result(
-    block: dict,
-    pending_tool: dict[str, str],
-    tool_errors: Counter,
-    error_counts: Counter,
-) -> None:
-    """Error-classification concern: tally errors by tool, and detect the two
-    rework sub-signals (failed edits via old_string mismatches, and
-    permission denials) from a tool_result block."""
-    if not block.get("is_error"):
-        return
-    bid = block.get("tool_use_id")
-    tool_name = pending_tool.get(bid, "?") if isinstance(bid, str) else "?"
-    tool_errors[tool_name] += 1
-    rcontent = _text_of(block.get("content"))
-    if tool_name in _EDIT_TOOLS and _OLDSTRING_RE.search(rcontent):
-        error_counts["failed_edits"] += 1
-    if _PERMISSION_RE.search(rcontent):
-        error_counts["permission_denials"] += 1
-
-
-def _track_edit(
-    block: dict, sid, edits_per_file: Counter, verify_edited_since: dict[str, bool]
-) -> None:
-    """Edit-tracking concern: count Edit/Write/... calls per file basename,
-    so repeated edits to the same file (a rework signal) can be derived. Also
-    marks this session's pending stuck-verify-loop streak (#708) as
-    consumed — an edit resets it, same as verify_guard.py's own reset."""
-    name = block.get("name", "?")
-    inp = block.get("input", {}) if isinstance(block.get("input"), dict) else {}
-    if name in _EDIT_TOOLS and inp.get("file_path"):
-        edits_per_file[_safe_name(_basename(str(inp["file_path"])))] += 1
-    if name in _EDIT_TOOLS:
-        verify_edited_since[str(sid or "")] = True
-
-
-def _track_bash(
-    block: dict,
-    sid,
-    bash_commands: Counter,
-    bash_signal_counts: Counter,
-    last_verify_norm: dict[str, str],
-    verify_edited_since: dict[str, bool],
-) -> None:
-    """Bash-retry / commit-bypass / stuck-verify-loop concern (#111, #708):
-    normalize the command for near-identical retry detection, detect a
-    stuck-verify-loop repeat (the same normalized verify command run again
-    with no Edit/Write/... call since the previous run in this session), and
-    detect the review-gate bypass signal on `git commit` invocations."""
-    name = block.get("name", "?")
-    inp = block.get("input", {}) if isinstance(block.get("input"), dict) else {}
-    if name != "Bash" or not isinstance(inp.get("command"), str):
-        return
-    cmd = inp["command"].strip()
-    # near-identical retry detection: normalize whitespace
-    norm = re.sub(r"\s+", " ", cmd)
-    bash_commands[norm] += 1
-    if _VERIFY_RE.search(cmd):
-        skey = str(sid or "")
-        if last_verify_norm.get(skey) == norm and not verify_edited_since.get(
-            skey, False
-        ):
-            bash_signal_counts["repeated_verify_runs"] += 1
-        last_verify_norm[skey] = norm
-        verify_edited_since[skey] = False
-    # gate signal (#111): commit + review-gate bypass, scoped to the git-commit
-    # argv (#2036) — see _bash_segments()/_is_git_commit_argv() above.
-    for segment in _bash_segments(cmd):
-        if _is_git_commit_argv(segment):
-            bash_signal_counts["commit_attempts"] += 1
-            if any(tok in _COMMIT_BYPASS_TOKENS for tok in segment[1:]):
-                bash_signal_counts["commit_bypasses"] += 1
-
-
-def _detect_correction_turn(rec: dict, content) -> bool:
-    """Correction-turn concern: a real user message (not a tool_result
-    envelope) containing a correction keyword ("no", "actually", "revert",
-    ...)."""
-    if rec.get("type") != "user" or rec.get("isMeta"):
-        return False
-    utext = _text_of(content)
-    if not utext:
-        return False
-    # skip pure tool_result envelopes (no free-text user prompt)
-    if isinstance(content, list) and all(
-        isinstance(b, dict) and b.get("type") == "tool_result" for b in content
-    ):
-        return False
-    return bool(_CORRECTION_RE.search(utext.lower()))
-
-
-def _slim(d: dict) -> dict:
-    return {k: dict(sorted(v.items())) for k, v in sorted(d.items())}
+# session_log.records.slim_by_name (#2042) is this exact function; aliased
+# so the two call sites below are unchanged.
+_slim = records.slim_by_name
 
 
 def extract(
@@ -605,18 +353,23 @@ def extract(
     registry: dict,
     plugin_version: str = "unknown",
     projects_root: Path | None = None,
+    boundary_events_path: Path | None = None,
 ) -> dict:
     tokens_total = Counter()
     cost_total = 0.0
     by_model: dict[str, Counter] = defaultdict(Counter)
     by_skill: dict[str, Counter] = defaultdict(Counter)
-    # Message counts keyed by AGENT NAME — `main` for the main thread,
+    # Per-agent buckets keyed by AGENT NAME — `main` for the main thread,
     # `unattributed` where no agent is resolvable. Renamed from `by_subagent`
     # (#1994): that name meant "sidechain vs main" here while the shipped
     # report used the same path for agent-name attribution, and `by_agent_type`
     # is the plugin's settled vocabulary for this map
-    # (knowledge/telemetry-schema.md, cost-metering).
-    by_agent_type = Counter()
+    # (knowledge/telemetry-schema.md, cost-metering). #2044: switched from a
+    # bare message-count Counter to signals.new_agent_bucket()'s dict shape —
+    # extract_session_report.py's real per-agent context_tokens (#2029),
+    # ported here for the first time. See signals.py's module docstring,
+    # "Historical session-digest.jsonl comparability".
+    by_agent_type: dict[str, dict] = {}
     agent_runs = Counter()  # one subagent transcript is one run
     agent_dispatches = Counter()  # Agent/Task tool_use calls
     subagent_transcripts = 0
@@ -630,14 +383,19 @@ def extract(
     # repeated_verify_runs (#708): mirrors verify_guard.py's own stuck-loop
     # detection — a "repeat" is the same normalized verify command run again
     # with NO Edit/Write/NotebookEdit/MultiEdit call since the previous verify
-    # run in the same session (NOT a raw tally of every verify-class command,
+    # run in the same thread (NOT a raw tally of every verify-class command,
     # despite the metric's pre-#708 name — that raw tally double-counted the
     # ordinary RED/GREEN/REFACTOR re-run of the same command after a real
-    # edit). Tracked per-session so interleaved transcripts (--all-projects)
-    # don't cross-contaminate each other's state.
-    last_verify_norm: dict[str, str] = {}
-    verify_edited_since: dict[str, bool] = {}
+    # edit). #2044: tracked via a flat per-thread dict (signals.new_thread()),
+    # reset every file — see signals.py's module docstring for why the prior
+    # sid-keying inside an already-per-file-reset dict was redundant.
     bash_signal_counts = Counter()  # repeated_verify_runs, commit_attempts/bypasses
+    # gate-run correlation (#2037): every git-commit argv seen, as
+    # (record timestamp, was it a deliberate --no-verify/-n bypass) — kept
+    # separately from bash_signal_counts because correlating against
+    # boundary-events.jsonl needs each attempt's own timestamp, not just a
+    # running total. See "gate-run correlation (#2037)" above `extract()`.
+    commit_attempt_events: list[tuple[str | None, bool]] = []
     error_counts = Counter()  # failed_edits, permission_denials
     compaction_events = 0
     tool_errors = Counter()  # by tool name
@@ -670,10 +428,9 @@ def extract(
             subagent_layout_present = True
         agent_name: str | None = None
         thread_msgs = 0
+        thread_usage = signals.new_agent_bucket()
         records_seen = 0
-        bash_commands = Counter()
-        last_verify_norm = {}
-        verify_edited_since = {}
+        thread = signals.new_thread()
         pending_tool = {}
         active = {"skill": None, "agent": None}
 
@@ -690,7 +447,7 @@ def extract(
                     # invent an agent while leaving the one that really ran in
                     # never_observed_agents.
                     if stripped not in _HARNESS_ATTRIBUTIONS:
-                        agent_name = _safe_name(stripped)
+                        agent_name = _redact(stripped)
             rtype = rec.get("type")
             is_sidechain = bool(rec.get("isSidechain")) or is_subagent
             # attributionSkill is a legacy/secondary tag — the harness does not emit
@@ -699,7 +456,7 @@ def extract(
             # carry it (and per-skill token attribution via by_skill).
             raw_skill = rec.get("attributionSkill") or rec.get("attribution_skill")
             skill = (
-                _safe_name(_strip_ns(raw_skill))
+                _redact(_strip_ns(raw_skill))
                 if isinstance(raw_skill, str) and raw_skill
                 else None
             )
@@ -713,27 +470,40 @@ def extract(
                 compaction_events += 1
 
             msg = rec.get("message") if isinstance(rec.get("message"), dict) else {}
-            usage = (
-                msg.get("usage")
-                if isinstance(msg.get("usage"), dict)
-                else (rec.get("usage") if isinstance(rec.get("usage"), dict) else None)
-            )
+            usage = records.usage_of(rec)
             raw_model = msg.get("model") or rec.get("model")
             # A non-str `model` would be an unhashable dict key and abort the
             # whole run. Keep the RAW id for the pricing lookup and sanitize
-            # only where it becomes a key: `_safe_name` would collapse a
+            # only where it becomes a key: `_redact` would collapse a
             # Vertex-style id (`...-v2@20241022`) to "other", miss
             # `pricing["models"]`, and silently bill the session $0.00 — an
             # under-report, which is the failure direction that matters for the
             # cost-regression baseline (#1994 review).
             raw_model = raw_model if isinstance(raw_model, str) and raw_model else None
-            model = _safe_name(raw_model) if raw_model else None
+            model = _redact(raw_model) if raw_model else None
 
             if usage:
+                cost, safe_usage = _accumulate_token_signals(
+                    usage,
+                    raw_model,
+                    model,
+                    skill,
+                    pricing,
+                    tokens_total,
+                    by_model,
+                    by_skill,
+                )
+                cost_total += cost
                 if is_subagent:
                     # The whole file is one agent's run; its label is resolved
-                    # once, at end of file, from `attributionAgent`.
+                    # once, at end of file, from `attributionAgent` — so the
+                    # per-record usage accumulates into `thread_usage` and is
+                    # folded into the file's bucket at file-end (#2044).
                     thread_msgs += 1
+                    thread_usage["messages"] += 1
+                    for f in signals.CONTEXT_TOKEN_FIELDS:
+                        thread_usage[f] += safe_usage[f]
+                    thread_usage["output_tokens"] += safe_usage["output_tokens"]
                 else:
                     # A MAIN transcript. An older harness inlined sidechain
                     # turns here rather than in their own file, and
@@ -746,23 +516,17 @@ def extract(
                         inline_label = (
                             _UNATTRIBUTED_LABEL
                             if stripped_rec in _HARNESS_ATTRIBUTIONS
-                            else _safe_name(stripped_rec)
+                            else _redact(stripped_rec)
                         )
                     elif is_sidechain:
                         inline_label = "sidechain"
                     else:
                         inline_label = _MAIN_LABEL
-                    by_agent_type[inline_label] += 1
-                cost_total += _accumulate_token_signals(
-                    usage,
-                    raw_model,
-                    model,
-                    skill,
-                    pricing,
-                    tokens_total,
-                    by_model,
-                    by_skill,
-                )
+                    bucket = by_agent_type.setdefault(inline_label, signals.new_agent_bucket())
+                    bucket["messages"] += 1
+                    for f in signals.CONTEXT_TOKEN_FIELDS:
+                        bucket[f] += safe_usage[f]
+                    bucket["output_tokens"] += safe_usage["output_tokens"]
 
             content = msg.get("content")
             _accumulate_skill_agent_signals(
@@ -777,15 +541,32 @@ def extract(
                     btype = block.get("type")
                     if btype == "tool_use":
                         _track_tool_call(block, pending_tool, tool_calls)
-                        _track_edit(block, sid, edits_per_file, verify_edited_since)
-                        _track_bash(
-                            block,
-                            sid,
-                            bash_commands,
-                            bash_signal_counts,
-                            last_verify_norm,
-                            verify_edited_since,
+                        _track_edit(block, edits_per_file, thread)
+                        _track_bash(block, bash_signal_counts, thread)
+                        # gate-run correlation (#2037): re-invokes the same
+                        # classify.bash_segments()/is_git_commit_argv() calls
+                        # signals.track_bash() already made above — not
+                        # duplicated logic, just a second call so this
+                        # extractor-only concern (boundary-events.jsonl
+                        # correlation has no shipped-extractor use) doesn't
+                        # need to widen signals.track_bash()'s shared
+                        # signature. See ADR 0036's monorepo-only precedent.
+                        bblock_input = (
+                            block.get("input", {})
+                            if isinstance(block.get("input"), dict)
+                            else {}
                         )
+                        if block.get("name") == "Bash" and isinstance(
+                            bblock_input.get("command"), str
+                        ):
+                            for segment in _bash_segments(bblock_input["command"].strip()):
+                                if _is_git_commit_argv(segment):
+                                    is_bypass = any(
+                                        tok in _COMMIT_BYPASS_TOKENS for tok in segment[1:]
+                                    )
+                                    commit_attempt_events.append(
+                                        (rec.get("timestamp"), is_bypass)
+                                    )
                     elif btype == "tool_result":
                         _classify_tool_result(
                             block, pending_tool, tool_errors, error_counts
@@ -807,14 +588,22 @@ def extract(
         # `attributionAgent` has been seen, so thread-level attribution is
         # resolved here rather than per record.
         label = agent_name or (_UNATTRIBUTED_LABEL if is_subagent else _MAIN_LABEL)
-        if thread_msgs:  # `+= 0` would materialize a zero-valued key
-            by_agent_type[label] += thread_msgs
+        if thread_msgs:  # a zero-message file must not materialize a bucket
+            bucket = by_agent_type.setdefault(label, signals.new_agent_bucket())
+            bucket["messages"] += thread_usage["messages"]
+            for f in signals.CONTEXT_TOKEN_FIELDS:
+                bucket[f] += thread_usage[f]
+            bucket["output_tokens"] += thread_usage["output_tokens"]
+            # One subagent transcript is one dispatch, so dispatches are
+            # counted here rather than inferred from message volume.
+            if is_subagent:
+                bucket["dispatches"] += 1
         if records_seen and is_subagent:
             subagent_transcripts += 1
             agent_runs[label] += 1
         elif records_seen:
             main_transcripts += 1
-        retried_bash_total += sum(n - 1 for n in bash_commands.values() if n > 1)
+        retried_bash_total += sum(n - 1 for n in thread["bash_commands"].values() if n > 1)
 
     # repeated edits (project-wide: a file is shared state) / retried bash
     # (per thread: a retry is a property of one agent's own loop).
@@ -825,6 +614,24 @@ def extract(
     repeated_verify_runs = bash_signal_counts["repeated_verify_runs"]
     commit_attempts = bash_signal_counts["commit_attempts"]
     commit_bypasses = bash_signal_counts["commit_bypasses"]
+
+    # gate-run correlation (#2037): classify every NON-bypassed commit
+    # attempt (a deliberate --no-verify/-n bypass is already fully explained
+    # by commit_bypasses above — git itself skips the gate entirely when
+    # that flag is set, so there is nothing to correlate) against the
+    # gate_ran event timeline.
+    gate_ran_events = _read_gate_ran_events(boundary_events_path)
+    gate_ran_absent = gate_ran_errored = gate_ran_clean = 0
+    for ts_str, is_bypass in commit_attempt_events:
+        if is_bypass:
+            continue
+        outcome = _classify_gate_run(_parse_event_ts(ts_str), gate_ran_events)
+        if outcome == "absent":
+            gate_ran_absent += 1
+        elif outcome == "errored":
+            gate_ran_errored += 1
+        else:
+            gate_ran_clean += 1
 
     # never-observed registry items
     # Run counts are ground truth where subagent transcripts exist (one file
@@ -862,7 +669,7 @@ def extract(
             "cache_hit_ratio": cache_hit_ratio,
             "by_model": _slim(by_model),
             "by_skill": _slim(by_skill),
-            "by_agent_type": dict(sorted(by_agent_type.items())),
+            "by_agent_type": signals.finalize_agent_buckets(by_agent_type),
         },
         "rework": {
             "failed_edits": failed_edits,
@@ -888,6 +695,16 @@ def extract(
             "bypass_rate": round(commit_bypasses / commit_attempts, 4)
             if commit_attempts
             else 0.0,
+            # #2037: the three-way cause distribution `_BYPASS_RE` alone
+            # cannot see. `commit_bypasses` above IS the "deliberate" count
+            # (cause 1); these three cover the previously-unmeasured
+            # cause-2/3/4 population, now split by correlated gate_ran
+            # evidence — "absent" (no gate_ran event found: inert hook or an
+            # unregistered commit path), "errored" (the gate ran but
+            # recorded an internal failure), "clean" (the gate ran normally).
+            "gate_ran_absent": gate_ran_absent,
+            "gate_ran_errored": gate_ran_errored,
+            "gate_ran_clean": gate_ran_clean,
         },
         "utilization": {
             "skills_invoked": dict(sorted(skills_invoked.items())),
@@ -969,7 +786,7 @@ def _opaque_session_id(session_id: str) -> str:
     `escalate()` divides friction by. Same construction the shipped twin uses
     for project labels (#1994 review).
     """
-    safe = _safe_name(session_id)
+    safe = _redact(session_id)
     if safe != _UNSAFE_NAME:
         return safe
     digest = hashlib.sha256(session_id.encode("utf-8")).hexdigest()[:8]
@@ -1013,7 +830,7 @@ def _project_and_ts(path: Path) -> tuple[str, str]:
         if not project:
             cwd = rec.get("cwd")
             if isinstance(cwd, str) and cwd:
-                project = _safe_name(_basename(str(cwd).rstrip("/\\")))
+                project = _redact(str(cwd).rstrip("/\\"), from_path=True)
         ts = rec.get("timestamp")
         if isinstance(ts, str) and ts > last_ts:
             last_ts = ts
@@ -1260,9 +1077,10 @@ def _read_synced_records(digests_root: Path) -> list[dict]:
     output_tokens,cache_creation_input_tokens,cache_read_input_tokens}`;
     `rework.*` restricted to `_REWORK_KEYS`; `accuracy.{tool_calls,
     tool_error_rate,user_correction_turns}`;
-    `gate.{commit_attempts,commit_bypasses}`), and the shape of the
+    `gate.{commit_attempts,commit_bypasses,gate_ran_absent,gate_ran_errored,
+    gate_ran_clean}`), and the shape of the
     `tokens`/`rework`/`accuracy`/`utilization`/`gate` containers themselves
-    are normalized on the way in (`_normalize_plugin_version`, `_safe_name`,
+    are normalized on the way in (`_normalize_plugin_version`, `_redact`,
     `_rewrite_name_keys`, `_safe_number`, `_normalize_name_dicts`,
     `_normalize_numeric_fields`) since a record originates on a peer
     machine, not this one."""
@@ -1283,9 +1101,9 @@ def _read_synced_records(digests_root: Path) -> list[dict]:
             rec["plugin_version"] = _normalize_plugin_version(
                 rec.get("plugin_version")
             )
-            rec["host"] = _safe_name(str(rec.get("host") or "unknown"))
-            rec["project"] = _safe_name(str(rec.get("project") or "unknown"))
-            rec["ts"] = _safe_name(rec["ts"]) if isinstance(rec.get("ts"), str) else ""
+            rec["host"] = _redact(str(rec.get("host") or "unknown"))
+            rec["project"] = _redact(str(rec.get("project") or "unknown"))
+            rec["ts"] = _redact(rec["ts"]) if isinstance(rec.get("ts"), str) else ""
             rec["cost_usd"] = _safe_number(rec.get("cost_usd", 0))
             utilization = (
                 rec.get("utilization") if isinstance(rec.get("utilization"), dict) else {}
@@ -1317,7 +1135,16 @@ def _read_synced_records(digests_root: Path) -> list[dict]:
             _normalize_numeric_fields(
                 accuracy, ("tool_calls", "tool_error_rate", "user_correction_turns")
             )
-            _normalize_numeric_fields(gate, ("commit_attempts", "commit_bypasses"))
+            _normalize_numeric_fields(
+                gate,
+                (
+                    "commit_attempts",
+                    "commit_bypasses",
+                    "gate_ran_absent",
+                    "gate_ran_errored",
+                    "gate_ran_clean",
+                ),
+            )
 
             rec["utilization"] = utilization
             rec["accuracy"] = accuracy
@@ -1878,6 +1705,13 @@ def main(argv=None) -> int:
         "'current-and-previous' (only the current + immediately previous "
         "plugin_version observed in the digests being read)",
     )
+    ap.add_argument(
+        "--boundary-events",
+        metavar="FILE",
+        help="gate-run correlation (#2037): boundary-events.jsonl to read "
+        "gate_ran events from (default: <cwd>/.claude/metrics/"
+        "boundary-events.jsonl)",
+    )
     args = ap.parse_args(argv)
 
     pricing_path = (
@@ -1923,7 +1757,22 @@ def main(argv=None) -> int:
     )
 
     root = Path(args.projects_root or (Path.home() / ".claude" / "projects"))
-    digest = extract(paths, pricing, registry, version, projects_root=root)
+    boundary_events_path = (
+        Path(args.boundary_events)
+        if args.boundary_events
+        else Path(os.path.abspath(args.cwd or os.getcwd()))
+        / ".claude"
+        / "metrics"
+        / "boundary-events.jsonl"
+    )
+    digest = extract(
+        paths,
+        pricing,
+        registry,
+        version,
+        projects_root=root,
+        boundary_events_path=boundary_events_path,
+    )
     # `transcripts` is set by extract() and counts MAIN-thread sessions only;
     # `subagent_transcripts` counts dispatched agent runs. Overwriting it with
     # len(paths) here would report every file as a session (#1994).
@@ -1945,7 +1794,6 @@ def slim_record(digest: dict) -> dict:
     so the persisted trend stream carries no file names — strictly metrics, no
     raw prompt/code content. `recorded_at` is the only wall-clock field and lives
     on the trend log, never in the deterministic digest output."""
-    from datetime import datetime
 
     tok = digest.get("token", {})
     rew = digest.get("rework", {})
@@ -1987,6 +1835,9 @@ def slim_record(digest: dict) -> dict:
             "commit_attempts": gate.get("commit_attempts", 0),
             "commit_bypasses": gate.get("commit_bypasses", 0),
             "bypass_rate": gate.get("bypass_rate", 0.0),
+            "gate_ran_absent": gate.get("gate_ran_absent", 0),
+            "gate_ran_errored": gate.get("gate_ran_errored", 0),
+            "gate_ran_clean": gate.get("gate_ran_clean", 0),
         },
         "utilization": {
             "skills_invoked": len(util.get("skills_invoked", {})),

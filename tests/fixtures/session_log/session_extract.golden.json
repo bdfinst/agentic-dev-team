@@ -2,7 +2,7 @@
   "accuracy": {
     "by_agent": {},
     "by_skill": {},
-    "tool_calls": 4,
+    "tool_calls": 5,
     "tool_error_rate": 0.0,
     "tool_errors_by_tool": {},
     "user_correction_turns": 0
@@ -10,7 +10,10 @@
   "gate": {
     "bypass_rate": 0.0,
     "commit_attempts": 0,
-    "commit_bypasses": 0
+    "commit_bypasses": 0,
+    "gate_ran_absent": 0,
+    "gate_ran_clean": 0,
+    "gate_ran_errored": 0
   },
   "plugin_version": "0.0.0-golden",
   "rework": {
@@ -28,28 +31,64 @@
   "subagent_transcripts": 3,
   "token": {
     "by_agent_type": {
-      "correctness-review": 1,
-      "doc-review": 1,
-      "main": 5,
-      "unattributed": 1
+      "correctness-review": {
+        "cache_creation_input_tokens": 5,
+        "cache_read_input_tokens": 5,
+        "context_per_dispatch": 70,
+        "context_tokens": 70,
+        "dispatches": 1,
+        "input_tokens": 60,
+        "messages": 1,
+        "output_tokens": 30
+      },
+      "doc-review": {
+        "cache_creation_input_tokens": 5,
+        "cache_read_input_tokens": 5,
+        "context_per_dispatch": 70,
+        "context_tokens": 70,
+        "dispatches": 1,
+        "input_tokens": 60,
+        "messages": 1,
+        "output_tokens": 30
+      },
+      "main": {
+        "cache_creation_input_tokens": 20,
+        "cache_read_input_tokens": 10,
+        "context_per_dispatch": null,
+        "context_tokens": 155,
+        "dispatches": 0,
+        "input_tokens": 125,
+        "messages": 6,
+        "output_tokens": 75
+      },
+      "unattributed": {
+        "cache_creation_input_tokens": 5,
+        "cache_read_input_tokens": 5,
+        "context_per_dispatch": 70,
+        "context_tokens": 70,
+        "dispatches": 1,
+        "input_tokens": 60,
+        "messages": 1,
+        "output_tokens": 30
+      }
     },
     "by_model": {
       "claude-sonnet-5": {
         "cache_creation_input_tokens": 35,
         "cache_read_input_tokens": 25,
-        "cost_micro": 3438,
-        "input_tokens": 300,
-        "output_tokens": 160
+        "cost_micro": 3528,
+        "input_tokens": 305,
+        "output_tokens": 165
       }
     },
     "by_skill": {},
     "cache_hit_ratio": 0.4167,
-    "cost_usd": 0.0034,
+    "cost_usd": 0.0035,
     "totals": {
       "cache_creation_input_tokens": 35,
       "cache_read_input_tokens": 25,
-      "input_tokens": 300,
-      "output_tokens": 160
+      "input_tokens": 305,
+      "output_tokens": 165
     }
   },
   "transcripts": 1,

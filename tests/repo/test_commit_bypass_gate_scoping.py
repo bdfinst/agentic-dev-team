@@ -92,9 +92,8 @@ def test_session_extract_commit_bypass_scoping(
 ) -> None:
     mod = _session_extract(monkeypatch)
     block = {"name": "Bash", "input": {"command": cmd}}
-    bash_commands = Counter()
     signals = Counter()
-    mod._track_bash(block, "sid-1", bash_commands, signals, {}, {})
+    mod._track_bash(block, signals, mod.signals.new_thread())
     assert signals["commit_attempts"] == (1 if expect_attempt else 0)
     assert signals["commit_bypasses"] == (1 if expect_bypass else 0)
 
@@ -125,7 +124,7 @@ def test_both_extractors_agree(
     block = {"name": "Bash", "input": {"command": cmd}}
 
     se_signals = Counter()
-    se._track_bash(block, "sid-1", Counter(), se_signals, {}, {})
+    se._track_bash(block, se_signals, se.signals.new_thread())
 
     esr_signals = Counter()
     esr._track_bash(block, esr_signals, esr._new_thread())
@@ -151,6 +150,6 @@ def test_two_real_commits_in_one_bash_call_count_as_two_attempts(
         "input": {"command": 'git commit -m a && git commit -m b --no-verify'},
     }
     signals = Counter()
-    mod._track_bash(block, "sid-1", Counter(), signals, {}, {})
+    mod._track_bash(block, signals, mod.signals.new_thread())
     assert signals["commit_attempts"] == 2
     assert signals["commit_bypasses"] == 1

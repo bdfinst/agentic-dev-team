@@ -26,7 +26,10 @@ transcript tree (fabricated, never real session data) covering:
   - a subagent transcript with no `attributionAgent` at all
     (`subagents/agent-ccc3.jsonl`) — the `unattributed` bucket;
   - a Windows-style backslash file path in two `Edit` tool_use blocks,
-    pinning `_basename`'s cross-platform-separator fix; and
+    pinning `_basename`'s cross-platform-separator fix;
+  - an absolute POSIX-style file path in a third `Edit` tool_use block
+    (`SENTINEL_POSIX_USER`, issue #2045), so `redact()`'s `from_path=True`
+    branch is exercised against both path shapes, not Windows only; and
   - sentinel prompt/code/command strings (`SENTINEL_..._DO_NOT_LEAK`) that
     must never appear in either script's output.
 
@@ -106,6 +109,10 @@ SENTINELS = (
     "SENTINEL_CODE_DO_NOT_LEAK",
     "SENTINEL_CMD_do_not_leak",
     "SENTINEL_USER",
+    # Absolute POSIX path sentinel (issue #2045) — pairs with SENTINEL_USER's
+    # Windows-style path above, so the corpus exercises redact()'s
+    # from_path=True branch against both path shapes, not Windows only.
+    "SENTINEL_POSIX_USER",
 )
 
 

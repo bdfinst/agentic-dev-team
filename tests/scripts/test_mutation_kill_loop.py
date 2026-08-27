@@ -624,3 +624,52 @@ def test_confirm_scoped_config_is_not_wired_into_the_default_loop_path():
     import inspect
 
     assert "make_confirm_scoped_config" not in inspect.getsource(loop._score_round)
+
+
+# =============================================================================
+# #2031 AC4 — degenerate-narrowing fallback: when the survivor-line set covers
+# too much of the file to be worth narrowing, degrade to the ordinary
+# whole-file scoped config instead of a huge one-span-per-line `mutate` array.
+# =============================================================================
+def test_confirm_scoped_config_falls_back_to_full_glob_when_narrowing_saves_nothing():
+    """5 of 10 lines (50%) hits the default degenerate_ratio — no cheaper than
+    re-scoping the whole file, so this must equal make_scoped_config's output,
+    not a 5-entry span array."""
+    cfg = loop.make_confirm_scoped_config(
+        _cfg(), "Calc.cs", [1, 2, 3, 4, 5], total_file_lines=10
+    )
+    assert cfg == loop.make_scoped_config(_cfg(), "Calc.cs")
+
+
+def test_confirm_scoped_config_keeps_narrowing_when_savings_are_meaningful():
+    """2 of 1000 lines is a real saving — must still emit the per-line spans,
+    not degrade, even though total_file_lines is supplied."""
+    cfg = loop.make_confirm_scoped_config(
+        _cfg(), "Calc.cs", [10, 99], total_file_lines=1000
+    )
+    assert cfg["stryker-config"]["mutate"] == [
+        "**/Calc.cs{10..10}",
+        "**/Calc.cs{99..99}",
+    ]
+
+
+def test_confirm_scoped_config_degenerate_ratio_is_configurable():
+    """A caller wanting a stricter (lower) threshold can override the 50%
+    default — 2 of 10 lines (20%) degrades under a 0.1 threshold."""
+    cfg = loop.make_confirm_scoped_config(
+        _cfg(), "Calc.cs", [1, 2], total_file_lines=10, degenerate_ratio=0.1
+    )
+    assert cfg == loop.make_scoped_config(_cfg(), "Calc.cs")
+
+
+def test_confirm_scoped_config_skips_degenerate_check_when_total_file_lines_unset():
+    """total_file_lines=None (the default) preserves today's unconditional
+    per-line-span behavior — no degenerate comparison is made at all."""
+    cfg = loop.make_confirm_scoped_config(_cfg(), "Calc.cs", [1, 2, 3, 4, 5])
+    assert cfg["stryker-config"]["mutate"] == [
+        "**/Calc.cs{1..1}",
+        "**/Calc.cs{2..2}",
+        "**/Calc.cs{3..3}",
+        "**/Calc.cs{4..4}",
+        "**/Calc.cs{5..5}",
+    ]

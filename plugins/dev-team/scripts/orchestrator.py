@@ -35,12 +35,13 @@ import argparse
 import asyncio
 import functools
 import json
-import re
 import subprocess
 import sys
 from pathlib import Path
 
 SCRIPTS = Path(__file__).resolve().parent
+sys.path.insert(0, str(SCRIPTS))
+from lib.slug import derive_slug
 
 # Default personas for plan review — the five plan-review-* critics.
 DEFAULT_PERSONAS = [
@@ -64,11 +65,12 @@ JSON_CONTRACT_PERSONAS = DEFAULT_PERSONAS + CODE_REVIEW_PANEL
 # Keyword heuristic for the Research phase's security-engineer dispatch
 # decision. This tuple is the one normative source in CODE for the keyword
 # list — _touches_security() consumes it, it is not duplicated in any other
-# .py module. agents/orchestrator.md's Security Engineer dispatch section
-# restates the same seven keywords in prose for its own (agent-facing,
-# standalone) audience; that restatement is not mechanically bound to this
-# tuple today — keep the two in sync by hand until a content-guard test
-# exists (see follow-up #2067).
+# .py module. knowledge/orchestrator-script-implementation.md's "Security
+# Engineer dispatch — script approximation" section (linked from
+# agents/orchestrator.md's phase table) restates the same seven keywords in
+# prose for its own (agent-facing, standalone) audience; a content-guard
+# test (tests/agents/test_orchestrator_security_persona_prose_sync.py, #2067)
+# now asserts the two stay in sync.
 SECURITY_KEYWORDS = (
     "auth",
     "secret",
@@ -94,10 +96,12 @@ RESEARCH_PERSONAS = ("codebase-recon", "architect", "data-flow-tracer")
 # see _default_phase_plan below. A tuple, matching RESEARCH_PERSONAS's own
 # convention; unlike RESEARCH_PERSONAS, nothing is ever conditionally
 # appended to this roster, so no defensive-copy note is needed here.
-# agents/orchestrator.md's "Plan persona roster" section restates this same
-# trio (and CRITICS_SKIPPED_ALL_CORE_FAILED's value) in prose; that
-# restatement is not mechanically bound to this tuple today — keep the two
-# in sync by hand until a content-guard test exists (see follow-up #2067).
+# knowledge/orchestrator-script-implementation.md's "Plan persona roster"
+# section (linked from agents/orchestrator.md's phase table) restates this
+# same trio (and CRITICS_SKIPPED_ALL_CORE_FAILED's value) in prose; a
+# content-guard test
+# (tests/agents/test_orchestrator_security_persona_prose_sync.py, #2067) now
+# asserts the two stay in sync.
 PLAN_CORE_PERSONAS = ("product-manager", "architect", "qa-engineer")
 
 # Persisted-state vocabulary for _default_phase_plan's all-core-failed guard
@@ -250,23 +254,6 @@ async def classify(request: str, skip_llm: bool = False) -> dict:
 # ---------------------------------------------------------------------------
 
 
-def _derive_recon_slug(root: Path) -> str:
-    """Kebab-safe, lowercase repo-root directory name.
-
-    Duplicates codebase_recon.py's own `_derive_slug` (same algorithm)
-    rather than importing it. Both are hand-kept in sync by
-    `test_derive_recon_slug_matches_codebase_recon_algorithm`, which already
-    exists (this is not a "keep in sync until a guard test exists" gap —
-    tracked instead as a cleanup: promote both to a shared `scripts/lib/`
-    module, matching codebase_recon.py's own existing `from lib import ...`
-    convention, and delete this copy — see follow-up #2068).
-    """
-    name = root.resolve().name.lower()
-    name = re.sub(r"[^a-z0-9._-]", "-", name)
-    name = re.sub(r"-{2,}", "-", name)
-    return name.strip("-") or "repo"
-
-
 def _recon_artifact_path(root: Path) -> Path:
     """Path to codebase-recon's JSON artifact for the repo at `root`.
 
@@ -285,7 +272,7 @@ def _recon_artifact_path(root: Path) -> Path:
     diverge — inherent to the recon agent's contract, not something this
     function can paper over.
     """
-    return root / ".claude" / "memory" / f"recon-{_derive_recon_slug(root)}.json"
+    return root / ".claude" / "memory" / f"recon-{derive_slug(root)}.json"
 
 
 async def _resolve_recon_artifact(personas: list, results: list, cwd: Path) -> str | None:

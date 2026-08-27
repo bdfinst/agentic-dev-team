@@ -505,6 +505,26 @@ def test_a_windows_file_path_is_reduced_to_its_basename(tmp_path):
     assert combined["rework"]["repeated_file_edits"] == {"secrets.env": 2}
 
 
+def test_a_windows_style_cwd_still_resolves_to_its_project_basename(tmp_path):
+    """`_project_label` used `os.path.basename(os.path.normpath(cwd))`, which
+    splits on '/' only on this (POSIX) host — a Windows-authored transcript's
+    backslash-separated `cwd` came back whole. `classify.safe_name`'s
+    allowlist has no backslash in it, so the raw path never leaked, but the
+    project label collapsed to "other" instead of resolving to the real
+    project name (issue #2045: fixed by routing through the shared,
+    Windows-path-aware `redact(..., from_path=True)` like every other
+    path-derived field already does)."""
+    root = tmp_path / "projects"
+    rec = _assistant([{"type": "text", "text": "hi"}])
+    rec["cwd"] = r"C:\Users\SENTINEL_WIN_USER\workspace\myproject"
+    _write(root / PROJECT_SLUG / f"{SESSION_ID}.jsonl", [rec])
+    out = tmp_path / "r.json"
+    report = _run(root, out)
+    raw = out.read_text(encoding="utf-8")
+    assert "SENTINEL_WIN_USER" not in raw
+    assert list(report["projects"]) == ["myproject"]
+
+
 def test_a_projects_root_containing_a_subagents_segment_is_not_misread(tmp_path):
     """`"subagents" in path.parts` asked the absolute path, so a root under a
     directory of that name classified every transcript in the tree as a run."""

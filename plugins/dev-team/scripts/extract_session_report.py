@@ -45,255 +45,57 @@ import hashlib
 import json
 import os
 import re
-import shlex
 import socket
+import sys
 from collections import Counter, defaultdict
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
-# --- classification vocabularies (counted, never emitted) -------------------
-_VERIFY_RE = re.compile(
-    r"\b(npm (run )?(test|lint|build)|pytest|bats|eslint|tsc|go test|cargo "
-    r"(test|build)|mvn|gradle|make( |$)|vitest|jest|ruff|mypy|shellcheck)\b"
-)
-_CORRECTION_RE = re.compile(
-    r"\b(no|actually|revert|undo|not what i (asked|wanted)|that's wrong|"
-    r"that is wrong|wrong|stop|don't|do not)\b"
-)
-_PERMISSION_RE = re.compile(r"permission|denied|not allowed|blocked by", re.IGNORECASE)
-_OLDSTRING_RE = re.compile(r"old_string|not found|no match|string to replace", re.IGNORECASE)
-_EDIT_TOOLS = {"Edit", "Write", "NotebookEdit", "MultiEdit"}
-# Gate signal (#111): a `git commit`, and whether it bypassed the pre-commit
-# review gate (--no-verify, or a bare -n). Detection is argv-shaped, not a
-# substring search over the whole command (#2036) — see
-# _bash_segments()/_is_git_commit_argv() below. A prior version searched
-# `\bgit\s+commit\b` and `--no-verify|(^|\s)-n(\s|$)` against the raw string,
-# which matched inside unrelated flags in a compound command (`grep -n`,
-# `ls -n`) and even inside an unrelated string (`echo "git commit"`). Kept in
-# agreement with the identical fix in scripts/session_extract.py — the two
-# extractors' sharing of this logic is scoped to happen properly in #2040,
-# not duplicated-by-hand again here.
-_GIT_GLOBAL_OPTS_WITH_ARG = {"-C", "-c", "--git-dir", "--work-tree", "--namespace"}
-_COMMIT_BYPASS_TOKENS = {"--no-verify", "-n"}
+# scripts/ -> plugins/dev-team -> scripts/lib (established pattern; see
+# gherkin_stub_merge.py's identical `sys.path.insert(0, str(_HERE / "lib"))`).
+sys.path.insert(0, str(Path(__file__).resolve().parent / "lib"))
+from session_log import classify, discovery, records, redact, signals
 
+_redact = redact.redact
 
-def _statement_break_newlines(cmd: str) -> str:
-    """Replace a bare (unquoted) newline with ';' so a tokenizer sees a
-    statement boundary there — a newline embedded inside a quoted argument
-    (e.g. a multi-line commit message) is left untouched."""
-    out = []
-    in_single = in_double = False
-    i, n = 0, len(cmd)
-    while i < n:
-        ch = cmd[i]
-        if ch == "'" and not in_double:
-            in_single = not in_single
-            out.append(ch)
-        elif ch == '"' and not in_single:
-            in_double = not in_double
-            out.append(ch)
-        elif ch == "\\" and in_double and i + 1 < n:
-            out.append(ch)
-            out.append(cmd[i + 1])
-            i += 1
-        elif ch == "\n" and not in_single and not in_double:
-            out.append(";")
-        else:
-            out.append(ch)
-        i += 1
-    return "".join(out)
-
-
-def _bash_segments(cmd: str) -> list[list[str]]:
-    """Split `cmd` into argv-shaped segments at top-level shell operators
-    (&&, ||, ;, |, and bare newlines), respecting quoting throughout — a
-    quoted operator or newline inside a commit message never splits the
-    command, and a quoted flag never crosses a segment boundary."""
-    lex = shlex.shlex(_statement_break_newlines(cmd), posix=True, punctuation_chars="&|;")
-    lex.whitespace_split = True
-    try:
-        tokens = list(lex)
-    except ValueError:
-        # Malformed shell syntax (e.g. an unbalanced quote) — cannot be
-        # segmented reliably. Fall back to a single opaque whitespace-split
-        # segment rather than losing the signal outright.
-        return [cmd.split()]
-    segments: list[list[str]] = []
-    current: list[str] = []
-    for tok in tokens:
-        if tok in ("&&", "||", ";", "|", "&"):
-            if current:
-                segments.append(current)
-            current = []
-        else:
-            current.append(tok)
-    if current:
-        segments.append(current)
-    return segments
-
-
-def _is_git_commit_argv(tokens: list[str]) -> bool:
-    """True if `tokens` invokes `git ... commit ...` — walks past git's
-    global options (including ones taking a separate argument, e.g. `-C`)
-    to find the subcommand, so `git -C path commit` is recognized."""
-    if not tokens or tokens[0] != "git":
-        return False
-    i = 1
-    while i < len(tokens):
-        tok = tokens[i]
-        if tok in _GIT_GLOBAL_OPTS_WITH_ARG:
-            i += 2
-            continue
-        if tok.startswith("-"):
-            i += 1
-            continue
-        return tok == "commit"
-    return False
+# session_log.classify (issue #2043, epic #2040): the classification
+# vocabulary and text/name-handling helpers used to be defined here; they
+# are now shared with scripts/session_extract.py — see that module's
+# docstring for the per-symbol reconciliation table. Aliased under the
+# original private names so every internal call site below is unchanged.
+_VERIFY_RE = classify.VERIFY_RE
+_CORRECTION_RE = classify.CORRECTION_RE
+_PERMISSION_RE = classify.PERMISSION_RE
+_OLDSTRING_RE = classify.OLDSTRING_RE
+# session_log.signals.EDIT_TOOLS (#2044) is this exact set; aliased so no
+# call site in this file needs to change.
+_EDIT_TOOLS = signals.EDIT_TOOLS
+_GIT_GLOBAL_OPTS_WITH_ARG = classify.GIT_GLOBAL_OPTS_WITH_ARG
+_COMMIT_BYPASS_TOKENS = classify.COMMIT_BYPASS_TOKENS
+_statement_break_newlines = classify.statement_break_newlines
+_bash_segments = classify.bash_segments
+_is_git_commit_argv = classify.is_git_commit_argv
 _VERSION_RE = re.compile(r"^[0-9A-Za-z._+-]{1,32}$")
-# Agent transcripts are `agent-<id>.jsonl` (see _is_transcript_path).
-_AGENT_TRANSCRIPT_RE = re.compile(r"^agent-[0-9A-Za-z_-]{1,64}\.jsonl$")
-# Every string that becomes a REPORT KEY passes _safe_name. The privacy
-# guarantee in the module docstring ("names, never full paths"; no prompt text)
-# holds only if these really are names, and they arrive from transcript files
-# this script does not author — a cloned repo's own `.claude/agents/*.md`
-# chooses `attributionAgent`, for instance. Enforce it once at the boundary
-# rather than trusting each input site.
-_SAFE_NAME_RE = re.compile(r"^[A-Za-z0-9._:-]{1,64}$")
-_UNSAFE_NAME = "other"
-# `attributionAgent` values that name a harness ROLE rather than an agent.
-# Every real Workflow-dispatched transcript carries "workflow-subagent"; left
-# unfiltered these land in agents_invoked as phantom agents while the agent
-# that actually ran stays in never_observed_agents — the #1990 symptom itself.
-_HARNESS_ATTRIBUTIONS = frozenset({"workflow-subagent", "claude"})
+_SAFE_NAME_RE = classify.SAFE_NAME_RE
+_UNSAFE_NAME = classify.UNSAFE_NAME
+_HARNESS_ATTRIBUTIONS = classify.HARNESS_ATTRIBUTIONS
 # Established plugin vocabulary for an agent-keyed map's unresolved bucket
 # (knowledge/telemetry-schema.md -> cost-metering `by_agent_type`).
 _MAIN_LABEL = "main"
 _UNATTRIBUTED_LABEL = "unattributed"
+_strip_ns = classify.strip_ns
+_text_of = classify.text_of
 
 
-def _basename(path_str: str) -> str:
-    """Last component of a path recorded on ANY platform.
-
-    `os.path.basename` splits on `/` only, so a Windows-form `file_path`
-    (`C:\\Users\\alice\\proj\\secrets.env`) comes back whole — an absolute
-    path, username included, in a field the docstring promises is a basename.
-    Reachable whenever Windows-written transcripts are read under WSL, a
-    devcontainer, or a bind-mounted `~/.claude`."""
-    return re.split(r"[\\/]", path_str)[-1] or path_str
-
-
-def _safe_name(value: str) -> str:
-    """Reduce an input-derived string to something safe to emit as a key."""
-    # fullmatch, not match: `$` also matches immediately BEFORE a single
-    # trailing newline, so `.match()` admitted "name\n" through the allowlist
-    # and split the key space (#1994 review).
-    return value if _SAFE_NAME_RE.fullmatch(value) else _UNSAFE_NAME
-
-
-def _strip_ns(name: str) -> str:
-    for prefix in ("agentic-dev-team:", "dev-team:"):
-        if name.startswith(prefix):
-            return name[len(prefix) :]
-    return name
-
-
-def _text_of(content) -> str:
-    """Flatten a message `content` (str or list of blocks) to plain text.
-    Used only for keyword CLASSIFICATION; never emitted into the report."""
-    if isinstance(content, str):
-        return content
-    if isinstance(content, list):
-        parts = []
-        for block in content:
-            if isinstance(block, dict):
-                if isinstance(block.get("text"), str):
-                    parts.append(block["text"])
-                elif isinstance(block.get("content"), str):
-                    parts.append(block["content"])
-        return " ".join(parts)
-    return ""
-
-
-def _iter_file_records(path: Path):
-    """Yield every decodable JSON record in one transcript file, in order.
-
-    Streams line by line rather than `read_text().splitlines()`: transcripts
-    run to tens of MB, the recursive scan now visits thousands of them, and
-    slurping cost ~3x the file's size in peak RSS before yielding anything.
-    `_first_cwd` below already used this shape."""
-    try:
-        with path.open(encoding="utf-8", errors="replace") as fh:
-            for line in fh:
-                line = line.strip()
-                if not line:
-                    continue
-                try:
-                    yield json.loads(line)
-                except json.JSONDecodeError:
-                    continue
-    except OSError:
-        return
-
-
-def _sorted_paths(paths: list[Path]) -> list[Path]:
-    """Total order over transcript paths. Sorting on `Path.name` alone stopped
-    being a total order once subagent transcripts (a second directory level)
-    joined the scan, which would break the determinism guarantee in the module
-    docstring; sort on the full path string instead."""
-    return sorted(paths, key=lambda p: str(p))
-
-
-def _relative_parts(projects_root: Path, path: Path) -> tuple[str, ...]:
-    """The path's components BELOW `projects_root`.
-
-    Every layout question here is about the tree under the root, so never ask
-    it of the absolute path: `projects_root` defaults to `~/.claude/projects`
-    and carries the user's home directory, so a matching segment anywhere in
-    that prefix would answer for the whole tree."""
-    try:
-        return path.relative_to(projects_root).parts
-    except ValueError:
-        return path.parts
-
-
-def _is_subagent_transcript(projects_root: Path, path: Path) -> bool:
-    """A dispatched agent's own run, as opposed to a main-thread session.
-
-    Depth varies by dispatch route — a plain Agent dispatch writes
-    `<project>/<sessionId>/subagents/agent-<id>.jsonl`, while a Workflow's
-    agents nest one level further under
-    `<project>/<sessionId>/subagents/workflows/<runId>/agent-<id>.jsonl`.
-    Match on the `subagents` path segment rather than on a fixed depth, so a
-    future layout with another level does not silently go uncounted the way
-    the workflow layout did."""
-    return "subagents" in _relative_parts(projects_root, path)
-
-
-def _is_transcript_path(root: Path, path: Path) -> bool:
-    """Whether a `.jsonl` under `root` is a transcript this extractor reads.
-
-    Decided by DEPTH, not by filename shape. A `.jsonl` sitting directly in a
-    project directory is a main-thread session whatever it is called — the
-    harness uses `<sessionId>.jsonl`, but nothing guarantees that and a
-    name-shape filter silently drops any session that differs, which is a
-    worse failure than the one it prevents.
-
-    Below `subagents/` the rule tightens, because that is the only place the
-    harness writes NON-transcript bookkeeping next to transcripts:
-    `subagents/workflows/<runId>/journal.jsonl` holds `{"type", "key",
-    "agentId"}` records with no `cwd`. Counting it as an agent run inflated the
-    run tally and, having no `cwd`, sent project labelling down a fallback that
-    leaked a path-derived slug (#1991). Agent transcripts are `agent-<id>.jsonl`.
-    """
-    try:
-        parts = path.relative_to(root).parts
-    except ValueError:
-        return False
-    if len(parts) < 2:
-        return False
-    if "subagents" in parts:
-        return bool(_AGENT_TRANSCRIPT_RE.match(path.name))
-    return len(parts) == 2
+# session_log.discovery / session_log.records (issue #2042, epic #2040):
+# path classification/enumeration and JSONL iteration used to be defined
+# here; they are now shared with scripts/session_extract.py. Aliased under
+# the original private names so every internal call site below is unchanged.
+_iter_file_records = records.iter_file_records
+_sorted_paths = discovery.sorted_paths
+_relative_parts = discovery.relative_parts
+_is_subagent_transcript = discovery.is_subagent_transcript
+_is_transcript_path = discovery.is_transcript_path
 
 
 def _load_plugin_version(plugin_root: Path) -> str:
@@ -323,179 +125,37 @@ def load_registry(plugin_root: Path) -> dict:
     return {"skills": skills, "agents": agents}
 
 
-# --- per-record signal accumulation (adapted from session_extract.py) -------
-
-
-#: The usage fields that make up a dispatch's CONTEXT — what it carried in,
-#: as opposed to what it generated. Session telemetry puts ~90% of spend here
-#: (cache read + cache write), which is why per-agent context is the figure a
-#: panel-cost decision needs and `output_tokens` is tracked separately.
-_CONTEXT_TOKEN_FIELDS = (
-    "input_tokens",
-    "cache_creation_input_tokens",
-    "cache_read_input_tokens",
-)
-
-#: Mirrors `hooks/lib/cost_meter.py`'s `_new_bucket()` shape (#1094) so the two
-#: per-agent breakdowns in this plugin agree on field names. They stay separate
-#: implementations — cost_meter runs live per turn, this runs over a whole tree.
-_AGENT_BUCKET_FIELDS = (*_CONTEXT_TOKEN_FIELDS, "output_tokens")
-
-
-def _new_agent_bucket() -> dict:
-    bucket = {f: 0 for f in _AGENT_BUCKET_FIELDS}
-    bucket["messages"] = 0
-    bucket["dispatches"] = 0
-    return bucket
-
-
-def _merge_agent_buckets(dest: dict, src: dict) -> None:
-    """Fold one project's per-agent buckets into the cross-project totals.
-
-    Re-sums the raw fields rather than the derived ones: adding two projects'
-    `context_per_dispatch` values would produce a number that is not a mean of
-    anything. The derived figures are recomputed once, after the merge.
-    """
-    for label, bucket in (src or {}).items():
-        if not isinstance(bucket, dict):
-            # A digest written before #2010 carries an int (a message count).
-            # Merging it as tokens would silently corrupt the total, so the
-            # label is preserved at zero rather than guessed at.
-            dest.setdefault(label, _new_agent_bucket())
-            continue
-        into = dest.setdefault(label, _new_agent_bucket())
-        for field in (*_AGENT_BUCKET_FIELDS, "messages", "dispatches"):
-            into[field] += bucket.get(field, 0) or 0
-
-
-def _finalize_agent_buckets(by_agent_type: dict) -> dict:
-    """Add the derived per-dispatch figure each bucket exists to answer.
-
-    `context_tokens` is the sum a dispatch is charged for carrying;
-    `context_per_dispatch` divides it by real dispatch count, which is why
-    dispatches are counted from subagent transcripts rather than messages. It
-    is `None` for `main` and for any agent with no counted dispatch — a
-    division that has no meaning must read as absent, not as 0, which would
-    rank a never-dispatched agent as the cheapest in the table.
-    """
-    out = {}
-    for label, b in sorted(by_agent_type.items()):
-        context = sum(b[f] for f in _CONTEXT_TOKEN_FIELDS)
-        entry = dict(b)
-        entry["context_tokens"] = context
-        entry["context_per_dispatch"] = (
-            round(context / b["dispatches"]) if b["dispatches"] else None
-        )
-        out[label] = entry
-    return out
-
-
-def _accumulate_token_signals(usage, model, tokens_total, by_model):
-    for f in (
-        "input_tokens",
-        "output_tokens",
-        "cache_creation_input_tokens",
-        "cache_read_input_tokens",
-    ):
-        v = usage.get(f, 0) or 0
-        tokens_total[f] += v
-        if model:
-            by_model[model][f] += v
+# session_log.signals (issue #2044, epic #2040): per-record signal
+# accumulation used to be defined here; unified with scripts/session_extract.py
+# — see signals.py's module docstring for the full per-function
+# reconciliation (this slice DOES change output; see that docstring's
+# "Historical session-digest.jsonl comparability" section). Aliased under
+# the original private names so every internal call site below is
+# unchanged, except _accumulate_skill_agent_signals, whose shared signature
+# grew two parameters this script doesn't use (see the wrapper below).
+_CONTEXT_TOKEN_FIELDS = signals.CONTEXT_TOKEN_FIELDS
+_AGENT_BUCKET_FIELDS = signals.AGENT_BUCKET_FIELDS
+_new_agent_bucket = signals.new_agent_bucket
+_merge_agent_buckets = signals.merge_agent_buckets
+_finalize_agent_buckets = signals.finalize_agent_buckets
+_accumulate_token_signals = signals.accumulate_token_signals
+_track_tool_call = signals.track_tool_call
+_classify_tool_result = signals.classify_tool_result
+_track_edit = signals.track_edit
+_track_bash = signals.track_bash
+_new_thread = signals.new_thread
+_detect_correction_turn = signals.detect_correction_turn
 
 
 def _accumulate_skill_agent_signals(content, skills_invoked, agent_dispatches):
-    """Count `Skill` invocations and `Agent`/`Task` DISPATCHES from tool_use
-    blocks. A dispatch is not the same thing as a run: dispatches made from
-    inside a subagent are only visible in that subagent's own transcript, and
-    a dispatch whose subagent transcript is absent never ran to completion.
-    Run counts come from `attributionAgent` instead — see `extract()`."""
-    if not isinstance(content, list):
-        return
-    for block in content:
-        if not isinstance(block, dict) or block.get("type") != "tool_use":
-            continue
-        name = block.get("name", "?")
-        inp = block.get("input", {}) if isinstance(block.get("input"), dict) else {}
-        if name == "Skill":
-            s = inp.get("skill") or inp.get("name")
-            if isinstance(s, str) and s:
-                skills_invoked[_safe_name(_strip_ns(s))] += 1
-        elif name in ("Agent", "Task"):
-            a = inp.get("subagent_type")
-            if isinstance(a, str) and a:
-                agent_dispatches[_safe_name(_strip_ns(a))] += 1
-
-
-def _track_tool_call(block, pending_tool, tool_calls):
-    name = _safe_name(str(block.get("name", "?")))
-    tool_calls[name] += 1
-    bid = block.get("id")
-    if bid:
-        pending_tool[bid] = name
-
-
-def _classify_tool_result(block, pending_tool, tool_errors, error_counts):
-    if not block.get("is_error"):
-        return
-    bid = block.get("tool_use_id")
-    tool_name = pending_tool.get(bid, "?")
-    tool_errors[tool_name] += 1
-    rcontent = _text_of(block.get("content"))
-    if tool_name in _EDIT_TOOLS and _OLDSTRING_RE.search(rcontent):
-        error_counts["failed_edits"] += 1
-    if _PERMISSION_RE.search(rcontent):
-        error_counts["permission_denials"] += 1
-
-
-def _track_edit(block, edits_per_file, thread):
-    name = block.get("name", "?")
-    inp = block.get("input", {}) if isinstance(block.get("input"), dict) else {}
-    if name in _EDIT_TOOLS and inp.get("file_path"):
-        edits_per_file[_safe_name(_basename(str(inp["file_path"])))] += 1
-    if name in _EDIT_TOOLS:
-        thread["edited_since_verify"] = True
-
-
-def _track_bash(block, bash_signal_counts, thread):
-    """Bash signals are scoped to ONE thread of execution (`thread`, a
-    per-transcript dict). Retries and repeated verify runs are only meaningful
-    within a thread: a review panel's sibling agents share their parent's
-    sessionId, so a session-keyed tally would score fifteen agents each running
-    `git diff --cached` once as fourteen retries."""
-    name = block.get("name", "?")
-    inp = block.get("input", {}) if isinstance(block.get("input"), dict) else {}
-    if name != "Bash" or not isinstance(inp.get("command"), str):
-        return
-    cmd = inp["command"].strip()
-    norm = re.sub(r"\s+", " ", cmd)
-    thread["bash_commands"][norm] += 1
-    if _VERIFY_RE.search(cmd):
-        if thread["last_verify_norm"] == norm and not thread["edited_since_verify"]:
-            bash_signal_counts["repeated_verify_runs"] += 1
-        thread["last_verify_norm"] = norm
-        thread["edited_since_verify"] = False
-    for segment in _bash_segments(cmd):
-        if _is_git_commit_argv(segment):
-            bash_signal_counts["commit_attempts"] += 1
-            if any(tok in _COMMIT_BYPASS_TOKENS for tok in segment[1:]):
-                bash_signal_counts["commit_bypasses"] += 1
-
-
-def _new_thread() -> dict:
-    return {"bash_commands": Counter(), "last_verify_norm": None, "edited_since_verify": False}
-
-
-def _detect_correction_turn(rec: dict, content) -> bool:
-    if rec.get("type") != "user" or rec.get("isMeta"):
-        return False
-    utext = _text_of(content)
-    if not utext:
-        return False
-    if isinstance(content, list) and all(
-        isinstance(b, dict) and b.get("type") == "tool_result" for b in content
-    ):
-        return False
-    return bool(_CORRECTION_RE.search(utext.lower()))
+    """Thin wrapper over the shared signals.accumulate_skill_agent_signals:
+    this script has no `attributionSkill` legacy-fallback concept and no
+    by_skill/by_agent correction-turn breakdown, so `skill` is always None
+    (the legacy-fallback branch never fires) and `active` is a throwaway
+    dict this script never reads back."""
+    signals.accumulate_skill_agent_signals(
+        None, content, skills_invoked, agent_dispatches, {}
+    )
 
 
 def extract(
@@ -582,20 +242,16 @@ def extract(
                     # Emitting it would invent an agent while leaving the one
                     # that really ran in never_observed_agents.
                     if stripped not in _HARNESS_ATTRIBUTIONS:
-                        agent_name = _safe_name(stripped)
+                        agent_name = _redact(stripped)
             rtype = rec.get("type")
 
             if rtype in ("compaction", "summary") or rec.get("isCompactSummary") or rec.get("compactMetadata"):
                 compaction_events += 1
 
             msg = rec.get("message") if isinstance(rec.get("message"), dict) else {}
-            usage = (
-                msg.get("usage")
-                if isinstance(msg.get("usage"), dict)
-                else (rec.get("usage") if isinstance(rec.get("usage"), dict) else None)
-            )
+            usage = records.usage_of(rec)
             model = msg.get("model") or rec.get("model")
-            model = _safe_name(model) if isinstance(model, str) and model else None
+            model = _redact(model) if isinstance(model, str) and model else None
             if usage:
                 thread_msgs += 1
                 _accumulate_token_signals(usage, model, tokens_total, by_model)
@@ -681,7 +337,7 @@ def extract(
         "token": {
             "totals": dict(sorted(tokens_total.items())),
             "cache_hit_ratio": cache_hit_ratio,
-            "by_model": {m: dict(sorted(v.items())) for m, v in sorted(by_model.items())},
+            "by_model": records.slim_by_name(by_model),
             "by_agent_type": _finalize_agent_buckets(by_agent_type),
         },
         "rework": {
@@ -824,24 +480,10 @@ def combine(digests: dict[str, dict], registry: dict) -> dict:
 # --------------------------------------------------------------------------
 
 
-def _all_transcripts(projects_root: Path) -> list[Path]:
-    """Every transcript under `projects_root`, main-thread and subagent alike.
-
-    Several layouts coexist: main-thread sessions at
-    `<project>/<sessionId>.jsonl`, a dispatched agent's own run at
-    `<project>/<sessionId>/subagents/agent-<id>.jsonl`, and a Workflow's agents
-    one level deeper still. Globbing only the first made every subagent
-    invisible to the report (issue #1990) — and silently, because subagent
-    records ARE marked `isSidechain: true`, they simply live in files nothing
-    opened. Recurse rather than enumerate known depths, so the next layout does
-    not reintroduce the same silence."""
-    return _sorted_paths(
-        [
-            p
-            for p in projects_root.glob("*/**/*.jsonl")
-            if p.is_file() and not p.is_symlink() and _is_transcript_path(projects_root, p)
-        ]
-    )
+# session_log.discovery.all_transcripts (#2042) does exactly this recursive
+# enumeration; aliased so `module._all_transcripts(...)` (the golden harness
+# and this file's own callers below) keeps working unchanged.
+_all_transcripts = discovery.all_transcripts
 
 
 def _project_dir_name(projects_root: Path, jsonl: Path) -> str:
@@ -861,7 +503,14 @@ def _opaque_label(dir_name: str) -> str:
 
 
 def _project_label(cwd: str) -> str:
-    return _safe_name(os.path.basename(os.path.normpath(cwd)) or cwd)
+    # NOT os.path.basename(os.path.normpath(cwd)): on a POSIX host (where
+    # this script runs) os.path.basename splits on `/` only, so a Windows-
+    # authored transcript's backslash-separated cwd comes back WHOLE rather
+    # than trimmed to its last component — the exact defect class #1991/
+    # #1994 already fixed once for file-path basenames (issue #2045 found a
+    # third instance of it here). `_redact(..., from_path=True)` routes
+    # through the shared, Windows-path-aware `classify.basename` instead.
+    return _redact(cwd, from_path=True)
 
 
 def _first_cwd(jsonl: Path) -> str | None:

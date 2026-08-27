@@ -221,7 +221,12 @@ def make_scoped_config(config: LoopConfig, source_file: str) -> dict:
 
 
 def make_confirm_scoped_config(
-    config: LoopConfig, source_file: str, lines: Sequence[int]
+    config: LoopConfig,
+    source_file: str,
+    lines: Sequence[int],
+    *,
+    total_file_lines: int | None = None,
+    degenerate_ratio: float = 0.5,
 ) -> dict:
     """Build a Stryker config scoped to specific SOURCE LINES of one file.
 
@@ -231,22 +236,62 @@ def make_confirm_scoped_config(
     previous round, whose lines ``mutation_report.survivor_lines`` already
     computes.
 
-    **The line-span syntax below is NOT yet verified against a real Stryker.**
-    Today ``mutate`` is only ever set at file-glob granularity here
-    (``make_scoped_config``), and every reference example in
-    ``csharp-stryker-net.md`` is a glob; narrowing below that is the new part.
-    This function is therefore **not wired into the default loop path** — see
-    #2031. Until someone exercises it against a real Stryker.NET and records
-    the result, treat the emitted span form as a proposal, not a contract.
+    **Soundness invariant.** The mutation-kill loop never edits production
+    source — every round only ever *adds* test methods to the test file
+    (``apply_generated_methods`` / ``run_for_file``; ``mutation_kill_insert``
+    refuses anything that looks like a source-file edit). So the set of
+    mutation targets in ``source_file`` is fixed for the file's entire loop
+    lifetime: no mutant can appear at a line outside the previous round's
+    survivor set, because nothing the loop does between rounds can create
+    one. That is what makes re-testing only the previous round's survivor
+    lines a strictly narrower question with the same answer a full re-scan
+    would give for those specific mutants, rather than merely a convenient
+    shortcut.
 
-    The specific hazard, and why it must not be defaulted on blind: if Stryker
-    does not recognize the span suffix and matches nothing, the confirm run
-    reports **zero mutants**, and ``_score_round``'s existing ``total_mutants
-    == 0`` guard reads that as "NOT convergence" and stops the file (#1606).
-    A wrong guess here would silently truncate every file's loop while looking
-    like a saving. Any caller must therefore treat a zero-mutant confirm
-    result as "confirm scope produced nothing — fall back to a full scoped
-    run", never as a verdict.
+    **Verified (#2031) — and the verification says this span form is
+    WRONG.** Checked against Stryker.NET's own current documentation
+    (stryker-mutator.io/docs/stryker-net/configuration/, § ``mutate``,
+    fetched live during this work): the ``{start..end}`` span suffix on
+    ``mutate`` (``dotnet stryker -m "File.cs{10..100}"``) is real and
+    supported. But "a span is defined by the indices of the **first
+    character** and the **last character**" — i.e. CHARACTER offsets into
+    the file, not line numbers. The span form emitted below
+    (``"**/File.cs{10..10}"`` for a survivor on line 10) feeds a *line*
+    number into a slot Stryker parses as a *character* offset — it points at
+    an unrelated, essentially arbitrary character range near the start of
+    the file, not the intended line. Wiring this in as-is risks the exact
+    "confirm-run that silently mutates more than it claims" failure this
+    issue's Risk section warns against: at best the wrong span matches zero
+    mutants (caught by ``_score_round``'s #1606 zero-mutants guard — see
+    ``test_narrowed_confirm_config_resolving_to_nothing_still_trips_the_zero_mutants_guard``
+    in ``tests/scripts/test_mutation_kill_loop_orchestration.py``); at worst
+    it silently overlaps a *different* mutant than the one being confirmed.
+
+    Translating a survivor line number into the character-offset span
+    Stryker.NET actually expects is mechanically computable (read the file,
+    sum preceding line lengths) — but the exact indexing convention (0- vs
+    1-based, inclusive/exclusive end, how CRLF line endings count toward the
+    offset) is not pinned by the documentation alone, and confirming it needs
+    a live ``dotnet``/``dotnet-stryker`` run against a probe file with a
+    known survivor line. No such toolchain is available in every environment
+    that develops this plugin (checked: ``dotnet`` is not always on ``PATH``).
+    Per this issue's own explicit fallback: **this function stays unwired**
+    from ``_score_round`` — see
+    ``test_confirm_scoped_config_is_not_wired_into_the_default_loop_path`` —
+    until a pass with a real Stryker.NET verifies the character-offset
+    conversion end-to-end. See ``references/languages/csharp-stryker-net.md``
+    § "`--mutate` line-span narrowing" for the full recorded finding and what
+    that verification pass needs to do.
+
+    **Degenerate-narrowing guard (#2031 AC4).** When ``total_file_lines`` is
+    supplied, narrowing that would touch ``degenerate_ratio`` or more of the
+    file's own lines (default 50%) degrades to :func:`make_scoped_config`
+    instead of emitting one span per line — re-testing most of a file one
+    line at a time is no cheaper than re-scoping the whole file, and produces
+    a far larger ``mutate`` array for no savings. ``total_file_lines=None``
+    (the default) skips the comparison, matching today's unconditional
+    per-line-span behavior for a caller that doesn't have the file's line
+    count handy.
 
     Empty ``lines`` returns the ordinary whole-file scoped config, so a caller
     that finds no clustered survivors degrades to today's behavior rather than
@@ -254,7 +299,14 @@ def make_confirm_scoped_config(
     """
     if not lines:
         return make_scoped_config(config, source_file)
-    spans = [f"**/{source_file}{{{line}..{line}}}" for line in sorted(set(lines))]
+    unique_lines = sorted(set(lines))
+    if (
+        total_file_lines is not None
+        and total_file_lines > 0
+        and len(unique_lines) / total_file_lines >= degenerate_ratio
+    ):
+        return make_scoped_config(config, source_file)
+    spans = [f"**/{source_file}{{{line}..{line}}}" for line in unique_lines]
     scoped = {
         "solution": config.solution,
         "project": config.project,
