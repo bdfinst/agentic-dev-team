@@ -10,7 +10,10 @@
   "gate": {
     "bypass_rate": 0.0,
     "commit_attempts": 0,
-    "commit_bypasses": 0
+    "commit_bypasses": 0,
+    "gate_ran_absent": 0,
+    "gate_ran_clean": 0,
+    "gate_ran_errored": 0
   },
   "plugin_version": "0.0.0-golden",
   "rework": {

@@ -59,7 +59,7 @@ import os
 import re
 import sys
 from collections import Counter, defaultdict
-from datetime import UTC
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 # scripts/ (repo root) -> repo root -> plugins/dev-team/scripts/lib. This
@@ -126,6 +126,95 @@ _is_subagent_transcript = discovery.is_subagent_transcript
 _all_transcripts_under = discovery.all_transcripts
 
 _strip_ns = classify.strip_ns
+
+# --- gate-run correlation (#2037) -------------------------------------------
+# `_BYPASS_RE`/`COMMIT_BYPASS_TOKENS` (see classify.py's module docstring)
+# only observes DELIBERATE bypass (`--no-verify`/`-n` on the command line) —
+# by construction it is blind to causes 2-4 from #2009's original framing
+# (an inert hook, a hook that errors but exits 0, or a commit made through an
+# unregistered path), because all three leave a command line that looks
+# entirely ordinary. This section inverts the sensor: `.husky/pre-commit`
+# (the real git pre-commit gate — see .husky/pre-commit's own comments; NOT
+# `pre_commit_review.py`, which #1886 retired to a documented no-op, and NOT
+# `pre_pr_review.py`, which gates `gh pr create`, a different question) now
+# emits a POSITIVE `gate_ran` boundary event carrying its own verdict every
+# time it runs, success or failure alike. A commit attempt with no correlated
+# `gate_ran` event is the previously unmeasured "gate_absent" population.
+#
+# Correlation is by TIME PROXIMITY, not session_id: `.husky/pre-commit` is a
+# real git hook invoked by git itself, outside Claude Code's own hook
+# machinery entirely, so it has no Claude Code session_id to attach (unlike
+# every other `boundary_events.py` emitter, which runs INSIDE a Claude Code
+# PreToolUse hook with a stdin JSON payload carrying one). KNOWN RESIDUAL
+# GAP, disclosed rather than silently accepted: two commits within the same
+# window (or a human's terminal commit alongside a running session) can
+# cross-match — acceptable for a first-cut distribution, not a precise
+# per-commit audit trail.
+_GATE_RAN_HOOK = "pre-commit-gate"
+_GATE_RAN_PREFIX = "gate-ran-"
+GATE_RAN_WINDOW_SECONDS = 120
+
+
+def _parse_event_ts(value) -> datetime | None:
+    """Parse a `boundary-events.jsonl`/transcript timestamp
+    (`boundary_events.TS_FORMAT`, `%Y-%m-%dT%H:%M:%SZ`) into an aware UTC
+    `datetime`, or `None` when `value` isn't a string in that exact shape —
+    the same "can't determine, don't guess" posture the rest of this
+    extractor takes on malformed input."""
+    if not isinstance(value, str):
+        return None
+    try:
+        return datetime.strptime(value, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=UTC)
+    except ValueError:
+        return None
+
+
+def _read_gate_ran_events(path: Path | None) -> list[tuple[datetime, str]]:
+    """Every `gate_ran` boundary event's `(ts, verdict)` pair from
+    `boundary-events.jsonl`, oldest first. `path` may be `None` (no
+    gate-run instrumentation configured) or point at a file that doesn't
+    exist yet (the gate has never run) — both simply yield nothing, the
+    same as any other optional signal in this extractor."""
+    if path is None or not path.is_file():
+        return []
+    out: list[tuple[datetime, str]] = []
+    for rec in _iter_records([path]):
+        if not isinstance(rec, dict) or rec.get("hook") != _GATE_RAN_HOOK:
+            continue
+        if rec.get("decision") != "record":
+            continue
+        rule = rec.get("matched_rule")
+        if not isinstance(rule, str) or not rule.startswith(_GATE_RAN_PREFIX):
+            continue
+        ts = _parse_event_ts(rec.get("ts"))
+        if ts is None:
+            continue
+        out.append((ts, rule[len(_GATE_RAN_PREFIX) :]))
+    out.sort(key=lambda pair: pair[0])
+    return out
+
+
+def _classify_gate_run(
+    commit_ts: datetime | None, gate_events: list[tuple[datetime, str]]
+) -> str:
+    """Classify one non-bypassed commit attempt against the gate-run event
+    timeline: `"absent"` (no correlated `gate_ran` event within
+    `GATE_RAN_WINDOW_SECONDS` — the cause-2/3/4 population, previously
+    unmeasured), `"errored"` (the nearest correlated event recorded an
+    internal failure), or `"clean"` (the gate ran normally, whether it
+    allowed or blocked the commit — both are evidence the gate executed)."""
+    if commit_ts is None:
+        return "absent"
+    window = timedelta(seconds=GATE_RAN_WINDOW_SECONDS)
+    best_verdict: str | None = None
+    best_delta: timedelta | None = None
+    for ts, verdict in gate_events:
+        delta = abs(ts - commit_ts)
+        if delta <= window and (best_delta is None or delta < best_delta):
+            best_verdict, best_delta = verdict, delta
+    if best_verdict is None:
+        return "absent"
+    return "errored" if best_verdict == "errored" else "clean"
 
 
 def _rewrite_name_keys(mapping: dict) -> dict:
@@ -264,6 +353,7 @@ def extract(
     registry: dict,
     plugin_version: str = "unknown",
     projects_root: Path | None = None,
+    boundary_events_path: Path | None = None,
 ) -> dict:
     tokens_total = Counter()
     cost_total = 0.0
@@ -300,6 +390,12 @@ def extract(
     # reset every file — see signals.py's module docstring for why the prior
     # sid-keying inside an already-per-file-reset dict was redundant.
     bash_signal_counts = Counter()  # repeated_verify_runs, commit_attempts/bypasses
+    # gate-run correlation (#2037): every git-commit argv seen, as
+    # (record timestamp, was it a deliberate --no-verify/-n bypass) — kept
+    # separately from bash_signal_counts because correlating against
+    # boundary-events.jsonl needs each attempt's own timestamp, not just a
+    # running total. See "gate-run correlation (#2037)" above `extract()`.
+    commit_attempt_events: list[tuple[str | None, bool]] = []
     error_counts = Counter()  # failed_edits, permission_denials
     compaction_events = 0
     tool_errors = Counter()  # by tool name
@@ -447,6 +543,30 @@ def extract(
                         _track_tool_call(block, pending_tool, tool_calls)
                         _track_edit(block, edits_per_file, thread)
                         _track_bash(block, bash_signal_counts, thread)
+                        # gate-run correlation (#2037): re-invokes the same
+                        # classify.bash_segments()/is_git_commit_argv() calls
+                        # signals.track_bash() already made above — not
+                        # duplicated logic, just a second call so this
+                        # extractor-only concern (boundary-events.jsonl
+                        # correlation has no shipped-extractor use) doesn't
+                        # need to widen signals.track_bash()'s shared
+                        # signature. See ADR 0036's monorepo-only precedent.
+                        bblock_input = (
+                            block.get("input", {})
+                            if isinstance(block.get("input"), dict)
+                            else {}
+                        )
+                        if block.get("name") == "Bash" and isinstance(
+                            bblock_input.get("command"), str
+                        ):
+                            for segment in _bash_segments(bblock_input["command"].strip()):
+                                if _is_git_commit_argv(segment):
+                                    is_bypass = any(
+                                        tok in _COMMIT_BYPASS_TOKENS for tok in segment[1:]
+                                    )
+                                    commit_attempt_events.append(
+                                        (rec.get("timestamp"), is_bypass)
+                                    )
                     elif btype == "tool_result":
                         _classify_tool_result(
                             block, pending_tool, tool_errors, error_counts
@@ -494,6 +614,24 @@ def extract(
     repeated_verify_runs = bash_signal_counts["repeated_verify_runs"]
     commit_attempts = bash_signal_counts["commit_attempts"]
     commit_bypasses = bash_signal_counts["commit_bypasses"]
+
+    # gate-run correlation (#2037): classify every NON-bypassed commit
+    # attempt (a deliberate --no-verify/-n bypass is already fully explained
+    # by commit_bypasses above — git itself skips the gate entirely when
+    # that flag is set, so there is nothing to correlate) against the
+    # gate_ran event timeline.
+    gate_ran_events = _read_gate_ran_events(boundary_events_path)
+    gate_ran_absent = gate_ran_errored = gate_ran_clean = 0
+    for ts_str, is_bypass in commit_attempt_events:
+        if is_bypass:
+            continue
+        outcome = _classify_gate_run(_parse_event_ts(ts_str), gate_ran_events)
+        if outcome == "absent":
+            gate_ran_absent += 1
+        elif outcome == "errored":
+            gate_ran_errored += 1
+        else:
+            gate_ran_clean += 1
 
     # never-observed registry items
     # Run counts are ground truth where subagent transcripts exist (one file
@@ -557,6 +695,16 @@ def extract(
             "bypass_rate": round(commit_bypasses / commit_attempts, 4)
             if commit_attempts
             else 0.0,
+            # #2037: the three-way cause distribution `_BYPASS_RE` alone
+            # cannot see. `commit_bypasses` above IS the "deliberate" count
+            # (cause 1); these three cover the previously-unmeasured
+            # cause-2/3/4 population, now split by correlated gate_ran
+            # evidence — "absent" (no gate_ran event found: inert hook or an
+            # unregistered commit path), "errored" (the gate ran but
+            # recorded an internal failure), "clean" (the gate ran normally).
+            "gate_ran_absent": gate_ran_absent,
+            "gate_ran_errored": gate_ran_errored,
+            "gate_ran_clean": gate_ran_clean,
         },
         "utilization": {
             "skills_invoked": dict(sorted(skills_invoked.items())),
@@ -929,7 +1077,8 @@ def _read_synced_records(digests_root: Path) -> list[dict]:
     output_tokens,cache_creation_input_tokens,cache_read_input_tokens}`;
     `rework.*` restricted to `_REWORK_KEYS`; `accuracy.{tool_calls,
     tool_error_rate,user_correction_turns}`;
-    `gate.{commit_attempts,commit_bypasses}`), and the shape of the
+    `gate.{commit_attempts,commit_bypasses,gate_ran_absent,gate_ran_errored,
+    gate_ran_clean}`), and the shape of the
     `tokens`/`rework`/`accuracy`/`utilization`/`gate` containers themselves
     are normalized on the way in (`_normalize_plugin_version`, `_redact`,
     `_rewrite_name_keys`, `_safe_number`, `_normalize_name_dicts`,
@@ -986,7 +1135,16 @@ def _read_synced_records(digests_root: Path) -> list[dict]:
             _normalize_numeric_fields(
                 accuracy, ("tool_calls", "tool_error_rate", "user_correction_turns")
             )
-            _normalize_numeric_fields(gate, ("commit_attempts", "commit_bypasses"))
+            _normalize_numeric_fields(
+                gate,
+                (
+                    "commit_attempts",
+                    "commit_bypasses",
+                    "gate_ran_absent",
+                    "gate_ran_errored",
+                    "gate_ran_clean",
+                ),
+            )
 
             rec["utilization"] = utilization
             rec["accuracy"] = accuracy
@@ -1547,6 +1705,13 @@ def main(argv=None) -> int:
         "'current-and-previous' (only the current + immediately previous "
         "plugin_version observed in the digests being read)",
     )
+    ap.add_argument(
+        "--boundary-events",
+        metavar="FILE",
+        help="gate-run correlation (#2037): boundary-events.jsonl to read "
+        "gate_ran events from (default: <cwd>/.claude/metrics/"
+        "boundary-events.jsonl)",
+    )
     args = ap.parse_args(argv)
 
     pricing_path = (
@@ -1592,7 +1757,22 @@ def main(argv=None) -> int:
     )
 
     root = Path(args.projects_root or (Path.home() / ".claude" / "projects"))
-    digest = extract(paths, pricing, registry, version, projects_root=root)
+    boundary_events_path = (
+        Path(args.boundary_events)
+        if args.boundary_events
+        else Path(os.path.abspath(args.cwd or os.getcwd()))
+        / ".claude"
+        / "metrics"
+        / "boundary-events.jsonl"
+    )
+    digest = extract(
+        paths,
+        pricing,
+        registry,
+        version,
+        projects_root=root,
+        boundary_events_path=boundary_events_path,
+    )
     # `transcripts` is set by extract() and counts MAIN-thread sessions only;
     # `subagent_transcripts` counts dispatched agent runs. Overwriting it with
     # len(paths) here would report every file as a session (#1994).
@@ -1614,7 +1794,6 @@ def slim_record(digest: dict) -> dict:
     so the persisted trend stream carries no file names — strictly metrics, no
     raw prompt/code content. `recorded_at` is the only wall-clock field and lives
     on the trend log, never in the deterministic digest output."""
-    from datetime import datetime
 
     tok = digest.get("token", {})
     rew = digest.get("rework", {})
@@ -1656,6 +1835,9 @@ def slim_record(digest: dict) -> dict:
             "commit_attempts": gate.get("commit_attempts", 0),
             "commit_bypasses": gate.get("commit_bypasses", 0),
             "bypass_rate": gate.get("bypass_rate", 0.0),
+            "gate_ran_absent": gate.get("gate_ran_absent", 0),
+            "gate_ran_errored": gate.get("gate_ran_errored", 0),
+            "gate_ran_clean": gate.get("gate_ran_clean", 0),
         },
         "utilization": {
             "skills_invoked": len(util.get("skills_invoked", {})),
