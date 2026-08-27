@@ -32,15 +32,15 @@ names -- a silent-`AttributeError` risk if either script's flag names
 drift; see `tests/scripts/test_bash_failure_taxonomy.py` for the contract
 test guarding this.
 
-## The addressable denominator excludes `timeout` and `genuine-command-error`
+## `timeout` and `genuine-command-error` are excluded from the addressable numerator
 
 `timeout` and `genuine-command-error` are counted in the distribution like
 any other class, but are EXCLUDED from `addressable_percentage`'s
-denominator: a Bash call that timed out, or one that ran as invoked and
-failed with a genuine, well-formed error from the tool itself, is not a
-taxonomy problem this classifier's remediation work can fix -- so the
-addressable percentage measures the share of classified errors that
-remain once both excluded classes are subtracted out, matching
+numerator (`addressable_count`): a Bash call that timed out, or one that
+ran as invoked and failed with a genuine, well-formed error from the tool
+itself, is not a taxonomy problem this classifier's remediation work can
+fix -- so the addressable percentage measures the share of classified
+errors that remain once both excluded classes are subtracted out, matching
 `churn_coupling_report.py`'s own "why this exists" convention of stating a
 scoping decision's rationale directly in the docstring rather than leaving
 it implicit in the code. A corpus with zero classified errors yields
@@ -60,18 +60,25 @@ from collections.abc import Iterable, Iterator
 from dataclasses import dataclass, field
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parent))
+_HERE = str(Path(__file__).resolve().parent)
+if _HERE not in sys.path:
+    sys.path.append(_HERE)
 from session_extract import resolve_all_transcripts, resolve_transcripts
 
 
 @dataclass(frozen=True)
 class BashErrorPair:
     """A failed Bash `tool_result`, paired back to the command text of the
-    `tool_use` block that produced it (matched by `tool_use_id`)."""
+    `tool_use` block that produced it (matched by `tool_use_id`).
+
+    `command`/`error_text` are `repr=False` so they never render verbatim
+    via a default `repr()`/log/pytest-assertion-diff -- matching this
+    module's stated privacy contract that this raw text is consumed
+    in-process and never written out."""
 
     tool_use_id: str
-    command: str
-    error_text: str
+    command: str = field(repr=False)
+    error_text: str = field(repr=False)
 
 
 @dataclass(frozen=True)
@@ -81,7 +88,7 @@ class UnpairedToolResult:
     never matched to an unrelated command."""
 
     tool_use_id: str
-    error_text: str
+    error_text: str = field(repr=False)
 
 
 @dataclass
@@ -131,6 +138,55 @@ def _text_of(content: object) -> str:
     return ""
 
 
+def _record_tool_use(
+    block: dict, pending_tool_use: dict[str, tuple[str | None, str | None]]
+) -> None:
+    """Record one `tool_use` block's `(name, command)` under its
+    `tool_use_id` in `pending_tool_use`, mutating it in place. Skipped
+    without effect if `id` is missing/non-string."""
+    tool_use_id = block.get("id")
+    if not isinstance(tool_use_id, str):
+        return
+    name = block.get("name")
+    inp = block.get("input")
+    command = inp.get("command") if isinstance(inp, dict) else None
+    pending_tool_use[tool_use_id] = (
+        name if isinstance(name, str) else None,
+        command if isinstance(command, str) else None,
+    )
+
+
+def _record_tool_result(
+    block: dict,
+    pending_tool_use: dict[str, tuple[str | None, str | None]],
+    pairs: list[BashErrorPair],
+    unpaired: list[UnpairedToolResult],
+) -> None:
+    """Resolve one failed `tool_result` block against `pending_tool_use`
+    (popping its entry), appending to `pairs` or `unpaired` in place.
+
+    A `tool_result` missing `content`/`tool_use_id`, or not `is_error`, is
+    skipped without effect. A non-Bash tool's error, or a Bash `tool_use`
+    with no usable command text, is excluded entirely -- never counted as a
+    pair, never as unpaired (the originating `tool_use` IS known; it just
+    isn't a classifiable Bash failure)."""
+    if "content" not in block or "tool_use_id" not in block:
+        return
+    if not block.get("is_error"):
+        return
+    tool_use_id = block.get("tool_use_id")
+    if not isinstance(tool_use_id, str):
+        return
+    error_text = _text_of(block.get("content"))
+    originating = pending_tool_use.pop(tool_use_id, None)
+    if originating is None:
+        unpaired.append(UnpairedToolResult(tool_use_id=tool_use_id, error_text=error_text))
+        return
+    name, command = originating
+    if name == "Bash" and command is not None:
+        pairs.append(BashErrorPair(tool_use_id=tool_use_id, command=command, error_text=error_text))
+
+
 def _pair_transcript_records(
     records: Iterable[object],
 ) -> tuple[list[BashErrorPair], list[UnpairedToolResult]]:
@@ -142,7 +198,8 @@ def _pair_transcript_records(
     `(name, command)` for every `tool_use` block seen so far, regardless of
     tool, so a failed non-Bash tool call can be told apart from a genuinely
     orphaned `tool_result` (no `tool_use` seen at all for that id) rather
-    than conflating the two.
+    than conflating the two. `_record_tool_use`/`_record_tool_result` do the
+    per-block pairing policy; this function only walks the JSON shape.
 
     A `tool_result`/`tool_use` block that decodes as valid JSON but is not
     a dict, or is a dict missing the fields this function reads
@@ -170,42 +227,9 @@ def _pair_transcript_records(
             btype = block.get("type")
 
             if btype == "tool_use":
-                tool_use_id = block.get("id")
-                if not isinstance(tool_use_id, str):
-                    continue
-                name = block.get("name")
-                inp = block.get("input")
-                command = inp.get("command") if isinstance(inp, dict) else None
-                pending_tool_use[tool_use_id] = (
-                    name if isinstance(name, str) else None,
-                    command if isinstance(command, str) else None,
-                )
+                _record_tool_use(block, pending_tool_use)
             elif btype == "tool_result":
-                if "content" not in block or "tool_use_id" not in block:
-                    continue
-                if not block.get("is_error"):
-                    continue
-                tool_use_id = block.get("tool_use_id")
-                if not isinstance(tool_use_id, str):
-                    continue
-                error_text = _text_of(block.get("content"))
-                originating = pending_tool_use.pop(tool_use_id, None)
-                if originating is None:
-                    unpaired.append(
-                        UnpairedToolResult(tool_use_id=tool_use_id, error_text=error_text)
-                    )
-                    continue
-                name, command = originating
-                # A non-Bash tool's error, or a Bash tool_use with no
-                # usable command text, is excluded here -- never counted
-                # as a pair, never as unpaired (the originating tool_use
-                # IS known; it just isn't a classifiable Bash failure).
-                if name == "Bash" and command is not None:
-                    pairs.append(
-                        BashErrorPair(
-                            tool_use_id=tool_use_id, command=command, error_text=error_text
-                        )
-                    )
+                _record_tool_result(block, pending_tool_use, pairs, unpaired)
 
     return pairs, unpaired
 
@@ -277,7 +301,11 @@ _CD_FAILURE_RE = re.compile(r"\bcd:\s*.+?:\s*No such file or directory", re.IGNO
 
 _TIMEOUT_PATTERNS: tuple[re.Pattern[str], ...] = (
     re.compile(r"\btimed out\b", re.IGNORECASE),
-    re.compile(r"\btimeout\b", re.IGNORECASE),
+    # Marker-shaped forms only -- a bare "timeout" mention (e.g. a
+    # "--timeout" CLI flag named in an "unrecognized option" error) is not
+    # itself a timeout signal.
+    re.compile(r"\btimeout\s+(?:after|exceeded|expired)\b", re.IGNORECASE),
+    re.compile(r"\bcommand timed out\b", re.IGNORECASE),
     re.compile(r"deadline exceeded", re.IGNORECASE),
     re.compile(r"\betimedout\b", re.IGNORECASE),
 )
@@ -341,29 +369,61 @@ def _is_quoting_error(error_text: str) -> bool:
     return any(p.search(error_text) for p in _QUOTING_ERROR_PATTERNS)
 
 
-def _is_tool_not_present(command: str, error_text: str) -> bool:
+def _is_tool_not_present(command: str, error_text: str, no_such_file_token: str | None) -> bool:
     """PATH lookup failure: `command not found` (bash-style or sh-style),
     or a `No such file or directory` message where the failing token IS
-    the invoked command itself (a relative/absolute path exec failure)."""
+    the invoked command itself (a relative/absolute path exec failure).
+
+    `no_such_file_token` is computed once by `classify()` and shared with
+    `_is_working_directory_error` rather than each predicate re-scanning
+    `error_text` with `_NO_SUCH_FILE_RE` independently."""
     if _COMMAND_NOT_FOUND_RE.search(error_text) or _SH_STYLE_NOT_FOUND_RE.search(
         error_text
     ):
         return True
-    token = _no_such_file_token(error_text)
-    if token is None:
+    if no_such_file_token is None:
         return False
-    return _tokens_match(token, _invoked_binary(command))
+    return _tokens_match(no_such_file_token, _invoked_binary(command))
 
 
-def _is_working_directory_error(command: str, error_text: str) -> bool:
+def _command_arguments(command: str) -> list[str]:
+    """Tokenize `command` (same `shlex.split` approach as `_invoked_binary`)
+    and return every token after the invoked binary, skipping leading
+    `VAR=value` environment assignments."""
+    try:
+        tokens = shlex.split(command)
+    except ValueError:
+        tokens = command.strip().split()
+    idx = 0
+    while idx < len(tokens) and re.match(r"^[A-Za-z_][A-Za-z0-9_]*=", tokens[idx]):
+        idx += 1
+    return tokens[idx + 1 :]
+
+
+def _is_working_directory_error(
+    command: str, error_text: str, no_such_file_token: str | None
+) -> bool:
     """A `cd` failure, or a `No such file or directory` message where the
     failing token is an ARGUMENT of the invoked command, not the command
-    itself (already ruled out by `_is_tool_not_present`)."""
+    itself (already ruled out by `_is_tool_not_present`).
+
+    A `No such file or directory` token that matches neither the invoked
+    binary nor any of its arguments is incidental to the tool's own error
+    (e.g. an import failure inside `python -m pytest` naming an unrelated
+    file) -- not a cd/relative-path failure of the invocation itself -- and
+    must fall through to `genuine-command-error` instead.
+
+    `no_such_file_token` is computed once by `classify()` and shared with
+    `_is_tool_not_present` -- see that function's docstring."""
     if _CD_FAILURE_RE.search(error_text):
         return True
     if _invoked_binary(command).lower() == "cd":
         return "no such file or directory" in error_text.lower()
-    return _no_such_file_token(error_text) is not None
+    if no_such_file_token is None:
+        return False
+    return any(
+        _tokens_match(no_such_file_token, arg) for arg in _command_arguments(command)
+    )
 
 
 def _is_timeout(error_text: str) -> bool:
@@ -374,19 +434,31 @@ def _is_genuine_command_error(error_text: str) -> bool:
     return len(_strip_bare_exit_code_lines(error_text)) > _GENUINE_ERROR_MIN_LEN
 
 
+_MAX_ERROR_TEXT_LEN = 8192
+
+
 def classify(command: str, error_text: str) -> str:
     """Classify one failed Bash call into one of six buckets: `quoting`,
     `tool-not-present`, `working-directory`, `timeout`,
     `genuine-command-error`, or `unclassified` -- see the precedence-order
-    comment above this section."""
-    text = (error_text or "").strip()
+    comment above this section.
+
+    `error_text` is truncated to `_MAX_ERROR_TEXT_LEN` characters before any
+    regex runs: classification signals are near the start of stderr, so
+    this costs no accuracy while bounding the cost of `_NO_SUCH_FILE_RE`
+    (O(L^2) on a long non-matching single line) against arbitrarily long,
+    untrusted transcript text. The `_no_such_file_token` scan itself runs
+    once here and is shared by `_is_tool_not_present` and
+    `_is_working_directory_error` rather than each re-scanning."""
+    text = (error_text or "").strip()[:_MAX_ERROR_TEXT_LEN]
     cmd = command or ""
+    no_such_file_token = _no_such_file_token(text)
 
     if _is_quoting_error(text):
         return "quoting"
-    if _is_tool_not_present(cmd, text):
+    if _is_tool_not_present(cmd, text, no_such_file_token):
         return "tool-not-present"
-    if _is_working_directory_error(cmd, text):
+    if _is_working_directory_error(cmd, text, no_such_file_token):
         return "working-directory"
     if _is_timeout(text):
         return "timeout"
@@ -396,12 +468,12 @@ def classify(command: str, error_text: str) -> str:
 
 
 # ---------------------------------------------------------------------------
-# Step 1.3: corpus distribution + excluded-denominator reporting
+# Step 1.3: corpus distribution + excluded-numerator reporting
 #
-# See the module docstring's "The addressable denominator excludes
-# `timeout` and `genuine-command-error`" section for why those two classes
-# are counted but never contribute to `addressable_percentage`'s
-# denominator.
+# See the module docstring's "`timeout` and `genuine-command-error` are
+# excluded from the addressable numerator" section for why those two
+# classes are counted but never contribute to `addressable_percentage`'s
+# numerator (`addressable_count`).
 # ---------------------------------------------------------------------------
 
 ADDRESSABLE_EXCLUDED_CLASSES: frozenset[str] = frozenset({"timeout", "genuine-command-error"})
@@ -423,13 +495,13 @@ class Distribution:
 
     `addressable_percentage` is `None` only when `total` is zero (an empty
     corpus -- the one true 0/0 case). When `total` is non-zero but every
-    error falls into the two excluded classes, `addressable_denominator` is
+    error falls into the two excluded classes, `addressable_count` is
     zero and `addressable_percentage` is a well-defined `0.0`.
     """
 
     counts: dict[str, int]
     total: int
-    addressable_denominator: int
+    addressable_count: int
     addressable_percentage: float | None
 
     def to_dict(self) -> dict[str, object]:
@@ -439,15 +511,16 @@ class Distribution:
         return {
             "counts": dict(self.counts),
             "total": self.total,
-            "addressable_denominator": self.addressable_denominator,
+            "addressable_count": self.addressable_count,
             "addressable_percentage": self.addressable_percentage,
         }
 
 
 def build_distribution(pairs: Iterable[BashErrorPair]) -> Distribution:
     """Classify every pair in `pairs` (Step 1.2's `classify`) and tally the
-    six-class distribution, with the addressable denominator
-    (`total - timeout - genuine-command-error`) computed alongside it."""
+    six-class distribution, with the addressable count (the numerator of
+    `addressable_percentage`: `total - timeout - genuine-command-error`)
+    computed alongside it."""
     counts: dict[str, int] = dict.fromkeys(ALL_CLASSES, 0)
     total = 0
     for pair in pairs:
@@ -455,15 +528,15 @@ def build_distribution(pairs: Iterable[BashErrorPair]) -> Distribution:
         total += 1
 
     excluded = sum(counts[cls] for cls in ADDRESSABLE_EXCLUDED_CLASSES)
-    addressable_denominator = total - excluded
+    addressable_count = total - excluded
     addressable_percentage = (
-        None if total == 0 else round((addressable_denominator / total) * 100, 2)
+        None if total == 0 else round((addressable_count / total) * 100, 2)
     )
 
     return Distribution(
         counts=counts,
         total=total,
-        addressable_denominator=addressable_denominator,
+        addressable_count=addressable_count,
         addressable_percentage=addressable_percentage,
     )
 
@@ -502,15 +575,29 @@ def build_arg_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="aggregate transcripts across ALL projects, not just the current cwd's",
     )
+    ap.add_argument(
+        "--baseline",
+        action="store_true",
+        help=(
+            "classify pairs and emit the full Distribution (Step 1.3) as "
+            "JSON, instead of just pairing counts -- this is what makes a "
+            "committed baseline snapshot regeneratable"
+        ),
+    )
     return ap
 
 
 def main(argv: list[str] | None = None) -> int:
     args = build_arg_parser().parse_args(argv)
     paths = resolve_all_transcripts(args) if args.all_projects else resolve_transcripts(args)
+
+    if args.baseline:
+        distribution = build_distribution_from_corpus(paths)
+        print(json.dumps(distribution.to_dict(), indent=2))
+        return 0
+
     result = pair_bash_errors(paths)
-    # Counts only -- never raw command/error text -- even at this stage,
-    # ahead of Step 1.2's classifier and Step 1.3's baseline emission.
+    # Counts only -- never raw command/error text.
     print(json.dumps({"pairs": len(result.pairs), "unpaired": len(result.unpaired)}, indent=2))
     return 0
 

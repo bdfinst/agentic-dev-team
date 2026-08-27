@@ -44,6 +44,7 @@ test for the privacy-contract rationale.
 from __future__ import annotations
 
 import json
+import subprocess
 import sys
 from pathlib import Path
 
@@ -258,6 +259,191 @@ def test_non_dict_top_level_record_skipped_without_raising(tmp_path):
 
 
 # ---------------------------------------------------------------------------
+# Test-review coverage gaps
+# ---------------------------------------------------------------------------
+
+
+def test_tool_result_content_as_list_of_content_blocks(tmp_path):
+    # The real Claude Code transcript wire format for tool_result content is
+    # a LIST of content blocks (`[{"type": "text", "text": "..."}]`), not a
+    # plain string -- this shape had zero coverage in the pairing tests.
+    path = tmp_path / "session.jsonl"
+    records = [
+        _assistant([_tool_use("t1", "Bash", "cat missing.txt")]),
+        _user(
+            [
+                {
+                    "type": "tool_result",
+                    "tool_use_id": "t1",
+                    "is_error": True,
+                    "content": [{"type": "text", "text": "cat: missing.txt: No such file or directory"}],
+                }
+            ]
+        ),
+    ]
+    _write_transcript(path, records)
+
+    result = bft.pair_bash_errors([path])
+
+    assert len(result.pairs) == 1
+    assert result.pairs[0].command == "cat missing.txt"
+    assert result.pairs[0].error_text == "cat: missing.txt: No such file or directory"
+    assert result.unpaired == []
+
+
+def test_message_field_non_dict_skipped_without_raising(tmp_path):
+    path = tmp_path / "session.jsonl"
+    good_pair = [
+        _assistant([_tool_use("t1", "Bash", "false")]),
+        _user([_tool_result("t1", "command exited with a real error message", is_error=True)]),
+    ]
+    lines = [json.dumps(r) for r in good_pair]
+    # A record whose "message" field is not a dict.
+    lines.insert(1, json.dumps({"type": "user", "message": "not-a-dict"}))
+    path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+    result = bft.pair_bash_errors([path])
+
+    assert len(result.pairs) == 1
+    assert result.pairs[0].command == "false"
+    assert result.unpaired == []
+
+
+def test_content_field_non_list_skipped_without_raising(tmp_path):
+    path = tmp_path / "session.jsonl"
+    good_pair = [
+        _assistant([_tool_use("t1", "Bash", "false")]),
+        _user([_tool_result("t1", "command exited with a real error message", is_error=True)]),
+    ]
+    lines = [json.dumps(r) for r in good_pair]
+    # A record whose "message.content" field is not a list.
+    lines.insert(1, json.dumps({"type": "user", "message": {"role": "user", "content": "not-a-list"}}))
+    path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+    result = bft.pair_bash_errors([path])
+
+    assert len(result.pairs) == 1
+    assert result.pairs[0].command == "false"
+    assert result.unpaired == []
+
+
+def test_non_dict_item_inside_content_list_skipped_without_raising(tmp_path):
+    path = tmp_path / "session.jsonl"
+    records = [
+        _assistant([_tool_use("t1", "Bash", "false")]),
+        # A content list containing a non-dict item alongside the real
+        # tool_result block.
+        _user(["not-a-dict-block", _tool_result("t1", "command exited with a real error message", is_error=True)]),
+    ]
+    _write_transcript(path, records)
+
+    result = bft.pair_bash_errors([path])
+
+    assert len(result.pairs) == 1
+    assert result.pairs[0].command == "false"
+    assert result.unpaired == []
+
+
+def test_pair_bash_errors_nonexistent_file_returns_empty_without_raising(tmp_path):
+    missing = tmp_path / "does-not-exist.jsonl"
+
+    result = bft.pair_bash_errors([missing])
+
+    assert result.pairs == []
+    assert result.unpaired == []
+
+
+def test_iter_json_records_nonexistent_file_yields_nothing(tmp_path):
+    missing = tmp_path / "does-not-exist.jsonl"
+
+    assert list(bft._iter_json_records(missing)) == []
+
+
+def test_classify_bare_exit_code_line_followed_by_real_stderr_is_genuine_error():
+    # A bare exit-code line stripped away must not swallow real,
+    # descriptive multi-line stderr text that follows it -- the combination
+    # should still classify as genuine-command-error, not unclassified.
+    error_text = "1\nfatal: not a git repository (or any of the parent directories): .git"
+
+    assert bft.classify("git status", error_text) == "genuine-command-error"
+
+
+# ---------------------------------------------------------------------------
+# Security review: raw text must never leak through repr() (privacy contract)
+# ---------------------------------------------------------------------------
+
+
+def test_bash_error_pair_repr_never_contains_command_or_error_text():
+    marker_command = "echo REPR-MARKER-COMMAND-XYZ"
+    marker_error = "REPR-MARKER-ERROR-XYZ: command not found"
+    pair = bft.BashErrorPair(tool_use_id="t1", command=marker_command, error_text=marker_error)
+
+    rendered = repr(pair)
+
+    assert "REPR-MARKER-COMMAND-XYZ" not in rendered
+    assert "REPR-MARKER-ERROR-XYZ" not in rendered
+
+
+def test_module_import_appends_not_prepends_scripts_dir_and_does_not_duplicate():
+    # sys.path.insert(0, ...) at import time would place scripts/ ahead of
+    # stdlib for the whole process; the fix appends (guarded on membership)
+    # so stdlib always wins and re-import doesn't duplicate the entry.
+    #
+    # Loaded via importlib.util.spec_from_file_location in a fresh
+    # subprocess, deliberately WITHOUT pre-adding scripts/ to sys.path --
+    # this is the one scenario that actually exercises the module's own
+    # guard (the test harness's own sys.path.insert(0, ...) at the top of
+    # this file, and Python's implicit "script's own dir" entry when run
+    # directly, both already have scripts/ on sys.path *before* the module
+    # body runs, which would make the guard a no-op either way).
+    here = str((REPO_ROOT / "scripts" / "bash_failure_taxonomy.py").resolve())
+    scripts_dir = str((REPO_ROOT / "scripts").resolve())
+    script = f"""
+import sys, importlib.util
+assert {scripts_dir!r} not in sys.path
+
+def load():
+    spec = importlib.util.spec_from_file_location("bft_isolated", {here!r})
+    mod = importlib.util.module_from_spec(spec)
+    sys.modules["bft_isolated"] = mod
+    spec.loader.exec_module(mod)
+    return mod
+
+sentinel = "/definitely-not-a-real-dir-ahead-of-scripts"
+sys.path.insert(0, sentinel)
+
+load()
+count_1 = sys.path.count({scripts_dir!r})
+index_1 = sys.path.index({scripts_dir!r})
+sentinel_index = sys.path.index(sentinel)
+
+load()
+count_2 = sys.path.count({scripts_dir!r})
+
+print(count_1, index_1 > sentinel_index, count_2)
+"""
+    result = subprocess.run(
+        [sys.executable, "-c", script], capture_output=True, text=True, check=False
+    )
+    assert result.returncode == 0, result.stderr
+    count_1, appended_after_sentinel, count_2 = result.stdout.split()
+    assert count_1 == "1"
+    assert appended_after_sentinel == "True", (
+        "scripts/ must be appended (after existing entries), not inserted at index 0"
+    )
+    assert count_2 == "1", "re-import must not duplicate the scripts/ sys.path entry"
+
+
+def test_unpaired_tool_result_repr_never_contains_error_text():
+    marker_error = "REPR-MARKER-UNPAIRED-XYZ: something failed"
+    unpaired = bft.UnpairedToolResult(tool_use_id="t99", error_text=marker_error)
+
+    rendered = repr(unpaired)
+
+    assert "REPR-MARKER-UNPAIRED-XYZ" not in rendered
+
+
+# ---------------------------------------------------------------------------
 # Step 1.2: six-bucket classifier core
 # ---------------------------------------------------------------------------
 
@@ -386,6 +572,56 @@ def test_classify_tool_not_present_with_quoted_env_assignment_prefix():
     assert bft.classify(command, error_text) == "tool-not-present"
 
 
+def test_classify_truncates_error_text_before_matching():
+    # A classification signal placed beyond _MAX_ERROR_TEXT_LEN characters
+    # must not be seen -- classify() truncates error_text before any regex
+    # runs (ReDoS-bounding fix). Without truncation this signal (a real
+    # "No such file or directory" naming the command's own argument) would
+    # classify as working-directory; with truncation it falls out of view
+    # entirely and the truncated filler-only prefix falls back to
+    # genuine-command-error.
+    command = "grep bar.txt"
+    filler = "b" * bft._MAX_ERROR_TEXT_LEN
+    error_text = f"{filler} grep: bar.txt: No such file or directory"
+
+    assert bft.classify(command, error_text) == "genuine-command-error"
+
+
+def test_classify_timeout_flag_mention_is_not_timeout_class():
+    # The word "timeout" appearing anywhere in the error text (e.g. as part
+    # of an "unrecognized option '--timeout'" complaint) must not, by
+    # itself, classify as the `timeout` bucket -- only marker-shaped
+    # phrasing ("timeout after/exceeded/expired", "command timed out")
+    # should.
+    command = "mytool --timeout 5"
+    error_text = "error: unrecognized option '--timeout'"
+
+    assert bft.classify(command, error_text) == "genuine-command-error"
+
+
+def test_classify_no_such_file_token_not_an_argument_is_genuine_command_error():
+    # `_is_working_directory_error` must confirm the failing "No such file
+    # or directory" token is actually an ARGUMENT of the invoked command --
+    # not just present anywhere in the error text. Here "some_lib.py" is an
+    # incidental path from the tool's own internal error (an import failure
+    # inside pytest, say), not an argument of "python -m pytest" (whose
+    # arguments are "-m" and "pytest"), so this is not a cd/relative-path
+    # failure of the invocation itself.
+    command = "python -m pytest"
+    error_text = "some_lib.py: No such file or directory"
+
+    assert bft.classify(command, error_text) == "genuine-command-error"
+
+
+def test_classify_no_such_file_token_that_is_an_argument_stays_working_directory():
+    # The positive case must keep working: the failing token IS one of the
+    # invoked command's own arguments.
+    command = "cat bar.txt"
+    error_text = "cat: bar.txt: No such file or directory"
+
+    assert bft.classify(command, error_text) == "working-directory"
+
+
 def test_tool_result_block_missing_required_fields_skipped_without_raising(tmp_path):
     path = tmp_path / "session.jsonl"
     records = [
@@ -447,14 +683,14 @@ def test_build_distribution_from_corpus_counts_all_six_buckets(tmp_path):
         "unclassified": 1,
     }
     assert distribution.total == 6
-    # timeout + genuine-command-error are excluded from the denominator.
-    assert distribution.addressable_denominator == 4
+    # timeout + genuine-command-error are excluded from the numerator.
+    assert distribution.addressable_count == 4
     assert distribution.addressable_percentage == pytest.approx(4 / 6 * 100, abs=0.01)
 
 
-def test_build_distribution_zero_denominator_all_errors_excluded_class(tmp_path):
+def test_build_distribution_zero_addressable_count_all_errors_excluded_class(tmp_path):
     # Every classified error falls into an excluded class -- the addressable
-    # denominator is zero, but the corpus itself is non-empty, so the
+    # count is zero, but the corpus itself is non-empty, so the
     # percentage is a well-defined 0.0, not None and not a
     # ZeroDivisionError.
     path = tmp_path / "session.jsonl"
@@ -465,7 +701,7 @@ def test_build_distribution_zero_denominator_all_errors_excluded_class(tmp_path)
     distribution = bft.build_distribution_from_corpus([path])
 
     assert distribution.total == 1
-    assert distribution.addressable_denominator == 0
+    assert distribution.addressable_count == 0
     assert distribution.addressable_percentage == 0.0
 
 
@@ -478,7 +714,7 @@ def test_build_distribution_empty_corpus_percentage_is_none(tmp_path):
     distribution = bft.build_distribution_from_corpus([path])
 
     assert distribution.total == 0
-    assert distribution.addressable_denominator == 0
+    assert distribution.addressable_count == 0
     assert distribution.addressable_percentage is None
 
 
@@ -498,9 +734,55 @@ def test_distribution_serialized_json_never_contains_raw_marker_text(tmp_path):
     assert distribution.total == 1
 
 
-def test_module_docstring_documents_addressable_denominator_exclusion():
+# ---------------------------------------------------------------------------
+# CLI: --baseline emits a regeneratable distribution (correctness finding #4)
+# ---------------------------------------------------------------------------
+
+
+def test_main_without_baseline_flag_prints_pairing_counts_only(tmp_path, capsys):
+    path = tmp_path / "session.jsonl"
+    _write_transcript(
+        path,
+        [
+            _assistant([_tool_use("t1", "Bash", "false")]),
+            _user([_tool_result("t1", "command exited with a real error message", is_error=True)]),
+        ],
+    )
+
+    exit_code = bft.main(["--transcript", str(path)])
+
+    assert exit_code == 0
+    payload = json.loads(capsys.readouterr().out)
+    assert set(payload.keys()) == {"pairs", "unpaired"}
+
+
+def test_main_with_baseline_flag_emits_distribution_to_dict(tmp_path, capsys):
+    path = tmp_path / "session.jsonl"
+    _write_transcript(
+        path,
+        [
+            _assistant([_tool_use("t1", "Bash", "foobarbaz --version")]),
+            _user([_tool_result("t1", "bash: foobarbaz: command not found", is_error=True)]),
+        ],
+    )
+
+    exit_code = bft.main(["--transcript", str(path), "--baseline"])
+
+    assert exit_code == 0
+    payload = json.loads(capsys.readouterr().out)
+    assert set(payload.keys()) == {
+        "counts",
+        "total",
+        "addressable_count",
+        "addressable_percentage",
+    }
+    assert payload["counts"]["tool-not-present"] == 1
+    assert payload["total"] == 1
+
+
+def test_module_docstring_documents_addressable_numerator_exclusion():
     doc = bft.__doc__ or ""
     assert "timeout" in doc
     assert "genuine-command-error" in doc
     assert "excluded" in doc.lower()
-    assert "denominator" in doc.lower()
+    assert "numerator" in doc.lower()
