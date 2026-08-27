@@ -74,6 +74,10 @@ NON_REVIEW_AGENTS = frozenset({
     # Plan/Gherkin critics dispatched by /plan and /gherkin-derive — not code-review
     # lenses, so no per-file Scope (closes #1525: check_agent_scope was red for these).
     "gherkin-quality-critic",
+    # Dispatched by /autoship Step 2b (skills/autoship/SKILL.md) — a single
+    # per-round grouping-proposal worker, not a code-review lens, so no
+    # per-file Scope (#2072, same pattern as gherkin-quality-critic above).
+    "autoship-batch-proposer",
     "plan-review-acceptance",
     "plan-review-design",
     "plan-review-parallelization",
