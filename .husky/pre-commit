@@ -3,9 +3,33 @@
 # changes, then RE-STAGE the results so they ride along in this same commit
 # (and therefore the same push). Nothing a hook regenerates should be left
 # dangling in the working tree.
+#
+# #2037: this is the real, git-native "pre-commit gate" the plugin's own
+# session-log instrumentation (scripts/session_extract.py's `_BYPASS_RE`/
+# `is_git_commit_argv`-based bypass detection) can only see the DELIBERATE
+# `--no-verify`/`-n` bypass of — it is blind to this script simply never
+# running (an unprovisioned worktree with no `node_modules/.bin/husky`, or
+# any other unregistered commit path). Every exit point below now emits a
+# POSITIVE `gate_ran` boundary event, carrying its own verdict, via
+# `_gate_ran_emit` — so a commit with NO correlated `gate_ran` event at all
+# is now observably `gate_absent` rather than indistinguishable from "no
+# gate needed to run". See scripts/session_extract.py's "gate-run
+# correlation (#2037)" section for how these events get correlated back to
+# a commit attempt (by TIME PROXIMITY — this script has no Claude Code
+# session_id to attach).
 
 ROOT="$(git rev-parse --show-toplevel)" || exit 1
 cd "$ROOT" || exit 1
+
+# Best-effort, never allowed to change this hook's own exit code: a full
+# disk or unwritable .claude/metrics/ must never block a legitimate commit,
+# matching hooks/lib/boundary_events.py's own fail-open write contract.
+# $1 is one of "allow" | "block" | "errored" (see boundary_events.py's
+# `_GATE_RAN_VERDICTS`).
+_gate_ran_emit() {
+  python3 "$ROOT/plugins/dev-team/hooks/lib/boundary_events.py" --cwd "$ROOT" \
+    --event gate-ran --verdict "$1" >/dev/null 2>&1 || true
+}
 
 # 1. Rebuild the knowledge index and stage it. Heading edits in
 #    knowledge/**.md or skills/**/SKILL.md change index.json; staging it here
@@ -14,9 +38,13 @@ cd "$ROOT" || exit 1
 #    The builder reads the working tree, not the index, so an unstaged or
 #    untracked corpus file would let the rebuilt index diverge from what
 #    this commit actually contains — refuse rather than stage a mismatch.
+#
+# No python3 -> no gate_ran event either (the emitter itself needs python3);
+# this exit is indistinguishable from gate_absent downstream, which is the
+# correct, disclosed behavior for "the gate's own prerequisites are missing".
 command -v python3 >/dev/null 2>&1 || { echo "pre-commit: python3 not found on PATH — run bash scripts/dev-setup.sh" >&2; exit 1; }
-UNSTAGED=$(git diff --name-only) || { echo "pre-commit: git diff failed" >&2; exit 1; }
-UNTRACKED=$(git ls-files --others --exclude-standard) || { echo "pre-commit: git ls-files failed" >&2; exit 1; }
+UNSTAGED=$(git diff --name-only) || { _gate_ran_emit errored; echo "pre-commit: git diff failed" >&2; exit 1; }
+UNTRACKED=$(git ls-files --others --exclude-standard) || { _gate_ran_emit errored; echo "pre-commit: git ls-files failed" >&2; exit 1; }
 # Filter through the same corpus regex the builder itself trusts
 # (knowledge_index_paths.py) rather than a hand-rolled git pathspec glob —
 # a plain '*' pathspec crosses '/', so it would also flag non-corpus files
@@ -27,20 +55,29 @@ sys.path.insert(0, "plugins/dev-team/hooks/lib")
 from knowledge_index_paths import filter_corpus_paths
 paths = [line.rstrip("\n") for line in sys.stdin if line.strip()]
 print("\n".join(filter_corpus_paths(paths)))
-') || { echo "pre-commit: corpus-dirty check failed to run" >&2; exit 1; }
+') || { _gate_ran_emit errored; echo "pre-commit: corpus-dirty check failed to run" >&2; exit 1; }
 if [ -n "$CORPUS_DIRTY" ]; then
+  _gate_ran_emit block
   echo "pre-commit: unstaged/untracked knowledge-corpus files would make the rebuilt index.json not match this commit — stage or stash them first:" >&2
   echo "$CORPUS_DIRTY" >&2
   exit 1
 fi
 if ! python3 plugins/dev-team/hooks/lib/build_knowledge_index.py; then
+  _gate_ran_emit errored
   echo "pre-commit: knowledge-index rebuild failed" >&2
   exit 1
 fi
-git add plugins/dev-team/knowledge/index.json || { echo "pre-commit: staging index.json failed" >&2; exit 1; }
+git add plugins/dev-team/knowledge/index.json || { _gate_ran_emit errored; echo "pre-commit: staging index.json failed" >&2; exit 1; }
 
 # 2. Run lint-staged: eslint --fix on staged JS/TS files and ruff check --fix
 #    on staged Python files, with the autofixes automatically re-staged (see
 #    the lint-staged config in package.json). The pre-push CI mirror
 #    (scripts/ci-local.sh) still runs the full eslint and ruff gates.
-npx --no-install lint-staged
+if npx --no-install lint-staged; then
+  _gate_ran_emit allow
+  exit 0
+else
+  lint_staged_status=$?
+  _gate_ran_emit block
+  exit "$lint_staged_status"
+fi

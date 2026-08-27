@@ -936,6 +936,166 @@ def test_cli_dispatch_failure_missing_agent_is_a_silent_noop(tmp_path: Path) -> 
     assert not log.exists()
 
 
+def test_cli_gate_ran_emits_record_event_with_verdict_in_matched_rule(
+    tmp_path: Path,
+) -> None:
+    """#2037: `--event gate-ran --verdict <v>` (used by `.husky/pre-commit`,
+    a REAL git hook with no Claude Code session_id to attach — see
+    boundary_events.py's `_CLI_VERDICT_EVENTS` comment) writes a well-formed
+    "record" event whose verdict lives in `matched_rule`, not `decision` —
+    the same non-verdict, observational shape agent_dispatch_ledger.py's own
+    "record" events use."""
+    result = subprocess.run(
+        [
+            sys.executable,
+            str(_LIB_DIR / "boundary_events.py"),
+            "--cwd",
+            str(tmp_path),
+            "--event",
+            "gate-ran",
+            "--verdict",
+            "allow",
+        ],
+        capture_output=True,
+        check=False,
+    )
+    assert result.returncode == 0
+    events = _read_jsonl(tmp_path / ".claude" / "metrics" / "boundary-events.jsonl")
+    assert len(events) == 1
+    event = events[0]
+    assert event["hook"] == "pre-commit-gate"
+    assert event["tool"] == "Bash"
+    assert event["decision"] == "record"
+    assert event["matched_rule"] == "gate-ran-allow"
+    assert "session_id" not in event
+    assert "subject_hash" not in event
+
+
+def test_cli_gate_ran_accepts_all_three_verdicts(tmp_path: Path) -> None:
+    for verdict in ("allow", "block", "errored"):
+        result = subprocess.run(
+            [
+                sys.executable,
+                str(_LIB_DIR / "boundary_events.py"),
+                "--cwd",
+                str(tmp_path),
+                "--event",
+                "gate-ran",
+                "--verdict",
+                verdict,
+            ],
+            capture_output=True,
+            check=False,
+        )
+        assert result.returncode == 0
+    events = _read_jsonl(tmp_path / ".claude" / "metrics" / "boundary-events.jsonl")
+    assert [e["matched_rule"] for e in events] == [
+        "gate-ran-allow",
+        "gate-ran-block",
+        "gate-ran-errored",
+    ]
+
+
+def test_cli_gate_ran_rejects_an_unknown_verdict(tmp_path: Path) -> None:
+    result = subprocess.run(
+        [
+            sys.executable,
+            str(_LIB_DIR / "boundary_events.py"),
+            "--cwd",
+            str(tmp_path),
+            "--event",
+            "gate-ran",
+            "--verdict",
+            "totally-fabricated-verdict",
+        ],
+        capture_output=True,
+        check=False,
+    )
+    assert result.returncode != 0
+    log = tmp_path / ".claude" / "metrics" / "boundary-events.jsonl"
+    assert not log.exists()
+
+
+def test_cli_gate_ran_missing_verdict_is_a_usage_error_not_a_silent_noop(
+    tmp_path: Path,
+) -> None:
+    """Unlike --agent (silently no-op'd when missing, since an unregistered
+    agent is itself a legitimate possibility to drop quietly), a missing
+    --verdict on --event gate-ran is a caller-code bug — there is no closed
+    registry to validate against, only a required flag — so this is a
+    nonzero-exit usage error, matching every other required-flag omission
+    in this CLI."""
+    result = subprocess.run(
+        [
+            sys.executable,
+            str(_LIB_DIR / "boundary_events.py"),
+            "--cwd",
+            str(tmp_path),
+            "--event",
+            "gate-ran",
+        ],
+        capture_output=True,
+        check=False,
+    )
+    assert result.returncode != 0
+    log = tmp_path / ".claude" / "metrics" / "boundary-events.jsonl"
+    assert not log.exists()
+
+
+def test_cli_gate_ran_accepts_optional_session_id_and_subject_hash(
+    tmp_path: Path,
+) -> None:
+    """`--session-id`/`--subject-hash` remain accepted for a future caller
+    that DOES have one (see `_CLI_VERDICT_EVENTS`'s comment) even though the
+    shipped caller (.husky/pre-commit) omits both."""
+    result = subprocess.run(
+        [
+            sys.executable,
+            str(_LIB_DIR / "boundary_events.py"),
+            "--cwd",
+            str(tmp_path),
+            "--event",
+            "gate-ran",
+            "--verdict",
+            "block",
+            "--session-id",
+            "sess-gate",
+            "--subject-hash",
+            "cafef00d",
+        ],
+        capture_output=True,
+        check=False,
+    )
+    assert result.returncode == 0
+    events = _read_jsonl(tmp_path / ".claude" / "metrics" / "boundary-events.jsonl")
+    assert events[0]["session_id"] == "sess-gate"
+    assert events[0]["subject_hash"] == "cafef00d"
+
+
+def test_cli_still_requires_subject_hash_for_the_original_fixed_tuple_events(
+    tmp_path: Path,
+) -> None:
+    """--subject-hash became optional at the argparse level so `gate-ran`
+    can omit it (#2037), but every OTHER event still requires it in
+    practice — this must not have silently relaxed doc-only/single-agent/
+    dispatch-failure's own contract."""
+    result = subprocess.run(
+        [
+            sys.executable,
+            str(_LIB_DIR / "boundary_events.py"),
+            "--cwd",
+            str(tmp_path),
+            "--event",
+            "doc-only",
+        ],
+        capture_output=True,
+        check=False,
+    )
+    assert result.returncode != 0
+    log = tmp_path / ".claude" / "metrics" / "boundary-events.jsonl"
+    assert not log.exists()
+
+
 def test_cli_rejects_arbitrary_hook_decision_matched_rule(tmp_path: Path) -> None:
     """#1461 security review: the CLI must NOT accept free-form
     --hook/--tool/--decision/--matched-rule — that would let anyone forge an
