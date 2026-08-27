@@ -107,3 +107,112 @@ def slim_by_name(mapping: dict) -> dict:
     independently (the former as a dedicated `_slim` helper, the latter
     inline)."""
     return {k: dict(sorted(v.items())) for k, v in sorted(mapping.items())}
+
+
+# --- issue #2050: sidechain/attribution primitives, made public -----------
+#
+# `hooks/lib/cost_meter.py`, `hooks/context_ceiling_guard.py`, and
+# `scripts/measure_full_file_duplication.py` each independently read the
+# harness's `isSidechain`/`attributionAgent` fields and (`cost_meter.py`/
+# `measure_full_file_duplication.py`) the Task/Agent-dispatch join. Folded
+# here so `skills/code-review/scripts/repo_invariants.py`'s
+# `check_transcript_parsing_confined_to_session_log` (#2048) has one real
+# home to point at instead of three independent copies.
+
+#: Tool names the harness uses for subagent dispatch (both spellings appear
+#: in real transcripts depending on harness version).
+TASK_TOOL_NAMES = ("Task", "Agent")
+
+
+def is_sidechain(record: dict) -> bool:
+    """True for a subagent (sidechain) transcript record — the native
+    top-level `isSidechain` flag, true on subagent/sidechain turns under
+    the older inline-record harness layout."""
+    return bool(record.get("isSidechain"))
+
+
+def attribution_agent_of(record: dict) -> str | None:
+    """The record's own `attributionAgent` value when it's a string
+    (possibly empty), else `None`. Deliberately does not filter on
+    truthiness here — callers that require a non-empty value check it
+    themselves (`agent_type_for` below does; a caller collecting the first
+    attribution seen across a file, so it can prefer a later non-empty one,
+    does not)."""
+    value = record.get("attributionAgent")
+    return value if isinstance(value, str) else None
+
+
+def join_dispatch_agent_ids(
+    record: dict, dispatch_types: dict[str, str], agent_types: dict[str, str]
+) -> None:
+    """Fold one record's subagent-dispatch metadata into the two join maps,
+    in place.
+
+    Two harness-recorded halves of the join (#1094):
+      * an assistant `tool_use` block named Task/Agent carries
+        `input.subagent_type` — keyed here by the block's tool-use id;
+      * the paired `tool_result` user record carries top-level
+        `toolUseResult.agentId` — completing agentId -> subagent_type.
+
+    Only the identifiers are read; prompts/descriptions are never touched.
+    Previously duplicated independently by `hooks/lib/cost_meter.py`'s
+    `_harvest_agent_dispatch` and `scripts/measure_full_file_duplication.py`'s
+    `_join_dispatch_agent_ids` — the latter's own docstring already conceded
+    the duplication "since that algorithm's own module keeps it private"
+    (#2050 makes it public here instead, so both consumers share one
+    implementation)."""
+    message = record.get("message")
+    content = message.get("content") if isinstance(message, dict) else None
+    if not isinstance(content, list):
+        return
+    for block in content:
+        if not isinstance(block, dict):
+            continue
+        block_type = block.get("type")
+        if block_type == "tool_use" and block.get("name") in TASK_TOOL_NAMES:
+            block_id = block.get("id")
+            block_input = block.get("input")
+            subagent_type = (
+                block_input.get("subagent_type")
+                if isinstance(block_input, dict)
+                else None
+            )
+            if (
+                isinstance(block_id, str)
+                and isinstance(subagent_type, str)
+                and subagent_type
+            ):
+                dispatch_types[block_id] = subagent_type
+        elif block_type == "tool_result":
+            tool_use_id = block.get("tool_use_id")
+            tool_use_result = record.get("toolUseResult")
+            agent_id = (
+                tool_use_result.get("agentId")
+                if isinstance(tool_use_result, dict)
+                else None
+            )
+            if (
+                isinstance(tool_use_id, str)
+                and isinstance(agent_id, str)
+                and tool_use_id in dispatch_types
+            ):
+                agent_types[agent_id] = dispatch_types[tool_use_id]
+
+
+def agent_type_for(record: dict, agent_types: dict[str, str]) -> str:
+    """Agent-type bucket for one usage-bearing record (#1094).
+
+    `main` for main-loop turns. For sidechain turns: the native
+    `attributionAgent` field (primary), else the agentId -> subagent_type
+    join built from Task/Agent dispatches via `join_dispatch_agent_ids`
+    (fallback), else the honest `unattributed` bucket — never a guess.
+    """
+    if not is_sidechain(record):
+        return "main"
+    attribution_agent = attribution_agent_of(record)
+    if attribution_agent:
+        return attribution_agent
+    agent_id = record.get("agentId")
+    if isinstance(agent_id, str) and agent_id in agent_types:
+        return agent_types[agent_id]
+    return "unattributed"

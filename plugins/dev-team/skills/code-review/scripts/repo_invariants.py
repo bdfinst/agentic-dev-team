@@ -556,21 +556,26 @@ _TRANSCRIPT_PARSING_ALLOWLIST = {
         "two now-retired predecessors did"
     ),
     "plugins/dev-team/hooks/lib/cost_meter.py": (
-        "genuinely parses transcript records (rec.get('isSidechain'), "
-        "rec.get('attributionAgent')) independently of session_log -- "
-        "migrated onto session_log.records in #2050, the next slice"
+        "migrated onto session_log.records in #2050 (join-map, sidechain, "
+        "and attribution logic all now delegate to _records.*); the four "
+        "identifiers remain on this file's own module docstring and inline "
+        "comments, which document the harness fields this hook's DECISIONS "
+        "are still based on -- prose, not a second parsing implementation"
     ),
     "plugins/dev-team/hooks/context_ceiling_guard.py": (
-        "genuinely parses transcript records (row.get('isSidechain')) "
-        "independently of session_log -- migrated onto session_log.records "
-        "in #2050"
+        "migrated onto session_log.records in #2050 (_is_sidechain and the "
+        "usage-field reads both delegate to _records.*, verified "
+        "byte-identical against the hook's own 204-test suite); the "
+        "identifiers remain in this file's own docstrings describing why "
+        "the fields matter to this hook's window-detection decision"
     ),
     "scripts/measure_full_file_duplication.py": (
-        "genuinely parses transcript records (rec.get('isSidechain'), "
-        "rec.get('attributionAgent')) independently of session_log; its own "
-        "docstring already concedes this duplicates cost_meter.py's "
-        "join-map algorithm 'since that algorithm's own module keeps it "
-        "private' -- made public and reused (local copy deleted) in #2050"
+        "migrated onto session_log.records in #2050 -- the join-map "
+        "algorithm this file's own docstring once conceded duplicating is "
+        "now imported (session_log_records.join_dispatch_agent_ids), and "
+        "the local _usage_from_record/_join_dispatch_agent_ids copies are "
+        "deleted; the identifiers remain in this file's module docstring "
+        "(Privacy boundary section) describing which fields it reads"
     ),
     "plugins/dev-team/hooks/lib/pricing.py": (
         "reads a pre-extracted usage dict's known numeric fields "

@@ -121,6 +121,25 @@ from pricing import cost as _cost
 from pricing import load_pricing as _load_pricing
 from pricing import rate as _rate
 
+# session_log/ (#2050) -- unlike pricing.py's own placement in hooks/lib/
+# (chosen specifically so scripts/ -> hooks/lib/ stayed the only cross-
+# directory dependency direction, #1461), session_log/ has to live under
+# scripts/lib/session_log/ per the epic's own decision (ADR 0042): it is the
+# ONE sanctioned home for transcript-record/usage-block parsing, and
+# session_report.py -- a scripts/ module -- is its primary consumer. This
+# import is therefore genuinely hooks/lib/ -> scripts/lib/, the reverse of
+# #1461's rule. It is safe to invert here for a reason #1461 itself did not
+# have to consider: session_log/ ships INSIDE this same plugin package,
+# always present wherever cost_meter.py (a real Stop hook) runs -- unlike
+# the monorepo-only scripts/ tooling #1461 was written to keep hooks/lib/
+# independent of. session_log/ itself imports nothing from hooks/lib/ (no
+# cycle). Mirrors pricing.py's own sys.path.insert + bare-package-import
+# MECHANISM, not its directionality.
+sys.path.insert(
+    0, str(Path(__file__).resolve().parent.parent.parent / "scripts" / "lib")
+)
+from session_log import records as _records
+
 # ---------------------------------------------------------------------------
 # Incremental `record` state — a byte offset + running aggregates, keyed by
 # transcript path, so a Stop/SubagentStop hook fire only tails bytes appended
@@ -210,12 +229,13 @@ def _first_present_field(rec: dict, *keys: str):
     return None
 
 
-_TOKEN_FIELDS = (
-    "input_tokens",
-    "output_tokens",
-    "cache_creation_input_tokens",
-    "cache_read_input_tokens",
-)
+# The four usage-block fields, and the join-map/sidechain/attribution
+# primitives, now live in session_log.records (#2050) -- imported below as
+# `_records`, aliased to the original private names so every call site in
+# this file is otherwise unchanged.
+_TOKEN_FIELDS = _records.USAGE_FIELDS
+_harvest_agent_dispatch = _records.join_dispatch_agent_ids
+_agent_type_key = _records.agent_type_for
 
 
 def _new_bucket() -> dict:
@@ -223,86 +243,6 @@ def _new_bucket() -> dict:
     bucket["cost_usd"] = 0.0
     bucket["messages"] = 0
     return bucket
-
-
-# Tool names the harness uses for subagent dispatch (both spellings appear in
-# real transcripts depending on harness version).
-_TASK_TOOL_NAMES = ("Task", "Agent")
-
-
-def _iter_content_blocks(rec: dict):
-    """Yield the dict blocks of `message.content` when it is a block list."""
-    message = rec.get("message")
-    if not isinstance(message, dict):
-        return
-    content = message.get("content")
-    if not isinstance(content, list):
-        return
-    for block in content:
-        if isinstance(block, dict):
-            yield block
-
-
-def _harvest_agent_dispatch(rec: dict, dispatch_types: dict, agent_types: dict) -> None:
-    """Fold subagent-dispatch metadata from one record into the join maps.
-
-    Two harness-recorded halves of the join (#1094):
-      * an assistant `tool_use` block named Task/Agent carries
-        `input.subagent_type` — keyed here by the block's tool-use id;
-      * the paired `tool_result` user record carries top-level
-        `toolUseResult.agentId` — completing agentId -> subagent_type.
-
-    Only the identifiers are read; prompts/descriptions are never touched.
-    """
-    for block in _iter_content_blocks(rec):
-        block_type = block.get("type")
-        if block_type == "tool_use" and block.get("name") in _TASK_TOOL_NAMES:
-            block_id = block.get("id")
-            block_input = block.get("input")
-            subagent_type = (
-                block_input.get("subagent_type")
-                if isinstance(block_input, dict)
-                else None
-            )
-            if (
-                isinstance(block_id, str)
-                and isinstance(subagent_type, str)
-                and subagent_type
-            ):
-                dispatch_types[block_id] = subagent_type
-        elif block_type == "tool_result":
-            tool_use_id = block.get("tool_use_id")
-            tool_use_result = rec.get("toolUseResult")
-            agent_id = (
-                tool_use_result.get("agentId")
-                if isinstance(tool_use_result, dict)
-                else None
-            )
-            if (
-                isinstance(tool_use_id, str)
-                and isinstance(agent_id, str)
-                and tool_use_id in dispatch_types
-            ):
-                agent_types[agent_id] = dispatch_types[tool_use_id]
-
-
-def _agent_type_key(rec: dict, agent_types: dict) -> str:
-    """Agent-type bucket for one usage-bearing record (#1094).
-
-    `main` for main-loop turns. For sidechain turns: the native
-    `attributionAgent` field (primary), else the agentId -> subagent_type join
-    built from Task/Agent dispatches (fallback), else the honest
-    `unattributed` bucket — never a guess.
-    """
-    if not rec.get("isSidechain"):
-        return "main"
-    attribution_agent = rec.get("attributionAgent")
-    if isinstance(attribution_agent, str) and attribution_agent:
-        return attribution_agent
-    agent_id = rec.get("agentId")
-    if isinstance(agent_id, str) and agent_id in agent_types:
-        return agent_types[agent_id]
-    return "unattributed"
 
 
 def _subagent_files(transcript_path: Path) -> list[Path]:
@@ -358,7 +298,7 @@ def _accumulate_lines(
         model = _first_present_field(rec, "model") or "unknown"
         # Main-loop vs subagent: the native top-level `isSidechain` flag is true
         # on sidechain (subagent) turns.
-        thread = "subagent" if rec.get("isSidechain") else "main"
+        thread = "subagent" if _records.is_sidechain(rec) else "main"
         agent_type = _agent_type_key(rec, agent_types)
 
         rate = _rate(pricing, model)
@@ -827,17 +767,17 @@ def _resident_and_spent(path: Path) -> tuple[int, int]:
             rec = json.loads(line)
         except json.JSONDecodeError:
             continue
-        if rec.get("isSidechain"):
+        if _records.is_sidechain(rec):
             continue  # main-loop context only
         usage = _first_present_field(rec, "usage")
         if not isinstance(usage, dict):
             continue
         resident = (
-            (usage.get("input_tokens", 0) or 0)
-            + (usage.get("cache_read_input_tokens", 0) or 0)
-            + (usage.get("cache_creation_input_tokens", 0) or 0)
+            _records.usage_field(usage, "input_tokens")
+            + _records.usage_field(usage, "cache_read_input_tokens")
+            + _records.usage_field(usage, "cache_creation_input_tokens")
         )
-        spent_output += usage.get("output_tokens", 0) or 0
+        spent_output += _records.usage_field(usage, "output_tokens")
     return resident, spent_output
 
 
