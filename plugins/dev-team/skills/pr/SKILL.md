@@ -71,16 +71,71 @@ Run each check sequentially. Stop on first failure:
    - `golangci-lint` available: `golangci-lint run`
 
 4. **Code review** (unless `--skip-review`):
-   - Scope the review to this branch's diff against the base branch, not the whole repo. At PR time the working tree is clean (Step 1 requires it), so a bare `/code-review --json` would auto-scope to the **full repository** — expensive, wrongly scoped, and on a large repo it can trigger the sliced-review path. Compute the merge base and pass it via `--since`:
+   - Scope the review to this branch's diff against the base branch, not the whole repo. At PR time the working tree is clean (Step 1 requires it), so a bare `/code-review --json` would auto-scope to the **full repository** — expensive, wrongly scoped, and on a large repo it can trigger the sliced-review path. Compute the merge base:
 
      ```bash
      BASE=$(git merge-base HEAD "origin/<base>")   # <base> defaults to main, or the --base arg
+     HEAD_SHA=$(git rev-parse HEAD)
+     BRANCH=$(git branch --show-current)
      ```
 
-   - Run `/code-review --since "$BASE" --json`. `/pr` owns the human gate, so code-review runs non-interactively: it skips its own "fix or report?" prompt and applies its fix loop automatically (up to 5 iterations), then returns an aggregated status.
-   - Read the returned status field. A normal review returns `{"overall": "pass|warn|fail", ...}`; a documentation-only changeset short-circuits with `{"status": "skipped", ...}`:
-     - `overall` of `pass` / `warn`, or `status` of `skipped` → continue to step 3.
-     - `overall` of `fail` → show the remaining findings and ask the user whether to proceed anyway or stop and fix.
+   - **Gate-retry scoping (#2087).** `/code-review`'s own round ledger (`finding_signature.py`, see `../code-review/SKILL.md` step 6a) only scopes findings *within* a single `/code-review` invocation — every fresh top-level call restarts at round 1 with the full branch diff. Left unmanaged, a second `/pr` run after a human fixes findings from the first pays full review cost again, even though only the fix delta is unreviewed. `${CLAUDE_PLUGIN_ROOT}/skills/pr/scripts/gate_retry_state.py` is the deterministic transition function that closes that gap by persisting phase/round state across `/pr` invocations. Drive it with this bounded loop — **never more than two `/code-review` calls in one `/pr` invocation**:
+
+     ```bash
+     # Call 1: decide this call's scope (no --last-outcome yet).
+     DECISION=$(python3 "${CLAUDE_PLUGIN_ROOT}/skills/pr/scripts/gate_retry_state.py" \
+       --state .claude/memory/pr-gate-state.json \
+       --branch "$BRANCH" --base-sha "$BASE" --head-sha "$HEAD_SHA")
+     SINCE_REF=$(echo "$DECISION" | jq -r '.since_ref')
+     ESCALATE=$(echo "$DECISION" | jq -r '.escalate')
+
+     if [ "$ESCALATE" = "true" ]; then
+       # Retry budget exhausted for this PR's gate — stop, do not call
+       # /code-review again. Surface this and fall into the same
+       # proceed-anyway-or-fix branching as a `fail` below, noting that
+       # further retries need `--reset` (a fresh look), since automatic
+       # narrow-scoping is exhausted.
+     else
+       RESULT=$(/code-review --since "$SINCE_REF" --json)
+       # gate_retry_state.py only knows pass|warn|fail; a doc-only
+       # short-circuit (`status: "skipped"`) converges the round exactly
+       # like a pass — map it before recording.
+       OVERALL=$(echo "$RESULT" | jq -r 'if .status == "skipped" then "pass" else .overall end')
+
+       # Call 2: record the outcome and get the next scope.
+       DECISION=$(python3 "${CLAUDE_PLUGIN_ROOT}/skills/pr/scripts/gate_retry_state.py" \
+         --state .claude/memory/pr-gate-state.json \
+         --branch "$BRANCH" --base-sha "$BASE" --head-sha "$HEAD_SHA" \
+         --last-outcome "$OVERALL")
+       SINCE_REF=$(echo "$DECISION" | jq -r '.since_ref')
+
+       # Only the fix-diff -> confirm transition returns a non-null
+       # since_ref here (one mandatory full-branch pass before the gate can
+       # close, issue #2087 requirement 3) — run it once, immediately, in
+       # this same invocation, then record it. Do not loop: this is the
+       # ONLY place a third /code-review call can happen, and it never
+       # triggers a fourth.
+       if [ "$SINCE_REF" != "null" ]; then
+         RESULT=$(/code-review --since "$SINCE_REF" --json)
+         OVERALL=$(echo "$RESULT" | jq -r 'if .status == "skipped" then "pass" else .overall end')
+         DECISION=$(python3 "${CLAUDE_PLUGIN_ROOT}/skills/pr/scripts/gate_retry_state.py" \
+           --state .claude/memory/pr-gate-state.json \
+           --branch "$BRANCH" --base-sha "$BASE" --head-sha "$HEAD_SHA" \
+           --last-outcome "$OVERALL")
+       fi
+     fi
+     ```
+
+     `/code-review --since <ref> --json` itself is unchanged: `/pr` owns the human gate, so code-review still runs non-interactively (skips its own "fix or report?" prompt, applies its fix loop automatically up to 5 iterations) and returns an aggregated status — only the `--since` ref is now computed by the gate-retry decision above instead of always being `$BASE`.
+
+   - Read `DECISION`'s final `phase` and the last `OVERALL` computed:
+
+     | `phase` / outcome | Meaning | Action |
+     | --- | --- | --- |
+     | `phase: "done"` | Gate closed — either a full-branch pass on round 1, or the mandatory confirm pass after a narrowed fix-diff pass | Continue to step 3 |
+     | `escalate: true` | Retry budget (`PR_GATE_MAX_ROUNDS`) exhausted across `/pr` invocations for this PR | Stop; do not call `/code-review` again this invocation. Surface that the retry budget is exhausted and further retries need `--reset` for a fresh full-branch look |
+     | last `OVERALL` is `fail`, not escalated | Actionable findings remain after code-review's own internal fix loop | Show the remaining findings and ask the user whether to proceed anyway or stop and fix — and tell them re-running `/pr` will scope the next check to only what changed since this attempt (the fix delta), not the whole branch, unless the base moved |
+     | last `OVERALL` is `pass` / `warn`, or `status` is `skipped` (doc-only short-circuit, checked before any of the above) | Nothing further to review | Continue to step 3 |
 
 Report results as a checklist:
 

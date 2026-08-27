@@ -692,6 +692,12 @@ triggers, in precedence order, all handled by the script:
 | `run-id-mismatch` | The stored ledger was built for different target files. Catches a resume that legitimately starts at round ≥ 2 against a different changeset |
 | `stale-state` | The run started more than 24h ago — abandoned residue |
 
+This ledger covers rounds *within* one `/code-review` invocation only — a
+caller that re-invokes `/code-review` across separate command runs is the
+place that scopes those *separate* invocations to the fix-diff instead of
+restarting at round 1 every time. `/pr`'s own gate-retry loop
+(`../pr/SKILL.md` step 2) is that caller today.
+
 Reported as `ledger_reset` on every call (`null` when a stored ledger was
 legitimately resumed). The script fails **toward** a reset: an unreadable or
 malformed state file starts fresh. Starting fresh costs at most one extra
