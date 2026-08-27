@@ -85,10 +85,23 @@ integer solo-edit count -- same ordering, no float noise in ties. The ratio is
 still reported per row and is the first tie-breaker, so a file that is 100%
 solo ranks above an equally-solo-count file that is only 50% solo.
 
+## All-files mode delegates to a sibling module (Step 2.3, #2039)
+
+`--all-files` ranks every historically-edited, non-excluded path (not just
+mapped test/subject pairs) by cross-session recurrence. That responsibility
+lives in the sibling module `scripts/lib/churn_recurrence.py`, not here --
+adding it in place would grow this already-735-line script's second,
+unrelated responsibility past this repo's god-object threshold. `run()`
+converts this script's own `Commit` objects (and its own `is_excluded`
+filtering) into plain `(sha, paths, timestamp)` dicts at the call boundary
+and delegates; `churn_recurrence.py` never imports the `Commit` type, so the
+import direction stays one-way (this module -> `churn_recurrence.py`).
+
 ## Usage
 
     scripts/churn_coupling_report.py [--repo PATH] [--since DAYS]
-        [--max-commits N] [--min-edits N] [--top N] [--exclude GLOB] [--json]
+        [--max-commits N] [--min-edits N] [--top N] [--exclude GLOB]
+        [--all-files] [--json]
 
 Exit codes: 0 on a completed report (including an empty one), 2 on a refusal
 (not a git repository, shallow clone, no commits in the window).
@@ -104,6 +117,11 @@ import subprocess
 import sys
 from dataclasses import dataclass, field
 from pathlib import Path, PurePosixPath
+
+_LIB_DIR = str(Path(__file__).resolve().parent / "lib")
+if _LIB_DIR not in sys.path:
+    sys.path.append(_LIB_DIR)
+import churn_recurrence
 
 # --------------------------------------------------------------------------
 # Configuration
@@ -177,6 +195,10 @@ class Refusal(Exception):
 class Commit:
     sha: str
     paths: frozenset
+    #: Author date, ISO 8601 (`%aI`). Defaults to "" so existing call sites
+    #: that only ever supplied sha/paths (tests, mainly) keep working
+    #: unchanged -- this field is purely additive.
+    timestamp: str = ""
 
 
 @dataclass
@@ -414,25 +436,35 @@ def git_log_commits(repo, since_days=None, max_commits=None) -> list:
     Merge commits are excluded: their `--name-only` output either is empty or
     re-reports every path on the merged side, which would inflate both edit
     counts and co-change counts in a merge-heavy history.
+
+    The pretty-format emits two NUL bytes per record (`%x00%H%x00%aI`): one
+    leading separator before the sha, and a second between the sha and the
+    author-date timestamp. Splitting the whole output on `\\0` therefore
+    yields the pieces in `("", sha_1, "timestamp_1\\npaths...", sha_2,
+    "timestamp_2\\npaths...", ...)` shape -- the leading empty piece, then a
+    (sha, rest) pair per commit -- rather than one piece per commit as when
+    the format carried a single NUL.
     """
     if not _has_commits(repo):
         return []
 
-    args = ["log", "--no-merges", "--name-only", "--pretty=format:%x00%H"]
+    args = ["log", "--no-merges", "--name-only", "--pretty=format:%x00%H%x00%aI"]
     if since_days is not None:
         args.append(f"--since={since_days} days ago")
     if max_commits:
         args.append(f"--max-count={max_commits}")
     out = run_git(repo, args)
 
+    pieces = out.split("\0")
     commits = []
-    for chunk in out.split("\0"):
-        if not chunk.strip():
+    for sha_piece, rest in zip(pieces[1::2], pieces[2::2]):
+        sha = sha_piece.strip()
+        if not sha:
             continue
-        lines = chunk.splitlines()
-        sha = lines[0].strip()
+        lines = rest.splitlines()
+        timestamp = lines[0].strip() if lines else ""
         paths = frozenset(line for line in lines[1:] if line.strip())
-        commits.append(Commit(sha=sha, paths=paths))
+        commits.append(Commit(sha=sha, paths=paths, timestamp=timestamp))
     return commits
 
 
@@ -453,16 +485,22 @@ def _has_commits(repo) -> bool:
 
 
 def tracked_paths(repo) -> set:
-    """Currently-tracked paths, always relative to the repository root.
+    """Every currently-tracked path in the repository, root-relative.
 
-    `--full-name` is load-bearing: a bare `git ls-files` reports paths relative
-    to the CWD, so pointing `--repo` at a subdirectory would yield a universe
-    of subdirectory-relative paths while `git log` reports root-relative ones.
-    Nothing would error -- every structural mapping would just silently miss.
+    `git ls-files` scopes its output to the CURRENT DIRECTORY and below when
+    run with no pathspec -- `--full-name` only fixes the output path FORMAT
+    (root-relative instead of CWD-relative), not that scope. So pointing
+    `--repo` at a subdirectory would report only the tracked files under that
+    subdirectory, while `git_log_commits` reports repo-wide, root-relative
+    paths regardless of `--repo`. Resolving the repository's top level first
+    and running `ls-files` there closes that gap: the tracked-path universe
+    always matches `git_log_commits`'s repo-wide reach, no matter what
+    `--repo` points at.
     """
+    toplevel = run_git(repo, ["rev-parse", "--show-toplevel"]).strip()
     return {
         line
-        for line in run_git(repo, ["ls-files", "--full-name"]).splitlines()
+        for line in run_git(toplevel, ["ls-files", "--full-name"]).splitlines()
         if line.strip()
     }
 
@@ -564,8 +602,15 @@ def render_json(report, top) -> str:
 
 
 def render_text(report, top) -> str:
+    """Render `report` (from `build_report`) as a text table.
+
+    `window`/`truncated` are query-level concerns `run()` injects into the
+    dict after `build_report` returns (matching `churn_recurrence.render_text`'s
+    identical `.get()` fix in this same diff) -- read with `.get()` so a
+    caller that renders `build_report`'s own output directly gets "unknown"
+    instead of a `KeyError`."""
     lines = []
-    window = report["window"]
+    window = report.get("window", "unknown")
     lines.append(
         f"Churn vs coupling  window: {window}  commits scanned: "
         f"{report['commits_scanned']}"
@@ -611,11 +656,7 @@ def render_text(report, top) -> str:
             tried = ", ".join(item["tried"][:3]) or "(no candidate form recognized)"
             lines.append(f"  {item['edits']:>5} edits  {item['test_file']}")
             lines.append(f"            tried: {tried}")
-        hidden = len(report["unmapped"]) - top
-        if hidden > 0:
-            # Named, not dropped: --top caps the display, and --json still
-            # carries every unmapped file.
-            lines.append(f"  ... and {hidden} more (raise --top, or use --json)")
+        churn_recurrence.append_hidden_note(lines, len(report["unmapped"]), top)
 
     lines.append("")
     lines.append(
@@ -674,7 +715,8 @@ def build_parser():
         metavar="N",
         type=_positive_int,
         default=DEFAULT_TOP,
-        help="show at most N ranked rows, and at most N unmapped files, in the text report; --json always carries every row "
+        help="show at most N ranked rows, and at most N unmapped files, in both the text and "
+        "--json report (--json still carries every unmapped/unattributed entry, never capped) "
         "(default: " + str(DEFAULT_TOP) + ")",
     )
     parser.add_argument(
@@ -684,8 +726,42 @@ def build_parser():
         default=[],
         help="extra path glob to exclude (repeatable; adds to the defaults)",
     )
+    parser.add_argument(
+        "--all-files",
+        action="store_true",
+        help=(
+            "rank every historically-edited, non-excluded file by cross-session "
+            "recurrence instead of test/subject coupling (delegates to "
+            "scripts/lib/churn_recurrence.py)"
+        ),
+    )
     parser.add_argument("--json", action="store_true", help="emit JSON instead of a table")
     return parser
+
+
+def _to_plain_commits(commits, excludes) -> list:
+    """Convert this script's `Commit` objects to `churn_recurrence.py`'s
+    plain-dict input shape at the call boundary, applying this script's own
+    exclusion filtering along the way -- `churn_recurrence.py` never
+    re-implements `is_excluded`'s glob matching, and never imports `Commit`.
+
+    A commit whose every path is excluded (e.g. touched only
+    `node_modules/*`), or a genuinely path-less `--allow-empty` commit, is
+    dropped entirely rather than passed through with an empty `paths`
+    list -- it must not be counted or ranked as a per-file edit anywhere in
+    `churn_recurrence.py`'s output. `run()` overrides `commits_scanned`
+    after calling `rank_all_files` with this function's output, restoring
+    the count to the full pre-filter window so the field means the same
+    thing (the scanned window size, matching `build_report`'s own
+    unconditional `len(commits)`) in both `--all-files` and default mode.
+    """
+    plain = []
+    for commit in commits:
+        paths = [path for path in commit.paths if not is_excluded(path, excludes)]
+        if not paths:
+            continue
+        plain.append({"sha": commit.sha, "paths": paths, "timestamp": commit.timestamp})
+    return plain
 
 
 def run(args) -> str:
@@ -708,6 +784,34 @@ def run(args) -> str:
         )
 
     excludes = tuple(DEFAULT_EXCLUDES) + tuple(args.exclude)
+
+    if args.all_files:
+        try:
+            report = churn_recurrence.rank_all_files(
+                _to_plain_commits(commits, excludes), tracked_paths(args.repo)
+            )
+        except churn_recurrence.TimestampError as timestamp_error:
+            raise Refusal(
+                "missing-commit-timestamp",
+                f"commit {timestamp_error.sha!r} has a missing or unparseable "
+                f"timestamp ({timestamp_error.timestamp!r}), so cross-session "
+                "recurrence cannot be computed for it.",
+                "This should not happen from git_log_commits's own output; "
+                "check for corrupted or hand-built commit input.",
+            ) from timestamp_error
+        # rank_all_files's own commits_scanned reflects the excludes-filtered
+        # plain-commit list _to_plain_commits built (see its docstring) --
+        # override with the full pre-filter window so this field means the
+        # same thing here as it does in build_report's default-mode report.
+        report["commits_scanned"] = len(commits)
+        report["window"] = f"{args.since} days"
+        report["truncated"] = bool(args.max_commits and len(commits) >= args.max_commits)
+        return (
+            churn_recurrence.render_json(report, args.top)
+            if args.json
+            else churn_recurrence.render_text(report, args.top)
+        )
+
     report = build_report(commits, tracked_paths(args.repo), args.min_edits, excludes)
     report["window"] = f"{args.since} days"
     report["truncated"] = bool(args.max_commits and len(commits) >= args.max_commits)

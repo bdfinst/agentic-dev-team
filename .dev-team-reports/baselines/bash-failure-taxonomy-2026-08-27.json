@@ -1,0 +1,13 @@
+{
+  "addressable_count": 133,
+  "addressable_percentage": 13.25,
+  "counts": {
+    "genuine-command-error": 807,
+    "quoting": 6,
+    "timeout": 64,
+    "tool-not-present": 2,
+    "unclassified": 55,
+    "working-directory": 70
+  },
+  "total": 1004
+}

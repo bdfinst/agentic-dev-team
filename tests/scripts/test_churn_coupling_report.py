@@ -20,14 +20,30 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import os
 import subprocess
 import sys
+from datetime import datetime, timedelta, timezone
 
 import pytest
 
 from _repo_root import REPO_ROOT
 
 _SCRIPT = REPO_ROOT / "scripts" / "churn_coupling_report.py"
+_GOLDEN_FIXTURE = REPO_ROOT / "tests" / "fixtures" / "churn_coupling_existing_mode_golden.txt"
+
+#: Hermetic git env for the golden-fixture repo (see `_seed_golden_repo`
+#: below): strips the host's global/system git config so a developer's
+#: `~/.gitconfig` (custom `init.defaultBranch`, `core.autocrlf`, hooks,
+#: etc.) cannot alter this repo's byte-identical commit history -- matching
+#: `tests/repo/test_bash_failure_taxonomy_baseline.py`'s own `_ENV` convention.
+_HERMETIC_GIT_ENV = {**os.environ, "GIT_CONFIG_GLOBAL": os.devnull, "GIT_CONFIG_SYSTEM": os.devnull}
+
+#: Pinned base date for the golden-fixture repo's commit history (see
+#: `_seed_golden_repo` below) -- arbitrary but fixed, so the history is
+#: byte-identical across machines and runs rather than merely deterministic
+#: in commit order.
+_GOLDEN_REPO_BASE_DATE = datetime(2026, 1, 5, 9, 0, 0, tzinfo=timezone.utc)
 
 
 def _load():
@@ -374,6 +390,24 @@ def _rendered_report(commits, tracked, **kwargs):
 
 
 class TestRendering:
+    def test_render_text_tolerates_build_report_output_with_no_window_key(self):
+        """/pr gate finding: `render_text` still bare-indexed `report["window"]`
+        while its sibling `churn_recurrence.render_text` was hardened to
+        `.get(..., "unknown")` for the identical failure mode in this same
+        diff -- a caller rendering `build_report`'s raw output directly
+        (skipping `run()`'s post-hoc `report["window"] = ...` injection)
+        must not get a raw `KeyError: 'window'` here either."""
+        report = ccr.build_report(
+            _commits(("c1", ["src/alpha.py", "tests/test_alpha.py"])),
+            {"src/alpha.py"},
+            min_edits=1,
+            excludes=(),
+        )
+
+        text = ccr.render_text(report, top=10)
+
+        assert "window: unknown" in text
+
     def test_text_report_shows_counts_and_the_mapping(self):
         report = _rendered_report(
             _commits(
@@ -477,6 +511,7 @@ def _git(repo, *args):
         check=True,
         capture_output=True,
         text=True,
+        env=_HERMETIC_GIT_ENV,
     )
 
 
@@ -514,6 +549,111 @@ def _seed_repo(root):
     return root
 
 
+# ---------------------------------------------------------------------------
+# Golden fixture (Step 2.1, #2039): a deterministic repo, pinned author dates
+# ---------------------------------------------------------------------------
+
+
+def _commit_at(repo, when, message):
+    """Commit staged changes with a pinned author/committer date.
+
+    Both env vars are set (not just `--date`, which only pins the author
+    date) so the golden fixture's history is byte-identical across machines
+    and runs, not merely deterministic in commit order -- load-bearing for
+    Slice 2's later commit-gap reasoning (#2039) over this same repo.
+    """
+    env = dict(_HERMETIC_GIT_ENV)
+    env["GIT_AUTHOR_DATE"] = when.isoformat()
+    env["GIT_COMMITTER_DATE"] = when.isoformat()
+    subprocess.run(
+        [
+            "git",
+            "-C",
+            str(repo),
+            "-c",
+            "user.name=Test",
+            "-c",
+            "user.email=test@example.invalid",
+            "-c",
+            "commit.gpgsign=false",
+            "commit",
+            "-q",
+            "-m",
+            message,
+        ],
+        check=True,
+        capture_output=True,
+        text=True,
+        env=env,
+    )
+
+
+def _seed_golden_repo(root):
+    """A deterministic repo for the existing-mode golden fixture.
+
+    Same churn/co-change shape as `_seed_repo` above (test_alpha: 4 edits, 2
+    solo; test_beta: 2 edits, 0 solo; test_ghost: 2 edits, unmapped) so the
+    arithmetic is already characterized by TestFullCloneEndToEnd -- but every
+    commit here carries a pinned author/committer date instead of the
+    ambient system clock, per the plan's clarified fixture mechanics (a
+    fixed commit sequence with pinned dates, not a checked-in `.git`
+    bundle). Reused verbatim by Step 2.3's regression test so both runs
+    exercise an identical repo.
+    """
+    root.mkdir(parents=True, exist_ok=True)
+    subprocess.run(
+        ["git", "init", "-q", "-b", "main", str(root)],
+        check=True,
+        capture_output=True,
+        env=_HERMETIC_GIT_ENV,
+    )
+    steps = [
+        (0, {"src/alpha.py": "a1", "tests/test_alpha.py": "t1", "src/beta.py": "b1",
+             "tests/test_beta.py": "tb1", "tests/test_ghost.py": "g1"}, "seed"),
+        (2, {"tests/test_alpha.py": "t2"}, "test-only change 1"),
+        (30, {"tests/test_alpha.py": "t3"}, "test-only change 2"),
+        (31, {"src/alpha.py": "a2", "tests/test_alpha.py": "t4"}, "behavior change"),
+        (72, {"src/beta.py": "b2", "tests/test_beta.py": "tb2"}, "beta behavior change"),
+        (73, {"tests/test_ghost.py": "g2"}, "ghost churn"),
+    ]
+    for offset_hours, files, message in steps:
+        for rel, text in files.items():
+            _write(root, rel, text + "\n")
+        _git(root, "add", "-A")
+        _commit_at(root, _GOLDEN_REPO_BASE_DATE + timedelta(hours=offset_hours), message)
+    return root
+
+
+@pytest.fixture(scope="module")
+def golden_repo(tmp_path_factory):
+    """The fixed-history repo behind `churn_coupling_existing_mode_golden.txt`.
+
+    Reused verbatim by Step 2.3's regression test (#2039) so both runs
+    exercise an identical repo.
+    """
+    return _seed_golden_repo(tmp_path_factory.mktemp("golden") / "repo")
+
+
+class TestGoldenFixture:
+    """Step 2.1 (#2039): sanity-check the checked-in golden fixture itself.
+
+    This is deliberately NOT a diff-against-current-CLI-output test -- that
+    regression check is Step 2.3's job, once `--all-files` exists and the
+    fixture's independence from any refactor actually matters. Here we only
+    pin that the checked-in file is non-empty and structurally shaped like a
+    real report, so a corrupted or truncated capture would be caught.
+    """
+
+    def test_golden_fixture_is_non_empty(self):
+        text = _GOLDEN_FIXTURE.read_text(encoding="utf-8")
+        assert text.strip()
+
+    def test_golden_fixture_has_known_section_headers(self):
+        text = _GOLDEN_FIXTURE.read_text(encoding="utf-8")
+        assert "Churn vs coupling" in text
+        assert "test file -> subject(s)" in text  # ranked-row table header
+
+
 @pytest.fixture(scope="module")
 def full_clone(tmp_path_factory):
     return _seed_repo(tmp_path_factory.mktemp("origin") / "repo")
@@ -523,6 +663,31 @@ def _run_cli(argv, capsys):
     code = ccr.main(argv)
     captured = capsys.readouterr()
     return code, captured.out, captured.err
+
+
+class TestCommitTimestampIsAdditive:
+    """Step 2.2a (#2039): `Commit` gains a `timestamp` field, and
+    `git_log_commits`'s pretty-format gains `%aI`, purely additively -- the
+    existing (non---all-files) mode's rendered output must be unaffected.
+    """
+
+    def test_git_log_commits_captures_a_timestamp_per_commit(self, golden_repo):
+        commits = ccr.git_log_commits(golden_repo, since_days=3650)
+        assert commits
+        assert all(commit.timestamp for commit in commits)
+
+    def test_timestamps_match_the_pinned_commit_dates_newest_first(self, golden_repo):
+        commits = ccr.git_log_commits(golden_repo, since_days=3650)
+        timestamps = [datetime.fromisoformat(c.timestamp) for c in commits]
+        assert timestamps == sorted(timestamps, reverse=True)
+        assert timestamps[-1] == _GOLDEN_REPO_BASE_DATE
+
+    def test_commit_dataclass_still_constructs_without_a_timestamp(self):
+        """Existing call sites (e.g. this test file's `_commits` helper) that
+        only ever supplied sha/paths must keep working unchanged.
+        """
+        commit = ccr.Commit(sha="abc123", paths=frozenset({"a.py"}))
+        assert commit.timestamp == ""
 
 
 class TestFullCloneEndToEnd:
@@ -576,6 +741,72 @@ class TestFullCloneEndToEnd:
         assert code == 2
         assert "empty-window" in err
 
+    def test_max_commits_below_history_size_marks_the_json_report_truncated(
+        self, full_clone, capsys
+    ):
+        """End-to-end CLI coverage for `report["truncated"]`: prior tests only
+        checked `git_log_commits`'s own capping in isolation, or hand-set
+        `truncated=True` on a report dict never produced by a real run.
+        """
+        code, out, _ = _run_cli(
+            ["--repo", str(full_clone), "--since", "3650", "--min-edits", "1", "--json",
+             "--max-commits", "2"],
+            capsys,
+        )
+        assert code == 0
+        payload = json.loads(out)
+        assert payload["truncated"] is True
+
+    def test_max_commits_below_history_size_marks_the_text_report_truncated(
+        self, full_clone, capsys
+    ):
+        code, out, _ = _run_cli(
+            ["--repo", str(full_clone), "--since", "3650", "--min-edits", "1",
+             "--max-commits", "2"],
+            capsys,
+        )
+        assert code == 0
+        assert "--max-commits truncated the window" in out
+
+    def test_exclude_flag_extends_the_default_excludes(self, full_clone, capsys):
+        code, out, _ = _run_cli(
+            ["--repo", str(full_clone), "--since", "3650", "--min-edits", "1", "--json",
+             "--exclude", "tests/test_beta.py"],
+            capsys,
+        )
+        assert code == 0
+        payload = json.loads(out)
+        assert not any(row["test_file"] == "tests/test_beta.py" for row in payload["rows"])
+        assert not any(u["test_file"] == "tests/test_beta.py" for u in payload["unmapped"])
+
+
+class TestDefaultExcludes:
+    """Finding 9 (test review): only `node_modules/*` was pinned before.
+    Covers a spread of the other default globs so a regression in one
+    pattern's glob syntax doesn't slip through unnoticed.
+    """
+
+    @pytest.mark.parametrize(
+        "path",
+        [
+            "node_modules/pkg/foo.js",
+            "vendor/lib/foo.py",
+            "dist/bundle.js",
+            "web/dist/bundle.js",
+            "build/output.js",
+            "coverage/report.html",
+            "graphify-out/graph.json",
+            "app.min.js",
+            "yarn.lock",
+            "src/schema.snap",
+        ],
+    )
+    def test_default_exclude_globs_match_their_target_paths(self, path):
+        assert ccr.is_excluded(path, ccr.DEFAULT_EXCLUDES) is True
+
+    def test_a_normal_source_path_is_not_excluded(self):
+        assert ccr.is_excluded("src/alpha.py", ccr.DEFAULT_EXCLUDES) is False
+
 
 @pytest.fixture(scope="module")
 def shallow_clone(tmp_path_factory):
@@ -618,6 +849,25 @@ class TestShallowCloneRefusal:
         assert code == 2
         assert "tests/test_alpha.py" not in out
 
+    def test_all_files_mode_inherits_the_identical_refusal(self, shallow_clone, capsys):
+        """Step 2.4 (#2039): `--all-files` must hit `run()`'s shallow-clone
+        refusal via the exact same code path as the existing mode -- there is
+        no second refusal implementation for it to diverge from. Asserting
+        byte-identical output (not just "also exit code 2 / also mentions
+        shallow-clone") is what distinguishes "same code path" from "a
+        similarly-worded refusal of its own".
+        """
+        base_argv = ["--repo", str(shallow_clone), "--since", "3650", "--min-edits", "1"]
+        code, out, err = _run_cli(base_argv, capsys)
+        all_files_code, all_files_out, all_files_err = _run_cli(
+            [*base_argv, "--all-files"], capsys
+        )
+        assert (all_files_code, all_files_out, all_files_err) == (code, out, err)
+        assert all_files_code == 2
+        assert all_files_out == ""
+        assert "shallow-clone" in all_files_err
+        assert "git fetch --unshallow" in all_files_err
+
 
 class TestNonRepoRefusal:
     def test_a_directory_outside_a_repo_is_refused(self, tmp_path, capsys):
@@ -646,6 +896,103 @@ class TestTrackedPaths:
         code, out, _ = _run_cli(["--repo", ".", "--since", "3650", "--min-edits", "1"], capsys)
         assert code == 0
         assert "tests/test_alpha.py -> src/alpha.py" in out
+
+    def test_repo_pointed_at_a_subdirectory_still_sees_the_whole_tree(self, tmp_path):
+        """`--repo <subdirectory>` must not shrink the tracked-path universe.
+
+        `git ls-files --full-name` only reformats paths to be root-relative --
+        it does NOT expand the command's scope past the current directory. So
+        `tracked_paths` must resolve the repo's top level first, or a `--repo`
+        pointed at a subdirectory would silently miss every tracked path
+        outside it.
+        """
+        root = _seed_repo(tmp_path / "repo-pointed-at-subdir")
+        paths = ccr.tracked_paths(str(root / "src"))
+        assert "src/alpha.py" in paths
+        assert "tests/test_alpha.py" in paths
+
+    def test_all_files_mode_with_repo_pointed_at_a_subdirectory_does_not_misclassify_outside_files(
+        self, tmp_path, capsys
+    ):
+        """Reproduces the correctness-review finding: before the fix, `git -C
+        <subdir> ls-files --full-name` was scoped to `<subdir>` and below, so
+        a historically-edited path OUTSIDE it -- which `git log` still
+        reports, root-relative, regardless of `--repo` -- fell into the hard
+        `tracked` filter as "not tracked" and was wrongly reported as
+        `unattributed` even though it is a tracked, live file.
+        """
+        root = _seed_repo(tmp_path / "subdir-all-files-repo")
+        code, out, _ = _run_cli(
+            ["--repo", str(root / "src"), "--since", "3650", "--all-files", "--json"], capsys
+        )
+        assert code == 0
+        payload = json.loads(out)
+        ranked_paths = {row["path"] for row in payload["rows"]}
+        unattributed_paths = {item["path"] for item in payload["unattributed"]}
+        assert "tests/test_alpha.py" in ranked_paths
+        assert "tests/test_alpha.py" not in unattributed_paths
+
+    def test_excluded_only_commits_still_count_toward_commits_scanned(
+        self, all_files_repo, capsys
+    ):
+        """Backstop review finding (#2038/#2039 checkpoint): `commits_scanned`
+        must mean the same thing in `--all-files` mode as it does in default
+        mode -- `build_report`'s own `commits_scanned` is unconditionally
+        `len(commits)` over the FULL scanned window, regardless of whether a
+        commit's paths are excluded from ranking. `_seed_all_files_repo` has 3
+        commits total; the third ("vendor churn") touches only the excluded
+        `node_modules/pkg/foo.js` path, so it must contribute NOTHING to any
+        file's ranking or edit count, but must still be counted as one of the
+        3 scanned commits -- not silently dropped from the window size, which
+        would make the same field mean two different things depending on
+        which mode produced the report.
+        """
+        code, out, _ = _run_cli(
+            ["--repo", str(all_files_repo), "--since", "3650", "--all-files", "--json"], capsys
+        )
+        assert code == 0
+        payload = json.loads(out)
+        assert payload["commits_scanned"] == 3
+        ranked_and_unattributed_paths = {row["path"] for row in payload["rows"]} | {
+            item["path"] for item in payload["unattributed"]
+        }
+        assert "node_modules/pkg/foo.js" not in ranked_and_unattributed_paths
+
+
+class TestMissingCommitTimestampRefusal:
+    """Finding 2 (correctness review/warning): `--all-files` must surface a
+    missing/unparseable commit timestamp as a named `Refusal`, not let
+    `datetime.fromisoformat` raise a bare, uncaught `ValueError`.
+    """
+
+    def test_all_files_mode_surfaces_a_missing_timestamp_as_a_refusal(
+        self, all_files_repo, capsys, monkeypatch
+    ):
+        def _boom(*args, **kwargs):
+            raise ccr.churn_recurrence.TimestampError(
+                "deadbeef", "", "commit 'deadbeef' has no timestamp"
+            )
+
+        monkeypatch.setattr(ccr.churn_recurrence, "rank_all_files", _boom)
+        code, out, err = _run_cli(
+            ["--repo", str(all_files_repo), "--since", "3650", "--all-files"], capsys
+        )
+        assert code == 2
+        assert out == ""
+        assert "missing-commit-timestamp" in err
+        assert "deadbeef" in err
+
+
+class TestGitCommandFailedRefusal:
+    """Finding 11 (test review): the `git-command-failed` Refusal path in
+    `run_git()` had no dedicated test, unlike the other three Refusal
+    reasons.
+    """
+
+    def test_run_git_raises_refusal_on_a_failing_git_command(self, full_clone):
+        with pytest.raises(ccr.Refusal) as exc_info:
+            ccr.run_git(full_clone, ["not-a-real-git-subcommand"])
+        assert exc_info.value.reason == "git-command-failed"
 
 
 class TestGitLogParsing:
@@ -677,3 +1024,124 @@ class TestGitLogParsing:
         _git(root, "commit", "-q", "-m", "spaced path")
         commits = ccr.git_log_commits(root, since_days=3650)
         assert "src/two words.py" in commits[0].paths
+
+
+# ---------------------------------------------------------------------------
+# --all-files mode (Step 2.3, #2039): CLI delegation to churn_recurrence.py
+# ---------------------------------------------------------------------------
+
+
+def _seed_all_files_repo(root):
+    """A repo with a non-test file, a test file, and an excluded (vendored)
+    file -- for Step 2.3's `--all-files` CLI-level coverage. Not the golden
+    fixture repo: that one stays untouched so the Step 2.1 regression check
+    below is a genuine independent baseline, not a comparison against a repo
+    Step 2.3 also shaped.
+    """
+    root.mkdir(parents=True, exist_ok=True)
+    subprocess.run(
+        ["git", "init", "-q", "-b", "main", str(root)], check=True, capture_output=True
+    )
+    steps = [
+        (
+            {
+                "src/alpha.py": "a1",
+                "tests/test_alpha.py": "t1",
+                "node_modules/pkg/foo.js": "n1",
+            },
+            "seed",
+        ),
+        ({"src/alpha.py": "a2"}, "alpha change"),
+        ({"node_modules/pkg/foo.js": "n2"}, "vendor churn"),
+    ]
+    for files, message in steps:
+        for rel, text in files.items():
+            _write(root, rel, text + "\n")
+        _git(root, "add", "-A")
+        _git(root, "commit", "-q", "-m", message)
+    return root
+
+
+@pytest.fixture(scope="module")
+def all_files_repo(tmp_path_factory):
+    return _seed_all_files_repo(tmp_path_factory.mktemp("all-files") / "repo")
+
+
+class TestAllFilesMode:
+    """Step 2.3 (#2039):
+
+        Scenario: all-files mode ranks every file, not just test/subject pairs
+          Given a full-clone git history with edits spread across test and
+            non-test files
+          When the report is run with the all-files mode flag
+          Then every edited file (not only mapped test files) appears in the
+            ranked output
+
+        Scenario: excluded files are omitted from all-files mode too
+          Given a file matching the existing mode's exclusion globs (e.g.
+            node_modules/*, dist/*)
+          When the report is run with --all-files
+          Then the excluded file does not appear in the ranked output, the
+            unattributed section, or any count
+    """
+
+    def test_surfaces_both_test_and_non_test_files(self, all_files_repo, capsys):
+        code, out, _ = _run_cli(
+            ["--repo", str(all_files_repo), "--since", "3650", "--all-files", "--json"], capsys
+        )
+        assert code == 0
+        payload = json.loads(out)
+        paths = {row["path"] for row in payload["rows"]}
+        assert "src/alpha.py" in paths
+        assert "tests/test_alpha.py" in paths
+
+    def test_excluded_file_is_absent_from_ranked_output_unattributed_and_any_count(
+        self, all_files_repo, capsys
+    ):
+        code, out, _ = _run_cli(
+            ["--repo", str(all_files_repo), "--since", "3650", "--all-files", "--json"], capsys
+        )
+        assert code == 0
+        payload = json.loads(out)
+        assert not any(row["path"] == "node_modules/pkg/foo.js" for row in payload["rows"])
+        assert not any(
+            item["path"] == "node_modules/pkg/foo.js" for item in payload["unattributed"]
+        )
+        assert "node_modules" not in out
+        # files_seen counts only the non-excluded paths (2), not the 3rd,
+        # excluded one.
+        assert payload["files_seen"] == 2
+
+    def test_text_report_renders_for_all_files_mode(self, all_files_repo, capsys):
+        code, out, _ = _run_cli(
+            ["--repo", str(all_files_repo), "--since", "3650", "--all-files"], capsys
+        )
+        assert code == 0
+        assert "Cross-session churn recurrence" in out
+        assert "src/alpha.py" in out
+        assert "node_modules" not in out
+
+
+class TestAllFilesModeExistingModeRegression:
+    """Step 2.3 (#2039): a SEPARATE, independent regression check from Step
+    2.2a's own test above -- it re-verifies that Step 2.3's changes (the
+    sys.path/import wiring for `churn_recurrence.py`, the new `--all-files`
+    branch in `run()`, the module docstring addendum) leave the existing
+    (non---all-files) mode's output byte-identical to the Step 2.1 golden
+    fixture. This diffs live output against the checked-in
+    `churn_coupling_existing_mode_golden.txt`, never against the refactored
+    code's own output, so it cannot become tautological.
+
+        Scenario: existing test/subject-pair mode is unchanged
+          Given a fixture repo previously exercised in test/subject-pair mode
+          When the report is run without --all-files
+          Then the ranked test/subject-pair output is identical to its
+            pre-change baseline
+    """
+
+    def test_existing_mode_output_still_matches_the_golden_fixture(self, golden_repo, capsys):
+        code, out, _ = _run_cli(
+            ["--repo", str(golden_repo), "--since", "3650", "--min-edits", "1"], capsys
+        )
+        assert code == 0
+        assert out.rstrip("\n") == _GOLDEN_FIXTURE.read_text(encoding="utf-8").rstrip("\n")
