@@ -459,6 +459,60 @@ corpus it came from (Defects4J / BugsJS / recorded-diff, per the row's
 report that plainly rather than treating a missing file as zero evidence
 either way.
 
+### 4c. Agent-vs-tool redundancy criterion (#1983 Part 2)
+
+A seam distinct from Step 4's fix-rate/finding-rate analysis: those measure
+agents against *usage*, but nothing before this caught "this lens's
+findings are a subset of what an already-running deterministic tool
+reported for the same rounds" — the gap the #1974 pre-pass spike
+identified. `skills/harness-audit/scripts/redundancy_criterion.py`
+implements this as a real, computable comparison (not prose): for one
+lens's findings in a round, `is_round_redundant()` checks whether every
+`{file, line}` finding it applied is within a line-tolerance of some
+finding the deterministic static-analysis pre-pass
+(`skills/static-analysis-integration/SKILL.md`, including the
+`lizard`/`jscpd` metric adapters — #1974) already reported for the same
+file that round. `classify_lens_redundancy()` aggregates that verdict
+across a lens's rounds into `redundant-candidate` / `not-redundant` /
+`insufficient-data` (same `N >= 5` small-N-honesty floor as Step 4's own
+drop-candidate rule), excluding no-op rounds (a lens that found nothing
+proves nothing about redundancy either way).
+
+**Data sources, named precisely — read this before running it.**
+`review-value.jsonl` rows alone cannot drive this criterion: the schema is
+explicit that rows carry "counts and outcomes only, never code or file
+content" (`knowledge/telemetry-schema.md`), so there is no `file`/`line` on
+a row to compare. This criterion instead needs, for the SAME round:
+
+1. **A lens's applied findings** (`{file, line}` pairs) — `/code-review
+   --json`'s aggregated payload, `agents[].issues[]`
+   (`skills/code-review/output-format.md`). Available today from a saved
+   raw `--json` dispatch artifact — e.g. the code-review-benchmark
+   harness's `results/raw/*.txt` (§4b above; the harness's own dispatches
+   are real `/code-review --json` rounds), or an operator's own saved
+   `--json` capture.
+2. **The deterministic pre-pass envelope for that same round** — the
+   unified finding envelope `static-analysis-integration`'s Step 6 returns
+   (`findings[]`, each `{file, line, rule_id, metadata: {source}}` —
+   `knowledge/security-primitives-contract.md`).
+
+Neither is persisted as a committed metrics stream today, so running this
+step means collecting a handful of real rounds' raw `/code-review --json`
+output plus their pre-pass envelope by hand (or from the harness's `raw/`
+directory), building the `[{"applied_findings": [...], "pretool_findings":
+[...]}, ...]` shape `classify_lens_redundancy()` expects, and running:
+
+```bash
+python3 "${CLAUDE_PLUGIN_ROOT}/skills/harness-audit/scripts/redundancy_criterion.py" \
+  --rounds <path-to-rounds.json>
+```
+
+Report a **Agent-vs-Tool Redundancy** section: one row per lens with its
+verdict, `rounds_with_findings`, and `rounds_fully_subsumed`. A
+`redundant-candidate` verdict is evidence for a human tier-down/removal
+decision, never an automatic one — same "report only, human acts" rule as
+every other section in this skill.
+
 ### 5. Lesson Validation — validated-outcome weighting (#866)
 
 Close the loop on `/feedback-learning` lessons: does an adopted lesson
@@ -624,6 +678,19 @@ Write the report to the output path using this structure:
 | Lens | Dataset(s) | Dispatches | No-op | Found issues |
 |------|------------|------------|-------|---------------|
 
+## Agent-vs-Tool Redundancy (#1983 Part 2)
+
+> Source: per-round applied findings (`/code-review --json` `agents[].issues[]`)
+> paired with the static-analysis pre-pass envelope for the same round — see
+> §4c for why `review-value.jsonl` alone cannot drive this. Absent = no
+> rounds' data collected yet for this criterion.
+
+| Lens | Verdict | Rounds w/ findings | Rounds fully subsumed |
+|------|---------|---------------------|-------------------------|
+
+> A `redundant-candidate` verdict is evidence for a human tier-down/removal
+> decision — never acted on automatically.
+
 ## Lesson Validation (validated-outcome weighting, #866)
 
 > Source: `metrics/config-changelog.jsonl` × `metrics/session-digest.jsonl`.
@@ -663,6 +730,7 @@ Write the report to the output path using this structure:
 - Review-value drop candidates: <count>
 - Review-value high-value checkpoints: <count>
 - Harness-sourced rows analyzed (source: "harness"): <count>
+- Agent-vs-tool redundancy candidates: <count>
 - Re-baseline required: <yes/no>
 - Lessons validated / neutral / harmful / insufficient data: <count> / <count> / <count> / <count>
 - Rollback proposals (harmful verdicts): <count>

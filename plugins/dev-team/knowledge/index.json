@@ -4312,6 +4312,10 @@
       "summary": "`evals/code-review-benchmark/` (#821) is a **replay harness**, not a live",
       "anchor": "4b-harness-sourced-rows-a-separate-labelled-population-2051"
     },
+    "4c. Agent-vs-tool redundancy criterion (#1983 Part 2)": {
+      "summary": "A seam distinct from Step 4's fix-rate/finding-rate analysis: those measure",
+      "anchor": "4c-agent-vs-tool-redundancy-criterion-1983-part-2"
+    },
     "5. Lesson Validation — validated-outcome weighting (#866)": {
       "summary": "Close the loop on `/feedback-learning` lessons: does an adopted lesson",
       "anchor": "5-lesson-validation-validated-outcome-weighting-866"
