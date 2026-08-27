@@ -502,6 +502,161 @@ def check_contract_failure_shapes_documented(changed_files=None) -> list[dict]:
     ]
 
 
+# --- #2048: a second transcript parser must not reappear -------------------
+#
+# ADR 0036 records that both `structure-review` and `arch-review` raised the
+# same duplication independently while reviewing #1991 -- two scripts each
+# carrying their own copy of transcript-record and usage-block parsing,
+# already drifted twice on the same defect class (#1990/#1991/#1994).
+# Epic #2040 unified both into `session_log/` + one entry point
+# (`session_report.py`). This check is the ratchet that keeps a THIRD
+# independent copy from growing back once the two originals are gone.
+
+#: Any file outside `plugins/dev-team/scripts/lib/session_log/` that
+#: references one of these identifiers is either genuinely parsing a raw
+#: transcript record / usage block (a real second implementation) or reading
+#: an already-extracted usage dict's known numeric fields (not the same
+#: failure mode) -- `_TRANSCRIPT_PARSING_ALLOWLIST` below distinguishes the
+#: two per-file, with a reason each. `cache_creation_input_tokens` and
+#: `cache_read_input_tokens` are usage-block field names; `isSidechain` and
+#: `attributionAgent` are raw-record top-level fields no usage-only consumer
+#: would ever need, so their presence is the stronger of the two signals.
+_TRANSCRIPT_FIELD_RE = re.compile(
+    r"\b(cache_creation_input_tokens|cache_read_input_tokens|isSidechain|attributionAgent)\b"
+)
+
+#: Directories (repo-root-relative) this check scans -- everywhere a
+#: transcript-parsing module has actually turned up historically (the
+#: shipped plugin tree, and the monorepo's own repo-root `scripts/`, where
+#: `measure_full_file_duplication.py` and the eval/experiment harnesses
+#: live). Repo-root `tests/` is deliberately not a scan root: fixture
+#: literals constructing synthetic usage dicts are not "parsing," and
+#: scanning them would bury the real findings in noise.
+_TRANSCRIPT_SCAN_ROOTS = ("plugins/dev-team", "scripts")
+
+#: Shrink-only (docs/adr/0032's "mechanically, not by comment alone"
+#: pattern, mirrored here for #2048's invariant). Each entry states WHY the
+#: match is not the failure mode this check targets. Two shapes:
+#:   - "the sanctioned entry point" -- composes session_log's own shared
+#:     primitives rather than reimplementing them independently;
+#:   - "reads a pre-extracted usage dict" -- consumes a `usage` mapping a
+#:     caller already extracted (a handful of known numeric field names),
+#:     never a raw transcript record (no isSidechain/attributionAgent
+#:     access) -- a materially different, much narrower concern than
+#:     parsing a transcript.
+#: A "migrated in #2050" entry is a real, temporary exception: that slice's
+#: job is to fold it onto session_log.records and delete it from this list.
+_TRANSCRIPT_PARSING_ALLOWLIST = {
+    "plugins/dev-team/scripts/session_report.py": (
+        "the one sanctioned entry point over session_log (#2046/#2047) -- "
+        "not a second, independently-drifting implementation; it composes "
+        "session_log's own shared primitives (records.usage_of/"
+        "usage_fields, signals.CONTEXT_TOKEN_FIELDS, discovery.*) for its "
+        "remaining attribution/threading logic, mirroring exactly what its "
+        "two now-retired predecessors did"
+    ),
+    "plugins/dev-team/hooks/lib/cost_meter.py": (
+        "genuinely parses transcript records (rec.get('isSidechain'), "
+        "rec.get('attributionAgent')) independently of session_log -- "
+        "migrated onto session_log.records in #2050, the next slice"
+    ),
+    "plugins/dev-team/hooks/context_ceiling_guard.py": (
+        "genuinely parses transcript records (row.get('isSidechain')) "
+        "independently of session_log -- migrated onto session_log.records "
+        "in #2050"
+    ),
+    "scripts/measure_full_file_duplication.py": (
+        "genuinely parses transcript records (rec.get('isSidechain'), "
+        "rec.get('attributionAgent')) independently of session_log; its own "
+        "docstring already concedes this duplicates cost_meter.py's "
+        "join-map algorithm 'since that algorithm's own module keeps it "
+        "private' -- made public and reused (local copy deleted) in #2050"
+    ),
+    "plugins/dev-team/hooks/lib/pricing.py": (
+        "reads a pre-extracted usage dict's known numeric fields "
+        "(cache_creation_input_tokens/cache_read_input_tokens) for cost "
+        "computation -- never a raw transcript record (no isSidechain/"
+        "attributionAgent access), so this is not the duplication this "
+        "invariant targets"
+    ),
+    "plugins/dev-team/skills/headless-run/scripts/isolated_dispatch.py": (
+        "reads a pre-extracted usage dict's cache-token fields for its own "
+        "cost estimate -- never a raw transcript record"
+    ),
+    "scripts/context_ceiling_report.py": (
+        "reads a pre-extracted usage dict's cache-token fields for context "
+        "accounting -- never a raw transcript record"
+    ),
+    "scripts/run_integration_eval.py": (
+        "reads a pre-extracted usage dict's known token fields to sum "
+        "eval-harness cost -- never a raw transcript record"
+    ),
+    "scripts/run_refactor_experiment.py": (
+        "reads a pre-extracted usage dict's known token fields to sum "
+        "experiment-harness cost -- never a raw transcript record"
+    ),
+    "scripts/run_tdd_experiment.py": (
+        "reads a pre-extracted usage dict's known token fields to sum "
+        "experiment-harness cost -- never a raw transcript record"
+    ),
+}
+
+
+def check_transcript_parsing_confined_to_session_log(changed_files=None) -> list[dict]:
+    """No module outside `plugins/dev-team/scripts/lib/session_log/` may
+    parse a transcript record or a usage block (#2048).
+
+    ADR 0036: both `structure-review` and `arch-review` independently
+    raised the same duplication while reviewing #1991 -- that is the
+    "second report" this repo's own ratchet rule converts into a check.
+    Without it, nothing stops a third independent transcript parser from
+    growing back the moment the two the epic just unified are gone.
+
+    Corpus-wide by design, like `check_skill_scripts_documented`:
+    `changed_files` is ignored. A stray transcript-parsing module is a
+    standing architectural gap whether or not this changeset touched it.
+    """
+    findings = []
+    session_log_prefix = "plugins/dev-team/scripts/lib/session_log/"
+    self_rel = _repo_relative(Path(__file__).resolve())
+    for root_name in _TRANSCRIPT_SCAN_ROOTS:
+        root = _REPO_ROOT / root_name
+        if not root.is_dir():
+            continue
+        for path in sorted(root.rglob("*.py")):
+            rel = _repo_relative(path)
+            if rel.startswith(session_log_prefix):
+                continue
+            if "/tests/" in f"/{rel}" or Path(rel).name.startswith("test_"):
+                continue
+            # This module's own source names the four identifiers to detect
+            # them and to explain each allowlist entry's reason -- that is
+            # the check's own text, not a transcript parser.
+            if rel == self_rel:
+                continue
+            if rel in _TRANSCRIPT_PARSING_ALLOWLIST:
+                continue
+            if _TRANSCRIPT_FIELD_RE.search(_read_text(path)):
+                findings.append(
+                    {
+                        "invariant": "transcript-parsing-confined-to-session-log",
+                        "file": rel,
+                        "message": (
+                            f"{rel} references a raw transcript-record or "
+                            "usage-block field (cache_creation_input_tokens / "
+                            "cache_read_input_tokens / isSidechain / "
+                            "attributionAgent) outside "
+                            "plugins/dev-team/scripts/lib/session_log/. Move "
+                            "the parsing onto session_log's shared "
+                            "primitives, or add this path to "
+                            "repo_invariants._TRANSCRIPT_PARSING_ALLOWLIST "
+                            "with a stated reason (see ADR 0036 / issue #2048)."
+                        ),
+                    }
+                )
+    return findings
+
+
 # Registered checks. Each entry takes an optional `changed_files` list and
 # returns findings. See the module docstring for why that argument exists.
 CHECKS = [
@@ -510,6 +665,7 @@ CHECKS = [
     check_must_not_mention_terms_appear_in_fixture,
     check_scope_glob_matches_skip_prose,
     check_contract_failure_shapes_documented,
+    check_transcript_parsing_confined_to_session_log,
 ]
 
 

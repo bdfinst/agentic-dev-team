@@ -11,11 +11,10 @@ review-gate bypass — `grep -n`, `rg -n`, `ls -n` are routine — and
 string (`echo "git commit"`). #2036 found an unknown share of the reported
 13.5% bypass rate across 33 projects was this noise, not real bypasses.
 
-This module drives the table from the issue directly against both
-extractors' `_track_bash`, parametrized so a regression in either copy is
-caught — the two are deliberately still separate implementations (their
-unification is epic #2040's job, not this fix's), so nothing but an identical
-test run twice keeps them in agreement.
+This module drives the table from the issue directly against
+`session_log.signals.track_bash` — the single shared implementation both
+`session_report.py` profiles now alias (epic #2040 unified what were, at
+#2036's time, two independently-drifting copies; see ADR 0036, superseded).
 """
 
 from __future__ import annotations
@@ -70,67 +69,25 @@ CASES = [
 ]
 
 
-def _session_extract(monkeypatch: pytest.MonkeyPatch):
-    monkeypatch.syspath_prepend(str(REPO_ROOT / "scripts"))
-    import session_extract
-
-    return session_extract
-
-
-def _extract_session_report(monkeypatch: pytest.MonkeyPatch):
+def _session_log_signals(monkeypatch: pytest.MonkeyPatch):
     monkeypatch.syspath_prepend(
-        str(REPO_ROOT / "plugins" / "dev-team" / "scripts")
+        str(REPO_ROOT / "plugins" / "dev-team" / "scripts" / "lib")
     )
-    import extract_session_report
+    from session_log import signals
 
-    return extract_session_report
-
-
-@pytest.mark.parametrize("cmd,expect_attempt,expect_bypass", CASES)
-def test_session_extract_commit_bypass_scoping(
-    cmd, expect_attempt, expect_bypass, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    mod = _session_extract(monkeypatch)
-    block = {"name": "Bash", "input": {"command": cmd}}
-    signals = Counter()
-    mod._track_bash(block, signals, mod.signals.new_thread())
-    assert signals["commit_attempts"] == (1 if expect_attempt else 0)
-    assert signals["commit_bypasses"] == (1 if expect_bypass else 0)
+    return signals
 
 
 @pytest.mark.parametrize("cmd,expect_attempt,expect_bypass", CASES)
-def test_extract_session_report_commit_bypass_scoping(
+def test_track_bash_commit_bypass_scoping(
     cmd, expect_attempt, expect_bypass, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    mod = _extract_session_report(monkeypatch)
+    signals = _session_log_signals(monkeypatch)
     block = {"name": "Bash", "input": {"command": cmd}}
-    thread = mod._new_thread()
-    signals = Counter()
-    mod._track_bash(block, signals, thread)
-    assert signals["commit_attempts"] == (1 if expect_attempt else 0)
-    assert signals["commit_bypasses"] == (1 if expect_bypass else 0)
-
-
-# --- both extractors must agree on the same input, per #2036's acceptance --
-
-
-@pytest.mark.parametrize("cmd,expect_attempt,expect_bypass", CASES)
-def test_both_extractors_agree(
-    cmd, expect_attempt, expect_bypass, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    se = _session_extract(monkeypatch)
-    esr = _extract_session_report(monkeypatch)
-
-    block = {"name": "Bash", "input": {"command": cmd}}
-
-    se_signals = Counter()
-    se._track_bash(block, se_signals, se.signals.new_thread())
-
-    esr_signals = Counter()
-    esr._track_bash(block, esr_signals, esr._new_thread())
-
-    assert se_signals["commit_attempts"] == esr_signals["commit_attempts"]
-    assert se_signals["commit_bypasses"] == esr_signals["commit_bypasses"]
+    counts = Counter()
+    signals.track_bash(block, counts, signals.new_thread())
+    assert counts["commit_attempts"] == (1 if expect_attempt else 0)
+    assert counts["commit_bypasses"] == (1 if expect_bypass else 0)
 
 
 # --- a real invocation still counts once per real git-commit segment -------
@@ -144,12 +101,12 @@ def test_two_real_commits_in_one_bash_call_count_as_two_attempts(
     many `git commit`s it chained. Segmenting by shell operator means each
     real invocation is counted — strictly more correct, and worth pinning
     explicitly since it changes what the raw counter means."""
-    mod = _session_extract(monkeypatch)
+    signals = _session_log_signals(monkeypatch)
     block = {
         "name": "Bash",
         "input": {"command": 'git commit -m a && git commit -m b --no-verify'},
     }
-    signals = Counter()
-    mod._track_bash(block, signals, mod.signals.new_thread())
-    assert signals["commit_attempts"] == 2
-    assert signals["commit_bypasses"] == 1
+    counts = Counter()
+    signals.track_bash(block, counts, signals.new_thread())
+    assert counts["commit_attempts"] == 2
+    assert counts["commit_bypasses"] == 1

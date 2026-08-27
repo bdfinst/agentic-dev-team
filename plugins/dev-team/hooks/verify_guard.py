@@ -58,9 +58,9 @@ def emit_boundary_event(*args, **kwargs) -> None:
 
 
 # Verify-class command detector — mirrors
-# `session_log.classify.VERIFY_RE` (plugins/dev-team/scripts/session_report.py's
-# `--profile maintainer`, and the still-present `scripts/session_extract.py`,
-# both alias this same shared regex).
+# `session_log.classify.VERIFY_RE`, which
+# plugins/dev-team/scripts/session_report.py's `--profile maintainer`
+# aliases.
 _VERIFY_RE = re.compile(
     r"\b("
     r"npm (run )?(test|lint|build)"

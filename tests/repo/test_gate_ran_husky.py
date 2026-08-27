@@ -25,7 +25,7 @@ Covers the acceptance criteria from issue #2037:
 
 See `tests/repo/test_gate_ran_correlation.py` for how a `gate_ran` event
 recorded here gets correlated back to a specific commit-attempt Bash record
-in `scripts/session_extract.py`'s digest — that is where "no correlated
+in `session_report.py`'s digest — that is where "no correlated
 event -> gate_absent" is actually pinned as an observable classification,
 not just as an absence of activity.
 """

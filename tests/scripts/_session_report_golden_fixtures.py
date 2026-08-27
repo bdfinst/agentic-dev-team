@@ -1,18 +1,12 @@
-"""Shared golden-harness fixtures for the session-report test files.
+"""Shared golden-harness fixtures for `test_session_report_golden.py`.
 
-Split out of `tests/scripts/test_session_report_golden.py` when
-`test_session_report_profiles_golden.py` (issue #2046) was added as a
-sibling, deliberately NOT a `test_*.py` module (so pytest never collects
-it directly) and deliberately importing nothing from either extractor
-script at MODULE level — only `_load_module`'s lazy `importlib` load does
-that, inside a function body. This matters because
-`scripts/session_extract.py` uses `datetime.UTC` (3.11+; that monorepo-only
-script isn't subject to the shipped-tree 3.10 floor — see ADR 0031), and
-`test_session_report_profiles_golden.py` runs under the floor interpreter
-(it tests the newly-shipped `session_report.py`) while
-`test_session_report_golden.py` does not. A module-level import of
-`session_extract.py`'s own contents here would break that floor run even
-though nothing in the profiles file ever calls `_session_extract_digest()`.
+Split out of that file back when it also golden-tested the two now-retired
+predecessor extractors (issue #2046's `test_session_report_profiles_golden.py`
+sibling; both merged back into one file in #2048 once the predecessors —
+and the floor-incompatibility that motivated the split — were deleted).
+Kept as its own module rather than folded back into the test file because
+`_regenerate()`'s CLI entry point and the pytest test functions both need
+these same constants/helpers.
 """
 
 from __future__ import annotations
@@ -33,10 +27,6 @@ from _repo_root import REPO_ROOT
 FIXTURE_ROOT = REPO_ROOT / "tests" / "fixtures" / "session_log"
 CORPUS_ROOT = FIXTURE_ROOT / "projects"
 
-SESSION_EXTRACT_SCRIPT = REPO_ROOT / "scripts" / "session_extract.py"
-EXTRACT_SESSION_REPORT_SCRIPT = (
-    REPO_ROOT / "plugins" / "dev-team" / "scripts" / "extract_session_report.py"
-)
 SESSION_REPORT_SCRIPT = REPO_ROOT / "plugins" / "dev-team" / "scripts" / "session_report.py"
 
 SESSION_EXTRACT_GOLDEN = FIXTURE_ROOT / "session_extract.golden.json"
@@ -63,8 +53,8 @@ PRICING = {
 PLUGIN_VERSION = "0.0.0-golden"
 
 # Sentinel markers embedded in the corpus (see fixture files under
-# tests/fixtures/session_log/projects/) that must never surface in any
-# extractor's output.
+# tests/fixtures/session_log/projects/) that must never surface in either
+# profile's output.
 SENTINELS = (
     "SENTINEL_PROMPT_DO_NOT_LEAK",
     "SENTINEL_CODE_DO_NOT_LEAK",

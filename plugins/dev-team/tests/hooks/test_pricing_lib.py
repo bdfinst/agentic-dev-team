@@ -1,7 +1,8 @@
 """Unit tests for hooks/lib/pricing.py (#2045, epic #2040).
 
-Extracted from hooks/lib/cost_meter.py's and scripts/session_extract.py's
-own, previously independent `_load_pricing`/`_rate`/`_cost` copies. Pins
+Extracted from hooks/lib/cost_meter.py's and the maintainer extractor's
+(now session_report.py --profile maintainer) own, previously independent
+`_load_pricing`/`_rate`/`_cost` copies. Pins
 both the unified (defensive) behavior and the two divergences that existed
 between the two originals before unification:
   * cost_meter's `_load_pricing` raised on a missing/unreadable file;

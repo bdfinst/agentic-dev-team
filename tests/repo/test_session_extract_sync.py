@@ -17,7 +17,7 @@ import pytest
 
 from _repo_root import REPO_ROOT
 
-EXTRACT = REPO_ROOT / "scripts" / "session_extract.py"
+EXTRACT = REPO_ROOT / "plugins" / "dev-team" / "scripts" / "session_report.py"
 PLUGIN = REPO_ROOT / "plugins" / "dev-team"
 
 
@@ -53,7 +53,7 @@ def _sync(scratch: dict[str, Path]) -> subprocess.CompletedProcess:
     return subprocess.run(
         [
             sys.executable,
-            str(EXTRACT),
+            str(EXTRACT), "--profile", "maintainer",
             "--sync-out",
             str(scratch["out"]),
             "--watermark",
@@ -84,7 +84,7 @@ def test_sync_emits_one_record_per_session_labeled_by_basename(
     assert len(records) == 2
 
     by_id = {r["session_id"]: r for r in records}
-    assert by_id["sess-a"]["schema"] == "session-sync/v2"
+    assert by_id["sess-a"]["schema"] == "session-sync/v3"
     assert by_id["sess-a"]["project"] == "alpha"
     assert by_id["sess-b"]["project"] == "beta"
     assert by_id["sess-a"]["host"] == "testhost"
@@ -175,7 +175,7 @@ def test_sync_record_carries_correction_by_skill_and_by_agent(
     result = subprocess.run(
         [
             sys.executable,
-            str(EXTRACT),
+            str(EXTRACT), "--profile", "maintainer",
             "--sync-out",
             str(out),
             "--watermark",
@@ -206,7 +206,7 @@ def test_all_projects_non_sync_digest_aggregates_sessions_across_projects(
     result = subprocess.run(
         [
             sys.executable,
-            str(EXTRACT),
+            str(EXTRACT), "--profile", "maintainer",
             "--all-projects",
             "--projects-root",
             str(scratch["projects"]),

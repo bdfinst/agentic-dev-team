@@ -389,3 +389,81 @@ class TestContractFailureShapesDocumented:
 
         assert len(findings) == 1
         assert findings[0]["invariant"] == "contract-failure-shapes-documented"
+
+
+class TestTranscriptParsingConfinedToSessionLog:
+    """#2048: ADR 0036 records that both structure-review and arch-review
+    independently raised the same duplication while reviewing #1991 -- the
+    second report this repo's ratchet rule converts into a check. Without
+    it, nothing stops a third independent transcript parser from growing
+    back once the two the epic unified are gone."""
+
+    def test_clean_against_the_real_repo(self):
+        """The real repo, as of #2048, has no undocumented (unallowlisted)
+        transcript parser outside session_log/. A finding here means either
+        a real third implementation appeared, or a legitimate new
+        usage-dict consumer needs an allowlist entry with a reason."""
+        assert repo_invariants.check_transcript_parsing_confined_to_session_log() == []
+
+    def test_flags_a_new_transcript_parser_outside_session_log(self, tmp_path, monkeypatch):
+        """Proves the check can actually fail (CLAUDE.md: 'make it fail on
+        purpose once before you trust it') -- a throwaway module parsing
+        isSidechain/attributionAgent outside session_log/, not on the
+        allowlist, must be flagged."""
+        repo_root = tmp_path / "repo"
+        scripts_dir = repo_root / "plugins" / "dev-team" / "scripts"
+        scripts_dir.mkdir(parents=True)
+        rogue = scripts_dir / "rogue_parser.py"
+        rogue.write_text(
+            'def parse(rec):\n    return rec.get("isSidechain"), rec.get("attributionAgent")\n',
+            encoding="utf-8",
+        )
+        monkeypatch.setattr(repo_invariants, "_REPO_ROOT", repo_root)
+
+        findings = repo_invariants.check_transcript_parsing_confined_to_session_log()
+
+        assert len(findings) == 1
+        assert findings[0]["invariant"] == "transcript-parsing-confined-to-session-log"
+        assert findings[0]["file"] == "plugins/dev-team/scripts/rogue_parser.py"
+
+    def test_ignores_a_matching_file_inside_session_log(self, tmp_path, monkeypatch):
+        repo_root = tmp_path / "repo"
+        session_log_dir = (
+            repo_root / "plugins" / "dev-team" / "scripts" / "lib" / "session_log"
+        )
+        session_log_dir.mkdir(parents=True)
+        (session_log_dir / "records.py").write_text(
+            'def usage_of(rec):\n    return rec.get("isSidechain")\n', encoding="utf-8"
+        )
+        monkeypatch.setattr(repo_invariants, "_REPO_ROOT", repo_root)
+
+        assert repo_invariants.check_transcript_parsing_confined_to_session_log() == []
+
+    def test_ignores_test_files(self, tmp_path, monkeypatch):
+        repo_root = tmp_path / "repo"
+        tests_dir = repo_root / "plugins" / "dev-team" / "tests" / "scripts"
+        tests_dir.mkdir(parents=True)
+        (tests_dir / "test_something.py").write_text(
+            'USAGE = {"cache_creation_input_tokens": 1, "isSidechain": True}\n',
+            encoding="utf-8",
+        )
+        monkeypatch.setattr(repo_invariants, "_REPO_ROOT", repo_root)
+
+        assert repo_invariants.check_transcript_parsing_confined_to_session_log() == []
+
+    def test_allowlist_entries_all_carry_a_real_reason(self):
+        empty = [
+            path
+            for path, reason in repo_invariants._TRANSCRIPT_PARSING_ALLOWLIST.items()
+            if not reason.strip()
+        ]
+        assert not empty, f"_TRANSCRIPT_PARSING_ALLOWLIST entries with no reason: {empty}"
+
+    def test_allowlist_is_ignored_regardless_of_changed_files(self):
+        """Corpus-wide by design, like check_skill_scripts_documented: a
+        stray transcript parser is a standing gap whether or not this
+        changeset touched it."""
+        assert (
+            repo_invariants.check_transcript_parsing_confined_to_session_log(["some/file.py"])
+            == repo_invariants.check_transcript_parsing_confined_to_session_log(None)
+        )

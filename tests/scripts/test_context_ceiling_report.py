@@ -546,7 +546,7 @@ def _trend_args(**over):
 def test_the_trend_record_carries_metrics_only(tmp_path: Path) -> None:
     """The trend stream accumulates across rounds and outlives any single
     review, so it must carry no transcript paths, session ids, prompts or
-    code — the same constraint `session_extract.py`'s `slim_record` accepts
+    code — the same constraint `session_report.py`'s `slim_record` accepts
     (#129). A leak here is permanent in a way a one-off report is not.
     """
     replays = _one_session(
@@ -618,7 +618,7 @@ def test_cli_append_writes_one_record_per_run(tmp_path: Path) -> None:
 def test_recorded_at_matches_the_repos_metrics_timestamp_format(
     tmp_path: Path,
 ) -> None:
-    """`session_extract.py` and the other metrics writers all emit
+    """`session_report.py` and the other metrics writers all emit
     `%Y-%m-%dT%H:%M:%SZ`. The playbook reads both streams' timestamps side by
     side, so a second spelling of UTC would be a gratuitous difference at
     exactly the point of comparison."""

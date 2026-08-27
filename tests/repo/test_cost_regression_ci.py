@@ -16,7 +16,7 @@ from pathlib import Path
 from _repo_root import REPO_ROOT
 
 CHECK = REPO_ROOT / "scripts" / "cost-regression-check.sh"
-EXTRACT = REPO_ROOT / "scripts" / "session_extract.py"
+EXTRACT = REPO_ROOT / "plugins" / "dev-team" / "scripts" / "session_report.py"
 
 
 def _run_check(env_overrides: dict) -> subprocess.CompletedProcess:
@@ -78,7 +78,7 @@ def test_ci_cost_171_end_to_end_telemetry_digests_cost_log_baseline_warn(
     subprocess.run(
         [
             sys.executable,
-            str(EXTRACT),
+            str(EXTRACT), "--profile", "maintainer",
             "--cost-log",
             str(tmp_path / "digests"),
             "-o",

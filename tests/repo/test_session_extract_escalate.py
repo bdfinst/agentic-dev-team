@@ -16,7 +16,7 @@ import pytest
 
 from _repo_root import REPO_ROOT
 
-EXTRACT = REPO_ROOT / "scripts" / "session_extract.py"
+EXTRACT = REPO_ROOT / "plugins" / "dev-team" / "scripts" / "session_report.py"
 PLUGIN = REPO_ROOT / "plugins" / "dev-team"
 
 
@@ -49,7 +49,7 @@ def _esc(digests: Path, *extra: str) -> dict:
     result = subprocess.run(
         [
             sys.executable,
-            str(EXTRACT),
+            str(EXTRACT), "--profile", "maintainer",
             "--escalate",
             str(digests),
             "--plugin-root",

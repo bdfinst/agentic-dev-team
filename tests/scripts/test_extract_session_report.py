@@ -1,6 +1,6 @@
-"""Contract tests for the shipped downstream session-report extractor.
+"""Contract tests for `session_report.py --profile downstream`.
 
-`plugins/dev-team/scripts/extract_session_report.py` shipped with no tests at
+The downstream profile's predecessor shipped with no tests at
 all, which is how issue #1990 survived four PRs: its transcript discovery
 globbed only `<project>/<sessionId>.jsonl` and never opened the subagent
 transcripts at `<project>/<sessionId>/subagents/agent-<id>.jsonl`, so every
@@ -24,7 +24,7 @@ import pytest
 
 from _repo_root import REPO_ROOT
 
-SCRIPT = REPO_ROOT / "plugins" / "dev-team" / "scripts" / "extract_session_report.py"
+SCRIPT = REPO_ROOT / "plugins" / "dev-team" / "scripts" / "session_report.py"
 
 PROJECT_SLUG = "-tmp-fixture-project"
 PROJECT_CWD = "/tmp/fixture/project"
@@ -90,7 +90,7 @@ def _subagent_transcript(root: Path, agent_id: str, records, *, workflow=None) -
 
 def _run(root: Path, out: Path, *extra) -> dict:
     proc = subprocess.run(
-        [sys.executable, str(SCRIPT), "--all-projects", "--projects-root", str(root),
+        [sys.executable, str(SCRIPT), "--profile", "downstream", "--all-projects", "--projects-root", str(root),
          "--out", str(out), *extra],
         capture_output=True, text=True, timeout=120, check=False,
     )
@@ -317,7 +317,7 @@ def test_schema_version_marks_the_post_1990_era(tree, tmp_path):
     """Token, tool-call and rework totals all jump once subagents are counted.
     A consumer has to be able to tell the two eras apart rather than reading
     the jump as a behavior change."""
-    assert _run(tree, tmp_path / "r.json")["schema"] == "downstream-session-report/v2"
+    assert _run(tree, tmp_path / "r.json")["schema"] == "downstream-session-report/v3"
 
 
 # --- flags -----------------------------------------------------------------
@@ -370,7 +370,7 @@ def test_single_project_mode_scopes_to_one_project(tmp_path):
     _write(other, [rec])
     out = tmp_path / "r.json"
     proc = subprocess.run(
-        [sys.executable, str(SCRIPT), "--project", PROJECT_CWD,
+        [sys.executable, str(SCRIPT), "--profile", "downstream", "--project", PROJECT_CWD,
          "--projects-root", str(root), "--out", str(out)],
         capture_output=True, text=True, timeout=120, check=False,
     )
@@ -384,7 +384,7 @@ def test_empty_root_exits_nonzero(tmp_path):
     root = tmp_path / "projects"
     root.mkdir()
     proc = subprocess.run(
-        [sys.executable, str(SCRIPT), "--all-projects", "--projects-root", str(root),
+        [sys.executable, str(SCRIPT), "--profile", "downstream", "--all-projects", "--projects-root", str(root),
          "--out", str(tmp_path / "r.json")],
         capture_output=True, text=True, timeout=120, check=False,
     )
@@ -651,7 +651,7 @@ def test_a_pre_2010_digest_does_not_corrupt_merged_totals():
     staged from transcripts alone."""
     import importlib.util
 
-    path = REPO_ROOT / "plugins/dev-team/scripts/extract_session_report.py"
+    path = REPO_ROOT / "plugins/dev-team/scripts/session_report.py"
     spec = importlib.util.spec_from_file_location("_esr_probe", path)
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
