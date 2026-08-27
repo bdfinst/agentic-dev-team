@@ -73,6 +73,19 @@ sys.path.insert(
 )
 from session_log import classify, discovery, records, signals
 
+# The pricing loader/rate-lookup/cost-computation logic lives in hooks/lib
+# (#2045) — hooks/lib/cost_meter.py (a real Stop hook) needs the same
+# module and must never reach into scripts/, so the dependency direction is
+# scripts/ -> hooks/lib/, not the reverse (same rule hooks/lib/
+# review_agent_registry.py established for #1461; mirrors
+# scripts/check_review_agent_mcp_tools.py's identical import below).
+sys.path.insert(
+    0, str(Path(__file__).resolve().parent.parent / "plugins" / "dev-team" / "hooks" / "lib")
+)
+from pricing import cost as _cost
+from pricing import load_pricing as _load_pricing
+from pricing import rate as _rate
+
 # session_log.classify (issue #2043, epic #2040): the classification
 # vocabulary and text/name-handling helpers used to be defined here; they
 # are now shared with extract_session_report.py. See
@@ -139,15 +152,6 @@ def _rewrite_name_keys(mapping: dict) -> dict:
 _text_of = classify.text_of
 
 
-def _load_pricing(path: Path | None) -> dict:
-    if path and path.is_file():
-        try:
-            return json.loads(path.read_text())
-        except (OSError, json.JSONDecodeError):
-            return {}
-    return {}
-
-
 # A version string is trusted input only when it's OUR OWN plugin.json (this
 # function); everywhere else it arrives from a peer machine's synced digest
 # (a different trust domain, #1480 security review). This allowlist bounds
@@ -177,32 +181,6 @@ def _load_plugin_version(plugin_root: Path | None) -> str:
     except (OSError, ValueError):
         pass
     return "unknown"
-
-
-def _rate(pricing: dict, model: str):
-    models = pricing.get("models", {})
-    if model in models:
-        return models[model]
-    alias = pricing.get("aliases", {}).get(model)
-    if alias and alias in models:
-        return models[alias]
-    return None
-
-
-def _cost(usage: dict, rate: dict, pricing: dict) -> float:
-    if not rate:
-        return 0.0
-    inp = records.usage_field(usage, "input_tokens")
-    out = records.usage_field(usage, "output_tokens")
-    cw = records.usage_field(usage, "cache_creation_input_tokens")
-    cr = records.usage_field(usage, "cache_read_input_tokens")
-    ir = rate.get("input", 0)
-    return (
-        inp / 1e6 * ir
-        + out / 1e6 * rate.get("output", 0)
-        + cw / 1e6 * ir * pricing.get("cache_write_multiplier", 1.25)
-        + cr / 1e6 * ir * pricing.get("cache_read_multiplier", 0.1)
-    )
 
 
 def _iter_records(paths: list[Path]):

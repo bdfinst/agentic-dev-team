@@ -53,6 +53,17 @@ def _scaffold_repo(root: Path, *, in_repo: bool = True) -> None:
             session_log_dir,
             ignore=shutil.ignore_patterns("__pycache__"),
         )
+        # session_extract.py also imports the pricing loader/rate-lookup/
+        # cost-computation module from hooks/lib/ (#2045) -- it lives there,
+        # not under session_log/, because hooks/lib/cost_meter.py (a real
+        # Stop hook) is its other consumer and a hook must never depend on
+        # scripts/ (see hooks/lib/pricing.py's module docstring).
+        hooks_lib_dir = root / "plugins" / "dev-team" / "hooks" / "lib"
+        hooks_lib_dir.mkdir(parents=True, exist_ok=True)
+        shutil.copy(
+            REPO_ROOT / "plugins" / "dev-team" / "hooks" / "lib" / "pricing.py",
+            hooks_lib_dir / "pricing.py",
+        )
     claude_lib = root / ".claude" / "lib"
     claude_lib.mkdir(parents=True, exist_ok=True)
     shutil.copy(

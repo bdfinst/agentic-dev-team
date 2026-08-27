@@ -21,8 +21,14 @@ Modules:
   records    JSONL record iteration, the usage-block read contract, slimming
   classify   text/name classification vocabulary (issue #2043)
   signals    per-record signal accumulation (issue #2044)
-  pricing    model-pricing loader, rate lookup, cost computation (issue #2045)
   redact     the privacy boundary as a function, not a convention (issue #2045)
+
+NOT in this package: model-pricing loading/rate-lookup/cost-computation
+(issue #2045). An earlier draft of this docstring forward-declared a
+`pricing` module here; it landed instead at `hooks/lib/pricing.py`, because
+`hooks/lib/cost_meter.py` (a real Stop hook) is one of its two consumers and
+a hook must be import-safe without any `scripts/` module on its path — see
+that module's docstring for the full reasoning.
 """
 
 from __future__ import annotations
