@@ -58,9 +58,21 @@ import math
 import os
 import re
 import shlex
+import sys
 from collections import Counter, defaultdict
 from datetime import UTC
 from pathlib import Path
+
+# scripts/ (repo root) -> repo root -> plugins/dev-team/scripts/lib. This
+# repo-root script already depends on the plugin tree in three other places
+# (see ADR 0036); this is the first genuine Python IMPORT of it, mirroring
+# the established `sys.path.insert` + `from <pkg> import ...` pattern in
+# scripts/test_modernization_review.py.
+sys.path.insert(
+    0,
+    str(Path(__file__).resolve().parent.parent / "plugins" / "dev-team" / "scripts" / "lib"),
+)
+from session_log import discovery, records
 
 # --- verification / classification vocabularies (counted, never emitted) -----
 _VERIFY_RE = re.compile(
@@ -166,8 +178,9 @@ def _is_git_commit_argv(tokens: list[str]) -> bool:
     return False
 
 
-# Agent transcripts are `agent-<id>.jsonl` (see _is_transcript_path).
-_AGENT_TRANSCRIPT_RE = re.compile(r"^agent-[0-9A-Za-z_-]{1,64}\.jsonl$")
+# Agent transcripts are `agent-<id>.jsonl` — the pattern lives in
+# session_log.discovery now (AGENT_TRANSCRIPT_RE), since it's used only
+# inside is_transcript_path, which moved there in #2042.
 # Every string that becomes a digest KEY passes _safe_name: these arrive from
 # transcript files this script does not author, and the digest's own privacy
 # contract is names-only.
@@ -209,64 +222,13 @@ def _safe_name(value: str) -> str:
     return value if _SAFE_NAME_RE.fullmatch(value) else _UNSAFE_NAME
 
 
-def _is_transcript_path(root: Path, path: Path) -> bool:
-    """Whether a `.jsonl` under `root` is a transcript this extractor reads.
-
-    Decided by DEPTH, not by filename shape. A `.jsonl` sitting directly in a
-    project directory is a main-thread session whatever it is called — the
-    harness uses `<sessionId>.jsonl`, but nothing guarantees that and a
-    name-shape filter silently drops any session that differs, which is a
-    worse failure than the one it prevents.
-
-    Below `subagents/` the rule tightens, because that is the only place the
-    harness writes NON-transcript bookkeeping next to transcripts:
-    `subagents/workflows/<runId>/journal.jsonl` holds `{"type", "key",
-    "agentId"}` records with no `cwd`. Counting it as an agent run inflated the
-    run tally and, having no `cwd`, sent project labelling down a fallback that
-    leaked a path-derived slug (#1991). Agent transcripts are `agent-<id>.jsonl`.
-    """
-    try:
-        parts = path.relative_to(root).parts
-    except ValueError:
-        return False
-    if len(parts) < 2:
-        return False
-    if "subagents" in parts:
-        return bool(_AGENT_TRANSCRIPT_RE.match(path.name))
-    return len(parts) == 2
-
-
-def _is_subagent_transcript(root: Path, path: Path) -> bool:
-    """A dispatched agent's own run, at any nesting depth below `root`.
-
-    A plain Agent dispatch writes `<project>/<sessionId>/subagents/agent-*.jsonl`;
-    a Workflow's agents nest one level further under `subagents/workflows/<runId>/`.
-    Ask the path BELOW the root: `projects_root` defaults to `~/.claude/projects`
-    and carries the user's home directory, so a matching segment in that prefix
-    would answer for the whole tree.
-    """
-    try:
-        parts = path.relative_to(root).parts
-    except ValueError:
-        parts = path.parts
-    return "subagents" in parts
-
-
-def _all_transcripts_under(root: Path) -> list[Path]:
-    """Every transcript under `root`, main-thread and subagent alike.
-
-    Globbing only `*/*.jsonl` made every dispatched agent invisible (#1990) —
-    silently, since subagent records ARE marked `isSidechain: true`; they simply
-    live in files nothing opened. Recurse rather than enumerate known depths.
-    """
-    return sorted(
-        (
-            p
-            for p in root.glob("*/**/*.jsonl")
-            if p.is_file() and not p.is_symlink() and _is_transcript_path(root, p)
-        ),
-        key=lambda p: str(p),
-    )
+# session_log.discovery (#2042): path classification and enumeration used to
+# be defined here; they are now shared with extract_session_report.py.
+# Aliased under the original private names so every internal call site below
+# is unchanged.
+_is_transcript_path = discovery.is_transcript_path
+_is_subagent_transcript = discovery.is_subagent_transcript
+_all_transcripts_under = discovery.all_transcripts
 
 
 def _strip_ns(name: str) -> str:
@@ -369,10 +331,10 @@ def _rate(pricing: dict, model: str):
 def _cost(usage: dict, rate: dict, pricing: dict) -> float:
     if not rate:
         return 0.0
-    inp = usage.get("input_tokens", 0) or 0
-    out = usage.get("output_tokens", 0) or 0
-    cw = usage.get("cache_creation_input_tokens", 0) or 0
-    cr = usage.get("cache_read_input_tokens", 0) or 0
+    inp = records.usage_field(usage, "input_tokens")
+    out = records.usage_field(usage, "output_tokens")
+    cw = records.usage_field(usage, "cache_creation_input_tokens")
+    cr = records.usage_field(usage, "cache_read_input_tokens")
     ir = rate.get("input", 0)
     return (
         inp / 1e6 * ir
@@ -383,28 +345,11 @@ def _cost(usage: dict, rate: dict, pricing: dict) -> float:
 
 
 def _iter_records(paths: list[Path]):
-    """Yield every decodable JSON record across `paths`, in order.
-
-    Streams line by line: transcripts run to tens of MB and the recursive scan
-    now visits thousands of them, where `read_text().splitlines()` cost ~3x the
-    file's size in peak RSS before yielding anything. `ValueError` is caught
-    alongside `OSError` because `UnicodeDecodeError` is a ValueError — a
-    transcript truncated mid-character by a crashed session used to abort the
-    whole run (#1994 review).
-    """
+    """Yield every decodable JSON record across `paths`, in order — a thin
+    multi-path wrapper over session_log.records.iter_file_records (#2042);
+    every call site in this module passes a single-element list."""
     for path in sorted(paths, key=lambda x: str(x)):
-        try:
-            with path.open(encoding="utf-8", errors="replace") as fh:
-                for line in fh:
-                    line = line.strip()
-                    if not line:
-                        continue
-                    try:
-                        yield json.loads(line)
-                    except json.JSONDecodeError:
-                        continue
-        except (OSError, ValueError):
-            continue
+        yield from records.iter_file_records(path)
 
 
 def _accumulate_token_signals(
@@ -430,15 +375,9 @@ def _accumulate_token_signals(
     overflows the int-to-float conversion (raising OverflowError and
     aborting the whole run before `round(cost * 1e6)` below is even reached)
     and the running totals can never go negative from one bad record."""
-    fields = (
-        "input_tokens",
-        "output_tokens",
-        "cache_creation_input_tokens",
-        "cache_read_input_tokens",
-    )
-    safe_usage = {f: _safe_number(usage.get(f, 0) or 0) for f in fields}
+    safe_usage = {f: _safe_number(v) for f, v in records.usage_fields(usage).items()}
     cost = _cost(safe_usage, _rate(pricing, raw_model or ""), pricing)
-    for f in fields:
+    for f in records.USAGE_FIELDS:
         v = safe_usage[f]
         tokens_total[f] += v
         if model:
@@ -595,8 +534,9 @@ def _detect_correction_turn(rec: dict, content) -> bool:
     return bool(_CORRECTION_RE.search(utext.lower()))
 
 
-def _slim(d: dict) -> dict:
-    return {k: dict(sorted(v.items())) for k, v in sorted(d.items())}
+# session_log.records.slim_by_name (#2042) is this exact function; aliased
+# so the two call sites below are unchanged.
+_slim = records.slim_by_name
 
 
 def extract(
@@ -713,11 +653,7 @@ def extract(
                 compaction_events += 1
 
             msg = rec.get("message") if isinstance(rec.get("message"), dict) else {}
-            usage = (
-                msg.get("usage")
-                if isinstance(msg.get("usage"), dict)
-                else (rec.get("usage") if isinstance(rec.get("usage"), dict) else None)
-            )
+            usage = records.usage_of(rec)
             raw_model = msg.get("model") or rec.get("model")
             # A non-str `model` would be an unhashable dict key and abort the
             # whole run. Keep the RAW id for the pricing lookup and sanitize

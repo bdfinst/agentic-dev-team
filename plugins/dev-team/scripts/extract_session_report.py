@@ -47,9 +47,15 @@ import os
 import re
 import shlex
 import socket
+import sys
 from collections import Counter, defaultdict
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
+
+# scripts/ -> plugins/dev-team -> scripts/lib (established pattern; see
+# gherkin_stub_merge.py's identical `sys.path.insert(0, str(_HERE / "lib"))`).
+sys.path.insert(0, str(Path(__file__).resolve().parent / "lib"))
+from session_log import discovery, records
 
 # --- classification vocabularies (counted, never emitted) -------------------
 _VERIFY_RE = re.compile(
@@ -150,8 +156,9 @@ def _is_git_commit_argv(tokens: list[str]) -> bool:
         return tok == "commit"
     return False
 _VERSION_RE = re.compile(r"^[0-9A-Za-z._+-]{1,32}$")
-# Agent transcripts are `agent-<id>.jsonl` (see _is_transcript_path).
-_AGENT_TRANSCRIPT_RE = re.compile(r"^agent-[0-9A-Za-z_-]{1,64}\.jsonl$")
+# Agent transcripts are `agent-<id>.jsonl` — the pattern lives in
+# session_log.discovery now (AGENT_TRANSCRIPT_RE), since it's used only
+# inside is_transcript_path, which moved there in #2042.
 # Every string that becomes a REPORT KEY passes _safe_name. The privacy
 # guarantee in the module docstring ("names, never full paths"; no prompt text)
 # holds only if these really are names, and they arrive from transcript files
@@ -214,86 +221,15 @@ def _text_of(content) -> str:
     return ""
 
 
-def _iter_file_records(path: Path):
-    """Yield every decodable JSON record in one transcript file, in order.
-
-    Streams line by line rather than `read_text().splitlines()`: transcripts
-    run to tens of MB, the recursive scan now visits thousands of them, and
-    slurping cost ~3x the file's size in peak RSS before yielding anything.
-    `_first_cwd` below already used this shape."""
-    try:
-        with path.open(encoding="utf-8", errors="replace") as fh:
-            for line in fh:
-                line = line.strip()
-                if not line:
-                    continue
-                try:
-                    yield json.loads(line)
-                except json.JSONDecodeError:
-                    continue
-    except OSError:
-        return
-
-
-def _sorted_paths(paths: list[Path]) -> list[Path]:
-    """Total order over transcript paths. Sorting on `Path.name` alone stopped
-    being a total order once subagent transcripts (a second directory level)
-    joined the scan, which would break the determinism guarantee in the module
-    docstring; sort on the full path string instead."""
-    return sorted(paths, key=lambda p: str(p))
-
-
-def _relative_parts(projects_root: Path, path: Path) -> tuple[str, ...]:
-    """The path's components BELOW `projects_root`.
-
-    Every layout question here is about the tree under the root, so never ask
-    it of the absolute path: `projects_root` defaults to `~/.claude/projects`
-    and carries the user's home directory, so a matching segment anywhere in
-    that prefix would answer for the whole tree."""
-    try:
-        return path.relative_to(projects_root).parts
-    except ValueError:
-        return path.parts
-
-
-def _is_subagent_transcript(projects_root: Path, path: Path) -> bool:
-    """A dispatched agent's own run, as opposed to a main-thread session.
-
-    Depth varies by dispatch route — a plain Agent dispatch writes
-    `<project>/<sessionId>/subagents/agent-<id>.jsonl`, while a Workflow's
-    agents nest one level further under
-    `<project>/<sessionId>/subagents/workflows/<runId>/agent-<id>.jsonl`.
-    Match on the `subagents` path segment rather than on a fixed depth, so a
-    future layout with another level does not silently go uncounted the way
-    the workflow layout did."""
-    return "subagents" in _relative_parts(projects_root, path)
-
-
-def _is_transcript_path(root: Path, path: Path) -> bool:
-    """Whether a `.jsonl` under `root` is a transcript this extractor reads.
-
-    Decided by DEPTH, not by filename shape. A `.jsonl` sitting directly in a
-    project directory is a main-thread session whatever it is called — the
-    harness uses `<sessionId>.jsonl`, but nothing guarantees that and a
-    name-shape filter silently drops any session that differs, which is a
-    worse failure than the one it prevents.
-
-    Below `subagents/` the rule tightens, because that is the only place the
-    harness writes NON-transcript bookkeeping next to transcripts:
-    `subagents/workflows/<runId>/journal.jsonl` holds `{"type", "key",
-    "agentId"}` records with no `cwd`. Counting it as an agent run inflated the
-    run tally and, having no `cwd`, sent project labelling down a fallback that
-    leaked a path-derived slug (#1991). Agent transcripts are `agent-<id>.jsonl`.
-    """
-    try:
-        parts = path.relative_to(root).parts
-    except ValueError:
-        return False
-    if len(parts) < 2:
-        return False
-    if "subagents" in parts:
-        return bool(_AGENT_TRANSCRIPT_RE.match(path.name))
-    return len(parts) == 2
+# session_log.discovery / session_log.records (issue #2042, epic #2040):
+# path classification/enumeration and JSONL iteration used to be defined
+# here; they are now shared with scripts/session_extract.py. Aliased under
+# the original private names so every internal call site below is unchanged.
+_iter_file_records = records.iter_file_records
+_sorted_paths = discovery.sorted_paths
+_relative_parts = discovery.relative_parts
+_is_subagent_transcript = discovery.is_subagent_transcript
+_is_transcript_path = discovery.is_transcript_path
 
 
 def _load_plugin_version(plugin_root: Path) -> str:
@@ -391,13 +327,7 @@ def _finalize_agent_buckets(by_agent_type: dict) -> dict:
 
 
 def _accumulate_token_signals(usage, model, tokens_total, by_model):
-    for f in (
-        "input_tokens",
-        "output_tokens",
-        "cache_creation_input_tokens",
-        "cache_read_input_tokens",
-    ):
-        v = usage.get(f, 0) or 0
+    for f, v in records.usage_fields(usage).items():
         tokens_total[f] += v
         if model:
             by_model[model][f] += v
@@ -589,11 +519,7 @@ def extract(
                 compaction_events += 1
 
             msg = rec.get("message") if isinstance(rec.get("message"), dict) else {}
-            usage = (
-                msg.get("usage")
-                if isinstance(msg.get("usage"), dict)
-                else (rec.get("usage") if isinstance(rec.get("usage"), dict) else None)
-            )
+            usage = records.usage_of(rec)
             model = msg.get("model") or rec.get("model")
             model = _safe_name(model) if isinstance(model, str) and model else None
             if usage:
@@ -681,7 +607,7 @@ def extract(
         "token": {
             "totals": dict(sorted(tokens_total.items())),
             "cache_hit_ratio": cache_hit_ratio,
-            "by_model": {m: dict(sorted(v.items())) for m, v in sorted(by_model.items())},
+            "by_model": records.slim_by_name(by_model),
             "by_agent_type": _finalize_agent_buckets(by_agent_type),
         },
         "rework": {
@@ -824,24 +750,10 @@ def combine(digests: dict[str, dict], registry: dict) -> dict:
 # --------------------------------------------------------------------------
 
 
-def _all_transcripts(projects_root: Path) -> list[Path]:
-    """Every transcript under `projects_root`, main-thread and subagent alike.
-
-    Several layouts coexist: main-thread sessions at
-    `<project>/<sessionId>.jsonl`, a dispatched agent's own run at
-    `<project>/<sessionId>/subagents/agent-<id>.jsonl`, and a Workflow's agents
-    one level deeper still. Globbing only the first made every subagent
-    invisible to the report (issue #1990) — and silently, because subagent
-    records ARE marked `isSidechain: true`, they simply live in files nothing
-    opened. Recurse rather than enumerate known depths, so the next layout does
-    not reintroduce the same silence."""
-    return _sorted_paths(
-        [
-            p
-            for p in projects_root.glob("*/**/*.jsonl")
-            if p.is_file() and not p.is_symlink() and _is_transcript_path(projects_root, p)
-        ]
-    )
+# session_log.discovery.all_transcripts (#2042) does exactly this recursive
+# enumeration; aliased so `module._all_transcripts(...)` (the golden harness
+# and this file's own callers below) keeps working unchanged.
+_all_transcripts = discovery.all_transcripts
 
 
 def _project_dir_name(projects_root: Path, jsonl: Path) -> str:
