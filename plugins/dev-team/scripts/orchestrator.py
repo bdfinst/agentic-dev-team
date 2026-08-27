@@ -65,11 +65,12 @@ JSON_CONTRACT_PERSONAS = DEFAULT_PERSONAS + CODE_REVIEW_PANEL
 # Keyword heuristic for the Research phase's security-engineer dispatch
 # decision. This tuple is the one normative source in CODE for the keyword
 # list — _touches_security() consumes it, it is not duplicated in any other
-# .py module. agents/orchestrator.md's Security Engineer dispatch section
-# restates the same seven keywords in prose for its own (agent-facing,
-# standalone) audience; that restatement is not mechanically bound to this
-# tuple today — keep the two in sync by hand until a content-guard test
-# exists (see follow-up #2067).
+# .py module. knowledge/orchestrator-script-implementation.md's "Security
+# Engineer dispatch — script approximation" section (linked from
+# agents/orchestrator.md's phase table) restates the same seven keywords in
+# prose for its own (agent-facing, standalone) audience; a content-guard
+# test (tests/agents/test_orchestrator_security_persona_prose_sync.py, #2067)
+# now asserts the two stay in sync.
 SECURITY_KEYWORDS = (
     "auth",
     "secret",
@@ -95,10 +96,12 @@ RESEARCH_PERSONAS = ("codebase-recon", "architect", "data-flow-tracer")
 # see _default_phase_plan below. A tuple, matching RESEARCH_PERSONAS's own
 # convention; unlike RESEARCH_PERSONAS, nothing is ever conditionally
 # appended to this roster, so no defensive-copy note is needed here.
-# agents/orchestrator.md's "Plan persona roster" section restates this same
-# trio (and CRITICS_SKIPPED_ALL_CORE_FAILED's value) in prose; that
-# restatement is not mechanically bound to this tuple today — keep the two
-# in sync by hand until a content-guard test exists (see follow-up #2067).
+# knowledge/orchestrator-script-implementation.md's "Plan persona roster"
+# section (linked from agents/orchestrator.md's phase table) restates this
+# same trio (and CRITICS_SKIPPED_ALL_CORE_FAILED's value) in prose; a
+# content-guard test
+# (tests/agents/test_orchestrator_security_persona_prose_sync.py, #2067) now
+# asserts the two stay in sync.
 PLAN_CORE_PERSONAS = ("product-manager", "architect", "qa-engineer")
 
 # Persisted-state vocabulary for _default_phase_plan's all-core-failed guard
