@@ -32,7 +32,7 @@
 * [30. Use ancestor-check instead of exact-SHA comparison for mutation baseline reuse](0030-use-ancestor-check-instead-of-exact-sha-comparison-for-mutation-baseline-reuse.md)
 * [31. Raise the shipped Python floor from 3.8 to 3.10](0031-raise-shipped-python-floor-to-3-10.md)
 * [32. Shipped-script path-resolution taxonomy](0032-shipped-script-path-resolution-taxonomy.md)
-* [33. Quote every `${CLAUDE_PLUGIN_ROOT}` expansion in a shell fence](0033-quote-claude-plugin-root-expansions.md)
+* [33. Quote every `${CLAUDE_PLUGIN_ROOT}` expansions in a shell fence](0033-quote-claude-plugin-root-expansions.md)
 * [34. Do not build a shared-context pre-pass for duplicate full-file reads (#1611)](0034-do-not-build-shared-context-pre-pass-for-duplicate-full-file-reads-1611.md)
 * [35. Defer two-lane generation/validation concurrency in `mutation-kill --all` (#1909)](0035-defer-two-lane-generation-validation-concurrency-in-mutation-kill-all-1909.md)
 * [36. The two session extractors stay forked, for now](0036-the-two-session-extractors-stay-forked-1994.md)
