@@ -458,12 +458,15 @@ def launch_survivor_fix(
         rc = result.returncode
         if rc == EXIT_GENERATION_EXHAUSTED:
             log(
-                f"[{ts()}] Agent EXHAUSTED (headless): {_safe(shard)} — "
-                f"{_safe(source)} (exit {rc}) — retry-then-downgrade budget "
-                "spent; logging this file as unfixed and continuing to the "
-                "next file in this shard (the tree was not mutated) — the "
-                "pipeline's overall exit code becomes EXIT_GENERATION_EXHAUSTED "
-                "(5) at the end unless a hard failure elsewhere makes it 1"
+                f"[{ts()}] Agent UNFIXED (headless, clean): {_safe(shard)} — "
+                f"{_safe(source)} (exit {rc}) — retry budget spent OR a "
+                "clean generation/infrastructure failure (#1956: exit 5 "
+                "covers both since #1939, so this line names the OUTCOME, "
+                "not a specific cause); logging this file as unfixed and "
+                "continuing to the next file in this shard (the tree was "
+                "not mutated) — the pipeline's overall exit code becomes "
+                "EXIT_GENERATION_EXHAUSTED (5) at the end unless a hard "
+                "failure elsewhere makes it 1"
             )
             exhausted.append(f"{_safe(shard)}/{_safe(source)}")
             continue

@@ -468,7 +468,12 @@ def test_survivor_fix_continues_past_a_generation_exhausted_exit(tmp_path):
     assert outcome.ok is True
     # Both files are launched — exit 5 does not stop the loop.
     assert len(rec.launches) == 2
-    assert any("EXHAUSTED (headless)" in line and "exit 5" in line for line in rec.logs)
+    # #1956: the log line names the OUTCOME (unfixed, clean, continuable),
+    # not a specific cause — exit 5 covers both true exhaustion and any
+    # other clean generation/infrastructure failure since #1939, so a line
+    # that only said "retry-then-downgrade budget spent" would misreport
+    # the cause for the latter case.
+    assert any("UNFIXED (headless, clean)" in line and "exit 5" in line for line in rec.logs)
 
 
 # =============================================================================

@@ -127,6 +127,16 @@ def test_generation_exhausted_is_a_runtime_error():
 
 
 # =============================================================================
+# Scenario (#1956): EXIT_CLEAN_UNFIXED is the outcome-shaped primary name for
+# exit 5 — EXIT_GENERATION_EXHAUSTED is kept as a back-compat alias (every
+# existing call site still imports it by that name), zero behavior change.
+# =============================================================================
+def test_exit_clean_unfixed_is_the_primary_name_and_generation_exhausted_is_its_alias():
+    assert retry.EXIT_CLEAN_UNFIXED == 5
+    assert retry.EXIT_GENERATION_EXHAUSTED == retry.EXIT_CLEAN_UNFIXED
+
+
+# =============================================================================
 # _RetryState — named, guarded transition methods (#1918, Slice 2 Step 2.1).
 # =============================================================================
 def test_spend_downgrade_sets_model_and_downgraded_on_a_fresh_state():
