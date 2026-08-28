@@ -155,7 +155,7 @@ Skills are reusable knowledge modules in `.claude/skills/` that agents reference
 | Test Audit + Disable | `skills/test-audit-disable/SKILL.md` | ~1,619 | Standalone worker; QA Engineer |
 | Test Design Advisor | `skills/test-design-advisor/SKILL.md` | ~4,235 | QA Engineer, Software Engineer, `/test-design` command |
 | Test Health | `skills/test-health/SKILL.md` | ~3,709 | QA Engineer, `/test-health` command |
-| Test Improve | `skills/test-improve/SKILL.md` | ~3078 | Orchestrator, QA Engineer, `/test-improve` command |
+| Test Improve | `skills/test-improve/SKILL.md` | ~3451 | Orchestrator, QA Engineer, `/test-improve` command |
 | Test-Driven Development | `skills/test-driven-development/SKILL.md` | 2,590 | Software Engineer, QA Engineer, Orchestrator |
 | Threat Modeling | `skills/threat-modeling/SKILL.md` | 1,420 | Security Engineer, Architect |
 | Ubiquitous Language | `skills/ubiquitous-language/SKILL.md` | ~2,199 | Architect, domain-review, Product Manager |
