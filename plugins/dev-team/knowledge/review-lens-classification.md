@@ -35,7 +35,7 @@ and attempting the recomputation, not acting on either yet").
 | ai-provenance-review | discovery-lens | Surfaces unverified AI-authored assertions and regeneration-risk candidates — an open detection surface. |
 | arch-review | discovery-lens | Scans layer boundaries, dependency direction, and pattern consistency broadly; its ADR-compliance sub-check is verification-flavored, but the majority of its surface is open-ended discovery. |
 | claude-setup-review | discovery-lens | Scans for an open set of CLAUDE.md/rule/path gaps, not one pass/fail check. |
-| complexity-review | discovery-lens | Metric-based scan (size, cyclomatic complexity, nesting, parameters) with no external fixed contract. |
+| complexity-review | discovery-lens | Judgment scan (nesting depth, cognitive load, async-pattern pitfalls) with no external fixed contract; size/cyclomatic/parameter thresholds are the lizard pre-pass's job (#1983). |
 | component-architecture-review | discovery-lens | Scans for reusable-component extraction, duplication, and prop-drilling — open-ended. |
 | concurrency-review | discovery-lens | Scans for race conditions, async pitfalls, shared state — open-ended. |
 | correctness-review | discovery-lens | Named explicitly as discovery in `skills/code-review/SKILL.md` ("an inverted assertion is exactly its subject"). |

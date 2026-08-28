@@ -31,7 +31,7 @@ Review agents run as sub-agents during Phase 3 inline checkpoints and full `/cod
 | `angular-reactivity-review` | [`angular-reactivity-review.md`](../agents/angular-reactivity-review.md) | sonnet | Angular Zone.js pitfalls, OnPush violations, RxJS subscription leaks |
 | `arch-review` | [`arch-review.md`](../agents/arch-review.md) | opus | ADR compliance, layer violations, dependency direction |
 | `claude-setup-review` | [`claude-setup-review.md`](../agents/claude-setup-review.md) | haiku | CLAUDE.md completeness and accuracy |
-| `complexity-review` | [`complexity-review.md`](../agents/complexity-review.md) | haiku | Function size, cyclomatic complexity, nesting |
+| `complexity-review` | [`complexity-review.md`](../agents/complexity-review.md) | sonnet | Nesting depth, cognitive load, async-pattern judgment |
 | `component-architecture-review` | [`component-architecture-review.md`](../agents/component-architecture-review.md) | sonnet | Reusable component extraction, UI duplication, prop drilling, component APIs |
 | `concurrency-review` | [`concurrency-review.md`](../agents/concurrency-review.md) | sonnet | Race conditions, async pitfalls |
 | `correctness-review` | [`correctness-review.md`](../agents/correctness-review.md) | opus | Functional/behavioral defects — implementation diverges from evident intent |

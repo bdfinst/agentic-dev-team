@@ -38,7 +38,7 @@ Each row below is also classified as a **discovery lens** or **verification gate
 | ai-provenance-review | `agents/ai-provenance-review.md` | AI-authored test assertion verification debt, regeneration-risk candidates (magic values, unusual ordering) with no human-verification evidence |
 | arch-review | `agents/arch-review.md` | ADR compliance, layer boundary violations, dependency direction, pattern consistency |
 | claude-setup-review | `agents/claude-setup-review.md` | CLAUDE.md completeness, rules, skills, path accuracy |
-| complexity-review | `agents/complexity-review.md` | Function size, cyclomatic complexity, nesting, parameters |
+| complexity-review | `agents/complexity-review.md` | Nesting depth, cognitive load, async-pattern judgment (function size/cyclomatic/parameter thresholds moved to the lizard pre-pass, #1983) |
 | component-architecture-review | `agents/component-architecture-review.md` | Reusable component extraction, frontend UI duplication, prop drilling, component granularity, inconsistent component APIs |
 | concurrency-review | `agents/concurrency-review.md` | Race conditions, async pitfalls, shared state |
 | correctness-review | `agents/correctness-review.md` | Functional/behavioral defects — implementation diverges from evident intent |
