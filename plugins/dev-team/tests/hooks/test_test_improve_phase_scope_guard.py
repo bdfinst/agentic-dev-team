@@ -655,6 +655,49 @@ def test_phase0_approach_contract_doc_always_allowed(tmp_path) -> None:
     assert _audit_events(tmp_path) == []
 
 
+# --- Review fix: phase-9-close-out-prompt.md is shared, "after phase 9" ---
+# --- content, not the phase-9-report.md reference it used to alias with ---
+
+
+def test_phase9_close_out_prompt_always_allowed_during_active_phase9(tmp_path) -> None:
+    """Review fix (issue #2094 follow-up): `_PHASE_REF_BASENAME_RE` captures
+    only the phase digit, so `phase-9-close-out-prompt.md` (SKILL.md's own
+    "not one of the ten numbered phases" content — the `### After Phase 9`
+    section) used to alias with `phase-9-report.md` (the real Phase-9
+    reference) and match phase "9" too — wrongly letting the strict
+    equality check treat the close-out prompt as interchangeable with the
+    actual active-Phase-9 reference instead of the shared, always-readable
+    content it actually is (mirrors `phase-0-approach-contract.md`,
+    AC2: no resolution work, no audit line)."""
+    _make_phase_files(
+        _memory_root(tmp_path) / "my-repo", "0", "2", "1", "4", "5", "6", "7", "8"
+    )
+    _write_phase0(_memory_root(tmp_path) / "my-repo", "none")
+
+    code, lines = guard.evaluate(
+        "skills/test-improve/references/phase-9-close-out-prompt.md", tmp_path
+    )
+
+    assert (code, lines) == (0, [])
+    assert _audit_events(tmp_path) == []
+
+
+def test_phase9_report_still_gated_normally(tmp_path) -> None:
+    """The real Phase-9 reference file is unaffected by the close-out-prompt
+    exemption above — still blocked when read prematurely (Phase 5 active,
+    not yet Phase 9)."""
+    slug_dir = _make_phase_files(_memory_root(tmp_path) / "my-repo", "0", "2", "1", "4")
+    _write_phase0(slug_dir, "none")
+
+    code, _lines = guard.evaluate(
+        "skills/test-improve/references/phase-9-report.md", tmp_path
+    )
+
+    assert code == 2
+    events = _audit_events(tmp_path)
+    assert events[0]["event"] == "block"
+
+
 # --- Fix #6 (security-review): path-matching bypass -----------------------
 
 

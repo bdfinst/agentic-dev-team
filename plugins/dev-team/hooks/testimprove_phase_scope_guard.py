@@ -66,7 +66,17 @@ _PHASE_REF_BASENAME_RE = re.compile(r"^phase-(\d+)-.*\.md$")
 #: always readable regardless of active phase. `phase-0-approach-contract.md`
 #: hosts `--from-phase`/`--analyze-only` semantics and the Phase-6 prompt
 #: reference, needed throughout a run, not just while Phase 0 is active.
-_ALWAYS_ALLOWED_BASENAMES = frozenset({"phase-0-approach-contract.md"})
+#: `phase-9-close-out-prompt.md` is SKILL.md's own "not one of the ten
+#: numbered phases" content (see its `### After Phase 9` section) — review
+#: fix (issue #2094 follow-up): its basename's captured digit "9" used to
+#: alias it with `phase-9-report.md` (the real Phase-9 reference), so a
+#: premature read of the close-out prompt while Phase 9 was still active
+#: (phase-8.md done, phase-9.md not yet written) was wrongly allowed by the
+#: equality check instead of being treated as a premature/future-phase
+#: read, same as any other genuinely mismatched file.
+_ALWAYS_ALLOWED_BASENAMES = frozenset(
+    {"phase-0-approach-contract.md", "phase-9-close-out-prompt.md"}
+)
 
 #: The literal `phase-0.md` key `/test-improve` records its refactor-mode
 #: knob under (`refactor-mode: <no-refactor|refactor-allowed>` — see
@@ -101,7 +111,16 @@ REASON_ANALYZE_ONLY_AMBIGUOUS = (
 #: Max length of a value interpolated into the printed `[BLOCK]` message
 #: (not the JSONL audit line, which is already `json.dumps`-safe).
 _MESSAGE_VALUE_MAX_LEN = 200
-_CONTROL_CHARS_RE = re.compile(r"[\x00-\x1f\x7f]")
+#: C0 controls, DEL, C1 controls, and the Unicode line/paragraph-separator
+#: and bidi-override/embedding characters — matches
+#: `scripts/lib/_gherkin_text.py`'s `CONTROL_CHARS` (this hook stays
+#: self-contained rather than importing across the `hooks/`/`scripts/`
+#: boundary, but the character class must not drift from that
+#: already-reasoned-through set, hardened against CWE-150/Trojan-Source
+#: terminal-spoofing).
+_CONTROL_CHARS_RE = re.compile(
+    "[\x00-\x1f\x7f-\x9f\u2028\u2029\u202a-\u202e\u2066-\u2069]"
+)
 
 
 def _sanitize_for_message(value: str | None) -> str:

@@ -35,6 +35,7 @@ from testimprove_phase_state import (  # type: ignore[import-not-found]
     VALID_BINDING_MODES,
     parse_binding_mode,
     read_binding_mode,
+    read_phase0_text,
     resolve_auto,
     resolve_with_phase3_correction,
     scan_phase_files,
@@ -102,6 +103,20 @@ def test_parse_binding_mode_accepts_each_valid_value():
 
 def test_read_binding_mode_missing_file_returns_none(tmp_path):
     assert read_binding_mode(tmp_path / "nope") is None
+
+
+def test_read_phase0_text_invalid_utf8_fails_open_not_raises(tmp_path):
+    """Review fix (issue #2094 follow-up): `read_text(encoding="utf-8")`
+    raises `UnicodeDecodeError` (a `ValueError`, not an `OSError`) on
+    invalid UTF-8 — this must be caught and treated as "unreadable" (`None`)
+    like a missing file, not propagate uncaught through an unguarded caller
+    such as `scripts/test_improve_resume.py`'s `build_result()`."""
+    memory_dir = tmp_path / "my-repo"
+    memory_dir.mkdir()
+    (memory_dir / "phase-0.md").write_bytes(b"binding_mode: none\n\xff\xfe")
+
+    assert read_phase0_text(memory_dir) is None
+    assert read_binding_mode(memory_dir) is None
 
 
 def test_resolve_with_phase3_correction_returns_3_when_bdd_mode_and_no_gherkin(

@@ -189,15 +189,20 @@ def parse_binding_mode(text: str) -> str | None:
 
 def read_phase0_text(memory_dir: Path) -> str | None:
     """Read `<memory_dir>/phase-0.md`'s raw text. `None` when the file is
-    missing or unreadable. The single I/O primitive `read_binding_mode` and
-    `resolve_with_phase3_correction` build on, and that a caller needing
-    more than one `phase-0.md` key (e.g.
-    `hooks/testimprove_phase_scope_guard.py`'s `_resolve_active_phase`,
-    which also needs `refactor-mode`) can call once and parse from
-    repeatedly, instead of re-reading the file per key."""
+    missing, unreadable, or not valid UTF-8 (`UnicodeDecodeError` is a
+    `ValueError`, not an `OSError` — caught explicitly so a garbled/binary
+    `phase-0.md` fails open the same way a missing one does, rather than
+    raising uncaught through an unguarded caller such as
+    `scripts/test_improve_resume.py`'s `build_result()`). The single I/O
+    primitive `read_binding_mode` and `resolve_with_phase3_correction`
+    build on, and that a caller needing more than one `phase-0.md` key
+    (e.g. `hooks/testimprove_phase_scope_guard.py`'s
+    `_resolve_active_phase`, which also needs `refactor-mode`) can call
+    once and parse from repeatedly, instead of re-reading the file per
+    key."""
     try:
         return (memory_dir / "phase-0.md").read_text(encoding="utf-8")
-    except OSError:
+    except (OSError, ValueError):
         return None
 
 
