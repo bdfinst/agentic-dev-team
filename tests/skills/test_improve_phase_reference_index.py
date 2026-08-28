@@ -53,9 +53,10 @@ def test_shared_reference_carve_out_present():
     assert "regardless of whether another phase also uses them" in text
 
 
-def test_instruction_is_stated_as_prose_not_hook_enforced():
+def test_instruction_names_the_enforcing_hook():
     text = _normalized_text()
-    assert "prose, not a hook-enforced gate" in text
+    assert "hooks/testimprove_phase_scope_guard.py" in text
+    assert "never one for a phase not yet reached" in text
 
 
 def _phase_reference_files_table_body() -> str:

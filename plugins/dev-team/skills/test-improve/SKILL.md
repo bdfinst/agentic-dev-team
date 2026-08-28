@@ -151,15 +151,26 @@ The After-Phase-9 close-out prompt is not one of the ten numbered phases and del
 
 Before executing a phase, read only that phase's reference file — never a
 phase-specific reference file for a phase already completed in this run or a
-prior resumed session. Shared implementation-detail reference files (e.g.
+prior resumed session, and never one for a phase not yet reached. This is
+enforced mechanically by `hooks/testimprove_phase_scope_guard.py`, a
+`PreToolUse:Read` hook that blocks a read of any
+`references/phase-<m>-*.md` file whose `m` does not match the resolved
+active phase of the single, unambiguous in-flight `/test-improve` run. The
+hook fails open (allows the read, and records an audit line instead of
+blocking) when zero or more than one run's
+`.claude/memory/test-improve/<slug>/` directory qualifies as in-flight, or
+when that run's `phase-0.md` is missing or unparseable — see the hook's
+module docstring for the full resolution mechanics.
+
+Shared implementation-detail reference files (e.g.
 `references/review-loop.md`) are not phase-specific and may be read whenever
 the phase you are executing points at them, regardless of whether another
-phase also uses them.
-
-This instruction is prose, not a hook-enforced gate — no mechanism in this
-repo verifies at runtime that only the active phase's reference file was
-read; compliance depends on the executing agent following the rule as
-written.
+phase also uses them. `references/phase-0-approach-contract.md` is likewise
+always readable regardless of active phase — even though its filename
+matches the phase-numbered pattern, the hook explicitly exempts it because
+it hosts run-wide semantics (the `--from-phase`/`--analyze-only` contract
+and the Phase-6 prompt reference) needed throughout the run, not only while
+Phase 0 is active.
 
 ### Phase 0 — Approach contract
 
