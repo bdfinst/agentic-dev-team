@@ -1,5 +1,22 @@
 # Changelog
 
+## [12.11.0](https://github.com/bdfinst/agentic-dev-team/compare/dev-team-v12.10.0...dev-team-v12.11.0) (2026-08-28)
+
+
+### Features
+
+* **pr:** scope gate-retry code review rounds to the fix-diff ([#2089](https://github.com/bdfinst/agentic-dev-team/issues/2089)) ([98409fa](https://github.com/bdfinst/agentic-dev-team/commit/98409fa34be20edfefb8a364a714af6679b5ee36))
+
+
+### Bug Fixes
+
+* **scripts:** attribute plugin_version per session instead of at extraction time ([#2091](https://github.com/bdfinst/agentic-dev-team/issues/2091)) ([5084ae6](https://github.com/bdfinst/agentic-dev-team/commit/5084ae6a2229344fb3eccde6e6d86b31791b1f24))
+
+
+### Code Refactoring
+
+* **agents:** shrink complexity-review to its judgment residue ([#2092](https://github.com/bdfinst/agentic-dev-team/issues/2092)) ([a8be963](https://github.com/bdfinst/agentic-dev-team/commit/a8be96311a73a4618f2d58d3737a9f4b2119a09e))
+
 ## [12.10.0](https://github.com/bdfinst/agentic-dev-team/compare/dev-team-v12.9.0...dev-team-v12.10.0) (2026-08-27)
 
 
