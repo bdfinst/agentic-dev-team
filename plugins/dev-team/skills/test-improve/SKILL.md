@@ -160,7 +160,10 @@ hook fails open (allows the read, and records an audit line instead of
 blocking) when zero or more than one run's
 `.claude/memory/test-improve/<slug>/` directory qualifies as in-flight, or
 when that run's `phase-0.md` is missing or unparseable — see the hook's
-module docstring for the full resolution mechanics.
+module docstring for the full resolution mechanics. This is a
+`PreToolUse:Read`-only control: it cannot see a phase reference file read
+via `Bash` (`cat`, `head`, etc.) or any other channel, so the rule above
+still depends on actually using `Read` for these files.
 
 Shared implementation-detail reference files (e.g.
 `references/review-loop.md`) are not phase-specific and may be read whenever

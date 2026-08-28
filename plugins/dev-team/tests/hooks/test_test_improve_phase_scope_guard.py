@@ -161,6 +161,33 @@ def test_completed_run_excluded_via_report_glob_secondary_signal(tmp_path) -> No
     assert result.reason == "no in-flight run found"
 
 
+# --- Review fix: legacy (pre-.claude/-scoped) memory tree migration -----
+
+
+def test_legacy_unmigrated_memory_tree_is_visible_as_in_flight(tmp_path) -> None:
+    """Review fix (issue #2094 follow-up): `_memory_root()`/
+    `_find_in_flight_slugs()` used to look only under
+    `.claude/memory/test-improve/`, never migrating a pre-existing
+    top-level `memory/test-improve/<slug>/` tree the way
+    `scripts/test_improve_resume.py`'s `resolve_memory_dir` does — so a run
+    still under the legacy location was invisible to `_find_in_flight_slugs`
+    and the guard silently failed open (allowed every phase-reference read)
+    for it. This must resolve the legacy run once migrated, exactly like
+    `--from-phase` auto-detect does."""
+    legacy_dir = tmp_path / "memory" / "test-improve" / "my-repo"
+    _make_phase_files(legacy_dir, "0", "2", "1", "4", "5")
+
+    result = guard._resolve(tmp_path)
+
+    assert result.status == "ok"
+    assert result.slug == "my-repo"
+    assert result.phase == "6"
+    # Moved, not copied - the legacy bare-path files are gone.
+    assert not (legacy_dir / "phase-0.md").exists()
+    new_dir = _memory_root(tmp_path) / "my-repo"
+    assert (new_dir / "phase-0.md").is_file()
+
+
 def test_phase3_active_when_binding_mode_not_none_and_no_gherkin(tmp_path) -> None:
     slug_dir = _make_phase_files(_memory_root(tmp_path) / "my-repo", "0", "2")
     _write_phase0(slug_dir, "xunit-with-annotations")
@@ -504,6 +531,39 @@ def test_phase6_no_refactor_mode_resolves_normally_to_phase8(tmp_path) -> None:
 
     assert result.status == "ok"
     assert result.phase == "8"
+
+
+def test_phase6_missing_phase0_fails_open_not_confident_phase8(tmp_path) -> None:
+    """Review fix (issue #2094 follow-up): the highest=='6' branch used to
+    call `_read_refactor_mode()` (returns `None` on a missing/unreadable
+    phase-0.md) and compare it directly against `"refactor-allowed"` — a
+    `None` != "refactor-allowed" fell through to the ordinary "no-refactor"
+    resolution (active phase 8) with no fail-open, unlike the Phase-3
+    correction two branches above, which explicitly fails open on the same
+    failure class. A missing phase-0.md at highest=='6' must fail open
+    (REASON_MALFORMED_PHASE0), not confidently resolve to phase 8."""
+    _make_phase_files(_memory_root(tmp_path) / "my-repo", "0", "2", "1", "4", "5", "6")
+    (_memory_root(tmp_path) / "my-repo" / "phase-0.md").unlink()
+
+    result = guard._resolve(tmp_path)
+
+    assert result.status == "none_in_flight"
+    assert result.reason == guard.REASON_MALFORMED_PHASE0
+
+
+def test_phase6_garbled_refactor_mode_fails_open_not_confident_phase8(tmp_path) -> None:
+    """A truncated/garbled refactor-mode value (e.g. `refactor-mode: x`) must
+    fail open, not be silently treated as "not refactor-allowed" (i.e.
+    no-refactor)."""
+    slug_dir = _make_phase_files(
+        _memory_root(tmp_path) / "my-repo", "0", "2", "1", "4", "5", "6"
+    )
+    (slug_dir / "phase-0.md").write_text("refactor-mode: x\n", encoding="utf-8")
+
+    result = guard._resolve(tmp_path)
+
+    assert result.status == "none_in_flight"
+    assert result.reason == guard.REASON_MALFORMED_PHASE0
 
 
 # --- Fix #3 (domain-review): --analyze-only runs are invisible to the -----

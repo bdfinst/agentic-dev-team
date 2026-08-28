@@ -75,6 +75,13 @@ _ALWAYS_ALLOWED_BASENAMES = frozenset({"phase-0-approach-contract.md"})
 REFACTOR_MODE_KEY = "refactor-mode"
 _REFACTOR_MODE_RE = re.compile(rf"^[ \t]*{REFACTOR_MODE_KEY}:\s*(\S+)", re.MULTILINE)
 
+#: The closed set of legal `refactor-mode` values (`phase-0-approach-contract.md`
+#: knob 3). Mirrors `testimprove_phase_state.VALID_BINDING_MODES`'s
+#: validation: a value outside this set (a truncated/garbled write) is
+#: treated as absent, never as an implicit `"no-refactor"` — see
+#: `_read_refactor_mode` and the Phase-6/7 check in `_resolve_active_phase`.
+VALID_REFACTOR_MODES = frozenset({"no-refactor", "refactor-allowed"})
+
 # --- Audit event / reason string constants -------------------------------
 
 EVENT_BLOCK = "block"
@@ -158,7 +165,17 @@ def _find_in_flight_slugs(project_dir: Path) -> list[tuple[str, list[str]]]:
     between `phase-9.md` landing and the report file being written; never an
     independent definition of "complete" on its own). A slug with no
     completed phase files at all is skipped too — it has nothing to resolve.
+
+    Migrates any pre-existing top-level `memory/test-improve/` tree into
+    `.claude/memory/test-improve/` first (mirrors
+    `scripts/test_improve_resume.py`'s `resolve_memory_dir` — see
+    `artifact_paths.migrate_dir()`), so an in-flight run under the legacy
+    location is not invisible to this guard and does not silently fail open
+    for every read of that run's phase reference files.
     """
+    artifact_paths.migrate_dir(
+        "memory", "test-improve", root=project_dir, exclude={"refactor-backlog.md"}
+    )
     memory_root = _memory_root(project_dir)
     if not memory_root.is_dir():
         return []
@@ -183,13 +200,19 @@ def _find_in_flight_slugs(project_dir: Path) -> list[tuple[str, list[str]]]:
 
 def _read_refactor_mode(memory_dir: Path) -> str | None:
     """Read and parse `<memory_dir>/phase-0.md`'s `refactor-mode` value.
-    `None` when the file is missing, unreadable, or the key is absent."""
+    `None` when the file is missing, unreadable, the key is absent, or the
+    captured value is not one of `VALID_REFACTOR_MODES` — a caller must
+    treat `None` as "malformed or missing phase-0.md", never as
+    `refactor-mode: no-refactor`."""
     try:
         text = (memory_dir / "phase-0.md").read_text(encoding="utf-8")
     except OSError:
         return None
     match = _REFACTOR_MODE_RE.search(text)
-    return match.group(1) if match else None
+    if not match:
+        return None
+    value = match.group(1)
+    return value if value in VALID_REFACTOR_MODES else None
 
 
 def _resolve_active_phase(
@@ -203,7 +226,11 @@ def _resolve_active_phase(
     nothing can be resolved confidently:
 
     - `reason == REASON_MALFORMED_PHASE0` when the Phase-3 correction needed
-      `phase-0.md`'s `binding_mode` and couldn't read or parse it.
+      `phase-0.md`'s `binding_mode` and couldn't read or parse it, OR the
+      highest completed phase is `"6"` and `phase-0.md`'s `refactor-mode`
+      couldn't be read or parsed — in both cases failing open rather than
+      silently falling through to the phase's ordinary (non-ambiguous)
+      resolution on a garbled/missing file.
     - `reason == REASON_PHASE_6_7_AMBIGUOUS` when the highest completed
       phase is `"6"`, `refactor-mode: refactor-allowed` is recorded, and
       `phase-7.md` doesn't exist yet — unlike Phase 3 (a clean
@@ -229,12 +256,18 @@ def _resolve_active_phase(
         binding_mode = read_binding_mode(memory_dir)
         return "3", highest, f"phase-3 active (binding_mode: {binding_mode})"
 
-    if (
-        highest == "6"
-        and _read_refactor_mode(memory_dir) == "refactor-allowed"
-        and not (memory_dir / "phase-7.md").exists()
-    ):
-        return None, highest, REASON_PHASE_6_7_AMBIGUOUS
+    if highest == "6":
+        refactor_mode = _read_refactor_mode(memory_dir)
+        if refactor_mode is None:
+            # phase-0.md's refactor-mode was required to rule the Phase-6/7
+            # boundary in or out and could not be read/parsed (missing,
+            # unreadable, or an invalid/garbled value) -- fail open rather
+            # than silently fall through to the "no-refactor" (phase 8)
+            # branch below, the same asymmetry the Phase-3 check above
+            # already guards against.
+            return None, highest, REASON_MALFORMED_PHASE0
+        if refactor_mode == "refactor-allowed" and not (memory_dir / "phase-7.md").exists():
+            return None, highest, REASON_PHASE_6_7_AMBIGUOUS
 
     return resolved, highest, f"latest completed: phase-{highest}.md"
 
