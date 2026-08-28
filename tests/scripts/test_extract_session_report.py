@@ -419,12 +419,16 @@ def test_plugin_version_filter_reports_coverage_instead_of_dropping_silently(
     tmp_path,
 ):
     """#2018 acceptance: a version-filtered report states how many sessions
-    it considered vs. excluded as unattributable, rather than the prior
-    silent drop. Three sessions share one project/cwd: one matches the
-    requested version, one is tagged a DIFFERENT version, and one has no
-    boundary-events record at all (never dispatched through a stamping
-    hook) -- all three must count as "considered", only the first as
-    "attributed"."""
+    it considered, rather than the prior silent drop -- and distinguishes
+    WHY an excluded session was excluded. Three sessions share one
+    project/cwd: one matches the requested version, one is tagged a
+    DIFFERENT known version, and one has no boundary-events record at all
+    (never dispatched through a stamping hook). All three count as
+    "considered"; only the first as "attributed"; the second as
+    "attributed_other_version" (the filter working as intended -- this
+    session's data isn't missing, it just belongs to another release); only
+    the third as genuinely "unattributed". Conflating the second and third
+    under one count would misrepresent a working filter as a data gap."""
     root = tmp_path / "projects"
     work = tmp_path / "work"
     (work / ".claude" / "metrics").mkdir(parents=True)
@@ -463,7 +467,8 @@ def test_plugin_version_filter_reports_coverage_instead_of_dropping_silently(
     assert coverage["requested_version"] == "1.0.0"
     assert coverage["sessions_considered"] == 3
     assert coverage["sessions_attributed"] == 1
-    assert coverage["sessions_excluded_unattributed"] == 2
+    assert coverage["sessions_attributed_other_version"] == 1
+    assert coverage["sessions_unattributed"] == 1
     # the exclusion BEHAVIOR itself is unchanged -- only the matching
     # session's data lands in the report.
     assert report["combined"]["sessions"] == 1

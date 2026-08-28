@@ -55,9 +55,12 @@ multi-session aggregate to one version — see ``resolve_session_plugin_version`
 own docstring and the "Version tagging" note in ``knowledge/telemetry-
 schema.md`` for the full scoping rationale. A version-filtered downstream
 report (``--plugin-version``) now also reports its own coverage —
-``version_filter_coverage`` names how many sessions were considered vs.
-excluded as unattributable — instead of dropping unattributable sessions
-silently.
+``version_filter_coverage`` breaks the considered sessions into three
+buckets: matching the requested version, attributed to a DIFFERENT known
+version (the filter working as intended, not a data gap), and genuinely
+unattributed (no resolvable version at all) — instead of dropping
+unattributable sessions silently or conflating them with sessions that
+simply belong to another release.
 
 PATH RESOLUTION (ADR 0032): this script is Category 1 (shipped and
 portable) in both profiles — every path it touches (``session_log``,
@@ -1878,6 +1881,32 @@ def sessions_matching_plugin_version(cwd: str | None, target_version: str) -> se
     return matches
 
 
+def _sessions_with_known_plugin_version(cwd: str | None) -> set[str]:
+    """Every session_id in `cwd`'s boundary-events.jsonl carrying ANY
+    resolvable `plugin_version` tag, regardless of its value (#2018
+    coverage precision). A --plugin-version-filtered report's coverage
+    figure must distinguish two different reasons a session lands outside
+    `sessions_matching_plugin_version`'s result: (1) the session WAS
+    attributed, just to a version other than the one requested -- the
+    filter working as intended, not a data gap -- versus (2) the session
+    has no resolvable version at all, because it never dispatched through
+    anything that stamps `session_id`+`plugin_version` onto
+    boundary-events.jsonl. Conflating the two under one "unattributed"
+    count would misrepresent (1) as a data-quality problem it is not."""
+    known: set[str] = set()
+    if not cwd:
+        return known
+    path = Path(cwd) / ".claude" / "metrics" / "boundary-events.jsonl"
+    for rec in _iter_file_records(path):
+        version = rec.get("plugin_version")
+        if not (isinstance(version, str) and _VERSION_RE.match(version)):
+            continue
+        sid = rec.get("session_id")
+        if sid:
+            known.add(str(sid))
+    return known
+
+
 def _scan_all_session_ids(
     paths: list[Path], since: str | None = None, until: str | None = None
 ) -> set[str]:
@@ -2033,8 +2062,8 @@ def _build_parser() -> argparse.ArgumentParser:
         metavar="VERSION",
         help="[downstream] best-effort: only include sessions this project's "
         "local .claude/metrics/boundary-events.jsonl recorded under VERSION "
-        "-- the report's version_filter_coverage field then states how many "
-        "sessions were considered vs. excluded as unattributable (#2018)",
+        "-- the report's version_filter_coverage field then breaks the "
+        "considered sessions into matched/other-version/unattributed (#2018)",
     )
 
     # --- shared flags ---
@@ -2135,12 +2164,18 @@ def _main_downstream(args) -> int:
 
     digests: dict[str, dict] = {}
     # #2018 acceptance: a --plugin-version-filtered report states its own
-    # coverage (how many sessions it considered vs. dropped as
-    # unattributable) instead of dropping them silently. Accumulated
-    # per-project below, alongside each extract_downstream() call, rather
-    # than with a second pass over `by_project`/`digests` afterward.
+    # coverage instead of dropping sessions silently. Three buckets,
+    # accumulated per-project below alongside each extract_downstream()
+    # call rather than with a second pass over `by_project`/`digests`
+    # afterward: sessions matching the requested version (attributed);
+    # sessions with a DIFFERENT known version (also attributed -- the
+    # filter correctly excluded them, this is not a data gap); and
+    # sessions with no resolvable version at all (genuinely unattributed).
+    # Conflating the last two into a single "excluded" count would
+    # misrepresent "the filter worked as intended" as "data is missing".
     coverage_considered = 0
     coverage_attributed = 0
+    coverage_other_version = 0
 
     if args.all_projects:
         by_project = discover_projects(projects_root)
@@ -2154,8 +2189,10 @@ def _main_downstream(args) -> int:
             )
             if args.plugin_version:
                 seen = _scan_all_session_ids(entry["paths"], since, until)
+                known = _sessions_with_known_plugin_version(entry["cwd"])
                 coverage_considered += len(seen)
                 coverage_attributed += len(seen & (allowed or set()))
+                coverage_other_version += len(seen & known - (allowed or set()))
         mode = "all-projects"
         scope = "all"
     else:
@@ -2170,8 +2207,10 @@ def _main_downstream(args) -> int:
         )
         if args.plugin_version:
             seen = _scan_all_session_ids(paths, since, until)
+            known = _sessions_with_known_plugin_version(cwd)
             coverage_considered += len(seen)
             coverage_attributed += len(seen & (allowed or set()))
+            coverage_other_version += len(seen & known - (allowed or set()))
         mode = "single-project"
         scope = label
 
@@ -2185,7 +2224,10 @@ def _main_downstream(args) -> int:
             "requested_version": args.plugin_version,
             "sessions_considered": coverage_considered,
             "sessions_attributed": coverage_attributed,
-            "sessions_excluded_unattributed": coverage_considered - coverage_attributed,
+            "sessions_attributed_other_version": coverage_other_version,
+            "sessions_unattributed": (
+                coverage_considered - coverage_attributed - coverage_other_version
+            ),
         }
         if args.plugin_version
         else None

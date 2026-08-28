@@ -129,10 +129,13 @@ dispatched anything through a hook that stamps `session_id` can't be
 attributed and is excluded). Rather than dropping those sessions silently,
 the report's top-level `version_filter_coverage` field (non-null only when
 `--plugin-version` was passed) names `requested_version`,
-`sessions_considered`, `sessions_attributed`, and
-`sessions_excluded_unattributed` — see `knowledge/telemetry-schema.md`'s
-"Version-filtered downstream report coverage" note for the full contract.
-The exclusion behavior itself is unchanged; only its visibility is new.
+`sessions_considered`, `sessions_attributed`,
+`sessions_attributed_other_version` (a resolvable version, just not the
+requested one — the filter working as intended, not a data gap), and
+`sessions_unattributed` (no resolvable version at all) — see
+`knowledge/telemetry-schema.md`'s "Version-filtered downstream report
+coverage" note for the full contract. The exclusion behavior itself is
+unchanged; only its visibility is new.
 
 | Field | Meaning |
 |---|---|
