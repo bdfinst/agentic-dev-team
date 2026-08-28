@@ -758,6 +758,27 @@ def test_empty_file_path_passes_silently(tmp_path) -> None:
 # --- lazily, only after a phase-reference match is confirmed ---------------
 
 
+def test_symlinked_phase_reference_is_not_matched(tmp_path, monkeypatch) -> None:
+    """Review fix (issue #2094 follow-up): a `phase-<m>-*.md`-named symlink
+    living directly inside `references/` and pointing at a DIFFERENT real
+    file in that same directory used to pass the containment check (both
+    resolve under `references/`) and report the RESOLVED TARGET's
+    basename/phase — not the literally-requested symlink name's. A symlink
+    is now unmatched (`None`) outright, regardless of where it points."""
+    fake_plugin_root = tmp_path / "plugin"
+    references_dir = fake_plugin_root / "skills" / "test-improve" / "references"
+    references_dir.mkdir(parents=True)
+    real_target = references_dir / "phase-2-baseline.md"
+    real_target.write_text("baseline content\n", encoding="utf-8")
+    symlink = references_dir / "phase-9-report.md"
+    symlink.symlink_to(real_target)
+
+    monkeypatch.setattr(guard, "_plugin_root", lambda: fake_plugin_root)
+
+    assert guard._match_phase_reference(str(symlink)) is None
+    assert guard._match_phase_reference(str(real_target)) == "2"
+
+
 def test_project_dir_not_resolved_when_file_path_does_not_match(
     tmp_path, monkeypatch
 ) -> None:

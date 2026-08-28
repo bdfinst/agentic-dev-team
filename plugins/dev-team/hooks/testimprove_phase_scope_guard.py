@@ -353,7 +353,14 @@ def audit(
 
     Best-effort — a failure to resolve the path, create the directory, or
     write the line is fail-open: log a diagnostic and never crash the guard
-    (mirrors `refactor_test_freeze_guard.py`'s own `audit()`).
+    (mirrors `refactor_test_freeze_guard.py`'s own `audit()`). Review fix
+    (issue #2094 follow-up): catches `Exception`, not just `OSError` — this
+    is `main()`'s LAST-RESORT call, made from inside its own broad
+    `except Exception` handler with no further try/except around it, so
+    ANY exception escaping this function (not only an `OSError`, e.g. from
+    `append_line_locked`'s locking path) would propagate out of `main()`
+    uncaught and crash the hook process, directly contradicting this
+    module's own "a broken guard must never block work" design.
     """
     entry = {
         "timestamp": datetime.now(timezone.utc).isoformat(),
@@ -370,7 +377,7 @@ def audit(
         )
         path.parent.mkdir(parents=True, exist_ok=True)
         append_line_locked(path, json.dumps(entry) + "\n", fail_open=False)
-    except OSError as exc:
+    except Exception as exc:  # noqa: BLE001 - last-resort audit write, must never crash the guard
         sys.stderr.write(
             f"[testimprove_phase_scope_guard] failed to write audit line: {exc}\n"
         )
@@ -419,13 +426,23 @@ def _match_phase_reference(file_path: str) -> str | None:
     convention every real `Read` target already uses (an absolute path
     under wherever this plugin is installed).
 
-    A file that is itself a symlink is the one case `Path.resolve()`
-    does NOT keep anchored here: it follows the symlink to its real
-    target, so a `phase-<m>-*.md`-named symlink whose target lives outside
-    `references/` resolves to a `parent` that fails the directory check
-    below and returns `None` (unmatched — this guard does not scope that
-    read at all, rather than blocking it). No real reference file is ever a
-    symlink, so this is a latent gap, not an active one.
+    Review fix (issue #2094 follow-up): checks `candidate.is_symlink()`
+    explicitly, before ever calling `.resolve()` — mirroring
+    `hooks/lib/build_knowledge_index.py`'s `resolve_contained_target()`
+    (used elsewhere in this plugin for the identical
+    symlink-free-descendant-of-a-directory problem; not reused verbatim
+    here because its containment check is case-sensitive and would break
+    the case-insensitive matching this function has always done — see the
+    `.lower()` comparison below). A file that is itself a symlink is
+    unmatched (`None`) outright now, regardless of where it resolves to —
+    without this, a `phase-<m>-*.md`-named symlink pointing at a
+    DIFFERENT, real file inside this same `references/` directory would
+    pass the containment check and this function would report the
+    resolved TARGET's basename/phase, not the literally-requested symlink
+    name's — a mismatch between what the agent asked to read and what the
+    guard evaluated. This repo's own convention (root CLAUDE.md): validate
+    the property explicitly rather than trust an unverified claim about
+    `Path.resolve()`'s symlink-following behavior.
 
     `phase-0-approach-contract.md` matches the name pattern (phase "0") but
     is shared, cross-phase content — see `_ALWAYS_ALLOWED_BASENAMES` — so it
@@ -439,6 +456,8 @@ def _match_phase_reference(file_path: str) -> str | None:
         candidate = Path(normalized).expanduser()
         if not candidate.is_absolute():
             candidate = _plugin_root() / candidate
+        if candidate.is_symlink():
+            return None
         resolved = candidate.resolve()
     except (OSError, RuntimeError, ValueError):
         return None
@@ -455,8 +474,29 @@ def _match_phase_reference(file_path: str) -> str | None:
     return match.group(1) if match else None
 
 
-def evaluate(file_path: str, project_dir: Path) -> tuple[int, list[str]]:
+#: Sentinel for `evaluate()`'s optional `matched_phase` parameter,
+#: distinguishing "not supplied — compute it" from the legal value `None`
+#: ("already computed, and it was a non-match").
+_UNSET_MATCHED_PHASE = object()
+
+
+def evaluate(
+    file_path: str,
+    project_dir: Path,
+    *,
+    matched_phase: str | None = _UNSET_MATCHED_PHASE,  # type: ignore[assignment]
+) -> tuple[int, list[str]]:
     """Return (exit_code, stdout_lines) for one Read decision.
+
+    `matched_phase`, when supplied, is used as-is instead of this function
+    recomputing it via `_match_phase_reference(file_path)` — review fix
+    (issue #2094 follow-up): `main()` already confirms a match before
+    calling this function (to decide whether `_project_dir()`'s subprocess
+    cost is worth paying at all — see its own docstring), so without this
+    parameter every real invocation paid the `Path.resolve()` +
+    containment-check cost twice for the exact same `file_path`. The
+    default (unsupplied) still recomputes, matching every existing
+    direct-call test's behavior unchanged.
 
     A non-matching path (AC2) is a silent no-op — no resolution work, no
     audit line, no exit-code change. A match against a phase reference file
@@ -474,12 +514,16 @@ def evaluate(file_path: str, project_dir: Path) -> tuple[int, list[str]]:
     Phase 1 directly in this same state, and nothing persisted in
     `phase-0.md` distinguishes the two modes (adding that persistence is a
     larger, out-of-scope change to `/test-improve` itself). A Read of
-    `phase-1-analyze.md` in this narrow window fails open rather than
-    blocking the common (non-`--analyze-only`) case's legitimate Phase-1
-    read; a Read of `phase-2-baseline.md` in the same window still blocks,
-    since that is the common case's own active-phase file.
+    `phase-1-analyze.md` in this narrow window fails open (`matched_phase
+    != result.phase`, so it would otherwise block) rather than blocking the
+    common (non-`--analyze-only`) case's legitimate Phase-1 read. A Read of
+    `phase-2-baseline.md` in the same window never reaches this exemption
+    at all — `matched_phase == result.phase == "2"` already satisfies the
+    ordinary equality check above and is allowed there (confirmed by
+    `test_phase2_read_allowed_when_only_phase0_done`).
     """
-    matched_phase = _match_phase_reference(file_path)
+    if matched_phase is _UNSET_MATCHED_PHASE:
+        matched_phase = _match_phase_reference(file_path)
     if matched_phase is None:
         return 0, []
 
@@ -535,10 +579,11 @@ def main() -> int:
     try:
         payload = read_stdin_json()
         file_path = _extract_file_path(payload)
-        if _match_phase_reference(file_path) is None:
+        matched_phase = _match_phase_reference(file_path)
+        if matched_phase is None:
             return 0
         project_dir = _project_dir()
-        exit_code, lines = evaluate(file_path, project_dir)
+        exit_code, lines = evaluate(file_path, project_dir, matched_phase=matched_phase)
     except Exception as exc:  # noqa: BLE001 - fail open, a broken guard never blocks work
         audit(
             project_dir if project_dir is not None else _project_dir(),

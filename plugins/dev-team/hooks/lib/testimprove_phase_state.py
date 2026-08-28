@@ -256,6 +256,26 @@ def resolve_with_phase3_correction(
     own purposes (again, `_resolve_active_phase`) avoid a second, redundant
     read; the default (unsupplied) still reads fresh, matching every
     existing caller's behavior unchanged.
+
+    DELIBERATELY NOT unified with the Phase-6/7 boundary (repeatedly
+    flagged in review as an asymmetry with this Phase-3 correction, both
+    living in `hooks/testimprove_phase_scope_guard.py`'s
+    `_resolve_active_phase` — see `REASON_PHASE_6_7_AMBIGUOUS` there): the
+    two corrections aren't the same shape. Phase 3's correction always
+    resolves to a DEFINITE phase token ("3" or the ordinary next phase) —
+    `resolve_auto`'s `(resolved_phase, highest, complete)` contract has
+    room for that. The Phase-6/7 boundary can be genuinely UNDECIDABLE from
+    persisted state (the `[y/b/q]` decision itself is never written to
+    disk) — there is no single phase token this function could return for
+    that case without either guessing or widening its return type to a
+    tri-state the CLI script's caller (`build_result()`) doesn't expect.
+    `scripts/test_improve_resume.py --from-phase` (no explicit number)
+    therefore still confidently reports "Phase 8" in that state, while the
+    guard hook — computing the identical undecidability independently —
+    fails open instead of blocking. This is a known, accepted scope
+    boundary for issue #2094 (which added the guard hook's Read-scoping
+    behavior, not `--from-phase`'s advisory-text accuracy), not an
+    oversight matching Phase 3's fix.
     """
     if tokens is None:
         tokens = scan_phase_files(memory_dir)
