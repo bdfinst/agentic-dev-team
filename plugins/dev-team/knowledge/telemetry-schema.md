@@ -533,9 +533,9 @@ the ordinary allowed-and-matching case).
 | `hook` | string | Always `testimprove_phase_scope_guard` |
 | `event` | string enum | `block` \| `fail-open` |
 | `file` | string, optional | The `Read` target's `file_path` |
-| `phase` | string, optional | Resolved active phase (block events only) |
-| `slug` | string, optional | The in-flight run's memory-dir slug (block events only) |
-| `reason` | string, optional | `"no in-flight run found"` \| `"ambiguous: multiple candidates: <sorted slugs>"` \| `"malformed or missing phase-0.md"` \| an internal-error diagnostic \| the `_resolve_active_phase` reason string echoed back on a block |
+| `phase` | string, optional | Resolved active phase — populated on a block, and on the `--analyze-only` fail-open (`REASON_ANALYZE_ONLY_AMBIGUOUS`), which carries a real resolved phase/slug; `null` on every other fail-open (nothing resolved) |
+| `slug` | string, optional | The in-flight run's memory-dir slug — same population rule as `phase` |
+| `reason` | string, optional | `"no in-flight run found"` \| `"ambiguous: multiple candidates: <sorted slugs>"` \| `"malformed or missing phase-0.md"` \| `"ambiguous: phase-6/7 boundary undecidable from persisted state"` \| `"ambiguous: --analyze-only vs normal Phase-2-next window"` \| an internal-error diagnostic \| the `_resolve_active_phase` reason string echoed back on a block |
 
 - **Emitter:** `hooks/testimprove_phase_scope_guard.py::audit()`.
 - **Consent:** unconditional (fails open, audits itself).

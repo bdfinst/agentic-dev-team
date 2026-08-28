@@ -372,16 +372,24 @@ def _match_phase_reference(file_path: str) -> str | None:
 
     Canonicalizes the path first (`Path.resolve()`, after normalizing any
     Windows-style backslash separators to forward slashes) so a double
-    separator, a `/../` parent-traversal segment, a symlink, or — on a
-    case-insensitive filesystem — a different-case path cannot evade the
-    check by taking a different textual route to the same or a different
-    file. The comparison is anchored to this plugin's own resolved
-    `references/` directory (not a bare `references/` substring test), so
-    an unrelated file elsewhere on disk that happens to share the
-    `phase-<m>-*.md` name is never matched either. A relative `file_path`
-    (as used directly by tests) is resolved against this plugin's own root,
-    matching the convention every real `Read` target already uses (an
-    absolute path under wherever this plugin is installed).
+    separator, a `/../` parent-traversal segment, or — on a
+    case-insensitive filesystem — a different-case path all still resolve
+    to the same real `references/` directory and match correctly. The
+    comparison is anchored to this plugin's own resolved `references/`
+    directory (not a bare `references/` substring test), so an unrelated
+    file elsewhere on disk that happens to share the `phase-<m>-*.md` name
+    is never matched either. A relative `file_path` (as used directly by
+    tests) is resolved against this plugin's own root, matching the
+    convention every real `Read` target already uses (an absolute path
+    under wherever this plugin is installed).
+
+    A file that is itself a symlink is the one case `Path.resolve()`
+    does NOT keep anchored here: it follows the symlink to its real
+    target, so a `phase-<m>-*.md`-named symlink whose target lives outside
+    `references/` resolves to a `parent` that fails the directory check
+    below and returns `None` (unmatched — this guard does not scope that
+    read at all, rather than blocking it). No real reference file is ever a
+    symlink, so this is a latent gap, not an active one.
 
     `phase-0-approach-contract.md` matches the name pattern (phase "0") but
     is shared, cross-phase content — see `_ALWAYS_ALLOWED_BASENAMES` — so it
