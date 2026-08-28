@@ -60,7 +60,7 @@
     "repeated_verify_runs": 0,
     "retried_bash_commands": 0
   },
-  "schema": "session-digest/v3",
+  "schema": "session-digest/v4",
   "sessions": 1,
   "subagent_transcripts": 3,
   "token": {

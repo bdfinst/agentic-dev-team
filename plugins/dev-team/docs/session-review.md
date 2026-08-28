@@ -114,13 +114,28 @@ code, or command strings. The user sends the resulting file to the
 maintainer themselves (e.g. over MS Teams); the script has no network code
 and never transmits anything on its own.
 
-### Report schema (`downstream-session-report/v3`)
+### Report schema (`downstream-session-report/v4`)
 
 Alongside the main-thread session at `<project>/<sessionId>.jsonl`, every
 dispatched agent writes its own transcript under
 `<project>/<sessionId>/subagents/` (a Workflow's agents nest one level deeper
 still). Both are read. Two fields distinguish the two signals a reader will
 otherwise conflate:
+
+**`--plugin-version VERSION` and its coverage (#2018).** Scopes the report
+to sessions whose project recorded `VERSION` in its own
+`.claude/metrics/boundary-events.jsonl` (best-effort — a session that never
+dispatched anything through a hook that stamps `session_id` can't be
+attributed and is excluded). Rather than dropping those sessions silently,
+the report's top-level `version_filter_coverage` field (non-null only when
+`--plugin-version` was passed) names `requested_version`,
+`sessions_considered`, `sessions_attributed`,
+`sessions_attributed_other_version` (a resolvable version, just not the
+requested one — the filter working as intended, not a data gap), and
+`sessions_unattributed` (no resolvable version at all) — see
+`knowledge/telemetry-schema.md`'s "Version-filtered downstream report
+coverage" note for the full contract. The exclusion behavior itself is
+unchanged; only its visibility is new.
 
 | Field | Meaning |
 |---|---|
