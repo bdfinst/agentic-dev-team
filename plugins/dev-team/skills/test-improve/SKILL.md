@@ -172,12 +172,15 @@ still depends on actually using `Read` for these files.
 Shared implementation-detail reference files (e.g.
 `references/review-loop.md`) are not phase-specific and may be read whenever
 the phase you are executing points at them, regardless of whether another
-phase also uses them. `references/phase-0-approach-contract.md` is likewise
-always readable regardless of active phase — even though its filename
-matches the phase-numbered pattern, the hook explicitly exempts it because
-it hosts run-wide semantics (the `--from-phase`/`--analyze-only` contract
-and the Phase-6 prompt reference) needed throughout the run, not only while
-Phase 0 is active.
+phase also uses them. `references/phase-0-approach-contract.md` and
+`references/phase-9-close-out-prompt.md` are likewise always readable
+regardless of active phase — even though their filenames match the
+phase-numbered pattern, the hook explicitly exempts both: the former hosts
+run-wide semantics (the `--from-phase`/`--analyze-only` contract and the
+Phase-6 prompt reference) needed throughout the run, not only while Phase 0
+is active; the latter is the `### After Phase 9` close-out content (not one
+of the ten numbered phases — see above), so gating it on "Phase 9" would
+wrongly alias it with `phase-9-report.md`, the actual Phase-9 reference.
 
 ### Phase 0 — Approach contract
 

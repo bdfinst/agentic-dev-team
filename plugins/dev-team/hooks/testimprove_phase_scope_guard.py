@@ -262,9 +262,15 @@ def _resolve_active_phase(
     instead of the ordinary next phase (`"1"`, Analyze) — see
     `resolve_with_phase3_correction`.
 
-    Reads `phase-0.md` at most once (via `phase0_text`, threaded into
-    `resolve_with_phase3_correction` and reused for the `binding_mode`/
-    `refactor-mode` parses below) rather than once per key/branch.
+    Reads `phase-0.md` at most once WITHIN THIS FUNCTION (via `phase0_text`,
+    threaded into `resolve_with_phase3_correction` and reused for the
+    `binding_mode`/`refactor-mode` parses below) rather than once per
+    key/branch here. `_find_in_flight_slugs` (the caller) has already read
+    it once of its own, for a different purpose (deciding `complete` via
+    `resolve_with_phase3_correction(entry, tokens)`, no `phase0_text`
+    passed) before this function runs — so the winning candidate's
+    `phase-0.md` is read twice across one full `_resolve()` call, once per
+    function, not once per hook invocation.
     """
     if "0" not in tokens:
         _, highest, _complete = resolve_auto(tokens)
