@@ -187,21 +187,45 @@ def parse_binding_mode(text: str) -> str | None:
     return value if value in VALID_BINDING_MODES else None
 
 
+def read_phase0_text(memory_dir: Path) -> str | None:
+    """Read `<memory_dir>/phase-0.md`'s raw text. `None` when the file is
+    missing or unreadable. The single I/O primitive `read_binding_mode` and
+    `resolve_with_phase3_correction` build on, and that a caller needing
+    more than one `phase-0.md` key (e.g.
+    `hooks/testimprove_phase_scope_guard.py`'s `_resolve_active_phase`,
+    which also needs `refactor-mode`) can call once and parse from
+    repeatedly, instead of re-reading the file per key."""
+    try:
+        return (memory_dir / "phase-0.md").read_text(encoding="utf-8")
+    except OSError:
+        return None
+
+
 def read_binding_mode(memory_dir: Path) -> str | None:
     """Read and parse `<memory_dir>/phase-0.md`'s `binding_mode` value.
 
     Returns `None` when the file is missing, unreadable, or its value is
     absent/invalid — see `parse_binding_mode`.
     """
-    try:
-        text = (memory_dir / "phase-0.md").read_text(encoding="utf-8")
-    except OSError:
+    text = read_phase0_text(memory_dir)
+    if text is None:
         return None
     return parse_binding_mode(text)
 
 
+#: Sentinel distinguishing "`phase0_text` not supplied — read it" from
+#: "the caller already tried and confirmed `phase-0.md` is missing/unreadable
+#: (`None`)" in `resolve_with_phase3_correction`'s optional `phase0_text`
+#: parameter. `None` is itself a legal, meaningful value there, so a
+#: dedicated sentinel is needed instead of reusing `None` as the default.
+_UNSET = object()
+
+
 def resolve_with_phase3_correction(
-    memory_dir: Path, tokens: list[str] | None = None
+    memory_dir: Path,
+    tokens: list[str] | None = None,
+    *,
+    phase0_text: str | None = _UNSET,  # type: ignore[assignment]
 ) -> tuple[str | None, str, bool]:
     """Like `resolve_auto`, but substitutes Phase 3 ("Derive Gherkin") for
     the ordinary next phase when Phase 2 (Baseline) just completed,
@@ -220,13 +244,20 @@ def resolve_with_phase3_correction(
 
     `tokens`, when provided, must already be `scan_phase_files(memory_dir)`
     for this same directory — passed through to avoid a redundant directory
-    scan when the caller has already done one.
+    scan when the caller has already done one. `phase0_text`, when provided
+    (including explicitly as `None`, meaning "already confirmed missing or
+    unreadable"), is used as-is instead of this function reading
+    `phase-0.md` itself — lets a caller that already read the file for its
+    own purposes (again, `_resolve_active_phase`) avoid a second, redundant
+    read; the default (unsupplied) still reads fresh, matching every
+    existing caller's behavior unchanged.
     """
     if tokens is None:
         tokens = scan_phase_files(memory_dir)
     resolved, highest, complete = resolve_auto(tokens)
     if highest == "2":
-        binding_mode = read_binding_mode(memory_dir)
+        text = read_phase0_text(memory_dir) if phase0_text is _UNSET else phase0_text
+        binding_mode = parse_binding_mode(text) if text is not None else None
         if (
             binding_mode is not None
             and binding_mode != "none"

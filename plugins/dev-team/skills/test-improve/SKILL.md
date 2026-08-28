@@ -159,8 +159,12 @@ active phase of the single, unambiguous in-flight `/test-improve` run. The
 hook fails open (allows the read, and records an audit line instead of
 blocking) when zero or more than one run's
 `.claude/memory/test-improve/<slug>/` directory qualifies as in-flight, or
-when that run's `phase-0.md` is missing or unparseable — see the hook's
-module docstring for the full resolution mechanics. This is a
+when that run's `phase-0.md` is missing or unparseable, when the Phase-6/7
+boundary is undecidable from persisted state alone (`refactor-mode:
+refactor-allowed` recorded but `phase-7.md` not yet written), or in the
+narrow `--analyze-only` window nothing persisted distinguishes from the
+common case — see the hook's module docstring for the full resolution
+mechanics. This is a
 `PreToolUse:Read`-only control: it cannot see a phase reference file read
 via `Bash` (`cat`, `head`, etc.) or any other channel, so the rule above
 still depends on actually using `Read` for these files.

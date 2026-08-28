@@ -45,12 +45,13 @@ from atomic_state import append_line_locked
 from stdin_json import read_stdin_json
 from testimprove_phase_state import (
     BINDING_MODE_KEY,  # noqa: F401 - re-exported for test_test_improve_phase_scope_guard.py
-    read_binding_mode,
+    read_phase0_text,
+    resolve_auto,
     resolve_with_phase3_correction,
     scan_phase_files,
 )
 from testimprove_phase_state import (
-    parse_binding_mode as _parse_binding_mode,  # noqa: F401 - re-exported, see above
+    parse_binding_mode as _parse_binding_mode,
 )
 
 #: Matches a `/test-improve` phase reference file's basename — captures the
@@ -198,16 +199,12 @@ def _find_in_flight_slugs(project_dir: Path) -> list[tuple[str, list[str]]]:
     return candidates
 
 
-def _read_refactor_mode(memory_dir: Path) -> str | None:
-    """Read and parse `<memory_dir>/phase-0.md`'s `refactor-mode` value.
-    `None` when the file is missing, unreadable, the key is absent, or the
-    captured value is not one of `VALID_REFACTOR_MODES` — a caller must
-    treat `None` as "malformed or missing phase-0.md", never as
-    `refactor-mode: no-refactor`."""
-    try:
-        text = (memory_dir / "phase-0.md").read_text(encoding="utf-8")
-    except OSError:
-        return None
+def _parse_refactor_mode(text: str) -> str | None:
+    """Extract the `refactor-mode` value from `phase-0.md`'s raw text.
+    `None` when the key is absent or the captured value is not one of
+    `VALID_REFACTOR_MODES` — mirrors `testimprove_phase_state.parse_binding_mode`'s
+    validation. A caller must treat `None` as "malformed or missing
+    phase-0.md", never as `refactor-mode: no-refactor`."""
     match = _REFACTOR_MODE_RE.search(text)
     if not match:
         return None
@@ -225,12 +222,15 @@ def _resolve_active_phase(
     Returns `(active_phase, highest, reason)`. `active_phase` is `None` when
     nothing can be resolved confidently:
 
-    - `reason == REASON_MALFORMED_PHASE0` when the Phase-3 correction needed
-      `phase-0.md`'s `binding_mode` and couldn't read or parse it, OR the
-      highest completed phase is `"6"` and `phase-0.md`'s `refactor-mode`
-      couldn't be read or parsed — in both cases failing open rather than
-      silently falling through to the phase's ordinary (non-ambiguous)
-      resolution on a garbled/missing file.
+    - `reason == REASON_MALFORMED_PHASE0` when `phase-0.md` itself is
+      missing (`"0" not in tokens` — mirrors
+      `scripts/test_improve_resume.py`'s `build_result()`, which hard-requires
+      it for every resolution, not just Phase-3/Phase-6/7's), OR the Phase-3
+      correction needed `phase-0.md`'s `binding_mode` and couldn't read or
+      parse it, OR the highest completed phase is `"6"` and `phase-0.md`'s
+      `refactor-mode` couldn't be read or parsed — in every case failing
+      open rather than silently falling through to the phase's ordinary
+      (non-ambiguous) resolution on a garbled/missing file.
     - `reason == REASON_PHASE_6_7_AMBIGUOUS` when the highest completed
       phase is `"6"`, `refactor-mode: refactor-allowed` is recorded, and
       `phase-7.md` doesn't exist yet — unlike Phase 3 (a clean
@@ -242,10 +242,22 @@ def _resolve_active_phase(
     Gherkin — no numbered progress file of its own) may be the active phase
     instead of the ordinary next phase (`"1"`, Analyze) — see
     `resolve_with_phase3_correction`.
-    """
-    resolved, highest, _complete = resolve_with_phase3_correction(memory_dir, tokens)
 
-    if highest == "2" and resolved != "3" and read_binding_mode(memory_dir) is None:
+    Reads `phase-0.md` at most once (via `phase0_text`, threaded into
+    `resolve_with_phase3_correction` and reused for the `binding_mode`/
+    `refactor-mode` parses below) rather than once per key/branch.
+    """
+    if "0" not in tokens:
+        _, highest, _complete = resolve_auto(tokens)
+        return None, highest, REASON_MALFORMED_PHASE0
+
+    phase0_text = read_phase0_text(memory_dir)
+    resolved, highest, _complete = resolve_with_phase3_correction(
+        memory_dir, tokens, phase0_text=phase0_text
+    )
+    binding_mode = _parse_binding_mode(phase0_text) if phase0_text is not None else None
+
+    if highest == "2" and resolved != "3" and binding_mode is None:
         # phase-0.md was required to decide the Phase-3 window and could not
         # be read/parsed (missing, unreadable, or an invalid/garbled
         # binding_mode value) -- fail open rather than silently assume
@@ -253,11 +265,10 @@ def _resolve_active_phase(
         return None, highest, REASON_MALFORMED_PHASE0
 
     if resolved == "3":
-        binding_mode = read_binding_mode(memory_dir)
         return "3", highest, f"phase-3 active (binding_mode: {binding_mode})"
 
     if highest == "6":
-        refactor_mode = _read_refactor_mode(memory_dir)
+        refactor_mode = _parse_refactor_mode(phase0_text) if phase0_text is not None else None
         if refactor_mode is None:
             # phase-0.md's refactor-mode was required to rule the Phase-6/7
             # boundary in or out and could not be read/parsed (missing,

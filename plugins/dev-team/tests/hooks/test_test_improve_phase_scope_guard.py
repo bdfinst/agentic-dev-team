@@ -231,6 +231,25 @@ def test_malformed_or_missing_phase0_on_sole_candidate_fails_open(tmp_path) -> N
     assert result.slug == "my-repo"
 
 
+def test_missing_phase0_fails_open_even_outside_phase2_and_phase6(tmp_path) -> None:
+    """Review fix (issue #2094 follow-up): the malformed/missing-phase-0.md
+    check used to run only inside the highest=='2' and highest=='6' branches
+    — a deleted phase-0.md (e.g. per SKILL.md's reset flow, which deletes
+    only phase-0.md and leaves later phase files in place) with a highest
+    completed phase outside that pair (e.g. '5', here) used to resolve
+    confidently instead of failing open, unlike
+    scripts/test_improve_resume.py's build_result(), which hard-requires
+    phase-0.md for every resolution regardless of which phase is highest."""
+    _make_phase_files(_memory_root(tmp_path) / "my-repo", "2", "1", "4", "5")
+
+    result = guard._resolve(tmp_path)
+
+    assert result.status == "none_in_flight"
+    assert result.reason == guard.REASON_MALFORMED_PHASE0
+    assert result.slug == "my-repo"
+    assert result.highest == "5"
+
+
 def test_unparseable_phase0_on_sole_candidate_fails_open(tmp_path) -> None:
     slug_dir = _make_phase_files(_memory_root(tmp_path) / "my-repo", "2")
     (slug_dir / "phase-0.md").write_text("not a key-value line\n", encoding="utf-8")
