@@ -258,7 +258,7 @@ def test_the_schema_marks_the_post_1994_era(tree):
     """Token, tool-call and rework totals all jump once subagents are counted,
     and the two bash-rework metrics change basis. A trend stream holding both
     eras has to be able to tell them apart."""
-    assert _digest(tree)["schema"] == "session-digest/v3"
+    assert _digest(tree)["schema"] == "session-digest/v4"
 
 
 def test_the_digest_emits_no_absolute_paths(tree, tmp_path):
@@ -333,7 +333,7 @@ def test_the_trend_record_carries_the_same_era_as_its_digest(tmp_path):
     )
     assert proc.returncode == 0, proc.stderr
     trend = json.loads(log.read_text().splitlines()[0])
-    assert trend["schema"] == json.loads(proc.stdout)["schema"] == "session-digest/v3"
+    assert trend["schema"] == json.loads(proc.stdout)["schema"] == "session-digest/v4"
 
 
 def test_a_windows_file_path_is_reduced_to_its_basename(tmp_path):

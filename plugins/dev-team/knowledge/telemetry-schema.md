@@ -255,8 +255,8 @@ aggregate counts only, no file names, prompts, command strings, or code.
 **`accuracy.correction_causes` (#2013).** Deterministic cause data for every
 detected correction turn — no model call, see
 `plugins/dev-team/scripts/lib/session_log/corrections.py`'s module
-docstring for the classifier. Present in BOTH `session-digest/v3` and
-`downstream-session-report/v3` (a correction's producing component is
+docstring for the classifier. Present in BOTH `session-digest/v4` and
+`downstream-session-report/v4` (a correction's producing component is
 exactly the "which components generate the most corrections per dispatch"
 question the issue exists to answer, and that question is as live for a
 downstream user's own report as for this repo's own trend stream). Shape:
@@ -282,7 +282,13 @@ a per-thread basis. Records from the two eras are not comparable; split on
 bump: it is emitted by the new unified `session_report.py --profile
 maintainer` entry point, which every real consumer now runs (#2047) instead
 of the earlier monorepo-only extractor (retired in #2048). No data-shape
-change from v2 — a v2 and a v3 record trend together.
+change from v2 — a v2 and a v3 record trend together. `session-digest/v4`
+(#2018) changes what `plugin_version` MEANS on the per-session
+`session-sync/v4` records `--sync-out` writes (see "Version tagging" below)
+— a v3 sync record and a v4 sync record are not comparable on that field,
+though every other field is unchanged and they still trend together
+otherwise. The single-shot digest/trend record keeps its v2/v3 meaning for
+`plugin_version` (extraction-time) even under the v4 label — see below.
 
 - **Emitter:** `/session-review` skill via `${CLAUDE_PLUGIN_ROOT}/scripts/session_report.py --profile maintainer`.
 - **Consent:** unconditional (aggregate counts only, no file/prompt/command content).
@@ -297,8 +303,11 @@ change from v2 — a v2 and a v3 record trend together.
   against a corpus seeding real prompt text, source code, a full shell
   command string, and absolute POSIX/Windows paths.
 - **Consumers:** `skills/harness-audit/SKILL.md` (joins with self-reported task logs), `agents/session-analysis.md`.
-- **Version tagging (#1471):** `plugin_version` is also carried on the per-session `session-sync/v1`/`session-sync/v2` records synced by `--sync-out` (used by `--rollup`/`--escalate`/`--correlate`) and on the single-shot digest itself — every one of these tags reflects the plugin version active on the machine *at extraction time*, not the version that was necessarily active during the original raw session (transcripts carry no version tag of their own to correlate against).
-- **Version scoping (#1480):** `session_report.py --profile maintainer --rollup`/`--escalate`/`--correlate` accept `--version-scope {all,current-and-previous}` (default `all`, unbounded history). `current-and-previous` drops any record whose `plugin_version` isn't the currently-installed version or the version immediately before it *as observed in the digests being read* (there is no release-history lookup) — records with no `plugin_version` at all (pre-#1471 data) are dropped too, since they can't be proven current. The result gains a `version_window` field (the concrete versions included; `[]` when unscoped). `/session-review` defaults to local-only; its `--cross-machine` opt-in always applies `current-and-previous` scoping (see its SKILL.md) — the skill itself never exposes an unscoped cross-machine mode. Unbounded history across every version remains available only via a direct `session_report.py --profile maintainer --rollup ... --version-scope all` invocation (the CLI default), outside the skill.
+- **Version tagging (#1471, revised #2018):** `plugin_version` is also carried on the per-session `session-sync/v1`-`v4` records synced by `--sync-out` (used by `--rollup`/`--escalate`/`--correlate`) and on the single-shot digest itself. These are no longer the same value stamped two ways — as of `session-sync/v4` (#2018) the two paths diverge deliberately:
+  - **Per-session `--sync-out` records (`session-sync/v4`)** — the path that runs unattended at every `SessionStart` (`.claude/ensure_session_archive.py`) and accumulates into the durable, cross-release archive — carry the SESSION's OWN version, resolved by `resolve_session_plugin_version()` from that project's `<cwd>/.claude/metrics/boundary-events.jsonl` (a stream stamped live, at hook-dispatch time, by `hooks/lib/boundary_events.py`). When a session's boundary-events carry more than one plugin_version (e.g. an in-session `/dev-team:upgrade`), the EARLIEST by `ts` wins — documented, not solved, since a session spanning two releases has no single correct answer. A session with no matching boundary-events record (never dispatched anything through a hook that stamps `session_id`) is tagged the explicit string `"unknown"` — never silently the extractor's own checked-out version, which is the exact mislabeling #2018 was filed to close (5,562 archived records, all `plugin_version: null`, none of them attributable to a release).
+  - **The single-shot digest/trend record** (`--transcript`/`--project-dir`, no `--sync-out`) is UNCHANGED behavior: it still reflects the plugin version active on the machine *at extraction time*. It can aggregate many sessions into one record, and a single field cannot honestly attribute a multi-session aggregate to one session's version — this is a deliberate scope limitation, not an oversight. In the common case (`/session-review` run against the current project, right after the session it's summarizing) extraction-time and session-time coincide anyway; the divergence #2018 closes is specific to `--sync-out`'s day/weeks-later, unattended, cross-session runs.
+- **Version scoping (#1480):** `session_report.py --profile maintainer --rollup`/`--escalate`/`--correlate` accept `--version-scope {all,current-and-previous}` (default `all`, unbounded history). `current-and-previous` drops any record whose `plugin_version` isn't the currently-installed version or the version immediately before it *as observed in the digests being read* (there is no release-history lookup) — records with no `plugin_version` at all (pre-#1471 data), or tagged the explicit `"unknown"` string (#2018), are dropped too, since neither can be proven current. The result gains a `version_window` field (the concrete versions included; `[]` when unscoped). `/session-review` defaults to local-only; its `--cross-machine` opt-in always applies `current-and-previous` scoping (see its SKILL.md) — the skill itself never exposes an unscoped cross-machine mode. Unbounded history across every version remains available only via a direct `session_report.py --profile maintainer --rollup ... --version-scope all` invocation (the CLI default), outside the skill.
+- **Version-filtered downstream report coverage (#2018):** `session_report.py --profile downstream --plugin-version VERSION` scopes the report to sessions whose project recorded `VERSION` in `boundary-events.jsonl` (`sessions_matching_plugin_version`, best-effort, same source as above) — sessions with no matching event are excluded from the report's own counts exactly as before. What's new: the report's top-level `version_filter_coverage` field (present, non-null, only when `--plugin-version` was passed) states `requested_version`, `sessions_considered` (every distinct session in the report's own since/until window, ignoring the version filter), `sessions_attributed` (how many of those matched), and `sessions_excluded_unattributed` (the rest) — so an operator sees how much of their own history is unattributable instead of a silently-smaller report. The exclusion behavior itself is unchanged; this only makes it observable.
 
 ---
 

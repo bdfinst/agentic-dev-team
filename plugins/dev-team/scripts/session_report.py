@@ -8,7 +8,7 @@ selected by ``--profile``:
     Replaces ``scripts/session_extract.py`` (monorepo-only developer
     tooling: feeds ``/session-review`` and the ``session-digest.jsonl``
     trend stream this repo uses to judge its own harness). Emits
-    ``session-digest/v3``. Retains every mode that exists nowhere else:
+    ``session-digest/v4``. Retains every mode that exists nowhere else:
     ``--sync-out``/``--watermark``/``--host``, ``--rollup``, ``--cost-log``,
     ``--escalate``, ``--correlate``, ``--append``, ``--all-projects``,
     ``--transcript``, ``--project-dir``, ``--cwd``, ``--pricing``,
@@ -17,7 +17,7 @@ selected by ``--profile``:
 ``--profile downstream``
     Replaces ``plugins/dev-team/scripts/extract_session_report.py`` (the
     standalone, shippable report any dev-team user can hand to the plugin
-    maintainer). Emits ``downstream-session-report/v3``. Retains
+    maintainer). Emits ``downstream-session-report/v4``. Retains
     ``--project``, ``--all-projects``, ``--since DAYS``, ``--until``,
     ``--plugin-version``, ``--out``.
 
@@ -34,6 +34,30 @@ schema a reader (``_read_synced_records``/``rollup``) accepts; no call site
 literal-matches a schema string. See ADR 0036 for why a half-applied bump
 (a writer stamping a new version while a reader still exact-matches the old
 one) silently drops data rather than erroring.
+
+v3 -> v4 (issue #2018): ``plugin_version``'s MEANING changes on the per-
+session ``--sync-out`` stream — the one path that runs unattended on every
+``SessionStart`` (``.claude/ensure_session_archive.py``) and accumulates
+into a durable, cross-release archive. It used to be stamped with whatever
+``.claude-plugin/plugin.json`` said on the machine running the *extraction*
+(``_load_plugin_version``), which mislabels every archived session with
+today's version regardless of which release actually produced it. Each
+``--sync-out`` record is now tagged by ``resolve_session_plugin_version()``,
+which correlates the session's own ``session_id`` against
+``<cwd>/.claude/metrics/boundary-events.jsonl`` — a stream stamped LIVE, at
+hook-dispatch time, by ``hooks/lib/boundary_events.py`` — and falls back to
+the explicit string ``"unknown"`` when no matching event exists, never to
+the extractor's own version. The single-shot digest (``--transcript``/
+``--project-dir``, no ``--sync-out``) and the downstream report's top-level
+``plugin_version`` field are UNCHANGED by this bump: both can aggregate many
+sessions in one record, and a single field cannot honestly attribute a
+multi-session aggregate to one version — see ``resolve_session_plugin_version``'s
+own docstring and the "Version tagging" note in ``knowledge/telemetry-
+schema.md`` for the full scoping rationale. A version-filtered downstream
+report (``--plugin-version``) now also reports its own coverage —
+``version_filter_coverage`` names how many sessions were considered vs.
+excluded as unattributable — instead of dropping unattributable sessions
+silently.
 
 PATH RESOLUTION (ADR 0032): this script is Category 1 (shipped and
 portable) in both profiles — every path it touches (``session_log``,
@@ -144,16 +168,21 @@ _VERSION_RE = re.compile(r"^[0-9A-Za-z._+-]{1,32}$")
 # Schema versioning. See module docstring: both profiles bump to v3; the
 # still-present predecessor scripts keep emitting v2 unchanged.
 # --------------------------------------------------------------------------
-_DIGEST_SCHEMA = "session-digest/v3"
-_SYNC_SCHEMA = "session-sync/v3"
+_DIGEST_SCHEMA = "session-digest/v4"
+_SYNC_SCHEMA = "session-sync/v4"
 #: Sync-record schemas a reader accepts, oldest first. Exported so
 #: scripts/eval_rawlog.py (and any other reader) imports this constant
 #: instead of literal-matching a schema string — the ADR 0036 failure mode
 #: this guards against is a writer bumping the stamped schema while a
 #: reader still exact-matches the old one, which silently drops every
 #: record instead of erroring.
-SYNC_SCHEMAS = ("session-sync/v1", "session-sync/v2", "session-sync/v3")
-_DOWNSTREAM_SCHEMA = "downstream-session-report/v3"
+SYNC_SCHEMAS = (
+    "session-sync/v1",
+    "session-sync/v2",
+    "session-sync/v3",
+    "session-sync/v4",
+)
+_DOWNSTREAM_SCHEMA = "downstream-session-report/v4"
 
 
 def _load_plugin_version(plugin_root: Path | None = None) -> str:
@@ -800,6 +829,26 @@ def cmd_sync(
             project, ts = _project_and_ts(main)
             digest = extract_maintainer(
                 session_paths, pricing, registry, plugin_version, projects_root=root
+            )
+            # #2018: this per-session sync record is what durably archives
+            # onto .claude/metrics/session-digest.jsonl at every
+            # SessionStart (.claude/ensure_session_archive.py) -- exactly
+            # the path where extraction-time `plugin_version` (the value
+            # threaded through as the `plugin_version` parameter above)
+            # mislabels a historical session with today's checked-out
+            # version. Override the digest's own field with the SESSION's
+            # resolved version -- its own project's boundary-events.jsonl,
+            # keyed by this loop's raw session_id -- before building the
+            # sync record; falls back to "unknown" when the session's real
+            # cwd can't be determined or has no matching boundary event.
+            raw_cwd = _first_cwd(main)
+            digest["plugin_version"] = (
+                resolve_session_plugin_version(
+                    session_id,
+                    Path(raw_cwd) / ".claude" / "metrics" / "boundary-events.jsonl",
+                )
+                if raw_cwd
+                else "unknown"
             )
             rec = sync_record(digest, host, project, _opaque_session_id(session_id), ts)
             fh.write(json.dumps(rec, sort_keys=True) + "\n")
@@ -1766,8 +1815,56 @@ def resolve_single_project(
     return label, (target_cwd if matches else None), _sorted_paths(matches)
 
 
+def resolve_session_plugin_version(session_id: str, boundary_events_path: Path) -> str:
+    """Per-session plugin_version resolver (#2018).
+
+    Correlates `session_id` against its own `boundary-events.jsonl` records
+    — a stream `hooks/lib/boundary_events.py::emit_boundary_event` stamps
+    LIVE, at hook-dispatch time, with the plugin version actually checked
+    out at that moment (`boundary_events._load_plugin_version`, ~line 79 of
+    that module). This is the one place a session's OWN version is
+    recoverable at all — transcripts themselves carry no version tag.
+
+    Choice — EARLIEST matching event by `ts` wins: a session's plugin
+    version is ordinarily constant for its whole duration (the checked-out
+    plugin doesn't change mid-session in the common case), so any matching
+    event would agree: earliest is picked because it is the version active
+    at the point the session first did dispatched work, the most
+    defensible single answer for "which release produced this session's
+    signals" when the session's activity happens to span more than one
+    event. Documented limitation, deliberately not solved here: a session
+    that runs `/dev-team:upgrade` (or otherwise changes the checked-out
+    plugin) mid-session will have GENUINELY DIFFERENT versions among its
+    own boundary-events, and this resolver reports only the first — there
+    is no single correct answer for a session that spans two releases, and
+    picking one is a documented trade-off, not an oversight.
+
+    Falls back to the explicit string `"unknown"` — NEVER a live
+    `plugin.json` read — when the file is missing, unreadable, has no
+    record for this `session_id`, or every matching record's own
+    `plugin_version` fails validation (`_VERSION_RE`, the same bound this
+    module applies to every other externally-supplied version string)."""
+    best_ts: str | None = None
+    best_version: str | None = None
+    for rec in _iter_file_records(boundary_events_path):
+        if str(rec.get("session_id") or "") != session_id:
+            continue
+        version = rec.get("plugin_version")
+        if not (isinstance(version, str) and _VERSION_RE.match(version)):
+            continue
+        ts = rec.get("ts")
+        if not isinstance(ts, str):
+            continue
+        if best_ts is None or ts < best_ts:
+            best_ts = ts
+            best_version = version
+    return best_version or "unknown"
+
+
 def sessions_matching_plugin_version(cwd: str | None, target_version: str) -> set[str]:
-    """Best-effort session_id set for a --plugin-version filter."""
+    """Best-effort session_id set for a --plugin-version filter. Starting
+    point for `resolve_session_plugin_version` above, which correlates one
+    session_id at a time rather than filtering a whole set to one version."""
     matches: set[str] = set()
     if not cwd:
         return matches
@@ -1779,6 +1876,32 @@ def sessions_matching_plugin_version(cwd: str | None, target_version: str) -> se
         if sid:
             matches.add(str(sid))
     return matches
+
+
+def _scan_all_session_ids(
+    paths: list[Path], since: str | None = None, until: str | None = None
+) -> set[str]:
+    """Every distinct session_id observed in `paths`, honoring the same
+    since/until window `extract_downstream` applies, but ignoring any
+    --plugin-version filter. Used ONLY to size a version-filtered report's
+    own coverage figure (#2018) — "how many sessions did this report's
+    window even contain, before the version filter dropped any of them" —
+    never to build the digest itself."""
+    ids: set[str] = set()
+    for path in _sorted_paths(paths):
+        for rec in _iter_file_records(path):
+            sid = rec.get("sessionId") or rec.get("session_id")
+            if since is not None or until is not None:
+                ts = rec.get("timestamp")
+                if not isinstance(ts, str):
+                    continue
+                if since is not None and ts < since:
+                    continue
+                if until is not None and ts > until:
+                    continue
+            if sid:
+                ids.add(str(sid))
+    return ids
 
 
 def _non_negative_int(value: str) -> int:
@@ -1909,7 +2032,9 @@ def _build_parser() -> argparse.ArgumentParser:
         "--plugin-version",
         metavar="VERSION",
         help="[downstream] best-effort: only include sessions this project's "
-        "local .claude/metrics/boundary-events.jsonl recorded under VERSION",
+        "local .claude/metrics/boundary-events.jsonl recorded under VERSION "
+        "-- the report's version_filter_coverage field then states how many "
+        "sessions were considered vs. excluded as unattributable (#2018)",
     )
 
     # --- shared flags ---
@@ -2009,6 +2134,13 @@ def _main_downstream(args) -> int:
         )
 
     digests: dict[str, dict] = {}
+    # #2018 acceptance: a --plugin-version-filtered report states its own
+    # coverage (how many sessions it considered vs. dropped as
+    # unattributable) instead of dropping them silently. Accumulated
+    # per-project below, alongside each extract_downstream() call, rather
+    # than with a second pass over `by_project`/`digests` afterward.
+    coverage_considered = 0
+    coverage_attributed = 0
 
     if args.all_projects:
         by_project = discover_projects(projects_root)
@@ -2016,10 +2148,14 @@ def _main_downstream(args) -> int:
             print(f"no session transcripts found under {projects_root}")
             return 1
         for label, entry in sorted(by_project.items()):
+            allowed = _allowed_sessions(entry["cwd"])
             digests[label] = extract_downstream(
-                entry["paths"], registry, projects_root, since, until,
-                _allowed_sessions(entry["cwd"]),
+                entry["paths"], registry, projects_root, since, until, allowed
             )
+            if args.plugin_version:
+                seen = _scan_all_session_ids(entry["paths"], since, until)
+                coverage_considered += len(seen)
+                coverage_attributed += len(seen & (allowed or set()))
         mode = "all-projects"
         scope = "all"
     else:
@@ -2028,11 +2164,32 @@ def _main_downstream(args) -> int:
         if not paths:
             print(f"no session transcripts found for project matching {target!r} under {projects_root}")
             return 1
+        allowed = _allowed_sessions(cwd)
         digests[label] = extract_downstream(
-            paths, registry, projects_root, since, until, _allowed_sessions(cwd)
+            paths, registry, projects_root, since, until, allowed
         )
+        if args.plugin_version:
+            seen = _scan_all_session_ids(paths, since, until)
+            coverage_considered += len(seen)
+            coverage_attributed += len(seen & (allowed or set()))
         mode = "single-project"
         scope = label
+
+    # None (not an empty/zeroed object) when no --plugin-version filter was
+    # requested -- the filter's exclusion BEHAVIOR is unchanged by this
+    # field (#2018 acceptance: "don't change the exclusion behavior itself,
+    # just make it observable"), so an unfiltered report has nothing to
+    # report coverage OF.
+    version_filter_coverage = (
+        {
+            "requested_version": args.plugin_version,
+            "sessions_considered": coverage_considered,
+            "sessions_attributed": coverage_attributed,
+            "sessions_excluded_unattributed": coverage_considered - coverage_attributed,
+        }
+        if args.plugin_version
+        else None
+    )
 
     report = {
         "schema": _DOWNSTREAM_SCHEMA,
@@ -2045,6 +2202,7 @@ def _main_downstream(args) -> int:
             "until": until,
             "plugin_version": args.plugin_version,
         },
+        "version_filter_coverage": version_filter_coverage,
         "projects": digests,
         "combined": combine(digests, registry),
     }

@@ -317,7 +317,7 @@ def test_schema_version_marks_the_post_1990_era(tree, tmp_path):
     """Token, tool-call and rework totals all jump once subagents are counted.
     A consumer has to be able to tell the two eras apart rather than reading
     the jump as a behavior change."""
-    assert _run(tree, tmp_path / "r.json")["schema"] == "downstream-session-report/v3"
+    assert _run(tree, tmp_path / "r.json")["schema"] == "downstream-session-report/v4"
 
 
 # --- flags -----------------------------------------------------------------
@@ -403,6 +403,70 @@ def test_malformed_lines_are_skipped_not_fatal(tmp_path):
     )
     combined = _run(root, tmp_path / "r.json")["combined"]
     assert sum(combined["token"]["totals"].values()) == USAGE_SUM
+
+
+# --- #2018: --plugin-version filter states its own coverage ----------------
+
+
+def test_version_filter_coverage_is_null_when_no_filter_requested(tree, tmp_path):
+    """The exclusion behavior of --plugin-version is opt-in; so is reporting
+    on it. An unfiltered report has nothing to report coverage of."""
+    report = _run(tree, tmp_path / "r.json")
+    assert report["version_filter_coverage"] is None
+
+
+def test_plugin_version_filter_reports_coverage_instead_of_dropping_silently(
+    tmp_path,
+):
+    """#2018 acceptance: a version-filtered report states how many sessions
+    it considered vs. excluded as unattributable, rather than the prior
+    silent drop. Three sessions share one project/cwd: one matches the
+    requested version, one is tagged a DIFFERENT version, and one has no
+    boundary-events record at all (never dispatched through a stamping
+    hook) -- all three must count as "considered", only the first as
+    "attributed"."""
+    root = tmp_path / "projects"
+    work = tmp_path / "work"
+    (work / ".claude" / "metrics").mkdir(parents=True)
+
+    sess_match = "11111111-0000-0000-0000-000000000001"
+    sess_other_version = "11111111-0000-0000-0000-000000000002"
+    sess_no_event = "11111111-0000-0000-0000-000000000003"
+
+    for sid in (sess_match, sess_other_version, sess_no_event):
+        rec = _assistant([{"type": "text", "text": "hi"}])
+        rec["sessionId"] = sid
+        rec["cwd"] = str(work)
+        _write(root / PROJECT_SLUG / f"{sid}.jsonl", [rec])
+
+    (work / ".claude" / "metrics" / "boundary-events.jsonl").write_text(
+        "\n".join(
+            json.dumps(r)
+            for r in (
+                {
+                    "ts": NOW_ISO, "hook": "h", "tool": "Bash", "decision": "record",
+                    "matched_rule": "x", "plugin_version": "1.0.0",
+                    "session_id": sess_match,
+                },
+                {
+                    "ts": NOW_ISO, "hook": "h", "tool": "Bash", "decision": "record",
+                    "matched_rule": "x", "plugin_version": "2.0.0",
+                    "session_id": sess_other_version,
+                },
+            )
+        )
+        + "\n"
+    )
+
+    report = _run(root, tmp_path / "r.json", "--plugin-version", "1.0.0")
+    coverage = report["version_filter_coverage"]
+    assert coverage["requested_version"] == "1.0.0"
+    assert coverage["sessions_considered"] == 3
+    assert coverage["sessions_attributed"] == 1
+    assert coverage["sessions_excluded_unattributed"] == 2
+    # the exclusion BEHAVIOR itself is unchanged -- only the matching
+    # session's data lands in the report.
+    assert report["combined"]["sessions"] == 1
 
 
 def test_out_of_window_agent_run_is_not_counted(tmp_path):

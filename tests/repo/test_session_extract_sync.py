@@ -84,7 +84,7 @@ def test_sync_emits_one_record_per_session_labeled_by_basename(
     assert len(records) == 2
 
     by_id = {r["session_id"]: r for r in records}
-    assert by_id["sess-a"]["schema"] == "session-sync/v3"
+    assert by_id["sess-a"]["schema"] == "session-sync/v4"
     assert by_id["sess-a"]["project"] == "alpha"
     assert by_id["sess-b"]["project"] == "beta"
     assert by_id["sess-a"]["host"] == "testhost"
@@ -198,6 +198,91 @@ def test_sync_record_carries_correction_by_skill_and_by_agent(
     assert accuracy["user_correction_turns"] == 1
     assert accuracy["by_skill"] == {"plan": 1}
     assert accuracy["by_agent"] == {"unattributed": 1}
+
+
+def test_sync_two_sessions_under_different_versions_land_in_different_buckets(
+    tmp_path: Path,
+) -> None:
+    """#2018 acceptance criterion 4: two sessions whose own projects recorded
+    DIFFERENT plugin_version boundary-events end up with different
+    plugin_version buckets in the archived sync stream -- proving
+    per-session resolution, not one extraction-time value stamped on
+    everything."""
+    projects = tmp_path / "projects"
+    proj = projects / "projX"
+    proj.mkdir(parents=True)
+    work_a = tmp_path / "work-a"
+    work_b = tmp_path / "work-b"
+    (work_a / ".claude" / "metrics").mkdir(parents=True)
+    (work_b / ".claude" / "metrics").mkdir(parents=True)
+
+    (proj / "sess-a.jsonl").write_text(
+        f'{{"type":"assistant","cwd":"{work_a}","sessionId":"sess-a",'
+        '"timestamp":"2026-06-07T10:00:00Z",'
+        '"message":{"model":"claude-opus-4-8","usage":{"input_tokens":10,'
+        '"output_tokens":1}}}\n'
+    )
+    (proj / "sess-b.jsonl").write_text(
+        f'{{"type":"assistant","cwd":"{work_b}","sessionId":"sess-b",'
+        '"timestamp":"2026-06-07T11:00:00Z",'
+        '"message":{"model":"claude-opus-4-8","usage":{"input_tokens":10,'
+        '"output_tokens":1}}}\n'
+    )
+    (work_a / ".claude" / "metrics" / "boundary-events.jsonl").write_text(
+        json.dumps(
+            {
+                "ts": "2026-06-07T09:59:00Z",
+                "hook": "destructive_guard",
+                "tool": "Bash",
+                "decision": "record",
+                "matched_rule": "x",
+                "plugin_version": "1.2.3",
+                "session_id": "sess-a",
+            }
+        )
+        + "\n"
+    )
+    (work_b / ".claude" / "metrics" / "boundary-events.jsonl").write_text(
+        json.dumps(
+            {
+                "ts": "2026-06-07T10:59:00Z",
+                "hook": "destructive_guard",
+                "tool": "Bash",
+                "decision": "record",
+                "matched_rule": "x",
+                "plugin_version": "9.9.9",
+                "session_id": "sess-b",
+            }
+        )
+        + "\n"
+    )
+
+    out = tmp_path / "digests" / "testhost" / "session-digest.jsonl"
+    watermark = tmp_path / "watermark.json"
+    result = subprocess.run(
+        [
+            sys.executable,
+            str(EXTRACT), "--profile", "maintainer",
+            "--sync-out",
+            str(out),
+            "--watermark",
+            str(watermark),
+            "--projects-root",
+            str(projects),
+            "--host",
+            "testhost",
+            "--plugin-root",
+            str(PLUGIN),
+        ],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
+    records = {r["session_id"]: r for r in _records(out)}
+    assert records["sess-a"]["plugin_version"] == "1.2.3"
+    assert records["sess-b"]["plugin_version"] == "9.9.9"
+    assert records["sess-a"]["plugin_version"] != records["sess-b"]["plugin_version"]
 
 
 def test_all_projects_non_sync_digest_aggregates_sessions_across_projects(

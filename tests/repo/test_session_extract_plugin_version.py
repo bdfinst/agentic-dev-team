@@ -3,6 +3,17 @@ plugin_version (read from .claude-plugin/plugin.json), so stale
 recommendations from an older plugin version can be told apart from current
 ones. #1480: --rollup/--escalate/--correlate can be scoped to the current +
 immediately previous observed plugin_version via --version-scope.
+
+#2018: the single-shot digest/trend record (this file's tests through
+`test_trend_append_record_carries_plugin_version`) still carries the
+EXTRACTION-time version -- it can aggregate many sessions in one record, so
+there is no single session to attribute it to. The PER-SESSION `--sync-out`
+record is different: it is the one path that runs unattended at every
+SessionStart and accumulates into a durable, cross-release archive, so
+`plugin_version` there is now resolved from the SESSION's own
+`boundary-events.jsonl`, not the extractor's checked-out `plugin.json` --
+see `test_sync_record_falls_back_to_unknown_without_a_boundary_event` and
+`test_sync_record_resolves_plugin_version_from_boundary_events` below.
 """
 
 from __future__ import annotations
@@ -83,15 +94,85 @@ def test_trend_append_record_carries_plugin_version(tmp_path: Path) -> None:
     assert record["plugin_version"] == "3.0.0"
 
 
-def test_sync_record_carries_plugin_version(tmp_path: Path) -> None:
+def test_sync_record_falls_back_to_unknown_without_a_boundary_event(
+    tmp_path: Path,
+) -> None:
+    """#2018: a --sync-out record's `plugin_version` is resolved from the
+    SESSION's own boundary-events.jsonl, never from the extractor's own
+    checked-out plugin.json -- even a plugin_root explicitly pointed at a
+    manifest reporting "4.5.6" must NOT leak into a session with no
+    matching boundary event. "unknown" is the required, explicit signal
+    that this session cannot be attributed -- silently falling back to
+    "4.5.6" here is exactly the bug #2018 exists to close."""
     plugin_root = _fake_plugin_root(tmp_path, "4.5.6")
     projects = tmp_path / "projects" / "projA"
     projects.mkdir(parents=True)
+    # cwd points at a real (but boundary-events-less) directory so the
+    # resolver's lookup path exists but finds nothing to match.
+    work = tmp_path / "work-alpha"
+    work.mkdir(parents=True)
     (projects / "sess-a.jsonl").write_text(
-        '{"type":"assistant","cwd":"/home/u/work/alpha","sessionId":"s-a",'
+        f'{{"type":"assistant","cwd":"{work}","sessionId":"s-a",'
         '"timestamp":"2026-06-07T10:00:00Z",'
         '"message":{"model":"claude-opus-4-8","usage":{"input_tokens":10,'
         '"output_tokens":1}}}\n'
+    )
+    out = tmp_path / "digests" / "testhost" / "session-digest.jsonl"
+    watermark = tmp_path / "watermark.json"
+    result = _run(
+        "--sync-out",
+        str(out),
+        "--watermark",
+        str(watermark),
+        "--projects-root",
+        str(tmp_path / "projects"),
+        "--host",
+        "testhost",
+        "--plugin-root",
+        str(plugin_root),
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
+    record = json.loads(out.read_text().splitlines()[0])
+    assert record["plugin_version"] == "unknown"
+
+
+def test_sync_record_resolves_plugin_version_from_boundary_events(
+    tmp_path: Path,
+) -> None:
+    """#2018: when the session's own project DOES have a matching
+    boundary-events.jsonl record, the sync record carries THAT resolved
+    version -- not the extractor's own checked-out plugin.json (deliberately
+    a DIFFERENT version here, "9.9.9", to prove it is not the source)."""
+    plugin_root = _fake_plugin_root(tmp_path, "9.9.9")
+    projects = tmp_path / "projects" / "projA"
+    projects.mkdir(parents=True)
+    work = tmp_path / "work-alpha"
+    (work / ".claude" / "metrics").mkdir(parents=True)
+    (projects / "sess-a.jsonl").write_text(
+        f'{{"type":"assistant","cwd":"{work}","sessionId":"s-a",'
+        '"timestamp":"2026-06-07T10:00:00Z",'
+        '"message":{"model":"claude-opus-4-8","usage":{"input_tokens":10,'
+        '"output_tokens":1}}}\n'
+    )
+    (work / ".claude" / "metrics" / "boundary-events.jsonl").write_text(
+        json.dumps(
+            {
+                "ts": "2026-06-07T09:59:00Z",
+                "hook": "destructive_guard",
+                "tool": "Bash",
+                "decision": "record",
+                "matched_rule": "some-rule",
+                "plugin_version": "4.5.6",
+                # cmd_sync groups a session by its TRANSCRIPT FILENAME stem
+                # (_owning_session_dir), not the sessionId field inside the
+                # transcript's own records -- "sess-a" (the filename below),
+                # matching how a real SessionStart hook's session_id (the
+                # actual Claude Code session id, which IS the transcript
+                # filename stem) would appear here.
+                "session_id": "sess-a",
+            }
+        )
+        + "\n"
     )
     out = tmp_path / "digests" / "testhost" / "session-digest.jsonl"
     watermark = tmp_path / "watermark.json"
@@ -995,3 +1076,103 @@ def test_rollup_negative_skill_count_does_not_corrupt_cross_host_sum(
     assert result.returncode == 0, result.stdout + result.stderr
     data = json.loads(result.stdout)
     assert data["utilization"]["skills_invoked"] == {"code-review": 3}
+
+
+# ---------------------------------------------------------------------------
+# #2018: resolve_session_plugin_version() unit-level pins
+# ---------------------------------------------------------------------------
+
+
+def _boundary_events_module(monkeypatch: pytest.MonkeyPatch):
+    monkeypatch.syspath_prepend(str(REPO_ROOT / "plugins" / "dev-team" / "scripts"))
+    import session_report
+
+    return session_report
+
+
+def test_resolve_session_plugin_version_returns_unknown_for_missing_file(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    module = _boundary_events_module(monkeypatch)
+    missing = tmp_path / "no-such-dir" / "boundary-events.jsonl"
+    assert module.resolve_session_plugin_version("any-session", missing) == "unknown"
+
+
+def test_resolve_session_plugin_version_returns_unknown_for_a_different_session(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    module = _boundary_events_module(monkeypatch)
+    path = tmp_path / "boundary-events.jsonl"
+    path.write_text(
+        json.dumps(
+            {
+                "ts": "2026-01-01T00:00:00Z",
+                "plugin_version": "1.0.0",
+                "session_id": "other-session",
+            }
+        )
+        + "\n"
+    )
+    assert module.resolve_session_plugin_version("my-session", path) == "unknown"
+
+
+def test_resolve_session_plugin_version_picks_the_earliest_matching_event(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Documented choice: when a session's own boundary-events carry more
+    than one (potentially different) plugin_version, the EARLIEST by `ts`
+    wins -- the version active when the session first did dispatched work."""
+    module = _boundary_events_module(monkeypatch)
+    path = tmp_path / "boundary-events.jsonl"
+    path.write_text(
+        "\n".join(
+            json.dumps(r)
+            for r in (
+                {"ts": "2026-01-01T00:10:00Z", "plugin_version": "2.0.0", "session_id": "s1"},
+                {"ts": "2026-01-01T00:00:00Z", "plugin_version": "1.0.0", "session_id": "s1"},
+                {"ts": "2026-01-01T00:20:00Z", "plugin_version": "3.0.0", "session_id": "s1"},
+            )
+        )
+        + "\n"
+    )
+    assert module.resolve_session_plugin_version("s1", path) == "1.0.0"
+
+
+def test_resolve_session_plugin_version_ignores_a_malformed_version_string(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A hostile/malformed plugin_version on a matching event (same bound
+    every other externally-supplied version string in this module gets,
+    `_VERSION_RE`) must not be reflected verbatim -- it's skipped in favor
+    of a later, well-formed match rather than accepted as-is."""
+    module = _boundary_events_module(monkeypatch)
+    path = tmp_path / "boundary-events.jsonl"
+    path.write_text(
+        "\n".join(
+            json.dumps(r)
+            for r in (
+                {"ts": "2026-01-01T00:00:00Z", "plugin_version": "x" * 500, "session_id": "s1"},
+                {"ts": "2026-01-01T00:10:00Z", "plugin_version": "5.0.0", "session_id": "s1"},
+            )
+        )
+        + "\n"
+    )
+    assert module.resolve_session_plugin_version("s1", path) == "5.0.0"
+
+
+def test_resolve_session_plugin_version_ignores_events_missing_a_timestamp(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    module = _boundary_events_module(monkeypatch)
+    path = tmp_path / "boundary-events.jsonl"
+    path.write_text(
+        "\n".join(
+            json.dumps(r)
+            for r in (
+                {"plugin_version": "9.9.9", "session_id": "s1"},  # no ts
+                {"ts": "2026-01-01T00:00:00Z", "plugin_version": "1.0.0", "session_id": "s1"},
+            )
+        )
+        + "\n"
+    )
+    assert module.resolve_session_plugin_version("s1", path) == "1.0.0"
