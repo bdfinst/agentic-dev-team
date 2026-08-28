@@ -61,6 +61,20 @@ def test_verify_guard_py_is_registered_in_pre_tool_use_bash_hooks() -> None:
     assert any("verify_guard.py" in cmd for cmd in commands)
 
 
+def test_testimprove_phase_scope_guard_is_registered_in_pre_tool_use_read_hooks() -> None:
+    """Issue #2094 Slice 2, Step 2.5: registered under PreToolUse Read (not
+    PostToolUse Read, the file's other Read matcher — a hook that must
+    block a Read can only run before the tool call, not after)."""
+    data = _load()
+    read_entries = [
+        entry
+        for entry in data["hooks"]["PreToolUse"]
+        if entry.get("matcher") == "Read"
+    ]
+    commands = _commands(read_entries)
+    assert "sh hooks/py.sh hooks/testimprove_phase_scope_guard.py" in commands
+
+
 def test_verify_guard_edit_marker_py_is_registered_on_write_edit_notebookedit() -> None:
     """#708: verify_guard.py's edit-since-last-verify signal is written by
     this sibling hook, which must be wired to the tool matcher that covers

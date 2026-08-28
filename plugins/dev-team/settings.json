@@ -139,6 +139,10 @@
           {
             "type": "command",
             "command": "sh hooks/py.sh hooks/code_intelligence_nudge.py"
+          },
+          {
+            "type": "command",
+            "command": "sh hooks/py.sh hooks/testimprove_phase_scope_guard.py"
           }
         ]
       },

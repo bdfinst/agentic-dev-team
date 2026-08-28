@@ -47,7 +47,7 @@ import artifact_paths
 from testimprove_phase_state import (
     PHASE_RANK,
     derive_slug,
-    resolve_auto,
+    resolve_with_phase3_correction,
     scan_phase_files,
     slugify,
 )
@@ -99,7 +99,7 @@ def build_result(memory_dir: Path, explicit: str | None) -> tuple[int, dict]:
             "error": None,
         }
 
-    resolved, highest, complete = resolve_auto(tokens)
+    resolved, highest, complete = resolve_with_phase3_correction(memory_dir, tokens)
     latest_file = f"phase-{highest}.md"
     if complete:
         msg = (

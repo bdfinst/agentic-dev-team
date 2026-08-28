@@ -521,6 +521,28 @@ enforcement decision and any fail-open diagnostic. Extended by `#906` with
 
 ---
 
+## `test-improve-phase-scope.jsonl`
+
+Audit log for `/test-improve`'s single-active-phase `Read` guard (issue
+#2094 Slice 2) — records every block and every fail-open decision (never
+the ordinary allowed-and-matching case).
+
+| Field | Type | Values / source |
+| --- | --- | --- |
+| `timestamp` | string | ISO-8601 UTC |
+| `hook` | string | Always `testimprove_phase_scope_guard` |
+| `event` | string enum | `block` \| `fail-open` |
+| `file` | string, optional | The `Read` target's `file_path` |
+| `phase` | string, optional | Resolved active phase (block events only) |
+| `slug` | string, optional | The in-flight run's memory-dir slug (block events only) |
+| `reason` | string, optional | `"no in-flight run found"` \| `"ambiguous: multiple candidates: <sorted slugs>"` \| `"malformed or missing phase-0.md"` \| an internal-error diagnostic \| the `_resolve_active_phase` reason string echoed back on a block |
+
+- **Emitter:** `hooks/testimprove_phase_scope_guard.py::audit()`.
+- **Consent:** unconditional (fails open, audits itself).
+- **Consumers:** none automated yet; inspected manually when the phase-scope guard is investigated.
+
+---
+
 ## `contract-version-guard-audit.jsonl`
 
 Audit log for release-please's bypass of the security-primitives-contract

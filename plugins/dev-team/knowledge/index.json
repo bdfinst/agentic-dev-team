@@ -1542,6 +1542,10 @@
       "summary": "Audit log for the tests-frozen-during-REFACTOR invariant (`#813`) — both the",
       "anchor": "refactor-freezejsonl"
     },
+    "`test-improve-phase-scope.jsonl`": {
+      "summary": "Audit log for `/test-improve`'s single-active-phase `Read` guard (issue",
+      "anchor": "test-improve-phase-scopejsonl"
+    },
     "`contract-version-guard-audit.jsonl`": {
       "summary": "Audit log for release-please's bypass of the security-primitives-contract",
       "anchor": "contract-version-guard-auditjsonl"

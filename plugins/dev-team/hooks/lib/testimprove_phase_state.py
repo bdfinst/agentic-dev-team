@@ -11,9 +11,19 @@ every consumer of that classifier despite being a production library.
 Extracted verbatim from `scripts/test_improve_resume.py` (issue #1151) so
 there is one source of truth for "what phase is `/test-improve` on" —
 consumed by `scripts/test_improve_resume.py` (the `--from-phase` auto-detect
-CLI) and, going forward, by `hooks/test_improve_phase_scope_guard.py` (the
-Read-scope guard hook, issue #2094 Slice 2) — rather than maintaining two
-copies of the same phase-rank tables.
+CLI) and by `hooks/testimprove_phase_scope_guard.py` (the Read-scope guard
+hook, issue #2094 Slice 2) — rather than maintaining two copies of the same
+phase-rank tables.
+
+The Phase-3 (Derive Gherkin) correction — substituting phase "3" for the
+ordinary next phase "1" when Phase 2 (Baseline) just completed and BDD work
+is wanted — also lives here (`resolve_with_phase3_correction`), so both
+consumers agree on when Phase 3 is open (issue #2094 Slice 2 review fix):
+previously the correction lived only inside the guard hook, so
+`scripts/test_improve_resume.py --from-phase` (with no number) could tell an
+operator to resume at Phase 1 while the guard hook — computing the correct
+active phase "3" independently — blocked the very read that resume advice
+sent them to.
 
 Deterministic rules (spec = issue #1151; execution order reordered by
 issue #1422 so Baseline and Derive-Gherkin land before Analyze):
@@ -132,3 +142,95 @@ def resolve_auto(tokens: list[str]) -> tuple[str | None, str, bool]:
     highest = max(tokens, key=lambda t: PHASE_RANK[t])
     nxt = NEXT_PHASE[highest]
     return nxt, highest, nxt is None
+
+
+# --- Phase-3 (Derive Gherkin) correction --------------------------------
+#
+# Phase 3 has no numbered progress file of its own (see module docstring),
+# so `resolve_auto` alone can never know it should be the active/next phase
+# instead of Phase 1. The correction below is the single place that decides
+# this, from `phase-0.md`'s persisted `binding_mode` value plus whether
+# `gherkin.md` has been written yet.
+
+#: The literal `phase-0.md` key `/test-improve` persists the resolved BDD
+#: binding mode under (pinned in `phase-0-approach-contract.md`). Shared by
+#: the doc-text assertion (tests), this module's own parser, and
+#: `hooks/testimprove_phase_scope_guard.py` (which re-exports this name for
+#: its own tests) so none of the three can diverge without one shared symbol
+#: changing.
+BINDING_MODE_KEY = "binding_mode"
+
+#: The closed set of legal `binding_mode` values — matches `SKILL.md`,
+#: `phase-3-derive-gherkin.md`, and `knowledge/telemetry-schema.md`. A value
+#: outside this set (a truncated/garbled write, or a stray line that happens
+#: to match the regex) is treated as absent, never as an implicit `"none"` —
+#: see `parse_binding_mode`.
+VALID_BINDING_MODES = frozenset({"none", "xunit-with-annotations", "bdd-runner"})
+
+_BINDING_MODE_RE = re.compile(rf"^[ \t]*{BINDING_MODE_KEY}:\s*(\S+)", re.MULTILINE)
+
+
+def parse_binding_mode(text: str) -> str | None:
+    """Extract the `binding_mode` value from `phase-0.md`'s raw text.
+
+    Returns `None` when the key is absent, or when the captured value is not
+    one of `VALID_BINDING_MODES` — an unvalidated value previously let a
+    truncated/garbled write (e.g. `binding_mode: x`) be treated as "some
+    non-none mode", which confidently forced Phase 3 active off garbage
+    input. Callers treat `None` as "malformed or missing phase-0.md", never
+    as `binding_mode: none`.
+    """
+    match = _BINDING_MODE_RE.search(text)
+    if not match:
+        return None
+    value = match.group(1)
+    return value if value in VALID_BINDING_MODES else None
+
+
+def read_binding_mode(memory_dir: Path) -> str | None:
+    """Read and parse `<memory_dir>/phase-0.md`'s `binding_mode` value.
+
+    Returns `None` when the file is missing, unreadable, or its value is
+    absent/invalid — see `parse_binding_mode`.
+    """
+    try:
+        text = (memory_dir / "phase-0.md").read_text(encoding="utf-8")
+    except OSError:
+        return None
+    return parse_binding_mode(text)
+
+
+def resolve_with_phase3_correction(
+    memory_dir: Path, tokens: list[str] | None = None
+) -> tuple[str | None, str, bool]:
+    """Like `resolve_auto`, but substitutes Phase 3 ("Derive Gherkin") for
+    the ordinary next phase when Phase 2 (Baseline) just completed,
+    `binding_mode` says BDD work is wanted, and Phase 3 hasn't already run
+    (no `gherkin.md` yet). Returns `(resolved_phase, highest_token,
+    complete)` — the same shape as `resolve_auto`.
+
+    Best-effort on `phase-0.md`: when it is missing or `binding_mode` is
+    missing/invalid, the correction is silently skipped and ordinary
+    `resolve_auto` resolution is returned unchanged — this function never
+    raises and never blocks a resume decision on a malformed file. A caller
+    that must distinguish "phase-0.md unreadable" from "no correction
+    needed" (to fail open on that ambiguity rather than guess) should call
+    `read_binding_mode` itself — see
+    `hooks/testimprove_phase_scope_guard.py`'s `_resolve_active_phase`.
+
+    `tokens`, when provided, must already be `scan_phase_files(memory_dir)`
+    for this same directory — passed through to avoid a redundant directory
+    scan when the caller has already done one.
+    """
+    if tokens is None:
+        tokens = scan_phase_files(memory_dir)
+    resolved, highest, complete = resolve_auto(tokens)
+    if highest == "2":
+        binding_mode = read_binding_mode(memory_dir)
+        if (
+            binding_mode is not None
+            and binding_mode != "none"
+            and not (memory_dir / "gherkin.md").exists()
+        ):
+            return "3", highest, False
+    return resolved, highest, complete

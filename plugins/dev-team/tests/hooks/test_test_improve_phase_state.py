@@ -32,7 +32,11 @@ if str(_SCRIPTS_DIR) not in sys.path:
 
 from test_improve_resume import build_result  # type: ignore[import-not-found]
 from testimprove_phase_state import (  # type: ignore[import-not-found]
+    VALID_BINDING_MODES,
+    parse_binding_mode,
+    read_binding_mode,
     resolve_auto,
+    resolve_with_phase3_correction,
     scan_phase_files,
 )
 
@@ -75,6 +79,86 @@ def test_resolve_auto_empty_tokens_raises_value_error():
     confirmed to exist."""
     with pytest.raises(ValueError):
         resolve_auto([])
+
+
+# ---------------------------------------------------------------------------
+# Phase-3 correction (issue #2094 Slice 2 review fix #1): hoisted here from
+# the guard hook so scripts/test_improve_resume.py and
+# hooks/testimprove_phase_scope_guard.py agree on when Phase 3 is active.
+# ---------------------------------------------------------------------------
+
+
+def test_parse_binding_mode_rejects_invalid_value():
+    """Fix #4: a value outside VALID_BINDING_MODES (a truncated/garbled
+    write, e.g. `binding_mode: x`) is treated as absent, never as an
+    implicit non-none mode."""
+    assert parse_binding_mode("binding_mode: not-a-real-mode\n") is None
+
+
+def test_parse_binding_mode_accepts_each_valid_value():
+    for value in sorted(VALID_BINDING_MODES):
+        assert parse_binding_mode(f"binding_mode: {value}\n") == value
+
+
+def test_read_binding_mode_missing_file_returns_none(tmp_path):
+    assert read_binding_mode(tmp_path / "nope") is None
+
+
+def test_resolve_with_phase3_correction_returns_3_when_bdd_mode_and_no_gherkin(
+    tmp_path,
+):
+    memory_dir = _make_phase_files(tmp_path / "my-repo", "0", "2")
+    (memory_dir / "phase-0.md").write_text(
+        "binding_mode: bdd-runner\n", encoding="utf-8"
+    )
+
+    resolved, highest, complete = resolve_with_phase3_correction(memory_dir)
+
+    assert (resolved, highest, complete) == ("3", "2", False)
+
+
+def test_resolve_with_phase3_correction_skipped_when_binding_mode_none(tmp_path):
+    memory_dir = _make_phase_files(tmp_path / "my-repo", "0", "2")
+    (memory_dir / "phase-0.md").write_text("binding_mode: none\n", encoding="utf-8")
+
+    resolved, highest, complete = resolve_with_phase3_correction(memory_dir)
+
+    assert (resolved, highest, complete) == ("1", "2", False)
+
+
+def test_resolve_with_phase3_correction_skipped_when_gherkin_already_done(tmp_path):
+    memory_dir = _make_phase_files(tmp_path / "my-repo", "0", "2")
+    (memory_dir / "phase-0.md").write_text(
+        "binding_mode: bdd-runner\n", encoding="utf-8"
+    )
+    (memory_dir / "gherkin.md").write_text("done\n", encoding="utf-8")
+
+    resolved, highest, complete = resolve_with_phase3_correction(memory_dir)
+
+    assert (resolved, highest, complete) == ("1", "2", False)
+
+
+def test_resolve_with_phase3_correction_falls_back_on_malformed_phase0(tmp_path):
+    """Judgment call (fix #1): scripts/test_improve_resume.py's own
+    graceful-degradation contract — a malformed phase-0.md must not block a
+    resume suggestion, so this function silently falls through to ordinary
+    resolve_auto() resolution. This deliberately differs from
+    hooks/testimprove_phase_scope_guard.py's `_resolve_active_phase`, which
+    treats this same state as fail-open-with-audit (`status ==
+    "none_in_flight"`, `reason == "malformed or missing phase-0.md"`) —
+    resume's job is a best-effort suggestion, the guard's job is a
+    confident block-or-allow decision, so the two consumers intentionally
+    diverge only on this malformed-input edge case, not on the well-defined
+    Phase-3 window itself (see test_guard_and_resume_agree_in_the_phase3_window
+    in test_test_improve_phase_scope_guard.py)."""
+    memory_dir = _make_phase_files(tmp_path / "my-repo", "0", "2")
+    (memory_dir / "phase-0.md").write_text(
+        "not a key-value line\n", encoding="utf-8"
+    )
+
+    resolved, highest, complete = resolve_with_phase3_correction(memory_dir)
+
+    assert (resolved, highest, complete) == ("1", "2", False)
 
 
 def test_module_importable_without_cli_module_in_fresh_interpreter():

@@ -60,6 +60,18 @@ silent surprise.
    operator declines to answer. Scoring: ≥3 yes → `bdd-runner` recommended;
    1–2 yes → `xunit-with-annotations` recommended; 0 yes → `none`.
 
+   **Persisted key.** `/test-improve` persists the resolved value in
+   `phase-0.md` on its own line, using the literal key `binding_mode` — an
+   explicit `key: value` line, consistent with how this file already
+   records `refactor-mode` and `coverage_target_conflict`:
+
+   ```
+   binding_mode: xunit-with-annotations
+   ```
+
+   (or `binding_mode: none` / `binding_mode: bdd-runner`, depending on the
+   resolved mode).
+
    **Relative cost (#1965)**, stated with the choice for the same reason as
    knob 1:
 
