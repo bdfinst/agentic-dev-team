@@ -31,7 +31,6 @@ Review agents run as sub-agents during Phase 3 inline checkpoints and full `/cod
 | `angular-reactivity-review` | [`angular-reactivity-review.md`](../agents/angular-reactivity-review.md) | sonnet | Angular Zone.js pitfalls, OnPush violations, RxJS subscription leaks |
 | `arch-review` | [`arch-review.md`](../agents/arch-review.md) | opus | ADR compliance, layer violations, dependency direction |
 | `claude-setup-review` | [`claude-setup-review.md`](../agents/claude-setup-review.md) | haiku | CLAUDE.md completeness and accuracy |
-| `complexity-review` | [`complexity-review.md`](../agents/complexity-review.md) | sonnet | Nesting depth, cognitive load, async-pattern judgment |
 | `component-architecture-review` | [`component-architecture-review.md`](../agents/component-architecture-review.md) | sonnet | Reusable component extraction, UI duplication, prop drilling, component APIs |
 | `concurrency-review` | [`concurrency-review.md`](../agents/concurrency-review.md) | sonnet | Race conditions, async pitfalls |
 | `correctness-review` | [`correctness-review.md`](../agents/correctness-review.md) | opus | Functional/behavioral defects — implementation diverges from evident intent |
@@ -50,7 +49,7 @@ Review agents run as sub-agents during Phase 3 inline checkpoints and full `/cod
 | `session-analysis` | [`session-analysis.md`](../agents/session-analysis.md) | sonnet | Maps an aggregated session digest to probable plugin causes and ranked, tagged improvement suggestions (analysis-only) |
 | `spec-compliance-review` | [`spec-compliance-review.md`](../agents/spec-compliance-review.md) | sonnet | Spec-to-code matching — general first gate before quality review (final `/code-review` gate; pre-build and batched/complex-slice checkpoints in `/build`) |
 | `spec-reviewer` | [`spec-reviewer.md`](../agents/spec-reviewer.md) | haiku | Spec-to-diff matching for a single freshly-implemented unit — Stage 1 of the three-stage inline review |
-| `structure-review` | [`structure-review.md`](../agents/structure-review.md) | sonnet | SRP, DRY, coupling, file organization |
+| `structure-review` | [`structure-review.md`](../agents/structure-review.md) | sonnet | SRP, DRY, coupling, file organization, nesting depth, cognitive load, async-pattern judgment |
 | `test-review` | [`test-review.md`](../agents/test-review.md) | sonnet | Coverage gaps, assertion quality, test hygiene |
 | `test-smell-review` | [`test-smell-review.md`](../agents/test-smell-review.md) | sonnet | xUnit test smells, test-double selection, pyramid placement |
 | `token-efficiency-review` | [`token-efficiency-review.md`](../agents/token-efficiency-review.md) | haiku | File size, LLM anti-patterns |

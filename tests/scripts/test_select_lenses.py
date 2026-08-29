@@ -733,15 +733,16 @@ def test_cli_rejects_both_flags_reading_stdin():
 # specific to its charter rather than to per-diff cost: it assesses
 # refactoring opportunities *after tests pass*, which is `/build`'s post-GREEN
 # REFACTOR checkpoint, and in the review panel it re-covered ground
-# `structure-review` (SRP, DRY, coupling) and `complexity-review` (size,
-# nesting) already hold as `Scope: always`.
+# `structure-review` (SRP, DRY, coupling, and — since #2093 folded
+# `complexity-review` into it — nesting depth, cognitive load, and
+# async-pattern judgment) already holds as `Scope: always`.
 # `test-smell-review` is not here either, but it is NOT on-demand (#1978) —
 # it declares the `test-files` sentinel below, so it still runs per-diff,
 # just only when the diff touches a test file. `test-review` deliberately
 # stays `Scope: always`: its coverage-gap check must see production diffs
 # that add code *without* a matching test.
 ALWAYS_LENSES = {
-    "arch-review", "complexity-review",
+    "arch-review",
     "concurrency-review", "correctness-review", "doc-review", "domain-review",
     "naming-review", "performance-review",
     "security-review", "spec-compliance-review", "structure-review", "test-review",

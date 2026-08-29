@@ -1,9 +1,9 @@
 {
   "fixture": "cx-refactor-after",
-  "description": "Same csvlite solution after REFACTOR review loop (P1-S1): helpers extracted, nesting depth reduced, tests still pass. Demonstrates complexity-review finding reduction from REFACTOR-driven refactoring.",
-  "applicableAgents": ["complexity-review"],
+  "description": "Same csvlite solution after REFACTOR review loop (P1-S1): helpers extracted, nesting depth reduced, tests still pass. Demonstrates structure-review finding reduction from REFACTOR-driven refactoring.",
+  "applicableAgents": ["structure-review"],
   "agents": {
-    "complexity-review": {
+    "structure-review": {
       "expectedStatus": "pass",
       "issueCount": { "min": 0, "max": 2 },
       "severities": { "error": { "min": 0, "max": 0 } }

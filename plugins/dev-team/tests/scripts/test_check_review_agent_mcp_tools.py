@@ -62,11 +62,10 @@ def test_exempt_agents_are_the_expected_two():
     assert EXEMPT_AGENTS == {"claude-setup-review", "token-efficiency-review"}
 
 
-def test_reassigned_tools_cover_the_expected_four_agents():
+def test_reassigned_tools_cover_the_expected_three_agents():
     assert set(REASSIGNED_TOOLS) == {
         "refactor-opportunity-review",
         "performance-review",
-        "complexity-review",
         "doc-review",
     }
 
@@ -81,7 +80,7 @@ def test_refactor_opportunity_review_required_set():
     ]
 
 
-def test_performance_review_and_complexity_review_required_sets():
+def test_performance_review_required_set():
     expected = [
         "mcp__codegraph__codegraph_explore",
         "mcp__plugin_repowise_repowise__get_context",
@@ -90,7 +89,6 @@ def test_performance_review_and_complexity_review_required_sets():
         "mcp__plugin_repowise_repowise__get_health",
     ]
     assert REASSIGNED_TOOLS["performance-review"] == expected
-    assert REASSIGNED_TOOLS["complexity-review"] == expected
 
 
 def test_doc_review_required_set():

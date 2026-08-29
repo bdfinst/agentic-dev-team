@@ -1,9 +1,9 @@
 {
   "fixture": "cx-deep-nesting",
   "description": "Deeply nested conditionals and loops that increase cyclomatic complexity",
-  "applicableAgents": ["complexity-review"],
+  "applicableAgents": ["structure-review"],
   "agents": {
-    "complexity-review": {
+    "structure-review": {
       "expectedStatus": "fail",
       "issueCount": { "min": 2, "max": 6 },
       "severities": { "error": { "min": 1, "max": 3 } },

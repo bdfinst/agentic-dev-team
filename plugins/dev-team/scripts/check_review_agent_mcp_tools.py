@@ -17,7 +17,7 @@ Grants are no longer one-size-fits-all (#1467). Three tiers:
   "missing tools" offenders, so a future edit can't silently regrant the tools
   these two never needed.
 - ``REASSIGNED_TOOLS`` agents (``refactor-opportunity-review``,
-  ``performance-review``, ``complexity-review``, ``doc-review``) — require their
+  ``performance-review``, ``doc-review``) — require their
   own specific tool set (see the mapping below) instead of the generic
   ``BASE_MCP_TOOLS`` five.
 - Every other ``*-review.md`` agent keeps the original ``BASE_MCP_TOOLS``
@@ -108,13 +108,6 @@ REASSIGNED_TOOLS = {
         GET_HEALTH,
     ],
     "performance-review": [
-        "mcp__codegraph__codegraph_explore",
-        "mcp__plugin_repowise_repowise__get_context",
-        "mcp__plugin_repowise_repowise__get_symbol",
-        "mcp__plugin_repowise_repowise__search_codebase",
-        GET_HEALTH,
-    ],
-    "complexity-review": [
         "mcp__codegraph__codegraph_explore",
         "mcp__plugin_repowise_repowise__get_context",
         "mcp__plugin_repowise_repowise__get_symbol",

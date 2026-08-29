@@ -25,7 +25,7 @@ import closing_pass
 PANEL = [
     "naming-review",
     "structure-review",
-    "complexity-review",
+    "domain-review",
     "doc-review",
     "test-review",
     "test-smell-review",

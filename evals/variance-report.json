@@ -10,11 +10,6 @@
       "mean_pass_at_k": 0.3889,
       "pairs": 6
     },
-    "complexity-review": {
-      "flaky_fixtures": 1,
-      "mean_pass_at_k": 0.7333,
-      "pairs": 5
-    },
     "doc-review": {
       "flaky_fixtures": 1,
       "mean_pass_at_k": 0.3333,
@@ -41,9 +36,9 @@
       "pairs": 6
     },
     "structure-review": {
-      "flaky_fixtures": 2,
-      "mean_pass_at_k": 0.6,
-      "pairs": 5
+      "flaky_fixtures": 3,
+      "mean_pass_at_k": 0.6667,
+      "pairs": 10
     },
     "test-review": {
       "flaky_fixtures": 2,
@@ -98,31 +93,31 @@
       "passes": 1,
       "trials": 3
     },
-    "cx-callback-hell::complexity-review": {
+    "cx-callback-hell::structure-review": {
       "flap": false,
       "pass_at_k": 0.0,
       "passes": 0,
       "trials": 3
     },
-    "cx-clean-functions::complexity-review": {
+    "cx-clean-functions::structure-review": {
       "flap": false,
       "pass_at_k": 1.0,
       "passes": 3,
       "trials": 3
     },
-    "cx-deep-nesting::complexity-review": {
+    "cx-deep-nesting::structure-review": {
       "flap": false,
       "pass_at_k": 1.0,
       "passes": 3,
       "trials": 3
     },
-    "cx-god-function::complexity-review": {
+    "cx-god-function::structure-review": {
       "flap": true,
       "pass_at_k": 0.6667,
       "passes": 2,
       "trials": 3
     },
-    "cx-simple-logic::complexity-review": {
+    "cx-simple-logic::structure-review": {
       "flap": false,
       "pass_at_k": 1.0,
       "passes": 3,
@@ -411,7 +406,7 @@
   "quarantine": [
     "cs-complete-setup::claude-setup-review",
     "cs-missing-sections::claude-setup-review",
-    "cx-god-function::complexity-review",
+    "cx-god-function::structure-review",
     "dm-leaky-abstraction::domain-review",
     "dr-accurate-docs::doc-review",
     "ex-explore-command-missing::claude-setup-review",

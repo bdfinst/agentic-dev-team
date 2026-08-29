@@ -52,7 +52,7 @@ After GREEN, dispatch review agents **before** making any structural changes.
 #### 3a. Post-GREEN review
 
 1. **Always** — run `refactor-opportunity-review` on all changed files
-2. **When non-trivial** (any changed function exceeds 20 lines, nesting exceeds 4 levels, or more than one function was modified) — also run `complexity-review` on the changed files
+2. **When non-trivial** (any changed function exceeds 20 lines, nesting exceeds 3 levels, or more than one function was modified) — also run `structure-review` on the changed files
 3. Collect all `error` and `warning` findings from both agents — these are the refactor candidates for this cycle
 
 #### 3b. Bounded fix loop (max 3 iterations)

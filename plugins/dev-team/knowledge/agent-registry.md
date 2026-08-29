@@ -38,7 +38,6 @@ Each row below is also classified as a **discovery lens** or **verification gate
 | ai-provenance-review | `agents/ai-provenance-review.md` | AI-authored test assertion verification debt, regeneration-risk candidates (magic values, unusual ordering) with no human-verification evidence |
 | arch-review | `agents/arch-review.md` | ADR compliance, layer boundary violations, dependency direction, pattern consistency |
 | claude-setup-review | `agents/claude-setup-review.md` | CLAUDE.md completeness, rules, skills, path accuracy |
-| complexity-review | `agents/complexity-review.md` | Nesting depth, cognitive load, async-pattern judgment (function size/cyclomatic/parameter thresholds moved to the lizard pre-pass, #1983) |
 | component-architecture-review | `agents/component-architecture-review.md` | Reusable component extraction, frontend UI duplication, prop drilling, component granularity, inconsistent component APIs |
 | concurrency-review | `agents/concurrency-review.md` | Race conditions, async pitfalls, shared state |
 | correctness-review | `agents/correctness-review.md` | Functional/behavioral defects — implementation diverges from evident intent |
@@ -56,7 +55,7 @@ Each row below is also classified as a **discovery lens** or **verification gate
 | session-analysis | `agents/session-analysis.md` | Maps an aggregated session digest to probable plugin causes and ranked, tagged improvement suggestions (analysis-only) |
 | spec-compliance-review | `agents/spec-compliance-review.md` | Spec-to-code matching — general first gate before quality review (final `/code-review` gate; pre-build criteria-verification mode and batched/complex-slice checkpoints in `/build`) |
 | spec-reviewer | `agents/spec-reviewer.md` | Spec-to-diff matching for a single freshly-implemented unit — Stage 1 of the three-stage inline review, narrower and diff-scoped vs. `spec-compliance-review`'s broader file-scoped check. Dispatched by `agents/orchestrator.md` Phase 3, never directly. |
-| structure-review | `agents/structure-review.md` | SRP violations, DRY, coupling, file organization |
+| structure-review | `agents/structure-review.md` | SRP violations, DRY, coupling, file organization, nesting depth, cognitive load, async-pattern judgment (folds `complexity-review`, retired #2093) |
 | angular-reactivity-review | `agents/angular-reactivity-review.md` | Angular Zone.js change-detection pitfalls, OnPush + immutability violations, RxJS subscription leaks |
 | react-reactivity-review | `agents/react-reactivity-review.md` | React hook rules, stale closures in useEffect, missing dependency arrays, subscription leaks |
 | vue-reactivity-review | `agents/vue-reactivity-review.md` | Vue ref/reactive unwrapping pitfalls, watchEffect dependency tracking, subscription leaks |
@@ -167,7 +166,7 @@ Knowledge files in `knowledge/` provide progressive disclosure — agents read t
 
 | Name | File | ~Tokens | Used By |
 | ------ | ------ | --------- | --------- |
-| Adversarial Review Protocol | `knowledge/adversarial-review-protocol.md` | ~2,589 | all 26 review agents (a11y-review, ai-provenance-review, angular-reactivity-review, arch-review, claude-setup-review, complexity-review, component-architecture-review, concurrency-review, correctness-review, data-flow-tracer, doc-review, domain-review, js-fp-review, naming-review, performance-review, progress-guardian, react-reactivity-review, refactor-opportunity-review, security-review, session-analysis, spec-compliance-review, structure-review, test-review, test-smell-review, token-efficiency-review, vue-reactivity-review) |
+| Adversarial Review Protocol | `knowledge/adversarial-review-protocol.md` | ~2,589 | all 25 review agents (a11y-review, ai-provenance-review, angular-reactivity-review, arch-review, claude-setup-review, component-architecture-review, concurrency-review, correctness-review, data-flow-tracer, doc-review, domain-review, js-fp-review, naming-review, performance-review, progress-guardian, react-reactivity-review, refactor-opportunity-review, security-review, session-analysis, spec-compliance-review, structure-review, test-review, test-smell-review, token-efficiency-review, vue-reactivity-review) |
 | Agent Registry | `knowledge/agent-registry.md` | 5,543 | Orchestrator (routing decisions) |
 | Shared Review Methodology | `knowledge/agent-review-methodology.md` | ~1,052 | correctness-review, naming-review |
 | Architecture Assessment | `knowledge/architecture-assessment.md` | 1,187 | arch-review |
@@ -178,14 +177,14 @@ Knowledge files in `knowledge/` provide progressive disclosure — agents read t
 | Decision Defaults | `knowledge/decision-defaults.md` | ~1,287 | Orchestrator, Product Manager, `/plan` (approach contract) |
 | Deployment Pipeline | `knowledge/deployment-pipeline.md` | ~1,308 | Platform Engineer |
 | Task Size Classifier | `knowledge/task-size-classifier.md` | ~1,067 | Orchestrator (Task Size Gate, no-plan fast path routing) |
-| Design Smells | `knowledge/design-smells.md` | ~2,115 | structure-review, complexity-review, naming-review |
+| Design Smells | `knowledge/design-smells.md` | ~2,115 | structure-review, naming-review |
 | Domain Modeling | `knowledge/domain-modeling.md` | 1,547 | domain-review |
 | Exploratory Testing Field Guide | `knowledge/exploratory-testing-field-guide.md` | ~1,364 | QA Engineer, `skills/exploratory-testing/SKILL.md` |
 | Failure Routing | `knowledge/failure-routing.md` | ~600 | `/build` (step 4 repair iterations), `/apply-fixes` (step 4 annotation) |
 | Fixture Construction | `knowledge/fixture-construction.md` | ~1,260 | test-design-advisor, test-smell-review, test-review |
 | Frontend Component Architecture | `knowledge/frontend-component-architecture.md` | ~1,883 | component-architecture-review, `/frontend-architecture` |
 | Microservice Testing | `knowledge/microservice-testing.md` | ~1,837 | test-smell-review, test-design-advisor |
-| Object Calisthenics | `knowledge/object-calisthenics.md` | ~1,006 | structure-review, complexity-review |
+| Object Calisthenics | `knowledge/object-calisthenics.md` | ~1,006 | structure-review |
 | OWASP Detection | `knowledge/owasp-detection.md` | 2,176 | security-review |
 | Orchestrator Script Implementation | `knowledge/orchestrator-script-implementation.md` | 2,873 | Orchestrator (running or working on `scripts/orchestrator.py`) |
 | Three-Phase Workflow | `knowledge/three-phase-workflow.md` | 4,735 | Orchestrator (per-phase detail: persona rosters, conditional dispatch, inline review, wave mechanics) |

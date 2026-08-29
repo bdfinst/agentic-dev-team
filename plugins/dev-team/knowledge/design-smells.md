@@ -1,6 +1,6 @@
 # Design Smells
 
-Reference file for structure-review, complexity-review, and naming-review agents. Use the smell → pattern table to make findings actionable: every finding should name the smell, quote the code, name the remediation pattern, and include a refactor sketch.
+Reference file for structure-review and naming-review agents. Use the smell → pattern table to make findings actionable: every finding should name the smell, quote the code, name the remediation pattern, and include a refactor sketch.
 
 ---
 

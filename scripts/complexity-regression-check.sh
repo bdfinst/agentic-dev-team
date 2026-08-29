@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Complexity regression check for AC2 of epic #362 (issue #366).
 #
-# Measures mean complexity-review findings/solution on the 6 Campaign B tasks
+# Measures mean structure-review findings/solution on the 6 Campaign B tasks
+# (structure-review absorbed complexity-review's nesting/cognitive-load charter, #2093)
 # run test-first with the current plugin. Compares against the pre-P1-S1 baseline
 # (5.3 findings/solution) documented in docs/experiments/agentic-workflow-evidence/data/3sizes-3arms-summary.json.
 #
@@ -30,7 +31,7 @@ TASKS=(stats intervals timeparse money matrix csvlite)
 usage() {
   echo "Usage: $0 [--model <model-id>] [--out <path>]"
   echo ""
-  echo "Measures complexity-review findings on test-first solutions for the"
+  echo "Measures structure-review findings on test-first solutions for the"
   echo "6 Campaign B tasks and compares against the pre-P1-S1 baseline (${BASELINE})."
   exit 1
 }
@@ -50,7 +51,7 @@ echo "Model: $MODEL"
 echo "Output: $OUT_FILE"
 echo ""
 echo "This runs the test-first arm for each of the 6 Campaign B tasks,"
-echo "then dispatches complexity-review on the produced solution."
+echo "then dispatches structure-review on the produced solution."
 echo ""
 echo "Step 1: Run test-first experiment arm (6 tasks × 1 trial)"
 python3 "$SCRIPT_DIR/run_tdd_experiment.py" \

@@ -2013,7 +2013,7 @@
       "anchor": "why-five"
     },
     "What to do": {
-      "summary": "**Surface, don't block.** Emit a one-line note in the phase/review output — e.g. `wave fan-out: 9 agents selected (>5 coordination-cost threshold)`.",
+      "summary": "**Surface, don't block.** Emit a one-line note in the phase/review output — e.g. `wave fan-out: 8 agents selected (>5 coordination-cost threshold)`.",
       "anchor": "what-to-do"
     },
     "What this is not": {

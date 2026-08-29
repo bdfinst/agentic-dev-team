@@ -454,7 +454,7 @@ operator-authored hook code; see [`docs/python-hook-contract.md`](../../../../do
 ## Citation drift (Phase 1 — advisory)
 | Agent | cites | Drift / Advisory | Status |
 | --- | --- | --- | --- |
-| complexity-review | yes | — | PASS |
+| structure-review | yes | — | PASS |
 | naming-review | no | states 1 threshold, no Cites: | WARN |
 | ... | | | |
 
