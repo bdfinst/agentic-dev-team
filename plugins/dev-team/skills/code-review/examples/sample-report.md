@@ -6,14 +6,13 @@
 | Agent              | Status | Issues |
 |--------------------|--------|--------|
 | test-review        | PASS   | 0      |
-| structure-review   | WARN   | 2      |
+| structure-review   | FAIL   | 3      |
 | naming-review      | PASS   | 0      |
 | domain-review      | PASS   | 0      |
-| complexity-review  | FAIL   | 1      |
 | security-review    | PASS   | 0      |
 | js-fp-review       | WARN   | 3      |
 
-Overall: FAIL (4 passed, 2 warned, 1 failed)
+Overall: FAIL (4 passed, 1 warned, 1 failed)
 Total issues: 6 (1 error, 3 warnings, 2 suggestions)
 ```
 
@@ -21,7 +20,7 @@ Total issues: 6 (1 error, 3 warnings, 2 suggestions)
 
 ### src/api/handler.ts
 
-- **ERROR** [complexity-review] Line 15: Function `processRequest` is 85 lines with cyclomatic complexity 14
+- **ERROR** [structure-review] Line 15: Function `processRequest` nests 5 levels deep validating input before touching business logic
   - Fix: Extract validation, transformation, and persistence into separate functions
 
 - **WARNING** [structure-review] Line 15: Function handles validation, business logic, and DB writes

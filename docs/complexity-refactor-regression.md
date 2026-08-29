@@ -4,6 +4,13 @@
 **Epic:** #362 (P1: Make review actually improve the code)
 **Satisfies:** AC2 — mean `complexity-review` findings/solution drops below the pre-P1-S1 baseline (~5.3) on the 6 Campaign B tasks run test-first.
 
+**Update (#2093):** `complexity-review` was folded into `structure-review` and
+retired — its nesting-depth, cognitive-load, and async-pattern judgment now
+live in `structure-review`'s charter. The history below is unchanged (it
+describes what was true when this baseline was measured); the eval fixtures
+(`cx-refactor-before`/`cx-refactor-after`) and the regression check now
+target `structure-review`.
+
 ## Background
 
 P1-S1 (PR #378) wired the REFACTOR step in the TDD skill to dispatch

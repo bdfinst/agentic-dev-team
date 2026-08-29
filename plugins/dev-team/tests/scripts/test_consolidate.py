@@ -40,7 +40,7 @@ def _f(file, line, severity, agent, message="msg"):
 def test_cross_slice_duplicate_merges_to_one_entry():
     sections = [
         _section("0001", [_f("src/a.ts", 10, "warning", "structure-review")]),
-        _section("0002", [_f("src/a.ts", 10, "error", "complexity-review")]),
+        _section("0002", [_f("src/a.ts", 10, "error", "correctness-review")]),
     ]
     result = consolidate.consolidate(sections)
     assert len(result["topFindings"]) == 1
@@ -48,7 +48,7 @@ def test_cross_slice_duplicate_merges_to_one_entry():
     assert entry["file"] == "src/a.ts" and entry["line"] == 10
     # Highest severity wins; both agents merged.
     assert entry["severity"] == "error"
-    assert sorted(entry["agents"]) == ["complexity-review", "structure-review"]
+    assert sorted(entry["agents"]) == ["correctness-review", "structure-review"]
 
 
 def test_distinct_findings_pass_through():
@@ -291,10 +291,10 @@ def test_normalized_findings_feed_consolidate_end_to_end():
     """The normalize→section→consolidate path an orchestrator would follow."""
     agent_a = {"agentName": "structure-review", "status": "warn",
                "issues": [{"severity": "warning", "file": "src/a.ts", "line": 10, "message": "m"}]}
-    agent_b = {"agentName": "complexity-review", "status": "fail",
+    agent_b = {"agentName": "correctness-review", "status": "fail",
                "findings": [{"severity": "error", "file": "src/a.ts", "line": 10, "message": "m"}]}
     findings = consolidate.normalize_agent_result(agent_a) + consolidate.normalize_agent_result(agent_b)
     result = consolidate.consolidate([_section("0001", findings)])
     entry = result["topFindings"][0]
     assert entry["severity"] == "error"
-    assert sorted(entry["agents"]) == ["complexity-review", "structure-review"]
+    assert sorted(entry["agents"]) == ["correctness-review", "structure-review"]

@@ -147,7 +147,7 @@ After each discrete unit of work classified as **standard** or **complex** (a fu
 
 | Changed | Agents to run |
 |---|---|
-| JS/TS functions | complexity-review, naming-review, js-fp-review |
+| JS/TS functions | naming-review, js-fp-review |
 | Test files | test-review |
 | API surface / auth | security-review |
 | Domain/business logic | domain-review |

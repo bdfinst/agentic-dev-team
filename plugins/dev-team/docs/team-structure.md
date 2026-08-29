@@ -10,7 +10,7 @@ The Orchestrator sits at the root and routes every request to one or more of the
 
 ## Review Agent Dispatch (Phase 3 Inline Checkpoints)
 
-![Dispatch diagram: a unit of work on the left, a file-type decision layer in the middle, and fan-out to targeted review agents on the right (e.g., JS/TS files → js-fp-review + complexity-review; any change → arch-review + doc-review; security surface → security-review).](diagrams/review-dispatch.svg)
+![Dispatch diagram: a unit of work on the left, a file-type decision layer in the middle, and fan-out to targeted review agents on the right (e.g., JS/TS files → naming-review; any change → structure-review; security surface → security-review).](diagrams/review-dispatch.svg)
 
 The Orchestrator selects review agents based on what changed in each unit of work. Language-agnostic agents (doc-review, arch-review) always run; language-specific agents run only when matching file types are present. `claude-setup-review`, `token-efficiency-review`, and `ai-provenance-review` are not in this fan-out (#1733) — their findings are properties of the whole repository, not any single unit of work, so they run instead in the whole-tree `/repo-review` command; `claude-setup-review` also stays reachable on demand via `/claude-setup-review`. Full list of review agents and their scopes: [Agents → Review Agents](agent_info.md#review-agents).
 

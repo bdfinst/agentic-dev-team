@@ -1,9 +1,9 @@
 {
   "fixture": "cx-refactor-before",
   "description": "Typical test-first csvlite solution before REFACTOR review: correct but high-complexity single function (deep nesting, high cyclomatic complexity). Represents the Campaign B baseline (~5.3 findings/solution, test-first arm).",
-  "applicableAgents": ["complexity-review"],
+  "applicableAgents": ["structure-review"],
   "agents": {
-    "complexity-review": {
+    "structure-review": {
       "expectedStatus": "fail",
       "issueCount": { "min": 2, "max": 6 },
       "severities": { "error": { "min": 1, "max": 4 } },

@@ -29,7 +29,6 @@ PLUGIN_ROOT = REPO_ROOT / "plugins" / "dev-team"
 
 CITED_CLEAN = [
     "arch-review",
-    "complexity-review",
     "domain-review",
     "naming-review",
     "security-review",

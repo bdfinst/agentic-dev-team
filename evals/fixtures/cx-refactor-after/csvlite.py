@@ -1,7 +1,7 @@
 """CSV parser — post-REFACTOR review.
 
 Same behavior as cx-refactor-before/csvlite.py, refactored by the REFACTOR
-review loop (complexity-review + refactor-opportunity-review) after GREEN:
+review loop (structure-review + refactor-opportunity-review) after GREEN:
 - parse() delegates character-class decisions to two focused helpers
 - Nesting depth reduced from 4 → 2 in the main loop
 - All tests still pass (tests unchanged, only production code refactored)

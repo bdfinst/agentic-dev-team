@@ -16,25 +16,17 @@
           "line": 15,
           "message": "God object: handler mixes routing, validation, and persistence",
           "suggestedFix": "Split routing, validation, and persistence into focused modules"
-        }
-      ],
-      "summary": "1 issue found: 1 warning"
-    },
-    {
-      "agentName": "complexity-review",
-      "status": "warn",
-      "modelTier": "mid",
-      "issues": [
+        },
         {
           "severity": "warning",
           "confidence": "medium",
           "file": "src/api/handler.ts",
           "line": 15,
-          "message": "Cyclomatic complexity 14 exceeds threshold of 10",
+          "message": "Nesting depth 5 in the validation branch exceeds threshold of 3",
           "suggestedFix": "Extract guard clauses into helper predicates"
         }
       ],
-      "summary": "1 issue found: 1 warning"
+      "summary": "2 issues found: 2 warnings"
     },
     {
       "agentName": "test-review",
@@ -47,18 +39,18 @@
   "totals": {"errors": 0, "warnings": 2, "suggestions": 0},
   "tokenEstimate": {
     "totalInputFiles": 12000,
-    "agentCount": 3,
+    "agentCount": 2,
     "contextStrategy": "full-file"
   },
   "dispatchFailures": [],
   "topFindings": [
     {
       "severity": "warning",
-      "agents": ["structure-review", "complexity-review"],
+      "agents": ["structure-review"],
       "file": "src/api/handler.ts",
       "line": 15,
-      "message": "handler mixes too many concerns and exceeds the complexity threshold"
+      "message": "handler mixes too many concerns and exceeds the nesting threshold"
     }
   ],
-  "summary": "WARN (1 agent passed, 2 warned, 0 failed). 2 total issues."
+  "summary": "WARN (1 agent passed, 1 warned, 0 failed). 2 total issues."
 }

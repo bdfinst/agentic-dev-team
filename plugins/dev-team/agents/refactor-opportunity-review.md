@@ -26,10 +26,11 @@ name it directly, `Scope: on-demand` removes it from the resolver's roster
 without removing it from the pipeline. A refactoring opportunity is a
 property of code that is *already green*, evaluated while the author still
 has the option to restructure; by the time a full review panel runs, the
-same ground is covered by `structure-review` (SRP, DRY, coupling) and
-`complexity-review` (size, nesting, complexity), which are `Scope: always`
-and overlap this lens's findings on the same diffs. Running it in both
-places bought a third opinion on those two axes, not a new axis.
+same ground is covered by `structure-review` (SRP, DRY, coupling, and —
+since #2093 folded `complexity-review` into it — nesting, cognitive load,
+and async-pattern judgment), which is `Scope: always` and overlaps this
+lens's findings on the same diffs. Running it in both places bought a
+second opinion on those axes, not a new axis.
 
 Output JSON: per `${CLAUDE_PLUGIN_ROOT}/knowledge/review-agent-output-contract.md` (Whole-file load: short, canonical schema).
 

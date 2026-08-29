@@ -35,7 +35,6 @@ and attempting the recomputation, not acting on either yet").
 | ai-provenance-review | discovery-lens | Surfaces unverified AI-authored assertions and regeneration-risk candidates — an open detection surface. |
 | arch-review | discovery-lens | Scans layer boundaries, dependency direction, and pattern consistency broadly; its ADR-compliance sub-check is verification-flavored, but the majority of its surface is open-ended discovery. |
 | claude-setup-review | discovery-lens | Scans for an open set of CLAUDE.md/rule/path gaps, not one pass/fail check. |
-| complexity-review | discovery-lens | Judgment scan (nesting depth, cognitive load, async-pattern pitfalls) with no external fixed contract; size/cyclomatic/parameter thresholds are the lizard pre-pass's job (#1983). |
 | component-architecture-review | discovery-lens | Scans for reusable-component extraction, duplication, and prop-drilling — open-ended. |
 | concurrency-review | discovery-lens | Scans for race conditions, async pitfalls, shared state — open-ended. |
 | correctness-review | discovery-lens | Named explicitly as discovery in `skills/code-review/SKILL.md` ("an inverted assertion is exactly its subject"). |
@@ -53,7 +52,7 @@ and attempting the recomputation, not acting on either yet").
 | session-analysis | discovery-lens (analysis-only) | Surfaces ranked improvement suggestions from a session digest — no pass/fail verdict, but an open discovery surface, not a fixed-contract check. |
 | spec-compliance-review | **verification-gate** | The paradigm case named directly in #2007: confirms the implementation matches the spec. A gate that usually passes ("145 of 248 runs are pure pass") is doing its job — `$/finding` prices that silence as waste, which is the wrong metric for this class. |
 | spec-reviewer | verification-gate | Same family as `spec-compliance-review`, narrower — spec-to-diff matching for a single freshly-implemented unit (Stage 1 of the three-stage inline review). |
-| structure-review | discovery-lens | Scans SRP violations, DRY, coupling, file organization — open-ended. |
+| structure-review | discovery-lens | Scans SRP violations, DRY, coupling, file organization, nesting depth, cognitive load, and async-pattern pitfalls (folds `complexity-review`, retired #2093) — open-ended. |
 | angular-reactivity-review | discovery-lens | Scans Zone.js change-detection pitfalls, OnPush/immutability violations, RxJS leaks — open-ended. |
 | react-reactivity-review | discovery-lens | Scans hook-rule violations, stale closures, missing dependency arrays, subscription leaks — open-ended. |
 | vue-reactivity-review | discovery-lens | Scans ref/reactive unwrapping pitfalls and watchEffect dependency tracking — open-ended. |

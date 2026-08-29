@@ -49,7 +49,7 @@
   "topFindings": [
     {
       "severity": "error|warning|suggestion",
-      "agents": ["structure-review", "complexity-review"],
+      "agents": ["structure-review", "correctness-review"],
       "file": "src/api/handler.ts",
       "line": 15,
       "message": "God object: handler mixes routing, validation, and persistence"
@@ -227,7 +227,7 @@ severity = the single highest enum).
   "overall": "warn",
   "totals": {"errors": 0, "warnings": 5, "suggestions": 3},
   "topFindings": [
-    {"severity": "warning", "agents": ["structure-review", "complexity-review"], "file": "src/api/handler.ts", "line": 15, "message": "..."}
+    {"severity": "warning", "agents": ["structure-review", "correctness-review"], "file": "src/api/handler.ts", "line": 15, "message": "..."}
   ],
   "recurringThemes": [
     {"agent": "structure-review", "slices": ["0003", "0007", "0011"], "occurrences": 9}

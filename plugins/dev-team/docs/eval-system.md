@@ -69,7 +69,6 @@ Specialized agents that require LLM judgment. The full roster — with counts, f
 | structure-review | SRP, DRY, coupling, organization |
 | naming-review | Naming clarity, conventions, magic values |
 | domain-review | Business logic placement, boundary violations |
-| complexity-review | Cyclomatic complexity, nesting, function size |
 | claude-setup-review | CLAUDE.md completeness and accuracy |
 | token-efficiency-review | Token optimization (full analysis beyond hook) |
 | security-review | Injection, auth, data exposure, crypto |
@@ -181,7 +180,7 @@ evals/
 │   ├── fp-*.ts         # js-fp-review (9 files)
 │   ├── sec-*.ts        # security-review (5 files)
 │   ├── test-*.test.ts  # test-review (6 files)
-│   ├── cx-*.ts         # complexity-review (5 files)
+│   ├── cx-*            # structure-review's nesting/cognitive-load/async lens (folded from complexity-review, #2093)
 │   ├── nm-*.ts         # naming-review (5 files)
 │   ├── st-*.ts         # structure-review (5 files)
 │   ├── dm-*.ts         # domain-review (5 files)

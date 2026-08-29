@@ -1,7 +1,7 @@
 ---
 
 name: structure-review
-description: SRP violations, DRY, coupling, nesting depth, file organization
+description: SRP violations, DRY, coupling, nesting depth, cognitive load, async-pattern judgment, file organization
 tools: Read, Grep, Glob, mcp__codegraph__*, mcp__plugin_repowise_repowise__get_context, mcp__plugin_repowise_repowise__get_symbol, mcp__plugin_repowise_repowise__search_codebase, mcp__plugin_repowise_repowise__get_risk
 model: sonnet
 effort: high
@@ -26,9 +26,28 @@ Output JSON: per `${CLAUDE_PLUGIN_ROOT}/knowledge/review-agent-output-contract.m
 
 Status: pass=clean, warn=minor issues, fail=architectural problems
 Severity: error=breaks maintainability, warning=tech debt, suggestion=improvement
-Confidence: high=mechanical extraction (duplicate block → shared function); medium=SRP split direction clear but interface design may vary; none=requires human judgment (module boundary decisions, coupling tradeoffs)
+Confidence: high=mechanical extraction (duplicate block → shared function) or threshold violation (nesting >3 levels); medium=SRP split direction clear but interface design may vary; none=requires human judgment (module boundary decisions, coupling tradeoffs, algorithm design)
 
 Context needs: full-file
+
+## Charter (#2093)
+
+Folds `complexity-review` into this lens — the two agents' scopes already
+overlapped on nesting and function size (documented in the wave/fan-out
+consolidation guidance), and `structure-review`'s own `>3 levels` nesting check already caught
+everything `complexity-review`'s nesting check did, plus more (the two
+thresholds were meant to agree — `complexity-review`'s threshold *table*
+said the same `<4` limit — but its `Detect` prose drifted to `>4`, one
+level later; `>3`/`<4` is the single reconciled value below). Function
+length, cyclomatic complexity, and parameter count stay out of scope here
+too — the deterministic `static-analysis-integration` lizard pre-pass
+reports those in the same review round (`lizard.complexity.function-length`
+/ `.cyclomatic` / `.parameter-count`), so re-deriving them by inference
+would be exactly the duplication `#1974`'s pre-pass lanes exist to remove.
+What `complexity-review` contributed beyond nesting — cognitive load and
+async-pattern judgment, plus *why* a hotspot is essential vs. accidental
+complexity — is folded into this lens's `Detect`/`Self-Challenge` below.
+`complexity-review` itself is retired.
 
 ## Knowledge Files
 
@@ -62,7 +81,23 @@ Coupling issues:
 
 Nesting:
 
-- >3 levels of conditionals/loops
+- >3 levels of conditionals/loops (the reconciled single threshold — see Charter above)
+
+Cognitive load and async patterns (judgment, not raw counts — branch-count and
+cyclomatic complexity are the lizard pre-pass's territory):
+
+- Complex boolean expressions
+- Large switch statements
+- Too many concepts per function (independent of raw line/parameter count —
+  a short function juggling several unrelated responsibilities is still a
+  finding)
+- Non-obvious control flow
+- Callback hell (nested callbacks) — JS/TS
+- Unstructured promise chains — JS/TS: chained `.then()` without error
+  handling; C#: deeply nested `ContinueWith()` instead of `async/await`;
+  Java: deeply nested `CompletableFuture` chains without `exceptionally()`
+- Blocking calls inside async methods — C#: `.Result` or `.Wait()` on a
+  `Task`; Java: `Future.get()` without timeout
 
 Organization:
 
@@ -90,6 +125,10 @@ After producing findings, run the shared challenger loop in `${CLAUDE_PLUGIN_ROO
 - For every "duplicate code" finding, did you verify it's semantic duplication and not just structural similarity?
 - Did you check constructor parameter counts? >5 parameters usually signals SRP violation.
 - Are there God objects/Megaclasses you walked past because they're "just how the code is"?
+- For each nesting-depth finding, did you count the actual levels (>3) rather than estimating by appearance?
+- Did you distinguish between genuine cognitive complexity (multiple concepts) and mechanical repetition (defensive null checks)?
+- For async findings, did you verify the pattern is actually problematic in context (library vs. application code)?
+- Did you avoid re-reporting a bare function-length, parameter-count, or cyclomatic-complexity breach as your own finding? Those are the lizard pre-pass's job (see Charter above) — report them only if they carry a genuine judgment angle (e.g. tied to a cognitive-load or nesting finding), not as a standalone metric restatement.
 
 Append confidence level (High/Medium/Low) to the `summary` field.
 

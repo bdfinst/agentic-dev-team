@@ -8,7 +8,7 @@
       "pass_at_k": 0.3333,
       "trials": 3
     },
-    "cx-god-function::complexity-review": {
+    "cx-god-function::structure-review": {
       "pass_at_k": 0.6667,
       "trials": 3
     },
@@ -73,7 +73,7 @@
   "quarantine": [
     "cs-complete-setup::claude-setup-review",
     "cs-missing-sections::claude-setup-review",
-    "cx-god-function::complexity-review",
+    "cx-god-function::structure-review",
     "dm-leaky-abstraction::domain-review",
     "dr-accurate-docs::doc-review",
     "ex-explore-command-missing::claude-setup-review",
