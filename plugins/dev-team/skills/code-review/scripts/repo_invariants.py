@@ -707,7 +707,7 @@ _MULTILINE_WINDOW_CHARS = 150
 
 
 def check_no_newline_crossing_kv_regex(changed_files=None) -> list[dict]:
-    """No shipped regex may parse a `key: value` line, via `re.MULTILINE`
+    r"""No shipped regex may parse a `key: value` line, via `re.MULTILINE`
     applied against a multi-line blob, with an unbounded whitespace
     quantifier sitting directly between the colon and a non-whitespace-
     anchored capture group — see `_NEWLINE_CROSSING_KV_RE`'s own comment
@@ -716,12 +716,19 @@ def check_no_newline_crossing_kv_regex(changed_files=None) -> list[dict]:
     shape-alone match.
 
     Review fix (issue #2094 follow-up): the co-occurrence check is a
-    windowed forward scan (`_MULTILINE_WINDOW_CHARS` chars past the
-    vulnerable shape), not a same-LINE check — a same-line check missed a
-    `re.compile(` call with the pattern and its `re.MULTILINE` flag on
-    separate physical lines (a plausible line-length wrap), which is
-    exactly the false negative this check exists to prevent from
-    resurrecting the bug class a third time.
+    windowed scan (`_MULTILINE_WINDOW_CHARS` chars on both sides of the
+    vulnerable shape), not a same-LINE, forward-only check — a same-line
+    check missed a `re.compile(` call with the pattern and its
+    `re.MULTILINE` flag on separate physical lines (a plausible
+    line-length wrap); a forward-only check separately missed the inline
+    `(?m)` modifier, which is typically written INSIDE the pattern string
+    itself, ahead of the vulnerable key-value shape, rather than after it
+    (unlike the `re.MULTILINE` flag, which is a separate call argument that
+    follows the pattern). Both false negatives would let this exact bug
+    class resurface a third time. (Deliberately not spelling the vulnerable
+    shape out literally in this docstring — see `_NEWLINE_CROSSING_KV_RE`'s
+    own comment for why: this module's own source text must not
+    accidentally self-match.)
 
     Corpus-wide by design, like `check_transcript_parsing_confined_to_session_log`
     — a stray instance of this shape is a real latent bug whether or not
@@ -738,8 +745,16 @@ def check_no_newline_crossing_kv_regex(changed_files=None) -> list[dict]:
                 continue
             text = _read_text(path)
             for match in _NEWLINE_CROSSING_KV_RE.finditer(text):
-                window = text[match.end() : match.end() + _MULTILINE_WINDOW_CHARS]
-                if "MULTILINE" in window:
+                window_after = text[match.end() : match.end() + _MULTILINE_WINDOW_CHARS]
+                window_before = text[
+                    max(0, match.start() - _MULTILINE_WINDOW_CHARS) : match.start()
+                ]
+                if (
+                    "MULTILINE" in window_after
+                    or "MULTILINE" in window_before
+                    or "(?m)" in window_after
+                    or "(?m)" in window_before
+                ):
                     findings.append(
                         {
                             "invariant": "no-newline-crossing-kv-regex",

@@ -34,6 +34,7 @@ from test_improve_resume import build_result  # type: ignore[import-not-found]
 from testimprove_phase_state import (  # type: ignore[import-not-found]
     VALID_BINDING_MODES,
     parse_binding_mode,
+    prune_stale_tokens,
     read_binding_mode,
     read_phase0_text,
     resolve_auto,
@@ -190,6 +191,78 @@ def test_resolve_with_phase3_correction_ignores_stale_gherkin_from_a_prior_run(
     resolved, highest, complete = resolve_with_phase3_correction(memory_dir)
 
     assert (resolved, highest, complete) == ("3", "2", False)
+
+
+def test_resolve_with_phase3_correction_treats_tied_mtime_gherkin_as_stale(
+    tmp_path,
+):
+    """Review fix (issue #2094 follow-up, round 11): the staleness check
+    used `>=`, so a leftover gherkin.md whose mtime TIED phase-0.md's own
+    (re)write survived as "done for this run" -- phase-0.md is always
+    written first in a genuinely fresh run, so a tie can only mean the
+    gherkin.md predates it (same mtime tick, coarse filesystem
+    resolution), never that it postdates it. Without the `>` fix, this
+    tied-mtime case silently skipped Phase 3 for a reset run using BDD
+    binding mode -- the same failure this file's own
+    ...ignores_stale_gherkin_from_a_prior_run test above already covers
+    for the ordinary (older) stale case, but not the tied-mtime boundary."""
+    import os
+
+    memory_dir = _make_phase_files(tmp_path / "my-repo", "0", "2")
+    stale_gherkin = memory_dir / "gherkin.md"
+    stale_gherkin.write_text("done\n", encoding="utf-8")
+    (memory_dir / "phase-0.md").write_text(
+        "binding_mode: bdd-runner\n", encoding="utf-8"
+    )
+    tied_mtime = (memory_dir / "phase-0.md").stat().st_mtime
+    os.utime(stale_gherkin, (tied_mtime, tied_mtime))
+
+    resolved, highest, complete = resolve_with_phase3_correction(memory_dir)
+
+    assert (resolved, highest, complete) == ("3", "2", False)
+
+
+def test_prune_stale_tokens_treats_tied_mtime_token_as_stale(tmp_path):
+    """Review fix (issue #2094 follow-up, round 11): same tied-mtime class
+    as the gherkin.md fix above, for the numbered phase-file freshness
+    check. phase-0.md is always written first in a fresh run, so a leftover
+    phase-9.md whose mtime TIES it is, by definition, a stale survivor of
+    the prior run -- not this run's own progress."""
+    import os
+
+    memory_dir = _make_phase_files(tmp_path / "my-repo", "9")
+    stale_phase9 = memory_dir / "phase-9.md"
+    (memory_dir / "phase-0.md").write_text("binding_mode: none\n", encoding="utf-8")
+    tied_mtime = (memory_dir / "phase-0.md").stat().st_mtime
+    os.utime(stale_phase9, (tied_mtime, tied_mtime))
+
+    pruned = prune_stale_tokens(memory_dir, scan_phase_files(memory_dir))
+
+    assert pruned == ["0"]
+
+
+def test_prune_stale_tokens_fails_open_on_os_error(tmp_path, monkeypatch):
+    """Review fix (issue #2094 follow-up, round 11): unlike its sibling
+    _gherkin_done_for_this_run, prune_stale_tokens had no try/except around
+    its .stat() calls. It is called directly by
+    scripts/test_improve_resume.py's build_result(), which has no
+    top-level catch-all (unlike the guard hook's main()) -- so a race
+    (e.g. a concurrent /test-improve reset deleting a phase file between
+    the caller's listdir and this function's stat) would crash the CLI
+    with a raw traceback instead of returning tokens unchanged."""
+    memory_dir = _make_phase_files(tmp_path / "my-repo", "0", "2")
+    tokens = scan_phase_files(memory_dir)
+
+    real_stat = Path.stat
+
+    def _flaky_stat(self, *args, **kwargs):
+        if self.name == "phase-2.md":
+            raise OSError("simulated race: file vanished")
+        return real_stat(self, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "stat", _flaky_stat)
+
+    assert prune_stale_tokens(memory_dir, tokens) == tokens
 
 
 def test_resolve_with_phase3_correction_falls_back_on_malformed_phase0(tmp_path):

@@ -526,6 +526,32 @@ class TestNoNewlineCrossingKvRegex:
         assert len(findings) == 1
         assert findings[0]["file"] == "plugins/dev-team/scripts/rogue_wrapped_kv.py"
 
+    def test_flags_a_vulnerable_regex_using_inline_multiline_modifier(
+        self, tmp_path, monkeypatch
+    ):
+        """Review fix (issue #2094 follow-up, round 11): the co-occurrence
+        check originally recognized only the literal `re.MULTILINE` flag
+        constant in a FORWARD window past the vulnerable shape -- it missed
+        the equivalent inline `(?m)` modifier, which is written INSIDE the
+        pattern string itself, typically BEFORE the vulnerable `key:` shape
+        (e.g. `r"(?m)^key:\\s*(\\S+)"`), not after it. A regex using `(?m)`
+        instead of `re.MULTILINE` would defeat this check entirely and ship
+        the exact newline-crossing truncated-key bug a third time."""
+        repo_root = tmp_path / "repo"
+        scripts_dir = repo_root / "plugins" / "dev-team" / "scripts"
+        scripts_dir.mkdir(parents=True)
+        rogue = scripts_dir / "rogue_inline_flag_kv.py"
+        rogue.write_text(
+            'import re\n_RE = re.compile(r"^(?m)key:\\s*(\\S+)")\n',
+            encoding="utf-8",
+        )
+        monkeypatch.setattr(repo_invariants, "_REPO_ROOT", repo_root)
+
+        findings = repo_invariants.check_no_newline_crossing_kv_regex()
+
+        assert len(findings) == 1
+        assert findings[0]["file"] == "plugins/dev-team/scripts/rogue_inline_flag_kv.py"
+
     def test_ignores_a_bounded_capture_shape(self, tmp_path, monkeypatch):
         """`(.*)$` in re.MULTILINE mode is a materially different shape
         this check does not target (see the check's own scope note) --

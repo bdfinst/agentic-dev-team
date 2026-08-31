@@ -148,18 +148,42 @@ def prune_stale_tokens(memory_dir: Path, tokens: list[str]) -> list[str]:
     to be the one shared source of truth for it, mirroring
     `resolve_with_phase3_correction`'s own reason for being hoisted in
     Slice 2. `phase-0.md`'s own (re)write timestamp anchors "the start of
-    this run"; only phase files at least as new as it count as this run's
+    this run"; only phase files STRICTLY newer than it count as this run's
     own progress. Returns `tokens` unchanged when `"0" not in tokens` —
     nothing to anchor freshness to; that state already fails open/errors
-    elsewhere in every caller."""
+    elsewhere in every caller.
+
+    Review fix (issue #2094 follow-up): the comparison is strictly-newer
+    (`>`), not `>=`. `phase-0.md` is always the very first file written in
+    a genuinely fresh run (nothing else has been written yet at the moment
+    of its rewrite), so a leftover token file whose mtime merely TIES
+    `phase-0.md`'s cannot be this run's own progress — it is, by
+    definition, a stale survivor from the prior run that happened to land
+    on the same mtime tick (a real risk on filesystems/workflows with
+    coarse-grained timestamps). Treating a tie as fresh let that leftover
+    token silently disable the guard/`--from-phase` for the run's entire
+    lifetime — the exact bug this function exists to fix, just at the
+    boundary case rather than the general one.
+
+    Best-effort: any `OSError` from `.stat()` (e.g. a concurrent
+    `/test-improve` reset deleting a phase file between the caller's
+    `scan_phase_files()` listdir and this function's stat calls) returns
+    `tokens` unchanged rather than raising — this function is called
+    directly by `scripts/test_improve_resume.py`'s `build_result()`, which
+    has no top-level catch-all (unlike the guard hook's `main()`), so an
+    uncaught exception here would crash the CLI with a raw traceback
+    instead of its documented `{"error": ...}` exit-2 JSON contract."""
     if "0" not in tokens:
         return tokens
-    phase0_mtime = (memory_dir / "phase-0.md").stat().st_mtime
-    return [
-        token
-        for token in tokens
-        if token == "0" or (memory_dir / f"phase-{token}.md").stat().st_mtime >= phase0_mtime
-    ]
+    try:
+        phase0_mtime = (memory_dir / "phase-0.md").stat().st_mtime
+        return [
+            token
+            for token in tokens
+            if token == "0" or (memory_dir / f"phase-{token}.md").stat().st_mtime > phase0_mtime
+        ]
+    except OSError:
+        return tokens
 
 
 def resolve_auto(tokens: list[str]) -> tuple[str | None, str, bool]:
@@ -331,7 +355,7 @@ def resolve_with_phase3_correction(
 
 
 def _gherkin_done_for_this_run(memory_dir: Path) -> bool:
-    """`True` when `gherkin.md` exists AND is at least as new as
+    """`True` when `gherkin.md` exists AND is STRICTLY newer than
     `phase-0.md` — review fix (issue #2094 follow-up): a bare `.exists()`
     check let a STALE `gherkin.md` left over from a prior completed run
     make the Phase-3 correction fall through to ordinary Phase-1
@@ -339,16 +363,21 @@ def _gherkin_done_for_this_run(memory_dir: Path) -> bool:
     documented "change Phase-0 answers" reset flow, which deletes ONLY
     phase-0.md and leaves every other progress file in place) marks the
     start of a genuinely new run that has not derived Gherkin yet. Mirrors
-    `testimprove_phase_scope_guard._prune_stale_tokens`'s freshness
-    principle. Best-effort: `phase-0.md` missing (nothing to anchor
-    freshness to) or either `.stat()` racing a live `/test-improve` process
-    is treated as "not confirmed done" (`False`), matching this function's
-    existing best-effort/fail-through design — never raises."""
+    `prune_stale_tokens`'s freshness principle — including its follow-up
+    fix (issue #2094 follow-up): the comparison is `>`, not `>=`, because
+    `phase-0.md` is always written first in a fresh run, so a `gherkin.md`
+    whose mtime merely TIES it cannot be this run's own artifact (a real
+    risk under coarse-grained filesystem timestamps) — treating a tie as
+    "done" would silently skip the mandatory Gherkin-derivation step.
+    Best-effort: `phase-0.md` missing (nothing to anchor freshness to) or
+    either `.stat()` racing a live `/test-improve` process is treated as
+    "not confirmed done" (`False`), matching this function's existing
+    best-effort/fail-through design — never raises."""
     gherkin = memory_dir / "gherkin.md"
     phase0 = memory_dir / "phase-0.md"
     try:
         if not gherkin.exists() or not phase0.exists():
             return False
-        return gherkin.stat().st_mtime >= phase0.stat().st_mtime
+        return gherkin.stat().st_mtime > phase0.stat().st_mtime
     except OSError:
         return False
