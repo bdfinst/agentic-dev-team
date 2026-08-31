@@ -324,7 +324,7 @@ def test_resolve_with_phase3_correction_falls_back_on_malformed_phase0(tmp_path)
     resolve_auto() resolution. This deliberately differs from
     hooks/testimprove_phase_scope_guard.py's `_resolve_active_phase`, which
     treats this same state as fail-open-with-audit (`status ==
-    "none_in_flight"`, `reason == "malformed or missing phase-0.md"`) —
+    "unresolved"`, `reason == "malformed or missing phase-0.md"`) —
     resume's job is a best-effort suggestion, the guard's job is a
     confident block-or-allow decision, so the two consumers intentionally
     diverge only on this malformed-input edge case, not on the well-defined

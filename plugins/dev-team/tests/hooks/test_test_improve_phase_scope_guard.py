@@ -114,9 +114,9 @@ def _write_phase0(memory_dir: Path, binding_mode: str | None) -> None:
     _write_phase0_text(memory_dir, f"binding_mode: {binding_mode}\n")
 
 
-def test_zero_candidates_resolves_none_in_flight(tmp_path) -> None:
+def test_zero_candidates_resolves_unresolved(tmp_path) -> None:
     result = guard._resolve(tmp_path)
-    assert result.status == "none_in_flight"
+    assert result.status == "unresolved"
     assert result.reason == "no in-flight run found"
     assert result.slug is None
     assert result.phase is None
@@ -178,7 +178,7 @@ def test_completed_run_excluded_via_phase9_signal(tmp_path) -> None:
 
     result = guard._resolve(tmp_path)
 
-    assert result.status == "none_in_flight"
+    assert result.status == "unresolved"
     assert result.reason == "no in-flight run found"
 
 
@@ -227,7 +227,7 @@ def test_completed_run_excluded_via_report_glob_secondary_signal(tmp_path) -> No
 
     result = guard._resolve(tmp_path)
 
-    assert result.status == "none_in_flight"
+    assert result.status == "unresolved"
     assert result.reason == "no in-flight run found"
 
 
@@ -310,7 +310,7 @@ def test_phase6_stale_leftover_phase7_from_prior_run_is_still_ambiguous(
 
     result = guard._resolve(tmp_path)
 
-    assert result.status == "none_in_flight"
+    assert result.status == "unresolved"
     assert result.reason == guard.REASON_PHASE_6_7_AMBIGUOUS
 
 
@@ -379,7 +379,7 @@ def test_malformed_or_missing_phase0_on_sole_candidate_fails_open(tmp_path) -> N
 
     result = guard._resolve(tmp_path)
 
-    assert result.status == "none_in_flight"
+    assert result.status == "unresolved"
     assert result.reason == "malformed or missing phase-0.md"
     assert result.slug == "my-repo"
 
@@ -397,7 +397,7 @@ def test_missing_phase0_fails_open_even_outside_phase2_and_phase6(tmp_path) -> N
 
     result = guard._resolve(tmp_path)
 
-    assert result.status == "none_in_flight"
+    assert result.status == "unresolved"
     assert result.reason == guard.REASON_MALFORMED_PHASE0
     assert result.slug == "my-repo"
     assert result.highest == "5"
@@ -409,7 +409,7 @@ def test_unparseable_phase0_on_sole_candidate_fails_open(tmp_path) -> None:
 
     result = guard._resolve(tmp_path)
 
-    assert result.status == "none_in_flight"
+    assert result.status == "unresolved"
     assert result.reason == "malformed or missing phase-0.md"
 
 
@@ -670,7 +670,7 @@ def test_phase6_refactor_allowed_no_phase7_is_ambiguous_fails_open(tmp_path) -> 
 
     result = guard._resolve(tmp_path)
 
-    assert result.status == "none_in_flight"
+    assert result.status == "unresolved"
     assert result.reason == guard.REASON_PHASE_6_7_AMBIGUOUS
 
 
@@ -732,7 +732,7 @@ def test_phase6_missing_phase0_fails_open_not_confident_phase8(tmp_path) -> None
 
     result = guard._resolve(tmp_path)
 
-    assert result.status == "none_in_flight"
+    assert result.status == "unresolved"
     assert result.reason == guard.REASON_MALFORMED_PHASE0
 
 
@@ -747,7 +747,7 @@ def test_phase6_garbled_refactor_mode_fails_open_not_confident_phase8(tmp_path) 
 
     result = guard._resolve(tmp_path)
 
-    assert result.status == "none_in_flight"
+    assert result.status == "unresolved"
     assert result.reason == guard.REASON_MALFORMED_PHASE0
 
 
@@ -764,7 +764,7 @@ def test_phase6_refactor_mode_value_must_be_on_the_same_line(tmp_path) -> None:
 
     result = guard._resolve(tmp_path)
 
-    assert result.status == "none_in_flight"
+    assert result.status == "unresolved"
     assert result.reason == guard.REASON_MALFORMED_PHASE0
 
 
@@ -815,7 +815,7 @@ def test_invalid_binding_mode_value_fails_open_not_confident_phase3(tmp_path) ->
 
     result = guard._resolve(tmp_path)
 
-    assert result.status == "none_in_flight"
+    assert result.status == "unresolved"
     assert result.reason == "malformed or missing phase-0.md"
 
 
@@ -941,13 +941,18 @@ def test_empty_file_path_passes_silently(tmp_path) -> None:
 # --- lazily, only after a phase-reference match is confirmed ---------------
 
 
-def test_symlinked_phase_reference_is_not_matched(tmp_path, monkeypatch) -> None:
-    """Review fix (issue #2094 follow-up): a `phase-<m>-*.md`-named symlink
-    living directly inside `references/` and pointing at a DIFFERENT real
-    file in that same directory used to pass the containment check (both
-    resolve under `references/`) and report the RESOLVED TARGET's
-    basename/phase — not the literally-requested symlink name's. A symlink
-    is now unmatched (`None`) outright, regardless of where it points."""
+def test_symlinked_phase_reference_matches_resolved_target(
+    tmp_path, monkeypatch
+) -> None:
+    """Review fix (round 16, security-review): a `phase-<m>-*.md`-named
+    symlink living directly inside `references/` and pointing at a
+    DIFFERENT real file in that same directory is gated by the RESOLVED
+    target's phase, not by the literally-requested symlink name. A prior
+    version of this function exempted any symlink from gating outright to
+    avoid this basename mismatch — that over-corrected into a full,
+    unaudited bypass (see `test_symlink_outside_references_dir_still_gated`
+    below); gating on the resolved target closes it while keeping the
+    match accurate to what `Read` will actually deliver."""
     fake_plugin_root = tmp_path / "plugin"
     references_dir = fake_plugin_root / "skills" / "test-improve" / "references"
     references_dir.mkdir(parents=True)
@@ -958,8 +963,38 @@ def test_symlinked_phase_reference_is_not_matched(tmp_path, monkeypatch) -> None
 
     monkeypatch.setattr(guard, "_plugin_root", lambda: fake_plugin_root)
 
-    assert guard._match_phase_reference(str(symlink)) is None
+    # The symlink resolves to phase-2-baseline.md — gating follows the
+    # resolved target, matching the content Read will actually deliver,
+    # not the literally-requested "phase-9-report.md" name.
+    assert guard._match_phase_reference(str(symlink)) == "2"
     assert guard._match_phase_reference(str(real_target)) == "2"
+
+
+def test_symlink_outside_references_dir_still_gated(tmp_path, monkeypatch) -> None:
+    """Round 16 security-review finding: a symlink located ANYWHERE on
+    disk (not just inside `references/`) that points at a real guarded
+    `references/phase-<m>-*.md` file must still be gated by that file's
+    phase — `Read` follows symlinks and delivers the resolved target's
+    content regardless of where the symlink itself lives, so a prior
+    version's blanket `candidate.is_symlink(): return None` exemption was
+    a silent, unaudited bypass of the guard on its own intercepted
+    channel (Read). Reproduces the exact exploit shape reported: a
+    symlink outside the plugin tree entirely, pointing at a not-yet-
+    reached phase's reference file."""
+    fake_plugin_root = tmp_path / "plugin"
+    references_dir = fake_plugin_root / "skills" / "test-improve" / "references"
+    references_dir.mkdir(parents=True)
+    real_target = references_dir / "phase-7-refactor.md"
+    real_target.write_text("refactor content\n", encoding="utf-8")
+
+    outside_dir = tmp_path / "elsewhere"
+    outside_dir.mkdir()
+    outside_symlink = outside_dir / "notes.md"
+    outside_symlink.symlink_to(real_target)
+
+    monkeypatch.setattr(guard, "_plugin_root", lambda: fake_plugin_root)
+
+    assert guard._match_phase_reference(str(outside_symlink)) == "7"
 
 
 def test_project_dir_not_resolved_when_file_path_does_not_match(
@@ -1011,6 +1046,57 @@ def test_main_fails_open_on_internal_error(tmp_path, monkeypatch, capsys) -> Non
     events = _audit_events(tmp_path)
     assert [e["event"] for e in events] == ["fail-open"]
     assert "boom" in events[0]["reason"]
+
+
+def test_audit_swallows_non_os_error_from_append_line_locked(
+    tmp_path, monkeypatch, capsys
+) -> None:
+    """Round 16 test-review finding: `audit()`'s docstring documents that it
+    was deliberately broadened from `except OSError` to `except Exception`
+    (issue #2094 follow-up) because it is `main()`'s LAST-RESORT call, made
+    from inside `main()`'s own broad `except Exception` handler with no
+    further try/except around it — so ANY exception escaping `audit()`,
+    not only an `OSError`, would propagate uncaught and crash the hook.
+    That contract had no fault-injection test proving it; every other
+    documented review-fix in this diff does. Forces `append_line_locked`
+    to raise a non-`OSError` (`RuntimeError`) to prove `audit()` swallows
+    it and falls through to the stderr diagnostic rather than propagating."""
+    monkeypatch.setattr(
+        guard,
+        "append_line_locked",
+        mock.Mock(side_effect=RuntimeError("lock manager exploded")),
+    )
+
+    guard.audit(tmp_path, guard.EVENT_FAIL_OPEN, file="some/path.md")
+
+    err = capsys.readouterr().err
+    assert "failed to write audit line" in err
+    assert "lock manager exploded" in err
+    assert _audit_events(tmp_path) == []
+
+
+def test_main_survives_audit_raising_non_os_error(tmp_path, monkeypatch, capsys) -> None:
+    """End-to-end companion to the unit test above: even when BOTH the
+    guard's own decision logic AND its last-resort `audit()` call fail,
+    `main()` must still return 0 (fail open) rather than let the
+    `RuntimeError` from `append_line_locked` propagate out of the process —
+    the exact crash `audit()`'s `except Exception` broadening exists to
+    prevent."""
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(
+        guard, "read_stdin_json", lambda: (_ for _ in ()).throw(RuntimeError("boom"))
+    )
+    monkeypatch.setattr(
+        guard,
+        "append_line_locked",
+        mock.Mock(side_effect=RuntimeError("lock manager exploded")),
+    )
+
+    assert guard.main() == 0
+
+    err = capsys.readouterr().err
+    assert "failed to write audit line" in err
+    assert _audit_events(tmp_path) == []
 
 
 def test_main_blocks_via_stdin_payload(tmp_path, monkeypatch, capsys) -> None:

@@ -179,11 +179,17 @@ class ActivePhaseResult(NamedTuple):
     """The outcome of resolving `/test-improve`'s single active phase.
 
     `status`: `"ok"` — exactly one in-flight run resolved to a phase;
-    `"ambiguous"` — two or more in-flight candidates; `"none_in_flight"` —
-    zero candidates, OR the sole candidate's resolution could not be
-    determined confidently (malformed `phase-0.md`, or a genuinely
-    undecidable window such as the Phase-6/7 boundary — see `reason` to
-    tell these apart literally).
+    `"ambiguous"` — two or more in-flight candidates; `"unresolved"` — no
+    active phase could be determined, for either of two distinct reasons
+    (see `reason` to tell them apart literally): zero in-flight candidates
+    were found at all (`slug` is `None`), OR exactly one candidate WAS
+    found (`slug` is that candidate's real name) but its active phase
+    could not be determined confidently (malformed `phase-0.md`, or a
+    genuinely undecidable window such as the Phase-6/7 boundary). Named
+    `"unresolved"` (round 16 naming-review finding) rather than a prior
+    name that literally read as "no run is in flight," which was false
+    for the second sub-case — a real run's own `slug` is already
+    populated on this same result even though its phase isn't.
 
     `highest` is the highest completed phase token for the sole in-flight
     candidate (`None` when `status != "ok"` and no candidate was scanned far
@@ -192,7 +198,7 @@ class ActivePhaseResult(NamedTuple):
     directory it was just computed from.
     """
 
-    status: Literal["ok", "ambiguous", "none_in_flight"]
+    status: Literal["ok", "ambiguous", "unresolved"]
     slug: str | None
     phase: str | None
     reason: str
@@ -420,14 +426,14 @@ def _resolve_active_phase(
 def _resolve(project_dir: Path) -> ActivePhaseResult:
     """Resolve the single active phase across every in-flight
     `/test-improve` run under `project_dir`. Never raises — malformed input
-    resolves to `status == "none_in_flight"` with a descriptive `reason`
+    resolves to `status == "unresolved"` with a descriptive `reason`
     rather than propagating an exception (callers still wrap this in a
     try/except as defense-in-depth for anything unforeseen)."""
     candidates = _find_in_flight_slugs(project_dir)
 
     if not candidates:
         return ActivePhaseResult(
-            status="none_in_flight", slug=None, phase=None,
+            status="unresolved", slug=None, phase=None,
             reason=REASON_NO_IN_FLIGHT_RUN,
         )
     if len(candidates) > 1:
@@ -440,7 +446,7 @@ def _resolve(project_dir: Path) -> ActivePhaseResult:
     phase, highest, reason = _resolve_active_phase(memory_dir, tokens)
     if phase is None:
         return ActivePhaseResult(
-            status="none_in_flight", slug=slug, phase=None, reason=reason, highest=highest,
+            status="unresolved", slug=slug, phase=None, reason=reason, highest=highest,
         )
     return ActivePhaseResult(
         status="ok", slug=slug, phase=phase, reason=reason, highest=highest,
@@ -535,22 +541,28 @@ def _match_phase_reference(file_path: str) -> str | None:
     convention every real `Read` target already uses (an absolute path
     under wherever this plugin is installed).
 
-    Review fix (issue #2094 follow-up): checks `candidate.is_symlink()`
-    explicitly, before ever calling `.resolve()` — mirroring
-    `hooks/lib/build_knowledge_index.py`'s `resolve_contained_target()`
-    (used elsewhere in this plugin for the identical
-    symlink-free-descendant-of-a-directory problem; not reused verbatim
-    here because its containment check is case-sensitive and would break
-    the case-insensitive matching this function has always done — see the
-    `.lower()` comparison below). A file that is itself a symlink is
-    unmatched (`None`) outright now, regardless of where it resolves to —
-    without this, a `phase-<m>-*.md`-named symlink pointing at a
-    DIFFERENT, real file inside this same `references/` directory would
-    pass the containment check and this function would report the
-    resolved TARGET's basename/phase, not the literally-requested symlink
-    name's — a mismatch between what the agent asked to read and what the
-    guard evaluated. This repo's own convention (root CLAUDE.md): validate
-    the property explicitly rather than trust an unverified claim about
+    Review fix (round 16, security-review): matching is based ENTIRELY on
+    the RESOLVED target's identity (`candidate.resolve()`), never on the
+    literally-requested path or basename — because `Read` itself follows
+    symlinks and delivers the resolved target's content, so gating on
+    anything else would be gating a different file than the one that will
+    actually be read. A prior version of this function special-cased
+    `candidate.is_symlink()` to return `None` (no gating at all) for any
+    symlink, reasoning that a `phase-<m>-*.md`-named symlink inside
+    `references/` pointing at a DIFFERENT file in that same directory
+    would otherwise report the resolved TARGET's basename/phase rather
+    than the literally-requested symlink name's. That concern is real but
+    cosmetic (an audit-log/block-message naming mismatch); the fix for it
+    was not — it silently exempted every symlink from gating regardless of
+    where the symlink itself lives on disk, so a symlink placed ANYWHERE
+    on the filesystem (e.g. `/tmp/notes.md`) pointing at a real guarded
+    `references/phase-<m>-*.md` file bypassed the guard entirely on the
+    very tool (`Read`) this hook exists to gate, with no audit trail.
+    Resolving unconditionally and gating on `resolved` closes that bypass:
+    any path — symlink or not, wherever it lives — that resolves into a
+    guarded phase reference file is gated by that file's real phase. This
+    repo's own convention (root CLAUDE.md): validate the property
+    explicitly rather than trust an unverified claim about
     `Path.resolve()`'s symlink-following behavior.
 
     `phase-0-approach-contract.md` matches the name pattern (phase "0") but
@@ -565,8 +577,6 @@ def _match_phase_reference(file_path: str) -> str | None:
         candidate = Path(normalized).expanduser()
         if not candidate.is_absolute():
             candidate = _plugin_root() / candidate
-        if candidate.is_symlink():
-            return None
         resolved = candidate.resolve()
     except (OSError, RuntimeError, ValueError):
         return None
@@ -610,7 +620,7 @@ def evaluate(
     A non-matching path (AC2) is a silent no-op — no resolution work, no
     audit line, no exit-code change. A match against a phase reference file
     triggers `_resolve()`; the two fail-open statuses (`"ambiguous"`,
-    `"none_in_flight"`) audit and allow the read; `"ok"` blocks only when
+    `"unresolved"`) audit and allow the read; `"ok"` blocks only when
     the matched phase number differs from the resolved active phase —
     Phase 3 (`phase-3-derive-gherkin.md`, matched phase `"3"`) falls out of
     this same equality check with no separate code path, since its active
@@ -700,7 +710,7 @@ def main() -> int:
             EVENT_FAIL_OPEN,
             file=file_path,
             result=ActivePhaseResult(
-                status="none_in_flight", slug=None, phase=None,
+                status="unresolved", slug=None, phase=None,
                 reason=f"internal error: {exc}",
             ),
         )
