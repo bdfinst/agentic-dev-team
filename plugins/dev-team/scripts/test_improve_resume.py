@@ -47,21 +47,33 @@ import artifact_paths
 from testimprove_phase_state import (
     PHASE_RANK,
     derive_slug,
+    prune_stale_tokens,
     resolve_with_phase3_correction,
     scan_phase_files,
     slugify,
 )
 
 __all__ = [
+    "build_result",
     "derive_slug",
+    "main",
+    "resolve_memory_dir",
     "scan_phase_files",
     "slugify",
 ]
 
 
 def build_result(memory_dir: Path, explicit: str | None) -> tuple[int, dict]:
-    """Compute the resume result. Returns (exit_code, payload)."""
-    tokens = scan_phase_files(memory_dir)
+    """Compute the resume result. Returns (exit_code, payload).
+
+    Review fix (issue #2094 follow-up): `tokens` is freshness-pruned via
+    `prune_stale_tokens` before any resolution — SKILL.md's documented
+    "change Phase-0 answers" reset flow deletes ONLY `phase-0.md` and
+    leaves every other progress file in place, and without pruning this
+    function disagreed with `hooks/testimprove_phase_scope_guard.py`'s
+    guard (which already pruned) about whether a freshly reset run was
+    genuinely in-flight or already complete."""
+    tokens = prune_stale_tokens(memory_dir, scan_phase_files(memory_dir))
 
     # Precondition shared by auto-detect AND explicit resume: phase-0.md must
     # exist. `--from-phase` never re-prompts Phase-0 inputs, so without a

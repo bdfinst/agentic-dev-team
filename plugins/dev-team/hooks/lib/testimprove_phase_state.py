@@ -130,6 +130,38 @@ def scan_phase_files(memory_dir: Path) -> list[str]:
     return sorted(set(tokens), key=lambda t: PHASE_RANK[t])
 
 
+def prune_stale_tokens(memory_dir: Path, tokens: list[str]) -> list[str]:
+    """Discard any completed-phase token whose progress file predates
+    `phase-0.md`'s own mtime — review fix (issue #2094 follow-up):
+    `phase-0-approach-contract.md`'s documented "change Phase-0 answers"
+    flow deletes ONLY `phase-0.md` and re-runs from Phase 0, deliberately
+    leaving `phase-1.md`..`phase-9.md` from the PRIOR run in place. Without
+    this, a leftover `phase-9.md` alone made a caller resolving from raw
+    `scan_phase_files()` tokens report the brand-new run `complete` —
+    `hooks/testimprove_phase_scope_guard.py`'s guard silently disabled for
+    that run's whole lifetime, and (this function's second consumer,
+    hoisted here to close the same gap for it)
+    `scripts/test_improve_resume.py`'s `--from-phase` auto-detect reporting
+    "Run already complete. Nothing to resume." for a genuinely fresh run —
+    both against the exact reset workflow the reference doc tells operators
+    to use, and disagreeing with each other before this function moved here
+    to be the one shared source of truth for it, mirroring
+    `resolve_with_phase3_correction`'s own reason for being hoisted in
+    Slice 2. `phase-0.md`'s own (re)write timestamp anchors "the start of
+    this run"; only phase files at least as new as it count as this run's
+    own progress. Returns `tokens` unchanged when `"0" not in tokens` —
+    nothing to anchor freshness to; that state already fails open/errors
+    elsewhere in every caller."""
+    if "0" not in tokens:
+        return tokens
+    phase0_mtime = (memory_dir / "phase-0.md").stat().st_mtime
+    return [
+        token
+        for token in tokens
+        if token == "0" or (memory_dir / f"phase-{token}.md").stat().st_mtime >= phase0_mtime
+    ]
+
+
 def resolve_auto(tokens: list[str]) -> tuple[str | None, str, bool]:
     """Given the completed phase tokens, return
     (resolved_phase, highest_token, complete).

@@ -155,6 +155,34 @@ def test_phase_9_reports_complete(tmp_path):
     assert "complete" in payload["message"].lower()
 
 
+def test_reset_flow_stale_phase9_does_not_report_falsely_complete(tmp_path):
+    """Review fix (issue #2094 follow-up): build_result() resolved from raw,
+    unpruned scan_phase_files() tokens, unlike the guard hook
+    (testimprove_phase_scope_guard.py's _prune_stale_tokens), which discards
+    leftover phase files that predate phase-0.md's own mtime. After
+    SKILL.md's documented "change Phase-0 answers" reset flow (delete only
+    phase-0.md, re-run -- phase-1.md..phase-9.md from the prior run stay in
+    place), this CLI reported "Run already complete. Nothing to resume." for
+    a genuinely fresh run, while the guard hook -- now sharing the same
+    prune_stale_tokens() -- correctly enforced active phase 2. Both
+    consumers must agree."""
+    import os
+
+    root = make_phases(
+        tmp_path / "s", "1", "2", "4", "5", "6", "7", "8", "9",
+    )
+    an_hour_ago = (root / "phase-9.md").stat().st_mtime - 3600
+    for token in ("1", "2", "4", "5", "6", "7", "8", "9"):
+        os.utime(root / f"phase-{token}.md", (an_hour_ago, an_hour_ago))
+    (root / "phase-0.md").write_text("done\n", encoding="utf-8")
+
+    code, payload = result(root)
+
+    assert code == 0
+    assert payload["complete"] is False
+    assert payload["resolved_phase"] == "2"
+
+
 def test_absent_memory_dir_errors(tmp_path):
     code, payload = result(tmp_path / "does-not-exist")
     assert code == 2

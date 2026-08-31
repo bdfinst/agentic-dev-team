@@ -698,6 +698,13 @@ def check_transcript_parsing_confined_to_session_log(changed_files=None) -> list
 #: real repo with this narrowing, vs. two with the shape alone).
 _NEWLINE_CROSSING_KV_RE = re.compile(re.escape(":" + "\\s*(" + "\\S"))
 
+#: How far past the vulnerable shape to look for a co-occurring
+#: `re.MULTILINE`. Generous enough to span a `re.compile(` call wrapped
+#: across several lines (pattern on one line, `re.MULTILINE,` on the next,
+#: closing paren on a third) without reaching into an unrelated following
+#: statement in this repo's actual code density.
+_MULTILINE_WINDOW_CHARS = 150
+
 
 def check_no_newline_crossing_kv_regex(changed_files=None) -> list[dict]:
     """No shipped regex may parse a `key: value` line, via `re.MULTILINE`
@@ -705,8 +712,16 @@ def check_no_newline_crossing_kv_regex(changed_files=None) -> list[dict]:
     quantifier sitting directly between the colon and a non-whitespace-
     anchored capture group — see `_NEWLINE_CROSSING_KV_RE`'s own comment
     for the bug class, its two same-PR occurrences, and why the
-    `re.MULTILINE`-on-the-same-line requirement is load-bearing rather than
-    a shape-alone match.
+    `re.MULTILINE`-co-occurrence requirement is load-bearing rather than a
+    shape-alone match.
+
+    Review fix (issue #2094 follow-up): the co-occurrence check is a
+    windowed forward scan (`_MULTILINE_WINDOW_CHARS` chars past the
+    vulnerable shape), not a same-LINE check — a same-line check missed a
+    `re.compile(` call with the pattern and its `re.MULTILINE` flag on
+    separate physical lines (a plausible line-length wrap), which is
+    exactly the false negative this check exists to prevent from
+    resurrecting the bug class a third time.
 
     Corpus-wide by design, like `check_transcript_parsing_confined_to_session_log`
     — a stray instance of this shape is a real latent bug whether or not
@@ -721,8 +736,10 @@ def check_no_newline_crossing_kv_regex(changed_files=None) -> list[dict]:
             rel = _repo_relative(path)
             if "/tests/" in f"/{rel}" or Path(rel).name.startswith("test_"):
                 continue
-            for line in _read_text(path).splitlines():
-                if "MULTILINE" in line and _NEWLINE_CROSSING_KV_RE.search(line):
+            text = _read_text(path)
+            for match in _NEWLINE_CROSSING_KV_RE.finditer(text):
+                window = text[match.end() : match.end() + _MULTILINE_WINDOW_CHARS]
+                if "MULTILINE" in window:
                     findings.append(
                         {
                             "invariant": "no-newline-crossing-kv-regex",

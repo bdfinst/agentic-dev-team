@@ -23,8 +23,8 @@ pattern are untouched. Fails OPEN (allows the read) on any ambiguity
 fail-open try/except wrapping all of `main()`).
 
 This is a `PreToolUse:Read`-only control: it does not, and cannot, see a
-file read performed via `Bash` (`cat`, `head`, etc.) or any other channel —
-that gap is a recorded, out-of-scope limitation for this issue, not an
+file read performed via `Bash` (`cat`, `head`, etc.), `Grep`, or any other
+channel — that gap is a recorded, out-of-scope limitation for this issue, not an
 oversight.
 
 Review fix (issue #2094 follow-up, recorded rather than fixed here): this
@@ -67,6 +67,9 @@ from testimprove_phase_state import (
 )
 from testimprove_phase_state import (
     parse_binding_mode as _parse_binding_mode,
+)
+from testimprove_phase_state import (
+    prune_stale_tokens as _prune_stale_tokens,
 )
 
 #: Matches a `/test-improve` phase reference file's basename — captures the
@@ -187,32 +190,6 @@ def _memory_root(project_dir: Path) -> Path:
     """`<project_dir>/.claude/memory/test-improve/` — the root under which
     every `/test-improve` run's slug directory lives."""
     return artifact_paths.category_dir("memory", project_dir) / "test-improve"
-
-
-def _prune_stale_tokens(entry: Path, tokens: list[str]) -> list[str]:
-    """Discard any completed-phase token whose progress file predates
-    `phase-0.md`'s own mtime — review fix (issue #2094 follow-up):
-    `phase-0-approach-contract.md`'s documented "change Phase-0 answers"
-    flow deletes ONLY `phase-0.md` and re-runs from Phase 0, deliberately
-    leaving `phase-1.md`..`phase-9.md` from the PRIOR run in place. Without
-    this, a leftover `phase-9.md` alone made
-    `resolve_with_phase3_correction` report the brand-new run `complete`,
-    excluding it from candidacy and silently disabling the guard for that
-    run's entire lifetime — the exact reset workflow the reference doc tells
-    operators to use. `phase-0.md`'s own (re)write timestamp anchors "the
-    start of this run"; only phase files at least as new as it count as
-    this run's own progress, mirroring the report-freshness check below.
-    Returns `tokens` unchanged when `"0" not in tokens` — nothing to anchor
-    freshness to; that state already fails open elsewhere
-    (`REASON_MALFORMED_PHASE0`)."""
-    if "0" not in tokens:
-        return tokens
-    phase0_mtime = (entry / "phase-0.md").stat().st_mtime
-    return [
-        token
-        for token in tokens
-        if token == "0" or (entry / f"phase-{token}.md").stat().st_mtime >= phase0_mtime
-    ]
 
 
 def _find_in_flight_slugs(project_dir: Path) -> list[tuple[str, list[str]]]:

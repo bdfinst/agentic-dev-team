@@ -170,7 +170,7 @@ diverges from the resolved active phase is BLOCKED like any other
 mismatched read, not honored — a known, recorded scope boundary, not an
 oversight. This is a
 `PreToolUse:Read`-only control: it cannot see a phase reference file read
-via `Bash` (`cat`, `head`, etc.) or any other channel, so the rule above
+via `Bash` (`cat`, `head`, etc.), `Grep`, or any other channel, so the rule above
 still depends on actually using `Read` for these files.
 
 Shared implementation-detail reference files (e.g.

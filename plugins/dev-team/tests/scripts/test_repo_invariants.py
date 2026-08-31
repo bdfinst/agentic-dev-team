@@ -501,6 +501,31 @@ class TestNoNewlineCrossingKvRegex:
         assert findings[0]["invariant"] == "no-newline-crossing-kv-regex"
         assert findings[0]["file"] == "plugins/dev-team/scripts/rogue_kv.py"
 
+    def test_flags_a_vulnerable_regex_wrapped_across_lines(self, tmp_path, monkeypatch):
+        """Review fix (issue #2094 follow-up): a same-LINE MULTILINE
+        co-occurrence check missed a re.compile() call with the pattern and
+        its re.MULTILINE flag on separate physical lines (a plausible
+        line-length wrap) -- the exact false negative that would let this
+        bug class ship a third time despite this check's existence."""
+        repo_root = tmp_path / "repo"
+        scripts_dir = repo_root / "plugins" / "dev-team" / "scripts"
+        scripts_dir.mkdir(parents=True)
+        rogue = scripts_dir / "rogue_wrapped_kv.py"
+        rogue.write_text(
+            "import re\n"
+            "_RE = re.compile(\n"
+            '    r"^key:\\s*(\\S+)",\n'
+            "    re.MULTILINE,\n"
+            ")\n",
+            encoding="utf-8",
+        )
+        monkeypatch.setattr(repo_invariants, "_REPO_ROOT", repo_root)
+
+        findings = repo_invariants.check_no_newline_crossing_kv_regex()
+
+        assert len(findings) == 1
+        assert findings[0]["file"] == "plugins/dev-team/scripts/rogue_wrapped_kv.py"
+
     def test_ignores_a_bounded_capture_shape(self, tmp_path, monkeypatch):
         """`(.*)$` in re.MULTILINE mode is a materially different shape
         this check does not target (see the check's own scope note) --
