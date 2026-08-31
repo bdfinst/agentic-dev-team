@@ -547,13 +547,21 @@ _TRANSCRIPT_SCAN_ROOTS = ("plugins/dev-team", "scripts")
 #: A "migrated in #2050" entry is a real, temporary exception: that slice's
 #: job is to fold it onto session_log.records and delete it from this list.
 _TRANSCRIPT_PARSING_ALLOWLIST = {
-    "plugins/dev-team/scripts/session_report.py": (
-        "the one sanctioned entry point over session_log (#2046/#2047) -- "
-        "not a second, independently-drifting implementation; it composes "
-        "session_log's own shared primitives (records.usage_of/"
-        "usage_fields, signals.CONTEXT_TOKEN_FIELDS, discovery.*) for its "
-        "remaining attribution/threading logic, mirroring exactly what its "
-        "two now-retired predecessors did"
+    "plugins/dev-team/scripts/lib/session_report_maintainer.py": (
+        "the maintainer half of the one sanctioned entry point over "
+        "session_log (#2046/#2047), relocated from session_report.py "
+        "itself in issue #2098's layering split -- not a second, "
+        "independently-drifting implementation; it composes session_log's "
+        "own shared primitives (records.usage_of/usage_fields, "
+        "signals.CONTEXT_TOKEN_FIELDS, discovery.*) for its remaining "
+        "attribution/threading logic, mirroring exactly what its two "
+        "now-retired predecessors did"
+    ),
+    "plugins/dev-team/scripts/lib/session_report_downstream.py": (
+        "the downstream half of the one sanctioned entry point over "
+        "session_log (#2046/#2047), relocated from session_report.py "
+        "itself in issue #2098's layering split -- same rationale as "
+        "session_report_maintainer.py's entry above"
     ),
     "plugins/dev-team/hooks/lib/cost_meter.py": (
         "migrated onto session_log.records in #2050 (join-map, sidechain, "
