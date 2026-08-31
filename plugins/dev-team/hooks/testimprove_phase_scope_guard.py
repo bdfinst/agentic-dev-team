@@ -27,6 +27,27 @@ file read performed via `Bash` (`cat`, `head`, etc.), `Grep`, or any other
 channel — that gap is a recorded, out-of-scope limitation for this issue, not an
 oversight.
 
+Review fix (issue #2094 follow-up, round 17, recorded rather than fixed
+here): `_match_phase_reference` gates on the RESOLVED path's parent-
+directory identity (a string comparison against this plugin's own
+`references/` directory), which closes a SYMLINK-based bypass (round 16 —
+any symlink, anywhere, pointing at a guarded file) but not a HARDLINK or
+bind-mount one: a hardlink to a guarded `phase-<m>-*.md` file has no
+distinct resolved path of its own — `Path.resolve()` returns the
+hardlink's OWN location, which fails the parent-directory check and
+silently passes through ungated, with no audit line, the same failure
+shape as the symlink case. Unlike the symlink case, this is NOT a new
+privilege an already-hook-constrained agent gains: creating the hardlink
+itself requires filesystem write access this hook doesn't govern (the
+same already-disclosed Bash-write gap above). The realistic residual risk
+is a pre-existing hardlink, or a bind-mounted/dual-mounted plugin tree
+(common in containers/CI), disabling the gate for that path with zero
+trace — not an exploit path a Read-only adversary can construct. Closing
+it fully would mean comparing `(st_dev, st_ino)` identity against every
+real reference file rather than a path-string comparison — a larger
+change than this issue's scope (Read-gating from already-persisted
+state); tracked as a follow-up rather than folded in here.
+
 Review fix (issue #2094 follow-up, recorded rather than fixed here): this
 hook resolves the active phase PURELY from persisted state (`phase-0.md` +
 scanned progress files) — it has no visibility into an operator's explicit
@@ -126,11 +147,21 @@ EVENT_FAIL_OPEN = "fail-open"
 REASON_NO_IN_FLIGHT_RUN = "no in-flight run found"
 REASON_MALFORMED_PHASE0 = "malformed or missing phase-0.md"
 REASON_AMBIGUOUS_MULTIPLE = "ambiguous: multiple candidates"
+#: Review fix (issue #2094 follow-up, round 17): these two reason strings
+#: used to also carry the "ambiguous:" prefix, but neither corresponds to
+#: `status == "ambiguous"` — REASON_PHASE_6_7_AMBIGUOUS resolves to
+#: `status == "unresolved"`, REASON_ANALYZE_ONLY_AMBIGUOUS to
+#: `status == "ok"` (fail-open via a distinct branch in `evaluate()`, not a
+#: block). A maintainer filtering the audit JSONL on `reason.startswith(
+#: "ambiguous:")` expecting "multiple in-flight runs" would also catch
+#: these two unrelated fail-open cases. Not a functional bug (status itself
+#: is what every consumer actually branches on), but a misleading prefix
+#: one level down from the round-16 status-literal rename.
 REASON_PHASE_6_7_AMBIGUOUS = (
-    "ambiguous: phase-6/7 boundary undecidable from persisted state"
+    "undecidable: phase-6/7 boundary from persisted state"
 )
 REASON_ANALYZE_ONLY_AMBIGUOUS = (
-    "ambiguous: --analyze-only vs normal Phase-2-next window"
+    "undecidable: --analyze-only vs normal Phase-2-next window"
 )
 
 #: Max length of a value interpolated into the printed `[BLOCK]` message

@@ -640,7 +640,26 @@ def check_transcript_parsing_confined_to_session_log(changed_files=None) -> list
             rel = _repo_relative(path)
             if rel.startswith(session_log_prefix):
                 continue
-            if "/tests/" in f"/{rel}" or Path(rel).name.startswith("test_"):
+            # Review fix (issue #2094 follow-up, round 17): the basename
+            # clause (`Path(rel).name.startswith("test_")`) is dropped —
+            # this repo names some PRODUCTION modules `test_*.py`
+            # (`scripts/test_improve_resume.py`,
+            # `hooks/lib/test_file_classify.py`), specifically because this
+            # plugin's own `is_test_file` classifier's `_PYTHON_NAME_RE`
+            # matches that exact shape regardless of location (the reason
+            # `testimprove_phase_state.py`/`testimprove_phase_scope_guard.py`
+            # deliberately avoid the `test_` prefix — see those modules' own
+            # docstrings). The basename clause silently exempted both real
+            # production files from this corpus-wide check, so a real
+            # instance of the bug shape in either would go undetected. The
+            # `/tests/` path-substring check alone is sufficient: every
+            # actual test file in this repo lives under a `tests/`
+            # directory by convention (verified empirically: dropping the
+            # basename clause introduces zero new findings against the real
+            # repo, including this check's own fixture-heavy test file,
+            # `tests/scripts/test_repo_invariants.py`, which is still
+            # excluded via its `/tests/` path).
+            if "/tests/" in f"/{rel}":
                 continue
             # This module's own source names the four identifiers to detect
             # them and to explain each allowlist entry's reason -- that is
@@ -780,7 +799,26 @@ def check_no_newline_crossing_kv_regex(changed_files=None) -> list[dict]:
             continue
         for path in sorted(root.rglob("*.py")):
             rel = _repo_relative(path)
-            if "/tests/" in f"/{rel}" or Path(rel).name.startswith("test_"):
+            # Review fix (issue #2094 follow-up, round 17): the basename
+            # clause (`Path(rel).name.startswith("test_")`) is dropped —
+            # this repo names some PRODUCTION modules `test_*.py`
+            # (`scripts/test_improve_resume.py`,
+            # `hooks/lib/test_file_classify.py`), specifically because this
+            # plugin's own `is_test_file` classifier's `_PYTHON_NAME_RE`
+            # matches that exact shape regardless of location (the reason
+            # `testimprove_phase_state.py`/`testimprove_phase_scope_guard.py`
+            # deliberately avoid the `test_` prefix — see those modules' own
+            # docstrings). The basename clause silently exempted both real
+            # production files from this corpus-wide check, so a real
+            # instance of the bug shape in either would go undetected. The
+            # `/tests/` path-substring check alone is sufficient: every
+            # actual test file in this repo lives under a `tests/`
+            # directory by convention (verified empirically: dropping the
+            # basename clause introduces zero new findings against the real
+            # repo, including this check's own fixture-heavy test file,
+            # `tests/scripts/test_repo_invariants.py`, which is still
+            # excluded via its `/tests/` path).
+            if "/tests/" in f"/{rel}":
                 continue
             text = _read_text(path)
             for match in _NEWLINE_CROSSING_KV_RE.finditer(text):

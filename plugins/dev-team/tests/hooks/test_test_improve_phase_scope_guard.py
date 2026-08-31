@@ -997,6 +997,39 @@ def test_symlink_outside_references_dir_still_gated(tmp_path, monkeypatch) -> No
     assert guard._match_phase_reference(str(outside_symlink)) == "7"
 
 
+def test_symlink_bypass_is_blocked_end_to_end_via_evaluate(
+    tmp_path, monkeypatch
+) -> None:
+    """Review fix (issue #2094 follow-up, round 17): the two symlink tests
+    above call `_match_phase_reference` directly, never `evaluate()`/
+    `main()` — the actual `PreToolUse:Read` entry point a real bypass
+    attempt goes through. This exercises the full decision path: a Read of
+    a symlink pointing at a not-yet-reached phase's reference file must
+    still be BLOCKED (exit 2) with a `block` audit event naming the
+    resolved phase, exactly as a direct (non-symlink) Read of that same
+    file would be."""
+    fake_plugin_root = tmp_path / "plugin"
+    references_dir = fake_plugin_root / "skills" / "test-improve" / "references"
+    references_dir.mkdir(parents=True)
+    real_target = references_dir / "phase-7-refactor.md"
+    real_target.write_text("refactor content\n", encoding="utf-8")
+    outside_symlink = tmp_path / "elsewhere-notes.md"
+    outside_symlink.symlink_to(real_target)
+    monkeypatch.setattr(guard, "_plugin_root", lambda: fake_plugin_root)
+
+    # In-flight run whose active phase is "5" (0/2/1/4 done) — Phase 7 is
+    # not yet reached, so the symlinked Read must be blocked.
+    _make_phase_files(_memory_root(tmp_path) / "my-repo", "0", "2", "1", "4")
+
+    code, lines = guard.evaluate(str(outside_symlink), tmp_path)
+
+    assert code == 2
+    assert any("Phase 5, not Phase 7" in line for line in lines)
+    events = _audit_events(tmp_path)
+    assert [e["event"] for e in events] == ["block"]
+    assert events[0]["phase"] == "5"
+
+
 def test_project_dir_not_resolved_when_file_path_does_not_match(
     tmp_path, monkeypatch
 ) -> None:

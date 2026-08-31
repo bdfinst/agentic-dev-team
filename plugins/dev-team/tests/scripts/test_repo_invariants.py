@@ -451,6 +451,31 @@ class TestTranscriptParsingConfinedToSessionLog:
 
         assert repo_invariants.check_transcript_parsing_confined_to_session_log() == []
 
+    def test_flags_a_transcript_parser_in_a_production_module_named_test_star(
+        self, tmp_path, monkeypatch
+    ):
+        """Review fix (issue #2094 follow-up, round 17): same basename-
+        exclusion gap as check_no_newline_crossing_kv_regex's sibling
+        fix -- a production module named `test_*.py` outside any `tests/`
+        directory (e.g. the real `scripts/test_improve_resume.py`) used to
+        be silently exempted from this check too."""
+        repo_root = tmp_path / "repo"
+        scripts_dir = repo_root / "plugins" / "dev-team" / "scripts"
+        scripts_dir.mkdir(parents=True)
+        rogue = scripts_dir / "test_rogue_production_module.py"
+        rogue.write_text(
+            'def parse(rec):\n    return rec.get("isSidechain")\n', encoding="utf-8"
+        )
+        monkeypatch.setattr(repo_invariants, "_REPO_ROOT", repo_root)
+
+        findings = repo_invariants.check_transcript_parsing_confined_to_session_log()
+
+        assert len(findings) == 1
+        assert (
+            findings[0]["file"]
+            == "plugins/dev-team/scripts/test_rogue_production_module.py"
+        )
+
     def test_allowlist_entries_all_carry_a_real_reason(self):
         empty = [
             path
@@ -670,6 +695,38 @@ class TestNoNewlineCrossingKvRegex:
         monkeypatch.setattr(repo_invariants, "_REPO_ROOT", repo_root)
 
         assert repo_invariants.check_no_newline_crossing_kv_regex() == []
+
+    def test_flags_a_vulnerable_regex_in_a_production_module_named_test_star(
+        self, tmp_path, monkeypatch
+    ):
+        """Review fix (issue #2094 follow-up, round 17): the exclusion used
+        to be `"/tests/" in rel or Path(rel).name.startswith("test_")` --
+        the basename clause silently exempted PRODUCTION modules this repo
+        names `test_*.py` outside any `tests/` directory (e.g. the real
+        `scripts/test_improve_resume.py`, `hooks/lib/test_file_classify.py`
+        -- named that way specifically because this plugin's own
+        `is_test_file` classifier's Python-name pattern matches that exact
+        shape regardless of location). A real instance of this bug class in
+        such a file would have gone undetected. The `/tests/` path check
+        alone is sufficient and correctly still excludes genuine test files
+        (see test_ignores_test_files above)."""
+        repo_root = tmp_path / "repo"
+        scripts_dir = repo_root / "plugins" / "dev-team" / "scripts"
+        scripts_dir.mkdir(parents=True)
+        rogue = scripts_dir / "test_rogue_production_module.py"
+        rogue.write_text(
+            'import re\n_RE = re.compile(r"^key:\\s*(\\S+)", re.MULTILINE)\n',
+            encoding="utf-8",
+        )
+        monkeypatch.setattr(repo_invariants, "_REPO_ROOT", repo_root)
+
+        findings = repo_invariants.check_no_newline_crossing_kv_regex()
+
+        assert len(findings) == 1
+        assert (
+            findings[0]["file"]
+            == "plugins/dev-team/scripts/test_rogue_production_module.py"
+        )
 
     def test_ignores_the_shape_without_multiline_on_the_same_line(self, tmp_path, monkeypatch):
         """The vulnerable shape alone is not sufficient -- a pattern applied
