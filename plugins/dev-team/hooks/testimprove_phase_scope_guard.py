@@ -48,6 +48,23 @@ real reference file rather than a path-string comparison — a larger
 change than this issue's scope (Read-gating from already-persisted
 state); tracked as a follow-up rather than folded in here.
 
+A related, non-adversarial residual gap (round 20): `references_dir` is
+anchored via `_plugin_root()` from `__file__` — this hook only knows
+about the copy of the plugin tree the RUNNING instance was loaded from
+(typically the installed `~/.claude/plugins/cache/...` copy). A Read
+against a DIFFERENT, separately-installed copy of this same plugin (e.g.
+this repo's own dev checkout, when developing the plugin itself) is
+silently ungated, since that copy's `references/` directory never
+matches this instance's resolved one. Not exploitable by an adversarial
+agent (there is nothing to gain — the other tree's files are the plugin's
+own, non-secret reference docs, and reading them from a different
+install is ordinary dev-time activity, not a bypass of anything this hook
+protects during a real `/test-improve` run against a target repo); noted
+for completeness rather than fixed, since directory-anchored (not
+basename-only) matching is itself a deliberate choice documented on
+`_match_phase_reference` to avoid false-positiving on an unrelated
+same-named file elsewhere on disk.
+
 Review fix (issue #2094 follow-up, recorded rather than fixed here): this
 hook resolves the active phase PURELY from persisted state (`phase-0.md` +
 scanned progress files) — it has no visibility into an operator's explicit
@@ -67,6 +84,7 @@ persisted state) — tracked as a follow-up rather than folded in here.
 from __future__ import annotations
 
 import json
+import os
 import re
 import sys
 from datetime import datetime, timezone
@@ -636,7 +654,17 @@ def _match_phase_reference(file_path: str) -> str | None:
     """
     if not file_path:
         return None
-    normalized = file_path.replace("\\", "/")
+    # Review fix (issue #2094 follow-up, round 20): backslash-to-forward-
+    # slash normalization only runs on Windows (os.name == "nt"). Backslash
+    # is a legal filename byte on POSIX, so applying this unconditionally
+    # could mangle a POSIX file_path that genuinely contains one (e.g. a
+    # symlink named with a literal backslash) into a DIFFERENT, likely
+    # non-existent path -- the containment check below then fails to
+    # match, this function returns None (unguarded), and the real Read
+    # still delivers the actual (unmangled) file's content with no audit
+    # trail -- the same silent-bypass shape round 16 already fixed once,
+    # via a different mechanism.
+    normalized = file_path.replace("\\", "/") if os.name == "nt" else file_path
     try:
         candidate = Path(normalized).expanduser()
         if not candidate.is_absolute():

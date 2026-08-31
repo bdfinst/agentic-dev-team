@@ -1038,6 +1038,38 @@ def test_symlink_outside_references_dir_still_gated(tmp_path, monkeypatch) -> No
     assert guard._match_phase_reference(str(outside_symlink)) == "7"
 
 
+def test_posix_backslash_in_path_is_not_mangled_before_matching(
+    tmp_path, monkeypatch
+) -> None:
+    """Review fix (issue #2094 follow-up, round 20): `_match_phase_reference`
+    used to unconditionally `.replace("\\\\", "/")` its input, regardless of
+    platform -- but backslash is a legal filename byte on POSIX. A symlink
+    whose own name genuinely contains a literal backslash, pointing at a
+    guarded reference file, would have its requested path MANGLED into a
+    different, likely non-existent path before resolution -- the
+    containment check then fails to match, this function returns `None`
+    (unguarded), and the real `Read` still delivers the actual (unmangled)
+    symlinked target's content with no audit trail -- the same silent-
+    bypass shape round 16 already fixed once, via a different mechanism.
+    Normalization is now gated to `os.name == "nt"` (Windows only)."""
+    if os.name == "nt":
+        pytest.skip("POSIX-only: backslash is Windows' own path separator")
+    fake_plugin_root = tmp_path / "plugin"
+    references_dir = fake_plugin_root / "skills" / "test-improve" / "references"
+    references_dir.mkdir(parents=True)
+    real_target = references_dir / "phase-7-refactor.md"
+    real_target.write_text("refactor content\n", encoding="utf-8")
+
+    outside_dir = tmp_path / "elsewhere"
+    outside_dir.mkdir()
+    backslash_symlink = outside_dir / "notes\\evil.md"
+    backslash_symlink.symlink_to(real_target)
+
+    monkeypatch.setattr(guard, "_plugin_root", lambda: fake_plugin_root)
+
+    assert guard._match_phase_reference(str(backslash_symlink)) == "7"
+
+
 def test_symlink_bypass_is_blocked_end_to_end_via_evaluate(
     tmp_path, monkeypatch
 ) -> None:
@@ -1147,6 +1179,30 @@ def test_audit_swallows_non_os_error_from_append_line_locked(
     assert "failed to write audit line" in err
     assert "lock manager exploded" in err
     assert _audit_events(tmp_path) == []
+
+
+def test_emit_boundary_event_swallows_non_os_error(monkeypatch) -> None:
+    """Review fix (issue #2094 follow-up, round 20): the round-19-added
+    local `emit_boundary_event()` wrapper's own `except Exception: pass`
+    fail-open contract had no fault-injection test proving it, unlike
+    `audit()`'s identical pattern (tested above). Forces the underlying
+    `_emit_boundary_event` to raise a non-`OSError` (`RuntimeError`) and
+    confirms it's swallowed -- if a future edit narrowed or removed that
+    except clause, a raising telemetry call on a genuine BLOCK decision
+    would propagate to `main()`'s outer catch-all, which fails open and
+    returns 0 (ALLOW) instead of 2 (BLOCK) -- silently downgrading a
+    correct block into an allowed read."""
+    monkeypatch.setattr(
+        guard,
+        "_emit_boundary_event",
+        mock.Mock(side_effect=RuntimeError("telemetry backend exploded")),
+    )
+
+    # Must not raise.
+    guard.emit_boundary_event(
+        "/tmp/fake-project", "testimprove_phase_scope_guard", "Read", "block",
+        "test-improve-phase-scope", "sess-1",
+    )
 
 
 def test_main_survives_audit_raising_non_os_error(tmp_path, monkeypatch, capsys) -> None:
