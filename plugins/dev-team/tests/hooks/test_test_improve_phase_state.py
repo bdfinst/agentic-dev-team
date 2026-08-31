@@ -214,8 +214,12 @@ def test_resolve_with_phase3_correction_treats_tied_mtime_gherkin_as_stale(
     (memory_dir / "phase-0.md").write_text(
         "binding_mode: bdd-runner\n", encoding="utf-8"
     )
-    tied_mtime = (memory_dir / "phase-0.md").stat().st_mtime
-    os.utime(stale_gherkin, (tied_mtime, tied_mtime))
+    # Round 13 follow-up: ties at NANOSECOND precision (the comparison this
+    # function now uses), not just second precision -- a float st_mtime
+    # round-trip through os.utime() would not reliably reproduce an exact
+    # tie once the comparison switched to st_mtime_ns.
+    tied_mtime_ns = (memory_dir / "phase-0.md").stat().st_mtime_ns
+    os.utime(stale_gherkin, ns=(tied_mtime_ns, tied_mtime_ns))
 
     resolved, highest, complete = resolve_with_phase3_correction(memory_dir)
 
@@ -233,12 +237,60 @@ def test_prune_stale_tokens_treats_tied_mtime_token_as_stale(tmp_path):
     memory_dir = _make_phase_files(tmp_path / "my-repo", "9")
     stale_phase9 = memory_dir / "phase-9.md"
     (memory_dir / "phase-0.md").write_text("binding_mode: none\n", encoding="utf-8")
-    tied_mtime = (memory_dir / "phase-0.md").stat().st_mtime
-    os.utime(stale_phase9, (tied_mtime, tied_mtime))
+    # Round 13 follow-up: nanosecond-precision tie, matching the
+    # comparison this function now uses -- see the sibling gherkin test
+    # above for why a float-precision os.utime() no longer suffices.
+    tied_mtime_ns = (memory_dir / "phase-0.md").stat().st_mtime_ns
+    os.utime(stale_phase9, ns=(tied_mtime_ns, tied_mtime_ns))
 
     pruned = prune_stale_tokens(memory_dir, scan_phase_files(memory_dir))
 
     assert pruned == ["0"]
+
+
+def test_prune_stale_tokens_keeps_a_fast_write_on_a_coarse_mtime_filesystem(
+    tmp_path, monkeypatch
+):
+    """Review fix (issue #2094 follow-up, round 13): the strict `>`
+    comparison (round 11) fixed the stale-leftover-ties-fresh-write
+    direction, but on a COARSE (e.g. second-resolution) `st_mtime`
+    comparison it broke the opposite one -- a genuinely fresh phase file
+    written moments after phase-0.md, whose float `st_mtime` happens to
+    round to the identical value as phase-0.md's, would be wrongly pruned
+    as stale. On this dev machine's own filesystem a real gap of even a
+    few hundred nanoseconds is already distinguishable via `st_mtime`
+    (verified: float precision at Unix-epoch magnitude resolves sub-
+    microsecond), so reproducing the coarse-filesystem case requires
+    faking `.stat()` directly rather than relying on real timing -- this
+    fakes an `st_mtime` TIE with a genuinely different `st_mtime_ns`,
+    proving the round-13 fix (comparing nanoseconds) keeps the fresh file
+    where a `st_mtime`-only comparison would have pruned it."""
+    memory_dir = _make_phase_files(tmp_path / "my-repo", "0", "2")
+    (memory_dir / "phase-0.md").write_text("binding_mode: none\n", encoding="utf-8")
+
+    real_stat = Path.stat
+    tied_float_mtime = 1_700_000_000.0
+
+    class _FakeStat:
+        def __init__(self, mtime_ns: int) -> None:
+            self.st_mtime = tied_float_mtime  # identical for both files
+            self.st_mtime_ns = mtime_ns
+
+    def _coarse_stat(self, *args, **kwargs):
+        if self.name == "phase-0.md":
+            return _FakeStat(1_700_000_000_000_000_000)
+        if self.name == "phase-2.md":
+            # Genuinely later, but its float st_mtime rounds/truncates to
+            # the SAME value as phase-0.md's on this fake coarse
+            # filesystem -- only st_mtime_ns can tell them apart.
+            return _FakeStat(1_700_000_000_500_000_000)
+        return real_stat(self, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "stat", _coarse_stat)
+
+    pruned = prune_stale_tokens(memory_dir, scan_phase_files(memory_dir))
+
+    assert pruned == ["0", "2"]
 
 
 def test_prune_stale_tokens_fails_open_on_os_error(tmp_path, monkeypatch):

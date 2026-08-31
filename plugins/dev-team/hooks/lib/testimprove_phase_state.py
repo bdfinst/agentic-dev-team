@@ -165,6 +165,26 @@ def prune_stale_tokens(memory_dir: Path, tokens: list[str]) -> list[str]:
     lifetime — the exact bug this function exists to fix, just at the
     boundary case rather than the general one.
 
+    Review fix (issue #2094 follow-up, round 13): compares `st_mtime_ns`
+    (nanosecond-resolution integer), not `st_mtime` (a second-resolution-
+    or-coarser float on some filesystems). The strict `>` above closes the
+    "stale leftover ties a freshly-rewritten phase-0.md" failure mode, but
+    on a genuinely coarse-mtime filesystem (1s resolution — some
+    network/overlay filesystems used in CI) it opened the OPPOSITE one: a
+    real phase file written moments after `phase-0.md`, in a fast-running
+    non-reset run, could land in the SAME second and get wrongly pruned as
+    stale, causing the guard to block the legitimate next Read. Comparing
+    nanoseconds instead of seconds shrinks that tie window from "anything
+    in the same second" to "anything within the filesystem's actual mtime
+    granularity" — on most modern filesystems (ext4, APFS, NTFS) that
+    granularity is sub-microsecond, so a real two-step write sequence
+    essentially never ties. A residual risk remains only on filesystems
+    whose native mtime granularity is coarser than that (declared,
+    accepted residual — matching this module's existing precedent for
+    narrow filesystem-dependent edge cases; a signal independent of mtime
+    entirely, e.g. a persisted per-run sequence counter, would close it
+    fully but is a larger design change than this issue's scope).
+
     Best-effort: any `OSError` from `.stat()` (e.g. a concurrent
     `/test-improve` reset deleting a phase file between the caller's
     `scan_phase_files()` listdir and this function's stat calls) returns
@@ -176,11 +196,12 @@ def prune_stale_tokens(memory_dir: Path, tokens: list[str]) -> list[str]:
     if "0" not in tokens:
         return tokens
     try:
-        phase0_mtime = (memory_dir / "phase-0.md").stat().st_mtime
+        phase0_mtime_ns = (memory_dir / "phase-0.md").stat().st_mtime_ns
         return [
             token
             for token in tokens
-            if token == "0" or (memory_dir / f"phase-{token}.md").stat().st_mtime > phase0_mtime
+            if token == "0"
+            or (memory_dir / f"phase-{token}.md").stat().st_mtime_ns > phase0_mtime_ns
         ]
     except OSError:
         return tokens
@@ -369,6 +390,14 @@ def _gherkin_done_for_this_run(memory_dir: Path) -> bool:
     whose mtime merely TIES it cannot be this run's own artifact (a real
     risk under coarse-grained filesystem timestamps) — treating a tie as
     "done" would silently skip the mandatory Gherkin-derivation step.
+    Mirrors `prune_stale_tokens`'s round-13 follow-up too: compares
+    `st_mtime_ns`, not `st_mtime`, to shrink the tie window from
+    "same second" to the filesystem's actual mtime granularity — the
+    strict `>` above closes the stale-leftover-ties-fresh-write direction,
+    but on a second-resolution filesystem it opened the opposite one (a
+    genuinely fresh `gherkin.md` written moments after `phase-0.md` in the
+    same second getting wrongly treated as not-done); see
+    `prune_stale_tokens`'s own docstring for the full trade-off.
     Best-effort: `phase-0.md` missing (nothing to anchor freshness to) or
     either `.stat()` racing a live `/test-improve` process is treated as
     "not confirmed done" (`False`), matching this function's existing
@@ -378,6 +407,6 @@ def _gherkin_done_for_this_run(memory_dir: Path) -> bool:
     try:
         if not gherkin.exists() or not phase0.exists():
             return False
-        return gherkin.stat().st_mtime > phase0.stat().st_mtime
+        return gherkin.stat().st_mtime_ns > phase0.stat().st_mtime_ns
     except OSError:
         return False
