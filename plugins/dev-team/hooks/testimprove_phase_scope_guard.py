@@ -274,12 +274,25 @@ def _find_in_flight_slugs(project_dir: Path) -> list[tuple[str, list[str]]]:
                 # don't treat the report as confirmed-fresher — fail open
                 # by NOT masking this slug (safer than crashing the whole
                 # multi-slug scan over one slug's race).
+                #
+                # Review fix (issue #2094 follow-up, round 14): compares
+                # st_mtime_ns with strict `>`, not st_mtime (float,
+                # potentially second-resolution) with `>=` — the same
+                # coarse-mtime-tie hardening round 13 already applied to
+                # prune_stale_tokens/_gherkin_done_for_this_run, missed
+                # here. A tie under the old `>=` masks (excludes) a
+                # genuinely in-flight slug as if a report already covers
+                # its current phase files — the "guard silently disabled"
+                # failure direction this whole issue exists to prevent, so
+                # strict `>` (favoring "still in-flight" on ambiguity) is
+                # the same safer default chosen everywhere else in this
+                # diff.
                 try:
-                    newest_report = max(f.stat().st_mtime for f in report_files)
-                    newest_phase = max(
-                        (entry / f"phase-{t}.md").stat().st_mtime for t in tokens
+                    newest_report_ns = max(f.stat().st_mtime_ns for f in report_files)
+                    newest_phase_ns = max(
+                        (entry / f"phase-{t}.md").stat().st_mtime_ns for t in tokens
                     )
-                    masked = newest_report >= newest_phase
+                    masked = newest_report_ns > newest_phase_ns
                 except OSError:
                     masked = False
                 if masked:
@@ -375,7 +388,17 @@ def _resolve_active_phase(
             # branch below, the same asymmetry the Phase-3 check above
             # already guards against.
             return None, highest, REASON_MALFORMED_PHASE0
-        if refactor_mode == "refactor-allowed" and not (memory_dir / "phase-7.md").exists():
+        # Review fix (issue #2094 follow-up, round 14): checks membership in
+        # `tokens` (already freshness-pruned by the caller), not a raw
+        # `.exists()` on disk. SKILL.md's documented reset flow deletes
+        # ONLY phase-0.md, leaving phase-1..9.md from a PRIOR run in place
+        # — a stale leftover phase-7.md would `.exists()` even though
+        # pruning already correctly excluded "7" from `tokens` (which is
+        # why `highest == "6"` in the first place). The old `.exists()`
+        # check would then wrongly skip this ambiguous branch and fall
+        # through to phase "8", blocking a legitimate current-run Read of
+        # phase-7-refactor.md instead of failing open.
+        if refactor_mode == "refactor-allowed" and "7" not in tokens:
             return None, highest, REASON_PHASE_6_7_AMBIGUOUS
 
     return resolved, highest, f"latest completed: phase-{highest}.md"

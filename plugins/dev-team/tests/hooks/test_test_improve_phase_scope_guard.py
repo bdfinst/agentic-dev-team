@@ -258,6 +258,62 @@ def test_stale_report_from_prior_completed_run_does_not_mask_fresh_run(
     assert result.slug == "my-repo"
 
 
+def test_report_tied_with_newest_phase_file_does_not_mask_in_flight_run(
+    tmp_path,
+) -> None:
+    """Review fix (issue #2094 follow-up, round 14): the report-vs-phase-
+    file freshness comparison used `>=` on second-resolution `st_mtime` —
+    the same coarse-mtime-tie hardening round 13 already applied to
+    prune_stale_tokens/_gherkin_done_for_this_run, missed here. A report
+    whose mtime TIES the newest phase file's must not mask (exclude) a
+    genuinely in-flight run — masking on a tie is the "guard silently
+    disabled" failure direction this whole issue exists to prevent."""
+    my_repo = _make_phase_files(_memory_root(tmp_path) / "my-repo", "0", "2")
+    _write_phase0(my_repo, "none")
+    report_dir = tmp_path / ".dev-team-reports" / "test-improve" / "my-repo"
+    report_dir.mkdir(parents=True)
+    report = report_dir / "report-2026-01-01.md"
+    report.write_text("done\n", encoding="utf-8")
+    newest_phase_ns = max(f.stat().st_mtime_ns for f in my_repo.glob("phase-*.md"))
+    os.utime(report, ns=(newest_phase_ns, newest_phase_ns))
+
+    result = guard._resolve(tmp_path)
+
+    assert result.status == "ok"
+    assert result.slug == "my-repo"
+
+
+def test_phase6_stale_leftover_phase7_from_prior_run_is_still_ambiguous(
+    tmp_path,
+) -> None:
+    """Review fix (issue #2094 follow-up, round 14): the Phase-6/7 check
+    used a raw `.exists()` on phase-7.md instead of checking the caller's
+    already freshness-pruned `tokens` list. SKILL.md's documented reset
+    flow deletes ONLY phase-0.md, leaving phase-1..9.md from a PRIOR run
+    in place — a stale leftover phase-7.md from that prior run would
+    `.exists()` even though pruning already excluded "7" from `tokens`
+    (why `highest == "6"` at all), wrongly resolving this as NOT ambiguous
+    and falling through to phase 8 instead of failing open."""
+    slug_dir = _memory_root(tmp_path) / "my-repo"
+    slug_dir.mkdir(parents=True)
+    stale_phase7 = slug_dir / "phase-7.md"
+    stale_phase7.write_text("done\n", encoding="utf-8")
+    an_hour_ago = stale_phase7.stat().st_mtime - 3600
+    os.utime(stale_phase7, (an_hour_ago, an_hour_ago))
+    # This run's OWN genuine progress: phase-0.md written first (always the
+    # start of a real run) and AFTER the stale phase-7.md leftover, then
+    # phase-2/1/4/5/6.md following it -- all this run's own fresh progress.
+    (slug_dir / "phase-0.md").write_text(
+        "refactor-mode: refactor-allowed\n", encoding="utf-8"
+    )
+    _make_phase_files(slug_dir, "2", "1", "4", "5", "6")
+
+    result = guard._resolve(tmp_path)
+
+    assert result.status == "none_in_flight"
+    assert result.reason == guard.REASON_PHASE_6_7_AMBIGUOUS
+
+
 # --- Review fix: legacy (pre-.claude/-scoped) memory tree migration -----
 
 
