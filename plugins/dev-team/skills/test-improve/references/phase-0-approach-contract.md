@@ -82,6 +82,23 @@ silent surprise.
 3. **Refactor mode** — `[no-refactor]`. Default is **`no-refactor`**. Choose
    `refactor-allowed` to permit production-code changes in Phase 7 (seams
    only; existing tests may not be modified or removed).
+
+   **Persisted key.** `/test-improve` persists the resolved value in
+   `phase-0.md` on its own line, using the literal key `refactor-mode` —
+   an explicit `key: value` line, the same convention `binding_mode`
+   above uses (review fix, issue #2094 follow-up, round 21: this knob
+   previously named its two legal values in prose only, with no
+   equivalent callout instructing the Phase-0 writer to persist a
+   line-anchored `key: value` pair — `hooks/testimprove_phase_scope_guard.py`'s
+   `_parse_refactor_mode` is strict, line-anchored, closed-set validated,
+   so any other prose shape parses as absent and fails the guard open
+   across the whole Phase 6→7/8 transition):
+
+   ```
+   refactor-mode: no-refactor
+   ```
+
+   (or `refactor-mode: refactor-allowed`, depending on the resolved mode).
 4. **Quality targets** — defaults: coverage ≥ 90% line + branch; surviving
    mutants = 0 (only when mutation mode is not `off`); determinism = 100%; wall-clock =
    fastest achievable. Any target can be overridden here; overrides land in

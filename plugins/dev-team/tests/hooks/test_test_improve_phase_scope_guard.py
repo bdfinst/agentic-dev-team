@@ -69,6 +69,32 @@ def test_contract_docs_example_value_parses_via_the_real_parser() -> None:
     assert guard._parse_binding_mode(example_line) == "xunit-with-annotations"
 
 
+def test_contract_doc_states_the_refactor_mode_key() -> None:
+    """Review fix (issue #2094 follow-up, round 21): mirrors the
+    binding_mode doc-pin test above -- refactor-mode's "Persisted key"
+    callout must exist and name its key/value shape, just like
+    binding_mode's does."""
+    text = _CONTRACT_DOC.read_text(encoding="utf-8")
+    assert f"{guard.REFACTOR_MODE_KEY}:" in text
+    key_index = text.index(f"{guard.REFACTOR_MODE_KEY}:")
+    nearby = text[key_index : key_index + 400]
+    for token in ("no-refactor", "refactor-allowed"):
+        assert token in nearby
+
+
+def test_contract_docs_refactor_mode_example_parses_via_the_real_parser() -> None:
+    """Integration companion to the binding_mode test above -- extract the
+    doc's own documented refactor-mode example and feed it through the
+    hook's real parsing function."""
+    text = _CONTRACT_DOC.read_text(encoding="utf-8")
+    example_line = next(
+        line
+        for line in text.splitlines()
+        if line.strip() == f"{guard.REFACTOR_MODE_KEY}: no-refactor"
+    )
+    assert guard._parse_refactor_mode(example_line) == "no-refactor"
+
+
 # --- Step 2.2: deliberate-failure test (red before Step 2.3/2.4 exist) --
 
 
@@ -547,6 +573,38 @@ def test_sanitize_for_message_truncation_marker_is_ascii_only() -> None:
     sanitized.encode("ascii")  # must not raise
 
 
+class _AsciiOnlyStream:
+    """Simulates a real non-UTF-8 (e.g. legacy Windows codepage, or
+    `LC_ALL=POSIX`) stdout/stderr: `.write()` raises `UnicodeEncodeError`
+    on any non-ASCII content, exactly like the real thing would."""
+
+    def __init__(self) -> None:
+        self.encoding = "ascii"
+        self.written: list[str] = []
+
+    def write(self, s: str) -> None:
+        s.encode("ascii")
+        self.written.append(s)
+
+
+def test_safe_write_line_falls_back_on_a_non_utf8_stream(monkeypatch) -> None:
+    """Review fix (issue #2094 follow-up, round 21): `_sanitize_for_message`
+    only sanitizes control characters and its own truncation marker (fixed
+    rounds 15/18) -- it does NOT strip arbitrary legitimate non-ASCII in
+    the value itself (`result.slug`/`file_path` can carry a real repo path
+    containing e.g. accented characters). `main()`'s message-emission loop
+    sits outside its own fail-open `try/except`, so a plain `print()`/
+    `stream.write()` on such a value would raise `UnicodeEncodeError`
+    uncaught on a non-UTF-8 stream, crashing the hook on its own BLOCK
+    path. `_safe_write_line` must fall back instead of raising."""
+    stream = _AsciiOnlyStream()
+
+    guard._safe_write_line(stream, "café mixed")
+
+    assert len(stream.written) == 1
+    assert stream.written[0].encode("ascii")  # must not raise
+
+
 def test_sanitize_for_message_strips_lone_surrogates(tmp_path) -> None:
     """Review fix (issue #2094 follow-up, round 15): `result.slug` and
     `file_path` can originate from a real on-disk directory/file name --
@@ -662,7 +720,16 @@ def test_malformed_phase0_fails_open_with_audit_at_evaluate_level(tmp_path) -> N
 def test_windows_backslash_separated_path_is_recognized(tmp_path) -> None:
     """Fix #16: `evaluate()`'s backslash-to-forward-slash normalization
     (Windows-style separators) has direct test coverage — a backslash path
-    to the ACTIVE phase's own reference file is allowed."""
+    to the ACTIVE phase's own reference file is allowed. On POSIX (this
+    dev machine / CI), `os.name != "nt"`, so the normalization does not
+    run and this backslash path legitimately fails to match at all --
+    `evaluate()` returns `(0, [])` via the unmatched/no-op path, which
+    happens to equal what a matched-and-allowed read also returns. See
+    `test_normalize_path_separators_only_runs_on_windows` below for the
+    real regression coverage of the Windows-only normalization itself --
+    Python 3.14+ refuses to instantiate `WindowsPath` on a non-Windows
+    interpreter at all, so this end-to-end shape cannot exercise the real
+    Windows code path on this dev machine or CI runner."""
     _make_phase_files(_memory_root(tmp_path) / "my-repo", "0", "2", "1", "4")
 
     code, lines = guard.evaluate(
@@ -670,6 +737,29 @@ def test_windows_backslash_separated_path_is_recognized(tmp_path) -> None:
     )
 
     assert (code, lines) == (0, [])
+
+
+def test_normalize_path_separators_only_runs_on_windows(monkeypatch) -> None:
+    """Review fix (issue #2094 follow-up, round 21): direct unit coverage
+    of `_normalize_path_separators`, extracted specifically because
+    `_match_phase_reference`'s end-to-end shape (above) cannot prove this
+    on a POSIX dev machine/CI runner -- `pathlib.Path` on Python 3.14+
+    raises `pathlib.UnsupportedOperation` when asked to instantiate
+    `WindowsPath` on a non-Windows interpreter, so monkeypatching
+    `os.name` and running the real `Path(...).resolve()` call is no
+    longer viable there. This pure string transformation has no such
+    restriction and is the only thing that can still be tested."""
+    monkeypatch.setattr(guard.os, "name", "nt")
+    assert (
+        guard._normalize_path_separators("skills\\test-improve\\phase-5.md")
+        == "skills/test-improve/phase-5.md"
+    )
+
+    monkeypatch.setattr(guard.os, "name", "posix")
+    assert (
+        guard._normalize_path_separators("skills\\test-improve\\phase-5.md")
+        == "skills\\test-improve\\phase-5.md"
+    )
 
 
 # --- Fix #1 (domain-review): guard and test_improve_resume agree on the ---

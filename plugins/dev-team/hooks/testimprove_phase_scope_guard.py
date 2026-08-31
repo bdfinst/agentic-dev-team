@@ -254,6 +254,31 @@ def _sanitize_for_message(value: str | None) -> str:
     return cleaned
 
 
+def _safe_write_line(stream, line: str) -> None:
+    """Write `line` + a newline to `stream`, never raising on encoding.
+
+    Review fix (issue #2094 follow-up, round 21): rounds 15 and 18 each
+    patched ONE non-ASCII source feeding `main()`'s message-emission loop
+    (a lone surrogate, then the truncation marker) — but `_sanitize_for_
+    message` only sanitizes control characters and its OWN marker, not
+    arbitrary legitimate non-ASCII in the value itself (`result.slug`,
+    `file_path` can both carry a real repo path containing e.g. accented
+    characters). On a non-UTF-8 stdout/stderr (a legacy Windows codepage,
+    `LC_ALL=POSIX`), `print()`/`sys.stderr.write()` on such a value still
+    raises `UnicodeEncodeError` uncaught — this loop sits OUTSIDE `main()`'s
+    own fail-open `try/except`. Rather than patch a fourth specific
+    non-ASCII source, this closes the whole class at the one write site:
+    on an encoding failure, re-encode with `backslashreplace` against the
+    stream's own reported encoding (falling back to `ascii` if the stream
+    reports none), which can represent any code point and therefore cannot
+    itself raise `UnicodeEncodeError`."""
+    try:
+        stream.write(line + "\n")
+    except UnicodeEncodeError:
+        encoding = getattr(stream, "encoding", None) or "ascii"
+        stream.write((line + "\n").encode(encoding, errors="backslashreplace").decode(encoding))
+
+
 class ActivePhaseResult(NamedTuple):
     """The outcome of resolving `/test-improve`'s single active phase.
 
@@ -301,12 +326,20 @@ def _find_in_flight_slugs(project_dir: Path) -> list[tuple[str, list[str]]]:
     candidate, instead of re-scanning that same directory a second time.
 
     A slug is EXCLUDED when `resolve_with_phase3_correction`'s underlying
-    `complete` flag (keyed on `phase-9.md`, via `testimprove_phase_state`)
-    says the run is done — the primary completion signal — or, defensively,
+    `complete` flag (keyed on `phase-9.md`'s presence in the already
+    freshness-pruned `tokens`, via `testimprove_phase_state`) says the run
+    is done — the primary completion signal, checked via `if complete:
+    continue` BEFORE the report check below ever runs — or, defensively,
     when a completed report belonging to the CURRENT phase files already
-    exists at `.dev-team-reports/test-improve/<slug>/report-*.md` (the
-    narrow window between `phase-9.md` landing and the report file being
-    written; never an independent definition of "complete" on its own).
+    exists at `.dev-team-reports/test-improve/<slug>/report-*.md`. Review
+    fix (issue #2094 follow-up, round 21): this docstring previously
+    described the report check as covering "the narrow window between
+    phase-9.md landing and the report file being written" — backwards:
+    since `complete` already excludes every slug where `phase-9.md` IS
+    present in `tokens`, the report check below only ever runs when
+    `phase-9.md` is ABSENT from tokens (never written, or pruned as a
+    stale leftover from a prior run per `_prune_stale_tokens`) — it is
+    never an independent definition of "complete" on its own.
     "Belonging to the current phase files" is judged by mtime — review fix
     (issue #2094 follow-up): an unscoped "does ANY report ever exist for
     this slug" check let a report from a PRIOR, wholly separate completed
@@ -439,10 +472,16 @@ def _resolve_active_phase(
       (non-ambiguous) resolution on a garbled/missing file.
     - `reason == REASON_PHASE_6_7_AMBIGUOUS` when the highest completed
       phase is `"6"`, `refactor-mode: refactor-allowed` is recorded, and
-      `phase-7.md` doesn't exist yet — unlike Phase 3 (a clean
-      `binding_mode` + `gherkin.md` signal), whether Phase 7 will run next
-      is genuinely undecidable from persisted state alone (the `[y/b/q]`
-      decision is not itself persisted).
+      `"7"` is not in the (freshness-pruned) `tokens` — review fix (issue
+      #2094 follow-up, round 21): this docstring previously said `phase-
+      7.md doesn't exist yet`, describing a bare `.exists()` check; round
+      14 fixed the check itself to use pruned-`tokens` membership instead
+      (a stale leftover `phase-7.md` from a prior run would `.exists()`
+      even after being correctly pruned out of `tokens`), but this prose
+      was never updated to match. Unlike Phase 3 (a clean `binding_mode` +
+      `gherkin.md` signal), whether Phase 7 will run next is genuinely
+      undecidable from persisted state alone (the `[y/b/q]` decision is
+      not itself persisted).
 
     When the highest completed phase is `"2"` (Baseline), Phase 3 (Derive
     Gherkin — no numbered progress file of its own) may be the active phase
@@ -604,6 +643,30 @@ def _references_dir() -> Path:
     return (_plugin_root() / "skills" / "test-improve" / "references").resolve()
 
 
+def _normalize_path_separators(file_path: str) -> str:
+    """Backslash-to-forward-slash normalization for `_match_phase_reference`,
+    Windows-only (`os.name == "nt"`).
+
+    Review fix (issue #2094 follow-up, round 20): gated to Windows because
+    backslash is a legal filename byte on POSIX — applying this
+    unconditionally could mangle a POSIX `file_path` that genuinely
+    contains one into a DIFFERENT, likely non-existent path, causing the
+    containment check to miss the match and this function to return `None`
+    (unguarded) while the real Read still delivers the actual (unmangled)
+    file's content with no audit trail — the same silent-bypass shape
+    round 16 already fixed once, via a different mechanism.
+
+    Extracted to its own function (round 21) so it's unit-testable
+    directly: `pathlib.Path` on Python 3.14+ refuses to instantiate
+    `WindowsPath` on a non-Windows interpreter at all
+    (`pathlib.UnsupportedOperation`), so a test can no longer fake
+    `os.name == "nt"` and exercise the real Windows code path through
+    `_match_phase_reference`'s `Path(...).resolve()` call on a POSIX dev
+    machine/CI runner — only this pure string transformation can still be
+    tested there."""
+    return file_path.replace("\\", "/") if os.name == "nt" else file_path
+
+
 def _match_phase_reference(file_path: str) -> str | None:
     """Return the phase number when `file_path` names a real file directly
     inside this plugin's own `skills/test-improve/references/` directory
@@ -664,7 +727,7 @@ def _match_phase_reference(file_path: str) -> str | None:
     # still delivers the actual (unmangled) file's content with no audit
     # trail -- the same silent-bypass shape round 16 already fixed once,
     # via a different mechanism.
-    normalized = file_path.replace("\\", "/") if os.name == "nt" else file_path
+    normalized = _normalize_path_separators(file_path)
     try:
         candidate = Path(normalized).expanduser()
         if not candidate.is_absolute():
@@ -814,13 +877,13 @@ def main() -> int:
         )
         return 0
     for line in lines:
-        print(line)
+        _safe_write_line(sys.stdout, line)
         if exit_code == 2:
             # docs/python-hook-contract.md's dual-write rule: mirror exit-2
             # block messages to stderr in addition to stdout, since some
             # Claude Code hook-error wrappers surface only stderr on a
             # nonzero hook exit.
-            sys.stderr.write(line + "\n")
+            _safe_write_line(sys.stderr, line)
     return exit_code
 
 
