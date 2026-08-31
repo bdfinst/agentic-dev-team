@@ -261,9 +261,28 @@ def _find_in_flight_slugs(project_dir: Path) -> list[tuple[str, list[str]]]:
         if report_dir.is_dir():
             report_files = list(report_dir.glob("report-*.md"))
             if report_files:
-                newest_report = max(f.stat().st_mtime for f in report_files)
-                newest_phase = max((entry / f"phase-{t}.md").stat().st_mtime for t in tokens)
-                if newest_report >= newest_phase:
+                # Review fix (issue #2094 follow-up, round 12): these two
+                # .stat() calls had no OSError guard, unlike every other
+                # freshness-comparison stat call this diff added elsewhere
+                # (_prune_stale_tokens, _gherkin_done_for_this_run). A race
+                # here (e.g. a concurrent /test-improve process rewriting a
+                # phase file between this loop's earlier scan_phase_files()
+                # and this block's .stat()) would propagate uncaught into
+                # main()'s top-level catch-all, which still fails open but
+                # replaces this slug's specific reasoning with a generic
+                # "internal error" audit line. Best-effort: on a race,
+                # don't treat the report as confirmed-fresher — fail open
+                # by NOT masking this slug (safer than crashing the whole
+                # multi-slug scan over one slug's race).
+                try:
+                    newest_report = max(f.stat().st_mtime for f in report_files)
+                    newest_phase = max(
+                        (entry / f"phase-{t}.md").stat().st_mtime for t in tokens
+                    )
+                    masked = newest_report >= newest_phase
+                except OSError:
+                    masked = False
+                if masked:
                     continue
         if "0" in tokens:
             with_phase0.append((entry.name, tokens))

@@ -552,6 +552,99 @@ class TestNoNewlineCrossingKvRegex:
         assert len(findings) == 1
         assert findings[0]["file"] == "plugins/dev-team/scripts/rogue_inline_flag_kv.py"
 
+    def test_flags_a_vulnerable_regex_using_plus_quantifier(self, tmp_path, monkeypatch):
+        """Review fix (issue #2094 follow-up, round 12): `\\s+` (one-or-more)
+        is exactly as vulnerable as `\\s*` (zero-or-more) -- both cross a
+        newline -- but the shape originally required an exact `*` literal
+        and missed `+`."""
+        repo_root = tmp_path / "repo"
+        scripts_dir = repo_root / "plugins" / "dev-team" / "scripts"
+        scripts_dir.mkdir(parents=True)
+        rogue = scripts_dir / "rogue_plus_quantifier_kv.py"
+        rogue.write_text(
+            'import re\n_RE = re.compile(r"^key:\\s+(\\S+)", re.MULTILINE)\n',
+            encoding="utf-8",
+        )
+        monkeypatch.setattr(repo_invariants, "_REPO_ROOT", repo_root)
+
+        findings = repo_invariants.check_no_newline_crossing_kv_regex()
+
+        assert len(findings) == 1
+        assert findings[0]["file"] == "plugins/dev-team/scripts/rogue_plus_quantifier_kv.py"
+
+    def test_flags_a_vulnerable_regex_using_re_m_alias(self, tmp_path, monkeypatch):
+        """Review fix (issue #2094 follow-up, round 12): `re.M` is the same
+        flag as `re.MULTILINE` under a shorter alias -- the original
+        co-occurrence check recognized only the literal `MULTILINE` text and
+        would miss a regex declaring `re.M` instead."""
+        repo_root = tmp_path / "repo"
+        scripts_dir = repo_root / "plugins" / "dev-team" / "scripts"
+        scripts_dir.mkdir(parents=True)
+        rogue = scripts_dir / "rogue_re_m_alias_kv.py"
+        rogue.write_text(
+            'import re\n_RE = re.compile(r"^key:\\s*(\\S+)", re.M)\n',
+            encoding="utf-8",
+        )
+        monkeypatch.setattr(repo_invariants, "_REPO_ROOT", repo_root)
+
+        findings = repo_invariants.check_no_newline_crossing_kv_regex()
+
+        assert len(findings) == 1
+        assert findings[0]["file"] == "plugins/dev-team/scripts/rogue_re_m_alias_kv.py"
+
+    def test_ignores_re_match_as_a_false_positive_for_the_re_m_alias(
+        self, tmp_path, monkeypatch
+    ):
+        """`re.Match` (a type name) contains the substring `re.M` but is not
+        the `re.M` flag alias -- the word-bounded alias check must not
+        false-positive on it."""
+        repo_root = tmp_path / "repo"
+        scripts_dir = repo_root / "plugins" / "dev-team" / "scripts"
+        scripts_dir.mkdir(parents=True)
+        (scripts_dir / "safe_re_match_kv.py").write_text(
+            'import re\n_RE = re.compile(r"^key:\\s*(\\S+)")\n'
+            "def f(m: re.Match) -> None: ...\n",
+            encoding="utf-8",
+        )
+        monkeypatch.setattr(repo_invariants, "_REPO_ROOT", repo_root)
+
+        assert repo_invariants.check_no_newline_crossing_kv_regex() == []
+
+    def test_flags_a_vulnerable_regex_written_as_a_non_raw_double_escaped_string(
+        self, tmp_path, monkeypatch
+    ):
+        """Review fix (issue #2094 follow-up, round 12): a NON-raw string
+        literal escapes each backslash as two characters on disk -- source
+        text `"key:\\\\s*(\\\\S+)"` has TWO literal backslash characters
+        before `s` and before `S`, not one, which the original
+        single-backslash-only shape missed entirely despite being exactly
+        as vulnerable at runtime (Python parses `"\\\\s"` to the same
+        single-backslash string value as `r"\\s"`)."""
+        repo_root = tmp_path / "repo"
+        scripts_dir = repo_root / "plugins" / "dev-team" / "scripts"
+        scripts_dir.mkdir(parents=True)
+        rogue = scripts_dir / "rogue_non_raw_kv.py"
+        # Built from a literal double-backslash (chr(92) * 2), not a nested
+        # string-escaping literal, so the on-disk byte count is unambiguous.
+        two_backslashes = chr(92) * 2
+        source = (
+            "import re\n"
+            f'_RE = re.compile("^key:{two_backslashes}s*('
+            f'{two_backslashes}S+)", re.MULTILINE)\n'
+        )
+        rogue.write_text(source, encoding="utf-8")
+        # Sanity-check the fixture actually wrote two backslashes per
+        # escape (the double-escaped source form), not one.
+        written = rogue.read_text(encoding="utf-8")
+        assert f"key:{two_backslashes}s*({two_backslashes}S" in written
+
+        monkeypatch.setattr(repo_invariants, "_REPO_ROOT", repo_root)
+
+        findings = repo_invariants.check_no_newline_crossing_kv_regex()
+
+        assert len(findings) == 1
+        assert findings[0]["file"] == "plugins/dev-team/scripts/rogue_non_raw_kv.py"
+
     def test_ignores_a_bounded_capture_shape(self, tmp_path, monkeypatch):
         """`(.*)$` in re.MULTILINE mode is a materially different shape
         this check does not target (see the check's own scope note) --

@@ -696,7 +696,26 @@ def check_transcript_parsing_confined_to_session_log(changed_files=None) -> list
 #: this check additionally requires that co-occurrence rather than flagging
 #: the shape alone (verified empirically: zero false positives against the
 #: real repo with this narrowing, vs. two with the shape alone).
-_NEWLINE_CROSSING_KV_RE = re.compile(re.escape(":" + "\\s*(" + "\\S"))
+#:
+#: Review fix (issue #2094 follow-up, round 12): the shape used to require
+#: an exact single-backslash `\s*` before the capture group. Two further
+#: gaps, both verified by construction: (1) `\s+` (one-or-more) is exactly
+#: as vulnerable as `\s*` (zero-or-more) — both cross a newline — but was
+#: never matched; (2) a NON-raw string literal escapes each backslash as
+#: two characters on disk (`"key:\\s*(\\S+)"` is four literal source
+#: characters between the colon and `s`, not one), which the original
+#: single-backslash-only shape also missed. `_BACKSLASH_STYLES` covers
+#: both the raw (one backslash) and non-raw (two backslash) source forms;
+#: `_QUANTIFIERS` covers both `*` and `+`.
+_QUANTIFIERS = ("*", "+")
+_BACKSLASH_STYLES = ("\\", "\\\\")
+_NEWLINE_CROSSING_KV_RE = re.compile(
+    "|".join(
+        re.escape(":" + bs + "s" + q + "(" + bs + "S")
+        for bs in _BACKSLASH_STYLES
+        for q in _QUANTIFIERS
+    )
+)
 
 #: How far past the vulnerable shape to look for a co-occurring
 #: `re.MULTILINE`. Generous enough to span a `re.compile(` call wrapped
@@ -704,6 +723,16 @@ _NEWLINE_CROSSING_KV_RE = re.compile(re.escape(":" + "\\s*(" + "\\S"))
 #: closing paren on a third) without reaching into an unrelated following
 #: statement in this repo's actual code density.
 _MULTILINE_WINDOW_CHARS = 150
+
+#: The `re.M` alias for `re.MULTILINE` (review fix, issue #2094 follow-up,
+#: round 12) — word-bounded so it does not false-positive on an unrelated
+#: `re.M`-prefixed identifier such as `re.Match` or `re.MULTILINE` itself
+#: (already covered by the plain `"MULTILINE" in window` substring check).
+_RE_M_ALIAS_RE = re.compile(r"\bre\.M\b")
+
+
+def _window_has_multiline_marker(window: str) -> bool:
+    return "MULTILINE" in window or "(?m)" in window or bool(_RE_M_ALIAS_RE.search(window))
 
 
 def check_no_newline_crossing_kv_regex(changed_files=None) -> list[dict]:
@@ -730,6 +759,16 @@ def check_no_newline_crossing_kv_regex(changed_files=None) -> list[dict]:
     own comment for why: this module's own source text must not
     accidentally self-match.)
 
+    Review fix (issue #2094 follow-up, round 12): three further gaps, all
+    verified by construction. `_NEWLINE_CROSSING_KV_RE` now also matches
+    the `\s+` quantifier (as vulnerable as `\s*` — both cross a newline)
+    and the non-raw double-backslash source form (see
+    `_NEWLINE_CROSSING_KV_RE`'s own updated comment). The MULTILINE-marker
+    window check (`_window_has_multiline_marker`) now also recognizes the
+    `re.M` alias, word-bounded so it does not false-positive on `re.Match`
+    or on `re.MULTILINE` itself (already covered by the plain substring
+    check).
+
     Corpus-wide by design, like `check_transcript_parsing_confined_to_session_log`
     — a stray instance of this shape is a real latent bug whether or not
     this changeset touched the file.
@@ -749,11 +788,8 @@ def check_no_newline_crossing_kv_regex(changed_files=None) -> list[dict]:
                 window_before = text[
                     max(0, match.start() - _MULTILINE_WINDOW_CHARS) : match.start()
                 ]
-                if (
-                    "MULTILINE" in window_after
-                    or "MULTILINE" in window_before
-                    or "(?m)" in window_after
-                    or "(?m)" in window_before
+                if _window_has_multiline_marker(window_after) or _window_has_multiline_marker(
+                    window_before
                 ):
                     findings.append(
                         {
