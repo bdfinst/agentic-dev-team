@@ -26,6 +26,21 @@ This is a `PreToolUse:Read`-only control: it does not, and cannot, see a
 file read performed via `Bash` (`cat`, `head`, etc.) or any other channel —
 that gap is a recorded, out-of-scope limitation for this issue, not an
 oversight.
+
+Review fix (issue #2094 follow-up, recorded rather than fixed here): this
+hook resolves the active phase PURELY from persisted state (`phase-0.md` +
+scanned progress files) — it has no visibility into an operator's explicit
+`/test-improve --from-phase <n>` override, because
+`scripts/test_improve_resume.py`'s `build_result()` never persists that
+override anywhere (`resolved_phase` is returned in its JSON payload only).
+An explicit override that diverges from this hook's own independently
+resolved active phase is therefore BLOCKED, not honored — the same
+enforcement this hook applies to every other Read, applied here too, even
+though the operator authorized the divergence on purpose. Properly
+resolving this requires `/test-improve`'s own orchestration to persist
+override intent somewhere this hook can read, which is a coordinated
+SKILL.md + hook change beyond this issue's scope (Read-gating from already-
+persisted state) — tracked as a follow-up rather than folded in here.
 """
 
 from __future__ import annotations
@@ -89,7 +104,9 @@ REFACTOR_MODE_KEY = "refactor-mode"
 #: `refactor-mode:` line (no value on it) capture an unrelated token from a
 #: LATER line as its value instead of failing to match at all (the identical
 #: defect `testimprove_phase_state._BINDING_MODE_RE` had).
-_REFACTOR_MODE_RE = re.compile(rf"^[ \t]*{REFACTOR_MODE_KEY}:[ \t]*(\S+)", re.MULTILINE)
+_REFACTOR_MODE_RE = re.compile(
+    rf"^[ \t]*{re.escape(REFACTOR_MODE_KEY)}:[ \t]*(\S+)", re.MULTILINE
+)
 
 #: The closed set of legal `refactor-mode` values (`phase-0-approach-contract.md`
 #: knob 3). Mirrors `testimprove_phase_state.VALID_BINDING_MODES`'s

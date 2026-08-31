@@ -164,7 +164,11 @@ boundary is undecidable from persisted state alone (`refactor-mode:
 refactor-allowed` recorded but `phase-7.md` not yet written), or in the
 narrow `--analyze-only` window nothing persisted distinguishes from the
 common case — see the hook's module docstring for the full resolution
-mechanics. This is a
+mechanics. The hook has no visibility into an explicit `--from-phase <n>`
+override (nothing persists that choice), so a deliberate override that
+diverges from the resolved active phase is BLOCKED like any other
+mismatched read, not honored — a known, recorded scope boundary, not an
+oversight. This is a
 `PreToolUse:Read`-only control: it cannot see a phase reference file read
 via `Bash` (`cat`, `head`, etc.) or any other channel, so the rule above
 still depends on actually using `Read` for these files.

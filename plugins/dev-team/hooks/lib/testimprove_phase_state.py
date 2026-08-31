@@ -171,7 +171,9 @@ VALID_BINDING_MODES = frozenset({"none", "xunit-with-annotations", "bdd-runner"}
 #: captured value is `[ \t]*`, not `\s*` — `\s` matches `\n`, so `\s*` let a
 #: truncated `binding_mode:` line (no value on it) capture an unrelated
 #: token from a LATER line as its value instead of failing to match at all.
-_BINDING_MODE_RE = re.compile(rf"^[ \t]*{BINDING_MODE_KEY}:[ \t]*(\S+)", re.MULTILINE)
+_BINDING_MODE_RE = re.compile(
+    rf"^[ \t]*{re.escape(BINDING_MODE_KEY)}:[ \t]*(\S+)", re.MULTILINE
+)
 
 
 def parse_binding_mode(text: str) -> str | None:
@@ -290,7 +292,31 @@ def resolve_with_phase3_correction(
         if (
             binding_mode is not None
             and binding_mode != "none"
-            and not (memory_dir / "gherkin.md").exists()
+            and not _gherkin_done_for_this_run(memory_dir)
         ):
             return "3", highest, False
     return resolved, highest, complete
+
+
+def _gherkin_done_for_this_run(memory_dir: Path) -> bool:
+    """`True` when `gherkin.md` exists AND is at least as new as
+    `phase-0.md` — review fix (issue #2094 follow-up): a bare `.exists()`
+    check let a STALE `gherkin.md` left over from a prior completed run
+    make the Phase-3 correction fall through to ordinary Phase-1
+    resolution, even though `phase-0.md`'s own (re)write (per the
+    documented "change Phase-0 answers" reset flow, which deletes ONLY
+    phase-0.md and leaves every other progress file in place) marks the
+    start of a genuinely new run that has not derived Gherkin yet. Mirrors
+    `testimprove_phase_scope_guard._prune_stale_tokens`'s freshness
+    principle. Best-effort: `phase-0.md` missing (nothing to anchor
+    freshness to) or either `.stat()` racing a live `/test-improve` process
+    is treated as "not confirmed done" (`False`), matching this function's
+    existing best-effort/fail-through design — never raises."""
+    gherkin = memory_dir / "gherkin.md"
+    phase0 = memory_dir / "phase-0.md"
+    try:
+        if not gherkin.exists() or not phase0.exists():
+            return False
+        return gherkin.stat().st_mtime >= phase0.stat().st_mtime
+    except OSError:
+        return False

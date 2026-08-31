@@ -162,6 +162,36 @@ def test_resolve_with_phase3_correction_skipped_when_gherkin_already_done(tmp_pa
     assert (resolved, highest, complete) == ("1", "2", False)
 
 
+def test_resolve_with_phase3_correction_ignores_stale_gherkin_from_a_prior_run(
+    tmp_path,
+):
+    """Review fix (issue #2094 follow-up): the Phase-3 gate checked only
+    whether gherkin.md EXISTS, with no freshness comparison against
+    phase-0.md -- unlike the guard hook's own _prune_stale_tokens, which
+    guards exactly this staleness class for the numbered phase files.
+    SKILL.md's documented reset flow (delete only phase-0.md, re-run)
+    leaves a prior run's gherkin.md in place too; without this fix, that
+    stale leftover made the correction fall through to ordinary Phase-1
+    resolution instead of Phase 3, for every reset run using BDD binding
+    mode."""
+    import os
+
+    memory_dir = _make_phase_files(tmp_path / "my-repo", "0", "2")
+    stale_gherkin = memory_dir / "gherkin.md"
+    stale_gherkin.write_text("done\n", encoding="utf-8")
+    an_hour_ago = stale_gherkin.stat().st_mtime - 3600
+    os.utime(stale_gherkin, (an_hour_ago, an_hour_ago))
+    # phase-0.md written AFTER the stale gherkin.md -- simulates the
+    # documented reset flow's fresh (re)write landing after prior leftovers.
+    (memory_dir / "phase-0.md").write_text(
+        "binding_mode: bdd-runner\n", encoding="utf-8"
+    )
+
+    resolved, highest, complete = resolve_with_phase3_correction(memory_dir)
+
+    assert (resolved, highest, complete) == ("3", "2", False)
+
+
 def test_resolve_with_phase3_correction_falls_back_on_malformed_phase0(tmp_path):
     """Judgment call (fix #1): scripts/test_improve_resume.py's own
     graceful-degradation contract — a malformed phase-0.md must not block a

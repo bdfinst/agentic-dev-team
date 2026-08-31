@@ -670,6 +670,81 @@ def check_transcript_parsing_confined_to_session_log(changed_files=None) -> list
     return findings
 
 
+#: The literal source-text shape a `key: value` line-parsing regex must not
+#: contain: a colon, then a whitespace-class quantifier that can cross a
+#: newline (matches `\n`), directly before a capture group anchored on a
+#: non-whitespace class. That gap lets a truncated `key:` line (no value on
+#: that line) silently capture an unrelated token from a LATER line as the
+#: value instead of failing to match at all — issue #2094 shipped this exact
+#: bug twice in the same diff (`testimprove_phase_state._BINDING_MODE_RE`,
+#: then `testimprove_phase_scope_guard._REFACTOR_MODE_RE` as an explicit
+#: copy-paste of the first's already-fixed bug), which is this repo's own
+#: CLAUDE.md trigger for converting a mechanically-checkable finding into a
+#: CHECKS entry in the same PR that fixes it. Built via `re.escape` on the
+#: literal target substring rather than spelled out directly here, so this
+#: module's own source text can't accidentally self-match.
+#:
+#: The shape alone is not sufficient: `_first()`-style helpers (e.g.
+#: `verify_tier.py`, `scripts/audit-semgrep-fixtures.py`) apply the same
+#: `key:\s*(\S+)` text via `pattern.match(line)` inside a `for line in
+#: text.splitlines()` loop — each `line` never contains a `\n`, so `\s*` has
+#: no adjacent line to cross into, and the shape is not actually
+#: exploitable there. What both fixed bugs shared, and what a per-line
+#: consumer has no reason to declare, is `re.MULTILINE` on the SAME source
+#: line as the pattern — real `.search()`/`.match()` against a whole
+#: multi-line blob is exactly the exploitable usage this check targets, so
+#: this check additionally requires that co-occurrence rather than flagging
+#: the shape alone (verified empirically: zero false positives against the
+#: real repo with this narrowing, vs. two with the shape alone).
+_NEWLINE_CROSSING_KV_RE = re.compile(re.escape(":" + "\\s*(" + "\\S"))
+
+
+def check_no_newline_crossing_kv_regex(changed_files=None) -> list[dict]:
+    """No shipped regex may parse a `key: value` line, via `re.MULTILINE`
+    applied against a multi-line blob, with an unbounded whitespace
+    quantifier sitting directly between the colon and a non-whitespace-
+    anchored capture group — see `_NEWLINE_CROSSING_KV_RE`'s own comment
+    for the bug class, its two same-PR occurrences, and why the
+    `re.MULTILINE`-on-the-same-line requirement is load-bearing rather than
+    a shape-alone match.
+
+    Corpus-wide by design, like `check_transcript_parsing_confined_to_session_log`
+    — a stray instance of this shape is a real latent bug whether or not
+    this changeset touched the file.
+    """
+    findings = []
+    for root_name in _TRANSCRIPT_SCAN_ROOTS:
+        root = _REPO_ROOT / root_name
+        if not root.is_dir():
+            continue
+        for path in sorted(root.rglob("*.py")):
+            rel = _repo_relative(path)
+            if "/tests/" in f"/{rel}" or Path(rel).name.startswith("test_"):
+                continue
+            for line in _read_text(path).splitlines():
+                if "MULTILINE" in line and _NEWLINE_CROSSING_KV_RE.search(line):
+                    findings.append(
+                        {
+                            "invariant": "no-newline-crossing-kv-regex",
+                            "file": rel,
+                            "message": (
+                                f"{rel} parses a `key: value` line via "
+                                "re.MULTILINE with a whitespace quantifier "
+                                "that can cross a newline directly before "
+                                "a non-whitespace capture group — a "
+                                "truncated `key:` line (no value on that "
+                                "line) would silently capture an unrelated "
+                                "token from a later line. Use `[ \\t]*` "
+                                "instead of `\\s*` immediately before the "
+                                "capture group (see "
+                                "testimprove_phase_state._BINDING_MODE_RE)."
+                            ),
+                        }
+                    )
+                    break
+    return findings
+
+
 # Registered checks. Each entry takes an optional `changed_files` list and
 # returns findings. See the module docstring for why that argument exists.
 CHECKS = [
@@ -679,6 +754,7 @@ CHECKS = [
     check_scope_glob_matches_skip_prose,
     check_contract_failure_shapes_documented,
     check_transcript_parsing_confined_to_session_log,
+    check_no_newline_crossing_kv_regex,
 ]
 
 

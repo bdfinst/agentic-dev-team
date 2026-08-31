@@ -467,3 +467,87 @@ class TestTranscriptParsingConfinedToSessionLog:
             repo_invariants.check_transcript_parsing_confined_to_session_log(["some/file.py"])
             == repo_invariants.check_transcript_parsing_confined_to_session_log(None)
         )
+
+
+class TestNoNewlineCrossingKvRegex:
+    """#2094: this exact bug shape (a whitespace quantifier that can cross a
+    newline sitting directly before a non-whitespace-anchored capture group
+    in a `key: value` line-parsing regex) shipped twice in the same PR --
+    the second report this repo's own ratchet rule converts into a check."""
+
+    def test_clean_against_the_real_repo(self):
+        """The real repo, as of #2094, has no un-narrowed instance of this
+        shape. A finding here means either a real new instance appeared, or
+        the re.MULTILINE-co-occurrence narrowing needs revisiting."""
+        assert repo_invariants.check_no_newline_crossing_kv_regex() == []
+
+    def test_flags_a_vulnerable_regex(self, tmp_path, monkeypatch):
+        """Proves the check can actually fail (CLAUDE.md: 'make it fail on
+        purpose once before you trust it') -- a throwaway module with the
+        exact `_BINDING_MODE_RE`-shaped bug must be flagged."""
+        repo_root = tmp_path / "repo"
+        scripts_dir = repo_root / "plugins" / "dev-team" / "scripts"
+        scripts_dir.mkdir(parents=True)
+        rogue = scripts_dir / "rogue_kv.py"
+        rogue.write_text(
+            'import re\n_RE = re.compile(r"^key:\\s*(\\S+)", re.MULTILINE)\n',
+            encoding="utf-8",
+        )
+        monkeypatch.setattr(repo_invariants, "_REPO_ROOT", repo_root)
+
+        findings = repo_invariants.check_no_newline_crossing_kv_regex()
+
+        assert len(findings) == 1
+        assert findings[0]["invariant"] == "no-newline-crossing-kv-regex"
+        assert findings[0]["file"] == "plugins/dev-team/scripts/rogue_kv.py"
+
+    def test_ignores_a_bounded_capture_shape(self, tmp_path, monkeypatch):
+        """`(.*)$` in re.MULTILINE mode is a materially different shape
+        this check does not target (see the check's own scope note) --
+        must not false-positive on it."""
+        repo_root = tmp_path / "repo"
+        scripts_dir = repo_root / "plugins" / "dev-team" / "scripts"
+        scripts_dir.mkdir(parents=True)
+        (scripts_dir / "safe_kv.py").write_text(
+            'import re\n_RE = re.compile(r"^key:\\s*(.*)$", re.MULTILINE)\n',
+            encoding="utf-8",
+        )
+        monkeypatch.setattr(repo_invariants, "_REPO_ROOT", repo_root)
+
+        assert repo_invariants.check_no_newline_crossing_kv_regex() == []
+
+    def test_ignores_test_files(self, tmp_path, monkeypatch):
+        repo_root = tmp_path / "repo"
+        tests_dir = repo_root / "plugins" / "dev-team" / "tests" / "scripts"
+        tests_dir.mkdir(parents=True)
+        (tests_dir / "test_something.py").write_text(
+            'PATTERN = r"key:\\s*(\\S+)"\n', encoding="utf-8"
+        )
+        monkeypatch.setattr(repo_invariants, "_REPO_ROOT", repo_root)
+
+        assert repo_invariants.check_no_newline_crossing_kv_regex() == []
+
+    def test_ignores_the_shape_without_multiline_on_the_same_line(self, tmp_path, monkeypatch):
+        """The vulnerable shape alone is not sufficient -- a pattern applied
+        per-line via `pattern.match(line)` inside a `for line in
+        text.splitlines()` loop (verify_tier.py's/audit-semgrep-fixtures.py's
+        real, non-exploitable shape) has no reason to declare re.MULTILINE
+        and must not be flagged."""
+        repo_root = tmp_path / "repo"
+        scripts_dir = repo_root / "scripts"
+        scripts_dir.mkdir(parents=True)
+        (scripts_dir / "per_line_kv.py").write_text(
+            'import re\n_RE = re.compile(r"^key:\\s*(\\S+)$", re.IGNORECASE)\n'
+            "for line in text.splitlines():\n"
+            "    m = _RE.match(line)\n",
+            encoding="utf-8",
+        )
+        monkeypatch.setattr(repo_invariants, "_REPO_ROOT", repo_root)
+
+        assert repo_invariants.check_no_newline_crossing_kv_regex() == []
+
+    def test_corpus_wide_regardless_of_changed_files(self):
+        assert (
+            repo_invariants.check_no_newline_crossing_kv_regex(["some/file.py"])
+            == repo_invariants.check_no_newline_crossing_kv_regex(None)
+        )
