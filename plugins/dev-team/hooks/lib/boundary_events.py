@@ -32,6 +32,7 @@ if str(_LIB_DIR) not in sys.path:
 
 import artifact_paths
 import atomic_state
+import plugin_version
 
 _LOG_NAME = "boundary-events.jsonl"
 
@@ -74,19 +75,6 @@ TS_FORMAT = "%Y-%m-%dT%H:%M:%SZ"
 
 def _isoformat_utc() -> str:
     return datetime.now(timezone.utc).strftime(TS_FORMAT)
-
-
-def _load_plugin_version() -> str:
-    # hooks/lib/boundary_events.py -> hooks/lib -> hooks -> plugin root
-    manifest = Path(__file__).resolve().parents[2] / ".claude-plugin" / "plugin.json"
-    try:
-        data = json.loads(manifest.read_text(encoding="utf-8"))
-        version = data.get("version")
-        if isinstance(version, str) and version:
-            return version
-    except (OSError, ValueError):
-        pass
-    return "unknown"
 
 
 def emit_boundary_event(
@@ -163,7 +151,7 @@ def emit_boundary_event(
             "tool": tool,
             "decision": decision,
             "matched_rule": matched_rule,
-            "plugin_version": _load_plugin_version(),
+            "plugin_version": plugin_version.shipped_version(),
         }
         if session_id:
             payload["session_id"] = session_id

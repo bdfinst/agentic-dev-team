@@ -104,23 +104,7 @@ except ImportError:  # pragma: no cover
             return False
 
 
-def _read_stdin() -> str:
-    """Read the stdin payload once. Empty on error — the .sh silently exits 0."""
-    try:
-        return sys.stdin.read()
-    except (OSError, ValueError):
-        return ""
-
-
-def _load_input(raw: str) -> dict:
-    """Parse the PostToolUse JSON. Malformed input → {} (fail-open)."""
-    if not raw:
-        return {}
-    try:
-        parsed = json.loads(raw)
-    except (json.JSONDecodeError, ValueError):
-        return {}
-    return parsed if isinstance(parsed, dict) else {}
+from stdin_json import read_stdin_json  # type: ignore[import-not-found]
 
 
 def _tool_family(name: str) -> str | None:
@@ -291,11 +275,10 @@ def _write_sentinel_atomic(sentinel: Path, payload: dict) -> None:
 
 
 def main() -> int:
-    raw = _read_stdin()
-    if not raw:
+    payload = read_stdin_json() or {}
+    if not payload:
         return 0
 
-    payload = _load_input(raw)
     tool_name = payload.get("tool_name") or ""
     family = _tool_family(tool_name) if isinstance(tool_name, str) else None
     if family is None:

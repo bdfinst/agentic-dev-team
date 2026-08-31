@@ -526,15 +526,6 @@ def test_load_patterns_maps_each_config_key(monkeypatch, tmp_path):
 # --- Pure helpers -----------------------------------------------------------
 
 
-def test_read_stdin_returns_empty_on_error(monkeypatch):
-    class _Boom:
-        def read(self):
-            raise OSError("no stdin")
-
-    monkeypatch.setattr("sys.stdin", _Boom())
-    assert destructive_guard._read_stdin() == ""
-
-
 def test_extract_command_variants():
     assert (
         destructive_guard._extract_command({"tool_input": {"command": "rm -rf /"}})

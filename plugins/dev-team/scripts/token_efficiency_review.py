@@ -33,6 +33,7 @@ from token_efficiency_limits import (
     CLAUDE_MD_CHAR_LIMIT,
     CLAUDE_MD_RULE_LIMIT,
     FILE_LINE_LIMIT,
+    is_claude_md_file,
 )
 
 # ---------------------------------------------------------------------------
@@ -283,7 +284,7 @@ def main(argv: list[str] | None = None) -> int:
 
     for path in files:
         # CLAUDE.md-specific checks
-        if path.name == "CLAUDE.md":
+        if is_claude_md_file(path):
             for issue in check_claude_md(path):
                 if issue["severity"] == "error":
                     errors.append(issue)

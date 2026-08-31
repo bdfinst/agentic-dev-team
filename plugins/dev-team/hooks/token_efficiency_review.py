@@ -29,11 +29,19 @@ try:
         CLAUDE_MD_CHAR_LIMIT,
         FILE_LINE_LIMIT,
     )
+    from token_efficiency_limits import char_count as _char_count
+    from token_efficiency_limits import is_claude_md_file as _is_claude_md_file
 except ImportError:
     # Fail-open per the hook contract: never let a missing sibling module
-    # break advisory output. Mirror the shared defaults.
+    # break advisory output. Mirror the shared defaults and logic.
     CLAUDE_MD_CHAR_LIMIT = 5000
     FILE_LINE_LIMIT = 500
+
+    def _is_claude_md_file(path: Path) -> bool:
+        return path.name.lower() == "claude.md"
+
+    def _char_count(path: Path) -> int:
+        return len(path.read_text(encoding="utf-8", errors="replace"))
 
 
 # The .sh's awk pattern: function-declaration heuristics for common
@@ -83,16 +91,15 @@ def _read_json(raw: bytes) -> dict:
 
 def _check_claude_md(path: Path) -> str | None:
     """Character-count check for CLAUDE.md files."""
-    name = path.name.lower()
-    if name not in ("claude.md",):
+    if not _is_claude_md_file(path):
         return None
     try:
-        char_count = len(path.read_bytes())
+        count = _char_count(path)
     except OSError:
         return None
-    if char_count > CLAUDE_MD_CHAR_LIMIT:
+    if count > CLAUDE_MD_CHAR_LIMIT:
         return (
-            f"Token: CLAUDE.md is {char_count} chars (limit: {CLAUDE_MD_CHAR_LIMIT}). "
+            f"Token: CLAUDE.md is {count} chars (limit: {CLAUDE_MD_CHAR_LIMIT}). "
             "Move detailed examples to docs/ or skills."
         )
     return None

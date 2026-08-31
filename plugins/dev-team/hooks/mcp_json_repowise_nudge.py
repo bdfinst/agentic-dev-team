@@ -29,8 +29,6 @@ Stdlib-only.
 
 from __future__ import annotations
 
-import json
-import os
 import sys
 from pathlib import Path
 
@@ -38,6 +36,8 @@ _HOOK_DIR = Path(__file__).resolve().parent
 _LIB_DIR = _HOOK_DIR / "lib"
 if str(_LIB_DIR) not in sys.path:
     sys.path.insert(0, str(_LIB_DIR))
+
+from stdin_json import read_stdin_json, resolve_cwd  # type: ignore[import-not-found]
 
 try:
     from mcp_json_repowise import detect  # type: ignore[import-not-found]
@@ -55,22 +55,10 @@ _NUDGE_MESSAGE = (
 
 
 def main() -> int:
-    try:
-        raw = sys.stdin.read()
-    except (OSError, ValueError):
+    payload = read_stdin_json()
+    if payload is None:
         return 0
-    if not raw:
-        return 0
-    try:
-        payload = json.loads(raw)
-    except (json.JSONDecodeError, ValueError):
-        return 0
-    if not isinstance(payload, dict):
-        return 0
-
-    cwd = payload.get("cwd") or ""
-    if not isinstance(cwd, str) or not cwd or not Path(cwd).is_dir():
-        cwd = os.getcwd()
+    cwd = resolve_cwd(payload)
 
     if detect(Path(cwd)) is None:
         return 0

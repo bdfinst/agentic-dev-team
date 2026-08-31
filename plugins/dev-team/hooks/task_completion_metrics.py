@@ -73,6 +73,7 @@ if str(_LIB_DIR) not in sys.path:
 import artifact_paths
 import telemetry_consent
 from atomic_state import append_line_locked
+from stdin_json import read_stdin_json  # type: ignore[import-not-found]
 
 # Scratch file location: resolved relative to the project root (cwd when hook
 # fires) so it is session-local, not baked into the plugin install tree.
@@ -81,17 +82,6 @@ _SCRATCH_RELATIVE = Path(".claude") / "session-metrics.json"
 
 def _env_off(var: str) -> bool:
     return os.environ.get(var, "").strip().lower() == "off"
-
-
-def _read_stdin() -> dict:
-    try:
-        raw = sys.stdin.read()
-        if not raw:
-            return {}
-        parsed = json.loads(raw)
-        return parsed if isinstance(parsed, dict) else {}
-    except (json.JSONDecodeError, UnicodeDecodeError, OSError):
-        return {}
 
 
 def _load_scratch(cwd: Path) -> dict:
@@ -193,7 +183,7 @@ def main() -> int:
     if not telemetry_consent.is_enabled():
         return 0
 
-    payload = _read_stdin()
+    payload = read_stdin_json() or {}
 
     # Resolve project root from the hook payload's cwd, falling back to
     # process cwd (which the harness sets to the project root).
