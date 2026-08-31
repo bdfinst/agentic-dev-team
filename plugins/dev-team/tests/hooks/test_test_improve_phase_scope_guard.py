@@ -86,13 +86,32 @@ def _memory_root(project_dir: Path) -> Path:
 # --- Step 2.3: in-flight candidate enumeration + active-phase resolution --
 
 
-def _write_phase0(memory_dir: Path, binding_mode: str | None) -> None:
+def _write_phase0_text(memory_dir: Path, text: str) -> None:
+    """Write `phase-0.md`'s raw text, then back-date its mtime to be no
+    newer than any sibling `phase-N.md` file already present. Phase 0
+    always executes (and its progress file is always written) FIRST in a
+    real `/test-improve` run, so a test fixture that creates placeholder
+    phase files via `_make_phase_files` and only afterward overwrites
+    `phase-0.md`'s real content must not leave `phase-0.md` looking
+    artificially newer than its siblings — `_prune_stale_tokens`'s
+    freshness check would otherwise wrongly treat every sibling as a stale
+    leftover from a prior run."""
     memory_dir.mkdir(parents=True, exist_ok=True)
+    phase0 = memory_dir / "phase-0.md"
+    phase0.write_text(text, encoding="utf-8")
+    sibling_mtimes = [
+        f.stat().st_mtime for f in memory_dir.glob("phase-*.md") if f.name != "phase-0.md"
+    ]
+    if sibling_mtimes:
+        oldest = min(sibling_mtimes) - 1
+        os.utime(phase0, (oldest, oldest))
+
+
+def _write_phase0(memory_dir: Path, binding_mode: str | None) -> None:
     if binding_mode is None:
+        memory_dir.mkdir(parents=True, exist_ok=True)
         return
-    (memory_dir / "phase-0.md").write_text(
-        f"binding_mode: {binding_mode}\n", encoding="utf-8"
-    )
+    _write_phase0_text(memory_dir, f"binding_mode: {binding_mode}\n")
 
 
 def test_zero_candidates_resolves_none_in_flight(tmp_path) -> None:
@@ -161,6 +180,37 @@ def test_completed_run_excluded_via_phase9_signal(tmp_path) -> None:
 
     assert result.status == "none_in_flight"
     assert result.reason == "no in-flight run found"
+
+
+def test_reset_flow_stale_phase9_does_not_mask_the_new_run(tmp_path) -> None:
+    """Review fix (issue #2094 follow-up): SKILL.md's own documented "change
+    Phase-0 answers" flow deletes ONLY phase-0.md and re-runs from Phase 0,
+    deliberately leaving phase-1.md..phase-9.md from the PRIOR run in place.
+    Without a freshness check, the leftover phase-9.md alone made
+    resolve_with_phase3_correction report `complete=True` for the brand-new
+    run, excluding it from candidacy and silently disabling the guard for
+    the run's entire lifetime -- the exact reset workflow SKILL.md tells
+    operators to use. Only phase files at least as new as phase-0.md's own
+    (re)write now count as this run's progress."""
+    slug_dir = _make_phase_files(
+        _memory_root(tmp_path) / "my-repo",
+        "1", "2", "4", "5", "6", "7", "8", "9",
+    )
+    an_hour_ago = (slug_dir / "phase-9.md").stat().st_mtime - 3600
+    for token in ("1", "2", "4", "5", "6", "7", "8", "9"):
+        stale_file = slug_dir / f"phase-{token}.md"
+        os.utime(stale_file, (an_hour_ago, an_hour_ago))
+    # Deliberately NOT _write_phase0()/_write_phase0_text() here -- those
+    # back-date phase-0.md to match real /test-improve chronology (Phase 0
+    # always written first), which would defeat this test's premise that
+    # phase-0.md was just freshly (re)written AFTER the stale siblings.
+    (slug_dir / "phase-0.md").write_text("binding_mode: none\n", encoding="utf-8")
+
+    result = guard._resolve(tmp_path)
+
+    assert result.status == "ok"
+    assert result.slug == "my-repo"
+    assert result.phase == "2"
 
 
 def test_completed_run_excluded_via_report_glob_secondary_signal(tmp_path) -> None:
@@ -299,7 +349,7 @@ def test_missing_phase0_fails_open_even_outside_phase2_and_phase6(tmp_path) -> N
 
 def test_unparseable_phase0_on_sole_candidate_fails_open(tmp_path) -> None:
     slug_dir = _make_phase_files(_memory_root(tmp_path) / "my-repo", "2")
-    (slug_dir / "phase-0.md").write_text("not a key-value line\n", encoding="utf-8")
+    _write_phase0_text(slug_dir, "not a key-value line\n")
 
     result = guard._resolve(tmp_path)
 
@@ -539,9 +589,7 @@ def test_phase6_refactor_allowed_no_phase7_is_ambiguous_fails_open(tmp_path) -> 
     slug_dir = _make_phase_files(
         _memory_root(tmp_path) / "my-repo", "0", "2", "1", "4", "5", "6"
     )
-    (slug_dir / "phase-0.md").write_text(
-        "refactor-mode: refactor-allowed\n", encoding="utf-8"
-    )
+    _write_phase0_text(slug_dir, "refactor-mode: refactor-allowed\n")
 
     result = guard._resolve(tmp_path)
 
@@ -553,9 +601,7 @@ def test_phase6_refactor_allowed_read_of_phase7_reference_is_allowed(tmp_path) -
     slug_dir = _make_phase_files(
         _memory_root(tmp_path) / "my-repo", "0", "2", "1", "4", "5", "6"
     )
-    (slug_dir / "phase-0.md").write_text(
-        "refactor-mode: refactor-allowed\n", encoding="utf-8"
-    )
+    _write_phase0_text(slug_dir, "refactor-mode: refactor-allowed\n")
 
     code, lines = guard.evaluate(
         "skills/test-improve/references/phase-7-refactor.md", tmp_path
@@ -573,9 +619,7 @@ def test_phase6_refactor_allowed_with_phase7_done_resolves_normally(tmp_path) ->
     slug_dir = _make_phase_files(
         _memory_root(tmp_path) / "my-repo", "0", "2", "1", "4", "5", "6", "7"
     )
-    (slug_dir / "phase-0.md").write_text(
-        "refactor-mode: refactor-allowed\n", encoding="utf-8"
-    )
+    _write_phase0_text(slug_dir, "refactor-mode: refactor-allowed\n")
 
     result = guard._resolve(tmp_path)
 
@@ -589,9 +633,7 @@ def test_phase6_no_refactor_mode_resolves_normally_to_phase8(tmp_path) -> None:
     slug_dir = _make_phase_files(
         _memory_root(tmp_path) / "my-repo", "0", "2", "1", "4", "5", "6"
     )
-    (slug_dir / "phase-0.md").write_text(
-        "refactor-mode: no-refactor\n", encoding="utf-8"
-    )
+    _write_phase0_text(slug_dir, "refactor-mode: no-refactor\n")
 
     result = guard._resolve(tmp_path)
 
@@ -624,7 +666,7 @@ def test_phase6_garbled_refactor_mode_fails_open_not_confident_phase8(tmp_path) 
     slug_dir = _make_phase_files(
         _memory_root(tmp_path) / "my-repo", "0", "2", "1", "4", "5", "6"
     )
-    (slug_dir / "phase-0.md").write_text("refactor-mode: x\n", encoding="utf-8")
+    _write_phase0_text(slug_dir, "refactor-mode: x\n")
 
     result = guard._resolve(tmp_path)
 
@@ -641,9 +683,7 @@ def test_phase6_refactor_mode_value_must_be_on_the_same_line(tmp_path) -> None:
     slug_dir = _make_phase_files(
         _memory_root(tmp_path) / "my-repo", "0", "2", "1", "4", "5", "6"
     )
-    (slug_dir / "phase-0.md").write_text(
-        "refactor-mode:\nrefactor-allowed\n", encoding="utf-8"
-    )
+    _write_phase0_text(slug_dir, "refactor-mode:\nrefactor-allowed\n")
 
     result = guard._resolve(tmp_path)
 
