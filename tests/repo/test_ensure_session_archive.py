@@ -38,6 +38,21 @@ def _scaffold_repo(root: Path, *, in_repo: bool = True) -> None:
             REPO_ROOT / "plugins" / "dev-team" / "scripts" / "session_report.py",
             scripts_dir / "session_report.py",
         )
+        # session_report.py is a thin CLI dispatcher (issue #2098) that
+        # imports its actual maintainer/downstream logic from three sibling
+        # modules under scripts/lib/ -- the fake checkout needs those too,
+        # not just the top-level script.
+        lib_dir = scripts_dir / "lib"
+        lib_dir.mkdir(parents=True, exist_ok=True)
+        for module_name in (
+            "session_report_shared.py",
+            "session_report_maintainer.py",
+            "session_report_downstream.py",
+        ):
+            shutil.copy(
+                REPO_ROOT / "plugins" / "dev-team" / "scripts" / "lib" / module_name,
+                lib_dir / module_name,
+            )
         # session_report.py imports from its own sibling scripts/lib/
         # session_log/ (#2042-#2044, epic #2040) -- the fake checkout needs
         # that real dependency too, not just the script itself.
