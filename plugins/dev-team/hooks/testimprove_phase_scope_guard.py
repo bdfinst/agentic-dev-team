@@ -197,12 +197,23 @@ def _sanitize_for_message(value: str | None) -> str:
     caller-controlled value (`file_path`) or an on-disk-derived value
     (`result.slug`) before it is interpolated into the printed `[BLOCK]`
     message — the message is terminal/log output, not a trust boundary the
-    rest of the hook relies on, but neither should be printed unsanitized."""
+    rest of the hook relies on, but neither should be printed unsanitized.
+
+    Review fix (issue #2094 follow-up, round 18): the truncation marker is
+    ASCII-only (`"...(truncated)"`, three literal periods), not the single
+    Unicode ellipsis character `"…"` (U+2026). Round 15 fixed lone
+    surrogates in this same function because `main()`'s message-emission
+    `print()`/`sys.stderr.write()` loop sits outside `main()`'s own
+    fail-open `try/except` — but the fix's OWN output reintroduced the
+    identical bug class: on a non-UTF-8 stdout (e.g. a legacy Windows
+    codepage, or `LC_ALL=POSIX`), printing `"…"` on the truncation path
+    raises `UnicodeEncodeError` uncaught, crashing the hook on its own
+    BLOCK path instead of emitting the block message."""
     if not value:
         return ""
     cleaned = _CONTROL_CHARS_RE.sub(" ", value)
     if len(cleaned) > _MESSAGE_VALUE_MAX_LEN:
-        cleaned = cleaned[:_MESSAGE_VALUE_MAX_LEN] + "…(truncated)"
+        cleaned = cleaned[:_MESSAGE_VALUE_MAX_LEN] + "...(truncated)"
     return cleaned
 
 

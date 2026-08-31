@@ -506,6 +506,21 @@ def test_sanitize_for_message_strips_control_chars_and_truncates() -> None:
     assert sanitized.startswith("x" * guard._MESSAGE_VALUE_MAX_LEN)
 
 
+def test_sanitize_for_message_truncation_marker_is_ascii_only() -> None:
+    """Review fix (issue #2094 follow-up, round 18): the truncation marker
+    used to be the single Unicode ellipsis character "…" (U+2026) --
+    reintroducing, on a truncation path, the exact non-ASCII-on-a-non-
+    UTF-8-stdout crash class round 15's lone-surrogate fix exists to
+    prevent (main()'s message-emission loop sits outside its own fail-open
+    try/except). The marker must be encodable under a strict ASCII codec,
+    not just UTF-8."""
+    sanitized = guard._sanitize_for_message("x" * 500)
+
+    assert "…" not in sanitized
+    assert sanitized.endswith("...(truncated)")
+    sanitized.encode("ascii")  # must not raise
+
+
 def test_sanitize_for_message_strips_lone_surrogates(tmp_path) -> None:
     """Review fix (issue #2094 follow-up, round 15): `result.slug` and
     `file_path` can originate from a real on-disk directory/file name --

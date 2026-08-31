@@ -174,10 +174,54 @@ _REPO_ROOT = _PLUGIN_ROOT.parents[1]
 
 
 def _repo_relative(path: Path) -> str:
+    """`path`, relative to `_REPO_ROOT`, with forward slashes — matching
+    this file's own repo-relative path convention (see module docstring)
+    and `_changed_set`'s existing normalization below.
+
+    Review fix (issue #2094 follow-up, round 18): `str(WindowsPath(...))`
+    uses backslash separators on Windows, with no normalization — every
+    `"/tests/" in f"/{rel}"` substring check in this module (and any
+    future one) would silently never match on a Windows checkout, scanning
+    files meant to be excluded. Normalizing here, in the single shared
+    helper, fixes it for every caller at once rather than requiring each
+    call site to remember to normalize its own `rel`."""
     try:
-        return str(path.relative_to(_REPO_ROOT))
+        rel = path.relative_to(_REPO_ROOT)
     except ValueError:
-        return str(path)
+        return str(path).replace("\\", "/")
+    return rel.as_posix()
+
+
+def _is_under_tests_dir(rel: str) -> bool:
+    """`True` when `rel` (a `_repo_relative()`-style, forward-slash path)
+    lives under a `tests/` directory anywhere in its path — this repo's own
+    convention for "this is a test file, not production code."
+
+    Review fix (issue #2094 follow-up, round 18): extracted from two
+    corpus-wide `CHECKS` functions (`check_transcript_parsing_confined_to_
+    session_log`, `check_no_newline_crossing_kv_regex`) that each carried
+    an identical, hand-duplicated ~15-line rationale comment and condition
+    — exactly the "hand-duplicated rule that silently drifts" shape this
+    module's own `check_no_newline_crossing_kv_regex` exists to catch
+    elsewhere in the repo. One shared helper now, rather than two copies
+    that could diverge on a future edit.
+
+    Deliberately does NOT also exclude a basename starting with `test_`:
+    this repo names some PRODUCTION modules that way
+    (`scripts/test_improve_resume.py`, `hooks/lib/test_file_classify.py`),
+    specifically because this plugin's own `is_test_file` classifier's
+    `_PYTHON_NAME_RE` matches that exact shape regardless of location (the
+    reason `testimprove_phase_state.py`/`testimprove_phase_scope_guard.py`
+    deliberately avoid the `test_` prefix — see those modules' own
+    docstrings). A basename-based exclusion would silently exempt both
+    real production files from any corpus-wide check reusing this helper.
+    The `/tests/` path-substring check alone is sufficient: every actual
+    test file in this repo lives under a `tests/` directory by convention
+    (verified empirically: introduces zero new findings against the real
+    repo, including `check_no_newline_crossing_kv_regex`'s own
+    fixture-heavy test file, `tests/scripts/test_repo_invariants.py`,
+    which is still excluded via its `/tests/` path)."""
+    return "/tests/" in f"/{rel}"
 
 
 def _changed_set(changed_files):
@@ -640,26 +684,7 @@ def check_transcript_parsing_confined_to_session_log(changed_files=None) -> list
             rel = _repo_relative(path)
             if rel.startswith(session_log_prefix):
                 continue
-            # Review fix (issue #2094 follow-up, round 17): the basename
-            # clause (`Path(rel).name.startswith("test_")`) is dropped —
-            # this repo names some PRODUCTION modules `test_*.py`
-            # (`scripts/test_improve_resume.py`,
-            # `hooks/lib/test_file_classify.py`), specifically because this
-            # plugin's own `is_test_file` classifier's `_PYTHON_NAME_RE`
-            # matches that exact shape regardless of location (the reason
-            # `testimprove_phase_state.py`/`testimprove_phase_scope_guard.py`
-            # deliberately avoid the `test_` prefix — see those modules' own
-            # docstrings). The basename clause silently exempted both real
-            # production files from this corpus-wide check, so a real
-            # instance of the bug shape in either would go undetected. The
-            # `/tests/` path-substring check alone is sufficient: every
-            # actual test file in this repo lives under a `tests/`
-            # directory by convention (verified empirically: dropping the
-            # basename clause introduces zero new findings against the real
-            # repo, including this check's own fixture-heavy test file,
-            # `tests/scripts/test_repo_invariants.py`, which is still
-            # excluded via its `/tests/` path).
-            if "/tests/" in f"/{rel}":
+            if _is_under_tests_dir(rel):
                 continue
             # This module's own source names the four identifiers to detect
             # them and to explain each allowlist entry's reason -- that is
@@ -799,26 +824,7 @@ def check_no_newline_crossing_kv_regex(changed_files=None) -> list[dict]:
             continue
         for path in sorted(root.rglob("*.py")):
             rel = _repo_relative(path)
-            # Review fix (issue #2094 follow-up, round 17): the basename
-            # clause (`Path(rel).name.startswith("test_")`) is dropped —
-            # this repo names some PRODUCTION modules `test_*.py`
-            # (`scripts/test_improve_resume.py`,
-            # `hooks/lib/test_file_classify.py`), specifically because this
-            # plugin's own `is_test_file` classifier's `_PYTHON_NAME_RE`
-            # matches that exact shape regardless of location (the reason
-            # `testimprove_phase_state.py`/`testimprove_phase_scope_guard.py`
-            # deliberately avoid the `test_` prefix — see those modules' own
-            # docstrings). The basename clause silently exempted both real
-            # production files from this corpus-wide check, so a real
-            # instance of the bug shape in either would go undetected. The
-            # `/tests/` path-substring check alone is sufficient: every
-            # actual test file in this repo lives under a `tests/`
-            # directory by convention (verified empirically: dropping the
-            # basename clause introduces zero new findings against the real
-            # repo, including this check's own fixture-heavy test file,
-            # `tests/scripts/test_repo_invariants.py`, which is still
-            # excluded via its `/tests/` path).
-            if "/tests/" in f"/{rel}":
+            if _is_under_tests_dir(rel):
                 continue
             text = _read_text(path)
             for match in _NEWLINE_CROSSING_KV_RE.finditer(text):

@@ -21,6 +21,42 @@ sys.path.insert(
 import repo_invariants
 
 
+class TestRepoRelativeNormalizesSeparators:
+    """Review fix (issue #2094 follow-up, round 18): `_repo_relative` used
+    `str(path.relative_to(_REPO_ROOT))`, which uses backslash separators on
+    Windows (`WindowsPath`'s `str()`) — every `"/tests/" in f"/{rel}"`
+    substring check anywhere in this module would silently never match on
+    a Windows checkout, scanning files meant to be excluded. Fixed to use
+    `.as_posix()`, which is forward-slash regardless of platform."""
+
+    def test_uses_as_posix_not_str(self, tmp_path, monkeypatch):
+        """Proves the fix by construction: a fake relative-path object
+        whose `str()` and `.as_posix()` disagree (mirroring the real
+        WindowsPath discrepancy) must be read via `.as_posix()`."""
+
+        class _FakeWindowsStyleRelPath:
+            def __str__(self) -> str:
+                return "tests\\scripts\\test_something.py"
+
+            def as_posix(self) -> str:
+                return "tests/scripts/test_something.py"
+
+        fake_repo_root = tmp_path / "repo"
+        fake_repo_root.mkdir()
+
+        class _FakePath:
+            def relative_to(self, _root):
+                return _FakeWindowsStyleRelPath()
+
+        monkeypatch.setattr(repo_invariants, "_REPO_ROOT", fake_repo_root)
+
+        rel = repo_invariants._repo_relative(_FakePath())
+
+        assert rel == "tests/scripts/test_something.py"
+        assert "\\" not in rel
+        assert repo_invariants._is_under_tests_dir(rel) is True
+
+
 class TestSkillScriptsDocumented:
     """#1981: the check that created this module covered one skill. A second
     report of the same class — `review_value_coverage.py` landing in
