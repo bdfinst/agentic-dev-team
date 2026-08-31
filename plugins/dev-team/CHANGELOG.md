@@ -1,5 +1,22 @@
 # Changelog
 
+## [13.0.0](https://github.com/bdfinst/agentic-dev-team/compare/dev-team-v12.11.0...dev-team-v13.0.0) (2026-08-31)
+
+
+### ⚠ BREAKING CHANGES
+
+* **agents:** complexity-review is retired as a distinct review agent. Any project pinning it directly (--agent complexity-review, an eval fixture's applicableAgents, or a per-agent effort/model override) must retarget to structure-review, which now owns nesting depth, cognitive load, and async-pattern judgment in addition to its existing SRP/DRY/ coupling/file-organization charter.
+
+### Bug Fixes
+
+* **hooks:** dedupe token-efficiency limits, plugin-version read, and stdin/cwd preambles ([#2100](https://github.com/bdfinst/agentic-dev-team/issues/2100)) ([97e3d85](https://github.com/bdfinst/agentic-dev-team/commit/97e3d856f158b030bcf9f44ca01348fff32aed88))
+
+
+### Code Refactoring
+
+* **agents:** fold complexity-review into structure-review ([#2093](https://github.com/bdfinst/agentic-dev-team/issues/2093)) ([#2095](https://github.com/bdfinst/agentic-dev-team/issues/2095)) ([41e40c0](https://github.com/bdfinst/agentic-dev-team/commit/41e40c04dd92179011e4f6f2f28eb7a71a70163e))
+* **scripts:** split session_report.py's flat CLI into per-profile modules ([#2101](https://github.com/bdfinst/agentic-dev-team/issues/2101)) ([5791911](https://github.com/bdfinst/agentic-dev-team/commit/5791911c398978b0a6f2b5a8ac9836f7d4e6482b))
+
 ## [12.11.0](https://github.com/bdfinst/agentic-dev-team/compare/dev-team-v12.10.0...dev-team-v12.11.0) (2026-08-28)
 
 
