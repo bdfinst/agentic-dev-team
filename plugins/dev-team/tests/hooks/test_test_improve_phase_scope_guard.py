@@ -283,7 +283,7 @@ def test_report_tied_with_newest_phase_file_does_not_mask_in_flight_run(
     assert result.slug == "my-repo"
 
 
-def test_phase6_stale_leftover_phase7_from_prior_run_is_still_ambiguous(
+def test_phase6_stale_leftover_phase7_from_prior_run_is_still_undecidable(
     tmp_path,
 ) -> None:
     """Review fix (issue #2094 follow-up, round 14): the Phase-6/7 check
@@ -432,6 +432,32 @@ def test_reading_the_active_phase_file_is_allowed(tmp_path) -> None:
 
     assert (code, lines) == (0, [])
     assert _audit_events(tmp_path) == []
+
+
+def test_evaluate_honors_a_supplied_matched_phase_instead_of_recomputing(
+    tmp_path,
+) -> None:
+    """Review fix (issue #2094 follow-up, round 19): `evaluate()`'s
+    `matched_phase` parameter exists so `main()` (which already confirmed
+    a match to decide whether `_project_dir()`'s subprocess cost is worth
+    paying) doesn't pay the resolution cost twice — but nothing proved the
+    parameter is actually HONORED rather than silently recomputed. A
+    silent regression back to always-recompute would leave every other
+    test green (they never supply a `matched_phase` that diverges from
+    what recomputation would produce). Proven here by supplying a
+    `file_path` that does NOT match the phase-reference basename pattern
+    at all (so recomputation would yield `None` -> silent no-op) alongside
+    an explicit real `matched_phase` -- if the parameter is honored, this
+    still resolves and blocks; if silently recomputed, it would return
+    `(0, [])` instead."""
+    _make_phase_files(_memory_root(tmp_path) / "my-repo", "0", "2", "1", "4")
+
+    code, lines = guard.evaluate(
+        "not-a-phase-reference-file.md", tmp_path, matched_phase="9"
+    )
+
+    assert code == 2
+    assert any("Phase 5, not Phase 9" in line for line in lines)
 
 
 def test_completed_phase_read_names_the_active_phase_and_audits_the_block(
@@ -673,7 +699,7 @@ def test_guard_and_resume_agree_in_the_phase3_window(tmp_path) -> None:
 # --- Fix #2 (domain-review): Phase-6/7 boundary is genuinely undecidable ---
 
 
-def test_phase6_refactor_allowed_no_phase7_is_ambiguous_fails_open(tmp_path) -> None:
+def test_phase6_refactor_allowed_no_phase7_is_undecidable_fails_open(tmp_path) -> None:
     """Unlike Phase 3 (a clean binding_mode + gherkin.md signal), whether
     Phase 7 will run next is genuinely undecidable from persisted state
     alone when refactor-mode is refactor-allowed and phase-7.md hasn't been
@@ -1169,3 +1195,61 @@ def test_main_blocks_via_stdin_payload(tmp_path, monkeypatch, capsys) -> None:
     assert "[BLOCK]" in captured.out
     assert "[BLOCK]" in captured.err
     assert captured.out == captured.err
+
+
+def test_main_emits_boundary_event_on_block(tmp_path, monkeypatch) -> None:
+    """Review fix (issue #2094 follow-up, round 19): this hook's own module
+    docstring claims it "mirrors `refactor_test_freeze_guard.py`'s shape,"
+    but never called `emit_boundary_event` on its BLOCK path — the sibling
+    does, feeding `.claude/metrics/boundary-events.jsonl`, which
+    `/run-report` joins across hooks to report denials by cause. Every
+    Phase-scope BLOCK was invisible to that cross-hook report until now."""
+    _make_phase_files(_memory_root(tmp_path) / "my-repo", "0", "2", "1", "4")
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(
+        guard,
+        "read_stdin_json",
+        lambda: {
+            "tool_input": {
+                "file_path": "skills/test-improve/references/phase-2-baseline.md"
+            },
+            "session_id": "sess-123",
+        },
+    )
+    events = []
+    monkeypatch.setattr(
+        guard, "emit_boundary_event", lambda *a, **k: events.append(a)
+    )
+
+    assert guard.main() == 2
+
+    assert len(events) == 1
+    _cwd, hook, tool, decision, matched_rule, session_id = events[0]
+    assert hook == "testimprove_phase_scope_guard"
+    assert tool == "Read"
+    assert decision == "block"
+    assert matched_rule == "test-improve-phase-scope"
+    assert session_id == "sess-123"
+
+
+def test_main_does_not_emit_boundary_event_when_read_is_allowed(
+    tmp_path, monkeypatch
+) -> None:
+    _make_phase_files(_memory_root(tmp_path) / "my-repo", "0", "2", "1", "4")
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(
+        guard,
+        "read_stdin_json",
+        lambda: {
+            "tool_input": {
+                "file_path": "skills/test-improve/references/phase-5-improve.md"
+            }
+        },
+    )
+    events = []
+    monkeypatch.setattr(
+        guard, "emit_boundary_event", lambda *a, **k: events.append(a)
+    )
+
+    assert guard.main() == 0
+    assert events == []

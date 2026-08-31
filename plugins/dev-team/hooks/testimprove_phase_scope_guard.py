@@ -78,6 +78,7 @@ sys.path.insert(0, str(_LIB_DIR))
 
 import artifact_paths
 from atomic_state import append_line_locked
+from boundary_events import emit_boundary_event as _emit_boundary_event
 from stdin_json import read_stdin_json
 from testimprove_phase_state import (
     BINDING_MODE_KEY,  # noqa: F401 - re-exported for test_test_improve_phase_scope_guard.py
@@ -92,6 +93,24 @@ from testimprove_phase_state import (
 from testimprove_phase_state import (
     prune_stale_tokens as _prune_stale_tokens,
 )
+
+
+def emit_boundary_event(*args, **kwargs) -> None:
+    """Local safety net (mirrors `refactor_test_freeze_guard.py`'s own
+    wrapper of the same name, issue #859): even a misbehaving helper must
+    never affect this hook's exit code, stdout, or stderr.
+
+    Review fix (issue #2094 follow-up, round 19): this hook's own module
+    docstring claims it "mirrors `refactor_test_freeze_guard.py`'s shape,"
+    but never called `emit_boundary_event` — the sibling does, on its
+    BLOCK path, feeding `.claude/metrics/boundary-events.jsonl`, which
+    `/run-report` joins across hooks to report denials/bypasses by cause.
+    Without this, every Phase-scope BLOCK this hook issues was invisible
+    to that cross-hook governance report, unlike comparable guards."""
+    try:
+        _emit_boundary_event(*args, **kwargs)
+    except Exception:  # noqa: BLE001, S110 - fail-open by design
+        pass
 
 #: Matches a `/test-improve` phase reference file's basename — captures the
 #: phase number. Matched only against the resolved, canonical basename of a
@@ -276,9 +295,12 @@ def _find_in_flight_slugs(project_dir: Path) -> list[tuple[str, list[str]]]:
     run permanently mask every later, genuinely in-flight run under the same
     slug (a repo that finished /test-improve once could never be gated by
     this guard again). A report only counts as evidence of the CURRENT
-    run's completion when it is at least as new as the newest phase file
-    currently on disk. A slug with no completed phase files at all is
-    skipped too — it has nothing to resolve.
+    run's completion when it is STRICTLY newer than the newest phase file
+    currently on disk (round 19 follow-up: previously documented as "at
+    least as new" / >=, but the actual comparison below is strict > -- a
+    tie favors "still in-flight", the safer-on-ambiguity default used
+    everywhere else in this diff). A slug with no completed phase files
+    at all is skipped too — it has nothing to resolve.
 
     A slug is also EXCLUDED from the ambiguity tally when it has no
     `phase-0.md` at all — review fix (issue #2094 follow-up): previously any
@@ -746,6 +768,12 @@ def main() -> int:
             return 0
         project_dir = _project_dir()
         exit_code, lines = evaluate(file_path, project_dir, matched_phase=matched_phase)
+        if exit_code == 2:
+            session_id = payload.get("session_id") if isinstance(payload, dict) else None
+            emit_boundary_event(
+                project_dir, "testimprove_phase_scope_guard", "Read", "block",
+                "test-improve-phase-scope", session_id,
+            )
     except Exception as exc:  # noqa: BLE001 - fail open, a broken guard never blocks work
         audit(
             project_dir if project_dir is not None else _project_dir(),
