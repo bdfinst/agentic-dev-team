@@ -167,7 +167,11 @@ BINDING_MODE_KEY = "binding_mode"
 #: see `parse_binding_mode`.
 VALID_BINDING_MODES = frozenset({"none", "xunit-with-annotations", "bdd-runner"})
 
-_BINDING_MODE_RE = re.compile(rf"^[ \t]*{BINDING_MODE_KEY}:\s*(\S+)", re.MULTILINE)
+#: Review fix (issue #2094 follow-up): the gap between the colon and the
+#: captured value is `[ \t]*`, not `\s*` — `\s` matches `\n`, so `\s*` let a
+#: truncated `binding_mode:` line (no value on it) capture an unrelated
+#: token from a LATER line as its value instead of failing to match at all.
+_BINDING_MODE_RE = re.compile(rf"^[ \t]*{BINDING_MODE_KEY}:[ \t]*(\S+)", re.MULTILINE)
 
 
 def parse_binding_mode(text: str) -> str | None:

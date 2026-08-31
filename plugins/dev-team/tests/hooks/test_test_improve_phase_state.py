@@ -101,6 +101,15 @@ def test_parse_binding_mode_accepts_each_valid_value():
         assert parse_binding_mode(f"binding_mode: {value}\n") == value
 
 
+def test_parse_binding_mode_value_must_be_on_the_same_line():
+    """Review fix (issue #2094 follow-up): `\\s*` between the colon and the
+    captured value crosses newlines (Python's `\\s` includes `\\n`), so a
+    truncated `binding_mode:` line with no value on it picked up an
+    unrelated token from a LATER line as its value instead of failing the
+    validation this function's own docstring says it provides."""
+    assert parse_binding_mode("binding_mode:\nbdd-runner\n") is None
+
+
 def test_read_binding_mode_missing_file_returns_none(tmp_path):
     assert read_binding_mode(tmp_path / "nope") is None
 

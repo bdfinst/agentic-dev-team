@@ -84,7 +84,12 @@ _ALWAYS_ALLOWED_BASENAMES = frozenset(
 #: so — unlike `BINDING_MODE_KEY` — it stays local rather than moving to
 #: `hooks/lib/testimprove_phase_state.py`.
 REFACTOR_MODE_KEY = "refactor-mode"
-_REFACTOR_MODE_RE = re.compile(rf"^[ \t]*{REFACTOR_MODE_KEY}:\s*(\S+)", re.MULTILINE)
+#: Review fix (issue #2094 follow-up): `[ \t]*`, not `\s*`, between the colon
+#: and the captured value — `\s` matches `\n`, so `\s*` let a truncated
+#: `refactor-mode:` line (no value on it) capture an unrelated token from a
+#: LATER line as its value instead of failing to match at all (the identical
+#: defect `testimprove_phase_state._BINDING_MODE_RE` had).
+_REFACTOR_MODE_RE = re.compile(rf"^[ \t]*{REFACTOR_MODE_KEY}:[ \t]*(\S+)", re.MULTILINE)
 
 #: The closed set of legal `refactor-mode` values (`phase-0-approach-contract.md`
 #: knob 3). Mirrors `testimprove_phase_state.VALID_BINDING_MODES`'s
@@ -180,11 +185,30 @@ def _find_in_flight_slugs(project_dir: Path) -> list[tuple[str, list[str]]]:
     A slug is EXCLUDED when `resolve_with_phase3_correction`'s underlying
     `complete` flag (keyed on `phase-9.md`, via `testimprove_phase_state`)
     says the run is done — the primary completion signal — or, defensively,
-    when a completed report already exists at
-    `.dev-team-reports/test-improve/<slug>/report-*.md` (the narrow window
-    between `phase-9.md` landing and the report file being written; never an
-    independent definition of "complete" on its own). A slug with no
-    completed phase files at all is skipped too — it has nothing to resolve.
+    when a completed report belonging to the CURRENT phase files already
+    exists at `.dev-team-reports/test-improve/<slug>/report-*.md` (the
+    narrow window between `phase-9.md` landing and the report file being
+    written; never an independent definition of "complete" on its own).
+    "Belonging to the current phase files" is judged by mtime — review fix
+    (issue #2094 follow-up): an unscoped "does ANY report ever exist for
+    this slug" check let a report from a PRIOR, wholly separate completed
+    run permanently mask every later, genuinely in-flight run under the same
+    slug (a repo that finished /test-improve once could never be gated by
+    this guard again). A report only counts as evidence of the CURRENT
+    run's completion when it is at least as new as the newest phase file
+    currently on disk. A slug with no completed phase files at all is
+    skipped too — it has nothing to resolve.
+
+    A slug is also EXCLUDED from the ambiguity tally when it has no
+    `phase-0.md` at all — review fix (issue #2094 follow-up): previously any
+    subdirectory with at least one phase file counted as a candidate, so a
+    stray/partial leftover directory (`/test-improve` always writes
+    `phase-0.md` first) coexisting with a real in-flight run falsely tripped
+    the "ambiguous: multiple candidates" path, losing the ability to gate
+    the real run's reads. When NO subdirectory has `phase-0.md`, the
+    phase-0-less candidates are kept as-is so a lone one still resolves
+    (fails open) with its slug attached — see
+    `test_missing_phase0_fails_open_even_outside_phase2_and_phase6`.
 
     Migrates any pre-existing top-level `memory/test-improve/` tree into
     `.claude/memory/test-improve/` first (mirrors
@@ -201,7 +225,8 @@ def _find_in_flight_slugs(project_dir: Path) -> list[tuple[str, list[str]]]:
         return []
     reports_root = artifact_paths.dev_team_reports_dir(project_dir) / "test-improve"
 
-    candidates: list[tuple[str, list[str]]] = []
+    with_phase0: list[tuple[str, list[str]]] = []
+    without_phase0: list[tuple[str, list[str]]] = []
     for entry in sorted(memory_root.iterdir()):
         if not entry.is_dir():
             continue
@@ -212,10 +237,18 @@ def _find_in_flight_slugs(project_dir: Path) -> list[tuple[str, list[str]]]:
         if complete:
             continue
         report_dir = reports_root / entry.name
-        if report_dir.is_dir() and any(report_dir.glob("report-*.md")):
-            continue
-        candidates.append((entry.name, tokens))
-    return candidates
+        if report_dir.is_dir():
+            report_files = list(report_dir.glob("report-*.md"))
+            if report_files:
+                newest_report = max(f.stat().st_mtime for f in report_files)
+                newest_phase = max((entry / f"phase-{t}.md").stat().st_mtime for t in tokens)
+                if newest_report >= newest_phase:
+                    continue
+        if "0" in tokens:
+            with_phase0.append((entry.name, tokens))
+        else:
+            without_phase0.append((entry.name, tokens))
+    return with_phase0 if with_phase0 else without_phase0
 
 
 def _parse_refactor_mode(text: str) -> str | None:
@@ -576,6 +609,7 @@ def main() -> int:
     when the exception happened before a match was confirmed (e.g.
     `read_stdin_json()` itself raising)."""
     project_dir: Path | None = None
+    file_path: str | None = None
     try:
         payload = read_stdin_json()
         file_path = _extract_file_path(payload)
@@ -588,6 +622,7 @@ def main() -> int:
         audit(
             project_dir if project_dir is not None else _project_dir(),
             EVENT_FAIL_OPEN,
+            file=file_path,
             result=ActivePhaseResult(
                 status="none_in_flight", slug=None, phase=None,
                 reason=f"internal error: {exc}",

@@ -11,6 +11,7 @@ module's docstring for why).
 from __future__ import annotations
 
 import json
+import os
 import sys
 from pathlib import Path
 from unittest import mock
@@ -129,6 +130,25 @@ def test_two_candidates_resolves_ambiguous_with_sorted_slug_names(tmp_path) -> N
     assert result.reason == "ambiguous: multiple candidates: alpha-repo, zebra-repo"
 
 
+def test_stray_dir_without_phase0_does_not_mask_real_candidate_as_ambiguous(
+    tmp_path,
+) -> None:
+    """Review fix (issue #2094 follow-up): `_find_in_flight_slugs` used to
+    count ANY subdirectory with at least one phase file as a candidate, never
+    requiring phase-0.md -- so a stray/partial leftover directory (no
+    phase-0.md, /test-improve always writes it first) coexisting with a real
+    in-flight run falsely tripped the ambiguous-multiple-candidates path and
+    lost the ability to gate the real run's phase-reference reads."""
+    my_repo = _make_phase_files(_memory_root(tmp_path) / "my-repo", "0", "2")
+    _write_phase0(my_repo, "none")
+    _make_phase_files(_memory_root(tmp_path) / "stray-leftover", "5")
+
+    result = guard._resolve(tmp_path)
+
+    assert result.status == "ok"
+    assert result.slug == "my-repo"
+
+
 def test_completed_run_excluded_via_phase9_signal(tmp_path) -> None:
     """A run whose phase-9.md is present is complete — never in-flight,
     regardless of whether a .dev-team-reports report file also exists."""
@@ -159,6 +179,33 @@ def test_completed_run_excluded_via_report_glob_secondary_signal(tmp_path) -> No
 
     assert result.status == "none_in_flight"
     assert result.reason == "no in-flight run found"
+
+
+def test_stale_report_from_prior_completed_run_does_not_mask_fresh_run(
+    tmp_path,
+) -> None:
+    """Review fix (issue #2094 follow-up): the report-glob secondary
+    exclusion used to fire for ANY report ever written under a slug, with no
+    regard for whether it belonged to the CURRENT set of phase files -- so a
+    repo that completed /test-improve once permanently masked every later,
+    genuinely in-flight run under the same slug. Only a report at least as
+    new as the run's newest phase file now counts as evidence of ITS
+    completion."""
+
+    report_dir = tmp_path / ".dev-team-reports" / "test-improve" / "my-repo"
+    report_dir.mkdir(parents=True)
+    stale_report = report_dir / "report-2025-01-01.md"
+    stale_report.write_text("old run\n", encoding="utf-8")
+    an_hour_ago = stale_report.stat().st_mtime - 3600
+    os.utime(stale_report, (an_hour_ago, an_hour_ago))
+
+    my_repo = _make_phase_files(_memory_root(tmp_path) / "my-repo", "0", "2")
+    _write_phase0(my_repo, "none")
+
+    result = guard._resolve(tmp_path)
+
+    assert result.status == "ok"
+    assert result.slug == "my-repo"
 
 
 # --- Review fix: legacy (pre-.claude/-scoped) memory tree migration -----
@@ -578,6 +625,25 @@ def test_phase6_garbled_refactor_mode_fails_open_not_confident_phase8(tmp_path) 
         _memory_root(tmp_path) / "my-repo", "0", "2", "1", "4", "5", "6"
     )
     (slug_dir / "phase-0.md").write_text("refactor-mode: x\n", encoding="utf-8")
+
+    result = guard._resolve(tmp_path)
+
+    assert result.status == "none_in_flight"
+    assert result.reason == guard.REASON_MALFORMED_PHASE0
+
+
+def test_phase6_refactor_mode_value_must_be_on_the_same_line(tmp_path) -> None:
+    """Review fix (issue #2094 follow-up): `_REFACTOR_MODE_RE` copy-pasted
+    `_BINDING_MODE_RE`'s newline-crossing `\\s*` defect (`\\s` matches `\\n`)
+    -- a truncated `refactor-mode:` line with no value on it picked up an
+    unrelated token from a LATER line as its value instead of failing open
+    via REASON_MALFORMED_PHASE0."""
+    slug_dir = _make_phase_files(
+        _memory_root(tmp_path) / "my-repo", "0", "2", "1", "4", "5", "6"
+    )
+    (slug_dir / "phase-0.md").write_text(
+        "refactor-mode:\nrefactor-allowed\n", encoding="utf-8"
+    )
 
     result = guard._resolve(tmp_path)
 
