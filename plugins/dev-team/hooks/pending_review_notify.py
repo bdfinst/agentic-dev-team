@@ -33,6 +33,7 @@ if str(_LIB_DIR) not in sys.path:
     sys.path.insert(0, str(_LIB_DIR))
 
 import artifact_paths
+from stdin_json import read_stdin_json, resolve_cwd  # type: ignore[import-not-found]
 
 
 def _notify_pending_findings(cwd: str) -> str | None:
@@ -104,22 +105,10 @@ def _notify_pending_findings(cwd: str) -> str | None:
 
 
 def main() -> int:
-    try:
-        raw = sys.stdin.read()
-    except (OSError, ValueError):
+    payload = read_stdin_json()
+    if payload is None:
         return 0
-    if not raw:
-        return 0
-    try:
-        payload = json.loads(raw)
-    except (json.JSONDecodeError, ValueError):
-        return 0
-    if not isinstance(payload, dict):
-        return 0
-
-    cwd = payload.get("cwd") or ""
-    if not isinstance(cwd, str) or not cwd or not Path(cwd).is_dir():
-        cwd = os.getcwd()
+    cwd = resolve_cwd(payload)
 
     notice = _notify_pending_findings(cwd)
     if notice is not None:

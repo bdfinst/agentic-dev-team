@@ -32,6 +32,7 @@ if str(_LIB_DIR) not in sys.path:
     sys.path.insert(0, str(_LIB_DIR))
 
 import artifact_paths
+import plugin_version
 from atomic_state import append_line_locked
 
 _LOG_NAME = "workflow-states.jsonl"
@@ -42,19 +43,6 @@ CANONICAL_LIFECYCLE = ["SPEC", "PLAN", "BUILD", "REVIEW", "COMMIT", "PR"]
 
 def _isoformat_utc() -> str:
     return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
-
-
-def _load_plugin_version() -> str:
-    # hooks/lib/workflow_state.py -> hooks/lib -> hooks -> plugin root
-    manifest = Path(__file__).resolve().parents[2] / ".claude-plugin" / "plugin.json"
-    try:
-        data = json.loads(manifest.read_text(encoding="utf-8"))
-        version = data.get("version")
-        if isinstance(version, str) and version:
-            return version
-    except (OSError, ValueError):
-        pass
-    return "unknown"
 
 
 def _log_path(cwd, migrate: bool = True) -> Path:
@@ -94,7 +82,7 @@ def emit_state_transition(
             "workflow": workflow,
             "prior_state": prior_state or None,
             "new_state": new_state,
-            "plugin_version": _load_plugin_version(),
+            "plugin_version": plugin_version.shipped_version(),
         }
         if session_id:
             payload["session_id"] = session_id

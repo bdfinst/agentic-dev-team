@@ -80,6 +80,7 @@ def gated_repo(tmp_path: Path, hermetic_env: dict[str, str]) -> Path:
         "artifact_paths.py",
         "atomic_state.py",
         "knowledge_index_paths.py",
+        "plugin_version.py",
     ):
         shutil.copy(_LIB_SRC / name, lib_dst / name)
     (lib_dst / "build_knowledge_index.py").write_text(

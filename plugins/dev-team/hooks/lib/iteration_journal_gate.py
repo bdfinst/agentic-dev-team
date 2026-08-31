@@ -37,6 +37,7 @@ if str(_LIB_DIR) not in sys.path:
     sys.path.insert(0, str(_LIB_DIR))
 
 import artifact_paths
+import plugin_version
 from atomic_state import append_line_locked
 from boundary_events import emit_boundary_event
 
@@ -46,19 +47,6 @@ _DELAY_ENV_VAR = "DEV_TEAM_ITERATION_JOURNAL_TEST_DELAY_MS"
 
 def _isoformat_utc() -> str:
     return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
-
-
-def _load_plugin_version() -> str:
-    # hooks/lib/iteration_journal_gate.py -> hooks/lib -> hooks -> plugin root
-    manifest = Path(__file__).resolve().parents[2] / ".claude-plugin" / "plugin.json"
-    try:
-        data = json.loads(manifest.read_text(encoding="utf-8"))
-        version = data.get("version")
-        if isinstance(version, str) and version:
-            return version
-    except (OSError, ValueError):
-        pass
-    return "unknown"
 
 
 def _log_path(cwd, migrate: bool = True) -> Path:
@@ -102,7 +90,7 @@ def record_iteration_entry(
             "attempted": attempted,
             "outcome": outcome,
             "next_action": next_action,
-            "plugin_version": _load_plugin_version(),
+            "plugin_version": plugin_version.shipped_version(),
         }
         if session_id:
             payload["session_id"] = session_id

@@ -62,3 +62,24 @@ def test_stdin_read_oserror_returns_none(monkeypatch) -> None:  # type: ignore[n
 
     monkeypatch.setattr(sys, "stdin", _BoomStdin())
     assert stdin_json.read_stdin_json() is None
+
+
+def test_resolve_cwd_uses_payload_cwd_when_it_is_a_real_directory(tmp_path) -> None:  # type: ignore[no-untyped-def]
+    assert stdin_json.resolve_cwd({"cwd": str(tmp_path)}) == str(tmp_path)
+
+
+def test_resolve_cwd_falls_back_to_process_cwd_when_missing(monkeypatch) -> None:  # type: ignore[no-untyped-def]
+    monkeypatch.setattr("os.getcwd", lambda: "/fallback")
+    assert stdin_json.resolve_cwd({}) == "/fallback"
+
+
+def test_resolve_cwd_falls_back_when_payload_cwd_is_not_a_directory(
+    monkeypatch, tmp_path
+) -> None:  # type: ignore[no-untyped-def]
+    monkeypatch.setattr("os.getcwd", lambda: "/fallback")
+    assert stdin_json.resolve_cwd({"cwd": str(tmp_path / "nope")}) == "/fallback"
+
+
+def test_resolve_cwd_falls_back_when_payload_cwd_is_not_a_string(monkeypatch) -> None:  # type: ignore[no-untyped-def]
+    monkeypatch.setattr("os.getcwd", lambda: "/fallback")
+    assert stdin_json.resolve_cwd({"cwd": 123}) == "/fallback"

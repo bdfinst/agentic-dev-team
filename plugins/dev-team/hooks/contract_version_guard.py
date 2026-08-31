@@ -40,6 +40,7 @@ if str(_LIB_DIR) not in sys.path:
 
 from atomic_state import append_line_locked
 from boundary_events import emit_boundary_event as _emit_boundary_event
+from stdin_json import read_stdin_json  # type: ignore[import-not-found]
 
 
 def emit_boundary_event(*args, **kwargs) -> None:
@@ -60,23 +61,6 @@ _AUDIT_LOG = _REPO_ROOT / "metrics" / "contract-version-guard-audit.jsonl"
 # ---------------------------------------------------------------------------
 # stdin
 # ---------------------------------------------------------------------------
-
-
-def _read_stdin() -> str:
-    try:
-        return sys.stdin.read()
-    except (OSError, ValueError):
-        return ""
-
-
-def _load_input(raw: str) -> dict:
-    if not raw:
-        return {}
-    try:
-        parsed = json.loads(raw)
-    except (json.JSONDecodeError, ValueError):
-        return {}
-    return parsed if isinstance(parsed, dict) else {}
 
 
 # ---------------------------------------------------------------------------
@@ -286,8 +270,7 @@ def _normalize_path(file_path: str) -> str:
 
 
 def main() -> int:
-    raw = _read_stdin()
-    payload = _load_input(raw)
+    payload = read_stdin_json() or {}
     tool_input = (
         payload.get("tool_input") if isinstance(payload.get("tool_input"), dict) else {}
     )

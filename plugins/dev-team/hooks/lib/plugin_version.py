@@ -22,8 +22,31 @@ from __future__ import annotations
 import json
 import os
 import sys
+from pathlib import Path
 
 PLUGIN = "dev-team"
+
+
+def shipped_version() -> str:
+    """Read the ``version`` declared in this checkout's shipped plugin.json.
+
+    Distinct from resolve()/main() below, which report what Claude Code has
+    *installed* (from ``installed_plugins.json``) — this reads the manifest
+    that ships in the plugin tree itself, for callers (event-stream emitters)
+    that stamp their own output with "which version of me produced this."
+    Previously duplicated verbatim in hooks/lib/boundary_events.py,
+    workflow_state.py, and iteration_journal_gate.py.
+    """
+    # hooks/lib/plugin_version.py -> hooks/lib -> hooks -> plugin root
+    manifest = Path(__file__).resolve().parents[2] / ".claude-plugin" / "plugin.json"
+    try:
+        data = json.loads(manifest.read_text(encoding="utf-8"))
+        version = data.get("version")
+        if isinstance(version, str) and version:
+            return version
+    except (OSError, ValueError):
+        pass
+    return "unknown"
 
 
 def config_dir() -> str:

@@ -23,22 +23,11 @@ import re
 import sys
 from pathlib import Path
 
+_LIB_DIR = Path(__file__).resolve().parent / "lib"
+if str(_LIB_DIR) not in sys.path:
+    sys.path.insert(0, str(_LIB_DIR))
 
-def _read_stdin() -> str:
-    try:
-        return sys.stdin.read()
-    except (OSError, ValueError):
-        return ""
-
-
-def _load_input(raw: str) -> dict:
-    if not raw:
-        return {}
-    try:
-        parsed = json.loads(raw)
-    except (json.JSONDecodeError, ValueError):
-        return {}
-    return parsed if isinstance(parsed, dict) else {}
+from stdin_json import read_stdin_json  # type: ignore[import-not-found]
 
 
 def _classify(file_path: str) -> str:
@@ -407,8 +396,7 @@ def _other_notice(file_path: str) -> str | None:
 
 
 def main() -> int:
-    raw = _read_stdin()
-    payload = _load_input(raw)
+    payload = read_stdin_json() or {}
     tool_input = (
         payload.get("tool_input") if isinstance(payload.get("tool_input"), dict) else {}
     )

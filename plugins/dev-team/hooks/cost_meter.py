@@ -30,7 +30,6 @@ Refs: #572 (bash → Python migration epic).
 
 from __future__ import annotations
 
-import json
 import os
 import shutil
 import subprocess
@@ -45,23 +44,7 @@ if str(_LIB_DIR) not in sys.path:
 
 import artifact_paths
 import telemetry_consent
-
-
-def _read_stdin() -> str:
-    try:
-        return sys.stdin.read()
-    except (OSError, ValueError):
-        return ""
-
-
-def _load_input(raw: str) -> dict:
-    if not raw:
-        return {}
-    try:
-        parsed = json.loads(raw)
-    except (json.JSONDecodeError, ValueError):
-        return {}
-    return parsed if isinstance(parsed, dict) else {}
+from stdin_json import read_stdin_json  # type: ignore[import-not-found]
 
 
 def main() -> int:
@@ -79,8 +62,7 @@ def main() -> int:
     if not _COST_METER_LIB.is_file():
         return 0
 
-    raw = _read_stdin()
-    payload = _load_input(raw)
+    payload = read_stdin_json() or {}
     if not payload:
         return 0
 

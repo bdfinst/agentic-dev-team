@@ -90,6 +90,7 @@ if str(_LIB_DIR) not in sys.path:
     sys.path.insert(0, str(_LIB_DIR))
 
 import artifact_paths
+from stdin_json import read_stdin_json, resolve_cwd  # type: ignore[import-not-found]
 
 _DEFAULT_THRESHOLD_PERCENT = 10.0
 _DEFAULT_MIN_ADDED_LINES = 200
@@ -260,22 +261,10 @@ def _nudge_message(percent: float, added: int, total: int) -> str:
 
 
 def main() -> int:
-    try:
-        raw = sys.stdin.read()
-    except (OSError, ValueError):
+    payload = read_stdin_json()
+    if payload is None:
         return 0
-    if not raw:
-        return 0
-    try:
-        payload = json.loads(raw)
-    except (json.JSONDecodeError, ValueError):
-        return 0
-    if not isinstance(payload, dict):
-        return 0
-
-    cwd = payload.get("cwd") or ""
-    if not isinstance(cwd, str) or not cwd or not Path(cwd).is_dir():
-        cwd = os.getcwd()
+    cwd = resolve_cwd(payload)
 
     if not _is_git_repo(cwd):
         return 0

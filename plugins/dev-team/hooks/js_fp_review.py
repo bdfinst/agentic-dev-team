@@ -16,10 +16,15 @@ Stdlib-only (json/pathlib/re/sys). See ADR 0014.
 
 from __future__ import annotations
 
-import json
 import re
 import sys
 from pathlib import Path
+
+_LIB_DIR = Path(__file__).resolve().parent / "lib"
+if str(_LIB_DIR) not in sys.path:
+    sys.path.insert(0, str(_LIB_DIR))
+
+from stdin_json import read_stdin_json  # type: ignore[import-not-found]
 
 # Suffixes that trigger the check.
 _JS_TS_EXT = (".js", ".ts", ".jsx", ".tsx")
@@ -46,23 +51,6 @@ _THIS_EXCLUDE_RE = re.compile(r"\bthis\.")
 
 # Bash comment-skip: `grep -v '^\s*//'` — line whose first non-whitespace is `//`.
 _COMMENT_LINE_RE = re.compile(r"^\s*//")
-
-
-def _read_stdin() -> str:
-    try:
-        return sys.stdin.read()
-    except (OSError, ValueError):
-        return ""
-
-
-def _load_input(raw: str) -> dict:
-    if not raw:
-        return {}
-    try:
-        parsed = json.loads(raw)
-    except (json.JSONDecodeError, ValueError):
-        return {}
-    return parsed if isinstance(parsed, dict) else {}
 
 
 def _extract_file_path(payload: dict) -> str:
@@ -196,8 +184,7 @@ def _build_warnings(content: str) -> str:
 
 
 def main() -> int:
-    raw = _read_stdin()
-    payload = _load_input(raw)
+    payload = read_stdin_json() or {}
     file_path_str = _extract_file_path(payload)
     if not file_path_str:
         return 0

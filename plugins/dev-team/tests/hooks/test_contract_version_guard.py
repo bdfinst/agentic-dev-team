@@ -189,7 +189,13 @@ def _run_hook_from(
     # the dependency list, rather than a copy-pasted block per module, so
     # the next new import boundary_events.py picks up needs only a new
     # entry here, not a new block (test-smell review, #1874).
-    for _module_name in ("boundary_events.py", "artifact_paths.py", "atomic_state.py"):
+    for _module_name in (
+        "boundary_events.py",
+        "artifact_paths.py",
+        "atomic_state.py",
+        "plugin_version.py",
+        "stdin_json.py",
+    ):
         target_module = target_lib / _module_name
         if not target_module.exists():
             target_module.write_bytes((_HOOKS_DIR / "lib" / _module_name).read_bytes())

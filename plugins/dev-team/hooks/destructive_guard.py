@@ -47,6 +47,7 @@ if str(_LIB_DIR) not in sys.path:
 
 import artifact_paths
 from boundary_events import emit_boundary_event as _emit_boundary_event
+from stdin_json import read_stdin_json  # type: ignore[import-not-found]
 
 
 def emit_boundary_event(*args, **kwargs) -> None:
@@ -89,13 +90,6 @@ _DEFAULT_SAFE_PATTERNS = [
 ]
 
 
-def _read_stdin() -> str:
-    try:
-        return sys.stdin.read()
-    except (OSError, ValueError):
-        return ""
-
-
 def _load_json(path: Path) -> dict | None:
     try:
         with path.open("r", encoding="utf-8") as fh:
@@ -103,16 +97,6 @@ def _load_json(path: Path) -> dict | None:
     except (OSError, json.JSONDecodeError, ValueError):
         return None
     return data if isinstance(data, dict) else None
-
-
-def _load_input(raw: str) -> dict:
-    if not raw:
-        return {}
-    try:
-        parsed = json.loads(raw)
-    except (json.JSONDecodeError, ValueError):
-        return {}
-    return parsed if isinstance(parsed, dict) else {}
 
 
 def _extract_command(payload: dict) -> str:
@@ -382,8 +366,7 @@ def _override_active() -> bool:
 
 
 def main() -> int:
-    raw = _read_stdin()
-    payload = _load_input(raw)
+    payload = read_stdin_json() or {}
     command = _extract_command(payload)
     if not command:
         return 0
