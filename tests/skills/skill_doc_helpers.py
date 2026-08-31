@@ -12,10 +12,77 @@ tests/lib/hermetic.bash.
 from __future__ import annotations
 
 import re
+from collections.abc import Callable
 from pathlib import Path
+from typing import NamedTuple
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 PLUGIN_ROOT = REPO_ROOT / "plugins" / "dev-team"
+
+
+class Fact(NamedTuple):
+    """One content-guard assertion against a named section of a skill doc
+    (issue #2099). Replaces the one-pytest-function-per-fact pattern that
+    grew independently across tests/skills/ (test_autoship_skill_doc.py,
+    test_fix_skill.py, ...): each fact keeps its own pass/fail granularity
+    via the parametrize id, but the file is read once per test module
+    (a cached fixture) instead of once per fact, and a wording change to
+    N facts about the same section is N data-row edits, not N function
+    bodies to hunt across.
+
+    `required`/`forbidden`: tuples of `(regex_pattern, ignore_case)` checked
+    with `grep()`. `literal_required`/`literal_forbidden`: exact substrings
+    checked with plain `in`/`not in` (no regex escaping to get wrong).
+    `collapse=True` (the default) runs every check in this fact against
+    `collapsed(section_text)`, matching how most of the original tests
+    normalized hard-wrapped markdown before asserting; set `False` only
+    when the original test asserted against the raw section text (e.g. a
+    check that would itself become vacuous or overly permissive once
+    whitespace runs collapse).
+    """
+
+    id: str
+    section: str
+    required: tuple[tuple[str, bool], ...] = ()
+    forbidden: tuple[tuple[str, bool], ...] = ()
+    literal_required: tuple[str, ...] = ()
+    literal_forbidden: tuple[str, ...] = ()
+    collapse: bool = True
+    #: Why this fact exists, when it isn't obvious from the id and pattern
+    #: alone -- e.g. which review finding motivated it. Carries forward
+    #: what used to be the fact's own docstring before consolidation;
+    #: never checked at runtime.
+    note: str = ""
+
+
+def assert_fact(
+    sections: dict[str, Callable[[str], str]], full_text: str, fact: Fact
+) -> None:
+    """Evaluate one `Fact` against `full_text` using `sections` to resolve
+    `fact.section` to the section-of-interest. Raises via a plain `assert`
+    (pytest rewrites it for a readable failure), naming the fact id, the
+    section, and the specific pattern/literal that failed -- so a broken
+    fact is exactly as identifiable in `-v` output as its own named test
+    function used to be."""
+    section_text = sections[fact.section](full_text)
+    text = collapsed(section_text) if fact.collapse else section_text
+    for pattern, ignore_case in fact.required:
+        assert grep(pattern, text, ignore_case=ignore_case), (
+            f"{fact.id}: expected pattern {pattern!r} in section {fact.section!r}"
+        )
+    for pattern, ignore_case in fact.forbidden:
+        assert not grep(pattern, text, ignore_case=ignore_case), (
+            f"{fact.id}: unexpectedly found forbidden pattern {pattern!r} "
+            f"in section {fact.section!r}"
+        )
+    for literal in fact.literal_required:
+        assert literal in text, (
+            f"{fact.id}: expected literal {literal!r} in section {fact.section!r}"
+        )
+    for literal in fact.literal_forbidden:
+        assert literal not in text, (
+            f"{fact.id}: unexpectedly found literal {literal!r} in section {fact.section!r}"
+        )
 
 
 def _posix_classes(pattern: str) -> str:
