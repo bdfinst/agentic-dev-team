@@ -214,12 +214,15 @@ so the operator can confirm before work starts, then resume at
   now executes immediately after Phase 0).
 - A completed `phase-2.md` with **no** `phase-1.md` **usually** resumes at
   **Phase 1** — unless `phase-0.md`'s `binding_mode` requests BDD work and
-  `gherkin.md` doesn't exist yet, in which case it resumes at **Phase 3**
-  instead (Derive Gherkin has no tracked progress file of its own, so the
-  auto-detect otherwise skips over it — see `test_improve_resume.py`'s
-  module docstring and `hooks/lib/testimprove_phase_state.py`'s
-  `resolve_with_phase3_correction`). A completed `phase-1.md` resumes at
-  **Phase 4**.
+  `gherkin.md` doesn't exist yet **or predates this run's `phase-0.md`**,
+  in which case it resumes at **Phase 3** instead (Derive Gherkin has no
+  tracked progress file of its own, so the auto-detect otherwise skips
+  over it — see `test_improve_resume.py`'s module docstring and
+  `hooks/lib/testimprove_phase_state.py`'s `resolve_with_phase3_correction`
+  / `_gherkin_done_for_this_run`, which treats a `gherkin.md` STALER than
+  `phase-0.md` — a leftover from a prior run under the documented
+  delete-only-`phase-0.md` reset flow — the same as absent). A completed
+  `phase-1.md` resumes at **Phase 4**.
 - **No memory dir / no phase files / `phase-0.md` missing** — the helper exits
   non-zero; surface its error message (which points to running
   `/test-improve <repo-path>` from Phase 0) and do **not** silently start at

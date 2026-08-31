@@ -143,8 +143,21 @@ _MESSAGE_VALUE_MAX_LEN = 200
 #: boundary, but the character class must not drift from that
 #: already-reasoned-through set, hardened against CWE-150/Trojan-Source
 #: terminal-spoofing).
+#:
+#: Review fix (issue #2094 follow-up, round 15): also strips lone Unicode
+#: surrogates (`\ud800`-`\udfff`). `result.slug` and `file_path` can
+#: originate from a real on-disk directory/file name -- on POSIX, Python
+#: decodes an arbitrary (non-UTF-8) filesystem byte sequence via
+#: `surrogateescape`, producing lone surrogates in the resulting `str`.
+#: Those aren't control characters, so the class above didn't strip them,
+#: and `print()`/`sys.stderr.write()` in `main()`'s message-emission loop
+#: -- which sits OUTSIDE `main()`'s own fail-open `try/except` -- would
+#: raise an uncaught `UnicodeEncodeError` on such a value, crashing the
+#: hook process on its own BLOCK path: exactly the "a broken guard must
+#: never block work" property this hook exists to guarantee, broken on
+#: the one path most likely to be exercised by adversarial input.
 _CONTROL_CHARS_RE = re.compile(
-    "[\x00-\x1f\x7f-\x9f\u2028\u2029\u202a-\u202e\u2066-\u2069]"
+    "[\x00-\x1f\x7f-\x9f\u2028\u2029\u202a-\u202e\u2066-\u2069\ud800-\udfff]"
 )
 
 

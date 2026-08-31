@@ -506,6 +506,27 @@ def test_sanitize_for_message_strips_control_chars_and_truncates() -> None:
     assert sanitized.startswith("x" * guard._MESSAGE_VALUE_MAX_LEN)
 
 
+def test_sanitize_for_message_strips_lone_surrogates(tmp_path) -> None:
+    """Review fix (issue #2094 follow-up, round 15): `result.slug` and
+    `file_path` can originate from a real on-disk directory/file name --
+    on POSIX, Python decodes an arbitrary (non-UTF-8) filesystem byte
+    sequence via `surrogateescape`, producing lone surrogates in the
+    resulting `str`. Those aren't control characters, so the pre-fix
+    `_CONTROL_CHARS_RE` didn't strip them, and `main()`'s message-emission
+    loop (`print()`/`sys.stderr.write()`) -- which sits OUTSIDE `main()`'s
+    own fail-open `try/except` -- would raise an uncaught
+    `UnicodeEncodeError` on such a value, crashing the hook on its own
+    BLOCK path. A sanitized value must always be safely UTF-8-encodable."""
+    lone_surrogate = "my-repo-\udc80-slug"
+    with pytest.raises(UnicodeEncodeError):
+        lone_surrogate.encode("utf-8")
+
+    sanitized = guard._sanitize_for_message(lone_surrogate)
+
+    sanitized.encode("utf-8")  # must not raise
+    assert "\udc80" not in sanitized
+
+
 def test_block_message_truncates_an_overlong_file_path(tmp_path) -> None:
     """`file_path` is fully caller-controlled — an absurdly long value must
     not be printed verbatim into the [BLOCK] message."""
