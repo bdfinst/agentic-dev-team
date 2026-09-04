@@ -74,7 +74,11 @@ repo in a surprising way; take the skip default and print a one-line note:
   the language-neutral steps and report what could not be set up.
 - **Concise-response preference** (Step 8a) — `--yes` never guesses a
   communication-style preference. Skip the prompt and the `CLAUDE.md`
-  append entirely; note `concise-preference-skipped-under-yes`.
+  append entirely; note `concise-preference-skipped-under-yes`. This is
+  the outcome only when Step 8a's own pre-check found the block absent —
+  when the block is already present, the pre-check reports
+  `concise-preference-already-covered` before `--yes` is ever consulted,
+  regardless of whether `--yes` was passed.
 
 **Precedence.** If both `--yes` and `--dry-run` are passed, `--dry-run` wins:
 report only, write and install nothing, and add "`--yes` ignored under
@@ -855,12 +859,17 @@ Record the outcome — `concise-preference-declined` /
 `concise-preference-added` / `concise-preference-already-covered` /
 `concise-preference-skipped-under-yes` / `concise-preference-skipped-symlink`
 / `concise-preference-write-failed` — for the Step 12 report, using these
-exact tokens. The four the script can reach (`added` / `already-covered` /
+exact tokens. `already-covered` has two possible sources — usually the
+pre-check above (the normal path, before any prompt), or, on the rare
+race where the file changes between the pre-check and confirmation, the
+append script's own internal re-check — either way the token is the
+same. The other three the append script can reach (`added` /
 `skipped-symlink` / `write-failed`) are echoed verbatim from its own
 output — `write-failed` covers a `mkdir`/`touch`/append that fails (e.g.
 `.claude` exists as a non-directory, or the tree is read-only), so a
-failed write is never misreported as `added`; the other two (`declined` /
-`skipped-under-yes`) are recorded directly from the prose branches above,
+failed write is never misreported as `added`; the remaining two
+(`declined` / `skipped-under-yes`) are recorded directly from the prose
+branches below the pre-check,
 since the script never runs on those paths.
 
 ### 9. Generate PostToolUse formatting hook

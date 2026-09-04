@@ -17,14 +17,16 @@ from skill_doc_helpers import PLUGIN_ROOT, collapsed
 
 SKILL = (PLUGIN_ROOT / "skills" / "setup" / "SKILL.md").read_text(encoding="utf-8")
 
-# Tokens the append script itself can echo.
+# Tokens some bash snippet in this step can echo. `already-covered` has two
+# sources: usually the pre-check (before any prompt), or, on a rare race,
+# the append script's own internal re-check — either way, same token.
 SCRIPT_ECHOED_TOKENS = (
     "concise-preference-added",
     "concise-preference-already-covered",
     "concise-preference-skipped-symlink",
     "concise-preference-write-failed",
 )
-# Tokens recorded directly from prose branches, before the append script ever runs.
+# Tokens recorded directly from prose branches — never echoed by any script.
 PROSE_ONLY_TOKENS = (
     "concise-preference-declined",
     "concise-preference-skipped-under-yes",
