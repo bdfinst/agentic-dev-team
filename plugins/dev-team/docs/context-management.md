@@ -4,9 +4,9 @@ A user-facing guide to `hooks/context_ceiling_guard.py` — what it measures,
 why the ceiling is set where it is, how to read the warning it prints, and
 how to tune or troubleshoot it. For the runtime procedure this backs
 (what to load, when), see [Context Loading
-Protocol](../skills/context-loading-protocol/SKILL.md); for the
+Protocol](https://github.com/bdfinst/agentic-dev-team/blob/main/plugins/dev-team/skills/context-loading-protocol/SKILL.md); for the
 compression procedure it nudges toward, see
-[Handoff](../skills/handoff/SKILL.md).
+[Handoff](https://github.com/bdfinst/agentic-dev-team/blob/main/plugins/dev-team/skills/handoff/SKILL.md).
 
 ## What the guard is, and the evidence behind it
 
@@ -165,7 +165,7 @@ detected`?"** The transcript's `message.model` was missing, or didn't match
 a known pinned family/version. This is a conservative fallback to 200K —
 never a large window — so an unrecognized model never triggers an
 under-nudge. See the family/version list in
-[context-loading-protocol/SKILL.md](../skills/context-loading-protocol/SKILL.md#enforcement).
+[context-loading-protocol/SKILL.md](https://github.com/bdfinst/agentic-dev-team/blob/main/plugins/dev-team/skills/context-loading-protocol/SKILL.md#enforcement).
 If the model is a known large-window model that isn't in the pinned list
 yet, set `DEV_TEAM_CONTEXT_WINDOW` explicitly.
 

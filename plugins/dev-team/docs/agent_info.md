@@ -8,17 +8,17 @@ Each team agent file in `agents/` specifies a role's persona, behavior, collabor
 
 | Agent | File | Purpose |
 | --- | --- | --- |
-| ADR Author | [`adr-author.md`](../agents/adr-author.md) | Creates and manages Architecture Decision Records |
-| Architect | [`architect.md`](../agents/architect.md) | System design, tech decisions, scalability planning |
-| Codebase Recon | [`codebase-recon.md`](../agents/codebase-recon.md) | Surveys a codebase's structure, entry points, dependencies, security surface, and git history; produces a RECON artifact in `.claude/memory/` that other agents consume |
-| Orchestrator | [`orchestrator.md`](../agents/orchestrator.md) | Routes tasks, assigns models, coordinates inline review loop |
-| Platform Engineer | [`platform-engineer.md`](../agents/platform-engineer.md) | Pipeline, deployment, reliability, observability |
-| Product Manager | [`product-manager.md`](../agents/product-manager.md) | Requirements clarification, prioritization, stakeholder alignment |
-| QA/SQA Engineer | [`qa-engineer.md`](../agents/qa-engineer.md) | Test generation, automated testing, quality gates |
-| Security Engineer | [`security-engineer.md`](../agents/security-engineer.md) | Security analysis, threat modeling, compliance |
-| Software Engineer | [`software-engineer.md`](../agents/software-engineer.md) | Code generation, implementation, applies review corrections |
-| Technical Writer | [`tech-writer.md`](../agents/tech-writer.md) | Documentation, terminology consistency, style enforcement |
-| UI/UX Designer | [`ui-ux-designer.md`](../agents/ui-ux-designer.md) | Interface design, UX flows, accessibility compliance |
+| ADR Author | [`adr-author.md`](https://github.com/bdfinst/agentic-dev-team/blob/main/plugins/dev-team/agents/adr-author.md) | Creates and manages Architecture Decision Records |
+| Architect | [`architect.md`](https://github.com/bdfinst/agentic-dev-team/blob/main/plugins/dev-team/agents/architect.md) | System design, tech decisions, scalability planning |
+| Codebase Recon | [`codebase-recon.md`](https://github.com/bdfinst/agentic-dev-team/blob/main/plugins/dev-team/agents/codebase-recon.md) | Surveys a codebase's structure, entry points, dependencies, security surface, and git history; produces a RECON artifact in `.claude/memory/` that other agents consume |
+| Orchestrator | [`orchestrator.md`](https://github.com/bdfinst/agentic-dev-team/blob/main/plugins/dev-team/agents/orchestrator.md) | Routes tasks, assigns models, coordinates inline review loop |
+| Platform Engineer | [`platform-engineer.md`](https://github.com/bdfinst/agentic-dev-team/blob/main/plugins/dev-team/agents/platform-engineer.md) | Pipeline, deployment, reliability, observability |
+| Product Manager | [`product-manager.md`](https://github.com/bdfinst/agentic-dev-team/blob/main/plugins/dev-team/agents/product-manager.md) | Requirements clarification, prioritization, stakeholder alignment |
+| QA/SQA Engineer | [`qa-engineer.md`](https://github.com/bdfinst/agentic-dev-team/blob/main/plugins/dev-team/agents/qa-engineer.md) | Test generation, automated testing, quality gates |
+| Security Engineer | [`security-engineer.md`](https://github.com/bdfinst/agentic-dev-team/blob/main/plugins/dev-team/agents/security-engineer.md) | Security analysis, threat modeling, compliance |
+| Software Engineer | [`software-engineer.md`](https://github.com/bdfinst/agentic-dev-team/blob/main/plugins/dev-team/agents/software-engineer.md) | Code generation, implementation, applies review corrections |
+| Technical Writer | [`tech-writer.md`](https://github.com/bdfinst/agentic-dev-team/blob/main/plugins/dev-team/agents/tech-writer.md) | Documentation, terminology consistency, style enforcement |
+| UI/UX Designer | [`ui-ux-designer.md`](https://github.com/bdfinst/agentic-dev-team/blob/main/plugins/dev-team/agents/ui-ux-designer.md) | Interface design, UX flows, accessibility compliance |
 
 ## Review Agents
 
@@ -26,34 +26,34 @@ Review agents run as sub-agents during Phase 3 inline checkpoints and full `/cod
 
 | Agent | File | Model | What It Checks |
 | --- | --- | --- | --- |
-| `a11y-review` | [`a11y-review.md`](../agents/a11y-review.md) | sonnet | WCAG 2.1 AA, ARIA, keyboard navigation |
-| `ai-provenance-review` | [`ai-provenance-review.md`](../agents/ai-provenance-review.md) | opus | AI-authored test assertion verification debt, regeneration-risk candidates |
-| `angular-reactivity-review` | [`angular-reactivity-review.md`](../agents/angular-reactivity-review.md) | sonnet | Angular Zone.js pitfalls, OnPush violations, RxJS subscription leaks |
-| `arch-review` | [`arch-review.md`](../agents/arch-review.md) | opus | ADR compliance, layer violations, dependency direction |
-| `claude-setup-review` | [`claude-setup-review.md`](../agents/claude-setup-review.md) | haiku | CLAUDE.md completeness and accuracy |
-| `component-architecture-review` | [`component-architecture-review.md`](../agents/component-architecture-review.md) | sonnet | Reusable component extraction, UI duplication, prop drilling, component APIs |
-| `concurrency-review` | [`concurrency-review.md`](../agents/concurrency-review.md) | sonnet | Race conditions, async pitfalls |
-| `correctness-review` | [`correctness-review.md`](../agents/correctness-review.md) | opus | Functional/behavioral defects — implementation diverges from evident intent |
-| `data-flow-tracer` | [`data-flow-tracer.md`](../agents/data-flow-tracer.md) | sonnet | Data flow tracing through architecture layers (analysis-only) |
-| `doc-review` | [`doc-review.md`](../agents/doc-review.md) | sonnet | README accuracy, API doc alignment, comment drift |
-| `domain-review` | [`domain-review.md`](../agents/domain-review.md) | opus | Abstraction leaks, boundary violations |
-| `js-fp-review` | [`js-fp-review.md`](../agents/js-fp-review.md) | haiku | Array mutations, impure patterns, global state, point-free/composition opportunities (JS/TS) |
-| `mutation-kill` | [`mutation-kill.md`](../agents/mutation-kill.md) | opus | Autonomous survivor-reduction loop — generates targeted tests, verifies, commits, repeats; not a reviewer, invoked per Story by `/test-improve` Phase 5 or directly |
-| `naming-review` | [`naming-review.md`](../agents/naming-review.md) | haiku | Intent-revealing names, magic values |
-| `performance-review` | [`performance-review.md`](../agents/performance-review.md) | haiku | Resource leaks, N+1 queries |
-| `progress-guardian` | [`progress-guardian.md`](../agents/progress-guardian.md) | sonnet | Plan adherence, commit discipline, scope creep |
-| `quality-reviewer` | [`quality-reviewer.md`](../agents/quality-reviewer.md) | sonnet | Coordinates the Inline Review Checkpoint's review agents and drives the fix loop — Stage 2 of the three-stage inline review |
-| `react-reactivity-review` | [`react-reactivity-review.md`](../agents/react-reactivity-review.md) | sonnet | React hook violations, stale closures, missing deps, subscription leaks |
-| `refactor-opportunity-review` | [`refactor-opportunity-review.md`](../agents/refactor-opportunity-review.md) | sonnet | Post-GREEN refactoring opportunities |
-| `security-review` | [`security-review.md`](../agents/security-review.md) | opus | Injection, auth, data exposure |
-| `session-analysis` | [`session-analysis.md`](../agents/session-analysis.md) | sonnet | Maps an aggregated session digest to probable plugin causes and ranked, tagged improvement suggestions (analysis-only) |
-| `spec-compliance-review` | [`spec-compliance-review.md`](../agents/spec-compliance-review.md) | sonnet | Spec-to-code matching — general first gate before quality review (final `/code-review` gate; pre-build and batched/complex-slice checkpoints in `/build`) |
-| `spec-reviewer` | [`spec-reviewer.md`](../agents/spec-reviewer.md) | haiku | Spec-to-diff matching for a single freshly-implemented unit — Stage 1 of the three-stage inline review |
-| `structure-review` | [`structure-review.md`](../agents/structure-review.md) | sonnet | SRP, DRY, coupling, file organization, nesting depth, cognitive load, async-pattern judgment |
-| `test-review` | [`test-review.md`](../agents/test-review.md) | sonnet | Coverage gaps, assertion quality, test hygiene |
-| `test-smell-review` | [`test-smell-review.md`](../agents/test-smell-review.md) | sonnet | xUnit test smells, test-double selection, pyramid placement |
-| `token-efficiency-review` | [`token-efficiency-review.md`](../agents/token-efficiency-review.md) | haiku | File size, LLM anti-patterns |
-| `vue-reactivity-review` | [`vue-reactivity-review.md`](../agents/vue-reactivity-review.md) | sonnet | Vue ref/reactive pitfalls, watchEffect tracking, proxy escapes, subscription leaks |
+| `a11y-review` | [`a11y-review.md`](https://github.com/bdfinst/agentic-dev-team/blob/main/plugins/dev-team/agents/a11y-review.md) | sonnet | WCAG 2.1 AA, ARIA, keyboard navigation |
+| `ai-provenance-review` | [`ai-provenance-review.md`](https://github.com/bdfinst/agentic-dev-team/blob/main/plugins/dev-team/agents/ai-provenance-review.md) | opus | AI-authored test assertion verification debt, regeneration-risk candidates |
+| `angular-reactivity-review` | [`angular-reactivity-review.md`](https://github.com/bdfinst/agentic-dev-team/blob/main/plugins/dev-team/agents/angular-reactivity-review.md) | sonnet | Angular Zone.js pitfalls, OnPush violations, RxJS subscription leaks |
+| `arch-review` | [`arch-review.md`](https://github.com/bdfinst/agentic-dev-team/blob/main/plugins/dev-team/agents/arch-review.md) | opus | ADR compliance, layer violations, dependency direction |
+| `claude-setup-review` | [`claude-setup-review.md`](https://github.com/bdfinst/agentic-dev-team/blob/main/plugins/dev-team/agents/claude-setup-review.md) | haiku | CLAUDE.md completeness and accuracy |
+| `component-architecture-review` | [`component-architecture-review.md`](https://github.com/bdfinst/agentic-dev-team/blob/main/plugins/dev-team/agents/component-architecture-review.md) | sonnet | Reusable component extraction, UI duplication, prop drilling, component APIs |
+| `concurrency-review` | [`concurrency-review.md`](https://github.com/bdfinst/agentic-dev-team/blob/main/plugins/dev-team/agents/concurrency-review.md) | sonnet | Race conditions, async pitfalls |
+| `correctness-review` | [`correctness-review.md`](https://github.com/bdfinst/agentic-dev-team/blob/main/plugins/dev-team/agents/correctness-review.md) | opus | Functional/behavioral defects — implementation diverges from evident intent |
+| `data-flow-tracer` | [`data-flow-tracer.md`](https://github.com/bdfinst/agentic-dev-team/blob/main/plugins/dev-team/agents/data-flow-tracer.md) | sonnet | Data flow tracing through architecture layers (analysis-only) |
+| `doc-review` | [`doc-review.md`](https://github.com/bdfinst/agentic-dev-team/blob/main/plugins/dev-team/agents/doc-review.md) | sonnet | README accuracy, API doc alignment, comment drift |
+| `domain-review` | [`domain-review.md`](https://github.com/bdfinst/agentic-dev-team/blob/main/plugins/dev-team/agents/domain-review.md) | opus | Abstraction leaks, boundary violations |
+| `js-fp-review` | [`js-fp-review.md`](https://github.com/bdfinst/agentic-dev-team/blob/main/plugins/dev-team/agents/js-fp-review.md) | haiku | Array mutations, impure patterns, global state, point-free/composition opportunities (JS/TS) |
+| `mutation-kill` | [`mutation-kill.md`](https://github.com/bdfinst/agentic-dev-team/blob/main/plugins/dev-team/agents/mutation-kill.md) | opus | Autonomous survivor-reduction loop — generates targeted tests, verifies, commits, repeats; not a reviewer, invoked per Story by `/test-improve` Phase 5 or directly |
+| `naming-review` | [`naming-review.md`](https://github.com/bdfinst/agentic-dev-team/blob/main/plugins/dev-team/agents/naming-review.md) | haiku | Intent-revealing names, magic values |
+| `performance-review` | [`performance-review.md`](https://github.com/bdfinst/agentic-dev-team/blob/main/plugins/dev-team/agents/performance-review.md) | haiku | Resource leaks, N+1 queries |
+| `progress-guardian` | [`progress-guardian.md`](https://github.com/bdfinst/agentic-dev-team/blob/main/plugins/dev-team/agents/progress-guardian.md) | sonnet | Plan adherence, commit discipline, scope creep |
+| `quality-reviewer` | [`quality-reviewer.md`](https://github.com/bdfinst/agentic-dev-team/blob/main/plugins/dev-team/agents/quality-reviewer.md) | sonnet | Coordinates the Inline Review Checkpoint's review agents and drives the fix loop — Stage 2 of the three-stage inline review |
+| `react-reactivity-review` | [`react-reactivity-review.md`](https://github.com/bdfinst/agentic-dev-team/blob/main/plugins/dev-team/agents/react-reactivity-review.md) | sonnet | React hook violations, stale closures, missing deps, subscription leaks |
+| `refactor-opportunity-review` | [`refactor-opportunity-review.md`](https://github.com/bdfinst/agentic-dev-team/blob/main/plugins/dev-team/agents/refactor-opportunity-review.md) | sonnet | Post-GREEN refactoring opportunities |
+| `security-review` | [`security-review.md`](https://github.com/bdfinst/agentic-dev-team/blob/main/plugins/dev-team/agents/security-review.md) | opus | Injection, auth, data exposure |
+| `session-analysis` | [`session-analysis.md`](https://github.com/bdfinst/agentic-dev-team/blob/main/plugins/dev-team/agents/session-analysis.md) | sonnet | Maps an aggregated session digest to probable plugin causes and ranked, tagged improvement suggestions (analysis-only) |
+| `spec-compliance-review` | [`spec-compliance-review.md`](https://github.com/bdfinst/agentic-dev-team/blob/main/plugins/dev-team/agents/spec-compliance-review.md) | sonnet | Spec-to-code matching — general first gate before quality review (final `/code-review` gate; pre-build and batched/complex-slice checkpoints in `/build`) |
+| `spec-reviewer` | [`spec-reviewer.md`](https://github.com/bdfinst/agentic-dev-team/blob/main/plugins/dev-team/agents/spec-reviewer.md) | haiku | Spec-to-diff matching for a single freshly-implemented unit — Stage 1 of the three-stage inline review |
+| `structure-review` | [`structure-review.md`](https://github.com/bdfinst/agentic-dev-team/blob/main/plugins/dev-team/agents/structure-review.md) | sonnet | SRP, DRY, coupling, file organization, nesting depth, cognitive load, async-pattern judgment |
+| `test-review` | [`test-review.md`](https://github.com/bdfinst/agentic-dev-team/blob/main/plugins/dev-team/agents/test-review.md) | sonnet | Coverage gaps, assertion quality, test hygiene |
+| `test-smell-review` | [`test-smell-review.md`](https://github.com/bdfinst/agentic-dev-team/blob/main/plugins/dev-team/agents/test-smell-review.md) | sonnet | xUnit test smells, test-double selection, pyramid placement |
+| `token-efficiency-review` | [`token-efficiency-review.md`](https://github.com/bdfinst/agentic-dev-team/blob/main/plugins/dev-team/agents/token-efficiency-review.md) | haiku | File size, LLM anti-patterns |
+| `vue-reactivity-review` | [`vue-reactivity-review.md`](https://github.com/bdfinst/agentic-dev-team/blob/main/plugins/dev-team/agents/vue-reactivity-review.md) | sonnet | Vue ref/reactive pitfalls, watchEffect tracking, proxy escapes, subscription leaks |
 
 To add a new review agent, use `/agent-add`. See [Add a Review Agent](#add-a-review-agent) below.
 
@@ -107,7 +107,7 @@ Several `Key: value` lines appear in some agents' **bodies**, not their frontmat
 
 - **`Cites: [...]`** — a list of canonical skill/knowledge-file sources an agent's normative rules (MUST/SHOULD/SHALL thresholds) derive from, e.g. `Cites: [owasp-detection, accepted-risks-schema]`. `scripts/citation_lint.py` reads this list and flags a warning when a stated numeric threshold doesn't appear in any cited source — catching silent drift when a canonical file changes but a reviewer agent's inline rule doesn't. See the script's module docstring for the full contract. See `tests/repo/test_citation_lint_corpus.py` for the regression guard over the real corpus.
 - **`Scope: always` / `Scope:` (glob list) / `Scope: added-only` (glob list) / `Scope: on-demand`** — self-declares which files an agent is eligible to review; read by `/code-review`'s dispatch step (`skills/code-review/SKILL.md`). `scripts/check_agent_scope.py` only validates that *some* `Scope:` line is present, not which of the four forms it takes or that the value parses — a misspelled sentinel (e.g. `Scope: added_only`) passes that check silently, then falls through to `select_lenses.py`'s `parse_scope`, which fails open (include-biased, and warned) on an unrecognized value. `added-only` (#1733) narrows the glob-list form to only files that are newly *added* (git change-type `A`), not merely modified. `on-demand` (#1733's closing-pass follow-up) is a bare declaration with no bullet block — it means the agent is a genuine review agent whose findings are whole-repository properties, never dispatched by the per-diff resolver at all (`claude-setup-review`, `token-efficiency-review`, `ai-provenance-review` — see `scripts/lib/review_roster.py`'s docstring for why this replaced listing them in `NON_REVIEW_AGENTS`). `parse_scope` treats the **first** `Scope:` line as authoritative, so the machine-readable form (`added-only`/`on-demand`/plain glob-list) must stay above any later free-text `Scope:` prose in the same body, or the declaration a reader sees first is not the one the resolver reads.
-- **`Verify-model:` / `Verify-effort:`** — a review agent's optional opt-in to a cheaper model/effort tier for **fix-verification** re-dispatches only; discovery dispatches are unaffected. Absent means "same tier as discovery" — the deliberate default, since #1619 showed some confirmations genuinely need top-tier judgment. Resolved by `scripts/verify_tier.py`, which validates each value against the same closed enums the official contract declares for `model:`/`effort:` and falls back to the discovery tier on a typo (failing toward the more expensive tier, never the cheaper one). Full contract: [`knowledge/verification-mode.md`](../knowledge/verification-mode.md) (#1628).
+- **`Verify-model:` / `Verify-effort:`** — a review agent's optional opt-in to a cheaper model/effort tier for **fix-verification** re-dispatches only; discovery dispatches are unaffected. Absent means "same tier as discovery" — the deliberate default, since #1619 showed some confirmations genuinely need top-tier judgment. Resolved by `scripts/verify_tier.py`, which validates each value against the same closed enums the official contract declares for `model:`/`effort:` and falls back to the discovery tier on a typo (failing toward the more expensive tier, never the cheaper one). Full contract: [`knowledge/verification-mode.md`](https://github.com/bdfinst/agentic-dev-team/blob/main/plugins/dev-team/knowledge/verification-mode.md) (#1628).
 - **`Enforcement: script`** — marks an agent whose behavior is deterministically implemented by a script rather than driven by free-form LLM reasoning from the persona prose alone. Agents carrying this declaration also carry a `> **Implemented by:** ${CLAUDE_PLUGIN_ROOT}/scripts/<name>.py` blockquote near the top of the file pointing at that implementation (e.g. `orchestrator.md` → `${CLAUDE_PLUGIN_ROOT}/scripts/orchestrator.py`, `codebase-recon.md` → `${CLAUDE_PLUGIN_ROOT}/scripts/codebase_recon.py`).
 
 ## Add a Team Agent

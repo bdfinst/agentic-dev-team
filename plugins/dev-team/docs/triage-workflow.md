@@ -5,9 +5,9 @@ pieces are three individual skills; this document is the lifecycle that
 connects them.
 
 > **Authoritative sources**: the skill specs at
-> [`skills/triage/SKILL.md`](../skills/triage/SKILL.md),
-> [`skills/code-review/SKILL.md`](../skills/code-review/SKILL.md), and
-> [`skills/apply-fixes/SKILL.md`](../skills/apply-fixes/SKILL.md). This
+> [`skills/triage/SKILL.md`](https://github.com/bdfinst/agentic-dev-team/blob/main/plugins/dev-team/skills/triage/SKILL.md),
+> [`skills/code-review/SKILL.md`](https://github.com/bdfinst/agentic-dev-team/blob/main/plugins/dev-team/skills/code-review/SKILL.md), and
+> [`skills/apply-fixes/SKILL.md`](https://github.com/bdfinst/agentic-dev-team/blob/main/plugins/dev-team/skills/apply-fixes/SKILL.md). This
 > document is a reader-friendly walkthrough; where it and a skill spec
 > disagree, the spec wins.
 
@@ -17,15 +17,15 @@ connects them.
 
 Two entry points feed one fix pipeline:
 
-- **A reported bug** enters through [`/triage`](../skills/triage/SKILL.md),
+- **A reported bug** enters through [`/triage`](https://github.com/bdfinst/agentic-dev-team/blob/main/plugins/dev-team/skills/triage/SKILL.md),
   which investigates hands-off and writes a **triage record** to
   `.dev-team-reports/triage/<slug>.md` with a TDD fix plan. It deliberately does **not** fix
   the bug — the record hands off to `/plan`/`/build` or a direct fix.
 - **A review finding** enters through
-  [`/code-review`](../skills/code-review/SKILL.md), whose fix loop
+  [`/code-review`](https://github.com/bdfinst/agentic-dev-team/blob/main/plugins/dev-team/skills/code-review/SKILL.md), whose fix loop
   auto-applies actionable issues and emits everything else as **correction
   prompts** — self-contained JSON files in `corrections/` — which
-  [`/apply-fixes`](../skills/apply-fixes/SKILL.md) later consumes.
+  [`/apply-fixes`](https://github.com/bdfinst/agentic-dev-team/blob/main/plugins/dev-team/skills/apply-fixes/SKILL.md) later consumes.
 
 ```mermaid
 %%{init: {'theme': 'base', 'themeVariables': {'primaryColor': '#dbeafe', 'primaryTextColor': '#1e3a5f', 'primaryBorderColor': '#3b82f6', 'lineColor': '#64748b', 'secondaryColor': '#f1f5f9', 'tertiaryColor': '#e0f2fe', 'background': '#ffffff', 'mainBkg': '#dbeafe', 'nodeBorder': '#2563eb', 'clusterBkg': '#eff6ff', 'clusterBorder': '#bfdbfe', 'titleColor': '#1e3a5f', 'edgeLabelBackground': '#f8fafc'}}}%%
@@ -78,7 +78,7 @@ invocation and the entire investigation runs without further interaction.
    body.
 
 The investigation applies the systematic debugging protocol from
-[`skills/systematic-debugging/SKILL.md`](../skills/systematic-debugging/SKILL.md):
+[`skills/systematic-debugging/SKILL.md`](https://github.com/bdfinst/agentic-dev-team/blob/main/plugins/dev-team/skills/systematic-debugging/SKILL.md):
 
 1. **Reproduce** — run the failing test or trigger the error.
 2. **Investigate** — trace data flow, check recent changes, find working
@@ -123,14 +123,14 @@ GitHub, Jira, or anything else being reachable.
 characters. From there:
 
 - **Substantial fix** → feed the record to
-  [`/plan`](../skills/plan/SKILL.md); each RED-GREEN cycle maps to a plan
-  step, and [`/build`](../skills/build/SKILL.md) executes it under TDD.
+  [`/plan`](https://github.com/bdfinst/agentic-dev-team/blob/main/plugins/dev-team/skills/plan/SKILL.md); each RED-GREEN cycle maps to a plan
+  step, and [`/build`](https://github.com/bdfinst/agentic-dev-team/blob/main/plugins/dev-team/skills/build/SKILL.md) executes it under TDD.
 - **Small fix** → implement the cycles directly, in order — the plan is
   already TDD-shaped.
 
 ## 4. The review-corrections flow
 
-[`/code-review`](../skills/code-review/SKILL.md) classifies every finding by
+[`/code-review`](https://github.com/bdfinst/agentic-dev-team/blob/main/plugins/dev-team/skills/code-review/SKILL.md) classifies every finding by
 severity and confidence. The rubric decides what the **fix loop**
 auto-applies and what is report-only:
 
@@ -145,7 +145,7 @@ remaining issue — suggestion-severity findings, issues whose auto-fix failed,
 and anything else the loop did not resolve — as JSON files in `corrections/`.
 Each prompt carries `priority`, `confidence`, `category` (the reviewing agent),
 `instruction`, `context`, and `affectedFiles`; the full field schema is in
-[`skills/code-review/output-format.md`](../skills/code-review/output-format.md#correction-prompt-json).
+[`skills/code-review/output-format.md`](https://github.com/bdfinst/agentic-dev-team/blob/main/plugins/dev-team/skills/code-review/output-format.md#correction-prompt-json).
 
 Severity maps to priority: error→high, warning→medium, suggestion→low.
 Correction prompts are only generated for `confidence: high` or
@@ -158,7 +158,7 @@ session with no memory of the review that produced it.
 
 ## 5. The `/apply-fixes` flow
 
-[`/apply-fixes`](../skills/apply-fixes/SKILL.md) consumes a corrections
+[`/apply-fixes`](https://github.com/bdfinst/agentic-dev-team/blob/main/plugins/dev-team/skills/apply-fixes/SKILL.md) consumes a corrections
 directory and applies each prompt as a minimal, individually-validated fix:
 
 ```bash
@@ -276,7 +276,7 @@ conventionally, and deletes `corrections/` before merging — disposition
 - [Top-level Workflows](workflows.md) — the multi-phase orchestrators
   (`/ship`, `/test-improve`) that embed `/code-review` and `/apply-fixes`
 - [Skills reference](skills.md) — catalog of all slash commands
-- [`skills/triage/SKILL.md`](../skills/triage/SKILL.md),
-  [`skills/apply-fixes/SKILL.md`](../skills/apply-fixes/SKILL.md),
-  [`skills/code-review/output-format.md`](../skills/code-review/output-format.md)
+- [`skills/triage/SKILL.md`](https://github.com/bdfinst/agentic-dev-team/blob/main/plugins/dev-team/skills/triage/SKILL.md),
+  [`skills/apply-fixes/SKILL.md`](https://github.com/bdfinst/agentic-dev-team/blob/main/plugins/dev-team/skills/apply-fixes/SKILL.md),
+  [`skills/code-review/output-format.md`](https://github.com/bdfinst/agentic-dev-team/blob/main/plugins/dev-team/skills/code-review/output-format.md)
   — the authoritative specs

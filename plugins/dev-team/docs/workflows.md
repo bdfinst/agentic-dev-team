@@ -209,7 +209,7 @@ The two commands below are the plugin's **multi-phase pipelines with inter-phase
 
 ## `/ship`
 
-**File:** [`skills/ship/SKILL.md`](../skills/ship/SKILL.md)
+**File:** [`skills/ship/SKILL.md`](https://github.com/bdfinst/agentic-dev-team/blob/main/plugins/dev-team/skills/ship/SKILL.md)
 **Role:** orchestrator.
 **Use when:** the user says "ship this", "take this feature end to end", or
 wants the spec → plan → build → PR flow without re-assembling it each time.
@@ -218,12 +218,12 @@ wants the spec → plan → build → PR flow without re-assembling it each time
 
 | # | Step | Delegates to | Human gate after? |
 | --- | --- | --- | --- |
-| 1 | **Approach contract** — screen request against [`knowledge/decision-defaults.md`](../knowledge/decision-defaults.md); resolve ambiguous high-reversal-cost axes in one batch. | (orchestrator only) | yes, if a blocker remains |
-| 2 | **Spec** *(skipped with `--skip-spec`)* — produce Intent, Architecture, Acceptance Criteria. | [`/specs`](../skills/specs/SKILL.md) | **yes** — operator approves the spec |
-| 3 | **Plan** — decompose into vertical slices with Gherkin scenarios; a tier-scaled set of plan-review personas (1–5, by plan complexity) runs in parallel before the gate. | [`/plan`](../skills/plan/SKILL.md) | **yes** — operator approves the plan |
-| 4 | **Build** — small per-behavior batches per slice (Code-First Small Batches), inline review checkpoints, verification evidence. Do not proceed until the suite is green. | [`/build`](../skills/build/SKILL.md) | no |
-| 5 | **Review** — run quality-review agents and let the auto-fix loop converge. Only judgment-call findings escalate to the operator. | [`/code-review`](../skills/code-review/SKILL.md) | no |
-| 6 | **PR** — pre-PR quality gate, open PR, arm auto-merge by default (`--no-auto-merge` to opt out). | [`/pr`](../skills/pr/SKILL.md) | **yes** — the PR is the final review artifact |
+| 1 | **Approach contract** — screen request against [`knowledge/decision-defaults.md`](https://github.com/bdfinst/agentic-dev-team/blob/main/plugins/dev-team/knowledge/decision-defaults.md); resolve ambiguous high-reversal-cost axes in one batch. | (orchestrator only) | yes, if a blocker remains |
+| 2 | **Spec** *(skipped with `--skip-spec`)* — produce Intent, Architecture, Acceptance Criteria. | [`/specs`](https://github.com/bdfinst/agentic-dev-team/blob/main/plugins/dev-team/skills/specs/SKILL.md) | **yes** — operator approves the spec |
+| 3 | **Plan** — decompose into vertical slices with Gherkin scenarios; a tier-scaled set of plan-review personas (1–5, by plan complexity) runs in parallel before the gate. | [`/plan`](https://github.com/bdfinst/agentic-dev-team/blob/main/plugins/dev-team/skills/plan/SKILL.md) | **yes** — operator approves the plan |
+| 4 | **Build** — small per-behavior batches per slice (Code-First Small Batches), inline review checkpoints, verification evidence. Do not proceed until the suite is green. | [`/build`](https://github.com/bdfinst/agentic-dev-team/blob/main/plugins/dev-team/skills/build/SKILL.md) | no |
+| 5 | **Review** — run quality-review agents and let the auto-fix loop converge. Only judgment-call findings escalate to the operator. | [`/code-review`](https://github.com/bdfinst/agentic-dev-team/blob/main/plugins/dev-team/skills/code-review/SKILL.md) | no |
+| 6 | **PR** — pre-PR quality gate, open PR, arm auto-merge by default (`--no-auto-merge` to opt out). | [`/pr`](https://github.com/bdfinst/agentic-dev-team/blob/main/plugins/dev-team/skills/pr/SKILL.md) | **yes** — the PR is the final review artifact |
 | 7 | **Report** — PR URL, quality-gate result, whether auto-merge is armed. | (orchestrator only) | — |
 
 ### Agents involved (dispatched by the delegated skills)
@@ -234,7 +234,7 @@ wants the spec → plan → build → PR flow without re-assembling it each time
 agents (`agents/plan-review-*.md`) — the Acceptance Test Critic always
 runs; the rest are added as the plan's tier (`trivial`/`standard`/`complex`)
 warrants — and the
-[`progress-guardian`](../agents/progress-guardian.md) gate-keeper.
+[`progress-guardian`](https://github.com/bdfinst/agentic-dev-team/blob/main/plugins/dev-team/agents/progress-guardian.md) gate-keeper.
 `/code-review` re-runs the same review agents over the full changeset.
 
 ### Arguments
@@ -251,15 +251,15 @@ warrants — and the
 
 - Sequencing only — every gate, fix loop, and evidence requirement comes from
   the underlying skills. If any phase stops at a gate, `/ship` stops with it.
-- For a plan-only pass, use [`/plan`](../skills/plan/SKILL.md);
-  for build-only, use [`/build`](../skills/build/SKILL.md).
-- Resume across sessions with [`/continue`](../skills/continue/SKILL.md).
+- For a plan-only pass, use [`/plan`](https://github.com/bdfinst/agentic-dev-team/blob/main/plugins/dev-team/skills/plan/SKILL.md);
+  for build-only, use [`/build`](https://github.com/bdfinst/agentic-dev-team/blob/main/plugins/dev-team/skills/build/SKILL.md).
+- Resume across sessions with [`/continue`](https://github.com/bdfinst/agentic-dev-team/blob/main/plugins/dev-team/skills/continue/SKILL.md).
 
 ---
 
 ## `/test-improve`
 
-**File:** [`skills/test-improve/SKILL.md`](../skills/test-improve/SKILL.md)
+**File:** [`skills/test-improve/SKILL.md`](https://github.com/bdfinst/agentic-dev-team/blob/main/plugins/dev-team/skills/test-improve/SKILL.md)
 **Role:** orchestrator.
 
 The full ten-phase (0-9) reference — phase-by-phase gates, arguments, and the

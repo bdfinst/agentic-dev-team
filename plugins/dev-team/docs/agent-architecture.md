@@ -44,7 +44,7 @@ The Orchestrator manages context utilization using two operational skills.
 
 ### Loading Protocol
 
-[Context Loading Protocol](../skills/context-loading-protocol/SKILL.md) controls what gets loaded and when:
+[Context Loading Protocol](https://github.com/bdfinst/agentic-dev-team/blob/main/plugins/dev-team/skills/context-loading-protocol/SKILL.md) controls what gets loaded and when:
 
 1. **Classify** the task (simple, standard, multi-agent, complex)
 2. **Select** the minimum set of agents and skills required
@@ -53,7 +53,7 @@ The Orchestrator manages context utilization using two operational skills.
 
 ### Summarization
 
-[Handoff](../skills/handoff/SKILL.md) (continue mode) controls when to compress:
+[Handoff](https://github.com/bdfinst/agentic-dev-team/blob/main/plugins/dev-team/skills/handoff/SKILL.md) (continue mode) controls when to compress:
 
 | Utilization | Action |
 | --- | --- |
@@ -119,7 +119,7 @@ Validation happens in this sequence during Phase 3:
 | 7 | Human gate | User | At each phase transition (Research, Plan, Implement) |
 | 8 | Post-hoc monitoring | Orchestrator | During learning loop after task completion |
 
-Every agent applies the [Quality Gate Pipeline](../skills/quality-gate-pipeline/SKILL.md) before output. This includes self-validation (Phase 1: factual accuracy, instruction fidelity, consistency, confidence scoring), verification evidence (Phase 2), and review-correction loops (Phase 3).
+Every agent applies the [Quality Gate Pipeline](https://github.com/bdfinst/agentic-dev-team/blob/main/plugins/dev-team/skills/quality-gate-pipeline/SKILL.md) before output. This includes self-validation (Phase 1: factual accuracy, instruction fidelity, consistency, confidence scoring), verification evidence (Phase 2), and review-correction loops (Phase 3).
 
 Quality gates by task type:
 
@@ -133,7 +133,7 @@ Quality gates by task type:
 
 ## Human Oversight
 
-Agents operate autonomously within boundaries. The [Human Oversight Protocol](../skills/human-oversight-protocol/SKILL.md) defines three levels of human involvement:
+Agents operate autonomously within boundaries. The [Human Oversight Protocol](https://github.com/bdfinst/agentic-dev-team/blob/main/plugins/dev-team/skills/human-oversight-protocol/SKILL.md) defines three levels of human involvement:
 
 | Level | When | Example |
 | --- | --- | --- |
@@ -145,7 +145,7 @@ Intervention commands (`override`, `pause`, `stop`) give humans immediate contro
 
 ## Governance
 
-[Governance & Compliance](../skills/governance-compliance/SKILL.md) defines audit and ethics requirements:
+[Governance & Compliance](https://github.com/bdfinst/agentic-dev-team/blob/main/plugins/dev-team/skills/governance-compliance/SKILL.md) defines audit and ethics requirements:
 
 - All task completions logged to `.claude/metrics/` (JSONL format)
 - All configuration changes logged to `.claude/metrics/config-changelog.jsonl`
@@ -190,7 +190,7 @@ A `PreToolUse` hook (`hooks/code_intelligence_nudge.py`) registered on `Read`, `
 
 ### Context Ceiling Guard
 
-A `PreToolUse` hook (`hooks/context_ceiling_guard.py`) registered on `Agent` and `Skill` enforces the **40% Context Window Rule** — see [Context Loading Protocol → Why 40%](../skills/context-loading-protocol/SKILL.md#why-40) for why 40% is a conservative planning target, not a claimed accuracy cliff. Before a capability-loading call it measures `utilization = (input + cache_read + cache_creation) / model_context_window` from the transcript's most recent assistant-message usage against the model's context window, which it auto-detects from the session's `message.model` by pinned family/version (Haiku -> 200K; Fable, Mythos, Opus 4.6/4.7/4.8, Sonnet 5, Sonnet 4.6 -> 1M; unrecognized or same-family-but-unpinned -> 200K conservative fallback, whose verdicts warn but never block). Sidechain (subagent) transcript rows are skipped by both the occupancy scan and window detection — their usage describes the subagent's context, not the main thread's. The effective ceiling is `min(ceiling_pct% of window, 350K tokens)` (ADR 0038) — an absolute cap that keeps the trigger point conservative even on 1M-context models, and the bound that actually governs every 1M-window model, making the shipped ceiling a flat 350K; the warning names which bound is binding (percentage or absolute, never both) and the window's provenance (override, detected, or default). As occupancy climbs past the ceiling the hook escalates through three Handoff action bands keyed to multiples of the effective ceiling (on a 1M window: 350K nudge, 437.5K run now, 525K full summary), deduped per session on band identity so an escalation always breaks through even when the coarser 5%-of-window bucket hasn't moved; at or above the ceiling it blocks (`exit 2`) by default since #2000, or warns to stderr under `DEV_TEAM_CONTEXT_STRICT=off`. The occupancy is ground truth from the harness, not a model self-estimate — which is what makes the ceiling enforceable rather than advisory. Recovery skills (`/handoff`, `/context-loading-protocol`, `/continue`, `/review-summary`, `/session-review`) are never gated, so the path back under budget can't deadlock. `DEV_TEAM_CONTEXT_WINDOW` overrides auto-detection when needed. The ceiling percent is `DEV_TEAM_CONTEXT_CEILING_PCT` (default 40); `DEV_TEAM_CONTEXT_CEILING=off` disables. Fail-open throughout — any unmeasurable context or internal error exits 0.
+A `PreToolUse` hook (`hooks/context_ceiling_guard.py`) registered on `Agent` and `Skill` enforces the **40% Context Window Rule** — see [Context Loading Protocol → Why 40%](https://github.com/bdfinst/agentic-dev-team/blob/main/plugins/dev-team/skills/context-loading-protocol/SKILL.md#why-40) for why 40% is a conservative planning target, not a claimed accuracy cliff. Before a capability-loading call it measures `utilization = (input + cache_read + cache_creation) / model_context_window` from the transcript's most recent assistant-message usage against the model's context window, which it auto-detects from the session's `message.model` by pinned family/version (Haiku -> 200K; Fable, Mythos, Opus 4.6/4.7/4.8, Sonnet 5, Sonnet 4.6 -> 1M; unrecognized or same-family-but-unpinned -> 200K conservative fallback, whose verdicts warn but never block). Sidechain (subagent) transcript rows are skipped by both the occupancy scan and window detection — their usage describes the subagent's context, not the main thread's. The effective ceiling is `min(ceiling_pct% of window, 350K tokens)` (ADR 0038) — an absolute cap that keeps the trigger point conservative even on 1M-context models, and the bound that actually governs every 1M-window model, making the shipped ceiling a flat 350K; the warning names which bound is binding (percentage or absolute, never both) and the window's provenance (override, detected, or default). As occupancy climbs past the ceiling the hook escalates through three Handoff action bands keyed to multiples of the effective ceiling (on a 1M window: 350K nudge, 437.5K run now, 525K full summary), deduped per session on band identity so an escalation always breaks through even when the coarser 5%-of-window bucket hasn't moved; at or above the ceiling it blocks (`exit 2`) by default since #2000, or warns to stderr under `DEV_TEAM_CONTEXT_STRICT=off`. The occupancy is ground truth from the harness, not a model self-estimate — which is what makes the ceiling enforceable rather than advisory. Recovery skills (`/handoff`, `/context-loading-protocol`, `/continue`, `/review-summary`, `/session-review`) are never gated, so the path back under budget can't deadlock. `DEV_TEAM_CONTEXT_WINDOW` overrides auto-detection when needed. The ceiling percent is `DEV_TEAM_CONTEXT_CEILING_PCT` (default 40); `DEV_TEAM_CONTEXT_CEILING=off` disables. Fail-open throughout — any unmeasurable context or internal error exits 0.
 
 ### Freeze Mode
 
@@ -202,7 +202,7 @@ Agents append to `.claude/memory/decisions.md` when making non-obvious decisions
 
 ## Feedback Loop
 
-[Feedback & Learning](../skills/feedback-learning/SKILL.md) enables continuous improvement:
+[Feedback & Learning](https://github.com/bdfinst/agentic-dev-team/blob/main/plugins/dev-team/skills/feedback-learning/SKILL.md) enables continuous improvement:
 
 1. User provides feedback via keywords (`amend`, `learn`, `remember`, `forget`)
 2. Changes are previewed, applied, and logged with full audit trail

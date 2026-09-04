@@ -1,6 +1,6 @@
 # `/test-improve`
 
-**File:** [`skills/test-improve/SKILL.md`](../skills/test-improve/SKILL.md)
+**File:** [`skills/test-improve/SKILL.md`](https://github.com/bdfinst/agentic-dev-team/blob/main/plugins/dev-team/skills/test-improve/SKILL.md)
 **Role:** orchestrator.
 
 `/test-improve` is the **consolidated** analyze-then-improve orchestrator for
@@ -115,7 +115,7 @@ is `none`, +1 once Phase 6 enters Phase 7) rather than a hardcoded 9 or 10.
   `test-counts-after.json`. `/handoff` is suggested here, and after Phase 1
   and the Phase 5/7 review loops — the context-heaviest boundaries.
 - **Phase 9 — Executive-summary report.** Interpolates the shipped
-  [`templates/executive-summary.md`](../skills/test-improve/templates/executive-summary.md)
+  [`templates/executive-summary.md`](https://github.com/bdfinst/agentic-dev-team/blob/main/plugins/dev-team/skills/test-improve/templates/executive-summary.md)
   from the git-tracked `.dev-team-reports/test-improve/<slug>/data/`
   directory plus `.claude/memory/test-improve/<slug>/` process/audit state to
   `.dev-team-reports/test-improve/<slug>/report-<date>.md`. 10 numbered sections;
