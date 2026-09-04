@@ -292,9 +292,34 @@ deterministically with the shared helper (not by eyeballing the file list):
 python3 "$CLAUDE_PLUGIN_ROOT/skills/code-review/scripts/change_shape.py" --files <target files>
 ```
 
-It prints `{"hasRuntimeSurface": <bool>, "isTestOnly": <bool>, "skipLenses":
-[...]}`. When `skipLenses` is non-empty, exclude those agents from this run and
-note the skip in the report (they were gated by change shape, not by `Scope:`).
+It prints `{"hasRuntimeSurface": <bool>, "isTestOnly": <bool>, "isProseOnly":
+<bool>, "skipLenses": [...]}`. When `skipLenses` is non-empty, exclude those
+agents from this run and note the skip in the report (they were gated by
+change shape, not by `Scope:`).
+
+`isProseOnly` (#2104) reports a third, independent property: every changed
+file is `.md`/`.mdx`. Unlike `hasRuntimeSurface`, this makes **no** exception
+for functional Claude-config markdown (`agents/`, `skills/`, `knowledge/`,
+`.claude/`, …) — that markdown drives agent behavior, so `performance-review`
+and `correctness-review` still apply to it, but a `.md` file cannot exhibit an
+injection/auth/data-exposure vulnerability, a domain-boundary leak, a
+test-coverage gap, or a resource leak/N+1 query regardless of whether it also
+happens to be functional config. When `isProseOnly` is true, `skipLenses`
+additionally drops `security-review`, `domain-review`, `test-review`, and
+`performance-review` — each of those four agents' own `## Skip` clause
+already self-reports skip on a documentation-only target, so keeping them in
+the roster either pays for a self-reported skip or, worse, produces an
+ungrounded finding stretched to fit the lens (the motivating case: a 9-agent
+panel dispatched against a single-file skill-markdown diff produced
+elaborate security/domain/test/performance framing for what were really
+prose nits). `correctness-review`, `spec-compliance-review`, `doc-review`,
+`structure-review`, `naming-review`, and `arch-review` stay in the roster —
+they meaningfully review markdown-as-instructions. This is narrower than
+`select_lenses.py`'s own `NON_EXECUTABLE_SKIP_ELIGIBLE` allowlist, which
+considered and rejected filtering `security-review`/`domain-review` for its
+broader "non-executable" category (docs **and** config/lockfiles/assets) —
+see that module's comment. This gate never widens to config, so that
+rejection does not apply here.
 
 `isTestOnly` (#1964) reports a second, independent property: every changed file
 is *provably* a test file (`knowledge/test-file-indicators.md`). It currently

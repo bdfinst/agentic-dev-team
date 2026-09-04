@@ -188,11 +188,16 @@ class TestComposesWithChangeShapeGate:
 
         skipped_by_shape = set(change_shape.lenses_to_skip(files))
         assert "correctness-review" in skipped_by_shape  # sanity: shape drops it
+        # README.md is also prose-only (#2104), so the shape gate drops
+        # security-review too — its own `## Skip` clause already self-reports
+        # skip on a documentation-only target.
+        assert "security-review" in skipped_by_shape
 
         size_result = change_size.parse_numstat(["1\t0\tREADME.md"])
         assert change_size.qualifies_for_fast_path(size_result) is True
         kept_by_size = set(change_size.FAST_PATH_AGENTS)
         assert "correctness-review" in kept_by_size  # size alone would keep it
+        assert "security-review" in kept_by_size
 
         # Composition order (SKILL.md Step 3): apply shape-skip first, then
         # size's keep-list only narrows what's left — it never re-adds.
@@ -206,4 +211,6 @@ class TestComposesWithChangeShapeGate:
         assert "correctness-review" not in final_roster
         assert "performance-review" not in final_roster
         assert "structure-review" not in final_roster
-        assert final_roster == {"security-review", "spec-compliance-review", "doc-review"}
+        # security-review was dropped by shape above, never re-added by size.
+        assert "security-review" not in final_roster
+        assert final_roster == {"spec-compliance-review", "doc-review"}

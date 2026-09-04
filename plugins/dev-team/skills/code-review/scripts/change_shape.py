@@ -134,6 +134,46 @@ except ImportError as exc:  # pragma: no cover - broken install, not a supported
 
 LOW_YIELD_LENSES = ["performance-review", "correctness-review"]
 
+# Lenses to skip when EVERY changed file is provably prose (`.md`/`.mdx`),
+# including functional Claude-config markdown (#2104). `has_runtime_surface`
+# correctly treats agents/skills/knowledge/.claude markdown as runtime
+# surface — it drives agent behavior, so `performance-review` and
+# `correctness-review` still run against it above. But a handful of lenses
+# review a *code-level* property no markdown file, functional or not, can
+# exhibit: an injection/auth/data-exposure vulnerability, a domain-boundary
+# leak, a test-coverage gap, or a resource leak/N+1 query. Dispatching a
+# 9-agent panel (including these four) against a single-file skill-markdown
+# diff produced elaborate findings framed as security/domain/test/performance
+# issues that were really prose/spec-consistency nitpicks belonging to
+# doc-review/spec-compliance-review/correctness-review instead. Each of these
+# four agents' own `## Skip` clause already self-reports skip on a
+# documentation-only target (security-review: "static assets, images, or
+# documentation"; domain-review: "no business logic or domain entities
+# present"; test-review: "no test files in target"; performance-review:
+# "configuration, documentation, or type definitions") — dispatching them
+# anyway just pays for a self-reported skip, or worse, an ungrounded finding
+# stretched to fit the lens.
+#
+# Deliberately NARROWER than `select_lenses.py`'s own
+# `NON_EXECUTABLE_SKIP_ELIGIBLE` allowlist, which considered and REJECTED
+# adding security-review/domain-review/arch-review for its broader
+# "non-executable" category (docs **and** config/lockfiles/assets): that
+# module's own comment documents why — security-review's Skip clause does not
+# cover config/lockfiles (its Scope mandates scanning them for hardcoded
+# credentials) and domain-review's is a content judgment a config file's type
+# alone can't answer. This module's prose-only signal is strictly `.md`/
+# `.mdx` — it never widens to config, so neither rejection applies here.
+# `arch-review` and `correctness-review` are deliberately absent from this
+# list for the same reason `select_lenses.py` keeps `arch-review` unfiltered:
+# a pure-markdown ADR update, or a functional-config skill/agent file, is
+# exactly the content their own `## Detect` sections exist to review.
+PROSE_ONLY_SKIP_LENSES = [
+    "security-review", "domain-review", "test-review", "performance-review",
+]
+
+# Extensions provably incapable of holding anything but prose (lower-cased).
+_PROSE_EXTENSIONS = {".md", ".mdx"}
+
 # Lenses to skip when EVERY changed file is provably a test file (#1964).
 # Deliberately EMPTY until per-lens `diff_shape` outcome data justifies each
 # entry — see this module's docstring. Adding a name here without citing that
@@ -237,24 +277,63 @@ def is_test_only(files: Iterable[str]) -> bool:
     return all(_is_provably_test_file(f) for f in file_list)
 
 
+def _is_prose_file(file: str) -> bool:
+    return PurePosixPath(str(file).strip()).suffix.lower() in _PROSE_EXTENSIONS
+
+
+def is_prose_only(files: Iterable[str]) -> bool:
+    """True when *every* changed file is `.md`/`.mdx` prose (#2104).
+
+    Unlike `has_runtime_surface`, this makes no exception for functional
+    Claude-config markdown: a `.md` file cannot exhibit an injection
+    vulnerability, a domain-boundary leak, a test-coverage gap, or an N+1
+    query regardless of whether it also drives agent behavior. An empty
+    changeset is not prose-only, matching the other predicates' empty-case
+    convention.
+    """
+    file_list = [f for f in files if str(f).strip()]
+    if not file_list:
+        return False
+    return all(_is_prose_file(f) for f in file_list)
+
+
 def lenses_to_skip(files: Iterable[str]) -> list[str]:
     """Return the low-yield lenses to skip for this changeset.
 
-    Empty when the changeset has any runtime surface (run every lens). Otherwise
-    the doc/config-only changeset skips `performance-review` and
-    `correctness-review`.
+    Empty when the changeset has any runtime surface and is not prose-only.
+    A doc/config-only changeset (no runtime surface) skips `performance-review`
+    and `correctness-review`; a prose-only changeset (every file `.md`/`.mdx`,
+    including functional Claude-config markdown) additionally skips
+    `security-review`, `domain-review`, and `test-review` (#2104) — the two
+    sets are independent and union together, since a prose-only diff is
+    always also a no-runtime-surface diff unless it is functional config.
     """
     file_list = [f for f in files if str(f).strip()]
     if not file_list:
         return []  # nothing to review — the caller handles empty scope
+
+    # Ordered, deduplicated union — preserves each source list's own order and
+    # never lists a lens twice (e.g. `performance-review` is in both
+    # LOW_YIELD_LENSES and PROSE_ONLY_SKIP_LENSES for a plain-docs-only diff).
+    skip: list[str] = []
+    seen: set[str] = set()
+
+    def _extend(names: Iterable[str]) -> None:
+        for name in names:
+            if name not in seen:
+                seen.add(name)
+                skip.append(name)
+
     if not has_runtime_surface(file_list):
-        return list(LOW_YIELD_LENSES)
+        _extend(LOW_YIELD_LENSES)
     # Runtime surface present. A test-only changeset may still narrow the
     # roster once TEST_ONLY_SKIP_LENSES is populated from measured data; it is
-    # empty today, so this returns [] and the full panel runs (#1964).
-    if is_test_only(file_list):
-        return list(TEST_ONLY_SKIP_LENSES)
-    return []
+    # empty today, so this contributes nothing (#1964).
+    elif is_test_only(file_list):
+        _extend(TEST_ONLY_SKIP_LENSES)
+    if is_prose_only(file_list):
+        _extend(PROSE_ONLY_SKIP_LENSES)
+    return skip
 
 
 def main(argv=None) -> int:
@@ -282,6 +361,7 @@ def main(argv=None) -> int:
     result = {
         "hasRuntimeSurface": has_runtime_surface(files),
         "isTestOnly": is_test_only(files),
+        "isProseOnly": is_prose_only(files),
         "skipLenses": skip,
     }
     print(json.dumps(result, sort_keys=True))

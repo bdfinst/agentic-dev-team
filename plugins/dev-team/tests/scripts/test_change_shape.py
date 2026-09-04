@@ -175,11 +175,76 @@ class TestTestOnlySkipsNothingYet:
 
     def test_doc_only_precedence_is_unchanged_by_the_new_branch(self):
         """A doc/config-only changeset still yields the low-yield pair — the
-        test-only branch is reached only when runtime surface is present."""
+        test-only branch is reached only when runtime surface is present.
+        `README.md` is also prose-only (#2104), which additionally unions in
+        `PROSE_ONLY_SKIP_LENSES`; mixed doc+config changesets (not prose-only)
+        are unaffected — see TestLensesToSkip.test_docs_only_skips_low_yield_lenses."""
         assert change_shape.lenses_to_skip(["README.md"]) == [
             "performance-review",
             "correctness-review",
+            "security-review",
+            "domain-review",
+            "test-review",
         ]
+
+
+class TestProseOnlyClassification:
+    """#2104: a third, independent question — is EVERY changed file provably
+    prose (`.md`/`.mdx`)? Unlike `has_runtime_surface`, this makes no
+    exception for functional Claude-config markdown — a `.md` file cannot
+    exhibit a security/domain/test/performance defect regardless of whether
+    it drives agent behavior."""
+
+    @pytest.mark.parametrize(
+        "files",
+        [
+            pytest.param(["README.md"], id="plain-doc"),
+            pytest.param(["docs/guide.md", "CHANGELOG.md"], id="multiple-docs"),
+            pytest.param(["notes.mdx"], id="mdx"),
+            pytest.param(
+                ["skills/setup/SKILL.md"], id="functional-config-skill-markdown"
+            ),
+            pytest.param(["agents/security-review.md"], id="functional-config-agent"),
+            pytest.param(["CLAUDE.md"], id="functional-config-claude-md"),
+        ],
+    )
+    def test_provably_prose_only_changesets(self, files):
+        assert change_shape.is_prose_only(files) is True
+
+    @pytest.mark.parametrize(
+        "files,why",
+        [
+            pytest.param(["README.md", "src/app.py"], "a source file present", id="mixed-source"),
+            pytest.param(["README.md", "config.json"], "config is not prose", id="mixed-config"),
+            pytest.param([".claude/settings.json"], "json, not markdown", id="json-config"),
+            pytest.param([], "nothing to prove", id="empty"),
+        ],
+    )
+    def test_not_prose_only_is_the_fail_safe_answer(self, files, why):
+        assert change_shape.is_prose_only(files) is False, why
+
+    def test_functional_config_markdown_only_skips_the_four_code_focused_lenses(self):
+        """The motivating case (#2104): a single-file skill-markdown diff
+        currently runs the full panel because `has_runtime_surface` correctly
+        treats it as runtime surface. The new prose-only signal drops the four
+        lenses whose lens cannot apply to prose, while leaving
+        `correctness-review` (still meaningful on functional-config content)
+        untouched — it is absent from both source lists for this changeset."""
+        skip = change_shape.lenses_to_skip(["skills/setup/SKILL.md"])
+        assert skip == ["security-review", "domain-review", "test-review", "performance-review"]
+        assert "correctness-review" not in skip
+        assert "arch-review" not in skip
+        assert "doc-review" not in skip
+        assert "spec-compliance-review" not in skip
+        assert "structure-review" not in skip
+        assert "naming-review" not in skip
+
+    def test_mixed_functional_and_plain_markdown_is_still_prose_only(self):
+        skip = change_shape.lenses_to_skip(["agents/security-review.md", "README.md"])
+        assert skip == ["security-review", "domain-review", "test-review", "performance-review"]
+
+    def test_source_file_present_keeps_the_four_lenses(self):
+        assert change_shape.lenses_to_skip(["skills/setup/SKILL.md", "src/app.py"]) == []
 
 
 class TestTestOnlyCli:
@@ -202,3 +267,22 @@ class TestTestOnlyCli:
         rc = change_shape.main(["--files", "README.md"])
         assert rc == 0
         assert "isTestOnly" in json.loads(capsys.readouterr().out)
+
+
+class TestProseOnlyCli:
+    def test_cli_reports_is_prose_only_for_functional_config_markdown(self, capsys):
+        rc = change_shape.main(["--files", "skills/setup/SKILL.md"])
+        assert rc == 0
+        out = json.loads(capsys.readouterr().out)
+        assert out["isProseOnly"] is True
+        assert out["hasRuntimeSurface"] is True
+        assert out["skipLenses"] == [
+            "security-review", "domain-review", "test-review", "performance-review",
+        ]
+
+    def test_cli_reports_not_prose_only_for_mixed(self, capsys):
+        rc = change_shape.main(["--files", "README.md", "src/app.py"])
+        assert rc == 0
+        out = json.loads(capsys.readouterr().out)
+        assert out["isProseOnly"] is False
+        assert out["skipLenses"] == []
