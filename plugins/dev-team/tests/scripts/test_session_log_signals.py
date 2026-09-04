@@ -296,6 +296,84 @@ def test_track_bash_detects_commit_and_bypass():
     assert bash_signal_counts["commit_bypasses"] == 1
 
 
+# ---------------------------------------------------------------------------
+# track_bash retry attribution (#2110)
+# ---------------------------------------------------------------------------
+
+
+def test_track_bash_attributes_a_retry_to_the_active_skill():
+    thread = signals.new_thread()
+    bash_signal_counts = Counter()
+    retried_by_skill = Counter()
+    retried_by_agent = Counter()
+    active = {"skill": "build", "agent": None}
+    block = {"name": "Bash", "input": {"command": "python3 -m pytest -q"}}
+    signals.track_bash(
+        block, bash_signal_counts, thread,
+        active=active, retried_by_skill=retried_by_skill, retried_by_agent=retried_by_agent,
+    )
+    # First occurrence is not a retry.
+    assert retried_by_skill == {}
+    signals.track_bash(
+        block, bash_signal_counts, thread,
+        active=active, retried_by_skill=retried_by_skill, retried_by_agent=retried_by_agent,
+    )
+    assert retried_by_skill == {"build": 1}
+    assert retried_by_agent == {"unattributed": 1}
+
+
+def test_track_bash_attributes_a_retry_to_the_active_agent():
+    thread = signals.new_thread()
+    bash_signal_counts = Counter()
+    retried_by_skill = Counter()
+    retried_by_agent = Counter()
+    active = {"skill": None, "agent": "software-engineer"}
+    block = {"name": "Bash", "input": {"command": "npm run lint"}}
+    for _ in range(3):
+        signals.track_bash(
+            block, bash_signal_counts, thread,
+            active=active, retried_by_skill=retried_by_skill, retried_by_agent=retried_by_agent,
+        )
+    # 3 occurrences of the same command -> 2 retries.
+    assert retried_by_agent == {"software-engineer": 2}
+    assert retried_by_skill == {"unattributed": 2}
+
+
+def test_track_bash_retry_attribution_follows_active_pointer_changes():
+    """A thread's active skill/agent can change between retries of the SAME
+    command (e.g. a long-running main thread) -- each retry is attributed
+    to whichever pointer was active at that moment, not a single thread-wide
+    label."""
+    thread = signals.new_thread()
+    bash_signal_counts = Counter()
+    retried_by_skill = Counter()
+    retried_by_agent = Counter()
+    active = {"skill": "fix", "agent": None}
+    block = {"name": "Bash", "input": {"command": "go test ./..."}}
+    signals.track_bash(
+        block, bash_signal_counts, thread,
+        active=active, retried_by_skill=retried_by_skill, retried_by_agent=retried_by_agent,
+    )
+    active["skill"] = "triage"
+    signals.track_bash(
+        block, bash_signal_counts, thread,
+        active=active, retried_by_skill=retried_by_skill, retried_by_agent=retried_by_agent,
+    )
+    assert retried_by_skill == {"triage": 1}
+
+
+def test_track_bash_no_attribution_without_active_pointer():
+    """The prior behavior is unchanged for a caller with no `active` to
+    offer: no attribution, no crash, and the underlying retry-detection
+    bookkeeping (`thread["bash_commands"]`) is untouched by the omission."""
+    thread = signals.new_thread()
+    bash_signal_counts = Counter()
+    block = {"name": "Bash", "input": {"command": "make build"}}
+    signals.track_bash(block, bash_signal_counts, thread)
+    signals.track_bash(block, bash_signal_counts, thread)
+    assert thread["bash_commands"]["make build"] == 2
+
+
 def test_sibling_agents_sharing_a_thread_do_not_cross_contaminate():
     """The #1991 regression the old sid-keying existed to prevent: two
     'sibling' threads (each freshly created via new_thread(), as extract()

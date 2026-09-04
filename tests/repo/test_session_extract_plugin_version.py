@@ -689,16 +689,21 @@ def test_rollup_sanitizes_hostile_project_path_to_safe_name_sentinel(
         "utilization.agent_dispatches",
         "accuracy.by_skill",
         "accuracy.by_agent",
+        "rework.retried_bash_commands_by_skill",
+        "rework.retried_bash_commands_by_agent",
     ],
 )
 def test_rollup_sanitizes_unsafe_keys_in_each_name_bearing_dict(
     tmp_path: Path, field: str
 ) -> None:
-    """An unsafe key (one `_safe_name` would reject) in any of the five
+    """An unsafe key (one `_safe_name` would reject) in any of these
     name-bearing dicts `rollup()` reads must not crash ingestion, and a
     well-formed sibling record from a different host must still survive in
-    the output — proving the normalization is wired at each of the five
-    field paths independently, not inferred from one exemplar."""
+    the output — proving the normalization is wired at each field path
+    independently, not inferred from one exemplar. The two `rework.
+    retried_bash_commands_by_*` paths (#2110) get the same treatment as
+    `accuracy.by_skill`/`by_agent` — the identical threat model applies to
+    a peer-supplied skill/agent name in either sub-object."""
     plugin_root = _fake_plugin_root(tmp_path, "10.23.0")
     digests = tmp_path / "digests"
 

@@ -37,6 +37,35 @@ def _project_init() -> str:
     return PROJECT_INIT.read_text(encoding="utf-8")
 
 
+def _setup_conservative_ambiguous_stack_bullet() -> str:
+    """Bound to /setup's Conservative-bucket "Unrecognized / ambiguous stack"
+    bullet only — not the whole document — so a match here can't be
+    satisfied by the unrelated Step 6 mutation-tooling clause, which also
+    contains the phrase "never guess a stack" (#2105). Mirrors
+    `_yes_semantics_conservative_repowise_bullet` below."""
+    return section_outside_code(
+        _setup(),
+        r"^- \*\*Unrecognized / ambiguous stack",
+        boundary_pattern=r"^\*\*Precedence\.\*\*",
+        include_start_line=True,
+    )
+
+
+def _project_init_affirmative_three_column_plan_bullet() -> str:
+    """Bound to /project-init's Affirmative-bucket "Step 3 three-column plan"
+    bullet only — not the whole document. Before this, `.*` in the OR-regex's
+    first branch (`three-column plan.*proceed`), applied against the whole
+    document collapsed to one line, could span from this bullet all the way
+    to any later, unrelated "proceed" occurrence — several exist — making
+    that branch nearly always true regardless of doc content (#2105)."""
+    return section_outside_code(
+        _project_init(),
+        r"^- \*\*Step 3 three-column plan",
+        boundary_pattern=r"^- \*\*Step 4b capability tools",
+        include_start_line=True,
+    )
+
+
 def _yes_semantics_conservative_repowise_bullet() -> str:
     """Bound to just the Conservative bucket's `Step 4c Repowise` bullet —
     not the whole document — so a match here can't be satisfied by an
@@ -102,8 +131,8 @@ def test_setup_coverage_config_edits_stay_advisory_under_yes():
 
 
 def test_setup_never_guesses_stack_under_yes():
-    body = collapsed(_setup())
-    assert grep(r"never guess a stack", body)
+    bullet = collapsed(_setup_conservative_ambiguous_stack_bullet())
+    assert grep(r"never guesses a toolchain", bullet)
 
 
 def test_setup_never_guesses_communication_style_under_yes():
@@ -127,7 +156,8 @@ def test_project_init_has_arguments_section():
 
 def test_project_init_yes_auto_confirms_plan_and_keyless_pair():
     body = collapsed(_project_init())
-    assert grep(r"three-column plan.*proceed|print the\s*plan and proceed", body)
+    plan_bullet = collapsed(_project_init_affirmative_three_column_plan_bullet())
+    assert grep(r"three-column plan.*proceed|print the\s*plan and proceed", plan_bullet)
     assert grep(r"keyless[- ]pair prompt as yes|keyless pair \(CodeGraph \+ Repowise\)", body)
 
 

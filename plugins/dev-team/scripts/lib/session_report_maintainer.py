@@ -206,7 +206,8 @@ def extract_maintainer(
     subagent_layout_present = False
     sessions: set[str] = set()
     edits_per_file = Counter()
-    retried_bash_total = 0
+    retried_bash_by_skill = Counter()
+    retried_bash_by_agent = Counter()
     bash_signal_counts = Counter()
     commit_attempt_events: list[tuple[str | None, bool]] = []
     error_counts = Counter()
@@ -323,7 +324,14 @@ def extract_maintainer(
                     if btype == "tool_use":
                         _track_tool_call(block, pending_tool, tool_calls)
                         _track_edit(block, edits_per_file, thread)
-                        _track_bash(block, bash_signal_counts, thread)
+                        _track_bash(
+                            block,
+                            bash_signal_counts,
+                            thread,
+                            active=active,
+                            retried_by_skill=retried_bash_by_skill,
+                            retried_by_agent=retried_bash_by_agent,
+                        )
                         bblock_input = (
                             block.get("input", {})
                             if isinstance(block.get("input"), dict)
@@ -367,10 +375,13 @@ def extract_maintainer(
             agent_runs[label] += 1
         elif records_seen:
             main_transcripts += 1
-        retried_bash_total += sum(n - 1 for n in thread["bash_commands"].values() if n > 1)
 
     repeated_file_edits = {f: n for f, n in edits_per_file.items() if n > 1}
-    retried_bash = retried_bash_total
+    # Single source of truth (#2110): the scalar is the sum of the live,
+    # per-event attribution below, not a second independent computation —
+    # the two could otherwise drift the way the churn-report window key did
+    # (#2108).
+    retried_bash = sum(retried_bash_by_skill.values())
     failed_edits = error_counts["failed_edits"]
     permission_denials = error_counts["permission_denials"]
     repeated_verify_runs = bash_signal_counts["repeated_verify_runs"]
@@ -421,6 +432,8 @@ def extract_maintainer(
             "failed_edits": failed_edits,
             "repeated_file_edits": dict(sorted(repeated_file_edits.items())),
             "retried_bash_commands": retried_bash,
+            "retried_bash_commands_by_skill": dict(sorted(retried_bash_by_skill.items())),
+            "retried_bash_commands_by_agent": dict(sorted(retried_bash_by_agent.items())),
             "repeated_verify_runs": repeated_verify_runs,
             "permission_denials": permission_denials,
             "compaction_events": compaction_events,
@@ -543,6 +556,7 @@ def sync_record(
     """One per-session, metrics-only record for cross-machine aggregation (#178)."""
     base = slim_record(digest)
     tok = digest.get("token", {})
+    rew = digest.get("rework", {})
     acc = digest.get("accuracy", {})
     util = digest.get("utilization", {})
     by_model = {
@@ -562,7 +576,15 @@ def sync_record(
         "cache_hit_ratio": base["cache_hit_ratio"],
         "by_model": by_model,
         "by_thread": tok.get("by_agent_type", tok.get("by_subagent", {})),
-        "rework": base["rework"],
+        "rework": {
+            **base["rework"],
+            "retried_bash_commands_by_skill": dict(
+                sorted(rew.get("retried_bash_commands_by_skill", {}).items())
+            ),
+            "retried_bash_commands_by_agent": dict(
+                sorted(rew.get("retried_bash_commands_by_agent", {}).items())
+            ),
+        },
         "accuracy": {
             **base["accuracy"],
             "by_skill": dict(sorted(acc.get("by_skill", {}).items())),
@@ -638,8 +660,28 @@ def cmd_sync(
                 session_paths[0],
             )
             project, ts = _project_and_ts(main)
+            # The session's own .claude/metrics/boundary-events.jsonl -- used
+            # below both to correlate `gate_ran` events against this
+            # session's commit attempts (#2106: omitting this argument here
+            # left EVERY synced session's gate_ran_events read as `None` ->
+            # `[]`, so every non-bypassed commit attempt classified
+            # "absent" regardless of whether the git-native pre-commit hook
+            # actually ran -- the digest's "100% gate_ran_absent" reflected
+            # this sync path never looking, not the gate never firing) and
+            # to resolve the session's own plugin_version below (#2018).
+            raw_cwd = _first_cwd(main)
+            boundary_events_path = (
+                Path(raw_cwd) / ".claude" / "metrics" / "boundary-events.jsonl"
+                if raw_cwd
+                else None
+            )
             digest = extract_maintainer(
-                session_paths, pricing, registry, plugin_version, projects_root=root
+                session_paths,
+                pricing,
+                registry,
+                plugin_version,
+                projects_root=root,
+                boundary_events_path=boundary_events_path,
             )
             # #2018: this per-session sync record is what durably archives
             # onto .claude/metrics/session-digest.jsonl at every
@@ -652,12 +694,8 @@ def cmd_sync(
             # keyed by this loop's raw session_id -- before building the
             # sync record; falls back to "unknown" when the session's real
             # cwd can't be determined or has no matching boundary event.
-            raw_cwd = _first_cwd(main)
             digest["plugin_version"] = (
-                resolve_session_plugin_version(
-                    session_id,
-                    Path(raw_cwd) / ".claude" / "metrics" / "boundary-events.jsonl",
-                )
+                resolve_session_plugin_version(session_id, boundary_events_path)
                 if raw_cwd
                 else "unknown"
             )
@@ -742,6 +780,10 @@ def _read_synced_records(digests_root: Path) -> list[dict]:
                 utilization, ("skills_invoked", "agents_invoked", "agent_dispatches")
             )
             _normalize_name_dicts(accuracy, ("by_skill", "by_agent"))
+            _normalize_name_dicts(
+                rework,
+                ("retried_bash_commands_by_skill", "retried_bash_commands_by_agent"),
+            )
             _normalize_numeric_fields(
                 tokens,
                 (
@@ -751,7 +793,16 @@ def _read_synced_records(digests_root: Path) -> list[dict]:
                     "cache_read_input_tokens",
                 ),
             )
+            # The two dict-valued fields just sanitized above are captured
+            # before the numeric-only comprehension below, which would
+            # otherwise drop them (`_REWORK_KEYS` is numeric-scalar-only,
+            # like `repeated_file_edits`'s already-summarized length) or
+            # crash `_safe_number` on a dict value.
+            retried_by_skill = rework["retried_bash_commands_by_skill"]
+            retried_by_agent = rework["retried_bash_commands_by_agent"]
             rework = {k: _safe_number(v) for k, v in rework.items() if k in _REWORK_KEYS}
+            rework["retried_bash_commands_by_skill"] = retried_by_skill
+            rework["retried_bash_commands_by_agent"] = retried_by_agent
             _normalize_numeric_fields(
                 accuracy, ("tool_calls", "tool_error_rate", "user_correction_turns")
             )
@@ -822,6 +873,8 @@ def rollup(
     cost = 0.0
     cr = cc = 0
     rew = Counter()
+    retried_bash_by_skill = Counter()
+    retried_bash_by_agent = Counter()
     tool_calls = 0
     err_weighted = 0.0
     corrections = 0
@@ -859,6 +912,10 @@ def rollup(
         for k, v in rwk.items():
             if isinstance(v, (int, float)):
                 rew[k] += v
+        for name, k in (rwk.get("retried_bash_commands_by_skill", {}) or {}).items():
+            retried_bash_by_skill[name] += k
+        for name, k in (rwk.get("retried_bash_commands_by_agent", {}) or {}).items():
+            retried_bash_by_agent[name] += k
         acc = r.get("accuracy", {}) if isinstance(r.get("accuracy"), dict) else {}
         n = acc.get("tool_calls", 0) or 0
         tool_calls += n
@@ -898,7 +955,11 @@ def rollup(
         "cache_hit_ratio": round(cr / (cr + cc), 4) if (cr + cc) else 0.0,
         "by_host": _hostmap(by_host),
         "by_project": _hostmap(by_project),
-        "rework": dict(sorted(rew.items())),
+        "rework": {
+            **dict(sorted(rew.items())),
+            "retried_bash_commands_by_skill": dict(sorted(retried_bash_by_skill.items())),
+            "retried_bash_commands_by_agent": dict(sorted(retried_bash_by_agent.items())),
+        },
         "accuracy": {
             "tool_calls": tool_calls,
             "tool_error_rate": round(err_weighted / tool_calls, 4)

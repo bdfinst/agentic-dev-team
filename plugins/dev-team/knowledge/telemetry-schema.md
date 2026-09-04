@@ -248,7 +248,7 @@ aggregate counts only, no file names, prompts, command strings, or code.
 | `sessions`, `transcripts` | integer | How many sessions/transcripts the digest covered |
 | `tokens` | object | Input/output/cache token totals |
 | `cost_usd`, `cache_hit_ratio` | number | Session cost and cache-read efficiency |
-| `rework` | object | `failed_edits`, `repeated_file_edits`, `retried_bash_commands`, `repeated_verify_runs`, `permission_denials`, `compaction_events` |
+| `rework` | object | `failed_edits`, `repeated_file_edits`, `retried_bash_commands`, `retried_bash_commands_by_skill`/`retried_bash_commands_by_agent` (#2110 — each retry attributed, at the moment it's detected, to whichever skill/agent is sticky-active; `retried_bash_commands` is the derived sum, never a second independent count), `repeated_verify_runs`, `permission_denials`, `compaction_events` |
 | `accuracy` | object | `tool_calls`, `tool_error_rate`, `user_correction_turns`, `by_skill`/`by_agent` (correction counts, double-bucketed against whichever skill/agent is sticky-active), `correction_rate_by_skill`/`correction_rate_by_agent` (corrections per skill invocation / agent dispatch — absent for a never-invoked name, never a misleading `0.0`), `correction_causes` (#2013, below) |
 | `utilization` | object | `skills_invoked`, `agents_invoked` (agent RUNS), `agent_dispatches` (Agent/Task tool calls), `never_observed_skills`, `never_observed_agents` |
 

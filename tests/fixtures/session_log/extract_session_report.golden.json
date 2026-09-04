@@ -54,7 +54,9 @@
       "file.py": 2
     },
     "repeated_verify_runs": 0,
-    "retried_bash_commands": 0
+    "retried_bash_commands": 0,
+    "retried_bash_commands_by_agent": {},
+    "retried_bash_commands_by_skill": {}
   },
   "sessions": 1,
   "subagent_transcripts": 3,

@@ -42,6 +42,8 @@ from minimal_yaml import YamlError, extract_frontmatter_block, parse_yaml
 
 _SCRIPT_DIR = Path(__file__).resolve().parent
 _DEFAULT_PLUGIN_DIR = _SCRIPT_DIR.parents[1]  # lib -> hooks -> dev-team
+_REPO_ROOT = _DEFAULT_PLUGIN_DIR.parents[1]  # dev-team -> plugins -> repo root
+_BLOB_BASE = "https://github.com/bdfinst/agentic-dev-team/blob/main"
 
 # Options-column sentinel values
 _OPT_NO_FLAGS = "no flags — run directly"
@@ -152,6 +154,24 @@ def _cell(text: str) -> str:
     return " ".join(str(text).split()).replace("|", "\\|")
 
 
+def _source_link(label: str, target: Path, fallback_rel: str) -> str:
+    """Link `label` to `target`'s source.
+
+    The rendered catalog (docs/skills.md) is published on the MkDocs site,
+    whose assembled tree (scripts/assemble-docs.sh) copies only each plugin's
+    docs/ directory — not skills/ or commands/. A relative `../skills/...`
+    link resolves in a repo checkout but 404s on the deployed page (#2103),
+    so link to the file's permanent GitHub source instead. `target` outside
+    the repo tree (synthetic paths used by tests) keeps the old repo-relative
+    form, which is never published.
+    """
+    try:
+        rel = target.resolve().relative_to(_REPO_ROOT)
+    except ValueError:
+        return f"[`{label}`]({fallback_rel})"
+    return f"[`{label}`]({_BLOB_BASE}/{rel.as_posix()})"
+
+
 def _options_value(fm: dict) -> str:
     """Return the Options column value for a skill/command's frontmatter."""
     if fm.get("user-invocable") is True:
@@ -211,7 +231,9 @@ def _collect(
     for skill_md in sorted(skills_dir.glob("*/SKILL.md")):
         folder = skill_md.parent.name
         fm = _frontmatter(skill_md)
-        link = f"[`{folder}/SKILL.md`](../skills/{folder}/SKILL.md)"
+        link = _source_link(
+            f"{folder}/SKILL.md", skill_md, f"../skills/{folder}/SKILL.md"
+        )
         _add_entry(folder, fm, link)
 
     # commands/<name>.md — keyed by frontmatter `name`
@@ -220,7 +242,9 @@ def _collect(
         for cmd_md in sorted(commands_dir.glob("*.md")):
             fm = _frontmatter(cmd_md)
             key = str(fm.get("name") or cmd_md.stem)
-            link = f"[`commands/{cmd_md.name}`](../commands/{cmd_md.name})"
+            link = _source_link(
+                f"commands/{cmd_md.name}", cmd_md, f"../commands/{cmd_md.name}"
+            )
             _add_entry(key, fm, link)
 
     display = [(name, buckets[name]) for name in order if buckets.get(name)]
