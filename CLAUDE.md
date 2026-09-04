@@ -2,22 +2,37 @@
 
 This is the marketplace repository for the dev-team Claude Code plugin.
 
+## General
+Unless asked to behave otherwise, always give concise responses and scrifice grammar for the sake of concision.  Ask clarifying questions when needed and offer your best guess at available interpretations/answers for those questions when possible.
+
+### Be RUTHLESSLY concise — this is the rule I break most often
+Default to a few sentences. If the answer is "yes", say "yes" and stop.
+
+- **Answer the question asked. Nothing else.** No adjacent findings, no "while I was looking I noticed", no caveats I didn't ask for. Sit on it until I ask.
+- **One thing at a time.** Never hand me a numbered list of 3+ considerations, options, or trade-offs unless I asked for options. Pick one, recommend it, move on.
+- **No teaching.** Skip the mechanism, the background, the "why this matters". State the conclusion. I'll ask why if I care.
+- **No tables, no headers, no bold-label paragraphs** for a simple answer. Prose or a couple of lines.
+- **Cut every parenthetical, every "worth noting", every "the real finding is".**
+- Corrections: one sentence, no post-mortem.
+
+Length is the tell: if a reply is over ~10 lines and I didn't ask for depth, it's wrong. Detail I have to skim to find the answer is worse than no answer.
+
 ## Working Rules
 
-- **Always work on a branch.** Never commit directly to `main`. Every change — including documentation-only changes, gitignore tweaks, and one-line fixes — lands via a feature branch and a pull request. If a commit accidentally lands on `main` locally, reset `main` to `origin/main` and move the commit to a branch before pushing. Release commits authored by release-please are the only exception; they arrive as their own PR.
-- **Always pull `origin main` before starting work.** Run `git fetch origin main` at the start of every session and before branching, then cut new branches from `origin/main` directly (e.g. `git switch -c <branch> origin/main`) — never from a local `main` you haven't fast-forwarded. If your feature branch already exists and `origin/main` has moved, merge or rebase the fresh `origin/main` into it before continuing — don't let a branch drift behind `main` across a long-running session.
-- **Squash-merge strategy.** `main` is protected by a ruleset that forbids force-pushes. Use squash-merge for all PRs to keep `main` history clean: `gh pr merge <num> --squash`. Signed commits are not required.
-- **Documentation-only PRs auto-merge.** When the diff touches only `*.md` files (plus `.gitignore`, `LICENSE`, or other non-shipping metadata) and changes no code, agent, skill, or hook, arm auto-merge at PR-open time: `gh pr merge <num> --auto --squash`. Required checks still run; the PR lands the moment they pass. Any PR that touches code, agents, skills, hooks, eval fixtures, or marketplace manifests requires explicit human merge.
-- **Deterministic tools over inference — never dispatch a skill or agent for work a tool can decide.** If a question has a mechanical answer, the mechanism must produce it: a compiler, a test suite, a type checker, a linter, a parser, a schema validator, `git` itself. Agents and skills are for judgement — design trade-offs, review of intent, prose — not for facts a program can compute. This is a correctness rule, not a cost rule: a model's answer to a mechanical question is a *guess that looks like a result*, and it fails silently, in the confident direction. Prefer, in order: (1) run the real thing and read its output; (2) a deterministic script over its artifacts; (3) a model, only for what is left. Two rules follow from it, both learned the expensive way:
-  - **Verify a runtime property by exercising it at runtime.** Static approximations of a runtime question rot into false assurance. The Python floor gate began as a hand-maintained denylist of post-3.8 APIs (the floor was 3.8 at the time); it reported the shipped tree clean while `hooks/lib/cost_meter.py` used PEP 584's `dict | dict`, which 3.8 rejects. A one-time manual run of the full suite on a real 3.8 interpreter — not something the gate itself did — found it in nine failing tests. The gate that replaced the denylist was, at first, still only a byte-compile + import pass (`.github/workflows/plugin-tests.yml` → "Python 3.10 floor", `scripts/import_probe_shipped.py`; see [`tests/repo/test_python_floor.py`](tests/repo/test_python_floor.py)) — real progress over a hand-maintained list, but still one layer short of "exercising it at runtime": compiling and importing a module proves it *parses* and *loads*, not that every function *body* runs clean, so a runtime-only API used only inside a function (`asyncio.to_thread` in `orchestrator.py`, issue #1650) stayed invisible to it regardless of which version the floor was pinned to. `chk_python_floor` now closes that gap too, actually running a curated test slice over the shipped tree under the resolved 3.10 interpreter via `uv run --python`, not just compiling and importing it. That slice is declared once, as `FLOOR_TEST_SLICE` in [`tests/repo/test_python_floor.py`](tests/repo/test_python_floor.py), and held equal to `chk_python_floor`'s actual pytest arguments in both directions — deliberately not re-enumerated here, because a copy of the list in prose is exactly what went stale when the coverage-discovery modules joined the slice (#1826) and nothing held this file to it. The floor itself later moved to 3.10 once the original OS-availability rationale expired ([ADR 0031](docs/adr/0031-raise-shipped-python-floor-to-3-10.md)) — the gate's mechanism (the interpreter, not a list) is what survived that move unchanged.
-  - **A gate that cannot fail is worse than no gate.** It reads as a guarantee and delivers none. `engines.node` sat at `>=24` while this project's own containers ran Node 22, so `npm ci` failed, `node_modules` never installed, husky's hooks went inert, and `scripts/ci-local.sh` skipped eslint *while still printing "All local CI checks passed."* When you add a gate, make it fail on purpose once before you trust it.
-  - **A gate bounds only the case it can observe — say what the other end is.** The floor gate above asks "does this still run on the OLDEST supported interpreter", which is a real question and answers only itself. For a long time nothing asked about the newest: `content-guard-tests` runs on the runner image's *implicit* system `python3` (~3.12 on ubuntu-24.04, with no `python-version` pin anywhere in `plugin-tests.yml`), so the suite's green read as "works on Python" when it meant "works on 3.10 and whatever the runner happens to ship." `main` was consequently red on 3.13+ with every check green: `coverage_discovery_js.py` detected a malformed `**` glob by catching `ValueError` from `Path.glob`, and CPython 3.13's pathlib rewrite stopped raising it, so the guard silently returned an empty result instead of a `discovery_error` (#1832, fixed in #1833). `chk_python_ceiling` / the `Python ceiling` job now names the other end (`PYTHON_CEILING` in `scripts/ci-local.sh` — one place, so a runner-image bump cannot move it silently), and runs the **full** pytest directory list rather than a curated slice like the floor job's. That choice is the point, not an optimization: when the regression landed, the offending test file was *not* in the floor slice, and it took a follow-up commit (#1836) to add the coverage-discovery modules to it — a curated list only covers what someone remembered to enumerate, and it lagged the very bug that motivated it. A ceiling gate on a slice would inherit that lag. Read its status honestly, though: it is currently listed in `exempt` in [`.github/required-status-checks.json`](.github/required-status-checks.json), so it reports on every PR but does **not** block a merge — advisory by choice, not because it is path-filtered or opt-in like the other exemptions. Treat a red ceiling run as blocking by convention, and see #1837 for the ruleset edit that would make that automatic. Two transferable pieces: when a library's *error* behavior is your guard, validate the property explicitly in your own code instead — an exception is a contract that can be withdrawn; and do not add a pinned interpreter to `content-guard-tests` via `actions/setup-python`, which is the known-wrong fix (a prior attempt put it ahead of the system `python3` for every other step in that job, breaking `chk_md_references` and silently degrading `chk_hook_units`'s pytest guard to "skipped" — use `uv`, which never touches `PATH`).
-  - **The observed end is a PLATFORM too, not only a version.** The two gates above bound the interpreter; nothing bounded the operating system, and every gate in this repo runs on `ubuntu-*` while every maintainer develops on macOS. `.husky/pre-push` created all five of its temp files with `mktemp -t PREFIX`, which GNU coreutils treats as a template honoring `$TMPDIR` and BSD/macOS treats as a literal prefix, ignoring `$TMPDIR` entirely (it resolves the per-user temp dir via `confstr(_CS_DARWIN_USER_TEMP_DIR)`). So the worktree-path snapshot landed where `tests/repo/test_pre_push_ref_guard.py` could not find it, two tests failed on every Mac, and — because `pre-push` runs the whole of `ci-local.sh` — **every local push from a Mac was blocked**, which is precisely the pressure that turns `--no-verify` into a habit and disables the local CI mirror wholesale. CI was green throughout (#1993). Portable form: `mktemp "${TMPDIR:-/tmp}/prefix-XXXXXX"`, with the `X`s **trailing** — BSD substitutes only a trailing run, so `foo-XXXXXX.log` yields that name verbatim and the *next* call dies with `EEXIST`; the #1993 fix fell into that second trap while removing the first, and both are now pinned by [`tests/repo/test_mktemp_portability.py`](tests/repo/test_mktemp_portability.py). Until a macOS CI leg exists (#1993), that grep is the only mechanism watching this end — so when a gate is green everywhere and broken in front of you, suspect the axis nothing runs on.
-  - **Review your own fix before calling it done — a green suite on code you just wrote is weak evidence.** Tests written alongside a fix encode the same mental model as the fix, so they inherit its blind spots. The #1833 brace-glob fix passed all 71 tests, 15 of them written specifically for it; `correctness-review` and `test-review`, dispatched independently at the diff, both caught that brace balance was tracked only from the first `{` onward — so `apps/}x{a,b}` expanded to globs matching nothing, reintroducing the exact silent-zero failure the fix existed to remove. The parametrized case that *looked* like it covered this passed only because of an unrelated unclosed trailing brace. The same pass found two more real defects (an empty alternative failing the whole workspace, and per-alternative `**` checking letting `{**/x,**/y,**/z}` slip past the cost guard). This is judgement, not mechanism, so no gate enforces it: dispatch the review agents at your own diff from the top-level session, and verify each finding by reproducing it before fixing.
-- **A mechanical finding reported twice becomes a check.** When a review agent reports the same mechanically-checkable finding class for the **second** time — and the check is expressible as a deterministic script — convert it into a `CHECKS` entry in [`plugins/dev-team/skills/code-review/scripts/repo_invariants.py`](plugins/dev-team/skills/code-review/scripts/repo_invariants.py) **in the same PR that fixes the finding**. This is the ratchet that keeps the rule above from depending on memory. The mechanism has existed since #1608 precisely so mechanically-checkable repo facts stop being re-derived once per agent per round — #1629 found at least 4 of 8 follow-up review rounds were triggered by defect classes these checks catch — but until now growth of `CHECKS` depended on someone remembering to grow it. The trigger is deliberately the *second* report, not the first: one occurrence may be a one-off, two is a class, and converting at two makes the cost a single bounded conversion instead of an unbounded stream of re-derivations. Worked example: the "every module under a skill's `scripts/` dir is named in that skill's docs" invariant shipped covering `mutation-testing` alone (#1600, where four separate agents rediscovered it); when the same class turned up in `skills/code-review/scripts/` (#1981), the hardcoded single-skill check became a registry covering both rather than a copied second function.
-- **Prefer Python over bash, repo-wide, unless bash is strictly required.** This applies everywhere in the repo, not just shipped plugin code — new tests under `tests/`, new `scripts/*`, new CI helpers. Write `.py` (stdlib-only for anything under `plugins/dev-team/`) by default. Bash is acceptable only when the thing under test genuinely is a shell script, or for the unavoidable pre-Python bootstrap shim (`install.sh`'s two-line trampoline). New `.bats` files are a review finding, not a style choice — see [ADR 0014](docs/adr/0014-python-for-cross-os-scripts.md) and [ADR 0015](docs/adr/0015-bash-removal-complete.md). If you find yourself adding a `.bats` file, port the assertions to `test_*.py` instead — see `### Script authoring — Python only` below for the mechanical pattern.
-- **Specs and plans are GitHub issues here, not files.** When developing this repo (GitHub-connected — the normal case), a spec becomes an **epic issue** and each plan slice a **sub-issue** of that epic — create them by default, don't leave local drafts. Fall back to untracked files only when there is no GitHub connection: the spec at `docs/specs/<slug>/spec.md` and its plans under a `docs/specs/<slug>/plans/` subdirectory (never a root-level `plans/`). This governs development of *this* plugin only — it is not shipped skill behavior imposed on people who use the plugin on their own projects.
-- **PRs close the issues they address.** Every PR body carries a closing keyword — `Closes #N` for each sub-issue the PR resolves, and `Part of #<epic>` (non-closing) for the epic — so merging the PR closes its slices. GitHub does **not** auto-close a parent/epic issue as a side effect of every sub-issue closing (it only tracks completion percentage); the `epic-auto-close` workflow (`.github/workflows/epic-auto-close.yml`, #987) is what closes the epic once its last sub-issue closes.
+- **Always work on a branch.** Never commit directly to `main`. Every change lands via a feature branch and PR. Release-please's own commits are the only exception. If a commit lands on `main` locally by accident, reset `main` to `origin/main` and move the commit to a branch before pushing.
+- **Pull `origin main` before starting work.** `git fetch origin main` at session start and before branching; branch from `origin/main` directly (`git switch -c <branch> origin/main`). If your branch already exists and `origin/main` moved, merge/rebase it in before continuing.
+- **Squash-merge all PRs**: `gh pr merge <num> --squash`. `main` forbids force-pushes.
+- **Docs-only PRs auto-merge.** If the diff touches only `*.md`/`.gitignore`/`LICENSE` and no code/agent/skill/hook, arm auto-merge at open: `gh pr merge <num> --auto --squash`. Anything else needs explicit human merge.
+- **Deterministic tools over inference.** Never dispatch a skill or agent for work a tool can decide — a compiler, test suite, linter, parser, schema validator, or `git` answers a mechanical question directly; a model's answer to one is a guess that fails silently. Prefer, in order: (1) run the real thing, (2) a deterministic script over its output, (3) a model, only for what's left.
+  - Verify runtime properties by exercising them at runtime — byte-compile/import checks prove a module parses, not that it runs. `chk_python_floor` runs a real test slice (`FLOOR_TEST_SLICE` in [`tests/repo/test_python_floor.py`](tests/repo/test_python_floor.py)); don't duplicate that list elsewhere.
+  - A gate that cannot fail is worse than no gate — make a new gate fail on purpose once before trusting it.
+  - Name what a gate does *not* cover. `chk_python_floor` bounds the oldest supported interpreter; `chk_python_ceiling` (`PYTHON_CEILING` in `scripts/ci-local.sh`) bounds the newest and runs the full pytest directory list, not a curated slice. It's `exempt` in [`.github/required-status-checks.json`](.github/required-status-checks.json) (advisory) — treat a red run as blocking anyway.
+  - Gates are platform-bound too. Every gate here runs on `ubuntu-*`; every maintainer develops on macOS — watch for GNU/BSD divergence (e.g. `mktemp -t` behaves differently). Portable form: `mktemp "${TMPDIR:-/tmp}/prefix-XXXXXX"` with the `X`s trailing.
+  - Review your own fix before calling it done. Dispatch review agents (`correctness-review`, `test-review`) at your own diff from the top-level session and verify each finding by reproducing it.
+- **A mechanical finding reported twice becomes a check.** On the second report of the same mechanically-checkable finding, add a `CHECKS` entry to [`repo_invariants.py`](plugins/dev-team/skills/code-review/scripts/repo_invariants.py) in the same PR that fixes it.
+- **Prefer Python over bash, repo-wide.** Stdlib-only `.py` under `plugins/dev-team/`. Bash only for a genuine shell-script target or the unavoidable bootstrap shim. New `.bats` files are a review finding — port to `test_*.py` (see [ADR 0014](docs/adr/0014-python-for-cross-os-scripts.md), [ADR 0015](docs/adr/0015-bash-removal-complete.md)).
+- **Specs and plans are GitHub issues, not files.** A spec becomes an epic issue, each plan slice a sub-issue — create them by default. Fall back to `docs/specs/<slug>/{spec.md,plans/}` only with no GitHub connection.
+- **PRs close the issues they address.** `Closes #N` per sub-issue, `Part of #<epic>` for the epic. The `epic-auto-close` workflow closes the epic once its last sub-issue closes — GitHub itself won't.
 
 ## Repository Structure
 
@@ -38,13 +53,11 @@ plugins/dev-team/          # The plugin source
 docs/                              # Cross-plugin dev documentation (roadmaps, spikes)
 plans/                             # Transient working plans — deleted after implementation
 evals/                             # Agent eval fixtures (not shipped)
-reports/                           # Legacy review reports (not shipped, pre-.dev-team-reports/) — new reports land in .dev-team-reports/
+reports/                           # Legacy review reports (not shipped) — new reports land in .dev-team-reports/
 ```
 
-Two guides explain how the marketplace works:
-
-- [`docs/marketplace-builder-plugin-playbook.md`](docs/marketplace-builder-plugin-playbook.md) — how to build a plugin that scaffolds/audits/maintains marketplace monorepos (shipping hygiene, portability, testing, release/catalog sync).
-- [`docs/using-plugin-skills-in-the-web-environment.md`](docs/using-plugin-skills-in-the-web-environment.md) — how to use a plugin's skills from a Claude Code web session.
+- [`docs/marketplace-builder-plugin-playbook.md`](docs/marketplace-builder-plugin-playbook.md) — how to build a plugin for this marketplace pattern.
+- [`docs/using-plugin-skills-in-the-web-environment.md`](docs/using-plugin-skills-in-the-web-environment.md) — using a plugin's skills from a Claude Code web session.
 
 ## Developing the Plugin
 
@@ -52,33 +65,25 @@ Edit files directly in `plugins/dev-team/`. All plugin components (agents, skill
 
 ### Prerequisites
 
-The local gates (`scripts/ci-local.sh`, run by the `pre-push` hook) need these tools on every dev machine:
+`scripts/ci-local.sh` (run by the `pre-push` hook) needs on every dev machine:
 
-- CLI: `jq`, `python3`, `uv` (macOS: `brew install jq python3 uv`; `uv` otherwise via `curl -LsSf https://astral.sh/uv/install.sh | sh`). `shellcheck` still lints repo-root shell (`scripts/audit-rules-vs-prompts.sh`, etc.) and the `plugins/security-assessment/` plugin; the `plugins/dev-team/` plugin itself is now Python. It is deliberately NOT in that install line: it is version-PINNED as `SHELLCHECK_VERSION` in `scripts/ci-local.sh`, which fetches that exact release into `~/.cache/agentic-dev-team/` on first use, because a package manager gives whatever it happens to ship — Homebrew's 0.11.0 and Ubuntu's 0.9.0 disagree on real findings, and CI used to install the latter while developers ran the former. `uv` provisions the Python 3.10 floor interpreter and runs the floor-interpreter test slice (`chk_python_floor` in `scripts/ci-local.sh`) — the default pre-push gate fails outright without it, not just the `Python 3.10 floor` CI job.
-- Python modules: install the declared dev dependencies once with `python3 -m pip install -r requirements-dev.txt` (PyYAML for a few content-guard tests that shell out to Python; pytest for every content-guard suite and the plugin's own unit tests; semgrep for the security-assessment suites; httpx for the red-team harness smoke test). On a PEP 668 "externally-managed-environment" interpreter (e.g. Homebrew Python on macOS), a bare `pip install` is rejected outright — `dev-setup.sh` handles this itself, retrying `--user` then `--break-system-packages` and only printing success if one of the three actually succeeds; the failure is never silently swallowed. Prefer a project `.venv/` if you'd rather not use `--break-system-packages` system-wide.
-- Graphify (optional, code knowledge graph): `uv tool install graphifyy` (or `pipx install graphifyy`). Its native Claude wiring is committed once — the `## graphify` section at the end of this file, `.claude/skills/graphify/`, and the PreToolUse nudge hooks in `.claude/settings.json`. `dev-setup.sh` installs graphify and runs `graphify hook install` (never `graphify install --project`, which rewrites this curated file); graphify targets `.husky/post-commit` + `.husky/post-checkout` here because git hooks route through husky, and those embed a machine-specific Python path so they're gitignored and regenerated per-clone. Build the graph on demand with `graphify extract .` (writes `graphify-out/graph.json`, gitignored). Codegraph stays a personal, user-level MCP — not committed. When to use which: **codegraph** for fast structural queries while editing (callers/impact); **graphify** for architecture/onboarding across code + docs + infra.
+- `jq`, `python3`, `uv` (`brew install jq python3 uv`, or `uv` via `curl -LsSf https://astral.sh/uv/install.sh | sh`).
+- `shellcheck`, version-pinned as `SHELLCHECK_VERSION` in `scripts/ci-local.sh` (fetched to `~/.cache/agentic-dev-team/` on first use — not from a package manager).
+- Python deps: `python3 -m pip install -r requirements-dev.txt`. On a PEP 668 "externally-managed" interpreter, use a project `.venv/`, or let `dev-setup.sh` retry `--user`/`--break-system-packages` for you.
+- Graphify (optional): `uv tool install graphifyy`, then `dev-setup.sh` runs `graphify hook install` (never `graphify install --project`, which overwrites this file). Build the graph on demand with `graphify extract .`. Use **codegraph** for structural queries while editing; **graphify** for architecture/onboarding across code+docs+infra.
 
-**One-shot setup:** `bash scripts/dev-setup.sh` validates this toolchain and installs anything missing (Homebrew on macOS, apt-get on Debian/Ubuntu, then the `requirements-dev.txt` deps). Safe to re-run.
+**One-shot setup:** `bash scripts/dev-setup.sh` (safe to re-run). `ci-local.sh` itself checks these and points at `dev-setup.sh` if anything's missing.
 
-`ci-local.sh` checks these up front and exits with an actionable message (pointing at `dev-setup.sh`) if any are missing.
+**Profiling the gate:** `CI_LOCAL_TIMING=1` appends per-check and total wall-clock timing.
 
-**Profiling the gate:** set `CI_LOCAL_TIMING=1` to append a timing section — each check's individual wall-clock (in declared order, regardless of completion order under the parallel pool) plus the total run wall-clock, followed by an uncolored machine-parseable block (`label<TAB>seconds`) for scripting. It is off by default and changes nothing when unset; a `--changed-only`-skipped check reads `skipped`, never `0.00s`. Use it to find the slowest gates before optimizing (issue #1118).
+**The pre-push pytest gate spans more than `plugins/dev-team/tests`.** It runs `plugins/dev-team/tests tests/repo tests/agents tests/commands tests/docs tests/knowledge tests/stack_aware tests/skills tests/scripts tests/hooks`. Editing agent/skill markdown can break repo-level content-guards outside `plugins/dev-team/tests` — always run the full dir list, plus `python3 scripts/check_md_references.py` and `python3 plugins/dev-team/hooks/lib/build_knowledge_index.py`, before pushing plugin-content changes.
 
-**The pre-push pytest gate spans more than `plugins/dev-team/tests`.** `ci-local.sh`'s unit-test step runs pytest over `plugins/dev-team/tests tests/repo tests/agents tests/commands tests/docs tests/knowledge tests/stack_aware tests/skills tests/scripts tests/hooks` (with `-n auto --dist loadgroup`; two csharp-stryker files `--ignore`d). Editing agent/skill markdown can break repo-level content-guards that live **outside** `plugins/dev-team/tests` — e.g. `tests/skills/test_code_review_frontend_dispatch.py` asserts specific agent names appear verbatim in `code-review/SKILL.md`, and `tests/repo` runs `check_md_references.py` (a backticked cross-skill path must be file-relative, e.g. `../code-review/SKILL.md`). `tests/hooks/` (repo-root, distinct from `plugins/dev-team/tests/hooks/`) joined this list in #1475 after two of its tests — pinning `hooks.json`'s dispatch-matcher registration — went silently red for a full ADR migration (ADR 0026) because this directory wasn't in the gate; the stryker/pitest/mutmut *adapter* tests that actually shell out to those tools live in `plugins/dev-team/tests/hooks/` (already covered by `plugins/dev-team/tests` above) — this directory only hosts the static fixture files those adapter tests read (`tests/hooks/fixtures/`, `tests/hooks/fake-bin/`), so `tests/hooks/` itself is fast and portable. Before pushing plugin-content changes, run that **full dir list** — not just the plugin subdir — plus `python3 scripts/check_md_references.py` and `python3 plugins/dev-team/hooks/lib/build_knowledge_index.py`, or the `pre-push` hook / CI will catch what a plugin-only run missed.
+### The inner loop
 
-### The inner loop — three speeds, not two
+"What does this change affect" is a mechanical question a program should answer, not a guess:
 
-Before #2002/#2005 the loop had two speeds: run one file, or run the whole
-9,469-test directory list. "What does this change affect?" was answered by a
-guess, and per the deterministic-tools rule that is a mechanical question a
-program should compute.
-
-1. **`--lf` / `--ff`** — free, built into pytest, no map and no dependency.
-   `--lf` re-runs only last run's failures; `--ff` runs them first, then the
-   rest. This is the right tool for the tight red→green loop and costs nothing
-   to adopt.
-2. **Impact selection** — `scripts/impact_tests.py` answers "given that
-   something changed, which tests reach it" from a per-test coverage map:
+1. **`--lf` / `--ff`** — pytest built-ins, free. `--lf` re-runs last run's failures; `--ff` runs them first.
+2. **Impact selection** — `scripts/impact_tests.py` maps changed files to the tests that reach them via `pytest-cov`'s `--cov-context=test`:
 
    ```bash
    python3 scripts/impact_tests.py build --out .cache/impact-map.json -- \
@@ -88,103 +93,66 @@ program should compute.
      --changed-from-git | xargs python3 -m pytest -q
    ```
 
-   Built on `pytest-cov`'s `--cov-context=test` — already a dev dependency —
-   rather than adding `pytest-testmon`. Measured on this checkout: a
-   `hooks/telemetry.py` edit selects **28 tests in 0.6s** against 9,493 in
-   ~80s. Building the map costs one full instrumented run (~4 min).
+   `select` exits **2** (run the full suite) whenever it can't be sure — missing/malformed map, an unmapped changed file, or a changed test file. Rebuild the map after adding tests or source files.
+3. **The full directory list** — what `pre-push` and CI run, and the fallback whenever selection refuses.
 
-   **It never narrows on a guess.** `select` exits **2** — meaning *run the
-   full suite* — when the map is missing or malformed, when a changed file is
-   absent from the map (a new or uncovered file has unknown reach), or when a
-   changed file is itself a test. Treat any non-zero exit as the full suite,
-   never as an empty selection. The map is a snapshot: rebuild it after adding
-   tests or source files.
-3. **The full directory list** — still what `pre-push` and CI run, and still
-   the answer whenever selection refuses.
-
-`scripts/ci_tree_cache.py` (#2002) sits underneath all three and answers a
-different question — "has anything changed at all" — skipping `chk_hook_units`
-outright when the working tree is byte-identical to the one it last passed on.
-`CI_LOCAL_NO_TREE_CACHE=1` forces a run.
+`scripts/ci_tree_cache.py` skips `chk_hook_units` outright when the working tree is byte-identical to one that already passed; `CI_LOCAL_NO_TREE_CACHE=1` forces a run.
 
 ### Worktrees — run `npm ci` first
 
-Run `npm ci` as the first step in any new worktree, before committing. An unprovisioned worktree has no `.husky/_`/`node_modules`, so git hooks silently don't run; `scripts/ci-local.sh` and CI backstop what the hooks would have caught.
-
-**Self-healing SessionStart hooks (issue #1469).** `.claude/settings.json` registers two additional, time-boxed, fail-open `SessionStart` hooks alongside `install-dev-team.sh`: `.claude/ensure_npm_ci.py` runs `npm ci` automatically when `node_modules/.bin/husky` is missing (the exact gap above), and `.claude/ensure_code_graph_tools.py` builds the CodeGraph/Repowise/Graphify index for any of those tools that's already installed but not yet indexed in this checkout — it never installs a missing CLI (that stays an explicit `/project-init`/`/setup` opt-in). Both are best-effort: a fresh worktree still benefits from the manual `npm ci` above if a hook's time-box or environment prevents it from completing. The two hooks share their subprocess/path-resolution plumbing via `.claude/lib/session_start_common.py`, mirroring the `plugins/dev-team/hooks/lib/` and `scripts/lib/` shared-helper convention.
+Run `npm ci` as the first step in any new worktree. An unprovisioned worktree has no `node_modules`, so git hooks silently don't run — `ci-local.sh`/CI backstop it. `SessionStart` hooks (`.claude/ensure_npm_ci.py`, `.claude/ensure_code_graph_tools.py`) do this automatically on a best-effort basis.
 
 ### Script authoring — Python only
 
-**Every shipped script under `plugins/dev-team/` is Python 3.10+ using stdlib only.** See [ADR 0014](docs/adr/0014-python-for-cross-os-scripts.md) (the decision), [ADR 0015](docs/adr/0015-bash-removal-complete.md) (the completion), and [ADR 0031](docs/adr/0031-raise-shipped-python-floor-to-3-10.md) (the floor's move off EOL 3.8). Concretely:
+Every shipped script under `plugins/dev-team/` is Python 3.10+, stdlib only (see [ADR 0014](docs/adr/0014-python-for-cross-os-scripts.md), [ADR 0015](docs/adr/0015-bash-removal-complete.md), [ADR 0031](docs/adr/0031-raise-shipped-python-floor-to-3-10.md)):
 
-- **All shipped hooks + scripts are `.py` files.** The only `.sh` in `plugins/dev-team/` are the two pre-Python bootstrap shims, which cannot themselves be Python because they run before an interpreter is guaranteed on PATH: `install.sh` (the `install.py` trampoline) and `hooks/py.sh` (resolves a real Python 3 across `python3`/`py -3`/`python`/`$DEV_TEAM_PYTHON` so hooks and `/version` work on Windows, where `python3` is often absent — see #1078). Every other shipped invocation routes through `py.sh`, not a bare `python3`.
-- **Stdlib only.** No `pip install`, no `requirements.txt` for shipped code. `subprocess`, `signal`, `pathlib`, `argparse`, `json`, `hashlib`, `re` cover the vast majority of shell-script territory portably.
-- **Cross-OS by default.** Python runs natively on macOS, Linux, and Windows — no more Git Bash requirement for plugin hooks. When probing OS-specific paths (DOTNET_ROOT, tool install locations), use runtime probes (`subprocess`, `pathlib`) rather than hard-coding macOS or Linux paths.
-- **Tests are pytest.** New tests land as `test_*.py` under the plugin's `tests/` tree.
+- All shipped hooks/scripts are `.py`. The only `.sh` are the two pre-Python bootstrap shims (`install.sh`, `hooks/py.sh`) that must run before an interpreter is guaranteed on PATH.
+- Stdlib only — no `pip install`, no `requirements.txt` for shipped code.
+- Probe OS-specific paths at runtime rather than hard-coding them.
+- Tests are pytest, `test_*.py` under the plugin's `tests/` tree.
 
-Repo-root `scripts/*.sh` (`ci-local.sh`, `dev-setup.sh`, `cost-regression-check.sh`, the various `assemble-docs.sh`/`eval-changed.sh`/`run-full-eval.sh` helpers) are OUT of this rule's scope — they orchestrate developer tooling around the plugin, not the plugin itself, and are not shipped downstream. Convert them opportunistically when you touch them.
+Repo-root `scripts/*.sh` are out of scope — they orchestrate dev tooling, not shipped code.
 
 ### Testing locally
-
-Register the local checkout as a marketplace, then install from it into a test project:
 
 ```bash
 claude plugin marketplace add /path/to/agentic-dev-team
 claude plugin install --scope project dev-team@bfinster
-# Or from the published marketplace (GitHub):
-# claude plugin marketplace add bdfinst/agentic-dev-team
-# claude plugin install dev-team@bfinster
 ```
 
 ### Adding agents, skills, or hooks
 
-- **Agent**: Add a `.md` file to `plugins/dev-team/agents/`
-- **Agent-loaded skill**: Add a `SKILL.md` under `plugins/dev-team/skills/<name>/`
-- **User-invocable skill** (slash command): Add a `SKILL.md` under `plugins/dev-team/skills/<name>/` with `user-invocable: true` in frontmatter
-- **Hook**: Add a `.py` file to `plugins/dev-team/hooks/` and register it in `plugins/dev-team/settings.json`
+- **Agent**: `.md` file in `plugins/dev-team/agents/`
+- **Agent-loaded skill**: `SKILL.md` under `plugins/dev-team/skills/<name>/`
+- **User-invocable skill**: same, with `user-invocable: true` in frontmatter
+- **Hook**: `.py` file in `plugins/dev-team/hooks/`, registered in `plugins/dev-team/settings.json`
 
-After changes, run `/agent-audit` to verify structural compliance.
-
-[`plugins/dev-team/docs/developer-notes.md`](plugins/dev-team/docs/developer-notes.md) is the maintainer-facing entry point: an index of the plugin-development docs plus the playbook for adding a new static-analysis language.
+Run `/agent-audit` after changes. See [`plugins/dev-team/docs/developer-notes.md`](plugins/dev-team/docs/developer-notes.md) for the full maintainer index.
 
 ### Testing hook changes before release
 
-**A hook edit in this checkout does not affect a live session until it ships.** Real hook invocations — PreToolUse/PostToolUse hooks like `agent_dispatch_ledger.py`, `pre_commit_review.py`, the guards — run from the **installed plugin cache** (`~/.claude/plugins/cache/bfinster/dev-team/<version>/hooks/`), not from `plugins/dev-team/hooks/` in your working tree. `settings.json` registers each hook by a plugin-root-relative path (`sh hooks/py.sh hooks/<name>.py`), and that root resolves to the cache copy for the running session. So a hook fix cannot be validated by the very session you fix it in — it only takes effect after the change ships in a release and the cache updates (`/dev-team:upgrade`). This bit issue #1500: a fix to the dispatch-ledger's `subject_type` matching (PR #1498) could not record a single `agent_dispatch_ledger` "record" event during the session that authored it, because that session was still running the pre-fix cached hook. Validate hook changes one of two ways instead:
+A hook edit in this checkout doesn't affect a live session until it ships — real hook invocations run from the **installed plugin cache**, not your working tree. Validate one of two ways:
 
-1. **Unit-test the hook directly (fast, deterministic, no live session — the primary path).** Every shipped hook is invoked as a subprocess with a crafted stdin payload by a `test_*.py` under `plugins/dev-team/tests/hooks/` (plus the repo-level gate/contract tests under `tests/hooks/` and `tests/repo/`). This runs the code **in your working tree**, so it reflects your edit immediately. Any hook whose behavior is only observable through a live Agent/tool dispatch (e.g. the ledger → `.review-passed` corroboration chain) must carry module-level coverage of that end-to-end path, so a fix is verifiable here rather than only after release. Run e.g. `python3 -m pytest plugins/dev-team/tests/hooks tests/hooks tests/repo -q`.
+1. **Unit-test the hook directly (primary path).** `python3 -m pytest plugins/dev-team/tests/hooks tests/hooks tests/repo -q` runs the code in your working tree immediately.
+2. **End-to-end against a live session.** Re-run `claude plugin install` to refresh the cache, then confirm the hook's side effect in a fresh session (e.g. a line in `.claude/metrics/boundary-events.jsonl`).
 
-2. **End-to-end against a live session (when you must exercise the real dispatch path).** Install the plugin from the local checkout marketplace into a throwaway project (see [Testing locally](#testing-locally) for the two `claude plugin` commands). **`claude plugin install` copies the checkout into the versioned cache**, so it is a snapshot, not a live link — **re-run the install after every hook edit** to refresh the cache, then start a fresh session in the test project. Confirm the hook fired by inspecting its side effect — for the dispatch ledger, a `"decision":"record"` line in `.claude/metrics/boundary-events.jsonl` after a real review dispatch.
-
-Prefer path 1; reach for path 2 only when the behavior genuinely cannot be reproduced by invoking the hook module directly.
+Prefer path 1; use path 2 only when the behavior can't be reproduced by invoking the hook module directly.
 
 ### Releasing
 
-Releases are managed by release-please. Push conventional commits to main:
+Release-please manages releases from conventional commits (`feat:` minor, `fix:` patch, `feat!:`/`BREAKING CHANGE` major) — merging its release PR cuts a GitHub Release.
 
-- `feat:` → minor version bump
-- `fix:` → patch version bump
-- `feat!:` or `BREAKING CHANGE` → major version bump
-
-A release PR is opened automatically. Merging it creates a GitHub Release with a version tag.
-
-**PR titles must be conventional.** This repo squash-merges PRs (see [Working Rules](#working-rules)). Squash-merge creates a single commit on `main` using the PR title, so **the PR title must follow the conventional format** for release-please to read it correctly.
-
-- Format PR titles as `<type>(<scope>): <description>` — e.g., `feat(agents): add concurrent-request-review agent`, `fix(skills): resolve circular path references`.
-- Scope is optional; type is required (`feat`, `fix`, `chore`, `docs`, `refactor`, etc.).
-- If a release is silently missed, recover with a follow-up commit carrying a `Release-As: X.Y.Z` footer.
+**PR titles must be conventional** (`<type>(<scope>): <description>`) since squash-merge uses the PR title as the commit message. If a release is silently missed, recover with a follow-up commit carrying `Release-As: X.Y.Z`.
 
 ## Cloud sessions (claude.ai/code)
 
-For running this repo in a Claude Code web/cloud session — installing the plugin via the Setup script, the SessionStart fallback, and the file-based fallback — see the `cloud-setup` skill (`.claude/skills/cloud-setup/SKILL.md`) or [`docs/cloud-setup.md`](docs/cloud-setup.md).
+See the `cloud-setup` skill or [`docs/cloud-setup.md`](docs/cloud-setup.md) for running this repo in a Claude Code web/cloud session.
 
 ## graphify
 
-This project has a knowledge graph at graphify-out/ with god nodes, community structure, and cross-file relationships.
+Knowledge graph at `graphify-out/`.
 
-Rules:
-
-- For codebase questions — architecture, symbol relationships, cross-file structure, "how does X work" — first run `graphify query "<question>"` when graphify-out/graph.json exists. Use `graphify path "<A>" "<B>"` for relationships and `graphify explain "<concept>"` for focused concepts. These return a scoped subgraph, usually much smaller than GRAPH_REPORT.md or raw grep output.
-- If graphify-out/wiki/index.md exists, use it for broad navigation instead of raw source browsing.
-- Read graphify-out/GRAPH_REPORT.md only for broad architecture review or when query/path/explain do not surface enough context.
-- After modifying code, run `graphify update .` to keep the graph current (AST-only, no API cost).
-- graphify is for understanding source, not for metadata lookups. Skip it — plain `grep`/`find`/`ls`/`Read` is fine — for: package manifests and lockfiles (`package.json`, `package-lock.json`, `yarn.lock`, `requirements.txt`, etc.), `node_modules`/`dist`/`build`/`coverage` contents, VCS metadata (`.git/`), bare directory listings, and single-file line/count lookups. The `PreToolUse` nudge hooks in `.claude/settings.json` enforce this same exclusion list so the reminder only fires on genuine source exploration.
+- For architecture/symbol/cross-file questions, run `graphify query "<question>"`, `graphify path "<A>" "<B>"`, or `graphify explain "<concept>"` first.
+- Use `graphify-out/wiki/index.md` for broad navigation; `graphify-out/GRAPH_REPORT.md` only when those don't surface enough.
+- After modifying code, run `graphify update .`.
+- Skip graphify for manifests/lockfiles, `node_modules`/`dist`/`build`/`coverage`, `.git/`, directory listings, and single-file lookups — plain `grep`/`find`/`ls`/`Read` is fine there.

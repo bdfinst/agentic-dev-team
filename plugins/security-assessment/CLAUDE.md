@@ -2,11 +2,11 @@
 
 Deep security assessment and adversarial ML red-team capability. Companion to `dev-team`, which provides the reusable primitives (codebase-recon, ACCEPTED-RISKS convention, versioned security-primitives-contract, SARIF-first tool orchestration).
 
-This plugin is **opinionated**: its hooks default ON, its red-team harness accepts only self-owned targets by default, and its orchestration enforces a fixed pipeline order. If you want primitives without the assessment machinery, install only `dev-team`.
+This plugin is **opinionated**: hooks default ON, the red-team harness accepts only self-owned targets by default, and orchestration enforces a fixed pipeline order. Want primitives without the assessment machinery? Install only `dev-team`.
 
 ## Structure Contract
 
-This plugin mirrors `plugins/dev-team/` one-for-one; `harness/` is a first-class top-level directory for executable application code. The rule: "same schema where the directory applies; omitted directories documented here with rationale."
+Mirrors `plugins/dev-team/` one-for-one, plus `harness/` — a top-level dir for executable application code.
 
 | Directory | Mirrors dev-team? | Rationale if omitted |
 |---|---|---|
@@ -21,7 +21,7 @@ This plugin mirrors `plugins/dev-team/` one-for-one; `harness/` is a first-class
 
 ## Hooks default ON (this plugin only)
 
-The PostToolUse auto-scan hook fires on Edit/Write of matched file types. It is registered in THIS plugin's `settings.json` — NOT in `dev-team`. Default severity threshold: `error` only. Set `verbose_hooks: true` in `settings.local.json` to surface warnings too.
+The PostToolUse auto-scan hook fires on Edit/Write of matched file types. Registered in THIS plugin's `settings.json`, not `dev-team`'s. Default severity threshold: `error` only; set `verbose_hooks: true` in `settings.local.json` to surface warnings too.
 
 Opt-out: add this snippet to your `settings.local.json`:
 
@@ -39,13 +39,13 @@ Opt-out: add this snippet to your `settings.local.json`:
 
 ## SARIF-first tool orchestration
 
-Findings flow through the shared SARIF parser in `plugins/dev-team/skills/static-analysis-integration` and normalize to the unified finding envelope v1.0 defined in `plugins/dev-team/knowledge/security-primitives-contract.md`. This plugin ships seven **custom semgrep rulesets** (`knowledge/semgrep-rules/{crypto-anti-patterns,datastore-patterns,fraud-domain,llm-safety,messaging-patterns,ml-patterns,serialization-patterns}.yaml`) alongside invocations of the usual community rulesets (`p/security-audit`, `p/owasp-top-ten`, etc.).
+Findings flow through the shared SARIF parser in `plugins/dev-team/skills/static-analysis-integration` and normalize to the unified finding envelope v1.0 in `plugins/dev-team/knowledge/security-primitives-contract.md`. Ships seven **custom semgrep rulesets** (`knowledge/semgrep-rules/{crypto-anti-patterns,datastore-patterns,fraud-domain,llm-safety,messaging-patterns,ml-patterns,serialization-patterns}.yaml`) alongside the usual community rulesets (`p/security-audit`, `p/owasp-top-ten`, etc.).
 
 ## LLM-safety coverage bound (verbatim, required)
 
 static coverage via llm-safety.yaml is intentionally narrow — it catches pattern-visible issues but is NOT a substitute for runtime LLM safety testing
 
-Runtime LLM-safety testing tools (`garak`, `rebuff`, `PyRIT`) are deferred to the red-team harness (Phase C). The static ruleset handles hardcoded LLM keys, insecure model loading (ONNX/pickle deserialization), and prompt-template string injection; it cannot cover adversarial inputs or emergent model behavior.
+Runtime LLM-safety tools (`garak`, `rebuff`, `PyRIT`) are deferred to the red-team harness (Phase C). The static ruleset handles hardcoded LLM keys, insecure model loading (ONNX/pickle deserialization), and prompt-template string injection — not adversarial inputs or emergent model behavior.
 
 ## Red-team target scope
 
@@ -58,7 +58,7 @@ The refusal message includes a one-line example of `authorization.md` format. Th
 
 ## Adapter Maintenance Policy
 
-See `plugins/dev-team/skills/static-analysis-integration/SKILL.md`. The companion plugin's custom adapters (e.g. actionlint's JSON→SARIF wrapper, the five bespoke-JSON adapters from Step 3b) follow the same policy: `maintainers:` list with minimum 2 names, tier-2 CI on installed binaries, 14-day escalation, three-release deprecation path.
+Custom adapters (actionlint's JSON→SARIF wrapper, the 5 bespoke-JSON adapters) follow `static-analysis-integration/SKILL.md`'s policy: `maintainers:` (min 2), tier-2 CI, 14-day escalation, 3-release deprecation.
 
 ## Ruleset Maintenance Policy
 
@@ -85,33 +85,25 @@ See `install.sh`. It performs four checks:
 
 **Agents** (13, effort: high):
 
-- `fp-reduction` (effort: high) — 6-stage FP-reduction rubric (Stage 0 devil's advocate + Stages 1–5); disposition register with confidence field
-- `business-logic-domain-review` (effort: high) — fraud-domain anti-patterns
-- `deep-code-reasoning` (effort: high) — RECON surface-scoped freeform vulnerability reasoning; novel context-dependent issues beyond static rules
-- `authorization-logic-review` (effort: high) — top-down authorization architecture review; policy declaration vs. enforcement gaps, multi-tenancy isolation
-- `recon-driven-scan` (effort: high) — bridges RECON narrative claims to concrete file:line evidence; finds patterns SAST cannot express (inverted-boolean TLS defaults, RCE shapes via expression libraries, header-driven SQL, body-trusted IDOR)
-- `cross-repo-synthesizer` (effort: high) — named attack chains across repos
-- `exec-report-generator` (effort: high) — publication-ready executive report with Confidence column
-- `redteam-recon-analyzer` (effort: high) — interpretation of probe 01
-- `redteam-evasion-analyzer` (effort: high) — interpretation of probes 03/04/05
-- `redteam-extraction-analyzer` (effort: high) — interpretation of probe 07
-- `redteam-report-generator` (effort: high) — final red-team report synthesis
-- `tool-finding-narrative-annotator` (effort: high) — 4-domain narrative synthesis
-- `compliance-edge-annotator` (effort: high) — LLM edge judgment for ambiguous mappings
+- `fp-reduction` — 6-stage FP-reduction rubric (Stage 0 devil's advocate + Stages 1–5); disposition register with confidence field
+- `business-logic-domain-review` — fraud-domain anti-patterns
+- `deep-code-reasoning` — RECON surface-scoped freeform vulnerability reasoning; novel context-dependent issues beyond static rules
+- `authorization-logic-review` — top-down authorization architecture review; policy declaration vs. enforcement gaps, multi-tenancy isolation
+- `recon-driven-scan` — bridges RECON narrative claims to concrete file:line evidence; finds patterns SAST cannot express (inverted-boolean TLS defaults, RCE shapes via expression libraries, header-driven SQL, body-trusted IDOR)
+- `cross-repo-synthesizer` — named attack chains across repos
+- `exec-report-generator` — publication-ready executive report with Confidence column
+- `redteam-recon-analyzer` — interpretation of probe 01
+- `redteam-evasion-analyzer` — interpretation of probes 03/04/05
+- `redteam-extraction-analyzer` — interpretation of probe 07
+- `redteam-report-generator` — final red-team report synthesis
+- `tool-finding-narrative-annotator` — 4-domain narrative synthesis
+- `compliance-edge-annotator` — LLM edge judgment for ambiguous mappings
 
 **Skills** (3):
 
 - `false-positive-reduction` — 6-stage rubric (Stage 0 devil's advocate + Stages 1–5) + joern / LLM-fallback
 - `compliance-mapping` — pattern-table first with LLM edge annotation
 - `security-assessment-pipeline` — declarative phase graph for `/security-assessment`
-
-**Commands** (5):
-
-- `/security-assessment <path>` — full static-analysis pipeline
-- `/cross-repo-analysis <paths>` — cross-repo attack-chain analysis
-- `/redteam-model <target>` — adversarial ML red-team
-- `/export-pdf <report.md>` — PDF export
-- `/upgrade` — plugin update + auto-update opt-in
 
 **Hooks** (3):
 
@@ -137,8 +129,6 @@ See `install.sh`. It performs four checks:
 - `redteam/orchestrator.py` + `config.py` + `lib/{http_client,result_store,scoring,feature_dict,scope_check}.py`
 - 8 probes: `redteam/probes/probe_{01..08}_*.py`
 - `tools/{service-comm-parser,shared-cred-hash-match}.py`
-
-See `plans/security-review-companion-plugin.md` for the step-by-step history.
 
 ## Not in this plugin
 
