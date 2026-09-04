@@ -24,11 +24,11 @@ Every change must reduce friction: **fewer missteps, less rework, lower token co
 
 ## Core Principles
 
-1. **Selective Agent Loading**: Load only necessary agents. Target < 10,000 tokens simple tasks.
-2. **Context Ceiling**: `min(40% of window, 350K)` — see [Context Management](docs/context-management.md). Enforced by `hooks/context_ceiling_guard.py`.
-3. **Persona-Driven Behavior**: Specs in `.claude/agents/`. Build concurrency `DEV_TEAM_MAX_PARALLEL_BUILDS`: unset → `1` (sequential); set `--jobs`/env to opt into fan-out, capped by wave width.
-4. **Human-in-the-Loop**: Autonomous agents, human oversight.
-5. **Dynamic Configuration**: Config changes → `.claude/metrics/config-changelog.jsonl`.
+1. **Selective Agent Loading**: load only necessary agents; target < 10,000 tokens for simple tasks.
+2. **Context Ceiling**: `min(40% of window, 350K)` — see [Context Management](docs/context-management.md); enforced by `hooks/context_ceiling_guard.py`.
+3. **Persona-Driven Behavior**: specs in `.claude/agents/`. Build concurrency via `DEV_TEAM_MAX_PARALLEL_BUILDS`: unset → `1` (sequential); set `--jobs`/env to opt into fan-out, capped by wave width.
+4. **Human-in-the-Loop**: autonomous agents, human oversight.
+5. **Dynamic Configuration**: config changes → `.claude/metrics/config-changelog.jsonl`.
 6. **ATDD + Code-First Small Batches** (sole build cadence — Rec 3, docs/experiments/RECOMMENDATIONS.md): no code without a `/plan` scenario.
 7. **Python for cross-OS scripts**: shipped hooks/scripts are Python 3.10+ stdlib-only (ADR 0014, 0015, 0031).
 
@@ -79,7 +79,7 @@ Required for high-impact decisions. Full protocol: **[Human Oversight Protocol](
 
 All agents apply the **[Quality Gate Pipeline](skills/quality-gate-pipeline/SKILL.md)**. Ethics and audit logging: **[Governance & Compliance](skills/governance-compliance/SKILL.md)**.
 
-**Quality ownership.** Agents own the quality *state* — green means the whole suite, not just the diff. Red signals must be fixed or triaged, never stepped over.
+**Quality ownership.** Green means the whole suite, not the diff; fix or triage red — never step over it.
 
 Hooks: `pre_tool_guard.py` blocks sensitive path writes; `destructive_guard.py` warns on destructive commands; `context_ceiling_guard.py` enforces the context ceiling (see above).
 

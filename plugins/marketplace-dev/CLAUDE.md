@@ -1,18 +1,8 @@
 # marketplace-dev — build, audit, and maintain Claude Code plugins
 
-`marketplace-dev` gives plugin authors the scaffolding, audit, and self-maintenance
-infrastructure the `dev-team` plugin developed internally — as reusable, installable
-tooling. It targets three workflows: **creating a new plugin** from scratch,
-**improving an existing plugin's** architecture and quality, and **establishing a
-new marketplace** with correct structure from the start.
+Reusable scaffolding, audit, and self-maintenance tooling extracted from `dev-team`'s internal development — for **creating a new plugin**, **improving an existing plugin**, or **establishing a new marketplace**. No hard runtime dependency on `dev-team`.
 
-It encodes the conventions in
-[`docs/marketplace-builder-plugin-playbook.md`](https://github.com/bdfinst/agentic-dev-team/blob/main/docs/marketplace-builder-plugin-playbook.md)
-— directory layout, agent/skill frontmatter contracts, the markdown-vs-script
-decision framework, and the eval-fixture pattern — as scaffolding skills, a
-structural review agent, and a single shared knowledge file.
-
-`marketplace-dev` has **no hard runtime dependency on `dev-team`**.
+Encodes the conventions in [`docs/marketplace-builder-plugin-playbook.md`](https://github.com/bdfinst/agentic-dev-team/blob/main/docs/marketplace-builder-plugin-playbook.md) — directory layout, agent/skill frontmatter contracts, markdown-vs-script decisions, eval-fixture pattern — as scaffolding skills, a structural review agent, and one shared knowledge file.
 
 ## Slash commands
 
@@ -31,10 +21,7 @@ structural review agent, and a single shared knowledge file.
 
 ## Agent
 
-- **`plugin-best-practices-review`** — read-only, JSON output, structural findings.
-  Checks agent type appropriateness (markdown vs script), frontmatter compliance,
-  eval-coverage presence, and body line-count budgets. It does **not** evaluate
-  detection-logic quality — that belongs to the plugin's own `agent-eval`.
+- **`plugin-best-practices-review`** — read-only, JSON output. Checks agent type (markdown vs script), frontmatter compliance, eval-coverage presence, body line-count budgets. Does **not** evaluate detection-logic quality — that's the plugin's own `agent-eval`.
 
 ## Knowledge
 
