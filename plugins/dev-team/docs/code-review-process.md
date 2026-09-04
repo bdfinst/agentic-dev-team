@@ -2,7 +2,7 @@
 
 How `/code-review` (and its alias `/review`) works end-to-end: from invocation to final report, including the auto-fix loop and the artifacts it produces.
 
-> **Authoritative source**: the skill spec at [`skills/code-review/SKILL.md`](../skills/code-review/SKILL.md). This document is a reader-friendly walkthrough that links to the spec, rubric, template, and output format for details.
+> **Authoritative source**: the skill spec at [`skills/code-review/SKILL.md`](https://github.com/bdfinst/agentic-dev-team/blob/main/plugins/dev-team/skills/code-review/SKILL.md). This document is a reader-friendly walkthrough that links to the spec, rubric, template, and output format for details.
 
 **On this page**: [What it does](#what-it-does) · [Invocation](#invocation) · [Pipeline](#pipeline) · [Artifacts](#artifacts) · [Customization points](#customization-points) · [Relationship to other workflows](#relationship-to-other-workflows) · [Concurrent use](#concurrent-use) · [References](#references)
 
@@ -25,7 +25,7 @@ It follows the [Minimum CD agent configuration](https://migration.minimumcd.org/
 /code-review --force --reason "release freeze"  # skip gates, logged
 ```
 
-See the [skill spec](../skills/code-review/SKILL.md#parse-arguments) for the full argument list.
+See the [skill spec](https://github.com/bdfinst/agentic-dev-team/blob/main/plugins/dev-team/skills/code-review/SKILL.md#parse-arguments) for the full argument list.
 
 ## Pipeline
 
@@ -107,7 +107,7 @@ If static analysis tools are available (Semgrep, ESLint, TypeScript, Ruff, mypy)
 
 > "These issues were detected by static analysis tools. Do not re-report them. Focus on semantic and architectural concerns."
 
-Unlike pre-flight gates, the pre-pass never stops the pipeline — its purpose is to give agents a head start. If Semgrep already ran in gate 4, findings are reused rather than re-collected. See [`skills/static-analysis-integration/SKILL.md`](../skills/static-analysis-integration/SKILL.md) for detection, execution, and deduplication rules.
+Unlike pre-flight gates, the pre-pass never stops the pipeline — its purpose is to give agents a head start. If Semgrep already ran in gate 4, findings are reused rather than re-collected. See [`skills/static-analysis-integration/SKILL.md`](https://github.com/bdfinst/agentic-dev-team/blob/main/plugins/dev-team/skills/static-analysis-integration/SKILL.md) for detection, execution, and deduplication rules.
 
 ### 3. Select enabled agents
 
@@ -141,13 +141,13 @@ agent declares `model:` (an alias, a full model ID, or `inherit`) and
 `effort:` directly in its frontmatter — the native Claude Code sub-agent
 contract, resolved by the harness itself before dispatch (ADR 0026).
 
-Each agent returns a JSON result: `{agentName, status, modelTier, issues[], summary}`. See [`skills/code-review/output-format.md`](../skills/code-review/output-format.md).
+Each agent returns a JSON result: `{agentName, status, modelTier, issues[], summary}`. See [`skills/code-review/output-format.md`](https://github.com/bdfinst/agentic-dev-team/blob/main/plugins/dev-team/skills/code-review/output-format.md).
 
 ### 5. Aggregate results
 
-**5a. ACCEPTED-RISKS suppression.** If `ACCEPTED-RISKS.md` exists at the repo root, its YAML rules are applied in declaration order. The first matching rule suppresses a finding and emits a one-line audit entry. Expired rules become inert and emit a WARN. Broad rules (wildcard `rule_id` or multi-file globs) emit an informational notice. Schema-invalid rules fail the run. Suppressed findings bypass the fix loop and appear in a dedicated report section grouped by rule id. See [`knowledge/accepted-risks-schema.md`](../knowledge/accepted-risks-schema.md).
+**5a. ACCEPTED-RISKS suppression.** If `ACCEPTED-RISKS.md` exists at the repo root, its YAML rules are applied in declaration order. The first matching rule suppresses a finding and emits a one-line audit entry. Expired rules become inert and emit a WARN. Broad rules (wildcard `rule_id` or multi-file globs) emit an informational notice. Schema-invalid rules fail the run. Suppressed findings bypass the fix loop and appear in a dedicated report section grouped by rule id. See [`knowledge/accepted-risks-schema.md`](https://github.com/bdfinst/agentic-dev-team/blob/main/plugins/dev-team/knowledge/accepted-risks-schema.md).
 
-**5b. Health scoring** per [`knowledge/review-rubric.md`](../knowledge/review-rubric.md):
+**5b. Health scoring** per [`knowledge/review-rubric.md`](https://github.com/bdfinst/agentic-dev-team/blob/main/plugins/dev-team/knowledge/review-rubric.md):
 
 | Score | Condition |
 | ------- | ----------- |
@@ -200,13 +200,13 @@ The final report includes a loop table showing iterations, issues fixed, and age
 Output format depends on the `--json` flag:
 
 - **JSON** — a single aggregated object with overall status, per-agent results, totals, fix summary, and token estimate. Consumable by CI.
-- **Prose** — a markdown report following [`knowledge/review-template.md`](../knowledge/review-template.md): summary table, pre-flight status, institutional context, issues by file (sorted by severity), loop iteration table, recommendations, tool availability.
+- **Prose** — a markdown report following [`knowledge/review-template.md`](https://github.com/bdfinst/agentic-dev-team/blob/main/plugins/dev-team/knowledge/review-template.md): summary table, pre-flight status, institutional context, issues by file (sorted by severity), loop iteration table, recommendations, tool availability.
 
 Remaining issues (not auto-fixed) are tagged `[confidence: none]`, `[auto-fix failed — human review required]`, or `[suggestion]`.
 
 ### 8. Correction prompts
 
-For every unfixed actionable issue — plus suggestions worth addressing — a correction prompt JSON is written to `corrections/`. Each prompt includes priority, confidence, category, instruction, context, affected files, and `autoFixResult`. These can be addressed manually or with [`/apply-fixes`](../skills/apply-fixes/SKILL.md).
+For every unfixed actionable issue — plus suggestions worth addressing — a correction prompt JSON is written to `corrections/`. Each prompt includes priority, confidence, category, instruction, context, affected files, and `autoFixResult`. These can be addressed manually or with [`/apply-fixes`](https://github.com/bdfinst/agentic-dev-team/blob/main/plugins/dev-team/skills/apply-fixes/SKILL.md).
 
 The full lifecycle of these files — discovery to applied fix, including who owns a `corrections/*.json` after its branch merges — is documented in [triage-workflow.md](triage-workflow.md).
 
@@ -271,9 +271,9 @@ All three are optional and project-local — they are not part of the plugin.
 ## Relationship to other workflows
 
 - **Inline review checkpoints** (Phase 3 of `/build`) use the same review-fix loop mechanics, but the orchestrator selects a **targeted** subset of agents based on what changed in the unit of work. `/code-review` is the **final gate** before commit and runs the full enabled suite.
-- **[`/review-agent`](../skills/review-agent/SKILL.md)** runs a single agent — used for targeted checks and as the worker for inline checkpoints.
-- **[`/apply-fixes`](../skills/apply-fixes/SKILL.md)** consumes the `corrections/` directory produced here.
-- **[`/pr`](../skills/pr/SKILL.md)** runs `/code-review --json` as part of its pre-PR quality gate. It runs non-interactively (fix loop auto-applies, no "fix or report?" prompt) and `/pr` branches on the returned status — `overall: pass/warn` or `status: skipped` proceeds, `overall: fail` re-engages the user.
+- **[`/review-agent`](https://github.com/bdfinst/agentic-dev-team/blob/main/plugins/dev-team/skills/review-agent/SKILL.md)** runs a single agent — used for targeted checks and as the worker for inline checkpoints.
+- **[`/apply-fixes`](https://github.com/bdfinst/agentic-dev-team/blob/main/plugins/dev-team/skills/apply-fixes/SKILL.md)** consumes the `corrections/` directory produced here.
+- **[`/pr`](https://github.com/bdfinst/agentic-dev-team/blob/main/plugins/dev-team/skills/pr/SKILL.md)** runs `/code-review --json` as part of its pre-PR quality gate. It runs non-interactively (fix loop auto-applies, no "fix or report?" prompt) and `/pr` branches on the returned status — `overall: pass/warn` or `status: skipped` proceeds, `overall: fail` re-engages the user.
 
 ## Concurrent use
 
@@ -284,11 +284,11 @@ concurrent agent its own git worktree — the full rationale and setup are in
 
 ## References
 
-- [Skill spec](../skills/code-review/SKILL.md) — operational detail for the orchestrator
+- [Skill spec](https://github.com/bdfinst/agentic-dev-team/blob/main/plugins/dev-team/skills/code-review/SKILL.md) — operational detail for the orchestrator
 - [Triage workflow](triage-workflow.md) — the discovery-to-applied-fix lifecycle: `/triage`, correction prompts, `/apply-fixes`, and leftover-corrections ownership
 - [Concurrent use](concurrent-use.md) — one worktree per agent; why the gate is per-checkout
-- [Output format](../skills/code-review/output-format.md) — per-agent JSON, aggregated JSON, correction prompts
-- [Report template](../knowledge/review-template.md) — prose report structure
-- [Scoring rubric](../knowledge/review-rubric.md) — health scoring and severity mapping
+- [Output format](https://github.com/bdfinst/agentic-dev-team/blob/main/plugins/dev-team/skills/code-review/output-format.md) — per-agent JSON, aggregated JSON, correction prompts
+- [Report template](https://github.com/bdfinst/agentic-dev-team/blob/main/plugins/dev-team/knowledge/review-template.md) — prose report structure
+- [Scoring rubric](https://github.com/bdfinst/agentic-dev-team/blob/main/plugins/dev-team/knowledge/review-rubric.md) — health scoring and severity mapping
 - [Agent catalog](agent_info.md) — list of review agents and what each checks
 - [Architecture](agent-architecture.md) — where `/code-review` fits in the three-phase workflow

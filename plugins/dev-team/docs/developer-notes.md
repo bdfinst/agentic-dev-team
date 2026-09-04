@@ -20,9 +20,9 @@ topic.
 | Eval architecture | [`eval-system.md`](eval-system.md) | How the agent-eval system is built and gated. |
 | Running evals | [`eval-running-guide.md`](eval-running-guide.md) | The operational procedure for eval runs and variance batches. |
 | Eval upkeep | [`eval-maintenance.md`](eval-maintenance.md) | Grading rules, the calibration trap, and corpus discipline. |
-| Adapter & ruleset lifecycle | [`static-analysis-integration/maintenance.md`](../skills/static-analysis-integration/maintenance.md) | Ownership, drift detection, and deprecation for shipped adapters and rulesets. |
+| Adapter & ruleset lifecycle | [`static-analysis-integration/maintenance.md`](https://github.com/bdfinst/agentic-dev-team/blob/main/plugins/dev-team/skills/static-analysis-integration/maintenance.md) | Ownership, drift detection, and deprecation for shipped adapters and rulesets. |
 | Adding agents, skills, or hooks | [root `CLAUDE.md`](../../../CLAUDE.md) § "Adding agents, skills, or hooks" | Where each artifact type lives and the structural audit to run afterwards. |
-| Code knowledge graphs | [`codegraph-vs-graphify.md`](../knowledge/codegraph-vs-graphify.md) | When to use CodeGraph vs Graphify, how `/project-init` installs each, and the CLAUDE.md-preservation guard. |
+| Code knowledge graphs | [`codegraph-vs-graphify.md`](https://github.com/bdfinst/agentic-dev-team/blob/main/plugins/dev-team/knowledge/codegraph-vs-graphify.md) | When to use CodeGraph vs Graphify, how `/project-init` installs each, and the CLAUDE.md-preservation guard. |
 | Script conventions | [ADR 0014](../../../docs/adr/0014-python-for-cross-os-scripts.md), [ADR 0015](../../../docs/adr/0015-bash-removal-complete.md), [ADR 0031](../../../docs/adr/0031-raise-shipped-python-floor-to-3-10.md) | Why every shipped script is Python 3.10+ stdlib-only, the completed bash removal, and the floor's move off EOL 3.8. |
 
 The rest of this page covers the one extension path that touches several of
@@ -34,7 +34,7 @@ the static-analysis suite.
 The static-analysis suite has two consumption sites that share one registry:
 
 - **`/code-review`'s full-repo pre-pass** — the
-  [static-analysis-integration skill](../skills/static-analysis-integration/SKILL.md)
+  [static-analysis-integration skill](https://github.com/bdfinst/agentic-dev-team/blob/main/plugins/dev-team/skills/static-analysis-integration/SKILL.md)
   runs every detected tool over the target set, normalizes output to the
   unified finding envelope, deduplicates, and hands confirmed findings to the
   review agents.
@@ -42,9 +42,9 @@ The static-analysis suite has two consumption sites that share one registry:
   **lanes** fix or surface mechanical findings in the changed files before
   semantic review. The mechanism (scoping, the shared fix loop, the 2-attempt
   cap, detection and provider binding, the degradation ladder) is specified
-  once in [`static-self-heal.md`](../skills/build/references/static-self-heal.md);
+  once in [`static-self-heal.md`](https://github.com/bdfinst/agentic-dev-team/blob/main/plugins/dev-team/skills/build/references/static-self-heal.md);
   lanes are registered in
-  [`tool-configs.md` § Build-time lanes](../skills/static-analysis-integration/references/tool-configs.md#build-time-lanes).
+  [`tool-configs.md` § Build-time lanes](https://github.com/bdfinst/agentic-dev-team/blob/main/plugins/dev-team/skills/static-analysis-integration/references/tool-configs.md#build-time-lanes).
 
 Adding a language means wiring both sites plus the user-facing setup docs.
 The four landed lanes are the worked examples this playbook generalizes from:
@@ -58,7 +58,7 @@ The four landed lanes are the worked examples this playbook generalizes from:
 
 **Audience boundary.** This playbook is for plugin maintainers wiring a new
 language *into the plugin*. The
-[per-language setup guide](../skills/static-analysis-integration/references/language-setup.md)
+[per-language setup guide](https://github.com/bdfinst/agentic-dev-team/blob/main/plugins/dev-team/skills/static-analysis-integration/references/language-setup.md)
 is for end users configuring their own repo's toolchain, and it remains the
 single source of truth for install/config/verification commands. The two
 cross-link and never duplicate: your job here includes *adding* that guide's
@@ -71,7 +71,7 @@ independent — knowing one tells you nothing about the other:
 
 1. **Output format: SARIF-native, or needs an adapter?** This decides the
    tool's tier in `tool-configs.md`. A tool that emits SARIF is consumed raw
-   by the [shared SARIF parser](../skills/static-analysis-integration/references/sarif-parser.md)
+   by the [shared SARIF parser](https://github.com/bdfinst/agentic-dev-team/blob/main/plugins/dev-team/skills/static-analysis-integration/references/sarif-parser.md)
    (Tier 1/2). A tool with only JSON or line-based output needs a bespoke
    adapter (Tier 3), and the budget is hard: **≤ 40 LOC**. If an adapter
    wants to be bigger than that, the tool is fighting the pipeline —
@@ -97,7 +97,7 @@ ever do.
 ### Wiring the `/code-review` side
 
 A new tool becomes visible to `/code-review` through an entry in
-[`tool-configs.md`](../skills/static-analysis-integration/references/tool-configs.md),
+[`tool-configs.md`](https://github.com/bdfinst/agentic-dev-team/blob/main/plugins/dev-team/skills/static-analysis-integration/references/tool-configs.md),
 under the tier its output format earned. The existing entries define the
 house metadata shape; a complete entry carries:
 
@@ -116,7 +116,7 @@ house metadata shape; a complete entry carries:
   never a pipeline failure.
 - **Adapter** — "none" for SARIF-native tools; otherwise the ≤ 40 LOC
   adapter under the skill's `adapters/`, with its field-mapping table in the
-  entry. Per the [maintenance policy](../skills/static-analysis-integration/maintenance.md),
+  entry. Per the [maintenance policy](https://github.com/bdfinst/agentic-dev-team/blob/main/plugins/dev-team/skills/static-analysis-integration/maintenance.md),
   a SARIF adapter comes first — bespoke JSON only when upstream genuinely
   has no SARIF plan.
 - **Exit-code semantics** — when the tool distinguishes "findings exist"
@@ -143,7 +143,7 @@ Two more pieces ride along with the entry:
 The self-heal pass never gains per-language logic. Everything a lane does —
 how changed files are scoped, how the fix loop retries, when it escalates,
 how providers bind — is specified once in
-[`static-self-heal.md`](../skills/build/references/static-self-heal.md), and a
+[`static-self-heal.md`](https://github.com/bdfinst/agentic-dev-team/blob/main/plugins/dev-team/skills/build/references/static-self-heal.md), and a
 new language plugs in as pure registry data: one subsection under
 `tool-configs.md` § Build-time lanes. If you find yourself writing loop or
 scoping logic for your language, stop — the mechanism doc forbids restating
@@ -187,7 +187,7 @@ maintains, and this is deliberately not an open-ended plugin system.
 Two more places make the lane usable by people who did not read any of the
 above:
 
-- **A language section in [`language-setup.md`](../skills/static-analysis-integration/references/language-setup.md)**,
+- **A language section in [`language-setup.md`](https://github.com/bdfinst/agentic-dev-team/blob/main/plugins/dev-team/skills/static-analysis-integration/references/language-setup.md)**,
   following that guide's "Per-lane section contract": tools and roles,
   repo-level install, configuration, verification, opt-out, and recognized
   equivalent providers, in that order. This is where the actual install and
@@ -230,7 +230,7 @@ lands: a project configured for ESLint keeps ESLint, and legacy tools stay
 in the provider list and dedup chain as long as real projects arrive with
 them. Retirement is therefore a deliberate decision, and the precedent to
 copy is the oxlint/ESLint checklist ("When a project may drop ESLint
-entirely" in [`tool-configs.md`](../skills/static-analysis-integration/references/tool-configs.md))
+entirely" in [`tool-configs.md`](https://github.com/bdfinst/agentic-dev-team/blob/main/plugins/dev-team/skills/static-analysis-integration/references/tool-configs.md))
 — a **decidable** test, not a vibe:
 
 1. Every rule the old tool enforces in this project is either covered by the
@@ -247,6 +247,6 @@ pylint/flake8 followed it: the legacy Python entry was retired outright only
 once ruff covered the surface, while black + flake8 remain a recognized
 *provider pair* for projects that arrive with them. Retiring a tool from the
 plugin (deleting its entry and adapter) additionally follows the
-[adapter deprecation policy](../skills/static-analysis-integration/maintenance.md):
+[adapter deprecation policy](https://github.com/bdfinst/agentic-dev-team/blob/main/plugins/dev-team/skills/static-analysis-integration/maintenance.md):
 demote, warn, then remove at the next major contract version — never a
 silent deletion.

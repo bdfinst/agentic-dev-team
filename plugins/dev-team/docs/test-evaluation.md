@@ -197,7 +197,7 @@ Legacy code is code without tests (regardless of age). When a component is poorl
 4. **Refactor to improve testability under green** — introduce adapters and seams, push checks down to deterministic component/unit tests. Never change behavior and structure in the same step.
 5. **Let the domain guide the target** — the `domain-driven-design` and `domain-analysis` skills suggest where boundaries and seams should land.
 
-The mechanics live in the [`legacy-code`](../skills/legacy-code/SKILL.md) skill; this workflow places it in the CD test architecture. An assessment of an under-tested component therefore returns two things: the outside-in baseline writable today, and the refactor sequence that improves testability afterward.
+The mechanics live in the [`legacy-code`](https://github.com/bdfinst/agentic-dev-team/blob/main/plugins/dev-team/skills/legacy-code/SKILL.md) skill; this workflow places it in the CD test architecture. An assessment of an under-tested component therefore returns two things: the outside-in baseline writable today, and the refactor sequence that improves testability afterward.
 
 ---
 
@@ -250,28 +250,28 @@ The mechanics live in the [`legacy-code`](../skills/legacy-code/SKILL.md) skill;
 
 | File | What it defines |
 |---|---|
-| [`agents/qa-engineer.md`](../agents/qa-engineer.md) | The Senior SDET agent that routes strategic test requests to these skills |
-| [`agents/test-review.md`](../agents/test-review.md) | The tactical per-file test-quality review agent |
-| [`agents/test-smell-review.md`](../agents/test-smell-review.md) | The smell-detection review agent |
-| [`knowledge/cd-test-architecture.md`](../knowledge/cd-test-architecture.md) | Six MinimumCD test types, the pre-merge gate rule, out-of-repo anti-pattern, component test pattern, adapter rule, double validation, determinism techniques |
-| [`knowledge/component-test-patterns.md`](../knowledge/component-test-patterns.md) | Per-component patterns: UI, API Provider, API Consumer, Event Consumer, Event Producer, Stateful Service, CLI/Library, Scheduled Job |
-| [`knowledge/database-test-patterns.md`](../knowledge/database-test-patterns.md) | Database test isolation + teardown: Database Sandbox, Transaction Rollback / Table Truncation Teardown, Fake-first rule for data-logic tests |
-| [`knowledge/dependency-breaking-techniques.md`](../knowledge/dependency-breaking-techniques.md) | Feathers' full 24-technique catalog for getting legacy code under test (behavior-preserving seams, seam type + risk) |
-| [`knowledge/legacy-test-strategy.md`](../knowledge/legacy-test-strategy.md) | Where to test legacy code: effect reasoning, effect sketches, interception/pinch points; plus editing-safety techniques |
-| [`knowledge/microservice-testing.md`](../knowledge/microservice-testing.md) | Contract and CDC testing across independently-deployable services |
-| [`knowledge/test-automation-maturity.md`](../knowledge/test-automation-maturity.md) | Maturity ladder consumed by `test-health` for the strategic rollup |
-| [`knowledge/test-automation-principles.md`](../knowledge/test-automation-principles.md) | Goals + named Principles of Test Automation — the rubric for *why* a test is good or bad; grounds smell severity |
-| [`knowledge/test-doubles.md`](../knowledge/test-doubles.md) | Dummy / stub / spy / mock / fake selection, Configurable vs. Hard-Coded form, Test-Specific Subclass, state-vs-behavior verification |
-| [`knowledge/test-matrix-examples/`](../knowledge/test-matrix-examples/) | Worked, stack-specific placement matrices the advisor adapts (Spring Boot, Django batch, React/Node SPA, SSR + HTMX, .NET API fronting gRPC) |
-| [`knowledge/test-pyramid.md`](../knowledge/test-pyramid.md) | Pyramid layer responsibilities and shape anti-patterns |
-| [`knowledge/test-smells.md`](../knowledge/test-smells.md) | xUnit smell taxonomy: code, behavior, and project smells |
-| [`knowledge/testing-quadrants.md`](../knowledge/testing-quadrants.md) | Agile Testing Quadrants — what each quadrant protects; consumed by `test-health` |
-| [`knowledge/value-patterns.md`](../knowledge/value-patterns.md) | Test-data sourcing: Literal / Derived / Generated Value + Dummy Object |
-| [`skills/cd-test-architecture/SKILL.md`](../skills/cd-test-architecture/SKILL.md) | The application-level assessment skill |
-| [`skills/domain-driven-design/SKILL.md`](../skills/domain-driven-design/SKILL.md) | Suggests target boundaries/seams for the post-baseline refactor |
-| [`skills/legacy-code/SKILL.md`](../skills/legacy-code/SKILL.md) | Characterization testing + dependency-breaking: the baseline-before-refactor procedure |
-| [`skills/mutation-testing/SKILL.md`](../skills/mutation-testing/SKILL.md) | Assertion-strength check (do tests catch real bugs?); folded into `test-health` |
-| [`skills/test-design/SKILL.md`](../skills/test-design/SKILL.md) | The `/test-design` orchestrator skill — dispatches review agents, scores with Farley, optionally invokes the advisor |
-| [`skills/test-design-advisor/SKILL.md`](../skills/test-design-advisor/SKILL.md) | The unit/module design advisor skill |
-| [`skills/farley-score/SKILL.md`](../skills/farley-score/SKILL.md) | Farley Score — Dave Farley's 8 properties scored 1–10, called by `/test-design` Step 3 (Score the in-scope tests via Farley Score) |
-| [`skills/test-health/SKILL.md`](../skills/test-health/SKILL.md) | Strategic suite-wide rollup; delegates to `cd-test-architecture`, `/test-design`, `mutation-testing` |
+| [`agents/qa-engineer.md`](https://github.com/bdfinst/agentic-dev-team/blob/main/plugins/dev-team/agents/qa-engineer.md) | The Senior SDET agent that routes strategic test requests to these skills |
+| [`agents/test-review.md`](https://github.com/bdfinst/agentic-dev-team/blob/main/plugins/dev-team/agents/test-review.md) | The tactical per-file test-quality review agent |
+| [`agents/test-smell-review.md`](https://github.com/bdfinst/agentic-dev-team/blob/main/plugins/dev-team/agents/test-smell-review.md) | The smell-detection review agent |
+| [`knowledge/cd-test-architecture.md`](https://github.com/bdfinst/agentic-dev-team/blob/main/plugins/dev-team/knowledge/cd-test-architecture.md) | Six MinimumCD test types, the pre-merge gate rule, out-of-repo anti-pattern, component test pattern, adapter rule, double validation, determinism techniques |
+| [`knowledge/component-test-patterns.md`](https://github.com/bdfinst/agentic-dev-team/blob/main/plugins/dev-team/knowledge/component-test-patterns.md) | Per-component patterns: UI, API Provider, API Consumer, Event Consumer, Event Producer, Stateful Service, CLI/Library, Scheduled Job |
+| [`knowledge/database-test-patterns.md`](https://github.com/bdfinst/agentic-dev-team/blob/main/plugins/dev-team/knowledge/database-test-patterns.md) | Database test isolation + teardown: Database Sandbox, Transaction Rollback / Table Truncation Teardown, Fake-first rule for data-logic tests |
+| [`knowledge/dependency-breaking-techniques.md`](https://github.com/bdfinst/agentic-dev-team/blob/main/plugins/dev-team/knowledge/dependency-breaking-techniques.md) | Feathers' full 24-technique catalog for getting legacy code under test (behavior-preserving seams, seam type + risk) |
+| [`knowledge/legacy-test-strategy.md`](https://github.com/bdfinst/agentic-dev-team/blob/main/plugins/dev-team/knowledge/legacy-test-strategy.md) | Where to test legacy code: effect reasoning, effect sketches, interception/pinch points; plus editing-safety techniques |
+| [`knowledge/microservice-testing.md`](https://github.com/bdfinst/agentic-dev-team/blob/main/plugins/dev-team/knowledge/microservice-testing.md) | Contract and CDC testing across independently-deployable services |
+| [`knowledge/test-automation-maturity.md`](https://github.com/bdfinst/agentic-dev-team/blob/main/plugins/dev-team/knowledge/test-automation-maturity.md) | Maturity ladder consumed by `test-health` for the strategic rollup |
+| [`knowledge/test-automation-principles.md`](https://github.com/bdfinst/agentic-dev-team/blob/main/plugins/dev-team/knowledge/test-automation-principles.md) | Goals + named Principles of Test Automation — the rubric for *why* a test is good or bad; grounds smell severity |
+| [`knowledge/test-doubles.md`](https://github.com/bdfinst/agentic-dev-team/blob/main/plugins/dev-team/knowledge/test-doubles.md) | Dummy / stub / spy / mock / fake selection, Configurable vs. Hard-Coded form, Test-Specific Subclass, state-vs-behavior verification |
+| [`knowledge/test-matrix-examples/`](https://github.com/bdfinst/agentic-dev-team/blob/main/plugins/dev-team/knowledge/test-matrix-examples/) | Worked, stack-specific placement matrices the advisor adapts (Spring Boot, Django batch, React/Node SPA, SSR + HTMX, .NET API fronting gRPC) |
+| [`knowledge/test-pyramid.md`](https://github.com/bdfinst/agentic-dev-team/blob/main/plugins/dev-team/knowledge/test-pyramid.md) | Pyramid layer responsibilities and shape anti-patterns |
+| [`knowledge/test-smells.md`](https://github.com/bdfinst/agentic-dev-team/blob/main/plugins/dev-team/knowledge/test-smells.md) | xUnit smell taxonomy: code, behavior, and project smells |
+| [`knowledge/testing-quadrants.md`](https://github.com/bdfinst/agentic-dev-team/blob/main/plugins/dev-team/knowledge/testing-quadrants.md) | Agile Testing Quadrants — what each quadrant protects; consumed by `test-health` |
+| [`knowledge/value-patterns.md`](https://github.com/bdfinst/agentic-dev-team/blob/main/plugins/dev-team/knowledge/value-patterns.md) | Test-data sourcing: Literal / Derived / Generated Value + Dummy Object |
+| [`skills/cd-test-architecture/SKILL.md`](https://github.com/bdfinst/agentic-dev-team/blob/main/plugins/dev-team/skills/cd-test-architecture/SKILL.md) | The application-level assessment skill |
+| [`skills/domain-driven-design/SKILL.md`](https://github.com/bdfinst/agentic-dev-team/blob/main/plugins/dev-team/skills/domain-driven-design/SKILL.md) | Suggests target boundaries/seams for the post-baseline refactor |
+| [`skills/legacy-code/SKILL.md`](https://github.com/bdfinst/agentic-dev-team/blob/main/plugins/dev-team/skills/legacy-code/SKILL.md) | Characterization testing + dependency-breaking: the baseline-before-refactor procedure |
+| [`skills/mutation-testing/SKILL.md`](https://github.com/bdfinst/agentic-dev-team/blob/main/plugins/dev-team/skills/mutation-testing/SKILL.md) | Assertion-strength check (do tests catch real bugs?); folded into `test-health` |
+| [`skills/test-design/SKILL.md`](https://github.com/bdfinst/agentic-dev-team/blob/main/plugins/dev-team/skills/test-design/SKILL.md) | The `/test-design` orchestrator skill — dispatches review agents, scores with Farley, optionally invokes the advisor |
+| [`skills/test-design-advisor/SKILL.md`](https://github.com/bdfinst/agentic-dev-team/blob/main/plugins/dev-team/skills/test-design-advisor/SKILL.md) | The unit/module design advisor skill |
+| [`skills/farley-score/SKILL.md`](https://github.com/bdfinst/agentic-dev-team/blob/main/plugins/dev-team/skills/farley-score/SKILL.md) | Farley Score — Dave Farley's 8 properties scored 1–10, called by `/test-design` Step 3 (Score the in-scope tests via Farley Score) |
+| [`skills/test-health/SKILL.md`](https://github.com/bdfinst/agentic-dev-team/blob/main/plugins/dev-team/skills/test-health/SKILL.md) | Strategic suite-wide rollup; delegates to `cd-test-architecture`, `/test-design`, `mutation-testing` |
