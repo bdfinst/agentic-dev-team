@@ -38,7 +38,7 @@ jobs:
 
       - uses: actions/setup-python@v7
         with:
-          python-version: "3.x"
+          python-version: '3.x'
 
       - name: Install MkDocs dependencies
         run: pip install -r requirements-docs.txt
@@ -47,13 +47,23 @@ jobs:
         run: bash scripts/assemble-docs.sh
 
       - name: Build site
-        run: mkdocs build --site-dir /tmp/site
+        run:
+          mkdocs build --strict --site-dir /tmp/site 2>&1 | tee
+          /tmp/mkdocs-build.log
 
       # Same nav-integrity assertion the local gate runs (scripts/ci-local.sh's
       # chk_nav_integrity), kept in one script so CI and pre-push can't drift.
       - name: Assert every nav entry resolves to a file
         run: python3 scripts/check_nav_integrity.py
 
+      - name: Report assembled-tree broken-link count
+        if: always()
+        run: |
+          count=$(grep -c "target .* is not found among documentation files" /tmp/mkdocs-build.log || true)
+          echo "Broken links against the assembled docs tree: ${count:-0}"
+          if [ "${count:-0}" -gt 0 ]; then
+            echo "::warning::${count} broken link(s) found against the assembled docs site tree — see the 'Build site' step log above for the full list."
+          fi
   # Validates relative links and anchors inside the documentation bodies. Offline:
   # only local file links are resolved, so external link rot never flakes the gate.
   body-links:
@@ -66,13 +76,7 @@ jobs:
         uses: lycheeverse/lychee-action@v2
         with:
           args: >-
-            --offline
-            --no-progress
-            README.md
-            GETTING-STARTED.md
-            CONTRIBUTING.md
-            CHANGELOG.md
-            docs/**/*.md
-            plugins/dev-team/README.md
+            --offline --no-progress README.md GETTING-STARTED.md CONTRIBUTING.md
+            CHANGELOG.md docs/**/*.md plugins/dev-team/README.md
             plugins/dev-team/docs/**/*.md
           fail: true
