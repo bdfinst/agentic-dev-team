@@ -110,7 +110,7 @@ Every `git commit` is automatically gated by `/code-review`. A `PreToolUse` hook
 
 Developing, testing, or releasing the plugins? See **[CONTRIBUTING.md](CONTRIBUTING.md)** — local-dev setup (including live installs via symlinks), the `/agent-eval` and `/agent-audit` test commands, the security comparative-testing harness, how to add agents and skills, and the release process.
 
-**`/code-review` benchmark harness** ([`evals/code-review-benchmark/`](evals/code-review-benchmark/README.md)): checks out real, known-defect commits from Defects4J (Java) and BugsJS (JavaScript), runs `/code-review` against the buggy revision, and scores whether its findings actually cover the real defect — with a dedicated Missed Defects report. Adapters and scoring are unit-tested against real fetched dataset samples; a live sweep against the actual corpora requires a local Defects4J/BugsJS install (see the harness README for prerequisites and usage).
+**`/code-review` benchmark harness** ([`evals/code-review-benchmark/`](https://github.com/bdfinst/agentic-dev-team/blob/main/evals/code-review-benchmark/README.md)): checks out real, known-defect commits from Defects4J (Java) and BugsJS (JavaScript), runs `/code-review` against the buggy revision, and scores whether its findings actually cover the real defect — with a dedicated Missed Defects report. Adapters and scoring are unit-tested against real fetched dataset samples; a live sweep against the actual corpora requires a local Defects4J/BugsJS install (see the harness README for prerequisites and usage).
 
 ## Documentation
 
@@ -122,7 +122,7 @@ Start here:
 | --- | --- |
 | [Getting Started](GETTING-STARTED.md) | Install, the workflow, suggested skills, worked examples |
 | [Contributing](CONTRIBUTING.md) | Local development, testing, adding agents/skills, releasing |
-| [Plugin Development Guide](CLAUDE.md) | Project North Star, repo structure, working rules |
+| [Plugin Development Guide](https://github.com/bdfinst/agentic-dev-team/blob/main/CLAUDE.md) | Project North Star, repo structure, working rules |
 
 Per-plugin docs: **[dev-team](plugins/dev-team/README.md)** · **[security-assessment](plugins/security-assessment/README.md)** · **[marketplace-dev](plugins/marketplace-dev/README.md)** — each plugin's README is the entry point to its architecture, commands, and deeper guides.
 

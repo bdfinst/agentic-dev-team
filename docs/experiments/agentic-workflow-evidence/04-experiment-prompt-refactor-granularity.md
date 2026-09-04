@@ -1,7 +1,7 @@
 # Experiment Prompt: Refactoring Granularity, the Test Safety Net, and Code/Test Authorship
 
 **Type:** Reusable experiment prompt (hand this whole file to Claude to execute)
-**Harness:** [`scripts/run_tdd_experiment.py`](../../../scripts/run_tdd_experiment.py) — **must be extended** (see "Extend the harness")
+**Harness:** [`scripts/run_tdd_experiment.py`](https://github.com/bdfinst/agentic-dev-team/blob/main/scripts/run_tdd_experiment.py) — **must be extended** (see "Extend the harness")
 **Design + prior results:** [`02-final-results.md` § refactoring-cadence follow-up](../02-final-results.md#proposed-follow-up-refactoring-cadence-and-the-test-safety-net)
 
 This run resolves the open question from the *When Does TDD Pay Off?* study: the two
@@ -13,7 +13,7 @@ real **5%** difference from scatter, and it pulls apart the candidate mechanisms
 It judges every arm on three axes — **how modular and changeable the code is**, **how good
 the tests are**, and **what that quality cost** — and reports quality both raw and
 per-dollar, so the verdict names the efficient frontier rather than the most expensive arm.
-The three axes and their sensors are defined in [What we measure](#what-we-measure--three-axes-define-these-before-running).
+The three axes and their sensors are defined in [What we measure](#what-we-measure-three-axes-define-these-before-running).
 
 ---
 

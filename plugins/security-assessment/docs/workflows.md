@@ -6,7 +6,7 @@ The `security-assessment` plugin provides two **orchestrator** commands that seq
 
 ## `/security-assessment`
 
-**File:** [`commands/security-assessment.md`](../commands/security-assessment.md)
+**File:** [`commands/security-assessment.md`](https://github.com/bdfinst/agentic-dev-team/blob/main/plugins/security-assessment/commands/security-assessment.md)
 **Role:** orchestrator.
 **Use when:** running a full security audit against one or more target repos — at a release gate, on a milestone, or before publishing a security report.
 
@@ -30,7 +30,7 @@ The `security-assessment` plugin provides two **orchestrator** commands that seq
 
 ## `/cross-repo-analysis`
 
-**File:** [`commands/cross-repo-analysis.md`](../commands/cross-repo-analysis.md)
+**File:** [`commands/cross-repo-analysis.md`](https://github.com/bdfinst/agentic-dev-team/blob/main/plugins/security-assessment/commands/cross-repo-analysis.md)
 **Role:** orchestrator.
 **Use when:** analysing shared credentials and service-communication patterns across two or more related repos — microservices suites, platform + tenant repos, monorepo split components.
 
@@ -46,9 +46,9 @@ The `security-assessment` plugin provides two **orchestrator** commands that seq
 
 ## `/redteam-model`
 
-**File:** [`commands/redteam-model.md`](../commands/redteam-model.md)
+**File:** [`commands/redteam-model.md`](https://github.com/bdfinst/agentic-dev-team/blob/main/plugins/security-assessment/commands/redteam-model.md)
 **Role:** adversarial pipeline.
-**Use when:** probing a self-owned model endpoint for safety and extraction vulnerabilities. Public targets require a signed `authorization.md` artifact — see [`knowledge/redteam-authorization.md`](../knowledge/redteam-authorization.md).
+**Use when:** probing a self-owned model endpoint for safety and extraction vulnerabilities. Public targets require a signed `authorization.md` artifact — see [`knowledge/redteam-authorization.md`](https://github.com/bdfinst/agentic-dev-team/blob/main/plugins/security-assessment/knowledge/redteam-authorization.md).
 
 Eight probes (in `harness/redteam/probes/`) run in sequence:
 

@@ -172,7 +172,7 @@ Custom agents extend the team with knowledge specific to your project — your d
 
 ## Install or Update the Plugin
 
-The standard install path is `claude plugin install dev-team@bfinster` — see the [repository README](../../../README.md#installation) for the full procedure, including how to update to a newer version. Copying agent files by hand is not supported: the Orchestrator routes by marketplace registry, not by file scan.
+The standard install path is `claude plugin install dev-team@bfinster` — see the [repository README](../../../README.md#getting-started) for the full procedure, including how to update to a newer version. Copying agent files by hand is not supported: the Orchestrator routes by marketplace registry, not by file scan.
 
 To contribute a custom agent back upstream:
 

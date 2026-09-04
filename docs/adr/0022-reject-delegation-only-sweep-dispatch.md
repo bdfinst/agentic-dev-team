@@ -23,7 +23,7 @@ The experiment ran on 2026-07-18: 3 arms (solo session / released plugin
 10.12.0 / treatment branch) × 3 task classes (one-file fix, 4-file feature
 slice, 26-file review sweep) × 5 interleaved reps, 45/45 runs completed at
 matched external acceptance checks. Evidence:
-[`reports/orchestration-benchmark-2026-07-18.md`](../../reports/orchestration-benchmark-2026-07-18.md)
+[`reports/orchestration-benchmark-2026-07-18.md`](https://github.com/bdfinst/agentic-dev-team/blob/main/reports/orchestration-benchmark-2026-07-18.md)
 (raw per-run data alongside).
 
 Measured, per class (median cost per run; quality = acceptance passes):

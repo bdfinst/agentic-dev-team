@@ -9,8 +9,8 @@ refactor-cadence/workflow-matrix experiment line (experiments 01–05); see
 
 **Data:** [`agentic-workflow-evidence/data/refactor-workflow-matrix.jsonl`](agentic-workflow-evidence/data/refactor-workflow-matrix.jsonl)
 **Model:** `claude-sonnet-4-6` (held fixed across all arms)
-**Harness:** [`scripts/run_refactor_experiment.py`](../../scripts/run_refactor_experiment.py),
-orchestrated by [`scripts/run_workflow_matrix.py`](../../scripts/run_workflow_matrix.py)
+**Harness:** [`scripts/run_refactor_experiment.py`](https://github.com/bdfinst/agentic-dev-team/blob/main/scripts/run_refactor_experiment.py),
+orchestrated by [`scripts/run_workflow_matrix.py`](https://github.com/bdfinst/agentic-dev-team/blob/main/scripts/run_workflow_matrix.py)
 
 ---
 

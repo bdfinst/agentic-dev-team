@@ -20,11 +20,11 @@ answers on its own:
 
 | Question | Use |
 | --- | --- |
-| How much did *that run* cost? | [`/cost-report`](../plugins/dev-team/skills/cost-report/SKILL.md) |
-| How did *that run* go, step by step? | [`/run-report`](../plugins/dev-team/skills/run-report/SKILL.md) |
-| What should we change, based on recent sessions? | [`/session-review`](../plugins/dev-team/skills/session-review/SKILL.md) |
-| Which agents/routing have gone stale? | [`/harness-audit`](../plugins/dev-team/skills/harness-audit/SKILL.md) |
-| Which skills and agents are unused? | [`/artifact-lifecycle`](../plugins/dev-team/skills/artifact-lifecycle/SKILL.md) |
+| How much did *that run* cost? | [`/cost-report`](https://github.com/bdfinst/agentic-dev-team/blob/main/plugins/dev-team/skills/cost-report/SKILL.md) |
+| How did *that run* go, step by step? | [`/run-report`](https://github.com/bdfinst/agentic-dev-team/blob/main/plugins/dev-team/skills/run-report/SKILL.md) |
+| What should we change, based on recent sessions? | [`/session-review`](https://github.com/bdfinst/agentic-dev-team/blob/main/plugins/dev-team/skills/session-review/SKILL.md) |
+| Which agents/routing have gone stale? | [`/harness-audit`](https://github.com/bdfinst/agentic-dev-team/blob/main/plugins/dev-team/skills/harness-audit/SKILL.md) |
+| Which skills and agents are unused? | [`/artifact-lifecycle`](https://github.com/bdfinst/agentic-dev-team/blob/main/plugins/dev-team/skills/artifact-lifecycle/SKILL.md) |
 | Is the context ceiling in the right place *right now*? | [`context_ceiling_report.py`](context-ceiling-validation.md) |
 
 This playbook is the **longitudinal** layer over those: run them in a fixed

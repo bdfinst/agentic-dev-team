@@ -113,7 +113,7 @@ against this repo's own tasks or harness (this harness's runs are
 clean-room `claude -p` dispatches with no plugin loaded either, so neither
 side of the comparison is controlled on agent configuration — the gap is
 the corpus and harness, not "our agents vs. theirs"). See
-[`../../plugins/dev-team/knowledge/test-cadence-tradeoffs.md`](../../plugins/dev-team/knowledge/test-cadence-tradeoffs.md)
+[`../../plugins/dev-team/knowledge/test-cadence-tradeoffs.md`](https://github.com/bdfinst/agentic-dev-team/blob/main/plugins/dev-team/knowledge/test-cadence-tradeoffs.md)
 for the decision rule and what a local replication would require before this
 recommendation changes.
 

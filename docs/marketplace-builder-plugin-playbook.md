@@ -15,15 +15,15 @@ build and test the plugin itself.
 
 > Scope: this is about building the **tool** (a marketplace-builder plugin), not a
 > single marketplace. For a one-off hardening pass on an existing marketplace, run
-> the hygiene sensor ([`tests/repo/test_shipped_script_refs.py`](../tests/repo/test_shipped_script_refs.py))
+> the hygiene sensor ([`tests/repo/test_shipped_script_refs.py`](https://github.com/bdfinst/agentic-dev-team/blob/main/tests/repo/test_shipped_script_refs.py))
 > directly.
 
 **On this page:** [1. What this plugin produces](#1-what-this-plugin-produces) ·
 [2. Marketplace anatomy](#2-marketplace-anatomy-your-plugin-must-model) ·
-[3. Skills & commands](#3-skills--commands-the-plugin-should-provide) ·
+[3. Skills & commands](#3-skills-commands-the-plugin-should-provide) ·
 [4. The enforcement sensor](#4-the-enforcement-sensor-it-must-shipscaffold) ·
 [5. Invariants to bake in](#5-invariants-to-bake-into-every-generatedaudited-plugin) ·
-[6. Independent versioning + catalog sync](#6-independent-versioning--catalog-sync-automate-never-hand-edit) ·
+[6. Independent versioning + catalog sync](#6-independent-versioning-catalog-sync-automate-never-hand-edit) ·
 [7. Cross-plugin dependencies](#7-cross-plugin-dependencies-plugin-a-consumes-plugin-b-at-a-pinned-version) ·
 [8. Building the plugin itself](#8-building-the-plugin-itself-step-by-step) ·
 [9. Acceptance checklist](#9-acceptance-checklist-for-the-plugin-you-build)
@@ -149,9 +149,9 @@ Python — a new marketplace should start Python, not bash.) The four invariants
    `test_*.py`, `run-all*`, a `tests/` dir, …).
 
 A portable, parameterized implementation lives in the hygiene kit
-([`tests/repo/test_shipped_script_refs.py`](../tests/repo/test_shipped_script_refs.py),
+([`tests/repo/test_shipped_script_refs.py`](https://github.com/bdfinst/agentic-dev-team/blob/main/tests/repo/test_shipped_script_refs.py),
 with the security-assessment variant at
-[`tests/repo/test_shipped_script_refs_security_assessment.py`](../tests/repo/test_shipped_script_refs_security_assessment.py));
+[`tests/repo/test_shipped_script_refs_security_assessment.py`](https://github.com/bdfinst/agentic-dev-team/blob/main/tests/repo/test_shipped_script_refs_security_assessment.py));
 ship that as the plugin's reference template.
 
 ---

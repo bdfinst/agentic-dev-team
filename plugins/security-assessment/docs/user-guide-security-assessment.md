@@ -7,7 +7,7 @@ Running a security assessment against a target repository. Two paths:
 
 Both produce output in the same layout under `memory/` (or a directory you choose) and score against the comparative-testing harness at `evals/comparative/score.py`. Path B auto-detects the `claude` CLI and runs the same LLM judgment phases when it is available; when it isn't (or with `--no-llm`), Path B degrades to deterministic-only output.
 
-**On this page:** [Tool install matrix](#tool-install-matrix) · [Path A — install the plugin](#path-a--install-the-plugin) · [Path B — local script](#path-b--local-script) · [Scoring a run](#scoring-a-run) · [Troubleshooting](#troubleshooting) · [Quick reference card](#quick-reference-card)
+**On this page:** [Tool install matrix](#tool-install-matrix) · [Path A — install the plugin](#path-a-install-the-plugin) · [Path B — local script](#path-b-local-script) · [Scoring a run](#scoring-a-run) · [Troubleshooting](#troubleshooting) · [Quick reference card](#quick-reference-card)
 
 ---
 

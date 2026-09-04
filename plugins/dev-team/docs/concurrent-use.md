@@ -35,7 +35,7 @@ for the standard one-checkout-per-person workflow.
 Two background agents, two terminals in the same directory, or a human and an
 agent in the same checkout share **one** `.git/index` and **one** set of local
 state files. That is where collisions occur (reproduced in
-[`../../../tests/repo/test_multiplayer_collision.py`](../../../tests/repo/test_multiplayer_collision.py),
+[`../../../tests/repo/test_multiplayer_collision.py`](https://github.com/bdfinst/agentic-dev-team/blob/main/tests/repo/test_multiplayer_collision.py),
 characterized in issue #109):
 the shared `.pr-review-passed` gets overwritten (false blocks) and the staged
 set interleaves.

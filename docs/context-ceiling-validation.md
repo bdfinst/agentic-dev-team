@@ -130,11 +130,11 @@ fail is worse than no gate* rule applied to the measurement itself.
 Every policy decision — which tools are gated, which skills are exempt, how a
 model maps to a window, how occupancy is summed, what counts as a sidechain
 row — is **imported** from
-[`plugins/dev-team/hooks/context_ceiling_guard.py`](../plugins/dev-team/hooks/context_ceiling_guard.py)
+[`plugins/dev-team/hooks/context_ceiling_guard.py`](https://github.com/bdfinst/agentic-dev-team/blob/main/plugins/dev-team/hooks/context_ceiling_guard.py)
 rather than restated. A validator that measured the ceiling even slightly
 differently from the guard would be validating a threshold nobody ships.
 
-[`tests/scripts/test_context_ceiling_report.py`](../tests/scripts/test_context_ceiling_report.py)
+[`tests/scripts/test_context_ceiling_report.py`](https://github.com/bdfinst/agentic-dev-team/blob/main/tests/scripts/test_context_ceiling_report.py)
 additionally pins the report's occupancy walk against the hook's own
 `_measure_occupancy` on shared fixtures, in the same spirit as the hook
 suite's utilization-formula equality test.

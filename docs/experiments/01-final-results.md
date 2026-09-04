@@ -6,8 +6,8 @@
 **Design + prior results:** [`01-experiment-prompt-3sizes-3arms.md`](agentic-workflow-evidence/01-experiment-prompt-3sizes-3arms.md),
 `tdd-vs-test-after-experiment.md`,
 `tdd-vs-test-after-consolidated-report.md` (prior campaign; not migrated into this docs set)
-**Runner:** [`scripts/run_tdd_experiment.py`](../../scripts/run_tdd_experiment.py)
-**Analyzer:** [`scripts/analyze_tdd_experiment.py`](../../scripts/analyze_tdd_experiment.py)
+**Runner:** [`scripts/run_tdd_experiment.py`](https://github.com/bdfinst/agentic-dev-team/blob/main/scripts/run_tdd_experiment.py)
+**Analyzer:** [`scripts/analyze_tdd_experiment.py`](https://github.com/bdfinst/agentic-dev-team/blob/main/scripts/analyze_tdd_experiment.py)
 **Raw data:** [`agentic-workflow-evidence/data/3sizes-small-sonnet-2026-06-22.jsonl`](agentic-workflow-evidence/data/3sizes-small-sonnet-2026-06-22.jsonl) (small),
 [`agentic-workflow-evidence/data/tdd-largetask-sonnet-2026-06-21.json`](agentic-workflow-evidence/data/tdd-largetask-sonnet-2026-06-21.json) (medium, folded in),
 [`agentic-workflow-evidence/data/3sizes-large-sonnet-2026-06-22.jsonl`](agentic-workflow-evidence/data/3sizes-large-sonnet-2026-06-22.jsonl) (large),

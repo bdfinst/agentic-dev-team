@@ -8,7 +8,7 @@ On this page:
 - [Key Concepts](#key-concepts)
 - [How to Use It](#how-to-use-it)
 - [Common Workflows](#common-workflows)
-- [Diagnostic & Audit Workflows](#diagnostic--audit-workflows)
+- [Diagnostic & Audit Workflows](#diagnostic-audit-workflows)
 - [Available Agents and Skills](#available-agents-and-skills)
 - [Rules to Know](#rules-to-know)
 
