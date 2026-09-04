@@ -638,8 +638,28 @@ def cmd_sync(
                 session_paths[0],
             )
             project, ts = _project_and_ts(main)
+            # The session's own .claude/metrics/boundary-events.jsonl -- used
+            # below both to correlate `gate_ran` events against this
+            # session's commit attempts (#2106: omitting this argument here
+            # left EVERY synced session's gate_ran_events read as `None` ->
+            # `[]`, so every non-bypassed commit attempt classified
+            # "absent" regardless of whether the git-native pre-commit hook
+            # actually ran -- the digest's "100% gate_ran_absent" reflected
+            # this sync path never looking, not the gate never firing) and
+            # to resolve the session's own plugin_version below (#2018).
+            raw_cwd = _first_cwd(main)
+            boundary_events_path = (
+                Path(raw_cwd) / ".claude" / "metrics" / "boundary-events.jsonl"
+                if raw_cwd
+                else None
+            )
             digest = extract_maintainer(
-                session_paths, pricing, registry, plugin_version, projects_root=root
+                session_paths,
+                pricing,
+                registry,
+                plugin_version,
+                projects_root=root,
+                boundary_events_path=boundary_events_path,
             )
             # #2018: this per-session sync record is what durably archives
             # onto .claude/metrics/session-digest.jsonl at every
@@ -652,12 +672,8 @@ def cmd_sync(
             # keyed by this loop's raw session_id -- before building the
             # sync record; falls back to "unknown" when the session's real
             # cwd can't be determined or has no matching boundary event.
-            raw_cwd = _first_cwd(main)
             digest["plugin_version"] = (
-                resolve_session_plugin_version(
-                    session_id,
-                    Path(raw_cwd) / ".claude" / "metrics" / "boundary-events.jsonl",
-                )
+                resolve_session_plugin_version(session_id, boundary_events_path)
                 if raw_cwd
                 else "unknown"
             )

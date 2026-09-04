@@ -160,6 +160,129 @@ def test_deliberate_bypass_is_never_counted_toward_absent_or_errored(
     assert data["gate"]["gate_ran_clean"] == 0
 
 
+def test_sync_out_correlates_gate_ran_events_from_the_sessions_own_cwd(
+    tmp_path: Path,
+) -> None:
+    """#2106: `cmd_sync` (`--sync-out`, the path that durably archives onto
+    `.claude/metrics/session-digest.jsonl` at every SessionStart and feeds
+    `/session-review`'s cross-session digest) used to call `extract_maintainer`
+    without a `boundary_events_path` at all, so `_read_gate_ran_events(None)`
+    always returned `[]` — every synced session's non-bypassed commit
+    attempts classified `gate_ran_absent`, regardless of whether the
+    git-native `.husky/pre-commit` gate actually ran. This is what a
+    100%-absent digest finding actually reflected: this sync path never
+    looking at the session's own boundary-events.jsonl, not the gate never
+    firing (see test_gate_ran_husky.py — the emitter side is unaffected).
+    Must resolve the SAME session-cwd-derived boundary-events.jsonl already
+    used for plugin_version resolution (#2018) and correlate against it."""
+    projects = tmp_path / "projects" / "projA"
+    projects.mkdir(parents=True)
+    work = tmp_path / "work-alpha"
+    (work / ".claude" / "metrics").mkdir(parents=True)
+    (projects / "sess-a.jsonl").write_text(
+        json.dumps(
+            {
+                "type": "assistant",
+                "cwd": str(work),
+                "sessionId": "s-a",
+                "timestamp": "2026-06-07T10:00:00Z",
+                "message": {
+                    "model": "claude-opus-4-8",
+                    "usage": {"input_tokens": 10, "output_tokens": 1},
+                    "content": [
+                        {
+                            "type": "tool_use",
+                            "name": "Bash",
+                            "input": {"command": "git commit -m x"},
+                        }
+                    ],
+                },
+            }
+        )
+        + "\n"
+    )
+    (work / ".claude" / "metrics" / "boundary-events.jsonl").write_text(
+        _gate_ran_line("2026-06-07T10:00:01Z", "allow")
+    )
+    out = tmp_path / "digests" / "testhost" / "session-digest.jsonl"
+    watermark = tmp_path / "watermark.json"
+    res = subprocess.run(
+        [
+            sys.executable,
+            str(EXTRACT), "--profile", "maintainer",
+            "--sync-out", str(out),
+            "--watermark", str(watermark),
+            "--projects-root", str(tmp_path / "projects"),
+            "--host", "testhost",
+            "--plugin-root", str(PLUGIN),
+        ],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert res.returncode == 0, res.stdout + res.stderr
+    record = json.loads(out.read_text().splitlines()[0])
+    assert record["gate"]["commit_attempts"] == 1
+    assert record["gate"]["gate_ran_clean"] == 1
+    assert record["gate"]["gate_ran_absent"] == 0
+
+
+def test_sync_out_still_reports_absent_with_no_matching_boundary_event(
+    tmp_path: Path,
+) -> None:
+    """Sanity converse of the test above: a session whose cwd genuinely has
+    no boundary-events.jsonl still reports absent — the fix must not paper
+    over a real gate_ran_absent population, only stop manufacturing a false
+    one for every synced session unconditionally."""
+    projects = tmp_path / "projects" / "projA"
+    projects.mkdir(parents=True)
+    work = tmp_path / "work-beta"
+    work.mkdir(parents=True)
+    (projects / "sess-b.jsonl").write_text(
+        json.dumps(
+            {
+                "type": "assistant",
+                "cwd": str(work),
+                "sessionId": "s-b",
+                "timestamp": "2026-06-07T10:00:00Z",
+                "message": {
+                    "model": "claude-opus-4-8",
+                    "usage": {"input_tokens": 10, "output_tokens": 1},
+                    "content": [
+                        {
+                            "type": "tool_use",
+                            "name": "Bash",
+                            "input": {"command": "git commit -m x"},
+                        }
+                    ],
+                },
+            }
+        )
+        + "\n"
+    )
+    out = tmp_path / "digests" / "testhost" / "session-digest.jsonl"
+    watermark = tmp_path / "watermark.json"
+    res = subprocess.run(
+        [
+            sys.executable,
+            str(EXTRACT), "--profile", "maintainer",
+            "--sync-out", str(out),
+            "--watermark", str(watermark),
+            "--projects-root", str(tmp_path / "projects"),
+            "--host", "testhost",
+            "--plugin-root", str(PLUGIN),
+        ],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert res.returncode == 0, res.stdout + res.stderr
+    record = json.loads(out.read_text().splitlines()[0])
+    assert record["gate"]["commit_attempts"] == 1
+    assert record["gate"]["gate_ran_absent"] == 1
+    assert record["gate"]["gate_ran_clean"] == 0
+
+
 def test_default_boundary_events_path_resolves_under_cwd(tmp_path: Path) -> None:
     """With no --boundary-events override, the default resolves to
     <cwd>/.claude/metrics/boundary-events.jsonl (#2037) — the same
