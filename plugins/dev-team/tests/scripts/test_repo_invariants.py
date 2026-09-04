@@ -467,3 +467,77 @@ class TestTranscriptParsingConfinedToSessionLog:
             repo_invariants.check_transcript_parsing_confined_to_session_log(["some/file.py"])
             == repo_invariants.check_transcript_parsing_confined_to_session_log(None)
         )
+
+
+class TestChurnReportWindowKeySafeAccess:
+    """#2108: the same report["window"] bare-index bug recurred twice across
+    two structurally-parallel renderers (#2085 review round 2, then round
+    3) -- the ratchet rule's textbook "reported twice" trigger."""
+
+    def test_clean_against_the_real_repo(self):
+        """The real repo, post-#2085, already fixed both occurrences. A
+        finding here means a regression back to a bare index."""
+        assert repo_invariants.check_churn_report_window_key_safe_access() == []
+
+    def test_flags_a_bare_index_regression(self, tmp_path, monkeypatch):
+        """Proves the check can actually fail (CLAUDE.md: 'make it fail on
+        purpose once before you trust it')."""
+        repo_root = tmp_path / "repo"
+        (repo_root / "scripts" / "lib").mkdir(parents=True)
+        (repo_root / "scripts" / "lib" / "churn_recurrence.py").write_text(
+            'def render_text(report, top):\n'
+            '    window = report["window"]\n'
+            '    return window\n',
+            encoding="utf-8",
+        )
+        monkeypatch.setattr(repo_invariants, "_REPO_ROOT", repo_root)
+
+        findings = repo_invariants.check_churn_report_window_key_safe_access()
+
+        assert len(findings) == 1
+        assert findings[0]["invariant"] == "churn-report-window-key-safe-access"
+        assert findings[0]["file"] == "scripts/lib/churn_recurrence.py"
+
+    def test_ignores_the_assignment_site(self, tmp_path, monkeypatch):
+        """report["window"] = ... (the CLI caller's own injection site) is a
+        write, not the read bug this check targets."""
+        repo_root = tmp_path / "repo"
+        (repo_root / "scripts").mkdir(parents=True)
+        (repo_root / "scripts" / "churn_coupling_report.py").write_text(
+            'report["window"] = f"{args.since} days"\n',
+            encoding="utf-8",
+        )
+        monkeypatch.setattr(repo_invariants, "_REPO_ROOT", repo_root)
+
+        assert repo_invariants.check_churn_report_window_key_safe_access() == []
+
+    def test_ignores_an_already_safe_get_access(self, tmp_path, monkeypatch):
+        repo_root = tmp_path / "repo"
+        (repo_root / "scripts" / "lib").mkdir(parents=True)
+        (repo_root / "scripts" / "lib" / "churn_recurrence.py").write_text(
+            'def render_text(report, top):\n'
+            '    window = report.get("window", "unknown")\n'
+            '    return window\n',
+            encoding="utf-8",
+        )
+        monkeypatch.setattr(repo_invariants, "_REPO_ROOT", repo_root)
+
+        assert repo_invariants.check_churn_report_window_key_safe_access() == []
+
+    def test_ignores_files_outside_the_two_named_paths(self, tmp_path, monkeypatch):
+        repo_root = tmp_path / "repo"
+        (repo_root / "scripts").mkdir(parents=True)
+        (repo_root / "scripts" / "unrelated.py").write_text(
+            'window = report["window"]\n', encoding="utf-8"
+        )
+        monkeypatch.setattr(repo_invariants, "_REPO_ROOT", repo_root)
+
+        assert repo_invariants.check_churn_report_window_key_safe_access() == []
+
+    def test_corpus_wide_regardless_of_changed_files(self):
+        """Corpus-wide by design: a regression on either file is a standing
+        gap whether or not this changeset touched it."""
+        assert (
+            repo_invariants.check_churn_report_window_key_safe_access(["some/file.py"])
+            == repo_invariants.check_churn_report_window_key_safe_access(None)
+        )

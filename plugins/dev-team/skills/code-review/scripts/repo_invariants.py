@@ -670,6 +670,72 @@ def check_transcript_parsing_confined_to_session_log(changed_files=None) -> list
     return findings
 
 
+# --- #2108: churn_recurrence.py / churn_coupling_report.py render_text()
+# `report["window"]` access must stay safe -----------------------------------
+#
+# Session-digest churn analysis (issue #2108) traced repeated review-round
+# rework on the #2085 PR (bash-failure taxonomy + churn baselines slice) to
+# the SAME bug recurring in two structurally-parallel renderers. Round 2's
+# review fixed churn_recurrence.py's render_text(): it unconditionally read
+# report["window"], a key only churn_coupling_report.py's CLI caller
+# injects, so a caller rendering rank_all_files()'s own output directly hit
+# a raw KeyError; fixed via report.get("window", "unknown"). Round 3's very
+# next review pass found the IDENTICAL bug in churn_coupling_report.py's own
+# render_text() -- same key, same failure mode, in the sibling file --
+# because nothing pinned "these two report shapes agree on how this
+# caller-optional key is read." A second occurrence of the same
+# mechanically-checkable fact is this repo's own trigger to ratchet it into
+# a check, applied one round late.
+
+_CHURN_REPORT_WINDOW_KEY_FILES = (
+    "scripts/lib/churn_recurrence.py",
+    "scripts/churn_coupling_report.py",
+)
+_WINDOW_KEY_RE = re.compile(r"""report\s*\[\s*['"]window['"]\s*\]""")
+_WINDOW_KEY_ASSIGNMENT_RE = re.compile(
+    r"""report\s*\[\s*['"]window['"]\s*\]\s*=(?!=)"""
+)
+
+
+def check_churn_report_window_key_safe_access(changed_files=None) -> list[dict]:
+    """`churn_recurrence.py` and `churn_coupling_report.py`'s `render_text()`
+    must read `report["window"]` via `.get("window", "unknown")`, never a
+    bare index — see the section comment above for the twice-recurring bug
+    this pins (#2108). Assignment (`report["window"] = ...`, the CLI
+    caller's own injection site) is a different operation and is not
+    flagged. Corpus-wide by design, like the checks above: a regression on
+    either file is a standing gap whether or not this changeset touched it.
+    """
+    findings = []
+    for rel in _CHURN_REPORT_WINDOW_KEY_FILES:
+        text = _read_text(_REPO_ROOT / rel)
+        if not text:
+            continue
+        for lineno, line in enumerate(text.splitlines(), start=1):
+            if not _WINDOW_KEY_RE.search(line):
+                continue
+            if _WINDOW_KEY_ASSIGNMENT_RE.search(line):
+                continue  # a write (the CLI's own injection site), not a read
+            if ".get(" in line:
+                continue  # already safe
+            findings.append(
+                {
+                    "invariant": "churn-report-window-key-safe-access",
+                    "file": rel,
+                    "message": (
+                        f"{rel}:{lineno} reads report['window'] via a bare "
+                        "index. A caller rendering a report shape that never "
+                        "sets this key (e.g. rank_all_files()'s own output) "
+                        "raises KeyError — this exact bug already recurred "
+                        "once, in the sibling renderer (#2085 round 2, then "
+                        "round 3). Use report.get('window', 'unknown') "
+                        "instead."
+                    ),
+                }
+            )
+    return findings
+
+
 # Registered checks. Each entry takes an optional `changed_files` list and
 # returns findings. See the module docstring for why that argument exists.
 CHECKS = [
@@ -679,6 +745,7 @@ CHECKS = [
     check_scope_glob_matches_skip_prose,
     check_contract_failure_shapes_documented,
     check_transcript_parsing_confined_to_session_log,
+    check_churn_report_window_key_safe_access,
 ]
 
 
