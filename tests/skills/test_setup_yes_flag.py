@@ -18,7 +18,12 @@ Contract:
 
 from __future__ import annotations
 
-from skill_doc_helpers import PLUGIN_ROOT, collapsed, grep, section_outside_code
+from skill_doc_helpers import (
+    PLUGIN_ROOT,
+    collapsed,
+    grep,
+    section_outside_code,
+)
 
 SETUP = PLUGIN_ROOT / "skills" / "setup" / "SKILL.md"
 PROJECT_INIT = PLUGIN_ROOT / "skills" / "project-init" / "SKILL.md"
@@ -44,6 +49,21 @@ def _yes_semantics_conservative_repowise_bullet() -> str:
         _project_init(),
         r"^- \*\*Step 4c Repowise",
         boundary_pattern=r"^- \*\*Step 1 zero/ambiguous stack",
+        include_start_line=True,
+    )
+
+
+def _yes_semantics_conservative_concise_preference_bullet() -> str:
+    """Bound to just the Conservative bucket's `Concise-response preference`
+    bullet (the last one in that bucket) — not the whole document — so this
+    can't be satisfied by Step 8a's own, unrelated "never guess a
+    communication-style preference" sentence in its own prose section
+    (a real gap a prior version of this test had: it matched the whole
+    document, so deleting this bullet entirely would still pass)."""
+    return section_outside_code(
+        _setup(),
+        r"^- \*\*Concise-response preference",
+        boundary_pattern=r"^\*\*Precedence\.",
         include_start_line=True,
     )
 
@@ -84,6 +104,12 @@ def test_setup_coverage_config_edits_stay_advisory_under_yes():
 def test_setup_never_guesses_stack_under_yes():
     body = collapsed(_setup())
     assert grep(r"never guess a stack", body)
+
+
+def test_setup_never_guesses_communication_style_under_yes():
+    bullet = collapsed(_yes_semantics_conservative_concise_preference_bullet())
+    assert grep(r"never guesses a communication-style preference", bullet)
+    assert "concise-preference-skipped-under-yes" in bullet
 
 
 def test_setup_dry_run_beats_yes():

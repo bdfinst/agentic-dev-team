@@ -5766,6 +5766,10 @@
       "summary": "If `.claude/CLAUDE.md` does not already exist in the target project, generate one containing:",
       "anchor": "8-generate-project-level-claudemd"
     },
+    "8a. Ask about concise-response preference": {
+      "summary": "**Check first, before prompting anyone.** If the marker is already present",
+      "anchor": "8a-ask-about-concise-response-preference"
+    },
     "9. Generate PostToolUse formatting hook": {
       "summary": "Wire a PostToolUse hook entry for the project's `.claude/settings.json` that",
       "anchor": "9-generate-posttooluse-formatting-hook"
