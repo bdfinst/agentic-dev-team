@@ -16,13 +16,37 @@ from skill_doc_helpers import PLUGIN_ROOT
 
 SKILL = (PLUGIN_ROOT / "skills" / "setup" / "SKILL.md").read_text(encoding="utf-8")
 
-OUTCOME_TOKENS = (
+# Tokens the bash script itself can echo.
+SCRIPT_ECHOED_TOKENS = (
     "concise-preference-added",
     "concise-preference-already-covered",
-    "concise-preference-declined",
-    "concise-preference-skipped-under-yes",
     "concise-preference-skipped-symlink",
 )
+# Tokens recorded directly from prose branches, before the script ever runs.
+PROSE_ONLY_TOKENS = (
+    "concise-preference-declined",
+    "concise-preference-skipped-under-yes",
+)
+
+
+def _step_8a_body() -> str:
+    """Just Step 8a's own section, from its heading up to Step 9's."""
+    start = SKILL.index("### 8a. Ask about concise-response preference")
+    end = SKILL.index("### 9. Generate PostToolUse formatting hook", start)
+    return SKILL[start:end]
+
+
+def _step_8a_script() -> str:
+    """The literal ```bash ... ``` code fence inside Step 8a."""
+    body = _step_8a_body()
+    start = body.index("```bash\n") + len("```bash\n")
+    end = body.index("\n```", start)
+    return body[start:end]
+
+
+def _step_8a_record_outcome_sentence() -> str:
+    body = _step_8a_body()
+    return body[body.index("Record the outcome") :]
 
 
 def test_step_8a_marker_is_not_a_substring_of_the_appended_prose():
@@ -36,22 +60,36 @@ def test_step_8a_marker_is_not_a_substring_of_the_appended_prose():
     assert marker not in SKILL[heredoc_start:heredoc_end]
 
 
-def test_step_8a_guards_against_duplicate_general_heading():
-    assert "grep -q '^## General$'" in SKILL
+def test_step_8a_creates_claude_dir_before_appending():
+    script = _step_8a_script()
+    assert "mkdir -p .claude" in script
+    # Order matters: mkdir must run before the append redirect, or the
+    # append silently no-ops when .claude/ doesn't exist yet.
+    assert script.index("mkdir -p .claude") < script.index(">> .claude/CLAUDE.md")
 
 
-def test_step_8a_creates_claude_dir_before_append():
-    assert "mkdir -p .claude" in SKILL
+def test_step_8a_symlink_guard_covers_both_the_dir_and_the_file():
+    script = _step_8a_script()
+    assert "[ -L .claude ]" in script
+    assert "[ -L .claude/CLAUDE.md ]" in script
+    assert "concise-preference-skipped-symlink" in script
+    # The symlink check must run before mkdir/touch, not after.
+    assert script.index("[ -L .claude ]") < script.index("mkdir -p .claude")
 
 
-def test_step_8a_outcome_tokens_are_consistent_everywhere():
-    # Every token the script echoes must also appear in the "Record the
-    # outcome" instruction and the Step 12 report bracket — one vocabulary,
-    # not three independently-spelled ones.
-    for token in OUTCOME_TOKENS:
-        assert SKILL.count(token) >= 2, f"{token!r} should appear in both the script and the report"
+def test_step_8a_script_echoes_its_own_outcome_tokens():
+    script = _step_8a_script()
+    for token in SCRIPT_ECHOED_TOKENS:
+        assert token in script, f"{token!r} should be echoed by the bash script"
 
 
-def test_step_8a_symlink_guard_present():
-    assert "[ -L .claude/CLAUDE.md ]" in SKILL
-    assert "concise-preference-skipped-symlink" in SKILL
+def test_step_8a_outcome_tokens_all_reach_the_report_instruction():
+    sentence = _step_8a_record_outcome_sentence()
+    for token in SCRIPT_ECHOED_TOKENS + PROSE_ONLY_TOKENS:
+        assert token in sentence, f"{token!r} should be named in the 'Record the outcome' instruction"
+
+
+def test_step_8a_outcome_tokens_all_reach_the_step_12_report_line():
+    line = next(line for line in SKILL.splitlines() if "Step 8a concise-response preference" in line)
+    for token in SCRIPT_ECHOED_TOKENS + PROSE_ONLY_TOKENS:
+        assert token in line, f"{token!r} should be listed in the Step 12 report line"

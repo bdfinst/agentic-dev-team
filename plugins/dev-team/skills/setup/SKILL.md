@@ -792,27 +792,22 @@ Step 8 somehow left them absent). The marker is a dedicated, content-free
 comment — not a substring of the prose — so a future wording tweak to the
 block below can never desync it from the idempotency check (the hazard
 Step 11's own `.mcp.json` marker note, below, already calls out for its own
-pair of blocks). A second guard skips re-emitting the `## General` heading
-when the file already has one, so this step can never produce two:
+pair of blocks). Both `.claude` and `.claude/CLAUDE.md` are checked for
+symlinks before any write, since a symlinked parent directory is an
+equally valid escape route as a symlinked file:
 
 ```bash
 MARKER="<!-- dev-team: concise-response preference v1 -->"
-mkdir -p .claude
-if [ -L .claude/CLAUDE.md ]; then
+if [ -L .claude ] || [ -L .claude/CLAUDE.md ]; then
   echo "concise-preference-skipped-symlink"
-  exit 0
-fi
-touch .claude/CLAUDE.md
-if ! grep -qF "$MARKER" .claude/CLAUDE.md; then
-  if grep -q '^## General$' .claude/CLAUDE.md; then
-    HEADING=""
-  else
-    HEADING='## General
+else
+  mkdir -p .claude
+  touch .claude/CLAUDE.md
+  if ! grep -qF "$MARKER" .claude/CLAUDE.md; then
+    { printf '\n%s\n' "$MARKER"; cat <<'CONCISE_BLOCK'
+## General
 Unless asked to behave otherwise, always give concise responses and sacrifice grammar for the sake of concision. Ask clarifying questions when needed and offer your best guess at available interpretations/answers for those questions when possible.
 
-'
-  fi
-  { printf '\n%s\n%s' "$MARKER" "$HEADING"; cat <<'CONCISE_BLOCK'
 ### Be RUTHLESSLY concise — this is the rule I break most often
 Default to a few sentences. If the answer is "yes", say "yes" and stop.
 
@@ -825,19 +820,31 @@ Default to a few sentences. If the answer is "yes", say "yes" and stop.
 
 Length is the tell: if a reply is over ~10 lines and I didn't ask for depth, it's wrong. Detail I have to skim to find the answer is worse than no answer.
 CONCISE_BLOCK
-  } >> .claude/CLAUDE.md
-  echo "concise-preference-added"
-else
-  echo "concise-preference-already-covered"
+    } >> .claude/CLAUDE.md
+    echo "concise-preference-added"
+  else
+    echo "concise-preference-already-covered"
+  fi
 fi
 ```
+
+This always appends a fresh, self-contained `## General` heading rather
+than trying to detect and merge into a pre-existing one — a prior version
+of this step attempted that merge and introduced two bugs of its own (an
+orphaned sub-heading when the file's last `##` section wasn't `General`,
+and a `^## General$` anchor that silently missed CRLF line endings on
+Windows). A file ending up with two `## General` headings is a cosmetic,
+rare edge case; a script that silently corrupts document structure on a
+supported platform is not an acceptable trade for avoiding it.
 
 Record the outcome — `concise-preference-declined` /
 `concise-preference-added` / `concise-preference-already-covered` /
 `concise-preference-skipped-under-yes` / `concise-preference-skipped-symlink`
-— for the Step 12 report, using these exact tokens (they match the script's
-own `echo` output one-to-one, so no translation step is needed between what
-ran and what gets reported).
+— for the Step 12 report, using these exact tokens. The three the script
+can reach (`added` / `already-covered` / `skipped-symlink`) are echoed
+verbatim from its own output; the other two (`declined` /
+`skipped-under-yes`) are recorded directly from the prose branches above,
+since the script never runs on those paths.
 
 ### 9. Generate PostToolUse formatting hook
 
