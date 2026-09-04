@@ -776,6 +776,21 @@ outcome from Step 8a are not a contradiction in the Step 12 report.
 
 ### 8a. Ask about concise-response preference
 
+**Check first, before prompting anyone.** If the marker is already present
+in `.claude/CLAUDE.md`, the preference is already in place — do not ask
+the operator at all, under any flag combination:
+
+```bash
+MARKER="<!-- dev-team: concise-response preference v1 -->"
+grep -qF "$MARKER" .claude/CLAUDE.md 2>/dev/null && echo "concise-preference-already-covered" || echo "concise-preference-not-yet-covered"
+```
+
+If this reports `concise-preference-already-covered`, record that outcome
+for the Step 12 report and skip the rest of this step entirely — no
+prompt, no `--yes`/`--dry-run` branching, nothing else to do. Only when it
+reports `concise-preference-not-yet-covered` does the rest of this step
+run.
+
 Ask the operator: "Would you like Claude to give concise responses by default in this repo? This appends a block to the project's committed `.claude/CLAUDE.md`, so it becomes a shared convention for every contributor, not just you." **Under `--yes`, skip this prompt entirely** — never
 guess a communication-style preference — and note
 `concise-preference-skipped-under-yes` (run /setup without --yes to choose)
