@@ -1,5 +1,18 @@
 # Changelog
 
+## [3.7.5](https://github.com/bdfinst/agentic-dev-team/compare/security-assessment-v3.7.4...security-assessment-v3.7.5) (2026-09-04)
+
+
+### Bug Fixes
+
+* **dev-team:** address session-review findings [#2103](https://github.com/bdfinst/agentic-dev-team/issues/2103)-[#2111](https://github.com/bdfinst/agentic-dev-team/issues/2111) ([#2116](https://github.com/bdfinst/agentic-dev-team/issues/2116)) ([b6514a7](https://github.com/bdfinst/agentic-dev-team/commit/b6514a7bb6a09747857b7de312145aef8f0f6d4b))
+* **docs:** fix 72 broken links/anchors against the assembled site tree ([#2118](https://github.com/bdfinst/agentic-dev-team/issues/2118)) ([#2121](https://github.com/bdfinst/agentic-dev-team/issues/2121)) ([9f5cfa0](https://github.com/bdfinst/agentic-dev-team/commit/9f5cfa0f81e1381175a8c5575a261a517c71154b))
+
+
+### Documentation
+
+* make CLAUDE.md more concise ([#2117](https://github.com/bdfinst/agentic-dev-team/issues/2117)) ([8958f57](https://github.com/bdfinst/agentic-dev-team/commit/8958f57cef5e9bc9bec66ccd9074401888e4a620))
+
 ## [3.7.4](https://github.com/bdfinst/agentic-dev-team/compare/security-assessment-v3.7.3...security-assessment-v3.7.4) (2026-08-25)
 
 
