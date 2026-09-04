@@ -72,6 +72,9 @@ repo in a surprising way; take the skip default and print a one-line note:
   that skill); it writes to the repo, so it stays opt-in even under `--yes`.
 - **Unrecognized / ambiguous stack** — `--yes` never guesses a toolchain. Do
   the language-neutral steps and report what could not be set up.
+- **Concise-response preference** (Step 8a) — `--yes` never guesses a
+  communication-style preference. Skip the prompt and the `CLAUDE.md`
+  append entirely; note it was skipped.
 
 **Precedence.** If both `--yes` and `--dry-run` are passed, `--dry-run` wins:
 report only, write and install nothing, and add "`--yes` ignored under
@@ -768,6 +771,47 @@ If `.claude/CLAUDE.md` already exists, ask whether to merge or skip. **Under
 (orchestrator constraint 3) — and note `CLAUDE.md exists — left unchanged` in
 the Step 12 report.
 
+### 8a. Ask about concise-response preference
+
+Ask the operator: "Would you like Claude to give concise responses by
+default in this repo?" **Under `--yes`, skip this prompt entirely** — never
+guess a communication-style preference — and note
+`Concise-response preference skipped (run /setup without --yes to choose)`
+in the Step 12 report.
+
+If the operator declines, note `Concise responses: declined` and move on —
+do not write anything.
+
+If the operator confirms, idempotently append the block below to the
+project's `CLAUDE.md` (the same file Step 8 generated or left in place —
+`.claude/CLAUDE.md`; create it if Step 8 somehow left it absent):
+
+```bash
+MARKER="### Be RUTHLESSLY concise — this is the rule I break most often"
+if ! grep -qF "$MARKER" .claude/CLAUDE.md 2>/dev/null; then
+  printf '\n%s\n' "## General
+Unless asked to behave otherwise, always give concise responses and sacrifice grammar for the sake of concision. Ask clarifying questions when needed and offer your best guess at available interpretations/answers for those questions when possible.
+
+$MARKER
+Default to a few sentences. If the answer is \"yes\", say \"yes\" and stop.
+
+- **Answer the question asked. Nothing else.** No adjacent findings, no \"while I was looking I noticed\", no caveats I didn't ask for. Sit on it until I ask.
+- **One thing at a time.** Never hand me a numbered list of 3+ considerations, options, or trade-offs unless I asked for options. Pick one, recommend it, move on.
+- **No teaching.** Skip the mechanism, the background, the \"why this matters\". State the conclusion. I'll ask why if I care.
+- **No tables, no headers, no bold-label paragraphs** for a simple answer. Prose or a couple of lines.
+- **Cut every parenthetical, every \"worth noting\", every \"the real finding is\".**
+- Corrections: one sentence, no post-mortem.
+
+Length is the tell: if a reply is over ~10 lines and I didn't ask for depth, it's wrong. Detail I have to skim to find the answer is worse than no answer." >> .claude/CLAUDE.md
+  echo "concise-claude-md-updated"
+else
+  echo "concise-claude-md-already-covered"
+fi
+```
+
+Record the outcome (`declined` / `added` / `already-covered` /
+`skipped-under---yes`) for the Step 12 report.
+
 ### 9. Generate PostToolUse formatting hook
 
 Wire a PostToolUse hook entry for the project's `.claude/settings.json` that
@@ -957,7 +1001,7 @@ Repowise's own install/decline state for that run.
 
 ### Created
 - `.claude/project-stack.json` — stack detection results
-- `.claude/CLAUDE.md` — project conventions
+- `.claude/CLAUDE.md` — project conventions   [+ concise-response block if confirmed at Step 8a: ✓ added | ✓ already covered | declined | skipped under --yes]
 - `.claude/settings.json` — PostToolUse formatting hook (prettier + eslint)
 - `.gitignore` — dev-team runtime artifacts (.claude/memory/, .claude/metrics/, .claude/plans/, .dev-team-reports/, memory/, reports/, metrics/, plans/, .pr-review-passed)   [downstream only; omit if already covered] plus `.mcp.json` machine-specific-path hygiene (#1376, #1416)   [runs in-repo too, via project-init's Repowise standing check; omit if already covered]
 - Activated templates: ts-enforcer, esm-enforcer, react-testing
