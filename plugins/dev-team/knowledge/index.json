@@ -5767,7 +5767,7 @@
       "anchor": "8-generate-project-level-claudemd"
     },
     "8a. Ask about concise-response preference": {
-      "summary": "Ask the operator: \"Would you like Claude to give concise responses by",
+      "summary": "Ask the operator: \"Would you like Claude to give concise responses by default in this repo?",
       "anchor": "8a-ask-about-concise-response-preference"
     },
     "9. Generate PostToolUse formatting hook": {

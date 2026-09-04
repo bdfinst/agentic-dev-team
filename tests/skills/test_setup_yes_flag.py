@@ -86,6 +86,12 @@ def test_setup_never_guesses_stack_under_yes():
     assert grep(r"never guess a stack", body)
 
 
+def test_setup_never_guesses_communication_style_under_yes():
+    body = collapsed(_setup())
+    assert grep(r"never guess a communication-style preference", body)
+    assert "concise-preference-skipped-under-yes" in body
+
+
 def test_setup_dry_run_beats_yes():
     body = collapsed(_setup())
     assert grep(r"`--dry-run` wins", body)

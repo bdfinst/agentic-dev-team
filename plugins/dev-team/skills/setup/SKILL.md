@@ -74,7 +74,7 @@ repo in a surprising way; take the skip default and print a one-line note:
   the language-neutral steps and report what could not be set up.
 - **Concise-response preference** (Step 8a) — `--yes` never guesses a
   communication-style preference. Skip the prompt and the `CLAUDE.md`
-  append entirely; note it was skipped.
+  append entirely; note `concise-preference-skipped-under-yes`.
 
 **Precedence.** If both `--yes` and `--dry-run` are passed, `--dry-run` wins:
 report only, write and install nothing, and add "`--yes` ignored under
@@ -769,48 +769,75 @@ If `.claude/CLAUDE.md` does not already exist in the target project, generate on
 If `.claude/CLAUDE.md` already exists, ask whether to merge or skip. **Under
 `--yes`, take the skip branch** — never overwrite existing project config
 (orchestrator constraint 3) — and note `CLAUDE.md exists — left unchanged` in
-the Step 12 report.
+the Step 12 report. This note describes only Step 8's own generate-or-skip
+decision — Step 8a runs independently right after and may still append to
+this same file, so "left unchanged" here and a `concise-preference-added`
+outcome from Step 8a are not a contradiction in the Step 12 report.
 
 ### 8a. Ask about concise-response preference
 
-Ask the operator: "Would you like Claude to give concise responses by
-default in this repo?" **Under `--yes`, skip this prompt entirely** — never
+Ask the operator: "Would you like Claude to give concise responses by default in this repo? This appends a block to the project's committed `.claude/CLAUDE.md`, so it becomes a shared convention for every contributor, not just you." **Under `--yes`, skip this prompt entirely** — never
 guess a communication-style preference — and note
-`Concise-response preference skipped (run /setup without --yes to choose)`
-in the Step 12 report.
+`concise-preference-skipped-under-yes` (run /setup without --yes to choose)
+in the Step 12 report. **Under `--dry-run`, report what would be appended
+without writing** (same convention as Step 11's two idempotent blocks).
 
-If the operator declines, note `Concise responses: declined` and move on —
+If the operator declines, note `concise-preference-declined` and move on —
 do not write anything.
 
 If the operator confirms, idempotently append the block below to the
 project's `CLAUDE.md` (the same file Step 8 generated or left in place —
-`.claude/CLAUDE.md`; create it if Step 8 somehow left it absent):
+`.claude/CLAUDE.md`; this step creates `.claude/` and the file itself if
+Step 8 somehow left them absent). The marker is a dedicated, content-free
+comment — not a substring of the prose — so a future wording tweak to the
+block below can never desync it from the idempotency check (the hazard
+Step 11's own `.mcp.json` marker note, below, already calls out for its own
+pair of blocks). A second guard skips re-emitting the `## General` heading
+when the file already has one, so this step can never produce two:
 
 ```bash
-MARKER="### Be RUTHLESSLY concise — this is the rule I break most often"
-if ! grep -qF "$MARKER" .claude/CLAUDE.md 2>/dev/null; then
-  printf '\n%s\n' "## General
+MARKER="<!-- dev-team: concise-response preference v1 -->"
+mkdir -p .claude
+if [ -L .claude/CLAUDE.md ]; then
+  echo "concise-preference-skipped-symlink"
+  exit 0
+fi
+touch .claude/CLAUDE.md
+if ! grep -qF "$MARKER" .claude/CLAUDE.md; then
+  if grep -q '^## General$' .claude/CLAUDE.md; then
+    HEADING=""
+  else
+    HEADING='## General
 Unless asked to behave otherwise, always give concise responses and sacrifice grammar for the sake of concision. Ask clarifying questions when needed and offer your best guess at available interpretations/answers for those questions when possible.
 
-$MARKER
-Default to a few sentences. If the answer is \"yes\", say \"yes\" and stop.
+'
+  fi
+  { printf '\n%s\n%s' "$MARKER" "$HEADING"; cat <<'CONCISE_BLOCK'
+### Be RUTHLESSLY concise — this is the rule I break most often
+Default to a few sentences. If the answer is "yes", say "yes" and stop.
 
-- **Answer the question asked. Nothing else.** No adjacent findings, no \"while I was looking I noticed\", no caveats I didn't ask for. Sit on it until I ask.
+- **Answer the question asked. Nothing else.** No adjacent findings, no "while I was looking I noticed", no caveats I didn't ask for. Sit on it until I ask.
 - **One thing at a time.** Never hand me a numbered list of 3+ considerations, options, or trade-offs unless I asked for options. Pick one, recommend it, move on.
-- **No teaching.** Skip the mechanism, the background, the \"why this matters\". State the conclusion. I'll ask why if I care.
+- **No teaching.** Skip the mechanism, the background, the "why this matters". State the conclusion. I'll ask why if I care.
 - **No tables, no headers, no bold-label paragraphs** for a simple answer. Prose or a couple of lines.
-- **Cut every parenthetical, every \"worth noting\", every \"the real finding is\".**
+- **Cut every parenthetical, every "worth noting", every "the real finding is".**
 - Corrections: one sentence, no post-mortem.
 
-Length is the tell: if a reply is over ~10 lines and I didn't ask for depth, it's wrong. Detail I have to skim to find the answer is worse than no answer." >> .claude/CLAUDE.md
-  echo "concise-claude-md-updated"
+Length is the tell: if a reply is over ~10 lines and I didn't ask for depth, it's wrong. Detail I have to skim to find the answer is worse than no answer.
+CONCISE_BLOCK
+  } >> .claude/CLAUDE.md
+  echo "concise-preference-added"
 else
-  echo "concise-claude-md-already-covered"
+  echo "concise-preference-already-covered"
 fi
 ```
 
-Record the outcome (`declined` / `added` / `already-covered` /
-`skipped-under---yes`) for the Step 12 report.
+Record the outcome — `concise-preference-declined` /
+`concise-preference-added` / `concise-preference-already-covered` /
+`concise-preference-skipped-under-yes` / `concise-preference-skipped-symlink`
+— for the Step 12 report, using these exact tokens (they match the script's
+own `echo` output one-to-one, so no translation step is needed between what
+ran and what gets reported).
 
 ### 9. Generate PostToolUse formatting hook
 
@@ -1001,7 +1028,7 @@ Repowise's own install/decline state for that run.
 
 ### Created
 - `.claude/project-stack.json` — stack detection results
-- `.claude/CLAUDE.md` — project conventions   [+ concise-response block if confirmed at Step 8a: ✓ added | ✓ already covered | declined | skipped under --yes]
+- `.claude/CLAUDE.md` — project conventions   [Step 8a concise-response preference, independent of this line's created/left-unchanged status: concise-preference-added | concise-preference-already-covered | concise-preference-declined | concise-preference-skipped-under-yes | concise-preference-skipped-symlink]
 - `.claude/settings.json` — PostToolUse formatting hook (prettier + eslint)
 - `.gitignore` — dev-team runtime artifacts (.claude/memory/, .claude/metrics/, .claude/plans/, .dev-team-reports/, memory/, reports/, metrics/, plans/, .pr-review-passed)   [downstream only; omit if already covered] plus `.mcp.json` machine-specific-path hygiene (#1376, #1416)   [runs in-repo too, via project-init's Repowise standing check; omit if already covered]
 - Activated templates: ts-enforcer, esm-enforcer, react-testing
