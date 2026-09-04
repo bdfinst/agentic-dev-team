@@ -9,11 +9,6 @@ skills:
   - quality-gate-pipeline
   - test-driven-development
   - systematic-debugging
-  - hexagonal-architecture
-  - domain-driven-design
-  - api-design
-  - legacy-code
-  - mutation-testing
   - code-review
 memory: project
 ---
@@ -59,15 +54,20 @@ Three reflexes that fire at the moment code is written — not just at review ti
 
 ## Skills
 
+Preloaded on every dispatch (`skills:` frontmatter, ADR 0028):
+
 - [Quality Gate Pipeline](../skills/quality-gate-pipeline/SKILL.md) - invoke before delivery (Phase 1: self-validation), before completion claims (Phase 2: verification evidence), and during rework (Phase 3: review-correction loop)
 - [Test-Driven Development](../skills/test-driven-development/SKILL.md) - advisory RED-GREEN-REFACTOR methodology reference; invoke only on explicit request or for after-the-fact discipline audits. `/build`'s single cadence is Code-First Small Batches — implement one behavior, write its test, refactor on every green (`docs/experiments/RECOMMENDATIONS.md` Rec 3); the refactor step is mandatory
 - [Systematic Debugging](../skills/systematic-debugging/SKILL.md) - invoke when any test fails or unexpected behavior occurs; no guess-and-fix. Its Phase 4 is a hard gate for every defect fix — reproduce the bug with a failing test before writing fix code — regardless of the advisory-only status of Test-Driven Development above
+- [Code Review](../skills/code-review/SKILL.md) - invoked by orchestrator after each discrete unit of work and before committing; do not invoke independently. Preloaded so review feedback (Review Feedback Protocol above) reads against context this agent already has, not context it has to fetch mid-correction
+
+On-demand — invoke explicitly when the condition applies; **not** in `skills:` frontmatter, so a step that never touches one of these pays nothing for it (#2109: these five, unconditionally preloaded, were ~17K tokens of per-dispatch baseline that a `/build` step touching none of them still paid for on every turn):
+
 - [Hexagonal Architecture](../skills/hexagonal-architecture/SKILL.md) - invoke when structuring new services or modules with port/adapter separation
 - [Domain-Driven Design](../skills/domain-driven-design/SKILL.md) - invoke when modeling business domains, defining aggregates, or mapping bounded contexts
 - [API Design](../skills/api-design/SKILL.md) - invoke when implementing APIs to verify contract compliance
 - [Legacy Code](../skills/legacy-code/SKILL.md) - invoke when modifying or extending code that lacks test coverage or has poor structure
 - [Mutation Testing](../skills/mutation-testing/SKILL.md) - invoke when assessing whether tests for new or modified code are catching meaningful faults
-- [Code Review](../skills/code-review/SKILL.md) - invoked by orchestrator after each discrete unit of work and before committing; do not invoke independently
 
 ## Knowledge Files
 
