@@ -26,7 +26,7 @@ Every change must reduce friction: **fewer missteps, less rework, lower token co
 
 1. **Selective Agent Loading**: load only necessary agents; target < 10,000 tokens for simple tasks.
 2. **Context Ceiling**: `min(40% of window, 350K)` — see [Context Management](docs/context-management.md); enforced by `hooks/context_ceiling_guard.py`.
-3. **Persona-Driven Behavior**: specs in `.claude/agents/`. Build concurrency via `DEV_TEAM_MAX_PARALLEL_BUILDS`: unset → sequential (`1`); set `--jobs`/env to opt into fan-out, capped by wave width.
+3. **Persona-Driven Behavior**: specs in `.claude/agents/`. Build concurrency via `DEV_TEAM_MAX_PARALLEL_BUILDS`: unset → `1` (sequential); set `--jobs`/env to opt into fan-out, capped by wave width.
 4. **Human-in-the-Loop**: autonomous agents, human oversight.
 5. **Dynamic Configuration**: config changes → `.claude/metrics/config-changelog.jsonl`.
 6. **ATDD + Code-First Small Batches** (sole build cadence — Rec 3, docs/experiments/RECOMMENDATIONS.md): no code without a `/plan` scenario.

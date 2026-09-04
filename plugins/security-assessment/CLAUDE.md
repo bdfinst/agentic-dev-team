@@ -105,6 +105,14 @@ See `install.sh`. It performs four checks:
 - `compliance-mapping` — pattern-table first with LLM edge annotation
 - `security-assessment-pipeline` — declarative phase graph for `/security-assessment`
 
+**Commands** (5):
+
+- `/security-assessment <path>` — full static-analysis pipeline
+- `/cross-repo-analysis <paths>` — cross-repo attack-chain analysis
+- `/redteam-model <target>` — adversarial ML red-team
+- `/export-pdf <report.md>` — PDF export
+- `/upgrade` — plugin update + auto-update opt-in
+
 **Hooks** (3):
 
 - `PreToolUse:Bash` → `redteam-guard.sh` (blocks direct orchestrator invocation)
