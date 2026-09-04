@@ -21,7 +21,7 @@ topic.
 | Running evals | [`eval-running-guide.md`](eval-running-guide.md) | The operational procedure for eval runs and variance batches. |
 | Eval upkeep | [`eval-maintenance.md`](eval-maintenance.md) | Grading rules, the calibration trap, and corpus discipline. |
 | Adapter & ruleset lifecycle | [`static-analysis-integration/maintenance.md`](https://github.com/bdfinst/agentic-dev-team/blob/main/plugins/dev-team/skills/static-analysis-integration/maintenance.md) | Ownership, drift detection, and deprecation for shipped adapters and rulesets. |
-| Adding agents, skills, or hooks | [root `CLAUDE.md`](../../../CLAUDE.md) § "Adding agents, skills, or hooks" | Where each artifact type lives and the structural audit to run afterwards. |
+| Adding agents, skills, or hooks | [root `CLAUDE.md`](https://github.com/bdfinst/agentic-dev-team/blob/main/CLAUDE.md) § "Adding agents, skills, or hooks" | Where each artifact type lives and the structural audit to run afterwards. |
 | Code knowledge graphs | [`codegraph-vs-graphify.md`](https://github.com/bdfinst/agentic-dev-team/blob/main/plugins/dev-team/knowledge/codegraph-vs-graphify.md) | When to use CodeGraph vs Graphify, how `/project-init` installs each, and the CLAUDE.md-preservation guard. |
 | Script conventions | [ADR 0014](../../../docs/adr/0014-python-for-cross-os-scripts.md), [ADR 0015](../../../docs/adr/0015-bash-removal-complete.md), [ADR 0031](../../../docs/adr/0031-raise-shipped-python-floor-to-3-10.md) | Why every shipped script is Python 3.10+ stdlib-only, the completed bash removal, and the floor's move off EOL 3.8. |
 

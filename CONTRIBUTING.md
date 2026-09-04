@@ -13,7 +13,7 @@ docs/                              # repo-level documentation
 evals/                            # eval fixtures and harnesses (not shipped)
 ```
 
-Edit plugin components directly under `plugins/<plugin>/` (agents, skills, hooks, knowledge, templates, docs). See [`plugins/dev-team/CLAUDE.md`](plugins/dev-team/CLAUDE.md) for the orchestration pipeline.
+Edit plugin components directly under `plugins/<plugin>/` (agents, skills, hooks, knowledge, templates, docs). See [`plugins/dev-team/CLAUDE.md`](https://github.com/bdfinst/agentic-dev-team/blob/main/plugins/dev-team/CLAUDE.md) for the orchestration pipeline.
 
 ## Local development
 
@@ -104,4 +104,4 @@ The docs use three diagram formats, each for a distinct purpose — match the co
 
 ## Releasing
 
-Releases are managed by [release-please](https://github.com/googleapis/release-please): push [conventional commits](https://www.conventionalcommits.org/) to `main` and merge the release PR it opens. The full rules — the version-bump mapping, why every commit that lands on `main` must be conventional under rebase-merge, and how to recover a missed release with a `Release-As:` footer — are in [`CLAUDE.md`](CLAUDE.md#releasing).
+Releases are managed by [release-please](https://github.com/googleapis/release-please): push [conventional commits](https://www.conventionalcommits.org/) to `main` and merge the release PR it opens. The full rules — the version-bump mapping, why every commit that lands on `main` must be conventional under rebase-merge, and how to recover a missed release with a `Release-As:` footer — are in [`CLAUDE.md`](https://github.com/bdfinst/agentic-dev-team/blob/main/CLAUDE.md#releasing).

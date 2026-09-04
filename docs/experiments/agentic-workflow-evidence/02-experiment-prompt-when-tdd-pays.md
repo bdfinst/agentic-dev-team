@@ -1,7 +1,7 @@
 # Experiment Prompt: When Does TDD Actually Pay Off?
 
 **Type:** Reusable experiment prompt (hand this whole file to Claude to execute)
-**Harness:** [`scripts/run_tdd_experiment.py`](../../../scripts/run_tdd_experiment.py) — **must be extended** (see "Extend the harness")
+**Harness:** [`scripts/run_tdd_experiment.py`](https://github.com/bdfinst/agentic-dev-team/blob/main/scripts/run_tdd_experiment.py) — **must be extended** (see "Extend the harness")
 **Motivation:** [`FAQ.md` Q1](../FAQ.md),
 [`01-final-results.md`](../01-final-results.md)
 **Prior run results:** [`02-final-results.md`](../02-final-results.md)

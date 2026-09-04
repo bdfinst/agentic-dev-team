@@ -1,6 +1,6 @@
 # Cloud startup prompt
 
-The Setup script ([`.claude/cloud-setup.sh`](../.claude/cloud-setup.sh)) provisions
+The Setup script ([`.claude/cloud-setup.sh`](https://github.com/bdfinst/agentic-dev-team/blob/main/.claude/cloud-setup.sh)) provisions
 the machine. This is the other half: the **first message** to send in a fresh
 cloud session, so Claude confirms the environment is actually sound before it
 starts changing code.
@@ -78,14 +78,14 @@ or a `SessionStart` hook. Two caveats if you do:
 - A `SessionStart` hook runs *after* Claude boots, so it cannot fix the
   plugin-loading problem in step 3 — that one genuinely needs the Setup script.
 - Keep it fail-open and time-boxed, like the hooks already registered in
-  [`.claude/settings.json`](../.claude/settings.json). A verification step that
+  [`.claude/settings.json`](https://github.com/bdfinst/agentic-dev-team/blob/main/.claude/settings.json). A verification step that
   hangs session startup is worse than the drift it was guarding against.
 
 ## See also
 
 - [`cloud-setup.md`](cloud-setup.md) — the Setup script itself, plugin freshness,
   and the snapshot/caching behavior that pins stale plugin versions.
-- [`.claude/cloud-setup.sh`](../.claude/cloud-setup.sh) — what to paste into
+- [`.claude/cloud-setup.sh`](https://github.com/bdfinst/agentic-dev-team/blob/main/.claude/cloud-setup.sh) — what to paste into
   claude.ai/code → Environment → Setup script.
-- [`scripts/verify_toolchain.py`](../scripts/verify_toolchain.py) — the verifier,
+- [`scripts/verify_toolchain.py`](https://github.com/bdfinst/agentic-dev-team/blob/main/scripts/verify_toolchain.py) — the verifier,
   runnable on its own at any time (`--quiet` for failures only, `--json` to script it).

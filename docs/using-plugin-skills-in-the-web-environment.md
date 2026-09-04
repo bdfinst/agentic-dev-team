@@ -43,7 +43,7 @@ script). It installs the repo's toolchain **and** the `dev-team` plugin before
 Claude boots, so the plugin's ~86 skills (including `/ship`) are available in the
 session that starts.
 
-The body of [`.claude/cloud-setup.sh`](../.claude/cloud-setup.sh) is exactly that
+The body of [`.claude/cloud-setup.sh`](https://github.com/bdfinst/agentic-dev-team/blob/main/.claude/cloud-setup.sh) is exactly that
 script — it installs `jq`, `shellcheck`, the Python dev deps
 (`requirements-dev.txt`), `gh`, and then the plugin
 (`claude plugin marketplace add bdfinst/agentic-dev-team` +
@@ -77,7 +77,7 @@ tool surface from the surrounding Remote runtime. The two tell-tale symptoms:
   prompt" shape. This is upstream Remote-runtime tool-contract behavior, not
   anything this plugin defines or can wrap — but the skills that tell an agent
   to wait on a long-running job now carry that contract, in
-  [`plugins/dev-team/knowledge/long-run-waiting.md`](../plugins/dev-team/knowledge/long-run-waiting.md),
+  [`plugins/dev-team/knowledge/long-run-waiting.md`](https://github.com/bdfinst/agentic-dev-team/blob/main/plugins/dev-team/knowledge/long-run-waiting.md),
   so a backstop timer is not silently lost to a malformed arm call.
 
 This inheritance is an **upstream Claude Code / Remote-runtime behavior — it is
@@ -87,7 +87,7 @@ then, run benchmark harnesses locally.
 
 **Reusable workaround — the `/headless-run` skill.** When you must run a one-shot
 headless invocation (a harness case) with maximum isolation, use
-[`plugins/dev-team/skills/headless-run/SKILL.md`](../plugins/dev-team/skills/headless-run/SKILL.md).
+[`plugins/dev-team/skills/headless-run/SKILL.md`](https://github.com/bdfinst/agentic-dev-team/blob/main/plugins/dev-team/skills/headless-run/SKILL.md).
 Its helper (`skills/headless-run/scripts/isolated_dispatch.py`) mints a fresh
 `--session-id <uuid>`, a clean temp `HOME` + `CLAUDE_CONFIG_DIR`, and a **scrubbed
 env** (dropping inherited `CLAUDE_*` session/Remote vars), runs

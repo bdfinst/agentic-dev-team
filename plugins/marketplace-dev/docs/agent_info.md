@@ -8,7 +8,7 @@ directly user-invocable.
 
 | Agent | File | Purpose | Invocation |
 | --- | --- | --- | --- |
-| plugin-best-practices-review | [`plugin-best-practices-review.md`](../agents/plugin-best-practices-review.md) | Structural findings for any plugin — agent type appropriateness (markdown vs script), frontmatter compliance, eval-coverage presence, and body line-count budgets. Read-only; JSON output. Does not evaluate detection-logic quality. | Dispatched by the `plugin-audit` skill |
+| plugin-best-practices-review | [`plugin-best-practices-review.md`](https://github.com/bdfinst/agentic-dev-team/blob/main/plugins/marketplace-dev/agents/plugin-best-practices-review.md) | Structural findings for any plugin — agent type appropriateness (markdown vs script), frontmatter compliance, eval-coverage presence, and body line-count budgets. Read-only; JSON output. Does not evaluate detection-logic quality. | Dispatched by the `plugin-audit` skill |
 
 The markdown-vs-script judgment this agent applies is the decision matrix in
 [`agent-type-decision-rules.md`](../knowledge/agent-type-decision-rules.md)

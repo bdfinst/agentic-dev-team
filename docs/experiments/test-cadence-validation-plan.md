@@ -5,7 +5,7 @@ batch-red-per-class finding, see issue #1702) against this repo's own
 Code-First Small Batches baseline, per
 [ADR 0017](../adr/0017-single-build-cadence-remove-classic-tdd-opt-in.md)'s
 reopening condition ("a new decision to make with new evidence"). See
-[`../../plugins/dev-team/knowledge/test-cadence-tradeoffs.md`](../../plugins/dev-team/knowledge/test-cadence-tradeoffs.md)
+[`../../plugins/dev-team/knowledge/test-cadence-tradeoffs.md`](https://github.com/bdfinst/agentic-dev-team/blob/main/plugins/dev-team/knowledge/test-cadence-tradeoffs.md)
 for the decision rule this runbook exists to satisfy — that knowledge file
 is what ships to consumers; this file is marketplace-repo development
 process and does not ship.

@@ -53,11 +53,11 @@ fi
 exit 0
 ```
 
-[`.claude/cloud-setup.sh`](../.claude/cloud-setup.sh) is the actual work:
+[`.claude/cloud-setup.sh`](https://github.com/bdfinst/agentic-dev-team/blob/main/.claude/cloud-setup.sh) is the actual work:
 this repo's test/gate toolchain (`jq`, `shellcheck`, the Python dev deps, `gh`,
 `uv`, `mutmut`, `adr`), Node 24+ plus `npm ci` for the git hooks
 (`pre-commit`, `pre-push`, `commit-msg`), the plugin install/refresh, and a
-closing [`scripts/verify_toolchain.py`](../scripts/verify_toolchain.py) pass.
+closing [`scripts/verify_toolchain.py`](https://github.com/bdfinst/agentic-dev-team/blob/main/scripts/verify_toolchain.py) pass.
 It **refreshes** the plugin (re-pulls the catalog and `plugin update`) rather
 than only installing — `plugin install` is a no-op once a version is cached, and
 the reused snapshot would otherwise pin the first version forever (see
@@ -82,7 +82,7 @@ The Setup script must `exit 0` even when provisioning went wrong, so it can only
 *report* a broken toolchain — it can never refuse to hand one over. Two things
 close that gap:
 
-- [`scripts/verify_toolchain.py`](../scripts/verify_toolchain.py) — runs every
+- [`scripts/verify_toolchain.py`](https://github.com/bdfinst/agentic-dev-team/blob/main/scripts/verify_toolchain.py) — runs every
   tool instead of probing `PATH`, so an installed-but-unstartable tool fails
   instead of passing. The Setup script calls it at the end; run it yourself any
   time with `python3 scripts/verify_toolchain.py`.
@@ -128,7 +128,7 @@ The fix has three layers, all wired into `.claude/cloud-setup.sh` and the
   bfinster` and `claude plugin update dev-team@bfinster` on every invocation, and
   the SessionStart hook no longer no-ops when a version is already present.
 - **Enable marketplace auto-update.** Both call the plugin's own
-  [`skills/upgrade/scripts/enable_autoupdate.py`](../plugins/dev-team/skills/upgrade/scripts/enable_autoupdate.py)
+  [`skills/upgrade/scripts/enable_autoupdate.py`](https://github.com/bdfinst/agentic-dev-team/blob/main/plugins/dev-team/skills/upgrade/scripts/enable_autoupdate.py)
   (`--enable`), which sets `extraKnownMarketplaces.bfinster.autoUpdate: true` in
   the config `settings.json` — the same flag the `/plugin` UI and `/upgrade`
   toggle. This is the key lever: it makes the CLI re-pull and upgrade **at launch,
@@ -136,7 +136,7 @@ The fix has three layers, all wired into `.claude/cloud-setup.sh` and the
   rebuild. `/upgrade` runs the very same script (its `--check`/`--enable` modes),
   so there is one implementation of the flag, not two.
 - **Drift advisory.** Both also run the plugin's
-  [`skills/upgrade/scripts/check_version_drift.py`](../plugins/dev-team/skills/upgrade/scripts/check_version_drift.py),
+  [`skills/upgrade/scripts/check_version_drift.py`](https://github.com/bdfinst/agentic-dev-team/blob/main/plugins/dev-team/skills/upgrade/scripts/check_version_drift.py),
   which compares the installed version against the refreshed catalog and surfaces
   a "v{installed} → v{latest}; restart or run `/upgrade`" advisory. This is the
   safety net for the one case the refresh can't fix silently: a **restrictive

@@ -11,7 +11,7 @@ connects them.
 > document is a reader-friendly walkthrough; where it and a skill spec
 > disagree, the spec wins.
 
-**On this page**: [Lifecycle at a glance](#the-lifecycle-at-a-glance) · [1. Intake](#1-intake--when-to-reach-for-triage) · [2. Investigation](#2-investigation--root-cause-before-recording) · [3. The triage record](#3-the-triage-record) · [4. Review-corrections flow](#4-the-review-corrections-flow) · [5. `/apply-fixes` flow](#5-the-apply-fixes-flow) · [6. Ownership of leftover corrections](#6-ownership-of-leftover-corrections) · [7. A worked example](#7-a-worked-example)
+**On this page**: [Lifecycle at a glance](#the-lifecycle-at-a-glance) · [1. Intake](#1-intake-when-to-reach-for-triage) · [2. Investigation](#2-investigation-root-cause-before-recording) · [3. The triage record](#3-the-triage-record) · [4. Review-corrections flow](#4-the-review-corrections-flow) · [5. `/apply-fixes` flow](#5-the-apply-fixes-flow) · [6. Ownership of leftover corrections](#6-ownership-of-leftover-corrections) · [7. A worked example](#7-a-worked-example)
 
 ## The lifecycle at a glance
 

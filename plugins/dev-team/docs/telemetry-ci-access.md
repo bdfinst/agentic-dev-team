@@ -54,7 +54,7 @@ holds both halves where they belong.
 ### 4. Consume it in the workflow
 
 This wiring is **already in place** — see the `cost-regression` job in
-[`.github/workflows/plugin-tests.yml`](../../../.github/workflows/plugin-tests.yml).
+[`.github/workflows/plugin-tests.yml`](https://github.com/bdfinst/agentic-dev-team/blob/main/.github/workflows/plugin-tests.yml).
 The job loads the key, clones the data repo read-only, builds a per-session cost
 series from the digests, and runs the regression check against it. The
 credential steps are gated so fork PRs and Dependabot PRs (neither of which get
