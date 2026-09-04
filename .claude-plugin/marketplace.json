@@ -18,11 +18,11 @@
       "repository": "https://github.com/bdfinst/agentic-dev-team",
       "source": {
         "path": "plugins/dev-team",
-        "ref": "dev-team-v13.0.0",
+        "ref": "dev-team-v13.1.0",
         "source": "git-subdir",
         "url": "https://github.com/bdfinst/agentic-dev-team.git"
       },
-      "version": "13.0.0"
+      "version": "13.1.0"
     },
     {
       "author": {
@@ -35,11 +35,11 @@
       "repository": "https://github.com/bdfinst/agentic-dev-team",
       "source": {
         "path": "plugins/security-assessment",
-        "ref": "security-assessment-v3.7.4",
+        "ref": "security-assessment-v3.7.5",
         "source": "git-subdir",
         "url": "https://github.com/bdfinst/agentic-dev-team.git"
       },
-      "version": "3.7.4"
+      "version": "3.7.5"
     },
     {
       "author": {
@@ -52,11 +52,11 @@
       "repository": "https://github.com/bdfinst/agentic-dev-team",
       "source": {
         "path": "plugins/marketplace-dev",
-        "ref": "marketplace-dev-v1.2.2",
+        "ref": "marketplace-dev-v1.2.3",
         "source": "git-subdir",
         "url": "https://github.com/bdfinst/agentic-dev-team.git"
       },
-      "version": "1.2.2"
+      "version": "1.2.3"
     }
   ]
 }
