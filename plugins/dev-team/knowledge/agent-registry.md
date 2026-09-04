@@ -21,7 +21,7 @@ This file contains the complete registry tables. CLAUDE.md references this file 
 | Product Manager | `agents/product-manager.md` | 1,221 | Requirements, prioritization |
 | QA/SQA Engineer | `agents/qa-engineer.md` | 4,188 | Testing, quality assurance |
 | Security Engineer | `agents/security-engineer.md` | 1,115 | Security analysis, threat modeling |
-| Software Engineer | `agents/software-engineer.md` | 2,122 | Code generation, implementation |
+| Software Engineer | `agents/software-engineer.md` | 2,458 | Code generation, implementation |
 | Technical Writer | `agents/tech-writer.md` | 939 | Documentation, style consistency |
 | UI/UX Designer | `agents/ui-ux-designer.md` | 583 | Interface design, UX |
 | **All team agents** | | **~30,233** | |
