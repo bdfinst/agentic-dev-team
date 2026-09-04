@@ -270,9 +270,32 @@ def test_plugin_dir_flag_points_to_security_assessment(tmp_path: Path) -> None:
     res = _run_builder(["--plugin-dir", str(sa_dir)], env=env)
     assert res.returncode == 0, res.stderr
     rendered = out.read_text()
-    # 3 skills + 5 commands = 8 entries; count SKILL.md and .md links
-    skill_links = re.findall(r"\[`[^`]+`\]\(\.\./(?:skills|commands)/", rendered)
+    # 3 skills + 5 commands = 8 entries; count SKILL.md and .md links, which
+    # point at the file's GitHub source (#2103) since skills/ and commands/
+    # aren't part of the published docs site.
+    skill_links = re.findall(
+        r"\[`[^`]+`\]\(https://github\.com/bdfinst/agentic-dev-team/blob/main/"
+        r"plugins/security-assessment/(?:skills|commands)/",
+        rendered,
+    )
     assert len(skill_links) == 8, f"Expected 8 entries, got {len(skill_links)}: {skill_links}"
+
+
+def test_generated_links_point_to_github_source_not_the_unpublished_skills_dir() -> (
+    None
+):
+    """#2103: scripts/assemble-docs.sh only copies each plugin's docs/ dir into
+    the published MkDocs site, never skills/ or commands/, so a relative
+    `../skills/...` link 404s once deployed. Every generated link must point
+    at the file's GitHub source instead, which resolves both in a checkout
+    and on the live site."""
+    catalog = (REPO_ROOT / "plugins" / "dev-team" / "docs" / "skills.md").read_text()
+    links = re.findall(r"\[`[^`]+`\]\(([^)]+)\)", catalog)
+    assert links, "expected at least one skill/command link in the catalog"
+    for link in links:
+        assert link.startswith(
+            "https://github.com/bdfinst/agentic-dev-team/blob/main/"
+        ), f"non-GitHub-source link would 404 on the published docs site: {link}"
 
 
 def test_a_skill_outside_the_taxonomy_lands_in_a_trailing_other_section(
