@@ -1,0 +1,5719 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+      
+      
+        <link rel="canonical" href="https://devteam.bryanfinster.com/docs/experiments/agentic-workflow-evidence/02-experiment-prompt-when-tdd-pays/">
+      
+      
+        <link rel="prev" href="../01-experiment-prompt-3sizes-3arms/">
+      
+      
+        <link rel="next" href="../04-experiment-prompt-refactor-granularity/">
+      
+      
+        
+      
+      
+      <link rel="icon" href="../../../../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
+    
+    
+      
+        <title>Experiment Prompt: When Does TDD Actually Pay Off? - Agentic Dev Team</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../../../assets/stylesheets/main.ec1eaa64.min.css">
+      
+        
+        <link rel="stylesheet" href="../../../../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+      <link rel="stylesheet" href="../../../../stylesheets/sidebar.css">
+    
+    <script>__md_scope=new URL("../../../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#experiment-prompt-when-does-tdd-actually-pay-off" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow md-header--lifted" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="../../../.." title="Agentic Dev Team" class="md-header__button md-logo" aria-label="Agentic Dev Team" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            Agentic Dev Team
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Experiment Prompt: When Does TDD Actually Pay Off?
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: light)" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a4 4 0 0 0-4 4 4 4 0 0 0 4 4 4 4 0 0 0 4-4 4 4 0 0 0-4-4m0 10a6 6 0 0 1-6-6 6 6 0 0 1 6-6 6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: dark)" data-md-color-scheme="slate" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12s-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+          <a href="javascript:void(0)" class="md-search__icon md-icon" title="Share" aria-label="Share" data-clipboard data-clipboard-text="" data-md-component="search-share" tabindex="-1">
+            
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M18 16.08c-.76 0-1.44.3-1.96.77L8.91 12.7c.05-.23.09-.46.09-.7s-.04-.47-.09-.7l7.05-4.11c.54.5 1.25.81 2.04.81a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3c0 .24.04.47.09.7L8.04 9.81C7.5 9.31 6.79 9 6 9a3 3 0 0 0-3 3 3 3 0 0 0 3 3c.79 0 1.5-.31 2.04-.81l7.12 4.15c-.05.21-.08.43-.08.66 0 1.61 1.31 2.91 2.92 2.91s2.92-1.3 2.92-2.91A2.92 2.92 0 0 0 18 16.08"/></svg>
+          </a>
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/bdfinst/agentic-dev-team" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    bdfinst/agentic-dev-team
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+    
+      
+<nav class="md-tabs" aria-label="Tabs" data-md-component="tabs">
+  <div class="md-grid">
+    <ul class="md-tabs__list">
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../../../.." class="md-tabs__link">
+        
+  
+  
+    
+  
+  Home
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../../../../GETTING-STARTED/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Getting Started
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../../../../CONTRIBUTING/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Contributing
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+    
+  
+  
+    
+    
+      <li class="md-tabs__item md-tabs__item--active">
+        <a href="../../../cloud-setup/" class="md-tabs__link">
+          
+  
+  
+  Guides & Reference
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../../../plugins/dev-team/" class="md-tabs__link">
+          
+  
+  
+  Plugins
+
+        </a>
+      </li>
+    
+  
+
+    
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../../../../CHANGELOG/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Changelog
+
+      </a>
+    </li>
+  
+
+      
+    </ul>
+  </div>
+</nav>
+    
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+  
+
+
+<nav class="md-nav md-nav--primary md-nav--lifted" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../../../.." title="Agentic Dev Team" class="md-nav__button md-logo" aria-label="Agentic Dev Team" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    Agentic Dev Team
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/bdfinst/agentic-dev-team" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    bdfinst/agentic-dev-team
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../.." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../GETTING-STARTED/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Getting Started
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../CONTRIBUTING/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Contributing
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Guides & Reference
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Guides & Reference
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../cloud-setup/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Cloud setup: loading the dev-team plugin into a web session
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../cloud-startup-prompt/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Cloud startup prompt
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../command-graph-audit/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Command taxonomy — what each user-invocable command is for
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../complexity-refactor-regression/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Complexity Regression Check — AC2 of Epic #362
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../context-and-session-economy-playbook/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Session economy playbook
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../context-ceiling-validation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Validating the context ceiling
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../continuous-delivery-coverage-review/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Continuous Delivery Coverage Review
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../enforce-prefer-python-over-bash/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Record: mechanically enforcing "prefer Python over bash"
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../experiment-install-harness/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Experiment Install Harness
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../marketplace-builder-plugin-playbook/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Playbook: building a plugin that builds plugin marketplaces
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../python-hook-contract/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Python hook contract
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../using-plugin-skills-in-the-web-environment/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Using a plugin's skills in the Claude Code web environment
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+          
+          
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_4_13" >
+        
+          
+          <label class="md-nav__link" for="__nav_4_13" id="__nav_4_13_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Architecture Decisions
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_4_13_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4_13">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Architecture Decisions
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../adr/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Architecture Decision Records
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../adr/0001-record-architecture-decisions/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    1. Record architecture decisions
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../adr/0002-use-sentinel-file-and-argument-shape-heuristic-for-codegraph-nudge-hook/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    2. Use sentinel file and argument-shape heuristic for CodeGraph nudge hook
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../adr/0003-document-adr-tooling-workflow-as-a-skill/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    3. Document ADR tooling workflow as a skill
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../adr/0004-pre-dispatch-model-resolution/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    4. Pre-dispatch model tier resolution enforced by a PreToolUse hook
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../adr/0005-on-demand-knowledge-indexing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    5. On-demand knowledge indexing with four freshness gates
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../adr/0006-per-increment-trunk-integration-topology/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    6. Per-increment trunk integration topology for agent work
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../adr/0007-eval-confidence-pyramid-tier-vocabulary/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    7. Eval confidence-pyramid tier vocabulary
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../adr/0008-use-effort-bands-instead-of-model-names-in-agent-frontmatter/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    8. Use effort bands instead of model names in agent frontmatter
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../adr/0009-human-consent-gate-for-learning-loop/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    9. Human Consent Gate for Learning Loop
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../adr/0010-per-session-analysis-granularity/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    10. Per-Session Analysis Granularity
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../adr/0011-enforce-context-ceiling-with-transcript-measured-pretooluse-hook/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    11. Enforce the context ceiling with a transcript-measured PreToolUse hook
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../adr/0012-auto-bootstrap-codegraph-index-per-clone/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    12. Auto-bootstrap the CodeGraph index per clone
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../adr/0013-llm-driven-orchestration-over-deterministic-workflow-scripts/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    13. LLM-driven orchestration over deterministic workflow scripts
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../adr/0014-python-for-cross-os-scripts/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    14. Python for cross-OS scripts
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../adr/0015-bash-removal-complete/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    15. Bash removal complete — plugins/dev-team is Python-native
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../adr/0016-rely-on-harness-native-compaction-the-plugin-performs-structured-summarization-only/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    16. Rely on harness-native compaction; the plugin performs structured summarization only
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../adr/0017-single-build-cadence-remove-classic-tdd-opt-in/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    17. Single build cadence — remove the Classic TDD opt-in
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../adr/0018-native-sub-issues-determine-the-epic-label/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    18. Native sub-issues determine the epic label
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../adr/0019-orchestrate-the-phase-pipeline-choreograph-the-safety-layer/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    19. Orchestrate the phase pipeline, choreograph the safety layer
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../adr/0020-fold-mutation-pipeline-into-the-plugin/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    20. Fold the ACI mutation pipeline into the plugin as scripted mechanics
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../adr/0021-claude-only-model-routing-no-multimodal-tier/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    21. Claude-only model routing — no multimodal or cross-provider tier
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../adr/0022-reject-delegation-only-sweep-dispatch/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    22. Reject the delegation-only sweep — delegation must earn its measured overhead
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../adr/0023-calibrate-effort-bands-from-the-1184-eval-baseline/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    23. Calibrate agent effort bands from the #1184 eval baseline
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../adr/0024-keep-single-model-routing-map-keyed-by-canonical-model-ids/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    24. Keep the single model-routing map keyed by canonical model IDs
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../adr/0025-allow-versioned-model-ids-in-routing-map/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    25. Allow versioned (dated-snapshot) model IDs in the routing map
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../adr/0026-adopt-native-model-effort-agent-frontmatter-retire-the-band-resolver/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    26. Adopt native model:/effort: agent frontmatter, retire the band resolver
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../adr/0027-require-and-mechanically-derive-color-on-every-agent/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    27. Require and mechanically derive color on every agent
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../adr/0028-require-skills-preload-and-memory-project-on-matching-agents/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    28. Require skills: preload and memory: project on matching agents
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../adr/0029-code-modifying-agent-personas-remain-separate-from-software-engineer/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    29. Code-modifying agent personas remain separate from software-engineer
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../adr/0030-use-ancestor-check-instead-of-exact-sha-comparison-for-mutation-baseline-reuse/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    30. Use ancestor-check instead of exact-SHA comparison for mutation baseline reuse
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../adr/0031-raise-shipped-python-floor-to-3-10/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    31. Raise the shipped Python floor from 3.8 to 3.10
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../adr/0032-shipped-script-path-resolution-taxonomy/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    32. Shipped-script path-resolution taxonomy
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../adr/0033-quote-claude-plugin-root-expansions/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    33. Quote every ${CLAUDE_PLUGIN_ROOT} expansion in a shell fence
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../adr/0034-do-not-build-shared-context-pre-pass-for-duplicate-full-file-reads-1611/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    34. Do not build a shared-context pre-pass for duplicate full-file reads (#1611)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../adr/0035-defer-two-lane-generation-validation-concurrency-in-mutation-kill-all-1909/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    35. Defer two-lane generation/validation concurrency in mutation-kill --all (#1909)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../adr/0036-the-two-session-extractors-stay-forked-1994/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    36. The two session extractors stay forked, for now
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../adr/0037-block-by-default-at-the-context-ceiling-2000/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    37. Block by default at the context ceiling
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../adr/0038-raise-the-absolute-context-ceiling-to-350k/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    38. Raise the absolute context ceiling from 150K to 350K
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../adr/0039-only-skill-loads-are-worth-blocking-at-the-context-ceiling/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    39. Only Skill loads are worth blocking at the context ceiling
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../adr/0040-evaluate-splitting-orchestrator-py-no-go/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    40. Evaluate splitting orchestrator.py: no-go
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../adr/0041-autoship-step-2b-dispatch-is-not-the-rejected-sweep/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    41. Autoship's per-round agent dispatch is not ADR 0022's rejected sweep
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../adr/0042-unify-the-session-extractors/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    42. Unify the session extractors
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+          
+          
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4_14" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_4_14" id="__nav_4_14_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Experiments
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_4_14_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_4_14">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Experiments
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    The Agentic Workflow Experiments — Narrative
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../FAQ/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    TDD Experiment — FAQ
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../RECOMMENDATIONS/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Recommendations — The End-to-End Agentic Workflow
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../01-final-results/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Consolidated Report: Build-Pipeline vs. TDD vs. Non-TDD across Small / Medium / Large Tasks
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../02-final-results/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    When Does TDD Actually Pay Off?
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../04-final-results/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Refactoring cadence &amp; authorship — results
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../04-power-analysis/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Refactoring cadence &amp; authorship — pre-run power analysis
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../05-final-results/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Final Results — Which Agentic Workflow Yields Maintainable, Well-Tested Code at Minimum Cost
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../test-cadence-validation-plan/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Validating an alternative test cadence locally
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4_14_10" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_4_14_10" id="__nav_4_14_10_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Agentic workflow evidence
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="3" aria-labelledby="__nav_4_14_10_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_4_14_10">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Agentic workflow evidence
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../01-experiment-prompt-3sizes-3arms/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Experiment Prompt: Build-Pipeline vs. TDD vs. Non-TDD across Small / Medium / Large Tasks
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Experiment Prompt: When Does TDD Actually Pay Off?
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Experiment Prompt: When Does TDD Actually Pay Off?
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#what-the-first-run-found-2026-06-23-claude-sonnet-4-6" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What the first run found (2026-06-23, claude-sonnet-4-6)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#prompt" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Prompt
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#research-questions-hypotheses-pre-register-before-looking-at-results" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Research questions &amp; hypotheses (pre-register before looking at results)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#design-clarity-workflow-fractional-factorial-paired-by-task" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Design: clarity × workflow (fractional factorial, paired by task)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#shared-substrate-open-design-tasks-clear-vague-over-one-hidden-contract" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Shared substrate: open-design tasks (clear + vague over one hidden contract)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#grading-pipeline-one-pass-three-instruments" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Grading pipeline (one pass, three instruments)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#fixed-procedure-follow-exactly" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Fixed procedure (follow exactly)
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Fixed procedure (follow exactly)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#0-preconditions" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        0. Preconditions
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#1-model" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1. Model
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#2-arms-add-to-arm_prompts-keep-pytest_rule" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2. Arms (add to ARM_PROMPTS; keep PYTEST_RULE)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#3-author-the-open-design-tasks-the-craft-step-do-this-first" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3. Author the open-design tasks (the craft step — do this first)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#4-extend-the-harness" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4. Extend the harness
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#5-execute-sharded-instruction-arms-are-cheap" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5. Execute (sharded — instruction arms are cheap)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#6-analyze-per-task-then-paired-across-tasks" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        6. Analyze (per task, then paired across tasks)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#7-report" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        7. Report
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#best-path-forward-based-on-first-run-evidence-pending-test-after-refactor-confirmation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Best path forward (based on first-run evidence, pending test-after-refactor confirmation)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#guardrails-lessons-already-paid-for-do-not-relearn" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Guardrails (lessons already paid for — do not relearn)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#out-of-scope-by-decision" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Out of scope (by decision)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#expected-deliverables" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Expected deliverables
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../04-experiment-prompt-refactor-granularity/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Experiment Prompt: Refactoring Granularity, the Test Safety Net, and Code/Test Authorship
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../05-experiment-prompt-workflow-matrix/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Experiment Prompt: Which agentic workflow yields maintainable, well-tested code at minimum cost
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+          
+          
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_4_15" >
+        
+          
+          <label class="md-nav__link" for="__nav_4_15" id="__nav_4_15_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Spikes
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_4_15_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4_15">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Spikes
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../spikes/build-token-cost-spike/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Spike — /build token cost: per-agent overhead &amp; review-value no-op rates
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../spikes/review-cost-optimization/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Spike: Economizing the Review Panel
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../spikes/worktree-baseref-head-spike/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Spike: verify worktree.baseRef=head changes Agent-tool worktree base ref
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_5" >
+        
+          
+          <label class="md-nav__link" for="__nav_5" id="__nav_5_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Plugins
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_5_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Plugins
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_5_1" >
+        
+          
+          <label class="md-nav__link" for="__nav_5_1" id="__nav_5_1_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    dev-team Plugin
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_5_1_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5_1">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    dev-team Plugin
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../plugins/dev-team/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    dev-team
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../plugins/dev-team/CHANGELOG/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Changelog
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_5_1_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_5_1_3" id="__nav_5_1_3_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Documentation
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="3" aria-labelledby="__nav_5_1_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5_1_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Documentation
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../plugins/dev-team/docs/agent-architecture/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Architecture
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../plugins/dev-team/docs/agent_info/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Agents
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../plugins/dev-team/docs/artifact-migration/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Artifact migration guide (upgrading an existing project)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../plugins/dev-team/docs/code-intelligence-nudge/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    code-intelligence-nudge
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../plugins/dev-team/docs/code-review-process/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Code Review Process
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../plugins/dev-team/docs/concurrent-use/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Concurrent use — multiple agents or people on one repo
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../plugins/dev-team/docs/context-management/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Context Management
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../plugins/dev-team/docs/developer-notes/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Developer notes — extending and maintaining the plugin
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../plugins/dev-team/docs/eval-maintenance/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    How eval testing works &amp; keeping it current
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../plugins/dev-team/docs/eval-running-guide/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Running a full eval of everything
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../plugins/dev-team/docs/eval-system/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Eval System for Code Review Agents
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../plugins/dev-team/docs/session-review-oss-complements/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Session-review: OSS complements
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../plugins/dev-team/docs/session-review/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Session-review harness (#131)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../plugins/dev-team/docs/skills/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Skills
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../plugins/dev-team/docs/team-structure/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Team Organization
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../plugins/dev-team/docs/telemetry-ci-access/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Giving CI read access to the telemetry repo
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../plugins/dev-team/docs/telemetry-repo-security/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Telemetry repository — security &amp; setup
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../plugins/dev-team/docs/test-evaluation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Test Evaluation and Architecture
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../plugins/dev-team/docs/test-improve/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    /test-improve
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../plugins/dev-team/docs/triage-workflow/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Triage Workflow: Discovery to Applied Fix
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../plugins/dev-team/docs/workflows/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Workflows
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_5_2" >
+        
+          
+          <label class="md-nav__link" for="__nav_5_2" id="__nav_5_2_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    marketplace-dev Plugin
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_5_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5_2">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    marketplace-dev Plugin
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../plugins/marketplace-dev/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    marketplace-dev
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../plugins/marketplace-dev/CHANGELOG/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Changelog
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_5_2_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_5_2_3" id="__nav_5_2_3_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Documentation
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="3" aria-labelledby="__nav_5_2_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5_2_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Documentation
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../plugins/marketplace-dev/docs/agent_info/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Agents
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../plugins/marketplace-dev/docs/skills/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Skills
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../plugins/marketplace-dev/docs/workflows/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Workflows
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_5_2_4" >
+        
+          
+          <label class="md-nav__link" for="__nav_5_2_4" id="__nav_5_2_4_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Knowledge
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="3" aria-labelledby="__nav_5_2_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5_2_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Knowledge
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../plugins/marketplace-dev/knowledge/agent-type-decision-rules/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Agent Type Decision Rules — markdown vs script
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_5_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_5_3" id="__nav_5_3_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    security-assessment Plugin
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_5_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    security-assessment Plugin
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../plugins/security-assessment/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    security-assessment
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../plugins/security-assessment/CHANGELOG/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Changelog
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_5_3_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_5_3_3" id="__nav_5_3_3_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Documentation
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="3" aria-labelledby="__nav_5_3_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5_3_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Documentation
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../plugins/security-assessment/docs/accepted-risks-format/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    ACCEPTED-RISKS.md format
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../plugins/security-assessment/docs/agent_info/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Agents
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../plugins/security-assessment/docs/comparative-testing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Comparative testing: our plugin vs. opus_repo_scan_test
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../plugins/security-assessment/docs/skills/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Skills
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../plugins/security-assessment/docs/user-guide-security-assessment/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    User guide: security assessment
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../plugins/security-assessment/docs/workflows/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Workflows
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_5_3_3_7" >
+        
+          
+          <label class="md-nav__link" for="__nav_5_3_3_7" id="__nav_5_3_3_7_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Agents
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="4" aria-labelledby="__nav_5_3_3_7_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5_3_3_7">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Agents
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../plugins/security-assessment/docs/agents/authorization-logic-review/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    authorization-logic-review — rationale and provenance
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../plugins/security-assessment/docs/agents/business-logic-domain-review/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    business-logic-domain-review — rationale and provenance
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../plugins/security-assessment/docs/agents/cross-repo-synthesizer/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    cross-repo-synthesizer — rationale and provenance
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../plugins/security-assessment/docs/agents/deep-code-reasoning/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    deep-code-reasoning — rationale and provenance
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../plugins/security-assessment/docs/agents/exec-report-generator/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    exec-report-generator — rationale and provenance
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../plugins/security-assessment/docs/agents/fp-reduction/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    fp-reduction — rationale and provenance
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../plugins/security-assessment/docs/agents/recon-driven-scan/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    recon-driven-scan — rationale and provenance
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../CHANGELOG/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Changelog
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#what-the-first-run-found-2026-06-23-claude-sonnet-4-6" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What the first run found (2026-06-23, claude-sonnet-4-6)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#prompt" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Prompt
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#research-questions-hypotheses-pre-register-before-looking-at-results" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Research questions &amp; hypotheses (pre-register before looking at results)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#design-clarity-workflow-fractional-factorial-paired-by-task" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Design: clarity × workflow (fractional factorial, paired by task)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#shared-substrate-open-design-tasks-clear-vague-over-one-hidden-contract" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Shared substrate: open-design tasks (clear + vague over one hidden contract)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#grading-pipeline-one-pass-three-instruments" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Grading pipeline (one pass, three instruments)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#fixed-procedure-follow-exactly" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Fixed procedure (follow exactly)
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Fixed procedure (follow exactly)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#0-preconditions" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        0. Preconditions
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#1-model" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1. Model
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#2-arms-add-to-arm_prompts-keep-pytest_rule" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2. Arms (add to ARM_PROMPTS; keep PYTEST_RULE)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#3-author-the-open-design-tasks-the-craft-step-do-this-first" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3. Author the open-design tasks (the craft step — do this first)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#4-extend-the-harness" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4. Extend the harness
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#5-execute-sharded-instruction-arms-are-cheap" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5. Execute (sharded — instruction arms are cheap)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#6-analyze-per-task-then-paired-across-tasks" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        6. Analyze (per task, then paired across tasks)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#7-report" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        7. Report
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#best-path-forward-based-on-first-run-evidence-pending-test-after-refactor-confirmation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Best path forward (based on first-run evidence, pending test-after-refactor confirmation)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#guardrails-lessons-already-paid-for-do-not-relearn" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Guardrails (lessons already paid for — do not relearn)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#out-of-scope-by-decision" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Out of scope (by decision)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#expected-deliverables" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Expected deliverables
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+    <a href="https://github.com/bdfinst/agentic-dev-team/edit/main/docs/experiments/agentic-workflow-evidence/02-experiment-prompt-when-tdd-pays.md" title="Edit this page" class="md-content__button md-icon" rel="edit">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M10 20H6V4h7v5h5v3.1l2-2V8l-6-6H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h4zm10.2-7c.1 0 .3.1.4.2l1.3 1.3c.2.2.2.6 0 .8l-1 1-2.1-2.1 1-1c.1-.1.2-.2.4-.2m0 3.9L14.1 23H12v-2.1l6.1-6.1z"/></svg>
+    </a>
+  
+  
+
+
+<h1 id="experiment-prompt-when-does-tdd-actually-pay-off">Experiment Prompt: When Does TDD Actually Pay Off?<a class="headerlink" href="#experiment-prompt-when-does-tdd-actually-pay-off" title="Permanent link">&para;</a></h1>
+<p><strong>Type:</strong> Reusable experiment prompt (hand this whole file to Claude to execute)
+<strong>Harness:</strong> <a href="https://github.com/bdfinst/agentic-dev-team/blob/main/scripts/run_tdd_experiment.py"><code>scripts/run_tdd_experiment.py</code></a> — <strong>must be extended</strong> (see "Extend the harness")
+<strong>Motivation:</strong> <a href="../../FAQ/"><code>FAQ.md</code> Q1</a>,
+<a href="../../01-final-results/"><code>01-final-results.md</code></a>
+<strong>Prior run results:</strong> <a href="../../02-final-results/"><code>02-final-results.md</code></a>
+<strong>Supersedes:</strong> <code>ambiguous-requirements-experiment.md</code> (Axis A) and
+<code>experiment-prompt-design-discovery.md</code> (Axis B), merged here into one factorial.</p>
+<p>The prior studies found <strong>no advantage</strong> for test-first — but they controlled away
+the two conditions TDD's claimed benefits live in: <strong>ambiguous requirements</strong> (where
+a failing test is meant to surface unstated decisions) and <strong>open design with real
+refactoring</strong> (where incremental tests are meant to discover a better structure).
+This experiment crosses both on one task suite and asks the unified question:
+<strong>under what conditions does TDD's claimed value actually appear — and is it largest
+exactly where the prior experiment was blind?</strong></p>
+<hr />
+<h2 id="what-the-first-run-found-2026-06-23-claude-sonnet-4-6">What the first run found (2026-06-23, claude-sonnet-4-6)<a class="headerlink" href="#what-the-first-run-found-2026-06-23-claude-sonnet-4-6" title="Permanent link">&para;</a></h2>
+<p>The first execution of this experiment (288 cells, 4 tasks, 3 trials per cell) produced
+four verdicts. They reframe the research questions for the next run:</p>
+<table>
+<thead>
+<tr>
+<th>Finding</th>
+<th>Implication for next run</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>ambiguity hypothesis REJECTED (reversed):</strong> test-after 67% EDGE vs tdd-refactor 33% under vague spec</td>
+<td>The anchoring effect is real. Add <code>test-after-refactor</code> to test whether deferring test commitment AND refactoring combines both advantages</td>
+</tr>
+<tr>
+<td><strong>changeability hypothesis CONFIRMED:</strong> tdd-refactor lowest blast radius (664 vs 700–770)</td>
+<td>Refactoring matters for changeability. The new arm tests whether test-first is necessary to get it</td>
+</tr>
+<tr>
+<td><strong>mechanism-isolation hypothesis CONFIRMED:</strong> tdd-no-refactor (701) ≈ test-after (700)</td>
+<td><strong>The refactor step is load-bearing, not test ordering.</strong> But the experiment confounds refactoring with its test safety net — <code>test-after-refactor</code> isolates this</td>
+</tr>
+<tr>
+<td><strong>clarity-interaction hypothesis NOT CONFIRMED:</strong> TDD's changeability gap is similar across clarity conditions</td>
+<td>The advantage is structural (from refactoring), not spec-dependent</td>
+</tr>
+</tbody>
+</table>
+<p><strong>The critical confound the first run could not resolve:</strong> tdd-refactor's changeability
+advantage might come from (a) refactoring itself, (b) having tests before refactoring
+that catch regressions, or (c) the iterative TDD cycle shaping the design incrementally.
+The first run cannot distinguish these because all three are present simultaneously in
+the tdd-refactor arm.</p>
+<p><strong>The predicted best path — untested:</strong> <code>test-after-refactor</code> (write code → write tests
+against the working implementation → refactor with test safety net) is predicted to:</p>
+<ul>
+<li>Match test-after's EDGE advantage (67%) by deferring test commitment</li>
+<li>Match tdd-refactor's changeability (664 blast radius) by refactoring under test coverage</li>
+<li>Cost less than tdd-refactor ($0.44/stage) since there are no iterative red-green cycles</li>
+<li>Dominate every other arm across all three dimensions simultaneously</li>
+</ul>
+<p><strong>This prediction is the primary question for the next run.</strong></p>
+<p><strong>Token cost summary from first run (most to least expensive per stage):</strong></p>
+<table>
+<thead>
+<tr>
+<th>arm</th>
+<th>cost/stage</th>
+<th>EDGE under vague</th>
+<th>blast radius</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>tdd-refactor</td>
+<td>$0.44</td>
+<td>33%</td>
+<td><strong>664</strong> (best)</td>
+</tr>
+<tr>
+<td>bduf</td>
+<td>$0.24</td>
+<td>0–67%</td>
+<td>770</td>
+</tr>
+<tr>
+<td>tdd-no-refactor</td>
+<td>$0.22</td>
+<td>0%</td>
+<td>701</td>
+</tr>
+<tr>
+<td>test-after</td>
+<td><strong>$0.19</strong></td>
+<td><strong>67%</strong> (best)</td>
+<td>700</td>
+</tr>
+<tr>
+<td>test-after-refactor</td>
+<td><em>untested</em></td>
+<td><em>predicted: ~67%</em></td>
+<td><em>predicted: ~664</em></td>
+</tr>
+</tbody>
+</table>
+<p><strong>Vague requirements finding (unchanged for next run):</strong> The notifier task produced
+EDGE=0% for every workflow — per-channel retry semantics were not inferrable from the
+vague spec. This is a <strong>spec-gap, not a workflow-gap</strong>: no coding methodology recovers
+information that was never stated. The correct response to a vague spec is a
+clarifying conversation before any code is written. The next run should preserve a
+task with an irreducible spec-gap to confirm this floor holds across workflows.</p>
+<hr />
+<h2 id="prompt">Prompt<a class="headerlink" href="#prompt" title="Permanent link">&para;</a></h2>
+<blockquote>
+<p>Run one controlled experiment that crosses <strong>requirement clarity</strong> with
+<strong>coding workflow</strong> on a suite of <strong>open-design</strong> tasks, and grades each cell on
+two axes at once: <strong>contract inference under ambiguity</strong> and <strong>changeability of
+the resulting design</strong>. Reuse the isolation/cost primitives in
+<code>scripts/run_tdd_experiment.py</code>, but <strong>extend it</strong> to (a) select a clear or vague
+spec, (b) grade Stage 0 with a split CORE/EDGE acceptance, (c) apply a withheld
+<strong>change chain</strong>, and (d) record changeability, structural, and multi-rater
+review measurements per stage. Author open-design tasks with a deliberate
+design <strong>trap</strong> and both a clear and a vague spec over an <strong>identical hidden
+contract</strong>. Work on a feature branch; commit fixtures, the harness extension,
+raw data, and a report; do not open a PR unless asked.</p>
+<p><strong>Two factors:</strong></p>
+<ul>
+<li><strong>Clarity</strong> — <code>clear</code> (spec states architecture <em>and</em> edge-case decisions) vs
+  <code>vague</code> (omits both; the hidden acceptance is unchanged, so the <em>contract</em> is
+  fixed — only what the agent is <em>told</em> changes).</li>
+<li><strong>Workflow</strong> — <code>tdd-refactor</code> (strict RED-GREEN-<strong>REFACTOR</strong>, refactor
+  mandatory), <code>tdd-no-refactor</code> (test-first, never restructure), <code>test-after</code>
+  (code first, tests last), <code>test-after-refactor</code> (all production code first,
+  then tests against the working implementation, then refactor with the test
+  safety net in place — see "Arms"), <code>bduf</code> (design up front, then implement,
+  then tests), <code>ship</code> (run the <code>/specs</code>→<code>/plan</code>→<code>/build</code> pipeline: the <code>/specs</code>
+  phase authors acceptance criteria before any code is written; <code>/plan</code> produces
+  Gherkin scenarios per slice; <code>/build</code> executes RED-GREEN-REFACTOR with inline
+  review). <strong><code>ship</code> runs at <code>vague</code> only</strong> — its value is in testing whether
+  structured spec synthesis resolves ambiguity better than test-first's
+  failing-test-as-specification; under a <code>clear</code> spec both arms trivially
+  converge and no comparison is possible.</li>
+</ul>
+<p>Grade every cell the same way: <strong>CORE/EDGE</strong> Stage-0 acceptance (ambiguity), a
+<strong>withheld change chain</strong> (changeability), deterministic <strong>radon</strong> structural
+metrics, and a blind <strong>multi-rater</strong> code+test review score. The unit of
+inference is the <strong>task</strong>; compare paired across tasks.</p>
+</blockquote>
+<hr />
+<h2 id="research-questions-hypotheses-pre-register-before-looking-at-results">Research questions &amp; hypotheses (pre-register before looking at results)<a class="headerlink" href="#research-questions-hypotheses-pre-register-before-looking-at-results" title="Permanent link">&para;</a></h2>
+<ul>
+<li><strong>ambiguity-inference / ambiguity.</strong> Does workflow change how well the agent infers <em>unstated</em>
+  decisions? <strong>ambiguity hypothesis:</strong> under <code>vague</code>, <code>tdd-refactor</code> passes more <strong>EDGE</strong> assertions
+  than <code>test-after</code>; under <code>clear</code> there is no gap (a <code>workflow × clarity</code>
+  interaction). <strong>Null:</strong> vagueness degrades all arms equally (test-first just
+  locks in its own happy-path guess).</li>
+<li><strong>changeability / design.</strong> Does workflow change the <strong>changeability</strong> of the design?
+  <strong>changeability hypothesis:</strong> <code>tdd-refactor</code> absorbs the change chain at lower cumulative cost /
+  smaller blast radius than <code>test-after</code> and <code>bduf</code>. <strong>mechanism-isolation hypothesis:</strong>
+  <code>tdd-no-refactor</code> ≈ <code>test-after</code> &lt; <code>tdd-refactor</code> ⇒ the benefit comes from
+  <strong>refactoring</strong>, not test ordering.</li>
+<li><strong>clarity-interaction / the headline interaction.</strong> Is TDD's advantage (on EDGE <em>and</em>
+  changeability) <strong>largest in the <code>vague + open-design</code> cell</strong> — i.e. exactly where
+  the prior null experiment could not look? This is the cell both claims predict
+  TDD should win.</li>
+<li><strong>spec-synthesis / spec synthesis vs test-first.</strong> Does <code>ship</code>'s explicit acceptance-criteria
+  synthesis (the <code>/specs</code> phase authors the contract before any code is written)
+  resolve ambiguity as well as or better than <code>tdd-refactor</code>'s failing-test-as-
+  specification approach? <strong>spec-synthesis hypothesis:</strong> under <code>vague</code>, <code>ship</code> EDGE pass rate ≥
+  <code>tdd-refactor</code> because the <code>/specs</code> phase forces the agent to state every
+  acceptance decision upfront, including those the vague spec omitted. <strong>spec-synthesis-changeability hypothesis
+  (mechanism):</strong> <code>ship</code> changeability ≤ <code>tdd-refactor</code> because its inline review
+  checkpoints in <code>/build</code> catch structural issues that <code>tdd-refactor</code>'s refactor
+  step misses. <strong>Null:</strong> the <code>/specs</code> phase makes the same happy-path assumptions
+  as any other arm — synthesising a spec from a vague prompt does not reliably
+  surface EDGE decisions.</li>
+<li><strong>test-after-refactor / test-after-refactor dominance.</strong> Does deferring test commitment <em>and</em>
+  adding a refactor phase dominate all existing arms simultaneously? <strong>dominance hypothesis:</strong> under
+  <code>vague</code>, <code>test-after-refactor</code> EDGE pass rate ≥ <code>test-after</code> (≈67%) — because
+  deferred tests capture the actual emergent contract, including edge cases the
+  working implementation surfaced — AND blast radius ≈ <code>tdd-refactor</code> (≈664) —
+  because refactoring under test coverage provides the same structural safety net as
+  TDD's refactor step. If both hold, <code>test-after-refactor</code> dominates every existing
+  arm: better EDGE than <code>tdd-refactor</code>, better changeability than <code>test-after</code>, lower
+  cost than <code>tdd-refactor</code> (no iterative red-green cycles during initial build).
+  <strong>Null:</strong> refactoring with tests written post-implementation produces the same
+  structure as no-refactor arms — the incremental TDD red-green cycle shapes design
+  in ways a post-facto test-then-refactor pass cannot replicate.</li>
+</ul>
+<hr />
+<h2 id="design-clarity-workflow-fractional-factorial-paired-by-task">Design: clarity × workflow (fractional factorial, paired by task)<a class="headerlink" href="#design-clarity-workflow-fractional-factorial-paired-by-task" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th></th>
+<th>tdd-refactor</th>
+<th>tdd-no-refactor</th>
+<th>test-after</th>
+<th>test-after-refactor</th>
+<th>bduf</th>
+<th>ship</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>clear</strong></td>
+<td>✓ anchor</td>
+<td>–</td>
+<td>✓ anchor</td>
+<td>✓ anchor</td>
+<td>–</td>
+<td>–</td>
+</tr>
+<tr>
+<td><strong>vague</strong></td>
+<td>✓</td>
+<td>✓</td>
+<td>✓</td>
+<td>✓</td>
+<td>✓</td>
+<td>✓</td>
+</tr>
+</tbody>
+</table>
+<p>Run <strong>all 6 arms at <code>vague</code></strong> (the novel regime where both benefits should appear)
+and only the <strong>3 anchor arms</strong> at <code>clear</code> (to establish the interaction baseline) —
+<strong>9 arm-clarity cells per task</strong> instead of 12. <code>test-after-refactor × clear</code> is
+added as an anchor to give test-after-refactor a clean baseline: under a clear spec with no design
+trap, how much does the refactor step help relative to <code>test-after</code> (the same code
+written without a subsequent refactor)? <code>bduf × vague</code> is deliberately kept: it
+tests whether committing to a <em>design</em> before requirements are clear helps or hurts.
+<code>ship × vague</code> tests whether committing to an <em>explicit acceptance contract</em> (via
+<code>/specs</code>) helps or hurts — a different mechanism from bduf. <code>ship</code> requires a
+plugin-enabled <code>$HOME</code> per cell (same setup as the <code>build-pipeline</code> arm in the
+prior 3-arm study). Model <strong>fixed</strong> (e.g. <code>claude-sonnet-4-6</code>), reported.</p>
+<hr />
+<h2 id="shared-substrate-open-design-tasks-clear-vague-over-one-hidden-contract">Shared substrate: open-design tasks (clear + vague over one hidden contract)<a class="headerlink" href="#shared-substrate-open-design-tasks-clear-vague-over-one-hidden-contract" title="Permanent link">&para;</a></h2>
+<p>Author <strong>4–6</strong> tasks. Each needs a <strong>genuinely open design space</strong> (≥2 viable
+architectures) <strong>and</strong> a <strong>trap</strong> (a naive happy-path build passes Stage 0 but is
+punished by a later change). For each task:</p>
+<ul>
+<li><code>golden-repo.tar.gz</code> — a stub package (public API surface only).</li>
+<li><code>spec_clear.md</code> — states behavior, the public surface, the intended module
+  shape, <strong>and</strong> the edge-case decisions (empty input, ties, errors, ordering,
+  rounding). ≥8 acceptance scenarios.</li>
+<li><code>spec_vague.md</code> — same goal + public surface, but <strong>omits both</strong> the architecture
+  guidance and every edge-case decision the EDGE acceptance checks. Genuinely
+  buildable, not contradictory — the ambiguity is <em>unstated decisions</em>, not broken
+  requirements.</li>
+<li><strong>Hidden acceptance (identical across clarity):</strong></li>
+<li><code>acc_core.py</code> — behavior stated even in the vague spec (happy path).</li>
+<li><code>acc_edge.py</code> — the omitted/ambiguous decisions. <code>acc_core ∪ acc_edge</code> = the
+    full Stage-0 contract.</li>
+<li><code>acc_change1.py … acc_changeK.py</code> (K = 3–5) — each chain stage's contract,
+    <strong>including regression assertions</strong> for all prior stages.</li>
+<li><code>change1.md … changeK.md</code> — the withheld change chain, each modifying behavior on
+  a <em>different</em> axis the spec didn't foreshadow; design ≥1 change to <strong>punish the
+  naive design</strong> and reward a decoupled one.</li>
+<li><strong>Validate against TWO reference solutions — a naive one and a clean one:</strong> both
+  pass <code>acc_core</code>; the clean one also passes <code>acc_edge</code> and absorbs the whole chain
+  cheaply; the <strong>naive one is forced into a large rewrite by the trap change</strong>. This
+  proves the design signal exists. Never grade with a broken/impossible chain.</li>
+<li><code>evals/experiments/exp-tdd-pays-&lt;name&gt;.json</code> with an <code>experiment</code> block listing
+  the clarity variants and the chain (<code>specClear</code>, <code>specVague</code>,
+  <code>coreGrade</code>/<code>edgeGrade</code>, <code>changeChain</code>, <code>gradeChain</code>).</li>
+</ul>
+<p>Suggested tasks: <code>notifier</code> (multi-channel dispatch), <code>pricing</code> (stacking discount
+rules), <code>report-render</code> (pluggable formats), <code>event-store</code> (append + projections),
+<code>command-registry</code> (plugin dispatch), <code>workflow</code> (state machine + guards).</p>
+<hr />
+<h2 id="grading-pipeline-one-pass-three-instruments">Grading pipeline (one pass, three instruments)<a class="headerlink" href="#grading-pipeline-one-pass-three-instruments" title="Permanent link">&para;</a></h2>
+<p>Each cell runs <strong>Stage 0 build → change chain 1..K</strong>, with acceptance hidden during
+every build and injected only at grading:</p>
+<table>
+<thead>
+<tr>
+<th>Instrument</th>
+<th>Measures</th>
+<th>Answers</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Stage-0 <strong>CORE</strong> vs <strong>EDGE</strong> pass</td>
+<td>contract inference</td>
+<td>ambiguity-inference (under <code>clear</code>, EDGE≈100% for all arms — the baseline that makes EDGE-under-<code>vague</code> interpretable)</td>
+</tr>
+<tr>
+<td>Withheld <strong>change chain</strong>: dispatch cost + turns, <strong>blast radius</strong> (files/functions touched, public-API churn, whether the prior suite caught the regression before the fix)</td>
+<td>changeability</td>
+<td>changeability / refactoring-vs-ordering</td>
+</tr>
+<tr>
+<td><strong>radon</strong> <code>cc</code>/<code>mi</code> over production modules at every stage</td>
+<td>structural trajectory</td>
+<td>changeability (does complexity grow faster as changes pile up?)</td>
+</tr>
+<tr>
+<td><strong>Multi-rater</strong> review: <code>structure</code>,<code>complexity</code>,<code>naming</code>,<code>performance</code> on prod + <code>test-review</code> on tests, <strong>K=3 passes averaged (mean ± stddev)</strong></td>
+<td>code/test quality</td>
+<td>shared "final review" (beats reviewer variance)</td>
+</tr>
+<tr>
+<td><strong>Interpretation variance</strong> across trials (distinct EDGE behaviors observed)</td>
+<td>convergence</td>
+<td>ambiguity-inference secondary (does <code>tdd-refactor</code> converge more?)</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="fixed-procedure-follow-exactly">Fixed procedure (follow exactly)<a class="headerlink" href="#fixed-procedure-follow-exactly" title="Permanent link">&para;</a></h2>
+<h3 id="0-preconditions">0. Preconditions<a class="headerlink" href="#0-preconditions" title="Permanent link">&para;</a></h3>
+<p><code>pip install coverage pytest radon</code>. The four instruction arms (<code>tdd-refactor</code>,
+<code>tdd-no-refactor</code>, <code>test-after</code>, <code>bduf</code>) need no plugin. The <code>ship</code> arm requires a
+<strong>plugin-enabled <code>$HOME</code> template</strong> — build it once with <code>cp -r ~/.claude/plugins
+$TPL/.claude/</code> and pass <code>--build-home-template $TPL</code> to the harness (same pattern
+as the <code>build-pipeline</code> arm in the prior 3-arm study; cost reads from the JSON
+result, not the plugin meter). Confirm the model id and that nested <code>claude -p</code>
+works (<code>IS_SANDBOX=1</code> is set by the harness).</p>
+<h3 id="1-model">1. Model<a class="headerlink" href="#1-model" title="Permanent link">&para;</a></h3>
+<p>One fixed, capable model for the whole run, reported. The cost/quality winner flips
+with model — hold it constant.</p>
+<h3 id="2-arms-add-to-arm_prompts-keep-pytest_rule">2. Arms (add to <code>ARM_PROMPTS</code>; keep <code>PYTEST_RULE</code>)<a class="headerlink" href="#2-arms-add-to-arm_prompts-keep-pytest_rule" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong>tdd-refactor:</strong> strict TDD; after EACH test passes, REFACTOR toward the
+  cleanest module boundaries/naming/duplication, re-run tests (stay green), <em>then</em>
+  write the next test. Do not defer refactoring.</li>
+<li><strong>tdd-no-refactor:</strong> test-first, but write only the MINIMUM to pass each test and
+  DO NOT restructure — straight to the next test.</li>
+<li><strong>test-after:</strong> all production code first, tests last.</li>
+<li><strong>test-after-refactor:</strong> all production code first (same as <code>test-after</code>), <em>then</em>
+  write tests against the working implementation — capturing the actual contract
+  including edge behaviours the implementation surfaced — <em>then</em> refactor with the
+  test safety net in place. <strong>Do not write tests before seeing a working
+  implementation; do not refactor before tests are green.</strong> This arm tests the
+  hypothesis that deferred test commitment and a test-protected refactor combine
+  additively: <code>test-after</code>'s EDGE advantage (tests capture what the code actually
+  does, not what a red-phase guess assumed) plus <code>tdd-refactor</code>'s changeability
+  advantage (structural refactoring under test coverage), at lower cost than
+  <code>tdd-refactor</code> (no iterative red-green cycles during initial build).</li>
+<li><strong>bduf:</strong> first write a short <code>DESIGN.md</code> (modules + public interfaces), then
+  implement the spec to that design, then write the tests. Note: <code>bduf</code> commits to
+  an <em>architecture</em> upfront; it does not author acceptance criteria. This isolates
+  the "design commitment" mechanism from the "acceptance synthesis" mechanism tested
+  by <code>ship</code>.</li>
+<li><strong>ship</strong> <em>(vague only; plugin arm):</em> invoke the <code>/specs</code>→<code>/plan</code>→<code>/build</code> pipeline
+  headlessly (self-approve at each human gate so it does not stall). <code>/specs</code> authors
+  explicit acceptance criteria from the vague spec before any code is written;
+  <code>/plan</code> decomposes the feature into Gherkin-backed slices; <code>/build</code> executes
+  RED-GREEN-REFACTOR with three-stage inline review checkpoints. The key difference
+  from all instruction arms: the agent must <em>synthesise</em> the acceptance contract
+  (including the edge-case decisions the vague spec omitted) as an explicit artifact
+  before implementation begins.</li>
+</ul>
+<p>The spec the arm reads is <code>spec_clear.md</code> or <code>spec_vague.md</code> per the cell.</p>
+<h3 id="3-author-the-open-design-tasks-the-craft-step-do-this-first">3. Author the open-design tasks (the craft step — do this first)<a class="headerlink" href="#3-author-the-open-design-tasks-the-craft-step-do-this-first" title="Permanent link">&para;</a></h3>
+<p>Per "Shared substrate". Calibrate <strong>two</strong> things by piloting one task:</p>
+<ul>
+<li><strong>Trap:</strong> naive ref passes Stage 0 but is rewritten by the trap change; clean ref
+  absorbs it. If both absorb equally → no design signal, re-author.</li>
+<li><strong>Vagueness:</strong> under <code>vague</code>, <code>acc_core</code> is ~always passable and <code>acc_edge</code> is
+  <em>sometimes</em> missed. If EDGE is always passed, the vague spec leaked the answer; if
+  never, it's unbuildable.</li>
+</ul>
+<h3 id="4-extend-the-harness">4. Extend the harness<a class="headerlink" href="#4-extend-the-harness" title="Permanent link">&para;</a></h3>
+<p>Extend <code>run_tdd_experiment.py</code> (or a sibling) to, per cell:</p>
+<ol>
+<li>Select <code>spec_clear.md</code>/<code>spec_vague.md</code>.</li>
+<li>Stage 0 build → grade <code>acc_core.py</code> and <code>acc_edge.py</code> <strong>separately</strong>.</li>
+<li>Change-chain stages 1..K, each seeded from the previous stage's <em>files</em> (fresh
+   dispatch, files only), prompt "apply {changeN}; keep existing tests green",
+   graded by <code>acc_changeN.py</code>.</li>
+<li>Per stage record: correctness; changeability (cost/turns + blast radius from
+   <code>git diff</code> between stages + public-API churn + prior-suite regression catch);
+   radon <code>cc</code>/<code>mi</code>; and the <strong>K=3 averaged</strong> review-panel score (mean ± stddev).
+Keep acceptance hidden during each build.</li>
+</ol>
+<h3 id="5-execute-sharded-instruction-arms-are-cheap">5. Execute (sharded — instruction arms are cheap)<a class="headerlink" href="#5-execute-sharded-instruction-arms-are-cheap" title="Permanent link">&para;</a></h3>
+<p><code>N = 3–5</code> trials per cell. Shard by task; cells are isolated, so run many runners
+concurrently. Bound every test/coverage/mutant run with a wall-clock timeout
+(already landed). Monitor non-destructively (row counts / <code>pgrep</code>); never kill the
+session's own <code>claude</code>.</p>
+<h3 id="6-analyze-per-task-then-paired-across-tasks">6. Analyze (per task, then paired across tasks)<a class="headerlink" href="#6-analyze-per-task-then-paired-across-tasks" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong>ambiguity-inference primary — EDGE pass:</strong> <code>tdd-refactor − test-after</code> under <code>vague</code>, paired
+  across tasks (sign + Wilcoxon); read the <code>workflow × clarity</code> interaction against
+  the <code>clear</code> anchors.</li>
+<li><strong>changeability primary — changeability:</strong> cumulative cost + cumulative blast radius to
+  absorb the whole chain, per task per arm; paired arm differences. <strong>refactoring-vs-ordering:</strong> the
+  <code>tdd-no-refactor</code> vs <code>test-after</code> vs <code>tdd-refactor</code> isolation.</li>
+<li><strong>clarity-interaction — the headline:</strong> quantify whether each arm's EDGE <em>and</em> changeability
+  advantage is <strong>largest in <code>vague + open-design</code></strong>.</li>
+<li><strong>spec-synthesis — spec synthesis:</strong> <code>ship − tdd-refactor</code> on EDGE pass rate and cumulative
+  changeability under <code>vague</code>, paired across tasks. Also compare <code>ship</code> to <code>bduf</code> on
+  EDGE pass rate — this isolates acceptance-criteria synthesis from architecture
+  commitment as mechanisms for resolving ambiguity. Report <code>ship</code>'s cost premium over
+  the cheapest vague arm to frame the "does spec synthesis pay?" trade-off.</li>
+<li><strong>test-after-refactor — test-after-refactor dominance:</strong> Three-way test against dominance hypothesis. (a) EDGE
+  under <code>vague</code>: <code>test-after-refactor</code> ≥ <code>test-after</code>? If yes, deferred tests
+  survive a refactor phase without losing their EDGE advantage. If no, the refactor
+  changes what the code does, so tests written before refactoring no longer match
+  the final contract. (b) Blast radius: <code>test-after-refactor</code> ≈ <code>tdd-refactor</code>?
+  If yes, test-protected refactoring produces equivalent structural benefit
+  regardless of when the tests were written. If no, the iterative TDD cycle
+  produces a design that a post-implementation refactor cannot replicate. (c) Cost:
+  <code>test-after-refactor</code> &lt; <code>tdd-refactor</code>? This should hold by construction (no
+  red-green iteration during build). All three must confirm to declare dominance hypothesis supported.
+  A partial confirm is informative: it identifies which component of <code>tdd-refactor</code>'s
+  advantage (EDGE, changeability, or both) requires early test commitment.</li>
+<li><strong>Secondaries:</strong> radon trajectory; multi-rater code/test/design score (mean ±
+  stddev — treat differences smaller than the stddev as noise); interpretation
+  variance; regression-catch rate.</li>
+</ul>
+<h3 id="7-report">7. Report<a class="headerlink" href="#7-report" title="Permanent link">&para;</a></h3>
+<p>Write <code>docs/experiments/02-final-results.md</code>: the clarity × workflow grid, the
+ambiguity-inference / changeability / clarity-interaction verdicts and the refactoring-vs-ordering mechanism isolation, the spec-synthesis
+<code>ship</code>-vs-<code>tdd-refactor</code> spec-synthesis verdict, the test-after-refactor <code>test-after-refactor</code>
+dominance verdict (all three conditions: EDGE ≥ <code>test-after</code>, blast radius ≈
+<code>tdd-refactor</code>, cost &lt; <code>tdd-refactor</code>), honest limitations (n, single model,
+autonomous-only, reviewer variance, trap+vagueness calibration), reproducibility
+commands, and a recommendation. Commit the report <strong>and</strong> raw data under
+<code>docs/experiments/agentic-workflow-evidence/data/</code>.</p>
+<hr />
+<h2 id="best-path-forward-based-on-first-run-evidence-pending-test-after-refactor-confirmation">Best path forward (based on first-run evidence, pending test-after-refactor confirmation)<a class="headerlink" href="#best-path-forward-based-on-first-run-evidence-pending-test-after-refactor-confirmation" title="Permanent link">&para;</a></h2>
+<p>The first run and the predicted outcome of the second run point to the same
+practical workflow hierarchy. Apply this pending test-after-refactor confirmation:</p>
+<p><strong>If requirements are clear and the design is settled:</strong>
+<code>test-after</code> — cheapest arm ($0.19/stage), EDGE comparable to all arms under clear
+spec (design is low-risk), blast radius acceptable (700). There is no need for
+the refactor step when the design space is constrained.</p>
+<p><strong>If requirements are vague or the design is open:</strong>
+<code>test-after-refactor</code> (predicted) — write all production code first so you see the
+full shape of the problem before committing to a test contract, then write tests
+against the working implementation to lock in the actual contract including emergent
+edge behaviours, then refactor with the test safety net. Expected outcome: EDGE
+≈67% (matching <code>test-after</code>), blast radius ≈664 (matching <code>tdd-refactor</code>), cost
+≈$0.25–0.30/stage (between <code>test-after</code> and <code>tdd-refactor</code>).</p>
+<p><strong>If requirements are irreducibly vague (spec-gap, not ambiguity):</strong>
+Stop before any code. The notifier finding from the first run is definitive: when a
+vague spec omits semantics that cannot be inferred from context (e.g. per-channel
+retry behaviour), no coding workflow recovers the missing information. EDGE=0% for
+every arm regardless of workflow. The correct response is a clarifying conversation
+before any implementation starts. The workflow choice is irrelevant until the spec
+is complete enough to make edge decisions discoverable.</p>
+<p><strong>Decision table (predicted, pending test-after-refactor):</strong></p>
+<table>
+<thead>
+<tr>
+<th>Condition</th>
+<th>Recommended arm</th>
+<th>Why</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Clear spec, settled design</td>
+<td><code>test-after</code></td>
+<td>Cheapest; EDGE gap closes under clear spec</td>
+</tr>
+<tr>
+<td>Vague spec OR open design</td>
+<td><code>test-after-refactor</code></td>
+<td>Combines deferred commitment (EDGE) + test-safe refactor (changeability) at moderate cost</td>
+</tr>
+<tr>
+<td>Need explicit acceptance artefact</td>
+<td><code>ship</code></td>
+<td><code>/specs</code> phase forces upfront contract synthesis; test if it resolves vagueness better than failing tests</td>
+</tr>
+<tr>
+<td>Spec has irreducible gaps</td>
+<td>Clarify first</td>
+<td>No workflow recovers unstated semantics</td>
+</tr>
+</tbody>
+</table>
+<p><strong>What would falsify this:</strong> test-after-refactor's null result. If <code>test-after-refactor</code> blast
+radius is significantly worse than <code>tdd-refactor</code> (≥10% higher on average), then
+the iterative TDD cycle shapes the design in ways a post-facto refactor cannot
+replicate, and <code>tdd-refactor</code> remains the correct choice for open-design tasks
+despite its higher cost. If <code>test-after-refactor</code> EDGE falls below <code>test-after</code>
+(i.e. the refactor phase changes the implementation enough that post-refactor tests
+diverge from pre-refactor ones), then the arm provides no EDGE advantage over
+plain <code>test-after</code> and is simply <code>tdd-refactor</code> written in a different order.</p>
+<hr />
+<h2 id="guardrails-lessons-already-paid-for-do-not-relearn">Guardrails (lessons already paid for — do not relearn)<a class="headerlink" href="#guardrails-lessons-already-paid-for-do-not-relearn" title="Permanent link">&para;</a></h2>
+<ol>
+<li><strong>Hide acceptance during every build</strong> (Stage 0 and each chain stage), or all
+   arms just make the given tests pass and both signals die.</li>
+<li><strong>Verify the refactor arm actually refactors.</strong> <code>tdd-refactor</code> must show
+   non-trivial structural churn <em>between</em> green and stage-end (diff intermediate vs
+   final). If it doesn't, you're re-running the prior null — the whole point is that
+   the earlier test-first arm stopped at GREEN.</li>
+<li><strong>Calibrate the trap AND the vagueness</strong> (per step 3): naive-punished/clean-absorbs,
+   and core-always/edge-sometimes. An un-calibrated task answers nothing.</li>
+<li><strong>Beat reviewer variance.</strong> Average <strong>K ≥ 3</strong> review passes and report stddev;
+   lean on the <strong>deterministic radon metrics</strong> and <strong>objective blast-radius/EDGE</strong>
+   numbers as primary evidence, not the LLM review score (the prior run saw a naming
+   agent score 0/19/4 on near-identical code).</li>
+<li><strong>Cost/turns come from the JSON result</strong>, not the plugin meter (it doesn't fire
+   in nested dispatch). The harness reads <code>--output-format json</code>.</li>
+<li><strong>Hold the model fixed and report it.</strong></li>
+<li><strong>Pre-register</strong> N, both primaries (EDGE under vague; cumulative changeability),
+   the clarity-interaction interaction, and the spec-synthesis <code>ship</code>-vs-<code>tdd-refactor</code> comparison before
+   running; the task is the unit of inference; no data-dependent stopping.</li>
+<li><strong>Parallelize but isolate</strong> — each cell gets its own worktree + <code>$HOME</code>. The
+   <code>ship</code> arm additionally needs its own plugin-enabled <code>$HOME</code> template (see step
+   0); do not share <code>$HOME</code> between <code>ship</code> cells and instruction cells.</li>
+</ol>
+<h2 id="out-of-scope-by-decision">Out of scope (by decision)<a class="headerlink" href="#out-of-scope-by-decision" title="Permanent link">&para;</a></h2>
+<ul>
+<li><strong>Human / designer-in-the-loop</strong> and the <strong>clarification-oracle</strong> arm. Every arm
+  runs fully autonomously; the experiment measures what the workflow alone produces.</li>
+</ul>
+<h2 id="expected-deliverables">Expected deliverables<a class="headerlink" href="#expected-deliverables" title="Permanent link">&para;</a></h2>
+<ul>
+<li><code>evals/experiments/exp-tdd-pays-&lt;task&gt;.json</code> + open-design fixtures (stub,
+  <code>spec_clear.md</code>, <code>spec_vague.md</code>, hidden <code>acc_core.py</code>/<code>acc_edge.py</code>,
+  <code>change1..K.md</code>, <code>acc_change1..K.py</code>), each <strong>validated against a naive and a
+  clean reference</strong>.</li>
+<li>The harness extension (clarity selection + CORE/EDGE grading + change-chain stages</li>
+<li>blast-radius/radon/multi-rater instrumentation + <code>ship</code> plugin-home support).</li>
+<li>Raw data JSONL under <code>docs/experiments/agentic-workflow-evidence/data/</code>.</li>
+<li>One report with the clarity × workflow grid and the ambiguity-inference / changeability / refactoring-vs-ordering / clarity-interaction /
+  spec-synthesis / test-after-refactor verdicts and recommendation.</li>
+</ul>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden>
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8z"/></svg>
+  Back to top
+</button>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "../../../..", "features": ["navigation.tabs", "navigation.tabs.sticky", "navigation.sections", "navigation.expand", "navigation.top", "search.highlight", "search.share", "content.action.edit", "content.code.copy"], "search": "../../../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../../../../assets/javascripts/bundle.d7400e89.min.js"></script>
+      
+    
+  </body>
+</html>
