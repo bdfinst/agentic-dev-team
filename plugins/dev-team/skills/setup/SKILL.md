@@ -72,6 +72,13 @@ repo in a surprising way; take the skip default and print a one-line note:
   that skill); it writes to the repo, so it stays opt-in even under `--yes`.
 - **Unrecognized / ambiguous stack** — `--yes` never guesses a toolchain. Do
   the language-neutral steps and report what could not be set up.
+- **Concise-response preference** (Step 8a) — `--yes` never guesses a
+  communication-style preference. Skip the prompt and the `CLAUDE.md`
+  append entirely; note `concise-preference-skipped-under-yes`. This is
+  the outcome only when Step 8a's own pre-check found the block absent —
+  when the block is already present, the pre-check reports
+  `concise-preference-already-covered` before `--yes` is ever consulted,
+  regardless of whether `--yes` was passed.
 
 **Precedence.** If both `--yes` and `--dry-run` are passed, `--dry-run` wins:
 report only, write and install nothing, and add "`--yes` ignored under
@@ -766,7 +773,104 @@ If `.claude/CLAUDE.md` does not already exist in the target project, generate on
 If `.claude/CLAUDE.md` already exists, ask whether to merge or skip. **Under
 `--yes`, take the skip branch** — never overwrite existing project config
 (orchestrator constraint 3) — and note `CLAUDE.md exists — left unchanged` in
-the Step 12 report.
+the Step 12 report. This note describes only Step 8's own generate-or-skip
+decision — Step 8a runs independently right after and may still append to
+this same file, so "left unchanged" here and a `concise-preference-added`
+outcome from Step 8a are not a contradiction in the Step 12 report.
+
+### 8a. Ask about concise-response preference
+
+**Check first, before prompting anyone.** If the marker is already present
+in `.claude/CLAUDE.md`, the preference is already in place — do not ask
+the operator at all, under any flag combination:
+
+```bash
+MARKER="<!-- dev-team: concise-response preference v1 -->"
+grep -qF "$MARKER" .claude/CLAUDE.md 2>/dev/null && echo "concise-preference-already-covered" || echo "concise-preference-not-yet-covered"
+```
+
+If this reports `concise-preference-already-covered`, record that outcome
+for the Step 12 report and skip the rest of this step entirely — no
+prompt, no `--yes`/`--dry-run` branching, nothing else to do. Only when it
+reports `concise-preference-not-yet-covered` does the rest of this step
+run.
+
+Ask the operator: "Would you like Claude to give concise responses by default in this repo? This appends a block to the project's committed `.claude/CLAUDE.md`, so it becomes a shared convention for every contributor, not just you." **Under `--yes`, skip this prompt entirely** — never
+guess a communication-style preference — and note
+`concise-preference-skipped-under-yes` (run /setup without --yes to choose)
+in the Step 12 report. **Under `--dry-run`, report what would be appended
+without writing** (same convention as Step 11's two idempotent blocks).
+
+If the operator declines, note `concise-preference-declined` and move on —
+do not write anything.
+
+If the operator confirms, idempotently append the block below to the
+project's `CLAUDE.md` (the same file Step 8 generated or left in place —
+`.claude/CLAUDE.md`; this step creates `.claude/` and the file itself if
+Step 8 somehow left them absent). The marker is a dedicated, content-free
+comment — not a substring of the prose — so a future wording tweak to the
+block below can never desync it from the idempotency check (the hazard
+Step 11's own `.mcp.json` marker note, below, already calls out for its own
+pair of blocks). Both `.claude` and `.claude/CLAUDE.md` are checked for
+symlinks before any write, since a symlinked parent directory is an
+equally valid escape route as a symlinked file:
+
+```bash
+MARKER="<!-- dev-team: concise-response preference v1 -->"
+if [ -L .claude ] || [ -L .claude/CLAUDE.md ]; then
+  echo "concise-preference-skipped-symlink"
+else
+  mkdir -p .claude
+  touch .claude/CLAUDE.md
+  if ! grep -qF "$MARKER" .claude/CLAUDE.md; then
+    { printf '\n%s\n' "$MARKER"; cat <<'CONCISE_BLOCK'
+## General
+Unless asked to behave otherwise, always give concise responses and sacrifice grammar for the sake of concision. Ask clarifying questions when needed and offer your best guess at available interpretations/answers for those questions when possible.
+
+### Be RUTHLESSLY concise — this is the rule I break most often
+Default to a few sentences. If the answer is "yes", say "yes" and stop.
+
+- **Answer the question asked. Nothing else.** No adjacent findings, no "while I was looking I noticed", no caveats I didn't ask for. Sit on it until I ask.
+- **One thing at a time.** Never hand me a numbered list of 3+ considerations, options, or trade-offs unless I asked for options. Pick one, recommend it, move on.
+- **No teaching.** Skip the mechanism, the background, the "why this matters". State the conclusion. I'll ask why if I care.
+- **No tables, no headers, no bold-label paragraphs** for a simple answer. Prose or a couple of lines.
+- **Cut every parenthetical, every "worth noting", every "the real finding is".**
+- Corrections: one sentence, no post-mortem.
+
+Length is the tell: if a reply is over ~10 lines and I didn't ask for depth, it's wrong. Detail I have to skim to find the answer is worse than no answer.
+CONCISE_BLOCK
+    } >> .claude/CLAUDE.md && echo "concise-preference-added" || echo "concise-preference-write-failed"
+  else
+    echo "concise-preference-already-covered"
+  fi
+fi
+```
+
+This always appends a fresh, self-contained `## General` heading rather
+than trying to detect and merge into a pre-existing one — a prior version
+of this step attempted that merge and introduced two bugs of its own (an
+orphaned sub-heading when the file's last `##` section wasn't `General`,
+and a `^## General$` anchor that silently missed CRLF line endings on
+Windows). A file ending up with two `## General` headings is a cosmetic,
+rare edge case; a script that silently corrupts document structure on a
+supported platform is not an acceptable trade for avoiding it.
+
+Record the outcome — `concise-preference-declined` /
+`concise-preference-added` / `concise-preference-already-covered` /
+`concise-preference-skipped-under-yes` / `concise-preference-skipped-symlink`
+/ `concise-preference-write-failed` — for the Step 12 report, using these
+exact tokens. `already-covered` has two possible sources — usually the
+pre-check above (the normal path, before any prompt), or, on the rare
+race where the file changes between the pre-check and confirmation, the
+append script's own internal re-check — either way the token is the
+same. The other three the append script can reach (`added` /
+`skipped-symlink` / `write-failed`) are echoed verbatim from its own
+output — `write-failed` covers a `mkdir`/`touch`/append that fails (e.g.
+`.claude` exists as a non-directory, or the tree is read-only), so a
+failed write is never misreported as `added`; the remaining two
+(`declined` / `skipped-under-yes`) are recorded directly from the prose
+branches below the pre-check,
+since the script never runs on those paths.
 
 ### 9. Generate PostToolUse formatting hook
 
@@ -957,7 +1061,7 @@ Repowise's own install/decline state for that run.
 
 ### Created
 - `.claude/project-stack.json` — stack detection results
-- `.claude/CLAUDE.md` — project conventions
+- `.claude/CLAUDE.md` — project conventions   [Step 8a concise-response preference, independent of this line's created/left-unchanged status: concise-preference-added | concise-preference-already-covered | concise-preference-declined | concise-preference-skipped-under-yes | concise-preference-skipped-symlink | concise-preference-write-failed]
 - `.claude/settings.json` — PostToolUse formatting hook (prettier + eslint)
 - `.gitignore` — dev-team runtime artifacts (.claude/memory/, .claude/metrics/, .claude/plans/, .dev-team-reports/, memory/, reports/, metrics/, plans/, .pr-review-passed)   [downstream only; omit if already covered] plus `.mcp.json` machine-specific-path hygiene (#1376, #1416)   [runs in-repo too, via project-init's Repowise standing check; omit if already covered]
 - Activated templates: ts-enforcer, esm-enforcer, react-testing
