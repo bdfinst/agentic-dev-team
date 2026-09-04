@@ -21,6 +21,7 @@ SCRIPT_ECHOED_TOKENS = (
     "concise-preference-added",
     "concise-preference-already-covered",
     "concise-preference-skipped-symlink",
+    "concise-preference-write-failed",
 )
 # Tokens recorded directly from prose branches, before the script ever runs.
 PROSE_ONLY_TOKENS = (
@@ -81,6 +82,15 @@ def test_step_8a_script_echoes_its_own_outcome_tokens():
     script = _step_8a_script()
     for token in SCRIPT_ECHOED_TOKENS:
         assert token in script, f"{token!r} should be echoed by the bash script"
+
+
+def test_step_8a_append_outcome_is_gated_on_write_success():
+    # A prior version echoed "added" unconditionally after the redirect,
+    # so a failed mkdir/touch/append (e.g. .claude exists as a regular
+    # file, or the tree is read-only) was silently misreported as success.
+    script = _step_8a_script()
+    assert ">> .claude/CLAUDE.md && echo" in script
+    assert "|| echo \"concise-preference-write-failed\"" in script
 
 
 def test_step_8a_outcome_tokens_all_reach_the_report_instruction():

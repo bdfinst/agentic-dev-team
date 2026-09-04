@@ -820,8 +820,7 @@ Default to a few sentences. If the answer is "yes", say "yes" and stop.
 
 Length is the tell: if a reply is over ~10 lines and I didn't ask for depth, it's wrong. Detail I have to skim to find the answer is worse than no answer.
 CONCISE_BLOCK
-    } >> .claude/CLAUDE.md
-    echo "concise-preference-added"
+    } >> .claude/CLAUDE.md && echo "concise-preference-added" || echo "concise-preference-write-failed"
   else
     echo "concise-preference-already-covered"
   fi
@@ -840,9 +839,12 @@ supported platform is not an acceptable trade for avoiding it.
 Record the outcome — `concise-preference-declined` /
 `concise-preference-added` / `concise-preference-already-covered` /
 `concise-preference-skipped-under-yes` / `concise-preference-skipped-symlink`
-— for the Step 12 report, using these exact tokens. The three the script
-can reach (`added` / `already-covered` / `skipped-symlink`) are echoed
-verbatim from its own output; the other two (`declined` /
+/ `concise-preference-write-failed` — for the Step 12 report, using these
+exact tokens. The four the script can reach (`added` / `already-covered` /
+`skipped-symlink` / `write-failed`) are echoed verbatim from its own
+output — `write-failed` covers a `mkdir`/`touch`/append that fails (e.g.
+`.claude` exists as a non-directory, or the tree is read-only), so a
+failed write is never misreported as `added`; the other two (`declined` /
 `skipped-under-yes`) are recorded directly from the prose branches above,
 since the script never runs on those paths.
 
@@ -1035,7 +1037,7 @@ Repowise's own install/decline state for that run.
 
 ### Created
 - `.claude/project-stack.json` — stack detection results
-- `.claude/CLAUDE.md` — project conventions   [Step 8a concise-response preference, independent of this line's created/left-unchanged status: concise-preference-added | concise-preference-already-covered | concise-preference-declined | concise-preference-skipped-under-yes | concise-preference-skipped-symlink]
+- `.claude/CLAUDE.md` — project conventions   [Step 8a concise-response preference, independent of this line's created/left-unchanged status: concise-preference-added | concise-preference-already-covered | concise-preference-declined | concise-preference-skipped-under-yes | concise-preference-skipped-symlink | concise-preference-write-failed]
 - `.claude/settings.json` — PostToolUse formatting hook (prettier + eslint)
 - `.gitignore` — dev-team runtime artifacts (.claude/memory/, .claude/metrics/, .claude/plans/, .dev-team-reports/, memory/, reports/, metrics/, plans/, .pr-review-passed)   [downstream only; omit if already covered] plus `.mcp.json` machine-specific-path hygiene (#1376, #1416)   [runs in-repo too, via project-init's Repowise standing check; omit if already covered]
 - Activated templates: ts-enforcer, esm-enforcer, react-testing
