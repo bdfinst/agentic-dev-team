@@ -297,7 +297,15 @@ def track_edit(block: dict, edits_per_file: Counter, thread: dict) -> None:
         thread["edited_since_verify"] = True
 
 
-def track_bash(block: dict, bash_signal_counts: Counter, thread: dict) -> None:
+def track_bash(
+    block: dict,
+    bash_signal_counts: Counter,
+    thread: dict,
+    *,
+    active: dict | None = None,
+    retried_by_skill: Counter | None = None,
+    retried_by_agent: Counter | None = None,
+) -> None:
     """Bash-retry / commit-bypass / stuck-verify-loop concern (#111, #708):
     normalize the command for near-identical retry detection, detect a
     stuck-verify-loop repeat (the same normalized verify command run again
@@ -308,7 +316,16 @@ def track_bash(block: dict, bash_signal_counts: Counter, thread: dict) -> None:
     per-transcript-file dict). Retries and repeated verify runs are only
     meaningful within a thread: a review panel's sibling agents share their
     parent's sessionId, so a session-keyed tally would score fifteen agents
-    each running `git diff --cached` once as fourteen retries."""
+    each running `git diff --cached` once as fourteen retries.
+
+    `active`/`retried_by_skill`/`retried_by_agent` (#2110) attribute each
+    retry, at the moment it's detected, to whichever skill/agent is the
+    thread's current sticky pointer (`active["skill"]`/`active["agent"]`,
+    the same pointer `accumulate_skill_agent_signals` maintains and the
+    correction-turn signal already attributes against) — "unattributed"
+    when neither is set. All three are optional and default to no
+    attribution, so a caller with no `active` pointer to offer (there is
+    none today) gets the prior behavior unchanged."""
     name = block.get("name", "?")
     inp = block.get("input", {}) if isinstance(block.get("input"), dict) else {}
     if name != "Bash" or not isinstance(inp.get("command"), str):
@@ -316,6 +333,14 @@ def track_bash(block: dict, bash_signal_counts: Counter, thread: dict) -> None:
     cmd = inp["command"].strip()
     # near-identical retry detection: normalize whitespace
     norm = re.sub(r"\s+", " ", cmd)
+    if active is not None and thread["bash_commands"][norm] >= 1:
+        # This exact normalized command already ran once in this thread —
+        # this call is a retry, attributed to whichever skill/agent is
+        # active right now.
+        if retried_by_skill is not None:
+            retried_by_skill[active.get("skill") or "unattributed"] += 1
+        if retried_by_agent is not None:
+            retried_by_agent[active.get("agent") or "unattributed"] += 1
     thread["bash_commands"][norm] += 1
     if classify.VERIFY_RE.search(cmd):
         if thread["last_verify_norm"] == norm and not thread["edited_since_verify"]:

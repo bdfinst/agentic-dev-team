@@ -91,18 +91,25 @@ def _accumulate_skill_agent_signals_downstream(content, skills_invoked, agent_di
 def _shape_rework(
     failed_edits: int,
     repeated_file_edits: dict,
-    retried_bash_commands: int,
+    retried_bash_by_skill: Counter,
+    retried_bash_by_agent: Counter,
     repeated_verify_runs: int,
     permission_denials: int,
     compaction_events: int,
 ) -> dict:
     """The `rework` sub-object's shape -- identical between
     `extract_downstream()`'s per-transcript accumulation and `combine()`'s
-    cross-project merge, previously duplicated verbatim in both."""
+    cross-project merge, previously duplicated verbatim in both.
+
+    `retried_bash_commands` (#2110) is derived from `retried_bash_by_skill`
+    rather than passed separately -- a single source of truth, matching
+    #2108's own lesson about a scalar and its breakdown drifting apart."""
     return {
         "failed_edits": failed_edits,
         "repeated_file_edits": dict(sorted(repeated_file_edits.items())),
-        "retried_bash_commands": retried_bash_commands,
+        "retried_bash_commands": sum(retried_bash_by_skill.values()),
+        "retried_bash_commands_by_skill": dict(sorted(retried_bash_by_skill.items())),
+        "retried_bash_commands_by_agent": dict(sorted(retried_bash_by_agent.items())),
         "repeated_verify_runs": repeated_verify_runs,
         "permission_denials": permission_denials,
         "compaction_events": compaction_events,
@@ -204,7 +211,8 @@ def extract_downstream(
     correction_by_skill = Counter()
     correction_by_agent = Counter()
     correction_causes = _new_correction_causes_state()
-    retried_bash = 0
+    retried_bash_by_skill = Counter()
+    retried_bash_by_agent = Counter()
 
     skills_invoked = Counter()
     agent_dispatches = Counter()
@@ -281,7 +289,14 @@ def extract_downstream(
                     if btype == "tool_use":
                         _track_tool_call(block, pending_tool, tool_calls)
                         _track_edit(block, edits_per_file, thread)
-                        _track_bash(block, bash_signal_counts, thread)
+                        _track_bash(
+                            block,
+                            bash_signal_counts,
+                            thread,
+                            active=active,
+                            retried_by_skill=retried_bash_by_skill,
+                            retried_by_agent=retried_bash_by_agent,
+                        )
                     elif btype == "tool_result":
                         _classify_tool_result(block, pending_tool, tool_errors, error_counts)
 
@@ -306,7 +321,6 @@ def extract_downstream(
             agent_runs[label] += 1
         elif records_in_window:
             main_transcripts += 1
-        retried_bash += sum(n - 1 for n in thread["bash_commands"].values() if n > 1)
 
     repeated_file_edits = {f: n for f, n in edits_per_file.items() if n > 1}
     agents_invoked = agent_runs if subagent_layout_present else agent_dispatches
@@ -331,7 +345,8 @@ def extract_downstream(
         "rework": _shape_rework(
             error_counts["failed_edits"],
             repeated_file_edits,
-            retried_bash,
+            retried_bash_by_skill,
+            retried_bash_by_agent,
             bash_signal_counts["repeated_verify_runs"],
             error_counts["permission_denials"],
             compaction_events,
@@ -385,6 +400,8 @@ def combine(digests: dict[str, dict], registry: dict) -> dict:
     skills_invoked = Counter()
     agents_invoked = Counter()
     agent_dispatches = Counter()
+    retried_bash_by_skill = Counter()
+    retried_bash_by_agent = Counter()
 
     for d in digests.values():
         sessions += d["sessions"]
@@ -399,7 +416,8 @@ def combine(digests: dict[str, dict], registry: dict) -> dict:
         rework["failed_edits"] += rw["failed_edits"]
         for f, n in rw["repeated_file_edits"].items():
             repeated_file_edits[f] += n
-        rework["retried_bash_commands"] += rw["retried_bash_commands"]
+        _merge_counters(retried_bash_by_skill, rw.get("retried_bash_commands_by_skill", {}))
+        _merge_counters(retried_bash_by_agent, rw.get("retried_bash_commands_by_agent", {}))
         rework["repeated_verify_runs"] += rw["repeated_verify_runs"]
         rework["permission_denials"] += rw["permission_denials"]
         rework["compaction_events"] += rw["compaction_events"]
@@ -438,7 +456,8 @@ def combine(digests: dict[str, dict], registry: dict) -> dict:
         "rework": _shape_rework(
             rework["failed_edits"],
             repeated_file_edits,
-            rework["retried_bash_commands"],
+            retried_bash_by_skill,
+            retried_bash_by_agent,
             rework["repeated_verify_runs"],
             rework["permission_denials"],
             rework["compaction_events"],
