@@ -815,6 +815,36 @@
       "anchor": "scope-of-this-doc"
     }
   },
+  "plugins/dev-team/knowledge/internal-collaborator-doubling.md": {
+    "The rule": {
+      "summary": "In any test at or below the component layer, **a collaborator declared in",
+      "anchor": "the-rule"
+    },
+    "The three blockers (exhaustive)": {
+      "summary": "Each is a property of **the collaborator**, never of the test.",
+      "anchor": "the-three-blockers-exhaustive"
+    },
+    "Non-reasons (normative, so the rule is falsifiable)": {
+      "summary": "None of the following, alone, is a blocker — doubling on their basis alone",
+      "anchor": "non-reasons-normative-so-the-rule-is-falsifiable"
+    },
+    "Patching internal functions": {
+      "summary": "Reaching into a module to replace a function (`unittest.mock.patch`,",
+      "anchor": "patching-internal-functions"
+    },
+    "The waiver": {
+      "summary": "An admitted double carries an inline comment marker at the double site,",
+      "anchor": "the-waiver"
+    },
+    "A declaration never exempts": {
+      "summary": "`solitary` and `sociable` both survive as vocabulary, redefined: a",
+      "anchor": "a-declaration-never-exempts"
+    },
+    "See also": {
+      "summary": "`test-doubles.md`'s \"Common Misuses\" table already flags mocking a",
+      "anchor": "see-also"
+    }
+  },
   "plugins/dev-team/knowledge/legacy-test-strategy.md": {
     "1. Reason about effects": {
       "summary": "Every functional change has a chain of effects that propagates outward — through the methods that call the changed code — until it reaches a place you can observe, or stops because nothing downstream depends on it.",
