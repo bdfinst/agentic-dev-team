@@ -4,7 +4,7 @@ Reference file for the `cd-test-architecture` skill. Per-component-type testing 
 
 Source: MinimumCD Applied Testing Strategies — component patterns (beyond.minimumcd.org/docs/testing/applied-testing-strategies/patterns/). These are recommended starting points, not mandates: drop items that don't apply, add what a component clearly needs.
 
-Core principle for every pattern: **assemble the real component, double only the systems the team doesn't control, drive through the public interface, assert observable outcomes.** Everything below is a specialization of that.
+Core principle for every pattern: **assemble the real component, double only the systems the team doesn't control, drive through the public interface, assert observable outcomes.** — and, at or below the component layer, no *internal* collaborator either, per the full blocker rule in `internal-collaborator-doubling.md`. Everything below is a specialization of that.
 
 ---
 

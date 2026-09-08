@@ -125,7 +125,7 @@ def _iter_other_md_files():
         "Prohibitive real cost",
         "double-waiver: B",
         "It's an injected interface",
-        "stays real",
+        "a collaborator declared in the project's own first-party source stays real",
     ],
 )
 def test_blocker_content_not_duplicated_elsewhere(needle: str) -> None:

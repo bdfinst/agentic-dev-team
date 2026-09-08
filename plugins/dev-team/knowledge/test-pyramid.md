@@ -12,13 +12,13 @@ Core principle: **push each check to the lowest layer that can meaningfully veri
 
 | Layer | Scope | Speed | Doubles | What it proves |
 |-------|-------|-------|---------|----------------|
-| **Unit** | One unit (class/function/module) in isolation | ms | Stub/Fake collaborators | Logic, branches, edge cases of that unit |
+| **Unit** | One unit (class/function/module) in isolation | ms | Real collaborators by default; doubles only per a named blocker | Logic, branches, edge cases of that unit |
 | **Integration** | The unit + one real external it talks to (DB, queue, HTTP client, filesystem) | 10s–100s ms | Real adapter, often a test container | The adapter/serialization/wiring actually works |
 | **Component / Service** | One deployable service in isolation, internals real, *its* externals stubbed | 100s ms–s | Stub the service's own external deps | The service satisfies its own contract end to end, in-process |
 | **Contract** | The agreement between a consumer and a provider | fast | n/a (verifies a pact) | Two services still agree on the interface (see `microservice-testing.md`) |
 | **End-to-End** | The whole system through real entry points (UI/API) | s–min | none (real everything) | Critical user journeys work when wired together |
 
-"Unit" can be **solitary** (all collaborators doubled) or **sociable** (real collaborators used, only true boundaries doubled). Both are legitimate; sociable unit tests catch wiring bugs solitary ones miss, at the cost of broader blast radius on failure. Prefer sociable for cohesive collaborators, solitary across architectural boundaries.
+"Unit" can be **solitary** (all collaborators doubled) or **sociable** (real collaborators used, only true boundaries doubled). **Sociable is the default** — a first-party collaborator stays real; solitary is permitted only where every double names a blocker (B1 out-of-process handle, B2 ambient state, B3 prohibitive real cost). See `internal-collaborator-doubling.md` for the full rule, the blocker table, and the waiver contract.
 
 ---
 
