@@ -4,7 +4,7 @@ Resolves `test-design-advisor`'s abstract layer (`test-pyramid.md`) to the canon
 
 | Layer | Tool | How to assert |
 |-------|------|---------------|
-| Unit | xUnit (or NUnit) + FluentAssertions; Moq / NSubstitute | call the class directly; inject collaborators |
+| Unit | xUnit (or NUnit) + FluentAssertions; Moq / NSubstitute only for a blocker collaborator (`internal-collaborator-doubling.md`) | call the class directly; inject collaborators |
 | Component / Service (API Provider — inbound HTTP) | `WebApplicationFactory<TEntryPoint>` (in-memory `TestServer`) + `HttpClient` | drive the API in-process; replace externals in the test host's DI |
 | Component / Service (API Consumer — outbound HTTP) | Stub `HttpMessageHandler` + `IHttpClientFactory` (`ConfigurePrimaryHttpMessageHandler`) + Polly bound to `FakeTimeProvider` | drive the adapter; assert request shape captured by the stub + the resilience policy under doubled failures (`../references/csharp-http-client-testing.md`) |
 | Integration | Testcontainers-dotnet (real DB/broker) or `EF Core` against a real provider | repository/EF mappings/SQL against a real dependency |

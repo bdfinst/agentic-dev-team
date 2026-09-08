@@ -4,7 +4,7 @@ Resolves `test-design-advisor`'s abstract layer (`test-pyramid.md`) to the canon
 
 | Layer | Tool | How to assert |
 |-------|------|---------------|
-| Unit | pytest (or `unittest`); `unittest.mock` for collaborators | call functions/methods directly; no DB |
+| Unit | pytest (or `unittest`); `unittest.mock` only for a blocker collaborator (`internal-collaborator-doubling.md`) | call functions/methods directly; no DB |
 | Component / Service | `pytest-django` + DRF `APIClient` / Django `Client` | drive the view/endpoint in-process; double outbound deps |
 | Integration | `pytest-django` with the real test DB (transactional fixtures) | models, migrations, ORM queries, serializers against a real DB |
 | Contract | Pact (Python) or `schemathesis` against the OpenAPI spec | provider/consumer agreement (`microservice-testing.md`) |
