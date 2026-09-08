@@ -10,7 +10,9 @@ code, error paths, and finding-message format).
 
 from __future__ import annotations
 
+import subprocess
 import sys
+from pathlib import Path
 
 from _repo_root import REPO_ROOT as _REPO_ROOT
 
@@ -26,7 +28,12 @@ sys.path.insert(
     ),
 )
 
+_TESTS_LIB = _REPO_ROOT / "plugins" / "dev-team" / "tests" / "lib"
+if str(_TESTS_LIB) not in sys.path:
+    sys.path.insert(0, str(_TESTS_LIB))
+
 import internal_double_detector as detector
+from hermetic import hermetic_git_env  # type: ignore[import-not-found]
 
 # --- First-party type resolution ---------------------------------------------
 
@@ -561,3 +568,336 @@ class TestCli:
 
         out = capsys.readouterr().out
         assert "Recall bounds" in out
+
+
+# --- Changed-file scoping (#2128) --------------------------------------------
+
+
+def _git(cwd, *args):
+    # #715 / hermetic_git_env: never let this subprocess inherit an
+    # ambient GIT_DIR/GIT_INDEX_FILE/GIT_WORK_TREE (set when THIS suite
+    # itself runs from inside a pre-push git hook) — that would redirect
+    # `git init`/`git commit` into the real repo's .git instead of tmp_path.
+    env = hermetic_git_env(home=cwd)
+    result = subprocess.run(
+        ["git", *args], cwd=str(cwd), env=env, capture_output=True, text=True, check=False
+    )
+    assert result.returncode == 0, result.stderr
+    return result.stdout
+
+
+def _init_repo_with_base_commit(tmp_path):
+    """A first-party class in an unchanged production file, committed as the
+    base; returns (tests_dir, base_sha) for the caller to add a second
+    commit (the "diff") on top of."""
+    _git(tmp_path, "init", "-q")
+    _git(tmp_path, "config", "user.email", "test@example.com")
+    _git(tmp_path, "config", "user.name", "Test")
+    src = tmp_path / "src"
+    src.mkdir()
+    (src / "gateway.py").write_text("class SmtpGateway:\n    pass\n", encoding="utf-8")
+    tests_dir = tmp_path / "tests"
+    tests_dir.mkdir()
+    (tests_dir / "test_old.py").write_text("# nothing doubled here\n", encoding="utf-8")
+    _git(tmp_path, "add", "-A")
+    _git(tmp_path, "commit", "-q", "-m", "base")
+    return tests_dir, _git(tmp_path, "rev-parse", "HEAD").strip()
+
+
+class TestChangedFilesSince:
+    def test_resolves_a_real_ref(self, tmp_path):
+        tests_dir, base_sha = _init_repo_with_base_commit(tmp_path)
+        new_file = tests_dir / "test_new.py"
+        new_file.write_text("m = MagicMock(spec=SmtpGateway)\n", encoding="utf-8")
+        _git(tmp_path, "add", "-A")
+        _git(tmp_path, "commit", "-q", "-m", "add double")
+
+        changed = detector.changed_files_since(base_sha, tmp_path)
+
+        assert changed == {new_file.resolve()}
+
+    def test_returns_none_on_git_failure(self, tmp_path):
+        # tmp_path is not a git repo at all.
+        assert detector.changed_files_since("HEAD", tmp_path) is None
+
+    def test_returns_none_on_a_bad_ref(self, tmp_path):
+        _init_repo_with_base_commit(tmp_path)
+
+        assert detector.changed_files_since("not-a-real-ref", tmp_path) is None
+
+    def test_empty_set_on_a_diff_with_no_changes(self, tmp_path):
+        _tests_dir, base_sha = _init_repo_with_base_commit(tmp_path)
+
+        assert detector.changed_files_since(base_sha, tmp_path) == set()
+
+    def test_correct_when_root_is_a_repo_subdirectory(self, tmp_path):
+        """`git diff --name-only` always emits paths relative to the repo's
+        TOP LEVEL, never relative to the cwd it ran from — regression guard
+        for the false-negative correctness-review caught: joining the
+        output onto `root` itself (rather than the actual git top-level)
+        silently produced non-existent, double-prefixed paths whenever
+        `root` was a subdirectory of the repo, matching nothing and
+        disabling the gate with no ADVISORY and no block."""
+        tests_dir, base_sha = _init_repo_with_base_commit(tmp_path)
+        sub = tmp_path / "sub"
+        sub.mkdir()
+        new_file = tests_dir / "test_new.py"
+        new_file.write_text("m = MagicMock(spec=SmtpGateway)\n", encoding="utf-8")
+        _git(tmp_path, "add", "-A")
+        _git(tmp_path, "commit", "-q", "-m", "add double")
+
+        changed = detector.changed_files_since(base_sha, sub)
+
+        assert changed == {new_file.resolve()}
+        for path in changed:
+            assert path.exists()
+
+
+class TestFilterSince:
+    def test_retains_findings_inside_the_diff(self, tmp_path):
+        target = tmp_path / "tests" / "test_a.py"
+        findings = [{"file": str(target), "verdict": "high"}]
+
+        result = detector.filter_since(findings, {target.resolve()}, tmp_path)
+
+        assert result == findings
+
+    def test_excludes_findings_outside_the_diff(self, tmp_path):
+        target = tmp_path / "tests" / "test_a.py"
+        other = tmp_path / "tests" / "test_b.py"
+        findings = [{"file": str(target), "verdict": "high"}]
+
+        result = detector.filter_since(findings, {other.resolve()}, tmp_path)
+
+        assert result == []
+
+    def test_correct_regardless_of_absolute_or_relative_root(self, tmp_path, monkeypatch):
+        target = tmp_path / "tests" / "test_a.py"
+        findings_abs = [{"file": str(target), "verdict": "high"}]
+        changed = {target.resolve()}
+
+        assert detector.filter_since(findings_abs, changed, tmp_path) == findings_abs
+
+        monkeypatch.chdir(tmp_path)
+        relative_root = Path(".")
+        findings_rel = [{"file": str(target.relative_to(tmp_path)), "verdict": "high"}]
+
+        assert detector.filter_since(findings_rel, changed, relative_root) == findings_rel
+
+    def test_with_empty_changed_set(self, tmp_path):
+        target = tmp_path / "tests" / "test_a.py"
+        findings = [{"file": str(target), "verdict": "high"}]
+
+        assert detector.filter_since(findings, set(), tmp_path) == []
+
+
+class TestAnalyzeSince:
+    def test_new_high_finding_inside_the_diff_is_retained(self, tmp_path):
+        # Proves analyze()'s full-tree first-party resolution is untouched:
+        # SmtpGateway is declared in an UNCHANGED file from the base commit,
+        # yet the double added in the diff still resolves to `high`.
+        tests_dir, base_sha = _init_repo_with_base_commit(tmp_path)
+        new_test = tests_dir / "test_new.py"
+        new_test.write_text("m = MagicMock(spec=SmtpGateway)\n", encoding="utf-8")
+        _git(tmp_path, "add", "-A")
+        _git(tmp_path, "commit", "-q", "-m", "add double")
+
+        findings, reason = detector.analyze_since(tmp_path, base_sha)
+
+        assert reason is None
+        assert len(findings) == 1
+        assert findings[0]["target"] == "SmtpGateway"
+        assert findings[0]["verdict"] == "high"
+
+    def test_this_holds_regardless_of_absolute_or_relative_root(self, tmp_path, monkeypatch):
+        tests_dir, base_sha = _init_repo_with_base_commit(tmp_path)
+        (tests_dir / "test_new.py").write_text(
+            "m = MagicMock(spec=SmtpGateway)\n", encoding="utf-8"
+        )
+        _git(tmp_path, "add", "-A")
+        _git(tmp_path, "commit", "-q", "-m", "add double")
+
+        monkeypatch.chdir(tmp_path)
+        findings, reason = detector.analyze_since(Path("."), base_sha)
+
+        assert reason is None
+        assert len(findings) == 1
+        assert findings[0]["target"] == "SmtpGateway"
+        assert findings[0]["verdict"] == "high"
+
+    def test_a_production_only_diff_can_activate_a_previously_advisory_double(self, tmp_path):
+        """Disclosed gap, not a bug (see the hook's "Two enforcement
+        points" design): a diff that adds ONLY a new first-party class,
+        leaving an already-existing test file untouched, makes that test
+        file's existing advisory finding become `high` — but the CHANGED
+        SET is keyed on the finding's own file, which isn't in this diff,
+        so the scoped result excludes it while the unfiltered analyze()
+        correctly still reports it. Both halves are pinned here so a
+        future change to what filter_since keys on can't silently break
+        this documented, load-bearing behavior with no regression signal."""
+        env = hermetic_git_env(home=tmp_path)
+        subprocess.run(["git", "init", "-q"], cwd=tmp_path, env=env, check=True)
+        subprocess.run(["git", "config", "user.email", "t@t"], cwd=tmp_path, env=env, check=True)
+        subprocess.run(["git", "config", "user.name", "t"], cwd=tmp_path, env=env, check=True)
+        tests_dir = tmp_path / "tests"
+        tests_dir.mkdir()
+        # No first-party SmtpGateway exists yet -> this is only `advisory`.
+        (tests_dir / "test_old.py").write_text(
+            "m = MagicMock(spec=SmtpGateway)\n", encoding="utf-8"
+        )
+        subprocess.run(["git", "add", "-A"], cwd=tmp_path, env=env, check=True)
+        subprocess.run(["git", "commit", "-q", "-m", "base"], cwd=tmp_path, env=env, check=True)
+        base_sha = subprocess.run(
+            ["git", "rev-parse", "HEAD"], cwd=tmp_path, env=env, capture_output=True, text=True, check=True
+        ).stdout.strip()
+
+        # The diff adds ONLY a new first-party class with that name -
+        # test_old.py itself is untouched.
+        src = tmp_path / "src"
+        src.mkdir()
+        (src / "gateway.py").write_text("class SmtpGateway:\n    pass\n", encoding="utf-8")
+        subprocess.run(["git", "add", "-A"], cwd=tmp_path, env=env, check=True)
+        subprocess.run(
+            ["git", "commit", "-q", "-m", "add the first-party class"], cwd=tmp_path, env=env, check=True
+        )
+
+        unfiltered = detector.analyze(tmp_path)
+        assert len(unfiltered) == 1
+        assert unfiltered[0]["verdict"] == "high"
+
+        scoped, reason = detector.analyze_since(tmp_path, base_sha)
+        assert reason is None
+        assert scoped == []
+
+    def test_excludes_a_pre_existing_finding_outside_the_diff(self, tmp_path):
+        tests_dir, _base_sha = _init_repo_with_base_commit(tmp_path)
+        # An unwaived double already present at the base commit (outside
+        # any future diff).
+        (tests_dir / "test_old.py").write_text(
+            "m = MagicMock(spec=SmtpGateway)\n", encoding="utf-8"
+        )
+        _git(tmp_path, "add", "-A")
+        _git(tmp_path, "commit", "-q", "-m", "amend base with a pre-existing double")
+        second_base_sha = _git(tmp_path, "rev-parse", "HEAD").strip()
+        # A no-op commit so the diff vs second_base_sha is genuinely empty.
+        (tests_dir / "unrelated.txt").write_text("noop\n", encoding="utf-8")
+        _git(tmp_path, "add", "-A")
+        _git(tmp_path, "commit", "-q", "-m", "unrelated")
+
+        findings, reason = detector.analyze_since(tmp_path, second_base_sha)
+
+        assert reason is None
+        assert findings == []
+
+    def test_returns_advisory_reason_on_git_failure_with_unfiltered_findings(self, tmp_path):
+        tests_dir = self._resolvable_tree_no_git(tmp_path)
+        (tests_dir / "test_thing.py").write_text(
+            "m = MagicMock(spec=SmtpGateway)\n", encoding="utf-8"
+        )
+
+        findings, reason = detector.analyze_since(tmp_path, "HEAD")
+
+        assert reason is not None
+        assert any(f["verdict"] == "high" for f in findings)
+
+    @staticmethod
+    def _resolvable_tree_no_git(tmp_path):
+        src = tmp_path / "src"
+        src.mkdir()
+        (src / "gateway.py").write_text("class SmtpGateway:\n    pass\n", encoding="utf-8")
+        tests_dir = tmp_path / "tests"
+        tests_dir.mkdir()
+        return tests_dir
+
+
+class TestMainChangedSince:
+    def test_strict_exit_code_on_git_failure_uses_the_unscoped_set(self, tmp_path, capsys):
+        # A non-git tree with a real high finding: changed_files_since fails
+        # (no git repo at all), so --changed-since --strict falls back to
+        # the unscoped set on purpose — the CLI-only exception to AC8.
+        src = tmp_path / "src"
+        src.mkdir()
+        (src / "gateway.py").write_text("class SmtpGateway:\n    pass\n", encoding="utf-8")
+        tests_dir = tmp_path / "tests"
+        tests_dir.mkdir()
+        (tests_dir / "test_thing.py").write_text(
+            "m = MagicMock(spec=SmtpGateway)\n", encoding="utf-8"
+        )
+
+        exit_code = detector.main([str(tmp_path), "--changed-since", "HEAD", "--strict"])
+
+        assert exit_code == 1
+        out = capsys.readouterr().out
+        assert "ADVISORY" in out
+
+    def test_scopes_to_the_diff_when_git_succeeds(self, tmp_path, capsys):
+        tests_dir, _base_sha = _init_repo_with_base_commit(tmp_path)
+        (tests_dir / "test_old.py").write_text(
+            "m = MagicMock(spec=SmtpGateway)\n", encoding="utf-8"
+        )
+        _git(tmp_path, "add", "-A")
+        _git(tmp_path, "commit", "-q", "-m", "pre-existing double outside future diff")
+        second_base_sha = _git(tmp_path, "rev-parse", "HEAD").strip()
+        (tests_dir / "unrelated.txt").write_text("noop\n", encoding="utf-8")
+        _git(tmp_path, "add", "-A")
+        _git(tmp_path, "commit", "-q", "-m", "unrelated")
+
+        exit_code = detector.main(
+            [str(tmp_path), "--changed-since", second_base_sha, "--strict"]
+        )
+
+        assert exit_code == 0
+        out = capsys.readouterr().out
+        assert "ADVISORY" not in out
+
+
+# --- CI check: whole-repo scan (#2128) ---------------------------------------
+#
+# `_assert_no_high_severity_findings` is the ACTUAL production check's own
+# code, called by both the real-repo test below and its own fail-on-purpose
+# fixture test — not a structurally-similar reimplementation of it.
+
+
+def _assert_no_high_severity_findings(root):
+    findings = detector.analyze(root)
+    high = [f for f in findings if f["verdict"] == "high"]
+    assert high == [], (
+        f"{len(high)} unwaived internal double(s) found:\n"
+        + "\n".join(f["message"] for f in high)
+        + "\n"
+        + detector._RECALL_BOUNDS_STATEMENT
+    )
+
+
+def test_full_repo_scan_has_no_high_severity_findings():
+    """The CI check (#2128): runs unfiltered across the whole live repo on
+    every PR — the exhaustive backstop the scoped hook is not. See the
+    plan's "Two enforcement points" section for why both exist."""
+    _assert_no_high_severity_findings(_REPO_ROOT)
+
+
+def test_the_real_repo_assertion_would_catch_a_high_finding(tmp_path):
+    """Fail-on-purpose proof for the CI check specifically (CLAUDE.md: "make
+    a new gate fail on purpose once before trusting it") — calls the SAME
+    helper the real check uses, against a crafted fixture with one genuine
+    unwaived high-severity double."""
+    src = tmp_path / "src"
+    src.mkdir()
+    (src / "gateway.py").write_text("class SmtpGateway:\n    pass\n", encoding="utf-8")
+    tests_dir = tmp_path / "tests"
+    tests_dir.mkdir()
+    (tests_dir / "test_thing.py").write_text(
+        "m = MagicMock(spec=SmtpGateway)\n", encoding="utf-8"
+    )
+
+    try:
+        _assert_no_high_severity_findings(tmp_path)
+    except AssertionError as exc:
+        message = str(exc)
+        assert "SmtpGateway" in message
+        assert "Recall bounds" in message
+    else:
+        raise AssertionError(
+            "expected _assert_no_high_severity_findings to fail on a real "
+            "unwaived high-severity double"
+        )

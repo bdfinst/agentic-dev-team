@@ -59,6 +59,7 @@ from __future__ import annotations
 import argparse
 import json
 import re
+import subprocess
 import sys
 from collections.abc import Callable
 from pathlib import Path
@@ -77,6 +78,14 @@ _EXCLUDED_DIR_NAMES = frozenset(
         "vendor",
         "vendored",
         ".git",
+        # #2128: a local, uncommitted virtualenv (CLAUDE.md's own
+        # documented PEP-668 dev-setup fallback) must never change the
+        # required whole-repo CI check's result depending on whether a
+        # given contributor's checkout happens to have one.
+        ".venv",
+        "venv",
+        ".tox",
+        "site-packages",
     }
 )
 
@@ -390,6 +399,117 @@ def analyze(root: Path) -> list[Finding]:
     return findings
 
 
+# --- Changed-file scoping (#2128) --------------------------------------------
+#
+# analyze()'s own signature, full-tree walk, and full-tree first-party
+# resolution are DELIBERATELY untouched by everything below — a first-party
+# class declared in a file the current diff never touched must still resolve.
+# Scoping only ever filters the FINDINGS analyze() already produced; it never
+# narrows what analyze() itself scans.
+
+
+def changed_files_since(ref: str, root: Path) -> set[Path] | None:
+    """Absolute paths of files changed vs `ref` (`git diff --name-only
+    ref...HEAD`, run with cwd=root). Returns `None` on ANY git failure — not
+    a repo, a bad ref, no merge-base (e.g. a shallow clone) — never an empty
+    set standing in for "the git call itself failed": an empty set means
+    "the diff is genuinely empty", which callers must be able to tell apart
+    from "scoping could not be determined at all".
+
+    `git diff --name-only` always emits paths relative to the repo's TOP
+    LEVEL, never relative to the cwd it was run from (there is no implicit
+    `--relative`) — so the output must be joined onto the actual top-level
+    directory (resolved via `git rev-parse --show-toplevel`), NOT onto
+    `root` itself. `root` is legitimately a subdirectory of the repo (e.g.
+    a monorepo sub-project's cwd); joining git's repo-root-relative output
+    onto that subdirectory would silently double the sub-path and match
+    nothing real, which is exactly the false-negative correctness-review
+    caught before this landed (#2128). `-c core.quotePath=false` +
+    `-z` (NUL-separated, no shell-quoting ambiguity) makes this correct
+    for filenames with spaces, quotes, or non-ASCII bytes too."""
+    try:
+        toplevel_completed = subprocess.run(
+            ["git", "rev-parse", "--show-toplevel"],
+            cwd=str(root),
+            capture_output=True,
+            text=True,
+            timeout=30,
+            check=False,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return None
+    if toplevel_completed.returncode != 0:
+        return None
+    toplevel = Path(toplevel_completed.stdout.strip()).resolve()
+
+    try:
+        completed = subprocess.run(
+            [
+                "git",
+                "-c",
+                "core.quotePath=false",
+                "diff",
+                "--name-only",
+                "-z",
+                f"{ref}...HEAD",
+            ],
+            cwd=str(root),
+            capture_output=True,
+            text=True,
+            timeout=30,
+            check=False,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return None
+    if completed.returncode != 0:
+        return None
+    return {(toplevel / part).resolve() for part in completed.stdout.split("\0") if part}
+
+
+def filter_since(findings: list[Finding], changed: set[Path], root: Path) -> list[Finding]:
+    """Keep only findings whose file is in `changed`. Both sides are
+    resolved to absolute paths before comparison, so this is correct
+    whether `root` (and therefore every finding's `file` string, which
+    inherits root's absolute/relative-ness directly from `analyze()`'s own
+    `root.rglob()` walk) was passed in as absolute or relative."""
+    root_abs = root.resolve()
+    return [
+        f
+        for f in findings
+        if (root_abs / f["file"]).resolve() in changed
+        or Path(f["file"]).resolve() in changed
+    ]
+
+
+def analyze_since(root: Path, ref: str) -> tuple[list[Finding], str | None]:
+    """Runs the FULL `analyze(root)` (unchanged full walk, full first-party
+    index), then either filters it to `ref`'s changed-file set or, on a git
+    failure, returns the full unfiltered findings alongside a non-None
+    advisory reason.
+
+    The two possible return shapes are NOT interchangeable for a caller:
+    `(filtered_findings, None)` means "scoping succeeded, findings are
+    accurate to the diff"; `(unfiltered_findings, "<reason>")` means "git
+    could not answer the scoping question at all" — a caller that treats a
+    non-None reason as just noise and evaluates the findings anyway is
+    choosing to fall back to whole-repo behavior, which is the CLI's
+    deliberate, disclosed policy (see `main()`'s `--changed-since`) and NOT
+    the hook's (see `hooks/internal_double_gate.py`, which always fails open
+    to no-block on a non-None reason instead).
+
+    Disclosed scope note: `analyze(root)` reads the WORKING TREE, while
+    `changed_files_since()`'s file list comes from the COMMITTED diff
+    (`ref...HEAD`). A finding is kept whenever its FILE is in the committed
+    diff, even if the doubling line itself only exists in an uncommitted
+    edit to that same file — narrow in practice (`/pr` requires a clean
+    tree before opening), and errs toward blocking rather than passing."""
+    findings = analyze(root)
+    changed = changed_files_since(ref, root)
+    if changed is None:
+        return findings, f"could not resolve changed files since {ref!r}"
+    return filter_since(findings, changed, root), None
+
+
 # --- CLI ----------------------------------------------------------------------
 
 _RECALL_BOUNDS_STATEMENT = (
@@ -418,6 +538,17 @@ def main(argv: list[str] | None = None) -> int:
         "--strict", action="store_true", help="Exit nonzero if any 'high' finding exists"
     )
     parser.add_argument("--json", action="store_true", help="Emit findings as JSON")
+    parser.add_argument(
+        "--changed-since",
+        metavar="REF",
+        help=(
+            "Scope findings to files changed vs REF (git diff --name-only "
+            "REF...HEAD). On a git failure (bad ref, no merge-base, not a "
+            "repo), falls back to the full unfiltered scan with an ADVISORY "
+            "line — this fallback is CLI-only; the blocking hook never "
+            "adopts it (see hooks/internal_double_gate.py)."
+        ),
+    )
     args = parser.parse_args(argv)
 
     root = Path(args.path)
@@ -425,7 +556,12 @@ def main(argv: list[str] | None = None) -> int:
         print(f"error: path not found: {root}", file=sys.stderr)
         return 2
 
-    findings = analyze(root)
+    if args.changed_since:
+        findings, advisory_reason = analyze_since(root, args.changed_since)
+        if advisory_reason:
+            print(f"ADVISORY: internal_double_detector: {advisory_reason} — falling back to an unscoped full-tree scan")
+    else:
+        findings = analyze(root)
 
     if args.json:
         print(json.dumps({"findings": findings}, sort_keys=True))
