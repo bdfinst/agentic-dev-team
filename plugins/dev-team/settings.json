@@ -92,6 +92,10 @@
           },
           {
             "type": "command",
+            "command": "sh hooks/py.sh hooks/internal_double_gate.py"
+          },
+          {
+            "type": "command",
             "command": "sh hooks/py.sh hooks/pre_commit_knowledge_index.py"
           },
           {
