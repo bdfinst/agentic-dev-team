@@ -466,19 +466,56 @@ def changed_files_since(ref: str, root: Path) -> set[Path] | None:
     return {(toplevel / part).resolve() for part in completed.stdout.split("\0") if part}
 
 
-def filter_since(findings: list[Finding], changed: set[Path], root: Path) -> list[Finding]:
-    """Keep only findings whose file is in `changed`. Both sides are
-    resolved to absolute paths before comparison, so this is correct
-    whether `root` (and therefore every finding's `file` string, which
-    inherits root's absolute/relative-ness directly from `analyze()`'s own
-    `root.rglob()` walk) was passed in as absolute or relative."""
+def _findings_matching_paths(
+    findings: list[Finding], target_paths: set[Path], root: Path
+) -> list[Finding]:
+    """Keep only findings whose file resolves into `target_paths`. Both
+    sides are resolved to absolute paths before comparison — this function
+    resolves `target_paths` itself (never trusts a caller to have done so
+    already), so it's correct whether `root` (and therefore every
+    finding's `file` string, which inherits root's absolute/relative-ness
+    directly from `analyze()`'s own `root.rglob()` walk) was passed in as
+    absolute or relative, and regardless of whether `target_paths` arrived
+    pre-resolved. Shared by `filter_since` (a git-diff-derived path set)
+    and `filter_by_files` (a caller-supplied path list) so the
+    path-matching logic exists exactly once."""
     root_abs = root.resolve()
+    resolved_targets = {p.resolve() for p in target_paths}
     return [
         f
         for f in findings
-        if (root_abs / f["file"]).resolve() in changed
-        or Path(f["file"]).resolve() in changed
+        if (root_abs / f["file"]).resolve() in resolved_targets
+        or Path(f["file"]).resolve() in resolved_targets
     ]
+
+
+def filter_since(findings: list[Finding], changed: set[Path], root: Path) -> list[Finding]:
+    """Keep only findings whose file is in `changed`. See
+    `_findings_matching_paths` for the matching contract."""
+    return _findings_matching_paths(findings, changed, root)
+
+
+def filter_by_files(findings: list[Finding], files: list[str], root: Path) -> list[Finding]:
+    """Keep only findings whose file is in `files` (repo-relative or
+    absolute paths, e.g. from `/code-review`'s own changed-file list —
+    the same list `repo_invariants.py --files` already receives). Both a
+    root-anchored and a bare interpretation of each entry are offered to
+    `_findings_matching_paths` (which resolves everything itself) so a
+    relative path resolves correctly whether `root` is the repo root
+    (the documented `/code-review` invocation) or a subdirectory. See
+    `_findings_matching_paths` for the full matching contract."""
+    target_paths = {root / f for f in files} | {Path(f) for f in files}
+    return _findings_matching_paths(findings, target_paths, root)
+
+
+def analyze_files(root: Path, files: list[str]) -> list[Finding]:
+    """Runs the FULL `analyze(root)` (unchanged full walk, full first-party
+    index — same invariant `analyze_since` follows: scoping only ever
+    filters findings, never narrows what `analyze()` itself scans), then
+    filters to `files`. Unlike `analyze_since`, there is no git-dependent
+    failure mode here — `files` is a plain caller-supplied list, so this
+    always succeeds."""
+    return filter_by_files(analyze(root), files, root)
 
 
 def analyze_since(root: Path, ref: str) -> tuple[list[Finding], str | None]:
@@ -538,7 +575,8 @@ def main(argv: list[str] | None = None) -> int:
         "--strict", action="store_true", help="Exit nonzero if any 'high' finding exists"
     )
     parser.add_argument("--json", action="store_true", help="Emit findings as JSON")
-    parser.add_argument(
+    scope_group = parser.add_mutually_exclusive_group()
+    scope_group.add_argument(
         "--changed-since",
         metavar="REF",
         help=(
@@ -547,6 +585,17 @@ def main(argv: list[str] | None = None) -> int:
             "repo), falls back to the full unfiltered scan with an ADVISORY "
             "line — this fallback is CLI-only; the blocking hook never "
             "adopts it (see hooks/internal_double_gate.py)."
+        ),
+    )
+    scope_group.add_argument(
+        "--files",
+        nargs="*",
+        default=None,
+        help=(
+            "Scope findings to this explicit file list (repo-relative or "
+            "absolute) — the same list a caller like /code-review's step 2b "
+            "already computed for repo_invariants.py --files. Unlike "
+            "--changed-since, this has no git-dependent failure mode."
         ),
     )
     args = parser.parse_args(argv)
@@ -560,6 +609,8 @@ def main(argv: list[str] | None = None) -> int:
         findings, advisory_reason = analyze_since(root, args.changed_since)
         if advisory_reason:
             print(f"ADVISORY: internal_double_detector: {advisory_reason} — falling back to an unscoped full-tree scan")
+    elif args.files is not None:
+        findings = analyze_files(root, args.files)
     else:
         findings = analyze(root)
 

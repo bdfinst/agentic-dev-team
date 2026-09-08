@@ -35,6 +35,13 @@ signal itself.
 | Unit test doing real I/O; wrong pyramid layer | **test-smell-review** | **Slow Tests** / pyramid placement |
 | Missing assertion entirely; missing `await`; mock-reset hygiene | **test-review** | tactical mechanical gate |
 | Testability blocker (static factory, singleton, no injectable ctor) | **test-review** | flag the blocker; recommend the production-code seam |
+| Internal-collaborator double with no waiver, or a malformed/invalid-blocker waiver | **test-review**, always — never deferred, even when test-smell-review also runs | mechanical gate, same as the row above |
+| An already-waived double's blocker-claim truth, and (B1) owned-adapter-vs-leaf placement | **test-smell-review**, always — only ever applies to a waived (non-`high`-verdict) double, so it never overlaps the row above on the same instance | design-level judgment, cites `internal-collaborator-doubling.md` |
+
+The last two rows partition the detector's verdict space (`high` vs. an
+already-waived, non-`high` verdict) rather than deferring within a shared
+verdict the way every other row above does — the two can never fire on the
+same instance, so there is no dedup decision to make between them.
 
 ## The rule in one line
 
