@@ -10,9 +10,12 @@ code, error paths, and finding-message format).
 
 from __future__ import annotations
 
+import json
 import subprocess
 import sys
 from pathlib import Path
+
+import pytest
 
 from _repo_root import REPO_ROOT as _REPO_ROOT
 
@@ -689,6 +692,132 @@ class TestFilterSince:
         findings = [{"file": str(target), "verdict": "high"}]
 
         assert detector.filter_since(findings, set(), tmp_path) == []
+
+
+class TestFilterByFiles:
+    def test_files_mode_retains_findings_in_the_list(self, tmp_path):
+        target = tmp_path / "tests" / "test_a.py"
+        findings = [{"file": str(target), "verdict": "high"}]
+
+        result = detector.filter_by_files(findings, [str(target)], tmp_path)
+
+        assert result == findings
+
+    def test_files_mode_excludes_findings_outside_the_list(self, tmp_path):
+        target = tmp_path / "tests" / "test_a.py"
+        other = tmp_path / "tests" / "test_b.py"
+        findings = [{"file": str(target), "verdict": "high"}]
+
+        result = detector.filter_by_files(findings, [str(other)], tmp_path)
+
+        assert result == []
+
+    def test_files_mode_accepts_repo_relative_paths(self, tmp_path):
+        target = tmp_path / "tests" / "test_a.py"
+        findings = [{"file": str(target), "verdict": "high"}]
+
+        result = detector.filter_by_files(
+            findings, [str(target.relative_to(tmp_path))], tmp_path
+        )
+
+        assert result == findings
+
+    def test_empty_file_list_excludes_everything(self, tmp_path):
+        target = tmp_path / "tests" / "test_a.py"
+        findings = [{"file": str(target), "verdict": "high"}]
+
+        assert detector.filter_by_files(findings, [], tmp_path) == []
+
+    def test_repo_relative_path_matches_when_root_is_a_subdirectory(self, tmp_path, monkeypatch):
+        # Regression guard for the cwd-anchored interpretation: a caller
+        # (e.g. /code-review scanning a subdirectory) passes a path
+        # relative to the REPO root (== the process cwd), not to `root`
+        # itself. Only the bare-Path interpretation (resolved against
+        # cwd, not `root`) can match this, so this test would fail if the
+        # cwd-anchored candidate were ever removed — pinning it
+        # separately from test_files_mode_accepts_repo_relative_paths,
+        # whose target already sits directly under `root`.
+        repo_root = tmp_path
+        sub = repo_root / "sub"
+        sub.mkdir()
+        target = repo_root / "tests" / "test_a.py"
+        findings = [{"file": str(target), "verdict": "high"}]
+
+        monkeypatch.chdir(repo_root)
+        result = detector.filter_by_files(
+            findings, [str(target.relative_to(repo_root))], sub
+        )
+
+        assert result == findings
+
+
+class TestAnalyzeFiles:
+    def test_full_repo_scan_filtered_to_explicit_file_list(self, tmp_path):
+        src = tmp_path / "src"
+        src.mkdir()
+        (src / "gateway.py").write_text("class SmtpGateway:\n    pass\n", encoding="utf-8")
+        tests_dir = tmp_path / "tests"
+        tests_dir.mkdir()
+        flagged = tests_dir / "test_flagged.py"
+        flagged.write_text("m = MagicMock(spec=SmtpGateway)\n", encoding="utf-8")
+        (tests_dir / "test_unflagged.py").write_text(
+            "m = MagicMock(spec=SmtpGateway)\n", encoding="utf-8"
+        )
+
+        findings = detector.analyze_files(tmp_path, [str(flagged)])
+
+        assert len(findings) == 1
+        assert findings[0]["file"] == str(flagged)
+        assert findings[0]["verdict"] == "high"
+
+
+class TestMainFilesMode:
+    def test_files_and_changed_since_are_mutually_exclusive(self, tmp_path, capsys):
+        with pytest.raises(SystemExit) as exc_info:
+            detector.main([str(tmp_path), "--files", "x.py", "--changed-since", "HEAD"])
+
+        assert exc_info.value.code == 2
+        assert "not allowed with argument" in capsys.readouterr().err
+
+    def test_main_files_mode_json_output(self, tmp_path, capsys):
+        src = tmp_path / "src"
+        src.mkdir()
+        (src / "gateway.py").write_text("class SmtpGateway:\n    pass\n", encoding="utf-8")
+        tests_dir = tmp_path / "tests"
+        tests_dir.mkdir()
+        flagged = tests_dir / "test_flagged.py"
+        flagged.write_text("m = MagicMock(spec=SmtpGateway)\n", encoding="utf-8")
+        (tests_dir / "test_unflagged.py").write_text(
+            "m = MagicMock(spec=SmtpGateway)\n", encoding="utf-8"
+        )
+
+        exit_code = detector.main([str(tmp_path), "--files", str(flagged), "--json"])
+
+        assert exit_code == 0
+        payload = json.loads(capsys.readouterr().out)
+        assert len(payload["findings"]) == 1
+        assert payload["findings"][0]["file"] == str(flagged)
+
+    def test_main_files_mode_empty_list_means_no_files_scoped(self, tmp_path, capsys):
+        tests_dir = self._resolvable_tree_no_git(tmp_path)
+        (tests_dir / "test_thing.py").write_text(
+            "m = MagicMock(spec=SmtpGateway)\n", encoding="utf-8"
+        )
+
+        exit_code = detector.main([str(tmp_path), "--files", "--json"])
+
+        assert exit_code == 0
+        payload = json.loads(capsys.readouterr().out)
+        assert payload["findings"] == []
+
+    @staticmethod
+    def _resolvable_tree_no_git(tmp_path):
+        src = tmp_path / "src"
+        src.mkdir()
+        (src / "gateway.py").write_text("class SmtpGateway:\n    pass\n", encoding="utf-8")
+        tests_dir = tmp_path / "tests"
+        tests_dir.mkdir()
+        return tests_dir
 
 
 class TestAnalyzeSince:

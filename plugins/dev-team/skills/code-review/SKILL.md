@@ -207,6 +207,27 @@ re-report, focus on semantic concerns" framing. Expand `CHECKS` in that script
 as more rediscovered-N-times cases turn up; this step never needs to change to
 pick up a new check.
 
+**Internal-collaborator-doubling pre-pass (#2130).** Also run:
+
+```bash
+python3 "$CLAUDE_PLUGIN_ROOT/skills/test-design/scripts/internal_double_detector.py" . --files <target files> --json
+```
+
+Detects an unwaived (or malformed/invalid-blocker-waiver) double of a
+project first-party collaborator, per
+`${CLAUDE_PLUGIN_ROOT}/knowledge/internal-collaborator-doubling.md`. Same
+`<target files>` list as the `repo_invariants.py` block above — one
+scoping mechanism for both tools in this step, not two. Its `findings`
+array merges into step 4's static-analysis context using the same envelope
+and the same "detected by static analysis — do not re-report, focus on
+semantic concerns" framing. This step does not gate on the finding — it
+collects context only, exactly like every other check in this step; the
+actual gate is the `hooks/internal_double_gate.py` PreToolUse hook plus
+the required `"Plugin content & hooks"` CI check (#2128). `test-review` and
+`test-smell-review` cite this pre-pass's finding rather than re-deriving
+it when it's present (see
+`${CLAUDE_PLUGIN_ROOT}/knowledge/test-review-division-of-labor.md`).
+
 **Pass `--files` (#1629).** Several checks are scoped to the changeset,
 because the conventions they enforce are "required going forward, do not
 retrofit" (`evals/README.md`'s `_calibration` rule is the motivating case).
