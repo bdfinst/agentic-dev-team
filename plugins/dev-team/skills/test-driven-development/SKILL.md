@@ -24,7 +24,7 @@ Enforces strict RED-GREEN-REFACTOR discipline with verifiable gates. LLMs are es
 - Do not move to the next unit of work until all tests pass
 - Do not skip the refactor step — it's where design quality happens
 - Do not rationalize exceptions to the cycle (see Rationalization Prevention below)
-- Do not use mocks when real code is feasible — mocks test your assumptions, not your code
+- Before doubling any collaborator, check it against `${CLAUDE_PLUGIN_ROOT}/knowledge/internal-collaborator-doubling.md#the-three-blockers-exhaustive`'s blocker table
 
 ## The Cycle
 

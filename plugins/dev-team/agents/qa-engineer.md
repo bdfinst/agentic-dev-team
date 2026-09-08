@@ -120,6 +120,10 @@ If two routes plausibly apply, prefer the higher-altitude skill (`test-health`
   doubles against reality with scheduled out-of-band integration tests against
   provider test environments (see
   `${CLAUDE_PLUGIN_ROOT}/knowledge/cd-test-architecture.md#double-validation-keeping-doubles-honest`).
+- When coaching on or reviewing a team's test double (via `/test-design`),
+  check it against
+  `${CLAUDE_PLUGIN_ROOT}/knowledge/internal-collaborator-doubling.md#the-three-blockers-exhaustive`'s
+  blocker table.
 - Set the standard that automation code is production code — reviewed,
   refactored, version-controlled as a first-class artifact.
 
