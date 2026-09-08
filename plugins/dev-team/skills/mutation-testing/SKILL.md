@@ -211,7 +211,7 @@ Assert.AreEqual("expected-value", response.Data.FieldName);
 
 1. **Read the source context** — what does the code do and why.
 2. **Check for equivalence** — does the mutation actually change observable behavior? See "Named equivalent-mutant patterns" below for the canonical taxonomy.
-3. **Find related tests** — which tests cover this code; what do they assert.
+3. **Find related tests** — which tests cover this code; what do they assert. Sociable-by-default means more than one real-collaborator-exercising test can reach the same line; when several do, target the one whose assertion should most directly express the mutated behavior, not the first one found — a judgment call, not a scripted lookup.
 4. **Classify** — missing assertion, missing test, boundary gap, equivalent, or accepted (real, killable, deliberately deferred this pass — record the `reason`).
 5. **Write the fix test** with RED-GREEN discipline: must fail against the mutant and pass against the original.
 
