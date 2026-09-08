@@ -469,6 +469,149 @@ class TestTranscriptParsingConfinedToSessionLog:
         )
 
 
+class TestNormativeContentSingleSourced:
+    """#2126: "cite, don't restate" for internal-collaborator-doubling.md
+    (#2124) needs a mechanism, not just review discipline -- a check that
+    can fail on a verbatim restatement outside its home file."""
+
+    def _make_tree(self, tmp_path):
+        repo_root = tmp_path / "repo"
+        plugin_root = repo_root / "plugins" / "dev-team"
+        home = plugin_root / "knowledge" / "internal-collaborator-doubling.md"
+        home.parent.mkdir(parents=True)
+        home.write_text(
+            "Out-of-process handle\nProhibitive real cost\n"
+            "the project's own first-party source stays real\n"
+            '"It\'s an injected interface" — and the type\'s name\n',
+            encoding="utf-8",
+        )
+        return repo_root, plugin_root
+
+    def test_clean_against_the_real_repo(self):
+        """The real repo, as of #2124/#2125, has no file restating the
+        rule's content outside its home file."""
+        assert repo_invariants.check_normative_content_single_sourced() == []
+
+    def test_flags_a_new_file_restating_a_blocker_row(self, tmp_path, monkeypatch):
+        """Proves the check can fail (CLAUDE.md: 'make a new gate fail on
+        purpose once before trusting it')."""
+        repo_root, plugin_root = self._make_tree(tmp_path)
+        offender = plugin_root / "knowledge" / "some-other-file.md"
+        offender.write_text(
+            "Doubling is fine except for Out-of-process handle cases.\n",
+            encoding="utf-8",
+        )
+        monkeypatch.setattr(repo_invariants, "_REPO_ROOT", repo_root)
+        monkeypatch.setattr(repo_invariants, "_PLUGIN_ROOT", plugin_root)
+
+        findings = repo_invariants.check_normative_content_single_sourced()
+
+        assert len(findings) == 1
+        assert findings[0]["invariant"] == "normative-content-single-sourced"
+        assert findings[0]["file"] == "plugins/dev-team/knowledge/some-other-file.md"
+
+    def test_flags_two_distinct_fragments_as_two_findings(self, tmp_path, monkeypatch):
+        repo_root, plugin_root = self._make_tree(tmp_path)
+        offender = plugin_root / "agents" / "some-agent.md"
+        offender.parent.mkdir(parents=True)
+        offender.write_text(
+            "See Prohibitive real cost and Out-of-process handle cases.\n",
+            encoding="utf-8",
+        )
+        monkeypatch.setattr(repo_invariants, "_REPO_ROOT", repo_root)
+        monkeypatch.setattr(repo_invariants, "_PLUGIN_ROOT", plugin_root)
+
+        findings = repo_invariants.check_normative_content_single_sourced()
+
+        assert len(findings) == 2
+        assert any("Prohibitive real cost" in f["message"] for f in findings)
+        assert any("Out-of-process handle" in f["message"] for f in findings)
+
+    def test_ignores_the_home_file_itself(self, tmp_path, monkeypatch):
+        repo_root, plugin_root = self._make_tree(tmp_path)
+        monkeypatch.setattr(repo_invariants, "_REPO_ROOT", repo_root)
+        monkeypatch.setattr(repo_invariants, "_PLUGIN_ROOT", plugin_root)
+
+        assert repo_invariants.check_normative_content_single_sourced() == []
+
+    def test_ignores_a_bare_citation(self, tmp_path, monkeypatch):
+        repo_root, plugin_root = self._make_tree(tmp_path)
+        citing = plugin_root / "knowledge" / "test-pyramid.md"
+        citing.write_text(
+            "See internal-collaborator-doubling.md for the full rule.\n",
+            encoding="utf-8",
+        )
+        monkeypatch.setattr(repo_invariants, "_REPO_ROOT", repo_root)
+        monkeypatch.setattr(repo_invariants, "_PLUGIN_ROOT", plugin_root)
+
+        assert repo_invariants.check_normative_content_single_sourced() == []
+
+    def test_flags_an_attributed_verbatim_quote_anyway(self, tmp_path, monkeypatch):
+        """Attribution doesn't exempt a match -- the point is preventing a
+        second copy that can drift, not policing citation etiquette."""
+        repo_root, plugin_root = self._make_tree(tmp_path)
+        citing = plugin_root / "knowledge" / "test-pyramid.md"
+        citing.write_text(
+            "Per internal-collaborator-doubling.md, \"Out-of-process handle\" is a blocker.\n",
+            encoding="utf-8",
+        )
+        monkeypatch.setattr(repo_invariants, "_REPO_ROOT", repo_root)
+        monkeypatch.setattr(repo_invariants, "_PLUGIN_ROOT", plugin_root)
+
+        findings = repo_invariants.check_normative_content_single_sourced()
+
+        assert len(findings) == 1
+
+    def test_ignores_files_outside_the_three_scan_roots(self, tmp_path, monkeypatch):
+        repo_root, plugin_root = self._make_tree(tmp_path)
+        outside = plugin_root / "docs" / "some-doc.md"
+        outside.parent.mkdir(parents=True)
+        outside.write_text("Out-of-process handle\n", encoding="utf-8")
+        monkeypatch.setattr(repo_invariants, "_REPO_ROOT", repo_root)
+        monkeypatch.setattr(repo_invariants, "_PLUGIN_ROOT", plugin_root)
+
+        assert repo_invariants.check_normative_content_single_sourced() == []
+
+    def test_corpus_wide_regardless_of_changed_files(self):
+        assert (
+            repo_invariants.check_normative_content_single_sourced(["some/file.py"])
+            == repo_invariants.check_normative_content_single_sourced(None)
+        )
+
+    def test_ignores_non_markdown_files(self, tmp_path, monkeypatch):
+        repo_root, plugin_root = self._make_tree(tmp_path)
+        non_md = plugin_root / "knowledge" / "some-script.py"
+        non_md.write_text("# Out-of-process handle\n", encoding="utf-8")
+        monkeypatch.setattr(repo_invariants, "_REPO_ROOT", repo_root)
+        monkeypatch.setattr(repo_invariants, "_PLUGIN_ROOT", plugin_root)
+
+        assert repo_invariants.check_normative_content_single_sourced() == []
+
+    def test_handles_an_empty_file_without_error(self, tmp_path, monkeypatch):
+        repo_root, plugin_root = self._make_tree(tmp_path)
+        empty = plugin_root / "knowledge" / "empty.md"
+        empty.write_text("", encoding="utf-8")
+        monkeypatch.setattr(repo_invariants, "_REPO_ROOT", repo_root)
+        monkeypatch.setattr(repo_invariants, "_PLUGIN_ROOT", plugin_root)
+
+        assert repo_invariants.check_normative_content_single_sourced() == []
+
+    def test_every_fragment_is_still_present_in_the_home_file(self):
+        """Design-review staleness guard: if the home file is reworded and a
+        fragment silently stops matching, this test fails loudly instead of
+        the fragment becoming a permanent no-op."""
+        home = (
+            _REPO_ROOT
+            / "plugins"
+            / "dev-team"
+            / "knowledge"
+            / "internal-collaborator-doubling.md"
+        )
+        text = home.read_text(encoding="utf-8")
+        stale = [f for f in repo_invariants._NORMATIVE_CONTENT_FRAGMENTS if f not in text]
+        assert not stale, f"Fragment(s) no longer found in the home file: {stale}"
+
+
 class TestChurnReportWindowKeySafeAccess:
     """#2108: the same report["window"] bare-index bug recurred twice across
     two structurally-parallel renderers (#2085 review round 2, then round
