@@ -501,10 +501,13 @@ def has_single_agent_exemption(cwd, before_ts: str, window_seconds: int, subject
     """True if `--agent <name>`'s `"single-agent-review-exempt"` bypass
     event was recorded inside the recency window before `before_ts`, bound
     to `subject_hash` (#1461) — a sanctioned single-agent `/code-review`
-    run only ever dispatches 1 distinct agent, which can never clear the
-    `>= 2` distinct-dispatch floor on its own; this exemption keeps that
-    documented workflow from regressing to an always-blocked gate. Fails
-    CLOSED like every other read in this module.
+    run only ever dispatches 1 distinct agent. Historically this could never
+    clear the (then-2) distinct-dispatch floor on its own, so this exemption
+    existed to keep that documented workflow from regressing to an
+    always-blocked gate; #2147 lowered the floor to 1, so a single dispatch
+    now clears it unaided and this exemption is no longer load-bearing for
+    that case — kept as an explicit, auditable alternate path rather than
+    removed. Fails CLOSED like every other read in this module.
     """
     return _has_exemption(cwd, before_ts, window_seconds, subject_hash, _SINGLE_AGENT_RULE)
 
