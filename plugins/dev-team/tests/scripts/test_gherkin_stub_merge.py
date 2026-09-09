@@ -145,6 +145,47 @@ def test_splice_preserves_no_blank_line_convention_when_existing_bindings_have_n
     assert "assert.equal(2, 2);\n});\n\nThen('third thing'" not in result.text
 
 
+_IMPLEMENTED_JAVA_NO_BLANK_LINE = (
+    'public class ASteps {\n'
+    '  @Given("first thing")\n'
+    '  public void firstThing() {\n'
+    '    assertEquals(1, 1);\n'
+    '  }\n'
+    '  @When("second thing")\n'
+    '  public void secondThing() {\n'
+    '    assertEquals(2, 2);\n'
+    '  }\n'
+    "}\n"
+)
+
+
+def _java_candidate(pattern: str, method_name: str) -> gsm.StepCandidate:
+    text = (
+        f'  @Then("{pattern}")\n'
+        f"  public void {method_name}() {{\n"
+        "    throw new io.cucumber.java.PendingException();\n"
+        "  }\n"
+    )
+    return gsm.StepCandidate(pattern=pattern, text=text)
+
+
+def test_indented_bindings_with_no_blank_line_are_not_misread_as_blank_line_separated():
+    """Regression test (correctness-review finding on #2149): the separator
+    check used to be `gap.strip() == ""`, which can't distinguish a genuine
+    blank line ("\\n") from bare next-line indentation ("  ") — both are
+    whitespace-only. For an indented, class-wrapped style (Java, C#, or any
+    JS/TS wrapped in a class/`defineSupportCode` block) with NO blank line
+    between methods, that misread the file as blank-line-separated and
+    injected a spurious blank line at the splice point. The fixture below has
+    exactly one comparable join (between `firstThing` and `secondThing`), and
+    that join's gap is pure indentation with no newline in it."""
+    candidates = [_java_candidate("third thing", "thirdThing")]
+    result = gsm.merge_steps(_IMPLEMENTED_JAVA_NO_BLANK_LINE, ".java", candidates)
+    assert result.error is None
+    assert '  }\n  @Then("third thing")' in result.text
+    assert '  }\n\n  @Then("third thing")' not in result.text
+
+
 # ---------------------------------------------------------------------------
 # Go's two-part splice (regression test — found via this module's own
 # mandated runtime CLI verification, not by pytest: a Go step is split

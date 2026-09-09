@@ -141,9 +141,16 @@ def _existing_bindings_use_blank_line_separator(existing_text: str, bindings: li
     unrelated to the file's own convention. A binding's `.end` (from
     `extend_to_line_end`) stops at its own closing line, so the gap between
     one binding's end and the next binding's start is exactly whatever sits
-    between them — empty when the file has no blank line there, or the
-    blank line's own line terminator when it does. Defaults to `True` when
-    there are fewer than two bindings to compare, matching the
+    between them — empty when the file has no blank line there, the blank
+    line's own line terminator when it does, or just the next binding's
+    leading indentation when the language wraps bindings in an indented
+    block (Java, C#, a class-wrapped JS/TS style) and there is no blank
+    line. That last case is whitespace-only but has no newline in it —
+    `gap.strip() == ""` alone can't tell it apart from a genuine blank
+    line, so a join is only counted as separated when the gap is BOTH
+    whitespace-only AND actually contains a newline (a blank line always
+    has one; bare indentation never does). Defaults to `True` when there
+    are fewer than two bindings to compare, matching the
     blank-line-between-methods style most existing step-definition files
     already use."""
     comparable = bindings[:-1]
@@ -152,7 +159,9 @@ def _existing_bindings_use_blank_line_separator(existing_text: str, bindings: li
     separated = sum(
         1
         for i, binding in enumerate(comparable)
-        if (gap := existing_text[binding.end : bindings[i + 1].start]) and gap.strip() == ""
+        if (gap := existing_text[binding.end : bindings[i + 1].start])
+        and gap.strip() == ""
+        and "\n" in gap
     )
     return separated * 2 >= len(comparable)
 
