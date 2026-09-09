@@ -92,6 +92,16 @@ def test_a_binary_that_merely_contains_dotnet_is_not_matched():
     assert argv == ["my-dotnet-wrapper", "-O", "StrykerOutput"]
 
 
+def test_windows_style_absolute_dotnet_exe_path_still_inserts_the_stryker_verb():
+    # Backslash-separated -- plain Path() alone treats the whole string as
+    # one opaque filename component under a POSIX-flavored Python, missing
+    # the "dotnet" stem entirely; the PureWindowsPath fallback catches it
+    # regardless of which flavor Path() resolves to on the host running this.
+    argv = build_stryker_argv(r"C:\Program Files\dotnet\dotnet.exe", [])
+
+    assert argv == [r"C:\Program Files\dotnet\dotnet.exe", "stryker"]
+
+
 # ---------------------------------------------------------------------------
 # Regression test (test-review finding on #2146): build_stryker_argv above is
 # only proven correct in isolation -- nothing proves its result actually

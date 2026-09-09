@@ -37,7 +37,12 @@ from csharp_stryker_net_slice_runner import (
 )
 
 
-def test_stryker_bin_defaults_to_the_local_tool_manifest_shape():
+def test_stryker_bin_defaults_to_the_local_tool_manifest_shape(monkeypatch):
+    # This script has read STRYKER_BIN via os.environ.get(...) all along
+    # (unlike the two sibling scripts #2145 fixed) -- isolate from an
+    # ambient value so this test pins the *fallback*, not the environment.
+    monkeypatch.delenv("STRYKER_BIN", raising=False)
+
     args = parse_args(["--slice", "all"])
 
     assert args.stryker_bin == "dotnet"

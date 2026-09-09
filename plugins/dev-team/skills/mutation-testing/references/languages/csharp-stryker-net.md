@@ -419,7 +419,9 @@ plugin's shipped scripts are stdlib-only Python, and `json` is stdlib while
 YAML is not). Only `name` + `mutate` are required in this first cut; `kind`,
 `mutation-level`, and `exclude-converged` are accepted and passed through
 but reserved for #667's within-slice refinements — a typo in one of those
-field names still fails config validation, it just isn't acted on yet.
+field names is not rejected — it falls into the generic passthrough below
+and prints the unrecognized-key warning that guards against exactly this
+(#2145) — it just isn't otherwise acted on yet.
 
 Any other key is passed through verbatim into the slice's generated
 `stryker-config.json` — most usefully `project`, naming the single source

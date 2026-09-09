@@ -72,6 +72,15 @@ KNOWN_STRYKER_PASSTHROUGH_KEYS = frozenset(
         "thresholds",
         "dashboard-api-key",
         "disable-bail",
+        "solution",
+        "target-framework",
+        "language-version",
+        "ignore-methods",
+        "break-at",
+        "report-file-name",
+        "verbosity",
+        "log-to-file",
+        "open-report",
     }
 )
 

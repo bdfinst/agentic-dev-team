@@ -37,7 +37,7 @@ import subprocess
 import sys
 import threading
 from collections.abc import Callable, Sequence
-from pathlib import Path
+from pathlib import Path, PureWindowsPath
 
 # =============================================================================
 # Exit codes — same as the bash version, byte-compatible. EXIT_RESTORE_SLN_FAILED
@@ -271,7 +271,7 @@ def _pass_through_concurrency_flag(stryker_args: Sequence[str]) -> str | None:
 
 
 def build_stryker_argv(stryker_bin: str, stryker_args: Sequence[str]) -> list[str]:
-    """Return the full argv for launching Stryker.NET.
+    r"""Return the full argv for launching Stryker.NET.
 
     ``dotnet stryker ...`` is the invocation shape for a **local** tool-
     manifest install — the skill's preferred path (see csharp-stryker-net.md
@@ -290,10 +290,20 @@ def build_stryker_argv(stryker_bin: str, stryker_args: Sequence[str]) -> list[st
     the bare ``"dotnet"`` — a functionally-equivalent value that previously
     fell through to the bare-executable branch below with no ``stryker``
     verb inserted, silently reproducing the failure this module exists to
-    fix. Any other value (e.g. an explicit ``dotnet-stryker`` override for a
-    global install) is used as the bare executable, unchanged.
+    fix. Checked with both ``Path`` (the host-native flavor — ``WindowsPath``
+    on Windows, ``PosixPath`` elsewhere) and ``PureWindowsPath`` explicitly,
+    so a backslash-separated Windows path (e.g. ``C:\Program
+    Files\dotnet\dotnet.exe``) is recognized even when this module runs
+    under a POSIX-flavored Python (Cygwin/MSYS2), where plain ``Path`` alone
+    would treat the whole string as one opaque filename component and never
+    find the ``"dotnet"`` stem. Any other value (e.g. an explicit
+    ``dotnet-stryker`` override for a global install) is used as the bare
+    executable, unchanged.
     """
-    if Path(stryker_bin).stem.lower() == "dotnet":
+    if (
+        Path(stryker_bin).stem.lower() == "dotnet"
+        or PureWindowsPath(stryker_bin).stem.lower() == "dotnet"
+    ):
         return [stryker_bin, "stryker", *stryker_args]
     return [stryker_bin, *stryker_args]
 
