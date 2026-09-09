@@ -734,7 +734,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--repo-root", help="Repo root (default: cwd)")
     parser.add_argument(
         "--stryker-bin",
-        default="dotnet",
+        default=os.environ.get("STRYKER_BIN", "dotnet"),
         help="Stryker executable name, or 'dotnet' to invoke a local-tool-"
         "manifest install via 'dotnet stryker' (default: %(default)s)",
     )

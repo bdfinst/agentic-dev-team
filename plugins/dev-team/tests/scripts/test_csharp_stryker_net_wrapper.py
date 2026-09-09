@@ -58,6 +58,51 @@ def test_empty_stryker_args_still_produces_a_valid_argv():
 
 
 # ---------------------------------------------------------------------------
+# Regression tests (#2145): the local-tool detection used to be exact-string
+# equality on "dotnet", so a functionally-equivalent but differently-spelled
+# --stryker-bin (an absolute path, a Windows-style ".exe" name) silently fell
+# through to the bare-executable branch with no "stryker" verb inserted --
+# reproducing the exact failure this module exists to fix.
+# ---------------------------------------------------------------------------
+
+
+def test_windows_style_dotnet_exe_still_inserts_the_stryker_verb():
+    argv = build_stryker_argv("dotnet.exe", ["--config-file", "stryker-config.json"])
+
+    assert argv == ["dotnet.exe", "stryker", "--config-file", "stryker-config.json"]
+
+
+def test_absolute_path_to_dotnet_still_inserts_the_stryker_verb():
+    argv = build_stryker_argv("/usr/bin/dotnet", ["-O", "StrykerOutput"])
+
+    assert argv == ["/usr/bin/dotnet", "stryker", "-O", "StrykerOutput"]
+
+
+def test_mixed_case_dotnet_still_inserts_the_stryker_verb():
+    argv = build_stryker_argv("DOTNET", [])
+
+    assert argv == ["DOTNET", "stryker"]
+
+
+def test_a_binary_that_merely_contains_dotnet_is_not_matched():
+    # "my-dotnet-wrapper" is not the dotnet SDK -- must not gain a spurious
+    # "stryker" verb it was never built to accept.
+    argv = build_stryker_argv("my-dotnet-wrapper", ["-O", "StrykerOutput"])
+
+    assert argv == ["my-dotnet-wrapper", "-O", "StrykerOutput"]
+
+
+def test_windows_style_absolute_dotnet_exe_path_still_inserts_the_stryker_verb():
+    # Backslash-separated -- plain Path() alone treats the whole string as
+    # one opaque filename component under a POSIX-flavored Python, missing
+    # the "dotnet" stem entirely; the PureWindowsPath fallback catches it
+    # regardless of which flavor Path() resolves to on the host running this.
+    argv = build_stryker_argv(r"C:\Program Files\dotnet\dotnet.exe", [])
+
+    assert argv == [r"C:\Program Files\dotnet\dotnet.exe", "stryker"]
+
+
+# ---------------------------------------------------------------------------
 # Regression test (test-review finding on #2146): build_stryker_argv above is
 # only proven correct in isolation -- nothing proves its result actually
 # reaches the real subprocess.Popen call sites in run_stryker() and its

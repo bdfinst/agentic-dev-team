@@ -419,7 +419,9 @@ plugin's shipped scripts are stdlib-only Python, and `json` is stdlib while
 YAML is not). Only `name` + `mutate` are required in this first cut; `kind`,
 `mutation-level`, and `exclude-converged` are accepted and passed through
 but reserved for #667's within-slice refinements — a typo in one of those
-field names still fails config validation, it just isn't acted on yet.
+field names is not rejected — it falls into the generic passthrough below
+and prints the unrecognized-key warning that guards against exactly this
+(#2145) — it just isn't otherwise acted on yet.
 
 Any other key is passed through verbatim into the slice's generated
 `stryker-config.json` — most usefully `project`, naming the single source
@@ -453,7 +455,12 @@ Each generated per-slice `stryker-config.json` inherits
 recommendation above); pass a `--base-config` pointing at an existing
 `stryker-config.json` whose `"coverage-analysis": "off"` should be
 preserved (e.g. xunit.v3/MTP projects) — an explicit value in the base
-config always wins over the per-slice default.
+config always wins over the per-slice default. A slice may also set its own
+`"coverage-analysis"` key directly (the same generic passthrough `project`
+uses) to override it for that one slice alone — intentional, for a mixed
+solution where only some slices' projects are xunit.v3/MTP; an unrecognized
+passthrough key (a typo, most commonly) prints a warning to stderr naming
+the slice and the key, but is still applied unchanged.
 
 ### Output layout and the aggregate roll-up
 
