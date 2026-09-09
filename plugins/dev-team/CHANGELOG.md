@@ -1,5 +1,37 @@
 # Changelog
 
+## [13.1.0](https://github.com/bdfinst/agentic-dev-team/compare/dev-team-v13.0.0...dev-team-v13.1.0) (2026-09-08)
+
+
+### Features
+
+* **agents:** carry the blocker rule into the authoring lane ([#2138](https://github.com/bdfinst/agentic-dev-team/issues/2138)) ([af0bea0](https://github.com/bdfinst/agentic-dev-team/commit/af0bea0373073ca8be7a56aced757171ad8ad6d4))
+* **agents:** split improper-mocking detection across the review lane ([#2139](https://github.com/bdfinst/agentic-dev-team/issues/2139)) ([acf4ff8](https://github.com/bdfinst/agentic-dev-team/commit/acf4ff8ef46da5afd280baabbf6ad35d14b2e5d4))
+* **hooks:** wire the internal-double detector into a blocking gate ([#2137](https://github.com/bdfinst/agentic-dev-team/issues/2137)) ([6661d6a](https://github.com/bdfinst/agentic-dev-team/commit/6661d6afe955c06a706347a37dfbf42dedf57bc1))
+* **knowledge:** author the internal-collaborator blocker rule ([#2133](https://github.com/bdfinst/agentic-dev-team/issues/2133)) ([f93eaaf](https://github.com/bdfinst/agentic-dev-team/commit/f93eaaf0c3489f1e754429cba8f5c91191672ebd))
+* **setup:** ask about concise-response preference and append to CLAUDE.md ([#2112](https://github.com/bdfinst/agentic-dev-team/issues/2112)) ([488eb8e](https://github.com/bdfinst/agentic-dev-team/commit/488eb8ea7e4f40e4c8fcb5615307fa2cf8c6e723))
+* **test-design:** add a language-neutral internal-double detector with waiver support ([#2136](https://github.com/bdfinst/agentic-dev-team/issues/2136)) ([9131d18](https://github.com/bdfinst/agentic-dev-team/commit/9131d18915eb86ab4deb2d476089474a7f5e1101))
+
+
+### Bug Fixes
+
+* **dev-team:** address session-review findings [#2103](https://github.com/bdfinst/agentic-dev-team/issues/2103)-[#2111](https://github.com/bdfinst/agentic-dev-team/issues/2111) ([#2116](https://github.com/bdfinst/agentic-dev-team/issues/2116)) ([b6514a7](https://github.com/bdfinst/agentic-dev-team/commit/b6514a7bb6a09747857b7de312145aef8f0f6d4b))
+* **docs:** convert 133 cross-tree hand-written links to GitHub source ([#2119](https://github.com/bdfinst/agentic-dev-team/issues/2119)) ([e453828](https://github.com/bdfinst/agentic-dev-team/commit/e4538289ff9df0436962778cca954e769d2c5bca)), closes [#2113](https://github.com/bdfinst/agentic-dev-team/issues/2113)
+* **docs:** fix 72 broken links/anchors against the assembled site tree ([#2118](https://github.com/bdfinst/agentic-dev-team/issues/2118)) ([#2121](https://github.com/bdfinst/agentic-dev-team/issues/2121)) ([9f5cfa0](https://github.com/bdfinst/agentic-dev-team/commit/9f5cfa0f81e1381175a8c5575a261a517c71154b))
+* **knowledge:** correct stack profiles that double internal collaborators unconditionally ([#2140](https://github.com/bdfinst/agentic-dev-team/issues/2140)) ([538b796](https://github.com/bdfinst/agentic-dev-team/commit/538b796eebdfb3f6019a406d795f7671a8c44bd0))
+* **knowledge:** make sociable the default across existing test guidance ([#2134](https://github.com/bdfinst/agentic-dev-team/issues/2134)) ([182b684](https://github.com/bdfinst/agentic-dev-team/commit/182b684d87012b1284f72f0e387ad5e5bbd7e012))
+* **skills:** reconcile farley-score and mutation-testing triage with sociable-by-default ([#2141](https://github.com/bdfinst/agentic-dev-team/issues/2141)) ([f9439f1](https://github.com/bdfinst/agentic-dev-team/commit/f9439f1d2e9a0a6c42aa9bdc2ed0f7a483752157))
+
+
+### Documentation
+
+* make CLAUDE.md more concise ([#2117](https://github.com/bdfinst/agentic-dev-team/issues/2117)) ([8958f57](https://github.com/bdfinst/agentic-dev-team/commit/8958f57cef5e9bc9bec66ccd9074401888e4a620))
+
+
+### Miscellaneous
+
+* **repo:** enforce single-sourcing of the blocker rule with a check that can fail ([#2135](https://github.com/bdfinst/agentic-dev-team/issues/2135)) ([b91a677](https://github.com/bdfinst/agentic-dev-team/commit/b91a677abdf089493b42f07023236c1d0ef50039))
+
 ## [13.0.0](https://github.com/bdfinst/agentic-dev-team/compare/dev-team-v12.11.0...dev-team-v13.0.0) (2026-08-31)
 
 
