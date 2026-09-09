@@ -230,7 +230,14 @@ def test_malformed_csproj_is_discovery_error_not_crash(tmp_path):
         result = cdd.discover_dotnet_projects(tmp_path)
 
     assert result["signal"] == "error"
-    assert csproj_rel in result["message"]
+    # The message names the resolved (absolute) path — deliberately, since
+    # `_classify_project` needs the resolved path for its containment check
+    # and the original solution-relative string isn't threaded through to
+    # it. Check the filename rather than the forward-slash relative path:
+    # the latter is a POSIX-only substring of a Windows absolute path,
+    # which renders with backslashes (mirrors the portable convention the
+    # sibling Directory.Build.props test right below already uses).
+    assert "Foo.Tests.csproj" in result["message"]
 
 
 def test_malformed_directory_build_props_is_discovery_error_not_crash(tmp_path):

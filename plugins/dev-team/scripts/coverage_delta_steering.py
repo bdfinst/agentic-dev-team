@@ -318,4 +318,13 @@ def main(argv: list[str] | None = None) -> int:
 
 
 if __name__ == "__main__":  # pragma: no cover
+    # render_text()'s "Δ line"/"Δ branch" headers crash with
+    # UnicodeEncodeError on a non-UTF-8 console (e.g. Windows' default
+    # cp1252) before any output reaches the caller. Forcing UTF-8 here only
+    # affects real script invocation (this guard never runs for an in-process
+    # `import coverage_delta_steering; coverage_delta_steering.main(...)`
+    # caller, e.g. a test using capsys), matching every other script's
+    # console-encoding independence.
+    if hasattr(sys.stdout, "reconfigure"):
+        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
     sys.exit(main())
