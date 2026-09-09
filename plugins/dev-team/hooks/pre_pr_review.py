@@ -57,12 +57,24 @@ WHAT CHANGED, MECHANICALLY, FROM THE COMMIT-TIME GATE:
   without one.
 
 WHAT DID NOT CHANGE: the underlying corroboration architecture is reused
-as-is from `hooks/lib/review_gate_corroboration.py` — >= 2 distinct,
-registered review-agent dispatches (or a sanctioned doc-only/single-agent
+as-is from `hooks/lib/review_gate_corroboration.py` — >= 1 distinct,
+registered review-agent dispatch (or a sanctioned doc-only/single-agent
 exemption) recorded in the recency window, live-registry re-validated, with
 the same #1763 dispatch-failure veto taking priority over every exemption.
 See that module's own docstring for the full account of why this raises the
 bar without cryptographically closing #1461's self-certification gap.
+
+`_MIN_DISTINCT_DISPATCHES` was lowered from 2 to 1 (#2147): a single
+`/code-review` invocation already dispatches a full multi-agent panel
+internally, so requiring a SECOND, separate top-level dispatch on top of
+that bought no additional corroboration — it only produced false blocks on
+a legitimately-reviewed branch (e.g. a single `--agent <name>` review, or a
+session whose panel dispatch shape records fewer ledger rows than a prior
+plugin version did). The single-agent exemption event
+(`single-agent-review-exempt`) is consequently now redundant with the
+ordinary count check for the case it was built for — kept anyway, since it
+is a harmless, already-audited alternate path, not because anything still
+requires it.
 
 DELIBERATELY DROPPED, not carried forward from `pre_commit_review.py`
 (explicit scope decisions, not oversights):
@@ -254,13 +266,30 @@ def emit_boundary_event(*args, **kwargs) -> None:
 
 _GATE_FILE_NAME = ".pr-review-passed"
 
+# The env var must be set in a process environment this hook's own process
+# actually inherits — e.g. `export PR_GATE_BYPASS_REASON=<reason>` in your
+# shell profile, or a session-level persistent env config. An inline
+# `PR_GATE_BYPASS_REASON=<reason> gh pr create ...` prefix on the SAME
+# command line does NOT work (#2147): that assignment is scoped to the
+# subshell that runs `gh`, which this PreToolUse hook — a separate process
+# that runs BEFORE that subshell exists — never sees. Confirmed directly
+# against this hook's own architecture (a PreToolUse hook reads
+# `tool_input.command` as text; it does not execute it, and inline shell
+# assignments are never reflected into a sibling process's `os.environ`).
+_BYPASS_HINT = (
+    "To bypass: set PR_GATE_BYPASS_REASON as a real, inherited environment "
+    "variable before this command runs (e.g. `export "
+    "PR_GATE_BYPASS_REASON=<reason>`) — NOT as an inline "
+    "`PR_GATE_BYPASS_REASON=<reason> gh pr create ...` prefix on the same "
+    "line, which this hook cannot see and will not honor.\n"
+)
+
 _BLOCK_MESSAGE = (
     "BLOCKED: Code review required before opening a PR.\n"
     "\n"
     "Run /code-review scoped to this branch's diff vs. its base, then\n"
     "retry `gh pr create` — the PR will be allowed once review passes.\n"
-    "\n"
-    "To bypass: set PR_GATE_BYPASS_REASON to a non-empty reason.\n"
+    "\n" + _BYPASS_HINT
 )
 
 # Recency window (#1886, mirrors #1461's WINDOW_SECONDS): how far back before
@@ -269,38 +298,38 @@ _BLOCK_MESSAGE = (
 # "Recency window anchor" bullet), not a gate file's mtime.
 WINDOW_SECONDS = 1800
 
-_MIN_DISTINCT_DISPATCHES = 2
+# #2147: lowered from 2 to 1 — a single `/code-review` invocation already
+# dispatches a full multi-agent panel internally, so a second, separate
+# top-level dispatch was never additional corroboration. See the module
+# docstring's "`_MIN_DISTINCT_DISPATCHES` was lowered..." paragraph.
+_MIN_DISTINCT_DISPATCHES = 1
 
 _NO_DISPATCH_MESSAGE = (
     f"BLOCKED: No genuine review-agent dispatch found in the last "
     f"{WINDOW_SECONDS}s — run /code-review (scoped to this branch's diff "
     f"vs. its base) before opening a PR.\n"
-    "\n"
-    "To bypass: set PR_GATE_BYPASS_REASON to a non-empty reason.\n"
+    "\n" + _BYPASS_HINT
 )
 
 _STALE_MESSAGE = (
     f"BLOCKED: Review-agent dispatch evidence found but outside the "
     f"{WINDOW_SECONDS}s window — run /code-review again before opening a "
     "PR.\n"
-    "\n"
-    "To bypass: set PR_GATE_BYPASS_REASON to a non-empty reason.\n"
+    "\n" + _BYPASS_HINT
 )
 
 _DIFFERENT_CONTENT_MESSAGE = (
     "BLOCKED: Review-agent dispatch evidence found, but for different "
     "branch-diff content (the branch changed since that review) — run "
     "/code-review again before opening a PR.\n"
-    "\n"
-    "To bypass: set PR_GATE_BYPASS_REASON to a non-empty reason.\n"
+    "\n" + _BYPASS_HINT
 )
 
 _READ_FAILURE_MESSAGE = (
     "BLOCKED: Could not read the dispatch ledger "
     "(.claude/metrics/boundary-events.jsonl) — check hook registration; "
     "this is an infra problem, not evidence that no review happened.\n"
-    "\n"
-    "To bypass: set PR_GATE_BYPASS_REASON to a non-empty reason.\n"
+    "\n" + _BYPASS_HINT
 )
 
 _GATE_SETUP_FAILURE_MESSAGE = (
@@ -309,16 +338,14 @@ _GATE_SETUP_FAILURE_MESSAGE = (
     ".claude/memory is a writable directory and the git repository is "
     "healthy; this is an infra problem, not evidence that no review "
     "happened.\n"
-    "\n"
-    "To bypass: set PR_GATE_BYPASS_REASON to a non-empty reason.\n"
+    "\n" + _BYPASS_HINT
 )
 
 _REGISTRY_READ_FAILURE_MESSAGE = (
     "BLOCKED: Could not read the registered review-agent set — cannot "
     "prove no dispatch failure exists for this content; this is an infra "
     "problem, not evidence that no review happened.\n"
-    "\n"
-    "To bypass: set PR_GATE_BYPASS_REASON to a non-empty reason.\n"
+    "\n" + _BYPASS_HINT
 )
 
 
@@ -327,8 +354,7 @@ def _insufficient_message(n: int) -> str:
         f"BLOCKED: Only {n} distinct review agent(s) dispatched (need >= "
         f"{_MIN_DISTINCT_DISPATCHES}) — run /code-review before opening a "
         "PR.\n"
-        "\n"
-        "To bypass: set PR_GATE_BYPASS_REASON to a non-empty reason.\n"
+        "\n" + _BYPASS_HINT
     )
 
 
@@ -340,8 +366,7 @@ def _dispatch_failure_message(agents: frozenset) -> str:
         "\n"
         "Run /code-review again against this same, unchanged branch diff — "
         "a clean rerun clears this block.\n"
-        "\n"
-        "To bypass: set PR_GATE_BYPASS_REASON to a non-empty reason.\n"
+        "\n" + _BYPASS_HINT
     )
 
 

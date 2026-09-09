@@ -1,9 +1,10 @@
 """Unit tests for skills/code-review/scripts/closing_pass.py (#1626).
 
 The headline acceptance criterion: a 1-file fix after an 18-agent panel
-produces a closing pass of <= 3 dispatches (the fixer's agent plus a top-up),
-not 18 — while still satisfying the pre-commit gate's >= 2 distinct-dispatch
-floor by construction, with no hook change.
+produces a closing pass of <= 3 dispatches (the fixer's agent plus a possible
+top-up), not 18 — while still satisfying the pre-PR gate's >= 1
+distinct-dispatch floor by construction (#2147; lowered from 2), with no
+hook change.
 """
 
 from __future__ import annotations
@@ -59,7 +60,11 @@ class TestGateFloorByConstruction:
         assert match, "could not locate _MIN_DISTINCT_DISPATCHES in pre_pr_review.py"
         assert int(match.group(1)) == closing_pass.MIN_DISTINCT_DISPATCHES
 
-    def test_single_fixer_is_topped_up_to_the_floor(self):
+    def test_single_fixer_already_meets_the_floor(self):
+        """#2147: the floor is 1, so one genuine fixer dispatch is already
+        sufficient — no top-up needed. (Top-up itself is still exercised
+        below with an explicit higher `minimum`, independent of the real
+        gate's current floor.)"""
         plan = closing_pass.compose(
             fixed_by_agents=["correctness-review"],
             eligible_roster=PANEL,
@@ -67,7 +72,19 @@ class TestGateFloorByConstruction:
             panel_files=["src/cache.js"],
             fix_delta_files=["src/cache.js"],
         )
-        assert len(plan["agents"]) == closing_pass.MIN_DISTINCT_DISPATCHES
+        assert plan["agents"] == ["correctness-review"]
+        assert plan["topped_up"] == []
+
+    def test_single_fixer_is_topped_up_to_an_explicit_higher_floor(self):
+        plan = closing_pass.compose(
+            fixed_by_agents=["correctness-review"],
+            eligible_roster=PANEL,
+            panel_agents=PANEL,
+            panel_files=["src/cache.js"],
+            fix_delta_files=["src/cache.js"],
+            minimum=2,
+        )
+        assert len(plan["agents"]) == 2
         assert "correctness-review" in plan["agents"]
         assert plan["topped_up"] == ["naming-review"]
 
@@ -85,23 +102,30 @@ class TestGateFloorByConstruction:
     def test_top_up_takes_the_cheapest_eligible_lens_first(self):
         # The roster arrives cheap-first from select_lenses.py; a top-up must
         # never reach for an opus lens while a cheaper one is available.
+        # Uses an explicit higher `minimum` so this test still exercises
+        # top-up behavior regardless of the real gate's current floor (#2147:
+        # 1 fixer already meets today's floor of 1, so no top-up would fire).
         plan = closing_pass.compose(
             fixed_by_agents=["arch-review"],
             eligible_roster=PANEL,
             panel_agents=PANEL,
             panel_files=["src/a.js"],
             fix_delta_files=["src/a.js"],
+            minimum=2,
         )
         assert plan["topped_up"] == ["naming-review"]
         assert "security-review" not in plan["agents"]
 
     def test_roster_smaller_than_the_floor_is_reported_not_hidden(self):
+        # Explicit `minimum=2` so a single-agent roster is provably smaller
+        # than the floor, independent of the real gate's current value.
         plan = closing_pass.compose(
             fixed_by_agents=["doc-review"],
             eligible_roster=["doc-review"],
             panel_agents=["doc-review"],
             panel_files=["README.md"],
             fix_delta_files=["README.md"],
+            minimum=2,
         )
         assert len(plan["agents"]) == 1
         assert plan["reason"] == "eligible-roster-smaller-than-gate-floor"
@@ -166,7 +190,7 @@ class TestDeduping:
             fix_delta_files=["a.md"],
         )
         assert plan["agents"].count("doc-review") == 1
-        assert len(plan["agents"]) == 2
+        assert len(plan["agents"]) == 1
 
     def test_blank_entries_are_dropped(self):
         plan = closing_pass.compose(
@@ -201,7 +225,7 @@ class TestCli:
             check=True,
         )
         plan = json.loads(result.stdout)
-        assert len(plan["agents"]) == 2
+        assert len(plan["agents"]) == 1
         assert plan["scope"] == "fix-delta"
 
     def test_cli_accepts_a_select_lenses_json_file_for_the_roster(self, tmp_path):
@@ -224,4 +248,4 @@ class TestCli:
         )
         plan = json.loads(result.stdout)
         assert plan["agents"][0] == "doc-review"
-        assert len(plan["agents"]) == 2
+        assert len(plan["agents"]) == 1
