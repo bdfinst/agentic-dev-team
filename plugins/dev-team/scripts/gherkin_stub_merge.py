@@ -133,13 +133,47 @@ def _insert_at(text: str, idx: int, insertion: str) -> str:
     return prefix + insertion + suffix
 
 
+def _existing_bindings_use_blank_line_separator(existing_text: str, bindings: list) -> bool:
+    """Infer whether this file's existing step bindings are separated by a
+    blank line, from the joins between consecutive existing bindings —
+    excluding the boundary after the very last binding, which sits at the
+    file's end and may have nothing after it to separate from for reasons
+    unrelated to the file's own convention. A binding's `.end` (from
+    `extend_to_line_end`) stops at its own closing line, so the gap between
+    one binding's end and the next binding's start is exactly whatever sits
+    between them — empty when the file has no blank line there, or the
+    blank line's own line terminator when it does. Defaults to `True` when
+    there are fewer than two bindings to compare, matching the
+    blank-line-between-methods style most existing step-definition files
+    already use."""
+    comparable = bindings[:-1]
+    if not comparable:
+        return True
+    separated = sum(
+        1
+        for i, binding in enumerate(comparable)
+        if (gap := existing_text[binding.end : bindings[i + 1].start]) and gap.strip() == ""
+    )
+    return separated * 2 >= len(comparable)
+
+
 def _splice_single_point(existing_text: str, bindings: list, new_candidates: list) -> str:
     """The default splice: append every new candidate's text as one block
     right after the last existing binding (or at file end with no existing
     bindings) — correct whenever a binding's `text` already contains
-    everything the language needs (JS/TS, Java, C#)."""
+    everything the language needs (JS/TS, Java, C#).
+
+    The last existing binding sits at the splice point with nothing after
+    it, so its own text alone can't say whether this file puts a blank
+    line between step definitions — infer that from the *other* existing
+    joins instead (`_existing_bindings_use_blank_line_separator`) and
+    reproduce it here, so a splice landing flush against the last existing
+    method's closing brace doesn't silently drop the blank line every
+    other method boundary in the file already has."""
     insertion_point = bindings[-1].end if bindings else len(existing_text)
     insertion = "".join(candidate.text for candidate in new_candidates)
+    if bindings and insertion and _existing_bindings_use_blank_line_separator(existing_text, bindings):
+        insertion = "\n" + insertion
     return _insert_at(existing_text, insertion_point, insertion)
 
 

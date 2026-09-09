@@ -97,6 +97,54 @@ def test_new_candidate_is_appended_after_the_last_existing_binding():
     assert idx_existing < idx_new
 
 
+def test_single_existing_binding_defaults_to_blank_line_separator():
+    """With only one existing binding (nothing to infer a convention from),
+    the splice defaults to inserting a blank line before the new candidate,
+    matching the blank-line-between-methods style most existing
+    step-definition files already use."""
+    existing_text = _IMPLEMENTED_JS
+    candidates = [_js_candidate("a new thing")]
+    result = gsm.merge_steps(existing_text, ".js", candidates)
+    assert result.error is None
+    assert "});\n\nThen('a new thing'" in result.text
+
+
+def test_splice_inserts_blank_line_when_existing_bindings_are_blank_line_separated():
+    """Regression test: the real-world failure shape — every existing
+    binding in a file is blank-line separated except the very last one,
+    which sits flush at end-of-file (nothing follows it, so it never picked
+    up a trailing blank line for reasons unrelated to the file's own
+    convention). The old splice logic only guarded against a *missing
+    newline* at the join point, not a *missing blank line*, so appending
+    here landed the new binding directly against the last existing
+    binding's closing brace with zero separation."""
+    existing_text = (
+        "Given('first thing', function () {\n  assert.equal(1, 1);\n});\n"
+        "\n"
+        "When('second thing', function () {\n  assert.equal(2, 2);\n});\n"
+    )
+    candidates = [_js_candidate("third thing")]
+    result = gsm.merge_steps(existing_text, ".js", candidates)
+    assert result.error is None
+    assert "assert.equal(2, 2);\n});\n\nThen('third thing'" in result.text
+
+
+def test_splice_preserves_no_blank_line_convention_when_existing_bindings_have_none():
+    """The inverse: when this file's own existing bindings are NOT
+    blank-line separated, the merge must reproduce that convention at the
+    splice point too, rather than unconditionally forcing a blank line that
+    would only be consistent with a *different* file's Gherkin style."""
+    existing_text = (
+        "Given('first thing', function () {\n  assert.equal(1, 1);\n});\n"
+        "When('second thing', function () {\n  assert.equal(2, 2);\n});\n"
+    )
+    candidates = [_js_candidate("third thing")]
+    result = gsm.merge_steps(existing_text, ".js", candidates)
+    assert result.error is None
+    assert "assert.equal(2, 2);\n});\nThen('third thing'" in result.text
+    assert "assert.equal(2, 2);\n});\n\nThen('third thing'" not in result.text
+
+
 # ---------------------------------------------------------------------------
 # Go's two-part splice (regression test — found via this module's own
 # mandated runtime CLI verification, not by pytest: a Go step is split
