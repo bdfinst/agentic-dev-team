@@ -350,9 +350,16 @@ def build_loop_command(
     report: Path,
     model: str | None,
     max_rounds: int,
+    stryker_bin: str = "dotnet",
 ) -> list[str]:
     """Build the ``mutation_kill_loop`` invocation. ``--headless`` is forced —
-    the pipeline is unattended and can never depend on a live agent turn."""
+    the pipeline is unattended and can never depend on a live agent turn.
+
+    ``stryker_bin`` is forwarded explicitly so an override on the pipeline's
+    own ``--stryker-bin`` (e.g. targeting a global install) reaches this
+    per-file survivor-fix subprocess too, rather than that subprocess
+    silently falling back to its own independent default.
+    """
     cmd = [
         PYTHON,
         LOOP_SCRIPT,
@@ -369,6 +376,8 @@ def build_loop_command(
         str(report),
         "--max-rounds",
         str(max_rounds),
+        "--stryker-bin",
+        stryker_bin,
     ]
     if model:
         cmd += ["--model", model]
@@ -383,6 +392,7 @@ def launch_survivor_fix(
     config_path: Path,
     model: str | None,
     max_rounds: int,
+    stryker_bin: str = "dotnet",
     run: Callable[..., subprocess.CompletedProcess] = subprocess.run,
     resolve_test_file: TestFileResolver | None = None,
     log: Callable[[str], None] = print,
@@ -452,6 +462,7 @@ def launch_survivor_fix(
             report=report,
             model=model,
             max_rounds=max_rounds,
+            stryker_bin=stryker_bin,
         )
         log(f"[{ts()}] Agent START (headless): {_safe(shard)} — {_safe(source)}")
         result = run(cmd, cwd=str(repo_root))
@@ -641,6 +652,7 @@ def process_shard(
             config_path=shard_config_path(repo_root, shard),
             model=model,
             max_rounds=max_rounds,
+            stryker_bin=stryker_bin,
             run=run,
             resolve_test_file=resolve_test_file,
             log=log,
@@ -720,7 +732,12 @@ def build_parser() -> argparse.ArgumentParser:
         "shards", nargs="*", default=[], help="Shards to run (default: all discovered)"
     )
     parser.add_argument("--repo-root", help="Repo root (default: cwd)")
-    parser.add_argument("--stryker-bin", default="dotnet-stryker", help="Stryker executable")
+    parser.add_argument(
+        "--stryker-bin",
+        default="dotnet",
+        help="Stryker executable name, or 'dotnet' to invoke a local-tool-"
+        "manifest install via 'dotnet stryker' (default: %(default)s)",
+    )
     parser.add_argument(
         "--model",
         help="Generation model for the forced-headless survivor-fix loop.",

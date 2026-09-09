@@ -13,6 +13,8 @@ from __future__ import annotations
 
 import sys
 
+import pytest
+
 from _repo_root import REPO_ROOT as _REPO_ROOT
 
 sys.path.insert(0, str(_REPO_ROOT / "plugins" / "dev-team" / "scripts" / "lib"))
@@ -21,6 +23,13 @@ import _vendored_tree
 
 
 def _make_fixture(tmp_path):
+    """Returns `(fixture_root, symlink_created)`. Creating a file symlink on
+    Windows raises `OSError: [WinError 1314]` unless the process is elevated
+    or Developer Mode is on (`SeCreateSymbolicLinkPrivilege`) — a real,
+    common contributor-machine limitation, not a bug in this module. macOS
+    and Linux never hit this branch: `symlink_to` there requires no special
+    privilege, so `symlink_created` is always `True` and every test below
+    runs exactly as it did before this guard existed."""
     (tmp_path / "node_modules" / "pkg").mkdir(parents=True)
     (tmp_path / "node_modules" / "pkg" / "index.js").write_text("")
     (tmp_path / ".git").mkdir()
@@ -37,8 +46,12 @@ def _make_fixture(tmp_path):
     (venv / "lib.py").write_text("")
     (tmp_path / "src").mkdir()
     (tmp_path / "src" / "app.py").write_text("")
-    (tmp_path / "src" / "linked.py").symlink_to(tmp_path / "src" / "app.py")
-    return tmp_path
+    symlink_created = True
+    try:
+        (tmp_path / "src" / "linked.py").symlink_to(tmp_path / "src" / "app.py")
+    except OSError:
+        symlink_created = False
+    return tmp_path, symlink_created
 
 
 def test_vendored_dir_names_is_the_expected_fixed_set():
@@ -53,7 +66,7 @@ def test_vendored_dir_names_is_the_expected_fixed_set():
 
 
 def test_is_vendored_dir_recognizes_every_named_dir_and_virtualenv_marker(tmp_path):
-    fixture = _make_fixture(tmp_path)
+    fixture, _ = _make_fixture(tmp_path)
     for name in (".git", "node_modules", "vendor", "dist", "build"):
         assert _vendored_tree.is_vendored_dir(fixture / name) is True, name
     assert _vendored_tree.is_vendored_dir(fixture / ".venv") is True
@@ -61,12 +74,14 @@ def test_is_vendored_dir_recognizes_every_named_dir_and_virtualenv_marker(tmp_pa
 
 
 def test_iter_files_prunes_vendored_trees_and_skips_symlinked_files(tmp_path):
-    fixture = _make_fixture(tmp_path)
+    fixture, symlink_created = _make_fixture(tmp_path)
+    if not symlink_created:
+        pytest.skip("this platform/account can't create file symlinks without elevation")
     found = {p.relative_to(fixture).as_posix() for p in _vendored_tree.iter_files(fixture)}
     assert found == {"src/app.py"}
 
 
 def test_find_files_applies_predicate_on_top_of_the_same_pruning(tmp_path):
-    fixture = _make_fixture(tmp_path)
+    fixture, _ = _make_fixture(tmp_path)
     found = _vendored_tree.find_files([fixture], lambda p: p.suffix == ".py")
     assert [p.relative_to(fixture).as_posix() for p in found] == ["src/app.py"]

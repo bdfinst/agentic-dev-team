@@ -381,7 +381,7 @@ def run_scoped_stryker(
     source_file: str,
     *,
     output_dir: Path,
-    stryker_bin: str = "dotnet-stryker",
+    stryker_bin: str = "dotnet",
     cwd: Path | None = None,
 ) -> Path:
     """Run Stryker scoped to one file; return the report path.
@@ -442,13 +442,10 @@ def run_scoped_stryker(
             # None-means-failure signal for a caller to revert-and-continue
             # like dotnet_build/dotnet_test/git_revert/git_commit do.
             subprocess.run(
-                [
+                wrapper.build_stryker_argv(
                     stryker_bin,
-                    "--config-file",
-                    str(config_path),
-                    "--output",
-                    str(output_dir),
-                ],
+                    ["--config-file", str(config_path), "--output", str(output_dir)],
+                ),
                 env=env,
                 cwd=cwd,
                 check=False,
@@ -618,7 +615,7 @@ class RunContext:
     test_file: Path
     source_path: Path
     output_dir: Path
-    stryker_bin: str = "dotnet-stryker"
+    stryker_bin: str = "dotnet"
     cwd: Path | None = None
     log: Callable[[str], None] = print
     initial_report_path: Path | None = None

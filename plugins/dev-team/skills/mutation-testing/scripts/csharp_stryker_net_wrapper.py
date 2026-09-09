@@ -222,8 +222,9 @@ def parse_args(argv: Sequence[str]) -> argparse.Namespace:
     )
     p.add_argument(
         "--stryker-bin",
-        default=os.environ.get("STRYKER_BIN", "dotnet-stryker"),
-        help="Stryker executable name (default: %(default)s)",
+        default=os.environ.get("STRYKER_BIN", "dotnet"),
+        help="Stryker executable name, or 'dotnet' to invoke a local-tool-"
+        "manifest install via 'dotnet stryker' (default: %(default)s)",
     )
     p.add_argument(
         "--logfile",
@@ -267,6 +268,28 @@ def _pass_through_concurrency_flag(stryker_args: Sequence[str]) -> str | None:
         if flag in stryker_args:
             return flag
     return None
+
+
+def build_stryker_argv(stryker_bin: str, stryker_args: Sequence[str]) -> list[str]:
+    """Return the full argv for launching Stryker.NET.
+
+    ``dotnet stryker ...`` is the invocation shape for a **local** tool-
+    manifest install — the skill's preferred path (see csharp-stryker-net.md
+    "Prefer a local install"). A local tool's own command name
+    (``dotnet-stryker``) is never placed on ``PATH``; it is only reachable
+    through dotnet's own verb-resolution convention (``dotnet <verb>`` finds
+    a local ``dotnet-<verb>`` tool). A **global** install, by contrast, does
+    put a bare ``dotnet-stryker`` executable on ``PATH``, invoked directly
+    with no subcommand.
+
+    Auto-detected from ``stryker_bin`` alone — no separate flag: when it is
+    exactly ``"dotnet"``, insert the ``stryker`` verb. Any other value (e.g.
+    an explicit ``dotnet-stryker`` override for a global install) is used as
+    the bare executable, unchanged.
+    """
+    if stryker_bin == "dotnet":
+        return ["dotnet", "stryker", *stryker_args]
+    return [stryker_bin, *stryker_args]
 
 
 def build_project(project: str, cwd: Path | None = None) -> int:
@@ -321,7 +344,7 @@ def run_stryker(
     if line_callback is None:
         with logfile.open("wb") as log:
             proc = subprocess.Popen(
-                [stryker_bin, *stryker_args],
+                build_stryker_argv(stryker_bin, stryker_args),
                 stdout=log,
                 stderr=subprocess.STDOUT,
                 cwd=popen_cwd,
@@ -425,7 +448,7 @@ def _run_stryker_streaming(
     """
     with logfile.open("wb") as log:
         proc = subprocess.Popen(
-            [stryker_bin, *stryker_args],
+            build_stryker_argv(stryker_bin, stryker_args),
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
             cwd=popen_cwd,

@@ -174,10 +174,17 @@ _REPO_ROOT = _PLUGIN_ROOT.parents[1]
 
 
 def _repo_relative(path: Path) -> str:
+    """Repo-relative path as a forward-slash string, matching `_changed_set`'s
+    own normalization. On Windows, `str(Path(...))` renders native
+    backslashes — comparing that directly against `_changed_set`'s
+    forward-slash-normalized entries (`rel not in changed`, used by every
+    changed-file-scoped check below) never matches, silently emptying every
+    finding on Windows regardless of what actually changed."""
     try:
-        return str(path.relative_to(_REPO_ROOT))
+        rel = str(path.relative_to(_REPO_ROOT))
     except ValueError:
-        return str(path)
+        rel = str(path)
+    return rel.replace("\\", "/")
 
 
 def _changed_set(changed_files):

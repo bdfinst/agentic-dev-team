@@ -249,11 +249,27 @@ def build_slice_stryker_config(
     ``coverage-analysis`` to ``"perTest"`` per #669's validated
     recommendation, unless the base config already sets it (escape hatch,
     e.g. xunit.v3/MTP projects that must keep it ``"off"``).
+
+    A slice may also carry additional Stryker-config-shaped keys beyond
+    ``mutate`` — most notably ``"project"``, naming the single source
+    ``.csproj`` under test (Stryker's own ``-p``/``--project``/config
+    ``"project"`` key). Without it, Stryker auto-discovers every source
+    project transitively referenced by the configured ``test-projects`` and
+    re-runs its build + initial-test-run + coverage-capture cycle for each
+    one on **every** slice invocation, regardless of that slice's ``mutate``
+    glob — multiplying fixed per-slice overhead by the number of source
+    projects in the solution. Any slice key other than the reserved/required
+    ones handled above is passed through verbatim, so this stays a single
+    generic seam rather than one hardcoded field for ``"project"`` alone.
     """
     cfg = dict(base_config)
     mutate = slice_def["mutate"]
     cfg["mutate"] = mutate if isinstance(mutate, list) else [mutate]
     cfg.setdefault("coverage-analysis", "perTest")
+    for key, value in slice_def.items():
+        if key in KNOWN_SLICE_FIELDS:
+            continue
+        cfg[key] = value
     return cfg
 
 
@@ -397,8 +413,9 @@ def parse_args(argv: Sequence[str]) -> argparse.Namespace:
     )
     p.add_argument(
         "--stryker-bin",
-        default=os.environ.get("STRYKER_BIN", "dotnet-stryker"),
-        help="Stryker executable name (default: %(default)s)",
+        default=os.environ.get("STRYKER_BIN", "dotnet"),
+        help="Stryker executable name, or 'dotnet' to invoke a local-tool-"
+        "manifest install via 'dotnet stryker' (default: %(default)s)",
     )
     p.add_argument(
         "--base-config",
