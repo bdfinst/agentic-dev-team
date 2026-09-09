@@ -52,6 +52,29 @@ REQUIRED_SLICE_FIELDS = ("name", "mutate")
 RESERVED_SLICE_FIELDS = ("kind", "mutation-level", "exclude-converged")
 KNOWN_SLICE_FIELDS = REQUIRED_SLICE_FIELDS + RESERVED_SLICE_FIELDS
 
+# Stryker.NET config keys this skill's generic slice passthrough
+# (build_slice_stryker_config) is known to be used with in practice. NOT an
+# exhaustive copy of Stryker's own schema — duplicating that schema here is
+# exactly what the passthrough's "single generic seam" design avoids (#2145),
+# so this list only gates a WARNING, never a rejection: a legitimate Stryker
+# key that isn't listed yet still passes through unchanged, just noisily.
+# Extend as new keys are used in a slices config.
+KNOWN_STRYKER_PASSTHROUGH_KEYS = frozenset(
+    {
+        "project",
+        "coverage-analysis",
+        "since",
+        "additional-timeout",
+        "reporters",
+        "concurrency",
+        "test-projects",
+        "ignore-mutations",
+        "thresholds",
+        "dashboard-api-key",
+        "disable-bail",
+    }
+)
+
 
 # =============================================================================
 # Slice config loading + validation
@@ -261,6 +284,16 @@ def build_slice_stryker_config(
     projects in the solution. Any slice key other than the reserved/required
     ones handled above is passed through verbatim, so this stays a single
     generic seam rather than one hardcoded field for ``"project"`` alone.
+
+    This passthrough is deliberately unvalidated (#2145) — a slice-level
+    ``"coverage-analysis"`` key, for instance, silently overrides the
+    ``setdefault`` above, which is intentional (the same xunit.v3/MTP escape
+    hatch, applied per-slice instead of once for the whole base config) but
+    otherwise indistinguishable at this layer from a typo. As a middle
+    ground between "stay generic" and "catch typos", any passthrough key not
+    in :data:`KNOWN_STRYKER_PASSTHROUGH_KEYS` prints a warning (to stderr)
+    naming the slice and the key — informational only; the value is still
+    applied unchanged.
     """
     cfg = dict(base_config)
     mutate = slice_def["mutate"]
@@ -269,6 +302,13 @@ def build_slice_stryker_config(
     for key, value in slice_def.items():
         if key in KNOWN_SLICE_FIELDS:
             continue
+        if key not in KNOWN_STRYKER_PASSTHROUGH_KEYS:
+            print(
+                f"WARNING: slice {slice_def.get('name')!r} passes through "
+                f"unrecognized Stryker config key {key!r} — applied "
+                "unchanged; check for a typo if this wasn't intentional.",
+                file=sys.stderr,
+            )
         cfg[key] = value
     return cfg
 

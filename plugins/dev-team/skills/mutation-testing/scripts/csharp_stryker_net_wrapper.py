@@ -282,13 +282,19 @@ def build_stryker_argv(stryker_bin: str, stryker_args: Sequence[str]) -> list[st
     put a bare ``dotnet-stryker`` executable on ``PATH``, invoked directly
     with no subcommand.
 
-    Auto-detected from ``stryker_bin`` alone — no separate flag: when it is
-    exactly ``"dotnet"``, insert the ``stryker`` verb. Any other value (e.g.
-    an explicit ``dotnet-stryker`` override for a global install) is used as
-    the bare executable, unchanged.
+    Auto-detected from ``stryker_bin`` alone — no separate flag: when its
+    filename stem (case-insensitive, extension and directory stripped) is
+    ``"dotnet"``, insert the ``stryker`` verb. Matching on the stem rather
+    than the raw string (#2145) means an absolute path (``/usr/bin/dotnet``)
+    or a Windows-style name (``dotnet.exe``) is recognized identically to
+    the bare ``"dotnet"`` — a functionally-equivalent value that previously
+    fell through to the bare-executable branch below with no ``stryker``
+    verb inserted, silently reproducing the failure this module exists to
+    fix. Any other value (e.g. an explicit ``dotnet-stryker`` override for a
+    global install) is used as the bare executable, unchanged.
     """
-    if stryker_bin == "dotnet":
-        return ["dotnet", "stryker", *stryker_args]
+    if Path(stryker_bin).stem.lower() == "dotnet":
+        return [stryker_bin, "stryker", *stryker_args]
     return [stryker_bin, *stryker_args]
 
 

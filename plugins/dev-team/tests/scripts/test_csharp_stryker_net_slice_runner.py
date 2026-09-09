@@ -14,6 +14,8 @@ from __future__ import annotations
 
 import sys
 
+import pytest
+
 from _repo_root import REPO_ROOT as _REPO_ROOT
 
 sys.path.insert(
@@ -28,7 +30,11 @@ sys.path.insert(
     ),
 )
 
-from csharp_stryker_net_slice_runner import build_slice_stryker_config, parse_args
+from csharp_stryker_net_slice_runner import (
+    KNOWN_STRYKER_PASSTHROUGH_KEYS,
+    build_slice_stryker_config,
+    parse_args,
+)
 
 
 def test_stryker_bin_defaults_to_the_local_tool_manifest_shape():
@@ -95,3 +101,78 @@ def test_mutate_is_still_wrapped_in_a_list_when_given_as_a_bare_string():
     cfg = build_slice_stryker_config({}, {"name": "widgets", "mutate": "**/*.cs"})
 
     assert cfg["mutate"] == ["**/*.cs"]
+
+
+# ---------------------------------------------------------------------------
+# Passthrough hardening (#2145): a typo'd passthrough key (e.g. "projct"
+# instead of "project") previously merged silently with no error, so the
+# intended project-scoping never happened. The generic-passthrough design
+# stays (per its own docstring, this must not become one hardcoded field for
+# "project" alone), so an unrecognized key is still applied unchanged -- it
+# only gets a stderr warning naming the slice and the key.
+# ---------------------------------------------------------------------------
+
+
+def test_unrecognized_passthrough_key_still_applies_but_warns(capsys):
+    cfg = build_slice_stryker_config(
+        {}, {"name": "widgets", "mutate": "**/*.cs", "projct": "Widgets.csproj"}
+    )
+
+    assert cfg["projct"] == "Widgets.csproj"
+    err = capsys.readouterr().err
+    assert "WARNING" in err
+    assert "widgets" in err
+    assert "projct" in err
+
+
+@pytest.mark.parametrize("key", sorted(KNOWN_STRYKER_PASSTHROUGH_KEYS))
+def test_known_passthrough_keys_never_warn(capsys, key):
+    build_slice_stryker_config({}, {"name": "widgets", "mutate": "**/*.cs", key: "x"})
+
+    assert capsys.readouterr().err == ""
+
+
+def test_reserved_and_required_fields_never_warn_either(capsys):
+    # kind / mutation-level / exclude-converged / name / mutate are handled
+    # before the passthrough loop even sees them -- never mistaken for an
+    # unrecognized Stryker config key.
+    build_slice_stryker_config(
+        {},
+        {
+            "name": "widgets",
+            "mutate": "**/*.cs",
+            "kind": "logic",
+            "mutation-level": "Standard",
+            "exclude-converged": True,
+        },
+    )
+
+    assert capsys.readouterr().err == ""
+
+
+def test_slice_level_coverage_analysis_overrides_the_perTest_default(capsys):
+    """#2145 item 2: a slice's own "coverage-analysis" passthrough silently
+    overrides the setdefault("coverage-analysis", "perTest") two lines
+    above it -- intentional (the same xunit.v3/MTP escape hatch, applied
+    per-slice for a mixed solution), previously untested. It's a known key,
+    so this must not also warn."""
+    cfg = build_slice_stryker_config(
+        {},
+        {"name": "legacy-mtp", "mutate": "**/*.cs", "coverage-analysis": "off"},
+    )
+
+    assert cfg["coverage-analysis"] == "off"
+    assert capsys.readouterr().err == ""
+
+
+def test_slice_level_coverage_analysis_overrides_an_explicit_base_config_too():
+    """The slice-level override wins even over a base config that already
+    set coverage-analysis explicitly -- the passthrough loop runs after
+    setdefault unconditionally, regardless of whether setdefault was a
+    no-op or not."""
+    cfg = build_slice_stryker_config(
+        {"coverage-analysis": "perTest"},
+        {"name": "legacy-mtp", "mutate": "**/*.cs", "coverage-analysis": "off"},
+    )
+
+    assert cfg["coverage-analysis"] == "off"
