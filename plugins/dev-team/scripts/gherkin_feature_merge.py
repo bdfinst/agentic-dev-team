@@ -337,6 +337,25 @@ def _last_line_ending(lines: list) -> str:
     return "\n"
 
 
+def _existing_units_use_blank_line_separator(units: list) -> bool:
+    """Infer whether this Feature block's existing scenarios are separated
+    by a blank line, from the joins between consecutive existing units —
+    excluding the boundary after the very last unit, which sits at the
+    block's end and may carry no trailing blank line for a reason unrelated
+    to the file's separator convention (there is simply nothing after it to
+    separate from). Defaults to `True` when there are fewer than two units
+    to compare, matching the blank-line-between-scenarios style most
+    existing Gherkin files already use — a majority vote (ties favor
+    inserting a blank line) otherwise, so `merge_scenarios` reproduces
+    whichever convention this specific file's own scenarios demonstrate
+    rather than assuming one."""
+    comparable = units[:-1]
+    if not comparable:
+        return True
+    separated = sum(1 for u in comparable if u.text.rstrip(" \t").endswith(("\n\n", "\r\n\r\n")))
+    return separated * 2 >= len(comparable)
+
+
 def merge_scenarios(existing_text: str, feature_title: str, candidate_units: list) -> MergeResult:
     """Append-only merge of `candidate_units` into the named Feature block.
 
@@ -401,6 +420,19 @@ def merge_scenarios(existing_text: str, feature_title: str, candidate_units: lis
         prefix_lines[-1] += ending
     if insertion and not insertion.endswith("\n"):
         insertion += ending
+    # The last existing unit sits at the block's end with nothing after it
+    # to separate from, so its own text alone can't say whether this file
+    # puts a blank line between scenarios — infer that from the *other*
+    # existing joins instead, and reproduce it here rather than assuming
+    # one convention for every repo (issue: a splice landing flush against
+    # the last scenario's final line, with no separating blank line, even
+    # when every other scenario boundary in the file has one).
+    if (
+        prefix_lines
+        and prefix_lines[-1].strip() != ""
+        and _existing_units_use_blank_line_separator(result.block.units)
+    ):
+        prefix_lines.append(ending)
     new_lines = prefix_lines + [insertion] + lines[end_index:]
     merged_text = "".join(new_lines)
 
