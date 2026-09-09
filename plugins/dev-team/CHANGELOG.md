@@ -1,5 +1,14 @@
 # Changelog
 
+## [13.1.1](https://github.com/bdfinst/agentic-dev-team/compare/dev-team-v13.1.0...dev-team-v13.1.1) (2026-09-09)
+
+
+### Bug Fixes
+
+* correct Stryker.NET local-tool defaults and Windows test-suite failures ([#2146](https://github.com/bdfinst/agentic-dev-team/issues/2146)) ([afeea56](https://github.com/bdfinst/agentic-dev-team/commit/afeea56953a4ebd6862e731f66045342d0ab83f6))
+* **gherkin:** preserve blank-line separator convention when merging s… ([#2149](https://github.com/bdfinst/agentic-dev-team/issues/2149)) ([2bb2848](https://github.com/bdfinst/agentic-dev-team/commit/2bb284865fc975a0bd04bb1bedd5d75719addcbd))
+* **hooks:** lower pre-PR review-gate dispatch floor from 2 to 1 ([#2150](https://github.com/bdfinst/agentic-dev-team/issues/2150)) ([b31e70f](https://github.com/bdfinst/agentic-dev-team/commit/b31e70f1536fabdd40d6e00ee37e713045eaaec5)), closes [#2147](https://github.com/bdfinst/agentic-dev-team/issues/2147)
+
 ## [13.1.0](https://github.com/bdfinst/agentic-dev-team/compare/dev-team-v13.0.0...dev-team-v13.1.0) (2026-09-08)
 
 
