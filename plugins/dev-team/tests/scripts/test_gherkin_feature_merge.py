@@ -286,7 +286,9 @@ def test_merge_path_inserts_crlf_separator_when_file_is_crlf():
     """Regression test (ai-provenance-review): the splice-point separator
     used to always inject a bare LF even into a CRLF file with no trailing
     terminator at the splice point. It should now match the file's own
-    dominant line ending instead."""
+    dominant line ending instead. With only one existing scenario (nothing
+    to infer a blank-line convention from), the separator defaults to a
+    blank line, matching the common Gherkin style."""
     text = (
         "Feature: Orders API\r\n\r\n"
         "  Scenario: Create order succeeds\r\n"
@@ -296,7 +298,7 @@ def test_merge_path_inserts_crlf_separator_when_file_is_crlf():
     candidates = [_unit("New CRLF scenario")]
     result = gfm.merge_scenarios(text, "Orders API", candidates)
     assert result.error is None
-    assert "201\r\n  Scenario: New CRLF scenario" in result.text
+    assert "201\r\n\r\n  Scenario: New CRLF scenario" in result.text
     assert "201  Scenario: New CRLF scenario" not in result.text
 
 
@@ -342,7 +344,9 @@ def test_merge_onto_existing_text_missing_a_trailing_newline_does_not_fuse_lines
     no guard on the preceding line's terminator used to concatenate the new
     scenario directly onto the existing file's last line with no separator,
     corrupting it — e.g. 'Then the response status is 201  Scenario: New...'.
-    The existing text has no trailing newline here on purpose."""
+    The existing text has no trailing newline here on purpose. With only one
+    existing scenario (nothing to infer a blank-line convention from), the
+    separator defaults to a blank line, matching the common Gherkin style."""
     text = (
         "Feature: Orders API\n\n"
         "  Scenario: Create order succeeds with valid payload\n"
@@ -354,9 +358,57 @@ def test_merge_onto_existing_text_missing_a_trailing_newline_does_not_fuse_lines
     candidates = [_unit("New scenario")]
     result = gfm.merge_scenarios(text, "Orders API", candidates)
     assert result.error is None
-    assert "201\n  Scenario: New scenario" in result.text
+    assert "201\n\n  Scenario: New scenario" in result.text
     assert "201  Scenario: New scenario" not in result.text
     assert result.text.startswith(text.rstrip("\n"))
+
+
+def test_merge_inserts_blank_line_separator_when_last_existing_scenario_ends_flush_at_eof():
+    """Regression test: every existing scenario in this file is blank-line
+    separated except the very last one, which sits flush at end-of-file (the
+    common case — nothing follows it, so it never picked up a trailing
+    blank line for reasons unrelated to the file's separator convention).
+    The old splice logic only guarded against a *missing newline* at the
+    join point, not a *missing blank line*, so appending here landed the
+    new scenario directly against the last existing scenario's final step
+    with zero separation — readable but visually fused, and inconsistent
+    with every other boundary in the same file."""
+    text = (
+        "Feature: Orders API\n\n"
+        "  Scenario: First scenario\n"
+        "    Given a valid payload\n"
+        "    Then the response status is 201\n"
+        "\n"
+        "  Scenario: Second scenario\n"
+        "    Given another payload\n"
+        "    Then the response status is 201\n"
+    )
+    candidates = [_unit("Third scenario")]
+    result = gfm.merge_scenarios(text, "Orders API", candidates)
+    assert result.error is None
+    assert "Second scenario\n    Given another payload\n    Then the response status is 201\n\n  Scenario: Third scenario" in result.text
+
+
+def test_merge_preserves_no_blank_line_convention_when_existing_scenarios_have_none():
+    """The inverse of the above: when this file's own existing scenarios are
+    NOT blank-line separated, the merge must reproduce that convention at
+    the splice point too, rather than unconditionally forcing a blank line
+    that would only be consistent with *other* repositories' Gherkin
+    style, not this file's own."""
+    text = (
+        "Feature: Orders API\n\n"
+        "  Scenario: First scenario\n"
+        "    Given a valid payload\n"
+        "    Then the response status is 201\n"
+        "  Scenario: Second scenario\n"
+        "    Given another payload\n"
+        "    Then the response status is 201\n"
+    )
+    candidates = [_unit("Third scenario")]
+    result = gfm.merge_scenarios(text, "Orders API", candidates)
+    assert result.error is None
+    assert "Second scenario\n    Given another payload\n    Then the response status is 201\n  Scenario: Third scenario" in result.text
+    assert "201\n\n  Scenario: Third scenario" not in result.text
 
 
 # ---------------------------------------------------------------------------

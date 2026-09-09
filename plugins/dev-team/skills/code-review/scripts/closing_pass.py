@@ -4,7 +4,7 @@
 `/code-review` step 6a used to mandate: after ANY fix-loop iteration ran,
 re-dispatch the **full** original agent panel once more against the final
 staged content. The reason was structural, not editorial — the pre-commit
-gate (#1461) needs `>= 2` distinct dispatches whose `subject_hash` equals the
+gate (#1461) needed `>= 2` distinct dispatches whose `subject_hash` equals the
 FINAL staged hash, and the loop's targeted re-dispatches only cover the
 agents that happened to have findings. So a one-line fix re-triggered an
 18-agent panel. That is the single biggest cost multiplier in the loop, and
@@ -16,11 +16,14 @@ that preserves both properties the full re-panel was defending.
 ## The two properties, and how each is preserved
 
 1. **The gate's corroboration floor, satisfied by construction.**
-   `pre_commit_review.py`'s `_MIN_DISTINCT_DISPATCHES` is 2. The composition
-   rule below tops up from the resolver's eligible roster until at least 2
-   distinct registered agents dispatch at the final hash. No hook change, no
-   exemption event, no ledger change — the floor is met the same way it is
-   met today, just with 2-3 dispatches instead of 18.
+   `hooks/pre_pr_review.py`'s `_MIN_DISTINCT_DISPATCHES` is 1 (#2147; lowered
+   from 2 — a single `/code-review` dispatch already runs a full panel
+   internally, so a second top-level dispatch was never additional
+   corroboration). The composition rule below tops up from the resolver's
+   eligible roster until at least that many distinct registered agents
+   dispatch at the final hash. No hook change, no exemption event, no ledger
+   change — the floor is met the same way it is met today, just with 1-2
+   dispatches instead of 18 (previously 2-3, under the old floor of 2).
 
 2. **Not a rubber stamp.** Closing-pass agents keep full review authority:
    any actionable finding re-enters the fix loop exactly as before (subject
@@ -51,13 +54,13 @@ import json
 import sys
 from pathlib import Path
 
-#: Mirrors `hooks/pre_commit_review.py`'s `_MIN_DISTINCT_DISPATCHES`. Kept as
+#: Mirrors `hooks/pre_pr_review.py`'s `_MIN_DISTINCT_DISPATCHES`. Kept as
 #: a named constant here (rather than imported) because this script must not
 #: depend on the hook package to compute a dispatch plan; the drift test in
 #: `plugins/dev-team/tests/scripts/test_closing_pass.py` asserts the two stay
 #: equal, so a future change to the gate's floor fails a test rather than
 #: silently under-composing the closing pass.
-MIN_DISTINCT_DISPATCHES = 2
+MIN_DISTINCT_DISPATCHES = 1
 
 
 def _normalize(path) -> str:

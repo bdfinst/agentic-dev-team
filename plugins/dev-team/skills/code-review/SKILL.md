@@ -363,12 +363,13 @@ and the change-shape gate above have both been applied, apply this gate —
 never before, and never in a way that re-adds an agent either already removed.
 It narrows the `Scope: always` roster by diff *size* rather than file *type*:
 the pre-PR hook (`hooks/pre_pr_review.py`, #1886) requires a `.pr-review-passed`
-hash match **and** (#1461) >= 2 distinct, recent, registered review-agent
-dispatches recorded in the dispatch ledger — so this gate must never narrow
-`keepAgents` below 2, and today's four-agent floor (`security-review`,
-`correctness-review`, `spec-compliance-review`, `doc-review`) clears that with
-room to spare. Which specific agents to keep at a given diff size remains
-this step's decision, not the hook's — the hook only enforces the *count*
+hash match **and** (#1461, floor lowered to 1 by #2147) >= 1 distinct, recent,
+registered review-agent dispatch recorded in the dispatch ledger — so this
+gate must never narrow `keepAgents` below 1, and today's four-agent floor
+(`security-review`, `correctness-review`, `spec-compliance-review`,
+`doc-review`) clears that with room to spare. Which specific agents to keep at
+a given diff size remains this step's decision, not the hook's — the hook
+only enforces the *count*
 floor, never which agents satisfy it.
 
 **Applies only to diff-scoped reviews** — auto-scoped uncommitted changes, or
@@ -793,7 +794,7 @@ per-agent cost can be split by purpose rather than lumped into one dispatch
 count. Derived metrics (churn ratio, per-agent discovery-vs-verification
 split, gate recidivism) are computed by `/harness-audit` — see its Step 4a.
 
-**Closing pass — re-establishing dispatch-ledger corroboration after the loop (#1461, narrowed by #1626; auto-scope only — same condition as item 3 above).** Step 3's `git add` changes the staged content's hash, so `agent_dispatch_ledger.py` stamps each iteration's re-dispatched agents (step 4) with that NEW hash — not step 4 (the outer, pre-loop)'s original dispatch hash, and not an earlier iteration's hash either. Step 9's gate write needs **>= 2 distinct dispatches whose `subject_hash` equals the FINAL staged content's hash** (the one actually committed). Because step 4 of this loop only re-dispatches the agents that had actionable issues, a final iteration that fixes just one agent's finding re-dispatches only that one agent against the final content — insufficient on its own.
+**Closing pass — re-establishing dispatch-ledger corroboration after the loop (#1461, narrowed by #1626, floor lowered to 1 by #2147; auto-scope only — same condition as item 3 above).** Step 3's `git add` changes the staged content's hash, so `agent_dispatch_ledger.py` stamps each iteration's re-dispatched agents (step 4) with that NEW hash — not step 4 (the outer, pre-loop)'s original dispatch hash, and not an earlier iteration's hash either. Step 9's gate write needs **>= 1 distinct dispatch whose `subject_hash` equals the FINAL staged content's hash** (the one actually committed). Since floor 1 is normally satisfied by construction (the loop only re-stages when it applied at least one fix, and that fixer re-dispatches against the final content in the same iteration), the closing pass below degenerates to "just the fixer(s), self-verifying" in the common case — it still exists, unconditionally, for the cases that don't already clear the floor on their own: the escape hatch (scope grew mid-loop) and a `fixed_by_agents` set that ends up empty despite a loop iteration having run.
 
 This used to be satisfied by re-dispatching the **full** original panel, which made a one-line fix cost an 18-agent round. **Unconditionally, after any loop iteration ran** (i.e. any fix was applied and re-staged) — not only when the count looks short, since that count isn't something to reason about from memory — run a **closing pass** instead. Compose it deterministically, don't pick the set by hand:
 
@@ -807,8 +808,8 @@ python3 "$CLAUDE_PLUGIN_ROOT/skills/code-review/scripts/closing_pass.py" \
 
 It prints `{"agents", "scope", "escape_hatch", "reason", "topped_up"}`. Dispatch exactly the `agents` it returns, and record them with `dispatch_purpose: "closing"` (#1624) so the cost effect is measurable.
 
-- **Composition**: every agent whose findings were fixed during the loop (each verifies its own fixes at the final hash), plus — only if that set has fewer than 2 distinct agents — a cheap-first top-up from the resolver's eligible roster until 2 distinct registered agents have dispatched at the final hash.
-- **Why this is sound**: 2 is `pre_commit_review.py`'s `_MIN_DISTINCT_DISPATCHES`, so the gate's corroboration floor is satisfied **by construction** — no hook change, no exemption event, no ledger change. The threat model #1461 closed (self-certification without dispatch) is untouched: these are genuine dispatches carrying real review authority over the only content that changed since full-panel coverage. A drift test pins the script's constant to the hook's, so raising the gate's floor can never silently under-compose this pass.
+- **Composition**: every agent whose findings were fixed during the loop (each verifies its own fixes at the final hash), plus — only if that set has fewer than 1 distinct agent — a cheap-first top-up from the resolver's eligible roster until 1 distinct registered agent has dispatched at the final hash.
+- **Why this is sound**: 1 is `pre_pr_review.py`'s `_MIN_DISTINCT_DISPATCHES` (#2147; lowered from 2), so the gate's corroboration floor is satisfied **by construction** — no hook change, no exemption event, no ledger change. The threat model #1461 closed (self-certification without dispatch) is untouched: these are genuine dispatches carrying real review authority over the only content that changed since full-panel coverage. A drift test pins the script's constant to the hook's, so raising the gate's floor can never silently under-compose this pass.
 - **Scope**: the closing pass reviews the **cumulative fix delta** — the diff between what the round-1 panel reviewed and the final staged content — with the round ledger's fixed findings as context. Not the whole changeset: the panel's round-1 coverage of unchanged content is still valid; only the fix delta is unreviewed.
 - **Escape hatch**: when the fix delta touches files outside the original panel's target set (scope grew mid-loop), the script returns `escape_hatch: true` and `scope: "full-changeset"` — fall back to the full re-dispatch. This is a set comparison of two file lists, not a judgment call.
 
@@ -953,7 +954,7 @@ requiring a fresh `/code-review` run against the branch's current diff (or
 a `--since <base>`-scoped re-review, which now closes cleanly per the
 paragraph above) before opening the PR.
 
-**If `--agent <name>` was used** (a sanctioned single-agent review — it deliberately dispatches exactly 1 agent, which can never clear the dispatch-ledger gate's `>= 2` distinct-dispatch floor on its own), record that as an explicit, auditable exemption event bound to this same hash **contemporaneously** with the write above — same pattern as the doc-only short-circuit's exemption event (step 1a):
+**If `--agent <name>` was used** (a sanctioned single-agent review — it deliberately dispatches exactly 1 agent, which now clears the dispatch-ledger gate's `>= 1` distinct-dispatch floor on its own since #2147 lowered it from 2; the explicit exemption event below is consequently no longer load-bearing for this case, but is still written for an unambiguous, explicit audit trail rather than relying on the ordinary count path to imply "this was a sanctioned single-agent review" after the fact), record that as an explicit, auditable exemption event bound to this same hash **contemporaneously** with the write above — same pattern as the doc-only short-circuit's exemption event (step 1a):
 
 ```bash
 python3 "${CLAUDE_PLUGIN_ROOT}/hooks/lib/boundary_events.py" --event single-agent --subject-hash "$HASH"
