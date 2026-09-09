@@ -156,7 +156,12 @@ def test_main_does_not_silently_pass_when_dir_does_not_exist(tmp_path, capsys):
     exit_code = gate.main(["--dir", str(missing_dir)])
     assert exit_code == 2
     out = capsys.readouterr().out
-    assert "OK" not in out
+    # A bare "OK" substring check is a false-positive trap: tmp_path embeds
+    # the pytest-generated "pytest-of-<OS username>" segment, which can
+    # itself contain the substring "OK" depending on the account name. The
+    # success path only ever emits a line starting with "OK:" — check for
+    # that instead.
+    assert not any(line.startswith("OK:") for line in out.splitlines())
     assert "no .feature files found" in out
 
 

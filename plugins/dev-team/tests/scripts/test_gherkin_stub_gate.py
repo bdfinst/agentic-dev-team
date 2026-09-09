@@ -181,7 +181,12 @@ def test_main_does_not_silently_pass_on_missing_dir_no_files_to_scan(tmp_path, c
     rc = gherkin_stub_gate.main(["--dir", str(tmp_path / "nope")])
     assert rc == 2
     out = capsys.readouterr().out
-    assert "OK" not in out
+    # A bare "OK" substring check is a false-positive trap: tmp_path embeds
+    # the pytest-generated "pytest-of-<OS username>" segment, which can
+    # itself contain the substring "OK" depending on the account name. The
+    # success path only ever emits a line starting with "OK:" — check for
+    # that instead.
+    assert not any(line.startswith("OK:") for line in out.splitlines())
     assert "no step-definition files found" in out
 
 
