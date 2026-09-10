@@ -1,5 +1,12 @@
 # Changelog
 
+## [13.1.2](https://github.com/bdfinst/agentic-dev-team/compare/dev-team-v13.1.1...dev-team-v13.1.2) (2026-09-10)
+
+
+### Bug Fixes
+
+* **docs:** correct test-improve.md's stale dual /test-design dispatch ([#2156](https://github.com/bdfinst/agentic-dev-team/issues/2156)) ([647151c](https://github.com/bdfinst/agentic-dev-team/commit/647151c04856896323f907858ae6295ad63475e9)), closes [#2155](https://github.com/bdfinst/agentic-dev-team/issues/2155)
+
 ## [13.1.1](https://github.com/bdfinst/agentic-dev-team/compare/dev-team-v13.1.0...dev-team-v13.1.1) (2026-09-09)
 
 
