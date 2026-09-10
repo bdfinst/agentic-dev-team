@@ -4,7 +4,7 @@ Resolves `test-design-advisor`'s abstract layer (`test-pyramid.md`) to the canon
 
 | Layer | Tool | How to assert |
 |-------|------|---------------|
-| Unit | JUnit 5 + AssertJ; Mockito for collaborators | call the class directly, **no Spring context** — keep it fast |
+| Unit | JUnit 5 + AssertJ; Mockito only for a blocker collaborator (`internal-collaborator-doubling.md`) | call the class directly, **no Spring context** — keep it fast |
 | Component / Service | `@WebMvcTest` + MockMvc (web slice) or `@SpringBootTest(webEnvironment=RANDOM_PORT)` + TestRestTemplate | drive the endpoint in-process; double the service's own externals |
 | Integration | Testcontainers (real DB/broker) + `@DataJpaTest` / `@SpringBootTest` | assert the adapter/SQL/serialization against a real dependency |
 | Contract | Spring Cloud Contract or Pact | verify consumer↔provider agreement (`microservice-testing.md`), not E2E |

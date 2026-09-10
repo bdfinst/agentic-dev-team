@@ -174,10 +174,17 @@ _REPO_ROOT = _PLUGIN_ROOT.parents[1]
 
 
 def _repo_relative(path: Path) -> str:
+    """Repo-relative path as a forward-slash string, matching `_changed_set`'s
+    own normalization. On Windows, `str(Path(...))` renders native
+    backslashes — comparing that directly against `_changed_set`'s
+    forward-slash-normalized entries (`rel not in changed`, used by every
+    changed-file-scoped check below) never matches, silently emptying every
+    finding on Windows regardless of what actually changed."""
     try:
-        return str(path.relative_to(_REPO_ROOT))
+        rel = str(path.relative_to(_REPO_ROOT))
     except ValueError:
-        return str(path)
+        rel = str(path)
+    return rel.replace("\\", "/")
 
 
 def _changed_set(changed_files):
@@ -736,6 +743,88 @@ def check_churn_report_window_key_safe_access(changed_files=None) -> list[dict]:
     return findings
 
 
+# --- #2126: internal-collaborator-doubling.md must stay single-sourced ------
+#
+# Epic #2123's own design note: "cite, don't restate" cannot be an
+# acceptance criterion someone eyeballs; it needs a mechanism. Distinctive
+# fragments copied verbatim from the normative file — chosen for
+# distinctiveness (a short generic phrase like "setup is easier" would be a
+# plausible false positive anywhere in testability prose) rather than
+# derived programmatically, since the source is prose, not a table this
+# script can parse structurally like `check_contract_failure_shapes_documented`
+# does. A dedicated staleness self-check (test_repo_invariants.py) keeps
+# this list honest against the home file it was copied from.
+
+_NORMATIVE_CONTENT_HOME_FILE = "plugins/dev-team/knowledge/internal-collaborator-doubling.md"
+
+_NORMATIVE_CONTENT_FRAGMENTS = (
+    "Out-of-process handle",
+    "Prohibitive real cost",
+    "the project's own first-party source stays real",
+    "\"It's an injected interface\" — and the type's name",
+)
+# Deliberately excluded, per correctness-review (#2126):
+# - "Ambient state" -- too generic (plausible in unrelated testability prose,
+#   contradicting this list's own distinctiveness rule).
+# - "double-waiver: B" -- not restated *content*, it's the syntax convention
+#   every consumer is instructed to demonstrate; flagging it would punish
+#   agents/skills for correctly teaching the waiver marker, and "paraphrase
+#   the quote" makes no sense for a literal required syntax string.
+
+#: Directories (plugin-root-relative) a citing consumer could plausibly live
+#: in — matches where #2124/#2125's own citations actually landed
+#: (knowledge/, agents/, skills/). Anything outside these (plans/, docs/,
+#: tests/) is out of scope by design: this check targets consumers of the
+#: rule, not every place its literal words could theoretically appear.
+_NORMATIVE_CONTENT_SCAN_DIRS = ("knowledge", "agents", "skills")
+
+
+def check_normative_content_single_sourced(changed_files=None) -> list[dict]:
+    """`internal-collaborator-doubling.md` (#2124) is the single normative
+    source for the internal-collaborator doubling rule; every consumer must
+    cite it by path rather than restate its content (#2126).
+
+    Corpus-wide by design, like `check_transcript_parsing_confined_to_session_log`:
+    a restatement is a standing gap whether or not this changeset touched it.
+
+    A match is a match regardless of attribution — quoting a fragment
+    verbatim next to a citation to the home file still creates a second copy
+    that can drift from the original once either side is edited. The fix for
+    a consumer that needs to reference specific wording is to paraphrase or
+    drop the verbatim quote, not to attribute it.
+    """
+    home_path = _REPO_ROOT / _NORMATIVE_CONTENT_HOME_FILE
+    findings = []
+    for dirname in _NORMATIVE_CONTENT_SCAN_DIRS:
+        scan_root = _PLUGIN_ROOT / dirname
+        if not scan_root.is_dir():
+            continue
+        for path in sorted(scan_root.rglob("*.md")):
+            if path.resolve() == home_path.resolve():
+                continue
+            text = _read_text(path)
+            if not text:
+                continue
+            rel = _repo_relative(path)
+            for fragment in _NORMATIVE_CONTENT_FRAGMENTS:
+                if fragment in text:
+                    findings.append(
+                        {
+                            "invariant": "normative-content-single-sourced",
+                            "file": rel,
+                            "message": (
+                                f"{rel} restates a fragment of "
+                                f"{_NORMATIVE_CONTENT_HOME_FILE} verbatim "
+                                f"({fragment!r}) instead of citing it by path. "
+                                "This creates a second copy that can silently "
+                                "drift from the normative source — replace the "
+                                "restatement with a pointer."
+                            ),
+                        }
+                    )
+    return findings
+
+
 # Registered checks. Each entry takes an optional `changed_files` list and
 # returns findings. See the module docstring for why that argument exists.
 CHECKS = [
@@ -746,6 +835,7 @@ CHECKS = [
     check_contract_failure_shapes_documented,
     check_transcript_parsing_confined_to_session_log,
     check_churn_report_window_key_safe_access,
+    check_normative_content_single_sourced,
 ]
 
 

@@ -37,7 +37,7 @@ import subprocess
 import sys
 import threading
 from collections.abc import Callable, Sequence
-from pathlib import Path
+from pathlib import Path, PureWindowsPath
 
 # =============================================================================
 # Exit codes — same as the bash version, byte-compatible. EXIT_RESTORE_SLN_FAILED
@@ -222,8 +222,9 @@ def parse_args(argv: Sequence[str]) -> argparse.Namespace:
     )
     p.add_argument(
         "--stryker-bin",
-        default=os.environ.get("STRYKER_BIN", "dotnet-stryker"),
-        help="Stryker executable name (default: %(default)s)",
+        default=os.environ.get("STRYKER_BIN", "dotnet"),
+        help="Stryker executable name, or 'dotnet' to invoke a local-tool-"
+        "manifest install via 'dotnet stryker' (default: %(default)s)",
     )
     p.add_argument(
         "--logfile",
@@ -267,6 +268,44 @@ def _pass_through_concurrency_flag(stryker_args: Sequence[str]) -> str | None:
         if flag in stryker_args:
             return flag
     return None
+
+
+def build_stryker_argv(stryker_bin: str, stryker_args: Sequence[str]) -> list[str]:
+    r"""Return the full argv for launching Stryker.NET.
+
+    ``dotnet stryker ...`` is the invocation shape for a **local** tool-
+    manifest install — the skill's preferred path (see csharp-stryker-net.md
+    "Prefer a local install"). A local tool's own command name
+    (``dotnet-stryker``) is never placed on ``PATH``; it is only reachable
+    through dotnet's own verb-resolution convention (``dotnet <verb>`` finds
+    a local ``dotnet-<verb>`` tool). A **global** install, by contrast, does
+    put a bare ``dotnet-stryker`` executable on ``PATH``, invoked directly
+    with no subcommand.
+
+    Auto-detected from ``stryker_bin`` alone — no separate flag: when its
+    filename stem (case-insensitive, extension and directory stripped) is
+    ``"dotnet"``, insert the ``stryker`` verb. Matching on the stem rather
+    than the raw string (#2145) means an absolute path (``/usr/bin/dotnet``)
+    or a Windows-style name (``dotnet.exe``) is recognized identically to
+    the bare ``"dotnet"`` — a functionally-equivalent value that previously
+    fell through to the bare-executable branch below with no ``stryker``
+    verb inserted, silently reproducing the failure this module exists to
+    fix. Checked with both ``Path`` (the host-native flavor — ``WindowsPath``
+    on Windows, ``PosixPath`` elsewhere) and ``PureWindowsPath`` explicitly,
+    so a backslash-separated Windows path (e.g. ``C:\Program
+    Files\dotnet\dotnet.exe``) is recognized even when this module runs
+    under a POSIX-flavored Python (Cygwin/MSYS2), where plain ``Path`` alone
+    would treat the whole string as one opaque filename component and never
+    find the ``"dotnet"`` stem. Any other value (e.g. an explicit
+    ``dotnet-stryker`` override for a global install) is used as the bare
+    executable, unchanged.
+    """
+    if (
+        Path(stryker_bin).stem.lower() == "dotnet"
+        or PureWindowsPath(stryker_bin).stem.lower() == "dotnet"
+    ):
+        return [stryker_bin, "stryker", *stryker_args]
+    return [stryker_bin, *stryker_args]
 
 
 def build_project(project: str, cwd: Path | None = None) -> int:
@@ -321,7 +360,7 @@ def run_stryker(
     if line_callback is None:
         with logfile.open("wb") as log:
             proc = subprocess.Popen(
-                [stryker_bin, *stryker_args],
+                build_stryker_argv(stryker_bin, stryker_args),
                 stdout=log,
                 stderr=subprocess.STDOUT,
                 cwd=popen_cwd,
@@ -425,7 +464,7 @@ def _run_stryker_streaming(
     """
     with logfile.open("wb") as log:
         proc = subprocess.Popen(
-            [stryker_bin, *stryker_args],
+            build_stryker_argv(stryker_bin, stryker_args),
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
             cwd=popen_cwd,

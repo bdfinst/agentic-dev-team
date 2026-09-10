@@ -339,12 +339,13 @@ Run in place of a bare `dotnet stryker`:
 python3 scripts/csharp_stryker_net_wrapper.py \
   --sln Foo.sln \
   --shim-project tests/Foo.Tests.Mutation/Foo.Tests.Mutation.csproj \
-  --stryker-bin dotnet-stryker \
   --logfile StrykerOutput/wrapper.log \
   --config-file stryker-config.json \
   --mutate "**/Validators/**/*.cs" \
   -O StrykerOutput/slice-validators
 ```
+
+The default `--stryker-bin` (`dotnet`) invokes the local tool-manifest install via `dotnet stryker`, matching "prefer local install" above. Pass `--stryker-bin dotnet-stryker` only to target a global install instead.
 
 CLI flags (all optional; every one accepts an environment-variable equivalent so header-var configuration is preserved):
 
@@ -352,7 +353,7 @@ CLI flags (all optional; every one accepts an environment-variable equivalent so
 | --- | --- | --- |
 | `--sln PATH` | `SLN` | `Foo.sln` |
 | `--shim-project PATH` | `SHIM_PROJECT` | (empty; no shim) |
-| `--stryker-bin CMD` | `STRYKER_BIN` | `dotnet-stryker` |
+| `--stryker-bin CMD` | `STRYKER_BIN` | `dotnet` (invoked as `dotnet stryker`) |
 | `--logfile PATH` | `LOGFILE` | `StrykerOutput/wrapper.log` |
 | `--stryker-concurrency N` | `STRYKER_MUTANT_CONCURRENCY` | `max(1, cpu_count - 2)` (computed) |
 
@@ -418,7 +419,17 @@ plugin's shipped scripts are stdlib-only Python, and `json` is stdlib while
 YAML is not). Only `name` + `mutate` are required in this first cut; `kind`,
 `mutation-level`, and `exclude-converged` are accepted and passed through
 but reserved for #667's within-slice refinements — a typo in one of those
-field names still fails config validation, it just isn't acted on yet:
+field names is not rejected — it falls into the generic passthrough below
+and prints the unrecognized-key warning that guards against exactly this
+(#2145) — it just isn't otherwise acted on yet.
+
+Any other key is passed through verbatim into the slice's generated
+`stryker-config.json` — most usefully `project`, naming the single source
+`.csproj` under test (Stryker's own `-p`/`--project`/config `"project"`
+key). Without it, Stryker auto-discovers and rebuilds every source project
+transitively referenced by `test-projects` on **every** slice invocation,
+regardless of that slice's `mutate` glob; set `project` to scope a slice to
+just the one source project it actually mutates:
 
 ```json
 {
@@ -426,6 +437,7 @@ field names still fails config validation, it just isn't acted on yet:
     {
       "name": "validators",
       "mutate": "**/Validators/**/*.cs",
+      "project": "src/Foo.Validators/Foo.Validators.csproj",
       "kind": "logic",
       "mutation-level": "Basic",
       "exclude-converged": true
@@ -443,7 +455,12 @@ Each generated per-slice `stryker-config.json` inherits
 recommendation above); pass a `--base-config` pointing at an existing
 `stryker-config.json` whose `"coverage-analysis": "off"` should be
 preserved (e.g. xunit.v3/MTP projects) — an explicit value in the base
-config always wins over the per-slice default.
+config always wins over the per-slice default. A slice may also set its own
+`"coverage-analysis"` key directly (the same generic passthrough `project`
+uses) to override it for that one slice alone — intentional, for a mixed
+solution where only some slices' projects are xunit.v3/MTP; an unrecognized
+passthrough key (a typo, most commonly) prints a warning to stderr naming
+the slice and the key, but is still applied unchanged.
 
 ### Output layout and the aggregate roll-up
 

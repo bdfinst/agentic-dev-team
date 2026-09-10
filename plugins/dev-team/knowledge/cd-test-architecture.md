@@ -19,7 +19,7 @@ Core principle: **a pre-merge gate may contain only deterministic tests.** A tes
 | **Integration** | That the contract's doubles still match the real system. Exercises real external dependencies | real systems | **no** | **never** | Out-of-band / scheduled, regardless of ownership |
 | **End-to-end** | Two or more real components up to the full system | real components | **no** | **never** | Post-deploy smoke; never gates the build |
 
-**Unit** has two shapes: *solitary* (all collaborators doubled) and *sociable* (real in-process collaborators, only true boundaries doubled). Both are deterministic and pre-merge.
+**Unit** has two shapes: *solitary* (all collaborators doubled) and *sociable* (real in-process collaborators, only true boundaries doubled). Both are deterministic and pre-merge, but **sociable is the default**: a solitary unit test is one whose every double names a blocker (B1/B2/B3), not a free choice — see `internal-collaborator-doubling.md` for the full rule.
 
 ---
 

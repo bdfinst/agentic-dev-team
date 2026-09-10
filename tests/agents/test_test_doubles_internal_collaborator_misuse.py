@@ -68,7 +68,11 @@ def test_software_engineer_references_test_doubles_knowledge_file() -> None:
 def test_test_smell_review_lists_internal_collaborator_misuse() -> None:
     text = _text(TEST_SMELL_REVIEW)
     assert "internal" in text.lower()
-    assert "same component" in text.lower()
-    # The finding's message is instructed to cite component-test-patterns.md
-    # when flagging this specific misuse.
+    # #2130 superseded the "same component or bounded context" framing
+    # with the epic #2123 blocker rule — the agent now cites the
+    # normative file rather than restating the old boundary framing.
+    assert "internal-collaborator-doubling.md" in text
+    # The finding's message is still instructed to cite
+    # component-test-patterns.md for the (distinct, still-valid)
+    # architecture-layering topic.
     assert "component-test-patterns.md" in text

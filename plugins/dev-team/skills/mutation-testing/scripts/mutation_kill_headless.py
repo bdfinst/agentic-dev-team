@@ -24,6 +24,7 @@ to reuse five language-neutral names.
 from __future__ import annotations
 
 import argparse
+import os
 import sys
 import time
 from collections.abc import Callable, Sequence
@@ -182,7 +183,12 @@ def parse_args(argv: Sequence[str]) -> argparse.Namespace:
     p.add_argument("--file", help="Source file to target (basename or path)")
     p.add_argument("--output", default="StrykerOutput/agent", help="Scoped-run output dir")
     p.add_argument("--max-rounds", type=int, default=5, help="Max rounds per file")
-    p.add_argument("--stryker-bin", default="dotnet-stryker", help="Stryker executable")
+    p.add_argument(
+        "--stryker-bin",
+        default=os.environ.get("STRYKER_BIN", "dotnet"),
+        help="Stryker executable name, or 'dotnet' to invoke a local-tool-"
+        "manifest install via 'dotnet stryker' (default: %(default)s)",
+    )
     p.add_argument(
         "--headless",
         action="store_true",

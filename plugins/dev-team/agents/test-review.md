@@ -19,6 +19,7 @@ Cites:
 - test-automation-maturity
 - adversarial-review-protocol
 - oracle-provenance
+- internal-collaborator-doubling
 
 Output JSON: per `${CLAUDE_PLUGIN_ROOT}/knowledge/review-agent-output-contract.md` (Whole-file load: short, canonical schema).
 
@@ -57,6 +58,11 @@ magic literals, mis-layering — to it, per
 `${CLAUDE_PLUGIN_ROOT}/knowledge/test-review-division-of-labor.md#the-rule-in-one-line`. This agent keeps the tactical
 mechanics (missing assertion, missing `await`, mock-reset, testability blockers,
 coverage gaps) and detects the deferred signals only when running solo.
+
+The internal-collaborator-doubling mechanical check below is never deferred
+— it's the same never-deferred pattern this file's other unconditional
+rows (testability blockers, tactical mechanics) already follow, not a
+named smell test-smell-review could own instead.
 
 ## Protocol
 
@@ -162,6 +168,15 @@ Testability blockers:
 - Code under test that cannot be constructed with known values (static factories, singletons, no injectable constructor) — flag as error; per `${CLAUDE_PLUGIN_ROOT}/knowledge/testability-patterns.md#pattern-1-constructor-injection-replace-static-factories-singletons`, the production code must change, not the test approach
 - Mocking of concrete classes (not interfaces) — flag as warning; extract an interface for the dependency
 - Tests using reflection into private members as primary strategy — flag as warning. This is an architecture/encapsulation issue the test is reaching around, not a test-hygiene nit. Detection signatures: Java: `getDeclaredMethod`/`getDeclaredField` + `setAccessible(true)`, `Method.invoke` on a private/protected member; C#: `Type.GetMethod(..., BindingFlags.NonPublic | BindingFlags.Instance)`, `Type.InvokeMember`; Python: `getattr`/`setattr`/`hasattr` targeting a name-mangled (`_ClassName__attr`) or underscore-prefixed attribute; JS/TS: bracket-notation access into a `private`/non-exported member (e.g. `(obj as any)['_privateMethod']()`), `Object.getOwnPropertyDescriptor`/`Object.defineProperty` used to reach a non-exported member. Suggested fix — pick by shape of the code, never the generic "expand the public API": (1) extract the private logic into a collaborator with its own public seam, when it's standalone logic worth testing independently; (2) relax visibility to package-private/internal, only when a production collaborator in the same module/assembly independently needs the access (the language must have that tier) — never as a grant solely so the test can reach in, which recreates the `InternalsVisibleTo`/`@VisibleForTesting` anti-pattern below; (3) test the behavior through the class's existing public API, when the private method is already an implementation detail of a public behavior
+
+Internal-collaborator doubling (mechanical — never a truth judgment; see
+`${CLAUDE_PLUGIN_ROOT}/knowledge/internal-collaborator-doubling.md#the-waiver`):
+
+- A doubled first-party collaborator with no waiver comment at the double site (see the normative file for the exact marker syntax) — flag as error
+- A waiver comment naming anything other than `B1`, `B2`, or `B3` — flag as error
+- A syntactically valid `B2` waiver whose collaborator's own declaring source shows no reference to any ambient-API marker (clock, RNG/GUID, env, hostname, cwd, locale) — flag as error; this is the detector's own evidence-*presence* check, not a judgment about whether the evidence is convincing (that half belongs to `test-smell-review`, and only ever on an already-waived double)
+
+If a static-analysis pre-pass has already surfaced this exact finding (e.g. via `/code-review` step 2b), cite it rather than re-deriving it — do not double-report.
 
 ## Tolerated-Deviation Hunt
 

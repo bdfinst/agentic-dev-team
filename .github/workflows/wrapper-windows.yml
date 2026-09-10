@@ -19,6 +19,7 @@ on:
       # expensive; don't run on every unrelated PR.
       - "plugins/dev-team/skills/mutation-testing/scripts/csharp_stryker_net_*.py"
       - "tests/scripts/test_csharp_stryker_net_*.py"
+      - "plugins/dev-team/tests/scripts/test_csharp_stryker_net_*.py"
       - "tests/fixtures/stryker-net-logs/**"
       - ".github/workflows/wrapper-windows.yml"
 
@@ -48,5 +49,5 @@ jobs:
         # so a CI failure surfaces the actual assertion / exception in the
         # log without spelunking a raw job dump.
         run: |
-          python -m pytest tests/scripts/test_csharp_stryker_net_wrapper.py tests/scripts/test_csharp_stryker_net_status_loop.py -v -ra --tb=short
+          python -m pytest tests/scripts/test_csharp_stryker_net_wrapper.py plugins/dev-team/tests/scripts/test_csharp_stryker_net_wrapper.py tests/scripts/test_csharp_stryker_net_slice_runner.py plugins/dev-team/tests/scripts/test_csharp_stryker_net_slice_runner.py tests/scripts/test_csharp_stryker_net_status_loop.py -v -ra --tb=short
         shell: pwsh

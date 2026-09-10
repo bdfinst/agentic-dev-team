@@ -52,6 +52,38 @@ REQUIRED_SLICE_FIELDS = ("name", "mutate")
 RESERVED_SLICE_FIELDS = ("kind", "mutation-level", "exclude-converged")
 KNOWN_SLICE_FIELDS = REQUIRED_SLICE_FIELDS + RESERVED_SLICE_FIELDS
 
+# Stryker.NET config keys this skill's generic slice passthrough
+# (build_slice_stryker_config) is known to be used with in practice. NOT an
+# exhaustive copy of Stryker's own schema — duplicating that schema here is
+# exactly what the passthrough's "single generic seam" design avoids (#2145),
+# so this list only gates a WARNING, never a rejection: a legitimate Stryker
+# key that isn't listed yet still passes through unchanged, just noisily.
+# Extend as new keys are used in a slices config.
+KNOWN_STRYKER_PASSTHROUGH_KEYS = frozenset(
+    {
+        "project",
+        "coverage-analysis",
+        "since",
+        "additional-timeout",
+        "reporters",
+        "concurrency",
+        "test-projects",
+        "ignore-mutations",
+        "thresholds",
+        "dashboard-api-key",
+        "disable-bail",
+        "solution",
+        "target-framework",
+        "language-version",
+        "ignore-methods",
+        "break-at",
+        "report-file-name",
+        "verbosity",
+        "log-to-file",
+        "open-report",
+    }
+)
+
 
 # =============================================================================
 # Slice config loading + validation
@@ -249,11 +281,44 @@ def build_slice_stryker_config(
     ``coverage-analysis`` to ``"perTest"`` per #669's validated
     recommendation, unless the base config already sets it (escape hatch,
     e.g. xunit.v3/MTP projects that must keep it ``"off"``).
+
+    A slice may also carry additional Stryker-config-shaped keys beyond
+    ``mutate`` — most notably ``"project"``, naming the single source
+    ``.csproj`` under test (Stryker's own ``-p``/``--project``/config
+    ``"project"`` key). Without it, Stryker auto-discovers every source
+    project transitively referenced by the configured ``test-projects`` and
+    re-runs its build + initial-test-run + coverage-capture cycle for each
+    one on **every** slice invocation, regardless of that slice's ``mutate``
+    glob — multiplying fixed per-slice overhead by the number of source
+    projects in the solution. Any slice key other than the reserved/required
+    ones handled above is passed through verbatim, so this stays a single
+    generic seam rather than one hardcoded field for ``"project"`` alone.
+
+    This passthrough is deliberately unvalidated (#2145) — a slice-level
+    ``"coverage-analysis"`` key, for instance, silently overrides the
+    ``setdefault`` above, which is intentional (the same xunit.v3/MTP escape
+    hatch, applied per-slice instead of once for the whole base config) but
+    otherwise indistinguishable at this layer from a typo. As a middle
+    ground between "stay generic" and "catch typos", any passthrough key not
+    in :data:`KNOWN_STRYKER_PASSTHROUGH_KEYS` prints a warning (to stderr)
+    naming the slice and the key — informational only; the value is still
+    applied unchanged.
     """
     cfg = dict(base_config)
     mutate = slice_def["mutate"]
     cfg["mutate"] = mutate if isinstance(mutate, list) else [mutate]
     cfg.setdefault("coverage-analysis", "perTest")
+    for key, value in slice_def.items():
+        if key in KNOWN_SLICE_FIELDS:
+            continue
+        if key not in KNOWN_STRYKER_PASSTHROUGH_KEYS:
+            print(
+                f"WARNING: slice {slice_def.get('name')!r} passes through "
+                f"unrecognized Stryker config key {key!r} — applied "
+                "unchanged; check for a typo if this wasn't intentional.",
+                file=sys.stderr,
+            )
+        cfg[key] = value
     return cfg
 
 
@@ -397,8 +462,9 @@ def parse_args(argv: Sequence[str]) -> argparse.Namespace:
     )
     p.add_argument(
         "--stryker-bin",
-        default=os.environ.get("STRYKER_BIN", "dotnet-stryker"),
-        help="Stryker executable name (default: %(default)s)",
+        default=os.environ.get("STRYKER_BIN", "dotnet"),
+        help="Stryker executable name, or 'dotnet' to invoke a local-tool-"
+        "manifest install via 'dotnet stryker' (default: %(default)s)",
     )
     p.add_argument(
         "--base-config",

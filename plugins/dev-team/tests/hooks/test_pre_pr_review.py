@@ -291,16 +291,17 @@ def test_empty_digest_gate_file_with_matching_empty_digest_dispatches_never_pass
 ) -> None:
     """The concrete security hazard Bug 1 exists to close: a `.pr-review-passed`
     file that happens to store `EMPTY_DIGEST` (whether hand-crafted, or a
-    prior gate write made while the branch diff was empty) PLUS >= 2 genuine
-    dispatch records whose `subject_hash` also happens to be `EMPTY_DIGEST`
+    prior gate write made while the branch diff was empty) PLUS >= 1 genuine
+    dispatch record whose `subject_hash` also happens to be `EMPTY_DIGEST`
     (recorded during ANY unrelated review made while nothing was staged,
     before the #1904 ledger fix) must NEVER corroborate a `gh pr create` on
     THIS branch, even though every individual comparison would otherwise
     "match". Before this fix, `_prepare_gate()` handed out `EMPTY_DIGEST` as
     an ordinary `current_hash`, `_hash_verdict()` matched it against the
-    stored `EMPTY_DIGEST` gate file, and the ledger's `>= 2` distinct-dispatch
-    check would have been satisfied by these unrelated dispatches — passing
-    the gate on a constant, content-independent hash. This is the same
+    stored `EMPTY_DIGEST` gate file, and the ledger's `>= 1` distinct-dispatch
+    check (#2147: lowered from 2) would have been satisfied by these
+    unrelated dispatches — passing the gate on a constant, content-independent
+    hash. This is the same
     `_bare_repo_on_feature_branch` empty-diff repo as the test above; the
     ledger + gate file here are the attacker/coincidence-controlled
     ingredients the old code would have accepted."""
@@ -390,20 +391,36 @@ def test_hash_match_with_no_dispatch_evidence_blocks_distinctly(repo: Path) -> N
     assert "No genuine review-agent dispatch" in result.stdout
 
 
-def test_hash_match_with_one_distinct_dispatch_is_insufficient(repo: Path) -> None:
+def test_hash_match_with_one_distinct_dispatch_is_sufficient(repo: Path) -> None:
+    """#2147: the floor was lowered from 2 to 1 — a single genuine,
+    registered review-agent dispatch now satisfies the gate outright."""
     h = _write_gate_file(repo)
     _write_dispatch_events(repo, ["security-review"], h)
     result = _run({"tool_input": {"command": "gh pr create"}, "cwd": str(repo)}, repo)
-    assert result.returncode == 2
-    assert "Only 1 distinct" in result.stdout
+    assert result.returncode == 0, result.stdout + result.stderr
 
 
-def test_same_agent_dispatched_twice_counts_as_one_distinct(repo: Path) -> None:
+def test_hash_match_with_zero_distinct_dispatches_is_insufficient(repo: Path) -> None:
+    """The floor is 1, not 0 — an empty ledger still blocks (covered by
+    `test_hash_match_with_no_dispatch_evidence_blocks_distinctly`), and this
+    pins the `_insufficient_message` wording specifically for `n == 0`
+    reached via `_dispatch_count_verdict` directly (the `same_subject_dispatch_ever`
+    / `any_dispatch_ever` lenses take priority over `_insufficient_message`
+    in the real `n == 0` path, so this exercises the function in isolation)."""
+    assert "Only 0 distinct" in _ppr._insufficient_message(0)
+    assert "need >= 1" in _ppr._insufficient_message(0)
+
+
+def test_same_agent_dispatched_twice_still_counts_as_one_distinct_and_passes(
+    repo: Path,
+) -> None:
+    """Distinct-agent counting (dedup by name) is unaffected by the #2147
+    floor change: two events for the SAME agent still collapse to one
+    distinct dispatch — which is now sufficient on its own (floor 1)."""
     h = _write_gate_file(repo)
     _write_dispatch_events(repo, ["security-review", "security-review"], h)
     result = _run({"tool_input": {"command": "gh pr create"}, "cwd": str(repo)}, repo)
-    assert result.returncode == 2
-    assert "Only 1 distinct" in result.stdout
+    assert result.returncode == 0, result.stdout + result.stderr
 
 
 def test_stale_dispatch_evidence_blocks_distinctly(repo: Path) -> None:
@@ -582,6 +599,24 @@ def test_since_scoped_review_then_gh_pr_create_passes_end_to_end(repo: Path) -> 
     # invoking `/code-review --since <base>`.
     _run_ledger_dispatch(repo, "security-review")
     _run_ledger_dispatch(repo, "structure-review")
+    _write_gate_file_via_branch_diff_cli(repo)
+
+    result = _run({"tool_input": {"command": "gh pr create"}, "cwd": str(repo)}, repo)
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert not (repo / ".claude" / "memory" / ".pr-review-passed").is_file()
+
+
+def test_single_real_dispatch_then_gh_pr_create_passes_end_to_end(repo: Path) -> None:
+    """Issue #2147's regression test: runs the SAME genuine, subprocess-level
+    code paths as the test above (`agent_dispatch_ledger.py` for the
+    dispatch, `review_gate_hash.py --branch-diff` for the gate write) but
+    with only ONE registered review-agent dispatch — the shape a
+    `/code-review --agent <name>` review, or any panel that happens to
+    record fewer than two ledger rows, actually produces. Before #2147
+    lowered `_MIN_DISTINCT_DISPATCHES` from 2 to 1, this exact sequence hard
+    blocked with `_insufficient_message` despite a genuine, real dispatch
+    having fired through the real hook."""
+    _run_ledger_dispatch(repo, "security-review")
     _write_gate_file_via_branch_diff_cli(repo)
 
     result = _run({"tool_input": {"command": "gh pr create"}, "cwd": str(repo)}, repo)

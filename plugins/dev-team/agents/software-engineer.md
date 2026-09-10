@@ -72,7 +72,8 @@ On-demand — invoke explicitly when the condition applies; **not** in `skills:`
 ## Knowledge Files
 
 - `${CLAUDE_PLUGIN_ROOT}/knowledge/database-change-management.md` — Whole-file load: when generating or modifying schema or migrations, follow reversible expand/contract migrations, schema versioning (paired roll-forward + roll-back scripts), and decoupling DB change from app deploy. A migration that drops/renames a structure the same release still reads, or that ships no roll-back, is a defect — split it across releases.
-- `${CLAUDE_PLUGIN_ROOT}/knowledge/test-doubles.md` — Load when about to write or review a test double (mock/stub/spy/fake) for a test. Before mocking any collaborator, check its "Common Misuses" table — in particular, confirm the collaborator is a genuine external-boundary system (third-party API, another team's service, infra the team doesn't control) and not internal to / owned by the same component or bounded context as the SUT. A double over an internal collaborator is a defect, not a style choice — assemble the real component and exercise it as real instead.
+- `${CLAUDE_PLUGIN_ROOT}/knowledge/test-doubles.md` — Load when about to write or review a test double (mock/stub/spy/fake) for a test. Check its "Common Misuses" table before choosing what to double.
+- `${CLAUDE_PLUGIN_ROOT}/knowledge/internal-collaborator-doubling.md#the-three-blockers-exhaustive` — Load before writing or reviewing any test double: check the collaborator against this blocker table before deciding to double it.
 
 ## Review Feedback Protocol
 

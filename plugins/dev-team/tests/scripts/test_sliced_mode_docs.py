@@ -13,9 +13,9 @@ from pathlib import Path
 _SKILL_DIR = (
     Path(__file__).resolve().parents[2] / "skills" / "code-review"
 )
-_SKILL_MD = (_SKILL_DIR / "SKILL.md").read_text()
-_SLICED_MD = (_SKILL_DIR / "sliced-mode.md").read_text()
-_OUTPUT_FMT = (_SKILL_DIR / "output-format.md").read_text()
+_SKILL_MD = (_SKILL_DIR / "SKILL.md").read_text(encoding="utf-8")
+_SLICED_MD = (_SKILL_DIR / "sliced-mode.md").read_text(encoding="utf-8")
+_OUTPUT_FMT = (_SKILL_DIR / "output-format.md").read_text(encoding="utf-8")
 
 
 # --- SKILL.md: flags + activation routing (Slice 1) ---------------------------

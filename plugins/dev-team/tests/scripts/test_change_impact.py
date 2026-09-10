@@ -329,9 +329,9 @@ class TestGateComposition:
 
     def test_the_gate_never_drops_a_change_size_floor_agent(self):
         """change_size.py keeps 4 agents on its narrowest fast path to clear
-        the commit gate's >= 2 distinct-dispatch floor. This gate must never
-        remove one of them, or the two gates could compose into a blocked
-        commit."""
+        the pre-PR gate's >= 1 distinct-dispatch floor (#2147; lowered from
+        2). This gate must never remove one of them, or the two gates could
+        compose into a blocked PR."""
         floor = {"security-review", "correctness-review", "spec-compliance-review", "doc-review"}
         assert not (set(change_impact.GATED_LENSES) & floor)
 
