@@ -91,9 +91,17 @@ is `none`, +1 once Phase 6 enters Phase 7) rather than a hardcoded 9 or 10.
   (two consecutive batches killing fewer than the minimum net survivors exit
   3 and prompt the same `[t] re-check Phase-1 targeting / [c] continue`,
   #2033 — the #1790 mechanism ported to the more expensive lane, sharing its
-  status vocabulary and exit-code contract). End-of-phase review loop runs `/test-design --since` and
-  `/code-review --since` in parallel, `/apply-fixes` then re-run, cap 2
-  iterations, `[r/w/q]` escalation. Evidence in `phase-5-review.json`.
+  status vocabulary and exit-code contract). End-of-phase review loop
+  dispatches `/code-review --since <base-sha> --internal` once — not a
+  separate `/test-design` dispatch in parallel with it; `test-review` and
+  `test-smell-review` (the two agents `/test-design` used to add) are
+  already in `/code-review`'s own roster for a test/seam-scoped diff, so
+  that dual dispatch was a duplicate and #1966/#1987 removed it — confirms
+  those two test lenses weren't dropped by the change-size gate, scores
+  Farley on the in-scope test files, `/apply-fixes` then a narrowed
+  re-confirmation (not a full re-dispatch), cap 2 iterations, `[r/w/q]`
+  escalation. See `references/review-loop.md` steps 1-5. Evidence in
+  `phase-5-review.json`.
 - **Phase 6 — Refactor decision prompt.** `[y] enter Phase 7 / [b] backlog
   and skip to Phase 8 / [q] quit`. The letter `y` is deliberately chosen over
   `r`, which is already claimed by mutation-kill's `[c/r/w/q]` (retry) and the
