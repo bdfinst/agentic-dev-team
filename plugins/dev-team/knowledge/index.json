@@ -5917,16 +5917,8 @@
       "anchor": "cross-artifact-consistency-gate"
     },
     "Output": {
-      "summary": "Three artifacts (Intent, Architecture Specification, Acceptance Criteria) plus a consistency gate pass/fail verdict.",
+      "summary": "Three artifacts (Intent, Architecture Specification, Acceptance Criteria) plus a",
       "anchor": "output"
-    },
-    "Persist artifacts": {
-      "summary": "After the gate passes, persist all three artifacts plus the verdict so downstream commands (`/plan`, `/build`, spec-compliance-review) can find the spec — chat-only specs are lost between sessions.",
-      "anchor": "persist-artifacts"
-    },
-    "Auto-trigger /plan": {
-      "summary": "After persisting, automatically invoke `/plan` with the feature description.",
-      "anchor": "auto-trigger-plan"
     }
   },
   "plugins/dev-team/skills/static-analysis-integration/SKILL.md": {
