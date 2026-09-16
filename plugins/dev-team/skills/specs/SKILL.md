@@ -171,6 +171,31 @@ Note: a single feature that decomposes into several deliverable increments is **
 3. Human approves the split before specification continues on any feature.
 4. Each feature gets its own full set of three artifacts.
 
+## Completeness sweep
+
+After the critique loop and **before** the Consistency Gate, sweep for what the
+spec never mentioned. A spec that says nothing about deletion produces no
+criterion to find incomplete — the omission is the absence of a criterion, and
+absence is invisible to every per-criterion check we run.
+
+Load [`references/completeness-checklist.md`](references/completeness-checklist.md)
+and apply it: CRUD per named entity, plus authentication, authorization,
+audit/logging, and error handling for the spec as a whole.
+
+- **Report the entities you enumerated.** Enumeration is a model step, not a
+  parser's, so showing the list is what lets a human catch a missed entity.
+- **Group findings by entity**, separating cells dispositionable in one answer
+  from those needing individual judgment — a flat dump invites rubber-stamping.
+- **Route each unaddressed cell** into the Ambiguity Log as `inferable` (with
+  rationale — including "read-only by design") or `requires-stakeholder-input`.
+  A cell that does not apply is recorded with its reason, never dropped.
+
+**The sweep is not a gate.** It blocks only through the existing Ambiguity
+Resolution Protocol; it introduces no new gate, severity scheme, or confidence
+score. It also never grades a criterion that already exists — that is
+`plan-review-acceptance`'s scope. The two answer different questions: "is there
+a criterion here at all?" versus "is this criterion complete?"
+
 ## Cross-Artifact Consistency Gate
 
 Validate all three artifacts as a set:

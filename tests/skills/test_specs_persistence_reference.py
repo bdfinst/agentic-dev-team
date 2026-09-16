@@ -16,6 +16,7 @@ shipped file.
 
 from __future__ import annotations
 
+import importlib.util
 import subprocess
 import sys
 
@@ -28,11 +29,13 @@ SKILL = PLUGIN_ROOT / "skills" / "specs" / "SKILL.md"
 REFERENCE = PLUGIN_ROOT / "skills" / "specs" / "references" / "persistence.md"
 REGISTRY = PLUGIN_ROOT / "knowledge" / "agent-registry.md"
 
-# Pre-extraction size, recorded so the shrink assertion below is anchored to a
-# real number rather than a moving target. Slices 2-5 add to SKILL.md; the
-# cumulative guard (scripts/specs_skill_delta.py, step 1.3) is what keeps them
-# from silently re-consuming the headroom this extraction bought.
-PRE_EXTRACTION_WORDS = 2659
+# The authoritative pre-extraction size lives in scripts/specs_skill_delta.py
+# and is measured in LINES, the unit epic #2159's own constraint uses. This
+# test imports it rather than keeping a second copy: an earlier version of
+# this file carried a separate word-based bar (0.75 * 2659 words), which drifted
+# out of agreement with the line-based ceiling as slices 2-5 added prose —
+# two gates on one property, in different units, with different thresholds.
+_DELTA_SCRIPT = REPO_ROOT / "scripts" / "specs_skill_delta.py"
 
 
 @pytest.fixture(scope="module")
@@ -107,20 +110,26 @@ def test_skill_no_longer_inlines_the_persistence_branching(skill_text):
     assert "Persist to GitHub issue" not in skill_text
 
 
-def test_skill_shrank_measurably(skill_text):
-    """A one-word trim must not satisfy this.
+def test_skill_stays_below_the_pre_extraction_size():
+    """Delegates to the authoritative gate rather than re-deriving a bar.
 
-    The extraction moved ~41% of the file's words out, so the bar is a
-    substantive reduction, not any reduction at all. 0.75 leaves room for
-    slices 2-5 to add their own prose without this test becoming a second,
-    weaker copy of scripts/specs_skill_delta.py's cumulative ceiling.
+    `scripts/specs_skill_delta.py --check` owns this property (and is wired
+    into ci-local.sh as chk_specs_skill_size). This test exists so a breach
+    fails here, next to the extraction it protects, instead of only at push
+    time — but it reads that script's own constant so there is exactly one
+    threshold in exactly one place.
     """
-    words = len(skill_text.split())
-    ceiling = PRE_EXTRACTION_WORDS * 0.75
-    assert words < ceiling, (
-        f"SKILL.md is {words} words, not meaningfully below the "
-        f"{PRE_EXTRACTION_WORDS}-word pre-extraction size (bar: {ceiling:.0f}) — "
-        "the extraction's headroom has been consumed"
+    spec = importlib.util.spec_from_file_location(
+        "specs_skill_delta_const", _DELTA_SCRIPT
+    )
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+
+    lines = len(SKILL.read_text().splitlines())
+    assert lines < module.PRE_EXTRACTION_LINES, (
+        f"SKILL.md is {lines} lines, at or above the "
+        f"{module.PRE_EXTRACTION_LINES}-line pre-extraction size — the "
+        "extraction's headroom has been consumed"
     )
 
 
