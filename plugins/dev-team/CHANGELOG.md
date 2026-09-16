@@ -1,5 +1,12 @@
 # Changelog
 
+## [13.2.0](https://github.com/bdfinst/agentic-dev-team/compare/dev-team-v13.1.2...dev-team-v13.2.0) (2026-09-16)
+
+
+### Features
+
+* **specs:** close the DeFOSPAM spec-review placement gaps ([#2180](https://github.com/bdfinst/agentic-dev-team/issues/2180)) ([b58d0fb](https://github.com/bdfinst/agentic-dev-team/commit/b58d0fbc6298fea2fc136bcb8adc2147b7217eab))
+
 ## [13.1.2](https://github.com/bdfinst/agentic-dev-team/compare/dev-team-v13.1.1...dev-team-v13.1.2) (2026-09-10)
 
 
