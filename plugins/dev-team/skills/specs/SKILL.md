@@ -124,6 +124,14 @@ For each gap or ambiguity:
 
 **Step A — Attempt inference.** Look for a reliable basis: existing codebase behavior, domain conventions, similar precedents in the system, or unambiguous implication from stated requirements.
 
+**Step A2 — Predictability check.** Generate **at most one** plausible
+alternative outcome per criterion and test it against the source; if the source
+does not rule it out, classify `requires-stakeholder-input`. Record the outcome
+in the Ambiguity Log row every time, pass included. Load
+[`references/predictability-check.md`](references/predictability-check.md) — it
+covers absurd-candidate rejection, the no-plausible-alternative case, and why
+this does not duplicate `plan-review-acceptance`.
+
 **Step B — Classify the finding.**
 
 | Class | Meaning | Action |
