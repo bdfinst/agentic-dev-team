@@ -32,6 +32,16 @@ After the gate passes, persist all three artifacts plus the verdict so downstrea
 ## Acceptance Criteria
 <acceptance criteria artifact>
 
+## Glossary
+
+Domain terms this spec depends on. `verified` means a **human** confirmed the
+definition during the collaboration loop — not that an agent found a plausible
+one. Render the section even when there is nothing to define.
+
+| Term | Definition | Status | Source |
+|------|------------|--------|--------|
+| <term> | <definition> | `verified` / `unverified` | <where the definition came from> |
+
 ## Ambiguity Log
 
 All gap and ambiguity findings from the Ambiguity Resolution Protocol, with their classifications and rationale.
@@ -73,7 +83,7 @@ or renaming — if it exits non-zero, fix the title, don't create anyway.
    - **Zero matches** → proceed straight to create (step 4).
    - **Exactly one match** → interactive: ask "Found existing issue #N for this spec — update it in place, or create a new one?"; non-interactive (no usable TTY): default to **updating** that single match in place (never create a duplicate) and log the auto-choice.
    - **Two or more matches** → interactive: surface every matching issue and ask which to update, or whether to create a new one instead — never silently pick one; non-interactive: default to **creating** a new issue and explicitly log the ambiguity (which candidate issues it did not act on).
-4. **Compose** the issue body using the same structure as the file template above (Intent Description, Architecture Specification, Acceptance Criteria, Ambiguity Log, Consistency Gate), titled `<type>(spec): <Feature Name>` per the rule above.
+4. **Compose** the issue body using the same structure as the file template above — **cite it, never copy it**: there is exactly one body template in this file, and a second one would be a drift source rather than a mirror (Intent Description, Architecture Specification, Acceptance Criteria, Glossary, Ambiguity Log, Consistency Gate), titled `<type>(spec): <Feature Name>` per the rule above.
 5. **Create** (`gh issue create --title "<type>(spec): <Feature Name>" --body "<composed body>"`) or **update** (`gh issue edit <N> --body "<composed body>"`) per step 3's decision. Updating an existing issue's body never touches its title — if the existing title predates this convention, rename it too (`gh issue edit <N> --title "..."`) rather than leaving a stale non-conventional title behind.
 6. If the create/update call exits non-zero, report the failure and its cause to chat, do **not** claim success, and fall back to **Persist to file** above with the already-composed content.
 7. On success, **print** the resulting issue URL to chat — do not write `docs/specs/<slug>.md` on this path.

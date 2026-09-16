@@ -5916,6 +5916,10 @@
       "summary": "1.",
       "anchor": "scope-split-protocol"
     },
+    "Glossary": {
+      "summary": "Capture domain terms **while drafting** Intent and Acceptance Criteria.",
+      "anchor": "glossary"
+    },
     "Completeness sweep": {
       "summary": "After the critique loop and **before** the Consistency Gate, sweep for what the",
       "anchor": "completeness-sweep"

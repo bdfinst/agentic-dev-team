@@ -171,6 +171,15 @@ Note: a single feature that decomposes into several deliverable increments is **
 3. Human approves the split before specification continues on any feature.
 4. Each feature gets its own full set of three artifacts.
 
+## Glossary
+
+Capture domain terms **while drafting** Intent and Acceptance Criteria. A
+definition the agent inferred starts `unverified`; `verified` requires a human.
+A term still `unverified` at the end of the loop is a gap finding and routes
+through the Ambiguity Resolution Protocol — it does not block the Consistency
+Gate by itself. Load [`references/glossary.md`](references/glossary.md) for the
+status contract, the resolution rule, and the downstream consumers.
+
 ## Completeness sweep
 
 After the critique loop and **before** the Consistency Gate, sweep for what the
