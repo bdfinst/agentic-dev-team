@@ -29,6 +29,38 @@ and both are worth keeping: `/specs` catches ambiguity a human must resolve;
 the build cadence's per-behavior tests catch edge cases the spec implies but
 never enumerates.
 
+## Step 0 — Select the mode
+
+`/specs` runs in one of two modes, chosen from the **shape of the argument** —
+there is no flag, so every existing `/specs "<description>"` invocation is
+unaffected. Announce the selected mode and why before any work begins.
+
+| Argument | Mode |
+|---|---|
+| Resolves to a readable `.md`/`.txt`/`.pdf`, or a fetchable GitHub issue URL | **validate** — critique a document we did not write |
+| *Looks* like a path or issue URL (a path separator, one of those extensions, or a GitHub issue URL shape) but does not resolve or cannot be fetched | **refuse** — see below |
+| Resembles neither | **authoring** — today's collaboration loop, unchanged |
+
+**A path-like argument that does not resolve is never reinterpreted as prose.**
+Silently feeding a mistyped path into the authoring loop turns a typo into a
+spec seeded from the literal path string, which the author may not notice for
+a long time. Refuse instead, naming the unresolved path or the fetch failure
+(private, deleted, unauthenticated, network).
+
+**Unsupported formats are refused too, never partially parsed.** The supported
+set is what `Read` handles natively. `.docx` is explicitly out — the plugin
+ships stdlib-only Python (ADR 0014/0015) and no stdlib path parses it. Name the
+reason and the conversion to perform; do not guess at a partial read.
+
+Validate mode then runs the same critique categories, Ambiguity Resolution
+Protocol, and Consistency Gate as authoring mode, against the source text
+rather than a co-authored draft — a third-party document blocks exactly as hard
+as an in-house draft. **Every extracted acceptance criterion cites the source
+passage it came from; one with no citable passage is an inference and is logged
+as such, never presented as if the source stated it.** Load
+[`references/extraction.md`](references/extraction.md) for the supported
+inputs, the citation rule, and the routing.
+
 ## Step 0 — Existing-spec version check
 
 Before drafting or updating a spec, check whether a spec file already exists for

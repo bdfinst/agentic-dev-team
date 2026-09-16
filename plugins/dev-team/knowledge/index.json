@@ -5876,6 +5876,10 @@
       "summary": "This skill's value is **resolving ambiguity with a human before build begins**",
       "anchor": "positioning-what-this-skill-is-for"
     },
+    "Step 0 — Select the mode": {
+      "summary": "`/specs` runs in one of two modes, chosen from the **shape of the argument** —",
+      "anchor": "step-0-select-the-mode"
+    },
     "Step 0 — Existing-spec version check": {
       "summary": "Before drafting or updating a spec, check whether a spec file already exists for",
       "anchor": "step-0-existing-spec-version-check"

@@ -80,7 +80,24 @@ or renaming — if it exits non-zero, fix the title, don't create anyway.
 
 ## Auto-trigger /plan
 
-After persisting, automatically invoke `/plan` with the feature description. The plan command discovers the spec artifacts, decomposes the feature into vertical slices, and authors the Gherkin scenarios for each slice. Do not ask first — the approved spec is the trigger.
+**Authoring mode only.** The two modes end differently, and deliberately so:
+
+| Mode | Terminal behavior |
+|---|---|
+| **authoring** | Auto-invoke `/plan`. Do not ask first — the approved spec is the trigger. |
+| **validate** | Print the persisted location **and a reason clause**, then offer `/plan` as an explicit next step. Never auto-invoke. |
+
+The auto-trigger's "do not ask first" contract is justified by the human having
+just co-authored and approved the spec. Validating a third-party RFP, a vendor
+brief, or a competitor's document carries no such commitment — auto-planning it
+could be actively wrong, so validate mode stops.
+
+The printed message must name that reason, not just make the offer: a user who
+has only ever seen authoring mode will otherwise read the stop as a regression.
+Something like *"not auto-invoking /plan: this document wasn't co-authored and
+approved with you — run /plan when you're ready."*
+
+In authoring mode, after persisting, automatically invoke `/plan` with the feature description. The plan command discovers the spec artifacts, decomposes the feature into vertical slices, and authors the Gherkin scenarios for each slice.
 
 **Key this off which persistence action actually succeeded, not the "Classify where to persist" decision** — the GitHub-issue path can itself fall back to file (search failure at step 2, or create/update failure at step 6):
 
