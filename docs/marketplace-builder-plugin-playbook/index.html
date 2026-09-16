@@ -1,0 +1,5617 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+      
+      
+        <link rel="canonical" href="https://devteam.bryanfinster.com/docs/marketplace-builder-plugin-playbook/">
+      
+      
+        <link rel="prev" href="../experiment-install-harness/">
+      
+      
+        <link rel="next" href="../python-hook-contract/">
+      
+      
+        
+      
+      
+      <link rel="icon" href="../../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
+    
+    
+      
+        <title>Playbook: building a plugin that builds plugin marketplaces - Agentic Dev Team</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../assets/stylesheets/main.ec1eaa64.min.css">
+      
+        
+        <link rel="stylesheet" href="../../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+      <link rel="stylesheet" href="../../stylesheets/sidebar.css">
+    
+    <script>__md_scope=new URL("../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#playbook-building-a-plugin-that-builds-plugin-marketplaces" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow md-header--lifted" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="../.." title="Agentic Dev Team" class="md-header__button md-logo" aria-label="Agentic Dev Team" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            Agentic Dev Team
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Playbook: building a plugin that builds plugin marketplaces
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: light)" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a4 4 0 0 0-4 4 4 4 0 0 0 4 4 4 4 0 0 0 4-4 4 4 0 0 0-4-4m0 10a6 6 0 0 1-6-6 6 6 0 0 1 6-6 6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: dark)" data-md-color-scheme="slate" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12s-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+          <a href="javascript:void(0)" class="md-search__icon md-icon" title="Share" aria-label="Share" data-clipboard data-clipboard-text="" data-md-component="search-share" tabindex="-1">
+            
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M18 16.08c-.76 0-1.44.3-1.96.77L8.91 12.7c.05-.23.09-.46.09-.7s-.04-.47-.09-.7l7.05-4.11c.54.5 1.25.81 2.04.81a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3c0 .24.04.47.09.7L8.04 9.81C7.5 9.31 6.79 9 6 9a3 3 0 0 0-3 3 3 3 0 0 0 3 3c.79 0 1.5-.31 2.04-.81l7.12 4.15c-.05.21-.08.43-.08.66 0 1.61 1.31 2.91 2.92 2.91s2.92-1.3 2.92-2.91A2.92 2.92 0 0 0 18 16.08"/></svg>
+          </a>
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/bdfinst/agentic-dev-team" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    bdfinst/agentic-dev-team
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+    
+      
+<nav class="md-tabs" aria-label="Tabs" data-md-component="tabs">
+  <div class="md-grid">
+    <ul class="md-tabs__list">
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../.." class="md-tabs__link">
+        
+  
+  
+    
+  
+  Home
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../../GETTING-STARTED/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Getting Started
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../../CONTRIBUTING/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Contributing
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+    
+  
+  
+    
+    
+      <li class="md-tabs__item md-tabs__item--active">
+        <a href="../cloud-setup/" class="md-tabs__link">
+          
+  
+  
+  Guides & Reference
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../plugins/dev-team/" class="md-tabs__link">
+          
+  
+  
+  Plugins
+
+        </a>
+      </li>
+    
+  
+
+    
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../../CHANGELOG/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Changelog
+
+      </a>
+    </li>
+  
+
+      
+    </ul>
+  </div>
+</nav>
+    
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+  
+
+
+<nav class="md-nav md-nav--primary md-nav--lifted" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../.." title="Agentic Dev Team" class="md-nav__button md-logo" aria-label="Agentic Dev Team" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    Agentic Dev Team
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/bdfinst/agentic-dev-team" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    bdfinst/agentic-dev-team
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../.." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../GETTING-STARTED/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Getting Started
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../CONTRIBUTING/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Contributing
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Guides & Reference
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Guides & Reference
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../cloud-setup/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Cloud setup: loading the dev-team plugin into a web session
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../cloud-startup-prompt/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Cloud startup prompt
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../command-graph-audit/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Command taxonomy — what each user-invocable command is for
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../complexity-refactor-regression/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Complexity Regression Check — AC2 of Epic #362
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../context-and-session-economy-playbook/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Session economy playbook
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../context-ceiling-validation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Validating the context ceiling
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../continuous-delivery-coverage-review/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Continuous Delivery Coverage Review
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../enforce-prefer-python-over-bash/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Record: mechanically enforcing "prefer Python over bash"
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../experiment-install-harness/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Experiment Install Harness
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Playbook: building a plugin that builds plugin marketplaces
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Playbook: building a plugin that builds plugin marketplaces
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#1-what-this-plugin-produces" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1. What this plugin produces
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#2-marketplace-anatomy-your-plugin-must-model" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2. Marketplace anatomy your plugin must model
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="2. Marketplace anatomy your plugin must model">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#21-the-catalog-claude-pluginmarketplacejson" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2.1 The catalog — .claude-plugin/marketplace.json
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#22-the-manifest-pluginsnameclaude-pluginpluginjson" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2.2 The manifest — plugins/&lt;name&gt;/.claude-plugin/plugin.json
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#23-shipped-vs-not-shipped-the-load-bearing-distinction" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2.3 Shipped vs not-shipped (the load-bearing distinction)
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#3-skills-commands-the-plugin-should-provide" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3. Skills &amp; commands the plugin should provide
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#4-the-enforcement-sensor-it-must-shipscaffold" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4. The enforcement sensor it must ship/scaffold
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#5-invariants-to-bake-into-every-generatedaudited-plugin" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5. Invariants to bake into every generated/audited plugin
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#6-independent-versioning-catalog-sync-automate-never-hand-edit" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        6. Independent versioning + catalog sync (automate, never hand-edit)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#7-cross-plugin-dependencies-plugin-a-consumes-plugin-b-at-a-pinned-version" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        7. Cross-plugin dependencies (plugin A consumes plugin B at a pinned version)
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="7. Cross-plugin dependencies (plugin A consumes plugin B at a pinned version)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#71-depends-on-a-presence-floor-declaration-coarse" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        7.1 depends-on — a presence + floor declaration (coarse)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#72-a-versioned-shared-contract-the-real-coupling-fine-preferred" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        7.2 A versioned shared contract — the real coupling (fine; preferred)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#73-enforcement-make-drift-unmergeable" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        7.3 Enforcement (make drift unmergeable)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#74-which-knob-when" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        7.4 Which knob, when
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#8-building-the-plugin-itself-step-by-step" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        8. Building the plugin itself (step by step)
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="8. Building the plugin itself (step by step)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#reference-templates-this-repo" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Reference templates (this repo)
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#9-acceptance-checklist-for-the-plugin-you-build" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        9. Acceptance checklist for the plugin you build
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../python-hook-contract/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Python hook contract
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../using-plugin-skills-in-the-web-environment/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Using a plugin's skills in the Claude Code web environment
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+          
+          
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_4_13" >
+        
+          
+          <label class="md-nav__link" for="__nav_4_13" id="__nav_4_13_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Architecture Decisions
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_4_13_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4_13">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Architecture Decisions
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../adr/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Architecture Decision Records
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../adr/0001-record-architecture-decisions/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    1. Record architecture decisions
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../adr/0002-use-sentinel-file-and-argument-shape-heuristic-for-codegraph-nudge-hook/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    2. Use sentinel file and argument-shape heuristic for CodeGraph nudge hook
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../adr/0003-document-adr-tooling-workflow-as-a-skill/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    3. Document ADR tooling workflow as a skill
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../adr/0004-pre-dispatch-model-resolution/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    4. Pre-dispatch model tier resolution enforced by a PreToolUse hook
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../adr/0005-on-demand-knowledge-indexing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    5. On-demand knowledge indexing with four freshness gates
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../adr/0006-per-increment-trunk-integration-topology/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    6. Per-increment trunk integration topology for agent work
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../adr/0007-eval-confidence-pyramid-tier-vocabulary/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    7. Eval confidence-pyramid tier vocabulary
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../adr/0008-use-effort-bands-instead-of-model-names-in-agent-frontmatter/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    8. Use effort bands instead of model names in agent frontmatter
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../adr/0009-human-consent-gate-for-learning-loop/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    9. Human Consent Gate for Learning Loop
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../adr/0010-per-session-analysis-granularity/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    10. Per-Session Analysis Granularity
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../adr/0011-enforce-context-ceiling-with-transcript-measured-pretooluse-hook/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    11. Enforce the context ceiling with a transcript-measured PreToolUse hook
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../adr/0012-auto-bootstrap-codegraph-index-per-clone/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    12. Auto-bootstrap the CodeGraph index per clone
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../adr/0013-llm-driven-orchestration-over-deterministic-workflow-scripts/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    13. LLM-driven orchestration over deterministic workflow scripts
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../adr/0014-python-for-cross-os-scripts/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    14. Python for cross-OS scripts
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../adr/0015-bash-removal-complete/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    15. Bash removal complete — plugins/dev-team is Python-native
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../adr/0016-rely-on-harness-native-compaction-the-plugin-performs-structured-summarization-only/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    16. Rely on harness-native compaction; the plugin performs structured summarization only
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../adr/0017-single-build-cadence-remove-classic-tdd-opt-in/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    17. Single build cadence — remove the Classic TDD opt-in
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../adr/0018-native-sub-issues-determine-the-epic-label/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    18. Native sub-issues determine the epic label
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../adr/0019-orchestrate-the-phase-pipeline-choreograph-the-safety-layer/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    19. Orchestrate the phase pipeline, choreograph the safety layer
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../adr/0020-fold-mutation-pipeline-into-the-plugin/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    20. Fold the ACI mutation pipeline into the plugin as scripted mechanics
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../adr/0021-claude-only-model-routing-no-multimodal-tier/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    21. Claude-only model routing — no multimodal or cross-provider tier
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../adr/0022-reject-delegation-only-sweep-dispatch/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    22. Reject the delegation-only sweep — delegation must earn its measured overhead
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../adr/0023-calibrate-effort-bands-from-the-1184-eval-baseline/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    23. Calibrate agent effort bands from the #1184 eval baseline
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../adr/0024-keep-single-model-routing-map-keyed-by-canonical-model-ids/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    24. Keep the single model-routing map keyed by canonical model IDs
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../adr/0025-allow-versioned-model-ids-in-routing-map/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    25. Allow versioned (dated-snapshot) model IDs in the routing map
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../adr/0026-adopt-native-model-effort-agent-frontmatter-retire-the-band-resolver/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    26. Adopt native model:/effort: agent frontmatter, retire the band resolver
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../adr/0027-require-and-mechanically-derive-color-on-every-agent/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    27. Require and mechanically derive color on every agent
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../adr/0028-require-skills-preload-and-memory-project-on-matching-agents/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    28. Require skills: preload and memory: project on matching agents
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../adr/0029-code-modifying-agent-personas-remain-separate-from-software-engineer/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    29. Code-modifying agent personas remain separate from software-engineer
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../adr/0030-use-ancestor-check-instead-of-exact-sha-comparison-for-mutation-baseline-reuse/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    30. Use ancestor-check instead of exact-SHA comparison for mutation baseline reuse
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../adr/0031-raise-shipped-python-floor-to-3-10/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    31. Raise the shipped Python floor from 3.8 to 3.10
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../adr/0032-shipped-script-path-resolution-taxonomy/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    32. Shipped-script path-resolution taxonomy
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../adr/0033-quote-claude-plugin-root-expansions/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    33. Quote every ${CLAUDE_PLUGIN_ROOT} expansion in a shell fence
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../adr/0034-do-not-build-shared-context-pre-pass-for-duplicate-full-file-reads-1611/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    34. Do not build a shared-context pre-pass for duplicate full-file reads (#1611)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../adr/0035-defer-two-lane-generation-validation-concurrency-in-mutation-kill-all-1909/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    35. Defer two-lane generation/validation concurrency in mutation-kill --all (#1909)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../adr/0036-the-two-session-extractors-stay-forked-1994/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    36. The two session extractors stay forked, for now
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../adr/0037-block-by-default-at-the-context-ceiling-2000/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    37. Block by default at the context ceiling
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../adr/0038-raise-the-absolute-context-ceiling-to-350k/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    38. Raise the absolute context ceiling from 150K to 350K
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../adr/0039-only-skill-loads-are-worth-blocking-at-the-context-ceiling/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    39. Only Skill loads are worth blocking at the context ceiling
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../adr/0040-evaluate-splitting-orchestrator-py-no-go/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    40. Evaluate splitting orchestrator.py: no-go
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../adr/0041-autoship-step-2b-dispatch-is-not-the-rejected-sweep/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    41. Autoship's per-round agent dispatch is not ADR 0022's rejected sweep
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../adr/0042-unify-the-session-extractors/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    42. Unify the session extractors
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+          
+          
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_4_14" >
+        
+          
+          <label class="md-nav__link" for="__nav_4_14" id="__nav_4_14_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Experiments
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_4_14_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4_14">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Experiments
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../experiments/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    The Agentic Workflow Experiments — Narrative
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../experiments/FAQ/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    TDD Experiment — FAQ
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../experiments/RECOMMENDATIONS/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Recommendations — The End-to-End Agentic Workflow
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../experiments/01-final-results/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Consolidated Report: Build-Pipeline vs. TDD vs. Non-TDD across Small / Medium / Large Tasks
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../experiments/02-final-results/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    When Does TDD Actually Pay Off?
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../experiments/04-final-results/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Refactoring cadence &amp; authorship — results
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../experiments/04-power-analysis/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Refactoring cadence &amp; authorship — pre-run power analysis
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../experiments/05-final-results/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Final Results — Which Agentic Workflow Yields Maintainable, Well-Tested Code at Minimum Cost
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../experiments/test-cadence-validation-plan/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Validating an alternative test cadence locally
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_4_14_10" >
+        
+          
+          <label class="md-nav__link" for="__nav_4_14_10" id="__nav_4_14_10_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Agentic workflow evidence
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="3" aria-labelledby="__nav_4_14_10_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4_14_10">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Agentic workflow evidence
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../experiments/agentic-workflow-evidence/01-experiment-prompt-3sizes-3arms/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Experiment Prompt: Build-Pipeline vs. TDD vs. Non-TDD across Small / Medium / Large Tasks
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../experiments/agentic-workflow-evidence/02-experiment-prompt-when-tdd-pays/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Experiment Prompt: When Does TDD Actually Pay Off?
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../experiments/agentic-workflow-evidence/04-experiment-prompt-refactor-granularity/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Experiment Prompt: Refactoring Granularity, the Test Safety Net, and Code/Test Authorship
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../experiments/agentic-workflow-evidence/05-experiment-prompt-workflow-matrix/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Experiment Prompt: Which agentic workflow yields maintainable, well-tested code at minimum cost
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+          
+          
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_4_15" >
+        
+          
+          <label class="md-nav__link" for="__nav_4_15" id="__nav_4_15_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Spikes
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_4_15_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4_15">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Spikes
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../spikes/build-token-cost-spike/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Spike — /build token cost: per-agent overhead &amp; review-value no-op rates
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../spikes/review-cost-optimization/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Spike: Economizing the Review Panel
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../spikes/worktree-baseref-head-spike/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Spike: verify worktree.baseRef=head changes Agent-tool worktree base ref
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_5" >
+        
+          
+          <label class="md-nav__link" for="__nav_5" id="__nav_5_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Plugins
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_5_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Plugins
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_5_1" >
+        
+          
+          <label class="md-nav__link" for="__nav_5_1" id="__nav_5_1_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    dev-team Plugin
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_5_1_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5_1">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    dev-team Plugin
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../plugins/dev-team/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    dev-team
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../plugins/dev-team/CHANGELOG/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Changelog
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_5_1_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_5_1_3" id="__nav_5_1_3_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Documentation
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="3" aria-labelledby="__nav_5_1_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5_1_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Documentation
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../plugins/dev-team/docs/agent-architecture/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Architecture
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../plugins/dev-team/docs/agent_info/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Agents
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../plugins/dev-team/docs/artifact-migration/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Artifact migration guide (upgrading an existing project)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../plugins/dev-team/docs/code-intelligence-nudge/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    code-intelligence-nudge
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../plugins/dev-team/docs/code-review-process/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Code Review Process
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../plugins/dev-team/docs/concurrent-use/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Concurrent use — multiple agents or people on one repo
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../plugins/dev-team/docs/context-management/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Context Management
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../plugins/dev-team/docs/developer-notes/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Developer notes — extending and maintaining the plugin
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../plugins/dev-team/docs/eval-maintenance/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    How eval testing works &amp; keeping it current
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../plugins/dev-team/docs/eval-running-guide/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Running a full eval of everything
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../plugins/dev-team/docs/eval-system/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Eval System for Code Review Agents
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../plugins/dev-team/docs/session-review-oss-complements/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Session-review: OSS complements
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../plugins/dev-team/docs/session-review/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Session-review harness (#131)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../plugins/dev-team/docs/skills/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Skills
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../plugins/dev-team/docs/team-structure/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Team Organization
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../plugins/dev-team/docs/telemetry-ci-access/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Giving CI read access to the telemetry repo
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../plugins/dev-team/docs/telemetry-repo-security/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Telemetry repository — security &amp; setup
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../plugins/dev-team/docs/test-evaluation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Test Evaluation and Architecture
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../plugins/dev-team/docs/test-improve/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    /test-improve
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../plugins/dev-team/docs/triage-workflow/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Triage Workflow: Discovery to Applied Fix
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../plugins/dev-team/docs/workflows/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Workflows
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_5_2" >
+        
+          
+          <label class="md-nav__link" for="__nav_5_2" id="__nav_5_2_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    marketplace-dev Plugin
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_5_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5_2">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    marketplace-dev Plugin
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../plugins/marketplace-dev/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    marketplace-dev
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../plugins/marketplace-dev/CHANGELOG/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Changelog
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_5_2_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_5_2_3" id="__nav_5_2_3_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Documentation
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="3" aria-labelledby="__nav_5_2_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5_2_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Documentation
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../plugins/marketplace-dev/docs/agent_info/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Agents
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../plugins/marketplace-dev/docs/skills/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Skills
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../plugins/marketplace-dev/docs/workflows/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Workflows
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_5_2_4" >
+        
+          
+          <label class="md-nav__link" for="__nav_5_2_4" id="__nav_5_2_4_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Knowledge
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="3" aria-labelledby="__nav_5_2_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5_2_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Knowledge
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../plugins/marketplace-dev/knowledge/agent-type-decision-rules/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Agent Type Decision Rules — markdown vs script
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_5_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_5_3" id="__nav_5_3_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    security-assessment Plugin
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_5_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    security-assessment Plugin
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../plugins/security-assessment/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    security-assessment
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../plugins/security-assessment/CHANGELOG/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Changelog
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_5_3_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_5_3_3" id="__nav_5_3_3_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Documentation
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="3" aria-labelledby="__nav_5_3_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5_3_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Documentation
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../plugins/security-assessment/docs/accepted-risks-format/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    ACCEPTED-RISKS.md format
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../plugins/security-assessment/docs/agent_info/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Agents
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../plugins/security-assessment/docs/comparative-testing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Comparative testing: our plugin vs. opus_repo_scan_test
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../plugins/security-assessment/docs/skills/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Skills
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../plugins/security-assessment/docs/user-guide-security-assessment/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    User guide: security assessment
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../plugins/security-assessment/docs/workflows/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Workflows
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_5_3_3_7" >
+        
+          
+          <label class="md-nav__link" for="__nav_5_3_3_7" id="__nav_5_3_3_7_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Agents
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="4" aria-labelledby="__nav_5_3_3_7_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5_3_3_7">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Agents
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../plugins/security-assessment/docs/agents/authorization-logic-review/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    authorization-logic-review — rationale and provenance
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../plugins/security-assessment/docs/agents/business-logic-domain-review/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    business-logic-domain-review — rationale and provenance
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../plugins/security-assessment/docs/agents/cross-repo-synthesizer/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    cross-repo-synthesizer — rationale and provenance
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../plugins/security-assessment/docs/agents/deep-code-reasoning/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    deep-code-reasoning — rationale and provenance
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../plugins/security-assessment/docs/agents/exec-report-generator/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    exec-report-generator — rationale and provenance
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../plugins/security-assessment/docs/agents/fp-reduction/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    fp-reduction — rationale and provenance
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../plugins/security-assessment/docs/agents/recon-driven-scan/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    recon-driven-scan — rationale and provenance
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../CHANGELOG/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Changelog
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#1-what-this-plugin-produces" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1. What this plugin produces
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#2-marketplace-anatomy-your-plugin-must-model" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2. Marketplace anatomy your plugin must model
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="2. Marketplace anatomy your plugin must model">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#21-the-catalog-claude-pluginmarketplacejson" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2.1 The catalog — .claude-plugin/marketplace.json
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#22-the-manifest-pluginsnameclaude-pluginpluginjson" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2.2 The manifest — plugins/&lt;name&gt;/.claude-plugin/plugin.json
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#23-shipped-vs-not-shipped-the-load-bearing-distinction" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2.3 Shipped vs not-shipped (the load-bearing distinction)
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#3-skills-commands-the-plugin-should-provide" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3. Skills &amp; commands the plugin should provide
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#4-the-enforcement-sensor-it-must-shipscaffold" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4. The enforcement sensor it must ship/scaffold
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#5-invariants-to-bake-into-every-generatedaudited-plugin" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5. Invariants to bake into every generated/audited plugin
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#6-independent-versioning-catalog-sync-automate-never-hand-edit" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        6. Independent versioning + catalog sync (automate, never hand-edit)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#7-cross-plugin-dependencies-plugin-a-consumes-plugin-b-at-a-pinned-version" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        7. Cross-plugin dependencies (plugin A consumes plugin B at a pinned version)
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="7. Cross-plugin dependencies (plugin A consumes plugin B at a pinned version)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#71-depends-on-a-presence-floor-declaration-coarse" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        7.1 depends-on — a presence + floor declaration (coarse)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#72-a-versioned-shared-contract-the-real-coupling-fine-preferred" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        7.2 A versioned shared contract — the real coupling (fine; preferred)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#73-enforcement-make-drift-unmergeable" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        7.3 Enforcement (make drift unmergeable)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#74-which-knob-when" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        7.4 Which knob, when
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#8-building-the-plugin-itself-step-by-step" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        8. Building the plugin itself (step by step)
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="8. Building the plugin itself (step by step)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#reference-templates-this-repo" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Reference templates (this repo)
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#9-acceptance-checklist-for-the-plugin-you-build" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        9. Acceptance checklist for the plugin you build
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+    <a href="https://github.com/bdfinst/agentic-dev-team/edit/main/docs/marketplace-builder-plugin-playbook.md" title="Edit this page" class="md-content__button md-icon" rel="edit">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M10 20H6V4h7v5h5v3.1l2-2V8l-6-6H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h4zm10.2-7c.1 0 .3.1.4.2l1.3 1.3c.2.2.2.6 0 .8l-1 1-2.1-2.1 1-1c.1-.1.2-.2.4-.2m0 3.9L14.1 23H12v-2.1l6.1-6.1z"/></svg>
+    </a>
+  
+  
+
+
+<h1 id="playbook-building-a-plugin-that-builds-plugin-marketplaces">Playbook: building a plugin that builds plugin marketplaces<a class="headerlink" href="#playbook-building-a-plugin-that-builds-plugin-marketplaces" title="Permanent link">&para;</a></h1>
+<p>A field guide for authoring a Claude Code <strong>meta-plugin</strong> — a plugin whose job is
+to scaffold, audit, and maintain <em>plugin-marketplace monorepos</em>. It distills the
+conventions this repo converged on (see the commit trail referenced throughout)
+into a reusable blueprint: the marketplace anatomy your plugin must understand,
+the skills/commands it should provide, the invariants it must enforce, and how to
+build and test the plugin itself.</p>
+<blockquote>
+<p><strong>The concrete implementation lives in this repo: <a href="../../plugins/marketplace-dev/"><code>plugins/marketplace-dev/</code></a>.</strong>
+This playbook is the blueprint; <code>marketplace-dev</code> is the shipped meta-plugin
+that realizes it (scaffolding skills, the <code>plugin-audit</code> skill, and the
+<code>plugin-best-practices-review</code> agent). Read this for the <em>why</em>; read
+<code>marketplace-dev</code>'s own docs for the <em>what it does today</em>.</p>
+<p>Scope: this is about building the <strong>tool</strong> (a marketplace-builder plugin), not a
+single marketplace. For a one-off hardening pass on an existing marketplace, run
+the hygiene sensor (<a href="https://github.com/bdfinst/agentic-dev-team/blob/main/tests/repo/test_shipped_script_refs.py"><code>tests/repo/test_shipped_script_refs.py</code></a>)
+directly.</p>
+</blockquote>
+<p><strong>On this page:</strong> <a href="#1-what-this-plugin-produces">1. What this plugin produces</a> ·
+<a href="#2-marketplace-anatomy-your-plugin-must-model">2. Marketplace anatomy</a> ·
+<a href="#3-skills-commands-the-plugin-should-provide">3. Skills &amp; commands</a> ·
+<a href="#4-the-enforcement-sensor-it-must-shipscaffold">4. The enforcement sensor</a> ·
+<a href="#5-invariants-to-bake-into-every-generatedaudited-plugin">5. Invariants to bake in</a> ·
+<a href="#6-independent-versioning-catalog-sync-automate-never-hand-edit">6. Independent versioning + catalog sync</a> ·
+<a href="#7-cross-plugin-dependencies-plugin-a-consumes-plugin-b-at-a-pinned-version">7. Cross-plugin dependencies</a> ·
+<a href="#8-building-the-plugin-itself-step-by-step">8. Building the plugin itself</a> ·
+<a href="#9-acceptance-checklist-for-the-plugin-you-build">9. Acceptance checklist</a></p>
+<hr />
+<h2 id="1-what-this-plugin-produces">1. What this plugin produces<a class="headerlink" href="#1-what-this-plugin-produces" title="Permanent link">&para;</a></h2>
+<p>A healthy marketplace monorepo, every time:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>.claude-plugin/marketplace.json     # the catalog (lists every plugin + its git-subdir source)
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>plugins/&lt;name&gt;/                     # one shipped plugin per dir
+<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>├── .claude-plugin/plugin.json      # manifest: name, version, description, depends-on
+<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>├── agents/  skills/  commands/     # behavioral surface (loaded on demand)
+<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>├── hooks/   settings.json          # PreToolUse/PostToolUse/SessionStart wiring
+<a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>├── knowledge/ templates/ prompts/  # reference data + scaffolds
+<a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>├── install.sh                      # prerequisite checker (ships)
+<a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a>└── CLAUDE.md                       # plugin instructions (ships)
+<a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a>tests/        scripts/              # gates + dev tooling — repo root, NEVER shipped
+<a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a>evals/  docs/  plans/               # corpus, dev docs, design — repo root, NEVER shipped
+<a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a>.github/workflows/                  # CI: structural + portability + tests
+<a id="__codelineno-0-12" name="__codelineno-0-12" href="#__codelineno-0-12"></a>release-please-config.json          # automated versioning + catalog sync
+<a id="__codelineno-0-13" name="__codelineno-0-13" href="#__codelineno-0-13"></a>requirements-dev.txt  scripts/dev-setup.sh
+</code></pre></div>
+<p>The plugin's value is that it bakes in the two hard-won facts about marketplaces:</p>
+<ol>
+<li><strong>A plugin ships wholesale via its git-subdir <code>source</code></strong> — every tracked file
+   under <code>plugins/&lt;name&gt;/</code> reaches end users. Build/test tooling inside that tree
+   is shipped by accident.</li>
+<li><strong>Installed plugins run with <code>${CLAUDE_PLUGIN_ROOT}</code> set, but the agent's cwd
+   is the user's project, not the plugin root</strong> — so a skill that runs a bare
+   <code>scripts/x.sh</code> cannot find it once installed.</li>
+</ol>
+<p>Everything below exists to make those two facts impossible to get wrong.</p>
+<hr />
+<h2 id="2-marketplace-anatomy-your-plugin-must-model">2. Marketplace anatomy your plugin must model<a class="headerlink" href="#2-marketplace-anatomy-your-plugin-must-model" title="Permanent link">&para;</a></h2>
+<h3 id="21-the-catalog-claude-pluginmarketplacejson">2.1 The catalog — <code>.claude-plugin/marketplace.json</code><a class="headerlink" href="#21-the-catalog-claude-pluginmarketplacejson" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="p">{</span>
+<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="w">  </span><span class="nt">"name"</span><span class="p">:</span><span class="w"> </span><span class="s2">"&lt;owner-handle&gt;"</span><span class="p">,</span>
+<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a><span class="w">  </span><span class="nt">"owner"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nt">"name"</span><span class="p">:</span><span class="w"> </span><span class="s2">"..."</span><span class="w"> </span><span class="p">},</span>
+<a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a><span class="w">  </span><span class="nt">"plugins"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span>
+<a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a><span class="w">    </span><span class="p">{</span>
+<a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a><span class="w">      </span><span class="nt">"name"</span><span class="p">:</span><span class="w"> </span><span class="s2">"dev-team"</span><span class="p">,</span>
+<a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a><span class="w">      </span><span class="nt">"version"</span><span class="p">:</span><span class="w"> </span><span class="s2">"10.14.2"</span><span class="p">,</span>
+<a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a><span class="w">      </span><span class="nt">"source"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<a id="__codelineno-1-9" name="__codelineno-1-9" href="#__codelineno-1-9"></a><span class="w">        </span><span class="nt">"source"</span><span class="p">:</span><span class="w"> </span><span class="s2">"git-subdir"</span><span class="p">,</span>
+<a id="__codelineno-1-10" name="__codelineno-1-10" href="#__codelineno-1-10"></a><span class="w">        </span><span class="nt">"url"</span><span class="p">:</span><span class="w"> </span><span class="s2">"https://github.com/&lt;org&gt;/&lt;repo&gt;.git"</span><span class="p">,</span>
+<a id="__codelineno-1-11" name="__codelineno-1-11" href="#__codelineno-1-11"></a><span class="w">        </span><span class="nt">"path"</span><span class="p">:</span><span class="w"> </span><span class="s2">"plugins/dev-team"</span><span class="p">,</span>
+<a id="__codelineno-1-12" name="__codelineno-1-12" href="#__codelineno-1-12"></a><span class="w">        </span><span class="nt">"ref"</span><span class="p">:</span><span class="w"> </span><span class="s2">"dev-team-v10.14.2"</span>
+<a id="__codelineno-1-13" name="__codelineno-1-13" href="#__codelineno-1-13"></a><span class="w">      </span><span class="p">}</span>
+<a id="__codelineno-1-14" name="__codelineno-1-14" href="#__codelineno-1-14"></a><span class="w">    </span><span class="p">}</span>
+<a id="__codelineno-1-15" name="__codelineno-1-15" href="#__codelineno-1-15"></a><span class="w">  </span><span class="p">]</span>
+<a id="__codelineno-1-16" name="__codelineno-1-16" href="#__codelineno-1-16"></a><span class="p">}</span>
+</code></pre></div>
+<p>Key invariant: each catalog entry's <code>version</code> and <code>source.ref</code> must stay in lock-step
+with the plugin's own <code>plugin.json</code> version and its release tag. Do <strong>not</strong> hand-edit
+these — automate them (§6).</p>
+<h3 id="22-the-manifest-pluginsnameclaude-pluginpluginjson">2.2 The manifest — <code>plugins/&lt;name&gt;/.claude-plugin/plugin.json</code><a class="headerlink" href="#22-the-manifest-pluginsnameclaude-pluginpluginjson" title="Permanent link">&para;</a></h3>
+<p><code>name</code>, <code>version</code> (this plugin's <strong>own</strong> independent semver — §6), <code>description</code>,
+and — when plugins couple — <code>depends-on</code> (a per-companion <strong>minimum-version</strong>
+floor) and <code>required-primitives-contract</code> (a semver <strong>range</strong> against a shared
+versioned contract). The two dependency knobs are the subject of §7.</p>
+<h3 id="23-shipped-vs-not-shipped-the-load-bearing-distinction">2.3 Shipped vs not-shipped (the load-bearing distinction)<a class="headerlink" href="#23-shipped-vs-not-shipped-the-load-bearing-distinction" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Ships (under <code>plugins/&lt;name&gt;/</code>)</th>
+<th>Never ships (repo root)</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>agents/ skills/ commands/ hooks/ knowledge/ templates/ prompts/</code></td>
+<td><code>tests/</code> (pytest <code>test_*.py</code> + fixtures)</td>
+</tr>
+<tr>
+<td><code>settings.json install.sh CLAUDE.md</code></td>
+<td><code>scripts/</code> (CI/eval/build tooling)</td>
+</tr>
+<tr>
+<td><code>harness/</code> (executable app code, if any)</td>
+<td><code>evals/ docs/ plans/ reports/</code></td>
+</tr>
+</tbody>
+</table>
+<p>Your plugin must <strong>refuse</strong> to leave a test/build script inside a plugin dir, and
+must reference every runtime helper as <code>${CLAUDE_PLUGIN_ROOT}/&lt;path&gt;</code> (§5).</p>
+<hr />
+<h2 id="3-skills-commands-the-plugin-should-provide">3. Skills &amp; commands the plugin should provide<a class="headerlink" href="#3-skills-commands-the-plugin-should-provide" title="Permanent link">&para;</a></h2>
+<p>Each is a user-invocable skill (<code>SKILL.md</code> with <code>user-invocable: true</code>). Build them
+to emit files, run gates, and report — not to narrate.</p>
+<table>
+<thead>
+<tr>
+<th>Command</th>
+<th>Role</th>
+<th>What it does</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>/new-marketplace &lt;owner&gt;</code></td>
+<td>scaffold</td>
+<td>Create <code>marketplace.json</code>, the repo-root <code>tests/ scripts/ docs/</code> trees, CI workflows, <code>release-please-config.json</code>, <code>requirements-dev.txt</code>, <code>scripts/dev-setup.sh</code>, the hygiene sensor test, and a root <code>CLAUDE.md</code> documenting the conventions.</td>
+</tr>
+<tr>
+<td><code>/add-plugin &lt;name&gt;</code></td>
+<td>scaffold</td>
+<td>Create <code>plugins/&lt;name&gt;/</code> with the shipped dir skeleton, <code>plugin.json</code>, <code>install.sh</code> (with the Git-Bash check), <code>settings.json</code>, and <code>CLAUDE.md</code>; register it in the catalog and in <code>release-please-config.json</code> <code>packages</code> with the catalog <code>extra-files</code> sync.</td>
+</tr>
+<tr>
+<td><code>/audit-plugin [name]</code></td>
+<td>audit</td>
+<td>Run the shipping-hygiene sensor (§4) + structural checks (every catalog entry has a dir, every dir has a manifest, versions in sync) + the portability sweep (§5). Report findings; offer fixes.</td>
+</tr>
+<tr>
+<td><code>/portability-check</code></td>
+<td>audit</td>
+<td><code>shellcheck -x</code> every shipped + dev script; flag bash-4/GNU-only constructs; verify shebangs; check the Git-Bash <code>install.sh</code> guard exists.</td>
+</tr>
+<tr>
+<td><code>/release-setup</code></td>
+<td>scaffold</td>
+<td>Wire <code>release-please</code> with per-plugin <code>packages</code> and the <code>marketplace.json</code> <code>extra-files</code> jsonpath sync (§6).</td>
+</tr>
+<tr>
+<td><code>/cloud-setup</code></td>
+<td>scaffold</td>
+<td>Generate the gated <code>SessionStart</code> install hook + <code>cloud-setup.sh</code> and the "use skills directly" fallback (see the companion cloud guide).</td>
+</tr>
+</tbody>
+</table>
+<p>Implementation note: model each skill on the matching artifact already in this
+repo (cited in §8) rather than inventing the format.</p>
+<hr />
+<h2 id="4-the-enforcement-sensor-it-must-shipscaffold">4. The enforcement sensor it must ship/scaffold<a class="headerlink" href="#4-the-enforcement-sensor-it-must-shipscaffold" title="Permanent link">&para;</a></h2>
+<p>The backbone is a <strong>pytest</strong> sensor that auto-discovers <code>plugins/*</code> and proves
+four invariants. <code>/new-marketplace</code> drops it into the repo-root test tree and
+wires it into CI; <code>/audit-plugin</code> runs it. (This repo's sensor was a <code>bats</code>
+script originally; per <a href="../adr/0014-python-for-cross-os-scripts/">ADR 0014</a> and
+<a href="../adr/0015-bash-removal-complete/">ADR 0015</a> the whole test/gate surface is now
+Python — a new marketplace should start Python, not bash.) The four invariants:</p>
+<ol>
+<li><strong>Every <code>${CLAUDE_PLUGIN_ROOT}/&lt;file&gt;</code> reference resolves</strong> inside the same
+   plugin (discoverability once installed).</li>
+<li><strong>No shipped file escapes its plugin</strong> via <code>${CLAUDE_PLUGIN_ROOT}/../..</code>
+   (resolves in the dev monorepo, breaks once installed) — minus an explicit
+   maintainer allowlist.</li>
+<li><strong>Every <code>settings.json</code> hook command resolves</strong> to a shipped file. (Hooks run
+   from the plugin root, so the bare <code>python hooks/x.py</code> form is correct here.)</li>
+<li><strong>No build/test tooling ships inside a plugin</strong> (<code>*.test.sh</code>, <code>*.bats</code>,
+   <code>test_*.py</code>, <code>run-all*</code>, a <code>tests/</code> dir, …).</li>
+</ol>
+<p>A portable, parameterized implementation lives in the hygiene kit
+(<a href="https://github.com/bdfinst/agentic-dev-team/blob/main/tests/repo/test_shipped_script_refs.py"><code>tests/repo/test_shipped_script_refs.py</code></a>,
+with the security-assessment variant at
+<a href="https://github.com/bdfinst/agentic-dev-team/blob/main/tests/repo/test_shipped_script_refs_security_assessment.py"><code>tests/repo/test_shipped_script_refs_security_assessment.py</code></a>);
+ship that as the plugin's reference template.</p>
+<hr />
+<h2 id="5-invariants-to-bake-into-every-generatedaudited-plugin">5. Invariants to bake into every generated/audited plugin<a class="headerlink" href="#5-invariants-to-bake-into-every-generatedaudited-plugin" title="Permanent link">&para;</a></h2>
+<p>Encode these as knowledge the plugin's skills enforce — they are the difference
+between "a plugin" and "a healthy, tested plugin."</p>
+<ul>
+<li><strong>Shipping hygiene.</strong> Runtime files only under <code>plugins/&lt;name&gt;/</code>; tests/build at
+  repo root. Reference every executed helper as <code>${CLAUDE_PLUGIN_ROOT}/&lt;path&gt;</code>.
+  Scripts the plugin actually runs at runtime <strong>must</strong> ship <em>and</em> be discoverable
+  (both halves matter — see the build-wave scripts fix, <code>#261</code>, and the
+  discoverability fix, <code>#263</code>).</li>
+<li><strong>Portability — Python stdlib, cross-OS by construction.</strong> Per
+  <a href="../adr/0014-python-for-cross-os-scripts/">ADR 0014</a> and
+  <a href="../adr/0015-bash-removal-complete/">ADR 0015</a>, every shipped script in this
+  repo's <code>plugins/dev-team/</code> is <strong>Python 3.8+ using stdlib only</strong> — it runs
+  natively on macOS, Linux, and Windows with no Git Bash requirement. Prefer
+  that for a new plugin:</li>
+<li>Stdlib only, no <code>pip install</code> for shipped code (<code>subprocess</code>, <code>pathlib</code>,
+    <code>argparse</code>, <code>json</code>, <code>re</code>, … cover most shell-script territory portably).</li>
+<li>Probe OS-specific paths at runtime (<code>subprocess</code>, <code>pathlib</code>) rather than
+    hard-coding macOS or Linux locations; spawn cross-platform (<code>subprocess</code>,
+    not <code>os.exec*</code>) and stay cwd-independent.</li>
+<li>The only surviving <code>.sh</code> are the <strong>pre-Python bootstrap trampolines</strong> that
+    must run before an interpreter is guaranteed on <code>PATH</code> (<code>install.sh</code>, the
+    <code>hooks/py.sh</code> resolver) — keep those <code>#!/usr/bin/env bash</code> and bash-3.2-safe,
+    and keep the Windows-without-Git-Bash guard in each <code>install.sh</code>.</li>
+<li>A <strong>shell-based companion plugin</strong> (this repo's <code>security-assessment</code> is one)
+    still follows the old cross-shell rules for its own scripts: bash-3.2-safe
+    (no <code>mapfile</code>/<code>declare -A</code>/<code>${var,,}</code>; expand possibly-empty arrays as
+    <code>${arr[@]+"${arr[@]}"}</code>, cf. <code>#220</code>) and BSD-vs-GNU-guarded (<code>readlink -f</code>,
+    <code>sed -i</code>, <code>stat -c</code>, <code>find -printf</code>, <code>timeout</code>, cf. <code>#197</code>).</li>
+<li><strong>Tested.</strong> Ship a pytest sensor (§4) + targeted unit/smoke tests; wire them into
+  CI as model-free gates; mirror them in a local pre-push gate; keep the gates
+  parallel and fast (cf. <code>#247</code>). A runnable component (e.g. a harness) gets a
+  lightweight smoke test + its own CI job.</li>
+<li><strong>Versioned + released.</strong> Conventional commits → <code>release-please</code> → tag + catalog
+  sync (§6). <code>/version</code> is a mechanical, deterministic lookup, not a guess
+  (cf. <code>#259</code>).</li>
+<li><strong>Onboarding.</strong> A <code>scripts/dev-setup.sh</code> that validates and installs the
+  toolchain (brew/apt + <code>requirements-dev.txt</code>), and an <code>install.sh</code> prerequisite
+  checker per plugin.</li>
+<li><strong>Cloud-aware.</strong> A gated <code>SessionStart</code> install hook + a skill-file fallback so
+  the plugin is usable in web sessions (see the companion cloud guide).</li>
+</ul>
+<hr />
+<h2 id="6-independent-versioning-catalog-sync-automate-never-hand-edit">6. Independent versioning + catalog sync (automate, never hand-edit)<a class="headerlink" href="#6-independent-versioning-catalog-sync-automate-never-hand-edit" title="Permanent link">&para;</a></h2>
+<p><strong>Each plugin versions independently.</strong> There is no repo-wide version. Every
+plugin carries its own semver in <code>plugins/&lt;name&gt;/.claude-plugin/plugin.json</code> and
+ships on its own cadence. <code>release-please</code> models this with <strong>one <code>package</code> per
+plugin</strong> — each with its own <code>component</code>, <code>package-name</code>, tag prefix, and
+<code>.release-please-manifest.json</code> entry — so a <code>fix:</code> that touches only
+<code>plugins/dev-team/**</code> bumps <em>just</em> dev-team (→ tag <code>dev-team-vX.Y.Z</code>) and leaves
+<code>security-assessment</code> at its current version. release-please attributes a commit
+to a plugin by the <strong>path it modifies</strong>; a commit spanning two plugin dirs bumps
+both, so keep commits plugin-scoped when you want independent bumps. (Tags are
+<code>&lt;component&gt;-v&lt;version&gt;</code> via <code>include-component-in-tag</code> + <code>include-v-in-tag</code>.)</p>
+<p><code>extra-files</code> then rewrite the catalog entry on every release — so <code>plugin.json</code>,
+the release tag, and <code>marketplace.json</code> can never drift (cf. <code>#210</code>):</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>"plugins/&lt;name&gt;": {
+<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>  "release-type": "simple",
+<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a>  "package-name": "&lt;name&gt;",
+<a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a>  "component": "&lt;name&gt;",
+<a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a>  "extra-files": [
+<a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a>    ".claude-plugin/plugin.json",
+<a id="__codelineno-2-7" name="__codelineno-2-7" href="#__codelineno-2-7"></a>    { "type": "json", "path": "/.claude-plugin/marketplace.json",
+<a id="__codelineno-2-8" name="__codelineno-2-8" href="#__codelineno-2-8"></a>      "jsonpath": "$.plugins[?(@.name=='&lt;name&gt;')].version" },
+<a id="__codelineno-2-9" name="__codelineno-2-9" href="#__codelineno-2-9"></a>    { "type": "json", "path": "/.claude-plugin/marketplace.json",
+<a id="__codelineno-2-10" name="__codelineno-2-10" href="#__codelineno-2-10"></a>      "jsonpath": "$.plugins[?(@.name=='&lt;name&gt;')].source.ref" }
+<a id="__codelineno-2-11" name="__codelineno-2-11" href="#__codelineno-2-11"></a>  ]
+<a id="__codelineno-2-12" name="__codelineno-2-12" href="#__codelineno-2-12"></a>}
+</code></pre></div>
+<p><code>/release-setup</code> generates this block per plugin and the matching
+<code>.release-please-manifest.json</code> entry. <code>feat:</code> → minor, <code>fix:</code> → patch, <code>feat!:</code>/
+<code>BREAKING CHANGE</code> → major.</p>
+<hr />
+<h2 id="7-cross-plugin-dependencies-plugin-a-consumes-plugin-b-at-a-pinned-version">7. Cross-plugin dependencies (plugin A consumes plugin B at a pinned version)<a class="headerlink" href="#7-cross-plugin-dependencies-plugin-a-consumes-plugin-b-at-a-pinned-version" title="Permanent link">&para;</a></h2>
+<p>Once plugins version independently (§6), the question is how plugin <strong>A</strong> says
+"I need plugin <strong>B</strong>, and not just any B." The naive answer — pin A to an exact
+release of B — is the wrong one: B's version bumps for reasons that don't touch
+A (internal refactors, unrelated features), so an exact pin forces needless
+churn and tells you nothing about <em>what</em> A actually relies on. This repo uses
+two complementary, coarse-to-fine mechanisms, both declared in A's
+<code>plugin.json</code>:</p>
+<h3 id="71-depends-on-a-presence-floor-declaration-coarse">7.1 <code>depends-on</code> — a presence + floor declaration (coarse)<a class="headerlink" href="#71-depends-on-a-presence-floor-declaration-coarse" title="Permanent link">&para;</a></h3>
+<p>A names the companion it needs and the <strong>minimum</strong> version that carries the
+capability it relies on:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="nt">"depends-on"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span>
+<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a><span class="w">  </span><span class="p">{</span><span class="w"> </span><span class="nt">"name"</span><span class="p">:</span><span class="w"> </span><span class="s2">"dev-team"</span><span class="p">,</span><span class="w"> </span><span class="nt">"minimum-version"</span><span class="p">:</span><span class="w"> </span><span class="s2">"3.3.0"</span><span class="w"> </span><span class="p">}</span>
+<a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a><span class="p">]</span>
+</code></pre></div>
+<p>Use a <strong>floor, never an exact pin</strong>, so B can ship patches and additive features
+without breaking A. This answers "is B installed, and is it new enough?" — it
+does <strong>not</strong> describe the actual data/behavior A consumes. That's §7.2's job.</p>
+<h3 id="72-a-versioned-shared-contract-the-real-coupling-fine-preferred">7.2 A versioned shared contract — the real coupling (fine; preferred)<a class="headerlink" href="#72-a-versioned-shared-contract-the-real-coupling-fine-preferred" title="Permanent link">&para;</a></h3>
+<p>Pin A to the <em>contract B publishes</em>, not to B's release number. The contract is
+a <strong>standalone versioned document</strong> describing the exact surface the two plugins
+exchange — data envelopes, JSON schemas, agent IDs, skill IDs — with its own
+semver and its own semver <em>policy</em>. In this repo that's
+<code>plugins/dev-team/knowledge/security-primitives-contract.md</code> (<code>version:</code> in
+frontmatter). Consumers declare a semver <strong>range</strong>, not a point:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="nt">"required-primitives-contract"</span><span class="p">:</span><span class="w"> </span><span class="s2">"^1.0.0"</span>
+</code></pre></div>
+<p><code>^1.0.0</code> = "any <code>1.x</code>": accept PATCH (clarifications) and MINOR (additive — new
+optional fields, new enum values, new agent/skill IDs) automatically; reject
+MAJOR (renamed/removed fields, new required fields, changed semantics). The
+contract's frontmatter spells out exactly what each level means so producers and
+consumers share one rule.</p>
+<p>Why this beats pinning to B's version: the contract <strong>decouples the dependency
+from B's release cadence</strong>. B can refactor internals and ship unrelated features
+freely; A only has to react when the <em>shared surface</em> changes — and a MAJOR bump
+is the unambiguous, machine-checkable signal that it did. The contract is
+versioned <strong>independently</strong> of either plugin: it does not ride dev-team's or
+security-assessment's release number, even though it physically lives in the
+producer's <code>knowledge/</code> tree.</p>
+<h3 id="73-enforcement-make-drift-unmergeable">7.3 Enforcement (make drift unmergeable)<a class="headerlink" href="#73-enforcement-make-drift-unmergeable" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong>Contract can't change silently.</strong> A PreToolUse hook
+  (<code>hooks/contract_version_guard.py</code>) blocks any <em>body</em> change to the contract
+  file that doesn't also bump <code>version:</code> in its frontmatter, with a bypass only
+  for release-please commits (and an audit-log entry on bypass). "Changed the
+  shared surface but forgot to version it" therefore can't land by hand.</li>
+<li><strong><code>/add-plugin</code></strong> writes a <code>depends-on</code> floor when a companion is named, and a
+  <code>required-primitives-contract</code> range when the new plugin consumes a shared
+  contract.</li>
+<li><strong><code>/audit-plugin</code></strong> verifies, as blocker-level findings: (a) every
+  <code>depends-on</code> names a plugin that exists in the catalog at a version <code>&gt;=</code> the
+  floor; (b) every <code>required-primitives-contract</code> range is <strong>satisfiable by the
+  contract's current <code>version:</code></strong> — a consumer stuck on <code>^1.0.0</code> after the
+  contract moved to <code>2.0.0</code> is a hard failure that must be resolved by updating
+  the consumer (and, if its behavior changed, bumping the consumer's own
+  version per §6).</li>
+</ul>
+<h3 id="74-which-knob-when">7.4 Which knob, when<a class="headerlink" href="#74-which-knob-when" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Need</th>
+<th>Mechanism</th>
+<th>Form</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>"B must be installed, and recent enough to have feature X"</td>
+<td><code>depends-on</code></td>
+<td><code>minimum-version</code> floor</td>
+</tr>
+<tr>
+<td>"A and B exchange data/IDs and must agree on its shape"</td>
+<td>shared contract</td>
+<td><code>required-primitives-contract</code> semver <strong>range</strong> (<code>^1.x</code>)</td>
+</tr>
+<tr>
+<td>"A relies on a specific B <em>release</em> artifact"</td>
+<td>(avoid) — extract the shared surface into a contract instead</td>
+<td>—</td>
+</tr>
+</tbody>
+</table>
+<p>Use them together: the <code>depends-on</code> floor guarantees B is present and roughly
+current; the contract range guarantees the two actually agree on the wire.</p>
+<hr />
+<h2 id="8-building-the-plugin-itself-step-by-step">8. Building the plugin itself (step by step)<a class="headerlink" href="#8-building-the-plugin-itself-step-by-step" title="Permanent link">&para;</a></h2>
+<ol>
+<li><strong>Bootstrap with your own conventions.</strong> The marketplace-builder plugin is a
+   plugin — so it must pass its own sensor. Lay it out as <code>plugins/marketplace-builder/</code>
+   in a marketplace repo; put its tests at repo root.</li>
+<li><strong>Author the knowledge base first.</strong> A <code>knowledge/marketplace-conventions.md</code>
+   that encodes §2–§6 (progressive disclosure: skills load it on demand). This is
+   the plugin's "source of truth"; the skills reference it.</li>
+<li><strong>Author the skills (§3).</strong> Each <code>skills/&lt;cmd&gt;/SKILL.md</code> is a procedure that
+   reads the conventions knowledge and emits/edits files. Templates for the files
+   it scaffolds (catalog, plugin.json, CI, release config, sensor, install.sh,
+   dev-setup) live under <code>templates/</code>.</li>
+<li><strong>Ship the sensor + a self-test.</strong> Include <code>tests/repo/test_shipped_script_refs.py</code>
+   as a template and add a test that runs it against a fixture marketplace to prove
+   the scaffolder produces a passing repo.</li>
+<li><strong>Wire CI + dev-setup for the plugin's own repo.</strong> Structural gate, portability
+   sweep, pytest sensor, and <code>scripts/dev-setup.sh</code>.</li>
+<li><strong>Add <code>install.sh</code> (with the Git-Bash guard) and <code>CLAUDE.md</code>.</strong> Document what
+   each <code>/command</code> does and the conventions it enforces.</li>
+<li><strong>Release via release-please</strong> with the catalog <code>extra-files</code> sync (§6).</li>
+</ol>
+<h3 id="reference-templates-this-repo">Reference templates (this repo)<a class="headerlink" href="#reference-templates-this-repo" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Pattern</th>
+<th>Canonical file(s) here</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Catalog</td>
+<td><code>.claude-plugin/marketplace.json</code></td>
+</tr>
+<tr>
+<td>Manifest + deps</td>
+<td><code>plugins/security-assessment/.claude-plugin/plugin.json</code></td>
+</tr>
+<tr>
+<td>Hygiene sensor (pytest)</td>
+<td><code>tests/repo/test_shipped_script_refs.py</code>, <code>tests/repo/test_shipped_script_refs_security_assessment.py</code></td>
+</tr>
+<tr>
+<td>Cross-OS Python (stdlib, no bash)</td>
+<td><code>plugins/dev-team/scripts/recon_inventory.py</code>, <code>plugins/dev-team/hooks/mutation_gate.py</code></td>
+</tr>
+<tr>
+<td>Residual shell fallbacks (companion plugin)</td>
+<td><code>plugins/security-assessment/scripts/_lib.sh</code></td>
+</tr>
+<tr>
+<td>Git-Bash <code>install.sh</code> guard (bootstrap shim)</td>
+<td><code>plugins/dev-team/install.sh</code>, <code>plugins/security-assessment/install.sh</code></td>
+</tr>
+<tr>
+<td>Toolchain installer</td>
+<td><code>scripts/dev-setup.sh</code></td>
+</tr>
+<tr>
+<td>Smoke test + CI job</td>
+<td><code>tests/security-assessment/harness/smoke_test.py</code>, <code>.github/workflows/plugin-tests.yml</code> (<code>harness-smoke</code>)</td>
+</tr>
+<tr>
+<td>Release + per-plugin packages</td>
+<td><code>release-please-config.json</code>, <code>.release-please-manifest.json</code></td>
+</tr>
+<tr>
+<td>Manifest dependency declaration</td>
+<td><code>plugins/security-assessment/.claude-plugin/plugin.json</code> (<code>depends-on</code>, <code>required-primitives-contract</code>)</td>
+</tr>
+<tr>
+<td>Versioned cross-plugin contract</td>
+<td><code>plugins/dev-team/knowledge/security-primitives-contract.md</code></td>
+</tr>
+<tr>
+<td>Contract version-bump guard</td>
+<td><code>plugins/dev-team/hooks/contract_version_guard.py</code></td>
+</tr>
+<tr>
+<td>Cloud install hook</td>
+<td><code>.claude/install-dev-team.sh</code>, <code>.claude/settings.json</code></td>
+</tr>
+<tr>
+<td>CI gate layout</td>
+<td><code>.github/workflows/plugin-tests.yml</code>, <code>scripts/ci-local.sh</code></td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="9-acceptance-checklist-for-the-plugin-you-build">9. Acceptance checklist for the plugin you build<a class="headerlink" href="#9-acceptance-checklist-for-the-plugin-you-build" title="Permanent link">&para;</a></h2>
+<p>A marketplace produced (or audited-clean) by your plugin must pass all of:</p>
+<ul>
+<li>[ ] Every catalog entry maps to a <code>plugins/&lt;name&gt;/</code> with a <code>plugin.json</code>; versions/refs in sync.</li>
+<li>[ ] The hygiene sensor (§4) is green — no shipped test/build scripts, all refs discoverable.</li>
+<li>[ ] <code>shellcheck -x</code> clean (warning severity) over shipped + dev scripts; all shebangs <code>env bash</code>.</li>
+<li>[ ] Each <code>install.sh</code> has the Git-Bash-on-Windows guard; <code>scripts/dev-setup.sh</code> provisions the toolchain.</li>
+<li>[ ] CI runs structural + portability + pytest gates; a local pre-push gate mirrors them.</li>
+<li>[ ] Each plugin versions <strong>independently</strong>: one <code>release-please</code> package per plugin (own component/tag/manifest entry) + catalog <code>extra-files</code> sync (§6).</li>
+<li>[ ] Every <code>depends-on</code> floor names a catalog plugin at a version <code>&gt;=</code> the floor; every <code>required-primitives-contract</code> range is satisfiable by the contract's current <code>version:</code> (§7).</li>
+<li>[ ] Any shared cross-plugin contract is independently versioned and guarded against body-without-bump edits (§7).</li>
+<li>[ ] A gated <code>SessionStart</code> cloud hook + skill-file fallback exist.</li>
+</ul>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden>
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8z"/></svg>
+  Back to top
+</button>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": ["navigation.tabs", "navigation.tabs.sticky", "navigation.sections", "navigation.expand", "navigation.top", "search.highlight", "search.share", "content.action.edit", "content.code.copy"], "search": "../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../../assets/javascripts/bundle.d7400e89.min.js"></script>
+      
+    
+  </body>
+</html>
