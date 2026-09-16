@@ -5880,9 +5880,9 @@
       "summary": "`/specs` runs in one of two modes, chosen from the **shape of the argument** —",
       "anchor": "step-0-select-the-mode"
     },
-    "Step 0 — Existing-spec version check": {
+    "Step 1 — Existing-spec version check": {
       "summary": "Before drafting or updating a spec, check whether a spec file already exists for",
-      "anchor": "step-0-existing-spec-version-check"
+      "anchor": "step-1-existing-spec-version-check"
     },
     "Rules": {
       "summary": "1.",

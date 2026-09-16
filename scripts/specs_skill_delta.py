@@ -15,6 +15,14 @@ Two independent checks:
               `specs_skill_delta.py baseline` as a slice's final action, or the
               number reported is cumulative growth since whenever it was last
               recorded and blames the newest slice for its predecessors' lines.
+
+              NOTE: at the current committed baseline this check is a backstop,
+              not the binding constraint. With the baseline near the ceiling,
+              any delta large enough to exceed LINE_CAP also exceeds
+              PRE_EXTRACTION_LINES, so the cumulative failure fires first. The
+              operative budget is `PRE_EXTRACTION_LINES - baseline`, which is
+              smaller than LINE_CAP. The cap still binds if the file ever
+              shrinks well below the ceiling again.
   cumulative  the line count must stay below PRE_EXTRACTION_LINES. Catches
               slices 2-5 each passing the per-slice cap while collectively
               re-consuming the headroom the extraction bought — the failure
@@ -149,8 +157,26 @@ def main(argv: list[str] | None = None) -> int:
             "new normal. Run --check first, then baseline once it is green."
         )
 
+    if args.command == "baseline" and args.json:
+        parser.error(
+            "--json applies to --check only; 'baseline' has no machine-readable output"
+        )
+
     if args.command == "baseline":
         current = line_count(SKILL)
+        # Refusing the `baseline --check` combination was not enough: plain
+        # `baseline` is what a slice runs as its final action, so recording a
+        # breaching file here launders the breach into the new normal just as
+        # surely. The since-baseline delta cannot gate its own re-recording,
+        # but the cumulative ceiling can, and does.
+        if current >= PRE_EXTRACTION_LINES:
+            print(
+                f"refusing to record a baseline: {current} lines is at or above the "
+                f"{PRE_EXTRACTION_LINES}-line ceiling. Recording it would make the "
+                "breach the new normal. Re-cut the slice first.",
+                file=sys.stderr,
+            )
+            return 1
         write_baseline(current)
         print(f"baseline recorded: {current} lines")
         return 0

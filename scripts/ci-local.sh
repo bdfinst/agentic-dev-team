@@ -719,6 +719,17 @@ CHECKS=(
   #                       it is structurally a range-driven check, not a
   #                       standing one.
   #   - chk_oe_staleness  declared advisory in its own label.
+  #   - chk_specs_skill_size  NOT yet named by any CI job's --only= list, and
+  #                       that is a gap, not a deliberate exception. Adding it
+  #                       to the structural-gates job in plugin-tests.yml needs
+  #                       a token with `workflow` scope, which the agent that
+  #                       added this check does not have. Until a maintainer
+  #                       makes that one-line change, this gate is enforced
+  #                       only by pre-push on a contributor machine. The
+  #                       cumulative half is incidentally covered in CI via
+  #                       tests/skills/test_specs_persistence_reference.py
+  #                       (which runs under chk_hook_units); the
+  #                       since-baseline half is not covered anywhere in CI.
   # chk_nav_integrity is the fast local subset of link-check.yml's required
   # `nav-integrity` job (see that workflow's header). Everything else in this
   # array is named by some CI job's --only= list. Re-run that audit when

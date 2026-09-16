@@ -105,22 +105,27 @@ def test_enumerated_entities_must_be_reported(skill_text):
     assert grep(r"report the entities you enumerated", skill_text, ignore_case=True)
 
 
-def test_enumeration_is_acknowledged_as_a_model_step(skill_text):
+def test_enumeration_is_acknowledged_as_a_model_step(checklist_text):
     """CLAUDE.md prefers deterministic tools; this one genuinely cannot be, so
-    the mitigation is showing the list rather than pretending otherwise."""
-    assert grep(r"model step, not a parser", skill_text, ignore_case=True)
+    the mitigation is showing the list rather than pretending otherwise.
+
+    The requirement lives in SKILL.md (test_enumerated_entities_must_be_reported);
+    the rationale lives here, so SKILL.md does not restate the reference."""
+    assert grep(r"model step, not a parser", checklist_text, ignore_case=True)
 
 
 def test_findings_are_grouped_by_entity(skill_text):
+    """The requirement is in SKILL.md so an agent following it knows to do
+    this; only the reasoning lives in the reference."""
     assert grep(r"group findings by entity", skill_text, ignore_case=True)
 
 
-def test_one_answer_cells_are_separated_from_individual_judgment(skill_text):
-    assert grep(r"dispositionable in one answer", skill_text, ignore_case=True)
+def test_one_answer_cells_are_separated_from_individual_judgment(checklist_text):
+    assert grep(r"dispositionable in one answer", checklist_text, ignore_case=True)
 
 
-def test_grouping_states_why_a_flat_dump_is_harmful(skill_text):
-    assert grep(r"rubber-stamping", skill_text, ignore_case=True)
+def test_grouping_states_why_a_flat_dump_is_harmful(checklist_text):
+    assert grep(r"rubber-stamping", checklist_text, ignore_case=True)
 
 
 # --- routing ---------------------------------------------------------------

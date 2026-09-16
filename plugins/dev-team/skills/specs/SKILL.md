@@ -61,15 +61,15 @@ as such, never presented as if the source stated it.** Load
 [`references/extraction.md`](references/extraction.md) for the supported
 inputs, the citation rule, and the routing.
 
-## Step 0 — Existing-spec version check
+## Step 1 — Existing-spec version check
 
 Before drafting or updating a spec, check whether a spec file already exists for
 this feature:
 
-- If no spec file exists: proceed directly to Step 1.
+- If no spec file exists: proceed directly to the collaboration loop below.
 - If a spec file exists: read its opening lines and check for a `<!-- spec-version: -->` comment or a `**Format:**` header field.
   - If the marker is absent or predates the current skill version (see frontmatter `version:`): surface this to the user — *"An existing spec was found but appears to use an older format. Regenerate from scratch, or confirm you want to update in place?"* — and wait for explicit direction before proceeding.
-  - If the marker matches the current version: proceed to Step 1 with the existing file as base.
+  - If the marker matches the current version: proceed to the collaboration loop below with the existing file as base.
 
 This prevents silently overwriting a current spec and catches format drift before
 the plan phase consumes stale artifacts.
@@ -199,13 +199,11 @@ Load [`references/completeness-checklist.md`](references/completeness-checklist.
 and apply it: CRUD per named entity, plus authentication, authorization,
 audit/logging, and error handling for the spec as a whole.
 
-- **Report the entities you enumerated.** Enumeration is a model step, not a
-  parser's, so showing the list is what lets a human catch a missed entity.
-- **Group findings by entity**, separating cells dispositionable in one answer
-  from those needing individual judgment — a flat dump invites rubber-stamping.
-- **Route each unaddressed cell** into the Ambiguity Log as `inferable` (with
-  rationale — including "read-only by design") or `requires-stakeholder-input`.
-  A cell that does not apply is recorded with its reason, never dropped.
+Report the entities you enumerated, group findings by entity, and route each
+unaddressed cell into the Ambiguity Log as `inferable` (with rationale —
+including "read-only by design") or `requires-stakeholder-input`. A cell that
+does not apply is recorded with its reason, never dropped. The reference states
+why each of those is required.
 
 **The sweep is not a gate.** It blocks only through the existing Ambiguity
 Resolution Protocol; it introduces no new gate, severity scheme, or confidence

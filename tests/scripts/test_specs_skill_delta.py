@@ -249,3 +249,43 @@ def test_baseline_is_written_to_a_committable_path():
         f"baseline at {module.BASELINE.relative_to(REPO_ROOT)} sits under a "
         "gitignored 'memory/' directory and could never be committed"
     )
+
+
+# --- guards added after the backstop correctness review --------------------
+
+
+def test_baseline_refuses_to_record_a_breaching_file(monkeypatch, tmp_path, capsys):
+    """The laundering path the mutual-exclusion guard alone did not close.
+
+    Rejecting `baseline --check` blocked one spelling. Plain `baseline` is what
+    a slice runs as its final action, and on a file already over the ceiling it
+    recorded the breach as the new normal and exited 0 — making the breach
+    permanent through the very command the docstring tells operators to run.
+    """
+    module = load_module(monkeypatch, tmp_path, skill_lines=316, baseline=236)
+    assert module.main(["baseline"]) == 1
+    assert "refusing to record a baseline" in capsys.readouterr().err
+    # and the old baseline is untouched, not overwritten with the breach
+    assert module.read_baseline() == 236
+
+
+def test_baseline_still_records_when_the_file_is_green(monkeypatch, tmp_path):
+    module = load_module(monkeypatch, tmp_path, skill_lines=200, baseline=164)
+    assert module.main(["baseline"]) == 0
+    assert module.read_baseline() == 200
+
+
+def test_baseline_at_exactly_the_ceiling_is_refused(monkeypatch, tmp_path):
+    """Same `>=` boundary the cumulative check uses — reaching the ceiling is
+    already a breach, because at that point the extraction has bought nothing."""
+    module = load_module(monkeypatch, tmp_path, skill_lines=243, baseline=236)
+    assert module.main(["baseline"]) == 1
+
+
+def test_baseline_rejects_json(monkeypatch, tmp_path):
+    """--json was accepted and silently dropped, so a caller scripting it got a
+    parse error instead of a usage error."""
+    module = load_module(monkeypatch, tmp_path, skill_lines=200, baseline=164)
+    with pytest.raises(SystemExit) as excinfo:
+        module.main(["baseline", "--json"])
+    assert excinfo.value.code != 0
