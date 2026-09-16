@@ -295,6 +295,7 @@ chk_oe_staleness()    { python3 scripts/oe_scoring_staleness.py --warn-only; }
 chk_citation_lint()   { python3 scripts/citation_lint.py --all; }  # advisory (#312)
 chk_md_references()   { python3 scripts/check_md_references.py; }
 chk_registry_drift()  { python3 scripts/measure_tokens.py --verify; }
+chk_specs_skill_size() { python3 scripts/specs_skill_delta.py --check; }
 chk_sa_mcp_tools()    { python3 plugins/dev-team/scripts/check_security_assessment_mcp_tools.py; }
 chk_skills_index() {
   local script=plugins/dev-team/hooks/lib/build_skills_index.py
@@ -706,6 +707,7 @@ CHECKS=(
   "citation drift lint (citation_lint.py, advisory)::chk_citation_lint"
   "markdown reference integrity (check_md_references.py)::chk_md_references"
   "agent-registry token-drift check (measure_tokens.py --verify)::chk_registry_drift"
+  "specs SKILL.md size budget (specs_skill_delta.py --check)::chk_specs_skill_size"
   "security-assessment MCP tool grant drift (check_security_assessment_mcp_tools.py)::chk_sa_mcp_tools"
   "skills catalog freshness (docs/skills.md)::chk_skills_index"
   "nav integrity (mkdocs nav → assembled file)::chk_nav_integrity"
@@ -717,6 +719,17 @@ CHECKS=(
   #                       it is structurally a range-driven check, not a
   #                       standing one.
   #   - chk_oe_staleness  declared advisory in its own label.
+  #   - chk_specs_skill_size  NOT yet named by any CI job's --only= list, and
+  #                       that is a gap, not a deliberate exception. Adding it
+  #                       to the structural-gates job in plugin-tests.yml needs
+  #                       a token with `workflow` scope, which the agent that
+  #                       added this check does not have. Until a maintainer
+  #                       makes that one-line change, this gate is enforced
+  #                       only by pre-push on a contributor machine. The
+  #                       cumulative half is incidentally covered in CI via
+  #                       tests/skills/test_specs_persistence_reference.py
+  #                       (which runs under chk_hook_units); the
+  #                       since-baseline half is not covered anywhere in CI.
   # chk_nav_integrity is the fast local subset of link-check.yml's required
   # `nav-integrity` job (see that workflow's header). Everything else in this
   # array is named by some CI job's --only= list. Re-run that audit when

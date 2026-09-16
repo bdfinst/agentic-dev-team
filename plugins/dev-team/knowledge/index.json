@@ -5876,9 +5876,13 @@
       "summary": "This skill's value is **resolving ambiguity with a human before build begins**",
       "anchor": "positioning-what-this-skill-is-for"
     },
-    "Step 0 — Existing-spec version check": {
+    "Step 0 — Select the mode": {
+      "summary": "`/specs` runs in one of two modes, chosen from the **shape of the argument** —",
+      "anchor": "step-0-select-the-mode"
+    },
+    "Step 1 — Existing-spec version check": {
       "summary": "Before drafting or updating a spec, check whether a spec file already exists for",
-      "anchor": "step-0-existing-spec-version-check"
+      "anchor": "step-1-existing-spec-version-check"
     },
     "Rules": {
       "summary": "1.",
@@ -5912,21 +5916,21 @@
       "summary": "1.",
       "anchor": "scope-split-protocol"
     },
+    "Glossary": {
+      "summary": "Capture domain terms **while drafting** Intent and Acceptance Criteria.",
+      "anchor": "glossary"
+    },
+    "Completeness sweep": {
+      "summary": "After the critique loop and **before** the Consistency Gate, sweep for what the",
+      "anchor": "completeness-sweep"
+    },
     "Cross-Artifact Consistency Gate": {
       "summary": "Validate all three artifacts as a set:",
       "anchor": "cross-artifact-consistency-gate"
     },
     "Output": {
-      "summary": "Three artifacts (Intent, Architecture Specification, Acceptance Criteria) plus a consistency gate pass/fail verdict.",
+      "summary": "Three artifacts (Intent, Architecture Specification, Acceptance Criteria) plus a",
       "anchor": "output"
-    },
-    "Persist artifacts": {
-      "summary": "After the gate passes, persist all three artifacts plus the verdict so downstream commands (`/plan`, `/build`, spec-compliance-review) can find the spec — chat-only specs are lost between sessions.",
-      "anchor": "persist-artifacts"
-    },
-    "Auto-trigger /plan": {
-      "summary": "After persisting, automatically invoke `/plan` with the feature description.",
-      "anchor": "auto-trigger-plan"
     }
   },
   "plugins/dev-team/skills/static-analysis-integration/SKILL.md": {
