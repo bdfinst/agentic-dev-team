@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import hashlib
 import importlib.util
+import json
 import os
 import subprocess
 
@@ -503,3 +504,225 @@ class TestPublicAliasesAreSameObject:
 
     def test_percentile_distribution_alias_identity(self):
         assert mrd.mfd.percentile_distribution is mrd.mfd._percentile_distribution
+
+
+# ---------------------------------------------------------------------------
+# Step 1.2: `theoretical` CLI subcommand
+# ---------------------------------------------------------------------------
+
+_NORMAL_AGENT_MD = """\
+---
+name: normal-review
+model: sonnet
+---
+
+Scope:
+- **/*.py
+"""
+
+_ADDED_ONLY_AGENT_MD = """\
+---
+name: added-only-review
+model: sonnet
+---
+
+Scope: added-only
+- **/*.py
+"""
+
+_CLI_REGISTRY_TEXT = """\
+## Review Agents
+
+| Name | File | Purpose |
+| --- | --- | --- |
+| normal-review | `agents/normal-review.md` | test lens |
+| added-only-review | `agents/added-only-review.md` | test added-only lens |
+"""
+
+
+def _write_cli_roster(tmp_path):
+    """A real on-disk agents-dir + registry (unlike `_ROSTER` above, which
+    the pure-algorithm tests hand `find_theoretical_duplicates` directly) --
+    the CLI resolves its roster via `select_lenses.build_review_roster`,
+    exactly as `measure_full_file_duplication.py`'s own `cmd_theoretical`
+    does, so this exercises that same disk-reading path."""
+    agents_dir = tmp_path / "agents"
+    agents_dir.mkdir()
+    (agents_dir / "normal-review.md").write_text(_NORMAL_AGENT_MD, encoding="utf-8")
+    (agents_dir / "added-only-review.md").write_text(_ADDED_ONLY_AGENT_MD, encoding="utf-8")
+    registry_path = tmp_path / "agent-registry.md"
+    registry_path.write_text(_CLI_REGISTRY_TEXT, encoding="utf-8")
+    return agents_dir, registry_path
+
+
+class TestTheoreticalCli:
+    def test_output_shape_and_duplicate_reported(self, tmp_path, capsys):
+        repo = tmp_path / "repo"
+        shas = _seed_repo(repo)
+        agents_dir, registry_path = _write_cli_roster(tmp_path)
+
+        rc = mrd.main(
+            [
+                "theoretical",
+                "--checkpoint",
+                f"{shas['c0']}:{shas['c1']}:early",
+                "--checkpoint",
+                f"{shas['c0']}:{shas['c2']}:late",
+                "--agents-dir",
+                str(agents_dir),
+                "--registry",
+                str(registry_path),
+                "--repo-root",
+                str(repo),
+            ]
+        )
+
+        assert rc == 0
+        out = json.loads(capsys.readouterr().out)
+        assert set(out) == {
+            "checkpoints",
+            "duplicates",
+            "avoidable_tokens_estimate",
+            "roster_warnings",
+        }
+        assert out["roster_warnings"] == []
+        assert len(out["duplicates"]) == 1
+        dup = out["duplicates"][0]
+        assert dup["lens"] == "normal-review"
+        assert dup["file"] == "foo.py"
+        assert dup["first_seen_at"] == "early"
+        assert dup["duplicate_at"] == "late"
+        assert dup["file_hash"] == hashlib.sha256(b"F2\n").hexdigest()
+        assert out["avoidable_tokens_estimate"] == dup["avoidable_tokens_estimate"]
+
+
+class TestTheoreticalCliUnresolvableShaFails:
+    def test_bad_sha_exits_nonzero_names_it_and_prints_no_partial_output(
+        self, tmp_path, capsys
+    ):
+        repo = tmp_path / "repo"
+        shas = _seed_repo(repo)
+        agents_dir, registry_path = _write_cli_roster(tmp_path)
+        bogus = "deadbeef" * 5
+
+        rc = mrd.main(
+            [
+                "theoretical",
+                "--checkpoint",
+                f"{bogus}:{shas['c1']}:bogus",
+                "--agents-dir",
+                str(agents_dir),
+                "--registry",
+                str(registry_path),
+                "--repo-root",
+                str(repo),
+            ]
+        )
+
+        assert rc != 0
+        captured = capsys.readouterr()
+        assert captured.out == ""
+        assert "deadbeef" in captured.err
+        assert "bogus" in captured.err
+
+
+# ---------------------------------------------------------------------------
+# Step 1.2: `empirical` CLI subcommand
+# ---------------------------------------------------------------------------
+
+
+def _write_agent_dispatch(subagents_dir, agent_id, agent_type, ts, input_tokens):
+    """One `agent-<id>.jsonl` + `.meta.json` sibling pair — the same
+    sibling-subagent-file layout `measure_full_file_duplication.py`'s own
+    tests build (`_write_sibling_agent`), reproduced locally here rather
+    than imported cross-test-module."""
+    (subagents_dir / f"agent-{agent_id}.meta.json").write_text(
+        json.dumps({"agentType": agent_type}), encoding="utf-8"
+    )
+    record = {
+        "timestamp": ts,
+        "message": {"usage": {"input_tokens": input_tokens, "output_tokens": 1}},
+    }
+    (subagents_dir / f"agent-{agent_id}.jsonl").write_text(
+        json.dumps(record), encoding="utf-8"
+    )
+
+
+def _empirical_fixture(tmp_path):
+    transcript = tmp_path / "session.jsonl"
+    transcript.write_text("", encoding="utf-8")
+    subagents_dir = tmp_path / "session" / "subagents"
+    subagents_dir.mkdir(parents=True)
+    return transcript, subagents_dir
+
+
+class TestEmpiricalCli:
+    def test_reports_real_spend_grouped_by_agent_type(self, tmp_path, capsys):
+        transcript, subagents_dir = _empirical_fixture(tmp_path)
+        # Agent type A: two dispatches, 100 + 150 = 250 total input tokens.
+        _write_agent_dispatch(
+            subagents_dir, "a1", "dev-team:type-a", "2026-08-01T19:00:00.000Z", 100
+        )
+        _write_agent_dispatch(
+            subagents_dir, "a2", "dev-team:type-a", "2026-08-01T19:00:05.000Z", 150
+        )
+        # Agent type B: one dispatch, 200 total input tokens.
+        _write_agent_dispatch(
+            subagents_dir, "b1", "dev-team:type-b", "2026-08-01T19:00:10.000Z", 200
+        )
+
+        rc = mrd.main(["empirical", "--transcript", str(transcript)])
+
+        assert rc == 0
+        out = json.loads(capsys.readouterr().out)
+        assert out["spend_by_agent_type"]["dev-team:type-a"] == {
+            "total_input_tokens": 250,
+            "n_dispatches": 2,
+        }
+        assert out["spend_by_agent_type"]["dev-team:type-b"] == {
+            "total_input_tokens": 200,
+            "n_dispatches": 1,
+        }
+
+
+class TestEmpiricalMissingTranscriptIsRefused:
+    def test_nonexistent_transcript_path_exits_nonzero(self, tmp_path, capsys):
+        missing = tmp_path / "does-not-exist.jsonl"
+
+        rc = mrd.main(["empirical", "--transcript", str(missing)])
+
+        assert rc != 0
+        captured = capsys.readouterr()
+        assert captured.out == ""
+        assert str(missing) in captured.err
+
+
+class TestPrivacyBoundaryCli:
+    def test_sentinel_prompt_text_never_appears_in_empirical_stdout(
+        self, tmp_path, capsys
+    ):
+        # Ports measure_full_file_duplication.py's own TestPrivacyBoundary
+        # pattern: a transcript fixture carrying a distinctive string in a
+        # field this script must never read (message.content), asserting
+        # that string never appears in the CLI's stdout. `empirical` is the
+        # only subcommand this step adds that reads a transcript at all.
+        transcript, subagents_dir = _empirical_fixture(tmp_path)
+        sentinel = "SENTINEL-PROMPT-TEXT-SHOULD-NEVER-SURFACE"
+        (subagents_dir / "agent-abc.meta.json").write_text(
+            json.dumps({"agentType": "dev-team:correctness-review"}), encoding="utf-8"
+        )
+        record = {
+            "timestamp": "2026-08-01T19:00:00.000Z",
+            "message": {
+                "content": [{"type": "text", "text": sentinel}],
+                "usage": {"input_tokens": 1},
+            },
+        }
+        (subagents_dir / "agent-abc.jsonl").write_text(
+            json.dumps(record), encoding="utf-8"
+        )
+
+        rc = mrd.main(["empirical", "--transcript", str(transcript)])
+
+        assert rc == 0
+        assert sentinel not in capsys.readouterr().out

@@ -36,15 +36,26 @@ caller to mistake for a clean run over fewer checkpoints. Checkpoints are
 processed strictly in the order the caller supplies them (documented here,
 not inferred from timestamps or topology).
 
-Future `--checkpoint <baseline_sha>:<head_sha>[:<label>]` CLI shape (wired
-in a later step over `parse_checkpoint_spec` below): repeatable, each
-argument becomes one `Checkpoint` in that same caller-given order.
+CLI (Step 1.2): `theoretical --checkpoint <baseline_sha>:<head_sha>[:<label>]
+[--checkpoint ...] [--agents-dir] [--registry] [--repo-root]` (repeatable,
+each argument becomes one `Checkpoint` in that same caller-given order;
+prints `find_theoretical_duplicates`'s own result, plus `roster_warnings`,
+to stdout as JSON — the process exits non-zero with a stderr message,
+naming the failing sha and checkpoint, on `CheckpointResolutionError` rather
+than a raw traceback) and `empirical --transcript <path> [--since]
+[--gap-seconds]` (reuses `mfd.collect_agent_dispatches` and
+`mfd.filter_since` directly; refuses — rather than silently reporting zero
+spend for — a `--transcript` path that does not exist; prints real
+per-dispatch input-token spend grouped by agent type to stdout as JSON).
+Privacy boundary mirrors `measure_full_file_duplication.py`'s own exactly:
+only `timestamp`, numeric `usage.*` fields, `isSidechain`, `agentId`,
+`attributionAgent`, and `meta.agentType` are ever read from a transcript;
+nothing is persisted to disk by this script itself.
 
-Deliberately out of scope for THIS step (Step 1.1): the `theoretical`/
-`empirical`/`report`/`rollup` argparse subcommands, and the empirical
-(real-transcript) leg's own aggregation — later steps in this slice. This
-module already imports `session_log.records` (below) so those later steps
-share the same sys.path setup rather than re-deriving it.
+Deliberately out of scope for Step 1.2: the `report`/`rollup` argparse
+subcommands — a later step in this slice. This module already imports
+`session_log.records` (below) so that later step shares the same sys.path
+setup rather than re-deriving it.
 
 Monorepo-only by design (ADR 0032 category 2, docs/adr/0032-shipped-script-
 path-resolution-taxonomy.md), same as `measure_full_file_duplication.py`:
@@ -78,7 +89,9 @@ Stdlib-only.
 
 from __future__ import annotations
 
+import argparse
 import hashlib
+import json
 import subprocess
 import sys
 from pathlib import Path
@@ -364,3 +377,101 @@ def find_theoretical_duplicates(checkpoints: list[Checkpoint], repo_root: Path, 
         "duplicates": duplicates,
         "avoidable_tokens_estimate": total_avoidable_tokens,
     }
+
+
+# ---------------------------------------------------------------------------
+# CLI (Step 1.2): `theoretical` and `empirical` subcommands.
+# ---------------------------------------------------------------------------
+
+
+def aggregate_spend_by_agent_type(dispatches: list[dict]) -> dict[str, dict]:
+    """`agent_type -> {"total_input_tokens": int, "n_dispatches": int}` --
+    the real per-dispatch input-token spend the `empirical` subcommand
+    reports, grouped the same way a later `report` subcommand (step 1.3)
+    will need it to compute a real average per-dispatch spend per agent
+    type (`total_input_tokens / n_dispatches`)."""
+    aggregated: dict[str, dict] = {}
+    for dispatch in dispatches:
+        bucket = aggregated.setdefault(
+            dispatch["agent_type"], {"total_input_tokens": 0, "n_dispatches": 0}
+        )
+        bucket["total_input_tokens"] += dispatch["input_spend"]
+        bucket["n_dispatches"] += 1
+    return aggregated
+
+
+def cmd_theoretical(args: argparse.Namespace) -> int:
+    checkpoints = [parse_checkpoint_spec(spec) for spec in args.checkpoint]
+    roster, roster_warnings = select_lenses.build_review_roster(args.agents_dir, args.registry)
+    try:
+        result = find_theoretical_duplicates(checkpoints, args.repo_root, roster)
+    except CheckpointResolutionError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 1
+    result["roster_warnings"] = roster_warnings
+    print(json.dumps(result, indent=2))
+    return 0
+
+
+def cmd_empirical(args: argparse.Namespace) -> int:
+    if not args.transcript.is_file():
+        print(
+            f"error: --transcript path does not exist: {args.transcript}",
+            file=sys.stderr,
+        )
+        return 1
+    dispatches = mfd.filter_since(mfd.collect_agent_dispatches(args.transcript), args.since)
+    spend_by_agent_type = aggregate_spend_by_agent_type(dispatches)
+    print(json.dumps({"spend_by_agent_type": spend_by_agent_type}, indent=2))
+    return 0
+
+
+def main(argv=None) -> int:
+    parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    sub = parser.add_subparsers(dest="command", required=True)
+
+    p_theoretical = sub.add_parser(
+        "theoretical",
+        help="Cross-checkpoint (lens, file_hash) duplicate report, no transcript needed",
+    )
+    p_theoretical.add_argument(
+        "--checkpoint",
+        action="append",
+        required=True,
+        dest="checkpoint",
+        metavar="<baseline_sha>:<head_sha>[:<label>]",
+        help="Repeatable; processed strictly in the order given",
+    )
+    p_theoretical.add_argument(
+        "--agents-dir", type=Path, default=_PLUGIN_ROOT / "agents"
+    )
+    p_theoretical.add_argument(
+        "--registry", type=Path, default=_PLUGIN_ROOT / "knowledge" / "agent-registry.md"
+    )
+    p_theoretical.add_argument("--repo-root", type=Path, default=_REPO_ROOT)
+    p_theoretical.set_defaults(func=cmd_theoretical)
+
+    p_empirical = sub.add_parser(
+        "empirical",
+        help="Real per-dispatch input-token spend by agent type, from a session transcript",
+    )
+    p_empirical.add_argument("--transcript", type=Path, required=True)
+    p_empirical.add_argument(
+        "--since", default=None, help="ISO8601 timestamp; drop earlier dispatches"
+    )
+    p_empirical.add_argument(
+        "--gap-seconds",
+        type=float,
+        default=mfd.DEFAULT_ROUND_GAP_SECONDS,
+        help="Accepted for CLI-shape parity with measure_full_file_duplication.py; "
+        "unused by this subcommand's own per-agent-type totals (no round "
+        "clustering is performed here).",
+    )
+    p_empirical.set_defaults(func=cmd_empirical)
+
+    args = parser.parse_args(argv)
+    return args.func(args)
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
