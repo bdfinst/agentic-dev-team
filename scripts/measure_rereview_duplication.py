@@ -57,7 +57,7 @@ to `sys.path` to import `select_lenses` and `session_log.records`, the SAME
 pattern `measure_full_file_duplication.py` uses and for the same reason —
 the estimate is only meaningful against the SAME gate `/code-review`/
 `/build` themselves apply. `select_lenses` touches only its public
-`applicable_lenses`; no private-surface reach.
+`applicable_lenses` and `test_file_subset`; no private-surface reach.
 
 Additionally inserts this script's OWN directory
 (`sys.path.insert(0, str(Path(__file__).resolve().parent))`) before
@@ -150,8 +150,22 @@ def parse_checkpoint_spec(spec: str) -> Checkpoint:
 def _run_git(args: list[str], repo_root: Path) -> subprocess.CompletedProcess:
     # check=False: a non-zero exit is a normal, checked-by-the-caller
     # outcome here (an unresolvable sha, a file missing at a given head),
-    # not a bug to raise on.
-    return subprocess.run(["git", "-C", str(repo_root), *args], capture_output=True, check=False)
+    # not a bug to raise on -- every caller that can silently misinterpret
+    # a failure as "no output" (currently `_diff_name_status`) must check
+    # `returncode` itself.
+    #
+    # `-c core.quotePath=false`: without it, git C-quotes a non-ASCII path
+    # in `--name-status` output (e.g. `"caf\303\251.py"`, literal quotes
+    # included), which breaks `select_lenses` glob matching (the suffix
+    # check fails against the quoted string) and `git show <head>:<path>`
+    # (the quoted string is not a real path, so the lookup silently returns
+    # nothing). Same fix, same reasoning as `changed_file_list.py`'s
+    # documented `-c core.quotePath=false` mandate for this pipeline.
+    return subprocess.run(
+        ["git", "-c", "core.quotePath=false", "-C", str(repo_root), *args],
+        capture_output=True,
+        check=False,
+    )
 
 
 def _resolve_commit(sha: str, checkpoint_label: str, repo_root: Path) -> None:
@@ -169,12 +183,25 @@ def _resolve_commit(sha: str, checkpoint_label: str, repo_root: Path) -> None:
         )
 
 
-def _diff_name_status(baseline: str, head: str, repo_root: Path) -> dict[str, str]:
+def _diff_name_status(baseline: str, head: str, checkpoint_label: str, repo_root: Path) -> dict[str, str]:
     """`{file_path: status_code}` for every file that differs between
     `baseline` and `head` (cumulative, never a single commit's own
     self-diff). A rename/copy row's NEW path is used as the key -- that is
-    the path that exists at `head` and what a reviewer actually sees."""
+    the path that exists at `head` and what a reviewer actually sees.
+
+    Both shas are already resolved by `_resolve_commit` before this runs, so
+    a non-zero exit here means something else went wrong (a corrupt object,
+    a permissions error, an interrupted process) -- checked explicitly and
+    raised on, rather than read as an empty (and therefore falsely
+    "clean") diff, per this module's own "no partial result mistaken for a
+    clean run" rule (see module docstring)."""
     result = _run_git(["diff", "--name-status", f"{baseline}..{head}"], repo_root)
+    if result.returncode != 0:
+        stderr = result.stderr.decode("utf-8", errors="replace").strip()
+        raise CheckpointResolutionError(
+            f"checkpoint {checkpoint_label!r}: `git diff --name-status "
+            f"{baseline}..{head}` failed: {stderr}"
+        )
     status: dict[str, str] = {}
     for line in result.stdout.decode("utf-8", errors="replace").splitlines():
         if not line.strip():
@@ -208,11 +235,17 @@ def checkpoint_lens_file_hashes(checkpoint: Checkpoint, repo_root: Path, roster)
     `added_files` subset (status `A`) in the same pass, then runs
     `select_lenses.applicable_lenses` against that whole file set -- giving
     it `added_files` so a `Scope: added-only` lens is evaluated freshly per
-    checkpoint rather than once globally -- and hashes each file's content
-    at `head`.
+    checkpoint rather than once globally, and `test_files` (via
+    `select_lenses.test_file_subset`, the same call `select_lenses.py`'s own
+    CLI makes) so a `Scope: test-files` lens is narrowed to checkpoints that
+    actually changed a test file rather than counted as applicable at every
+    checkpoint (`test_files=None` means "no classification offered, include
+    unconditionally" to `applicable_lenses` -- not "no test files") -- and
+    hashes each file's content at `head`.
 
     Raises `CheckpointResolutionError` if `checkpoint.baseline` or
-    `checkpoint.head` does not resolve in `repo_root`.
+    `checkpoint.head` does not resolve in `repo_root`, or if the
+    `git diff --name-status` call itself fails.
 
     Returns `{"label": str, "lenses": [...], "warnings": [...],
     "files": {file_path: {"hash": str, "bytes": int}}}` -- `files` holds
@@ -223,11 +256,14 @@ def checkpoint_lens_file_hashes(checkpoint: Checkpoint, repo_root: Path, roster)
     _resolve_commit(checkpoint.baseline, checkpoint.label, repo_root)
     _resolve_commit(checkpoint.head, checkpoint.label, repo_root)
 
-    status = _diff_name_status(checkpoint.baseline, checkpoint.head, repo_root)
+    status = _diff_name_status(checkpoint.baseline, checkpoint.head, checkpoint.label, repo_root)
     file_set = sorted(status)
     added_files = {f for f, code in status.items() if code.startswith("A")}
+    test_files = select_lenses.test_file_subset(file_set, root=repo_root)
 
-    lenses, warnings = select_lenses.applicable_lenses(file_set, roster, added_files=added_files)
+    lenses, warnings = select_lenses.applicable_lenses(
+        file_set, roster, added_files=added_files, test_files=test_files
+    )
 
     files: dict[str, dict] = {}
     for f in file_set:
@@ -244,6 +280,30 @@ def checkpoint_lens_file_hashes(checkpoint: Checkpoint, repo_root: Path, roster)
     }
 
 
+def _check_lens_file_pair(
+    lens: str, file_path: str, info: dict, first_seen: dict[tuple[str, str], str], checkpoint_label: str
+) -> dict | None:
+    """Check one `(lens, file_path, info)` triple against `first_seen` (the
+    pairs recorded at EARLIER checkpoints only -- never this checkpoint's
+    own, see `find_theoretical_duplicates`). Returns a duplicate row dict if
+    `(lens, info["hash"])` was already seen, else `None`. Never mutates
+    `first_seen` -- recording a newly-seen pair is the caller's job, and
+    only after this checkpoint's own loop over every `(lens, file)` pair has
+    finished, so two different files with identical content within the SAME
+    checkpoint are never scored as a duplicate of each other."""
+    key = (lens, info["hash"])
+    if key not in first_seen:
+        return None
+    return {
+        "lens": lens,
+        "file": file_path,
+        "file_hash": info["hash"],
+        "first_seen_at": first_seen[key],
+        "duplicate_at": checkpoint_label,
+        "avoidable_tokens_estimate": mfd.estimate_tokens(info["bytes"]),
+    }
+
+
 def find_theoretical_duplicates(checkpoints: list[Checkpoint], repo_root: Path, roster) -> dict:
     """The theoretical leg's core cross-checkpoint dedup algorithm.
 
@@ -251,10 +311,18 @@ def find_theoretical_duplicates(checkpoints: list[Checkpoint], repo_root: Path, 
     responsibility -- chronological order is never inferred here), resolving
     each via `checkpoint_lens_file_hashes` above. Every `(lens, file_hash)`
     pair is tracked by the first checkpoint it is seen at; a later
-    occurrence of the SAME pair is a duplicate. A lens simply not being in a
-    later checkpoint's applicable-lens set means no entry is ever recorded
-    for it there -- no special-case branch, a structural consequence of the
-    recording rule above.
+    occurrence of the SAME pair, at a DIFFERENT checkpoint, is a duplicate.
+    A lens simply not being in a later checkpoint's applicable-lens set
+    means no entry is ever recorded for it there -- no special-case branch,
+    a structural consequence of the recording rule above.
+
+    A checkpoint's own newly-seen `(lens, file_hash)` pairs are recorded
+    into `first_seen` only AFTER that checkpoint's entire loop finishes
+    (`newly_seen`, merged below) -- never live, mid-loop. Two different
+    files with byte-identical content added within the SAME checkpoint
+    therefore never produce a duplicate row against each other: this tool
+    measures cross-checkpoint re-review, not same-checkpoint coincidental
+    content collisions.
 
     Raises `CheckpointResolutionError` -- and returns nothing -- the moment
     any checkpoint's baseline or head fails to resolve, so a caller can
@@ -279,24 +347,17 @@ def find_theoretical_duplicates(checkpoints: list[Checkpoint], repo_root: Path, 
             }
         )
 
+        newly_seen: dict[tuple[str, str], str] = {}
         for lens in resolved["lenses"]:
             for file_path, info in resolved["files"].items():
-                key = (lens, info["hash"])
-                if key in first_seen:
-                    avoidable = mfd.estimate_tokens(info["bytes"])
-                    total_avoidable_tokens += avoidable
-                    duplicates.append(
-                        {
-                            "lens": lens,
-                            "file": file_path,
-                            "file_hash": info["hash"],
-                            "first_seen_at": first_seen[key],
-                            "duplicate_at": resolved["label"],
-                            "avoidable_tokens_estimate": avoidable,
-                        }
-                    )
+                dup = _check_lens_file_pair(lens, file_path, info, first_seen, resolved["label"])
+                if dup is not None:
+                    total_avoidable_tokens += dup["avoidable_tokens_estimate"]
+                    duplicates.append(dup)
                 else:
-                    first_seen[key] = resolved["label"]
+                    key = (lens, info["hash"])
+                    newly_seen.setdefault(key, resolved["label"])
+        first_seen.update(newly_seen)
 
     return {
         "checkpoints": checkpoint_rows,

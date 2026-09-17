@@ -382,9 +382,12 @@ def parse_iso(ts: str) -> float:
     return datetime.fromisoformat(normalized).timestamp()
 
 
-# Public alias (#2165): scripts/measure_rereview_duplication.py imports this
-# by its public name rather than reaching into this module's private
-# surface. `tests/scripts/test_measure_full_file_duplication.py` still calls
+# Public alias (#2165): a future consumer of `scripts/
+# measure_rereview_duplication.py` (step 1.3's `report` subcommand) will
+# import this by its public name rather than reaching into this module's
+# private surface -- step 1.1 itself only pins the alias's `is`-identity
+# (see below), it does not yet call `parse_iso`.
+# `tests/scripts/test_measure_full_file_duplication.py` still calls
 # `_parse_iso` directly at several sites, so this is a thin alias, not a
 # rename -- both names are the identical function object (pinned by
 # `is`-identity in `tests/scripts/test_measure_rereview_duplication.py`'s
@@ -466,7 +469,9 @@ def percentile_distribution(percentages: list[float]) -> dict | None:
 
 
 # Public alias (#2165) -- same additive, non-rename convention as
-# `_parse_iso`/`parse_iso` above; see that alias's comment.
+# `_parse_iso`/`parse_iso` above; see that alias's comment (also not yet
+# called by `measure_rereview_duplication.py` as of step 1.1 -- a future
+# consumer).
 _percentile_distribution = percentile_distribution
 
 
@@ -528,7 +533,9 @@ def filter_since(dispatches: list[dict], since: str | None) -> list[dict]:
 
 
 # Public alias (#2165) -- same additive, non-rename convention as
-# `_parse_iso`/`parse_iso` above; see that alias's comment.
+# `_parse_iso`/`parse_iso` above; see that alias's comment (also not yet
+# called by `measure_rereview_duplication.py` as of step 1.1 -- a future
+# consumer).
 _filter_since = filter_since
 
 

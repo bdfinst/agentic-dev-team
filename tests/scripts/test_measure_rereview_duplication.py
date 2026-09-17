@@ -90,7 +90,8 @@ def _head_sha(repo):
 
 
 def _seed_repo(root):
-    """A commit sequence covering (a)/(b)/(c)/(d)/(e) in one history:
+    """A commit sequence covering (a)/(b)/(c)/(d)/(e), plus the review
+    findings' extra scenarios (9)-(11) below, in one history:
 
     c0: seed foo.py=F1, qux.py=Q1
     c1: foo.py F1->F2 (foo's LAST-EVER change)
@@ -98,6 +99,14 @@ def _seed_repo(root):
     c3: qux.py Q2->Q3 (qux's second change)
     c4: review_me.py newly ADDED, content matches the added-only lens's glob
     c5: review_me.py modified — a pure revert of c4's addition
+    c6: rare_a.py and rare_b.py both newly ADDED in this SAME commit, with
+        byte-identical content ("RARE\\n") — two different files, one
+        checkpoint, for the same-checkpoint-is-not-a-duplicate case.
+    c7: rare_c.py newly ADDED, also with content "RARE\\n" — a THIRD,
+        different file with the same content, in a LATER commit — for the
+        cross-checkpoint dedup-by-hash-not-path case.
+    c8: review_me.py renamed (git mv) to renamed_review_me.py, content
+        unchanged — for the rename-is-not-an-add case.
 
     Returns `{"c0": sha, "c1": sha, ...}`.
     """
@@ -135,6 +144,21 @@ def _seed_repo(root):
     _git(root, "add", "-A")
     _commit(root, "c5: review_me.py pure revert")
     shas["c5"] = _head_sha(root)
+
+    _write(root, "rare_a.py", "RARE\n")
+    _write(root, "rare_b.py", "RARE\n")
+    _git(root, "add", "-A")
+    _commit(root, "c6: rare_a.py + rare_b.py added, identical content, same commit")
+    shas["c6"] = _head_sha(root)
+
+    _write(root, "rare_c.py", "RARE\n")
+    _git(root, "add", "-A")
+    _commit(root, "c7: rare_c.py added, same content as c6's pair, later commit")
+    shas["c7"] = _head_sha(root)
+
+    _git(root, "mv", "review_me.py", "renamed_review_me.py")
+    _commit(root, "c8: review_me.py renamed to renamed_review_me.py")
+    shas["c8"] = _head_sha(root)
 
     return shas
 
@@ -197,7 +221,11 @@ class TestCumulativeVisibilityAndDuplication:
         result = mrd.find_theoretical_duplicates([early, late], repo, _ROSTER)
 
         late_row = next(row for row in result["checkpoints"] if row["label"] == "late")
-        assert "foo.py" in late_row["file_set"]
+        # Exact equality, not membership: `late`'s cumulative diff (c0..c2)
+        # must be precisely {foo.py, qux.py} -- foo.py via cumulative
+        # visibility (this test's own point) and qux.py via `late`'s own
+        # c1->c2 commit, nothing else and nothing missing.
+        assert late_row["file_set"] == ["foo.py", "qux.py"]
 
     def test_repeated_lens_file_hash_pair_across_checkpoints_is_a_duplicate(self, tmp_path):
         repo = tmp_path / "repo"
@@ -207,6 +235,7 @@ class TestCumulativeVisibilityAndDuplication:
 
         result = mrd.find_theoretical_duplicates([early, late], repo, _ROSTER)
 
+        assert len(result["duplicates"]) == 1
         foo_hash = hashlib.sha256(b"F2\n").hexdigest()
         dup = next(
             d
@@ -298,6 +327,116 @@ class TestNoRecurringPairsReportsZeroCleanly:
 
         assert result["duplicates"] == []
         assert result["avoidable_tokens_estimate"] == 0
+
+
+# ---------------------------------------------------------------------------
+# Review finding: dedup key is (lens, file_hash), not (lens, file_path,
+# file_hash) -- two different files with byte-identical content, in
+# DIFFERENT checkpoints, are the same duplicate pair.
+# ---------------------------------------------------------------------------
+
+
+class TestDedupKeyIsLensAndHashNotPath:
+    def test_different_file_same_content_across_checkpoints_is_a_duplicate(self, tmp_path):
+        repo = tmp_path / "repo"
+        shas = _seed_repo(repo)
+        # c6 adds rare_a.py + rare_b.py (identical content) in one commit;
+        # c7 adds a THIRD, differently-named file (rare_c.py) with the same
+        # content in a later commit/checkpoint.
+        first = mrd.Checkpoint(baseline=shas["c5"], head=shas["c6"], label="first")
+        second = mrd.Checkpoint(baseline=shas["c6"], head=shas["c7"], label="second")
+
+        result = mrd.find_theoretical_duplicates([first, second], repo, _ROSTER)
+
+        rare_hash = hashlib.sha256(b"RARE\n").hexdigest()
+        matches = [
+            d for d in result["duplicates"] if d["lens"] == "normal-review" and d["file_hash"] == rare_hash
+        ]
+        assert len(matches) == 1
+        dup = matches[0]
+        # The duplicate is rare_c.py (a file NEVER seen before) matched
+        # against a pair first recorded under a DIFFERENT file's name at
+        # `first` -- proving the key is (lens, hash), not (lens, path, hash).
+        assert dup["file"] == "rare_c.py"
+        assert dup["first_seen_at"] == "first"
+        assert dup["duplicate_at"] == "second"
+
+
+# ---------------------------------------------------------------------------
+# Review finding: two different files with identical content added WITHIN
+# THE SAME checkpoint must not be reported as a duplicate of each other.
+# ---------------------------------------------------------------------------
+
+
+class TestSameCheckpointIdenticalContentIsNotADuplicate:
+    def test_two_files_added_in_the_same_checkpoint_with_identical_content_are_not_duplicates(
+        self, tmp_path
+    ):
+        repo = tmp_path / "repo"
+        shas = _seed_repo(repo)
+        # c6 adds BOTH rare_a.py and rare_b.py, identical content, in one
+        # commit -- so a single checkpoint spanning only c5..c6 sees both
+        # files for the first time together.
+        only = mrd.Checkpoint(baseline=shas["c5"], head=shas["c6"], label="only")
+
+        result = mrd.find_theoretical_duplicates([only], repo, _ROSTER)
+
+        assert result["duplicates"] == []
+        assert result["avoidable_tokens_estimate"] == 0
+
+
+# ---------------------------------------------------------------------------
+# Review finding: `first_seen_at` stays pinned to the FIRST checkpoint a
+# (lens, hash) pair appeared at across 3+ checkpoints, not the
+# second-most-recent one.
+# ---------------------------------------------------------------------------
+
+
+class TestFirstSeenAtStaysPinnedAcrossThreeOrMoreCheckpoints:
+    def test_first_seen_at_is_the_earliest_checkpoint_not_the_prior_one(self, tmp_path):
+        repo = tmp_path / "repo"
+        shas = _seed_repo(repo)
+        # All three checkpoints share baseline c0 (cumulative visibility),
+        # so each one's file set includes foo.py at its final content (F2,
+        # foo's last-ever change was at c1) -- the same (lens, hash) pair
+        # recurs at every checkpoint after the first.
+        first = mrd.Checkpoint(baseline=shas["c0"], head=shas["c1"], label="first")
+        second = mrd.Checkpoint(baseline=shas["c0"], head=shas["c2"], label="second")
+        third = mrd.Checkpoint(baseline=shas["c0"], head=shas["c3"], label="third")
+
+        result = mrd.find_theoretical_duplicates([first, second, third], repo, _ROSTER)
+
+        foo_dups = [d for d in result["duplicates"] if d["file"] == "foo.py"]
+        assert len(foo_dups) == 2
+        assert {d["duplicate_at"] for d in foo_dups} == {"second", "third"}
+        # Load-bearing: BOTH later occurrences point back to the very first
+        # checkpoint, not to the checkpoint immediately before them.
+        assert all(d["first_seen_at"] == "first" for d in foo_dups)
+
+
+# ---------------------------------------------------------------------------
+# Review finding: a rename (status `R...`, not `A`) must not spuriously
+# satisfy an added-only lens.
+# ---------------------------------------------------------------------------
+
+
+class TestRenameDoesNotSatisfyAddedOnlyLens:
+    def test_git_mv_rename_does_not_trigger_the_added_only_lens(self, tmp_path):
+        repo = tmp_path / "repo"
+        shas = _seed_repo(repo)
+        # c8 renames review_me.py -> renamed_review_me.py (git mv, content
+        # unchanged) -- a rename status code (e.g. `R100`) does not start
+        # with "A", so `added_files` must not include the renamed path.
+        # Baseline is c7 (not c5) so this checkpoint's range contains ONLY
+        # the rename -- c6/c7's genuinely-added rare_*.py files would
+        # otherwise also satisfy the added-only lens and mask the point.
+        renamed = mrd.Checkpoint(baseline=shas["c7"], head=shas["c8"], label="renamed")
+
+        result = mrd.find_theoretical_duplicates([renamed], repo, _ROSTER)
+
+        renamed_row = next(row for row in result["checkpoints"] if row["label"] == "renamed")
+        assert "renamed_review_me.py" in renamed_row["file_set"]
+        assert "added-only-review" not in renamed_row["lenses"]
 
 
 # ---------------------------------------------------------------------------
