@@ -1,6 +1,8 @@
 """Unit tests for scripts/measure_rereview_duplication.py (#2165, slice 0
-of epic #2164, Step 1.1: shared imports + the theoretical leg's core
-cross-checkpoint dedup algorithm).
+of epic #2164): Step 1.1 (shared imports + the theoretical leg's core
+cross-checkpoint dedup algorithm), Step 1.2 (the `theoretical` and
+`empirical` CLI subcommands), and Step 1.3 (the `report`/`rollup`
+subcommands and their combining logic).
 
 Uses a real git repo built in `tmp_path` via subprocess `git init`/`commit`
 (not a mock) — the thing under test is the interaction between git's own

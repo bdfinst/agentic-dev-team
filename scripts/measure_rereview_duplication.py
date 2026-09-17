@@ -94,12 +94,13 @@ this is a one-off measurement tool for this marketplace repo's own
 `/code-review`/`/build` cost question, not `/code-review`-invoked skill
 machinery.
 
-Import boundary: adds `plugins/dev-team/scripts/` (and its `lib/` sibling)
-to `sys.path` to import `select_lenses` and `session_log.records`, the SAME
-pattern `measure_full_file_duplication.py` uses and for the same reason —
-the estimate is only meaningful against the SAME gate `/code-review`/
-`/build` themselves apply. `select_lenses` touches only its public
-`applicable_lenses` and `test_file_subset`; no private-surface reach.
+Import boundary: adds `plugins/dev-team/scripts/` to `sys.path` to import
+`select_lenses`, the SAME pattern `measure_full_file_duplication.py` uses
+and for the same reason — the estimate is only meaningful against the SAME
+gate `/code-review`/`/build` themselves apply. `select_lenses` touches only
+its public `applicable_lenses`, `test_file_subset`, and
+`build_review_roster` (the CLI's own roster resolution, `theoretical` and
+`report`); no private-surface reach.
 
 Additionally inserts this script's OWN directory
 (`sys.path.insert(0, str(Path(__file__).resolve().parent))`) before
@@ -135,14 +136,6 @@ if str(_PLUGIN_SCRIPTS_DIR) not in sys.path:
     sys.path.insert(0, str(_PLUGIN_SCRIPTS_DIR))
 
 import select_lenses
-
-_PLUGIN_SCRIPTS_LIB_DIR = _PLUGIN_SCRIPTS_DIR / "lib"
-if str(_PLUGIN_SCRIPTS_LIB_DIR) not in sys.path:
-    sys.path.insert(0, str(_PLUGIN_SCRIPTS_LIB_DIR))
-# Not used by this step's own algorithm (the theoretical leg needs no
-# transcript) -- imported now, per this sys.path setup being shared, for the
-# `empirical` subcommand a later step in this slice adds.
-from session_log import records as session_log_records  # noqa: F401
 
 # Same-directory sibling-script import -- see module docstring's "Import
 # boundary" section for why this insert is required (not merely
@@ -363,6 +356,37 @@ def _checkpoint_row(resolved: dict) -> dict:
     }
 
 
+def _process_checkpoint_pairs(
+    resolved: dict, first_seen: dict[tuple[str, str], str]
+) -> tuple[list[dict], dict[tuple[str, str], str], int]:
+    """One checkpoint's `lens x file` cross product against `first_seen`
+    (pairs recorded at EARLIER checkpoints only) -- extracted out of
+    `_resolve_checkpoints_with_duplicates`'s own loop to keep that function
+    at a readable nesting depth, the same extraction `_checkpoint_total_
+    tokens` already applies to its own lens x file double-loop elsewhere in
+    this file.
+
+    Returns `(duplicates, newly_seen, avoidable_tokens)` for THIS checkpoint
+    only. `newly_seen` is NOT merged into `first_seen` here -- the caller
+    merges it into `first_seen` only after this checkpoint's entire loop has
+    finished, per `_resolve_checkpoints_with_duplicates`'s own "never live,
+    mid-loop" rule (see that function's docstring).
+    """
+    duplicates: list[dict] = []
+    newly_seen: dict[tuple[str, str], str] = {}
+    avoidable_tokens = 0
+    for lens in resolved["lenses"]:
+        for file_path, info in resolved["files"].items():
+            dup = _check_lens_file_pair(lens, file_path, info, first_seen, resolved["label"])
+            if dup is not None:
+                avoidable_tokens += dup["avoidable_tokens_estimate"]
+                duplicates.append(dup)
+            else:
+                key = (lens, info["hash"])
+                newly_seen.setdefault(key, resolved["label"])
+    return duplicates, newly_seen, avoidable_tokens
+
+
 def _resolve_checkpoints_with_duplicates(checkpoints: list[Checkpoint], repo_root: Path, roster) -> dict:
     """Resolve every checkpoint EXACTLY ONCE (`checkpoint_lens_file_hashes`)
     and run the cross-checkpoint dedup algorithm over the result in the same
@@ -394,11 +418,11 @@ def _resolve_checkpoints_with_duplicates(checkpoints: list[Checkpoint], repo_roo
     any checkpoint's baseline or head fails to resolve, so a caller can
     never mistake a partial run for a clean one over fewer checkpoints.
 
-    Returns `{"resolved": [...], "duplicates": [...],
-    "avoidable_tokens_estimate": int}` -- `resolved` is the list of raw
-    `checkpoint_lens_file_hashes` dicts (label/lenses/warnings/files, the
-    LATTER carrying each file's hash+byte info that `_checkpoint_row` above
-    discards for the public shape but `build_report` still needs).
+    Returns `{"resolved_checkpoints": [...], "duplicates": [...],
+    "avoidable_tokens_estimate": int}` -- `resolved_checkpoints` is the list
+    of raw `checkpoint_lens_file_hashes` dicts (label/lenses/warnings/files,
+    the LATTER carrying each file's hash+byte info that `_checkpoint_row`
+    above discards for the public shape but `build_report` still needs).
     """
     first_seen: dict[tuple[str, str], str] = {}
     resolved_checkpoints: list[dict] = []
@@ -409,20 +433,15 @@ def _resolve_checkpoints_with_duplicates(checkpoints: list[Checkpoint], repo_roo
         resolved = checkpoint_lens_file_hashes(checkpoint, repo_root, roster)
         resolved_checkpoints.append(resolved)
 
-        newly_seen: dict[tuple[str, str], str] = {}
-        for lens in resolved["lenses"]:
-            for file_path, info in resolved["files"].items():
-                dup = _check_lens_file_pair(lens, file_path, info, first_seen, resolved["label"])
-                if dup is not None:
-                    total_avoidable_tokens += dup["avoidable_tokens_estimate"]
-                    duplicates.append(dup)
-                else:
-                    key = (lens, info["hash"])
-                    newly_seen.setdefault(key, resolved["label"])
+        checkpoint_duplicates, newly_seen, checkpoint_avoidable_tokens = _process_checkpoint_pairs(
+            resolved, first_seen
+        )
+        duplicates.extend(checkpoint_duplicates)
+        total_avoidable_tokens += checkpoint_avoidable_tokens
         first_seen.update(newly_seen)
 
     return {
-        "resolved": resolved_checkpoints,
+        "resolved_checkpoints": resolved_checkpoints,
         "duplicates": duplicates,
         "avoidable_tokens_estimate": total_avoidable_tokens,
     }
@@ -439,7 +458,7 @@ def find_theoretical_duplicates(checkpoints: list[Checkpoint], repo_root: Path, 
     """
     core = _resolve_checkpoints_with_duplicates(checkpoints, repo_root, roster)
     return {
-        "checkpoints": [_checkpoint_row(r) for r in core["resolved"]],
+        "checkpoints": [_checkpoint_row(r) for r in core["resolved_checkpoints"]],
         "duplicates": core["duplicates"],
         "avoidable_tokens_estimate": core["avoidable_tokens_estimate"],
     }
@@ -453,9 +472,13 @@ def find_theoretical_duplicates(checkpoints: list[Checkpoint], repo_root: Path, 
 def aggregate_spend_by_agent_type(dispatches: list[dict]) -> dict[str, dict]:
     """`agent_type -> {"total_input_tokens": int, "n_dispatches": int}` --
     the real per-dispatch input-token spend the `empirical` subcommand
-    reports, grouped the same way a later `report` subcommand (step 1.3)
-    will need it to compute a real average per-dispatch spend per agent
-    type (`total_input_tokens / n_dispatches`)."""
+    reports, grouped by the transcript's raw `agent_type` spelling
+    (plugin-qualified or bare, whichever `collect_agent_dispatches` saw).
+    `report`'s `measured_avg_by_lens` (step 1.3) does NOT reuse this raw
+    grouping directly -- it re-merges by short name first, since a single
+    transcript can carry both spellings of the same lens and raw grouping
+    alone would silently drop one spelling's dispatches from the average
+    (see `measured_avg_by_lens`'s own docstring)."""
     aggregated: dict[str, dict] = {}
     for dispatch in dispatches:
         bucket = aggregated.setdefault(
@@ -466,11 +489,44 @@ def aggregate_spend_by_agent_type(dispatches: list[dict]) -> dict[str, dict]:
     return aggregated
 
 
-def cmd_theoretical(args: argparse.Namespace) -> int:
+def _parse_checkpoint_specs(specs: list[str]) -> list[Checkpoint] | None:
+    """Parse every `--checkpoint` spec via `parse_checkpoint_spec`, the
+    try/except `cmd_theoretical` and `cmd_report` otherwise each repeat
+    identically. Prints a clean `error: ...` message to stderr and returns
+    `None` on the first malformed spec; both callers check for `None` and
+    return 1 the same way they did before this was extracted."""
     try:
-        checkpoints = [parse_checkpoint_spec(spec) for spec in args.checkpoint]
+        return [parse_checkpoint_spec(spec) for spec in specs]
     except ValueError as exc:
         print(f"error: {exc}", file=sys.stderr)
+        return None
+
+
+def _load_spend_by_agent_type(transcript: Path, since: str | None) -> dict[str, dict] | None:
+    """Validate `transcript` exists and `since` parses, then return real
+    per-dispatch input-token spend grouped by agent type
+    (`aggregate_spend_by_agent_type`) -- the transcript-loading steps
+    `cmd_empirical` and `cmd_report` otherwise both repeat identically.
+    Prints a clean `error: ...` message to stderr and returns `None` on
+    either failure; both callers check for `None` and return 1 the same way
+    they did before this was extracted."""
+    if not transcript.is_file():
+        print(
+            f"error: --transcript is not a readable file: {transcript}",
+            file=sys.stderr,
+        )
+        return None
+    try:
+        dispatches = mfd.filter_since(mfd.collect_agent_dispatches(transcript), since)
+    except ValueError:
+        print(f"error: invalid --since value: {since!r}", file=sys.stderr)
+        return None
+    return aggregate_spend_by_agent_type(dispatches)
+
+
+def cmd_theoretical(args: argparse.Namespace) -> int:
+    checkpoints = _parse_checkpoint_specs(args.checkpoint)
+    if checkpoints is None:
         return 1
     roster, roster_warnings = select_lenses.build_review_roster(args.agents_dir, args.registry)
     try:
@@ -484,14 +540,9 @@ def cmd_theoretical(args: argparse.Namespace) -> int:
 
 
 def cmd_empirical(args: argparse.Namespace) -> int:
-    if not args.transcript.is_file():
-        print(
-            f"error: --transcript is not a readable file: {args.transcript}",
-            file=sys.stderr,
-        )
+    spend_by_agent_type = _load_spend_by_agent_type(args.transcript, args.since)
+    if spend_by_agent_type is None:
         return 1
-    dispatches = mfd.filter_since(mfd.collect_agent_dispatches(args.transcript), args.since)
-    spend_by_agent_type = aggregate_spend_by_agent_type(dispatches)
     print(json.dumps({"spend_by_agent_type": spend_by_agent_type}, indent=2))
     return 0
 
@@ -571,6 +622,30 @@ def measured_avg_by_lens(spend_by_agent_type: dict[str, dict]) -> dict[str, floa
     }
 
 
+def _occurrence_tokens(lens: str, byte_count: int, avg_by_lens: dict[str, float]) -> tuple[float, str]:
+    """The occurrence-cost rule shared by `build_report`'s per-duplicate
+    loop and `_checkpoint_total_tokens`'s own per-(lens, file) total: use
+    the measured per-lens average real dispatch cost when the transcript
+    covers `lens` (a key in `avg_by_lens`), else fall back to the
+    byte-based estimate (`mfd.estimate_tokens`). Named once here so the
+    numerator (`build_report`'s duplicates) and the denominator
+    (`_checkpoint_total_tokens`'s totals) are provably applying the
+    IDENTICAL rule rather than two independently-drifting copies of it.
+
+    Pure DRY/structure fix -- does not change the arithmetic either call
+    site already produced. Not a fix for #2183 (the separate, deeper
+    per-dispatch-vs-per-file cost-attribution question), which is
+    intentionally left alone here.
+
+    Returns `(tokens, spend_source)`, `spend_source` being `"measured"` or
+    `"estimated"` -- the same two values `build_report`'s own
+    `spend_source` field already carries.
+    """
+    if lens in avg_by_lens:
+        return avg_by_lens[lens], "measured"
+    return mfd.estimate_tokens(byte_count), "estimated"
+
+
 def build_report(
     checkpoints: list[Checkpoint],
     repo_root: Path,
@@ -613,21 +688,26 @@ def build_report(
     avg_by_lens = measured_avg_by_lens(spend_by_agent_type) if spend_by_agent_type else {}
     core = _resolve_checkpoints_with_duplicates(checkpoints, repo_root, roster)
 
+    # `(checkpoint_label, file_path) -> byte_count`, so each duplicate row
+    # (which only carries `duplicate_at`/`file`, not the raw byte count) can
+    # look up the byte count `_occurrence_tokens` needs without re-deriving
+    # any git plumbing or changing the theoretical leg's own row shape.
+    bytes_by_checkpoint_file = {
+        (resolved["label"], file_path): info["bytes"]
+        for resolved in core["resolved_checkpoints"]
+        for file_path, info in resolved["files"].items()
+    }
+
     duplicates: list[dict] = []
     avoidable_tokens_estimate = 0.0
     for dup in core["duplicates"]:
-        lens = dup["lens"]
-        if lens in avg_by_lens:
-            tokens = avg_by_lens[lens]
-            spend_source = "measured"
-        else:
-            tokens = dup["avoidable_tokens_estimate"]
-            spend_source = "estimated"
+        byte_count = bytes_by_checkpoint_file[(dup["duplicate_at"], dup["file"])]
+        tokens, spend_source = _occurrence_tokens(dup["lens"], byte_count, avg_by_lens)
         avoidable_tokens_estimate += tokens
         duplicates.append({**dup, "avoidable_tokens_estimate": tokens, "spend_source": spend_source})
 
     total_tokens_estimate = sum(
-        _checkpoint_total_tokens(resolved, avg_by_lens) for resolved in core["resolved"]
+        _checkpoint_total_tokens(resolved, avg_by_lens) for resolved in core["resolved_checkpoints"]
     )
 
     avoidable_pct_of_total = (
@@ -637,7 +717,7 @@ def build_report(
     )
 
     return {
-        "checkpoints": [_checkpoint_row(r) for r in core["resolved"]],
+        "checkpoints": [_checkpoint_row(r) for r in core["resolved_checkpoints"]],
         "duplicates": duplicates,
         "avoidable_tokens_estimate": avoidable_tokens_estimate,
         "total_tokens_estimate": total_tokens_estimate,
@@ -651,37 +731,30 @@ def _checkpoint_total_tokens(resolved: dict, avg_by_lens: dict[str, float]) -> f
     estimate`: the summed per-(lens, file) occurrence cost across that
     checkpoint's whole applicable-lens x file-set cross product -- the
     measured average when the lens is covered by the transcript, else the
-    byte-based estimate. Extracted out of `build_report`'s own loop to keep
-    it at a readable nesting depth (the same 4-level-nesting fix step 1.1
-    already applied elsewhere in this file)."""
+    byte-based estimate (`_occurrence_tokens`, shared with `build_report`'s
+    own per-duplicate loop so the two never independently drift). Extracted
+    out of `build_report`'s own loop to keep it at a readable nesting depth
+    (the same 4-level-nesting fix step 1.1 already applied elsewhere in this
+    file)."""
     total = 0.0
     for lens in resolved["lenses"]:
         for info in resolved["files"].values():
-            if lens in avg_by_lens:
-                total += avg_by_lens[lens]
-            else:
-                total += mfd.estimate_tokens(info["bytes"])
+            tokens, _spend_source = _occurrence_tokens(lens, info["bytes"], avg_by_lens)
+            total += tokens
     return total
 
 
 def cmd_report(args: argparse.Namespace) -> int:
-    try:
-        checkpoints = [parse_checkpoint_spec(spec) for spec in args.checkpoint]
-    except ValueError as exc:
-        print(f"error: {exc}", file=sys.stderr)
+    checkpoints = _parse_checkpoint_specs(args.checkpoint)
+    if checkpoints is None:
         return 1
     roster, roster_warnings = select_lenses.build_review_roster(args.agents_dir, args.registry)
 
     spend_by_agent_type = None
     if args.transcript is not None:
-        if not args.transcript.is_file():
-            print(
-                f"error: --transcript is not a readable file: {args.transcript}",
-                file=sys.stderr,
-            )
+        spend_by_agent_type = _load_spend_by_agent_type(args.transcript, args.since)
+        if spend_by_agent_type is None:
             return 1
-        dispatches = mfd.filter_since(mfd.collect_agent_dispatches(args.transcript), args.since)
-        spend_by_agent_type = aggregate_spend_by_agent_type(dispatches)
 
     try:
         result = build_report(checkpoints, args.repo_root, roster, spend_by_agent_type)
