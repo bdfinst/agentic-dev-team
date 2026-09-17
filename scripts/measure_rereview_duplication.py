@@ -52,10 +52,41 @@ only `timestamp`, numeric `usage.*` fields, `isSidechain`, `agentId`,
 `attributionAgent`, and `meta.agentType` are ever read from a transcript;
 nothing is persisted to disk by this script itself.
 
-Deliberately out of scope for Step 1.2: the `report`/`rollup` argparse
-subcommands — a later step in this slice. This module already imports
-`session_log.records` (below) so that later step shares the same sys.path
-setup rather than re-deriving it.
+`report`/`rollup` (Step 1.3): `report --checkpoint <base:head[:label]>
+[--checkpoint ...] [--transcript <path>] [--since] [--agents-dir]
+[--registry] [--repo-root]` runs the theoretical leg
+(`find_theoretical_duplicates`/`checkpoint_lens_file_hashes`, never
+re-deriving the git plumbing) and, when `--transcript` is given, computes
+each lens's real AVERAGE per-dispatch input spend from that transcript
+(`aggregate_spend_by_agent_type`, called as a function, never shelled out)
+and substitutes it for the byte estimate on any lens the transcript
+actually covers -- a lens the transcript never dispatched keeps the byte
+estimate. **This substitution assumes a lens's real dispatch cost is
+roughly SIZE-INVARIANT within that lens** -- the SAME flat per-lens average
+is applied to a duplicate on a large file and one on a small file,
+discarding the file-size sensitivity the byte-based estimate otherwise
+has. Every duplicate row in `report`'s output carries a `spend_source`
+field (`"measured"` or `"estimated"`) right next to its
+`avoidable_tokens_estimate`, and the same assumption is restated verbatim
+in the output's own `spend_source_assumption` field so a reader never has
+to infer it. `avoidable_pct_of_total` mirrors
+`measure_full_file_duplication.py`'s own `avoidable_pct_of_round_total_
+estimate` shape: `avoidable / total * 100`, where `total` here is every
+`(lens, file)` occurrence this run resolved (first-seen AND duplicate),
+the theoretical-leg analogue of a round's own real total input spend --
+`0.0`, never a division error, when that total is zero. `report` prints
+its JSON to **stdout only** — it never writes a file itself; a caller
+wanting `rollup` to consume it redirects (`report ... > run1.json`).
+`rollup --reports <path1.json> <path2.json> ...` reads several `report`
+JSON files from disk -- the ONLY subcommand inputs this script reads from
+a caller-supplied file path, as distinct from every subcommand's own
+stdout-only output -- refuses (exits non-zero, never silently drops) any
+path that is not valid JSON, and prints the public `percentile_
+distribution` (imported from `measure_full_file_duplication`, not the
+underscored alias) over each run's `avoidable_pct_of_total`, plus a
+`THRESHOLD_PCT = 5.0`-gated `"recommendation"` field (`"proceed"` when the
+median is `>=` the threshold, `"do-not-proceed"` otherwise) computed in
+code so it is never mis-eyeballed.
 
 Monorepo-only by design (ADR 0032 category 2, docs/adr/0032-shipped-script-
 path-resolution-taxonomy.md), same as `measure_full_file_duplication.py`:
@@ -426,6 +457,192 @@ def cmd_empirical(args: argparse.Namespace) -> int:
     return 0
 
 
+# ---------------------------------------------------------------------------
+# CLI (Step 1.3): `report` and `rollup` subcommands.
+# ---------------------------------------------------------------------------
+
+#: Go/no-go anchor for `rollup`'s code-computed `recommendation` (plan's own
+#: Goal section): median `avoidable_pct_of_total` >= this is "proceed".
+#: Exactly 5.0% counts as `>=`. A provisional anchor borrowed from #1618's
+#: orthogonal same-round question, not independently derived for this
+#: cross-round one -- advisory input to the epic owner's own call, not a
+#: binding trigger (see the plan's Go/no-go threshold section).
+THRESHOLD_PCT = 5.0
+
+#: Restated verbatim in every `report` output (next to `spend_source`) so a
+#: reader of the #2164 comment sees the assumption, not just infers it from
+#: this module's docstring.
+_SPEND_SOURCE_ASSUMPTION = (
+    "spend_source: 'measured' applies a flat per-lens average real dispatch "
+    "cost from the transcript, assumed roughly size-invariant within that "
+    "lens -- the same average is used for a duplicate on a large file and "
+    "one on a small file. 'estimated' uses the byte-based per-file estimate "
+    "instead, for any lens the transcript never dispatched."
+)
+
+
+def _short_agent_type(agent_type: str) -> str:
+    """`dev-team:correctness-review` -> `correctness-review` -- mirrors
+    `measure_full_file_duplication._short_name`'s own logic locally rather
+    than importing it: that helper is private to `mfd` and step 1.1's alias
+    fix deliberately scoped the new public surface to `parse_iso`/
+    `filter_since`/`percentile_distribution` only, not this one. Needed so a
+    transcript's plugin-qualified `agent_type` (e.g. from `.meta.json`'s
+    `agentType`) can be matched against this roster's unqualified lens
+    names."""
+    return agent_type.rsplit(":", 1)[-1]
+
+
+def measured_avg_by_lens(spend_by_agent_type: dict[str, dict]) -> dict[str, float]:
+    """`{lens_name: average_input_tokens_per_dispatch}`, from `aggregate_
+    spend_by_agent_type`'s own per-agent-type totals, keyed by the
+    UNQUALIFIED lens name (`_short_agent_type`) so a lens the transcript
+    covers can be looked up directly against `select_lenses`'s own
+    lens-name convention."""
+    return {
+        _short_agent_type(agent_type): bucket["total_input_tokens"] / bucket["n_dispatches"]
+        for agent_type, bucket in spend_by_agent_type.items()
+        if bucket["n_dispatches"] > 0
+    }
+
+
+def build_report(
+    checkpoints: list[Checkpoint],
+    repo_root: Path,
+    roster,
+    spend_by_agent_type: dict[str, dict] | None,
+) -> dict:
+    """The `report` subcommand's own combining logic (Step 1.3): the
+    theoretical leg's cross-checkpoint duplicate set
+    (`find_theoretical_duplicates`), plus -- when `spend_by_agent_type` is
+    given (the `empirical` leg's own `aggregate_spend_by_agent_type` output,
+    called as a function, never shelled out) -- a real average per-dispatch
+    input-token substitution for any lens the transcript actually covers.
+
+    ASSUMPTION (see `_SPEND_SOURCE_ASSUMPTION`, restated in the returned
+    dict): this substitution treats a covered lens's real dispatch cost as
+    roughly SIZE-INVARIANT within that lens -- the SAME flat per-lens
+    average is applied to a duplicate on a large file and one on a small
+    file. A lens the transcript never dispatched keeps the byte-based
+    estimate, tagged accordingly.
+
+    `avoidable_pct_of_total` mirrors `measure_full_file_duplication.py`'s
+    own `avoidable_pct_of_round_total_estimate` shape (`_round_report_row`):
+    `avoidable / total * 100`, where `total` here is the summed
+    per-occurrence cost across EVERY `(lens, file)` occurrence this run
+    resolved (first-seen AND duplicate) -- the theoretical leg's analogue of
+    a round's own real total input spend, since no ledger exists yet
+    (#2164 slices 1-2) to read a real per-checkpoint total from directly.
+    Reuses `checkpoint_lens_file_hashes` (step 1.1) per checkpoint for this
+    total, rather than re-deriving the git plumbing. `0.0`, never a division
+    error, when that total is zero.
+
+    Raises `CheckpointResolutionError` -- propagated from
+    `find_theoretical_duplicates`/`checkpoint_lens_file_hashes` -- the
+    moment any checkpoint's baseline or head fails to resolve.
+    """
+    theoretical = find_theoretical_duplicates(checkpoints, repo_root, roster)
+    avg_by_lens = measured_avg_by_lens(spend_by_agent_type) if spend_by_agent_type else {}
+
+    duplicates: list[dict] = []
+    avoidable_tokens_estimate = 0.0
+    for dup in theoretical["duplicates"]:
+        lens = dup["lens"]
+        if lens in avg_by_lens:
+            tokens = avg_by_lens[lens]
+            spend_source = "measured"
+        else:
+            tokens = dup["avoidable_tokens_estimate"]
+            spend_source = "estimated"
+        avoidable_tokens_estimate += tokens
+        duplicates.append({**dup, "avoidable_tokens_estimate": tokens, "spend_source": spend_source})
+
+    total_tokens_estimate = 0.0
+    for checkpoint in checkpoints:
+        resolved = checkpoint_lens_file_hashes(checkpoint, repo_root, roster)
+        for lens in resolved["lenses"]:
+            for info in resolved["files"].values():
+                if lens in avg_by_lens:
+                    total_tokens_estimate += avg_by_lens[lens]
+                else:
+                    total_tokens_estimate += mfd.estimate_tokens(info["bytes"])
+
+    avoidable_pct_of_total = (
+        round(100 * avoidable_tokens_estimate / total_tokens_estimate, 2)
+        if total_tokens_estimate
+        else 0.0
+    )
+
+    return {
+        "checkpoints": theoretical["checkpoints"],
+        "duplicates": duplicates,
+        "avoidable_tokens_estimate": avoidable_tokens_estimate,
+        "total_tokens_estimate": total_tokens_estimate,
+        "avoidable_pct_of_total": avoidable_pct_of_total,
+        "spend_source_assumption": _SPEND_SOURCE_ASSUMPTION,
+    }
+
+
+def cmd_report(args: argparse.Namespace) -> int:
+    checkpoints = [parse_checkpoint_spec(spec) for spec in args.checkpoint]
+    roster, roster_warnings = select_lenses.build_review_roster(args.agents_dir, args.registry)
+
+    spend_by_agent_type = None
+    if args.transcript is not None:
+        if not args.transcript.is_file():
+            print(
+                f"error: --transcript path does not exist: {args.transcript}",
+                file=sys.stderr,
+            )
+            return 1
+        dispatches = mfd.filter_since(mfd.collect_agent_dispatches(args.transcript), args.since)
+        spend_by_agent_type = aggregate_spend_by_agent_type(dispatches)
+
+    try:
+        result = build_report(checkpoints, args.repo_root, roster, spend_by_agent_type)
+    except CheckpointResolutionError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 1
+    result["roster_warnings"] = roster_warnings
+    print(json.dumps(result, indent=2))
+    return 0
+
+
+def cmd_rollup(args: argparse.Namespace) -> int:
+    percentages: list[float] = []
+    for path in args.reports:
+        try:
+            data = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError) as exc:
+            print(
+                f"error: --reports path is not valid JSON: {path}: {exc}",
+                file=sys.stderr,
+            )
+            return 1
+        if "avoidable_pct_of_total" not in data:
+            print(
+                f"error: --reports path is missing 'avoidable_pct_of_total': {path}",
+                file=sys.stderr,
+            )
+            return 1
+        percentages.append(data["avoidable_pct_of_total"])
+
+    distribution = mfd.percentile_distribution(percentages)
+    median_pct = distribution["median_pct"]
+    recommendation = "proceed" if median_pct >= THRESHOLD_PCT else "do-not-proceed"
+    print(
+        json.dumps(
+            {
+                "distribution": distribution,
+                "threshold_pct": THRESHOLD_PCT,
+                "recommendation": recommendation,
+            },
+            indent=2,
+        )
+    )
+    return 0
+
+
 def main(argv=None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     sub = parser.add_subparsers(dest="command", required=True)
@@ -468,6 +685,57 @@ def main(argv=None) -> int:
         "clustering is performed here).",
     )
     p_empirical.set_defaults(func=cmd_empirical)
+
+    p_report = sub.add_parser(
+        "report",
+        help=(
+            "Combine the theoretical leg with real transcript spend where available; "
+            "prints JSON to stdout ONLY -- redirect to a file for `rollup` to consume "
+            "it (report ... > run1.json)"
+        ),
+    )
+    p_report.add_argument(
+        "--checkpoint",
+        action="append",
+        required=True,
+        dest="checkpoint",
+        metavar="<baseline_sha>:<head_sha>[:<label>]",
+        help="Repeatable; processed strictly in the order given",
+    )
+    p_report.add_argument(
+        "--transcript",
+        type=Path,
+        default=None,
+        help="Optional; omitting it falls back to the byte estimate for every lens",
+    )
+    p_report.add_argument(
+        "--since", default=None, help="ISO8601 timestamp; drop earlier dispatches"
+    )
+    p_report.add_argument(
+        "--agents-dir", type=Path, default=_PLUGIN_ROOT / "agents"
+    )
+    p_report.add_argument(
+        "--registry", type=Path, default=_PLUGIN_ROOT / "knowledge" / "agent-registry.md"
+    )
+    p_report.add_argument("--repo-root", type=Path, default=_REPO_ROOT)
+    p_report.set_defaults(func=cmd_report)
+
+    p_rollup = sub.add_parser(
+        "rollup",
+        help=(
+            "min/median/max avoidable_pct_of_total across several `report` JSON files "
+            "(read from disk -- the only subcommand inputs this script reads from a "
+            "caller-supplied file path), plus a code-computed recommendation"
+        ),
+    )
+    p_rollup.add_argument(
+        "--reports",
+        type=Path,
+        nargs="+",
+        required=True,
+        help="One or more `report` JSON files (e.g. produced via `report ... > run1.json`)",
+    )
+    p_rollup.set_defaults(func=cmd_rollup)
 
     args = parser.parse_args(argv)
     return args.func(args)

@@ -697,6 +697,266 @@ class TestEmpiricalMissingTranscriptIsRefused:
         assert str(missing) in captured.err
 
 
+# ---------------------------------------------------------------------------
+# Step 1.3: `report`'s combining logic (`build_report`) -- spend_source
+# correctness and the zero-duplicates edge case
+# ---------------------------------------------------------------------------
+
+
+class TestBuildReportSpendSource:
+    def test_covered_lens_uses_measured_average_not_byte_estimate(self, tmp_path):
+        repo = tmp_path / "repo"
+        shas = _seed_repo(repo)
+        early = mrd.Checkpoint(baseline=shas["c0"], head=shas["c1"], label="early")
+        late = mrd.Checkpoint(baseline=shas["c0"], head=shas["c2"], label="late")
+        # "normal-review" IS the lens that produces the one real duplicate
+        # (foo.py, early->late) -- 300 total tokens over 3 dispatches, a
+        # transcript that plainly covers this lens under its plugin-qualified
+        # form.
+        spend_by_agent_type = {
+            "dev-team:normal-review": {"total_input_tokens": 300, "n_dispatches": 3}
+        }
+
+        result = mrd.build_report([early, late], repo, _ROSTER, spend_by_agent_type)
+
+        assert len(result["duplicates"]) == 1
+        dup = result["duplicates"][0]
+        assert dup["lens"] == "normal-review"
+        assert dup["spend_source"] == "measured"
+        assert dup["avoidable_tokens_estimate"] == 100.0
+        assert result["avoidable_tokens_estimate"] == 100.0
+        # total_tokens_estimate: early has 1 (lens, file) occurrence
+        # (normal-review x foo.py) and late has 2 (normal-review x foo.py,
+        # normal-review x qux.py) -- 3 occurrences, all measured at 100.0
+        # each (flat per-lens average, size-invariant within the lens).
+        assert result["total_tokens_estimate"] == 300.0
+        assert result["avoidable_pct_of_total"] == 33.33
+        assert result["spend_source_assumption"] == mrd._SPEND_SOURCE_ASSUMPTION
+
+    def test_uncovered_lens_falls_back_to_the_byte_estimate(self, tmp_path):
+        repo = tmp_path / "repo"
+        shas = _seed_repo(repo)
+        early = mrd.Checkpoint(baseline=shas["c0"], head=shas["c1"], label="early")
+        late = mrd.Checkpoint(baseline=shas["c0"], head=shas["c2"], label="late")
+
+        result = mrd.build_report([early, late], repo, _ROSTER, None)
+
+        assert len(result["duplicates"]) == 1
+        dup = result["duplicates"][0]
+        assert dup["spend_source"] == "estimated"
+        foo_bytes_estimate = mrd.mfd.estimate_tokens(len(b"F2\n"))
+        assert dup["avoidable_tokens_estimate"] == foo_bytes_estimate
+        assert result["avoidable_tokens_estimate"] == foo_bytes_estimate
+        # 3 occurrences (as above), all byte-estimated at 1 token each
+        # (`estimate_tokens(3) == 1`).
+        assert result["total_tokens_estimate"] == 3 * foo_bytes_estimate
+        assert result["avoidable_pct_of_total"] == 33.33
+
+    def test_empty_spend_by_agent_type_dict_also_falls_back_to_estimated(self, tmp_path):
+        repo = tmp_path / "repo"
+        shas = _seed_repo(repo)
+        early = mrd.Checkpoint(baseline=shas["c0"], head=shas["c1"], label="early")
+        late = mrd.Checkpoint(baseline=shas["c0"], head=shas["c2"], label="late")
+
+        result = mrd.build_report([early, late], repo, _ROSTER, {})
+
+        assert result["duplicates"][0]["spend_source"] == "estimated"
+
+
+class TestBuildReportZeroDuplicatesCleanly:
+    def test_zero_duplicates_reports_zero_pct_not_an_error(self, tmp_path):
+        repo = tmp_path / "repo"
+        shas = _seed_repo(repo)
+        early = mrd.Checkpoint(baseline=shas["c0"], head=shas["c1"], label="early")
+
+        result = mrd.build_report([early], repo, _ROSTER, None)
+
+        assert result["duplicates"] == []
+        assert result["avoidable_tokens_estimate"] == 0.0
+        assert result["avoidable_pct_of_total"] == 0.0
+
+    def test_zero_total_tokens_never_raises_zero_division(self, tmp_path):
+        repo = tmp_path / "repo"
+        shas = _seed_repo(repo)
+        # baseline == head: an empty diff, so no lenses apply and no files
+        # are resolved -- total_tokens_estimate is genuinely 0, the literal
+        # division-by-zero risk `avoidable_pct_of_total`'s formula guards
+        # against, not just the "numerator is zero" case above.
+        empty = mrd.Checkpoint(baseline=shas["c0"], head=shas["c0"], label="empty")
+
+        result = mrd.build_report([empty], repo, _ROSTER, None)
+
+        assert result["total_tokens_estimate"] == 0.0
+        assert result["avoidable_pct_of_total"] == 0.0
+
+
+# ---------------------------------------------------------------------------
+# Step 1.3: `report` CLI subcommand
+# ---------------------------------------------------------------------------
+
+
+class TestReportCli:
+    def test_output_shape_falls_back_to_estimated_without_a_transcript(
+        self, tmp_path, capsys
+    ):
+        repo = tmp_path / "repo"
+        shas = _seed_repo(repo)
+        agents_dir, registry_path = _write_cli_roster(tmp_path)
+
+        rc = mrd.main(
+            [
+                "report",
+                "--checkpoint",
+                f"{shas['c0']}:{shas['c1']}:early",
+                "--checkpoint",
+                f"{shas['c0']}:{shas['c2']}:late",
+                "--agents-dir",
+                str(agents_dir),
+                "--registry",
+                str(registry_path),
+                "--repo-root",
+                str(repo),
+            ]
+        )
+
+        assert rc == 0
+        out = json.loads(capsys.readouterr().out)
+        assert set(out) == {
+            "checkpoints",
+            "duplicates",
+            "avoidable_tokens_estimate",
+            "total_tokens_estimate",
+            "avoidable_pct_of_total",
+            "spend_source_assumption",
+            "roster_warnings",
+        }
+        assert out["duplicates"][0]["spend_source"] == "estimated"
+
+    def test_missing_transcript_path_is_refused(self, tmp_path, capsys):
+        repo = tmp_path / "repo"
+        shas = _seed_repo(repo)
+        agents_dir, registry_path = _write_cli_roster(tmp_path)
+        missing = tmp_path / "does-not-exist.jsonl"
+
+        rc = mrd.main(
+            [
+                "report",
+                "--checkpoint",
+                f"{shas['c0']}:{shas['c1']}:early",
+                "--transcript",
+                str(missing),
+                "--agents-dir",
+                str(agents_dir),
+                "--registry",
+                str(registry_path),
+                "--repo-root",
+                str(repo),
+            ]
+        )
+
+        assert rc != 0
+        captured = capsys.readouterr()
+        assert captured.out == ""
+        assert str(missing) in captured.err
+
+
+# ---------------------------------------------------------------------------
+# Step 1.3: `rollup` subcommand
+# ---------------------------------------------------------------------------
+
+
+def _write_report(path, avoidable_pct_of_total):
+    path.write_text(
+        json.dumps({"avoidable_pct_of_total": avoidable_pct_of_total}), encoding="utf-8"
+    )
+
+
+class TestRollupDistribution:
+    def test_three_reports_reproduce_hand_computed_min_median_max(self, tmp_path, capsys):
+        r1, r2, r3 = tmp_path / "r1.json", tmp_path / "r2.json", tmp_path / "r3.json"
+        _write_report(r1, 10.0)
+        _write_report(r2, 20.0)
+        _write_report(r3, 30.0)
+
+        rc = mrd.main(["rollup", "--reports", str(r1), str(r2), str(r3)])
+
+        assert rc == 0
+        out = json.loads(capsys.readouterr().out)
+        assert out["distribution"]["min_pct"] == 10.0
+        assert out["distribution"]["median_pct"] == 20.0
+        assert out["distribution"]["max_pct"] == 30.0
+        assert out["distribution"]["n_rounds_sampled"] == 3
+
+    def test_exactly_one_report_has_a_well_defined_median(self, tmp_path, capsys):
+        r1 = tmp_path / "r1.json"
+        _write_report(r1, 42.0)
+
+        rc = mrd.main(["rollup", "--reports", str(r1)])
+
+        assert rc == 0
+        out = json.loads(capsys.readouterr().out)
+        assert out["distribution"]["min_pct"] == 42.0
+        assert out["distribution"]["median_pct"] == 42.0
+        assert out["distribution"]["max_pct"] == 42.0
+
+    def test_exactly_two_reports_has_a_well_defined_median(self, tmp_path, capsys):
+        r1, r2 = tmp_path / "r1.json", tmp_path / "r2.json"
+        _write_report(r1, 10.0)
+        _write_report(r2, 20.0)
+
+        rc = mrd.main(["rollup", "--reports", str(r1), str(r2)])
+
+        assert rc == 0
+        out = json.loads(capsys.readouterr().out)
+        assert out["distribution"]["median_pct"] == 15.0
+
+
+class TestRollupRefusesMalformedReport:
+    def test_invalid_json_path_fails_the_whole_call(self, tmp_path, capsys):
+        good = tmp_path / "good.json"
+        bad = tmp_path / "bad.json"
+        _write_report(good, 10.0)
+        bad.write_text("not valid json{", encoding="utf-8")
+
+        rc = mrd.main(["rollup", "--reports", str(good), str(bad)])
+
+        assert rc != 0
+        captured = capsys.readouterr()
+        # No partial min/median/max computed over just the valid file.
+        assert captured.out == ""
+        assert str(bad) in captured.err
+
+
+class TestRollupRecommendationBoundary:
+    def test_median_exactly_5_0_recommends_proceed(self, tmp_path, capsys):
+        r1, r2, r3 = tmp_path / "r1.json", tmp_path / "r2.json", tmp_path / "r3.json"
+        _write_report(r1, 4.0)
+        _write_report(r2, 5.0)
+        _write_report(r3, 6.0)
+
+        rc = mrd.main(["rollup", "--reports", str(r1), str(r2), str(r3)])
+
+        assert rc == 0
+        out = json.loads(capsys.readouterr().out)
+        assert out["distribution"]["median_pct"] == 5.0
+        assert out["recommendation"] == "proceed"
+
+    def test_median_4_99_recommends_do_not_proceed(self, tmp_path, capsys):
+        # Same shape as the 5.0 case above (a symmetric triple), shifted
+        # down by 0.01 so the median itself lands just under the threshold.
+        r1, r2, r3 = tmp_path / "r1.json", tmp_path / "r2.json", tmp_path / "r3.json"
+        _write_report(r1, 3.99)
+        _write_report(r2, 4.99)
+        _write_report(r3, 5.99)
+
+        rc = mrd.main(["rollup", "--reports", str(r1), str(r2), str(r3)])
+
+        assert rc == 0
+        out = json.loads(capsys.readouterr().out)
+        assert out["distribution"]["median_pct"] == 4.99
+        assert out["recommendation"] == "do-not-proceed"
+
+
 class TestPrivacyBoundaryCli:
     def test_sentinel_prompt_text_never_appears_in_empirical_stdout(
         self, tmp_path, capsys
