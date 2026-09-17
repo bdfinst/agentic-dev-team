@@ -626,6 +626,32 @@ class TestTheoreticalCliUnresolvableShaFails:
         assert "bogus" in captured.err
 
 
+class TestTheoreticalCliMalformedCheckpointSpecFails:
+    def test_malformed_checkpoint_spec_is_a_clean_refusal_not_a_traceback(
+        self, tmp_path, capsys
+    ):
+        agents_dir, registry_path = _write_cli_roster(tmp_path)
+
+        rc = mrd.main(
+            [
+                "theoretical",
+                "--checkpoint",
+                "only-one-field",
+                "--agents-dir",
+                str(agents_dir),
+                "--registry",
+                str(registry_path),
+                "--repo-root",
+                str(tmp_path),
+            ]
+        )
+
+        assert rc != 0
+        captured = capsys.readouterr()
+        assert captured.out == ""
+        assert captured.err.startswith("error:")
+
+
 # ---------------------------------------------------------------------------
 # Step 1.2: `empirical` CLI subcommand
 # ---------------------------------------------------------------------------
@@ -698,6 +724,37 @@ class TestEmpiricalMissingTranscriptIsRefused:
 
 
 # ---------------------------------------------------------------------------
+# Review finding: `measured_avg_by_lens` normalizes BEFORE grouping, not
+# after -- a plugin-qualified and a bare spelling of the SAME lens must be
+# merged, not last-wins-collapsed; and a bucket with dispatches but zero
+# recorded spend must not be treated as "measured".
+# ---------------------------------------------------------------------------
+
+
+class TestMeasuredAvgByLensNormalizesBeforeGrouping:
+    def test_qualified_and_bare_spellings_of_the_same_lens_are_merged(self):
+        spend_by_agent_type = {
+            "dev-team:correctness-review": {"total_input_tokens": 100, "n_dispatches": 1},
+            "correctness-review": {"total_input_tokens": 50, "n_dispatches": 1},
+        }
+
+        avg = mrd.measured_avg_by_lens(spend_by_agent_type)
+
+        # (100 + 50) / (1 + 1) -- neither spelling's dispatches silently
+        # dropped by a last-wins dict collapse.
+        assert avg == {"correctness-review": 75.0}
+
+    def test_zero_recorded_spend_bucket_is_not_treated_as_measured(self):
+        spend_by_agent_type = {
+            "dev-team:correctness-review": {"total_input_tokens": 0, "n_dispatches": 1},
+        }
+
+        avg = mrd.measured_avg_by_lens(spend_by_agent_type)
+
+        assert avg == {}
+
+
+# ---------------------------------------------------------------------------
 # Step 1.3: `report`'s combining logic (`build_report`) -- spend_source
 # correctness and the zero-duplicates edge case
 # ---------------------------------------------------------------------------
@@ -761,6 +818,27 @@ class TestBuildReportSpendSource:
         result = mrd.build_report([early, late], repo, _ROSTER, {})
 
         assert result["duplicates"][0]["spend_source"] == "estimated"
+
+    def test_dispatched_but_zero_spend_lens_falls_back_to_estimated_not_a_confident_zero(
+        self, tmp_path
+    ):
+        repo = tmp_path / "repo"
+        shas = _seed_repo(repo)
+        early = mrd.Checkpoint(baseline=shas["c0"], head=shas["c1"], label="early")
+        late = mrd.Checkpoint(baseline=shas["c0"], head=shas["c2"], label="late")
+        # A bucket exists (a dispatch happened) but recorded zero real
+        # spend -- must NOT be reported as "measured" with a confident-
+        # looking 0.0 avoidable_tokens_estimate.
+        spend_by_agent_type = {
+            "dev-team:normal-review": {"total_input_tokens": 0, "n_dispatches": 1}
+        }
+
+        result = mrd.build_report([early, late], repo, _ROSTER, spend_by_agent_type)
+
+        dup = result["duplicates"][0]
+        assert dup["spend_source"] == "estimated"
+        foo_bytes_estimate = mrd.mfd.estimate_tokens(len(b"F2\n"))
+        assert dup["avoidable_tokens_estimate"] == foo_bytes_estimate
 
 
 class TestBuildReportZeroDuplicatesCleanly:
@@ -859,6 +937,30 @@ class TestReportCli:
         assert captured.out == ""
         assert str(missing) in captured.err
 
+    def test_malformed_checkpoint_spec_is_a_clean_refusal_not_a_traceback(
+        self, tmp_path, capsys
+    ):
+        agents_dir, registry_path = _write_cli_roster(tmp_path)
+
+        rc = mrd.main(
+            [
+                "report",
+                "--checkpoint",
+                "only-one-field",
+                "--agents-dir",
+                str(agents_dir),
+                "--registry",
+                str(registry_path),
+                "--repo-root",
+                str(tmp_path),
+            ]
+        )
+
+        assert rc != 0
+        captured = capsys.readouterr()
+        assert captured.out == ""
+        assert captured.err.startswith("error:")
+
 
 # ---------------------------------------------------------------------------
 # Step 1.3: `rollup` subcommand
@@ -925,6 +1027,54 @@ class TestRollupRefusesMalformedReport:
         # No partial min/median/max computed over just the valid file.
         assert captured.out == ""
         assert str(bad) in captured.err
+
+    def test_well_formed_dict_missing_the_key_is_refused(self, tmp_path, capsys):
+        good = tmp_path / "good.json"
+        missing_key = tmp_path / "missing_key.json"
+        _write_report(good, 10.0)
+        # Valid JSON, valid dict -- just lacking the one key `rollup` reads.
+        missing_key.write_text(json.dumps({"some_other_field": 1}), encoding="utf-8")
+
+        rc = mrd.main(["rollup", "--reports", str(good), str(missing_key)])
+
+        assert rc != 0
+        captured = capsys.readouterr()
+        assert captured.out == ""
+        assert str(missing_key) in captured.err
+
+    def test_non_dict_json_is_refused_not_a_raw_traceback(self, tmp_path, capsys):
+        good = tmp_path / "good.json"
+        non_dict = tmp_path / "non_dict.json"
+        _write_report(good, 10.0)
+        # Valid JSON, but not a dict -- a bare number, which `"key" not in
+        # data`-style checks (or a plain `data["avoidable_pct_of_total"]`
+        # lookup) would raise a `TypeError` on rather than cleanly refuse.
+        non_dict.write_text("5", encoding="utf-8")
+
+        rc = mrd.main(["rollup", "--reports", str(good), str(non_dict)])
+
+        assert rc != 0
+        captured = capsys.readouterr()
+        assert captured.out == ""
+        assert str(non_dict) in captured.err
+
+    def test_non_numeric_value_is_refused(self, tmp_path, capsys):
+        good = tmp_path / "good.json"
+        bad_value = tmp_path / "bad_value.json"
+        _write_report(good, 10.0)
+        # A well-formed dict carrying the right key, but a string value --
+        # `median()` over a mixed str/float list would raise, not cleanly
+        # refuse.
+        bad_value.write_text(
+            json.dumps({"avoidable_pct_of_total": "not-a-number"}), encoding="utf-8"
+        )
+
+        rc = mrd.main(["rollup", "--reports", str(good), str(bad_value)])
+
+        assert rc != 0
+        captured = capsys.readouterr()
+        assert captured.out == ""
+        assert str(bad_value) in captured.err
 
 
 class TestRollupRecommendationBoundary:
