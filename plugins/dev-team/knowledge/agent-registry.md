@@ -144,7 +144,7 @@ Skills are reusable knowledge modules in `.claude/skills/` that agents reference
 | Mutation Testing | `skills/mutation-testing/SKILL.md` | 9,466 | QA Engineer, Software Engineer |
 | Performance Benchmark | `skills/performance-benchmark/SKILL.md` | 1,406 | QA Engineer, Platform Engineer, `/benchmark` command |
 | Performance Metrics | `skills/performance-metrics/SKILL.md` | 3,109 | Orchestrator |
-| Property-Based Testing | `skills/property-based-testing/SKILL.md` | ~1,484 | `/property-based-testing` command, QA Engineer, Software Engineer |
+| Property-Based Testing | `skills/property-based-testing/SKILL.md` | ~1,484 | `/property-based-testing` command |
 | Proxy Resilience | `skills/proxy-resilience/SKILL.md` | ~1,024 | All agents (any session running against a corporate Anthropic proxy) |
 | Quality Gate Pipeline | `skills/quality-gate-pipeline/SKILL.md` | 2,557 | All agents |
 | Quality Targets Converge | `skills/quality-targets-converge/SKILL.md` | ~5,540 | `/test-improve` (Phase 8), QA Engineer, Software Engineer |

@@ -99,26 +99,26 @@ def test_project_init_still_owns_the_manifest_signal_table():
 
 
 def test_supported_languages_are_exactly_python_and_js_ts():
-    assert SUPPORTED_LANGUAGES == ("Python", "JavaScript/TypeScript")
+    """`JS/TS` is project-init's own stack-detection display name — this
+    must match it verbatim, not a spelled-out "JavaScript/TypeScript" (that
+    mismatch previously broke the JS/TS lane end-to-end: project-init would
+    hand this script "JS/TS" and is_supported() would reject it)."""
+    assert SUPPORTED_LANGUAGES == ("Python", "JS/TS")
     assert is_supported("Python")
-    assert is_supported("JavaScript/TypeScript")
+    assert is_supported("JS/TS")
     assert not is_supported("Go")
     assert not is_supported(None)
 
 
 def test_detection_failed_message_interpolates_the_literal_word_unknown():
     message = unsupported_language_message(None)
-    assert message == (
-        "Unsupported language: unknown — supported: Python, JavaScript/TypeScript."
-    )
+    assert message == ("Unsupported language: unknown — supported: Python, JS/TS.")
 
 
 def test_unsupported_but_detected_language_interpolates_its_name():
     for language in ("Go", "C#"):
         message = unsupported_language_message(language)
-        assert message == (
-            f"Unsupported language: {language} — supported: Python, JavaScript/TypeScript."
-        )
+        assert message == f"Unsupported language: {language} — supported: Python, JS/TS."
 
 
 def test_cli_detection_failed_prints_unknown_message_writes_no_file(tmp_path, capsys):
@@ -127,7 +127,7 @@ def test_cli_detection_failed_prints_unknown_message_writes_no_file(tmp_path, ca
     assert exit_code == 1
     captured = capsys.readouterr()
     assert captured.out.strip() == (
-        "Unsupported language: unknown — supported: Python, JavaScript/TypeScript."
+        "Unsupported language: unknown — supported: Python, JS/TS."
     )
     assert list(tmp_path.iterdir()) == []
 
@@ -140,7 +140,7 @@ def test_cli_unsupported_detected_language_prints_its_name_writes_no_file(
     assert exit_code == 1
     captured = capsys.readouterr()
     assert captured.out.strip() == (
-        "Unsupported language: Go — supported: Python, JavaScript/TypeScript."
+        "Unsupported language: Go — supported: Python, JS/TS."
     )
     assert list(tmp_path.iterdir()) == []
 
@@ -149,7 +149,7 @@ def test_cli_supported_language_exits_zero_and_names_its_dispatch_target():
     exit_code = main(["--language", "Python"])
     assert exit_code == 0
 
-    exit_code = main(["--language", "JavaScript/TypeScript"])
+    exit_code = main(["--language", "JS/TS"])
     assert exit_code == 0
 
 

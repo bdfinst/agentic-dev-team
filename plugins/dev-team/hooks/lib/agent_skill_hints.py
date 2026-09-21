@@ -18,6 +18,7 @@ Stdlib only (ADR 0014).
 
 from __future__ import annotations
 
+import re
 import sys
 from pathlib import Path
 
@@ -32,17 +33,28 @@ from minimal_yaml import (
     parse_yaml,
 )
 
+#: `agent_type` ultimately comes from an Agent/Task dispatch's own
+#: `subagent_type` (a PreToolUse hook payload field) — model-controlled
+#: input, not a trusted registry lookup. A real agent stem is always a bare
+#: identifier (`[A-Za-z0-9_-]+`), so anything else (path separators, `..`,
+#: an absolute path) is rejected before it ever reaches the filesystem,
+#: rather than relying on `.md`-suffix / read-only / best-effort framing to
+#: make a traversal harmless.
+_VALID_AGENT_STEM_RE = re.compile(r"^[A-Za-z0-9_-]+$")
+
 
 def skills_for_agent_type(agent_type: str, agents_dir: Path) -> list[str]:
     """Return the `skills:` frontmatter list declared by
     `<agents_dir>/<agent_type>.md`.
 
-    Returns `[]` when the file doesn't exist, has no `skills:` key, or its
-    frontmatter can't be parsed — this is a best-effort hint source, never a
-    hard dependency, so every failure mode degrades to "no hint" rather than
-    raising. Only the one matching agent file is read, never the whole
-    `agents_dir`.
+    Returns `[]` when `agent_type` isn't a bare agent-name stem, the file
+    doesn't exist, has no `skills:` key, or its frontmatter can't be parsed
+    — this is a best-effort hint source, never a hard dependency, so every
+    failure mode degrades to "no hint" rather than raising. Only the one
+    matching agent file is read, never the whole `agents_dir`.
     """
+    if not _VALID_AGENT_STEM_RE.match(agent_type):
+        return []
     try:
         text = (agents_dir / f"{agent_type}.md").read_text(encoding="utf-8")
     except (OSError, UnicodeDecodeError):

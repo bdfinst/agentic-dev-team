@@ -6,6 +6,8 @@ tools: Read, Grep, Glob, mcp__codegraph__*, mcp__plugin_repowise_repowise__get_c
 model: haiku
 effort: medium
 color: green
+skills:
+  - source-verification
 ---
 
 # Documentation Review
@@ -115,15 +117,33 @@ across any language and comment syntax (`//`, `#`, `/* */`, `--`):
 
 - When reviewed content asserts specific behavior of an external API, tool, or
   library (version numbers, endpoint behavior, config defaults, documented
-  flags), run `${CLAUDE_PLUGIN_ROOT}/skills/source-verification/SKILL.md`'s
+  flags), follow `${CLAUDE_PLUGIN_ROOT}/skills/source-verification/SKILL.md`'s
   (Whole-file load: the full extraction/verification procedure, not one
-  section) claim-extraction/verification procedure over it.
+  section) claim-extraction/verification procedure over it. This agent has no
+  `Bash`/`Skill`/`WebFetch` grant, so it applies the procedure's heuristic
+  categories and its Read/Grep-driven internal-claim verification directly
+  (never invoking `../skills/source-verification/scripts/claim_extractor.py`
+  as a subprocess) and reports
+  an external-tool/spec claim it cannot fetch as `unverifiable` rather than
+  guessing at it.
 - A claim it reports `contradicted` is `error` (documentation actively
   misleads). A claim it reports `unverifiable` is `warning` (documentation is
   stale or incomplete — no source could confirm it).
 
 `get_why` (recorded decision rationale) is available to check whether stale-looking
 code/docs still have a live rationale before flagging staleness.
+
+## Skills
+
+Whole-file load: each linked SKILL.md is loaded in full when invoked.
+
+- [Source Verification](../skills/source-verification/SKILL.md) — invoke for
+  the External claim verification checklist above. This agent has no
+  `Bash`/`Skill`/`WebFetch` tool grant, so it applies the skill's
+  extraction/verification procedure by direct inspection (Read/Grep) rather
+  than running `../skills/source-verification/scripts/claim_extractor.py`,
+  and reports a claim it cannot
+  fetch a source for as `unverifiable`.
 
 ## Self-Challenge
 

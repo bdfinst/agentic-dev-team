@@ -10,7 +10,10 @@ findings into `classify_stop()`.
 ## Contract (docs/python-hook-contract.md)
 
     Input : SubagentStop JSON on stdin (`transcript_path`, `session_id`, `cwd`)
-    Output: one `boundary-events.jsonl` "warn" record via
+    Output: one `boundary-events.jsonl` `"record"`-decision row (#1461's
+        non-verdict, observational sense -- this hook never blocks, warns,
+        bypasses, intervenes, or reverts anything; see
+        `knowledge/telemetry-schema.md`) via
         `hooks/lib/boundary_events.emit_boundary_event` for the two
         non-clean, explainable classifications (`empty-final-turn`,
         `truncated-final-turn`); nothing emitted for `clean` or
@@ -264,8 +267,8 @@ def main() -> int:
     """Fail-open SubagentStop entry point.
 
     Reads the hook payload, classifies the transcript tail, and emits a
-    `boundary-events.jsonl` "warn" record for the two non-clean, explainable
-    outcomes (`empty-final-turn`, `truncated-final-turn`) via
+    `boundary-events.jsonl` `"record"`-decision row for the two non-clean,
+    explainable outcomes (`empty-final-turn`, `truncated-final-turn`) via
     `hooks/lib/boundary_events.emit_boundary_event` — see
     `_EMIT_CLASSIFICATIONS` above for why `clean`/`unreadable` stay silent.
     `emit_boundary_event` is already fail-open internally (module docstring,
@@ -285,7 +288,7 @@ def main() -> int:
                     payload.get("cwd"),
                     "subagent_completion_guard",
                     "SubagentStop",
-                    "warn",
+                    "record",
                     classification,
                     payload.get("session_id"),
                 )

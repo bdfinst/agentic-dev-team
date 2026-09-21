@@ -174,7 +174,7 @@ def test_main_emits_empty_final_turn_event(tmp_path):
     assert len(events) == 1
     assert events[0]["hook"] == "subagent_completion_guard"
     assert events[0]["tool"] == "SubagentStop"
-    assert events[0]["decision"] == "warn"
+    assert events[0]["decision"] == "record"
     assert events[0]["matched_rule"] == "empty-final-turn"
     assert events[0]["session_id"] == "sess-1"
 

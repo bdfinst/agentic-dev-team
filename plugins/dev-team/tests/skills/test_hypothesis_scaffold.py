@@ -14,6 +14,8 @@ import subprocess
 import sys
 from pathlib import Path
 
+import pytest
+
 from _repo_root import REPO_ROOT
 
 SKILL_DIR = REPO_ROOT / "plugins" / "dev-team" / "skills" / "property-based-testing"
@@ -78,6 +80,25 @@ def test_no_derivable_property_prints_exact_message_and_writes_nothing(
     captured = capsys.readouterr()
     assert captured.out.strip() == NO_PROPERTY_MESSAGE.format(function="add_one")
     assert list(tmp_path.iterdir()) == []
+
+
+def test_non_identifier_module_filename_is_rejected_before_rendering(tmp_path) -> None:
+    """A module basename that isn't a valid Python identifier must never
+    reach the generated test's `from {module} import ...` line — that value
+    is interpolated unescaped, so a filename crafted with e.g. a newline
+    could otherwise inject arbitrary statements into a file pytest later
+    collects and executes (security-review finding). A basename containing
+    a space is enough to demonstrate the rejection; the underlying check
+    (`str.isidentifier()`) rejects any such shape, newlines included."""
+    module_path = tmp_path / "not an identifier.py"
+    module_path.write_text(
+        "def encode(x):\n    return x\n\n\ndef decode(x):\n    return x\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ValueError, match="not an identifier"):
+        scaffold(str(module_path), "encode", str(tmp_path / "out"))
+    assert not (tmp_path / "out").exists()
 
 
 def test_class_method_invariant_is_not_derived_as_module_level(

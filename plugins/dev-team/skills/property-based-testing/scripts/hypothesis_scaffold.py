@@ -68,8 +68,29 @@ class InvariantProperty:
 
 
 def _module_name(module_path: str) -> str:
+    """Derive the importable module name a generated test's `from {module}
+    import ...` line will use.
+
+    Raises `ValueError` when the basename isn't a valid Python identifier —
+    this value is interpolated unescaped into a generated test file's import
+    statement (`_render_roundtrip_test`/`_render_invariant_test`), so a
+    filename engineered to contain e.g. a newline could otherwise inject
+    arbitrary statements into a file pytest later collects and executes
+    (security-review finding). Every other interpolated value on that path
+    is already constrained to a safe shape: `encode`/`decode` are literals,
+    `class_name`/`function_name` are `ast.FunctionDef`/`ClassDef.name`
+    values (valid identifiers by construction), and `module_dir` is
+    `repr()`-escaped at render time.
+    """
     base = os.path.basename(module_path)
-    return base.removesuffix(".py")
+    name = base.removesuffix(".py")
+    if not name.isidentifier():
+        raise ValueError(
+            f"unsupported module filename {module_path!r}: {name!r} is not a "
+            "valid Python identifier, so it can't be used in a generated "
+            "test's import statement"
+        )
+    return name
 
 
 def _parse_module(module_path: str) -> ast.Module:

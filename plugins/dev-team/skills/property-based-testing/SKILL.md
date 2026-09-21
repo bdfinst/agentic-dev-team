@@ -29,8 +29,8 @@ table (`package.json`/`tsconfig.json` for JS/TS, `pyproject.toml`/
 
 Reduce that step's result to a single detected-language value:
 
-- Exactly one stack detected → its display name (`Python`,
-  `JavaScript/TypeScript`, `C#`, `Java`).
+- Exactly one stack detected → its display name, verbatim as project-init's
+  own stack table spells it (`Python`, `JS/TS`, `C#`, `Java`).
 - Zero or ambiguous signals (project-init's own "ask the user" branch) →
   no detected language.
 
@@ -44,14 +44,13 @@ python3 "${CLAUDE_PLUGIN_ROOT}/skills/property-based-testing/scripts/detect_and_
 ```
 
 This script decides support — it does not detect anything itself (see its
-own module docstring). When the language is neither `Python` nor
-`JavaScript/TypeScript`, or no language was passed at all, it prints the
-exact message below and exits non-zero. **Stop here — no partial run, no
-file written**, exactly as the Gherkin "Unsupported or undetected language"
-scenario requires:
+own module docstring). When the language is neither `Python` nor `JS/TS`,
+or no language was passed at all, it prints the exact message below and
+exits non-zero. **Stop here — no partial run, no file written**, exactly as
+the Gherkin "Unsupported or undetected language" scenario requires:
 
 ```
-Unsupported language: <detected|unknown> — supported: Python, JavaScript/TypeScript.
+Unsupported language: <detected|unknown> — supported: Python, JS/TS.
 ```
 
 `<detected>` is the actual detected language name (e.g. `Go`, `C#`) when
@@ -72,9 +71,9 @@ missing from the target project:
   dev-dependency mechanism (`pyproject.toml` dev group or
   `requirements-dev.txt`, creating the latter if neither exists), exactly
   as project-init's Python lane already does for `ruff`/`mypy`/`pytest`.
-- **JavaScript/TypeScript — fast-check.** `npm install --save-dev
-  fast-check`, mirroring project-init's existing `npm` devDependency install
-  shape for `oxlint`/`@playwright/test`.
+- **JS/TS — fast-check.** `npm install --save-dev fast-check`, mirroring
+  project-init's existing `npm` devDependency install shape for
+  `oxlint`/`@playwright/test`.
 
 Never a global/user-level install — same repo-level-only rule project-init
 states for every lane and capability tool.
@@ -94,7 +93,7 @@ states for every lane and capability tool.
   derived" message and writes nothing — report that message verbatim rather
   than fabricating a property.
 
-- **JavaScript/TypeScript** — follow
+- **JS/TS** — follow
   [`references/languages/javascript.md`](references/languages/javascript.md)
   for the fast-check equivalent of the Python scaffold above: the same
   round-trip/invariant heuristic (an `encode`/`decode` export pair, or a
@@ -118,5 +117,5 @@ own orchestration.
 - A function with no obvious round-trip pair or documented invariant — see
   Step 4's "No property derived" message rather than generating a weak
   "doesn't crash" test.
-- A language other than Python or JavaScript/TypeScript, or a project whose
-  stack detection is ambiguous — see Step 2's unsupported-language message.
+- A language other than Python or JS/TS, or a project whose stack detection
+  is ambiguous — see Step 2's unsupported-language message.

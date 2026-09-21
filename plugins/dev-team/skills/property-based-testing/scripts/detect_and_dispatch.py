@@ -20,20 +20,19 @@ from __future__ import annotations
 
 import argparse
 
-# The only two languages this skill scaffolds properties for today. Python
-# dispatches to Step 4.1's hypothesis_scaffold.py; JavaScript/TypeScript
-# dispatches to the fast-check path (Step 4.3, not yet built).
-SUPPORTED_LANGUAGES = ("Python", "JavaScript/TypeScript")
+# The only two languages this skill scaffolds properties for today. `JS/TS`
+# is project-init's own stack-detection display name (SKILL.md § "Step 1:
+# Detect the stack") — this module matches it verbatim, never a spelled-out
+# "JavaScript/TypeScript", since that is the actual value Step 1 hands this
+# script. Python dispatches to Step 4.1's hypothesis_scaffold.py; JS/TS
+# dispatches to the fast-check path (references/languages/javascript.md).
+SUPPORTED_LANGUAGES = ("Python", "JS/TS")
 
-UNSUPPORTED_MESSAGE = (
-    "Unsupported language: {language} — supported: Python, JavaScript/TypeScript."
-)
+UNSUPPORTED_MESSAGE = "Unsupported language: {language} — supported: Python, JS/TS."
 
 _DISPATCH = {
     "Python": "Hypothesis (scripts/hypothesis_scaffold.py)",
-    "JavaScript/TypeScript": (
-        "fast-check (references/languages/javascript.md — not yet built, Step 4.3)"
-    ),
+    "JS/TS": "fast-check (references/languages/javascript.md)",
 }
 
 

@@ -75,3 +75,21 @@ def test_malformed_frontmatter_returns_empty_list_without_raising(
         "---\nname: malformed-bad-yaml\nskills: not: a: list\n---\n\n# Body\n",
     )
     assert skills_for_agent_type("malformed-bad-yaml", tmp_path) == []
+
+
+def test_path_traversal_agent_type_returns_empty_list_without_reading_file(
+    tmp_path: Path,
+) -> None:
+    """`agent_type` is model-controlled (a dispatch's own `subagent_type`),
+    not a trusted registry lookup — a traversal-shaped value must never
+    reach the filesystem, even read-only (security-review finding)."""
+    outside_dir = tmp_path / "outside"
+    outside_dir.mkdir()
+    secret = outside_dir / "secret.md"
+    secret.write_text("---\nskills:\n  - should-never-be-read\n---\n", encoding="utf-8")
+
+    agents_dir = tmp_path / "agents"
+    agents_dir.mkdir()
+
+    for traversal in ("../outside/secret", "../../etc/passwd", "/etc/passwd", "a/b"):
+        assert skills_for_agent_type(traversal, agents_dir) == []
