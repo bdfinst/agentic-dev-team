@@ -117,3 +117,39 @@ def extract_claims(text: str) -> list[Claim]:
             continue
         claims.append(Claim(text=sentence, kind=kind))
     return claims
+
+
+@dataclasses.dataclass
+class FetchResult:
+    """Outcome of an external lookup (WebFetch/WebSearch) for one claim.
+
+    ``success``: the fetch completed (``True``) or failed/timed out
+    (``False``). ``matches`` is only meaningful when ``success`` is
+    ``True``: ``True`` when the fetched content supports the claim,
+    ``False`` when it contradicts the claim, ``None`` when the content was
+    fetched but is inconclusive either way.
+    """
+
+    success: bool
+    matches: bool | None = None
+
+
+def verdict_for_fetch_result(claim: Claim, fetch_result: FetchResult) -> Verdict:
+    """Select a verdict for ``claim`` from a WebFetch/WebSearch outcome.
+
+    A failed or timed-out fetch (``success=False``) is always
+    ``"unverifiable"`` — "couldn't check" must never be reported as
+    "verified". On a successful fetch, ``matches=True`` -> ``"verified"``,
+    ``matches=False`` -> ``"contradicted"``, and ``matches=None``
+    (fetched but inconclusive) -> ``"unverifiable"``. ``claim`` is accepted
+    for a stable call signature (future callers may need it, e.g. to log
+    which claim a verdict belongs to) but is not read by this function.
+    """
+    del claim  # unused: kept for signature stability, see docstring
+    if not fetch_result.success:
+        return "unverifiable"
+    if fetch_result.matches is True:
+        return "verified"
+    if fetch_result.matches is False:
+        return "contradicted"
+    return "unverifiable"

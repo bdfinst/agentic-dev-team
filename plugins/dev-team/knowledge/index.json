@@ -5871,6 +5871,40 @@
       "anchor": "notes"
     }
   },
+  "plugins/dev-team/skills/source-verification/SKILL.md": {
+    "Procedure": {
+      "summary": "Run `extract_claims(text)` from",
+      "anchor": "procedure"
+    },
+    "Step 1: Extract claims": {
+      "summary": "Run `extract_claims(text)` from",
+      "anchor": "step-1-extract-claims"
+    },
+    "Step 2: Empty-state check": {
+      "summary": "If `extract_claims()` returns zero claims, report the following message",
+      "anchor": "step-2-empty-state-check"
+    },
+    "Step 3: Verify each claim": {
+      "summary": "For every extracted claim, resolve a verdict — `verified`, `contradicted`,",
+      "anchor": "step-3-verify-each-claim"
+    },
+    "Step 4: Report": {
+      "summary": "Report one line per claim, in this exact format — this is the",
+      "anchor": "step-4-report"
+    },
+    "Worked example": {
+      "summary": "The fixture cases below walk through each report line this skill produces,",
+      "anchor": "worked-example"
+    },
+    "Scope note: WebFetch/WebSearch untrusted-content handling": {
+      "summary": "At the time this skill was added, no other skill in this repo documents a",
+      "anchor": "scope-note-webfetchwebsearch-untrusted-content-handling"
+    },
+    "When not to apply": {
+      "summary": "Content with no factual claims to check (pure opinion, style, narrative).",
+      "anchor": "when-not-to-apply"
+    }
+  },
   "plugins/dev-team/skills/specs/SKILL.md": {
     "Positioning — what this skill is for": {
       "summary": "This skill's value is **resolving ambiguity with a human before build begins**",

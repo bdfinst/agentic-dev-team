@@ -26,7 +26,14 @@ sys.path.insert(
     ),
 )
 
-from claim_extractor import Claim, claim_from_dict, claim_to_dict, extract_claims
+from claim_extractor import (
+    Claim,
+    FetchResult,
+    claim_from_dict,
+    claim_to_dict,
+    extract_claims,
+    verdict_for_fetch_result,
+)
 
 
 def test_version_attached_to_named_tool_is_classified_as_code() -> None:
@@ -76,3 +83,32 @@ def test_claim_verdict_and_source_consulted_default_to_none() -> None:
     claim = Claim(text="per RFC 7231", kind="external")
     assert claim.verdict is None
     assert claim.source_consulted is None
+
+
+# ---------------------------------------------------------------------------
+# verdict_for_fetch_result
+# ---------------------------------------------------------------------------
+
+
+def test_verdict_for_fetch_result_matches_is_verified() -> None:
+    claim = Claim(text="per RFC 7231", kind="external")
+    result = FetchResult(success=True, matches=True)
+    assert verdict_for_fetch_result(claim, result) == "verified"
+
+
+def test_verdict_for_fetch_result_contradicts_is_contradicted() -> None:
+    claim = Claim(text="per RFC 7231", kind="external")
+    result = FetchResult(success=True, matches=False)
+    assert verdict_for_fetch_result(claim, result) == "contradicted"
+
+
+def test_verdict_for_fetch_result_failure_is_unverifiable() -> None:
+    claim = Claim(text="per RFC 7231", kind="external")
+    result = FetchResult(success=False)
+    assert verdict_for_fetch_result(claim, result) == "unverifiable"
+
+
+def test_verdict_for_fetch_result_success_but_inconclusive_is_unverifiable() -> None:
+    claim = Claim(text="per RFC 7231", kind="external")
+    result = FetchResult(success=True, matches=None)
+    assert verdict_for_fetch_result(claim, result) == "unverifiable"
