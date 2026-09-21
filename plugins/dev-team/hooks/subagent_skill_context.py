@@ -44,6 +44,7 @@ if str(_LIB_DIR) not in sys.path:
     sys.path.insert(0, str(_LIB_DIR))
 
 from agent_skill_hints import skills_for_agent_type  # type: ignore[import-not-found]
+from review_agent_registry import strip_plugin_prefix  # type: ignore[import-not-found]
 from stdin_json import read_stdin_json  # type: ignore[import-not-found]
 
 # hooks/subagent_skill_context.py -> hooks -> plugin root -> agents
@@ -84,6 +85,7 @@ def resolve_updated_input(
     subagent_type = tool_input.get("subagent_type")
     if not isinstance(subagent_type, str) or not subagent_type:
         return None
+    subagent_type = strip_plugin_prefix(subagent_type)
 
     skills = skills_for_agent_type(subagent_type, agents_dir)
     if not skills:
@@ -93,25 +95,28 @@ def resolve_updated_input(
 
 
 def main() -> int:
-    payload = read_stdin_json()
-    if payload is None:
-        # Empty or malformed stdin -> silent pass, same as every other hook.
-        return 0
+    try:
+        payload = read_stdin_json()
+        if payload is None:
+            # Empty or malformed stdin -> silent pass, same as every other hook.
+            return 0
 
-    updated_input = resolve_updated_input(payload)
-    if updated_input is None:
-        return 0
+        updated_input = resolve_updated_input(payload)
+        if updated_input is None:
+            return 0
 
-    print(
-        json.dumps(
-            {
-                "hookSpecificOutput": {
-                    "hookEventName": "PreToolUse",
-                    "updatedInput": updated_input,
+        print(
+            json.dumps(
+                {
+                    "hookSpecificOutput": {
+                        "hookEventName": "PreToolUse",
+                        "updatedInput": updated_input,
+                    }
                 }
-            }
+            )
         )
-    )
+    except Exception:  # noqa: BLE001, S110 — fail-open by design, see module docstring
+        pass
     return 0
 
 

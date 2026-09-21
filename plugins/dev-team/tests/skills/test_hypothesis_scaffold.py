@@ -78,3 +78,30 @@ def test_no_derivable_property_prints_exact_message_and_writes_nothing(
     captured = capsys.readouterr()
     assert captured.out.strip() == NO_PROPERTY_MESSAGE.format(function="add_one")
     assert list(tmp_path.iterdir()) == []
+
+
+def test_class_method_invariant_is_not_derived_as_module_level(
+    tmp_path, capsys
+) -> None:
+    """A method with an invariant-shaped docstring must not be scaffolded as
+    a module-level function — the invariant render path assumes `from
+    {module} import {function_name}` works, which is false for a method
+    (regression: previously produced an unimportable generated test file,
+    since ast.walk() matched the method the same way it would a module-level
+    function)."""
+    module_path = tmp_path / "class_invariant_module.py"
+    module_path.write_text(
+        "class Sorter:\n"
+        "    def sort_values(self, values: list[int]) -> list[int]:\n"
+        '        """Returns sorted output."""\n'
+        "        return sorted(values)\n",
+        encoding="utf-8",
+    )
+
+    out_dir = tmp_path / "out"
+    out_path = scaffold(str(module_path), "sort_values", str(out_dir))
+
+    assert out_path is None
+    captured = capsys.readouterr()
+    assert captured.out.strip() == NO_PROPERTY_MESSAGE.format(function="sort_values")
+    assert not out_dir.exists() or list(out_dir.iterdir()) == []

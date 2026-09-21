@@ -9,14 +9,16 @@ row.
 from __future__ import annotations
 
 import json
+import os
+import subprocess
 import sys
 from pathlib import Path
 
 _HOOK_DIR = Path(__file__).resolve().parents[2] / "hooks"
+_HOOK_PY = _HOOK_DIR / "subagent_completion_guard.py"
 if str(_HOOK_DIR) not in sys.path:
     sys.path.insert(0, str(_HOOK_DIR))
 
-import subagent_completion_guard as guard
 from subagent_completion_guard import classify_stop
 
 
@@ -127,31 +129,44 @@ def _events_path(tmp_path: Path) -> Path:
     return tmp_path / ".claude" / "metrics" / "boundary-events.jsonl"
 
 
-def _run_main(tmp_path, monkeypatch, transcript_path: str) -> int:
-    monkeypatch.chdir(tmp_path)
-    monkeypatch.setattr(
-        guard,
-        "read_stdin_json",
-        lambda: {
-            "transcript_path": transcript_path,
-            "session_id": "sess-1",
-            "cwd": str(tmp_path),
-        },
+def _run_hook(raw_stdin: bytes) -> subprocess.CompletedProcess:
+    return subprocess.run(
+        [sys.executable, str(_HOOK_PY)],
+        input=raw_stdin,
+        env={"PATH": os.environ.get("PATH", "/usr/bin:/bin")},
+        capture_output=True,
+        timeout=10,
+        check=False,
     )
-    return guard.main()
 
 
-def test_main_emits_nothing_for_clean_transcript(tmp_path, monkeypatch):
+def _run_main(tmp_path, transcript_path: str) -> int:
+    """Invoke the real script end-to-end via subprocess — exercises `main()`'s
+    actual stdin-parsing path (`read_stdin_json`) instead of monkeypatching
+    that internal collaborator, matching
+    `test_subagent_skill_context.py`'s `_run_hook()` convention."""
+    payload = {
+        "transcript_path": transcript_path,
+        "session_id": "sess-1",
+        "cwd": str(tmp_path),
+    }
+    result = _run_hook(json.dumps(payload).encode())
+    assert result.stdout == b""
+    assert result.stderr == b""
+    return result.returncode
+
+
+def test_main_emits_nothing_for_clean_transcript(tmp_path):
     transcript = _write_transcript(
         tmp_path, [_assistant_row([{"type": "text", "text": "Report delivered."}], None)]
     )
-    assert _run_main(tmp_path, monkeypatch, transcript) == 0
+    assert _run_main(tmp_path, transcript) == 0
     assert not _events_path(tmp_path).exists()
 
 
-def test_main_emits_empty_final_turn_event(tmp_path, monkeypatch):
+def test_main_emits_empty_final_turn_event(tmp_path):
     transcript = _write_transcript(tmp_path, [_assistant_row([], "end_turn")])
-    assert _run_main(tmp_path, monkeypatch, transcript) == 0
+    assert _run_main(tmp_path, transcript) == 0
 
     events_path = _events_path(tmp_path)
     assert events_path.is_file()
@@ -164,12 +179,12 @@ def test_main_emits_empty_final_turn_event(tmp_path, monkeypatch):
     assert events[0]["session_id"] == "sess-1"
 
 
-def test_main_emits_truncated_final_turn_event(tmp_path, monkeypatch):
+def test_main_emits_truncated_final_turn_event(tmp_path):
     transcript = _write_transcript(
         tmp_path,
         [_assistant_row([{"type": "text", "text": "partial..."}], "max_tokens")],
     )
-    assert _run_main(tmp_path, monkeypatch, transcript) == 0
+    assert _run_main(tmp_path, transcript) == 0
 
     events_path = _events_path(tmp_path)
     assert events_path.is_file()
@@ -178,7 +193,24 @@ def test_main_emits_truncated_final_turn_event(tmp_path, monkeypatch):
     assert events[0]["matched_rule"] == "truncated-final-turn"
 
 
-def test_main_emits_nothing_for_unreadable_transcript(tmp_path, monkeypatch):
+def test_main_emits_nothing_for_unreadable_transcript(tmp_path):
     missing = str(tmp_path / "does-not-exist.jsonl")
-    assert _run_main(tmp_path, monkeypatch, missing) == 0
+    assert _run_main(tmp_path, missing) == 0
     assert not _events_path(tmp_path).exists()
+
+
+def test_main_is_silent_pass_on_malformed_stdin() -> None:
+    """Drives `main()`'s real `read_stdin_json()` call through invalid JSON —
+    the fail-open contract the module docstring claims ("Any error -> exit 0
+    silently"), previously exercised only via `classify_stop()` directly."""
+    result = _run_hook(b"not json")
+    assert result.returncode == 0
+    assert result.stdout == b""
+    assert result.stderr == b""
+
+
+def test_main_is_silent_pass_on_missing_transcript_path_key() -> None:
+    result = _run_hook(json.dumps({"session_id": "sess-1", "cwd": "/tmp"}).encode())
+    assert result.returncode == 0
+    assert result.stdout == b""
+    assert result.stderr == b""

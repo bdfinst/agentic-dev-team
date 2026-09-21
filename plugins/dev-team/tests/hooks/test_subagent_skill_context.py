@@ -96,6 +96,43 @@ def test_known_agent_type_with_skills_emits_additional_context(
     assert updated_input["prompt"] == "original dispatch prompt"
 
 
+def test_plugin_qualified_dispatch_form_resolves_same_as_bare_name(
+    monkeypatch, tmp_path: Path
+) -> None:
+    """A real installed dispatch arrives as `dev-team:<agent>`, not the bare
+    name — `agent_dispatch_ledger.py`'s own PreToolUse hook on this same
+    matcher normalizes it the same way (`strip_plugin_prefix`). Without that
+    normalization this hook would silently no-op on every real dispatch."""
+    _write_agent(
+        tmp_path,
+        "fixture-agent",
+        "---\n"
+        "name: fixture-agent\n"
+        "description: test fixture\n"
+        "skills:\n"
+        "  - test-driven-development\n"
+        "---\n\n# Fixture Agent\n",
+    )
+    monkeypatch.setattr(hook, "_DEFAULT_AGENTS_DIR", tmp_path)
+
+    payload = {
+        "tool_name": "Agent",
+        "tool_input": {
+            "subagent_type": "dev-team:fixture-agent",
+            "prompt": "original dispatch prompt",
+        },
+    }
+    stdout = _run_hook_main_inprocess(monkeypatch, payload)
+
+    assert stdout.strip()
+    emitted = json.loads(stdout)
+    updated_input = emitted["hookSpecificOutput"]["updatedInput"]
+    assert "test-driven-development" in updated_input["additionalContext"]
+    # Original tool_input key preserved unchanged, including the
+    # plugin-qualified subagent_type itself.
+    assert updated_input["subagent_type"] == "dev-team:fixture-agent"
+
+
 def test_resolve_updated_input_returns_none_for_unrecognized_type(
     tmp_path: Path,
 ) -> None:

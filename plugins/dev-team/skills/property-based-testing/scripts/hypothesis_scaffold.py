@@ -79,7 +79,13 @@ def _parse_module(module_path: str) -> ast.Module:
 
 
 def _find_function(tree: ast.Module, name: str) -> ast.FunctionDef | None:
-    for node in ast.walk(tree):
+    """Module-level functions only — deliberately not `ast.walk`, which
+    would also match a same-named method inside a class body. The invariant
+    render path assumes a module-level import (`from {module} import
+    {function_name}`), which is wrong for a method (no `self`/receiver, no
+    class import/instantiation) — see `find_roundtrip_pair` for the
+    separate, already class-aware handling the round-trip path has."""
+    for node in tree.body:
         if isinstance(node, ast.FunctionDef) and node.name == name:
             return node
     return None

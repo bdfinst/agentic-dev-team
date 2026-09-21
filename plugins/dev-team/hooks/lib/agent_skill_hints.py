@@ -43,7 +43,7 @@ def skills_for_agent_type(agent_type: str, agents_dir: Path) -> list[str]:
     """
     try:
         text = (agents_dir / f"{agent_type}.md").read_text(encoding="utf-8")
-    except OSError:
+    except (OSError, UnicodeDecodeError):
         return []
     try:
         frontmatter = parse_yaml(extract_frontmatter_block(text))
