@@ -305,6 +305,10 @@
           {
             "type": "command",
             "command": "sh hooks/py.sh hooks/task_completion_metrics.py"
+          },
+          {
+            "type": "command",
+            "command": "sh hooks/py.sh hooks/subagent_completion_guard.py"
           }
         ]
       }
