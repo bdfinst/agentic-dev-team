@@ -41,6 +41,16 @@ observed the flag was never supplied; :func:`decide` then forces
 ``ask-operator`` with a reason naming the missing detector run, combined with
 the budget signal exactly like a real blocker set would be.
 
+Version scope (#2184): this gate exists for Stryker.NET < 5.0.0. On a known
+>= 5.0.0 install, ``stryker_xunit_shim_guard.py`` silent-passes before the
+shim-first probe this arbiter consumes would ever run — ``-t mtp`` +
+``coverage-analysis: perTest`` already gets per-test coverage directly on
+xunit.v3 (stryker-net#3752), so there is no shim to probe, decline, or
+degrade from. Running this gate's probe against a >= 5.0.0 install is
+unnecessary work, not incorrect — the arbiter itself is unchanged; the
+version gate simply means callers on a known >= 5.0.0 install should skip
+invoking it in the first place.
+
 Stdlib-only.
 """
 

@@ -32,6 +32,14 @@ The four options mirror the issue verbatim: ``port`` the flagged files,
 ``exclude`` them from the shim's compile set, ``skip`` (temporarily
 deactivate) just the offending tests, or ``degrade`` to the no-shim floor.
 
+Version scope (#2184): this whole gate is a < 5.0.0 concern.
+``stryker_xunit_shim_guard.py`` silent-passes a known >= 5.0.0 install
+before ever reaching this module, since ``-t mtp`` +
+``coverage-analysis: perTest`` observes kills through xunit.v3 directly on
+that version and above (stryker-net#3752) — no shim, no port/exclude/skip
+tradeoff, and no degrade fallback to weigh. An undetermined version still
+fails closed to this gate.
+
 Audit trail (#1870): the decision store on its own is silent — the same
 agent the gate constrains can record its own choice (most plausibly
 ``exclude``, narrowing mutation coverage) with nothing else in the harness

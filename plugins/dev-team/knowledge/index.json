@@ -6080,8 +6080,12 @@
       "summary": "Stryker.NET (through at least 4.15/4.16) **cannot observe mutant kills through",
       "anchor": "why-this-exists"
     },
+    "Version scope — this whole skill is a < 5.0.0 workaround": {
+      "summary": "Everything below applies to **Stryker.NET < 5.0.0**.",
+      "anchor": "version-scope-this-whole-skill-is-a-500-workaround"
+    },
     "Scope — one path, not the only one": {
-      "summary": "The shim is the path that keeps the **mutant-kill loop** viable on xunit.v3, because it restores per-test coverage (fast covering-subset per mutant).",
+      "summary": "The shim is the path that keeps the **mutant-kill loop** viable on xunit.v3 **below 5.0.0**, because it restores per-test coverage (fast covering-subset per mutant).",
       "anchor": "scope-one-path-not-the-only-one"
     },
     "When to build it": {
