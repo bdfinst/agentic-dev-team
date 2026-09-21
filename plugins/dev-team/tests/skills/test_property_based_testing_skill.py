@@ -166,7 +166,7 @@ def test_documents_mutation_testing_recommendation_not_auto_run():
     )
 
 
-def test_documents_javascript_dispatch_without_blocking_on_step_4_3():
+def test_documents_javascript_dispatch_via_step_4_3_reference():
     text = _text()
-    assert grep(r"not yet implemented", text, ignore_case=True)
-    assert "2190" in text
+    assert "references/languages/javascript.md" in text
+    assert grep(r"fast-check", text, ignore_case=True)

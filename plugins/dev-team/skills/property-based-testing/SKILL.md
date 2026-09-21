@@ -4,6 +4,7 @@ description: Generate a runnable property-based test for a target function from 
 role: worker
 user-invocable: true
 argument-hint: "<module_path> <function_name>"
+allowed-tools: Read, Write, Bash(python3 "${CLAUDE_PLUGIN_ROOT}/skills/property-based-testing/scripts/detect_and_dispatch.py" *, python3 "${CLAUDE_PLUGIN_ROOT}/skills/property-based-testing/scripts/hypothesis_scaffold.py" *, npm install *, npx vitest *)
 ---
 
 # Property-Based Testing
@@ -93,17 +94,12 @@ states for every lane and capability tool.
   derived" message and writes nothing — report that message verbatim rather
   than fabricating a property.
 
-- **JavaScript/TypeScript** — **not yet implemented.** The fast-check
-  equivalent of the scaffold above — property-kind derivation, generation,
-  and the vendored-fixture test run — is Step 4.3 of this same plan slice
-  (issue #2190) and lands in `references/languages/javascript.md`. Until
-  that step ships, report:
-
-  ```
-  fast-check scaffolding not yet implemented — tracked in issue #2190 Step 4.3.
-  ```
-
-  and stop — do not attempt a partial JS/TS generation ahead of that work.
+- **JavaScript/TypeScript** — follow
+  [`references/languages/javascript.md`](references/languages/javascript.md)
+  for the fast-check equivalent of the Python scaffold above: the same
+  round-trip/invariant heuristic (an `encode`/`decode` export pair, or a
+  recognized postcondition phrase in a JSDoc comment near a type
+  signature), emitting a runnable `fc.assert(fc.property(...))` test file.
 
 ### Step 5: Recommend the mutation-testing follow-up (documentation only)
 
