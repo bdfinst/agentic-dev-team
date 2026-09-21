@@ -84,6 +84,8 @@ CEILING_INVOCATION_PREFIX = (
     "'jsonschema>=4.0'",
     "--with",
     "'PyYAML>=6.0'",
+    "--with",
+    "'hypothesis>=6.0'",
 )
 
 #: The full pytest argument list `chk_python_ceiling` must pass, in order.

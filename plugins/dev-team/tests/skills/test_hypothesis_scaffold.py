@@ -5,7 +5,11 @@ heuristic (docstring postcondition near a type hint), and the negative case
 (neither heuristic matches -> exact message, no file written). The
 round-trip and invariant generated test files are additionally run via a
 real `pytest` subprocess to confirm they pass against `hypothesis`-generated
-inputs, not just that the source text looks right.
+inputs, not just that the source text looks right — those two tests
+`pytest.importorskip("hypothesis")` first, since the subprocess uses the
+same interpreter/site-packages as this test process: `hypothesis` is a dev-
+only dependency (requirements-dev.txt), not guaranteed present in every CI
+job that runs this suite.
 """
 
 from __future__ import annotations
@@ -37,6 +41,7 @@ def _run_generated_test(test_path: Path) -> subprocess.CompletedProcess:
 
 
 def test_roundtrip_fixture_generates_passing_decode_encode_property(tmp_path) -> None:
+    pytest.importorskip("hypothesis")
     module_path = FIXTURES_DIR / "roundtrip_fixture.py"
 
     out_path = scaffold(str(module_path), "encode", str(tmp_path))
@@ -54,6 +59,7 @@ def test_roundtrip_fixture_generates_passing_decode_encode_property(tmp_path) ->
 
 
 def test_invariant_fixture_generates_passing_sorted_property(tmp_path) -> None:
+    pytest.importorskip("hypothesis")
     module_path = FIXTURES_DIR / "invariant_fixture.py"
 
     out_path = scaffold(str(module_path), "sort_values", str(tmp_path))

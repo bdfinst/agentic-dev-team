@@ -517,7 +517,7 @@ chk_python_ceiling() {
   # neutralized run of it (#1876).
   PYTEST_ADDOPTS= PYTEST_DISABLE_PLUGIN_AUTOLOAD= uv run --python "$pyceil" \
     --with 'pytest>=7.0' --with 'pytest-asyncio>=0.23' --with 'pytest-xdist>=3.0' \
-    --with 'jsonschema>=4.0' --with 'PyYAML>=6.0' \
+    --with 'jsonschema>=4.0' --with 'PyYAML>=6.0' --with 'hypothesis>=6.0' \
     -m pytest \
     plugins/dev-team/tests tests/repo tests/agents tests/commands \
     tests/docs tests/knowledge tests/stack_aware tests/skills tests/scripts tests/hooks \
