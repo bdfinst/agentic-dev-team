@@ -16,6 +16,7 @@ _HOOK_DIR = Path(__file__).resolve().parents[2] / "hooks"
 if str(_HOOK_DIR) not in sys.path:
     sys.path.insert(0, str(_HOOK_DIR))
 
+import subagent_completion_guard as guard
 from subagent_completion_guard import classify_stop
 
 
@@ -115,3 +116,69 @@ def test_earlier_rows_ignored_only_last_row_governs(tmp_path):
         ],
     )
     assert classify_stop(path) == "clean"
+
+
+# ---------------------------------------------------------------------------
+# main() end-to-end + boundary-events emission (#2188 Step 2.2).
+# ---------------------------------------------------------------------------
+
+
+def _events_path(tmp_path: Path) -> Path:
+    return tmp_path / ".claude" / "metrics" / "boundary-events.jsonl"
+
+
+def _run_main(tmp_path, monkeypatch, transcript_path: str) -> int:
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(
+        guard,
+        "read_stdin_json",
+        lambda: {
+            "transcript_path": transcript_path,
+            "session_id": "sess-1",
+            "cwd": str(tmp_path),
+        },
+    )
+    return guard.main()
+
+
+def test_main_emits_nothing_for_clean_transcript(tmp_path, monkeypatch):
+    transcript = _write_transcript(
+        tmp_path, [_assistant_row([{"type": "text", "text": "Report delivered."}], None)]
+    )
+    assert _run_main(tmp_path, monkeypatch, transcript) == 0
+    assert not _events_path(tmp_path).exists()
+
+
+def test_main_emits_empty_final_turn_event(tmp_path, monkeypatch):
+    transcript = _write_transcript(tmp_path, [_assistant_row([], "end_turn")])
+    assert _run_main(tmp_path, monkeypatch, transcript) == 0
+
+    events_path = _events_path(tmp_path)
+    assert events_path.is_file()
+    events = [json.loads(line) for line in events_path.read_text().splitlines() if line]
+    assert len(events) == 1
+    assert events[0]["hook"] == "subagent_completion_guard"
+    assert events[0]["tool"] == "SubagentStop"
+    assert events[0]["decision"] == "warn"
+    assert events[0]["matched_rule"] == "empty-final-turn"
+    assert events[0]["session_id"] == "sess-1"
+
+
+def test_main_emits_truncated_final_turn_event(tmp_path, monkeypatch):
+    transcript = _write_transcript(
+        tmp_path,
+        [_assistant_row([{"type": "text", "text": "partial..."}], "max_tokens")],
+    )
+    assert _run_main(tmp_path, monkeypatch, transcript) == 0
+
+    events_path = _events_path(tmp_path)
+    assert events_path.is_file()
+    events = [json.loads(line) for line in events_path.read_text().splitlines() if line]
+    assert len(events) == 1
+    assert events[0]["matched_rule"] == "truncated-final-turn"
+
+
+def test_main_emits_nothing_for_unreadable_transcript(tmp_path, monkeypatch):
+    missing = str(tmp_path / "does-not-exist.jsonl")
+    assert _run_main(tmp_path, monkeypatch, missing) == 0
+    assert not _events_path(tmp_path).exists()

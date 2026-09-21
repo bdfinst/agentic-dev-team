@@ -10,9 +10,11 @@ findings into `classify_stop()`.
 ## Contract (docs/python-hook-contract.md)
 
     Input : SubagentStop JSON on stdin (`transcript_path`, `session_id`, `cwd`)
-    Output: none yet — `main()` reads the payload and classifies, but does not
-        emit a boundary event. Step 2.2 (separate dispatch) wires
-        `classify_stop()`'s result to `hooks/lib/boundary_events.emit_boundary_event`.
+    Output: one `boundary-events.jsonl` "warn" record via
+        `hooks/lib/boundary_events.emit_boundary_event` for the two
+        non-clean, explainable classifications (`empty-final-turn`,
+        `truncated-final-turn`); nothing emitted for `clean` or
+        `unreadable` (Step 2.2, see `_EMIT_CLASSIFICATIONS`).
     Posture: record-only and fail-open. Any error -> exit 0 silently.
 
 Stdlib-only (json/pathlib/sys). See ADR 0014, ADR 0015.
@@ -142,11 +144,22 @@ _LIB_DIR = _HOOK_DIR / "lib"
 if str(_LIB_DIR) not in sys.path:
     sys.path.insert(0, str(_LIB_DIR))
 
+from boundary_events import emit_boundary_event  # type: ignore[import-not-found]
 from stdin_json import read_stdin_json  # type: ignore[import-not-found]
 
 StopClassification = Literal[
     "clean", "empty-final-turn", "truncated-final-turn", "unreadable"
 ]
+
+# Classifications that warrant a boundary event (#2188 Step 2.2). "clean" and
+# "unreadable" are both no-ops: "clean" is the expected happy path (nothing to
+# record), and "unreadable" has no reliable transcript-level signal to name a
+# rule for (see Finding 4 above) -- emitting a matched_rule for a case this
+# hook itself can't explain would be a fabricated-confidence event, so it
+# stays silent like every other fail-open path in this hook.
+_EMIT_CLASSIFICATIONS: frozenset[StopClassification] = frozenset(
+    {"empty-final-turn", "truncated-final-turn"}
+)
 
 
 def _tail_lines(path: Path, n: int = 50) -> list[str]:
@@ -219,8 +232,8 @@ def classify_stop(transcript_path: str) -> StopClassification:
 
     See the module-level "Classification precedence" section above for the
     full rule order and citations. Pure function: no I/O beyond reading
-    `transcript_path`, no side effects — Step 2.2 wires the result to
-    `hooks/lib/boundary_events.emit_boundary_event`.
+    `transcript_path`, no side effects — `main()` wires the result to
+    `hooks/lib/boundary_events.emit_boundary_event` (Step 2.2).
     """
     row = _last_row(transcript_path)
     if row is None:
@@ -242,15 +255,32 @@ def classify_stop(transcript_path: str) -> StopClassification:
 def main() -> int:
     """Fail-open SubagentStop entry point.
 
-    Reads the hook payload and classifies the transcript tail, but does not
-    yet act on the result — Step 2.2 (separate dispatch) adds the
-    `emit_boundary_event` call for the non-clean outcomes.
+    Reads the hook payload, classifies the transcript tail, and emits a
+    `boundary-events.jsonl` "warn" record for the two non-clean, explainable
+    outcomes (`empty-final-turn`, `truncated-final-turn`) via
+    `hooks/lib/boundary_events.emit_boundary_event` — see
+    `_EMIT_CLASSIFICATIONS` above for why `clean`/`unreadable` stay silent.
+    `emit_boundary_event` is already fail-open internally (module docstring,
+    `boundary_events.py`); this function's own try/except is the same
+    outer safety net every other hook in this plugin wraps its entire
+    `main()` in (e.g. `context_ceiling_guard.py`), so a failure anywhere in
+    this hook — payload parsing, classification, or emission — degrades to a
+    silent no-op, never a crash or a non-zero exit.
     """
     try:
         payload = read_stdin_json() or {}
         transcript_path = payload.get("transcript_path")
         if isinstance(transcript_path, str) and transcript_path:
-            classify_stop(transcript_path)
+            classification = classify_stop(transcript_path)
+            if classification in _EMIT_CLASSIFICATIONS:
+                emit_boundary_event(
+                    payload.get("cwd"),
+                    "subagent_completion_guard",
+                    "SubagentStop",
+                    "warn",
+                    classification,
+                    payload.get("session_id"),
+                )
     except Exception:  # noqa: BLE001, S110 — fail-open by design, see module docstring
         pass
     return 0
