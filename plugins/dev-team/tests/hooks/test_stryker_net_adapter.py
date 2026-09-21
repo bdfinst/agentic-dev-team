@@ -11,12 +11,26 @@ from __future__ import annotations
 import subprocess
 import sys
 
+import pytest
+
 from _repo_root import REPO_ROOT as _REPO_ROOT
 
 _PLUGIN_ROOT = _REPO_ROOT / "plugins" / "dev-team"
 sys.path.insert(0, str(_PLUGIN_ROOT / "hooks"))
 
 from mutation_adapters import stryker_net as sn
+
+
+@pytest.fixture(autouse=True)
+def _clear_version_probe_cache():
+    """`_stryker_net_version_probe()` is `functools.lru_cache`d for the
+    lifetime of the process (#2184) — every test that touches `dotnet`
+    detection/version resolution must start from a clean cache, or an
+    earlier test's monkeypatched `subprocess.run`/`shutil.which` result
+    leaks into a later one."""
+    sn._stryker_net_version_probe.cache_clear()
+    yield
+    sn._stryker_net_version_probe.cache_clear()
 
 
 def _stub_run(stdout_bytes: bytes):
@@ -129,6 +143,95 @@ def test_detect_true_via_dotnet_stryker_version_probe(tmp_path, monkeypatch) -> 
     monkeypatch.setattr(sn.subprocess, "run", fake_run)
     assert sn.stryker_net_detect() is True
     assert calls["argv"] == ["dotnet", "stryker", "--version"]
+
+
+# ---------------------------------------------------------------------------
+# stryker_net_version() / _parse_version() — #2184
+# ---------------------------------------------------------------------------
+
+
+def test_parse_version_extracts_leading_semver_triple() -> None:
+    assert sn._parse_version("5.0.0") == (5, 0, 0)
+    assert sn._parse_version("Stryker.NET 5.0.0") == (5, 0, 0)
+    assert sn._parse_version("v4.16.1\n") == (4, 16, 1)
+
+
+def test_parse_version_handles_prerelease_and_build_metadata() -> None:
+    assert sn._parse_version("5.0.0-preview.1") == (5, 0, 0)
+    assert sn._parse_version("5.0.0+abcdef1") == (5, 0, 0)
+
+
+def test_parse_version_returns_none_for_unparseable_text() -> None:
+    assert sn._parse_version("") is None
+    assert sn._parse_version("not a version") is None
+    assert sn._parse_version("v5") is None
+
+
+def test_version_honors_override_env_without_shelling_out(monkeypatch) -> None:
+    monkeypatch.setenv(sn._VERSION_OVERRIDE_ENV, "5.0.0")
+
+    def _fail_if_called(*_a, **_k):  # pragma: no cover - assertion helper
+        raise AssertionError("must not probe dotnet when the override is set")
+
+    monkeypatch.setattr(sn.shutil, "which", _fail_if_called)
+    assert sn.stryker_net_version() == (5, 0, 0)
+
+
+def test_version_returns_none_when_dotnet_missing(monkeypatch) -> None:
+    monkeypatch.delenv(sn._VERSION_OVERRIDE_ENV, raising=False)
+    monkeypatch.setattr(sn.shutil, "which", lambda _name: None)
+    assert sn.stryker_net_version() is None
+
+
+def test_version_returns_none_on_unparseable_cli_output(monkeypatch) -> None:
+    monkeypatch.delenv(sn._VERSION_OVERRIDE_ENV, raising=False)
+    monkeypatch.setattr(
+        sn.shutil, "which", lambda name: "/usr/bin/dotnet" if name == "dotnet" else None
+    )
+    monkeypatch.setattr(
+        sn.subprocess,
+        "run",
+        lambda argv, **_kwargs: subprocess.CompletedProcess(
+            args=argv, returncode=0, stdout="garbled output, no version here\n"
+        ),
+    )
+    assert sn.stryker_net_version() is None
+
+
+def test_version_parses_real_cli_probe_output(monkeypatch) -> None:
+    monkeypatch.delenv(sn._VERSION_OVERRIDE_ENV, raising=False)
+    monkeypatch.setattr(
+        sn.shutil, "which", lambda name: "/usr/bin/dotnet" if name == "dotnet" else None
+    )
+    monkeypatch.setattr(
+        sn.subprocess,
+        "run",
+        lambda argv, **_kwargs: subprocess.CompletedProcess(
+            args=argv, returncode=0, stdout="5.0.0\n"
+        ),
+    )
+    assert sn.stryker_net_version() == (5, 0, 0)
+
+
+def test_version_probe_is_shared_and_cached_across_both_callers(monkeypatch) -> None:
+    """`stryker_net_detect()` and `stryker_net_version()` must read through
+    the SAME cached probe, not shell out to `dotnet stryker --version`
+    independently (#2184's "extract a shared ... accessor" requirement)."""
+    monkeypatch.delenv(sn._VERSION_OVERRIDE_ENV, raising=False)
+    monkeypatch.setattr(
+        sn.shutil, "which", lambda name: "/usr/bin/dotnet" if name == "dotnet" else None
+    )
+    calls = []
+
+    def fake_run(argv, **_kwargs):
+        calls.append(argv)
+        return subprocess.CompletedProcess(args=argv, returncode=0, stdout="5.0.0\n")
+
+    monkeypatch.setattr(sn.subprocess, "run", fake_run)
+
+    assert sn.stryker_net_detect() is True
+    assert sn.stryker_net_version() == (5, 0, 0)
+    assert len(calls) == 1
 
 
 def test_detect_false_advisory_names_setup_and_tool_install(tmp_path, monkeypatch, capsys) -> None:

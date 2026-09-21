@@ -86,15 +86,27 @@ python3 "${CLAUDE_PLUGIN_ROOT}/skills/mutation-testing/scripts/xunit_v3_feature_
 
 **"Deactivate" means exclude from the shim's `<Compile Include>` set, never edit the real test suite** — so there is no crash-unsafe "restore after the loop" step. The operator-selected exclusions are applied to the shim project by the shim-generation path (see [#1159](https://github.com/bdfinst/agentic-dev-team/issues/1159)); the loop-vs-degrade decision that consumes this gate's outcome lives in [#1158](https://github.com/bdfinst/agentic-dev-team/issues/1158).
 
-### No-shim floor — `-t mtp` + `coverage-analysis: off`
+### Stryker >= 5.0.0 — `-t mtp` + `coverage-analysis: perTest` restores real per-test coverage, no shim
 
-When the feasibility gate degrades — a declined shim, a failed per-test capture probe, or an operator choosing to degrade after an over-budget `ask-operator` prompt (see [mutation-kill.md](../../../../agents/mutation-kill.md#pre-loop-feasibility-gate-xunitv3-shim-first) — an over-budget estimate alone asks the operator, it does not auto-degrade) — the sanctioned fallback is to run the **real xunit.v3 suite** through the Microsoft Testing Platform runner with coverage off:
+Stryker.NET **5.0.0** (2026-09-11) shipped [stryker-net#3752](https://github.com/stryker-mutator/stryker-net/issues/3752) — MTP `perTest`/`perTestInIsolation` coverage analysis — plus [#3696](https://github.com/stryker-mutator/stryker-net/issues/3696) (flaky MTP coverage) and [#3769](https://github.com/stryker-mutator/stryker-net/issues/3769) (MTP coverage per mutated assembly). That closes the gap the shim exists to work around: against a **real xunit.v3 suite**, no shim, no v3-only-construct porting:
+
+```bash
+dotnet stryker -t mtp --config-file stryker-config.json   # coverage-analysis: perTest, concurrency: 1
+```
+
+**Pin `concurrency: 1` until [stryker-net#3832](https://github.com/stryker-mutator/stryker-net/issues/3832) closes** — an OPEN regression where 5.0.0 under-reports kills nondeterministically under MTP at concurrency > 1 (a proposed fix, #3724, was confirmed by the reporter NOT to resolve it; a minimal repro exists at `dclark-olm/stryker-3832-repro`). [#2192](https://github.com/bdfinst/agentic-dev-team/issues/2192) tracks removing this pin once #3832 ships a fix.
+
+`stryker_xunit_shim_guard.py` detects the installed version (`hooks/mutation_adapters/stryker_net.py::stryker_net_version()`) and silent-passes an xunit.v3 project run on >= 5.0.0 — it does not scaffold a shim or block, whichever runner flag the command uses. An undetermined version (no `dotnet` on PATH, or unparseable `--version` output) fails closed to the < 5.0.0 behavior below.
+
+### < 5.0.0 — no-shim floor: `-t mtp` + `coverage-analysis: off`
+
+On Stryker **< 5.0.0**, when the feasibility gate degrades — a declined shim, a failed per-test capture probe, or an operator choosing to degrade after an over-budget `ask-operator` prompt (see [mutation-kill.md](../../../../agents/mutation-kill.md#pre-loop-feasibility-gate-xunitv3-shim-first) — an over-budget estimate alone asks the operator, it does not auto-degrade) — the sanctioned fallback is to run the **real xunit.v3 suite** through the Microsoft Testing Platform runner with coverage off:
 
 ```bash
 dotnet stryker -t mtp --config-file stryker-config.json   # coverage-analysis: off
 ```
 
-No shim is built, so there are no v3-only-syntax compile breaks. **`-t mtp` is the floor, not a fast path** — it does not restore per-test coverage (stryker-net#3629 is closed-unfixed), so the run is still whole-suite-per-mutant and slow; use it for a single advisory pass, not the iterating loop. The `stryker_xunit_shim_guard.py` gate **exempts** an explicit `-t mtp` run (it produces a real score, so the false-~0% block does not apply).
+No shim is built, so there are no v3-only-syntax compile breaks. **On < 5.0.0, `-t mtp` is the floor, not a fast path** — it does not restore per-test coverage (stryker-net#3629 was closed-unfixed pre-5.0.0; #3752 above is what fixed it, starting at 5.0.0), so the run is still whole-suite-per-mutant and slow; use it for a single advisory pass, not the iterating loop. The `stryker_xunit_shim_guard.py` gate **exempts** an explicit `-t mtp` run on any version (it produces a real score once MTP coverage works, and on < 5.0.0 it's still the sanctioned single-pass floor either way, so the false-~0% block never applies to it).
 
 **Trigger is xunit.v3, not the TFM.** Decide `off`-vs-`perTest` from xunit.v3 in the **real** test suite, never from a csproj that may be the v2 shim — a shim's `xunit` v2 marker must not mask the real v3 project. **Runtime:** current Stryker.NET requires the **.NET 10 runtime to run** (even for older target projects); if `dotnet --version` is below 10, install/select it before any Stryker invocation.
 

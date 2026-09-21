@@ -7,8 +7,10 @@ the CLI surfaces diverge, only the JSON parser is the stable contract.
 
 from __future__ import annotations
 
+import functools
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -18,9 +20,83 @@ from . import lib
 
 DEFAULT_REPORT = "StrykerOutput/mutation-report.json"
 
+#: Manual/test override for `stryker_net_version()` — an exact "X.Y.Z" (or
+#: any string containing one) value. Takes precedence over the real `dotnet
+#: stryker --version` probe. Exists so `stryker_xunit_shim_guard.py` (which
+#: runs in a real subprocess in its own tests, so it can't monkeypatch this
+#: module's internals) can pin a version, and as a manual escape hatch when
+#: the installed CLI's own `--version` output can't be trusted (#2184).
+_VERSION_OVERRIDE_ENV = "DEV_TEAM_STRYKER_NET_VERSION"
+
+_VERSION_RE = re.compile(r"(\d+)\.(\d+)\.(\d+)")
+
 
 def _default_report_path() -> Path:
     return Path(os.environ.get("STRYKER_NET_REPORT", DEFAULT_REPORT))
+
+
+@functools.lru_cache(maxsize=1)
+def _stryker_net_version_probe() -> str | None:
+    """Cached raw stdout of `dotnet stryker --version`, or `None` when the
+    CLI can't be run at all (no `dotnet` on PATH, the subprocess failed to
+    start, or it exited non-zero).
+
+    Extracted as the single shared probe (#2184) — `stryker_net_detect()`
+    and `stryker_net_version()` both read through this rather than each
+    shelling out to `dotnet stryker --version` independently. Cached for
+    the lifetime of the process: this hook's own process only ever runs one
+    Stryker invocation, so a second call within it (e.g. detect-then-version
+    in the same run) should not pay for a second subprocess.
+
+    Test-only reset: `_stryker_net_version_probe.cache_clear()` (a plain
+    `functools.lru_cache` method) — required before any in-process test that
+    monkeypatches `subprocess.run`/`shutil.which`, since this cache is
+    otherwise shared across the whole pytest process.
+    """
+    if shutil.which("dotnet") is None:
+        return None
+    try:
+        proc = subprocess.run(
+            ["dotnet", "stryker", "--version"],
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=30,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return None
+    if proc.returncode != 0:
+        return None
+    return proc.stdout or ""
+
+
+def _parse_version(text: str) -> tuple[int, int, int] | None:
+    """First `MAJOR.MINOR.PATCH` substring in `text`, or `None` when none is
+    found. Deliberately permissive about surrounding text (a `v` prefix, a
+    package name, a `+`-separated build/prerelease suffix like
+    `5.0.0-preview+abcdef`) — only the leading three dot-separated integers
+    are meaningful for the `>= 5.0.0` comparison this exists for."""
+    match = _VERSION_RE.search(text)
+    if match is None:
+        return None
+    return (int(match.group(1)), int(match.group(2)), int(match.group(3)))
+
+
+def stryker_net_version() -> tuple[int, int, int] | None:
+    """Parsed `(major, minor, patch)` of the installed Stryker.NET CLI, or
+    `None` when it can't be determined (not installed, `dotnet` missing, or
+    unparseable `--version` output) — callers must fail closed on `None`,
+    never assume a version (#2184).
+
+    Honors `DEV_TEAM_STRYKER_NET_VERSION` first (see that constant's
+    docstring); otherwise reads the shared, cached `dotnet stryker
+    --version` probe.
+    """
+    override = os.environ.get(_VERSION_OVERRIDE_ENV)
+    text = override if override is not None else _stryker_net_version_probe()
+    if text is None:
+        return None
+    return _parse_version(text)
 
 
 def stryker_net_detect() -> bool:
@@ -32,18 +108,8 @@ def stryker_net_detect() -> bool:
                 return True
         except OSError:
             pass
-    if shutil.which("dotnet") is not None:
-        try:
-            proc = subprocess.run(
-                ["dotnet", "stryker", "--version"],
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL,
-                check=False,
-            )
-            if proc.returncode == 0:
-                return True
-        except (FileNotFoundError, OSError):
-            pass
+    if _stryker_net_version_probe() is not None:
+        return True
     print(
         lib.emit_advisory(
             "MUTATION GATE ADVISORY: Stryker.NET not installed. Run /setup "
