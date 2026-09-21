@@ -592,6 +592,16 @@ _TRANSCRIPT_PARSING_ALLOWLIST = {
         "deleted; the identifiers remain in this file's module docstring "
         "(Privacy boundary section) describing which fields it reads"
     ),
+    "plugins/dev-team/hooks/subagent_completion_guard.py": (
+        "reads only message.stop_reason and content off a subagent's own "
+        "transcript file's last JSON row -- never isSidechain/"
+        "attributionAgent/cache_*_input_tokens; the sole 'isSidechain' "
+        "occurrence is in this file's own module docstring, recording "
+        "issue #2188's Step 2.1a research finding (a subagent's own "
+        "transcript file has every row isSidechain:true by construction, "
+        "so no sidechain filtering is needed) -- prose, not a second "
+        "parsing implementation"
+    ),
     "plugins/dev-team/hooks/lib/pricing.py": (
         "reads a pre-extracted usage dict's known numeric fields "
         "(cache_creation_input_tokens/cache_read_input_tokens) for cost "

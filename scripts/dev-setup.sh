@@ -215,7 +215,8 @@ dev_deps_satisfied() {
   python3 - <<'PY' >/dev/null 2>&1
 import importlib.util, sys
 mods = ["yaml", "httpx", "jsonschema", "pytest",
-        "pytest_asyncio", "xdist", "pytest_cov", "semgrep", "mypy"]
+        "pytest_asyncio", "xdist", "pytest_cov", "semgrep", "mypy",
+        "hypothesis"]
 # ruff is probed as an importable MODULE, not via shutil.which (#1676):
 # chk_ruff runs `python3 -m ruff`, so a stray PATH binary at some other
 # version must not satisfy this check and skip the pinned install.
