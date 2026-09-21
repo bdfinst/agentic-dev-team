@@ -1,12 +1,26 @@
 #!/usr/bin/env python3
-"""Stryker xunit.v3 shim gate — PreToolUse hook (#1083).
+"""Stryker xunit.v3 shim gate — PreToolUse hook (#1083, version-gated #2184).
 
-Stryker.NET (through >=4.15/4.16) cannot observe mutant kills through xunit.v3:
+Stryker.NET **< 5.0.0** cannot observe mutant kills through xunit.v3:
 xunit.v3 runs on the Microsoft Testing Platform (MTP) and Stryker's per-test
 coverage/kill mapping does not work across it (stryker-net issues 3237/3629/3094).
 A run against a real xunit.v3 test project completes but reports a false near-zero
 score with almost everything "Survived" — silently, since the initial test run
-passes. The fix is a xunit.v2 shim project (see the stryker-xunit-v2-shim skill).
+passes. The fix, on those versions, is a xunit.v2 shim project (see the
+stryker-xunit-v2-shim skill).
+
+**Stryker.NET >= 5.0.0 closed this gap** (stryker-net#3752: MTP `perTest`/
+`perTestInIsolation` coverage analysis) — `-t mtp` alone now gives a real
+per-test score against the real xunit.v3 suite, no shim needed. This gate
+detects the installed version via `hooks/mutation_adapters/stryker_net.py`'s
+`stryker_net_version()` and silent-passes an xunit.v3 run on >= 5.0.0 rather
+than scaffolding a shim or blocking (`_version_exempt()`). An undetermined
+version (no `dotnet` on PATH, or unparseable `--version` output) fails closed
+to the < 5.0.0 behavior below, with a note in the block body saying so. See
+`skills/mutation-testing/references/languages/csharp-stryker-net.md`'s
+"Stryker >= 5.0.0" section for the `-t mtp` + `coverage-analysis: perTest` +
+`concurrency: 1` recommendation this gate's silent-pass hands off to
+(the `concurrency: 1` pin is for the OPEN stryker-net#3832 regression).
 
 On a `dotnet stryker` run that would produce the false score, this gate
 **auto-scaffolds the shim and reports what it wrote** (it is not silent), then
@@ -57,6 +71,7 @@ _PLUGIN_DIR = _HOOK_DIR.parent
 _LIB_DIR = _HOOK_DIR / "lib"
 
 sys.path.insert(0, str(_LIB_DIR))
+sys.path.insert(0, str(_HOOK_DIR))
 try:
     from stdin_json import read_stdin_json  # type: ignore[import-not-found]
 except ImportError:  # pragma: no cover - fallback keeps the hook self-contained
@@ -68,6 +83,17 @@ except ImportError:  # pragma: no cover - fallback keeps the hook self-contained
             return json.loads(sys.stdin.read() or "{}")
         except (ValueError, OSError):
             return None
+
+try:
+    from mutation_adapters.stryker_net import (  # type: ignore[import-not-found]
+        stryker_net_version,
+    )
+except ImportError:  # pragma: no cover - degraded fallback, adapter package unreachable
+    stryker_net_version = None  # type: ignore[assignment]
+
+#: Stryker.NET 5.0.0 (stryker-net#3752) restored real MTP per-test coverage,
+#: closing the gap the xunit.v2 shim exists to work around (#2184).
+_MTP_PER_TEST_COVERAGE_FLOOR = (5, 0, 0)
 
 
 try:
@@ -430,6 +456,44 @@ def _handle_v3_project(real_csproj: Path, cwd: Path) -> list[str]:
     return lines
 
 
+_VERSION_UNKNOWN_NOTE = (
+    "Note: Stryker.NET's version could not be determined (`dotnet`/`dotnet "
+    "stryker --version` unavailable or unparseable) — failing closed to the "
+    "pre-5.0.0, shim-required assumption below. Set "
+    "DEV_TEAM_STRYKER_NET_VERSION=<X.Y.Z> to override if the installed "
+    "version is actually >= 5.0.0 (#2184)."
+)
+
+
+def _version_exempt() -> tuple[bool, bool]:
+    """`(exempt, version_unknown)` for the installed Stryker.NET CLI.
+
+    `exempt=True` means the version is known to be >= 5.0.0, which restored
+    real MTP per-test coverage (stryker-net#3752) — the gap the xunit.v2
+    shim exists to work around is closed, so this gate should silent-pass
+    regardless of which runner flag the command uses (#2184).
+
+    `version_unknown=True` means the version could not be determined at
+    all (no `dotnet` on PATH, the probe failed, or its output didn't parse)
+    — the caller fails closed to the pre-5.0.0 shim-required behavior, but
+    should surface `_VERSION_UNKNOWN_NOTE` in the block body so the
+    operator can tell a real <5.0.0 detection apart from this fallback.
+
+    Deliberately called only where the guard is about to block (project or
+    solution mode, immediately before building the block body) — not
+    unconditionally at the top of `main()` — so the `dotnet stryker
+    --version` subprocess call never runs for the common case (no `.sln`
+    match, a v2 shim run, a non-Stryker command, or a project with no
+    xunit.v3 test project at all).
+    """
+    if stryker_net_version is None:  # pragma: no cover - degraded fallback, adapter unreachable
+        return False, True
+    version = stryker_net_version()
+    if version is None:
+        return False, True
+    return version >= _MTP_PER_TEST_COVERAGE_FLOOR, False
+
+
 def _block(lines: list[str]) -> int:
     print("\n".join(lines))
     return 2
@@ -472,18 +536,29 @@ def main() -> int:
     # Project mode bound directly to a xunit.v3 test project.
     v3_local = [p for p in local if _is_v3(p)]
     if v3_local:
-        return _block(_handle_v3_project(v3_local[0], base))
+        exempt, version_unknown = _version_exempt()
+        if exempt:
+            return 0
+        lines = _handle_v3_project(v3_local[0], base)
+        if version_unknown:
+            lines = [_VERSION_UNKNOWN_NOTE, ""] + lines
+        return _block(lines)
 
     # Solution mode: a bare run at a solution root binds to the v3 test project(s).
     if list(run_dir.glob("*.sln")):
         v3 = _find_v3_test_projects(run_dir)
         if v3:
+            exempt, version_unknown = _version_exempt()
+            if exempt:
+                return 0
             lines = [
                 "[BLOCK] `dotnet stryker` at this solution root enters solution mode and binds to",
                 "xunit.v3 test project(s), reporting a FALSE ~0% score (Stryker.NET can't observe",
                 "kills through xunit.v3 — MTP; stryker-net #3237/#3629/#3094). Handling each:",
                 "",
             ]
+            if version_unknown:
+                lines = [_VERSION_UNKNOWN_NOTE, ""] + lines
             for proj in v3[:5]:
                 lines += _handle_v3_project(proj, base) + [""]
             lines.append("Run each shim from its own directory (no .sln in scope forces project mode).")

@@ -28,9 +28,25 @@ of truth. Stryker is then run **from the shim directory** in project mode.
 [`references/shim-howto.md`](references/shim-howto.md) has the full reference build
 and any edge case not covered here.
 
+## Version scope — this whole skill is a < 5.0.0 workaround
+
+Everything below applies to **Stryker.NET < 5.0.0**. Starting at **5.0.0**
+([stryker-net#3752](https://github.com/stryker-mutator/stryker-net/issues/3752)),
+`-t mtp` + `coverage-analysis: perTest` observes mutant kills through xunit.v3
+directly — no shim, no v3-only-construct porting, no operator gate. See
+[`csharp-stryker-net.md`](../mutation-testing/references/languages/csharp-stryker-net.md)
+for the >= 5.0.0 command and its `concurrency: 1` caveat
+([stryker-net#3832](https://github.com/stryker-mutator/stryker-net/issues/3832),
+tracked for removal in [#2192](https://github.com/bdfinst/agentic-dev-team/issues/2192)).
+`stryker_xunit_shim_guard.py` detects the installed version
+(`hooks/mutation_adapters/stryker_net.py::stryker_net_version()`) and
+silent-passes on >= 5.0.0 — this skill's Step 1a operator gate is never
+reached on a known >= 5.0.0 install. An undetermined version fails closed to
+the < 5.0.0 behavior this skill documents.
+
 ## Scope — one path, not the only one
 
-The shim is the path that keeps the **mutant-kill loop** viable on xunit.v3, because it restores per-test coverage (fast covering-subset per mutant). It is not mandatory for every xunit.v3 run. Within `mutation-kill` the shim-first feasibility gate ([#1158](https://github.com/bdfinst/agentic-dev-team/issues/1158)) decides per run: build the shim and probe under `perTest`; if per-test capture works and a round fits the budget, enter the loop; otherwise **degrade** to the no-shim floor — the real v3 suite via `-t mtp` + `coverage-analysis: off` (a real but slow, whole-suite-per-mutant single advisory pass; see [`csharp-stryker-net.md`](../mutation-testing/references/languages/csharp-stryker-net.md)). Before building, [`xunit_v3_feature_detector.py`](../mutation-testing/scripts/xunit_v3_feature_detector.py) classifies the shim-breaking v3-only constructs for the always-ask operator gate in Step 1a — enforced by the guard hook, which stays blocked until the operator's choice is recorded ([#1791](https://github.com/bdfinst/agentic-dev-team/issues/1791)). On `exclude`, the guard passes their selections to `generate_shim.py --compile-exclude` itself.
+The shim is the path that keeps the **mutant-kill loop** viable on xunit.v3 **below 5.0.0**, because it restores per-test coverage (fast covering-subset per mutant). It is not mandatory for every xunit.v3 run. Within `mutation-kill` the shim-first feasibility gate ([#1158](https://github.com/bdfinst/agentic-dev-team/issues/1158)) decides per run: build the shim and probe under `perTest`; if per-test capture works and a round fits the budget, enter the loop; otherwise **degrade** to the no-shim floor — the real v3 suite via `-t mtp` + `coverage-analysis: off` (a real but slow, whole-suite-per-mutant single advisory pass; see [`csharp-stryker-net.md`](../mutation-testing/references/languages/csharp-stryker-net.md)). Before building, [`xunit_v3_feature_detector.py`](../mutation-testing/scripts/xunit_v3_feature_detector.py) classifies the shim-breaking v3-only constructs for the always-ask operator gate in Step 1a — enforced by the guard hook, which stays blocked until the operator's choice is recorded ([#1791](https://github.com/bdfinst/agentic-dev-team/issues/1791)). On `exclude`, the guard passes their selections to `generate_shim.py --compile-exclude` itself.
 
 ## When to build it
 
@@ -147,7 +163,7 @@ don't reuse one from an earlier run.
 | `port` | Rewrite the flagged constructs to v2-compatible forms (Step 3). The guard auto-scaffolds once the sources are clean. |
 | `exclude` | The guard scaffolds with `--compile-exclude` on the flagged files. They stay **unmeasured** — their mutants report as survivors. |
 | `skip` | Deactivate just the offending tests, then re-run. Clears the gate **only** where the deactivation removes the construct itself (`[Fact(Explicit = true)]` → `[Fact(Skip = "…")]`); a construct in a test body or on a data attribute stays in the source the shim compiles, so those need `port` or `exclude`. Undo at teardown. |
-| `degrade` | Skip the shim; run the no-shim floor (`-t mtp`, `coverage-analysis: off`) for one slow advisory pass. |
+| `degrade` | Skip the shim; run the no-shim floor (`-t mtp`, `coverage-analysis: off`) for one slow advisory pass. Only relevant below 5.0.0 — this whole gate is bypassed on a known >= 5.0.0 install (see Version scope above). |
 
 The fingerprint is **mandatory** — it is what scopes a decision to the blockers
 the operator actually saw. Add a new blocking file after they answered and the

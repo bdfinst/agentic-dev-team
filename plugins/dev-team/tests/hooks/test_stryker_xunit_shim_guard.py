@@ -11,6 +11,7 @@ from __future__ import annotations
 import json
 import os
 import subprocess
+import sys
 from pathlib import Path
 
 import pytest
@@ -48,6 +49,11 @@ def _run(payload: dict, extra_env: dict | None = None) -> subprocess.CompletedPr
         "HOME": os.environ.get("HOME", "/tmp"),
         "TMPDIR": os.environ.get("TMPDIR", "/tmp"),
         "PYTHONDONTWRITEBYTECODE": "1",
+        # Pin every test below to a pre-5.0.0 Stryker.NET, matching this
+        # file's own scope statement (#2184) -- the >= 5.0.0 exemption and
+        # the version-unknown fail-closed path get their own tests further
+        # down, each overriding this default explicitly.
+        "DEV_TEAM_STRYKER_NET_VERSION": "4.16.0",
         **(extra_env or {}),
     }
     return subprocess.run(
@@ -57,6 +63,34 @@ def _run(payload: dict, extra_env: dict | None = None) -> subprocess.CompletedPr
         capture_output=True,
         text=True,
         check=False,
+        timeout=30,
+    )
+
+
+def _run_no_version_override(payload: dict) -> subprocess.CompletedProcess:
+    """Like `_run`, but WITHOUT the default `DEV_TEAM_STRYKER_NET_VERSION`
+    pin — for the small number of tests exercising the real "no override,
+    dotnet unavailable" fail-closed path (#2184). `PATH` is scoped to just
+    the running interpreter's own directory: it always resolves `python3`
+    (needed to launch the hook itself) without depending on the host
+    machine happening to have no `dotnet` anywhere on its full PATH — a
+    .NET toolchain is never installed alongside the Python interpreter
+    itself, so this is deterministic on a dev machine that DOES have
+    `dotnet` installed elsewhere, not just in a sandbox that lacks one."""
+    proc_env = {
+        "PATH": os.path.dirname(sys.executable) or "/usr/bin:/bin",
+        "HOME": os.environ.get("HOME", "/tmp"),
+        "TMPDIR": os.environ.get("TMPDIR", "/tmp"),
+        "PYTHONDONTWRITEBYTECODE": "1",
+    }
+    return subprocess.run(
+        ["python3", str(_HOOK)],
+        input=json.dumps(payload),
+        env=proc_env,
+        capture_output=True,
+        text=True,
+        check=False,
+        timeout=30,
     )
 
 
@@ -127,6 +161,90 @@ def test_dotnet_dash_stryker_also_triggers(tmp_path):
     proc = _run({"tool_name": "Bash", "cwd": str(d),
                  "tool_input": {"command": "dotnet-stryker --reporter json"}})
     assert proc.returncode == 2
+
+
+# ---------------------------------------------------------------------------
+# Stryker.NET version gate (#2184) — >= 5.0.0 restored real MTP per-test
+# coverage (stryker-net#3752), closing the gap the shim exists to work
+# around. Every test above this section pins DEV_TEAM_STRYKER_NET_VERSION
+# to 4.16.0 (see `_run`'s default env) so their pre-5.0.0 assertions stay
+# exactly as before #2184.
+# ---------------------------------------------------------------------------
+
+
+def test_stryker_5_0_0_on_v3_project_is_not_blocked(tmp_path):
+    d = _v3_project(tmp_path)
+    proc = _run(
+        {"tool_name": "Bash", "cwd": str(d), "tool_input": {"command": "dotnet stryker"}},
+        extra_env={"DEV_TEAM_STRYKER_NET_VERSION": "5.0.0"},
+    )
+    assert proc.returncode == 0
+    assert proc.stdout == ""
+    # No shim scaffolded either -- a genuine silent-pass, not a side effect.
+    shim = tmp_path / "tests" / "Acme.Widgets.Tests.Mutation"
+    assert not shim.exists()
+
+
+def test_stryker_above_5_0_0_on_v3_project_is_not_blocked(tmp_path):
+    d = _v3_project(tmp_path)
+    proc = _run(
+        {"tool_name": "Bash", "cwd": str(d), "tool_input": {"command": "dotnet stryker"}},
+        extra_env={"DEV_TEAM_STRYKER_NET_VERSION": "5.1.2"},
+    )
+    assert proc.returncode == 0
+
+
+def test_stryker_5_0_0_prerelease_build_metadata_still_exempt(tmp_path):
+    d = _v3_project(tmp_path)
+    proc = _run(
+        {"tool_name": "Bash", "cwd": str(d), "tool_input": {"command": "dotnet stryker"}},
+        extra_env={"DEV_TEAM_STRYKER_NET_VERSION": "5.0.0-preview.1+abcdef"},
+    )
+    assert proc.returncode == 0
+
+
+def test_stryker_just_below_5_0_0_still_blocks(tmp_path):
+    d = _v3_project(tmp_path)
+    proc = _run(
+        {"tool_name": "Bash", "cwd": str(d), "tool_input": {"command": "dotnet stryker"}},
+        extra_env={"DEV_TEAM_STRYKER_NET_VERSION": "4.16.1"},
+    )
+    assert proc.returncode == 2
+    assert proc.stdout.startswith("[BLOCK]")
+    assert "could not be determined" not in proc.stdout
+
+
+def test_unparseable_version_fails_closed_and_says_so_in_the_block_body(tmp_path):
+    d = _v3_project(tmp_path)
+    proc = _run(
+        {"tool_name": "Bash", "cwd": str(d), "tool_input": {"command": "dotnet stryker"}},
+        extra_env={"DEV_TEAM_STRYKER_NET_VERSION": "not-a-version"},
+    )
+    assert proc.returncode == 2
+    assert proc.stdout.startswith("Note: Stryker.NET's version could not be determined")
+    assert "DEV_TEAM_STRYKER_NET_VERSION" in proc.stdout
+    assert "[BLOCK]" in proc.stdout
+    # Still fails closed to the real pre-5.0.0 behavior underneath the note.
+    assert "auto-scaffolded" in proc.stdout.lower()
+
+
+def test_missing_dotnet_and_no_override_fails_closed_same_as_unparseable(tmp_path):
+    d = _v3_project(tmp_path)
+    proc = _run_no_version_override(
+        {"tool_name": "Bash", "cwd": str(d), "tool_input": {"command": "dotnet stryker"}}
+    )
+    assert proc.returncode == 2
+    assert proc.stdout.startswith("Note: Stryker.NET's version could not be determined")
+
+
+def test_solution_mode_5_0_0_is_not_blocked(tmp_path):
+    _v3_project(tmp_path)
+    (tmp_path / "Acme.sln").write_text("Microsoft Visual Studio Solution File\n")
+    proc = _run(
+        {"tool_name": "Bash", "cwd": str(tmp_path), "tool_input": {"command": "dotnet stryker"}},
+        extra_env={"DEV_TEAM_STRYKER_NET_VERSION": "5.0.0"},
+    )
+    assert proc.returncode == 0
 
 
 def test_mtp_floor_run_is_exempt(tmp_path):
