@@ -111,6 +111,16 @@ across any language and comment syntax (`//`, `#`, `/* */`, `--`):
 - `docs/agent-architecture.md` references a configuration or governance detail that is no longer current
 - Agent or skill files changed without corresponding update to `CLAUDE.md` registry tables
 
+### External claim verification
+
+- When reviewed content asserts specific behavior of an external API, tool, or
+  library (version numbers, endpoint behavior, config defaults, documented
+  flags), run `${CLAUDE_PLUGIN_ROOT}/skills/source-verification/SKILL.md`'s
+  claim-extraction/verification procedure over it.
+- A claim it reports `contradicted` is `error` (documentation actively
+  misleads). A claim it reports `unverifiable` is `warning` (documentation is
+  stale or incomplete — no source could confirm it).
+
 `get_why` (recorded decision rationale) is available to check whether stale-looking
 code/docs still have a live rationale before flagging staleness.
 
