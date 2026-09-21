@@ -22,7 +22,7 @@ Stdlib-only (json/pathlib/sys). See ADR 0014, ADR 0015.
 ## What was confirmed, and how
 
 Primary source: this session's own subagent dispatch transcripts on disk at
-    ~/.claude/projects/-home-user-agentic-dev-team/<session-id>/subagents/agent-<hash>.jsonl
+    ~/.claude/projects/<project-slug>/<session-id>/subagents/agent-<hash>.jsonl
 (+ a sibling agent-<hash>.meta.json per dispatch). 70 completed subagent transcripts were
 inspected directly (not recalled/guessed) — this is real, live harness output from
 Claude Code 2.1.278, not documentation. No web-doc citation was needed or used since a
@@ -106,12 +106,12 @@ against real evidence rather than a guess.
 
 **Decision (per this step's own instruction): the "Malformed hand-back" Gherkin
 scenario and its corresponding Acceptance Criteria bullet are DROPPED, not rescoped.**
-Edited directly in `plans/2172-agent-lifecycle-improvements.md` (Slice 2's Gherkin block,
-the Acceptance Criteria bullet for #2188, and the Risks & Open Questions entry) in the
-same commit-set as this file's header — see that file's diff for the exact wording.
+Recorded against issue #2188 (epic #2172) — its Gherkin block, Acceptance Criteria
+bullet, and Risks & Open Questions entry were revised to match, in the same commit-set
+as this file's header.
 
-## Classification precedence (Step 2.1b, plans/2172-agent-lifecycle-improvements.md
-## Step 2.1b text — stated explicitly there so two implementers can't disagree)
+## Classification precedence (#2188 Step 2.1b — stated explicitly here so two
+## implementers can't disagree)
 
 1. Unreadable/missing transcript, or a readable transcript whose last row is
    missing an expected `message`/`content` field entirely (structurally
@@ -165,12 +165,20 @@ _EMIT_CLASSIFICATIONS: frozenset[StopClassification] = frozenset(
 def _tail_lines(path: Path, n: int = 50) -> list[str]:
     """Read the last `n` lines of `path`. Fail-safe: [] on any IO error.
 
-    Deliberately a small, private, inline copy for this hook rather than an
-    import of `context_ceiling_guard.py`'s private `_tail_lines` across
-    module boundaries, or a promotion to `hooks/lib/` — this hook's need
-    (one-shot, last-turn classification of a subagent's own transcript file)
-    is stateless like `context_ceiling_guard.py`'s reader, but a second call
-    site alone doesn't yet justify a shared abstraction (plan Step 2.1b).
+    Deliberately a small, private, inline copy for this hook rather than
+    `hooks/lib/context_ceiling_guard.py`'s private `_tail_lines`, or
+    `scripts/lib/session_log/records.py`'s `iter_file_records` (the
+    sanctioned shared transcript-row reader two sibling hooks already use
+    over the documented hooks/ -> scripts/lib/session_log/ edge — see
+    `context_ceiling_guard.py`'s own "why this is safe" note). Not reused
+    here because the semantics genuinely differ: `iter_file_records` streams
+    forward and silently skips an undecodable line, continuing to the next
+    one, while this hook needs "the transcript's true LAST line is malformed
+    JSON" to classify as its own distinct outcome (`"unreadable"`, see
+    `_last_row` below) rather than silently falling back to an earlier valid
+    row. A skip-and-continue streaming reader cannot express that
+    distinction, so this hook keeps its own minimal last-row reader (#2188
+    Step 2.1b).
     """
     try:
         with path.open("r", encoding="utf-8", errors="replace") as fh:

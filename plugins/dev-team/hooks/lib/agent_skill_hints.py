@@ -21,7 +21,9 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parent))
+_LIB_DIR = Path(__file__).resolve().parent
+if str(_LIB_DIR) not in sys.path:
+    sys.path.insert(0, str(_LIB_DIR))
 
 from minimal_yaml import (
     FrontmatterError,
