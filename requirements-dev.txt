@@ -77,6 +77,12 @@ ruff==0.16.1
 # adapter.
 mypy>=1.11,<3
 
+# Required by plugins/dev-team/skills/property-based-testing/scripts/
+# hypothesis_scaffold.py's generated test files, which `import hypothesis` —
+# and by plugins/dev-team/tests/skills/test_hypothesis_scaffold.py, which runs
+# those generated files via a real pytest subprocess (#2190).
+hypothesis>=6.0
+
 # Powers chk_coverage_report (scripts/ci-local.sh) with a line+branch coverage
 # report over the plugin's own source (plugins/dev-team/hooks, scripts/) —
 # informational only, no --cov-fail-under threshold, so it never gates the

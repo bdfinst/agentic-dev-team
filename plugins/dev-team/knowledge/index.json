@@ -5277,6 +5277,36 @@
       "anchor": "customization-handling"
     }
   },
+  "plugins/dev-team/skills/property-based-testing/SKILL.md": {
+    "Procedure": {
+      "summary": "Run project-init's own stack detection —",
+      "anchor": "procedure"
+    },
+    "Step 1: Detect the target language (reuse project-init — never re-derive)": {
+      "summary": "Run project-init's own stack detection —",
+      "anchor": "step-1-detect-the-target-language-reuse-project-init-never-re-derive"
+    },
+    "Step 2: Gate on support": {
+      "summary": "Pass the detected language (or nothing, when Step 1 found none) to",
+      "anchor": "step-2-gate-on-support"
+    },
+    "Step 3: Install the property-testing tool if missing": {
+      "summary": "Follow project-init's own detection-gated-tool install pattern (`Step 4:",
+      "anchor": "step-3-install-the-property-testing-tool-if-missing"
+    },
+    "Step 4: Generate the property test": {
+      "summary": "**Python** — invoke Step 4.1's scaffold directly:",
+      "anchor": "step-4-generate-the-property-test"
+    },
+    "Step 5: Recommend the mutation-testing follow-up (documentation only)": {
+      "summary": "After Step 4 writes a test file, **recommend** — do not auto-run —",
+      "anchor": "step-5-recommend-the-mutation-testing-follow-up-documentation-only"
+    },
+    "When not to apply": {
+      "summary": "A function with no obvious round-trip pair or documented invariant — see",
+      "anchor": "when-not-to-apply"
+    }
+  },
   "plugins/dev-team/skills/proxy-resilience/SKILL.md": {
     "Overview": {
       "summary": "A corporate proxy fronting Anthropic API traffic enforces its own rate",
