@@ -619,6 +619,15 @@ _TRANSCRIPT_PARSING_ALLOWLIST = {
         "reads a pre-extracted usage dict's known token fields to sum "
         "experiment-harness cost -- never a raw transcript record"
     ),
+    "scripts/measure_rereview_duplication.py": (
+        "#2165's empirical leg composes measure_full_file_duplication.py's "
+        "own sanctioned collect_agent_dispatches/filter_since (already "
+        "migrated onto session_log.records in #2050) rather than "
+        "reimplementing transcript parsing -- never a raw transcript "
+        "record read directly by this file; the four identifiers remain "
+        "in this file's own module docstring (Privacy boundary section) "
+        "documenting which fields the empirical leg's output is limited to"
+    ),
 }
 
 

@@ -374,12 +374,26 @@ def _dispatches_from_inline_sidechain(transcript_path: Path) -> list[dict]:
     return dispatches
 
 
-def _parse_iso(ts: str) -> float:
+def parse_iso(ts: str) -> float:
     """Seconds-since-epoch for a `...Z`-suffixed ISO8601 timestamp, stdlib
     only (`datetime.fromisoformat` predates `Z` support before Python 3.11,
     so the suffix is normalized to `+00:00` first for the 3.10 floor)."""
     normalized = ts[:-1] + "+00:00" if ts.endswith("Z") else ts
     return datetime.fromisoformat(normalized).timestamp()
+
+
+# Public alias (#2165): a future consumer of `scripts/
+# measure_rereview_duplication.py` (step 1.3's `report` subcommand) will
+# import this by its public name rather than reaching into this module's
+# private surface -- step 1.1 itself only pins the alias's `is`-identity
+# (see below), it does not yet call `parse_iso`.
+# `tests/scripts/test_measure_full_file_duplication.py` still calls
+# `_parse_iso` directly at several sites, so this is a thin alias, not a
+# rename -- both names are the identical function object (pinned by
+# `is`-identity in `tests/scripts/test_measure_rereview_duplication.py`'s
+# `TestPublicAliasesAreSameObject`), and every existing internal call site in
+# this module below keeps working unchanged.
+_parse_iso = parse_iso
 
 
 def collect_agent_dispatches(transcript_path: Path) -> list[dict]:
@@ -438,7 +452,7 @@ def _short_name(subagent_type: str) -> str:
     return subagent_type.rsplit(":", 1)[-1]
 
 
-def _percentile_distribution(percentages: list[float]) -> dict | None:
+def percentile_distribution(percentages: list[float]) -> dict | None:
     """min/median/max across a round-level percentage sample, or `None` if
     empty. Uses `statistics.median` rather than a hand-rolled sort+midpoint
     calculation (a review round on this script flagged the reinvented
@@ -452,6 +466,13 @@ def _percentile_distribution(percentages: list[float]) -> dict | None:
         "max_pct": sorted_pct[-1],
         "n_rounds_sampled": len(sorted_pct),
     }
+
+
+# Public alias (#2165) -- same additive, non-rename convention as
+# `_parse_iso`/`parse_iso` above; see that alias's comment (also not yet
+# called by `measure_rereview_duplication.py` as of step 1.1 -- a future
+# consumer).
+_percentile_distribution = percentile_distribution
 
 
 def _round_report_row(round_dispatches: list[dict], per_file: dict) -> dict:
@@ -501,7 +522,7 @@ def _round_report_row(round_dispatches: list[dict], per_file: dict) -> dict:
     return row
 
 
-def _filter_since(dispatches: list[dict], since: str | None) -> list[dict]:
+def filter_since(dispatches: list[dict], since: str | None) -> list[dict]:
     """Drop dispatches earlier than `since` (an ISO8601 timestamp) — lets a
     caller scope rounds/report to one unit of work in a transcript that
     spans many (e.g. an entire session covering several unrelated PRs)."""
@@ -509,6 +530,13 @@ def _filter_since(dispatches: list[dict], since: str | None) -> list[dict]:
         return dispatches
     since_t = _parse_iso(since)
     return [d for d in dispatches if _parse_iso(d["timestamp"]) >= since_t]
+
+
+# Public alias (#2165) -- same additive, non-rename convention as
+# `_parse_iso`/`parse_iso` above; see that alias's comment (also not yet
+# called by `measure_rereview_duplication.py` as of step 1.1 -- a future
+# consumer).
+_filter_since = filter_since
 
 
 # ---------------------------------------------------------------------------
