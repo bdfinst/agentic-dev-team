@@ -66,7 +66,13 @@ named smell test-smell-review could own instead.
 
 ## Protocol
 
-Run in two phases — enumerate first, classify second. This stabilizes finding counts across runs by forcing a full pass before applying judgment.
+Run in three phases — mechanical pre-phase first, then enumerate, then classify. Phase 0 computes the `[MECHANICAL]` half by script instead of by prose judgment; Phases 1-2 stabilize the `[JUDGMENT]` half by forcing a full enumeration pass before applying it.
+
+**Phase 0 — Mechanical pre-phase**: This agent has no `Bash` tool (like every `*-review.md` agent), so it never runs `test_review_mechanics.py` itself — never invent, approximate, or hand-simulate a result. The caller dispatching this agent computes each file's result first (`python3 "${CLAUDE_PLUGIN_ROOT}/scripts/test_review_mechanics.py" <project root> <file>`, the same pre-pass architecture `/code-review`'s static-analysis pre-passes use) and supplies it as context — **detected by static analysis, do not re-report**; cite its counts and messages verbatim, including the Tolerated-Deviation Hunt categories below, which it now computes.
+
+- **Result present, `mechanicalFail: true`** — report its findings as this file's issues, note in the summary that Phase 1/2 was skipped and why, and move on.
+- **Result present, `mechanicalFail: false`** — report its `warning`/`parse-failure` findings alongside the Phase 1/2 findings below, then run Phase 1/2 as usual.
+- **No result supplied for a file** — run Phase 1/2 for it as usual; say nothing about Phase 0.
 
 **Phase 1 — Enumerate**: List every test case in scope with:
 
@@ -180,7 +186,7 @@ If a static-analysis pre-pass has already surfaced this exact finding (e.g. via 
 
 ## Tolerated-Deviation Hunt
 
-Run this cheap grep pass on every core-flow file in scope (non-test source files, not
+Computed by Phase 0's `test_review_mechanics.py` pass, not a separate manual grep — cite its `tolerated-deviation-consolidation` finding when present rather than re-deriving it. The categories below are the detection specification the script implements, kept here for reference. This pass covers every core-flow file in scope (non-test source files, not
 third-party). Count tolerated-deviation artifacts from the following categories:
 
 - **Disabled tests** — `@Ignore`, `@Disabled`, `xit(`, `xdescribe(`, `test.skip(`,
