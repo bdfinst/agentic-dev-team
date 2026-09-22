@@ -1504,6 +1504,10 @@
       "summary": "**Added by #859.** The boundary-level (policy-gateway) channel: every guard",
       "anchor": "boundary-eventsjsonl"
     },
+    "`review-verdicts.jsonl`": {
+      "summary": "**Added by #2166** (plan: `plans/2164-verdict-ledger-writer.md`, Slice 2).",
+      "anchor": "review-verdictsjsonl"
+    },
     "`telemetry.jsonl`": {
       "summary": "Opt-in usage beacon: which slash commands / skills get invoked, and whether",
       "anchor": "telemetryjsonl"

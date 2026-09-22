@@ -87,11 +87,7 @@ if str(_LIB_DIR) not in sys.path:
     sys.path.insert(0, str(_LIB_DIR))
 
 from boundary_events import emit_boundary_event as _emit_boundary_event
-from review_agent_registry import (
-    default_agents_dir,
-    read_registered_review_agent_names,
-    strip_plugin_prefix,
-)
+from review_agent_registry import is_registered_review_lens, strip_plugin_prefix
 from review_gate_hash import (
     EMPTY_DIGEST,
     branch_diff_gate_hash,
@@ -124,23 +120,23 @@ def main() -> int:
     if not isinstance(subagent_type, str) or not subagent_type:
         return 0
 
-    # Normalize the plugin-qualified dispatch form ("dev-team:doc-review") to
-    # the bare name the registry's closed set uses, so the plugin's normal,
-    # installed invocation form is recognized identically to a bare-named one.
-    subagent_type = strip_plugin_prefix(subagent_type)
-
-    # #1904 item 1: `read_registered_review_agent_names()` returns `None` on
-    # a registry read failure, distinct from a genuine `frozenset()` — but
-    # this is the WRITE/POSITIVE-evidence side (recording that a dispatch
-    # happened), where collapsing `None` to "don't record" is the safe
+    # `is_registered_review_lens()` (review_agent_registry.py) owns the
+    # strip-prefix + registry-read + membership check, including the
+    # "unreadable registry collapses to skip" posture — this is the
+    # WRITE/POSITIVE-evidence side (recording that a dispatch happened),
+    # where collapsing an unreadable registry to "don't record" is the safe
     # direction: narrowing corroboration can only narrow, never widen, what
     # counts as a passing gate later.
-    registered = read_registered_review_agent_names(default_agents_dir())
-    if not registered or subagent_type not in registered:
+    if not is_registered_review_lens(subagent_type):
         # Not a real, registered review agent, or the registry could not be
         # read at all — never recorded, not even as a rejected/flagged entry
         # (module docstring).
         return 0
+
+    # Normalize the plugin-qualified dispatch form ("dev-team:doc-review") to
+    # the bare name the registry's closed set uses, so the plugin's normal,
+    # installed invocation form is recognized identically to a bare-named one.
+    subagent_type = strip_plugin_prefix(subagent_type)
 
     cwd = payload.get("cwd") or "."
     session_id = payload.get("session_id")

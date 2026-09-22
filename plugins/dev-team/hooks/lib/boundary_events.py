@@ -34,7 +34,14 @@ import artifact_paths
 import atomic_state
 import plugin_version
 
-_LOG_NAME = "boundary-events.jsonl"
+#: This stream's filename — the single source of truth every other reader
+#: or guard that needs to name it (`review_dispatch_ledger.LEDGER_STREAM`,
+#: `boundary_events_write_guard.py`, `review_gate_corroboration.py`) must
+#: import from here rather than re-declaring its own literal (backstop
+#: review finding, #2166 + #2171: this filename previously had three
+#: independent homes). Public because this module is the one that actually
+#: writes the ledger and therefore owns its name.
+LOG_NAME = "boundary-events.jsonl"
 
 # Test-only injection point (see `_write_jsonl_line` below and
 # `atomic_state.race_window_delay`'s own docstring): unset in production, a
@@ -142,7 +149,7 @@ def emit_boundary_event(
     """
     try:
         base = Path(cwd) if cwd else Path.cwd()
-        log = artifact_paths.resolve_file("metrics", _LOG_NAME, base)
+        log = artifact_paths.resolve_file("metrics", LOG_NAME, base)
         log.parent.mkdir(parents=True, exist_ok=True)
 
         payload = {
@@ -248,6 +255,17 @@ _CLI_VERDICT_EVENTS = {
 }
 
 
+def cli_event_names() -> list[str]:
+    """The full, sorted `--event` choice set this CLI accepts — the same
+    union `_main()`'s own `argparse` `choices=` computes. Public so a
+    caller that needs to *describe* the CLI's invocable shape (e.g.
+    `boundary_events_write_guard.py`'s Bash-path remedy message, #2171)
+    reads this one source of truth instead of re-enumerating the three
+    closed-vocabulary dicts above by hand, which would silently go stale
+    the next time an event is added to any of them."""
+    return sorted({*_CLI_EVENTS, *_CLI_AGENT_EVENTS, *_CLI_VERDICT_EVENTS})
+
+
 def _main() -> int:
     """CLI entry point (#1461): lets a *skill's* bash-block prose emit one of
     a small, fixed set of exemption events, the same way
@@ -315,7 +333,7 @@ def _main() -> int:
     parser.add_argument(
         "--event",
         required=True,
-        choices=sorted({*_CLI_EVENTS, *_CLI_AGENT_EVENTS, *_CLI_VERDICT_EVENTS}),
+        choices=cli_event_names(),
     )
     # Required for every event EXCEPT `gate-ran` (#2037), which has no diff
     # content to bind to — a real git hook has no staged/branch diff to hash
@@ -371,27 +389,23 @@ def _main() -> int:
             import review_agent_registry
         except Exception:  # noqa: BLE001 - fail-open: an unavailable registry module never records
             return 0
-        # #1904 item 1: `read_registered_review_agent_names()` returns `None`
-        # on a registry read failure, distinct from a genuine `frozenset()`
-        # — but this is the "should this get recorded at all" gate, so
-        # collapsing `None` to "don't record" is the safe direction here too
-        # (matches `agent_dispatch_ledger.py`'s own posture; see module
-        # comment): a lost write only means less evidence is recorded, never
-        # more.
-        registered = review_agent_registry.read_registered_review_agent_names(
-            review_agent_registry.default_agents_dir()
-        )
+        # `is_registered_review_lens()` (review_agent_registry.py) owns the
+        # strip-prefix + registry-read + membership check, including the
+        # "unreadable registry collapses to skip" posture — previously
+        # hand-rolled independently here, in `agent_dispatch_ledger.py`, and
+        # in `review_verdict_recorder.py` (backstop review finding, #2166 +
+        # #2171 consolidation).
+        if not review_agent_registry.is_registered_review_lens(args.agent):
+            # Unregistered name, or the registry could not be read at all ->
+            # silently NOT recorded (matches agent_dispatch_ledger.py's own
+            # posture; see module comment).
+            return 0
         # Normalize the plugin-qualified form ("dev-team:security-review")
         # to the bare stem the registry's closed set uses, matching
         # agent_dispatch_ledger.py's own normalization exactly — otherwise
         # the plugin's normal, installed invocation form would be silently
         # dropped as "unregistered".
         agent = review_agent_registry.strip_plugin_prefix(args.agent)
-        if not registered or agent not in registered:
-            # Unregistered name, or the registry could not be read at all ->
-            # silently NOT recorded (matches agent_dispatch_ledger.py's own
-            # posture; see module comment).
-            return 0
         hook, tool, decision = _CLI_AGENT_EVENTS[args.event]
         emit_boundary_event(
             args.cwd,

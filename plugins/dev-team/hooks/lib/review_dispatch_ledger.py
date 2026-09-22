@@ -30,9 +30,16 @@ if str(_LIB_DIR) not in sys.path:
     sys.path.insert(0, str(_LIB_DIR))
 
 import artifact_paths
+import boundary_events
 
-#: The stream every review dispatch is deterministically recorded to.
-LEDGER_STREAM = "boundary-events.jsonl"
+#: The stream every review dispatch is deterministically recorded to. An
+#: alias of `boundary_events.LOG_NAME` (the module that actually writes the
+#: ledger and owns its filename), not a fresh literal — kept as this
+#: module's own public name for its existing callers (backstop review
+#: finding, #2166 + #2171: this filename previously had three independent
+#: homes; `repo_invariants.check_ledger_filename_single_sourced` asserts
+#: this stays an identity, not just an equal value).
+LEDGER_STREAM = boundary_events.LOG_NAME
 
 #: The ledger rows that denote a review dispatch.
 _LEDGER_HOOK = "agent_dispatch_ledger"

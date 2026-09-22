@@ -496,6 +496,7 @@ Prints a manifest naming the pack path, its byte size, and `files_omitted`. Pass
 - **`files_omitted` is not optional to relay.** When the manifest reports omissions (a file over the per-file cap, a binary, a body that would exhaust the budget), name those paths in each agent's prompt and tell it to open them directly. The pack body says so too, but a silently skipped file is a coverage hole that reads as a clean review.
 
 - **File scope**: pass only files matching each agent's declared scope. Skip the agent if no files match.
+- **Scope marker (#2166)**: append one structured, single-line marker to every dispatch prompt, listing the exact files passed under File scope above, comma-separated: `Files in scope for this review: <path>, <path>, ...`. This is metadata for `hooks/review_verdict_recorder.py` (#2166 Step 2.3), the `SubagentStop` verdict recorder that parses it back out of the transcript — it changes nothing about what gets reviewed or reported this slice.
 - **Context payload** (controlled by the agent's `Context needs`):
   - `diff-only` → diff output only (for auto-scope or `--since` only)
   - `full-file` → complete files

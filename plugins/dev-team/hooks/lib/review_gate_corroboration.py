@@ -75,9 +75,9 @@ if str(_LIB_DIR) not in sys.path:
 import artifact_paths
 import metrics_query
 import review_agent_registry
+from boundary_events import LOG_NAME as _LEDGER_STREAM_NAME
 from boundary_events import TS_FORMAT as _TS_FORMAT
 
-_LEDGER_STREAM_NAME = "boundary-events.jsonl"
 _EVENT_TYPE = "agent_dispatch_ledger"
 _DECISION = "record"
 
