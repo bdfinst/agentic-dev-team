@@ -107,6 +107,37 @@ def test_fingerprint_editing_transitive_knowledge_dep_busts_sha(corpus: Path) ->
     assert a != b
 
 
+def _add_transitive_script_dep(corpus: Path, body: str = "pass\n") -> Path:
+    scripts_dir = corpus / "plugins" / "dev-team" / "scripts"
+    scripts_dir.mkdir(parents=True, exist_ok=True)
+    script = scripts_dir / "demo_mechanics.py"
+    script.write_text(body)
+    with (corpus / "plugins" / "dev-team" / "agents" / "demo-review.md").open("a") as f:
+        f.write("Run `scripts/demo_mechanics.py` before Phase 1.\n")
+    return script
+
+
+def test_fingerprint_editing_transitive_script_dep_busts_sha(corpus: Path) -> None:
+    """A bare `scripts/<n>.py` reference (e.g. test-review.md's pointer to
+    test_review_mechanics.py, #2169) is a fingerprint contributor: a change
+    to the script's detection logic must bust cached results for any
+    agent/skill that cites its output, exactly like an edit to the agent's
+    own prose would."""
+    script = _add_transitive_script_dep(corpus)
+    a = _fingerprint(corpus)
+    script.write_text("def analyze():\n    return {'changed': True}\n")
+    b = _fingerprint(corpus)
+    assert a != b
+
+
+def test_fingerprint_lists_transitive_script_contributor(corpus: Path) -> None:
+    _add_transitive_script_dep(corpus)
+    res = _run(corpus, "--fingerprint", "demo::demo-review")
+    out = res.stdout + res.stderr
+    assert res.returncode == 0, out
+    assert "scripts/demo_mechanics.py" in out
+
+
 def test_fingerprint_lists_transitive_contributors(corpus: Path) -> None:
     res = _run(corpus, "--fingerprint", "demo::demo-review")
     out = res.stdout + res.stderr

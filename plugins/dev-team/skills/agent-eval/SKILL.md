@@ -12,7 +12,8 @@ allowed-tools: >-
   Bash(readlink *, ls *, date *, mkdir *, command -v claude, claude -p *,
        python3 scripts/eval_cache.py *, python3 scripts/run_integration_eval.py *,
        python3 scripts/eval_variance.py *, python3 "$CLAUDE_PLUGIN_ROOT/scripts/eval_ablation.py" *,
-       python3 scripts/citation_lint.py *),
+       python3 scripts/citation_lint.py *,
+       python3 "$CLAUDE_PLUGIN_ROOT/scripts/test_review_mechanics.py" *),
   Skill(review-agent *), Skill(test-design-advisor *)
 ---
 
@@ -36,7 +37,11 @@ against eval fixtures and grade the results.
    keyword checks). Do not apply judgment.
 3. **Minimize context per agent.** Pass only the fixture file to the
    agent — not the expected results, not other fixtures, not prior
-   transcripts.
+   transcripts. One narrow exception: a `test-review` dispatch also
+   receives its fixture's own `test_review_mechanics.py` mechanical
+   pre-phase result (Step 3 below, #2169 follow-up) — computed from the
+   fixture file itself, not from grading data, so it does not weaken this
+   constraint's intent.
 4. **Track results.** Save transcripts for saturation detection. Do
    not modify fixtures or expected files.
 5. **Be concise.** Output the report table and failure details. No
@@ -216,9 +221,13 @@ deliberately not relocated under `.claude/`) the record was appended to.
 
 `scripts/eval_cache.py` SHAs each `fixture::target` over the target's
 definition + the **transitive closure** of files it reaches (knowledge/,
-skills/) + the fixture + expected JSON + grader version. An unchanged SHA
-with a stored PASS replays at zero token cost; any changed input busts the
-cache.
+skills/, and any bare `scripts/<n>.py` it names — e.g. `test-review.md`'s
+pointer to `test_review_mechanics.py`, #2169) + the fixture + expected JSON
++ grader version. An unchanged SHA with a stored PASS replays at zero token
+cost; any changed input busts the cache — including an edit to
+`test_review_mechanics.py` itself, so a Phase 0 detection-logic change
+correctly busts cached `test-review` pairs instead of silently replaying a
+result computed under the old script.
 
 Default behaviour (cache-on):
 
@@ -346,16 +355,49 @@ above) and consult the cache (see *Cache* above):
 
 For each fixture/agent pair (agent fixtures):
 
-1. Dispatch the named review agent against the fixture file/directory:
+1. **Test-review Phase 0 pre-phase (#2169 follow-up).** When `<agent-name>`
+   is `test-review`, first compute the mechanical pre-phase result for the
+   fixture file — the same invocation `/code-review` step 2b uses:
+
+   ```bash
+   python3 "$CLAUDE_PLUGIN_ROOT/scripts/test_review_mechanics.py" . <fixture-path>
+   ```
+
+   Without this, a fresh `test-review` dispatch has no Phase 0 result
+   supplied and falls straight through `agents/test-review.md`'s own
+   Protocol rule "No result supplied for a file — run Phase 1/2 for it as
+   usual; say nothing about Phase 0" — so `/agent-eval` would only ever
+   grade Phase 1/2's judgment, never Phase 0's own detection accuracy
+   (`mechanicalFail` gating). Skip this sub-step entirely for every other
+   agent.
+2. Dispatch the named review agent against the fixture file/directory:
    - **Default:** a fresh subprocess that reads the agent from disk —
      `claude -p "/review-agent <agent-name> <fixture-path>" --output-format json`
      (add `--model` per the agent's tier when known). Pass **only** the
-     fixture path, never the expected JSON.
+     fixture path, never the expected JSON — **except** for `test-review`,
+     where sub-step 1's result is appended to the prompt text, framed
+     exactly as `skills/code-review/SKILL.md` step 2b's "Test-review
+     mechanical pre-phase" block frames it for a production dispatch
+     ("detected by static analysis, do not re-derive" — the agent still
+     reports it as this file's own finding when `mechanicalFail` is true):
+
+     ```text
+     claude -p "/review-agent test-review <fixture-path>
+
+     Test-review mechanical pre-phase result for this file (computed by
+     scripts/test_review_mechanics.py — detected by static analysis, do
+     not re-derive, cite verbatim):
+     <sub-step-1 JSON>" --output-format json
+     ```
+
    - **`--in-session`:** invoke `/review-agent <agent-name>` with the
-     fixture file/directory as the target.
-2. Parse the agent's JSON output to extract: `status`, `issues[]`,
+     fixture file/directory as the target — for `test-review`, pass
+     sub-step 1's result as additional context in the same invocation
+     (`Skill(review-agent test-review, <fixture-path> plus the same
+     Phase 0 framing and JSON above)`).
+3. Parse the agent's JSON output to extract: `status`, `issues[]`,
    `summary`
-3. If running multiple trials (`--trials`), repeat and collect all
+4. If running multiple trials (`--trials`), repeat and collect all
    results
 
 For each fixture/skill pair (skill fixtures, e.g. `tlg-*`):

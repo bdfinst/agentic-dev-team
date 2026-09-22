@@ -16,7 +16,10 @@ For a pair ``<stem>::<target>`` the SHA-256 is computed over, in order:
   2. the target's root definition (agent ``agents/<t>.md`` or skill
      ``skills/<t>/SKILL.md``),
   3. the **transitive closure** of dependency files reachable from it
-     (``knowledge/*.md`` it reads, ``skills/*`` it invokes — recursively),
+     (``knowledge/*.md`` it reads, ``skills/*`` it invokes — recursively,
+     plus any ``scripts/<name>.py`` it names directly, e.g. a mechanical
+     pre-phase script an agent cites but never runs itself — issue #2169's
+     `/agent-eval` follow-up),
   4. the fixture file(s) for the stem,
   5. the expected JSON,
   6. the grader version (hash of the eval_graders package sources).
@@ -75,6 +78,12 @@ CACHE_VERSION = 1
 _KNOWLEDGE_RE = re.compile(r"knowledge/([A-Za-z0-9_-]+)\.md")
 _SKILL_PATH_RE = re.compile(r"skills/([A-Za-z0-9_-]+)/")
 _SKILL_TOOL_RE = re.compile(r"Skill\(([A-Za-z0-9_-]+)")
+# A bare `scripts/<name>.py` reference, e.g. test-review.md's Phase 0 pointer
+# to `scripts/test_review_mechanics.py` (#2169) — the mechanical pre-phase
+# result an agent cites is itself computed by that script, so a change to the
+# script's detection logic must bust the fingerprint exactly like a change to
+# the agent's own prose would.
+_SCRIPT_RE = re.compile(r"scripts/([A-Za-z0-9_]+)\.py")
 
 
 class Dirs:
@@ -88,6 +97,7 @@ class Dirs:
         self.fixtures = fixtures_dir or repo_root / "evals" / "fixtures"
         self.plugin = plugin_root or repo_root / "plugins" / "dev-team"
         self.agents = self.plugin / "agents"
+        self.scripts = self.plugin / "scripts"
         self.skills = self.plugin / "skills"
         self.knowledge = self.plugin / "knowledge"
         self.graders = Path(__file__).resolve().parent / "eval_graders"
@@ -139,9 +149,15 @@ def resolve_root_file(pair: str, dirs: Dirs):
 def transitive_deps(root_file: Path, dirs: Dirs) -> list[Path]:
     """Sorted, de-duplicated closure of dep files reachable from root_file.
 
-    Follows ``knowledge/<n>.md`` reads, ``skills/<n>/`` paths and ``Skill(<n>``
-    invocations recursively. Only existing files are returned; the root file
-    itself is excluded (the caller hashes it separately).
+    Follows ``knowledge/<n>.md`` reads, ``skills/<n>/`` paths, ``Skill(<n>``
+    invocations, and bare ``scripts/<n>.py`` references recursively. Only
+    existing files are returned; the root file itself is excluded (the
+    caller hashes it separately).
+
+    Script matches are added as leaves only (never pushed back onto the
+    walk stack) — they're Python source, not prose that itself names further
+    ``knowledge/``/``skills/`` dependencies, so there is nothing to recurse
+    into.
     """
     seen: set[Path] = set()
     stack = [root_file]
@@ -169,6 +185,10 @@ def transitive_deps(root_file: Path, dirs: Dirs) -> list[Path]:
             if sf.exists() and sf != root_file and sf not in seen:
                 seen.add(sf)
                 stack.append(sf)
+        for m in _SCRIPT_RE.finditer(text):
+            pf = dirs.scripts / f"{m.group(1)}.py"
+            if pf.exists() and pf not in seen:
+                seen.add(pf)
     return sorted(seen)
 
 
