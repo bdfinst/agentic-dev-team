@@ -15,6 +15,8 @@ from __future__ import annotations
 
 import re
 
+import pytest
+
 from _repo_root import REPO_ROOT
 
 AGENT = REPO_ROOT / "plugins" / "dev-team" / "agents" / "test-review.md"
@@ -69,10 +71,20 @@ def _assert_each_bullet_has_exactly_one_tag(blocks: list[str]) -> None:
     assert not both, f"bullets carrying both tags: {both}"
 
 
-def test_detect_section_bullets_each_carry_exactly_one_tag() -> None:
+def _block_containing(blocks: list[str], snippet: str) -> str:
+    matches = [b for b in blocks if snippet in b]
+    assert len(matches) == 1, f"expected exactly one bullet with {snippet!r}"
+    return matches[0]
+
+
+@pytest.fixture(scope="module")
+def detect_section() -> str:
     text = _text()
-    detect = _section(text, "## Detect", "## Tolerated-Deviation Hunt")
-    blocks = _bullet_blocks(detect)
+    return _section(text, "## Detect", "## Tolerated-Deviation Hunt")
+
+
+def test_detect_section_bullets_each_carry_exactly_one_tag(detect_section: str) -> None:
+    blocks = _bullet_blocks(detect_section)
     assert len(blocks) >= 30, (
         f"expected the full set of ## Detect check bullets, found {len(blocks)}"
     )
@@ -98,23 +110,21 @@ def test_consolidation_rule_is_tagged_mechanical() -> None:
     )
 
 
-def test_testability_blockers_bullets_each_carry_exactly_one_tag() -> None:
+def test_testability_blockers_bullets_each_carry_exactly_one_tag(detect_section: str) -> None:
     """Testability blockers is a named subsection under ## Detect (not its
     own ## heading) — covered by the ## Detect sweep above, but pinned here
     directly per the task's explicit call-out of this section."""
-    text = _text()
-    detect = _section(text, "## Detect", "## Tolerated-Deviation Hunt")
-    section = _section(detect, "Testability blockers:", "Internal-collaborator doubling")
+    section = _section(detect_section, "Testability blockers:", "Internal-collaborator doubling")
     blocks = _bullet_blocks(section)
     assert len(blocks) == 3
     _assert_each_bullet_has_exactly_one_tag(blocks)
 
 
-def test_internal_collaborator_doubling_bullets_each_carry_exactly_one_tag() -> None:
-    text = _text()
-    detect = _section(text, "## Detect", "## Tolerated-Deviation Hunt")
+def test_internal_collaborator_doubling_bullets_each_carry_exactly_one_tag(
+    detect_section: str,
+) -> None:
     section = _section(
-        detect,
+        detect_section,
         "Internal-collaborator doubling",
         "If a static-analysis pre-pass",
     )
@@ -130,15 +140,15 @@ def test_internal_collaborator_doubling_bullets_each_carry_exactly_one_tag() -> 
         )
 
 
-def test_reflection_bullet_is_mechanical_but_notes_non_gating_warning_severity() -> None:
+def test_reflection_bullet_is_mechanical_but_notes_non_gating_warning_severity(
+    detect_section: str,
+) -> None:
     """Reflection-into-private-members has an explicit per-language
     detection signature (MECHANICAL for detection) but must stay
     warning-severity and non-gating — only Step 2.2's no-assertion-tests
     check and internal_double_detector.py's error-severity findings gate
     the qualitative pass."""
-    text = _text()
-    detect = _section(text, "## Detect", "## Tolerated-Deviation Hunt")
-    blocks = _bullet_blocks(detect)
+    blocks = _bullet_blocks(detect_section)
     reflection_blocks = [
         b for b in blocks if "reflection into private members" in b
     ]
@@ -150,47 +160,59 @@ def test_reflection_bullet_is_mechanical_but_notes_non_gating_warning_severity()
     assert "Step 2.2" in block
 
 
-def test_known_mechanical_anchor_bullets_are_tagged_mechanical() -> None:
-    """Lock in the plan's explicit MECHANICAL examples (missing-await,
-    mocks-not-reset, unstubbed clock/RNG/timers, tests-with-no-assertion)
-    against accidental re-tagging."""
-    text = _text()
-    detect = _section(text, "## Detect", "## Tolerated-Deviation Hunt")
-    blocks = _bullet_blocks(detect)
-
-    def block_containing(snippet: str) -> str:
-        matches = [b for b in blocks if snippet in b]
-        assert len(matches) == 1, f"expected exactly one bullet with {snippet!r}"
-        return matches[0]
-
-    for snippet in (
+@pytest.mark.parametrize(
+    "snippet",
+    [
         "Tests with no assertion",
         "Mocks/stubs not reset",
         "Missing await on async operations",
         "Unstubbed clock access",
         "Unstubbed randomness",
         "Unstubbed timers/delays",
-    ):
-        assert "[MECHANICAL]" in block_containing(snippet)
+    ],
+)
+def test_known_mechanical_anchor_bullets_are_tagged_mechanical(
+    detect_section: str, snippet: str
+) -> None:
+    """Lock in the plan's explicit MECHANICAL examples (missing-await,
+    mocks-not-reset, unstubbed clock/RNG/timers, tests-with-no-assertion)
+    against accidental re-tagging."""
+    blocks = _bullet_blocks(detect_section)
+    assert "[MECHANICAL]" in _block_containing(blocks, snippet)
 
 
-def test_known_judgment_anchor_bullets_are_tagged_judgment() -> None:
-    """Lock in the plan's explicit JUDGMENT examples (coverage-gap
-    adequacy, AAA structure, misleading descriptions, static-factory /
-    singleton testability blockers) against accidental re-tagging."""
-    text = _text()
-    detect = _section(text, "## Detect", "## Tolerated-Deviation Hunt")
-    blocks = _bullet_blocks(detect)
-
-    def block_containing(snippet: str) -> str:
-        matches = [b for b in blocks if snippet in b]
-        assert len(matches) == 1, f"expected exactly one bullet with {snippet!r}"
-        return matches[0]
-
-    for snippet in (
+@pytest.mark.parametrize(
+    "snippet",
+    [
         "Missing edge cases",
         "No arrange-act-assert structure",
         "Misleading test descriptions",
         "Code under test that cannot be constructed with known values",
-    ):
-        assert "[JUDGMENT]" in block_containing(snippet)
+    ],
+)
+def test_known_judgment_anchor_bullets_are_tagged_judgment(
+    detect_section: str, snippet: str
+) -> None:
+    """Lock in the plan's explicit JUDGMENT examples (coverage-gap
+    adequacy, AAA structure, misleading descriptions, static-factory /
+    singleton testability blockers) against accidental re-tagging."""
+    blocks = _bullet_blocks(detect_section)
+    assert "[JUDGMENT]" in _block_containing(blocks, snippet)
+
+
+def test_assert_each_bullet_has_exactly_one_tag_raises_on_untagged_bullet() -> None:
+    """Synthetic fixture exercises the untagged-bullet failure branch,
+    which the live (already-compliant) test-review.md never triggers."""
+    blocks = _bullet_blocks(
+        "- Tagged bullet body. [MECHANICAL]\n- Untagged bullet body with no tag.\n"
+    )
+    with pytest.raises(AssertionError, match=r"missing \[MECHANICAL\]/\[JUDGMENT\] tag"):
+        _assert_each_bullet_has_exactly_one_tag(blocks)
+
+
+def test_assert_each_bullet_has_exactly_one_tag_raises_on_double_tagged_bullet() -> None:
+    """Synthetic fixture exercises the double-tagged-bullet failure branch,
+    which the live (already-compliant) test-review.md never triggers."""
+    blocks = _bullet_blocks("- Double tagged bullet body. [MECHANICAL] [JUDGMENT]\n")
+    with pytest.raises(AssertionError, match="bullets carrying both tags"):
+        _assert_each_bullet_has_exactly_one_tag(blocks)
