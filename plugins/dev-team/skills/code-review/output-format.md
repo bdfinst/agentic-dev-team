@@ -391,6 +391,16 @@ scored.
 
 After the summary, list remaining issues grouped by file, sorted by severity. Mark each with: `[confidence: none]`, `[auto-fix failed]`, or `[suggestion]`. Append the iteration table above.
 
+`scripts/render_tiered_findings.py` (#2170) renders that per-finding listing
+in two tiers from the same in-memory finding list, no re-dispatch: Tier-1 (one
+line per finding — file, line, agent, severity/confidence, first sentence of
+the message, finding-id — plus an expansion hint) by default, Tier-2 (full
+message + suggestedFix) for a finding-id via `--expand <finding-id>|all`.
+Wiring it into this step's default rendering path, and documenting `--expand`
+as a `/code-review` flag, is a separate step (issue #2170 Step 3.2) — this
+paragraph exists so the script itself is discoverable from the skill's own
+docs.
+
 ## Override audit log entry (step 2, `--force` path)
 
 Append to `.claude/metrics/override-audit.jsonl` (create if missing):
