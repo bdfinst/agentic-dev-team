@@ -82,17 +82,30 @@ def emit_boundary_event(*args, **kwargs) -> None:
 # Trigger detection
 # ---------------------------------------------------------------------------
 
+try:
+    from stryker_invocation import (  # type: ignore[import-not-found]
+        is_stryker_invocation as _is_stryker_invocation,
+    )
+except ImportError:  # pragma: no cover - degraded fallback, hooks/lib unreachable
+    _STRYKER_TRIGGER_FALLBACK = re.compile(
+        r"(?:^|[^a-zA-Z0-9])dotnet[ \t]+stryker(?:\b|$)|csharp-stryker-net-wrapper\.sh"
+    )
 
-_STRYKER_TRIGGER = re.compile(
-    r"(?:^|[^a-zA-Z0-9])dotnet[ \t]+stryker(?:\b|$)|csharp-stryker-net-wrapper\.sh"
-)
+    def _is_stryker_invocation(cmd: str) -> bool:  # type: ignore[misc]
+        return bool(cmd) and bool(_STRYKER_TRIGGER_FALLBACK.search(cmd))
 
 
 def is_stryker_command(cmd: str) -> bool:
-    """True when `cmd` invokes dotnet stryker OR the wrapper script."""
+    """True when `cmd` invokes dotnet stryker OR the wrapper script.
+
+    Delegates to the shared `hooks/lib/stryker_invocation` predicate (#2185):
+    parsed via `shlex` in program position, not scanned with a bare regex —
+    so a mention of the tool name in a --body/grep/echo/comment argument is
+    never mistaken for a real invocation.
+    """
     if not cmd:
         return False
-    return bool(_STRYKER_TRIGGER.search(cmd))
+    return _is_stryker_invocation(cmd)
 
 
 def extract_mutate_value(cmd: str) -> str:

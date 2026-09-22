@@ -116,6 +116,25 @@ def test_non_stryker_command_passes(tmp_path):
     assert proc.stdout == ""
 
 
+@pytest.mark.parametrize(
+    "command",
+    [
+        'gh issue create --body "the docs say to run dotnet stryker -t mtp here"',
+        "grep -rn 'dotnet stryker' docs/",
+        'echo "never run dotnet stryker on main"',
+        'python3 -c "# dotnet stryker"',
+    ],
+)
+def test_tool_name_in_prose_does_not_trigger(tmp_path, command):
+    """#2185: mentioning the tool name in a --body/grep/echo/comment argument
+    must not be treated as an invocation and blocked."""
+    d = _v3_project(tmp_path)
+    proc = _run({"tool_name": "Bash", "cwd": str(d),
+                 "tool_input": {"command": command}})
+    assert proc.returncode == 0
+    assert proc.stdout == ""
+
+
 def test_non_bash_tool_passes(tmp_path):
     d = _v3_project(tmp_path)
     proc = _run({"tool_name": "Edit", "cwd": str(d),

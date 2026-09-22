@@ -96,11 +96,19 @@ except ImportError:  # pragma: no cover - degraded fallback, adapter package unr
 _MTP_PER_TEST_COVERAGE_FLOOR = (5, 0, 0)
 
 
-# `dotnet stryker`, `dotnet-stryker`, or the plugin's wrapper — mirror the
-# smoke-gate trigger so both gates recognise the same invocations.
-_STRYKER_TRIGGER = re.compile(
-    r"(?:^|[^a-zA-Z0-9])dotnet[ \t-]+stryker(?:\b|$)|csharp[_-]stryker[_-]net[_-]wrapper"
-)
+try:
+    from stryker_invocation import (  # type: ignore[import-not-found]
+        is_stryker_invocation as _is_stryker_invocation,
+    )
+except ImportError:  # pragma: no cover - degraded fallback, hooks/lib unreachable
+    # `dotnet stryker`, `dotnet-stryker`, or the plugin's wrapper — mirror the
+    # smoke-gate's pre-#2185 fallback so both gates degrade identically.
+    _STRYKER_TRIGGER_FALLBACK = re.compile(
+        r"(?:^|[^a-zA-Z0-9])dotnet[ \t-]+stryker(?:\b|$)|csharp[_-]stryker[_-]net[_-]wrapper"
+    )
+
+    def _is_stryker_invocation(cmd: str) -> bool:  # type: ignore[misc]
+        return bool(cmd) and bool(_STRYKER_TRIGGER_FALLBACK.search(cmd))
 
 _GENERATOR = _PLUGIN_DIR / "skills" / "stryker-xunit-v2-shim" / "scripts" / "generate_shim.py"
 _PY_SH = _HOOK_DIR / "py.sh"
@@ -499,7 +507,7 @@ def main() -> int:
     if event.get("tool_name") != "Bash":
         return 0
     command = (event.get("tool_input") or {}).get("command", "") or ""
-    if not _STRYKER_TRIGGER.search(command):
+    if not _is_stryker_invocation(command):
         return 0
 
     # Sanctioned no-shim floor (#1156/#1159): an explicit MTP-runner run drives
