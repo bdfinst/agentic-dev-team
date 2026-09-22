@@ -2,10 +2,11 @@
 
 Covers the abort decision (error/high only, first-qualifying-finding-wins,
 fail-open on empty input, loud failure on malformed input),
-`compute_round_outcome`'s hard "never pass on an unre-dispatched abort" rule,
-`merge_findings`'s dedup-and-append contract, and the fixture equivalence
-test proving `merge_findings` is order-independent under a cheap/deferred
-split (Step 1.1's central safety-property test).
+`compute_round_outcome`'s hard "never pass on an unre-dispatched abort" rule
+and its severity-floor finding filter, `merge_findings`'s dedup-and-append
+contract, the fixture equivalence test proving `merge_findings` is
+order-independent under a cheap/deferred split (Step 1.1's central
+safety-property test), and the CLI's three `--mode` entry points.
 """
 
 from __future__ import annotations
@@ -38,7 +39,7 @@ class TestDecideAbortNoAbort:
         results = [_result("naming-review", _issue("warning", "medium"))]
         out = checkpoint_abort.decide_abort(results, ["naming-review", "arch-review"])
         assert out == {
-            "abort": False,
+            "aborted": False,
             "triggeringFinding": None,
             "triggeringAgent": None,
             "deferredLenses": [],
@@ -46,18 +47,18 @@ class TestDecideAbortNoAbort:
 
     def test_empty_cheap_results_never_aborts(self):
         out = checkpoint_abort.decide_abort([], ["arch-review", "security-review"])
-        assert out["abort"] is False
+        assert out["aborted"] is False
         assert out["deferredLenses"] == []
 
     def test_error_severity_without_high_confidence_never_aborts(self):
         results = [_result("naming-review", _issue("error", "medium"))]
         out = checkpoint_abort.decide_abort(results, ["naming-review", "arch-review"])
-        assert out["abort"] is False
+        assert out["aborted"] is False
 
     def test_high_confidence_without_error_severity_never_aborts(self):
         results = [_result("naming-review", _issue("warning", "high"))]
         out = checkpoint_abort.decide_abort(results, ["naming-review", "arch-review"])
-        assert out["abort"] is False
+        assert out["aborted"] is False
 
 
 class TestDecideAbortAborts:
@@ -65,7 +66,7 @@ class TestDecideAbortAborts:
         results = [_result("naming-review", _issue("error", "high"))]
         ordered = ["naming-review", "arch-review", "security-review"]
         out = checkpoint_abort.decide_abort(results, ordered)
-        assert out["abort"] is True
+        assert out["aborted"] is True
         assert out["triggeringFinding"] == _issue("error", "high")
         assert out["triggeringAgent"] == "naming-review"
         assert out["deferredLenses"] == ["arch-review", "security-review"]
@@ -77,7 +78,7 @@ class TestDecideAbortAborts:
         ]
         ordered = ["naming-review", "doc-review", "arch-review"]
         out = checkpoint_abort.decide_abort(results, ordered)
-        assert out["abort"] is True
+        assert out["aborted"] is True
         assert out["triggeringAgent"] == "naming-review"
         assert out["triggeringFinding"]["message"] == "first"
         # Both cheap-tier agents already ran; only the un-run lens defers.
@@ -92,7 +93,7 @@ class TestDecideAbortAborts:
             ),
         ]
         out = checkpoint_abort.decide_abort(results, ["naming-review", "arch-review"])
-        assert out["abort"] is True
+        assert out["aborted"] is True
         assert out["triggeringFinding"]["message"] == "second issue"
 
 
@@ -116,6 +117,16 @@ class TestDecideAbortMalformedInput:
         with pytest.raises(checkpoint_abort.CheckpointAbortError):
             checkpoint_abort.decide_abort({"not": "a list"}, ["naming-review"])
 
+    def test_missing_agent_raises(self):
+        results = [{"issues": [_issue("error", "high")]}]
+        with pytest.raises(checkpoint_abort.CheckpointAbortError):
+            checkpoint_abort.decide_abort(results, ["naming-review"])
+
+    def test_empty_agent_raises(self):
+        results = [{"agent": "", "issues": [_issue("error", "high")]}]
+        with pytest.raises(checkpoint_abort.CheckpointAbortError):
+            checkpoint_abort.decide_abort(results, ["naming-review"])
+
 
 class TestComputeRoundOutcome:
     def test_aborted_and_not_redispatched_never_passes_with_no_findings(self):
@@ -123,30 +134,68 @@ class TestComputeRoundOutcome:
             aborted=True, redispatched=False, findings=[]
         )
         assert out["outcome"] == "blocked"
+        assert out["reason"] == (
+            "round aborted on a cheap-tier blocker and its deferred "
+            "lenses were never re-dispatched"
+        )
 
     def test_aborted_and_not_redispatched_never_passes_with_findings(self):
         out = checkpoint_abort.compute_round_outcome(
-            aborted=True, redispatched=False, findings=[{"severity": "error"}]
+            aborted=True,
+            redispatched=False,
+            findings=[_issue("error", "high")],
         )
         assert out["outcome"] == "blocked"
+        assert out["reason"] == (
+            "round aborted on a cheap-tier blocker and its deferred "
+            "lenses were never re-dispatched"
+        )
 
     def test_aborted_and_redispatched_computes_from_findings_empty(self):
         out = checkpoint_abort.compute_round_outcome(
             aborted=True, redispatched=True, findings=[]
         )
         assert out["outcome"] == "pass"
+        assert out["reason"] is None
 
     def test_aborted_and_redispatched_computes_from_findings_nonempty(self):
         out = checkpoint_abort.compute_round_outcome(
-            aborted=True, redispatched=True, findings=[{"severity": "error"}]
+            aborted=True,
+            redispatched=True,
+            findings=[_issue("error", "high")],
         )
         assert out["outcome"] == "blocked"
+        assert out["reason"] == "1 finding(s) remain"
 
     def test_never_aborted_computes_from_findings(self):
         out = checkpoint_abort.compute_round_outcome(
             aborted=False, redispatched=False, findings=[]
         )
         assert out["outcome"] == "pass"
+        assert out["reason"] is None
+
+    def test_only_suggestion_or_low_confidence_findings_pass(self):
+        findings = [
+            _issue("suggestion", "high"),
+            _issue("error", "low"),
+            _issue("warning", "none"),
+        ]
+        out = checkpoint_abort.compute_round_outcome(
+            aborted=False, redispatched=False, findings=findings
+        )
+        assert out["outcome"] == "pass"
+        assert out["reason"] is None
+
+    def test_one_blocking_finding_among_suggestion_tier_blocks(self):
+        findings = [
+            _issue("suggestion", "high"),
+            _issue("warning", "medium"),
+        ]
+        out = checkpoint_abort.compute_round_outcome(
+            aborted=False, redispatched=False, findings=findings
+        )
+        assert out["outcome"] == "blocked"
+        assert out["reason"] == "1 finding(s) remain"
 
 
 class TestMergeFindings:
@@ -186,6 +235,34 @@ class TestMergeFindings:
         checkpoint_abort.merge_findings(existing, new)
         assert existing == existing_copy
         assert new == new_copy
+
+
+class TestMergeDedupIdentityDivergence:
+    """Documents that `_finding_key`'s dedup identity is deliberately
+    stricter than, and independent of, `finding_signature.py`'s round-ledger
+    identity relation — mirrors `gate_retry_state.py`'s
+    `test_max_rounds_matches_finding_signature`-style drift-awareness test,
+    applied to a deliberately-divergent (not deliberately-matching) pair of
+    constants. See the "Merge-dedup identity intentionally diverges from
+    finding_signature.py" comment above `_finding_key` in checkpoint_abort.py.
+    """
+
+    def test_finding_key_uses_exact_line_and_raw_message(self):
+        # finding_signature.py tolerates a +/-3 line shift and normalizes
+        # the message; _finding_key does neither — two findings that would
+        # be the SAME finding under finding_signature's relation must be
+        # DISTINCT here, because merge_findings folds together two tiers
+        # dispatched against the same unmoved diff, where an exact
+        # positional key is what avoids over-merging.
+        a = {
+            "agent": "naming-review",
+            "file": "a.py",
+            "line": 10,
+            "severity": "warning",
+            "message": "ambiguous name 'x'",
+        }
+        b = dict(a, line=12, message="ambiguous name 'x' (renamed)")
+        assert checkpoint_abort._finding_key(a) != checkpoint_abort._finding_key(b)
 
 
 class TestFixtureEquivalence:
@@ -262,13 +339,13 @@ class TestCli:
     def test_no_abort_prints_json_and_exits_zero(self):
         result = self._run([], ["naming-review"], check=True)
         payload = json.loads(result.stdout)
-        assert payload["abort"] is False
+        assert payload["aborted"] is False
 
     def test_abort_prints_deferred_lenses_and_exits_zero(self):
         results = [_result("naming-review", _issue("error", "high"))]
         result = self._run(results, ["naming-review", "arch-review"], check=True)
         payload = json.loads(result.stdout)
-        assert payload["abort"] is True
+        assert payload["aborted"] is True
         assert payload["deferredLenses"] == ["arch-review"]
 
     def test_malformed_input_exits_nonzero_with_clear_error(self):
@@ -287,3 +364,146 @@ class TestCli:
         )
         assert result.returncode != 0
         assert "json" in result.stderr.lower()
+
+    def test_cheap_results_from_file_happy_path(self, tmp_path):
+        results = [_result("naming-review", _issue("error", "high"))]
+        results_file = tmp_path / "cheap-results.json"
+        results_file.write_text(json.dumps(results), encoding="utf-8")
+        result = subprocess.run(
+            [
+                sys.executable,
+                str(_SCRIPTS_DIR / "checkpoint_abort.py"),
+                "--cheap-results-from",
+                str(results_file),
+                "--lenses",
+                "naming-review",
+                "arch-review",
+            ],
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+        payload = json.loads(result.stdout)
+        assert payload["aborted"] is True
+        assert payload["deferredLenses"] == ["arch-review"]
+
+    def test_cheap_results_from_nonexistent_file_exits_nonzero(self, tmp_path):
+        missing = tmp_path / "does-not-exist.json"
+        result = subprocess.run(
+            [
+                sys.executable,
+                str(_SCRIPTS_DIR / "checkpoint_abort.py"),
+                "--cheap-results-from",
+                str(missing),
+                "--lenses",
+                "naming-review",
+            ],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        assert result.returncode != 0
+        assert "cannot read" in result.stderr.lower()
+
+
+class TestCliModeOutcome:
+    def _run(self, payload, check=False):
+        return subprocess.run(
+            [sys.executable, str(_SCRIPTS_DIR / "checkpoint_abort.py"), "--mode", "outcome"],
+            input=json.dumps(payload),
+            capture_output=True,
+            text=True,
+            check=check,
+        )
+
+    def test_happy_path_prints_outcome_json(self):
+        result = self._run(
+            {"aborted": False, "redispatched": False, "findings": []}, check=True
+        )
+        payload = json.loads(result.stdout)
+        assert payload == {"outcome": "pass", "reason": None}
+
+    def test_malformed_input_exits_nonzero_with_clear_error(self):
+        result = self._run({"aborted": True, "findings": []}, check=False)
+        assert result.returncode != 0
+        assert "malformed" in result.stderr.lower()
+
+    def test_from_file_happy_path(self, tmp_path):
+        payload_file = tmp_path / "outcome-input.json"
+        payload_file.write_text(
+            json.dumps({"aborted": True, "redispatched": False, "findings": []}),
+            encoding="utf-8",
+        )
+        result = subprocess.run(
+            [
+                sys.executable,
+                str(_SCRIPTS_DIR / "checkpoint_abort.py"),
+                "--mode",
+                "outcome",
+                "--from",
+                str(payload_file),
+            ],
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+        payload = json.loads(result.stdout)
+        assert payload["outcome"] == "blocked"
+
+
+class TestCliModeMerge:
+    def _run(self, payload, check=False):
+        return subprocess.run(
+            [sys.executable, str(_SCRIPTS_DIR / "checkpoint_abort.py"), "--mode", "merge"],
+            input=json.dumps(payload),
+            capture_output=True,
+            text=True,
+            check=check,
+        )
+
+    def test_happy_path_prints_merged_json_array(self):
+        existing = [
+            {
+                "agent": "naming-review",
+                "file": "a.py",
+                "line": 1,
+                "severity": "warning",
+                "message": "m1",
+            }
+        ]
+        new = [
+            {
+                "agent": "arch-review",
+                "file": "b.py",
+                "line": 2,
+                "severity": "error",
+                "message": "m2",
+            }
+        ]
+        result = self._run({"existing": existing, "new": new}, check=True)
+        merged = json.loads(result.stdout)
+        assert merged == existing + new
+
+    def test_malformed_input_exits_nonzero_with_clear_error(self):
+        result = self._run({"existing": "not-a-list", "new": []}, check=False)
+        assert result.returncode != 0
+        assert "malformed" in result.stderr.lower()
+
+    def test_from_file_happy_path(self, tmp_path):
+        payload_file = tmp_path / "merge-input.json"
+        payload_file.write_text(json.dumps({"existing": [], "new": []}), encoding="utf-8")
+        result = subprocess.run(
+            [
+                sys.executable,
+                str(_SCRIPTS_DIR / "checkpoint_abort.py"),
+                "--mode",
+                "merge",
+                "--from",
+                str(payload_file),
+            ],
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+        merged = json.loads(result.stdout)
+        assert merged == []
