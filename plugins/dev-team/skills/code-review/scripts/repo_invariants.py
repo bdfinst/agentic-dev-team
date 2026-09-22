@@ -592,6 +592,23 @@ _TRANSCRIPT_PARSING_ALLOWLIST = {
         "deleted; the identifiers remain in this file's module docstring "
         "(Privacy boundary section) describing which fields it reads"
     ),
+    "plugins/dev-team/hooks/subagent_completion_guard.py": (
+        "reads only message.stop_reason and message.content off the LAST "
+        "JSON row of a subagent's own transcript file -- never "
+        "isSidechain/attributionAgent/cache_*_input_tokens; the two "
+        "'isSidechain' occurrences are both in this file's own module "
+        "docstring, recording issue #2188's Step 2.1a research finding "
+        "(a subagent's own transcript file is isSidechain:true by "
+        "construction, so no sidechain filtering is needed). This file "
+        "DOES carry its own small last-row reader (_tail_lines/_last_row) "
+        "rather than session_log.records.iter_file_records -- deliberately: "
+        "iter_file_records silently skips an undecodable line and "
+        "continues, while this hook needs 'the trailing line is malformed "
+        "JSON' to classify as its own distinct outcome ('unreadable'), "
+        "which a streaming skip-and-continue reader cannot express. A "
+        "narrower concern than the four-identifier duplication this "
+        "invariant targets, not zero"
+    ),
     "plugins/dev-team/hooks/lib/pricing.py": (
         "reads a pre-extracted usage dict's known numeric fields "
         "(cache_creation_input_tokens/cache_read_input_tokens) for cost "

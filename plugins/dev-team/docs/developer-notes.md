@@ -25,6 +25,34 @@ topic.
 | Code knowledge graphs | [`codegraph-vs-graphify.md`](https://github.com/bdfinst/agentic-dev-team/blob/main/plugins/dev-team/knowledge/codegraph-vs-graphify.md) | When to use CodeGraph vs Graphify, how `/project-init` installs each, and the CLAUDE.md-preservation guard. |
 | Script conventions | [ADR 0014](../../../docs/adr/0014-python-for-cross-os-scripts.md), [ADR 0015](../../../docs/adr/0015-bash-removal-complete.md), [ADR 0031](../../../docs/adr/0031-raise-shipped-python-floor-to-3-10.md) | Why every shipped script is Python 3.10+ stdlib-only, the completed bash removal, and the floor's move off EOL 3.8. |
 
+## Hooks
+
+`PreToolUse`/`PostToolUse` guard hooks are documented in
+[`agent-architecture.md` § Governance](https://github.com/bdfinst/agentic-dev-team/blob/main/plugins/dev-team/docs/agent-architecture.md#governance).
+`SubagentStop` hooks aren't yet indexed there; this section is the entry
+point for them.
+
+### Subagent Completion Guard
+
+A `SubagentStop` hook (`hooks/subagent_completion_guard.py`, #2188)
+classifies each dispatched subagent's own transcript tail into `clean`,
+`empty-final-turn`, `truncated-final-turn`, or `unreadable`, and emits a
+`boundary-events.jsonl` "warn" record for the two non-clean, explainable
+outcomes (`empty-final-turn`, `truncated-final-turn`) via
+`hooks/lib/boundary_events.emit_boundary_event`; `clean` and `unreadable`
+stay silent — record-only, never blocking. It runs alongside the plugin's
+other `SubagentStop` hooks, `hooks/cost_meter.py` and
+`hooks/task_completion_metrics.py` (both undocumented as of this entry).
+Classification reads the last JSON row of the subagent's own transcript file
+directly — no sidechain filtering needed, since every row in a subagent's
+own `subagents/agent-<hash>.jsonl` file already belongs to it — and checks
+`message.stop_reason == "max_tokens"` (→ `truncated-final-turn`, checked
+first since a token-limit cutoff can itself produce empty content) before
+falling back to empty/whitespace-only content (→ `empty-final-turn`).
+Fail-open throughout: a missing/unreadable transcript, or a last row missing
+`message`/`content` entirely, classifies as `unreadable` and emits nothing.
+Tests: `tests/hooks/test_subagent_completion_guard.py`.
+
 The rest of this page covers the one extension path that touches several of
 these files at once and has no other single writeup: adding a new language to
 the static-analysis suite.

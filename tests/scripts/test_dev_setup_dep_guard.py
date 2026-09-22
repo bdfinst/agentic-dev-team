@@ -37,6 +37,7 @@ DIST_TO_MODULE = {
     # pinned one must not satisfy it.
     "ruff": "ruff",
     "mypy": "mypy",
+    "hypothesis": "hypothesis",
 }
 
 

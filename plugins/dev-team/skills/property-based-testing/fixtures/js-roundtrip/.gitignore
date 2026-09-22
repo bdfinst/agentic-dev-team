@@ -1,0 +1,20 @@
+# Vendoring boundary for this fixture's determinism requirement (#2190) —
+# see ../../references/languages/javascript.md "Test determinism & the
+# vendoring boundary" and ./README.md for the full rationale.
+#
+# The repo-root .gitignore excludes `node_modules/` everywhere; a nested
+# .gitignore cannot re-include files under an already-excluded *directory*
+# (only an excluded *file*) unless it first un-excludes the directory itself
+# — hence the `!node_modules/` line below before re-narrowing.
+#
+# fast-check (+ its own only dependency, pure-rand) is vendored: both are
+# pure JS, no native/platform-specific binaries, ~1.8M total — identical on
+# every dev machine and CI runner.
+!node_modules/
+node_modules/*
+!node_modules/fast-check/
+!node_modules/pure-rand/
+
+# vitest and its transitive deps are intentionally NOT vendored (platform-
+# native binaries — see README.md) and stay excluded by the root
+# `node_modules/` rule via the `node_modules/*` re-narrowing above.

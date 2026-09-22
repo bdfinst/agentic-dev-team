@@ -5277,6 +5277,36 @@
       "anchor": "customization-handling"
     }
   },
+  "plugins/dev-team/skills/property-based-testing/SKILL.md": {
+    "Procedure": {
+      "summary": "Run project-init's own stack detection —",
+      "anchor": "procedure"
+    },
+    "Step 1: Detect the target language (reuse project-init — never re-derive)": {
+      "summary": "Run project-init's own stack detection —",
+      "anchor": "step-1-detect-the-target-language-reuse-project-init-never-re-derive"
+    },
+    "Step 2: Gate on support": {
+      "summary": "Pass the detected language (or nothing, when Step 1 found none) to",
+      "anchor": "step-2-gate-on-support"
+    },
+    "Step 3: Install the property-testing tool if missing": {
+      "summary": "Follow project-init's own detection-gated-tool install pattern (`Step 4:",
+      "anchor": "step-3-install-the-property-testing-tool-if-missing"
+    },
+    "Step 4: Generate the property test": {
+      "summary": "**Python** — invoke Step 4.1's scaffold directly:",
+      "anchor": "step-4-generate-the-property-test"
+    },
+    "Step 5: Recommend the mutation-testing follow-up (documentation only)": {
+      "summary": "After Step 4 writes a test file, **recommend** — do not auto-run —",
+      "anchor": "step-5-recommend-the-mutation-testing-follow-up-documentation-only"
+    },
+    "When not to apply": {
+      "summary": "A function with no obvious round-trip pair or documented invariant — see",
+      "anchor": "when-not-to-apply"
+    }
+  },
   "plugins/dev-team/skills/proxy-resilience/SKILL.md": {
     "Overview": {
       "summary": "A corporate proxy fronting Anthropic API traffic enforces its own rate",
@@ -5869,6 +5899,40 @@
     "Notes": {
       "summary": "`/ship` is sequencing only: every gate, fix loop, and evidence requirement comes from",
       "anchor": "notes"
+    }
+  },
+  "plugins/dev-team/skills/source-verification/SKILL.md": {
+    "Procedure": {
+      "summary": "Run `extract_claims(text)` from",
+      "anchor": "procedure"
+    },
+    "Step 1: Extract claims": {
+      "summary": "Run `extract_claims(text)` from",
+      "anchor": "step-1-extract-claims"
+    },
+    "Step 2: Empty-state check": {
+      "summary": "If `extract_claims()` returns zero claims, report the following message",
+      "anchor": "step-2-empty-state-check"
+    },
+    "Step 3: Verify each claim": {
+      "summary": "For every extracted claim, resolve a verdict — `verified`, `contradicted`,",
+      "anchor": "step-3-verify-each-claim"
+    },
+    "Step 4: Report": {
+      "summary": "Report one line per claim, in this exact format — this is the",
+      "anchor": "step-4-report"
+    },
+    "Worked example": {
+      "summary": "The fixture cases below walk through each report line this skill produces,",
+      "anchor": "worked-example"
+    },
+    "Scope note: WebFetch/WebSearch untrusted-content handling": {
+      "summary": "At the time this skill was added, no other skill in this repo documents a",
+      "anchor": "scope-note-webfetchwebsearch-untrusted-content-handling"
+    },
+    "When not to apply": {
+      "summary": "Content with no factual claims to check (pure opinion, style, narrative).",
+      "anchor": "when-not-to-apply"
     }
   },
   "plugins/dev-team/skills/specs/SKILL.md": {
