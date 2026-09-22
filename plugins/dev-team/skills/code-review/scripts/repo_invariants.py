@@ -69,6 +69,8 @@ _PLUGIN_ROOT = Path(__file__).resolve().parents[3]
 # review_agent_registry.py's own docstring). Import rather than re-deriving
 # `_PLUGIN_ROOT / "agents"` locally.
 sys.path.insert(0, str(_PLUGIN_ROOT / "hooks" / "lib"))
+import boundary_events
+import review_dispatch_ledger
 from review_agent_registry import (
     default_agents_dir,
     find_review_agent_files,
@@ -609,6 +611,24 @@ _TRANSCRIPT_PARSING_ALLOWLIST = {
         "narrower concern than the four-identifier duplication this "
         "invariant targets, not zero"
     ),
+    "plugins/dev-team/hooks/review_verdict_recorder.py": (
+        "attributionAgent is read only through session_log.records "
+        "(attribution_agent_of); the 'attributionAgent' occurrences this "
+        "check's own regex matches are all in this file's own module "
+        "docstring, recording #2166 Step 2.3's own pre-implementation spike "
+        "finding against 124 real subagent transcripts (mirrors "
+        "cost_meter.py's entry above: prose documenting the harness field "
+        "this hook's decisions are based on, not a second parsing "
+        "implementation). `agentId` is NOT one of this check's own scanned "
+        "identifiers (see _TRANSCRIPT_FIELD_RE above) and is read directly "
+        "as a plain top-level field (`_own_agent_id`'s `rec.get(\"agentId\")`) "
+        "rather than through session_log -- correcting this entry's prior, "
+        "inaccurate 'never a raw field access' claim about it (#2166 Fix "
+        "#9, correctness review). This file's own transcript reader, "
+        "`_read_transcript_records`, delegates to "
+        "session_log.records.iter_file_records (Fix #9) rather than "
+        "carrying a second whole-file reader"
+    ),
     "plugins/dev-team/hooks/lib/pricing.py": (
         "reads a pre-extracted usage dict's known numeric fields "
         "(cache_creation_input_tokens/cache_read_input_tokens) for cost "
@@ -851,6 +871,43 @@ def check_normative_content_single_sourced(changed_files=None) -> list[dict]:
     return findings
 
 
+def check_ledger_filename_single_sourced(changed_files=None) -> list[dict]:
+    """`boundary-events.jsonl`'s filename must stay single-sourced from
+    `hooks/lib/boundary_events.LOG_NAME` — the module that actually writes
+    the ledger and therefore owns its name.
+
+    Backstop review against #2166 + #2171 found this filename independently
+    hand-rolled in three homes (`boundary_events._LOG_NAME`,
+    `review_dispatch_ledger.LEDGER_STREAM`, and
+    `boundary_events_write_guard.py`'s own import), reported by 4 of 8
+    reviewers (arch, domain, naming, structure) — clearing this repo's own
+    ratchet rule ("a mechanical finding reported twice becomes a check")
+    decisively. `review_dispatch_ledger.LEDGER_STREAM` is now an alias of
+    `boundary_events.LOG_NAME`, not a fresh literal — this check asserts
+    that stays an *identity*, not just an equal value, so a future edit
+    can't silently reintroduce a fourth independent copy with a green test
+    suite.
+
+    Corpus-wide by design: this is a standing structural invariant, not a
+    changeset-scoped one.
+    """
+    if review_dispatch_ledger.LEDGER_STREAM is not boundary_events.LOG_NAME:
+        return [
+            {
+                "invariant": "ledger-filename-single-sourced",
+                "file": "plugins/dev-team/hooks/lib/review_dispatch_ledger.py",
+                "message": (
+                    "review_dispatch_ledger.LEDGER_STREAM must remain the "
+                    "identical object as boundary_events.LOG_NAME (an alias, "
+                    "not a fresh literal) — boundary_events.py is the module "
+                    "that actually writes the boundary-events ledger and "
+                    "owns its filename."
+                ),
+            }
+        ]
+    return []
+
+
 # Registered checks. Each entry takes an optional `changed_files` list and
 # returns findings. See the module docstring for why that argument exists.
 CHECKS = [
@@ -862,6 +919,7 @@ CHECKS = [
     check_transcript_parsing_confined_to_session_log,
     check_churn_report_window_key_safe_access,
     check_normative_content_single_sourced,
+    check_ledger_filename_single_sourced,
 ]
 
 

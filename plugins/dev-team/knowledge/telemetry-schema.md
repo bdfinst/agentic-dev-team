@@ -73,13 +73,26 @@ the two non-clean, explainable outcomes, with `matched_rule` set to the
 classification itself (`empty-final-turn` or `truncated-final-turn`); the
 common `clean` case and the unexplainable `unreadable` case write nothing.
 
+**#2166 Fix #3** adds `review_verdict_recorder.py` as a `SubagentStop`
+emitter, same `record` decision, same non-verdict posture: once this hook
+has confirmed a dispatch's `subagent_type` IS a registered review lens (so
+the dispatch SHOULD produce `review-verdicts.jsonl` rows), a degenerate exit
+that would otherwise be silently indistinguishable from a legitimate no-op
+instead writes one `record` row naming why, via `matched_rule` of
+`missing-scope-marker` (the dispatch prompt's Step 2.1 scope marker is
+missing or reformatted) or `unparseable-result` (the agent's final JSON
+result couldn't be recovered, even by the tolerant extractor). The
+PRE-resolution exits (unreadable transcript, unresolvable `subagent_type`,
+an unregistered or registered-but-non-review `subagent_type`) stay silent —
+those are legitimate no-ops, not degenerate states.
+
 | Field | Type | Values / source |
 | --- | --- | --- |
 | `ts` | string | ISO-8601 UTC `%Y-%m-%dT%H:%M:%SZ` |
 | `hook` | string | Emitting hook's module name, e.g. `destructive_guard`, `verify_guard`, `pre_pr_review` (the review-corroboration gate, #1886; `pre_commit_review` is now a documented no-op and emits nothing), `telemetry`, `agent_dispatch_ledger` — or `code-review` for the CLI-emitted events (`--event doc-only`/`single-agent`/`dispatch-failure`), which carry the invoking skill's name rather than a hook module name |
 | `tool` | string | Hooked tool/event: `Bash`, `Write`, `Edit`, `Skill`, `Agent`, `UserPromptSubmit`, `SubagentStop` (#2188) |
 | `decision` | string enum | `block` \| `warn` \| `bypass` \| `intervention` \| `revert` \| `record` \| `dispatch-failure` |
-| `matched_rule` | string | Rule ID from a closed vocabulary (pattern ID, hook-defined constant, bypass flag name, intervention keyword, or — for `record`/`dispatch-failure` — the dispatched review-agent's registered name, or — for `subagent_completion_guard.py`'s `record` rows — `empty-final-turn`/`truncated-final-turn`, #2188) — never free text |
+| `matched_rule` | string | Rule ID from a closed vocabulary (pattern ID, hook-defined constant, bypass flag name, intervention keyword, or — for `record`/`dispatch-failure` — the dispatched review-agent's registered name, or — for `subagent_completion_guard.py`'s `record` rows — `empty-final-turn`/`truncated-final-turn`, #2188, or — for `review_verdict_recorder.py`'s `record` rows — `missing-scope-marker`/`unparseable-result`, #2166 Fix #3, or — for `boundary_events_write_guard.py`'s `block` rows — `ledger-write-blocked`, #2171) — never free text |
 | `plugin_version` | string | From `.claude-plugin/plugin.json` |
 | `session_id` | string, optional | Opaque per-session ID, when present in the hook payload — enables joins with `session-digest.jsonl` |
 | `subject_hash` | string, optional | `review_gate_hash()` value (#1461) binding this event to the staged content it corroborates. A hex digest, not free text |
@@ -96,10 +109,55 @@ PR-creation time, against the branch's cumulative diff, does not have that
 problem. `hooks/pre_pr_review.py` never emits this event. Existing rows in
 `boundary-events.jsonl` from before the migration remain valid history.
 
-- **Emitter:** `hooks/lib/boundary_events.py::emit_boundary_event()`, called from `destructive_guard.py`, `verify_guard.py`, `pre_pr_review.py` (#1886), `telemetry.py` (intervention keywords), `agent_dispatch_ledger.py` (decision `record`, #1461), `subagent_completion_guard.py` (decision `record`, `tool` `SubagentStop`, #2188), the mechanically-adopted guards (`pre_tool_guard.py`, `context_ceiling_guard.py`, `bash_retry_guard.py`, `refactor_test_freeze_guard.py`, `refactor_test_bash_guard.py`, `refactor_test_revert_guard.py` (decision `revert`, #906), `contract_version_guard.py`, `mutation_testing_smoke_gate.py`, `mutation_gate.py`, `tdd_guard.py`), and `boundary_events.py`'s own CLI (`--event dispatch-failure`, decision `dispatch-failure`, #1763) invoked from `skills/code-review/SKILL.md` Step 4. `--event gate-ran --verdict {allow,block,errored}` (decision `record`, `matched_rule` of `gate-ran-<verdict>`, #2037) is invoked from the repo-root `.husky/pre-commit` git hook — the real, git-native pre-commit gate (distinct from `pre_pr_review.py`, a Claude-Code-level PreToolUse hook gating `gh pr create`) — at every exit point, success or failure alike, so `${CLAUDE_PLUGIN_ROOT}/scripts/session_report.py --profile maintainer` can correlate a commit-attempt Bash record against a nearby `gate_ran` event and classify the previously-unmeasured "the gate silently never ran" population (`gate_ran_absent`) apart from a genuine internal failure (`gate_ran_errored`). This event carries no `session_id` in practice — a real git hook has no Claude Code session_id to attach — so correlation is by time proximity, not session join; see `session_report.py`'s "gate-run correlation (#2037)" section.
+- **Emitter:** `hooks/lib/boundary_events.py::emit_boundary_event()`, called from `destructive_guard.py`, `verify_guard.py`, `pre_pr_review.py` (#1886), `telemetry.py` (intervention keywords), `agent_dispatch_ledger.py` (decision `record`, #1461), `subagent_completion_guard.py` (decision `record`, `tool` `SubagentStop`, #2188), `review_verdict_recorder.py` (decision `record`, `tool` `SubagentStop`, `matched_rule` `missing-scope-marker`\|`unparseable-result`, #2166 Fix #3), `boundary_events_write_guard.py` (decision `block`, `tool` `Write`\|`Edit`\|`Bash`, `matched_rule` `ledger-write-blocked` — the PreToolUse guard blocking a direct Write/Edit/Bash write to this same ledger, #2171), the mechanically-adopted guards (`pre_tool_guard.py`, `context_ceiling_guard.py`, `bash_retry_guard.py`, `refactor_test_freeze_guard.py`, `refactor_test_bash_guard.py`, `refactor_test_revert_guard.py` (decision `revert`, #906), `contract_version_guard.py`, `mutation_testing_smoke_gate.py`, `mutation_gate.py`, `tdd_guard.py`), and `boundary_events.py`'s own CLI (`--event dispatch-failure`, decision `dispatch-failure`, #1763) invoked from `skills/code-review/SKILL.md` Step 4. `--event gate-ran --verdict {allow,block,errored}` (decision `record`, `matched_rule` of `gate-ran-<verdict>`, #2037) is invoked from the repo-root `.husky/pre-commit` git hook — the real, git-native pre-commit gate (distinct from `pre_pr_review.py`, a Claude-Code-level PreToolUse hook gating `gh pr create`) — at every exit point, success or failure alike, so `${CLAUDE_PLUGIN_ROOT}/scripts/session_report.py --profile maintainer` can correlate a commit-attempt Bash record against a nearby `gate_ran` event and classify the previously-unmeasured "the gate silently never ran" population (`gate_ran_absent`) apart from a genuine internal failure (`gate_ran_errored`). This event carries no `session_id` in practice — a real git hook has no Claude Code session_id to attach — so correlation is by time proximity, not session join; see `session_report.py`'s "gate-run correlation (#2037)" section.
 - **Consent:** ALWAYS-ON — not gated by `DEV_TEAM_TELEMETRY`. Local-only, rule-IDs-only safety/accountability channel; no observability holes by design.
 - **Fail-open:** every exception in the emit helper is swallowed — never changes the calling hook's exit code, stdout, or stderr.
 - **Consumers:** `skills/session-review/SKILL.md`, `skills/harness-audit/SKILL.md`, `agents/session-analysis.md`, `skills/cost-report/`, `skills/run-report/SKILL.md` (#1167), `hooks/lib/review_gate_corroboration.py` (#1461 `record` rows; #1763 also reads `dispatch-failure` rows as negative evidence for the gate veto), future `agent-telemetry` cross-machine aggregation (#178).
+
+---
+
+## `review-verdicts.jsonl`
+
+**Added by #2166** (plan: `plans/2164-verdict-ledger-writer.md`, Slice 2). A
+**new, separate** store from `boundary-events.jsonl` (Decision 1) — not an
+overload of that stream's `record` decision — because a per-file verdict
+needs a real `file_path`, which `boundary_events.py`'s own "never write free
+text ... file paths ... must never appear" invariant forbids. Records, per
+genuine review-agent dispatch, an outcome (`pass` \| `findings`) bound to
+`(lens, file_path, file_content_hash)` — a verdict about *this exact file
+content*, not about any one diff, so it can be looked up again the next time
+the same content recurs regardless of which diff produced it.
+
+The recorder identifies which lens dispatched via the native
+`attributionAgent` field the harness stamps on the subagent's own transcript
+records (`hooks/lib/cost_meter.py`'s "Attribution dimensions" mechanism,
+reused via `scripts/lib/session_log.records`), falling back to the
+documented Task/Agent-dispatch join only when that field is absent. It reads
+the in-scope file list from a structured marker
+(`skills/code-review/SKILL.md` step 4: `Files in scope for this review:
+<path>, ...`) in the dispatch prompt — the subagent transcript's own first
+turn — and cross-references it against the agent's final JSON result's
+`issues[].file` list (`knowledge/review-agent-output-contract.md`).
+**Disclosed trust boundary (Decision 4a):** the in-scope list is the
+orchestrating session's own declared scope, not independently re-verified
+against any diff — the property this store adds is that a *real*
+`SubagentStop` event occurred for a *registered* review agent, not
+omniscient verification of review depth.
+
+| Field | Type | Values / source |
+| --- | --- | --- |
+| `ts` | string | ISO-8601 UTC `%Y-%m-%dT%H:%M:%SZ` |
+| `lens` | string | The dispatched review agent's registered name (e.g. `structure-review`), plugin-prefix-stripped |
+| `file_path` | string | One file the dispatch prompt's scope marker declared in scope, in its canonical form: `cwd`-relative POSIX (forward-slash) path, not the raw form the scope marker carried — falls back to an absolute resolved POSIX path only when the file can't be expressed relative to `cwd` |
+| `file_content_hash` | string | sha256 hex digest of `file_path`'s content at the time the recorder ran (current content, not the content at dispatch time) |
+| `outcome` | string enum | `pass` \| `findings` — whether `file_path` appears in the agent's final `issues[]` |
+| `plugin_version` | string | From `.claude-plugin/plugin.json` |
+| `session_id` | string, optional | Opaque per-session ID, when present in the hook payload |
+
+- **Emitter:** `hooks/review_verdict_recorder.py` (a `SubagentStop` hook) via `hooks/lib/review_verdicts.emit_review_verdict()`. No-op (zero rows) for any `subagent_type` outside `hooks/lib/review_agent_registry`'s closed set of registered `agents/*-review.md` names, and fail-open throughout (missing/unreadable transcript, unresolved `subagent_type`, a missing/reformatted scope marker, or an unparseable final JSON result all degrade to zero rows, never an exception); a single deleted/unreadable in-scope file is skipped without affecting the other rows.
+- **Consent:** ALWAYS-ON — same posture as `boundary-events.jsonl` (Decision 2), not gated by `DEV_TEAM_TELEMETRY`/`~/.claude/telemetry.json`. Local-only, mechanical accountability data (lens/path/hash/outcome), no prose.
+- **Fail-open:** every exception in `emit_review_verdict()` is swallowed — never changes the calling hook's exit code, stdout, or stderr. `hooks/lib/review_verdicts.load_verdicts()` mirrors this on the read side: an absent file, a corrupted line, or a stale `plugin_version` row all degrade to "no usable rows", never an exception.
+- **Consumers:** none yet — this slice is deliberately writer-only (#2167 is the queued consumer slice).
 
 ---
 

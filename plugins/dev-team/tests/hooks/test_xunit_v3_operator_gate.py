@@ -26,7 +26,7 @@ _MODULE = _LIB / "xunit_v3_operator_gate.py"
 
 
 def _events(tmp_path) -> list[dict]:
-    log = tmp_path / ".claude" / "metrics" / boundary_events._LOG_NAME
+    log = tmp_path / ".claude" / "metrics" / boundary_events.LOG_NAME
     if not log.is_file():
         return []
     return [json.loads(ln) for ln in log.read_text(encoding="utf-8").splitlines() if ln]
