@@ -31,10 +31,13 @@ Contract (docs/python-hook-contract.md):
             command. The Bash-path message instead names the
             `hooks/lib/boundary_events.py` CLI's actual invocable shape
             (`python3 plugins/dev-team/hooks/lib/boundary_events.py --event
-            <doc-only|single-agent|dispatch-failure|gate-ran>
-            --subject-hash <hash> ...`, #1461) — `--event` is a flag drawn
-            from a closed `choices` set, not a positional, and most events
-            require `--subject-hash`; the CLI cannot construct an
+            <event> --subject-hash <hash> ...`, #1461) — the message
+            interpolates the live `<event>` choice set from
+            `boundary_events.cli_event_names()` rather than restating it
+            here, so this docstring never drifts the way the message
+            itself used to (review finding, #2171). `--event` is a flag
+            drawn from a closed `choices` set, not a positional, and most
+            events require `--subject-hash`; the CLI cannot construct an
             arbitrary row by design — a genuinely custom row still needs
             `emit_boundary_event()` called from a hook (plan-review-ux
             finding, Step 1.2, corrected by review).
@@ -70,10 +73,11 @@ if str(_LIB_DIR) not in sys.path:
     sys.path.insert(0, str(_LIB_DIR))
 
 import artifact_paths
+from boundary_events import cli_event_names as _cli_event_names
 from boundary_events import emit_boundary_event as _emit_boundary_event
+from review_dispatch_ledger import LEDGER_STREAM as _LEDGER_NAME
+from review_dispatch_ledger import resolve_stream as _resolve_ledger_stream
 from stdin_json import read_stdin_json  # type: ignore[import-not-found]
-
-_LEDGER_NAME = "boundary-events.jsonl"
 
 
 def emit_boundary_event(*args, **kwargs) -> None:
@@ -104,7 +108,17 @@ def targets_ledger(file_path: str, cwd: str) -> bool:
     the same on-disk path `emit_boundary_event()` itself resolves and
     writes to — `artifact_paths.resolve_file("metrics", ...)` under the
     repo root, not a bare `.claude/metrics/` prefix match (so
-    `review-verdicts.jsonl`, Slice 2's own store, is unaffected).
+    `review-verdicts.jsonl`, Slice 2's own store, is unaffected) — OR the
+    pre-migration legacy path `<project-root>/metrics/boundary-events.jsonl`
+    (review finding, #2171): `resolve_file(..., migrate=True)`, the default
+    every `emit_boundary_event()` call uses, `shutil.move`s an untracked
+    file at that legacy path into the ledger the *next* time anything
+    emits, whenever the new-location file does not yet exist. Matching
+    only the new-location path would let a Write/Edit plant a forged file
+    at the legacy path — invisible to this guard — that a later, entirely
+    legitimate `emit_boundary_event()` call then silently promotes into
+    ledger history. Both candidates must be blocked for the guard's
+    forgery-cost claim to hold.
 
     The `cwd` anchor is realpath'd before the join (review finding): the
     ledger side already resolves symlinks transparently, because
@@ -126,12 +140,22 @@ def targets_ledger(file_path: str, cwd: str) -> bool:
         candidate = base / candidate
     candidate_norm = os.path.abspath(str(candidate))
 
-    ledger = artifact_paths.resolve_file(
-        "metrics", _LEDGER_NAME, root=cwd, migrate=False
-    )
-    ledger_norm = os.path.abspath(str(ledger))
+    # Cheap lexical pre-check (performance review finding, #2171): every
+    # candidate this function can match ends in `_LEDGER_NAME` — skip the
+    # `git rev-parse` subprocess `resolve_stream()`/`project_root()` incur
+    # for the overwhelming majority of Write/Edit calls that plainly don't.
+    if os.path.basename(candidate_norm) != _LEDGER_NAME:
+        return False
 
-    return candidate_norm == ledger_norm
+    ledger = _resolve_ledger_stream("metrics", _LEDGER_NAME, Path(cwd) if cwd else Path.cwd())
+    ledger_norm = os.path.abspath(str(ledger))
+    if candidate_norm == ledger_norm:
+        return True
+
+    legacy_ledger = artifact_paths.project_root(start=cwd) / "metrics" / _LEDGER_NAME
+    legacy_norm = os.path.abspath(str(legacy_ledger))
+
+    return candidate_norm == legacy_norm
 
 
 def _extract_command(tool_input: object) -> str:
@@ -206,8 +230,17 @@ def bash_command_writes_to_ledger(command: str) -> bool:
     filename, in any path form — see `_BASH_WRITE_SHAPE_PATTERNS`. A
     read-shaped command referencing the same filename (`cat`, `grep`,
     `tail`, `head`, a read-mode `open()`) never matches any pattern here,
-    so it is allowed without a separate read-allowlist check."""
-    if not command:
+    so it is allowed without a separate read-allowlist check.
+
+    O(n) fast path first (security review finding, #2171): every pattern in
+    `_BASH_WRITE_SHAPE_PATTERNS` requires the literal `_LEDGER_NAME`
+    substring, so a command that lacks it cannot match any of them — this
+    is semantically equivalent to running the patterns, not a heuristic
+    shortcut. Skipping straight to `False` on a long non-matching command
+    (e.g. a `rm` of padding data) avoids the patterns' overlapping
+    `[^;|&\\n]*`/path-suffix character classes backtracking quadratically
+    on input that was never going to match."""
+    if not command or _LEDGER_NAME not in command:
         return False
     return any(pattern.search(command) for pattern in _BASH_WRITE_SHAPE_PATTERNS)
 
@@ -221,16 +254,30 @@ def _block(
 ) -> int:
     """Shared block sequence for both `main()` branches: record the guard's
     own decision (every sibling guard does — see the module docstring),
-    print the block explanation, and return the block exit code."""
+    print the block explanation, and return the block exit code.
+
+    Mirrors every line to stderr in addition to stdout (docs/python-hook-
+    contract.md § stderr, "Exception — exit-2 (block) messages"): some
+    Claude Code hook-error wrappers surface only stderr on a nonzero hook
+    exit, so a stdout-only block message can go unseen there. Stdout stays
+    the canonical channel; stderr is additive duplication for this exit-2
+    path only — this is a new hook, so it converges to the documented
+    standard from the start rather than joining the stdout-only legacy list."""
     emit_boundary_event(
         cwd, "boundary_events_write_guard", tool, "block", "ledger-write-blocked", session_id
     )
-    print(blocked_message)
-    print(
-        "This file is the boundary-events accountability ledger (#859) — "
-        "it is append-only from the session's perspective."
+    lines = (
+        blocked_message,
+        (
+            "This file is the boundary-events accountability ledger (#859) — "
+            "it is append-only from the session's perspective."
+        ),
+        remedy_message,
     )
-    print(remedy_message)
+    for line in lines:
+        print(line)
+    for line in lines:
+        print(line, file=sys.stderr)
     return 2
 
 
@@ -239,6 +286,7 @@ def _handle_bash_tool(payload: dict, cwd: str, session_id: str | None) -> int:
     if not bash_command_writes_to_ledger(command):
         return 0
 
+    events = "|".join(_cli_event_names())
     return _block(
         cwd,
         "Bash",
@@ -246,7 +294,7 @@ def _handle_bash_tool(payload: dict, cwd: str, session_id: str | None) -> int:
         f"BLOCKED: This Bash command writes to '.claude/metrics/{_LEDGER_NAME}', "
         "which is not allowed.",
         "Use 'python3 plugins/dev-team/hooks/lib/boundary_events.py "
-        "--event <doc-only|single-agent|dispatch-failure|gate-ran> "
+        f"--event <{events}> "
         "--subject-hash <hash> ...' instead of writing to it from Bash — "
         "an arbitrary row isn't CLI-constructible by design (that CLI only "
         "accepts a closed --event vocabulary); this exact row needs a "

@@ -15,6 +15,7 @@ import json
 import os
 import subprocess
 import sys
+import time
 
 import pytest
 
@@ -136,6 +137,25 @@ def test_targets_ledger_true_for_relative_path_via_symlinked_cwd(tmp_path):
     os.symlink(str(real_repo), str(symlinked_cwd), target_is_directory=True)
 
     assert guard.targets_ledger(_LEDGER_REL_PATH, str(symlinked_cwd))
+
+
+def test_targets_ledger_true_for_legacy_pre_migration_path(tmp_path):
+    """Domain-review finding (#2171): `emit_boundary_event()` resolves the
+    ledger with `resolve_file(..., migrate=True)` (the writer default),
+    which `shutil.move`s an untracked `<project-root>/metrics/
+    boundary-events.jsonl` into `.claude/metrics/boundary-events.jsonl`
+    the next time anything emits, whenever the new-location file does not
+    yet exist. Matching only the new location would let a Write/Edit plant
+    a forged file at the legacy path — unguarded — that a later,
+    legitimate emit then silently promotes into ledger history. Both
+    locations must be blocked."""
+    legacy = str(tmp_path / "metrics" / "boundary-events.jsonl")
+    assert guard.targets_ledger(legacy, str(tmp_path))
+
+
+def test_targets_ledger_false_for_legacy_unrelated_file(tmp_path):
+    legacy_unrelated = str(tmp_path / "metrics" / "session-digest.jsonl")
+    assert not guard.targets_ledger(legacy_unrelated, str(tmp_path))
 
 
 # ---------------------------------------------------------------------------
@@ -370,6 +390,26 @@ def test_bash_command_writes_to_ledger_true_for_write_shaped_commands(command):
 )
 def test_bash_command_writes_to_ledger_false_for_read_or_unrelated_commands(command):
     assert guard.bash_command_writes_to_ledger(command) is False
+
+
+def test_bash_command_writes_to_ledger_fast_path_on_long_non_matching_command():
+    """Security-review finding (#2171): the write-shape patterns' `[^;|&\\n]*`
+    classes overlap with the path-suffix class, giving a long non-matching
+    command quadratic backtracking — a plausible hang/bypass (a padded `rm`
+    ahead of the real write could stall the scan past a timeout). Every
+    pattern requires the literal `_LEDGER_NAME` substring, so an `in`
+    fast-path is semantically equivalent and turns this from O(n^2) into
+    O(n). Bounded timing assertion (generous — this is a regression guard,
+    not a benchmark) proves the fast path is actually taken."""
+    long_command = "rm " + ("a" * 200_000) + " ; echo done"
+    assert guard._LEDGER_NAME not in long_command
+
+    start = time.monotonic()
+    result = guard.bash_command_writes_to_ledger(long_command)
+    elapsed = time.monotonic() - start
+
+    assert result is False
+    assert elapsed < 1.0
 
 
 # ---------------------------------------------------------------------------

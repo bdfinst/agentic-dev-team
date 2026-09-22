@@ -248,6 +248,17 @@ _CLI_VERDICT_EVENTS = {
 }
 
 
+def cli_event_names() -> list[str]:
+    """The full, sorted `--event` choice set this CLI accepts — the same
+    union `_main()`'s own `argparse` `choices=` computes. Public so a
+    caller that needs to *describe* the CLI's invocable shape (e.g.
+    `boundary_events_write_guard.py`'s Bash-path remedy message, #2171)
+    reads this one source of truth instead of re-enumerating the three
+    closed-vocabulary dicts above by hand, which would silently go stale
+    the next time an event is added to any of them."""
+    return sorted({*_CLI_EVENTS, *_CLI_AGENT_EVENTS, *_CLI_VERDICT_EVENTS})
+
+
 def _main() -> int:
     """CLI entry point (#1461): lets a *skill's* bash-block prose emit one of
     a small, fixed set of exemption events, the same way
@@ -315,7 +326,7 @@ def _main() -> int:
     parser.add_argument(
         "--event",
         required=True,
-        choices=sorted({*_CLI_EVENTS, *_CLI_AGENT_EVENTS, *_CLI_VERDICT_EVENTS}),
+        choices=cli_event_names(),
     )
     # Required for every event EXCEPT `gate-ran` (#2037), which has no diff
     # content to bind to — a real git hook has no staged/branch diff to hash
