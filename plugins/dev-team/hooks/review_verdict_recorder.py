@@ -8,7 +8,13 @@
     Output: zero or more `.claude/metrics/review-verdicts.jsonl` rows via
         `hooks/lib/review_verdicts.emit_review_verdict()` — one per in-scope
         file the dispatch prompt's Step 2.1 scope marker declared, each
-        carrying `outcome: "pass"` or `"findings"`.
+        carrying `outcome: "pass"` or `"findings"`. Once `subagent_type` is
+        confirmed a registered review lens, a degenerate exit (missing/
+        reformatted scope marker, unparseable/malformed final result) also
+        writes one `.claude/metrics/boundary-events.jsonl` `"record"`-decision
+        row via `hooks/lib/boundary_events.emit_boundary_event()`, naming the
+        reason (`missing-scope-marker` | `unparseable-result`) (Fix #3, #2166
+        correctness review).
     Posture: fail-open throughout. Any error, or any signal this hook can't
         resolve confidently (missing/unreadable/non-JSON transcript, an
         unresolvable `subagent_type`, an unregistered or registered-but-
@@ -79,6 +85,7 @@ _SCRIPTS_LIB_DIR = _HOOK_DIR.parent / "scripts" / "lib"
 if str(_SCRIPTS_LIB_DIR) not in sys.path:
     sys.path.insert(0, str(_SCRIPTS_LIB_DIR))
 
+from boundary_events import emit_boundary_event  # type: ignore[import-not-found]
 from review_agent_registry import (  # type: ignore[import-not-found]
     default_agents_dir,
     read_registered_review_agent_names,
@@ -98,21 +105,21 @@ def _read_transcript_records(path: Path) -> list[dict] | None:
     valid JSON lines. The three "malformed/unreadable transcript" Gherkin
     scenarios all collapse onto this one fail-open signal; a caller treats
     `None` and an empty-but-readable transcript identically (fail open,
-    write nothing)."""
-    try:
-        text = path.read_text(encoding="utf-8", errors="replace")
-    except OSError:
-        return None
+    write nothing).
+
+    Delegates to `session_log.records.iter_file_records` (imported above as
+    `_records`, Fix #9 / #2166 correctness review) rather than
+    `read_text()`-ing the whole transcript into memory: this hook has no
+    need to distinguish "the trailing line is malformed JSON" as its own
+    outcome the way `subagent_completion_guard.py`'s private `_tail_lines`/
+    `_last_row` reader does (see that module's own docstring for why IT
+    keeps a private reader) — `_read_transcript_records` only ever needs
+    "did this transcript yield at least one usable JSON object", which the
+    shared streaming iterator answers just as well, at a fraction of the
+    peak memory on a multi-MB transcript."""
     records: list[dict] = []
     saw_json = False
-    for line in text.splitlines():
-        line = line.strip()
-        if not line:
-            continue
-        try:
-            row = json.loads(line)
-        except json.JSONDecodeError:
-            continue
+    for row in _records.iter_file_records(path):
         saw_json = True
         if isinstance(row, dict):
             records.append(row)
@@ -201,10 +208,64 @@ def _first_turn_text(records: list[dict]) -> str | None:
     return _message_text(records[0].get("message"))
 
 
-def _last_turn_text(records: list[dict]) -> str | None:
-    if not records:
-        return None
-    return _message_text(records[-1].get("message"))
+def _handback_message_text(records: list[dict]) -> str | None:
+    """PRIMARY result-extraction path (Fix #1, #2166 correctness review —
+    CRITICAL: this hook wrote zero rows in production before this fix).
+
+    Verified directly against a real transcript in this session's own
+    corpus before writing this (not assumed):
+    `~/.claude/projects/-home-user-agentic-dev-team/<session-id>/subagents/
+    agent-a006af1f32a025449.jsonl`, line 17 — a completed subagent's real
+    final JSON result lives inside its OWN `SubagentHandback` tool_use
+    block's `input.message` field (prose plus a fenced ```json block), never
+    as the transcript's literal last row. The literal last row is a short
+    wrap-up assistant turn ("Report delivered...") that comes AFTER the
+    handback's own `tool_result` ack — exactly the shape
+    `subagent_completion_guard.py`'s module docstring documents and confirms
+    across 70 real transcripts ("Finding 3 — SubagentHandback is a real,
+    distinguishable tool_use block"). Scans backward so the LAST handback
+    call wins if a transcript ever carries more than one."""
+    for rec in reversed(records):
+        message = rec.get("message")
+        if not isinstance(message, dict):
+            continue
+        content = message.get("content")
+        if not isinstance(content, list):
+            continue
+        for block in content:
+            if (
+                isinstance(block, dict)
+                and block.get("type") == "tool_use"
+                and block.get("name") == "SubagentHandback"
+            ):
+                handback_input = block.get("input")
+                if isinstance(handback_input, dict):
+                    text = handback_input.get("message")
+                    if isinstance(text, str) and text:
+                        return text
+    return None
+
+
+def _fallback_last_parseable_turn_text(records: list[dict]) -> str | None:
+    """FALLBACK ONLY (Fix #1): used when no `SubagentHandback` call is found
+    anywhere in the transcript. This session's own corpus never needed this
+    path (see `_handback_message_text` above) — kept per the plan's explicit
+    instruction for a transcript shape that never showed up in the sample.
+    The last turn (scanning backward) whose text itself recovers as a JSON
+    object via `_extract_json_object`, rather than blindly trusting the
+    transcript's literal last row the way the pre-fix code did."""
+    for rec in reversed(records):
+        text = _message_text(rec.get("message"))
+        if text and _extract_json_object(text) is not None:
+            return text
+    return None
+
+
+def _final_result_text(records: list[dict]) -> str | None:
+    """The text handed to `_extract_json_object` for the agent's final JSON
+    result: `_handback_message_text` first, `_fallback_last_parseable_turn_text`
+    only when no handback call is present at all (Fix #1)."""
+    return _handback_message_text(records) or _fallback_last_parseable_turn_text(records)
 
 
 def _parse_scope_marker(text: str) -> list[str] | None:
@@ -256,25 +317,77 @@ def _issues_list(result: dict | None) -> list | None:
     return issues if isinstance(issues, list) else None
 
 
-def _findings_files(issues: list) -> set[str]:
-    files: set[str] = set()
+def _resolve_under_cwd(file_path: str, cwd) -> Path | None:
+    """Resolve `file_path` (a scope-marker entry or an `issues[].file`
+    entry) against `cwd` to an absolute, symlink-resolved `Path`.
+
+    This is the single normalized form both:
+      * the path-traversal containment check (Fix #5, security review:
+        a scope marker declaring `../../../../etc/passwd`-style paths must
+        not be read/hashed outside the repo), and
+      * the scope-marker/`issues[].file` membership comparison (Fix #2,
+        correctness review: real review-agent transcripts in this session's
+        own corpus report the SAME file in different path forms —
+        relative vs. absolute — across different agents, so raw string
+        equality silently missed genuine matches)
+    key off of, so the two concerns share one resolution instead of two
+    that could drift. Local replica of `finding_signature.py`'s own
+    `_normalize_path` intent rather than an import of it:
+    `hooks/lib/doc_classification.py`'s module docstring documents the
+    established direction as `skills/*/scripts/` importing FROM `hooks/lib/`
+    (`change_shape.py` reaches into `doc_classification.py`, never the
+    reverse) — a hook importing `skills/code-review/scripts/finding_signature.py`
+    would invert that.
+
+    `None` on any resolution failure — rare, since `Path.resolve()` without
+    `strict=` doesn't require the path to exist, but a broken symlink chain
+    can still raise `OSError`."""
+    try:
+        target = Path(file_path)
+        if not target.is_absolute():
+            target = Path(cwd) / target
+        return target.resolve()
+    except OSError:
+        return None
+
+
+def _findings_files(issues: list, cwd) -> set[Path]:
+    files: set[Path] = set()
     for issue in issues:
         if isinstance(issue, dict):
             file_path = issue.get("file")
             if isinstance(file_path, str) and file_path:
-                files.add(file_path)
+                resolved = _resolve_under_cwd(file_path, cwd)
+                if resolved is not None:
+                    files.add(resolved)
     return files
+
+
+# 50 MiB cap (Fix #4, security review): bounds `_hash_file`'s read against a
+# FIFO/device path or a multi-GB file hanging past this hook's fail-open
+# exception wrapper in `main()` — a hang is not an exception `main()` can
+# catch.
+_MAX_HASH_FILE_BYTES = 50 * 1024 * 1024
+_HASH_CHUNK_BYTES = 1 << 20  # 1 MiB incremental read
 
 
 def _hash_file(path: Path) -> str | None:
     """Current-content sha256 hex digest of `path`, or `None` on any read
-    failure (deleted, unreadable, or a directory) — the caller skips just
-    that one in-scope file rather than aborting the whole batch."""
+    failure (deleted, unreadable, not a regular file — a directory, FIFO, or
+    device — or over `_MAX_HASH_FILE_BYTES`) — the caller skips just that
+    one in-scope file rather than aborting the whole batch."""
     try:
-        data = path.read_bytes()
+        if not path.is_file():
+            return None
+        if path.stat().st_size > _MAX_HASH_FILE_BYTES:
+            return None
+        digest = hashlib.sha256()
+        with path.open("rb") as fh:
+            while chunk := fh.read(_HASH_CHUNK_BYTES):
+                digest.update(chunk)
+        return digest.hexdigest()
     except OSError:
         return None
-    return hashlib.sha256(data).hexdigest()
 
 
 def process(payload: dict) -> None:
@@ -283,7 +396,23 @@ def process(payload: dict) -> None:
     Writes zero or more rows via `emit_review_verdict`; never raises —
     every input this function can't resolve confidently degrades to "write
     nothing" rather than a guess (Decision 4a: this hook trusts the dispatch
-    prompt's declared scope, it does not independently re-verify it)."""
+    prompt's declared scope, it does not independently re-verify it).
+
+    Fix #3 (correctness review): the early returns below the point where
+    `subagent_type` is confirmed to be a REGISTERED REVIEW LENS are
+    observationally degenerate (zero rows, zero stderr, exit 0) the same way
+    a legitimate no-op is — but unlike a legitimate no-op, they mean a
+    dispatch that SHOULD have produced rows didn't. Those two exits
+    (missing/reformatted scope marker, unparseable/malformed final result)
+    each record one `boundary_events` `"record"`-decision row naming the
+    reason, mirroring `subagent_completion_guard.py`'s own posture of
+    surfacing a non-clean, explainable classification instead of staying
+    silently indistinguishable from the happy path. The earlier,
+    PRE-resolution early returns (missing transcript, unreadable transcript,
+    unresolvable `subagent_type`, an entirely unregistered or a
+    registered-but-non-review `subagent_type`) stay silent — those are
+    legitimate no-ops: this dispatch was never confirmed to be a review
+    lens that should have produced rows at all."""
     transcript_path = payload.get("transcript_path")
     if not isinstance(transcript_path, str) or not transcript_path:
         return
@@ -300,29 +429,48 @@ def process(payload: dict) -> None:
     if not registered or subagent_type not in registered:
         return
 
-    first_text = _first_turn_text(records)
-    in_scope = _parse_scope_marker(first_text) if first_text else None
-    if not in_scope:
-        return
-
-    last_text = _last_turn_text(records)
-    result = _extract_json_object(last_text) if last_text else None
-    issues = _issues_list(result)
-    if issues is None:
-        return
-    findings_files = _findings_files(issues)
-
+    # Past this point `subagent_type` is a confirmed, registered review
+    # lens -- this dispatch SHOULD produce rows (Fix #3).
     cwd = resolve_cwd(payload)
     session_id = payload.get("session_id")
 
+    first_text = _first_turn_text(records)
+    in_scope = _parse_scope_marker(first_text) if first_text else None
+    if not in_scope:
+        emit_boundary_event(
+            cwd,
+            "review_verdict_recorder",
+            "SubagentStop",
+            "record",
+            "missing-scope-marker",
+            session_id=session_id,
+        )
+        return
+
+    final_text = _final_result_text(records)
+    result = _extract_json_object(final_text) if final_text else None
+    issues = _issues_list(result)
+    if issues is None:
+        emit_boundary_event(
+            cwd,
+            "review_verdict_recorder",
+            "SubagentStop",
+            "record",
+            "unparseable-result",
+            session_id=session_id,
+        )
+        return
+    findings_files = _findings_files(issues, cwd)
+
+    cwd_resolved = Path(cwd).resolve()
     for file_path in in_scope:
-        target = Path(file_path)
-        if not target.is_absolute():
-            target = Path(cwd) / target
+        target = _resolve_under_cwd(file_path, cwd)
+        if target is None or not target.is_relative_to(cwd_resolved):
+            continue  # unresolvable, or outside cwd containment (Fix #5)
         file_hash = _hash_file(target)
         if file_hash is None:
-            continue  # deleted/unreadable in-scope file -- skip this one only
-        outcome = "findings" if file_path in findings_files else "pass"
+            continue  # deleted/unreadable/non-regular/oversized -- skip this one only
+        outcome = "findings" if target in findings_files else "pass"
         emit_review_verdict(
             cwd, subagent_type, file_path, file_hash, outcome, session_id=session_id
         )
