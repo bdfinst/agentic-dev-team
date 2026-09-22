@@ -63,6 +63,10 @@
           {
             "type": "command",
             "command": "sh hooks/py.sh hooks/refactor_test_freeze_guard.py"
+          },
+          {
+            "type": "command",
+            "command": "sh hooks/py.sh hooks/boundary_events_write_guard.py"
           }
         ]
       },
@@ -121,6 +125,10 @@
           {
             "type": "command",
             "command": "sh hooks/py.sh hooks/scan_bash_command_for_banned_scripts.py"
+          },
+          {
+            "type": "command",
+            "command": "sh hooks/py.sh hooks/boundary_events_write_guard.py"
           }
         ]
       },

@@ -1,6 +1,8 @@
-"""Unit tests for hooks/boundary_events_write_guard.py (#2171, plan Step
-1.1 — Write/Edit path-match guard only; Bash write-shaped command detection
-and settings.json registration are Step 1.2, not covered here).
+"""Unit tests for hooks/boundary_events_write_guard.py (#2171).
+
+Plan Step 1.1 covers the Write/Edit path-match guard. Plan Step 1.2 adds
+Bash `tool_input.command` write-shape detection (`bash_command_writes_to_ledger`)
+and its `main()` dispatch — covered below.
 
 In-process, stdin-monkeypatched, with `emit_boundary_event` stubbed (same
 split `test_destructive_guard.py` uses) — real subprocess + real-ledger
@@ -183,4 +185,101 @@ def test_main_fails_open_on_empty_stdin(monkeypatch):
 
 def test_main_silent_pass_when_file_path_absent(monkeypatch, tmp_path):
     _stdin(monkeypatch, {"tool_name": "Write", "tool_input": {}, "cwd": str(tmp_path)})
+    assert guard.main() == 0
+
+
+# ---------------------------------------------------------------------------
+# bash_command_writes_to_ledger — write-shaped commands (Step 1.2)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "command",
+    [
+        # Redirect, across all four path forms (Examples Outline).
+        "echo '{}' >> .claude/metrics/boundary-events.jsonl",
+        "echo '{}' >> /repo/.claude/metrics/boundary-events.jsonl",
+        "echo '{}' >> ./.claude/metrics/boundary-events.jsonl",
+        "cd .claude/metrics && echo '{}' >> boundary-events.jsonl",
+        # Heredoc, caught via its trailing redirect operator, not `<<`.
+        "cat <<'EOF' >> .claude/metrics/boundary-events.jsonl\n{}\nEOF",
+        # tee
+        "echo '{}' | tee -a .claude/metrics/boundary-events.jsonl",
+        # sed -i
+        "sed -i 's/a/b/' .claude/metrics/boundary-events.jsonl",
+        # cp/mv/rm/truncate/dd
+        "rm .claude/metrics/boundary-events.jsonl",
+        "mv .claude/metrics/boundary-events.jsonl /tmp/moved.jsonl",
+        "cp .claude/metrics/boundary-events.jsonl /tmp/copy.jsonl",
+        "truncate -s 0 .claude/metrics/boundary-events.jsonl",
+        "dd if=/dev/null of=.claude/metrics/boundary-events.jsonl",
+        # python3 -c with a write/append-mode open()
+        "python3 -c \"open('.claude/metrics/boundary-events.jsonl', 'w').write('{}')\"",
+        "python3 -c \"open('.claude/metrics/boundary-events.jsonl', 'a').write('{}')\"",
+    ],
+)
+def test_bash_command_writes_to_ledger_true_for_write_shaped_commands(command):
+    assert guard.bash_command_writes_to_ledger(command) is True
+
+
+@pytest.mark.parametrize(
+    "command",
+    [
+        "tail -20 .claude/metrics/boundary-events.jsonl",
+        "cat .claude/metrics/boundary-events.jsonl",
+        "grep foo .claude/metrics/boundary-events.jsonl",
+        "head .claude/metrics/boundary-events.jsonl",
+        # read-mode (mode omitted, defaults to "r") open()
+        "python3 -c \"print(open('.claude/metrics/boundary-events.jsonl').read())\"",
+        # reads the ledger, writes elsewhere — tee's own target is not the ledger
+        "cat .claude/metrics/boundary-events.jsonl | tee /tmp/copy.jsonl",
+        # write-shaped, but targets an unrelated file
+        "echo '{}' >> .claude/metrics/session-digest.jsonl",
+        "",
+    ],
+)
+def test_bash_command_writes_to_ledger_false_for_read_or_unrelated_commands(command):
+    assert guard.bash_command_writes_to_ledger(command) is False
+
+
+# ---------------------------------------------------------------------------
+# main() — Bash tool shape (Step 1.2)
+# ---------------------------------------------------------------------------
+
+
+def test_main_blocks_bash_redirect_to_ledger(monkeypatch, tmp_path, capsys):
+    _stdin(
+        monkeypatch,
+        {
+            "tool_name": "Bash",
+            "tool_input": {
+                "command": "echo '{}' >> .claude/metrics/boundary-events.jsonl"
+            },
+            "cwd": str(tmp_path),
+        },
+    )
+    assert guard.main() == 2
+    out = capsys.readouterr().out
+    assert "BLOCKED" in out
+    assert "hooks/lib/boundary_events.py" in out
+    # Bash-path message names the CLI, not the Python-only function
+    # (plan-review-ux finding, Step 1.2).
+    assert "emit_boundary_event()" not in out
+
+
+def test_main_allows_bash_read_of_ledger(monkeypatch, tmp_path, capsys):
+    _stdin(
+        monkeypatch,
+        {
+            "tool_name": "Bash",
+            "tool_input": {"command": "tail -20 .claude/metrics/boundary-events.jsonl"},
+            "cwd": str(tmp_path),
+        },
+    )
+    assert guard.main() == 0
+    assert capsys.readouterr().out == ""
+
+
+def test_main_allows_bash_command_with_no_command_field(monkeypatch, tmp_path):
+    _stdin(monkeypatch, {"tool_name": "Bash", "tool_input": {}, "cwd": str(tmp_path)})
     assert guard.main() == 0

@@ -1,6 +1,7 @@
-"""End-to-end tests for hooks/boundary_events_write_guard.py (#2171, plan
-Step 1.1 — Write/Edit path-match guard only; Bash write-shaped command
-detection and settings.json registration are Step 1.2, not covered here).
+"""End-to-end tests for hooks/boundary_events_write_guard.py (#2171).
+
+Plan Step 1.1 covers the Write/Edit path-match guard. Plan Step 1.2 adds
+Bash `tool_input.command` write-shape detection — covered below.
 
 Drives main() via subprocess with representative PreToolUse JSON payloads,
 using the real `emit_boundary_event()` write path (mirrors
@@ -19,6 +20,8 @@ import os
 import subprocess
 import sys
 from pathlib import Path
+
+import pytest
 
 from _repo_root import REPO_ROOT as _REPO_ROOT
 
@@ -165,5 +168,153 @@ def test_malformed_stdin_is_silent_pass() -> None:
         timeout=10,
         check=False,
     )
+    assert result.returncode == 0
+    assert result.stdout == b""
+
+
+# ---------------------------------------------------------------------------
+# Bash write-shaped commands (Step 1.2)
+# ---------------------------------------------------------------------------
+
+
+def test_bash_redirect_to_ledger_is_blocked_and_records_its_own_event(
+    tmp_path: Path,
+) -> None:
+    ledger = tmp_path / ".claude" / "metrics" / "boundary-events.jsonl"
+
+    result = _run(
+        {
+            "tool_name": "Bash",
+            "tool_input": {
+                "command": "echo '{}' >> .claude/metrics/boundary-events.jsonl"
+            },
+            "cwd": str(tmp_path),
+            "session_id": "sess-2",
+        }
+    )
+
+    assert result.returncode == 2
+    assert b"BLOCKED" in result.stdout
+    assert b"hooks/lib/boundary_events.py" in result.stdout
+    # Bash-path message names the CLI, not the Python-only function
+    # (plan-review-ux finding, Step 1.2).
+    assert b"emit_boundary_event()" not in result.stdout
+
+    events = _read_jsonl(ledger)
+    assert len(events) == 1
+    event = events[0]
+    assert event["hook"] == "boundary_events_write_guard"
+    assert event["tool"] == "Bash"
+    assert event["decision"] == "block"
+    assert event["matched_rule"] == "ledger-write-blocked"
+    assert event["session_id"] == "sess-2"
+
+
+def test_bash_heredoc_with_trailing_redirect_to_ledger_is_blocked(
+    tmp_path: Path,
+) -> None:
+    result = _run(
+        {
+            "tool_name": "Bash",
+            "tool_input": {
+                "command": "cat <<'EOF' >> .claude/metrics/boundary-events.jsonl\n"
+                '{"forged": true}\n'
+                "EOF"
+            },
+            "cwd": str(tmp_path),
+        }
+    )
+
+    assert result.returncode == 2
+    assert b"BLOCKED" in result.stdout
+
+
+def test_bash_tee_to_ledger_is_blocked(tmp_path: Path) -> None:
+    result = _run(
+        {
+            "tool_name": "Bash",
+            "tool_input": {
+                "command": "echo '{}' | tee -a .claude/metrics/boundary-events.jsonl"
+            },
+            "cwd": str(tmp_path),
+        }
+    )
+
+    assert result.returncode == 2
+
+
+@pytest.mark.parametrize(
+    "command",
+    [
+        # relative
+        "echo '{}' >> .claude/metrics/boundary-events.jsonl",
+        # absolute (constructed per-test below instead, see next test)
+        # "./"-prefixed
+        "echo '{}' >> ./.claude/metrics/boundary-events.jsonl",
+        # bare filename after a `cd .claude/metrics`-shaped prefix
+        "cd .claude/metrics && echo '{}' >> boundary-events.jsonl",
+    ],
+)
+def test_bash_write_blocked_regardless_of_relative_path_form(
+    tmp_path: Path, command: str
+) -> None:
+    result = _run(
+        {
+            "tool_name": "Bash",
+            "tool_input": {"command": command},
+            "cwd": str(tmp_path),
+        }
+    )
+
+    assert result.returncode == 2
+
+
+def test_bash_write_blocked_for_absolute_path_form(tmp_path: Path) -> None:
+    absolute = str(tmp_path / ".claude" / "metrics" / "boundary-events.jsonl")
+    result = _run(
+        {
+            "tool_name": "Bash",
+            "tool_input": {"command": f"echo '{{}}' >> {absolute}"},
+            "cwd": str(tmp_path),
+        }
+    )
+
+    assert result.returncode == 2
+
+
+@pytest.mark.parametrize(
+    "command",
+    [
+        "tail -20 .claude/metrics/boundary-events.jsonl",
+        "cat .claude/metrics/boundary-events.jsonl",
+        "grep foo .claude/metrics/boundary-events.jsonl",
+        "python3 -c \"print(open('.claude/metrics/boundary-events.jsonl').read())\"",
+    ],
+)
+def test_bash_reads_of_ledger_are_allowed(tmp_path: Path, command: str) -> None:
+    result = _run(
+        {
+            "tool_name": "Bash",
+            "tool_input": {"command": command},
+            "cwd": str(tmp_path),
+        }
+    )
+
+    assert result.returncode == 0
+    assert result.stdout == b""
+    assert not (tmp_path / ".claude" / "metrics" / "boundary-events.jsonl").exists()
+
+
+def test_bash_write_to_unrelated_file_is_allowed(tmp_path: Path) -> None:
+    result = _run(
+        {
+            "tool_name": "Bash",
+            "tool_input": {
+                "command": "echo '{}' >> .claude/metrics/session-digest.jsonl"
+            },
+            "cwd": str(tmp_path),
+        }
+    )
+
     assert result.returncode == 0
     assert result.stdout == b""
