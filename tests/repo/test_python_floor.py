@@ -181,6 +181,7 @@ SLICE_EXCLUSIONS = {
     "check_security_assessment_mcp_tools.py": (
         "stdlib argparse/json/pathlib only; no floor-sensitive runtime API"
     ),
+    "checkpoint_abort.py": "stdlib argparse/json/sys/pathlib only; no floor-sensitive runtime API",
     "coverage_delta_steering.py": "stdlib argparse/json/pathlib only; no floor-sensitive runtime API",
     "mutation_yield_steering.py": (
         "stdlib argparse/json/sys/pathlib only; no floor-sensitive runtime API "
