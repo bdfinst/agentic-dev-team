@@ -148,7 +148,7 @@ omniscient verification of review depth.
 | --- | --- | --- |
 | `ts` | string | ISO-8601 UTC `%Y-%m-%dT%H:%M:%SZ` |
 | `lens` | string | The dispatched review agent's registered name (e.g. `structure-review`), plugin-prefix-stripped |
-| `file_path` | string | One file the dispatch prompt's scope marker declared in scope |
+| `file_path` | string | One file the dispatch prompt's scope marker declared in scope, in its canonical form: `cwd`-relative POSIX (forward-slash) path, not the raw form the scope marker carried — falls back to an absolute resolved POSIX path only when the file can't be expressed relative to `cwd` |
 | `file_content_hash` | string | sha256 hex digest of `file_path`'s content at the time the recorder ran (current content, not the content at dispatch time) |
 | `outcome` | string enum | `pass` \| `findings` — whether `file_path` appears in the agent's final `issues[]` |
 | `plugin_version` | string | From `.claude-plugin/plugin.json` |

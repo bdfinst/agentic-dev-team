@@ -24,8 +24,10 @@ calling hook's stdout, stderr, or exit code. `load_verdicts()` never raises
 either — an absent file, a corrupted line, or a stale `plugin_version` row
 all degrade to "no usable rows" rather than an exception.
 
-`load_verdicts()` has no consumer in this slice (Step 2.2) — `#2167`'s
-`review_verdict_recorder.py` is the first one; see this module's own test
+`load_verdicts()` remains unconsumed in this slice (Step 2.2) — Step 2.3's
+`hooks/review_verdict_recorder.py` is a writer only, it never calls
+`load_verdicts()`; `#2167` (a not-yet-built slice) is the first intended
+consumer; see this module's own test
 `test_load_verdicts_has_no_other_consumers` for the mechanical check that
 enforces that boundary.
 

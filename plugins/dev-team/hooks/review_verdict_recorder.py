@@ -76,8 +76,8 @@ if str(_LIB_DIR) not in sys.path:
     sys.path.insert(0, str(_LIB_DIR))
 
 # hooks/ -> scripts/lib/session_log/ is a documented reverse-dependency
-# exception (see hooks/lib/cost_meter.py's own module docstring for the
-# full rationale): session_log/ ships INSIDE this same plugin package,
+# exception (see hooks/lib/cost_meter.py's identical import for the full
+# rationale): session_log/ ships INSIDE this same plugin package,
 # always present wherever this hook runs, and session_log itself imports
 # nothing from hooks/lib/ (no cycle). Mirrors cost_meter.py's own
 # sys.path.insert + bare-package-import MECHANISM, not its directionality.
@@ -87,8 +87,7 @@ if str(_SCRIPTS_LIB_DIR) not in sys.path:
 
 from boundary_events import emit_boundary_event  # type: ignore[import-not-found]
 from review_agent_registry import (  # type: ignore[import-not-found]
-    default_agents_dir,
-    read_registered_review_agent_names,
+    is_registered_review_lens,
     strip_plugin_prefix,
 )
 from review_verdicts import (  # type: ignore[import-not-found]
@@ -324,7 +323,7 @@ def _resolve_under_cwd(file_path: str, cwd) -> Path | None:
     This is the single normalized form both:
       * the path-traversal containment check (Fix #5, security review:
         a scope marker declaring `../../../../etc/passwd`-style paths must
-        not be read/hashed outside the repo), and
+        not be read/hashed outside `cwd`), and
       * the scope-marker/`issues[].file` membership comparison (Fix #2,
         correctness review: real review-agent transcripts in this session's
         own corpus report the SAME file in different path forms —
@@ -425,8 +424,7 @@ def process(payload: dict) -> None:
     if not subagent_type:
         return
 
-    registered = read_registered_review_agent_names(default_agents_dir())
-    if not registered or subagent_type not in registered:
+    if not is_registered_review_lens(subagent_type):
         return
 
     # Past this point `subagent_type` is a confirmed, registered review
@@ -464,15 +462,29 @@ def process(payload: dict) -> None:
 
     cwd_resolved = Path(cwd).resolve()
     for file_path in in_scope:
-        target = _resolve_under_cwd(file_path, cwd)
-        if target is None or not target.is_relative_to(cwd_resolved):
+        resolved = _resolve_under_cwd(file_path, cwd)
+        if resolved is None or not resolved.is_relative_to(cwd_resolved):
             continue  # unresolvable, or outside cwd containment (Fix #5)
-        file_hash = _hash_file(target)
+        file_hash = _hash_file(resolved)
         if file_hash is None:
             continue  # deleted/unreadable/non-regular/oversized -- skip this one only
-        outcome = "findings" if target in findings_files else "pass"
+        outcome = "findings" if resolved in findings_files else "pass"
+        # Canonical, cwd-relative POSIX form (Fix #2, backstop review,
+        # #2166 + #2171) -- not the raw scope-marker `file_path`, which can
+        # name the same file in different forms (relative vs. absolute)
+        # across different dispatch prompts. Decision 3 makes
+        # `(lens, file_path, file_content_hash)` the future #2167 reader's
+        # lookup key, so the same file's rows must consistently group under
+        # one canonical path. Falls back to the absolute resolved form only
+        # if `relative_to` fails -- not expected here, since the
+        # containment check above already excludes anything outside
+        # `cwd_resolved`.
+        try:
+            canonical_path = resolved.relative_to(cwd_resolved).as_posix()
+        except ValueError:
+            canonical_path = resolved.as_posix()
         emit_review_verdict(
-            cwd, subagent_type, file_path, file_hash, outcome, session_id=session_id
+            cwd, subagent_type, canonical_path, file_hash, outcome, session_id=session_id
         )
 
 

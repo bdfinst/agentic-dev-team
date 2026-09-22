@@ -73,10 +73,9 @@ if str(_LIB_DIR) not in sys.path:
     sys.path.insert(0, str(_LIB_DIR))
 
 import artifact_paths
+from boundary_events import LOG_NAME as _LEDGER_NAME
 from boundary_events import cli_event_names as _cli_event_names
 from boundary_events import emit_boundary_event as _emit_boundary_event
-from review_dispatch_ledger import LEDGER_STREAM as _LEDGER_NAME
-from review_dispatch_ledger import resolve_stream as _resolve_ledger_stream
 from stdin_json import read_stdin_json  # type: ignore[import-not-found]
 
 
@@ -147,7 +146,9 @@ def targets_ledger(file_path: str, cwd: str) -> bool:
     if os.path.basename(candidate_norm) != _LEDGER_NAME:
         return False
 
-    ledger = _resolve_ledger_stream("metrics", _LEDGER_NAME, Path(cwd) if cwd else Path.cwd())
+    ledger = artifact_paths.resolve_file(
+        "metrics", _LEDGER_NAME, Path(cwd) if cwd else Path.cwd(), migrate=False
+    )
     ledger_norm = os.path.abspath(str(ledger))
     if candidate_norm == ledger_norm:
         return True

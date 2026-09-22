@@ -684,3 +684,30 @@ class TestChurnReportWindowKeySafeAccess:
             repo_invariants.check_churn_report_window_key_safe_access(["some/file.py"])
             == repo_invariants.check_churn_report_window_key_safe_access(None)
         )
+
+
+class TestLedgerFilenameSingleSourced:
+    """#2166 + #2171 backstop review: the ledger filename was independently
+    hand-rolled in three homes (reported by 4 of 8 reviewers), converging
+    under this repo's own ratchet rule into this check."""
+
+    def test_clean_in_the_real_repo(self):
+        assert repo_invariants.check_ledger_filename_single_sourced() == []
+
+    def test_flags_when_ledger_stream_is_no_longer_the_same_object(self, monkeypatch):
+        # Round-tripped through bytes (not a literal) so it is guaranteed to
+        # be a distinct object from boundary_events.LOG_NAME, even though
+        # the value is equal — the check asserts identity, not equality.
+        drifted = repo_invariants.boundary_events.LOG_NAME.encode("utf-8").decode("utf-8")
+        monkeypatch.setattr(repo_invariants.review_dispatch_ledger, "LEDGER_STREAM", drifted)
+
+        findings = repo_invariants.check_ledger_filename_single_sourced()
+
+        assert len(findings) == 1
+        assert findings[0]["invariant"] == "ledger-filename-single-sourced"
+
+    def test_corpus_wide_regardless_of_changed_files(self):
+        assert (
+            repo_invariants.check_ledger_filename_single_sourced(["some/file.py"])
+            == repo_invariants.check_ledger_filename_single_sourced(None)
+        )

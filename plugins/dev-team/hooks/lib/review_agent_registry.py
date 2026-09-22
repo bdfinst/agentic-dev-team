@@ -80,6 +80,32 @@ def default_agents_dir() -> Path:
     return Path(__file__).resolve().parents[2] / "agents"
 
 
+def is_registered_review_lens(subagent_type: str) -> bool:
+    """True when `subagent_type` (raw, or plugin-qualified like
+    `dev-team:security-review`) names a registered `agents/*-review.md`
+    review lens.
+
+    Encapsulates the repeated three-step check — `strip_plugin_prefix` ->
+    read the registered review-agent set via `default_agents_dir()` ->
+    membership test — previously hand-rolled independently in
+    `hooks/agent_dispatch_ledger.py`, `hooks/lib/boundary_events.py`, and
+    `hooks/review_verdict_recorder.py` (backstop review finding, #2166 +
+    #2171 — this repo's own `hooks/lib/review_dispatch_ledger.py` module
+    docstring already applied the identical consolidation lesson to a
+    sibling predicate).
+
+    An unreadable registry (`read_registered_review_agent_names()` returns
+    `None`) collapses to `False`, matching every prior call site's own
+    "don't record"/"skip" posture exactly: a lost registry read only
+    narrows what counts as a registered review lens, never widens it.
+    """
+    if not subagent_type:
+        return False
+    name = strip_plugin_prefix(subagent_type)
+    registered = read_registered_review_agent_names(default_agents_dir())
+    return bool(registered) and name in registered
+
+
 def read_registered_review_agent_names(agents_dir: Path) -> frozenset[str] | None:
     """Checked variant of `registered_review_agent_names()` that owns the
     read-failure-vs-empty distinction (#1904 item 1) instead of forcing every

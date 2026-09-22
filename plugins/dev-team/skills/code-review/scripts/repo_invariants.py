@@ -69,6 +69,8 @@ _PLUGIN_ROOT = Path(__file__).resolve().parents[3]
 # review_agent_registry.py's own docstring). Import rather than re-deriving
 # `_PLUGIN_ROOT / "agents"` locally.
 sys.path.insert(0, str(_PLUGIN_ROOT / "hooks" / "lib"))
+import boundary_events
+import review_dispatch_ledger
 from review_agent_registry import (
     default_agents_dir,
     find_review_agent_files,
@@ -869,6 +871,43 @@ def check_normative_content_single_sourced(changed_files=None) -> list[dict]:
     return findings
 
 
+def check_ledger_filename_single_sourced(changed_files=None) -> list[dict]:
+    """`boundary-events.jsonl`'s filename must stay single-sourced from
+    `hooks/lib/boundary_events.LOG_NAME` — the module that actually writes
+    the ledger and therefore owns its name.
+
+    Backstop review against #2166 + #2171 found this filename independently
+    hand-rolled in three homes (`boundary_events._LOG_NAME`,
+    `review_dispatch_ledger.LEDGER_STREAM`, and
+    `boundary_events_write_guard.py`'s own import), reported by 4 of 8
+    reviewers (arch, domain, naming, structure) — clearing this repo's own
+    ratchet rule ("a mechanical finding reported twice becomes a check")
+    decisively. `review_dispatch_ledger.LEDGER_STREAM` is now an alias of
+    `boundary_events.LOG_NAME`, not a fresh literal — this check asserts
+    that stays an *identity*, not just an equal value, so a future edit
+    can't silently reintroduce a fourth independent copy with a green test
+    suite.
+
+    Corpus-wide by design: this is a standing structural invariant, not a
+    changeset-scoped one.
+    """
+    if review_dispatch_ledger.LEDGER_STREAM is not boundary_events.LOG_NAME:
+        return [
+            {
+                "invariant": "ledger-filename-single-sourced",
+                "file": "plugins/dev-team/hooks/lib/review_dispatch_ledger.py",
+                "message": (
+                    "review_dispatch_ledger.LEDGER_STREAM must remain the "
+                    "identical object as boundary_events.LOG_NAME (an alias, "
+                    "not a fresh literal) — boundary_events.py is the module "
+                    "that actually writes the boundary-events ledger and "
+                    "owns its filename."
+                ),
+            }
+        ]
+    return []
+
+
 # Registered checks. Each entry takes an optional `changed_files` list and
 # returns findings. See the module docstring for why that argument exists.
 CHECKS = [
@@ -880,6 +919,7 @@ CHECKS = [
     check_transcript_parsing_confined_to_session_log,
     check_churn_report_window_key_safe_access,
     check_normative_content_single_sourced,
+    check_ledger_filename_single_sourced,
 ]
 
 

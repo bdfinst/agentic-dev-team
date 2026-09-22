@@ -173,3 +173,31 @@ def test_strip_plugin_prefix_leaves_a_different_plugins_qualifier_unchanged() ->
         review_agent_registry.strip_plugin_prefix("other-plugin:doc-review")
         == "other-plugin:doc-review"
     )
+
+
+# ---------------------------------------------------------------------------
+# is_registered_review_lens() -- consolidates the strip-prefix + registry-
+# read + membership check previously hand-rolled independently in
+# agent_dispatch_ledger.py, boundary_events.py, and review_verdict_recorder.py
+# (backstop review finding, #2166 + #2171)
+# ---------------------------------------------------------------------------
+
+
+def test_is_registered_review_lens_true_for_a_bare_registered_name() -> None:
+    assert review_agent_registry.is_registered_review_lens("security-review") is True
+
+
+def test_is_registered_review_lens_true_for_a_plugin_qualified_name() -> None:
+    assert review_agent_registry.is_registered_review_lens("dev-team:security-review") is True
+
+
+def test_is_registered_review_lens_false_for_an_unregistered_name() -> None:
+    assert review_agent_registry.is_registered_review_lens("not-a-real-agent") is False
+
+
+def test_is_registered_review_lens_false_for_a_non_review_team_agent() -> None:
+    assert review_agent_registry.is_registered_review_lens("orchestrator") is False
+
+
+def test_is_registered_review_lens_false_for_empty_string() -> None:
+    assert review_agent_registry.is_registered_review_lens("") is False
