@@ -19,11 +19,13 @@ special-case `--json`.
 ## Finding-id scheme
 
 `agent:file:line:severity`, plus `:category` appended when the finding
-carries a truthy `category`. Two or more findings in the same run that still
-land on an identical base id after that get a `:0`, `:1`, ... ordinal suffix
-in list order — deterministic and collision-free within a single run because
-the caller's list order is already fixed for that run. IDs are not meant to
-be stable *across* runs (a re-dispatched round may reorder or drop findings).
+carries a truthy taxonomy tag. Two or more findings in the same run that
+still land on an identical base id after that get a `#0`, `#1`, ... ordinal
+suffix in list order — deterministic and collision-free within a single run
+because the caller's list order is already fixed for that run (the `#`
+separator, rather than `:`, is used for the ordinal so it can never collide
+with a base-id segment, which is `:`-delimited). IDs are not meant to be
+stable *across* runs (a re-dispatched round may reorder or drop findings).
 
 `agent` is read as `finding.get("agent")` first (the aggregated/flattened
 finding shape `consolidate.py` produces, `agent`-tagged per finding) falling
@@ -31,6 +33,13 @@ back to `finding.get("agentName")` (the raw per-agent-result field name) —
 the same two-field fallback `finding_signature.py`'s `signature()` already
 uses for the identical purpose, so this module reads either the pre- or
 post-flattening shape without extra glue.
+
+The taxonomy tag itself mirrors `finding_signature.py`'s `signature()`
+fallback chain exactly: `category` → `smell` → `rule` → `ruleId`, first
+truthy wins. `smell` is `test-smell-review`'s taxonomy field per
+`knowledge/review-agent-output-contract.md`'s "Documented per-agent
+extensions" section — without this fallback a `test-smell-review` finding's
+id loses its taxonomy segment and falls back to a bare ordinal suffix.
 
 Stdlib-only. See docs/python-hook-contract.md.
 """
@@ -64,14 +73,15 @@ _SENTENCE_END_RE = re.compile(r"[.!?](?:\s|$)")
 
 def first_sentence(message) -> str:
     """The first sentence of `message`, or the whole (stripped) string when
-    no sentence terminator is found."""
+    no sentence terminator is found. Always a single line: internal
+    whitespace runs (including embedded newlines) are collapsed to a single
+    space, so a Tier-1 entry built from this is always exactly one line."""
     text = str(message or "").strip()
     if not text:
         return ""
     match = _SENTENCE_END_RE.search(text)
-    if match is None:
-        return text
-    return text[: match.start() + 1]
+    result = text if match is None else text[: match.start() + 1]
+    return " ".join(result.split())
 
 
 def _finding_agent(finding: dict) -> str:
@@ -83,19 +93,32 @@ def _finding_line(finding: dict) -> str:
     return "" if line is None else str(line)
 
 
+def _finding_category(finding: dict) -> str:
+    """The taxonomy tag for this finding, mirroring `finding_signature.py`'s
+    `signature()` fallback chain exactly: `category` -> `smell` -> `rule` ->
+    `ruleId`, first truthy wins."""
+    return str(
+        finding.get("category")
+        or finding.get("smell")
+        or finding.get("rule")
+        or finding.get("ruleId")
+        or ""
+    )
+
+
 def base_id(finding: dict) -> str:
     """The finding-id before ordinal-suffix collision resolution:
-    `agent:file:line:severity`, plus `:category` when `category` is a
-    truthy value on this finding."""
+    `agent:file:line:severity`, plus `:category` when the taxonomy tag
+    (see `_finding_category`) is truthy on this finding."""
     parts = [
         _finding_agent(finding),
         str(finding.get("file") or ""),
         _finding_line(finding),
         str(finding.get("severity") or ""),
     ]
-    category = finding.get("category")
+    category = _finding_category(finding)
     if category:
-        parts.append(str(category))
+        parts.append(category)
     return ":".join(parts)
 
 
@@ -103,9 +126,11 @@ def compute_ids(findings: list[dict]) -> list[str]:
     """Finding-id for each entry in `findings`, in list order.
 
     A base id unique in this round is used as-is. A base id shared by two or
-    more findings gets a `:0`, `:1`, ... ordinal suffix, assigned in list
+    more findings gets a `#0`, `#1`, ... ordinal suffix, assigned in list
     order — deterministic because the input order is already fixed for a
-    given run.
+    given run. `#` (rather than `:`, which the base id itself uses as its
+    segment separator) guarantees the suffix can never collide with a
+    base-id segment.
     """
     bases = [base_id(f) for f in findings]
     counts = Counter(bases)
@@ -115,7 +140,7 @@ def compute_ids(findings: list[dict]) -> list[str]:
         if counts[base] > 1:
             ordinal = next_ordinal.get(base, 0)
             next_ordinal[base] = ordinal + 1
-            ids.append(f"{base}:{ordinal}")
+            ids.append(f"{base}#{ordinal}")
         else:
             ids.append(base)
     return ids
@@ -124,11 +149,11 @@ def compute_ids(findings: list[dict]) -> list[str]:
 def render_tier1_line(finding: dict, finding_id: str) -> str:
     """One Tier-1 line: `file:line [agent] severity/confidence —
     <first sentence of message> (<finding-id>)`."""
-    file_ = finding.get("file", "")
+    file_ = str(finding.get("file") or "")
     line = _finding_line(finding)
     agent = _finding_agent(finding)
-    severity = finding.get("severity", "")
-    confidence = finding.get("confidence", "")
+    severity = str(finding.get("severity") or "")
+    confidence = str(finding.get("confidence") or "")
     sentence = first_sentence(finding.get("message", ""))
     return f"{file_}:{line} [{agent}] {severity}/{confidence} — {sentence} ({finding_id})"
 
@@ -198,11 +223,15 @@ def main(argv: list[str] | None = None) -> int:
     findings = _load_findings(args.findings)
     ids = compute_ids(findings)
 
+    tier1 = render_tier1_report(findings, ids)
+
     if args.expand is None:
-        print(render_tier1_report(findings, ids))
+        print(tier1)
         return 0
 
     if args.expand == "all":
+        print(tier1)
+        print()
         print(render_tier2_report(findings, ids))
         return 0
 
@@ -212,6 +241,8 @@ def main(argv: list[str] | None = None) -> int:
             f"render_tiered_findings: finding-id not found in this round's findings: {args.expand!r}\n"
         )
         return 1
+    print(tier1)
+    print()
     print(block)
     return 0
 

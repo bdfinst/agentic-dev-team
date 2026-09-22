@@ -79,6 +79,17 @@ class TestBaseId:
         finding["agentName"] = "structure-review"
         assert rtf.base_id(finding) == "structure-review:src/auth/login.ts:42:warning"
 
+    def test_smell_field_used_as_taxonomy_tag_when_no_category(self):
+        """test-smell-review carries its taxonomy in `smell`, not `category`
+        (knowledge/review-agent-output-contract.md) — base_id must mirror
+        finding_signature.py's signature() fallback chain so this finding
+        gets a semantically-named id segment, not a bare ordinal."""
+        finding = _finding(agent="test-smell-review", smell="eager-test")
+        assert (
+            rtf.base_id(finding)
+            == "test-smell-review:src/auth/login.ts:42:warning:eager-test"
+        )
+
 
 class TestComputeIds:
     def test_unique_findings_keep_base_ids(self):
@@ -96,17 +107,17 @@ class TestComputeIds:
         ]
         ids = rtf.compute_ids(findings)
         assert ids == [
-            "structure-review:src/auth/login.ts:42:warning:0",
-            "structure-review:src/auth/login.ts:42:warning:1",
+            "structure-review:src/auth/login.ts:42:warning#0",
+            "structure-review:src/auth/login.ts:42:warning#1",
         ]
 
     def test_three_way_collision_gets_three_ordinals(self):
         findings = [_finding(message=f"Message {i}.") for i in range(3)]
         ids = rtf.compute_ids(findings)
         assert ids == [
-            "structure-review:src/auth/login.ts:42:warning:0",
-            "structure-review:src/auth/login.ts:42:warning:1",
-            "structure-review:src/auth/login.ts:42:warning:2",
+            "structure-review:src/auth/login.ts:42:warning#0",
+            "structure-review:src/auth/login.ts:42:warning#1",
+            "structure-review:src/auth/login.ts:42:warning#2",
         ]
 
 
@@ -147,7 +158,7 @@ class TestRenderTier1Report:
 
 
 class TestRenderExpand:
-    def test_expand_one_renders_only_that_findings_tier2_content(self):
+    def test_expand_one_renders_only_the_first_findings_tier2_content(self):
         findings = [
             _finding(message="First distinct message.", suggestedFix="Fix A"),
             _finding(message="Second distinct message.", suggestedFix="Fix B"),
@@ -160,11 +171,31 @@ class TestRenderExpand:
         assert "Second distinct message." not in block
         assert "Fix B" not in block
 
+    def test_expand_one_renders_only_the_second_findings_tier2_content(self):
+        findings = [
+            _finding(message="First distinct message.", suggestedFix="Fix A"),
+            _finding(message="Second distinct message.", suggestedFix="Fix B"),
+        ]
+        ids = rtf.compute_ids(findings)
+
         block_other = rtf.render_expand_one(findings, ids, ids[1])
         assert "Second distinct message." in block_other
         assert "Fix B" in block_other
         assert "First distinct message." not in block_other
         assert "Fix A" not in block_other
+
+    def test_expand_block_omits_suggested_fix_line_when_absent(self):
+        finding = _finding()
+        del finding["suggestedFix"]
+        ids = rtf.compute_ids([finding])
+        block = rtf.render_expand_one([finding], ids, ids[0])
+        assert "Suggested fix:" not in block
+
+    def test_expand_block_omits_suggested_fix_line_when_empty_string(self):
+        finding = _finding(suggestedFix="")
+        ids = rtf.compute_ids([finding])
+        block = rtf.render_expand_one([finding], ids, ids[0])
+        assert "Suggested fix:" not in block
 
     def test_expand_all_renders_every_findings_tier2_content(self):
         findings = [
@@ -215,6 +246,16 @@ class TestCli:
         assert r.returncode == 0
         assert "Split into LoginController" in r.stdout
 
+    def test_cli_expand_known_id_also_includes_tier1_report(self):
+        """--expand <id> appends Tier-2 AFTER the Tier-1 report — it does not
+        replace it (skills/code-review/SKILL.md step 7, output-format.md)."""
+        findings = [_finding()]
+        ids = rtf.compute_ids(findings)
+        r = _run("--expand", ids[0], input_text=json.dumps(findings))
+        assert r.returncode == 0
+        assert ids[0] in r.stdout.splitlines()[0]
+        assert rtf.EXPAND_HINT in r.stdout
+
     def test_cli_expand_unknown_id_fails_clearly(self):
         findings = [_finding()]
         r = _run("--expand", "no-such-id", input_text=json.dumps(findings))
@@ -232,9 +273,43 @@ class TestCli:
         assert "First distinct message." in r.stdout
         assert "Second distinct message." in r.stdout
 
+    def test_cli_expand_all_also_includes_tier1_report(self):
+        """--expand all appends Tier-2 AFTER the Tier-1 report — it does not
+        replace it (skills/code-review/SKILL.md step 7, output-format.md)."""
+        findings = [
+            _finding(message="First distinct message.", suggestedFix="Fix A"),
+            _finding(message="Second distinct message.", suggestedFix="Fix B"),
+        ]
+        ids = rtf.compute_ids(findings)
+        r = _run("--expand", "all", input_text=json.dumps(findings))
+        assert r.returncode == 0
+        assert ids[0] in r.stdout.splitlines()[0]
+        assert ids[1] in r.stdout.splitlines()[1]
+        assert rtf.EXPAND_HINT in r.stdout
+
     def test_cli_findings_from_file(self, tmp_path):
         findings_file = tmp_path / "findings.json"
         findings_file.write_text(json.dumps([_finding()]))
         r = _run("--findings", str(findings_file))
         assert r.returncode == 0
         assert "structure-review:src/auth/login.ts:42:warning" in r.stdout
+
+    def test_cli_accepts_dict_wrapped_findings_shape(self):
+        """`_load_findings` accepts both a bare list and a `{"findings":
+        [...]}` dict-wrapped shape — the dict-wrapped shape must render
+        identically to the equivalent bare list."""
+        findings = [_finding()]
+        wrapped = {"findings": findings}
+        r = _run(input_text=json.dumps(wrapped))
+        r_bare = _run(input_text=json.dumps(findings))
+        assert r.returncode == 0
+        assert r.stdout == r_bare.stdout
+
+    def test_cli_malformed_json_propagates_uncaught_error(self):
+        """Pins current behavior (matches the sibling script
+        finding_signature.py, no documented contract requires catching this):
+        malformed JSON is not caught — json.loads's exception propagates,
+        producing a non-zero exit and a traceback on stderr."""
+        r = _run(input_text="{not valid json")
+        assert r.returncode != 0
+        assert "JSONDecodeError" in r.stderr
