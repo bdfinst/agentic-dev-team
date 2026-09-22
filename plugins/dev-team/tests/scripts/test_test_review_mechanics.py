@@ -53,6 +53,9 @@ class _StubCompleted:
         self.returncode = returncode
 
 
+# double-waiver: B1 — stubs the subprocess call to internal_double_detector.py
+# (a first-party out-of-process collaborator) to avoid the real process-spawn
+# cost on every fixture in this file unrelated to doubling detection itself.
 def _no_op_runner(*_args, **_kwargs) -> _StubCompleted:
     return _StubCompleted(json.dumps({"findings": []}))
 
@@ -138,6 +141,101 @@ class TestNoAssertion:
         assert len(hits) == 1
         assert result["mechanicalFail"] is True
 
+    def test_python_multiline_signature_with_assertion_is_not_flagged(self, tmp_path):
+        """Regression (backstop review, #2169): a black-formatted
+        multi-line signature put the body's first real line right after a
+        `):` line whose own indent equals the `def` line's — a naive
+        next-line dedent check misread that as the body ending before it
+        started, silently dropping the whole body (including its assert)
+        and firing a false no-assertion error."""
+        test_file = _tests_dir(tmp_path) / "test_widget.py"
+        test_file.write_text(
+            "def test_renders_without_crashing(\n"
+            "    tmp_path, cfg\n"
+            "):\n"
+            "    widget = Widget(tmp_path, cfg)\n"
+            "    assert widget.render() is not None\n",
+            encoding="utf-8",
+        )
+
+        result = trm.analyze_file(tmp_path, test_file, double_detector_runner=_no_op_runner)
+
+        assert _findings_by_category(result, "no-assertion") == []
+        assert result["mechanicalFail"] is False
+
+    def test_python_multiline_signature_with_no_assertion_is_still_flagged(self, tmp_path):
+        """The multi-line-signature fix must not swallow a genuine
+        no-assertion defect — only the body boundary changes, not the
+        assertion search itself."""
+        test_file = _tests_dir(tmp_path) / "test_widget.py"
+        test_file.write_text(
+            "def test_renders_without_crashing(\n"
+            "    tmp_path, cfg\n"
+            "):\n"
+            "    widget = Widget(tmp_path, cfg)\n"
+            "    widget.render()\n",
+            encoding="utf-8",
+        )
+
+        result = trm.analyze_file(tmp_path, test_file, double_detector_runner=_no_op_runner)
+
+        assert len(_findings_by_category(result, "no-assertion")) == 1
+        assert result["mechanicalFail"] is True
+
+
+class TestJsTestCallMemberAccessRegression:
+    """Regression (backstop review, #2169): `_JS_TEST_CALL_RE`'s original
+    `\\b(?:it|test)` matched a member-access call like `pattern.test(...)`
+    or `/re/.test(...)` — ordinary RegExp usage, not a test declaration —
+    because `\\b` sits at a word boundary between `.` and `t` regardless of
+    what precedes the `.`. The fixed `(?<![.\\w$])` lookbehind excludes it."""
+
+    def test_regexp_test_call_inside_a_real_test_is_not_treated_as_a_test_region(self, tmp_path):
+        test_file = _tests_dir(tmp_path) / "widget.test.js"
+        test_file.write_text(
+            "it('validates the pattern', () => {\n"
+            "    expect(/^[a-z]+$/.test(value)).toBe(true);\n"
+            "});\n",
+            encoding="utf-8",
+        )
+
+        result = trm.analyze_file(tmp_path, test_file, double_detector_runner=_no_op_runner)
+
+        assert _findings_by_category(result, "no-assertion") == []
+        assert result["mechanicalFail"] is False
+
+    def test_dotted_test_call_on_a_custom_object_is_not_treated_as_a_test_region(self, tmp_path):
+        """A bare method call named `.test(` on any receiver — not just a
+        RegExp — must not be mistaken for an `it(`/`test(` declaration."""
+        test_file = _tests_dir(tmp_path) / "widget.test.js"
+        test_file.write_text(
+            "it('checks the matcher', () => {\n"
+            "    expect(matcher.test(value)).toBe(true);\n"
+            "});\n",
+            encoding="utf-8",
+        )
+
+        result = trm.analyze_file(tmp_path, test_file, double_detector_runner=_no_op_runner)
+
+        assert _findings_by_category(result, "no-assertion") == []
+        assert result["mechanicalFail"] is False
+
+    def test_undotted_test_call_is_still_recognized_as_a_test_region(self, tmp_path):
+        """The lookbehind must exclude only a PRECEDING `.`/word-char/`$`
+        — a genuine top-level `test(` call is unaffected."""
+        test_file = _tests_dir(tmp_path) / "widget.test.js"
+        test_file.write_text(
+            "test('renders without crashing', () => {\n"
+            "    widget.render();\n"
+            "});\n",
+            encoding="utf-8",
+        )
+
+        result = trm.analyze_file(tmp_path, test_file, double_detector_runner=_no_op_runner)
+
+        assert len(_findings_by_category(result, "no-assertion")) == 1
+        assert result["mechanicalFail"] is True
+
 
 class TestContentSliceRegression:
     """Fix 1 — the highest-priority finding: `_check_no_assertion`/
@@ -213,6 +311,50 @@ class TestMissingAwait:
             "  const result = fetchData();\n"
             "  expect(result).toBeDefined();\n"
             "});\n",
+            encoding="utf-8",
+        )
+
+        result = trm.analyze_file(tmp_path, test_file, double_detector_runner=_no_op_runner)
+
+        hits = _findings_by_category(result, "missing-await")
+        assert len(hits) == 1
+        assert hits[0]["severity"] == "warning"
+        assert result["mechanicalFail"] is False
+
+    def test_csharp_async_task_with_no_await_is_warning(self, tmp_path):
+        """The C# branch of `_check_missing_await` had no dedicated fixture
+        (backstop review, #2169) — mirrors the JS/TS case above."""
+        test_file = _tests_dir(tmp_path) / "WidgetTests.cs"
+        test_file.write_text(
+            "public class WidgetTests {\n"
+            "    [Test]\n"
+            "    public async Task FetchesDataAsync() {\n"
+            "        var result = FetchData();\n"
+            "        Assert.IsNotNull(result);\n"
+            "    }\n"
+            "}\n",
+            encoding="utf-8",
+        )
+
+        result = trm.analyze_file(tmp_path, test_file, double_detector_runner=_no_op_runner)
+
+        hits = _findings_by_category(result, "missing-await")
+        assert len(hits) == 1
+        assert hits[0]["severity"] == "warning"
+        assert result["mechanicalFail"] is False
+
+    def test_java_future_with_no_get_or_join_is_warning(self, tmp_path):
+        """The Java branch of `_check_missing_await` had no dedicated
+        fixture (backstop review, #2169)."""
+        test_file = _tests_dir(tmp_path) / "WidgetTest.java"
+        test_file.write_text(
+            "public class WidgetTest {\n"
+            "    @Test\n"
+            "    public void fetchesDataAsync() {\n"
+            "        CompletableFuture<String> future = fetchDataAsync();\n"
+            "        assertNotNull(future);\n"
+            "    }\n"
+            "}\n",
             encoding="utf-8",
         )
 
@@ -309,6 +451,30 @@ class TestMockNotReset:
 
         assert len(_findings_by_category(result, "mock-not-reset")) == 1
 
+    def test_csharp_mock_with_no_reset_or_reinstantiation_is_warning(self, tmp_path):
+        """The plain (non-suppressed) C# positive case had no dedicated
+        fixture (backstop review, #2169) — only the suppression path
+        (`test_csharp_setup_reinstantiation_suppresses_mock_not_reset`
+        above) was tested for C#."""
+        test_file = _tests_dir(tmp_path) / "WidgetTests.cs"
+        test_file.write_text(
+            "public class WidgetTests {\n"
+            "    [Test]\n"
+            "    public void CallsGateway() {\n"
+            "        var gateway = new Mock<IGateway>();\n"
+            "        gateway.Object.Send();\n"
+            "        Assert.IsTrue(true);\n"
+            "    }\n"
+            "}\n",
+            encoding="utf-8",
+        )
+
+        result = trm.analyze_file(tmp_path, test_file, double_detector_runner=_no_op_runner)
+
+        hits = _findings_by_category(result, "mock-not-reset")
+        assert len(hits) == 1
+        assert hits[0]["severity"] == "warning"
+
 
 class TestUnstubbedClockRngTimer:
     def test_unstubbed_new_date_is_warning(self, tmp_path):
@@ -343,6 +509,48 @@ class TestUnstubbedClockRngTimer:
 
         assert _findings_by_category(result, "unstubbed-clock-rng-timer") == []
 
+    def test_csharp_datetime_now_is_warning(self, tmp_path):
+        """The C# branch of `_check_unstubbed_clock_rng_timer` had no
+        dedicated fixture (backstop review, #2169)."""
+        test_file = _tests_dir(tmp_path) / "WidgetTests.cs"
+        test_file.write_text(
+            "public class WidgetTests {\n"
+            "    [Test]\n"
+            "    public void ChecksTimestamp() {\n"
+            "        var now = DateTime.Now;\n"
+            "        Assert.IsTrue(now.Year > 2000);\n"
+            "    }\n"
+            "}\n",
+            encoding="utf-8",
+        )
+
+        result = trm.analyze_file(tmp_path, test_file, double_detector_runner=_no_op_runner)
+
+        hits = _findings_by_category(result, "unstubbed-clock-rng-timer")
+        assert len(hits) == 1
+        assert hits[0]["severity"] == "warning"
+
+    def test_java_instant_now_is_warning(self, tmp_path):
+        """The Java branch of `_check_unstubbed_clock_rng_timer` had no
+        dedicated fixture (backstop review, #2169)."""
+        test_file = _tests_dir(tmp_path) / "WidgetTest.java"
+        test_file.write_text(
+            "public class WidgetTest {\n"
+            "    @Test\n"
+            "    public void checksTimestamp() {\n"
+            "        Instant now = Instant.now();\n"
+            "        assertNotNull(now);\n"
+            "    }\n"
+            "}\n",
+            encoding="utf-8",
+        )
+
+        result = trm.analyze_file(tmp_path, test_file, double_detector_runner=_no_op_runner)
+
+        hits = _findings_by_category(result, "unstubbed-clock-rng-timer")
+        assert len(hits) == 1
+        assert hits[0]["severity"] == "warning"
+
 
 class TestReflectionPrimaryStrategy:
     def test_reflection_alone_is_warning_and_never_gates(self, tmp_path):
@@ -352,6 +560,66 @@ class TestReflectionPrimaryStrategy:
             "  const value = component['_internalState'];\n"
             "  expect(value).toBeDefined();\n"
             "});\n",
+            encoding="utf-8",
+        )
+
+        result = trm.analyze_file(tmp_path, test_file, double_detector_runner=_no_op_runner)
+
+        hits = _findings_by_category(result, "reflection-primary-strategy")
+        assert len(hits) == 1
+        assert hits[0]["severity"] == "warning"
+
+    def test_python_getattr_private_is_warning(self, tmp_path):
+        """The Python branch of `_check_reflection_primary_strategy` had no
+        dedicated fixture (backstop review, #2169)."""
+        test_file = _tests_dir(tmp_path) / "test_internals.py"
+        test_file.write_text(
+            "def test_accesses_private_state():\n"
+            "    value = getattr(component, '_internal_state')\n"
+            "    assert value is not None\n",
+            encoding="utf-8",
+        )
+
+        result = trm.analyze_file(tmp_path, test_file, double_detector_runner=_no_op_runner)
+
+        hits = _findings_by_category(result, "reflection-primary-strategy")
+        assert len(hits) == 1
+        assert hits[0]["severity"] == "warning"
+
+    def test_java_getdeclaredfield_is_warning(self, tmp_path):
+        """The Java branch of `_check_reflection_primary_strategy` had no
+        dedicated fixture (backstop review, #2169)."""
+        test_file = _tests_dir(tmp_path) / "WidgetTest.java"
+        test_file.write_text(
+            "public class WidgetTest {\n"
+            "    @Test\n"
+            "    public void accessesPrivateField() throws Exception {\n"
+            "        Field field = Widget.class.getDeclaredField(\"internalState\");\n"
+            "        assertNotNull(field);\n"
+            "    }\n"
+            "}\n",
+            encoding="utf-8",
+        )
+
+        result = trm.analyze_file(tmp_path, test_file, double_detector_runner=_no_op_runner)
+
+        hits = _findings_by_category(result, "reflection-primary-strategy")
+        assert len(hits) == 1
+        assert hits[0]["severity"] == "warning"
+
+    def test_csharp_getmethod_nonpublic_is_warning(self, tmp_path):
+        """The C# branch of `_check_reflection_primary_strategy` had no
+        dedicated fixture (backstop review, #2169)."""
+        test_file = _tests_dir(tmp_path) / "WidgetTests.cs"
+        test_file.write_text(
+            "public class WidgetTests {\n"
+            "    [Test]\n"
+            "    public void AccessesPrivateMethod() {\n"
+            "        var method = typeof(Widget).GetMethod(\"DoInternal\", "
+            "BindingFlags.NonPublic | BindingFlags.Instance);\n"
+            "        Assert.IsNotNull(method);\n"
+            "    }\n"
+            "}\n",
             encoding="utf-8",
         )
 
@@ -487,6 +755,9 @@ class TestDoubleDetectorDisclosure:
             encoding="utf-8",
         )
 
+        # double-waiver: B1 — stubs the subprocess call to
+        # internal_double_detector.py to simulate a spawn failure without a
+        # real missing-executable environment.
         def _raising_runner(*_args, **_kwargs):
             raise OSError("no such executable")
 
@@ -504,6 +775,9 @@ class TestDoubleDetectorDisclosure:
             encoding="utf-8",
         )
 
+        # double-waiver: B1 — stubs the subprocess call to
+        # internal_double_detector.py to simulate a malformed response
+        # without depending on the real detector's actual output shape.
         def _garbage_runner(*_args, **_kwargs):
             return _StubCompleted("not json", returncode=1, stderr="boom")
 

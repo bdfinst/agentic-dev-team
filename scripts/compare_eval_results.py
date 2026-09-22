@@ -81,15 +81,19 @@ not an oversight: this gate exists to catch any run-over-run regression in
 detection count, not to re-enforce the corpus's own declared tolerance
 ranges (that remains `eval_grade.py`'s job).
 
-Shipped-tree placement
-------------------------
-This script lives in `plugins/dev-team/scripts/` (shipped) even though its
-whole domain is the repo's own non-shipped `evals/` corpus. It mirrors the
-existing precedent of `eval_ablation.py` (same directory, same repo-root
-default) rather than introducing a new violation. It is monorepo-dev-only
-tooling: useful only to a `test-review.md`/eval-corpus maintainer re-running
-this exact regression check against this repo's own eval corpus, never
-invoked by a downstream project that installs the plugin.
+Repo-root placement (ADR 0032)
+-------------------------------
+This script lives at repo-root `scripts/`, next to `eval_grade.py`, not
+under the shipped `plugins/dev-team/scripts/` tree — ADR 0032's category 2
+(monorepo-dev-only tooling whose whole domain is the repo's own non-shipped
+`evals/` corpus). It is useful only to a `test-review.md`/eval-corpus
+maintainer re-running this exact regression check against this repo's own
+eval corpus, never invoked by a downstream project that installs the
+plugin. `eval_ablation.py` is NOT the precedent for shipping a script like
+this one: it ships specifically because its `--find-latest` mode is a
+generic JSONL reader with no repo-specific behavior, invoked by the shipped
+`harness-audit` skill via `${CLAUDE_PLUGIN_ROOT}` — this script has no such
+shipped-skill caller or portable mode (backstop review, #2169).
 
 Exit codes
 ----------

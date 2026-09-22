@@ -11,7 +11,7 @@ for the operational run procedure see [`eval-running-guide.md`](eval-running-gui
 | Fixtures | `evals/fixtures/` | Input code (deliberately good or bad) the agents review. |
 | Expectations | `evals/expected/*.json` | The **contract**: what a correct verdict looks like per fixture/agent. |
 | Grader | `scripts/eval_grade.py` | Deterministic, model-free: compares recorded actuals to expectations. |
-| Regression diff | `plugins/dev-team/scripts/compare_eval_results.py` | Diffs two `--actuals` result files against `evals/expected/*.json`, gating on true/false-positive-proxy count regression. Shipped-tree location mirrors `eval_ablation.py`'s existing precedent; both are monorepo-dev-only despite the placement. |
+| Regression diff | `scripts/compare_eval_results.py` | Diffs two `--actuals` result files against `evals/expected/*.json`, gating on true/false-positive-proxy count regression. Repo-root placement (ADR 0032 category 2, monorepo-dev-only) next to `eval_grade.py` — not shipped, unlike `eval_ablation.py`, which ships only for its unrelated generic `--find-latest` reader mode. |
 | Variance | `scripts/eval_variance.py` | Aggregates K trials → pass@k, flap rate, quarantine. |
 | Trend | `.claude/metrics/eval-variance.jsonl` | Append-only stability history (metrics only). |
 | Semver contract | `scripts/eval_semver_classify.sh` | The eval corpus IS the version contract (#101). |

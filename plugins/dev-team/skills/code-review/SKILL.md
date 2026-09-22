@@ -65,7 +65,7 @@ Arguments: $ARGUMENTS
 | `--resume` | Resume a sliced run — skip slices whose section artifact already exists on disk. See [`sliced-mode.md`](sliced-mode.md). |
 | `--no-slice` | Escape hatch — force the legacy single-pass review even on a large full-repo scope that would otherwise auto-engage sliced mode. |
 | `--json` | Output aggregated JSON to **stdout** instead of prose. Contractually non-interactive (for CI): never prompts; defaults to report-only (no code modified). |
-| `--expand <finding-id>|all` | Prose-mode only (step 7): render Tier-2 (full message + suggested fix) for the named finding-id, or for every finding with `all`, after the Tier-1 report — see step 7. A no-op under `--json` (see step 7's `--json` branch). |
+| `--expand <finding-id>|all` | Prose-mode only (step 7): render Tier-2 (full message + suggested fix) for the named finding-id, or for every finding with `all`, after the Tier-1 report — see step 7. A no-op under `--json` (see step 7's `--json` branch). **Only meaningful within the SAME run that computed the ids** — pass it alongside `--since`/`--path`/etc. in one invocation once you already know a specific id, e.g. because the operating Claude session read the prior Tier-1 output and is now re-invoking this skill with the same scope plus `--expand <id>` still in the same conversation; that path never re-dispatches anything beyond what the scope would have dispatched anyway. A cold, separate `/code-review --expand <id>` run with no memory of where that id came from IS a full re-dispatch of the panel (steps 1-6 run in full, same as any other invocation) and the id is not guaranteed to still exist or mean the same finding — `render_tiered_findings.py`'s own docstring says ids are not stable across runs. `--expand` never triggers a SECOND panel dispatch on top of an already-running one; it only changes step 7's rendering of the one panel a given invocation already ran. |
 | `--pdf` | After the durable report is written, also render it to a sibling PDF via `hooks/lib/report_pdf.py`. See `knowledge/report-pdf-integration.md`. No-op with a message when no report file is written (`--json` or `--internal`); under `--json`, that status goes to **stderr** so stdout stays pure JSON. Additive: never changes the review's own output or exit status. |
 | `--internal` | This is an orchestrator-internal dispatch (`/build`'s Step 6 backstop review, `/test-improve`'s Phase 4/5 end-of-phase review loop) — skip the `.dev-team-reports/code-review.md` report write in step 7. Orthogonal to `--json`: `--internal` alone still runs the prose/fix-loop path; both sanctioned callers use `--internal` without `--json` specifically to keep the fix loop. `/build` and `/test-improve` are the only sanctioned callers of this flag today — see `knowledge/report-output-location.md` for `/ship`'s deliberate exception (writes the report by default, no `--internal`). |
 | `--init-risks` | Scaffold `ACCEPTED-RISKS.md` from `templates/ACCEPTED-RISKS.md.tmpl` if absent. Exits non-zero without overwriting if present. Schema: `knowledge/accepted-risks-schema.md`. |
@@ -244,10 +244,18 @@ Protocol) needs each file's own `mechanicalFail`/findings result supplied as
 that file's context — the agent has no `Bash` tool and never runs this
 script itself. Keep the per-file results keyed by file path when assembling
 step 4's context so each file's `test-review` dispatch gets its own result,
-not the whole batch's. Each result's `findings` array merges into step 4's
-static-analysis context using the same envelope and the same "detected by
-static analysis — do not re-report, focus on semantic concerns" framing as
-the two pre-passes above.
+not the whole batch's. Pass each result to `test-review` as its Phase 0
+input using `agents/test-review.md`'s own framing ("detected by static
+analysis, do not re-derive" — the agent still reports it as this file's own
+finding when `mechanicalFail` is true, per that file's Phase 0 bullets) —
+**not** the generic "detected by static analysis — do not re-report, focus
+on semantic concerns" envelope the two pre-passes above use for every other
+agent. That generic framing is correct for `repo_invariants.py`/
+`internal_double_detector.py`'s findings, which every dispatched agent
+receives as already-covered context to fold silently into a semantic
+review; it would be wrong here, since `test-review` is this pre-pass's
+sole intended reporter, not one of several agents absorbing someone else's
+finding.
 
 **Pass `--files` (#1629).** Several checks are scoped to the changeset,
 because the conventions they enforce are "required going forward, do not

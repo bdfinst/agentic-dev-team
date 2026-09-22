@@ -115,6 +115,30 @@ def _normalize_path(value) -> str:
     return text
 
 
+def finding_agent(finding: dict) -> str:
+    """The reporting agent's name: `agent` (the aggregated/flattened finding
+    shape `consolidate.py` produces) falling back to `agentName` (the raw
+    per-agent-result field name). Shared by `signature()` below and by
+    `render_tiered_findings.py`'s finding-id scheme (#2170) — the same
+    fallback, one place, so a future field-name change can't silently
+    desync the two."""
+    return str(finding.get("agent") or finding.get("agentName") or "")
+
+
+def finding_category(finding: dict) -> str:
+    """The taxonomy tag for this finding: `category` -> `smell` -> `rule` ->
+    `ruleId`, first truthy wins (see `signature()`'s docstring for why each
+    fallback exists). Shared by `signature()` below and by
+    `render_tiered_findings.py`'s finding-id scheme (#2170)."""
+    return str(
+        finding.get("category")
+        or finding.get("smell")
+        or finding.get("rule")
+        or finding.get("ruleId")
+        or ""
+    )
+
+
 def signature(finding: dict) -> str:
     """Stable identity hash for one finding: agent, file, category, and the
     normalized message. Deliberately excludes the line number.
@@ -138,15 +162,9 @@ def signature(finding: dict) -> str:
     between `category` and `rule` in the fallback chain — after the
     genuinely canonical field, before the linter-style fallbacks.
     """
-    agent = str(finding.get("agent") or finding.get("agentName") or "")
+    agent = finding_agent(finding)
     path = _normalize_path(finding.get("file"))
-    category = str(
-        finding.get("category")
-        or finding.get("smell")
-        or finding.get("rule")
-        or finding.get("ruleId")
-        or ""
-    )
+    category = finding_category(finding)
     message = normalize_message(finding.get("message"))
     payload = f"{agent.lower()}\x1f{path}\x1f{category.lower()}\x1f{message}"
     return hashlib.sha256(payload.encode("utf-8")).hexdigest()

@@ -85,12 +85,15 @@ at `_CLOCK_RNG_TIMER_MARKERS` below for why this script's own marker table
 is a different list, not a duplicate.
 
 The Tolerated-Deviation Hunt (`_check_tolerated_deviation`) runs against
-whichever single file the CLI is given, test or non-test — it does NOT
-restrict itself to "core-flow, non-test source" the way `test-review.md`'s
-prose scopes the hunt. Resolving that scoping gap (which files this check
-should actually run against) is deferred to Step 2.3's wiring of this
-script into test-review's protocol; this script's own per-file CLI shape
-is unopinionated about which files it's called with.
+whichever single file the CLI is given, test or non-test — this script's
+own per-file CLI shape is unopinionated about which files it's called
+with. Step 2.3's actual wiring (`skills/code-review/SKILL.md` step 2b)
+calls this script only for test files in scope, so in practice the Hunt
+currently sees test files, not the "core-flow, non-test source" scope
+`test-review.md`'s prose describes — non-test files get no Phase 0 result
+and fall through to that agent's own manual-judgment fallback. Extending
+the wiring to also cover non-test core-flow files is a separate change,
+tracked at the wiring layer (`test-review.md`'s Hunt section), not here.
 
 Stdlib-only (ADR 0014/0015). See docs/python-hook-contract.md.
 """
@@ -160,9 +163,13 @@ _ASSERTION_RE = re.compile(r"\b(assert\w*|expect|should\w*|verify\w*)\b", re.IGN
 #: extraction downstream is identical for both forms. The `.each(...)`
 #: table itself may contain one level of nested parens (e.g. a function
 #: call inside the table) but no more — a reasonable approximation of the
-#: common forms, not a full parser.
+#: common forms, not a full parser. The leading `(?<![.\w$])` (not a plain
+#: `\b`) excludes member-access calls like `pattern.test(value)` or
+#: `/re/.test(s)` — ordinary RegExp usage, not a test declaration. A `\b`
+#: alone still matches there, because `.` and `t` sit on either side of a
+#: word boundary regardless of what the non-word character is.
 _JS_TEST_CALL_RE = re.compile(
-    r"\b(?:it|test)(?:\.only|\.skip)?"
+    r"(?<![.\w$])(?:it|test)(?:\.only|\.skip)?"
     r"(?:\.each\s*\((?:[^()]|\([^()]*\))*\))?"
     r"\s*(\()"
 )
@@ -197,6 +204,19 @@ class ParseFailure(Exception):
 
 def _line_no(text: str, idx: int) -> int:
     return text.count("\n", 0, idx) + 1
+
+
+def _consume_escape(out: list[str], text: str, j: int) -> int:
+    """Blank a backslash-escape pair (`text[j:j + 2]`, `text[j] == "\\\\"`)
+    in `out`, one character at a time so an embedded newline is preserved
+    (never blanked) and line numbers stay aligned with `text`. Returns the
+    index just past the pair. Split out of `_mask_code`'s quoted-string
+    branch to keep that branch's `while` body at one level of nesting."""
+    if text[j] != "\n":
+        out[j] = " "
+    if text[j + 1] != "\n":
+        out[j + 1] = " "
+    return j + 2
 
 
 def _mask_code(text: str) -> str:
@@ -236,11 +256,7 @@ def _mask_code(text: str) -> str:
             j = i + 1
             while j < n:
                 if text[j] == "\\" and j + 1 < n:
-                    if text[j] != "\n":
-                        out[j] = " "
-                    if text[j + 1] != "\n":
-                        out[j + 1] = " "
-                    j += 2
+                    j = _consume_escape(out, text, j)
                     continue
                 closing = text[j] == quote
                 if text[j] != "\n":
@@ -382,18 +398,32 @@ def _extract_regions(text: str, masked: str, lang: str) -> list[dict]:
     return []
 
 
-def _python_test_regions(text: str) -> list[tuple[int, str]]:
+def _python_test_regions(text: str, masked: str) -> list[tuple[int, str]]:
     """`(line_no, body_text)` for each `def test_*(...)`/`async def
-    test_*(...)` — body is every line after the `def` line indented deeper
-    than it, up to the first dedent or EOF (blank lines don't count as a
-    dedent)."""
+    test_*(...)` — body is every line after the parameter list's closing
+    `)` line, indented deeper than the `def` line, up to the first dedent
+    or EOF (blank lines don't count as a dedent).
+
+    The closing paren is found by depth-counting over `masked` (like every
+    other region helper in this module) rather than assumed to be on the
+    `def` line itself — a black-formatted multi-line signature (`def
+    test_x(\\n    tmp_path, cfg\\n):`) puts the body's first line right
+    after a `):` line whose OWN indent equals the `def` line's, which a
+    naive "next line" walk would misread as an immediate dedent and return
+    an empty body (a false no-assertion finding on a test that does
+    assert)."""
     lines = text.split("\n")
     regions = []
     for m in _PY_TEST_DEF_RE.finditer(text):
         indent = m.group(1)
+        open_idx = m.end() - 1  # the `(` the regex itself just matched
+        close_idx = _matching_close_index(text, masked, open_idx, "(", ")")
+        if close_idx is None:
+            raise ParseFailure("unbalanced parens in a def test_*(...) signature")
         def_line_idx = text.count("\n", 0, m.start())
+        sig_close_line_idx = text.count("\n", 0, close_idx)
         body_lines = []
-        for line in lines[def_line_idx + 1 :]:
+        for line in lines[sig_close_line_idx + 1 :]:
             if line.strip() == "":
                 body_lines.append(line)
                 continue
@@ -598,9 +628,9 @@ def _check_no_assertion(regions: list[dict], lang: str) -> list[dict]:
     return findings
 
 
-def _check_no_assertion_python(text: str) -> list[dict]:
+def _check_no_assertion_python(text: str, masked: str) -> list[dict]:
     findings = []
-    for line_no, body in _python_test_regions(text):
+    for line_no, body in _python_test_regions(text, masked):
         if not _ASSERTION_RE.search(body):
             findings.append(
                 _finding("no-assertion", "error", line_no, "Test has no assertion call — zero regression protection.")
@@ -842,6 +872,21 @@ def _translate_double_detector_findings(
 _GATING_CATEGORIES = frozenset({"no-assertion", "internal-collaborator-doubling"})
 
 
+def _parse_failure_result(file_path: Path, message: str) -> dict:
+    """The shared `analyze_file` early-return shape for a file that could
+    not be read/decoded or whose test-region boundaries never closed
+    before EOF — a `parse-failure` finding, `mechanicalFail: False` (the
+    file falls through to the qualitative pass), and the doubling check
+    never ran."""
+    return {
+        "file": str(file_path),
+        "mechanicalFail": False,
+        "findings": [_finding("parse-failure", None, _UNKNOWN_LINE, message)],
+        "skippedQualitative": False,
+        "doublingCheckRan": False,
+    }
+
+
 def analyze_file(
     root: Path,
     file_path: Path,
@@ -862,20 +907,14 @@ def analyze_file(
     try:
         text = file_path.read_text(encoding="utf-8")
     except (OSError, UnicodeDecodeError) as exc:
-        return {
-            "file": str(file_path),
-            "mechanicalFail": False,
-            "findings": [_finding("parse-failure", None, _UNKNOWN_LINE, f"Could not read/decode file: {exc}")],
-            "skippedQualitative": False,
-            "doublingCheckRan": False,
-        }
+        return _parse_failure_result(file_path, f"Could not read/decode file: {exc}")
 
     findings: list[dict] = []
     try:
         masked = _mask_code(text)
         regions = _extract_regions(text, masked, lang) if lang else []
         if lang == "python":
-            findings += _check_no_assertion_python(text)
+            findings += _check_no_assertion_python(text, masked)
         elif lang in ("js_ts", "csharp", "java"):
             findings += _check_no_assertion(regions, lang)
             findings += _check_missing_await(regions, lang)
@@ -885,13 +924,7 @@ def analyze_file(
             findings += _check_reflection_primary_strategy(text, lang)
         findings += _check_tolerated_deviation(text)
     except ParseFailure as exc:
-        return {
-            "file": str(file_path),
-            "mechanicalFail": False,
-            "findings": [_finding("parse-failure", None, _UNKNOWN_LINE, str(exc))],
-            "skippedQualitative": False,
-            "doublingCheckRan": False,
-        }
+        return _parse_failure_result(file_path, str(exc))
 
     doubling_findings, doubling_check_ran = _translate_double_detector_findings(root, file_path, double_detector_runner)
     findings += doubling_findings

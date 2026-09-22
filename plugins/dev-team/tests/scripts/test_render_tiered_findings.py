@@ -305,11 +305,47 @@ class TestCli:
         assert r.returncode == 0
         assert r.stdout == r_bare.stdout
 
-    def test_cli_malformed_json_propagates_uncaught_error(self):
-        """Pins current behavior (matches the sibling script
-        finding_signature.py, no documented contract requires catching this):
-        malformed JSON is not caught — json.loads's exception propagates,
-        producing a non-zero exit and a traceback on stderr."""
+    def test_cli_malformed_json_is_a_clean_error_not_a_traceback(self):
+        """Regression (backstop review, #2170): malformed JSON must produce
+        a clean, non-zero-exit error message on stderr — not an uncaught
+        traceback, and never a silent `CLEAN_PASS_SUMMARY` on stdout."""
         r = _run(input_text="{not valid json")
         assert r.returncode != 0
-        assert "JSONDecodeError" in r.stderr
+        assert "Traceback" not in r.stderr
+        assert "cannot interpret --findings input" in r.stderr
+        assert rtf.CLEAN_PASS_SUMMARY not in r.stdout
+
+    def test_cli_aggregated_json_object_with_top_findings_key_is_recognized(self):
+        """Regression (backstop review, #2170): the actual aggregated
+        `--json` object (`output-format.md`) keys its consolidated list as
+        `topFindings`, not `findings` — the previous `_load_findings` fell
+        through to an empty list for this exact real-world shape and
+        rendered a false `CLEAN_PASS_SUMMARY`."""
+        findings = [_finding()]
+        r = _run(input_text=json.dumps({"overall": "warn", "topFindings": findings}))
+        r_bare = _run(input_text=json.dumps(findings))
+        assert r.returncode == 0
+        assert r.stdout == r_bare.stdout
+
+    def test_cli_per_agent_result_shape_with_issues_key_is_recognized(self):
+        """Regression (backstop review, #2170): a raw per-agent
+        `{status, issues, summary}` result
+        (`knowledge/review-agent-output-contract.md`) keys its list as
+        `issues`, not `findings` — same silent-empty failure mode as the
+        `topFindings` case above."""
+        findings = [_finding()]
+        r = _run(input_text=json.dumps({"status": "warn", "issues": findings, "summary": "x"}))
+        r_bare = _run(input_text=json.dumps(findings))
+        assert r.returncode == 0
+        assert r.stdout == r_bare.stdout
+
+    def test_cli_unrecognized_dict_shape_is_a_clean_error_not_a_silent_clean_pass(self):
+        """Regression (backstop review, #2170): a dict with none of
+        `findings`/`topFindings`/`issues` as a list-valued key (e.g. a raw
+        `{"agents": [...]}` object with no consolidated list at the top
+        level) must error loudly rather than silently rendering
+        `CLEAN_PASS_SUMMARY`."""
+        r = _run(input_text=json.dumps({"agents": [{"agentName": "x", "issues": [_finding()]}]}))
+        assert r.returncode != 0
+        assert "cannot interpret --findings input" in r.stderr
+        assert rtf.CLEAN_PASS_SUMMARY not in r.stdout

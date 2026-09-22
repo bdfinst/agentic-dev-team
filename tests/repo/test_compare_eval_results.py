@@ -21,7 +21,7 @@ import sys
 
 from _repo_root import REPO_ROOT as _REPO_ROOT
 
-_SCRIPTS_DIR = _REPO_ROOT / "plugins" / "dev-team" / "scripts"
+_SCRIPTS_DIR = _REPO_ROOT / "scripts"
 sys.path.insert(0, str(_SCRIPTS_DIR))
 
 import compare_eval_results as cer
@@ -188,6 +188,73 @@ class TestComputeFixtureDiffsClassification:
         assert len(rows) == 3
         assert {row["fixture"] for row in rows} == {"fixA", "fixB", "fixC"}
         assert scope["compared"] == 3
+
+
+class TestLoadExpected:
+    """`_load_expected`'s deliberate, commented design decision — skip a
+    malformed/unreadable `expected/*.json` file rather than raising, since
+    this script's job is to compare result files, not re-run
+    `eval_grade.py --check-corpus` — had no dedicated fixture (backstop
+    review, #2169)."""
+
+    def test_malformed_expected_file_is_skipped_and_valid_ones_still_load(self, tmp_path):
+        expected_dir = tmp_path / "expected"
+        expected_dir.mkdir()
+        (expected_dir / "bad.json").write_text("{not valid json", encoding="utf-8")
+        (expected_dir / "fixA.json").write_text(
+            json.dumps(
+                {
+                    "fixture": "fixA",
+                    "applicableAgents": ["test-review"],
+                    "agents": {"test-review": {"issueCount": {"min": 1, "max": 2}}},
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        loaded = cer._load_expected(expected_dir)
+
+        assert "bad" not in loaded
+        assert loaded["fixA"] == {"test-review": {"issueCount": {"min": 1, "max": 2}}}
+
+    def test_cli_does_not_crash_with_a_malformed_expected_file_present(self, tmp_path):
+        """CLI-level companion to the unit test above: the malformed file
+        must not surface as an uncaught exception through the full CLI
+        path, and the valid fixture alongside it must still be compared."""
+        expected_dir = tmp_path / "expected"
+        expected_dir.mkdir()
+        (expected_dir / "bad.json").write_text("{not valid json", encoding="utf-8")
+        (expected_dir / "fixA.json").write_text(
+            json.dumps(
+                {
+                    "fixture": "fixA",
+                    "applicableAgents": ["test-review"],
+                    "agents": {"test-review": {"issueCount": {"min": 1, "max": 2}}},
+                }
+            ),
+            encoding="utf-8",
+        )
+        before_path = tmp_path / "before.json"
+        after_path = tmp_path / "after.json"
+        before_path.write_text(json.dumps(_actuals_block("fixA", "test-review", 1)), encoding="utf-8")
+        after_path.write_text(json.dumps(_actuals_block("fixA", "test-review", 1)), encoding="utf-8")
+
+        result = subprocess.run(
+            [
+                sys.executable,
+                str(_SCRIPTS_DIR / "compare_eval_results.py"),
+                str(before_path),
+                str(after_path),
+                "--expected-dir",
+                str(expected_dir),
+            ],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+
+        assert result.returncode == 0
+        assert "Traceback" not in result.stderr
 
 
 class TestCli:

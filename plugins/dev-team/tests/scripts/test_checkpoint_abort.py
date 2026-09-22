@@ -197,6 +197,20 @@ class TestComputeRoundOutcome:
         assert out["outcome"] == "blocked"
         assert out["reason"] == "1 finding(s) remain"
 
+    def test_differently_cased_severity_and_confidence_still_block(self):
+        """Regression (backstop review, #2168): the severity floor is now
+        imported from `finding_signature.is_actionable`, which lowercases
+        `severity`/`confidence` before comparing — a prior local copy here
+        compared case-sensitively, so a finding tagged `"Error"`/`"High"`
+        (a differently-cased but semantically identical value) silently
+        never blocked while `finding_signature`'s own fix loop treated it
+        as fully actionable. Both modules must now agree on any casing."""
+        out = checkpoint_abort.compute_round_outcome(
+            aborted=False, redispatched=False, findings=[_issue("Error", "High")]
+        )
+        assert out["outcome"] == "blocked"
+        assert out["reason"] == "1 finding(s) remain"
+
 
 class TestMergeFindings:
     def _finding(self, **kw):
@@ -450,6 +464,43 @@ class TestCliModeOutcome:
         payload = json.loads(result.stdout)
         assert payload["outcome"] == "blocked"
 
+    def test_from_nonexistent_file_exits_nonzero(self, tmp_path):
+        """Regression (backstop review, #2168): `--mode outcome`'s
+        `--from`-file read shares `_run_abort_mode`'s exact error-handling
+        shape but had no test of its own for this branch."""
+        missing = tmp_path / "does-not-exist.json"
+        result = subprocess.run(
+            [
+                sys.executable,
+                str(_SCRIPTS_DIR / "checkpoint_abort.py"),
+                "--mode",
+                "outcome",
+                "--from",
+                str(missing),
+            ],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        assert result.returncode != 0
+        assert "cannot read" in result.stderr.lower()
+
+    def test_invalid_json_exits_nonzero_with_clear_error(self):
+        """Regression (backstop review, #2168) — same rationale as
+        `test_from_nonexistent_file_exits_nonzero` above."""
+        result = self._run_raw("not json")
+        assert result.returncode != 0
+        assert "json" in result.stderr.lower()
+
+    def _run_raw(self, raw_input, check=False):
+        return subprocess.run(
+            [sys.executable, str(_SCRIPTS_DIR / "checkpoint_abort.py"), "--mode", "outcome"],
+            input=raw_input,
+            capture_output=True,
+            text=True,
+            check=check,
+        )
+
 
 class TestCliModeMerge:
     def _run(self, payload, check=False):
@@ -507,3 +558,38 @@ class TestCliModeMerge:
         )
         merged = json.loads(result.stdout)
         assert merged == []
+
+    def test_from_nonexistent_file_exits_nonzero(self, tmp_path):
+        """Regression (backstop review, #2168) — mirrors
+        `TestCliModeOutcome`'s equivalent test; `--mode merge`'s `--from`
+        read shares the same error-handling shape and had no test of its
+        own for this branch."""
+        missing = tmp_path / "does-not-exist.json"
+        result = subprocess.run(
+            [
+                sys.executable,
+                str(_SCRIPTS_DIR / "checkpoint_abort.py"),
+                "--mode",
+                "merge",
+                "--from",
+                str(missing),
+            ],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        assert result.returncode != 0
+        assert "cannot read" in result.stderr.lower()
+
+    def test_invalid_json_exits_nonzero_with_clear_error(self):
+        """Regression (backstop review, #2168) — same rationale as
+        `test_from_nonexistent_file_exits_nonzero` above."""
+        result = subprocess.run(
+            [sys.executable, str(_SCRIPTS_DIR / "checkpoint_abort.py"), "--mode", "merge"],
+            input="not json",
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        assert result.returncode != 0
+        assert "json" in result.stderr.lower()

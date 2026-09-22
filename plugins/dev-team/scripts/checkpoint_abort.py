@@ -35,6 +35,19 @@ import argparse
 import json
 import sys
 from pathlib import Path
+from typing import Any
+
+# `finding_signature.py` lives under `skills/code-review/scripts/`; this
+# script lives under `scripts/` — both are children of the plugin root
+# (`plugins/dev-team/`). Imported (not re-typed) so `compute_round_outcome`'s
+# severity floor can never silently diverge from `finding_signature.py`'s
+# own `is_actionable` — see the comment on `_is_blocking_finding` below for
+# the drift this closes.
+_FINDING_SIGNATURE_DIR = Path(__file__).resolve().parents[1] / "skills" / "code-review" / "scripts"
+if str(_FINDING_SIGNATURE_DIR) not in sys.path:
+    sys.path.insert(0, str(_FINDING_SIGNATURE_DIR))
+
+from finding_signature import is_actionable
 
 # The bar this script's abort decision applies. Deliberately STRICTER than
 # `skills/code-review/SKILL.md` step 6a's "Severity floor (rounds >= 2)" rule
@@ -50,16 +63,22 @@ from pathlib import Path
 QUALIFYING_SEVERITY = "error"
 QUALIFYING_CONFIDENCE = "high"
 
-# The severity floor `compute_round_outcome` filters `findings` by — the same
-# bar stated once in `skills/code-review/SKILL.md` step 6a and restated at
+# `compute_round_outcome` filters `findings` by `finding_signature.py`'s
+# `is_actionable` — the same severity floor stated once in
+# `skills/code-review/SKILL.md` step 6a and restated at
 # `skills/build/SKILL.md`'s round-ledger section: only a finding at
 # `error`/`warning` severity AND `high`/`medium` confidence keeps a round
 # from converging. Suggestion-tier and low-confidence findings are "logged,
-# never chased" and must not block. Deliberately looser than
+# never chased" and must not block. This bar is deliberately looser than
 # QUALIFYING_SEVERITY/QUALIFYING_CONFIDENCE above, which is a different bar
-# for a different decision (see the comment on those constants).
-BLOCKING_SEVERITIES = frozenset({"error", "warning"})
-BLOCKING_CONFIDENCES = frozenset({"high", "medium"})
+# for a different decision (see the comment on those constants) — but it is
+# the SAME bar as `is_actionable`'s, so it is imported rather than
+# reimplemented as a second local constant pair. A prior local copy here
+# (`BLOCKING_SEVERITIES`/`BLOCKING_CONFIDENCES`) compared case-sensitively
+# while `is_actionable` lowercases first, so a differently-cased
+# `"Error"`/`"High"` finding kept `finding_signature`'s fix loop going while
+# this script's `compute_round_outcome` reported the round clean — the two
+# copies had silently drifted.
 
 
 class CheckpointAbortError(ValueError):
@@ -167,13 +186,10 @@ def decide_abort(cheap_results: list, ordered_lenses: list) -> dict:
 
 def _is_blocking_finding(finding) -> bool:
     """A finding counts toward `compute_round_outcome`'s blocked/pass verdict
-    only at `BLOCKING_SEVERITIES`/`BLOCKING_CONFIDENCES` — the same
-    severity-floor bar as `skills/code-review/SKILL.md` step 6a."""
-    return (
-        isinstance(finding, dict)
-        and finding.get("severity") in BLOCKING_SEVERITIES
-        and finding.get("confidence") in BLOCKING_CONFIDENCES
-    )
+    only when `finding_signature.is_actionable` says so — the identical
+    severity-floor bar `skills/code-review/SKILL.md` step 6a already applies,
+    imported rather than duplicated (see the comment above the constants)."""
+    return isinstance(finding, dict) and is_actionable(finding)
 
 
 def compute_round_outcome(aborted: bool, redispatched: bool, findings: list) -> dict:
@@ -192,8 +208,8 @@ def compute_round_outcome(aborted: bool, redispatched: bool, findings: list) -> 
     round cannot report a clean pass while the lenses it deferred at abort
     time never actually ran. Otherwise, ``findings`` is first filtered down
     to the ones that clear the shared severity floor
-    (``BLOCKING_SEVERITIES``/``BLOCKING_CONFIDENCES`` — ``error``/``warning``
-    severity at ``high``/``medium`` confidence): any such finding present ->
+    (``finding_signature.is_actionable`` — ``error``/``warning`` severity at
+    ``high``/``medium`` confidence): any such finding present ->
     ``"blocked"``; none -> ``"pass"``. Suggestion-tier and low-confidence
     findings never block on their own, matching
     ``skills/code-review/SKILL.md`` step 6a's floor.
@@ -317,24 +333,36 @@ def _validate_merge_input(data) -> None:
         )
 
 
-def _run_abort_mode(args) -> int:
+def _load_json_arg(path_or_dash: str, invalid_json_message: str) -> tuple[Any, int | None]:
+    """Shared read-then-parse step for every `--mode`'s CLI entry point:
+    read `path_or_dash` via `_read_text` (a file path or `-` for stdin),
+    then `json.loads` it. Prints a formatted `checkpoint_abort.py: ...`
+    error to stderr and returns `(None, 1)` on either an `OSError` (read
+    failure) or a `json.JSONDecodeError` (parse failure); returns
+    `(data, None)` on success. `invalid_json_message` is the full trailing
+    clause after `"checkpoint_abort.py: "` for a parse failure — each
+    `_run_*_mode` caller supplies its own wording (e.g. "cheap-tier results
+    are not valid JSON") so this shared helper doesn't have to guess a
+    caller's grammar. Extracted from three near-identical copies of this
+    same 2-step scaffold (structure-review, #2168 backstop review)."""
     try:
-        raw = _read_text(args.cheap_results_from)
+        raw = _read_text(path_or_dash)
     except OSError as exc:
-        print(
-            f"checkpoint_abort.py: cannot read {args.cheap_results_from}: {exc}",
-            file=sys.stderr,
-        )
-        return 1
-
+        print(f"checkpoint_abort.py: cannot read {path_or_dash}: {exc}", file=sys.stderr)
+        return None, 1
     try:
-        cheap_results = json.loads(raw)
+        return json.loads(raw), None
     except json.JSONDecodeError as exc:
-        print(
-            f"checkpoint_abort.py: cheap-tier results are not valid JSON: {exc}",
-            file=sys.stderr,
-        )
-        return 1
+        print(f"checkpoint_abort.py: {invalid_json_message}: {exc}", file=sys.stderr)
+        return None, 1
+
+
+def _run_abort_mode(args) -> int:
+    cheap_results, err = _load_json_arg(
+        args.cheap_results_from, "cheap-tier results are not valid JSON"
+    )
+    if err is not None:
+        return err
 
     try:
         result = decide_abort(cheap_results, args.lenses)
@@ -350,20 +378,9 @@ def _run_abort_mode(args) -> int:
 
 
 def _run_outcome_mode(args) -> int:
-    try:
-        raw = _read_text(args.from_path)
-    except OSError as exc:
-        print(f"checkpoint_abort.py: cannot read {args.from_path}: {exc}", file=sys.stderr)
-        return 1
-
-    try:
-        data = json.loads(raw)
-    except json.JSONDecodeError as exc:
-        print(
-            f"checkpoint_abort.py: --mode outcome input is not valid JSON: {exc}",
-            file=sys.stderr,
-        )
-        return 1
+    data, err = _load_json_arg(args.from_path, "--mode outcome input is not valid JSON")
+    if err is not None:
+        return err
 
     try:
         _validate_outcome_input(data)
@@ -381,20 +398,9 @@ def _run_outcome_mode(args) -> int:
 
 
 def _run_merge_mode(args) -> int:
-    try:
-        raw = _read_text(args.from_path)
-    except OSError as exc:
-        print(f"checkpoint_abort.py: cannot read {args.from_path}: {exc}", file=sys.stderr)
-        return 1
-
-    try:
-        data = json.loads(raw)
-    except json.JSONDecodeError as exc:
-        print(
-            f"checkpoint_abort.py: --mode merge input is not valid JSON: {exc}",
-            file=sys.stderr,
-        )
-        return 1
+    data, err = _load_json_arg(args.from_path, "--mode merge input is not valid JSON")
+    if err is not None:
+        return err
 
     try:
         _validate_merge_input(data)

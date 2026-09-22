@@ -27,19 +27,15 @@ separator, rather than `:`, is used for the ordinal so it can never collide
 with a base-id segment, which is `:`-delimited). IDs are not meant to be
 stable *across* runs (a re-dispatched round may reorder or drop findings).
 
-`agent` is read as `finding.get("agent")` first (the aggregated/flattened
-finding shape `consolidate.py` produces, `agent`-tagged per finding) falling
-back to `finding.get("agentName")` (the raw per-agent-result field name) —
-the same two-field fallback `finding_signature.py`'s `signature()` already
-uses for the identical purpose, so this module reads either the pre- or
-post-flattening shape without extra glue.
-
-The taxonomy tag itself mirrors `finding_signature.py`'s `signature()`
-fallback chain exactly: `category` → `smell` → `rule` → `ruleId`, first
-truthy wins. `smell` is `test-smell-review`'s taxonomy field per
-`knowledge/review-agent-output-contract.md`'s "Documented per-agent
-extensions" section — without this fallback a `test-smell-review` finding's
-id loses its taxonomy segment and falls back to a bare ordinal suffix.
+`agent` and the taxonomy tag are both read via `finding_signature.py`'s
+`finding_agent()`/`finding_category()` — imported, not re-typed, so this
+module's finding-id scheme can never silently drift from `signature()`'s own
+identity hash (`agent`: the aggregated/flattened `agent` field falling back
+to the raw per-agent-result `agentName`; taxonomy: `category` → `smell` →
+`rule` → `ruleId`, first truthy wins — `smell` is `test-smell-review`'s
+taxonomy field per `knowledge/review-agent-output-contract.md`'s "Documented
+per-agent extensions" section, without which a `test-smell-review` finding's
+id would lose its taxonomy segment and fall back to a bare ordinal suffix).
 
 Stdlib-only. See docs/python-hook-contract.md.
 """
@@ -52,6 +48,18 @@ import re
 import sys
 from collections import Counter
 from pathlib import Path
+
+# Reach the sibling finding_signature.py regardless of cwd or sys.path mode
+# (same house pattern as consolidate.py's `from ledger import raw_dir`) so
+# the agent/category fallback chains below are imported, not re-typed —
+# `finding_signature.signature()` and this module's finding-id scheme must
+# never drift apart (#2170 backstop review).
+_HERE = Path(__file__).resolve().parent
+if str(_HERE) not in sys.path:
+    sys.path.insert(0, str(_HERE))
+
+from finding_signature import finding_agent as _finding_agent
+from finding_signature import finding_category as _finding_category
 
 #: Rendered instead of any per-finding line when a round has zero findings —
 #: there is nothing to list and nothing to expand.
@@ -84,26 +92,9 @@ def first_sentence(message) -> str:
     return " ".join(result.split())
 
 
-def _finding_agent(finding: dict) -> str:
-    return str(finding.get("agent") or finding.get("agentName") or "")
-
-
 def _finding_line(finding: dict) -> str:
     line = finding.get("line")
     return "" if line is None else str(line)
-
-
-def _finding_category(finding: dict) -> str:
-    """The taxonomy tag for this finding, mirroring `finding_signature.py`'s
-    `signature()` fallback chain exactly: `category` -> `smell` -> `rule` ->
-    `ruleId`, first truthy wins."""
-    return str(
-        finding.get("category")
-        or finding.get("smell")
-        or finding.get("rule")
-        or finding.get("ruleId")
-        or ""
-    )
 
 
 def base_id(finding: dict) -> str:
@@ -149,13 +140,13 @@ def compute_ids(findings: list[dict]) -> list[str]:
 def render_tier1_line(finding: dict, finding_id: str) -> str:
     """One Tier-1 line: `file:line [agent] severity/confidence —
     <first sentence of message> (<finding-id>)`."""
-    file_ = str(finding.get("file") or "")
+    file_path = str(finding.get("file") or "")
     line = _finding_line(finding)
     agent = _finding_agent(finding)
     severity = str(finding.get("severity") or "")
     confidence = str(finding.get("confidence") or "")
     sentence = first_sentence(finding.get("message", ""))
-    return f"{file_}:{line} [{agent}] {severity}/{confidence} — {sentence} ({finding_id})"
+    return f"{file_path}:{line} [{agent}] {severity}/{confidence} — {sentence} ({finding_id})"
 
 
 def render_tier1_report(findings: list[dict], ids: list[str]) -> str:
@@ -196,14 +187,42 @@ def render_expand_one(findings: list[dict], ids: list[str], finding_id: str) -> 
     return render_tier2_block(findings[index], ids[index])
 
 
+class UnrecognizedFindingsShape(ValueError):
+    """Raised by `_load_findings` when the parsed JSON is neither a bare
+    list nor a dict carrying a recognized finding-list key. Regression
+    (backstop review, #2170): the previous version fell through to an
+    empty list for ANY unrecognized dict shape — including the full
+    aggregated `--json` object (`output-format.md`'s `topFindings` key,
+    not `findings`) and a raw per-agent `{status, issues, summary}`
+    result (`issues`, not `findings`) — which `main` then rendered as
+    `CLEAN_PASS_SUMMARY` even though real findings were present. A
+    misread shape must surface as an error, never as a silent clean
+    pass."""
+
+
+#: Recognized dict keys for a finding list, in preference order: the
+#: documented bare shape this script's own CLI help describes
+#: (`findings`), the actual aggregated `--json` object's consolidated list
+#: (`topFindings`, `output-format.md`), and a raw per-agent
+#: `{status, issues, summary}` result (`issues`,
+#: `knowledge/review-agent-output-contract.md`).
+_FINDING_LIST_KEYS = ("findings", "topFindings", "issues")
+
+
 def _load_findings(path: str) -> list[dict]:
     raw = sys.stdin.read() if path == "-" else Path(path).read_text(encoding="utf-8")
     data = json.loads(raw) if raw.strip() else []
+    if isinstance(data, list):
+        return [f for f in data if isinstance(f, dict)]
     if isinstance(data, dict):
-        data = data.get("findings", [])
-    if not isinstance(data, list):
-        return []
-    return [f for f in data if isinstance(f, dict)]
+        for key in _FINDING_LIST_KEYS:
+            value = data.get(key)
+            if isinstance(value, list):
+                return [f for f in value if isinstance(f, dict)]
+        raise UnrecognizedFindingsShape(
+            f"--findings input is a dict with none of {_FINDING_LIST_KEYS} as a list-valued key"
+        )
+    raise UnrecognizedFindingsShape(f"--findings input is neither a list nor a dict (got {type(data).__name__})")
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -220,7 +239,11 @@ def main(argv: list[str] | None = None) -> int:
     )
     args = parser.parse_args(argv)
 
-    findings = _load_findings(args.findings)
+    try:
+        findings = _load_findings(args.findings)
+    except (json.JSONDecodeError, UnrecognizedFindingsShape) as exc:
+        sys.stderr.write(f"render_tiered_findings: cannot interpret --findings input: {exc}\n")
+        return 1
     ids = compute_ids(findings)
 
     tier1 = render_tier1_report(findings, ids)
