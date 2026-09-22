@@ -8,6 +8,7 @@ description: >-
   before commits and pull requests.
 argument-hint: >-
   [--agent <name>] [--since <ref>] [--path <dir>] [--all] [--json]
+  [--expand <finding-id>|all]
   [--internal] [--force --reason "<text>"]
   [--static-analysis|--no-static-analysis] [--init-risks] [--background]
   [--pdf]
@@ -64,6 +65,7 @@ Arguments: $ARGUMENTS
 | `--resume` | Resume a sliced run — skip slices whose section artifact already exists on disk. See [`sliced-mode.md`](sliced-mode.md). |
 | `--no-slice` | Escape hatch — force the legacy single-pass review even on a large full-repo scope that would otherwise auto-engage sliced mode. |
 | `--json` | Output aggregated JSON to **stdout** instead of prose. Contractually non-interactive (for CI): never prompts; defaults to report-only (no code modified). |
+| `--expand <finding-id>|all` | Prose-mode only (step 7): render Tier-2 (full message + suggested fix) for the named finding-id, or for every finding with `all`, after the Tier-1 report — see step 7. A no-op under `--json` (see step 7's `--json` branch). |
 | `--pdf` | After the durable report is written, also render it to a sibling PDF via `hooks/lib/report_pdf.py`. See `knowledge/report-pdf-integration.md`. No-op with a message when no report file is written (`--json` or `--internal`); under `--json`, that status goes to **stderr** so stdout stays pure JSON. Additive: never changes the review's own output or exit status. |
 | `--internal` | This is an orchestrator-internal dispatch (`/build`'s Step 6 backstop review, `/test-improve`'s Phase 4/5 end-of-phase review loop) — skip the `.dev-team-reports/code-review.md` report write in step 7. Orthogonal to `--json`: `--internal` alone still runs the prose/fix-loop path; both sanctioned callers use `--internal` without `--json` specifically to keep the fix loop. `/build` and `/test-improve` are the only sanctioned callers of this flag today — see `knowledge/report-output-location.md` for `/ship`'s deliberate exception (writes the report by default, no `--internal`). |
 | `--init-risks` | Scaffold `ACCEPTED-RISKS.md` from `templates/ACCEPTED-RISKS.md.tmpl` if absent. Exits non-zero without overwriting if present. Schema: `knowledge/accepted-risks-schema.md`. |
@@ -880,7 +882,15 @@ Read `knowledge/review-template.md` for the structure.
 
 **A sentence describing the JSON is not the JSON.** A completed run whose final text reads like "Aggregated JSON emitted to stdout per `--json` contract; run stops here" — with no `{...}` object actually present anywhere in that text — is a contract violation, not compliance, even though it correctly stopped rather than proceeding further. The literal final output of the turn must be the JSON object itself, not a narration of having produced it. If the next action being considered is a summary sentence announcing that the JSON was (or is about to be) emitted, that is the signal to emit the actual object instead — there is no valid end state for a `--json` run that consists of prose alone.
 
-Otherwise (no `--json`): emit the prose summary using the Code Review Summary template in [`output-format.md`](output-format.md#code-review-summary-report-step-7-prose-mode). Append the iteration table.
+Otherwise (no `--json`): emit the prose summary using the Code Review Summary template in [`output-format.md`](output-format.md#code-review-summary-report-step-7-prose-mode). For that template's per-finding listing, render this round's aggregated finding list (the same list already assembled for the `--json` branch above and for step 8 — not re-derived) with `render_tiered_findings.py` (#2170) instead of listing each finding's full message inline:
+
+```bash
+python3 "$CLAUDE_PLUGIN_ROOT/skills/code-review/scripts/render_tiered_findings.py" --findings <path-to-this-round's-finding-list.json> [--expand <finding-id>|all]
+```
+
+Pass `--expand` through exactly as the caller supplied it (omit the flag entirely when the caller did not pass one): Tier-1 lines plus the expansion hint by default; the matching Tier-2 block(s) appended after the Tier-1 report when `--expand` was given. An unknown `--expand` id: relay the script's non-zero exit and "finding-id not found" message to the user rather than silently rendering nothing or crashing. Append the iteration table.
+
+**Scope of this wiring: the prose-mode path only.** `--json` (this step's branch above) and `./corrections/*.json` (step 8) already read and write the full finding objects independently of this rendering path — neither branch calls `render_tiered_findings.py`, and this change does not touch either of them. In particular, **`--expand` is a no-op under `--json`**: the `--json` branch above is unconditional ("the JSON object is the ONLY thing printed to stdout... non-negotiable") and must never call `render_tiered_findings.py`, so under `--json` there is nothing for `--expand` to act on. This is enforced structurally — by the `--json` branch never reaching the tiered-rendering code path described here — not by a check inside `render_tiered_findings.py` or inside the `--json` branch itself.
 
 **Write the durable report (skip when `--internal`).** See
 `knowledge/report-output-location.md` for the shared write-scope convention
