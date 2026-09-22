@@ -317,6 +317,10 @@
           {
             "type": "command",
             "command": "sh hooks/py.sh hooks/subagent_completion_guard.py"
+          },
+          {
+            "type": "command",
+            "command": "sh hooks/py.sh hooks/review_verdict_recorder.py"
           }
         ]
       }

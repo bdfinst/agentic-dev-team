@@ -609,6 +609,16 @@ _TRANSCRIPT_PARSING_ALLOWLIST = {
         "narrower concern than the four-identifier duplication this "
         "invariant targets, not zero"
     ),
+    "plugins/dev-team/hooks/review_verdict_recorder.py": (
+        "reads attributionAgent/agentId only through session_log.records "
+        "(attribution_agent_of/join_dispatch_agent_ids) -- never a raw "
+        "field access; the 'attributionAgent' occurrences are all in this "
+        "file's own module docstring, recording #2166 Step 2.3's own "
+        "pre-implementation spike finding against 124 real subagent "
+        "transcripts (mirrors cost_meter.py's entry above: prose "
+        "documenting the harness field this hook's decisions are based on, "
+        "not a second parsing implementation)"
+    ),
     "plugins/dev-team/hooks/lib/pricing.py": (
         "reads a pre-extracted usage dict's known numeric fields "
         "(cache_creation_input_tokens/cache_read_input_tokens) for cost "

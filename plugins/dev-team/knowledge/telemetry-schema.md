@@ -103,6 +103,51 @@ problem. `hooks/pre_pr_review.py` never emits this event. Existing rows in
 
 ---
 
+## `review-verdicts.jsonl`
+
+**Added by #2166** (plan: `plans/2164-verdict-ledger-writer.md`, Slice 2). A
+**new, separate** store from `boundary-events.jsonl` (Decision 1) — not an
+overload of that stream's `record` decision — because a per-file verdict
+needs a real `file_path`, which `boundary_events.py`'s own "never write free
+text ... file paths ... must never appear" invariant forbids. Records, per
+genuine review-agent dispatch, an outcome (`pass` \| `findings`) bound to
+`(lens, file_path, file_content_hash)` — a verdict about *this exact file
+content*, not about any one diff, so it can be looked up again the next time
+the same content recurs regardless of which diff produced it.
+
+The recorder identifies which lens dispatched via the native
+`attributionAgent` field the harness stamps on the subagent's own transcript
+records (`hooks/lib/cost_meter.py`'s "Attribution dimensions" mechanism,
+reused via `scripts/lib/session_log.records`), falling back to the
+documented Task/Agent-dispatch join only when that field is absent. It reads
+the in-scope file list from a structured marker
+(`skills/code-review/SKILL.md` step 4: `Files in scope for this review:
+<path>, ...`) in the dispatch prompt — the subagent transcript's own first
+turn — and cross-references it against the agent's final JSON result's
+`issues[].file` list (`knowledge/review-agent-output-contract.md`).
+**Disclosed trust boundary (Decision 4a):** the in-scope list is the
+orchestrating session's own declared scope, not independently re-verified
+against any diff — the property this store adds is that a *real*
+`SubagentStop` event occurred for a *registered* review agent, not
+omniscient verification of review depth.
+
+| Field | Type | Values / source |
+| --- | --- | --- |
+| `ts` | string | ISO-8601 UTC `%Y-%m-%dT%H:%M:%SZ` |
+| `lens` | string | The dispatched review agent's registered name (e.g. `structure-review`), plugin-prefix-stripped |
+| `file_path` | string | One file the dispatch prompt's scope marker declared in scope |
+| `file_content_hash` | string | sha256 hex digest of `file_path`'s content at the time the recorder ran (current content, not the content at dispatch time) |
+| `outcome` | string enum | `pass` \| `findings` — whether `file_path` appears in the agent's final `issues[]` |
+| `plugin_version` | string | From `.claude-plugin/plugin.json` |
+| `session_id` | string, optional | Opaque per-session ID, when present in the hook payload |
+
+- **Emitter:** `hooks/review_verdict_recorder.py` (a `SubagentStop` hook) via `hooks/lib/review_verdicts.emit_review_verdict()`. No-op (zero rows) for any `subagent_type` outside `hooks/lib/review_agent_registry`'s closed set of registered `agents/*-review.md` names, and fail-open throughout (missing/unreadable transcript, unresolved `subagent_type`, a missing/reformatted scope marker, or an unparseable final JSON result all degrade to zero rows, never an exception); a single deleted/unreadable in-scope file is skipped without affecting the other rows.
+- **Consent:** ALWAYS-ON — same posture as `boundary-events.jsonl` (Decision 2), not gated by `DEV_TEAM_TELEMETRY`/`~/.claude/telemetry.json`. Local-only, mechanical accountability data (lens/path/hash/outcome), no prose.
+- **Fail-open:** every exception in `emit_review_verdict()` is swallowed — never changes the calling hook's exit code, stdout, or stderr. `hooks/lib/review_verdicts.load_verdicts()` mirrors this on the read side: an absent file, a corrupted line, or a stale `plugin_version` row all degrade to "no usable rows", never an exception.
+- **Consumers:** none yet — this slice is deliberately writer-only (#2167 is the queued consumer slice).
+
+---
+
 ## `telemetry.jsonl`
 
 Opt-in usage beacon: which slash commands / skills get invoked, and whether
