@@ -265,6 +265,11 @@ SLICE_EXCLUSIONS = {
     "test_improve_resume.py": (
         "stdlib argparse/json/re/pathlib only; no floor-sensitive runtime API"
     ),
+    "test_review_mechanics.py": (
+        "stdlib argparse/json/re/subprocess/sys/pathlib only; `from __future__ "
+        "import annotations` keeps its `str | None`-style annotations lazy "
+        "strings, never evaluated at runtime; no floor-sensitive runtime API"
+    ),
     "verify_gherkin_quality_critic_isolation.py": (
         "stdlib argparse/os/secrets/shutil/subprocess/tempfile/textwrap/"
         "pathlib only; no floor-sensitive runtime API"
