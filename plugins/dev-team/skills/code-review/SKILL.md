@@ -228,6 +228,25 @@ the required `"Plugin content & hooks"` CI check (#2128). `test-review` and
 it when it's present (see
 `${CLAUDE_PLUGIN_ROOT}/knowledge/test-review-division-of-labor.md`).
 
+**Test-review mechanical pre-phase (#2169).** Also run, for each test file in `<target files>`:
+
+```bash
+python3 "$CLAUDE_PLUGIN_ROOT/scripts/test_review_mechanics.py" . <file>
+```
+
+Only relevant when `test-review` is in the dispatched lens set for this
+round; skip entirely otherwise. Unlike the two pre-passes above, this one
+runs **once per file** rather than once over the whole `<target files>`
+list, because `test-review.md`'s own Phase 0 (`agents/test-review.md` →
+Protocol) needs each file's own `mechanicalFail`/findings result supplied as
+that file's context — the agent has no `Bash` tool and never runs this
+script itself. Keep the per-file results keyed by file path when assembling
+step 4's context so each file's `test-review` dispatch gets its own result,
+not the whole batch's. Each result's `findings` array merges into step 4's
+static-analysis context using the same envelope and the same "detected by
+static analysis — do not re-report, focus on semantic concerns" framing as
+the two pre-passes above.
+
 **Pass `--files` (#1629).** Several checks are scoped to the changeset,
 because the conventions they enforce are "required going forward, do not
 retrofit" (`evals/README.md`'s `_calibration` rule is the motivating case).

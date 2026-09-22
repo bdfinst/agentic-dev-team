@@ -29,20 +29,67 @@ fixture/agent block's `issueCount` range (`evals/expected/*.json`). This
 script uses that as the classification: a fixture/agent block whose
 `issueCount.min > 0` is a **defect fixture** (built to contain a real,
 detectable issue) -- the number of issues an agent reports against it is
-read as its true-positive count. A block whose `issueCount.min == 0` is a
+read as a true-positive-count proxy. A block whose `issueCount.min == 0` is a
 **clean fixture** (built to contain nothing worth flagging) -- the number of
-issues reported against it is read as its false-positive count. This is a
-fixture-level proxy, not a per-issue correctness judgment: it assumes every
+issues reported against it is read as a false-positive-count proxy. This is
+a fixture-level proxy, not a per-issue correctness judgment: it assumes every
 issue reported on a defect fixture is (part of) the injected defect it was
 built to catch, and every issue reported on a clean fixture is, by
-construction, spurious.
+construction, spurious. Reported/printed labels say so explicitly
+(`TP-proxy`/`FP-proxy`); the JSON row shape avoids the vocabulary entirely
+(`issuesBefore`/`issuesAfter`), letting `kind` carry the defect/clean
+interpretation instead of implying a per-issue judgment this script does not
+make.
 
 Regression rule
 ----------------
-For a defect fixture: `after`'s issue count < `before`'s issue count is a
-true-positive-count regression. For a clean fixture: `after`'s issue count >
-`before`'s issue count is a false-positive-count regression. Either is a hard
-fail for this gate.
+Three cases, by whether an `(fixture, agent)` pair's issue count is present
+in `before`/`after`:
+
+- **Both present** -- for a defect fixture, `after` < `before` is a
+  true-positive-count regression; for a clean fixture, `after` > `before` is
+  a false-positive-count regression.
+- **Present in `before`, absent from `after`** -- the agent produced no
+  recorded result at all in the `after` run (errored, timed out, or was
+  never dispatched for that pair). This is always scored as a regression --
+  total detection loss is the worst-case outcome this gate exists to catch,
+  regardless of whether the pair is a defect or clean fixture.
+- **Absent from `before`** -- genuinely new coverage (or a pair neither run
+  exercised); not comparable, skipped.
+
+A fixture/agent block with no `issueCount` key, or a non-dict `issueCount`
+value, is an explicit third "unclassified" state: counted separately in the
+CLI's scope summary, never folded into "clean" -- an absent range is not
+evidence a fixture is defect-free (`eval_graders/verdict.py`'s
+`grade_verdict` already treats `issueCount` as optional and simply skips the
+check when the key is absent; this script's classification must not
+silently disagree with that by defaulting to "clean"). A malformed
+(non-dict) `issueCount` value is treated the same way rather than raising --
+a deliberate choice: a corpus authoring mistake should surface as "not
+scored, look at this fixture", not crash the gate.
+
+Relationship to `eval_grade.py --baseline`
+--------------------------------------------
+`eval_grade.py --baseline`/`--write-baseline` already tracks pass/fail
+regression against a recorded grading baseline. This script is a narrower,
+independent check: a raw issue-count delta between two actuals files, scoped
+to true/false-positive-proxy counts only. It deliberately does not consult a
+fixture's declared `issueCount.max` tolerance -- a fixture declaring
+`{min: 0, max: 2}` still red-lines here on any 0-to-1 move, even though that
+move is within the corpus's own declared tolerance. This is a scope choice,
+not an oversight: this gate exists to catch any run-over-run regression in
+detection count, not to re-enforce the corpus's own declared tolerance
+ranges (that remains `eval_grade.py`'s job).
+
+Shipped-tree placement
+------------------------
+This script lives in `plugins/dev-team/scripts/` (shipped) even though its
+whole domain is the repo's own non-shipped `evals/` corpus. It mirrors the
+existing precedent of `eval_ablation.py` (same directory, same repo-root
+default) rather than introducing a new violation. It is monorepo-dev-only
+tooling: useful only to a `test-review.md`/eval-corpus maintainer re-running
+this exact regression check against this repo's own eval corpus, never
+invoked by a downstream project that installs the plugin.
 
 Exit codes
 ----------
@@ -60,17 +107,21 @@ import json
 import sys
 from pathlib import Path
 
+KIND_DEFECT = "defect"
+KIND_CLEAN = "clean"
+KIND_UNCLASSIFIED = "unclassified"
+
 
 def _load_json(path: Path) -> dict:
     return json.loads(path.read_text(encoding="utf-8"))
 
 
 def _load_expected(expected_dir: Path) -> dict[str, dict]:
-    """`{stem: {agent: espec, ...}, ...}` for every `expected/*.json` under
-    `expected_dir` that declares an `agents` block. Malformed expected files
-    are skipped rather than raising -- this script's job is to compare
+    """`{stem: {agent: expected_spec, ...}, ...}` for every `expected/*.json`
+    under `expected_dir` that declares an `agents` block. Malformed expected
+    files are skipped rather than raising -- this script's job is to compare
     result files, not to re-run `eval_grade.py --check-corpus`."""
-    out: dict[str, dict] = {}
+    expected_by_stem: dict[str, dict] = {}
     for f in sorted(expected_dir.glob("*.json")):
         try:
             spec = json.loads(f.read_text(encoding="utf-8"))
@@ -78,8 +129,8 @@ def _load_expected(expected_dir: Path) -> dict[str, dict]:
             continue
         agents = spec.get("agents")
         if isinstance(agents, dict) and agents:
-            out[f.stem] = agents
-    return out
+            expected_by_stem[f.stem] = agents
+    return expected_by_stem
 
 
 def _issue_count(actuals: dict, stem: str, agent: str) -> int | None:
@@ -94,64 +145,115 @@ def _issue_count(actuals: dict, stem: str, agent: str) -> int | None:
     return len(issues)
 
 
-def compute_fixture_diffs(before: dict, after: dict, expected: dict) -> list[dict]:
-    """One row per `(fixture stem, agent)` pair declared in `expected`, for
-    every pair present in both `before` and `after`. Each row is
-    `{"fixture", "agent", "kind": "defect"|"clean",
-    "truePositivesBefore"|None, "truePositivesAfter"|None,
-    "falsePositivesBefore"|None, "falsePositivesAfter"|None, "regressed"}`
-    -- only the pair of fields matching `kind` is populated; the other pair
-    is `None` (not applicable to that fixture's classification)."""
+def _classify_kind(expected_spec: dict) -> str:
+    """`KIND_DEFECT`/`KIND_CLEAN` from `issueCount.min`, or
+    `KIND_UNCLASSIFIED` when `issueCount` is absent or not a dict (see the
+    module docstring's "Regression rule" section for why this is a distinct
+    third state rather than defaulting to "clean")."""
+    issue_count_range = expected_spec.get("issueCount")
+    if not isinstance(issue_count_range, dict):
+        return KIND_UNCLASSIFIED
+    return KIND_DEFECT if issue_count_range.get("min", 0) > 0 else KIND_CLEAN
+
+
+def compute_fixture_diffs(before: dict, after: dict, expected: dict) -> tuple[list[dict], dict]:
+    """`(rows, scope)` for every `(fixture stem, agent)` pair declared in
+    `expected`.
+
+    Each row is `{"fixture", "agent", "kind": "defect"|"clean",
+    "issuesBefore", "issuesAfter", "regressed", "detail"}`. `issuesAfter` and
+    `detail` are `None` except in the before-present/after-missing case (see
+    the module docstring), where `issuesAfter` is `None` and `detail`
+    explains why.
+
+    A pair is left out of `rows` (and out of the regression count) when:
+    - its expected block is malformed or its `issueCount` is absent/not a
+      dict (`kind` would be `KIND_UNCLASSIFIED`) -- counted in
+      `scope["skippedUnclassified"]`.
+    - it has no recorded issue count in `before` at all -- counted in
+      `scope["skippedNotComparable"]`.
+
+    `scope` is `{"compared": int, "skippedNotComparable": int,
+    "skippedUnclassified": int}` -- see finding #6 (scope truncation must be
+    visible in output, not silently absorbed into "No regressions.")."""
     rows: list[dict] = []
+    compared = 0
+    skipped_not_comparable = 0
+    skipped_unclassified = 0
+
     for stem, agents in expected.items():
-        for agent, espec in agents.items():
-            if not isinstance(espec, dict):
+        for agent, expected_spec in agents.items():
+            if not isinstance(expected_spec, dict):
+                skipped_unclassified += 1
                 continue
-            issue_count = espec.get("issueCount") or {}
-            is_defect_fixture = issue_count.get("min", 0) > 0
+
+            kind = _classify_kind(expected_spec)
+            if kind == KIND_UNCLASSIFIED:
+                skipped_unclassified += 1
+                continue
 
             before_n = _issue_count(before, stem, agent)
-            after_n = _issue_count(after, stem, agent)
-            if before_n is None or after_n is None:
-                continue  # not recorded in both runs -- not comparable
+            if before_n is None:
+                skipped_not_comparable += 1  # absent from `before` -- new coverage, not comparable
+                continue
 
-            if is_defect_fixture:
+            after_n = _issue_count(after, stem, agent)
+            detail = None
+            if after_n is None:
+                # Present in `before`, absent from `after`: total detection
+                # loss -- always a regression, regardless of kind.
+                regressed = True
+                detail = "no result recorded in after"
+            elif kind == KIND_DEFECT:
                 regressed = after_n < before_n
-                row = {
-                    "fixture": stem,
-                    "agent": agent,
-                    "kind": "defect",
-                    "truePositivesBefore": before_n,
-                    "truePositivesAfter": after_n,
-                    "falsePositivesBefore": None,
-                    "falsePositivesAfter": None,
-                    "regressed": regressed,
-                }
             else:
                 regressed = after_n > before_n
-                row = {
+
+            rows.append(
+                {
                     "fixture": stem,
                     "agent": agent,
-                    "kind": "clean",
-                    "truePositivesBefore": None,
-                    "truePositivesAfter": None,
-                    "falsePositivesBefore": before_n,
-                    "falsePositivesAfter": after_n,
+                    "kind": kind,
+                    "issuesBefore": before_n,
+                    "issuesAfter": after_n,
                     "regressed": regressed,
+                    "detail": detail,
                 }
-            rows.append(row)
+            )
+            compared += 1
+
     rows.sort(key=lambda r: (r["fixture"], r["agent"]))
-    return rows
+    scope = {
+        "compared": compared,
+        "skippedNotComparable": skipped_not_comparable,
+        "skippedUnclassified": skipped_unclassified,
+    }
+    return rows, scope
 
 
 def _format_row(row: dict) -> str:
     pair = f"{row['fixture']}::{row['agent']}"
-    if row["kind"] == "defect":
-        detail = f"TP: {row['truePositivesBefore']} -> {row['truePositivesAfter']}"
-    else:
-        detail = f"FP: {row['falsePositivesBefore']} -> {row['falsePositivesAfter']}"
+    label = "TP-proxy" if row["kind"] == KIND_DEFECT else "FP-proxy"
+    after_display = row["issuesAfter"] if row["issuesAfter"] is not None else "MISSING"
+    detail = f"{label}: {row['issuesBefore']} -> {after_display}"
+    if row["detail"]:
+        detail += f" ({row['detail']})"
     verdict = "REGRESSION" if row["regressed"] else "OK"
     return f"{pair}  [{row['kind']}]  {detail}  {verdict}"
+
+
+def _validate_inputs(before_path: Path, after_path: Path, expected_dir: Path) -> int | None:
+    """`None` when `before_path`/`after_path`/`expected_dir` are all usable;
+    otherwise the exit code `main` should return (having already printed the
+    reason to stderr)."""
+    for label, path in (("before", before_path), ("after", after_path)):
+        if not path.is_file():
+            print(f"compare_eval_results.py: cannot read {label} file {path}", file=sys.stderr)
+            return 2
+    if not expected_dir.is_dir():
+        print(f"compare_eval_results.py: expected dir not found: {expected_dir}", file=sys.stderr)
+        return 2
+    return None
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -175,13 +277,9 @@ def main(argv: list[str] | None = None) -> int:
     after_path = Path(args.after)
     expected_dir = Path(args.expected_dir)
 
-    for label, path in (("before", before_path), ("after", after_path)):
-        if not path.is_file():
-            print(f"compare_eval_results.py: cannot read {label} file {path}", file=sys.stderr)
-            return 2
-    if not expected_dir.is_dir():
-        print(f"compare_eval_results.py: expected dir not found: {expected_dir}", file=sys.stderr)
-        return 2
+    error_code = _validate_inputs(before_path, after_path, expected_dir)
+    if error_code is not None:
+        return error_code
 
     try:
         before = _load_json(before_path)
@@ -195,7 +293,7 @@ def main(argv: list[str] | None = None) -> int:
         print(f"compare_eval_results.py: no usable expected/*.json found in {expected_dir}", file=sys.stderr)
         return 2
 
-    rows = compute_fixture_diffs(before, after, expected)
+    rows, scope = compute_fixture_diffs(before, after, expected)
     if not rows:
         print(
             "compare_eval_results.py: no fixture/agent pair is present in both before and after files",
@@ -205,6 +303,13 @@ def main(argv: list[str] | None = None) -> int:
 
     for row in rows:
         print(_format_row(row))
+
+    total_skipped = scope["skippedNotComparable"] + scope["skippedUnclassified"]
+    print(
+        f"\ncompared {scope['compared']} pair(s); skipped {total_skipped} "
+        f"({scope['skippedNotComparable']} not-in-both-runs, "
+        f"{scope['skippedUnclassified']} unclassified/malformed)"
+    )
 
     regressed = [row for row in rows if row["regressed"]]
     if regressed:
