@@ -50,6 +50,22 @@ def test_is_stryker_command_ignores_non_stryker(cmd: str) -> None:
     assert gate.is_stryker_command(cmd) is False
 
 
+@pytest.mark.parametrize(
+    "cmd",
+    [
+        'gh issue create --body "the docs say to run dotnet stryker -t mtp here"',
+        "grep -rn 'dotnet stryker' docs/",
+        'echo "never run dotnet stryker on main"',
+        'python3 -c "# dotnet stryker"',
+    ],
+)
+def test_is_stryker_command_ignores_tool_name_in_prose(cmd: str) -> None:
+    """#2185: mentioning the tool name in a --body/grep/echo/comment argument
+    is not an invocation — only `dotnet stryker`/`dotnet-stryker`/the wrapper
+    in program position of a command segment is."""
+    assert gate.is_stryker_command(cmd) is False
+
+
 # --- --mutate extraction ---------------------------------------------------
 
 
