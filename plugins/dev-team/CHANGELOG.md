@@ -1,5 +1,20 @@
 # Changelog
 
+## [13.2.0](https://github.com/bdfinst/agentic-dev-team/compare/dev-team-v13.1.2...dev-team-v13.2.0) (2026-09-22)
+
+
+### Features
+
+* agent lifecycle improvements — skill hints, completion guard, verification, PBT ([#2191](https://github.com/bdfinst/agentic-dev-team/issues/2191)) ([4e81194](https://github.com/bdfinst/agentic-dev-team/commit/4e8119483b5f8aaedc3d07e2464c830ccf2748c5))
+* **scripts:** measure cross-checkpoint review-agent re-review duplication ([#2186](https://github.com/bdfinst/agentic-dev-team/issues/2186)) ([0a3924e](https://github.com/bdfinst/agentic-dev-team/commit/0a3924edb55017deeaa7aa287eff2a30b4ed834b))
+* **specs:** close the DeFOSPAM spec-review placement gaps ([#2180](https://github.com/bdfinst/agentic-dev-team/issues/2180)) ([b58d0fb](https://github.com/bdfinst/agentic-dev-team/commit/b58d0fbc6298fea2fc136bcb8adc2147b7217eab))
+
+
+### Bug Fixes
+
+* **hooks:** parse Stryker commands instead of scanning for the tool name ([#2194](https://github.com/bdfinst/agentic-dev-team/issues/2194)) ([302c319](https://github.com/bdfinst/agentic-dev-team/commit/302c3198aa79ef9c4c69df4d49e37b5300dbc4ff)), closes [#2185](https://github.com/bdfinst/agentic-dev-team/issues/2185)
+* **mutation:** gate xunit.v3 shim on Stryker.NET &gt;= 5.0.0 ([#2193](https://github.com/bdfinst/agentic-dev-team/issues/2193)) ([ac0cc02](https://github.com/bdfinst/agentic-dev-team/commit/ac0cc02e5ab485fe2a0202af6e879946ad5c0f60)), closes [#2184](https://github.com/bdfinst/agentic-dev-team/issues/2184)
+
 ## [13.1.2](https://github.com/bdfinst/agentic-dev-team/compare/dev-team-v13.1.1...dev-team-v13.1.2) (2026-09-10)
 
 
