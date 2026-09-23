@@ -389,7 +389,55 @@ non-empty (issue #1752) — omit it entirely on a clean run, but never omit it
 when there is at least one entry, regardless of how the rest of the panel
 scored.
 
-After the summary, list remaining issues grouped by file, sorted by severity. Mark each with: `[confidence: none]`, `[auto-fix failed]`, or `[suggestion]`. Append the iteration table above.
+After the summary, render remaining issues (those not auto-fixed — no
+confidence, auto-fix failed, or suggestion-only) with
+`scripts/render_tiered_findings.py` (#2170) against this round's aggregated
+finding list — the same in-memory list already assembled for the `--json`
+branch and for step 8, no re-dispatch, no I/O beyond that list. By default
+this renders **Tier-1 only**: one line per finding (file, line, agent,
+severity/confidence, first sentence of the message, finding-id), followed by
+a trailing expansion hint. This is the canonical example for this template,
+superseding the old full-message-per-issue listing:
+
+```text
+src/db/query.ts:42 [security-review] error/high — SQL injection via unescaped input. (security-review:src/db/query.ts:42:error)
+src/api/handler.ts:15 [domain-review] warning/none — Abstraction leak in handler. (domain-review:src/api/handler.ts:15:warning)
+Expand a finding with --expand <finding-id>, or --expand all for every finding.
+```
+
+`--expand <finding-id>|all` (a `/code-review` flag — see Parse Arguments and
+step 7 in `skills/code-review/SKILL.md`, issue #2170 Step 3.2) additionally
+renders the matching finding's (or, with `all`, every finding's) **Tier-2**
+block — the full message and suggested fix — appended after the Tier-1
+report above:
+
+```text
+=== security-review:src/db/query.ts:42:error ===
+SQL injection via unescaped input. User-controlled `id` is concatenated
+directly into the query string without parameterization.
+Suggested fix: Use a parameterized query / prepared statement instead of
+string concatenation.
+```
+
+A zero-finding round renders a clean-pass summary line instead
+(`render_tiered_findings.CLEAN_PASS_SUMMARY`), with no per-finding lines and
+no expansion hint — there is nothing to expand. Confidence and
+suggestion-vs-error status are visible directly in each Tier-1 line's
+`severity/confidence` field (e.g. `warning/none`, `suggestion/medium`); the
+old separate `[confidence: none]`/`[suggestion]` bracket tags are retired
+along with the full-message listing they annotated. `[auto-fix failed]` is
+not carried into this rendering — it is a step 6a fix-loop runtime outcome,
+not a property of the finding itself — and remains visible in the step
+6a-iv iteration log above when the loop did not converge. Append the
+iteration table above.
+
+`--json` (step 7's other branch) and `./corrections/*.json` (step 8) are
+unaffected by this rendering path — both already read/write the full
+finding objects independently of `render_tiered_findings.py`, which is
+prose-path only, and neither branch is touched by it. `--expand` is
+therefore a no-op under `--json` (nothing there ever calls this script); see
+`skills/code-review/SKILL.md` step 7 for the exact non-interference
+statement.
 
 ## Override audit log entry (step 2, `--force` path)
 

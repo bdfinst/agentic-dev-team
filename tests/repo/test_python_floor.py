@@ -181,6 +181,7 @@ SLICE_EXCLUSIONS = {
     "check_security_assessment_mcp_tools.py": (
         "stdlib argparse/json/pathlib only; no floor-sensitive runtime API"
     ),
+    "checkpoint_abort.py": "stdlib argparse/json/sys/pathlib only; no floor-sensitive runtime API",
     "coverage_delta_steering.py": "stdlib argparse/json/pathlib only; no floor-sensitive runtime API",
     "mutation_yield_steering.py": (
         "stdlib argparse/json/sys/pathlib only; no floor-sensitive runtime API "
@@ -263,6 +264,11 @@ SLICE_EXCLUSIONS = {
     "specs_convention_marker.py": "stdlib subprocess/pathlib only; no floor-sensitive runtime API",
     "test_improve_resume.py": (
         "stdlib argparse/json/re/pathlib only; no floor-sensitive runtime API"
+    ),
+    "test_review_mechanics.py": (
+        "stdlib argparse/json/re/subprocess/sys/pathlib only; `from __future__ "
+        "import annotations` keeps its `str | None`-style annotations lazy "
+        "strings, never evaluated at runtime; no floor-sensitive runtime API"
     ),
     "verify_gherkin_quality_critic_isolation.py": (
         "stdlib argparse/os/secrets/shutil/subprocess/tempfile/textwrap/"

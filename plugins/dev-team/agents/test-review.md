@@ -66,7 +66,13 @@ named smell test-smell-review could own instead.
 
 ## Protocol
 
-Run in two phases — enumerate first, classify second. This stabilizes finding counts across runs by forcing a full pass before applying judgment.
+Run in three phases — mechanical pre-phase first, then enumerate, then classify. Phase 0 computes the `[MECHANICAL]` half by script instead of by prose judgment; Phases 1-2 stabilize the `[JUDGMENT]` half by forcing a full enumeration pass before applying it.
+
+**Phase 0 — Mechanical pre-phase**: This agent has no `Bash` tool (like every `*-review.md` agent), so it never runs `test_review_mechanics.py` itself — never invent, approximate, or hand-simulate a result. The caller dispatching this agent computes each file's result first (`python3 "${CLAUDE_PLUGIN_ROOT}/scripts/test_review_mechanics.py" <project root> <file>`, the same pre-pass architecture `/code-review`'s static-analysis pre-passes use) and supplies it as context — **detected by static analysis, do not re-derive** (never re-run the counting/pattern-matching this script already did); cite its counts and messages verbatim, including the Tolerated-Deviation Hunt categories below, which it now computes, and DO report them as this file's own findings per the bullets below — this pre-phase result is this agent's evidence, not a generic "already covered elsewhere" envelope to fold silently into context the way step 4's cross-cutting static-analysis findings are for every other lens.
+
+- **Result present, `mechanicalFail: true`** — report its findings as this file's issues, note in the summary that Phase 1/2 was skipped and why, and move on.
+- **Result present, `mechanicalFail: false`** — report its `warning`/`parse-failure` findings alongside the Phase 1/2 findings below, then run Phase 1/2 as usual.
+- **No result supplied for a file** — run Phase 1/2 for it as usual; say nothing about Phase 0.
 
 **Phase 1 — Enumerate**: List every test case in scope with:
 
@@ -98,57 +104,57 @@ Return `{"status": "skip", "issues": [], "summary": "No test files in target"}` 
 
 Coverage gaps:
 
-- Missing edge cases (empty, null, boundary)
-- Missing error paths (exceptions, invalid states)
-- Missing happy path scenarios
+- Missing edge cases (empty, null, boundary) [JUDGMENT]
+- Missing error paths (exceptions, invalid states) [JUDGMENT]
+- Missing happy path scenarios [JUDGMENT]
 
 Assertion quality:
 
 - Tests with no assertion — test methods containing no Assert, expect,
   should, verify, or equivalent assertion call. A test that only
   exercises code without asserting outcomes provides zero regression
-  protection.
-- Non-specific assertions (truthiness-only checks)
-- Implementation verification instead of behavior
-- Incomplete state verification
+  protection. [MECHANICAL]
+- Non-specific assertions (truthiness-only checks) [JUDGMENT]
+- Implementation verification instead of behavior [JUDGMENT]
+- Incomplete state verification [JUDGMENT]
 
 Test hygiene:
 
-- Shared mutable state between tests
-- Mocks/stubs not reset — JS: `jest.clearAllMocks()` absent; C#: Moq `Mock<T>` reused without `Reset()` or re-instantiation, NSubstitute missing `ClearReceivedCalls()`; Java: Mockito missing `reset()` or `@BeforeEach` re-initialization
-- Missing await on async operations — JS/TS: missing `await`; C#: missing `await` on `Task`-returning methods or unchecked `Task` results; Java: unchecked `Future.get()` or missing `CompletableFuture` resolution
-- No arrange-act-assert structure
-- Misleading test descriptions
+- Shared mutable state between tests [JUDGMENT]
+- Mocks/stubs not reset — JS: `jest.clearAllMocks()` absent; C#: Moq `Mock<T>` reused without `Reset()` or re-instantiation, NSubstitute missing `ClearReceivedCalls()`; Java: Mockito missing `reset()` or `@BeforeEach` re-initialization [MECHANICAL]
+- Missing await on async operations — JS/TS: missing `await`; C#: missing `await` on `Task`-returning methods or unchecked `Task` results; Java: unchecked `Future.get()` or missing `CompletableFuture` resolution [MECHANICAL]
+- No arrange-act-assert structure [JUDGMENT]
+- Misleading test descriptions [JUDGMENT]
 
 Test level efficiency:
 
-- Integration or E2E setup (real DB, real HTTP, large object graphs) used to test a single unit's logic — flag and suggest a unit test with a double instead
-- Tests that only exercise third-party library behavior, not the code under test
-- Multiple tests asserting identical outcomes with different inputs where no boundary condition distinguishes them (redundant coverage)
+- Integration or E2E setup (real DB, real HTTP, large object graphs) used to test a single unit's logic — flag and suggest a unit test with a double instead [JUDGMENT]
+- Tests that only exercise third-party library behavior, not the code under test [JUDGMENT]
+- Multiple tests asserting identical outcomes with different inputs where no boundary condition distinguishes them (redundant coverage) [JUDGMENT]
 
 Non-determinism sources (flakiness):
 
-- Unstubbed clock access — JS/TS: `Date.now()`, `new Date()`, `Date()`; C#: `DateTime.Now`, `DateTime.UtcNow`, `DateTimeOffset.Now`; Java: `new Date()`, `LocalDateTime.now()`, `Instant.now()`, `System.currentTimeMillis()`
-- Unstubbed randomness — JS/TS: `Math.random()`; C#: `new Random()` without injection; Java: `new Random()`, `Math.random()` without injection
-- Real network calls, DB connections, or file I/O without test doubles
-- Unstubbed timers/delays — JS/TS: `setTimeout`, `setInterval`, `setImmediate` without fake timers; C#: `Task.Delay`, `Thread.Sleep` in test body; Java: `Thread.sleep()` in test body
-- Tests that depend on execution order or shared external state between runs
-- Uncontrolled async concurrency — JS/TS: `Promise.all` with uncontrolled timing; C#: `Task.WhenAll` without controlled scheduling; Java: unjoined threads or unresolved `CompletableFuture`
+- Unstubbed clock access — JS/TS: `Date.now()`, `new Date()`, `Date()`; C#: `DateTime.Now`, `DateTime.UtcNow`, `DateTimeOffset.Now`; Java: `new Date()`, `LocalDateTime.now()`, `Instant.now()`, `System.currentTimeMillis()` [MECHANICAL]
+- Unstubbed randomness — JS/TS: `Math.random()`; C#: `new Random()` without injection; Java: `new Random()`, `Math.random()` without injection [MECHANICAL]
+- Real network calls, DB connections, or file I/O without test doubles [JUDGMENT]
+- Unstubbed timers/delays — JS/TS: `setTimeout`, `setInterval`, `setImmediate` without fake timers; C#: `Task.Delay`, `Thread.Sleep` in test body; Java: `Thread.sleep()` in test body [MECHANICAL]
+- Tests that depend on execution order or shared external state between runs [JUDGMENT]
+- Uncontrolled async concurrency — JS/TS: `Promise.all` with uncontrolled timing; C#: `Task.WhenAll` without controlled scheduling; Java: unjoined threads or unresolved `CompletableFuture` [JUDGMENT]
 
 Test code quality:
 
-- Copy-pasted assertion blocks that should be extracted into a helper
-- Magic literal values in assertions with no explanation of their significance
-- Dead test utilities or helpers that are defined but never called
-- Low automation maturity (`test-automation-maturity.md`): a volatile detail (selector, endpoint, field name) duplicated raw across many test files (single-point-of-change failure); UI driven to establish preconditions instead of back-door setup — flag only when suite size makes the cost real (graduated thresholds)
+- Copy-pasted assertion blocks that should be extracted into a helper [JUDGMENT]
+- Magic literal values in assertions with no explanation of their significance [JUDGMENT]
+- Dead test utilities or helpers that are defined but never called [JUDGMENT]
+- Low automation maturity (`test-automation-maturity.md`): a volatile detail (selector, endpoint, field name) duplicated raw across many test files (single-point-of-change failure); UI driven to establish preconditions instead of back-door setup — flag only when suite size makes the cost real (graduated thresholds) [JUDGMENT]
 
 Oracle provenance (correctness vs. stability):
 
 Whole-file load: apply the SPEC-DERIVED / INDEPENDENT / CIRCULAR taxonomy from `${CLAUDE_PLUGIN_ROOT}/knowledge/oracle-provenance.md`. For each test, classify its expected values by provenance. Report the oracle-provenance ratio (circular / total) in the finding summary when any circular oracles are detected:
 
-- Circular ratio < 20 %: suggestion — add provenance comments to snapshot-based assertions
-- Circular ratio 20–50 %: warning — suite has meaningful circular-oracle contamination
-- Circular ratio > 50 %: error — suite is circular-oracle-dominated; the file's Test Quality contribution is capped at 60. A circular-oracle-dominated suite verifies stability, not correctness; regressions can go undetected if snapshots are updated without independent verification.
+- Circular ratio < 20 %: suggestion — add provenance comments to snapshot-based assertions [JUDGMENT]
+- Circular ratio 20–50 %: warning — suite has meaningful circular-oracle contamination [JUDGMENT]
+- Circular ratio > 50 %: error — suite is circular-oracle-dominated; the file's Test Quality contribution is capped at 60. A circular-oracle-dominated suite verifies stability, not correctness; regressions can go undetected if snapshots are updated without independent verification. [JUDGMENT]
 
 Do not double-report individual snapshot findings when `test-smell-review` is also running in the same session — note the ratio in the summary instead.
 
@@ -156,8 +162,8 @@ Unarmored regions (survivorship-bias gaps):
 
 An **unarmored region** is code that has *neither* test coverage *nor* any sign of historical defensive attention — no negative tests, no error-path assertions, no defensive comments (e.g. `// edge case`, `// TODO: handle`, `// regression: ...`), no related test utility. This is distinct from an ordinary missing-edge-case coverage gap:
 
-- A **coverage gap** is code that is under-tested — some tests exist but a boundary or error path is missing.
-- An **unarmored region** is code that has never been examined — no tests AND no sign anyone has looked at it defensively. It is the least-examined code, not merely the least-tested.
+- A **coverage gap** is code that is under-tested — some tests exist but a boundary or error path is missing. [JUDGMENT]
+- An **unarmored region** is code that has never been examined — no tests AND no sign anyone has looked at it defensively. It is the least-examined code, not merely the least-tested. [JUDGMENT]
 
 Detection: identify functions, branches, or modules where (a) no test exercises the path AND (b) no surrounding context shows historical defensive attention. Flag these as a named "unarmored region" finding, distinct from ordinary coverage-gap findings.
 
@@ -165,38 +171,37 @@ Severity: warning. Suggested fix: prioritize writing tests for unarmored regions
 
 Testability blockers:
 
-- Code under test that cannot be constructed with known values (static factories, singletons, no injectable constructor) — flag as error; per `${CLAUDE_PLUGIN_ROOT}/knowledge/testability-patterns.md#pattern-1-constructor-injection-replace-static-factories-singletons`, the production code must change, not the test approach
-- Mocking of concrete classes (not interfaces) — flag as warning; extract an interface for the dependency
-- Tests using reflection into private members as primary strategy — flag as warning. This is an architecture/encapsulation issue the test is reaching around, not a test-hygiene nit. Detection signatures: Java: `getDeclaredMethod`/`getDeclaredField` + `setAccessible(true)`, `Method.invoke` on a private/protected member; C#: `Type.GetMethod(..., BindingFlags.NonPublic | BindingFlags.Instance)`, `Type.InvokeMember`; Python: `getattr`/`setattr`/`hasattr` targeting a name-mangled (`_ClassName__attr`) or underscore-prefixed attribute; JS/TS: bracket-notation access into a `private`/non-exported member (e.g. `(obj as any)['_privateMethod']()`), `Object.getOwnPropertyDescriptor`/`Object.defineProperty` used to reach a non-exported member. Suggested fix — pick by shape of the code, never the generic "expand the public API": (1) extract the private logic into a collaborator with its own public seam, when it's standalone logic worth testing independently; (2) relax visibility to package-private/internal, only when a production collaborator in the same module/assembly independently needs the access (the language must have that tier) — never as a grant solely so the test can reach in, which recreates the `InternalsVisibleTo`/`@VisibleForTesting` anti-pattern below; (3) test the behavior through the class's existing public API, when the private method is already an implementation detail of a public behavior
+- Code under test that cannot be constructed with known values (static factories, singletons, no injectable constructor) — flag as error; per `${CLAUDE_PLUGIN_ROOT}/knowledge/testability-patterns.md#pattern-1-constructor-injection-replace-static-factories-singletons`, the production code must change, not the test approach [JUDGMENT]
+- Mocking of concrete classes (not interfaces) — flag as warning; extract an interface for the dependency [JUDGMENT]
+- Tests using reflection into private members as primary strategy — flag as warning. This is an architecture/encapsulation issue the test is reaching around, not a test-hygiene nit. Detection signatures: Java: `getDeclaredMethod`/`getDeclaredField` + `setAccessible(true)`, `Method.invoke` on a private/protected member; C#: `Type.GetMethod(..., BindingFlags.NonPublic | BindingFlags.Instance)`, `Type.InvokeMember`; Python: `getattr`/`setattr`/`hasattr` targeting a name-mangled (`_ClassName__attr`) or underscore-prefixed attribute; JS/TS: bracket-notation access into a `private`/non-exported member (e.g. `(obj as any)['_privateMethod']()`), `Object.getOwnPropertyDescriptor`/`Object.defineProperty` used to reach a non-exported member. Suggested fix — pick by shape of the code, never the generic "expand the public API": (1) extract the private logic into a collaborator with its own public seam, when it's standalone logic worth testing independently; (2) relax visibility to package-private/internal, only when a production collaborator in the same module/assembly independently needs the access (the language must have that tier) — never as a grant solely so the test can reach in, which recreates the `InternalsVisibleTo`/`@VisibleForTesting` anti-pattern below; (3) test the behavior through the class's existing public API, when the private method is already an implementation detail of a public behavior [MECHANICAL] (detection only, via the explicit per-language signatures above — this stays `warning`-severity and is reported by the mechanical pre-phase (Step 2.2, `scripts/test_review_mechanics.py`) without gating the qualitative pass; only the no-assertion-tests check and `internal_double_detector.py`'s own `verdict: "high"` findings (translated to `error` severity by the mechanical pre-phase) gate the pass)
 
 Internal-collaborator doubling (mechanical — never a truth judgment; see
 `${CLAUDE_PLUGIN_ROOT}/knowledge/internal-collaborator-doubling.md#the-waiver`):
 
-- A doubled first-party collaborator with no waiver comment at the double site (see the normative file for the exact marker syntax) — flag as error
-- A waiver comment naming anything other than `B1`, `B2`, or `B3` — flag as error
-- A syntactically valid `B2` waiver whose collaborator's own declaring source shows no reference to any ambient-API marker (clock, RNG/GUID, env, hostname, cwd, locale) — flag as error; this is the detector's own evidence-*presence* check, not a judgment about whether the evidence is convincing (that half belongs to `test-smell-review`, and only ever on an already-waived double)
+- A doubled first-party collaborator with no waiver comment at the double site (see the normative file for the exact marker syntax) — flag as error [MECHANICAL]
+- A waiver comment naming anything other than `B1`, `B2`, or `B3` — flag as error [MECHANICAL]
+- A syntactically valid `B2` waiver whose collaborator's own declaring source shows no reference to any ambient-API marker (clock, RNG/GUID, env, hostname, cwd, locale) — flag as error; this is the detector's own evidence-*presence* check, not a judgment about whether the evidence is convincing (that half belongs to `test-smell-review`, and only ever on an already-waived double) [MECHANICAL]
 
 If a static-analysis pre-pass has already surfaced this exact finding (e.g. via `/code-review` step 2b), cite it rather than re-deriving it — do not double-report.
 
 ## Tolerated-Deviation Hunt
 
-Run this cheap grep pass on every core-flow file in scope (non-test source files, not
-third-party). Count tolerated-deviation artifacts from the following categories:
+Computed by Phase 0's `test_review_mechanics.py` pass, not a separate manual grep — cite its `tolerated-deviation-consolidation` finding when present rather than re-deriving it. The categories below are the detection specification the script implements, kept here for reference. Phase 0's actual wiring (`/code-review`'s step 2b, #2169) runs this pre-pass only for test files in scope, so this Hunt currently sees test files, not "every core-flow file" — non-test source files get no Phase 0 result at all and fall through to this file's own "No result supplied for a file" rule (run Phase 1/2 as usual; say nothing about Phase 0). Extending the pre-pass to non-test core-flow files is a separate wiring change, not made here. Count tolerated-deviation artifacts from the following categories:
 
 - **Disabled tests** — `@Ignore`, `@Disabled`, `xit(`, `xdescribe(`, `test.skip(`,
   `it.skip(`, `[Ignore]`, `[Skip]`, `pytest.mark.skip`, `pytest.mark.xfail` with no
-  linked issue or expiry
+  linked issue or expiry [MECHANICAL]
 - **Aged markers** — `TODO`, `FIXME`, `HACK`, `XXX` comments (any age is a candidate;
-  flag as aged when there is no linked ticket or follow-up action)
+  flag as aged when there is no linked ticket or follow-up action) [MECHANICAL]
 - **Suppressed warnings** — `@SuppressWarnings`, `#pragma warning disable`,
   `# noqa`, `# type: ignore`, `eslint-disable`, `pylint: disable` with no explanatory
-  comment naming the specific approved exception
+  comment naming the specific approved exception [MECHANICAL]
 - **Relaxed assertions** — assertion strings containing "either … or", "at least",
-  "approximately", tolerance widening (e.g. `delta=`, `places=1` in `assertAlmostEqual`)
+  "approximately", tolerance widening (e.g. `delta=`, `places=1` in `assertAlmostEqual`) [MECHANICAL]
 - **Widened tolerances** — numeric epsilon/tolerance constants changed without a
-  comment explaining the regression
+  comment explaining the regression [MECHANICAL]
 
-**Consolidation rule**: when **≥ 3 of these artifacts appear in the same file**, emit
+**Consolidation rule** [MECHANICAL]: when **≥ 3 of these artifacts appear in the same file**, emit
 a **single** named finding:
 
 ```json
