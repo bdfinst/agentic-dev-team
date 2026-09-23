@@ -65,7 +65,6 @@ Stdlib-only (hashlib/json/pathlib/sys). See ADR 0014, ADR 0015.
 
 from __future__ import annotations
 
-import hashlib
 import json
 import sys
 from pathlib import Path
@@ -92,7 +91,11 @@ from review_agent_registry import (  # type: ignore[import-not-found]
 )
 from review_verdicts import (  # type: ignore[import-not-found]
     SCOPE_MARKER_PREFIX,
+    canonical_path,
     emit_review_verdict,
+)
+from review_verdicts import (
+    hash_file as _hash_file,
 )
 from session_log import records as _records  # type: ignore[import-not-found]
 from stdin_json import read_stdin_json, resolve_cwd  # type: ignore[import-not-found]
@@ -318,75 +321,37 @@ def _issues_list(result: dict | None) -> list | None:
 
 def _resolve_under_cwd(file_path: str, cwd) -> Path | None:
     """Resolve `file_path` (a scope-marker entry or an `issues[].file`
-    entry) against `cwd` to an absolute, symlink-resolved `Path`.
+    entry) against `cwd` to an absolute, symlink-resolved `Path` contained
+    within `cwd` — `None` when it can't be resolved or escapes `cwd` (a
+    `../../../../etc/passwd`-style traversal, Fix #5 security review).
 
-    This is the single normalized form both:
-      * the path-traversal containment check (Fix #5, security review:
-        a scope marker declaring `../../../../etc/passwd`-style paths must
-        not be read/hashed outside `cwd`), and
-      * the scope-marker/`issues[].file` membership comparison (Fix #2,
-        correctness review: real review-agent transcripts in this session's
-        own corpus report the SAME file in different path forms —
-        relative vs. absolute — across different agents, so raw string
-        equality silently missed genuine matches)
-    key off of, so the two concerns share one resolution instead of two
-    that could drift. Local replica of `finding_signature.py`'s own
-    `_normalize_path` intent rather than an import of it:
-    `hooks/lib/doc_classification.py`'s module docstring documents the
-    established direction as `skills/*/scripts/` importing FROM `hooks/lib/`
-    (`change_shape.py` reaches into `doc_classification.py`, never the
-    reverse) — a hook importing `skills/code-review/scripts/finding_signature.py`
-    would invert that.
-
-    `None` on any resolution failure — rare, since `Path.resolve()` without
-    `strict=` doesn't require the path to exist, but a broken symlink chain
-    can still raise `OSError`."""
-    try:
-        target = Path(file_path)
-        if not target.is_absolute():
-            target = Path(cwd) / target
-        return target.resolve()
-    except OSError:
+    Thin wrapper over the shared `review_verdicts.canonical_path` (#2167):
+    that function IS this one's containment-and-normalization logic, kept
+    in `hooks/lib/` so `scripts/verdict_scope.py`'s reader canonicalizes the
+    SAME way this writer does — real review-agent transcripts in this
+    session's own corpus report the SAME file in different path forms
+    (relative vs. absolute) across different agents (Fix #2, correctness
+    review), so a caller with its own second copy of this logic would drift
+    from the writer's own canonical form and silently never match a genuine
+    row."""
+    canonical = canonical_path(file_path, cwd)
+    if canonical is None:
         return None
+    return Path(cwd).resolve() / canonical
 
 
 def _findings_files(issues: list, cwd) -> set[Path]:
     files: set[Path] = set()
     for issue in issues:
-        if isinstance(issue, dict):
-            file_path = issue.get("file")
-            if isinstance(file_path, str) and file_path:
-                resolved = _resolve_under_cwd(file_path, cwd)
-                if resolved is not None:
-                    files.add(resolved)
+        if not isinstance(issue, dict):
+            continue
+        file_path = issue.get("file")
+        if not isinstance(file_path, str) or not file_path:
+            continue
+        resolved = _resolve_under_cwd(file_path, cwd)
+        if resolved is not None:
+            files.add(resolved)
     return files
-
-
-# 50 MiB cap (Fix #4, security review): bounds `_hash_file`'s read against a
-# FIFO/device path or a multi-GB file hanging past this hook's fail-open
-# exception wrapper in `main()` — a hang is not an exception `main()` can
-# catch.
-_MAX_HASH_FILE_BYTES = 50 * 1024 * 1024
-_HASH_CHUNK_BYTES = 1 << 20  # 1 MiB incremental read
-
-
-def _hash_file(path: Path) -> str | None:
-    """Current-content sha256 hex digest of `path`, or `None` on any read
-    failure (deleted, unreadable, not a regular file — a directory, FIFO, or
-    device — or over `_MAX_HASH_FILE_BYTES`) — the caller skips just that
-    one in-scope file rather than aborting the whole batch."""
-    try:
-        if not path.is_file():
-            return None
-        if path.stat().st_size > _MAX_HASH_FILE_BYTES:
-            return None
-        digest = hashlib.sha256()
-        with path.open("rb") as fh:
-            while chunk := fh.read(_HASH_CHUNK_BYTES):
-                digest.update(chunk)
-        return digest.hexdigest()
-    except OSError:
-        return None
 
 
 def process(payload: dict) -> None:
@@ -459,32 +424,29 @@ def process(payload: dict) -> None:
         )
         return
     findings_files = _findings_files(issues, cwd)
+    # #2167 correctness review: per-file membership in `findings_files`
+    # alone recorded `pass` for every in-scope file whenever this lens's
+    # issues carried no `file` field, a `file` outside/unmapped to scope, or
+    # simply didn't happen to name one of THIS dispatch's files — even for a
+    # `status: "fail"`/`"warn"` result. Once #2167 acts on a `pass` row to
+    # skip a future dispatch, that silently erased the round's own verdict.
+    # A lens result that isn't clean marks every in-scope file `"findings"`,
+    # never just the ones an issue happens to name.
+    status = result.get("status") if isinstance(result, dict) else None
+    lens_result_is_clean = status in ("pass", "skip")
 
     cwd_resolved = Path(cwd).resolve()
     for file_path in in_scope:
-        resolved = _resolve_under_cwd(file_path, cwd)
-        if resolved is None or not resolved.is_relative_to(cwd_resolved):
+        canonical = canonical_path(file_path, cwd)
+        if canonical is None:
             continue  # unresolvable, or outside cwd containment (Fix #5)
+        resolved = cwd_resolved / canonical
         file_hash = _hash_file(resolved)
         if file_hash is None:
             continue  # deleted/unreadable/non-regular/oversized -- skip this one only
-        outcome = "findings" if resolved in findings_files else "pass"
-        # Canonical, cwd-relative POSIX form (Fix #2, backstop review,
-        # #2166 + #2171) -- not the raw scope-marker `file_path`, which can
-        # name the same file in different forms (relative vs. absolute)
-        # across different dispatch prompts. Decision 3 makes
-        # `(lens, file_path, file_content_hash)` the future #2167 reader's
-        # lookup key, so the same file's rows must consistently group under
-        # one canonical path. Falls back to the absolute resolved form only
-        # if `relative_to` fails -- not expected here, since the
-        # containment check above already excludes anything outside
-        # `cwd_resolved`.
-        try:
-            canonical_path = resolved.relative_to(cwd_resolved).as_posix()
-        except ValueError:
-            canonical_path = resolved.as_posix()
+        outcome = "pass" if lens_result_is_clean and resolved not in findings_files else "findings"
         emit_review_verdict(
-            cwd, subagent_type, canonical_path, file_hash, outcome, session_id=session_id
+            cwd, subagent_type, canonical, file_hash, outcome, session_id=session_id
         )
 
 

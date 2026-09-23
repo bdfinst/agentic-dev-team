@@ -9,14 +9,16 @@ Covers:
   - `load_verdicts()`: write round-trip, and its "no usable rows, never an
     exception" contract for an absent file, a corrupted line, and a
     version-mismatched row.
-  - A mechanical content-guard: `load_verdicts` has no consumer yet other
-    than `review_verdict_recorder.py` (not built in this slice) and this
+  - A mechanical content-guard: `load_verdicts` has no consumer other than
+    `scripts/verdict_scope.py` (#2167, its first real consumer) and this
     module's own tests.
 """
 
 from __future__ import annotations
 
 import json
+import os
+import subprocess
 import sys
 from pathlib import Path
 
@@ -198,14 +200,101 @@ def test_load_verdicts_never_raises_on_a_non_object_json_line(tmp_path: Path) ->
 
 
 # ---------------------------------------------------------------------------
+# Trust boundary (#2167 security review): `load_verdicts` refuses a
+# git-tracked ledger outright -- a forged, PR-committed row must never
+# corroborate a skip.
+# ---------------------------------------------------------------------------
+
+
+def _git(args: list[str], cwd: Path) -> None:
+    subprocess.run(["git", *args], cwd=cwd, check=True, capture_output=True)
+
+
+def test_load_verdicts_rejects_a_git_tracked_ledger(tmp_path: Path) -> None:
+    review_verdicts.emit_review_verdict(tmp_path, "security-review", "f.py", "h", "pass")
+    _git(["init", "-q"], tmp_path)
+    _git(["add", "-f", str(_LOG_REL)], tmp_path)
+    assert review_verdicts.load_verdicts(tmp_path) == []
+
+
+def test_load_verdicts_trusts_an_untracked_ledger_inside_a_git_repo(tmp_path: Path) -> None:
+    """A git repo whose ledger is merely present -- never staged or
+    committed -- is the normal, supported case (the ledger lives under
+    `.claude/metrics/`, which this repo's own `.gitignore` excludes) and
+    must load exactly as it would with no repo at all."""
+    _git(["init", "-q"], tmp_path)
+    review_verdicts.emit_review_verdict(tmp_path, "security-review", "f.py", "h", "pass")
+    rows = review_verdicts.load_verdicts(tmp_path)
+    assert len(rows) == 1
+    assert rows[0]["file_path"] == "f.py"
+
+
+def test_ledger_is_git_tracked_returns_false_when_git_is_unavailable(
+    tmp_path: Path, monkeypatch
+) -> None:
+    def _boom(*_a, **_k):
+        raise OSError("git not found")
+
+    monkeypatch.setattr(review_verdicts.subprocess, "run", _boom)
+    log = tmp_path / _LOG_REL
+    log.parent.mkdir(parents=True)
+    log.write_text("{}\n", encoding="utf-8")
+    assert review_verdicts._ledger_is_git_tracked(log, tmp_path) is False
+
+
+# ---------------------------------------------------------------------------
+# canonical_path (#2167): the writer/reader shared path canonicalization.
+# ---------------------------------------------------------------------------
+
+
+def test_canonical_path_of_a_plain_relative_path_is_itself(tmp_path: Path) -> None:
+    (tmp_path / "a.py").write_text("x\n")
+    assert review_verdicts.canonical_path("a.py", tmp_path) == "a.py"
+
+
+def test_canonical_path_normalizes_a_dot_slash_prefix(tmp_path: Path) -> None:
+    (tmp_path / "a.py").write_text("x\n")
+    assert review_verdicts.canonical_path("./a.py", tmp_path) == "a.py"
+
+
+def test_canonical_path_normalizes_an_absolute_in_root_path(tmp_path: Path) -> None:
+    (tmp_path / "a.py").write_text("x\n")
+    absolute = str((tmp_path / "a.py").resolve())
+    assert review_verdicts.canonical_path(absolute, tmp_path) == "a.py"
+
+
+def test_canonical_path_rejects_a_traversal_outside_root(tmp_path: Path) -> None:
+    outside = tmp_path.parent / "outside.py"
+    root = tmp_path / "repo"
+    root.mkdir()
+    rel_traversal = os.path.relpath(outside, root)
+    assert review_verdicts.canonical_path(rel_traversal, root) is None
+
+
+def test_canonical_path_rejects_a_path_entirely_outside_root(tmp_path: Path) -> None:
+    other = tmp_path.parent / f"{tmp_path.name}-sibling"
+    other.mkdir(exist_ok=True)
+    assert review_verdicts.canonical_path(str(other / "evil.py"), tmp_path) is None
+
+
+def test_canonical_path_does_not_require_the_file_to_exist(tmp_path: Path) -> None:
+    """A verdict lookup for a file that no longer exists must still
+    canonicalize -- `hash_file` is what decides "can't verify", not this
+    function (mirrors `Path.resolve()`'s own no-existence-required
+    contract)."""
+    assert review_verdicts.canonical_path("missing.py", tmp_path) == "missing.py"
+
+
+# ---------------------------------------------------------------------------
 # Mechanical content-guard (acceptance-critic finding): `load_verdicts` has
-# no consumer yet beyond `review_verdict_recorder.py` (Step 2.3, not built
-# in this slice) and this module's own tests — enforces the plan's "no
-# consumer of review-verdicts.jsonl changes behavior in this slice" AC.
+# no consumer other than `scripts/verdict_scope.py` (#2167) and this
+# module's own tests -- enforces the "no untracked consumer of
+# review-verdicts.jsonl" boundary.
 # ---------------------------------------------------------------------------
 
 _ALLOWED_LOAD_VERDICTS_CONSUMERS = {
-    _HOOKS_DIR / "review_verdict_recorder.py",
+    _PLUGIN_DIR / "scripts" / "verdict_scope.py",
+    _PLUGIN_DIR / "tests" / "scripts" / "test_verdict_scope.py",
 }
 
 
@@ -231,7 +320,6 @@ def test_load_verdicts_has_no_other_consumers() -> None:
         )
         assert allowed, (
             f"{hit} imports/references load_verdicts — only "
-            "review_verdict_recorder.py (Step 2.3, not built in this slice) "
-            "and this module's own test files may, per the plan's 'no "
-            "consumer changes behavior in this slice' AC."
+            "scripts/verdict_scope.py (#2167, the sanctioned reader) and "
+            "this module's own test files may."
         )

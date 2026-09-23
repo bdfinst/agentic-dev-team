@@ -58,6 +58,9 @@
   "dispatchFailures": [
     {"agentName": "arch-review", "attempts": 2, "error": "Tool result missing due to internal error", "shape": null, "extraction": null}
   ],
+  "ledgerSkipped": [
+    {"lens": "doc-review", "file": "src/api/handler.ts", "verdict": {"lens": "doc-review", "file_path": "src/api/handler.ts", "ts": "2026-03-01T11:58:00Z", "file_content_hash": "9f2c...", "outcome": "pass", "plugin_version": "1.42.0"}}
+  ],
   "summary": "FAIL (N agents passed, N warned, N failed). N total issues. 1 lens never ran (dispatch failure)."
 }
 ```
@@ -87,6 +90,26 @@ retry — the lens never actually ran. Distinct from an `agents[]` entry with
 and from `status: "fail"` (agent ran and found error-severity issues). A
 non-empty `dispatchFailures` list is never omitted because the rest of the
 panel returned cleanly.
+
+`ledgerSkipped` (issue #2167, always present, empty array when none): one
+`{"lens", "file", "verdict"}` entry per `(lens, file)` pair
+`scripts/verdict_scope.py` matched to an exact, current-content `pass` row
+in `.claude/metrics/review-verdicts.jsonl` — that lens was never dispatched
+against that file this run because an earlier dispatch already cleared this
+exact content. `verdict` is the matched ledger row verbatim (its own
+snake_case fields — `ts`/`file_content_hash`/`plugin_version`/`outcome`/
+`lens`/`file_path`, exactly as `hooks/lib/review_verdicts.py` writes them —
+never renamed to camelCase), named here so a reader can verify the skip
+against the ledger directly rather than trust it blindly. An
+agent entirely absent from `agents[]` with every one of its candidate files
+listed here is a *fully* ledger-skipped lens (`verdict_scope.py`'s own
+`fullySkippedLenses`) — not a coverage gap, but never silent either: `summary`
+states the count of fully-skipped lenses whenever `ledgerSkipped` is
+non-empty, the same way it already states dispatch-failure counts. Skipped
+files contribute no new findings to `topFindings`/`totals`, so `overall`
+reflects exactly the same aggregate a from-scratch full-panel run over this
+content would reach — a fully ledger-skipped panel is never `fail`/`warn` on
+that basis alone.
 
 `shape`/`extraction` (issue #1998, both `null` when the dispatch never
 returned at all — a transport failure, not a contract failure): when the

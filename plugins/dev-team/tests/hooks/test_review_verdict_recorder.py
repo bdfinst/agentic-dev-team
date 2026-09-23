@@ -28,6 +28,7 @@ for _p in (_HOOK_DIR, _LIB_DIR):
 
 import plugin_version  # type: ignore[import-not-found]
 import review_verdict_recorder as recorder
+import review_verdicts  # type: ignore[import-not-found]
 from review_verdicts import SCOPE_MARKER_PREFIX  # type: ignore[import-not-found]
 
 _VERDICTS_REL = Path(".claude") / "metrics" / "review-verdicts.jsonl"
@@ -222,6 +223,51 @@ def test_clean_result_records_a_pass_row_per_in_scope_file(tmp_path: Path) -> No
 
 
 def test_findings_result_records_mixed_verdict_per_file(tmp_path: Path) -> None:
+    """Per-file mapping still applies on a genuinely clean overall status
+    (`skip`) that nonetheless carries a file-mapped issue — an edge case a
+    well-behaved lens shouldn't produce, but the per-file matching logic
+    itself (not the #2167 non-clean-status override below) is what this
+    test exercises."""
+    files = ["a.py", "b.py", "c.py"]
+    for f in files:
+        _write_file(tmp_path, f)
+
+    transcript = _write_transcript(
+        tmp_path,
+        [
+            _dispatch_row(files),
+            *_result_rows(
+                {
+                    "status": "skip",
+                    "issues": [
+                        {
+                            "severity": "warning",
+                            "confidence": "medium",
+                            "file": "b.py",
+                            "line": 3,
+                            "message": "something",
+                        }
+                    ],
+                    "summary": "1 issue",
+                },
+                f"dev-team:{_REVIEW_AGENT}",
+            ),
+        ],
+    )
+
+    assert _run_main(tmp_path, transcript) == 0
+    rows = _read_rows(tmp_path)
+    by_path = {r["file_path"]: r["outcome"] for r in rows}
+    assert by_path == {"a.py": "pass", "b.py": "findings", "c.py": "pass"}
+
+
+def test_non_clean_status_marks_every_in_scope_file_as_findings(tmp_path: Path) -> None:
+    """#2167 correctness review: a `status: "warn"`/`"fail"` result must
+    never record `pass` for an in-scope file just because that ONE file
+    happens not to be named by any issue — #2167 acts on a recorded `pass`
+    row to skip a future dispatch, so a blanket-findings result silently
+    losing coverage on unmapped-but-in-scope files would erase the round's
+    own non-clean verdict on a repeat review."""
     files = ["a.py", "b.py", "c.py"]
     for f in files:
         _write_file(tmp_path, f)
@@ -252,7 +298,7 @@ def test_findings_result_records_mixed_verdict_per_file(tmp_path: Path) -> None:
     assert _run_main(tmp_path, transcript) == 0
     rows = _read_rows(tmp_path)
     by_path = {r["file_path"]: r["outcome"] for r in rows}
-    assert by_path == {"a.py": "pass", "b.py": "findings", "c.py": "pass"}
+    assert by_path == {"a.py": "findings", "b.py": "findings", "c.py": "findings"}
 
 
 # ---------------------------------------------------------------------------
@@ -488,7 +534,7 @@ def test_fenced_json_result_in_handback_message_is_recovered(tmp_path: Path) -> 
     for f in files:
         _write_file(tmp_path, f)
     result = {
-        "status": "warn",
+        "status": "skip",
         "issues": [{"severity": "warning", "file": "b.py", "message": "something"}],
         "summary": "1 issue",
     }
@@ -680,11 +726,17 @@ def test_unregistered_subagent_type_emits_no_boundary_event(tmp_path: Path) -> N
 
 # ---------------------------------------------------------------------------
 # Scenario: `_hash_file` bounds its read (Fix #4, security review).
+#
+# `recorder._hash_file` is `review_verdicts.hash_file` itself (#2167 moved
+# the implementation into the shared lib so `scripts/verdict_scope.py`'s
+# read side hashes with the identical algorithm/cap), so the size cap it
+# reads is `review_verdicts.MAX_HASH_FILE_BYTES`, not a `recorder`-local
+# name — patch it there.
 # ---------------------------------------------------------------------------
 
 
 def test_hash_file_skips_files_over_max_size_cap(tmp_path: Path, monkeypatch) -> None:
-    monkeypatch.setattr(recorder, "_MAX_HASH_FILE_BYTES", 10)
+    monkeypatch.setattr(review_verdicts, "MAX_HASH_FILE_BYTES", 10)
     big = tmp_path / "big.py"
     big.write_bytes(b"x" * 11)
     assert recorder._hash_file(big) is None

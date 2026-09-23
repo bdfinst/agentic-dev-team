@@ -270,6 +270,11 @@ SLICE_EXCLUSIONS = {
         "import annotations` keeps its `str | None`-style annotations lazy "
         "strings, never evaluated at runtime; no floor-sensitive runtime API"
     ),
+    "verdict_scope.py": (
+        "stdlib argparse/json/sys/pathlib only; `from __future__ import "
+        "annotations` keeps its `str | None`-style annotations lazy strings, "
+        "never evaluated at runtime; no floor-sensitive runtime API"
+    ),
     "verify_gherkin_quality_critic_isolation.py": (
         "stdlib argparse/os/secrets/shutil/subprocess/tempfile/textwrap/"
         "pathlib only; no floor-sensitive runtime API"
