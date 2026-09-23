@@ -1,5 +1,19 @@
 # Changelog
 
+## [13.3.0](https://github.com/bdfinst/agentic-dev-team/compare/dev-team-v13.2.0...dev-team-v13.3.0) (2026-09-23)
+
+
+### Features
+
+* **code-review:** scope backstop and repeat runs to the unreviewed delta ([#2199](https://github.com/bdfinst/agentic-dev-team/issues/2199)) ([b4e3ed1](https://github.com/bdfinst/agentic-dev-team/commit/b4e3ed1172733161c39a46b4d3ee05cbf6c9e448))
+* **hooks:** boundary-events write guard and per-lens verdict ledger ([#2195](https://github.com/bdfinst/agentic-dev-team/issues/2195)) ([210faa6](https://github.com/bdfinst/agentic-dev-team/commit/210faa6a51b13276dbf07a5ab1de905f684c0f98))
+* **review:** abort-on-cheap-blocker, countable test-review, tiered findings ([#2197](https://github.com/bdfinst/agentic-dev-team/issues/2197)) ([ee2bc42](https://github.com/bdfinst/agentic-dev-team/commit/ee2bc429e542976daa63a54901683d13d94f740e))
+
+
+### Bug Fixes
+
+* **agent-eval:** wire test-review Phase 0 into unit-tier dispatch ([#2198](https://github.com/bdfinst/agentic-dev-team/issues/2198)) ([f52f21a](https://github.com/bdfinst/agentic-dev-team/commit/f52f21afd4ee949a24bdc7041a1661f29c0f8c93))
+
 ## [13.2.0](https://github.com/bdfinst/agentic-dev-team/compare/dev-team-v13.1.2...dev-team-v13.2.0) (2026-09-22)
 
 
