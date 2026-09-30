@@ -904,7 +904,9 @@ when given. The script owns all prompt and `--yes` behavior: it writes
 existing valid value unless `--autocompact-pct` is passed, and aborts without
 touching the file when it is malformed or a symlink (report the stderr line
 and continue with the next step). The harness can only **lower** its
-threshold, so values above its default (~83%) have no effect. Under
+threshold, so values above its default (~83%) have no effect. The script only
+ever writes the project's `settings.json`; when it warns that a process-env or
+`settings.local.json` entry takes precedence, relay that warning verbatim. Under
 `--dry-run`, report what would be written and skip the script. Report line:
 `Autocompact: <value>% (set | kept | replaced | skipped)`.
 

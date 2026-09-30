@@ -78,18 +78,65 @@ def test_valid_value_in_process_env_is_silent(proj):
 
 
 @pytest.mark.parametrize("bad", ["abc", "0", "101"])
-def test_invalid_value_prints_corrective_line(proj, bad):
+def test_invalid_value_prints_corrective_line_naming_the_source(proj, bad):
     _settings(proj, value=bad)
     r = _run(proj, _payload(source="startup"))
     assert r.returncode == 0
     assert r.stdout == (
-        f"dev-team: {KEY}='{bad}' is invalid (need integer 1-100); re-run /dev-team:setup\n"
+        f"dev-team: {KEY}='{bad}' in settings.json is invalid "
+        "(need integer 1-100); re-run /dev-team:setup\n"
     )
 
 
-def test_opt_out_env_is_silent(proj):
+@pytest.mark.parametrize(
+    "value,shown",
+    [(40, "40"), ("", "''"), (None, "None"), ([1], "[1]")],
+)
+def test_non_string_or_empty_json_values_are_invalid(proj, value, shown):
+    _settings(proj, value=value)
+    r = _run(proj, _payload(source="startup"))
+    assert r.stdout == (
+        f"dev-team: {KEY}={shown} in settings.json is invalid "
+        "(need integer 1-100); re-run /dev-team:setup\n"
+    )
+
+
+def test_invalid_env_sourced_value_names_process_env(proj):
+    r = _run(proj, _payload(source="startup"), extra_env={KEY: "abc"})
+    assert r.stdout == (
+        f"dev-team: {KEY}='abc' in process env is invalid (need integer 1-100); "
+        "re-run /dev-team:setup\n"
+    )
+
+
+def test_empty_process_env_value_is_invalid(proj):
+    r = _run(proj, _payload(source="startup"), extra_env={KEY: ""})
+    assert f"{KEY}='' in process env is invalid" in r.stdout
+
+
+def test_invalid_message_names_the_shadowing_local_file(proj):
+    _settings(proj, "settings.json", "40")
+    _settings(proj, "settings.local.json", "abc")
+    r = _run(proj, _payload(source="startup"))
+    assert f"{KEY}='abc' in settings.local.json is invalid" in r.stdout
+
+
+def test_printed_invalid_value_is_length_bounded(proj):
+    _settings(proj, value="9" * 5_000)
+    r = _run(proj, _payload(source="startup"))
+    assert len(r.stdout) < 200
+    assert "..." in r.stdout and r.stdout.endswith("re-run /dev-team:setup\n")
+
+
+def test_opt_out_env_zero_is_silent(proj):
     r = _run(proj, _payload(source="startup"), extra_env={"DEV_TEAM_AUTOCOMPACT_NUDGE": "0"})
     assert (r.returncode, r.stdout) == (0, "")
+
+
+@pytest.mark.parametrize("value", ["1", "", "false", "00"])
+def test_other_opt_out_values_still_fire(proj, value):
+    r = _run(proj, _payload(source="startup"), extra_env={"DEV_TEAM_AUTOCOMPACT_NUDGE": value})
+    assert r.stdout == ABSENT_LINE
 
 
 def test_opt_out_marker_is_silent(proj):
@@ -111,43 +158,67 @@ def test_never_fires_on_compact(proj):
     assert (r.returncode, r.stdout) == (0, "")
 
 
-def test_project_dir_env_unset_falls_back_to_payload_cwd(proj):
-    r = _run(proj, _payload(source="startup", cwd=str(proj)), project_dir_env=False, cwd=proj.parent)
-    assert (r.returncode, r.stdout, r.stderr) == (0, ABSENT_LINE, "")
+def test_payload_cwd_is_used_when_project_dir_env_unset(proj):
+    _settings(proj, value="40")  # valid config lives ONLY in proj
+    r = _run(
+        proj,
+        _payload(source="startup", cwd=str(proj)),
+        project_dir_env=False,
+        cwd=proj.parent,  # process cwd has none: would nudge if the payload cwd were ignored
+    )
+    assert (r.returncode, r.stdout, r.stderr) == (0, "", "")
 
 
-def test_project_dir_env_unset_and_no_cwd_uses_process_cwd(proj):
+def test_process_cwd_is_the_last_fallback(proj):
     _settings(proj, value="40")
     r = _run(proj, _payload(source="startup"), project_dir_env=False, cwd=proj)
     assert (r.returncode, r.stdout, r.stderr) == (0, "", "")
 
 
+def test_absent_when_neither_payload_nor_process_cwd_has_config(proj):
+    r = _run(proj, _payload(source="startup", cwd=str(proj)), project_dir_env=False, cwd=proj.parent)
+    assert r.stdout == ABSENT_LINE
+
+
+def test_project_dir_env_takes_precedence_over_payload_cwd(proj, tmp_path):
+    other = tmp_path / "other"
+    other.mkdir()
+    _settings(proj, value="40")
+    r = _run(proj, _payload(source="startup", cwd=str(other)), cwd=other)
+    assert (r.returncode, r.stdout) == (0, "")
+    _settings(other, value="40")
+    (proj / ".claude" / "settings.json").unlink()
+    r = _run(proj, _payload(source="startup", cwd=str(other)), cwd=other)
+    assert r.stdout == ABSENT_LINE  # CLAUDE_PROJECT_DIR=proj wins and proj has none
+
+
+def test_non_directory_project_dir_env_falls_back_to_payload_cwd(proj, tmp_path):
+    _settings(proj, value="40")
+    r = _run(
+        proj,
+        _payload(source="startup", cwd=str(proj)),
+        extra_env={"CLAUDE_PROJECT_DIR": str(tmp_path / "nope")},
+        cwd=proj.parent,
+    )
+    assert (r.returncode, r.stdout) == (0, "")
+
+
 @pytest.mark.parametrize("stdin", ["", "   \n", "\x00{{", "[1,2]", '"x"', "null"])
-def test_fail_open_on_empty_or_garbage_stdin(proj, stdin):
+def test_fail_open_on_empty_or_garbage_stdin_still_nudges(proj, stdin):
     r = _run(proj, stdin)
-    assert r.returncode == 0
-    assert "Traceback" not in r.stderr
+    assert (r.returncode, r.stdout, r.stderr) == (0, ABSENT_LINE, "")
 
 
 def test_malformed_settings_fail_open(proj):
     _settings(proj, raw="{not json")
     r = _run(proj, _payload(source="startup"))
-    assert r.returncode == 0 and "Traceback" not in r.stderr
-    assert r.stdout == ABSENT_LINE
+    assert (r.returncode, r.stdout, r.stderr) == (0, ABSENT_LINE, "")
 
 
-@pytest.mark.skipif(
-    os.name == "nt" or (hasattr(os, "geteuid") and os.geteuid() == 0),
-    reason="chmod 000 is not enforced for root / Windows",
-)
-def test_unreadable_settings_fail_open(proj):
-    path = _settings(proj, value="40")
-    path.chmod(0)
-    try:
-        r = _run(proj, _payload(source="startup"))
-        assert r.returncode == 0 and "Traceback" not in r.stderr
-    finally:
-        path.chmod(0o644)
+def test_settings_path_that_is_a_directory_fails_open(proj):
+    (proj / ".claude" / "settings.json").mkdir(parents=True)
+    r = _run(proj, _payload(source="startup"))
+    assert (r.returncode, r.stdout, r.stderr) == (0, ABSENT_LINE, "")
 
 
 def test_hook_never_imports_from_dot_claude_lib():

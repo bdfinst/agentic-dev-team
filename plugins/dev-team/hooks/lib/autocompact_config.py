@@ -68,7 +68,7 @@ def user_settings_path(env: Mapping[str, str]) -> Path:
 def _env_block(path: Path) -> Mapping[str, object] | None:
     try:
         data = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, ValueError):
+    except (OSError, ValueError, RecursionError, RuntimeError):
         return None
     block = data.get("env") if isinstance(data, dict) else None
     return block if isinstance(block, dict) else None
