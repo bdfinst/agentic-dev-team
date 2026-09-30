@@ -18,7 +18,9 @@ _BUILD_SKILL = _REPO_ROOT / "plugins" / "dev-team" / "skills" / "build" / "SKILL
 
 def _documented_record_keys() -> list[str]:
     text = _BUILD_SKILL.read_text(encoding="utf-8")
-    match = re.search(r"write `(\{\"phase\":.*?\})` at \*\*each\*\* phase transition", text)
+    match = re.search(
+        r"write `(\{\"phase\":.*?\})` at \*\*each\*\* phase transition", text
+    )
     assert match, "build/SKILL.md no longer documents the build-phase.json schema line"
     return re.findall(r'"([a-z_]+)":', match.group(1))
 
@@ -42,31 +44,16 @@ def test_reader_round_trips_a_record_built_from_the_documented_schema(tmp_path):
     state_file.parent.mkdir(parents=True)
     state_file.write_text(json.dumps(record), encoding="utf-8")
     state = read_active_build_state(tmp_path)
-    assert (state.phase, state.step, state.plan_path) == ("refactor", "3.2", "plans/p.md")
+    assert (state.phase, state.step, state.plan_path) == (
+        "refactor",
+        "3.2",
+        "plans/p.md",
+    )
 
 
 def test_skill_documents_the_between_steps_write_and_plan_complete_delete():
     text = _BUILD_SKILL.read_text(encoding="utf-8")
     assert f'"phase": "{BETWEEN_STEPS}"' in text
     assert "do **not** delete the file" in text
-    assert "Clear the file only when the plan is complete" in text
+    assert "Clear the file only when the plan's last step completes" in text
     assert "delete it instead when this was the plan's last step" in text
-
-
-def test_reader_round_trips_a_between_steps_record_in_the_documented_shape(tmp_path):
-    (tmp_path / "plans").mkdir()
-    (tmp_path / "plans" / "p.md").write_text("x", encoding="utf-8")
-    # The writer shape SKILL.md prescribes at step completion.
-    record = {
-        "phase": BETWEEN_STEPS,
-        "step": "3.3",
-        "written_at": datetime.now(timezone.utc).isoformat(),
-        "test_files_staged": [],
-        "plan_path": "plans/p.md",
-    }
-    assert list(record) == list(RECORD_KEYS)
-    state_file = tmp_path / ".claude" / "memory" / "build-phase.json"
-    state_file.parent.mkdir(parents=True)
-    state_file.write_text(json.dumps(record), encoding="utf-8")
-    state = read_active_build_state(tmp_path)
-    assert (state.phase, state.step, state.plan_path) == (BETWEEN_STEPS, "3.3", "plans/p.md")

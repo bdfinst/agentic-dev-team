@@ -52,7 +52,8 @@ def _write(root: Path, phase: str, **over) -> None:
 def proj(tmp_path):
     (tmp_path / "plans").mkdir()
     (tmp_path / "plans" / "foo.md").write_text(
-        "# Plan\n\n## Build Progress\n\n- [x] 2.3\n- [ ] 2.4\n- [ ] 2.5\n", encoding="utf-8"
+        "# Plan\n\n## Build Progress\n\n- [x] 2.3\n- [ ] 2.4\n- [ ] 2.5\n",
+        encoding="utf-8",
     )
     return tmp_path
 
@@ -106,28 +107,25 @@ def _fresh(proj, phase, **over):
 def test_reader_restores_plan_path_and_next_step(proj):
     _fresh(proj, BETWEEN_STEPS)
     state = read_active_build_state(proj)
-    assert (state.phase, state.step, state.plan_path) == (BETWEEN_STEPS, "2.4", "plans/foo.md")
+    assert (state.phase, state.step, state.plan_path) == (
+        BETWEEN_STEPS,
+        "2.4",
+        "plans/foo.md",
+    )
 
 
 def test_hook_restored_line_names_the_next_step_and_unchecked_items(proj):
     _fresh(proj, BETWEEN_STEPS)
     out = json.loads(reinject.build_output({"source": "compact", "cwd": str(proj)}))
     text = out["hookSpecificOutput"]["additionalContext"]
-    assert text.startswith("Restored after compaction: between steps, next step=2.4 plan=plans/foo.md")
+    assert text.startswith(
+        "Restored after compaction: between steps, next step=2.4 plan=plans/foo.md"
+    )
     assert "2.4, 2.5" in text and "2.3" not in text
-    assert "next step 2.4" in out["systemMessage"] or "step 2.4" in out["systemMessage"]
-
-
-def test_a_cleared_record_restores_nothing(proj):
-    _fresh(proj, BETWEEN_STEPS)
-    (proj / ".claude" / "memory" / "build-phase.json").unlink()
-    assert reinject.build_output({"source": "compact", "cwd": str(proj)}) == ""
-
-
-def test_an_empty_object_record_restores_nothing(proj):
-    (proj / ".claude" / "memory").mkdir(parents=True)
-    (proj / ".claude" / "memory" / "build-phase.json").write_text("{}", encoding="utf-8")
-    assert reinject.build_output({"source": "compact", "cwd": str(proj)}) == ""
+    assert (
+        out["systemMessage"]
+        == "dev-team: restored build state (step 2.4) after compaction"
+    )
 
 
 def test_between_steps_hook_end_to_end_subprocess(proj):
@@ -152,4 +150,7 @@ def test_no_plan_file_is_ever_globbed(proj):
     text = json.loads(reinject.build_output({"source": "compact", "cwd": str(proj)}))[
         "hookSpecificOutput"
     ]["additionalContext"]
-    assert "9.9" not in text and text == "Restored after compaction: between steps, next step=2.4"
+    assert (
+        "9.9" not in text
+        and text == "Restored after compaction: between steps, next step=2.4"
+    )

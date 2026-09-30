@@ -28,7 +28,8 @@ which replaced the former context-ceiling hook (ADRs 0011, 0016, 0037-0039).
    phase, step, plan path and unchecked `## Build Progress` items as
    `additionalContext` (at most 10,000 characters; phase and step survive
    truncation first). It reads `.claude/memory/build-phase.json`, so it only
-   has something to restore while a build step is in progress. It is
+   has something to restore while a build is in progress (a step, or
+   between steps). It is
    best-effort and fail-open.
 4. **`/handoff` is manual.** Run it yourself to compress the conversation
    (continue mode) or split off a side task (fork mode).
@@ -91,9 +92,9 @@ cliff:
 `settings.local.json` value can shadow the project one; the nudge names the
 source of an invalid value. Fix or remove that entry.
 
-**"Nothing restored after compaction."** `build-phase.json` is cleared when a
-build step completes, and records older than four hours are ignored; with no
-active step there is nothing to restore. Also check #2233.
+**"Nothing restored after compaction."** `build-phase.json` is deleted when the plan
+completes, and records older than four hours are ignored; with no active
+build there is nothing to restore. Also check #2233.
 
 **"The setup script refuses to write."** It aborts, leaving the file
 untouched, when `.claude/settings.json` is malformed, is a symlink, is not a
