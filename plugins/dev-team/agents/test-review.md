@@ -218,6 +218,15 @@ a **single** named finding:
 When fewer than 3 artifacts appear in a file, do not itemize them as individual
 low-severity nits — note their presence in the summary only.
 
+## Authoring checklist
+
+Write-time reflexes for the software-engineer; `scripts/authoring_digest.py` surfaces these per diff.
+
+- Assert observable behavior, not internal calls; every test has a specific assertion.
+- Cover empty/null/boundary and the error path for each new branch.
+- Double only what the blocker table allows; prefer real collaborators/fakes.
+- Test names state the scenario and expected outcome.
+
 ## Self-Challenge
 
 After producing findings, run the shared challenger loop in `${CLAUDE_PLUGIN_ROOT}/knowledge/adversarial-review-protocol.md` (Whole-file load: the slim shared methodology — The Loop + Output format — read in full), then work these test-review-specific challenges:
