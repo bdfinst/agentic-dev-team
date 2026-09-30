@@ -782,14 +782,15 @@ class TestBuildReportSpendSource:
         dup = result["duplicates"][0]
         assert dup["lens"] == "normal-review"
         assert dup["spend_source"] == "measured"
-        assert dup["avoidable_tokens_estimate"] == 100.0
-        assert result["avoidable_tokens_estimate"] == 100.0
-        # total_tokens_estimate: early has 1 (lens, file) occurrence
-        # (normal-review x foo.py) and late has 2 (normal-review x foo.py,
-        # normal-review x qux.py) -- 3 occurrences, all measured at 100.0
-        # each (flat per-lens average, size-invariant within the lens).
-        assert result["total_tokens_estimate"] == 300.0
-        assert result["avoidable_pct_of_total"] == 33.33
+        # late reviewed 2 files in ONE dispatch (avg 100): foo.py's share is
+        # 100 / 2, not the whole average (#2183).
+        assert dup["avoidable_tokens_estimate"] == 50.0
+        assert result["avoidable_tokens_estimate"] == 50.0
+        # total_tokens_estimate: one dispatch per checkpoint -- early
+        # (1 file) costs 100, late (2 files) costs 100 -- never one average
+        # per (lens, file) occurrence.
+        assert result["total_tokens_estimate"] == 200.0
+        assert result["avoidable_pct_of_total"] == 25.0
         assert result["spend_source_assumption"] == mrd._SPEND_SOURCE_ASSUMPTION
 
     def test_uncovered_lens_falls_back_to_the_byte_estimate(self, tmp_path):
@@ -1138,3 +1139,19 @@ class TestPrivacyBoundaryCli:
 
         assert rc == 0
         assert sentinel not in capsys.readouterr().out
+
+
+class TestMeasuredTotalNeverExceedsDispatchSpend:
+    def test_measured_total_is_one_average_per_checkpoint_lens_regardless_of_file_count(self):
+        # 216 files in one checkpoint (the #2183 repro shape) must cost one
+        # dispatch average, not 216 of them.
+        resolved = {
+            "lenses": ["normal-review"],
+            "files": {f"f{i}.py": {"bytes": 10, "hash": str(i)} for i in range(216)},
+        }
+        total = mrd._checkpoint_total_tokens(resolved, {"normal-review": 1000.0})
+        assert total == pytest.approx(1000.0)
+
+    def test_estimated_leg_is_unchanged_by_file_count(self):
+        tokens, source = mrd._occurrence_tokens("x-review", 3, {}, files_per_dispatch=50)
+        assert source == "estimated" and tokens == mrd.mfd.estimate_tokens(3)

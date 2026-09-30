@@ -100,6 +100,15 @@ After producing findings, run the shared challenger loop in `${CLAUDE_PLUGIN_ROO
 
 Append confidence level (High/Medium/Low) to the `summary` field.
 
+## Authoring checklist
+
+Write-time reflexes for the software-engineer; `scripts/authoring_digest.py` surfaces these per diff.
+
+- `const` by default; never `var`, and no `let` that is never reassigned.
+- Don't mutate arrays or parameters: spread/`toSorted`/`toReversed`/`slice` instead of `push`/`sort`/`splice`; return new objects.
+- No `delete param.prop` or `Object.assign(existing, ...)`; target a fresh object.
+- Keep functions pure; isolate side effects and global (`window.*`) state at the edge.
+
 ## Ignore
 
 Code structure and simple-delegation extraction generally (refactor-opportunity-review); this agent retains only the FP-specific style calls above (point-free/composition). Naming, tests, domain modeling, security (handled by other agents)

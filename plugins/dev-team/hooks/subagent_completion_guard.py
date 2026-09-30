@@ -148,6 +148,7 @@ if str(_LIB_DIR) not in sys.path:
     sys.path.insert(0, str(_LIB_DIR))
 
 from boundary_events import emit_boundary_event  # type: ignore[import-not-found]
+from instrument_log import append_row  # type: ignore[import-not-found]
 from stdin_json import read_stdin_json  # type: ignore[import-not-found]
 
 StopClassification = Literal[
@@ -283,6 +284,14 @@ def main() -> int:
         transcript_path = payload.get("transcript_path")
         if isinstance(transcript_path, str) and transcript_path:
             classification = classify_stop(transcript_path)
+            # Every classification, incl. clean/unreadable: the denominator
+            # the divergence rate needs (#2201). Observational only.
+            append_row(
+                "subagent-stops",
+                {"classification": classification},
+                cwd=payload.get("cwd"),
+                session_id=payload.get("session_id"),
+            )
             if classification in _EMIT_CLASSIFICATIONS:
                 emit_boundary_event(
                     payload.get("cwd"),

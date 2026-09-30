@@ -44,6 +44,7 @@ if str(_LIB_DIR) not in sys.path:
     sys.path.insert(0, str(_LIB_DIR))
 
 from agent_skill_hints import skills_for_agent_type  # type: ignore[import-not-found]
+from instrument_log import append_row  # type: ignore[import-not-found]
 from review_agent_registry import strip_plugin_prefix  # type: ignore[import-not-found]
 from stdin_json import read_stdin_json  # type: ignore[import-not-found]
 
@@ -105,6 +106,21 @@ def main() -> int:
         if updated_input is None:
             return 0
 
+        # Observational only (#2201): lets uptake be computed against the
+        # subagent transcripts' Skill tool calls.
+        append_row(
+            "skill-injection",
+            {
+                "agent_type": payload["tool_input"]["subagent_type"],
+                "skills": skills_for_agent_type(
+                    strip_plugin_prefix(payload["tool_input"]["subagent_type"]),
+                    _DEFAULT_AGENTS_DIR,
+                ),
+                "added_chars": len(updated_input["additionalContext"]),
+            },
+            cwd=payload.get("cwd"),
+            session_id=payload.get("session_id"),
+        )
         print(
             json.dumps(
                 {

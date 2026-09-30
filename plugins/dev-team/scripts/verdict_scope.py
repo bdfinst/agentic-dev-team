@@ -74,6 +74,8 @@ _HOOKS_LIB_DIR = _HERE.parent / "hooks" / "lib"
 if str(_HOOKS_LIB_DIR) not in sys.path:
     sys.path.insert(0, str(_HOOKS_LIB_DIR))
 
+from instrument_log import append_row  # type: ignore[import-not-found]
+
 # No `except ImportError` fallback (matches `select_lenses.py`'s own rule,
 # #1968): `hooks/lib/` ships inside this same plugin, always present
 # wherever this script runs. A hand-written second copy of
@@ -242,6 +244,20 @@ def resolve_for_root(lens_files: dict[str, list[str]], root: Path) -> dict:
     return resolve_dispatch(lens_files, load_verdicts(root), compute_file_hashes(all_files, root))
 
 
+def _log_skips(lens_files: dict[str, list[str]], result: dict, root: Path) -> None:
+    """Persist this consult's skip counts (#2201) -- fail-open, stdout untouched."""
+    skipped = sum(len(v) for v in result["skipped"].values())
+    append_row(
+        "ledger-skips",
+        {
+            "candidate_pairs": sum(len(v) for v in lens_files.values()),
+            "skipped_pairs": skipped,
+            "fully_skipped_lenses": result["fullySkippedLenses"],
+        },
+        cwd=root,
+    )
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--root", default=".", help="Repo/worktree root the ledger lives under")
@@ -260,6 +276,7 @@ def main(argv: list[str] | None = None) -> int:
     verdicts = load_verdicts(root)
 
     result = resolve_dispatch(lens_files, verdicts, file_hashes)
+    _log_skips(lens_files, result, root)
     print(json.dumps(result))
     return 0
 
