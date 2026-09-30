@@ -180,10 +180,11 @@ def d6_layered_context(root: Path, cfg: dict) -> dict:
 
 DEFAULT_CHECK_TARGETS = ("check", "verify", "ci", "all")
 _LINT_RE = re.compile(
-    r"(?<![A-Za-z])(?:lint|ruff|eslint|flake8|pylint|golangci|shellcheck|mypy|tsc|clippy)"
+    r"(?<![A-Za-z])(?:lint|ruff|eslint|flake8|pylint|golangci|shellcheck|mypy|tsc|clippy)(?![A-Za-z])"
 )
 _TEST_RE = re.compile(
-    r"(?<![A-Za-z])(?:test|pytest|jest|vitest|mocha|rspec|phpunit)"
+    r"(?<![A-Za-z])(?:test|pytest|unittest|ctest|gotestsum|tox|nox|jest|vitest|mocha|rspec|phpunit)"
+    r"(?![A-Za-z])"
 )
 _MAKE_FILES = ("Makefile", "makefile", "GNUmakefile", "justfile", "Justfile")
 
