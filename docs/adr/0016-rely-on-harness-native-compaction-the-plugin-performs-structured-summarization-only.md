@@ -4,7 +4,7 @@ Date: 2026-07-03
 
 ## Status
 
-Accepted
+Superseded by [43. Replace the context ceiling guard with harness autocompact](0043-replace-the-context-ceiling-guard-with-harness-autocompact.md)
 
 Refines [11. Enforce the context ceiling with a transcript-measured PreToolUse hook](0011-enforce-context-ceiling-with-transcript-measured-pretooluse-hook.md)
 

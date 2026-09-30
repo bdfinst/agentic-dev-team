@@ -111,7 +111,7 @@ def slim_by_name(mapping: dict) -> dict:
 
 # --- issue #2050: sidechain/attribution primitives, made public -----------
 #
-# `hooks/lib/cost_meter.py`, `hooks/context_ceiling_guard.py`, and
+# `hooks/lib/cost_meter.py`, the former context ceiling guard, and
 # `scripts/measure_full_file_duplication.py` each independently read the
 # harness's `isSidechain`/`attributionAgent` fields and (`cost_meter.py`/
 # `measure_full_file_duplication.py`) the Task/Agent-dispatch join. Folded

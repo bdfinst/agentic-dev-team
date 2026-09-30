@@ -149,7 +149,7 @@ class TestScratchFile:
     def test_config_change_writes_changelog(self, tmp_path):
         scratch = {
             "config_change": {
-                "parameter": "DEV_TEAM_CONTEXT_CEILING_PCT",
+                "parameter": "CLAUDE_AUTOCOMPACT_PCT_OVERRIDE",
                 "old_value": "40",
                 "new_value": "50",
                 "reason": "Test",
@@ -165,7 +165,7 @@ class TestScratchFile:
         changelog = tmp_path / ".claude" / "metrics" / "config-changelog.jsonl"
         assert changelog.exists()
         entry = json.loads(changelog.read_text().strip())
-        assert entry["parameter"] == "DEV_TEAM_CONTEXT_CEILING_PCT"
+        assert entry["parameter"] == "CLAUDE_AUTOCOMPACT_PCT_OVERRIDE"
         assert entry["new_value"] == "50"
 
     def test_no_config_change_no_changelog(self, tmp_path):

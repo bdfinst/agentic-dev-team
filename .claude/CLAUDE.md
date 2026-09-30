@@ -76,8 +76,6 @@ Covers the 11 source files in…
 
 ### Files that need care (bug-fix history first, then churn — check `get_risk` before editing)
 - `scripts/ci-local.sh` — 5 bug fixes, last fix today (bug magnet); 5 commits/90d
-- `plugins/dev-team/tests/hooks/test_context_ceiling_guard.py` — 4 bug fixes, last fix today (bug magnet); 5 commits/90d
-- `plugins/dev-team/hooks/context_ceiling_guard.py` — 4 bug fixes, last fix today (bug magnet); 5 commits/90d
 - `plugins/dev-team/skills/mutation-testing/scripts/mutation_kill_shared.py` — 4 bug fixes, last fix today (bug magnet); 7 commits/90d
 - `tests/scripts/test_stryker_shard_pipeline.py` — 4 bug fixes, last fix today (bug magnet); 5 commits/90d
 

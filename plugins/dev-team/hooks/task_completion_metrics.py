@@ -23,7 +23,7 @@ The hook consumes that file and clears it after writing.
   "rework_cycles": 0,
   "defects_found": 0,
   "config_change": {
-    "parameter": "DEV_TEAM_CONTEXT_CEILING_PCT",
+    "parameter": "CLAUDE_AUTOCOMPACT_PCT_OVERRIDE",
     "old_value": "40",
     "new_value": "50",
     "reason": "Increased for larger context models"

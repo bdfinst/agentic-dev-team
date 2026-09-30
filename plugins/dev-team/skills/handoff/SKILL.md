@@ -66,20 +66,21 @@ Compress conversation history to keep context utilization below 40% while contin
 
 ### When to Summarize
 
-The `hooks/context_ceiling_guard.py` hook's graduated bands are keyed to
-multiples of the *effective ceiling* — `min(ceiling_pct% of window, 350K
-tokens)` — not raw window percentage, so the same table applies whether the
-threshold is percentage-bound (small windows) or absolute-bound (large
-windows):
+`/handoff` is manual: nothing forces or blocks on it. Reach for it when a
+deliberate, structured summary beats the harness's generic compaction:
 
-| Multiple of the effective ceiling | Action |
-| --- | --- |
-| < 1x | No action — below the ceiling |
-| 1x – 1.25x | Nudge: consider running `/handoff` |
-| 1.25x – 1.5x | Run `/handoff` now |
-| 1.5x+ | Full summary to `.claude/memory/`, start a new conversation |
+- before a long phase ends, so the next phase starts from a reviewable
+  `.claude/memory/` file rather than replayed history;
+- when you notice the session is heavy (many file reads accumulated, turn
+  count above about 40, degraded output quality) and want to choose what
+  survives;
+- before a planned break in the work.
 
-**Measuring utilization**: `utilization = (input + cache_read + cache_creation) / model_context_window` — the same formula `hooks/context_ceiling_guard.py` reads from the transcript's most recent assistant-message usage. The window is auto-detected from the session; the guard's effective ceiling is `min(ceiling_pct% of window, 350K tokens)` (ADR 0038), so the trigger point stays conservative even on very large windows. Fallback signals: turn count > 40, many file reads accumulated, degraded output quality.
+The harness compacts on its own at the percentage `/dev-team:setup` configures
+(default 40%); a `/handoff` summary written first is the structured
+alternative to that generic summary.
+
+**Measuring utilization**: `utilization = (input + cache_read + cache_creation) / model_context_window`, from the most recent assistant-message usage in the session transcript.
 
 **Why 40%, not a higher number**: see [Context Loading Protocol → Why 40%](../context-loading-protocol/SKILL.md#why-40).
 

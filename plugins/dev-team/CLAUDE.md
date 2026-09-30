@@ -25,7 +25,7 @@ Every change must reduce friction: **fewer missteps, less rework, lower token co
 ## Core Principles
 
 1. **Selective Agent Loading**: load only necessary agents; target < 10,000 tokens for simple tasks.
-2. **Context Ceiling**: `min(40% of window, 350K)` — see [Context Management](docs/context-management.md); enforced by `hooks/context_ceiling_guard.py`.
+2. **Context Management**: the harness compacts at `CLAUDE_AUTOCOMPACT_PCT_OVERRIDE` (default 40%, set per repo by `/setup`) — see [Context Management](docs/context-management.md); `/handoff` is manual.
 3. **Persona-Driven Behavior**: specs in `.claude/agents/`. Build concurrency via `DEV_TEAM_MAX_PARALLEL_BUILDS`: unset → `1` (sequential); set `--jobs`/env to opt into fan-out, capped by wave width.
 4. **Human-in-the-Loop**: autonomous agents, human oversight.
 5. **Dynamic Configuration**: config changes → `.claude/metrics/config-changelog.jsonl`.
@@ -81,7 +81,7 @@ All agents apply the **[Quality Gate Pipeline](skills/quality-gate-pipeline/SKIL
 
 **Quality ownership.** Green means the whole suite, not the diff; fix or triage red — never step over it.
 
-Hooks: `pre_tool_guard.py` blocks sensitive path writes; `destructive_guard.py` warns on destructive commands; `context_ceiling_guard.py` enforces the context ceiling (see above).
+Hooks: `pre_tool_guard.py` blocks sensitive path writes; `destructive_guard.py` warns on destructive commands.
 
 ## Performance Metrics
 

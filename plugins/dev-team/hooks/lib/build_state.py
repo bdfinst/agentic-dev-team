@@ -17,7 +17,7 @@ compaction between steps still restores the plan and next step. Only the
 them, and an old one is ignored by the same staleness rule below.
 
 A record whose `written_at` is missing/unparseable, or older than
-`STALE_AFTER_SECONDS` (shared with `test_file_classify.py`: a crashed `/build`
+`STALE_AFTER_SECONDS` or more than `FUTURE_SKEW_SECONDS` in the future (shared with `test_file_classify.py`: a crashed `/build`
 must not haunt later sessions), is also treated as cleared.
 
 `plan_path` is taken verbatim from the record — never globbed or searched —
@@ -42,6 +42,9 @@ RECORD_KEYS = ("phase", "step", "written_at", "test_files_staged", "plan_path")
 
 #: `phase` value `/build` writes at step completion in place of deleting the file.
 BETWEEN_STEPS = "between-steps"
+
+#: A `written_at` further ahead than this is clock skew or forgery, never "fresh".
+FUTURE_SKEW_SECONDS = 300
 
 STATE_RELPATH = Path(".claude") / "memory" / "build-phase.json"
 
@@ -103,7 +106,8 @@ def read_active_build_state(
     written_at = _parse_written_at(data.get("written_at"))
     if written_at is None:
         return None
-    if (time.time() if now is None else now) - written_at > STALE_AFTER_SECONDS:
+    age = (time.time() if now is None else now) - written_at
+    if age > STALE_AFTER_SECONDS or age < -FUTURE_SKEW_SECONDS:
         return None
     return BuildState(
         phase=phase,

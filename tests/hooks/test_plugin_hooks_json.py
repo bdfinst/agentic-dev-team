@@ -18,9 +18,8 @@ These tests pin three things:
 ADR 0026 retired `hooks/agent_model_resolve.py` (agents now declare
 `model:`/`effort:` directly in frontmatter, resolved natively by the
 harness before dispatch — no plugin-side PreToolUse hook in that path
-anymore). `context_ceiling_guard.py` is the hook that remains registered
-on the subagent-dispatch matcher, enforcing the context ceiling on every
-Agent/Task dispatch.
+anymore). `agent_dispatch_ledger.py` is the hook that remains registered
+on the subagent-dispatch matcher, recording every Agent/Task dispatch.
 """
 
 from __future__ import annotations
@@ -36,7 +35,7 @@ HOOKS_JSON = PLUGIN / "hooks" / "hooks.json"
 SETTINGS_JSON = PLUGIN / "settings.json"
 
 DISPATCH_TOOL_NAMES = ("Agent", "Task")
-DISPATCH_HOOK_SCRIPTS = ("context_ceiling_guard.py",)
+DISPATCH_HOOK_SCRIPTS = ("agent_dispatch_ledger.py", "subagent_skill_context.py")
 
 
 def _load_hooks(path: Path) -> dict:
@@ -96,10 +95,8 @@ def test_hooks_json_mirrors_settings_json_registrations() -> None:
 def _dispatch_entries(hooks: dict) -> list[dict]:
     """PreToolUse entries whose matcher covers subagent dispatch (Agent/Task).
 
-    Matched by matcher, not by script name: context_ceiling_guard.py is also
-    registered under the separate "Skill" matcher (it nudges on capability
-    loading generally, not just subagent dispatch), so filtering by script
-    name alone would incorrectly pull that entry in too.
+    Matched by matcher, not by script name, so a script registered under
+    several matchers never pulls an unrelated entry in.
     """
     return [
         entry

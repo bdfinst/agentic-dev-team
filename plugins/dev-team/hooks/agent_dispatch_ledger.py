@@ -2,7 +2,7 @@
 """agent_dispatch_ledger.py — PreToolUse dispatch-ledger hook (#1461).
 
 Registered in `settings.json`'s existing `PreToolUse` `"Agent|Task"` matcher
-(alongside `context_ceiling_guard.py`). Records a `boundary-events.jsonl`
+(alongside `subagent_skill_context.py`). Records a `boundary-events.jsonl`
 `"record"` event whenever a genuine review-agent dispatch fires, so
 `hooks/pre_commit_review.py`'s `.review-passed` gate can later corroborate
 that a hash-matching write was backed by real, independent Agent-tool

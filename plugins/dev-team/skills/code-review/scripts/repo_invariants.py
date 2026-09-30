@@ -57,6 +57,7 @@ from __future__ import annotations
 import argparse
 import json
 import re
+import subprocess
 import sys
 from pathlib import Path
 
@@ -579,13 +580,6 @@ _TRANSCRIPT_PARSING_ALLOWLIST = {
         "comments, which document the harness fields this hook's DECISIONS "
         "are still based on -- prose, not a second parsing implementation"
     ),
-    "plugins/dev-team/hooks/context_ceiling_guard.py": (
-        "migrated onto session_log.records in #2050 (_is_sidechain and the "
-        "usage-field reads both delegate to _records.*, verified "
-        "byte-identical against the hook's own 204-test suite); the "
-        "identifiers remain in this file's own docstrings describing why "
-        "the fields matter to this hook's window-detection decision"
-    ),
     "scripts/measure_full_file_duplication.py": (
         "migrated onto session_log.records in #2050 -- the join-map "
         "algorithm this file's own docstring once conceded duplicating is "
@@ -639,10 +633,6 @@ _TRANSCRIPT_PARSING_ALLOWLIST = {
     "plugins/dev-team/skills/headless-run/scripts/isolated_dispatch.py": (
         "reads a pre-extracted usage dict's cache-token fields for its own "
         "cost estimate -- never a raw transcript record"
-    ),
-    "scripts/context_ceiling_report.py": (
-        "reads a pre-extracted usage dict's cache-token fields for context "
-        "accounting -- never a raw transcript record"
     ),
     "scripts/run_integration_eval.py": (
         "reads a pre-extracted usage dict's known token fields to sum "
@@ -908,6 +898,101 @@ def check_ledger_filename_single_sourced(changed_files=None) -> list[dict]:
     return []
 
 
+# --- #2177: the context-ceiling hook and its report script are gone ----------
+#
+# ADR 0043 replaced the forced-handoff hook with harness autocompact and
+# deleted the hook, its report script and the docs around them. A stale
+# reference to either name is a dangling pointer to a file that no longer
+# exists. History (the changelog, superseded ADRs) legitimately keeps the
+# names; tests that assert the files stay gone must spell them out.
+
+_CEILING_REF_RE = re.compile(
+    rb"context_ceiling_(?:guard|report)|context-ceiling-validation|"
+    rb"DEV_TEAM_CONTEXT_ABS_CEILING"
+)
+_CEILING_REF_EXEMPT_PREFIXES = ("docs/adr/",)
+_CEILING_REF_EXEMPT_FILES = frozenset(
+    {
+        "plugins/dev-team/CHANGELOG.md",
+        # Tests that pin the removal, so they name what must stay absent.
+        "tests/hooks/test_autocompact_hook_registration.py",
+        "tests/scripts/test_no_ceiling_event_consumers.py",
+        "tests/repo/test_no_live_ceiling_refs.py",
+        "tests/skills/test_handoff_manual_only.py",
+    }
+)
+_CEILING_REF_MAX_BYTES = 2_000_000
+
+
+def _tracked_files() -> list[str] | None:
+    """Repo-relative tracked paths via `git ls-files`, or None when git is
+    unavailable or fails (the caller then skips rather than walking the tree)."""
+    try:
+        out = subprocess.run(
+            ["git", "ls-files", "-z"],
+            cwd=_REPO_ROOT,
+            capture_output=True,
+            check=True,
+            timeout=30,
+        ).stdout.decode("utf-8", "replace")
+    except (OSError, subprocess.SubprocessError):
+        return None
+    return [p for p in out.split("\0") if p]
+
+
+def _is_marketplace_checkout() -> bool:
+    """True only in this repo's own checkout. The check ships in the plugin,
+    so downstream it runs from the plugin cache, where `_REPO_ROOT` is not a
+    repo this invariant governs."""
+    return (_REPO_ROOT / ".claude-plugin" / "marketplace.json").is_file()
+
+
+def check_no_live_ceiling_refs(changed_files=None) -> list[dict]:
+    """No tracked file outside history may reference the removed context-
+    ceiling hook or report script by name (#2177, ADR 0043).
+
+    Corpus-wide by design: a dangling pointer is wrong whether or not this
+    changeset touched it, so `changed_files` is ignored. Returns [] outside
+    this repo's own checkout and when git cannot list files.
+    """
+    if not _is_marketplace_checkout():
+        return []
+    tracked = _tracked_files()
+    if tracked is None:
+        return []
+    findings = []
+    self_rel = _repo_relative(Path(__file__).resolve())
+    for rel in sorted(tracked):
+        if (
+            rel == self_rel
+            or rel in _CEILING_REF_EXEMPT_FILES
+            or rel.startswith(_CEILING_REF_EXEMPT_PREFIXES)
+        ):
+            continue
+        path = _REPO_ROOT / rel
+        try:
+            if not path.is_file() or path.stat().st_size > _CEILING_REF_MAX_BYTES:
+                continue
+            data = path.read_bytes()  # bytes: tracked binaries are not UTF-8
+        except OSError:
+            continue
+        if _CEILING_REF_RE.search(data):
+            findings.append(
+                {
+                    "invariant": "no-live-ceiling-refs",
+                    "file": rel,
+                    "message": (
+                        f"{rel} references the removed context-ceiling hook, "
+                        "report script, validation doc or env var. All were "
+                        "removed by #2177 (ADR 0043); point at "
+                        "docs/adr/0043-replace-the-context-ceiling-guard-with-"
+                        "harness-autocompact.md or drop the reference."
+                    ),
+                }
+            )
+    return findings
+
+
 # Registered checks. Each entry takes an optional `changed_files` list and
 # returns findings. See the module docstring for why that argument exists.
 CHECKS = [
@@ -920,6 +1005,7 @@ CHECKS = [
     check_churn_report_window_key_safe_access,
     check_normative_content_single_sourced,
     check_ledger_filename_single_sourced,
+    check_no_live_ceiling_refs,
 ]
 
 

@@ -744,8 +744,8 @@ def _resident_and_spent(path: Path) -> tuple[int, int]:
 
       * resident_tokens = the MOST-RECENT main-loop usage record's context
         occupancy (input + cache_read + cache_creation) — what still occupies
-        the window at this point, the same numerator context_ceiling_guard.py
-        uses. Overwritten each turn so it ends as the last turn's occupancy.
+        the window at this point, the same numerator the retired context ceiling
+        guard used (#2177). Overwritten each turn so it ends as the last turn's occupancy.
       * spent_output_cumulative = the sum of output_tokens across all main-loop
         turns so far — the one-time generation bill accrued to this point.
 

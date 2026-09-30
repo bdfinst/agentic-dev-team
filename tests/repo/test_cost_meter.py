@@ -595,66 +595,51 @@ def test_every_current_model_has_a_pricing_entry(model_id: str) -> None:
     assert rate["input"] > 0 and rate["output"] > 0, rate
 
 
-def test_every_model_family_context_guard_recognizes_has_a_pricing_entry() -> None:
-    """#1844: the parametrize list above is a hand-maintained enumeration — it
-    can only ever catch a DELETED pricing entry (something that used to be in
-    the list going missing from the file), never a NEWLY-RELEASED model that
-    is missing one, which is the exact #1830 incident shape (`claude-opus-5`
-    shipped as this repo's default model with no pricing entry).
+def _agent_frontmatter_models() -> dict[str, str]:
+    """`model:` value of every shipped agent, read from its YAML frontmatter.
 
-    No corpus of real/fixture session transcripts with a `message.model`
-    field lives in this repo's test tree to derive "models actually in use"
-    from (transcripts here are synthesized inline per-test, not a maintained
-    fixture set) — so this instead cross-checks against a DIFFERENT,
-    independently-maintained, already-existing source of "models this repo's
-    tooling currently recognizes":
-    `context_ceiling_guard.py`'s `_LARGE_WINDOW_RE`/`_HAIKU_RE` (see #1843),
-    maintained for context-window sizing, not pricing. A model family/version
-    named there with no matching pricing entry fails this test — which is
-    precisely what would have caught #1830, since `claude-opus-5` landed in
-    that guard's regex too (it is `sonnet-5`'s sibling in the same 1M-window
-    generation).
-
-    This is a cross-check, not a certification: both files could in
-    principle go stale together. It is still strictly stronger than the old
-    hand list, which could never fail this way at all — and it costs zero
-    new bookkeeping, since `context_ceiling_guard.py`'s regex already has to
-    be kept current for its own (unrelated) purpose.
+    An oracle independent of the pricing file and of any hand-kept list: the
+    agents are what actually dispatch, so a model they name and pricing lacks
+    is spend priced at $0.00.
     """
-    hooks_dir = REPO_ROOT / "plugins" / "dev-team" / "hooks"
-    if str(hooks_dir) not in sys.path:
-        sys.path.insert(0, str(hooks_dir))
-    import context_ceiling_guard as _guard  # type: ignore[import-not-found]
+    found: dict[str, str] = {}
+    for path in sorted((REPO_ROOT / "plugins" / "dev-team" / "agents").glob("*.md")):
+        lines = path.read_text(encoding="utf-8").splitlines()
+        if not lines or lines[0].strip() != "---":
+            continue
+        for line in lines[1:]:
+            if line.strip() == "---":
+                break
+            if line.startswith("model:"):
+                found[path.name] = line.split(":", 1)[1].strip().strip("\"'")
+    return found
 
-    fragments = {
-        fragment.strip()
-        for pattern in (_guard._LARGE_WINDOW_RE.pattern, _guard._HAIKU_RE.pattern)
-        for fragment in pattern.split("|")
-        if fragment.strip()
+
+def _unpriced_agent_models(pricing: dict) -> dict[str, str]:
+    models, aliases = pricing["models"], pricing.get("aliases", {})
+    return {
+        name: model
+        for name, model in _agent_frontmatter_models().items()
+        if model not in models and aliases.get(model) not in models
     }
 
-    models = _pricing()["models"]
-    assert models, "model-pricing.json has no models at all"
 
-    missing = sorted(
-        fragment
-        for fragment in fragments
-        if not any(fragment.lower() in key.lower() for key in models)
-    )
-    assert not missing, (
-        "context_ceiling_guard.py recognizes model family/version "
-        f"{missing!r} with no matching pricing entry in model-pricing.json. "
-        f"Known pricing keys: {sorted(models)}"
-    )
+def test_every_agent_frontmatter_model_resolves_to_a_priced_model() -> None:
+    declared = _agent_frontmatter_models()
+    assert len(declared) >= 30, f"frontmatter scan found only {len(declared)} agents"
+    assert _unpriced_agent_models(_pricing()) == {}
 
-    # Sanity floor: the pricing file's own key set must still span every
-    # family this repo currently ships agents against, independent of the
-    # guard's regex (belt-and-suspenders against both going stale together).
-    known_family_prefixes = ("claude-opus", "claude-sonnet", "claude-haiku")
-    for prefix in known_family_prefixes:
-        assert any(key.startswith(prefix) for key in models), (
-            f"no pricing entry starts with {prefix!r}; known: {sorted(models)}"
-        )
+
+def test_frontmatter_oracle_flags_a_model_with_no_pricing_entry() -> None:
+    """Mutation check: drop the alias an agent relies on and the oracle must fail."""
+    pricing = _pricing()
+    used = set(_agent_frontmatter_models().values())
+    alias = next(a for a in sorted(used) if a in pricing.get("aliases", {}))
+    mutated = {
+        "models": pricing["models"],
+        "aliases": {k: v for k, v in pricing["aliases"].items() if k != alias},
+    }
+    assert _unpriced_agent_models(mutated), alias
 
 
 def test_every_alias_resolves_to_a_priced_model() -> None:

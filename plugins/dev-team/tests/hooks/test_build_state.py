@@ -15,6 +15,7 @@ from _repo_root import REPO_ROOT as _REPO_ROOT
 sys.path.insert(0, str(_REPO_ROOT / "plugins" / "dev-team" / "hooks" / "lib"))
 
 from build_state import (
+    FUTURE_SKEW_SECONDS,
     STALE_AFTER_SECONDS,
     BuildState,
     read_active_build_state,
@@ -158,6 +159,22 @@ def test_stale_record_is_ignored_and_fresh_one_is_kept(repo):
     fresh = datetime.fromtimestamp(now - STALE_AFTER_SECONDS + 60, timezone.utc).isoformat()
     _write_state(repo, _record(written_at=fresh))
     assert read_active_build_state(repo, now=now) is not None
+
+
+def test_future_written_at_beyond_skew_is_cleared(repo):
+    now = time.time()
+    skew = FUTURE_SKEW_SECONDS
+    far = datetime.fromtimestamp(now + skew + 60, timezone.utc).isoformat()
+    ok = datetime.fromtimestamp(now + skew - 60, timezone.utc).isoformat()
+    _write_state(repo, _record(written_at=far))
+    assert read_active_build_state(repo, now=now) is None
+    _write_state(repo, _record(written_at=ok))
+    assert read_active_build_state(repo, now=now) is not None
+
+
+def test_year_9999_written_at_is_cleared(repo):
+    _write_state(repo, _record(written_at="9999-01-01T00:00:00Z"))
+    assert read_active_build_state(repo) is None
 
 
 @pytest.mark.parametrize("written_at", [None, "", "yesterday", 5])

@@ -42,3 +42,4 @@
 * [40. Evaluate splitting orchestrator.py: no-go](0040-evaluate-splitting-orchestrator-py-no-go.md)
 * [41. Autoship's per-round agent dispatch is not ADR 0022's rejected sweep](0041-autoship-step-2b-dispatch-is-not-the-rejected-sweep.md)
 * [42. Unify the session extractors](0042-unify-the-session-extractors.md)
+* [43. Replace the context ceiling guard with harness autocompact](0043-replace-the-context-ceiling-guard-with-harness-autocompact.md)
