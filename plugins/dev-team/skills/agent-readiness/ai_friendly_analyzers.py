@@ -9,7 +9,9 @@ policy beyond a safe fallback when a key is absent.
 
 from __future__ import annotations
 
+import json
 import os
+import re
 from pathlib import Path
 
 GUIDE = "knowledge/ai-friendly-repo-guidelines.md"
@@ -172,8 +174,132 @@ def d6_layered_context(root: Path, cfg: dict) -> dict:
     )
 
 
+# --------------------------------------------------------------------------
+# B5: composite check command present.
+# --------------------------------------------------------------------------
+
+DEFAULT_CHECK_TARGETS = ("check", "verify", "ci", "all")
+_LINT_RE = re.compile(
+    r"(?<![A-Za-z])(?:lint|ruff|eslint|flake8|pylint|golangci|shellcheck|mypy|tsc|clippy)"
+)
+_TEST_RE = re.compile(
+    r"(?<![A-Za-z])(?:test|pytest|jest|vitest|mocha|rspec|phpunit)"
+)
+_MAKE_FILES = ("Makefile", "makefile", "GNUmakefile", "justfile", "Justfile")
+
+
+def _read(path: Path) -> str | None:
+    try:
+        return path.read_text(errors="ignore")
+    except OSError:
+        return None
+
+
+def _recipe_bodies(text: str, names: set[str]) -> list[tuple[str, str]]:
+    """Targets/recipes named in `names` with prerequisites + indented body."""
+    out: list[tuple[str, str]] = []
+    lines = text.splitlines()
+    for i, line in enumerate(lines):
+        m = re.match(r"^([A-Za-z0-9_.-]+)[^:=\n]*:(?!=)(.*)$", line)
+        if not m or m.group(1) not in names:
+            continue
+        body = [m.group(2)]
+        for nxt in lines[i + 1 :]:
+            if nxt.strip() and nxt[0] not in " \t":
+                break
+            body.append(nxt)
+        out.append((m.group(1), "\n".join(body)))
+    return out
+
+
+def _package_json_bodies(text: str, names: set[str]) -> list[tuple[str, str]]:
+    try:
+        data = json.loads(text)
+    except ValueError:
+        return []
+    scripts = data.get("scripts") if isinstance(data, dict) else None
+    if not isinstance(scripts, dict):
+        return []
+    return [
+        (k, v) for k, v in scripts.items() if k in names and isinstance(v, str)
+    ]
+
+
+def _pyproject_bodies(text: str, names: set[str]) -> list[tuple[str, str]]:
+    out: list[tuple[str, str]] = []
+    lines = text.splitlines()
+    for i, line in enumerate(lines):
+        m = re.match(r"^\s*([A-Za-z0-9_.-]+)\s*=\s*(.*)$", line)
+        if not m or m.group(1) not in names:
+            continue
+        body = [m.group(2)]
+        for nxt in lines[i + 1 : i + 16]:
+            if re.match(r"^\s*[\w.\"-]+\s*=", nxt) or nxt.startswith("["):
+                break
+            body.append(nxt)
+        out.append((m.group(1), "\n".join(body)))
+    return out
+
+
+def b5_composite_check_command(root: Path, cfg: dict) -> dict:
+    anchor = "deterministic-verification--fast-feedback-loops"
+    names = set(cfg.get("check_target_names") or DEFAULT_CHECK_TARGETS)
+    ordered = [n for n in DEFAULT_CHECK_TARGETS if n in names]
+    shown = "|".join(ordered + sorted(names - set(ordered)))
+    threshold = f"a {shown} target whose body has a lint and a test command"
+    sources: list[tuple[str, list[tuple[str, str]]]] = []
+    for mf in _MAKE_FILES:
+        text = _read(root / mf)
+        if text is not None:
+            sources.append((mf, _recipe_bodies(text, names)))
+    text = _read(root / "package.json")
+    if text is not None:
+        sources.append(("package.json", _package_json_bodies(text, names)))
+    text = _read(root / "pyproject.toml")
+    if text is not None:
+        sources.append(("pyproject.toml", _pyproject_bodies(text, names)))
+    partial = None
+    for fname, bodies in sources:
+        for name, body in bodies:
+            lint, test = bool(_LINT_RE.search(body)), bool(_TEST_RE.search(body))
+            if lint and test:
+                return _score(
+                    2,
+                    _evidence(
+                        f"{fname} target '{name}' runs lint and test",
+                        threshold,
+                        "none needed",
+                        anchor,
+                    ),
+                )
+            if partial is None:
+                missing = "test" if lint else "lint" if test else "lint and test"
+                partial = (fname, name, missing)
+    if partial:
+        fname, name, missing = partial
+        return _score(
+            1,
+            _evidence(
+                f"{fname} target '{name}' lacks a {missing} command",
+                threshold,
+                f"make '{name}' run both lint and tests",
+                anchor,
+            ),
+        )
+    return _score(
+        0,
+        _evidence(
+            f"no {shown} target in Makefile, justfile, package.json or pyproject.toml",
+            threshold,
+            "add one command that runs lint and tests together",
+            anchor,
+        ),
+    )
+
+
 # Merged into scanner.ANALYZERS.
 AI_FRIENDLY_ANALYZERS: dict = {
     "D5_claude_md_size": d5_claude_md_size,
     "D6_layered_context": d6_layered_context,
+    "B5_composite_check_command": b5_composite_check_command,
 }

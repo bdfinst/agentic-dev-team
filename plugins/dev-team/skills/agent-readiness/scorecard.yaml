@@ -40,6 +40,7 @@ criteria:
     B2_reproducible_env: { mvp: true }
     B3_dependency_management: { mvp: true }
     B4_ci_pipeline: { mvp: false }
+    B5_composite_check_command: { mvp: true }  # #2178
   code_quality:
     C1_formatting: { mvp: true }
     C2_linting: { mvp: true }
@@ -65,6 +66,10 @@ criteria:
     V2_precommit_hooks: { mvp: true }
     V3_commit_conventions: { mvp: true }
     V4_dependency_scanning: { mvp: true }
+
+# Target names B5 accepts as a composite check command (Makefile/justfile/
+# package.json/pyproject).
+check_target_names: [check, verify, ci, all]
 
 thresholds:
   file_size_p90_small: 300   # source-file p90 line count <= this -> score 2

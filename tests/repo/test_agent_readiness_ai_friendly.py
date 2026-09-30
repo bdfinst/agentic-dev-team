@@ -6,6 +6,7 @@ criteria. The pre-existing tests/repo/test_agent_readiness.py is untouched.
 
 from __future__ import annotations
 
+import json
 import os
 import sys
 from pathlib import Path
@@ -202,3 +203,94 @@ def test_scorecard_version_bumped_and_d5_d6_registered() -> None:
     assert cfg["version"] == "1.1-mvp"
     assert cfg["criteria"]["documentation"]["D5_claude_md_size"]["mvp"] is True
     assert cfg["criteria"]["documentation"]["D6_layered_context"]["mvp"] is True
+
+
+def _crit(data: dict, cat: str, crit: str) -> dict:
+    return data["categories"][cat]["criteria"][crit]
+
+
+# --------------------------------------------------------------------------
+# B5 composite check command
+# --------------------------------------------------------------------------
+
+
+def _b5(root: Path, cfg: dict | None = None) -> dict:
+    return afa.b5_composite_check_command(root, cfg or _cfg())
+
+
+def test_b5_makefile_check_with_lint_and_test_passes(tmp_path: Path) -> None:
+    (tmp_path / "Makefile").write_text("check: lint test\nlint:\n\truff .\n")
+    res = _b5(tmp_path)
+    assert res["score"] == 2 and "Makefile target 'check'" in res["evidence"]
+
+
+def test_b5_makefile_recipe_body_counts(tmp_path: Path) -> None:
+    (tmp_path / "Makefile").write_text("verify:\n\truff check .\n\tpytest -q\n")
+    assert _b5(tmp_path)["score"] == 2
+
+
+def test_b5_package_json_script_passes(tmp_path: Path) -> None:
+    (tmp_path / "package.json").write_text(
+        json.dumps({"scripts": {"ci": "npm run lint && npm test"}})
+    )
+    assert _b5(tmp_path)["score"] == 2
+
+
+def test_b5_pyproject_and_justfile_pass(tmp_path: Path) -> None:
+    (tmp_path / "pyproject.toml").write_text(
+        '[tool.poe.tasks]\nall = ["ruff", "pytest"]\n'
+    )
+    assert _b5(tmp_path)["score"] == 2
+    other = tmp_path / "j"
+    other.mkdir()
+    (other / "justfile").write_text("check:\n    eslint .\n    vitest run\n")
+    assert _b5(other)["score"] == 2
+
+
+def test_b5_missing_command_scores_zero_with_gap(tmp_path: Path) -> None:
+    (tmp_path / "Makefile").write_text("build:\n\tgcc x.c\n")
+    res = _b5(tmp_path)
+    assert res["score"] == 0
+    assert "check|verify|ci|all" in res["evidence"]
+    assert "to fix:" in res["evidence"]
+    assert "deterministic-verification--fast-feedback-loops" in res["evidence"]
+
+
+def test_b5_partial_target_scores_one(tmp_path: Path) -> None:
+    (tmp_path / "Makefile").write_text("check:\n\tpytest\n")
+    res = _b5(tmp_path)
+    assert res["score"] == 1 and "lacks a lint command" in res["evidence"]
+
+
+def test_b5_lookalike_words_do_not_count(tmp_path: Path) -> None:
+    (tmp_path / "Makefile").write_text("check:\n\techo latest contest\n")
+    assert _b5(tmp_path)["score"] == 1
+
+
+def test_b5_malformed_and_unreadable_inputs_do_not_crash(tmp_path: Path) -> None:
+    (tmp_path / "package.json").write_text("{not json")
+    (tmp_path / "Makefile").mkdir()  # a directory where a file is expected
+    (tmp_path / "pyproject.toml").write_bytes(b"\xff\xfe\x00bad")
+    assert _b5(tmp_path)["score"] == 0
+    (tmp_path / "package.json").write_text('{"scripts": ["check"]}')
+    assert _b5(tmp_path)["score"] == 0
+
+
+def test_b5_target_names_override_changes_score_and_evidence(tmp_path: Path) -> None:
+    (tmp_path / "Makefile").write_text("gate: lint test\n")
+    assert _b5(tmp_path)["score"] == 0
+    cfg = _cfg()
+    cfg["check_target_names"] = ["gate"]
+    res = _b5(tmp_path, cfg)
+    assert res["score"] == 2 and "'gate'" in res["evidence"]
+
+
+def test_b5_registered_in_build_env_and_fixture_passes() -> None:
+    assert _cfg()["criteria"]["build_env"]["B5_composite_check_command"]["mvp"]
+    data = _scan(FIX / "repo_well_configured")
+    assert _crit(data, "build_env", "B5_composite_check_command")["score"] == 2
+    assert _scan(FIX / "repo_minimal")["tier"] == "Agent-Hostile"
+
+
+def test_t4_stays_deferred() -> None:
+    assert _cfg()["criteria"]["test_infrastructure"]["T4_single_command"]["mvp"] is False
