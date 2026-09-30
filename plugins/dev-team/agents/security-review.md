@@ -186,6 +186,15 @@ These findings are NEVER suppressed by `ACCEPTED-RISKS.md` because they represen
 
 When a finding is an untrusted-input or declared-schema boundary, a `suggestedFix` may cross-reference the matching test technique: parser/deserializer hardening → `${CLAUDE_PLUGIN_ROOT}/knowledge/testing-techniques/fuzz.md`; payload-shape conformance → `${CLAUDE_PLUGIN_ROOT}/knowledge/testing-techniques/schema-validation.md`.
 
+## Authoring checklist
+
+Write-time reflexes for the software-engineer; `scripts/authoring_digest.py` surfaces these per diff.
+
+- Validate/encode untrusted input at the boundary; parameterize queries, never concatenate.
+- No secrets, tokens, or PII in code, logs, or error messages.
+- Enforce authn/authz on every new route or handler, server-side.
+- Use vetted crypto primitives; no MD5/SHA1 for security, no hand-rolled schemes.
+
 ## Self-Challenge
 
 After producing findings, run the shared challenger loop in `${CLAUDE_PLUGIN_ROOT}/knowledge/adversarial-review-protocol.md` (Whole-file load: the slim shared methodology — The Loop + Output format — read in full), then work these security-review-specific challenges:

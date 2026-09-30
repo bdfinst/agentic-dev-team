@@ -66,6 +66,14 @@ Algorithmic:
 
 `get_health`'s performance-dimension scoring is available to corroborate findings.
 
+## Authoring checklist
+
+Write-time reflexes for the software-engineer; `scripts/authoring_digest.py` surfaces these per diff.
+
+- No query or I/O inside a loop; batch or prefetch.
+- Bound every collection, cache, and retry; set timeouts on every external call.
+- Close resources (files, connections) via context manager/`finally`.
+
 ## Self-Challenge
 
 After producing findings, run the shared challenger loop in `${CLAUDE_PLUGIN_ROOT}/knowledge/adversarial-review-protocol.md` (Whole-file load: the slim shared methodology — The Loop + Output format — read in full), then work these performance-review-specific challenges:

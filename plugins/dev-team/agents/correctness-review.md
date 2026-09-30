@@ -235,6 +235,18 @@ intent — so this drop rule does not apply to it; report it at
    `confidence: medium` and say which artifact you believe is
    authoritative.
 
+## Authoring checklist
+
+Write-time reflexes for the software-engineer; `scripts/authoring_digest.py` surfaces these per diff.
+
+- Assign every variable you declare; no dead declarations.
+- Interpolate strings meant to be dynamic (f-string/template); no literal `{x}`.
+- Guard inputs the name/docstring promises to reject (empty, null, wrong type).
+- Check `<` vs `<=`, length-1, first/last element on every range or slice.
+- Re-read each condition: does true take the branch its name says?
+- Verify library/runtime claims by running them; don't assert from memory.
+- Match docstring error behavior (raise vs return) to what the code does.
+
 ## Self-Challenge
 
 After producing findings, run the shared challenger loop in

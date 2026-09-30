@@ -101,6 +101,15 @@ Consistency:
 - Same concept named differently across declarations — call this out as **inconsistent naming** in the finding `message`, and list the variant names
 - Non-standard abbreviations
 
+## Authoring checklist
+
+Write-time reflexes for the software-engineer; `scripts/authoring_digest.py` surfaces these per diff.
+
+- Names state intent: functions are verbs, values are nouns.
+- Booleans `is/has/can/should`; collections plural; no type-suffix names (`dataList`).
+- Replace magic numbers/strings with named constants.
+- Match sibling naming conventions in the file before inventing new ones.
+
 ## Self-Challenge
 
 After producing findings, run the shared challenger loop in `${CLAUDE_PLUGIN_ROOT}/knowledge/adversarial-review-protocol.md` (Whole-file load: the slim shared methodology — The Loop + Output format — read in full), then work these naming-review-specific challenges:

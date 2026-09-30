@@ -84,6 +84,14 @@ Resource ordering:
 - Connection pool exhaustion from unawaited async operations
 - Missing cleanup in error paths (finally/dispose)
 
+## Authoring checklist
+
+Write-time reflexes for the software-engineer; `scripts/authoring_digest.py` surfaces these per diff.
+
+- Shared mutable state needs a lock, atomic op, or confinement; else make it immutable.
+- Make retried/at-least-once handlers idempotent.
+- Await or join every spawned task; never fire-and-forget without error handling.
+
 ## Self-Challenge
 
 After producing findings, run the shared challenger loop in `${CLAUDE_PLUGIN_ROOT}/knowledge/adversarial-review-protocol.md` (Whole-file load: the slim shared methodology — The Loop + Output format — read in full), then work these concurrency-review-specific challenges:
