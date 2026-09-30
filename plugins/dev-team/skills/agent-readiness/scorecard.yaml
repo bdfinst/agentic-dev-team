@@ -73,4 +73,5 @@ source_extensions: [".py", ".js", ".ts", ".jsx", ".tsx", ".go", ".rs", ".java",
                     ".cs", ".rb", ".php", ".svelte", ".c", ".cpp", ".kt", ".scala"]
 # Directory names excluded from C4 (generated/vendored).
 exclude_dirs: [".git", "node_modules", "vendor", "dist", "build", "__pycache__",
-               ".venv", "venv", "target", "out", ".next", "coverage"]
+               ".venv", "venv", "target", "out", ".next", "coverage",
+               ".claude/worktrees", "graphify-out", ".cache", ".dev-team-reports"]
