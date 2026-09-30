@@ -1596,6 +1596,14 @@
       "summary": "Per-scenario roll-up correlating a `/gherkin-derive`-discovered surface with",
       "anchor": "gherkin-derive-effectivenessjsonl"
     },
+    "Benefit-measurement streams (#2201)": {
+      "summary": "**Added by #2201** (epic #2200, slice 0).",
+      "anchor": "benefit-measurement-streams-2201"
+    },
+    "Instrument audit (#2201)": {
+      "summary": "Static audit of each instrument; the per-session confirmation the issue also",
+      "anchor": "instrument-audit-2201"
+    },
     "Adding a new stream": {
       "summary": "1.",
       "anchor": "adding-a-new-stream"

@@ -681,6 +681,42 @@ are re-measured every convergence iteration.
 
 ---
 
+## Benefit-measurement streams (#2201)
+
+**Added by #2201** (epic #2200, slice 0). Four observational JSONL streams that
+make post-merge benefit numbers for epics #2164 and #2172 exist. Each row is
+written fail-open by `hooks/lib/instrument_log.py` (never affects stdout, exit
+code, or control flow) and carries `ts`, `plugin_version`, and, when the
+emitter has one, `session_id`. They are **separate from `boundary-events.jsonl`**
+on purpose: a `record` row there is read by the review-gate corroboration path,
+so measurement rows must not share it. Counts, enums and lens/agent names only.
+
+| Stream | Emitter | Fields | Answers |
+|---|---|---|---|
+| `subagent-stops.jsonl` | `hooks/subagent_completion_guard.py` (every `SubagentStop`) | `classification` (`clean` \| `empty-final-turn` \| `truncated-final-turn` \| `unreadable`) | The completion-guard divergence rate's denominator. `boundary-events.jsonl` only carries the two non-clean classes, so a rate was not computable before. |
+| `skill-injection.jsonl` | `hooks/subagent_skill_context.py` (when a hint is injected) | `agent_type`, `skills` (list), `added_chars` | Injection overhead (`added_chars`) and the denominator for uptake; uptake itself is read from `Skill` tool calls in the subagent transcripts (`scripts/lib/session_log`). |
+| `ledger-skips.jsonl` | `scripts/verdict_scope.py` (every CLI consult) | `candidate_pairs`, `skipped_pairs`, `fully_skipped_lenses` (list) | Realized delta-scoping skip rate = `skipped_pairs / candidate_pairs`. Previously only printed to stdout. |
+| `checkpoint-aborts.jsonl` | `scripts/checkpoint_abort.py` | `mode: "abort"`: `aborted`, `triggering_agent`, `deferred_lenses`. `mode: "outcome"`: `aborted`, `redispatched`, `findings`, `blocking_findings`, `outcome` | Abort frequency, deferred-lens yield (`outcome` rows with `aborted` and `redispatched`), previously only printed. |
+
+### Instrument audit (#2201)
+
+Static audit of each instrument; the per-session confirmation the issue also
+asks for (≥ 3 real sessions, IDs listed on #2200) must be run on the
+maintainer's machine after these emitters ship.
+
+| Instrument | Finding | Action |
+|---|---|---|
+| `review-verdicts.jsonl` | Rows are written only when the dispatch prompt carries the scope marker (`review_verdict_recorder.py`); a dispatch without it emits a `boundary-events.jsonl` `record` row with `matched_rule: "missing-scope-marker"`. | None; count those `boundary-events.jsonl` rows as the ledger-coverage gap. |
+| `ledgerSkipped` / `fullySkippedLenses` | Returned on stdout only. | New `ledger-skips.jsonl`. |
+| `checkpoint_abort.py` | Outcomes printed only. | New `checkpoint-aborts.jsonl`. |
+| `subagent_skill_context.py` | No signal of injection or of a skill being loaded. | New `skill-injection.jsonl`; "loaded" is derived from subagent transcripts. |
+| `subagent_completion_guard.py` | Emits `empty-final-turn` / `truncated-final-turn` to `boundary-events.jsonl` (`decision: "record"`); `clean`/`unreadable` silent. | New `subagent-stops.jsonl` with every classification. |
+
+Consent gating: none beyond the existing per-project `.claude/metrics/`
+location; rows are local files and are never transmitted.
+
+---
+
 ## Adding a new stream
 
 1. Name it `.claude/metrics/<name>.jsonl` (or `.json` for a single-current-value

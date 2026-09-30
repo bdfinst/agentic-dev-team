@@ -170,6 +170,16 @@ After producing findings, run the shared challenger loop in `${CLAUDE_PLUGIN_ROO
 
 Append confidence level (High/Medium/Low) to the `summary` field.
 
+## Authoring checklist
+
+Write-time reflexes for the software-engineer; `scripts/authoring_digest.py` surfaces these per diff.
+
+- One behavior per test; no `if`/loops/try-catch around assertions.
+- Name expected values or derive them; no bare magic numbers in assertions.
+- Deterministic: no shared state between tests, sleeps, or real network/disk/DB in a unit test.
+- Assert outcomes, not call order or counts; Stub + state assertion before Mock.
+- Extract a builder or custom assertion for the third copy-pasted arrange/assert block.
+
 ## Ignore
 
 Tactical mechanics owned by test-review (missing assertion entirely, missing await, mock-reset calls) — defer those there, per `${CLAUDE_PLUGIN_ROOT}/knowledge/test-review-division-of-labor.md#the-rule-in-one-line`.

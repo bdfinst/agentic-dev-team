@@ -9,6 +9,13 @@ checklists, so the engineer pays tokens only for lenses that can fire.
 
 The lens files stay the single source of truth; nothing is copied by hand.
 
+Lenses deliberately WITHOUT a checklist (#2208 triage) — each needs a reviewer's
+independence or whole-change view, not a write-time reflex: ``arch-review`` and
+``domain-review`` (cross-module/ADR/boundary judgement), ``spec-compliance-review``
+(verifies against the step's scenarios, which ``/build`` already hands the
+engineer), ``doc-review`` (whole-repo drift), and the on-demand repo-wide lenses.
+Framework lenses (React/Vue/Angular/a11y) are excluded by scope for other diffs.
+
 Stdlib-only. See docs/python-hook-contract.md.
 """
 

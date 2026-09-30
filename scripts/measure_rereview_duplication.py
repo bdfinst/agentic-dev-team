@@ -563,11 +563,13 @@ THRESHOLD_PCT = 5.0
 #: reader of the #2164 comment sees the assumption, not just infers it from
 #: this module's docstring.
 _SPEND_SOURCE_ASSUMPTION = (
-    "spend_source: 'measured' applies a flat per-lens average real dispatch "
-    "cost from the transcript, assumed roughly size-invariant within that "
-    "lens -- the same average is used for a duplicate on a large file and "
-    "one on a small file. 'estimated' uses the byte-based per-file estimate "
-    "instead, for any lens the transcript never dispatched."
+    "spend_source: 'measured' treats each (checkpoint, lens) as ONE dispatch "
+    "costing that lens's average real dispatch cost from the transcript, and "
+    "splits it evenly across the files that checkpoint reviewed -- so a "
+    "checkpoint's measured total is one dispatch per lens, never one per "
+    "file (#2183). The even split assumes cost is size-invariant across "
+    "files within a dispatch. 'estimated' uses the byte-based per-file "
+    "estimate instead, for any lens the transcript never dispatched."
 )
 
 
@@ -622,27 +624,27 @@ def measured_avg_by_lens(spend_by_agent_type: dict[str, dict]) -> dict[str, floa
     }
 
 
-def _occurrence_tokens(lens: str, byte_count: int, avg_by_lens: dict[str, float]) -> tuple[float, str]:
+def _occurrence_tokens(
+    lens: str, byte_count: int, avg_by_lens: dict[str, float], files_per_dispatch: int = 1
+) -> tuple[float, str]:
     """The occurrence-cost rule shared by `build_report`'s per-duplicate
-    loop and `_checkpoint_total_tokens`'s own per-(lens, file) total: use
-    the measured per-lens average real dispatch cost when the transcript
-    covers `lens` (a key in `avg_by_lens`), else fall back to the
-    byte-based estimate (`mfd.estimate_tokens`). Named once here so the
-    numerator (`build_report`'s duplicates) and the denominator
-    (`_checkpoint_total_tokens`'s totals) are provably applying the
-    IDENTICAL rule rather than two independently-drifting copies of it.
-
-    Pure DRY/structure fix -- does not change the arithmetic either call
-    site already produced. Not a fix for #2183 (the separate, deeper
-    per-dispatch-vs-per-file cost-attribution question), which is
-    intentionally left alone here.
+    loop and `_checkpoint_total_tokens`'s own per-(lens, file) total: when
+    the transcript covers `lens` (a key in `avg_by_lens`), one dispatch's
+    measured average real cost is split evenly across the
+    `files_per_dispatch` files that dispatch reviewed (#2183 -- a dispatch's
+    cost already amortizes across every file it touched, so charging the
+    whole average to EACH file multiplied it); otherwise fall back to the
+    byte-based estimate (`mfd.estimate_tokens`), which prices each file
+    independently and needs no split. Named once here so the numerator
+    (`build_report`'s duplicates) and the denominator
+    (`_checkpoint_total_tokens`'s totals) provably apply the IDENTICAL rule.
 
     Returns `(tokens, spend_source)`, `spend_source` being `"measured"` or
     `"estimated"` -- the same two values `build_report`'s own
     `spend_source` field already carries.
     """
     if lens in avg_by_lens:
-        return avg_by_lens[lens], "measured"
+        return avg_by_lens[lens] / max(files_per_dispatch, 1), "measured"
     return mfd.estimate_tokens(byte_count), "estimated"
 
 
@@ -660,10 +662,8 @@ def build_report(
     input-token substitution for any lens the transcript actually covers.
 
     ASSUMPTION (see `_SPEND_SOURCE_ASSUMPTION`, restated in the returned
-    dict): this substitution treats a covered lens's real dispatch cost as
-    roughly SIZE-INVARIANT within that lens -- the SAME flat per-lens
-    average is applied to a duplicate on a large file and one on a small
-    file. A lens the transcript never dispatched keeps the byte-based
+    dict): a covered lens's average real dispatch cost is ONE dispatch per
+    (checkpoint, lens), split evenly across that checkpoint's files (#2183). A lens the transcript never dispatched keeps the byte-based
     estimate, tagged accordingly.
 
     `avoidable_pct_of_total` mirrors `measure_full_file_duplication.py`'s
@@ -698,11 +698,17 @@ def build_report(
         for file_path, info in resolved["files"].items()
     }
 
+    files_by_checkpoint = {
+        resolved["label"]: len(resolved["files"]) for resolved in core["resolved_checkpoints"]
+    }
+
     duplicates: list[dict] = []
     avoidable_tokens_estimate = 0.0
     for dup in core["duplicates"]:
         byte_count = bytes_by_checkpoint_file[(dup["duplicate_at"], dup["file"])]
-        tokens, spend_source = _occurrence_tokens(dup["lens"], byte_count, avg_by_lens)
+        tokens, spend_source = _occurrence_tokens(
+            dup["lens"], byte_count, avg_by_lens, files_by_checkpoint[dup["duplicate_at"]]
+        )
         avoidable_tokens_estimate += tokens
         duplicates.append({**dup, "avoidable_tokens_estimate": tokens, "spend_source": spend_source})
 
@@ -737,9 +743,10 @@ def _checkpoint_total_tokens(resolved: dict, avg_by_lens: dict[str, float]) -> f
     (the same 4-level-nesting fix step 1.1 already applied elsewhere in this
     file)."""
     total = 0.0
+    n_files = len(resolved["files"])
     for lens in resolved["lenses"]:
         for info in resolved["files"].values():
-            tokens, _spend_source = _occurrence_tokens(lens, info["bytes"], avg_by_lens)
+            tokens, _spend_source = _occurrence_tokens(lens, info["bytes"], avg_by_lens, n_files)
             total += tokens
     return total
 

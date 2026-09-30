@@ -49,6 +49,12 @@ if str(_FINDING_SIGNATURE_DIR) not in sys.path:
 
 from finding_signature import is_actionable
 
+_HOOKS_LIB_DIR = Path(__file__).resolve().parents[1] / "hooks" / "lib"
+if str(_HOOKS_LIB_DIR) not in sys.path:
+    sys.path.insert(0, str(_HOOKS_LIB_DIR))
+
+from instrument_log import append_row  # type: ignore[import-not-found]
+
 # The bar this script's abort decision applies. Deliberately STRICTER than
 # `skills/code-review/SKILL.md` step 6a's "Severity floor (rounds >= 2)" rule
 # (`error`/`warning` findings at `high`/`medium` confidence continue that
@@ -373,6 +379,15 @@ def _run_abort_mode(args) -> int:
         )
         return 1
 
+    append_row(
+        "checkpoint-aborts",
+        {
+            "mode": "abort",
+            "aborted": result["aborted"],
+            "triggering_agent": result["triggeringAgent"],
+            "deferred_lenses": result["deferredLenses"],
+        },
+    )
     print(json.dumps(result))
     return 0
 
@@ -392,6 +407,17 @@ def _run_outcome_mode(args) -> int:
         aborted=data["aborted"],
         redispatched=data["redispatched"],
         findings=data["findings"],
+    )
+    append_row(
+        "checkpoint-aborts",
+        {
+            "mode": "outcome",
+            "aborted": data["aborted"],
+            "redispatched": data["redispatched"],
+            "findings": len(data["findings"]),
+            "blocking_findings": sum(1 for f in data["findings"] if _is_blocking_finding(f)),
+            "outcome": result["outcome"],
+        },
     )
     print(json.dumps(result))
     return 0
