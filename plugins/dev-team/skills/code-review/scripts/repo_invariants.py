@@ -906,7 +906,10 @@ def check_ledger_filename_single_sourced(changed_files=None) -> list[dict]:
 # exists. History (the changelog, superseded ADRs) legitimately keeps the
 # names; tests that assert the files stay gone must spell them out.
 
-_CEILING_REF_RE = re.compile(rb"context_ceiling_(?:guard|report)")
+_CEILING_REF_RE = re.compile(
+    rb"context_ceiling_(?:guard|report)|context-ceiling-validation|"
+    rb"DEV_TEAM_CONTEXT_ABS_CEILING"
+)
 _CEILING_REF_EXEMPT_PREFIXES = ("docs/adr/",)
 _CEILING_REF_EXEMPT_FILES = frozenset(
     {
@@ -915,14 +918,15 @@ _CEILING_REF_EXEMPT_FILES = frozenset(
         "tests/hooks/test_autocompact_hook_registration.py",
         "tests/scripts/test_no_ceiling_event_consumers.py",
         "tests/repo/test_no_live_ceiling_refs.py",
+        "tests/skills/test_handoff_manual_only.py",
     }
 )
 _CEILING_REF_MAX_BYTES = 2_000_000
 
 
-def _tracked_files() -> list[str]:
-    """Repo-relative tracked paths via `git ls-files`; falls back to a walk
-    (minus VCS and dependency dirs) when git is unavailable."""
+def _tracked_files() -> list[str] | None:
+    """Repo-relative tracked paths via `git ls-files`, or None when git is
+    unavailable or fails (the caller then skips rather than walking the tree)."""
     try:
         out = subprocess.run(
             ["git", "ls-files", "-z"],
@@ -931,14 +935,16 @@ def _tracked_files() -> list[str]:
             check=True,
             timeout=30,
         ).stdout.decode("utf-8", "replace")
-        return [p for p in out.split("\0") if p]
     except (OSError, subprocess.SubprocessError):
-        skip = {".git", "node_modules", "graphify-out", "__pycache__"}
-        return [
-            _repo_relative(p)
-            for p in _REPO_ROOT.rglob("*")
-            if p.is_file() and not skip.intersection(p.relative_to(_REPO_ROOT).parts)
-        ]
+        return None
+    return [p for p in out.split("\0") if p]
+
+
+def _is_marketplace_checkout() -> bool:
+    """True only in this repo's own checkout. The check ships in the plugin,
+    so downstream it runs from the plugin cache, where `_REPO_ROOT` is not a
+    repo this invariant governs."""
+    return (_REPO_ROOT / ".claude-plugin" / "marketplace.json").is_file()
 
 
 def check_no_live_ceiling_refs(changed_files=None) -> list[dict]:
@@ -946,11 +952,17 @@ def check_no_live_ceiling_refs(changed_files=None) -> list[dict]:
     ceiling hook or report script by name (#2177, ADR 0043).
 
     Corpus-wide by design: a dangling pointer is wrong whether or not this
-    changeset touched it, so `changed_files` is ignored.
+    changeset touched it, so `changed_files` is ignored. Returns [] outside
+    this repo's own checkout and when git cannot list files.
     """
+    if not _is_marketplace_checkout():
+        return []
+    tracked = _tracked_files()
+    if tracked is None:
+        return []
     findings = []
     self_rel = _repo_relative(Path(__file__).resolve())
-    for rel in sorted(_tracked_files()):
+    for rel in sorted(tracked):
         if (
             rel == self_rel
             or rel in _CEILING_REF_EXEMPT_FILES
@@ -970,10 +982,11 @@ def check_no_live_ceiling_refs(changed_files=None) -> list[dict]:
                     "invariant": "no-live-ceiling-refs",
                     "file": rel,
                     "message": (
-                        f"{rel} references the removed context-ceiling hook or "
-                        "report script. Both were deleted by #2177 (ADR 0043); "
-                        "point at docs/adr/0043-replace-the-context-ceiling-"
-                        "guard-with-harness-autocompact.md or drop the reference."
+                        f"{rel} references the removed context-ceiling hook, "
+                        "report script, validation doc or env var. All were "
+                        "removed by #2177 (ADR 0043); point at "
+                        "docs/adr/0043-replace-the-context-ceiling-guard-with-"
+                        "harness-autocompact.md or drop the reference."
                     ),
                 }
             )

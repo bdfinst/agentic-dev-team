@@ -90,7 +90,7 @@ Total = CLAUDE.md baseline
       + expected output (estimate)
 ```
 
-**Target: total < 40% of the model's context window, capped at 350K absolute tokens.** For Claude with a 200K window, that's < 80K tokens; on a 1M-window model the cap (350K) binds before the percentage would. See [Why 40%](#why-40) for the rationale. The config files are a small fraction; the real budget concern is conversation history + output accumulation over multi-turn tasks.
+**Target: total < 40% of the model's context window.** For Claude with a 200K window, that's < 80K tokens; on a 1M-window model it is 400K (there is no absolute cap). See [Why 40%](#why-40) for the rationale. The config files are a small fraction; the real budget concern is conversation history + output accumulation over multi-turn tasks.
 
 ### Step 5: Load via tool-based file reads
 

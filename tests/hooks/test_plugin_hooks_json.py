@@ -35,7 +35,7 @@ HOOKS_JSON = PLUGIN / "hooks" / "hooks.json"
 SETTINGS_JSON = PLUGIN / "settings.json"
 
 DISPATCH_TOOL_NAMES = ("Agent", "Task")
-DISPATCH_HOOK_SCRIPTS = ("agent_dispatch_ledger.py",)
+DISPATCH_HOOK_SCRIPTS = ("agent_dispatch_ledger.py", "subagent_skill_context.py")
 
 
 def _load_hooks(path: Path) -> dict:

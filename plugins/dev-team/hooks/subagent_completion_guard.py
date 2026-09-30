@@ -169,13 +169,12 @@ _EMIT_CLASSIFICATIONS: frozenset[StopClassification] = frozenset(
 def _tail_lines(path: Path, n: int = 50) -> list[str]:
     """Read the last `n` lines of `path`. Fail-safe: [] on any IO error.
 
-    Deliberately a small, private, inline copy for this hook rather than
-    the former context ceiling guard's private `_tail_lines`, or
+    Deliberately a small, private, inline reader for this hook rather than
     `scripts/lib/session_log/records.py`'s `iter_file_records` (the
-    sanctioned shared transcript-row reader two sibling hooks already use
-    over the documented hooks/ -> scripts/lib/session_log/ edge — see
-    the former context ceiling guard's own "why this is safe" note). Not reused
-    here because the semantics genuinely differ: `iter_file_records` streams
+    sanctioned shared transcript-row reader that `review_verdict_recorder.py`
+    and `hooks/lib/cost_meter.py` already use over the documented
+    hooks/ -> scripts/lib/session_log/ edge — see the import note in
+    `hooks/lib/cost_meter.py`). Not reused here because the semantics genuinely differ: `iter_file_records` streams
     forward and silently skips an undecodable line, continuing to the next
     one, while this hook needs "the transcript's true LAST line is malformed
     JSON" to classify as its own distinct outcome (`"unreadable"`, see

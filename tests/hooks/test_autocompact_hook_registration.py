@@ -1,8 +1,8 @@
 """Registration of the autocompact hooks in both manifests (#2177 slice 6).
 
-hooks.json and settings.json must agree (also pinned by
-test_plugin_hooks_json.py); this file pins the exact matchers and that the
-removed context ceiling guard is gone from both.
+hooks.json/settings.json agreement is pinned by test_plugin_hooks_json.py;
+this file pins the exact matchers and that the removed context ceiling guard,
+its report script and its validation doc are gone.
 """
 
 from __future__ import annotations
@@ -43,34 +43,13 @@ def test_hook_registered_once_with_its_exact_matcher(name, script, matcher):
 
 
 @pytest.mark.parametrize("name", MANIFESTS)
-def test_nudge_matcher_does_not_cover_compact(name):
-    import re
-
-    (group,) = _groups_running(MANIFESTS[name], "autocompact_setup_nudge.py")
-    assert not re.fullmatch(group["matcher"], "compact")
-    (reinject,) = _groups_running(MANIFESTS[name], "post_compact_state_reinject.py")
-    for source in ("startup", "resume", "clear"):
-        assert not re.fullmatch(reinject["matcher"], source)
-
-
-@pytest.mark.parametrize("name", MANIFESTS)
 def test_context_ceiling_guard_is_not_registered_anywhere(name):
     assert "context_ceiling_guard" not in MANIFESTS[name].read_text(encoding="utf-8")
 
 
-def test_guard_script_and_its_test_are_deleted():
+def test_guard_report_and_validation_doc_are_deleted():
     assert not (PLUGIN / "hooks" / "context_ceiling_guard.py").exists()
     assert not (PLUGIN / "tests" / "hooks" / "test_context_ceiling_guard.py").exists()
-
-
-def test_both_manifests_register_the_same_autocompact_hooks():
-    shapes = []
-    for path in MANIFESTS.values():
-        shapes.append(
-            sorted(
-                (g.get("matcher"), sorted(h["command"].split("/")[-1].strip('"') for h in g["hooks"]))
-                for g in _session_start(path)
-                if g.get("matcher") in ("compact", "startup|resume|clear")
-            )
-        )
-    assert shapes[0] == shapes[1] and len(shapes[0]) == 2
+    assert not (REPO_ROOT / "scripts" / "context_ceiling_report.py").exists()
+    assert not (REPO_ROOT / "tests" / "scripts" / "test_context_ceiling_report.py").exists()
+    assert not (REPO_ROOT / "docs" / "context-ceiling-validation.md").exists()

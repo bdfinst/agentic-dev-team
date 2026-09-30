@@ -595,27 +595,51 @@ def test_every_current_model_has_a_pricing_entry(model_id: str) -> None:
     assert rate["input"] > 0 and rate["output"] > 0, rate
 
 
-def test_pricing_file_spans_every_shipped_model_family() -> None:
-    """The pricing file must keep an entry for every model family this repo
-    ships agents against.
+def _agent_frontmatter_models() -> dict[str, str]:
+    """`model:` value of every shipped agent, read from its YAML frontmatter.
 
-    #1844 once cross-checked pricing against the model-family regexes of
-    the former context-ceiling hook — an independently maintained list of "models
-    this repo's tooling recognizes" that caught a newly released model with
-    no pricing entry (#1830). That guard was removed with #2177, and with it
-    the only source of such a list that needed no new bookkeeping. The
-    hand-maintained enumeration in `test_every_current_model_has_a_pricing_entry`
-    (deleted-entry detection) and the runtime `unpriced_models` flag on every
-    durable meter line (new-model detection; see
-    `test_record_line_names_unpriced_models`) now carry that duty; this test
-    keeps the family floor.
+    An oracle independent of the pricing file and of any hand-kept list: the
+    agents are what actually dispatch, so a model they name and pricing lacks
+    is spend priced at $0.00.
     """
-    models = _pricing()["models"]
-    assert models, "model-pricing.json has no models at all"
-    for prefix in ("claude-opus", "claude-sonnet", "claude-haiku"):
-        assert any(key.startswith(prefix) for key in models), (
-            f"no pricing entry starts with {prefix!r}; known: {sorted(models)}"
-        )
+    found: dict[str, str] = {}
+    for path in sorted((REPO_ROOT / "plugins" / "dev-team" / "agents").glob("*.md")):
+        lines = path.read_text(encoding="utf-8").splitlines()
+        if not lines or lines[0].strip() != "---":
+            continue
+        for line in lines[1:]:
+            if line.strip() == "---":
+                break
+            if line.startswith("model:"):
+                found[path.name] = line.split(":", 1)[1].strip().strip("\"'")
+    return found
+
+
+def _unpriced_agent_models(pricing: dict) -> dict[str, str]:
+    models, aliases = pricing["models"], pricing.get("aliases", {})
+    return {
+        name: model
+        for name, model in _agent_frontmatter_models().items()
+        if model not in models and aliases.get(model) not in models
+    }
+
+
+def test_every_agent_frontmatter_model_resolves_to_a_priced_model() -> None:
+    declared = _agent_frontmatter_models()
+    assert len(declared) >= 30, f"frontmatter scan found only {len(declared)} agents"
+    assert _unpriced_agent_models(_pricing()) == {}
+
+
+def test_frontmatter_oracle_flags_a_model_with_no_pricing_entry() -> None:
+    """Mutation check: drop the alias an agent relies on and the oracle must fail."""
+    pricing = _pricing()
+    used = set(_agent_frontmatter_models().values())
+    alias = next(a for a in sorted(used) if a in pricing.get("aliases", {}))
+    mutated = {
+        "models": pricing["models"],
+        "aliases": {k: v for k, v in pricing["aliases"].items() if k != alias},
+    }
+    assert _unpriced_agent_models(mutated), alias
 
 
 def test_every_alias_resolves_to_a_priced_model() -> None:
