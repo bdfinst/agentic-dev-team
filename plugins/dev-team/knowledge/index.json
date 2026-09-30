@@ -2264,6 +2264,10 @@
       "summary": "This MVP uses **file-presence/heuristic analyzers only** — no CI-platform APIs.",
       "anchor": "scope-mvp-issue-117"
     },
+    "Evidence table": {
+      "summary": "Each scored criterion emits `score` (0-2), `max`, and an `evidence` string.",
+      "anchor": "evidence-table"
+    },
     "Run": {
       "summary": "`REPO_PATH` defaults to the current directory.",
       "anchor": "run"

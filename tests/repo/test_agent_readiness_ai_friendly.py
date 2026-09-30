@@ -386,3 +386,70 @@ def test_cli_contract_unchanged(tmp_path: Path) -> None:
     )
     assert res.returncode == 0, res.stdout + res.stderr
     assert json.loads(out.read_text())["scanner_version"] == "1.1-mvp"
+
+
+# --------------------------------------------------------------------------
+# Docs contract: knowledge doc + SKILL.md
+# --------------------------------------------------------------------------
+
+DOC = REPO_ROOT / "plugins" / "dev-team" / "knowledge" / "ai-friendly-repo-guidelines.md"
+CATEGORY_HEADINGS = (
+    "## Layered Context Architecture",
+    "## Deterministic Verification & Fast Feedback Loops",
+    "## Navigable Repository Layout",
+)
+
+
+def _doc_sections() -> dict[str, list[str]]:
+    sections: dict[str, list[str]] = {}
+    current = None
+    for line in DOC.read_text().splitlines():
+        if line.startswith("## "):
+            current = line
+            sections[current] = []
+        elif current is not None:
+            sections[current].append(line)
+    return sections
+
+
+def test_knowledge_doc_has_three_category_sections_with_bullets() -> None:
+    sections = _doc_sections()
+    for heading in CATEGORY_HEADINGS:
+        assert heading in sections, heading
+        bullets = [ln for ln in sections[heading] if ln.startswith("- ")]
+        assert len(bullets) >= 2, heading
+
+
+def test_knowledge_doc_references_every_new_criterion() -> None:
+    text = DOC.read_text()
+    for crit in (*NEW_MVP, "D7_reference_implementation"):
+        assert crit in text, crit
+
+
+def test_evidence_anchors_resolve_to_doc_headings() -> None:
+    import re
+
+    def slug(h: str) -> str:
+        return re.sub(r"[^a-z0-9 -]", "", h.lstrip("# ").lower()).replace(" ", "-")
+
+    slugs = {slug(h) for h in CATEGORY_HEADINGS}
+    for fixture in ("repo_ai_hostile", "repo_ai_conforming"):
+        data = _scan(FIX / fixture)
+        for crit, cat in NEW_MVP.items():
+            ev = _crit(data, cat, crit)["evidence"]
+            assert ev.split("#")[-1].rstrip(")") in slugs, ev
+
+
+def test_skill_md_has_row_per_scored_criterion() -> None:
+    text = (SKILL / "SKILL.md").read_text()
+    for crit in scanner.ANALYZERS:
+        assert f"| {crit} |" in text, crit
+    assert "D7_reference_implementation" in text
+    assert "knowledge/ai-friendly-repo-guidelines.md" in text
+
+
+def test_skill_md_allowed_tools_stay_read_only() -> None:
+    text = (SKILL / "SKILL.md").read_text()
+    front = text.split("---")[1]
+    tools = front.split("allowed-tools:")[1]
+    assert "Edit" not in tools and "Write" not in tools
