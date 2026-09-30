@@ -32,8 +32,10 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import stat
 import sys
-from collections.abc import Callable
+import tempfile
+from collections.abc import Callable, Mapping
 from pathlib import Path
 
 _LIB = Path(__file__).resolve().parents[1] / "hooks" / "lib"
@@ -44,6 +46,7 @@ from autocompact_config import (  # type: ignore[import-not-found]
     DEFAULT_PCT,
     HARNESS_DEFAULT_PCT,
     KEY,
+    detect,
     validate_pct,
 )
 
@@ -84,18 +87,30 @@ def _load_settings(path: Path) -> dict:
 
 
 def _atomic_write(path: Path, data: dict) -> None:
+    """Write `data` via a unique temp file in the same directory + os.replace.
+
+    mkstemp gives an unpredictable name opened O_EXCL (no planted-symlink or
+    race on a fixed `settings.json.tmp`); the existing file's mode is kept.
+    """
     path.parent.mkdir(parents=True, exist_ok=True)
-    tmp = path.with_name(path.name + ".tmp")
+    tmp_name = None
     try:
-        with open(tmp, "w", encoding="utf-8") as handle:
+        fd, tmp_name = tempfile.mkstemp(dir=path.parent, prefix=".settings.", suffix=".tmp")
+        try:
+            mode = stat.S_IMODE(path.stat().st_mode)
+        except OSError:
+            mode = 0o644
+        with os.fdopen(fd, "w", encoding="utf-8") as handle:
             json.dump(data, handle, indent=2)
             handle.write("\n")
-        os.replace(tmp, path)
+        os.chmod(tmp_name, mode)
+        os.replace(tmp_name, path)
     except OSError as exc:
-        try:
-            tmp.unlink()
-        except OSError:
-            pass
+        if tmp_name is not None:
+            try:
+                os.unlink(tmp_name)
+            except OSError:
+                pass
         raise SetupError(f"cannot write {path}: {exc}; not modified") from exc
 
 
@@ -106,6 +121,7 @@ def run(
     no_autocompact: bool,
     interactive: bool,
     input_fn: Callable[[str], str] = input,
+    environ: Mapping[str, str] | None = None,
 ) -> list[str]:
     """Apply the setup step; return the stdout lines. Raises SetupError."""
     if no_autocompact:
@@ -128,6 +144,11 @@ def run(
     existing_present = KEY in env_block
 
     lines: list[str] = []
+    # Only the project's settings.json is ever written. A process-env or
+    # settings.local.json entry outranks it, so say so rather than report a
+    # success the harness will not honor.
+    effective = detect(project_dir, os.environ if environ is None else environ)
+    shadow = effective if effective.source in ("process env", "settings.local.json") else None
     if pct_flag is not None:
         final = pct_flag
     else:
@@ -150,6 +171,13 @@ def run(
         lines.append(
             f"{final} exceeds the harness default (~{HARNESS_DEFAULT_PCT}%); values above "
             "the default are ignored, so compaction will still occur at the default"
+        )
+
+    if shadow is not None:
+        lines.append(
+            f"warning: {KEY} is also set in {shadow.source} (value {shadow.raw!r}), which "
+            f"takes precedence over {path}; the value written here will not take effect "
+            "until that entry is removed or corrected"
         )
 
     if existing == final:

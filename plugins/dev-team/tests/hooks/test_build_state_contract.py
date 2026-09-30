@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import re
 import sys
+from datetime import datetime, timezone
 
 from _repo_root import REPO_ROOT as _REPO_ROOT
 
@@ -35,7 +36,7 @@ def test_reader_round_trips_a_record_built_from_the_documented_schema(tmp_path):
         step="3.2",
         test_files_staged=[],
         plan_path="plans/p.md",
-        written_at="2026-09-30T00:00:00Z",
+        written_at=datetime.now(timezone.utc).isoformat(),
     )
     state_file = tmp_path / ".claude" / "memory" / "build-phase.json"
     state_file.parent.mkdir(parents=True)

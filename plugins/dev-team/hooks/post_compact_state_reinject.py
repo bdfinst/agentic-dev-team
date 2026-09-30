@@ -88,18 +88,23 @@ def assemble(
     if not items:
         return head[:limit]
 
-    def render(kept: list[str]) -> str:
-        return head + ". Unchecked: " + ", ".join(kept) + "."
+    prefix = head + ". Unchecked: "
+    # Lengths are computed arithmetically so the work is linear in len(items):
+    # the text is rendered once, never re-built per dropped item.
+    total = len(prefix) + sum(map(len, items)) + 2 * (len(items) - 1) + 1
+    if total <= limit:
+        return prefix + ", ".join(items) + "."
 
-    full = render(items)
-    if len(full) <= limit:
-        return full
-    kept = list(items)
-    while kept:
-        kept.pop()
-        candidate = (render(kept) if kept else head) + TRUNCATION_MARKER
-        if len(candidate) <= limit:
-            return candidate
+    used = len(prefix) + 1 + len(TRUNCATION_MARKER)  # trailing "." + marker
+    kept = 0
+    for item in items:
+        cost = len(item) + (2 if kept else 0)
+        if used + cost > limit:
+            break
+        used += cost
+        kept += 1
+    if kept:
+        return prefix + ", ".join(items[:kept]) + "." + TRUNCATION_MARKER
     return (head + TRUNCATION_MARKER)[:limit]
 
 

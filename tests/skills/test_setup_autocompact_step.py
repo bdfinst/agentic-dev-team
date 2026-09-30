@@ -38,7 +38,7 @@ def test_step_forwards_yes_and_documents_flags():
 def test_step_says_merge_not_overwrite_and_lower_only():
     step = _step()
     assert "never overwrite" in step
-    assert "lower" in step
+    assert "can only **lower** its threshold" in " ".join(step.split())
 
 
 def test_flags_are_in_argument_hint_and_arguments_section():

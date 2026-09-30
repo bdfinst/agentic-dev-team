@@ -47,9 +47,16 @@ ABSENT_MESSAGE = (
 )
 
 
-def invalid_message(raw: object) -> str:
+_MAX_SHOWN = 40
+
+
+def invalid_message(raw: object, source: str | None) -> str:
+    shown = repr(raw)
+    if len(shown) > _MAX_SHOWN:
+        shown = shown[: _MAX_SHOWN - 3] + "..."
+    where = f" in {source}" if source else ""
     return (
-        f"dev-team: {KEY}={raw!r} is invalid (need integer 1-100); "
+        f"dev-team: {KEY}={shown}{where} is invalid (need integer 1-100); "
         "re-run /dev-team:setup\n"
     )
 
@@ -74,7 +81,7 @@ def message_for(payload: dict) -> str:
     if detection.status is Status.ABSENT:
         return ABSENT_MESSAGE
     if detection.status is Status.INVALID:
-        return invalid_message(detection.raw)
+        return invalid_message(detection.raw, detection.source)
     return ""
 
 

@@ -12,6 +12,10 @@ re-injection hook and `/build` agree on one contract (pinned by
 lacks a string `phase` AND a string `step`. `/build` clears the record at step
 completion, so a compaction between steps yields None.
 
+A record whose `written_at` is missing/unparseable, or older than
+`STALE_AFTER_SECONDS` (shared with `test_file_classify.py`: a crashed `/build`
+must not haunt later sessions), is also treated as cleared.
+
 `plan_path` is taken verbatim from the record — never globbed or searched —
 and is kept only when it resolves to an existing regular file inside the
 project directory; otherwise it is None (phase/step are still returned).
@@ -22,8 +26,12 @@ Stdlib only; never raises (fail-open for hook callers).
 from __future__ import annotations
 
 import json
+import time
 from dataclasses import dataclass
+from datetime import datetime, timezone
 from pathlib import Path
+
+from test_file_classify import STALE_AFTER_SECONDS  # same staleness rule as the guards
 
 #: Keys `/build` documents for the record; the contract test compares this to SKILL.md.
 RECORD_KEYS = ("phase", "step", "written_at", "test_files_staged", "plan_path")
@@ -53,17 +61,42 @@ def _contained_plan_path(project_dir: Path, raw: object) -> str | None:
     return raw
 
 
-def read_active_build_state(project_dir: str | Path) -> BuildState | None:
-    """Read the active build state for `project_dir`, or None when cleared."""
+def _parse_written_at(value: object) -> float | None:
+    if not isinstance(value, str) or not value.strip():
+        return None
+    candidate = value.strip()
+    if candidate.endswith("Z"):
+        candidate = candidate[:-1] + "+00:00"
+    try:
+        parsed = datetime.fromisoformat(candidate)
+    except ValueError:
+        return None
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=timezone.utc)
+    return parsed.timestamp()
+
+
+def read_active_build_state(
+    project_dir: str | Path, now: float | None = None
+) -> BuildState | None:
+    """Read the active build state for `project_dir`, or None when cleared/stale.
+
+    `now` is the injectable clock (epoch seconds) for staleness tests.
+    """
     try:
         root = Path(project_dir)
         data = json.loads((root / STATE_RELPATH).read_text(encoding="utf-8"))
-    except (OSError, ValueError, UnicodeDecodeError):
+    except (OSError, ValueError, UnicodeDecodeError, RecursionError, RuntimeError):
         return None
     if not isinstance(data, dict):
         return None
     phase, step = data.get("phase"), data.get("step")
     if not (isinstance(phase, str) and phase and isinstance(step, str) and step):
+        return None
+    written_at = _parse_written_at(data.get("written_at"))
+    if written_at is None:
+        return None
+    if (time.time() if now is None else now) - written_at > STALE_AFTER_SECONDS:
         return None
     return BuildState(
         phase=phase,
