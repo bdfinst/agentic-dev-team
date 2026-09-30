@@ -579,13 +579,6 @@ _TRANSCRIPT_PARSING_ALLOWLIST = {
         "comments, which document the harness fields this hook's DECISIONS "
         "are still based on -- prose, not a second parsing implementation"
     ),
-    "plugins/dev-team/hooks/context_ceiling_guard.py": (
-        "migrated onto session_log.records in #2050 (_is_sidechain and the "
-        "usage-field reads both delegate to _records.*, verified "
-        "byte-identical against the hook's own 204-test suite); the "
-        "identifiers remain in this file's own docstrings describing why "
-        "the fields matter to this hook's window-detection decision"
-    ),
     "scripts/measure_full_file_duplication.py": (
         "migrated onto session_log.records in #2050 -- the join-map "
         "algorithm this file's own docstring once conceded duplicating is "
