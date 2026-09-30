@@ -10,7 +10,7 @@ description: >-
   spec->plan->build->PR flow without re-assembling it each time.
 argument-hint: "<feature-description> [--skip-spec] [--no-auto-merge] [--force-restart] [--issues <n1,n2>]"
 user-invocable: true
-allowed-tools: Read, Glob, Grep, Bash(gh pr *), Bash(gh issue *), Bash(git branch *), Bash(git rev-parse *), Bash(git fetch *), Skill(specs *), Skill(plan *), Skill(build *), Skill(code-review *), Skill(pr *), AskUserQuestion
+allowed-tools: Read, Glob, Grep, Bash(gh pr *), Bash(gh issue *), Bash(git branch *), Bash(git rev-parse *), Bash(git fetch *), Bash(python3 *), Skill(specs *), Skill(plan *), Skill(build *), Skill(code-review *), Skill(pr *), AskUserQuestion
 ---
 
 # Ship
@@ -118,109 +118,34 @@ so a re-invocation resumes or monitors instead of duplicating the spec issue,
 the sub-issues, and the PR. Skip this guard only when `--force-restart` was
 given (a deliberate rebuild).
 
-First, resolve the **issue identifier** from `$ARGUMENTS`: an explicit issue
-number or URL if present, otherwise the feature slug. Derive the conventional
-branch name for it (this repo names feature branches `issue-<N>`). Then probe
-three durable signals — key off tracker/PR state, **never** off whether this
-conversation has run the pipeline, so a re-fired command string (a
-`ScheduleWakeup`/loop prompt) hits the same guard:
+Resolve the **issue set** from `$ARGUMENTS`: the explicit issue number(s)
+(`--issues` list, or one number/URL), else stop and ask — the guard keys off
+tracker/PR state, **never** off conversation memory, so a re-fired command
+string (a `ScheduleWakeup`/loop prompt) lands on the same verdict. Then run the
+deterministic guard (issue numbers are separate argv elements, validated
+`^[0-9]+$`; the script rejects anything else):
 
-**When `--issues <comma-separated-list>` was given**, resolve the full set of
-issue numbers instead of one identifier: every probe below runs once **per
-issue in the set**, and the verdict is decided over the whole set (see "Batch
-verdict" below) rather than per member in isolation. When `--issues` is
-absent, the set is just the single resolved identifier and the guard behaves
-exactly as documented next — solo behavior is unmodified by this flag's
-existence.
+```bash
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/ship_resume_guard.py" --issues <n1[,n2,...]>
+```
 
-1. **PR** — `gh pr list --state all --search "<N>"` and
-   `gh pr list --state all --head issue-<N>`. A PR whose body carries
-   `Closes #<N>` (or whose head branch matches) is the strongest signal.
-   **When `--issues` was given**, also probe the batch's own branch:
-   `gh pr list --state all --head issues-<n1>-<n2>-...` — this is the sole
-   input the Batch verdict's head-branch-match check (below) reads.
-2. **Spec / sub-issues** — an existing spec epic and its linked slice
-   sub-issues for the feature. Because `/specs` searches by `Spec: <Feature
-   Name>` title, an epic titled conventionally (`feat: …`) will not be found by
-   `/specs` itself — so match on the issue number here, not the title.
-3. **Plan** — an approved/implemented plan (a linked plan sub-issue on
-   GitHub-connected repos, or a plan file under `docs/specs/**/plans/` or
-   `plans/`).
+It probes PR state (`Closes #N` bodies and `issue-<N>` / `issues-<n1>-<n2>-...`
+head branches, cross-repo heads never qualify as `/ship`'s own), issue state,
+and spec/plan artifacts, and prints a JSON `verdict` plus the `signal` that
+fired. Report the signal so the decision is auditable, then act:
 
-Decide from what the probes return — and treat every treatment as reporting,
-not re-running:
+| verdict | action |
+|---|---|
+| `shipped` | Report the merged PR / closed issues and stop. No phase re-runs. |
+| `monitor` | Report the PR and `gh pr checks <pr>`. If `BEHIND` main, rebase onto `main` and hand back to its checks; otherwise wait on the open gate — a re-check timer follows [`knowledge/long-run-waiting.md`](../../knowledge/long-run-waiting.md). Do **not** re-enter spec→plan→build. |
+| `resume` | Continue from the earliest incomplete phase against the existing artifacts (`--skip-spec` when the epic exists; build onto the existing branch). Before writing any artifact that would duplicate one, `AskUserQuestion` to confirm resume-vs-restart. |
+| `partial-batch` | Some `--issues` members closed, others open, no own batch PR: halt, report which members closed and how, and `AskUserQuestion` whether to re-form the batch from the still-open members or halt. |
+| `batch-blocked` | A foreign open PR covers a member: halt the **whole batch** (no partial subset ships), post one comment on **every member issue** naming the in-flight PR — only if an equivalent `/ship` halt comment does not already exist (check first) — and take no further action this round. |
+| `first-run` | Proceed to the approach screen. |
+| `probe-failed` | Do not assume `first-run`: report the error and `AskUserQuestion`. |
 
-- **Merged PR closing the issue → already shipped.** Report the merged PR and
-  stop. Do not re-run any phase.
-- **Open PR for the issue → in-flight; MONITOR.** Report the PR and its CI
-  state (`gh pr checks <pr>`). If the PR is `BEHIND` main, rebase it onto
-  `main` and hand back to its checks; otherwise wait on the open gate — if you
-  arm a timer to re-check, follow
-  [`knowledge/long-run-waiting.md`](../../knowledge/long-run-waiting.md), whose
-  contract makes the re-fired prompt this guard already expects. Do **not**
-  re-enter spec→plan→build.
-- **Spec / sub-issues / plan exist but no PR yet → partially in-flight;
-  RESUME.** Continue from the earliest incomplete phase against the existing
-  artifacts (e.g. `--skip-spec` when the spec epic already exists; build onto
-  the existing branch) rather than creating new ones. Before writing any
-  artifact that would duplicate an existing one, use `AskUserQuestion` to
-  confirm resume-vs-restart.
-- **Nothing found → genuine first run.** Proceed to the approach screen below.
-
-When the guard resumes/monitors or stops, report which signal fired (PR number,
-epic/sub-issue numbers, plan location) so the decision is auditable, and skip
-the remaining first-run steps that the existing artifacts already satisfy.
-
-##### Batch verdict (`--issues` only)
-
-When `--issues` was given, decide the verdict over the **whole set**, never
-per member in isolation. The branches below are evaluated in the order
-listed, and the first whose condition holds wins — this is what lets
-"fully shipped" win over an unrelated open PR on an already-merged batch, as
-long as it is checked first:
-
-- **Every member issue closed (by a merged PR or otherwise) — whether by
-  the same PR/path or different ones — → fully shipped.** Same treatment as
-  the single-issue "already shipped" case above: report each member's
-  closure — the merged PR when there is one, or otherwise how it closed
-  (e.g. closed as not-planned, closed manually) — and stop. Do not re-run
-  any phase.
-- **Some but not all members already closed (by a merged PR or otherwise),
-  others not → malformed/partially-shipped batch — unless the still-open
-  members are covered by the batch's own open PR (per the head-branch check
-  below), in which case this is normal incremental progress: fall through
-  to the batch-blocked branch's MONITOR treatment instead of halting.**
-  Otherwise, halt and report which members are already closed and how each
-  closed (merged PR, or otherwise) — do not resume the pipeline over a
-  batch with mixed shipped state. Use `AskUserQuestion` to confirm whether
-  to re-form the batch from only the still-open members, or halt entirely.
-- **Any member has an open PR whose body carries `Closes #<N>` or whose head
-  branch matches that member's conventional branch — not merely one whose
-  title/body mentions the number in passing → batch-blocked.** This is a
-  distinct case from the single-issue "in-flight; MONITOR" verdict above,
-  and it must be named explicitly — never silently folded into that
-  single-issue treatment. The batch's own conventional branch is the same
-  batch key defined in Parse Arguments used as a branch name:
-  `issues-<n1>-<n2>-...`. When the open PR's head branch matches that batch
-  branch **and the PR is not cross-repository** (`gh pr view <pr> --json
-  isCrossRepository,headRepositoryOwner`; a fork can name its branch
-  anything, including this one, so a same-named cross-repo branch never
-  qualifies) — meaning it's genuinely /ship's own PR from an earlier round,
-  not a third party's — apply the same MONITOR treatment as the single-issue
-  case above (`gh pr checks <pr>`; rebase onto `main` if `BEHIND`). Otherwise
-  (a different PR, a cross-repository PR merely sharing the branch name, or
-  one whose body happens to carry `Closes #<N>` for a member — a PR body and
-  a fork's branch name are both third-party-controllable, so neither alone
-  exempts a halt): halt dispatch of the **whole batch** this round (no
-  partial subset ships), post a comment on **every member issue** naming which
-  one is already in-flight — only if an equivalent /ship halt comment does
-  not already exist on that issue (check existing comments first); a
-  re-fired invocation must not re-post — and take no further ship action on
-  any member this round.
-- **Otherwise → proceed as today's "genuine first run" / "partially in-flight;
-  RESUME" logic**, evaluated across the whole issue set rather than a single
-  issue — e.g. `--skip-spec` when the shared spec epic already exists; build
-  onto the existing shared branch.
+For a batch, the stable key is `issues-<n1>-<n2>-...` (sorted), as defined in
+Parse Arguments.
 
 #### 1b. Approach screen
 
@@ -263,6 +188,17 @@ with inline review checkpoints and verification evidence. Do not proceed until t
 suite.
 
 ### 5. Review
+
+First check whether `/build`'s checkpoints already reviewed this exact change:
+
+```bash
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/ship_review_gate.py" --files <the branch's changed files>
+```
+
+`{"skip": true}` means every applicable lens has a ledger `pass` at each file's
+current content — skip the pass and say so in the Step 7 report (list the
+cleared lenses). Anything else (including any doubt: no ledger, edited since,
+unhashable file) runs the pass as below. `--force-restart` never skips.
 
 Invoke `/code-review` over the changes and let its fix loop converge. Surface any
 findings that need human judgment.

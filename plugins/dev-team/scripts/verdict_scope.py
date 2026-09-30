@@ -233,6 +233,15 @@ def _canonicalize_lens_files(
     }
 
 
+def resolve_for_root(lens_files: dict[str, list[str]], root: Path) -> dict:
+    """Canonicalize, hash, read the ledger under ``root``, and resolve -- the
+    same pipeline ``main`` runs, exposed so in-process callers (e.g.
+    ``ship_review_gate.py``, #2212) never touch the ledger reader directly."""
+    lens_files = _canonicalize_lens_files(lens_files, root)
+    all_files = [f for files in lens_files.values() for f in files]
+    return resolve_dispatch(lens_files, load_verdicts(root), compute_file_hashes(all_files, root))
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--root", default=".", help="Repo/worktree root the ledger lives under")
