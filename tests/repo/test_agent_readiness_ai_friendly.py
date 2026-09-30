@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import json
 import os
+import subprocess
 import sys
 from pathlib import Path
 
@@ -294,3 +295,94 @@ def test_b5_registered_in_build_env_and_fixture_passes() -> None:
 
 def test_t4_stays_deferred() -> None:
     assert _cfg()["criteria"]["test_infrastructure"]["T4_single_command"]["mvp"] is False
+
+
+# --------------------------------------------------------------------------
+# End-to-end fixtures and contract
+# --------------------------------------------------------------------------
+
+NEW_MVP = {
+    "D5_claude_md_size": "documentation",
+    "D6_layered_context": "documentation",
+    "B5_composite_check_command": "build_env",
+}
+
+
+def test_ai_hostile_fixture_scores_new_criteria_zero_with_gap_evidence() -> None:
+    data = _scan(FIX / "repo_ai_hostile")
+    d5 = _crit(data, "documentation", "D5_claude_md_size")
+    d6 = _crit(data, "documentation", "D6_layered_context")
+    b5 = _crit(data, "build_env", "B5_composite_check_command")
+    assert (d5["score"], d6["score"], b5["score"]) == (0, 0, 0)
+    assert "412 lines" in d5["evidence"] and "200" in d5["evidence"]
+    assert "no non-empty nested CLAUDE.md" in d6["evidence"]
+    assert "no check|verify|ci|all target" in b5["evidence"]
+
+
+def test_ai_conforming_fixture_scores_new_criteria_two() -> None:
+    data = _scan(FIX / "repo_ai_conforming")
+    for crit, cat in NEW_MVP.items():
+        assert _crit(data, cat, crit)["score"] == 2, crit
+
+
+def test_json_key_set_is_backward_compatible_and_additive() -> None:
+    data = _scan(FIX / "repo_well_configured")
+    assert set(data) == {
+        "repository",
+        "scanner_version",
+        "scope",
+        "overall_score",
+        "overall_note",
+        "tier",
+        "categories",
+        "manual_review_flags",
+    }
+    assert data["tier"] == "Agent-Ready"
+    existing = {
+        "B2_reproducible_env",
+        "B3_dependency_management",
+        "C1_formatting",
+        "C2_linting",
+        "C4_module_size",
+        "D1_readme",
+        "D2_ai_instructions",
+        "D3_architecture_docs",
+        "V2_precommit_hooks",
+        "V3_commit_conventions",
+        "V4_dependency_scanning",
+    }
+    crits = {c for v in data["categories"].values() for c in v.get("criteria", {})}
+    assert crits == existing | set(NEW_MVP)
+    for v in data["categories"].values():
+        for r in v.get("criteria", {}).values():
+            assert set(r) == {"score", "max", "evidence"}
+
+
+def test_tier_thresholds_unchanged() -> None:
+    assert _cfg()["tiers"] == {
+        "agent_ready": 75,
+        "agent_assisted": 50,
+        "agent_limited": 25,
+    }
+
+
+def test_new_evidence_strings_follow_contract() -> None:
+    for fixture in ("repo_ai_hostile", "repo_ai_conforming"):
+        data = _scan(FIX / fixture)
+        for crit, cat in NEW_MVP.items():
+            ev = _crit(data, cat, crit)["evidence"]
+            assert ev.startswith("found "), ev
+            assert "; threshold " in ev and "; to fix: " in ev, ev
+            assert "knowledge/ai-friendly-repo-guidelines.md#" in ev, ev
+
+
+def test_cli_contract_unchanged(tmp_path: Path) -> None:
+    out = tmp_path / "r.json"
+    res = subprocess.run(
+        [sys.executable, str(SCANNER), str(FIX / "repo_ai_conforming"), "--json", str(out)],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert res.returncode == 0, res.stdout + res.stderr
+    assert json.loads(out.read_text())["scanner_version"] == "1.1-mvp"
