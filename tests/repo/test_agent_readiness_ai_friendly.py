@@ -92,3 +92,113 @@ def test_every_mvp_criterion_has_an_analyzer_and_vice_versa() -> None:
         if meta.get("mvp")
     }
     assert mvp == set(scanner.ANALYZERS)
+
+
+# --------------------------------------------------------------------------
+# D5 / D6 / D7
+# --------------------------------------------------------------------------
+
+
+def _claude(tmp_path: Path, lines: int) -> Path:
+    (tmp_path / "CLAUDE.md").write_text("rule\n" * lines)
+    return tmp_path
+
+
+@pytest.mark.parametrize(("lines", "score"), [(200, 2), (201, 1), (300, 1), (301, 0)])
+def test_d5_line_count_boundaries(tmp_path: Path, lines: int, score: int) -> None:
+    res = afa.d5_claude_md_size(_claude(tmp_path, lines), _cfg())
+    assert res["score"] == score
+    assert f"{lines} lines" in res["evidence"]
+
+
+def test_d5_failing_evidence_names_gap_and_fix(tmp_path: Path) -> None:
+    res = afa.d5_claude_md_size(_claude(tmp_path, 412), _cfg())
+    assert res["score"] == 0
+    assert "412 lines" in res["evidence"] and "200" in res["evidence"]
+    assert "to fix:" in res["evidence"]
+    assert (
+        "ai-friendly-repo-guidelines.md#layered-context-architecture"
+        in res["evidence"]
+    )
+
+
+def test_d5_absent_instructions_file_is_not_applicable(tmp_path: Path) -> None:
+    res = afa.d5_claude_md_size(tmp_path, _cfg())
+    assert res["max"] == 0 and res["score"] == 0
+    assert "see D2" in res["evidence"]
+
+
+def test_d5_threshold_override_changes_score_and_evidence(tmp_path: Path) -> None:
+    root = _claude(tmp_path, 50)
+    cfg = _cfg()
+    assert afa.d5_claude_md_size(root, cfg)["score"] == 2
+    cfg["thresholds"]["claude_md_max_lines"] = 10
+    cfg["thresholds"]["claude_md_hard_max_lines"] = 20
+    res = afa.d5_claude_md_size(root, cfg)
+    assert res["score"] == 0 and "10-line ceiling" in res["evidence"]
+
+
+def test_d5_missing_threshold_keys_fall_back_to_defaults(tmp_path: Path) -> None:
+    cfg = _cfg()
+    cfg["thresholds"] = {}
+    assert afa.d5_claude_md_size(_claude(tmp_path, 201), cfg)["score"] == 1
+    del cfg["thresholds"]
+    assert afa.d5_claude_md_size(tmp_path, cfg)["max"] == 2
+
+
+def test_d5_uses_same_discovery_as_d2(tmp_path: Path) -> None:
+    (tmp_path / "AGENTS.md").write_text("rule\n" * 250)
+    assert afa.find_instructions_file(tmp_path) == "AGENTS.md"
+    assert afa.d5_claude_md_size(tmp_path, _cfg())["score"] == 1
+
+
+def test_d6_nested_claude_md_passes(tmp_path: Path) -> None:
+    (tmp_path / "src").mkdir()
+    (tmp_path / "src" / "CLAUDE.md").write_text("# Src\n\nUse small modules.\n")
+    res = afa.d6_layered_context(tmp_path, _cfg())
+    assert res["score"] == 2 and "src/CLAUDE.md" in res["evidence"]
+
+
+def test_d6_rules_dir_passes(tmp_path: Path) -> None:
+    (tmp_path / ".claude" / "rules").mkdir(parents=True)
+    (tmp_path / ".claude" / "rules" / "py.md").write_text("Prefer pathlib.\n")
+    assert afa.d6_layered_context(tmp_path, _cfg())["score"] == 2
+
+
+def test_d6_root_only_or_empty_content_fails(tmp_path: Path) -> None:
+    (tmp_path / "CLAUDE.md").write_text("rule\n")
+    (tmp_path / ".claude" / "rules").mkdir(parents=True)
+    (tmp_path / ".claude" / "rules" / "empty.md").write_text("# Title only\n\n")
+    (tmp_path / "pkg").mkdir()
+    (tmp_path / "pkg" / "CLAUDE.md").write_text("")
+    res = afa.d6_layered_context(tmp_path, _cfg())
+    assert res["score"] == 0
+    assert "to fix:" in res["evidence"]
+
+
+def test_d6_ignores_excluded_dirs(tmp_path: Path) -> None:
+    (tmp_path / "node_modules" / "p").mkdir(parents=True)
+    (tmp_path / "node_modules" / "p" / "CLAUDE.md").write_text("rule\n")
+    assert afa.d6_layered_context(tmp_path, _cfg())["score"] == 0
+
+
+def test_d7_is_manual_review_only() -> None:
+    data = _scan(FIX / "repo_well_configured")
+    flags = {f["criterion"] for f in data["manual_review_flags"]}
+    assert "D7_reference_implementation" in flags
+    assert {"C3_architecture", "S3_interface_design", "D4_domain_context"} <= flags
+    scored = {c for cat in data["categories"].values() for c in cat.get("criteria", {})}
+    assert "D7_reference_implementation" not in scored
+
+
+def test_well_configured_fixture_scores_d5_d6_at_two() -> None:
+    doc = _scan(FIX / "repo_well_configured")["categories"]["documentation"]["criteria"]
+    assert doc["D5_claude_md_size"]["score"] == 2
+    assert doc["D6_layered_context"]["score"] == 2
+
+
+def test_scorecard_version_bumped_and_d5_d6_registered() -> None:
+    cfg = _cfg()
+    assert cfg["version"] == "1.1-mvp"
+    assert cfg["criteria"]["documentation"]["D5_claude_md_size"]["mvp"] is True
+    assert cfg["criteria"]["documentation"]["D6_layered_context"]["mvp"] is True

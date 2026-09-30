@@ -32,6 +32,7 @@ from minimal_yaml import parse_yaml
 sys.path.insert(0, str(HERE))
 from ai_friendly_analyzers import (
     AI_FRIENDLY_ANALYZERS,
+    INSTRUCTION_FILES,
     reset_walk_cache,
     walk_files,
 )
@@ -207,15 +208,7 @@ def d1_readme(root: Path, cfg: dict) -> dict:
 
 
 def d2_ai_instructions(root: Path, cfg: dict) -> dict:
-    f = _exists(
-        root,
-        "CLAUDE.md",
-        ".claude/CLAUDE.md",
-        "AGENTS.md",
-        ".cursorrules",
-        ".github/copilot-instructions.md",
-        "CODING_GUIDELINES.md",
-    )
+    f = _exists(root, *INSTRUCTION_FILES)
     if not f:
         return _score(
             0, "no AI-instructions file (CLAUDE.md/AGENTS.md/.cursorrules/...)"

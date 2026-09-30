@@ -9,7 +9,7 @@
 # overall (see scanner.py).
 #
 # Rubric source: the Agent-Readiness Scorecard (preserved in issue #117).
-version: "1.0-mvp"
+version: "1.1-mvp"
 
 # Category weights (sum to 1.0). Overall score renormalizes across categories
 # that have at least one MVP criterion.
@@ -56,6 +56,10 @@ criteria:
     D2_ai_instructions: { mvp: true }
     D3_architecture_docs: { mvp: true }
     D4_domain_context: { mvp: false, manual_review: true }
+    # AI-friendly repo criteria (#2178) — rubric: knowledge/ai-friendly-repo-guidelines.md
+    D5_claude_md_size: { mvp: true }
+    D6_layered_context: { mvp: true }
+    D7_reference_implementation: { mvp: false, manual_review: true }
   vcs_safety:
     V1_branch_protection: { mvp: false }
     V2_precommit_hooks: { mvp: true }
@@ -67,6 +71,8 @@ thresholds:
   file_size_p90_large: 500   # <= this -> score 1; above -> score 0
   readme_min_words: 200      # README word count >= this (with setup/build/test) -> 2
   ai_instructions_min_words: 100
+  claude_md_max_lines: 200        # instructions file <= this -> score 2 (D5)
+  claude_md_hard_max_lines: 300   # <= this -> score 1; above -> score 0 (D5)
 
 # File extensions counted as "source" for C4 line-count distribution.
 source_extensions: [".py", ".js", ".ts", ".jsx", ".tsx", ".go", ".rs", ".java",
