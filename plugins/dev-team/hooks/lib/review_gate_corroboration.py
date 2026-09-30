@@ -47,7 +47,7 @@ the contrast.
 A missing `boundary-events.jsonl` is bucketed as a **read failure**, not as
 "genuinely no entries": that stream is written by many always-on guard
 hooks (destructive_guard, verify_guard, pre_pr_review, telemetry,
-context_ceiling_guard, ...), so in any real session that reaches a `gh pr
+agent_dispatch_ledger, ...), so in any real session that reaches a `gh pr
 create` attempt the file will almost always already exist — its total absence is
 itself a signal that hook registration is broken, which is an infra
 problem the caller should surface distinctly from "the ledger is fine, it

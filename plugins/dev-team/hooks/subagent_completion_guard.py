@@ -36,8 +36,8 @@ checks `.is_file()`, does not itself parse rows — delegates to
 `hooks/lib/cost_meter.py record`) and `hooks/task_completion_metrics.py` (reads
 `payload.get("stop_reason")` — informational only, never branches on it) for how
 existing SubagentStop hooks already touch this payload, and against
-`hooks/context_ceiling_guard.py`'s `_tail_lines`/`_is_sidechain`/`_measure_occupancy`
-(lines 270-424) for the tail-reading and sidechain-row pattern.
+the former context ceiling guard's `_tail_lines`/`_is_sidechain`/`_measure_occupancy`
+(its former lines 270-424) for the tail-reading and sidechain-row pattern.
 
 ## Finding 1 — where a subagent's own transcript lives, and what "sidechain" means here
 
@@ -47,7 +47,7 @@ file, not inlined into it: `<session>.jsonl` (main thread) has a sibling
 thread's own `<session>.jsonl` had zero `"isSidechain":true` rows across 7798 lines,
 while every row inside a per-agent `subagents/agent-*.jsonl` file is
 `"isSidechain":true`). This matches Step 2.1b's own plan text precisely: for a
-SubagentStop payload, the "sidechain" rows `context_ceiling_guard.py` excludes when
+SubagentStop payload, the "sidechain" rows the former context ceiling guard excluded when
 scanning the MAIN thread are exactly the subagent's own transcript rows when read from
 its own file — nothing needs excluding when reading a subagent's transcript directly.
 
@@ -170,11 +170,11 @@ def _tail_lines(path: Path, n: int = 50) -> list[str]:
     """Read the last `n` lines of `path`. Fail-safe: [] on any IO error.
 
     Deliberately a small, private, inline copy for this hook rather than
-    `hooks/lib/context_ceiling_guard.py`'s private `_tail_lines`, or
+    the former context ceiling guard's private `_tail_lines`, or
     `scripts/lib/session_log/records.py`'s `iter_file_records` (the
     sanctioned shared transcript-row reader two sibling hooks already use
     over the documented hooks/ -> scripts/lib/session_log/ edge — see
-    `context_ceiling_guard.py`'s own "why this is safe" note). Not reused
+    the former context ceiling guard's own "why this is safe" note). Not reused
     here because the semantics genuinely differ: `iter_file_records` streams
     forward and silently skips an undecodable line, continuing to the next
     one, while this hook needs "the transcript's true LAST line is malformed
@@ -275,7 +275,7 @@ def main() -> int:
     `emit_boundary_event` is already fail-open internally (module docstring,
     `boundary_events.py`); this function's own try/except is the same
     outer safety net every other hook in this plugin wraps its entire
-    `main()` in (e.g. `context_ceiling_guard.py`), so a failure anywhere in
+    `main()` in (e.g. `destructive_guard.py`), so a failure anywhere in
     this hook — payload parsing, classification, or emission — degrades to a
     silent no-op, never a crash or a non-zero exit.
     """

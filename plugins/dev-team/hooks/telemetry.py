@@ -89,7 +89,7 @@ _INTERVENTION_RE = re.compile(r"^\s*(override|pause|stop)\b", re.IGNORECASE)
 
 def _legacy_signal_path(session_id: object) -> Path:
     """Per-session dedupe marker for the one-time inert-legacy-signal notice
-    (#1405, Slice 1 Step 1.4). Mirrors context_ceiling_guard.py's marker
+    (#1405, Slice 1 Step 1.4). Mirrors the former context ceiling guard's marker
     pattern: TMPDIR (or the system temp dir) keyed by a sanitized session id.
     """
     tmpdir = os.environ.get("TMPDIR") or tempfile.gettempdir()

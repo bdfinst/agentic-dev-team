@@ -640,10 +640,6 @@ _TRANSCRIPT_PARSING_ALLOWLIST = {
         "reads a pre-extracted usage dict's cache-token fields for its own "
         "cost estimate -- never a raw transcript record"
     ),
-    "scripts/context_ceiling_report.py": (
-        "reads a pre-extracted usage dict's cache-token fields for context "
-        "accounting -- never a raw transcript record"
-    ),
     "scripts/run_integration_eval.py": (
         "reads a pre-extracted usage dict's known token fields to sum "
         "eval-harness cost -- never a raw transcript record"
