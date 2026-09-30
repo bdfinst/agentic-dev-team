@@ -600,7 +600,7 @@ def test_pricing_file_spans_every_shipped_model_family() -> None:
     ships agents against.
 
     #1844 once cross-checked pricing against the model-family regexes of
-    `context_ceiling_guard.py` — an independently maintained list of "models
+    the former context-ceiling hook — an independently maintained list of "models
     this repo's tooling recognizes" that caught a newly released model with
     no pricing entry (#1830). That guard was removed with #2177, and with it
     the only source of such a list that needed no new bookkeeping. The

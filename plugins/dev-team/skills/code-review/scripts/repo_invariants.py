@@ -57,6 +57,7 @@ from __future__ import annotations
 import argparse
 import json
 import re
+import subprocess
 import sys
 from pathlib import Path
 
@@ -897,6 +898,88 @@ def check_ledger_filename_single_sourced(changed_files=None) -> list[dict]:
     return []
 
 
+# --- #2177: the context-ceiling hook and its report script are gone ----------
+#
+# ADR 0043 replaced the forced-handoff hook with harness autocompact and
+# deleted the hook, its report script and the docs around them. A stale
+# reference to either name is a dangling pointer to a file that no longer
+# exists. History (the changelog, superseded ADRs) legitimately keeps the
+# names; tests that assert the files stay gone must spell them out.
+
+_CEILING_REF_RE = re.compile(rb"context_ceiling_(?:guard|report)")
+_CEILING_REF_EXEMPT_PREFIXES = ("docs/adr/",)
+_CEILING_REF_EXEMPT_FILES = frozenset(
+    {
+        "plugins/dev-team/CHANGELOG.md",
+        # Tests that pin the removal, so they name what must stay absent.
+        "tests/hooks/test_autocompact_hook_registration.py",
+        "tests/scripts/test_no_ceiling_event_consumers.py",
+        "tests/repo/test_no_live_ceiling_refs.py",
+    }
+)
+_CEILING_REF_MAX_BYTES = 2_000_000
+
+
+def _tracked_files() -> list[str]:
+    """Repo-relative tracked paths via `git ls-files`; falls back to a walk
+    (minus VCS and dependency dirs) when git is unavailable."""
+    try:
+        out = subprocess.run(
+            ["git", "ls-files", "-z"],
+            cwd=_REPO_ROOT,
+            capture_output=True,
+            check=True,
+            timeout=30,
+        ).stdout.decode("utf-8", "replace")
+        return [p for p in out.split("\0") if p]
+    except (OSError, subprocess.SubprocessError):
+        skip = {".git", "node_modules", "graphify-out", "__pycache__"}
+        return [
+            _repo_relative(p)
+            for p in _REPO_ROOT.rglob("*")
+            if p.is_file() and not skip.intersection(p.relative_to(_REPO_ROOT).parts)
+        ]
+
+
+def check_no_live_ceiling_refs(changed_files=None) -> list[dict]:
+    """No tracked file outside history may reference the removed context-
+    ceiling hook or report script by name (#2177, ADR 0043).
+
+    Corpus-wide by design: a dangling pointer is wrong whether or not this
+    changeset touched it, so `changed_files` is ignored.
+    """
+    findings = []
+    self_rel = _repo_relative(Path(__file__).resolve())
+    for rel in sorted(_tracked_files()):
+        if (
+            rel == self_rel
+            or rel in _CEILING_REF_EXEMPT_FILES
+            or rel.startswith(_CEILING_REF_EXEMPT_PREFIXES)
+        ):
+            continue
+        path = _REPO_ROOT / rel
+        try:
+            if not path.is_file() or path.stat().st_size > _CEILING_REF_MAX_BYTES:
+                continue
+            data = path.read_bytes()  # bytes: tracked binaries are not UTF-8
+        except OSError:
+            continue
+        if _CEILING_REF_RE.search(data):
+            findings.append(
+                {
+                    "invariant": "no-live-ceiling-refs",
+                    "file": rel,
+                    "message": (
+                        f"{rel} references the removed context-ceiling hook or "
+                        "report script. Both were deleted by #2177 (ADR 0043); "
+                        "point at docs/adr/0043-replace-the-context-ceiling-"
+                        "guard-with-harness-autocompact.md or drop the reference."
+                    ),
+                }
+            )
+    return findings
+
+
 # Registered checks. Each entry takes an optional `changed_files` list and
 # returns findings. See the module docstring for why that argument exists.
 CHECKS = [
@@ -909,6 +992,7 @@ CHECKS = [
     check_churn_report_window_key_safe_access,
     check_normative_content_single_sourced,
     check_ledger_filename_single_sourced,
+    check_no_live_ceiling_refs,
 ]
 
 
