@@ -5889,7 +5889,7 @@
       "anchor": "4-build"
     },
     "5. Review": {
-      "summary": "Invoke `/code-review` over the changes and let its fix loop converge.",
+      "summary": "First check whether `/build`'s checkpoints already reviewed this exact change:",
       "anchor": "5-review"
     },
     "6. PR": {
