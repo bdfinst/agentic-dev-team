@@ -133,6 +133,24 @@
       "anchor": "citing-this-file"
     }
   },
+  "plugins/dev-team/knowledge/ai-friendly-repo-guidelines.md": {
+    "Layered Context Architecture": {
+      "summary": "Agents pay for every line of always-loaded context and for every wrong guess made",
+      "anchor": "layered-context-architecture"
+    },
+    "Deterministic Verification & Fast Feedback Loops": {
+      "summary": "An agent can only converge on a correct change if it can check its work quickly",
+      "anchor": "deterministic-verification-fast-feedback-loops"
+    },
+    "Navigable Repository Layout": {
+      "summary": "Agents find code by searching names and paths.",
+      "anchor": "navigable-repository-layout"
+    },
+    "Source": {
+      "summary": "Synthesized from Anthropic's published Claude Code guidance on memory files and",
+      "anchor": "source"
+    }
+  },
   "plugins/dev-team/knowledge/architecture-assessment.md": {
     "Exploration Patterns": {
       "summary": "Map the architectural landscape before detecting issues.",
@@ -2245,6 +2263,10 @@
     "Scope (MVP — issue #117)": {
       "summary": "This MVP uses **file-presence/heuristic analyzers only** — no CI-platform APIs.",
       "anchor": "scope-mvp-issue-117"
+    },
+    "Evidence table": {
+      "summary": "Each scored criterion emits `score` (0-2), `max`, and an `evidence` string.",
+      "anchor": "evidence-table"
     },
     "Run": {
       "summary": "`REPO_PATH` defaults to the current directory.",
