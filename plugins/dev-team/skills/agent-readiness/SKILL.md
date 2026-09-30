@@ -56,6 +56,8 @@ as `deferred` and excluded from the renormalized overall score.
 
 Each scored criterion emits `score` (0-2), `max`, and an `evidence` string. The
 new criteria use `found X; threshold Y; to fix: Z (see <guide>#anchor)`.
+N/A results (`max` 0, e.g. D5 when no AI-instructions file exists; see D2) are
+exempt: they carry a plain-text reason and add nothing to the category score.
 
 | Criterion | Category | Scores on | Threshold (scorecard.yaml) |
 | --- | --- | --- | --- |

@@ -51,6 +51,20 @@ def test_walk_prunes_excluded_names_and_root_relative_paths(tmp_path: Path) -> N
     assert files == {"src/f.py", ".claude/rules/f.py"}
 
 
+def test_walk_bare_name_prunes_nested_but_root_relative_path_does_not(
+    tmp_path: Path,
+) -> None:
+    for d in ("src/node_modules/x", "src/.claude/worktrees/w", ".claude/worktrees/w"):
+        (tmp_path / d).mkdir(parents=True)
+        (tmp_path / d / "f.py").write_text("x\n")
+    files = {
+        p.relative_to(tmp_path).as_posix()
+        for p in afa.walk_files(tmp_path, ["node_modules", ".claude/worktrees"])
+    }
+    # bare name prunes at any depth; the path entry only matches from the root
+    assert files == {"src/.claude/worktrees/w/f.py"}
+
+
 @pytest.mark.skipif(not hasattr(os, "symlink"), reason="needs symlinks")
 def test_walk_terminates_on_symlink_loop(tmp_path: Path) -> None:
     (tmp_path / "a").mkdir()
@@ -68,7 +82,15 @@ def test_walk_is_memoized_until_reset(tmp_path: Path) -> None:
     afa.reset_walk_cache()
     first = afa.walk_tree(tmp_path, [])
     assert afa.walk_tree(tmp_path, []) is first
+    # same root, different exclude set -> separate cache entry
+    other = afa.walk_tree(tmp_path, ["skip"])
+    assert other is not first
+    assert afa.walk_tree(tmp_path, ["skip"]) is other
+    # tree mutation is invisible until reset, visible after
+    (tmp_path / "b.py").write_text("y\n")
+    assert [p.name for p in afa.walk_files(tmp_path, [])] == ["a.py"]
     afa.reset_walk_cache()
+    assert [p.name for p in afa.walk_files(tmp_path, [])] == ["a.py", "b.py"]
     assert afa.walk_tree(tmp_path, []) is not first
 
 
@@ -141,17 +163,32 @@ def test_d5_threshold_override_changes_score_and_evidence(tmp_path: Path) -> Non
 
 
 def test_d5_missing_threshold_keys_fall_back_to_defaults(tmp_path: Path) -> None:
+    root = _claude(tmp_path, 201)  # 201 lines: over 200 default, under 300 hard
     cfg = _cfg()
     cfg["thresholds"] = {}
-    assert afa.d5_claude_md_size(_claude(tmp_path, 201), cfg)["score"] == 1
+    assert afa.d5_claude_md_size(root, cfg)["score"] == 1
     del cfg["thresholds"]
-    assert afa.d5_claude_md_size(tmp_path, cfg)["score"] == 1
+    res = afa.d5_claude_md_size(root, cfg)
+    assert res["score"] == 1 and res["max"] == 2
 
 
 def test_d5_uses_same_discovery_as_d2(tmp_path: Path) -> None:
     (tmp_path / "AGENTS.md").write_text("rule\n" * 250)
     assert afa.find_instructions_file(tmp_path) == "AGENTS.md"
-    assert afa.d5_claude_md_size(tmp_path, _cfg())["score"] == 1
+    assert "AGENTS.md" in scanner.d2_ai_instructions(tmp_path, _cfg())["evidence"]
+    assert "AGENTS.md is 250 lines" in afa.d5_claude_md_size(tmp_path, _cfg())["evidence"]
+
+
+def test_d2_and_d5_agree_on_precedence(tmp_path: Path) -> None:
+    (tmp_path / "AGENTS.md").write_text("rule\n" * 250)
+    (tmp_path / ".claude").mkdir()
+    (tmp_path / ".claude" / "CLAUDE.md").write_text("rule\n" * 10)
+    assert afa.find_instructions_file(tmp_path) == ".claude/CLAUDE.md"
+    assert ".claude/CLAUDE.md" in scanner.d2_ai_instructions(tmp_path, _cfg())["evidence"]
+    assert ".claude/CLAUDE.md is 10 lines" in afa.d5_claude_md_size(tmp_path, _cfg())["evidence"]
+    (tmp_path / "CLAUDE.md").write_text("rule\n" * 5)
+    assert afa.find_instructions_file(tmp_path) == "CLAUDE.md"
+    assert scanner.d2_ai_instructions(tmp_path, _cfg())["evidence"].startswith("CLAUDE.md")
 
 
 def test_d6_nested_claude_md_passes(tmp_path: Path) -> None:
@@ -167,15 +204,35 @@ def test_d6_rules_dir_passes(tmp_path: Path) -> None:
     assert afa.d6_layered_context(tmp_path, _cfg())["score"] == 2
 
 
-def test_d6_root_only_or_empty_content_fails(tmp_path: Path) -> None:
+def test_d6_root_only_claude_md_fails(tmp_path: Path) -> None:
     (tmp_path / "CLAUDE.md").write_text("rule\n")
-    (tmp_path / ".claude" / "rules").mkdir(parents=True)
-    (tmp_path / ".claude" / "rules" / "empty.md").write_text("# Title only\n\n")
-    (tmp_path / "pkg").mkdir()
-    (tmp_path / "pkg" / "CLAUDE.md").write_text("")
     res = afa.d6_layered_context(tmp_path, _cfg())
     assert res["score"] == 0
     assert "to fix:" in res["evidence"]
+
+
+def test_d6_heading_only_rules_file_fails(tmp_path: Path) -> None:
+    (tmp_path / ".claude" / "rules").mkdir(parents=True)
+    (tmp_path / ".claude" / "rules" / "empty.md").write_text("# Title only\n\n")
+    assert afa.d6_layered_context(tmp_path, _cfg())["score"] == 0
+
+
+def test_d6_empty_nested_claude_md_fails(tmp_path: Path) -> None:
+    (tmp_path / "pkg").mkdir()
+    (tmp_path / "pkg" / "CLAUDE.md").write_text("")
+    assert afa.d6_layered_context(tmp_path, _cfg())["score"] == 0
+
+
+def test_d6_non_md_file_in_rules_dir_fails(tmp_path: Path) -> None:
+    (tmp_path / ".claude" / "rules").mkdir(parents=True)
+    (tmp_path / ".claude" / "rules" / "py.txt").write_text("Prefer pathlib.\n")
+    assert afa.d6_layered_context(tmp_path, _cfg())["score"] == 0
+
+
+def test_d6_dot_claude_claude_md_is_not_a_nested_layer(tmp_path: Path) -> None:
+    (tmp_path / ".claude").mkdir()
+    (tmp_path / ".claude" / "CLAUDE.md").write_text("Real content.\n")
+    assert afa.d6_layered_context(tmp_path, _cfg())["score"] == 0
 
 
 def test_d6_ignores_excluded_dirs(tmp_path: Path) -> None:
@@ -263,10 +320,27 @@ def test_b5_partial_target_scores_one(tmp_path: Path) -> None:
     assert res["score"] == 1 and "lacks a lint command" in res["evidence"]
 
 
-def test_b5_lookalike_words_do_not_count(tmp_path: Path) -> None:
-    (tmp_path / "Makefile").write_text("check:\n\techo latest contest splint\n")
+def test_b5_lint_without_test_scores_one(tmp_path: Path) -> None:
+    (tmp_path / "Makefile").write_text("check:\n\truff .\n")
     res = _b5(tmp_path)
-    assert res["score"] == 1 and "lacks a lint and test command" in res["evidence"]
+    assert res["score"] == 1 and "lacks a test command" in res["evidence"]
+
+
+def test_b5_multi_source_full_beats_earlier_partial(tmp_path: Path) -> None:
+    (tmp_path / "Makefile").write_text("check:\n\tpytest\n")
+    (tmp_path / "package.json").write_text(
+        json.dumps({"scripts": {"verify": "eslint . && jest"}})
+    )
+    res = _b5(tmp_path)
+    assert res["score"] == 2 and "package.json target 'verify'" in res["evidence"]
+
+
+def test_b5_lookalike_words_do_not_count(tmp_path: Path) -> None:
+    # splint/latest/contest contain "lint"/"test" but not as standalone tokens
+    (tmp_path / "Makefile").write_text("check:\n\techo splint latest contest\n")
+    res = _b5(tmp_path)
+    assert res["score"] == 1
+    assert "lacks a lint and test command" in res["evidence"]
 
 
 @pytest.mark.parametrize(
@@ -312,16 +386,6 @@ def test_b5_recipe_body_does_not_bleed_into_next_target(tmp_path: Path) -> None:
     assert res["score"] == 1 and "lacks a lint command" in res["evidence"]
 
 
-def test_b5_partial_in_earlier_source_does_not_block_later_pass(
-    tmp_path: Path,
-) -> None:
-    (tmp_path / "Makefile").write_text("check:\n\tpytest\n")
-    (tmp_path / "package.json").write_text(
-        json.dumps({"scripts": {"ci": "npm run lint && npm test"}})
-    )
-    assert _b5(tmp_path)["score"] == 2
-
-
 def test_b5_malformed_and_unreadable_inputs_do_not_crash(tmp_path: Path) -> None:
     (tmp_path / "package.json").write_text("{not json")
     (tmp_path / "Makefile").mkdir()  # a directory where a file is expected
@@ -344,6 +408,9 @@ def test_b5_registered_in_build_env_and_fixture_passes() -> None:
     assert _cfg()["criteria"]["build_env"]["B5_composite_check_command"]["mvp"]
     data = _scan(FIX / "repo_well_configured")
     assert _crit(data, "build_env", "B5_composite_check_command")["score"] == 2
+
+
+def test_repo_minimal_stays_agent_hostile() -> None:
     assert _scan(FIX / "repo_minimal")["tier"] == "Agent-Hostile"
 
 
@@ -437,9 +504,23 @@ def test_cli_contract_unchanged(tmp_path: Path) -> None:
         capture_output=True,
         text=True,
         check=False,
+        timeout=60,
     )
     assert res.returncode == 0, res.stdout + res.stderr
-    assert json.loads(out.read_text())["scanner_version"] == "1.1-mvp"
+    data = json.loads(out.read_text())
+    assert data["scanner_version"] == "1.1-mvp"
+    assert set(data) == {
+        "repository",
+        "scanner_version",
+        "scope",
+        "overall_score",
+        "overall_note",
+        "tier",
+        "categories",
+        "manual_review_flags",
+    }
+    for crit, cat in NEW_MVP.items():
+        assert set(_crit(data, cat, crit)) == {"score", "max", "evidence"}
 
 
 # --------------------------------------------------------------------------
@@ -486,7 +567,7 @@ def test_evidence_anchors_resolve_to_doc_headings() -> None:
     def slug(h: str) -> str:
         return re.sub(r"[^a-z0-9 -]", "", h.lstrip("# ").lower()).replace(" ", "-")
 
-    slugs = {slug(h) for h in CATEGORY_HEADINGS}
+    slugs = {slug(h) for h in _doc_sections()}
     for fixture in ("repo_ai_hostile", "repo_ai_conforming"):
         data = _scan(FIX / fixture)
         for crit, cat in NEW_MVP.items():
@@ -504,6 +585,56 @@ def test_skill_md_has_row_per_scored_criterion() -> None:
 
 def test_skill_md_allowed_tools_stay_read_only() -> None:
     text = (SKILL / "SKILL.md").read_text()
-    front = text.split("---")[1]
-    tools = front.split("allowed-tools:")[1]
-    assert "Edit" not in tools and "Write" not in tools
+    front = text.split("---")[1].splitlines()
+    start = next(i for i, ln in enumerate(front) if ln.startswith("allowed-tools:"))
+    value = []
+    for ln in front[start + 1 :]:
+        if ln and not ln[0].isspace():
+            break  # next frontmatter key
+        value.append(ln.strip())
+    tools = {t.strip() for t in " ".join(value).split(", ") if t.strip()}
+    assert tools == {"Bash(python3 *)", "Read", "Glob"}
+
+
+def test_b5_pyproject_optional_dependencies_all_is_not_a_task(tmp_path: Path) -> None:
+    (tmp_path / "pyproject.toml").write_text(
+        '[project.optional-dependencies]\nall = ["pytest", "ruff"]\n'
+    )
+    assert _b5(tmp_path)["score"] == 0
+
+
+def test_b5_pyproject_dependency_groups_ci_is_not_a_task(tmp_path: Path) -> None:
+    (tmp_path / "pyproject.toml").write_text(
+        '[dependency-groups]\nci = ["pytest", "ruff"]\n'
+    )
+    assert _b5(tmp_path)["score"] == 0
+
+
+def test_b5_pyproject_task_runner_tables_count(tmp_path: Path) -> None:
+    for table in (
+        "tool.poe.tasks",
+        "tool.taskipy.tasks",
+        "tool.hatch.envs.default.scripts",
+        "tool.pdm.scripts",
+    ):
+        root = tmp_path / table
+        root.mkdir()
+        (root / "pyproject.toml").write_text(f'[{table}]\ncheck = "ruff . && pytest"\n')
+        assert _b5(root)["score"] == 2, table
+
+
+def test_b5_pyproject_key_after_non_task_table_does_not_leak(tmp_path: Path) -> None:
+    (tmp_path / "pyproject.toml").write_text(
+        '[tool.poe.tasks]\nlint = "ruff ."\n'
+        '[project.optional-dependencies]\nall = ["pytest", "ruff"]\n'
+    )
+    assert _b5(tmp_path)["score"] == 0
+
+
+def test_d5_not_applicable_results_are_exempt_from_evidence_contract(
+    tmp_path: Path,
+) -> None:
+    res = afa.d5_claude_md_size(tmp_path, _cfg())
+    assert res["max"] == 0
+    assert not res["evidence"].startswith("found ")
+    assert "N/A results" in (SKILL / "SKILL.md").read_text()

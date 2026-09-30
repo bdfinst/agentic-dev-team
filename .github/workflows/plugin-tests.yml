@@ -121,13 +121,15 @@ jobs:
       # chk_sa_mcp_tools joined this list in #1676: it sits in ci-local.sh's
       # always-run CHECKS array but was named by no CI job, and it is
       # stdlib-only Python needing nothing this job does not already install.
+      # chk_specs_skill_size (#2182) and chk_registry_drift joined for the same
+      # reason: always-run, CI-invisible, stdlib-only.
       # chk_harness_scope is NOT here for exactly that reason — its checks 5-6
       # shell out to the red-team orchestrator, which imports httpx. It runs in
       # the harness-smoke job below, which installs it.
       - name: Content + hook-conformance checks (via ci-local)
         run:
           bash scripts/ci-local.sh
-          --only=chk_md_references,chk_skills_index,chk_rules_vs_prompts,chk_hook_units,chk_sa_mcp_tools
+          --only=chk_md_references,chk_skills_index,chk_rules_vs_prompts,chk_hook_units,chk_sa_mcp_tools,chk_specs_skill_size,chk_registry_drift
 
   # ADR 0031's Python 3.10 floor (raised from ADR 0014's original 3.8 once that
   # floor's OS-availability rationale expired — see issue #1679), proven by
