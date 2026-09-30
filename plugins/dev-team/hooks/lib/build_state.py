@@ -1,7 +1,7 @@
 """Shared reader for `/build`'s active-state record (#2177, slice 1).
 
 `/build` owns `.claude/memory/build-phase.json` (see `skills/build/SKILL.md`):
-    {"phase": "<implement|test|refactor>", "step": "<N.M>", "written_at": "<ISO8601>",
+    {"phase": "<implement|test|refactor|between-steps>", "step": "<N.M>", "written_at": "<ISO8601>",
      "test_files_staged": [], "plan_path": "<repo-relative plan file>"}
 
 This module is the single reader of that record, so the post-compaction
@@ -9,8 +9,12 @@ re-injection hook and `/build` agree on one contract (pinned by
 `tests/hooks/test_build_state_contract.py`).
 
 "Cleared" means: the file is absent, empty, `{}`, unreadable, malformed, or
-lacks a string `phase` AND a string `step`. `/build` clears the record at step
-completion, so a compaction between steps yields None.
+lacks a string `phase` AND a string `step`. `/build` clears the record only when
+the plan completes. At each step completion it rewrites it as a `between-steps`
+record (`phase == BETWEEN_STEPS`, `step` = the next step, same `plan_path`), so a
+compaction between steps still restores the plan and next step. Only the
+`refactor` phase is enforced by the guards, so the retained record is inert to
+them, and an old one is ignored by the same staleness rule below.
 
 A record whose `written_at` is missing/unparseable, or older than
 `STALE_AFTER_SECONDS` (shared with `test_file_classify.py`: a crashed `/build`
@@ -35,6 +39,9 @@ from test_file_classify import STALE_AFTER_SECONDS  # same staleness rule as the
 
 #: Keys `/build` documents for the record; the contract test compares this to SKILL.md.
 RECORD_KEYS = ("phase", "step", "written_at", "test_files_staged", "plan_path")
+
+#: `phase` value `/build` writes at step completion in place of deleting the file.
+BETWEEN_STEPS = "between-steps"
 
 STATE_RELPATH = Path(".claude") / "memory" / "build-phase.json"
 

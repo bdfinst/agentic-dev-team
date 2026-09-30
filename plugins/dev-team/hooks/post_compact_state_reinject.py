@@ -11,7 +11,8 @@ re-injects the active `/build` state as `additionalContext`:
 State comes from the one shared reader, `hooks/lib/build_state.py`
 (`.claude/memory/build-phase.json`, written by `/build`); the plan file is
 the path recorded there — never a glob. Unchecked items are the `- [ ]`
-lines under the plan's `## Build Progress`. Plans that live only in an
+lines under the plan's `## Build Progress`. Between steps (`/build` keeps a
+`between-steps` record) the line reads "between steps, next step=N.M". Plans that live only in an
 issue (no local file) degrade to phase/step. No active state -> no output.
 
 Budget: `additionalContext` is capped at 10,000 characters by the harness.
@@ -36,7 +37,10 @@ _LIB = Path(__file__).resolve().parent / "lib"
 if str(_LIB) not in sys.path:
     sys.path.insert(0, str(_LIB))
 
-from build_state import read_active_build_state  # type: ignore[import-not-found]
+from build_state import (  # type: ignore[import-not-found]
+    BETWEEN_STEPS,
+    read_active_build_state,
+)
 from stdin_json import read_stdin_json, resolve_cwd  # type: ignore[import-not-found]
 
 MAX_CONTEXT_CHARS = 10_000
@@ -82,7 +86,10 @@ def assemble(
     limit: int = MAX_CONTEXT_CHARS,
 ) -> str:
     """Build the injected text within `limit` characters (priority-truncated)."""
-    head = f"Restored after compaction: phase={phase} step={step}"
+    if phase == BETWEEN_STEPS:
+        head = f"Restored after compaction: between steps, next step={step}"
+    else:
+        head = f"Restored after compaction: phase={phase} step={step}"
     if plan_path:
         head += f" plan={plan_path}"
     if not items:
