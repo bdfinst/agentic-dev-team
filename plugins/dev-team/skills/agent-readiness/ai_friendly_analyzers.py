@@ -225,10 +225,30 @@ def _package_json_bodies(text: str, names: set[str]) -> list[tuple[str, str]]:
     ]
 
 
+_TASK_TABLES = re.compile(
+    r"^tool\.(?:poe\.tasks|taskipy\.tasks|pdm\.scripts|hatch\.envs\.[^.\]]+\.scripts)$"
+)
+
+
 def _pyproject_bodies(text: str, names: set[str]) -> list[tuple[str, str]]:
+    """Task definitions, accepted only inside known task-runner tables.
+
+    Keys named check/all/ci elsewhere (optional-dependencies, dependency-groups)
+    are dependency lists, not commands.
+    """
     out: list[tuple[str, str]] = []
     lines = text.splitlines()
+    table = ""
     for i, line in enumerate(lines):
+        header = re.match(r"^\s*\[([^\[\]]+)\]\s*(?:#.*)?$", line)
+        if header:
+            table = header.group(1).strip()
+            continue
+        if line.lstrip().startswith("[["):
+            table = ""
+            continue
+        if not _TASK_TABLES.match(table):
+            continue
         m = re.match(r"^\s*([A-Za-z0-9_.-]+)\s*=\s*(.*)$", line)
         if not m or m.group(1) not in names:
             continue
