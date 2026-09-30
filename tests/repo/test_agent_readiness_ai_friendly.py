@@ -145,7 +145,7 @@ def test_d5_missing_threshold_keys_fall_back_to_defaults(tmp_path: Path) -> None
     cfg["thresholds"] = {}
     assert afa.d5_claude_md_size(_claude(tmp_path, 201), cfg)["score"] == 1
     del cfg["thresholds"]
-    assert afa.d5_claude_md_size(tmp_path, cfg)["max"] == 2
+    assert afa.d5_claude_md_size(tmp_path, cfg)["score"] == 1
 
 
 def test_d5_uses_same_discovery_as_d2(tmp_path: Path) -> None:
@@ -264,8 +264,62 @@ def test_b5_partial_target_scores_one(tmp_path: Path) -> None:
 
 
 def test_b5_lookalike_words_do_not_count(tmp_path: Path) -> None:
-    (tmp_path / "Makefile").write_text("check:\n\techo latest contest\n")
-    assert _b5(tmp_path)["score"] == 1
+    (tmp_path / "Makefile").write_text("check:\n\techo latest contest splint\n")
+    res = _b5(tmp_path)
+    assert res["score"] == 1 and "lacks a lint and test command" in res["evidence"]
+
+
+@pytest.mark.parametrize(
+    "files",
+    [
+        {"pyproject.toml": '[project.optional-dependencies]\nall = ["pytest>=7", "ruff"]\n'},
+        {"pyproject.toml": '[dependency-groups]\nci = ["pytest", "mypy"]\n'},
+        {"Makefile": "check:\n\truff check src tests\n"},
+        {"Makefile": "check:\n\tnode x.js -p tsconfig.json && jest\n"},
+    ],
+)
+def test_b5_false_pass_inputs_score_below_two(tmp_path: Path, files: dict) -> None:
+    for name, text in files.items():
+        (tmp_path / name).write_text(text)
+    assert _b5(tmp_path)["score"] < 2
+
+
+@pytest.mark.parametrize("runner", ["python -m unittest", "ctest", "tox", "nox"])
+def test_b5_runner_names_ending_in_test_count(tmp_path: Path, runner: str) -> None:
+    (tmp_path / "Makefile").write_text(f"check:\n\truff check .\n\t{runner}\n")
+    assert _b5(tmp_path)["score"] == 2
+
+
+@pytest.mark.parametrize(
+    ("body", "missing"),
+    [
+        ("ruff .", "test"),
+        ("pytest", "lint"),
+        ("echo hi", "lint and test"),
+    ],
+)
+def test_b5_partial_evidence_names_missing_command(
+    tmp_path: Path, body: str, missing: str
+) -> None:
+    (tmp_path / "Makefile").write_text(f"check:\n\t{body}\n")
+    res = _b5(tmp_path)
+    assert res["score"] == 1 and f"lacks a {missing} command" in res["evidence"]
+
+
+def test_b5_recipe_body_does_not_bleed_into_next_target(tmp_path: Path) -> None:
+    (tmp_path / "Makefile").write_text("check:\n\tpytest\nlint:\n\truff .\n")
+    res = _b5(tmp_path)
+    assert res["score"] == 1 and "lacks a lint command" in res["evidence"]
+
+
+def test_b5_partial_in_earlier_source_does_not_block_later_pass(
+    tmp_path: Path,
+) -> None:
+    (tmp_path / "Makefile").write_text("check:\n\tpytest\n")
+    (tmp_path / "package.json").write_text(
+        json.dumps({"scripts": {"ci": "npm run lint && npm test"}})
+    )
+    assert _b5(tmp_path)["score"] == 2
 
 
 def test_b5_malformed_and_unreadable_inputs_do_not_crash(tmp_path: Path) -> None:

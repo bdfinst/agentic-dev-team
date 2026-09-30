@@ -180,11 +180,14 @@ def d6_layered_context(root: Path, cfg: dict) -> dict:
 
 DEFAULT_CHECK_TARGETS = ("check", "verify", "ci", "all")
 _LINT_RE = re.compile(
-    r"(?<![A-Za-z])(?:lint|ruff|eslint|flake8|pylint|golangci|shellcheck|mypy|tsc|clippy)"
+    r"(?<![A-Za-z])(?:lint|ruff|eslint|flake8|pylint|golangci|shellcheck|mypy|tsc|clippy)(?![A-Za-z])"
 )
 _TEST_RE = re.compile(
-    r"(?<![A-Za-z])(?:test|pytest|jest|vitest|mocha|rspec|phpunit)"
+    r"(?<![A-Za-z])(?:test|pytest|unittest|ctest|gotestsum|tox|nox|jest|vitest|mocha|rspec|phpunit)"
+    r"(?![A-Za-z])"
 )
+# Only task-runner tables count; dependency lists (`all = [...]`) do not.
+_TASK_TABLE_RE = re.compile(r"^tool\..*(?:tasks|scripts)$")
 _MAKE_FILES = ("Makefile", "makefile", "GNUmakefile", "justfile", "Justfile")
 
 
@@ -228,7 +231,14 @@ def _package_json_bodies(text: str, names: set[str]) -> list[tuple[str, str]]:
 def _pyproject_bodies(text: str, names: set[str]) -> list[tuple[str, str]]:
     out: list[tuple[str, str]] = []
     lines = text.splitlines()
+    section = ""
     for i, line in enumerate(lines):
+        hdr = re.match(r"^\s*\[+([^\]]+)\]+", line)
+        if hdr:
+            section = hdr.group(1).strip()
+            continue
+        if not _TASK_TABLE_RE.match(section):
+            continue
         m = re.match(r"^\s*([A-Za-z0-9_.-]+)\s*=\s*(.*)$", line)
         if not m or m.group(1) not in names:
             continue
