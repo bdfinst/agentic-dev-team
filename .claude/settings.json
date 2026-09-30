@@ -64,5 +64,8 @@
   },
   "worktree": {
     "baseRef": "head"
+  },
+  "env": {
+    "CLAUDE_AUTOCOMPACT_PCT_OVERRIDE": "40"
   }
 }

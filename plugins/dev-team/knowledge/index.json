@@ -5868,6 +5868,10 @@
       "summary": "Wire a PostToolUse hook entry for the project's `.claude/settings.json` that",
       "anchor": "9-generate-posttooluse-formatting-hook"
     },
+    "9b. Configure harness autocompact (#2177)": {
+      "summary": "Replaces the retired context-ceiling hook: the harness compacts the",
+      "anchor": "9b-configure-harness-autocompact-2177"
+    },
     "10. Generate /pr command": {
       "summary": "Create a project-specific `skills/pr/SKILL.md` if one doesn't exist, referencing the project's test/lint/typecheck commands.",
       "anchor": "10-generate-pr-command"
