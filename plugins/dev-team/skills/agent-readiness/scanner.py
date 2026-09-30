@@ -29,6 +29,14 @@ HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE.parents[1] / "hooks" / "lib"))
 from minimal_yaml import parse_yaml
 
+sys.path.insert(0, str(HERE))
+from ai_friendly_analyzers import (
+    AI_FRIENDLY_ANALYZERS,
+    INSTRUCTION_FILES,
+    reset_walk_cache,
+    walk_files,
+)
+
 # --------------------------------------------------------------------------
 # Small filesystem helpers (all detection is file-presence/heuristic).
 # --------------------------------------------------------------------------
@@ -156,10 +164,8 @@ def c4_module_size(root: Path, cfg: dict) -> dict:
     exts = set(cfg.get("source_extensions", []))
     excl = set(cfg.get("exclude_dirs", []))
     counts = []
-    for f in root.rglob("*"):
-        if not f.is_file() or f.suffix not in exts:
-            continue
-        if any(part in excl for part in f.relative_to(root).parts):
+    for f in walk_files(root, excl):
+        if f.suffix not in exts:
             continue
         try:
             counts.append(sum(1 for _ in f.open(errors="ignore")))
@@ -202,15 +208,7 @@ def d1_readme(root: Path, cfg: dict) -> dict:
 
 
 def d2_ai_instructions(root: Path, cfg: dict) -> dict:
-    f = _exists(
-        root,
-        "CLAUDE.md",
-        ".claude/CLAUDE.md",
-        "AGENTS.md",
-        ".cursorrules",
-        ".github/copilot-instructions.md",
-        "CODING_GUIDELINES.md",
-    )
+    f = _exists(root, *INSTRUCTION_FILES)
     if not f:
         return _score(
             0, "no AI-instructions file (CLAUDE.md/AGENTS.md/.cursorrules/...)"
@@ -302,6 +300,7 @@ ANALYZERS = {
     "V3_commit_conventions": v3_commit_conventions,
     "V4_dependency_scanning": v4_dependency_scanning,
 }
+ANALYZERS.update(AI_FRIENDLY_ANALYZERS)
 
 
 # --------------------------------------------------------------------------
@@ -310,6 +309,7 @@ ANALYZERS = {
 
 
 def scan(root: Path, cfg: dict) -> dict:
+    reset_walk_cache()
     weights = cfg["weights"]
     categories = {}
     manual_flags = []
