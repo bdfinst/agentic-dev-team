@@ -130,7 +130,7 @@ across macOS + Linux + Windows Git Bash.
   paths specifically, not a general license to move messages to stderr.
   Treat dual-write as the standard for any new exit-2 hook, or any existing
   one you touch. Hooks not yet converged: stderr-only today
-  (`contract_version_guard.py`, `context_ceiling_guard.py`,
+  (`contract_version_guard.py`,
   `pre_commit_knowledge_index.py`); stdout-only today
   (`destructive_guard.py`, `eval_compliance_check.py`). Converging them is a
   separate cleanup, not implied by this note.

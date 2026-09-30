@@ -4,7 +4,7 @@ Date: 2026-08-25
 
 ## Status
 
-Accepted. Reverses the "warn by default, opt-in block" decision recorded in
+Superseded by [43. Replace the context ceiling guard with harness autocompact](0043-replace-the-context-ceiling-guard-with-harness-autocompact.md). Previously: Accepted. Reverses the "warn by default, opt-in block" decision recorded in
 [ADR 0011](0011-enforce-context-ceiling-with-transcript-measured-pretooluse-hook.md);
 that ADR otherwise stands — the mechanism, the transcript-measured occupancy,
 the recovery-skill exemption, and the fail-open posture are all unchanged.

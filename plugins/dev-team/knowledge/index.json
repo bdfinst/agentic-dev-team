@@ -3133,11 +3133,11 @@
       "anchor": "constraints"
     },
     "Enforcement": {
-      "summary": "This protocol is backed by a `PreToolUse` hook — `hooks/context_ceiling_guard.py`",
+      "summary": "No hook blocks or warns on capability loads any more (the former context",
       "anchor": "enforcement"
     },
     "Why 40%": {
-      "summary": "The 40% ceiling is a conservative planning target, not a claimed accuracy cliff.",
+      "summary": "The 40% default is a conservative planning target, not a claimed accuracy cliff.",
       "anchor": "why-40"
     },
     "Loading Decision Procedure": {
@@ -4317,7 +4317,7 @@
       "anchor": "continue-mode"
     },
     "When to Summarize": {
-      "summary": "The `hooks/context_ceiling_guard.py` hook's graduated bands are keyed to",
+      "summary": "`/handoff` is manual: nothing forces or blocks on it.",
       "anchor": "when-to-summarize"
     },
     "Writing Summaries": {

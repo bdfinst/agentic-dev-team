@@ -4,7 +4,7 @@ Date: 2026-06-25
 
 ## Status
 
-Accepted
+Superseded by [43. Replace the context ceiling guard with harness autocompact](0043-replace-the-context-ceiling-guard-with-harness-autocompact.md)
 
 Refined by [16. Rely on harness-native compaction; the plugin performs structured summarization only](0016-rely-on-harness-native-compaction-the-plugin-performs-structured-summarization-only.md)
 

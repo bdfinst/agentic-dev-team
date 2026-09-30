@@ -4,7 +4,7 @@ Date: 2026-08-26
 
 ## Status
 
-Accepted
+Superseded by [43. Replace the context ceiling guard with harness autocompact](0043-replace-the-context-ceiling-guard-with-harness-autocompact.md)
 
 Amends [37. Block by default at the context ceiling](0037-block-by-default-at-the-context-ceiling-2000.md).
 That ADR's decision — blocking by default — stands unchanged. This one moves
