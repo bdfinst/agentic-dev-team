@@ -4,7 +4,7 @@ Mixes in-process calls (for the fixture-agents-dir / stdout-shape assertions,
 where a production `agents/` dir can't be injected via subprocess) with
 subprocess invocation of the real script (for the fail-open/no-op contract,
 where the real `agents/` dir is irrelevant to the outcome) — matching this
-repo's existing `context_ceiling_guard.py` test convention of importing the
+repo's existing hook-test convention of importing the
 hook module directly for logic-level assertions and only shelling out for the
 full stdin/stdout/exit-code contract.
 """

@@ -25,7 +25,7 @@ named the split:
   agent returns — retry, escalate, or move to the next phase. There is one
   place that holds the flow.
 - **Choreographed**: the `PreToolUse`/`PostToolUse` hooks
-  (`plugins/dev-team/hooks/*.py` — `context_ceiling_guard.py`,
+  (`plugins/dev-team/hooks/*.py` — `context_ceiling_guard.py` (removed by ADR 0043),
   `destructive_guard.py`, `pre_tool_guard.py`,
   `mutation_testing_smoke_gate.py`, `tdd_guard.py`,
   `refactor_test_freeze_guard.py`, and the rest of the ~25-file hook roster)

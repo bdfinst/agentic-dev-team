@@ -13,7 +13,10 @@
       "NotebookEdit",
       "mcp__*"
     ],
-    "deny": ["Bash(rm *)", "Bash(git push *)"]
+    "deny": [
+      "Bash(rm *)",
+      "Bash(git push *)"
+    ]
   },
   "hooks": {
     "SessionStart": [
@@ -34,6 +37,24 @@
           {
             "type": "command",
             "command": "sh hooks/py.sh hooks/codegraph_bootstrap.py"
+          }
+        ]
+      },
+      {
+        "matcher": "startup|resume|clear",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "sh hooks/py.sh hooks/autocompact_setup_nudge.py"
+          }
+        ]
+      },
+      {
+        "matcher": "compact",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "sh hooks/py.sh hooks/post_compact_state_reinject.py"
           }
         ]
       }
@@ -138,10 +159,6 @@
           {
             "type": "command",
             "command": "sh hooks/py.sh hooks/telemetry.py"
-          },
-          {
-            "type": "command",
-            "command": "sh hooks/py.sh hooks/context_ceiling_guard.py"
           }
         ]
       },
@@ -175,10 +192,6 @@
       {
         "matcher": "Agent|Task",
         "hooks": [
-          {
-            "type": "command",
-            "command": "sh hooks/py.sh hooks/context_ceiling_guard.py"
-          },
           {
             "type": "command",
             "command": "sh hooks/py.sh hooks/agent_dispatch_ledger.py"

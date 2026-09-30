@@ -124,25 +124,25 @@ nothing to point to), use the literal text `no source found`.
 ## Worked example
 
 The fixture cases below walk through each report line this skill produces,
-using this repo's own `hooks/context_ceiling_guard.py` as the source of
-truth for the code-level cases (verified against the file directly —
-`_DEFAULT_WINDOW = 200_000` and `_resolve_window()` falls back to it when
-no model is detected in the transcript).
+using this repo's own `hooks/post_compact_state_reinject.py` as the source
+of truth for the code-level cases (verified against the file directly —
+`MAX_CONTEXT_CHARS = 10_000` and `assemble()` uses it as the default
+`limit`).
 
 **Verified code-level claim**
 
-> Claim: `"_resolve_window() falls back to a 200000-token window when no model is detected."`
+> Claim: `"assemble() caps the re-injected context at 10000 characters by default."`
 
 ```
-verified: "_resolve_window() falls back to a 200000-token window when no model is detected." — plugins/dev-team/hooks/context_ceiling_guard.py:233 (_DEFAULT_WINDOW = 200_000), used by _resolve_window() at line 351
+verified: "assemble() caps the re-injected context at 10000 characters by default." — plugins/dev-team/hooks/post_compact_state_reinject.py:42 (MAX_CONTEXT_CHARS = 10_000), used as assemble()'s default limit at line 82
 ```
 
 **Contradicted code-level claim**
 
-> Claim: `"_resolve_window() falls back to a 500000-token window when no model is detected."`
+> Claim: `"assemble() caps the re-injected context at 50000 characters by default."`
 
 ```
-contradicted: "_resolve_window() falls back to a 500000-token window when no model is detected." — actual default is 200000, plugins/dev-team/hooks/context_ceiling_guard.py:233
+contradicted: "assemble() caps the re-injected context at 50000 characters by default." — actual default is 10000, plugins/dev-team/hooks/post_compact_state_reinject.py:42
 ```
 
 **External claim resolved via WebFetch**

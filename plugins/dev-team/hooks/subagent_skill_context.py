@@ -3,7 +3,7 @@
 context into an Agent/Task dispatch (#2187, Slice 1 Step 1.2).
 
 Registered in the existing `PreToolUse` `"Agent|Task"` matcher (alongside
-`context_ceiling_guard.py` and `agent_dispatch_ledger.py`). Reads
+`agent_dispatch_ledger.py`). Reads
 `tool_input.subagent_type`, resolves its declared skills via
 `hooks/lib/agent_skill_hints.py::skills_for_agent_type` (frontmatter
 `skills:` is the single source of truth — ADR 0028), and when that list is
@@ -11,9 +11,8 @@ non-empty, emits `hookSpecificOutput.updatedInput` naming those skills as an
 `additionalContext` note appended to the dispatch's `tool_input` — the
 original `tool_input` keys are preserved unchanged, never replaced.
 
-No collision with `context_ceiling_guard.py`: that hook never emits
-`hookSpecificOutput`/`updatedInput` on this matcher today, only plain stderr
-text and an exit code, so this hook is the sole supplier of `updatedInput`
+No collision with the other hooks on this matcher: none emits
+`hookSpecificOutput`/`updatedInput` today, so this hook is the sole supplier of `updatedInput`
 for `Agent|Task` PreToolUse.
 
 Fail-open throughout, matching every other hook in this plugin:

@@ -122,7 +122,7 @@ rather than deleted.
   confined_to_session_log` is the standing mechanism that replaces that
   discipline going forward.
 - Three transcript parsers still exist outside `session_log/`
-  (`hooks/lib/cost_meter.py`, `hooks/context_ceiling_guard.py`,
+  (`hooks/lib/cost_meter.py`, `hooks/context_ceiling_guard.py` (removed by ADR 0043),
   `scripts/measure_full_file_duplication.py`), each carrying its own reason
   in `repo_invariants._TRANSCRIPT_PARSING_ALLOWLIST` and each named for
   migration in #2050 — the epic is not yet fully discharged by this ADR
