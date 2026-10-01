@@ -1,5 +1,29 @@
 # Changelog
 
+## [14.0.0](https://github.com/bdfinst/agentic-dev-team/compare/dev-team-v13.3.0...dev-team-v14.0.0) (2026-10-01)
+
+
+### ⚠ BREAKING CHANGES
+
+* **context:** the plugin no longer blocks Skill loads or warns on Agent dispatch at a context ceiling; run /dev-team:setup to configure harness autocompact instead.
+
+### Features
+
+* **agent-readiness:** AI-friendly repo guidance and D5/D6/B5 criteria ([#2225](https://github.com/bdfinst/agentic-dev-team/issues/2225)) ([2cd1582](https://github.com/bdfinst/agentic-dev-team/commit/2cd15821ca4498f63be71a0d16542afe208e1971))
+* **build,ship:** wire authoring digest, script resume guard and review gate ([#2216](https://github.com/bdfinst/agentic-dev-team/issues/2216)) ([2fea0c7](https://github.com/bdfinst/agentic-dev-team/commit/2fea0c7c7cd81316f0b2f904e523df762f3d3ef3))
+* **build:** add per-diff authoring digest generator ([#2214](https://github.com/bdfinst/agentic-dev-team/issues/2214)) ([9e500ff](https://github.com/bdfinst/agentic-dev-team/commit/9e500ffec2dd60bc39ff85cfc9ac2effe1bf3b15))
+* **build:** keep between-steps state so compaction restores the plan ([#2241](https://github.com/bdfinst/agentic-dev-team/issues/2241)) ([0ea3111](https://github.com/bdfinst/agentic-dev-team/commit/0ea31110956b522f6ff846b0b0bc492c52f4672d))
+* **context:** replace context ceiling guard with harness autocompact ([#2239](https://github.com/bdfinst/agentic-dev-team/issues/2239)) ([3ee6d9b](https://github.com/bdfinst/agentic-dev-team/commit/3ee6d9ba8ef64ed6770728af692f1e8e9c9120fd))
+* **metrics:** instrument benefit streams, fix measured-spend over-count ([#2217](https://github.com/bdfinst/agentic-dev-team/issues/2217)) ([61b96ef](https://github.com/bdfinst/agentic-dev-team/commit/61b96ef7f37b1f8b5f0b194a7c35b599fa400df3))
+* **setup:** autocompact config, setup nudge and compact re-inject scripts (PR A) ([#2232](https://github.com/bdfinst/agentic-dev-team/issues/2232)) ([9a361c4](https://github.com/bdfinst/agentic-dev-team/commit/9a361c4b6983a2e9eb8bbc2571af71046e8bfa4a))
+
+
+### Bug Fixes
+
+* **agent-readiness:** restrict B5 pyproject tasks and tighten tests ([#2226](https://github.com/bdfinst/agentic-dev-team/issues/2226)) ([823d52b](https://github.com/bdfinst/agentic-dev-team/commit/823d52b7b1ef7463a2d19c9f3a729a123d6b654b))
+* **agent-readiness:** tighten B5 matching and fill review test gaps ([#2231](https://github.com/bdfinst/agentic-dev-team/issues/2231)) ([6fe79f6](https://github.com/bdfinst/agentic-dev-team/commit/6fe79f6228a3a350eadf1baae72f41c45f965839))
+* **setup:** address review findings on autocompact scripts ([#2234](https://github.com/bdfinst/agentic-dev-team/issues/2234)) ([b407bad](https://github.com/bdfinst/agentic-dev-team/commit/b407badf1f7899c61c0a45a4aa15282d84f86051))
+
 ## [13.3.0](https://github.com/bdfinst/agentic-dev-team/compare/dev-team-v13.2.0...dev-team-v13.3.0) (2026-09-23)
 
 
