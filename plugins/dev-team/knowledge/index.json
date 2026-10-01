@@ -2713,7 +2713,7 @@
       "anchor": "410-run-slice-invariants-issue-865"
     },
     "5. Run full test suite": {
-      "summary": "After all steps are complete, run the full test suite.",
+      "summary": "After all steps are complete, delete `.claude/memory/build-phase.json` if a `between-steps` record remains, then run the full test suite.",
       "anchor": "5-run-full-test-suite"
     },
     "6. Run code review": {
