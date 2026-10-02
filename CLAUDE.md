@@ -34,28 +34,6 @@ Length is the tell: if a reply is over ~10 lines and I didn't ask for depth, it'
 - **Specs and plans are GitHub issues, not files.** A spec becomes an epic issue, each plan slice a sub-issue — create them by default. Fall back to `docs/specs/<slug>/{spec.md,plans/}` only with no GitHub connection.
 - **PRs close the issues they address.** `Closes #N` per sub-issue, `Part of #<epic>` for the epic. The `epic-auto-close` workflow closes the epic once its last sub-issue closes — GitHub itself won't.
 
-## Repository Structure
-
-```
-.claude-plugin/marketplace.json    # Marketplace catalog (points to plugins/)
-plugins/dev-team/          # The plugin source
-├── .claude-plugin/plugin.json     # Plugin manifest + version
-├── agents/                        # Team agents + review agents
-├── skills/                        # Agent-loaded + user-invocable (slash command) skills
-├── hooks/                         # PreToolUse and PostToolUse scripts
-├── knowledge/                     # Progressive disclosure reference files
-├── templates/                     # Language-specific agent templates
-├── docs/                          # Plugin-specific docs (architecture, agents, skills, eval system)
-├── settings.json                  # Hook registrations (ships with plugin)
-├── install.sh                     # Prerequisite checker
-└── CLAUDE.md                      # Plugin instructions (ships with plugin)
-
-docs/                              # Cross-plugin dev documentation (roadmaps, spikes)
-plans/                             # Transient working plans — deleted after implementation
-evals/                             # Agent eval fixtures (not shipped)
-reports/                           # Legacy review reports (not shipped) — new reports land in .dev-team-reports/
-```
-
 - [`docs/marketplace-builder-plugin-playbook.md`](docs/marketplace-builder-plugin-playbook.md) — how to build a plugin for this marketplace pattern.
 - [`docs/using-plugin-skills-in-the-web-environment.md`](docs/using-plugin-skills-in-the-web-environment.md) — using a plugin's skills from a Claude Code web session.
 
