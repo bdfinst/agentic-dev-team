@@ -100,6 +100,38 @@ HASH_CHUNK_BYTES = 1 << 20  # 1 MiB incremental read
 SCOPE_MARKER_PREFIX = "Files in scope for this review: "
 
 
+def parse_scope_marker(text: str) -> list[str] | None:
+    """The in-scope file list from the `SCOPE_MARKER_PREFIX` marker, or
+    `None` when no line yields one. A line that quotes the marker without
+    a file list after it (prose describing the format) is skipped, so a
+    later real marker line still wins. The marker may sit anywhere on its
+    line: dispatch prompts routinely append it to the end of a prose
+    sentence, and prose may follow the list on the same line. An entry
+    followed by whitespace-separated words ends the list; so does an entry
+    that does not look like a path (no `/` or `.`), which is how a comma
+    inside trailing prose is told apart from a file. A sentence period
+    after the last file is dropped. File paths containing spaces, and
+    extensionless root files (`Makefile`), are therefore not supported."""
+    for line in text.splitlines():
+        start = line.find(SCOPE_MARKER_PREFIX)
+        if start == -1:
+            continue
+        files: list[str] = []
+        for entry in line[start + len(SCOPE_MARKER_PREFIX) :].split(","):
+            words = entry.split()
+            if not words:
+                continue
+            path = words[0].rstrip(".")
+            if "/" not in path and "." not in path:
+                break
+            files.append(path)
+            if len(words) > 1:
+                break
+        if files:
+            return files
+    return None
+
+
 def canonical_path(file_path: str, root) -> str | None:
     """Resolve `file_path` against `root` to a `root`-relative, symlink-
     resolved POSIX path, or `None` when it can't be resolved or escapes
