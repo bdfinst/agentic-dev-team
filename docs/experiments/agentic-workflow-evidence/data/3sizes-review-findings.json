@@ -1,0 +1,895 @@
+{
+  "meta": {
+    "model": "claude-sonnet-4-6",
+    "arms": [
+      "test-first",
+      "test-after",
+      "build-pipeline"
+    ],
+    "agents": [
+      "structure",
+      "complexity",
+      "naming",
+      "performance",
+      "security",
+      "test"
+    ],
+    "tasks": [
+      "jsonptr",
+      "ledger",
+      "router",
+      "scheduler",
+      "spreadsheet",
+      "template-engine"
+    ],
+    "severity_weights": {
+      "critical": 4,
+      "high": 3,
+      "medium": 2,
+      "low": 1
+    },
+    "note": "Review-grade findings from dev-team review agents on regenerated build-stage solutions for the 6 large tasks. Counts are per (arm, agent, task) severity tuples (crit,high,med,low)."
+  },
+  "findings": {
+    "test-first": {
+      "structure": {
+        "jsonptr": [
+          0,
+          1,
+          0,
+          1
+        ],
+        "ledger": [
+          0,
+          1,
+          0,
+          0
+        ],
+        "router": [
+          0,
+          0,
+          1,
+          1
+        ],
+        "scheduler": [
+          0,
+          0,
+          1,
+          0
+        ],
+        "spreadsheet": [
+          0,
+          0,
+          1,
+          1
+        ],
+        "template-engine": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "complexity": {
+        "jsonptr": [
+          1,
+          0,
+          1,
+          0
+        ],
+        "ledger": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "router": [
+          1,
+          1,
+          0,
+          0
+        ],
+        "scheduler": [
+          0,
+          1,
+          0,
+          0
+        ],
+        "spreadsheet": [
+          0,
+          2,
+          0,
+          0
+        ],
+        "template-engine": [
+          1,
+          2,
+          0,
+          0
+        ]
+      },
+      "naming": {
+        "jsonptr": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "ledger": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "router": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "scheduler": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "spreadsheet": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "template-engine": [
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      "performance": {
+        "jsonptr": [
+          0,
+          0,
+          0,
+          1
+        ],
+        "ledger": [
+          0,
+          0,
+          1,
+          0
+        ],
+        "router": [
+          0,
+          0,
+          1,
+          0
+        ],
+        "scheduler": [
+          0,
+          1,
+          0,
+          0
+        ],
+        "spreadsheet": [
+          0,
+          0,
+          1,
+          0
+        ],
+        "template-engine": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "security": {
+        "jsonptr": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "ledger": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "router": [
+          0,
+          0,
+          0,
+          1
+        ],
+        "scheduler": [
+          0,
+          0,
+          0,
+          1
+        ],
+        "spreadsheet": [
+          0,
+          0,
+          0,
+          1
+        ],
+        "template-engine": [
+          0,
+          0,
+          1,
+          0
+        ]
+      },
+      "test": {
+        "jsonptr": [
+          0,
+          1,
+          2,
+          1
+        ],
+        "ledger": [
+          0,
+          1,
+          2,
+          1
+        ],
+        "router": [
+          0,
+          1,
+          2,
+          1
+        ],
+        "scheduler": [
+          0,
+          1,
+          1,
+          2
+        ],
+        "spreadsheet": [
+          0,
+          1,
+          1,
+          2
+        ],
+        "template-engine": [
+          0,
+          0,
+          2,
+          2
+        ]
+      }
+    },
+    "test-after": {
+      "structure": {
+        "jsonptr": [
+          0,
+          1,
+          0,
+          1
+        ],
+        "ledger": [
+          0,
+          1,
+          1,
+          0
+        ],
+        "router": [
+          0,
+          0,
+          1,
+          1
+        ],
+        "scheduler": [
+          0,
+          0,
+          0,
+          1
+        ],
+        "spreadsheet": [
+          0,
+          1,
+          1,
+          0
+        ],
+        "template-engine": [
+          0,
+          0,
+          1,
+          1
+        ]
+      },
+      "complexity": {
+        "jsonptr": [
+          0,
+          1,
+          0,
+          0
+        ],
+        "ledger": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "router": [
+          2,
+          0,
+          0,
+          0
+        ],
+        "scheduler": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "spreadsheet": [
+          1,
+          0,
+          1,
+          0
+        ],
+        "template-engine": [
+          1,
+          1,
+          0,
+          0
+        ]
+      },
+      "naming": {
+        "jsonptr": [
+          0,
+          1,
+          0,
+          0
+        ],
+        "ledger": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "router": [
+          0,
+          0,
+          1,
+          0
+        ],
+        "scheduler": [
+          0,
+          1,
+          0,
+          0
+        ],
+        "spreadsheet": [
+          0,
+          2,
+          0,
+          0
+        ],
+        "template-engine": [
+          0,
+          1,
+          1,
+          0
+        ]
+      },
+      "performance": {
+        "jsonptr": [
+          0,
+          0,
+          0,
+          1
+        ],
+        "ledger": [
+          0,
+          0,
+          1,
+          0
+        ],
+        "router": [
+          0,
+          0,
+          0,
+          1
+        ],
+        "scheduler": [
+          0,
+          0,
+          0,
+          1
+        ],
+        "spreadsheet": [
+          0,
+          0,
+          1,
+          0
+        ],
+        "template-engine": [
+          0,
+          0,
+          1,
+          0
+        ]
+      },
+      "security": {
+        "jsonptr": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "ledger": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "router": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "scheduler": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "spreadsheet": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "template-engine": [
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      "test": {
+        "jsonptr": [
+          0,
+          0,
+          1,
+          1
+        ],
+        "ledger": [
+          0,
+          0,
+          1,
+          2
+        ],
+        "router": [
+          0,
+          0,
+          0,
+          2
+        ],
+        "scheduler": [
+          0,
+          0,
+          0,
+          2
+        ],
+        "spreadsheet": [
+          0,
+          0,
+          1,
+          2
+        ],
+        "template-engine": [
+          0,
+          0,
+          1,
+          1
+        ]
+      }
+    },
+    "build-pipeline": {
+      "structure": {
+        "jsonptr": [
+          0,
+          1,
+          1,
+          0
+        ],
+        "ledger": [
+          0,
+          1,
+          0,
+          1
+        ],
+        "router": [
+          0,
+          0,
+          1,
+          1
+        ],
+        "scheduler": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "spreadsheet": [
+          0,
+          0,
+          1,
+          0
+        ],
+        "template-engine": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "complexity": {
+        "jsonptr": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "ledger": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "router": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "scheduler": [
+          0,
+          2,
+          0,
+          0
+        ],
+        "spreadsheet": [
+          1,
+          1,
+          0,
+          0
+        ],
+        "template-engine": [
+          0,
+          2,
+          0,
+          0
+        ]
+      },
+      "naming": {
+        "jsonptr": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "ledger": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "router": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "scheduler": [
+          0,
+          0,
+          1,
+          0
+        ],
+        "spreadsheet": [
+          0,
+          0,
+          1,
+          0
+        ],
+        "template-engine": [
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      "performance": {
+        "jsonptr": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "ledger": [
+          0,
+          0,
+          1,
+          0
+        ],
+        "router": [
+          0,
+          0,
+          0,
+          1
+        ],
+        "scheduler": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "spreadsheet": [
+          0,
+          0,
+          1,
+          0
+        ],
+        "template-engine": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "security": {
+        "jsonptr": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "ledger": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "router": [
+          0,
+          0,
+          0,
+          1
+        ],
+        "scheduler": [
+          0,
+          0,
+          0,
+          1
+        ],
+        "spreadsheet": [
+          0,
+          0,
+          0,
+          1
+        ],
+        "template-engine": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "test": {
+        "jsonptr": [
+          0,
+          0,
+          1,
+          1
+        ],
+        "ledger": [
+          0,
+          1,
+          0,
+          1
+        ],
+        "router": [
+          0,
+          0,
+          1,
+          0
+        ],
+        "scheduler": [
+          0,
+          0,
+          1,
+          0
+        ],
+        "spreadsheet": [
+          0,
+          1,
+          1,
+          0
+        ],
+        "template-engine": [
+          0,
+          0,
+          1,
+          1
+        ]
+      }
+    }
+  },
+  "per_task_weighted": {
+    "test-first": {
+      "jsonptr": {
+        "counts": {
+          "critical": 1,
+          "high": 2,
+          "medium": 3,
+          "low": 3
+        },
+        "weighted": 19
+      },
+      "ledger": {
+        "counts": {
+          "critical": 0,
+          "high": 2,
+          "medium": 3,
+          "low": 1
+        },
+        "weighted": 13
+      },
+      "router": {
+        "counts": {
+          "critical": 1,
+          "high": 2,
+          "medium": 4,
+          "low": 3
+        },
+        "weighted": 21
+      },
+      "scheduler": {
+        "counts": {
+          "critical": 0,
+          "high": 3,
+          "medium": 2,
+          "low": 3
+        },
+        "weighted": 16
+      },
+      "spreadsheet": {
+        "counts": {
+          "critical": 0,
+          "high": 3,
+          "medium": 3,
+          "low": 4
+        },
+        "weighted": 19
+      },
+      "template-engine": {
+        "counts": {
+          "critical": 1,
+          "high": 2,
+          "medium": 3,
+          "low": 4
+        },
+        "weighted": 20
+      }
+    },
+    "test-after": {
+      "jsonptr": {
+        "counts": {
+          "critical": 0,
+          "high": 3,
+          "medium": 1,
+          "low": 3
+        },
+        "weighted": 14
+      },
+      "ledger": {
+        "counts": {
+          "critical": 0,
+          "high": 1,
+          "medium": 3,
+          "low": 2
+        },
+        "weighted": 11
+      },
+      "router": {
+        "counts": {
+          "critical": 2,
+          "high": 0,
+          "medium": 2,
+          "low": 4
+        },
+        "weighted": 16
+      },
+      "scheduler": {
+        "counts": {
+          "critical": 0,
+          "high": 1,
+          "medium": 0,
+          "low": 4
+        },
+        "weighted": 7
+      },
+      "spreadsheet": {
+        "counts": {
+          "critical": 1,
+          "high": 3,
+          "medium": 4,
+          "low": 2
+        },
+        "weighted": 23
+      },
+      "template-engine": {
+        "counts": {
+          "critical": 1,
+          "high": 2,
+          "medium": 4,
+          "low": 2
+        },
+        "weighted": 20
+      }
+    },
+    "build-pipeline": {
+      "jsonptr": {
+        "counts": {
+          "critical": 0,
+          "high": 1,
+          "medium": 2,
+          "low": 1
+        },
+        "weighted": 8
+      },
+      "ledger": {
+        "counts": {
+          "critical": 0,
+          "high": 2,
+          "medium": 1,
+          "low": 2
+        },
+        "weighted": 10
+      },
+      "router": {
+        "counts": {
+          "critical": 0,
+          "high": 0,
+          "medium": 2,
+          "low": 3
+        },
+        "weighted": 7
+      },
+      "scheduler": {
+        "counts": {
+          "critical": 0,
+          "high": 2,
+          "medium": 2,
+          "low": 1
+        },
+        "weighted": 11
+      },
+      "spreadsheet": {
+        "counts": {
+          "critical": 1,
+          "high": 2,
+          "medium": 4,
+          "low": 1
+        },
+        "weighted": 19
+      },
+      "template-engine": {
+        "counts": {
+          "critical": 0,
+          "high": 2,
+          "medium": 1,
+          "low": 4
+        },
+        "weighted": 12
+      }
+    }
+  }
+}
