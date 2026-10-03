@@ -65,6 +65,7 @@ Stdlib-only (hashlib/json/pathlib/sys). See ADR 0014, ADR 0015.
 
 from __future__ import annotations
 
+import contextlib
 import json
 import sys
 from pathlib import Path
@@ -90,13 +91,20 @@ from review_agent_registry import (  # type: ignore[import-not-found]
     strip_plugin_prefix,
 )
 from review_verdicts import (  # type: ignore[import-not-found]
-    SCOPE_MARKER_PREFIX,
     canonical_path,
     emit_review_verdict,
+    parse_scope_marker,
 )
 from review_verdicts import (
     hash_file as _hash_file,
 )
+
+_PLUGIN_SCRIPTS_DIR = Path(__file__).resolve().parents[1] / "scripts"
+if str(_PLUGIN_SCRIPTS_DIR) not in sys.path:
+    sys.path.insert(0, str(_PLUGIN_SCRIPTS_DIR))
+
+from checkpoint_abort import decide_abort  # type: ignore[import-not-found]
+from instrument_log import append_row  # type: ignore[import-not-found]
 from session_log import records as _records  # type: ignore[import-not-found]
 from stdin_json import read_stdin_json, resolve_cwd  # type: ignore[import-not-found]
 
@@ -158,7 +166,9 @@ def _parent_transcript_path(subagent_transcript: Path) -> Path | None:
     return session_dir.parent / f"{session_dir.name}.jsonl"
 
 
-def _fallback_subagent_type(subagent_transcript: Path, records: list[dict]) -> str | None:
+def _fallback_subagent_type(
+    subagent_transcript: Path, records: list[dict]
+) -> str | None:
     """The documented Task/Agent dispatch join, used only when the primary
     `attributionAgent` signal is absent from every record (see module
     docstring: the spike found no real transcript that needed this path)."""
@@ -178,7 +188,9 @@ def _fallback_subagent_type(subagent_transcript: Path, records: list[dict]) -> s
     return agent_types.get(agent_id)
 
 
-def _resolve_subagent_type(subagent_transcript: Path, records: list[dict]) -> str | None:
+def _resolve_subagent_type(
+    subagent_transcript: Path, records: list[dict]
+) -> str | None:
     raw = _attribution_subagent_type(records) or _fallback_subagent_type(
         subagent_transcript, records
     )
@@ -267,18 +279,9 @@ def _final_result_text(records: list[dict]) -> str | None:
     """The text handed to `_extract_json_object` for the agent's final JSON
     result: `_handback_message_text` first, `_fallback_last_parseable_turn_text`
     only when no handback call is present at all (Fix #1)."""
-    return _handback_message_text(records) or _fallback_last_parseable_turn_text(records)
-
-
-def _parse_scope_marker(text: str) -> list[str] | None:
-    """The in-scope file list from the Step 2.1 `SCOPE_MARKER_PREFIX` line,
-    or `None` when no line starts with it — a missing/reformatted marker,
-    which the caller treats as fail-open (zero rows)."""
-    for line in text.splitlines():
-        if line.startswith(SCOPE_MARKER_PREFIX):
-            remainder = line[len(SCOPE_MARKER_PREFIX) :]
-            return [f.strip() for f in remainder.split(",") if f.strip()]
-    return None
+    return _handback_message_text(records) or _fallback_last_parseable_turn_text(
+        records
+    )
 
 
 def _extract_json_object(text: str) -> dict | None:
@@ -354,6 +357,58 @@ def _findings_files(issues: list, cwd) -> set[Path]:
     return files
 
 
+def _log_abort_scan(lens: str, issues: list, cwd, session_id) -> None:
+    """One `checkpoint-aborts` row per parsed lens result, so the stream is
+    written whether or not the model ran `checkpoint_abort.py`. Records only
+    whether this result alone would trip the abort rule; the deferred-lens
+    list needs the round's full lens order, which only the checkpoint knows.
+    Fail-open."""
+    with contextlib.suppress(Exception):  # fail-open by design
+        # Schema-drifted issues (non-dict, or missing severity/confidence)
+        # can never qualify, and `decide_abort` rejects them outright.
+        usable = [
+            i
+            for i in issues
+            if isinstance(i, dict) and "severity" in i and "confidence" in i
+        ]
+        decision = decide_abort([{"agent": lens, "issues": usable}], [lens])
+        append_row(
+            "checkpoint-aborts",
+            {
+                "source": "stop-hook",
+                "mode": "abort",
+                "aborted": decision["aborted"],
+                "triggering_agent": decision["triggeringAgent"],
+                "deferred_lenses": [],
+            },
+            cwd=cwd,
+            session_id=session_id,
+        )
+
+
+def _subagent_transcript(transcript_path: Path, agent_id: object) -> Path:
+    """The subagent's own transcript. The real SubagentStop payload's
+    `transcript_path` is the PARENT session transcript; the subagent's lives
+    at `<parent dir>/<parent stem>/subagents/agent-<agent_id>.jsonl`. Falls
+    back to `transcript_path` itself when no `agent_id` is given or that file
+    is absent (payloads that already point at the subagent transcript)."""
+    if (
+        isinstance(agent_id, str)
+        and agent_id
+        and "/" not in agent_id
+        and "\\" not in agent_id
+    ):
+        candidate = (
+            transcript_path.parent
+            / transcript_path.stem
+            / "subagents"
+            / f"agent-{agent_id}.jsonl"
+        )
+        if candidate.is_file():
+            return candidate
+    return transcript_path
+
+
 def process(payload: dict) -> None:
     """Fail-open SubagentStop processing (see module docstring Contract).
 
@@ -380,7 +435,7 @@ def process(payload: dict) -> None:
     transcript_path = payload.get("transcript_path")
     if not isinstance(transcript_path, str) or not transcript_path:
         return
-    transcript = Path(transcript_path)
+    transcript = _subagent_transcript(Path(transcript_path), payload.get("agent_id"))
     records = _read_transcript_records(transcript)
     if not records:
         return
@@ -398,7 +453,7 @@ def process(payload: dict) -> None:
     session_id = payload.get("session_id")
 
     first_text = _first_turn_text(records)
-    in_scope = _parse_scope_marker(first_text) if first_text else None
+    in_scope = parse_scope_marker(first_text) if first_text else None
     if not in_scope:
         emit_boundary_event(
             cwd,
@@ -423,6 +478,7 @@ def process(payload: dict) -> None:
             session_id=session_id,
         )
         return
+    _log_abort_scan(subagent_type, issues, cwd, session_id)
     findings_files = _findings_files(issues, cwd)
     # #2167 correctness review: per-file membership in `findings_files`
     # alone recorded `pass` for every in-scope file whenever this lens's
@@ -444,7 +500,11 @@ def process(payload: dict) -> None:
         file_hash = _hash_file(resolved)
         if file_hash is None:
             continue  # deleted/unreadable/non-regular/oversized -- skip this one only
-        outcome = "pass" if lens_result_is_clean and resolved not in findings_files else "findings"
+        outcome = (
+            "pass"
+            if lens_result_is_clean and resolved not in findings_files
+            else "findings"
+        )
         emit_review_verdict(
             cwd, subagent_type, canonical, file_hash, outcome, session_id=session_id
         )

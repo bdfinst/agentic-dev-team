@@ -198,6 +198,10 @@
           },
           {
             "type": "command",
+            "command": "sh hooks/py.sh hooks/checkpoint_dispatch_instrument.py"
+          },
+          {
+            "type": "command",
             "command": "sh hooks/py.sh hooks/subagent_skill_context.py"
           }
         ]
