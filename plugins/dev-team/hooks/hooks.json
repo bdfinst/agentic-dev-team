@@ -179,6 +179,10 @@
           },
           {
             "type": "command",
+            "command": "sh \"${CLAUDE_PLUGIN_ROOT}/hooks/py.sh\" \"${CLAUDE_PLUGIN_ROOT}/hooks/checkpoint_dispatch_instrument.py\""
+          },
+          {
+            "type": "command",
             "command": "sh \"${CLAUDE_PLUGIN_ROOT}/hooks/py.sh\" \"${CLAUDE_PLUGIN_ROOT}/hooks/subagent_skill_context.py\""
           }
         ]

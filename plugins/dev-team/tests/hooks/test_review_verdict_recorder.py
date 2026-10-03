@@ -19,6 +19,8 @@ import subprocess
 import sys
 from pathlib import Path
 
+import pytest
+
 _HOOK_DIR = Path(__file__).resolve().parents[2] / "hooks"
 _HOOK_PY = _HOOK_DIR / "review_verdict_recorder.py"
 _LIB_DIR = _HOOK_DIR / "lib"
@@ -47,7 +49,9 @@ _UNREGISTERED_AGENT = "phantom-review"
 # ---------------------------------------------------------------------------
 
 
-def _write_transcript(tmp_path: Path, rows: list[dict], name: str = "agent-test.jsonl") -> str:
+def _write_transcript(
+    tmp_path: Path, rows: list[dict], name: str = "agent-test.jsonl"
+) -> str:
     path = tmp_path / "subagents"
     path.mkdir(parents=True, exist_ok=True)
     file_path = path / name
@@ -71,7 +75,9 @@ def _dispatch_row(in_scope_files: list[str], agent_id: str = "agent-1") -> dict:
     }
 
 
-def _handback_tail(message_text: str, attribution_agent: str, agent_id: str = "agent-1") -> list[dict]:
+def _handback_tail(
+    message_text: str, attribution_agent: str, agent_id: str = "agent-1"
+) -> list[dict]:
     """The subagent transcript's REAL result-bearing tail (Fix #1, #2166
     correctness review) -- verified against a real transcript in this
     session's own corpus, not fabricated: a `SubagentHandback` tool_use
@@ -124,7 +130,9 @@ def _handback_tail(message_text: str, attribution_agent: str, agent_id: str = "a
     ]
 
 
-def _result_rows(result: dict, attribution_agent: str, agent_id: str = "agent-1") -> list[dict]:
+def _result_rows(
+    result: dict, attribution_agent: str, agent_id: str = "agent-1"
+) -> list[dict]:
     """The realistic transcript tail (`_handback_tail`) carrying `result` as
     the handback's JSON message -- the drop-in replacement for every call
     site that used to build a single fabricated final row whose text WAS the
@@ -153,7 +161,9 @@ def _run_hook(raw_stdin: bytes) -> subprocess.CompletedProcess:
     )
 
 
-def _run_main(tmp_path: Path, transcript_path: str | None, session_id: str | None = "sess-1") -> int:
+def _run_main(
+    tmp_path: Path, transcript_path: str | None, session_id: str | None = "sess-1"
+) -> int:
     payload: dict = {"cwd": str(tmp_path)}
     if transcript_path is not None:
         payload["transcript_path"] = transcript_path
@@ -169,7 +179,11 @@ def _read_rows(tmp_path: Path) -> list[dict]:
     path = tmp_path / _VERDICTS_REL
     if not path.is_file():
         return []
-    return [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines() if line]
+    return [
+        json.loads(line)
+        for line in path.read_text(encoding="utf-8").splitlines()
+        if line
+    ]
 
 
 _BOUNDARY_EVENTS_REL = Path(".claude") / "metrics" / "boundary-events.jsonl"
@@ -179,7 +193,11 @@ def _read_boundary_events(tmp_path: Path) -> list[dict]:
     path = tmp_path / _BOUNDARY_EVENTS_REL
     if not path.is_file():
         return []
-    return [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines() if line]
+    return [
+        json.loads(line)
+        for line in path.read_text(encoding="utf-8").splitlines()
+        if line
+    ]
 
 
 # ---------------------------------------------------------------------------
@@ -388,6 +406,276 @@ def test_single_file_scope_writes_exactly_one_row(tmp_path: Path) -> None:
 
 
 # ---------------------------------------------------------------------------
+# Scenario: the marker appended to the end of a prose line (how /build's
+# checkpoint dispatches write it) still scopes the dispatch
+# ---------------------------------------------------------------------------
+
+
+def test_mid_line_scope_marker_writes_rows(tmp_path: Path) -> None:
+    _write_file(tmp_path, "a.py")
+    _write_file(tmp_path, "b.py")
+    prompt = (
+        "Review the slice for focus regressions. " + SCOPE_MARKER_PREFIX + "a.py, b.py"
+    )
+    transcript = _write_transcript(
+        tmp_path,
+        [
+            {
+                "type": "user",
+                "agentId": "agent-1",
+                "message": {"role": "user", "content": prompt},
+            },
+            *_result_rows(
+                {"status": "pass", "issues": [], "summary": "clean"},
+                f"dev-team:{_REVIEW_AGENT}",
+            ),
+        ],
+    )
+    assert _run_main(tmp_path, transcript) == 0
+    assert sorted(r["file_path"] for r in _read_rows(tmp_path)) == ["a.py", "b.py"]
+
+
+# ---------------------------------------------------------------------------
+# Scenario: the real SubagentStop payload's `transcript_path` is the PARENT
+# session transcript; the subagent's own transcript is located from
+# `agent_id` under `<parent stem>/subagents/agent-<id>.jsonl`
+# ---------------------------------------------------------------------------
+
+
+def test_subagent_transcript_is_resolved_from_agent_id_when_path_is_parent(
+    tmp_path: Path,
+) -> None:
+    _write_file(tmp_path, "a.py")
+    session_dir = tmp_path / "proj"
+    parent = session_dir / "sess-1.jsonl"
+    session_dir.mkdir()
+    parent.write_text(
+        json.dumps({"type": "user", "message": {"role": "user", "content": "hi"}})
+        + "\n"
+    )
+    subagents = session_dir / "sess-1" / "subagents"
+    subagents.mkdir(parents=True)
+    rows = [
+        _dispatch_row(["a.py"], agent_id="abc123"),
+        *_result_rows(
+            {"status": "pass", "issues": [], "summary": "clean"},
+            f"dev-team:{_REVIEW_AGENT}",
+            agent_id="abc123",
+        ),
+    ]
+    (subagents / "agent-abc123.jsonl").write_text(
+        "".join(json.dumps(r) + "\n" for r in rows)
+    )
+    payload = {
+        "cwd": str(tmp_path),
+        "session_id": "sess-1",
+        "transcript_path": str(parent),
+        "agent_id": "abc123",
+    }
+    result = _run_hook(json.dumps(payload).encode())
+    assert result.returncode == 0
+    assert [r["file_path"] for r in _read_rows(tmp_path)] == ["a.py"]
+
+
+# ---------------------------------------------------------------------------
+# Scenario: every parsed lens result also logs one checkpoint-aborts row, so
+# that stream does not depend on the model running checkpoint_abort.py
+# ---------------------------------------------------------------------------
+
+
+def _abort_rows(tmp_path: Path) -> list[dict]:
+    path = tmp_path / ".claude" / "metrics" / "checkpoint-aborts.jsonl"
+    if not path.is_file():
+        return []
+    return [
+        json.loads(line)
+        for line in path.read_text(encoding="utf-8").splitlines()
+        if line
+    ]
+
+
+def test_qualifying_finding_logs_abort_row(tmp_path: Path) -> None:
+    _write_file(tmp_path, "a.py")
+    issue = {
+        "severity": "error",
+        "confidence": "high",
+        "file": "a.py",
+        "message": "boom",
+    }
+    transcript = _write_transcript(
+        tmp_path,
+        [
+            _dispatch_row(["a.py"]),
+            *_result_rows(
+                {"status": "fail", "issues": [issue], "summary": "bad"},
+                f"dev-team:{_REVIEW_AGENT}",
+            ),
+        ],
+    )
+    assert _run_main(tmp_path, transcript) == 0
+    rows = _abort_rows(tmp_path)
+    assert len(rows) == 1
+    assert rows[0]["source"] == "stop-hook"
+    assert rows[0]["aborted"] is True
+    assert rows[0]["triggering_agent"] == _REVIEW_AGENT
+
+
+def test_clean_result_logs_non_abort_row(tmp_path: Path) -> None:
+    _write_file(tmp_path, "a.py")
+    transcript = _write_transcript(
+        tmp_path,
+        [
+            _dispatch_row(["a.py"]),
+            *_result_rows(
+                {"status": "pass", "issues": [], "summary": "clean"},
+                f"dev-team:{_REVIEW_AGENT}",
+            ),
+        ],
+    )
+    assert _run_main(tmp_path, transcript) == 0
+    rows = _abort_rows(tmp_path)
+    assert len(rows) == 1
+    assert rows[0]["aborted"] is False
+
+
+def test_schema_drifted_issues_still_log_abort_row(tmp_path: Path) -> None:
+    _write_file(tmp_path, "a.py")
+    transcript = _write_transcript(
+        tmp_path,
+        [
+            _dispatch_row(["a.py"]),
+            *_result_rows(
+                {
+                    "status": "warn",
+                    "issues": [
+                        {"severity": "warning", "file": "a.py", "message": "m"},
+                        "text",
+                    ],
+                    "summary": "drifted",
+                },
+                f"dev-team:{_REVIEW_AGENT}",
+            ),
+        ],
+    )
+    assert _run_main(tmp_path, transcript) == 0
+    rows = _abort_rows(tmp_path)
+    assert len(rows) == 1
+    assert rows[0]["aborted"] is False
+
+
+def test_non_qualifying_findings_log_non_abort_rows(tmp_path: Path) -> None:
+    _write_file(tmp_path, "a.py")
+    for severity, confidence in (("error", "medium"), ("warning", "high")):
+        issue = {
+            "severity": severity,
+            "confidence": confidence,
+            "file": "a.py",
+            "message": "m",
+        }
+        transcript = _write_transcript(
+            tmp_path,
+            [
+                _dispatch_row(["a.py"]),
+                *_result_rows(
+                    {"status": "warn", "issues": [issue], "summary": "s"},
+                    f"dev-team:{_REVIEW_AGENT}",
+                ),
+            ],
+        )
+        assert _run_main(tmp_path, transcript) == 0
+    rows = _abort_rows(tmp_path)
+    assert [r["aborted"] for r in rows] == [False, False]
+    assert all(
+        r["mode"] == "abort"
+        and r["deferred_lenses"] == []
+        and r["session_id"] == "sess-1"
+        for r in rows
+    )
+
+
+def test_non_review_agent_logs_no_abort_row(tmp_path: Path) -> None:
+    _write_file(tmp_path, "a.py")
+    issue = {"severity": "error", "confidence": "high", "file": "a.py", "message": "m"}
+    transcript = _write_transcript(
+        tmp_path,
+        [
+            _dispatch_row(["a.py"]),
+            *_result_rows(
+                {"status": "fail", "issues": [issue], "summary": "s"},
+                "dev-team:software-engineer",
+            ),
+        ],
+    )
+    assert _run_main(tmp_path, transcript) == 0
+    assert _abort_rows(tmp_path) == []
+
+
+def _parent_layout(tmp_path: Path, agent_id: str, rows: list[dict]) -> dict:
+    session_dir = tmp_path / "proj"
+    subagents = session_dir / "sess-1" / "subagents"
+    subagents.mkdir(parents=True)
+    parent = session_dir / "sess-1.jsonl"
+    parent.write_text(
+        json.dumps({"type": "user", "message": {"role": "user", "content": "hi"}})
+        + "\n"
+    )
+    (subagents / f"agent-{agent_id}.jsonl").write_text(
+        "".join(json.dumps(r) + "\n" for r in rows)
+    )
+    return {
+        "cwd": str(tmp_path),
+        "session_id": "sess-1",
+        "transcript_path": str(parent),
+    }
+
+
+def test_agent_id_with_path_separator_never_resolves_a_decoy(tmp_path: Path) -> None:
+    _write_file(tmp_path, "a.py")
+    decoy = [
+        _dispatch_row(["a.py"]),
+        *_result_rows(
+            {"status": "pass", "issues": [], "summary": "c"},
+            f"dev-team:{_REVIEW_AGENT}",
+        ),
+    ]
+    payload = _parent_layout(tmp_path, "unused", decoy)
+    # agent_id "d/x" would join to subagents/agent-d/x.jsonl: a real decoy
+    # reachable only if the separator guard is missing.
+    nested = tmp_path / "proj" / "sess-1" / "subagents" / "agent-d"
+    nested.mkdir()
+    (nested / "x.jsonl").write_text("".join(json.dumps(r) + "\n" for r in decoy))
+    payload["agent_id"] = "d/x"
+    result = _run_hook(json.dumps(payload).encode())
+    assert result.returncode == 0
+    assert _read_rows(tmp_path) == []
+
+
+def test_agent_id_without_matching_file_falls_back_to_transcript_path(
+    tmp_path: Path,
+) -> None:
+    _write_file(tmp_path, "a.py")
+    transcript = _write_transcript(
+        tmp_path,
+        [
+            _dispatch_row(["a.py"]),
+            *_result_rows(
+                {"status": "pass", "issues": [], "summary": "c"},
+                f"dev-team:{_REVIEW_AGENT}",
+            ),
+        ],
+    )
+    payload = {
+        "cwd": str(tmp_path),
+        "session_id": "sess-1",
+        "transcript_path": transcript,
+        "agent_id": "nope",
+    }
+    result = _run_hook(json.dumps(payload).encode())
+    assert (result.returncode, result.stdout, result.stderr) == (0, b"", b"")
+    assert [r["file_path"] for r in _read_rows(tmp_path)] == ["a.py"]
+
+
+# ---------------------------------------------------------------------------
 # Scenario: an in-scope file that no longer exists is skipped, not fatal
 # ---------------------------------------------------------------------------
 
@@ -463,6 +751,7 @@ def test_missing_scope_marker_writes_no_rows(tmp_path: Path) -> None:
     )
     assert _run_main(tmp_path, transcript) == 0
     assert _read_rows(tmp_path) == []
+    assert _abort_rows(tmp_path) == []
 
 
 # ---------------------------------------------------------------------------
@@ -644,7 +933,9 @@ def test_findings_match_across_differing_path_forms(tmp_path: Path) -> None:
             *_result_rows(
                 {
                     "status": "warn",
-                    "issues": [{"severity": "warning", "file": absolute_a, "message": "x"}],
+                    "issues": [
+                        {"severity": "warning", "file": absolute_a, "message": "x"}
+                    ],
                     "summary": "1 issue",
                 },
                 f"dev-team:{_REVIEW_AGENT}",
@@ -674,7 +965,10 @@ def test_missing_scope_marker_emits_boundary_event(tmp_path: Path) -> None:
             {
                 "type": "user",
                 "agentId": "agent-1",
-                "message": {"role": "user", "content": "Review these files: a.py, b.py\n"},
+                "message": {
+                    "role": "user",
+                    "content": "Review these files: a.py, b.py\n",
+                },
             },
             *_result_rows(
                 {"status": "pass", "issues": [], "summary": "clean"},
@@ -772,3 +1066,39 @@ def test_scope_marker_path_traversal_is_not_read(tmp_path: Path) -> None:
         assert _read_rows(tmp_path) == []
     finally:
         outside.unlink(missing_ok=True)
+
+
+def test_unparseable_result_logs_no_abort_row(tmp_path: Path) -> None:
+    transcript = _write_transcript(
+        tmp_path,
+        [
+            _dispatch_row(["a.py"]),
+            *_handback_tail("not json output at all", f"dev-team:{_REVIEW_AGENT}"),
+        ],
+    )
+    assert _run_main(tmp_path, transcript) == 0
+    assert [e["matched_rule"] for e in _read_boundary_events(tmp_path)] == [
+        "unparseable-result"
+    ]
+    assert _abort_rows(tmp_path) == []
+
+
+def test_broken_abort_module_import_does_not_stop_verdict_recording(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _write_file(tmp_path, "a.py")
+    transcript = _write_transcript(
+        tmp_path,
+        [
+            _dispatch_row(["a.py"]),
+            *_result_rows(
+                {"status": "pass", "issues": [], "summary": "ok"},
+                f"dev-team:{_REVIEW_AGENT}",
+            ),
+        ],
+    )
+    # `None` in sys.modules makes `from checkpoint_abort import ...` raise.
+    monkeypatch.setitem(sys.modules, "checkpoint_abort", None)
+    recorder.process({"cwd": str(tmp_path), "transcript_path": transcript})
+    assert [r["outcome"] for r in _read_rows(tmp_path)] == ["pass"]
+    assert _abort_rows(tmp_path) == []

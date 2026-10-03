@@ -54,6 +54,7 @@ def test_verdict_scope_logs_skip_counts(tmp_path):
     assert json.loads(out.stdout)["toDispatch"] == {"correctness-review": ["a.py"]}
     (row,) = _rows(tmp_path, "ledger-skips")
     assert (row["candidate_pairs"], row["skipped_pairs"]) == (1, 0)
+    assert row["source"] == "consult"
 
 
 def test_checkpoint_abort_logs_outcome_and_keeps_stdout(tmp_path):
@@ -66,3 +67,16 @@ def test_checkpoint_abort_logs_outcome_and_keeps_stdout(tmp_path):
     assert json.loads(out.stdout)["outcome"] == "blocked"
     (row,) = _rows(tmp_path, "checkpoint-aborts")
     assert row["mode"] == "outcome" and row["outcome"] == "blocked"
+    assert row["source"] == "checkpoint"
+
+
+def test_checkpoint_abort_logs_abort_mode_source(tmp_path):
+    src = tmp_path / "in.json"
+    src.write_text(json.dumps([]))
+    subprocess.run(
+        [sys.executable, str(ROOT / "scripts" / "checkpoint_abort.py"), "--mode", "abort",
+         "--cheap-results-from", str(src), "--lenses", "correctness-review"],
+        capture_output=True, text=True, cwd=tmp_path, check=True)
+    (row,) = _rows(tmp_path, "checkpoint-aborts")
+    assert row["mode"] == "abort"
+    assert row["source"] == "checkpoint"

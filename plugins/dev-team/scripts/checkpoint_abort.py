@@ -382,6 +382,7 @@ def _run_abort_mode(args) -> int:
     append_row(
         "checkpoint-aborts",
         {
+            "source": "checkpoint",
             "mode": "abort",
             "aborted": result["aborted"],
             "triggering_agent": result["triggeringAgent"],
@@ -411,6 +412,7 @@ def _run_outcome_mode(args) -> int:
     append_row(
         "checkpoint-aborts",
         {
+            "source": "checkpoint",
             "mode": "outcome",
             "aborted": data["aborted"],
             "redispatched": data["redispatched"],

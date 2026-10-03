@@ -22,6 +22,8 @@ import subprocess
 import sys
 from pathlib import Path
 
+import pytest
+
 from _repo_root import REPO_ROOT as _REPO_ROOT
 
 _PLUGIN_DIR = _REPO_ROOT / "plugins" / "dev-team"
@@ -72,7 +74,9 @@ def test_emit_appends_one_compact_jsonl_line_with_expected_fields(
 
 def test_emit_creates_metrics_dir_when_absent(tmp_path: Path) -> None:
     assert not (tmp_path / ".claude" / "metrics").exists()
-    review_verdicts.emit_review_verdict(tmp_path, "security-review", "f.py", "h", "pass")
+    review_verdicts.emit_review_verdict(
+        tmp_path, "security-review", "f.py", "h", "pass"
+    )
     assert (tmp_path / ".claude" / "metrics").is_dir()
 
 
@@ -80,12 +84,16 @@ def test_emit_includes_session_id_when_given(tmp_path: Path) -> None:
     review_verdicts.emit_review_verdict(
         tmp_path, "security-review", "f.py", "h", "pass", session_id="sess-1"
     )
-    event = json.loads((tmp_path / _LOG_REL).read_text(encoding="utf-8").splitlines()[0])
+    event = json.loads(
+        (tmp_path / _LOG_REL).read_text(encoding="utf-8").splitlines()[0]
+    )
     assert event["session_id"] == "sess-1"
 
 
 def test_emit_appends_not_overwrites_across_two_calls(tmp_path: Path) -> None:
-    review_verdicts.emit_review_verdict(tmp_path, "security-review", "a.py", "h1", "pass")
+    review_verdicts.emit_review_verdict(
+        tmp_path, "security-review", "a.py", "h1", "pass"
+    )
     review_verdicts.emit_review_verdict(
         tmp_path, "structure-review", "b.py", "h2", "findings"
     )
@@ -101,7 +109,9 @@ def test_emit_fails_open_on_unwritable_metrics_dir(tmp_path: Path) -> None:
     occupying its path) must not raise — the caller's exit code must never
     be affected."""
     (tmp_path / ".claude").write_text("not a directory")
-    review_verdicts.emit_review_verdict(tmp_path, "security-review", "f.py", "h", "pass")
+    review_verdicts.emit_review_verdict(
+        tmp_path, "security-review", "f.py", "h", "pass"
+    )
 
 
 def test_emit_fails_open_on_arbitrary_exception(tmp_path: Path, monkeypatch) -> None:
@@ -109,7 +119,9 @@ def test_emit_fails_open_on_arbitrary_exception(tmp_path: Path, monkeypatch) -> 
         raise RuntimeError("disk is on fire")
 
     monkeypatch.setattr(review_verdicts, "_isoformat_utc", _boom)
-    review_verdicts.emit_review_verdict(tmp_path, "security-review", "f.py", "h", "pass")
+    review_verdicts.emit_review_verdict(
+        tmp_path, "security-review", "f.py", "h", "pass"
+    )
     assert not (tmp_path / _LOG_REL).exists()
 
 
@@ -186,7 +198,9 @@ def test_load_verdicts_version_mismatch_yields_no_usable_rows(
         "plugin_version": "0.0.1",
     }
     log.write_text(json.dumps(row) + "\n", encoding="utf-8")
-    monkeypatch.setattr(review_verdicts.plugin_version, "shipped_version", lambda: "99.0.0")
+    monkeypatch.setattr(
+        review_verdicts.plugin_version, "shipped_version", lambda: "99.0.0"
+    )
     assert review_verdicts.load_verdicts(tmp_path) == []
 
 
@@ -211,19 +225,25 @@ def _git(args: list[str], cwd: Path) -> None:
 
 
 def test_load_verdicts_rejects_a_git_tracked_ledger(tmp_path: Path) -> None:
-    review_verdicts.emit_review_verdict(tmp_path, "security-review", "f.py", "h", "pass")
+    review_verdicts.emit_review_verdict(
+        tmp_path, "security-review", "f.py", "h", "pass"
+    )
     _git(["init", "-q"], tmp_path)
     _git(["add", "-f", str(_LOG_REL)], tmp_path)
     assert review_verdicts.load_verdicts(tmp_path) == []
 
 
-def test_load_verdicts_trusts_an_untracked_ledger_inside_a_git_repo(tmp_path: Path) -> None:
+def test_load_verdicts_trusts_an_untracked_ledger_inside_a_git_repo(
+    tmp_path: Path,
+) -> None:
     """A git repo whose ledger is merely present -- never staged or
     committed -- is the normal, supported case (the ledger lives under
     `.claude/metrics/`, which this repo's own `.gitignore` excludes) and
     must load exactly as it would with no repo at all."""
     _git(["init", "-q"], tmp_path)
-    review_verdicts.emit_review_verdict(tmp_path, "security-review", "f.py", "h", "pass")
+    review_verdicts.emit_review_verdict(
+        tmp_path, "security-review", "f.py", "h", "pass"
+    )
     rows = review_verdicts.load_verdicts(tmp_path)
     assert len(rows) == 1
     assert rows[0]["file_path"] == "f.py"
@@ -323,3 +343,57 @@ def test_load_verdicts_has_no_other_consumers() -> None:
             "scripts/verdict_scope.py (#2167, the sanctioned reader) and "
             "this module's own test files may."
         )
+
+
+def test_parse_scope_marker_stops_at_trailing_prose() -> None:
+    text = (
+        review_verdicts.SCOPE_MARKER_PREFIX
+        + "a.py, b.py, c/d.py. Report only real defects; JSON per contract."
+    )
+    assert review_verdicts.parse_scope_marker(text) == ["a.py", "b.py", "c/d.py"]
+
+
+def test_parse_scope_marker_accepts_marker_mid_line() -> None:
+    assert review_verdicts.parse_scope_marker(
+        "Review the slice. " + review_verdicts.SCOPE_MARKER_PREFIX + "a.py, b.py"
+    ) == ["a.py", "b.py"]
+
+
+def test_parse_scope_marker_drops_period_after_last_file_with_no_trailing_prose() -> None:
+    assert review_verdicts.parse_scope_marker(
+        review_verdicts.SCOPE_MARKER_PREFIX + "a.py, b.py."
+    ) == ["a.py", "b.py"]
+
+
+def test_parse_scope_marker_stops_at_comma_inside_trailing_prose() -> None:
+    text = (
+        review_verdicts.SCOPE_MARKER_PREFIX + "a.py, b.py, then report JSON per contract."
+    )
+    assert review_verdicts.parse_scope_marker(text) == ["a.py", "b.py"]
+
+
+def test_parse_scope_marker_skips_a_line_that_only_quotes_the_marker() -> None:
+    text = (
+        "Append `" + review_verdicts.SCOPE_MARKER_PREFIX + "` to each prompt.\n"
+        + review_verdicts.SCOPE_MARKER_PREFIX + "a.py, b.py"
+    )
+    assert review_verdicts.parse_scope_marker(text) == ["a.py", "b.py"]
+
+
+@pytest.mark.parametrize(
+    ("text", "expected"),
+    [
+        ("no marker here", None),
+        (review_verdicts.SCOPE_MARKER_PREFIX, None),
+        (review_verdicts.SCOPE_MARKER_PREFIX + "Makefile, a.py", None),
+        (review_verdicts.SCOPE_MARKER_PREFIX + "a.py b.py", ["a.py"]),
+        (
+            "intro\n" + review_verdicts.SCOPE_MARKER_PREFIX + "a.py\n"
+            + review_verdicts.SCOPE_MARKER_PREFIX + "z.py",
+            ["a.py"],
+        ),
+    ],
+    ids=["no-marker", "empty-list", "extensionless-first", "space-separated", "first-marker-wins"],
+)
+def test_parse_scope_marker_edge_cases(text: str, expected: list[str] | None) -> None:
+    assert review_verdicts.parse_scope_marker(text) == expected
