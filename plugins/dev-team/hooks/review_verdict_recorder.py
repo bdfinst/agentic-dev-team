@@ -103,7 +103,6 @@ _PLUGIN_SCRIPTS_DIR = Path(__file__).resolve().parents[1] / "scripts"
 if str(_PLUGIN_SCRIPTS_DIR) not in sys.path:
     sys.path.insert(0, str(_PLUGIN_SCRIPTS_DIR))
 
-from checkpoint_abort import decide_abort  # type: ignore[import-not-found]
 from instrument_log import append_row  # type: ignore[import-not-found]
 from session_log import records as _records  # type: ignore[import-not-found]
 from stdin_json import read_stdin_json, resolve_cwd  # type: ignore[import-not-found]
@@ -364,14 +363,18 @@ def _log_abort_scan(lens: str, issues: list, cwd, session_id) -> None:
     list needs the round's full lens order, which only the checkpoint knows.
     Fail-open."""
     with contextlib.suppress(Exception):  # fail-open by design
+        # Imported here, inside the suppress, so a break in the abort
+        # module's import chain cannot stop verdict recording.
+        from checkpoint_abort import decide_abort  # type: ignore[import-not-found]
+
         # Schema-drifted issues (non-dict, or missing severity/confidence)
         # can never qualify, and `decide_abort` rejects them outright.
-        usable = [
+        well_formed_issues = [
             i
             for i in issues
             if isinstance(i, dict) and "severity" in i and "confidence" in i
         ]
-        decision = decide_abort([{"agent": lens, "issues": usable}], [lens])
+        decision = decide_abort([{"agent": lens, "issues": well_formed_issues}], [lens])
         append_row(
             "checkpoint-aborts",
             {
@@ -386,7 +389,7 @@ def _log_abort_scan(lens: str, issues: list, cwd, session_id) -> None:
         )
 
 
-def _subagent_transcript(transcript_path: Path, agent_id: object) -> Path:
+def _resolve_subagent_transcript(transcript_path: Path, agent_id: object) -> Path:
     """The subagent's own transcript. The real SubagentStop payload's
     `transcript_path` is the PARENT session transcript; the subagent's lives
     at `<parent dir>/<parent stem>/subagents/agent-<agent_id>.jsonl`. Falls
@@ -435,7 +438,7 @@ def process(payload: dict) -> None:
     transcript_path = payload.get("transcript_path")
     if not isinstance(transcript_path, str) or not transcript_path:
         return
-    transcript = _subagent_transcript(Path(transcript_path), payload.get("agent_id"))
+    transcript = _resolve_subagent_transcript(Path(transcript_path), payload.get("agent_id"))
     records = _read_transcript_records(transcript)
     if not records:
         return

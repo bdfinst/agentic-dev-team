@@ -1064,3 +1064,15 @@ def test_scope_marker_path_traversal_is_not_read(tmp_path: Path) -> None:
         assert _read_rows(tmp_path) == []
     finally:
         outside.unlink(missing_ok=True)
+
+
+def test_unparseable_result_logs_no_abort_row(tmp_path: Path) -> None:
+    transcript = _write_transcript(
+        tmp_path,
+        [
+            _dispatch_row(["a.py"]),
+            *_handback_tail("not json output at all", f"dev-team:{_REVIEW_AGENT}"),
+        ],
+    )
+    assert _run_main(tmp_path, transcript) == 0
+    assert _abort_rows(tmp_path) == []

@@ -68,3 +68,14 @@ def test_checkpoint_abort_logs_outcome_and_keeps_stdout(tmp_path):
     (row,) = _rows(tmp_path, "checkpoint-aborts")
     assert row["mode"] == "outcome" and row["outcome"] == "blocked"
     assert row["source"] == "checkpoint"
+
+
+def test_checkpoint_abort_logs_abort_mode_source(tmp_path):
+    src = tmp_path / "in.json"
+    src.write_text(json.dumps([]))
+    subprocess.run(
+        [sys.executable, str(ROOT / "scripts" / "checkpoint_abort.py"), "--mode", "abort",
+         "--cheap-results-from", str(src), "--lenses", "correctness-review"],
+        capture_output=True, text=True, cwd=tmp_path, check=True)
+    rows = _rows(tmp_path, "checkpoint-aborts")
+    assert rows and rows[0]["mode"] == "abort" and rows[0]["source"] == "checkpoint"

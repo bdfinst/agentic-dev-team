@@ -20,7 +20,6 @@ _HOOK = _PLUGIN_DIR / "hooks" / "checkpoint_dispatch_instrument.py"
 _LIB = _PLUGIN_DIR / "hooks" / "lib"
 
 _LENS = "correctness-review"
-_MARKER = "Files in scope for this review: "
 
 
 def _run(payload: dict) -> subprocess.CompletedProcess:
@@ -57,6 +56,7 @@ if str(_LIB) not in sys.path:
     sys.path.insert(0, str(_LIB))
 
 from review_verdicts import (  # type: ignore[import-not-found]
+    SCOPE_MARKER_PREFIX,
     emit_review_verdict,
     hash_file,
 )
@@ -71,7 +71,7 @@ def _seed_verdict(
 def test_marked_lens_dispatch_writes_one_ledger_row(tmp_path: Path) -> None:
     (tmp_path / "a.py").write_text("x\n")
     (tmp_path / "b.py").write_text("y\n")
-    result = _run(_dispatch(tmp_path, "Review the slice. " + _MARKER + "a.py, b.py"))
+    result = _run(_dispatch(tmp_path, "Review the slice. " + SCOPE_MARKER_PREFIX + "a.py, b.py"))
     assert result.returncode == 0
     rows = _rows(tmp_path)
     assert len(rows) == 1
@@ -85,7 +85,7 @@ def test_row_counts_files_the_ledger_already_cleared(tmp_path: Path) -> None:
     (tmp_path / "a.py").write_text("x\n")
     (tmp_path / "b.py").write_text("y\n")
     _seed_verdict(tmp_path, "a.py")
-    _run(_dispatch(tmp_path, _MARKER + "a.py, b.py"))
+    _run(_dispatch(tmp_path, SCOPE_MARKER_PREFIX + "a.py, b.py"))
     rows = _rows(tmp_path)
     assert rows[0]["candidate_pairs"] == 2
     assert rows[0]["skipped_pairs"] == 1
@@ -95,7 +95,7 @@ def test_row_counts_files_the_ledger_already_cleared(tmp_path: Path) -> None:
 def test_all_files_cleared_reports_the_lens_fully_skipped(tmp_path: Path) -> None:
     (tmp_path / "a.py").write_text("x\n")
     _seed_verdict(tmp_path, "a.py")
-    _run(_dispatch(tmp_path, _MARKER + "a.py"))
+    _run(_dispatch(tmp_path, SCOPE_MARKER_PREFIX + "a.py"))
     row = _rows(tmp_path)[0]
     assert row["skipped_pairs"] == row["candidate_pairs"] == 1
     assert row["fully_skipped_lenses"] == [_LENS]
@@ -105,7 +105,7 @@ def test_stale_content_is_not_counted_as_cleared(tmp_path: Path) -> None:
     (tmp_path / "a.py").write_text("x\n")
     _seed_verdict(tmp_path, "a.py")
     (tmp_path / "a.py").write_text("changed\n")
-    _run(_dispatch(tmp_path, _MARKER + "a.py"))
+    _run(_dispatch(tmp_path, SCOPE_MARKER_PREFIX + "a.py"))
     assert _rows(tmp_path)[0]["skipped_pairs"] == 0
 
 
@@ -116,13 +116,13 @@ def test_findings_verdict_and_other_lens_are_not_counted_as_cleared(
     (tmp_path / "b.py").write_text("y\n")
     _seed_verdict(tmp_path, "a.py", outcome="findings")
     _seed_verdict(tmp_path, "b.py", lens="structure-review")
-    _run(_dispatch(tmp_path, _MARKER + "a.py, b.py"))
+    _run(_dispatch(tmp_path, SCOPE_MARKER_PREFIX + "a.py, b.py"))
     assert _rows(tmp_path)[0]["skipped_pairs"] == 0
 
 
 def test_hook_is_silent_and_handles_unprefixed_lens(tmp_path: Path) -> None:
     (tmp_path / "a.py").write_text("x\n")
-    result = _run(_dispatch(tmp_path, _MARKER + "a.py", subagent_type=_LENS))
+    result = _run(_dispatch(tmp_path, SCOPE_MARKER_PREFIX + "a.py", subagent_type=_LENS))
     assert result.stdout == b""
     assert result.stderr == b""
     assert len(_rows(tmp_path)) == 1
@@ -130,7 +130,7 @@ def test_hook_is_silent_and_handles_unprefixed_lens(tmp_path: Path) -> None:
 
 def test_unregistered_review_name_writes_nothing(tmp_path: Path) -> None:
     (tmp_path / "a.py").write_text("x\n")
-    _run(_dispatch(tmp_path, _MARKER + "a.py", subagent_type="dev-team:phantom-review"))
+    _run(_dispatch(tmp_path, SCOPE_MARKER_PREFIX + "a.py", subagent_type="dev-team:phantom-review"))
     assert _rows(tmp_path) == []
 
 
@@ -144,7 +144,7 @@ def test_non_review_agent_dispatch_writes_nothing(tmp_path: Path) -> None:
     (tmp_path / "a.py").write_text("x\n")
     result = _run(
         _dispatch(
-            tmp_path, _MARKER + "a.py", subagent_type="dev-team:software-engineer"
+            tmp_path, SCOPE_MARKER_PREFIX + "a.py", subagent_type="dev-team:software-engineer"
         )
     )
     assert result.returncode == 0

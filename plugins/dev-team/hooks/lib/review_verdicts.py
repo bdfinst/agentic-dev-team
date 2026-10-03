@@ -102,7 +102,9 @@ SCOPE_MARKER_PREFIX = "Files in scope for this review: "
 
 def parse_scope_marker(text: str) -> list[str] | None:
     """The in-scope file list from the `SCOPE_MARKER_PREFIX` marker, or
-    `None` when no line contains it. The marker may sit anywhere on its
+    `None` when no line yields one. A line that quotes the marker without
+    a file list after it (prose describing the format) is skipped, so a
+    later real marker line still wins. The marker may sit anywhere on its
     line: dispatch prompts routinely append it to the end of a prose
     sentence, and prose may follow the list on the same line. An entry
     followed by whitespace-separated words ends the list; so does an entry
@@ -125,7 +127,8 @@ def parse_scope_marker(text: str) -> list[str] | None:
             files.append(path)
             if len(words) > 1:
                 break
-        return files
+        if files:
+            return files
     return None
 
 

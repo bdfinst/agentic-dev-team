@@ -22,6 +22,8 @@ import subprocess
 import sys
 from pathlib import Path
 
+import pytest
+
 from _repo_root import REPO_ROOT as _REPO_ROOT
 
 _PLUGIN_DIR = _REPO_ROOT / "plugins" / "dev-team"
@@ -368,3 +370,30 @@ def test_parse_scope_marker_stops_at_comma_inside_trailing_prose() -> None:
         review_verdicts.SCOPE_MARKER_PREFIX + "a.py, b.py, then report JSON per contract."
     )
     assert review_verdicts.parse_scope_marker(text) == ["a.py", "b.py"]
+
+
+def test_parse_scope_marker_skips_a_line_that_only_quotes_the_marker() -> None:
+    text = (
+        "Append `" + review_verdicts.SCOPE_MARKER_PREFIX + "` to each prompt.\n"
+        + review_verdicts.SCOPE_MARKER_PREFIX + "a.py, b.py"
+    )
+    assert review_verdicts.parse_scope_marker(text) == ["a.py", "b.py"]
+
+
+@pytest.mark.parametrize(
+    ("text", "expected"),
+    [
+        ("no marker here", None),
+        (review_verdicts.SCOPE_MARKER_PREFIX, None),
+        (review_verdicts.SCOPE_MARKER_PREFIX + "Makefile, a.py", None),
+        (review_verdicts.SCOPE_MARKER_PREFIX + "a.py b.py", ["a.py"]),
+        (
+            "intro\n" + review_verdicts.SCOPE_MARKER_PREFIX + "a.py\n"
+            + review_verdicts.SCOPE_MARKER_PREFIX + "z.py",
+            ["a.py"],
+        ),
+    ],
+    ids=["no-marker", "empty-list", "extensionless-first", "space-separated", "first-marker-wins"],
+)
+def test_parse_scope_marker_edge_cases(text: str, expected: list[str] | None) -> None:
+    assert review_verdicts.parse_scope_marker(text) == expected
