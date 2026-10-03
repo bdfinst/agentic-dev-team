@@ -77,5 +77,6 @@ def test_checkpoint_abort_logs_abort_mode_source(tmp_path):
         [sys.executable, str(ROOT / "scripts" / "checkpoint_abort.py"), "--mode", "abort",
          "--cheap-results-from", str(src), "--lenses", "correctness-review"],
         capture_output=True, text=True, cwd=tmp_path, check=True)
-    rows = _rows(tmp_path, "checkpoint-aborts")
-    assert rows and rows[0]["mode"] == "abort" and rows[0]["source"] == "checkpoint"
+    (row,) = _rows(tmp_path, "checkpoint-aborts")
+    assert row["mode"] == "abort"
+    assert row["source"] == "checkpoint"

@@ -19,6 +19,8 @@ import subprocess
 import sys
 from pathlib import Path
 
+import pytest
+
 _HOOK_DIR = Path(__file__).resolve().parents[2] / "hooks"
 _HOOK_PY = _HOOK_DIR / "review_verdict_recorder.py"
 _LIB_DIR = _HOOK_DIR / "lib"
@@ -1075,4 +1077,28 @@ def test_unparseable_result_logs_no_abort_row(tmp_path: Path) -> None:
         ],
     )
     assert _run_main(tmp_path, transcript) == 0
+    assert [e["matched_rule"] for e in _read_boundary_events(tmp_path)] == [
+        "unparseable-result"
+    ]
+    assert _abort_rows(tmp_path) == []
+
+
+def test_broken_abort_module_import_does_not_stop_verdict_recording(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _write_file(tmp_path, "a.py")
+    transcript = _write_transcript(
+        tmp_path,
+        [
+            _dispatch_row(["a.py"]),
+            *_result_rows(
+                {"status": "pass", "issues": [], "summary": "ok"},
+                f"dev-team:{_REVIEW_AGENT}",
+            ),
+        ],
+    )
+    # `None` in sys.modules makes `from checkpoint_abort import ...` raise.
+    monkeypatch.setitem(sys.modules, "checkpoint_abort", None)
+    recorder.process({"cwd": str(tmp_path), "transcript_path": transcript})
+    assert [r["outcome"] for r in _read_rows(tmp_path)] == ["pass"]
     assert _abort_rows(tmp_path) == []
