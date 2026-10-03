@@ -1,36 +1,36 @@
-# Eval System for Code Review Agents
+# Eval system for code review agents
 
 This document describes how the evaluation system ensures quality and consistency
 across the code-review agent toolkit.
 
 The system follows recommendations from Anthropic's
-[Demystifying Evals for AI Agents](https://www.anthropic.com/engineering/demystifying-evals-for-ai-agents):
-use deterministic (code-based) graders for everything they can handle, use
-model-based graders only for what genuinely requires judgment, and calibrate
+[Demystifying Evals for AI Agents](https://www.anthropic.com/engineering/demystifying-evals-for-ai-agents).
+Use deterministic (code-based) graders for everything they can handle. Use
+model-based graders only for what requires judgment. Calibrate
 both against human review.
 
 **On this page:** [Two sets of test cases](#two-sets-of-test-cases) ·
-[Architecture](#architecture) · [Grader Layers](#grader-layers) ·
+[Architecture](#architecture) · [Grader layers](#grader-layers) ·
 [Workflows](#workflows) ·
-[How Hooks and Agents Complement Each Other](#how-hooks-and-agents-complement-each-other) ·
-[Eval Compliance](#eval-compliance) · [Eval Fixtures](#eval-fixtures) ·
-[Adding a New Agent](#adding-a-new-agent). The real-session trend digest lives
+[How hooks and agents complement each other](#how-hooks-and-agents-complement-each-other) ·
+[Eval compliance](#eval-compliance) · [Eval fixtures](#eval-fixtures) ·
+[Adding a new agent](#adding-a-new-agent). The real-session trend digest lives
 in [`session-review.md`](session-review.md).
 
 ## Two sets of test cases
 
-This document covers the **deterministic detection fixtures** (`evals/expected/`):
-does a *review agent* catch a code issue? These are graded automatically by
-`scripts/eval_grade.py` and checked in CI via `--check-corpus`.
+This document covers the **deterministic detection fixtures** (`evals/expected/`).
+They test whether a *review agent* catches a code issue. `scripts/eval_grade.py` grades them automatically,
+and CI checks them through `--check-corpus`.
 
-A second, complementary set grades **behavior, not detection** — the
-[Ownership Engineering suite](../../../evals/ownership-engineering/) — does a
-*team agent or workflow skill* investigate vs. escalate, decide vs. menu, prove
-vs. assert? Because that requires judgment, it is **graded by an AI judge or a
-human reviewer**, lives outside `evals/expected/` so it never enters the
-deterministic gate, and its freshness is tracked by a staleness warning
-(`scripts/oe_scoring_staleness.py`) that flags any subject or fixture whose inputs
-changed since they were last scored. See that suite's `README.md` for the run
+A second, complementary set grades **behavior, not detection**. This is the
+[Ownership Engineering suite](../../../evals/ownership-engineering/). It tests whether a
+*team agent or workflow skill* investigates or escalates, decides or offers a menu, and proves
+or asserts. This grading requires judgment, so an **AI judge or a
+human reviewer grades it**. The suite lives outside `evals/expected/`, so it never enters the
+deterministic gate. A staleness warning (`scripts/oe_scoring_staleness.py`) tracks its freshness.
+The warning flags any subject or fixture whose inputs
+changed since the last scoring. See that suite's `README.md` for the run
 procedure.
 
 ## Architecture
@@ -44,7 +44,7 @@ flowchart TD
     UW --> L3["Layer 3 · Human<br/>(review)"]
 ```
 
-## Grader Layers
+## Grader layers
 
 ### Layer 1: Deterministic (hooks)
 
@@ -56,12 +56,12 @@ Fast, free, deterministic checks that run automatically via PostToolUse hooks:
 | `token_efficiency_review.py` | File length >500 lines, CLAUDE.md >5000 chars, function length >50 lines |
 | `eval_compliance_check.py` | Agent/skill file structure, output format, severity levels |
 
-Hooks are **advisory only** — they warn but never block. They catch mechanical
+Hooks are **advisory only**. They warn but never block. They catch mechanical
 issues cheaply before the model-based agents spend tokens on full analysis.
 
 ### Layer 2: Model-based (agents)
 
-Specialized agents that require LLM judgment. The full roster — with counts, focus areas, and model tiers — is documented in [`agent_info.md`](agent_info.md). Agents with eval fixture coverage:
+Specialized agents that require LLM judgment. [`agent_info.md`](agent_info.md) documents the full roster, with counts, focus areas, and model tiers. Agents with eval fixture coverage:
 
 | Agent | Focus |
 | ----- | ----- |
@@ -96,14 +96,14 @@ Each agent outputs a structured result:
 ### Layer 3: Human review
 
 The user reviews agent findings and decides which fixes to apply. The
-`/apply-fixes` command automates fix application but the user controls which
-correction prompts are included.
+`/apply-fixes` command automates fix application, but the user controls which
+correction prompts it includes.
 
 ## Workflows
 
 ### `/code-review` — Full review
 
-See [Code Review Process](code-review-process.md) for the full nine-step pipeline: target selection, pre-flight gates, static analysis pre-pass, parallel agent dispatch, ACCEPTED-RISKS suppression, health scoring, the auto-fix loop (up to 5 iterations), correction prompts, and the `.pr-review-passed` gate file.
+See [Code review process](code-review-process.md) for the full nine-step pipeline. The pipeline covers target selection, pre-flight gates, static analysis pre-pass, parallel agent dispatch, ACCEPTED-RISKS suppression, and health scoring. It also covers the auto-fix loop (up to 5 iterations), correction prompts, and the `.pr-review-passed` gate file.
 
 ### `/review-agent <name>` — Single agent
 
@@ -128,13 +128,13 @@ Prompts → Repo Rules → Apply Fix → Validate → Report
 4. Run validation (lint/build/tests) after each fix
 5. Report results (applied, failed, validation failed)
 
-## How Hooks and Agents Complement Each Other
+## How hooks and agents complement each other
 
 The hooks (`js_fp_review.py`, `token_efficiency_review.py`) provide instant
 feedback on the most common, mechanically detectable issues. The corresponding
 agents (`js-fp-review`, `token-efficiency-review`) provide deeper analysis that
-requires LLM judgment — for example, understanding whether a mutation is
-intentional based on surrounding context, or whether a long function is
+requires LLM judgment. For example, an agent can decide whether a mutation is
+intentional based on surrounding context. It can also decide whether a long function is
 justified by its complexity.
 
 ```text
@@ -145,13 +145,13 @@ file >500 lines               Is the file a generated file?
 Object.assign(obj, ...)       Is obj freshly created above?
 ```
 
-## Eval Compliance
+## Eval compliance
 
 Two mechanisms ensure new agents and skills follow patterns:
 
 ### `/agent-audit` skill (manual)
 
-Reads every agent, skill, and hook file and checks for:
+The skill reads every agent, skill, and hook file and checks for:
 
 - Structured output format
 - Severity definitions
@@ -159,18 +159,18 @@ Reads every agent, skill, and hook file and checks for:
 - Numbered steps and argument parsing
 - Advisory-only hook behavior
 
-Outputs a compliance report with PASS/WARN/FAIL per item.
+The skill outputs a compliance report with PASS, WARN, or FAIL per item.
 
 ### `eval_compliance_check.py` hook (automatic)
 
-Fires on Write/Edit to agent or skill files. Provides real-time advisory
+The hook fires on Write or Edit to agent or skill files. It provides real-time advisory
 warnings when:
 
 - A review agent is missing output format or severity definitions
 - A skill is missing numbered steps or argument parsing
 - A review-related skill has no report section
 
-## Eval Fixtures
+## Eval fixtures
 
 The `evals/` directory contains a test corpus for validating agent accuracy:
 
@@ -218,10 +218,10 @@ severity ranges, and keyword checks.
 ### Advisory-skill fixtures (gate firing)
 
 Most fixtures grade a **review agent** by its `status/issues[]` JSON. Advisory
-skills (e.g. `test-design-advisor`) don't emit that shape — they emit a report
+skills (for example, `test-design-advisor`) do not emit that shape. They emit a report
 with a *Pyramid placement* table. The `tlg-*` corpus grades the skill's
-**behavior pre-gates** (issue #80) by declaring `applicableSkills` and a `skills`
-block instead of `applicableAgents`/`agents`:
+**behavior pre-gates** (issue #80). It declares `applicableSkills` and a `skills`
+block instead of `applicableAgents` and `agents`:
 
 ```json
 {
@@ -239,12 +239,12 @@ block instead of `applicableAgents`/`agents`:
 }
 ```
 
-`/agent-eval` drives the skill against each fixture and grades the Gate column +
-recommended layers + keyword checks (see the command's Step 4). This replaces the
-manual walk-through that `evals/fixtures/test-layer-gates.md` recorded for #80 —
-re-run it with `/agent-eval --skill test-design-advisor`. `expectedGates` uses the
+`/agent-eval` drives the skill against each fixture. It grades the Gate column,
+recommended layers, and keyword checks (see the command's Step 4). This replaces the
+manual walk-through that `evals/fixtures/test-layer-gates.md` recorded for #80.
+Re-run it with `/agent-eval --skill test-design-advisor`. `expectedGates` uses the
 gate vocabulary `A`/`B`/`C`/`D`/`redundancy`/`ambiguity` (or `[]` for "no gate
-fires"); `expectedLayers` uses the `test-pyramid.md` vocabulary.
+fires"). `expectedLayers` uses the `test-pyramid.md` vocabulary.
 
 ### `/agent-eval` command
 
@@ -258,11 +258,11 @@ Run agents and skills against fixtures and grade results:
 /agent-eval --trials 3                       # multi-trial with pass@k scoring
 ```
 
-The runner resolves the toolkit root via symlink (for installed projects) and
+The runner resolves the toolkit root through a symlink (for installed projects) and
 saves transcripts for trend analysis. It detects eval saturation when 3
 consecutive runs produce identical grades.
 
-## Adding a New Agent
+## Adding a new agent
 
 1. Create `agents/<name>.md` with:
    - JSON output format (status, issues, summary)
@@ -271,21 +271,21 @@ consecutive runs produce identical grades.
    - File scope (which file types the agent applies to)
    - Scope boundaries (what to ignore)
 
-2. Optionally add a hook in `hooks/<name>.py` for deterministic checks
+2. Optionally, add a hook in `hooks/<name>.py` for deterministic checks.
 
-3. Run `/agent-audit` to verify compliance
+3. Run `/agent-audit` to verify compliance.
 
 4. Add eval fixtures in `evals/fixtures/` (2-3 pass, 2-3 fail) and reference
-   solutions in `evals/expected/`
+   solutions in `evals/expected/`.
 
-5. Run `/agent-eval --agent <name>` to validate accuracy
+5. Run `/agent-eval --agent <name>` to validate accuracy.
 
 ## Session-review trend digest (#129)
 
 `/session-review` appends one metrics-only record per run to the append-only
-trend stream `metrics/session-digest.jsonl` (deliberately left bare —
-/session-review's own scratch-state writer is out of scope for the #1406
-`.claude/`-scoped artifact migration), the real-session counterpart to the
-self-reported `.claude/metrics/*-task-log.jsonl` streams. The `session-digest/v1` record
-schema and the `/harness-audit` join are documented canonically in
-[`session-review.md`](session-review.md#trend-persistence-129).
+trend stream `metrics/session-digest.jsonl`. This stream is the real-session counterpart to the
+self-reported `.claude/metrics/*-task-log.jsonl` streams. The path is deliberately left bare,
+because /session-review's own scratch-state writer is out of scope for the #1406
+`.claude/`-scoped artifact migration. [`session-review.md`](session-review.md#trend-persistence-129)
+documents the `session-digest/v1` record
+schema and the `/harness-audit` join.

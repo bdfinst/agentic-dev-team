@@ -1,4 +1,4 @@
-"""docs/agent_info.md's Review Agents table must list every review agent that
+"""docs/agent_info.md's Review agents table must list every review agent that
 knowledge/agent-registry.md registers. The two tables drifted (agent_info.md
 omitted mutation-kill and session-analysis, which exist in agents/ and are
 registered in agent-registry.md) — this sensor fails loudly on future drift.
@@ -39,19 +39,20 @@ def test_agent_info_review_agents_superset_of_registry() -> None:
     registry_text = AGENT_REGISTRY.read_text(encoding="utf-8")
     info_text = AGENT_INFO.read_text(encoding="utf-8")
 
+    # The registry keeps "Review Agents"; agent_info.md uses sentence case.
     registry_agents = _agent_names(_section(registry_text, "Review Agents"))
-    info_agents = _agent_names(_section(info_text, "Review Agents"))
+    info_agents = _agent_names(_section(info_text, "Review agents"))
 
     assert registry_agents, "expected to find review-agent rows in agent-registry.md"
     missing = registry_agents - info_agents
     assert not missing, (
-        f"docs/agent_info.md's Review Agents table is missing rows for: "
+        f"docs/agent_info.md's Review agents table is missing rows for: "
         f"{sorted(missing)} (present in knowledge/agent-registry.md)"
     )
 
 
 def test_mutation_kill_and_session_analysis_rows_present() -> None:
     info_text = AGENT_INFO.read_text(encoding="utf-8")
-    info_agents = _agent_names(_section(info_text, "Review Agents"))
+    info_agents = _agent_names(_section(info_text, "Review agents"))
     assert "mutation-kill" in info_agents
     assert "session-analysis" in info_agents

@@ -1,10 +1,10 @@
 # Agents
 
-Agents define **who does the work**. There are two categories: **team agents** (persona-driven roles that implement, design, and coordinate) and **review agents** (focused reviewers that inspect code quality during implementation).
+Agents define **who does the work**. There are two categories. **Team agents** are persona-driven roles that implement, design, and coordinate. **Review agents** are focused reviewers that inspect code quality during implementation.
 
-## Team Agents
+## Team agents
 
-Each team agent file in `agents/` specifies a role's persona, behavior, collaboration style, and which skills it uses.
+Each team agent file in `agents/` specifies a role's persona, behavior, collaboration style, and skills.
 
 | Agent | File | Purpose |
 | --- | --- | --- |
@@ -20,9 +20,9 @@ Each team agent file in `agents/` specifies a role's persona, behavior, collabor
 | Technical Writer | [`tech-writer.md`](https://github.com/bdfinst/agentic-dev-team/blob/main/plugins/dev-team/agents/tech-writer.md) | Documentation, terminology consistency, style enforcement |
 | UI/UX Designer | [`ui-ux-designer.md`](https://github.com/bdfinst/agentic-dev-team/blob/main/plugins/dev-team/agents/ui-ux-designer.md) | Interface design, UX flows, accessibility compliance |
 
-## Review Agents
+## Review agents
 
-Review agents run as sub-agents during Phase 3 inline checkpoints and full `/code-review` runs. The Orchestrator selects and spawns them — they are never invoked directly by the user. Each agent declares its own `model:`/`effort:` frontmatter — the native Claude Code sub-agent contract, resolved by the harness itself (see Model/Effort Resolution in `agents/orchestrator.md`). For the full dispatch pipeline, see [Code Review Process](code-review-process.md).
+Review agents run as sub-agents during Phase 3 inline checkpoints and full `/code-review` runs. The Orchestrator selects and spawns them. You never invoke them directly. Each agent declares its own `model:`/`effort:` frontmatter, which is the native Claude Code sub-agent contract. The harness resolves it (see Model/Effort Resolution in `agents/orchestrator.md`). For the full dispatch pipeline, see [Code review process](code-review-process.md).
 
 | Agent | File | Model | What It Checks |
 | --- | --- | --- | --- |
@@ -55,13 +55,13 @@ Review agents run as sub-agents during Phase 3 inline checkpoints and full `/cod
 | `token-efficiency-review` | [`token-efficiency-review.md`](https://github.com/bdfinst/agentic-dev-team/blob/main/plugins/dev-team/agents/token-efficiency-review.md) | haiku | File size, LLM anti-patterns |
 | `vue-reactivity-review` | [`vue-reactivity-review.md`](https://github.com/bdfinst/agentic-dev-team/blob/main/plugins/dev-team/agents/vue-reactivity-review.md) | sonnet | Vue ref/reactive pitfalls, watchEffect tracking, proxy escapes, subscription leaks |
 
-To add a new review agent, use `/agent-add`. See [Add a Review Agent](#add-a-review-agent) below.
+To add a new review agent, use `/agent-add`. See [Add a review agent](#add-a-review-agent) below.
 
-## Plan Review Personas
+## Plan review personas
 
-Plan review personas are registered agents (`agents/plan-review-*.md`) that critically challenge implementation plans during Phase 2, before the human gate. Unlike review agents (which check code), these check the plan itself. See [Plan Review Personas in the architecture doc](agent-architecture.md#plan-review-personas) for the full persona table and revision loop.
+Plan review personas are registered agents (`agents/plan-review-*.md`) that critically challenge implementation plans during Phase 2, before the human gate. Review agents check code. These personas check the plan itself. See [Plan review personas in the architecture doc](agent-architecture.md#plan-review-personas) for the full persona table and revision loop.
 
-## Persona Template
+## Persona template
 
 Every agent file follows this structure:
 
@@ -99,30 +99,43 @@ Every agent file follows this structure:
 - [Measurable KPIs]
 ```
 
-The `## Skills` section is the bridge between agents and skills. The agent defines *when and why* to invoke a skill; the skill defines *how* to execute it.
+The `## Skills` section is the bridge between agents and skills. The agent defines *when and why* to invoke a skill. The skill defines *how* to execute it.
 
 ## Non-standard body declarations
 
-Several `Key: value` lines appear in some agents' **bodies**, not their frontmatter — they are intentional internal tooling metadata, deliberately kept out of frontmatter because none of them are part of the official Claude Code sub-agent contract (`plugins/marketplace-dev/knowledge/agent-contract.json`); frontmatter is reserved for that contract (issue #1333).
+Several `Key: value` lines appear in some agents' **bodies**, not their frontmatter. They are intentional internal tooling metadata. They stay out of frontmatter because none of them are part of the official Claude Code sub-agent contract (`plugins/marketplace-dev/knowledge/agent-contract.json`). Frontmatter is reserved for that contract (issue #1333).
 
-- **`Cites: [...]`** — a list of canonical skill/knowledge-file sources an agent's normative rules (MUST/SHOULD/SHALL thresholds) derive from, e.g. `Cites: [owasp-detection, accepted-risks-schema]`. `scripts/citation_lint.py` reads this list and flags a warning when a stated numeric threshold doesn't appear in any cited source — catching silent drift when a canonical file changes but a reviewer agent's inline rule doesn't. See the script's module docstring for the full contract. See `tests/repo/test_citation_lint_corpus.py` for the regression guard over the real corpus.
-- **`Scope: always` / `Scope:` (glob list) / `Scope: added-only` (glob list) / `Scope: on-demand`** — self-declares which files an agent is eligible to review; read by `/code-review`'s dispatch step (`skills/code-review/SKILL.md`). `scripts/check_agent_scope.py` only validates that *some* `Scope:` line is present, not which of the four forms it takes or that the value parses — a misspelled sentinel (e.g. `Scope: added_only`) passes that check silently, then falls through to `select_lenses.py`'s `parse_scope`, which fails open (include-biased, and warned) on an unrecognized value. `added-only` (#1733) narrows the glob-list form to only files that are newly *added* (git change-type `A`), not merely modified. `on-demand` (#1733's closing-pass follow-up) is a bare declaration with no bullet block — it means the agent is a genuine review agent whose findings are whole-repository properties, never dispatched by the per-diff resolver at all (`claude-setup-review`, `token-efficiency-review`, `ai-provenance-review` — see `scripts/lib/review_roster.py`'s docstring for why this replaced listing them in `NON_REVIEW_AGENTS`). `parse_scope` treats the **first** `Scope:` line as authoritative, so the machine-readable form (`added-only`/`on-demand`/plain glob-list) must stay above any later free-text `Scope:` prose in the same body, or the declaration a reader sees first is not the one the resolver reads.
-- **`Verify-model:` / `Verify-effort:`** — a review agent's optional opt-in to a cheaper model/effort tier for **fix-verification** re-dispatches only; discovery dispatches are unaffected. Absent means "same tier as discovery" — the deliberate default, since #1619 showed some confirmations genuinely need top-tier judgment. Resolved by `scripts/verify_tier.py`, which validates each value against the same closed enums the official contract declares for `model:`/`effort:` and falls back to the discovery tier on a typo (failing toward the more expensive tier, never the cheaper one). Full contract: [`knowledge/verification-mode.md`](https://github.com/bdfinst/agentic-dev-team/blob/main/plugins/dev-team/knowledge/verification-mode.md) (#1628).
-- **`Enforcement: script`** — marks an agent whose behavior is deterministically implemented by a script rather than driven by free-form LLM reasoning from the persona prose alone. Agents carrying this declaration also carry a `> **Implemented by:** ${CLAUDE_PLUGIN_ROOT}/scripts/<name>.py` blockquote near the top of the file pointing at that implementation (e.g. `orchestrator.md` → `${CLAUDE_PLUGIN_ROOT}/scripts/orchestrator.py`, `codebase-recon.md` → `${CLAUDE_PLUGIN_ROOT}/scripts/codebase_recon.py`).
+- **`Cites: [...]`** — a list of canonical skill and knowledge-file sources. An agent's normative rules (MUST/SHOULD/SHALL thresholds) derive from these sources, for example `Cites: [owasp-detection, accepted-risks-schema]`.
+  - `scripts/citation_lint.py` reads this list. It warns when a stated numeric threshold does not appear in any cited source.
+  - This catches silent drift when a canonical file changes but a reviewer agent's inline rule does not.
+  - See the script's module docstring for the full contract.
+  - See `tests/repo/test_citation_lint_corpus.py` for the regression guard over the real corpus.
+- **`Scope: always` / `Scope:` (glob list) / `Scope: added-only` (glob list) / `Scope: on-demand`** — declares which files an agent is eligible to review. The `/code-review` dispatch step reads it (`skills/code-review/SKILL.md`).
+  - `scripts/check_agent_scope.py` only validates that *some* `Scope:` line is present. It does not check which of the four forms the line takes, or that the value parses.
+  - A misspelled sentinel (for example `Scope: added_only`) passes that check silently. It then falls through to `parse_scope` in `select_lenses.py`, which fails open (include-biased, and warned) on an unrecognized value.
+  - `added-only` (#1733) narrows the glob-list form to files that are newly *added* (git change-type `A`), not merely modified.
+  - `on-demand` (#1733's closing-pass follow-up) is a bare declaration with no bullet block. It means the agent is a genuine review agent whose findings are whole-repository properties. The per-diff resolver never dispatches it (`claude-setup-review`, `token-efficiency-review`, `ai-provenance-review`). See the docstring of `scripts/lib/review_roster.py` for why this replaced listing them in `NON_REVIEW_AGENTS`.
+  - `parse_scope` treats the **first** `Scope:` line as authoritative. Keep the machine-readable form (`added-only`/`on-demand`/plain glob-list) above any later free-text `Scope:` prose in the same body. Otherwise the declaration a reader sees first is not the one the resolver reads.
+- **`Verify-model:` / `Verify-effort:`** — a review agent's optional opt-in to a cheaper model/effort tier for **fix-verification** re-dispatches only. Discovery dispatches are unaffected.
+  - Absent means "same tier as discovery". This is the deliberate default, because #1619 showed some confirmations genuinely need top-tier judgment.
+  - `scripts/verify_tier.py` resolves these values. It validates each value against the same closed enums the official contract declares for `model:`/`effort:`.
+  - On a typo, it falls back to the discovery tier. It fails toward the more expensive tier, never the cheaper one.
+  - Full contract: [`knowledge/verification-mode.md`](https://github.com/bdfinst/agentic-dev-team/blob/main/plugins/dev-team/knowledge/verification-mode.md) (#1628).
+- **`Enforcement: script`** — marks an agent whose behavior a script implements deterministically, rather than free-form LLM reasoning from the persona prose alone. Agents with this declaration also carry a `> **Implemented by:** ${CLAUDE_PLUGIN_ROOT}/scripts/<name>.py` blockquote near the top of the file. The blockquote points at that implementation (for example `orchestrator.md` → `${CLAUDE_PLUGIN_ROOT}/scripts/orchestrator.py`, `codebase-recon.md` → `${CLAUDE_PLUGIN_ROOT}/scripts/codebase_recon.py`).
 
-## Add a Team Agent
+## Add a team agent
 
-1. Create `agents/{role-name}.md` using the template above
-2. Add the agent to the Team Organization diagram in `docs/team-structure.md`
-3. Add it to the Team Agents table in `CLAUDE.md`
-4. Define collaboration protocols with existing agents
-5. Reference any applicable skills in the `## Skills` section
+1. Create `agents/{role-name}.md` using the template above.
+2. Add the agent to the Team Organization diagram in `docs/team-structure.md`.
+3. Add the agent to the Team Agents table in `CLAUDE.md`.
+4. Define collaboration protocols with existing agents.
+5. Reference any applicable skills in the `## Skills` section.
 
 See the `marketplace-dev` plugin's `agent-skill-authoring` guidance for detailed authoring conventions.
 
-## Add a Review Agent
+## Add a review agent
 
-Use the `/agent-add` slash command — it scaffolds a compliant agent, checks for scope overlap with existing review agents, runs `/agent-audit` automatically, and registers the agent in `CLAUDE.md`.
+Use the `/agent-add` slash command. It scaffolds a compliant agent and checks for scope overlap with existing review agents. It also runs `/agent-audit` automatically and registers the agent in `CLAUDE.md`.
 
 ```text
 /agent-add "React hook violations" --tier mid --lang js,ts,jsx,tsx
@@ -130,21 +143,21 @@ Use the `/agent-add` slash command — it scaffolds a compliant agent, checks fo
 
 Manual process:
 
-1. Create `agents/{name}-review.md` using the review agent template (see any existing review agent for reference)
-2. Run `/agent-audit agents/{name}-review.md --fix` to validate compliance
-3. Add eval fixtures to `evals/fixtures/` and expected results to `evals/expected/`
-4. Run `/agent-eval --agent {name}-review` to validate accuracy
-5. Add a row to the Review Agents table in `CLAUDE.md`
+1. Create `agents/{name}-review.md` using the review agent template (see any existing review agent for reference).
+2. Run `/agent-audit agents/{name}-review.md --fix` to validate compliance.
+3. Add eval fixtures to `evals/fixtures/` and expected results to `evals/expected/`.
+4. Run `/agent-eval --agent {name}-review` to validate accuracy.
+5. Add a row to the Review Agents table in `CLAUDE.md`.
 
-## Add a Project-Specific Custom Agent
+## Add a project-specific custom agent
 
-Custom agents extend the team with knowledge specific to your project — your domain model, internal frameworks, coding conventions, or tech stack. They live in your project's `agents/` directory alongside the standard team agents and are invisible to other projects.
+Custom agents extend the team with knowledge specific to your project. Examples include your domain model, internal frameworks, coding conventions, or tech stack. They live in your project's `agents/` directory alongside the standard team agents. Other projects cannot see them.
 
 **When to add a custom agent** (rather than relying on a standard agent):
 
-- The agent needs deep knowledge of your domain that would bloat the standard agent's context
-- The role is specific to your team's process (e.g., a `compliance-reviewer` for regulated industries)
-- You want a review agent that enforces internal conventions the standard agents don't know about
+- The agent needs deep knowledge of your domain that would bloat the standard agent's context.
+- The role is specific to your team's process (for example, a `compliance-reviewer` for regulated industries).
+- You want a review agent that enforces internal conventions the standard agents do not know about.
 
 **Steps**:
 
@@ -155,11 +168,11 @@ Custom agents extend the team with knowledge specific to your project — your d
    touch .claude/agents/django-review.md
    ```
 
-2. Write the agent using the [persona template](#persona-template) above. For a review agent, copy an existing one (e.g., `agents/js-fp-review.md`) as a starting point.
+2. Write the agent using the [persona template](#persona-template) above. For a review agent, copy an existing one (for example, `agents/js-fp-review.md`) as a starting point.
 
-3. Register it in your project's `CLAUDE.md` under the appropriate table (Team Agents or Review Agents).
+3. Register the agent in your project's `CLAUDE.md` under the appropriate table (Team Agents or Review Agents).
 
-4. If it's a review agent, add eval fixtures so you can validate its accuracy:
+4. If the agent is a review agent, add eval fixtures so you can validate its accuracy:
 
    ```
    .claude/evals/fixtures/django-review/     # sample code the agent should flag
@@ -168,20 +181,20 @@ Custom agents extend the team with knowledge specific to your project — your d
 
 5. Validate with `/agent-audit` and test with `/agent-eval --agent django-review`.
 
-**Important**: Custom agents in your project's `.claude/` are *additive* — they extend the standard team without replacing it. The Orchestrator will route to them when appropriate based on the task.
+**Important**: Custom agents in your project's `.claude/` are *additive*. They extend the standard team without replacing it. The Orchestrator routes to them when appropriate based on the task.
 
-## Install or Update the Plugin
+## Install or update the plugin
 
-The standard install path is `claude plugin install dev-team@bfinster` — see the [repository README](../../../README.md#getting-started) for the full procedure, including how to update to a newer version. Copying agent files by hand is not supported: the Orchestrator routes by marketplace registry, not by file scan.
+The standard install path is `claude plugin install dev-team@bfinster`. See the [repository README](../../../README.md#getting-started) for the full procedure, including how to update to a newer version. Copying agent files by hand is not supported. The Orchestrator routes by marketplace registry, not by file scan.
 
 To contribute a custom agent back upstream:
 
-1. Ensure the agent file follows the standard template (run `/agent-audit` against it)
-2. Add eval fixtures and expected outputs
-3. Submit a PR to this repository with the agent file, fixtures, and a registry entry in `CLAUDE.md`
+1. Ensure the agent file follows the standard template (run `/agent-audit` against it).
+2. Add eval fixtures and expected outputs.
+3. Submit a PR to this repository with the agent file, fixtures, and a registry entry in `CLAUDE.md`.
 
-## Remove an Agent
+## Remove an agent
 
-1. Delete the agent file from `agents/`
-2. Remove it from the organization diagram and registry in `CLAUDE.md`
-3. Update other agents' collaboration protocols that referenced the removed agent
+1. Delete the agent file from `agents/`.
+2. Remove the agent from the organization diagram and registry in `CLAUDE.md`.
+3. Update the collaboration protocols of other agents that referenced the removed agent.

@@ -1,10 +1,9 @@
 # marketplace-dev
 
 Plugin-author toolkit for Claude Code. Scaffold new plugins and marketplaces,
-audit any plugin for structural compliance, and maintain existing plugins with
-confidence.
+audit any plugin for structural compliance, and maintain existing plugins.
 
-`marketplace-dev` has **no hard runtime dependency on `dev-team`** — install it
+`marketplace-dev` has **no hard runtime dependency on `dev-team`**. Install it
 on its own to build or maintain plugins.
 
 ## When to use this
@@ -12,10 +11,10 @@ on its own to build or maintain plugins.
 - **Starting a new plugin**: the `scaffold-plugin` skill generates an audit-clean
   skeleton in one command.
 - **Authoring agents or skills**: `/agent-type-advisor` recommends markdown vs.
-  script for a use-case; `/agent-create` generates a correctly structured agent
+  script for a use-case. `/agent-create` generates a correctly structured agent
   file.
 - **Auditing an existing plugin**: the `plugin-audit` skill produces a structured
-  findings report with zero noise for compliant plugins.
+  findings report. Compliant plugins produce no noise.
 - **Setting up a new marketplace**: the `scaffold-marketplace` skill wires the
   catalog, release-please config, and at least one plugin slot.
 
@@ -48,10 +47,11 @@ claude plugin install --scope project /path/to/agentic-dev-team/plugins/marketpl
 
 ## Skills & commands
 
-Six skills are **user-invocable** slash commands; the four scaffolding/audit
-skills are **agent-loaded** — Claude dispatches them when the task calls for it
-rather than you typing a slash command. The [Skills catalog](docs/skills.md) is
-the canonical, generated list with full frontmatter descriptions.
+Six skills are **user-invocable** slash commands. The four scaffolding/audit
+skills are **agent-loaded**. Claude dispatches the agent-loaded skills when the
+task calls for them, so you do not type a slash command. The
+[Skills catalog](docs/skills.md) is the canonical, generated list with full
+frontmatter descriptions.
 
 | Skill | Invocation | What it does |
 |---|---|---|
@@ -69,9 +69,9 @@ the canonical, generated list with full frontmatter descriptions.
 ## Agent
 
 **`plugin-best-practices-review`** — read-only, JSON output, structural findings.
-Checks agent type appropriateness (markdown vs. script), frontmatter compliance,
-eval-coverage presence, and body line-count budgets. It does **not** evaluate
-detection-logic quality — that belongs to the plugin's own `agent-eval`.
+The agent checks agent type appropriateness (markdown vs. script), frontmatter
+compliance, eval-coverage presence, and body line-count budgets. It does **not**
+evaluate detection-logic quality. That belongs to the plugin's own `agent-eval`.
 
 ## Documentation
 
@@ -80,7 +80,7 @@ detection-logic quality — that belongs to the plugin's own `agent-eval`.
 | [Workflows](docs/workflows.md) | All commands — scaffolding, agent authoring, maintenance |
 | [Skills catalog](docs/skills.md) | Full skill/command list with descriptions and options |
 | [Agents](docs/agent_info.md) | `plugin-best-practices-review` agent and dispatch model |
-| [Agent-type Decision Rules](knowledge/agent-type-decision-rules.md) | Markdown vs. script decision matrix (R1–R10) |
+| [Agent-type decision rules](knowledge/agent-type-decision-rules.md) | Markdown vs. script decision matrix (R1–R10) |
 
 ## Conventions enforced
 

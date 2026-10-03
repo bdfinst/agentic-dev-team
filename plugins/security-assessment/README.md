@@ -1,24 +1,24 @@
 # security-assessment
 
-Deep security assessment + adversarial ML red-team for Claude Code. Companion to [`dev-team`](../dev-team/), which provides the reusable primitives (codebase-recon, ACCEPTED-RISKS convention, versioned primitives contract, SARIF-first tool orchestration).
+Deep security assessment + adversarial ML red-team for Claude Code. This plugin is a companion to [`dev-team`](../dev-team/), which provides the reusable primitives (codebase-recon, ACCEPTED-RISKS convention, versioned primitives contract, SARIF-first tool orchestration).
 
 ## Design
 
-Inverts the usual "LLM does everything" pattern: **deterministic tools do the detection**, hooks automate invocation, and LLM agents are reserved for what they do best — business-logic reasoning, narrative annotation, cross-repo attack chains, executive prose, and the judgment stages of FP-reduction.
+This plugin inverts the usual "LLM does everything" pattern. **Deterministic tools do the detection**, and hooks automate invocation. The plugin reserves LLM agents for what they do best: business-logic reasoning, narrative annotation, cross-repo attack chains, executive prose, and the judgment stages of FP-reduction.
 
 ## When to use this vs. `/code-review`
 
 This plugin is the **deep layer**. Use it for audits, release gates, milestone reviews, publication-grade reports, and red-team runs. Runtime is minutes (recon → parallel tools → parallel judgment → FP-reduction → narratives → exec report).
 
-For **inline checkpoints during active development**, use `/code-review`, which invokes the sibling `security-review` agent from the `dev-team` plugin. That's a single opus pass in seconds, appropriate for every commit. The agent is also what this plugin invokes internally at Phase 1b of `/security-assessment` — so running the agent during development is complementary, not redundant. When a `/code-review` finding warrants deeper analysis (FP-reduction, reachability, compliance mapping, domain-layer review), escalate to `/security-assessment` here.
+For **inline checkpoints during active development**, use `/code-review`. It invokes the sibling `security-review` agent from the `dev-team` plugin. That agent makes a single opus pass in seconds, which suits every commit. This plugin also invokes the same agent internally at Phase 1b of `/security-assessment`, so running the agent during development is complementary, not redundant. When a `/code-review` finding warrants deeper analysis (FP-reduction, reachability, compliance mapping, domain-layer review), escalate to `/security-assessment` here.
 
-Pattern-visible vulnerability classes (single-line regex, stable AST shape, ≤10% false-positive rate) are authoritatively detected by the semgrep rules under `knowledge/semgrep-rules/*.yaml` — not by agent prompts. The class → surface boundary is encoded in `plugins/dev-team/knowledge/security-review-rule-map.yaml`.
+Pattern-visible vulnerability classes (single-line regex, stable AST shape, ≤10% false-positive rate) are authoritatively detected by the semgrep rules under `knowledge/semgrep-rules/*.yaml`, not by agent prompts. The class → surface boundary is encoded in `plugins/dev-team/knowledge/security-review-rule-map.yaml`.
 
 ## LLM-safety coverage bound
 
 static coverage via llm-safety.yaml is intentionally narrow — it catches pattern-visible issues but is NOT a substitute for runtime LLM safety testing
 
-Static coverage handles hardcoded LLM keys, insecure model loading (ONNX/pickle deserialization), and prompt-template string injection. Runtime LLM-safety tools (`garak`, `rebuff`, `PyRIT`) are integrated via the red-team harness (Phase C) when needed.
+Static coverage handles hardcoded LLM keys, insecure model loading (ONNX/pickle deserialization), and prompt-template string injection. The red-team harness (Phase C) integrates runtime LLM-safety tools (`garak`, `rebuff`, `PyRIT`) when needed.
 
 ## Install
 
@@ -27,8 +27,8 @@ Static coverage handles hardcoded LLM keys, insecure model loading (ONNX/pickle 
 **Required:**
 
 - [Claude Code](https://docs.anthropic.com/en/docs/claude-code) installed and authenticated.
-- The [`dev-team`](../dev-team/README.md) plugin — this plugin depends on its primitives contract (`^1.0.0`), codebase-recon agent, and ACCEPTED-RISKS convention.
-- Python ≥ 3.10 — required by the red-team harness.
+- The [`dev-team`](../dev-team/README.md) plugin. This plugin depends on its primitives contract (`^1.0.0`), codebase-recon agent, and ACCEPTED-RISKS convention.
+- Python ≥ 3.10 — the red-team harness requires it.
 - `jq` — JSON parsing in hooks + pipeline glue.
 
 **Tier-1 static-analysis tools (required for `/security-assessment` to produce useful output):** `semgrep`, `gitleaks`, `trivy`, `hadolint`, `actionlint`. See the [User Guide tool-install matrix](docs/user-guide-security-assessment.md#tool-install-matrix) for per-tool coverage, install commands, and missing-tool impact.
@@ -56,9 +56,9 @@ Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy RemoteSigned
 .\plugins\security-assessment\install-windows.ps1 -DryRun  # preview commands without running
 ```
 
-Re-runnable on all platforms — each step skips tools that are already present.
+You can re-run the installer on all platforms. Each step skips tools that are already present.
 
-**Linux / other platforms:** use the install hints in the table above. All tools ship prebuilt Linux binaries via their GitHub releases or `pip`.
+**Linux / other platforms:** use the install hints in the table above. All tools ship prebuilt Linux binaries through their GitHub releases or `pip`.
 
 ### Install the plugin
 
@@ -77,7 +77,7 @@ claude plugin install --scope project /path/to/agentic-dev-team/plugins/security
 ./plugins/security-assessment/install.sh
 ```
 
-The check validates:
+The check validates these conditions:
 
 1. `dev-team` present with primitives-contract `^1.0.0`.
 2. Python ≥ 3.10 on PATH.
@@ -86,7 +86,7 @@ The check validates:
 
 ### Run without installing (zero-install flow)
 
-`scripts/run-assessment-local.sh` runs the full pipeline from the repo checkout. Auto-detects the `claude` CLI and runs the LLM judgment phases when available; degrades to deterministic-only output otherwise. See [`docs/user-guide-security-assessment.md`](docs/user-guide-security-assessment.md) for the full runbook.
+`scripts/run-assessment-local.sh` runs the full pipeline from the repo checkout. The script auto-detects the `claude` CLI and runs the LLM judgment phases when the CLI is available. Otherwise, the script degrades to deterministic-only output. See [`docs/user-guide-security-assessment.md`](docs/user-guide-security-assessment.md) for the full runbook.
 
 ## Commands
 
@@ -105,19 +105,19 @@ The check validates:
 | [Workflows](docs/workflows.md) | Pipeline phases, orchestrator commands, red-team flow |
 | [Skills catalog](docs/skills.md) | All skills and commands with descriptions and options |
 | [Agents](docs/agent_info.md) | Assessment, cross-repo, and red-team agents with dispatch model |
-| [User Guide](docs/user-guide-security-assessment.md) | Full runbook — install, run, interpret results |
-| [Accepted Risks Format](docs/accepted-risks-format.md) | `ACCEPTED-RISKS.md` schema and suppression rules |
-| [Comparative Testing](docs/comparative-testing.md) | Measuring coverage parity against the reference prompt-heavy pipeline |
+| [User guide](docs/user-guide-security-assessment.md) | Full runbook — install, run, interpret results |
+| [Accepted risks format](docs/accepted-risks-format.md) | `ACCEPTED-RISKS.md` schema and suppression rules |
+| [Comparative testing](docs/comparative-testing.md) | Measuring coverage parity against the reference prompt-heavy pipeline |
 
 ## Update
 
-Run `/upgrade` from any Claude Code session with this plugin loaded. It:
+Run `/upgrade` from any Claude Code session with this plugin loaded. The command:
 
 1. Reads the installed version from `claude plugin list`.
 2. Checks the auto-update flag on the `bfinster` marketplace and asks for consent before enabling it (the same flag the `/plugin` UI toggles).
 3. Detects the install scope and passes `--scope <scope>` to `claude plugin update` so project- and local-scope installs upgrade correctly.
-4. Warns if the companion `dev-team` plugin is not installed (it provides primitives this plugin depends on).
-5. Reports the previous and new version, and prompts a restart.
+4. Warns if the companion `dev-team` plugin is not installed. That plugin provides primitives this plugin depends on.
+5. Reports the previous and new version, and prompts you to restart.
 
 Manual fallback when `/upgrade` is unavailable:
 
@@ -134,7 +134,7 @@ See `CLAUDE.md` for the opt-out snippet.
 
 ## Status
 
-Shipped and released — current version **3.4.0** (see [`CHANGELOG.md`](CHANGELOG.md)). Every phase is live:
+Shipped and released. Current version: **3.4.0** (see [`CHANGELOG.md`](CHANGELOG.md)). Every phase is live:
 
 - ✅ `dev-team` Phase A primitives: codebase-recon agent, ACCEPTED-RISKS convention, security-primitives-contract v1.0.0, contract-version-guard hook, SARIF-first tool orchestration
 - ✅ This plugin's own agents (judgment, cross-repo, red-team)

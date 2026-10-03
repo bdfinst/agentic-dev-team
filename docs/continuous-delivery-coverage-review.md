@@ -1,4 +1,4 @@
-# Continuous Delivery Coverage Review
+# Continuous delivery coverage review
 
 A gap analysis of the dev-team plugin's skills and agents against Jez Humble &
 David Farley, *Continuous Delivery: Reliable Software Releases through Build,
@@ -9,17 +9,17 @@ Test, and Deployment Automation* (Addison-Wesley, 2010; ISBN 0321670272).
 Three passes: (1) inventory the plugin's CD-relevant skills, agents, and
 knowledge from their actual contents; (2) extract a grounded practice checklist
 from the book's six pipeline/release/data/version-control/maturity chapters;
-(3) map one against the other. Findings are scoped to the plugin's purpose — a
-plan / build / review / test harness with an advisory platform-engineer — not a
+(3) map one against the other. Findings are scoped to the plugin's purpose: a
+plan / build / review / test harness with an advisory platform-engineer, not a
 deployment runner.
 
 ## Verdict
 
 The plugin is a **commit-stage powerhouse and a thin release stage**. It encodes
-the left half of *Continuous Delivery* — testing strategy, the commit gate,
-trunk-based development, build discipline — often more deeply than the book. It
-barely touches the right half — deploy/release, infrastructure, data, the
-maturity model. Some of that is correct scope. Several right-half gaps are *in
+the left half of *Continuous Delivery* (testing strategy, the commit gate,
+trunk-based development, build discipline), often more deeply than the book. It
+barely touches the right half (deploy/release, infrastructure, data, the
+maturity model). Some of that is correct scope. Several right-half gaps are *in
 scope* because the plugin writes code (migrations) and advises on pipelines.
 
 ## Coverage map
@@ -40,38 +40,38 @@ scope* because the plugin writes code (migrations) and advises on pipelines.
 
 ## Gaps closed by this work
 
-The follow-up change adds four knowledge bodies and wires them into the agents
+The follow-up change adds four knowledge bodies. The change wires them into the agents
 that plan, build, and advise:
 
 1. **Database change discipline (Ch12)** — `knowledge/database-change-management.md`:
    reversible expand/contract migrations, schema versioning (roll-forward +
    roll-back scripts), decouple DB change from app deploy, never destructive in a
-   single step, backward/forward compatibility. Wired into software-engineer and
-   architect; arch-review gains a migration-safety check via
+   single step, backward/forward compatibility. The change wires this body into software-engineer and
+   architect. arch-review gains a migration-safety check via
    `architecture-assessment.md`.
 2. **Release strategies (Ch10 + Ch14)** — `knowledge/release-strategies.md`:
    blue-green, canary, rolling, rollback-as-practiced, decouple deploy from
-   release, feature toggles, branch by abstraction. Wired into platform-engineer
+   release, feature toggles, branch by abstraction. The change wires this body into platform-engineer
    and `/plan` (plan to keep mainline releasable).
 3. **Pipeline anatomy + config (Ch5 + Ch2 + Ch11)** — `knowledge/deployment-pipeline.md`:
    build-once/promote the same artifact, env-agnostic binaries, deploy-the-same-way
    everywhere, smoke-test-every-deploy, single version-controlled config source per
    environment, secrets handling, cycle time as the primary metric, pipeline-as-product.
-   Wired into platform-engineer.
+   The change wires this body into platform-engineer.
 4. **CD maturity model (Ch15)** — `knowledge/cd-maturity-model.md`: the six
    practice areas × five levels, the Deming improvement cycle, value-stream
-   mapping, and the DORA outcome metrics. Wired into platform-engineer and
-   qa-engineer; cross-linked to the agent-readiness scorecard (which measures a
-   *different* axis — how agent-ready a repo is, not delivery capability).
+   mapping, and the DORA outcome metrics. The change wires this body into platform-engineer and
+   qa-engineer. It cross-links to the agent-readiness scorecard, which measures a
+   *different* axis: how agent-ready a repo is, not delivery capability.
 
 ## Deliberately out of scope
 
-Advisory-only for a code plugin; not built here:
+These items are advisory-only for a code plugin. The change does not build them:
 
 - **IaC authoring** (Terraform / Helm / CloudFormation generation) — platform-engineer
-  advises on infrastructure-as-code patterns but the plugin does not generate stacks.
+  advises on infrastructure-as-code patterns, but the plugin does not generate stacks.
 - **Artifact-repository management** (Artifactory / Nexus / registry operations).
-- **Deploy orchestration execution** — the plugin recommends release strategies; it
+- **Deploy orchestration execution** — the plugin recommends release strategies. It
   does not run blue-green/canary switches.
 
 platform-engineer carries a one-line note that these are intentionally advisory.

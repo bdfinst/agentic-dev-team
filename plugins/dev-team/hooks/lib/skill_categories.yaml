@@ -7,10 +7,10 @@
 # "Other" section; the freshness gate then shows it as a diff, prompting you to
 # file it under the right capability and regenerate.
 #
-# Regenerate after editing: bash plugins/dev-team/hooks/lib/build-skills-index.sh
+# Regenerate after editing: python3 plugins/dev-team/hooks/lib/build_skills_index.py
 
 categories:
-  - name: Specs & Planning
+  - name: Specs and planning
     skills:
       [
         specs,
@@ -26,11 +26,11 @@ categories:
         issues-from-assessment,
       ]
 
-  - name: Build & Ship
+  - name: Build and ship
     skills:
       [build, test-driven-development, continue, pr, ship, branch-workflow, autoship]
 
-  - name: Code Review & Static Analysis
+  - name: Code review and static analysis
     skills:
       [
         code-review,
@@ -45,7 +45,7 @@ categories:
         frontend-architecture,
       ]
 
-  - name: Testing & Coverage
+  - name: Testing and coverage
     skills:
       [
         test-design,
@@ -69,7 +69,7 @@ categories:
   - name: Security
     skills: [threat-modeling, docker-image-audit, governance-compliance]
 
-  - name: Architecture & Domain Modeling
+  - name: Architecture and domain modeling
     skills:
       [
         domain-driven-design,
@@ -80,7 +80,7 @@ categories:
         mermaid-diagramming,
       ]
 
-  - name: Performance, Containers & Browser
+  - name: Performance, containers, and browser
     skills:
       [
         docker-image-create,
@@ -90,13 +90,13 @@ categories:
         browser-testing,
       ]
 
-  - name: Debugging & Diagnostics
+  - name: Debugging and diagnostics
     skills: [systematic-debugging, ci-debugging, triage, fix]
 
-  - name: Setup, Config & Plugin Management
+  - name: Setup, config, and plugin management
     skills: [setup, project-init, upgrade, version, help]
 
-  - name: Session, Context & Telemetry
+  - name: Session, context, and telemetry
     skills:
       [
         context-loading-protocol,
@@ -108,10 +108,10 @@ categories:
         performance-metrics,
       ]
 
-  - name: Safety Modes
+  - name: Safety modes
     skills: [careful, freeze, unfreeze, guard]
 
-  - name: Harness Governance & Tuning
+  - name: Harness governance and tuning
     skills:
       [
         agent-audit,

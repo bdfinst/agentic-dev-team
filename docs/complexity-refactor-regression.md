@@ -1,13 +1,13 @@
-# Complexity Regression Check — AC2 of Epic #362
+# Complexity regression check — AC2 of Epic #362
 
 **Issue:** #366 (P1-S2)
 **Epic:** #362 (P1: Make review actually improve the code)
 **Satisfies:** AC2 — mean `complexity-review` findings/solution drops below the pre-P1-S1 baseline (~5.3) on the 6 Campaign B tasks run test-first.
 
 **Update (#2093):** `complexity-review` was folded into `structure-review` and
-retired — its nesting-depth, cognitive-load, and async-pattern judgment now
+retired. Its nesting-depth, cognitive-load, and async-pattern judgment now
 live in `structure-review`'s charter. The history below is unchanged (it
-describes what was true when this baseline was measured); the eval fixtures
+describes what was true when this baseline was measured). The eval fixtures
 (`cx-refactor-before`/`cx-refactor-after`) and the regression check now
 target `structure-review`.
 
@@ -16,7 +16,7 @@ target `structure-review`.
 P1-S1 (PR #378) wired the REFACTOR step in the TDD skill to dispatch
 `refactor-opportunity-review` and `complexity-review` after GREEN, with a bounded
 fix loop that keeps tests green. Before that change, the RED-GREEN-REFACTOR cycle
-stopped at GREEN — the dedicated REFACTOR agents were defined but never invoked.
+stopped at GREEN. The dedicated REFACTOR agents existed but nothing invoked them.
 
 This document establishes the before/after finding counts and the regression check
 methodology.
@@ -41,8 +41,8 @@ Data in: `docs/experiments/agentic-workflow-evidence/data/3sizes-3arms-summary.j
 ## Representative example: csvlite (before → after)
 
 The csvlite task has the highest finding count (11) and best illustrates the
-pattern: test-first under RED-GREEN stops as soon as tests pass, without
-extracting helpers or reducing the state-machine's nesting.
+pattern. Test-first under RED-GREEN stops as soon as tests pass. It does not
+extract helpers or reduce the state-machine's nesting.
 
 ### Before (typical test-first solution, pre-REFACTOR review)
 
@@ -92,7 +92,7 @@ Eval fixture: `evals/expected/cx-refactor-after.json` (expected: `pass`, 0 error
 | Before P1-S1 (no REFACTOR review) | **5.3** | 11 |
 | After P1-S1 (REFACTOR dispatches review) | **target: < 5.3** | 0 (post-fix) |
 
-The "after" mean is measured by `scripts/complexity-regression-check.sh` (see
+`scripts/complexity-regression-check.sh` measures the "after" mean (see
 below). AC2 passes when the measured mean is below 5.3.
 
 ## Regression check procedure
@@ -110,16 +110,16 @@ python3 scripts/eval_grade.py evals/expected/cx-refactor-after.json
 ```
 
 The eval fixtures (`cx-refactor-before`, `cx-refactor-after`) run as part of
-`/agent-eval` and CI, so complexity regression is caught on every change to the
-TDD skill's REFACTOR section or the complexity-review agent.
+`/agent-eval` and CI. Every change to the
+TDD skill's REFACTOR section or the complexity-review agent therefore catches complexity regression.
 
 ## What the regression catches
 
 The eval pair acts as a unit test for the REFACTOR review loop:
 
-- `cx-refactor-before` must return `fail` — if it passes, the fixture is too simple
+- `cx-refactor-before` must return `fail`. If it passes, the fixture is too simple
   to distinguish pre- vs. post-REFACTOR code (the fixture itself degrades).
-- `cx-refactor-after` must return `pass` — if it fails, the REFACTOR loop's
+- `cx-refactor-after` must return `pass`. If it fails, the REFACTOR loop's
   auto-fix capability has regressed.
 
 A CI failure on either fixture surfaces immediately, before any model dispatch.
@@ -134,5 +134,5 @@ A CI failure on either fixture surfaces immediately, before any model dispatch.
    finding count.
 
 3. **No change-stage measurement.** The regression check measures the build stage only
-   (the state after REFACTOR review). Change-stage complexity is excluded (known
+   (the state after REFACTOR review). It excludes change-stage complexity (known
    harness artifact from Campaign B — see consolidated report).

@@ -176,7 +176,7 @@ INTENTIONAL_WIDE_SCAN_INVOCATIONS = {
     # test_monorepo_only_exemptions_scripts_do_not_ship.
     (
         "docs/eval-maintenance.md",
-        "3. `python3 scripts/eval_grade.py --check-corpus` (every expectation must be",
+        "3. Run `python3 scripts/eval_grade.py --check-corpus`. Every expectation must be",
         _MONOREPO_ONLY,
     ),
     (

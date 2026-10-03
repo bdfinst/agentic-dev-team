@@ -2,21 +2,21 @@
 
 Generated 2026-07-05 from the working tree (`plugins/dev-team/skills/`, 80
 user-invocable skills). This report classifies every user-invocable command by
-**purpose** — the question "what is this command for" — rather than by graph
-topology (who-calls-what). The earlier who-calls-what wiring analysis is kept,
-condensed, as an appendix, because it surfaced two real defects.
+**purpose** (the question "what is this command for") rather than by graph
+topology (who-calls-what). The appendix keeps the earlier who-calls-what wiring
+analysis, condensed, because the analysis surfaced two real defects.
 
-The three lists a maintainer actually reasons about:
+The three lists a maintainer reasons about:
 
-1. **Orchestration workflows** — invoking it starts or steers a chain that hands
+1. **Orchestration workflows** — invoking the command starts or steers a chain that hands
    work between skills/agents/gates toward a deliverable (a PR, a spec set, a
    passing suite, a triage record).
-2. **Standalone utilities** — the user calls it, it does its one job, and stops.
-3. **Plugin lifecycle & self-maintenance** — it acts on the dev-team plugin
+2. **Standalone utilities** — the user calls the command, the command does its one job, and stops.
+3. **Plugin lifecycle & self-maintenance** — the command acts on the dev-team plugin
    itself: install it, upgrade it, or audit/eval/tune it as a product.
 
 A residual fourth group (internal workers, project onboarding, harness plumbing)
-is user-invocable but is not a natural user entry point; it is listed last so the
+is user-invocable but is not a natural user entry point. The report lists this group last so the
 taxonomy stays honest and totals 80.
 
 ## 1. Orchestration workflows — drive an outcome (22)
@@ -42,11 +42,11 @@ taxonomy stays honest and totals 80.
 
 | Command | Role in the flow |
 |---|---|
-| `frontend-architecture` | Reviews component changes during `code-review` and rejects bad component design so the coding agent fixes it — a gate in the review→fix loop, runs whenever frontend component files are in scope |
+| `frontend-architecture` | Reviews component changes during `code-review` and rejects bad component design so the coding agent fixes it. It is a gate in the review→fix loop and runs whenever frontend component files are in scope |
 
 ### Test & quality orchestrations
 
-These dispatch sub-agents/workers and roll up a report or drive convergence.
+These commands dispatch sub-agents/workers and roll up a report or drive convergence.
 
 | Command | Outcome it drives |
 | --- | --- |
@@ -101,17 +101,17 @@ user), `cost-report`, `agent-readiness` (scores *your* repo — contrast
 
 ## Not user entry points (12)
 
-- **Internal workers** — dispatched by the orchestrators in list 1; user-invocable
+- **Internal workers** — the orchestrators in list 1 dispatch these; they are user-invocable
   only for isolated testing: `coverage-baseline`, `coverage-delta`,
   `quality-targets-converge`, `issues-from-plan`, `issues-from-assessment`,
   `test-audit-disable`, `gherkin-derive`, `semantic-duplication-scan`
-- **Project onboarding** — user-invoked *after adding the plugin to a repo*; they
+- **Project onboarding** — you invoke these *after adding the plugin to a repo*. They
   configure the target repo, not the plugin: `setup` (install plugin
   prerequisites — jq, python3, per-language mutation tooling; detect stack;
   generate CLAUDE.md, hooks, templates — absorbed the former `init-dev-team`
   command) and `project-init` (detect stack, inventory/install
   static-analysis tools, offer opt-in graph-tools — CodeGraph and/or Graphify, see
-  `plugins/dev-team/knowledge/codegraph-vs-graphify.md`). See the open gap below — a command that needs a missing
+  `plugins/dev-team/knowledge/codegraph-vs-graphify.md`). See the open gap below. A command that needs a missing
   tool should prompt the user to run these.
 - **Harness plumbing** — context management, rarely typed directly:
   `context-loading-protocol`, `handoff`
@@ -119,14 +119,14 @@ user), `cost-report`, `agent-readiness` (scores *your* repo — contrast
 ## Open gaps / defects
 
 - **`adr-author` ↔ `adr-tools`** ([#837](https://github.com/bdfinst/agentic-dev-team/issues/837)) —
-  the adr-author agent lacks `Bash`/`Skill`, so it can't drive the `adr` CLI it's
-  meant to author through and hand-rolls numbering instead.
+  the adr-author agent lacks `Bash`/`Skill`, so it cannot drive the `adr` CLI it is
+  meant to author through. The agent hand-rolls numbering instead.
 - **Missing-tool → onboarding prompt** ([#838](https://github.com/bdfinst/agentic-dev-team/issues/838)) — commands that need an absent
   tool hand-roll their own install hint (`semgrep-analyze` → "pip install
   semgrep"; `benchmark`/`browse` → "npx playwright install"; `docker-image-audit`
   → "read install-guide.md") instead of prompting the user to run `/project-init`
   (or `/setup`). Only `build`'s self-heal path routes to `project-init`. Expected
-  behavior: any command that hits a missing required tool should point the user at
+  behavior: any command that hits a missing required tool points the user at
   the onboarding command, consistently.
 
 ## Appendix — command-graph wiring notes (condensed)
@@ -135,16 +135,16 @@ The prior analysis of this file walked the *command* call graph (which SKILL.md
 references which, plus agent/knowledge routing). Its durable findings:
 
 - **Reference forms must all be matched.** A "who calls this" audit over skills
-  has to match every dispatch form — `Skill(name)`, "the `name` skill", and
+  must match every dispatch form — `Skill(name)`, "the `name` skill", and
   backticked schema/doc citations — and must include agent routing tables. The
   `/name` form alone misclassified three commands across the first drafts
   (`farley-score`, `legacy-code`, `performance-metrics`).
 - **Exhaustive catalogs carry no signal.** `knowledge/skills-registry.md`,
   `knowledge/agent-registry.md`, `knowledge/index.json`, `docs/skills.md`, and
-  `hooks/lib/skill_categories.yaml` list every skill by design; appearing there
+  `hooks/lib/skill_categories.yaml` list every skill by design. Appearing there
   is not "wiring."
-- **Graph-isolated ≠ dead.** Most commands with no *command* callers are reached
-  by users directly (list 2) or wired via agents/knowledge. The genuinely
-  zero-reference commands are the user-only utilities in lists 2 and 3; nothing
-  breaks if one is removed, so keep/cut is an intent + telemetry decision
+- **Graph-isolated ≠ dead.** Users reach most commands with no *command* callers
+  directly (list 2), or agents/knowledge wire them in. The genuinely
+  zero-reference commands are the user-only utilities in lists 2 and 3. Nothing
+  breaks if you remove one, so keep/cut is an intent + telemetry decision
   (`/artifact-lifecycle` over `~/.claude/metrics/artifact-usage.json`).

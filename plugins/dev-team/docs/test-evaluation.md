@@ -1,13 +1,13 @@
-# Test Evaluation and Architecture
+# Test evaluation and architecture
 
-This document explains how to evaluate how an existing application is tested and design a path toward a fast, deterministic, config-free CI gate that fully validates behavior — including cross-service interaction — without standing up the rest of the system.
+This document explains how to evaluate how an existing application is tested. It also explains how to design a path toward a fast, deterministic, config-free CI gate. The gate fully validates behavior, including cross-service interaction, without standing up the rest of the system.
 
 **On this page:** [Purpose](#purpose) ·
-[Tools and Their Altitudes](#tools-and-their-altitudes) ·
-[The Evaluation Workflow](#the-evaluation-workflow) ·
-[When the Tests Aren't in the Repo](#when-the-tests-arent-in-the-repo) ·
-[Key Principles](#key-principles) · [Sample Invocations](#sample-invocations) ·
-[Reference Files](#reference-files).
+[Tools and their altitudes](#tools-and-their-altitudes) ·
+[The evaluation workflow](#the-evaluation-workflow) ·
+[When the tests are not in the repo](#when-the-tests-are-not-in-the-repo) ·
+[Key principles](#key-principles) · [Sample invocations](#sample-invocations) ·
+[Reference files](#reference-files).
 
 ## Purpose
 
@@ -15,33 +15,33 @@ The test evaluation workflow answers two questions: "how well is this applicatio
 
 ---
 
-## Tools and Their Altitudes
+## Tools and their altitudes
 
-Four tools operate at different scopes. Use the one that matches what you need.
+Five tools operate at different scopes. Use the one that matches what you need.
 
 | What you want | Tool | Altitude | Direction |
-|---|---|---|---|
+| --- | --- | --- | --- |
 | Advise on how to test a specific module or hard-to-test unit | `test-design-advisor` skill | Unit / module | Forward (design) |
 | Review test files in a changeset for smells, quality, and a suite-wide Farley Score | `/test-design` | Per-file / changeset | Backward (review) |
 | Audit the whole test suite's strategy, quadrant coverage, and automation maturity | `test-health` skill | Whole suite | Strategic rollup |
 | Assess the application's test strategy against CD: per-component types, pre-merge gate determinism | `cd-test-architecture` skill | Whole application | Architecture |
 | Consolidated analyze-then-improve orchestrator — lightweight by default, opts into heavier capabilities (Gherkin, mutation, refactor-for-testability) only when asked; always baselines before changing tests; ships a 10-section executive-summary report | `/test-improve` | Whole repository | Remediation |
 
-**`test-design-advisor`** works at the module level: assess testability blockers, place each behavior on the pyramid, choose the right test double, and produce a behavior-preserving refactor sequence to introduce seams. It does not write tests. **Vocabulary is locked to MinimumCD** (static analysis / unit / component / contract / integration / E2E); prefer "contract test" over "narrow integration test" and gloss the alias once if it must be used. **The pyramid is a cost heuristic, not a target shape** — the advisor never emits "current shape vs recommended shape" tables or per-layer target counts; placements are per-behavior with a two-direction justification (why not the layer above or below). Any E2E placement must satisfy the [E2E justification gate](#the-e2e-justification-gate).
+**`test-design-advisor`** works at the module level. It assesses testability blockers, places each behavior on the pyramid, chooses the right test double, and produces a behavior-preserving refactor sequence to introduce seams. It does not write tests. **Vocabulary is locked to MinimumCD** (static analysis / unit / component / contract / integration / E2E). Prefer "contract test" over "narrow integration test", and gloss the alias once if you must use it. **The pyramid is a cost heuristic, not a target shape.** The advisor never emits "current shape vs recommended shape" tables or per-layer target counts. Placements are per-behavior with a two-direction justification (why not the layer above or below). Any E2E placement must satisfy the [E2E justification gate](#the-e2e-justification-gate).
 
-**`/test-design`** is the orchestrator command for the changeset-level workflow. It dispatches `test-review` (tactical quality: missing assertions, non-determinism mechanics, mock hygiene) and `test-smell-review` (design-level smells: xUnit smell taxonomy, double selection, pyramid placement) in parallel, scores **every existing test in the suite** with the **Farley Score** (via the `farley-score` skill — 8 properties, weighted 1–10), then optionally runs `test-design-advisor` for production code that has no tests or hard-to-test units. The aggregated report carries the headline Farley score independent of the changeset scope.
+**`/test-design`** is the orchestrator command for the changeset-level workflow. It dispatches `test-review` (tactical quality: missing assertions, non-determinism mechanics, mock hygiene) and `test-smell-review` (design-level smells: xUnit smell taxonomy, double selection, pyramid placement) in parallel. It then scores **every existing test in the suite** with the **Farley Score** (via the `farley-score` skill — 8 properties, weighted 1–10). Finally, it optionally runs `test-design-advisor` for production code that has no tests or hard-to-test units. The aggregated report carries the headline Farley score independent of the changeset scope.
 
-**`test-health`** is the **strategic-altitude** rollup over the whole repository. It maps coverage to the Agile Testing Quadrants, evaluates the suite's shape against the architecture, rolls up automation maturity and flaky-test signals, and produces an ordered improvement plan. It **delegates rather than re-derives**: CD-determinism + pipeline placement come from `cd-test-architecture`, per-file findings + Farley Score come from `/test-design`, assertion strength on critical-logic modules comes from `mutation-testing`. Use this for "audit our tests" / "test strategy review" / "is our testing healthy?".
+**`test-health`** is the **strategic-altitude** rollup over the whole repository. It maps coverage to the Agile Testing Quadrants, evaluates the suite's shape against the architecture, and rolls up automation maturity and flaky-test signals. It then produces an ordered improvement plan. It **delegates rather than re-derives**: `cd-test-architecture` supplies CD-determinism and pipeline placement. `/test-design` supplies per-file findings and the Farley Score. `mutation-testing` supplies assertion strength on critical-logic modules. Use `test-health` for "audit our tests", "test strategy review", or "is our testing healthy?".
 
-**`cd-test-architecture`** works at the application level: inventory components and test suites, classify against the six MinimumCD test types, identify CD-fitness gaps, recommend a per-component target architecture (with the [E2E justification gate](#the-e2e-justification-gate) applied to every E2E recommendation), and produce a migration path. It does not write tests or edit code.
+**`cd-test-architecture`** works at the application level. It inventories components and test suites, classifies them against the six MinimumCD test types, and identifies CD-fitness gaps. It recommends a per-component target architecture (with the [E2E justification gate](#the-e2e-justification-gate) applied to every E2E recommendation) and produces a migration path. It does not write tests or edit code.
 
-**`/test-improve`** is the **consolidated remediation altitude** — a ten-phase (0-9) orchestrator (approach contract → baseline → optional Gherkin → analyze → plan fixes → improve-without-refactoring → refactor decision → optional refactor-for-testability → validate → executive-summary report). It defaults to lightweight ceremony (mutation off, BDD `none`, no-refactor) and prompts for heavier capabilities on demand. Phase 1 (Analyze) delegates the entire analysis to `/test-health`, which in turn folds in `cd-test-architecture` (advisory), `/test-design`, and `mutation-testing` — Phase 1 runs after Baseline and Derive Gherkin so `/test-health` can use documented-but-untested Gherkin scenarios as a coverage signal. See the workflow diagram in [Architecture](agent-architecture.md#test-improvement-workflow-test-improve).
+**`/test-improve`** is the **consolidated remediation altitude**. It is a ten-phase (0-9) orchestrator: approach contract → baseline → optional Gherkin → analyze → plan fixes → improve-without-refactoring → refactor decision → optional refactor-for-testability → validate → executive-summary report. It defaults to lightweight ceremony (mutation off, BDD `none`, no-refactor) and prompts for heavier capabilities on demand. Phase 1 (Analyze) delegates the entire analysis to `/test-health`. `/test-health` in turn folds in `cd-test-architecture` (advisory), `/test-design`, and `mutation-testing`. Phase 1 runs after Baseline and Derive Gherkin, so `/test-health` can use documented-but-untested Gherkin scenarios as a coverage signal. See the workflow diagram in [Architecture](agent-architecture.md#test-improvement-workflow-test-improve).
 
-**How they compose.** Start at the altitude that matches the question. `test-health` calls `/test-design`, `cd-test-architecture`, and `mutation-testing` internally — when the question is strategic, do not dispatch the lower-altitude tools yourself. `/test-design` calls `test-design-advisor` internally when `--advise` applies. `/test-improve` delegates its entire Phase 1 (analyze) to `/test-health` — when the question is "how do we get from this assessment to passing CD gates?", start with `/test-improve` and let it dispatch the analysis itself. When two altitudes plausibly fit, prefer the higher one and let it delegate down.
+**How they compose.** Start at the altitude that matches the question. `test-health` calls `/test-design`, `cd-test-architecture`, and `mutation-testing` internally. When the question is strategic, do not dispatch the lower-altitude tools yourself. `/test-design` calls `test-design-advisor` internally when `--advise` applies. `/test-improve` delegates its entire Phase 1 (analyze) to `/test-health`. When the question is "how do we get from this assessment to passing CD gates?", start with `/test-improve` and let it dispatch the analysis itself. When two altitudes plausibly fit, prefer the higher one and let it delegate down.
 
 ---
 
-## The Evaluation Workflow
+## The evaluation workflow
 
 The `cd-test-architecture` skill follows these steps. Run it with `/cd-test-architecture <path>`.
 
@@ -65,7 +65,7 @@ If in-repo tests are sparse, the application is not necessarily untested — see
 
 When `--external-tests <path-or-repo-or-description>` is given, treat the external location as the current specification of intended behavior:
 
-- **Other-repo suites** — read and classify just like in-repo tests; note they can't gate this component's merges.
+- **Other-repo suites** — read and classify just like in-repo tests; note that they cannot gate this component's merges.
 - **Postman/Insomnia/`.http` collections** — extract each request + assertion as an API contract and scenario.
 - **Manual scripts or spreadsheets** — extract each step as a behavior to automate.
 
@@ -78,7 +78,7 @@ Flag, with evidence:
 - Out-of-repo or third-party-runner testing (anti-pattern — see below)
 - Manual / non-repeatable testing
 - Tests mistyped as "unit" that require real dependencies
-- Configured-dependency tests that can't run in a clean CI gate
+- Configured-dependency tests that cannot run in a clean CI gate
 - Coverage gaps (success + failure modes not covered at any deterministic layer)
 - Doubles with no validation loop (drift risk)
 - No consumer resilience tests (the component assumes the provider holds)
@@ -88,7 +88,7 @@ Flag, with evidence:
 
 Per component: which test types cover which layers, what to double to run pre-merge without configuration, which success scenarios and failure modes to cover, the double-validation loop, and the pipeline stage for each test type (pre-merge gate, Stage 1/2, out-of-band, or post-deploy).
 
-The recommendation applies the [E2E justification gate](#the-e2e-justification-gate) to every E2E test. The pyramid is treated as a cost heuristic — no per-layer target counts are recommended; if the shape is pathological (ice-cream cone, hourglass, cupcake), the pathology and the behaviors that suffer from it are named, not a numeric redistribution.
+The recommendation applies the [E2E justification gate](#the-e2e-justification-gate) to every E2E test. It treats the pyramid as a cost heuristic and recommends no per-layer target counts. If the shape is pathological (ice-cream cone, hourglass, cupcake), the recommendation names the pathology and the behaviors that suffer from it, not a numeric redistribution.
 
 ### Step 5: Produce a migration path
 
@@ -110,14 +110,14 @@ Output goes to `.dev-team-reports/cd-test-architecture-<app>.md`. Tables, not pr
 
 ---
 
-## When the Tests Aren't in the Repo
+## When the tests are not in the repo
 
-An application may have little or no in-repo testing and instead be covered by suites in another repo, a third-party runner, Postman or Insomnia collections, or manual scripts. This is an **anti-pattern** regardless of how thorough the external coverage is:
+An application may have little or no in-repo testing. Suites in another repo, a third-party runner, Postman or Insomnia collections, or manual scripts may cover it instead. This is an **anti-pattern** regardless of how thorough the external coverage is:
 
 - The tests **cannot gate the component's own merges** — the build can go green while behavior is broken.
-- The tests are **not versioned with the code** they verify; a code change and its test change can't move together.
+- The tests are **not versioned with the code** they verify; a code change and its test change cannot move together.
 - External suites are usually **non-deterministic and environment-coupled**, so they could never serve as a pre-merge gate anyway.
-- **Manual scripts are not repeatable** — they're a checklist, not a regression net.
+- **Manual scripts are not repeatable** — they are a checklist, not a regression net.
 
 This does not mean the external coverage is worthless. It is the **current specification of intended behavior** — the best available basis for improvement.
 
@@ -132,7 +132,7 @@ To include it in the assessment, point the skill at it:
 The skill harvests those sources as a behavior inventory (Step 2b — locate and harvest out-of-repo tests) and builds the migration path around re-expressing each behavior as a deterministic, in-repo, gated test:
 
 | External source | Re-expressed as |
-|---|---|
+| --- | --- |
 | Postman request + assertion | Component or contract test |
 | Manual UI script | UI component test (real browser, network stubbed) |
 | Other-repo E2E covering this component | In-repo component test + thin post-deploy smoke |
@@ -143,13 +143,13 @@ If in-repo tests are sparse but no `--external-tests` location is given, the ski
 
 ---
 
-## Key Principles
+## Key principles
 
 ### Pre-merge gate: deterministic tests only
 
 The gate that blocks a merge may contain **only** static analysis, unit, component, and contract tests. These are deterministic and need nothing configured. Integration and end-to-end tests are non-deterministic by nature and never gate a merge. A test that needs a database URL, broker, downstream service, or environment secrets to run is mis-typed — re-classify or convert it.
 
-The corollary is that E2E is the last resort, not a quota. The [E2E justification gate](#the-e2e-justification-gate) ensures recommendations don't propose E2E "for completeness" or "to round out the pyramid" — if a contract, component, or resilience test can cover a behavior, that's where it goes.
+The corollary is that E2E is the last resort, not a quota. The [E2E justification gate](#the-e2e-justification-gate) ensures recommendations do not propose E2E "for completeness" or "to round out the pyramid". If a contract, component, or resilience test can cover a behavior, that is where it goes.
 
 ### The E2E justification gate
 
@@ -167,7 +167,7 @@ An E2E recommendation that fails any of (1)–(3) is replaced with the cheaper l
 The component test is the workhorse of a CD gate. The pattern is consistent across every component type:
 
 1. Assemble the **real component** — actual handlers, domain logic, orchestration — in-process.
-2. Replace only what the team doesn't control with **in-memory doubles**: in-memory repository for the database, in-memory bus for the broker, stubbed adapter for downstream services, injected fixed clock.
+2. Replace only what the team does not control with **in-memory doubles**: in-memory repository for the database, in-memory bus for the broker, stubbed adapter for downstream services, injected fixed clock.
 3. Drive it through its **public interface** — HTTP handlers, message handler, job entrypoint, UI via a real browser with the network stubbed.
 4. Assert **observable outcomes** — status, persisted state, emitted event, rendered output — never internal call sequences.
 
@@ -201,7 +201,7 @@ The mechanics live in the [`legacy-code`](https://github.com/bdfinst/agentic-dev
 
 ---
 
-## Sample Invocations
+## Sample invocations
 
 ```bash
 # Full application assessment
@@ -246,10 +246,10 @@ The mechanics live in the [`legacy-code`](https://github.com/bdfinst/agentic-dev
 
 ---
 
-## Reference Files
+## Reference files
 
 | File | What it defines |
-|---|---|
+| --- | --- |
 | [`agents/qa-engineer.md`](https://github.com/bdfinst/agentic-dev-team/blob/main/plugins/dev-team/agents/qa-engineer.md) | The Senior SDET agent that routes strategic test requests to these skills |
 | [`agents/test-review.md`](https://github.com/bdfinst/agentic-dev-team/blob/main/plugins/dev-team/agents/test-review.md) | The tactical per-file test-quality review agent |
 | [`agents/test-smell-review.md`](https://github.com/bdfinst/agentic-dev-team/blob/main/plugins/dev-team/agents/test-smell-review.md) | The smell-detection review agent |
