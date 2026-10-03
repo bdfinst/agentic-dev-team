@@ -1,5 +1,12 @@
 # Changelog
 
+## [3.7.6](https://github.com/bdfinst/agentic-dev-team/compare/security-assessment-v3.7.5...security-assessment-v3.7.6) (2026-10-03)
+
+
+### Documentation
+
+* **style:** apply documentation style rules to user-facing docs ([#2247](https://github.com/bdfinst/agentic-dev-team/issues/2247)) ([b8015dd](https://github.com/bdfinst/agentic-dev-team/commit/b8015ddb07debb2c5975d280b266d45500bbebec))
+
 ## [3.7.5](https://github.com/bdfinst/agentic-dev-team/compare/security-assessment-v3.7.4...security-assessment-v3.7.5) (2026-09-08)
 
 

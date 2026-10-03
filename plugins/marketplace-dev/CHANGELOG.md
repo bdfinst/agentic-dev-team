@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.2.4](https://github.com/bdfinst/agentic-dev-team/compare/marketplace-dev-v1.2.3...marketplace-dev-v1.2.4) (2026-10-03)
+
+
+### Documentation
+
+* **style:** apply documentation style rules to user-facing docs ([#2247](https://github.com/bdfinst/agentic-dev-team/issues/2247)) ([b8015dd](https://github.com/bdfinst/agentic-dev-team/commit/b8015ddb07debb2c5975d280b266d45500bbebec))
+
 ## [1.2.3](https://github.com/bdfinst/agentic-dev-team/compare/marketplace-dev-v1.2.2...marketplace-dev-v1.2.3) (2026-09-08)
 
 
