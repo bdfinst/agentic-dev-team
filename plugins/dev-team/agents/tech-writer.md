@@ -82,3 +82,11 @@ Write for a high school reading level. Docs should be easy to scan and understan
 
 - Use the same term for the same concept everywhere
 - Prefer concrete nouns over abstract ones ("agent file" not "configuration artifact")
+
+## Documentation style
+
+Prose you write follows [`${CLAUDE_PLUGIN_ROOT}/knowledge/documentation-style.md`](${CLAUDE_PLUGIN_ROOT}/knowledge/documentation-style.md) (Whole-file load: short):
+
+- Follow the Google Developer Documentation Style Guide.
+- Use ASD-STE100-derived precision rules.
+- Apply Zinsser's four principles: clarity, simplicity, brevity, and humanity.

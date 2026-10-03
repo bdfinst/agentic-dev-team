@@ -68,3 +68,11 @@ See the knowledge file for signal tables (what warrants / what does not) and pro
 - Link to related ADRs when decisions build on each other — use `adr link` via the adr-tools skill
 - Never delete ADRs — supersede with `adr new -s <N>` (auto bidirectional link) or deprecate them
 - Include the context that made this decision necessary, not just the decision itself
+
+## Documentation style
+
+Prose you write follows [`${CLAUDE_PLUGIN_ROOT}/knowledge/documentation-style.md`](${CLAUDE_PLUGIN_ROOT}/knowledge/documentation-style.md) (Whole-file load: short):
+
+- Follow the Google Developer Documentation Style Guide.
+- Use ASD-STE100-derived precision rules.
+- Apply Zinsser's four principles: clarity, simplicity, brevity, and humanity.

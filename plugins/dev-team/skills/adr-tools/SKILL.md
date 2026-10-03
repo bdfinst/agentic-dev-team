@@ -116,3 +116,11 @@ This skill handles the CLI mechanics. Use the [`adr-author`](../../agents/adr-au
 - You need to maintain the ADR index README beyond what `adr generate toc` produces.
 
 A typical flow: the user asks "should we ADR this?" → adr-author decides yes/no and drafts the body → this skill runs the `adr new` / `adr link` commands and regenerates the TOC.
+
+## Documentation style
+
+Prose you write follows [`${CLAUDE_PLUGIN_ROOT}/knowledge/documentation-style.md`](${CLAUDE_PLUGIN_ROOT}/knowledge/documentation-style.md) (Whole-file load: short):
+
+- Follow the Google Developer Documentation Style Guide.
+- Use ASD-STE100-derived precision rules.
+- Apply Zinsser's four principles: clarity, simplicity, brevity, and humanity.
