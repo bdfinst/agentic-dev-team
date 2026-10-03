@@ -54,6 +54,7 @@ def test_verdict_scope_logs_skip_counts(tmp_path):
     assert json.loads(out.stdout)["toDispatch"] == {"correctness-review": ["a.py"]}
     (row,) = _rows(tmp_path, "ledger-skips")
     assert (row["candidate_pairs"], row["skipped_pairs"]) == (1, 0)
+    assert row["source"] == "consult"
 
 
 def test_checkpoint_abort_logs_outcome_and_keeps_stdout(tmp_path):
@@ -66,3 +67,4 @@ def test_checkpoint_abort_logs_outcome_and_keeps_stdout(tmp_path):
     assert json.loads(out.stdout)["outcome"] == "blocked"
     (row,) = _rows(tmp_path, "checkpoint-aborts")
     assert row["mode"] == "outcome" and row["outcome"] == "blocked"
+    assert row["source"] == "checkpoint"

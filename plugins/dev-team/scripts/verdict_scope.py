@@ -250,6 +250,7 @@ def _log_skips(lens_files: dict[str, list[str]], result: dict, root: Path) -> No
     append_row(
         "ledger-skips",
         {
+            "source": "consult",
             "candidate_pairs": sum(len(v) for v in lens_files.values()),
             "skipped_pairs": skipped,
             "fully_skipped_lenses": result["fullySkippedLenses"],

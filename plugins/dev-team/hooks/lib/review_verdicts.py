@@ -105,9 +105,11 @@ def parse_scope_marker(text: str) -> list[str] | None:
     `None` when no line contains it. The marker may sit anywhere on its
     line: dispatch prompts routinely append it to the end of a prose
     sentence, and prose may follow the list on the same line. An entry
-    followed by whitespace-separated words ends the list (its trailing
-    sentence period is dropped); file paths containing spaces are therefore
-    not supported."""
+    followed by whitespace-separated words ends the list; so does an entry
+    that does not look like a path (no `/` or `.`), which is how a comma
+    inside trailing prose is told apart from a file. A sentence period
+    after the last file is dropped. File paths containing spaces, and
+    extensionless root files (`Makefile`), are therefore not supported."""
     for line in text.splitlines():
         start = line.find(SCOPE_MARKER_PREFIX)
         if start == -1:
@@ -117,10 +119,12 @@ def parse_scope_marker(text: str) -> list[str] | None:
             words = entry.split()
             if not words:
                 continue
-            if len(words) > 1:
-                files.append(words[0].rstrip("."))
+            path = words[0].rstrip(".")
+            if "/" not in path and "." not in path:
                 break
-            files.append(words[0])
+            files.append(path)
+            if len(words) > 1:
+                break
         return files
     return None
 

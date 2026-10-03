@@ -355,3 +355,16 @@ def test_parse_scope_marker_accepts_marker_mid_line() -> None:
     assert review_verdicts.parse_scope_marker(
         "Review the slice. " + review_verdicts.SCOPE_MARKER_PREFIX + "a.py, b.py"
     ) == ["a.py", "b.py"]
+
+
+def test_parse_scope_marker_drops_period_after_last_file_with_no_trailing_prose() -> None:
+    assert review_verdicts.parse_scope_marker(
+        review_verdicts.SCOPE_MARKER_PREFIX + "a.py, b.py."
+    ) == ["a.py", "b.py"]
+
+
+def test_parse_scope_marker_stops_at_comma_inside_trailing_prose() -> None:
+    text = (
+        review_verdicts.SCOPE_MARKER_PREFIX + "a.py, b.py, then report JSON per contract."
+    )
+    assert review_verdicts.parse_scope_marker(text) == ["a.py", "b.py"]
