@@ -65,7 +65,7 @@ flowchart TD
 
 File scope is resolved with this priority: `--path` → `--since` → `--all` → **auto-scope**.
 
-Auto-scope (the default) runs `git diff --name-only` plus `git diff --cached --name-only`. If either shows changes, the orchestrator reviews only those files. If the working tree is clean, the orchestrator reviews the full repository.
+Auto-scope (the default) runs `git diff --name-only` plus `git diff --cached --name-only`. If either shows changes, the target set is only those files. If the working tree is clean, the target set is the full repository.
 
 | File count (full-repo mode) | Behavior |
 | ----------------------------- | ---------- |
@@ -175,7 +175,7 @@ If there are zero actionable issues, skip to report generation. Otherwise the or
 - **Fix** → enter the review-fix loop.
 - **Report only** → skip to report generation with all findings intact.
 
-**Exception — non-interactive mode**: when `/code-review` runs inside `/build` or `/pr`, the orchestrator skips the prompt and the fix loop runs automatically. The caller already owns the human gate: the orchestrator's Phase 3 approval for `/build`, and the pre-PR confirmation for `/pr`.
+**Exception — non-interactive mode**: when `/code-review` runs inside `/build` or `/pr`, `/code-review` skips the prompt and the fix loop runs automatically. The caller already owns the human gate: the Orchestrator's Phase 3 approval for `/build`, and the pre-PR confirmation for `/pr`.
 
 ### 6a. Review-fix loop
 

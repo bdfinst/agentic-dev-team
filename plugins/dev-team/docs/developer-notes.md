@@ -41,7 +41,9 @@ classifies the tail of each dispatched subagent's own transcript into one of fou
 - For the two non-clean, explainable outcomes (`empty-final-turn`, `truncated-final-turn`), the hook emits a
   `boundary-events.jsonl` "warn" record via
   `hooks/lib/boundary_events.emit_boundary_event`.
-- For `clean` and `unreadable`, the hook stays silent. It is record-only and never blocks.
+- For `clean` and `unreadable`, the hook stays silent.
+
+The hook is record-only and never blocks.
 
 The hook runs alongside the plugin's
 other `SubagentStop` hooks, `hooks/cost_meter.py` and

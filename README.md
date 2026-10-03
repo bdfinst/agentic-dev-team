@@ -48,7 +48,7 @@ Four commands drive feature development from idea to pull request:
 | Step           | Command  | What it does                                                                                                                                                                                                                                                                                       |
 |----------------|----------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | **1. Specify** | `/specs` | Describe the change and its goals — Intent, Architecture notes, Acceptance Criteria. A consistency gate must pass before you move on. Skip for bug fixes, refactors, or trivial changes.                                                                                                             |
-| **2. Plan**    | `/plan`  | Decompose the feature into vertical slices, author each slice's Gherkin scenarios, and lay out the TDD steps that satisfy them. Four plan-review personas (Acceptance Test, Design, UX, Strategic critics) challenge the plan before the human sees it. The human approves before any code is written. |
+| **2. Plan**    | `/plan`  | Decompose the feature into vertical slices, author each slice's Gherkin scenarios, and lay out the TDD steps that satisfy them. Up to five plan-review personas (Acceptance Test, Design, UX, Strategic, Parallelization critics), scaled to the plan tier, challenge the plan before the human sees it. The human approves before any code is written. |
 | **3. Build**   | `/build` | Execute the approved plan slice by slice. Each step follows RED-GREEN-REFACTOR with inline review checkpoints (spec-compliance first, then quality agents). It produces verification evidence.                                                                                                        |
 | **4. Ship**    | `/pr`    | Run quality gates (tests, typecheck, lint, code review) and open a pull request.                                                                                                                                                                                                                   |
 
@@ -66,7 +66,7 @@ The table below lists representative supporting commands. For the full catalog w
 | --- | --- | --- |
 | `/code-review` | dev-team | Run review agents, auto-fix actionable issues, re-run until clean (up to 5 iterations) |
 | `/continue` | dev-team | Resume an in-progress build or plan across sessions |
-| `/test-improve` | dev-team | Consolidated analyze-then-improve test orchestrator. Seven phases with human gates. Lightweight by default. Opt into Gherkin / mutation / refactor-for-testability on demand |
+| `/test-improve` | dev-team | Consolidated analyze-then-improve test orchestrator. Ten phases (0-9) with human gates. Lightweight by default. Opt into Gherkin / mutation / refactor-for-testability on demand |
 | `/browse` | dev-team | Visual QA via Playwright |
 | `/benchmark` | dev-team | Runtime performance metrics (Core Web Vitals, resource sizes) against baselines |
 | `/careful` / `/freeze` / `/guard` | dev-team | Safety modes for production-critical sessions |

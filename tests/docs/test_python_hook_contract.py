@@ -55,4 +55,4 @@ def test_contract_names_stderr_conventions(text: str) -> None:
 def test_contract_names_python_authoring_rules(text: str) -> None:
     assert re.search(r"^## Python authoring rules", text, re.MULTILINE)
     assert "stdlib" in text.lower()
-    assert re.search(r"3\.8", text)
+    assert re.search(r"3\.10", text)

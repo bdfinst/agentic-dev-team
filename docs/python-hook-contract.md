@@ -48,10 +48,8 @@ Canonical (partial) shape:
 - Read stdin with `sys.stdin.read()` once. Do not use `readline()`. Payloads
   may span multiple lines, and future events may embed newlines in string
   values.
-- Parse with `json.loads`. Malformed input MUST NOT crash the hook. The
-  bash hooks treat malformed input as advisory or silent-pass, depending
-  on the hook's contract. Follow the sibling `.sh`'s behavior byte-for-
-  byte during parallel-ship.
+- Parse with `json.loads`. Malformed input MUST NOT crash the hook.
+  Treat it as advisory or silent-pass, depending on the hook's contract.
 - Empty stdin (`""`) is a valid input for every hook. A hook that has
   nothing to do returns 0 with empty stdout.
 
@@ -101,9 +99,6 @@ plugin's own settings.json sets them:
 - `CLAUDE_TOOL_NAME` — name of the tool being invoked (`Bash`, `Edit`, …).
 - `CLAUDE_SESSION_ID` — current session UUID. The UUID is also on stdin, but
   Claude Code sets this env var for hooks that do not parse stdin.
-- `DEV_TEAM_PY_HOOK_<NAME>` — per-hook toggle described in
-  `plugins/dev-team/hooks/settings-toggle.md`. Default `0` (bash).
-  `1` routes to the `.py` port.
 - `MUTATION_SMOKE_GATE_SKIP` — hook-specific escape hatch (see the
   smoke-gate hook).
 - `DEV_TEAM_VERSION_CHECK_CACHE_DIR` — overrides `version_check.py`'s daily
@@ -144,13 +139,13 @@ macOS + Linux + Windows Git Bash.
 ## Python authoring rules
 
 - **Stdlib-only.** Zero third-party imports. Every dependency the hook
-  needs is in Python 3.8's stdlib: `argparse`, `dataclasses`, `hashlib`,
+  needs is in Python 3.10's stdlib: `argparse`, `dataclasses`, `hashlib`,
   `json`, `os`, `pathlib`, `re`, `shlex`, `shutil`, `signal`, `subprocess`,
   `sys`, `tempfile`. No `requirements.txt` for shipped hooks. The plugin
   ships to users who cannot `pip install` on their machines.
-- **Target Python 3.8+.** No `match/case`, no `|`-unions in type hints,
-  no `dict | None`. Those need 3.10+. `from __future__ import annotations`
-  is fine for type-hint delay.
+- **Target Python 3.10+** (ADR 0031). `match/case` and `X | None` unions
+  are allowed. `from __future__ import annotations` is fine for type-hint
+  delay.
 - **CLI with argparse** when a hook takes arguments. Otherwise, read stdin
   and dispatch on JSON fields.
 - **Tests: pytest.** Unit tests live under `plugins/dev-team/tests/hooks/`

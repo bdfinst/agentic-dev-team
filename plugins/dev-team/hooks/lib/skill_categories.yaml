@@ -7,7 +7,7 @@
 # "Other" section; the freshness gate then shows it as a diff, prompting you to
 # file it under the right capability and regenerate.
 #
-# Regenerate after editing: bash plugins/dev-team/hooks/lib/build-skills-index.sh
+# Regenerate after editing: python3 plugins/dev-team/hooks/lib/build_skills_index.py
 
 categories:
   - name: Specs and planning

@@ -8,9 +8,7 @@ the table below. The plugin **documents** a safe pattern rather than
 enforcing locks there, because git worktrees already solve the problem
 cleanly.
 
-Separately, a handful of small on-disk state files are lock-serialized (`hooks/lib/atomic_state.py`,
-
-# 1501/#1874/#1889). A single worktree's own hooks read-modify-write or append to these files
+Separately, a handful of small on-disk state files are lock-serialized (`hooks/lib/atomic_state.py`, #1501/#1874/#1889). A single worktree's own hooks read-modify-write or append to these files
 
 - Session and retry counters (`bash_retry_guard.py`, `session_learning_trigger.py`).
 - Four of the `.claude/metrics/*.jsonl` telemetry streams: `boundary-events.jsonl`,

@@ -236,7 +236,7 @@ The plugin no longer enforces a context ceiling with a hook ([ADR 0043](https://
 
 ### Freeze mode
 
-The `hooks/pre_tool_guard.py` hook also enforces freeze mode. When you invoke `/freeze <glob>`, the hook writes a state file (`.claude/hooks/freeze-state.json`, resolved per invoking repo via `hooks/lib/artifact_paths.py`, issue #1890). The file restricts Write/Edit operations to files matching the allowed pattern. This prevents accidental edits outside the scope of a debugging session.
+The `hooks/pre_tool_guard.py` hook also enforces freeze mode. When you invoke `/freeze <glob>`, the `/freeze` skill writes a state file (`.claude/hooks/freeze-state.json`, resolved per invoking repo via `hooks/lib/artifact_paths.py`, issue #1890). The hook reads that file and restricts Write/Edit operations to files matching the allowed pattern. This prevents accidental edits outside the scope of a debugging session.
 
 The state file is repo-scoped rather than relative to the hook's own shared install directory. One session's freeze therefore can never scope-lock a different, concurrently-running session's edits.
 

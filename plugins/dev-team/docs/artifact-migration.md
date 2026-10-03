@@ -118,6 +118,6 @@ deliberate new default posture, not a bug.
 - [ ] Old top-level `reports/`, `DEV_TEAM_REPORTS/`, `memory/`, and
       `plans/test-improve/` content stays exactly where it is. Read it from
       the old path, or move it by hand if you want it under the new tree.
-- [ ] The upgrade rewrote `.gitignore` rules for these directories to match the new
-      paths. If you have local overrides, re-check them against the new
-      `.claude/`-scoped and `.dev-team-reports/`-scoped paths.
+- [ ] Re-run `/setup` to append the `.claude/`-scoped and `.dev-team-reports/`-scoped
+      ignore rules. Upgrading the plugin does not edit your `.gitignore`. If you have
+      local overrides, re-check them against the new paths.

@@ -173,7 +173,7 @@ between "a plugin" and "a healthy, tested plugin."
 - **Portability — Python stdlib, cross-OS by construction.** Per
   [ADR 0014](adr/0014-python-for-cross-os-scripts.md) and
   [ADR 0015](adr/0015-bash-removal-complete.md), every shipped script in this
-  repo's `plugins/dev-team/` is **Python 3.8+ using stdlib only**. It runs
+  repo's `plugins/dev-team/` is **Python 3.10+ using stdlib only**. It runs
   natively on macOS, Linux, and Windows with no Git Bash requirement. Prefer
   that approach for a new plugin:
   - Use stdlib only, with no `pip install` for shipped code. `subprocess`,
@@ -190,11 +190,11 @@ between "a plugin" and "a healthy, tested plugin."
   - Keep the Windows-without-Git-Bash guard in each `install.sh`.
   - A **shell-based companion plugin** (this repo's `security-assessment` is
     one) still follows the old cross-shell rules for its own scripts.
-  - Keep those scripts bash-3.2-safe: no `mapfile`, `declare -A`, or
-    `${var,,}`. Expand possibly-empty arrays as `${arr[@]+"${arr[@]}"}` (cf.
-    `#220`).
-  - Guard BSD-vs-GNU differences in `readlink -f`, `sed -i`, `stat -c`,
-    `find -printf`, and `timeout` (cf. `#197`).
+    - Keep its scripts bash-3.2-safe: no `mapfile`, `declare -A`, or
+      `${var,,}`. Expand possibly-empty arrays as `${arr[@]+"${arr[@]}"}` (cf.
+      `#220`).
+    - Guard BSD-vs-GNU differences in `readlink -f`, `sed -i`, `stat -c`,
+      `find -printf`, and `timeout` (cf. `#197`).
 - **Tested.** Ship a pytest sensor (§4) and targeted unit/smoke tests. Wire
   them into CI as model-free gates. Mirror them in a local pre-push gate. Keep
   the gates parallel and fast (cf. `#247`). A runnable component (for example,

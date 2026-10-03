@@ -177,8 +177,8 @@ by priority (high first), then confidence (high before medium):
 - **`confidence: high`** — auto-applied.
 - **`confidence: medium`** — `/apply-fixes` shows the suggested diff, and the
   user confirms (`y/n/skip`).
-- **Declined prompts** — recorded as "skipped by user".
-- **Non-interactive runs** (for example, CI) — medium is treated as high.
+  - Declined prompts are recorded as "skipped by user".
+  - In non-interactive runs (for example, CI), medium is treated as high.
 
 Three constraints govern every fix:
 
@@ -272,7 +272,7 @@ conventionally, and deletes `corrections/` before merging — disposition
 
 ## Related documents
 
-- [Code Review Process](code-review-process.md) — the full `/code-review`
+- [Code review process](code-review-process.md) — the full `/code-review`
   pipeline that produces correction prompts
 - [Top-level Workflows](workflows.md) — the multi-phase orchestrators
   (`/ship`, `/test-improve`) that embed `/code-review` and `/apply-fixes`
