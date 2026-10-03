@@ -1,5 +1,18 @@
 # Changelog
 
+## [14.0.1](https://github.com/bdfinst/agentic-dev-team/compare/dev-team-v14.0.0...dev-team-v14.0.1) (2026-10-03)
+
+
+### Bug Fixes
+
+* **metrics:** record review verdicts from real SubagentStop payloads ([#2248](https://github.com/bdfinst/agentic-dev-team/issues/2248)) ([303c183](https://github.com/bdfinst/agentic-dev-team/commit/303c183f06e5ed12611f2ca0323049d09d585d9e))
+
+
+### Documentation
+
+* **style:** add documentation style rules to docs skills and CLAUDE.md ([#2245](https://github.com/bdfinst/agentic-dev-team/issues/2245)) ([579a4e3](https://github.com/bdfinst/agentic-dev-team/commit/579a4e333bb34df53c7ba7fe8719d359ca05a2e9))
+* **style:** apply documentation style rules to user-facing docs ([#2247](https://github.com/bdfinst/agentic-dev-team/issues/2247)) ([b8015dd](https://github.com/bdfinst/agentic-dev-team/commit/b8015ddb07debb2c5975d280b266d45500bbebec))
+
 ## [14.0.0](https://github.com/bdfinst/agentic-dev-team/compare/dev-team-v13.3.0...dev-team-v14.0.0) (2026-10-01)
 
 
