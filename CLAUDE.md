@@ -31,6 +31,10 @@ Length is the tell: if a reply is over ~10 lines and I didn't ask for depth, it'
   - Review your own fix before calling it done. Dispatch review agents (`correctness-review`, `test-review`) at your own diff from the top-level session and verify each finding by reproducing it.
 - **A mechanical finding reported twice becomes a check.** On the second report of the same mechanically-checkable finding, add a `CHECKS` entry to [`repo_invariants.py`](plugins/dev-team/skills/code-review/scripts/repo_invariants.py) in the same PR that fixes it.
 - **Prefer Python over bash, repo-wide.** Stdlib-only `.py` under `plugins/dev-team/`. Bash only for a genuine shell-script target or the unavoidable bootstrap shim. New `.bats` files are a review finding — port to `test_*.py` (see [ADR 0014](docs/adr/0014-python-for-cross-os-scripts.md), [ADR 0015](docs/adr/0015-bash-removal-complete.md)).
+- **Documentation style.** Applies to all prose in docs, skills, and agents; rules in [`documentation-style.md`](plugins/dev-team/knowledge/documentation-style.md).
+  - Follow the Google Developer Documentation Style Guide.
+  - Use ASD-STE100-derived precision rules.
+  - Apply Zinsser's four principles: clarity, simplicity, brevity, and humanity.
 - **Specs and plans are GitHub issues, not files.** A spec becomes an epic issue, each plan slice a sub-issue — create them by default. Fall back to `docs/specs/<slug>/{spec.md,plans/}` only with no GitHub connection.
 - **PRs close the issues they address.** `Closes #N` per sub-issue, `Part of #<epic>` for the epic. The `epic-auto-close` workflow closes the epic once its last sub-issue closes — GitHub itself won't.
 

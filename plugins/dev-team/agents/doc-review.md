@@ -82,6 +82,14 @@ Return `{"status": "skip", "issues": [], "summary": "No documentation files foun
   symbol than the one directly below it (e.g. a block describing function B left
   sitting above function A). Severity `warning`.
 
+### Prose style
+
+Newly written or changed documentation prose that breaks `${CLAUDE_PLUGIN_ROOT}/knowledge/documentation-style.md` (Google Developer Documentation Style Guide, ASD-STE100-derived precision rules, Zinsser's four principles; Whole-file load: short).
+
+- Severity `suggestion`, confidence `medium`. Never raise status above `warn` on style alone.
+- Flag only prose the change adds or rewrites, never untouched text.
+- Quote the offending sentence and give the rewrite in `suggestedFix`.
+
 ### Comment hygiene — describe purpose, not issues
 
 Comments must describe *purpose* (the why), not reference tracker items. Flag,

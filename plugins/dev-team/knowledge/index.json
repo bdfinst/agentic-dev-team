@@ -619,6 +619,24 @@
       "anchor": "how-this-connects-to-the-rest-of-the-toolkit"
     }
   },
+  "plugins/dev-team/knowledge/documentation-style.md": {
+    "The three rules": {
+      "summary": "1.",
+      "anchor": "the-three-rules"
+    },
+    "Google style — mechanics": {
+      "summary": "Address the reader as \"you\".",
+      "anchor": "google-style-mechanics"
+    },
+    "ASD-STE100-derived precision": {
+      "summary": "These rules borrow STE's discipline.",
+      "anchor": "asd-ste100-derived-precision"
+    },
+    "Zinsser's four principles": {
+      "summary": "**Clarity.** Say what you mean.",
+      "anchor": "zinssers-four-principles"
+    }
+  },
   "plugins/dev-team/knowledge/domain-modeling.md": {
     "Exploration Patterns": {
       "summary": "Map the project structure before detecting issues.",
@@ -2125,6 +2143,10 @@
     "When to defer to adr-author": {
       "summary": "This skill handles the CLI mechanics.",
       "anchor": "when-to-defer-to-adr-author"
+    },
+    "Documentation style": {
+      "summary": "Prose you write follows [`${CLAUDE_PLUGIN_ROOT}/knowledge/documentation-style.md`](${CLAUDE_PLUGIN_ROOT}/knowledge/documentation-style.md) (Whole-file load: short):",
+      "anchor": "documentation-style"
     }
   },
   "plugins/dev-team/skills/agent-audit/SKILL.md": {
@@ -3381,6 +3403,10 @@
     "Output": {
       "summary": "A design document at `docs/specs/{feature-name}.md` reviewed and approved by the human before the Plan phase begins.",
       "anchor": "output"
+    },
+    "Documentation style": {
+      "summary": "Prose you write follows [`${CLAUDE_PLUGIN_ROOT}/knowledge/documentation-style.md`](${CLAUDE_PLUGIN_ROOT}/knowledge/documentation-style.md) (Whole-file load: short):",
+      "anchor": "documentation-style"
     }
   },
   "plugins/dev-team/skills/design-interrogation/SKILL.md": {
@@ -6033,6 +6059,10 @@
     "Output": {
       "summary": "Three artifacts (Intent, Architecture Specification, Acceptance Criteria) plus a",
       "anchor": "output"
+    },
+    "Documentation style": {
+      "summary": "Prose you write follows [`${CLAUDE_PLUGIN_ROOT}/knowledge/documentation-style.md`](${CLAUDE_PLUGIN_ROOT}/knowledge/documentation-style.md): the Google Developer Documentation Style Guide, ASD-STE100-derived precision rules, and Zinsser's four principles (clarity, simplicity, brevity, humanity).",
+      "anchor": "documentation-style"
     }
   },
   "plugins/dev-team/skills/static-analysis-integration/SKILL.md": {
@@ -6707,6 +6737,10 @@
     "Integration": {
       "summary": "**[Domain Analysis](../domain-analysis/SKILL.md)** — run domain-analysis after this skill to get architectural coupling findings annotated with canonical terms",
       "anchor": "integration"
+    },
+    "Documentation style": {
+      "summary": "Prose you write follows [`${CLAUDE_PLUGIN_ROOT}/knowledge/documentation-style.md`](${CLAUDE_PLUGIN_ROOT}/knowledge/documentation-style.md) (Whole-file load: short):",
+      "anchor": "documentation-style"
     }
   },
   "plugins/dev-team/skills/unfreeze/SKILL.md": {

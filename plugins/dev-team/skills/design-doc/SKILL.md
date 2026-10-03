@@ -93,3 +93,11 @@ Diagrams, mockups, data flow sketches — anything that clarifies the design. Us
 
 ## Output
 A design document at `docs/specs/{feature-name}.md` reviewed and approved by the human before the Plan phase begins.
+
+## Documentation style
+
+Prose you write follows [`${CLAUDE_PLUGIN_ROOT}/knowledge/documentation-style.md`](${CLAUDE_PLUGIN_ROOT}/knowledge/documentation-style.md) (Whole-file load: short):
+
+- Follow the Google Developer Documentation Style Guide.
+- Use ASD-STE100-derived precision rules.
+- Apply Zinsser's four principles: clarity, simplicity, brevity, and humanity.

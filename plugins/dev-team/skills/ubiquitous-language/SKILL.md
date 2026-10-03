@@ -190,3 +190,11 @@ Tell the user: "Glossary written to `.plans/domain/`. Run `/code-review` or `dom
 - **[Domain Analysis](../domain-analysis/SKILL.md)** — run domain-analysis after this skill to get architectural coupling findings annotated with canonical terms
 - **[Domain-Driven Design](../domain-driven-design/SKILL.md)** — use the glossary as input when designing bounded contexts or aggregate boundaries
 - **[Specs](../specs/SKILL.md)** — when writing BDD scenarios, pull term names from `.plans/domain/` to ensure scenario language matches the glossary
+
+## Documentation style
+
+Prose you write follows [`${CLAUDE_PLUGIN_ROOT}/knowledge/documentation-style.md`](${CLAUDE_PLUGIN_ROOT}/knowledge/documentation-style.md) (Whole-file load: short):
+
+- Follow the Google Developer Documentation Style Guide.
+- Use ASD-STE100-derived precision rules.
+- Apply Zinsser's four principles: clarity, simplicity, brevity, and humanity.

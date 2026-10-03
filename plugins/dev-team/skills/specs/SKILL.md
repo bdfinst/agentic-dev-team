@@ -234,3 +234,7 @@ Once the gate passes, persist the artifacts and trigger the next phase. That
 procedure — classifying file vs. GitHub-issue persistence, the body template,
 and the `/plan` auto-trigger — lives in
 [`references/persistence.md`](references/persistence.md). **Load it now.**
+
+## Documentation style
+
+Prose you write follows [`${CLAUDE_PLUGIN_ROOT}/knowledge/documentation-style.md`](${CLAUDE_PLUGIN_ROOT}/knowledge/documentation-style.md): the Google Developer Documentation Style Guide, ASD-STE100-derived precision rules, and Zinsser's four principles (clarity, simplicity, brevity, humanity).
